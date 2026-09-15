@@ -11,7 +11,22 @@ import { join, resolve, relative } from 'node:path'
  */
 
 const ROOT = resolve(__dirname, '../..')
-const SCAN_DIRS = ['app/(portal)', 'components/patient-portal']
+/**
+ * Every surface that paints portal chrome at a patient. The five token landing
+ * pages were missing (DREAMCRM-50) — `portal-brand.test.ts` already lists them
+ * as patient surfaces and derives the clinic brand for each, so a raw meaning
+ * hex could sit on a page that arrives by text or email while this guard
+ * reported the portal clean. Keep the two lists in step.
+ */
+const SCAN_DIRS = [
+  'app/(portal)',
+  'components/patient-portal',
+  'app/b/[token]',
+  'app/c/[token]',
+  'app/i/[token]',
+  'app/n/[token]',
+  'app/r/[token]',
+]
 const TOKEN_HOME = 'components/patient-portal/ui.tsx'
 
 // hex → the token that owns it.
@@ -55,6 +70,25 @@ describe('portal semantic tokens (single source of truth)', () => {
       }
     }
     expect(hits, hits.join('\n')).toEqual([])
+  })
+
+  it('sweeps every patient surface, token landing pages included', () => {
+    // The scope this guard shipped with was the portal tree only, so the five
+    // pages that arrive by text or email were unswept — and three of them were
+    // painting the error hex raw. portal-brand.test.ts already treats these as
+    // patient surfaces; the two lists have to stay in step.
+    const swept = SCAN_DIRS.flatMap((base) =>
+      walk(join(ROOT, base)).map((f) => relative(ROOT, f).replace(/\\/g, '/')),
+    )
+    for (const page of [
+      'app/b/[token]/pay-form.tsx',
+      'app/c/[token]/confirm-form.tsx',
+      'app/i/[token]/page.tsx',
+      'app/n/[token]/survey-form.tsx',
+      'app/r/[token]/page.tsx',
+    ]) {
+      expect(swept, `${page} must be swept`).toContain(page)
+    }
   })
 
   it('the token module actually defines every owned hex (no orphan bans)', () => {

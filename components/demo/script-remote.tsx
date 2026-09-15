@@ -155,7 +155,7 @@ export default function ScriptRemote({ skin }: { skin: DemoSkin | null }) {
         <div className="mt-3 flex items-center gap-2">
           <label
             htmlFor="remote-track"
-            className="shrink-0 text-[10px] font-medium uppercase tracking-wider text-gray-500"
+            className="shrink-0 text-xs font-medium uppercase tracking-wider text-gray-500"
           >
             Story
           </label>
@@ -224,7 +224,7 @@ export default function ScriptRemote({ skin }: { skin: DemoSkin | null }) {
                       <span className={`text-sm font-semibold ${current ? 'text-gray-100' : ''}`}>
                         {i + 1}. {b.title}
                       </span>
-                      <span className="shrink-0 text-[10px] uppercase tracking-wider text-gray-600">
+                      <span className="shrink-0 text-xs uppercase tracking-wider text-gray-600">
                         {DEMO_GROUP_LABELS[b.group]}
                       </span>
                     </div>
@@ -236,7 +236,7 @@ export default function ScriptRemote({ skin }: { skin: DemoSkin | null }) {
                         {b.moves && b.moves.length > 0 && (
                           <ul className="mt-1.5 space-y-0.5">
                             {b.moves.map((m) => (
-                              <li key={m} className="flex items-start gap-1.5 text-[11px] text-teal-300/90">
+                              <li key={m} className="flex items-start gap-1.5 text-xs text-teal-300/90">
                                 <span aria-hidden="true">▸</span>
                                 <span>{m}</span>
                               </li>
@@ -244,7 +244,7 @@ export default function ScriptRemote({ skin }: { skin: DemoSkin | null }) {
                           </ul>
                         )}
                         {(gapsByBeat[b.id] ?? []).slice(0, 2).map((g) => (
-                          <p key={g} className="mt-1 flex items-start gap-1.5 text-[11px] text-amber-300/90">
+                          <p key={g} className="mt-1 flex items-start gap-1.5 text-xs text-amber-300/90">
                             <span aria-hidden="true">⚠</span>
                             <span>
                               Their practice today: <span className="font-medium">{g}</span>
@@ -274,7 +274,7 @@ export default function ScriptRemote({ skin }: { skin: DemoSkin | null }) {
         )}
 
         <div className="mt-4 flex items-center justify-between gap-2">
-          <span className="text-[10px] text-gray-600">→ next · ← back · digits jump</span>
+          <span className="text-xs text-gray-600">→ next · ← back · digits jump</span>
           <button
             type="button"
             onClick={() => send({ kind: 'wrapup' })}

@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { confirmVisitAction } from './actions'
+import { PORTAL_ERROR } from '@/components/patient-portal/ui'
 import { buildIcs, icsDataUrl } from '@/lib/ics'
 
 /**
@@ -201,7 +202,7 @@ export default function ConfirmForm({
         {pending ? 'Confirming…' : 'Confirm my visit'}
       </button>
       {error && (
-        <p className="mt-3 text-sm" style={{ color: '#B4231F' }} role="alert">
+        <p className="mt-3 text-sm" style={{ color: PORTAL_ERROR }} role="alert">
           {error}
         </p>
       )}

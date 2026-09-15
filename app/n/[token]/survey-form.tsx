@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { submitNpsScoreAction, submitNpsCommentAction } from './actions'
+import { PORTAL_ERROR } from '@/components/patient-portal/ui'
 
 /**
  * The 10-second survey: a 0–10 tap row, then an optional "tell us more" box.
@@ -13,7 +14,7 @@ import { submitNpsScoreAction, submitNpsCommentAction } from './actions'
 const INK = '#1C1A17'
 const MUTED = '#6B635A'
 const BORDER = '#E8E2D9'
-const ERROR = '#B4231F'
+const ERROR = PORTAL_ERROR
 
 export default function SurveyForm({
   token,
