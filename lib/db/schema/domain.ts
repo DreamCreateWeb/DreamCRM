@@ -575,10 +575,19 @@ export const inboxMessages = pgTable('inbox_messages', {
 })
 
 // ---------- Per-user billing profile ----------
-// NOTE: For clinic orgs, the source of truth for subscription state is
-// `clinicProfile` (see lib/db/schema/platform.ts). This per-user table is
-// retained for backwards-compatibility with the single-tenant Plans UI and
-// will be reconciled into clinicProfile in a follow-up.
+// DORMANT — no product code reads or writes this table (DREAMCRM-58), and
+// `tests/billing/no-billing-profiles-write.test.ts` keeps it that way in both
+// directions. The source of truth for a clinic's plan and subscription state is
+// the ORG-scoped `clinicProfile` (`planTier`, `subscriptionStatus`, see
+// lib/db/schema/platform.ts), written by the Stripe webhook and read through
+// `getTenantContext`.
+//
+// This per-user table came from the single-tenant Plans UI, which is gone. Its
+// last writer was `upsertBilling`, and nothing ever read it back for billing —
+// so the rows still in it are whatever that retired UI happened to leave, and
+// pointing a read at them would give them a meaning they never had. The
+// definition stays only because dropping the table is a migration on the deploy
+// path; that is queued in docs/POST-1.0.md.
 export const billingPlanEnum = pgEnum('billing_plan', ['free', 'pro', 'team', 'enterprise'])
 
 export const billingProfiles = pgTable('billing_profiles', {

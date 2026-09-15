@@ -6,13 +6,10 @@ import { requireUser } from '@/lib/session'
 import { requireTenant } from '@/lib/auth/context'
 import {
   AccountInput,
-  BillingInput,
-  BillingPlan,
   FeedbackInput,
   NotificationPrefsInput,
   submitFeedback,
   updateAccount,
-  upsertBilling,
   upsertNotificationPrefs,
 } from '@/lib/services/settings'
 import { createCheckoutSession, createPortalSession, setSubscriptionCancelation, updateSubscriptionPlan } from '@/lib/services/billing'
@@ -26,22 +23,18 @@ export async function saveAccount(input: unknown) {
   return row
 }
 
-export async function saveBilling(input: unknown) {
-  const user = await requireUser()
-  const row = await upsertBilling(user.id, BillingInput.parse(input))
-  revalidatePath('/settings/billing')
-  revalidatePath('/settings/plans')
-  return row
-}
-
-export async function changePlan(plan: string) {
-  const user = await requireUser()
-  const parsed = BillingPlan.parse(plan)
-  const row = await upsertBilling(user.id, { plan: parsed })
-  revalidatePath('/settings/plans')
-  revalidatePath('/settings/billing')
-  return row
-}
+// `saveBilling` and `changePlan` are gone (DREAMCRM-58). Both wrote the
+// user-keyed `billing_profiles` table that nothing read back, and neither had
+// a caller left — the merged Settings → Billing surface reads plan and
+// subscription state from the org-scoped clinic_profile via `requireTenant`,
+// and a plan is CHANGED through `startStripeCheckout` /
+// `updateSubscriptionPlan` below, which move real money at Stripe.
+//
+// `changePlan` in particular took the plan name straight from its caller and
+// wrote it, which is the shape of a plan escalation waiting for someone to
+// point a read at the wrong table. Its name also collided with the genuine
+// `changePlan` in `app/(default)/ecommerce/invoices/admin-actions.ts` (a Stripe
+// price swap), which is exactly the confusion a dead twin causes.
 
 export async function startStripeCheckout(planId: PlanId, interval: BillingInterval) {
   const ctx = await requireTenant()
