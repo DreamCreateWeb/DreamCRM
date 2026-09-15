@@ -2893,7 +2893,7 @@ instrument this wants is a monotonicity guard that reads the entry's value on
 be written down. That is a different defect from the routing hole and is filed
 separately rather than bundled into it.
 
-### Clipped text over a SOLID brand fill is graded by no rule (2026-09-14) · FIXED — awaiting merge (#588)
+### Clipped text over a SOLID brand fill is graded by no rule (2026-09-14) · FIXED — awaiting merge (#590)
 
 **The defect.** Rule 4 (#566) grades `bg-clip-text text-transparent` only when
 the ink is a *gradient* — `isGradientText` in `tests/a11y/class-pairs.ts`
@@ -2917,7 +2917,7 @@ which is precisely the shape #566's own module header argues for writing down:
 to it.* Rule 4 was written for the gradient inverse of rule 3 and left its own
 solid-fill inverse open.
 
-**The fix** (DREAMCRM-63, #588). `gradeClippedTextClasses` — rule 4's grader,
+**The fix** (DREAMCRM-63, #590). `gradeClippedTextClasses` — rule 4's grader,
 renamed off "gradient" because it is no longer only about one — grades a base
 opaque `bg-<colour>` as the INK whenever the chunk is `bg-clip-text
 text-transparent` and has no gradient stop to clip instead. Where a chunk
@@ -2933,7 +2933,7 @@ Because the fix removes nothing from the tree there is no live subject to prove
 it on, so the planted shapes in the test ARE the evidence — the same argument
 rule 5 made after its own sweep emptied its window.
 
-### Three dead-exemption detectors grade the match, never the reason (2026-09-15) · FIXED — awaiting merge (#588)
+### Three dead-exemption detectors grade the match, never the reason (2026-09-15) · FIXED — awaiting merge (#590)
 
 **The defect.** This repo has four detectors whose job is to stop a narrow
 allowance outliving its subject — `deadBrandFillExemptions`,
@@ -2960,7 +2960,7 @@ for a readable panel keeping the wrapper and the `aria-hidden` and
 `deadExclusions` reports nothing while a subtree of real content drops out of a
 zero-ceiling scan.
 
-**The fix** (DREAMCRM-63, #588). Each of the three now asserts its own premise,
+**The fix** (DREAMCRM-63, #590). Each of the three now asserts its own premise,
 in the shape #587 established — structural half plus numeric half, both
 directions:
 
