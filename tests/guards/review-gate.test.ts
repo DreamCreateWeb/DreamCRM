@@ -48,6 +48,97 @@ function intakeAreasFor(...files: string[]): string[] {
   return intakeFindings(files).map((f: { id: string }) => f.id)
 }
 
+/**
+ * EVERY LOCAL MODULE A SUITE FILE IMPORTS, as repo-relative candidate paths.
+ *
+ * Both derivations below — the tree-walk detector and the palette-grader
+ * detector — decide whether a file is a repo-wide rule by following its
+ * imports. They each had their own copy of `/from\s+'(\.[^']+)'/g`, and that
+ * regex sees exactly one of the two spellings this repo actually uses.
+ *
+ * **SENTINEL WATCHED IT MISS, reviewing #597.** They planted
+ * `tests/a11y/sentinel-mutation.test.ts` — a brand-new, unlisted, repo-wide
+ * palette rule — importing `from '@/tests/a11y/palette'`. `tsconfig.json` maps
+ * `@/*` → `./*`, so it resolves and runs like any other module.
+ * `review-gate.test.ts` came back **13 passed**: a new class of assertion, not
+ * on the intake list, reported clean by the very rule written to catch that.
+ *
+ * It is §2d's identity-looseness family in a spelling it did not have yet.
+ * Not a missing `\b`, not a Tailwind `_`, not a prefix mistaken for a name —
+ * **the right module reached by a different path spelling.** The red run that
+ * shipped with the rule tested the WIDENING direction (two bounded
+ * template-recipe files it must leave alone) and never tested the missing one,
+ * which is the asymmetry `axe-selftest` exists to teach: an absence assertion
+ * over a clean tree cannot tell a working detector from a narrowed one.
+ *
+ * So resolution lives HERE, once, and is red-run below against every spelling
+ * rather than the one that happened to be in the tree:
+ *
+ *   - relative — `./palette`, `../a11y/palette`, resolved against the importer;
+ *   - alias — `@/tests/a11y/palette`, resolved against the repo root, because
+ *     that is what `tsconfig.json` says `@/*` means;
+ *   - either quote character, since nothing but lint convention keeps this
+ *     repo on single quotes and a guard should not depend on a lint rule.
+ *
+ * Extensionless by design: it returns the candidate spellings a resolver would
+ * try, and callers compare against the tracked path.
+ *
+ * WATCHED TO FAIL AGAINST THE REAL MUTATION, not only against the table below.
+ * Sentinel's planted file was recreated verbatim — `tests/a11y/
+ * sentinel-mutation.test.ts`, importing `from '@/tests/a11y/palette'`, added to
+ * the index so `git ls-files` sees it — and the palette-grader rule now fails
+ * naming that exact path, where before the fix the same file produced a clean
+ * run. The fixture is NOT kept in the tree on purpose: a permanent unlisted
+ * palette grader would trip the very rule it demonstrates, so the durable form
+ * is the spelling table here plus this record of the tree-level run.
+ */
+export function importedModules(file: string, source: string): string[] {
+  const out: string[] = []
+  for (const m of Array.from(source.matchAll(/from\s+['"]([^'"]+)['"]/g))) {
+    const spec = m[1]
+    let base: string | null = null
+    if (spec.startsWith('.')) base = normalize(join(dirname(file), spec))
+    else if (spec.startsWith('@/')) base = normalize(spec.slice(2))
+    if (base === null) continue
+    const t = base.split('\\').join('/')
+    out.push(t, `${t}.ts`, `${t}.tsx`, `${t}/index.ts`)
+  }
+  return out
+}
+
+describe('the import resolver both derivations share', () => {
+  // THE RED RUN, in the direction the shipped version could not fail in.
+  // Every spelling below resolves to the SAME module; the alias one is the
+  // case Sentinel planted and watched pass.
+  const REACHES_PALETTE: Array<[string, string]> = [
+    ['relative, same directory', "import { AA } from './palette'"],
+    ['relative, up and across', "import { AA } from '../a11y/palette'"],
+    ['the ALIAS spelling — the miss', "import { AA } from '@/tests/a11y/palette'"],
+    ['alias, double-quoted', 'import { AA } from "@/tests/a11y/palette"'],
+    ['relative, double-quoted', 'import { AA } from "./palette"'],
+    ['among other imports', "import { x } from 'vitest'\nimport { AA } from '@/tests/a11y/palette'"],
+  ]
+
+  it.each(REACHES_PALETTE)('resolves %s', (_why, source) => {
+    expect(importedModules('tests/a11y/some-rule.test.ts', source)).toContain('tests/a11y/palette.ts')
+  })
+
+  it('does not invent a local module out of a package import', () => {
+    // `vitest`, `node:fs`, `@vitest/spy` — bare specifiers and scoped packages
+    // are not files in this tree, and a resolver that guessed at them would
+    // put every test file in the graph.
+    const src = "import { describe } from 'vitest'\nimport { readFileSync } from 'node:fs'\nimport x from '@vitest/spy'"
+    expect(importedModules('tests/a11y/some-rule.test.ts', src)).toEqual([])
+  })
+
+  it('does not confuse a different module whose name merely ends the same way', () => {
+    // The widening direction, kept from the shipped red run: a product module
+    // that happens to be called `palette` is not this repo's a11y palette.
+    const src = "import { buildCosmeticPalette } from '@/lib/site-templates/cosmetic/palette'"
+    expect(importedModules('tests/x.test.ts', src)).not.toContain('tests/a11y/palette.ts')
+  })
+})
+
 describe('the review-gate classifier', () => {
   it('flags a change in every area the review gate names', () => {
     // One real path per rule, spelled out rather than generated: if somebody
@@ -374,11 +465,7 @@ describe('the review-gate classifier', () => {
     const suite = trackedFiles().filter((f) => /^(tests|e2e)\/.*\.tsx?$/.test(f))
     const src = new Map(suite.map((f) => [f, readFileSync(join(process.cwd(), f), 'utf8')]))
 
-    const localImports = (f: string): string[] =>
-      Array.from(src.get(f)!.matchAll(/from\s+'(\.[^']+)'/g)).flatMap((m) => {
-        const t = normalize(join(dirname(f), m[1])).split('\\').join('/')
-        return [t, `${t}.ts`, `${t}.tsx`, `${t}/index.ts`]
-      })
+    const localImports = (f: string): string[] => importedModules(f, src.get(f)!)
 
     const WALKS = /readdirSync|'ls-files'/
     const PRODUCT_ROOT = /(^|[^\w])'(app|components|lib)'/
@@ -451,20 +538,22 @@ describe('the review-gate classifier', () => {
     const suite = trackedFiles().filter((f) => /^(tests|e2e)\/.*\.tsx?$/.test(f))
     const src = new Map(suite.map((f) => [f, readFileSync(join(process.cwd(), f), 'utf8')]))
 
-    // RESOLVED, not pattern-matched. The first draft of this rule matched any
-    // import path ENDING in `/palette`, and it named two files that grade a
-    // product module which happens to share the word — `@/lib/site-templates/
-    // cosmetic/palette` and `@/lib/clinic-site-theme`. Those grade one
-    // template's recipe against its own inputs; they are bounded, and sweeping
-    // them in would be the "208 places to catch 8" trade one directory over.
-    // The subject is THIS repo's a11y palette module specifically, so resolve
-    // the relative import and compare paths.
+    // RESOLVED, not pattern-matched, and resolved through the SHARED helper.
+    // The first draft of this rule matched any import path ENDING in
+    // `/palette`, and it named two files that grade a product module which
+    // happens to share the word — `@/lib/site-templates/cosmetic/palette` and
+    // `@/lib/clinic-site-theme`. Those grade one template's recipe against its
+    // own inputs; they are bounded, and sweeping them in would be the "208
+    // places to catch 8" trade one directory over.
+    //
+    // The SECOND draft — the one that shipped in #597 — fixed that by
+    // resolving the import, and resolved only the RELATIVE spelling. Sentinel
+    // planted `from '@/tests/a11y/palette'` and watched this come back clean.
+    // `importedModules` above now owns both spellings and is red-run against
+    // each; see its header for why the miss was structural rather than sloppy.
     const PALETTE_MODULE = 'tests/a11y/palette.ts'
     const importsPalette = (f: string): boolean =>
-      Array.from(src.get(f)!.matchAll(/from\s+'(\.[^']+)'/g)).some((m) => {
-        const t = normalize(join(dirname(f), m[1])).split('\\').join('/')
-        return t === PALETTE_MODULE || `${t}.ts` === PALETTE_MODULE
-      })
+      importedModules(f, src.get(f)!).includes(PALETTE_MODULE)
 
     const graders = suite.filter((f) => f !== PALETTE_MODULE && importsPalette(f))
 
