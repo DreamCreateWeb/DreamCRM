@@ -212,14 +212,9 @@ export async function finalizeBalancePaymentFromSession(
   const [payment] = await db
     .select()
     .from(schema.patientBalancePayment)
-    .where(
-      and(
-        eq(schema.patientBalancePayment.organizationId, organizationId),
-        eq(schema.patientBalancePayment.stripeCheckoutSessionId, sessionId),
-      ),
-    )
+    .where(eq(schema.patientBalancePayment.stripeCheckoutSessionId, sessionId))
     .limit(1)
-  if (!payment || payment.status === 'paid') return
+  if (!payment) return
 
   const cfg = await connectedAccount(organizationId)
   if (!cfg?.accountId) return
