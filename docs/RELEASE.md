@@ -575,7 +575,11 @@ binding are all correct. The payment-plan charger was the exception.
   written with BACKSPACE bytes where its word-boundary escapes belonged, so it
   matched nothing and passed on the first try; the red run against the live bug
   is what caught that. A guard authored straight to green proves only that it
-  runs.
+  runs. This was the first of three reviews in a row to end on a guard that
+  could not fail, which is what produced the one-time audit of the whole
+  existing guard suite — **`docs/GUARD-MUTATION-PASS.md`** (DREAMCRM-50): 42
+  mutations over 31 guards, 7 of them blind, 14 live defects found behind
+  them, and the two regex traps that caused most of it.
 - S3 · three clinic-side HISTORY surfaces still read "$400 paid" on a charge
   the patient had been refunded, while the patient's own portal said
   "Refunded to you" — one event, two stories, and a front desk on the phone
