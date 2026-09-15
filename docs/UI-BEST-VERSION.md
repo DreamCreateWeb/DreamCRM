@@ -49,6 +49,35 @@ up" are different facts and only one of them is a backlog item.
    `VARIANT_CLASSES` (the single-home argument the exemption rests on) and
    re-derives the 4.53 from the palette, so if the margin ever goes the wrong
    way the suite says so instead of the pardon quietly widening.
+5. **177 sites paint a muted label `text-gray-400 dark:text-gray-500` — the
+   legible step and the illegible one, swapped, in BOTH themes.** Found
+   2026-09-15 by a red `e2e` on `main`: `staff: appointment drawer open` and
+   `staff: cancel-appointment confirmation over the drawer` each reported
+   `color-contrast ×1` against a ceiling of zero, at
+   `.mr-0\.5.dark\:text-gray-500.text-gray-400` — **#93a0bc on #f3f7fe,
+   measured 2.44:1, 12px, normal weight**. The element was the "Views:" label of
+   the shared saved-views bar, which arrived with #587 and reaches the
+   appointments agenda. Re-derived from the palette, on every declared surface:
+
+   | | gray-400 | gray-500 |
+   |---|---|---|
+   | light | **2.29 – 2.63 ✗** | 4.63 – 5.30 ✓ |
+   | dark | 5.73 – 7.07 ✓ | **2.84 – 3.51 ✗** |
+
+   So the correct pair is `text-gray-500 dark:text-gray-400`, which is what the
+   bar's own twin (`app/(default)/patients/saved-views-bar.tsx`), the two labels
+   in `agenda-view.tsx` and the one in `feedback-admin.tsx` already say. The
+   house pattern is the wrong one and those four are the minority.
+   **Only ONE site is fixed** (`components/saved-views/saved-views-bar.tsx`, the
+   one that turned a required check red); the other 176 are a UI batch and this
+   is the hand-off. `grep -rn "text-gray-400" app components lib | grep
+   "dark:text-gray-500"` enumerates them. No existing guard sees this: rule 1
+   (dark-mode parity) grades an ink AND a surface in one quoted string, and
+   these chunks carry no `bg-*` — a documented false negative, and widening rule
+   1 to resolve every possible ancestor is the "208 places to catch 8" trade its
+   own header refuses. The measurement and the direction are pinned in
+   `tests/a11y/muted-ink-direction.test.ts`, which grades the palette and that
+   one component and says so out loud — a green run there is not a clean tree.
 
 Everything else unstruck in this file is **deferred with a stated reason**
 (needs a data series the services do not keep, or a deliberate design decision
