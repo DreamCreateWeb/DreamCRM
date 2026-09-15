@@ -1,5 +1,5 @@
 import 'server-only'
-import { and, asc, eq, lte, inArray, notInArray } from 'drizzle-orm'
+import { and, asc, eq, lte, notInArray } from 'drizzle-orm'
 import { listShutDownOrgIds } from './billing-state'
 import { db, schema } from '@/lib/db'
 import { randomBytes } from 'crypto'
@@ -242,17 +242,32 @@ export async function sendDueScheduledMessages(now: Date = new Date()): Promise<
  * Re-arm scheduled rows that got stuck in 'sending' (e.g. the process died
  * mid-flush). Anything older than the threshold goes back to 'pending' so the
  * next run retries it. Defensive — should rarely match.
+ *
+ * ONE STATEMENT, NOT SELECT-THEN-UPDATE. This used to read the stuck ids and
+ * then update by `id in (…)` with nothing else in the WHERE — so between the
+ * two statements the flush that OWNED the row could finish, mark it 'sent',
+ * and have this blind write flip it straight back to 'pending'. The next
+ * flush claimed it and the patient got the same message twice. The row most
+ * likely to lose that race is exactly the one this function exists for: the
+ * one that has been sending for almost precisely `olderThanMs`. A 'failed'
+ * row was resurrected the same way, discarding the error staff were about to
+ * read.
+ *
+ * Folding the test into the UPDATE closes the window completely: Postgres
+ * takes the row lock and re-evaluates `status = 'sending'` against the
+ * committed row, so a message that finished while we were deciding is simply
+ * not matched. The count returned is what was actually re-armed, not what an
+ * earlier scan happened to see.
  */
 export async function requeueStuckScheduledMessages(olderThanMs = 10 * 60 * 1000): Promise<number> {
   const cutoff = new Date(Date.now() - olderThanMs)
-  const stuck = await db
-    .select({ id: schema.scheduledMessage.id })
-    .from(schema.scheduledMessage)
-    .where(and(eq(schema.scheduledMessage.status, 'sending'), lte(schema.scheduledMessage.updatedAt, cutoff)))
-  if (stuck.length === 0) return 0
-  await db
+  const requeued = await db
     .update(schema.scheduledMessage)
     .set({ status: 'pending', updatedAt: new Date() })
-    .where(inArray(schema.scheduledMessage.id, stuck.map((s) => s.id)))
-  return stuck.length
+    .where(and(eq(schema.scheduledMessage.status, 'sending'), lte(schema.scheduledMessage.updatedAt, cutoff)))
+    .returning({ id: schema.scheduledMessage.id })
+  if (requeued.length > 0) {
+    console.warn('[scheduled-messages] re-armed stranded sends', { count: requeued.length })
+  }
+  return requeued.length
 }
