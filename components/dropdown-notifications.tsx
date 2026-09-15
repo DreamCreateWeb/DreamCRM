@@ -262,7 +262,7 @@ export default function DropdownNotifications({ align }: { align?: 'left' | 'rig
                               {n.body && (
                                 <p className="mt-0.5 line-clamp-2 text-xs leading-relaxed text-gray-500 dark:text-gray-400">{n.body}</p>
                               )}
-                              <p className="mt-1 text-[11px] font-medium tabular-nums text-gray-400 dark:text-gray-500">
+                              <p className="mt-1 text-xs font-medium tabular-nums text-gray-400 dark:text-gray-500">
                                 {formatRelative(n.createdAt)}
                               </p>
                             </div>
