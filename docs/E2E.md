@@ -348,6 +348,39 @@ than one; warning on every wobble would have put a "shrink me" annotation on
 half of all runs within a day, and an annotation that is usually wrong is one
 people stop reading.
 
+### The headroom table — what the warning deliberately does not say
+
+The wobble allowance has an exact cost, and it was paid: **a ceiling that is
+now exactly one too high prints no warning at all.** Four ceilings stood a
+whole batch longer than they needed to for that reason, and the only evidence
+sat in the run log's `carried by the baseline` lines — one per stop,
+interleaved with everything else Playwright prints.
+
+So since DREAMCRM-48 the run ends with **one table naming every (stop, rule)
+that measured under its ceiling**, on the job summary and in the log
+(`e2e/axe-headroom.ts`, registered as a Playwright reporter in
+`playwright.config.ts`). The warning stays exactly as it was — this is the
+quiet half, gathered rather than announced.
+
+Three things about reading it:
+
+- **"Worst seen" is the highest count any attempt reported**, never an average
+  and never the last one. Because the counts wobble, that is the lowest a
+  ceiling can honestly go; shrinking to a lucky low sample fails a required
+  check on the next run, on a page nobody changed. A (stop, rule) that hit its
+  ceiling on any single attempt is left out of the table entirely.
+- **"Samples" is how many measurements the row is built from.** One sample is
+  one sample, not a trend. Five agreeing ones are evidence.
+- **Only stops this run visited can appear.** A ceiling for a stop no spec
+  reached is invisible here, and so is a rule that never fired — the table is
+  evidence about what ran, not an audit of the file.
+
+It reports and nothing else: it cannot fail a run, cannot change which rules
+are over their ceiling, and holds no opinion about what should be shrunk.
+`tests/guards/axe-headroom-table.test.ts` pins both halves of that — the wiring
+(a reporter that quietly stops being registered looks exactly like a run with
+no headroom to report) and the powerlessness.
+
 `rulesOverBaseline` is the whole ratchet in one pure function, and
 `axe-selftest.spec.ts` pins its direction — at the ceiling passes, one above
 fails, an unlisted rule and an unlisted stop tolerate nothing. Get that

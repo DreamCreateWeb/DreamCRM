@@ -36,6 +36,22 @@ const BASE_URL = process.env.E2E_BASE_URL ?? `http://127.0.0.1:${PORT}`
  */
 const E2E_RESULTS_JSON = 'e2e-results.json'
 
+/**
+ * The end-of-run table naming every axe ceiling with room left in it
+ * (`e2e/axe-headroom.ts`).
+ *
+ * In BOTH reporter lists on purpose. The information it prints is most useful
+ * to whoever just fixed an accessibility defect, and that person is at a local
+ * `pnpm test:e2e` long before they are at a CI log — a stale ceiling that only
+ * ever shows up on CI gets found a PR later than it needed to be.
+ *
+ * It is reporting and nothing else: it reads test annotations, prints a table,
+ * and cannot fail a run. `tests/guards/axe-headroom-table.test.ts` pins both
+ * that direction and this wiring, because a reporter that quietly stops being
+ * registered goes on looking exactly like a run with no headroom to report.
+ */
+const AXE_HEADROOM_REPORTER = './e2e/axe-headroom.ts'
+
 export default defineConfig({
   testDir: './e2e',
   // A golden-path spec that needs a retry is a flaky spec — and a flaky E2E
@@ -59,8 +75,13 @@ export default defineConfig({
   // reporter clears that folder when it generates, which would delete a
   // sibling file written by a reporter earlier in this list.
   reporter: process.env.CI
-    ? [['list'], ['html', { open: 'never' }], ['json', { outputFile: E2E_RESULTS_JSON }]]
-    : [['list']],
+    ? [
+        ['list'],
+        ['html', { open: 'never' }],
+        ['json', { outputFile: E2E_RESULTS_JSON }],
+        [AXE_HEADROOM_REPORTER],
+      ]
+    : [['list'], [AXE_HEADROOM_REPORTER]],
   use: {
     baseURL: BASE_URL,
     trace: 'retain-on-failure',

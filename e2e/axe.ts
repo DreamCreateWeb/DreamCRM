@@ -1,6 +1,7 @@
 import AxeBuilder from '@axe-core/playwright'
-import { expect, type Page } from '@playwright/test'
+import { expect, test, type Page } from '@playwright/test'
 import { A11Y_BASELINE } from './axe-baseline'
+import { A11Y_HEADROOM_ANNOTATION } from './axe-headroom'
 
 type Violation = Awaited<ReturnType<AxeBuilder['analyze']>>['violations'][number]
 
@@ -253,6 +254,33 @@ export async function deadExclusions(page: Page, exclude: string[] = []): Promis
 }
 
 /**
+ * Hand one (stop, rule) measurement to `e2e/axe-headroom.ts` for the
+ * end-of-run table.
+ *
+ * Swallows everything. This is REPORTING attached to a gate, and it must not
+ * be able to become the reason a gate fails: `test.info()` throws when there
+ * is no test running (the self-test exercises these helpers directly), and an
+ * annotation channel that is not worth a red run is not worth a thrown error
+ * either.
+ */
+function recordHeadroomSample(sample: {
+  stop: string
+  rule: string
+  ceiling: number
+  observed: number
+}): void {
+  try {
+    test.info().annotations.push({
+      type: A11Y_HEADROOM_ANNOTATION,
+      description: JSON.stringify(sample),
+    })
+  } catch {
+    // No test context, or a Playwright version that will not take one. The
+    // table simply has one fewer row.
+  }
+}
+
+/**
  * Scan the current page state and fail the test on anything the baseline in
  * `e2e/axe-baseline.ts` does not already account for.
  *
@@ -325,6 +353,19 @@ export async function expectNoA11yViolations(
           `in the same PR as the fix, or the room stays open for a regression.`,
       )
     }
+    // AND THE SAME MEASUREMENT, ANNOTATED, WHATEVER IT SAID — including the
+    // ones the wobble allowance deliberately keeps quiet about.
+    //
+    // The annotation is not the report. `e2e/axe-headroom.ts` folds every one
+    // of these into a single table at the end of the run, which is how a
+    // ceiling that is exactly one too high finally becomes visible: it prints
+    // no warning above, by design, and four of them stood a whole batch longer
+    // than they needed to for that reason.
+    //
+    // EVERY measurement is emitted, not just the ones under the ceiling. A
+    // (stop, rule) that reaches its ceiling on any attempt has no room in it,
+    // and the fold can only know that if it sees that attempt too.
+    recordHeadroomSample({ stop, rule, ceiling, observed: now })
   }
 
   if (over.length === 0) {
