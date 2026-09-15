@@ -179,6 +179,29 @@ test.describe('paying a balance from the portal', () => {
     const { context, page } = await signedInPatient(browser)
     await page.goto('/patient/invoices')
 
+    // ⚠ FLAKE SEEN HERE, 2026-09-15 — handed to the QA lane rather than fixed,
+    // because it is a spec/fixture question and nothing about it was mine.
+    // Reproduction so nobody has to rediscover it (§10 — the thread is not in
+    // your editor):
+    //
+    //   run 35028171588, job 104580103724, on a TEST-ONLY diff that the
+    //   browser suite never loads. `getByLabel('Payment amount in dollars')`
+    //   raised **strict mode violation: resolved to 2 elements**. Two pay
+    //   forms were on `/patient/invoices` at once.
+    //
+    // WHAT MAKES IT INTERESTING rather than ordinary noise: it failed the first
+    // attempt AND `retry #1`, then a plain re-run of the same job at the SAME
+    // SHA passed. Playwright's retry reuses the same throwaway Postgres, so a
+    // fault that survives the retry and dies with the database is seeded STATE,
+    // not a timing race — most likely this patient carrying two unpaid
+    // balances (a residue from a sibling spec that consumes the scope, or a
+    // second row this file's own earlier test leaves behind) rather than the
+    // one the fixture intends.
+    //
+    // That also means the retry buys nothing here: both attempts see the same
+    // bad row. The fix is probably `.first()` plus a fixture assertion that the
+    // patient has exactly ONE payable balance — but the assertion is the point,
+    // since `.first()` alone would make a wrong fixture invisible.
     const amount = page.getByLabel('Payment amount in dollars')
     await expect(amount).toBeVisible({ timeout: 30_000 })
     await amount.fill('50.00')
