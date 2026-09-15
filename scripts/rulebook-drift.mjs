@@ -8,8 +8,8 @@
  *
  * The `dreamcrm-conventions` skill states, in prose, a set of facts about how
  * this repository is wired: which checks are required, that admins are bound
- * by them, that there are seven workflow files and only one of them can block
- * a merge, that the review gate enumerates eight areas. Those sentences were
+ * by them, how many workflow files exist and which of them can block a merge,
+ * how many areas the review gate enumerates. Those sentences were
  * true when somebody typed them. Nothing has ever checked whether they still
  * are — the skill lives outside the repo, so no test could fail when the repo
  * moved underneath it.
@@ -75,7 +75,7 @@ const WORKFLOW_DIR = '.github/workflows'
  *
  * `publishes` is the set of REQUIRED status-check contexts this workflow can
  * report. It is the only thing that decides whether a workflow gates anything,
- * and it is why the census is a map rather than a count: "five of seven gate
+ * and it is why the census is a map rather than a count: "six of eight gate
  * nothing" is a summary of this table, not a fact of its own.
  *
  * `gates` is what it gates when it does publish one, and the two values are
@@ -129,9 +129,18 @@ export const WORKFLOW_CENSUS = {
   },
 }
 
-/** The eight areas `scripts/review-gate.mjs` enumerates, as §3 states them. */
+/**
+ * The areas `scripts/review-gate.mjs` enumerates, as §3 states them.
+ *
+ * It was eight when this file was written and nine before it merged —
+ * `check-definitions` arrived with DREAMCRM-49 (#572) while #571 was in review.
+ * That is §3's ruling working exactly as it reads: the enumeration leads, the
+ * prose follows, and the direction to fix a disagreement is prose-ward. The
+ * guard below is what makes "follows" mean something rather than "eventually".
+ */
 export const CLAIMED_GATE_AREAS = [
   'auth',
+  'check-definitions',
   'ci-workflows',
   'db-migrations',
   'deploy-path',
@@ -360,13 +369,24 @@ export const CLAIMS = [
  *     everything under it.
  *   * `on: [pull_request]` in flow style read as "does not run on PRs", which
  *     would have hidden a PR-triggered producer from the orphan check.
+ *   * `pull_request_target` — a real PR trigger whose checks land on the PR and
+ *     can therefore satisfy branch protection, and the more security-sensitive
+ *     of the two, since it runs with the base repo's secrets. Both spellings
+ *     read as false.
  *
- * All three are closed below. What remains unclosed and is worth saying out
- * loud: anchors/aliases, a `jobs:` key carrying a trailing comment of its own,
- * and reusable workflows called with `uses:` (whose published context is
- * decided by the called file, which this reader never opens). A green run here
- * is proof that nothing this reader can see publishes a required name — it is
- * not proof that nothing does.
+ * All four are closed below. WHAT REMAINS UNCLOSED, and this list is kept
+ * accurate in both directions — a blind-spot list that names a gap already
+ * fixed spends the credibility it exists for:
+ *
+ *   * anchors and aliases (`*ref`);
+ *   * a quoted `'on':` key, which YAML 1.1 implementations sometimes emit to
+ *     dodge the `on`-is-true trap;
+ *   * a fold indicator carrying an explicit indent (`>2-`);
+ *   * reusable workflows called with `uses:`, whose published context is
+ *     decided by the called file — which this reader never opens.
+ *
+ * A green run here is proof that nothing this reader can see publishes a
+ * required name. It is not proof that nothing does.
  */
 const FOLD_INDICATORS = /^[>|][-+]?\d*$/
 
@@ -420,14 +440,23 @@ export function effectiveContexts(source) {
 /**
  * Does this workflow run on pull requests? Only those can gate a merge.
  *
- * Both spellings: the block form this repo uses, and the flow form
- * (`on: [pull_request]`, `on: [push, pull_request]`) that a new file could
+ * Four spellings, because all four really do put a check on the PR:
+ * `pull_request` and `pull_request_target`, each in the block form this repo
+ * uses and in the flow form (`on: [push, pull_request]`) a new file could
  * perfectly well arrive in.
+ *
+ * `pull_request_target` counts. It is a genuine PR trigger — its checks land on
+ * the PR and can satisfy branch protection — and it is the more
+ * security-sensitive of the two, since it runs against the base repo with its
+ * secrets. Treating it as "not a PR trigger" would have hidden a producer from
+ * the orphan check in the one case worth seeing most.
  */
+const PR_TRIGGERS = ['pull_request', 'pull_request_target']
+
 export function runsOnPullRequest(source) {
-  if (/^ {2}pull_request:/m.test(source)) return true
+  if (PR_TRIGGERS.some((t) => new RegExp(`^ {2}${t}:`, 'm').test(source))) return true
   const flow = source.match(/^on:\s*\[(.*?)\]/m)
-  return Boolean(flow && flow[1].split(',').some((t) => t.trim() === 'pull_request'))
+  return Boolean(flow && flow[1].split(',').some((t) => PR_TRIGGERS.includes(t.trim())))
 }
 
 /** Everything gradeable without the network. The guard test uses exactly this. */
@@ -525,10 +554,17 @@ function main() {
   const live = { ...readLocalReality(), protection: loadJson('--protection'), repo: loadJson('--repo') }
   const { findings, unchecked } = drift(live)
 
-  // Only the protection reads are allowed to be "not configured yet". An
-  // ungraded `repo` or `workflows` claim has no pending credential to blame
-  // and stays red.
-  const skipped = credentialAbsent ? unchecked.filter((u) => u.missing.includes('protection')) : []
+  // ONLY a claim missing the protection read and NOTHING ELSE is allowed to be
+  // "not configured yet". `includes('protection')` was the first spelling and
+  // it was too generous: `strict-and-allow-update-branch` needs `repo` as well,
+  // so an empty `repo.json` would have filed it as a deliberate skip rather
+  // than as the defect it is. Unreachable today — that step has no
+  // `continue-on-error`, so the job dies before this runs — but a latent edge
+  // in the one classification this whole file exists to keep sharp is not
+  // somewhere to leave a maybe.
+  const skipped = credentialAbsent
+    ? unchecked.filter((u) => u.missing.length === 1 && u.missing[0] === 'protection')
+    : []
   const broken = unchecked.filter((u) => !skipped.includes(u))
   const graded = CLAIMS.length - unchecked.length
 

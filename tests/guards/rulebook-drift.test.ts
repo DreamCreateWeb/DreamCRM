@@ -310,6 +310,15 @@ describe('the census and the tree', () => {
     expect(runsOnPullRequest('on: [push]\njobs:\n  test:\n    runs-on: ubuntu-latest\n')).toBe(false)
   })
 
+  it('counts pull_request_target, in both spellings', () => {
+    // A real PR trigger: its checks land on the PR and can satisfy branch
+    // protection. It is also the more security-sensitive of the two — it runs
+    // against the base repo with its secrets — so reading it as "not a PR
+    // trigger" would have hidden a producer in the case worth seeing most.
+    expect(runsOnPullRequest('on:\n  pull_request_target:\n    types: [opened]\n')).toBe(true)
+    expect(runsOnPullRequest('on: [pull_request_target]\n')).toBe(true)
+  })
+
   it('knows which workflows run on pull requests', () => {
     const { workflows } = localReality()
     expect(
@@ -361,12 +370,20 @@ describe('the drift workflow', () => {
       'deployments', 'discussions', 'id-token', 'issues', 'packages', 'pages', 'pull-requests',
       'security-events', 'statuses', 'vulnerability-alerts',
     ]
-    const block = wf().match(/^permissions:\n((?: {2}\S.*\n)+)/m)
+    // `\r?\n`, not `\n`. `core.autocrlf` is true on a Windows checkout and the
+    // repo has no `.gitattributes`, so this file reads `permissions:\r\n` there
+    // and a literal `\n` matches nothing at all — `block` comes back null and
+    // the test fails for a reason that has nothing to do with permissions.
+    // Green on CI's Linux runner, red for every agent running the suite
+    // locally, which is where §2's "full suite green before merge" is actually
+    // checked. It is the CRLF lesson at the top of `scripts/rulebook-drift.mjs`
+    // arriving from the other direction.
+    const block = wf().match(/^permissions:\r?\n((?: {2}\S.*\r?\n)+)/m)
     expect(block, 'rulebook-drift.yml must declare its permissions rather than inherit them').toBeTruthy()
     // `.split` rather than spreading `matchAll` — this project's tsconfig
     // target does not allow iterating a RegExpStringIterator.
     const asked = block![1]
-      .split('\n')
+      .split(/\r?\n/)
       .map((l) => l.match(/^ {2}([a-z-]+):/))
       .filter((m): m is RegExpMatchArray => Boolean(m))
       .map((m) => m[1])

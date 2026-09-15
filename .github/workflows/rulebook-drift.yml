@@ -104,9 +104,12 @@ jobs:
       # Written to files rather than piped so the script stays a pure
       # comparator the guard test can drive with fixtures, offline.
       #
-      # `repo.json` rides the workflow token and is not optional: a failure
-      # there is a real defect and leaves the file empty, which the script
-      # reports as an ungraded claim and a red run.
+      # `repo.json` rides the workflow token and is not optional. No
+      # `continue-on-error`: a failure here aborts the job, which is the right
+      # outcome — the repo-settings endpoint is readable with `contents: read`,
+      # so a failure means something is wrong with the run itself rather than
+      # with the repo. (The script would also report the ungraded claims and go
+      # red, but it never gets the chance; the job is already over.)
       - name: Read the repo's merge settings
         env:
           GH_TOKEN: ${{ github.token }}
@@ -139,9 +142,11 @@ jobs:
 
       - name: Diff the repo against what the rulebook claims
         env:
-          # Defaults to 'false' when the step above was skipped or died before
-          # writing its output — erring toward "not configured" would be the
-          # wrong default here, so the flag is only passed when it says so.
+          # Empty, not 'false', if the step above died before writing its
+          # output — which takes the `else` branch, grades against an absent
+          # `protection.json`, and goes RED. That is the intended direction:
+          # only an explicit `configured=false` earns the skip, so a step that
+          # crashed can never be mistaken for a credential that was never set.
           CONFIGURED: ${{ steps.protection.outputs.configured }}
         run: |
           set -euo pipefail

@@ -188,13 +188,6 @@ describe('the review-gate classifier', () => {
       'middleware.ts': 'auth',
       'lib/db/migrations/0161_connect_refund_records.sql': 'db-migrations',
       '.github/workflows/deploy.yml': 'ci-workflows',
-      // THE GATE MACHINERY ITSELF (#571). Until Sentinel's review of that PR,
-      // a diff touching only one of these two scripts reported "merges on
-      // green" — so deleting a rule from the gate list, or a claim from the
-      // drift check, was the one edit in this repo that weakened a control
-      // AND told its author nothing was at stake.
-      'scripts/review-gate.mjs': 'ci-workflows',
-      'scripts/rulebook-drift.mjs': 'ci-workflows',
       'Dockerfile': 'deploy-path',
       // What the required checks actually run (DREAMCRM-49). `.github/` names
       // the job; these name the work inside it. `e2e/axe.ts` carries the
@@ -202,10 +195,18 @@ describe('the review-gate classifier', () => {
       // gate that can only ever make it looser — and it leaves no trace under
       // `.github/` at all. `scripts/review-gate.mjs` is this file's own
       // subject: the list that decides which PRs reach a reviewer.
+      //
+      // `scripts/rulebook-drift.mjs` joined them in #571 for the same reason
+      // one step further out: it holds the claims the daily drift check grades,
+      // and deleting one leaves that check reporting CLEAN about a fact it no
+      // longer looks at. It arrived on `ci-workflows` in that PR and moved here
+      // on contact with this rule, which is the better home — the point is not
+      // that it runs in a workflow, it is that it decides what gets asked.
       'vitest.config.ts': 'check-definitions',
       'playwright.config.ts': 'check-definitions',
       'e2e/axe.ts': 'check-definitions',
       'scripts/review-gate.mjs': 'check-definitions',
+      'scripts/rulebook-drift.mjs': 'check-definitions',
       // The production read-check catalog (DREAMCRM-42). Pinned because the
       // per-entry review is the ENTIRE control on "no PHI in a log anything
       // with repo read can open" and on the cross-tenant waiver — and because

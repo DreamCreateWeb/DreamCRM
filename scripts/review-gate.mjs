@@ -58,14 +58,11 @@ import { pathToFileURL } from 'node:url'
 export const GATE_RULES = [
   {
     id: 'ci-workflows',
-    area: 'CI workflow files and the scripts they run',
+    area: 'CI workflow files',
     why:
       'a workflow file decides which checks run at all, so it is the gate every other gate ' +
-      'stands on. #517 edited one review-free by riding along in a UI-polish PR. The two ' +
-      'scripts are here for the same reason one level down: they ARE the gate machinery, and ' +
-      'until #571 a PR editing either of them — deleting a rule from this very list, or a ' +
-      'claim from the drift check — reported "merges on green".',
-    patterns: ['.github/workflows/**', 'scripts/review-gate.mjs', 'scripts/rulebook-drift.mjs'],
+      'stands on. #517 edited one review-free by riding along in a UI-polish PR.',
+    patterns: ['.github/workflows/**'],
   },
   {
     id: 'check-definitions',
@@ -76,12 +73,20 @@ export const GATE_RULES = [
       'retries, and (in e2e/axe.ts) which accessibility violations the harness is told to ignore. ' +
       'An exclusion is the one edit to a gate that can only ever make it looser, and it leaves no ' +
       'trace in .github/. scripts/review-gate.mjs is here for the same reason: it is the list ' +
-      'that decides which PRs reach a reviewer at all.',
+      'that decides which PRs reach a reviewer at all, and scripts/rulebook-drift.mjs is the ' +
+      'list of facts the rulebook asserts about this repo — delete a claim from it and the ' +
+      'daily drift check goes on reporting CLEAN about something it no longer looks at.',
     // DELIBERATELY NOT `tests/**` or `e2e/**` wholesale — see INTAKE_RULES
     // below for why the rest of the suite is an intake obligation and not a
-    // review one. These four are the files that decide what runs, as opposed
-    // to the files that assert something.
-    patterns: ['vitest.config.ts', 'playwright.config.ts', 'e2e/axe.ts', 'scripts/review-gate.mjs'],
+    // review one. These five are the files that decide what runs (or what gets
+    // asked), as opposed to the files that assert something.
+    patterns: [
+      'vitest.config.ts',
+      'playwright.config.ts',
+      'e2e/axe.ts',
+      'scripts/review-gate.mjs',
+      'scripts/rulebook-drift.mjs',
+    ],
   },
   {
     id: 'deploy-path',
