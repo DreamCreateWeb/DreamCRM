@@ -150,7 +150,7 @@ describe('public booking success — the phase swap moves focus', () => {
     clinicPhone: '(555) 555-0100',
     addressText: '1 Main St',
     mapsUrl: null,
-    emailSent: true,
+    emailStatus: 'sent',
     intakeUrl: null,
   }
 
