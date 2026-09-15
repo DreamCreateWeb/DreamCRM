@@ -68,6 +68,22 @@ export const GATE_RULES = [
     patterns: ['.github/workflows/**', 'scripts/review-gate.mjs', 'scripts/rulebook-drift.mjs'],
   },
   {
+    id: 'check-definitions',
+    area: 'what the required checks actually run',
+    why:
+      'the same argument that puts .github/workflows/** on this list, one level in. A workflow ' +
+      'file names the job; these name the WORK inside it — which specs and tests run, with what ' +
+      'retries, and (in e2e/axe.ts) which accessibility violations the harness is told to ignore. ' +
+      'An exclusion is the one edit to a gate that can only ever make it looser, and it leaves no ' +
+      'trace in .github/. scripts/review-gate.mjs is here for the same reason: it is the list ' +
+      'that decides which PRs reach a reviewer at all.',
+    // DELIBERATELY NOT `tests/**` or `e2e/**` wholesale — see INTAKE_RULES
+    // below for why the rest of the suite is an intake obligation and not a
+    // review one. These four are the files that decide what runs, as opposed
+    // to the files that assert something.
+    patterns: ['vitest.config.ts', 'playwright.config.ts', 'e2e/axe.ts', 'scripts/review-gate.mjs'],
+  },
+  {
     id: 'deploy-path',
     area: 'the deploy pipeline',
     why:
@@ -239,6 +255,106 @@ export const GATE_RULES = [
   },
 ]
 
+/**
+ * THE SECOND OBLIGATION: this PR changes what can merge, so the rulebook has to
+ * hear about it. Intake, not review. (DREAMCRM-49.)
+ *
+ * WHY THIS EXISTS. PR #566 added rule 4 to `tests/a11y/class-pairs.ts` — a new
+ * class of blocking assertion inside the required `test` check, which means a
+ * gradient-text chunk that merged green yesterday fails today. It touched
+ * nothing under `.github/`, nothing on the gate list above, and this script
+ * printed **"✅ No review-gate files in this PR — merges on green"**. Its author
+ * had predicted in the DREAMCRM-45 planning meeting that it would need routing,
+ * remembered the §2 intake rule by hand, and routed it. The machine told them
+ * the opposite, on the job summary, with a green tick.
+ *
+ * That is the fourth time this shape has occurred — the axe ratchet (#534,
+ * three days to reach the skill), the shared-pending guard (#559), the brand
+ * ramp's solid-fill rule (#555, whose second rule went unrecorded for a day
+ * because only the headline half was routed), and #566. Every one of them
+ * changed what can merge without touching a file any gate list named.
+ *
+ * WHY IT IS NOT A REVIEW. §2 of the conventions is explicit — "Intake, not
+ * review: a test-only PR stays exempt from §3 unless its diff carries something
+ * on the gate list." Folding these into `GATE_RULES` would have been the easy
+ * move and the wrong one. Measured against the last 90 merged PRs, it would put
+ * roughly a third of them into a review queue of one; the money rule was
+ * narrowed deliberately to avoid exactly that ("gating every UI-polish PR on
+ * them would put the gate in the way often enough to get it routed around"),
+ * and a queue that long would do it faster. The obligation these files actually
+ * carry is the cheap one: say so on the issue, mention Forge, so the rule
+ * reaches the skill the same day instead of three days later.
+ *
+ * WHAT IS ON IT: the files that hold a repo-wide blocking assertion — a scan of
+ * the product tree with a zero or a ceiling over whatever it finds — plus the
+ * two modules those scans share (`palette.ts` computes every ratio, `jsx-attrs`
+ * does every walk), where a one-line change silently re-grades every rule built
+ * on it.
+ *
+ * WHAT IS DELIBERATELY NOT ON IT:
+ *
+ *   - `e2e/axe-baseline.ts`. It is an INVENTORY of debt that already exists,
+ *     not a rule. Shrinking it is the expected end of every accessibility fix
+ *     — it moved in 10 of the last 90 PRs — so labelling those would teach
+ *     people the label means nothing. The direction that matters there is a
+ *     ceiling going UP, which §2 already forbids outright and which a path
+ *     pattern cannot see anyway. That wants a monotonicity guard, not a label;
+ *     it is written up as its own defect rather than bundled in here.
+ *   - `tests/**` and `e2e/**` wholesale. ~6,900 tests assert about one unit
+ *     each and change nothing for anybody else.
+ *
+ * `tests/guards/review-gate.test.ts` closes the hole a path list cannot: a
+ * BRAND-NEW scanner file matches no pattern here, so the guard derives the set
+ * from the tree — anything under `tests/**` or `e2e/**` that walks `app/`,
+ * `components/` or `lib/` must appear on this list, and fails `test` by name on
+ * the day it arrives. That is the direction #566 got through.
+ */
+export const INTAKE_RULES = [
+  {
+    id: 'blocking-assertions',
+    area: 'a repo-wide blocking assertion inside the required `test` / `e2e` checks',
+    why:
+      'these files hold the rules that grade the WHOLE tree, so adding or loosening one changes ' +
+      'what every other PR can merge — the axe ratchet (#534) and the brand-ramp rules ' +
+      '(#555/#564/#566) all did that without touching a single file under .github/. The ' +
+      'conventions call that intake: say on your issue what new class of assertion this adds, ' +
+      'and mention Forge the same day so the rule reaches the skill. Adding a CASE to an ' +
+      'existing rule is not that — this check reads paths and cannot tell the two apart, so say ' +
+      'which one it is rather than guessing what it meant.',
+    patterns: [
+      // The CI machinery guards, and the tenant-scoping convention guards.
+      // Both directories exist to hold the product tree at zero for something.
+      'tests/guards/**',
+      'tests/tenant-scoping/**',
+      // The contrast rules (1-4) and the two modules every one of them is
+      // built on. `palette.ts` is where AA and every ratio are computed: move
+      // a number there and all four rules re-grade the tree at once.
+      'tests/a11y/class-pairs.ts',
+      'tests/a11y/palette.ts',
+      'tests/a11y/dark-mode-parity.test.ts',
+      'tests/a11y/token-contrast.test.ts',
+      'tests/a11y/css-var-definitions.test.ts',
+      // The shared-pending guard (#559) and the source walker it shares with
+      // the pending-feedback rule.
+      'tests/design-system/shared-pending.ts',
+      'tests/design-system/shared-pending.test.ts',
+      'tests/design-system/jsx-attrs.ts',
+      'tests/design-system/pending-feedback.test.ts',
+      'tests/design-system/kpi-numerals.test.ts',
+      // The remaining tree-wide scanners, each holding the product at zero for
+      // one convention. Derived from the tree by the guard test, not recalled.
+      'tests/clinic-site/jsonld-escaping.test.ts',
+      'tests/clinic-site/public-form-error.test.ts',
+      'tests/clinic-site/site-load-dedupe.test.ts',
+      'tests/intake-forms/insurance-ocr-host-adoption.test.ts',
+      'tests/journey/ledger-marker-law.test.ts',
+      'tests/middleware.test.ts',
+      'tests/settings/no-plan-gating.test.ts',
+      'tests/timezone/server-render-tz.test.ts',
+    ],
+  },
+]
+
 /** `*` matches within a segment, `**` matches across them. Everything else is literal. */
 export function globToRegExp(pattern) {
   let out = ''
@@ -262,35 +378,61 @@ export function globToRegExp(pattern) {
   return new RegExp(`^${out}$`)
 }
 
-const COMPILED = GATE_RULES.map((rule) => ({
-  ...rule,
-  matchers: rule.patterns.map(globToRegExp),
-}))
+const compile = (rules) =>
+  rules.map((rule) => ({ ...rule, matchers: rule.patterns.map(globToRegExp) }))
+
+const COMPILED_GATE = compile(GATE_RULES)
+const COMPILED_INTAKE = compile(INTAKE_RULES)
 
 /**
- * Which gate rules a set of changed files trips, and the files that tripped them.
+ * Which of `rules` a set of changed files trips, and the files that tripped them.
  *
  * Paths must use forward slashes — every producer here (`gh pr diff`, `git diff
  * --name-only`, `git ls-files`) emits them, but Windows is a supported dev
  * platform and a backslashed path would match nothing while looking fine.
  */
-export function gateFindings(files) {
+function findingsFor(compiled, files) {
   const normalized = files.map((f) => f.trim().replace(/\\/g, '/')).filter(Boolean)
 
-  return COMPILED.map((rule) => ({
-    id: rule.id,
-    area: rule.area,
-    why: rule.why,
-    files: normalized.filter((f) => rule.matchers.some((m) => m.test(f))),
-  })).filter((r) => r.files.length > 0)
+  return compiled
+    .map((rule) => ({
+      id: rule.id,
+      area: rule.area,
+      why: rule.why,
+      files: normalized.filter((f) => rule.matchers.some((m) => m.test(f))),
+    }))
+    .filter((r) => r.files.length > 0)
+}
+
+/** Which files in this PR owe Sentinel a review before it merges (§3). */
+export function gateFindings(files) {
+  return findingsFor(COMPILED_GATE, files)
+}
+
+/**
+ * Which files in this PR change what can merge and so owe Forge an intake (§2).
+ *
+ * A separate answer from `gateFindings` on purpose: these are two different
+ * obligations with two different costs, and the conventions say so explicitly.
+ * Reporting them as one would either drag a third of the repo's PRs into a
+ * review queue or keep printing "merges on green" at the ones that quietly
+ * moved the gate. A PR can owe both, one, or neither.
+ */
+export function intakeFindings(files) {
+  return findingsFor(COMPILED_INTAKE, files)
 }
 
 /** The label the workflow puts on a PR that owes a review. */
 export const REVIEW_LABEL = 'needs-sentinel-review'
 
-export function renderSummary(findings, totalFiles) {
+/** The label the workflow puts on a PR that changes what can merge. */
+export const INTAKE_LABEL = 'needs-forge-intake'
+
+export function renderSummary(findings, totalFiles, intake = []) {
+  const parts = []
+
   if (findings.length === 0) {
-    return [
+    parts.push(
       '### ✅ No review-gate files in this PR',
       '',
       `None of the ${totalFiles} changed ${totalFiles === 1 ? 'file is' : 'files are'} on the ` +
@@ -299,9 +441,64 @@ export function renderSummary(findings, totalFiles) {
       'This check is advisory and never blocks a merge — it reads the diff against the gate list ' +
         'in the `dreamcrm-conventions` skill and says what it sees.',
       '',
-    ].join('\n')
+    )
+  } else {
+    parts.push(renderReviewSection(findings))
   }
 
+  if (intake.length > 0) parts.push(renderIntakeSection(intake))
+
+  return parts.join('\n')
+}
+
+/**
+ * The intake section — a SECOND obligation, deliberately not folded into the
+ * review verdict above.
+ *
+ * A PR can be told "merges on green" and still owe this. That combination is
+ * not a contradiction, it is the whole point: #566 was correctly exempt from
+ * review (test-only diff, nothing on the gate list) and still added a new
+ * blocking assertion to `test`. The old summary had no way to say both, so it
+ * said the reassuring half and stopped.
+ */
+function renderIntakeSection(intake) {
+  const count = intake.reduce((n, f) => n + f.files.length, 0)
+  const lines = [
+    '### 📓 This PR may change what can merge — tell Forge the same day',
+    '',
+    `${count} changed ${count === 1 ? 'file holds' : 'files hold'} a repo-wide blocking ` +
+      'assertion. **This is intake, not review** — it does not add a reviewer to your PR and it ' +
+      'does not stop the merge. It is the §2 obligation: a new class of assertion inside a ' +
+      'required check changes what everyone else can merge exactly as a workflow edit does, and ' +
+      'a rule that reaches nobody gets rediscovered.',
+    '',
+  ]
+
+  for (const finding of intake) {
+    lines.push(`**${finding.area}** — ${finding.why}`, '')
+    for (const file of finding.files) lines.push(`- \`${file}\``)
+    lines.push('')
+  }
+
+  lines.push(
+    'If this PR **adds or loosens a rule** (a new assertion class, a new exemption, a widened ' +
+      'pattern), say so on your issue — naming every new class it adds, not just the one the ' +
+      'title leads with — and mention:',
+    '',
+    '```markdown',
+    '[@Forge](mention://agent/187124c3-23a7-47f6-bdee-e90bfc3fa216)',
+    '```',
+    '',
+    'If it only **adds a case** to a rule that already exists, say that instead and move on. ' +
+      'This check reads paths and genuinely cannot tell the two apart — naming which one it is ' +
+      'costs a sentence, and is the difference between the skill learning the rule today and ' +
+      'somebody rediscovering it in three days.',
+    '',
+  )
+  return lines.join('\n')
+}
+
+function renderReviewSection(findings) {
   const count = findings.reduce((n, f) => n + f.files.length, 0)
   const lines = [
     '### 🛡️ This PR needs Sentinel’s review before it merges',
@@ -353,10 +550,12 @@ function main() {
 
   files = files.map((f) => f.trim()).filter(Boolean)
   const findings = gateFindings(files)
-  const summary = renderSummary(findings, files.length)
+  const intake = intakeFindings(files)
+  const summary = renderSummary(findings, files.length, intake)
 
   console.log(summary)
   githubOutput('needs-review', findings.length > 0 ? 'true' : 'false')
+  githubOutput('needs-intake', intake.length > 0 ? 'true' : 'false')
   githubOutput('areas', findings.map((f) => f.id).join(','))
 
   if (findings.length > 0) {
@@ -364,6 +563,14 @@ function main() {
       `::notice title=Sentinel review required::This PR touches ${findings
         .map((f) => f.area)
         .join('; ')}. Post the review request on your issue before merging.`,
+    )
+  }
+
+  if (intake.length > 0) {
+    console.log(
+      '::notice title=Forge intake owed::This PR touches a repo-wide blocking assertion inside ' +
+        '`test`/`e2e`. If it adds or loosens a rule, say so on your issue and mention Forge the ' +
+        'same day — intake, not review, and it does not block the merge.',
     )
   }
 

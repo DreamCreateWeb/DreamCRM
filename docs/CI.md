@@ -200,9 +200,12 @@ is a check people route around.
 
 ## The advisory: the review gate knows which files are risky (added 2026-09-13, DREAMCRM-33)
 
-`review-gate.yml` reads which files a PR touches and says, on the run's job
-summary and as a `needs-sentinel-review` label, whether the PR owes Sentinel a
-review before it merges.
+`review-gate.yml` reads which files a PR touches and answers **two** questions
+on the run's job summary, each with its own label: does the PR owe Sentinel a
+review before it merges (`needs-sentinel-review`), and does it change what
+everyone else can merge, so Forge has to hear about it the same day
+(`needs-forge-intake`, added 2026-09-14 — see "The second obligation" below).
+A PR can owe both, either, or neither.
 
 The gate list itself is policy and lives in the `dreamcrm-conventions` skill —
 money, tenant scoping, auth and token surfaces, DB migrations,
@@ -255,6 +258,76 @@ and the second one is the one that decays:
   rather than the day somebody remembers it. It is a *necessary* condition, not
   a definition — fee math and cart totals never import the client, and the
   curated list stays responsible for those.
+- **Every tree-wide scanner in the suite must be on the intake list — derived
+  from the tree.** See the next section for what that list is. A suite file
+  that walks a directory (`readdirSync`, `git ls-files`) and names a product
+  root (`'app'`, `'components'`, `'lib'`) is asserting about the whole tree,
+  and that is mechanical evidence rather than a judgement — the same bargain
+  the Stripe test makes. It fails by name on the day such a file arrives,
+  which is the one direction a path list cannot cover by itself.
+
+### The second obligation: intake (added 2026-09-14, DREAMCRM-49)
+
+The same run now answers a second question, separately: **does this PR change
+what can merge?**
+
+PR #566 added rule 4 to `tests/a11y/class-pairs.ts` — a new class of blocking
+assertion inside the required `test` check, so a gradient-text chunk that merged
+green yesterday fails today. It touched nothing under `.github/` and nothing on
+the gate list, and this check printed *"✅ No review-gate files in this PR —
+merges on green."* That was the right answer to the review question and no
+answer at all to the one that mattered. Its author had predicted at the
+DREAMCRM-45 planning meeting that it would need routing, remembered the rule by
+hand, and routed it. The machine told them the opposite.
+
+It is the fourth PR of that shape: the axe ratchet (#534, three days to reach
+the skill), the shared-pending guard (#559), the brand ramp's solid-fill rule
+(#555 — routed, but only the half its title described), and #566.
+
+So `INTAKE_RULES` in `scripts/review-gate.mjs` names the files that hold a
+repo-wide blocking assertion, and a PR touching one gets its own summary section
+and a `needs-forge-intake` label. **Intake is not review**: it adds no reviewer
+and holds up nothing. It says "tell Forge the same day so the rule reaches the
+skill", which is what §2 of the conventions has always asked for and what
+nothing in the repo could previously prompt.
+
+Two shaping decisions worth keeping:
+
+- **It is a separate answer, not a widened gate list.** Measured against the
+  last 90 merged PRs, folding these files into `GATE_RULES` would have put
+  roughly a third of them into a review queue of one. The money rule was
+  narrowed deliberately to avoid exactly that, and this would have undone it
+  faster. A PR can now be told "merges on green" *and* "tell Forge" in the same
+  summary, which is the honest pair of answers.
+- **`e2e/axe-baseline.ts` is deliberately NOT on it.** It is an inventory of
+  existing debt, not a rule; shrinking it is the end of every accessibility fix
+  and it moved in 10 of the last 90 PRs. The direction that matters there is a
+  ceiling going *up*, which a path pattern cannot see. That wants a
+  monotonicity guard, tracked as its own defect.
+
+`e2e/axe.ts`, `vitest.config.ts`, `playwright.config.ts` and
+`scripts/review-gate.mjs` went the *other* way — onto the review gate, as
+`check-definitions`. They decide which assertions run and which are excluded,
+which is the `.github/workflows/**` argument one level in; `e2e/axe.ts` in
+particular carries the accessibility harness's exclusion list, and an exclusion
+is the one edit to a gate that can only ever make it looser.
+
+### Why `review-gate` is still not a required check (re-decided 2026-09-14, DREAMCRM-49)
+
+Not carried over by habit — re-opened deliberately and answered the same way.
+The blocking version needs a pass signal that can be set on the PR itself,
+because the verdict lives on a Multica issue and a check that can never go green
+hangs every risky PR forever. Every signal available — a label, a GitHub review
+— can be minted by the single admin account the whole agent fleet authenticates
+as, so it would read as enforcement while being weaker than an honest advisory.
+The gate list has also been corrected three times in twelve days (#553, #559,
+#565), which is not the precision record a blocker needs.
+
+What would change the answer: a pass signal the shared admin credential cannot
+mint (Sentinel reviewing from a distinct GitHub identity), plus a full batch with
+no correction to the gate list. The full reasoning and the before/after table are
+on the DREAMCRM-49 issue — a settings change has no diff, so that comment is the
+review record.
 
 ## The alarm that watches the rulebook (added 2026-09-14, DREAMCRM-53)
 

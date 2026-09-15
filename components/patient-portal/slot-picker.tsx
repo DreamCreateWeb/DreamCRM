@@ -158,11 +158,18 @@ export default function SlotPicker({
                     : { backgroundColor: '#FFFFFF', border: `1px solid ${BORDER}`, color: INK }
                 }
               >
-                <span className="text-[0.78rem] font-semibold uppercase tracking-wide" style={{ opacity: active ? 1 : 0.85 }}>
+                {/* The weekday and month sit UNDER the date numeral, and the
+                    step down is the muted tone rather than an opacity — dimming
+                    ink is how the portal's small copy kept landing below AA.
+                    Undefined on the selected chip so it inherits the white. */}
+                <span
+                  className="text-[0.78rem] font-semibold uppercase tracking-wide"
+                  style={{ color: active ? undefined : MUTED }}
+                >
                   {today ? 'Today' : DAY_NAME_SHORT[dayOfWeekForDateKey(d)]}
                 </span>
                 <span className="text-[1.05rem] font-bold leading-tight">{keyParts(d).d}</span>
-                <span className="text-[0.78rem]" style={{ opacity: active ? 1 : 0.85 }}>
+                <span className="text-[0.78rem]" style={{ color: active ? undefined : MUTED }}>
                   {MONTH_NAME_SHORT[keyParts(d).m - 1]}
                 </span>
               </button>
@@ -224,6 +231,18 @@ export default function SlotPicker({
               const active = selectedIso === slot.startIso
               if (!slot.available) {
                 return (
+                  // MEASURED, NOT FIXED (batch 62, DREAMCRM-51, found while
+                  // measuring the portal's muted ink): #B9B0A5 on #F3EEE7 is
+                  // 1.85:1. This is a `span`, not a disabled control, so the
+                  // 1.4.3 inactive-component exemption does not cleanly apply
+                  // and axe WILL flag it — the portal stops all sit at zero in
+                  // e2e/axe-baseline.ts now, so the first stop that scans a day
+                  // with a booked slot fails on arrival. The fix is a deeper
+                  // warm grey in the same family (PORTAL_MUTED itself is 5.11
+                  // on this wash), but it is a different tone and a different
+                  // call from the opacity defect, so it stayed out of that
+                  // batch. Entry 4 of the OPEN NOW index in
+                  // docs/UI-BEST-VERSION.md.
                   <span
                     key={slot.startIso}
                     className="rounded-xl px-2 py-3 text-center text-[0.85rem] line-through"

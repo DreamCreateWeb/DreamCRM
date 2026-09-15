@@ -26,6 +26,20 @@
  *     in the same PR; the run prints a note telling you which ones are now
  *     lower than their ceiling.
  *
+ * **"Numbers only ever go DOWN" IS NOT ENFORCED BY ANYTHING — open defect.**
+ * Raise any entry here by one and `pnpm test` is green; nothing in
+ * `tests/guards/**` reads this file's previous value, and no label is applied
+ * either (this file is deliberately kept off the review gate's intake list —
+ * see the reasoning in scripts/review-gate.mjs, since a ceiling SHRINK is the
+ * end of every accessibility fix and moved in 10 of the last 90 merged PRs, so
+ * labelling those would teach people the label means nothing). The direction
+ * that matters is the raise, and a path pattern cannot tell the two apart. The
+ * instrument this wants is a monotonicity guard reading each entry's value on
+ * `origin/main` and failing on any increase, with a deliberate opt-out that has
+ * to be written down. Filed in docs/RELEASE.md Part 5 (Sentinel, DREAMCRM-49).
+ * Until it exists, "raising a ceiling to get green is weakening a failing test"
+ * is a rule held up by whoever is reading the diff.
+ *
  * A ceiling rather than an exact match on purpose: some counts genuinely wobble
  * by an element because what is on screen depends on the data — the three
  * agenda stops reported 8 nested-interactive and then 7, and the booking
@@ -275,10 +289,21 @@
  *     habit to keep is grepping that line after any run you have in front of
  *     you rather than waiting to be told.
  *
- * Remaining: **18, all `color-contrast`, and all of them genuine** — the 41
+ *   2026-09-14 · UI batch 62 · **17 → 8, and every `portal:` stop leaves the
+ *     file.** One `opacity-70` in the portal LAYOUT was the whole of the
+ *     "remaining 1 per portal stop" batch 54 could not identify — see the
+ *     DREAMCRM-33 note at the bottom for the reproduction and for why the
+ *     second colour QA measured was a fade frame rather than a second defect.
+ *     The lesson is not about opacity. A defect in a SHARED component presents
+ *     here as one violation per stop, which is indistinguishable from nine
+ *     small unrelated debts — and nine ceilings of 1 is exactly the shape
+ *     nobody looks at twice. When several stops on one surface all carry the
+ *     SAME small number, the first question is what they render in common.
+ *
+ * Remaining: **8, all `color-contrast`, and all of them genuine** — the 41
  * decorative mocks are excluded at the scan rather than carried as a ceiling,
- * and the 2 on the booking confirmation were fade artifacts. 214 → 18 since
- * 2026-09-10, which is UI batches 54-58 doing the real work; QA's share of that
+ * and the 2 on the booking confirmation were fade artifacts. 214 → 8 since
+ * 2026-09-10, which is UI batches 54-62 doing the real work; QA's share of that
  * is the 43 that were never defects.
  *
  * WHAT IS LEFT IS NO LONGER ONE BIG PAIR. Every large identified cluster is
@@ -286,7 +311,16 @@
  * look. Three things this suite structurally cannot see are recorded in
  * docs/UI-BEST-VERSION.md instead: 31 `color: brand` sites on the public site
  * (brand as TEXT — `readableInk`'s job), three icon wells that concatenate an
- * alpha suffix onto a `var()` and therefore render no background at all, and —
+ * alpha suffix onto a `var()` and therefore render no background at all
+ * (**CLOSED — this clause was STALE from the day it was written.** The three
+ * wells were fixed by `components/clinic-site/success-well.tsx` in DREAMCRM-36
+ * / #560, the same week, and `tests/clinic-site/brand-wash.test.ts` has held
+ * the shape at zero across `app/site`, `components/clinic-site` AND
+ * `components/patient-portal` ever since. Batch 62 re-verified: not one
+ * surviving call site. Three places said it was open — this file, the
+ * punch-list entry, and the issue that sent somebody to fix it — which is the
+ * batch-58 shape in reverse: a note claiming a defect is LIVE is read exactly
+ * as carefully as one claiming a guard exists.), and —
  * the one that matters most — **`ActionButton`'s primary gradient**, which
  * fails from 2.42 at its light end to 4.19 at 75% and clears only at the very
  * deep end. axe reports gradients as INCOMPLETE rather than failing, so it has
@@ -332,23 +366,47 @@
  * HANDED TO THE UI LANE with the colours above. Shrink or delete these the
  * moment that tone moves — they are the smallest entries in the file and they
  * should be the shortest-lived.
+ *
+ *     FOUND AND FIXED, batch 62 (DREAMCRM-51), and ALL NINE PORTAL ENTRIES GO
+ *     WITH IT. It was never the muted TONE: `PORTAL_MUTED` #6B635A clears
+ *     5.52:1 on this ground. It was the portal FOOTER dimming that tone a
+ *     second time — `app/(portal)/layout.tsx`'s "Powered by DreamCreate" at
+ *     `text-[0.75rem] opacity-70`, which composites to exactly the `#968f88`
+ *     QA measured, at exactly 12px, for exactly 2.98:1. Reproduced in Chromium
+ *     with axe-core before touching anything, and the line lives in the portal
+ *     LAYOUT, so it is ONE defect rendering on every portal page. That is the
+ *     "remaining 1 per portal stop is NOT the brand — a separate pair, still
+ *     to be identified" batch 54 left open, and why nine stops sat at exactly
+ *     1 for eight batches: a shared component reads, from this file's side,
+ *     like nine unrelated small debts.
+ *
+ *     THE SECOND COLOUR, `#8c857d` at 3.4, IS A FADE ARTIFACT — and the
+ *     evidence is in `e2e/axe.ts`'s own `settleAnimations` note. Solve it for
+ *     opacity against the same #6B635A on the same ground and it gives 0.77,
+ *     which matches NO css in the tree (there is no `opacity-77`, and the only
+ *     dimming the portal ever spelled was the footer's 0.70). It is the same
+ *     shape that note records at 0.69 and 0.84 for one booking-page selector
+ *     on two attempts: frames of a fade, not a settled colour. Two of these
+ *     three billing stops were never measured at all — they were entered at 1
+ *     on the reasoning that every portal stop carried 1, which was CORRECT
+ *     reasoning about the footer.
+ *
+ *     So all nine go to zero rather than to a lower number, and there is a
+ *     SOURCE rule behind them now: `tests/a11y/portal-ink-opacity.test.ts`
+ *     refuses an `opacity-*` on portal ink at all, holding at zero with no
+ *     ceiling. Same division of labour as the dark-mode parity guard and the
+ *     gradient rules — axe owns what it can measure at the stops it visits,
+ *     and a source rule owns the shape. It caught a second live instance axe
+ *     never could: a message subject at `opacity-80` on a patient's own
+ *     brand-filled bubble, 3.79–4.42 depending on the clinic's brand, on a
+ *     page the browser suite does not stop at.
  */
 export const A11Y_BASELINE: Record<string, Record<string, number>> = {
   'auth: sign-in showing the failure alert': { 'color-contrast': 1 },
-  // The three money-journey stops (DREAMCRM-33) — see the note above. Only the
-  // third was measured on the first run (the other two tests failed earlier in
-  // the spec, before reaching their scan); all three are entered at 1, the
-  // count every other portal stop carries for the same muted-ink pair, and the
-  // run that measures them will warn if any is really zero.
-  'portal: billing, a balance waiting to be paid': { 'color-contrast': 1 },
-  'portal: billing, back from a completed checkout': { 'color-contrast': 1 },
-  'portal: billing, checkout could not start': { 'color-contrast': 1 },
-  'portal: cancel confirmation showing': { 'color-contrast': 1 },
-  'portal: patient dashboard': { 'color-contrast': 1 },
-  'portal: reschedule panel open, a new time picked': { 'color-contrast': 1 },
-  'portal: visit inside the notice window': { 'color-contrast': 1 },
-  'portal: visits list after confirming': { 'color-contrast': 1 },
-  'portal: visits list, a visit needing confirmation': { 'color-contrast': 1 },
+  // NO `portal:` STOP APPEARS HERE ANY MORE — nine entries left in batch 62
+  // with the footer line that produced all nine. A portal stop tolerates ZERO
+  // now, which is the only state in which the next one fails on arrival; see
+  // the note above for what the pair actually was.
   'staff: add-patient dialog, filled in': { 'color-contrast': 1 },
   'staff: dream team, a proposal waiting on a yes': { 'color-contrast': 1 },
   'staff: patients list, brand-new empty clinic': { 'color-contrast': 1 },

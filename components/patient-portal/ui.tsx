@@ -17,7 +17,9 @@ export const PORTAL_BG = PORTAL_GROUND
 
 // Semantic tones — meaning-first names so "what error looks like" is decided
 // HERE, once. Raw hexes for these meanings are banned outside this file
-// (tests/a11y/portal-tokens.test.ts).
+// (tests/a11y/portal-tokens.test.ts), and PORTAL_MUTED above is on that list
+// too — it is the portal's quiet step, and a second quietening on top of it
+// (an opacity) is what tests/a11y/portal-ink-opacity.test.ts refuses.
 export const PORTAL_ERROR = '#B4231F'
 export const PORTAL_WARN_BG = '#FBF3E4'
 export const PORTAL_WARN_INK = '#8A6116'
