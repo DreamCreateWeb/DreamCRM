@@ -2993,6 +2993,47 @@ opposite; all three now state the real shape.
 so it is behind the review gate (done, Sentinel, 2026-09-14) and owes Forge
 intake per §2 of the conventions.
 
+### The 20s stall-detector tail — STRUCK BY DECISION (2026-09-14)
+
+**The item.** `vitest.config.ts` pins `testTimeout: 20_000`, and DREAMCRM-19's
+note beside it says what would earn a lower number: pre-load the **8 remaining
+files** that still `await import()` the module under test inside a test —
+`tests/automation/cron-auth` (8 route graphs behind a `describe.each`),
+`tests/inbox/gmail-parser` and `tests/inbox/classification` lead them — and
+re-measure. DREAMCRM-19 did that work for 35 of the original 43; these 8 defer
+on purpose (`vi.resetModules`, `vi.doMock`, env set before the import), so each
+needs its own judgement about whether the module reads its env at import time
+or at call time. A per-file product question, not a mechanical edit.
+
+**The verdict: struck, not done, and not deferred a third time.** It reached
+the planning meeting twice, was deferred both times, and the DREAMCRM-45
+meeting took it off the list on QA's own recommendation. Carrying an item a
+third time is not a decision, it is a habit — and this one was never a defect.
+
+**Why striking it is safe, and on what evidence.** A timeout is a HANG
+detector, not an assertion: raising it relaxes no check and lowering it
+tightens none. So the only thing a lower number buys is a *faster* report of a
+hang that is not happening. Checked before striking (200 GitHub Actions runs,
+2026-09-11 00:53 UTC to 2026-09-15, the whole life of the current budget):
+
+- two `CI` failures in the window, and neither was a vitest timeout — one was
+  a Playwright `toContainText` assertion timeout in `e2e`, the other a
+  deliberately broken tree of our own (the DREAMCRM-48 red run);
+- every `nightly-test` green across all four unattended nightly fires;
+- every `tz-canary` green too — worth checking separately, because it is the
+  one job that runs the unit suite under a non-UTC clock and
+  `continue-on-error: true` means a red one would not show up as a failed run.
+
+Nothing has come near 20s. Under load the slowest of the 8 reaches ~4.3s on its
+first test, which is the 4.6x headroom the note describes.
+
+**What would reopen it.** A vitest timeout in `test`, `nightly-test` or
+`tz-canary` — any one of them. At that point the answer is still the pre-load
+work and a re-measure, not a bigger number: raising a hang detector to get
+green is the same move as raising an axe ceiling, and §2 of the repo
+conventions rules on it the same way. The note in `vitest.config.ts` keeps the
+whole recipe, so striking the ledger entry costs nothing but the queue slot.
+
 ## Part 6 — The post-1.0 backlog
 Moved to `docs/POST-1.0.md` (2026-08-17) — the full seeded inventory:
 externally-gated items (OD vendor portal, first A2P approval,
