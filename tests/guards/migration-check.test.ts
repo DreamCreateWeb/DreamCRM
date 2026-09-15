@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { readFileSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
-import { findReadCheck } from '@/lib/read-checks'
+import { findReadCheck, READ_CHECKS } from '@/lib/read-checks'
 import {
   CHECK_ID,
   MIGRATIONS_DIR,
@@ -9,6 +9,7 @@ import {
   compareLedger,
   readJournal,
   renderSummary,
+  positiveNumber,
   EXIT_CODE,
   NON_ANSWER_VERDICTS,
 } from '../../scripts/migration-check.mjs'
@@ -251,6 +252,54 @@ describe('the catalog entry the check depends on', () => {
     expect(sql).toMatch(/GRANT\s+USAGE\s+ON\s+SCHEMA\s+drizzle\b/i)
     expect(sql).toMatch(/GRANT\s+SELECT\s+ON\s+TABLE\s+drizzle\.__drizzle_migrations\b/i)
   })
+
+  it('those grants come AFTER the credential revokes', () => {
+    // THE DEFECT THIS PR SHIPPED ONCE (caught by Sentinel reviewing #575). The
+    // runbook runs this script with `ON_ERROR_STOP=1` and no surrounding
+    // transaction, so psql stops at the first error and everything after it
+    // never runs — while everything before it is already committed. Section 3
+    // grants blanket SELECT on all of `public`, which includes all 19
+    // credential tables; section 4 is the only thing that takes them back.
+    //
+    // These two grants are the first statements in the file that depend on an
+    // object nobody has verified exists. Above the REVOKEs, an error on either
+    // one ends the one-time production run with the role created and able to
+    // read every password hash and session token in the database. Below them,
+    // the same error costs one catalog entry and nothing else.
+    //
+    // POSITION, not presence. The test above already covers presence, and it
+    // stayed green through the entire defect.
+    const sql = readLf(ROLE_SQL).replace(/--.*$/gm, '')
+    const revoke = sql.search(/REVOKE\s+SELECT\s+ON[\s\S]*?FROM\s+dreamcrm_readonly/i)
+    const grant = sql.search(/GRANT\s+(USAGE|SELECT)\s+ON\s+(SCHEMA\s+drizzle|TABLE\s+drizzle\.)/i)
+
+    expect(revoke, 'the credential REVOKE block is gone').toBeGreaterThan(-1)
+    expect(grant, 'the drizzle grants are gone').toBeGreaterThan(-1)
+    expect(
+      grant,
+      'A grant placed above the credential REVOKEs turns any error on it into "role created, ' +
+        'blanket SELECT on all of public, none of the revokes applied" — the script runs with ' +
+        'ON_ERROR_STOP=1 and is not wrapped in a transaction, so everything before the error is ' +
+        'already committed. Wrong should error, not leak.',
+    ).toBeGreaterThan(revoke)
+  })
+
+  it('a no-tenant-data entry really reads no tenant table', () => {
+    // Sentinel's note on #575: the catalog guard accepts the new `tenantScope`
+    // value without asserting anything about it, which makes the declaration a
+    // promise rather than a checked fact — and the whole reason the third value
+    // exists is so these declarations stay worth reading.
+    for (const entry of READ_CHECKS.filter((c) => c.tenantScope === 'no-tenant-data')) {
+      const from = Array.from(entry.sql.matchAll(/\bfrom\s+([a-z_][a-z0-9_.]*)/gi)).map((m) => m[1]!)
+      expect(from, `${entry.id} declares no-tenant-data but reads nothing at all`).not.toEqual([])
+      for (const table of from) {
+        expect(
+          /^(drizzle|pg_catalog|information_schema)\./.test(table),
+          `${entry.id} declares 'no-tenant-data' and reads ${table}, which is a product table`,
+        ).toBe(true)
+      }
+    }
+  })
 })
 
 describe('a failed boot-time migration reaches the alarm that watches those logs', () => {
@@ -300,6 +349,28 @@ describe('the wiring that lets a red result reach the deploy run', () => {
   // would fail on the note warning against the thing it is checking for — the
   // same trap tests/guards/read-check-catalog.test.ts calls out.
   const workflowCode = workflow.replace(/^\s*#.*$/gm, '')
+
+  it('a bad dispatch input cannot make the poll immortal', () => {
+    // `MIGRATION_CHECK_TIMEOUT_SECONDS` comes from a `workflow_dispatch` input
+    // typed `string`. `Number('5m')` is NaN, `deadline` becomes NaN, and every
+    // `Date.now() + interval > NaN` is false — so the loop never breaks and
+    // polls the production route every 30s until the 6-hour job limit, hundreds
+    // of requests past its rate limit. (Sentinel, #575.)
+    expect(positiveNumber('5m', 720)).toBe(720)
+    expect(positiveNumber('', 720)).toBe(720)
+    expect(positiveNumber(undefined, 720)).toBe(720)
+    expect(positiveNumber('0', 720)).toBe(720)
+    expect(positiveNumber('-30', 720)).toBe(720)
+    expect(positiveNumber('Infinity', 720)).toBe(720)
+    expect(positiveNumber('60', 720)).toBe(60)
+  })
+
+  it('the job carries a wall-clock backstop under the script’s own deadline', () => {
+    // Belt and braces for the same thing: validating the input is the fix, and
+    // a job whose only bound is a number parsed from a dispatch input should
+    // not have exactly one of them.
+    expect(workflowCode).toMatch(/timeout-minutes:\s*\d+/)
+  })
 
   it('the workflow runs the script, and installs nothing to do it', () => {
     expect(workflow).toContain('node scripts/migration-check.mjs')

@@ -53,28 +53,6 @@ GRANT SELECT ON ALL TABLES IN SCHEMA public TO dreamcrm_readonly;
 -- it, a new table is simply ungranted — a check that needs one gets a single
 -- GRANT, reviewed, at the time. Wrong should error, not leak.
 
--- 3b. The applied-migration ledger, which does NOT live in `public`.
---
---     drizzle keeps it at `drizzle.__drizzle_migrations` (schema and table name
---     are its defaults; `app/api/admin/migrate/route.ts` overrides neither), so
---     the blanket grant above — scoped to schema `public` — does not reach it,
---     and without these two lines the `migrations-applied` catalog entry fails
---     with a permission error rather than an answer.
---
---     This is the narrow-grant path the note above describes, taken in the same
---     PR as the entry that needs it (DREAMCRM-46). Two statements because
---     PostgreSQL needs both: USAGE to enter the schema at all, SELECT to read
---     the table inside it. It is granted on THAT ONE TABLE, not on the schema's
---     tables generally — the same default-closed reasoning as the missing
---     ALTER DEFAULT PRIVILEGES above.
---
---     What is in there: an id, a sha256 of each migration file, and the
---     journal timestamp. Schema bookkeeping — no tenant row, no clinic id, no
---     patient data — which is why it is a `'no-tenant-data'` entry rather than
---     a cross-tenant waiver.
-GRANT USAGE  ON SCHEMA drizzle                   TO dreamcrm_readonly;
-GRANT SELECT ON TABLE  drizzle.__drizzle_migrations TO dreamcrm_readonly;
-
 -- 4. ...except the tables that hold credentials. WHOLE-TABLE revoke, which is
 --    the only form that works: in PostgreSQL a table-level privilege covers
 --    every column, and a column-level REVOKE cannot subtract from it. The
@@ -115,6 +93,46 @@ REVOKE SELECT ON
   marketing_event,              -- capture_token
   event_capture                 -- token
 FROM dreamcrm_readonly;
+
+-- 4b. The applied-migration ledger, which does NOT live in `public`.
+--
+--     BELOW THE REVOKES ON PURPOSE, and this is the whole point of section 4's
+--     default-closed note rather than a tidiness preference. The runbook runs
+--     this file with `ON_ERROR_STOP=1` and no surrounding transaction, so psql
+--     stops at the first error and everything after it never runs — while
+--     everything before it is already committed. Section 3 granted blanket
+--     SELECT on all of `public`, which includes all 19 credential tables, and
+--     section 4 is the only thing that takes them back.
+--
+--     These two statements are the FIRST in this file that depend on an object
+--     nobody has looked at (sections 1-3 create a role and grant on `public`,
+--     which is guaranteed to exist). Placed above the REVOKEs, an error here
+--     would end the one-time production run with `dreamcrm_readonly` created
+--     and able to read every password hash, session token and payment-plan
+--     token in the database. Below them, the same error costs one catalog entry
+--     and nothing else. Wrong should error, not leak — same rule as the missing
+--     ALTER DEFAULT PRIVILEGES above. (Caught in review of the PR that added
+--     them, where they sat at section 3b.)
+--
+--     WHY THEY ARE NEEDED: drizzle keeps the ledger at
+--     `drizzle.__drizzle_migrations` (schema and table name are its defaults;
+--     `app/api/admin/migrate/route.ts` overrides neither), so the blanket grant
+--     in section 3 — scoped to schema `public` — does not reach it, and without
+--     these two lines the `migrations-applied` catalog entry fails with a
+--     permission error rather than an answer.
+--
+--     This is the narrow-grant path section 4 describes, taken in the same PR
+--     as the entry that needs it (DREAMCRM-46). Two statements because
+--     PostgreSQL needs both: USAGE to enter the schema at all, SELECT to read
+--     the table inside it. It is granted on THAT ONE TABLE, not on the schema's
+--     tables generally.
+--
+--     What is in there: an id, a sha256 of each migration file, and the
+--     journal timestamp. Schema bookkeeping — no tenant row, no clinic id, no
+--     patient data — which is why it is a `'no-tenant-data'` entry rather than
+--     a cross-tenant waiver.
+GRANT USAGE  ON SCHEMA drizzle                   TO dreamcrm_readonly;
+GRANT SELECT ON TABLE  drizzle.__drizzle_migrations TO dreamcrm_readonly;
 
 -- 5. ACCEPTANCE TEST — do not believe any of the above until you have run it.
 --    A script that appears to have applied cleanly and has silently protected

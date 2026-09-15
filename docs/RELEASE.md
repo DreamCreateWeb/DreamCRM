@@ -2881,9 +2881,25 @@ a guard asserts that the NOT VERIFIED wording can never read as a pass. A fifth
 verdict, `THE CHECK ITSELF IS BROKEN`, covers production rejecting the secret and
 exits 1: an alarm that cannot fire is not the same as one with nothing to report.
 
+**What the review changed.** Two blocking findings, both about placement rather
+than design. The two `drizzle` grants had been written into
+`scripts/readonly-role.sql` *above* the credential `REVOKE`s — and that script is
+run once, by hand, with `ON_ERROR_STOP=1` and no surrounding transaction, so an
+error on either line would have ended the run with `dreamcrm_readonly` created,
+holding blanket `SELECT` on all of `public`, and none of the 19 revokes applied.
+They are the first statements in that file to depend on an object nobody has
+looked at, and they had been put ahead of the only thing standing between that
+role and every stored password hash and session token. Moved below, as section
+4b. Nothing had run yet, so nothing was ever exposed. Second: the poll was inside
+`deploy.yml`'s workflow-level `deploy-main` concurrency group, which would have
+stalled the *next* merge's test-and-build behind it — up to 12 minutes, worst
+case on exactly the fix-forward merge. The group now sits on the `deploy` job,
+where the thing that genuinely cannot overlap lives. Three files had asserted the
+opposite; all three now state the real shape.
+
 **This changes what a deploy can report, and it edits `.github/workflows/**`,**
-so it went through a Sentinel review and Forge intake per §2/§3 of the
-conventions.
+so it is behind the review gate (done, Sentinel, 2026-09-14) and owes Forge
+intake per §2 of the conventions.
 
 ## Part 6 — The post-1.0 backlog
 Moved to `docs/POST-1.0.md` (2026-08-17) — the full seeded inventory:

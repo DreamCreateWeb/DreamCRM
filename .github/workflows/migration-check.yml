@@ -57,6 +57,11 @@ permissions:
 jobs:
   migration-check:
     runs-on: ubuntu-latest
+    # The backstop under the script's own deadline. The script validates its
+    # timeout now, but a job whose only bound is a number parsed from a
+    # dispatch input is one typo away from polling production for six hours.
+    # 15 = the 12-minute default window plus checkout, Node and slack.
+    timeout-minutes: 15
     steps:
       # The journal half of the comparison comes from the checkout. Under
       # `workflow_call` that is the CALLER's commit — the one that just

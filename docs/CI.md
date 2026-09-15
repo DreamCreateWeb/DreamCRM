@@ -44,11 +44,25 @@ Four things about it that are decisions rather than details:
 - **It polls, for up to 12 minutes.** `deploy.yml` returns when CodeBuild
   succeeds; the App Runner rollout it triggers is still in flight at that moment
   and the migrations run later still. A check that asked once would be asking the
-  OLD container. This does not lengthen the deploy queue in practice — a
-  back-to-back merge's CodeBuild already waits on the previous rollout clearing.
-- **It takes no concurrency group**, so a scheduled run can never queue in front
-  of a deploy's. The 30s poll interval is what keeps two overlapping runs inside
-  the read-check route's own rate limit.
+  OLD container.
+- **That poll is why `deploy-main` moved onto the `deploy` job** (2026-09-14, in
+  review of #575). It used to be workflow-level, which held the group open for
+  everything after the rollout too — so the next merge's `test` and image build
+  (~15 min of work that used to run *concurrently* with the rollout) would have
+  been stalled behind the poll, and on a red result that is the full 12 minutes,
+  at exactly the moment somebody is landing the fix-forward merge. An earlier
+  draft of this section claimed the wait was free because the next build already
+  waits on the rollout clearing: that is true of the buildspec's
+  `start-deployment` retry and false of the queue. The rollout itself is still
+  serialized exactly as before — App Runner allows one at a time, and that is
+  the `deploy` job.
+  The visible consequence is that run N's migration-check can overlap run N+1's
+  deploy. Harmless: N+1's journal is a superset of N's, so every entry run N is
+  asking about is applied whichever container answers, and production being
+  AHEAD is explicitly not a failure.
+- **The check workflow itself takes no concurrency group**, so a scheduled run
+  can never queue in front of a deploy's. The 30s poll interval is what keeps two
+  overlapping runs inside the read-check route's own rate limit.
 - **A MISSING journal entry fails; production being AHEAD does not.** A newer
   merge deploying mid-check is normal, and a check that went red on busy days is
   one nobody would trust on the day it matters.

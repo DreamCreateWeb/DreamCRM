@@ -260,14 +260,29 @@ export function renderSummary(state, detail = {}) {
       '',
       `\`${url}\` gave no usable answer in ${waitedSeconds}s. Last attempt: ${why}.`,
       '',
-      'This is a finding, not a skipped check. The most likely cause after a deploy is that the new ' +
-        'container never became the live one — App Runner rolled back, or the rollout is still ' +
-        'stuck — and in that case this commit\'s ' +
-        `${journalCount} migrations have not run either. The other cause is that the running ` +
-        'container predates the `migrations-applied` catalog entry, which says the same thing: ' +
-        'production is not running this commit.',
+      'This is a finding, not a skipped check. Three causes, and the last attempt above says which:',
       '',
-      'Check the App Runner service and its application log, then re-run this workflow.',
+      // A REPEATED 500 IS NOT A DEAD CONTAINER, and this branch used to send the
+      // reader to App Runner for it. `askProduction` maps any non-2xx that is
+      // not 400/401/429/503 to `retry`, so the permission error the route
+      // returns when the `drizzle` grants were never run polls the whole window
+      // and lands here — the single most likely first-week failure, pointed at
+      // the wrong place. `lastWhy` carried the evidence; the prose contradicted
+      // it. (Found in review of #575.)
+      '- **`HTTP 500`** — the catalog query itself failed, and this says NOTHING about the ' +
+        'migrations. Most likely the two `drizzle` grants in `scripts/readonly-role.sql` were never ' +
+        'run against production: the ledger lives outside schema `public`, so without them the ' +
+        'read-only role gets a permission error rather than an answer. `docs/PROD-READ-ACCESS.md` ' +
+        'step 5 is the check. Do not go looking at App Runner for this one.',
+      `- **\`HTTP 400\`** — the running container does not know the \`${CHECK_ID}\` check, so it ` +
+        'predates this commit. Production is not running this commit, which means this commit\'s ' +
+        `${journalCount} migrations have not run either.`,
+      '- **a network error, or a repeated 5xx that is not 500** — most likely the new container never ' +
+        'became the live one: App Runner rolled back, or the rollout is still stuck. Same conclusion ' +
+        'as the case above.',
+      '',
+      'Check the App Runner service and its application log for the last two, then re-run this ' +
+        'workflow.',
       '',
     )
     return lines.join('\n')
@@ -333,6 +348,12 @@ function finish(state, detail) {
   return EXIT_CODE[state]
 }
 
+/** A finite positive number out of an untrusted string, or the fallback. */
+export function positiveNumber(raw, fallback) {
+  const n = Number(raw)
+  return Number.isFinite(n) && n > 0 ? n : fallback
+}
+
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 /** One request to the read-check route. Never throws; classifies instead. */
@@ -369,8 +390,16 @@ async function main() {
   const secret = process.env.ADMIN_READ_SECRET
   const baseUrl = (process.env.BASE_URL || DEFAULT_BASE_URL).replace(/\/+$/, '')
   const url = `${baseUrl}/api/admin/read-check`
-  const timeoutSeconds = Number(process.env.MIGRATION_CHECK_TIMEOUT_SECONDS || DEFAULT_TIMEOUT_SECONDS)
-  const intervalSeconds = Number(process.env.MIGRATION_CHECK_INTERVAL_SECONDS || DEFAULT_INTERVAL_SECONDS)
+  // VALIDATED, not just coerced. Both come from a `workflow_dispatch` input
+  // typed `string`, so an operator typing `5m` yields NaN — and NaN is the one
+  // value that makes this loop immortal: `deadline` becomes NaN, every
+  // `Date.now() + interval > NaN` comparison is false, and it polls production
+  // every 30s until the 6-hour job limit, hundreds of requests past the route's
+  // rate limit. An empty string already fell through to the default correctly;
+  // this covers the typo. (Found in review of #575; the job also carries a
+  // `timeout-minutes` as the backstop.)
+  const timeoutSeconds = positiveNumber(process.env.MIGRATION_CHECK_TIMEOUT_SECONDS, DEFAULT_TIMEOUT_SECONDS)
+  const intervalSeconds = positiveNumber(process.env.MIGRATION_CHECK_INTERVAL_SECONDS, DEFAULT_INTERVAL_SECONDS)
 
   if (!secret) {
     console.log('::warning::ADMIN_READ_SECRET is not set — the applied-migration ledger was NOT checked. Setup: docs/PROD-READ-ACCESS.md.')

@@ -160,6 +160,14 @@ written on every run; it is not the check passing.
 Until steps 1–3 are done the route answers `503` and the workflow fails with a
 clear message. That is fail-closed working, not a bug.
 
+**Rotating `ADMIN_READ_SECRET` later: change App Runner first, GitHub second.**
+The order in step 2/3 is not arbitrary. Between the two writes the two sides
+disagree, and a disagreement is a `401` — which
+`.github/workflows/migration-check.yml` reports as `THE CHECK ITSELF IS BROKEN`
+and exits 1, turning every deploy run red until they match. App Runner needs a
+redeploy to pick up a secret change, so that gap is minutes, not seconds. Set the
+container value, wait for the rollout, then update the GitHub secret.
+
 ## The error scan (DREAMCRM-12)
 
 `.github/workflows/error-scan.yml` scans the App Runner log groups for errors
