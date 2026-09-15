@@ -57,6 +57,20 @@ descriptions (2026-09-14, DREAMCRM-43):
    a resting hairline plus the one-shot scan sweep — so it reads as a surface
    starting rather than as a header that forgot to change.
 
+6. **The emoji ban is reversed — themed animated emoji, curated** (DREAMCRM-56,
+   2026-09-15). Owner decision, relayed by Mika and authorized by Dustin's
+   comment on DREAMCRM-56 granting Mika's relay his own authority: *"what would
+   be sick is to just use proper emojis, like find and download packs of
+   animated emojis, try to find ones that fit the theme etc, not remove them
+   completely."* Part 5 below is rewritten from a ban into a usage rule.
+
+   **What did NOT change:** emoji still stay out of the hero, the chrome,
+   pricing, comparisons, errors, billing and legal. The round-2 note the ban
+   came from — *"way too childish"* — was about the site's VOICE being cute,
+   and that judgement stands. Six curated glyphs marking real moments is a
+   different thing from decoration sprinkled through the chrome, and the
+   distance between them is the whole rule.
+
 **Why hero-only dark is the right answer and not a compromise.** The pages that
 close the sale — pricing, comparisons, docs, blog — are long-form reading done
 on a bright operatory monitor by a practice owner in their fifties. Dark is a
@@ -190,18 +204,49 @@ No new colours. Two grounds, one accent family, one celebration accent.
 
 ## Part 5 — Emoji and copy voice
 
-**Emoji.** The techno register does not carry them. This narrows the studio's
-general "emojis belong in empty states and success moments" rule for this
-surface specifically:
+**Emoji.** Six curated animated glyphs, used to mark moments — never as
+decoration, and never as the site's voice. The registry is
+`lib/marketing/emoji.ts`; the component is `<MarketingEmoji>`; the assets are
+Google's **Noto Animated Emoji**, CC BY 4.0, re-encoded and self-hosted under
+`public/images/emoji/`.
 
-- **Banned:** the chrome, the hero, product mocks, pricing, comparisons, ROI and
-  grader tools, error copy, billing copy, legal copy. Also banned as decoration
-  anywhere — the sparkle in the rejected version was a childish signal.
-- **Allowed, sparingly:** blog and changelog body copy where a named human is
-  writing in the first person.
-- **Celebration is expressed with light, not with a face.** A glow pulse, a
-  luminous pill, a fuchsia chip. That is the replacement, and it is better —
-  it works in both grounds and cannot date.
+| Glyph | For |
+|---|---|
+| 🚀 rocket | Something shipped — the newest changelog week, a launch. |
+| 🎉 popper | A real win the visitor caused. Never a win we caused ourselves. |
+| ✨ sparkles | Small delight; something got better without them asking. |
+| 💫 dizzy | Motion and arrival. Stands in for 🌠, which is not animated. |
+| 🪐 planet | The space register itself, where a page needs a mark not a mood. |
+| ⭐ star | A result worth keeping. The quiet anchor — it barely moves, on purpose. |
+
+- **Six, not a pack.** A whole pack is weight nobody looks at, and the limit is
+  what keeps the set reading as a decision rather than a dependency. A seventh
+  is an edit to this table first.
+- **Still banned:** the chrome, the hero, product mocks, pricing, comparisons,
+  ROI and grader numbers, error copy, billing copy, legal copy. Unchanged from
+  the ban, and for the same reason — the night band's job is *precise
+  instrument*, and a glossy 3D cartoon in the chrome is the round-2 note coming
+  back.
+- **Still banned: emoji as decoration.** Marking a moment is the permission. A
+  glyph that is not marking anything is the sparkle that got rejected.
+- **No faces.** The only animated moon in the pack (🌛) has one, and it is cut
+  for exactly that. Faces are the cute register.
+- **Decorative by default.** `<MarketingEmoji>` emits `alt=""` and
+  `aria-hidden` unless given a `label`. Pass one ONLY when the glyph carries
+  meaning the copy next to it does not already say — announcing "party popper"
+  next to *"Application in — thank you"* is noise, not access.
+- **Plain unicode emoji are still fine** in body copy where a named human is
+  writing, and in a mock showing a glyph the real product shows (decision 4
+  above). The animated set is for moments; a character in a sentence is a
+  character in a sentence.
+- **Celebration by light is still the default.** The glow pulse, the luminous
+  pill, the fuchsia chip — those did not get replaced, they got a companion.
+  Reach for light first; reach for the popper when a person just did something.
+- **Attribution is a licence term.** CC BY 4.0 requires the credit, and it
+  lives in `MarketingFooter` on every marketing page. `public/images/emoji/LICENSE.md`
+  carries the provenance — including the fact that the animation source repo is
+  gone, so the licence statement lives in a GitHub issue thread. Do not delete
+  that line as clutter; a test fails if it goes.
 
 **Copy voice.** Plain, short, declarative, specific. The warmth budget lives
 here.
@@ -236,6 +281,24 @@ item below except opacity/colour fades — non-negotiable, and the site's existi
   register; here it reads as bounce. Ease-out only.
 - **Never animate:** text being read, anything on scroll beyond the one
   entrance, the ticker's contents on hover (it pauses, as it already does).
+
+**Animated image assets (the emoji set) obey the same law, by markup not CSS.**
+`animation: none` cannot reach inside an animated WebP, so the reduced-motion
+fallback is a `<picture>` with a `media="(prefers-reduced-motion: reduce)"`
+`<source>` pointing at a still frame — the browser never fetches the animated
+file at all. That is the pattern; do not replace it with JS.
+
+- **No animation library, still.** Noto also ships these as Lottie, and Lottie
+  needs `lottie-web` (~70 KB gzipped) on a site that ships zero animation JS.
+  Animated WebP needs nothing. This rule is what chose the format.
+- **The still frame is chosen, not frame 0.** Several glyphs start from nothing
+  — 🎉's first frame is the cone before the burst, which reads as "nothing
+  happened". `scripts/build-emoji.mjs` records the chosen frame per glyph.
+- **A glyph that blinks out mid-loop is cut**, not tuned. ⚡ and 🌟 both scale
+  to near-zero inside their loops and read as a flicker at 40px; they are in
+  the `REJECTED` list with the reason.
+- **Always emit `width`/`height`.** These load inside text runs, and an image
+  that arrives late and reflows a paragraph is worse than no image.
 
 ---
 

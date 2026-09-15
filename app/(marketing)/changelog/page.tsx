@@ -5,6 +5,7 @@ import {
   formatWeekOf,
   type ChangelogItemKind,
 } from '@/lib/marketing/changelog'
+import { MarketingEmoji } from '@/components/marketing/emoji'
 import { PageHero } from '@/components/marketing/ui'
 import { JsonLd, SITE_URL } from '@/lib/marketing/seo'
 
@@ -74,6 +75,14 @@ export default function ChangelogPage() {
                 <span className="inline-flex items-center rounded-full border border-gray-200 bg-gray-50 px-2.5 py-0.5 text-[0.75rem] font-semibold text-gray-600">
                   {entry.release} release
                 </span>
+              )}
+              {/* The rocket marks the CURRENT week only, and moves down the page
+                  every time a week is added — `CHANGELOG_ENTRIES[0]` is the
+                  newest by construction. It carries meaning the copy does not
+                  (which of these is live right now), so it is labelled rather
+                  than decorative. BRAND.md Part 5. */}
+              {i === 0 && (
+                <MarketingEmoji name="rocket" size={26} label="Shipped this week" />
               )}
             </div>
 

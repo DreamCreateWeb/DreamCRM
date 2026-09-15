@@ -53,3 +53,7 @@ next-env.d.ts
 # Evidence for a PR or an issue, never a repo artifact — the measurement that
 # matters lives in BRAND.md Part 7, and the script regenerates the rest.
 /.shots/
+# Download cache for scripts/build-emoji.mjs — the 512px Noto sources, up to
+# 1.2 MB each. The re-encoded 96px output under public/images/emoji/ IS
+# committed; these are just what it was made from.
+/.emoji-src/
