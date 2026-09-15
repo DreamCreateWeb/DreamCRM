@@ -143,6 +143,27 @@ describe('enterDemoMode', () => {
     await expect(enterDemoMode({ orgId: '', role: 'admin' })).rejects.toThrow()
     await expect(enterDemoMode({ orgId: 'org_b', role: 'invalid' as never })).rejects.toThrow()
   })
+
+  it('refuses an orgId that matches no organization', async () => {
+    // The cookie this sets IS a tenant context — getTenantContext renders the
+    // whole app as the org id it names, for seven days. `orgId` arrives from
+    // the wire, so a typo or a forged value used to mint a cookie pointing at
+    // an organization that does not exist: every downstream read then scoped
+    // to a nonexistent tenant and the admin got an app full of empty pages
+    // with no clue why. Nothing to render as, nothing to set.
+    dbState.stubOrgSlug = null
+    await expect(enterDemoMode({ orgId: 'org_nope', role: 'admin' })).rejects.toThrow(/Unknown organization/)
+    expect(cookieStore.set).not.toHaveBeenCalled()
+    expect(mockCreateDemo).not.toHaveBeenCalled()
+  })
+
+  it('a real, non-demo organization is still entered normally', async () => {
+    // The guard above must not cost the ordinary case — this is the whole
+    // reason the org row was already being read.
+    dbState.stubOrgSlug = 'real-clinic-slug'
+    await expectRedirect(enterDemoMode({ orgId: 'org_real', role: 'member' }), '/')
+    expect(cookieStore.set).toHaveBeenCalledTimes(1)
+  })
 })
 
 describe('exitDemoMode', () => {
