@@ -23,6 +23,7 @@ import {
   addPatientDocument,
   deletePatientDocument,
   listPatientDocuments,
+  patientBelongsToOrg,
   type PatientDocumentRow,
 } from '@/lib/services/patient-documents'
 import {
@@ -195,6 +196,15 @@ export async function uploadPatientDocumentAction(
 
   const patientId = formData.get('patientId')?.toString() ?? ''
   if (!patientId) return { ok: false, error: 'Missing patient' }
+  // BEFORE a single byte reaches storage. The patient-in-org check used to
+  // live only inside `addPatientDocument`, which runs AFTER the upload — so a
+  // forged patientId wrote the file to S3 under
+  // `patient-documents/<org>/<forged id>/…`, then failed the row insert and
+  // left the blob there with no row and no access check pointing at it. The
+  // gate belongs in front of the write that cannot be rolled back.
+  if (!(await patientBelongsToOrg(ctx.organizationId, patientId))) {
+    return { ok: false, error: 'Patient not found in this organization' }
+  }
   const label = formData.get('label')?.toString() ?? null
   const file = formData.get('file')
   if (!(file instanceof File) || file.size === 0) return { ok: false, error: 'Choose a file to upload' }

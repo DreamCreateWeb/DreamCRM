@@ -1,0 +1,88 @@
+name: Migration check
+
+# DID THE DEPLOY'S MIGRATIONS ACTUALLY APPLY? (DREAMCRM-46)
+#
+# A failed migration deploys GREEN today: the Dockerfile runs db-migrate AFTER
+# App Runner has marked the container healthy and swallows the exit code,
+# deploy.yml has no migration step, and /api/admin/migrate answers a 500 nobody
+# reads. Because drizzle only ever considers journal entries newer than the most
+# recent ledger row, one stuck migration then blocks every later one, silently,
+# on every future boot.
+#
+# This asks production what it has actually applied — through the DREAMCRM-42
+# read path, so no runner holds a database credential — and compares the answer
+# to the committed journal. `scripts/migration-check.mjs` is the whole
+# implementation; this file only supplies the trigger and the secret.
+#
+# THREE TRIGGERS, ONE JOB:
+#
+#   workflow_call     — deploy.yml calls it with `needs: deploy`, so a merge
+#                       whose migrations did not land turns the DEPLOY RUN red.
+#                       That is the point of the issue: green must mean green.
+#   schedule          — the timing-free reading. The post-deploy run can fail
+#                       because App Runner was slow; this one cannot, and it is
+#                       also what notices a migration that was skipped rather
+#                       than attempted.
+#   workflow_dispatch — re-run it by hand after a slow rollout.
+#
+# GATES NOTHING AND PUBLISHES NO REQUIRED CONTEXT. `test` and `e2e` are the
+# required contexts on main and nothing outside ci.yml / deploy.yml may use
+# those names (docs/CI.md) — the job below is `migration-check`.
+#
+# NO CONCURRENCY GROUP, deliberately. The check is read-only and idempotent, and
+# queueing one behind another would put a 12-minute wait in front of the deploy
+# signal it exists to give. The poll interval is sized so two overlapping runs
+# stay inside the route's own rate limit.
+
+on:
+  workflow_call: {}
+  workflow_dispatch:
+    inputs:
+      timeout-seconds:
+        description: 'How long to keep asking before failing (seconds)'
+        required: false
+        default: '180'
+        type: string
+  # 08:20 UTC, off the top of the hour on purpose: GitHub's scheduler is
+  # best-effort and busiest at :00, and the nightly's own measured ~5h lateness
+  # (docs/CI.md) came from asking for `0 7`.
+  schedule:
+    - cron: '20 8 * * *'
+
+# Declared rather than inherited: the repo default is `read` today, but that is
+# a setting somebody can change without touching this file.
+permissions:
+  contents: read
+
+jobs:
+  migration-check:
+    runs-on: ubuntu-latest
+    # The backstop under the script's own deadline. The script validates its
+    # timeout now, but a job whose only bound is a number parsed from a
+    # dispatch input is one typo away from polling production for six hours.
+    # 15 = the 12-minute default window plus checkout, Node and slack.
+    timeout-minutes: 15
+    steps:
+      # The journal half of the comparison comes from the checkout. Under
+      # `workflow_call` that is the CALLER's commit — the one that just
+      # deployed — which is exactly the journal production should now match.
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # No `pnpm install`. The script imports nothing but node builtins, on
+      # purpose: an alarm that needs the dependency tree installed before it can
+      # fire is an alarm with a second way to fail.
+      - name: Compare the applied-migration ledger against the journal
+        env:
+          ADMIN_READ_SECRET: ${{ secrets.ADMIN_READ_SECRET }}
+          BASE_URL: https://www.dreamcreatestudio.com
+          # A hand dispatch defaults to a short window because the operator is
+          # already watching; the post-deploy and scheduled runs take the
+          # script's own 12 minutes, which is sized for a rollout.
+          MIGRATION_CHECK_TIMEOUT_SECONDS: ${{ inputs.timeout-seconds || '' }}
+        run: node scripts/migration-check.mjs

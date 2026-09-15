@@ -125,7 +125,7 @@ export default function PatientTagControl({
           />
         )}
       </div>
-      {error && <span className="text-[11px] text-rose-600 dark:text-rose-400">{error}</span>}
+      {error && <span className="text-xs text-rose-600 dark:text-rose-400">{error}</span>}
     </div>
   )
 }
