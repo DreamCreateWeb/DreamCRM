@@ -1041,7 +1041,8 @@ export function toneFillSites(roots: string[] = UI_ROOTS): { file: string; line:
  *
  * `text-gray-400 dark:text-gray-500` is that line written BACKWARDS, and it
  * fails in BOTH themes at once: #93a0bc on the lightest light surface is
- * **2.63:1**, and #5c6c89 on the darkest dark surface is **3.32:1**, against a
+ * **2.63:1** (`surface-2`), and #5c6c89 on the darkest dark surface is
+ * **3.51:1** (`surface-sunk`), against a
  * 4.5 floor. Those are BEST CASES — every other surface in either theme is
  * worse. It was live in 177 places across 85 files, and it is where SIX of the
  * eight findings left in `e2e/axe-baseline.ts` came from:
@@ -1115,6 +1116,27 @@ export function toneFillSites(roots: string[] = UI_ROOTS): { file: string; line:
  * 4.5, and a genuinely disabled control owes nothing), and a rule that fires
  * on 194 sites to catch the ones that are real text is the guard people switch
  * off.
+ *
+ * AND THE `bg` BAIL IS WIDER THAN "rule 1 has this one" (found in review of
+ * #597, and the comment on the bail below used to overstate it). This rule
+ * declines ANY chunk carrying a `bg-`, on the reasoning that an element with
+ * its own surface is rule 1's. Rule 1 does not claim all of them: it grades a
+ * pair only when EXACTLY ONE half carries the `dark:` override, and it skips
+ * an alpha surface outright. So two shapes are graded by NEITHER rule —
+ *
+ *     bg-white dark:bg-gray-800 text-gray-400 dark:text-gray-500   (both overridden)
+ *     text-gray-400 dark:text-gray-500 bg-white/60                 (alpha surface)
+ *
+ * — and the honest description of this bail is "rule 1 usually has it", not
+ * "rule 1 has it". Scanned at the time: 84,437 class chunks, 1,210 carrying a
+ * `bg-`, **zero live instances of either shape** (the scan was self-checked
+ * against a planted case first, so zero means the instrument looked). A false
+ * negative with no subject is worth writing down rather than closing, because
+ * the fix is not free — grading both-overridden pairs here would put two rules
+ * on the same line, which is how a repo gets two answers for it. The wider
+ * question of a pair whose two themes AGREE about which half moves is already
+ * an OPEN NOW entry in docs/UI-BEST-VERSION.md with 28 measured sites behind
+ * it; this belongs to that entry, not to a quiet widening of this one.
  */
 
 /** Neutral ramps — the ones that carry no meaning, and so have no tone
@@ -1166,9 +1188,10 @@ export function gradeQuietInkClasses(
   const inks = utilities(classes, 'text')
   const lightInk = inks.find((u) => !u.dark)
   const darkInk = inks.find((u) => u.dark)
-  // Both halves declared, neither a wash, and no surface of its own — with a
-  // surface present this is rule 1's element, and two rules grading one line
-  // is how a repo ends up with two answers for it.
+  // Both halves declared, neither a wash, and no surface of its own. With a
+  // surface present this is USUALLY rule 1's element, and two rules grading
+  // one line is how a repo ends up with two answers for it — but "usually" is
+  // load-bearing and the header says which two shapes fall between us.
   if (!lightInk || !darkInk || lightInk.alpha || darkInk.alpha) return null
   if (!isNeutralInk(lightInk.word) || !isNeutralInk(darkInk.word)) return null
   if (!namesAQuietStep(lightInk.word) && !namesAQuietStep(darkInk.word)) return null

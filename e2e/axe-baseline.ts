@@ -355,9 +355,26 @@
  *     `e2e/axe.ts`'s comments have argued for since the day it landed. Do not
  *     add an entry here to get a red run green. If a defect is genuinely not
  *     ours to fix in the same PR, that is a conversation on the issue, not a
- *     number in this file — and the monotonicity guard this header has asked
- *     for since 2026-09-10 (DREAMCRM-49) is still unbuilt, so the only thing
- *     standing between a raised ceiling and `main` is whoever reads the diff.
+ *     number in this file. And a raise is no longer yours to make quietly:
+ *     `tests/guards/axe-baseline-ratchet.test.ts` (#588 / #595) reads every
+ *     entry's value on `origin/main` and fails `test` on any increase,
+ *     INCLUDING a (stop, rule) absent there — an unlisted pair tolerates zero,
+ *     so adding a line IS a raise from zero. The written opt-out is
+ *     `e2e/axe-baseline-raises.ts`, which is on the review gate.
+ *
+ *     **An earlier draft of this paragraph said that guard was "still
+ *     unbuilt", and it shipped in the PR that emptied this file.** It was
+ *     wrong by four days — caught in review, not by a check, because
+ *     `e2e/axe-baseline.ts` merges cleanly and the merged header would have
+ *     carried both claims at once: the top of this file documenting the
+ *     ratchet, and this paragraph denying it exists. Worth leaving the scar
+ *     rather than a silent correction, for two reasons. It is §2d's "a note
+ *     saying a guard shipped is not a guard" read from the other end, and the
+ *     other end is worse: a note saying a guard does NOT exist is an
+ *     invitation to route around one that does. And this header is now the
+ *     product's only contrast ledger as well as the first thing anyone opens
+ *     before touching a ceiling, so a false sentence in it costs more than it
+ *     did when there were 214 entries to read past.
  *
  *     Two things worth keeping about HOW the eight were found, because neither
  *     was available by reading source. `expectNoA11yViolations` prints

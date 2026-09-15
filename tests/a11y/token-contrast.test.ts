@@ -19,6 +19,7 @@ import {
   ROOT,
   SURFACES,
   token,
+  utilityColor,
   type Rgb,
 } from './palette'
 import {
@@ -1132,5 +1133,50 @@ describe('TONE_FILL — the one answer for a solid fill with a label on it', () 
 
     // The number the `why` and docs/UI-BEST-VERSION.md both quote.
     expect(resting.toFixed(2)).toBe('4.53')
+  })
+
+  /**
+   * THE ONE SOLID FILL IN THE PRODUCT THAT NO REGISTRY WINDOW REACHES.
+   *
+   * The trial banner escalates violet → amber → orange → rose, and ORANGE IS
+   * NOT ONE OF THE SIX v3 TONES. Three of those tiers point at `TONE_FILL`
+   * (batch 64); the orange one cannot, because the registry has no entry for a
+   * seventh hue — so it is hand-spelled at the call site, and rule 5's window
+   * (the 300-600 steps of the six tone ramps) does not contain it either.
+   *
+   * That combination is the thing worth pinning: a deliberate deferral is fine,
+   * an UNWATCHED line is not. Raised in review of #597 — "a future edit to that
+   * line fails nothing." So this grades the recipe the way rule 5 would have,
+   * by hand, on the one pairing rule 5 structurally cannot see.
+   *
+   * Whether the escalation should reach outside the tone set at all is a design
+   * decision and is deferred in docs/UI-BEST-VERSION.md. Deleting this test is
+   * not how that decision gets made.
+   */
+  it('pins the trial banner’s off-registry orange tier, which rule 5 cannot see', () => {
+    const src = readFileSync(join(ROOT, 'components/ui/trial-banner.tsx'), 'utf8')
+    const RESTING = 'bg-orange-500 text-gray-900 hover:bg-orange-400'
+    expect(
+      src,
+      'the urgent tier’s recipe moved. It is the one solid fill outside every ' +
+        'registry window, so re-measure it here rather than trusting the ramp.',
+    ).toContain(RESTING)
+
+    const ink = utilityColor(LIGHT, 'gray-900')!
+    for (const fill of ['orange-500', 'orange-400']) {
+      expect(
+        contrast(ink, utilityColor(LIGHT, fill)!),
+        `gray-900 on ${fill} — the ${fill === 'orange-500' ? 'resting' : 'hover'} pair`,
+      ).toBeGreaterThanOrEqual(AA)
+    }
+
+    // The NEGATIVE half, so the pin grades the DECISION and not just a ratio:
+    // white on this fill is what the tier used to spell, and it fails. Without
+    // this, a revert to `text-white` would pass the assertions above.
+    expect(
+      contrast(utilityColor(LIGHT, 'white')!, utilityColor(LIGHT, 'orange-500')!),
+      'white on orange-500 must stay below the floor — it is why the ink is dark',
+    ).toBeLessThan(AA)
+    expect(src).not.toContain('bg-orange-500 text-white')
   })
 })
