@@ -14,6 +14,7 @@ import { countOpenProposals } from '@/lib/services/proposals'
 import { countFollowupsDue } from '@/lib/services/patient-followups'
 import { countSeatedBetween } from '@/lib/services/patient-journey'
 import { getDigestOptOutUserIds } from '@/lib/services/staff-notification-pref'
+import { listShutDownOrgIds } from '@/lib/services/billing-state'
 import { sendNotificationEmail } from '@/lib/email'
 
 /**
@@ -413,6 +414,12 @@ export interface StandupRunResult {
  * (clinic_profile.standup_last_sent_at >= this week's start = already sent).
  * Demo clinics never email. Quiet standups don't send — a report with
  * nothing in it teaches people to ignore the reports that matter.
+ *
+ * THE KILL (owner ruling) applies here too: a shut-down practice gets no
+ * Monday email. This sweep is the one that was missing the gate — the morning
+ * digest it rides has had it, so a cancelled clinic's staff stopped hearing
+ * from us on Tuesday and went on getting a cheerful weekly report about the
+ * work DreamCRM was supposedly doing for them every Monday (DREAMCRM-57).
  */
 export async function sendWeeklyStandups(opts?: { now?: Date }): Promise<StandupRunResult> {
   const now = opts?.now ?? new Date()
@@ -435,8 +442,15 @@ export async function sendWeeklyStandups(opts?: { now?: Date }): Promise<Standup
     .from(schema.clinicProfile)
     .innerJoin(schema.organization, eq(schema.organization.id, schema.clinicProfile.organizationId))
 
+  // THE KILL: read once for the sweep, same as the morning digest does.
+  const shutDown = await listShutDownOrgIds(now)
+
   for (const clinic of clinics) {
     if (!clinic.organizationId || clinic.isDemo) continue
+    // Shut down: the dashboard wall is the only thing this clinic's staff
+    // should hear from. Skipped BEFORE `scanned` so the run's counters don't
+    // report a clinic we were never going to mail as one we considered.
+    if (shutDown.has(clinic.organizationId)) continue
     // NO org-level gate on dailyDigestEnabled (round-2 audit): that column
     // defaults to 0 and no real clinic-creation path sets it, so gating on
     // it made the Monday email dead on arrival for every production clinic

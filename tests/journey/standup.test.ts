@@ -70,6 +70,12 @@ vi.mock('@/lib/services/patient-journey', () => ({
 vi.mock('@/lib/services/clinic-timezone', () => ({
   getClinicTimeZone: vi.fn(async () => 'America/Chicago'),
 }))
+// THE KILL — the shut-down list the standup consults before mailing anyone.
+const billing = vi.hoisted(() => ({ shutDown: new Set<string>() }))
+vi.mock('@/lib/services/billing-state', () => ({
+  listShutDownOrgIds: vi.fn(async () => billing.shutDown),
+}))
+
 const pref = vi.hoisted(() => ({ optedOut: new Set<string>() }))
 vi.mock('@/lib/services/staff-notification-pref', () => ({
   getDigestOptOutUserIds: vi.fn(async () => pref.optedOut),
@@ -222,6 +228,7 @@ beforeEach(() => {
   deps.seated = 0
   deps.seatedCalls = []
   pref.optedOut = new Set()
+  billing.shutDown = new Set()
   store.reviews = []
   store.clinics = []
   store.staff = []
@@ -577,5 +584,64 @@ describe('sendWeeklyStandups', () => {
     const quiet = await sendWeeklyStandups({ now: MONDAY })
     expect(quiet.skippedQuiet).toBe(1)
     expect(sendNotificationEmailMock).not.toHaveBeenCalled()
+  })
+  // ── DREAMCRM-57: THE KILL ──────────────────────────────────────────────────
+
+  it('a shut-down practice gets no Monday email', async () => {
+    seedClinic()
+    ledger.counts = { appointment_reminder: 3 }
+    billing.shutDown = new Set([ORG])
+
+    const r = await sendWeeklyStandups({ now: MONDAY })
+
+    expect(r.sent).toBe(0)
+    expect(sendNotificationEmailMock).not.toHaveBeenCalled()
+    // Not counted as a clinic we considered and passed over for some reason of
+    // its own — it was never in the running.
+    expect(r.scanned).toBe(0)
+    expect(r.skippedQuiet).toBe(0)
+    expect(r.skippedAlready).toBe(0)
+  })
+
+  it("leaves a shut-down practice's week UNCLAIMED, so paying releases the next Monday untouched", async () => {
+    seedClinic()
+    ledger.counts = { appointment_reminder: 3 }
+    billing.shutDown = new Set([ORG])
+    await sendWeeklyStandups({ now: MONDAY })
+    // The week was never claimed…
+    expect(store.clinics[0].standupLastSentAt).toBeNull()
+
+    // …so the moment they pay, the same Monday tick mails them.
+    billing.shutDown = new Set()
+    const r = await sendWeeklyStandups({ now: MONDAY })
+    expect(r.sent).toBe(1)
+  })
+
+  it('kills only the shut-down clinic, not the paying one beside it', async () => {
+    seedClinic()
+    store.clinics.push({
+      organizationId: 'org_paying',
+      standupLastSentAt: null,
+      digestEnabled: 1,
+      isDemo: false,
+      clinicName: 'Paying Dental',
+    })
+    store.staff.push({
+      organizationId: 'org_paying',
+      userId: 'u9',
+      role: 'owner',
+      name: 'Dr. Paid',
+      email: 'paid@x.com',
+    })
+    ledger.counts = { appointment_reminder: 3 }
+    billing.shutDown = new Set([ORG])
+
+    const r = await sendWeeklyStandups({ now: MONDAY })
+
+    expect(r.sent).toBe(1)
+    const recipients = sendNotificationEmailMock.mock.calls.map(
+      (c) => (c[0] as Record<string, unknown>).to,
+    )
+    expect(recipients).toEqual(['paid@x.com'])
   })
 })

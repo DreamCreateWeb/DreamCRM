@@ -141,6 +141,22 @@ export class PmsWriteNotSupportedError extends Error {
   readonly notSupported = true as const
 }
 
+/**
+ * `runImport` stood down because another sync for this clinic is already in
+ * flight (a double-clicked "Sync now", or a scheduled run landing on a manual
+ * one). It is the ONE throw from runImport that means nothing is wrong: the
+ * other run is doing the work, so nobody should be alerted and the Guardian
+ * must not count it as a broken bridge.
+ *
+ * It is a distinct TYPE rather than a message match because the cron's catch
+ * has to tell it apart from every other pre-run throw — a missing Customer
+ * Key, a disconnected connection row — which are real breakage the Guardian
+ * needs to hear about (DREAMCRM-57).
+ */
+export class PmsSyncInFlightError extends Error {
+  readonly inFlight = true as const
+}
+
 export interface PmsProviderClient {
   readonly id: PmsProviderId
   /** Cheap reachability + auth check; never throws (returns ok:false). */

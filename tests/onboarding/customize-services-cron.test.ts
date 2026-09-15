@@ -30,11 +30,30 @@ vi.mock('@/lib/services/action-ledger', () => ({
   recordAction: (...a: unknown[]) => recordActionMock(...(a as [])),
 }))
 
-// DB mock: a single select chain returns `rows`; capture the where() arg so we
-// can assert the demo-exclusion filter is present, and capture update patches.
+// DB mock. Two distinct shapes, because the sweep uses two:
+//   • db.select().from().innerJoin().where()  — the org snapshot (`rows`)
+//   • db.transaction(tx => tx.select()…for('update') then tx.update())
+//     — the per-org write-back, which RE-READS the row before merging.
+// `liveServices` is what that re-read returns: it starts as the snapshot and a
+// test can reassign it mid-run to stand in for the clinic editing its own
+// services while the AI was thinking.
 let rows: Array<Record<string, unknown>> = []
 const updates: Array<{ services: unknown }> = []
 let lastWhere: unknown = null
+let liveServices: Record<string, unknown[]> = {}
+let txReadFor: string[] = []
+/** Set by a test to blow up the write-back for one org. */
+let failWriteForOrg: string | null = null
+
+function readLive(): unknown[] {
+  // The sweep re-reads exactly one org per transaction and the mock has no
+  // where()-arg introspection, so track call order: each transaction belongs to
+  // the next org in `rows` that produced a write.
+  const orgId = txReadFor.shift() ?? ''
+  if (failWriteForOrg && orgId === failWriteForOrg) throw new Error('write blew up')
+  return liveServices[orgId] ?? []
+}
+
 vi.mock('@/lib/db', () => ({
   db: {
     select: () => ({
@@ -47,13 +66,27 @@ vi.mock('@/lib/db', () => ({
         }),
       }),
     }),
-    update: () => ({
-      set: (patch: { services: unknown }) => ({
-        where: async () => {
-          updates.push({ services: patch.services })
-        },
-      }),
-    }),
+    transaction: async (cb: (tx: unknown) => Promise<unknown>) => {
+      const tx = {
+        select: () => ({
+          from: () => ({
+            where: () => ({
+              for: () => ({
+                limit: async () => [{ services: readLive() }],
+              }),
+            }),
+          }),
+        }),
+        update: () => ({
+          set: (patch: { services: unknown }) => ({
+            where: async () => {
+              updates.push({ services: patch.services })
+            },
+          }),
+        }),
+      }
+      return cb(tx)
+    },
   },
 }))
 
@@ -75,6 +108,17 @@ function svc(slug: string, customized?: unknown) {
   return { id: `svc-${slug}`, librarySlug: slug, name: slug.toUpperCase(), category: 'core', customized }
 }
 
+/** Point the mock's re-read at each org's own snapshot (the no-concurrency
+ *  case) and queue the transaction order. Call AFTER setting `rows`. */
+function liveMatchesSnapshot() {
+  liveServices = {}
+  txReadFor = []
+  for (const r of rows) {
+    liveServices[r.organizationId as string] = (r.services as unknown[]) ?? []
+    txReadFor.push(r.organizationId as string)
+  }
+}
+
 beforeEach(() => {
   aiConfigured.mockReturnValue(true)
   customizeServiceForClinic.mockReset()
@@ -83,6 +127,9 @@ beforeEach(() => {
   rows = []
   updates.length = 0
   lastWhere = null
+  liveServices = {}
+  txReadFor = []
+  failWriteForOrg = null
   recordActionMock.mockClear()
 })
 
@@ -112,6 +159,7 @@ describe('customizePendingServices', () => {
         services: [svc('a'), svc('b', { body: 'already' })],
       },
     ]
+    liveMatchesSnapshot()
     const res = await customizePendingServices()
     expect(customizeServiceForClinic).toHaveBeenCalledTimes(1) // only svc 'a'
     expect(res.customized).toBe(1)
@@ -141,6 +189,7 @@ describe('customizePendingServices', () => {
         services: ['a', 'b', 'c', 'd', 'e', 'f'].map((s) => svc(s)),
       },
     ]
+    liveMatchesSnapshot()
     const res = await customizePendingServices()
     expect(customizeServiceForClinic).toHaveBeenCalledTimes(PER_ORG_CUSTOMIZE_BUDGET)
     expect(res.customized).toBe(PER_ORG_CUSTOMIZE_BUDGET)
@@ -157,6 +206,7 @@ describe('customizePendingServices', () => {
         services: [svc('a', { body: 'x' }), svc('b', { body: 'y' })],
       },
     ]
+    liveMatchesSnapshot()
     const res = await customizePendingServices()
     expect(customizeServiceForClinic).not.toHaveBeenCalled()
     expect(res.orgsTouched).toBe(0)
@@ -178,6 +228,7 @@ describe('customizePendingServices', () => {
         services: [svc('a'), svc('b')],
       },
     ]
+    liveMatchesSnapshot()
     const res = await customizePendingServices()
     expect(res.errors).toBe(1)
     expect(res.customized).toBe(1)
@@ -194,8 +245,122 @@ describe('customizePendingServices', () => {
         services: [svc('ghost')], // not in LIBRARY
       },
     ]
+    liveMatchesSnapshot()
     const res = await customizePendingServices()
     expect(customizeServiceForClinic).not.toHaveBeenCalled()
     expect(res.orgsTouched).toBe(0)
+  })
+  // ── DREAMCRM-57 ────────────────────────────────────────────────────────────
+
+  it("a clinic whose write-back throws does not stop the NEXT clinic's rewrites", async () => {
+    rows = [
+      {
+        organizationId: 'org_boom',
+        displayName: 'Boom',
+        city: null,
+        tagline: null,
+        about: null,
+        services: [svc('a')],
+      },
+      {
+        organizationId: 'org_after',
+        displayName: 'After',
+        city: null,
+        tagline: null,
+        about: null,
+        services: [svc('b')],
+      },
+    ]
+    liveMatchesSnapshot()
+    failWriteForOrg = 'org_boom'
+
+    const res = await customizePendingServices()
+
+    // org_boom's write threw and is counted — and org_after, LATER in the same
+    // list, still got its rewrite written. Before the per-org try/catch the
+    // throw escaped the loop and org_after was never reached at all.
+    expect(res.errors).toBe(1)
+    expect(res.customized).toBe(1)
+    expect(res.orgsTouched).toBe(1)
+    expect(updates).toHaveLength(1)
+    const written = updates[0].services as Array<{ librarySlug: string }>
+    expect(written.map((w) => w.librarySlug)).toEqual(['b'])
+  })
+
+  it('keeps a service the clinic added while the AI was thinking', async () => {
+    rows = [
+      {
+        organizationId: 'org_1',
+        displayName: 'Acme',
+        city: null,
+        tagline: null,
+        about: null,
+        services: [svc('a')],
+      },
+    ]
+    liveMatchesSnapshot()
+    // The clinic renames service 'a', adds 'c' and drops nothing — all AFTER
+    // the sweep took its snapshot and while customizeServiceForClinic is away.
+    const renamedA = { ...svc('a'), name: 'Renamed By The Clinic' }
+    liveServices['org_1'] = [renamedA, svc('c')]
+
+    const res = await customizePendingServices()
+
+    expect(res.customized).toBe(1)
+    const written = updates[0].services as Array<{
+      id: string
+      name: string
+      customized?: unknown
+    }>
+    // The blob landed on 'a'…
+    expect(written.find((w) => w.id === 'svc-a')?.customized).toEqual({ body: 'x' })
+    // …without reverting the clinic's rename…
+    expect(written.find((w) => w.id === 'svc-a')?.name).toBe('Renamed By The Clinic')
+    // …and without deleting the service they added. Writing the snapshot back
+    // whole is what used to undo both.
+    expect(written.map((w) => w.id)).toEqual(['svc-a', 'svc-c'])
+  })
+
+  it('does not resurrect a service the clinic deleted while the AI was thinking', async () => {
+    rows = [
+      {
+        organizationId: 'org_1',
+        displayName: 'Acme',
+        city: null,
+        tagline: null,
+        about: null,
+        services: [svc('a'), svc('b')],
+      },
+    ]
+    liveMatchesSnapshot()
+    // 'b' is gone from the clinic's own row by the time the write lands.
+    liveServices['org_1'] = [svc('a')]
+
+    await customizePendingServices()
+
+    const written = updates[0].services as Array<{ id: string }>
+    expect(written.map((w) => w.id)).toEqual(['svc-a'])
+  })
+
+  it('leaves a blob the clinic wrote itself mid-run alone', async () => {
+    rows = [
+      {
+        organizationId: 'org_1',
+        displayName: 'Acme',
+        city: null,
+        tagline: null,
+        about: null,
+        services: [svc('a')],
+      },
+    ]
+    liveMatchesSnapshot()
+    // A concurrent run (or the Welcome Interview's own fire-and-forget call)
+    // filled the hole first. The merge only ever fills a hole.
+    liveServices['org_1'] = [svc('a', { body: 'theirs' })]
+
+    await customizePendingServices()
+
+    const written = updates[0].services as Array<{ id: string; customized?: unknown }>
+    expect(written.find((w) => w.id === 'svc-a')?.customized).toEqual({ body: 'theirs' })
   })
 })

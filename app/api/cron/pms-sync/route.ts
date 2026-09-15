@@ -3,6 +3,7 @@ import { requireCronAuth } from '@/lib/cron-auth'
 import { and, desc, eq, inArray } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import { runImport } from '@/lib/services/pms/sync'
+import { PmsSyncInFlightError } from '@/lib/services/pms/provider'
 import { sendNotificationEmail } from '@/lib/email'
 import { notifyOrgMembers } from '@/lib/services/notifications'
 import { reportAutomationFailure } from '@/lib/services/engine-failures'
@@ -141,14 +142,30 @@ async function run(request: Request) {
         else failed++
         results.push({ organizationId: conn.organizationId, status: r.status, error: r.error, alerted, resuming: r.resumeAvailable })
       } catch (err) {
-        // A throw here means runImport bailed BEFORE writing a sync_run row —
-        // usually transient/benign (the concurrency guard saw an overlapping
-        // run) or a config issue (no Customer Key). We don't alert on it (the
-        // streak rule keys off real sync_run rows, and an overlap isn't a
-        // failure); just record it and keep the loop going so one bad org can't
-        // stop the rest.
+        // A throw here means runImport bailed BEFORE writing a sync_run row, so
+        // the streak rule — which counts sync_run rows — cannot see it at all.
+        // Two very different things land in here and they were being treated
+        // alike (DREAMCRM-57):
+        //
+        //   • An OVERLAP (PmsSyncInFlightError): another run is doing the work
+        //     right now. Nothing is broken. Stay quiet, exactly as before.
+        //   • Anything else — no Customer Key, a connection row that went
+        //     'disconnected' under us, an adapter constructor throw. The bridge
+        //     is DOWN and it throws in the same place on every tick, so no
+        //     sync_run row is ever written, the streak stays at zero and the
+        //     Guardian went on reporting this clinic `healthy` indefinitely
+        //     while their bookings silently stopped reaching Open Dental.
+        //
+        // So the Guardian hears about the second kind. `reportAutomationFailure`
+        // is once-per-day de-duped internally, so an org broken for a week
+        // reports once a day rather than hourly. Best-effort: a failure to
+        // record the signal must not take the loop down with it.
+        const inFlight = err instanceof PmsSyncInFlightError
         failed++
         const message = err instanceof Error ? err.message : 'unknown'
+        if (!inFlight) {
+          await reportAutomationFailure(conn.organizationId, 'pms_sync').catch(() => {})
+        }
         results.push({ organizationId: conn.organizationId, status: 'error', error: message, alerted: false })
       }
     }

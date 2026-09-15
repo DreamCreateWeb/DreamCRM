@@ -109,25 +109,79 @@ export async function customizePendingServices(): Promise<CustomizeServicesResul
     }
 
     if (didForOrg > 0) {
-      await db
-        .update(clinicProfile)
-        .set({ services: next, updatedAt: new Date() })
-        .where(eq(clinicProfile.organizationId, row.organizationId))
-      result.customized += didForOrg
-      result.orgsTouched += 1
-      // The machine just wrote public website copy — that's employee work the
-      // ledger must report (one entry per sweep, naming the pages).
-      await recordAction({
-        organizationId: row.organizationId,
-        capability: 'service_copywriting',
-        summary:
-          written.length === 1
-            ? `Wrote the ${written[0]} page copy for your website`
-            : `Wrote website copy for ${written.length} service pages (${written.join(', ')})`,
-        detail: { services: written },
-      })
+      // PER-ORG ISOLATION (DREAMCRM-57). The AI call above is wrapped, but the
+      // write and the ledger entry below were not — and both can throw (a
+      // connection blip, a ledger constraint). Unwrapped, one clinic's failed
+      // write abandoned every clinic later in `rows` for the whole run, and
+      // the next tick would reach the same clinic and stop in the same place.
+      try {
+        await writeCustomizedServices(row.organizationId, next, written)
+        result.customized += didForOrg
+        result.orgsTouched += 1
+      } catch {
+        result.errors += 1
+      }
     }
   }
 
   return result
+}
+
+/**
+ * Land this org's new `customized` blobs WITHOUT clobbering whatever the clinic
+ * did to its own services while the AI was thinking (DREAMCRM-57).
+ *
+ * The sweep reads every clinic's `services` array ONCE at the top, then spends
+ * up to PER_ORG_CUSTOMIZE_BUDGET AI calls per org — seconds to minutes of
+ * wall-clock — before writing. Writing the snapshot back whole made the last
+ * writer win over the whole column: a service the clinic added, renamed,
+ * re-priced, reordered or DELETED in the Welcome Interview or Settings →
+ * Services meanwhile was silently reverted to how it looked when the run
+ * started. The clinic sees its own edit undone by a background job with no
+ * error anywhere.
+ *
+ * So: re-read the row inside a transaction under `FOR UPDATE`, and copy across
+ * ONLY the field this job owns — `customized`, keyed by service id, and only
+ * onto services that (a) still exist and (b) still have no blob. Everything
+ * else on the row is the clinic's, and stays theirs.
+ */
+async function writeCustomizedServices(
+  organizationId: string,
+  withBlobs: ClinicService[],
+  written: string[],
+): Promise<void> {
+  const blobs = new Map(
+    withBlobs.filter((s) => s.customized).map((s) => [s.id, s.customized]),
+  )
+
+  await db.transaction(async (tx) => {
+    const [fresh] = await tx
+      .select({ services: clinicProfile.services })
+      .from(clinicProfile)
+      .where(eq(clinicProfile.organizationId, organizationId))
+      .for('update')
+      .limit(1)
+    const current = Array.isArray(fresh?.services) ? (fresh.services as ClinicService[]) : []
+    const merged = current.map((s) =>
+      // Already has a blob → the clinic (or a concurrent run) got there first;
+      // never overwrite one. Only fill a hole this run actually filled.
+      !s.customized && blobs.has(s.id) ? { ...s, customized: blobs.get(s.id) } : s,
+    )
+    await tx
+      .update(clinicProfile)
+      .set({ services: merged, updatedAt: new Date() })
+      .where(eq(clinicProfile.organizationId, organizationId))
+  })
+
+  // The machine just wrote public website copy — that's employee work the
+  // ledger must report (one entry per sweep, naming the pages).
+  await recordAction({
+    organizationId,
+    capability: 'service_copywriting',
+    summary:
+      written.length === 1
+        ? `Wrote the ${written[0]} page copy for your website`
+        : `Wrote website copy for ${written.length} service pages (${written.join(', ')})`,
+    detail: { services: written },
+  })
 }

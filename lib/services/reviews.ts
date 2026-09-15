@@ -1331,13 +1331,17 @@ export async function fireReviewRequestForAppointment(
   patientId: string,
   sendFn: typeof createAndSendReviewRequest = createAndSendReviewRequest,
 ): Promise<{ outcome: 'sent' | 'skipped' | 'failed'; error?: string }> {
-  const [existing] = await db
-    .select({ id: schema.reviewRequest.id })
-    .from(schema.reviewRequest)
-    .where(eq(schema.reviewRequest.appointmentId, appointmentId))
-    .limit(1)
-  if (existing) return { outcome: 'skipped' }
+  // The idempotency read is INSIDE the try (DREAMCRM-57): it runs once per
+  // candidate inside the cron's per-org walk, and a connection blip here used
+  // to throw past the caller and abandon every remaining appointment — and
+  // every remaining CLINIC — for the rest of the sweep.
   try {
+    const [existing] = await db
+      .select({ id: schema.reviewRequest.id })
+      .from(schema.reviewRequest)
+      .where(eq(schema.reviewRequest.appointmentId, appointmentId))
+      .limit(1)
+    if (existing) return { outcome: 'skipped' }
     await sendFn({
       organizationId,
       patientId,
@@ -1382,7 +1386,10 @@ export interface AutoSendResult {
   skipped: number
   /** Send actually failed (Resend error, DB error). Worth alerting on. */
   failed: number
-  errors: Array<{ organizationId: string; appointmentId: string; error: string }>
+  /** `appointmentId: null` is an ORG-level failure — the clinic's config read
+   *  or candidate query threw, so no appointment was ever reached. Counted and
+   *  reported rather than allowed to abort the sweep (DREAMCRM-57). */
+  errors: Array<{ organizationId: string; appointmentId: string | null; error: string }>
 }
 
 export async function autoSendDueReviewRequests(opts?: {
@@ -1410,66 +1417,95 @@ export async function autoSendDueReviewRequests(opts?: {
   const shutDownOrgs = await listShutDownOrgIds(now)
   for (const org of orgs) {
     if (shutDownOrgs.has(org.organizationId)) continue
-    const config = await getReviewConfig(org.organizationId)
-    if (!isReviewConfigComplete(config)) {
-      // Auto-send is on but no platform is set up — staff misconfig;
-      // skip silently. They'll see Sent=0 on the dashboard.
-      continue
-    }
-
-    const cutoff = new Date(now.getTime() - (org.autoSendDelayHours ?? 24) * 60 * 60 * 1000)
-    // Ask-while-fresh floor: never auto-request a review for a visit completed
-    // more than 7 days ago. Without it, flipping auto-send ON (or a long cron
-    // outage) would blast requests for months-old visits — embarrassing asks
-    // the patient no longer connects to anything. 7 days generously covers the
-    // real safety-net cases (configured delays up to 48h + missed ticks).
-    const freshFloor = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
-
-    const candidates = await db
-      .select({
-        appointmentId: schema.appointment.id,
-        patientId: schema.appointment.patientId,
+    // PER-ORG ISOLATION (DREAMCRM-57). Everything below reads or writes on
+    // behalf of ONE clinic, and every one of those calls can throw — a review
+    // config row with a malformed blob, a connection blip on the candidate
+    // query. Unwrapped, the first clinic to throw ended the sweep for every
+    // clinic after it in the list, silently and for the whole hour until the
+    // next tick (which would hit the same clinic and stop in the same place).
+    // Same shape as the per-post isolation in publishDueScheduledPosts.
+    try {
+      await sweepOrgReviewRequests(org, now, send, result)
+    } catch (err) {
+      result.failed++
+      result.errors.push({
+        organizationId: org.organizationId,
+        appointmentId: null,
+        error: err instanceof Error ? err.message : 'unknown',
       })
-      .from(schema.appointment)
-      .leftJoin(
-        schema.reviewRequest,
-        eq(schema.reviewRequest.appointmentId, schema.appointment.id),
-      )
-      .where(
-        and(
-          eq(schema.appointment.organizationId, org.organizationId),
-          eq(schema.appointment.status, 'completed'),
-          lte(schema.appointment.completedAt, cutoff),
-          gte(schema.appointment.completedAt, freshFloor),
-          isNull(schema.reviewRequest.id),
-        ),
-      )
-      .limit(100)
-
-    for (const c of candidates) {
-      result.scanned++
-      const r = await fireReviewRequestForAppointment(
-        org.organizationId,
-        c.appointmentId,
-        c.patientId,
-        send,
-      )
-      if (r.outcome === 'sent') {
-        result.sent++
-      } else if (r.outcome === 'skipped') {
-        result.skipped++
-      } else {
-        result.failed++
-        result.errors.push({
-          organizationId: org.organizationId,
-          appointmentId: c.appointmentId,
-          error: r.error ?? 'unknown',
-        })
-      }
     }
   }
 
   return result
+}
+
+/** One clinic's slice of the auto-send sweep. Extracted so the caller's
+ *  try/catch reads as "this clinic failed, move to the next one" rather than
+ *  wrapping forty lines of body. Throws on org-level failure; per-appointment
+ *  failures are counted into `result` and never thrown. */
+async function sweepOrgReviewRequests(
+  org: { organizationId: string; autoSendDelayHours: number | null },
+  now: Date,
+  send: typeof createAndSendReviewRequest,
+  result: AutoSendResult,
+): Promise<void> {
+  const config = await getReviewConfig(org.organizationId)
+  if (!isReviewConfigComplete(config)) {
+    // Auto-send is on but no platform is set up — staff misconfig;
+    // skip silently. They'll see Sent=0 on the dashboard.
+    return
+  }
+
+  const cutoff = new Date(now.getTime() - (org.autoSendDelayHours ?? 24) * 60 * 60 * 1000)
+  // Ask-while-fresh floor: never auto-request a review for a visit completed
+  // more than 7 days ago. Without it, flipping auto-send ON (or a long cron
+  // outage) would blast requests for months-old visits — embarrassing asks
+  // the patient no longer connects to anything. 7 days generously covers the
+  // real safety-net cases (configured delays up to 48h + missed ticks).
+  const freshFloor = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+
+  const candidates = await db
+    .select({
+      appointmentId: schema.appointment.id,
+      patientId: schema.appointment.patientId,
+    })
+    .from(schema.appointment)
+    .leftJoin(
+      schema.reviewRequest,
+      eq(schema.reviewRequest.appointmentId, schema.appointment.id),
+    )
+    .where(
+      and(
+        eq(schema.appointment.organizationId, org.organizationId),
+        eq(schema.appointment.status, 'completed'),
+        lte(schema.appointment.completedAt, cutoff),
+        gte(schema.appointment.completedAt, freshFloor),
+        isNull(schema.reviewRequest.id),
+      ),
+    )
+    .limit(100)
+
+  for (const c of candidates) {
+    result.scanned++
+    const r = await fireReviewRequestForAppointment(
+      org.organizationId,
+      c.appointmentId,
+      c.patientId,
+      send,
+    )
+    if (r.outcome === 'sent') {
+      result.sent++
+    } else if (r.outcome === 'skipped') {
+      result.skipped++
+    } else {
+      result.failed++
+      result.errors.push({
+        organizationId: org.organizationId,
+        appointmentId: c.appointmentId,
+        error: r.error ?? 'unknown',
+      })
+    }
+  }
 }
 
 // Suppress unused-warning imports

@@ -20,6 +20,12 @@ const state = {
   // Rows the per-appointment dedupe SELECT (in fireReviewRequestForAppointment)
   // returns. Empty = no existing request for the appointment → eligible to send.
   existingRequest: [] as unknown[],
+  /** Per-ORG script for the config read, consumed one entry per org in list
+   *  order. `'throw'` stands in for a read that blows up on that clinic. Empty
+   *  → every org falls back to `config`. Used by the isolation tests. */
+  configByOrg: [] as Array<Record<string, unknown> | 'throw'>,
+  /** Same idea for the candidate scan. */
+  candidatesByOrg: [] as Array<Array<{ appointmentId: string; patientId: string }> | 'throw'>,
 }
 
 vi.mock('@/lib/db', () => {
@@ -47,8 +53,17 @@ vi.mock('@/lib/db', () => {
         if (keys.includes('organizationId') && keys.includes('autoSendDelayHours')) {
           return chain(state.orgs)
         }
+        // THE KILL's shutdown scan (listShutDownOrgIds) — runs once, before
+        // the per-org walk. Named explicitly so it can't fall through and eat
+        // an entry off the per-org scripts below.
+        if (keys.includes('trialEndsAt')) return chain([])
         // Eligible candidates scan: { appointmentId, patientId }
         if (keys.includes('appointmentId') && keys.includes('patientId')) {
+          if (state.candidatesByOrg.length > 0) {
+            const nextC = state.candidatesByOrg.shift()!
+            if (nextC === 'throw') throw new Error('candidate scan blew up')
+            return chain(nextC)
+          }
           return chain(state.candidates)
         }
         // Per-appointment dedupe SELECT ({ id } from reviewRequest) inside
@@ -57,6 +72,11 @@ vi.mock('@/lib/db', () => {
           return chain(state.existingRequest)
         }
         // getReviewConfig fallback (queries the whole row)
+        if (state.configByOrg.length > 0) {
+          const next = state.configByOrg.shift()!
+          if (next === 'throw') throw new Error('config read blew up')
+          return chain([next])
+        }
         return chain(state.config ? [state.config] : [])
       },
     },
@@ -123,6 +143,8 @@ beforeEach(() => {
   state.config = null
   state.candidates = []
   state.existingRequest = []
+  state.configByOrg = []
+  state.candidatesByOrg = []
   sendStub.mockReset()
 })
 
@@ -240,5 +262,84 @@ describe('autoSendDueReviewRequests', () => {
       (c: unknown[]) => c[1] instanceof Date && (c[1] as Date).getTime() === expectedFloor.getTime(),
     )
     expect(floorCall).toBeTruthy()
+  })
+  // ── DREAMCRM-57 ────────────────────────────────────────────────────────────
+
+  it("a clinic whose review-config read throws does not stop the NEXT clinic's sends", async () => {
+    state.orgs = [
+      { organizationId: 'org_boom', autoSendDelayHours: 24 },
+      { organizationId: 'org_after', autoSendDelayHours: 24 },
+    ]
+    state.configByOrg = ['throw', COMPLETE_CONFIG]
+    state.candidatesByOrg = [[{ appointmentId: 'apt_2', patientId: 'pat_2' }]]
+    sendStub.mockResolvedValue({ id: 'rr_x', token: 'tok_x' })
+
+    const r = await callAutoSend()
+
+    // org_after, LATER in the list, still got its send. Before the per-org
+    // try/catch the throw escaped the loop and it was never reached.
+    expect(r.sent).toBe(1)
+    expect(sendStub).toHaveBeenCalledTimes(1)
+    // …and the clinic that broke is REPORTED rather than swallowed. An
+    // org-level failure carries no appointment, hence the null.
+    expect(r.failed).toBe(1)
+    expect(r.errors).toEqual([
+      { organizationId: 'org_boom', appointmentId: null, error: 'config read blew up' },
+    ])
+  })
+
+  it("a clinic whose candidate scan throws does not stop the NEXT clinic's sends", async () => {
+    state.orgs = [
+      { organizationId: 'org_boom', autoSendDelayHours: 24 },
+      { organizationId: 'org_after', autoSendDelayHours: 24 },
+    ]
+    state.configByOrg = [COMPLETE_CONFIG, COMPLETE_CONFIG]
+    state.candidatesByOrg = ['throw', [{ appointmentId: 'apt_2', patientId: 'pat_2' }]]
+    sendStub.mockResolvedValue({ id: 'rr_x', token: 'tok_x' })
+
+    const r = await callAutoSend()
+
+    expect(r.sent).toBe(1)
+    expect(r.failed).toBe(1)
+    expect(r.errors[0]).toEqual({
+      organizationId: 'org_boom',
+      appointmentId: null,
+      error: 'candidate scan blew up',
+    })
+  })
+
+  it('an idempotency read that throws costs ONE appointment, not the rest of the clinic', async () => {
+    // The dedupe SELECT inside fireReviewRequestForAppointment used to sit
+    // OUTSIDE its try, so a blip on appointment #1 abandoned #2 and #3 — and
+    // every clinic after this one.
+    state.orgs = [{ organizationId: 'org_1', autoSendDelayHours: 24 }]
+    state.config = COMPLETE_CONFIG
+    state.candidates = [
+      { appointmentId: 'apt_1', patientId: 'pat_1' },
+      { appointmentId: 'apt_2', patientId: 'pat_2' },
+    ]
+    let dedupeCalls = 0
+    Object.defineProperty(state, 'existingRequest', {
+      configurable: true,
+      get() {
+        dedupeCalls++
+        if (dedupeCalls === 1) throw new Error('dedupe read blew up')
+        return []
+      },
+    })
+    sendStub.mockResolvedValue({ id: 'rr_x', token: 'tok_x' })
+
+    const r = await callAutoSend()
+
+    expect(r.scanned).toBe(2)
+    expect(r.failed).toBe(1)
+    expect(r.sent).toBe(1)
+    expect(r.errors[0]).toEqual({
+      organizationId: 'org_1',
+      appointmentId: 'apt_1',
+      error: 'dedupe read blew up',
+    })
+    delete (state as Record<string, unknown>).existingRequest
+    ;(state as Record<string, unknown>).existingRequest = []
   })
 })
