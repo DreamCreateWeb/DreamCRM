@@ -225,6 +225,12 @@ describe('the review-gate classifier', () => {
       'e2e/axe.ts': 'check-definitions',
       'scripts/review-gate.mjs': 'check-definitions',
       'scripts/rulebook-drift.mjs': 'check-definitions',
+      // The post-merge sweep (DREAMCRM-61). Pinned for the reason the two
+      // above are: it decides which merged PRs get reported as having skipped
+      // a review, and the edit that disables it is not a deletion — it is a
+      // widened definition of "satisfied", after which the alarm runs green
+      // every morning and sees nothing.
+      'scripts/review-sweep.mjs': 'check-definitions',
       // The post-deploy migration assertion (DREAMCRM-46). Pinned because it is
       // the thing that decides whether a deploy may report success, and a
       // "small tweak to a script" is exactly how such a check gets loosened
