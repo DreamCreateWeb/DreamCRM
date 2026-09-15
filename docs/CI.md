@@ -1,6 +1,6 @@
 # CI — what gates what
 
-Seven workflows. Only two of them can stop anything; the other five are alarms
+Eight workflows. Only two of them can stop anything; the other six are alarms
 and advisories.
 
 This file covers what runs *before* a merge and on the way to production. What
@@ -16,8 +16,76 @@ loads, including the one real clinic site — is `docs/OPS.md`.
 | `.github/workflows/review-gate.yml` | `pull_request` | `review-gate` | the pre-merge review gate | no — advisory only |
 | `.github/workflows/read-check.yml` | `workflow_dispatch` + `schedule` 07:00 UTC | `read-check` | the read-only role's privileges in production | no — never runs on a PR |
 | `.github/workflows/error-scan.yml` | `schedule` every 30 min + dispatch | `scan` | noticing errors inside the product | no — warns only |
+| `.github/workflows/migration-check.yml` | `workflow_call` from `deploy.yml` + `schedule` 08:20 UTC + dispatch | `migration-check` | that a deploy's migrations actually applied | no required context — but it CAN fail the deploy run |
 
-**The two newest ones touch production but gate nothing** (DREAMCRM-42;
+## The deploy is not finished until the migrations are in
+
+`migration-check.yml` (new 2026-09-14, DREAMCRM-46) is the odd one out in the
+table above: it publishes no required context and cannot block a merge, and yet
+it is the only alarm here that can turn a **deploy run** red.
+
+The defect it closes: `main` auto-deploys and migrations apply on the new
+container's BOOT, from a `Dockerfile` line that runs after App Runner has
+already marked the container healthy and then swallows the exit code. `deploy.yml`
+has no migration step, and `/api/admin/migrate` answers a 500 nothing reads. So a
+migration that threw produced a green tick and no other signal anywhere — and
+because drizzle only ever considers journal entries NEWER than the most recent
+ledger row, every later migration was then blocked behind it, on every future
+boot.
+
+What it does: asks production which migrations it has actually applied (the
+DREAMCRM-42 read path, catalog entry `migrations-applied`, so no runner holds a
+database credential) and compares that to `lib/db/migrations/meta/_journal.json`
+in the commit being checked. `scripts/migration-check.mjs` is the whole
+implementation; the workflow supplies only the trigger and the secret.
+
+Four things about it that are decisions rather than details:
+
+- **It polls, for up to 12 minutes.** `deploy.yml` returns when CodeBuild
+  succeeds; the App Runner rollout it triggers is still in flight at that moment
+  and the migrations run later still. A check that asked once would be asking the
+  OLD container.
+- **That poll is why `deploy-main` moved onto the `deploy` job** (2026-09-14, in
+  review of #575). It used to be workflow-level, which held the group open for
+  everything after the rollout too — so the next merge's `test` and image build
+  (~15 min of work that used to run *concurrently* with the rollout) would have
+  been stalled behind the poll, and on a red result that is the full 12 minutes,
+  at exactly the moment somebody is landing the fix-forward merge. An earlier
+  draft of this section claimed the wait was free because the next build already
+  waits on the rollout clearing: that is true of the buildspec's
+  `start-deployment` retry and false of the queue. The rollout itself is still
+  serialized exactly as before — App Runner allows one at a time, and that is
+  the `deploy` job.
+  The visible consequence is that run N's migration-check can overlap run N+1's
+  deploy. Harmless: N+1's journal is a superset of N's, so every entry run N is
+  asking about is applied whichever container answers, and production being
+  AHEAD is explicitly not a failure.
+- **The check workflow itself takes no concurrency group**, so a scheduled run
+  can never queue in front of a deploy's. The 30s poll interval is what keeps two
+  overlapping runs inside the read-check route's own rate limit.
+- **A MISSING journal entry fails; production being AHEAD does not.** A newer
+  merge deploying mid-check is normal, and a check that went red on busy days is
+  one nobody would trust on the day it matters.
+- **It distinguishes NOT VERIFIED from a pass, loudly.** Until the owner-side
+  DREAMCRM-42 setup lands there is no secret to ask with, so *every* run prints
+  `⚠️ NOT VERIFIED — nothing was checked` and exits 0. Read the job summary; the
+  tick means nothing yet. A fifth verdict, `THE CHECK ITSELF IS BROKEN`, exists
+  for the case where production rejects the secret — that one exits 1, because an
+  alarm that cannot fire is not the same as one that has nothing to report.
+
+The scheduled run is not redundant with the post-deploy one. The post-deploy run
+can go red because a rollout was slow; the 08:20 UTC run cannot, so it is the
+timing-free reading — and it is also the only thing that would ever notice a
+migration silently SKIPPED for carrying a `when` at or below an already-applied
+row, which no redeploy fixes.
+
+A second, weaker signal covers the same failure from the other end: every failure
+line `scripts/db-migrate.mjs` prints now starts with `ERROR`, so `error-scan.yml`
+picks it up within 30 minutes. Before DREAMCRM-46 those two lines matched none of
+that workflow's filter terms — the one alarm already pointed at those logs read
+straight past a migration that never applied.
+
+**The two production-read ones touch production but gate nothing** (DREAMCRM-42;
 `docs/PROD-READ-ACCESS.md` is their runbook). Neither runs on a `pull_request`,
 neither publishes a required context, and neither can stop a merge.
 

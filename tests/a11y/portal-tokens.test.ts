@@ -16,6 +16,11 @@ const TOKEN_HOME = 'components/patient-portal/ui.tsx'
 
 // hex → the token that owns it.
 const OWNED_HEXES: Record<string, string> = {
+  // The quiet step for secondary copy. Added 2026-09-14 with batch 62: it was
+  // spelled raw in the layout, the chrome and the message list, which is why
+  // "one tone in patient-portal/ui.tsx" was not true of the one tone the axe
+  // baseline had been carrying a ceiling for on nine portal stops.
+  '#6B635A': 'PORTAL_MUTED',
   '#B4231F': 'PORTAL_ERROR',
   '#FBF3E4': 'PORTAL_WARN_BG',
   '#8A6116': 'PORTAL_WARN_INK',
