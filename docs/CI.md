@@ -125,6 +125,52 @@ Keeping it inside `deploy.yml` (instead of also firing `ci.yml` on push) means a
 merge runs the suite once, not twice. **The typecheck + suite steps in the two
 `test` jobs are meant to stay identical — change one, change the other.**
 
+**Both `test` jobs — and both jobs in `nightly.yml` that run the suite — fetch
+`origin/main` before the suite runs** (2026-09-15, DREAMCRM-60). One line,
+`git fetch --no-tags --depth=1 origin +refs/heads/main:refs/remotes/origin/main`,
+immediately after the checkout. `tests/guards/axe-baseline-ratchet.test.ts`
+compares every axe ceiling in `e2e/axe-baseline.ts` against its value on `main`
+and fails any increase, and `actions/checkout` on a `pull_request` fetches
+`refs/pull/N/merge` and nothing else — so without the step the ref does not
+resolve, in the one check the guard exists to defend. It fails rather than skips
+when the ref is missing under CI, and the step is pinned in every workflow that
+runs `pnpm test`, derived from the workflow directory rather than a list. Depth 1
+because the tip's tree is all it reads. `docs/E2E.md` owns the ratchet itself.
+
+**The fetch runs on every event; the COMPARISON is skipped when the tree is
+already on `main`.** Two different assertions, deliberately: that `origin/main`
+resolves is the guard's premise and is checked everywhere, so a deleted fetch
+step goes red wherever it was deleted. Grading the tree against main is the part
+that only means something on a PR — on a push to `main` or a nightly
+`schedule` run, HEAD *is* main. Skipping it
+there costs nothing (every tree that reaches `main` was graded on its own PR)
+and avoids a false red on the deploy path: `deploy.yml`'s `test` job has no
+`cancel-in-progress` by design, so merges X then Y run overlapping jobs, and if
+Y lands inside run-for-X's fetch window while *shrinking* a ceiling, run-for-X
+would grade X against Y's lower number and report a raise that nobody made —
+turning a green tree into a skipped deploy. It would be self-healing and rare,
+but a red `test` on `main` reads as a real regression here, so the guard does not
+get to cry wolf on the deploy path. The nightly jobs carry the same race for a
+dismissible alarm rather than a deploy, and are covered by the same rule.
+
+The check is `comparisonIsVacuous()` in `tests/guards/axe-baseline-ratchet.test.ts`,
+and it keys on `GITHUB_EVENT_NAME` being `push` or `schedule` rather than on
+anything that looks more like the real property. Both tempting alternatives are
+worse. Testing *HEAD equals `origin/main`* fails at the very case this exists
+for — in the race HEAD is on main but **behind** the ref just fetched, so the two
+differ exactly when the comparison is wrong — and it would also switch off local
+grading for anyone with uncommitted edits on `main`, which is how this repo says
+to work. Testing *HEAD is an ancestor of `origin/main`* is the real property and
+covers everything, but needs `git merge-base`, hence shared history, hence not
+`--depth=1`. See "Depth 1" above: deepening the fetch is an open trade, not an
+oversight.
+
+One case is knowingly left open: a `workflow_dispatch` on `main` still compares
+and is vacuous. No event-name list can tell it from a dispatch on a branch, where
+the comparison is wanted, and a manual dispatch is attended by definition — so
+the worst case is one person seeing one confusing red, not an unattended gate
+lying.
+
 They are not byte-identical, and the difference is deliberate: the `test` job in
 `ci.yml` also runs `pnpm lint` (the `eslint-plugin-jsx-a11y` accessibility gate
 added 2026-09-10, DREAMCRM-17) before the suite. That step is PR-side only. Every

@@ -84,7 +84,7 @@ export default function SavedViewsBar({
 
   return (
     <div className="mb-3 flex flex-wrap items-center gap-1.5">
-      <span className="text-xs font-medium text-gray-400 dark:text-gray-500 mr-0.5">Views:</span>
+      <span className="text-xs font-medium text-gray-500 dark:text-gray-400 mr-0.5">Views:</span>
 
       <Link
         href={basePath}

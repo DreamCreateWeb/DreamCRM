@@ -191,6 +191,13 @@ describe('the review-gate classifier', () => {
       // decides which organization the whole app renders as. Pinned because
       // its filename says "ecommerce customers" and nothing about auth.
       'app/(default)/ecommerce/customers/admin-actions.ts': 'auth',
+      // The written opt-out from the axe ratchet (DREAMCRM-60). Pinned because
+      // the whole design rests on it: `e2e/axe-baseline.ts` is deliberately off
+      // every gate (a shrink is routine and a pattern cannot tell a shrink from
+      // a raise), and this file is the half that only ever holds raises. Drop it
+      // from the gate list and a deliberate weakening of a required check goes
+      // back to merging with a "merges on green" summary.
+      'e2e/axe-baseline-raises.ts': 'check-definitions',
       'lib/db/migrations/0161_connect_refund_records.sql': 'db-migrations',
       '.github/workflows/deploy.yml': 'ci-workflows',
       '.github/workflows/migration-check.yml': 'ci-workflows',
