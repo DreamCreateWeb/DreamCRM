@@ -21,7 +21,7 @@ from burying what is not done. Keep it to 5–10 lines and say *why* each one is
 still sitting there — "deferred, needs a data series" and "nobody has picked it
 up" are different facts and only one of them is a backlog item.
 
-## OPEN NOW (last rewritten: batch 64, 2026-09-15)
+## OPEN NOW (last rewritten: batch 65, 2026-09-15)
 
 > **The axe burn-down is CLOSED.** `e2e/axe-baseline.ts` is `{}` — 214 → 0
 > across batches 54-64 — so every stop the browser suite walks now tolerates
@@ -48,17 +48,13 @@ up" are different facts and only one of them is a backlog item.
    some are real text (fix), some are icons and glyphs (1.4.11 asks 3:1, not
    4.5, and 2.63 misses that too), some are genuinely disabled controls (exempt
    under 1.4.3). Rule 6 says out loud that it does not grade these.
-3. **31 `color: brand` sites on the public clinic site** — brand as TEXT, which
-   is `readableInk`'s job. A mix of decorative SVG strokes (no requirement) and
-   real copy that fails on a pale brand. Needs reading one site at a time,
-   which is why batch 57 left it whole.
-4. **~406 `opacity-[0-9]` sites outside the portal, none of them measured.**
+3. **~406 `opacity-[0-9]` sites outside the portal, none of them measured.**
    `tests/a11y/portal-ink-opacity.test.ts` refuses the shape — text dimmed a
    second time — but is scoped to the portal on purpose, and its own header
    says grading the rest is its own batch. Mostly non-text chrome; the job is
    to grade them, fix what fails, and extend the guard's scope to whatever
    comes back clean. Presentation-only and freeze-safe. Nobody has picked it up.
-5. **`ActionButton`'s `danger` variant clears AA at 4.53** — white on
+4. **`ActionButton`'s `danger` variant clears AA at 4.53** — white on
    `rose-600` against a 4.5 floor. Not a defect and not swept with batch 63's
    tone fills (it is the button primitive's own single-home, and it passes),
    but it is the coincidence-margin `TONE_PILL`'s header warns about, sitting
@@ -69,7 +65,7 @@ up" are different facts and only one of them is a backlog item.
    `VARIANT_CLASSES` (the single-home argument the exemption rests on) and
    re-derives the 4.53 from the palette, so if the margin ever goes the wrong
    way the suite says so instead of the pardon quietly widening.
-6. **The trial banner's escalation borrows a SEVENTH hue** — violet → amber →
+5. **The trial banner's escalation borrows a SEVENTH hue** — violet → amber →
    orange → rose, and orange is not one of v3's six tones, so `TONE_FILL` has
    no entry for it and batch 64 hand-spelled that one tier's recipe
    (`components/ui/trial-banner.tsx`). It measures fine (5.31 resting, 6.45
@@ -84,6 +80,41 @@ recorded in the code) or already **POST-1.0**. Deferred items are not the top
 of the list; they are the bottom, and they say so where they sit.
 
 **System-level finds:**
+- ~~31 `color: brand` sites on the public clinic site — brand as TEXT~~
+  [**BATCH 65**, and the 32 sites were TWO POPULATIONS wearing one spelling —
+  which is why reading them one at a time was right and a sweep would have been
+  wrong.
+  **The 8 that were real copy are fixed**, all through `readableInk(brand,
+  ground)`: the intake form's progress label and its per-section eyebrow, the
+  shop's "continue shopping" and "back to shop" links, the Cart button's own
+  word, and `numbered-steps`' eyebrow, its **44px `<h2>` section heading** and
+  its step numerals. The heading is the one that stings — the most prominent
+  text on the section, and on a pale brand the least readable thing in it. Two
+  icon-only CONTROLS went with them (the booking day-strip arrows, the intake
+  photo-add button): 1.4.11 asks 3:1 of a graphic that IS the control, and a
+  raw pale brand misses that too.
+  **The rest are decorative and deliberately unchanged** — an `<svg>` tick
+  beside the line of copy it repeats, a placeholder page-glyph where a post has
+  no cover image, a perk icon above its own `<h3>`. 1.4.3 grades TEXT; pushing
+  every brand accent on the site to 4.5:1 would fix nothing and flatten the
+  brand off the whole design.
+  **Graded against the DERIVATION, never one tenant's value** — the brand is
+  data a practice picks in a colour well. The seeded pale sage measures 2.17:1
+  on its own ground and a pale pink 1.75:1, while a clinic whose brand happens
+  to be dark hides the entire class: their site reads fine and nobody files
+  anything. `readableInk` returns a dark brand UNTOUCHED and darkens a pale one
+  along its own hue, so this is not "make it near-black" — the guard pins that
+  half too.
+  **The rule is structural and carries NO exemption list**
+  (`tests/clinic-site/brand-as-text.test.ts`): after the sweep every surviving
+  raw-brand ink is either on an `<svg>` or on an element marked `aria-hidden`,
+  so the markup says "picture, not sentence" instead of a reviewer's head
+  saying it. To keep a brand-coloured graphic, declare it a graphic — three
+  decorative wrappers gained the `aria-hidden` they should have carried anyway.
+  It reads the whole OPENING TAG rather than the matched line, which is
+  load-bearing: most survivors are `<svg>`s whose `style` prop sits six lines
+  below the tag name, and the line-based first draft reported all of them as
+  unexplained. Red-verified against the real `<h2>`.]
 - ~~The axe burn-down: 8 left in `e2e/axe-baseline.ts`~~ · ~~a "taken" slot in
   the portal's picker is `#B9B0A5` on `#F3EEE7` = 1.85:1~~ · ~~177 sites paint a
   muted label `text-gray-400 dark:text-gray-500` — the legible step and the

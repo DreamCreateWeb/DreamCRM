@@ -39,7 +39,7 @@ const STR: Record<Lang, {
 }
 import type { InsuranceCardFields } from '@/lib/services/insurance-ocr'
 import { SITE_BG as BG, SITE_INK as INK, SITE_INK_MUTED as INK_MUTED, SITE_SURFACE as SURFACE, SITE_BORDER as BORDER } from '@/components/clinic-site/tokens'
-import { brandFill } from '@/lib/clinic-site-theme'
+import { brandFill, readableInk } from '@/lib/clinic-site-theme'
 import { SuccessWell } from '@/components/clinic-site/success-well'
 
 /**
@@ -283,7 +283,7 @@ export default function IntakeFormRunner({ orgId, templateId, schema, brand, cli
   return (
     <form onSubmit={handleSubmit} className="space-y-8">
       {progressLabel && (
-        <p className="text-xs font-semibold uppercase tracking-[0.16em]" style={{ color: brand }}>
+        <p className="text-xs font-semibold uppercase tracking-[0.16em]" style={{ color: readableInk(brand) }}>
           {progressLabel}
         </p>
       )}
@@ -319,7 +319,7 @@ export default function IntakeFormRunner({ orgId, templateId, schema, brand, cli
           <div>
             <p
               className="text-xs font-semibold uppercase tracking-[0.16em] mb-2"
-              style={{ color: brand }}
+              style={{ color: readableInk(brand) }}
             >
               {String(si + 1).padStart(2, '0')} · {section.title}
             </p>
@@ -707,7 +707,7 @@ function PhotoUploadInput({
             type="button"
             onClick={() => inputRef.current?.click()}
             className="grid h-20 w-20 place-items-center rounded-lg text-2xl"
-            style={{ border: `1px dashed ${BORDER}`, color: brand, backgroundColor: BG }}
+            style={{ border: `1px dashed ${BORDER}`, color: readableInk(brand), backgroundColor: BG }}
             aria-label="Add a photo"
           >
             +
@@ -857,7 +857,7 @@ function InsuranceCardInput({
                   onClick={() => ref.current?.click()}
                   disabled={uploading === s}
                   className="grid h-28 w-full place-items-center rounded-xl text-sm font-medium"
-                  style={{ border: `1px dashed ${BORDER}`, color: brand, backgroundColor: BG }}
+                  style={{ border: `1px dashed ${BORDER}`, color: readableInk(brand), backgroundColor: BG }}
                 >
                   {uploading === s ? 'Uploading…' : `📷 ${label} of card`}
                 </button>

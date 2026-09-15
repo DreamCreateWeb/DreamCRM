@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { cartCount } from './cart-store'
-import { brandFill } from '@/lib/clinic-site-theme'
+import { brandFill, readableInk } from '@/lib/clinic-site-theme'
 
 export default function CartButton({ slug, brand, basePath }: { slug: string; brand: string; basePath: string }) {
   const [count, setCount] = useState(0)
@@ -21,7 +21,7 @@ export default function CartButton({ slug, brand, basePath }: { slug: string; br
     <a
       href={`${basePath}/shop/cart`}
       className="shrink-0 inline-flex items-center gap-2 text-[14px] font-semibold px-4 py-2 rounded-full border"
-      style={{ borderColor: brand, color: brand }}
+      style={{ borderColor: brand, color: readableInk(brand) }}
     >
       Cart
       {count > 0 && (

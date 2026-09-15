@@ -204,6 +204,7 @@ export default async function ClinicCareersPage({ params }: Props) {
                   <span
                     className="inline-flex w-12 h-12 rounded-full items-center justify-center mb-5"
                     style={{ backgroundColor: `${brand}1A`, color: brand }}
+                    aria-hidden="true"
                   >
                     {c.icon}
                   </span>

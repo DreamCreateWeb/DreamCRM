@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { formatCents } from '@/lib/types/shop'
 import { addToCart } from './cart-store'
-import { brandFill } from '@/lib/clinic-site-theme'
+import { brandFill, readableInk } from '@/lib/clinic-site-theme'
 
 interface VariantOpt {
   id: string
@@ -85,7 +85,7 @@ export default function AddToCart({
         {outOfStock ? 'Sold out' : added ? 'Added ✓ — add more?' : 'Add to cart'}
       </button>
       {added && (
-        <a href={`${basePath}/shop/cart`} className="block text-center text-[14px] font-medium mt-3 underline" style={{ color: brand }}>
+        <a href={`${basePath}/shop/cart`} className="block text-center text-[14px] font-medium mt-3 underline" style={{ color: readableInk(brand) }}>
           Go to cart →
         </a>
       )}
