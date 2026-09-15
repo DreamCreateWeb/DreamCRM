@@ -14,6 +14,7 @@ import { countOpenProposals } from '@/lib/services/proposals'
 import { countFollowupsDue } from '@/lib/services/patient-followups'
 import { countSeatedBetween } from '@/lib/services/patient-journey'
 import { getDigestOptOutUserIds } from '@/lib/services/staff-notification-pref'
+import { listShutDownOrgIds } from '@/lib/services/billing-state'
 import { sendNotificationEmail } from '@/lib/email'
 
 /**
@@ -435,8 +436,22 @@ export async function sendWeeklyStandups(opts?: { now?: Date }): Promise<Standup
     .from(schema.clinicProfile)
     .innerJoin(schema.organization, eq(schema.organization.id, schema.clinicProfile.organizationId))
 
+  // THE KILL (owner ruling): an expired-unconverted clinic hears nothing from
+  // us but the dashboard wall. Every other outbound sweep checks this —
+  // reminders, review asks, retention, campaigns, scheduled messages, proposal
+  // generators, the morning digest, pms-sync — and the Monday standup did not,
+  // so the one weekly email a shut-down practice still received was a cheerful
+  // report of the work a switched-off machine did for them. Read once for the
+  // whole sweep, and fail-open like every other caller.
+  //
+  // Checked BEFORE the week is claimed, not just before the send, so paying
+  // releases the standup untouched on the next Monday — the same reason the
+  // scheduled-message flush excludes shut-down orgs from its claim rather than
+  // from its send.
+  const shutDown = await listShutDownOrgIds(now)
   for (const clinic of clinics) {
     if (!clinic.organizationId || clinic.isDemo) continue
+    if (shutDown.has(clinic.organizationId)) continue
     // NO org-level gate on dailyDigestEnabled (round-2 audit): that column
     // defaults to 0 and no real clinic-creation path sets it, so gating on
     // it made the Monday email dead on arrival for every production clinic

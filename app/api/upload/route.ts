@@ -84,7 +84,31 @@ export function sniffUpload(bytes: Uint8Array): SniffResult {
   }
 }
 
+/**
+ * Every refusal on this route answers with `{ error }` — including the ones
+ * nobody wrote by hand.
+ *
+ * `request.formData()` (a truncated multipart body, a client that hung up)
+ * and `uploadBlob` (S3 credentials, a bucket policy, a network blip) both
+ * throw, and neither was wrapped: the request became an unhandled rejection
+ * and Next answered with a framework 500 carrying no JSON at all. Every
+ * caller reads `res.json().error` to show the staff member what went wrong,
+ * so the one failure they could do nothing about was also the only one that
+ * told them nothing — the upload just died with an empty toast.
+ */
 export async function POST(request: Request) {
+  try {
+    return await handleUpload(request)
+  } catch (err) {
+    console.error('[upload] failed', err)
+    return NextResponse.json(
+      { error: 'We couldn’t save that file just now. Please try again in a moment.' },
+      { status: 500 },
+    )
+  }
+}
+
+async function handleUpload(request: Request) {
   const session = await getServerSession()
   if (!session?.user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
 

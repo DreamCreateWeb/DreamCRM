@@ -187,6 +187,13 @@ vi.mock('drizzle-orm', () => ({
   sql: () => '__sql__',
 }))
 
+// THE KILL's own resolver has its own tests (tests/billing/shutdown.test.ts);
+// here it is a switch so the standup's handling of it is what is under test.
+const shutDown = vi.hoisted(() => ({ ids: new Set<string>() }))
+vi.mock('@/lib/services/billing-state', () => ({
+  listShutDownOrgIds: async () => shutDown.ids,
+}))
+
 import {
   buildWeeklyStandup,
   renderStandupEmailBody,
@@ -222,6 +229,7 @@ beforeEach(() => {
   deps.seated = 0
   deps.seatedCalls = []
   pref.optedOut = new Set()
+  shutDown.ids = new Set()
   store.reviews = []
   store.clinics = []
   store.staff = []
@@ -533,6 +541,37 @@ describe('sendWeeklyStandups', () => {
     expect(r.sent).toBe(1)
     expect(r.errors.some((e: { error: string }) => e.error.includes('send to') && e.error.includes('failed'))).toBe(true)
     expect(sendNotificationEmailMock).toHaveBeenCalledTimes(2)
+  })
+
+  // THE KILL (owner ruling): an expired-unconverted clinic hears nothing from
+  // us but the dashboard wall. Every other outbound sweep — reminders, review
+  // asks, retention, campaigns, scheduled messages, proposal generators, the
+  // morning digest, pms-sync — checks listShutDownOrgIds. The Monday standup
+  // did not, so the one weekly email a shut-down practice still received was a
+  // cheerful report of the work a switched-off machine did for them.
+
+  it('sends no standup to a shut-down practice', async () => {
+    seedClinic()
+    ledger.counts = { appointment_reminder: 3 }
+    shutDown.ids = new Set([ORG])
+    const r = await sendWeeklyStandups({ now: MONDAY })
+    expect(sendNotificationEmailMock).not.toHaveBeenCalled()
+    expect(r.sent).toBe(0)
+    expect(r.scanned).toBe(0)
+  })
+
+  it('leaves a shut-down practice unclaimed, so paying releases the standup untouched', async () => {
+    seedClinic()
+    ledger.counts = { appointment_reminder: 3 }
+    shutDown.ids = new Set([ORG])
+    await sendWeeklyStandups({ now: MONDAY })
+    // The week is NOT claimed — same shape as the scheduled-message flush
+    // excluding shut-down orgs from the claim itself.
+    expect(store.clinics[0].standupLastSentAt).toBeNull()
+
+    shutDown.ids = new Set()
+    const after = await sendWeeklyStandups({ now: MONDAY })
+    expect(after.sent).toBe(1)
   })
 
   it('does nothing on other weekdays', async () => {
