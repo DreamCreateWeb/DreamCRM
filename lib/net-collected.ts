@@ -24,11 +24,14 @@
  *    netting is the ONLY thing that makes their totals honest. A shop order
  *    flips to 'refunded' on a FULL refund and leaves the 'paid' set, and its
  *    net would be zero anyway; the partial case is what netting adds there.
- *  - The net is clamped at zero. `refunded_amount_cents` is monotonic by
- *    construction and Stripe cannot send back more than it took, but a total
- *    that can go negative is a total one bad row can drive a whole clinic's
- *    month below zero, and there is no reading of "refunded more than paid"
- *    that means the clinic kept a negative amount.
+ *  - The net is clamped at zero. Stripe cannot send back more than it took,
+ *    but a total that can go negative is a total one bad row can drive a whole
+ *    clinic's month below zero, and there is no reading of "refunded more than
+ *    paid" that means the clinic kept a negative amount. (This used to cite
+ *    "`refunded_amount_cents` is monotonic by construction" as well. Since
+ *    DREAMCRM-47 it is not — a refund that fails at the bank walks it back
+ *    DOWN. The clamp never needed that premise and still stands without it;
+ *    every reader here nets rather than assuming a direction.)
  *
  * Pure and client-safe, like `lib/mrr.ts`: the SQL builders below only
  * assemble a fragment, and the arithmetic helper is the same rule for rows
