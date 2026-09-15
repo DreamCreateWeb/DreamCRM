@@ -1,0 +1,131 @@
+name: Post-merge review sweep
+
+# DID A PR THAT OWED SENTINEL A REVIEW MERGE WITHOUT ONE? (DREAMCRM-61.)
+#
+# `review-gate.yml` answers "is a review OWED" on every PR and labels it. Its
+# own header says it cannot tell whether the review HAPPENED. Nothing else
+# asked either — so the gate could label a PR perfectly, the author could
+# forget, and the merge went through green with nothing aware a rule had been
+# skipped.
+#
+# #573 and #582 both merged carrying `needs-sentinel-review` with no review.
+# The gate was right twice and author memory failed twice in one batch. The
+# miss surfaced a day later, in a manual sweep somebody chose to run. This is
+# that sweep, on a schedule, so it stops depending on the choosing.
+#
+# ============================ THIS DOES NOT GATE =============================
+#
+# No `pull_request` trigger, no required status-check context, no `needs:` on
+# anything, and it runs entirely AFTER the merge commit is on `main` — after
+# the deploy, in most cases. It cannot hold a merge and must never try to.
+#
+# DREAMCRM-49's ruling that `review-gate` stays advisory is untouched, and this
+# is not a way round it. The reason a blocking gate was refused is that every
+# available pass signal can be minted by the single admin account the whole
+# agent fleet authenticates as, so it would read as enforcement while being
+# weaker than an honest advisory. That argument is exactly why a SWEEP works
+# where a gate did not: a gate has to survive an adversary, and a sweep only
+# has to survive forgetting. Forgetting is what actually happened, twice.
+#
+# Do not "strengthen" this into a required check. That is DREAMCRM-49 re-argued
+# from the other end, and the answer is still no.
+# =============================================================================
+#
+# WHO READS A RED RUN — the same honest answer `post-merge-e2e.yml` gives, and
+# for the same reason it is written down rather than assumed. Nothing in
+# `.github/` routes a workflow failure anywhere, so delivery is GitHub's default
+# failed-run notification to the account that owns the schedule, plus the
+# Actions tab. That is ONE inbox. "We are told the same day" is true only while
+# somebody reads it. If this starts getting ignored, give it a real addressee
+# (a Slack/webhook step), do not delete it.
+#
+# WHY NOT A COMMENT ON THE OFFENDING PR. It was the obvious loudest channel and
+# it is the wrong one here: this sweep is CUMULATIVE (see below), so an
+# unremediated PR would collect one comment per day forever, and posting them
+# needs `pull-requests: write` on a job that otherwise needs no write scope at
+# all. A red run plus `::error::` annotations names the same PRs with neither
+# cost.
+
+on:
+  # 06:47 UTC, off the hour and behind the morning pair — rulebook-drift at
+  # :17, nightly at :37. The top of an hour is when GitHub's scheduler queue is
+  # longest; `docs/CI.md` ("When it really runs") has the sample table showing
+  # a `0 7` schedule landing up to +6h34m late.
+  #
+  # That lateness is also why this sweep does NOT use a rolling "last N hours"
+  # window. A 24-hour window on a schedule that can slip six hours drops merges
+  # into a gap and never looks at them again, and a miss this check cannot see
+  # is indistinguishable from no miss. It sweeps everything merged since
+  # `SWEPT_SINCE` instead: nothing can fall through, and a finding stays red
+  # until it is remediated, which is what an unresolved miss should do.
+  schedule:
+    - cron: '47 6 * * *'
+  workflow_dispatch: {}
+
+concurrency:
+  group: review-sweep
+  cancel-in-progress: false
+
+# Two READ scopes and nothing else: `contents` for the checkout, `pull-requests`
+# for `gh pr list` (which cannot read a private repo's PRs on `contents` alone).
+# This job writes nothing back to GitHub — see "WHY NOT A COMMENT ON THE
+# OFFENDING PR" above for why the write scope `review-gate.yml` holds is not
+# wanted here.
+#
+# Both spellings are real `permissions:` keys. `rulebook-drift.yml` shipped a
+# draft asking for `administration: read`, which is not a scope at all: GitHub
+# rejected the whole file and published NO check-run, twice, in 0 seconds — a
+# failure `gh pr checks` could not show. Nothing in CI validates workflow syntax
+# before GitHub does, so `tests/guards/review-sweep.test.ts` checks this block
+# against the documented scope list.
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  # NOT named `test` or `e2e` — those are main's required contexts, and a
+  # second producer of either name can report a green check onto a commit the
+  # real suite never ran against. `tests/guards/review-sweep.test.ts` pins
+  # this, the same way the review-gate and rulebook-drift guards pin theirs.
+  review-sweep:
+    name: review-sweep (alarm, gates nothing)
+    runs-on: ubuntu-latest
+    # One `gh` call and one small node script. No install step anywhere in this
+    # job; it has no business inheriting GitHub's 6-hour default.
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # Written to a file rather than piped so the script stays a pure
+      # comparator the guard test can drive with fixtures, offline — the same
+      # shape as `scripts/rulebook-drift.mjs`.
+      #
+      # `--limit 500` is not a guess to leave unchecked: the script is told the
+      # limit and goes RED if the list came back truncated before it reached
+      # `SWEPT_SINCE`, because a sweep with a hole in it and a sweep that found
+      # nothing look identical from the outside. Raise the number when it says
+      # so; do not move the cut-off.
+      #
+      # It was 200, which is about a TEN-DAY window at this repo's rate
+      # (#553 to #593 landed in roughly two days). Sentinel's review of #593
+      # made the point that lands it here: this alarm's first red run would
+      # then most likely have been ABOUT ITSELF, on a brand-new instrument
+      # whose entire value is being believed. The real query with
+      # `comments,reviews` takes ~7.6s at 200 and GitHub returns 500 fine, so
+      # the headroom is cheap.
+      - name: List recently merged PRs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh pr list --repo ${{ github.repository }} --state merged --limit 500 \
+            --json number,title,url,mergedAt,author,labels,comments,reviews \
+            > merged-prs.json
+
+      - name: Which of them merged owing a review nobody recorded?
+        run: node scripts/review-sweep.mjs --prs merged-prs.json --limit 500
