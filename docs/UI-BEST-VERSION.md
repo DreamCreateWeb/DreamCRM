@@ -21,30 +21,48 @@ from burying what is not done. Keep it to 5–10 lines and say *why* each one is
 still sitting there — "deferred, needs a data series" and "nobody has picked it
 up" are different facts and only one of them is a backlog item.
 
-## OPEN NOW (last rewritten: batch 63, 2026-09-14)
+## OPEN NOW (last rewritten: batch 64, 2026-09-15)
 
-1. **The axe burn-down: 8 left** in `e2e/axe-baseline.ts` (17 → 8 in batch 62).
-   Every `portal:` stop is at zero; what remains is `auth: sign-in` (1), four
-   `staff:` stops (1 each) and `staff: website hub` (3). Singles now, each
-   needing its own look — that file's header carries the measured colours.
-2. **31 `color: brand` sites on the public clinic site** — brand as TEXT, which
+1. **An ink/surface pair written in ONE class string is graded by nothing** —
+   29 sites, all measured, listed in the batch-64 entry below. `dark-mode-parity`
+   (rule 1) deliberately returns null when the light and dark renderings AGREE
+   about which halves are overridden, so `text-red-600 bg-red-50` (2.94) and
+   `text-white bg-teal-600 dark:bg-teal-500 dark:text-gray-900` (4.01 in dark,
+   seven auth buttons) are both invisible to it. One of the 29 is the whole of
+   `auth: sign-in showing the failure alert`'s axe entry. Batch 65 — the rule
+   plus the sweep. **This is the top of the list.**
+2. **The axe burn-down: 8 left** in `e2e/axe-baseline.ts` (17 → 8 in batch 62).
+   Every `portal:` stop is at zero; what remains is `auth: sign-in` (1 — see
+   entry 1, it is the red-on-red alert), four `staff:` stops (1 each) and
+   `staff: website hub` (3). Singles now, each needing its own look.
+   **What batch 64 could NOT do, and why:** the remaining seven need the
+   browser suite to locate, and the E2E harness needs a local Postgres, which
+   the runtime this batch ran in does not have. Source grading narrowed the
+   website hub to `text-gray-400 dark:text-gray-500` on the "sections filled"
+   fraction (2.63, `app/(default)/website/page.tsx:366`, and it is
+   published-state-only because `showChecklist` is gated on `!siteLiveAt` —
+   which is exactly why `site not yet published` holds zero and `site
+   published` holds 3). That accounts for ONE of the three and nothing was
+   found for the other two or for the four `staff:` singles, so nothing was
+   fixed on a guess and no ceiling was shrunk on one. Whoever has a browser:
+   run the harness, read the violation selectors out of the run log, and the
+   rest is an afternoon.
+3. **31 `color: brand` sites on the public clinic site** — brand as TEXT, which
    is `readableInk`'s job. A mix of decorative SVG strokes (no requirement) and
    real copy that fails on a pale brand. Needs reading one site at a time,
    which is why batch 57 left it whole.
-3. **A "taken" slot in the portal's picker is `#B9B0A5` on `#F3EEE7` = 1.85:1**
-   — found in batch 62 while measuring the muted ink, not fixed there (it is a
-   different tone and a different call). It is struck-through grey, so the
-   1.4.3 "inactive control" exemption is arguable — but it renders as a `span`,
-   not a disabled control, so axe will flag it the first time a stop scans a
-   day with a booked slot in it, and the portal stops are at zero now. Worth
-   taking before that happens.
-4. **`ActionButton`'s `danger` variant clears AA at 4.53** — white on
+4. **~406 `opacity-[0-9]` sites outside the portal, none of them measured.**
+   `portal-ink-opacity.test.ts` refuses the shape (text dimmed twice) and is
+   scoped to the portal on purpose; the rest of the product is mostly non-text
+   chrome and nobody has graded it. Grade, fix what fails, then widen the
+   guard's scope to whatever comes back clean.
+5. **`ActionButton`'s `danger` variant clears AA at 4.53** — white on
    `rose-600` against a 4.5 floor. Not a defect and not swept with batch 63's
    tone fills (it is the button primitive's own single-home, and it passes),
    but it is the coincidence-margin `TONE_PILL`'s header warns about, sitting
    on the one control that deletes things. Carried as the sole
    `TONE_FILL_EXEMPTIONS` entry so it stays visible. Nobody has picked it up.
-5. **177 sites paint a muted label `text-gray-400 dark:text-gray-500` — the
+6. **177 sites paint a muted label `text-gray-400 dark:text-gray-500` — the
    legible step and the illegible one, swapped, in BOTH themes.** Found
    2026-09-15 by a red `e2e` on `main`: `staff: appointment drawer open` and
    `staff: cancel-appointment confirmation over the drawer` each reported
@@ -792,6 +810,83 @@ of the list; they are the bottom, and they say so where they sit.
   `bg-clip-text` regex took four tests red including the "still points at
   something" instrument check — a rule this narrow (three utilities in one
   quoted string) would otherwise report CLEAN forever if it stopped matching.]
+- ~~A "taken" slot in the portal's picker is 1.85:1~~ [BATCH 64. It was
+  `#B9B0A5` on `#F3EEE7`, and the interesting part is not the ratio, it is
+  which guards could see it: **none of them, and one of them was the axe
+  baseline reporting a clean sheet.** Every `portal:` stop has held ZERO since
+  batch 62, and this sat live underneath that the whole time, because no spec
+  loads a day with a booked slot in it. A stop at zero says nothing has scanned
+  the state that is dirty — the same shape as batch 61's "axe reports a
+  gradient as incomplete, never a violation", one surface further along.
+  `portal-tokens.test.ts` could not see it either, and the reason generalises:
+  it bans the hexes it has been TOLD about, and `#B9B0A5` was a fresh one.
+  Nor could it have graded the pair if it had, because the WELL was raw too —
+  a surface looks like a decoration until something is written on it, so the
+  portal added a ground nobody ever multiplied against an ink.
+  The fix is `PORTAL_MUTED` on a new `PORTAL_WASH` token, 5.11:1, both from
+  `components/patient-portal/ui.tsx`, with the wash added to the banned-hex
+  list in the same batch. The guard is `tests/a11y/portal-palette.test.ts`:
+  every portal ink × every portal surface, derived from the token module's own
+  exports rather than a list, so a NEW token cannot arrive ungraded — it fails
+  until its name says which half of a pair it is. Worst pair in the portal
+  today 4.60. Red-verified twice: the one-off grey put back (the source
+  assertion names it), and a too-dark well added as a token (five pairs named,
+  1.52–1.80). No ceiling moved, because there was never one to move — which is
+  what makes this worth writing down rather than just fixing.]
+- **FOUND, NOT FIXED (batch 64): 29 sites where an ink and its surface are
+  written in ONE class string and clear nothing.** Entry 1 of the OPEN NOW
+  index; this is the reproduction. `tests/a11y/class-pairs.ts`'s
+  `gradeClasses` (rule 1) returns null unless EXACTLY ONE half carries a
+  `dark:` override — "BOTH overridden is a pair somebody chose; NEITHER is a
+  single pairing that `token-contrast` and axe already cover", says its own
+  comment. Both halves of that are false often enough to matter: a chosen pair
+  can be chosen wrong, and `token-contrast` grades only the pairs the design
+  system DECLARES, so an off-registry ramp on an off-registry wash is nobody's
+  business. Measured in the light theme against the real palette, worst first:
+  · `text-red-600` on `bg-red-50` = **2.94** — the sign-in failure alert
+    (`app/(auth)/signin/signin-form.tsx:162`), the reset-password form
+    (`reset-form.tsx:83`), accept-invite (`page.tsx:384,444`), and
+    `app/site/[slug]/intake-start/intake-start-form.tsx:212`. **The sign-in one
+    IS the whole of `auth: sign-in showing the failure alert`'s axe entry** —
+    `auth: sign-in` without the alert holds zero, so the violation is the alert
+    node and nothing else. `red` was never a v3 tone ramp; `urgent` is rose,
+    and `TONE_PILL.urgent` measures 5.57 at its worst surface.
+  · `text-red-700` on `bg-red-50` = **3.59** — `app/e/[token]/capture-form.tsx:154`.
+  · `text-gray-300` on `bg-white` = **1.55** and `dark:text-gray-600` on
+    `dark:bg-gray-800` = **1.90** — `components/pagination-classic.tsx:7`. This
+    one is the disabled arm of a pager, so it may be a 1.4.3 exemption rather
+    than a fix; say which.
+  · `text-gray-400` on `bg-gray-100` = **2.29** —
+    `app/(double-sidebar)/inbox/components/add-patient-card.tsx:57` (dark side
+    2.47), `components/marketing/ui.tsx:488`.
+  · `text-gray-400` on `bg-white` = **2.63** — `components/dropdown-filter.tsx:10`
+    (an svg `fill-current` with an `sr-only` label, so axe never flagged it and
+    a source rule will — decide whether the rule should require a text node),
+    `components/marketing/ui.tsx:549,836`.
+  · `text-white` on `bg-teal-400` = **2.42** — `components/marketing/ui.tsx:1005`,
+    already the sole `BRAND_FILL_EXEMPTIONS` entry (an `aria-hidden` mock).
+  · `dark:text-gray-900` on `dark:bg-teal-500` = **4.01** — SEVEN sites, and
+    the class rule 1 explicitly declines: `app/(auth)/accept-invite/page.tsx:303,389,452,557,579`,
+    `app/(auth)/reset-password/reset-form.tsx:91`,
+    `app/(auth)/signin/signin-form.tsx:169`. This is the batch-58 defect
+    verbatim — near-black ink on teal-500 — surviving in the one shape rule 1
+    was written to treat as deliberate. Every sign-in button in the product,
+    in dark mode.
+  · `text-rose-600` on `bg-rose-50` = **4.12** — the four onboarding steps,
+    `app/(partner-accept)/partner/accept/page.tsx:280,337,372`,
+    `app/(default)/patients/[id]/documents-panel.tsx:200`,
+    `app/(default)/settings/apps/integrations-panel.tsx:59`.
+  · `text-violet-600` on `bg-violet-50` = **3.88** — `integrations-panel.tsx:61`.
+  · `text-gray-500` on `bg-gray-200` = **4.34** —
+    `app/(default)/platform/prospecting/sales-pipeline-board.tsx:26`.
+  · `dark:text-gray-400` on `dark:bg-gray-700` = **3.92** —
+    `app/(default)/ecommerce/{invoices,orders}/*-properties.tsx`,
+    `app/(default)/platform/prospecting/copilot-bar.tsx:136`.
+  Two notes for whoever writes the rule. It must grade OPAQUE pairs only — the
+  alpha washes are the 208-sites-to-catch-8 trap rule 1 already learned, since
+  a `/15` wash composites against an ancestor this rule cannot see. And the
+  count being 29 rather than 200 is the whole argument for it being affordable:
+  the sweep is one batch, and it ends with the shape at zero.]
 
 ---
 
