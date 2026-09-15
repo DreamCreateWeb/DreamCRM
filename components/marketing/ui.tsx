@@ -349,6 +349,34 @@ export function MarketingFooter() {
           </span>
           <span>Built for dental practices. Your PMS stays yours.</span>
         </div>
+        {/* CC BY 4.0 attribution for the animated emoji set — a LICENCE TERM,
+            not a nicety, and the reason it sits on every marketing page rather
+            than on one credits page. Underlined so it does not depend on colour
+            alone; gray-400 on gray-950 is 6.71:1. `public/emoji/LICENSE.md`
+            has the provenance, and a test fails if this line disappears. */}
+        <div className="mx-auto max-w-6xl px-4 pb-5 text-[0.72rem] sm:px-6">
+          <span>
+            Animated emoji from{' '}
+            <a
+              href="https://googlefonts.github.io/noto-emoji-animation/"
+              target="_blank"
+              rel="noreferrer"
+              className="underline underline-offset-2 hover:text-white"
+            >
+              Noto Animated Emoji
+            </a>{' '}
+            by Google, licensed under{' '}
+            <a
+              href="https://creativecommons.org/licenses/by/4.0/"
+              target="_blank"
+              rel="noreferrer"
+              className="underline underline-offset-2 hover:text-white"
+            >
+              CC BY 4.0
+            </a>
+            .
+          </span>
+        </div>
       </div>
     </footer>
   )

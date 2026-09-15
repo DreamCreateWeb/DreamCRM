@@ -2,6 +2,7 @@
 
 import { useActionState, useMemo } from 'react'
 import { HONEYPOT_FIELD, TIMETRAP_FIELD } from '@/lib/form-trust'
+import { MarketingEmoji } from '@/components/marketing/emoji'
 import { applyPartnerAction } from './actions'
 
 type FormState = { ok: true } | { ok: false; error: string } | null
@@ -21,6 +22,9 @@ export default function ApplyForm() {
   if (state?.ok) {
     return (
       <div className="rounded-xl border border-teal-200 bg-teal-50/50 p-8 text-center">
+        {/* A real win the visitor caused — BRAND.md Part 5's one use for the
+            popper. Decorative: the line under it already says what happened. */}
+        <MarketingEmoji name="popper" size={44} className="mb-3" />
         <p className="text-[1.1rem] font-bold text-gray-950">Application in — thank you.</p>
         <p className="mx-auto mt-2 max-w-md text-[0.9rem] leading-relaxed text-gray-600">
           A real person reads every one. If it looks like a fit, you&apos;ll hear from us within a
