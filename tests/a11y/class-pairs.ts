@@ -5,17 +5,19 @@
  * carrying one each: `dark-mode-parity.test.ts` (the unpaired `dark:`
  * override), and `token-contrast.test.ts` three times over — white on the
  * shallow end of the brand ramp as a solid fill (rule 2), white on a GRADIENT
- * that runs through it (rule 3), and a gradient that IS the ink rather than the
- * fill (rule 4). A second copy of "which utility is the ink, which is the
+ * that runs through it (rule 3), and a background that IS the ink rather than
+ * the fill (rule 4). A second copy of "which utility is the ink, which is the
  * surface, and is either one a wash" is how two guards start disagreeing about
  * the same line — the same reason `./palette` is the one place the ratios are
  * computed.
  *
  * Rules 3 and 4 are the two axe structurally cannot report, and they are the
- * same gradient read from opposite ends: rule 3 grades the stops as the SURFACE
- * under white text, rule 4 grades them as the INK when `bg-clip-text` makes the
- * gradient the letterforms. Each one's trigger is the other's blind spot, which
- * is why rule 3 shipped with the homepage headline's 2.42 still live.
+ * same background read from opposite ends: rule 3 grades it as the SURFACE
+ * under white text, rule 4 grades it as the INK when `bg-clip-text` makes it
+ * the letterforms. Each one's trigger is the other's blind spot, which is why
+ * rule 3 shipped with the homepage headline's 2.42 still live — and why rule 4
+ * shipped one batch later seeing only the GRADIENT spelling of its own shape,
+ * which DREAMCRM-63 closed by giving it the solid one.
  *
  * ── RULE 1: THE DARK-MODE PARITY SCANNER — the pair nobody measured.
  *
@@ -303,6 +305,13 @@ export type BrandFillExemption = { file: string; classes: string; why: string }
  * describes changes. `deadBrandFillExemptions` below is the detector, and
  * `token-contrast.test.ts` asserts on it — an exemption outliving its subject
  * is how a narrow allowance becomes a blanket pardon.
+ *
+ * AND ITS PREMISE IS ASSERTED SEPARATELY (DREAMCRM-63), because the detector
+ * only asks whether the entry still MATCHES. The `why` below rests on two
+ * facts — the mock marks itself `aria-hidden`, and those bars are a designed
+ * teal-200/300/400/600 progression — and either can stop being true while the
+ * class string carries on matching. "The exempted bar is still an aria-hidden
+ * picture, inside its progression" in `token-contrast.test.ts` grades both.
  */
 export const BRAND_FILL_EXEMPTIONS: BrandFillExemption[] = [
   {
@@ -541,7 +550,7 @@ export function scanForWhiteOnShallowBrandGradient(roots: string[] = UI_ROOTS): 
   return found
 }
 
-/* ── RULE 4: gradient TEXT, where the gradient IS the ink ────────────────── */
+/* ── RULE 4: CLIPPED TEXT, where the background IS the ink ──────────────── */
 
 /**
  * THE FOURTH BLIND SPOT IN THE SAME FAMILY, and the one rule 3 walks straight
@@ -549,17 +558,21 @@ export function scanForWhiteOnShallowBrandGradient(roots: string[] = UI_ROOTS): 
  *
  * `bg-clip-text text-transparent` inverts the relationship every rule above
  * assumes. There is no `text-<colour>` to read — the ink is deliberately
- * transparent — and the `from-`/`via-`/`to-` stops, which rule 3 grades as the
- * SURFACE under white text, are painting the letterforms themselves. So:
+ * transparent — and the BACKGROUND, which rule 3 grades as the SURFACE under
+ * white text, is painting the letterforms themselves. That background is
+ * either a gradient (`from-`/`via-`/`to-`) or a solid `bg-<colour>`; both
+ * spell the same defect, and since DREAMCRM-63 rule 4 grades both. So:
  *
  *   - axe reports a gradient as `incomplete` and never grades it, exactly as
  *     for rule 3. `marketing: home` holds ZERO in `e2e/axe-baseline.ts` with
  *     this defect live on it, which is what "incomplete is not fine" looks
  *     like from the other end.
- *   - Rule 2 reads `bg-<ramp>-<step>` paired with `text-white`. This chunk
- *     spells its fill `from-`/`to-` and its ink `text-transparent`. No match.
+ *   - Rule 2 reads `bg-<ramp>-<step>` paired with `text-white`, and the ink
+ *     here is `text-transparent`. It misses the solid spelling as squarely as
+ *     the gradient one — which is why the solid spelling needed rule 4 rather
+ *     than a widening of rule 2.
  *   - Rule 3 requires `text-white` to anchor on, and there is none — its own
- *     "stays quiet" test pins gradient text as returning null. That was
+ *     "stays quiet" test pins clipped text as returning null. That was
  *     correct for rule 3 and it was also the hole: nothing else was looking.
  *
  * THE DEFECT, from the run that found it (DREAMCRM-44). The homepage headline's
@@ -568,8 +581,9 @@ export function scanForWhiteOnShallowBrandGradient(roots: string[] = UI_ROOTS): 
  * at 5.09; the `to-` end is 2.42, so the last words of the product's most-read
  * headline faded into the page. It is now `from-teal-700 to-teal-600`.
  *
- * THE RULE: **every stop of a gradient-text chunk must read as INK on the
- * light ground.** Graded stop-by-stop for the same reason rule 3 grades stops:
+ * THE RULE: **every colour a clipped-text chunk paints its letterforms with
+ * must read as INK on the light ground** — each stop of a gradient, or the one
+ * solid fill. Graded stop-by-stop for the same reason rule 3 grades stops:
  * the ramp is monotonic in lightness, so a span between two legal stops is
  * legal throughout, and a span touching an illegal stop fails somewhere no
  * matter where exactly the failure lands. Every ratio is measured through
@@ -606,36 +620,34 @@ export function scanForWhiteOnShallowBrandGradient(roots: string[] = UI_ROOTS): 
  *     over a deep navy. Every `bg-clip-text` in this tree is in the marketing
  *     layout, which hard-codes `bg-white text-gray-950` and has no `.dark`
  *     scope at all, so grading a dark rendering here would report a defect
- *     that cannot render. A gradient-text site that IS theme-aware needs this
+ *     that cannot render. A clipped-text site that IS theme-aware needs this
  *     rule widened, not exempted.
  *   - `hover:` stops, for the same reason — no resting ground to resolve them
  *     against that is any more knowable than the base one.
- *   - Alpha stops, and stops whose word this palette does not define — the
- *     same exclusions rules 1 and 3 make.
- *   - A gradient and its `bg-clip-text` in DIFFERENT quoted strings. One
+ *   - Alpha backgrounds, and colour words this palette does not define — the
+ *     same exclusions rules 1 and 3 make. An arbitrary hex (`bg-[#6C9CFF]`)
+ *     falls out here too: `COLOUR_WORD` reads Tailwind palette words, so a
+ *     clipped headline painted with a raw hex is invisible to this rule. That
+ *     is the shape to widen for if one ever lands, not a ceiling to raise.
+ *   - A background and its `bg-clip-text` in DIFFERENT quoted strings. One
  *     quoted string is the unit, as everywhere else in this file.
- *   - **CLIPPED TEXT OVER A SOLID FILL — a known open hole, not a bounded
- *     cost.** `isGradientText` below requires a base-variant `from-`/`via-`/
- *     `to-` stop, so `bg-teal-400 bg-clip-text text-transparent` is graded by
- *     NOTHING: rule 4 wants a gradient, rule 2 wants `ink.word === 'white'`
- *     and the ink here is `transparent`, rule 3 wants a `text-white` to anchor
- *     on, and axe cannot see a clipped background at all. That chunk paints
- *     teal-400 letterforms on white at 2.42 — the same number that started
- *     DREAMCRM-44. Reproduce it by adding that className anywhere under `app/`,
- *     `components/` or `lib/` and running `token-contrast.test.ts`: green.
- *     ZERO instances exist today, so it is a hole rather than a live defect;
- *     the fix is to grade a base `bg-<ramp>-<step>` as ink when
- *     `bg-clip-text text-transparent` is present, with a watched red run on
- *     the shape above. Filed in docs/RELEASE.md Part 5 (Sentinel, DREAMCRM-49,
- *     the post-hoc review of #566). It is written here rather than only in the
- *     ledger because this paragraph is where the next author will be standing —
- *     and because rule 4's own lesson is that when you write a rule for a
- *     shape, you write down what the shape's inverse would do to it. Rule 4
- *     closed rule 3's inverse and left its own open.
+ *
+ * WHAT IT DOES SEE THAT IT DID NOT, and the reason this section was rewritten
+ * (DREAMCRM-63). Rule 4 shipped requiring a base-variant `from-`/`via-`/`to-`
+ * stop, so `bg-teal-400 bg-clip-text text-transparent` was graded by NOTHING:
+ * rule 4 wanted a gradient, rule 2 wants `ink.word === 'white'` and the ink
+ * here is `transparent`, rule 3 wants a `text-white` to anchor on, and axe
+ * cannot see a clipped background at all. That chunk paints teal-400
+ * letterforms on white at 2.42 — the same number that started DREAMCRM-44 —
+ * and it is rule 4's now, through `clippedInks` below. Zero instances existed
+ * when it was closed, which is the cheapest this was ever going to be, and it
+ * is rule 4's own lesson finally applied to rule 4: when you write a rule for
+ * a shape, write down what the shape's inverse would do to it — then close it
+ * rather than filing it.
  *
  * A site genuinely riding a DARK band — the marketing footer is the shape that
  * exists — would fail this rule correctly-in-form and wrongly-in-fact. That is
- * what `GRADIENT_TEXT_EXEMPTIONS` is for.
+ * what `CLIPPED_TEXT_EXEMPTIONS` is for.
  *
  * **IT IS NO LONGER EMPTY** (DREAMCRM-54, 2026-09-15). The homepage hero is
  * now the night band of `BRAND.md`'s Night Dream direction — `bg-gray-950`,
@@ -649,10 +661,10 @@ export function scanForWhiteOnShallowBrandGradient(roots: string[] = UI_ROOTS): 
 const CLIP_TEXT = /bg-clip-text(?![\w-])/
 const TRANSPARENT_INK = new RegExp(`${BOUNDARY}text-transparent${NOT_IN_WORD}`)
 
-export type GradientTextExemption = { file: string; classes: string; why: string }
+export type ClippedTextExemption = { file: string; classes: string; why: string }
 
 /**
- * Gradient-text sites that deliberately ride something other than a light
+ * Clipped-text sites that deliberately ride something other than a light
  * ground — a dark band inside a light page, say.
  *
  * THE SITE THIS LIST WAS BUILT FOR NOW EXISTS (DREAMCRM-54, 2026-09-15). The
@@ -676,7 +688,7 @@ export type GradientTextExemption = { file: string; classes: string; why: string
  * important, or one that names a ground no element actually has. Rule 4 is
  * right about every other `bg-clip-text` in the tree.
  */
-export const GRADIENT_TEXT_EXEMPTIONS: GradientTextExemption[] = [
+export const CLIPPED_TEXT_EXEMPTIONS: ClippedTextExemption[] = [
   {
     file: 'app/(marketing)/page.tsx',
     classes: 'from-teal-300 to-violet-300 bg-clip-text text-transparent',
@@ -698,25 +710,62 @@ export const GRADIENT_TEXT_EXEMPTIONS: GradientTextExemption[] = [
   },
 ]
 
-/** Which gradient-text exemptions no longer match anything. */
-export function deadGradientTextExemptions(roots: string[] = UI_ROOTS): GradientTextExemption[] {
-  const alive = new Set<GradientTextExemption>()
+/** Which clipped-text exemptions no longer match anything. */
+export function deadClippedTextExemptions(roots: string[] = UI_ROOTS): ClippedTextExemption[] {
+  const alive = new Set<ClippedTextExemption>()
   eachClassString(roots, (file, _line, chunk) => {
-    for (const e of GRADIENT_TEXT_EXEMPTIONS) {
+    for (const e of CLIPPED_TEXT_EXEMPTIONS) {
       if (e.file === file && chunk.includes(e.classes)) alive.add(e)
     }
   })
-  return GRADIENT_TEXT_EXEMPTIONS.filter((e) => !alive.has(e))
+  return CLIPPED_TEXT_EXEMPTIONS.filter((e) => !alive.has(e))
 }
 
-/** Is this chunk gradient text at all? Exported so the test can assert the
- *  rule still points at something — a rule narrowed until it matches nothing
- *  reports CLEAN forever. */
-export function isGradientText(classes: string): boolean {
+type ClippedInk = { word: string; alpha: boolean; raw: string }
+
+/**
+ * THE PAINT THAT BECOMES THE LETTERFORMS, base rendering only — the gradient's
+ * stops when there is a gradient, and the solid `bg-<colour>` when there is
+ * not.
+ *
+ * The `fill` half is what closed this rule's own inverse (DREAMCRM-63). Rule 4
+ * shipped requiring a base `from-`/`via-`/`to-` stop, which left
+ * `bg-teal-400 bg-clip-text text-transparent` graded by NOTHING — 2.42
+ * letterforms on white, the same number that started DREAMCRM-44, past all
+ * four gates at once. Everything else about the rule is unchanged: the ground
+ * is still white, the cutoff is still rule 2's, and the stops are still graded
+ * one at a time.
+ *
+ * WHY THE GRADIENT WINS WHEN BOTH ARE PRESENT, rather than both being graded.
+ * `bg-clip-text` clips every background layer, and a `background-image` paints
+ * OVER the `background-color` — so a solid fill sitting under a gradient is a
+ * fallback nobody sees, and grading it would fail a call site for a colour
+ * that never reaches the screen. The `bg-<colour>` is the ink only when it is
+ * the only background there is. Same false-NEGATIVE direction the rest of this
+ * file takes when it cannot be sure.
+ */
+function clippedInks(classes: string): { shape: 'gradient' | 'fill'; inks: ClippedInk[] } {
+  const stops = stopsFor(gradientStops(classes), [''])
+  if (stops.length > 0) {
+    return {
+      shape: 'gradient',
+      inks: stops.map((s) => ({ word: s.word, alpha: s.alpha, raw: s.raw })),
+    }
+  }
+  // `utilities` reads `bg-<colour-word>`, and neither `bg-clip-text` nor
+  // `bg-gradient-to-br` is one: COLOUR_WORD needs digits or the literal
+  // white/black, so the two utilities that spell this shape cannot be misread
+  // as its fill.
+  const fill = utilities(classes, 'bg').find((u) => !u.dark)
+  return { shape: 'fill', inks: fill ? [{ word: fill.word, alpha: fill.alpha, raw: fill.raw }] : [] }
+}
+
+/** Is this chunk clipped text at all — a background made the ink, gradient or
+ *  solid? Exported so the test can assert the rule still points at something —
+ *  a rule narrowed until it matches nothing reports CLEAN forever. */
+export function isClippedText(classes: string): boolean {
   return (
-    CLIP_TEXT.test(classes) &&
-    TRANSPARENT_INK.test(classes) &&
-    gradientStops(classes).some((s) => s.variant === '')
+    CLIP_TEXT.test(classes) && TRANSPARENT_INK.test(classes) && clippedInks(classes).inks.length > 0
   )
 }
 
@@ -727,21 +776,22 @@ export function isGradientText(classes: string): boolean {
  * the zero assertion cannot tell a scanner that is looking from one that has
  * quietly stopped, so the test feeds this every shape it claims to catch.
  */
-export function gradeGradientTextClasses(
+export function gradeClippedTextClasses(
   classes: string,
 ): Omit<ParityFinding, 'file' | 'line'> | null {
-  if (!isGradientText(classes)) return null
+  if (!isClippedText(classes)) return null
 
+  const { shape, inks } = clippedInks(classes)
   const failures: Pairing[] = []
   const participating = new Set<string>()
-  for (const stop of stopsFor(gradientStops(classes), [''])) {
-    if (stop.alpha) continue
-    // The stop is the INK and white is the ground — the inverse of every other
-    // rule in this file, which is the whole point of rule 4 existing.
-    const graded = grade(LIGHT, 'light', stop.word, 'white')
+  for (const ink of inks) {
+    if (ink.alpha) continue
+    // The background is the INK and white is the ground — the inverse of every
+    // other rule in this file, which is the whole point of rule 4 existing.
+    const graded = grade(LIGHT, 'light', ink.word, 'white')
     if (!graded || graded.ratio >= AA) continue
     failures.push(graded)
-    participating.add(stop.raw)
+    participating.add(ink.raw)
   }
   if (failures.length === 0) return null
 
@@ -749,12 +799,15 @@ export function gradeGradientTextClasses(
     overridden: null,
     classes: Array.from(participating).join(' '),
     failures,
-    note: 'the gradient IS the ink here (bg-clip-text), and a stop is too pale to read',
+    note:
+      shape === 'gradient'
+        ? 'the gradient IS the ink here (bg-clip-text), and a stop is too pale to read'
+        : 'the solid fill IS the ink here (bg-clip-text), and it is too pale to read',
   }
 }
 
 /**
- * Every gradient-text site in the product whose stops include one too pale to
+ * Every clipped-text site in the product painting its letterforms too pale to
  * read on a light ground.
  *
  * Holds at ZERO with no ceiling, the same as rules 1 and 3 — and for a sharper
@@ -762,21 +815,21 @@ export function gradeGradientTextClasses(
  * browser gate and the three source rules above were structurally blind, so a
  * number here would be room in the only room nothing else can see into.
  */
-export function scanForUnreadableGradientText(roots: string[] = UI_ROOTS): ParityFinding[] {
+export function scanForUnreadableClippedText(roots: string[] = UI_ROOTS): ParityFinding[] {
   const found: ParityFinding[] = []
   eachClassString(roots, (file, line, chunk) => {
-    if (GRADIENT_TEXT_EXEMPTIONS.some((e) => e.file === file && chunk.includes(e.classes))) return
-    const graded = gradeGradientTextClasses(chunk)
+    if (CLIPPED_TEXT_EXEMPTIONS.some((e) => e.file === file && chunk.includes(e.classes))) return
+    const graded = gradeClippedTextClasses(chunk)
     if (graded) found.push({ file, line, ...graded })
   })
   return found
 }
 
-/** Every gradient-text site, graded or clean — the instrument's field of view. */
-export function gradientTextSites(roots: string[] = UI_ROOTS): { file: string; line: number }[] {
+/** Every clipped-text site, graded or clean — the instrument's field of view. */
+export function clippedTextSites(roots: string[] = UI_ROOTS): { file: string; line: number }[] {
   const found: { file: string; line: number }[] = []
   eachClassString(roots, (file, line, chunk) => {
-    if (isGradientText(chunk)) found.push({ file, line })
+    if (isClippedText(chunk)) found.push({ file, line })
   })
   return found
 }
@@ -843,6 +896,14 @@ export type ToneFillExemption = { file: string; classes: string; why: string }
  * `public-action-tenancy.test.ts` learned the hard way: a file-wide exemption
  * is a door. `deadToneFillExemptions` below is the detector that stops one
  * outliving its subject.
+ *
+ * AND ITS PREMISE IS ASSERTED SEPARATELY (DREAMCRM-63). Read the `why` below
+ * and notice it never claims the string exists somewhere — it claims the
+ * pairing is already decided in ONE place, `VARIANT_CLASSES`, and that it
+ * clears AA at 4.53. Copy the string onto an ad-hoc element in the same file
+ * and the detector stays green while the argument is gone; re-point `rose-600`
+ * and the pardon covers a fill under the floor. Both facts are graded in
+ * `token-contrast.test.ts`, structurally and numerically.
  */
 export const TONE_FILL_EXEMPTIONS: ToneFillExemption[] = [
   {

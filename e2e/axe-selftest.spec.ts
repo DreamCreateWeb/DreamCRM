@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test'
 import {
   deadExclusions,
   DECORATIVE_MOCKS,
+  exclusionsHidingReadableText,
   expectNoA11yViolations,
   findA11yViolations,
   rulesOverBaseline,
@@ -309,4 +310,127 @@ test.describe('an exemption cannot outlive what it describes', () => {
     await page.setContent(CLEAN)
     expect(await deadExclusions(page)).toEqual([])
   })
+})
+
+/**
+ * THE OTHER HALF OF THE SAME QUESTION (DREAMCRM-63).
+ *
+ * Every dead-exemption detector in this repo — the three in
+ * `tests/a11y/class-pairs.ts` and `deadExclusions` above — asks whether an
+ * allowance still MATCHES something. Not one of them asked whether its REASON
+ * was still true, and #587 found out what that costs: moving the marketing
+ * hero off its dark ground left every one of them GREEN over a headline
+ * measuring 1.88 on white.
+ *
+ * `DECORATIVE_MOCKS`'s reason is WCAG 1.4.3 — *text that is part of a
+ * picture*. The two documents below are the same hero with one thing changed:
+ * a readable-size caption moved INSIDE the illustration. `deadExclusions` is
+ * green on both (the selectors still match), the stop still holds its ceiling
+ * of zero, and a real contrast failure on text a person reads goes unreported
+ * — which is precisely the rot the exclusion's own header says it cannot have.
+ *
+ * Watched red by running the second test against the harness without
+ * `exclusionsHidingReadableText`: the pardoned finding came back `[]` and
+ * `expectNoA11yViolations` reported the stop clean.
+ */
+function heroWithInsideCaption(captionStyle: string): string {
+  return `<!doctype html>
+<html lang="en">
+  <head><title>A hero whose mock grew something readable</title></head>
+  <body>
+    <main>
+      <div class="mkt-float">
+        <div aria-hidden="true" style="background:#ffffff">
+          <span style="color:#93a0bc;font-size:7.7px">8:00 Mia Hayes - Cleaning</span>
+          <p style="${captionStyle}">The panel a person actually reads.</p>
+        </div>
+      </div>
+      <div class="mkt-float-slow">
+        <div aria-hidden="true" style="background:#ffffff">
+          <span style="color:#93a0bc;font-size:8.3px">Your next visit</span>
+        </div>
+      </div>
+    </main>
+  </body>
+</html>`
+}
+
+test.describe('an exemption cannot outlive the REASON it was given', () => {
+  test('picture-scale glyphs inside the mocks are what it is allowed to discount', async ({
+    page,
+  }) => {
+    // The control, and the half that keeps this from firing on the real hero:
+    // the mocks are ~7-11px illustration chrome, which is exactly what WCAG
+    // 1.4.3 exempts. Nothing is reported, and the exclusion is doing its job.
+    await page.setContent(HERO)
+    expect(await exclusionsHidingReadableText(page, DECORATIVE_MOCKS)).toEqual([])
+  })
+
+  test('a readable panel that has grown inside a mock is reported by name', async ({ page }) => {
+    // 14px, failing contrast, inside the excluded subtree. This is the shape
+    // the exclusion stops describing, and the one nothing in this repo could
+    // see before.
+    await page.setContent(heroWithInsideCaption('color:#93a0bc;background:#ffffff;font-size:14px'))
+
+    const pardoned = await exclusionsHidingReadableText(page, DECORATIVE_MOCKS)
+    expect(pardoned, 'the pardoned finding must be reported').toHaveLength(1)
+    expect(pardoned[0].selector).toBe('.mkt-float > [aria-hidden="true"]')
+    expect(pardoned[0].fontSizePx).toBe(14)
+    expect(pardoned[0].text).toContain('a person actually reads')
+
+    // The point of the whole test: the detector that already existed is happy.
+    // "The selector still matches" was never the question.
+    expect(await deadExclusions(page, DECORATIVE_MOCKS)).toEqual([])
+  })
+
+  test('a readable panel that PASSES contrast is not reported', async ({ page }) => {
+    // The size alone is not the defect — a mock is allowed to carry a legible
+    // headline, and the real DashboardMock/PortalMock both do (16-16.8px). The
+    // rule fires only where a finding is being discounted, so a guard widened
+    // to "no big text in there" would report the product's own illustrations.
+    await page.setContent(heroWithInsideCaption('color:#111111;background:#ffffff;font-size:14px'))
+    expect(await exclusionsHidingReadableText(page, DECORATIVE_MOCKS)).toEqual([])
+  })
+
+  test('a failing caption OUTSIDE the mocks is not this rule\'s business', async ({ page }) => {
+    // HERO's caption is faint prose on the page itself. It is reported by the
+    // ordinary scan (the tests above pin that), and no exclusion is pardoning
+    // it — so this rule must stay quiet or it would double-report every
+    // contrast defect on the page.
+    await page.setContent(HERO)
+    expect(await exclusionsHidingReadableText(page, DECORATIVE_MOCKS)).toEqual([])
+  })
+
+  test('a stop with no exclusions is not scanned twice', async ({ page }) => {
+    // The extra axe pass costs a scan, so it is skipped where there is nothing
+    // to check the premise of — which is every stop in the suite but one.
+    await page.setContent(HERO)
+    expect(await exclusionsHidingReadableText(page)).toEqual([])
+  })
+
+  test('the production path stays quiet when the mocks are still pictures', async ({ page }) => {
+    // The passing half of the production path, the same shape the
+    // dead-exclusion suite pins one describe up. `marketing: home` holds a
+    // ceiling of ZERO and this extra scan runs on every one of its stops, so
+    // "it does not fire on the real hero" is a claim worth an assertion.
+    await page.setContent(HERO_PICTURES_ONLY)
+    await expectNoA11yViolations(page, 'marketing: home', { exclude: DECORATIVE_MOCKS })
+  })
+
+  /*
+   * THE FAILING half of the production path is NOT a test here, and the reason
+   * is a Playwright fact rather than a gap: `expectNoA11yViolations` reports
+   * through `expect.soft`, and a soft failure marks the test that provoked it
+   * failed no matter what the test then asserts about it. There is no way to
+   * observe a deliberate soft red from inside the same test and still pass.
+   *
+   * So it was watched by hand instead, which is what §2d actually asks for:
+   * this spec, with the test above pointed at
+   * `heroWithInsideCaption('color:#93a0bc;background:#ffffff;font-size:14px')`,
+   * failed at `axe.ts` naming the stop, the selector, `14px` and the caption's
+   * own text. What keeps that wiring from quietly coming undone afterwards is
+   * `tests/guards/axe-exclusion-premise.test.ts`, which fails `test` if
+   * `expectNoA11yViolations` stops asserting on either detector — the same
+   * answer `axe-headroom-table.test.ts` gives for its reporter.
+   */
 })

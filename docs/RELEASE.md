@@ -2893,7 +2893,7 @@ instrument this wants is a monotonicity guard that reads the entry's value on
 be written down. That is a different defect from the routing hole and is filed
 separately rather than bundled into it.
 
-### Clipped text over a SOLID brand fill is graded by no rule (2026-09-14) · OPEN
+### Clipped text over a SOLID brand fill is graded by no rule (2026-09-14) · FIXED — awaiting merge (#589)
 
 **The defect.** Rule 4 (#566) grades `bg-clip-text text-transparent` only when
 the ink is a *gradient* — `isGradientText` in `tests/a11y/class-pairs.ts`
@@ -2915,10 +2915,99 @@ the one fixed marketing headline), so this is a hole rather than a live defect �
 which is precisely the shape #566's own module header argues for writing down:
 *when you write a rule for a shape, write down what the shape's inverse would do
 to it.* Rule 4 was written for the gradient inverse of rule 3 and left its own
-solid-fill inverse open. The fix is small — extend `gradeGradientTextClasses` to
-grade a base `bg-<ramp>-<step>` as ink when `bg-clip-text text-transparent` is
-present — and belongs to whoever next touches that file, with a watched red run
-on the shape above.
+solid-fill inverse open.
+
+**The verdict.** Fixed (DREAMCRM-63). Rule 4 now resolves the paint that
+becomes the letterforms through `clippedInks` in `tests/a11y/class-pairs.ts` —
+the gradient's base stops when there is a gradient, and the solid
+`bg-<colour>` when there is not — and grades whatever comes back as ink on
+white, against the same cutoff it already shared with rule 2. A gradient WINS
+over a solid fill when both are present, because `background-image` paints over
+`background-color`, so a fallback nobody sees is not condemned. The rule's
+surface was renamed with it: `isClippedText`, `gradeClippedTextClasses`,
+`scanForUnreadableClippedText`, `clippedTextSites` and
+`CLIPPED_TEXT_EXEMPTIONS`, because a name reading "gradient" over a rule that
+grades solid fills is the overclaiming-name failure §2d warns about, seen from
+the other end.
+
+**The red run, watched on the reproduction above.** `className="bg-teal-400
+bg-clip-text text-transparent"` in `app/(marketing)/page.tsx`: GREEN on the
+guards as they stood (all 42 assertions passing with a 2.42 headline in the
+tree), RED after, reporting
+`app/(marketing)/page.tsx:219 — the solid fill IS the ink here (bg-clip-text),
+and it is too pale to read (bg-teal-400) — light: teal-400 on white = 2.42`.
+Both halves were run; the green one is the part worth recording, because it is
+the state this repo was in for a day short of a week.
+
+### Three dead-exemption detectors asked whether an exemption still MATCHED, never whether its REASON held (2026-09-15) · FIXED — awaiting merge (#589)
+
+**The defect.** This repo has four allow-lists that make a contrast gate
+looser, each with a detector that fails when an entry stops matching anything:
+`deadBrandFillExemptions`, `deadClippedTextExemptions` and
+`deadToneFillExemptions` in `tests/a11y/class-pairs.ts`, plus `deadExclusions`
+in `e2e/axe.ts`. All four asked the same question — *does this entry still
+describe something?* — and none asked *is the reason it was granted still
+true?* Those come apart, and when they do the exemption goes on pardoning its
+subject with its whole argument gone. #587 found it on the fourth list
+(moving the marketing hero off `bg-gray-950` left every assertion in
+`token-contrast.test.ts` green over a headline measuring 1.88 on white) and
+closed it for the one entry it added. The other three were left open, which is
+the `public-action-tenancy` lesson in new clothes: a narrow allowance
+outliving its subject is exactly what these lists were built to prevent.
+
+**Reproduction, one per list, each green before and red after.**
+
+- `BRAND_FILL_EXEMPTIONS` — delete `aria-hidden="true"` from
+  `RecallFunnelMock`'s root in `components/marketing/ui.tsx`. The bars become
+  content; the exemption's entire argument is WCAG 1.4.3, *text that is part of
+  a picture*; white on `teal-400` at **2.42** goes on being pardoned and the
+  detector says nothing. Second shape: re-point one bar so the
+  teal-200/300/400/600 progression the `why` describes is no longer there.
+- `TONE_FILL_EXEMPTIONS` — move `bg-rose-600 hover:bg-rose-700 text-white` out
+  of `VARIANT_CLASSES` into a local const in the same file. The `why` claims
+  the pairing is *already decided in ONE place*, which is the thing rule 5
+  protects; after the move it is a fresh local guess, and the detector is still
+  green because the string is still in the file. Second shape, numeric:
+  re-point `--color-rose-600` so white on it drops to 3.91. The `why`'s "it
+  clears AA, but only at 4.53" is now false, rule 5 is not a ratio rule so it
+  stays quiet, and the pardon covers a fill under the floor.
+- `DECORATIVE_MOCKS` — add a readable 14px panel that fails contrast inside
+  `.mkt-float > [aria-hidden="true"]`. The selector still matches, so
+  `deadExclusions` is green, `marketing: home` keeps its ceiling of ZERO, and a
+  real contrast defect on the busiest public page we have is discounted by a
+  sentence about 7px illustration glyphs.
+
+**The verdict.** Fixed (DREAMCRM-63). Each list's own premise is now asserted
+against the source or the page that justifies it, in the shape #587 established
+— assert the FACT the `why` rests on, not that the string is still somewhere:
+
+- `token-contrast.test.ts`, "the exempted bar is still an aria-hidden picture,
+  inside its progression" — the owning component (not the file: most mocks in
+  that 1,100-line file are `aria-hidden`, so a whole-file search passes on
+  somebody else's attribute) still marks itself `aria-hidden`, and all four
+  steps of the progression are still there.
+- `token-contrast.test.ts`, "the exempted danger fill is still VARIANT_CLASSES'
+  own entry, not a loose copy" plus "…still clears AA, which is what makes it a
+  note" — the structural half reads the `danger` VALUE out of the record, the
+  numeric half re-derives 4.53 and 6.03 from the palette rather than trusting
+  the `why` text.
+- `e2e/axe.ts`, `exclusionsHidingReadableText` — scans the page WITHOUT the
+  exclusions, takes the `color-contrast` findings the exclusions are
+  discounting, and reports any whose element renders at or above this repo's
+  own **12px legibility floor**. Deliberately narrower than "no big text in
+  there": the real mocks carry a 16.8px headline that reads fine, and a rule
+  firing on that is the "208 places to catch 8" failure that gets a guard
+  switched off. It costs one extra scan, at the one stop in the suite that
+  passes exclusions, and is skipped where there are none.
+
+Every one of the six mutations above was watched RED, and the failing direction
+of the axe production path was watched by hand (`expectNoA11yViolations`
+reports through `expect.soft`, and a soft failure marks the test that provoked
+it failed no matter what that test then asserts — so it cannot be a passing
+Playwright test). `tests/guards/axe-exclusion-premise.test.ts` is what keeps
+that wiring from coming undone afterwards: it fails `test` if
+`expectNoA11yViolations` stops asserting on either detector.
+
 ### A failed migration deployed green (2026-09-14) · FIXED
 
 **The defect.** Nothing anywhere asserted that production had applied the
