@@ -90,6 +90,11 @@ export const GATE_RULES = [
       'Dockerfile',
       'scripts/db-migrate.mjs',
       'scripts/migrate.mjs',
+      // The post-deploy assertion that the applied-migration ledger matches the
+      // journal (DREAMCRM-46). It decides whether a deploy is allowed to report
+      // success, so weakening it is a deploy-path change even though it runs
+      // after the deploy rather than during it.
+      'scripts/migration-check.mjs',
       'scripts/setup-cron-schedules.sh',
       'app/api/admin/migrate/**',
     ],

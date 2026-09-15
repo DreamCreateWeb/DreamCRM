@@ -22,6 +22,7 @@ on:
         options:
           - duplicate-stripe-accounts
           - readonly-role-privileges
+          - migrations-applied
       reason:
         # Required, and self-declared — see the note below. Asking for it is
         # still worth it: it is the only thing that makes a run legible later.
