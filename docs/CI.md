@@ -124,6 +124,18 @@ Keeping it inside `deploy.yml` (instead of also firing `ci.yml` on push) means a
 merge runs the suite once, not twice. **The typecheck + suite steps in the two
 `test` jobs are meant to stay identical — change one, change the other.**
 
+**Both `test` jobs — and both jobs in `nightly.yml` that run the suite — fetch
+`origin/main` before the suite runs** (2026-09-15, DREAMCRM-60). One line,
+`git fetch --no-tags --depth=1 origin +refs/heads/main:refs/remotes/origin/main`,
+immediately after the checkout. `tests/guards/axe-baseline-ratchet.test.ts`
+compares every axe ceiling in `e2e/axe-baseline.ts` against its value on `main`
+and fails any increase, and `actions/checkout` on a `pull_request` fetches
+`refs/pull/N/merge` and nothing else — so without the step the ref does not
+resolve, in the one check the guard exists to defend. It fails rather than skips
+when the ref is missing under CI, and the step is pinned in every workflow that
+runs `pnpm test`, derived from the workflow directory rather than a list. Depth 1
+because the tip's tree is all it reads. `docs/E2E.md` owns the ratchet itself.
+
 They are not byte-identical, and the difference is deliberate: the `test` job in
 `ci.yml` also runs `pnpm lint` (the `eslint-plugin-jsx-a11y` accessibility gate
 added 2026-09-10, DREAMCRM-17) before the suite. That step is PR-side only. Every

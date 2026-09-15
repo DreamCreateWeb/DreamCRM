@@ -26,19 +26,26 @@
  *     in the same PR; the run prints a note telling you which ones are now
  *     lower than their ceiling.
  *
- * **"Numbers only ever go DOWN" IS NOT ENFORCED BY ANYTHING — open defect.**
- * Raise any entry here by one and `pnpm test` is green; nothing in
- * `tests/guards/**` reads this file's previous value, and no label is applied
- * either (this file is deliberately kept off the review gate's intake list —
- * see the reasoning in scripts/review-gate.mjs, since a ceiling SHRINK is the
- * end of every accessibility fix and moved in 10 of the last 90 merged PRs, so
- * labelling those would teach people the label means nothing). The direction
- * that matters is the raise, and a path pattern cannot tell the two apart. The
- * instrument this wants is a monotonicity guard reading each entry's value on
- * `origin/main` and failing on any increase, with a deliberate opt-out that has
- * to be written down. Filed in docs/RELEASE.md Part 5 (Sentinel, DREAMCRM-49).
- * Until it exists, "raising a ceiling to get green is weakening a failing test"
- * is a rule held up by whoever is reading the diff.
+ * **"NUMBERS ONLY EVER GO DOWN" IS ENFORCED** — since 2026-09-15, DREAMCRM-60.
+ * `tests/guards/axe-baseline-ratchet.test.ts` reads every entry's value on
+ * `origin/main` and fails `test` on any increase, INCLUDING a (stop, rule) that
+ * is not listed there at all: an unlisted pair tolerates zero, so adding a line
+ * is a raise from zero and not a new entry. For four batches this paragraph
+ * said the opposite — raise any number by one and `pnpm test` was green,
+ * nothing read the previous value, and no label fired — which made it the last
+ * remaining way to weaken a required check with nobody seeing it (filed by
+ * Sentinel in docs/RELEASE.md Part 5 on DREAMCRM-49).
+ *
+ * THIS FILE IS STILL OFF EVERY LABEL LIST, and that is the point of the design
+ * rather than a hole left in it. A ceiling SHRINK is the end of nearly every
+ * accessibility fix — it moved in 10 of the last 90 merged PRs — so labelling
+ * those would teach people the label means nothing, and a path pattern cannot
+ * tell a shrink from a raise. The written opt-out for the rare legitimate raise
+ * therefore lives one file over, in `e2e/axe-baseline-raises.ts`, which holds
+ * nothing BUT raises and is on the review gate. Shrinks stay quiet; a raise
+ * reaches Sentinel. Read that file before you reach for it: the bar is that the
+ * violations are PRE-EXISTING — a stop nothing had ever scanned — never that a
+ * new one needs somewhere to go.
  *
  * A ceiling rather than an exact match on purpose: some counts genuinely wobble
  * by an element because what is on screen depends on the data — the three

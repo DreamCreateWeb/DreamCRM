@@ -75,7 +75,10 @@ export const GATE_RULES = [
       'trace in .github/. scripts/review-gate.mjs is here for the same reason: it is the list ' +
       'that decides which PRs reach a reviewer at all, and scripts/rulebook-drift.mjs is the ' +
       'list of facts the rulebook asserts about this repo — delete a claim from it and the ' +
-      'daily drift check goes on reporting CLEAN about something it no longer looks at.',
+      'daily drift check goes on reporting CLEAN about something it no longer looks at. ' +
+      'e2e/axe-baseline-raises.ts is the sharpest case of all: every entry in it is a ' +
+      'deliberate, argued RAISE of an axe ceiling — a required check told to tolerate more ' +
+      'than it did yesterday — and nothing shrinks a ceiling by editing that file.',
     // DELIBERATELY NOT `tests/**` or `e2e/**` wholesale — see INTAKE_RULES
     // below for why the rest of the suite is an intake obligation and not a
     // review one. These five are the files that decide what runs (or what gets
@@ -84,6 +87,13 @@ export const GATE_RULES = [
       'vitest.config.ts',
       'playwright.config.ts',
       'e2e/axe.ts',
+      // The written opt-out from the axe ratchet (DREAMCRM-60). The BASELINE
+      // itself stays off every list here — shrinking it is the end of nearly
+      // every accessibility fix, and a path pattern cannot tell a shrink from a
+      // raise. This file can: it holds nothing but raises, so a diff touching it
+      // is always the direction §2 forbids outright. That is the whole reason
+      // the opt-out does not live beside the numbers it excuses.
+      'e2e/axe-baseline-raises.ts',
       'scripts/review-gate.mjs',
       'scripts/rulebook-drift.mjs',
     ],
@@ -317,8 +327,12 @@ export const GATE_RULES = [
  *     — it moved in 10 of the last 90 PRs — so labelling those would teach
  *     people the label means nothing. The direction that matters there is a
  *     ceiling going UP, which §2 already forbids outright and which a path
- *     pattern cannot see anyway. That wants a monotonicity guard, not a label;
- *     it is written up as its own defect rather than bundled in here.
+ *     pattern cannot see anyway. That wanted a monotonicity guard rather than a
+ *     label, and since DREAMCRM-60 it has one:
+ *     `tests/guards/axe-baseline-ratchet.test.ts` reads every entry's value on
+ *     `origin/main` and fails any increase. The file stays off both lists; its
+ *     written opt-out, `e2e/axe-baseline-raises.ts`, is on the REVIEW gate
+ *     above, which is the split a path pattern could not make on its own.
  *   - `tests/**` and `e2e/**` wholesale. ~6,900 tests assert about one unit
  *     each and change nothing for anybody else.
  *

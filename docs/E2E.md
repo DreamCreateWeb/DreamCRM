@@ -398,6 +398,34 @@ arrives next week. So they are carried in a baseline, as a **ratchet**:
 - Numbers only go **down**. Shrink or delete the entry in the same PR as the
   fix; a run prints a `::warning` naming ceilings that are now too high.
 
+**That last line is enforced** (2026-09-15, DREAMCRM-60), and it is enforced in
+the `test` check rather than here: `tests/guards/axe-baseline-ratchet.ts` reads
+every entry's value on `origin/main` and fails any increase. It is a source
+guard for the same reason the gradient rules are — the browser suite can only
+report what it measured on the pages it visited, and the number it measures
+against is exactly the thing being edited. Four things worth knowing:
+
+- **A brand-new entry is a raise from zero**, because an unlisted (stop, rule)
+  tolerates zero. That is the likeliest shape of the defect: it reads as adding
+  a line, not as editing a number.
+- **The comparison is against `origin/main`'s tip**, so every workflow job that
+  runs `pnpm test` fetches it first — on a `pull_request`, `actions/checkout`
+  fetches the merge ref and nothing else. The guard fails rather than skips when
+  that ref is missing under CI, and the fetch step is pinned across every
+  workflow that runs the suite. Locally it says out loud that it skipped, and
+  prints the fetch command.
+- **The rare legitimate raise is written down in `e2e/axe-baseline-raises.ts`**,
+  naming the exact stop, rule, from, to, date, issue and argument. The bar is
+  that the violations are PRE-EXISTING — a stop nothing had ever scanned, which
+  is how the three portal-billing stops arrived on 2026-09-14 — never that a new
+  one needs somewhere to go. The entry has to keep being true: once the ceiling
+  it describes moves, `test` goes red until it is deleted.
+- **That file is on the review gate and this one is not**, deliberately. A
+  ceiling shrink is the end of nearly every accessibility fix and a path pattern
+  cannot tell a shrink from a raise; nothing shrinks a ceiling by editing the
+  raises file, so the split a pattern could not make is made by putting the two
+  directions in two files. Shrinks stay quiet; a raise reaches Sentinel.
+
 A ceiling rather than an exact match because some counts genuinely wobble by an
 element depending on what is on screen — the agenda stops reported 8
 `nested-interactive` then 7, the booking confirmation 2 then 1, across runs of
