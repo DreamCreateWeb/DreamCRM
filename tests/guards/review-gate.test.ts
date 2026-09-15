@@ -186,6 +186,11 @@ describe('the review-gate classifier', () => {
       'lib/session.ts': 'auth',
       'lib/auth/context.ts': 'auth',
       'middleware.ts': 'auth',
+      // The demo-context minter (DREAMCRM-47): `enterDemoMode` writes the
+      // cookie `getTenantContext` reads AHEAD of real org membership, so it
+      // decides which organization the whole app renders as. Pinned because
+      // its filename says "ecommerce customers" and nothing about auth.
+      'app/(default)/ecommerce/customers/admin-actions.ts': 'auth',
       'lib/db/migrations/0161_connect_refund_records.sql': 'db-migrations',
       '.github/workflows/deploy.yml': 'ci-workflows',
       '.github/workflows/migration-check.yml': 'ci-workflows',
