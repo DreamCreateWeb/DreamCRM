@@ -14,6 +14,17 @@ export const PORTAL_BORDER = '#E8E2D9'
 // The warm ground. Single-homed in lib/portal-brand.ts, where the brand's
 // contrast derivation is defined against it — the two cannot drift.
 export const PORTAL_BG = PORTAL_GROUND
+/**
+ * One step down from the ground — the inset well a piece of portal chrome
+ * sits IN rather than ON: the slot grid's loading skeleton, and a time that
+ * is already taken.
+ *
+ * It is a token because it is a SURFACE, and a surface is half of a contrast
+ * pair. Spelled raw, it was the ground nobody graded anything against: the
+ * taken-slot label sat on it at 1.85:1 for two batches (see slot-picker.tsx).
+ * `tests/a11y/portal-palette.test.ts` now grades every portal ink on it.
+ */
+export const PORTAL_WASH = '#F3EEE7'
 
 // Semantic tones — meaning-first names so "what error looks like" is decided
 // HERE, once. Raw hexes for these meanings are banned outside this file
