@@ -203,7 +203,7 @@ export default function PortalMessagesView({
                           <span className="text-[0.8rem] font-semibold" style={{ color: INK }}>
                             {senderName}
                           </span>
-                          <span className="text-[0.78rem]" style={{ color: '#6B635A' }}>
+                          <span className="text-[0.78rem]" style={{ color: MUTED }}>
                             {fmtTime(m.sentAtIso)}
                             {m.channel !== 'in_app' ? ` · via ${CHANNEL_LABEL[m.channel] ?? m.channel}` : ''}
                           </span>
@@ -218,7 +218,10 @@ export default function PortalMessagesView({
                               : { backgroundColor: '#FAF7F2', color: INK }
                           }
                         >
-                          {m.subject && <p className="mb-1 text-[0.78rem] font-semibold opacity-80">{m.subject}</p>}
+                          {/* The subject is set apart by weight and size, never by opacity:
+                              on a patient's own brand-filled bubble an 80% white
+                              lands at 3.79-4.42 depending on the clinic's brand. */}
+                          {m.subject && <p className="mb-1 text-[0.78rem] font-semibold">{m.subject}</p>}
                           {m.body}
                           {m.attachments.length > 0 && (
                             <div className={`flex flex-wrap gap-1.5 ${m.body ? 'mt-2' : ''}`}>
