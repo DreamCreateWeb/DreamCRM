@@ -169,14 +169,14 @@ interface RawTagEvent {
 }
 
 /** Compact dollar string from cents for commerce timeline titles. */
+function dollars(cents: number): string {
+  return `$${(Number(cents) / 100).toFixed(2)}`
+}
+
 /** One way of joining a refund note onto a subtitle, so the two money entries
  *  on this timeline cannot drift apart in how they say it. */
 function appendRefund(base: string, note: string | null): string {
   return note ? `${base} · ${note}` : base
-}
-
-function dollars(cents: number): string {
-  return `$${(Number(cents) / 100).toFixed(2)}`
 }
 
 export async function getPatientTimeline(
