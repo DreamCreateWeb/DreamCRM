@@ -35,6 +35,16 @@ const ALLOWED: Array<{ file: string; why: string }> = [
   },
 ]
 
+/** A banner inside a comment protects nothing — drop comments before checking. */
+function stripComments(src: string): string {
+  return src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1')
+}
+
+/** A real `import 'server-only'` statement near the top of the file. */
+export function hasBanner(src: string): boolean {
+  return /^\s*import ['"]server-only['"]/m.test(stripComments(src).slice(0, 400))
+}
+
 function walk(dir: string, out: string[] = []): string[] {
   for (const entry of readdirSync(dir)) {
     const full = join(dir, entry)
@@ -54,9 +64,11 @@ describe('lib/services is server-only', () => {
       const rel = file.slice(root.length + 1).replace(/\\/g, '/')
       if (ALLOWED.some((a) => a.file === rel)) continue
       // Only the TOP of the file counts — a banner buried below an import
-      // that already pulled in the database has protected nothing.
-      const head = readFileSync(file, 'utf8').slice(0, 400)
-      if (/import ['"]server-only['"]/.test(head)) continue
+      // that already pulled in the database has protected nothing. And it has
+      // to be a REAL statement: `// import 'server-only'` and a header comment
+      // that merely NAMES the banner both satisfied this check while protecting
+      // nothing — the shape a mutation pass found live (DREAMCRM-50).
+      if (hasBanner(readFileSync(file, 'utf8'))) continue
       offenders.push(rel)
     }
     expect(
@@ -78,6 +90,17 @@ describe('lib/services is server-only', () => {
         /from ['"]@\/lib\/db['"]/,
       )
     }
+  })
+
+  it('does not accept a banner that is only a comment', () => {
+    // The mutation that found this (DREAMCRM-50): commenting the banner out,
+    // or naming it in the file header, left the guard green while the module
+    // was importable from a client component — which is the entire failure
+    // this guard exists to prevent. Both shapes must read as ABSENT.
+    expect(hasBanner("import 'server-only'\nimport { db } from '@/lib/db'")).toBe(true)
+    expect(hasBanner("// import 'server-only'")).toBe(false)
+    expect(hasBanner("/** Server-side only. Keep the import 'server-only' banner. */")).toBe(false)
+    expect(hasBanner("import { db } from '@/lib/db'")).toBe(false)
   })
 
   it('is actually looking at the service tree', () => {
