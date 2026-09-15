@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { startBalanceCheckoutAction } from './actions'
+import { PORTAL_ERROR, PORTAL_MUTED } from '@/components/patient-portal/ui'
 
 /**
  * The pay card. States: due (amount + Pay button → Stripe) · clear (balance
@@ -10,7 +11,7 @@ import { startBalanceCheckoutAction } from './actions'
  */
 
 const INK = '#1C1A17'
-const MUTED = '#6B635A'
+const MUTED = PORTAL_MUTED
 const BORDER = '#E8E2D9'
 
 function fmt(cents: number): string {
@@ -210,7 +211,7 @@ export default function PayForm({
         {pending ? 'Opening secure checkout…' : 'Pay securely'}
       </button>
       {error && (
-        <p className="mt-3 text-sm" style={{ color: '#B4231F' }} role="alert">
+        <p className="mt-3 text-sm" style={{ color: PORTAL_ERROR }} role="alert">
           {error}
         </p>
       )}
