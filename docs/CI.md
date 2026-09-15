@@ -124,9 +124,29 @@ reading silence as health.
 
   **Add a row above rather than re-deriving this from memory**, and note which
   cron each row was asked under — a table that silently mixes the two slots
-  cannot show whether the move bought anything. Until `37 6` has a few
-  unattended fires of its own, read a missing 06:37 run as normal rather than
-  as a failure, right through mid-morning.
+  cannot show whether the move bought anything.
+
+  **The grace period for a missing run is DATED, not open-ended** (Sentinel's
+  note on #568). A schedule that silently failed to register and a schedule
+  sitting in GitHub's queue look identical from here — both produce no run —
+  and "read a missing run as normal for a while" lets the first one hide
+  inside the second indefinitely. That is the shape this repo keeps getting
+  caught by: a check that declines to answer, read as a check that answered
+  fine. It matters most for `read-check.yml`, which already exits green when
+  the setup is unfinished and which nobody is assigned to read — a dead
+  schedule there is silence on top of silence.
+
+  So: **each** workflow owes one real `event: schedule` fire under `37 6`, and
+  if either has none by the end of **2026-09-16**, that is a defect in the
+  cron rather than queue delay.
+
+  ```bash
+  gh run list --workflow nightly.yml    --json event,conclusion,createdAt
+  gh run list --workflow read-check.yml --json event,conclusion,createdAt
+  ```
+
+  Delete this paragraph once both have fired — it is a one-off confirmation of
+  a move, not a standing rule.
 
 - **GitHub only runs `schedule` from the default branch**, and it disables
   scheduled workflows in a repository with 60 days of no activity. If nightly

@@ -19,9 +19,12 @@ name: Nightly
 # assuming the suite is fine.
 on:
   schedule:
-    # 06:37 UTC = 02:37 ET — after the day's merges have landed, long before
-    # anyone starts work, so a red result is waiting at the start of the day
-    # rather than landing in the middle of one.
+    # 06:37 UTC = 02:37 EDT / 01:37 EST — after the day's merges have landed,
+    # long before anyone starts work, so a red result is waiting at the start
+    # of the day rather than landing in the middle of one. (Both spellings,
+    # because the line this replaced said "03:00 ET" and meant EDT; a US
+    # timezone is two hours depending on the month, and this file is read in
+    # both.)
     #
     # THE ODD MINUTE IS THE POINT, and the 23 minutes earlier are incidental.
     # GitHub's `schedule` is best-effort and queues behind everyone else's;
