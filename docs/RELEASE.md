@@ -647,18 +647,32 @@ binding are all correct. The payment-plan charger was the exception.
   money write path (matching what `syncConnectedAccountStatus` already did).
   Two rows sharing an account id would route one clinic's refund to another's
   records. A unique index would make the isolation structural instead of
-  assumed. · **FIXED** (DREAMCRM-32, migration 0162) —
-  `shop_config_stripe_account_idx`, UNIQUE and PARTIAL: the column is null for
-  every clinic that has not connected Stripe, and again after
-  `disconnectShopStripe` clears it, so a plain unique index would be satisfied
-  by those nulls and say nothing. DEPLOY NOTE, written into the migration
-  itself: if this index fails to create, the fix is not to drop it — a
-  duplicate is a live cross-tenant money defect and the two clinics have to be
-  identified by a person before either row is touched. The migration carries
-  the query. Pinned by `tests/payments/connected-account-uniqueness.test.ts`,
-  which renders the declared index rather than assuming it (the Phase-3 lesson:
-  the database is modelled in JavaScript here, so a schema fact this
-  load-bearing gets read back).
+  assumed. · **OPEN — written, parked, waiting on one production read.**
+  The index is drafted in full at
+  `lib/db/migrations/parked/one-stripe-account-per-clinic.sql` (UNIQUE and
+  PARTIAL: the column is null for every clinic that has not connected Stripe,
+  and again after `disconnectShopStripe` clears it, so a plain unique index
+  would be satisfied by those nulls and say nothing). It is deliberately
+  OUTSIDE `meta/_journal.json`, so no deploy can run it.
+  WHY IT IS NOT SHIPPED: `CREATE UNIQUE INDEX` fails on existing duplicates,
+  and on this deploy path a failed migration is skipped in silence and takes
+  every later migration with it (the S2 entry directly below). So the order has
+  to be check-then-apply, not apply-and-see.
+  THE PRECONDITION: the `duplicate-stripe-accounts` check in
+  `lib/read-checks.ts` (DREAMCRM-42, `docs/PROD-READ-ACCESS.md`) must return
+  ZERO ROWS. That check exists and is dispatchable; it needs the owner's
+  one-time DREAMCRM-42 setup (the read-only role, `DATABASE_URL_READONLY` and
+  `ADMIN_READ_SECRET`) before it answers rather than 503s.
+  It was SPLIT OUT of PR #557 by the DREAMCRM-45 planning decision
+  (2026-09-15, bias-to-action): every other defect in that batch had no
+  production precondition, and holding them all behind this one lookup was
+  keeping finished work off `main`. One defect, one verdict — so this line
+  stays OPEN until the index is live, even though its code is written.
+  `tests/payments/connected-account-uniqueness.test.ts` freezes the PARKED
+  state from both sides: the schema must not declare the index while the file
+  exists (or `pnpm db:generate` would emit it into a numbered migration and it
+  would apply anyway), no journaled migration may create it, and deleting the
+  parked file without the index going fully live fails too.
 - S2 · **a failed migration does not stop a deploy, and nothing says so.**
   Found by Sentinel reviewing #557, while checking the deploy note on
   migration 0162 — which claimed a duplicate would halt the deploy. It would

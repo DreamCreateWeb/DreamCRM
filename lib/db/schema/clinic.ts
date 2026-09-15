@@ -1131,12 +1131,21 @@ export const shopConfig = pgTable('shop_config', {
   organizationId: text('organization_id')
     .primaryKey()
     .references(() => organization.id, { onDelete: 'cascade' }),
-  // A connected account belongs to exactly ONE clinic, and the unique index
-  // below is what makes that structural rather than assumed. Connect webhooks
-  // carry `event.account` and nothing else that names a tenant, so
-  // `orgIdForConnectedAccount` turns this column into a TENANT on a money
-  // write path — two rows sharing an id would have filed one clinic's refund
-  // in another clinic's records, silently and by `.limit(1)` coin-toss.
+  // A connected account belongs to exactly ONE clinic — and that is still
+  // ASSUMED here, not enforced. Connect webhooks carry `event.account` and
+  // nothing else that names a tenant, so `orgIdForConnectedAccount` turns this
+  // column into a TENANT on a money write path with `.limit(1)`; two rows
+  // sharing an id would file one clinic's refund in another clinic's records
+  // by coin-toss.
+  //
+  // The unique index that would make it structural is WRITTEN AND PARKED at
+  // `lib/db/migrations/parked/one-stripe-account-per-clinic.sql`, deliberately
+  // outside the journal so it cannot apply. It waits on one production read
+  // (`duplicate-stripe-accounts`, docs/PROD-READ-ACCESS.md): creating a unique
+  // index on a column that already has duplicates fails, and a failed
+  // migration does not stop a deploy here — it is skipped in silence and takes
+  // every later migration with it. DREAMCRM-32 in docs/RELEASE.md Part 5 has
+  // the whole reasoning and stays OPEN until the index is live.
   stripeAccountId: text('stripe_account_id'),
   // 'none' | 'pending' | 'active' | 'restricted'
   stripeAccountStatus: text('stripe_account_status').notNull().default('none'),
@@ -1158,16 +1167,7 @@ export const shopConfig = pgTable('shop_config', {
   membershipEnabled: integer('membership_enabled').notNull().default(0),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
-}, (t) => [
-  // PARTIAL, because `stripe_account_id` is null for every clinic that has
-  // not connected Stripe yet (and again after `disconnectShopStripe` clears
-  // it) — a plain unique index would be satisfied by those nulls but says
-  // nothing, while this one says the thing we actually rely on: one live
-  // connected account, one clinic.
-  uniqueIndex('shop_config_stripe_account_idx')
-    .on(t.stripeAccountId)
-    .where(sql`${t.stripeAccountId} is not null`),
-])
+})
 export type ShopConfig = typeof shopConfig.$inferSelect
 
 // One row per refunded CHARGE on a clinic's connected Stripe account — the

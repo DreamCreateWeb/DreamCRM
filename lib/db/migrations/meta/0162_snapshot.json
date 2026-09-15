@@ -1,5 +1,5 @@
 {
-  "id": "ccab33ea-560d-4394-ac5c-832bdffca7fc",
+  "id": "1bd8ae18-a860-44f8-bb94-4dd88b4d398c",
   "prevId": "a382e6aa-65c5-4783-9851-a51277e6bfbd",
   "version": "7",
   "dialect": "postgresql",
@@ -8854,24 +8854,7 @@
           "default": "now()"
         }
       },
-      "indexes": {
-        "shop_config_stripe_account_idx": {
-          "name": "shop_config_stripe_account_idx",
-          "columns": [
-            {
-              "expression": "stripe_account_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "where": "\"shop_config\".\"stripe_account_id\" is not null",
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
+      "indexes": {},
       "foreignKeys": {
         "shop_config_organization_id_organization_id_fk": {
           "name": "shop_config_organization_id_organization_id_fk",
