@@ -12,7 +12,20 @@
 // Skips cleanly when CRON_SECRET is unset (e.g. local `node server.js`). A
 // failure is logged but does NOT stop the server (the app stays up; migrations
 // can be re-applied by redeploying) — App Runner has already marked the server
-// healthy by the time this runs.
+// healthy by the time this runs. That stays: taking the container down because
+// a migration threw turns one stuck schema into an outage.
+//
+// WHAT CHANGED (DREAMCRM-46): every failure line here starts with `ERROR`, so
+// `.github/workflows/error-scan.yml` — which filters the App Runner application
+// log group on `?ERROR ?Error ?error: ?Unhandled ?FATAL` every 30 minutes —
+// actually SEES it. Before, the two failure paths printed `[migrate]
+// unauthorized …` and `[migrate] gave up after retries: …`, neither of which
+// matches any term in that pattern, so the one alarm already pointed at these
+// logs read straight past them. `tests/guards/migration-check.test.ts` derives
+// the terms from the workflow rather than restating them.
+//
+// This is the SECOND signal, not the first. error-scan warns and never fails;
+// the assertion that turns a deploy red is `scripts/migration-check.mjs`.
 const base = `http://127.0.0.1:${process.env.PORT || 3000}`
 const secret = process.env.CRON_SECRET
 
@@ -37,7 +50,7 @@ for (let i = 0; i < 45; i++) {
       process.exit(0)
     }
     if (res.status === 401) {
-      console.error('[migrate] unauthorized — CRON_SECRET mismatch')
+      console.error('[migrate] ERROR: unauthorized — CRON_SECRET mismatch; pending migrations were NOT applied')
       process.exit(1)
     }
     lastErr = `HTTP ${res.status} ${JSON.stringify(body)}`
@@ -48,5 +61,5 @@ for (let i = 0; i < 45; i++) {
   await sleep(2000)
 }
 
-console.error('[migrate] gave up after retries:', lastErr)
+console.error('[migrate] ERROR: gave up after retries; pending migrations were NOT applied:', lastErr)
 process.exit(1)
