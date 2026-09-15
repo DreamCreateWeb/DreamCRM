@@ -82,6 +82,7 @@ vi.mock('@/lib/db', () => {
 const eqCalls: Array<{ col: unknown; val: unknown }> = []
 const lteCalls: Array<{ col: unknown; val: unknown }> = []
 const ltCalls: Array<{ col: unknown; val: unknown }> = []
+const gtCalls: Array<{ col: unknown; val: unknown }> = []
 const isNullCalls: unknown[] = []
 
 vi.mock('drizzle-orm', () => ({
@@ -109,6 +110,10 @@ vi.mock('drizzle-orm', () => ({
     return { _kind: 'isNull', col }
   }),
   or: vi.fn((...conds: unknown[]) => ({ _kind: 'or', conds })),
+  gt: vi.fn((col: unknown, val: unknown) => {
+    gtCalls.push({ col, val })
+    return { _kind: 'gt', col, val }
+  }),
 }))
 
 const syncLoyalty = vi.fn(async () => 'reversed' as const)
@@ -116,7 +121,7 @@ vi.mock('@/lib/services/loyalty', () => ({
   syncLoyaltyForRefundedPayment: (...args: unknown[]) => syncLoyalty(...(args as [])),
 }))
 
-import { recordConnectRefund, planRefundWrite } from '@/lib/services/refunds'
+import { recordConnectRefund, planRefundWrite, listUnmatchedRefunds } from '@/lib/services/refunds'
 
 const ORG = 'org_a'
 const PI = 'pi_123'
@@ -141,6 +146,7 @@ beforeEach(() => {
   eqCalls.length = 0
   lteCalls.length = 0
   ltCalls.length = 0
+  gtCalls.length = 0
   isNullCalls.length = 0
   syncLoyalty.mockClear()
   syncLoyalty.mockResolvedValue('reversed')
@@ -224,6 +230,40 @@ describe('planRefundWrite — the ordering rule', () => {
       clearRefundedAt: true,
       syncedAt: T2,
     })
+  })
+
+  it('a demonstrably STALE snapshot writes nothing, in either direction', () => {
+    // THE HOLE (found by Sentinel reviewing #579). The monotonic fallback is
+    // for pairs we CANNOT order. An event whose `created` is strictly older
+    // than the watermark IS ordered — we can prove a newer snapshot already
+    // decided this charge — and letting it fall through to `Math.max` put the
+    // failed refund straight back on the books.
+    //
+    // The shape: the failure (t40) lands first, then the original refund
+    // (t10) arrives late, or is simply redelivered. Stripe is at-least-once
+    // and retries for three days, so the redelivery needs no misordering at
+    // all.
+    expect(
+      planRefundWrite(
+        { refundedAmountCents: 0, status: 'paid', refundSyncedAt: T2 },
+        { amountRefundedCents: 5_000, chargeAmountCents: 5_000, observedAt: T1 },
+        true,
+      ),
+      'a stale event must not RAISE the total',
+    ).toBeNull()
+  })
+
+  it('...and a stale snapshot cannot re-flip a shop order to refunded', () => {
+    // The status is the visible half: $50 back on the books AND the order
+    // reading "Refunded", with the watermark still at t40 so nothing short of
+    // a genuinely newer event would ever correct it.
+    expect(
+      planRefundWrite(
+        { refundedAmountCents: 1_500, status: 'paid', refundSyncedAt: T2 },
+        { amountRefundedCents: 5_000, chargeAmountCents: 5_000, observedAt: T1 },
+        true,
+      ),
+    ).toBeNull()
   })
 
   it('an OLDER snapshot still cannot walk the total backwards', () => {
@@ -380,6 +420,22 @@ describe('recordConnectRefund — the ordering rule on the wire', () => {
     await recordConnectRefund(event({ amountRefundedCents: 0, observedAt: T2 }))
 
     expect(syncLoyalty).toHaveBeenCalledWith(ORG, 'bp_1', { amountCents: 5_000, refundedAmountCents: 0 })
+  })
+
+  it('a STALE delivery touches nothing — no write, no status flip', async () => {
+    // The end-to-end shape of the hole: the row already carries the failure's
+    // verdict (0 / paid / watermark t40) and the original refund is
+    // redelivered from t10.
+    state.selectQueue = [
+      [{ id: 'so_1', status: 'paid', refundedAmountCents: 0, refundedAt: null, refundSyncedAt: T2 }],
+      [],
+      [],
+    ]
+
+    const kinds = await recordConnectRefund(event({ amountRefundedCents: 5_000, observedAt: T1 }))
+
+    expect(kinds).toEqual([])
+    expect(state.updates).toEqual([])
   })
 
   it('the receipt carries the snapshot time so it can be ordered too', async () => {
@@ -630,5 +686,33 @@ describe('recordConnectRefund — loyalty points', () => {
     const kinds = await recordConnectRefund(event())
     expect(kinds).toEqual(['balance_payment'])
     expect(state.updates).toHaveLength(1)
+  })
+})
+
+describe('listUnmatchedRefunds', () => {
+  it('leaves out a receipt the ordering rule drove to zero', async () => {
+    // The receipt KEEPS its `refunded_at` when a refund fails — recording that
+    // a refunded charge was seen stays true. But this list answers "what left
+    // the clinic's Stripe account with nothing here to reconcile", and a
+    // refund that failed at the bank left nothing. Without the filter it would
+    // sit on the reconciliation page forever at $0 — the same lie the
+    // failed-refund fix exists to stop, one surface further out.
+    // (Sentinel's note 6 on #579.)
+    state.selectQueue = [[]]
+    await listUnmatchedRefunds(ORG)
+
+    expect(gtCalls).toHaveLength(1)
+    expect(String(gtCalls[0].col)).toContain('refundedAmountCents')
+    expect(gtCalls[0].val).toBe(0)
+  })
+
+  it('still scopes to the organization and to unattached refunds only', async () => {
+    state.selectQueue = [[]]
+    await listUnmatchedRefunds(ORG)
+
+    expect(eqCalls.map((c) => [String(c.col), c.val])).toEqual([
+      ['connectRefund.organizationId', ORG],
+      ['connectRefund.attachedTo', 'none'],
+    ])
   })
 })

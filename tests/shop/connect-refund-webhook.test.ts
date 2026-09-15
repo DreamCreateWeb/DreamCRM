@@ -217,6 +217,27 @@ describe('charge.refund.updated — the refund that FAILED', () => {
       expect(state.recordCalls, status).toHaveLength(1)
     }
   })
+
+  it('every spelling of the event is handled, not just the legacy one', async () => {
+    // Stripe renamed this family and WHICH name an account emits depends on
+    // the API version pinned to it. Betting on one spelling would leave the
+    // whole failed-refund fix inert for some accounts, with nothing saying so
+    // (Sentinel, reviewing #579).
+    for (const type of ['charge.refund.updated', 'refund.updated', 'refund.failed']) {
+      state.chargeRetrieves = []
+      state.recordCalls = []
+      state.charge = { payment_intent: 'pi_1', amount: 5_000, amount_refunded: 0 }
+      mockConstructEvent.mockReturnValue({
+        type,
+        account: 'acct_1',
+        created: 1_800_000_100,
+        data: { object: { id: 're_1', charge: 'ch_1', amount: 5_000, status: 'failed' } },
+      })
+      await POST(post())
+      expect(state.recordCalls, type).toHaveLength(1)
+      expect(state.recordCalls[0], type).toMatchObject({ amountRefundedCents: 0 })
+    }
+  })
 })
 
 describe('the ordering key', () => {

@@ -23,10 +23,12 @@ import * as realSchema from '@/lib/db/schema'
  *    a second receipt for the same charge;
  *  · the recorded amount carries the SAME ordering rule as the three money
  *    rows (DREAMCRM-47): a strictly newer `refund_synced_at` wins outright, so
- *    a refund that later FAILED is un-recorded here too, and anything that
- *    cannot be ordered falls back to `greatest`. Without this half the receipt
- *    would be the last place still claiming a failed refund came back — and
- *    for a membership charge it is the ONLY place the clinic reads it;
+ *    a refund that later FAILED is un-recorded here too; a strictly OLDER one
+ *    is a stale delivery and keeps what is stored; and only the genuinely
+ *    UNORDERABLE — no key, or an exact tie — falls back to `greatest`. Without
+ *    this the receipt would be the last place still claiming a failed refund
+ *    came back, and for a membership charge it is the ONLY place the clinic
+ *    reads it;
  *  · the charge's own total and the watermark stay plainly monotonic (a charge
  *    amount never legitimately shrinks, and a watermark never goes back);
  *  · `attached_to` only ever moves UP, never from a real attachment back to
@@ -94,10 +96,29 @@ describe('the connect_refund receipt, as Postgres will receive it', () => {
     // LATER may lower it, which is the only way a refund that failed at the
     // bank ever stops being recorded as money returned.
     expect(receiptStatement()).toContain(
-      '"refunded_amount_cents" = case when excluded.refund_synced_at is not null and ' +
-        '("connect_refund"."refund_synced_at" is null or excluded.refund_synced_at > ' +
-        '"connect_refund"."refund_synced_at") then excluded.refunded_amount_cents else ' +
-        'greatest("connect_refund"."refunded_amount_cents", excluded.refunded_amount_cents) end',
+      '"refunded_amount_cents" = case ' +
+        // no key on the incoming event: unorderable, so monotonic
+        'when excluded.refund_synced_at is null then ' +
+        'greatest("connect_refund"."refunded_amount_cents", excluded.refunded_amount_cents) ' +
+        // never ordered before, or strictly newer: believed outright
+        'when "connect_refund"."refund_synced_at" is null or excluded.refund_synced_at > ' +
+        '"connect_refund"."refund_synced_at" then excluded.refunded_amount_cents ' +
+        // strictly older: stale, keep what is stored (see the next test)
+        'when excluded.refund_synced_at < "connect_refund"."refund_synced_at" then ' +
+        '"connect_refund"."refunded_amount_cents" ' +
+        // what is left is an exact tie: unorderable, so monotonic
+        'else greatest("connect_refund"."refunded_amount_cents", excluded.refunded_amount_cents) end',
+    )
+  })
+
+  it('refuses a demonstrably STALE snapshot rather than falling to greatest()', () => {
+    // The receipt's half of the hole Sentinel found in #579: `else
+    // greatest(...)` was reached by strictly-older deliveries too, so a
+    // redelivered refund raised a receipt a newer failure had zeroed — and
+    // this row is the ONLY place a refunded membership charge is visible.
+    expect(receiptStatement()).toContain(
+      'when excluded.refund_synced_at < "connect_refund"."refund_synced_at" ' +
+        'then "connect_refund"."refunded_amount_cents"',
     )
   })
 
@@ -140,7 +161,10 @@ describe('the connect_refund receipt, as Postgres will receive it', () => {
     // trusting a regex to stop at the right place — `[^)]*` happily runs past
     // `end` and into the next assignment.
     const greatests = Array.from(text.matchAll(/greatest\([^)]*\)/g)).map((m) => m[0])
-    expect(greatests.length, 'the amount fallback, the charge total and the watermark').toBe(3)
+    expect(
+      greatests.length,
+      'the amount fallback twice (no key, exact tie), the charge total and the watermark',
+    ).toBe(4)
     for (const g of greatests) expect(g).not.toMatch(/\$\d+/)
     // Both CASE expressions, not just the first — the ordering rule added a
     // second one, and a slice that stops at the first ` end,` would check the

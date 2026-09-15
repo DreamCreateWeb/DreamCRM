@@ -708,11 +708,25 @@ binding are all correct. The payment-plan charger was the exception.
   out-of-order hazard the rule exists to close. · **FIXED** (DREAMCRM-47,
   migration 0163 `refund_synced_at` on the three money tables + the
   `connect_refund` receipt). The ordering rule is a WATERMARK, not a
-  replacement: we now store WHEN the snapshot we applied was taken, and a
-  strictly NEWER snapshot wins outright — down as well as up — while anything
-  that cannot be ordered against what we stored falls back to the old
-  monotonic rule, unchanged. So the out-of-order hazard stays closed: a stale
-  partial arriving after a full refund is not newer, and is still ignored.
+  replacement: we now store WHEN the snapshot we applied was taken, and there
+  are THREE cases, not two — strictly newer wins outright (down as well as
+  up); strictly OLDER writes nothing at all, because a newer snapshot has
+  already decided this charge; and only the genuinely UNORDERABLE (no key, or
+  an exact tie) falls back to the old monotonic rule, unchanged. So the
+  out-of-order hazard stays closed in both directions.
+
+  The boundary between the last two cases is the whole correctness of this,
+  and the first version got it wrong — caught by Sentinel in review, not in
+  production. It sent everything "not strictly newer" to monotonic, and
+  monotonic RAISES: a failure recorded at t40 was undone by the original
+  refund redelivered from t10, putting the money straight back on the books
+  with the order flipped to 'refunded' and the watermark still at t40, so
+  nothing short of a genuinely newer event would ever correct it. Stripe is
+  at-least-once and retries for three days, so that needed no misordering at
+  all. **"Not newer" is a larger set than "cannot be ordered"; only the second
+  one may fall back.** The suite missed it because the stale-event case that
+  existed tested a stale event that would LOWER the total — accurate about
+  what it asserted, and named as though it covered stale events generally.
 
   The ordering key is Stripe's own `event.created`, so there is exactly ONE
   clock and it is not ours. A snapshot we FETCHED (the refund-object events
@@ -735,11 +749,25 @@ binding are all correct. The payment-plan charger was the exception.
   monotonic rule that would have kept reversing points the ordering rule had
   just un-recorded.
 
-  `charge.refund.updated` is now a handled event type, and — unlike
-  `refund.created` — is never skipped on the refund's status, because the
-  status transition IS the news. **Ops: register `charge.refund.updated` on
-  the Connect webhook endpoint in the Stripe dashboard, or a failed refund
-  still never reaches us.**
+  The refund-UPDATE events are now handled, and — unlike `refund.created` —
+  are never skipped on the refund's status, because the status transition IS
+  the news. All THREE spellings are accepted (`charge.refund.updated`,
+  `refund.updated`, `refund.failed`): Stripe renamed the family and which name
+  a connected account emits depends on the API version pinned to it, so
+  betting on one would leave the whole fix inert for some accounts with
+  nothing saying so. **Ops: subscribe the Connect webhook endpoint to all
+  three in the Stripe dashboard — the table is in `docs/OPS.md` under "Stripe
+  Connect webhook events", which is where an operator will actually look.
+  Until that is done the code is correct and does nothing.**
+
+  Two smaller things the sweep turned up. `lib/net-collected.ts` justified its
+  zero-clamp partly on "`refunded_amount_cents` is monotonic by construction",
+  which this change makes false; the clamp never needed that premise and the
+  sentence is gone. And `listUnmatchedRefunds` now excludes zero-amount
+  receipts: the receipt keeps its `refunded_at` when a refund fails (recording
+  that a refunded charge was SEEN stays true), but the clinic's
+  reconciliation list answers "what left this account with nothing here to
+  match", and a refund that failed at the bank left nothing.
 - S2 · `referral-payouts.payoutPartner` · double-pay window — after a
   transfer succeeds but the ledger write fails, a manual retry >24h later
   (Stripe idempotency window lapsed) re-derives the same key and sends a

@@ -45,11 +45,23 @@ interface RefundedCharge {
  *
  *  - `refund.created` with a terminal non-success status moved no money, so
  *    there is nothing to sync and skipping it saves an API call.
- *  - `charge.refund.updated` is NEVER skipped on status, because the status
+ *  - The UPDATE events are NEVER skipped on status, because the status
  *    transition IS the news. A refund that goes pending → failed makes Stripe
  *    DECREMENT the charge's `amount_refunded`, and recording that decrement is
- *    the entire reason this event type is handled at all.
+ *    the entire reason they are handled at all.
+ *
+ * `REFUND_UPDATE_EVENTS` carries all three spellings on purpose. Stripe
+ * renamed this family — `charge.refund.updated` is the legacy name, the newer
+ * one is `refund.updated`, and `refund.failed` is the narrower sibling — and
+ * WHICH a connected account emits depends on the API version pinned to it. We
+ * already listen for `refund.created` from the new family, so betting on one
+ * spelling would leave this whole fix inert for some accounts with nothing
+ * saying so. Accepting all three costs nothing: every one of them re-reads the
+ * charge for the cumulative figure, and recording is idempotent.
  */
+
+/** Every spelling of "something about a refund changed" — see above. */
+const REFUND_UPDATE_EVENTS = new Set(['charge.refund.updated', 'refund.updated', 'refund.failed'])
 async function refundFromEvent(
   event: { type: string; created?: number; data: { object: Record<string, any> } },
   stripeAccount: string,
@@ -69,7 +81,7 @@ async function refundFromEvent(
       status?: string | null
     }
     if (
-      event.type === 'refund.created' &&
+      !REFUND_UPDATE_EVENTS.has(event.type) &&
       refund.status &&
       refund.status !== 'succeeded' &&
       refund.status !== 'pending'
@@ -132,17 +144,20 @@ export async function POST(request: Request) {
     } else if (
       event.type === 'charge.refunded' ||
       event.type === 'refund.created' ||
-      event.type === 'charge.refund.updated'
+      REFUND_UPDATE_EVENTS.has(event.type)
     ) {
       // Money that came BACK. Without this the record keeps saying "Paid"
       // after a clinic refunds in the Stripe dashboard, and the front desk
       // reconciles its PMS ledger from a record the bank disagrees with.
       //
-      // `charge.refund.updated` is here for money that came back and then
-      // DIDN'T: a refund failing at the bank makes Stripe decrement the
-      // charge's `amount_refunded`, and this is the only event that says so.
-      // Register it in the Stripe dashboard alongside the other two, or a
-      // failed refund stays recorded as money returned.
+      // The UPDATE events are here for money that came back and then DIDN'T:
+      // a refund failing at the bank makes Stripe decrement the charge's
+      // `amount_refunded`, and they are the only events that say so. All three
+      // spellings are accepted because which one an account emits depends on
+      // its pinned API version (see `REFUND_UPDATE_EVENTS`). Subscribing to
+      // them in the Stripe dashboard is an OPS step — `docs/OPS.md`, "Stripe
+      // Connect webhook events" — and until it is done a failed refund stays
+      // recorded as money returned.
       //
       // Tenant scoping comes from `event.account` — Stripe naming the
       // connected account — not from event metadata, which a dashboard-issued

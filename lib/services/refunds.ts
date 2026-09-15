@@ -1,5 +1,5 @@
 import 'server-only'
-import { and, desc, eq, isNull, lt, lte, or, sql } from 'drizzle-orm'
+import { and, desc, eq, gt, isNull, lt, lte, or, sql } from 'drizzle-orm'
 import type { AnyPgColumn } from 'drizzle-orm/pg-core'
 import { randomBytes } from 'crypto'
 import { db, schema } from '@/lib/db'
@@ -48,9 +48,25 @@ import { syncLoyaltyForRefundedPayment } from './loyalty'
  *     returned that never left.
  *
  *     So we now record WHEN the snapshot we applied was taken, in
- *     `refund_synced_at`, and order by that instead. A strictly NEWER snapshot
- *     wins outright — down as well as up. Anything not strictly newer falls
- *     back to the old monotonic rule, unchanged.
+ *     `refund_synced_at`, and order by that instead. Three cases, and the
+ *     boundary between the last two is the whole correctness of this:
+ *
+ *       · strictly NEWER than what we stored → believed outright, down as
+ *         well as up;
+ *       · strictly OLDER → a stale delivery. WRITE NOTHING. We can prove a
+ *         newer snapshot already decided this charge, so there is nothing
+ *         here to learn in either direction;
+ *       · UNORDERABLE (no key at all, or an exact tie) → the old monotonic
+ *         rule, unchanged.
+ *
+ *     The first draft collapsed the last two into "not strictly newer" and
+ *     sent both to monotonic — and monotonic RAISES. So a failure recorded at
+ *     t40 was undone by the original refund redelivered from t10: $50 back on
+ *     the books, the order flipped to 'refunded' again, and the watermark
+ *     still at t40 so nothing but a genuinely newer event could ever correct
+ *     it. Stripe is at-least-once and retries for three days, so that needed
+ *     no misordering at all. "Not newer" is a larger set than "cannot be
+ *     ordered"; only the second one may fall back.
  *
  *     The ordering key is Stripe's own `event.created`, so there is exactly
  *     ONE clock and it is not ours. A snapshot we FETCHED (the refund-object
@@ -139,11 +155,32 @@ export function planRefundWrite(
   const already = row.refundedAmountCents ?? 0
   const reported = Math.max(0, event.amountRefundedCents)
 
-  // Rule 1 (file header): a STRICTLY newer snapshot is believed outright, in
+  const observedAt = event.observedAt ?? null
+
+  // Rule 1, first half: a DEMONSTRABLY STALE observation writes nothing.
+  //
+  // The monotonic fallback is for pairs we CANNOT order, and "not strictly
+  // newer" is a larger set than that — it also contains events we can prove
+  // are old. The first version of this function let those fall through to
+  // `Math.max`, and `Math.max` RAISES: the failure (t40) lands, then the
+  // original refund (t10) arrives late or is simply redelivered, and $50 goes
+  // straight back onto the books with the order flipped to 'refunded' again.
+  // Stripe is at-least-once and retries for three days, so the redelivery
+  // needs no misordering at all to happen. Found by Sentinel reviewing #579.
+  if (
+    observedAt != null &&
+    row.refundSyncedAt != null &&
+    observedAt.getTime() < row.refundSyncedAt.getTime()
+  ) {
+    return null
+  }
+
+  // Rule 1, second half: a STRICTLY newer snapshot is believed outright, in
   // either direction. `>` and not `>=` on purpose — a redelivered event
   // carries the same `created`, and an equal timestamp is not evidence of
-  // newness, so a replay must not be allowed to re-decide anything.
-  const observedAt = event.observedAt ?? null
+  // newness, so a replay must not be allowed to re-decide anything. What
+  // reaches `Math.max` now is exactly the unorderable: equal timestamps, and
+  // events carrying no key at all.
   const supersedes =
     observedAt != null &&
     (row.refundSyncedAt == null || observedAt.getTime() > row.refundSyncedAt.getTime())
@@ -430,11 +467,15 @@ async function recordRefundReceipt(
       .onConflictDoUpdate({
         target: [schema.connectRefund.organizationId, schema.connectRefund.stripePaymentIntentId],
         set: {
-          // The ordering rule, in SQL. `excluded.refund_synced_at` is this
-          // event's `created`; a NULL on either side means the pair cannot be
-          // ordered, and an unorderable pair falls back to `greatest()` —
-          // which is the behaviour this row has always had.
-          refundedAmountCents: sql`case when excluded.refund_synced_at is not null and (${schema.connectRefund.refundSyncedAt} is null or excluded.refund_synced_at > ${schema.connectRefund.refundSyncedAt}) then excluded.refunded_amount_cents else greatest(${schema.connectRefund.refundedAmountCents}, excluded.refunded_amount_cents) end`,
+          // The ordering rule, in SQL, arm for arm with `planRefundWrite`.
+          // `excluded.refund_synced_at` is this event's `created`. No key means
+          // the pair cannot be ordered; a strictly newer key wins outright; a
+          // strictly OLDER key is a stale delivery and keeps what is stored
+          // (without this arm a redelivered refund raised a receipt a newer
+          // failure had zeroed, and this row is the only place a refunded
+          // membership charge is ever visible). Only the genuinely unorderable
+          // reaches `greatest()`.
+          refundedAmountCents: sql`case when excluded.refund_synced_at is null then greatest(${schema.connectRefund.refundedAmountCents}, excluded.refunded_amount_cents) when ${schema.connectRefund.refundSyncedAt} is null or excluded.refund_synced_at > ${schema.connectRefund.refundSyncedAt} then excluded.refunded_amount_cents when excluded.refund_synced_at < ${schema.connectRefund.refundSyncedAt} then ${schema.connectRefund.refundedAmountCents} else greatest(${schema.connectRefund.refundedAmountCents}, excluded.refunded_amount_cents) end`,
           // The charge's own total never legitimately shrinks, so this half
           // stays plainly monotonic.
           chargeAmountCents: sql`greatest(${schema.connectRefund.chargeAmountCents}, excluded.charge_amount_cents)`,
@@ -470,6 +511,15 @@ export interface UnmatchedRefundRow {
  * Deliberately ONLY `attached_to = 'none'`: a refund we could attach already
  * shows on the row it belongs to (the order, the payment, the deposit), and
  * listing it twice would make a clinic count the same reversal twice.
+ *
+ * And only rows with money on them. The receipt KEEPS its `refunded_at` when
+ * the ordering rule drives the amount to zero — unlike the three money rows,
+ * which clear it — because the receipt's job is to record that a refunded
+ * charge was seen, and that stays true after the refund fails. But this list
+ * answers "what left the clinic's Stripe account with nothing here to
+ * reconcile", and a refund that failed at the bank left nothing. Without this
+ * filter it would sit on the reconciliation page forever at $0, which is the
+ * same lie the failed-refund fix exists to stop, one surface further out.
  */
 export async function listUnmatchedRefunds(
   organizationId: string,
@@ -487,6 +537,7 @@ export async function listUnmatchedRefunds(
       and(
         eq(schema.connectRefund.organizationId, organizationId),
         eq(schema.connectRefund.attachedTo, 'none'),
+        gt(schema.connectRefund.refundedAmountCents, 0),
       ),
     )
     .orderBy(desc(schema.connectRefund.refundedAt))
