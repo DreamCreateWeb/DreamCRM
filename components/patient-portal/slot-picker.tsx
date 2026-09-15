@@ -4,7 +4,12 @@ import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from
 import type { BookingSlot, SlotsClosedReason, SlotsForDay } from '@/lib/services/booking'
 import { clinicDayKey } from '@/lib/format-datetime'
 import { dayOfWeekForDateKey } from '@/lib/clinic-timezone'
-import { PORTAL_INK as INK, PORTAL_MUTED as MUTED, PORTAL_BORDER as BORDER } from '@/components/patient-portal/ui'
+import {
+  PORTAL_INK as INK,
+  PORTAL_MUTED as MUTED,
+  PORTAL_BORDER as BORDER,
+  PORTAL_WASH as WASH,
+} from '@/components/patient-portal/ui'
 
 /**
  * 14-day date strip + slot grid for the portal's book and reschedule flows.
@@ -204,7 +209,7 @@ export default function SlotPicker({
         {pending ? (
           <div className="grid grid-cols-3 gap-2 sm:grid-cols-4" aria-hidden>
             {Array.from({ length: 8 }).map((_, i) => (
-              <span key={i} className="h-10 animate-pulse rounded-xl" style={{ backgroundColor: '#F3EEE7' }} />
+              <span key={i} className="h-10 animate-pulse rounded-xl" style={{ backgroundColor: WASH }} />
             ))}
           </div>
         ) : visibleSlots.filter((s) => s.available).length === 0 ? (
@@ -231,22 +236,28 @@ export default function SlotPicker({
               const active = selectedIso === slot.startIso
               if (!slot.available) {
                 return (
-                  // MEASURED, NOT FIXED (batch 62, DREAMCRM-51, found while
-                  // measuring the portal's muted ink): #B9B0A5 on #F3EEE7 is
-                  // 1.85:1. This is a `span`, not a disabled control, so the
-                  // 1.4.3 inactive-component exemption does not cleanly apply
-                  // and axe WILL flag it — the portal stops all sit at zero in
-                  // e2e/axe-baseline.ts now, so the first stop that scans a day
-                  // with a booked slot fails on arrival. The fix is a deeper
-                  // warm grey in the same family (PORTAL_MUTED itself is 5.11
-                  // on this wash), but it is a different tone and a different
-                  // call from the opacity defect, so it stayed out of that
-                  // batch. Entry 4 of the OPEN NOW index in
-                  // docs/UI-BEST-VERSION.md.
+                  // FIXED, batch 64 (DREAMCRM-62). This label was a one-off
+                  // warm grey on a one-off warm well — 1.85:1, both ends of
+                  // the pair spelled raw here so no guard owned either of
+                  // them. Measured in batch 62 while grading the muted ink and
+                  // carried as an OPEN NOW entry since; the retired pair is
+                  // pinned by hex in tests/a11y/portal-palette.test.ts, which
+                  // is also where every portal ink is now graded on every
+                  // portal surface. It is a `span`, not a disabled
+                  // control, so the 1.4.3 inactive-component exemption does not
+                  // apply and axe would have flagged it the first time a stop
+                  // scanned a day with a booked slot in it — and every
+                  // `portal:` stop holds ZERO now, so that was a red gate
+                  // waiting on a fixture, not a defect with room left.
+                  //
+                  // It is PORTAL_MUTED on PORTAL_WASH now: 5.11:1, the portal's
+                  // own quiet step on the portal's own well, both from the
+                  // token module. The strikethrough and the sr-only suffix
+                  // carry "taken"; the colour is no longer asked to.
                   <span
                     key={slot.startIso}
                     className="rounded-xl px-2 py-3 text-center text-[0.85rem] line-through"
-                    style={{ color: '#B9B0A5', backgroundColor: '#F3EEE7' }}
+                    style={{ color: MUTED, backgroundColor: WASH }}
                   >
                     {slot.label}
                     {/* "Taken" is otherwise carried only by strikethrough +
