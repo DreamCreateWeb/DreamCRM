@@ -270,9 +270,18 @@ describe('white-on-brand fills', () => {
    * one off as fine.
    */
   it('the exempted bar is still an aria-hidden picture, inside its progression', () => {
-    const exemption = BRAND_FILL_EXEMPTIONS.find(
-      (e) => e.file === 'components/marketing/ui.tsx',
-    )
+    // `filter` plus a length pin, not `find` (Quinn's review of #594): `find`
+    // grades the FIRST entry for a file, so a second one added to the same file
+    // gets no premise check at all and nothing says so. Each list is one entry
+    // long today, which is exactly the condition that makes that invisible.
+    const forFile = BRAND_FILL_EXEMPTIONS.filter((e) => e.file === 'components/marketing/ui.tsx')
+    expect(
+      forFile.length,
+      'this test grades ONE exemption for components/marketing/ui.tsx. A second ' +
+        'entry for the same file needs its own premise assertion — widen this ' +
+        'test rather than raising the count.',
+    ).toBe(1)
+    const exemption = forFile[0]
     expect(exemption, 'the recall-funnel exemption is the subject of this test').toBeTruthy()
 
     const src = readFileSync(join(ROOT, exemption!.file), 'utf8')
@@ -687,9 +696,16 @@ describe('CLIPPED TEXT, where the background IS the ink', () => {
    * so a different gradient is graded normally. Both are the safe direction.
    */
   it('the exempted headline is still inside the night band', () => {
-    const exemption = CLIPPED_TEXT_EXEMPTIONS.find(
-      (e) => e.file === 'app/(marketing)/page.tsx',
-    )
+    // `filter` plus a length pin rather than `find` — see the brand-fill
+    // premise test above for why (Quinn's review of #594). This one is the
+    // #587 original and carried the shortcut first.
+    const forFile = CLIPPED_TEXT_EXEMPTIONS.filter((e) => e.file === 'app/(marketing)/page.tsx')
+    expect(
+      forFile.length,
+      'this test grades ONE exemption for app/(marketing)/page.tsx. A second ' +
+        'clipped-text exemption in that file needs its own premise assertion.',
+    ).toBe(1)
+    const exemption = forFile[0]
     expect(exemption, 'the night-band exemption is the subject of this test').toBeTruthy()
 
     const src = readFileSync(join(ROOT, exemption!.file), 'utf8')
@@ -1059,9 +1075,17 @@ describe('TONE_FILL — the one answer for a solid fill with a label on it', () 
    * file, not present in some object — that one.
    */
   it("the exempted danger fill is still VARIANT_CLASSES' own entry, not a loose copy", () => {
-    const exemption = TONE_FILL_EXEMPTIONS.find(
+    // `filter` plus a length pin rather than `find` — see the brand-fill
+    // premise test for why (Quinn's review of #594).
+    const forFile = TONE_FILL_EXEMPTIONS.filter(
       (e) => e.file === 'components/ui/action-button.tsx',
     )
+    expect(
+      forFile.length,
+      'this test grades ONE exemption for components/ui/action-button.tsx. A ' +
+        'second tone-fill exemption in that file needs its own premise assertion.',
+    ).toBe(1)
+    const exemption = forFile[0]
     expect(exemption, "ActionButton's danger variant is the subject of this test").toBeTruthy()
 
     const src = readFileSync(join(ROOT, exemption!.file), 'utf8')

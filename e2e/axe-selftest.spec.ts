@@ -393,11 +393,22 @@ test.describe('an exemption cannot outlive the REASON it was given', () => {
   })
 
   test('a failing caption OUTSIDE the mocks is not this rule\'s business', async ({ page }) => {
-    // HERO's caption is faint prose on the page itself. It is reported by the
-    // ordinary scan (the tests above pin that), and no exclusion is pardoning
-    // it — so this rule must stay quiet or it would double-report every
-    // contrast defect on the page.
+    // HERO's caption is faint prose on the page itself, at the default 16px —
+    // over the floor and failing contrast, so it clears every bar this rule
+    // tests for EXCEPT being inside an excluded subtree. No exclusion is
+    // pardoning it, so this rule must stay quiet or it would double-report
+    // every contrast defect on the page.
+    //
+    // Both halves, or this is the same test as the one above wearing a second
+    // name (Quinn's review of #594): the caption really must BE a finding, and
+    // this rule really must not claim it.
     await page.setContent(HERO)
+
+    const reported = (await findA11yViolations(page, { exclude: DECORATIVE_MOCKS }))
+      .filter((v) => v.id === 'color-contrast')
+      .flatMap((v) => v.nodes.map((n) => n.target.join(' ')))
+    expect(reported, 'the caption is a live contrast finding outside the mocks').toEqual(['p'])
+
     expect(await exclusionsHidingReadableText(page, DECORATIVE_MOCKS)).toEqual([])
   })
 

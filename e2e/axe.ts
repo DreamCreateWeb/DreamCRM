@@ -314,6 +314,16 @@ export type PardonedFinding = {
  * single element (a frame chain), and any rule other than `color-contrast` —
  * contrast is what the WCAG 1.4.3 argument is about, and the exclusion's other
  * effects are not defended by it. Both are false NEGATIVES, the safe direction.
+ *
+ * AND IT DROPS `options.include`, which is the one that is not (Quinn's review
+ * of #594). The unfiltered scan is a bare `findA11yViolations(page)`, so a stop
+ * passing BOTH `include` and `exclude` would have its premise pass read the
+ * whole page rather than the named subtree. No stop does today — there is no
+ * `include` anywhere in `e2e/` — and the `closest(exclude)` filter bounds most
+ * of what it could report, so the residue is a false RED naming the element
+ * rather than a false green. Latent, and written here rather than fixed
+ * speculatively: the day a stop needs both, thread `include` through and give
+ * it a red run, do not assume this paragraph was already right about it.
  */
 export async function exclusionsHidingReadableText(
   page: Page,

@@ -86,10 +86,21 @@ describe('an axe exclusion is asked both questions at every stop', () => {
     // `tests/a11y/legibility-floor.test.ts` already enforces at the source, so
     // "text a person is meant to read" means one thing in both places. A
     // separate number here would be a second cutoff that drifts.
+    //
+    // `(?![\d.])` rather than a bare `toContain`, and this is the #588 mutation
+    // class in a NUMERIC costume — found by Quinn reviewing this very file.
+    // `toContain('… = 12')` is satisfied by `= 120`, `= 126`, `= 128`, and
+    // 120-and-up is precisely the range that neuters the check: nothing in a
+    // marketing mock can reach a 120px floor, so `exclusionsHidingReadableText`
+    // returns [] at every stop forever while the assertion NAMED for catching
+    // that says nothing. §2d's rule is "try `<MARKER>_V2`"; a bare numeric
+    // literal is the same shape — a prefix is not a value.
     expect(
       AXE_SRC,
-      'e2e/axe.ts must keep the picture-scale ceiling at the repo 12px legibility floor.',
-    ).toContain('const PICTURE_SCALE_CEILING_PX = 12')
+      'e2e/axe.ts must keep the picture-scale ceiling at the repo 12px legibility floor. ' +
+        'A larger number does not loosen this check by degrees — past ~120 it switches it off, ' +
+        'because no glyph in an illustration is that tall.',
+    ).toMatch(/const PICTURE_SCALE_CEILING_PX = 12(?![\d.])/)
   })
 
   it('skips the extra scan when a stop carries no exclusions', () => {
