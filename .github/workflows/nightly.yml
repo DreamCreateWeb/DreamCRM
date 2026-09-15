@@ -19,10 +19,22 @@ name: Nightly
 # assuming the suite is fine.
 on:
   schedule:
-    # 07:00 UTC = 03:00 ET — after the day's merges have landed, long before
+    # 06:37 UTC = 02:37 ET — after the day's merges have landed, long before
     # anyone starts work, so a red result is waiting at the start of the day
     # rather than landing in the middle of one.
-    - cron: '0 7 * * *'
+    #
+    # THE ODD MINUTE IS THE POINT, and the 23 minutes earlier are incidental.
+    # GitHub's `schedule` is best-effort and queues behind everyone else's;
+    # the top of an hour is when the whole platform asks at once. This ran at
+    # `0 7` for four unattended fires and landed +4h59m, +4h26m, +5h30m and
+    # +6h34m late — a rising trend that put the fourth one at 09:42 ET, mid-
+    # morning, which is the arrival `docs/CI.md` named as the trigger for
+    # moving off the hour. Asking at :37 asks when the queue is shorter.
+    #
+    # It is a lever, not a fix: the delay is GitHub's scheduler and we cannot
+    # control it. `docs/CI.md` ("When it really runs") carries the sample
+    # table — add a row there rather than re-deriving this from memory.
+    - cron: '37 6 * * *'
   workflow_dispatch: {}
 
 concurrency:
