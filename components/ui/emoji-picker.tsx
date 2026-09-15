@@ -98,7 +98,7 @@ export function EmojiPicker({
           <div className="max-h-64 space-y-2.5 overflow-y-auto pr-1">
             {EMOJI_SETS.map((set) => (
               <div key={set.label}>
-                <p className="mb-1 text-xs font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500">
+                <p className="mb-1 text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
                   {set.label}
                 </p>
                 <div role="group" aria-label={set.label} className="grid grid-cols-8 gap-0.5">

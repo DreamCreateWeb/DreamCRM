@@ -176,7 +176,7 @@ export default async function PartnerDashboard({
                     <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{fmtDate(c.startedAt)}</td>
                     <td className="px-4 py-3 text-gray-700 dark:text-gray-300">
                       <span className="font-mono-num">{formatBps(c.percentBps)}</span>
-                      <span className="text-gray-400 dark:text-gray-500"> · {formatTerm(c.termMonths)}</span>
+                      <span className="text-gray-500 dark:text-gray-400"> · {formatTerm(c.termMonths)}</span>
                     </td>
                     <td className="px-4 py-3 text-right font-mono-num tabular-nums font-semibold text-gray-900 dark:text-gray-100">
                       {moneyFromCents(c.lifetimeCommissionCents)}

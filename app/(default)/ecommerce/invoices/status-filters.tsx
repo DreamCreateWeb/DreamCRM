@@ -36,7 +36,7 @@ export default function StatusFilters({ counts }: { counts: Counts }) {
                   : 'border-gray-200 dark:border-gray-700/60 hover:border-gray-300 dark:hover:border-gray-600 bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400'
               }`}
             >
-              {f.label} <span className="ml-1 text-gray-400 dark:text-gray-500">{counts[f.key]}</span>
+              {f.label} <span className="ml-1 text-gray-500 dark:text-gray-400">{counts[f.key]}</span>
             </Link>
           </li>
         )

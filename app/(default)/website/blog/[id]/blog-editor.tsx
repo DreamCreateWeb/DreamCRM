@@ -292,7 +292,7 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
               placeholder="Post title"
               className="w-full text-2xl font-bold text-gray-900 dark:text-gray-100 bg-transparent border-none focus:outline-none focus:ring-0 px-0 placeholder:text-gray-300 dark:placeholder:text-gray-600"
             />
-            <div className="flex items-center gap-1 text-xs text-gray-400 dark:text-gray-500">
+            <div className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
               <span className="shrink-0">/blog/</span>
               <input
                 value={draft.slug}
@@ -312,7 +312,7 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
             >
               ✨ Draft with AI
             </button>
-            <span className="text-xs text-gray-400 dark:text-gray-500 ml-auto">
+            <span className="text-xs text-gray-500 dark:text-gray-400 ml-auto">
               {aiBusy ? 'AI is working…' : 'AI drafts are never published on their own'}
             </span>
           </div>
@@ -517,7 +517,7 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
             <div className="v2-card p-4">
               <h3 className="text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400 mb-2">
                 Medically reviewed by{' '}
-                <span className="normal-case font-normal text-gray-400 dark:text-gray-500">· optional</span>
+                <span className="normal-case font-normal text-gray-500 dark:text-gray-400">· optional</span>
               </h3>
               <select
                 value={draft.medicallyReviewedByStaffId}
@@ -957,12 +957,12 @@ function FaqEditor({
           {busy ? 'Generating…' : '✨ Generate with AI'}
         </button>
       </div>
-      <p className="text-xs text-gray-400 dark:text-gray-500 mb-3">
+      <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
         Common questions about this topic, shown on the post. They also help your post show up in Google and AI
         answers.
       </p>
       {faq.length === 0 ? (
-        <p className="text-xs text-gray-400 dark:text-gray-500 italic mb-3">
+        <p className="text-xs text-gray-500 dark:text-gray-400 italic mb-3">
           No FAQs yet — add your own or generate them.
         </p>
       ) : (

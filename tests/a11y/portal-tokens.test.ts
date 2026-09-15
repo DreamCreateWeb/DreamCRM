@@ -48,6 +48,7 @@ const OWNED_HEXES: Record<string, string> = {
   // "one tone in patient-portal/ui.tsx" was not true of the one tone the axe
   // baseline had been carrying a ceiling for on nine portal stops.
   '#6B635A': 'PORTAL_MUTED',
+
   // The inset well — the skeleton's pulse and a taken time sit in it. Added
   // 2026-09-15 with batch 64: a SURFACE is half of a contrast pair, and while
   // it was spelled raw in the slot picker the label on it was never graded
@@ -71,6 +72,58 @@ function walk(dir: string, out: string[] = []): string[] {
   return out
 }
 
+/**
+ * The source with its COMMENTS blanked out — what this guard actually grades.
+ *
+ * A HEX IN A COMMENT IS DOCUMENTATION; A HEX IN A VALUE IS A SECOND HOME, and
+ * only the second one is what this file exists to stop. The distinction was
+ * forced by the conventions rather than invented here: §10 requires that
+ * anything written down beside a contrast fix carry **the measured foreground
+ * hex, the ratio, the element and the stop** — "a measurement is a fact and an
+ * attribution is a guess" — so the comment explaining WHY an ink moved is
+ * obliged to name the colour it moved from and to. A plain `includes` over the
+ * raw file made those two rules contradict each other: batch 64 fixed the
+ * portal's taken slot by pointing it at `PORTAL_MUTED`, wrote the measurement
+ * beside it, and this guard failed the file for the sentence recording the fix.
+ *
+ * Blanking rather than deleting keeps byte offsets and line numbers intact, and
+ * string literals are walked through rather than around so a `'#6B635A'` inside
+ * one is still very much a hit — that is the shape being banned.
+ */
+export function codeOnly(src: string): string {
+  let out = ''
+  let i = 0
+  let quote: string | null = null
+  while (i < src.length) {
+    const c = src[i]
+    const next = src[i + 1]
+    if (quote) {
+      if (c === '\\') { out += src.slice(i, i + 2); i += 2; continue }
+      if (c === quote) quote = null
+      out += c
+      i++
+      continue
+    }
+    if (c === '"' || c === "'" || c === '`') { quote = c; out += c; i++; continue }
+    if (c === '/' && next === '/') {
+      while (i < src.length && src[i] !== '\n') { out += ' '; i++ }
+      continue
+    }
+    if (c === '/' && next === '*') {
+      while (i < src.length && !(src[i] === '*' && src[i + 1] === '/')) {
+        out += src[i] === '\n' ? '\n' : ' '
+        i++
+      }
+      out += '  '
+      i += 2
+      continue
+    }
+    out += c
+    i++
+  }
+  return out
+}
+
 describe('portal semantic tokens (single source of truth)', () => {
   it('meaning-hexes appear ONLY in the token module', () => {
     const hits: string[] = []
@@ -79,7 +132,7 @@ describe('portal semantic tokens (single source of truth)', () => {
         const rel = relative(ROOT, file).replace(/\\/g, '/')
         if (rel === TOKEN_HOME) continue
         if (SITE_PALETTE_PAGES.some((p) => rel.startsWith(`${p}/`))) continue
-        const src = readFileSync(file, 'utf8')
+        const src = codeOnly(readFileSync(file, 'utf8'))
         for (const [hex, token] of Object.entries(OWNED_HEXES)) {
           if (src.toLowerCase().includes(hex.toLowerCase())) {
             hits.push(`${rel}: raw ${hex} — use ${token} from patient-portal/ui`)
@@ -88,6 +141,25 @@ describe('portal semantic tokens (single source of truth)', () => {
       }
     }
     expect(hits, hits.join('\n')).toEqual([])
+  })
+
+  it('grades code and not prose — in BOTH directions', () => {
+    // The direction that matters: a hex in a VALUE is still a hit, however it
+    // is spelled. An absence assertion over a clean tree cannot tell a working
+    // scanner from one that has quietly stopped looking, and this scanner just
+    // grew a way to stop looking.
+    expect(codeOnly(`style={{ color: '#6B635A' }}`)).toContain('#6B635A')
+    expect(codeOnly('const MUTED = "#6B635A"')).toContain('#6B635A')
+    expect(codeOnly('const MUTED = `#6B635A`')).toContain('#6B635A')
+    // …and the direction that forced the change: the measurement §10 requires
+    // beside a contrast fix, in either comment syntax.
+    expect(codeOnly('// #6B635A on #F3EEE7 = 5.11:1')).not.toContain('#6B635A')
+    expect(codeOnly('/* measured #6B635A on #F3EEE7 = 5.11:1 */')).not.toContain('#6B635A')
+    // A `//` inside a string is not a comment — the classic way a naive
+    // stripper blinds a guard for the rest of the file.
+    expect(codeOnly(`const u = 'https://x' ; const c = '#6B635A'`)).toContain('#6B635A')
+    // Line numbers survive, so a future hit can still be pointed at.
+    expect(codeOnly('a\n// c\nb').split('\n')).toHaveLength(3)
   })
 
   it('the site-palette exemption is still a site-palette page', () => {

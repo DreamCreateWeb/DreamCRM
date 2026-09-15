@@ -62,7 +62,7 @@ export default function TrackPicker({
                 )}
               </div>
               <p className="mt-1 text-xs leading-snug text-gray-600 dark:text-gray-400">{t.story}</p>
-              <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-500">
+              <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
                 {t.beats.length} beats · ~{t.targetMinutes} min · closes on {planLabel(t.recommendedPlan)}
               </p>
             </button>

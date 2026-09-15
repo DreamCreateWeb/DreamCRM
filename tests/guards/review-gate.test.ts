@@ -428,6 +428,64 @@ describe('the review-gate classifier', () => {
     ).toEqual([])
   })
 
+  it('puts every PALETTE-GRADING suite file on the intake list too — derived, not remembered', () => {
+    // THE SECOND DERIVATION, AND THE HOLE IT CLOSES (found by Forge's gate
+    // sweep, 2026-09-15). #598 merged a new class of assertion —
+    // `tests/a11y/muted-ink-direction.test.ts`, which grades the direction of
+    // the muted ink in both themes — with NO labels and no intake mention, and
+    // the label could not have fired. That file is on no enumerated
+    // `INTAKE_RULES` path, and it is not a tree walk either: it reads the
+    // palette and two named components. So both halves of the detector above
+    // had nothing to catch.
+    //
+    // The shape the walk-detector misses: **a test that grades the PALETTE is
+    // asserting a repo-wide fact by construction**, whether or not it opens a
+    // directory. `tests/a11y/palette.ts` is the one place this repo resolves
+    // its own colours and computes AA; a rule built on it is a rule about
+    // every colour in the product, and changing what it asserts changes what
+    // everyone else can merge — which is the whole test for intake.
+    //
+    // Deriving it from the import rather than listing one more path is the
+    // point: the next palette rule is caught on the day it arrives, by the
+    // same mechanism that caught the next tree walk.
+    const suite = trackedFiles().filter((f) => /^(tests|e2e)\/.*\.tsx?$/.test(f))
+    const src = new Map(suite.map((f) => [f, readFileSync(join(process.cwd(), f), 'utf8')]))
+
+    // RESOLVED, not pattern-matched. The first draft of this rule matched any
+    // import path ENDING in `/palette`, and it named two files that grade a
+    // product module which happens to share the word — `@/lib/site-templates/
+    // cosmetic/palette` and `@/lib/clinic-site-theme`. Those grade one
+    // template's recipe against its own inputs; they are bounded, and sweeping
+    // them in would be the "208 places to catch 8" trade one directory over.
+    // The subject is THIS repo's a11y palette module specifically, so resolve
+    // the relative import and compare paths.
+    const PALETTE_MODULE = 'tests/a11y/palette.ts'
+    const importsPalette = (f: string): boolean =>
+      Array.from(src.get(f)!.matchAll(/from\s+'(\.[^']+)'/g)).some((m) => {
+        const t = normalize(join(dirname(f), m[1])).split('\\').join('/')
+        return t === PALETTE_MODULE || `${t}.ts` === PALETTE_MODULE
+      })
+
+    const graders = suite.filter((f) => f !== PALETTE_MODULE && importsPalette(f))
+
+    // The instrument check, for the same reason the walk-detector carries one:
+    // a regex narrowed until it matches nothing reports CLEAN forever.
+    expect(
+      graders,
+      'the palette-grader detector stopped matching anything, so the assertion below is worth nothing',
+    ).toContain('tests/a11y/token-contrast.test.ts')
+
+    const unlisted = graders.filter((f) => intakeAreasFor(f).length === 0).sort()
+    expect(
+      unlisted,
+      'These files grade the PALETTE — the one module where this repo resolves its own colours ' +
+        'and computes AA — so they assert a repo-wide fact even when they never walk the tree, ' +
+        'and they are not on the intake list in scripts/review-gate.mjs. That is the gap #598 ' +
+        'went through: a new class of assertion, merged with no label and no intake, because it ' +
+        'was neither an enumerated path nor a directory walk. Add each to `blocking-assertions`.',
+    ).toEqual([])
+  })
+
   it('keeps the two obligations separately answerable', () => {
     // A rule id appearing in both lists would make `areas` ambiguous on the
     // workflow output and, worse, make "does this owe a review?" and "does

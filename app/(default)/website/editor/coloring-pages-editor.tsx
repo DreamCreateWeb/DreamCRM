@@ -173,7 +173,7 @@ export default function ColoringPagesEditor({ name, defaultValue }: Props) {
               })}
             </div>
           )}
-          <p className="mt-2 text-xs text-gray-400 dark:text-gray-500">
+          <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
             Library art is public domain (CC0) — free to use on your site, no credit required.
           </p>
         </div>

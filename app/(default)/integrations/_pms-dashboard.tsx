@@ -410,9 +410,9 @@ function FieldMapSection() {
               {em.fields.map((f) => (
                 <li key={f.pms} className="text-xs text-gray-600 dark:text-gray-300">
                   <span className="font-mono-num text-gray-500 dark:text-gray-400">{f.pms}</span>
-                  <span className="text-gray-400 dark:text-gray-500"> → </span>
+                  <span className="text-gray-500 dark:text-gray-400"> → </span>
                   <span className="font-mono-num">{f.crm}</span>
-                  {f.note && <span className="block text-xs text-gray-400 dark:text-gray-500 pl-1">{f.note}</span>}
+                  {f.note && <span className="block text-xs text-gray-500 dark:text-gray-400 pl-1">{f.note}</span>}
                 </li>
               ))}
             </ul>

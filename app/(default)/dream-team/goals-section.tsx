@@ -117,7 +117,7 @@ export default function GoalsSection({
                 <p className="mt-1.5 text-sm text-gray-700 dark:text-gray-200">{g.progressLine}</p>
                 {/* One caption, not two (D20): the honesty note rides the
                     progress line's tail instead of being its own paragraph. */}
-                <p className="mt-0.5 text-xs text-gray-400 dark:text-gray-500">
+                <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
                   Seated patients since you set this — a count, not a claim that the goal caused them.
                 </p>
               </div>

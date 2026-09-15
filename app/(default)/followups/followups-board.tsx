@@ -41,8 +41,8 @@ const DUE_TONE: Record<FollowupDueState, string> = {
   overdue: 'text-rose-600 dark:text-rose-400',
   today: 'text-amber-700 dark:text-amber-300',
   soon: 'text-gray-500 dark:text-gray-400',
-  later: 'text-gray-400 dark:text-gray-500',
-  none: 'text-gray-400 dark:text-gray-500',
+  later: 'text-gray-500 dark:text-gray-400',
+  none: 'text-gray-500 dark:text-gray-400',
 }
 
 export default function FollowupsBoard({
@@ -246,7 +246,7 @@ export default function FollowupsBoard({
             return (
               <section key={g}>
                 <h2 className={`mb-2 text-xs font-semibold uppercase tracking-wider ${DUE_TONE[g]}`}>
-                  {GROUP_LABEL[g]} <span className="text-gray-400 dark:text-gray-500 font-normal">{list.length}</span>
+                  {GROUP_LABEL[g]} <span className="text-gray-500 dark:text-gray-400 font-normal">{list.length}</span>
                 </h2>
                 <ul className="v2-card divide-y divide-[color:var(--color-hairline)]">
                   {list.map((f) => (
@@ -268,7 +268,7 @@ export default function FollowupsBoard({
 
           {(filters.includeDone || filters.closedByMe) && doneItems.length > 0 && (
             <section>
-              <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">
+              <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
                 {filters.closedByMe ? 'Closed by you' : 'Done'} <span className="font-normal">{doneItems.length}</span>
               </h2>
               <ul className="v2-card divide-y divide-[color:var(--color-hairline)]">
@@ -314,7 +314,7 @@ function Row({
     <li className="flex items-center gap-3 px-4 py-2.5">
       <TickButton done={done} pending={pending} disabled={disabled} onToggle={() => (done ? onReopen?.() : onComplete?.())} />
       <div className="min-w-0 flex-1">
-        <p className={`text-sm ${done ? 'text-gray-400 line-through dark:text-gray-500' : 'text-gray-800 dark:text-gray-100'}`}>
+        <p className={`text-sm ${done ? 'text-gray-500 line-through dark:text-gray-400' : 'text-gray-800 dark:text-gray-100'}`}>
           {f.title}
         </p>
         <p className="text-xs text-gray-500 dark:text-gray-400">
@@ -323,7 +323,7 @@ function Row({
           </Link>
           {!done && <span className={`ml-2 ${DUE_TONE[due]}`}>{formatDueLabel(f.dueDate)}</span>}
           {(done || !onReassign) && f.assigneeName && (
-            <span className="ml-2 text-gray-400 dark:text-gray-500">· {f.assigneeName}</span>
+            <span className="ml-2 text-gray-500 dark:text-gray-400">· {f.assigneeName}</span>
           )}
         </p>
       </div>

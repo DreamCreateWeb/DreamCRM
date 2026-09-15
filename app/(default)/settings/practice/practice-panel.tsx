@@ -277,7 +277,7 @@ function ProvidersSection({
             </select>
           </label>
           <label className="block min-w-[180px] flex-1">
-            <span className="text-xs text-gray-500 dark:text-gray-400">Email <span className="text-gray-400 dark:text-gray-500">(optional)</span></span>
+            <span className="text-xs text-gray-500 dark:text-gray-400">Email <span className="text-gray-500 dark:text-gray-400">(optional)</span></span>
             <input
               type="email"
               value={newEmail}
@@ -520,7 +520,7 @@ function VisitTypesSection({
               </div>
               <label className="block w-full">
                 <span className="text-xs text-gray-500 dark:text-gray-400">
-                  Prep instructions <span className="text-gray-400 dark:text-gray-500">(optional — added to this type&rsquo;s reminder emails)</span>
+                  Prep instructions <span className="text-gray-500 dark:text-gray-400">(optional — added to this type&rsquo;s reminder emails)</span>
                 </span>
                 <textarea
                   value={t.prepInstructions ?? ''}

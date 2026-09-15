@@ -426,7 +426,7 @@ export default function SubscriptionPanel({
                   <div className="mb-1 font-mono-num font-bold tabular-nums text-gray-900 dark:text-gray-100">
                     {(interval === 'annual' ? p.listAnnualPrice : p.listPrice) != null && (
                       <span
-                        className="mr-2 text-xl font-semibold text-gray-400 line-through decoration-2 dark:text-gray-500"
+                        className="mr-2 text-xl font-semibold text-gray-500 line-through decoration-2 dark:text-gray-400"
                         title="Regular price"
                       >
                         ${(interval === 'annual' ? p.listAnnualPrice : p.listPrice)!.toLocaleString('en-US')}
@@ -533,7 +533,7 @@ export default function SubscriptionPanel({
                           View →
                         </a>
                       ) : (
-                        <span className="text-gray-400 dark:text-gray-500">—</span>
+                        <span className="text-gray-500 dark:text-gray-400">—</span>
                       )}
                     </td>
                   </tr>

@@ -9,6 +9,7 @@ import { linkPatientRecord } from './link-patient'
 import { acceptPatientPortalInvite } from './patient-invite'
 import { acceptTeamInvite } from './team-invite'
 import AuthShell from '@/components/auth/auth-shell'
+import { TONE_PILL } from '@/lib/ui/encodings'
 
 type ClinicBrand = NonNullable<InvitationDetails['brand']>
 
@@ -381,7 +382,7 @@ function AcceptInviteInner() {
               We&apos;ll email a one-time sign-in link to this address. No password needed.
             </p>
             {formError && (
-              <p role="alert" className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/10 px-3 py-2 rounded-lg">{formError}</p>
+              <p role="alert" className={`text-sm ${TONE_PILL.urgent} px-3 py-2 rounded-lg`}>{formError}</p>
             )}
             <button
               type="submit"
@@ -441,7 +442,7 @@ function AcceptInviteInner() {
             </div>
 
             {formError && (
-              <p role="alert" className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/10 px-3 py-2 rounded-lg">
+              <p role="alert" className={`text-sm ${TONE_PILL.urgent} px-3 py-2 rounded-lg`}>
                 {formError}
               </p>
             )}

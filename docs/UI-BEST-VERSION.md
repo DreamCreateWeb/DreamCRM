@@ -23,39 +23,41 @@ up" are different facts and only one of them is a backlog item.
 
 ## OPEN NOW (last rewritten: batch 64, 2026-09-15)
 
+> **The axe burn-down is CLOSED.** `e2e/axe-baseline.ts` is `{}` — 214 → 0
+> across batches 54-64 — so every stop the browser suite walks now tolerates
+> ZERO violations of every rule, and the next one fails on the PR that
+> introduces it. Nothing below is an axe ceiling; what remains are shapes the
+> browser suite structurally cannot see. And an empty baseline is NOT a clean
+> product: see the note on the baseline constant itself for why the last
+> defect to leave it was one no stop had ever rendered.
+
 1. **An ink/surface pair written in ONE class string is graded by nothing** —
-   29 sites, all measured, listed in the batch-64 entry below. `dark-mode-parity`
-   (rule 1) deliberately returns null when the light and dark renderings AGREE
-   about which halves are overridden, so `text-red-600 bg-red-50` (2.94) and
-   `text-white bg-teal-600 dark:bg-teal-500 dark:text-gray-900` (4.01 in dark,
-   seven auth buttons) are both invisible to it. One of the 29 is the whole of
-   `auth: sign-in showing the failure alert`'s axe entry. Batch 65 — the rule
-   plus the sweep. **This is the top of the list.**
-2. **The axe burn-down: 8 left** in `e2e/axe-baseline.ts` (17 → 8 in batch 62).
-   Every `portal:` stop is at zero; what remains is `auth: sign-in` (1 — see
-   entry 1, it is the red-on-red alert), four `staff:` stops (1 each) and
-   `staff: website hub` (3). Singles now, each needing its own look.
-   **What batch 64 could NOT do, and why:** the remaining seven need the
-   browser suite to locate, and the E2E harness needs a local Postgres, which
-   the runtime this batch ran in does not have. Source grading narrowed the
-   website hub to `text-gray-400 dark:text-gray-500` on the "sections filled"
-   fraction (2.63, `app/(default)/website/page.tsx:366`, and it is
-   published-state-only because `showChecklist` is gated on `!siteLiveAt` —
-   which is exactly why `site not yet published` holds zero and `site
-   published` holds 3). That accounts for ONE of the three and nothing was
-   found for the other two or for the four `staff:` singles, so nothing was
-   fixed on a guess and no ceiling was shrunk on one. Whoever has a browser:
-   run the harness, read the violation selectors out of the run log, and the
-   rest is an afternoon.
+   **28 sites** (29 at batch 64's start; the sign-in alert was one of them and
+   is fixed here). `dark-mode-parity` (rule 1) deliberately returns null when
+   the light and dark renderings AGREE about which halves are overridden, so
+   `text-white bg-teal-600 dark:bg-teal-500 dark:text-gray-900` — 4.01 in dark,
+   seven auth buttons — is invisible to it. Rule 6 does not reach them either:
+   it declines any chunk carrying a `bg-`, which is documented in its header
+   as the one place the two rules leave a gap between them. Batch 65, the rule
+   plus the sweep. **This is the top of the list**, and it is the largest
+   measured population left.
+2. **~194 bare `text-gray-400` sites, with no `dark:` half** — the residual
+   batch 64's sweep deliberately left. `#93a0bc on #ffffff = 2.63:1` in light;
+   the dark side PASSES at 6.19:1, because with no override the ramp re-tints
+   underneath them. One-sided, so it needs a per-site look rather than a sweep:
+   some are real text (fix), some are icons and glyphs (1.4.11 asks 3:1, not
+   4.5, and 2.63 misses that too), some are genuinely disabled controls (exempt
+   under 1.4.3). Rule 6 says out loud that it does not grade these.
 3. **31 `color: brand` sites on the public clinic site** — brand as TEXT, which
    is `readableInk`'s job. A mix of decorative SVG strokes (no requirement) and
    real copy that fails on a pale brand. Needs reading one site at a time,
    which is why batch 57 left it whole.
 4. **~406 `opacity-[0-9]` sites outside the portal, none of them measured.**
-   `portal-ink-opacity.test.ts` refuses the shape (text dimmed twice) and is
-   scoped to the portal on purpose; the rest of the product is mostly non-text
-   chrome and nobody has graded it. Grade, fix what fails, then widen the
-   guard's scope to whatever comes back clean.
+   `tests/a11y/portal-ink-opacity.test.ts` refuses the shape — text dimmed a
+   second time — but is scoped to the portal on purpose, and its own header
+   says grading the rest is its own batch. Mostly non-text chrome; the job is
+   to grade them, fix what fails, and extend the guard's scope to whatever
+   comes back clean. Presentation-only and freeze-safe. Nobody has picked it up.
 5. **`ActionButton`'s `danger` variant clears AA at 4.53** — white on
    `rose-600` against a 4.5 floor. Not a defect and not swept with batch 63's
    tone fills (it is the button primitive's own single-home, and it passes),
@@ -67,35 +69,14 @@ up" are different facts and only one of them is a backlog item.
    `VARIANT_CLASSES` (the single-home argument the exemption rests on) and
    re-derives the 4.53 from the palette, so if the margin ever goes the wrong
    way the suite says so instead of the pardon quietly widening.
-6. **177 sites paint a muted label `text-gray-400 dark:text-gray-500` — the
-   legible step and the illegible one, swapped, in BOTH themes.** Found
-   2026-09-15 by a red `e2e` on `main`: `staff: appointment drawer open` and
-   `staff: cancel-appointment confirmation over the drawer` each reported
-   `color-contrast ×1` against a ceiling of zero, at
-   `.mr-0\.5.dark\:text-gray-500.text-gray-400` — **#93a0bc on #f3f7fe,
-   measured 2.44:1, 12px, normal weight**. The element was the "Views:" label of
-   the shared saved-views bar, which arrived with #587 and reaches the
-   appointments agenda. Re-derived from the palette, on every declared surface:
-
-   | | gray-400 | gray-500 |
-   |---|---|---|
-   | light | **2.29 – 2.63 ✗** | 4.63 – 5.30 ✓ |
-   | dark | 5.73 – 7.07 ✓ | **2.84 – 3.51 ✗** |
-
-   So the correct pair is `text-gray-500 dark:text-gray-400`, which is what the
-   bar's own twin (`app/(default)/patients/saved-views-bar.tsx`), the two labels
-   in `agenda-view.tsx` and the one in `feedback-admin.tsx` already say. The
-   house pattern is the wrong one and those four are the minority.
-   **Only ONE site is fixed** (`components/saved-views/saved-views-bar.tsx`, the
-   one that turned a required check red); the other 176 are a UI batch and this
-   is the hand-off. `grep -rn "text-gray-400" app components lib | grep
-   "dark:text-gray-500"` enumerates them. No existing guard sees this: rule 1
-   (dark-mode parity) grades an ink AND a surface in one quoted string, and
-   these chunks carry no `bg-*` — a documented false negative, and widening rule
-   1 to resolve every possible ancestor is the "208 places to catch 8" trade its
-   own header refuses. The measurement and the direction are pinned in
-   `tests/a11y/muted-ink-direction.test.ts`, which grades the palette and that
-   one component and says so out loud — a green run there is not a clean tree.
+6. **The trial banner's escalation borrows a SEVENTH hue** — violet → amber →
+   orange → rose, and orange is not one of v3's six tones, so `TONE_FILL` has
+   no entry for it and batch 64 hand-spelled that one tier's recipe
+   (`components/ui/trial-banner.tsx`). It measures fine (5.31 resting, 6.45
+   hover) and `token-contrast.test.ts` pins both halves plus the negative, so
+   the deferral is watched rather than silent. Whether a four-step escalation
+   should reach outside the tone set, or collapse to three, is a design
+   decision — deferred, needs an owner call.
 
 Everything else unstruck in this file is **deferred with a stated reason**
 (needs a data series the services do not keep, or a deliberate design decision
@@ -103,6 +84,69 @@ recorded in the code) or already **POST-1.0**. Deferred items are not the top
 of the list; they are the bottom, and they say so where they sit.
 
 **System-level finds:**
+- ~~The axe burn-down: 8 left in `e2e/axe-baseline.ts`~~ · ~~a "taken" slot in
+  the portal's picker is `#B9B0A5` on `#F3EEE7` = 1.85:1~~ · ~~177 sites paint a
+  muted label `text-gray-400 dark:text-gray-500` — the legible step and the
+  illegible one, swapped, in BOTH themes~~ [**BATCH 64 — THE
+  BURN-DOWN ENDS AT ZERO.**
+  **The third entry above was `main`'s, and striking it is a judgement call
+  worth recording rather than a tidy-up.** #598 (DREAMCRM-63) hit this defect
+  from the other end four hours before this batch's head commit: a red `e2e` on
+  `main` at `staff: appointment drawer open` and `staff: cancel-appointment
+  confirmation over the drawer`, both at a ceiling of zero, both reporting
+  `.mr-0\.5.dark\:text-gray-500.text-gray-400` — **#93a0bc on #f3f7fe, 2.44:1,
+  12px**. It fixed the ONE element that turned the check red, wrote the other
+  176 up as an OPEN NOW hand-off, and pinned the direction in
+  `tests/a11y/muted-ink-direction.test.ts`. **This batch is that hand-off**, so
+  carrying the entry forward would have left the punch list asking for work
+  that had just landed — the exact staleness this file's own index rule exists
+  to stop (the icon wells, batch 62). Its measurement table is preserved here
+  because it is the better one: re-derived across every declared surface,
+  light gray-400 **2.29–2.63 ✗** / gray-500 4.63–5.30 ✓, dark gray-400
+  5.73–7.07 ✓ / gray-500 **2.84–3.51 ✗**. Not a near miss in either theme.
+  Two sentences on `main` said the sweep was still outstanding — that file's
+  header and its assertion's own failure message — and both are corrected in
+  this batch rather than left to rot, because this is the change that makes
+  them false. (§10 would normally make another lane's guard not ours to edit;
+  the exception is when your own diff is what falsifies it.) `e2e/axe-baseline.ts` is `{}`; 214 → 0 across
+  batches 54-64, so every stop the browser suite walks now tolerates nothing.
+  Its header carries the full story; three things are worth having here.
+  **First, the eight were three.** Six of them — four stops — were ONE class
+  pair written upside down: `text-gray-400 dark:text-gray-500`, in 177 places
+  across 85 files. DESIGN-SYSTEM.md §2.2 has said since v3 shipped that
+  `gray-500` is the lightest meaningful ink on white and `dark:gray-400` the
+  lightest on dark, and `--color-ink-400` is commented "disabled only" — this
+  is that line backwards, and it fails in BOTH themes at once (#93a0bc on
+  #ffffff = 2.62, #93a0bc on #f3f7fe = 2.44, #5c6c89 on #0c1226 = 3.51).
+  Nothing enforced it, and `dark-mode-parity` structurally could not: rule 1
+  needs an ink AND a `bg-` on the same element to have a surface to measure
+  against, and every one of these is a label whose background came from an
+  ancestor. Rule 6 (`tests/a11y/class-pairs.ts` + `tests/a11y/quiet-ink.test.ts`)
+  closes that blind spot by grading against the BEST-CASE surface of each
+  theme — an ink that misses AA on the friendliest surface its theme offers
+  misses it everywhere, so a finding is a fact rather than a guess about an
+  ancestor. Red-verified against the real live defect in
+  `components/saved-views/saved-views-bar.tsx`, not only planted strings.
+  The other two: the sign-in failure alert (`#fa4949 on #ffe8e8 = 2.93`, now
+  `TONE_PILL.urgent` along with its six identically-spelled siblings), and the
+  trial banner's CTA (`#ffffff on #8470ff = 3.65` — one element showing up as
+  two stops, now `TONE_FILL`, and three of its four escalation tiers were
+  failing including two the suite never reaches).
+  **Second, the portal's "taken" slot was fixed pre-emptively in the same
+  batch** — `#B9B0A5 on #F3EEE7 = 1.85:1`, now `PORTAL_MUTED` on the same wash
+  at 5.11. It renders as a `span` rather than a disabled control, so the 1.4.3
+  inactive-component exemption never cleanly applied and it was a red gate
+  waiting for a fixture, not a debt. The wash is a token now (`PORTAL_WASH`,
+  registered in `tests/a11y/portal-tokens.test.ts`) because a background that a
+  text colour is chosen against has to be re-measurable from one place.
+  **Third, and the transferable part: a carried violation is invisible.**
+  `expectNoA11yViolations` prints elements and colours only for violations
+  ABOVE a ceiling, so eight defects sat behind eight ceilings with nobody able
+  to say what they were without re-deriving them from source. Zeroing the
+  baseline on a throwaway branch and dispatching `ci.yml` at it
+  (actions/runs/34993335573) printed all eight with selectors and measured
+  colours in four minutes. If you inherit a ceiling you did not write, that is
+  the cheapest way to find out what is behind it.]
 - ~~`--color-brand-600`/`--color-brand-50` referenced but DEFINED NOWHERE~~
   [CLOSED — this entry was STALE, struck in batch 52 after re-verification.
   Not one live call site remains: the two files that still spell the token

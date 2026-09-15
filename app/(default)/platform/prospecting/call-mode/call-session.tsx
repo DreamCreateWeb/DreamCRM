@@ -272,7 +272,7 @@ export default function CallSession({ items }: { items: CallQueueItem[] }) {
       {/* Session strip — one segment per call, filled with the outcome color. */}
       <div className="mb-5 flex items-center gap-3">
         <span className="whitespace-nowrap font-mono-num text-xs font-bold text-gray-700 dark:text-gray-200">
-          CALL {idx + 1} <span className="text-gray-400 dark:text-gray-500">/ {items.length}</span>
+          CALL {idx + 1} <span className="text-gray-500 dark:text-gray-400">/ {items.length}</span>
         </span>
         <div className="flex flex-1 gap-1">
           {items.map((_, i) => (
@@ -368,7 +368,7 @@ export default function CallSession({ items }: { items: CallQueueItem[] }) {
 
           {hasSignals && (
             <div className="mt-4 border-t border-[color:var(--color-hairline)] pt-3">
-              <p className="text-xs font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500">
+              <p className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
                 Why this isn't cold
               </p>
               <div className="mt-1.5 space-y-1 text-xs leading-relaxed text-gray-600 dark:text-gray-300">
@@ -395,7 +395,7 @@ export default function CallSession({ items }: { items: CallQueueItem[] }) {
         <div className="rounded-[var(--r-lg)] bg-[color:var(--color-surface-2)] px-6 py-5 ring-1 ring-[color:var(--color-hairline)]">
           {script === 'loading' || script === undefined ? (
             <div className="space-y-2 py-4">
-              <p className="text-xs font-medium text-gray-400 dark:text-gray-500">✨ Writing their script…</p>
+              <p className="text-xs font-medium text-gray-500 dark:text-gray-400">✨ Writing their script…</p>
               {item.talkingPoints.length > 0 && (
                 <ul className="list-inside list-disc text-sm text-gray-600 dark:text-gray-300">
                   {item.talkingPoints.map((t, i) => (

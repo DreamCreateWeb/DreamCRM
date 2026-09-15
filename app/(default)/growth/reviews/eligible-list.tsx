@@ -88,9 +88,9 @@ export default function EligibleList({ rows }: Props) {
                 </Link>
                 <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
                   {r.patientEmail ?? <span className="italic">no email</span>}
-                  <span className="mx-1.5 text-gray-400 dark:text-gray-500">·</span>
+                  <span className="mx-1.5 text-gray-500 dark:text-gray-400">·</span>
                   <span className="capitalize">{r.appointmentType.replace(/_/g, ' ')}</span>
-                  <span className="mx-1.5 text-gray-400 dark:text-gray-500">·</span>
+                  <span className="mx-1.5 text-gray-500 dark:text-gray-400">·</span>
                   completed {fmtCompletedAt(r.appointmentCompletedAt)}
                 </p>
                 {err && (

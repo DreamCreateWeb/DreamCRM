@@ -188,7 +188,7 @@ function CopyField({
     <div>
       <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">
         {label}
-        {savedValue && <span className="ml-2 font-normal text-gray-400 dark:text-gray-500">customized</span>}
+        {savedValue && <span className="ml-2 font-normal text-gray-500 dark:text-gray-400">customized</span>}
       </label>
       <div className="flex items-center gap-2">
         <input

@@ -36,7 +36,7 @@ export default function FormPreview({
           {description && <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{description}</p>}
 
           {fieldCount === 0 ? (
-            <p className="mt-4 text-sm italic text-gray-400 dark:text-gray-500">
+            <p className="mt-4 text-sm italic text-gray-500 dark:text-gray-400">
               Add a question and it appears here, just as your patients will see it.
             </p>
           ) : (
@@ -54,7 +54,7 @@ export default function FormPreview({
                       <PreviewField key={f.id} field={f} />
                     ))}
                     {s.fields.length === 0 && (
-                      <p className="text-xs italic text-gray-400 dark:text-gray-500">No questions in this section yet.</p>
+                      <p className="text-xs italic text-gray-500 dark:text-gray-400">No questions in this section yet.</p>
                     )}
                   </div>
                 </section>
@@ -167,13 +167,13 @@ function PreviewControl({ field }: { field: FormField }) {
       )
     case 'signature':
       return (
-        <div className="grid h-16 place-items-center rounded-[var(--r-sm)] border border-dashed border-[color:var(--color-hairline-strong)] text-xs italic text-gray-400 dark:text-gray-500">
+        <div className="grid h-16 place-items-center rounded-[var(--r-sm)] border border-dashed border-[color:var(--color-hairline-strong)] text-xs italic text-gray-500 dark:text-gray-400">
           Signature
         </div>
       )
     case 'file':
       return (
-        <div className="grid h-16 place-items-center rounded-[var(--r-sm)] border border-dashed border-[color:var(--color-hairline-strong)] text-xs italic text-gray-400 dark:text-gray-500">
+        <div className="grid h-16 place-items-center rounded-[var(--r-sm)] border border-dashed border-[color:var(--color-hairline-strong)] text-xs italic text-gray-500 dark:text-gray-400">
           📎 {field.imagesOnly !== false ? 'Photo upload' : 'File upload'}
         </div>
       )
@@ -183,7 +183,7 @@ function PreviewControl({ field }: { field: FormField }) {
           {['Front', 'Back'].map((side) => (
             <div
               key={side}
-              className="grid h-16 place-items-center rounded-[var(--r-sm)] border border-dashed border-[color:var(--color-hairline-strong)] text-xs italic text-gray-400 dark:text-gray-500"
+              className="grid h-16 place-items-center rounded-[var(--r-sm)] border border-dashed border-[color:var(--color-hairline-strong)] text-xs italic text-gray-500 dark:text-gray-400"
             >
               📷 {side}
             </div>

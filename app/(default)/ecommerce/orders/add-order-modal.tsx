@@ -3,6 +3,7 @@
 import { Fragment, useState, useTransition } from 'react'
 import { Dialog, DialogPanel, Transition, TransitionChild } from '@headlessui/react'
 import { addOrder } from './actions'
+import { TONE_PILL } from '@/lib/ui/encodings'
 
 interface CustomerOption {
   id: number
@@ -138,7 +139,7 @@ export default function AddOrderModal({ customers }: { customers: CustomerOption
                       />
                     </div>
                     {error && (
-                      <div className="text-sm text-red-600 bg-red-50 dark:bg-red-500/10 px-3 py-2 rounded">
+                      <div className={`text-sm ${TONE_PILL.urgent} px-3 py-2 rounded`}>
                         {error}
                       </div>
                     )}

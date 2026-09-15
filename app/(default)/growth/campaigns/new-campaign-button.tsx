@@ -131,7 +131,7 @@ export default function NewCampaignButton({
                     />
                   ))}
                 </div>
-                <p className="text-xs text-gray-400 dark:text-gray-500 mt-1.5">
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1.5">
                   A starting point pre-writes the subject and body — everything stays editable before anything sends.
                 </p>
               </fieldset>

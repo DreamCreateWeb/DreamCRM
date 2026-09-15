@@ -81,7 +81,18 @@
  */
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { join, relative } from 'node:path'
-import { AA, contrast, DARK, LIGHT, ROOT, utilityColor, type Theme } from './palette'
+import {
+  AA,
+  contrast,
+  DARK,
+  LIGHT,
+  luminance,
+  ROOT,
+  SURFACES,
+  token,
+  utilityColor,
+  type Theme,
+} from './palette'
 import { TONE_FILL } from '@/lib/ui/encodings'
 
 /** Where product UI lives. `lib/` is in because `lib/ui/encodings.ts` and the
@@ -1012,6 +1023,228 @@ export function toneFillSites(roots: string[] = UI_ROOTS): { file: string; line:
     const surface = utilities(chunk, 'bg').find((u) => !u.dark)
     if (!ink || !surface || ink.alpha || surface.alpha) return
     if (isToneFillSurface(surface.word)) found.push({ file, line })
+  })
+  return found
+}
+
+/* ── RULE 6: a neutral ink declared for BOTH themes, with no surface of its
+      own — the pair rule 1 structurally cannot see ──────────────────────── */
+
+/**
+ * THE QUIET INK RULE — "which grey is the quiet one" has a written answer, and
+ * 177 places had it upside down.
+ *
+ * DESIGN-SYSTEM.md §2.2 has said this since v3 shipped, in one binding line:
+ * **`gray-500` lightest meaningful on white, `dark:gray-400` lightest on
+ * dark** — and `app/css/style.css` labels the step below it `--color-ink-400`
+ * with the comment "disabled only". Nothing enforced either.
+ *
+ * `text-gray-400 dark:text-gray-500` is that line written BACKWARDS, and it
+ * fails in BOTH themes at once: #93a0bc on the lightest light surface is
+ * **2.63:1** (`surface-2`), and #5c6c89 on the darkest dark surface is
+ * **3.51:1** (`surface-sunk`), against a
+ * 4.5 floor. Those are BEST CASES — every other surface in either theme is
+ * worse. It was live in 177 places across 85 files, and it is where SIX of the
+ * eight findings left in `e2e/axe-baseline.ts` came from:
+ *
+ *   · `staff: the day agenda` — the saved-views bar's "Views:" chip,
+ *     `components/saved-views/saved-views-bar.tsx`, measured by axe at
+ *     `span.mr-0\.5.text-gray-400.dark\:text-gray-500`: **#93a0bc on #f3f7fe =
+ *     2.44:1**, 12px.
+ *   · `staff: website hub, site published` ×3 — the "optional" suffix on the
+ *     design, domain and blog checklist rows, `app/(default)/website/page.tsx`,
+ *     at `a[href$="design"] … .font-normal.text-gray-400.dark\:text-gray-500`:
+ *     **#93a0bc on #ffffff = 2.62:1**, 12px. (The not-yet-published state of
+ *     the same hub measured ZERO, which is how one shared shape can look like
+ *     a defect belonging to the lever rather than to the checklist.)
+ *   · `staff: dream team, a proposal waiting on a yes` — an uppercase
+ *     tracking-wider field label at
+ *     `.dark\:text-gray-500.tracking-wider.text-gray-400`: **#93a0bc on
+ *     #ffffff = 2.62:1**, 12px.
+ *
+ * WHY RULE 1 COULD NOT SEE ANY OF THEM, which is the whole reason this rule
+ * exists rather than an extra branch there. Rule 1 needs BOTH halves of a pair
+ * on the same element: an ink utility and a `bg-` utility, so it has a surface
+ * to measure against. Every instance above is ink ONLY — a label inside a card
+ * whose background came from an ancestor. Rule 1's scanner reads one class
+ * string at a time and cannot resolve an ancestor, so it correctly declines to
+ * grade them, and 177 upside-down pairs sat under a guard built for exactly
+ * this family of defect.
+ *
+ * HOW THIS ONE GRADES WITHOUT AN ANCESTOR: it does not try to find the real
+ * surface. It measures against the BEST CASE the theme allows — the lightest
+ * declared surface in light mode, the darkest in dark — and reports only what
+ * misses AA THERE. An ink that cannot clear the floor on the friendliest
+ * surface in its own theme cannot clear it anywhere, whatever it landed on. So
+ * a finding here is a fact rather than an estimate, and the rule cannot
+ * produce a false positive by guessing a background wrong. Both surfaces are
+ * derived by luminance from the palette, never transcribed.
+ *
+ * ITS SUBJECT IS A PAIR THAT WAS DECLARED TWICE. The element has to name its
+ * ink in BOTH themes — a base `text-gray-*` and a base `dark:text-gray-*`.
+ * That is a two-sided decision, which is exactly what the design-system line
+ * above specifies, and when it is inverted it is wrong twice over.
+ *
+ * AND ONE HALF HAS TO NAME THE 400 OR THE 500 STEP — the two steps the
+ * design-system line is literally about. This is the narrowing that keeps the
+ * rule worth having, and it was derived from its own first red run rather than
+ * chosen up front: unconstrained, it also reported 15 places spelling
+ * `text-gray-300 dark:text-gray-600`, and every one of them was CHROME — a
+ * `·` between two metadata fields, the faint `→` a card reveals in teal on
+ * hover, a delete glyph that appears at `group-hover`. gray-300 in light mode
+ * is below EVERY floor the sheet names, so it cannot be an ink somebody
+ * intended as readable text; grading it means firing on decoration to catch
+ * body copy, which is rule 1's `208 places to catch 8` all over again.
+ *
+ * THAT NARROWING NOW HAS A WRITTEN REASON RATHER THAN A PRAGMATIC ONE. When
+ * this rule first ran, the design system had no vocabulary for a DECORATIVE
+ * neutral, so "is this faint on purpose or by accident" had no answer and this
+ * window was quietly acting as one — a guard standing in for a decision, which
+ * is the wrong way round. **DESIGN-SYSTEM.md §2.2 names the ornament step now**
+ * (`gray-300` / `dark:gray-600`, exempt from the readable-ink floor because it
+ * carries no information, and never the sole carrier of a state). So the window
+ * below enforces a decision somebody made instead of substituting for one, and
+ * the 15 sites are exempt by the sheet rather than by this rule's silence.
+ *
+ * WHAT IT DELIBERATELY DOES NOT SEE, so nobody reads a green run as more than
+ * it is. A BARE `text-gray-400` with no `dark:` half is NOT graded here, and
+ * there are about 194 of those left in the tree. They fail the light side on
+ * the same 2.63:1 and pass the dark side at 6.19:1, because with no override
+ * the dark theme re-tints the token underneath them. That is a real residual
+ * and it is written down as such in docs/UI-BEST-VERSION.md rather than folded
+ * in here — each one needs a per-site look (an icon owes 3:1 under 1.4.11, not
+ * 4.5, and a genuinely disabled control owes nothing), and a rule that fires
+ * on 194 sites to catch the ones that are real text is the guard people switch
+ * off.
+ *
+ * AND THE `bg` BAIL IS WIDER THAN "rule 1 has this one" (found in review of
+ * #597, and the comment on the bail below used to overstate it). This rule
+ * declines ANY chunk carrying a `bg-`, on the reasoning that an element with
+ * its own surface is rule 1's. Rule 1 does not claim all of them: it grades a
+ * pair only when EXACTLY ONE half carries the `dark:` override, and it skips
+ * an alpha surface outright. So two shapes are graded by NEITHER rule —
+ *
+ *     bg-white dark:bg-gray-800 text-gray-400 dark:text-gray-500   (both overridden)
+ *     text-gray-400 dark:text-gray-500 bg-white/60                 (alpha surface)
+ *
+ * — and the honest description of this bail is "rule 1 usually has it", not
+ * "rule 1 has it". Scanned at the time: 84,437 class chunks, 1,210 carrying a
+ * `bg-`, **zero live instances of either shape** (the scan was self-checked
+ * against a planted case first, so zero means the instrument looked). A false
+ * negative with no subject is worth writing down rather than closing, because
+ * the fix is not free — grading both-overridden pairs here would put two rules
+ * on the same line, which is how a repo gets two answers for it. The wider
+ * question of a pair whose two themes AGREE about which half moves is already
+ * an OPEN NOW entry in docs/UI-BEST-VERSION.md with 28 measured sites behind
+ * it; this belongs to that entry, not to a quiet widening of this one.
+ */
+
+/** Neutral ramps — the ones that carry no meaning, and so have no tone
+ *  registry to answer for them. `gray` is the ramp the product spells; `ink`
+ *  is the semantic twin it is re-tinted to track. */
+const NEUTRAL_INK_RAMPS = ['gray', 'ink']
+
+/** The two steps DESIGN-SYSTEM.md §2.2 names — 500 as light mode's lightest
+ *  meaningful ink, 400 as dark mode's. A pair that touches neither is not a
+ *  body-ink decision; see the header. */
+const NAMED_QUIET_STEPS = [400, 500]
+
+/**
+ * The friendliest surface a piece of text can land on in each theme, DERIVED
+ * by luminance rather than named: light mode's is the lightest of the four
+ * declared surfaces, dark mode's is the darkest. Deriving it means a palette
+ * edit moves the rule instead of silently invalidating it.
+ */
+export function bestCaseSurface(theme: Theme, mode: 'light' | 'dark'): string {
+  const ranked = [...SURFACES].sort((a, b) => {
+    const la = luminance(token(theme, a))
+    const lb = luminance(token(theme, b))
+    return mode === 'light' ? lb - la : la - lb
+  })
+  return ranked[0]
+}
+
+function isNeutralInk(word: string): boolean {
+  const m = word.match(/^([a-z]+)-(\d{2,3})$/)
+  return !!m && NEUTRAL_INK_RAMPS.includes(m[1])
+}
+
+/** Does this word name one of the two steps the design-system line is about? */
+function namesAQuietStep(word: string): boolean {
+  const m = word.match(/^[a-z]+-(\d{2,3})$/)
+  return !!m && NAMED_QUIET_STEPS.includes(Number(m[1]))
+}
+
+/**
+ * Grade one quoted class string against rule 6.
+ *
+ * Exported for the same reason every sibling `grade*` is: a scanner that has
+ * quietly stopped matching reports a clean tree, and an absence assertion
+ * cannot tell the two apart.
+ */
+export function gradeQuietInkClasses(
+  classes: string,
+): Omit<ParityFinding, 'file' | 'line'> | null {
+  const inks = utilities(classes, 'text')
+  const lightInk = inks.find((u) => !u.dark)
+  const darkInk = inks.find((u) => u.dark)
+  // Both halves declared, neither a wash, and no surface of its own. With a
+  // surface present this is USUALLY rule 1's element, and two rules grading
+  // one line is how a repo ends up with two answers for it — but "usually" is
+  // load-bearing and the header says which two shapes fall between us.
+  if (!lightInk || !darkInk || lightInk.alpha || darkInk.alpha) return null
+  if (!isNeutralInk(lightInk.word) || !isNeutralInk(darkInk.word)) return null
+  if (!namesAQuietStep(lightInk.word) && !namesAQuietStep(darkInk.word)) return null
+  if (utilities(classes, 'bg').length > 0) return null
+
+  const failures: Pairing[] = []
+  for (const [theme, mode] of [
+    [LIGHT, 'light'],
+    [DARK, 'dark'],
+  ] as const) {
+    const ink = mode === 'light' ? lightInk.word : darkInk.word
+    const graded = grade(theme, mode, ink, bestCaseSurface(theme, mode))
+    if (graded && graded.ratio < AA) failures.push(graded)
+  }
+  if (failures.length === 0) return null
+
+  return {
+    overridden: null,
+    classes: `${lightInk.raw} ${darkInk.raw}`,
+    failures,
+    note:
+      'a neutral ink declared for both themes that misses AA on the BEST-CASE ' +
+      'surface of its own theme — DESIGN-SYSTEM.md §2.2: gray-500 is the ' +
+      'lightest meaningful ink on white, dark:gray-400 the lightest on dark',
+  }
+}
+
+/** Every two-sided neutral ink in the product that cannot clear AA even on the
+ *  friendliest surface its own theme offers. Holds at ZERO with no ceiling —
+ *  same reasoning as rules 1 and 5, and it can afford zero because the sweep
+ *  that introduced it turned all 177 live instances the right way up. */
+export function scanForUnreadableQuietInk(roots: string[] = UI_ROOTS): ParityFinding[] {
+  const found: ParityFinding[] = []
+  eachClassString(roots, (file, line, chunk) => {
+    const graded = gradeQuietInkClasses(chunk)
+    if (graded) found.push({ file, line, ...graded })
+  })
+  return found
+}
+
+/** Every two-sided neutral ink, passing or not — the instrument's field of
+ *  view. A rule narrowed until it matches nothing reports CLEAN forever. */
+export function quietInkSites(roots: string[] = UI_ROOTS): { file: string; line: number }[] {
+  const found: { file: string; line: number }[] = []
+  eachClassString(roots, (file, line, chunk) => {
+    const inks = utilities(chunk, 'text')
+    const lightInk = inks.find((u) => !u.dark)
+    const darkInk = inks.find((u) => u.dark)
+    if (!lightInk || !darkInk || lightInk.alpha || darkInk.alpha) return
+    if (!isNeutralInk(lightInk.word) || !isNeutralInk(darkInk.word)) return
+    if (!namesAQuietStep(lightInk.word) && !namesAQuietStep(darkInk.word)) return
+    if (utilities(chunk, 'bg').length > 0) return
+    found.push({ file, line })
   })
   return found
 }

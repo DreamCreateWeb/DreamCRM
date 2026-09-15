@@ -160,7 +160,7 @@ export default function FeedbackPanel() {
                                 </button>
                               </>
                             ) : (
-                              <span className="text-gray-400 dark:text-gray-500">No score selected (optional)</span>
+                              <span className="text-gray-500 dark:text-gray-400">No score selected (optional)</span>
                             )}
                           </p>
                         </section>
@@ -177,7 +177,7 @@ export default function FeedbackPanel() {
                                   ? 'text-rose-600 dark:text-rose-400'
                                   : remaining <= 100
                                     ? 'text-amber-600 dark:text-amber-400'
-                                    : 'text-gray-400 dark:text-gray-500'
+                                    : 'text-gray-500 dark:text-gray-400'
                               }`}
                               aria-live="polite"
                             >

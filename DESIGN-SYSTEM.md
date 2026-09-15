@@ -225,6 +225,24 @@ uppercase tracking-wider` ink-500; the page-title eyebrow may be teal-700.
     under. Prefer rem sizes — px doesn't scale with the text-size setting.
   - **Contrast**: `gray-500` lightest meaningful on white, `dark:gray-400`
     lightest on dark; never dim a zero; no hover-to-reveal data.
+  - **The DECORATIVE neutral** (added 2026-09-15, UI batch 64): `gray-300` in
+    the light and `dark:gray-600` in the dark are the ORNAMENT step — the `·`
+    between two metadata fields, a chevron that lights up on hover, a
+    hairline. They carry **no information**, so they are exempt from the
+    readable-ink floor above, and WCAG 1.4.3 exempts them for the same reason
+    it exempts a decorative image. Two rules follow and they are both hard:
+    **anything a person has to read is not this step** (if removing the colour
+    would lose meaning, it is ink and it obeys the line above), and **a
+    decorative neutral may never be the only carrier of a state** — a struck
+    slot, a disabled row and a selected chip all need shape, position or text
+    beside them. `gray-400`/`dark:gray-500` is neither step: it is the
+    "disabled only" value (`--color-ink-400`), and using it as copy is the
+    defect batch 64 swept out of 177 places.
+    *Why this is written down rather than left to judgement:* without it
+    "is this faint on purpose?" had no written answer, and the quiet-ink guard
+    (`tests/a11y/class-pairs.ts` rule 6) was silently acting as the vocabulary
+    by grading only the two steps this list names. A guard should enforce a
+    decision, not stand in for one.
   - **Text-size setting**: per-device Standard/Large/Extra-large scales the
     ROOT font-size (`html.dc-text-lg`/`.dc-text-xl`).
   - Every icon-only interactive has `aria-label`; truncations carry

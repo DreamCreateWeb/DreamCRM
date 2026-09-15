@@ -300,7 +300,7 @@ export default function SeoMetaForm({
                       className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-800"
                     />
                     {!titleVal.trim() && (
-                      <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
+                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                         Blank → default: <span className="text-gray-500 dark:text-gray-400">{d.title}</span>
                       </p>
                     )}
@@ -330,7 +330,7 @@ export default function SeoMetaForm({
                       className="w-full resize-y rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-800"
                     />
                     {!descVal.trim() && (
-                      <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
+                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                         Blank → default: <span className="text-gray-500 dark:text-gray-400">{d.description}</span>
                       </p>
                     )}

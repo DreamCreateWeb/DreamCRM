@@ -258,7 +258,7 @@ function TemplateForm({
     ? 'text-rose-600 dark:text-rose-400'
     : near
       ? 'text-amber-600 dark:text-amber-400'
-      : 'text-gray-400 dark:text-gray-500'
+      : 'text-gray-500 dark:text-gray-400'
 
   const preview = useMemo(() => renderPreview(body), [body])
   const canSave = name.trim().length > 0 && body.trim().length > 0 && !over && !pending
@@ -293,7 +293,7 @@ function TemplateForm({
 
       <div className="space-y-1.5">
         <label htmlFor="tmpl-name" className="block text-xs font-medium text-gray-700 dark:text-gray-300">
-          Name <span className="font-normal text-gray-400 dark:text-gray-500">(only your team sees this)</span>
+          Name <span className="font-normal text-gray-500 dark:text-gray-400">(only your team sees this)</span>
         </label>
         <input
           id="tmpl-name"
@@ -329,7 +329,7 @@ function TemplateForm({
             Over the limit by {(bodyLen - MAX_TEMPLATE_BODY_LEN).toLocaleString()} characters — trim it to save.
           </p>
         )}
-        <p className="text-xs text-gray-400 dark:text-gray-500">
+        <p className="text-xs text-gray-500 dark:text-gray-400">
           Type <code className="font-mono-num rounded bg-gray-100 dark:bg-gray-700/50 px-1 py-px">{'{{firstName}}'}</code>,{' '}
           <code className="font-mono-num rounded bg-gray-100 dark:bg-gray-700/50 px-1 py-px">{'{{lastName}}'}</code>, or{' '}
           <code className="font-mono-num rounded bg-gray-100 dark:bg-gray-700/50 px-1 py-px">{'{{fullName}}'}</code> and we fill in the patient&apos;s name when sent.
@@ -339,13 +339,13 @@ function TemplateForm({
       {/* Live preview — exactly what the patient reads, tokens filled in. */}
       <div className="space-y-1.5">
         <p className="block text-xs font-medium text-gray-700 dark:text-gray-300">
-          Preview <span className="font-normal text-gray-400 dark:text-gray-500">(as {SAMPLE.firstName} {SAMPLE.lastName} would see it)</span>
+          Preview <span className="font-normal text-gray-500 dark:text-gray-400">(as {SAMPLE.firstName} {SAMPLE.lastName} would see it)</span>
         </p>
         <div className="v2-well rounded-[var(--r-md)] p-3 min-h-[3rem]">
           {body.trim() ? (
             <p className="text-sm leading-relaxed text-gray-700 dark:text-gray-200 whitespace-pre-wrap">{preview}</p>
           ) : (
-            <p className="text-xs italic text-gray-400 dark:text-gray-500">
+            <p className="text-xs italic text-gray-500 dark:text-gray-400">
               Start typing a message and the preview shows here.
             </p>
           )}

@@ -163,12 +163,12 @@ export default function SearchModal({ isOpen, setIsOpen }: SearchModalProps) {
                   autoFocus
                 />
                 <div className="absolute inset-0 flex items-center justify-center right-auto pointer-events-none">
-                  <svg className="shrink-0 fill-current text-gray-400 dark:text-gray-500 ml-4 mr-2" width="16" height="16" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+                  <svg className="shrink-0 fill-current text-gray-500 dark:text-gray-400 ml-4 mr-2" width="16" height="16" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
                     <path d="M7 14c-3.86 0-7-3.14-7-7s3.14-7 7-7 7 3.14 7 7-3.14 7-7 7zM7 2C4.243 2 2 4.243 2 7s2.243 5 5 5 5-2.243 5-5-2.243-5-5-5z" />
                     <path d="M15.707 14.293L13.314 11.9a8.019 8.019 0 01-1.414 1.414l2.393 2.393a.997.997 0 001.414 0 .999.999 0 000-1.414z" />
                   </svg>
                 </div>
-                <kbd className="absolute right-3 top-1/2 -translate-y-1/2 rounded border border-gray-200 px-1.5 py-0.5 text-xs font-semibold text-gray-400 dark:border-gray-700 dark:text-gray-500">
+                <kbd className="absolute right-3 top-1/2 -translate-y-1/2 rounded border border-gray-200 px-1.5 py-0.5 text-xs font-semibold text-gray-500 dark:border-gray-700 dark:text-gray-400">
                   esc
                 </kbd>
               </div>
@@ -204,7 +204,7 @@ export default function SearchModal({ isOpen, setIsOpen }: SearchModalProps) {
               ) : (
                 groups.map((group) => (
                   <div key={group.label} className="mb-3 last:mb-0">
-                    <div className="mb-2 px-2 text-xs font-semibold uppercase text-gray-400 dark:text-gray-500">
+                    <div className="mb-2 px-2 text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">
                       {group.label}
                     </div>
                     <ul className="text-sm">
@@ -224,7 +224,7 @@ export default function SearchModal({ isOpen, setIsOpen }: SearchModalProps) {
                               }`}
                             >
                               <svg
-                                className={`mr-3 shrink-0 fill-current ${active ? 'text-violet-500' : 'text-gray-400 dark:text-gray-500'}`}
+                                className={`mr-3 shrink-0 fill-current ${active ? 'text-violet-500' : 'text-gray-500 dark:text-gray-400'}`}
                                 width="16"
                                 height="16"
                                 viewBox="0 0 16 16"
@@ -239,7 +239,7 @@ export default function SearchModal({ isOpen, setIsOpen }: SearchModalProps) {
                                 )}
                               </span>
                               {active && (
-                                <kbd className="ml-2 shrink-0 rounded border border-gray-200 px-1.5 py-0.5 text-xs font-semibold text-gray-400 dark:border-gray-600 dark:text-gray-500">
+                                <kbd className="ml-2 shrink-0 rounded border border-gray-200 px-1.5 py-0.5 text-xs font-semibold text-gray-500 dark:border-gray-600 dark:text-gray-400">
                                   ↵
                                 </kbd>
                               )}

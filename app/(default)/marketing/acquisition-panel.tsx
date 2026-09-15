@@ -153,7 +153,7 @@ function AcquisitionBody({ report }: { report: AcquisitionReport }) {
                 <span className="min-w-0 truncate font-medium text-gray-800 dark:text-gray-100">
                   {s.name ?? s.slug}
                   {s.name === null && (
-                    <span className="ml-1.5 text-xs text-gray-400 dark:text-gray-500">(unmatched slug)</span>
+                    <span className="ml-1.5 text-xs text-gray-500 dark:text-gray-400">(unmatched slug)</span>
                   )}
                 </span>
                 <span className="tabular-nums text-gray-500 dark:text-gray-400">
@@ -230,13 +230,13 @@ function ChannelTable({ report }: { report: AcquisitionReport }) {
                 Untracked
                 <span className="ml-1.5 text-xs">(pre-sensor, blocked cookies, or provisioned)</span>
               </td>
-              <td className="py-2 pr-4 text-right tabular-nums text-gray-400 dark:text-gray-500">—</td>
-              <td className="py-2 pr-4 text-right tabular-nums text-gray-400 dark:text-gray-500">—</td>
+              <td className="py-2 pr-4 text-right tabular-nums text-gray-500 dark:text-gray-400">—</td>
+              <td className="py-2 pr-4 text-right tabular-nums text-gray-500 dark:text-gray-400">—</td>
               <td className="py-2 pr-4 text-right tabular-nums text-gray-700 dark:text-gray-200">
                 {formatNumberShort(report.untrackedSignups)}
               </td>
-              <td className="py-2 pr-4 text-right tabular-nums text-gray-400 dark:text-gray-500">—</td>
-              <td className="py-2 pr-4 text-right tabular-nums text-gray-400 dark:text-gray-500">—</td>
+              <td className="py-2 pr-4 text-right tabular-nums text-gray-500 dark:text-gray-400">—</td>
+              <td className="py-2 pr-4 text-right tabular-nums text-gray-500 dark:text-gray-400">—</td>
               <td className="py-2 text-right tabular-nums text-gray-700 dark:text-gray-200">
                 {formatNumberShort(report.untrackedPaying)}
               </td>

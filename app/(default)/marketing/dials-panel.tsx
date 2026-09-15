@@ -123,7 +123,7 @@ function MonthRows({ m }: { m: MonthDial }) {
           ) : m.spendCents > 0 ? (
             <span className="text-xs text-gray-500 dark:text-gray-400">judged</span>
           ) : (
-            <span className="text-xs text-gray-400 dark:text-gray-500">—</span>
+            <span className="text-xs text-gray-500 dark:text-gray-400">—</span>
           )}
         </td>
       </tr>
@@ -138,7 +138,7 @@ function MonthRows({ m }: { m: MonthDial }) {
           <td className="py-1.5 pr-4 text-right tabular-nums text-xs text-gray-500 dark:text-gray-400">
             {c.trials}
           </td>
-          <td className="py-1.5 pr-4 text-right tabular-nums text-xs text-gray-400 dark:text-gray-500">—</td>
+          <td className="py-1.5 pr-4 text-right tabular-nums text-xs text-gray-500 dark:text-gray-400">—</td>
           <td className="py-1.5 pr-4 text-right tabular-nums text-xs text-gray-500 dark:text-gray-400">
             {c.costPerTrialCents != null ? `${formatMoneyShort(c.costPerTrialCents)}/trial` : '—'}
           </td>
@@ -158,7 +158,7 @@ function ChannelBar({
   bar: 'within' | 'over' | 'no_trials' | null
   channel: keyof typeof CHANNEL_TRIAL_BARS
 }) {
-  if (bar === null) return <span className="text-xs text-gray-400 dark:text-gray-500">no bar</span>
+  if (bar === null) return <span className="text-xs text-gray-500 dark:text-gray-400">no bar</span>
   const limit = CHANNEL_TRIAL_BARS[channel]
   const limitLabel = limit != null ? formatMoneyShort(limit) : ''
   if (bar === 'within')

@@ -291,7 +291,7 @@ export default function LeadDrawer({
               </p>
               {sentReply.subject && (
                 <p className="text-sm text-gray-700 dark:text-gray-200">
-                  <span className="text-xs uppercase tracking-wider text-gray-400 dark:text-gray-500 mr-2">Subject</span>
+                  <span className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 mr-2">Subject</span>
                   <span className="font-medium">{sentReply.subject}</span>
                 </p>
               )}

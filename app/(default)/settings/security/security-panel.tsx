@@ -362,7 +362,7 @@ function PasswordStrength({ value, strength, meetsMin }: { value: string; streng
       </ul>
 
       {/* Live count, monospaced per the numerals rule. */}
-      <p className="mt-1.5 text-xs text-gray-400 dark:text-gray-500">
+      <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
         <span className="font-mono-num tabular-nums">{value.length}</span> characters
       </p>
     </div>

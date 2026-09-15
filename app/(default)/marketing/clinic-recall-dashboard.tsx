@@ -307,7 +307,7 @@ export default async function ClinicRecallDashboard({
         <div className="v2-card p-5">
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100">All campaigns</h2>
-            <span className="text-xs text-gray-400 dark:text-gray-500">
+            <span className="text-xs text-gray-500 dark:text-gray-400">
               Click one to open it in the editor
             </span>
           </div>
@@ -329,7 +329,7 @@ export default async function ClinicRecallDashboard({
                       <p className="text-sm font-medium text-gray-800 dark:text-gray-100 truncate">
                         {c.name}
                         {c.automationKey && (
-                          <span className="ml-2 text-xs font-normal text-gray-400 dark:text-gray-500">auto</span>
+                          <span className="ml-2 text-xs font-normal text-gray-500 dark:text-gray-400">auto</span>
                         )}
                       </p>
                       {c.funnel.sent > 0 ? (
@@ -362,7 +362,7 @@ export default async function ClinicRecallDashboard({
             </ul>
           )}
           {campaignHistory.length > 20 && (
-            <p className="mt-2 pt-2 border-t border-[color:var(--color-hairline)] text-xs text-gray-400 dark:text-gray-500">
+            <p className="mt-2 pt-2 border-t border-[color:var(--color-hairline)] text-xs text-gray-500 dark:text-gray-400">
               Showing the 20 most recent of {campaignHistory.length}.
             </p>
           )}

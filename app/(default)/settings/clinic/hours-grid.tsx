@@ -204,7 +204,7 @@ export default function HoursGrid({
               </div>
 
               {d.mode === 'closed' && (
-                <span className="text-xs text-gray-400 dark:text-gray-500">Closed all day</span>
+                <span className="text-xs text-gray-500 dark:text-gray-400">Closed all day</span>
               )}
               {d.mode === 'appt' && (
                 <span className="text-xs text-violet-600 dark:text-violet-300">By appointment only</span>

@@ -61,7 +61,7 @@ export function CopyChip({
       <span className="font-mono truncate">{value}</span>
       <span
         aria-live="polite"
-        className={`shrink-0 font-medium ${copied ? 'text-emerald-700 dark:text-emerald-300' : 'text-gray-400 dark:text-gray-500 group-hover:text-gray-600 dark:group-hover:text-gray-300'}`}
+        className={`shrink-0 font-medium ${copied ? 'text-emerald-700 dark:text-emerald-300' : 'text-gray-500 dark:text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-300'}`}
       >
         {copied ? 'Copied ✓' : 'Copy'}
       </span>

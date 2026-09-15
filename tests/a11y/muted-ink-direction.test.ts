@@ -38,13 +38,25 @@ import { AA, contrast, DARK, LIGHT, ROOT, SURFACES, token } from './palette'
  * against every possible ancestor is the "208 places to catch 8" trade its own
  * header refuses.
  *
- * **THE SWEEP IS NOT DONE, AND THAT IS DELIBERATE.**
- * `text-gray-400 dark:text-gray-500` appears at **177 sites** across `app/`,
- * `components/` and `lib/` — the house pattern is the wrong one, and the four
- * correct sites are the minority. This file fixes the ONE element that turned a
- * required check red and leaves the other 176 to the UI lane, with the
- * measurement above as the hand-off. Do not read a green run here as a clean
- * tree: this test grades the palette and ONE component, and says so.
+ * ~~**THE SWEEP IS NOT DONE, AND THAT IS DELIBERATE.**~~ **THE SWEEP IS DONE —
+ * UI batch 64, DREAMCRM-62, the same day.** This file shipped fixing the ONE
+ * element that turned a required check red and handed the other 176 to the UI
+ * lane with the measurement above; that hand-off was taken, and
+ * `text-gray-400 dark:text-gray-500` now appears at **zero sites** across
+ * `app/`, `components/` and `lib/`. The house pattern is the right one now.
+ *
+ * THIS FILE STILL EARNS ITS PLACE, and the reason is the division of labour
+ * rather than sentiment. It grades the PALETTE — that the direction is a fact
+ * derivable from the ramp in both themes, not a preference — and pins the
+ * exact string on the two saved-views bars. The tree-wide half is
+ * `tests/a11y/class-pairs.ts` rule 6 + `tests/a11y/quiet-ink.test.ts`, which
+ * arrived with that sweep and holds every such pair at zero by measuring
+ * against the best-case surface of each theme. Two instruments, different
+ * subjects, no shared inventory to disagree about: this one would fail if the
+ * palette moved under the rule, that one if a call site drifted back.
+ *
+ * Do not read a green run HERE as a clean tree even so — it grades the palette
+ * and two named components, and says so.
  */
 
 const LIGHT_INK = 'gray-500'
@@ -91,8 +103,10 @@ describe('the muted label ink is gray-500 in the light and gray-400 in the dark'
         src,
         `${file} paints its "Views:" label with an ink that is unreadable in ` +
           `light mode (${DARK_INK} measures 2.29-2.63 on every surface). The ` +
-          `pair is text-${LIGHT_INK} dark:text-${DARK_INK} — 177 other sites in ` +
-          `this tree still have it backwards; see this file's header.`,
+          `pair is text-${LIGHT_INK} dark:text-${DARK_INK}, and since UI batch ` +
+          `64 that is true of every such pair in the tree — tests/a11y/` +
+          `quiet-ink.test.ts holds the tree-wide half at zero, so a lone ` +
+          `failure here means this file drifted rather than that a sweep is owed.`,
       ).toContain(`text-${LIGHT_INK} dark:text-${DARK_INK} mr-0.5">Views:`)
       expect(src).not.toContain(`text-${DARK_INK} dark:text-${LIGHT_INK} mr-0.5">Views:`)
     }

@@ -118,7 +118,7 @@ export default async function ShareCardsPage() {
             key={card.key}
             className="dc-share-card v2-card p-6 sm:p-8 flex flex-col items-center text-center"
           >
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-400 dark:text-gray-500 mb-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500 dark:text-gray-400 mb-4">
               {clinicName}
             </p>
             {/* Inline SVG QR — white tile behind it in both themes so scanners
@@ -135,7 +135,7 @@ export default async function ShareCardsPage() {
             <p className="text-sm text-gray-500 dark:text-gray-400 leading-relaxed mb-3">
               {card.subtitle}
             </p>
-            <p className="text-xs font-mono text-gray-400 dark:text-gray-500 break-all">
+            <p className="text-xs font-mono text-gray-500 dark:text-gray-400 break-all">
               {card.url}
             </p>
             <p className="no-print mt-4 text-xs font-medium text-teal-700 dark:text-teal-400">

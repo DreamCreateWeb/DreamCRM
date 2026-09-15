@@ -167,7 +167,7 @@ function ActivityMarkers({ markers }: { markers: ActivityMarkerLite[] }) {
   const line = (m: ActivityMarkerLite) => (
     <div
       key={m.id}
-      className="flex items-center justify-center gap-1.5 px-4 text-xs text-gray-400 dark:text-gray-500"
+      className="flex items-center justify-center gap-1.5 px-4 text-xs text-gray-500 dark:text-gray-400"
     >
       <span aria-hidden="true" className="shrink-0">{m.icon}</span>
       {m.href ? (
@@ -191,7 +191,7 @@ function ActivityMarkers({ markers }: { markers: ActivityMarkerLite[] }) {
         <div className="space-y-1">{markers.map(line)}</div>
       ) : (
         <details className="group/act">
-          <summary className="flex cursor-pointer list-none items-center justify-center gap-1.5 text-xs text-gray-400 dark:text-gray-500 [&::-webkit-details-marker]:hidden">
+          <summary className="flex cursor-pointer list-none items-center justify-center gap-1.5 text-xs text-gray-500 dark:text-gray-400 [&::-webkit-details-marker]:hidden">
             <span aria-hidden="true" className="tracking-tight">
               {markers.slice(0, 5).map((m) => m.icon).join(' ')}
               {markers.length > 5 ? ' …' : ''}
@@ -357,7 +357,7 @@ function ToolButton({
         className={`shrink-0 transition-colors ${
           active
             ? 'text-teal-600 dark:text-teal-400'
-            : 'text-gray-400 dark:text-gray-500 group-hover:text-gray-600 dark:group-hover:text-gray-300'
+            : 'text-gray-500 dark:text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-300'
         }`}
       >
         {icon}
@@ -820,7 +820,7 @@ export default function ThreadDetailPanel({
                   </button>
                 )}
                 {members.length === 0 ? (
-                  <p className="px-3 py-1.5 text-xs text-gray-400 dark:text-gray-500">No teammates yet</p>
+                  <p className="px-3 py-1.5 text-xs text-gray-500 dark:text-gray-400">No teammates yet</p>
                 ) : (
                   members.map((m) => {
                     const isCurrent = m.userId === thread.assignedUserId
@@ -941,7 +941,7 @@ export default function ThreadDetailPanel({
           >
             {/* Next visit */}
             <span className="inline-flex items-center gap-1.5">
-              <span className="text-gray-400 dark:text-gray-500"><IconCalendar /></span>
+              <span className="text-gray-500 dark:text-gray-400"><IconCalendar /></span>
               <span className="text-xs font-semibold uppercase tracking-wide text-[color:var(--color-ink-500)]">Next</span>
               {patientContext.nextVisitAt ? (
                 <span className="font-medium text-gray-700 dark:text-gray-200 font-mono-num tabular-nums">
@@ -955,7 +955,7 @@ export default function ThreadDetailPanel({
             <StripDivider />
             {/* Last visit */}
             <span className="inline-flex items-center gap-1.5">
-              <span className="text-gray-400 dark:text-gray-500"><IconClock /></span>
+              <span className="text-gray-500 dark:text-gray-400"><IconClock /></span>
               <span className="text-xs font-semibold uppercase tracking-wide text-[color:var(--color-ink-500)]">Last</span>
               {patientContext.lastVisitAt ? (
                 <span className="font-medium text-gray-700 dark:text-gray-200 font-mono-num tabular-nums">
@@ -975,7 +975,7 @@ export default function ThreadDetailPanel({
                     ? 'text-rose-500 dark:text-rose-400'
                     : patientContext.outstandingBalanceCents === 0
                       ? 'text-emerald-500 dark:text-emerald-400'
-                      : 'text-gray-400 dark:text-gray-500'
+                      : 'text-gray-500 dark:text-gray-400'
                 }
               >
                 <IconCard />
@@ -1193,7 +1193,7 @@ export default function ThreadDetailPanel({
                                 className={`inline-flex items-center gap-0.5 ${
                                   last.readByPatientAt
                                     ? 'text-teal-600 dark:text-teal-400 font-medium'
-                                    : 'text-gray-400 dark:text-gray-500'
+                                    : 'text-gray-500 dark:text-gray-400'
                                 }`}
                                 title={
                                   last.channel === 'email'

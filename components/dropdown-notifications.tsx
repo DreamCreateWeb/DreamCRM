@@ -262,7 +262,7 @@ export default function DropdownNotifications({ align }: { align?: 'left' | 'rig
                               {n.body && (
                                 <p className="mt-0.5 line-clamp-2 text-xs leading-relaxed text-gray-500 dark:text-gray-400">{n.body}</p>
                               )}
-                              <p className="mt-1 text-xs font-medium tabular-nums text-gray-400 dark:text-gray-500">
+                              <p className="mt-1 text-xs font-medium tabular-nums text-gray-500 dark:text-gray-400">
                                 {formatRelative(n.createdAt)}
                               </p>
                             </div>
@@ -273,7 +273,7 @@ export default function DropdownNotifications({ align }: { align?: 'left' | 'rig
                           onClick={(e) => handleDismiss(n, e)}
                           aria-label="Dismiss notification"
                           title="Dismiss"
-                          className="absolute right-2 top-2.5 flex h-5 w-5 items-center justify-center rounded text-gray-400 opacity-0 transition-opacity hover:bg-gray-200/70 hover:text-gray-700 focus:opacity-100 group-hover:opacity-100 dark:text-gray-500 dark:hover:bg-gray-600/50 dark:hover:text-gray-200"
+                          className="absolute right-2 top-2.5 flex h-5 w-5 items-center justify-center rounded text-gray-500 opacity-0 transition-opacity hover:bg-gray-200/70 hover:text-gray-700 focus:opacity-100 group-hover:opacity-100 dark:text-gray-400 dark:hover:bg-gray-600/50 dark:hover:text-gray-200"
                         >
                           <svg width="9" height="9" viewBox="0 0 9 9" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
                             <path

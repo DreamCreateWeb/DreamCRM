@@ -119,7 +119,7 @@ export default function AutomationMessageEditor({
         >
           {custom ? 'Customized — sends your version' : 'Stock message — sends the built-in copy'}
         </span>
-        <span className="text-xs text-gray-400 dark:text-gray-500">
+        <span className="text-xs text-gray-500 dark:text-gray-400">
           {'{{firstName}}'} and {'{{bookingUrl}}'} fill in per patient
         </span>
       </div>
@@ -192,7 +192,7 @@ export default function AutomationMessageEditor({
                 Reset to the stock message
               </button>
             ) : (
-              <span className="text-xs text-gray-400 dark:text-gray-500">
+              <span className="text-xs text-gray-500 dark:text-gray-400">
                 Saving makes this your version — you can always reset.
               </span>
             )}

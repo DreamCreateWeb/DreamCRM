@@ -331,7 +331,7 @@ export default function ShopClient({
                     className="flex items-center justify-between gap-3 py-2 first:pt-0 last:pb-0"
                   >
                     <div className="flex items-center gap-2.5 min-w-0">
-                      <span className="text-xs font-mono-num tabular-nums text-gray-400 dark:text-gray-500 w-4 shrink-0">
+                      <span className="text-xs font-mono-num tabular-nums text-gray-500 dark:text-gray-400 w-4 shrink-0">
                         {i + 1}
                       </span>
                       {/* v3 action-links law: a best seller opens its product
@@ -549,7 +549,7 @@ function SectionCard({ href, icon, title, stat, statTone, description }: Section
             <NavIcon name={icon} className="shrink-0 fill-current w-5 h-5" />
           </span>
           <span
-            className="text-gray-400 dark:text-gray-500 group-hover:text-teal-700 dark:group-hover:text-teal-300 transition-colors"
+            className="text-gray-500 dark:text-gray-400 group-hover:text-teal-700 dark:group-hover:text-teal-300 transition-colors"
             aria-hidden
           >
             →

@@ -399,6 +399,23 @@ export const INTAKE_RULES = [
       // everyone's diff, and that is the thing intake is for.
       'tests/a11y/legibility-floor.test.ts',
       'tests/a11y/retired-tones.test.ts',
+      // The two PALETTE-GRADING rules that are not tree walks, and so reached
+      // neither half of the derivation until #597 added a second one. A test
+      // built on `tests/a11y/palette.ts` — the one place this repo resolves
+      // its own colours and computes AA — asserts a repo-wide fact whether or
+      // not it opens a directory. `muted-ink-direction` (#598) is the worked
+      // example: a new class of assertion, merged with no label and no intake,
+      // because it was neither an enumerated path nor a walk.
+      'tests/a11y/muted-ink-direction.test.ts',
+      'tests/a11y/portal-palette.test.ts',
+      // Rule 6, the quiet-ink gate (DREAMCRM-62 / UI batch 64). A NEW CLASS of
+      // assertion rather than a case on an existing one, which is the
+      // distinction this entry's `why` asks to be stated rather than guessed:
+      // it grades a neutral ink declared for BOTH themes on an element with no
+      // surface of its own — the family rule 1 structurally cannot see, because
+      // rule 1 needs a `bg-` on the same element to measure against. 177 places
+      // were failing it in both themes when it landed.
+      'tests/a11y/quiet-ink.test.ts',
       // The remaining tree-wide scanners, each holding the product at zero for
       // one convention. Derived from the tree by the guard test, not recalled.
       // A NEW CLASS rather than another instance of an existing one: it holds

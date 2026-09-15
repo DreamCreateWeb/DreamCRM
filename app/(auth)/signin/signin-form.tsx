@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { signIn, authClient } from '@/lib/auth-client'
 import { isDeploymentSkewError } from '@/lib/auth/submit-guard'
+import { TONE_PILL } from '@/lib/ui/encodings'
 
 // If the sign-in fetch ever exceeds this, surface an error so the user
 // isn't stuck staring at "Signing In…". Cold DB cold start should be
@@ -159,7 +160,7 @@ export default function SignInForm() {
         )}
       </div>
       {error && (
-        <div role="alert" className="mt-4 text-sm text-red-600 bg-red-50 dark:bg-red-500/10 px-3 py-2 rounded">
+        <div role="alert" className={`mt-4 text-sm ${TONE_PILL.urgent} px-3 py-2 rounded`}>
           {error}
         </div>
       )}

@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { requestPasswordReset } from '@/lib/auth-client'
 import { isDeploymentSkewError } from '@/lib/auth/submit-guard'
+import { TONE_PILL } from '@/lib/ui/encodings'
 
 /** Only accept a same-origin relative path as the post-reset return target, so
  *  ?next= can't be turned into an open redirect. */
@@ -80,7 +81,7 @@ export default function ResetForm() {
         </div>
       </div>
       {error && (
-        <div role="alert" className="mt-4 text-sm text-red-600 bg-red-50 dark:bg-red-500/10 px-3 py-2 rounded">
+        <div role="alert" className={`mt-4 text-sm ${TONE_PILL.urgent} px-3 py-2 rounded`}>
           {error}
         </div>
       )}

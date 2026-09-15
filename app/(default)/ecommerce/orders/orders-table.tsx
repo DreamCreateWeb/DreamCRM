@@ -25,7 +25,7 @@ export default function OrdersTable({ orders }: { orders: OrderRow[] }) {
     <div className="v2-card relative">
       <header className="px-5 py-4">
         <h2 className="font-semibold text-gray-800 dark:text-gray-100">
-          All Orders <span className="text-gray-400 dark:text-gray-500 font-medium">{orders.length}</span>
+          All Orders <span className="text-gray-500 dark:text-gray-400 font-medium">{orders.length}</span>
         </h2>
       </header>
       <div>

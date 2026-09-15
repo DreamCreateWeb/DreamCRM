@@ -533,7 +533,7 @@ export default async function AnalyticsPage({ searchParams }: Props) {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2">
             {a.pmsOwned.map((p) => (
               <div key={p.label} className="flex items-start gap-2">
-                <span className="text-gray-400 dark:text-gray-500 mt-0.5" aria-hidden="true">·</span>
+                <span className="text-gray-500 dark:text-gray-400 mt-0.5" aria-hidden="true">·</span>
                 <p className="text-xs text-gray-600 dark:text-gray-300">
                   <span className="font-medium text-gray-700 dark:text-gray-200">{p.label}</span> — {p.detail}
                 </p>
@@ -584,7 +584,7 @@ function DeltaBadge({ value }: { value: number }) {
 function RateTrend({ cur, prev, lowerIsBetter = false }: { cur: number | null; prev: number | null; lowerIsBetter?: boolean }) {
   if (cur == null || prev == null) return null
   const pts = Math.round((cur - prev) * 1000) / 10
-  if (pts === 0) return <span className="text-gray-400 dark:text-gray-500"> · flat vs prev</span>
+  if (pts === 0) return <span className="text-gray-500 dark:text-gray-400"> · flat vs prev</span>
   const improved = lowerIsBetter ? pts < 0 : pts > 0
   return (
     <span className={`font-medium ${improved ? TONE_TEXT.ok : TONE_TEXT.urgent}`}>
@@ -596,7 +596,7 @@ function RateTrend({ cur, prev, lowerIsBetter = false }: { cur: number | null; p
 /** A neutral count delta (volume isn't "good" or "bad", just up/down). */
 function VolumeTrend({ cur, prev }: { cur: number; prev: number }) {
   const d = cur - prev
-  if (d === 0) return <span className="text-gray-400 dark:text-gray-500">flat vs previous period</span>
+  if (d === 0) return <span className="text-gray-500 dark:text-gray-400">flat vs previous period</span>
   return (
     <span className="text-gray-500 dark:text-gray-400 tabular-nums font-mono-num">
       {d > 0 ? '▲' : '▼'} {Math.abs(d)} vs previous period
@@ -626,7 +626,7 @@ function Bars({ points, className = '' }: { points: TrendPoint[]; className?: st
             className="absolute inset-x-0 z-10 border-t border-dashed border-gray-300/80 dark:border-gray-600/70 pointer-events-none"
             style={{ bottom: `${(avg / max) * 100}%` }}
           >
-            <span className="absolute -top-2 right-0 text-xs text-gray-400 dark:text-gray-500 bg-[color:var(--color-surface-1)] px-1">
+            <span className="absolute -top-2 right-0 text-xs text-gray-500 dark:text-gray-400 bg-[color:var(--color-surface-1)] px-1">
               avg {Math.round(avg)}
             </span>
           </div>
@@ -649,7 +649,7 @@ function Bars({ points, className = '' }: { points: TrendPoint[]; className?: st
       </div>
       <div className="flex gap-1 mt-1">
         {points.map((p, i) => (
-          <span key={i} className="flex-1 text-xs text-gray-400 dark:text-gray-500 truncate text-center">
+          <span key={i} className="flex-1 text-xs text-gray-500 dark:text-gray-400 truncate text-center">
             {i % labelEvery === 0 ? p.label : ''}
           </span>
         ))}

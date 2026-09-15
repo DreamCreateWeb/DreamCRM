@@ -56,7 +56,7 @@ export default function ProfileSidebar() {
               <input id="profile-search" className="form-input w-full pl-9 bg-white dark:bg-gray-800" type="search" placeholder="Search…" />
               <button className="absolute inset-0 right-auto group" type="submit" aria-label="Search">
                 <svg
-                  className="shrink-0 fill-current text-gray-400 dark:text-gray-500 group-hover:text-gray-500 dark:group-hover:text-gray-400 ml-3 mr-2"
+                  className="shrink-0 fill-current text-gray-500 dark:text-gray-400 group-hover:text-gray-500 dark:group-hover:text-gray-400 ml-3 mr-2"
                   width="16"
                   height="16"
                   viewBox="0 0 16 16"
@@ -69,7 +69,7 @@ export default function ProfileSidebar() {
             </form>
             {/* Team members */}
             <div className="mt-4">
-              <div className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase mb-3">Team members</div>
+              <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-3">Team members</div>
               <ul className="mb-6">
                 <li className="-mx-2">
                   <button className="w-full p-2 rounded-lg bg-linear-to-r from-violet-500/[0.12] dark:from-violet-500/[0.24] to-violet-500/[0.04]" onClick={() => setFlyoutOpen(false)}>

@@ -467,7 +467,7 @@ function QueueRail({
     <div className={`mb-4 flex flex-wrap items-center gap-3${viewAll ? '' : ' mx-auto w-full max-w-2xl'}`}>
       {!viewAll && (
         <span className="whitespace-nowrap font-mono-num text-xs font-bold text-gray-700 dark:text-gray-200">
-          {pos} <span className="font-normal text-gray-400 dark:text-gray-500">of {proposals.length}</span>
+          {pos} <span className="font-normal text-gray-500 dark:text-gray-400">of {proposals.length}</span>
         </span>
       )}
       <div className="flex flex-1 flex-wrap items-center gap-1.5" aria-label="The queue">
@@ -515,7 +515,7 @@ function QueueRail({
           {/* The arrow-key path has worked since the stack shipped and
               nothing said so. A hint costs one line and turns a hidden
               feature into a real one; hidden on touch, where it is a lie. */}
-          <span className="hidden whitespace-nowrap text-xs text-gray-400 dark:text-gray-500 sm:inline">
+          <span className="hidden whitespace-nowrap text-xs text-gray-500 dark:text-gray-400 sm:inline">
             or press{' '}
             <kbd className="rounded border border-[color:var(--color-hairline-strong)] px-1 font-mono-num text-xs">
               ←
@@ -689,7 +689,7 @@ function GrantsStrip({
                       <div className="min-w-0 flex-1 text-xs">
                         <p className="text-gray-700 dark:text-gray-200">
                           <span className="font-semibold">{w.label}</span>
-                          <span className="text-gray-400 dark:text-gray-500"> — {w.count} this week:</span>
+                          <span className="text-gray-500 dark:text-gray-400"> — {w.count} this week:</span>
                         </p>
                         <ul className="mt-0.5 space-y-0.5 text-gray-500 dark:text-gray-400">
                           {shownLines.map((line, i) => (
@@ -919,7 +919,7 @@ function ProposalCard({
               </span>
             )}
           </div>
-          <p className="text-xs uppercase tracking-wider text-gray-400 dark:text-gray-500 mt-0.5">
+          <p className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 mt-0.5">
             {proposal.capabilityLabel}
             {proposal.meta ? ` · ${proposal.meta}` : ''}
           </p>
@@ -974,7 +974,7 @@ function ProposalCard({
             />
           ) : (
             <p className="text-sm text-gray-700 dark:text-gray-200">
-              <span className="text-xs uppercase tracking-wider text-gray-400 dark:text-gray-500 mr-2">Subject</span>
+              <span className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 mr-2">Subject</span>
               <span className="font-medium">{subject}</span>
             </p>
           )}
@@ -1044,7 +1044,7 @@ function ProposalCard({
                 </button>
               )}
               {!image && !imageUploading && (
-                <span className="text-xs text-gray-400 dark:text-gray-500">
+                <span className="text-xs text-gray-500 dark:text-gray-400">
                   Posts without one — exactly as shown.
                 </span>
               )}

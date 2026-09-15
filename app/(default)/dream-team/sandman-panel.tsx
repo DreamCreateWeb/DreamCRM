@@ -197,7 +197,7 @@ export default function SandmanPanel({ clinicName }: { clinicName: string }) {
                           </button>
                         ))}
                       </div>
-                      <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
+                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                         They&rsquo;ll draft it — nothing goes out until you approve it.
                       </p>
                     </div>
