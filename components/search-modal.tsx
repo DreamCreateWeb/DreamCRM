@@ -168,7 +168,7 @@ export default function SearchModal({ isOpen, setIsOpen }: SearchModalProps) {
                     <path d="M15.707 14.293L13.314 11.9a8.019 8.019 0 01-1.414 1.414l2.393 2.393a.997.997 0 001.414 0 .999.999 0 000-1.414z" />
                   </svg>
                 </div>
-                <kbd className="absolute right-3 top-1/2 -translate-y-1/2 rounded border border-gray-200 px-1.5 py-0.5 text-[10px] font-semibold text-gray-400 dark:border-gray-700 dark:text-gray-500">
+                <kbd className="absolute right-3 top-1/2 -translate-y-1/2 rounded border border-gray-200 px-1.5 py-0.5 text-xs font-semibold text-gray-400 dark:border-gray-700 dark:text-gray-500">
                   esc
                 </kbd>
               </div>
@@ -239,7 +239,7 @@ export default function SearchModal({ isOpen, setIsOpen }: SearchModalProps) {
                                 )}
                               </span>
                               {active && (
-                                <kbd className="ml-2 shrink-0 rounded border border-gray-200 px-1.5 py-0.5 text-[10px] font-semibold text-gray-400 dark:border-gray-600 dark:text-gray-500">
+                                <kbd className="ml-2 shrink-0 rounded border border-gray-200 px-1.5 py-0.5 text-xs font-semibold text-gray-400 dark:border-gray-600 dark:text-gray-500">
                                   ↵
                                 </kbd>
                               )}
