@@ -8,6 +8,7 @@ import {
 } from '@/lib/types/onboarding-interview'
 import { runOnboardingDraft, saveInterviewDraftAction, skipInterviewAction } from './actions'
 import { isDeploymentSkewError } from '@/lib/auth/submit-guard'
+import { TONE_FILL } from '@/lib/ui/encodings'
 
 /** Client-safe service-library row for the checkbox step. */
 export interface ServicePick {
@@ -504,7 +505,7 @@ function DraftingChecklist() {
               <span
                 className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${
                   isDone
-                    ? 'bg-emerald-500 text-white'
+                    ? TONE_FILL.ok
                     : isActive
                       ? 'border-2 border-stone-300 border-t-stone-800 dark:border-stone-600 dark:border-t-stone-200 motion-safe:animate-spin'
                       : 'border-2 border-stone-200 dark:border-stone-700'

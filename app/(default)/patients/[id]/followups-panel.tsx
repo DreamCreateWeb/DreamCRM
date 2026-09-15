@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { ActionButton } from '@/components/ui/action-button'
+import { TONE_FILL } from '@/lib/ui/encodings'
 import {
   followupDueState,
   formatDueLabel,
@@ -155,7 +156,7 @@ function FollowupItem({
         onClick={done ? onReopen : onComplete}
         aria-label={done ? 'Reopen follow-up' : 'Mark done'}
         className={`mt-0.5 h-4 w-4 shrink-0 rounded-full border ${
-          done ? 'border-emerald-500 bg-emerald-500 text-white' : 'border-gray-300 dark:border-gray-600 hover:border-teal-500'
+          done ? `border-emerald-500 ${TONE_FILL.ok}` : 'border-gray-300 dark:border-gray-600 hover:border-teal-500'
         } grid place-items-center`}
       >
         {done && (

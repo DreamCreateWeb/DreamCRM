@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import Logo from '@/components/ui/logo'
+import { TONE_FILL, TONE_FILL_HOVER } from '@/lib/ui/encodings'
 
 export const metadata = {
   title: 'Page not found - DreamCRM',
@@ -24,7 +25,7 @@ export default function NotFound() {
       </p>
       <Link
         href="/"
-        className="mt-6 inline-flex items-center justify-center rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500"
+        className={`mt-6 inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 ${TONE_FILL.info} ${TONE_FILL_HOVER.info}`}
       >
         Back to home
       </Link>

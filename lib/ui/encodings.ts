@@ -95,6 +95,82 @@ export const TONE_DOT: Record<Tone, string> = {
   neutral: 'bg-gray-400',
 }
 
+/**
+ * Solid fill + the label that rides ON it — count badges, status chips, done
+ * markers, avatar wells, small tone-coloured chip buttons. The fourth tone
+ * recipe, and the one that was missing.
+ *
+ * WHY IT EXISTS. `TONE_PILL` covers a tone's own 15%-alpha wash, `TONE_TEXT`
+ * covers plain ink, `TONE_DOT` covers a swatch with no text on it — and the
+ * shape that is BOTH a saturated fill AND carries a label had no home at all.
+ * So it got picked by hand each time it came up. UI batch 59 picked it four
+ * times, measured every time, and landed on two different answers (amber-500
+ * with dark ink; teal-600 with white) that were written down nowhere a person
+ * would look. Half the product's solid tone fills were ad-hoc and failing:
+ * white on amber-500 is 2.13 and shipped in the sidebar count badge, the
+ * notification bell and the dunning banner.
+ *
+ * ONE INK, NOT SIX. `text-gray-900` for every tone. The label on a warn fill
+ * and the label on an urgent fill are the same colour, so "a solid tone fill"
+ * reads as one thing rather than six — the same argument `TONE_PILL` makes for
+ * holding all its inks at the 800 step. Dark rather than white because white
+ * clears on NO tone at its identity step (the worst is amber at 2.13, the best
+ * gray-500 at 5.30) and reaching it means driving every hue to the 600/700 end,
+ * where amber stops being amber and starts being brown — the objection batch 59
+ * already recorded when it sent the messaging badges to dark ink instead.
+ *
+ * WHERE EACH FILL COMES FROM, as a rule and not a table: **start at the tone's
+ * identity step — the one `TONE_DOT` already uses — and step LIGHTER, never
+ * deeper, if it cannot carry the shared ink.** `ok`, `warn` and `neutral` stay
+ * exactly where the dot is (6.20, 7.18, 5.83). `urgent`, `info` and `special`
+ * cannot: rose/violet/fuchsia-500 measure 4.08, 4.19 and 4.32 against a 4.5
+ * floor, so each moves one step lighter to 5.36, 5.55 and 5.92. Lighter and not
+ * darker is the whole point — with dark ink, deeper is the direction that fails,
+ * and it is also the direction that costs a hue its name. Worst pair in the
+ * table: 5.36. `token-contrast.test.ts` re-derives all of this from the palette
+ * on every run, including that the dot's step really does fail for those three
+ * and that white really does fail on all six — do not re-pick these by eye.
+ *
+ * NO `dark:` HALF. A solid opaque fill IS the surface, so unlike a pill's wash
+ * it composites over nothing and measures identically in both themes. Adding a
+ * `dark:text-*` or `dark:bg-*` to one of these is not parity work, it is the
+ * exact defect `tests/a11y/dark-mode-parity.test.ts` was built to catch — three
+ * chips carrying `dark:text-gray-900` with no `dark:bg-*` are why it exists.
+ *
+ * NOT THIS RECIPE: the brand ramp (teal is identity, never a status — a
+ * white-label brand fill is `teal-600` and lives in `DESIGN-SYSTEM.md`'s
+ * accent-usage rules), and `ActionButton`'s variant table, which is the design
+ * system's single home for a BUTTON's fill.
+ */
+export const TONE_FILL: Record<Tone, string> = {
+  ok: 'bg-emerald-500 text-gray-900',
+  warn: 'bg-amber-500 text-gray-900',
+  urgent: 'bg-rose-400 text-gray-900',
+  info: 'bg-violet-400 text-gray-900',
+  special: 'bg-fuchsia-400 text-gray-900',
+  neutral: 'bg-gray-400 text-gray-900',
+}
+
+/**
+ * Hover fill for an INTERACTIVE `TONE_FILL` — append it, it carries no ink.
+ *
+ * One step lighter than the resting fill, on the same ramp. Deepening on hover
+ * is the reflex, and here it is the direction that walks the label back toward
+ * the floor: `hover:bg-amber-600` under `text-gray-900` is 4.79 where the
+ * resting pair was 7.18, and `hover:bg-rose-500` under it fails outright at
+ * 4.08. Lighter is monotonically safer with a dark ink — the worst hover pair
+ * here is 7.56 — and the Studio's "Apply this design" button had already
+ * arrived at the same shape by hand.
+ */
+export const TONE_FILL_HOVER: Record<Tone, string> = {
+  ok: 'hover:bg-emerald-400',
+  warn: 'hover:bg-amber-400',
+  urgent: 'hover:bg-rose-300',
+  info: 'hover:bg-violet-300',
+  special: 'hover:bg-fuchsia-300',
+  neutral: 'hover:bg-gray-300',
+}
+
 /* ------------------------------------------------------------------ */
 /* Flag glyphs                                                         */
 /* ------------------------------------------------------------------ */

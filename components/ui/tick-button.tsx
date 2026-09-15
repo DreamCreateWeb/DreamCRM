@@ -14,6 +14,8 @@
  * board of ticks all reading busy because somebody ticked the first one is
  * the shared-flag defect this pair exists to keep apart.
  */
+import { TONE_FILL } from '@/lib/ui/encodings'
+
 export function TickButton({
   done = false,
   pending = false,
@@ -38,7 +40,7 @@ export function TickButton({
       aria-label={done ? 'Reopen' : 'Mark done'}
       className={`group h-5 w-5 shrink-0 rounded-full border grid place-items-center disabled:opacity-50 transition-colors ${
         done
-          ? 'border-emerald-500 bg-emerald-500 text-white'
+          ? `border-emerald-500 ${TONE_FILL.ok}`
           : 'border-gray-300 dark:border-gray-600 hover:border-teal-500'
       } ${className}`}
     >

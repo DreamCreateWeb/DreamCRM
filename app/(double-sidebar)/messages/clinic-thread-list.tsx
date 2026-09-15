@@ -6,7 +6,7 @@ import { PendingVeil } from '@/components/ui/pending-veil'
 import Link from 'next/link'
 import { BulkBar } from '@/components/ui/bulk-bar'
 import { ActionButton } from '@/components/ui/action-button'
-import { agingBorderClass, messageRotTier } from '@/lib/ui/encodings'
+import { agingBorderClass, messageRotTier, TONE_FILL } from '@/lib/ui/encodings'
 import { channelMeta } from './channel-meta'
 import { avatarTint, messageInitials } from './message-grouping'
 import { StatusPill } from '@/components/ui/status-pill'
@@ -286,7 +286,7 @@ export default function ClinicThreadList({
                       </span>
                       {unread && (
                         <span
-                          className="text-xs font-bold px-1.5 py-0.5 rounded-[var(--r-xs)] bg-amber-500 text-gray-900 tabular-nums"
+                          className={`text-xs font-bold px-1.5 py-0.5 rounded-[var(--r-xs)] tabular-nums ${TONE_FILL.warn}`}
                           title={`${t.unreadCount} unread message${t.unreadCount === 1 ? '' : 's'}`}
                         >
                           {t.unreadCount}

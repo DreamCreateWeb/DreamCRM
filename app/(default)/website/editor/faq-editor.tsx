@@ -7,6 +7,7 @@ import {
   type ClinicFaqItem,
 } from '@/lib/types/clinic-content'
 import { AddButton, EditorCard, Field, inputCls, selectCls, textareaCls } from '@/components/ui/editor-kit'
+import { TONE_FILL, TONE_FILL_HOVER } from '@/lib/ui/encodings'
 
 interface Props {
   name: string
@@ -66,7 +67,7 @@ export default function FaqEditor({ name, defaultValue }: Props) {
             <button
               type="button"
               onClick={seedDefaults}
-              className="btn-sm bg-violet-600 hover:bg-violet-700 text-white"
+              className={`btn-sm ${TONE_FILL.info} ${TONE_FILL_HOVER.info}`}
             >
               ✨ Start from the basics
             </button>

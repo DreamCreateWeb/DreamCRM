@@ -96,6 +96,41 @@ selection, focus, links, active nav, chart series 1. A brand-blue pill is a
 contract violation. Badges meaning "needs attention" (sidebar counts
 included) are `warn` amber.
 
+**Four recipes per tone, and a solid fill is one of them.** `TONE_PILL` is the
+tone's own 15%-alpha wash, `TONE_TEXT` its plain ink, `TONE_DOT` a swatch with
+nothing written on it — and **`TONE_FILL` is a solid fill with a label ON it**:
+count badges, done markers, avatar wells, small tone-coloured chip buttons.
+That fourth shape had no home until batch 63, so it was picked by hand every
+time it came up (white on `amber-500`, 2.13:1, shipped in the sidebar count
+badge and the notification bell). `TONE_FILL_HOVER` is its interactive half.
+Three rules govern it, all derived from the palette by
+`tests/a11y/token-contrast.test.ts` rather than transcribed:
+
+- **One ink for all six tones** — `text-gray-900`. The same argument
+  `TONE_PILL` makes for holding every tone's ink at one step: a label on a
+  warn fill and a label on an urgent fill are the same colour, so "a solid
+  tone fill" reads as one thing rather than six. Dark rather than white
+  because white clears on NO tone at its identity step, and reaching it means
+  driving every hue to the 600/700 end, where amber stops being amber.
+- **Start at the tone's identity step — the one `TONE_DOT` uses — and step
+  LIGHTER, never deeper, if it cannot carry that ink.** `ok`, `warn` and
+  `neutral` stay where the dot is (6.20, 7.18, 5.83); rose/violet/fuchsia-500
+  measure 4.08/4.19/4.32 against a 4.5 floor, so `urgent`, `info` and
+  `special` move one step lighter to 5.36/5.55/5.92. With a dark ink, deeper
+  is the direction that fails — and the direction that costs a hue its name.
+- **Hover goes one step lighter too**, for the same reason: deepening walks
+  the label back toward the floor (`amber-600` under `gray-900` is 4.79 where
+  the resting pair was 7.18; `rose-500` fails outright).
+
+A solid opaque fill IS the surface, so unlike a wash it measures identically in
+both themes and **carries no `dark:` half at all** — a lone `dark:text-*` on
+one of these is the exact defect `tests/a11y/dark-mode-parity.test.ts` exists
+to catch. Rule 5 in `tests/a11y/class-pairs.ts` holds the product at ZERO
+solid tone fills that are not the registry's, and it fails a pairing that
+clears AA by its own route: a second passing answer is how a single source of
+truth stops being one. `ActionButton`'s variant table is the separate, named
+single-home for a BUTTON's fill.
+
 ---
 
 ## Part 2 — Foundations

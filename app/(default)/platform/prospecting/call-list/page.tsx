@@ -16,6 +16,7 @@ import { EmptyState } from '@/components/ui/empty-state'
 import CallCard from './call-card'
 import PhoneQueue from './phone-queue'
 import { prospectInitials } from '@/lib/prospect-when'
+import { TONE_FILL } from '@/lib/ui/encodings'
 
 export default async function CallListPage({
   searchParams,
@@ -94,7 +95,7 @@ export default async function CallListPage({
                   className="flex min-w-0 items-center gap-2 font-semibold text-gray-900 dark:text-gray-100 hover:text-teal-600 dark:hover:text-teal-400"
                 >
                   <span
-                    className="flex h-6 w-6 shrink-0 items-center justify-center rounded-[6px] bg-violet-500 text-xs font-bold text-white"
+                    className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-[6px] text-xs font-bold ${TONE_FILL.info}`}
                     aria-hidden="true"
                   >
                     {prospectInitials(m.prospectName)}

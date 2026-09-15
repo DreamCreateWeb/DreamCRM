@@ -15,6 +15,7 @@ import { useConfirm } from '@/components/ui/confirm-dialog'
 import { useToast } from '@/components/ui/toast'
 import { useUnsavedChanges } from '@/components/ui/use-unsaved-changes'
 import { StatusPill } from '@/components/ui/status-pill'
+import { TONE_FILL, TONE_FILL_HOVER } from '@/lib/ui/encodings'
 import {
   updateBlogPostAction,
   publishBlogPostAction,
@@ -786,7 +787,7 @@ function AiDraftModal({
           <button
             onClick={() => onApply(topic)}
             disabled={busy || !topic.trim()}
-            className="text-sm font-medium px-3 py-1.5 rounded-lg bg-violet-600 hover:bg-violet-700 text-white disabled:opacity-50"
+            className={`text-sm font-medium px-3 py-1.5 rounded-lg disabled:opacity-50 ${TONE_FILL.info} ${TONE_FILL_HOVER.info}`}
           >
             {busy ? 'Drafting…' : 'Draft it'}
           </button>

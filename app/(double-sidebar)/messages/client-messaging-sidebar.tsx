@@ -11,6 +11,7 @@ import { FilterChip } from '@/components/ui/filter-chip'
 import { EmptyState } from '@/components/ui/empty-state'
 import ClientMessagingStatsCard from './client-messaging-stats'
 import NewConversationButton from './new-conversation-button'
+import { TONE_FILL } from '@/lib/ui/encodings'
 
 interface Props {
   conversations: ClientConversation[]
@@ -282,7 +283,7 @@ function TabButton({
       {label} <span className="text-gray-500 dark:text-gray-400 font-normal tabular-nums">({count})</span>
       {unread > 0 && (
         <span
-          className="ml-1 inline-flex items-center justify-center text-xs font-bold bg-amber-500 text-gray-900 rounded-full px-1.5 align-middle tabular-nums"
+          className={`ml-1 inline-flex items-center justify-center text-xs font-bold rounded-full px-1.5 align-middle tabular-nums ${TONE_FILL.warn}`}
           title={`${unread} unread`}
         >
           {unread}
@@ -323,7 +324,7 @@ function ClinicBucket({
         </div>
         {bucketUnread > 0 && (
           <span
-            className="text-xs font-bold bg-amber-500 text-gray-900 rounded-full px-1.5 py-0.5 tabular-nums"
+            className={`text-xs font-bold rounded-full px-1.5 py-0.5 tabular-nums ${TONE_FILL.warn}`}
             title={`${bucketUnread} unread in this clinic`}
           >
             {bucketUnread}
@@ -353,7 +354,7 @@ function ClinicBucket({
                   <div className="flex items-center gap-1.5 shrink-0">
                     {c.unreadCount > 0 && (
                       <span
-                        className="text-xs font-bold bg-amber-500 text-gray-900 rounded-full px-1.5 py-0.5 tabular-nums"
+                        className={`text-xs font-bold rounded-full px-1.5 py-0.5 tabular-nums ${TONE_FILL.warn}`}
                         title={`${c.unreadCount} unread`}
                       >
                         {c.unreadCount}

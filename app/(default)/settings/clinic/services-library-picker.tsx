@@ -21,6 +21,7 @@ import type { ServiceLibraryEntryWithStatus } from '@/lib/services/service-libra
 import { AddButton, EditorCard, EmptyHint, Field, inputCls, textareaCls } from '@/components/ui/editor-kit'
 import ImageUploader from '@/components/ui/image-uploader'
 import { useConfirm } from '@/components/ui/confirm-dialog'
+import { TONE_FILL, TONE_FILL_HOVER } from '@/lib/ui/encodings'
 
 /**
  * The Checkpoint 1B services editor — the picker drawer + selected-services
@@ -985,7 +986,7 @@ function ContentEditDrawer({
             type="button"
             onClick={generate}
             disabled={busy}
-            className="shrink-0 inline-flex items-center gap-1 rounded-lg bg-violet-600 text-white px-3 py-1.5 text-xs font-semibold hover:bg-violet-700 disabled:opacity-50 transition"
+            className={`shrink-0 inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-semibold disabled:opacity-50 transition ${TONE_FILL.info} ${TONE_FILL_HOVER.info}`}
           >
             {generating ? 'Writing…' : '✨ Generate'}
           </button>
