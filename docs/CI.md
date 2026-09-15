@@ -1,6 +1,6 @@
 # CI — what gates what
 
-Seven workflows. Only two of them can stop anything; the other five are alarms
+Eight workflows. Only two of them can stop anything; the other six are alarms
 and advisories.
 
 This file covers what runs *before* a merge and on the way to production. What
@@ -16,6 +16,7 @@ loads, including the one real clinic site — is `docs/OPS.md`.
 | `.github/workflows/review-gate.yml` | `pull_request` | `review-gate` | the pre-merge review gate | no — advisory only |
 | `.github/workflows/read-check.yml` | `workflow_dispatch` + `schedule` 07:00 UTC | `read-check` | the read-only role's privileges in production | no — never runs on a PR |
 | `.github/workflows/error-scan.yml` | `schedule` every 30 min + dispatch | `scan` | noticing errors inside the product | no — warns only |
+| `.github/workflows/rulebook-drift.yml` | `schedule` 06:17 UTC + dispatch | `rulebook-drift` | the rulebook still describing this repo | no — never runs on a PR |
 
 **The two newest ones touch production but gate nothing** (DREAMCRM-42;
 `docs/PROD-READ-ACCESS.md` is their runbook). Neither runs on a `pull_request`,
@@ -254,6 +255,63 @@ and the second one is the one that decays:
   rather than the day somebody remembers it. It is a *necessary* condition, not
   a definition — fee math and cart totals never import the client, and the
   curated list stays responsible for those.
+
+## The alarm that watches the rulebook (added 2026-09-14, DREAMCRM-53)
+
+`rulebook-drift.yml` asks one question every morning: **does the
+`dreamcrm-conventions` skill still describe this repository?**
+
+That skill states in prose which checks are required, that admins are bound by
+them, how many workflow files exist and which of them can block a merge, and
+how many areas the review gate enumerates. Those sentences were true when they
+were typed. Nothing had ever checked whether they still were — the skill lives
+outside the repo, so no test could go red when the repo moved underneath it.
+It moves often: the axe ratchet (#534) changed what could merge and took three
+days to reach the skill, and a meeting sweep found the skill three claims stale
+two minutes after #565 merged. Both were caught because a person chose to look,
+which is not a control.
+
+`scripts/rulebook-drift.mjs` holds the transcribed claims — each with the skill
+section that states it and the sentence it states — and grades all eight
+against the live repository:
+
+| Claim | Read from |
+| --- | --- |
+| the required set is exactly `test` and `e2e` | branch protection |
+| `strict: true` paired with `allow_update_branch: true` | protection + repo settings |
+| `enforce_admins: true` | branch protection |
+| `allow_force_pushes: false`, `allow_deletions: false` | branch protection |
+| the workflow census (which file gates what) | `.github/workflows/` |
+| only the census's workflows may publish `test` or `e2e` | `.github/workflows/` |
+| every required context has a PR-triggered producer | protection + workflows |
+| the review gate enumerates eight areas | `GATE_RULES` |
+
+**It gates nothing.** No `pull_request` trigger, no required context, no
+`needs:`. A stale sentence in a document is not a reason to hold a production
+fix. What it does is turn a daily red run into an intake, replacing the job
+that currently depends on somebody remembering.
+
+**The fast half is graded at the PR instead.**
+`tests/guards/rulebook-drift.test.ts` runs every claim that needs no network
+inside the `test` check, so adding a workflow file — or an area to the review
+gate — turns a required check **red until the claim is updated in the same PR**.
+The schedule is the backstop for what changes with no diff at all: a branch
+protection setting flipped in the GitHub UI, most of all.
+
+**An ungradeable claim fails here; it does not skip.** `read-check.yml` makes
+the opposite call, and for good reasons — it merged ahead of the owner-side
+setup, and an alarm red for a fortnight for an unrelated reason is noise by the
+time it first matters. None of that applies here: the inputs are this
+repository's own API and its own files, with nothing external pending. If the
+protection read comes back empty the cause is inside the workflow — a lost
+permission, a renamed branch — and the run says which input was missing and
+goes red. A drift detector that reports green when it detected nothing is the
+failure it exists to catch, aimed at itself.
+
+**What this does not close.** The repo↔claim gap is now mechanical. The
+claim↔skill gap is not, and cannot be: a skill document cannot hold a pointer
+into a repository an agent may not have checked out. That hop is Forge's, which
+is why every finding names the skill section to open.
 
 ## Branch protection (configured 2026-09-09, DREAMCRM-10; strict since 2026-09-10, DREAMCRM-19; admins included since 2026-09-14, DREAMCRM-40)
 

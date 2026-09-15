@@ -1,0 +1,98 @@
+name: Rulebook drift
+
+# DOES THE RULEBOOK STILL DESCRIBE THIS REPO? (DREAMCRM-53 item 1.)
+#
+# The `dreamcrm-conventions` skill states in prose which checks are required,
+# that admins are bound by them, how many workflow files exist and which of
+# them can block a merge, and how many areas the review gate enumerates. Those
+# sentences were true when they were typed. Nothing has ever checked whether
+# they still are: the skill lives outside the repository, so no test could go
+# red when the repo moved underneath it.
+#
+# It moves often. The axe ratchet (#534) changed what could merge and took
+# three days to reach the skill. A meeting sweep found the skill three claims
+# stale two minutes after #565 merged. Both were caught because a person chose
+# to look, which is not a control.
+#
+# ============================ THIS DOES NOT GATE =============================
+#
+# No `pull_request` trigger, no required context, no `needs:` on anything. It
+# cannot block a merge or a deploy and must never try to — a stale sentence in
+# a document is not a reason to hold a production fix. What it does is turn a
+# daily red run into an intake, which is the job that currently depends on
+# somebody remembering.
+#
+# The half of this check that CAN fail a PR lives elsewhere and deliberately:
+# `tests/guards/rulebook-drift.test.ts` grades every claim that needs no
+# network, inside the `test` gate. Adding a workflow file, or an area to the
+# review gate, turns a required check red until the claim is updated in the
+# same PR. So the fast-moving claims are caught at the PR and this schedule is
+# the backstop for everything that changes with no diff at all — a branch
+# protection setting flipped in the GitHub UI, most of all.
+# =============================================================================
+#
+# WHY A RED RUN HERE IS NOT LIKE A RED `read-check`. That workflow warns and
+# exits 0 when it is not configured yet, because it merged ahead of the
+# owner-side setup and an alarm red for a fortnight for an unrelated reason is
+# noise by the time it first matters. Nothing here is waiting on anybody: the
+# inputs are this repository's own API and its own files. So an ungradeable
+# claim fails, loudly. A drift detector that reports green when it detected
+# nothing is the exact failure it was built to catch, aimed at itself.
+
+on:
+  # 06:17 UTC, ahead of the 07:00 pair (nightly.yml, read-check.yml) and off
+  # the hour — the top of the hour is when GitHub's scheduler queue is longest.
+  schedule:
+    - cron: '17 6 * * *'
+  workflow_dispatch: {}
+
+concurrency:
+  group: rulebook-drift
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  # Reading branch protection is an administration read. Declared at the job's
+  # narrowest useful scope: this workflow reads settings and never writes one.
+  # If this ever comes back 403, the run fails rather than skipping — see the
+  # note on ungradeable claims above.
+  administration: read
+
+jobs:
+  # NOT named `test` or `e2e` — those are main's required contexts, and a
+  # second producer of either name can report a green check onto a commit the
+  # real suite never ran against. `tests/guards/rulebook-drift.test.ts` pins
+  # this, the same way the review-gate guard pins review-gate.yml.
+  rulebook-drift:
+    name: rulebook-drift (alarm, gates nothing)
+    runs-on: ubuntu-latest
+    # Two API calls and one small node script. No install step anywhere in this
+    # job; it has no business inheriting GitHub's 6-hour default.
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # Written to files rather than piped so the script stays a pure
+      # comparator that the guard test can drive with fixtures offline.
+      #
+      # No `|| true` and no `--silent` swallowing: if either call fails the
+      # file stays empty, the claims that need it are reported UNGRADEABLE, and
+      # the run goes red naming which input was missing. That is the intended
+      # behaviour, not a gap.
+      - name: Read branch protection and the repo's merge settings
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api repos/${{ github.repository }}/branches/main/protection > protection.json
+          gh api repos/${{ github.repository }} > repo.json
+
+      - name: Diff the repo against what the rulebook claims
+        run: node scripts/rulebook-drift.mjs --protection protection.json --repo repo.json
