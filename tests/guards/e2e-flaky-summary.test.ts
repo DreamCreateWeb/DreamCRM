@@ -59,7 +59,7 @@ const FLAKY_SPEC = {
         {
           retry: 0,
           status: 'failed',
-          error: { message: '[31mError:[39m expect(locator).toBeVisible() failed\n\n  at e2e/portal-reschedule.spec.ts:104' },
+          error: { message: '\x1b[31mError:\x1b[39m expect(locator).toBeVisible() failed\n\n  at e2e/portal-reschedule.spec.ts:104' },
         },
         { retry: 1, status: 'passed' },
       ],
@@ -112,7 +112,7 @@ describe('the flaky-run reporter', () => {
     expect(
       summary,
       'terminal colour codes render as literal garbage in a job summary',
-    ).not.toMatch(/\[/)
+    ).not.toMatch(/\x1b\[/)
   })
 
   it('reads the same results file playwright.config.ts writes', () => {

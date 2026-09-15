@@ -56,7 +56,7 @@ const FLAKY = 'flaky'
 /** Drop terminal colour codes — a job summary renders them as literal noise. */
 function plain(text) {
   // eslint-disable-next-line no-control-regex
-  return String(text ?? '').replace(/\[[0-9;]*m/g, '')
+  return String(text ?? '').replace(/\x1b\[[0-9;]*m/g, '')
 }
 
 /** First line of an error, which is the part that identifies it. */
