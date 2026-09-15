@@ -62,7 +62,7 @@ up" are different facts and only one of them is a backlog item.
    but it is the coincidence-margin `TONE_PILL`'s header warns about, sitting
    on the one control that deletes things. Carried as the sole
    `TONE_FILL_EXEMPTIONS` entry so it stays visible. Nobody has picked it up.
-5. **177 sites paint a muted label `text-gray-400 dark:text-gray-500` — the
+6. **177 sites paint a muted label `text-gray-400 dark:text-gray-500` — the
    legible step and the illegible one, swapped, in BOTH themes.** Found
    2026-09-15 by a red `e2e` on `main`: `staff: appointment drawer open` and
    `staff: cancel-appointment confirmation over the drawer` each reported
