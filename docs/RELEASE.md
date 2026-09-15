@@ -1205,9 +1205,9 @@ carrying its own. The eleventh entry is a gate hole the work turned up.
   at-least-once cron both pass the in-JS `dueTrialReminder` check against the
   same snapshot and both email — and a send that succeeds followed by a stamp
   that fails re-emails on the next tick. A trial reminder arriving twice reads
-  as a dunning notice from a company unsure whether you paid. · **FIXED —
-  awaiting merge (#596)** — the append and the not-already-sent test are one
-  statement (`coalesce(…) || $1::jsonb` under `not (… @> $1::jsonb)`), claimed
+  as a dunning notice from a company unsure whether you paid. ·
+  **FIXED (#596, `1c57f4f1`)** — the append and the not-already-sent test are
+  one statement (`coalesce(…) || $1::jsonb` under `not (… @> $1::jsonb)`), claimed
   BEFORE the send; a failed send releases the claim so the reminder is not
   lost to a Resend blip. Every bound parameter carries an explicit cast
   (`jsonb ||` and `jsonb -` are both overloaded → 42P18 at PARSE time), pinned
@@ -1219,8 +1219,8 @@ carrying its own. The eleventh entry is a gate hole the work turned up.
   the next flush sends the patient the same message again. A 'failed' row is
   resurrected the same way, discarding the error staff were about to read.
   The row most likely to lose that race is exactly the one the function exists
-  for: the one sending for almost precisely `olderThanMs`. · **FIXED —
-  awaiting merge (#596)** — one atomic `UPDATE … RETURNING` with
+  for: the one sending for almost precisely `olderThanMs`. ·
+  **FIXED (#596, `1c57f4f1`)** — one atomic `UPDATE … RETURNING` with
   `status='sending'` folded into the predicate.
 - S3 · a prospect enrollment wedges permanently on a failed touch: the
   touch-log row is marked 'failed' and the loop moves on WITHOUT touching the
@@ -1229,7 +1229,7 @@ carrying its own. The eleventh entry is a gate hole the work turned up.
   claim conflicts with its own failed row, `onConflictDoNothing` returns
   nothing, and the run skips it in silence — forever, while holding a slot in
   an allowance-limited batch. A handful of dead addresses starve the whole
-  outreach queue. · **FIXED — awaiting merge (#596)** — a failed send backs
+  outreach queue. · **FIXED (#596, `1c57f4f1`)** — a failed send backs
   the enrollment off by `TOUCH_RETRY_AFTER_MS`, and the claim became
   `onConflictDoUpdate` with `setWhere status='failed' and sentAt >= now -
   TOUCH_RETRY_WINDOW_MS`: still a claim (a run racing the live sender matches
@@ -1240,19 +1240,23 @@ carrying its own. The eleventh entry is a gate hole the work turned up.
   fire-and-forget `sendBookingConfirmationEmail` whose only failure handler is
   a `console.error`. The post-booking screen tells a patient in the PAST TENSE
   that a confirmation is on its way when the send was already rejected, and
-  they go off and wait for it. · **FIXED — awaiting merge (#599)** — the send
-  is awaited and the flag reports what happened. `emailSent: boolean` became
-  `emailStatus: 'sent' | 'no_email' | 'not_sent'`, because two states were
-  covering three: the old false branch read "We don't have your email", which
-  was also what a patient saw when we DID have it and the send had failed —
-  the one person who most needed to save the on-screen details, told the
-  opposite of what happened.
+  they go off and wait for it. · **FIXED (#599, `23d8214e`)** — the send is
+  awaited and the flag reports what happened. `emailSent: boolean` became
+  `emailStatus: 'sent' | 'no_email' | 'email_off' | 'not_sent'`, because two
+  states were covering four. The old false branch read "We don't have your
+  email", which was also what a patient saw when we DID have it and the send
+  had failed — the one person who most needed to save the on-screen details,
+  told the opposite of what happened. `email_off` arrived in Sentinel's review
+  of the same PR: folding "the clinic switched this off" into `not_sent` made
+  the screen apologise ("we couldn't get one out to you just now") for a
+  setting the practice chose on purpose, which is the same defect one state
+  further along.
 - S3 · the Monday standup ignores THE KILL. Every other outbound sweep checks
   `listShutDownOrgIds` — reminders, review asks, retention, campaigns,
   scheduled messages, proposal generators, the morning digest, `pms-sync` —
   and `sendWeeklyStandups` does not, so the one weekly email an expired
   unconverted practice still gets is a cheerful report of the work a
-  switched-off machine did for them. · **FIXED — awaiting merge (#600)** —
+  switched-off machine did for them. · **FIXED (#600, `72eb5d9d`)** —
   checked BEFORE the week is claimed, not just before the send, so paying
   releases the standup untouched on the next Monday.
 - S3 · a `pms-sync` config throw skips the Guardian signal. A throw out of
@@ -1261,7 +1265,7 @@ carrying its own. The eleventh entry is a gate hole the work turned up.
   treats an UNUSABLE connection (no Customer Key, an incomplete NexHealth
   binding, no client for the provider) exactly like the benign concurrency
   stand-down. The Guardian goes on reporting that practice `healthy` for as
-  long as the bridge stays down. · **FIXED — awaiting merge (#600)** — the
+  long as the bridge stays down. · **FIXED (#600, `72eb5d9d`)** — the
   stand-down throws a typed `PmsSyncInFlightError` (a class, not a message:
   matching on copy anyone may reword is not a classification) and only that
   one is silent; everything else reports to the Guardian. The clinic's streak
@@ -1273,7 +1277,7 @@ carrying its own. The eleventh entry is a gate hole the work turned up.
   credentials, a bucket policy) are unwrapped — so the request becomes an
   unhandled rejection and Next answers with a framework 500 carrying no JSON.
   The one failure staff can do nothing about is the only one that tells them
-  nothing. · **FIXED — awaiting merge (#600)**.
+  nothing. · **FIXED (#600, `72eb5d9d`)**.
 - S3 · staff billing actions unwrapped. `startStripeCheckout` and
   `openBillingPortal` in `app/(default)/settings/actions.ts` throw
   `new Error('We couldn't start checkout just now…')` and friends, and in
@@ -1305,7 +1309,7 @@ carrying its own. The eleventh entry is a gate hole the work turned up.
   opens a Stripe Checkout session for it via `createBookingDepositSession`.
   Its two siblings `shop/actions.ts` and `membership/actions.ts` are on the
   money rule for exactly that reason; this one was missed on the same pass. ·
-  **FIXED — awaiting merge (#599)** — added to the money patterns and pinned
+  **FIXED (#599, `23d8214e`)** — added to the money patterns and pinned
   in `MUST_BE_GATED`. A pattern and not an area, so the count stays at nine
   and `rulebook-drift` stays green.
 - S3 · `deliver()` (`lib/email.ts:122`) has NO deadline — the Gmail token
