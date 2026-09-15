@@ -814,7 +814,14 @@ binding are all correct. The payment-plan charger was the exception.
   paid also lands there, so the shop success page would tell that shopper
   "your order is confirmed". Nothing is written and no money moves — a
   cosmetic lie on one page, in a state that needs a cancellation AFTER payment
-  to reach at all. Returning the row's real status closes it. · OPEN.
+  to reach at all. Returning the row's real status closes it. · **FIXED**
+  (DREAMCRM-47) — the lost-race branch re-reads the row inside the
+  organization and reports the status it finds. A row that vanished under us
+  falls back to what was read on the way in, never to 'paid': the whole point
+  is that this branch stops inventing an answer.
+  `tests/shop/finalize-lost-race-status.test.ts` models the compare-and-swap
+  for real (a claim whose status predicate misses the row matches no rows), so
+  the test exercises the lost-race branch rather than a stand-in for it.
 - S3 · `listAdminSubscriptions` reads `s.items.data[0]` only, so a
   subscription with more than one item (a plan plus the social add-on, say)
   contributes ONE line's worth to every MRR figure. Pre-dates the MRR work,
