@@ -1,7 +1,8 @@
 # CI — what gates what
 
-Eight workflows. Only two of them can stop anything; the other six are alarms
-and advisories.
+Nine workflows, and three of them can stop something: `ci.yml` holds a merge,
+`deploy.yml` holds a deploy, and `migration-check.yml` can fail a deploy run
+without publishing a check of its own. The other six are alarms and advisories.
 
 This file covers what runs *before* a merge and on the way to production. What
 gets checked *after* the deploy lands — the URLs the production watch sweep
@@ -12,11 +13,12 @@ loads, including the one real clinic site — is `docs/OPS.md`.
 | `.github/workflows/ci.yml` | `pull_request` | `test`, `e2e` | the merge | yes — both are required checks |
 | `.github/workflows/deploy.yml` | `push` to `main` | `test` → `deploy` | production | yes — `deploy` `needs:` `test` |
 | `.github/workflows/post-merge-e2e.yml` | `push` to `main` | `e2e-post-merge` | the tree that just shipped | no — alert only |
-| `.github/workflows/nightly.yml` | `schedule` 07:00 UTC nominal (lands ~5h later) + dispatch | `nightly-test`, `nightly-e2e`, `tz-canary` | finding clock/race failures before someone trips over them | no — signal only |
+| `.github/workflows/nightly.yml` | `schedule` 06:37 UTC nominal (lands hours later) + dispatch | `nightly-test`, `nightly-e2e`, `tz-canary` | finding clock/race failures before someone trips over them | no — signal only |
 | `.github/workflows/review-gate.yml` | `pull_request` | `review-gate` | the pre-merge review gate | no — advisory only |
-| `.github/workflows/read-check.yml` | `workflow_dispatch` + `schedule` 07:00 UTC | `read-check` | the read-only role's privileges in production | no — never runs on a PR |
+| `.github/workflows/read-check.yml` | `workflow_dispatch` + `schedule` 06:37 UTC | `read-check` | the read-only role's privileges in production | no — never runs on a PR |
 | `.github/workflows/error-scan.yml` | `schedule` every 30 min + dispatch | `scan` | noticing errors inside the product | no — warns only |
 | `.github/workflows/migration-check.yml` | `workflow_call` from `deploy.yml` + `schedule` 08:20 UTC + dispatch | `migration-check` | that a deploy's migrations actually applied | no required context — but it CAN fail the deploy run |
+| `.github/workflows/rulebook-drift.yml` | `schedule` 06:17 UTC + dispatch | `rulebook-drift` | the rulebook still describing this repo | no — never runs on a PR |
 
 ## The deploy is not finished until the migrations are in
 
@@ -93,8 +95,9 @@ neither publishes a required context, and neither can stop a merge.
   `lib/read-checks.ts` against production under a `SELECT`-only role. Its
   scheduled run is `readonly-role-privileges`, and **a red run means a
   credential column is readable in production** — the one alarm here worth
-  interrupting someone for. It shares 07:00 UTC with `nightly.yml`; they
-  contend for nothing.
+  interrupting someone for. It shares 06:37 UTC with `nightly.yml`; they
+  contend for nothing (different workflows, different runners), and they moved
+  off the top of the hour together — see "When it really runs" below.
 - **`error-scan.yml`** scans the App Runner log groups every 30 minutes and
   writes findings to the job summary. It warns, never fails, because an alarm
   that goes red on a transient is one people stop opening.
@@ -144,8 +147,8 @@ run the slower, noisier, more informative shape of the suite.
   neither combination was tested on, and that tree auto-deploys. The gate in
   `deploy.yml` is typecheck + unit only. This tells us within minutes if the
   merged tree broke a browser journey; the deploy is not held back either way.
-- **`nightly.yml`** runs the same gates on a schedule — asked for at 07:00 UTC
-  (03:00 ET), actually arriving mid-morning ET; see "when it really runs" below,
+- **`nightly.yml`** runs the same gates on a schedule — asked for at 06:37 UTC
+  (02:37 ET), actually arriving hours later; see "when it really runs" below,
   because the cron line is not what happens. Before it existed, nothing ran the
   suite except a PR or a merge, so a clock- or race-dependent failure could only
   be found by accident on somebody else's unrelated PR. Both flakes found in the
@@ -164,30 +167,56 @@ reading silence as health.
   the local clock — not a broken build, and by design it leaves the run's overall
   conclusion green. **A green nightly does not mean the canary passed.** Open the
   run and read the job.
-- **When it really runs: about five hours after the cron says.** The first three
-  unattended fires, measured 2026-09-13:
+- **When it really runs: hours after the cron says.** Every unattended fire so
+  far, `gh run list --workflow nightly.yml`:
 
   | Asked | Fired (UTC) | Late by | Last job finished |
   | --- | --- | --- | --- |
   | 07:00 | 2026-09-11 11:58:57 | +4h59m | 08:06 ET |
   | 07:00 | 2026-09-12 11:25:47 | +4h26m | 07:31 ET |
   | 07:00 | 2026-09-13 12:29:36 | +5h30m | 08:36 ET |
+  | 07:00 | 2026-09-14 13:33:53 | +6h34m | 09:42 ET |
 
   This is GitHub's scheduler, not ours: `schedule` is best-effort and delayed
-  under load, and the top of an hour is its busiest moment — `0 7` is both. The
-  workflow's own comment still claims "03:00 ET, long before anyone starts
-  work"; on this evidence a red nightly actually lands between 07:31 and 08:36
-  ET. That is still *at* the start of the day rather than the middle of it, so
-  the alarm does its job — but do not plan around 03:00, and do not read a
-  missing 07:00 run as a failure before mid-morning.
+  under load, and the top of an hour is its busiest moment — `0 7` was both.
+  Four samples, the first three against one frozen commit (the office was
+  frozen 09-11 to 09-13), so treat the numbers as an order of magnitude and not
+  a constant. But the direction is not noise: the fourth fire landed at 09:42
+  ET, which is the mid-morning arrival the previous version of this note named
+  as the trigger for spending a review round.
 
-  Three samples, all against the same commit (the office was frozen 09-11 to
-  09-13), so treat the ~5h as an order of magnitude and not a constant. **The
-  cheap lever if it ever matters** is moving the cron off the top of the hour
-  (`37 6` rather than `0 7`); untried, because the observed landing time still
-  meets the alarm's actual purpose and `.github/workflows/**` is behind the
-  review gate. Worth spending a review round on only if the arrival drifts past
-  mid-morning.
+  **So the cron moved off the top of the hour on 2026-09-14 (DREAMCRM-48):
+  `37 6` rather than `0 7`, in `nightly.yml` and `read-check.yml` both.** Asking
+  at :37 asks when GitHub's queue is shorter; the 23 minutes earlier are
+  incidental. It is a lever, not a fix — the delay belongs to GitHub's
+  scheduler, and if the arrival keeps drifting the answer is not another minute
+  but accepting that a nightly alarm arrives when it arrives.
+
+  **Add a row above rather than re-deriving this from memory**, and note which
+  cron each row was asked under — a table that silently mixes the two slots
+  cannot show whether the move bought anything.
+
+  **The grace period for a missing run is DATED, not open-ended** (Sentinel's
+  note on #568). A schedule that silently failed to register and a schedule
+  sitting in GitHub's queue look identical from here — both produce no run —
+  and "read a missing run as normal for a while" lets the first one hide
+  inside the second indefinitely. That is the shape this repo keeps getting
+  caught by: a check that declines to answer, read as a check that answered
+  fine. It matters most for `read-check.yml`, which already exits green when
+  the setup is unfinished and which nobody is assigned to read — a dead
+  schedule there is silence on top of silence.
+
+  So: **each** workflow owes one real `event: schedule` fire under `37 6`, and
+  if either has none by the end of **2026-09-16**, that is a defect in the
+  cron rather than queue delay.
+
+  ```bash
+  gh run list --workflow nightly.yml    --json event,conclusion,createdAt
+  gh run list --workflow read-check.yml --json event,conclusion,createdAt
+  ```
+
+  Delete this paragraph once both have fired — it is a one-off confirmation of
+  a move, not a standing rule.
 
 - **GitHub only runs `schedule` from the default branch**, and it disables
   scheduled workflows in a repository with 60 days of no activity. If nightly
@@ -396,6 +425,81 @@ no correction to the gate list. The full reasoning and the before/after table ar
 on the DREAMCRM-49 issue — a settings change has no diff, so that comment is the
 review record.
 
+## The alarm that watches the rulebook (added 2026-09-14, DREAMCRM-53)
+
+`rulebook-drift.yml` asks one question every morning: **does the
+`dreamcrm-conventions` skill still describe this repository?**
+
+That skill states in prose which checks are required, that admins are bound by
+them, how many workflow files exist and which of them can block a merge, and
+how many areas the review gate enumerates. Those sentences were true when they
+were typed. Nothing had ever checked whether they still were — the skill lives
+outside the repo, so no test could go red when the repo moved underneath it.
+It moves often: the axe ratchet (#534) changed what could merge and took three
+days to reach the skill, and a meeting sweep found the skill three claims stale
+two minutes after #565 merged. Both were caught because a person chose to look,
+which is not a control.
+
+`scripts/rulebook-drift.mjs` holds the transcribed claims — each with the skill
+section that states it and the sentence it states — and grades all eight
+against the live repository:
+
+| Claim | Read from |
+| --- | --- |
+| the required set is exactly `test` and `e2e` | branch protection |
+| `strict: true` paired with `allow_update_branch: true` | protection + repo settings |
+| `enforce_admins: true` | branch protection |
+| `allow_force_pushes: false`, `allow_deletions: false` | branch protection |
+| the workflow census (which file gates what) | `.github/workflows/` |
+| only the census's workflows may publish `test` or `e2e` | `.github/workflows/` |
+| every required context has a PR-triggered producer | protection + workflows |
+| the review gate enumerates eight areas | `GATE_RULES` |
+
+**It gates nothing.** No `pull_request` trigger, no required context, no
+`needs:`. A stale sentence in a document is not a reason to hold a production
+fix. What it does is turn a daily red run into an intake, replacing the job
+that currently depends on somebody remembering.
+
+**The fast half is graded at the PR instead.**
+`tests/guards/rulebook-drift.test.ts` runs every claim that needs no network
+inside the `test` check, so adding a workflow file — or an area to the review
+gate — turns a required check **red until the claim is updated in the same PR**.
+The schedule is the backstop for what changes with no diff at all: a branch
+protection setting flipped in the GitHub UI, most of all.
+
+**An ungradeable claim fails here; it does not skip — with one bounded
+exception.** The first version of this check had only two outcomes and argued
+that the `read-check.yml` treatment did not apply, "because there is no
+owner-side setup pending and nothing outside the repository to wait for". The
+argument was sound and the premise was false: **branch protection is not
+readable with the workflow token at any scope** (`administration` is not even a
+valid `permissions:` key — asking for it made GitHub reject the whole file,
+twice, in 0 seconds, publishing no check-run at all, which is why `gh pr checks`
+showed nothing). So there are three outcomes:
+
+| Outcome | Meaning | Run |
+| --- | --- | --- |
+| **not configured yet** | `RULEBOOK_PROTECTION_TOKEN` is unset; the five protection claims are skipped and named | green, `::warning::` |
+| **could not be graded** | the secret exists and the read still came back empty — a revoked token, a renamed branch | **red** |
+| **drift** | the repo and the skill disagree | **red** |
+
+A skipped claim is never counted as a claim that held: every summary leads with
+`Graded N/8` rather than with a tick, in all three cases. The exception lasts
+exactly as long as the secret is missing.
+
+**Owner setup (pending).** Until `RULEBOOK_PROTECTION_TOKEN` exists, the five
+settings claims are off — which is the half that catches a branch-protection
+change made in the GitHub UI, the one kind of change that leaves no diff
+anywhere. To turn it on: a fine-grained personal access token scoped to this
+repository alone, with **Repository permissions → Administration: Read-only**
+and nothing else, saved as a repository secret named
+`RULEBOOK_PROTECTION_TOKEN`. It reads settings; it can change none.
+
+**What this does not close.** The repo↔claim gap is now mechanical. The
+claim↔skill gap is not, and cannot be: a skill document cannot hold a pointer
+into a repository an agent may not have checked out. That hop is Forge's, which
+is why every finding names the skill section to open.
+
 ## Branch protection (configured 2026-09-09, DREAMCRM-10; strict since 2026-09-10, DREAMCRM-19; admins included since 2026-09-14, DREAMCRM-40)
 
 `main` requires the `test` and `e2e` checks to pass before a PR can merge,
@@ -511,11 +615,24 @@ Things that have already bitten this suite. Keep them true.
   `await import()` inside `vi.mock` factories; those are hoisted and cost a test
   nothing. DREAMCRM-19 pre-loaded 35 of the 43 during collection via
   `tests/prewarm.ts`, so the set of files that can be the unlucky one is now 8.
-  **The budget stays 20s.** Those remaining 8 defer on purpose and still reach
-  ~4.3s on their first test under load; cutting to 10s would leave them barely
-  2x headroom. Lowering it is earned by pre-loading those 8 — each needs its own
+  **The budget stays 20s, and since 2026-09-14 that is a DECISION rather than a
+  pending item.** Those remaining 8 defer on purpose and still reach ~4.3s on
+  their first test under load; cutting to 10s would leave them barely 2x
+  headroom. Lowering it is earned by pre-loading those 8 — each needs its own
   judgement about whether the module reads its env at import time or at call
   time — and re-measuring, not by deciding failures should be faster.
+
+  That work was carried on the ledger twice, deferred twice, and struck on the
+  third pass (DREAMCRM-48; `docs/RELEASE.md` Part 5 has the entry and the
+  evidence). A timeout is a hang detector, so a lower number buys only a faster
+  report of a hang that is not happening — and across the 200 Actions runs that
+  span the whole life of this budget, nothing has hit it: no vitest timeout in
+  `test`, none in `nightly-test`, and none in `tz-canary`, which is worth
+  checking on its own because `continue-on-error: true` means a red one never
+  shows up as a failed run. **One vitest timeout in any of those three reopens
+  it** — and the answer then is still the pre-load work and a re-measure. The
+  recipe stays in `vitest.config.ts`; striking the ledger entry costs nothing
+  but the queue slot.
 - **Never install packages while the suite is running.** pnpm relinks `next` into
   a new virtual-store path mid-run and mocks stop matching the runtime copy;
   it produced 78 bogus failures once.

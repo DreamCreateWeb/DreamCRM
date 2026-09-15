@@ -1,0 +1,157 @@
+name: Rulebook drift
+
+# DOES THE RULEBOOK STILL DESCRIBE THIS REPO? (DREAMCRM-53 item 1.)
+#
+# The `dreamcrm-conventions` skill states in prose which checks are required,
+# that admins are bound by them, how many workflow files exist and which of
+# them can block a merge, and how many areas the review gate enumerates. Those
+# sentences were true when they were typed. Nothing has ever checked whether
+# they still are: the skill lives outside the repository, so no test could go
+# red when the repo moved underneath it.
+#
+# It moves often. The axe ratchet (#534) changed what could merge and took
+# three days to reach the skill. A meeting sweep found the skill three claims
+# stale two minutes after #565 merged. Both were caught because a person chose
+# to look, which is not a control.
+#
+# ============================ THIS DOES NOT GATE =============================
+#
+# No `pull_request` trigger, no required context, no `needs:` on anything. It
+# cannot block a merge or a deploy and must never try to — a stale sentence in
+# a document is not a reason to hold a production fix. What it does is turn a
+# daily red run into an intake, which is the job that currently depends on
+# somebody remembering.
+#
+# The half of this check that CAN fail a PR lives elsewhere and deliberately:
+# `tests/guards/rulebook-drift.test.ts` grades every claim that needs no
+# network, inside the `test` gate. Adding a workflow file, or an area to the
+# review gate, turns a required check red until the claim is updated in the
+# same PR. So the fast-moving claims are caught at the PR and this schedule is
+# the backstop for everything that changes with no diff at all — a branch
+# protection setting flipped in the GitHub UI, most of all.
+# =============================================================================
+#
+# THREE OUTCOMES, NOT TWO — and the first draft of this file had only two.
+#
+# It asked for `permissions: administration: read`, on the belief that branch
+# protection was readable with the workflow token. It is not: `administration`
+# is not a valid `permissions:` scope at all, GITHUB_TOKEN is never granted
+# repository administration, and GitHub rejected the whole file — two 0-second
+# failures that published NO check-run, so `gh pr checks` showed nothing and
+# the Actions tab listed them under this path instead of the workflow name.
+# Caught in review of #571, not by the author, and not by any check.
+#
+# Reading branch protection therefore needs a credential this repository does
+# not have yet (`gh secret list` is empty today). So "could not read it" splits
+# in two, and the difference is the whole argument:
+#
+#   * NOT CONFIGURED YET — `RULEBOOK_PROTECTION_TOKEN` is unset. The five
+#     protection claims are skipped, the summary says so in its first line, and
+#     the run exits 0. This is `read-check.yml`'s bargain and it applies for
+#     `read-check.yml`'s reason: an alarm that has been red for a fortnight
+#     waiting on a PAT nobody has issued has trained everyone to ignore it by
+#     the time it first matters. It lasts exactly as long as the secret is
+#     missing.
+#   * READ FAILED — the secret exists and the API still came back empty. That
+#     is a defect inside this workflow (a revoked token, a renamed branch), and
+#     it goes RED naming the input, because nothing external is pending.
+#   * DRIFT — red, naming the claim and the skill section to open.
+#
+# The original argument ("nothing outside the repository to wait for") was
+# sound and its premise was false as shipped. A drift detector that reports
+# green when it detected nothing is still the failure this exists to catch —
+# which is why a skipped claim is never counted as a claim that held, and why
+# the summary leads with "Graded N/8" rather than with a tick.
+
+on:
+  # 06:17 UTC, ahead of the 07:00 pair (nightly.yml, read-check.yml) and off
+  # the hour — the top of the hour is when GitHub's scheduler queue is longest.
+  schedule:
+    - cron: '17 6 * * *'
+  workflow_dispatch: {}
+
+concurrency:
+  group: rulebook-drift
+  cancel-in-progress: false
+
+# Workflow-level, and `contents: read` is the whole of it — the checkout and
+# the repo-settings read (`GET /repos/{owner}/{repo}`, which carries
+# `allow_update_branch`) need nothing more. Branch protection is NOT reachable
+# with this token at any scope; it rides the optional secret below instead.
+permissions:
+  contents: read
+
+jobs:
+  # NOT named `test` or `e2e` — those are main's required contexts, and a
+  # second producer of either name can report a green check onto a commit the
+  # real suite never ran against. `tests/guards/rulebook-drift.test.ts` pins
+  # this, the same way the review-gate guard pins review-gate.yml.
+  rulebook-drift:
+    name: rulebook-drift (alarm, gates nothing)
+    runs-on: ubuntu-latest
+    # Two API calls and one small node script. No install step anywhere in this
+    # job; it has no business inheriting GitHub's 6-hour default.
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # Written to files rather than piped so the script stays a pure
+      # comparator the guard test can drive with fixtures, offline.
+      #
+      # `repo.json` rides the workflow token and is not optional. No
+      # `continue-on-error`: a failure here aborts the job, which is the right
+      # outcome — the repo-settings endpoint is readable with `contents: read`,
+      # so a failure means something is wrong with the run itself rather than
+      # with the repo. (The script would also report the ungraded claims and go
+      # red, but it never gets the chance; the job is already over.)
+      - name: Read the repo's merge settings
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api repos/${{ github.repository }} > repo.json
+
+      # The optional half. `RULEBOOK_PROTECTION_TOKEN` is a fine-grained PAT
+      # with Administration:read on this repository and nothing else — the
+      # narrowest grant that can read branch protection, which the workflow
+      # token cannot read at any scope.
+      #
+      # `continue-on-error` so a revoked or expired token leaves the file
+      # empty and lets the SCRIPT decide what that means, rather than killing
+      # the run before it can say which claims went ungraded and why. The
+      # distinction the script draws — secret absent (skip) vs secret present
+      # and the read failed (red) — is the point of the whole step.
+      - name: Read branch protection, if a credential exists
+        id: protection
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.RULEBOOK_PROTECTION_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${GH_TOKEN}" ]; then
+            echo "::warning::RULEBOOK_PROTECTION_TOKEN is not set — the five branch-protection claims will be skipped, not graded. Setup: docs/CI.md."
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "configured=true" >> "$GITHUB_OUTPUT"
+          gh api repos/${{ github.repository }}/branches/main/protection > protection.json
+
+      - name: Diff the repo against what the rulebook claims
+        env:
+          # Empty, not 'false', if the step above died before writing its
+          # output — which takes the `else` branch, grades against an absent
+          # `protection.json`, and goes RED. That is the intended direction:
+          # only an explicit `configured=false` earns the skip, so a step that
+          # crashed can never be mistaken for a credential that was never set.
+          CONFIGURED: ${{ steps.protection.outputs.configured }}
+        run: |
+          set -euo pipefail
+          if [ "${CONFIGURED}" = "false" ]; then
+            node scripts/rulebook-drift.mjs --repo repo.json --no-protection-credential
+          else
+            node scripts/rulebook-drift.mjs --protection protection.json --repo repo.json
+          fi

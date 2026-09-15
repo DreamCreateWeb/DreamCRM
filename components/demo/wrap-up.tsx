@@ -84,7 +84,7 @@ export default function WrapUp({
 
   return (
     <div className="mt-4" data-testid="demo-wrapup">
-      <div className="text-[10px] font-medium uppercase tracking-wider text-gray-500">
+      <div className="text-xs font-medium uppercase tracking-wider text-gray-500">
         Wrap up · {coveredCount} of {track.beats.length} beats · {elapsed}
       </div>
       <div className="mt-0.5 text-sm font-semibold">
@@ -133,7 +133,7 @@ export default function WrapUp({
         className="mt-2 w-full rounded-md bg-white/5 px-2 py-1.5 text-xs text-gray-200 placeholder:text-gray-600 ring-1 ring-inset ring-white/10 focus:outline-none focus:ring-white/25"
       />
 
-      {error && <p className="mt-1 text-[11px] text-rose-400">{error}</p>}
+      {error && <p className="mt-1 text-xs text-rose-400">{error}</p>}
 
       <div className="mt-3 flex items-center justify-between gap-2">
         <button
@@ -149,7 +149,7 @@ export default function WrapUp({
             type="button"
             onClick={() => finish({})}
             disabled={pending}
-            className="text-[11px] text-gray-500 hover:text-gray-300 disabled:opacity-40"
+            className="text-xs text-gray-500 hover:text-gray-300 disabled:opacity-40"
             title="End the demo without logging an outcome"
           >
             Skip logging
