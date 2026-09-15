@@ -44,6 +44,17 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # THE AXE RATCHET NEEDS A PREVIOUS VALUE (DREAMCRM-60).
+      # `tests/guards/axe-baseline-ratchet.test.ts` reads every ceiling in
+      # `e2e/axe-baseline.ts` as `origin/main` has it and fails any increase —
+      # the enforcement behind "ceilings only ever go down". On a
+      # `pull_request`, actions/checkout fetches `refs/pull/N/merge` and nothing
+      # else, so `origin/main` does not resolve without this and the guard would
+      # be silently unable to do its job in the one check it exists to defend.
+      # Depth 1: the tip's tree is all it reads.
+      - name: Fetch main for the axe-baseline ratchet
+        run: git fetch --no-tags --depth=1 origin +refs/heads/main:refs/remotes/origin/main
+
       - name: Set up pnpm
         uses: pnpm/action-setup@v4
 
