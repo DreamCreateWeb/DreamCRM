@@ -5,6 +5,7 @@ import { openBillingPortal } from '@/app/(default)/settings/actions'
 import { PLANS } from '@/lib/stripe-config'
 import { isDunningStatus, subscriptionStatusMeta } from '@/lib/billing-status'
 import type { TenantContext } from '@/lib/auth/context'
+import { TONE_FILL, TONE_FILL_HOVER } from '@/lib/ui/encodings'
 
 /**
  * Persistent payment-failure (dunning) banner. Renders only for clinic
@@ -33,9 +34,11 @@ export default function BillingDunningBanner({ ctx }: { ctx: TenantContext }) {
     ? 'border-rose-500/30 bg-rose-500/12 text-rose-700 dark:text-rose-200'
     : 'border-amber-500/30 bg-amber-500/12 text-amber-800 dark:text-amber-200'
   const dotClass = isUrgent ? 'bg-rose-500' : 'bg-amber-500'
+  // Both arms are the registry's solid tone fill, so the two severities read
+  // as one control in two tones. The amber arm was white-on-amber-500 at 2.13.
   const btnClass = isUrgent
-    ? 'bg-rose-600 text-white hover:bg-rose-700'
-    : 'bg-amber-500 text-white hover:bg-amber-600'
+    ? `${TONE_FILL.urgent} ${TONE_FILL_HOVER.urgent}`
+    : `${TONE_FILL.warn} ${TONE_FILL_HOVER.warn}`
 
   function handleClick() {
     startTransition(async () => {

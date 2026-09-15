@@ -1,6 +1,7 @@
 'use client'
 
 import { PlatformPostCard, type PreviewChannel, type PreviewContent } from '@/components/social-posts/post-preview'
+import { TONE_FILL } from '@/lib/ui/encodings'
 
 /**
  * ARTIFACT RENDERERS for the Approval Inbox (owner design directive,
@@ -208,7 +209,7 @@ export function ReviewReplyArtifact({
     <div className="rounded-xl border border-[color:var(--color-hairline)] bg-white dark:bg-gray-900/60 p-3">
       <div className="flex items-center gap-2">
         <span
-          className="inline-flex w-8 h-8 shrink-0 items-center justify-center rounded-full text-sm font-semibold text-white bg-gray-500 dark:bg-gray-600"
+          className={`inline-flex w-8 h-8 shrink-0 items-center justify-center rounded-full text-sm font-semibold ${TONE_FILL.neutral}`}
           aria-hidden="true"
         >
           {initial}

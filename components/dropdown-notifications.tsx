@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { Popover, PopoverButton, PopoverPanel, Transition } from '@headlessui/react'
 import { useRealtime } from '@/components/realtime/realtime-provider'
 import { notificationType, type NotificationTone } from '@/lib/types/notifications'
+import { TONE_FILL } from '@/lib/ui/encodings'
 
 interface NotificationItem {
   id: number
@@ -177,7 +178,7 @@ export default function DropdownNotifications({ align }: { align?: 'left' | 'rig
             {/* Unread is warn-semantics (something for US to act on) → AMBER,
                 not the old rose. Per DESIGN-SYSTEM Part 1/Part 4. */}
             {unread > 0 && (
-              <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 bg-amber-500 text-xs leading-none font-semibold text-white rounded-full flex items-center justify-center ring-2 ring-surface-1">
+              <span className={`absolute -top-1 -right-1 min-w-[16px] h-4 px-1 text-xs leading-none font-semibold rounded-full flex items-center justify-center ring-2 ring-surface-1 ${TONE_FILL.warn}`}>
                 {unread > 9 ? '9+' : unread}
               </span>
             )}

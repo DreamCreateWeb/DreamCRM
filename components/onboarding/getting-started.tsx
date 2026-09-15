@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useState, useTransition } from 'react'
 import { dismissChecklistAction } from '@/app/(default)/dashboard/onboarding-actions'
 import type { ActivationChecklist } from '@/lib/types/onboarding'
+import { TONE_FILL, TONE_FILL_HOVER } from '@/lib/ui/encodings'
 
 /**
  * The Getting-started activation checklist on the clinic Overview. Tasks
@@ -89,7 +90,7 @@ export default function GettingStarted({ checklist }: { checklist: ActivationChe
           </div>
           <Link
             href="/welcome"
-            className="btn-sm shrink-0 bg-violet-600 text-white hover:bg-violet-700"
+            className={`btn-sm shrink-0 ${TONE_FILL.info} ${TONE_FILL_HOVER.info}`}
           >
             Draft with AI →
           </Link>
@@ -105,7 +106,7 @@ export default function GettingStarted({ checklist }: { checklist: ActivationChe
                 className="group flex items-start gap-3 rounded-lg px-2 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-700/30"
               >
                 {task.done ? (
-                  <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-500 text-white">
+                  <span className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${TONE_FILL.ok}`}>
                     <svg viewBox="0 0 12 12" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                       <path d="M2 6.5 4.5 9 10 3" />
                     </svg>

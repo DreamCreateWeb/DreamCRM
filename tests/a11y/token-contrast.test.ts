@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest'
-import { TONE_PILL, TONE_TEXT, type Tone } from '@/lib/ui/encodings'
+import {
+  TONE_DOT,
+  TONE_FILL,
+  TONE_FILL_HOVER,
+  TONE_PILL,
+  TONE_TEXT,
+  type Tone,
+} from '@/lib/ui/encodings'
 import {
   AA,
   contrast,
@@ -23,7 +30,13 @@ import {
   scanForUnreadableGradientText,
   scanForWhiteOnShallowBrand,
   scanForWhiteOnShallowBrandGradient,
+  scanForOffRegistryToneFills,
   SHALLOW_BRAND_FILLS,
+  deadToneFillExemptions,
+  gradeToneFillClasses,
+  isToneFillSurface,
+  toneFillSites,
+  TONE_FILL_EXEMPTIONS,
 } from './class-pairs'
 
 /**
@@ -451,6 +464,254 @@ describe('gradient TEXT, where the gradient IS the ink', () => {
       'this exemption no longer matches any call site. Re-derive it or delete it.',
     ).toEqual([])
     for (const e of GRADIENT_TEXT_EXEMPTIONS) {
+      expect(e.why.length, 'every exemption states why in the source').toBeGreaterThan(80)
+    }
+  })
+})
+
+describe('TONE_FILL — the one answer for a solid fill with a label on it', () => {
+  /**
+   * THE REGISTRY HALF OF DREAMCRM-52.
+   *
+   * `TONE_PILL` homes a tone's wash, `TONE_TEXT` its plain ink, `TONE_DOT` a
+   * swatch with nothing written on it — and the shape that is BOTH a saturated
+   * fill AND carries a label had no home, so it was picked by hand every time
+   * it came up. UI batch 59 picked it four times, measured every time, and
+   * landed on two different answers recorded nowhere a person would look.
+   *
+   * Everything below DERIVES the table from the palette and from `TONE_DOT`
+   * rather than transcribing it, the same way `SHALLOW_BRAND_FILLS` derives
+   * rule 2's cutoff. A transcription is what goes stale the day somebody
+   * re-tunes a ramp; a derivation fails that day instead.
+   */
+  const STEPS = [50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950]
+
+  function split(recipe: string): { ramp: string; step: number; ink: string } {
+    const bg = recipe.match(/(?:^|\s)bg-([a-z]+)-(\d+)(?![\w-])/)
+    const ink = recipe.match(/(?:^|\s)text-([a-z]+-\d+|white|black)(?![\w-])/)
+    if (!bg || !ink) throw new Error(`TONE_FILL recipe is not a fill + ink: "${recipe}"`)
+    return { ramp: bg[1], step: Number(bg[2]), ink: ink[1] }
+  }
+
+  function ratio(theme: typeof LIGHT, ink: string, fill: string): number {
+    return contrast(token(theme, ink), token(theme, fill))
+  }
+
+  it('every tone fill carries its label at AA, in BOTH themes', () => {
+    const failures: string[] = []
+    for (const tone of TONES) {
+      const { ramp, step, ink } = split(TONE_FILL[tone])
+      for (const [name, theme] of [['light', LIGHT], ['dark', DARK]] as const) {
+        const r = ratio(theme, ink, `${ramp}-${step}`)
+        if (r < AA) failures.push(`${tone} (${name}): ${ink} on ${ramp}-${step} = ${r.toFixed(2)}`)
+      }
+    }
+    expect(failures, 'a solid tone fill is the surface its label sits on').toEqual([])
+  })
+
+  it('resolves identically in both themes, which is why no recipe carries a dark: half', () => {
+    // An opaque fill composites over nothing, so there is no theme-dependent
+    // ancestor to track — and a lone `dark:text-*` or `dark:bg-*` on one of
+    // these is not parity work, it is the exact defect rule 1 exists to catch
+    // (three chips shipped `dark:text-gray-900` with no `dark:bg-*` at 4.01).
+    for (const tone of TONES) {
+      const { ramp, step, ink } = split(TONE_FILL[tone])
+      expect(ratio(LIGHT, ink, `${ramp}-${step}`)).toBeCloseTo(ratio(DARK, ink, `${ramp}-${step}`), 6)
+      expect(TONE_FILL[tone], `${tone} must not carry a dark: override`).not.toMatch(/\bdark:/)
+      expect(TONE_FILL_HOVER[tone], `${tone} hover must not carry a dark: override`).not.toMatch(/\bdark:/)
+    }
+  })
+
+  it('uses ONE ink across all six tones', () => {
+    // The argument TONE_PILL makes for holding every tone's ink at the 800
+    // step, pointed at a literal colour: a label on a warn fill and a label on
+    // an urgent fill are the same colour, so "a solid tone fill" reads as one
+    // thing rather than six.
+    const inks = new Set(TONES.map((tone) => split(TONE_FILL[tone]).ink))
+    expect(Array.from(inks), 'one ink, or the vocabulary is two vocabularies').toHaveLength(1)
+  })
+
+  it('DERIVES the dark ink instead of preferring it — white clears on no tone fill', () => {
+    // Why the ink is dark at all. Reaching white means driving every hue to
+    // the 600/700 end, where amber stops being amber; the measurement is what
+    // rules it out, not the taste.
+    for (const tone of TONES) {
+      const { ramp, step } = split(TONE_FILL[tone])
+      expect(
+        ratio(LIGHT, 'white', `${ramp}-${step}`),
+        `white on ${ramp}-${step} — if this now CLEARS, the ink choice is worth re-opening`,
+      ).toBeLessThan(AA)
+    }
+  })
+
+  it('DERIVES each fill: the tone DOT step, or one step lighter when the dot cannot carry the ink', () => {
+    // The whole table out of one rule — start where TONE_DOT already puts the
+    // tone's identity, and step LIGHTER, never deeper, if it cannot carry the
+    // shared ink. Three tones stay put and three move; this asserts WHICH is
+    // which out of the palette rather than trusting the table to be right.
+    for (const tone of TONES) {
+      const fill = split(TONE_FILL[tone])
+      const dot = TONE_DOT[tone].match(/bg-([a-z]+)-(\d+)/)
+      expect(dot, `${tone}: TONE_DOT should be a bare ramp fill`).toBeTruthy()
+      const [, dotRamp, dotStep] = dot!
+      expect(fill.ramp, `${tone}: the fill must stay on the tone's own hue`).toBe(dotRamp)
+
+      const dotRatio = ratio(LIGHT, fill.ink, `${dotRamp}-${dotStep}`)
+      if (fill.step === Number(dotStep)) {
+        expect(
+          dotRatio,
+          `${tone}: the fill sits on the dot's step, so that step must carry the ink`,
+        ).toBeGreaterThanOrEqual(AA)
+      } else {
+        expect(
+          dotRatio,
+          `${tone}: the fill left the dot's step, so that step must FAIL — otherwise ` +
+            'the tone gave up its identity step for nothing',
+        ).toBeLessThan(AA)
+        expect(
+          fill.step,
+          `${tone}: exactly one step lighter than the dot, never deeper`,
+        ).toBe(STEPS[STEPS.indexOf(Number(dotStep)) - 1])
+      }
+    }
+  })
+
+  it('hovers one step LIGHTER, which is the direction that stays readable', () => {
+    // Deepening on hover is the reflex and here it walks the label back toward
+    // the floor: amber-600 under gray-900 is 4.79 where the resting pair was
+    // 7.18, and rose-500 under it fails outright. Asserted as a measured fact
+    // about the step BELOW each fill, so the direction cannot be re-picked by
+    // eye later.
+    for (const tone of TONES) {
+      const fill = split(TONE_FILL[tone])
+      const hover = TONE_FILL_HOVER[tone].match(/^hover:bg-([a-z]+)-(\d+)$/)
+      expect(hover, `${tone}: the hover recipe is a bare hover:bg- and no ink`).toBeTruthy()
+      const [, hoverRamp, hoverStep] = hover!
+      expect(hoverRamp, `${tone}: hover stays on the same hue`).toBe(fill.ramp)
+      expect(Number(hoverStep), `${tone}: exactly one step lighter than the resting fill`).toBe(
+        STEPS[STEPS.indexOf(fill.step) - 1],
+      )
+      const hoverRatio = ratio(LIGHT, fill.ink, `${hoverRamp}-${hoverStep}`)
+      expect(hoverRatio, `${tone}: hover must clear AA too`).toBeGreaterThanOrEqual(AA)
+      expect(
+        hoverRatio,
+        `${tone}: lighter must be the SAFER direction, or this rule is backwards`,
+      ).toBeGreaterThan(ratio(LIGHT, fill.ink, `${fill.ramp}-${fill.step}`))
+    }
+  })
+
+  it('catches the real defects, in the real shapes they shipped in', () => {
+    // Red-verified against the tree as it stood before the sweep. Each of
+    // these is a string lifted off a live call site, not a simplified
+    // stand-in — batch 57's red run passed because its plant was simpler than
+    // the defect.
+    const shipped = [
+      // components/ui/tenant-sidebar.tsx — the attention count badge, 2.13.
+      '"ml-2 inline-flex h-5 min-w-[20px] shrink-0 items-center justify-center rounded-full bg-amber-500 px-1.5 text-xs font-semibold tabular-nums text-white"',
+      // components/onboarding/getting-started.tsx — "Draft with AI", 4.42.
+      '"btn-sm shrink-0 bg-violet-600 text-white hover:bg-violet-700"',
+      // components/ui/tick-button.tsx — the done tick, 2.47.
+      "'border-emerald-500 bg-emerald-500 text-white'",
+      // app/(default)/dashboard/proposal-artifacts.tsx — a neutral avatar well
+      // that CLEARED at 5.30 and was still a fresh guess.
+      '"inline-flex w-8 h-8 shrink-0 items-center justify-center rounded-full text-sm font-semibold text-white bg-gray-500 dark:bg-gray-600"',
+    ]
+    for (const classes of shipped) {
+      expect(gradeToneFillClasses(classes), `rule 5 must see: ${classes}`).not.toBeNull()
+    }
+  })
+
+  it('fails a pairing that CLEARS but is not the registry answer', () => {
+    // The point of the rule. A second passing answer is how a single source of
+    // truth stops being one, so "it measures fine" is not a defence.
+    const clears = gradeToneFillClasses('"rounded bg-emerald-400 text-gray-900"')
+    expect(clears).not.toBeNull()
+    expect(clears!.failures[0].ratio).toBeGreaterThanOrEqual(AA)
+    expect(clears!.note).toMatch(/its own route/)
+  })
+
+  it('stays quiet on the things it must not fire on', () => {
+    // The registry's own recipes, obviously.
+    for (const tone of TONES) {
+      expect(gradeToneFillClasses(`"rounded-full px-2 ${TONE_FILL[tone]}"`)).toBeNull()
+    }
+    // A tone WASH at the pale end — the opaque spelling of a pill, eight of
+    // which are live and read fine on the tone's own deep ink.
+    expect(gradeToneFillClasses('"rounded bg-emerald-100 text-emerald-700"')).toBeNull()
+    expect(gradeToneFillClasses('"rounded bg-amber-50 text-amber-800"')).toBeNull()
+    // A dark band at the deep end, whose ink is white for a footer's reasons.
+    expect(gradeToneFillClasses('"rounded bg-gray-900 text-gray-100"')).toBeNull()
+    expect(gradeToneFillClasses('"rounded bg-violet-800 text-white"')).toBeNull()
+    // A surface, not a tone fill — gray is both ramps and only the fill steps
+    // are this rule's business.
+    expect(gradeToneFillClasses('"rounded bg-gray-100 text-gray-500"')).toBeNull()
+    // Alpha on either half composites over an ancestor this scanner cannot
+    // resolve — rule 1's constraint, for rule 1's reason.
+    expect(gradeToneFillClasses('"bg-amber-500/15 text-amber-800"')).toBeNull()
+    // The BRAND ramp belongs to rules 2 and 3. Two guards grading one line is
+    // how they start disagreeing about it.
+    expect(gradeToneFillClasses('"rounded bg-teal-500 text-white"')).toBeNull()
+    // A fill with no label on it is TONE_DOT's business.
+    expect(gradeToneFillClasses('"h-2 w-2 rounded-full bg-rose-500"')).toBeNull()
+  })
+
+  it('pins the window it looks through, at both edges', () => {
+    // The two arrays behind `isToneFillSurface` are the rule's whole scope, so
+    // they are asserted rather than trusted to say what they mean.
+    expect(isToneFillSurface('amber-300')).toBe(true)
+    expect(isToneFillSurface('amber-600')).toBe(true)
+    expect(isToneFillSurface('amber-200')).toBe(false)
+    expect(isToneFillSurface('amber-700')).toBe(false)
+    expect(isToneFillSurface('gray-400')).toBe(true)
+    expect(isToneFillSurface('teal-500')).toBe(false)
+    expect(isToneFillSurface('white')).toBe(false)
+  })
+
+  it('still walks the product tree, not just lib/', () => {
+    // The field-of-view check, and it needs reading carefully: a COMPLETE
+    // sweep makes this rule's subjects nearly vanish. Once a call site says
+    // `${TONE_FILL.warn}` the fill lives only in the registry, so the scanner
+    // — which reads one quoted string at a time — cannot see it any more. What
+    // is left in the window is the registry's own six recipe strings plus the
+    // one exemption, and that is the expected end state rather than a scanner
+    // that has stopped matching.
+    //
+    // So the proof that rule 5 can still SEE is the red-verified block above,
+    // which feeds it four strings lifted off live call sites. This test only
+    // pins the cheaper half: the walk still reaches product files outside
+    // `lib/`, so a broken root list cannot report a clean tree.
+    const sites = toneFillSites()
+    expect(
+      sites.map((s) => `${s.file}:${s.line}`),
+      'rule 5 matches no solid tone fill anywhere — not even the registry ' +
+        'recipes it is derived from. The scanner is broken, not the tree.',
+    ).not.toEqual([])
+    expect(sites.some((s) => s.file === 'lib/ui/encodings.ts')).toBe(true)
+    expect(
+      sites.some((s) => s.file === 'components/ui/action-button.tsx'),
+      'the walk must reach components/ — the exemption lives there, and it is ' +
+        'the only literal tone fill left outside the registry',
+    ).toBe(true)
+  })
+
+  it('no solid tone fill in the product is off the registry', () => {
+    // THE GATE. Zero with named exemptions and no ceiling — a number here
+    // would count places still answering a question that has one answer, and
+    // a count is something people manage down rather than a rule that holds.
+    expect(
+      scanForOffRegistryToneFills().map(describeFinding),
+      'a solid fill with a label on it comes from TONE_FILL in ' +
+        'lib/ui/encodings.ts. If this one genuinely should not, add it to ' +
+        'TONE_FILL_EXEMPTIONS with the reason — do not re-measure a new pair.',
+    ).toEqual([])
+  })
+
+  it('carries no exemption it has stopped describing', () => {
+    expect(
+      deadToneFillExemptions().map((e) => `${e.file} — ${e.classes}`),
+      'this exemption no longer matches any call site. Re-derive it or delete it.',
+    ).toEqual([])
+    for (const e of TONE_FILL_EXEMPTIONS) {
       expect(e.why.length, 'every exemption states why in the source').toBeGreaterThan(80)
     }
   })

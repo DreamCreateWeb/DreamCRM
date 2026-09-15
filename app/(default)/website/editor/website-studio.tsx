@@ -82,6 +82,7 @@ interface Props {
 }
 
 import type { StudioPage } from '@/lib/clinic-site-helpers'
+import { TONE_FILL, TONE_FILL_HOVER } from '@/lib/ui/encodings'
 
 type Status = 'idle' | 'saving' | 'saved' | 'error'
 // `stale` opens the refresh-to-edit fallback for an affordance this (older) tab
@@ -880,7 +881,7 @@ export default function WebsiteStudio({ slug, siteUrl, profile, orgId, library, 
             type="button"
             onClick={applyTemplatePreview}
             disabled={designBusy}
-            className="rounded-md bg-amber-400 text-gray-900 px-3 py-1 text-xs font-semibold hover:bg-amber-300 transition-colors disabled:opacity-50"
+            className={`rounded-md px-3 py-1 text-xs font-semibold transition-colors disabled:opacity-50 ${TONE_FILL.warn} ${TONE_FILL_HOVER.warn}`}
           >
             {designBusy ? 'Applying…' : 'Apply this design'}
           </button>
