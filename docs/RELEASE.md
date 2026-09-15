@@ -2721,6 +2721,101 @@ assertion inside the required `test` check, so it changes what can merge:**
 Forge intake and a Sentinel review, per the axe-ratchet shape in §2 of the
 conventions.
 
+### A new blocking assertion could reach `main` with nothing asking about it (2026-09-14) · FIXED
+
+**The defect.** `scripts/review-gate.mjs` reported PR #566 — which added rule 4
+to `tests/a11y/class-pairs.ts`, a new class of blocking assertion inside the
+required `test` check — as **"✅ No review-gate files in this PR … merges on
+green."** That was the correct answer to the question the check asks (does this
+owe a review?) and no answer at all to the one that mattered (does this change
+what everyone else can merge?). §2 of the conventions has always required the
+second, and nothing in the repository could prompt for it: the gate list is
+path-based, and a new assertion class inside an existing check touches no path
+on it. Its author predicted at the DREAMCRM-45 planning meeting that #566 would
+need routing, remembered the rule by hand, and routed it — while the one part
+of the system that is supposed to know said otherwise, on the job summary, with
+a green tick.
+
+It is the fourth PR of this shape: the axe ratchet (#534, three days to reach
+the skill), the shared-pending guard (#559), the brand ramp's solid-fill rule
+(#555 — routed, but only the half its title described), and #566.
+
+**The verdict.** Fixed under DREAMCRM-49. `scripts/review-gate.mjs` now answers
+two questions separately. `INTAKE_RULES` names the files holding a repo-wide
+blocking assertion; a PR touching one gets its own job-summary section and a
+`needs-forge-intake` label saying *tell Forge the same day*. It adds no
+reviewer and holds up nothing — §2 calls this intake, not review, and a
+test-only PR stays exempt from §3. A PR can now be told "merges on green" and
+"tell Forge" in the same summary, which is the honest pair of answers.
+
+Deliberately **not** done by widening the review gate: measured against the last
+90 merged PRs, folding these files into `GATE_RULES` would have put roughly a
+third of them into a review queue of one. The money rule was narrowed on exactly
+that reasoning, and this would have undone it faster.
+
+Four files went the other way, onto the review gate as a new `check-definitions`
+rule — `vitest.config.ts`, `playwright.config.ts`, `e2e/axe.ts` and
+`scripts/review-gate.mjs`. They decide which assertions run and which are
+excluded, which is the `.github/workflows/**` argument one level in.
+
+**The half a path list cannot cover.** A brand-new scanner file matches no
+pattern, which is how `dark-mode-parity.test.ts` (#555) and `shared-pending.ts`
+(#559) arrived. `tests/guards/review-gate.test.ts` therefore derives the set
+from the tree, on the same terms as the `@/lib/stripe` test: a suite file that
+walks a directory and names a product root is asserting about the whole tree,
+and must be on the intake list or `test` fails naming it. Red runs watched on
+all four new assertions, including a fabricated new scanner file — it failed by
+name on arrival.
+
+### `e2e/axe-baseline.ts` has no guard that ceilings only go down (2026-09-14) · OPEN
+
+**The defect.** §2 of the conventions states "Ceilings only ever go down" and
+"raising a ceiling to get green is weakening a failing test", and nothing
+enforces either. A PR that raises a per-(stop, rule) number in
+`e2e/axe-baseline.ts` to get past a new accessibility violation turns `e2e`
+green, trips no guard, and — deliberately, see below — carries no label.
+
+**Reproduction.** Raise any entry in `e2e/axe-baseline.ts` by one and run
+`pnpm test`: the suite is green. Nothing in `tests/guards/**` reads the file's
+previous value.
+
+**Why it was not simply added to the intake list** (DREAMCRM-49, where this was
+found). The baseline is an *inventory of existing debt*, not a rule. Shrinking
+it is the expected end of every accessibility fix — it moved in 10 of the last
+90 merged PRs — so labelling those PRs would teach people the label means
+nothing, and a path pattern cannot tell a shrink from a raise anyway. The
+instrument this wants is a monotonicity guard that reads the entry's value on
+`origin/main` and fails on any increase, with a deliberate opt-out that has to
+be written down. That is a different defect from the routing hole and is filed
+separately rather than bundled into it.
+
+### Clipped text over a SOLID brand fill is graded by no rule (2026-09-14) · OPEN
+
+**The defect.** Rule 4 (#566) grades `bg-clip-text text-transparent` only when
+the ink is a *gradient* — `isGradientText` in `tests/a11y/class-pairs.ts`
+requires at least one base-variant `from-`/`via-`/`to-` stop. A chunk spelling
+the same effect with a solid fill —
+`bg-teal-400 bg-clip-text text-transparent` — renders teal-400 letterforms on
+white at **2.42:1** and is graded by nothing: rule 4 skips it for want of a
+gradient stop, rule 2 skips it because `scanForWhiteOnShallowBrand` requires
+`ink.word === 'white'` and the ink here is `transparent`, rule 3 needs a
+`text-white` to anchor on, and axe cannot see a clipped background at all.
+
+**Reproduction.** Add `className="bg-teal-400 bg-clip-text text-transparent"` to
+any element under `app/`, `components/` or `lib/` and run
+`pnpm vitest run tests/a11y/token-contrast.test.ts` — green, with a 2.42:1
+headline live.
+
+**Zero instances today** (`grep -rn "bg-clip-text" app/ components/ lib/` returns
+the one fixed marketing headline), so this is a hole rather than a live defect —
+which is precisely the shape #566's own module header argues for writing down:
+*when you write a rule for a shape, write down what the shape's inverse would do
+to it.* Rule 4 was written for the gradient inverse of rule 3 and left its own
+solid-fill inverse open. The fix is small — extend `gradeGradientTextClasses` to
+grade a base `bg-<ramp>-<step>` as ink when `bg-clip-text text-transparent` is
+present — and belongs to whoever next touches that file, with a watched red run
+on the shape above.
+
 ## Part 6 — The post-1.0 backlog
 Moved to `docs/POST-1.0.md` (2026-08-17) — the full seeded inventory:
 externally-gated items (OD vendor portal, first A2P approval,
