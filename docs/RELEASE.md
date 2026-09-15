@@ -998,7 +998,7 @@ collections header) and two remain open below.
   wrapped, above ~$21M), and the page says when it is showing fewer rows than
   the totals count.
 - S3 · legacy `billing_profiles` vanity write (`lib/services/settings.ts`) —
-  a table nothing reads back for billing. · **FIXED — awaiting merge (#606)**
+  a table nothing reads back for billing. · **FIXED** (#606, `71e2992a`)
   (DREAMCRM-58) — `upsertBilling` was the only writer; it, `getBilling`, the
   two dead server actions behind them (`saveBilling` / `changePlan`) and their
   input schemas are gone. Bigger than dead code: `changePlan` took a plan name
@@ -1174,8 +1174,8 @@ three cheap high-value classes (fixed) plus loop-hardening (R2).
   hosted session always carries a URL in practice; this is the defensive
   branch), and the predicate is load-bearing for the coupon release's
   "was it deleted or never written" question, so the fix needs that reasoning
-  re-earned rather than the predicate simply dropped. · **FIXED — awaiting
-  merge (#606)** (DREAMCRM-58) — the predicate is dropped, and it did not
+  re-earned rather than the predicate simply dropped. · **FIXED** (#606,
+  `71e2992a`) (DREAMCRM-58) — the predicate is dropped, and it did not
   survive the re-earning. It never did the job its comment credited it with
   ("cannot collide with the finalizer's lookup key"): the case it would have to
   catch is `sessions.create` succeeding and the id-stamp UPDATE then throwing,
@@ -1837,8 +1837,8 @@ several defects. They are ALLOWLISTED (with these reasons) in
 
 None is the scanner's defect (metered per-call spend on someone else's cap),
 which is why the scanner was fixed and these were written down. The one worth
-a decision is the missing rate limit on `submitIntakeForm`. · **FIXED —
-awaiting merge (#606)** (DREAMCRM-58), for that third item ONLY — the three
+a decision is the missing rate limit on `submitIntakeForm`. · **FIXED** (#606,
+`71e2992a`) (DREAMCRM-58), for that third item ONLY — the three
 client-posted org ids stay exactly as allowlisted above, with their reasons,
 because none of them is this defect.
 
