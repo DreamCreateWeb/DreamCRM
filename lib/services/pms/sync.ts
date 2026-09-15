@@ -11,6 +11,7 @@ import { getPmsConnection } from './connection'
 import {
   PmsWriteWaitingError,
   PmsWriteNotSupportedError,
+  PmsSyncInFlightError,
   type CommLogDirection,
   type CommLogMode,
   type NormalizedAppointment,
@@ -191,7 +192,7 @@ export async function runImport(
     .limit(1)
   if (inflight) {
     if (clock() - inflight.startedAt.getTime() < RUN_STALE_MS) {
-      throw new Error('A sync is already running for this clinic — please wait for it to finish.')
+      throw new PmsSyncInFlightError('A sync is already running for this clinic — please wait for it to finish.')
     }
     // Stale — reap it so it neither blocks this run nor lingers as a zombie.
     await db
