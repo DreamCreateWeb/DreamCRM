@@ -399,6 +399,14 @@ export const INTAKE_RULES = [
       // everyone's diff, and that is the thing intake is for.
       'tests/a11y/legibility-floor.test.ts',
       'tests/a11y/retired-tones.test.ts',
+      // Rule 6, the quiet-ink gate (DREAMCRM-62 / UI batch 64). A NEW CLASS of
+      // assertion rather than a case on an existing one, which is the
+      // distinction this entry's `why` asks to be stated rather than guessed:
+      // it grades a neutral ink declared for BOTH themes on an element with no
+      // surface of its own — the family rule 1 structurally cannot see, because
+      // rule 1 needs a `bg-` on the same element to measure against. 177 places
+      // were failing it in both themes when it landed.
+      'tests/a11y/quiet-ink.test.ts',
       // The remaining tree-wide scanners, each holding the product at zero for
       // one convention. Derived from the tree by the guard test, not recalled.
       'tests/clinic-site/jsonld-escaping.test.ts',
