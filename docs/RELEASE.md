@@ -2893,7 +2893,7 @@ instrument this wants is a monotonicity guard that reads the entry's value on
 be written down. That is a different defect from the routing hole and is filed
 separately rather than bundled into it.
 
-### Clipped text over a SOLID brand fill is graded by no rule (2026-09-14) · FIXED — awaiting merge (#589)
+### Clipped text over a SOLID brand fill is graded by no rule (2026-09-14) · FIXED — awaiting merge (#594)
 
 **The defect.** Rule 4 (#566) grades `bg-clip-text text-transparent` only when
 the ink is a *gradient* — `isGradientText` in `tests/a11y/class-pairs.ts`
@@ -2939,7 +2939,7 @@ and it is too pale to read (bg-teal-400) — light: teal-400 on white = 2.42`.
 Both halves were run; the green one is the part worth recording, because it is
 the state this repo was in for a day short of a week.
 
-### Three dead-exemption detectors asked whether an exemption still MATCHED, never whether its REASON held (2026-09-15) · FIXED — awaiting merge (#589)
+### Three dead-exemption detectors asked whether an exemption still MATCHED, never whether its REASON held (2026-09-15) · FIXED — awaiting merge (#594)
 
 **The defect.** This repo has four allow-lists that make a contrast gate
 looser, each with a detector that fails when an entry stops matching anything:
