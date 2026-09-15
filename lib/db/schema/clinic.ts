@@ -1207,6 +1207,10 @@ export const connectRefund = pgTable(
     // 'shop_order' | 'balance_payment' | 'booking_deposit' | 'none'
     attachedTo: text('attached_to').notNull().default('none'),
     refundedAt: timestamp('refunded_at').notNull().defaultNow(),
+    // Same ordering watermark as the three money rows (DREAMCRM-47) — the
+    // receipt's `greatest()` upsert is monotonic for the same reason and had
+    // the same blind spot.
+    refundSyncedAt: timestamp('refund_synced_at'),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (t) => [
@@ -1329,6 +1333,16 @@ export const shopOrder = pgTable(
     // claiming to be something it isn't.
     refundedAmountCents: integer('refunded_amount_cents').notNull().default(0),
     refundedAt: timestamp('refunded_at'),
+    // The ORDERING WATERMARK for the refund columns above (DREAMCRM-47).
+    // `amount_refunded` is a cumulative SNAPSHOT of the charge and webhook
+    // delivery is unordered, so "only ever goes up" was the only safe rule
+    // available — and it meant a refund that later FAILED (Stripe decrements
+    // the charge and fires `charge.refund.updated`) could never be un-recorded.
+    // This stores Stripe's `event.created` for the snapshot we last applied, so
+    // a strictly NEWER snapshot may write a SMALLER total; anything not newer
+    // still falls back to the monotonic rule. NULL = never synced with an
+    // ordering key, i.e. monotonic only.
+    refundSyncedAt: timestamp('refund_synced_at'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     paidAt: timestamp('paid_at'),
     fulfilledAt: timestamp('fulfilled_at'),
@@ -1642,6 +1656,16 @@ export const patientBalancePayment = pgTable(
     // surfaces read these two columns instead (lib/services/refunds.ts).
     refundedAmountCents: integer('refunded_amount_cents').notNull().default(0),
     refundedAt: timestamp('refunded_at'),
+    // The ORDERING WATERMARK for the refund columns above (DREAMCRM-47).
+    // `amount_refunded` is a cumulative SNAPSHOT of the charge and webhook
+    // delivery is unordered, so "only ever goes up" was the only safe rule
+    // available — and it meant a refund that later FAILED (Stripe decrements
+    // the charge and fires `charge.refund.updated`) could never be un-recorded.
+    // This stores Stripe's `event.created` for the snapshot we last applied, so
+    // a strictly NEWER snapshot may write a SMALLER total; anything not newer
+    // still falls back to the monotonic rule. NULL = never synced with an
+    // ordering key, i.e. monotonic only.
+    refundSyncedAt: timestamp('refund_synced_at'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     paidAt: timestamp('paid_at'),
   },
@@ -1849,6 +1873,16 @@ export const bookingDeposit = pgTable(
     // surfaces read these two columns instead (lib/services/refunds.ts).
     refundedAmountCents: integer('refunded_amount_cents').notNull().default(0),
     refundedAt: timestamp('refunded_at'),
+    // The ORDERING WATERMARK for the refund columns above (DREAMCRM-47).
+    // `amount_refunded` is a cumulative SNAPSHOT of the charge and webhook
+    // delivery is unordered, so "only ever goes up" was the only safe rule
+    // available — and it meant a refund that later FAILED (Stripe decrements
+    // the charge and fires `charge.refund.updated`) could never be un-recorded.
+    // This stores Stripe's `event.created` for the snapshot we last applied, so
+    // a strictly NEWER snapshot may write a SMALLER total; anything not newer
+    // still falls back to the monotonic rule. NULL = never synced with an
+    // ordering key, i.e. monotonic only.
+    refundSyncedAt: timestamp('refund_synced_at'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     paidAt: timestamp('paid_at'),
   },

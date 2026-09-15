@@ -16,6 +16,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
  *  3. A refund that never succeeded moves no money and records nothing.
  *  4. A handler failure returns 500 so Stripe retries — a dropped refund is
  *     the bug this whole branch exists to fix.
+ *  5. `charge.refund.updated` is handled, and — unlike `refund.created` — is
+ *     NEVER skipped on the refund's status. That event is how Stripe says a
+ *     refund FAILED at the bank, which decrements the charge's
+ *     `amount_refunded`; skipping it on status would throw away the only
+ *     notice that money we recorded as returned never left.
+ *  6. Every call carries `observedAt` (Stripe's `event.created`), the ordering
+ *     key `lib/services/refunds.ts` needs before it will lower a total.
  */
 
 const state = {
@@ -89,7 +96,15 @@ describe('charge.refunded', () => {
     const res = await POST(post())
     expect(res.status).toBe(200)
     expect(state.recordCalls).toEqual([
-      { organizationId: 'org_a', paymentIntentId: 'pi_1', amountRefundedCents: 5_000, chargeAmountCents: 5_000 },
+      {
+        organizationId: 'org_a',
+        paymentIntentId: 'pi_1',
+        amountRefundedCents: 5_000,
+        chargeAmountCents: 5_000,
+        // No `created` on this event, so there is no ordering key and the
+        // service falls back to the monotonic rule.
+        observedAt: null,
+      },
     ])
     // The event already carries the totals — no extra Stripe round-trip.
     expect(state.chargeRetrieves).toEqual([])
@@ -159,6 +174,107 @@ describe('refund.created', () => {
     })
     expect((await POST(post())).status).toBe(200)
     expect(state.recordCalls).toEqual([])
+  })
+})
+
+describe('charge.refund.updated — the refund that FAILED', () => {
+  it('records the charge’s DECREMENTED total, whatever the refund’s status', async () => {
+    // Stripe has already taken the $50 back off the charge; this event is the
+    // only notice we get. Reading the CHARGE is what makes the cumulative
+    // figure right — the refund object still names its own $50 leg.
+    state.charge = { payment_intent: 'pi_1', amount: 5_000, amount_refunded: 0 }
+    mockConstructEvent.mockReturnValue({
+      type: 'charge.refund.updated',
+      account: 'acct_1',
+      created: 1_800_000_100,
+      data: { object: { id: 're_1', charge: 'ch_1', amount: 5_000, status: 'failed' } },
+    })
+
+    expect((await POST(post())).status).toBe(200)
+
+    expect(state.chargeRetrieves).toEqual(['ch_1'])
+    expect(state.recordCalls[0]).toMatchObject({
+      amountRefundedCents: 0,
+      chargeAmountCents: 5_000,
+      observedAt: new Date(1_800_000_100_000),
+    })
+  })
+
+  it('a status that would silence refund.created does NOT silence this', async () => {
+    // The status filter exists to skip a refund that never moved money. Here
+    // the status IS the news, so the same filter must not apply.
+    for (const status of ['failed', 'canceled', 'succeeded']) {
+      state.chargeRetrieves = []
+      state.recordCalls = []
+      state.charge = { payment_intent: 'pi_1', amount: 5_000, amount_refunded: 0 }
+      mockConstructEvent.mockReturnValue({
+        type: 'charge.refund.updated',
+        account: 'acct_1',
+        created: 1_800_000_100,
+        data: { object: { id: 're_1', charge: 'ch_1', amount: 5_000, status } },
+      })
+      await POST(post())
+      expect(state.recordCalls, status).toHaveLength(1)
+    }
+  })
+
+  it('every spelling of the event is handled, not just the legacy one', async () => {
+    // Stripe renamed this family and WHICH name an account emits depends on
+    // the API version pinned to it. Betting on one spelling would leave the
+    // whole failed-refund fix inert for some accounts, with nothing saying so
+    // (Sentinel, reviewing #579).
+    for (const type of ['charge.refund.updated', 'refund.updated', 'refund.failed']) {
+      state.chargeRetrieves = []
+      state.recordCalls = []
+      state.charge = { payment_intent: 'pi_1', amount: 5_000, amount_refunded: 0 }
+      mockConstructEvent.mockReturnValue({
+        type,
+        account: 'acct_1',
+        created: 1_800_000_100,
+        data: { object: { id: 're_1', charge: 'ch_1', amount: 5_000, status: 'failed' } },
+      })
+      await POST(post())
+      expect(state.recordCalls, type).toHaveLength(1)
+      expect(state.recordCalls[0], type).toMatchObject({ amountRefundedCents: 0 })
+    }
+  })
+})
+
+describe('the ordering key', () => {
+  it('carries Stripe’s event.created as observedAt', async () => {
+    mockConstructEvent.mockReturnValue({
+      type: 'charge.refunded',
+      account: 'acct_1',
+      created: 1_800_000_000,
+      data: { object: { payment_intent: 'pi_1', amount: 5_000, amount_refunded: 5_000 } },
+    })
+    await POST(post())
+    expect(state.recordCalls[0]).toMatchObject({ observedAt: new Date(1_800_000_000_000) })
+  })
+
+  it('a fetched charge is stamped with the triggering event’s time, not ours', async () => {
+    // Deliberately UNDER-claiming the snapshot's freshness: the charge we just
+    // read is at least as fresh as the event that made us read it, and the
+    // cost of under-claiming is the monotonic rule we already had.
+    state.charge = { payment_intent: 'pi_1', amount: 5_000, amount_refunded: 5_000 }
+    mockConstructEvent.mockReturnValue({
+      type: 'refund.created',
+      account: 'acct_1',
+      created: 1_800_000_050,
+      data: { object: { id: 're_1', charge: 'ch_1', amount: 5_000, status: 'succeeded' } },
+    })
+    await POST(post())
+    expect(state.recordCalls[0]).toMatchObject({ observedAt: new Date(1_800_000_050_000) })
+  })
+
+  it('no event.created means no ordering key at all — never a guess', async () => {
+    mockConstructEvent.mockReturnValue({
+      type: 'charge.refunded',
+      account: 'acct_1',
+      data: { object: { payment_intent: 'pi_1', amount: 5_000, amount_refunded: 5_000 } },
+    })
+    await POST(post())
+    expect(state.recordCalls[0].observedAt).toBeNull()
   })
 })
 
