@@ -511,7 +511,99 @@ binding are all correct. The payment-plan charger was the exception.
   `status='paid'` and a fully refunded order leaves that set. Fix shape:
   `sum(amount_cents - refunded_amount_cents)` over
   `status in ('paid','refunded')`, decided once for all of them so the
-  surfaces cannot disagree. · OPEN.
+  surfaces cannot disagree. · **FIXED** (DREAMCRM-32) — the rule is
+  `lib/net-collected.ts`, adopted by every clinic-side total: the collections
+  board's "Collected this month" and its last-paid column, the Payments hub's
+  8-week heartbeat, the Shop hub's revenue tile + trailing-30-day figure,
+  "Best sellers" revenue, patient lifetime shop spend (both the list and the
+  record), and all three bookkeeping CSVs, which grew a `Net collected`
+  column so the number a bookkeeper totals is the netted one. Two decisions
+  make it ONE rule rather than eight: the STATUS FILTER DOES NOT CHANGE (a
+  refunded balance payment stays 'paid' on purpose, so netting is the only
+  thing that makes its total honest; a fully refunded shop order leaves the
+  'paid' set and nets to zero either way), and the net is CLAMPED AT ZERO so
+  no single row can pull a clinic's month negative. "Best sellers" is the one
+  allocation call: Stripe refunds a CHARGE, not a line, so each line is
+  reduced by the share of its order that came back — the only split that
+  keeps the lines summing to the order's net — while `unitsSold` stays a
+  count of units that left the shelf. `tests/guards/net-refunds.test.ts`
+  fails on a raw `sum()` over a refundable column, a raw `+=` off one, or the
+  subtraction open-coded anywhere else; its red run was watched against the
+  live bug in both `collections.ts` and `shop.ts`.
+  TWO PROPERTIES OF THE RULE worth knowing before reading a figure it produces
+  (Sentinel, review of #557): it NETS BY PAYMENT DATE, so an October refund
+  against a September payment reduces September and is invisible in October's
+  "Collected this month" and in the current bar of the 8-week heartbeat —
+  right for "what we kept", surprising for a clinic reconciling an October
+  bank statement; and "Best sellers" pro-rates against the ORDER TOTAL, which
+  includes shipping and tax, so a shipping-only refund reduces every product
+  line a little. Both are deliberate, and both are the kind of thing the next
+  person would otherwise rediscover as a bug.
+- S3 · four MORE surfaces showed refunded money as kept, found by the batch
+  invariant sweep rather than by the ledger. Split from the netting entry
+  above because they are a different failure: not a total that forgot to
+  subtract, but a surface that never held the refund columns at all. ·
+  **FIXED** (DREAMCRM-32):
+  (1) the appointment drawer's "Shop purchases" stat — its own comment claimed
+  the SAME source as the patients list's column, and both of those netted, so
+  one figure read two different numbers on two pages;
+  (2) the drawer's booking-deposit pill, which told the front desk to post
+  money to the PMS ledger that Stripe had already sent back (the deposit row
+  stays 'paid' by design);
+  (3) the patient's printable SHOP-ORDER receipt, stamped "Paid" at full face
+  value after a refund — the balance-payment branch 28 lines below it in the
+  same file had been doing this correctly since DREAMCRM-23;
+  (4) the patient's billing-history row for a shop order, silent about a
+  refund while the payment rows beside it said so. (3) and (4) shared one root
+  cause: `getMyBills` never selected `shop_order.refunded_amount_cents`.
+  THE GUARD LESSON, worth more than the four fixes: `tests/guards/net-refunds.test.ts`
+  reported clean through all of this, because it modelled the SQL `sum()` and
+  the JS `+=` but not the `reduce` — and the drawer used a reduce. It now
+  models all three accumulator shapes. Its new case was then found to have been
+  written with BACKSPACE bytes where its word-boundary escapes belonged, so it
+  matched nothing and passed on the first try; the red run against the live bug
+  is what caught that. A guard authored straight to green proves only that it
+  runs.
+- S3 · three clinic-side HISTORY surfaces still read "$400 paid" on a charge
+  the patient had been refunded, while the patient's own portal said
+  "Refunded to you" — one event, two stories, and a front desk on the phone
+  between them. Its own entry because it is not a total that forgot to
+  subtract: these are per-EVENT records, whose face value is correct, and what
+  they owed the reader was the rest of the story. Found by Sentinel reviewing
+  #557, in the same sweep that produced the four above. · **FIXED**
+  (DREAMCRM-32) for the two a clinic reads as a narrative —
+  `lib/services/patient-timeline.ts` (both the shop-order and the
+  balance-payment entries) and `lib/services/thread-activity.ts` — via
+  `refundNote` in `lib/net-collected.ts`, which single-homes the WORDING for
+  the same reason that module single-homes the arithmetic. The title keeps the
+  face value; the subtitle carries what changed since. · OPEN for the third:
+  `lib/services/global-search.ts:393` labels a Cmd-K result
+  `"<who> — $89.00"` with the order status as its sublabel, so a FULLY
+  refunded order already discloses ("refunded") and a partly refunded one
+  reads "Paid order" at face value. It is an identifier in a result list
+  rather than a record of money, and changing it is a search-UX call — named
+  here rather than left unwritten.
+- S3 · a refunded online payment still earned its patient loyalty points.
+  The balance-payment row keeps `status = 'paid'` after a refund on purpose,
+  so the daily accrual sweep read it as money the patient had paid, and
+  nothing took back points already awarded when the refund landed later.
+  Split from the netting entry above on contact: that one is a SUM reading a
+  column it never read, this one is a LEDGER holding a reward that is no
+  longer earned — one verdict could not have closed both honestly. ·
+  **FIXED** (DREAMCRM-32) — both halves, because a refund can land on either
+  side of the sweep: the sweep skips a payment with nothing left on it, and
+  `reverseLoyaltyForRefundedPayment` writes a compensating negative
+  `kind = 'reverse'` row when the refund arrives afterwards, called
+  best-effort from `recordConnectRefund` on EVERY delivery (so a crash
+  between the money write and the ledger write is recovered by the
+  redelivery rather than stranding the points). A PARTIAL refund keeps the
+  award — points per payment are a flat number, not a rate, and the patient
+  did pay. The reversal mirrors the EARN ROW's value rather than today's
+  settings, so a clinic that raised its award in between cannot claw back
+  more than it gave; idempotency is free from the existing unique
+  (org, kind, source_id) index with the payment id as the anchor. The
+  balance may go negative if the points are already spent — the honest
+  outcome, and an already-minted coupon is never voided.
 - S2 · `finalizeOrderFromSession` did not know 'refunded' was a terminal
   state, so a refunded shop order could be written back to `'paid'` by a page
   RELOAD. `app/site/[slug]/shop/success/page.tsx` finalizes on every load (an
@@ -530,13 +622,71 @@ binding are all correct. The payment-plan charger was the exception.
   `booking_deposit`; a refund on a membership subscription or a payment-plan
   installment runs through the same connected account, matches none of the
   three, and is discarded. Now at least logged
-  ("refund matched no money record") rather than silent. · OPEN.
+  ("refund matched no money record") rather than silent. · **FIXED**
+  (DREAMCRM-32), and HALF OF IT WAS ALREADY WRONG WHEN WRITTEN: payment-plan
+  installments have always matched. `chargePlanInstallment`
+  (`lib/services/payment-plans.ts`) records every installment as a
+  `patient_balance_payment` with the PaymentIntent stamped, so a refund on one
+  lands on that row — verified in the code before the fix was designed, which
+  is the only reason this entry did not grow a table nobody needed. The real
+  gap was MEMBERSHIP alone: the `membership` row tracks the subscription, not
+  its individual charges, so a refunded membership payment moved the practice's
+  bank balance and their software said nothing.
+  Migration 0162 adds `connect_refund`, one row per refunded charge, written by
+  `recordConnectRefund` whether or not it attached to anything.
+  `attached_to = 'none'` is the readable version of that log line, surfaced as
+  "Refunds we couldn't match" on Payments → Online (only when there is one —
+  an empty "nothing unmatched" panel is a worry with no work in it). Monotonic
+  and claimed on (org, payment intent) like the rest of the path, so unordered
+  delivery cannot walk a receipt backwards and a redelivery updates its own
+  row; a later delivery that attaches UPGRADES the receipt, but one that
+  cannot never downgrades an attachment already made. Best-effort — the money
+  records are the thing that must land.
 - S3 · `shop_config.stripe_account_id` has no unique constraint, and
   `orgIdForConnectedAccount` resolves a TENANT from it with `.limit(1)` on a
   money write path (matching what `syncConnectedAccountStatus` already did).
   Two rows sharing an account id would route one clinic's refund to another's
   records. A unique index would make the isolation structural instead of
-  assumed. · OPEN.
+  assumed. · **OPEN — written, parked, waiting on one production read.**
+  The index is drafted in full at
+  `lib/db/migrations/parked/one-stripe-account-per-clinic.sql` (UNIQUE and
+  PARTIAL: the column is null for every clinic that has not connected Stripe,
+  and again after `disconnectShopStripe` clears it, so a plain unique index
+  would be satisfied by those nulls and say nothing). It is deliberately
+  OUTSIDE `meta/_journal.json`, so no deploy can run it.
+  WHY IT IS NOT SHIPPED: `CREATE UNIQUE INDEX` fails on existing duplicates,
+  and on this deploy path a failed migration is skipped in silence and takes
+  every later migration with it (the S2 entry directly below). So the order has
+  to be check-then-apply, not apply-and-see.
+  THE PRECONDITION: the `duplicate-stripe-accounts` check in
+  `lib/read-checks.ts` (DREAMCRM-42, `docs/PROD-READ-ACCESS.md`) must return
+  ZERO ROWS. That check exists and is dispatchable; it needs the owner's
+  one-time DREAMCRM-42 setup (the read-only role, `DATABASE_URL_READONLY` and
+  `ADMIN_READ_SECRET`) before it answers rather than 503s.
+  It was SPLIT OUT of PR #557 by the DREAMCRM-45 planning decision
+  (2026-09-15, bias-to-action): every other defect in that batch had no
+  production precondition, and holding them all behind this one lookup was
+  keeping finished work off `main`. One defect, one verdict — so this line
+  stays OPEN until the index is live, even though its code is written.
+  `tests/payments/connected-account-uniqueness.test.ts` freezes the PARKED
+  state from both sides: the schema must not declare the index while the file
+  exists (or `pnpm db:generate` would emit it into a numbered migration and it
+  would apply anyway), no journaled migration may create it, and deleting the
+  parked file without the index going fully live fails too.
+- S2 · **a failed migration does not stop a deploy, and nothing says so.**
+  Found by Sentinel reviewing #557, while checking the deploy note on
+  migration 0162 — which claimed a duplicate would halt the deploy. It would
+  not. `Dockerfile:62` starts the server first and runs the migrator as
+  `(db-migrate && resync-demo) || true`; App Runner has already marked the
+  container healthy, `scripts/db-migrate.mjs` retries ~90s and exits 1 into
+  that `|| true`, `/api/admin/migrate` returns a 500 nobody alarms on, and
+  `.github/workflows/deploy.yml` has no migration step at all. So a failing
+  migration ships GREEN, is skipped again on every boot, and — because
+  drizzle applies migrations in order — silently blocks every later migration
+  behind it. Whatever that migration was protecting is simply off in
+  production with a tick beside it. The note in 0162 now says this instead of
+  the opposite, but the pipeline is the defect: it is the deploy path, it
+  belongs to nobody yet, and it needs its own item and its own owner. · OPEN.
 - S3 · a refund that later FAILS is never un-recorded. Stripe decrements the
   charge's `amount_refunded` and fires `charge.refund.updated` with status
   `failed`; `recordConnectRefund` is monotonic by design, so the record keeps
@@ -598,7 +748,20 @@ binding are all correct. The payment-plan charger was the exception.
   "we only counted the first" shape as the pagination fix directly above it.
   Fix shape: sum `normalizedMonthlyCents` across every item rather than
   reading the head, which also makes `priceId`/`productName` on the row
-  explicitly "the primary item" rather than accidentally so. · OPEN.
+  explicitly "the primary item" rather than accidentally so. · **FIXED**
+  (DREAMCRM-32) — `AdminSubscription` now carries `items`, every recurring line
+  on the subscription, and `monthlyContributionCents` sums
+  `normalizedMonthlyCents` across them. Each line normalizes on its OWN cadence
+  and seat count, so an annually-billed add-on beside a three-seat monthly plan
+  is two correct numbers rather than one wrong one. The flattened head fields
+  survive as the documented PRIMARY item for the table columns and the
+  plan-mix grouping that render one line per subscription; MRR never reads
+  them. The head fields are also the FALLBACK for a caller holding a partial
+  row — an ABSENT `items` falls back, an EMPTY one means "no recurring lines"
+  and contributes nothing. Product names are now fetched for every item's
+  product, not just the head's, so an add-on line is named rather than blank.
+  The cadence + seat math stays single-homed in `lib/mrr.ts` (the one-MRR
+  guard still holds).
 - S3 · `lib/prospect-vendors.ts:108` — a FOURTH tier→price map
   (`PLAN_PRICE = { basic: 150, pro: 250, premium: 500 }`) whose comment says
   it mirrors `stripe-config` PLANS, and which has drifted: PLANS prices
@@ -1321,7 +1484,42 @@ anyone who can upload through `/api/upload` can spend an ARBITRARY clinic's
 Slice 13 closed the "any URL on the internet" half. This is the "whose
 allowance" half: after Slice 13 the images must at least be ours, so it is a
 signed-in caller rather than a stranger, which is narrower and not closed.
-Pre-existing. · OPEN.
+Pre-existing. · **FIXED** (DREAMCRM-32) — three gates, in the order the action
+runs them: the per-IP `rateLimitPublicAction('insurance_ocr')` every other
+public action already had, running FIRST so a flood costs a counter rather
+than a query; the org resolved from the PUBLIC SLUG via
+`resolveClinicOrgIdBySlug`, never a client-posted id, which is the law
+`submitContactRequest` and the insurance verifier already follow; and the form
+template re-validated against THAT org, so a caller has to name a real,
+unarchived intake form belonging to the clinic whose page they claim to be on
+(an archived form is not a door into the allowance either). The client no
+longer holds an organization id at all on this path: `IntakeFormRunner` threads
+an `OcrScope` of `{ siteSlug, templateId }` built once at the top, so the field
+components have nothing to hand the server.
+`tests/guards/public-action-tenancy.test.ts` freezes the rule for the whole
+`app/site/**` tree.
+
+### Open — three OTHER public clinic-site actions still take a client-posted orgId (found 2026-09-14)
+
+Found by the guard written for the scanner above, and NOT closed by it — same
+shape, three different calls, so bundling them would have put one verdict over
+several defects. They are ALLOWLISTED (with these reasons) in
+`tests/guards/public-action-tenancy.test.ts`:
+
+- `app/site/[slug]/actions.ts` `listBookingSlots(orgId, …)` — a READ of public
+  availability. No write, no spend, and it returns the same slots the page
+  already renders to anyone.
+- `app/site/[slug]/intake/[formSlug]/actions.ts` `submitIntakeForm({ orgId, … })`
+  — re-validates `templateId` against the posted org, so a submission can only
+  land on a form that org really owns. Spends nothing, and the form is public
+  anyway; what it lacks is a rate limit.
+- `app/site/[slug]/intake-start/actions.ts` `linkUserToClinicAsPatient({ orgId, … })`
+  — re-reads the org, requires a signed-in session, and links the CALLER to a
+  clinic whose public page already offers exactly that.
+
+None is the scanner's defect (metered per-call spend on someone else's cap),
+which is why the scanner was fixed and these were written down. The one worth
+a decision is the missing rate limit on `submitIntakeForm`. · OPEN.
 
 ### Slice 8 — stranded-campaign recovery · DONE
 

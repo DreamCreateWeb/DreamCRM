@@ -8,6 +8,7 @@ import { sendNotificationEmail } from '@/lib/email'
 import { toCsv, csvDollars } from '@/lib/csv'
 import { platformFeeCents } from '@/lib/types/shop'
 import { clinicWeekStart } from '@/lib/clinic-timezone'
+import { netCollectedCents } from '@/lib/net-collected'
 import { getClinicTimeZone } from './clinic-timezone'
 import { CheckoutError } from './checkout-error'
 
@@ -379,6 +380,10 @@ export async function listRecentBalancePayments(
  * runs UTC; a Saturday-night Central payment is already Sunday in UTC and
  * must not jump a week). One org-scoped query; bucketing in JS. `now` is
  * injectable for tests only.
+ *
+ * Each payment counts NET of what Stripe sent back (`lib/net-collected.ts`).
+ * The row stays 'paid' after a refund on purpose, so without the netting rule
+ * the clinic's heartbeat drew a week it never actually had.
  */
 export async function getCollectedPerWeek8(
   organizationId: string,
@@ -399,6 +404,7 @@ export async function getCollectedPerWeek8(
   const rows = await db
     .select({
       amountCents: schema.patientBalancePayment.amountCents,
+      refundedAmountCents: schema.patientBalancePayment.refundedAmountCents,
       paidAt: schema.patientBalancePayment.paidAt,
     })
     .from(schema.patientBalancePayment)
@@ -417,7 +423,7 @@ export async function getCollectedPerWeek8(
     // Last boundary <= paidAt owns the payment.
     for (let i = boundaries.length - 1; i >= 0; i--) {
       if (t >= boundaries[i].getTime()) {
-        sums[i] += r.amountCents
+        sums[i] += netCollectedCents(r.amountCents, r.refundedAmountCents)
         break
       }
     }
@@ -443,6 +449,7 @@ export async function exportBalancePaymentsCsv(organizationId: string): Promise<
     'Paid at',
     'Refunded',
     'Refunded at',
+    'Net collected',
   ]
   const csvRows = rows.map((r) => [
     r.id,
@@ -456,6 +463,11 @@ export async function exportBalancePaymentsCsv(organizationId: string): Promise<
     // the same row as the money that went out.
     r.refundedAmountCents > 0 ? csvDollars(r.refundedAmountCents) : '',
     r.refundedAt ? r.refundedAt.toISOString() : '',
+    // ...and the column they can actually total. Summing 'Amount' is what the
+    // clinic's own dashboard used to do, and it is the overstatement this
+    // batch closes — so the export carries the netted figure itself rather
+    // than leaving a subtraction for the spreadsheet.
+    csvDollars(netCollectedCents(r.amountCents, r.refundedAmountCents)),
   ])
   return toCsv(headers, csvRows)
 }

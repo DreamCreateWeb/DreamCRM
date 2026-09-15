@@ -1,0 +1,85 @@
+-- ===========================================================================
+-- PARKED — NOT APPLIED, AND NOT APPLICABLE FROM HERE.
+--
+-- This file is deliberately OUTSIDE `meta/_journal.json`. Drizzle's migrator
+-- reads the journal, not the directory, so nothing in `parked/` can ever run
+-- on a deploy. Moving it up a directory does not make it apply either — see
+-- "To apply it" below for the only correct path.
+--
+-- DREAMCRM-32, split out of migration 0162 by the DREAMCRM-45 planning
+-- decision (2026-09-15). The rest of that work had no production
+-- precondition; this one statement does, and holding the whole slice behind
+-- it was holding finished work hostage to a lookup nobody had run yet.
+-- ===========================================================================
+--
+-- WHAT IT IS FOR
+--
+-- A connected Stripe account belongs to exactly ONE clinic. Today that is
+-- assumed, not enforced. A Connect webhook names its tenant only through
+-- `event.account`, so `orgIdForConnectedAccount` (lib/services/shop-connect.ts)
+-- turns `shop_config.stripe_account_id` into a TENANT on a money write path,
+-- and it resolves with `.limit(1)`. Two rows sharing an account id would file
+-- one clinic's refund in another clinic's records — silently, and by whichever
+-- row the planner happened to return first.
+--
+-- PARTIAL on purpose: `stripe_account_id` is null for every clinic that has
+-- not connected Stripe, and again after `disconnectShopStripe` clears it, so a
+-- plain unique index would be satisfied by all those nulls and say nothing.
+--
+-- WHY IT IS PARKED
+--
+-- `CREATE UNIQUE INDEX` fails if the column already holds duplicates. On this
+-- deploy path a failed migration does not stop anything: `Dockerfile` starts
+-- the server first and runs the migrator as `(db-migrate && resync-demo) ||
+-- true`, App Runner has already marked the container healthy,
+-- `scripts/db-migrate.mjs` retries ~90s and exits 1 into that `|| true`,
+-- `/api/admin/migrate` returns a 500 nobody alarms on, and `deploy.yml` has no
+-- migration step at all. So on a duplicate the deploy would go GREEN, this
+-- would be skipped in silence on every boot, and — because drizzle applies
+-- migrations in order — every later migration would be stuck behind it.
+--
+-- That deploy defect is its own open ledger item (docs/RELEASE.md Part 5) and
+-- its own issue. Until it is fixed, "check first" is the only safe order.
+--
+-- THE PRECONDITION
+--
+-- One production read, which must come back with ZERO ROWS:
+--
+--     gh workflow run read-check.yml \
+--       -f check=duplicate-stripe-accounts \
+--       -f reason='DREAMCRM-32 / unique index precondition'
+--
+-- That check is `duplicate-stripe-accounts` in `lib/read-checks.ts` — a
+-- SELECT-only catalog entry that runs inside the VPC (docs/PROD-READ-ACCESS.md).
+-- It answers exactly this question and nothing else:
+--
+--     select stripe_account_id, array_agg(organization_id)
+--       from shop_config where stripe_account_id is not null
+--      group by 1 having count(*) > 1;
+--
+-- If it returns rows, DO NOT "fix" it by dropping the index or by nulling a
+-- clinic's Stripe connection to get a deploy through. Rows here mean a live
+-- cross-tenant money defect, and the clinics involved have to be identified by
+-- a person before either row is touched.
+--
+-- TO APPLY IT
+--
+-- Do not journal this file by hand. Restore the declaration to the schema and
+-- let the normal workflow generate the migration, so the snapshot chain stays
+-- consistent:
+--
+--   1. Confirm the read above returns zero rows, and say where that was
+--      confirmed.
+--   2. Re-add the index to `shopConfig` in `lib/db/schema/clinic.ts` (the
+--      statement below is exactly what it generates).
+--   3. `pnpm db:generate`, commit, open a PR — it is on the review gate
+--      (migrations + money) and needs Sentinel.
+--   4. Delete this file in the same PR, and close the DREAMCRM-32 unique-index
+--      entry in docs/RELEASE.md Part 5.
+--   5. `tests/payments/connected-account-uniqueness.test.ts` is written to
+--      fail while this file exists alongside a live index, and to fail if the
+--      schema declares the index while this file is still here — so step 2
+--      and step 4 cannot drift apart.
+-- ===========================================================================
+
+CREATE UNIQUE INDEX "shop_config_stripe_account_idx" ON "shop_config" USING btree ("stripe_account_id") WHERE "shop_config"."stripe_account_id" is not null;
