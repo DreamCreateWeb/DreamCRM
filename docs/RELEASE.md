@@ -3307,7 +3307,7 @@ green is the same move as raising an axe ceiling, and §2 of the repo
 conventions rules on it the same way. The note in `vitest.config.ts` keeps the
 whole recipe, so striking the ledger entry costs nothing but the queue slot.
 
-### A raw control byte makes a tracked file unreviewable, and nothing checks (2026-09-15) · FIXED — awaiting merge (#603)
+### A raw control byte makes a tracked file unreviewable, and nothing checks (2026-09-15) · FIXED (#603, `5322a489`)
 
 **The defect.** Git decides a file is binary by scanning its first 8000 bytes
 for a `NUL`. A tracked text file that contains one renders in every diff — `gh
@@ -3369,7 +3369,7 @@ That edit is product code in another lane; it is a composite map key that never
 leaves the function, so it is about as safe as a product-code change gets, and
 this entry is the hand-over §10 asks for — file, byte offsets, consequence, fix.
 
-**What shipped (DREAMCRM-66, #603).** `tests/guards/control-bytes.ts` +
+**What shipped (DREAMCRM-66, #603, merged 2026-09-15 `5322a489`).** `tests/guards/control-bytes.ts` +
 `control-bytes.test.ts`: every tracked file is walked with `git ls-files` and
 scanned for any C0 byte outside tab, LF and CR. Three decisions are the whole
 design:
