@@ -10,6 +10,8 @@ const state = {
   selectQueue: [] as unknown[][],
   inserts: [] as Array<{ table: string; values: Record<string, unknown> }>,
   deletes: 0,
+  /** Rows the next `.delete(...).returning()` should claim to have removed. */
+  deleteReturns: [] as Array<{ id: string }>,
   insertFail: null as null | ((table: string) => boolean),
 }
 
@@ -40,7 +42,14 @@ vi.mock('@/lib/db', () => {
       select: () => chain(),
       insert: insertInto(() => state.inserts),
       update: () => ({ set: () => ({ where: async () => {} }) }),
-      delete: () => ({ where: async () => { state.deletes++ } }),
+      delete: () => ({
+        where: () => {
+          state.deletes++
+          const p = Promise.resolve(undefined) as Promise<unknown> & { returning?: () => Promise<unknown> }
+          p.returning = async () => state.deleteReturns
+          return p
+        },
+      }),
       // Redemption runs check-then-write inside ONE transaction behind a
       // per-patient advisory lock. Staged writes commit together; a throw
       // discards them, which is how the coupon-mint rollback works now.
@@ -83,6 +92,8 @@ import {
   redeemLoyaltyPoints,
   adjustLoyaltyPoints,
   reverseLoyaltyForRefundedPayment,
+  restoreLoyaltyForUnrefundedPayment,
+  syncLoyaltyForRefundedPayment,
 } from '@/lib/services/loyalty'
 
 const ENABLED = { enabled: true, pointsPerVisit: 10, pointsPerReferral: 50, pointsPerPayment: 10, redeemPoints: 100, redeemValueCents: 1000 }
@@ -91,6 +102,7 @@ beforeEach(() => {
   state.selectQueue = []
   state.inserts = []
   state.deletes = 0
+  state.deleteReturns = []
   state.insertFail = null
   vi.clearAllMocks()
 })
@@ -303,6 +315,78 @@ describe('adjustLoyaltyPoints', () => {
     state.selectQueue.push([]) // patient-in-org guard finds nothing
     const r = await adjustLoyaltyPoints('org_1', 'p_foreign', 40, 'Welcome bonus', 'user_1')
     expect(r).toMatchObject({ ok: false })
+    expect(state.inserts).toHaveLength(0)
+  })
+})
+
+/**
+ * The other direction (DREAMCRM-47). Stripe decrements a charge's
+ * `amount_refunded` when a refund FAILS at the bank, so a payment that was
+ * fully refunded can stop being fully refunded — and points taken back for
+ * money that never left are owed to the patient.
+ */
+describe('restoreLoyaltyForUnrefundedPayment', () => {
+  it('removes the reversal once the payment is collected again', async () => {
+    state.deleteReturns = [{ id: 'loy_1' }]
+    const done = await restoreLoyaltyForUnrefundedPayment('org_1', 'bp_1', {
+      amountCents: 20_000,
+      refundedAmountCents: 0,
+    })
+    expect(done).toBe(true)
+    expect(state.deletes).toBe(1)
+    // A DELETE, not a compensating positive row: the reversal recorded a thing
+    // that turned out not to have happened, so the patient's own history must
+    // not read "refunded, points returned / points re-awarded".
+    expect(state.inserts).toHaveLength(0)
+  })
+
+  it('leaves a still-fully-refunded payment alone, and touches nothing', async () => {
+    const done = await restoreLoyaltyForUnrefundedPayment('org_1', 'bp_1', {
+      amountCents: 20_000,
+      refundedAmountCents: 20_000,
+    })
+    expect(done).toBe(false)
+    expect(state.deletes).toBe(0)
+  })
+
+  it('reports false when there was no reversal to remove', async () => {
+    state.deleteReturns = []
+    const done = await restoreLoyaltyForUnrefundedPayment('org_1', 'bp_1', {
+      amountCents: 20_000,
+      refundedAmountCents: 0,
+    })
+    expect(done).toBe(false)
+  })
+})
+
+describe('syncLoyaltyForRefundedPayment — one test, both directions', () => {
+  it('reverses when nothing is left collected', async () => {
+    state.selectQueue.push([{ patientId: 'p1', points: 10 }])
+    const out = await syncLoyaltyForRefundedPayment('org_1', 'bp_1', {
+      amountCents: 20_000,
+      refundedAmountCents: 20_000,
+    })
+    expect(out).toBe('reversed')
+    expect(state.deletes).toBe(0)
+  })
+
+  it('restores when the refund came back off the charge', async () => {
+    state.deleteReturns = [{ id: 'loy_1' }]
+    const out = await syncLoyaltyForRefundedPayment('org_1', 'bp_1', {
+      amountCents: 20_000,
+      refundedAmountCents: 0,
+    })
+    expect(out).toBe('restored')
+    expect(state.inserts).toHaveLength(0)
+  })
+
+  it('a PARTIAL refund is neither — the award stands, as it always has', async () => {
+    state.deleteReturns = []
+    const out = await syncLoyaltyForRefundedPayment('org_1', 'bp_1', {
+      amountCents: 20_000,
+      refundedAmountCents: 19_999,
+    })
+    expect(out).toBe('unchanged')
     expect(state.inserts).toHaveLength(0)
   })
 })
