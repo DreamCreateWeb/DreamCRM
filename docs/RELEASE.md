@@ -3218,7 +3218,7 @@ green is the same move as raising an axe ceiling, and §2 of the repo
 conventions rules on it the same way. The note in `vitest.config.ts` keeps the
 whole recipe, so striking the ledger entry costs nothing but the queue slot.
 
-### A raw control byte makes a tracked file unreviewable, and nothing checks (2026-09-15) · OPEN
+### A raw control byte makes a tracked file unreviewable, and nothing checks (2026-09-15) · FIXED (#603, `5322a489`)
 
 **The defect.** Git decides a file is binary by scanning its first 8000 bytes
 for a `NUL`. A tracked text file that contains one renders in every diff — `gh
@@ -3237,7 +3237,7 @@ than to a reviewer, pointed at a blob: **a weakening of the ratchet would have
 been invisible in review by construction.** Sentinel caught it on #588 and
 blocked on it; the file is escaped and diffs as text now (`335 0`).
 
-**Two independent reproductions, neither of them in code.**
+**Three independent reproductions, none of them in code.**
 
 1. `docs/RELEASE.md` carried a raw `0x08` at byte 193065, where `` `\b` `` was
    meant — in this ledger, which had therefore lost the name of the lesson it
@@ -3246,12 +3246,13 @@ blocked on it; the file is escaped and diffs as text now (`335 0`).
    tool, writing the conventions skill: `` `\b` `` typed into an edit script
    arrived at disk as a real `0x08` after two layers of JSON encoding. Caught
    only because that lane diffs every write byte-for-byte against what it sent.
+3. Quinn reproduced it a third time *while writing this entry*, which turned
+   `RELEASE.md` binary until it was caught.
 
 **So the hazard is not "somebody typed a control character".** It is that prose
 quoting a regex or an escape sequence **acquires the byte on the way to disk**,
-through the authoring path, without anyone choosing it. Both instances above
-were in docs. Neither was in code. A guard therefore wants `docs/**` in scope,
-not just source.
+through the authoring path, without anyone choosing it. All three were in docs.
+None was in code. A guard therefore wants `docs/**` in scope, not just source.
 
 **Reproduce it:**
 
@@ -3279,10 +3280,64 @@ That edit is product code in another lane; it is a composite map key that never
 leaves the function, so it is about as safe as a product-code change gets, and
 this entry is the hand-over §10 asks for — file, byte offsets, consequence, fix.
 
-Filed as its own issue (DREAMCRM-66). It would add a new blocking assertion
-class over all tracked source, a wider blast radius than anything in #588, so it
-takes Forge intake on the day and a Sentinel review if the diff reaches a gated
-area.
+**What shipped (DREAMCRM-66, #603, merged 2026-09-15 `5322a489`).** `tests/guards/control-bytes.ts` +
+`control-bytes.test.ts`: every tracked file is walked with `git ls-files` and
+scanned for any C0 byte outside tab, LF and CR. Three decisions are the whole
+design:
+
+- **It does not re-derive git's 8000.** `acquisition.ts` was clean by that rule
+  on the day it was one comment paragraph from unreviewable, and a check that
+  reports a file like that as fine teaches people it is noise. The window is
+  reported in the failure message and gates nothing.
+- **It bans the whole C0 range, not just `NUL`.** `0x08` never makes git call a
+  file binary and had still eaten a word out of this ledger. The hazard is the
+  authoring path, not git's sniff.
+- **Exclusions are derived from CONTENT, not from a path list.** A file is
+  skipped when its first bytes are a known binary signature (PNG, JPEG, WebP,
+  ICO, WOFF/WOFF2, ...), anchored at offset 0. Asking git "is this binary?"
+  would have been circular — it already called `acquisition.ts` `-text` —
+  whereas a `.ts` file does not open with a PNG header, and a font added
+  tomorrow is skipped with nobody editing anything. A second assertion closes
+  the mirror hole: a file whose header and extension disagree fails by name, so
+  the exclusion cannot become a hiding place.
+
+Beside the byte scan the guard asks **git itself**, through the `w/` column of
+`git ls-files --eol`, and requires the two answers to name the same files. That
+column and not `i/`: `i/` reads the index, and the test failed on
+`acquisition.ts` with the fix already applied on disk because the index still
+held the old blob. A guard that only tells the truth after `git add` gets
+distrusted.
+
+**Two live instances nobody had found, and a fourth reproduction during the
+fix.** The sweep turned up raw `0x1B` in `scripts/e2e-flaky-summary.mjs` and
+`tests/guards/e2e-flaky-summary.test.ts` — four sites, all of them an ANSI
+colour-code regex that had lost its backslash, the same shape as the `0x08` in
+this ledger. And writing the guard reproduced the hazard a fourth time: the two
+new files arrived on disk with **nine** raw control bytes in their own fixtures,
+every one of them a place the escape was typed and the byte was written. Which
+is the argument for the check, stated by the check's own authoring: three
+reproductions in a day across three tools is not a run of bad luck.
+
+Escaped in the same PR because a guard that is red on arrival cannot land:
+`acquisition.ts` (3 x `\u0000`, identical map keys, no behaviour change) and the
+four `0x1B` sites (`\x1b`, same regex, same string).
+
+**Red runs, on the real defect.** The byte scan was watched red on: the three
+`NUL`s restored in `acquisition.ts` **past byte 8000** — the mutation §2d asks
+for, git still diffing that file happily; a `NUL` planted at byte 7000 of
+`tests/guards/axe-baseline-ratchet.ts`, the #588 shape; and a `0x08` planted in
+this file, where `git ls-files --eol` reports plain text and only the byte scan
+can see it — which is what proves the scan is not leaning on git's verdict. The
+instrument was then broken in both directions: a PNG header prepended to
+`acquisition.ts` (caught by the extension-mismatch assertion, so the exclusion
+is not a hiding place), and `binarySignatureOf` forced to `null` and to
+always-match (five and six tests red respectively).
+
+**Gate routing.** New CLASS of blocking assertion inside `test`, repo-wide over
+all tracked source and docs — Forge intake on the day, and the
+`needs-forge-intake` label fires by path (`tests/guards/**` is on
+`INTAKE_RULES`). Sentinel review classified by running `gateFindings()` on the
+real file list rather than by guessing; see the PR.
 
 ## Part 6 — The post-1.0 backlog
 Moved to `docs/POST-1.0.md` (2026-08-17) — the full seeded inventory:
