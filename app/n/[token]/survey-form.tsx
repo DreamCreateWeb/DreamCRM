@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { submitNpsScoreAction, submitNpsCommentAction } from './actions'
-import { PORTAL_ERROR } from '@/components/patient-portal/ui'
+import { PORTAL_ERROR, PORTAL_MUTED } from '@/components/patient-portal/ui'
 
 /**
  * The 10-second survey: a 0–10 tap row, then an optional "tell us more" box.
@@ -12,7 +12,7 @@ import { PORTAL_ERROR } from '@/components/patient-portal/ui'
 // The sibling token pages' warm constants (c/, b/) — this page was the one
 // off-brand landing, in cool Tailwind grays.
 const INK = '#1C1A17'
-const MUTED = '#6B635A'
+const MUTED = PORTAL_MUTED
 const BORDER = '#E8E2D9'
 const ERROR = PORTAL_ERROR
 

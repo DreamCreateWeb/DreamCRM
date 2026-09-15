@@ -29,6 +29,18 @@ const SCAN_DIRS = [
 ]
 const TOKEN_HOME = 'components/patient-portal/ui.tsx'
 
+/**
+ * The review landing is the one token page painted in the CLINIC-SITE palette
+ * rather than the portal's — it reads `var(--c-ink-muted, …)` and friends. The
+ * fallback inside that var happens to be the same hex `PORTAL_MUTED` owns, so
+ * scanning it here reports a portal-token violation on a page that is not a
+ * portal surface. Its local consts are a `site-tokens` concern.
+ *
+ * The test below re-checks that claim, so if this page ever moves onto the
+ * portal palette the exemption fails rather than quietly covering it.
+ */
+const SITE_PALETTE_PAGES = ['app/r/[token]']
+
 // hex → the token that owns it.
 const OWNED_HEXES: Record<string, string> = {
   // The quiet step for secondary copy. Added 2026-09-14 with batch 62: it was
@@ -61,6 +73,7 @@ describe('portal semantic tokens (single source of truth)', () => {
       for (const file of walk(join(ROOT, base))) {
         const rel = relative(ROOT, file).replace(/\\/g, '/')
         if (rel === TOKEN_HOME) continue
+        if (SITE_PALETTE_PAGES.some((p) => rel.startsWith(`${p}/`))) continue
         const src = readFileSync(file, 'utf8')
         for (const [hex, token] of Object.entries(OWNED_HEXES)) {
           if (src.toLowerCase().includes(hex.toLowerCase())) {
@@ -70,6 +83,22 @@ describe('portal semantic tokens (single source of truth)', () => {
       }
     }
     expect(hits, hits.join('\n')).toEqual([])
+  })
+
+  it('the site-palette exemption is still a site-palette page', () => {
+    // `app/r/[token]` is skipped because it paints the clinic-site palette, and
+    // `var(--c-ink-muted, #6B635A)` carries the same hex PORTAL_MUTED owns. If
+    // it ever moves onto the portal palette that reason evaporates, so check it
+    // rather than trusting the comment.
+    for (const page of SITE_PALETTE_PAGES) {
+      const src = walk(join(ROOT, page))
+        .map((f) => readFileSync(f, 'utf8'))
+        .join('\n')
+      expect(src, `${page} no longer paints the clinic-site palette`).toContain('var(--c-')
+      expect(src, `${page} now imports portal tokens — drop its exemption`).not.toContain(
+        'patient-portal/ui',
+      )
+    }
   })
 
   it('sweeps every patient surface, token landing pages included', () => {

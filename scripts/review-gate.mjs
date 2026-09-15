@@ -338,6 +338,14 @@ export const INTAKE_RULES = [
       'tests/design-system/jsx-attrs.ts',
       'tests/design-system/pending-feedback.test.ts',
       'tests/design-system/kpi-numerals.test.ts',
+      // The two a11y source scanners. They arrived here on DREAMCRM-50, not
+      // because they were new but because their scope WIDENED: both said
+      // `components/ui`, which reads as one named directory, and now say
+      // `components`, which is a product root. The classifier is right to
+      // reclassify them — a rule that grades all of `components` grades
+      // everyone's diff, and that is the thing intake is for.
+      'tests/a11y/legibility-floor.test.ts',
+      'tests/a11y/retired-tones.test.ts',
       // The remaining tree-wide scanners, each holding the product at zero for
       // one convention. Derived from the tree by the guard test, not recalled.
       'tests/clinic-site/jsonld-escaping.test.ts',
