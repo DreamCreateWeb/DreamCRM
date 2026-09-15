@@ -9,13 +9,16 @@ import ScrollReveal from '@/components/clinic-site/scroll-reveal'
 import {
   Eyebrow,
   SectionTitle,
-  PrimaryCta,
   GhostCta,
   CheckIcon,
   DashboardMock,
   PortalMock,
   MarqueeStrip,
-  HERO_DOT_GRID,
+  MONO_LABEL,
+  NIGHT_WIRE,
+  NightGhostCta,
+  NightPrimaryCta,
+  NightSky,
 } from '@/components/marketing/ui'
 
 export const dynamic = 'force-dynamic'
@@ -121,58 +124,99 @@ export default async function MarketingHome() {
   return (
     <>
       <JsonLd data={softwareApplicationLd([{ name: 'DreamCRM', price: 200 }])} />
-      {/* ── Hero ── */}
-      <section className="relative overflow-hidden border-b border-gray-100">
-        <div className="absolute inset-0 opacity-40" style={HERO_DOT_GRID} aria-hidden="true" />
-        <div className="absolute inset-x-0 top-0 h-40 bg-gradient-to-b from-white to-transparent" aria-hidden="true" />
+      {/* ── Hero — THE NIGHT BAND (BRAND.md Part 8, move 1) ──────────────
+             The page opens and closes at night and does its reading in
+             daylight: this band and the ticker under it are the dark surface,
+             and everything from "What it feels like" down stays white.
+
+             It is a BAND, not a theme. There is no `.dark` scope here (the
+             marketing site has zero `dark:` classes and this batch does not
+             start), which means `tests/a11y/dark-mode-parity.test.ts`
+             structurally cannot see it, and axe grades ink against
+             `background-color` so it never sees a single decorative layer in
+             `NightSky`. Every pair below is hand-measured in BRAND.md Part 7
+             against the RENDERED band — that table is the only gate this
+             surface has. ── */}
+      <section className="relative overflow-hidden bg-gray-950">
+        <NightSky />
         <div className="relative mx-auto max-w-6xl px-4 pb-20 pt-16 sm:px-6 lg:pt-24">
           <div className="mx-auto max-w-3xl text-center">
-            <p className="mkt-enter mb-5 inline-flex items-center gap-2 rounded-full border border-teal-200 bg-white px-3.5 py-1.5 text-[0.78rem] font-semibold text-teal-700 shadow-sm">
-              <span className="h-1.5 w-1.5 rounded-full bg-teal-600" aria-hidden="true" />
+            <p
+              className={`mkt-enter mb-5 inline-flex items-center gap-2.5 rounded-full border bg-white/[0.04] px-3.5 py-1.5 text-teal-400 ${MONO_LABEL}`}
+              style={{ borderColor: NIGHT_WIRE }}
+            >
+              {/* The band's one pulsing thing (BRAND.md Part 6, ~1.8s). The
+                  glow is a second, larger dot behind the solid one, so what
+                  breathes is light rather than the label's layout. */}
+              <span className="relative flex h-1.5 w-1.5 shrink-0" aria-hidden="true">
+                <span className="mkt-live absolute inset-0 rounded-full bg-teal-300" />
+                <span className="relative h-1.5 w-1.5 rounded-full bg-teal-400" />
+              </span>
               Built for dental practices · syncs with Open Dental
             </p>
-            <h1 className="mkt-enter mkt-d1 text-[2.6rem] font-extrabold leading-[1.04] tracking-tight text-gray-950 sm:text-[3.5rem]">
+            <h1 className="mkt-enter mkt-d1 text-[2.6rem] font-extrabold leading-[1.04] tracking-[-0.035em] text-white sm:text-[3.5rem]">
               Your whole front office.
               <br />
-              {/* Gradient TEXT: the stops here are the INK, not a fill, so both
-                  have to read on the layout's white ground. teal-700 → teal-600
-                  is 7.05 → 5.09; the old `from-teal-600 to-teal-400` faded out
-                  to 2.42 on the last two words. Graded by rule 4 in
-                  `tests/a11y/class-pairs.ts` — axe reports a gradient as
-                  incomplete and never looked at this. */}
-              <span className="bg-gradient-to-r from-teal-700 to-teal-600 bg-clip-text text-transparent">
+              {/* Gradient TEXT: the stops are the INK, not a fill.
+                  `tests/a11y/class-pairs.ts` rule 4 grades them against plain
+                  WHITE — deliberately, because that was the ground under every
+                  `bg-clip-text` in the tree when the rule landed — so on this
+                  band it fails correctly-in-form and wrongly-in-fact: teal-300
+                  measures 1.88 on white and 9.36 here, violet-300 2.03 and
+                  8.69. That is exactly what `GRADIENT_TEXT_EXEMPTIONS` was
+                  built for, and this is its first entry; the ratios above are
+                  re-derived from the palette in `token-contrast.test.ts`
+                  rather than trusted from this comment. */}
+              <span className="bg-gradient-to-r from-teal-300 to-violet-300 bg-clip-text text-transparent">
                 One calm system.
               </span>
             </h1>
-            <p className="mkt-enter mkt-d2 mx-auto mt-6 max-w-2xl text-[1.08rem] leading-relaxed text-gray-600">
+            <p className="mkt-enter mkt-d2 mx-auto mt-6 max-w-2xl text-[1.08rem] leading-relaxed text-gray-300">
               DreamCRM is the patient-relationship platform for dental practices — the
               website, booking, portal, messages, reviews, and recall that run everything
               between you and your patients, in one system that feels calm. And your PMS?
               It stays exactly where it is.
             </p>
             <div className="mkt-enter mkt-d3 mt-8 flex flex-wrap items-center justify-center gap-3">
-              <PrimaryCta href="/signup">Start your free trial</PrimaryCta>
-              <GhostCta href="/product">Tour the platform</GhostCta>
+              <NightPrimaryCta href="/signup">Start your free trial</NightPrimaryCta>
+              <NightGhostCta href="/product">Tour the platform</NightGhostCta>
             </div>
-            <div className="mkt-enter mkt-d4 mt-7 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-[0.85rem] text-gray-600">
+            <div className={`mkt-enter mkt-d4 mx-auto mt-7 flex max-w-xl flex-wrap items-center justify-center gap-x-6 gap-y-2.5 text-gray-300 ${MONO_LABEL}`}>
               {['7 days free, everything included', 'No card to start', '$200/mo after, flat', 'Month-to-month'].map((t) => (
-                <span key={t} className="flex items-center gap-1.5">
-                  <CheckIcon className="h-3.5 w-3.5 text-teal-700" />
+                <span key={t} className="flex items-center gap-2">
+                  <CheckIcon className="h-3.5 w-3.5 shrink-0 text-teal-400" />
                   {t}
                 </span>
               ))}
             </div>
           </div>
 
+          {/* The product mock as INSTRUMENT GLASS (BRAND.md Part 3, "depth is
+              emission, not stacking"): a translucent raised surface, one
+              hairline, a 1px top highlight, and bloom instead of a drop
+              shadow. The mock inside stays the light product — this site sells
+              a light-themed app, and the night is the marketing voice rather
+              than a claim about the screen you get.
+
+              KEEP THE MOCK A DIRECT CHILD of `.mkt-float` / `.mkt-float-slow`.
+              `DECORATIVE_MOCKS` in `e2e/axe.ts` is `.mkt-float >
+              [aria-hidden="true"]`, and it is the only reason `marketing: home`
+              can hold a ceiling of ZERO — wrap the mock in anything and the
+              exclusion goes dead (`deadExclusions` fails) and 41 illustration
+              contrast findings come back. The glass therefore rides ON the
+              float wrapper rather than inside it. */}
           <div className="mkt-enter mkt-d4 mt-14 flex items-end justify-center gap-6">
-            <div className="mkt-float w-full max-w-3xl">
+            <div
+              className="mkt-float w-full max-w-3xl rounded-2xl border p-2 shadow-[inset_0_1px_0_0_rgb(255_255_255/0.10),0_0_48px_-14px_rgb(124_165_255/0.34),0_14px_64px_-40px_rgb(124_165_255/0.45)]"
+              style={{ borderColor: NIGHT_WIRE, backgroundColor: 'rgb(27 37 68 / 0.72)' }}
+            >
               <DashboardMock />
             </div>
             <div className="mkt-float-slow hidden shrink-0 lg:block">
               <PortalMock />
             </div>
           </div>
-          <p className="mt-4 text-center text-[0.78rem] font-medium text-gray-500">
+          <p className={`mt-8 text-center text-gray-400 ${MONO_LABEL}`}>
             The front desk&apos;s morning huddle — and the portal your patients see.
           </p>
         </div>

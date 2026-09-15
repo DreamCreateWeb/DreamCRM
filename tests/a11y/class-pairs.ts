@@ -635,8 +635,16 @@ export function scanForWhiteOnShallowBrandGradient(roots: string[] = UI_ROOTS): 
  *
  * A site genuinely riding a DARK band — the marketing footer is the shape that
  * exists — would fail this rule correctly-in-form and wrongly-in-fact. That is
- * what `GRADIENT_TEXT_EXEMPTIONS` is for, and it is empty because no such site
- * exists yet.
+ * what `GRADIENT_TEXT_EXEMPTIONS` is for.
+ *
+ * **IT IS NO LONGER EMPTY** (DREAMCRM-54, 2026-09-15). The homepage hero is
+ * now the night band of `BRAND.md`'s Night Dream direction — `bg-gray-950`,
+ * #10182e — and its headline accent runs `from-teal-300 to-violet-300`, which
+ * this rule grades on WHITE at 1.88 and 2.03 and which measure 9.36 and 8.69
+ * on the ground they actually paint on. That is the predicted case arriving,
+ * not a new hole: the rule stayed exactly as it was and the exemption carries
+ * the measurement. The discipline for a second entry is written on the list
+ * itself.
  */
 const CLIP_TEXT = /bg-clip-text(?![\w-])/
 const TRANSPARENT_INK = new RegExp(`${BOUNDARY}text-transparent${NOT_IN_WORD}`)
@@ -647,12 +655,48 @@ export type GradientTextExemption = { file: string; classes: string; why: string
  * Gradient-text sites that deliberately ride something other than a light
  * ground — a dark band inside a light page, say.
  *
- * Empty, and that is the honest state of the tree: there is exactly one
- * `bg-clip-text` in `app/`, `components/` and `lib/`, and it sits on white.
- * The list exists so the first author who needs one has somewhere to put it
- * with a reason attached, rather than reaching for a ceiling.
+ * THE SITE THIS LIST WAS BUILT FOR NOW EXISTS (DREAMCRM-54, 2026-09-15). The
+ * paragraph above predicted it in the abstract — "a site genuinely riding a
+ * DARK band would fail this rule correctly-in-form and wrongly-in-fact" — and
+ * the homepage hero is that site: the night band of `BRAND.md`'s Night Dream
+ * direction, `bg-gray-950` (#10182e), owner-approved on DREAMCRM-43.
+ *
+ * READ THIS BEFORE ADDING A SECOND ENTRY. An exemption here is not "this rule
+ * is inconvenient", it is "this rule is grading against the wrong ground, and
+ * here is the ground it is actually on, measured". The right shape is:
+ *
+ *   1. Watch the red run FIRST and read the ratios it reports on white.
+ *   2. Measure the stops against the ground that is really there.
+ *   3. Put BOTH numbers in the `why`, and have a test re-derive the second
+ *      set from the palette rather than trusting the comment — see
+ *      `token-contrast.test.ts`, "the night band's stops are legible on the
+ *      ground they actually ride".
+ *
+ * What would NOT be legitimate: an entry whose `why` says the design is
+ * important, or one that names a ground no element actually has. Rule 4 is
+ * right about every other `bg-clip-text` in the tree.
  */
-export const GRADIENT_TEXT_EXEMPTIONS: GradientTextExemption[] = []
+export const GRADIENT_TEXT_EXEMPTIONS: GradientTextExemption[] = [
+  {
+    file: 'app/(marketing)/page.tsx',
+    classes: 'from-teal-300 to-violet-300 bg-clip-text text-transparent',
+    why:
+      "The homepage hero's headline accent line, and it rides the NIGHT BAND " +
+      '(BRAND.md Part 8 move 1): the hero section is bg-gray-950 = #10182e, ' +
+      'not the white ground this rule grades against. Rule 4 measures these ' +
+      'stops on white at teal-300 1.88 and violet-300 2.03 and it is right ' +
+      'about white; on the ground they actually paint on they are 9.36 and ' +
+      '8.69, both comfortably over AA. The rule grades against white ' +
+      'deliberately (see the header above: it was the ground under every ' +
+      'bg-clip-text in the tree, and it keeps rule 4 sharing rule 2 cutoff ' +
+      'rather than opening a third), so this is the ground being wrong rather ' +
+      'than the cutoff — exactly the case this list exists for. The four dark ' +
+      'ratios are RE-DERIVED from the palette by token-contrast.test.ts rather ' +
+      'than trusted from this text, and the pairs are in BRAND.md Part 7, the ' +
+      'hand-graded table the night band depends on because no automated guard ' +
+      'in this repo can see a dark band inside a light-mode page.',
+  },
+]
 
 /** Which gradient-text exemptions no longer match anything. */
 export function deadGradientTextExemptions(roots: string[] = UI_ROOTS): GradientTextExemption[] {

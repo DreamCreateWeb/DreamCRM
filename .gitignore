@@ -48,3 +48,8 @@ next-env.d.ts
 # The CI json reporter's output (see playwright.config.ts) — read by
 # scripts/e2e-flaky-summary.mjs and uploaded with the report, never committed.
 /e2e-results.json
+
+# scripts/night-band-grade.mjs writes its screenshots + contrast report here.
+# Evidence for a PR or an issue, never a repo artifact — the measurement that
+# matters lives in BRAND.md Part 7, and the script regenerates the rest.
+/.shots/
