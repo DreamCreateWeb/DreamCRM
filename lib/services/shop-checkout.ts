@@ -377,7 +377,25 @@ export async function finalizeOrderFromSession(organizationId: string, sessionId
     // 'cancelled' through, and 'refunded' inherited the same hole.
     .where(and(eq(schema.shopOrder.id, order.id), eq(schema.shopOrder.status, 'pending')))
     .returning({ id: schema.shopOrder.id })
-  if (claimed.length === 0) return { ...order, status: 'paid', patientId } // another finalize won the race
+  if (claimed.length === 0) {
+    // Another finalize won the race — report the row as it ACTUALLY stands.
+    //
+    // This used to return a hardcoded 'paid', which was accurate while the
+    // only way to lose the claim was another writer setting 'paid'. The claim
+    // predicate above is now the POSITIVE `status = 'pending'`, so a
+    // 'cancelled' order whose Stripe session reads paid loses the claim too —
+    // and the success page renders "your order is confirmed!" off this status.
+    // Nothing is written and no money moves either way; the only thing at
+    // stake is whether the shopper is told the truth.
+    const [current] = await db
+      .select({ status: schema.shopOrder.status, patientId: schema.shopOrder.patientId })
+      .from(schema.shopOrder)
+      .where(and(eq(schema.shopOrder.organizationId, organizationId), eq(schema.shopOrder.id, order.id)))
+      .limit(1)
+    // No row left to read (a delete raced us) is not a reason to invent one:
+    // fall back to what we read on the way in, never to 'paid'.
+    return { ...order, status: current?.status ?? order.status, patientId: current?.patientId ?? patientId }
+  }
 
   // Burn a single-use coupon now that the order is paid.
   if (order.couponId) await markCouponUsed(order.organizationId, order.couponId, order.id)
