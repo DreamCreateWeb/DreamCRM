@@ -71,7 +71,12 @@ function exportedFunctionSource(src: string, name: string): string | null {
   const start = src.search(new RegExp(`^export function ${name}(?![\\w-])`, 'm'))
   if (start < 0) return null
   const after = src.slice(start + 1)
-  const next = after.search(/^export (?:default |async )?(?:function|const|class)(?![\w-])/m)
+  // Stop at ANY line-start `export`, not just the declaration kinds one might
+  // think of. Over-extending is the dangerous direction here: a span that runs
+  // past its component swallows the next one, and the "appears nowhere else"
+  // half below would then count a stray copy as being INSIDE the illustration.
+  // A span that ends too early only makes the test red.
+  const next = after.search(/^export(?![\w-])/m)
   return next < 0 ? src.slice(start) : src.slice(start, start + 1 + next)
 }
 
