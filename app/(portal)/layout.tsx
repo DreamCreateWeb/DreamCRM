@@ -21,6 +21,7 @@ import {
   PortalTabBar,
   PortalAnnouncement,
 } from '@/components/patient-portal/portal-chrome'
+import { PORTAL_MUTED } from '@/components/patient-portal/ui'
 import { todaysHoursLabel } from '@/lib/clinic-site-helpers'
 import DemoBanner from '@/components/ui/demo-banner'
 import { SkipToContent } from '@/components/ui/skip-to-content'
@@ -74,7 +75,7 @@ export default async function PortalLayout({ children }: { children: React.React
           <h1 className="text-2xl font-semibold mb-3" style={{ color: '#1C1A17' }}>
             The portal is taking a break
           </h1>
-          <p className="text-[0.95rem] leading-relaxed" style={{ color: '#6B635A' }}>
+          <p className="text-[0.95rem] leading-relaxed" style={{ color: PORTAL_MUTED }}>
             {clinicName}&apos;s online portal isn&apos;t available right now. For appointments and
             questions, please call the office
             {clinic?.phone ? (
@@ -102,7 +103,7 @@ export default async function PortalLayout({ children }: { children: React.React
           <h1 className="text-2xl font-semibold mb-3" style={{ color: '#1C1A17' }}>
             Almost there
           </h1>
-          <p className="text-[0.95rem] leading-relaxed" style={{ color: '#6B635A' }}>
+          <p className="text-[0.95rem] leading-relaxed" style={{ color: PORTAL_MUTED }}>
             Your account isn&apos;t linked to a patient record yet. Give {clinicName} a
             quick call{clinic?.phone ? ' at ' : ''}
             {clinic?.phone && (
@@ -244,7 +245,7 @@ export default async function PortalLayout({ children }: { children: React.React
         </main>
 
         <footer className="hidden md:block" style={{ borderTop: '1px solid #E8E2D9' }}>
-          <div className="mx-auto flex max-w-5xl flex-wrap items-start justify-between gap-6 px-6 py-8 text-[0.85rem]" style={{ color: '#6B635A' }}>
+          <div className="mx-auto flex max-w-5xl flex-wrap items-start justify-between gap-6 px-6 py-8 text-[0.85rem]" style={{ color: PORTAL_MUTED }}>
             <div>
               <p className="font-semibold" style={{ color: '#1C1A17' }}>{clinicName}</p>
               {clinic?.addressLine1 && (
@@ -267,7 +268,10 @@ export default async function PortalLayout({ children }: { children: React.React
                   {clinic.email}
                 </a>
               )}
-              <p className="mt-3 text-[0.75rem] opacity-70">
+              {/* No `opacity-*` on portal ink: the muted tone IS the quiet
+                  step, and dimming it a second time took this 12px line to
+                  2.98:1 on every portal page (tests/a11y/portal-ink-opacity). */}
+              <p className="mt-3 text-[0.75rem]">
                 Powered by DreamCreate
               </p>
             </div>
