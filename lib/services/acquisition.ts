@@ -236,8 +236,13 @@ export async function getAcquisitionReport(days = 30, now: Date = new Date()): P
     if (paid) row.paying++
     else if (trial.onTrial) row.trialing++
     else if (trial.expired) row.expired++
+    // The separator is written as an escape, not as a raw NUL byte: a raw one
+    // anywhere in the first 8000 bytes of a file makes git render the WHOLE
+    // file as `Binary files ... differ` in every diff view, and these three sat
+    // just past that line by accident. Identical key, reviewable file.
+    // Held there by tests/guards/control-bytes.test.ts.
     const ck = campaignKeyOf(stamp.utmCampaign)
-    if (ck) signupsByCampaign.set(`${stamp.channel} ${ck}`, (signupsByCampaign.get(`${stamp.channel} ${ck}`) ?? 0) + 1)
+    if (ck) signupsByCampaign.set(`${stamp.channel}\u0000${ck}`, (signupsByCampaign.get(`${stamp.channel}\u0000${ck}`) ?? 0) + 1)
   }
 
   const isChannel = (c: string): c is MarketingChannel =>
@@ -249,7 +254,7 @@ export async function getAcquisitionReport(days = 30, now: Date = new Date()): P
       campaign: r.campaign,
       visits: r.views,
       sessions: r.sessions,
-      signups: signupsByCampaign.get(`${r.channel} ${r.campaign}`) ?? 0,
+      signups: signupsByCampaign.get(`${r.channel}\u0000${r.campaign}`) ?? 0,
     }))
     .sort((a, b) => b.signups - a.signups || b.visits - a.visits)
     .slice(0, TOP_CAMPAIGNS_LIMIT)
