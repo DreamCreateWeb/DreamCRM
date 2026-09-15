@@ -23,6 +23,19 @@ export interface AdminSubscription {
   customerName: string | null
   clinicOrgId: string | null
   clinicName: string | null
+  /**
+   * EVERY recurring line on the subscription. A clinic on a plan PLUS the
+   * social add-on has two, and reading only the head counted one of them —
+   * so every MRR figure that sums these rows understated that clinic by the
+   * whole add-on.
+   */
+  items: AdminSubscriptionItem[]
+  /**
+   * The PRIMARY item — `items[0]`, flattened for the table columns and the
+   * plan-mix grouping that have always rendered one line per subscription.
+   * Explicitly "the first item" now, rather than accidentally so; MRR comes
+   * from `items`, never from these.
+   */
   itemId: string | null
   priceId: string | null
   productId: string | null
@@ -35,6 +48,19 @@ export interface AdminSubscription {
   /** Seats on the subscription item. */
   quantity: number | null
   trialEnd: number | null
+}
+
+/** One recurring line on a subscription (a plan, an add-on, a seat block). */
+export interface AdminSubscriptionItem {
+  id: string | null
+  priceId: string | null
+  productId: string | null
+  productName: string | null
+  unitAmountCents: number | null
+  currency: string | null
+  interval: string | null
+  intervalCount: number | null
+  quantity: number | null
 }
 
 /** Stripe's own per-request ceiling. */
@@ -102,10 +128,12 @@ export async function listAdminSubscriptions(opts: { status?: string; limit?: nu
   const productIds = Array.from(
     new Set(
       subs.data
-        .map((s: any) => {
-          const p = s.items.data[0]?.price?.product
-          return typeof p === 'string' ? p : p?.id
-        })
+        .flatMap((s: any) =>
+          (s.items?.data ?? []).map((it: any) => {
+            const p = it?.price?.product
+            return typeof p === 'string' ? p : p?.id
+          }),
+        )
         .filter(Boolean) as string[],
     ),
   )
@@ -124,11 +152,27 @@ export async function listAdminSubscriptions(opts: { status?: string; limit?: nu
   return subs.data.map((s: any) => {
     const customer = typeof s.customer === 'object' && !s.customer.deleted ? s.customer : null
     const customerId = typeof s.customer === 'string' ? s.customer : s.customer?.id ?? ''
-    const item = s.items.data[0]
+    const items: AdminSubscriptionItem[] = (s.items?.data ?? []).map((it: any) => {
+      const p = it?.price
+      const pid = typeof p?.product === 'string' ? p.product : p?.product?.id ?? null
+      return {
+        id: it?.id ?? null,
+        priceId: p?.id ?? null,
+        productId: pid,
+        productName: pid ? productNameById.get(pid) ?? null : null,
+        unitAmountCents: p?.unit_amount ?? null,
+        currency: p?.currency ?? null,
+        interval: p?.recurring?.interval ?? null,
+        intervalCount: p?.recurring?.interval_count ?? null,
+        quantity: it?.quantity ?? null,
+      }
+    })
+    const item = s.items?.data?.[0]
     const price = item?.price
     const productId = typeof price?.product === 'string' ? price.product : price?.product?.id ?? null
     const linked = clinicByCustomer.get(customerId)
     return {
+      items,
       id: s.id,
       status: s.status,
       cancelAtPeriodEnd: !!s.cancel_at_period_end,
@@ -177,14 +221,29 @@ export interface SubscriptionAttention {
  * What this subscription adds to MRR. Only a LIVE subscription contributes —
  * a canceled or past-due one is not revenue we can recognize.
  *
- * The cadence + seat math lives in `lib/mrr.ts` so every MRR surface
- * normalizes identically. This function's own job is the status gate.
+ * EVERY recurring line counts. This read `items.data[0]` only, so a clinic on
+ * a plan PLUS the social add-on contributed one line's worth to every MRR
+ * figure on the platform — the same "we only counted the first" shape as the
+ * pagination fix above it, and invisible because the number it produced was
+ * perfectly plausible.
+ *
+ * The cadence + seat math stays single-homed in `lib/mrr.ts` so every MRR
+ * surface normalizes identically. This function's own jobs are the status gate
+ * and the sum.
+ *
+ * The flattened head fields are the FALLBACK, for a caller holding a partial
+ * row (`clinics.ts`, tests) rather than one from `listAdminSubscriptions`. An
+ * EMPTY `items` array means exactly that — a subscription with no recurring
+ * lines — and contributes nothing; only a MISSING one falls back.
  */
 export function monthlyContributionCents(
   sub: Pick<AdminSubscription, 'unitAmountCents' | 'interval' | 'status'> &
-    Partial<Pick<AdminSubscription, 'intervalCount' | 'quantity'>>,
+    Partial<Pick<AdminSubscription, 'intervalCount' | 'quantity' | 'items'>>,
 ): number {
   if (sub.status !== 'active' && sub.status !== 'trialing') return 0
+  if (sub.items) {
+    return sub.items.reduce((total, item) => total + normalizedMonthlyCents(item), 0)
+  }
   return normalizedMonthlyCents(sub)
 }
 

@@ -11,7 +11,7 @@ const NOW_MS = new Date('2026-05-18T12:00:00Z').getTime()
 const NOW_SEC = Math.floor(NOW_MS / 1000)
 
 function sub(overrides: Partial<AdminSubscription> = {}): AdminSubscription {
-  return {
+  const base = {
     id: overrides.id ?? 'sub_x',
     status: 'active',
     cancelAtPeriodEnd: false,
@@ -22,6 +22,7 @@ function sub(overrides: Partial<AdminSubscription> = {}): AdminSubscription {
     customerName: 'X Clinic',
     clinicOrgId: 'org_x',
     clinicName: 'X Clinic',
+    items: [],
     itemId: 'si_x',
     priceId: 'price_pro_m',
     productId: 'prod_pro',
@@ -33,6 +34,26 @@ function sub(overrides: Partial<AdminSubscription> = {}): AdminSubscription {
     quantity: 1,
     trialEnd: null,
     ...overrides,
+  } satisfies AdminSubscription
+  // Real subscriptions carry their lines in `items`, and that is what MRR
+  // sums. Default to ONE line mirroring the primary, so a test that tweaks
+  // `unitAmountCents`/`interval` still drives the number it means to; a
+  // multi-line case passes `items` explicitly.
+  return {
+    ...base,
+    items: overrides.items ?? [
+      {
+        id: base.itemId,
+        priceId: base.priceId,
+        productId: base.productId,
+        productName: base.productName,
+        unitAmountCents: base.unitAmountCents,
+        currency: base.currency,
+        interval: base.interval,
+        intervalCount: base.intervalCount,
+        quantity: base.quantity,
+      },
+    ],
   }
 }
 
@@ -80,6 +101,50 @@ describe('monthlyContributionCents', () => {
         sub({ unitAmountCents: 60_000, interval: 'month', intervalCount: 3 }),
       ),
     ).toBe(20_000)
+  })
+
+  // The dimension it ignored LAST: a subscription is a list of lines, and this
+  // read only the head of it (DREAMCRM-32).
+  it('counts EVERY line — a plan plus the social add-on is both', () => {
+    const withAddOn = sub({
+      items: [
+        { id: 'si_plan', priceId: 'price_premium_m', productId: 'prod_premium', productName: 'Premium', unitAmountCents: 20_000, currency: 'usd', interval: 'month', intervalCount: 1, quantity: 1 },
+        { id: 'si_social', priceId: 'price_social_m', productId: 'prod_social', productName: 'Social add-on', unitAmountCents: 2_000, currency: 'usd', interval: 'month', intervalCount: 1, quantity: 1 },
+      ],
+    })
+    expect(monthlyContributionCents(withAddOn)).toBe(22_000)
+  })
+
+  it('normalizes each line on its OWN cadence and seats', () => {
+    // The add-on billed annually is not $2,000/month, and the plan's three
+    // seats are not one.
+    const mixed = sub({
+      items: [
+        { id: 'si_plan', priceId: 'p1', productId: 'prod_premium', productName: 'Premium', unitAmountCents: 20_000, currency: 'usd', interval: 'month', intervalCount: 1, quantity: 3 },
+        { id: 'si_social', priceId: 'p2', productId: 'prod_social', productName: 'Social add-on', unitAmountCents: 24_000, currency: 'usd', interval: 'year', intervalCount: 1, quantity: 1 },
+      ],
+    })
+    expect(monthlyContributionCents(mixed)).toBe(60_000 + 2_000)
+  })
+
+  it('a dead subscription contributes nothing however many lines it has', () => {
+    const canceled = sub({
+      status: 'canceled',
+      items: [
+        { id: 'si_plan', priceId: 'p1', productId: 'prod_premium', productName: 'Premium', unitAmountCents: 20_000, currency: 'usd', interval: 'month', intervalCount: 1, quantity: 1 },
+        { id: 'si_social', priceId: 'p2', productId: 'prod_social', productName: 'Social add-on', unitAmountCents: 2_000, currency: 'usd', interval: 'month', intervalCount: 1, quantity: 1 },
+      ],
+    })
+    expect(monthlyContributionCents(canceled)).toBe(0)
+  })
+
+  it('an EMPTY item list means no recurring lines, not "fall back to the head"', () => {
+    // The distinction matters: a caller holding a partial row (clinics.ts,
+    // older fixtures) has NO `items` key and falls back; a real subscription
+    // with nothing recurring on it contributes nothing.
+    expect(monthlyContributionCents(sub({ items: [], unitAmountCents: 14_900 }))).toBe(0)
+    const { items: _dropped, ...headOnly } = sub({ unitAmountCents: 14_900 })
+    expect(monthlyContributionCents(headOnly)).toBe(14_900)
   })
 })
 

@@ -6,6 +6,7 @@ export const dynamic = 'force-dynamic'
 
 import { notFound } from 'next/navigation'
 import { getMyBills, getMyBalancePayments } from '@/lib/services/patient-portal'
+import { netCollectedCents } from '@/lib/net-collected'
 import { getPortalPageContext, requirePortalFeature } from '../../portal-data'
 import { PORTAL_INK, PORTAL_MUTED, PORTAL_BORDER, PortalBackLink } from '@/components/patient-portal/ui'
 import { fmtMoney, fmtVisitDayShort } from '@/components/patient-portal/format'
@@ -50,19 +51,27 @@ export default async function PortalReceiptPage({
     if (!order) notFound()
     title = 'Order receipt'
     when = order.paidAt ?? order.createdAt
-    status = order.status === 'pending' ? 'Processing' : 'Paid'
+    // A receipt for money that has since come back must say so — same rule as
+    // the balance-payment branch below. This one used to print "Paid" at full
+    // face value for a refunded order, and it is a document the patient keeps.
+    const orderRefundedCents = order.refundedAmountCents
+    const orderFullyRefunded = orderRefundedCents > 0 && orderRefundedCents >= order.totalCents
+    status = orderFullyRefunded ? 'Refunded' : order.status === 'pending' ? 'Processing' : 'Paid'
     lines = order.items.map((it) => ({
       label: `${it.productName}${it.variantName ? ` — ${it.variantName}` : ''}`,
       sub: it.quantity > 1 ? `${fmtMoney(it.unitPriceCents)} each × ${it.quantity}` : null,
       amountCents: it.unitPriceCents * it.quantity,
     }))
     const itemsSubtotal = lines.reduce((s, l) => s + l.amountCents, 0)
-    totalCents = order.totalCents
     // Anything beyond the line items is shipping + tax — name it honestly
     // rather than letting the totals look off.
-    if (totalCents > itemsSubtotal) {
-      lines.push({ label: 'Shipping & tax', sub: null, amountCents: totalCents - itemsSubtotal })
+    if (order.totalCents > itemsSubtotal) {
+      lines.push({ label: 'Shipping & tax', sub: null, amountCents: order.totalCents - itemsSubtotal })
     }
+    if (orderRefundedCents > 0) {
+      lines.push({ label: 'Refunded', sub: 'Returned to your original payment method', amountCents: -orderRefundedCents })
+    }
+    totalCents = netCollectedCents(order.totalCents, orderRefundedCents)
     const fulfillment = FULFILLMENT_LABELS[order.fulfillmentStatus]
     footNote = [
       fulfillment ? `Fulfillment: ${fulfillment}` : null,
@@ -85,7 +94,7 @@ export default async function PortalReceiptPage({
     if (refundedCents > 0) {
       lines.push({ label: 'Refunded', sub: 'Returned to your original payment method', amountCents: -refundedCents })
     }
-    totalCents = pay.amountCents - refundedCents
+    totalCents = netCollectedCents(pay.amountCents, refundedCents)
     footNote = 'The front desk posts online payments to your account in their practice system.'
   } else {
     notFound()

@@ -240,4 +240,36 @@ describe('listThreadActivity', () => {
     expect(markers.find((m) => m.id === 'form_f1')!.label).toBe('Completed “New patient intake”')
     expect(markers.find((m) => m.id === 'rem_r1')!.label).toBe('Cleaning reminder sent')
   })
+
+  /**
+   * The balance-payment row keeps `status = 'paid'` after a Stripe refund by
+   * design, so this marker was the last place in the thread still telling the
+   * clinic the money came in — while the patient's own portal already said it
+   * had gone back.
+   */
+  it('a refunded payment marker says the money came back', async () => {
+    state.balPays = [
+      { id: 'p9', amountCents: 12000, refundedAmountCents: 12000, paidAt: at('2026-07-18T15:00:00Z') },
+    ]
+    const markers = await listThreadActivity('org_1', 'pat_1')
+    const m = markers.find((x) => x.id === 'bal_paid_p9')!
+    expect(m.label).toBe('Paid $120 online')
+    expect(m.detail).toBe('Refunded')
+  })
+
+  it('a partly refunded payment marker names the amount', async () => {
+    state.balPays = [
+      { id: 'p8', amountCents: 12000, refundedAmountCents: 2000, paidAt: at('2026-07-18T15:00:00Z') },
+    ]
+    const markers = await listThreadActivity('org_1', 'pat_1')
+    expect(markers.find((x) => x.id === 'bal_paid_p8')!.detail).toBe('$20 refunded')
+  })
+
+  it('an untouched payment marker carries no refund detail', async () => {
+    state.balPays = [
+      { id: 'p7', amountCents: 12000, refundedAmountCents: 0, paidAt: at('2026-07-18T15:00:00Z') },
+    ]
+    const markers = await listThreadActivity('org_1', 'pat_1')
+    expect(markers.find((x) => x.id === 'bal_paid_p7')!.detail).toBeNull()
+  })
 })

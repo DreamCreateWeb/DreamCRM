@@ -107,6 +107,12 @@ export interface BillsOrder {
   fulfillmentStatus: string
   fulfillmentType: string
   totalCents: number
+  /** Cents refunded to the patient on this order (0 = none). Their own money
+   *  trail has to say the money came back — a receipt stamped "Paid" at full
+   *  face value for an order that was refunded is a document they keep. The
+   *  balance-payment rows next to it have carried this since DREAMCRM-23. */
+  refundedAmountCents: number
+  refundedAt: Date | null
   trackingNumber: string | null
   createdAt: Date
   paidAt: Date | null
@@ -163,6 +169,8 @@ export async function getMyBills(
       fulfillmentStatus: shopOrder.fulfillmentStatus,
       fulfillmentType: shopOrder.fulfillmentType,
       totalCents: shopOrder.totalCents,
+      refundedAmountCents: shopOrder.refundedAmountCents,
+      refundedAt: shopOrder.refundedAt,
       trackingNumber: shopOrder.trackingNumber,
       createdAt: shopOrder.createdAt,
       paidAt: shopOrder.paidAt,
@@ -222,6 +230,8 @@ export async function getMyBills(
       fulfillmentStatus: o.fulfillmentStatus,
       fulfillmentType: o.fulfillmentType,
       totalCents: o.totalCents,
+      refundedAmountCents: o.refundedAmountCents ?? 0,
+      refundedAt: o.refundedAt,
       trackingNumber: o.trackingNumber,
       createdAt: o.createdAt,
       paidAt: o.paidAt,

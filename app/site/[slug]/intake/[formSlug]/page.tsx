@@ -136,6 +136,7 @@ export default async function IntakeFormPage({ params, searchParams }: Props) {
                 clinicName={name}
                 action={submitIntakeForm}
                 ocrAction={readInsuranceCardAction}
+                siteSlug={slug}
                 translations={template.translations as FormTranslations | null}
                 kioskMode={kiosk}
               />

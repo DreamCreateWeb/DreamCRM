@@ -119,11 +119,15 @@ export async function POST(request: Request) {
         if (refund) {
           const updated = await recordConnectRefund({ organizationId: orgId, ...refund })
           // A refund we could not attach to anything is not an error — a
-          // membership or payment-plan charge on the same connected account
-          // has no row in the three tables we own, and neither does a charge
-          // that has not been finalized yet (the lookup key is stamped by the
-          // finalizer). Both are silent otherwise: Stripe gets its 200 and
-          // never retries, so leave a trail worth grepping.
+          // MEMBERSHIP subscription charge on the same connected account has
+          // no row in the three tables we own (the membership row tracks the
+          // subscription, not its charges), and neither does a charge that has
+          // not been finalized yet, since the lookup key is stamped by the
+          // finalizer. It is no longer SILENT either way: `recordConnectRefund`
+          // writes a `connect_refund` receipt with `attached_to = 'none'`, and
+          // the clinic sees it under Payments → Online. The log line stays for
+          // us — Stripe gets its 200 and never retries, so a trail worth
+          // grepping is still worth having.
           if (updated.length === 0) {
             console.warn('[stripe-connect webhook] refund matched no money record', {
               organizationId: orgId,

@@ -26,6 +26,7 @@ export default function PacketRunner({
   forms,
   action,
   ocrAction,
+  siteSlug,
 }: {
   orgId: string
   brand: string
@@ -33,6 +34,8 @@ export default function PacketRunner({
   forms: PacketForm[]
   action: (payload: IntakeSubmitPayload) => Promise<{ ok: true; data: null } | { ok: false; error: string }>
   ocrAction?: OcrAction
+  /** The public site slug — the OCR action resolves the clinic from it. */
+  siteSlug?: string
 }) {
   const [index, setIndex] = useState(0)
   const [done, setDone] = useState(false)
@@ -73,6 +76,7 @@ export default function PacketRunner({
         clinicName={clinicName}
         action={action}
         ocrAction={ocrAction}
+        siteSlug={siteSlug}
         translations={form.translations}
         onComplete={advance}
         progressLabel={`Form ${index + 1} of ${forms.length} · ${form.title}`}

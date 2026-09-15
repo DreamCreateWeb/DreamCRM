@@ -31,6 +31,14 @@ name: Review gate
 #
 # Making it required later is a branch-protection change, which is itself
 # behind the review gate. Do not do it by editing this file.
+#
+# RE-DECIDED DELIBERATELY ON DREAMCRM-49 (2026-09-14), not carried over by
+# habit: it stays advisory. The blocking version needs a pass signal that can
+# be set on the PR, and the only signals available — a label, a GitHub review —
+# can be minted by the single admin account the whole agent fleet
+# authenticates as. That would read as enforcement while being weaker than an
+# honest advisory. What would change the answer, and the before/after, are on
+# the DREAMCRM-49 issue.
 # =============================================================================
 on:
   pull_request:
@@ -84,6 +92,12 @@ jobs:
       # change, a GitHub hiccup) must not paint this run red and teach people
       # the check is broken. The summary above is the real output; the label is
       # a convenience for scanning the PR list.
+      # TWO LABELS, TWO OBLIGATIONS (DREAMCRM-49). `needs-sentinel-review` means
+      # a reviewer has to see this before it merges. `needs-forge-intake` means
+      # it may change what everyone else can merge and the rulebook has to hear
+      # about it — which does NOT add a reviewer and does NOT hold the merge.
+      # A PR can carry both, either, or neither; #566 carried neither and
+      # should have carried the second, which is why this step now sets it.
       - name: Label the PR
         if: always()
         continue-on-error: true
@@ -91,10 +105,15 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           PR: ${{ github.event.pull_request.number }}
           NEEDS_REVIEW: ${{ steps.gate.outputs.needs-review }}
+          NEEDS_INTAKE: ${{ steps.gate.outputs.needs-intake }}
         run: |
           gh label create needs-sentinel-review \
             --color B60205 \
             --description "Touches money, tenant scoping, auth, migrations, CI workflows or the deploy path" \
+            || true
+          gh label create needs-forge-intake \
+            --color FBCA04 \
+            --description "May change what can merge — tell Forge the same day (intake, not review)" \
             || true
           if [ "$NEEDS_REVIEW" = "true" ]; then
             gh pr edit "$PR" --add-label needs-sentinel-review
@@ -102,4 +121,9 @@ jobs:
             # Removing it matters as much as adding it: a PR that drops its
             # risky file in a later push should stop claiming it owes a review.
             gh pr edit "$PR" --remove-label needs-sentinel-review || true
+          fi
+          if [ "$NEEDS_INTAKE" = "true" ]; then
+            gh pr edit "$PR" --add-label needs-forge-intake
+          else
+            gh pr edit "$PR" --remove-label needs-forge-intake || true
           fi
