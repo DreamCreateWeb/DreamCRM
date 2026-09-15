@@ -281,6 +281,10 @@ export const OUTREACH_ENROLLMENT_STATUSES = [
   'stopped_unsub',
   'stopped_bounce',
   'stopped_manual',
+  // The touch kept failing to SEND (not a bounce — the provider never took
+  // it) past the retry window, so the drip gives up rather than sitting due
+  // forever at the head of the queue. See TOUCH_RETRY_WINDOW_MS.
+  'stopped_undeliverable',
   'paused_ooo', // out-of-office — auto-resumes
 ] as const
 export type OutreachEnrollmentStatus = (typeof OUTREACH_ENROLLMENT_STATUSES)[number]

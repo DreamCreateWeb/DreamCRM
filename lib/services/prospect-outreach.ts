@@ -1,6 +1,6 @@
 import 'server-only'
 import { Resend } from 'resend'
-import { and, asc, eq, inArray, isNotNull, isNull, lte, sql } from 'drizzle-orm'
+import { and, asc, eq, gte, inArray, isNotNull, isNull, lte, sql } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import { newId } from '@/lib/utils'
 import { runClaudeJson, aiConfigured } from '@/lib/ai'
@@ -701,8 +701,36 @@ export interface OutreachRunResult {
   guardSkipped: number
   completed: number
   errors: number
+  /** Touches whose send failed and were pushed out to a later attempt. */
+  retryScheduled: number
+  /** Enrollments given up on after a touch kept failing past the window. */
+  abandoned: number
   skipped?: string
 }
+
+/**
+ * THE STUCK-ENROLLMENT PAIR.
+ *
+ * A touch is claimed by inserting its `outreach_touch_log` row against the
+ * unique (enrollmentId, stepNumber) index. When the SEND then failed, the row
+ * was marked 'failed' and the loop moved on WITHOUT touching the enrollment —
+ * which left it `active` with `nextSendAt` in the past. Every later tick found
+ * it due, and because `due` is ordered by `nextSendAt` ascending it sorted
+ * FIRST; the claim then conflicted with its own failed row, `onConflictDoNothing`
+ * returned nothing, and the run skipped it in silence. So the enrollment could
+ * never advance, and it permanently occupied a slot in an allowance-limited
+ * batch — a handful of them starve the whole outreach queue, quietly.
+ *
+ * Two constants fix it without loosening the claim. A failed send BACKS OFF
+ * (the enrollment stops sitting at the head of the queue), and the claim can
+ * take over its own failed row — but only inside a window measured from the
+ * FIRST attempt, so a permanently undeliverable address is eventually given
+ * up on instead of retried forever.
+ */
+/** Wait this long before re-attempting a touch whose send failed. */
+export const TOUCH_RETRY_AFTER_MS = 6 * 60 * 60 * 1000
+/** Stop re-attempting a touch that has been failing since this long ago. */
+export const TOUCH_RETRY_WINDOW_MS = 3 * 24 * 60 * 60 * 1000
 
 interface OutreachSender {
   kind: 'resend' | 'gmail' | 'dry_run'
@@ -860,11 +888,64 @@ async function checkWatchdog(config: ProspectingConfig, now: Date): Promise<bool
   return true
 }
 
+/**
+ * A claim that matched nothing means one of two things, and they call for
+ * opposite actions — so ask the row rather than guessing.
+ *
+ * Either a concurrent run holds this step (its row reads 'sent'), which is the
+ * race the claim exists for and we simply stand down; or the row reads
+ * 'failed' and its FIRST attempt is older than TOUCH_RETRY_WINDOW_MS, which
+ * means this touch has been failing to send for days. Before this existed the
+ * second case was indistinguishable from the first and got the same silent
+ * `continue` — which is what left the enrollment permanently due and
+ * permanently unable to advance.
+ */
+async function settleUnclaimableTouch(
+  enrollmentId: string,
+  step: number,
+  now: Date,
+  out: OutreachRunResult,
+): Promise<void> {
+  const [existing] = await db
+    .select({
+      status: schema.outreachTouchLog.status,
+      sentAt: schema.outreachTouchLog.sentAt,
+    })
+    .from(schema.outreachTouchLog)
+    .where(
+      and(
+        eq(schema.outreachTouchLog.enrollmentId, enrollmentId),
+        eq(schema.outreachTouchLog.stepNumber, step),
+      ),
+    )
+    .limit(1)
+  // Gone (a cascade, a manual cleanup) — the next tick re-claims cleanly.
+  if (!existing) return
+  if (existing.status !== 'failed') {
+    // The other run is sending, or already sent. Stand down, as designed.
+    out.guardSkipped++
+    return
+  }
+  // Failing since before the window opened: stop asking. The touch log keeps
+  // the error, so the call list still shows why this prospect went quiet.
+  await db
+    .update(schema.outreachEnrollment)
+    .set({
+      status: 'stopped_undeliverable',
+      nextSendAt: null,
+      stoppedAt: now,
+      stopReason: 'touch_send_failed',
+    })
+    .where(eq(schema.outreachEnrollment.id, enrollmentId))
+  out.abandoned++
+}
+
 export async function runOutreach(opts?: { now?: Date }): Promise<OutreachRunResult> {
   const now = opts?.now ?? new Date()
   const config = await getProspectingConfig()
   const out: OutreachRunResult = {
     scanned: 0, sent: 0, dryRun: false, windowSkipped: 0, guardSkipped: 0, completed: 0, errors: 0,
+    retryScheduled: 0, abandoned: 0,
   }
   if (config.killSwitch) return { ...out, skipped: 'kill_switch' }
 
@@ -1031,11 +1112,19 @@ export async function runOutreach(opts?: { now?: Date }): Promise<OutreachRunRes
 
       // Atomic claim — the unique(enrollmentId, stepNumber) insert. A
       // concurrent run losing this race skips silently (the winner sends).
-      const touchLogId = newId('otch')
+      //
+      // DO UPDATE, not DO NOTHING (see TOUCH_RETRY_WINDOW_MS above): the claim
+      // may take its OWN failed row back, so a touch whose send blew up is
+      // retryable instead of a permanent wall. `setWhere` keeps it a claim —
+      // the row is only taken over while it reads 'failed', so a run racing
+      // the live sender still matches nothing and still stands down. `sentAt`
+      // is deliberately NOT in the set: it stays the FIRST attempt, which is
+      // what the retry window is measured from.
+      const freshTouchLogId = newId('otch')
       const claimed = await db
         .insert(schema.outreachTouchLog)
         .values({
-          id: touchLogId,
+          id: freshTouchLogId,
           enrollmentId: enrollment.id,
           prospectId: p.id,
           stepNumber: step,
@@ -1046,9 +1135,28 @@ export async function runOutreach(opts?: { now?: Date }): Promise<OutreachRunRes
           status: 'sent',
           sentAt: now,
         })
-        .onConflictDoNothing()
+        .onConflictDoUpdate({
+          target: [schema.outreachTouchLog.enrollmentId, schema.outreachTouchLog.stepNumber],
+          set: {
+            status: 'sent',
+            error: null,
+            templateId: template.id,
+            subject: personalized.subject,
+            channel: sender.kind,
+          },
+          setWhere: and(
+            eq(schema.outreachTouchLog.status, 'failed'),
+            gte(schema.outreachTouchLog.sentAt, new Date(now.getTime() - TOUCH_RETRY_WINDOW_MS)),
+          ),
+        })
         .returning({ id: schema.outreachTouchLog.id })
-      if (claimed.length === 0) continue
+      if (claimed.length === 0) {
+        await settleUnclaimableTouch(enrollment.id, step, now, out)
+        continue
+      }
+      // On a retry this is the EXISTING row's id, so the tracking pixel and
+      // unsubscribe link the earlier attempt minted stay the ones we render.
+      const touchLogId = claimed[0].id
 
       const rendered = renderOutreachEmail({
         paragraphs: personalized.paragraphs,
@@ -1120,8 +1228,26 @@ export async function runOutreach(opts?: { now?: Date }): Promise<OutreachRunRes
             error: sendErr instanceof Error ? sendErr.message.slice(0, 500) : 'unknown',
           })
           .where(eq(schema.outreachTouchLog.id, touchLogId))
+        // BACK THE ENROLLMENT OFF. Leaving `nextSendAt` in the past made this
+        // enrollment due on every tick forever AND sorted it to the front of
+        // an allowance-limited batch, so a few dead addresses could starve the
+        // whole queue. It comes back in TOUCH_RETRY_AFTER_MS, at the back.
+        await db
+          .update(schema.outreachEnrollment)
+          .set({ nextSendAt: new Date(now.getTime() + TOUCH_RETRY_AFTER_MS) })
+          .where(eq(schema.outreachEnrollment.id, enrollment.id))
         out.errors++
+        out.retryScheduled++
         continue
+      }
+
+      // A retry reused the first attempt's row, whose sentAt is the first
+      // attempt. This send is the one that landed, so stamp it.
+      if (touchLogId !== freshTouchLogId) {
+        await db
+          .update(schema.outreachTouchLog)
+          .set({ sentAt: now })
+          .where(eq(schema.outreachTouchLog.id, touchLogId))
       }
 
       // Advance the pointer: next template's dayOffset drives the gap.
