@@ -1,6 +1,9 @@
 import { describe, it, expect } from 'vitest'
-import { readFileSync } from 'node:fs'
+import { spawnSync } from 'node:child_process'
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { gateFindings, renderSummary as renderGateSummary } from '../../scripts/review-gate.mjs'
 import {
   REVIEW_LABEL,
   SWEPT_SINCE,
@@ -37,6 +40,18 @@ import { effectiveContexts, runsOnPullRequest } from '../../scripts/rulebook-dri
  *      repo's real history: before the "record the verdict on the PR"
  *      convention landed, #575, #579 and #580 were genuinely reviewed and carry
  *      no more on-PR evidence than #573 and #582, which were not.
+ *
+ *   4. THE RINGER MUST RING. Everything above grades the CLASSIFIER, and the
+ *      classifier can be perfect while the alarm is mute — this sweep has
+ *      exactly one channel, a red run, so `process.exitCode = 0` is a one-token
+ *      edit after which it finds the miss, prints it into a job summary nobody
+ *      opens, and reports green every morning forever. Sentinel's review of
+ *      #593 mutated `main()` four ways and all 22 tests here passed, so the
+ *      last two describe blocks run the script as a process. Precedent in this
+ *      directory runs both ways: `review-gate.test.ts` already shells out, and
+ *      `axe-headroom-table.test.ts` already grades its script's exit-code
+ *      contract — in the opposite direction, that its reporter must NOT touch
+ *      it.
  */
 
 type Pr = Record<string, any>
@@ -57,6 +72,24 @@ function pr(overrides: Pr = {}): Pr {
 }
 
 const comment = (body: string, login = 'DreamCreateWeb') => ({ author: { login }, body })
+
+/** The review-gate job summary a gated PR actually gets, rendered by the real code. */
+const gateSummaryForAGatedPr = () => {
+  const files = ['.github/workflows/ci.yml']
+  return renderGateSummary(gateFindings(files), files.length, [])
+}
+
+/** Run the script the way the workflow does, as a process, and read what it says and returns. */
+function runSweep(prs: Pr[], limit = 500) {
+  const file = join(mkdtempSync(join(tmpdir(), 'sweep-')), 'prs.json')
+  writeFileSync(file, JSON.stringify(prs))
+  const r = spawnSync(
+    process.execPath,
+    ['scripts/review-sweep.mjs', '--prs', file, '--limit', String(limit)],
+    { cwd: process.cwd(), encoding: 'utf8' },
+  )
+  return { code: r.status, out: r.stdout ?? '' }
+}
 
 /**
  * A real Vercel comment, trimmed. Every PR in this repo gets one, so if it ever
@@ -282,5 +315,93 @@ describe('the sweep workflow', () => {
     // CRLF endings and vitest's transform leaves the `\r` behind when it strips
     // `#!…`, killing every test in this file on Windows only.
     expect(readFileSync(join(process.cwd(), 'scripts/review-sweep.mjs'), 'utf8').startsWith('#!')).toBe(false)
+  })
+})
+
+describe('the alarm actually raises the alarm', () => {
+  // THE BLOCKING FINDING FROM SENTINEL'S REVIEW OF #593. Every test above this
+  // point imports the classifier; none of them executed the script. So four
+  // separate mutations to `main()` — zeroing the exit code, dropping the
+  // annotation loop, hard-coding `gap = null`, sweeping an empty list — passed
+  // all 22 of them, and every one silently disables the instrument in
+  // production.
+  //
+  // `scripts/review-sweep.mjs` is on the review gate in this same PR precisely
+  // because the quiet edit is the dangerous one here. The quietest edit
+  // available was the one nothing graded.
+  it('exits non-zero and annotates when a PR merged owing a review', () => {
+    const { code, out } = runSweep([pr({ number: 573 }), pr({ number: 900, mergedAt: '2026-06-01T00:00:00Z' })])
+
+    expect(
+      out,
+      'the ::error annotation is half the channel — without it a reader has to open the job ' +
+        'summary to find out which PR the red run is even about.',
+    ).toContain('::error title=PR #573')
+    expect(
+      code,
+      'a red run is the ONLY channel this sweep has. Exit 0 here and it finds the miss, writes it ' +
+        'into a job summary nobody opens, and reports green every morning forever.',
+    ).toBe(1)
+  })
+
+  it('exits zero when every in-window gated PR carries a record', () => {
+    const { code } = runSweep([pr({ comments: [comment('APPROVE')] })])
+    expect(code, 'a clean sweep must not cry wolf').toBe(0)
+  })
+
+  it('exits non-zero when the list truncated before reaching the cut-off', () => {
+    // Grades the WIRING, not just `windowGap`. #593's mutation table claimed
+    // this path was covered; `const gap = null` at the call site passed every
+    // test that existed at the time.
+    const { code, out } = runSweep([pr({ comments: [comment('APPROVE')] })], 1)
+
+    expect(out).toMatch(/could not see its whole window/)
+    expect(code, 'a sweep with a hole in it must not report clean').toBe(1)
+  })
+
+  it('names a row it could not read a merge time from', () => {
+    // Unreachable under `--state merged`, and named anyway: this file's stated
+    // discipline is "counted and named, never silently dropped", and a bare
+    // `continue` was the one place that was not literally true.
+    const { out } = runSweep([pr({ number: 901, mergedAt: null })])
+
+    expect(out).toContain('#901')
+    expect(out).toContain('no readable merge time')
+  })
+})
+
+describe('what could blind this sweep from outside', () => {
+  it('refuses to let the review-gate check post its summary as a PR comment', () => {
+    // THE SHARPEST EDGE IN THE DESIGN, found by Sentinel reviewing #593 and
+    // pinned here rather than left to be rediscovered.
+    //
+    // `scripts/review-gate.mjs` renders the instruction telling authors to
+    // record a verdict, so its summary contains the literal word `APPROVE` and
+    // matches `VERDICT_PATTERNS`. It is safe today for exactly one reason: that
+    // check writes to `GITHUB_STEP_SUMMARY` and `GITHUB_OUTPUT` and never to
+    // `gh pr comment`. Give it a comment channel — an entirely
+    // reasonable-looking improvement — and its summary lands on EVERY gated PR
+    // in the repo, every one of them reads as satisfied, and this alarm goes
+    // blind, green and silent on the same day.
+    //
+    // The fix if that day comes is a scoped exclusion for that comment's
+    // marker, NOT narrowing the verdict patterns: narrowing them takes the
+    // false-alarm risk back on, which is the trade this instrument refuses.
+    const wf = readFileSync(join(process.cwd(), '.github/workflows/review-gate.yml'), 'utf8')
+
+    expect(
+      wf.includes('gh pr comment'),
+      'review-gate.yml gained a PR-comment channel. Its summary contains the word APPROVE, so ' +
+        'posting it would make every gated PR read as already reviewed and this sweep would stop ' +
+        'seeing anything at all. Exclude that comment in scripts/review-sweep.mjs before landing it.',
+    ).toBe(false)
+
+    // The instrument check on the instrument check: if that summary ever stops
+    // carrying a verdict word, the assertion above is guarding nothing.
+    expect(
+      VERDICT_PATTERNS.some((p) => p.test(gateSummaryForAGatedPr())),
+      'the review-gate summary no longer carries a verdict word, so the guard above is vacuous — ' +
+        'either restore the instruction or delete this pair deliberately.',
+    ).toBe(true)
   })
 })

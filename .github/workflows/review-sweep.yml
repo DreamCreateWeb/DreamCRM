@@ -106,18 +106,26 @@ jobs:
       # comparator the guard test can drive with fixtures, offline — the same
       # shape as `scripts/rulebook-drift.mjs`.
       #
-      # `--limit 200` is not a guess to leave unchecked: the script is told the
+      # `--limit 500` is not a guess to leave unchecked: the script is told the
       # limit and goes RED if the list came back truncated before it reached
       # `SWEPT_SINCE`, because a sweep with a hole in it and a sweep that found
       # nothing look identical from the outside. Raise the number when it says
       # so; do not move the cut-off.
+      #
+      # It was 200, which is about a TEN-DAY window at this repo's rate
+      # (#553 to #593 landed in roughly two days). Sentinel's review of #593
+      # made the point that lands it here: this alarm's first red run would
+      # then most likely have been ABOUT ITSELF, on a brand-new instrument
+      # whose entire value is being believed. The real query with
+      # `comments,reviews` takes ~7.6s at 200 and GitHub returns 500 fine, so
+      # the headroom is cheap.
       - name: List recently merged PRs
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh pr list --repo ${{ github.repository }} --state merged --limit 200 \
+          gh pr list --repo ${{ github.repository }} --state merged --limit 500 \
             --json number,title,url,mergedAt,author,labels,comments,reviews \
             > merged-prs.json
 
       - name: Which of them merged owing a review nobody recorded?
-        run: node scripts/review-sweep.mjs --prs merged-prs.json --limit 200
+        run: node scripts/review-sweep.mjs --prs merged-prs.json --limit 500

@@ -560,8 +560,9 @@ function renderReviewSection(findings) {
       'check cannot tell whether the review happened, only that one is owed — and it never blocks ' +
       'the merge either way.',
     '',
-    '**Then write the verdict onto this PR before you merge it** (DREAMCRM-61). One line, and it ' +
-      'is what makes the miss findable:',
+    '**The verdict then gets written onto this PR before it merges** (DREAMCRM-61). Sentinel ' +
+      'records it when he gives it; your job is to check it is there before you merge, and to ' +
+      'post it yourself if it is not:',
     '',
     '```bash',
     'gh pr comment <n> --body "Sentinel review: APPROVE — <link to the verdict comment>"',

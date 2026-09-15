@@ -84,14 +84,23 @@
  *   * A PR that merged during the same run of `review-gate.yml` that would
  *     have labelled it.
  *   * A verdict comment somebody typed without a review behind it.
+ *   * THE SHARPEST EDGE, named by Sentinel reviewing #593 and now pinned by
+ *     `tests/guards/review-sweep.test.ts` rather than left to be rediscovered:
+ *     `review-gate.yml`'s own summary contains the literal word `APPROVE` (it
+ *     prints the instruction below). It is safe ONLY because that check writes
+ *     to `GITHUB_STEP_SUMMARY` and `GITHUB_OUTPUT` and never to `gh pr
+ *     comment`. Give it a comment channel and every gated PR in the repo reads
+ *     as satisfied on the day that lands — this whole alarm goes blind, green
+ *     and silent at once. The guard refuses that edit; do not work around it by
+ *     narrowing the verdict patterns instead.
  *   * The `needs-forge-intake` obligation, deliberately: that is an intake, it
  *     holds up nothing, and folding it in here would double this alarm's
  *     volume with findings of a different kind. Its own miss shape is worth an
  *     instrument; it is not worth blurring this one.
  *
  * Usage:
- *   node scripts/review-sweep.mjs --prs prs.json --limit 100
- *   node scripts/review-sweep.mjs --prs prs.json --limit 100 --since 2026-09-20T00:00:00Z
+ *   node scripts/review-sweep.mjs --prs prs.json --limit 500
+ *   node scripts/review-sweep.mjs --prs prs.json --limit 500 --since 2026-09-20T00:00:00Z
  */
 import { readFileSync, appendFileSync, existsSync } from 'node:fs'
 import { pathToFileURL } from 'node:url'
@@ -186,24 +195,35 @@ export function reviewRecord(pr) {
 const gated = (pr) => (pr.labels ?? []).some((l) => l.name === REVIEW_LABEL)
 
 /**
- * Sort every merged PR into one of four buckets.
+ * Sort every merged PR into one of five buckets.
  *
- * `outOfWindow` and `ungated` are not findings and never become findings. They
- * are reported as COUNTS so that a run which looked at nothing cannot be
- * mistaken for a run that found nothing — the `Graded N/8` lesson from
- * `scripts/rulebook-drift.mjs`, which is the same lesson `e2e/axe.ts` learned
- * about a headroom table that prints nothing.
+ * `outOfWindow`, `ungated` and `unreadable` are not findings and never become
+ * findings. They are reported as COUNTS so that a run which looked at nothing
+ * cannot be mistaken for a run that found nothing — the `Graded N/8` lesson
+ * from `scripts/rulebook-drift.mjs`, which is the same lesson `e2e/axe.ts`
+ * learned about a headroom table that prints nothing.
+ *
+ * `unreadable` exists because the alternative was a bare `continue` — the one
+ * place a PR could leave the count without being named, in a file whose whole
+ * stated discipline is "counted and named, never silently dropped". `--state
+ * merged` makes it unreachable today, and that is exactly the kind of
+ * unreachable path that stops being unreachable without anyone deciding it
+ * should. Found by Sentinel reviewing #593.
  */
 export function sweep(prs, since = SWEPT_SINCE) {
   const cutoff = Date.parse(since)
   const unsatisfied = []
   const satisfied = []
   const outOfWindow = []
+  const unreadable = []
   let ungated = 0
 
   for (const pr of prs) {
     const mergedAt = Date.parse(pr.mergedAt ?? '')
-    if (!Number.isFinite(mergedAt)) continue
+    if (!Number.isFinite(mergedAt)) {
+      unreadable.push(pr)
+      continue
+    }
     if (!gated(pr)) {
       ungated++
       continue
@@ -217,7 +237,7 @@ export function sweep(prs, since = SWEPT_SINCE) {
     else unsatisfied.push(pr)
   }
 
-  return { unsatisfied, satisfied, outOfWindow, ungated, since }
+  return { unsatisfied, satisfied, outOfWindow, unreadable, ungated, since }
 }
 
 /**
@@ -248,7 +268,7 @@ export function windowGap(prs, limit, since = SWEPT_SINCE) {
 }
 
 export function renderSummary(result, gap = null) {
-  const { unsatisfied, satisfied, outOfWindow, ungated, since } = result
+  const { unsatisfied, satisfied, outOfWindow, unreadable = [], ungated, since } = result
   const looked = unsatisfied.length + satisfied.length
   const lines = ['### Post-merge review sweep', '']
 
@@ -288,8 +308,9 @@ export function renderSummary(result, gap = null) {
       '',
       'What to do, in order:',
       '',
-      '1. **If the review happened** and the verdict is on the Multica issue, mirror it onto the ' +
-        'PR so the record exists where the sweep can see it:',
+      '1. **If the review happened** and the verdict is on the Multica issue but not on the PR, ' +
+        'mirror it across so the record exists where the sweep can see it — either of you can, ' +
+        'and Sentinel records it at verdict time:',
       '',
       '   ```bash',
       '   gh pr comment <n> --body "Sentinel review: APPROVE — <link to the issue comment>"',
@@ -325,6 +346,17 @@ export function renderSummary(result, gap = null) {
       `Merged before ${since}, when a reviewed PR and an unreviewed one were indistinguishable ` +
         'from GitHub. Skipped, not passed: ' +
         outOfWindow.map((p) => `#${p.number}`).join(', ') + '.',
+      '',
+    )
+  }
+
+  if (unreadable.length) {
+    lines.push(
+      `#### ${unreadable.length} ${unreadable.length === 1 ? 'row carries' : 'rows carry'} no readable merge time — not judged`,
+      '',
+      'Named rather than dropped: ' +
+        unreadable.map((p) => `#${p.number ?? '?'}`).join(', ') +
+        '. Unreachable under `--state merged`, so this appearing at all means the input changed shape.',
       '',
     )
   }

@@ -467,13 +467,22 @@ verdict comment** — including #575, #579 and #580, which were genuinely
 reviewed. A sweep that flagged "no review record on the PR" against that history
 would have cried wolf three times out of five on its first run.
 
-So whoever merges a gated PR records the verdict on it first, before merging:
+So the verdict gets written onto the PR before it merges:
 
 ```bash
 gh pr comment <n> --body "Sentinel review: APPROVE — <link to the verdict comment>"
 ```
 
-One line. It is prompted by the review-gate summary itself — the obligation
+**The reviewer records it; the merger confirms it is there.** That split is
+Sentinel's, from his review of #593, and it is the right way round: the first
+draft put the whole obligation on the merger, who is exactly the person whose
+memory already failed twice — that is the premise of the issue. Sentinel now
+posts the line himself when he gives a verdict, so author memory is out of the
+reviewed path entirely and the merger's check is a backstop. What is left in the
+unsatisfied set is then exactly the #573/#582 shape: a PR that never reached a
+reviewer at all.
+
+The instruction is prompted by the review-gate summary itself — the obligation
 arrives attached to the review request rather than living only here — and it
 does not block the merge either.
 
@@ -485,6 +494,7 @@ by whoever happens to look.
 | Mechanism | What it prevents |
 | --- | --- |
 | `SWEPT_SINCE` — a hard cut-off, `2026-09-15T16:00:00Z` | judging merges from before the record-keeping convention existed, when a reviewed PR and an unreviewed one were indistinguishable |
+| the reviewer recording the verdict, not only the merger | the cut-off's own failure mode at the *other* end of the window — PRs already open when this landed, whose review-gate summaries were rendered before the instruction existed |
 | generous satisfaction — a GitHub review carrying a verdict, or any PR comment with a verdict word in it, however phrased | firing at the one person who did the work because they wrote it differently |
 | the **label** is the trigger, not a re-run of today's `GATE_RULES` over the diff | retro-flagging PRs that were correctly clean when they merged — that list has been widened four times in twelve days |
 
@@ -503,7 +513,7 @@ step hiccuped, a verdict comment with no review behind it, and the
 
 ### Mechanics
 
-`gh pr list --state merged --limit 200` into `scripts/review-sweep.mjs`, which
+`gh pr list --state merged --limit 500` into `scripts/review-sweep.mjs`, which
 holds the classifier. No `pnpm install` anywhere in the job. It sweeps
 **everything merged since the cut-off** rather than a rolling "last N hours"
 window, because GitHub's scheduler is best-effort and this file's own table
@@ -515,7 +525,21 @@ miss should do.
 The script is told the same `--limit` the `gh` call used and goes **red** if the
 list came back truncated before reaching the cut-off, for the reason this
 document keeps re-learning: a sweep with a hole in it and a sweep that found
-nothing look identical from the outside.
+nothing look identical from the outside. The limit is 500 rather than 200 for a
+reason worth keeping: at this repo's rate (#553 to #593 in roughly two days) 200
+is about a ten-day window, so the alarm's **first red run would most likely have
+been about itself** — on a brand-new instrument whose entire value is being
+believed. The query costs ~7.6s at 200 and GitHub returns 500 fine.
+
+**What could blind it from outside, and the one thing holding that.** The
+review-gate summary contains the literal word `APPROVE`, because it prints the
+instruction above. It is safe for exactly one reason — that check writes to
+`GITHUB_STEP_SUMMARY` and `GITHUB_OUTPUT` and never to `gh pr comment`. Give it
+a comment channel and its own summary lands on every gated PR in the repo, all
+of them read as satisfied, and this alarm goes blind, green and silent on the
+same day. `tests/guards/review-sweep.test.ts` refuses that edit and will tell
+you what to do instead; the answer is a scoped exclusion for that comment, never
+a narrower verdict pattern.
 
 **Who reads a red run** is the same honest answer `post-merge-e2e.yml` gives:
 nothing in `.github/` routes a workflow failure anywhere, so it is GitHub's
@@ -530,6 +554,17 @@ check — every way a real review can be recorded must read as satisfied, and th
 #573/#582 shape must still be seen — plus the instrument checks: the Vercel
 comment every PR carries must never read as a verdict, and the workflow must
 stay unable to publish `test` or `e2e`, run on a PR, or ask for a write scope.
+
+**It also runs the script as a process, and that half exists because it was
+missing.** Sentinel's review of #593 mutated `main()` four ways — zeroing the
+exit code, dropping the annotation loop, hard-coding the truncation gap to
+null, sweeping an empty list — and **all 22 tests passed on every one**. This
+alarm has exactly one channel, so `process.exitCode = 0` is a one-token edit
+after which it finds the miss, writes it into a summary nobody opens, and
+reports green forever: the quietest edit available was the one nothing graded,
+on a file that is on the review gate precisely because the quiet edit is the
+dangerous one. The generalisable half is §2d's, aimed one level out — **grading
+a classifier is not grading the instrument it sits inside**.
 
 ## The alarm that watches the rulebook (added 2026-09-14, DREAMCRM-53)
 
