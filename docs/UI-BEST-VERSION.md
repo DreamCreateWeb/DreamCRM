@@ -11,6 +11,44 @@ each work batch takes the top of the list, ships it behind the full gate, and
 checks items off. New findings append; done items get ~~struck~~ with the
 batch number.
 
+**Whoever ships a batch rewrites the OPEN NOW index below, in the same PR that
+strikes the entries.** This file is ~1,100 lines of mostly-struck history, and
+without the index finding the top of the list costs a full-file grep — which
+is how a defect that had been fixed for a week still read as open in three
+places and got re-assigned (the icon wells, batch 62). Struck entries stay: the
+reasoning in them is the point. The index is the cheap thing that keeps them
+from burying what is not done. Keep it to 5–10 lines and say *why* each one is
+still sitting there — "deferred, needs a data series" and "nobody has picked it
+up" are different facts and only one of them is a backlog item.
+
+## OPEN NOW (last rewritten: batch 62, 2026-09-14)
+
+1. **`TONE_FILL` — the dashboard has no single answer for "a solid fill with a
+   label on it"** (system-level entry below). Batch 59 picked one four times by
+   measurement and wrote the answer nowhere. Registry entry in
+   `lib/ui/encodings.ts` + re-pointing every solid fill: its own batch, and it
+   has a parked issue.
+2. **The axe burn-down: 8 left** in `e2e/axe-baseline.ts` (17 → 8 in batch 62).
+   Every `portal:` stop is at zero; what remains is `auth: sign-in` (1), four
+   `staff:` stops (1 each) and `staff: website hub` (3). Singles now, each
+   needing its own look — that file's header carries the measured colours.
+3. **31 `color: brand` sites on the public clinic site** — brand as TEXT, which
+   is `readableInk`'s job. A mix of decorative SVG strokes (no requirement) and
+   real copy that fails on a pale brand. Needs reading one site at a time,
+   which is why batch 57 left it whole.
+4. **A "taken" slot in the portal's picker is `#B9B0A5` on `#F3EEE7` = 1.85:1**
+   — found in batch 62 while measuring the muted ink, not fixed there (it is a
+   different tone and a different call). It is struck-through grey, so the
+   1.4.3 "inactive control" exemption is arguable — but it renders as a `span`,
+   not a disabled control, so axe will flag it the first time a stop scans a
+   day with a booked slot in it, and the portal stops are at zero now. Worth
+   taking before that happens.
+
+Everything else unstruck in this file is **deferred with a stated reason**
+(needs a data series the services do not keep, or a deliberate design decision
+recorded in the code) or already **POST-1.0**. Deferred items are not the top
+of the list; they are the bottom, and they say so where they sit.
+
 **System-level finds:**
 - ~~`--color-brand-600`/`--color-brand-50` referenced but DEFINED NOWHERE~~
   [CLOSED — this entry was STALE, struck in batch 52 after re-verification.
@@ -495,13 +533,74 @@ batch number.
   copy that fails on a pale brand: the shop cart button's label, the intake
   eyebrow, an add-to-cart link. Needs reading one site at a time rather than
   a sweep, which is why batch 57 left it whole. Found while fixing the fills.
-- **Three icon wells render no background at all.** `book-form.tsx:219` and
-  `:538`, `request-form.tsx:73` concatenate an alpha suffix onto a `var()` —
-  `` `var(--c-brand-strong, …)` + '22' `` — which is not a valid CSS colour,
-  so the declaration is dropped. Cosmetic, not a contrast defect, and the fix
-  is a design call (probably `--c-brand-soft`, the palette's light brand wash)
-  rather than a mechanical one, so batch 57 left the expression alone and
-  wrote it down here instead.
+- ~~Three icon wells render no background at all~~ [**STRUCK IN BATCH 62 AS
+  STALE — it was already closed, and had been for a week.** The entry named
+  `book-form.tsx:219`/`:538` and `request-form.tsx:73` concatenating an alpha
+  suffix onto a `var()`. All three call `SuccessWell` now
+  (`components/clinic-site/success-well.tsx`, DREAMCRM-36 / #560), which paints
+  the disc with `brandWash` and the tick with `brandWashInk` — the palette
+  roles the active template already owns, graded to 4.5:1 against each other,
+  so a pale-brand clinic gets a deep tick on a pale disc rather than a faint
+  one. The design call this entry was holding open was made there.
+  It is PINNED, not merely fixed: `tests/clinic-site/brand-wash.test.ts` fails
+  on a two-digit hex suffix concatenated onto a function call or a `var()`
+  anywhere under `app/site`, `components/clinic-site` OR
+  `components/patient-portal`, in both spellings (`… + '22'` and the template
+  form), with comments blanked so the guard cannot fire on its own explanation.
+  Batch 62 re-verified by scanning the tree: not one surviving call site.
+  **Worth keeping is why it was still readable as open.** Three places said so
+  — this entry, the paragraph in `e2e/axe-baseline.ts`, and the issue that sent
+  somebody to make "a small design call within the system" — and all three were
+  written before the fix landed and never revisited. That is batch 58's miss in
+  reverse: the repo believed a guard existed that did not, and here it believed
+  a defect existed that did not. A note is not evidence in either direction;
+  open the file it names. Cost: one re-verification. The cheap prevention is the
+  convention added at the top of this file in the same batch — whoever ships a
+  batch rewrites the index of what is actually open.]
+- ~~The patient portal's muted ink fails AA on nine axe stops~~ [BATCH 62, and
+  it was NOT the tone. `PORTAL_MUTED` #6B635A clears 5.52:1 on the portal's
+  cream and 5.90:1 on a white card; QA's handed-over `#968f88 on #faf7f2` at
+  2.98 is that tone composited through an `opacity-70`, and the one place the
+  portal spelled that was `app/(portal)/layout.tsx`'s "Powered by DreamCreate"
+  at 12px. Reproduced in Chromium with axe-core before anything was touched —
+  `#968f88`, 12px, 2.98, character for character — which is what made the rest
+  of the reasoning safe. The line lives in the portal LAYOUT, so it was ONE
+  defect rendering on every portal page, and it is the "remaining 1 per portal
+  stop is NOT the brand" that batch 54 left unidentified eight batches ago.
+  **The second colour in the handoff, `#8c857d` at 3.4, is not a defect.**
+  Solved for opacity against the same ink and ground it gives 0.77 — a value
+  no CSS in the tree spells — and `e2e/axe.ts`'s own `settleAnimations` note
+  records the identical shape at 0.69 and 0.84 for one booking-page selector
+  on two attempts. Those are frames of a fade. Two mid-fade samples are both
+  guaranteed to sit under the settled colour, so agreeing with each other is
+  not evidence; it is what a fade always looks like.
+  The fix is three call sites, because the DEFECT IS THE TECHNIQUE, not the
+  ratio: the footer line, a message subject at `opacity-80` (on a patient's
+  own brand-filled bubble that is 3.79–4.42 depending on the clinic's brand —
+  a genuine failure on a page the browser suite never stops at, so nothing had
+  ever measured it), and the day strip's weekday/month labels at 0.85, which
+  PASSED at 10.98 and moved anyway — a rule holding at zero cannot leave a
+  legal-looking instance of the shape in the tree for the next author to copy.
+  Each steps down with a TONE instead. `PORTAL_MUTED` is also single-homed for
+  the first time: it was spelled raw in the layout, the chrome and the message
+  list, so "one tone in patient-portal/ui.tsx" was not actually true of the one
+  tone the baseline had been carrying nine ceilings for. It joins the
+  `tests/a11y/portal-tokens.test.ts` ban list.
+  The gate is `tests/a11y/portal-ink-opacity.test.ts` — a source rule refusing
+  an opacity on portal ink, at ZERO with no ceiling and no exemption in use
+  (`aria-hidden` is resolved structurally rather than by name, so the
+  decorative emoji need no entry). Variant-prefixed opacities stay legal
+  (`disabled:` is exempt under 1.4.3; `hover:`/`active:` are momentary) and its
+  blind spots are named in its own header. Red-verified against the real shapes:
+  restoring the two live spellings takes it red naming
+  `app/(portal)/layout.tsx:274 — opacity-70` and both slot-picker lines.
+  **Nine ceilings come down to zero in the same PR** (17 → 8 in
+  `e2e/axe-baseline.ts`, every `portal:` stop gone). The reusable lesson is
+  about the baseline rather than about opacity: a defect in a SHARED component
+  presents there as one violation per stop, which is indistinguishable from
+  several small unrelated debts, and a row of 1s is exactly the shape nobody
+  re-reads. When several stops on one surface carry the same small number, ask
+  what they render in common first.]
 - ~~White text on the brand ramp's 500 step~~ [BATCH 58 — the largest
   identified pair left in the axe baseline, and the design system's own
   token comment was the reason it spread. `--color-teal-500` was labelled
