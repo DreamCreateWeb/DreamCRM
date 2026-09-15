@@ -3132,7 +3132,7 @@ That edit is product code in another lane; it is a composite map key that never
 leaves the function, so it is about as safe as a product-code change gets, and
 this entry is the hand-over §10 asks for — file, byte offsets, consequence, fix.
 
-Filed as its own issue (DREAMCRM-62). It would add a new blocking assertion
+Filed as its own issue (DREAMCRM-66). It would add a new blocking assertion
 class over all tracked source, a wider blast radius than anything in #588, so it
 takes Forge intake on the day and a Sentinel review if the diff reaches a gated
 area.
