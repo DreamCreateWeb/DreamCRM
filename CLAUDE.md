@@ -13,6 +13,7 @@ system, don't replace it.
 |---|---|
 | [`DESIGN.md`](./DESIGN.md) | Durable strategy + design principles — what we're building, who for, positioning, module roadmap. Read before designing anything new. |
 | [`DESIGN-SYSTEM.md`](./DESIGN-SYSTEM.md) | The binding dashboard UI system (v3 "Cute Dream, Living Data" — dream blue, bubbles, Nunito, living-data law; re-skinned from v2 2026-07-17) — semantic tones, glyphs, motion, components. Read before touching dashboard UI. |
+| [`BRAND.md`](./BRAND.md) | The MARKETING SITE's personality language ("Night Dream", owner-approved 2026-09-14, DREAMCRM-43) — mood, palette energy, shape, type, emoji/copy voice, motion, and the hand-graded contrast table the night hero band depends on (no automated guard can see a dark band inside a light-mode page). Read before touching `app/(marketing)` or `components/marketing`. Scope: marketing only — the dashboard keeps DESIGN-SYSTEM.md. |
 | **This file** | Current implementation state: architecture, module map, subsystem reference, conventions, ops. |
 | [`docs/HISTORY.md`](./docs/HISTORY.md) | The chronological session-by-session build log (moved out of this file 2026-07-02). Per-session implementation detail lives there. |
 | [`docs/FINISHING.md`](./docs/FINISHING.md) | The finishing-pass punch list — FROZEN history since the release program began (new defects go to docs/RELEASE.md Part 5). |

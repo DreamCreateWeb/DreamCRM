@@ -19,7 +19,9 @@ not austere-premium — and makes living data a first-class law.
 
 **Scope boundary (unchanged):** NOT the public clinic sites (`app/site`),
 the patient portal (`app/(portal)`), or the marketing site
-(`app/(marketing)`). Those keep their own languages. Auth + onboarding
+(`app/(marketing)`). Those keep their own languages — the marketing site's
+is `BRAND.md` ("Night Dream", owner-approved 2026-09-14), which draws on the
+same token ramps defined here and adds nothing to them. Auth + onboarding
 receive the v3 *brand* (logo, dream blue, ink, fonts) but stay structurally
 simple.
 

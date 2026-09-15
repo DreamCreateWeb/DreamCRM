@@ -70,6 +70,7 @@ pnpm db:push              # apply schema directly (local dev only)
 |---|---|
 | [`DESIGN.md`](./DESIGN.md) | Durable strategy + design principles + the North Star doctrine |
 | [`DESIGN-SYSTEM.md`](./DESIGN-SYSTEM.md) | The binding dashboard UI system (tones, glyphs, motion, components) |
+| [`BRAND.md`](./BRAND.md) | The marketing site's personality language ("Night Dream") — mood, palette energy, shape, type, emoji, motion, and the hand-graded contrast table for the night band |
 | [`CLAUDE.md`](./CLAUDE.md) | **Current implementation state** — architecture, module map, subsystem reference, conventions, ops. The working manual; kept current. |
 | [`docs/RELEASE.md`](./docs/RELEASE.md) | The current program of record: beta → 1.0 |
 | [`docs/HISTORY.md`](./docs/HISTORY.md) | The session-by-session build log |

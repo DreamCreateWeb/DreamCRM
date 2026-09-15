@@ -625,6 +625,9 @@ Don't update it for transient implementation details — those go in
 
 ## Positioning (decided 2026-07-19): identity first, consolidation down-funnel
 
+This section owns what the marketing site *says*. What it *looks and feels
+like* — mood, palette energy, shape, type, emoji, motion — is `BRAND.md`.
+
 The marketing site leads with WHAT THE PLATFORM IS, not what it replaces.
 The identity claim is the one this document already states as the goal:
 **"the patient-relationship platform for dental practices"** — wrapped in
