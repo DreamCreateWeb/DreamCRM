@@ -38,8 +38,10 @@ authenticate anybody.
 | `readonly-role-privileges` | Can the read-only account see anything it must not? Must be **zero rows**. |
 | `migrations-applied` | Which migrations has production actually applied? (DREAMCRM-46 — the answer half of the post-deploy migration check) |
 
-`readonly-role-privileges` also runs on a schedule (07:00 UTC daily) and fails
-the workflow if it finds anything.
+`readonly-role-privileges` also runs on a schedule (06:37 UTC daily) and fails
+the workflow if it finds anything. The odd minute is deliberate — GitHub queues
+scheduled workflows and the top of an hour is its busiest moment, so this alarm
+asks off the hour; `docs/CI.md` ("When it really runs") has the evidence.
 
 `migrations-applied` is normally not dispatched by hand at all:
 `.github/workflows/migration-check.yml` asks it after every deploy and again at

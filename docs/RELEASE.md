@@ -418,9 +418,28 @@ as confirmed defects yet.
   auth to add without breaking the middleware fetch it exists to serve. Not a
   defect — recorded here so the next sweep doesn't re-report it.
 - S3/housekeeping · `uploadPatientDocumentAction` writes the S3 blob before
-  the patient-in-org check (forged id orphans a blob; no row, no access);
-  `enterDemoMode` doesn't validate the target org (self-only, re-validated
-  downstream). · OPEN.
+  the patient-in-org check (forged id orphans a blob; no row, no access). ·
+  **FIXED** (DREAMCRM-47) — `patientBelongsToOrg` is exported from
+  `lib/services/patient-documents.ts` and asked BEFORE `uploadBlob`;
+  `addPatientDocument` still asks again on its own account, because a service
+  that trusts its caller to have checked is one caller away from not being
+  checked at all. The gate belongs in front of the one write here that cannot
+  be rolled back. `tests/patients/document-upload-order.test.ts` pins the
+  ORDER, not just the refusal.
+- S3/housekeeping · `enterDemoMode` doesn't validate the target org
+  (self-only, re-validated downstream). Unbundled from the upload defect
+  above: same sweep, different file, different fix. · **FIXED**
+  (DREAMCRM-47) — the org row was already being read (to decide whether to
+  run the demo seeder's self-heal), so the fix is to stop treating a missing
+  row as "not the demo clinic" and start treating it as "nothing to render
+  as". The cookie IS a tenant context — `getTenantContext` gives it
+  precedence over real org membership — so a wire-supplied `orgId` matching
+  no organization used to mint a seven-day cookie pointing at a tenant that
+  does not exist. `app/(default)/ecommerce/customers/admin-actions.ts` was
+  ALSO added to the `auth` rule in `scripts/review-gate.mjs` (and to
+  `MUST_BE_GATED`): the file that mints the tenant-context cookie matched
+  nothing on the gate list, so a PR changing which org a platform admin can
+  become reported "merges on green".
 
 Partitions audited CLEAN (no defect): appointments, patients, leads,
 intake-forms, followups, my-day, search, growth (outreach/reviews/social),
@@ -575,7 +594,11 @@ binding are all correct. The payment-plan charger was the exception.
   written with BACKSPACE bytes where its word-boundary escapes belonged, so it
   matched nothing and passed on the first try; the red run against the live bug
   is what caught that. A guard authored straight to green proves only that it
-  runs.
+  runs. This was the first of three reviews in a row to end on a guard that
+  could not fail, which is what produced the one-time audit of the whole
+  existing guard suite — **`docs/GUARD-MUTATION-PASS.md`** (DREAMCRM-50): 42
+  mutations over 31 guards, 7 of them blind, 14 live defects found behind
+  them, and the two regex traps that caused most of it.
 - S3 · three clinic-side HISTORY surfaces still read "$400 paid" on a charge
   the patient had been refunded, while the patient's own portal said
   "Refunded to you" — one event, two stories, and a front desk on the phone
@@ -814,7 +837,14 @@ binding are all correct. The payment-plan charger was the exception.
   paid also lands there, so the shop success page would tell that shopper
   "your order is confirmed". Nothing is written and no money moves — a
   cosmetic lie on one page, in a state that needs a cancellation AFTER payment
-  to reach at all. Returning the row's real status closes it. · OPEN.
+  to reach at all. Returning the row's real status closes it. · **FIXED**
+  (DREAMCRM-47) — the lost-race branch re-reads the row inside the
+  organization and reports the status it finds. A row that vanished under us
+  falls back to what was read on the way in, never to 'paid': the whole point
+  is that this branch stops inventing an answer.
+  `tests/shop/finalize-lost-race-status.test.ts` models the compare-and-swap
+  for real (a claim whose status predicate misses the row matches no rows), so
+  the test exercises the lost-race branch rather than a stand-in for it.
 - S3 · `listAdminSubscriptions` reads `s.items.data[0]` only, so a
   subscription with more than one item (a plan plus the social add-on, say)
   contributes ONE line's worth to every MRR figure. Pre-dates the MRR work,
@@ -2962,6 +2992,47 @@ opposite; all three now state the real shape.
 **This changes what a deploy can report, and it edits `.github/workflows/**`,**
 so it is behind the review gate (done, Sentinel, 2026-09-14) and owes Forge
 intake per §2 of the conventions.
+
+### The 20s stall-detector tail — STRUCK BY DECISION (2026-09-14)
+
+**The item.** `vitest.config.ts` pins `testTimeout: 20_000`, and DREAMCRM-19's
+note beside it says what would earn a lower number: pre-load the **8 remaining
+files** that still `await import()` the module under test inside a test —
+`tests/automation/cron-auth` (8 route graphs behind a `describe.each`),
+`tests/inbox/gmail-parser` and `tests/inbox/classification` lead them — and
+re-measure. DREAMCRM-19 did that work for 35 of the original 43; these 8 defer
+on purpose (`vi.resetModules`, `vi.doMock`, env set before the import), so each
+needs its own judgement about whether the module reads its env at import time
+or at call time. A per-file product question, not a mechanical edit.
+
+**The verdict: struck, not done, and not deferred a third time.** It reached
+the planning meeting twice, was deferred both times, and the DREAMCRM-45
+meeting took it off the list on QA's own recommendation. Carrying an item a
+third time is not a decision, it is a habit — and this one was never a defect.
+
+**Why striking it is safe, and on what evidence.** A timeout is a HANG
+detector, not an assertion: raising it relaxes no check and lowering it
+tightens none. So the only thing a lower number buys is a *faster* report of a
+hang that is not happening. Checked before striking (200 GitHub Actions runs,
+2026-09-11 00:53 UTC to 2026-09-15, the whole life of the current budget):
+
+- two `CI` failures in the window, and neither was a vitest timeout — one was
+  a Playwright `toContainText` assertion timeout in `e2e`, the other a
+  deliberately broken tree of our own (the DREAMCRM-48 red run);
+- every `nightly-test` green across all four unattended nightly fires;
+- every `tz-canary` green too — worth checking separately, because it is the
+  one job that runs the unit suite under a non-UTC clock and
+  `continue-on-error: true` means a red one would not show up as a failed run.
+
+Nothing has come near 20s. Under load the slowest of the 8 reaches ~4.3s on its
+first test, which is the 4.6x headroom the note describes.
+
+**What would reopen it.** A vitest timeout in `test`, `nightly-test` or
+`tz-canary` — any one of them. At that point the answer is still the pre-load
+work and a re-measure, not a bigger number: raising a hang detector to get
+green is the same move as raising an axe ceiling, and §2 of the repo
+conventions rules on it the same way. The note in `vitest.config.ts` keeps the
+whole recipe, so striking the ledger entry costs nothing but the queue slot.
 
 ## Part 6 — The post-1.0 backlog
 Moved to `docs/POST-1.0.md` (2026-08-17) — the full seeded inventory:

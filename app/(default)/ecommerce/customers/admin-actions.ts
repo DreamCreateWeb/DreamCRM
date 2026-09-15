@@ -53,7 +53,15 @@ export async function enterDemoMode(input: unknown) {
     .from(organization)
     .where(eq(organization.id, data.orgId))
     .limit(1)
-  if (org?.slug === DEMO_CLINIC_SLUG) {
+  // The cookie below IS a tenant context — `getTenantContext` renders the
+  // whole app as whatever org id it names. `orgId` arrives from the wire and
+  // was never checked against a real row, so a typo or a forged value minted a
+  // seven-day cookie pointing at an organization that does not exist; every
+  // downstream read then scoped to a nonexistent tenant and the admin got an
+  // app full of empty pages with no clue why. Nothing to render as, nothing to
+  // set.
+  if (!org) throw new Error('Unknown organization')
+  if (org.slug === DEMO_CLINIC_SLUG) {
     await createDemoClinic()
     // The demo org has no member rows, so live notifyOrgMembers events route
     // to platform admins (see notifications.ts). Seed a starter set for THIS

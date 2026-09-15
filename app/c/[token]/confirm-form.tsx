@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { confirmVisitAction } from './actions'
+import { PORTAL_ERROR, PORTAL_MUTED } from '@/components/patient-portal/ui'
 import { buildIcs, icsDataUrl } from '@/lib/ics'
 
 /**
@@ -11,7 +12,7 @@ import { buildIcs, icsDataUrl } from '@/lib/ics'
  */
 
 const INK = '#1C1A17'
-const MUTED = '#6B635A'
+const MUTED = PORTAL_MUTED
 const BORDER = '#E8E2D9'
 
 type State = 'pending' | 'confirmed' | 'cancelled' | 'past'
@@ -201,7 +202,7 @@ export default function ConfirmForm({
         {pending ? 'Confirming…' : 'Confirm my visit'}
       </button>
       {error && (
-        <p className="mt-3 text-sm" style={{ color: '#B4231F' }} role="alert">
+        <p className="mt-3 text-sm" style={{ color: PORTAL_ERROR }} role="alert">
           {error}
         </p>
       )}

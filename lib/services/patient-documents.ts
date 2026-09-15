@@ -93,15 +93,33 @@ export interface AddPatientDocumentInput {
   label?: string | null
 }
 
-/** Persist a document row. Verifies the patient belongs to the org first so a
- *  stale/foreign id can't orphan a row. Returns the created row. */
-export async function addPatientDocument(input: AddPatientDocumentInput): Promise<PatientDocumentRow> {
+/**
+ * Does this patient belong to this organization?
+ *
+ * Exported because the check has to happen TWICE and in that order: the upload
+ * action asks BEFORE it puts bytes in storage (a forged id used to write the
+ * blob first and only then fail the row insert, leaving an orphan in the
+ * bucket that no row and no access check ever reaches again), and
+ * `addPatientDocument` asks again before it writes, because a service that
+ * trusts its caller to have checked is one caller away from not being checked
+ * at all.
+ */
+export async function patientBelongsToOrg(organizationId: string, patientId: string): Promise<boolean> {
+  if (!organizationId || !patientId) return false
   const [owner] = await db
     .select({ id: schema.patient.id })
     .from(schema.patient)
-    .where(and(eq(schema.patient.id, input.patientId), eq(schema.patient.organizationId, input.organizationId)))
+    .where(and(eq(schema.patient.id, patientId), eq(schema.patient.organizationId, organizationId)))
     .limit(1)
-  if (!owner) throw new Error('Patient not found in this organization')
+  return Boolean(owner)
+}
+
+/** Persist a document row. Verifies the patient belongs to the org first so a
+ *  stale/foreign id can't orphan a row. Returns the created row. */
+export async function addPatientDocument(input: AddPatientDocumentInput): Promise<PatientDocumentRow> {
+  if (!(await patientBelongsToOrg(input.organizationId, input.patientId))) {
+    throw new Error('Patient not found in this organization')
+  }
 
   const id = newPatientDocumentId()
   const fileName = (input.fileName || 'document').slice(0, 200)

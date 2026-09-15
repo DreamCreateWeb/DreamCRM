@@ -78,7 +78,7 @@ export default function AddTagPopover({
           </ul>
         )}
         {matches.length === 0 && !canCreate && (
-          <p className="px-1.5 py-2 text-[11px] text-gray-400 dark:text-gray-500">
+          <p className="px-1.5 py-2 text-xs text-gray-400 dark:text-gray-500">
             {loading ? 'Loading tags…' : available.length === 0 ? 'No more tags to add.' : 'No match.'}
           </p>
         )}
