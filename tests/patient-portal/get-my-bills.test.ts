@@ -59,7 +59,7 @@ vi.mock('@/lib/db', () => {
 vi.mock('@/lib/db/schema/clinic', () => ({
   patient: { id: 'p.id', organizationId: 'p.org' },
   appointment: {},
-  shopOrder: { id: 'so.id', patientId: 'so.pat', organizationId: 'so.org', status: 'so.status', fulfillmentStatus: 'so.fs', fulfillmentType: 'so.ft', totalCents: 'so.total', trackingNumber: 'so.tn', createdAt: 'so.ca', paidAt: 'so.pa' },
+  shopOrder: { id: 'so.id', patientId: 'so.pat', organizationId: 'so.org', status: 'so.status', fulfillmentStatus: 'so.fs', fulfillmentType: 'so.ft', totalCents: 'so.total', refundedAmountCents: 'so.ref', refundedAt: 'so.refat', trackingNumber: 'so.tn', createdAt: 'so.ca', paidAt: 'so.pa' },
   shopOrderItem: { id: 'soi.id', orderId: 'soi.oid', productName: 'soi.pn', variantName: 'soi.vn', quantity: 'soi.q', unitPriceCents: 'soi.u' },
   membership: { id: 'm.id', planId: 'm.pid', patientId: 'm.pat', organizationId: 'm.org', status: 'm.status', currentPeriodEnd: 'm.cpe', benefitsUsed: 'm.bu', createdAt: 'm.ca' },
   membershipPlan: { id: 'mp.id', name: 'mp.name', billingInterval: 'mp.bi', priceCents: 'mp.pc', benefits: 'mp.b' },
@@ -155,6 +155,49 @@ describe('getMyBills', () => {
     expect(r.orders[0].items).toHaveLength(1)
     expect(r.orders[0].items[0].productName).toBe('Whitening Kit')
     expect(r.orders[0].items[0].quantity).toBe(1)
+  })
+
+  it('carries an order REFUND through, so the patient is told the money came back', async () => {
+    // The balance-payment rows next to these have carried the refund columns
+    // since DREAMCRM-23; the order rows did not, so a refunded purchase showed
+    // in the patient's own money trail at full face value with no badge, and
+    // its printable receipt was stamped "Paid".
+    state.orders = [
+      {
+        id: 'so_ref',
+        status: 'refunded',
+        fulfillmentStatus: 'picked_up',
+        fulfillmentType: 'pickup',
+        totalCents: 14900,
+        refundedAmountCents: 14900,
+        refundedAt: new Date('2026-06-02T00:00:00Z'),
+        trackingNumber: null,
+        createdAt: new Date('2026-05-25T00:00:00Z'),
+        paidAt: new Date('2026-05-25T00:00:00Z'),
+      },
+    ]
+    const r = await callGetMyBills()
+    expect(r.orders[0].refundedAmountCents).toBe(14900)
+    expect(r.orders[0].refundedAt?.toISOString()).toBe('2026-06-02T00:00:00.000Z')
+  })
+
+  it('reads a missing refund column as nothing refunded, never NaN', async () => {
+    state.orders = [
+      {
+        id: 'so_old',
+        status: 'paid',
+        fulfillmentStatus: 'picked_up',
+        fulfillmentType: 'pickup',
+        totalCents: 2900,
+        refundedAmountCents: null,
+        refundedAt: null,
+        trackingNumber: null,
+        createdAt: new Date(),
+        paidAt: new Date(),
+      },
+    ]
+    const r = await callGetMyBills()
+    expect(r.orders[0].refundedAmountCents).toBe(0)
   })
 
   it('returns empty items array when an order has no shop_order_item rows', async () => {

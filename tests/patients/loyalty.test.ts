@@ -62,8 +62,11 @@ vi.mock('@/lib/db', () => {
       organization: { id: 'id', isDemo: 'demo' },
       appointment: { id: 'id', organizationId: 'org', patientId: 'pid', status: 's', completedAt: 'c' },
       patient: { id: 'id', organizationId: 'org', referredByPatientId: 'ref', firstName: 'fn' },
-      patientBalancePayment: { id: 'id', organizationId: 'org', patientId: 'pid', status: 's', paidAt: 'p' },
-      loyaltyEvent: { _n: 'loyalty_event', id: 'id', organizationId: 'org', patientId: 'pid', points: 'pts', kind: 'k', createdAt: 'c', note: 'n' },
+      patientBalancePayment: {
+        id: 'id', organizationId: 'org', patientId: 'pid', status: 's', paidAt: 'p',
+        amountCents: 'amt', refundedAmountCents: 'ref',
+      },
+      loyaltyEvent: { _n: 'loyalty_event', id: 'id', organizationId: 'org', patientId: 'pid', points: 'pts', kind: 'k', sourceId: 'src', createdAt: 'c', note: 'n' },
       shopCoupon: { _n: 'shop_coupon' },
     },
   }
@@ -75,7 +78,12 @@ vi.mock('drizzle-orm', () => ({
 }))
 
 import { resolveLoyaltySettings, LOYALTY_DEFAULTS } from '@/lib/types/loyalty'
-import { runLoyaltyAccrual, redeemLoyaltyPoints, adjustLoyaltyPoints } from '@/lib/services/loyalty'
+import {
+  runLoyaltyAccrual,
+  redeemLoyaltyPoints,
+  adjustLoyaltyPoints,
+  reverseLoyaltyForRefundedPayment,
+} from '@/lib/services/loyalty'
 
 const ENABLED = { enabled: true, pointsPerVisit: 10, pointsPerReferral: 50, pointsPerPayment: 10, redeemPoints: 100, redeemValueCents: 1000 }
 
@@ -138,6 +146,95 @@ describe('runLoyaltyAccrual', () => {
       points: 50,
       sourceId: 'p_emma',
     })
+  })
+})
+
+/**
+ * REFUNDS AND POINTS (DREAMCRM-32). A balance payment stays 'paid' after
+ * Stripe sends the money back, so the sweep would keep thanking a patient for
+ * a payment they no longer made. Both halves are pinned here because a refund
+ * can land on either side of the daily sweep.
+ */
+describe('runLoyaltyAccrual and refunds', () => {
+  function paymentSweep(payments: unknown[]) {
+    state.selectQueue.push([
+      { organizationId: 'org_1', loyalty: { ...ENABLED, pointsPerVisit: 0, pointsPerReferral: 0 } },
+    ])
+    state.selectQueue.push([{ isDemo: false }])
+    state.selectQueue.push(payments as unknown[])
+  }
+
+  it('earns on a payment that is still the clinic’s money', async () => {
+    paymentSweep([{ id: 'bp_1', patientId: 'p1', amountCents: 20_000, refundedAmountCents: 0 }])
+    const r = await runLoyaltyAccrual({ now: new Date('2026-07-02T12:00:00Z') })
+    expect(r.earned).toBe(1)
+    expect(state.inserts[0].values).toMatchObject({ kind: 'payment', points: 10, sourceId: 'bp_1' })
+  })
+
+  it('does NOT earn on a payment that was refunded before the sweep ran', async () => {
+    paymentSweep([{ id: 'bp_2', patientId: 'p1', amountCents: 20_000, refundedAmountCents: 20_000 }])
+    const r = await runLoyaltyAccrual({ now: new Date('2026-07-02T12:00:00Z') })
+    expect(r.earned).toBe(0)
+    expect(state.inserts).toHaveLength(0)
+  })
+
+  it('still earns on a PARTIAL refund — the patient did pay', async () => {
+    paymentSweep([{ id: 'bp_3', patientId: 'p1', amountCents: 20_000, refundedAmountCents: 1_000 }])
+    const r = await runLoyaltyAccrual({ now: new Date('2026-07-02T12:00:00Z') })
+    expect(r.earned).toBe(1)
+  })
+})
+
+describe('reverseLoyaltyForRefundedPayment', () => {
+  it('takes back exactly what the payment earned', async () => {
+    // The earn row's own value, not today's settings — a clinic that raised
+    // its award since must not claw back more than it gave.
+    state.selectQueue.push([{ patientId: 'p1', points: 10 }])
+    const done = await reverseLoyaltyForRefundedPayment('org_1', 'bp_1', {
+      amountCents: 20_000,
+      refundedAmountCents: 20_000,
+    })
+    expect(done).toBe(true)
+    expect(state.inserts[0].values).toMatchObject({
+      organizationId: 'org_1',
+      patientId: 'p1',
+      kind: 'reverse',
+      points: -10,
+      sourceId: 'bp_1',
+    })
+  })
+
+  it('leaves a PARTIAL refund alone and never looks up the ledger', async () => {
+    const done = await reverseLoyaltyForRefundedPayment('org_1', 'bp_1', {
+      amountCents: 20_000,
+      refundedAmountCents: 19_999,
+    })
+    expect(done).toBe(false)
+    expect(state.inserts).toHaveLength(0)
+    expect(state.selectQueue).toHaveLength(0) // nothing was consumed
+  })
+
+  it('writes nothing when the payment never earned anything', async () => {
+    state.selectQueue.push([]) // no earn row — the sweep had not run
+    const done = await reverseLoyaltyForRefundedPayment('org_1', 'bp_9', {
+      amountCents: 20_000,
+      refundedAmountCents: 20_000,
+    })
+    expect(done).toBe(false)
+    expect(state.inserts).toHaveLength(0)
+  })
+
+  it('is idempotent — a redelivered refund reverses once', async () => {
+    state.selectQueue.push([{ patientId: 'p1', points: 10 }])
+    state.insertFail = (table) => table === 'loyalty_event'
+    const done = await reverseLoyaltyForRefundedPayment('org_1', 'bp_1', {
+      amountCents: 20_000,
+      refundedAmountCents: 20_000,
+    })
+    // The unique (org, 'reverse', payment id) index is the whole mechanism —
+    // the second write is swallowed, not fatal.
+    expect(done).toBe(false)
+    expect(state.inserts).toHaveLength(0)
   })
 })
 

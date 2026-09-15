@@ -42,8 +42,31 @@ import { SITE_BG as BG, SITE_INK as INK, SITE_INK_MUTED as INK_MUTED, SITE_SURFA
 import { brandFill } from '@/lib/clinic-site-theme'
 import { SuccessWell } from '@/components/clinic-site/success-well'
 
+/**
+ * What the page can PROVE about itself, handed to the OCR action instead of a
+ * raw organization id.
+ *
+ * The public action resolves the clinic from `siteSlug` and re-validates
+ * `templateId` against it, so a scan can only ever spend the allowance of the
+ * clinic whose slug the caller posted — and only against a real, live form of
+ * that clinic. BE PRECISE ABOUT WHAT THAT BUYS: both values are public, read
+ * straight off any clinic's own intake page, so this narrows the target to a
+ * real practice with a real form rather than any org id a caller invents. What
+ * actually bounds the DRAIN is the per-IP rate limit the action gained at the
+ * same time. Both matter; neither is the whole answer on its own.
+ *
+ * The portal's action ignores this entirely and takes the org from the
+ * session, where it is genuinely not the caller's to choose.
+ */
+export interface OcrScope {
+  /** The public clinic-site slug this form is served under. */
+  siteSlug: string
+  /** The intake form being filled in — must belong to that clinic. */
+  templateId: string
+}
+
 export type OcrAction = (
-  orgId: string,
+  scope: OcrScope,
   imageUrls: string[],
 ) => Promise<{ ok: true; fields: InsuranceCardFields } | { ok: false; error: string }>
 
@@ -83,6 +106,10 @@ interface Props {
   /** Optional insurance-card OCR action — when present, an insurance_card field
    *  offers "Read my card" to auto-fill the insurance fields. */
   ocrAction?: OcrAction
+  /** The public site slug this form is served under. The public OCR action
+   *  resolves the clinic from it; the portal (session-scoped) passes none, and
+   *  an empty slug is refused rather than defaulted. */
+  siteSlug?: string
   /** Return-visit pre-fill — a known patient's prior answers (portal). */
   initialValues?: FormSubmissionData
   /** Cached translations — when es exists, a language toggle appears. */
@@ -97,7 +124,13 @@ interface Props {
   kioskMode?: boolean
 }
 
-export default function IntakeFormRunner({ orgId, templateId, schema, brand, clinicName, action, ocrAction, initialValues, translations, onComplete, progressLabel, kioskMode }: Props) {
+export default function IntakeFormRunner({ orgId, templateId, schema, brand, clinicName, action, ocrAction, siteSlug, initialValues, translations, onComplete, progressLabel, kioskMode }: Props) {
+  // Built once here, where BOTH halves are known — the field components below
+  // never see an organization id, so none of them can hand one to the server.
+  const ocrScope = useMemo<OcrScope>(
+    () => ({ siteSlug: siteSlug ?? '', templateId }),
+    [siteSlug, templateId],
+  )
   const [values, setValues] = useState<FormSubmissionData>(() => initialValues ?? {})
   const prefilled = !!initialValues && Object.keys(initialValues).length > 0
   const hasEs = !!translations?.es && Object.keys(translations.es).length > 0
@@ -306,7 +339,7 @@ export default function IntakeFormRunner({ orgId, templateId, schema, brand, cli
                   value={values[field.id]}
                   onChange={setValue}
                   brand={brand}
-                  orgId={orgId}
+                  ocrScope={ocrScope}
                   ocrAction={ocrAction}
                   onOcrFill={fillFromCard}
                   t={t}
@@ -340,7 +373,7 @@ const FieldInput = memo(function FieldInput({
   value,
   onChange: onChangeField,
   brand,
-  orgId,
+  ocrScope,
   ocrAction,
   onOcrFill,
   t,
@@ -350,7 +383,7 @@ const FieldInput = memo(function FieldInput({
   /** Stable (fieldId, value) setter — lets this component memoize. */
   onChange: (fieldId: string, v: FormFieldValue) => void
   brand: string
-  orgId: string
+  ocrScope: OcrScope
   ocrAction?: OcrAction
   onOcrFill?: (fields: InsuranceCardFields) => void
   t: (typeof STR)[Lang]
@@ -582,7 +615,7 @@ const FieldInput = memo(function FieldInput({
             value={sanitizeFileRefs(value)}
             onChange={onChange}
             brand={brand}
-            orgId={orgId}
+            ocrScope={ocrScope}
             ocrAction={ocrAction}
             onOcrFill={onOcrFill}
           />
@@ -704,14 +737,14 @@ function InsuranceCardInput({
   value,
   onChange,
   brand,
-  orgId,
+  ocrScope,
   ocrAction,
   onOcrFill,
 }: {
   value: FormFileRef[]
   onChange: (v: FormFieldValue) => void
   brand: string
-  orgId: string
+  ocrScope: OcrScope
   ocrAction?: OcrAction
   onOcrFill?: (fields: InsuranceCardFields) => void
 }) {
@@ -729,7 +762,7 @@ function InsuranceCardInput({
     setReading(true)
     setReadMsg(null)
     setErr(null)
-    void ocrAction(orgId, urls)
+    void ocrAction(ocrScope, urls)
       .then((res) => {
         if (res.ok) {
           onOcrFill?.(res.fields)

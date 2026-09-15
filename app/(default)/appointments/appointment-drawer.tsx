@@ -390,7 +390,30 @@ export default function AppointmentDrawer({
                 )}
                 {detail.deposit && (
                   <div className="pt-1">
-                    {detail.deposit.status === 'paid' ? (
+                    {/* A refunded deposit KEEPS status 'paid' by design (the
+                        reconciliation list needs the row), so "deposit paid"
+                        alone would tell the front desk to post money that has
+                        already gone back. Same three states as the row on
+                        Payments → Online. */}
+                    {detail.deposit.status === 'paid' && detail.deposit.refundedAmountCents > 0 ? (
+                      detail.deposit.refundedAmountCents >= detail.deposit.amountCents ? (
+                        <StatusPill
+                          tone="neutral"
+                          title="Refunded in Stripe — nothing is credited toward this visit; reverse it on the PMS ledger."
+                        >
+                          {money(detail.deposit.amountCents)} deposit refunded
+                        </StatusPill>
+                      ) : (
+                        <StatusPill
+                          tone="warn"
+                          title="Part of this deposit was refunded in Stripe — only what is left is credited toward the visit; reverse the rest on the PMS ledger."
+                        >
+                          {money(detail.deposit.amountCents - detail.deposit.refundedAmountCents)} deposit left
+                          {' · '}
+                          {money(detail.deposit.refundedAmountCents)} refunded
+                        </StatusPill>
+                      )
+                    ) : detail.deposit.status === 'paid' ? (
                       <StatusPill
                         tone="ok"
                         title="Collected at online booking — credited toward this visit; post it to your PMS ledger (Shop → Payments)."

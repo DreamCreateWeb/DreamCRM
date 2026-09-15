@@ -1,6 +1,8 @@
 import 'server-only'
-import { and, eq, lte } from 'drizzle-orm'
+import { and, desc, eq, lte, sql } from 'drizzle-orm'
+import { randomBytes } from 'crypto'
 import { db, schema } from '@/lib/db'
+import { reverseLoyaltyForRefundedPayment } from './loyalty'
 
 /**
  * Stripe-side refunds, brought back into our own money records.
@@ -101,9 +103,17 @@ export function planRefundWrite(
  * charge. Returns the kinds actually updated (empty = none of ours, or an
  * event we had already recorded).
  *
+ * A fully refunded balance payment also takes its loyalty points back — see
+ * that block. The return value keeps meaning "which MONEY records moved", so
+ * a points reversal on an already-recorded refund does not resurrect it.
+ *
  * A PaymentIntent belongs to exactly one of the three, but all three are
  * checked rather than trusting event metadata to say which — a refund issued
  * from the Stripe dashboard carries none.
+ *
+ * Either way a `connect_refund` receipt is written (`recordRefundReceipt`), so
+ * a refund that matched nothing — a membership charge, most often — reaches a
+ * record the clinic can read instead of a log line.
  */
 export async function recordConnectRefund(event: ConnectRefundEvent): Promise<RefundedRecordKind[]> {
   const updated: RefundedRecordKind[] = []
@@ -157,6 +167,7 @@ export async function recordConnectRefund(event: ConnectRefundEvent): Promise<Re
       .select({
         id: schema.patientBalancePayment.id,
         status: schema.patientBalancePayment.status,
+        amountCents: schema.patientBalancePayment.amountCents,
         refundedAmountCents: schema.patientBalancePayment.refundedAmountCents,
         refundedAt: schema.patientBalancePayment.refundedAt,
       })
@@ -185,6 +196,27 @@ export async function recordConnectRefund(event: ConnectRefundEvent): Promise<Re
         )
         .returning({ id: schema.patientBalancePayment.id })
       if (done.length > 0) updated.push('balance_payment')
+    }
+    // Loyalty follows the money. A payment that has been sent back in FULL
+    // must not leave the patient holding the points it earned, and the
+    // ledger is one of our money records too.
+    //
+    // This runs off the ROW, not off `plan`, and on every delivery: a
+    // redelivered event whose amount we had already recorded still finds a
+    // reversal that a crash between the two writes would otherwise have
+    // lost. The reversal is idempotent by unique index, so calling it again
+    // costs nothing. Best-effort — the refund record is the thing that must
+    // land, and a loyalty write that fails must never cost us that.
+    if (row) {
+      const refundedTotal = Math.max(row.refundedAmountCents ?? 0, event.amountRefundedCents)
+      try {
+        await reverseLoyaltyForRefundedPayment(event.organizationId, row.id, {
+          amountCents: row.amountCents,
+          refundedAmountCents: refundedTotal,
+        })
+      } catch (err) {
+        console.warn('[refunds] could not reverse loyalty points', { paymentId: row.id }, err)
+      }
     }
   }
 
@@ -225,5 +257,119 @@ export async function recordConnectRefund(event: ConnectRefundEvent): Promise<Re
     }
   }
 
+  await recordRefundReceipt(event, updated, now)
+
   return updated
+}
+
+/**
+ * The receipt: one row per refunded charge, whether or not it matched a
+ * payment of ours.
+ *
+ * A MEMBERSHIP subscription charge rides the same connected account and has a
+ * row in none of the three tables above — the `membership` row tracks the
+ * SUBSCRIPTION, not its individual charges — so a refunded membership payment
+ * used to reach a `console.warn` and nothing else. The practice's bank balance
+ * moved and their software said nothing. (Payment-plan installments DO match
+ * already: `chargePlanInstallment` records each one as a
+ * `patient_balance_payment` with the PaymentIntent stamped, so a refund on one
+ * lands on that row. The gap was membership alone.)
+ *
+ * `attachedTo` is the whole point of the row. 'none' is the readable version
+ * of that log line — money left this clinic's Stripe account and we have no
+ * payment record for it, which is exactly what the front desk needs to see
+ * before they reconcile.
+ *
+ * Monotonic, like everything else on this path: the upsert only raises
+ * `refunded_amount_cents`, so an out-of-order delivery cannot walk a receipt
+ * backwards, and a redelivered event updates its own row rather than minting a
+ * second one (the unique (org, payment intent) index is the claim key).
+ * `refunded_at` keeps the FIRST sighting.
+ *
+ * Best-effort by construction: the money records above are the thing that must
+ * land, and a failed receipt must never cost us one of those or make Stripe
+ * retry a refund we already recorded.
+ */
+async function recordRefundReceipt(
+  event: ConnectRefundEvent,
+  updated: RefundedRecordKind[],
+  now: Date,
+): Promise<void> {
+  const attachedTo = updated[0] ?? 'none'
+  try {
+    await db
+      .insert(schema.connectRefund)
+      .values({
+        id: `cr_${randomBytes(10).toString('hex')}`,
+        organizationId: event.organizationId,
+        stripePaymentIntentId: event.paymentIntentId,
+        refundedAmountCents: Math.max(0, event.amountRefundedCents),
+        chargeAmountCents: Math.max(0, event.chargeAmountCents),
+        attachedTo,
+        refundedAt: now,
+        updatedAt: now,
+      })
+      .onConflictDoUpdate({
+        target: [schema.connectRefund.organizationId, schema.connectRefund.stripePaymentIntentId],
+        set: {
+          refundedAmountCents: sql`greatest(${schema.connectRefund.refundedAmountCents}, excluded.refunded_amount_cents)`,
+          chargeAmountCents: sql`greatest(${schema.connectRefund.chargeAmountCents}, excluded.charge_amount_cents)`,
+          // A later delivery that DID attach upgrades the receipt; one that
+          // did not must never downgrade an attachment we already made (the
+          // finalizer may have stamped the PaymentIntent in between).
+          attachedTo: sql`case when excluded.attached_to = 'none' then ${schema.connectRefund.attachedTo} else excluded.attached_to end`,
+          updatedAt: now,
+        },
+      })
+  } catch (err) {
+    console.warn('[refunds] could not record the refund receipt', {
+      organizationId: event.organizationId,
+      paymentIntentId: event.paymentIntentId,
+    }, err)
+  }
+}
+
+/** A refunded charge on the clinic's connected account that matched no payment
+ *  record of ours — money out of their Stripe with nothing here to reconcile
+ *  it against. */
+export interface UnmatchedRefundRow {
+  id: string
+  refundedAmountCents: number
+  chargeAmountCents: number
+  refundedAt: Date
+}
+
+/**
+ * The unattached refunds for a clinic's reconciliation page, newest first.
+ *
+ * Deliberately ONLY `attached_to = 'none'`: a refund we could attach already
+ * shows on the row it belongs to (the order, the payment, the deposit), and
+ * listing it twice would make a clinic count the same reversal twice.
+ */
+export async function listUnmatchedRefunds(
+  organizationId: string,
+  limit = 20,
+): Promise<UnmatchedRefundRow[]> {
+  const rows = await db
+    .select({
+      id: schema.connectRefund.id,
+      refundedAmountCents: schema.connectRefund.refundedAmountCents,
+      chargeAmountCents: schema.connectRefund.chargeAmountCents,
+      refundedAt: schema.connectRefund.refundedAt,
+    })
+    .from(schema.connectRefund)
+    .where(
+      and(
+        eq(schema.connectRefund.organizationId, organizationId),
+        eq(schema.connectRefund.attachedTo, 'none'),
+      ),
+    )
+    .orderBy(desc(schema.connectRefund.refundedAt))
+    .limit(limit)
+  return rows.map((r) => ({
+    id: r.id,
+    refundedAmountCents: r.refundedAmountCents ?? 0,
+    chargeAmountCents: r.chargeAmountCents ?? 0,
+    refundedAt: r.refundedAt,
+  }))
 }
