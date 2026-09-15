@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { ActionButton } from '@/components/ui/action-button'
 import { StatusPill } from '@/components/ui/status-pill'
 import { FlashToast } from '@/components/ui/flash-toast'
+import { TONE_FILL } from '@/lib/ui/encodings'
 import {
   syncFromGoogleAction,
   revertFieldToManualAction,
@@ -180,7 +181,7 @@ function PhotoGallery({
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={p.url} alt={p.category ?? 'Google photo'} className="h-full w-full object-cover" loading="lazy" decoding="async" />
               {already && (
-                <span className="absolute bottom-1 right-1 rounded bg-emerald-600 px-1 text-xs font-medium text-white">
+                <span className={`absolute bottom-1 right-1 rounded px-1 text-xs font-medium ${TONE_FILL.ok}`}>
                   Added
                 </span>
               )}

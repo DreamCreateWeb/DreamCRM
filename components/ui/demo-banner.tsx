@@ -1,5 +1,6 @@
 import { exitDemoMode } from '@/app/(default)/ecommerce/customers/admin-actions'
 import type { TenantContext } from '@/lib/auth/context'
+import { TONE_FILL } from '@/lib/ui/encodings'
 
 /**
  * Sticky banner that's rendered above the main content whenever the
@@ -15,7 +16,7 @@ export default function DemoBanner({ ctx }: { ctx: TenantContext }) {
       : `Viewing as ${ctx.role} of ${ctx.organizationName}`
 
   return (
-    <div className="bg-amber-500 text-gray-900 border-b border-amber-600">
+    <div className={`border-b border-amber-600 ${TONE_FILL.warn}`}>
       <div className="px-4 sm:px-6 lg:px-8 py-2 flex items-center justify-between gap-3 text-sm">
         <div className="flex items-center gap-2 min-w-0">
           <svg

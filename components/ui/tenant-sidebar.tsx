@@ -10,6 +10,7 @@ import { DreamCreateMark, DreamCrmLogo } from '@/components/brand/dream-create-l
 import DropdownProfile from '@/components/dropdown-profile'
 import { NavIcon } from './nav-icons'
 import type { ModuleDef, TenantType } from '@/lib/modules/types'
+import { TONE_FILL } from '@/lib/ui/encodings'
 
 interface TenantSidebarProps {
   modules: ModuleDef[]
@@ -626,7 +627,7 @@ function NavItem({
             )}
             {count > 0 && (
               <span
-                className="ml-2 inline-flex h-5 min-w-[20px] shrink-0 items-center justify-center rounded-full bg-amber-500 px-1.5 text-xs font-semibold tabular-nums text-white"
+                className={`ml-2 inline-flex h-5 min-w-[20px] shrink-0 items-center justify-center rounded-full px-1.5 text-xs font-semibold tabular-nums ${TONE_FILL.warn}`}
                 aria-label={`${count} ${count === 1 ? 'item needs' : 'items need'} attention`}
               >
                 {countLabel}
@@ -662,7 +663,7 @@ function NavItem({
               </kbd>
             )}
             {count > 0 && (
-              <span className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-amber-500 px-1.5 text-xs font-semibold tabular-nums text-white">
+              <span className={`inline-flex h-5 min-w-[20px] items-center justify-center rounded-full px-1.5 text-xs font-semibold tabular-nums ${TONE_FILL.warn}`}>
                 {countLabel}
               </span>
             )}

@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { FOOTER_COLUMNS, MARKETING } from '@/lib/marketing/site'
 import { COMPARISONS } from '@/lib/marketing/comparisons'
 import { DreamCreateLogo } from '@/components/brand/dream-create-logo'
+import { TONE_FILL } from '@/lib/ui/encodings'
 
 /**
  * Server-side primitives for the marketing site: footer, section scaffolds,
@@ -352,7 +353,7 @@ export function DashboardMock() {
             </div>
             <div className="flex items-center justify-between rounded-full px-2 py-1 text-[0.6rem] font-semibold text-gray-500">
               Messages
-              <span className="flex h-3 min-w-3 items-center justify-center rounded-full bg-amber-500 px-1 text-[0.46rem] font-bold text-white">3</span>
+              <span className={`flex h-3 min-w-3 items-center justify-center rounded-full px-1 text-[0.46rem] font-bold ${TONE_FILL.warn}`}>3</span>
             </div>
             <div className="rounded-full px-2 py-1 text-[0.6rem] font-semibold text-gray-500">Appointments</div>
           </div>

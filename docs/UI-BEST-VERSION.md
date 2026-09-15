@@ -21,28 +21,29 @@ from burying what is not done. Keep it to 5–10 lines and say *why* each one is
 still sitting there — "deferred, needs a data series" and "nobody has picked it
 up" are different facts and only one of them is a backlog item.
 
-## OPEN NOW (last rewritten: batch 62, 2026-09-14)
+## OPEN NOW (last rewritten: batch 63, 2026-09-14)
 
-1. **`TONE_FILL` — the dashboard has no single answer for "a solid fill with a
-   label on it"** (system-level entry below). Batch 59 picked one four times by
-   measurement and wrote the answer nowhere. Registry entry in
-   `lib/ui/encodings.ts` + re-pointing every solid fill: its own batch, and it
-   has a parked issue.
-2. **The axe burn-down: 8 left** in `e2e/axe-baseline.ts` (17 → 8 in batch 62).
+1. **The axe burn-down: 8 left** in `e2e/axe-baseline.ts` (17 → 8 in batch 62).
    Every `portal:` stop is at zero; what remains is `auth: sign-in` (1), four
    `staff:` stops (1 each) and `staff: website hub` (3). Singles now, each
    needing its own look — that file's header carries the measured colours.
-3. **31 `color: brand` sites on the public clinic site** — brand as TEXT, which
+2. **31 `color: brand` sites on the public clinic site** — brand as TEXT, which
    is `readableInk`'s job. A mix of decorative SVG strokes (no requirement) and
    real copy that fails on a pale brand. Needs reading one site at a time,
    which is why batch 57 left it whole.
-4. **A "taken" slot in the portal's picker is `#B9B0A5` on `#F3EEE7` = 1.85:1**
+3. **A "taken" slot in the portal's picker is `#B9B0A5` on `#F3EEE7` = 1.85:1**
    — found in batch 62 while measuring the muted ink, not fixed there (it is a
    different tone and a different call). It is struck-through grey, so the
    1.4.3 "inactive control" exemption is arguable — but it renders as a `span`,
    not a disabled control, so axe will flag it the first time a stop scans a
    day with a booked slot in it, and the portal stops are at zero now. Worth
    taking before that happens.
+4. **`ActionButton`'s `danger` variant clears AA at 4.53** — white on
+   `rose-600` against a 4.5 floor. Not a defect and not swept with batch 63's
+   tone fills (it is the button primitive's own single-home, and it passes),
+   but it is the coincidence-margin `TONE_PILL`'s header warns about, sitting
+   on the one control that deletes things. Carried as the sole
+   `TONE_FILL_EXEMPTIONS` entry so it stays visible. Nobody has picked it up.
 
 Everything else unstruck in this file is **deferred with a stated reason**
 (needs a data series the services do not keep, or a deliberate design decision
@@ -147,18 +148,67 @@ of the list; they are the bottom, and they say so where they sit.
   the harness's `WOBBLE` allowance, so it prints no "shrink me" annotation at
   all — the evidence is only in the run log's `carried by the baseline`
   counts, and somebody has to go and read them].
-- **The dashboard has no single answer for "a solid fill with a label on
-  it".** Batch 59 had to pick one four times, and picked by measurement each
-  time: amber-500 keeps its saturated warn identity and takes DARK ink
-  (7.18), because white on amber clears only at amber-700, which reads brown;
-  teal-600 stays the white-label fill batch 58 established. Two different
-  answers to the same question, reached independently, and neither is written
-  anywhere a person would look — `TONE_PILL`/`TONE_TEXT`/`TONE_DOT` cover
-  washes, plain text and dots, and stop short of the solid fill. A
-  `TONE_FILL` recipe in `lib/ui/encodings.ts` would single-home it and let
-  `token-contrast.test.ts` grade it like the others. Not done here: adding
-  the registry entry means re-pointing every solid fill in the product at it,
-  which is its own batch.
+- ~~The dashboard has no single answer for "a solid fill with a label on
+  it"~~ [BATCH 63, all of it — the registry entry, the sweep and the rule.
+  **The two answers batch 59 reached were answers to two different
+  questions**, which is why neither generalised: amber-500-with-dark-ink is a
+  TONE fill, and teal-600-with-white is the BRAND fill, and the registry's own
+  header already says the brand hue is never a status. Only the first one was
+  ever `TONE_FILL`'s business.
+  **What the measurement then said, and it is not what the entry above
+  assumed.** There is no step where the vocabulary can simply stay put: at the
+  identity 500 the shared dark ink clears emerald (6.20) and amber (7.18) and
+  FAILS rose (4.08), violet (4.19) and fuchsia (4.32); white clears none of
+  the six anywhere near it. So four of six hues have to move whatever you
+  pick, and "keep the tone where the dot is" was never available as a uniform
+  rule — which is the real reason one call site could not generalise to the
+  next. The rule that does hold: **one ink for all six, then start at
+  `TONE_DOT`'s step and go LIGHTER, never deeper, when it cannot carry that
+  ink.** `ok`/`warn`/`neutral` stay put, `urgent`/`info`/`special` move one
+  step to 5.36/5.55/5.92, worst pair in the table 5.36. Deeper is both the
+  direction that fails under a dark ink and the direction that turns amber
+  brown — one constraint, not two. `TONE_FILL_HOVER` goes one step lighter for
+  the same reason (`hover:bg-amber-600` under `gray-900` is 4.79 where resting
+  was 7.18); the Studio's "Apply this design" button had already arrived at
+  that shape by hand, which is a second observation rather than a coincidence.
+  No recipe carries a `dark:` half: a solid opaque fill IS the surface, so it
+  measures identically in both themes, and a lone `dark:text-*` on one is
+  precisely rule 1's defect.
+  **The sweep was 22 sites across 16 files, and 17 of them were failing** —
+  white on amber-500 at 2.13 in the sidebar count badge, the notification bell
+  and the dunning banner's warn button; white on emerald-500 at 2.47 on four
+  done-ticks; white on violet-600 at 4.42 on five "let the AI do it" buttons;
+  white on violet-500 at 3.66 on two prospecting avatar wells. The other five
+  already HAD the right pair and were re-pointed anyway, because an inline
+  copy of the registry's answer is not single-homed, it is just currently
+  right. The marketing mock's badge was fixed rather than exempted — it is a
+  picture OF the product, so it should picture the current one.
+  **The rule grades a decision, not a ratio, and that is the point.** Rules
+  1–4 all ask "does this pair clear 4.5:1", which a call site can answer any
+  number of ways — which is how the product got three different answers for
+  one shape. Rule 5 asks whether the pairing IS `TONE_FILL`, so a fresh pair
+  that CLEARS still fails: the neutral avatar well measured 5.30 and was
+  re-pointed with the rest. It reads the registry rather than a copy of it, so
+  re-measuring a tone re-grades every call site on the next run.
+  Red-verified on three breaks put back in their live shapes — the 2.13
+  sidebar badge, the 5.30 avatar well, and the exemption's subject moved one
+  step so the stale-exemption detector had to notice. Two scoping notes worth
+  keeping. The window is the 300–600 steps of the six tone ramps: the 50/100
+  end is a wash (eight live sites pair it with the tone's deep ink and read
+  fine) and the 700+ end is a dark band, and sweeping either in would fire on
+  a dozen correct sites to catch nothing — rule 1's `208 places to catch 8`
+  lesson. And a complete sweep makes the rule's own subjects nearly vanish:
+  once a site says `${TONE_FILL.warn}` the fill lives only in the registry and
+  the scanner cannot see it, so what is left in the window is the six recipe
+  strings plus the one exemption. The field-of-view test says so out loud, and
+  the proof the scanner still SEES is the red-verified block, not a count.
+  **One thing deliberately left, and named so it is a decision:**
+  `ActionButton`'s `danger` is `bg-rose-600 text-white` and stays — the
+  variant table is the design system's own single home for a BUTTON's fill,
+  so it is already decided in one place rather than being a fresh guess. It
+  is the sole `TONE_FILL_EXEMPTIONS` entry. Worth somebody's attention later:
+  it clears at 4.53 against a 4.5 floor, which is the margin `TONE_PILL`'s own
+  header calls a coincidence rather than a margin.]
 - ~~Sibling actions sharing one `pending` flag all spin together~~ [BATCH 60,
   ALL of it, in two PRs: 16 non-money surfaces, then the five money ones
   (delete-partner-modal's two payout dispositions, memberships, coupons,

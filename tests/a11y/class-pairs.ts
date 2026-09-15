@@ -80,6 +80,7 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { join, relative } from 'node:path'
 import { AA, contrast, DARK, LIGHT, ROOT, utilityColor, type Theme } from './palette'
+import { TONE_FILL } from '@/lib/ui/encodings'
 
 /** Where product UI lives. `lib/` is in because `lib/ui/encodings.ts` and the
  *  portal-brand helpers hand out class strings that render as UI. */
@@ -732,6 +733,180 @@ export function gradientTextSites(roots: string[] = UI_ROOTS): { file: string; l
   const found: { file: string; line: number }[] = []
   eachClassString(roots, (file, line, chunk) => {
     if (isGradientText(chunk)) found.push({ file, line })
+  })
+  return found
+}
+
+/* ── RULE 5: a solid tone fill must be the registry's, not a fresh guess ──── */
+
+/**
+ * THE RULE THAT GRADES A DECISION RATHER THAN A RATIO.
+ *
+ * Rules 1–4 all ask the same question — does this pair clear 4.5:1 — and a
+ * call site can answer it any number of ways. That is exactly how the product
+ * ended up with white on `amber-500` (2.13) in the sidebar count badge, dark
+ * ink on `amber-500` (7.18) in the messaging badge four files away, and white
+ * on `violet-600` (4.42) on five "let the AI do it" buttons: nobody was wrong
+ * on purpose, there was just nowhere to look up the answer. UI batch 59 picked
+ * this shape four times and reached two answers. (DREAMCRM-52.)
+ *
+ * So this rule does not ask whether a solid tone fill CLEARS. It asks whether
+ * it is `TONE_FILL` — the registry entry in `lib/ui/encodings.ts` that now
+ * single-homes "a solid fill with a label on it", the way `TONE_PILL` homes the
+ * wash and `TONE_DOT` homes the swatch. A pairing that clears AA by its own
+ * route still fails here, deliberately: a second passing answer is how a single
+ * source of truth stops being one. That also makes the rule follow the registry
+ * rather than a transcription of it — re-measure a tone, edit `TONE_FILL`, and
+ * every call site is re-graded against the new answer on the next run.
+ *
+ * WHAT COUNTS AS A SOLID TONE FILL, mechanically: an OPAQUE `bg-<ramp>-<step>`
+ * on one of the six tone ramps at a FILL step, in a chunk that also carries an
+ * opaque `text-*`. Both ends of that are deliberately narrow:
+ *
+ *   - `FILL_STEPS` is 300–600. The 50/100/200 end is a tone WASH — the opaque
+ *     spelling of what `TONE_PILL` does with `bg-<ramp>-500/15` — and eight
+ *     live sites pair it with the tone's own deep ink and read fine. The 700+
+ *     end is a dark band, whose ink is white for the same reason a footer's is.
+ *     Neither is the shape this rule is about, and sweeping them in would fire
+ *     on a dozen correct sites to catch nothing — the "208 places to catch 8"
+ *     failure rule 1's header describes, which is how a guard gets switched
+ *     off.
+ *   - `gray` is in, at those steps only. It is both the neutral TONE ramp and
+ *     the SURFACE ramp, so `bg-gray-100` and `bg-gray-800` are surfaces and sit
+ *     outside the window by the same cut; `bg-gray-400` with a label on it is
+ *     `TONE_FILL.neutral` and nothing else.
+ *
+ * The brand ramp is NOT here. `teal` is identity, never a status, and it has
+ * rules 2 and 3 already; grading it twice is how two guards start reporting the
+ * same line differently.
+ *
+ * WHAT IT CANNOT SEE, the same false-negative direction as every rule above: a
+ * fill and its ink written in different quoted strings (`call-session.tsx` is
+ * that shape for rule 3), a fill assembled through a variable, and the `hover:`
+ * fill of an interactive chip — `TONE_FILL_HOVER` is graded in the registry by
+ * `token-contrast.test.ts` instead, since a hover class carries no ink of its
+ * own to pair with.
+ */
+const TONE_FILL_RAMPS = ['emerald', 'amber', 'rose', 'violet', 'fuchsia', 'gray']
+const FILL_STEPS = [300, 400, 500, 600]
+
+export type ToneFillExemption = { file: string; classes: string; why: string }
+
+/**
+ * Solid tone fills that are deliberately not the registry's, and why.
+ *
+ * Exact class strings rather than files, for the reason
+ * `public-action-tenancy.test.ts` learned the hard way: a file-wide exemption
+ * is a door. `deadToneFillExemptions` below is the detector that stops one
+ * outliving its subject.
+ */
+export const TONE_FILL_EXEMPTIONS: ToneFillExemption[] = [
+  {
+    file: 'components/ui/action-button.tsx',
+    classes: 'bg-rose-600 hover:bg-rose-700 text-white',
+    why:
+      "ActionButton's `danger` variant. VARIANT_CLASSES is the design system's " +
+      'own single home for a BUTTON fill — TONE_FILL homes the tone CHIP — so ' +
+      'this pairing is already decided in one place rather than being a fresh ' +
+      'guess, which is the thing this rule exists to stop. It clears AA, but ' +
+      'only at 4.53 against a 4.5 floor, which is the margin TONE_PILL calls a ' +
+      'coincidence rather than a margin; recorded in docs/UI-BEST-VERSION.md so ' +
+      'it stays a decision somebody can revisit and not a silent pass.',
+  },
+]
+
+/** Which tone-fill exemptions no longer match anything. */
+export function deadToneFillExemptions(roots: string[] = UI_ROOTS): ToneFillExemption[] {
+  const alive = new Set<ToneFillExemption>()
+  eachClassString(roots, (file, _line, chunk) => {
+    for (const e of TONE_FILL_EXEMPTIONS) {
+      if (e.file === file && chunk.includes(e.classes)) alive.add(e)
+    }
+  })
+  return TONE_FILL_EXEMPTIONS.filter((e) => !alive.has(e))
+}
+
+/** Every (fill, ink) pairing the registry hands out, as `bg-…|text-…` keys. */
+function registryPairings(): Set<string> {
+  const keys = new Set<string>()
+  for (const recipe of Object.values(TONE_FILL)) {
+    const bg = recipe.match(/(?:^|\s)bg-([a-z]+-\d+)(?![\w-])/)
+    const ink = recipe.match(/(?:^|\s)text-([a-z]+-\d+|white|black)(?![\w-])/)
+    if (bg && ink) keys.add(`${bg[1]}|${ink[1]}`)
+  }
+  return keys
+}
+
+/** Is this word a fill step of a tone ramp — i.e. the window rule 5 looks
+ *  through? Exported so the test can pin the window's edges rather than
+ *  trusting the two arrays above to say what they mean. */
+export function isToneFillSurface(word: string): boolean {
+  const m = word.match(/^([a-z]+)-(\d+)$/)
+  return !!m && TONE_FILL_RAMPS.includes(m[1]) && FILL_STEPS.includes(Number(m[2]))
+}
+
+/**
+ * Grade one quoted class string against rule 5.
+ *
+ * Exported for the reason every other `grade*` here is: an absence assertion
+ * over a clean tree cannot tell a working scanner from one that has quietly
+ * stopped matching, so the test feeds this the real shapes it claims to catch
+ * — including the two the product actually shipped.
+ */
+export function gradeToneFillClasses(
+  classes: string,
+): Omit<ParityFinding, 'file' | 'line'> | null {
+  const ink = utilities(classes, 'text').find((u) => !u.dark)
+  const surface = utilities(classes, 'bg').find((u) => !u.dark)
+  if (!ink || !surface || ink.alpha || surface.alpha) return null
+  if (!isToneFillSurface(surface.word)) return null
+  if (registryPairings().has(`${surface.word}|${ink.word}`)) return null
+
+  // The measured ratio goes in the finding whether or not it clears, because
+  // both outcomes are the same defect here — the site answered a question the
+  // registry already answers — and a reader fixing it needs to know which of
+  // the two they are looking at.
+  const graded = grade(LIGHT, 'light', ink.word, surface.word)
+  return {
+    overridden: null,
+    classes: `${ink.raw} ${surface.raw}`,
+    failures: graded ? [graded] : [],
+    note:
+      graded && graded.ratio < AA
+        ? 'a solid tone fill that is not TONE_FILL, and does not clear AA'
+        : 'a solid tone fill that is not TONE_FILL (it clears AA by its own route, which is the defect)',
+  }
+}
+
+/**
+ * Every solid tone fill in the product that is not the registry's.
+ *
+ * Holds at ZERO with named exemptions and no ceiling, for the reason
+ * `dark-mode-parity` holds at zero: a number here would be a count of places
+ * still answering a question that has one answer, and a count is something
+ * people manage down rather than a rule that stays true. The sweep that
+ * introduced it re-pointed 22 sites across 16 files, so zero is a measured
+ * state of the tree rather than an aspiration.
+ */
+export function scanForOffRegistryToneFills(roots: string[] = UI_ROOTS): ParityFinding[] {
+  const found: ParityFinding[] = []
+  eachClassString(roots, (file, line, chunk) => {
+    if (TONE_FILL_EXEMPTIONS.some((e) => e.file === file && chunk.includes(e.classes))) return
+    const graded = gradeToneFillClasses(chunk)
+    if (graded) found.push({ file, line, ...graded })
+  })
+  return found
+}
+
+/** Every solid tone fill, on-registry or not — the instrument's field of view.
+ *  A rule narrowed until it matches nothing reports CLEAN forever. */
+export function toneFillSites(roots: string[] = UI_ROOTS): { file: string; line: number }[] {
+  const found: { file: string; line: number }[] = []
+  eachClassString(roots, (file, line, chunk) => {
+    const ink = utilities(chunk, 'text').find((u) => !u.dark)
+    const surface = utilities(chunk, 'bg').find((u) => !u.dark)
+    if (!ink || !surface || ink.alpha || surface.alpha) return
+    if (isToneFillSurface(surface.word)) found.push({ file, line })
   })
   return found
 }

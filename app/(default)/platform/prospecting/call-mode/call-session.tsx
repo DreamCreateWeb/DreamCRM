@@ -10,6 +10,7 @@ import type { CallScript } from '@/lib/types/call-script'
 import { prospectInitials } from '@/lib/prospect-when'
 import { Stage } from '../stage'
 import PracticePanel from './practice-panel'
+import { TONE_FILL } from '@/lib/ui/encodings'
 import {
   getCallScriptAction,
   logCallOutcomeAction,
@@ -305,7 +306,7 @@ export default function CallSession({ items }: { items: CallQueueItem[] }) {
         <div className="rounded-[var(--r-lg)] bg-[color:var(--color-surface-2)] p-5 ring-1 ring-[color:var(--color-hairline)] lg:sticky lg:top-4">
           <div className="flex items-start gap-3">
             <span
-              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[10px] bg-violet-500 text-base font-extrabold text-white"
+              className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-[10px] text-base font-extrabold ${TONE_FILL.info}`}
               aria-hidden="true"
             >
               {prospectInitials(item.name)}
