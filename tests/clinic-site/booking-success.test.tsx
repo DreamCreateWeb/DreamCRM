@@ -23,7 +23,7 @@ function makeConfirmation(overrides: Partial<BookingConfirmation> = {}): Booking
     addressText: '123 Main St, Springfield, IL 62704',
     mapsUrl: 'https://www.google.com/maps/dir/?api=1&destination=123%20Main%20St',
     intakeFormUrl: 'https://acme.test/intake/new-patient',
-    emailSent: true,
+    emailStatus: 'sent',
     depositUrl: null,
     depositCents: 0,
     ...overrides,
@@ -99,7 +99,7 @@ describe('BookingSuccess', () => {
   it('phone-only booker: same screen, framed as "we\'ll call to confirm", no email claim', () => {
     render(
       <BookingSuccess
-        confirmation={makeConfirmation({ emailSent: false })}
+        confirmation={makeConfirmation({ emailStatus: 'no_email' })}
         brand="#9CAF9F"
       />,
     )
@@ -109,6 +109,40 @@ describe('BookingSuccess', () => {
     // Still gets the calendar + intake artifacts (it's their only record).
     expect(screen.getByRole('link', { name: /add to calendar/i })).toBeTruthy()
     expect(screen.getByRole('link', { name: /fill out your intake form/i })).toBeTruthy()
+  })
+
+  it('a booker whose confirmation email did not go out is told that, not that we lack their email', () => {
+    // The screen used to have two states for three cases, so this patient —
+    // the ONE who most needs to save these details — was told "We don't have
+    // your email", which is both untrue and the opposite of actionable.
+    render(
+      <BookingSuccess
+        confirmation={makeConfirmation({ emailStatus: 'not_sent' })}
+        brand="#9CAF9F"
+      />,
+    )
+    const body = document.body.textContent ?? ''
+    expect(body).not.toMatch(/sent a confirmation to your email/i)
+    expect(body).not.toMatch(/don.t have your email/i)
+    expect(body).toMatch(/couldn.t get a confirmation email out/i)
+    // The on-screen record is all they have — it must still be complete.
+    expect(screen.getByRole('link', { name: /add to calendar/i })).toBeTruthy()
+  })
+
+  it('a clinic that switched the confirmation email off gets no apology for it', () => {
+    // "We couldn't get one out to you just now" reads as a fault. A setting
+    // the practice chose on purpose is not one (Sentinel's note on #599).
+    render(
+      <BookingSuccess
+        confirmation={makeConfirmation({ emailStatus: 'email_off' })}
+        brand="#9CAF9F"
+      />,
+    )
+    const body = document.body.textContent ?? ''
+    expect(body).not.toMatch(/sent a confirmation to your email/i)
+    expect(body).not.toMatch(/don.t have your email/i)
+    expect(body).not.toMatch(/couldn.t get a confirmation email out/i)
+    expect(screen.getByRole('link', { name: /add to calendar/i })).toBeTruthy()
   })
 
   it('hides the address row + maps/directions when the clinic has no address', () => {

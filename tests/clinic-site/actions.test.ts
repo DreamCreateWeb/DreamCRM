@@ -96,6 +96,28 @@ vi.mock('@/lib/email', () => ({
 const { notifyOrgMembersMock } = vi.hoisted(() => ({
   notifyOrgMembersMock: vi.fn(async () => undefined),
 }))
+// The clinic's on/off switch for the booking confirmation. The REAL renderer
+// still runs — the contact auto-acknowledgement's copy is asserted verbatim a
+// few tests down, and a stub would quietly stop grading it. Only `enabled`,
+// and only for this one key, is ours to flip.
+const emailAutomation = vi.hoisted(() => ({ enabled: true }))
+vi.mock('@/lib/services/email-automations', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/services/email-automations')>()
+  return {
+    ...actual,
+    renderAutomatedEmail: async (
+      organizationId: string,
+      key: Parameters<typeof actual.renderAutomatedEmail>[1],
+      fields: Record<string, string | null | undefined>,
+    ) => {
+      const rendered = await actual.renderAutomatedEmail(organizationId, key, fields)
+      return key === 'booking_confirmation'
+        ? { ...rendered, enabled: emailAutomation.enabled }
+        : rendered
+    },
+  }
+})
+
 vi.mock('@/lib/services/notifications', () => ({
   notifyOrgMembers: notifyOrgMembersMock,
 }))
@@ -155,6 +177,7 @@ beforeEach(() => {
   selectStubs.trialEndsAt = null
   selectStubs.profile = null
   defaultForm = null
+  emailAutomation.enabled = true
   vi.clearAllMocks()
   slotAvailableMock.mockResolvedValue(true)
   notifyOrgMembersMock.mockResolvedValue(undefined)
@@ -542,17 +565,52 @@ describe('submitBookingRequest', () => {
     expect(conf.addressText).toContain('123 Main St')
     expect(conf.addressText).toContain('Springfield')
     expect(conf.mapsUrl).toContain('google.com/maps')
-    expect(conf.emailSent).toBe(true)
+    expect(conf.emailStatus).toBe('sent')
     // endTime is after startTime.
     expect(new Date(conf.endTimeIso).getTime()).toBeGreaterThan(new Date(conf.startTimeIso).getTime())
   })
 
-  it('returns emailSent=false and null address bits for a phone-only booker with no clinic address', async () => {
+  it('returns emailStatus=no_email and null address bits for a phone-only booker with no clinic address', async () => {
     selectStubs.profile = { email: null, displayName: 'X Dental', phone: '555-clinic' }
     const conf = expectOk(await submitBookingRequest(form({ ...baseFields, email: null })))
-    expect(conf.emailSent).toBe(false)
+    expect(conf.emailStatus).toBe('no_email')
     expect(conf.addressText).toBeNull()
     expect(conf.mapsUrl).toBeNull()
+  })
+
+  // THE OPTIMISTIC FLAG. `emailSent` was set to true BEFORE a fire-and-forget
+  // send whose only failure handler was a console.error, so the success screen
+  // told a patient in the past tense that a confirmation was on its way when
+  // the send had already been rejected. They then waited for it.
+  it('reports emailStatus=not_sent when the confirmation email is rejected, and never claims it was sent', async () => {
+    selectStubs.profile = { email: 'clinic@x.com', displayName: 'X Dental', phone: '555-clinic' }
+    vi.mocked(sendBookingConfirmationEmail).mockRejectedValueOnce(
+      new Error('That email address was rejected.'),
+    )
+    const conf = expectOk(await submitBookingRequest(form(baseFields)))
+    expect(conf.emailStatus).toBe('not_sent')
+  })
+
+  it('reports emailStatus=email_off when the clinic switched the confirmation off, and never apologises for it', async () => {
+    // A setting the practice chose on purpose is not a fault. Folding it into
+    // `not_sent` made the screen say "we couldn't get one out to you just now"
+    // to every booker at that clinic — three states covering four, the same
+    // shape as the two covering three this change exists to fix.
+    // (Sentinel's note on #599.)
+    selectStubs.profile = { email: 'clinic@x.com', displayName: 'X Dental', phone: '555-clinic' }
+    emailAutomation.enabled = false
+    const conf = expectOk(await submitBookingRequest(form(baseFields)))
+    expect(conf.emailStatus).toBe('email_off')
+    expect(sendBookingConfirmationEmail).not.toHaveBeenCalled()
+  })
+
+  it('still books the visit when the confirmation email is rejected', async () => {
+    selectStubs.profile = { email: 'clinic@x.com', displayName: 'X Dental', phone: '555-clinic' }
+    vi.mocked(sendBookingConfirmationEmail).mockRejectedValueOnce(new Error('Resend 503'))
+    const conf = expectOk(await submitBookingRequest(form(baseFields)))
+    // The appointment is the point; the email is a courtesy on top of it.
+    expect(insertedRows.find((r) => r.table === 'appointment')).toBeDefined()
+    expect(conf.startTimeIso).toBeTruthy()
   })
 
   it('surfaces the intake-form URL in the confirmation when the clinic has a default form', async () => {
