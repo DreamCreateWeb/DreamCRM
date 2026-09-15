@@ -36,9 +36,16 @@ authenticate anybody.
 |---|---|
 | `duplicate-stripe-accounts` | Are any two clinics connected to the same Stripe account? (the DREAMCRM-32 merge gate) |
 | `readonly-role-privileges` | Can the read-only account see anything it must not? Must be **zero rows**. |
+| `migrations-applied` | Which migrations has production actually applied? (DREAMCRM-46 — the answer half of the post-deploy migration check) |
 
 `readonly-role-privileges` also runs on a schedule (07:00 UTC daily) and fails
 the workflow if it finds anything.
+
+`migrations-applied` is normally not dispatched by hand at all:
+`.github/workflows/migration-check.yml` asks it after every deploy and again at
+08:20 UTC daily, and compares the answer to the committed journal. It is in the
+choice list because a dispatch is the quickest way to see the raw ledger. See
+"The deploy is not finished until the migrations are in" in `docs/CI.md`.
 
 ## Adding a check
 
@@ -47,7 +54,11 @@ the workflow if it finds anything.
    (a guard fails if the two disagree).
 3. If it needs a column from one of the revoked tables, add a narrow
    `GRANT SELECT (col, ...) ON <table> TO dreamcrm_readonly;` to
-   `scripts/readonly-role.sql` **and run it** — see the warning below.
+   `scripts/readonly-role.sql` **and run it** — see the warning below. The same
+   applies to anything outside schema `public`: the blanket grant is scoped to
+   that schema, so `migrations-applied` needed its own `GRANT USAGE ON SCHEMA
+   drizzle` plus a `GRANT SELECT` on that one table. Without them the entry
+   returns a 500, not an answer.
 4. Open a PR. It is on the review gate (`read-checks` rule) and **needs
    Sentinel**, because per-entry review is the entire control on the two rules
    below.
@@ -136,10 +147,26 @@ the write protection is the missing grant.
    Deliberately not `DreamCRMGitHubActionsDeploy`, which holds S3/CodeBuild/
    EventBridge write.
 5. **Verify** — dispatch `readonly-role-privileges` and confirm zero rows, then
-   `duplicate-stripe-accounts` for the real answer.
+   `duplicate-stripe-accounts` for the real answer, then `migrations-applied`
+   (it should return one row whose `applied_count` matches the number of entries
+   in `lib/db/migrations/meta/_journal.json`). If that last one errors, the two
+   `drizzle`-schema grants in `scripts/readonly-role.sql` did not run — see step
+   1 and the warning above about editing the script not changing production.
+
+Until step 3 is done, `.github/workflows/migration-check.yml` reports
+**NOT VERIFIED** on every deploy and exits 0. That is deliberate and it is
+written on every run; it is not the check passing.
 
 Until steps 1–3 are done the route answers `503` and the workflow fails with a
 clear message. That is fail-closed working, not a bug.
+
+**Rotating `ADMIN_READ_SECRET` later: change App Runner first, GitHub second.**
+The order in step 2/3 is not arbitrary. Between the two writes the two sides
+disagree, and a disagreement is a `401` — which
+`.github/workflows/migration-check.yml` reports as `THE CHECK ITSELF IS BROKEN`
+and exits 1, turning every deploy run red until they match. App Runner needs a
+redeploy to pick up a secret change, so that gap is minutes, not seconds. Set the
+container value, wait for the rollout, then update the GitHub secret.
 
 ## The error scan (DREAMCRM-12)
 
