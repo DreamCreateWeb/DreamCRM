@@ -705,7 +705,41 @@ binding are all correct. The payment-plan charger was the exception.
   showing money returned that never left. Rare (mostly bank-level failures on
   older cards), and un-doing it needs an ordering rule the monotonic path
   deliberately does not have — a non-monotonic write would reopen the
-  out-of-order hazard the rule exists to close. · OPEN.
+  out-of-order hazard the rule exists to close. · **FIXED** (DREAMCRM-47,
+  migration 0163 `refund_synced_at` on the three money tables + the
+  `connect_refund` receipt). The ordering rule is a WATERMARK, not a
+  replacement: we now store WHEN the snapshot we applied was taken, and a
+  strictly NEWER snapshot wins outright — down as well as up — while anything
+  that cannot be ordered against what we stored falls back to the old
+  monotonic rule, unchanged. So the out-of-order hazard stays closed: a stale
+  partial arriving after a full refund is not newer, and is still ignored.
+
+  The ordering key is Stripe's own `event.created`, so there is exactly ONE
+  clock and it is not ours. A snapshot we FETCHED (the refund-object events
+  re-read the charge) is at least as fresh as the event that triggered the
+  fetch, so stamping it with that event's time only ever UNDER-claims its
+  freshness — and under-claiming degrades to the monotonic branch, which is
+  where we were before. There is no direction in which the new rule is worse
+  than the one it replaces. An equal timestamp is a redelivery and re-decides
+  nothing.
+
+  The sweep this needed: `recordConnectRefund` writes in FIVE places, and a
+  half-applied rule is a record that disagrees with itself. All five follow the
+  money down — the three money rows, the `connect_refund` receipt (the only
+  place a refunded MEMBERSHIP charge is ever visible, and it was monotonic for
+  the same reason), a shop order's `status` going back to 'paid' (this path is
+  the only writer of 'refunded', so it takes back its own claim), and the
+  LOYALTY ledger, where points clawed back for money that never left are
+  returned by `restoreLoyaltyForUnrefundedPayment`. The loyalty call also
+  stopped re-deriving the total with its own `Math.max` — a second copy of the
+  monotonic rule that would have kept reversing points the ordering rule had
+  just un-recorded.
+
+  `charge.refund.updated` is now a handled event type, and — unlike
+  `refund.created` — is never skipped on the refund's status, because the
+  status transition IS the news. **Ops: register `charge.refund.updated` on
+  the Connect webhook endpoint in the Stripe dashboard, or a failed refund
+  still never reaches us.**
 - S2 · `referral-payouts.payoutPartner` · double-pay window — after a
   transfer succeeds but the ledger write fails, a manual retry >24h later
   (Stripe idempotency window lapsed) re-derives the same key and sends a

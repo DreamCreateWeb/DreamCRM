@@ -1,8 +1,9 @@
 import 'server-only'
-import { and, desc, eq, lte, sql } from 'drizzle-orm'
+import { and, desc, eq, isNull, lt, lte, or, sql } from 'drizzle-orm'
+import type { AnyPgColumn } from 'drizzle-orm/pg-core'
 import { randomBytes } from 'crypto'
 import { db, schema } from '@/lib/db'
-import { reverseLoyaltyForRefundedPayment } from './loyalty'
+import { syncLoyaltyForRefundedPayment } from './loyalty'
 
 /**
  * Stripe-side refunds, brought back into our own money records.
@@ -37,16 +38,46 @@ import { reverseLoyaltyForRefundedPayment } from './loyalty'
  * Two rules make this safe to call with any event, in any order, any number
  * of times:
  *
- *  1. `refundedAmountCents` only ever goes UP. Stripe's `amount_refunded` is
- *     CUMULATIVE per charge and webhook delivery is not ordered, so two
- *     partial refunds can arrive back-to-front. Taking the larger value (and
- *     guarding the UPDATE on it) means a late, smaller event cannot walk the
- *     total backwards.
+ *  1. THE ORDERING RULE. `amount_refunded` is a cumulative SNAPSHOT of the
+ *     charge and webhook delivery is not ordered, so two partial refunds can
+ *     arrive back-to-front. The original rule was "the total only ever goes
+ *     UP", which is the only safe rule available when you cannot tell which
+ *     snapshot is newer — and it is why a refund that later FAILED could never
+ *     be taken back: Stripe decrements `amount_refunded` and fires
+ *     `charge.refund.updated`, and a monotonic record kept showing money
+ *     returned that never left.
+ *
+ *     So we now record WHEN the snapshot we applied was taken, in
+ *     `refund_synced_at`, and order by that instead. A strictly NEWER snapshot
+ *     wins outright — down as well as up. Anything not strictly newer falls
+ *     back to the old monotonic rule, unchanged.
+ *
+ *     The ordering key is Stripe's own `event.created`, so there is exactly
+ *     ONE clock and it is not ours. A snapshot we FETCHED (the refund-object
+ *     events re-read the charge) is at least as fresh as the event that
+ *     triggered the fetch, so stamping it with that event's time only ever
+ *     UNDER-claims its freshness — and the cost of under-claiming is the
+ *     monotonic branch, which is where we were before. There is no direction
+ *     in which this rule is worse than the rule it replaces. Two events in the
+ *     same second are unorderable and tie to monotonic, deliberately; a
+ *     failure arrives minutes to days after the refund, never in the same
+ *     second. No `event.created` at all (nothing Stripe sends) means no
+ *     ordering key, which is monotonic too.
+ *
+ *     The CAS on each UPDATE carries whichever rule applied, so two webhook
+ *     deliveries racing each other resolve the same way the pure function
+ *     does.
  *  2. A shop order is marked 'refunded' only on a FULL refund, and only from
  *     'paid'. A partial refund claiming the whole order came back would be a
  *     new lie in place of the old one; 'pending' and 'cancelled' are states
  *     another money path or a human owns — we record the money that moved, we
  *     do not overwrite their decision.
+ *
+ *     Its mirror, which arrived with rule 1: a shop order goes BACK to 'paid'
+ *     only from 'refunded', only on a strictly newer snapshot, and only when
+ *     that snapshot says the charge is no longer fully refunded. This path is
+ *     the only writer of 'refunded' on `shop_order`, so un-setting it takes
+ *     back our own claim rather than overruling somebody else's.
  */
 
 /** What Stripe told us came back, for one charge on a connected account. */
@@ -58,6 +89,12 @@ export interface ConnectRefundEvent {
   amountRefundedCents: number
   /** The charge's own total, so a full refund is distinguishable from a partial one. */
   chargeAmountCents: number
+  /**
+   * WHEN this snapshot of the charge was taken — Stripe's `event.created`.
+   * The ordering key for rule 1 in the file header. Absent (or null) means we
+   * cannot order this observation at all, and the monotonic rule applies.
+   */
+  observedAt?: Date | null
 }
 
 export type RefundedRecordKind = 'shop_order' | 'balance_payment' | 'booking_deposit'
@@ -66,6 +103,8 @@ export type RefundedRecordKind = 'shop_order' | 'balance_payment' | 'booking_dep
 interface RefundableRow {
   refundedAmountCents: number
   status: string
+  /** When the snapshot this row records was taken. Null = never ordered. */
+  refundSyncedAt?: Date | null
 }
 
 /** What the event changes. `null` = already recorded; write nothing. */
@@ -73,6 +112,16 @@ interface RefundWrite {
   refundedAmountCents: number
   /** Shop orders only — see the file header. */
   markRefunded: boolean
+  /** Shop orders only: a failed refund takes 'refunded' back to 'paid'. */
+  unmarkRefunded: boolean
+  /** Nothing came back after all, so "when money came back" is no longer true. */
+  clearRefundedAt: boolean
+  /**
+   * The watermark to stamp, or null to leave it alone. Non-null exactly when
+   * this observation SUPERSEDES the row's — which is also what tells
+   * `recordConnectRefund` which compare-and-swap to guard the UPDATE with.
+   */
+  syncedAt: Date | null
 }
 
 /**
@@ -84,18 +133,72 @@ interface RefundWrite {
  */
 export function planRefundWrite(
   row: RefundableRow,
-  event: Pick<ConnectRefundEvent, 'amountRefundedCents' | 'chargeAmountCents'>,
+  event: Pick<ConnectRefundEvent, 'amountRefundedCents' | 'chargeAmountCents' | 'observedAt'>,
   canMarkRefunded: boolean,
 ): RefundWrite | null {
   const already = row.refundedAmountCents ?? 0
-  const next = Math.max(already, Math.max(0, event.amountRefundedCents))
+  const reported = Math.max(0, event.amountRefundedCents)
+
+  // Rule 1 (file header): a STRICTLY newer snapshot is believed outright, in
+  // either direction. `>` and not `>=` on purpose — a redelivered event
+  // carries the same `created`, and an equal timestamp is not evidence of
+  // newness, so a replay must not be allowed to re-decide anything.
+  const observedAt = event.observedAt ?? null
+  const supersedes =
+    observedAt != null &&
+    (row.refundSyncedAt == null || observedAt.getTime() > row.refundSyncedAt.getTime())
+  const next = supersedes ? reported : Math.max(already, reported)
+
   // A charge amount of 0 (or a nonsense one) must never read as "fully
   // refunded" — that would flip a paid order on an event carrying no money.
-  const fullyRefunded =
-    event.chargeAmountCents > 0 && event.amountRefundedCents >= event.chargeAmountCents
+  // Graded on `next` rather than on the raw event, because `next` is what we
+  // are about to believe about this charge.
+  const fullyRefunded = event.chargeAmountCents > 0 && next >= event.chargeAmountCents
   const markRefunded = canMarkRefunded && fullyRefunded && row.status === 'paid'
-  if (next === already && !markRefunded) return null
-  return { refundedAmountCents: next, markRefunded }
+  const unmarkRefunded = canMarkRefunded && supersedes && !fullyRefunded && row.status === 'refunded'
+
+  // A superseding observation always writes, even when the amount is
+  // unchanged: the watermark it carries is what lets the NEXT observation be
+  // ordered against it, and leaving it behind would make a later, staler
+  // snapshot look new.
+  if (!supersedes && next === already && !markRefunded) return null
+
+  return {
+    refundedAmountCents: next,
+    markRefunded,
+    unmarkRefunded,
+    clearRefundedAt: next === 0,
+    syncedAt: supersedes ? observedAt : null,
+  }
+}
+
+/**
+ * The columns every refundable table shares, given a plan.
+ *
+ * `refundedAt` means "when money first came back". A plan that takes the total
+ * to zero says none ever did, so it clears rather than leaving a date beside a
+ * zero — the smaller version of the same lie this whole change exists to stop.
+ */
+function refundColumns(plan: RefundWrite, rowRefundedAt: Date | null, now: Date) {
+  return {
+    refundedAmountCents: plan.refundedAmountCents,
+    refundedAt: plan.clearRefundedAt ? null : rowRefundedAt ?? now,
+    ...(plan.syncedAt ? { refundSyncedAt: plan.syncedAt } : {}),
+  }
+}
+
+/**
+ * The compare-and-swap, carrying whichever ordering rule the plan used.
+ *
+ * Superseding write: only if the row's watermark is still older than ours, so
+ * a racing writer holding an even NEWER snapshot wins. Monotonic write: the
+ * original guard, so a racing writer that already recorded MORE wins. Either
+ * way the concurrent outcome matches what `planRefundWrite` decided.
+ */
+function refundGuard(amountCol: AnyPgColumn, syncedCol: AnyPgColumn, plan: RefundWrite) {
+  return plan.syncedAt
+    ? or(isNull(syncedCol), lt(syncedCol, plan.syncedAt))
+    : lte(amountCol, plan.refundedAmountCents)
 }
 
 /**
@@ -129,6 +232,7 @@ export async function recordConnectRefund(event: ConnectRefundEvent): Promise<Re
         status: schema.shopOrder.status,
         refundedAmountCents: schema.shopOrder.refundedAmountCents,
         refundedAt: schema.shopOrder.refundedAt,
+        refundSyncedAt: schema.shopOrder.refundSyncedAt,
       })
       .from(schema.shopOrder)
       .where(
@@ -143,17 +247,18 @@ export async function recordConnectRefund(event: ConnectRefundEvent): Promise<Re
       const done = await db
         .update(schema.shopOrder)
         .set({
-          refundedAmountCents: plan.refundedAmountCents,
-          refundedAt: row.refundedAt ?? now,
+          ...refundColumns(plan, row.refundedAt, now),
+          // The only writer of 'refunded' here is this path, so un-setting it
+          // takes back our own claim — see rule 2 in the file header.
           ...(plan.markRefunded ? { status: 'refunded' } : {}),
+          ...(plan.unmarkRefunded ? { status: 'paid' } : {}),
           updatedAt: now,
         })
         .where(
           and(
             eq(schema.shopOrder.organizationId, event.organizationId),
             eq(schema.shopOrder.id, row.id),
-            // Monotonic: a racing writer that already recorded MORE wins.
-            lte(schema.shopOrder.refundedAmountCents, plan.refundedAmountCents),
+            refundGuard(schema.shopOrder.refundedAmountCents, schema.shopOrder.refundSyncedAt, plan),
           ),
         )
         .returning({ id: schema.shopOrder.id })
@@ -170,6 +275,7 @@ export async function recordConnectRefund(event: ConnectRefundEvent): Promise<Re
         amountCents: schema.patientBalancePayment.amountCents,
         refundedAmountCents: schema.patientBalancePayment.refundedAmountCents,
         refundedAt: schema.patientBalancePayment.refundedAt,
+        refundSyncedAt: schema.patientBalancePayment.refundSyncedAt,
       })
       .from(schema.patientBalancePayment)
       .where(
@@ -183,15 +289,16 @@ export async function recordConnectRefund(event: ConnectRefundEvent): Promise<Re
     if (row && plan) {
       const done = await db
         .update(schema.patientBalancePayment)
-        .set({
-          refundedAmountCents: plan.refundedAmountCents,
-          refundedAt: row.refundedAt ?? now,
-        })
+        .set(refundColumns(plan, row.refundedAt, now))
         .where(
           and(
             eq(schema.patientBalancePayment.organizationId, event.organizationId),
             eq(schema.patientBalancePayment.id, row.id),
-            lte(schema.patientBalancePayment.refundedAmountCents, plan.refundedAmountCents),
+            refundGuard(
+              schema.patientBalancePayment.refundedAmountCents,
+              schema.patientBalancePayment.refundSyncedAt,
+              plan,
+            ),
           ),
         )
         .returning({ id: schema.patientBalancePayment.id })
@@ -201,21 +308,26 @@ export async function recordConnectRefund(event: ConnectRefundEvent): Promise<Re
     // must not leave the patient holding the points it earned, and the
     // ledger is one of our money records too.
     //
-    // This runs off the ROW, not off `plan`, and on every delivery: a
-    // redelivered event whose amount we had already recorded still finds a
-    // reversal that a crash between the two writes would otherwise have
-    // lost. The reversal is idempotent by unique index, so calling it again
-    // costs nothing. Best-effort — the refund record is the thing that must
-    // land, and a loyalty write that fails must never cost us that.
+    // This runs on every delivery, plan or no plan: a redelivered event whose
+    // amount we had already recorded still finds a reversal that a crash
+    // between the two writes would otherwise have lost. Both directions are
+    // idempotent, so calling again costs nothing. Best-effort — the refund
+    // record is the thing that must land, and a loyalty write that fails must
+    // never cost us that.
+    //
+    // The total it reasons from is the PLAN's, not a fresh `Math.max` — that
+    // max was a second copy of the monotonic rule, and it would have kept
+    // reversing points for a refund the ordering rule had just un-recorded.
+    // One decision, one place (see the file header).
     if (row) {
-      const refundedTotal = Math.max(row.refundedAmountCents ?? 0, event.amountRefundedCents)
+      const refundedTotal = plan?.refundedAmountCents ?? row.refundedAmountCents ?? 0
       try {
-        await reverseLoyaltyForRefundedPayment(event.organizationId, row.id, {
+        await syncLoyaltyForRefundedPayment(event.organizationId, row.id, {
           amountCents: row.amountCents,
           refundedAmountCents: refundedTotal,
         })
       } catch (err) {
-        console.warn('[refunds] could not reverse loyalty points', { paymentId: row.id }, err)
+        console.warn('[refunds] could not settle loyalty points', { paymentId: row.id }, err)
       }
     }
   }
@@ -228,6 +340,7 @@ export async function recordConnectRefund(event: ConnectRefundEvent): Promise<Re
         status: schema.bookingDeposit.status,
         refundedAmountCents: schema.bookingDeposit.refundedAmountCents,
         refundedAt: schema.bookingDeposit.refundedAt,
+        refundSyncedAt: schema.bookingDeposit.refundSyncedAt,
       })
       .from(schema.bookingDeposit)
       .where(
@@ -241,15 +354,16 @@ export async function recordConnectRefund(event: ConnectRefundEvent): Promise<Re
     if (row && plan) {
       const done = await db
         .update(schema.bookingDeposit)
-        .set({
-          refundedAmountCents: plan.refundedAmountCents,
-          refundedAt: row.refundedAt ?? now,
-        })
+        .set(refundColumns(plan, row.refundedAt, now))
         .where(
           and(
             eq(schema.bookingDeposit.organizationId, event.organizationId),
             eq(schema.bookingDeposit.id, row.id),
-            lte(schema.bookingDeposit.refundedAmountCents, plan.refundedAmountCents),
+            refundGuard(
+              schema.bookingDeposit.refundedAmountCents,
+              schema.bookingDeposit.refundSyncedAt,
+              plan,
+            ),
           ),
         )
         .returning({ id: schema.bookingDeposit.id })
@@ -280,11 +394,14 @@ export async function recordConnectRefund(event: ConnectRefundEvent): Promise<Re
  * payment record for it, which is exactly what the front desk needs to see
  * before they reconcile.
  *
- * Monotonic, like everything else on this path: the upsert only raises
- * `refunded_amount_cents`, so an out-of-order delivery cannot walk a receipt
- * backwards, and a redelivered event updates its own row rather than minting a
- * second one (the unique (org, payment intent) index is the claim key).
- * `refunded_at` keeps the FIRST sighting.
+ * Ordered exactly like the three money rows, and for the same reason: a
+ * strictly newer snapshot (`refund_synced_at`) is believed outright, and
+ * anything else falls back to `greatest()`. Without this half the receipt
+ * would be the last place still claiming a failed refund came back — and for a
+ * MEMBERSHIP charge, which matches none of the three tables, the receipt is
+ * the ONLY place the clinic reads it. A redelivered event updates its own row
+ * rather than minting a second one (the unique (org, payment intent) index is
+ * the claim key). `refunded_at` keeps the FIRST sighting.
  *
  * Best-effort by construction: the money records above are the thing that must
  * land, and a failed receipt must never cost us one of those or make Stripe
@@ -307,13 +424,21 @@ async function recordRefundReceipt(
         chargeAmountCents: Math.max(0, event.chargeAmountCents),
         attachedTo,
         refundedAt: now,
+        refundSyncedAt: event.observedAt ?? null,
         updatedAt: now,
       })
       .onConflictDoUpdate({
         target: [schema.connectRefund.organizationId, schema.connectRefund.stripePaymentIntentId],
         set: {
-          refundedAmountCents: sql`greatest(${schema.connectRefund.refundedAmountCents}, excluded.refunded_amount_cents)`,
+          // The ordering rule, in SQL. `excluded.refund_synced_at` is this
+          // event's `created`; a NULL on either side means the pair cannot be
+          // ordered, and an unorderable pair falls back to `greatest()` —
+          // which is the behaviour this row has always had.
+          refundedAmountCents: sql`case when excluded.refund_synced_at is not null and (${schema.connectRefund.refundSyncedAt} is null or excluded.refund_synced_at > ${schema.connectRefund.refundSyncedAt}) then excluded.refunded_amount_cents else greatest(${schema.connectRefund.refundedAmountCents}, excluded.refunded_amount_cents) end`,
+          // The charge's own total never legitimately shrinks, so this half
+          // stays plainly monotonic.
           chargeAmountCents: sql`greatest(${schema.connectRefund.chargeAmountCents}, excluded.charge_amount_cents)`,
+          refundSyncedAt: sql`greatest(${schema.connectRefund.refundSyncedAt}, excluded.refund_synced_at)`,
           // A later delivery that DID attach upgrades the receipt; one that
           // did not must never downgrade an attachment we already made (the
           // finalizer may have stamped the PaymentIntent in between).
