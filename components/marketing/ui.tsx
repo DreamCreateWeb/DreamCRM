@@ -134,10 +134,10 @@ export const MONO_LABEL =
  */
 const DAYLIGHT_BLOOM = {
   backgroundImage: [
-    'radial-gradient(62rem 34rem at 6% -16%, rgb(76 125 240 / 0.30), transparent 68%)',
-    'radial-gradient(54rem 32rem at 74% -12%, rgb(117 95 248 / 0.26), transparent 66%)',
-    'radial-gradient(58rem 30rem at 30% 118%, rgb(200 0 222 / 0.15), transparent 66%)',
-    'radial-gradient(40rem 26rem at 96% 76%, rgb(76 125 240 / 0.16), transparent 66%)',
+    'radial-gradient(58rem 32rem at 4% -14%, rgb(76 125 240 / 0.62), transparent 70%)',
+    'radial-gradient(50rem 30rem at 78% -10%, rgb(117 95 248 / 0.52), transparent 68%)',
+    'radial-gradient(54rem 30rem at 22% 116%, rgb(200 0 222 / 0.34), transparent 68%)',
+    'radial-gradient(44rem 28rem at 99% 70%, rgb(76 125 240 / 0.34), transparent 68%)',
   ].join(','),
 } as const
 

@@ -148,7 +148,7 @@ export default async function MarketingHome() {
              BRAND.md Part 7. ── */}
       <section className="relative overflow-hidden bg-white">
         <DaylightSky />
-        <div className="relative mx-auto grid max-w-6xl grid-cols-1 items-center gap-y-14 px-4 pb-16 pt-14 sm:px-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:gap-x-6 lg:pb-24 lg:pt-20">
+        <div className="relative mx-auto grid max-w-6xl grid-cols-1 items-center gap-y-14 px-4 pb-16 pt-14 sm:px-6 lg:grid-cols-[minmax(0,2.15fr)_minmax(0,1fr)] lg:gap-x-8 lg:pb-24 lg:pt-20">
           {/* ── The reading column. Hard left, never centred: BRAND.md Part 4,
                  and round B's "only halfway" was as much about type scale and
                  alignment as about colour. ── */}
@@ -238,7 +238,7 @@ export default async function MarketingHome() {
                  exclusion goes dead (`deadExclusions` fails) and 41
                  illustration contrast findings come back. The glass therefore
                  rides ON the float wrapper rather than inside it. ── */}
-          <div className="mkt-enter mkt-d4 relative -mr-[14vw] min-w-0 sm:-mr-[12vw] lg:-mr-[17vw]">
+          <div className="mkt-enter mkt-d4 relative -mr-[14vw] min-w-0 sm:-mr-[12vw] lg:-mr-[31vw]">
             <div
               className="mkt-float rounded-2xl border p-2 shadow-[0_0_70px_-20px_rgb(93_71_222/0.45),0_24px_80px_-44px_rgb(26_36_64/0.45)] backdrop-blur-sm"
               style={{ borderColor: DAY_WIRE, backgroundColor: 'rgb(255 255 255 / 0.72)' }}
@@ -249,10 +249,10 @@ export default async function MarketingHome() {
             {/* The detached pieces, floating in FRONT of the mock. Absolutely
                 positioned so they overlap it, and each one still its float
                 wrapper's direct `aria-hidden` child. */}
-            <div className="mkt-float-slow pointer-events-none absolute -top-7 left-[-7%] z-10 hidden sm:block">
+            <div className="mkt-float-slow pointer-events-none absolute -top-7 left-3 z-10 hidden sm:block lg:left-[-13%]">
               <HeroStatTile label="New patients MTD" value="12" sub="+3 vs last month" />
             </div>
-            <div className="mkt-float pointer-events-none absolute -bottom-9 left-[-4%] z-10">
+            <div className="mkt-float pointer-events-none absolute -bottom-9 left-2 z-10 lg:left-[-9%]">
               <HeroReplyBubble />
             </div>
           </div>
