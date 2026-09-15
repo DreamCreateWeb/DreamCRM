@@ -1,7 +1,8 @@
 # CI — what gates what
 
-Eight workflows. Only two of them can stop anything; the other six are alarms
-and advisories.
+Nine workflows, and three of them can stop something: `ci.yml` holds a merge,
+`deploy.yml` holds a deploy, and `migration-check.yml` can fail a deploy run
+without publishing a check of its own. The other six are alarms and advisories.
 
 This file covers what runs *before* a merge and on the way to production. What
 gets checked *after* the deploy lands — the URLs the production watch sweep
@@ -17,6 +18,7 @@ loads, including the one real clinic site — is `docs/OPS.md`.
 | `.github/workflows/read-check.yml` | `workflow_dispatch` + `schedule` 06:37 UTC | `read-check` | the read-only role's privileges in production | no — never runs on a PR |
 | `.github/workflows/error-scan.yml` | `schedule` every 30 min + dispatch | `scan` | noticing errors inside the product | no — warns only |
 | `.github/workflows/migration-check.yml` | `workflow_call` from `deploy.yml` + `schedule` 08:20 UTC + dispatch | `migration-check` | that a deploy's migrations actually applied | no required context — but it CAN fail the deploy run |
+| `.github/workflows/rulebook-drift.yml` | `schedule` 06:17 UTC + dispatch | `rulebook-drift` | the rulebook still describing this repo | no — never runs on a PR |
 
 ## The deploy is not finished until the migrations are in
 
@@ -422,6 +424,81 @@ mint (Sentinel reviewing from a distinct GitHub identity), plus a full batch wit
 no correction to the gate list. The full reasoning and the before/after table are
 on the DREAMCRM-49 issue — a settings change has no diff, so that comment is the
 review record.
+
+## The alarm that watches the rulebook (added 2026-09-14, DREAMCRM-53)
+
+`rulebook-drift.yml` asks one question every morning: **does the
+`dreamcrm-conventions` skill still describe this repository?**
+
+That skill states in prose which checks are required, that admins are bound by
+them, how many workflow files exist and which of them can block a merge, and
+how many areas the review gate enumerates. Those sentences were true when they
+were typed. Nothing had ever checked whether they still were — the skill lives
+outside the repo, so no test could go red when the repo moved underneath it.
+It moves often: the axe ratchet (#534) changed what could merge and took three
+days to reach the skill, and a meeting sweep found the skill three claims stale
+two minutes after #565 merged. Both were caught because a person chose to look,
+which is not a control.
+
+`scripts/rulebook-drift.mjs` holds the transcribed claims — each with the skill
+section that states it and the sentence it states — and grades all eight
+against the live repository:
+
+| Claim | Read from |
+| --- | --- |
+| the required set is exactly `test` and `e2e` | branch protection |
+| `strict: true` paired with `allow_update_branch: true` | protection + repo settings |
+| `enforce_admins: true` | branch protection |
+| `allow_force_pushes: false`, `allow_deletions: false` | branch protection |
+| the workflow census (which file gates what) | `.github/workflows/` |
+| only the census's workflows may publish `test` or `e2e` | `.github/workflows/` |
+| every required context has a PR-triggered producer | protection + workflows |
+| the review gate enumerates eight areas | `GATE_RULES` |
+
+**It gates nothing.** No `pull_request` trigger, no required context, no
+`needs:`. A stale sentence in a document is not a reason to hold a production
+fix. What it does is turn a daily red run into an intake, replacing the job
+that currently depends on somebody remembering.
+
+**The fast half is graded at the PR instead.**
+`tests/guards/rulebook-drift.test.ts` runs every claim that needs no network
+inside the `test` check, so adding a workflow file — or an area to the review
+gate — turns a required check **red until the claim is updated in the same PR**.
+The schedule is the backstop for what changes with no diff at all: a branch
+protection setting flipped in the GitHub UI, most of all.
+
+**An ungradeable claim fails here; it does not skip — with one bounded
+exception.** The first version of this check had only two outcomes and argued
+that the `read-check.yml` treatment did not apply, "because there is no
+owner-side setup pending and nothing outside the repository to wait for". The
+argument was sound and the premise was false: **branch protection is not
+readable with the workflow token at any scope** (`administration` is not even a
+valid `permissions:` key — asking for it made GitHub reject the whole file,
+twice, in 0 seconds, publishing no check-run at all, which is why `gh pr checks`
+showed nothing). So there are three outcomes:
+
+| Outcome | Meaning | Run |
+| --- | --- | --- |
+| **not configured yet** | `RULEBOOK_PROTECTION_TOKEN` is unset; the five protection claims are skipped and named | green, `::warning::` |
+| **could not be graded** | the secret exists and the read still came back empty — a revoked token, a renamed branch | **red** |
+| **drift** | the repo and the skill disagree | **red** |
+
+A skipped claim is never counted as a claim that held: every summary leads with
+`Graded N/8` rather than with a tick, in all three cases. The exception lasts
+exactly as long as the secret is missing.
+
+**Owner setup (pending).** Until `RULEBOOK_PROTECTION_TOKEN` exists, the five
+settings claims are off — which is the half that catches a branch-protection
+change made in the GitHub UI, the one kind of change that leaves no diff
+anywhere. To turn it on: a fine-grained personal access token scoped to this
+repository alone, with **Repository permissions → Administration: Read-only**
+and nothing else, saved as a repository secret named
+`RULEBOOK_PROTECTION_TOKEN`. It reads settings; it can change none.
+
+**What this does not close.** The repo↔claim gap is now mechanical. The
+claim↔skill gap is not, and cannot be: a skill document cannot hold a pointer
+into a repository an agent may not have checked out. That hop is Forge's, which
+is why every finding names the skill section to open.
 
 ## Branch protection (configured 2026-09-09, DREAMCRM-10; strict since 2026-09-10, DREAMCRM-19; admins included since 2026-09-14, DREAMCRM-40)
 
