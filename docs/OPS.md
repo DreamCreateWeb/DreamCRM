@@ -49,6 +49,35 @@ the seed is not.
 Both clinic-site rows and the homepage were verified 200 in production on
 2026-09-13, after deploy run 34777469967.
 
+## Stripe Connect webhook events — an owner-side subscription
+
+Shipping code is not the whole of this one: a webhook handler only ever sees
+the events the endpoint is subscribed to, and the subscription lives in the
+Stripe dashboard, not in this repo. A missing subscription is silent by
+construction — nothing arrives, so nothing logs, and the code looks healthy.
+
+**The Connect endpoint** (`/api/webhooks/stripe-connect`, the Connect-events
+endpoint, not the platform one) must be subscribed to:
+
+| Event | Why | Since |
+| --- | --- | --- |
+| `checkout.session.completed` | finalizes shop orders, balance payments, booking deposits, memberships | original |
+| `customer.subscription.updated` / `.deleted` | membership state | original |
+| `account.updated` | keeps a connected account's stored status honest | original |
+| `charge.refunded` | a refund reaches our own money records | DREAMCRM-32 |
+| `refund.created` | the same, when Stripe reports the refund rather than the charge | DREAMCRM-32 |
+| **`charge.refund.updated`, `refund.updated`, `refund.failed`** | **a refund that FAILS at the bank; Stripe decrements the charge and these are the only events that say so** | **DREAMCRM-47** |
+
+Subscribe to **all three** spellings of the update event. Stripe renamed the
+family, and which name a connected account emits depends on the API version
+pinned to it; the handler accepts all three and is idempotent, so subscribing
+to all three costs nothing and betting on one risks the failed-refund handling
+being inert with nothing to say so.
+
+Until that subscription exists, a refund that fails at the bank stays recorded
+as money returned — the defect DREAMCRM-47 fixed in code. `lib/services/
+refunds.ts` carries the rule; this table is the half a person has to do.
+
 ## Keeping this true
 
 `tests/guards/ops-clinic-site-url.test.ts` fails if the slug in the table above
