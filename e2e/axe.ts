@@ -86,6 +86,14 @@ const WCAG_TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']
  * without that check: nothing gets excluded, the stop's ceiling is zero, and the
  * run goes red.
  *
+ * THAT COVERS THE EXEMPTION'S SUBJECT. ITS PREMISE IS A SEPARATE QUESTION, and
+ * since DREAMCRM-63 there is a separate check for it. A mock is not replaced
+ * wholesale as often as it GROWS — a callout, a caption, a readable panel
+ * added inside the illustration — and then the selectors still match, the
+ * ceiling still holds, and the sentence above about 7px glyphs is pardoning
+ * something a person reads. `exclusionsHidingReadableText` below measures what
+ * this exclusion actually buys and reports any of it that is not picture-scale.
+ *
  * Verified by narrowing it rather than asserted: the first baselined run
  * (actions/runs/34531475518) enumerated all 45 instances at this stop with
  * selectors and computed colours, and all 41 that remain after batch 55 resolve
@@ -254,6 +262,114 @@ export async function deadExclusions(page: Page, exclude: string[] = []): Promis
 }
 
 /**
+ * The size at which text stops being part of a picture and starts being
+ * something a person is meant to read.
+ *
+ * Not a number invented here: it is the repo's own legibility floor, enforced
+ * at the source by `tests/a11y/legibility-floor.test.ts`. Every contrast
+ * finding `DECORATIVE_MOCKS` discounts today measures 5.8–8.2pt (7–11px), and
+ * the mocks' own type scale tops out around 0.68rem inside the illustration
+ * chrome. Anything AT this floor inside an excluded subtree is, by the repo's
+ * own definition, content — and WCAG 1.4.3 does not exempt content.
+ */
+const PICTURE_SCALE_CEILING_PX = 12
+
+/** A contrast finding an exclusion is discounting that is not picture-scale. */
+export type PardonedFinding = {
+  selector: string
+  target: string
+  fontSizePx: number
+  text: string
+}
+
+/**
+ * THE EXCLUSION'S PREMISE, as opposed to its subject (DREAMCRM-63).
+ *
+ * `deadExclusions` above asks whether a selector still MATCHES something. It
+ * does not ask whether the REASON for it is still true, and #587 proved those
+ * are different questions the expensive way: moving the marketing hero off its
+ * dark ground left every dead-exemption detector in this repo green over a
+ * headline measuring 1.88. Same shape here. `DECORATIVE_MOCKS` does not say
+ * "skip this div"; it says *this subtree is a PICTURE*, which is the one thing
+ * WCAG 1.4.3 exempts from contrast. Drop a readable panel inside
+ * `.mkt-float > [aria-hidden="true"]` — a real screenshot, a callout somebody
+ * is meant to read — and the selector keeps matching, the stop keeps holding
+ * its ceiling of ZERO, and a genuine contrast defect on the busiest public
+ * page we have is pardoned by a sentence about 7px illustration glyphs.
+ *
+ * SO IT MEASURES WHAT THE EXCLUSION ACTUALLY BUYS: the `color-contrast`
+ * findings that disappear when it is applied. Each one's element is resolved
+ * in the page and its COMPUTED font size taken; anything at or above the
+ * legibility floor is reported by selector, size and text. That is narrower
+ * than "all the text in there is small" on purpose — the real mocks carry a
+ * 16.8px headline that reads fine, and a rule firing on it would be the "208
+ * places to catch 8" failure that gets a guard switched off. A big element in
+ * there only trips this if it is ALSO failing contrast, in which case it is a
+ * real defect being pardoned rather than a picture.
+ *
+ * COSTS ONE EXTRA SCAN, at the one stop in the suite that passes exclusions
+ * (`marketing: home`). Skipped entirely when there are none.
+ *
+ * WHAT IT DOES NOT SEE: a finding whose axe target does not resolve back to a
+ * single element (a frame chain), and any rule other than `color-contrast` —
+ * contrast is what the WCAG 1.4.3 argument is about, and the exclusion's other
+ * effects are not defended by it. Both are false NEGATIVES, the safe direction.
+ *
+ * AND IT DROPS `options.include`, which is the one that is not (Quinn's review
+ * of #594). The unfiltered scan is a bare `findA11yViolations(page)`, so a stop
+ * passing BOTH `include` and `exclude` would have its premise pass read the
+ * whole page rather than the named subtree. No stop does today — there is no
+ * `include` anywhere in `e2e/` — and the `closest(exclude)` filter bounds most
+ * of what it could report, so the residue is a false RED naming the element
+ * rather than a false green. Latent, and written here rather than fixed
+ * speculatively: the day a stop needs both, thread `include` through and give
+ * it a red run, do not assume this paragraph was already right about it.
+ */
+export async function exclusionsHidingReadableText(
+  page: Page,
+  exclude: string[] = [],
+): Promise<PardonedFinding[]> {
+  if (exclude.length === 0) return []
+
+  const unfiltered = await findA11yViolations(page)
+  const targets = unfiltered
+    .filter((v) => v.id === 'color-contrast')
+    .flatMap((v) => v.nodes.map((n) => n.target))
+    // A plain element target is a one-entry array; more than one means a frame
+    // chain this cannot resolve with a single `querySelector`.
+    .filter((t): t is string[] => t.length === 1)
+    .map((t) => String(t[0]))
+  if (targets.length === 0) return []
+
+  return page.evaluate(
+    ({ selectors, found, ceiling }) => {
+      const pardoned: PardonedFinding[] = []
+      for (const target of found) {
+        let el: Element | null = null
+        try {
+          el = document.querySelector(target)
+        } catch {
+          continue
+        }
+        if (!el) continue
+        const selector = selectors.find((s) => el!.closest(s))
+        if (!selector) continue
+        const fontSizePx = parseFloat(getComputedStyle(el).fontSize)
+        if (!(fontSizePx >= ceiling)) continue
+        pardoned.push({
+          selector,
+          target,
+          fontSizePx,
+          text: (el.textContent ?? '').trim().slice(0, 60),
+        })
+      }
+      return pardoned
+    },
+    { selectors: exclude, found: targets, ceiling: PICTURE_SCALE_CEILING_PX },
+  )
+}
+
+/**
  * Hand one (stop, rule) measurement to `e2e/axe-headroom.ts` for the
  * end-of-run table.
  *
@@ -318,6 +434,22 @@ export async function expectNoA11yViolations(
         `more, so whatever they were written for has changed. Re-derive them against the ` +
         `current markup or delete them; do not leave an exemption standing over a subtree ` +
         `it no longer describes.`,
+    )
+    .toEqual([])
+
+  // And the other half of the same question: not "does it still match", but
+  // "is the REASON still true". See `exclusionsHidingReadableText`.
+  const pardoned = await exclusionsHidingReadableText(page, options.exclude)
+  expect
+    .soft(
+      pardoned.map((p) => `${p.selector} → ${p.target} at ${p.fontSizePx}px: "${p.text}"`),
+      `An exclusion at "${stop}" is discounting a contrast failure on READABLE text. ` +
+        `These selectors are allowed to take a subtree out of the scan because it is a ` +
+        `PICTURE — WCAG 1.4.3 exempts text that is part of an illustration, and every ` +
+        `finding they were written for measures 5.8-8.2pt. Text at ${PICTURE_SCALE_CEILING_PX}px ` +
+        `or more is content by this repo's own legibility floor, so this is a real defect ` +
+        `being pardoned by an argument that no longer describes it. Fix the contrast, or ` +
+        `narrow the exclusion so it stops covering the readable part.`,
     )
     .toEqual([])
 

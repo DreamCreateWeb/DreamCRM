@@ -163,7 +163,7 @@ export default async function MarketingHome() {
                   `bg-clip-text` in the tree when the rule landed — so on this
                   band it fails correctly-in-form and wrongly-in-fact: teal-300
                   measures 1.88 on white and 9.36 here, violet-300 2.03 and
-                  8.69. That is exactly what `GRADIENT_TEXT_EXEMPTIONS` was
+                  8.69. That is exactly what `CLIPPED_TEXT_EXEMPTIONS` was
                   built for, and this is its first entry; the ratios above are
                   re-derived from the palette in `token-contrast.test.ts`
                   rather than trusted from this comment. */}
