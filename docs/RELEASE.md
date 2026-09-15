@@ -383,7 +383,19 @@ as confirmed defects yet.
   unbundled from it because it was NOT closed with it: `runInsuranceOcr`
   still accepts any `http(s)` URL. No SSRF (Anthropic does the fetching),
   but an outsider can burn the clinic's OCR allowance on someone else's
-  bytes. Wants the same `isAllowedAttachmentUrl` gate. · OPEN.
+  bytes. Wants the same `isAllowedAttachmentUrl` gate. · **FIXED** — landed
+  on `main` in `11b52176` (DREAMCRM-24, #537) and left reading OPEN here until
+  the DREAMCRM-47 reconciliation caught it. The gate it wanted is exactly the
+  gate it got: `isAllowedAttachmentUrl` from `lib/attachment-hosts.ts`, at
+  `lib/services/insurance-ocr.ts:74`, filtering `imageUrls` before anything is
+  metered or sent — and placed in the SERVICE rather than in each caller, so
+  the public-site intake and the patient portal are both covered by
+  construction instead of by each one remembering. Dropped URLs are logged
+  with the allowed hosts, so a storage-env misconfiguration reads as a
+  misconfiguration rather than as "OCR stopped working".
+  `tests/intake-forms/insurance-ocr-host-adoption.test.ts` scans the source
+  tree for a re-implementation of the host check outside the shared module and
+  for an entry point that skips it, so a new caller cannot reopen this.
 - S2 · `patient-followups` `assignedUserId` (create/update/bulk) · assignee
   not verified as an org member (integrity only). · **FIXED**
   (`assertAssignableInOrg`).
