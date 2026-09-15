@@ -4,12 +4,22 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
  * The owner-facing billing comms service: the escalating trial-reminder sweep
  * (cron) and the failed-payment dunning email (webhook). The trial logic
  * (resolveTrialState / dueTrialReminder) runs for real; db + email are mocked.
+ *
+ * The milestone is CLAIMED before the email goes out — the claim statement
+ * itself is rendered against the real dialect in
+ * `trial-milestone-claim-sql.test.ts`, which is the half this file is blind to.
  */
 
-const state: { selectQueue: unknown[][]; updates: Record<string, unknown>[] } = {
-  selectQueue: [],
-  updates: [],
-}
+const state: {
+  selectQueue: unknown[][]
+  updates: Array<{ set: Record<string, unknown>; where: unknown }>
+  /** Rows each `UPDATE … RETURNING` hands back, in order. Empty queue = the
+   *  claim wins; push `[]` to make a run LOSE the race. */
+  claimQueue: unknown[][]
+  /** Whether the next update should throw (the claim write failing). */
+  updateThrows: boolean
+  calls: string[]
+} = { selectQueue: [], updates: [], claimQueue: [], updateThrows: false, calls: [] }
 
 vi.mock('@/lib/db', () => {
   const chain = () => {
@@ -26,8 +36,16 @@ vi.mock('@/lib/db', () => {
       select: () => chain(),
       update: () => ({
         set: (set: Record<string, unknown>) => ({
-          where: async () => {
-            state.updates.push(set)
+          where: (where: unknown) => {
+            if (state.updateThrows) throw new Error('claim write: connection reset')
+            state.updates.push({ set, where })
+            state.calls.push('update')
+            const res: any = {
+              returning: async () =>
+                state.claimQueue.length ? state.claimQueue.shift()! : [{ organizationId: 'org_1' }],
+              then: (resolve: (v: unknown) => void) => resolve(undefined),
+            }
+            return res
           },
         }),
       }),
@@ -55,6 +73,10 @@ vi.mock('drizzle-orm', () => ({
   lte: (...a: unknown[]) => ({ _: 'lte', a }),
   inArray: (...a: unknown[]) => ({ _: 'inArray', a }),
   isNotNull: (...a: unknown[]) => ({ _: 'isNotNull', a }),
+  sql: Object.assign(
+    (strings: TemplateStringsArray, ...values: unknown[]) => ({ _: 'sql', strings: [...strings], values }),
+    { raw: (s: string) => ({ _: 'raw', s }) },
+  ),
 }))
 
 const emailMock = vi.hoisted(() => ({
@@ -84,10 +106,31 @@ function clinic(over: Record<string, unknown> = {}) {
   }
 }
 
+/** Milestone keys carried by the SQL of each update, in order. Both statements
+ *  interpolate the COLUMN first and the milestone last; the append binds it as
+ *  a one-element JSON array (`["d3"]`) and the release as a bare key (`d3`),
+ *  which is how the two are told apart. */
+function updateMilestones(): Array<{ milestone: string; kind: 'append' | 'release' }> {
+  return state.updates.map(({ set }) => {
+    const expr = set.trialRemindersSent as { values?: unknown[] }
+    const strings = (expr?.values ?? []).filter((v): v is string => typeof v === 'string')
+    const bound = strings[strings.length - 1]
+    return bound.startsWith('[')
+      ? { milestone: JSON.parse(bound)[0] as string, kind: 'append' as const }
+      : { milestone: bound, kind: 'release' as const }
+  })
+}
+
 beforeEach(() => {
   state.selectQueue.length = 0
   state.updates.length = 0
-  emailMock.sendTrialReminderEmail.mockClear()
+  state.claimQueue.length = 0
+  state.updateThrows = false
+  state.calls.length = 0
+  emailMock.sendTrialReminderEmail.mockReset()
+  emailMock.sendTrialReminderEmail.mockImplementation(async () => {
+    state.calls.push('send')
+  })
   emailMock.sendBillingPastDueEmail.mockClear()
 })
 
@@ -102,7 +145,7 @@ describe('sendDueTrialReminders', () => {
       milestone: 'd3',
       billingUrl: expect.stringContaining('/settings/billing'),
     })
-    expect(state.updates[0]).toEqual({ trialRemindersSent: ['d3'] })
+    expect(updateMilestones()).toEqual([{ milestone: 'd3', kind: 'append' }])
   })
 
   it('is idempotent — skips a milestone already recorded (no email, no write)', async () => {
@@ -150,7 +193,53 @@ describe('sendDueTrialReminders', () => {
       'owner@x.com',
       expect.objectContaining({ milestone: 'ended' }),
     )
-    expect(state.updates[0]).toEqual({ trialRemindersSent: ['ended'] })
+    expect(updateMilestones()).toEqual([{ milestone: 'ended', kind: 'append' }])
+  })
+
+  // ── Claim before send ─────────────────────────────────────────────────────
+  //
+  // The milestone used to be stamped AFTER the email. Two runs of an
+  // at-least-once cron both passed the in-JS `dueTrialReminder` check against
+  // the same snapshot and both emailed; and a send that succeeded followed by
+  // a stamp that failed re-emailed on the next tick. A trial reminder arriving
+  // twice reads as a dunning notice from a company unsure whether you paid.
+
+  it('writes the milestone before the email goes out, never after', async () => {
+    state.selectQueue.push([clinic()])
+    state.selectQueue.push([{ email: 'owner@x.com', name: 'Pat', role: 'owner' }])
+    await sendDueTrialReminders(NOW)
+    expect(state.calls).toEqual(['update', 'send'])
+  })
+
+  it('sends nothing when a concurrent run already claimed the same milestone', async () => {
+    state.selectQueue.push([clinic()])
+    state.selectQueue.push([{ email: 'owner@x.com', name: 'Pat', role: 'owner' }])
+    state.claimQueue.push([]) // the claim UPDATE matched no row — we lost
+    const r = await sendDueTrialReminders(NOW)
+    expect(emailMock.sendTrialReminderEmail).not.toHaveBeenCalled()
+    expect(r).toEqual({ scanned: 1, sent: 0, skipped: 1, failed: 0 })
+  })
+
+  it('releases the milestone when the send fails, so the next tick retries it', async () => {
+    state.selectQueue.push([clinic()])
+    state.selectQueue.push([{ email: 'owner@x.com', name: 'Pat', role: 'owner' }])
+    emailMock.sendTrialReminderEmail.mockRejectedValueOnce(new Error('Resend 503'))
+    const r = await sendDueTrialReminders(NOW)
+    expect(r.failed).toBe(1)
+    expect(r.sent).toBe(0)
+    expect(updateMilestones()).toEqual([
+      { milestone: 'd3', kind: 'append' },
+      { milestone: 'd3', kind: 'release' },
+    ])
+  })
+
+  it('counts a failed claim write as failed and sends nothing', async () => {
+    state.selectQueue.push([clinic()])
+    state.selectQueue.push([{ email: 'owner@x.com', name: 'Pat', role: 'owner' }])
+    state.updateThrows = true
+    const r = await sendDueTrialReminders(NOW)
+    expect(emailMock.sendTrialReminderEmail).not.toHaveBeenCalled()
+    expect(r.failed).toBe(1)
   })
 })
 

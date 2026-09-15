@@ -16,6 +16,11 @@ const state = {
   inserts: [] as Array<{ table: string; values: Record<string, unknown> }>,
   updates: [] as Array<{ table: string; values: Record<string, unknown> }>,
   claimRejects: false,
+  /** Id the touch-log claim hands back — set it to model a RETRY taking over
+   *  its own earlier failed row. */
+  claimReturnsId: null as string | null,
+  /** Every onConflictDoUpdate config the claim was built with. */
+  conflictConfigs: [] as unknown[],
 }
 
 vi.mock('@/lib/db', () => {
@@ -38,12 +43,22 @@ vi.mock('@/lib/db', () => {
         values: (values: Record<string, unknown>) => {
           const name = (table as { _n: string })._n
           state.inserts.push({ table: name, values })
-          const p: any = Promise.resolve(undefined)
-          p.onConflictDoNothing = () => {
+          const claim = () => {
             const q: any = Promise.resolve(undefined)
-            q.returning = async () =>
-              name === 'outreach_touch_log' && state.claimRejects ? [] : [{ id: values.id }]
+            q.returning = async () => {
+              if (name !== 'outreach_touch_log') return [{ id: values.id }]
+              if (state.claimRejects) return []
+              // A retry takes over the EXISTING row, so the claim hands back
+              // that row's id rather than the one just minted.
+              return [{ id: state.claimReturnsId ?? values.id }]
+            }
             return q
+          }
+          const p: any = Promise.resolve(undefined)
+          p.onConflictDoNothing = claim
+          p.onConflictDoUpdate = (cfg: unknown) => {
+            state.conflictConfigs.push(cfg)
+            return claim()
           }
           return p
         },
@@ -86,6 +101,7 @@ vi.mock('drizzle-orm', () => ({
   isNotNull: vi.fn(() => ({})),
   isNull: vi.fn(() => ({})),
   lte: vi.fn(() => ({})),
+  gte: vi.fn(() => ({})),
   sql: Object.assign(vi.fn(() => ({})), { raw: vi.fn() }),
 }))
 
@@ -130,6 +146,8 @@ import {
   withinSendWindow,
   mergeTemplate,
   renderOutreachEmail,
+  TOUCH_RETRY_AFTER_MS,
+  TOUCH_RETRY_WINDOW_MS,
 } from '@/lib/services/prospect-outreach'
 import { encodeToken, decodeToken } from '@/lib/marketing/tokens'
 import { PROSPECTING_DEFAULTS } from '@/lib/types/prospecting'
@@ -184,6 +202,8 @@ beforeEach(() => {
   state.inserts = []
   state.updates = []
   state.claimRejects = false
+  state.claimReturnsId = null
+  state.conflictConfigs = []
   vi.clearAllMocks()
   configMock.mockResolvedValue(LIVE_CONFIG)
   counterMock.mockResolvedValue(0)
@@ -374,6 +394,120 @@ describe('runOutreach', () => {
     const r = await runOutreach({ now: TUESDAY_10AM_CHICAGO })
     expect(r.sent).toBe(0)
     expect(resendSendMock).not.toHaveBeenCalled()
+  })
+
+  // ── The stuck enrollment ──────────────────────────────────────────────────
+  //
+  // A failed send marked the touch-log row 'failed' and moved on WITHOUT
+  // touching the enrollment, so it stayed `active` with nextSendAt in the
+  // past. `due` is ordered by nextSendAt ascending, so it sorted FIRST on
+  // every later tick, its claim conflicted with its own failed row,
+  // onConflictDoNothing returned nothing, and the run skipped it silently.
+  // The enrollment could never advance and permanently held a slot in an
+  // allowance-limited batch — a handful starve the whole outreach queue.
+
+  it('pushes nextSendAt into the future when the send fails, instead of leaving it due', async () => {
+    resendSendMock.mockResolvedValueOnce({ data: null, error: { message: 'rate limited' } } as never)
+    queueHappyPath()
+    const r = await runOutreach({ now: TUESDAY_10AM_CHICAGO })
+    expect(r.retryScheduled).toBe(1)
+    const backoff = state.updates.find(
+      (u) => u.table === 'outreach_enrollment' && u.values.nextSendAt instanceof Date,
+    )
+    expect(backoff).toBeDefined()
+    expect((backoff!.values.nextSendAt as Date).getTime()).toBe(
+      TUESDAY_10AM_CHICAGO.getTime() + TOUCH_RETRY_AFTER_MS,
+    )
+    // It backs off, it does not give up — the address may be fine tomorrow.
+    expect(backoff!.values.status).toBeUndefined()
+  })
+
+  it('re-sends a touch whose earlier attempt failed, reusing that attempt s own log row', async () => {
+    // The claim takes the existing failed row back, so its id — not the one
+    // this run minted — is what the tracking + unsubscribe tokens carry.
+    state.claimReturnsId = 'otch_first_attempt'
+    queueHappyPath()
+    const r = await runOutreach({ now: TUESDAY_10AM_CHICAGO })
+    expect(r.sent).toBe(1)
+    const args = (resendSendMock.mock.calls[0] as unknown[])[0] as Record<string, unknown>
+    const tags = args.tags as Array<{ name: string; value: string }>
+    expect(tags.find((t) => t.name === 'touchLogId')?.value).toBe('otch_first_attempt')
+    // The row's sentAt is re-stamped: it now records the attempt that landed.
+    const stamp = state.updates.find(
+      (u) => u.table === 'outreach_touch_log' && u.values.sentAt instanceof Date,
+    )
+    expect(stamp!.values.sentAt).toEqual(TUESDAY_10AM_CHICAGO)
+  })
+
+  it('gives the enrollment up when its touch has been failing since before the retry window', async () => {
+    state.claimRejects = true
+    state.selectQueue.push([]) // paused sequences
+    state.selectQueue.push([ENROLLMENT])
+    state.selectQueue.push([PROSPECT])
+    state.selectQueue.push([TEMPLATE_1])
+    // What settleUnclaimableTouch reads back: still failed, first attempt is
+    // older than TOUCH_RETRY_WINDOW_MS.
+    state.selectQueue.push([
+      {
+        status: 'failed',
+        sentAt: new Date(TUESDAY_10AM_CHICAGO.getTime() - TOUCH_RETRY_WINDOW_MS - 1000),
+      },
+    ])
+    const r = await runOutreach({ now: TUESDAY_10AM_CHICAGO })
+    expect(r.abandoned).toBe(1)
+    const stop = state.updates.find((u) => u.table === 'outreach_enrollment')
+    expect(stop!.values).toMatchObject({
+      status: 'stopped_undeliverable',
+      stopReason: 'touch_send_failed',
+      nextSendAt: null,
+    })
+  })
+
+  it('leaves a failed touch alone while it is still INSIDE the retry window', async () => {
+    // The window is the whole point of the give-up rule, and until Sentinel's
+    // review of #596 nothing consulted it: `settleUnclaimableTouch` selected
+    // `sentAt` and then branched on `status` alone, so every unclaimable
+    // 'failed' row was abandoned at any age. Single-threaded that is harmless
+    // (a row that failed `setWhere` and still reads 'failed' must be out of
+    // window). Under the overlapping runs this claim exists for, it is not:
+    //
+    //   1. run A's claim takes the failed row over    → status 'sent'
+    //   2. run B's claim matches nothing              → correct, A owns it
+    //   3. A's send fails, A writes status 'failed' back (sentAt untouched)
+    //   4. B does its SELECT, reads 'failed', and stops the enrollment
+    //      `stopped_undeliverable` with nextSendAt null — on attempt ONE,
+    //      well inside the window, permanently, with nothing to resume it.
+    //
+    // That is a cold-outreach prospect dropped for good by one Resend blip,
+    // and nobody is told.
+    state.claimRejects = true
+    state.selectQueue.push([]) // paused sequences
+    state.selectQueue.push([ENROLLMENT])
+    state.selectQueue.push([PROSPECT])
+    state.selectQueue.push([TEMPLATE_1])
+    state.selectQueue.push([
+      { status: 'failed', sentAt: new Date(TUESDAY_10AM_CHICAGO.getTime() - 60_000) },
+    ])
+
+    const r = await runOutreach({ now: TUESDAY_10AM_CHICAGO })
+
+    expect(r.abandoned).toBe(0)
+    expect(r.guardSkipped).toBe(1)
+    // The enrollment keeps its backoff and stays live.
+    expect(state.updates.find((u) => u.table === 'outreach_enrollment')).toBeUndefined()
+  })
+
+  it('stands down without stopping the enrollment when another run holds the touch', async () => {
+    state.claimRejects = true
+    state.selectQueue.push([]) // paused sequences
+    state.selectQueue.push([ENROLLMENT])
+    state.selectQueue.push([PROSPECT])
+    state.selectQueue.push([TEMPLATE_1])
+    // The winner's row reads 'sent' — this is the race the claim is for.
+    state.selectQueue.push([{ status: 'sent', sentAt: TUESDAY_10AM_CHICAGO }])
+    const r = await runOutreach({ now: TUESDAY_10AM_CHICAGO })
+    expect(r).toMatchObject({ guardSkipped: 1, abandoned: 0, sent: 0 })
+    expect(state.updates.find((u) => u.table === 'outreach_enrollment')).toBeUndefined()
   })
 
   it('paused sequences hold their enrollments', async () => {
