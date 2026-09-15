@@ -998,7 +998,21 @@ collections header) and two remain open below.
   wrapped, above ~$21M), and the page says when it is showing fewer rows than
   the totals count.
 - S3 · legacy `billing_profiles` vanity write (`lib/services/settings.ts`) —
-  a table nothing reads back for billing. · OPEN.
+  a table nothing reads back for billing. · **FIXED — awaiting merge (#606)**
+  (DREAMCRM-58) — `upsertBilling` was the only writer; it, `getBilling`, the
+  two dead server actions behind them (`saveBilling` / `changePlan`) and their
+  input schemas are gone. Bigger than dead code: `changePlan` took a plan name
+  straight from its caller and wrote it, so any signed-in user could set
+  `billing_profiles.plan` to 'enterprise'. That bought them nothing while
+  nothing read the column — and it was one `select` away from self-serve plan
+  escalation the day somebody pointed a read at the near-identical table name.
+  The truth stays the org-scoped `clinic_profile` (`planTier`,
+  `subscriptionStatus`), written by the Stripe webhook.
+  `tests/billing/no-billing-profiles-write.test.ts` fails on a READ as well as
+  a write — a read arriving is the risk, because it would give the rows the
+  retired Plans UI left behind a meaning they never had. DROPPING THE TABLE is
+  a migration on the deploy path and is queued in `docs/POST-1.0.md`, not done
+  here.
 - S3 · `(pay)/ecommerce/pay` demo cart accepts an arbitrary amount (moves no
   real money). · **FIXED** — the page is gone. The whole `(pay)` route group
   went with the Mosaic commerce template it belonged to (DREAMCRM-5, #508): a
@@ -1038,12 +1052,35 @@ patient) and a handful of S3 polish items.
 
 - S2 · the go-live "coming soon" gate (`site/[slug]/layout.tsx`) has no
   pathname exemption, so a pre-live clinic's shared portal-login link / QR
-  (`/portal`), the `/intake-start` gate, and portal out-links (shop,
-  dental-plans upsell) dead-end on the marketing coming-soon page. Mitigated
-  (magic-link EMAIL sign-in bypasses the site layout), so not S1 — but the
-  shared-link door is stranded. **R2 scoped item**: needs a pathname
-  exemption (middleware-stamped) + a test that a pre-live clinic's portal
-  login still resolves. · OPEN.
+  (`/portal`) and the `/intake-start` gate dead-end on the marketing
+  coming-soon page. Mitigated (magic-link EMAIL sign-in bypasses the site
+  layout), so not S1 — but the shared-link door is stranded. **R2 scoped
+  item**: needs a pathname exemption (middleware-stamped) + a test that a
+  pre-live clinic's portal login still resolves. · **FIXED** — R2 Slice 4
+  ("the doors are not the marketing site", below) did exactly that: middleware
+  stamps `x-dc-access-route` for `/site/[slug]/portal` and `/intake-start`,
+  `shouldShowComingSoon` takes an explicit `isAccessRoute` exemption checked
+  AFTER `shutDown`, and three tests pin it. SPLIT ON RECONCILIATION
+  (DREAMCRM-58 triage, 2026-09-15): this entry ALSO named the portal
+  OUT-LINKS, which Slice 4 did not touch and which are a different defect —
+  they are the line below, at their own severity. The entry had read OPEN ever
+  since Slice 4 merged, which is the exact confusion §1 exists to prevent:
+  half of it was fixed, so its one verdict could not be honest.
+- S3 · a pre-live clinic's PORTAL OUT-LINKS dead-end on the coming-soon page.
+  Split out of the S2 entry above on 2026-09-15 (DREAMCRM-58 triage) because
+  R2 Slice 4 closed that entry's doors and not this. Two call sites, both live:
+  `app/(portal)/patient/shop/page.tsx:16` redirects to `/site/{slug}/shop`, and
+  `app/(portal)/patient/invoices/page.tsx:342` links to
+  `/site/{slug}/dental-plans`. Neither path matches the `(portal|intake-start)`
+  access-route pattern in `middleware.ts`, so a patient of a fully operating
+  but unpublished practice taps Shop in a portal that works and lands on
+  "coming soon". Repro: clear `clinic_profile.site_live_at` for a clinic, sign
+  in to its portal as a patient, tap Shop. NOT the same fix as Slice 4's, and
+  that is why it is its own entry: these are commerce and upsell surfaces
+  rather than doors a practice hands out, so exempting them is one answer and
+  hiding the out-links while the site is unpublished is another — a product
+  call for whoever owns the portal, not a mechanical widening of the regex.
+  · OPEN.
 - S3 · portal visit-card offers no change affordance inside the notice window
   when the clinic has no phone on file (fall back to a "message us" link);
   family "Book for {name}" doesn't pre-select the dependent (`?for=` param);
@@ -1137,7 +1174,29 @@ three cheap high-value classes (fixed) plus loop-hardening (R2).
   hosted session always carries a URL in practice; this is the defensive
   branch), and the predicate is load-bearing for the coupon release's
   "was it deleted or never written" question, so the fix needs that reasoning
-  re-earned rather than the predicate simply dropped. · OPEN.
+  re-earned rather than the predicate simply dropped. · **FIXED — awaiting
+  merge (#606)** (DREAMCRM-58) — the predicate is dropped, and it did not
+  survive the re-earning. It never did the job its comment credited it with
+  ("cannot collide with the finalizer's lookup key"): the case it would have to
+  catch is `sessions.create` succeeding and the id-stamp UPDATE then throwing,
+  which leaves the column NULL and was deleted regardless. The guarantee is
+  what the comment already said it was — NO URL WAS EVER HANDED OUT, because
+  the only caller rethrows instead of returning — so what remains is the scope
+  that was load-bearing: this org, this exact `orderId`, `status='pending'`.
+  The coupon release is re-derived as three exhaustive cases (deleted →
+  release; never written → release; still there, which can now only mean NOT
+  PENDING → keep holding), decided by the survivor lookup rather than by the
+  predicate. Same choice, same reason, as `discardUnstartedBalancePayment`
+  above, so both money paths share one rule. THE SECOND SYMPTOM is worth
+  recording because this entry never named it: with the order surviving, the
+  survivor lookup read "not gone" and the single-use promo code stayed locked
+  for the full 24h COUPON_RESERVATION_TTL_MS — the exact lockout the rollback
+  exists to avoid, re-created in Postgres. Three cases in
+  `tests/shop/checkout-stripe-outage.test.ts`; the red run is worth copying —
+  TWO of them PASSED with the defect live, because the mock db returned its
+  canned rows for any WHERE at all and so could not see a predicate matching
+  nothing. The delete mock now evaluates `IS NULL` against whether an UPDATE
+  stamped the column.
 - S2 · `send-reminders` has no per-ORG try around the candidate/priorLogs
   queries, so one org's query throw 500s the route and silences the tick for
   everyone (near-S1); and its idempotency is a read-before-send with the log
@@ -1699,7 +1758,15 @@ timer, and nothing replaced that second job. `getPmsHealth`
 (`lib/services/pms/connection.ts:196`) counts pending/error ops on the
 integration page, so it is visible to somebody who looks; nothing alerts on
 "op pending for N days", so nobody is told. A practice whose bridge stays down
-over a holiday week has bookings queued and no prompt to go and look. · OPEN.
+over a holiday week has bookings queued and no prompt to go and look. · OPEN
+— UNBUNDLED to DREAMCRM-68 (2026-09-15, DREAMCRM-58 triage) and parked at
+`backlog` for the next planning meeting to rank. It is the only item in that
+triage batch that is not a small correctness fix: closing it means a new
+alerting path — a sweep, a dedupe so a week-long outage is one notice rather
+than a daily nag, and a decision about who hears it (the practice, whose bridge
+it is, or Dream Create, who can do nothing about their server room). The
+Guardian's audience lock and `recordEngineFailure`'s `onceWithin` throttle are
+the shapes to reuse rather than invent.
 ### Slice 13 — the insurance-card scanner only reads our own storage · DONE
 
 `lib/services/insurance-ocr.ts` filtered its `imageUrls` on `/^https?:\/\//` and
@@ -1770,7 +1837,39 @@ several defects. They are ALLOWLISTED (with these reasons) in
 
 None is the scanner's defect (metered per-call spend on someone else's cap),
 which is why the scanner was fixed and these were written down. The one worth
-a decision is the missing rate limit on `submitIntakeForm`. · OPEN.
+a decision is the missing rate limit on `submitIntakeForm`. · **FIXED —
+awaiting merge (#606)** (DREAMCRM-58), for that third item ONLY — the three
+client-posted org ids stay exactly as allowlisted above, with their reasons,
+because none of them is this defect.
+
+`submitIntakeForm` was the last public clinic-site action with no rate limit.
+It spends nothing, which is why it was written down rather than fixed with the
+scanner, but it is an unauthenticated WRITE: every call inserts a
+`form_submission` row AND fires `submitForm`'s `intake_submitted` notice to the
+org's owners and admins, so a script could bury a clinic's submissions list and
+their inbox together, for free, indefinitely.
+
+THE DECISION WAS THE NUMBER, and it is sized against the legitimate traffic
+rather than against the other actions here — both of the things that make this
+surface different push the same way:
+
+- a clinic's waiting-room iPad and its front-desk machines sit behind ONE
+  egress IP, so a per-IP cap on intake caps a whole practice at once, and the
+  failure mode is turning a real patient away at the desk;
+- a PACKET is N submissions rather than one. `form_packet.formIds` has no cap
+  and the flow submits each form independently, so one patient is routinely
+  6–10 calls — most of them one-tap consents that go through in seconds — and
+  a parent doing two children is already 20.
+
+So 40 per 10 minutes, against the 3–8 per 5–10 every other public action here
+uses: three people through a ten-form packet on the same wifi is 30 and fits,
+while an unbounded flood becomes 240/hour per IP. The right response to a real
+practice hitting this is to RAISE it, and the comment says so. It runs FIRST,
+ahead of the template lookup, and `checkRateLimit` already fails OPEN, so a
+limiter outage never stands between a patient and their forms.
+`tests/intake-forms/submit-rate-limit.test.ts` pins the refusal, the ordering
+and THE CAP ITSELF — shrinking it to 8/5min fails on its own, which is the
+point of asserting a number that was a judgement call.
 
 ### Slice 8 — stranded-campaign recovery · DONE
 
