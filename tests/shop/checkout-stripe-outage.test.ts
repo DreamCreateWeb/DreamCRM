@@ -36,6 +36,35 @@ const state = {
   stripeReturnsNoUrl: false,
   /** Make the cleanup DELETE itself blow up. */
   deleteThrows: null as Error | null,
+  /**
+   * Set once an UPDATE has written `stripeCheckoutSessionId` onto the order —
+   * i.e. the real column is no longer NULL. `matchedRows` reads it so a DELETE
+   * carrying `IS NULL` on that column matches NOTHING, the way Postgres would.
+   *
+   * Without this the mock returned `deleteReturn` for any WHERE at all, and the
+   * two no-URL tests below passed while the defect was live — the guard was
+   * blind to the only thing it was written for.
+   */
+  sessionIdStamped: false,
+}
+
+/**
+ * What the DELETE would really have removed, given the row state above. Only
+ * the one predicate under test is evaluated — a mock that graded every
+ * condition would be a second ORM, and the conditions themselves are asserted
+ * directly by `deleteConditions()`.
+ */
+function matchedRows(clause: unknown): Array<{ id: string }> {
+  let demandsNullSession = false
+  const walk = (v: unknown) => {
+    if (!v || typeof v !== 'object') return
+    const o = v as Record<string, unknown>
+    if (o._kind === 'isNull' && o.col === 'stripeCheckoutSessionId') demandsNullSession = true
+    if (Array.isArray(o.conds)) o.conds.forEach(walk)
+  }
+  walk(clause)
+  if (demandsNullSession && state.sessionIdStamped) return []
+  return state.deleteReturn
 }
 
 vi.mock('@/lib/db', () => {
@@ -57,8 +86,11 @@ vi.mock('@/lib/db', () => {
         },
       }),
       update: () => ({
-        set: () => ({
+        set: (values: Record<string, unknown>) => ({
           where: () => {
+            if (values && 'stripeCheckoutSessionId' in values && values.stripeCheckoutSessionId) {
+              state.sessionIdStamped = true
+            }
             state.updateCount++
             const p = Promise.resolve(undefined) as Promise<unknown> & { returning?: () => Promise<unknown> }
             p.returning = async () => state.claimResult
@@ -74,7 +106,7 @@ vi.mock('@/lib/db', () => {
           const p = Promise.resolve(undefined) as Promise<unknown> & {
             returning?: () => Promise<unknown>
           }
-          p.returning = async () => state.deleteReturn
+          p.returning = async () => matchedRows(clause)
           return p
         },
       }),
@@ -211,6 +243,7 @@ beforeEach(() => {
   state.insertFailsWith = null
   state.stripeReturnsNoUrl = false
   state.deleteThrows = null
+  state.sessionIdStamped = false
   eqCalls.length = 0
   isNullCols.length = 0
   sqlFragments.length = 0
@@ -220,6 +253,19 @@ beforeEach(() => {
 afterAll(() => {
   warn.mockRestore()
 })
+
+/** Every condition the cleanup DELETE was scoped by, flattened. */
+function deleteConditions(): Array<{ col: unknown; val: unknown }> {
+  const out: Array<{ col: unknown; val: unknown }> = []
+  const walk = (v: unknown) => {
+    if (!v || typeof v !== 'object') return
+    const o = v as Record<string, unknown>
+    if (o._kind === 'eq') out.push({ col: o.col, val: o.val })
+    if (Array.isArray(o.conds)) o.conds.forEach(walk)
+  }
+  state.deleteWheres.forEach(walk)
+  return out
+}
 
 // ── Shop ─────────────────────────────────────────────────────────────────────
 
@@ -240,7 +286,7 @@ describe('createShopCheckoutSession — Stripe outage', () => {
     expect(state.deleteCount).toBe(1)
   })
 
-  it('scopes that delete to an order still pending with NO Stripe session recorded', async () => {
+  it('scopes that delete to org + this exact order + still pending', async () => {
     state.selectQueue.push([ACTIVE_CONFIG], [variantRow()])
     state.stripeFailsWith = stripeOutage()
     state.deleteReturn = [{ id: 'order_1' }]
@@ -253,14 +299,85 @@ describe('createShopCheckoutSession — Stripe outage', () => {
       }),
     ).rejects.toThrow()
 
-    // Tenant-scoped, and only ever a 'pending' row — a paid/refunded order can
-    // never match.
-    expect(eqCalls.some((c) => c.val === 'org_1')).toBe(true)
-    expect(eqCalls.some((c) => c.val === 'pending')).toBe(true)
-    // The boundary that makes this safe: we only delete an order we never
-    // managed to attach a Stripe session to. Once a session id is recorded the
-    // row is the local half of something that exists at Stripe.
-    expect(isNullCols).toContain('stripeCheckoutSessionId')
+    const conds = deleteConditions()
+    // Tenant-scoped, pinned to the id this call minted, and only ever a
+    // 'pending' row — a paid or refunded order can never match.
+    expect(conds.some((c) => c.col === 'organizationId' && c.val === 'org_1')).toBe(true)
+    expect(conds.some((c) => c.col === 'id' && String(c.val).startsWith('ord_'))).toBe(true)
+    expect(conds.some((c) => c.col === 'status' && c.val === 'pending')).toBe(true)
+  })
+
+  it('does NOT also demand a null session id — that predicate is what stranded the no-URL path', async () => {
+    // It was credited with keeping the delete off the finalizer's lookup key,
+    // but it could not do that job: the case it would have to catch (the
+    // id-stamp UPDATE throwing after sessions.create succeeded) leaves the
+    // column NULL and was deleted regardless. What it did instead was block
+    // the cleanup of `!session.url`, which throws one line AFTER the stamp.
+    // The guarantee is "no URL was ever handed out", which the rethrow gives.
+    state.selectQueue.push([ACTIVE_CONFIG], [variantRow()])
+    state.stripeFailsWith = stripeOutage()
+    state.deleteReturn = [{ id: 'order_1' }]
+    isNullCols.length = 0
+
+    await expect(
+      createShopCheckoutSession('org_1', 'https://x', {
+        items: [{ variantId: 'v1', qty: 1 }],
+        fulfillmentType: 'pickup',
+        email: 'a@x.com',
+      }),
+    ).rejects.toThrow()
+
+    expect(isNullCols).not.toContain('stripeCheckoutSessionId')
+  })
+
+  it('THE NO-URL PATH: cleans up when Stripe answered but gave us no URL', async () => {
+    // The session exists at Stripe and its id is already stamped on our row,
+    // one line before the throw — so the old `IS NULL` delete matched nothing
+    // and the phantom 'pending' order stayed in the clinic's Orders list.
+    // Nobody can ever reach that session: the URL never left this function.
+    state.selectQueue.push([ACTIVE_CONFIG], [variantRow()])
+    state.stripeReturnsNoUrl = true
+    state.deleteReturn = [{ id: 'order_1' }]
+
+    await expect(
+      createShopCheckoutSession('org_1', 'https://x', {
+        items: [{ variantId: 'v1', qty: 1 }],
+        fulfillmentType: 'pickup',
+        email: 'a@x.com',
+      }),
+    ).rejects.toThrow(/no URL/)
+
+    // A DELETE that RAN is not a DELETE that MATCHED — the defect ran one and
+    // matched nothing. Grade the removal, not the call.
+    expect(state.deleteCount).toBe(1)
+    expect(await matchedRows(state.deleteWheres[0])).toEqual([{ id: 'order_1' }])
+  })
+
+  it('and hands the promo code back on that same no-URL path', async () => {
+    // The other half of the same defect: with the order surviving, the
+    // survivor lookup read "not gone" and the reservation stayed locked for
+    // the full 24h COUPON_RESERVATION_TTL_MS — the exact lockout the Stripe
+    // rollback exists to avoid, re-created in Postgres.
+    state.selectQueue.push([ACTIVE_CONFIG], [variantRow()], [singleUseCoupon()])
+    state.claimResult = [{ id: 'coupon_1' }]
+    state.stripeReturnsNoUrl = true
+    state.deleteReturn = [{ id: 'order_1' }]
+    // If the delete matches nothing, the row is still sitting there — queued so
+    // the survivor lookup reads the truth rather than an empty mock.
+    state.selectQueue.push([{ id: 'order_1' }])
+
+    await expect(
+      createShopCheckoutSession('org_1', 'https://x', {
+        items: [{ variantId: 'v1', qty: 1 }],
+        fulfillmentType: 'pickup',
+        email: 'a@x.com',
+        couponCode: 'BIRTHDAY',
+      }),
+    ).rejects.toThrow(/no URL/)
+
+    // The claim, the id-stamp, then the release.
+    expect(eqCalls.some((c) => c.col === 'usedOrderId')).toBe(true)
+    expect(isNullCols).toContain('usedAt')
   })
 
   it('hands a reserved single-use promo code back so a retry is not told it is used', async () => {
@@ -466,19 +583,6 @@ function startBalancePayment() {
   })
 }
 
-/** Every condition the cleanup DELETE was scoped by, flattened. */
-function deleteConditions(): Array<{ col: unknown; val: unknown }> {
-  const out: Array<{ col: unknown; val: unknown }> = []
-  const walk = (v: unknown) => {
-    if (!v || typeof v !== 'object') return
-    const o = v as Record<string, unknown>
-    if (o._kind === 'eq') out.push({ col: o.col, val: o.val })
-    if (Array.isArray(o.conds)) o.conds.forEach(walk)
-  }
-  state.deleteWheres.forEach(walk)
-  return out
-}
-
 describe('createBalancePaymentSession — Stripe outage', () => {
   it('THE PHANTOM ROW: deletes the pending payment it had already written', async () => {
     state.selectQueue.push(...balancePaymentSelects())
@@ -505,12 +609,13 @@ describe('createBalancePaymentSession — Stripe outage', () => {
     expect(conds.some((c) => c.col === 'status' && c.val === 'pending')).toBe(true)
   })
 
-  it('does NOT also demand a null session id — that is what strands the shop', async () => {
-    // discardUnstartedOrder adds `stripe_checkout_session_id IS NULL`, which
-    // means the shop cannot clean up its own !session.url path (the id was
-    // stamped one line earlier). There is no coupon reservation keyed off a
-    // balance payment, so nothing here needs that predicate — and leaving it
-    // out is what closes the no-URL case below.
+  it('does NOT also demand a null session id — the rule both money paths now share', async () => {
+    // This path was deliberately built without `stripe_checkout_session_id IS
+    // NULL` (DREAMCRM-20), and the shop's copy of that predicate was what
+    // stranded its own !session.url case — the id is stamped one line before
+    // the throw. discardUnstartedOrder dropped it too (DREAMCRM-58), so the
+    // rule is now the same on both: scope by org + this exact row + pending,
+    // and lean on "no URL was ever handed out" for the rest.
     state.selectQueue.push(...balancePaymentSelects())
     state.stripeFailsWith = stripeOutage()
     isNullCols.length = 0

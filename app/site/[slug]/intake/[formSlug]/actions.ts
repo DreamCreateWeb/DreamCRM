@@ -107,8 +107,49 @@ interface Input {
  * server-action error message with an opaque digest, so "This form is no
  * longer accepting responses" reached the patient as an internal-render
  * sentence with nothing to act on. See `lib/services/public-form-error.ts`.
+ *
+ * ── THE RATE LIMIT, AND THE DECISION IN IT ──────────────────────────────────
+ *
+ * This was the last public clinic-site action without one. It is not a spend
+ * path like the card scanner, which is why it was written down rather than
+ * fixed alongside it — but it is an unauthenticated WRITE. Every call inserts a
+ * `form_submission` row AND fires `submitForm`'s `intake_submitted` notice to
+ * the org's owners and admins, so a script can bury a clinic's submissions list
+ * and their inbox together, for free, for as long as it likes.
+ *
+ * The decision is the NUMBER, not whether to have one, and it is sized against
+ * the legitimate traffic rather than against the other actions here. Two things
+ * make this surface unlike them:
+ *
+ *  - A clinic's waiting-room iPad and its front-desk machines sit behind ONE
+ *    egress IP, so a per-IP cap on intake caps a whole practice at once. The
+ *    failure mode is turning away a real patient at the desk, which is worse
+ *    than the flood.
+ *  - A PACKET is N submissions, not one. `form_packet.formIds` has no cap, and
+ *    the flow submits each form independently — a "New Patient Packet" is
+ *    realistically 6–10, most of them one-tap consents that go through in
+ *    seconds. One parent completing packets for two children is already 20.
+ *
+ * So the limit is deliberately loose: 40 submissions per 10 minutes, where
+ * every other public action here sits at 3–8 per 5–10. Three people working
+ * through a ten-form packet on the same waiting-room wifi is 30 and still fits.
+ * What it buys is the floor, not precision: an unbounded flood becomes 240/hour
+ * per IP. If a busy practice ever does hit this, RAISE it — a cap is the wrong
+ * instrument against a real clinic and a blunt-enough one against a script.
+ *
+ * It runs FIRST, ahead of the template lookup, so a flood costs a counter
+ * rather than a query — the same order `readInsuranceCardAction` uses above.
+ * `checkRateLimit` fails OPEN, so a limiter outage never stands between a
+ * patient and their forms.
  */
 export async function submitIntakeForm(input: Input): Promise<PublicFormResult> {
+  if (!(await rateLimitPublicAction('intake_submit', { limit: 40, windowMs: 10 * 60 * 1000 }))) {
+    return {
+      ok: false,
+      error:
+        'That’s a lot of submissions from this connection in a short time. Please wait a minute and send it again — your answers are still here.',
+    }
+  }
   try {
     await runIntakeSubmission(input)
     return { ok: true, data: null }

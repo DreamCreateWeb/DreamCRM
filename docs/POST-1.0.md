@@ -59,6 +59,16 @@ memory.
   Library / Blog / Prospecting settings unlinked from Settings because
   those areas keep their own in-module doors by design. Decide the
   taxonomy once, post-1.0, rather than re-litigating it every batch.
+- **Drop the `billing_profiles` table.** Recorded 2026-09-15 with
+  DREAMCRM-58, which removed the last writer (`upsertBilling`) and the two
+  dead server actions behind it; nothing has ever read the table back for
+  billing. It is a migration on the deploy path against a table still
+  holding whatever the retired single-tenant Plans UI wrote, so the DROP is
+  post-1.0 work and not a tidy-up to ride along with a correctness slice.
+  The code is held off it in both directions meanwhile by
+  `tests/billing/no-billing-profiles-write.test.ts` — a READ arriving is
+  the risk, not the write returning, because it would give those stale rows
+  a meaning they never had. The `billing_plan` pgEnum goes with the table.
 - Facebook review reply (no Zernio endpoint), per-staff booking widgets,
   patient-view audit log, 2FA, per-location booking (CLAUDE.md item 8).
 - Dentistry-type site templates expansion (CLAUDE.md item 0b — design

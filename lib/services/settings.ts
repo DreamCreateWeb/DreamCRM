@@ -37,39 +37,28 @@ export async function updateAccount(userId: string, input: z.infer<typeof Accoun
 }
 
 // ---------- Billing ----------
-export const BillingPlan = z.enum(['free', 'pro', 'team', 'enterprise'])
-
-export const BillingInput = z.object({
-  plan: BillingPlan.optional(),
-  cardLast4: z.string().length(4).optional().nullable(),
-  cardBrand: z.string().max(40).optional().nullable(),
-  cardExpMonth: z.number().int().min(1).max(12).optional().nullable(),
-  cardExpYear: z.number().int().min(2000).max(2100).optional().nullable(),
-  billingEmail: z.string().email().optional().nullable(),
-  billingAddress: z.string().max(400).optional().nullable(),
-})
-
-export async function getBilling(userId: string) {
-  const rows = await db
-    .select()
-    .from(schema.billingProfiles)
-    .where(eq(schema.billingProfiles.userId, userId))
-    .limit(1)
-  return rows[0] ?? null
-}
-
-export async function upsertBilling(userId: string, input: z.infer<typeof BillingInput>) {
-  const data = BillingInput.parse(input)
-  const [row] = await db
-    .insert(schema.billingProfiles)
-    .values({ userId, ...data, updatedAt: new Date() })
-    .onConflictDoUpdate({
-      target: schema.billingProfiles.userId,
-      set: { ...data, updatedAt: new Date() },
-    })
-    .returning()
-  return row
-}
+// There is nothing here any more, on purpose.
+//
+// `getBilling` / `upsertBilling` read and wrote the user-keyed
+// `billing_profiles` table, and NOTHING read that table back for billing. The
+// real source of truth for a clinic's plan and subscription state is the
+// org-scoped `clinic_profile` (`planTier`, `subscriptionStatus`), written by
+// the Stripe webhook and read through `getTenantContext` — see
+// `lib/services/billing.ts` and `tests/settings/billing-page.test.ts`, which
+// already pins that Settings → Billing does not read `getBilling`.
+//
+// A write nobody reads is not merely dead weight. `upsertBilling` was reachable
+// from two exported server actions, one of which took a plan name straight from
+// the caller, so any signed-in user could set `billing_profiles.plan` to
+// 'enterprise'. That bought them nothing while nothing read the column — and
+// it was one `select` away from being self-serve plan escalation for anyone who
+// later wired a read to the wrong table. The other stored card brand/last4 and
+// a billing address, unread, indefinitely.
+//
+// The TABLE is still there: dropping it is a migration on the deploy path and
+// it holds whatever the legacy UI wrote. That is queued in `docs/POST-1.0.md`.
+// `tests/billing/no-billing-profiles-write.test.ts` keeps the code off it in
+// the meantime.
 
 // ---------- Notifications ----------
 export const NotificationPrefsInput = z.object({

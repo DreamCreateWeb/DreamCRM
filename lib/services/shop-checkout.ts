@@ -1,5 +1,5 @@
 import 'server-only'
-import { and, eq, isNull, sql } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 import { randomBytes } from 'crypto'
 import { db, schema } from '@/lib/db'
 import { stripe } from '@/lib/stripe'
@@ -225,20 +225,46 @@ export async function createShopCheckoutSession(
 /**
  * Undo an order that never made it to Stripe.
  *
- * WHY THIS IS SAFE, precisely: not because of the `IS NULL` predicate below.
- * If `sessions.create` succeeds and the id-stamp UPDATE then throws, the column
- * is still NULL and this DOES delete a row with a live Stripe session behind
- * it. That is harmless for a different reason — the caller throws instead of
- * returning, so the checkout URL never reaches the patient and the session can
- * never be paid. `finalizeOrderFromSession` will never be called for it. THE
- * GUARANTEE IS "NO URL WAS EVER HANDED OUT", not the predicate. Anyone widening
- * the catch block above (returning a URL on some failure path, say) breaks that
- * guarantee and has to re-earn it here.
+ * WHY THIS IS SAFE, precisely: because NO CHECKOUT URL WAS EVER HANDED OUT —
+ * never because of a predicate on `stripe_checkout_session_id`. The only caller
+ * is the catch block above, which rethrows instead of returning, so the patient
+ * is never sent to the hosted page and the session can never be paid;
+ * `finalizeOrderFromSession` will never be called for it. Anyone widening that
+ * catch (returning a URL on some failure path, say) breaks the guarantee and
+ * has to re-earn it here.
  *
- * The scope is still worth having: `status='pending'` keeps a paid or refunded
- * order out of reach entirely, and `stripe_checkout_session_id IS NULL` keeps
- * this narrow enough that it cannot collide with the finalizer's lookup key.
- * `shop_order_item.order_id` cascades, so the lines go with the order.
+ * THE `IS NULL` PREDICATE IS GONE, and it is worth saying why rather than just
+ * deleting it. It never did the job it was credited with — "cannot collide
+ * with the finalizer's lookup key" — because the case it would have to catch
+ * is `sessions.create` succeeding and the id-stamp UPDATE then throwing, which
+ * leaves the column NULL and was deleted anyway. What it DID do was strand the
+ * one path it sat in front of: `!session.url` throws one line AFTER the
+ * id-stamp, so the column is set, the delete matched nothing, and a phantom
+ * 'pending' order stayed in the clinic's Orders list with its promo code locked
+ * to it for 24h. Same choice, same reason, as
+ * `discardUnstartedBalancePayment` (DREAMCRM-20).
+ *
+ * The scope that remains is the scope that was ever load-bearing: this org,
+ * this exact `orderId` — minted by this call from 10 random bytes, never
+ * reused — and `status='pending'`, which keeps a paid or refunded order out of
+ * reach entirely. `shop_order_item.order_id` cascades, so the lines go with the
+ * order.
+ *
+ * THE COUPON RELEASE, RE-EARNED against the wider delete. The reservation may
+ * only be handed back once the order it was held for is really gone, and there
+ * are exactly three ways this function can end:
+ *
+ *   1. the delete removed the row — gone, release. This is the case the old
+ *      predicate excluded on the `!session.url` path, and excluding it is what
+ *      re-created the "already used" lockout in Postgres that the Stripe-side
+ *      TTL was there to avoid.
+ *   2. the delete matched nothing AND no row exists — the order insert itself
+ *      failed, after the claim. Never written is as gone as deleted; release.
+ *   3. the delete matched nothing and a row IS still there — which, now that
+ *      the session id no longer narrows the delete, can only mean the order is
+ *      no longer 'pending'. Something else owns it, the discount is attached to
+ *      it, and the code stays held. This is the one case that must NOT release,
+ *      and the survivor lookup is what decides it — not the predicate.
  *
  * Best-effort: a failed cleanup must never replace the real error (a Stripe
  * outage) with a database one in front of the patient. The worst case is the
@@ -257,7 +283,6 @@ async function discardUnstartedOrder(
           eq(schema.shopOrder.organizationId, organizationId),
           eq(schema.shopOrder.id, orderId),
           eq(schema.shopOrder.status, 'pending'),
-          isNull(schema.shopOrder.stripeCheckoutSessionId),
         ),
       )
       .returning({ id: schema.shopOrder.id })
@@ -268,7 +293,9 @@ async function discardUnstartedOrder(
     // of that insert (the DB blip the generic message anticipates) leaves a
     // reservation pointing at an order id that does not exist: the delete
     // matches nothing, and gating on that alone would re-create the same 24h
-    // "already used" lockout via Postgres instead of Stripe.
+    // "already used" lockout via Postgres instead of Stripe. See the three
+    // cases in the doc comment — a surviving row now means only "no longer
+    // pending", which is the one case that must keep holding the code.
     let orderIsGone = removed.length > 0
     if (!orderIsGone) {
       const [survivor] = await db
