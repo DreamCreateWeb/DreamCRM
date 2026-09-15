@@ -2871,7 +2871,7 @@ and must be on the intake list or `test` fails naming it. Red runs watched on
 all four new assertions, including a fabricated new scanner file — it failed by
 name on arrival.
 
-### `e2e/axe-baseline.ts` has no guard that ceilings only go down (2026-09-14) · OPEN
+### `e2e/axe-baseline.ts` has no guard that ceilings only go down (2026-09-14) · FIXED — awaiting merge (#588)
 
 **The defect.** §2 of the conventions states "Ceilings only ever go down" and
 "raising a ceiling to get green is weakening a failing test", and nothing
@@ -2892,6 +2892,43 @@ instrument this wants is a monotonicity guard that reads the entry's value on
 `origin/main` and fails on any increase, with a deliberate opt-out that has to
 be written down. That is a different defect from the routing hole and is filed
 separately rather than bundled into it.
+
+**The verdict** (DREAMCRM-60, #588, 2026-09-15). Built as specified.
+`tests/guards/axe-baseline-ratchet.test.ts` reads every ceiling as `origin/main`
+has it and fails any increase, inside the required `test` check (the git read is
+the test's; `axe-baseline-ratchet.ts` beside it is a pure comparator) — including a
+(stop, rule) absent from main, because an unlisted pair tolerates zero and
+adding a line is therefore a raise from zero, which is the shape a reviewer's
+eye forgives most easily.
+
+The opt-out is `e2e/axe-baseline-raises.ts`, and putting it in its OWN file is
+what resolves the argument above rather than working around it. The baseline
+stays off every label list for exactly the reason recorded here; the raises file
+holds nothing but raises, so it goes on the review gate under
+`check-definitions`. A path pattern still cannot tell a shrink from a raise — it
+does not have to, because the two directions now live in two files. Shrinks stay
+quiet; a raise reaches Sentinel.
+
+An entry re-asserts its own PREMISE, not merely its match: once the ceiling it
+describes moves — which is what a fix landing looks like — `test` goes red until
+the entry is deleted. That is #587's lesson carried forward rather than a fourth
+instance of the gap Sentinel's DREAMCRM-55 contribution names.
+
+Nine mutations watched red on the real file (an existing ceiling raised, a new
+stop added, an opt-out overshot, an opt-out expired, an opt-out reduced to a
+shrug, the workflow fetch step deleted, the gate pattern deleted, a spread added
+to the literal). **The tenth came back GREEN and changed the code**: renaming the
+export to `A11Y_BASELINE_V2` and aliasing it left every assertion passing,
+because the marker was matched with `indexOf` and a prefix is not a name — the
+`\b` family of trap from `docs/GUARD-MUTATION-PASS.md`, in a new spelling. The
+marker carries a `(?![\w$])` lookahead now.
+
+One thing this does NOT close, stated so nobody reads it as closed: the
+comparison is against `origin/main`'s tip, and `actions/checkout` on a
+`pull_request` builds the merge commit, so on a PR the tree being graded already
+contains main. On a stale local branch the two can disagree about a ceiling the
+branch never touched; the failure says so and names the fix (update the branch).
+Under `strict: true` that state cannot reach a merge.
 
 ### Clipped text over a SOLID brand fill is graded by no rule (2026-09-14) · OPEN
 
