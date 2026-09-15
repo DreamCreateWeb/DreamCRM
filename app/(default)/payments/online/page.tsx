@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import { requireTenant } from '@/lib/auth/context'
 import { listRecentBalancePayments, canTakeBalancePayments } from '@/lib/services/balance-payments'
 import { listRecentBookingDeposits } from '@/lib/services/booking-deposits'
+import { listUnmatchedRefunds } from '@/lib/services/refunds'
 import { getBalanceOutreachSettings } from '@/lib/services/balance-outreach'
 import BalanceOutreachCard from './balance-outreach-card'
 import { formatCents } from '@/lib/types/shop'
@@ -58,11 +59,14 @@ export default async function ShopPaymentsPage() {
   const timeZone = await getClinicTimeZone(ctx.organizationId)
   const fmtDate = (d: Date | null): string => (d ? formatClinicDate(d, timeZone) : '—')
 
-  const [payments, deposits, outreach, paymentsReady] = await Promise.all([
+  const [payments, deposits, outreach, paymentsReady, unmatchedRefunds] = await Promise.all([
     listRecentBalancePayments(ctx.organizationId),
     listRecentBookingDeposits(ctx.organizationId),
     getBalanceOutreachSettings(ctx.organizationId),
     canTakeBalancePayments(ctx.organizationId),
+    // Best-effort: a refund we could not attach is a heads-up, never a reason
+    // the reconciliation list fails to render.
+    listUnmatchedRefunds(ctx.organizationId).catch(() => []),
   ])
   const canManage = ctx.role === 'owner' || ctx.role === 'admin'
 
@@ -211,6 +215,63 @@ export default async function ShopPaymentsPage() {
                         amountCents={d.amountCents}
                         refundedAmountCents={d.refundedAmountCents}
                         paidTitle="Deposit captured by Stripe — credited toward the visit"
+                      />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Refunds Stripe sent back on this clinic's account that match no
+          payment record of ours — a membership charge, most often. Only
+          renders when there is one: an empty "nothing unmatched" panel is a
+          worry with no work in it. */}
+      {unmatchedRefunds.length > 0 && (
+        <div className="mt-8">
+          <div className="mb-3">
+            <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100">
+              Refunds we couldn&rsquo;t match
+            </h2>
+            <p className="mt-0.5 text-xs leading-relaxed text-gray-500 dark:text-gray-400">
+              Money went back to a patient from your Stripe account, and it doesn&rsquo;t line up
+              with any payment recorded here — a membership charge, usually. Reverse it on the
+              PMS ledger the same way; the details are in your Stripe dashboard.
+            </p>
+          </div>
+          <div className="v2-card overflow-hidden">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-[color:var(--color-surface-sunk)] border-b border-[color:var(--color-hairline)] text-left">
+                  <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Refunded</th>
+                  <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 text-right">Amount back</th>
+                  <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 text-right">Original charge</th>
+                  <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[color:var(--color-hairline)]">
+                {unmatchedRefunds.map((r) => (
+                  <tr key={r.id} className="hover:bg-gray-50 dark:hover:bg-gray-900/30">
+                    <td className="px-4 py-3 text-gray-600 dark:text-gray-300 tabular-nums font-mono-num">
+                      {fmtDate(r.refundedAt)}
+                    </td>
+                    <td className="px-4 py-3 text-right tabular-nums font-mono-num font-semibold text-gray-800 dark:text-gray-100">
+                      {formatCents(r.refundedAmountCents)}
+                    </td>
+                    <td className="px-4 py-3 text-right tabular-nums font-mono-num text-gray-600 dark:text-gray-300">
+                      {r.chargeAmountCents > 0 ? formatCents(r.chargeAmountCents) : '—'}
+                    </td>
+                    <td className="px-4 py-3">
+                      <StatusPill
+                        tone="warn"
+                        label={
+                          r.chargeAmountCents > 0 && r.refundedAmountCents >= r.chargeAmountCents
+                            ? 'Refunded'
+                            : 'Partly refunded'
+                        }
+                        title="Refunded in Stripe with no matching payment here — reverse it on the PMS ledger"
                       />
                     </td>
                   </tr>

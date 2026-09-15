@@ -6,6 +6,7 @@ import { stripe } from '@/lib/stripe'
 import { notifyOrgMembers } from './notifications'
 import { queueCommLogWriteBack } from './pms'
 import { toCsv, csvDollars } from '@/lib/csv'
+import { netCollectedCents } from '@/lib/net-collected'
 import { platformFeeCents } from '@/lib/types/shop'
 
 /**
@@ -233,25 +234,6 @@ export async function finalizeBookingDepositFromSession(
   return receipt
 }
 
-/** Deposit status for one appointment (drawer pill). Null = no deposit. */
-export async function depositForAppointment(
-  organizationId: string,
-  appointmentId: string,
-): Promise<{ amountCents: number; status: string } | null> {
-  const [row] = await db
-    .select({ amountCents: schema.bookingDeposit.amountCents, status: schema.bookingDeposit.status })
-    .from(schema.bookingDeposit)
-    .where(
-      and(
-        eq(schema.bookingDeposit.organizationId, organizationId),
-        eq(schema.bookingDeposit.appointmentId, appointmentId),
-      ),
-    )
-    .orderBy(desc(schema.bookingDeposit.createdAt))
-    .limit(1)
-  return row ?? null
-}
-
 export interface BookingDepositRow {
   id: string
   patientId: string
@@ -323,6 +305,7 @@ export async function exportBookingDepositsCsv(organizationId: string): Promise<
     'Paid at',
     'Refunded',
     'Refunded at',
+    'Net collected',
   ]
   const csvRows = rows.map((r) => [
     r.id,
@@ -334,6 +317,8 @@ export async function exportBookingDepositsCsv(organizationId: string): Promise<
     r.paidAt ? r.paidAt.toISOString() : '',
     r.refundedAmountCents > 0 ? csvDollars(r.refundedAmountCents) : '',
     r.refundedAt ? r.refundedAt.toISOString() : '',
+    // The column a bookkeeper can total — see the balance-payment export.
+    csvDollars(netCollectedCents(r.amountCents, r.refundedAmountCents)),
   ])
   return toCsv(headers, csvRows)
 }

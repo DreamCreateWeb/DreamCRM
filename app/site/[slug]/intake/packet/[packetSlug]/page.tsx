@@ -90,6 +90,7 @@ export default async function IntakePacketPage({ params }: Props) {
             forms={forms}
             action={submitIntakeForm}
             ocrAction={readInsuranceCardAction}
+            siteSlug={slug}
           />
         </div>
       </main>

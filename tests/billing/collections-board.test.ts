@@ -161,4 +161,53 @@ describe('getCollectionsBoard', () => {
     const board = await getCollectionsBoard('org_1', { now: NOW })
     expect(board.totalOutstandingCents).toBe(3_000_000_000)
   })
+
+  /**
+   * THE NETTING RULE on this board (DREAMCRM-32). A refunded balance payment
+   * keeps `status = 'paid'` on purpose, so "last paid $50" would sit next to a
+   * balance that never moved — because the $50 went straight back.
+   */
+  it('shows the last payment net of what Stripe sent back', async () => {
+    state.selectQueue.push([{ patientCount: 1, totalOutstandingCents: '42000' }])
+    state.selectQueue.push([{ count: 0 }])
+    state.selectQueue.push([
+      { id: 'p1', firstName: 'Marcus', lastName: 'Johnson', email: 'm@x.com', balanceCents: 42_000 },
+    ])
+    state.selectQueue.push([]) // no pay-link requests
+    state.selectQueue.push([
+      {
+        patientId: 'p1',
+        amountCents: 5_000,
+        refundedAmountCents: 2_000,
+        paidAt: new Date('2026-06-01T12:00:00Z'),
+      },
+    ])
+    state.selectQueue.push([{ total: 3_000 }])
+
+    const board = await getCollectionsBoard('org_1', { now: NOW })
+    expect(board.rows[0].lastPaidCents).toBe(3_000)
+    // The row still says they paid — the date is untouched.
+    expect(board.rows[0].lastPaidAt).toEqual(new Date('2026-06-01T12:00:00Z'))
+  })
+
+  it('shows a fully refunded last payment as nothing kept', async () => {
+    state.selectQueue.push([{ patientCount: 1, totalOutstandingCents: '42000' }])
+    state.selectQueue.push([{ count: 0 }])
+    state.selectQueue.push([
+      { id: 'p1', firstName: 'Marcus', lastName: 'Johnson', email: 'm@x.com', balanceCents: 42_000 },
+    ])
+    state.selectQueue.push([])
+    state.selectQueue.push([
+      {
+        patientId: 'p1',
+        amountCents: 5_000,
+        refundedAmountCents: 5_000,
+        paidAt: new Date('2026-06-01T12:00:00Z'),
+      },
+    ])
+    state.selectQueue.push([{ total: 0 }])
+
+    const board = await getCollectionsBoard('org_1', { now: NOW })
+    expect(board.rows[0].lastPaidCents).toBe(0)
+  })
 })

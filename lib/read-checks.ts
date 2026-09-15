@@ -110,10 +110,13 @@ export const READ_CHECKS: ReadonlyArray<ReadCheck> = [
       'DREAMCRM-32 / PR #557. Connect webhooks name a tenant only by `event.account`, so ' +
       'orgIdForConnectedAccount resolves a TENANT from this column on a money write path with ' +
       '`.limit(1)`. Two rows sharing an id file one clinic\'s refund into another clinic\'s ' +
-      'records by coin-toss. The partial unique index in 0162 is created on boot, and ' +
-      'Dockerfile:62 swallows a migration failure behind `|| true` — so on a duplicate the ' +
-      'deploy goes GREEN and the migration is skipped silently, forever. This must come back ' +
-      'EMPTY before that migration merges.',
+      'records by coin-toss. The partial unique index that closes it is WRITTEN AND PARKED at ' +
+      'lib/db/migrations/parked/one-stripe-account-per-clinic.sql — outside the journal, so no ' +
+      'deploy can run it (DREAMCRM-45 split it out of PR #557, which shipped the rest of that ' +
+      'batch without it). It is parked because `CREATE UNIQUE INDEX` fails on existing ' +
+      'duplicates and Dockerfile:62 swallows a migration failure behind `|| true` — so on a ' +
+      'duplicate the deploy would go GREEN with the migration skipped silently, taking every ' +
+      'later migration with it. This must come back EMPTY before the index is un-parked.',
     returns: 'stripe_account_id (a Stripe acct_ id, not patient data) + the organization ids sharing it',
     tenantScope: 'cross-tenant-by-design',
     sql: `select stripe_account_id, array_agg(organization_id) as organization_ids

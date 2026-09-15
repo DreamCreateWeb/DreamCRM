@@ -1,0 +1,196 @@
+import { describe, it, expect } from 'vitest'
+import { readFileSync, readdirSync, statSync } from 'node:fs'
+import { resolve, join, sep } from 'node:path'
+
+/**
+ * A PUBLIC CLINIC-SITE ACTION RESOLVES ITS OWN TENANT.
+ *
+ * Everything under `app/site/[slug]/**` is unauthenticated: whoever calls it
+ * chose every argument. An organization id in that argument list is therefore
+ * not a tenant scope — it is an invitation to pick a victim.
+ * `submitContactRequest` and the insurance verifier already say so in as many
+ * words ("resolve the org from the PUBLIC slug, never a client-posted
+ * orgId"). The insurance-card scanner did not, and because each of its calls
+ * spends real money from a per-clinic monthly cap, anyone who could upload an
+ * image could drain an ARBITRARY practice's allowance.
+ *
+ * The rule frozen here: no exported action in that tree DECLARES an org-id
+ * parameter, unless that exact declaration is listed below with a reason. What
+ * it may take is a slug, a token, or an entity id it re-validates against the
+ * org it resolved — all of which cost the action a lookup before it can act.
+ *
+ * ── WHY THE ALLOWLIST IS PER DECLARATION, NOT PER FILE ──────────────────────
+ *
+ * The first version of this guard excused whole FILES, and
+ * `app/site/[slug]/intake/[formSlug]/actions.ts` was on that list for
+ * `submitIntakeForm`'s own `Input`. That skipped the scanner sitting in the
+ * same file: putting `orgId: string,` back into `readInsuranceCardAction` left
+ * every case green. Sentinel found it by running the mutation, which is the
+ * only way anyone was ever going to.
+ *
+ * So an entry excuses one LINE. A new org-id declaration in an allowlisted
+ * file is still an offender, and case 4 fails if an entry stops matching
+ * anything at all — an allowlist nobody has to re-justify is where a guard
+ * goes to rot.
+ *
+ * ── RED RUN (2026-09-14, re-done after the above) ───────────────────────────
+ *
+ * Mutation: `orgId: string,` inserted back into `readInsuranceCardAction`'s
+ * parameter list, beside the `scope` it takes now — the realistic regression
+ * (somebody adds it "for convenience"), not a full revert. Watched cases 2 AND
+ * 3 fail naming `app/site/[slug]/intake/[formSlug]/actions.ts`, then restored
+ * and watched all five pass. Dropping the `rateLimitPublicAction` call fails
+ * case 5. Both mutations were run against the tree, not reasoned about.
+ */
+
+const PUBLIC_ACTION_ROOT = 'app/site'
+
+/**
+ * A DECLARATION of an org id — `orgId: string`, `organizationId?: string`,
+ * `orgId: z.string()`. Deliberately not `organizationId: orgId,`, which is a
+ * service call being handed a value the action already resolved.
+ *
+ * Applied PER LINE. It is `^`-anchored, so testing it against a multi-line
+ * slice without the `m` flag can only ever match that slice's first line —
+ * which is how the old case 3 managed to assert nothing at all.
+ */
+const ORG_ID_DECLARATION = /^\s*_?(?:org|organization)Id\s*\??\s*:\s*(?:string|z\.)/i
+
+/**
+ * Pre-existing and NOT closed by this pass — each is its own call, and
+ * bundling them into a scanner fix would have put one verdict over several
+ * defects. Written up as their own entry in `docs/RELEASE.md` Part 5.
+ *
+ * `declaration` is matched against the offending line, trimmed.
+ */
+const ALLOWED: Array<{ file: string; declaration: string; why: string }> = [
+  {
+    file: 'app/site/[slug]/actions.ts',
+    declaration: 'orgId: string,',
+    why: '`listBookingSlots` reads public availability — no write, no spend, and the same slots the page already renders to anyone',
+  },
+  {
+    file: 'app/site/[slug]/intake/[formSlug]/actions.ts',
+    declaration: 'orgId: string',
+    why: "`submitIntakeForm`'s own Input — it re-validates the templateId against the posted org, so a submission can only land on a form that org really owns; spends nothing",
+  },
+  {
+    file: 'app/site/[slug]/intake-start/actions.ts',
+    declaration: 'orgId: z.string().min(1),',
+    why: '`linkUserToClinicAsPatient` re-reads the org and requires a signed-in session; it links the CALLER to a clinic whose public page already offers that',
+  },
+]
+
+function walk(dir: string, out: string[] = []): string[] {
+  for (const entry of readdirSync(dir)) {
+    const full = join(dir, entry)
+    if (statSync(full).isDirectory()) walk(full, out)
+    else if (/\.tsx?$/.test(full)) out.push(full)
+  }
+  return out
+}
+
+/** Comments scope nothing — a doc comment naming a helper adopts it not. */
+function code(src: string): string {
+  return src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1')
+}
+
+/** Every `'use server'` file under the public clinic-site tree. */
+function serverActionFiles(): Array<{ path: string; src: string }> {
+  const root = process.cwd()
+  return walk(resolve(root, PUBLIC_ACTION_ROOT))
+    .map((f) => ({ path: f.slice(root.length + 1).split(sep).join('/'), src: readFileSync(f, 'utf8') }))
+    .filter(({ src }) => /^\s*'use server'/m.test(src))
+}
+
+interface Declaration {
+  file: string
+  line: number
+  text: string
+}
+
+/** Every org-id parameter declaration in the tree, allowlist not applied. */
+function allDeclarations(): Declaration[] {
+  const found: Declaration[] = []
+  for (const { path, src } of serverActionFiles()) {
+    code(src)
+      .split('\n')
+      .forEach((line, i) => {
+        if (ORG_ID_DECLARATION.test(line)) found.push({ file: path, line: i + 1, text: line.trim() })
+      })
+  }
+  return found
+}
+
+/** One allowance per listed declaration — a SECOND identical one still fails. */
+function unexcused(declarations: Declaration[]): Declaration[] {
+  const budget = new Map<string, number>()
+  for (const a of ALLOWED) {
+    const key = `${a.file} ${a.declaration}`
+    budget.set(key, (budget.get(key) ?? 0) + 1)
+  }
+  return declarations.filter((d) => {
+    const key = `${d.file} ${d.text}`
+    const left = budget.get(key) ?? 0
+    if (left > 0) {
+      budget.set(key, left - 1)
+      return false
+    }
+    return true
+  })
+}
+
+const SCANNER = 'app/site/[slug]/intake/[formSlug]/actions.ts'
+
+describe('public clinic-site server actions resolve their own tenant', () => {
+  it('the scanner still finds the public action files', () => {
+    // A guard that matches nothing passes forever.
+    const paths = serverActionFiles().map((f) => f.path)
+    expect(paths).toContain('app/site/[slug]/actions.ts')
+    expect(paths).toContain(SCANNER)
+  })
+
+  it('no unlisted action declares an organization id the caller supplies', () => {
+    expect(
+      unexcused(allDeclarations()),
+      'A public action cannot be handed its tenant. Resolve it with ' +
+        'resolveClinicOrgIdBySlug from the slug the page was served under, or ' +
+        'add an entry to ALLOWED naming that exact declaration and why it is safe.',
+    ).toEqual([])
+  })
+
+  it('the insurance-card scanner declares no org id of its own', () => {
+    // Its file is allowlisted for `submitIntakeForm`'s Input, so this asserts
+    // the SCANNER's own signature rather than trusting the case above to
+    // reach it — the hole that let the defect back in unnoticed.
+    const src = code(readFileSync(resolve(process.cwd(), SCANNER), 'utf8'))
+    const start = src.indexOf('export async function readInsuranceCardAction')
+    expect(start, 'the scanner was renamed or removed — re-point this guard').toBeGreaterThan(-1)
+    const signature = src.slice(start, src.indexOf('{', src.indexOf(')', start)))
+    const offending = signature.split('\n').filter((line) => ORG_ID_DECLARATION.test(line))
+    expect(offending, 'the scanner takes an OcrScope; the org comes from its slug').toEqual([])
+  })
+
+  it('every ALLOWED entry still excuses something real', () => {
+    // An entry that no longer matches is either a fixed defect nobody deleted
+    // or a typo silently excusing nothing — both worth failing over.
+    const declarations = allDeclarations()
+    const stale = ALLOWED.filter(
+      (a) => !declarations.some((d) => d.file === a.file && d.text === a.declaration),
+    ).map((a) => `${a.file} — ${a.declaration}`)
+    expect(stale, 'delete the entry, or fix the declaration text it was meant to name').toEqual([])
+  })
+
+  it('the insurance-card scanner is rate-limited like every other public action', () => {
+    // It was the one exception, and it is the one that spends money per call.
+    const src = code(readFileSync(resolve(process.cwd(), SCANNER), 'utf8'))
+    expect(src).toMatch(
+      /import\s*\{[^}]*rateLimitPublicAction[^}]*\}\s*from\s*'@\/lib\/services\/rate-limit'/,
+    )
+    expect(src).toMatch(/rateLimitPublicAction\(\s*'insurance_ocr'/)
+    expect(src).toMatch(
+      /import\s*\{[^}]*resolveClinicOrgIdBySlug[^}]*\}\s*from\s*'@\/lib\/services\/clinic-site'/,
+    )
+    expect(src).toMatch(/resolveClinicOrgIdBySlug\(/)
+  })
+})
