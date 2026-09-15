@@ -35,7 +35,8 @@
  *      meaning otherwise — so the tenant-scoping rule every other query in this
  *      repo obeys is waived here. `tenantScope` records that in writing, per
  *      entry, so the waiver is visible to the next reader instead of being an
- *      unstated property of the file.
+ *      unstated property of the file. An entry that reads no tenant-owned row
+ *      at all says `'no-tenant-data'` and claims no waiver — see the type.
  */
 
 export type ReadCheck = {
@@ -50,8 +51,13 @@ export type ReadCheck = {
   /**
    * 'cross-tenant-by-design' — reads across organizations on purpose, with the
    * reason stated in `why`. 'scoped' — stays inside one organization.
+   * 'no-tenant-data' — touches no tenant-owned row at all (schema bookkeeping,
+   * catalog metadata). Added rather than folding such an entry under
+   * 'cross-tenant-by-design', which would be a false declaration: rule 2 above
+   * exists so the next reader learns what an entry really reads, and a waiver
+   * claimed where none is needed is how a declaration stops being read.
    */
-  tenantScope: 'cross-tenant-by-design' | 'scoped'
+  tenantScope: 'cross-tenant-by-design' | 'scoped' | 'no-tenant-data'
   /** Literal SQL. No interpolation, ever. */
   sql: string
 }
@@ -151,6 +157,31 @@ having count(*) > 1
   ) as v(tbl, col)
  where has_column_privilege(current_user, v.tbl, v.col, 'SELECT')
  limit 100`,
+  },
+  {
+    id: 'migrations-applied',
+    question: 'Which migrations has production actually applied?',
+    why:
+      'DREAMCRM-46. A failed migration deploys GREEN: the Dockerfile runs db-migrate AFTER App ' +
+      'Runner has marked the container healthy and swallows the exit code, deploy.yml has no ' +
+      'migration step, and /api/admin/migrate answers a 500 nobody reads. This is the only place ' +
+      'the truth exists. `scripts/migration-check.mjs` compares the answer against the committed ' +
+      'journal and fails the deploy run when a journal entry is missing.\n' +
+      '\n' +
+      'It returns `created_at` and NOT `hash` on purpose. Rule 1 is satisfied either way — both ' +
+      'are schema bookkeeping — but `created_at` IS the journal `when`, and `when` is the only ' +
+      'field drizzle keys on when it decides what to apply (PgDialect.migrate compares against the ' +
+      'newest ledger row). Asserting on the field the migrator actually reads is what makes the ' +
+      'check answer the question the deploy path asks, rather than a nearby one.',
+    returns:
+      'applied_count + applied_at, the bigint epoch-ms stamps of every applied migration. Schema ' +
+      'bookkeeping only: no tenant row, no clinic id, no patient data, no hash.',
+    // Not a waiver — this table belongs to the schema, not to any clinic.
+    tenantScope: 'no-tenant-data',
+    sql: `select count(*)::int as applied_count,
+       coalesce(array_agg(created_at order by created_at), '{}') as applied_at
+  from drizzle.__drizzle_migrations
+ limit 1`,
   },
 ]
 
