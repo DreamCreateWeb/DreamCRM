@@ -73,12 +73,20 @@ export const GATE_RULES = [
       'retries, and (in e2e/axe.ts) which accessibility violations the harness is told to ignore. ' +
       'An exclusion is the one edit to a gate that can only ever make it looser, and it leaves no ' +
       'trace in .github/. scripts/review-gate.mjs is here for the same reason: it is the list ' +
-      'that decides which PRs reach a reviewer at all.',
+      'that decides which PRs reach a reviewer at all, and scripts/rulebook-drift.mjs is the ' +
+      'list of facts the rulebook asserts about this repo — delete a claim from it and the ' +
+      'daily drift check goes on reporting CLEAN about something it no longer looks at.',
     // DELIBERATELY NOT `tests/**` or `e2e/**` wholesale — see INTAKE_RULES
     // below for why the rest of the suite is an intake obligation and not a
-    // review one. These four are the files that decide what runs, as opposed
-    // to the files that assert something.
-    patterns: ['vitest.config.ts', 'playwright.config.ts', 'e2e/axe.ts', 'scripts/review-gate.mjs'],
+    // review one. These five are the files that decide what runs (or what gets
+    // asked), as opposed to the files that assert something.
+    patterns: [
+      'vitest.config.ts',
+      'playwright.config.ts',
+      'e2e/axe.ts',
+      'scripts/review-gate.mjs',
+      'scripts/rulebook-drift.mjs',
+    ],
   },
   {
     id: 'deploy-path',
@@ -209,6 +217,15 @@ export const GATE_RULES = [
       'middleware.ts',
       'app/(auth)/**',
       'app/api/auth/**',
+      // THE DEMO-CONTEXT MINTER (DREAMCRM-47). `enterDemoMode` writes the
+      // `demo_context` cookie, and `getTenantContext` gives that cookie
+      // PRECEDENCE over real org membership — it decides which organization
+      // the whole app renders as, for seven days. That is this rule's `why`
+      // exactly ("these decide who is signed in and what they may reach"),
+      // and the file matched nothing on the gate list: a PR changing which
+      // org a platform admin can become reported "merges on green". Found
+      // while fixing the missing target-org validation in the same function.
+      'app/(default)/ecommerce/customers/admin-actions.ts',
     ],
   },
   {
@@ -343,6 +360,14 @@ export const INTAKE_RULES = [
       'tests/design-system/jsx-attrs.ts',
       'tests/design-system/pending-feedback.test.ts',
       'tests/design-system/kpi-numerals.test.ts',
+      // The two a11y source scanners. They arrived here on DREAMCRM-50, not
+      // because they were new but because their scope WIDENED: both said
+      // `components/ui`, which reads as one named directory, and now say
+      // `components`, which is a product root. The classifier is right to
+      // reclassify them — a rule that grades all of `components` grades
+      // everyone's diff, and that is the thing intake is for.
+      'tests/a11y/legibility-floor.test.ts',
+      'tests/a11y/retired-tones.test.ts',
       // The remaining tree-wide scanners, each holding the product at zero for
       // one convention. Derived from the tree by the guard test, not recalled.
       'tests/clinic-site/jsonld-escaping.test.ts',

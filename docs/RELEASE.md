@@ -418,9 +418,28 @@ as confirmed defects yet.
   auth to add without breaking the middleware fetch it exists to serve. Not a
   defect — recorded here so the next sweep doesn't re-report it.
 - S3/housekeeping · `uploadPatientDocumentAction` writes the S3 blob before
-  the patient-in-org check (forged id orphans a blob; no row, no access);
-  `enterDemoMode` doesn't validate the target org (self-only, re-validated
-  downstream). · OPEN.
+  the patient-in-org check (forged id orphans a blob; no row, no access). ·
+  **FIXED** (DREAMCRM-47) — `patientBelongsToOrg` is exported from
+  `lib/services/patient-documents.ts` and asked BEFORE `uploadBlob`;
+  `addPatientDocument` still asks again on its own account, because a service
+  that trusts its caller to have checked is one caller away from not being
+  checked at all. The gate belongs in front of the one write here that cannot
+  be rolled back. `tests/patients/document-upload-order.test.ts` pins the
+  ORDER, not just the refusal.
+- S3/housekeeping · `enterDemoMode` doesn't validate the target org
+  (self-only, re-validated downstream). Unbundled from the upload defect
+  above: same sweep, different file, different fix. · **FIXED**
+  (DREAMCRM-47) — the org row was already being read (to decide whether to
+  run the demo seeder's self-heal), so the fix is to stop treating a missing
+  row as "not the demo clinic" and start treating it as "nothing to render
+  as". The cookie IS a tenant context — `getTenantContext` gives it
+  precedence over real org membership — so a wire-supplied `orgId` matching
+  no organization used to mint a seven-day cookie pointing at a tenant that
+  does not exist. `app/(default)/ecommerce/customers/admin-actions.ts` was
+  ALSO added to the `auth` rule in `scripts/review-gate.mjs` (and to
+  `MUST_BE_GATED`): the file that mints the tenant-context cookie matched
+  nothing on the gate list, so a PR changing which org a platform admin can
+  become reported "merges on green".
 
 Partitions audited CLEAN (no defect): appointments, patients, leads,
 intake-forms, followups, my-day, search, growth (outreach/reviews/social),
@@ -709,7 +728,69 @@ binding are all correct. The payment-plan charger was the exception.
   showing money returned that never left. Rare (mostly bank-level failures on
   older cards), and un-doing it needs an ordering rule the monotonic path
   deliberately does not have — a non-monotonic write would reopen the
-  out-of-order hazard the rule exists to close. · OPEN.
+  out-of-order hazard the rule exists to close. · **FIXED** (DREAMCRM-47,
+  migration 0163 `refund_synced_at` on the three money tables + the
+  `connect_refund` receipt). The ordering rule is a WATERMARK, not a
+  replacement: we now store WHEN the snapshot we applied was taken, and there
+  are THREE cases, not two — strictly newer wins outright (down as well as
+  up); strictly OLDER writes nothing at all, because a newer snapshot has
+  already decided this charge; and only the genuinely UNORDERABLE (no key, or
+  an exact tie) falls back to the old monotonic rule, unchanged. So the
+  out-of-order hazard stays closed in both directions.
+
+  The boundary between the last two cases is the whole correctness of this,
+  and the first version got it wrong — caught by Sentinel in review, not in
+  production. It sent everything "not strictly newer" to monotonic, and
+  monotonic RAISES: a failure recorded at t40 was undone by the original
+  refund redelivered from t10, putting the money straight back on the books
+  with the order flipped to 'refunded' and the watermark still at t40, so
+  nothing short of a genuinely newer event would ever correct it. Stripe is
+  at-least-once and retries for three days, so that needed no misordering at
+  all. **"Not newer" is a larger set than "cannot be ordered"; only the second
+  one may fall back.** The suite missed it because the stale-event case that
+  existed tested a stale event that would LOWER the total — accurate about
+  what it asserted, and named as though it covered stale events generally.
+
+  The ordering key is Stripe's own `event.created`, so there is exactly ONE
+  clock and it is not ours. A snapshot we FETCHED (the refund-object events
+  re-read the charge) is at least as fresh as the event that triggered the
+  fetch, so stamping it with that event's time only ever UNDER-claims its
+  freshness — and under-claiming degrades to the monotonic branch, which is
+  where we were before. There is no direction in which the new rule is worse
+  than the one it replaces. An equal timestamp is a redelivery and re-decides
+  nothing.
+
+  The sweep this needed: `recordConnectRefund` writes in FIVE places, and a
+  half-applied rule is a record that disagrees with itself. All five follow the
+  money down — the three money rows, the `connect_refund` receipt (the only
+  place a refunded MEMBERSHIP charge is ever visible, and it was monotonic for
+  the same reason), a shop order's `status` going back to 'paid' (this path is
+  the only writer of 'refunded', so it takes back its own claim), and the
+  LOYALTY ledger, where points clawed back for money that never left are
+  returned by `restoreLoyaltyForUnrefundedPayment`. The loyalty call also
+  stopped re-deriving the total with its own `Math.max` — a second copy of the
+  monotonic rule that would have kept reversing points the ordering rule had
+  just un-recorded.
+
+  The refund-UPDATE events are now handled, and — unlike `refund.created` —
+  are never skipped on the refund's status, because the status transition IS
+  the news. All THREE spellings are accepted (`charge.refund.updated`,
+  `refund.updated`, `refund.failed`): Stripe renamed the family and which name
+  a connected account emits depends on the API version pinned to it, so
+  betting on one would leave the whole fix inert for some accounts with
+  nothing saying so. **Ops: subscribe the Connect webhook endpoint to all
+  three in the Stripe dashboard — the table is in `docs/OPS.md` under "Stripe
+  Connect webhook events", which is where an operator will actually look.
+  Until that is done the code is correct and does nothing.**
+
+  Two smaller things the sweep turned up. `lib/net-collected.ts` justified its
+  zero-clamp partly on "`refunded_amount_cents` is monotonic by construction",
+  which this change makes false; the clamp never needed that premise and the
+  sentence is gone. And `listUnmatchedRefunds` now excludes zero-amount
+  receipts: the receipt keeps its `refunded_at` when a refund fails (recording
+  that a refunded charge was SEEN stays true), but the clinic's
+  reconciliation list answers "what left this account with nothing here to
+  match", and a refund that failed at the bank left nothing.
 - S2 · `referral-payouts.payoutPartner` · double-pay window — after a
   transfer succeeds but the ledger write fails, a manual retry >24h later
   (Stripe idempotency window lapsed) re-derives the same key and sends a
@@ -756,7 +837,14 @@ binding are all correct. The payment-plan charger was the exception.
   paid also lands there, so the shop success page would tell that shopper
   "your order is confirmed". Nothing is written and no money moves — a
   cosmetic lie on one page, in a state that needs a cancellation AFTER payment
-  to reach at all. Returning the row's real status closes it. · OPEN.
+  to reach at all. Returning the row's real status closes it. · **FIXED**
+  (DREAMCRM-47) — the lost-race branch re-reads the row inside the
+  organization and reports the status it finds. A row that vanished under us
+  falls back to what was read on the way in, never to 'paid': the whole point
+  is that this branch stops inventing an answer.
+  `tests/shop/finalize-lost-race-status.test.ts` models the compare-and-swap
+  for real (a claim whose status predicate misses the row matches no rows), so
+  the test exercises the lost-race branch rather than a stand-in for it.
 - S3 · `listAdminSubscriptions` reads `s.items.data[0]` only, so a
   subscription with more than one item (a plan plus the social add-on, say)
   contributes ONE line's worth to every MRR figure. Pre-dates the MRR work,

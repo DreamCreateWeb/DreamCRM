@@ -26,6 +26,14 @@ import { netCollectedCents } from '@/lib/net-collected'
  *  - `reverseLoyaltyForRefundedPayment` takes back points already awarded
  *    when the refund arrives afterwards.
  *
+ * A third half arrived with DREAMCRM-47, because a refund can also be UNDONE:
+ * Stripe decrements the charge when a refund fails at the bank, so a payment
+ * that was fully refunded can stop being fully refunded, and points taken back
+ * for money that never left have to go back too
+ * (`restoreLoyaltyForUnrefundedPayment`). `syncLoyaltyForRefundedPayment` is
+ * the single entry point the refund path calls, so the two directions cannot
+ * drift into disagreeing about the same payment.
+ *
  * A PARTIAL refund keeps the award. Points per payment are a flat number, not
  * a rate on the amount — the patient did pay, and clawing back the whole
  * award because $10 of $200 came back is a worse answer than leaving it.
@@ -330,6 +338,66 @@ export async function reverseLoyaltyForRefundedPayment(
     // leans on this the way the sweep leans on it for earning.
     return false
   }
+}
+
+/**
+ * Put back points we reversed for a refund that then FAILED (DREAMCRM-47).
+ *
+ * Stripe decrements a charge's `amount_refunded` when a refund fails at the
+ * bank, so a payment that WAS fully refunded can stop being fully refunded.
+ * The money never left; the patient earned those points and is owed them.
+ *
+ * This is the one place in the ledger that DELETES rather than compensating,
+ * and the reasoning is the opposite of the reversal's: a compensating positive
+ * row would leave the patient's own history reading "refunded, points returned
+ * / points re-awarded" for a refund that never happened at all. The reversal
+ * row is the record of a thing that turned out not to be true, so it goes.
+ * Scoped to `kind = 'reverse'` and this payment: the EARN row is untouched, so
+ * the award still traces to the payment that produced it.
+ *
+ * Returns whether a reversal was actually removed.
+ */
+export async function restoreLoyaltyForUnrefundedPayment(
+  organizationId: string,
+  paymentId: string,
+  charge: { amountCents: number; refundedAmountCents: number },
+): Promise<boolean> {
+  // Still fully refunded — the reversal is still correct, leave it alone.
+  if (netCollectedCents(charge.amountCents, charge.refundedAmountCents) <= 0) return false
+
+  const removed = await db
+    .delete(schema.loyaltyEvent)
+    .where(
+      and(
+        eq(schema.loyaltyEvent.organizationId, organizationId),
+        eq(schema.loyaltyEvent.kind, 'reverse'),
+        eq(schema.loyaltyEvent.sourceId, paymentId),
+      ),
+    )
+    .returning({ id: schema.loyaltyEvent.id })
+  return removed.length > 0
+}
+
+/**
+ * The refund path's ONE loyalty entry point: reverse, restore, or leave it.
+ *
+ * Both directions share a single test — "is there anything left collected on
+ * this payment?" — and keeping them in one function is what stops the two
+ * halves drifting into disagreeing about the same payment.
+ */
+export async function syncLoyaltyForRefundedPayment(
+  organizationId: string,
+  paymentId: string,
+  charge: { amountCents: number; refundedAmountCents: number },
+): Promise<'reversed' | 'restored' | 'unchanged'> {
+  if (netCollectedCents(charge.amountCents, charge.refundedAmountCents) > 0) {
+    return (await restoreLoyaltyForUnrefundedPayment(organizationId, paymentId, charge))
+      ? 'restored'
+      : 'unchanged'
+  }
+  return (await reverseLoyaltyForRefundedPayment(organizationId, paymentId, charge))
+    ? 'reversed'
+    : 'unchanged'
 }
 
 // ── Redemption + adjustment ──────────────────────────────────────────────────

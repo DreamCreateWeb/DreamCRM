@@ -189,7 +189,7 @@ function EngagementRow({ e, platform }: { e: PostEngagementView; platform: strin
             <p className="text-base font-semibold font-mono-num text-gray-900 dark:text-gray-100 leading-tight">
               {fmt(s.value)}
             </p>
-            <p className="text-[10px] uppercase tracking-wide text-gray-400">{s.label}</p>
+            <p className="text-xs uppercase tracking-wide text-gray-400">{s.label}</p>
           </div>
         ))}
       </div>
@@ -409,11 +409,11 @@ function CommentRow({
             <div className="flex items-center gap-1.5 flex-wrap">
               <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">{c.authorName}</span>
               {c.isOwner && (
-                <span className="text-[10px] font-semibold text-teal-700 dark:text-teal-300 bg-teal-500/15 rounded px-1 py-0.5">
+                <span className="text-xs font-semibold text-teal-700 dark:text-teal-300 bg-teal-500/15 rounded px-1 py-0.5">
                   You
                 </span>
               )}
-              {c.isHidden && <span className="text-[10px] text-gray-400">· hidden</span>}
+              {c.isHidden && <span className="text-xs text-gray-400">· hidden</span>}
             </div>
             <p className={`text-sm whitespace-pre-wrap break-words ${c.isHidden ? 'text-gray-400 line-through' : 'text-gray-700 dark:text-gray-200'}`}>
               {c.message}
