@@ -12,13 +12,14 @@ import {
   GhostCta,
   CheckIcon,
   DashboardMock,
-  PortalMock,
   MarqueeStrip,
   MONO_LABEL,
-  NIGHT_WIRE,
-  NightGhostCta,
-  NightPrimaryCta,
-  NightSky,
+  DAY_WIRE,
+  DaylightSky,
+  HeroGhostCta,
+  HeroPrimaryCta,
+  HeroReplyBubble,
+  HeroStatTile,
 } from '@/components/marketing/ui'
 
 export const dynamic = 'force-dynamic'
@@ -124,101 +125,137 @@ export default async function MarketingHome() {
   return (
     <>
       <JsonLd data={softwareApplicationLd([{ name: 'DreamCRM', price: 200 }])} />
-      {/* ── Hero — THE NIGHT BAND (BRAND.md Part 8, move 1) ──────────────
-             The page opens and closes at night and does its reading in
-             daylight: this band and the ticker under it are the dark surface,
-             and everything from "What it feels like" down stays white.
+      {/* ── Hero — THE DAYLIGHT BAND (BRAND.md Part 8, move 1) ───────────
+             The page is light now, hero included. The owner lived with the
+             night band that shipped on DREAMCRM-54 and reversed it on
+             DREAMCRM-67 — "i want to move heavier into the white/light theme"
+             — so the dark opening is gone and the page's one dark surface is
+             the footer it always closed on.
 
-             It is a BAND, not a theme. There is no `.dark` scope here (the
-             marketing site has zero `dark:` classes and this batch does not
-             start), which means `tests/a11y/dark-mode-parity.test.ts`
-             structurally cannot see it, and axe grades ink against
-             `background-color` so it never sees a single decorative layer in
-             `NightSky`. Every pair below is hand-measured in BRAND.md Part 7
-             against the RENDERED band — that table is the only gate this
-             surface has. ── */}
-      <section className="relative overflow-hidden bg-gray-950">
-        <NightSky />
-        <div className="relative mx-auto max-w-6xl px-4 pb-20 pt-16 sm:px-6 lg:pt-24">
-          <div className="mx-auto max-w-3xl text-center">
+             WHAT THE LIGHT GROUND CHANGES ABOUT THE GRADING, and it is not
+             "nothing to grade any more". Daylight pairs ARE covered by the
+             source rules in `tests/a11y/class-pairs.ts`, which is why the
+             headline's `CLIPPED_TEXT_EXEMPTIONS` entry was deleted in this
+             same PR rather than re-pointed: on white, rule 4 grades the stops
+             against the ground they actually ride and is simply right. But the
+             decorative layers are still `background-image`, and axe still
+             reads `background-color`, so the BLOOMS are invisible to every
+             gate in this repo — and on white a saturated bloom walks the
+             GROUND DOWN under dark ink, which is the night band's risk
+             inverted rather than removed. Every lobe is therefore centred
+             outside the reading column (`DaylightSky`), and the rendered run —
+             darkest pixel under each run of glyphs, grain ON — is recorded in
+             BRAND.md Part 7. ── */}
+      <section className="relative overflow-hidden bg-white">
+        <DaylightSky />
+        <div className="relative mx-auto grid max-w-6xl grid-cols-1 items-center gap-y-14 px-4 pb-16 pt-14 sm:px-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:gap-x-6 lg:pb-24 lg:pt-20">
+          {/* ── The reading column. Hard left, never centred: BRAND.md Part 4,
+                 and round B's "only halfway" was as much about type scale and
+                 alignment as about colour. ── */}
+          <div className="min-w-0 text-left">
             <p
-              className={`mkt-enter mb-5 inline-flex items-center gap-2.5 rounded-full border bg-white/[0.04] px-3.5 py-1.5 text-teal-400 ${MONO_LABEL}`}
-              style={{ borderColor: NIGHT_WIRE }}
+              className={`mkt-enter mb-6 inline-flex items-center gap-2.5 rounded-full border bg-white px-3.5 py-1.5 text-teal-700 shadow-[0_2px_10px_-6px_rgb(26_36_64/0.3)] ${MONO_LABEL}`}
+              style={{ borderColor: DAY_WIRE }}
             >
               {/* The band's one pulsing thing (BRAND.md Part 6, ~1.8s). The
                   glow is a second, larger dot behind the solid one, so what
                   breathes is light rather than the label's layout. */}
               <span className="relative flex h-1.5 w-1.5 shrink-0" aria-hidden="true">
-                <span className="mkt-live absolute inset-0 rounded-full bg-teal-300" />
-                <span className="relative h-1.5 w-1.5 rounded-full bg-teal-400" />
+                <span className="mkt-live absolute inset-0 rounded-full bg-teal-500" />
+                <span className="relative h-1.5 w-1.5 rounded-full bg-teal-600" />
               </span>
               Built for dental practices · syncs with Open Dental
             </p>
-            <h1 className="mkt-enter mkt-d1 text-[2.6rem] font-extrabold leading-[1.04] tracking-[-0.035em] text-white sm:text-[3.5rem]">
+            {/* 86px at 1440 (5.375rem), stepping down through 834 to a size
+                that still reads as DISPLAY at 390 — BRAND.md Parts 4 and 10.
+                Type steps down; it does not reflow into a different design. */}
+            <h1 className="mkt-enter mkt-d1 text-[2.85rem] font-extrabold leading-[0.98] tracking-[-0.035em] text-gray-950 sm:text-[4rem] lg:text-[5.375rem]">
               Your whole front office.
               <br />
-              {/* Gradient TEXT: the stops are the INK, not a fill.
-                  `tests/a11y/class-pairs.ts` rule 4 grades them against plain
-                  WHITE — deliberately, because that was the ground under every
-                  `bg-clip-text` in the tree when the rule landed — so on this
-                  band it fails correctly-in-form and wrongly-in-fact: teal-300
-                  measures 1.88 on white and 9.36 here, violet-300 2.03 and
-                  8.69. That is exactly what `CLIPPED_TEXT_EXEMPTIONS` was
-                  built for, and this is its first entry; the ratios above are
-                  re-derived from the palette in `token-contrast.test.ts`
-                  rather than trusted from this comment. */}
-              <span className="bg-gradient-to-r from-teal-300 to-violet-300 bg-clip-text text-transparent">
+              {/* THE SIGNATURE GRADIENT, and every stop is legal AS INK on
+                  white: teal-600 5.09, violet-700 6.14, fuchsia-700 6.27
+                  (BRAND.md Part 7, re-derived from the palette by
+                  `token-contrast.test.ts`). `fuchsia-600` is the trap and is
+                  NOT used — 4.66 on white but 4.46 on surface-1, so it would
+                  pass rule 4 (which grades against white, deliberately) and
+                  fail the page the moment this treatment lands on a raised
+                  panel. That is the 4.18 lesson in its light-ground costume.
+
+                  This is where the night band's exemption used to be needed.
+                  It is not needed now, so it is gone rather than re-pointed:
+                  rule 4 grades these three stops against the ground they
+                  really ride and passes them on the measurement. */}
+              <span className="bg-gradient-to-r from-teal-600 via-violet-700 to-fuchsia-700 bg-clip-text text-transparent">
                 One calm system.
               </span>
             </h1>
-            <p className="mkt-enter mkt-d2 mx-auto mt-6 max-w-2xl text-[1.08rem] leading-relaxed text-gray-300">
+            <p className="mkt-enter mkt-d2 mt-7 max-w-xl text-[1.08rem] leading-relaxed text-gray-600">
               DreamCRM is the patient-relationship platform for dental practices — the
               website, booking, portal, messages, reviews, and recall that run everything
               between you and your patients, in one system that feels calm. And your PMS?
               It stays exactly where it is.
             </p>
-            <div className="mkt-enter mkt-d3 mt-8 flex flex-wrap items-center justify-center gap-3">
-              <NightPrimaryCta href="/signup">Start your free trial</NightPrimaryCta>
-              <NightGhostCta href="/product">Tour the platform</NightGhostCta>
+            <div className="mkt-enter mkt-d3 mt-9 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+              <HeroPrimaryCta href="/signup">Start your free trial</HeroPrimaryCta>
+              <HeroGhostCta href="/product">Tour the platform</HeroGhostCta>
             </div>
-            <div className={`mkt-enter mkt-d4 mx-auto mt-7 flex max-w-xl flex-wrap items-center justify-center gap-x-6 gap-y-2.5 text-gray-300 ${MONO_LABEL}`}>
-              {['7 days free, everything included', 'No card to start', '$200/mo after, flat', 'Month-to-month'].map((t) => (
-                <span key={t} className="flex items-center gap-2">
-                  <CheckIcon className="h-3.5 w-3.5 shrink-0 text-teal-400" />
+            {/* The trust row loses its check marks here. That is the owner's
+                second veto from DREAMCRM-67 — "bland check marks as icons" —
+                and the mono row is what he approved in round B. The tone-tile
+                SET that replaces `CheckIcon` at the other marketing call sites
+                is move 3; this is only the hero's own row, which the approved
+                composition shows as plain mono with dot separators.
+
+                gray-600, not gray-500: 6.91 on white against 5.30, and this
+                row sits closest to the fuchsia lobe's tail. */}
+            <div className={`mkt-enter mkt-d4 mt-8 flex flex-wrap items-center gap-x-3 gap-y-2 text-gray-600 ${MONO_LABEL}`}>
+              {['7 days free', 'No card to start', '$200/mo after, flat', 'Month-to-month'].map((t, i) => (
+                <span key={t} className="flex items-center gap-3">
+                  {i > 0 && <span className="h-1 w-1 rounded-full bg-teal-600" aria-hidden="true" />}
                   {t}
                 </span>
               ))}
             </div>
           </div>
 
-          {/* The product mock as INSTRUMENT GLASS (BRAND.md Part 3, "depth is
-              emission, not stacking"): a translucent raised surface, one
-              hairline, a 1px top highlight, and bloom instead of a drop
-              shadow. The mock inside stays the light product — this site sells
-              a light-themed app, and the night is the marketing voice rather
-              than a claim about the screen you get.
+          {/* ── THE BLEED — BRAND.md Part 3's one deliberate grid-break, and
+                 Part 10's "a phone that drops the bleed is a phone showing a
+                 different brand". The mock crosses the container's right edge
+                 at EVERY width.
 
-              KEEP THE MOCK A DIRECT CHILD of `.mkt-float` / `.mkt-float-slow`.
-              `DECORATIVE_MOCKS` in `e2e/axe.ts` is `.mkt-float >
-              [aria-hidden="true"]`, and it is the only reason `marketing: home`
-              can hold a ceiling of ZERO — wrap the mock in anything and the
-              exclusion goes dead (`deadExclusions` fails) and 41 illustration
-              contrast findings come back. The glass therefore rides ON the
-              float wrapper rather than inside it. */}
-          <div className="mkt-enter mkt-d4 mt-14 flex items-end justify-center gap-6">
+                 IT IS ACHIEVED BY CLIPPING, not by letting the document get
+                 wider: the negative right margin widens this item's border
+                 box, and the `overflow-hidden` on the <section> above cuts it
+                 off at the viewport. Part 10 says to check that by measuring
+                 `scrollWidth` against `clientWidth` rather than by looking at
+                 it, because the bug this replaces LOOKED fine.
+
+                 KEEP EACH MOCK A DIRECT CHILD of `.mkt-float` /
+                 `.mkt-float-slow`. `DECORATIVE_MOCKS` in `e2e/axe.ts` is
+                 `.mkt-float > [aria-hidden="true"]` — the drift wrapper AND
+                 the attribute — and it is the only reason `marketing: home`
+                 can hold a ceiling of ZERO. Wrap a mock in anything and the
+                 exclusion goes dead (`deadExclusions` fails) and 41
+                 illustration contrast findings come back. The glass therefore
+                 rides ON the float wrapper rather than inside it. ── */}
+          <div className="mkt-enter mkt-d4 relative -mr-[14vw] min-w-0 sm:-mr-[12vw] lg:-mr-[17vw]">
             <div
-              className="mkt-float w-full max-w-3xl rounded-2xl border p-2 shadow-[inset_0_1px_0_0_rgb(255_255_255/0.10),0_0_48px_-14px_rgb(124_165_255/0.34),0_14px_64px_-40px_rgb(124_165_255/0.45)]"
-              style={{ borderColor: NIGHT_WIRE, backgroundColor: 'rgb(27 37 68 / 0.72)' }}
+              className="mkt-float rounded-2xl border p-2 shadow-[0_0_70px_-20px_rgb(93_71_222/0.45),0_24px_80px_-44px_rgb(26_36_64/0.45)] backdrop-blur-sm"
+              style={{ borderColor: DAY_WIRE, backgroundColor: 'rgb(255 255 255 / 0.72)' }}
             >
               <DashboardMock />
             </div>
-            <div className="mkt-float-slow hidden shrink-0 lg:block">
-              <PortalMock />
+
+            {/* The detached pieces, floating in FRONT of the mock. Absolutely
+                positioned so they overlap it, and each one still its float
+                wrapper's direct `aria-hidden` child. */}
+            <div className="mkt-float-slow pointer-events-none absolute -top-7 left-[-7%] z-10 hidden sm:block">
+              <HeroStatTile label="New patients MTD" value="12" sub="+3 vs last month" />
+            </div>
+            <div className="mkt-float pointer-events-none absolute -bottom-9 left-[-4%] z-10">
+              <HeroReplyBubble />
             </div>
           </div>
-          <p className={`mt-8 text-center text-gray-400 ${MONO_LABEL}`}>
-            The front desk&apos;s morning huddle — and the portal your patients see.
-          </p>
         </div>
       </section>
 

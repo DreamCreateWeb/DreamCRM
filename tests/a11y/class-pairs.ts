@@ -660,14 +660,29 @@ export function scanForWhiteOnShallowBrandGradient(roots: string[] = UI_ROOTS): 
  * exists — would fail this rule correctly-in-form and wrongly-in-fact. That is
  * what `CLIPPED_TEXT_EXEMPTIONS` is for.
  *
- * **IT IS NO LONGER EMPTY** (DREAMCRM-54, 2026-09-15). The homepage hero is
- * now the night band of `BRAND.md`'s Night Dream direction — `bg-gray-950`,
- * #10182e — and its headline accent runs `from-teal-300 to-violet-300`, which
- * this rule grades on WHITE at 1.88 and 2.03 and which measure 9.36 and 8.69
- * on the ground they actually paint on. That is the predicted case arriving,
- * not a new hole: the rule stayed exactly as it was and the exemption carries
- * the measurement. The discipline for a second entry is written on the list
- * itself.
+ * **IT IS EMPTY AGAIN, AND THAT IS THE INTERESTING PART** (DREAMCRM-69,
+ * 2026-09-15). It carried exactly one entry for one day: the homepage hero was
+ * the night band of `BRAND.md`'s Night Dream direction (`bg-gray-950`,
+ * #10182e) and its headline accent ran `from-teal-300 to-violet-300`, which
+ * this rule grades on WHITE at 1.88 and 2.03 and which measured 9.36 and 8.69
+ * on the ground they actually painted on. The owner then reversed the dark
+ * hero (DREAMCRM-67) and the ground under those stops became white for real.
+ *
+ * **The exemption was DELETED rather than re-pointed, and rule 4 was not
+ * touched.** On white, 1.88 and 2.03 are not a grading error, they are the
+ * page; weakening rule 4 to keep a green run would have re-opened the 2.42
+ * headline DREAMCRM-44 closed. The replacement headline runs
+ * `from-teal-600 via-violet-700 to-fuchsia-700` — 5.09, 6.14 and 6.27 as ink
+ * on white — so it is graded by this rule and PASSES it, which is the state
+ * an exemption is supposed to be a detour from.
+ *
+ * The removal was not noticed by reading the diff. Both halves of the guard in
+ * `token-contrast.test.ts` went red naming the entry the moment the hero
+ * turned white — the dead-exemption detector because the class string stopped
+ * matching, and the PREMISE assertion because no `<section>` in that file
+ * carried the night ground any more. `BRAND.md` Part 7 predicted that red run
+ * in writing before it happened. The discipline for a future entry is
+ * unchanged and written on the list itself.
  */
 const CLIP_TEXT = /bg-clip-text(?![\w-])/
 const TRANSPARENT_INK = new RegExp(`${BOUNDARY}text-transparent${NOT_IN_WORD}`)
@@ -678,48 +693,37 @@ export type ClippedTextExemption = { file: string; classes: string; why: string 
  * Clipped-text sites that deliberately ride something other than a light
  * ground — a dark band inside a light page, say.
  *
- * THE SITE THIS LIST WAS BUILT FOR NOW EXISTS (DREAMCRM-54, 2026-09-15). The
- * paragraph above predicted it in the abstract — "a site genuinely riding a
- * DARK band would fail this rule correctly-in-form and wrongly-in-fact" — and
- * the homepage hero is that site: the night band of `BRAND.md`'s Night Dream
- * direction, `bg-gray-950` (#10182e), owner-approved on DREAMCRM-43.
+ * THE SITE THIS LIST WAS BUILT FOR EXISTED FOR ONE DAY (DREAMCRM-54 →
+ * DREAMCRM-69, both 2026-09-15). The paragraph above predicted it in the
+ * abstract — "a site genuinely riding a DARK band would fail this rule
+ * correctly-in-form and wrongly-in-fact" — the homepage hero became that site
+ * when the night band shipped, and stopped being it when the owner reversed
+ * the dark hero. The entry was deleted with the band. Its full story is in the
+ * rule-4 header above, and it is the one worth reading before writing a new
+ * one, because it is the whole lifecycle in a day: predicted, used, retired.
  *
- * READ THIS BEFORE ADDING A SECOND ENTRY. An exemption here is not "this rule
- * is inconvenient", it is "this rule is grading against the wrong ground, and
+ * READ THIS BEFORE ADDING AN ENTRY. An exemption here is not "this rule is
+ * inconvenient", it is "this rule is grading against the wrong ground, and
  * here is the ground it is actually on, measured". The right shape is:
  *
  *   1. Watch the red run FIRST and read the ratios it reports on white.
  *   2. Measure the stops against the ground that is really there.
  *   3. Put BOTH numbers in the `why`, and have a test re-derive the second
- *      set from the palette rather than trusting the comment — see
- *      `token-contrast.test.ts`, "the night band's stops are legible on the
- *      ground they actually ride".
+ *      set from the palette rather than trusting the comment.
+ *   4. ASSERT THE PREMISE, not just the subject. The dead-exemption detector
+ *      below only asks whether the class string still matches something; an
+ *      exemption that describes the ink but not the GROUND goes on pardoning
+ *      a 1.88 headline after the reason for it has gone. The night-band entry
+ *      shipped with a structural premise assertion beside it in
+ *      `token-contrast.test.ts`, and that assertion is what went red — by
+ *      name, on the day the ground changed — rather than leaving a pardon
+ *      behind for whatever landed there next. Copy that, not just the row.
  *
  * What would NOT be legitimate: an entry whose `why` says the design is
  * important, or one that names a ground no element actually has. Rule 4 is
- * right about every other `bg-clip-text` in the tree.
+ * right about every `bg-clip-text` in the tree today.
  */
-export const CLIPPED_TEXT_EXEMPTIONS: ClippedTextExemption[] = [
-  {
-    file: 'app/(marketing)/page.tsx',
-    classes: 'from-teal-300 to-violet-300 bg-clip-text text-transparent',
-    why:
-      "The homepage hero's headline accent line, and it rides the NIGHT BAND " +
-      '(BRAND.md Part 8 move 1): the hero section is bg-gray-950 = #10182e, ' +
-      'not the white ground this rule grades against. Rule 4 measures these ' +
-      'stops on white at teal-300 1.88 and violet-300 2.03 and it is right ' +
-      'about white; on the ground they actually paint on they are 9.36 and ' +
-      '8.69, both comfortably over AA. The rule grades against white ' +
-      'deliberately (see the header above: it was the ground under every ' +
-      'bg-clip-text in the tree, and it keeps rule 4 sharing rule 2 cutoff ' +
-      'rather than opening a third), so this is the ground being wrong rather ' +
-      'than the cutoff — exactly the case this list exists for. The four dark ' +
-      'ratios are RE-DERIVED from the palette by token-contrast.test.ts rather ' +
-      'than trusted from this text, and the pairs are in BRAND.md Part 7, the ' +
-      'hand-graded table the night band depends on because no automated guard ' +
-      'in this repo can see a dark band inside a light-mode page.',
-  },
-]
+export const CLIPPED_TEXT_EXEMPTIONS: ClippedTextExemption[] = []
 
 /** Which clipped-text exemptions no longer match anything. */
 export function deadClippedTextExemptions(roots: string[] = UI_ROOTS): ClippedTextExemption[] {
