@@ -1,5 +1,5 @@
 import ScrollReveal from './scroll-reveal'
-import { SITE_INK as INK, SITE_INK_MUTED as INK_MUTED, SITE_SURFACE as SURFACE, SITE_BORDER as BORDER } from '@/components/clinic-site/tokens'
+import { SITE_BG as BG, SITE_INK as INK, SITE_INK_MUTED as INK_MUTED, SITE_SURFACE as SURFACE, SITE_BORDER as BORDER } from '@/components/clinic-site/tokens'
 
 
 export interface NumberedStep {
@@ -42,7 +42,7 @@ export default function NumberedSteps({
   editKeyPrefix,
 }: Props) {
   if (steps.length === 0) return null
-  const cardBg = surface === 'white' ? SURFACE : 'var(--c-bg, #FAF7F2)'
+  const cardBg = surface === 'white' ? SURFACE : BG
   const gridCols =
     columns === 1
       ? ''
