@@ -96,6 +96,28 @@ vi.mock('@/lib/email', () => ({
 const { notifyOrgMembersMock } = vi.hoisted(() => ({
   notifyOrgMembersMock: vi.fn(async () => undefined),
 }))
+// The clinic's on/off switch for the booking confirmation. The REAL renderer
+// still runs — the contact auto-acknowledgement's copy is asserted verbatim a
+// few tests down, and a stub would quietly stop grading it. Only `enabled`,
+// and only for this one key, is ours to flip.
+const emailAutomation = vi.hoisted(() => ({ enabled: true }))
+vi.mock('@/lib/services/email-automations', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/services/email-automations')>()
+  return {
+    ...actual,
+    renderAutomatedEmail: async (
+      organizationId: string,
+      key: Parameters<typeof actual.renderAutomatedEmail>[1],
+      fields: Record<string, string | null | undefined>,
+    ) => {
+      const rendered = await actual.renderAutomatedEmail(organizationId, key, fields)
+      return key === 'booking_confirmation'
+        ? { ...rendered, enabled: emailAutomation.enabled }
+        : rendered
+    },
+  }
+})
+
 vi.mock('@/lib/services/notifications', () => ({
   notifyOrgMembers: notifyOrgMembersMock,
 }))
@@ -155,6 +177,7 @@ beforeEach(() => {
   selectStubs.trialEndsAt = null
   selectStubs.profile = null
   defaultForm = null
+  emailAutomation.enabled = true
   vi.clearAllMocks()
   slotAvailableMock.mockResolvedValue(true)
   notifyOrgMembersMock.mockResolvedValue(undefined)
@@ -566,6 +589,19 @@ describe('submitBookingRequest', () => {
     )
     const conf = expectOk(await submitBookingRequest(form(baseFields)))
     expect(conf.emailStatus).toBe('not_sent')
+  })
+
+  it('reports emailStatus=email_off when the clinic switched the confirmation off, and never apologises for it', async () => {
+    // A setting the practice chose on purpose is not a fault. Folding it into
+    // `not_sent` made the screen say "we couldn't get one out to you just now"
+    // to every booker at that clinic — three states covering four, the same
+    // shape as the two covering three this change exists to fix.
+    // (Sentinel's note on #599.)
+    selectStubs.profile = { email: 'clinic@x.com', displayName: 'X Dental', phone: '555-clinic' }
+    emailAutomation.enabled = false
+    const conf = expectOk(await submitBookingRequest(form(baseFields)))
+    expect(conf.emailStatus).toBe('email_off')
+    expect(sendBookingConfirmationEmail).not.toHaveBeenCalled()
   })
 
   it('still books the visit when the confirmation email is rejected', async () => {

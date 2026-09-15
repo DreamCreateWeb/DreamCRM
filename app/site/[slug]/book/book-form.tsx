@@ -226,16 +226,20 @@ export function BookingSuccess({ confirmation, brand }: { confirmation: BookingC
         You&rsquo;re booked.
       </h2>
       <p className="leading-relaxed mb-7" style={{ color: INK_MUTED }}>
-        {/* Three states, because two were being made to cover three. The old
-            false branch said "We don't have your email" — which was also shown
-            to a patient whose email we DID have and whose confirmation never
-            went out, so the one person who needed to save these details was
-            told the opposite of what happened. */}
+        {/* One sentence per outcome. Two states were being made to cover four:
+            the old false branch said "We don't have your email" to a patient
+            whose email we DID have and whose confirmation never went out, so
+            the one person who needed to save these details was told the
+            opposite of what happened. And an apology ("we couldn't get one
+            out") is wrong for a clinic that switched the email off on
+            purpose — that is a choice, not a fault. */}
         {c.emailStatus === 'sent'
           ? 'We sent a confirmation to your email. See you soon!'
           : c.emailStatus === 'no_email'
             ? 'We don’t have your email, so we’ll call to confirm. Here are your visit details — feel free to save them.'
-            : 'Your visit is booked. We couldn’t get a confirmation email out to you just now, so here are the details — worth saving.'}
+            : c.emailStatus === 'email_off'
+              ? 'You’re all set. Here are your visit details — worth saving, and we’ll see you then.'
+              : 'Your visit is booked. We couldn’t get a confirmation email out to you just now, so here are the details — worth saving.'}
       </p>
 
       {/* Visit details card. */}

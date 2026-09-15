@@ -390,7 +390,7 @@ export async function listBookingSlots(
 }
 
 /** What became of the booking confirmation email. See `emailStatus` below. */
-export type BookingEmailStatus = 'sent' | 'no_email' | 'not_sent'
+export type BookingEmailStatus = 'sent' | 'no_email' | 'email_off' | 'not_sent'
 
 /**
  * Confirmation payload returned to the booking widget so the success screen can
@@ -422,10 +422,12 @@ export interface BookingConfirmation {
    * says a different sentence for each, and 'not_sent' exists because the
    * other two were being made to cover it.
    *
-   *  - `sent`      the email is on its way (delivery confirmed by the send path)
-   *  - `no_email`  a phone-only booker: we have no address to write to
-   *  - `not_sent`  we had an address and it did NOT go out — the clinic has the
-   *                confirmation email switched off, or the send failed
+   *  - `sent`       the email is on its way (delivery confirmed by the send path)
+   *  - `no_email`   a phone-only booker: we have no address to write to
+   *  - `email_off`  the clinic switched this confirmation off in Settings →
+   *                 Automations. A choice, not a fault — the screen says so
+   *                 without apologising for it
+   *  - `not_sent`   we had an address, the email was on, and it did NOT go out
    *
    * This used to be `emailSent: boolean`, set to true BEFORE a fire-and-forget
    * send whose only failure handler was a `console.error`. So a patient whose
@@ -764,6 +766,11 @@ async function runBookingRequest(formData: FormData): Promise<BookingConfirmatio
   // Checkout call for the deposit.
   let emailStatus: BookingEmailStatus = email ? 'not_sent' : 'no_email'
   if (email) {
+    // `email_off` and not `not_sent` when the clinic switched this email off
+    // (Sentinel's review of #599): "we couldn't get one out to you just now"
+    // apologises for a fault, and a setting the practice chose on purpose is
+    // not a fault. Three states covering four is the same shape as the two
+    // covering three that this change exists to fix.
     // Editable copy (Settings → Automations → Emails). When the clinic has
     // turned the confirmation email off, we don't send it — and the post-booking
     // screen won't claim we did.
@@ -775,6 +782,7 @@ async function runBookingRequest(formData: FormData): Promise<BookingConfirmatio
       appointmentType: appointmentType.replace('_', ' ').replace(/^\w/, (c) => c.toUpperCase()),
       appointmentTime: formatClinicDateTime(startTime, sender.timeZone),
     })
+    if (!rendered.enabled) emailStatus = 'email_off'
     if (rendered.enabled) {
       try {
         await sendBookingConfirmationEmail(

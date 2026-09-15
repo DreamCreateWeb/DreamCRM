@@ -129,6 +129,22 @@ describe('BookingSuccess', () => {
     expect(screen.getByRole('link', { name: /add to calendar/i })).toBeTruthy()
   })
 
+  it('a clinic that switched the confirmation email off gets no apology for it', () => {
+    // "We couldn't get one out to you just now" reads as a fault. A setting
+    // the practice chose on purpose is not one (Sentinel's note on #599).
+    render(
+      <BookingSuccess
+        confirmation={makeConfirmation({ emailStatus: 'email_off' })}
+        brand="#9CAF9F"
+      />,
+    )
+    const body = document.body.textContent ?? ''
+    expect(body).not.toMatch(/sent a confirmation to your email/i)
+    expect(body).not.toMatch(/don.t have your email/i)
+    expect(body).not.toMatch(/couldn.t get a confirmation email out/i)
+    expect(screen.getByRole('link', { name: /add to calendar/i })).toBeTruthy()
+  })
+
   it('hides the address row + maps/directions when the clinic has no address', () => {
     render(
       <BookingSuccess
