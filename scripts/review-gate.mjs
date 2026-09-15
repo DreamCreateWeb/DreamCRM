@@ -86,6 +86,13 @@ export const GATE_RULES = [
       'e2e/axe.ts',
       'scripts/review-gate.mjs',
       'scripts/rulebook-drift.mjs',
+      // The post-merge half of this check (DREAMCRM-61). It decides which
+      // merged PRs are reported as having skipped a review, and the edit that
+      // breaks it is the quiet one: widen what counts as "satisfied" and the
+      // sweep goes on running green every morning while seeing nothing. Same
+      // argument as `scripts/rulebook-drift.mjs` beside it — a control that
+      // reports CLEAN about a fact it no longer looks at.
+      'scripts/review-sweep.mjs',
     ],
   },
   {
@@ -552,6 +559,18 @@ function renderReviewSection(findings) {
     'Merge on `APPROVE` or `APPROVE WITH NOTES`; on `REQUEST CHANGES`, fix and re-request. This ' +
       'check cannot tell whether the review happened, only that one is owed — and it never blocks ' +
       'the merge either way.',
+    '',
+    '**Then write the verdict onto this PR before you merge it** (DREAMCRM-61). One line, and it ' +
+      'is what makes the miss findable:',
+    '',
+    '```bash',
+    'gh pr comment <n> --body "Sentinel review: APPROVE — <link to the verdict comment>"',
+    '```',
+    '',
+    'The verdict lives on a Multica issue, which GitHub cannot see, so without this a reviewed PR ' +
+      'and a forgotten one are indistinguishable from the outside. `review-sweep.yml` reads it the ' +
+      'next morning and goes red on anything that merged with this label and no record — #573 and ' +
+      '#582 both merged that way in one batch. It does not block your merge either.',
     '',
   )
   return lines.join('\n')

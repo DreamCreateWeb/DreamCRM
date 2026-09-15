@@ -1,8 +1,8 @@
 # CI — what gates what
 
-Nine workflows, and three of them can stop something: `ci.yml` holds a merge,
+Ten workflows, and three of them can stop something: `ci.yml` holds a merge,
 `deploy.yml` holds a deploy, and `migration-check.yml` can fail a deploy run
-without publishing a check of its own. The other six are alarms and advisories.
+without publishing a check of its own. The other seven are alarms and advisories.
 
 This file covers what runs *before* a merge and on the way to production. What
 gets checked *after* the deploy lands — the URLs the production watch sweep
@@ -19,6 +19,7 @@ loads, including the one real clinic site — is `docs/OPS.md`.
 | `.github/workflows/error-scan.yml` | `schedule` every 30 min + dispatch | `scan` | noticing errors inside the product | no — warns only |
 | `.github/workflows/migration-check.yml` | `workflow_call` from `deploy.yml` + `schedule` 08:20 UTC + dispatch | `migration-check` | that a deploy's migrations actually applied | no required context — but it CAN fail the deploy run |
 | `.github/workflows/rulebook-drift.yml` | `schedule` 06:17 UTC + dispatch | `rulebook-drift` | the rulebook still describing this repo | no — never runs on a PR |
+| `.github/workflows/review-sweep.yml` | `schedule` 06:47 UTC + dispatch | `review-sweep` | that a PR owing Sentinel a review did not merge without one | no — post-merge alarm, never runs on a PR |
 
 ## The deploy is not finished until the migrations are in
 
@@ -136,10 +137,12 @@ Postgres from the runner image's binaries, applies every migration from zero —
 deploy-path rehearsal — then builds, serves, and runs Playwright). See
 `docs/E2E.md`.
 
-## The two alarms
+## The two suite alarms
 
 Neither of these gates a merge or a deploy. That is the point: they can afford to
-run the slower, noisier, more informative shape of the suite.
+run the slower, noisier, more informative shape of the suite. (They are not the
+only alarms in the file any more — `review-sweep.yml` and `rulebook-drift.yml`
+watch the process rather than the suite, and have their own sections below.)
 
 - **`post-merge-e2e.yml`** re-runs the browser suite against `main` after a merge
   lands. PR `e2e` runs against a *stale* merge — `main` as it stood when that run
@@ -424,6 +427,109 @@ mint (Sentinel reviewing from a distinct GitHub identity), plus a full batch wit
 no correction to the gate list. The full reasoning and the before/after table are
 on the DREAMCRM-49 issue — a settings change has no diff, so that comment is the
 review record.
+
+## The sweep that asks whether the review happened (added 2026-09-15, DREAMCRM-61)
+
+`review-sweep.yml` runs every morning and answers the question the advisory
+above has never been able to answer: **did a PR that owed Sentinel a review
+merge without one?**
+
+The advisory was right twice and it did not matter. **#573 and #582 both merged
+carrying `needs-sentinel-review` with no review** — the gate labelled them
+correctly, author memory failed twice in the same batch, and the miss surfaced a
+day later in a manual sweep somebody chose to run. This is that sweep, on a
+schedule.
+
+**It gates nothing.** No `pull_request` trigger, no required context, no
+`needs:`, and it runs entirely after the merge commit is on `main` — usually
+after the deploy. It cannot hold a merge and must never try to.
+
+**Why a sweep works where a blocking gate did not.** The section above refuses a
+blocking `review-gate` because every available pass signal can be minted by the
+single admin account the whole agent fleet authenticates as. That argument is
+what makes this shape correct rather than a way round the ruling:
+
+- a **gate** has to survive an adversary, and a signal the author can mint is
+  worthless in front of a merge — minting it is the cheapest way past;
+- a **sweep** only has to survive *forgetting*, which is what actually happened,
+  twice in one batch. Someone who types a fake verdict onto their own PR to dodge
+  a reviewer has done something no check was going to stop; someone who forgot
+  leaves exactly the trace this reads.
+
+Do not "strengthen" this into a required check. That is DREAMCRM-49 re-argued
+from the other end, and the answer is still no.
+
+### The convention it depends on: write the verdict on the PR
+
+Sentinel's verdicts live on Multica issues, which GitHub cannot see. On the day
+this was built, **not one PR in the repository carried a GitHub review or a
+verdict comment** — including #575, #579 and #580, which were genuinely
+reviewed. A sweep that flagged "no review record on the PR" against that history
+would have cried wolf three times out of five on its first run.
+
+So whoever merges a gated PR records the verdict on it first, before merging:
+
+```bash
+gh pr comment <n> --body "Sentinel review: APPROVE — <link to the verdict comment>"
+```
+
+One line. It is prompted by the review-gate summary itself — the obligation
+arrives attached to the review request rather than living only here — and it
+does not block the merge either.
+
+### Zero false positives is the bar, and three things hold it there
+
+A sweep that cries wolf gets ignored, and then the miss goes back to being found
+by whoever happens to look.
+
+| Mechanism | What it prevents |
+| --- | --- |
+| `SWEPT_SINCE` — a hard cut-off, `2026-09-15T16:00:00Z` | judging merges from before the record-keeping convention existed, when a reviewed PR and an unreviewed one were indistinguishable |
+| generous satisfaction — a GitHub review carrying a verdict, or any PR comment with a verdict word in it, however phrased | firing at the one person who did the work because they wrote it differently |
+| the **label** is the trigger, not a re-run of today's `GATE_RULES` over the diff | retro-flagging PRs that were correctly clean when they merged — that list has been widened four times in twelve days |
+
+The skipped PRs are **counted and named** in the summary, never silently
+dropped: `Examined N merged PRs` leads every run, and 15 pre-cut-off PRs are
+listed as *not judged* rather than as passes. Same discipline as `Graded N/8`
+above — a run that looked at nothing must not read like a run that found
+nothing.
+
+Being loose about what counts as satisfied buys **false negatives**, and that is
+the deliberate direction: a missed miss costs the manual sweep we already had, a
+false alarm costs the instrument. What it therefore cannot see is written down
+at the top of `scripts/review-sweep.mjs` — a PR whose `continue-on-error` label
+step hiccuped, a verdict comment with no review behind it, and the
+`needs-forge-intake` obligation, which is deliberately not folded in.
+
+### Mechanics
+
+`gh pr list --state merged --limit 200` into `scripts/review-sweep.mjs`, which
+holds the classifier. No `pnpm install` anywhere in the job. It sweeps
+**everything merged since the cut-off** rather than a rolling "last N hours"
+window, because GitHub's scheduler is best-effort and this file's own table
+shows a `0 7` schedule landing up to +6h34m late — a 24-hour window on a
+six-hour slip drops merges into a gap and never looks at them again. The cost is
+that a finding stays red until it is remediated, which is what an unresolved
+miss should do.
+
+The script is told the same `--limit` the `gh` call used and goes **red** if the
+list came back truncated before reaching the cut-off, for the reason this
+document keeps re-learning: a sweep with a hole in it and a sweep that found
+nothing look identical from the outside.
+
+**Who reads a red run** is the same honest answer `post-merge-e2e.yml` gives:
+nothing in `.github/` routes a workflow failure anywhere, so it is GitHub's
+default failed-run notification plus the Actions tab — one inbox. A comment on
+the offending PR was the obvious louder channel and is deliberately not used: the
+sweep is cumulative, so an unremediated PR would collect one comment a day
+forever, and posting them needs a write scope on a job that otherwise holds only
+two reads.
+
+`tests/guards/review-sweep.test.ts` grades both directions inside the `test`
+check — every way a real review can be recorded must read as satisfied, and the
+#573/#582 shape must still be seen — plus the instrument checks: the Vercel
+comment every PR carries must never read as a verdict, and the workflow must
+stay unable to publish `test` or `e2e`, run on a PR, or ask for a write scope.
 
 ## The alarm that watches the rulebook (added 2026-09-14, DREAMCRM-53)
 
