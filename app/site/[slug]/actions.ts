@@ -389,6 +389,9 @@ export async function listBookingSlots(
   return getBookableSlotsForDay(orgId, date, undefined, durationMinutes, booking.minNoticeHours)
 }
 
+/** What became of the booking confirmation email. See `emailStatus` below. */
+export type BookingEmailStatus = 'sent' | 'no_email' | 'not_sent'
+
 /**
  * Confirmation payload returned to the booking widget so the success screen can
  * render the booked details, a maps link, an inline "Add to calendar" .ics, and
@@ -414,8 +417,22 @@ export interface BookingConfirmation {
   mapsUrl: string | null
   /** Public intake-form URL when the clinic has a default form (null otherwise). */
   intakeFormUrl: string | null
-  /** Whether a confirmation email was sent (false for phone-only bookers). */
-  emailSent: boolean
+  /**
+   * What actually happened with the confirmation email — the success screen
+   * says a different sentence for each, and 'not_sent' exists because the
+   * other two were being made to cover it.
+   *
+   *  - `sent`      the email is on its way (delivery confirmed by the send path)
+   *  - `no_email`  a phone-only booker: we have no address to write to
+   *  - `not_sent`  we had an address and it did NOT go out — the clinic has the
+   *                confirmation email switched off, or the send failed
+   *
+   * This used to be `emailSent: boolean`, set to true BEFORE a fire-and-forget
+   * send whose only failure handler was a `console.error`. So a patient whose
+   * email bounced, or whose send hit a Resend outage, was told in the past
+   * tense that we had sent them a confirmation — and then waited for it.
+   */
+  emailStatus: BookingEmailStatus
   /**
    * Stripe Checkout URL when this visit type requires a booking deposit and
    * the clinic can take payments — the widget redirects here instead of
@@ -528,7 +545,7 @@ async function runBookingRequest(formData: FormData): Promise<BookingConfirmatio
       addressText: null,
       mapsUrl: null,
       intakeFormUrl: null,
-      emailSent: false,
+      emailStatus: 'no_email',
       depositUrl: null,
       depositCents: 0,
     }
@@ -736,7 +753,16 @@ async function runBookingRequest(formData: FormData): Promise<BookingConfirmatio
     depositUrl = session?.url ?? null
   }
 
-  let emailSent = false
+  // THE SEND IS AWAITED, AND THE FLAG REPORTS WHAT HAPPENED. This used to set
+  // `emailSent = true` and then fire the send WITHOUT awaiting it, with a
+  // console.error for a failure handler — so the screen said "We sent a
+  // confirmation to your email" to a patient whose address had bounced or
+  // whose send hit a Resend outage, and they went off and waited for it. The
+  // appointment is booked either way; the only question is what we tell them,
+  // and the one thing we must not do is claim a past-tense send that never
+  // happened. One Resend round-trip on a path that already awaits a Stripe
+  // Checkout call for the deposit.
+  let emailStatus: BookingEmailStatus = email ? 'not_sent' : 'no_email'
   if (email) {
     // Editable copy (Settings → Automations → Emails). When the clinic has
     // turned the confirmation email off, we don't send it — and the post-booking
@@ -750,29 +776,36 @@ async function runBookingRequest(formData: FormData): Promise<BookingConfirmatio
       appointmentTime: formatClinicDateTime(startTime, sender.timeZone),
     })
     if (rendered.enabled) {
-      emailSent = true
-      sendBookingConfirmationEmail(
-        email,
-        {
-          patientName: `${firstName} ${lastName}`,
-          clinicName: sender.name,
-          clinicPhone: profile?.phone ?? null,
-          startTime,
-          endTime,
-          appointmentType,
-          intakeFormUrl,
-          timeZone: sender.timeZone,
-        },
-        sender,
-        rendered.override,
-      ).catch((err) => {
+      try {
+        await sendBookingConfirmationEmail(
+          email,
+          {
+            patientName: `${firstName} ${lastName}`,
+            clinicName: sender.name,
+            clinicPhone: profile?.phone ?? null,
+            startTime,
+            endTime,
+            appointmentType,
+            intakeFormUrl,
+            timeZone: sender.timeZone,
+          },
+          sender,
+          rendered.override,
+        )
+        emailStatus = 'sent'
+      } catch (err) {
+        // The visit IS booked — this only decides which sentence the success
+        // screen shows. Never unwind the booking over a mail failure.
         console.error('[clinic-site] booking email failed', err)
-      })
-      // Mirror the booking confirmation into OD's CommLog (best-effort).
-      queueCommLogWriteBack(orgId, patientId, {
-        note: `Booking confirmation sent for ${appointmentType.replace(/_/g, ' ')} on ${formatClinicDateTime(startTime, sender.timeZone)}.`,
-        mode: 'Email',
-      }).catch(() => {})
+      }
+      // Mirror the booking confirmation into OD's CommLog (best-effort), and
+      // only for a send that actually went out — the note says "sent".
+      if (emailStatus === 'sent') {
+        queueCommLogWriteBack(orgId, patientId, {
+          note: `Booking confirmation sent for ${appointmentType.replace(/_/g, ' ')} on ${formatClinicDateTime(startTime, sender.timeZone)}.`,
+          mode: 'Email',
+        }).catch(() => {})
+      }
     }
   }
 
@@ -798,7 +831,7 @@ async function runBookingRequest(formData: FormData): Promise<BookingConfirmatio
     addressText,
     mapsUrl,
     intakeFormUrl,
-    emailSent,
+    emailStatus,
     depositUrl,
     depositCents: depositUrl ? depositCents : 0,
   }

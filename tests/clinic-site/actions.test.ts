@@ -542,17 +542,39 @@ describe('submitBookingRequest', () => {
     expect(conf.addressText).toContain('123 Main St')
     expect(conf.addressText).toContain('Springfield')
     expect(conf.mapsUrl).toContain('google.com/maps')
-    expect(conf.emailSent).toBe(true)
+    expect(conf.emailStatus).toBe('sent')
     // endTime is after startTime.
     expect(new Date(conf.endTimeIso).getTime()).toBeGreaterThan(new Date(conf.startTimeIso).getTime())
   })
 
-  it('returns emailSent=false and null address bits for a phone-only booker with no clinic address', async () => {
+  it('returns emailStatus=no_email and null address bits for a phone-only booker with no clinic address', async () => {
     selectStubs.profile = { email: null, displayName: 'X Dental', phone: '555-clinic' }
     const conf = expectOk(await submitBookingRequest(form({ ...baseFields, email: null })))
-    expect(conf.emailSent).toBe(false)
+    expect(conf.emailStatus).toBe('no_email')
     expect(conf.addressText).toBeNull()
     expect(conf.mapsUrl).toBeNull()
+  })
+
+  // THE OPTIMISTIC FLAG. `emailSent` was set to true BEFORE a fire-and-forget
+  // send whose only failure handler was a console.error, so the success screen
+  // told a patient in the past tense that a confirmation was on its way when
+  // the send had already been rejected. They then waited for it.
+  it('reports emailStatus=not_sent when the confirmation email is rejected, and never claims it was sent', async () => {
+    selectStubs.profile = { email: 'clinic@x.com', displayName: 'X Dental', phone: '555-clinic' }
+    vi.mocked(sendBookingConfirmationEmail).mockRejectedValueOnce(
+      new Error('That email address was rejected.'),
+    )
+    const conf = expectOk(await submitBookingRequest(form(baseFields)))
+    expect(conf.emailStatus).toBe('not_sent')
+  })
+
+  it('still books the visit when the confirmation email is rejected', async () => {
+    selectStubs.profile = { email: 'clinic@x.com', displayName: 'X Dental', phone: '555-clinic' }
+    vi.mocked(sendBookingConfirmationEmail).mockRejectedValueOnce(new Error('Resend 503'))
+    const conf = expectOk(await submitBookingRequest(form(baseFields)))
+    // The appointment is the point; the email is a courtesy on top of it.
+    expect(insertedRows.find((r) => r.table === 'appointment')).toBeDefined()
+    expect(conf.startTimeIso).toBeTruthy()
   })
 
   it('surfaces the intake-form URL in the confirmation when the clinic has a default form', async () => {

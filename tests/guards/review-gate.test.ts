@@ -169,6 +169,11 @@ describe('the review-gate classifier', () => {
       // pattern list in the script now names them under money as well.
       'app/site/[slug]/shop/actions.ts': 'money',
       'app/site/[slug]/membership/actions.ts': 'money',
+      // The booking deposit (DREAMCRM-57) — `submitBookingRequest` prices the
+      // per-visit-type deposit and opens a Stripe Checkout session for it.
+      // Same class as its two siblings above, missed on the pass that added
+      // them.
+      'app/site/[slug]/actions.ts': 'money',
       'app/(default)/billing/activate/actions.ts': 'money',
       'app/(onboarding)/actions.ts': 'money',
       'lib/mrr.ts': 'money',

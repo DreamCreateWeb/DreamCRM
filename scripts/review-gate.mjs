@@ -206,6 +206,16 @@ export const GATE_RULES = [
       // nothing, which is the whole objection the trees raised.
       'app/site/[slug]/shop/actions.ts', // startCheckout + applyCoupon discount arithmetic — carts
       'app/site/[slug]/membership/actions.ts', // startMembershipCheckout — a recurring charge
+      // THE BOOKING DEPOSIT (DREAMCRM-57). Its two siblings above were added
+      // on the "gate where money is SET IN MOTION, as actions.ts files rather
+      // than trees" pass, and this one meets that test exactly and was missed:
+      // `submitBookingRequest` reads the clinic's per-visit-type deposit
+      // through `visitTypeDepositCents` and opens a Stripe Checkout session
+      // for it via `createBookingDepositSession`. A PR changing what a patient
+      // is charged to hold an appointment reported "merges on green". Found
+      // the same way #569's was — while fixing an unrelated defect in the same
+      // file — and widened in that PR rather than deferred.
+      'app/site/[slug]/actions.ts',
       'app/i/[token]/actions.ts', // startPlanSetupAction — payment plans, on a token-is-auth landing
       'app/b/[token]/actions.ts', // a patient-supplied amountCents, bounds-checked in this file
       // Same principle, checked on the same pass: both open a Stripe checkout.
