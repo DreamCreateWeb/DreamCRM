@@ -95,6 +95,20 @@ export default defineConfig({
     // reads its env at IMPORT time or at CALL time — a per-file product
     // question, not a mechanical edit. Until someone does that work and
     // re-measures, 20s is the honest number.
+    //
+    // AND THAT IS NOW A DECISION, NOT A PENDING ITEM (DREAMCRM-48,
+    // 2026-09-14). The pre-load work was carried on the ledger twice, deferred
+    // twice, and struck on the third pass: a timeout is a HANG detector, so a
+    // lower number buys only a faster report of a hang that is not happening —
+    // and across the 200 Actions runs spanning the whole life of this budget,
+    // nothing has hit it. Not in `test`, not in `nightly-test`, and not in
+    // `tz-canary`, which is worth checking on its own because
+    // continue-on-error means a red canary never shows up as a failed run.
+    //
+    // ONE vitest timeout in any of those three reopens it, and the answer then
+    // is the recipe above — not a bigger number. Raising a hang detector to get
+    // green is the same move as raising an axe ceiling. The evidence and the
+    // verdict live in docs/RELEASE.md Part 5; this comment stays the recipe.
     testTimeout: 20_000,
     hookTimeout: 20_000,
     setupFiles: ['./tests/setup.ts'],

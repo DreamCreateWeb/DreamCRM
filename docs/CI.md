@@ -443,11 +443,24 @@ Things that have already bitten this suite. Keep them true.
   `await import()` inside `vi.mock` factories; those are hoisted and cost a test
   nothing. DREAMCRM-19 pre-loaded 35 of the 43 during collection via
   `tests/prewarm.ts`, so the set of files that can be the unlucky one is now 8.
-  **The budget stays 20s.** Those remaining 8 defer on purpose and still reach
-  ~4.3s on their first test under load; cutting to 10s would leave them barely
-  2x headroom. Lowering it is earned by pre-loading those 8 — each needs its own
+  **The budget stays 20s, and since 2026-09-14 that is a DECISION rather than a
+  pending item.** Those remaining 8 defer on purpose and still reach ~4.3s on
+  their first test under load; cutting to 10s would leave them barely 2x
+  headroom. Lowering it is earned by pre-loading those 8 — each needs its own
   judgement about whether the module reads its env at import time or at call
   time — and re-measuring, not by deciding failures should be faster.
+
+  That work was carried on the ledger twice, deferred twice, and struck on the
+  third pass (DREAMCRM-48; `docs/RELEASE.md` Part 5 has the entry and the
+  evidence). A timeout is a hang detector, so a lower number buys only a faster
+  report of a hang that is not happening — and across the 200 Actions runs that
+  span the whole life of this budget, nothing has hit it: no vitest timeout in
+  `test`, none in `nightly-test`, and none in `tz-canary`, which is worth
+  checking on its own because `continue-on-error: true` means a red one never
+  shows up as a failed run. **One vitest timeout in any of those three reopens
+  it** — and the answer then is still the pre-load work and a re-measure. The
+  recipe stays in `vitest.config.ts`; striking the ledger entry costs nothing
+  but the queue slot.
 - **Never install packages while the suite is running.** pnpm relinks `next` into
   a new virtual-store path mid-run and mocks stop matching the runtime copy;
   it produced 78 bogus failures once.
