@@ -74,6 +74,13 @@ const BASE_REF = 'origin/main'
 /** GitHub Actions sets both; either is enough to mean "this run is the gate". */
 const IN_CI = Boolean(process.env.CI || process.env.GITHUB_ACTIONS)
 
+/**
+ * The event that started this run. On a `push`, HEAD is already ON main, which
+ * changes what the comparison can honestly say — see the live-comparison block.
+ * Absent locally, which is correct: a local run is never a push run.
+ */
+const PUSH_EVENT = process.env.GITHUB_EVENT_NAME === 'push'
+
 /** `e2e/axe-baseline.ts` as `origin/main` has it, or `null` if that ref is not here. */
 function baselineSourceOnMain(): string | null {
   try {
@@ -168,7 +175,7 @@ describe('the baseline parser', () => {
     // A PREFIX IS NOT A NAME, and this one was found by a red run that came
     // back GREEN. The marker was matched with `indexOf`, so renaming the export
     // to `A11Y_BASELINE_V2` and aliasing it still matched — the parser read the
-    // old literal and reported success. Same family as the `` traps in
+    // old literal and reported success. Same family as the `\b` traps in
     // docs/GUARD-MUTATION-PASS.md.
     expect(() =>
       parseBaseline("export const A11Y_BASELINE_V2 = { 'staff: x': { 'color-contrast': 1 } }"),
@@ -329,27 +336,74 @@ describe('the ratchet', () => {
 })
 
 describe('the live baseline against origin/main', () => {
-  it('has no ceiling higher than the one on main, and no expired opt-out', () => {
-    const source = baselineSourceOnMain()
+  /**
+   * WHY THIS IS TWO TESTS, AND ONLY ONE OF THEM IS SCOPED.
+   *
+   * The PREMISE — `origin/main` is here to be read — is asserted on every
+   * event, `push` included. A premise checked on only some events is not
+   * pinned, and the fetch step exists precisely so this never depends on what
+   * `actions/checkout` happens to do per event type. Nothing below skips it.
+   *
+   * The COMPARISON is scoped off `push`, and it costs no coverage, because on
+   * a push to main HEAD IS main: the comparison grades main against itself and
+   * has nothing to add. Every tree that reaches main was already graded by this
+   * same test on its own PR, with the ref present and asserted.
+   *
+   * What scoping BUYS is a false red on the deploy path. `deploy.yml` runs
+   * `test` without `cancel-in-progress` on purpose (the DREAMCRM-46 comment
+   * block explains why, and it is right), so merges X then Y run overlapping
+   * `test` jobs. The fetch step in run-for-X lands ~30–60s in. If Y merges
+   * inside that window and Y SHRINKS a ceiling — the baseline moved in 10 of
+   * the last 90 PRs — run-for-X reads `origin/main` as Y and grades X's tree
+   * against a ceiling that came down after X was written. That reports RAISED
+   * on a tree that raised nothing: `test` red, `deploy` skipped, on a push run,
+   * telling nobody in particular to update a branch that no longer exists. It
+   * is self-healing (Y's own deploy carries X forward) and rare, but this repo
+   * reads a red `test` on main as a real regression, and a guard that cries
+   * wolf on the deploy path is a guard someone eventually routes around.
+   *
+   * Not fixed by comparing against `git merge-base origin/main HEAD` instead,
+   * which would also close the stale-branch false red this guard honestly does
+   * not close: merge-base needs shared history and every workflow fetches
+   * `--depth=1`. Deepening the fetch on all four jobs to buy that is a trade
+   * worth making deliberately, not inside this PR.
+   */
 
-    if (!source) {
-      // NOT a quiet pass. In CI this is the guard being unable to do its one
-      // job, which is exactly the state it exists to make impossible, so it is
-      // a failure there — see the workflow pin below for the step that keeps
-      // the ref present.
-      expect(
-        IN_CI,
-        `\`git show ${BASE_REF}:${BASELINE_FILE}\` failed, so there is nothing to ratchet against. ` +
-          `Every workflow that runs \`pnpm test\` is supposed to run \`${FETCH_MAIN_COMMAND}\` first ` +
-          `— on a pull_request, actions/checkout fetches the merge ref and nothing else, so ` +
-          `${BASE_REF} does not exist without it. If that step is still there, the fetch failed.`,
-      ).toBe(false)
+  it(`can read ${BASELINE_FILE} on ${BASE_REF}`, () => {
+    // NOT a quiet pass, and NOT scoped by event. In CI a missing ref is the
+    // guard being unable to do its one job, which is exactly the state it
+    // exists to make impossible — see the workflow pin below for the step that
+    // keeps the ref present.
+    if (baselineSourceOnMain()) return
+
+    expect(
+      IN_CI,
+      `\`git show ${BASE_REF}:${BASELINE_FILE}\` failed, so there is nothing to ratchet against. ` +
+        `Every workflow that runs \`pnpm test\` is supposed to run \`${FETCH_MAIN_COMMAND}\` first ` +
+        `— on a pull_request, actions/checkout fetches the merge ref and nothing else, so ` +
+        `${BASE_REF} does not exist without it. If that step is still there, the fetch failed.`,
+    ).toBe(false)
+    console.warn(
+      `[axe-ratchet] ${BASE_REF} is not in this checkout. Run \`${FETCH_MAIN_COMMAND}\` ` +
+        `to grade your ceilings locally; CI does it for you and will not skip.`,
+    )
+  })
+
+  it('has no ceiling higher than the one on main, and no expired opt-out', () => {
+    if (PUSH_EVENT) {
+      // See the block comment above: HEAD is already main here, so this grades
+      // main against itself — vacuous when it wins the race with a concurrent
+      // merge, and a false red when it loses. The premise it rests on is still
+      // asserted, by the test above, on this very run.
       console.warn(
-        `[axe-ratchet] skipped: ${BASE_REF} is not in this checkout. Run \`${FETCH_MAIN_COMMAND}\` ` +
-          `to grade your ceilings locally; CI does it for you and will not skip.`,
+        `[axe-ratchet] comparison skipped on a push event: HEAD is already on main, so there is ` +
+          `no previous value to ratchet against. Every tree here was graded on its own PR.`,
       )
       return
     }
+
+    const source = baselineSourceOnMain()
+    if (!source) return // already failed (in CI) or warned (locally), just above
 
     const findings = checkRatchet({
       previous: parseBaseline(source, `${BASE_REF}:${BASELINE_FILE}`),
@@ -374,6 +428,25 @@ describe('every workflow that runs the suite fetches main first', () => {
   // skipped-and-silent shape, which is the failure mode the whole file argues
   // against. `e2e-flaky-summary.test.ts` pins its reporter across three
   // workflows for the same reason and had to be widened once to get there.
+  //
+  // WHICH PROPERTY THIS PIN LEANS ON — read before widening the regex. This
+  // census is deliberately imperfect in two known ways, and BOTH are survivable
+  // only because a missing `origin/main` FAILS rather than skips:
+  //
+  //  - `RUNS_SUITE` matches a `run:` line, so a job invoking the suite inside a
+  //    `run: |` block is invisible here — including to the `toEqual([...])`
+  //    assertion that exists to catch a pattern which has stopped matching.
+  //  - `fetches`/`runs` are counted per FILE, not per job, so a job with a
+  //    fetch and no suite run donates a spare count to a later job in the same
+  //    file with a suite run and no fetch. Nothing in the tree does this today.
+  //    Nothing stops it either.
+  //
+  // Under fail-on-missing, a job this census fails to cover goes red AT RUNTIME
+  // with the ref-missing message, which is a bad afternoon and a clear one.
+  // Under skip-on-missing, both holes would be silent, and the guard would be
+  // off in exactly the job nobody checked. If you ever make the live comparison
+  // skip when the ref is absent, these two gaps stop being survivable and this
+  // census has to become exact first.
   const WORKFLOWS = readdirSync(join(ROOT, '.github/workflows'))
     .filter((f) => f.endsWith('.yml') || f.endsWith('.yaml'))
     .sort()

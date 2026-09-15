@@ -136,6 +136,21 @@ when the ref is missing under CI, and the step is pinned in every workflow that
 runs `pnpm test`, derived from the workflow directory rather than a list. Depth 1
 because the tip's tree is all it reads. `docs/E2E.md` owns the ratchet itself.
 
+**The fetch runs on every event; the COMPARISON is skipped on `push`.** Two
+different assertions, deliberately: that `origin/main` resolves is the guard's
+premise and is checked everywhere, so a deleted fetch step goes red wherever it
+was deleted. Grading the tree against main is the part that only means something
+on a PR — on a push to `main`, HEAD *is* main. Skipping it there costs nothing
+(every tree that reaches `main` was graded on its own PR) and avoids a false red
+on the deploy path: `deploy.yml`'s `test` job has no `cancel-in-progress` by
+design, so merges X then Y run overlapping jobs, and if Y lands inside run-for-X's
+fetch window while *shrinking* a ceiling, run-for-X would grade X against Y's
+lower number and report a raise that nobody made — turning a green tree into a
+skipped deploy. It would be self-healing and rare, but a red `test` on `main`
+reads as a real regression here, so the guard does not get to cry wolf on the
+deploy path. Scoping is by `GITHUB_EVENT_NAME`, in
+`tests/guards/axe-baseline-ratchet.test.ts`.
+
 They are not byte-identical, and the difference is deliberate: the `test` job in
 `ci.yml` also runs `pnpm lint` (the `eslint-plugin-jsx-a11y` accessibility gate
 added 2026-09-10, DREAMCRM-17) before the suite. That step is PR-side only. Every

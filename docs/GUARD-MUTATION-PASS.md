@@ -77,9 +77,10 @@ the other design-system guards already share — instead of its own
 `components/clinic-site/tokens.ts` rather than copying them, and reports every
 offending line rather than the first.
 
-## Two traps worth carrying forward
+## Traps worth carrying forward
 
-Both cost a draft of a fix in this pass, and both will bite the next rule:
+The first two cost a draft of a fix in this pass, and both will bite the next
+rule:
 
 - **`\b` is not a token boundary when your tokens contain hyphens.** A hyphen
   is a non-word character, so `\b` after `surface` matches *inside*
@@ -87,6 +88,28 @@ Both cost a draft of a fix in this pass, and both will bite the next rule:
 - **`\b` also fails where Tailwind puts a `_`.** An arbitrary value spells
   spaces as `_`, which *is* a word character, so `\btheme\(` never matches
   `1px_theme(`.
+
+Two more, added by the axe-baseline ratchet's own mutation pass (#588,
+DREAMCRM-60). Both are the same family as the two above — an identity check
+that is loose in a direction nobody pictured — in a third and fourth spelling:
+
+- **A PREFIX IS NOT A NAME. If a guard identifies anything by substring,
+  `<MARKER>_V2` is the mutation to try.** The ratchet found its marker with
+  `indexOf`, so renaming `A11Y_BASELINE` to `A11Y_BASELINE_V2` and aliasing the
+  old name left every assertion green while the parser happily read the *old*
+  literal — a red run that came back GREEN and changed the code. Fixed with a
+  `(?![\w$])` lookahead and pinned by a unit test. `\b` would not have saved it
+  either: `_` is a word character, so `\bA11Y_BASELINE\b` matches the V2 name
+  too. This is the one to reach for whenever a guard says `includes(`,
+  `indexOf(`, or `startsWith(` on an identifier.
+- **Assert the ANSWER, not a proxy for it.** The ratchet's "a raise cannot merge
+  unseen" test first checked that the gate's source *mentioned*
+  `e2e/axe-baseline-raises.ts`. Deleting the pattern from `GATE_RULES` left that
+  test green — the filename survived in a `why` string and a comment. Calling
+  `gateFindings(['e2e/axe-baseline-raises.ts'])` and asserting on the result
+  fails correctly, because it asks the classifier the question the guard is
+  really about. Grep the implementation only when you cannot run it; a guard
+  that greps a module it could have imported is testing the file, not the rule.
 
 ## Guards verified honest
 

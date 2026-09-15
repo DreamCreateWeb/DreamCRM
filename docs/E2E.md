@@ -399,8 +399,10 @@ arrives next week. So they are carried in a baseline, as a **ratchet**:
   fix; a run prints a `::warning` naming ceilings that are now too high.
 
 **That last line is enforced** (2026-09-15, DREAMCRM-60), and it is enforced in
-the `test` check rather than here: `tests/guards/axe-baseline-ratchet.ts` reads
-every entry's value on `origin/main` and fails any increase. It is a source
+the `test` check rather than here: `tests/guards/axe-baseline-ratchet.test.ts`
+reads every entry's value on `origin/main` and fails any increase. (The git read
+lives in the test; the `.ts` beside it is a pure comparator with no I/O, which
+is what lets the whole comparison be exercised from fixtures.) It is a source
 guard for the same reason the gradient rules are — the browser suite can only
 report what it measured on the pages it visited, and the number it measures
 against is exactly the thing being edited. Four things worth knowing:

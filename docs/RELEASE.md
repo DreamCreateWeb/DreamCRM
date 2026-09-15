@@ -2894,8 +2894,9 @@ be written down. That is a different defect from the routing hole and is filed
 separately rather than bundled into it.
 
 **The verdict** (DREAMCRM-60, #588, 2026-09-15). Built as specified.
-`tests/guards/axe-baseline-ratchet.ts` reads every ceiling as `origin/main` has
-it and fails any increase, inside the required `test` check — including a
+`tests/guards/axe-baseline-ratchet.test.ts` reads every ceiling as `origin/main`
+has it and fails any increase, inside the required `test` check (the git read is
+the test's; `axe-baseline-ratchet.ts` beside it is a pure comparator) — including a
 (stop, rule) absent from main, because an unlisted pair tolerates zero and
 adding a line is therefore a raise from zero, which is the shape a reviewer's
 eye forgives most easily.
@@ -2919,7 +2920,7 @@ shrug, the workflow fetch step deleted, the gate pattern deleted, a spread added
 to the literal). **The tenth came back GREEN and changed the code**: renaming the
 export to `A11Y_BASELINE_V2` and aliasing it left every assertion passing,
 because the marker was matched with `indexOf` and a prefix is not a name — the
-`` family of trap from `docs/GUARD-MUTATION-PASS.md`, in a new spelling. The
+`\b` family of trap from `docs/GUARD-MUTATION-PASS.md`, in a new spelling. The
 marker carries a `(?![\w$])` lookahead now.
 
 One thing this does NOT close, stated so nobody reads it as closed: the
