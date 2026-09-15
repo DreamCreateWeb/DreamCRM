@@ -926,6 +926,22 @@ async function settleUnclaimableTouch(
     out.guardSkipped++
     return
   }
+  // THE WINDOW IS CHECKED HERE TOO, not inferred from the failed claim.
+  // Single-threaded you could infer it — a row that failed `setWhere` and
+  // still reads 'failed' must be out of window — and that inference is
+  // exactly what overlapping runs break: run A's claim takes the row
+  // ('sent'), B's claim matches nothing, A's send fails and writes 'failed'
+  // back, and only THEN does B read the row. B would give the enrollment up
+  // on attempt one, inside the window, permanently. `runOutreach` has no
+  // overlap lock; step two only exists BECAUSE runs overlap. Caught by
+  // Sentinel reviewing #596 — the docstring above said the window decides and
+  // the code never asked it.
+  if (existing.sentAt >= new Date(now.getTime() - TOUCH_RETRY_WINDOW_MS)) {
+    // Inside the window: another run is retrying it, or we raced its failure
+    // write. Leave it due — the backoff already moved it off the queue head.
+    out.guardSkipped++
+    return
+  }
   // Failing since before the window opened: stop asking. The touch log keeps
   // the error, so the call list still shows why this prospect went quiet.
   await db

@@ -463,6 +463,40 @@ describe('runOutreach', () => {
     })
   })
 
+  it('leaves a failed touch alone while it is still INSIDE the retry window', async () => {
+    // The window is the whole point of the give-up rule, and until Sentinel's
+    // review of #596 nothing consulted it: `settleUnclaimableTouch` selected
+    // `sentAt` and then branched on `status` alone, so every unclaimable
+    // 'failed' row was abandoned at any age. Single-threaded that is harmless
+    // (a row that failed `setWhere` and still reads 'failed' must be out of
+    // window). Under the overlapping runs this claim exists for, it is not:
+    //
+    //   1. run A's claim takes the failed row over    → status 'sent'
+    //   2. run B's claim matches nothing              → correct, A owns it
+    //   3. A's send fails, A writes status 'failed' back (sentAt untouched)
+    //   4. B does its SELECT, reads 'failed', and stops the enrollment
+    //      `stopped_undeliverable` with nextSendAt null — on attempt ONE,
+    //      well inside the window, permanently, with nothing to resume it.
+    //
+    // That is a cold-outreach prospect dropped for good by one Resend blip,
+    // and nobody is told.
+    state.claimRejects = true
+    state.selectQueue.push([]) // paused sequences
+    state.selectQueue.push([ENROLLMENT])
+    state.selectQueue.push([PROSPECT])
+    state.selectQueue.push([TEMPLATE_1])
+    state.selectQueue.push([
+      { status: 'failed', sentAt: new Date(TUESDAY_10AM_CHICAGO.getTime() - 60_000) },
+    ])
+
+    const r = await runOutreach({ now: TUESDAY_10AM_CHICAGO })
+
+    expect(r.abandoned).toBe(0)
+    expect(r.guardSkipped).toBe(1)
+    // The enrollment keeps its backoff and stays live.
+    expect(state.updates.find((u) => u.table === 'outreach_enrollment')).toBeUndefined()
+  })
+
   it('stands down without stopping the enrollment when another run holds the touch', async () => {
     state.claimRejects = true
     state.selectQueue.push([]) // paused sequences
