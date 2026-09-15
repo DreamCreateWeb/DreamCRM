@@ -50,7 +50,7 @@ describe('exportBalancePaymentsCsv', () => {
   it('emits just the header row when there are no payments', async () => {
     const csv = await exportBalancePaymentsCsv('org_1')
     expect(csv).toBe(
-      'Payment ID,Date,Patient,Amount,Balance at payment,Status,Paid at,Refunded,Refunded at',
+      'Payment ID,Date,Patient,Amount,Balance at payment,Status,Paid at,Refunded,Refunded at,Net collected',
     )
   })
 
@@ -103,5 +103,32 @@ describe('exportBalancePaymentsCsv', () => {
     expect(row).toContain('paid')
     expect(row).toContain('50.00') // refunded
     expect(row).toContain('2026-06-08T09:00:00.000Z')
+    // ...and the column a bookkeeper can total: $125 taken, $50 back, $75 kept.
+    // Summing 'Amount' is the overstatement DREAMCRM-32 closes everywhere else.
+    expect(row.split(',').at(-1)).toBe('75.00')
+  })
+
+  it('nets a fully refunded payment down to nothing, without dropping the row', async () => {
+    state.rows = [
+      {
+        id: 'pay_3',
+        patientId: 'pat_1',
+        firstName: 'Mia',
+        lastName: 'Hayes',
+        amountCents: 12500,
+        status: 'paid',
+        paidAt: new Date('2026-06-01T12:00:00.000Z'),
+        createdAt: new Date('2026-06-01T11:59:00.000Z'),
+        balanceCentsAtPayment: 20000,
+        refundedAmountCents: 12500,
+        refundedAt: new Date('2026-06-08T09:00:00.000Z'),
+      },
+    ]
+    const csv = await exportBalancePaymentsCsv('org_1')
+    const [, row] = csv.split('\r\n')
+    // The row STAYS — the front desk posted this money to the PMS and has to
+    // reverse it — but it contributes nothing to what the clinic collected.
+    expect(row).toContain('paid')
+    expect(row.split(',').at(-1)).toBe('0.00')
   })
 })

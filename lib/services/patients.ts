@@ -1,6 +1,7 @@
 import 'server-only'
 import { and, asc, count, desc, eq, gte, inArray, isNotNull, isNull, lte, ne, notInArray, or, sql, type SQL } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
+import { sumNetCollectedSql } from '@/lib/net-collected'
 import { randomBytes } from 'crypto'
 import { derivePatientRecallStatus, recallDueWhereSql, RECALL_DEFAULT_MONTHS } from '@/lib/services/recall-status'
 import { getTagsForPatients, listPatientTags } from '@/lib/services/patient-tags'
@@ -414,10 +415,16 @@ export async function listPatientsPage(
       // `invoices`-join "lifetime value" (no dental flow writes invoices, so
       // it was always $0 for real clinics). Outstanding balance is NOT derived
       // here — it comes straight off `patient.pms_balance_cents` per row below.
+      // NET of refunds (`lib/net-collected.ts`): a fully refunded order has
+      // already left the 'paid' set, so what netting adds is the partial
+      // refund — money this patient never actually spent.
       db
         .select({
           patientId: schema.shopOrder.patientId,
-          totalCents: sql<number>`coalesce(sum(${schema.shopOrder.totalCents}), 0)::int`,
+          totalCents: sumNetCollectedSql(
+            schema.shopOrder.totalCents,
+            schema.shopOrder.refundedAmountCents,
+          ),
         })
         .from(schema.shopOrder)
         .where(
@@ -923,12 +930,16 @@ export async function getPatientHeader(
             eq(schema.appointment.patientId, patientId),
           ),
         ),
-      // Shop spend — paid `shop_order` totals for this patient. Outstanding
-      // balance is NOT joined from `invoices` anymore (no dental flow writes
-      // them); it's read straight off `patient.pms_balance_cents` below.
+      // Shop spend — paid `shop_order` totals for this patient, NET of
+      // refunds (`lib/net-collected.ts`). Outstanding balance is NOT joined
+      // from `invoices` anymore (no dental flow writes them); it's read
+      // straight off `patient.pms_balance_cents` below.
       db
         .select({
-          totalCents: sql<number>`coalesce(sum(${schema.shopOrder.totalCents}), 0)::int`,
+          totalCents: sumNetCollectedSql(
+            schema.shopOrder.totalCents,
+            schema.shopOrder.refundedAmountCents,
+          ),
         })
         .from(schema.shopOrder)
         .where(

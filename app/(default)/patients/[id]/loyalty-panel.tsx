@@ -14,6 +14,7 @@ const KIND_LABEL: Record<string, string> = {
   referral: 'Referral',
   payment: 'Online payment',
   redeem: 'Redeemed',
+  reverse: 'Payment refunded',
   adjust: 'Adjustment',
 }
 

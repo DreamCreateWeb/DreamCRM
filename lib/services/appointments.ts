@@ -1,6 +1,7 @@
 import 'server-only'
 import { and, asc, desc, eq, gte, inArray, isNull, lte, ne, or, sql } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
+import { sumNetCollectedSql } from '@/lib/net-collected'
 import { randomBytes } from 'crypto'
 import { queueAppointmentWriteBack, queueAppointmentStatusWriteBack } from '@/lib/services/pms'
 import { recordAction } from '@/lib/services/action-ledger'
@@ -118,8 +119,11 @@ export interface AppointmentDetail extends AppointmentRow {
     replyBody: string | null
   }>
   intakeAttached: { id: string; formTitle: string; submittedAt: Date } | null
-  /** Booking deposit collected (or awaited) for this visit. Null = none. */
-  deposit: { amountCents: number; status: string } | null
+  /** Booking deposit collected (or awaited) for this visit. Null = none.
+   *  The row STAYS 'paid' after a Stripe refund by design, so the pill has to
+   *  read `refundedAmountCents` — telling the front desk to post money that
+   *  has already gone back is worse than saying nothing. */
+  deposit: { amountCents: number; status: string; refundedAmountCents: number } | null
   /** WHO cancelled, pre-phrased ("cancelled from the patient portal" /
    *  "cancelled by Sarah Chen" / …). Null unless cancelled with a recorded
    *  actor (lib/cancel-actor.ts). */
@@ -629,11 +633,18 @@ export async function getAppointmentDetail(
       )
       .orderBy(desc(schema.formSubmission.submittedAt))
       .limit(1),
-    // Shop spend — paid shop orders, the SAME source as the patients list's
-    // "shop purchases" column (the legacy `invoices` join this replaced was
-    // always $0 for real clinics: no dental flow writes invoices).
+    // Shop spend — paid shop orders NET of refunds, the SAME source AND the
+    // same rule as the patients list's "shop purchases" column (the legacy
+    // `invoices` join this replaced was always $0 for real clinics: no dental
+    // flow writes invoices). Netting here is what keeps that claim true: the
+    // two columns are the same figure and must not read differently.
     db
-      .select({ totalCents: schema.shopOrder.totalCents })
+      .select({
+        totalCents: sumNetCollectedSql(
+          schema.shopOrder.totalCents,
+          schema.shopOrder.refundedAmountCents,
+        ),
+      })
       .from(schema.shopOrder)
       .where(
         and(
@@ -684,7 +695,11 @@ export async function getAppointmentDetail(
     getClinicCadence(organizationId),
     // Booking deposit on this visit (drawer pill: paid = money already down).
     db
-      .select({ amountCents: schema.bookingDeposit.amountCents, status: schema.bookingDeposit.status })
+      .select({
+        amountCents: schema.bookingDeposit.amountCents,
+        status: schema.bookingDeposit.status,
+        refundedAmountCents: schema.bookingDeposit.refundedAmountCents,
+      })
       .from(schema.bookingDeposit)
       .where(
         and(
@@ -705,7 +720,9 @@ export async function getAppointmentDetail(
   ])
 
   const outstanding = base.pmsBalanceCents ?? 0
-  const ltv = ltvRows.reduce<number>((acc, r) => acc + Number(r.totalCents ?? 0), 0)
+  // One row, already netted in SQL (sumNetCollectedSql) — reading it beats
+  // re-summing in JS, which is the shape the netting rule keeps tripping over.
+  const ltv = Number(ltvRows[0]?.totalCents ?? 0)
   const status = base.status as AppointmentStatus
   const duration =
     base.endTime ? Math.max(15, Math.round((base.endTime.getTime() - base.startTime.getTime()) / 60000)) : null
@@ -787,7 +804,9 @@ export async function getAppointmentDetail(
     intakeAttached: intakeRow[0]
       ? { id: intakeRow[0].id, formTitle: intakeRow[0].formTitle, submittedAt: intakeRow[0].submittedAt }
       : null,
-    deposit: depositRow[0] ?? null,
+    deposit: depositRow[0]
+      ? { ...depositRow[0], refundedAmountCents: depositRow[0].refundedAmountCents ?? 0 }
+      : null,
   }
 }
 

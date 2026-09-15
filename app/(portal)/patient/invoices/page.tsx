@@ -108,15 +108,26 @@ export default async function PortalBillingPage({
         badge: refunded ? 'Refunded' : p.status === 'paid' ? null : 'Processing',
       }
     }),
-    ...bills.orders.map((o): BillingHistoryRow => ({
-      key: `order-${o.id}`,
-      kind: 'order',
-      whenIso: (o.paidAt ?? o.createdAt).toISOString(),
-      label: o.items.map((i) => `${i.productName}${i.quantity > 1 ? ` ×${i.quantity}` : ''}`).join(', ') || 'Shop order',
-      detail: FULFILLMENT_LABELS[o.fulfillmentStatus] ?? null,
-      amountCents: o.totalCents,
-      badge: o.status === 'pending' ? 'Processing' : null,
-    })),
+    ...bills.orders.map((o): BillingHistoryRow => {
+      // The same rule as the payment rows above: a refunded order that says
+      // nothing is one the patient reads as money they still spent.
+      const refunded = o.refundedAmountCents > 0
+      const fullyRefunded = refunded && o.refundedAmountCents >= o.totalCents
+      const fulfillment = FULFILLMENT_LABELS[o.fulfillmentStatus] ?? null
+      return {
+        key: `order-${o.id}`,
+        kind: 'order',
+        whenIso: (o.paidAt ?? o.createdAt).toISOString(),
+        label: o.items.map((i) => `${i.productName}${i.quantity > 1 ? ` ×${i.quantity}` : ''}`).join(', ') || 'Shop order',
+        detail: !refunded
+          ? fulfillment
+          : fullyRefunded
+            ? 'Refunded to you'
+            : `${fmtMoney(o.refundedAmountCents)} refunded to you`,
+        amountCents: o.totalCents,
+        badge: refunded ? 'Refunded' : o.status === 'pending' ? 'Processing' : null,
+      }
+    }),
   ].sort((a, b) => new Date(b.whenIso).getTime() - new Date(a.whenIso).getTime())
 
   return (
