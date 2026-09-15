@@ -32,9 +32,18 @@ on:
   # Scheduled drift detection for the role's privileges (N2). Editing
   # scripts/readonly-role.sql does not change production, so the committed
   # script can be correct while the database is not. This is the only thing that
-  # notices. 07:00 UTC daily.
+  # notices. 06:37 UTC daily.
+  #
+  # OFF THE TOP OF THE HOUR, deliberately, and it moved WITH `nightly.yml`
+  # rather than being left behind: GitHub queues `schedule` events and the top
+  # of an hour is its busiest moment, so `0 7` was asking at the worst minute
+  # of the day. This alarm is the one worth interrupting someone for — a red
+  # run means a credential column is readable in production — so the hours it
+  # spends sitting in a queue are hours nobody is being told. The two still
+  # contend for nothing with each other: they run in different workflows on
+  # different runners. `docs/CI.md` carries the arrival evidence.
   schedule:
-    - cron: '0 7 * * *'
+    - cron: '37 6 * * *'
 
 concurrency:
   group: read-check

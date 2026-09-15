@@ -418,9 +418,28 @@ as confirmed defects yet.
   auth to add without breaking the middleware fetch it exists to serve. Not a
   defect — recorded here so the next sweep doesn't re-report it.
 - S3/housekeeping · `uploadPatientDocumentAction` writes the S3 blob before
-  the patient-in-org check (forged id orphans a blob; no row, no access);
-  `enterDemoMode` doesn't validate the target org (self-only, re-validated
-  downstream). · OPEN.
+  the patient-in-org check (forged id orphans a blob; no row, no access). ·
+  **FIXED** (DREAMCRM-47) — `patientBelongsToOrg` is exported from
+  `lib/services/patient-documents.ts` and asked BEFORE `uploadBlob`;
+  `addPatientDocument` still asks again on its own account, because a service
+  that trusts its caller to have checked is one caller away from not being
+  checked at all. The gate belongs in front of the one write here that cannot
+  be rolled back. `tests/patients/document-upload-order.test.ts` pins the
+  ORDER, not just the refusal.
+- S3/housekeeping · `enterDemoMode` doesn't validate the target org
+  (self-only, re-validated downstream). Unbundled from the upload defect
+  above: same sweep, different file, different fix. · **FIXED**
+  (DREAMCRM-47) — the org row was already being read (to decide whether to
+  run the demo seeder's self-heal), so the fix is to stop treating a missing
+  row as "not the demo clinic" and start treating it as "nothing to render
+  as". The cookie IS a tenant context — `getTenantContext` gives it
+  precedence over real org membership — so a wire-supplied `orgId` matching
+  no organization used to mint a seven-day cookie pointing at a tenant that
+  does not exist. `app/(default)/ecommerce/customers/admin-actions.ts` was
+  ALSO added to the `auth` rule in `scripts/review-gate.mjs` (and to
+  `MUST_BE_GATED`): the file that mints the tenant-context cookie matched
+  nothing on the gate list, so a PR changing which org a platform admin can
+  become reported "merges on green".
 
 Partitions audited CLEAN (no defect): appointments, patients, leads,
 intake-forms, followups, my-day, search, growth (outreach/reviews/social),
@@ -814,7 +833,14 @@ binding are all correct. The payment-plan charger was the exception.
   paid also lands there, so the shop success page would tell that shopper
   "your order is confirmed". Nothing is written and no money moves — a
   cosmetic lie on one page, in a state that needs a cancellation AFTER payment
-  to reach at all. Returning the row's real status closes it. · OPEN.
+  to reach at all. Returning the row's real status closes it. · **FIXED**
+  (DREAMCRM-47) — the lost-race branch re-reads the row inside the
+  organization and reports the status it finds. A row that vanished under us
+  falls back to what was read on the way in, never to 'paid': the whole point
+  is that this branch stops inventing an answer.
+  `tests/shop/finalize-lost-race-status.test.ts` models the compare-and-swap
+  for real (a claim whose status predicate misses the row matches no rows), so
+  the test exercises the lost-race branch rather than a stand-in for it.
 - S3 · `listAdminSubscriptions` reads `s.items.data[0]` only, so a
   subscription with more than one item (a plan plus the social add-on, say)
   contributes ONE line's worth to every MRR figure. Pre-dates the MRR work,
