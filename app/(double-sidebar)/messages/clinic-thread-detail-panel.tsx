@@ -1155,7 +1155,7 @@ export default function ThreadDetailPanel({
                                 }`}
                               >
                                 {m.subject && m.channel === 'email' && (
-                                  <p className="font-semibold text-xs mb-1 opacity-75">{m.subject}</p>
+                                  <p className="font-semibold text-xs mb-1">{m.subject}</p>
                                 )}
                                 {m.body}
                                 {m.attachments && m.attachments.length > 0 && (
@@ -1300,7 +1300,7 @@ export default function ThreadDetailPanel({
                         type="button"
                         onClick={() => removeAttachment(a.url)}
                         title="Remove"
-                        className="absolute right-0.5 top-0.5 inline-flex h-5 w-5 items-center justify-center rounded-full bg-black/60 text-xs text-white opacity-80 transition-opacity hover:opacity-100 focus:opacity-100"
+                        className="absolute right-0.5 top-0.5 inline-flex h-5 w-5 items-center justify-center rounded-full bg-black/60 text-xs text-white transition-colors hover:bg-black/80 focus:bg-black/80"
                       >
                         ×
                       </button>

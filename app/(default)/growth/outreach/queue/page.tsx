@@ -156,11 +156,11 @@ export default async function OutreachQueuePage({ searchParams }: { searchParams
               <div>
                 <h2 className="text-sm font-semibold flex items-center gap-2">
                   {tier.label}
-                  <span className="text-xs font-medium opacity-80 tabular-nums font-mono-num">
+                  <span className="text-xs font-medium tabular-nums font-mono-num">
                     · {recipients.length} {recipients.length === 1 ? 'patient' : 'patients'}
                   </span>
                 </h2>
-                <p className="text-xs opacity-80 mt-0.5">{tier.description}</p>
+                <p className="text-xs mt-0.5">{tier.description}</p>
               </div>
               {recipients.length > 0 && (
                 <ActionButton

@@ -476,7 +476,7 @@ export default function SettingsPanel({
               >
                 {s}
                 {p && p.imported > 0 && (
-                  <span className="ml-1 tabular-nums opacity-70">{p.imported}</span>
+                  <span className="ml-1 tabular-nums">{p.imported}</span>
                 )}
               </button>
             )

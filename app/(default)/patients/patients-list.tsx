@@ -741,7 +741,7 @@ function PatientRow({
       >
         <div>{fmtDate(row.lastVisitAt)}</div>
         {row.lastVisitAt && (
-          <div className="text-xs opacity-75">{fmtRelative(row.lastVisitAt)}</div>
+          <div className="text-xs">{fmtRelative(row.lastVisitAt)}</div>
         )}
       </td>
       <td className="px-4 py-3">

@@ -818,7 +818,7 @@ function PatientAudienceEditor({
                       <li key={i}>{s.name}{s.email && <span className="text-violet-700/70 dark:text-violet-400/70"> · {s.email}</span>}</li>
                     ))}
                     {preview.count > preview.sample.length && (
-                      <li className="italic opacity-80">… and {preview.count - preview.sample.length} more</li>
+                      <li className="italic">… and {preview.count - preview.sample.length} more</li>
                     )}
                   </ul>
                 )}

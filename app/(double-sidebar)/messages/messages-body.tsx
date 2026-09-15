@@ -75,7 +75,7 @@ export default function MessagesBody({
                         }`}
                       >
                         {!mine && (
-                          <div className="text-xs font-semibold mb-0.5 opacity-80">
+                          <div className="text-xs font-semibold mb-0.5">
                             {m.authorName ?? 'Unknown'}
                           </div>
                         )}

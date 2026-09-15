@@ -21,7 +21,7 @@ from burying what is not done. Keep it to 5–10 lines and say *why* each one is
 still sitting there — "deferred, needs a data series" and "nobody has picked it
 up" are different facts and only one of them is a backlog item.
 
-## OPEN NOW (last rewritten: batch 65, 2026-09-15)
+## OPEN NOW (last rewritten: batch 66, 2026-09-16)
 
 > **The axe burn-down is CLOSED.** `e2e/axe-baseline.ts` is `{}` — 214 → 0
 > across batches 54-64 — so every stop the browser suite walks now tolerates
@@ -48,12 +48,17 @@ up" are different facts and only one of them is a backlog item.
    some are real text (fix), some are icons and glyphs (1.4.11 asks 3:1, not
    4.5, and 2.63 misses that too), some are genuinely disabled controls (exempt
    under 1.4.3). Rule 6 says out loud that it does not grade these.
-3. **~406 `opacity-[0-9]` sites outside the portal, none of them measured.**
-   `tests/a11y/portal-ink-opacity.test.ts` refuses the shape — text dimmed a
-   second time — but is scoped to the portal on purpose, and its own header
-   says grading the rest is its own batch. Mostly non-text chrome; the job is
-   to grade them, fix what fails, and extend the guard's scope to whatever
-   comes back clean. Presentation-only and freeze-safe. Nobody has picked it up.
+3. **The opacity sweep's TWO DEFERRED SURFACES.** Batch 66 graded the app
+   (`app/(default)`, `app/(double-sidebar)`, auth/onboarding, `components`) and
+   holds it at zero; two areas were deliberately left, and neither is "unknown":
+   **the marketing site — 7 dimming sites — is mid-rebuild** (BRAND.md's
+   Daylight Dream build order; the homepage still renders the retired night
+   band, and DREAMCRM-73 re-points the decorative-layer grader at the light
+   hero). Grading its ground today measures a surface that is about to move.
+   Sequence after Daylight lands. **The public clinic sites — 10 sites —** are a
+   tenant-derived palette, so they need the batch-65 treatment (grade against
+   `buildClinicPalette`, never one clinic's value) rather than the app's fixed
+   ramps. Own slice; nobody has picked it up.
 4. **`ActionButton`'s `danger` variant clears AA at 4.53** — white on
    `rose-600` against a 4.5 floor. Not a defect and not swept with batch 63's
    tone fills (it is the button primitive's own single-home, and it passes),
@@ -80,6 +85,47 @@ recorded in the code) or already **POST-1.0**. Deferred items are not the top
 of the list; they are the bottom, and they say so where they sit.
 
 **System-level finds:**
+- ~~~406 `opacity-[0-9]` sites outside the portal, none of them measured~~
+  [**BATCH 66**, and the first thing the sweep did was correct its own count.
+  **406 was every `opacity-` string in the tree**; the real population of
+  UNPREFIXED, non-endpoint dimmings is **76**, of which **56 were in the app**.
+  The other 330 are `hover:`/`group-hover:`/`disabled:` variants (201 in the
+  app alone) and `opacity-0`/`opacity-100` animation endpoints (135) — states
+  and keyframes, not settled colour. A punch-list number nobody had re-derived
+  made this look like a month of work; it was an afternoon.
+  **12 of the 56 dimmed TEXT, and the split is the finding.** Dimming survives
+  on the STRONG ink (`gray-800` at 75% = **5.96**, at 80% = **6.98**) and fails
+  on every ink already chosen to be quiet (`gray-500` at 75% = **3.19**, at 70%
+  = **2.91**; `gray-600` at 80% = **4.25**). So the defect was never "opacity" —
+  it is **a second quietening of an ink that was already the quiet answer**,
+  word for word what batch 62 found in the portal.
+  The worst were shared or brand-filled: the **`FilterChip` primitive's count**
+  at `gray-600`@70% on its own chip = **3.15** (one component, every filtered
+  list in the product), its active state `teal-800`@70% = **3.84**, a message
+  **SUBJECT in an outbound thread bubble** at white@75% on `teal-600` =
+  **3.61** — the staff twin of the portal's patient-bubble defect — and the
+  welcome interview's muted chat bubble, fine in light at 6.39 and **4.24 in
+  DARK**, which the single-theme browser suite structurally cannot see.
+  **Every fix was a deletion.** All twelve already carried `text-xs` or
+  `font-semibold` doing the hierarchy job twice, so the dimming came out and
+  size/weight carry it — the same answer the portal reached. The one exception
+  is the attachment's `×` remove button, where the hover affordance moved from
+  `opacity` to the FILL (`hover:bg-black/80`) so the glyph stops being dimmed
+  on an unpredictable photo.
+  **The other 45 are correct and stay**: 23 INACTIVE controls (1.4.3 exempts an
+  inactive component outright — a `disabled` input, a `pending` row, a
+  `pointer-events-none` panel) and 22 graphics and chrome (blurred background
+  blobs, `<svg>` icons, a drag preview, an image overlay, hover-revealed
+  affordances, and the `·` separators that are now the design system's named
+  ORNAMENT step). A blanket ban like the portal's would have fired on 45 correct
+  sites to catch 12 — rule 1's `208 places to catch 8` trade.
+  `tests/a11y/dimmed-text.test.ts` therefore refuses the technique on **type
+  specifically**: an element that declares its own size (`text-xs`…) or a
+  numeral class (`tabular-nums`) may not also carry an unprefixed dimming. It
+  names its own blind spots — an opacity alone in a TERNARY branch (two of the
+  twelve had that shape and were found by hand) and text-ness inherited from an
+  ancestor. Red-verified against the shared `FilterChip`, and it caught one site
+  the manual pass had mis-filed as decorative.]
 - ~~31 `color: brand` sites on the public clinic site — brand as TEXT~~
   [**BATCH 65**, and the 32 sites were TWO POPULATIONS wearing one spelling —
   which is why reading them one at a time was right and a sweep would have been
