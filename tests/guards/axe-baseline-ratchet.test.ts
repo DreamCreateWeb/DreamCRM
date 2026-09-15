@@ -75,11 +75,46 @@ const BASE_REF = 'origin/main'
 const IN_CI = Boolean(process.env.CI || process.env.GITHUB_ACTIONS)
 
 /**
- * The event that started this run. On a `push`, HEAD is already ON main, which
- * changes what the comparison can honestly say — see the live-comparison block.
- * Absent locally, which is correct: a local run is never a push run.
+ * Events that, in this repo, only ever run a tree that is ALREADY on main:
+ * `deploy.yml` fires on `push` to main, and `nightly.yml` on `schedule`, which
+ * GitHub runs only from the default branch. Both absent locally, which is
+ * correct — a local run is neither.
+ *
+ * The honest property is "HEAD is already on main", not the event name. It
+ * cannot be tested directly with the history these jobs fetch, and this list is
+ * the proxy that stands in for it — see `comparisonIsVacuous` for why this
+ * particular proxy beats the two that look more principled.
  */
-const PUSH_EVENT = process.env.GITHUB_EVENT_NAME === 'push'
+const ON_MAIN_EVENT = ['push', 'schedule'].includes(process.env.GITHUB_EVENT_NAME ?? '')
+
+/**
+ * Whether grading this tree against `origin/main` can tell us anything.
+ *
+ * THE EVENT NAME IS A PROXY, AND IT IS THE RIGHT ONE HERE — which is worth
+ * saying out loud, since `docs/GUARD-MUTATION-PASS.md` tells you to assert the
+ * answer rather than a proxy for it. Both better-looking alternatives are worse:
+ *
+ *  - **HEAD equals the ref.** Reads like the real property and fails at the one
+ *    case that motivated this: in the race, HEAD is on main but BEHIND the ref
+ *    we just fetched, so the two differ precisely when the comparison is
+ *    actively false rather than merely vacuous. It also silently disables local
+ *    grading for anyone with uncommitted edits on `main` — which is this repo's
+ *    documented way of working, so that is most local runs.
+ *  - **HEAD is an ancestor of the ref.** This IS the property, and it covers
+ *    every case including the race. It needs `git merge-base`, which needs
+ *    shared history, which every job discards with `--depth=1`. Deepening the
+ *    fetch to buy it is an open trade (see the block comment below), not an
+ *    oversight.
+ *
+ * Known gap, left open deliberately: a `workflow_dispatch` on `main` still
+ * compares, and is vacuous. No event-name list can tell it from a dispatch on a
+ * branch, where the comparison is real and wanted, and a manual dispatch is
+ * attended by definition — so the failure mode is a human seeing one confusing
+ * red, not an unattended gate lying.
+ */
+function comparisonIsVacuous(): boolean {
+  return ON_MAIN_EVENT
+}
 
 /** `e2e/axe-baseline.ts` as `origin/main` has it, or `null` if that ref is not here. */
 function baselineSourceOnMain(): string | null {
@@ -340,16 +375,22 @@ describe('the live baseline against origin/main', () => {
    * WHY THIS IS TWO TESTS, AND ONLY ONE OF THEM IS SCOPED.
    *
    * The PREMISE — `origin/main` is here to be read — is asserted on every
-   * event, `push` included. A premise checked on only some events is not
-   * pinned, and the fetch step exists precisely so this never depends on what
-   * `actions/checkout` happens to do per event type. Nothing below skips it.
+   * event, `push` and `schedule` included. A premise checked on only some
+   * events is not pinned, and the fetch step exists precisely so this never
+   * depends on what `actions/checkout` happens to do per event type. Nothing
+   * below skips it.
    *
-   * The COMPARISON is scoped off `push`, and it costs no coverage, because on
-   * a push to main HEAD IS main: the comparison grades main against itself and
-   * has nothing to add. Every tree that reaches main was already graded by this
-   * same test on its own PR, with the ref present and asserted.
+   * The COMPARISON is skipped when the tree is ALREADY ON MAIN, and it costs no
+   * coverage: there HEAD is main, so the comparison grades main against itself
+   * and has nothing to add. Every tree that reaches main was already graded by
+   * this same test on its own PR, with the ref present and asserted.
    *
-   * What scoping BUYS is a false red on the deploy path. `deploy.yml` runs
+   * That covers `deploy.yml`'s push job and BOTH `nightly.yml` jobs, since
+   * GitHub runs `schedule` only from the default branch. `comparisonIsVacuous`
+   * says how it decides, which case it knowingly leaves open, and why the two
+   * more principled-looking tests are both worse.
+   *
+   * What skipping BUYS is a false red on the deploy path. `deploy.yml` runs
    * `test` without `cancel-in-progress` on purpose (the DREAMCRM-46 comment
    * block explains why, and it is right), so merges X then Y run overlapping
    * `test` jobs. The fetch step in run-for-X lands ~30–60s in. If Y merges
@@ -361,6 +402,10 @@ describe('the live baseline against origin/main', () => {
    * is self-healing (Y's own deploy carries X forward) and rare, but this repo
    * reads a red `test` on main as a real regression, and a guard that cries
    * wolf on the deploy path is a guard someone eventually routes around.
+   *
+   * The nightly jobs carry the IDENTICAL race at lower stakes — a dismissed
+   * alarm rather than a skipped deploy — which is why they are covered by the
+   * same clause rather than left as a known-and-tolerated case.
    *
    * Not fixed by comparing against `git merge-base origin/main HEAD` instead,
    * which would also close the stale-branch false red this guard honestly does
@@ -390,14 +435,14 @@ describe('the live baseline against origin/main', () => {
   })
 
   it('has no ceiling higher than the one on main, and no expired opt-out', () => {
-    if (PUSH_EVENT) {
-      // See the block comment above: HEAD is already main here, so this grades
-      // main against itself — vacuous when it wins the race with a concurrent
-      // merge, and a false red when it loses. The premise it rests on is still
-      // asserted, by the test above, on this very run.
+    if (comparisonIsVacuous()) {
+      // See the block comment above: this tree is already on main, so the
+      // comparison grades main against itself — vacuous when it wins the race
+      // with a concurrent merge, and a false red when it loses. The premise it
+      // rests on is still asserted, by the test above, on this very run.
       console.warn(
-        `[axe-ratchet] comparison skipped on a push event: HEAD is already on main, so there is ` +
-          `no previous value to ratchet against. Every tree here was graded on its own PR.`,
+        `[axe-ratchet] comparison skipped: this tree is already on main, so there is no previous ` +
+          `value to ratchet against. Every tree here was graded on its own PR.`,
       )
       return
     }

@@ -2871,7 +2871,7 @@ and must be on the intake list or `test` fails naming it. Red runs watched on
 all four new assertions, including a fabricated new scanner file — it failed by
 name on arrival.
 
-### `e2e/axe-baseline.ts` has no guard that ceilings only go down (2026-09-14) · FIXED — awaiting merge (#588)
+### `e2e/axe-baseline.ts` has no guard that ceilings only go down (2026-09-14) · FIXED
 
 **The defect.** §2 of the conventions states "Ceilings only ever go down" and
 "raising a ceiling to get green is weakening a failing test", and nothing
@@ -3070,6 +3070,72 @@ work and a re-measure, not a bigger number: raising a hang detector to get
 green is the same move as raising an axe ceiling, and §2 of the repo
 conventions rules on it the same way. The note in `vitest.config.ts` keeps the
 whole recipe, so striking the ledger entry costs nothing but the queue slot.
+
+### A raw control byte makes a tracked file unreviewable, and nothing checks (2026-09-15) · OPEN
+
+**The defect.** Git decides a file is binary by scanning its first 8000 bytes
+for a `NUL`. A tracked text file that contains one renders in every diff — `gh
+pr diff`, the GitHub review view, `git diff --numstat` — as `Binary files …
+differ`, with no content and a `-  -` line count. Nothing in the repo checks for
+this, so a file can become unreadable in review without anyone choosing it, and
+the PR that does it reports no additions.
+
+**Why it is a gate defect and not a formatting nit.** The consequence lands on
+review, which is the control §2 and §3 rest on. #588 shipped
+`tests/guards/axe-baseline-ratchet.ts` — the comparator for the axe ratchet —
+with a `NUL` at byte 7636, inside the sniff window. The whole 13,413-byte body
+was invisible in the PR diff. `tests/guards/**` is on `INTAKE_RULES`, not
+`GATE_RULES`, so every future edit to that file would have gone to intake rather
+than to a reviewer, pointed at a blob: **a weakening of the ratchet would have
+been invisible in review by construction.** Sentinel caught it on #588 and
+blocked on it; the file is escaped and diffs as text now (`335 0`).
+
+**Two independent reproductions, neither of them in code.**
+
+1. `docs/RELEASE.md` carried a raw `0x08` at byte 193065, where `` `\b` `` was
+   meant — in this ledger, which had therefore lost the name of the lesson it
+   was recording. Same in `tests/guards/axe-baseline-ratchet.test.ts` at 8664.
+2. Forge reproduced it independently about half an hour later, in a different
+   tool, writing the conventions skill: `` `\b` `` typed into an edit script
+   arrived at disk as a real `0x08` after two layers of JSON encoding. Caught
+   only because that lane diffs every write byte-for-byte against what it sent.
+
+**So the hazard is not "somebody typed a control character".** It is that prose
+quoting a regex or an escape sequence **acquires the byte on the way to disk**,
+through the authoring path, without anyone choosing it. Both instances above
+were in docs. Neither was in code. A guard therefore wants `docs/**` in scope,
+not just source.
+
+**Reproduce it:**
+
+```bash
+printf 'const a = 1\nconst k = `x\0y`\n' > tests/guards/zz-probe.ts
+git add tests/guards/zz-probe.ts && git diff --cached --numstat -- tests/guards/zz-probe.ts
+#  -  -  tests/guards/zz-probe.ts      <- binary; no content in any diff view
+git rm -qf --cached tests/guards/zz-probe.ts && rm tests/guards/zz-probe.ts
+```
+
+**Live instance, and it survives by luck.** `lib/services/acquisition.ts`
+carries the same raw-`NUL` composite-key idiom at bytes 8750, 8799 and 9223.
+The file stays text only because the first one sits *past* the 8000-byte sniff
+window — a byte-offset accident, not a different convention. One added comment
+paragraph above it flips the file to binary. That fragility is the argument
+*for* a guard rather than a caveat on it: a finding whose reproduction depends
+on nothing above it moving needs a check that re-derives it, not a note that
+records it.
+
+**The fix, and the sequencing it forces.** Write the separator as an escape —
+`` `${a}\u0000${b}` `` — and `\b` in prose. Identical string values, no
+behaviour change, +5 bytes each. But **a guard that is red on arrival cannot
+land**, so the escape in `acquisition.ts` and the guard must ship in ONE PR.
+That edit is product code in another lane; it is a composite map key that never
+leaves the function, so it is about as safe as a product-code change gets, and
+this entry is the hand-over §10 asks for — file, byte offsets, consequence, fix.
+
+Filed as its own issue (DREAMCRM-66). It would add a new blocking assertion
+class over all tracked source, a wider blast radius than anything in #588, so it
+takes Forge intake on the day and a Sentinel review if the diff reaches a gated
+area.
 
 ## Part 6 — The post-1.0 backlog
 Moved to `docs/POST-1.0.md` (2026-08-17) — the full seeded inventory:
