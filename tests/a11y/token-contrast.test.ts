@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { describe, it, expect } from 'vitest'
 import {
   TONE_DOT,
@@ -14,6 +16,7 @@ import {
   hexToRgb,
   LIGHT,
   over,
+  ROOT,
   SURFACES,
   token,
   type Rgb,
@@ -456,9 +459,10 @@ describe('gradient TEXT, where the gradient IS the ink', () => {
   })
 
   it('carries no exemption it has stopped describing', () => {
-    // Empty today, and that is the honest state of the tree. The detector
-    // exists so the first entry cannot outlive its subject — the same reason
-    // rule 2 carries one.
+    // One entry today — the night-band headline (DREAMCRM-54). The detector
+    // exists so it cannot outlive its subject: re-skin that hero, or move the
+    // accent line off `bg-clip-text`, and this goes red rather than leaving a
+    // pardon behind for whatever lands there next.
     expect(
       deadGradientTextExemptions().map((e) => `${e.file} — ${e.classes}`),
       'this exemption no longer matches any call site. Re-derive it or delete it.',
@@ -466,6 +470,150 @@ describe('gradient TEXT, where the gradient IS the ink', () => {
     for (const e of GRADIENT_TEXT_EXEMPTIONS) {
       expect(e.why.length, 'every exemption states why in the source').toBeGreaterThan(80)
     }
+  })
+
+  /**
+   * THE HALF OF THE EXEMPTION THAT IS NOT PROSE.
+   *
+   * An exemption's `why` is a claim ("these stops measure 9.36 and 8.69 on the
+   * ground they actually ride"), and a claim in a comment is exactly the thing
+   * `e2e/axe-baseline.ts` spent four days learning not to trust. So the claim is
+   * re-derived here from the same palette rule 4 grades with: if somebody
+   * re-points teal-300, or moves the hero off `gray-950`, this fails and the
+   * exemption stops being believable in the same run.
+   *
+   * It also pins the SHAPE of the argument, which is the part that generalises.
+   * The exemption is legitimate because the ground is different, not because
+   * the design is important — so the assertion is "fails on white AND clears on
+   * the real ground", both halves, rather than just the happy one.
+   */
+  it("the night band's stops are legible on the ground they actually ride", () => {
+    // BRAND.md Part 2: the night band's ground is `gray-950`. Read from the
+    // palette rather than written as #10182e, so a ramp edit re-grades this.
+    const night = token(LIGHT, 'gray-950')
+    const stops = ['teal-300', 'violet-300'] as const
+
+    for (const stop of stops) {
+      const onWhite = contrast(token(LIGHT, stop), hexToRgb('#ffffff'))
+      const onNight = contrast(token(LIGHT, stop), night)
+
+      // Half one: rule 4 is RIGHT about white. The exemption does not dispute
+      // the measurement, only the ground it was taken against.
+      expect(onWhite, `${stop} really is unreadable on white`).toBeLessThan(AA)
+      // Half two: and the ground that is really there clears AA comfortably.
+      expect(onNight, `${stop} on the night band`).toBeGreaterThanOrEqual(AA)
+    }
+
+    // The numbers the exemption's `why` and BRAND.md Part 7 both quote.
+    expect(contrast(token(LIGHT, 'teal-300'), night).toFixed(2)).toBe('9.36')
+    expect(contrast(token(LIGHT, 'violet-300'), night).toFixed(2)).toBe('8.69')
+  })
+
+  /**
+   * THE EXEMPTION'S PREMISE, CHECKED STRUCTURALLY.
+   *
+   * FOUND BY THE RED RUN, and it is the more useful half of it. Moving the
+   * hero's `<section>` from `bg-gray-950` back to `bg-white` left every
+   * assertion in this file GREEN — including `deadGradientTextExemptions`,
+   * which only asks whether the exempted CLASS STRING still matches somewhere.
+   * That is the `public-action-tenancy` lesson in a new costume: an exemption
+   * that describes the ink but not the ground goes on pardoning a 1.88
+   * headline after the reason for it has gone.
+   *
+   * The scanner cannot fix this — it reads one quoted string and has no
+   * ancestor to resolve — so the premise is asserted here instead: the
+   * exempted span must still be INSIDE a section that carries the night
+   * ground and renders `NightSky`. Take the band away and this goes red
+   * naming the exemption, which is the only warning anybody will get.
+   *
+   * What it does NOT prove: that the section is visually dark (a later
+   * override could cover it) or that some future `bg-clip-text` elsewhere in
+   * the file is covered — the exemption is keyed to the exact class string,
+   * so a different gradient is graded normally. Both are the safe direction.
+   */
+  it('the exempted headline is still inside the night band', () => {
+    const exemption = GRADIENT_TEXT_EXEMPTIONS.find(
+      (e) => e.file === 'app/(marketing)/page.tsx',
+    )
+    expect(exemption, 'the night-band exemption is the subject of this test').toBeTruthy()
+
+    const src = readFileSync(join(ROOT, exemption!.file), 'utf8')
+    // A section carrying the night ground AND the band's decorative stack.
+    // Either one alone is ambiguous: `bg-gray-950` is also the final CTA
+    // panel's fill further down this same page.
+    // `(?![\w-])` rather than `\b`: a hyphen is a non-word character, so
+    // `\b` after `950` would also match inside `bg-gray-950-foo`. That is the
+    // trap the DREAMCRM-50 mutation pass paid for twice.
+    const band = src.search(
+      /<section className="[^"]*(?:^|[\s"])bg-gray-950(?![\w-])[^"]*">\s*<NightSky \/>/,
+    )
+    expect(
+      band,
+      'no night band in ' + exemption!.file + ' any more. The exemption above ' +
+        'pardons stops that measure 1.88 and 2.03 on white, and its entire ' +
+        'justification is that they are not on white. Delete it, or restore ' +
+        'the band.',
+    ).toBeGreaterThan(-1)
+
+    const headline = src.indexOf(exemption!.classes)
+    expect(headline, 'the exempted class string is still in the file').toBeGreaterThan(-1)
+    expect(
+      src.slice(band, headline),
+      'the exempted headline has moved OUT of the night band section',
+    ).not.toContain('</section>')
+    expect(headline).toBeGreaterThan(band)
+  })
+
+  /**
+   * THE REST OF BRAND.md PART 7, for the same reason.
+   *
+   * The night band is the one surface in this repo NOTHING automated can grade:
+   * no `.dark` scope, so the parity guard cannot see it; decorative layers are
+   * all `background-image`, so axe (which reads `background-color`) cannot see
+   * them; and the band's pairs are assembled in `className` strings rather than
+   * declared as design-system tokens. The hand-graded table in BRAND.md Part 7
+   * IS the gate — which means the table itself needs something checking it, or
+   * it is a list of numbers somebody typed once.
+   */
+  it('every ink BRAND.md Part 7 allows on the night band clears AA there', () => {
+    const night = token(LIGHT, 'gray-950')
+    const raised = hexToRgb('#161f3a') // surface-1's dark value; no .dark scope here
+    const darkInk = hexToRgb('#0c1226') // surface-sunk's dark value — the button's ink
+
+    const pairs: Array<[string, Rgb, Rgb]> = [
+      ['white on the ground', hexToRgb('#ffffff'), night],
+      ['gray-300 body copy', token(LIGHT, 'gray-300'), night],
+      ['gray-400 labels', token(LIGHT, 'gray-400'), night],
+      ['teal-300 accent', token(LIGHT, 'teal-300'), night],
+      ['teal-400 accent', token(LIGHT, 'teal-400'), night],
+      ['violet-300 accent', token(LIGHT, 'violet-300'), night],
+      ['gray-300 on a raised card', token(LIGHT, 'gray-300'), raised],
+      ['teal-400 on a raised card', token(LIGHT, 'teal-400'), raised],
+      // The inversion: on this band the LUMINOUS end of the ramp is the fill
+      // and the dark ink rides it — the exact opposite of the daylight rule
+      // that white text starts at teal-600.
+      ['dark ink on the teal-300 fill', darkInk, token(LIGHT, 'teal-300')],
+      ['dark ink on the teal-400 fill', darkInk, token(LIGHT, 'teal-400')],
+    ]
+
+    const failures = pairs
+      .map(([what, fg, bg]) => [what, contrast(fg, bg)] as const)
+      .filter(([, ratio]) => ratio < AA)
+      .map(([what, ratio]) => `${what} = ${ratio.toFixed(2)}`)
+
+    expect(
+      failures,
+      'BRAND.md Part 7 is the ONLY gate the night band has — no source rule and ' +
+        'no axe stop can see it. A pair in that table that does not clear AA is ' +
+        'a live defect on the homepage hero.',
+    ).toEqual([])
+
+    // gray-500 is the pair that was actually live once: the marketing footer
+    // rendered it on gray-950 at 3.42 for months, under a nightly contrast
+    // gate, because a dark band in a light page has no `.dark` scope. Pinned
+    // as a NEGATIVE so "labels and captions use gray-400, never gray-500" stays
+    // a measured rule rather than a preference.
+    expect(contrast(token(LIGHT, 'gray-500'), night)).toBeLessThan(AA)
   })
 })
 
@@ -653,6 +801,27 @@ describe('TONE_FILL — the one answer for a solid fill with a label on it', () 
     expect(gradeToneFillClasses('"rounded bg-teal-500 text-white"')).toBeNull()
     // A fill with no label on it is TONE_DOT's business.
     expect(gradeToneFillClasses('"h-2 w-2 rounded-full bg-rose-500"')).toBeNull()
+  })
+
+  it('has no opinion about a translucent tint on the night band', () => {
+    // ASKED AND ANSWERED for DREAMCRM-54, rather than assumed. The night band
+    // (BRAND.md) draws every chip as a TINT over the dark ground — an alpha
+    // fill — not as a solid one, so rule 5's window is shut on it twice over:
+    // `gradeToneFillClasses` returns null the moment either half carries an
+    // alpha suffix, and a tint written as an inline `rgb(… / .13)` is not a
+    // `bg-<ramp>-<step>` utility at all, so there is nothing for the scanner
+    // to read.
+    expect(gradeToneFillClasses('"rounded-full bg-emerald-400/13 text-emerald-200"')).toBeNull()
+    expect(gradeToneFillClasses('"rounded-full bg-amber-400/15 text-amber-200"')).toBeNull()
+
+    // Which is the right answer and NOT a licence: the registry's argument is
+    // that a shape with one answer must not acquire a second, and it holds for
+    // a tint too. It is just that the night band's tints have no registry
+    // entry to be off — TONE_PILL is the wash for a LIGHT ground, and the ink
+    // steps it pairs are unreadable on a dark one. So a solid tone chip on the
+    // night band would fire this rule correctly, and the answer would be to
+    // extend the registry rather than to write a local recipe.
+    expect(gradeToneFillClasses('"rounded-full bg-emerald-400 text-emerald-200"')).not.toBeNull()
   })
 
   it('pins the window it looks through, at both edges', () => {

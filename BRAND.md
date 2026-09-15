@@ -39,6 +39,24 @@ descriptions (2026-09-14, DREAMCRM-43):
 3. **Owner picked the third:** *"I like D the most, with only the hero in dark
    mode."* That is this document.
 
+**Implementation decisions since (append one block per batch):**
+
+4. **The emoji ban does not reach a product mock's own glyphs** (DREAMCRM-54,
+   2026-09-15). Part 5 bans emoji in "product mocks", and the dashboard mock in
+   the hero shows the birthday glyph on a patient row. That glyph is the real
+   product — `lib/ui/encodings.ts` hands out the same character on the real
+   Today's-chair row, and `docs/` documents it to customers — so removing it
+   would make the mock an unfaithful picture of the thing being sold, which is
+   the one job a mock has. **The ban is on emoji as our VOICE, not on a
+   screenshot telling the truth about the app.** Decoration, chrome, headlines
+   and copy stay clear of them.
+5. **The chrome is still daylight and that is not a defect** (same batch). The
+   sticky header sits above the night band at white/85, because shared chrome is
+   move 3 below and changing it now would re-skin every subpage in a batch that
+   is meant to cover one. The band's top edge is therefore drawn deliberately —
+   a resting hairline plus the one-shot scan sweep — so it reads as a surface
+   starting rather than as a header that forgot to change.
+
 **Why hero-only dark is the right answer and not a compromise.** The pages that
 close the sale — pricing, comparisons, docs, blog — are long-form reading done
 on a bright operatory monitor by a practice owner in their fifties. Dark is a
@@ -160,7 +178,13 @@ No new colours. Two grounds, one accent family, one celebration accent.
   ticker, "learn more", timestamps and any number the reader is meant to
   compare. Uppercase, tracking `0.09em`–`0.16em`.
 - **The 12px floor applies here too.** No `text-[11px]`, no sub-0.75rem
-  literals — mono at 0.72rem is at the floor, not under it.
+  literals. **Mono micro-labels are `0.75rem`.** This line originally said
+  0.72rem was "at the floor" and that was arithmetic rather than taste —
+  0.72 x 16 = 11.52px, which is UNDER the 12px floor. Nothing would have caught
+  it either: `tests/a11y/legibility-floor.test.ts` skips `components/marketing`,
+  because the product mocks there imitate a real screen at 7px. Corrected on
+  DREAMCRM-54 before the first mono label shipped; the recipe is single-homed as
+  `MONO_LABEL` in `components/marketing/ui.tsx`.
 
 ---
 
@@ -237,13 +261,107 @@ colour that is not in this table does not go in the night band.**
 | `violet-300 #B7ACFF` | `#10182E` | 8.69 | headline gradient end |
 | `teal-400 #7CA5FF` | `#10182E` | 7.28 | eyebrows, icons, links |
 | `gray-400 #93A0BC` | `#10182E` | 6.71 | labels and captions only |
-| `#0C1226` ink | `teal-400 #7CA5FF` fill | 7.28 | the primary button |
+| `#0C1226` ink | `teal-300 #9DBDFF` fill | 9.87 | the primary button, light end |
+| `#0C1226` ink | `teal-400 #7CA5FF` fill | 7.68 | the primary button, deep end |
 | `gray-300 #C3D0E8` | `surface-1 #161F3A` | 10.46 | copy on a raised card |
 | `teal-400 #7CA5FF` | `surface-1 #161F3A` | 6.72 | accents on a raised card |
 
 Measured with the WCAG relative-luminance formula. `teal-500 #4C7DF0` lands at
 4.61 on the canvas — legal for text but too dim to use as the luminous accent;
 it stays a fill and a dot colour on the night band.
+
+**Two corrections from the first implementation (DREAMCRM-54, 2026-09-15),
+because a table nobody re-measures is a list of numbers somebody typed once:**
+
+- The primary-button row read **7.28**, which is `teal-400`'s ratio as INK on
+  the ground one row up — the same number copied into the row below it. Dark
+  ink on the `teal-400` fill is **7.68**, and the button is a gradient, so both
+  ends are in the table now. No design changed; the transcription did.
+- `gray-500 #5C6C89` is **3.32** on this ground and must never appear in the
+  band. It is not in the table, so it was already banned — but it is the pair
+  that actually shipped (the marketing footer's headings, live at 3.42 for
+  months), so it is now pinned as a NEGATIVE assertion in
+  `tests/a11y/token-contrast.test.ts` rather than left implicit.
+
+### The table grades the FLAT ground. The band is not flat.
+
+Every ratio above is ink against `#10182E`. The band also paints a blueprint
+grid, an aurora wash, two orbit rings, an orb and a star field on top of it —
+and every one of those is a `background-image`, which **axe cannot see at all**
+(it reads `background-color`). So a wash that walks the ink under 4.5:1 would
+be invisible to the table, to every source rule, and to the browser suite at
+once.
+
+`scripts/night-band-grade.mjs` closes that: it renders the page, hides the
+band's content, screenshots the decorative layers alone, and takes the
+BRIGHTEST pixel under each run of glyphs. Run it against any URL that serves
+the page — `BASE_URL=… node scripts/night-band-grade.mjs` — and it fails when
+anything lands under AA. The homepage measured on DREAMCRM-54:
+
+| Text | Ink | Brightest ground under it | Rendered | Flat |
+|---|---|---|---|---|
+| eyebrow badge | `teal-400` | `rgb(32 45 78)` | **5.61** | 7.28 |
+| headline | `#FFFFFF` | `rgb(64 75 100)` | **8.72** | 17.62 |
+| body copy | `gray-300` | `rgb(37 50 85)` | **8.11** | 11.33 |
+| trust row | `gray-300` | `rgb(25 35 62)` | **10.00** | 11.33 |
+| caption | `gray-400` | `rgb(17 26 48)` | **6.58** | 6.71 |
+| ticker | `gray-400` | `rgb(16 24 46)` | **6.71** | 6.71 |
+
+Two rules fall out of that run and they bind the next batch:
+
+- **Keep every aurora lobe centred OUTSIDE the band and horizontally apart.**
+  A single teal lobe at 16% alpha over the ground already puts `gray-400` — the
+  palest ink here — at 5.05. Lobes that stack over the reading column do not
+  have that headroom.
+- **A bloom is a light source, so keep text out of it.** The caption first
+  measured **3.40**, then **4.18**: it was sitting in the spill from the product
+  mock's bloom and the phone mock's grey shadow. Pulling the bloom in and giving
+  the caption air took it to 6.58. Note the middle number — 4.18 is a real
+  failure that reads as "nearly fine", which is what this whole surface is
+  dangerous for.
+
+**This table is now asserted, not just written.** `token-contrast.test.ts`
+re-derives every row above from `app/css/style.css` on each run
+("every ink BRAND.md Part 7 allows on the night band clears AA there"), so
+re-pointing a ramp step re-grades the whole band instead of quietly
+invalidating a document. The table is still where the DECISION lives; the test
+is what stops it drifting away from the stylesheet.
+
+### The twin of `GRADIENT_TEXT_EXEMPTIONS` — read this before you write gradient text on the band
+
+`tests/a11y/class-pairs.ts` rule 4 grades the stops of a `bg-clip-text`
+gradient **as ink against plain white**, deliberately. That is not an oversight
+to route around: white was the ground under every `bg-clip-text` in the tree
+when the rule landed, and grading against it keeps rule 4's cutoff IDENTICAL to
+rule 2's rather than opening a third opinion about which teal step is legal.
+Its own module header says so.
+
+So **the night band's headline fails rule 4 correctly-in-form and
+wrongly-in-fact**, and this is what it looks like:
+
+| Stop | on white (what rule 4 grades) | on `#10182E` (what renders) |
+|---|---|---|
+| `teal-300 #9DBDFF` | 1.88 | **9.36** |
+| `violet-300 #B7ACFF` | 2.03 | **8.69** |
+
+The fix is a `GRADIENT_TEXT_EXEMPTIONS` entry carrying the measured dark
+ratios, **not a change to rule 4** — it is right about every other site in the
+tree, and weakening it to get green would re-open the 2.42 headline
+DREAMCRM-44 closed. The entry is keyed to the exact class string, and a second
+assertion checks its PREMISE structurally: the exempted span has to still be
+inside a `<section>` that carries the night ground and renders `NightSky`. Move
+the hero back to white and the guard goes red naming the exemption, which is
+the only warning anyone will get — the scanner reads one quoted string and has
+no ancestor to resolve.
+
+Rule 5 (`TONE_FILL`, the solid-fill registry) has **no opinion** about the
+band's chips, and that was checked rather than assumed: it only fires on an
+opaque `bg-<ramp>-<step>` paired with an opaque `text-*`, and the band's chips
+are translucent tints. Pinned in `token-contrast.test.ts` both ways — the tint
+stays quiet, a SOLID tone chip fires. If you ever need a solid tone chip on the
+night band, the answer is to extend the registry, not to write a local recipe:
+`TONE_PILL`'s ink steps are chosen for a light ground and do not read on this
+one.
 
 ---
 

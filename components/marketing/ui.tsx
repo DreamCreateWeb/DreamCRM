@@ -6,8 +6,23 @@ import { TONE_FILL } from '@/lib/ui/encodings'
 
 /**
  * Server-side primitives for the marketing site: footer, section scaffolds,
- * CTAs, motion styles, and the product mocks. SaaS register: white/gray-50
- * grounds, gray-950 ink, brand-blue accent, 12px radii, Inter.
+ * CTAs, motion styles, and the product mocks.
+ *
+ * TWO REGISTERS LIVE HERE, and `BRAND.md` ("Night Dream") is the binding
+ * language for both. The DAYLIGHT body — white/gray-50 grounds, gray-950 ink,
+ * teal-600/700 accents — is everything below the fold. The NIGHT BAND is the
+ * homepage hero plus the ticker under it: `gray-950` ground, white and
+ * gray-300 ink, the luminous end of the brand ramp (teal-300/400, violet-300)
+ * carrying accents, and dark ink `#0C1226` riding the luminous fills. That
+ * inversion is deliberate — see `nightPrimaryCta` below.
+ *
+ * The night band is a dark BAND inside a light-mode page, not a theme. There
+ * is no `.dark` scope over it, so `tests/a11y/dark-mode-parity.test.ts`
+ * structurally cannot see it and axe cannot see any of its decorative layers
+ * (it reads `background-color`, and every layer here is a `background-image`).
+ * Every pair is therefore hand-graded in `BRAND.md` Part 7, and the ONLY thing
+ * keeping it honest is that table. Do not put a colour in this band that is
+ * not in it.
  *
  * The mocks are deliberately built from real copy — names, times, message
  * text, prices — so they read as screenshots of the actual product, not
@@ -18,13 +33,28 @@ import { TONE_FILL } from '@/lib/ui/encodings'
 /* ── Motion (CSS-only, reduced-motion safe) ─────────────────────────── */
 
 /** Keyframes + utility classes for the marketing pages. Rendered once in the
- *  marketing layout. Everything degrades to static under reduced motion. */
+ *  marketing layout. Everything degrades to static under reduced motion.
+ *
+ *  The four `mkt-aurora` / `mkt-stars` / `mkt-scan` / `mkt-live` rules are the
+ *  night band's, and they obey `BRAND.md` Part 6: compositor-only properties
+ *  (transform/opacity, never layout), ease-out with no spring overshoot —
+ *  `--spring-pop` is the dashboard's cute register and reads as bounce here —
+ *  and the scan sweep runs ONCE on load rather than looping.
+ *
+ *  Under `prefers-reduced-motion` the sweep is HIDDEN rather than merely
+ *  stopped. `animation: none` alone would park it at its 0% keyframe, which is
+ *  a bright hairline sitting across the top of the band forever; the thing it
+ *  is is a sweep, so with no motion there is nothing to show. */
 export function MarketingMotionStyles() {
   return (
     <style>{`
       @keyframes mkt-fade-up { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
       @keyframes mkt-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
       @keyframes mkt-marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+      @keyframes mkt-aurora { 0%, 100% { transform: translate3d(0, 0, 0) scale(1); } 50% { transform: translate3d(-1.5%, 1.2%, 0) scale(1.04); } }
+      @keyframes mkt-twinkle { 0%, 100% { opacity: 0.55; } 50% { opacity: 0.9; } }
+      @keyframes mkt-scan { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
+      @keyframes mkt-live { 0%, 100% { opacity: 0.35; transform: scale(1); } 50% { opacity: 0.9; transform: scale(2.1); } }
       .mkt-enter { opacity: 0; animation: mkt-fade-up 0.65s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
       .mkt-d1 { animation-delay: 0.08s; } .mkt-d2 { animation-delay: 0.16s; }
       .mkt-d3 { animation-delay: 0.24s; } .mkt-d4 { animation-delay: 0.34s; }
@@ -32,16 +62,195 @@ export function MarketingMotionStyles() {
       .mkt-float-slow { animation: mkt-float 9s ease-in-out 1.2s infinite; }
       .mkt-marquee-track { display: flex; width: max-content; animation: mkt-marquee 36s linear infinite; }
       .mkt-marquee:hover .mkt-marquee-track { animation-play-state: paused; }
+      .mkt-aurora { animation: mkt-aurora 18s ease-in-out infinite; will-change: transform; }
+      .mkt-stars { animation: mkt-twinkle 9s ease-in-out infinite; }
+      .mkt-scan { animation: mkt-scan 2.4s cubic-bezier(0.16, 1, 0.3, 1) 0.35s 1 both; }
+      .mkt-live { animation: mkt-live 1.8s ease-in-out infinite; }
       @media (prefers-reduced-motion: reduce) {
         .mkt-enter { opacity: 1; animation: none; }
         .mkt-float, .mkt-float-slow { animation: none; }
         .mkt-marquee-track { animation: none; }
+        .mkt-aurora, .mkt-stars, .mkt-live { animation: none; }
+        .mkt-scan { animation: none; opacity: 0; }
       }
     `}</style>
   )
 }
 
-/** Scrolling strip of everything included — pauses on hover. */
+/* ── The night band ─────────────────────────────────────────────────── */
+
+/**
+ * THE HAIRLINE. `BRAND.md` Part 2 calls this colour "wire", and the whole
+ * band's structure is drawn with it: one 1px stroke at 13%, a softer 5.5% for
+ * the blueprint grid. Spelled once here because "which blue is the hairline"
+ * drifting by a few percent across six call sites is how a precise surface
+ * stops reading as precise.
+ */
+export const NIGHT_WIRE = 'rgb(124 165 255 / 0.13)'
+const NIGHT_WIRE_SOFT = 'rgb(124 165 255 / 0.055)'
+
+/**
+ * The mono micro-label — `BRAND.md` Part 4 calls it the signature detail.
+ * Geist Mono (the `font-mono-num` token, already in the stack for dashboard
+ * numerals), uppercase, wide tracking.
+ *
+ * 0.75rem, NOT 0.72rem. Part 4 originally said 0.72rem was "at the floor" and
+ * that is arithmetic rather than taste: 0.72 × 16 = 11.52px, which is UNDER
+ * the 12px floor, and `tests/a11y/legibility-floor.test.ts` skips
+ * `components/marketing` (the mocks imitate a product at 7px), so nothing
+ * would have failed. Corrected in the brand book in the same commit.
+ */
+export const MONO_LABEL =
+  'font-mono-num text-[0.75rem] font-semibold uppercase tracking-[0.14em]'
+
+/**
+ * The blueprint grid — 56px, radially masked so it fades out before the band's
+ * edges instead of stopping at them. `BRAND.md` Part 3: "the grid is visible
+ * and it is the point". Content locks to it.
+ */
+const NIGHT_GRID = {
+  backgroundImage: `linear-gradient(to right, ${NIGHT_WIRE_SOFT} 1px, transparent 1px), linear-gradient(to bottom, ${NIGHT_WIRE_SOFT} 1px, transparent 1px)`,
+  backgroundSize: '56px 56px',
+  maskImage: 'radial-gradient(ellipse 78% 64% at 50% 42%, #000 32%, transparent 80%)',
+  WebkitMaskImage: 'radial-gradient(ellipse 78% 64% at 50% 42%, #000 32%, transparent 80%)',
+} as const
+
+/**
+ * The aurora wash.
+ *
+ * EVERY LOBE IS CENTRED OUTSIDE THE BAND — two above the top edge, one below
+ * the bottom — so only their tails reach the reading column, and they are
+ * horizontally separated so they do not stack on top of it. That is a contrast
+ * decision, not a compositional one: axe reads `background-color` and cannot
+ * see a `background-image` at all, so nothing in CI will ever tell you that a
+ * wash has walked the ink under 4.5:1. The measured ratios over the RENDERED
+ * band (not over the flat ground) are in `BRAND.md` Part 7.
+ *
+ * The ceiling that keeps it safe: a single teal lobe at 16% alpha over the
+ * ground leaves gray-400 — the palest ink in the band — at 5.05. Everything
+ * here is at or under that, before the falloff.
+ */
+const NIGHT_AURORA = {
+  backgroundImage: [
+    'radial-gradient(48rem 26rem at 12% -12%, rgb(124 165 255 / 0.16), transparent 62%)',
+    'radial-gradient(44rem 24rem at 88% -14%, rgb(183 172 255 / 0.13), transparent 60%)',
+    'radial-gradient(56rem 22rem at 52% 116%, rgb(157 189 255 / 0.10), transparent 66%)',
+  ].join(','),
+} as const
+
+/**
+ * The star field. Hand-placed rather than random: a `Math.random()` field
+ * renders differently on the server and the client, and this is a server
+ * component. Every star is also kept OUT of the middle band (roughly 28–72%
+ * vertically) where the headline and body copy sit.
+ */
+const NIGHT_STARS = {
+  backgroundImage: [
+    ['7%', '12%', 1.4, 0.55], ['19%', '24%', 1, 0.4], ['31%', '9%', 1.2, 0.5],
+    ['43%', '17%', 1, 0.35], ['57%', '7%', 1.4, 0.5], ['68%', '21%', 1, 0.4],
+    ['79%', '11%', 1.2, 0.45], ['91%', '19%', 1, 0.35], ['4%', '26%', 1, 0.3],
+    ['96%', '6%', 1.2, 0.4], ['11%', '86%', 1.2, 0.4], ['26%', '93%', 1, 0.3],
+    ['38%', '81%', 1.4, 0.45], ['52%', '95%', 1, 0.3], ['64%', '84%', 1.2, 0.4],
+    ['77%', '91%', 1, 0.3], ['88%', '79%', 1.2, 0.4], ['95%', '88%', 1, 0.3],
+  ]
+    .map(([x, y, r, a]) => `radial-gradient(${r}px ${r}px at ${x} ${y}, rgb(255 255 255 / ${a}), transparent)`)
+    .join(','),
+} as const
+
+/**
+ * Every decorative layer of the night band, in paint order: grid, aurora,
+ * orbit rings, orb, stars, then the one-shot scan sweep across the top edge.
+ *
+ * `BRAND.md` Part 3 — geometry lives in chrome zones only, never inside a data
+ * surface, always `aria-hidden` and `pointer-events: none`. The orbit rings
+ * are the page's one deliberate grid-break: they cross the `max-w-6xl`
+ * container edge on both sides.
+ */
+export function NightSky() {
+  return (
+    <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
+      <div className="absolute inset-0" style={NIGHT_GRID} />
+      <div className="mkt-aurora absolute inset-0" style={NIGHT_AURORA} />
+      {/* Two concentric orbit rings, 1px, bleeding past the container edge. */}
+      <div
+        className="absolute left-1/2 top-[6%] h-[80rem] w-[80rem] -translate-x-1/2 rounded-full border"
+        style={{ borderColor: NIGHT_WIRE }}
+      />
+      <div
+        className="absolute left-1/2 top-[16%] h-[54rem] w-[54rem] -translate-x-1/2 rounded-full border"
+        style={{ borderColor: 'rgb(124 165 255 / 0.09)' }}
+      />
+      {/* One soft orb behind the headline. White ink sits at 17.62 on the flat
+          ground, which is the headroom this is spent out of. */}
+      <div
+        className="absolute left-1/2 top-[6%] h-[30rem] w-[44rem] -translate-x-1/2 rounded-full blur-3xl"
+        style={{ backgroundImage: 'radial-gradient(closest-side, rgb(124 165 255 / 0.13), transparent)' }}
+      />
+      <div className="mkt-stars absolute inset-0" style={NIGHT_STARS} />
+      {/* The band's top edge: a resting hairline, plus the sweep that runs once
+          on load and announces that a new surface starts here. */}
+      <div className="absolute inset-x-0 top-0 h-px" style={{ backgroundColor: NIGHT_WIRE }} />
+      <div className="absolute inset-x-0 top-0 h-px overflow-hidden">
+        <div
+          className="mkt-scan h-px w-full"
+          style={{ backgroundImage: 'linear-gradient(90deg, transparent, rgb(157 189 255 / 0.85), transparent)' }}
+        />
+      </div>
+    </div>
+  )
+}
+
+/**
+ * The night band's primary action.
+ *
+ * **The luminous end of the ramp carries DARK ink here, and that is the exact
+ * inverse of the daylight rule** (`DESIGN-SYSTEM.md`: white text starts at
+ * teal-600). On a white page teal-300/400 are far too pale to be a white-text
+ * fill — 2.42 at teal-400, the number that started DREAMCRM-44. On the night
+ * band they are the brightest thing available, so the label has to be the dark
+ * one: `#0C1226` on teal-400 is 7.68 and on teal-300 is 9.87.
+ *
+ * Written as an arbitrary value rather than a `text-*` token because `#0C1226`
+ * is `--color-surface-sunk`'s DARK value, and there is no `.dark` scope over
+ * this band to resolve it — see the file header.
+ *
+ * Depth is emission, not stacking (`BRAND.md` Part 3): the button glows rather
+ * than casting a shadow, and the glow deepens on hover instead of the fill
+ * darkening.
+ */
+export function NightPrimaryCta({ href, children }: { href: string; children: React.ReactNode }) {
+  return (
+    <Link
+      href={href}
+      className="inline-flex items-center justify-center rounded-[10px] bg-gradient-to-r from-teal-300 to-teal-400 px-5 py-2.5 text-[0.92rem] font-semibold text-[#0C1226] shadow-[0_6px_22px_rgb(124_165_255/0.34)] transition-all duration-150 ease-out hover:-translate-y-px hover:shadow-[0_8px_28px_rgb(124_165_255/0.46)]"
+    >
+      {children}
+    </Link>
+  )
+}
+
+/** The night band's secondary action — a wire outline, no fill. */
+export function NightGhostCta({ href, children }: { href: string; children: React.ReactNode }) {
+  return (
+    <Link
+      href={href}
+      className="inline-flex items-center justify-center rounded-[10px] border bg-white/[0.03] px-5 py-2.5 text-[0.92rem] font-semibold text-gray-300 transition-all duration-150 ease-out hover:-translate-y-px hover:text-white"
+      style={{ borderColor: NIGHT_WIRE }}
+    >
+      {children}
+    </Link>
+  )
+}
+
+/**
+ * Scrolling strip of everything included — pauses on hover.
+ *
+ * Part of the NIGHT BAND (`BRAND.md` Part 8, move 1): the hero and the ticker
+ * under it are one surface, so this carries the same ground and the same wire
+ * as the band above it. The labels are mono micro-labels in gray-400 (6.71 on
+ * the ground, and Part 2 allows gray-400 for labels and captions only — never
+ * body copy). The old gray-500 would render at 3.32 here.
+ */
 export function MarqueeStrip() {
   const items = [
     'Practice website', 'Edit-in-place studio', 'Online booking', 'Patient portal',
@@ -53,15 +262,19 @@ export function MarqueeStrip() {
   const row = (key: string, hidden: boolean) => (
     <div key={key} className="flex items-center" aria-hidden={hidden || undefined}>
       {items.map((label) => (
-        <span key={`${key}-${label}`} className="flex items-center whitespace-nowrap px-5 text-[0.82rem] font-semibold text-gray-500">
-          <span className="mr-5 h-1 w-1 rounded-full bg-teal-300" aria-hidden="true" />
+        <span key={`${key}-${label}`} className={`flex items-center whitespace-nowrap px-5 text-gray-400 ${MONO_LABEL}`}>
+          <span className="mr-5 h-1 w-1 rounded-full bg-teal-400" aria-hidden="true" />
           {label}
         </span>
       ))}
     </div>
   )
   return (
-    <div className="mkt-marquee overflow-hidden border-y border-gray-100 bg-white py-3.5" aria-label="Everything included">
+    <div
+      className="mkt-marquee overflow-hidden border-y bg-gray-950 py-3.5"
+      style={{ borderColor: NIGHT_WIRE }}
+      aria-label="Everything included"
+    >
       <div className="mkt-marquee-track">
         {row('a', false)}
         {row('b', true)}
@@ -160,8 +373,13 @@ export function SectionTitle({ children, sub }: { children: React.ReactNode; sub
   )
 }
 
-/** The marketing brand texture — exported so the home hero and PageHero
- *  can never drift apart. */
+/** The DAYLIGHT hero texture — subpage heroes only now.
+ *
+ *  It used to be shared with the homepage hero, which is the night band since
+ *  DREAMCRM-54; the export stays because `PageHero` is about to be reskinned
+ *  too (BRAND.md Part 8, move 3) and this is the thing that will be replaced
+ *  wholesale rather than edited. Until then every subpage still wears it, so
+ *  changing it here changes pricing, compare, docs and the blog at once. */
 export const HERO_DOT_GRID = {
   backgroundImage: 'radial-gradient(circle, #c1d6ff 1px, transparent 1px)',
   backgroundSize: '22px 22px',
@@ -381,7 +599,7 @@ export function DashboardMock() {
         <div className="min-w-0 flex-1 space-y-3 p-4">
           <div className="flex items-start justify-between gap-2">
             <div>
-              <p className="text-[0.56rem] font-bold uppercase tracking-wider text-[#2F52B3]">Morning huddle · Tue, Jun 16</p>
+              <p className="font-mono-num text-[0.56rem] font-bold uppercase tracking-wider text-[#2F52B3]">Morning huddle · Tue, Jun 16</p>
               <p className="text-[1rem] font-extrabold tracking-tight text-gray-900">Dream Dental</p>
               <p className="text-[0.56rem] font-medium text-gray-400">
                 The six things worth your attention this morning — every number opens the list behind it.
@@ -401,8 +619,8 @@ export function DashboardMock() {
               { label: 'Balances', n: '$523', sub: '3 patients owe', rows: ['Liam Brooks · $214', 'Ava Morgan · $180'], link: 'See who owes →' },
             ].map((c) => (
               <div key={c.label} className={`rounded-xl bg-white p-2 ${MOCK_CARD_SHADOW}`}>
-                <p className="text-[0.5rem] font-bold uppercase tracking-wider text-gray-400">{c.label}</p>
-                <p className="font-mono text-[0.92rem] font-extrabold leading-tight tracking-tight text-gray-900">
+                <p className="font-mono-num text-[0.5rem] font-bold uppercase tracking-wider text-gray-400">{c.label}</p>
+                <p className="font-mono-num text-[0.92rem] font-extrabold leading-tight tracking-tight text-gray-900">
                   {c.n} <span className="font-sans text-[0.5rem] font-semibold text-gray-400">{c.sub}</span>
                 </p>
                 <div className="mt-1 space-y-0.5">
@@ -420,7 +638,7 @@ export function DashboardMock() {
             <div className="flex items-center justify-between rounded-t-xl bg-[#E9F0FC]/50 px-2.5 py-1.5">
               <p className="text-[0.62rem] font-bold text-gray-800">Today&apos;s chair</p>
               <span className="flex items-center gap-1.5">
-                <span className="font-mono text-[0.5rem] font-semibold text-gray-400">8 booked · 5 confirmed</span>
+                <span className="font-mono-num text-[0.5rem] font-semibold text-gray-400">8 booked · 5 confirmed</span>
                 <svg viewBox="0 0 20 20" className="h-4 w-4 -rotate-90">
                   <circle cx="10" cy="10" r="7.5" fill="none" stroke="#4C7DF0" strokeOpacity=".18" strokeWidth="2.6" />
                   <circle cx="10" cy="10" r="7.5" fill="none" stroke="#4C7DF0" strokeWidth="2.6" strokeLinecap="round" strokeDasharray="47.1" strokeDashoffset="17.7" />
@@ -430,7 +648,7 @@ export function DashboardMock() {
             <div className="divide-y divide-[#E9F0FC] px-2.5">
               {chair.map((r) => (
                 <div key={r.t} className="flex items-center gap-2 py-1">
-                  <span className="w-7 font-mono text-[0.56rem] font-bold text-gray-400">{r.t}</span>
+                  <span className="w-7 font-mono-num text-[0.56rem] font-bold text-gray-400">{r.t}</span>
                   <Avatar initials={r.i} color={r.c} />
                   <span className="min-w-0 flex-1">
                     <span className="flex items-center gap-1">
@@ -454,11 +672,20 @@ export function DashboardMock() {
               { label: 'Website visits', n: '214', sub: '+18% vs prior wk', tone: 'text-emerald-600' },
             ].map((t) => (
               <div key={t.label} className={`relative rounded-xl bg-white px-2 py-1.5 ${MOCK_TILE_SHADOW}`}>
-                <p className="truncate text-[0.48rem] font-bold uppercase tracking-wide text-gray-400">{t.label}</p>
-                <p className="font-mono text-[0.86rem] font-extrabold text-gray-900">{t.n}</p>
+                <p className="truncate font-mono-num text-[0.48rem] font-bold uppercase tracking-wide text-gray-400">{t.label}</p>
+                <p className="font-mono-num text-[0.86rem] font-extrabold text-gray-900">{t.n}</p>
                 <p className={`truncate text-[0.48rem] font-semibold ${t.tone}`}>{t.sub}</p>
+                {/* The booking pulse EMITS rather than sits flat — BRAND.md
+                    Part 3, and the one lit thing inside the instrument glass.
+                    A drop-shadow rather than a glow layer, so it costs one
+                    filter and reads the same on the daylight /product page. */}
                 {t.spark && (
-                  <svg viewBox="0 0 60 16" className="absolute bottom-1.5 right-1.5 h-3 w-12 text-[#4C7DF0]" preserveAspectRatio="none">
+                  <svg
+                    viewBox="0 0 60 16"
+                    className="absolute bottom-1.5 right-1.5 h-3 w-12 text-[#4C7DF0]"
+                    preserveAspectRatio="none"
+                    style={{ filter: 'drop-shadow(0 0 2.5px rgb(76 125 240 / 0.65))' }}
+                  >
                     <polyline points="0,13 9,11 18,12 27,8 36,9 45,5 52,7 60,2" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                     <circle cx="60" cy="2" r="1.8" fill="currentColor" />
                   </svg>
