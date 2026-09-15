@@ -343,6 +343,12 @@ export const A11Y_BASELINE: Record<string, Record<string, number>> = {
   'portal: billing, a balance waiting to be paid': { 'color-contrast': 1 },
   'portal: billing, back from a completed checkout': { 'color-contrast': 1 },
   'portal: billing, checkout could not start': { 'color-contrast': 1 },
+  // The webhook backstop's one page load (DREAMCRM-48). Same page and same
+  // muted-ink pair as the three above, in a QUIETER state — no balance, so no
+  // pay form — which can only mean the same violation or fewer. Entered at 1
+  // on that reasoning rather than measured, exactly like its three siblings,
+  // and the run that measures it warns if it is really zero.
+  'portal: billing, history after a webhook redelivery': { 'color-contrast': 1 },
   'portal: cancel confirmation showing': { 'color-contrast': 1 },
   'portal: patient dashboard': { 'color-contrast': 1 },
   'portal: reschedule panel open, a new time picked': { 'color-contrast': 1 },

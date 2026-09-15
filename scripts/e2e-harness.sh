@@ -13,6 +13,9 @@
 set -euo pipefail
 
 PORT="${E2E_PORT:-3100}"
+# The SECOND app process (DREAMCRM-48) — see "the webhook server" below for
+# why there are two.
+WEBHOOK_PORT="${E2E_WEBHOOK_PORT:-$(( ${E2E_PORT:-3100} + 1 ))}"
 PGPORT="${E2E_PGPORT:-55432}"
 PGDIR="${E2E_PGDIR:-/tmp/e2e-pgdata}"
 DB="dreamcrm_e2e"
@@ -44,6 +47,7 @@ fi
 cleanup() {
   echo "--- teardown ---"
   [[ -n "${SERVER_PID:-}" ]] && kill "$SERVER_PID" 2>/dev/null || true
+  [[ -n "${WEBHOOK_PID:-}" ]] && kill "$WEBHOOK_PID" 2>/dev/null || true
   as_pg "$PGBIN/pg_ctl -D $PGDIR stop -m immediate" >/dev/null 2>&1 || true
 }
 trap cleanup EXIT
@@ -77,6 +81,15 @@ export CRON_SECRET="${CRON_SECRET:-e2e-cron}"
 # from a test run. So unset it here rather than assuming it is absent.
 unset STRIPE_SECRET_KEY
 
+# THE ONE SECRET THE WEBHOOK SERVER NEEDS, EXPORTED UNDER ITS OWN NAME.
+#
+# Deliberately NOT exported as STRIPE_CONNECT_WEBHOOK_SECRET: that name would
+# reach the main server too, and the main server's Stripe boundary is the
+# contract the paragraph above protects. Playwright needs this value to SIGN
+# with, so it is exported; only the webhook server is handed it under the name
+# the route actually reads.
+export E2E_STRIPE_WEBHOOK_SECRET="${E2E_STRIPE_WEBHOOK_SECRET:-whsec_e2e_not_a_real_signing_secret}"
+
 echo "--- migrations (fresh database: also a deploy-path rehearsal) ---"
 node scripts/migrate.mjs
 
@@ -97,6 +110,40 @@ for i in $(seq 1 60); do
 done
 curl -sf "http://127.0.0.1:$PORT/api/health" >/dev/null || { echo "server never became healthy:"; tail -20 /tmp/e2e-server.log; exit 1; }
 
+# --- the webhook server (DREAMCRM-48) --------------------------------------
+#
+# A SECOND `next start` on the same build and the same database, differing
+# from the first in exactly two environment variables.
+#
+# WHY IT CANNOT BE ONE SERVER. `app/api/webhooks/stripe-connect/route.ts`
+# verifies the signature through `stripe.webhooks.constructEvent`, which is an
+# INSTANCE method — it goes through the lazy Proxy in `lib/stripe.ts`, so with
+# no STRIPE_SECRET_KEY the first property access throws and EVERY delivery,
+# correctly signed or not, comes back 400 "invalid signature". Nothing past
+# the signature could be walked at all. But putting a key on the MAIN server
+# would break the contract the `unset` above protects: `portal-billing.spec.ts`
+# drives a real checkout attempt and asserts what a patient sees when Stripe is
+# down, and a server holding a key would answer that by opening a socket to
+# api.stripe.com.
+#
+# So the boundary stays exactly where it was and the webhook gets its own
+# process. The key here is FAKE, and no test may reach a path that spends it —
+# which is not a hope, it is the assertion. Every case in
+# `e2e/stripe-webhook-backstop.spec.ts` stops at one of the finalizer's
+# pre-Stripe returns; a regression that walks past one turns the route 500 and
+# the spec red. A real call to Stripe is the failure SIGNAL here, not a risk
+# the suite quietly runs.
+echo "--- webhook server on :$WEBHOOK_PORT ---"
+STRIPE_SECRET_KEY="sk_test_e2e_not_a_real_key" \
+  STRIPE_CONNECT_WEBHOOK_SECRET="$E2E_STRIPE_WEBHOOK_SECRET" \
+  pnpm start --port "$WEBHOOK_PORT" > /tmp/e2e-webhook-server.log 2>&1 &
+WEBHOOK_PID=$!
+for i in $(seq 1 60); do
+  curl -sf "http://127.0.0.1:$WEBHOOK_PORT/api/health" >/dev/null 2>&1 && break
+  sleep 1
+done
+curl -sf "http://127.0.0.1:$WEBHOOK_PORT/api/health" >/dev/null || { echo "webhook server never became healthy:"; tail -20 /tmp/e2e-webhook-server.log; exit 1; }
+
 echo "--- playwright ---"
 # The original dev container pre-installs browsers at /opt/pw-browsers; only
 # default to it when it exists — a CI runner uses Playwright's own cache from
@@ -105,4 +152,5 @@ if [[ -z "${PLAYWRIGHT_BROWSERS_PATH:-}" && -d /opt/pw-browsers ]]; then
   export PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers
 fi
 E2E_BASE_URL="http://127.0.0.1:$PORT" \
+  E2E_WEBHOOK_BASE_URL="http://127.0.0.1:$WEBHOOK_PORT" \
   npx playwright test "$@"
