@@ -3077,7 +3077,7 @@ contains main. On a stale local branch the two can disagree about a ceiling the
 branch never touched; the failure says so and names the fix (update the branch).
 Under `strict: true` that state cannot reach a merge.
 
-### Clipped text over a SOLID brand fill is graded by no rule (2026-09-14) · FIXED — awaiting merge (#594)
+### Clipped text over a SOLID brand fill is graded by no rule (2026-09-14) · FIXED
 
 **The defect.** Rule 4 (#566) grades `bg-clip-text text-transparent` only when
 the ink is a *gradient* — `isGradientText` in `tests/a11y/class-pairs.ts`
@@ -3101,7 +3101,7 @@ which is precisely the shape #566's own module header argues for writing down:
 to it.* Rule 4 was written for the gradient inverse of rule 3 and left its own
 solid-fill inverse open.
 
-**The verdict.** Fixed (DREAMCRM-63). Rule 4 now resolves the paint that
+**The verdict.** Fixed (DREAMCRM-63, #594, `a90c6f64`). Rule 4 now resolves the paint that
 becomes the letterforms through `clippedInks` in `tests/a11y/class-pairs.ts` —
 the gradient's base stops when there is a gradient, and the solid
 `bg-<colour>` when there is not — and grades whatever comes back as ink on
@@ -3123,7 +3123,7 @@ and it is too pale to read (bg-teal-400) — light: teal-400 on white = 2.42`.
 Both halves were run; the green one is the part worth recording, because it is
 the state this repo was in for a day short of a week.
 
-### Three dead-exemption detectors asked whether an exemption still MATCHED, never whether its REASON held (2026-09-15) · FIXED — awaiting merge (#594)
+### Three dead-exemption detectors asked whether an exemption still MATCHED, never whether its REASON held (2026-09-15) · FIXED
 
 **The defect.** This repo has four allow-lists that make a contrast gate
 looser, each with a detector that fails when an entry stops matching anything:
@@ -3161,7 +3161,7 @@ outliving its subject is exactly what these lists were built to prevent.
   real contrast defect on the busiest public page we have is discounted by a
   sentence about 7px illustration glyphs.
 
-**The verdict.** Fixed (DREAMCRM-63). Each list's own premise is now asserted
+**The verdict.** Fixed (DREAMCRM-63, #594, `a90c6f64`). Each list's own premise is now asserted
 against the source or the page that justifies it, in the shape #587 established
 — assert the FACT the `why` rests on, not that the string is still somewhere:
 
