@@ -203,7 +203,18 @@ describe('the reporter cannot gate anything', () => {
     ).not.toMatch(/\bexpect\(|\bthrow new |process\.exitCode\s*=|process\.exit\(/)
   })
 
-  it('nothing is printed when the run had no headroom to report', () => {
+  it('no table when there is no headroom — but the reporter still says so out loud', () => {
     expect(formatHeadroomTable([])).toBeNull()
+    // A tight ratchet and a reporter that never ran produce identical silence,
+    // and the second is the likelier bug. The first CI run of this reporter
+    // printed no table because every ceiling really was tight, and nothing in
+    // the log distinguished that from a broken wire.
+    const quiet = REPORTER_SRC.slice(REPORTER_SRC.indexOf('onEnd()'))
+    expect(
+      quiet,
+      'the reporter must distinguish "every ceiling is tight" from "nothing was measured" — ' +
+        'silence that could mean either is the failure this whole file argues against.',
+    ).toContain('no axe ceilings were measured in this run')
+    expect(quiet).toContain('every measured ceiling is tight')
   })
 })

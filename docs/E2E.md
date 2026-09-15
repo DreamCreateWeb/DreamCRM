@@ -374,6 +374,11 @@ Three things about reading it:
 - **Only stops this run visited can appear.** A ceiling for a stop no spec
   reached is invisible here, and so is a rule that never fired — the table is
   evidence about what ran, not an audit of the file.
+- **No table is not silence.** A run where every measured ceiling is tight says
+  so in one line, and a run that measured *nothing* says something different
+  and louder — a tight ratchet and an unhooked reporter would otherwise look
+  identical, and the second is the likelier bug. The first CI run of this
+  printed no table for the honest reason and there was no way to tell.
 
 It reports and nothing else: it cannot fail a run, cannot change which rules
 are over their ceiling, and holds no opinion about what should be shrunk.
