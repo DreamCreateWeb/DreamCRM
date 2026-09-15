@@ -187,7 +187,7 @@ export default function BuyDomainCard({
                   title={p.renewalError ?? undefined}
                 />
                 {p.renewsAt && !p.dryRun && p.status === 'active' && (
-                  <span className="text-xs text-gray-400 dark:text-gray-500 tabular-nums shrink-0">
+                  <span className="text-xs text-gray-500 dark:text-gray-400 tabular-nums shrink-0">
                     renews {p.renewsAt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                   </span>
                 )}

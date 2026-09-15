@@ -59,7 +59,7 @@ export default function GettingStarted({ checklist }: { checklist: ActivationChe
           <button
             type="button"
             onClick={dismiss}
-            className="rounded-lg px-2.5 py-1.5 text-xs font-semibold text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
+            className="rounded-lg px-2.5 py-1.5 text-xs font-semibold text-gray-500 hover:text-gray-600 dark:text-gray-400 dark:hover:text-gray-300"
             title="Hide this list permanently"
           >
             Hide
@@ -118,7 +118,7 @@ export default function GettingStarted({ checklist }: { checklist: ActivationChe
                   <span
                     className={`block text-sm font-medium ${
                       task.done
-                        ? 'text-gray-400 line-through dark:text-gray-500'
+                        ? 'text-gray-500 line-through dark:text-gray-400'
                         : 'text-gray-800 dark:text-gray-100'
                     }`}
                   >

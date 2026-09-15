@@ -34,7 +34,7 @@ export default function CustomersTable({ customers }: { customers: CustomerRow[]
       <header className="px-5 py-4">
         <h2 className="font-semibold text-gray-800 dark:text-gray-100">
           All Customers{' '}
-          <span className="text-gray-400 dark:text-gray-500 font-medium">{customers.length}</span>
+          <span className="text-gray-500 dark:text-gray-400 font-medium">{customers.length}</span>
         </h2>
       </header>
       <div>

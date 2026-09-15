@@ -39,7 +39,7 @@ export default function ModuleHintBanner({
         type="button"
         onClick={dismiss}
         aria-label="Dismiss hint"
-        className="shrink-0 rounded-lg p-1.5 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
+        className="shrink-0 rounded-lg p-1.5 text-gray-500 hover:text-gray-600 dark:text-gray-400 dark:hover:text-gray-300"
       >
         <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="currentColor" aria-hidden="true">
           <path d="M4.3 3.3a.7.7 0 0 0-1 1L7 8l-3.7 3.7a.7.7 0 1 0 1 1L8 9l3.7 3.7a.7.7 0 1 0 1-1L9 8l3.7-3.7a.7.7 0 0 0-1-1L8 7 4.3 3.3Z" />

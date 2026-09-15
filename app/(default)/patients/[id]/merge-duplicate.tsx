@@ -101,7 +101,7 @@ export default function MergeDuplicate({
               <>
                 {candidates.length > 0 && (
                   <div className="mt-4">
-                    <p className="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-1">Likely duplicates</p>
+                    <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1">Likely duplicates</p>
                     <ul className="space-y-1">
                       {candidates.map((c) => (
                         <li key={c.id}>
@@ -123,7 +123,7 @@ export default function MergeDuplicate({
                 )}
 
                 <div className="mt-4">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-1">Or find another</p>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1">Or find another</p>
                   <input
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}

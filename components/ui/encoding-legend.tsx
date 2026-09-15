@@ -72,7 +72,7 @@ export function EncodingLegend({
         className="btn-sm bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700/60 hover:border-gray-300 dark:hover:border-gray-600 text-gray-600 dark:text-gray-300 gap-1.5"
         title="What the colors and icons on this page mean"
       >
-        <svg className="shrink-0 fill-current text-gray-400 dark:text-gray-500" width="14" height="14" viewBox="0 0 16 16" aria-hidden="true">
+        <svg className="shrink-0 fill-current text-gray-500 dark:text-gray-400" width="14" height="14" viewBox="0 0 16 16" aria-hidden="true">
           <path d="M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0Zm0 12a1 1 0 1 1 0-2 1 1 0 0 1 0 2Zm1-3.5a1 1 0 0 1-2 0V5a1 1 0 0 1 2 0v3.5Z" />
         </svg>
         {label}

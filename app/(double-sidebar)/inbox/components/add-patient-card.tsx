@@ -54,7 +54,7 @@ export default function AddPatientCard({ messageId, fromEmail, fromName, termino
   return (
     <aside className="rounded-[var(--r-md)] border border-dashed border-gray-300 dark:border-gray-700/60 bg-white/40 dark:bg-gray-900/20 p-4">
       <div className="flex items-center gap-2 mb-2">
-        <div className="w-7 h-7 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-gray-400 dark:text-gray-500">
+        <div className="w-7 h-7 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-gray-500 dark:text-gray-400">
           <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
             <path d="M12 5v14M5 12h14" strokeLinecap="round" />
           </svg>

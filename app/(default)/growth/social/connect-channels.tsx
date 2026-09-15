@@ -180,7 +180,7 @@ export default function ConnectChannels(props: ConnectChannelsProps) {
               Ask an owner or admin to connect your channels — then you can post from here.
             </p>
           )}
-          <p className="mt-4 text-xs text-gray-400 dark:text-gray-500">
+          <p className="mt-4 text-xs text-gray-500 dark:text-gray-400">
             Want the full picture?{' '}
             <Link href="/integrations" className="font-medium text-teal-700 dark:text-teal-400 underline">
               Manage all integrations →

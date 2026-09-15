@@ -307,13 +307,70 @@
  *     nobody looks at twice. When several stops on one surface all carry the
  *     SAME small number, the first question is what they render in common.
  *
- * Remaining: **8, all `color-contrast`, and all of them genuine** — the 41
- * decorative mocks are excluded at the scan rather than carried as a ceiling,
- * and the 2 on the booking confirmation were fade artifacts. 214 → 8 since
- * 2026-09-10, which is UI batches 54-62 doing the real work; QA's share of that
- * is the 43 that were never defects.
+ *   2026-09-15 · UI batch 64 · **8 → ZERO. THIS FILE IS EMPTY, AND EVERY STOP
+ *     IN THE SUITE NOW TOLERATES NOTHING.** 214 → 0 since 2026-09-10, across
+ *     UI batches 54-64; QA's share is the 43 that were never defects.
  *
- * WHAT IS LEFT IS NO LONGER ONE BIG PAIR. Every large identified cluster is
+ *     The eight were NOT eight things. They were three, and the biggest of
+ *     them is the one this file's own advice predicted: six of the eight —
+ *     four stops — were one class pair written upside down.
+ *
+ *       · **`text-gray-400 dark:text-gray-500`, 177 places across 85 files.**
+ *         DESIGN-SYSTEM.md §2.2 has said since v3 shipped that `gray-500` is
+ *         the lightest meaningful ink on white and `dark:gray-400` the
+ *         lightest on dark, and `--color-ink-400` carries the comment
+ *         "disabled only". This is that line backwards, and it fails in BOTH
+ *         themes at once: **#93a0bc on #ffffff = 2.62** (the website hub's
+ *         three "optional" suffixes and the dream-team field label, 12px),
+ *         **#93a0bc on #f3f7fe = 2.44** (the saved-views bar's "Views:" chip,
+ *         which is what `staff: the day agenda` was carrying), and on the dark
+ *         side **#5c6c89 on #0c1226 = 3.51**. All 177 are the right way up
+ *         now. `tests/a11y/class-pairs.ts` rule 6 +
+ *         `tests/a11y/quiet-ink.test.ts` hold the shape at zero with no
+ *         ceiling, and it is red-verified against the real live defect in
+ *         `components/saved-views/saved-views-bar.tsx`, not only against
+ *         planted strings.
+ *       · **`auth: sign-in showing the failure alert`** — the error block was
+ *         `text-red-600` on `bg-red-50`, **#fa4949 on #ffe8e8 = 2.93** at
+ *         14px. `red-*` was never a v3 tone ramp (batch 59 made the same
+ *         point about Delete and Clear), and the alert is a tone WASH WITH ITS
+ *         OWN INK, which is exactly `TONE_PILL`. It and the six siblings
+ *         spelling the same string — the reset-password form, both
+ *         accept-invite alerts, three ecommerce add-modals — now read
+ *         `TONE_PILL.urgent` (6.33 light).
+ *       · **`staff: patients list, brand-new empty clinic` and `staff:
+ *         add-patient dialog, filled in`** were ONE element, not two: the
+ *         trial banner's CTA, `text-white` on `bg-violet-500` =
+ *         **#ffffff on #8470ff = 3.65** at 12px. A brand-new clinic is on day
+ *         7 of its trial, so the calm tier is the one that renders at those
+ *         stops — and the two tiers the browser suite never reaches were
+ *         worse (2.13 on amber-500, 2.89 on orange-500). It carries
+ *         `TONE_FILL` now; see the header in `components/ui/trial-banner.tsx`
+ *         for why the orange tier is the one hand-spelled recipe.
+ *
+ *     WHAT THIS FILE IS NOW. An empty baseline is not a retired instrument —
+ *     it is the instrument at full sensitivity. Every stop in the suite has a
+ *     ceiling of zero for every rule, so the next contrast defect anywhere the
+ *     E2E suite walks fails on the PR that introduces it, which is the state
+ *     `e2e/axe.ts`'s comments have argued for since the day it landed. Do not
+ *     add an entry here to get a red run green. If a defect is genuinely not
+ *     ours to fix in the same PR, that is a conversation on the issue, not a
+ *     number in this file — and the monotonicity guard this header has asked
+ *     for since 2026-09-10 (DREAMCRM-49) is still unbuilt, so the only thing
+ *     standing between a raised ceiling and `main` is whoever reads the diff.
+ *
+ *     Two things worth keeping about HOW the eight were found, because neither
+ *     was available by reading source. `expectNoA11yViolations` prints
+ *     elements and colours only for violations ABOVE a ceiling — a carried one
+ *     is a count in a log line and nothing else — so eight defects sat behind
+ *     eight ceilings with nobody able to say what they were. Zeroing this file
+ *     on a throwaway branch and dispatching `ci.yml` at it
+ *     (actions/runs/34993335573) printed all eight with selectors and measured
+ *     colours in four minutes. And once measured, SIX OF THEM WERE ONE SHAPE
+ *     — four stops that looked like four small unrelated debts, which is the
+ *     batch-62 lesson arriving a second time from the other direction.
+ *
+ * WHAT WAS LEFT WAS NO LONGER ONE BIG PAIR. Every large identified cluster is
  * closed; the 18 are singles and pairs on eleven stops, each needing its own
  * look. Three things this suite structurally cannot see are recorded in
  * docs/UI-BEST-VERSION.md instead: 31 `color: brand` sites on the public site
@@ -408,27 +465,25 @@
  *     brand-filled bubble, 3.79–4.42 depending on the clinic's brand, on a
  *     page the browser suite does not stop at.
  */
-export const A11Y_BASELINE: Record<string, Record<string, number>> = {
-  'auth: sign-in showing the failure alert': { 'color-contrast': 1 },
-  // NO `portal:` STOP APPEARS HERE ANY MORE — nine entries left in batch 62
-  // with the footer line that produced all nine. A portal stop tolerates ZERO
-  // now, which is the only state in which the next one fails on arrival; see
-  // the note above for what the pair actually was.
-  //
-  // AND THE ONE THAT WOULD HAVE BROKEN THAT IS FIXED, batch 64 (DREAMCRM-62).
-  // The slot grid's "taken" time was 1.85:1 — a one-off warm grey on a one-off
-  // warm well, both spelled raw at the call site. No spec loads a day with a
-  // booked slot in it, so this file never counted it and never would have
-  // until a fixture changed; what it actually was, with the portal stops at
-  // zero, is a red `e2e` waiting on a seed. Worth saying plainly because it is
-  // the opposite of the usual reading: a stop at zero is not evidence the
-  // surface is clean, only that nothing has scanned the state that is dirty.
-  // The guard is `tests/a11y/portal-palette.test.ts` — every portal ink on
-  // every portal surface, in `test`, where it does not depend on a spec
-  // happening to walk past.
-  'staff: add-patient dialog, filled in': { 'color-contrast': 1 },
-  'staff: dream team, a proposal waiting on a yes': { 'color-contrast': 1 },
-  'staff: patients list, brand-new empty clinic': { 'color-contrast': 1 },
-  'staff: the day agenda': { 'color-contrast': 1 },
-  'staff: website hub, site published': { 'color-contrast': 3 },
-}
+/**
+ * EMPTY, AS OF UI BATCH 64 (2026-09-15) — and empty is the working state, not
+ * a gap. `expectNoA11yViolations` gives a rule that is absent for a stop a
+ * ceiling of ZERO, and a stop that is absent entirely a ceiling of zero for
+ * everything, so `{}` means every stop the suite walks tolerates nothing. The
+ * next contrast defect on any of them fails on the PR that introduces it.
+ *
+ * It took 214 → 0 across UI batches 54-64 to get here. Read the header for
+ * what each of those was; read it BEFORE adding an entry back.
+ *
+ * AND READ THIS BEFORE YOU READ AN EMPTY FILE AS A CLEAN PRODUCT, because the
+ * last entry to leave is the argument against it. The portal's "taken" slot
+ * was 1.85:1 and this file never counted it once — no spec loads a day with a
+ * booked slot in it, so no stop ever rendered the state that was broken. It
+ * was found by hand and fixed pre-emptively in the same batch that emptied
+ * this file. A ceiling of zero is not evidence a surface is clean; it is
+ * evidence that nothing has scanned the state that is dirty. What covers that
+ * gap is the source rules, which do not depend on a spec happening to walk
+ * past: `tests/a11y/portal-palette.test.ts` grades every portal ink on every
+ * portal surface, and `tests/a11y/quiet-ink.test.ts` grades the tree.
+ */
+export const A11Y_BASELINE: Record<string, Record<string, number>> = {}

@@ -3,6 +3,7 @@
 import { Fragment, useState, useTransition } from 'react'
 import { Dialog, DialogPanel, Transition, TransitionChild } from '@headlessui/react'
 import { addInvoice } from './actions'
+import { TONE_PILL } from '@/lib/ui/encodings'
 
 interface CustomerOption {
   id: number
@@ -94,7 +95,7 @@ export default function AddInvoiceModal({ customers }: { customers: CustomerOpti
                       <input id="add-invoice-modal-due-date" type="date" className="form-input w-full" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
                     </div>
                     {error && (
-                      <div className="text-sm text-red-600 bg-red-50 dark:bg-red-500/10 px-3 py-2 rounded">{error}</div>
+                      <div className={`text-sm ${TONE_PILL.urgent} px-3 py-2 rounded`}>{error}</div>
                     )}
                   </div>
                   <div className="px-5 py-4 border-t border-gray-200 dark:border-gray-700/60 flex justify-end space-x-2">

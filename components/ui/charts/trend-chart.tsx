@@ -60,7 +60,7 @@ export default function TrendChart({
   if (data.length === 0) {
     return (
       <div
-        className={`flex items-center justify-center text-xs text-gray-400 dark:text-gray-500 italic ${className}`}
+        className={`flex items-center justify-center text-xs text-gray-500 dark:text-gray-400 italic ${className}`}
         style={{ height }}
         data-chart="trend-empty"
       >

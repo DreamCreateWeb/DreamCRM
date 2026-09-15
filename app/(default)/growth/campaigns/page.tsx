@@ -175,7 +175,7 @@ export default async function CampaignsPage({
                     </Link>
                   </td>
                   <td className="px-3 py-2.5 text-gray-500 dark:text-gray-400 max-w-[24rem] truncate">
-                    {c.subject || <span className="italic text-gray-400 dark:text-gray-500">no subject</span>}
+                    {c.subject || <span className="italic text-gray-500 dark:text-gray-400">no subject</span>}
                   </td>
                   <td className="px-3 py-2.5">
                     <div className="flex items-center gap-2">

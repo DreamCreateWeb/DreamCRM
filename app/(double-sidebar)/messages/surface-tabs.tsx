@@ -47,7 +47,7 @@ export default function MessagesSurfaceTabs({ active }: { active: 'patients' | '
             title="Your connected Gmail mailbox — staff email, triage, threading"
             className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-gray-500 dark:text-gray-400 border-b-2 border-transparent hover:text-gray-700 dark:hover:text-gray-200 hover:border-[color:var(--color-hairline-strong)] transition-colors"
           >
-            Mailbox <span className="text-xs text-gray-400 dark:text-gray-500">(Gmail)</span>
+            Mailbox <span className="text-xs text-gray-500 dark:text-gray-400">(Gmail)</span>
           </Link>
         )}
         {active === 'support' ? (

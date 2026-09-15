@@ -34,7 +34,7 @@ const STAGE: Record<string, StageStyle> = {
 const TONE_TEXT: Record<NonNullable<PipelineCard['tone']>, string> = {
   due: 'text-amber-600 dark:text-amber-400',
   reply: 'text-emerald-600 dark:text-emerald-400',
-  quiet: 'text-gray-400 dark:text-gray-500',
+  quiet: 'text-gray-500 dark:text-gray-400',
 }
 
 function Card({ card, stage }: { card: PipelineCard; stage: keyof typeof STAGE }) {

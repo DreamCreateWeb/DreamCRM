@@ -109,7 +109,7 @@ function GenericFeedCard({
         </span>
         <div className="min-w-0">
           <p className="text-sm font-semibold text-gray-800 dark:text-gray-100 truncate">{clinicName}</p>
-          <p className="text-xs text-gray-400 dark:text-gray-500">Just now</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400">Just now</p>
         </div>
       </div>
       <p className="text-sm text-gray-800 dark:text-gray-100 whitespace-pre-wrap">{body}</p>
@@ -178,7 +178,7 @@ export function EmailArtifact({
             >
               Book a time
             </span>
-            <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
               Added automatically — links to your booking page.
             </p>
           </div>
@@ -222,7 +222,7 @@ export function ReviewReplyArtifact({
               <span className="text-gray-300 dark:text-gray-600">
                 {'★'.repeat(Math.max(0, 5 - Math.max(0, Math.min(5, starRating))))}
               </span>
-              <span className="ml-1.5 align-middle text-xs text-gray-400 dark:text-gray-500">on Google</span>
+              <span className="ml-1.5 align-middle text-xs text-gray-500 dark:text-gray-400">on Google</span>
             </p>
           )}
         </div>
@@ -232,7 +232,7 @@ export function ReviewReplyArtifact({
       )}
       <div className="mt-3 ml-4 pl-3 border-l-2 border-[color:var(--color-hairline)]">
         <p className="text-xs font-semibold text-gray-600 dark:text-gray-300">
-          Reply from {clinicName} <span className="font-normal text-gray-400 dark:text-gray-500">(owner)</span>
+          Reply from {clinicName} <span className="font-normal text-gray-500 dark:text-gray-400">(owner)</span>
         </p>
         <p className="mt-1 text-sm text-gray-800 dark:text-gray-100 whitespace-pre-wrap">{reply}</p>
       </div>
@@ -267,7 +267,7 @@ export function PlanArtifact({
 
   const fullPiece = (item: PlanArtifactItem, i: number) => (
     <div className="rounded-xl border border-[color:var(--color-hairline)] bg-white dark:bg-gray-900/60 p-3">
-      <p className="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">
+      <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
         {pieceLabel(item, i)}
       </p>
       {item.kind === 'blog' ? (
@@ -306,7 +306,7 @@ export function PlanArtifact({
             className="group rounded-xl border border-[color:var(--color-hairline)] bg-white dark:bg-gray-900/60"
           >
             <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2.5 [&::-webkit-details-marker]:hidden">
-              <span className="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">
+              <span className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
                 {pieceLabel(item, i)}
               </span>
               <span className="min-w-0 flex-1 truncate text-sm text-gray-700 dark:text-gray-200">
@@ -344,7 +344,7 @@ export function GbpFixArtifact({ targetUrl, previousUri }: { targetUrl: string; 
           {previousUri ? previousUri : 'no website button today'}
         </span>
       </div>
-      <p className="text-xs text-gray-400 dark:text-gray-500 pl-1" aria-hidden="true">
+      <p className="text-xs text-gray-500 dark:text-gray-400 pl-1" aria-hidden="true">
         ↓ becomes
       </p>
       <div className="flex items-center gap-2 text-sm">

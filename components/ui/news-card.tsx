@@ -34,7 +34,7 @@ export function NewsCard({
         >
           {value}
           {valueSuffix && (
-            <span className="text-base font-semibold text-gray-400 dark:text-gray-500">{valueSuffix}</span>
+            <span className="text-base font-semibold text-gray-500 dark:text-gray-400">{valueSuffix}</span>
           )}
         </div>
         <div className="mt-1.5 flex items-center justify-between gap-2">

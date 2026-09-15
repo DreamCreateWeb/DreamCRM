@@ -64,7 +64,7 @@ export default function SiteMiniPreview({
         </span>
         <span
           aria-hidden="true"
-          className="text-xs font-medium text-gray-400 dark:text-gray-500 group-hover/preview:text-teal-700 dark:group-hover/preview:text-teal-300 transition-colors"
+          className="text-xs font-medium text-gray-500 dark:text-gray-400 group-hover/preview:text-teal-700 dark:group-hover/preview:text-teal-300 transition-colors"
         >
           ↗
         </span>

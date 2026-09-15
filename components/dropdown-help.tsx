@@ -40,7 +40,7 @@ export default function DropdownHelp({ align }: {
             leaveFrom="opacity-100"
             leaveTo="opacity-0"
           >
-            <div className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase pt-1.5 pb-2 px-3">Need help?</div>
+            <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase pt-1.5 pb-2 px-3">Need help?</div>
             <MenuItems as="ul" className="focus:outline-hidden">
               <MenuItem as="li">
                 {({ active }) => (

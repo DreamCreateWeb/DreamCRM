@@ -465,7 +465,7 @@ function BundleSection({
             {/* When active — "feels built-in": where its features live. */}
             {isActive && def.valueLinks && def.valueLinks.length > 0 && (
               <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1">
-                <span className="text-xs text-gray-400 dark:text-gray-500">In your dashboard:</span>
+                <span className="text-xs text-gray-500 dark:text-gray-400">In your dashboard:</span>
                 {def.valueLinks.map((l) => (
                   <Link
                     key={l.href}
@@ -593,7 +593,7 @@ function HandleWell({ title, handle }: { title: string; handle?: string | null }
       {handle && (
         <>
           <span aria-hidden="true" className="text-gray-300 dark:text-gray-600">·</span>
-          <span className="text-xs text-gray-400 dark:text-gray-500 font-mono-num truncate">{handle}</span>
+          <span className="text-xs text-gray-500 dark:text-gray-400 font-mono-num truncate">{handle}</span>
         </>
       )}
     </div>
@@ -696,7 +696,7 @@ function QuietAction({
       className={[
         'rounded-[var(--r-sm)] px-2 py-1 text-xs font-medium transition-colors disabled:opacity-50',
         danger
-          ? 'text-gray-400 hover:text-rose-600 hover:bg-rose-500/10 dark:text-gray-500 dark:hover:text-rose-400'
+          ? 'text-gray-500 hover:text-rose-600 hover:bg-rose-500/10 dark:text-gray-400 dark:hover:text-rose-400'
           : 'text-gray-500 hover:text-gray-800 hover:bg-[color:var(--color-surface-2)] dark:text-gray-400 dark:hover:text-gray-100',
       ].join(' ')}
     >
@@ -782,7 +782,7 @@ function DisconnectedActions({
   if (runtime.status === 'coming_soon' || runtime.status === 'request_access') {
     return (
       <div className="space-y-2">
-        {def.note && <p className="text-xs text-gray-400 dark:text-gray-500">{def.note}</p>}
+        {def.note && <p className="text-xs text-gray-500 dark:text-gray-400">{def.note}</p>}
         {def.detailHref ? (
           // The LIVE bridge (request-access because connecting is a guided
           // install, not because it doesn't exist) — door to the detail page.

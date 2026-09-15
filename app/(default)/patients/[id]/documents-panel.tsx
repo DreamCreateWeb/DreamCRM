@@ -124,7 +124,7 @@ export default function DocumentsPanel({
           onChange={onPick}
           className="hidden"
         />
-        <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">PDF or image, up to 15MB.</p>
+        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">PDF or image, up to 15MB.</p>
         {error && <p className="mt-1 text-xs text-rose-600 dark:text-rose-400">{error}</p>}
       </div>
 
@@ -158,7 +158,7 @@ export default function DocumentsPanel({
                 >
                   {d.label || d.fileName}
                 </a>
-                <p className="text-xs text-gray-400 dark:text-gray-500">
+                <p className="text-xs text-gray-500 dark:text-gray-400">
                   {d.label ? `${d.fileName} · ` : ''}
                   {formatFileSize(d.sizeBytes)}
                   {d.uploadedByName ? ` · ${d.uploadedByName}` : ''}

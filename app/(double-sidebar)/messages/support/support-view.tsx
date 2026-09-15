@@ -134,7 +134,7 @@ export default function SupportView({
                       <div className="whitespace-pre-wrap">{m.body}</div>
                       <div
                         className={`mt-1 text-xs tabular-nums ${
-                          mine ? 'text-[color:var(--color-surface-2)]/60' : 'text-gray-400 dark:text-gray-500'
+                          mine ? 'text-[color:var(--color-surface-2)]/60' : 'text-gray-500 dark:text-gray-400'
                         }`}
                       >
                         {relativeTime(m.createdAt)}
@@ -177,7 +177,7 @@ export default function SupportView({
                 {pending ? 'Sending…' : 'Send'}
               </button>
             </div>
-            <p className="mt-1.5 text-xs text-gray-400 dark:text-gray-500">
+            <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
               Enter sends · Shift+Enter for a new line
             </p>
           </form>

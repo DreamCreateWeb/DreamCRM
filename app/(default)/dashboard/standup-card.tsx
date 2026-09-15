@@ -143,7 +143,7 @@ export default function StandupCard({ standup }: { standup: WeeklyStandup }) {
           <ul className="mt-3 space-y-1.5">
             {standup.stories.map((s, i) => (
               <li key={i} className="text-sm text-gray-700 dark:text-gray-200 flex gap-2">
-                <span aria-hidden="true" className="text-gray-400 dark:text-gray-500">
+                <span aria-hidden="true" className="text-gray-500 dark:text-gray-400">
                   —
                 </span>
                 <span>{s}</span>

@@ -105,7 +105,7 @@ export default function DifferenceVideoField({
               preload="metadata"
             />
           </div>
-          <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
             Preview (muted). If it stays black, the link may not be a direct video file.
           </p>
         </div>

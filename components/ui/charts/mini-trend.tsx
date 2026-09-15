@@ -38,7 +38,7 @@ export default function MiniTrend({
   if (data.length === 0) {
     return (
       <div
-        className="text-xs text-gray-400 dark:text-gray-500 italic flex items-center justify-center"
+        className="text-xs text-gray-500 dark:text-gray-400 italic flex items-center justify-center"
         style={{ height, width }}
         data-chart="mini-empty"
       >

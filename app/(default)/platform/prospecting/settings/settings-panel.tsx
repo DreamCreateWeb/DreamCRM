@@ -134,7 +134,7 @@ function BrainEditor({ brain }: { brain: ProspectingConfig['brain'] }) {
           )}
         </div>
         {cards.length === 0 && (
-          <p className="text-xs text-gray-400 dark:text-gray-500 italic">
+          <p className="text-xs text-gray-500 dark:text-gray-400 italic">
             No battle cards yet — add one for a competitor you keep running into.
           </p>
         )}

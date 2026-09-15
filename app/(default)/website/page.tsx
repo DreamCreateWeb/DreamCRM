@@ -331,7 +331,7 @@ export default async function WebsiteHubPage() {
                           <span className="text-sm font-medium text-gray-800 dark:text-gray-100 group-hover:text-teal-700 dark:group-hover:text-teal-300">
                             {c.label}
                             {c.optional && (
-                              <span className="ml-2 text-xs font-normal text-gray-400 dark:text-gray-500">optional</span>
+                              <span className="ml-2 text-xs font-normal text-gray-500 dark:text-gray-400">optional</span>
                             )}
                           </span>
                           {c.hint && (
@@ -363,7 +363,7 @@ export default async function WebsiteHubPage() {
                 <div>
                   <div className="text-xl font-bold tabular-nums font-mono-num text-gray-900 dark:text-gray-100 leading-none">
                     {completeness.filled}
-                    <span className="text-sm font-semibold text-gray-400 dark:text-gray-500">/{completeness.total}</span>
+                    <span className="text-sm font-semibold text-gray-500 dark:text-gray-400">/{completeness.total}</span>
                   </div>
                   <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">sections filled</div>
                 </div>

@@ -91,12 +91,12 @@ export default async function CommunicationsPage() {
                     <div className="flex items-baseline justify-between gap-2">
                       <p className="truncate text-sm font-semibold text-gray-800 dark:text-gray-100">
                         {c.prospectName}
-                        <span className="font-normal text-gray-400 dark:text-gray-500">{place}</span>
+                        <span className="font-normal text-gray-500 dark:text-gray-400">{place}</span>
                       </p>
-                      <span className="shrink-0 text-xs tabular-nums text-gray-400 dark:text-gray-500">{ago(c.at, now)}</span>
+                      <span className="shrink-0 text-xs tabular-nums text-gray-500 dark:text-gray-400">{ago(c.at, now)}</span>
                     </div>
                     <p className="truncate text-sm text-gray-600 dark:text-gray-300">{c.title}</p>
-                    {c.detail && <p className="truncate text-xs text-gray-400 dark:text-gray-500">{c.detail}</p>}
+                    {c.detail && <p className="truncate text-xs text-gray-500 dark:text-gray-400">{c.detail}</p>}
                   </div>
                 </Link>
               </li>

@@ -207,7 +207,7 @@ export default async function MyDayPage() {
                           <StatusPill tone="info" title="Checked in — in the waiting room">🚪 Arrived</StatusPill>
                         </span>
                       ) : null)}
-                    <span className="shrink-0 text-xs text-gray-400 dark:text-gray-500 capitalize">{a.type.replace(/_/g, ' ')}</span>
+                    <span className="shrink-0 text-xs text-gray-500 dark:text-gray-400 capitalize">{a.type.replace(/_/g, ' ')}</span>
                   </li>
                 ))}
               </ul>
@@ -250,7 +250,7 @@ export default async function MyDayPage() {
                     <Link href={`/patients/${it.patientId}`} className="text-sm font-medium text-gray-800 dark:text-gray-100 hover:underline">
                       {it.patientName}
                     </Link>
-                    <span className="text-xs text-gray-400 dark:text-gray-500 capitalize">
+                    <span className="text-xs text-gray-500 dark:text-gray-400 capitalize">
                       {it.type.replace(/_/g, ' ')}
                       {it.providerName ? ` · ${it.providerName}` : ''}
                     </span>

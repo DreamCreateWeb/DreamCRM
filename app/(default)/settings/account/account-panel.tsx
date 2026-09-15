@@ -190,7 +190,7 @@ export default function AccountPanel({ initialUser }: { initialUser: InitialUser
                         <p
                           id="acct-bio-count"
                           className={`mt-1 text-right text-xs font-mono-num tabular-nums ${
-                            bioNearCap ? 'text-amber-600 dark:text-amber-400' : 'text-gray-400 dark:text-gray-500'
+                            bioNearCap ? 'text-amber-600 dark:text-amber-400' : 'text-gray-500 dark:text-gray-400'
                           }`}
                         >
                           {bio.length} / {BIO_MAX}

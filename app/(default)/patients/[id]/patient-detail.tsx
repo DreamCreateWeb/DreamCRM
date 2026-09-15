@@ -811,7 +811,7 @@ function FamilyCard({ family }: { family: FamilyMemberView[] }) {
           <li key={m.id} className="flex items-center justify-between gap-2 text-sm">
             <Link
               href={`/patients/${m.id}`}
-              className={`font-medium hover:underline truncate ${m.isActive ? 'text-gray-800 dark:text-gray-100' : 'text-gray-400 dark:text-gray-500'}`}
+              className={`font-medium hover:underline truncate ${m.isActive ? 'text-gray-800 dark:text-gray-100' : 'text-gray-500 dark:text-gray-400'}`}
             >
               {m.name}
             </Link>
@@ -819,7 +819,7 @@ function FamilyCard({ family }: { family: FamilyMemberView[] }) {
           </li>
         ))}
       </ul>
-      <p className="mt-2 text-xs leading-relaxed text-gray-400 dark:text-gray-500">
+      <p className="mt-2 text-xs leading-relaxed text-gray-500 dark:text-gray-400">
         Linked through portal family access — handy for booking the household together.
       </p>
     </div>
@@ -857,7 +857,7 @@ function ReferralCard({ referral }: { referral: ReferralContext }) {
               </li>
             ))}
           </ul>
-          <p className="mt-2 text-xs leading-relaxed text-gray-400 dark:text-gray-500">
+          <p className="mt-2 text-xs leading-relaxed text-gray-500 dark:text-gray-400">
             Worth a thank-you at their next visit.
           </p>
         </div>

@@ -7,7 +7,7 @@ export default function DropdownProfile({ align }: {
 }) {
   return (
     <Popover className="relative inline-flex">
-      <PopoverButton className="btn px-2.5 bg-white dark:bg-gray-800 border-gray-200 hover:border-gray-300 dark:border-gray-700/60 dark:hover:border-gray-600 text-gray-400 dark:text-gray-500">
+      <PopoverButton className="btn px-2.5 bg-white dark:bg-gray-800 border-gray-200 hover:border-gray-300 dark:border-gray-700/60 dark:hover:border-gray-600 text-gray-500 dark:text-gray-400">
         <span className="sr-only">Filter</span><wbr />
         <svg className="fill-current" width="16" height="16" viewBox="0 0 16 16">
           <path d="M0 3a1 1 0 0 1 1-1h14a1 1 0 1 1 0 2H1a1 1 0 0 1-1-1ZM3 8a1 1 0 0 1 1-1h8a1 1 0 1 1 0 2H4a1 1 0 0 1-1-1ZM7 12a1 1 0 1 0 0 2h2a1 1 0 1 0 0-2H7Z" />
@@ -27,7 +27,7 @@ export default function DropdownProfile({ align }: {
         <PopoverPanel>
           {({ close }) => (
             <>
-              <div className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase pt-1.5 pb-2 px-3">Filters</div>
+              <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase pt-1.5 pb-2 px-3">Filters</div>
               <ul className="mb-4">
                 <li className="py-1 px-3">
                   <label className="flex items-center">

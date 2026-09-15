@@ -51,7 +51,7 @@ function Stat({
 }) {
   const valueTone =
     value === 0
-      ? 'text-gray-400 dark:text-gray-500'
+      ? 'text-gray-500 dark:text-gray-400'
       : tone === 'warn'
         ? 'text-amber-600 dark:text-amber-400'
         : tone === 'ok'

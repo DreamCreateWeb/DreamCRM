@@ -132,8 +132,8 @@ const DUE_TONE: Record<string, string> = {
   overdue: 'text-rose-600 dark:text-rose-400',
   today: 'text-amber-700 dark:text-amber-300',
   soon: 'text-gray-500 dark:text-gray-400',
-  later: 'text-gray-400 dark:text-gray-500',
-  none: 'text-gray-400 dark:text-gray-500',
+  later: 'text-gray-500 dark:text-gray-400',
+  none: 'text-gray-500 dark:text-gray-400',
 }
 
 function FollowupItem({
@@ -166,10 +166,10 @@ function FollowupItem({
         )}
       </button>
       <div className="min-w-0 flex-1">
-        <p className={`text-xs ${done ? 'text-gray-400 line-through dark:text-gray-500' : 'text-gray-700 dark:text-gray-200'}`}>
+        <p className={`text-xs ${done ? 'text-gray-500 line-through dark:text-gray-400' : 'text-gray-700 dark:text-gray-200'}`}>
           {f.title}
         </p>
-        <p className="text-xs text-gray-400 dark:text-gray-500">
+        <p className="text-xs text-gray-500 dark:text-gray-400">
           {!done && (
             <span className={DUE_TONE[due]}>{formatDueLabel(f.dueDate)}</span>
           )}

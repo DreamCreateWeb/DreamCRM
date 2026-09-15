@@ -151,7 +151,7 @@ export default function SavedViewsBar({
               type="button"
               onClick={() => remove(v)}
               aria-label={`Delete view ${v.name}`}
-              className="absolute right-1 top-1/2 -translate-y-1/2 text-gray-400 hover:text-rose-600 focus-visible:opacity-100 dark:text-gray-500 dark:hover:text-rose-400"
+              className="absolute right-1 top-1/2 -translate-y-1/2 text-gray-500 hover:text-rose-600 focus-visible:opacity-100 dark:text-gray-400 dark:hover:text-rose-400"
             >
               <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 4l8 8M12 4l-8 8" strokeLinecap="round" /></svg>
             </button>

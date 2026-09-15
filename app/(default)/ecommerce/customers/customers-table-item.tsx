@@ -105,7 +105,7 @@ export default function CustomersTableItem({
         <div className="text-center">{customer.refunds || '—'}</div>
       </td>
       <td className="px-2 first:pl-5 last:pr-5 py-3 whitespace-nowrap w-px">
-        <button className="text-gray-400 hover:text-gray-500 dark:text-gray-500 dark:hover:text-gray-400 rounded-full">
+        <button className="text-gray-500 hover:text-gray-600 dark:text-gray-400 dark:hover:text-gray-300 rounded-full">
           <span className="sr-only">Menu</span>
           <svg className="w-8 h-8 fill-current" viewBox="0 0 32 32">
             <circle cx="16" cy="16" r="2" />
