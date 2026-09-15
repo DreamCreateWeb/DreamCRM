@@ -1173,12 +1173,141 @@ they shared a verdict.
   **FIXED** — R2 Slice 7 covered the appointment leg centrally in
   `settleWriteFailure`; DREAMCRM-24 closed the PATIENT leg, which had gone on
   swallowing its failure and reporting it to the queue as a counted error.
-- S3 · staff billing actions unwrapped; upload route raw 500; `pms-sync`
-  config-throw skips the Guardian signal; optimistic `emailSent` flag;
-  trial-reminders milestone stamped after send; scheduled-message requeue
-  double-send window; `auto-send-reviews` / `customize-services` unwrapped
-  per-org loops (+ read-modify-write on `services`); prospect stuck-
-  enrollment on a failed touch; Monday standup ignores the KILL. · OPEN.
+Unbundled 2026-09-15 (DREAMCRM-57) — the ten-clause S3 line below was one
+entry with one verdict, and by the time anyone came to close it the clauses
+had three different answers. Split on contact, one defect per entry, each
+carrying its own. The eleventh entry is a gate hole the work turned up.
+
+- S3 · `autoSendDueReviewRequests` runs its per-org body bare — only the SEND
+  is wrapped (inside `fireReviewRequestForAppointment`), so a DB blip on ONE
+  clinic's config read or candidates scan throws out of `for (const org of
+  orgs)` and every clinic behind it loses the hour. Which tenants lose it is
+  whatever order the config table returns. · **FIXED** (#592, `13f42218`) —
+  the loop body moved into `sweepOneOrgForReviewRequests` so exactly one org's
+  work sits inside the try; a failed org is reported with `appointmentId:
+  null` rather than swallowed.
+- S3 · `customizePendingServices` has the same shape: only the AI call is
+  wrapped, so a failing services write or `recordAction` ends the sweep for
+  every clinic behind it. · **FIXED** (#592, `13f42218`) — `customizeOneOrg`,
+  same pattern.
+- S3 · `customizePendingServices` writes `clinic_profile.services` as a
+  read-modify-write: it reads every clinic's array at the TOP of the run,
+  spends minutes in AI calls, then writes that stale array back — silently
+  reverting anything the clinic changed in Website Studio meanwhile (a new
+  service, a rename, a deletion), from a cron they never saw. · **FIXED**
+  (#592, `13f42218`) — re-reads the row under `FOR UPDATE` inside a
+  transaction and merges the new blobs onto the CURRENT array by service id,
+  the same lock-then-merge shape `shop-checkout.ts` uses for inventory. The
+  ledger entry now names the pages that LANDED rather than the ones the sweep
+  set out to write.
+- S3 · the trial-reminder milestone is stamped AFTER the send
+  (`trialRemindersSent: [...sent, milestone]`), so two overlapping runs of an
+  at-least-once cron both pass the in-JS `dueTrialReminder` check against the
+  same snapshot and both email — and a send that succeeds followed by a stamp
+  that fails re-emails on the next tick. A trial reminder arriving twice reads
+  as a dunning notice from a company unsure whether you paid. · **FIXED —
+  awaiting merge (#596)** — the append and the not-already-sent test are one
+  statement (`coalesce(…) || $1::jsonb` under `not (… @> $1::jsonb)`), claimed
+  BEFORE the send; a failed send releases the claim so the reminder is not
+  lost to a Resend blip. Every bound parameter carries an explicit cast
+  (`jsonb ||` and `jsonb -` are both overloaded → 42P18 at PARSE time), pinned
+  by `tests/billing/trial-milestone-claim-sql.test.ts` against the real
+  dialect — the `autonomy-sql` guard's lesson, applied to the second instance.
+- S3 · `requeueStuckScheduledMessages` SELECTs the stuck ids and then UPDATEs
+  by `id in (…)` with nothing else in the WHERE, so a flush that finishes
+  between the two statements has its 'sent' row flipped back to 'pending' and
+  the next flush sends the patient the same message again. A 'failed' row is
+  resurrected the same way, discarding the error staff were about to read.
+  The row most likely to lose that race is exactly the one the function exists
+  for: the one sending for almost precisely `olderThanMs`. · **FIXED —
+  awaiting merge (#596)** — one atomic `UPDATE … RETURNING` with
+  `status='sending'` folded into the predicate.
+- S3 · a prospect enrollment wedges permanently on a failed touch: the
+  touch-log row is marked 'failed' and the loop moves on WITHOUT touching the
+  enrollment, leaving it `active` with `nextSendAt` in the past. `due` is
+  ordered by `nextSendAt` ascending so it sorts FIRST on every later tick, its
+  claim conflicts with its own failed row, `onConflictDoNothing` returns
+  nothing, and the run skips it in silence — forever, while holding a slot in
+  an allowance-limited batch. A handful of dead addresses starve the whole
+  outreach queue. · **FIXED — awaiting merge (#596)** — a failed send backs
+  the enrollment off by `TOUCH_RETRY_AFTER_MS`, and the claim became
+  `onConflictDoUpdate` with `setWhere status='failed' and sentAt >= now -
+  TOUCH_RETRY_WINDOW_MS`: still a claim (a run racing the live sender matches
+  nothing), but able to take its own failed row back inside the window. Past
+  the window the enrollment stops `stopped_undeliverable` rather than retrying
+  forever.
+- S3 · the booking `emailSent` flag is optimistic — set to `true` BEFORE a
+  fire-and-forget `sendBookingConfirmationEmail` whose only failure handler is
+  a `console.error`. The post-booking screen tells a patient in the PAST TENSE
+  that a confirmation is on its way when the send was already rejected, and
+  they go off and wait for it. · **FIXED — awaiting merge (#599)** — the send
+  is awaited and the flag reports what happened. `emailSent: boolean` became
+  `emailStatus: 'sent' | 'no_email' | 'not_sent'`, because two states were
+  covering three: the old false branch read "We don't have your email", which
+  was also what a patient saw when we DID have it and the send had failed —
+  the one person who most needed to save the on-screen details, told the
+  opposite of what happened.
+- S3 · the Monday standup ignores THE KILL. Every other outbound sweep checks
+  `listShutDownOrgIds` — reminders, review asks, retention, campaigns,
+  scheduled messages, proposal generators, the morning digest, `pms-sync` —
+  and `sendWeeklyStandups` does not, so the one weekly email an expired
+  unconverted practice still gets is a cheerful report of the work a
+  switched-off machine did for them. · **FIXED — awaiting merge (#600)** —
+  checked BEFORE the week is claimed, not just before the send, so paying
+  releases the standup untouched on the next Monday.
+- S3 · a `pms-sync` config throw skips the Guardian signal. A throw out of
+  `runImport` happens BEFORE a `sync_run` row exists, so the failure-streak
+  rule — which counts `sync_run` rows — can never see it, and the cron's catch
+  treats an UNUSABLE connection (no Customer Key, an incomplete NexHealth
+  binding, no client for the provider) exactly like the benign concurrency
+  stand-down. The Guardian goes on reporting that practice `healthy` for as
+  long as the bridge stays down. · **FIXED — awaiting merge (#600)** — the
+  stand-down throws a typed `PmsSyncInFlightError` (a class, not a message:
+  matching on copy anyone may reword is not a classification) and only that
+  one is silent; everything else reports to the Guardian. The clinic's streak
+  EMAIL still does not fire — that rule keys off `sync_run` rows and these
+  produce none.
+- S3 · `app/api/upload` answers a bodyless 500. Every refusal on the route
+  returns `{ error }` and every caller reads `res.json().error`, but
+  `request.formData()` (a truncated multipart body) and `uploadBlob` (S3
+  credentials, a bucket policy) are unwrapped — so the request becomes an
+  unhandled rejection and Next answers with a framework 500 carrying no JSON.
+  The one failure staff can do nothing about is the only one that tells them
+  nothing. · **FIXED — awaiting merge (#600)**.
+- S3 · staff billing actions unwrapped. `startStripeCheckout` and
+  `openBillingPortal` in `app/(default)/settings/actions.ts` throw
+  `new Error('We couldn't start checkout just now…')` and friends, and in
+  production Next replaces a thrown server-action message with an opaque
+  digest — the same defect `submitContactRequest` was fixed for (it returns
+  `PublicFormResult` now, see `lib/services/public-form-error.ts`), and the
+  same class §2d records as 22 assertions that passed while production showed
+  patients an error digest. · **OPEN.**
+  THE REPRODUCTION, so whoever picks this up is not rediscovering it:
+  - `settings/billing/subscription-panel.tsx:163` and `:176` already
+    `catch (err) { setFeedback({ error: (err as Error).message }) }` — that
+    renders the digest, not the sentence, and a test asserting
+    `.rejects.toThrow(…)` passes either way because a thrown message survives
+    in the test process and nowhere else.
+  - `components/ui/trial-ended-wall.tsx:96` is the harder half and the reason
+    this is its own slice: it calls the action through
+    `<form action={startStripeCheckout.bind(null, …)}>`, so there is nothing
+    to read a returned `{ error }` with. It needs `useActionState` to show a
+    message — a visible UI change on the LAST screen a clinic sees before
+    losing access, which is where a dead button costs the most.
+  - `components/ui/billing-dunning-banner.tsx:46` swallows deliberately
+    (nothing to surface from a non-interactive banner) and can keep doing so.
+  - Note the success path REDIRECTS (`redirect()` throws NEXT_REDIRECT), so
+    the converted signature is `Promise<{ error: string }>` that only ever
+    returns on failure — do not wrap the redirect in the try.
+- S3 · `app/site/[slug]/actions.ts` matched nothing in `GATE_RULES`, so a PR
+  touching it reported *merges on green* — and `submitBookingRequest` prices
+  the clinic's per-visit-type deposit through `visitTypeDepositCents` and
+  opens a Stripe Checkout session for it via `createBookingDepositSession`.
+  Its two siblings `shop/actions.ts` and `membership/actions.ts` are on the
+  money rule for exactly that reason; this one was missed on the same pass. ·
+  **FIXED — awaiting merge (#599)** — added to the money patterns and pinned
+  in `MUST_BE_GATED`. A pattern and not an area, so the count stays at nine
+  and `rulebook-drift` stays green.
 
 **S4 sweep CLOSED (2026-08-17):** 6 S2 fixed (3 client timeouts as one
 class, domain double-charge, trial-KILL leak ×2, 2 Guardian signals); the

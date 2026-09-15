@@ -137,6 +137,11 @@ export const WORKFLOW_CENSUS = {
     publishes: [],
     note: 'advisory by construction: no required context, no needs:, the label step is continue-on-error',
   },
+  'review-sweep.yml': {
+    gates: 'nothing',
+    publishes: [],
+    note: 'the post-merge half of review-gate.yml: names PRs that merged carrying needs-sentinel-review with no review recorded. Runs after the merge commit is on main, so it cannot hold one',
+  },
   'rulebook-drift.yml': {
     gates: 'nothing',
     publishes: [],
@@ -259,7 +264,7 @@ export const CLAIMS = [
     // so cannot go stale. No guard can see this string — keep it moving with
     // the prose it quotes. (It said "seven … five" for the length of one
     // review, describing the count this very PR changed.)
-    section: '§2, "There are nine workflow files and six of them gate nothing"',
+    section: '§2, "There are ten workflow files and seven of them gate nothing"',
     states: `${Object.keys(WORKFLOW_CENSUS).length} workflow files: ${Object.keys(WORKFLOW_CENSUS).join(', ')}`,
     check: (live) => {
       const actual = Object.keys(live.workflows)
