@@ -35,13 +35,10 @@ vi.mock('@/lib/services/billing', () => ({
 }))
 vi.mock('@/lib/services/settings', () => ({
   AccountInput: { parse: (x: unknown) => x },
-  BillingInput: { parse: (x: unknown) => x },
-  BillingPlan: { parse: (x: unknown) => x },
   FeedbackInput: { parse: (x: unknown) => x },
   NotificationPrefsInput: { parse: (x: unknown) => x },
   submitFeedback: vi.fn(),
   updateAccount: vi.fn(),
-  upsertBilling: vi.fn(),
   upsertNotificationPrefs: vi.fn(),
 }))
 
