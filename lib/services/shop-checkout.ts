@@ -244,6 +244,16 @@ export async function createShopCheckoutSession(
  * to it for 24h. Same choice, same reason, as
  * `discardUnstartedBalancePayment` (DREAMCRM-20).
  *
+ * Name what retiring that phrase COSTS, since it was gesturing at something
+ * real: on the `!session.url` path we now delete a row whose session id IS
+ * stamped, so a session that somehow got paid would leave
+ * `finalizeOrderFromSession` finding no order and returning null — money on
+ * the clinic's connected account with nothing behind it. That needs a payable
+ * session nobody can reach, because the URL never leaves this function. A
+ * guaranteed phantom order on every no-URL checkout is a worse trade than an
+ * orphan requiring an impossible precondition, and that is the trade this
+ * takes deliberately.
+ *
  * The scope that remains is the scope that was ever load-bearing: this org,
  * this exact `orderId` — minted by this call from 10 random bytes, never
  * reused — and `status='pending'`, which keeps a paid or refunded order out of

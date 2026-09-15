@@ -169,14 +169,16 @@ export async function createBalancePaymentSession(input: {
  * reach entirely, and the org + id pair means this can only ever touch the
  * row this call wrote.
  *
- * DELIBERATELY NARROWER than `discardUnstartedOrder`'s
- * (`lib/services/shop-checkout.ts`), which also demands
- * `stripe_checkout_session_id IS NULL`. That extra predicate stops the shop
- * from cleaning up its own `!session.url` path — the id was stamped one line
- * earlier, so the delete matches nothing and the phantom order survives.
- * There is no coupon reservation keyed off this row, so nothing here needs
- * to distinguish "never written" from "deleted", and the narrower scope
- * closes that case instead of reproducing it.
+ * THE SHOP NOW MATCHES THIS, and the paragraph that used to explain the
+ * difference is retired with it. This path was deliberately built without
+ * `stripe_checkout_session_id IS NULL` (DREAMCRM-20) because that predicate
+ * stops a cleanup reaching its own `!session.url` case — the id is stamped one
+ * line before the throw, so the delete matches nothing and the phantom row
+ * survives. `discardUnstartedOrder` carried it and was stranded by it exactly
+ * that way; DREAMCRM-58 dropped it there too. Both money paths now scope the
+ * same: org + this exact row + `status='pending'`, leaning on "no URL was ever
+ * handed out" for the rest. Read that function's doc comment for the fuller
+ * argument — it has a coupon reservation to re-earn and this path does not.
  *
  * Best-effort: a failed cleanup must never replace the real error (a Stripe
  * outage, which the patient sees as a written sentence) with a database one.

@@ -401,6 +401,13 @@ export const INTAKE_RULES = [
       'tests/a11y/retired-tones.test.ts',
       // The remaining tree-wide scanners, each holding the product at zero for
       // one convention. Derived from the tree by the guard test, not recalled.
+      // A NEW CLASS rather than another instance of an existing one: it holds
+      // the product at zero for a DORMANT TABLE in BOTH directions, and the
+      // read half is the novel part — every other scanner here bans a way of
+      // writing something, this one also bans reading `billing_profiles`,
+      // because a read is what would give the rows the retired Plans UI left
+      // behind a meaning they never had.
+      'tests/billing/no-billing-profiles-write.test.ts',
       'tests/clinic-site/jsonld-escaping.test.ts',
       'tests/clinic-site/public-form-error.test.ts',
       'tests/clinic-site/site-load-dedupe.test.ts',

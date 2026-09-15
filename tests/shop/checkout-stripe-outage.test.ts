@@ -255,7 +255,7 @@ afterAll(() => {
 })
 
 /** Every condition the cleanup DELETE was scoped by, flattened. */
-function deleteConditions(): Array<{ col: unknown; val: unknown }> {
+function deleteConditions(only?: unknown): Array<{ col: unknown; val: unknown }> {
   const out: Array<{ col: unknown; val: unknown }> = []
   const walk = (v: unknown) => {
     if (!v || typeof v !== 'object') return
@@ -263,8 +263,14 @@ function deleteConditions(): Array<{ col: unknown; val: unknown }> {
     if (o._kind === 'eq') out.push({ col: o.col, val: o.val })
     if (Array.isArray(o.conds)) o.conds.forEach(walk)
   }
-  state.deleteWheres.forEach(walk)
+  if (only === undefined) state.deleteWheres.forEach(walk)
+  else walk(only)
   return out
+}
+
+/** The order id the cleanup DELETE was scoped to — what the release must name. */
+function orderIdOf(clause: unknown): unknown {
+  return deleteConditions(clause).find((c) => c.col === 'id')?.val
 }
 
 // ── Shop ─────────────────────────────────────────────────────────────────────
@@ -375,9 +381,14 @@ describe('createShopCheckoutSession — Stripe outage', () => {
       }),
     ).rejects.toThrow(/no URL/)
 
-    // The claim, the id-stamp, then the release.
-    expect(eqCalls.some((c) => c.col === 'usedOrderId')).toBe(true)
-    expect(isNullCols).toContain('usedAt')
+    // `eq(usedOrderId, …)` appears ONLY in releaseSingleUseCoupon, so it is the
+    // line that bites, and it has to name the order the delete just removed.
+    // (An `isNull(usedAt)` assertion would NOT bite: the claim on this same
+    // test's happy path already satisfies it, so it would pass with the
+    // release never reached at all.)
+    expect(
+      eqCalls.some((c) => c.col === 'usedOrderId' && c.val === orderIdOf(state.deleteWheres[0])),
+    ).toBe(true)
   })
 
   it('hands a reserved single-use promo code back so a retry is not told it is used', async () => {
@@ -615,7 +626,8 @@ describe('createBalancePaymentSession — Stripe outage', () => {
     // stranded its own !session.url case — the id is stamped one line before
     // the throw. discardUnstartedOrder dropped it too (DREAMCRM-58), so the
     // rule is now the same on both: scope by org + this exact row + pending,
-    // and lean on "no URL was ever handed out" for the rest.
+    // and lean on "no URL was ever handed out" for the rest. The source
+    // comments on both functions say so; this asserts it of the code.
     state.selectQueue.push(...balancePaymentSelects())
     state.stripeFailsWith = stripeOutage()
     isNullCols.length = 0
