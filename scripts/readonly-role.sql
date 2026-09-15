@@ -53,6 +53,28 @@ GRANT SELECT ON ALL TABLES IN SCHEMA public TO dreamcrm_readonly;
 -- it, a new table is simply ungranted — a check that needs one gets a single
 -- GRANT, reviewed, at the time. Wrong should error, not leak.
 
+-- 3b. The applied-migration ledger, which does NOT live in `public`.
+--
+--     drizzle keeps it at `drizzle.__drizzle_migrations` (schema and table name
+--     are its defaults; `app/api/admin/migrate/route.ts` overrides neither), so
+--     the blanket grant above — scoped to schema `public` — does not reach it,
+--     and without these two lines the `migrations-applied` catalog entry fails
+--     with a permission error rather than an answer.
+--
+--     This is the narrow-grant path the note above describes, taken in the same
+--     PR as the entry that needs it (DREAMCRM-46). Two statements because
+--     PostgreSQL needs both: USAGE to enter the schema at all, SELECT to read
+--     the table inside it. It is granted on THAT ONE TABLE, not on the schema's
+--     tables generally — the same default-closed reasoning as the missing
+--     ALTER DEFAULT PRIVILEGES above.
+--
+--     What is in there: an id, a sha256 of each migration file, and the
+--     journal timestamp. Schema bookkeeping — no tenant row, no clinic id, no
+--     patient data — which is why it is a `'no-tenant-data'` entry rather than
+--     a cross-tenant waiver.
+GRANT USAGE  ON SCHEMA drizzle                   TO dreamcrm_readonly;
+GRANT SELECT ON TABLE  drizzle.__drizzle_migrations TO dreamcrm_readonly;
+
 -- 4. ...except the tables that hold credentials. WHOLE-TABLE revoke, which is
 --    the only form that works: in PostgreSQL a table-level privilege covers
 --    every column, and a column-level REVOKE cannot subtract from it. The

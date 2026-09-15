@@ -117,3 +117,28 @@ jobs:
       - name: Sync EventBridge cron schedules
         continue-on-error: true
         run: bash scripts/setup-cron-schedules.sh
+
+  # THE DEPLOY IS NOT FINISHED UNTIL THE MIGRATIONS ARE IN (DREAMCRM-46).
+  #
+  # Everything above reports success once CodeBuild has pushed the image and
+  # the buildspec has asked App Runner to roll it out. The migrations run later
+  # still, on the NEW container's boot, from a Dockerfile line that swallows its
+  # own exit code — so until now a merge whose migration threw showed a green
+  # tick here and nothing anywhere said otherwise.
+  #
+  # This job asks production what it has actually applied and fails THIS RUN
+  # when a journal entry from this commit is missing. It cannot stop the deploy
+  # — the deploy has already happened by the time the answer exists — but it is
+  # what makes the green tick mean something.
+  #
+  # NOT `continue-on-error`, deliberately: a job that cannot turn the run red is
+  # the state this issue exists to leave behind.
+  #
+  # It polls, so it outlives the `deploy` job by minutes. That does not lengthen
+  # the deploy queue in practice: a back-to-back merge's CodeBuild already waits
+  # on this rollout clearing (the buildspec's start-deployment retry), which is
+  # the same moment this job stops waiting.
+  migration-check:
+    needs: deploy
+    uses: ./.github/workflows/migration-check.yml
+    secrets: inherit

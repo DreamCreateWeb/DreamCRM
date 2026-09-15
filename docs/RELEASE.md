@@ -2827,6 +2827,63 @@ solid-fill inverse open. The fix is small — extend `gradeGradientTextClasses` 
 grade a base `bg-<ramp>-<step>` as ink when `bg-clip-text text-transparent` is
 present — and belongs to whoever next touches that file, with a watched red run
 on the shape above.
+### A failed migration deployed green (2026-09-14) · FIXED
+
+**The defect.** Nothing anywhere asserted that production had applied the
+migrations in the commit it was running. Three separately-defensible decisions
+added up to it: `Dockerfile:62` runs `(db-migrate && resync-demo) || true`
+*after* App Runner has already marked the container healthy, so the exit code is
+swallowed by design — taking the container down because a migration threw would
+turn a stuck schema into an outage; `deploy.yml` had no migration step at all;
+and `/api/admin/migrate` answers a 500 that nothing reads. A merge whose
+migration failed therefore showed a green tick and produced no other signal.
+
+It compounds, which is what makes it an S1-shaped problem rather than a one-off
+bad deploy. `PgDialect.migrate` applies a boot's pending migrations in ONE
+transaction and only ever considers journal entries whose `when` is GREATER than
+the newest ledger row. So a migration that throws rolls the whole batch back and
+every later migration is blocked behind it on every future boot — and, the other
+half of the same invisibility, a journal entry whose `when` lands at or below an
+already-applied row (what a rebase or a merge reordering two generated
+migrations produces) is skipped SILENTLY, FOREVER, and no redeploy fixes it.
+DREAMCRM-32's own catalog entry had already named this in passing: "on a
+duplicate the deploy goes GREEN and the migration is skipped silently, forever."
+
+**The verdict.** Fixed. `.github/workflows/migration-check.yml` +
+`scripts/migration-check.mjs` ask production which migrations it has actually
+applied — through the DREAMCRM-42 read path (catalog entry `migrations-applied`,
+the `SELECT`-only role), so no runner holds a database credential — and compare
+that against `lib/db/migrations/meta/_journal.json`. `deploy.yml` calls it with
+`needs: deploy`, NOT `continue-on-error`, so a merge whose migrations did not
+land turns the deploy run red. It also runs daily at 08:20 UTC, which is the
+timing-free reading and the only thing that would ever catch the silently-skipped
+case. Mechanics: `docs/CI.md`, "The deploy is not finished until the migrations
+are in".
+
+The `|| true` in the Dockerfile **stays**, deliberately. The failure mode here
+was never that the container kept serving; it was that nobody was told. Removing
+it would trade an invisible schema problem for a visible outage on every
+transient migration failure, and the assertion above is the thing that was
+actually missing.
+
+Second, weaker signal from the other end: every failure line
+`scripts/db-migrate.mjs` prints now starts with `ERROR`, so `error-scan.yml`
+picks it up within 30 minutes. Those two lines previously matched none of that
+workflow's filter terms — the one alarm already pointed at those logs read
+straight past a migration that never applied.
+
+**Honest about what it proves today.** The read path needs owner-side setup
+(DREAMCRM-42 steps 1–3) before this question is answerable at all, so until that
+lands every run prints `⚠️ NOT VERIFIED — nothing was checked` and exits 0. The
+alternative — an alarm red every day for an unrelated reason — is one nobody
+opens on the day it first means something. The summary says so on every run, and
+a guard asserts that the NOT VERIFIED wording can never read as a pass. A fifth
+verdict, `THE CHECK ITSELF IS BROKEN`, covers production rejecting the secret and
+exits 1: an alarm that cannot fire is not the same as one with nothing to report.
+
+**This changes what a deploy can report, and it edits `.github/workflows/**`,**
+so it went through a Sentinel review and Forge intake per §2/§3 of the
+conventions.
 
 ## Part 6 — The post-1.0 backlog
 Moved to `docs/POST-1.0.md` (2026-08-17) — the full seeded inventory:
