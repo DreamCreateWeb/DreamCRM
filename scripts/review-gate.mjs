@@ -204,6 +204,15 @@ export const GATE_RULES = [
       'middleware.ts',
       'app/(auth)/**',
       'app/api/auth/**',
+      // THE DEMO-CONTEXT MINTER (DREAMCRM-47). `enterDemoMode` writes the
+      // `demo_context` cookie, and `getTenantContext` gives that cookie
+      // PRECEDENCE over real org membership — it decides which organization
+      // the whole app renders as, for seven days. That is this rule's `why`
+      // exactly ("these decide who is signed in and what they may reach"),
+      // and the file matched nothing on the gate list: a PR changing which
+      // org a platform admin can become reported "merges on green". Found
+      // while fixing the missing target-org validation in the same function.
+      'app/(default)/ecommerce/customers/admin-actions.ts',
     ],
   },
   {
