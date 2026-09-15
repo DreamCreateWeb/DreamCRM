@@ -36,8 +36,16 @@ const SEED_PATH = resolve(ROOT, 'scripts/e2e-seed.mjs')
 const E2E_DIR = resolve(ROOT, 'e2e')
 const seedSrc = readFileSync(SEED_PATH, 'utf8')
 
-/** Any seeded row id: `<prefix>_e2e_<name>`. */
-const ROW_ID = /'((?:org|pat|appt|nps|user|mem|sess|lead|prop)_e2e_[a-z0-9_]+)'/g
+/**
+ * Any seeded row id: `<prefix>_e2e_<name>`.
+ *
+ * `bp` (patient_balance_payment) joined the list with the `webhook` scope in
+ * DREAMCRM-48. The prefix list is what makes a row VISIBLE to the
+ * declared-vs-written check below, so a new table seeded under a prefix
+ * nobody added here is a row with no owner that this guard reports as fine.
+ * Add the prefix in the same PR as the scope.
+ */
+const ROW_ID = /'((?:org|pat|appt|nps|user|mem|sess|lead|prop|bp)_e2e_[a-z0-9_]+)'/g
 
 /**
  * Everything above the first seeding function: the shared fixture constants
@@ -66,6 +74,7 @@ const FN_FOR_SCOPE: Record<string, string> = {
   'sign-here': 'seedSignHere',
   'go-live': 'seedGoLive',
   billing: 'seedBilling',
+  webhook: 'seedWebhook',
 }
 
 /** `SCOPE_ROWS` is a literal, so reading it by a runtime scope name needs a widened view. */
