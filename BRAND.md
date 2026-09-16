@@ -286,7 +286,7 @@ continues to bind.
   everywhere on the marketing site by a **tone-tile set**: a filled squircle
   carrying a glyph that says what the line is actually about — a chart for
   scheduling, a speech bubble for messaging, a currency glyph for payments.
-  Eleven identical ticks become eleven statements. The tile fill is a tone tint;
+  Ten identical ticks become ten statements. The tile fill is a tone tint;
   the glyph is that tone's deep ink.
 - **Geometry, chrome zones only.** Blooms and grain. Never behind reading text
   (Part 7 is not advisory about this), never inside a data surface, always
@@ -636,8 +636,8 @@ the reduced-motion path in the same PR.
 2. **The cinematic spine** — the pin-and-scroll sequence, its reduced-motion
    stacked layout, and its keyboard path. Vesper reviews before merge. This is
    the one move in the list that is not a re-skin.
-3. **The tone tiles replace `CheckIcon`** across the eleven marketing call sites
-   (homepage 4, compare 2, product 2, pricing 1, partner-program 1, plus one
+3. **The tone tiles replace `CheckIcon`** across the ten marketing call sites
+   (homepage 3, compare 2, product 2, pricing 1, partner-program 1, plus one
    inside `ui.tsx`). The two `CheckIcon`s in `app/(default)` are separate local
    definitions in the dashboard's language and are out of scope.
 4. **Shared chrome** — `MarketingHeader`, `MarketingFooter` and `PageHero` in
