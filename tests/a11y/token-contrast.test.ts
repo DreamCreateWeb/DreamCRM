@@ -761,7 +761,7 @@ describe('CLIPPED TEXT, where the background IS the ink', () => {
     // assertion used: there the token sat mid-string after a space, here it
     // is the FIRST class in the attribute, so a leading-boundary alternative
     // that needs a character to match never fires. `(?![\w-])` rather than
-    // `` — a hyphen is a non-word character, so `` would also match
+    // `\b` — a hyphen is a non-word character, so `\b` would also match
     // inside `bg-gray-950-foo`. That is the trap the DREAMCRM-50 mutation
     // pass paid for twice.
     ).toMatch(/<footer className="(?:[^"]*\s)?bg-gray-950(?![\w-])/)
