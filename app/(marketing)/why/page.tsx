@@ -218,13 +218,16 @@ export default function WhyPage() {
                   {b.proof && (
                     <Link
                       href={b.proof.href}
-                      className={`group mt-4 inline-flex items-center gap-2 text-teal-700 hover:underline ${MONO_LABEL}`}
+                      className={`mkt-nudge-host mt-4 inline-flex items-center gap-2 text-teal-700 hover:underline ${MONO_LABEL}`}
                     >
                       {b.proof.label}
-                      <span
-                        className="transition-transform duration-150 ease-out group-hover:translate-x-0.5"
-                        aria-hidden="true"
-                      >
+                      {/* `mkt-nudge` rather than a `group-hover:` utility —
+                          the same motion, moved into `MarketingMotionStyles`
+                          on move 6 page 5 when a second page wanted it, and
+                          gated to a fine pointer there the way Part 6
+                          requires (a Tailwind `hover:` also fires on a
+                          touch-and-hold). */}
+                      <span className="mkt-nudge" aria-hidden="true">
                         →
                       </span>
                     </Link>

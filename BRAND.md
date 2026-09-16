@@ -1380,6 +1380,69 @@ close) **6.91**, `gray-500` (the mono labels and the `NN / 06` numerals)
 **5.30**, `teal-700` (the receipts) **7.05**. A reading page is exactly where a decorative layer buys the least and
 costs the most, which is what the 4.18 in the rules above is a record of.
 
+### The resource library, measured (DREAMCRM-79 — move 6, page 5)
+
+Same instrument, same method: render, hide the CONTENT, screenshot the
+decorative layers alone, darkest pixel under each RUN OF GLYPHS, grain ON, six
+frozen phases of `mkt-bloom`, worst kept. **Two pages, and seven runs rather
+than six** — the guide hero has a fourth, which nothing on this site had
+before.
+
+| Run | Ink | Worst | 1440 | 834 | 390 | Flat |
+|---|---|---|---|---|---|---|
+| hub hero eyebrow + rule | `teal-700` | 5.53 | 6.81 | 6.40 | **5.53** | 7.05 |
+| hub hero headline | `gray-950` | 10.74 | 14.28 | **10.74** | 12.62 | 17.62 |
+| hub hero sub | `gray-600` | 6.07 | 6.67 | **6.07** | 6.41 | 6.91 |
+| guide hero eyebrow + rule | `teal-700` | 5.62 | 6.81 | 6.76 | **5.62** | 7.05 |
+| guide hero headline | `gray-950` | 10.84 | 16.52 | 12.15 | **10.84** | 17.62 |
+| guide hero sub | `gray-600` | 6.37 | 6.67 | **6.37** | 6.67 | 6.91 |
+| guide hero read-time spine | `gray-600` | 6.46 | 6.67 | **6.46** | 6.67 | 6.91 |
+
+Worst rendered pair on these two pages: **5.53**, and everything passes. The
+whole-site run is 96 samples, zero failures, zero NOT MEASURED, and the worst
+pair anywhere is still the homepage's **4.62** (`teal-600` at 834), re-derived
+exactly. Three things to carry.
+
+- **"GRADE 834 FIRST WHEN A MOVE IS SHORT OF TIME" IS DEAD, AND THIS PAGE
+  KILLED IT.** It held for five pages plus the homepage and the manifesto
+  entry above records it as a shortcut. Both eyebrows here are worst at **390**
+  — 5.53 and 5.62, against 6.40 and 6.76 at 834 — so a move that graded only
+  834 would have reported this page 0.87 better than it is. The *reason* is not
+  new; it is the thing the manifesto entry already proved and then let itself
+  be summarised away: **what orders these numbers is whether a run's x-span
+  crosses a lobe**, which is a property of that RUN on that PAGE. The eyebrow
+  here is "Practice growth library" against `/why`'s "Why DreamCRM" — a longer
+  run, and at 390 the lobes are at their largest relative to the band, so the
+  extra width buys extra lobe. **Grade all three widths. The extremum column
+  follows the run, not the page.**
+- **THE LOWEST READING TEXT IN ANY HERO ON THIS SITE COSTS NOTHING, WHICH WAS
+  NOT THE EXPECTED ANSWER.** The guide hero puts a fourth run in `PageHero`'s
+  `children` slot, below the sub — no other page does — and the whole reason it
+  is sampled is that "further down into the blooms" is the direction this Part
+  keeps warning about. It reads **6.46** worst against the sub's 6.37: very
+  slightly BETTER than the run above it. The bottom fade
+  (`bg-gradient-to-t from-white`) is why, and it is doing real work rather than
+  being a seam-removal detail. A fifth run below this one would be a new
+  question; this one is answered.
+- **NOTHING BELOW EITHER HERO IS ON A DECORATIVE LAYER**, and on the longest
+  reading columns this site has that is the whole design. The shelf, the
+  article body, the chapter rail, the script cards, the caveat notes and both
+  closes ride the page's own white at their flat ratios — `gray-800` (the
+  script cards) **13.12**, `gray-700` (body and notes) **10.30**, `gray-600`
+  (the rail, the index rows, the closes) **6.91**, `gray-500` (mono labels)
+  **5.30**, `teal-700` (links, the card labels) **7.05**, `amber-700` (the
+  caveat label) **5.03**. Resolved through `tests/a11y/palette.ts`, the
+  resolver the guards use.
+
+  **The script cards were a tint and are white NOW, which is this move's one
+  real contrast change rather than a restyle.** They shipped `bg-teal-50/40`
+  carrying `gray-800` — a wash under eight lines of reading text, on the pages
+  with more of that than anywhere else on the site. That is the shape the 4.18
+  in the rules above is a record of. Nothing was measured under 4.5, so this is
+  headroom bought rather than a defect closed; it is recorded here because the
+  next person to reach for a tinted well on a reading page should find out that
+  this page tried it.
+
 ### Rule 5 and the tone tiles
 
 Rule 5 (`TONE_FILL`, the solid-fill registry) had **no opinion** about the night
@@ -1699,16 +1762,122 @@ the reduced-motion path in the same PR.
      `teal-400` receipt link (`#7ca5ff` on white, **2.41**). A stop with no
      exemption is the only kind whose zero means what it says.
 
-   **What the last page inherits from these four.** Three of them cost
-   real time on pricing and none is page-specific: SECTION CONTAINERS ALL
+   - ~~**Resources**~~ — **LANDED** (DREAMCRM-79, 2026-09-16). FOUR routes,
+     not one: the hub and the three guides. Measured run: Part 7, "The
+     resource library, measured".
+
+     **THIS PAGE'S FIRST FINDING IS THAT ITS OWN ISSUE WAS WRONG ABOUT IT**,
+     and the shape is one to expect again. DREAMCRM-79 opens *"these already
+     inherit the new header, footer and `PageHero` from move 4, so the top of
+     each page is converted — the work here is the bodies."* True of the hub.
+     The three ARTICLES render `GuideShell`, which carried its own
+     `from-teal-50/60` band with a hand-rolled `Eyebrow`/`h1` pair — the exact
+     shape `compare/[vendor]` was found in on page 2, on three more pages.
+     Move 4's "all eight subpages inherit it without being opened" counted
+     ROUTE GROUPS, and a page that renders its own hero does not inherit the
+     one it never called. **The count of pages wearing this brand has been
+     wrong twice now, in the same direction, for the same reason** — once for
+     `compare/[vendor]`, once for these three. `PageHero` now opens all four
+     resource routes.
+
+     **The hub was three equal cards in a `md:grid-cols-3`**, which is the
+     third costume of the mistake pages 3 and 4 fixed: equivalent tiles are
+     what a CHECKLIST looks like. It is an INDEX now — one row per guide,
+     the subject's tone tile, `NN / 03`, the read time, and `contains` from
+     the registry naming the artifacts actually on the page below. That last
+     part is the page's delight and it is usefulness rather than ornament: the
+     only question a reader brings to a shelf is *which one has what I need*,
+     and three cards carrying a title and one sentence could not answer it.
+     `contains` carries NO NUMBERS by rule — a count typed in prose about a
+     countable fact in the tree is the shape that went stale twice in move 3.
+
+     **`glyph` IS REQUIRED ON A GUIDE**, the call `ourStrengths` made on page
+     2: a new guide cannot compile without somebody deciding what it is about.
+     The library lands 1 `brand` / 2 `growth` and `megaphone` was REJECTED for
+     the patient-growth guide even though it would have given one tile from
+     each family — picking a subject to get a colour is the exact failure Part
+     3's first tone rule names, and that guide argues ads come LAST.
+
+     **THE CHAPTER RAIL IS PAGE 3's MOVE ARRIVING WHERE IT WAS NEEDED MORE,
+     AND ON THE OTHER SIDE.** These are the longest sustained reading columns
+     on the site — eight to ten screens — and hard-left on `max-w-6xl` left
+     the right HALF of a 1440 article empty for all of it while the reader had
+     no way to see what was in the guide. Page 3's rail is the cautionary tale
+     (*"a structural column is a narrower container by another name"*) and the
+     difference is which side: this one is on the RIGHT, so the article still
+     starts exactly where the `h1` starts. It is DERIVED from the shell's own
+     `children` — it walks them for `GuideH2` elements — because a hand-kept
+     chapter list goes stale INVISIBLY: a rail naming a renamed chapter still
+     looks like a rail. `lg:` and up only, `hidden` below (not off-screen), so
+     it adds no tab stops on the width where there is no margin to fill.
+
+     Its first draft carried a `NN` numeral and that was wrong on exactly one
+     page: `how-to-get-more-dental-patients` numbers its own chapters in the
+     copy, so the rail read `01  1. The Google listing…`. Stripping the typed
+     prefix to make room was the clever fix and would have HIDDEN a
+     disagreement rather than shown it. **The rail stopped claiming a position
+     it does not own** — a tone dash instead, Tier B exactly as Part 3 defines
+     it, which makes this and the hub's index the second and third lists on
+     the site to qualify.
+
+     **THE WORKED EXAMPLE HAD NEVER LINED UP.** The membership guide's
+     arithmetic is a leader-dot column — `2 cleanings ...... 2 × $120 = $240`
+     — set in a proportional face under `whitespace-pre-line`, which also
+     COLLAPSES the runs of spaces holding it together. So the numbers the
+     whole guide is about formed no column at any width. `ScriptCard` now
+     takes `kind="figures"` (mono at 0.85rem, `pre-wrap`) beside the default
+     `kind="script"` (sans, `pre-line`, right for copy a patient will
+     receive). Part 4 names this case: mono is for any number the reader is
+     meant to compare. It is a named kind rather than a boolean because the
+     name is the rule. One honest limit: at 390 the widest line still wraps,
+     because ~66 characters cannot fit 326px above the 12px floor — the sans
+     version wrapped there too and lined up nowhere, so this is better
+     everywhere and imperfect at one width.
+
+     **THE PRICE RESOLVES, AND THE BLAST RADIUS IS THE LESSON.** `GuideShell`
+     typed `"$200/mo"`. Because it is a SHARED shell that was live on three
+     public pages at once while counting as one surface — the cheapest place
+     this drift can hide. `tests/marketing/pricing-price-source.test.tsx`
+     scans the COMPONENT rather than the three routes that render it.
+
+     **NO EMOJI, AND THE ISSUE ASKED FOR SOME.** DREAMCRM-79 names these as
+     *"the one place the curated animated set is allowed in body copy — where
+     a named human is writing in the first person"*. That runs Part 5's two
+     clauses together. The body-copy permission is for **plain unicode** ("the
+     animated set is for moments; a character in a sentence is a character in
+     a sentence"), and its precondition is a **named human** — these guides
+     have no byline, no author field, and a corporate "we" is the voice that
+     clause distinguishes itself FROM. There is no moment on a page somebody
+     is reading either. So the fifth move-6 page in a row ships with none and
+     Part 5's table is untouched. **The open question this raises is the
+     owner's, not this document's:** if that clause is ever to have a call
+     site anywhere on the site, the guides need a real named author, and
+     inventing one is against the registry's own content laws.
+
+     **FIRST AND SECOND MARKETING AXE STOPS SINCE `/why`** (`marketing:
+     resources`, `marketing: resource guide`), both at a CEILING OF ZERO with
+     no exemption — the condition `/product` cannot meet. Measured 0 rules /
+     0 nodes on all four routes at all three widths before being asserted, and
+     watched to fail on the rail's links at `gray-400` (`#93a0bc` on white,
+     **2.62** as rendered, x6) with the hub stop staying green, which is how
+     the two stops were checked to be scanning different pages. Zero
+     horizontal scroll at 390 / 834 / 1440 on all four.
+
+   **What page 6 inherits from these five.** Four of them cost real time
+   earlier in the move and none is page-specific: SECTION CONTAINERS ALL
    MATCH (a narrower container for a reading block moves its hard-left edge off
-   the page's column — narrow the LIST, not the container, and note that a
+   the page's column — narrow the TEXT, not the container, and note that a
    sticky rail column is a container by another name, which is what page 3
-   nearly shipped); MEASURE THE PAGE
-   rather than inheriting `PageHero`'s numbers, because the reading column's
-   length is the page's own and the sub is the run with the least headroom; and
-   READ PART 3's RADIUS LADDER against the page, because nothing in CI grades a
-   radius and every one of these pages predates it.
+   nearly shipped and what page 5 avoided by putting its rail on the RIGHT);
+   MEASURE THE PAGE AT ALL THREE WIDTHS
+   rather than inheriting `PageHero`'s numbers or grading 834 as a shortcut —
+   page 5 retired that shortcut, and "the sub is the run with the least
+   headroom" is a tendency rather than a law (page 5's worst runs are both
+   EYEBROWS, at 390); READ PART 3's RADIUS LADDER against the page, because
+   nothing in CI grades a radius and every one of these pages predates it; and
+   CHECK WHETHER THE PAGE ACTUALLY RENDERS `PageHero` rather than trusting a
+   count of subpages — two of the five found a bespoke hero nobody had
+   counted, and page 6 is six routes none of which has been opened.
 
 The site is light-only today (zero `dark:` classes under `app/(marketing)`) and
 nothing here changes that. Whether the marketing site ever gets a real dark

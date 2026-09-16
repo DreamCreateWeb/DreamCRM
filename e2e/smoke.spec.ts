@@ -87,6 +87,62 @@ test.describe('the marketing site (the storefront)', () => {
 
     await expectNoA11yViolations(page, 'marketing: why')
   })
+
+  /**
+   * THE RESOURCE LIBRARY — the fourth and fifth marketing stops, added with
+   * the pages' Daylight Dream rebuild (Neon, DREAMCRM-79, move 6 page 5).
+   *
+   * THEY MEET THE SAME CONDITION `/why` DOES, which is the only condition
+   * that earns a ceiling of zero: no exemption. `e2e/axe-baseline.ts` spends
+   * a note explaining why `/product` cannot have a stop — `DECORATIVE_MOCKS`
+   * keys on the drift wrapper (`.mkt-float >`) and the tour's nine mocks do
+   * not float, so the selector would match nothing and `deadExclusions`
+   * would fail the stop by name. Neither of these pages renders a mock of
+   * any kind: the hub is type, tone tiles and hairlines, and a guide is that
+   * plus prose. There is nothing to exempt and nothing to derive.
+   *
+   * TWO STOPS RATHER THAN ONE, because they are two different pages under
+   * one route. The hub is an index; the ARTICLE carries everything this move
+   * actually built — the script cards, the amber caveat notes and the
+   * chapter rail, which is the only NAV landmark on the marketing site
+   * outside the chrome. A stop on the hub would scan none of it.
+   *
+   * MEASURED BEFORE THEY WERE ASSERTED, against the production build:
+   * 0 rules / 0 nodes on all four resource routes at 390, 834 and 1440,
+   * `wcag2a/2aa/21a/21aa`. Twelve stops, zero findings.
+   *
+   * WATCHED TO FAIL (§2d) against the defect these pages are actually at
+   * risk of rather than a synthetic one — the quiet-ink step, which is what
+   * every restyle of a reading page reaches for. Dropping the chapter rail's
+   * links from `gray-600` to `gray-400` reddens the guide stop
+   * `color-contrast (serious) x6` — one per rail link — naming `#93a0bc on
+   * #ffffff` at **2.62** as rendered (14.4px, regular), and leaves the hub
+   * stop at 0 rules / 0 nodes. Both halves matter: a mutation that reddened
+   * BOTH stops would mean they are not scanning different pages, which is
+   * the only thing that makes two stops worth their runtime. Restored and
+   * re-run green.
+   *
+   * The three widths are `marketing-viewport.spec.ts`'s job. Axe's findings
+   * here do not move with the viewport except for the rail, which is
+   * `hidden` below `lg` — so the guide stop runs at the DEFAULT viewport,
+   * where the rail is in the tree and gets scanned.
+   */
+  test('the library indexes its guides, and a guide carries its scripts', async ({ page }) => {
+    await page.goto('/resources')
+    await expect(page.locator('h1').first()).toBeVisible()
+    // The row index is the move — a shelf that says what is on it.
+    await expect(page.locator('body')).toContainText('The recall email, subject line and body')
+    await expectNoA11yViolations(page, 'marketing: resources')
+
+    await page.goto('/resources/dental-recall-scripts')
+    await expect(page.locator('h1').first()).toBeVisible()
+    // The original material, and the compliance caveat that must stay visible.
+    await expect(page.locator('body')).toContainText('Has it been a minute?')
+    await expect(page.locator('body')).toContainText('TCPA')
+    // The chapter rail, derived from the article's own headings.
+    await expect(page.getByRole('navigation', { name: 'In this guide' })).toBeVisible()
+    await expectNoA11yViolations(page, 'marketing: resource guide')
+  })
 })
 
 test.describe('the auth gate (middleware, invisible to happy-dom)', () => {

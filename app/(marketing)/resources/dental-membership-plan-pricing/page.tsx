@@ -44,7 +44,11 @@ export default function MembershipPricingGuide() {
         it. The numbers below are illustrative — run them with your own fee schedule and
         your own hourly costs.
       </GuideP>
-      <ScriptCard label="Worked example (illustrative numbers — use your own)">
+      {/* `figures`, not `script` — this is a column of arithmetic held
+          together by leader dots, and it only lines up in a monospace face
+          (`BRAND.md` Part 4: mono is for any number the reader is meant to
+          compare). It has been shipping in a proportional one. */}
+      <ScriptCard label="Worked example (illustrative numbers — use your own)" kind="figures">
         {`What a member receives per year, at retail:
   2 cleanings ................ 2 × $120 = $240
   2 exams .................... 2 × $60  = $120

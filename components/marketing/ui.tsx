@@ -85,9 +85,22 @@ export function MarketingMotionStyles() {
          touch-and-hold, which is the case Part 6's rule excludes. The
          transition is declared INSIDE the gate too, so a coarse pointer never
          carries a transition it can never trigger. */
+      /* THE ARROW NUDGE, on the same gate and for the same reason. A "→" that
+         leans toward where it is going when the cursor arrives is the site's
+         one link affordance, and it shipped on DREAMCRM-78 as a Tailwind
+         \`group-hover:translate-x-0.5\` — which is the exact spelling the note
+         above says is wrong, because \`hover:\` also fires on a touch-and-hold.
+         It is here rather than at a call site on the SectionOpener argument
+         (move 6 page 2): a private copy of a motion recipe is fine while ONE
+         page wants it, and the second page wanting it is the moment that
+         flips. \`mkt-nudge-host\` rather than \`group\` so a row can carry both
+         this and a tone tile without one hover firing the other. */
       @media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
         .mkt-tile { transition: transform 140ms ease-out; }
         .group:hover .mkt-tile { transform: translateY(-1px) scale(1.06); }
+        .mkt-nudge, .mkt-nudge-back { transition: transform 140ms ease-out; }
+        .mkt-nudge-host:hover .mkt-nudge { transform: translateX(2px); }
+        .mkt-nudge-host:hover .mkt-nudge-back { transform: translateX(-2px); }
       }
       @media (prefers-reduced-motion: reduce) {
         .mkt-enter { opacity: 1; animation: none; }

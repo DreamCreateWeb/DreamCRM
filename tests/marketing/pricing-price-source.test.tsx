@@ -68,8 +68,21 @@ const PRICING_ROUTE = ['app/(marketing)/pricing/page.tsx', 'app/(marketing)/pric
  * something innocent is a guard somebody turns off. Its own quote already
  * resolves through `getQuotedPlan()`; what protects it is assertion 1's shape
  * pointed at that page, not this scan.
+ *
+ * THE RESOURCE GUIDES' SHARED SHELL JOINED ON DREAMCRM-79 (move 6 page 5),
+ * and it is the same defect found a fourth time: `GuideShell`'s closing CTA
+ * carried `"$200/mo, no card to try it"` as a literal. What makes it worth a
+ * line rather than a silent fix is the BLAST RADIUS — the shell renders on
+ * all three guides, so one typed number was live on three public pages at
+ * once while "surfaces holding a copy" counted it as one. A shared component
+ * is the cheapest place for this drift to hide, which is exactly why the scan
+ * takes the COMPONENT rather than the three routes that render it.
  */
-const PRICE_QUOTING_ROUTES = [...PRICING_ROUTE, 'app/(marketing)/why/page.tsx']
+const PRICE_QUOTING_ROUTES = [
+  ...PRICING_ROUTE,
+  'app/(marketing)/why/page.tsx',
+  'app/(marketing)/resources/guide-ui.tsx',
+]
 
 /**
  * Drop comments, keep everything that can reach the page.

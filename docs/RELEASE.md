@@ -1716,20 +1716,31 @@ move 5 or move 6. · OPEN
 ### Open — nothing grades `app/(marketing)` against Part 4's 12px floor (found 2026-09-16)
 
 **S3 · marketing site · `BRAND.md` Part 4.** Part 4 sets a 12px floor for this
-site — *"No `text-[11px]`, no sub-0.75rem literals"* — and **eight** live
+site — *"No `text-[11px]`, no sub-0.75rem literals"* — and **seven** live
 literals sit under it, at 0.72rem = **11.52px**:
 
 | File | Line |
 |---|---|
 | `app/(marketing)/docs/page.tsx` | 37 |
-| `app/(marketing)/resources/guide-ui.tsx` | 98 |
 | `app/(marketing)/roi/roi-calculator.tsx` | 95 |
 | `components/marketing/cinematic-spine.tsx` | 609, 621 |
-| `components/marketing/ui.tsx` | 1395, 1633, 1693 |
+| `components/marketing/ui.tsx` | 1408, 1646, 1706 |
 
-(Line numbers are against `main` as of DREAMCRM-76. Re-derive with
-`git grep -n "text-\[0\.7[0-4]rem\]" -- "app/(marketing)" components/marketing`
-rather than trusting them — the count is the durable fact, not the lines.)
+(Line numbers are against `main` as of DREAMCRM-79. Re-derive with
+`git grep -n "className=.*text-\[0\.7[0-4]rem\]" -- "app/(marketing)" components/marketing`
+rather than trusting them — the count is the durable fact, not the lines. The
+`className=` is load-bearing since DREAMCRM-79: the bare pattern now also
+matches a DOCBLOCK in `app/(marketing)/resources/guide-ui.tsx` that quotes the
+literal while explaining its removal, and a re-derivation that counts a comment
+reports a defect that is not there.)
+
+**WAS EIGHT — `app/(marketing)/resources/guide-ui.tsx:98` CLOSED on
+DREAMCRM-79** (move 6 page 5), on this entry's own stated rule rather than as a
+blanket raise: the PR was rebuilding the element it sat on (the `ScriptCard`
+caption), which is exactly why the three `compare` literals were fixed and
+these eight were not. It is `MONO_LABEL` now — 0.75rem, single-homed. The
+remaining seven are on five other surfaces this PR never opened; two of them
+(`docs`, `roi`) belong to move 6 page 6 and should close the same way.
 
 **This is a DIFFERENT gap from the cinema-stage entry above, which is why it is
 its own entry.** That one is about `SKIP_DIRS` in
