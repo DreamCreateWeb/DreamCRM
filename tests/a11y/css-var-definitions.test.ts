@@ -35,6 +35,15 @@ const RUNTIME_PROVIDED: Array<{ prefix: string; why: string }> = [
   { prefix: '--tm-step', why: 'set inline per template-gallery card' },
   { prefix: '--dg-', why: 'grade-report ring animation targets, set inline on the SVG arc (app/g/[token]/report-view.tsx)' },
   { prefix: '--site-header-h', why: 'measured and set by the public site’s header' },
+  {
+    prefix: '--mkt-',
+    why:
+      'the marketing homepage’s cinematic spine writes these per frame from one ' +
+      'scroll position (components/marketing/cinematic-spine.tsx). Every reference ' +
+      'in the stylesheet carries the AT-REST value as its fallback, so an undefined ' +
+      'token renders the resting frame rather than dropping the declaration — ' +
+      'tests/marketing/cinematic-spine.test.tsx holds that premise',
+  },
   { prefix: '--font-display', why: 'public-site font, set on the site layout element' },
   { prefix: '--font-sans', why: 'public-site font, set on the site layout element' },
   { prefix: '--color-amber-', why: 'Tailwind 4 theme colour' },
