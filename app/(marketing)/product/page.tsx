@@ -340,7 +340,7 @@ export default function ProductPage() {
           <p className="mx-auto mt-2 max-w-xl text-[0.95rem] text-gray-600">
             Everything is included from day one — one plan, one price. Month-to-month, no contract.
           </p>
-          <div className="mt-6 flex flex-wrap justify-center gap-3">
+          <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-center">
             <PrimaryCta href="/signup">Start your free trial</PrimaryCta>
             <GhostCta href="/pricing">See pricing</GhostCta>
           </div>

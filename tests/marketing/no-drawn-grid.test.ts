@@ -53,12 +53,25 @@ import { ROOT } from '../a11y/palette'
  * the case that proves the `backgroundSize` clause is doing real work rather
  * than banning gradients.
  *
+ * BOTH SPELLINGS OF THE PITCH ARE GRADED — `backgroundSize` in a style object
+ * and `background-size` in a stylesheet. The second was added on Sentinel's
+ * review of #618 and it is the one that matters here: `ui.tsx` carries a
+ * ~250-line raw `<style>` block (`SPINE_CSS`) with live `background:`
+ * declarations, so the substrate for a CSS-spelled lattice was already inside
+ * the file this guard was written for. A camelCase-only detector is a
+ * style-object detector, and this tree has a stylesheet in it.
+ *
  * WHAT IT CANNOT SEE, so nobody reads a green run as more than it is: a
  * lattice drawn as an `<svg>` of `<line>` elements, as a repeated
- * `border-right` down a flex row, or as a pair of Tailwind ARBITRARY
- * utilities — an arbitrary background-image beside an arbitrary
- * background-size — rather than a style object. None has ever appeared in
- * these trees; the third would be the cheapest to add if it ever does.
+ * `border-right` down a flex row, as a pair of Tailwind ARBITRARY utilities —
+ * an arbitrary background-image beside an arbitrary background-size — rather
+ * than a declaration, or as the `background:` SHORTHAND carrying both image
+ * and pitch in one value (`linear-gradient(…) 0 0 / 22px 22px`). None has ever
+ * appeared in these trees. The shorthand is the cheapest of the four to add
+ * and is named here rather than left out, because an entry claiming "a lattice
+ * anywhere under the marketing roots" is broader than what the code holds —
+ * and an overstated closure note is the precise failure this guard exists to
+ * cure.
  *
  * (That last one is deliberately described rather than spelled. Tailwind 4
  * scans `tests/` along with everything else, so writing the class here would
@@ -126,8 +139,21 @@ export type Lattice = { file: string; why: string; snippet: string }
 export function findLattices(file: string, source: string): Lattice[] {
   const found: Lattice[] = []
 
+  // BOTH SPELLINGS OF THE PITCH, and the second one is not hypothetical
+  // (Sentinel, #618). `components/marketing/ui.tsx` opens a ~250-line raw
+  // `<style>{`…`}</style>` block of real CSS — `SPINE_CSS`, with live
+  // `background:` declarations in it — so a lattice written there in CSS
+  // (`background-image: linear-gradient(…); background-size: 22px 22px`) sat
+  // inside the very file this guard was written for and matched nothing. A
+  // camelCase-only detector is a style-object detector, and this tree has a
+  // stylesheet in it.
+  //
+  // `enclosingObject` needs no change for the CSS spelling: walking backwards
+  // from a CSS `background-size`, the nearest unmatched `{` is the rule's own
+  // brace, which is exactly the unit to read.
+  //
   // `Array.from` for the same TS2802 reason as the chrome-legibility scanner.
-  for (const m of Array.from(source.matchAll(/backgroundSize\s*:/g))) {
+  for (const m of Array.from(source.matchAll(/background-?[sS]ize\s*:/g))) {
     const obj = enclosingObject(source, m.index)
     if (isDrawnLattice(obj)) {
       found.push({

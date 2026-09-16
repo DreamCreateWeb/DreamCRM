@@ -805,17 +805,28 @@ describe('CLIPPED TEXT, where the background IS the ink', () => {
   it('the sticky marketing header keeps its ink legal over the darkest surface it crosses', () => {
     const chrome = readFileSync(join(ROOT, 'components/marketing/chrome.tsx'), 'utf8')
 
-    const fill = /bg-white\/(\d{1,3})/.exec(chrome)
+    // ANCHORED TO EXACTLY ONE MATCH, not to the first one (Sentinel, #618).
+    // Reading by `.exec` is correct today — `chrome.tsx` carries one
+    // `bg-white/<alpha>` (the rail) and its other `bg-white` are opaque — but
+    // the correctness is an ORDERING accident. If the megamenu card, the
+    // mobile panel or the mobile Sign-in button ever takes an alpha AND sits
+    // above the rail in the file, this assertion silently re-points at a
+    // different element's number and goes on passing while the thing it names
+    // is ungraded. That is the premise drifting out from under a test whose
+    // whole argument is "the alpha is read out of the source rather than
+    // transcribed", so the count is asserted rather than assumed.
+    const fills = Array.from(chrome.matchAll(/bg-white\/(\d{1,3})/g))
     expect(
-      fill,
-      'MarketingHeader no longer carries a `bg-white/<alpha>` fill. Either it ' +
-        'went opaque — in which case its ink is graded against a declared ' +
-        'token and this test should go with the translucency — or the ' +
-        'elevated state was re-spelled and nothing is grading the composite ' +
-        'any more.',
-    ).not.toBeNull()
+      fills.map((m) => m[0]),
+      'MarketingHeader must carry EXACTLY ONE translucent `bg-white/<alpha>` ' +
+        '— the sticky rail. None means it went opaque (its ink is then graded ' +
+        'against a declared token and this test should go with the ' +
+        'translucency) or the elevated state was re-spelled. More than one ' +
+        'means this test can no longer tell which element it is grading: ' +
+        'name the rail explicitly before adding a second translucent white.',
+    ).toHaveLength(1)
 
-    const alpha = Number(fill![1]) / 100
+    const alpha = Number(fills[0][1]) / 100
     const rail = over(hexToRgb('#ffffff'), alpha, token(LIGHT, 'gray-950'))
 
     // Every ink the header renders on that fill, in the order it renders them.
@@ -828,7 +839,7 @@ describe('CLIPPED TEXT, where the background IS the ink', () => {
     const failures = pairs
       .map(([what, ink]) => [what, contrast(ink, rail)] as const)
       .filter(([, ratio]) => ratio < AA)
-      .map(([what, ratio]) => `${what} = ${ratio.toFixed(2)} over white/${fill![1]} on gray-950`)
+      .map(([what, ratio]) => `${what} = ${ratio.toFixed(2)} over white/${fills[0][1]} on gray-950`)
 
     expect(
       failures,
