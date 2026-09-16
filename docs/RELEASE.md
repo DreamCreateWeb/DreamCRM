@@ -1598,7 +1598,7 @@ up, so there is no scroll container on the page at any width. Verified +0 and
 `e2e/marketing-viewport.spec.ts` now holds every marketing page there — the
 guard Part 10 has wanted since it was written. Watched to fail against this
 exact defect: on the pre-fix file it reddens the eight vendor stops at 390 with
-`+212`, and only those. · **FIXED — awaiting merge (#621)**
+`+212`, and only those. · **FIXED — merged 2026-09-16 (#621, `57e289fa`)**
 
 ### Fixed — the compare capability matrix is a scroll region with no keyboard way in (found 2026-09-15)
 
@@ -1639,7 +1639,7 @@ share a fix in the end — but only because the width answer chosen was the
 reflow. Had the scroll box been kept and given `min-width: 0` plumbing, the
 width entry would have closed and this one would have survived with no entry of
 its own, which is exactly what the one-defect-one-entry rule exists to prevent.
-· **FIXED — awaiting merge (#621)**
+· **FIXED — merged 2026-09-16 (#621, `57e289fa`)**
 
 ### Open — the Dream Create wordmark is invisible to every dark-OS visitor (found 2026-09-16)
 
