@@ -5,11 +5,14 @@ The binding personality language for the **public marketing site**
 with Dustin Russenberger on DREAMCRM-43 (2026-09-14) and reversed from a night
 hero to light throughout on DREAMCRM-67 (2026-09-15).
 
-> **The site does not look like this yet.** This document is the decided
-> direction; the homepage still renders the retired night band. Part 8 is the
-> build order that closes the gap. Where this file and the code disagree today,
-> this file is the target and the code is the backlog — deliberate, and true
-> only until Part 8 move 1 lands.
+> **The fold looks like this; the rest of the site does not yet.** Part 8
+> move 1 landed on DREAMCRM-69 — the homepage hero IS the daylight band now,
+> and the night band is deleted rather than dormant (`NIGHT_GRID`, `NightSky`,
+> the star field, the scan sweep and both night CTAs are gone from
+> `components/marketing/ui.tsx`). Moves 2–6 are still ahead, so everything
+> below the ticker, the shared chrome and every subpage still wear the old
+> language. Where this file and the code disagree, this file is the target and
+> the code is the backlog — and Part 8 says which move closes each gap.
 
 **Scope boundary.** This file governs the marketing site only. It does not
 touch `app/(default)` / `app/(double-sidebar)` (that is `DESIGN-SYSTEM.md` v3,
@@ -140,6 +143,32 @@ descriptions (2026-09-14, DREAMCRM-43):
 
    The night band is **retired**. The footer is not — see Part 7, which is the
    half of the night-band discipline that does *not* retire with it.
+
+8. **Move 1 built, and three things it settled that the direction did not**
+   (DREAMCRM-69, 2026-09-15). The hero is the daylight band; the measured run
+   is in Part 7. What building it decided:
+
+   - **The 86px display needs a ~730px reading column at 1440, and that sets
+     the split.** "One calm system." does not fit one line under that, so the
+     hero's grid is `2.15fr / 1fr` inside `max-w-6xl` and the product column is
+     narrow-but-bleeding rather than half the fold. The headline reads as three
+     lines at 1440, two at 834 and four at 390 — Part 10's "type steps down; it
+     does not reflow into a different design", arrived at by measuring the
+     rendered line count rather than by eye. **A longer headline is a smaller
+     display, not a wider column**; the column is already most of the grid.
+   - **The hero's trust row drops its check marks now, ahead of move 3.** The
+     owner's second veto is a veto; shipping ticks in the fold while the
+     tone-tile set is three moves away would have shipped the vetoed thing on
+     the one surface he was looking at. The hero row is mono with dot
+     separators, which is what he approved in round B. That leaves **three**
+     `CheckIcon` call sites on the homepage for move 3, not four.
+   - **The detached pieces are pieces of the mock, and their content says so.**
+     They carry `DashboardMock`'s own rows — the trend tile and the reply to
+     the confirmation text the mock is about to send — rather than invented
+     numbers. Part 5 says a number inside a product mock is part of the mock
+     and the same number in our own voice is a claim; lifting a row out of the
+     mock keeps it on the right side of that line, and `94% / 38 / $14,200`
+     from the round-B renders deliberately did not ship.
 
 **Why light is the right answer and not a retreat.** The original case for a
 night band was memorability, and it was a real argument — but the pages that
@@ -517,6 +546,42 @@ The hero's night band is gone, and with it:
   like any other. Keep it off the reading column, or grade the ratio with the
   grain on rather than without it.
 
+### The daylight hero, measured (DREAMCRM-69)
+
+The rules above are the reasoning. This is the run, taken the way the light
+ground has to be graded: render the page, hide the band's CONTENT, screenshot
+the blooms and the grain alone, and take the **darkest** pixel under each run
+of glyphs. Grain ON. 1440 × 900, the widest of the three widths and the one
+where the lobes are largest.
+
+| Text | Ink | Darkest ground under it | Rendered | Flat |
+|---|---|---|---|---|
+| eyebrow badge | `teal-700` | `rgb(205 218 247)` | **5.02** | 7.05 |
+| headline | `gray-950` | `rgb(220 229 249)` | **13.94** | 17.62 |
+| body copy | `gray-600` | `rgb(251 251 251)` | **6.67** | 6.91 |
+| trust row | `gray-600` | `rgb(246 227 248)` | **5.68** | 6.91 |
+| daylight ticker | `gray-600` | `rgb(220 229 253)` | **5.48** | 6.91 |
+
+Read the gap between the last two columns rather than the last column: the
+blooms cost the eyebrow **2.03** and the trust row **1.23**, and the trust row's
+loss is the fuchsia lobe's tail specifically. Those are the numbers that say how
+much of this ground is spent, and the eyebrow is the one with the least left. A
+lobe moved toward the reading column comes out of that headroom.
+
+Two notes for whoever tunes a lobe next:
+
+- **The body copy reads 6.67 against a flat 6.91 because it is the one run the
+  lobes genuinely miss.** That is the target shape for a reading column, not a
+  happy accident — it is what "centred outside the reading column" buys.
+- **Measure the ticker separately.** It sits below the hero section on
+  `surface-1` rather than inside the band, so it is the one run whose ground is
+  not a bloom at all, and grading it with the hero is what catches a lobe that
+  has grown far enough down to reach it.
+
+The instrument used here was a throwaway: `scripts/night-band-grade.mjs` is the
+committed one and it still takes the BRIGHTEST pixel, which was correct for the
+band it was written for and is backwards for this ground. Flipping the extremum
+and renaming it is the move-5 build issue, and this table is what it re-derives.
 ### The signature gradient, graded
 
 Rule 4 grades every stop of a `bg-clip-text` gradient as ink on white, with a
@@ -558,12 +623,16 @@ Ordered, each its own small PR, each verified in the real page at all three
 widths before it lands. Nothing merges without the three-size screenshots and
 the reduced-motion path in the same PR.
 
-1. **The homepage hero becomes the daylight band** — saturated blooms, grain,
-   86px hard-left headline with the legal gradient, the product bleeding off the
-   right edge with detached pieces in front of it, the ticker closing the fold.
-   Delete `NIGHT_GRID`, `NightSky`, and the `CLIPPED_TEXT_EXEMPTIONS` entry with
-   its premise assertions in the same PR — the red run they produce is the
-   signal that move 1 is really happening.
+1. ~~**The homepage hero becomes the daylight band**~~ — **LANDED**
+   (DREAMCRM-69, 2026-09-15). Saturated blooms, grain, 86px hard-left headline
+   with the legal gradient, the product bleeding off the right edge with
+   detached pieces in front of it, the ticker closing the fold. `NIGHT_GRID`,
+   `NightSky`, the star field, the scan sweep and both night CTAs were deleted
+   in the same PR, along with the `CLIPPED_TEXT_EXEMPTIONS` entry and the two
+   assertions policing its premise. **The red run arrived exactly as this
+   document predicted it would**, naming the entry through both halves — the
+   dead-exemption detector and the structural premise check — and rule 4 was
+   not touched. Decisions it settled: Part 0 item 8. Measured run: Part 7.
 2. **The cinematic spine** — the pin-and-scroll sequence, its reduced-motion
    stacked layout, and its keyboard path. Vesper reviews before merge. This is
    the one move in the list that is not a re-skin.
