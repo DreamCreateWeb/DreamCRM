@@ -845,6 +845,15 @@ const TILE_SIZE = {
  * than in a `hover:` utility for one reason — Part 6 makes hover motion
  * pointer-fine only, and a Tailwind `hover:` also fires on a touch-and-hold.
  * The media gate is the only way to owe that rather than claim it.
+ *
+ * THE LIFT IS OPT-IN, AND THE TILES THAT DECLINE IT DO SO ON PURPOSE. It fires
+ * only under a `group` ancestor, so a tile inside a CARD rises with its card
+ * and a tile sitting in a dense list row stays put — the homepage pricing
+ * teaser, the partner terms and the compare "Choose DreamCRM if" list are all
+ * the second kind. That is a taste rule, not an oversight: those rows are not
+ * interactive, and Part 6's motion is meant to answer a gesture rather than
+ * twitch under the cursor. Raised in Sentinel's review of #617; recorded here
+ * so the next reader does not have to guess which it was.
  */
 export function ToneTile({
   glyph,

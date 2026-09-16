@@ -103,8 +103,16 @@ export default async function ComparePage({ params }: Props) {
           <h2 className="mb-6 text-center text-[1.4rem] font-bold tracking-tight">
             Feature by feature
           </h2>
-          {/* OPEN DEFECT, measured 2026-09-15 (docs/RELEASE.md Part 5,
-              "/compare/[vendor] scrolls sideways 212px at 390"). At 390px this
+          {/* TWO OPEN DEFECTS live on these two lines, and they have SEPARATE
+              entries in docs/RELEASE.md Part 5 because they have separate
+              fixes — "/compare/[vendor] scrolls sideways 212px at 390" and
+              "the compare capability matrix is a scroll region with no
+              keyboard way in". Reflowing the matrix at 390 closes both;
+              keeping the scroll box closes only the first, and then this
+              wrapper still needs `tabindex="0"` and an accessible name
+              (axe: `scrollable-region-focusable`, WCAG 2.1.1).
+
+              On the width half, measured 2026-09-15: at 390px this
               table renders 672px wide and the DOCUMENT pans with it:
               `scrollWidth - clientWidth` is +212, and `window.scrollTo(9999, 0)`
               really does leave `scrollX` at 212. `BRAND.md` Part 10 forbids

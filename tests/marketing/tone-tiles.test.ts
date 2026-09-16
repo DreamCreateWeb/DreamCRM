@@ -44,10 +44,22 @@ import { TONE_TILE_TONE, TILE_TONE_CLASSES } from '@/lib/marketing/tone-tiles'
  *     carrying information rather than decorating a bullet.
  *
  * WHAT IT CANNOT SEE, stated so nobody reads a green run as more than it is:
- * a tick drawn as a `<polyline>`, as a background image, as a font glyph, or
- * as the character "✓" in copy. The first three have never appeared in this
- * tree and the fourth is a copy decision rather than an icon. If one shows up,
- * widen the detector rather than adding an exemption for it.
+ *
+ *   - **A FILLED tick.** The closed-path guard below rejects anything with a
+ *     `Z`/`z`, so a solid check (`M13.5 4.2 6.1 11.6 2.5 8l-1.2 1.2 4.8 4.8
+ *     8.6-8.6Z`) walks straight past. Stroked-polyline-only is a deliberate
+ *     scope — the filled form has never appeared in these trees, and covering
+ *     it means grading filled AREAS rather than three points, which is a
+ *     different instrument. This limit is repeated in the
+ *     `blocking-assertions` entry in `scripts/review-gate.mjs`, because that
+ *     comment is what the rulebook entry gets written from and a gate rule
+ *     recorded as stronger than it is, is wrong quietly.
+ *   - A tick drawn as a `<polyline>`, as a background image, as a font glyph,
+ *     or as the character "✓" in copy. The first three have never appeared
+ *     here and the fourth is a copy decision rather than an icon.
+ *
+ * If any of them shows up, widen the detector rather than adding an exemption
+ * for it.
  *
  * EVERY CASE HERE WAS WATCHED FAIL (§2d), and on the REAL shape rather than a
  * stand-in — the deleted `CheckIcon` body (`M2.5 8.5l3.5 3.5 7.5-8`) pasted
@@ -58,10 +70,32 @@ import { TONE_TILE_TONE, TILE_TONE_CLASSES } from '@/lib/marketing/tone-tiles'
  * the positive cases below.
  */
 
-/** The two trees `BRAND.md` governs. The dashboard's own `CheckIcon`s are a
- *  separate local definition in a different design language and are out of
- *  scope — `BRAND.md`'s scope boundary, and DREAMCRM-71 says so explicitly. */
-const MARKETING_ROOTS = ['app/(marketing)', 'components/marketing']
+/**
+ * The trees `BRAND.md` governs. The dashboard's own `CheckIcon`s are a
+ * separate local definition in a different design language and are out of
+ * scope — `BRAND.md`'s scope boundary, and DREAMCRM-71 says so explicitly.
+ *
+ * `lib/marketing` is here because THIS CHANGE put marketing vocabulary in it
+ * (`tone-tiles.ts`), and Sentinel's review made the point that an enumerated
+ * root list stops matching the site the day content moves. The drawings live
+ * in `components/marketing` today; the moment one follows the vocabulary into
+ * `lib/`, a two-entry list would have gone quietly blind. #615 is the
+ * precedent for that failure and it is cheaper to widen now than to discover.
+ *
+ * KEEPING THE `palette` IMPORT IS LOAD-BEARING, and not for the colour maths.
+ * `tests/guards/review-gate.test.ts` derives the intake list two ways — files
+ * that walk a product root, and files that grade the palette — and the
+ * tree-walk half matches a BARE quoted root (`/(^|[^\w])'(app|components|lib)'/`).
+ * Every root below is a subdirectory, so that half does not see this file; it
+ * is the `ROOT` import on line 4 that puts it on the list. **Do not replace
+ * that import with `process.cwd()`** — it reads like a harmless simplification
+ * and it would drop this guard out of intake detection entirely. Forge found
+ * this on the #617 sweep and is routing the underlying regex (it should match
+ * a product root at a path boundary, so `'app'` and `'app/(marketing)'` both
+ * count) to whoever owns the gate machinery; until that lands, this comment is
+ * the tripwire.
+ */
+const MARKETING_ROOTS = ['app/(marketing)', 'components/marketing', 'lib/marketing']
 
 /**
  * The one tick on this site that survives the veto, and why.
@@ -102,45 +136,75 @@ const marketingFiles = MARKETING_ROOTS.flatMap((r) => walk(join(ROOT, r))).map((
 /**
  * Is this `d` attribute ENTIRELY a check mark?
  *
- * One subpath, move + lines only, exactly three points, x strictly rightward,
- * the middle point the lowest on the canvas and the last the highest. In SVG
+ * One subpath, move + lines only, exactly three points, x monotonic, the
+ * middle point the lowest on the canvas and the far end the highest. In SVG
  * coordinates "lowest" is the largest y, which is the one thing here that
  * reads backwards and is why it is spelled out rather than left to a `<`.
  *
- * Exported shape is deliberate: the tests below feed it the real historical
- * spellings, because an absence assertion over a clean tree cannot tell a
- * working detector from one that has quietly stopped matching.
+ * TWO THINGS THE FIRST VERSION GOT WRONG, both found by Sentinel's review of
+ * #617 and both worth keeping written down, because they are the difference
+ * between a rule and a rule-shaped object:
+ *
+ *   - **Each segment is resolved against ITS OWN command letter.** The first
+ *     version decided "is this path relative?" once for the whole `d` and ran
+ *     every segment through that one answer. SVG lets a path mix them freely,
+ *     and the single most common tick in this repo does exactly that
+ *     (`M5 13l4 4L19 7` — absolute move, relative line, absolute line). Under
+ *     one-mode arithmetic its points land somewhere else entirely and the
+ *     shape test grades a triangle that was never drawn.
+ *   - **Traversal direction is normalised before the shape is graded.** The
+ *     first version demanded `a.x < b.x < c.x`. A tick drawn from the long
+ *     tail's tip inward — Lucide's `check`, most icon fonts — runs leftward,
+ *     and is the SAME MARK ON SCREEN. Grading the point order rather than the
+ *     figure meant half the world's check marks read as "not a check mark".
+ *
+ * Both were false NEGATIVES, which is the direction that matters here: this
+ * function is the whole veto, so a miss is the guard reporting CLEAN over a
+ * live defect. The `M5 13l4 4L19 7` spelling is in this repo five times, twice
+ * on public clinic-site surfaces next door to `app/(marketing)`.
+ *
+ * Exported shape is deliberate: the tests below feed it the real spellings,
+ * because an absence assertion over a clean tree cannot tell a working
+ * detector from one that has quietly stopped matching.
  */
 export function isCheckPolyline(d: string): boolean {
   const body = d.trim()
   // A second `m`/`M` anywhere after the first is a second subpath, which is a
-  // composite glyph rather than a bare tick.
+  // composite glyph rather than a bare tick. `Z`/`z` closes the figure, which
+  // makes it a filled shape rather than a stroked polyline.
   if (!/^[Mm]/.test(body)) return false
   if (/[MmZz]/.test(body.slice(1))) return false
   // Curves, arcs and axis-locked segments are not a tick.
   if (/[CcSsQqTtAaHhVv]/.test(body)) return false
 
-  // Only M/m and L/l survived the checks above. Three points is six numbers;
-  // anything else is a different shape.
-  const nums = body.slice(1).match(/-?\d*\.?\d+/g)
-  if (!nums || nums.length !== 6) return false
-  const n = nums.map(Number)
+  // Split into command runs — only `M`/`m` and `L`/`l` can have survived the
+  // guards above — and resolve each run against its OWN letter's case.
+  const runs = body.match(/[MmLl][^MmLlZz]*/g)
+  if (!runs) return false
 
-  // Resolve to absolute points. A LOWERCASE line command is relative to the
-  // running point, and so is an implicit lineto that follows a lowercase
-  // `m`; an uppercase `L`, or an implicit lineto after `M`, is absolute.
-  // Anything mixing the two cases falls out as "not a tick" — a false
-  // negative, which is the safe direction for a detector whose misses are
-  // caught by an eye at review and whose false POSITIVES would train people
-  // to add exemptions.
-  const relativeLines = /l/.test(body) || (/^m/.test(body) && !/L/.test(body))
-  const pts: Array<[number, number]> = [[n[0], n[1]]]
-  for (let i = 2; i < 6; i += 2) {
-    const prev = pts[pts.length - 1]
-    pts.push(relativeLines ? [prev[0] + n[i], prev[1] + n[i + 1]] : [n[i], n[i + 1]])
+  const pts: Array<[number, number]> = []
+  let cursor: [number, number] = [0, 0]
+  for (const run of runs) {
+    const relative = run[0] === run[0].toLowerCase()
+    const nums = (run.slice(1).match(/-?\d*\.?\d+/g) ?? []).map(Number)
+    if (nums.length === 0 || nums.length % 2 !== 0) return false
+    // Every pair after the first in a run is an implicit lineto, and it
+    // inherits the run's own case — which is exactly what the SVG spec says
+    // and exactly what the single-mode version could not express.
+    for (let i = 0; i < nums.length; i += 2) {
+      cursor = relative
+        ? [cursor[0] + nums[i], cursor[1] + nums[i + 1]]
+        : [nums[i], nums[i + 1]]
+      pts.push(cursor)
+    }
   }
+  if (pts.length !== 3) return false
 
-  const [a, b, c] = pts
+  // A tick drawn from its long tail inward traverses right to left and is the
+  // same mark on screen. Normalise, then grade the FIGURE.
+  let [a, b, c] = pts
+  if (a[0] > b[0] && b[0] > c[0]) [a, b, c] = [c, b, a]
+
   const rightward = a[0] < b[0] && b[0] < c[0]
   const middleIsLowest = b[1] > a[1] && b[1] > c[1]
   const endIsHighest = c[1] < a[1]
@@ -197,6 +261,42 @@ describe('the check-mark veto stays closed (BRAND.md Part 3, DREAMCRM-71)', () =
     expect(isCheckPolyline('M4,12.5 9,17.5 20,6.5')).toBe(true)
   })
 
+  /**
+   * THE SPELLINGS THE FIRST VERSION WALKED PAST — Sentinel's REQUEST CHANGES
+   * round on #617, and the reason this block exists separately from the one
+   * above.
+   *
+   * The originals were the three ticks that happened to be IN HAND when the
+   * rule was written, and all three share a habit: a single line-command case
+   * throughout, drawn left to right. Grading only those proved the detector
+   * could see the paths it had been shown — which is the asymmetry §2d keeps
+   * naming. It could not see either of these, and both causes were geometric:
+   *
+   *   - **Mixed absolute/relative in one path.** The mode was resolved ONCE
+   *     for the whole `d`, so `M…l…L…` ran every segment through the wrong
+   *     arithmetic and the points came out somewhere else entirely.
+   *   - **Right-to-left traversal.** The shape test demanded `a.x < b.x < c.x`,
+   *     and a tick drawn from the long tail's tip inward runs leftward. Same
+   *     mark on screen, reversed point order, detector silent.
+   *
+   * THE FIRST OF THOSE IS NOT HYPOTHETICAL: `M5 13l4 4L19 7` is in this
+   * repository five times as of this commit, and two of them
+   * (`components/clinic-site/success-well.tsx`,
+   * `components/clinic-site/insurance-verifier-form.tsx`) are public
+   * clinic-site surfaces — the nearest neighbour to `app/(marketing)` and the
+   * likeliest thing an author building a new marketing section copies from. So
+   * the realistic regression was: lift that tick, drop it in a feature list,
+   * and the scan reports CLEAN with the defect live.
+   */
+  it('the detector recognises the tick spellings the first version missed', () => {
+    // Heroicons v1 — mixed `l` then `L`. Five live copies in this repo.
+    expect(isCheckPolyline('M5 13l4 4L19 7')).toBe(true)
+    // Lucide `check`, verbatim — drawn right to left, then a relative segment.
+    expect(isCheckPolyline('M20 6 9 17l-5-5')).toBe(true)
+    // Ionicons-style, right to left at icon-font scale.
+    expect(isCheckPolyline('M416 128L192 384l-96-96')).toBe(true)
+  })
+
   it('the detector does NOT fire on the glyphs that replaced it', () => {
     // A composite glyph carrying a tick among other subpaths — the homepage's
     // "Online booking" pillar. Not the vetoed thing, and not matched.
@@ -210,6 +310,57 @@ describe('the check-mark veto stays closed (BRAND.md Part 3, DREAMCRM-71)', () =
     expect(isCheckPolyline('M2 2l4 4 6 6')).toBe(false)
     // …and one that ends lower than it started, so it never rises into a tick.
     expect(isCheckPolyline('M2 4l4 6 6 -1')).toBe(false)
+  })
+
+  /**
+   * THE NORMALISATION'S OWN BLAST RADIUS.
+   *
+   * Reversing right-to-left point order before grading is the fix for Lucide's
+   * tick, and it is also the one change here that could make the detector
+   * LOUDER than intended — every leftward three-point figure now reaches the
+   * shape test where before it was rejected at the door. So the cases below
+   * are the leftward twins of the negatives above, plus the shape most likely
+   * to be mistaken for a tick.
+   *
+   * §2d's "mutate an exclusion detector in BOTH directions", applied to a
+   * widening rather than to an exclusion: a guard that got broader owes proof
+   * of where it still stops.
+   */
+  it('normalising direction does not make the detector fire on non-ticks', () => {
+    // A CARET / chevron-up drawn right to left — middle is the HIGHEST point,
+    // a tick upside down, and the nearest miss in the whole set.
+    expect(isCheckPolyline('M14 12 8 5 2 12')).toBe(false)
+    // The same caret drawn left to right.
+    expect(isCheckPolyline('M2 12 8 5 14 12')).toBe(false)
+    // A leftward descent — x monotonic, but it never rises at the end.
+    expect(isCheckPolyline('M14 2 8 8 2 14')).toBe(false)
+    // THE DISCRIMINATING ONE: leftward, x monotonic, middle genuinely the
+    // lowest — everything a tick needs except that the far arm stops SHORT of
+    // the near arm's height. That is a shallow V, not a check mark, and it is
+    // `endIsHighest` alone that separates them.
+    expect(isCheckPolyline('M14 6 8 12 2 4')).toBe(false)
+    // Not x-monotonic at all — a zig-zag neither direction can normalise.
+    expect(isCheckPolyline('M2 2 12 10 6 4')).toBe(false)
+    // A mirrored tick IS a tick, and this is the assertion that keeps the
+    // normalisation honest in the other direction — take it out and the three
+    // spellings above go quiet again.
+    expect(isCheckPolyline('M14 4 8 12 2 6')).toBe(true)
+  })
+
+  it('every glyph in the shipped tone-tile set stays clear of the detector', () => {
+    // The registry is the population this guard runs over on every CI run, so
+    // grading it here is not redundant with the tree scan — it names the
+    // offending SUBJECT rather than a file and a line, which is what somebody
+    // adding a glyph needs to see.
+    const paths: string[] = []
+    const ui = marketingFiles.find((f) => f.file === 'components/marketing/ui.tsx')!
+    const registry = ui.source.slice(
+      ui.source.indexOf('export const TONE_TILE_PATH'),
+      ui.source.indexOf('const TILE_SIZE'),
+    )
+    for (const { d } of pathsIn(registry)) paths.push(d)
+    expect(paths.length).toBeGreaterThan(20)
+    expect(paths.filter(isCheckPolyline)).toEqual([])
   })
 
   it('no marketing file draws a bare check mark', () => {

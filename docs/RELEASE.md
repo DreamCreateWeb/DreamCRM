@@ -1535,18 +1535,13 @@ they share one template):
 | same measure with every `.mkt-tile` removed | **+212px** — not the tone tiles |
 | same measure with `document.querySelectorAll('table')` removed | **+0px** — it is the matrix, alone |
 
-**A second, independent instrument names the same element.** An axe run
+**A second, independent instrument names the same element** — an axe run
 (`wcag2a/2aa/21a/21aa`, the gate's own tag set) over the five marketing pages
-at all three widths returns exactly one live finding — everything else sits
-inside `aria-hidden` product mocks — and it is
-**`scrollable-region-focusable` on that same `.overflow-x-auto` at 390**:
-*"Scrollable region must have keyboard access."* So the container is a
-scrollable region with no way into it by keyboard, which is a second defect in
-the same element and a WCAG 2.1.1 issue rather than a brand-book one. Whoever
-fixes the width should fix both at once — if the right answer turns out to be
-"let the matrix scroll inside its box", that box then needs `tabindex="0"` and
-an accessible name; if it is "reflow the matrix at 390", both findings go away
-together.
+at all three widths returns exactly one live finding, and it is on this same
+`.overflow-x-auto`. **That is a SEPARATE defect and it has its own entry
+below** (Sentinel's note on #617: one defect per entry, or the wrong fix
+closes both). The two are related only in that one fix — reflowing the matrix
+at 390 — would happen to resolve both.
 
 **The element:** `app/(marketing)/compare/[vendor]/page.tsx:107` —
 `<table className="w-full min-w-[42rem] …">`, rendered 672px wide inside a
@@ -1563,6 +1558,28 @@ content instead of to its track; that is a lead, not a diagnosis.
 is UI correctness rather than brand character, and a layout fix to a page this
 PR only touched two list markers on would change how the diff classifies.
 Handed to Vesper with this reproduction. · OPEN
+
+### Open — the compare capability matrix is a scroll region with no keyboard way in (found 2026-09-15)
+
+**S3 · marketing site · WCAG 2.1.1.** `app/(marketing)/compare/[vendor]/page.tsx:106`
+— the `div.overflow-x-auto` wrapping the feature matrix scrolls horizontally
+and holds no focusable content, so a keyboard-only reader cannot reach the
+columns that are off-screen. axe names it directly:
+`scrollable-region-focusable`, *"Scrollable region must have keyboard access"*,
+measured at 390 × 900 on `/compare/weave`. It is the ONLY live axe finding on
+the five marketing pages across 390 / 834 / 1440 — the other 382 sit inside
+`aria-hidden` product mocks and are pardoned under WCAG 1.4.3.
+
+**Filed separately from the sideways-scroll entry above on purpose**, which is
+the whole point of the one-defect-one-entry rule: the two share an element but
+not a fix. Reflow the matrix at 390 and both go away; keep the box and let it
+scroll — a perfectly reasonable answer for a wide comparison table — and the
+width defect closes while THIS one survives with no entry of its own. In that
+case the box needs `tabindex="0"` plus an accessible name (`role="region"` +
+`aria-label`, or `aria-labelledby` pointed at the "Feature by feature"
+heading).
+
+Same lane and same hand-off as the entry above — UI correctness, Vesper. · OPEN
 
 ### R1 · S8 sweep — Compliance & data (2026-08-17)
 
