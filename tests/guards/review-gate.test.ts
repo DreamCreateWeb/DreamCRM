@@ -305,11 +305,21 @@ function importBindings(clause: string): string[] {
  * `COMPARISONS` into one is. `\b` on both sides deliberately — §2d's
  * identity-looseness family is the most common way a guard like this quietly
  * matches a longer name and starts reporting about the wrong thing.
+ *
+ * THE VERB LIST IS THE WHOLE RULE, so a missing verb is a silent hole rather
+ * than a near miss. `reduce` was missing when this shipped and Sentinel found
+ * it by probing (#622 review): `const PAGES = DOCS.reduce((a, d) => [...a,
+ * d.slug], [])` returned `[]` — a fully derived page list, invisible. Added
+ * with `reduceRight`, `slice` and `sort` beside it, since all four take a
+ * collection and hand back a collection, which is the property that matters.
+ * Adding a verb is the cheap direction: a verb that never appears costs
+ * nothing, and a missing one costs a whole guard. If you find another, add it
+ * here rather than writing a caveat about it.
  */
 function isExpanded(name: string, source: string): boolean {
   const n = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
   return new RegExp(
-    `(\\.\\.\\.\\s*${n}\\b|\\b${n}\\s*\\.\\s*(map|flatMap|filter|forEach|concat)\\s*\\(` +
+    `(\\.\\.\\.\\s*${n}\\b|\\b${n}\\s*\\.\\s*(map|flatMap|filter|forEach|concat|reduce|reduceRight|slice|sort)\\s*\\(` +
       `|\\bof\\s+${n}\\b|\\bin\\s+${n}\\b|\\bObject\\.(keys|values|entries)\\s*\\(\\s*${n}\\b)`,
   ).test(source)
 }
@@ -356,6 +366,23 @@ for (const path of PAGES) {
   it('catches it through the alias spelling too', () => {
     const aliased = SITE_WIDE.replace("'../lib/marketing/comparisons'", "'@/lib/marketing/comparisons'")
     expect(sitewidePageRegistries('e2e/planted.spec.ts', aliased)).toEqual(['COMPARISONS'])
+  })
+
+  // SENTINEL'S PROBE, VERBATIM (#622 review). `reduce` was not on the verb
+  // list, so this exact source returned `[]` — a fully derived page list the
+  // detector could not see. Kept as a case rather than a caveat because a verb
+  // costs nothing and a hole costs the guard. Its three siblings are here for
+  // the same reason: each takes a collection and returns one.
+  const EXPANSION_VERBS: Array<[string, string]> = [
+    ['reduce', 'const PAGES = DOCS.reduce((a, d) => [...a, `/docs/${d.slug}`], [])'],
+    ['reduceRight', 'const PAGES = DOCS.reduceRight((a, d) => [...a, d.slug], [])'],
+    ['slice', 'const PAGES = DOCS.slice(0, 5).map((d) => d.slug)'],
+    ['sort', 'const PAGES = DOCS.sort().map((d) => d.slug)'],
+  ]
+
+  it.each(EXPANSION_VERBS)('counts %s as an expansion into a page list', (_verb, line) => {
+    const src = `import { test } from '@playwright/test'\nimport { DOCS } from '@/lib/marketing/docs'\n${line}\nfor (const p of PAGES) { test(p, async ({ page }) => { await page.goto(p) }) }`
+    expect(sitewidePageRegistries('e2e/planted.spec.ts', src)).toEqual(['DOCS'])
   })
 
   it('catches a default-imported registry and a namespace import', () => {
