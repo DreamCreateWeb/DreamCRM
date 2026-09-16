@@ -5,22 +5,26 @@ The binding personality language for the **public marketing site**
 with Dustin Russenberger on DREAMCRM-43 (2026-09-14) and reversed from a night
 hero to light throughout on DREAMCRM-67 (2026-09-15).
 
-> **The fold, the list marks, the CHROME, the PRICING page, the COMPARISONS and
-> the PRODUCT TOUR look like this; two subpage bodies do not yet.** Moves 1–5
-> have landed: the homepage hero IS the daylight band (DREAMCRM-69), the
-> cinematic spine sits below the ticker (DREAMCRM-70), the tone tiles replaced
-> every check mark (DREAMCRM-71), the shared chrome — `MarketingHeader`,
-> `MarketingFooter`, `PageHero` — is Daylight Dream (DREAMCRM-72) so all eight
-> subpages already open in the language, and the decorative-layer grader is
-> re-pointed at the light (DREAMCRM-73). Move 6 is in progress: **pricing
-> (DREAMCRM-75), compare (DREAMCRM-76) and the product tour (DREAMCRM-77) are
-> done**, and why and resources still wear the old body below their hero.
-> **Both owner vetoes
-> are closed in code at every call site**: `NIGHT_GRID`, `HERO_DOT_GRID` and
-> `CheckIcon` are deleted rather than dormant, and two guards hold each veto at
-> zero by asking the tree instead of trusting this paragraph. Where this file
-> and the code disagree, this file is the target and the code is the backlog —
-> and Part 8 says which move closes each gap.
+> **THE WHOLE MARKETING SITE LOOKS LIKE THIS.** The build order in Part 8 is
+> COMPLETE as of DREAMCRM-80 (2026-09-16): moves 1–5 landed the homepage hero
+> as the daylight band (DREAMCRM-69), the cinematic spine below the ticker
+> (DREAMCRM-70), the tone tiles in place of every check mark (DREAMCRM-71), the
+> shared chrome — `MarketingHeader`, `MarketingFooter`, `PageHero` —
+> (DREAMCRM-72) and the re-pointed decorative-layer grader (DREAMCRM-73); move
+> 6 then converted every subpage BODY, one page per PR: pricing (75), compare
+> (76), the product tour (77), the manifesto (78), the resource library (79),
+> and the pages Part 8 never named — `/grade`, `/roi`, `/partner-program` (80a)
+> and `/blog`, `/changelog`, `/docs` (80b). **Every route under
+> `app/(marketing)` now opens on `PageHero` and carries one language below it**,
+> and that sentence is checkable rather than asserted: `git grep -L PageHero`
+> over the route files returns nothing.
+>
+> **Both owner vetoes are closed in code at every call site**: `NIGHT_GRID`,
+> `HERO_DOT_GRID` and `CheckIcon` are deleted rather than dormant, and two
+> guards hold each veto at zero by asking the tree instead of trusting this
+> paragraph. Where this file and the code disagree, this file is still the
+> target and the code is still the backlog — but the gap Part 8 existed to
+> close is closed, and what remains is Part 9's list, which is the owner's.
 
 **Scope boundary.** This file governs the marketing site only. It does not
 touch `app/(default)` / `app/(double-sidebar)` (that is `DESIGN-SYSTEM.md` v3,
@@ -1568,6 +1572,64 @@ names what the verification could not see.
 
 ---
 
+### The docs and the changelog, measured
+
+Move 6 page 6b (DREAMCRM-80), and the last decorative-layer run this build
+order needs. Three new hero surfaces entered the sample set — nine samples
+across `/changelog`, `/docs` and `/docs/<slug>` — bringing
+`scripts/decorative-layer-grade.mjs` to **150 samples over 14 pages**.
+
+**Full run: 150 samples, zero failures, zero NOT MEASURED.** Darkest pixel under
+each run of glyphs, grain ON, six frozen bloom phases, all three widths.
+
+| Run | Page | Worst rendered | Flat | Cost |
+|---|---|---|---|---|
+| hero eyebrow (`teal-700`) | `/changelog` | **6.40** at 834 | 7.05 | 0.65 |
+| hero headline (`gray-950`) | `/changelog` | **13.47** at 834 | 17.62 | 4.15 |
+| hero sub (`gray-600`) | `/changelog` | **5.37** at 834 | 6.91 | 1.54 |
+| hero eyebrow (`teal-700`) | `/docs` | **6.76** at 834 | 7.05 | 0.29 |
+| hero headline (`gray-950`) | `/docs` | **10.36** at 834 | 17.62 | 7.26 |
+| hero sub (`gray-600`) | `/docs` | **6.27** at 834 | 6.91 | 0.64 |
+| hero eyebrow (`teal-700`) | `/docs/<slug>` | **6.23** at 834 | 7.05 | 0.82 |
+| hero headline (`gray-950`) | `/docs/<slug>` | **10.37** at 390 | 17.62 | 7.25 |
+| hero sub (`gray-600`) | `/docs/<slug>` | **5.60** at 390 | 6.91 | 1.31 |
+
+**The worst pair anywhere on the site is still the homepage's 4.62** — the
+gradient's `teal-600` stop at 834, re-derived exactly. Nothing on these three
+pages comes within 0.75 of it: the lowest here is the changelog's hero sub at
+**5.37**, which is 0.87 of headroom over the floor. None of these pages puts
+the signature gradient on a heading, which is where that homepage number comes
+from.
+
+**On "which width is worst": seven of these nine are at 834 and two at 390.**
+Page 5 retired "834 is worst" as a LAW after both its worst runs landed at 390,
+and this run is the other half of that correction rather than a reversal of it —
+834 is a strong tendency and not a rule, so all three widths still get measured.
+What IS consistent across pages 5 and 6 is which RUN has least headroom: the
+quiet runs (eyebrow, sub) sit where the violet lobe's tail reaches, and the
+headline — despite costing far more, up to 7.26 — starts from 17.62 and has the
+room to pay it.
+
+**`/blog` AND `/blog/[slug]` ARE NOT IN THE SAMPLE SET**, and it is the same
+boundary `e2e/marketing-viewport.spec.ts` draws for the same reason: their
+bodies come out of the DATABASE, and this script drives a real browser against a
+built app, so on a freshly migrated database `/blog` renders an empty state and
+`/blog/<slug>` does not resolve at all. A decorative-layer grade that depends on
+fixture data is a grade that goes red for fixture reasons. Their heroes are
+`PageHero` verbatim with no page-specific runs, so the `/docs` samples measure
+the identical composition. Both pages WERE checked by hand for this move against
+temporary fixtures — zero horizontal scroll at all three widths — and that check
+expired when the fixtures were reverted, which is exactly why this table does
+not carry a number for them. When the blog gets a seeded stop, add it here, in
+`marketing-viewport.spec.ts` and in `smoke.spec.ts` together.
+
+**Everything below every one of these heroes rides the page's own white**,
+which is pages 1–5's answer arriving for the sixth time: the shelves, the
+chapter heads, the changelog items, the step markers, the margin columns and
+all five closes carry no decorative layer, so the rendered ratio IS the flat
+ratio and only the hero needed the instrument.
+
+
 ## Part 8 — Build order
 
 Ordered, each its own small PR, each verified in the real page at all three
@@ -1863,6 +1925,95 @@ the reduced-motion path in the same PR.
      the two stops were checked to be scanning different pages. Zero
      horizontal scroll at 390 / 834 / 1440 on all four.
 
+   - ~~**The pages Part 8 never named**~~ — **LANDED** (DREAMCRM-80,
+     2026-09-16), in two halves. **6a:** `/grade`, `/roi` and
+     `/partner-program` — the three the issue's audit named, each rendering a
+     BESPOKE hero, so each was a page a visitor would have called unconverted
+     while a grep for the shared chrome called it done. **6b:** `/blog`,
+     `/blog/[slug]`, `/changelog`, `/docs` and `/docs/[slug]`. Measured runs:
+     Part 7, "The three tools, measured" and "The docs and the changelog,
+     measured".
+
+     **THE COUNT OF PAGES WEARING THIS BRAND WAS WRONG A THIRD AND FOURTH
+     TIME, AND IT IS NOW A RULE RATHER THAN AN ANECDOTE.** DREAMCRM-80 listed
+     `/blog`, `/changelog` and `/docs` as *"already inheriting the new chrome
+     from move 4; bodies only"*. True of the three INDEX routes. Both ARTICLE
+     routes — `blog/[slug]` and `docs/[slug]` — rendered a hand-rolled `<h1>`
+     in a bare `max-w-3xl` article and had never called `PageHero`, which is
+     the shape `compare/[vendor]` was found in on page 2 and `GuideShell` on
+     page 5. Four instances, same direction, same cause: **move 4's "all eight
+     subpages inherit it" counted ROUTE GROUPS, and a dynamic route is one
+     entry in that count and a registry's worth of pages to a reader.** The
+     check that works is `git grep -L PageHero` over the route files; the check
+     that failed four times is counting subpages.
+
+     **A CHAPTER RAIL WAS BUILT FOR `/docs/[slug]` AND THEN DELETED, WHICH IS
+     THE MOST USEFUL THING ON THIS PAGE.** Page 5's rail is derived from the
+     article's own headings, and a doc's headings live in
+     `doc.sections[].heading` — structured data, one better than walking
+     children. It was built, gated on "more than one chapter", and then the
+     registry was counted: **no doc has more than ONE heading** and most have
+     none, so it would have rendered on exactly zero routes. A component that
+     looks like coverage and is nothing is `deadExclusions`' lesson in a new
+     costume. It was caught only because the e2e stop asserting it went looking
+     for a two-heading doc and could not find one — **a guard that cannot fail
+     is the same defect as a rail that cannot render**, and writing the guard
+     first is what surfaced it. What fills the margin instead is content the
+     page already had: `More in <category>` moved out of the article's basement
+     into the empty right column. It STACKS below `lg` rather than hiding,
+     which is where it parts company with page 5's rail — a table of contents
+     is redundancy on a phone, three links to other articles are not.
+
+     **THE PRICE RESOLVES ON THREE MORE SURFACES, AND TWO ARE NEW SHAPES.**
+     `/blog/[slug]`'s CTA was the eighth, and the same defect for the eighth
+     time. `lib/marketing/docs.ts` is the ninth and the first CONTENT REGISTRY
+     — two help-article steps whose prose said the price, live on two public
+     doc pages. Every surface before it was a route or a component, which is
+     why eight previous sweeps walked past a `.ts` file full of sentences.
+     **`app/opengraph-image.tsx` is the tenth and the one to remember**: the
+     share card for every link to this site said `$150-500/mo` — the
+     three-tier range from a reprice that was never executed Stripe-side — and
+     it was found by LOOKING AT THE RENDERED IMAGE while screenshotting a blog
+     post, not by any guard. It sits in the scan's blind spot by construction:
+     `moneyLiterals` saw `150` (not a plan price, correctly ignored) and never
+     saw the `500` at all, because that half of the range carries no dollar
+     sign. **A price written as a RANGE is invisible to the rule that protects
+     prices**, and the shapes to look for next are content and ranges.
+
+     **PART 11's LAYOUT-SHIFT DEFECT IS CLOSED**, and the fix is a ratio rather
+     than a guess. The blog cover is the only `<img>` on the designed marketing
+     pages and it carried no width or height, so every post reflowed its whole
+     article when the cover loaded. `blog_post` stores no dimensions, so there
+     is no true intrinsic size to declare — typing one would be wrong for every
+     upload that is not that shape. It declares the ratio WE impose (16:9) and
+     crops to it with `object-cover`, which the old markup already did, so the
+     box is correct before the bytes arrive and after. Part 11's AVIF/raster
+     clause is deliberately NOT claimed: the cover is an author-supplied URL
+     out of the CMS, so its encoding is whatever was uploaded, and that is a
+     content-pipeline job rather than a brand one.
+
+     **THE CHANGELOG'S CADENCE IS UNTOUCHED, DELIBERATELY.** The obvious move
+     available to a restyle was breaking a week's items into cards or grouping
+     them under New / Improved / Fixed — both of which are the weekly entry
+     ceasing to be one entry, against the owner's directive and
+     `dreamcrm-conventions` §7. The registry, the order and the contents are
+     exactly as they were; what changed is that a week is a CHAPTER now (page
+     3's chapter mark on a changelog), with the date, release and item count
+     leading in a sticky column so a reader landing mid-scroll knows which week
+     they are in.
+
+     **AND PART 5's BODY-COPY CLAUSE FINALLY HAS A CALL SITE — on the author,
+     not on this move.** Page 5 closed by noting the clause (plain unicode in
+     body copy *where a named human is writing*) had nowhere on the site to
+     live, because the guides carry no byline. `BlogPost.authorName` is a real
+     field a real person fills in. So the permission lands on the blog, in
+     prose the author writes, and what this move did was make the byline a real
+     one — in the hero's spine rather than a 13px grey line under the title.
+     **A byline is what earns that clause; a component cannot.** Six move-6
+     pages shipped with no emoji and Part 5's table is untouched; the only
+     glyph on any of them is the changelog rocket, which was already there and
+     already correct.
+
    **What page 6 inherits from these five.** Four of them cost real time
    earlier in the move and none is page-specific: SECTION CONTAINERS ALL
    MATCH (a narrower container for a reading block moves its hard-left edge off
@@ -1878,6 +2029,21 @@ the reduced-motion path in the same PR.
    CHECK WHETHER THE PAGE ACTUALLY RENDERS `PageHero` rather than trusting a
    count of subpages — two of the five found a bespoke hero nobody had
    counted, and page 6 is six routes none of which has been opened.
+
+**THE BUILD ORDER IS COMPLETE.** Every move in this Part has landed, and the
+marketing site carries one language from the homepage fold to the last help
+article. There is no route left that opens in a different register, and the
+banner at the top of this file no longer has a gap to describe.
+
+What that does NOT mean is that this Part has stopped being useful. The four
+miscounts it records are a property of how coverage was CLAIMED rather than of
+any one page, and the same mistake is available to the next person who adds a
+route: a page that renders its own hero does not inherit the one it never
+called. The standing checks this Part leaves behind are `git grep -L PageHero`
+over the route files, `e2e/marketing-viewport.spec.ts` at all three widths, and
+`scripts/decorative-layer-grade.mjs` against anything that puts a wash behind
+text. What remains open is Part 9's list, which is the owner's rather than this
+document's.
 
 The site is light-only today (zero `dark:` classes under `app/(marketing)`) and
 nothing here changes that. Whether the marketing site ever gets a real dark
@@ -1959,6 +2125,16 @@ SVG and product mock — which is what they already are: nothing under
 except the blog's author-supplied cover slot, which is content rather than
 design.
 
+**One generated image sits outside that sentence and is worth naming here**:
+`app/opengraph-image.tsx`, the share card every link to this site falls back
+to. It is CSS-and-type in the same register, so it does not break the
+product-only rule — but it is an IMAGE nobody opens in a browser, which is
+exactly how it went on saying `$150-500/mo` (a reprice that was never executed
+Stripe-side) long after `/pricing` settled on one plan. Found and fixed on
+DREAMCRM-80; it resolves from `getQuotedPlan()` now. **The lesson generalises
+past the price: a rendered asset with no page around it gets read by nobody on
+the team and by everybody who shares a link.**
+
 **Why this is a position and not a shortfall.** The honest version of this
 product's story is a Tuesday that runs itself, and a mock of the real screen
 tells that story better than a stock photograph of strangers in scrubs. The
@@ -1970,10 +2146,29 @@ keep this from being a screenshot gallery.
 anything added later:
 
 - AVIF/WebP with a raster fallback.
-- **Explicit width and height**, so nothing reflows on load. *The blog cover at
-  `app/(marketing)/blog/[slug]/page.tsx` has neither today — a real
-  layout-shift defect, and it belongs to whoever owns UI correctness rather than
-  to this document.*
+- **Explicit width and height**, so nothing reflows on load. ~~*The blog cover
+  at `app/(marketing)/blog/[slug]/page.tsx` has neither today.*~~ **CLOSED on
+  DREAMCRM-80** (move 6 page 6b), in the PR that had the file open anyway.
+
+  **The fix is a declared RATIO, not a guessed size, and the distinction is the
+  part worth carrying.** `blog_post` stores `cover_image_url` and
+  `cover_image_alt` and no dimensions, so there is no true intrinsic size
+  available to declare — typing one would be a number that is wrong for every
+  upload that is not exactly that shape. What the attributes actually buy in a
+  modern browser is an `aspect-ratio` for the box while the bytes are in
+  flight, so the cover declares the ratio WE impose (16:9, `1600x900`) and crops
+  to it with `object-cover`, which the old markup already did. The box is
+  correct before the image arrives and correct after it, whatever was uploaded,
+  and the CSS `aspect-[16/9]` and the attributes agree by construction. It also
+  gained `loading="eager"` + `fetchPriority="high"` — it is the one
+  above-the-fold asset on a post.
+
+  **The AVIF/WebP-with-raster-fallback clause above is deliberately NOT claimed
+  for this slot.** The cover is an author-supplied URL out of the CMS, so its
+  encoding is whatever was uploaded. That is a content-pipeline job — the clinic
+  sites solve the same problem with `<SiteImage>` through `/_next/image` —
+  rather than a brand one, and it is left standing here as a real gap rather
+  than quietly dropped.
 - `priority` on the one above-the-fold asset only; lazy everywhere else.
 - Real alt text. Decorative art gets `aria-hidden`; an empty `alt` on something
   that carries meaning is a defect, not a shortcut. (The animated emoji set's

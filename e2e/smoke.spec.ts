@@ -17,6 +17,22 @@ test.describe('service health', () => {
   })
 })
 
+/**
+ * ⚠ THIS FILE MAY NOT IMPORT A PAGE REGISTRY, and the constraint is enforced
+ * rather than remembered. `tests/guards/review-gate.test.ts` asserts that
+ * `sitewidePageRegistries('e2e/smoke.spec.ts', …)` returns EMPTY: this is a
+ * bounded journey spec, and a browser-driven spec whose page list is derived
+ * from a product registry is a different animal that the review gate routes
+ * differently (§2's third intake derivation).
+ *
+ * Found the hard way on DREAMCRM-80: the docs stop below was first written
+ * with `DOCS.find(…)` and `for (const c of DOC_CATEGORIES)` to avoid a
+ * hand-typed slug going stale, and the full suite went red naming this file.
+ * The guard is RIGHT — those really are registry expansions — so the fix is
+ * here, not there. Hand-typed values in this file fail LOUDLY when content
+ * moves, which is what a journey spec wants; the derived sweeps live in
+ * `e2e/marketing-viewport.spec.ts`, which is registered for exactly that.
+ */
 test.describe('the marketing site (the storefront)', () => {
   test('the home page renders real content, not an error shell', async ({ page }) => {
     const res = await page.goto('/')
@@ -214,6 +230,87 @@ test.describe('the marketing site (the storefront)', () => {
     await expect(page.locator('body')).toContainText('10% of every payment')
     await expect(page.locator('body')).toContainText('written into your partner agreement')
     await expectNoA11yViolations(page, 'marketing: partner program')
+  })
+
+  /**
+   * THE CHANGELOG AND THE HELP DOCS — the ninth, tenth and eleventh marketing
+   * stops, added with the pages' Daylight Dream rebuild (Neon, DREAMCRM-80,
+   * move 6 page 6b).
+   *
+   * THEY MEET THE CONDITION EVERY STOP ON THIS SITE MEETS EXCEPT `/product`:
+   * NO EXEMPTION. `e2e/axe-baseline.ts` explains why `/product` cannot have a
+   * stop — `DECORATIVE_MOCKS` keys on the drift wrapper (`.mkt-float >`) and
+   * the tour's nine mocks do not float, so the selector would match nothing
+   * and `deadExclusions` would fail the stop by name. None of these three
+   * renders a mock: they are type, tone tiles, hairlines and status chips.
+   *
+   * THREE STOPS RATHER THAN ONE, and the doc pair is the reason. The docs
+   * INDEX is a shelf — four group headers and thirty-one rows. The doc
+   * ARTICLE carries everything else this move built: the numbered step
+   * markers, the hero spine, and the `More in <category>` margin column. A
+   * stop on the index would scan none of it. (This route has NO chapter rail
+   * — see the page's own header: no doc in the registry has more than one
+   * heading, so a rail gated on two would have rendered nowhere.) `/changelog` is a third page again — the
+   * only marketing surface with STATUS CHIPS (`New` / `Improved` / `Fixed`)
+   * and the only one carrying an animated emoji, so `image-alt` and the
+   * chips' tint/ink pairs are live here and nowhere else on this site.
+   *
+   * `/blog` IS DELIBERATELY ABSENT, for the reason `marketing-viewport.spec.ts`
+   * and `decorative-layer-grade.mjs` both give: its body comes out of the
+   * DATABASE and this suite is seed-free by design, so it would scan an empty
+   * state rather than the page a reader gets. When the blog gets a seeded
+   * stop, add it in all three places.
+   *
+   * MEASURED BEFORE THEY WERE ASSERTED, against the production build: 0 rules
+   * / 0 nodes on all three routes at 390, 834 and 1440, `wcag2a/2aa/21a/21aa`.
+   * Nine stops, zero findings.
+   *
+   * WATCHED TO FAIL (§2d) once per stop, against the defect each page is
+   * actually at risk of rather than a synthetic one — the quiet-ink step,
+   * which is what every restyle of a reading page reaches for. `gray-400`
+   * (`#93a0bc` on white, **2.62** as rendered) on the four group-header mono
+   * labels reddens `marketing: docs` `color-contrast (serious) x4`; on the
+   * margin column's links it reddens `marketing: doc article` x3; on the
+   * changelog item bodies it reddens `marketing: changelog` x19. **Each
+   * mutation reddened exactly one stop and left the other two at 0 rules / 0
+   * nodes** — three stops are only worth three runs if they are scanning
+   * three pages, and nothing about a green run tells you that.
+   *
+   * The three widths are `marketing-viewport.spec.ts`'s job. Axe's findings
+   * here do not move with the viewport: unlike the resource guide's rail,
+   * nothing on these three pages leaves the tree at a narrow width — the
+   * margin column STACKS rather than hiding, which is the whole reason it is
+   * allowed to carry content nothing else says.
+   */
+  test('the changelog reads as weeks, and the docs index its articles', async ({ page }) => {
+    await page.goto('/changelog')
+    await expect(page.locator('h1').first()).toBeVisible()
+    // The cadence promise, which is the owner's directive on the page.
+    await expect(page.locator('body')).toContainText('One entry per week, always')
+    await expectNoA11yViolations(page, 'marketing: changelog')
+
+    await page.goto('/docs')
+    await expect(page.locator('h1').first()).toBeVisible()
+    // The four category groups the shelf replaced a two-column card grid to
+    // show. HAND-TYPED, not derived from `DOC_CATEGORIES`, and that is a
+    // deliberate constraint rather than laziness — see the note above the
+    // describe block on why this file may not import a page registry.
+    await expect(page.locator('body')).toContainText('Getting started')
+    await expect(page.locator('body')).toContainText('Front desk, daily')
+    await expect(page.locator('body')).toContainText('Patient-facing')
+    await expect(page.locator('body')).toContainText('Money & integrations')
+    await expectNoA11yViolations(page, 'marketing: docs')
+
+    // A doc with siblings in its category, so the margin column is in the tree
+    // to be scanned rather than correctly absent. Named rather than derived:
+    // if this slug is ever renamed the stop goes RED, which is the loud
+    // failure a bounded journey spec wants — not the silent vacuity a derived
+    // `.find()` would give if it stopped matching.
+    await page.goto('/docs/connecting-your-pms')
+    await expect(page.locator('h1').first()).toBeVisible()
+    await expect(page.locator('body')).toContainText('More in Money & integrations')
+    await expect(page.locator('body')).toContainText('4-minute read')
+    await expectNoA11yViolations(page, 'marketing: doc article')
   })
 })
 
