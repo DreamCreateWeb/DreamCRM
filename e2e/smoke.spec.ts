@@ -215,6 +215,76 @@ test.describe('the marketing site (the storefront)', () => {
     await expect(page.locator('body')).toContainText('written into your partner agreement')
     await expectNoA11yViolations(page, 'marketing: partner program')
   })
+
+  /**
+   * THE CONTENT ROUTES — the ninth, tenth and eleventh marketing stops, added
+   * with their Daylight Dream rebuild (Neon, DREAMCRM-80, move 6 page 6b).
+   *
+   * WITH THESE, EVERY CODE-BACKED MARKETING PAGE THAT CAN HOLD A CEILING OF
+   * ZERO HOLDS ONE. The two that still cannot are named rather than forgotten:
+   * `/product` (its exclusion would be dead on arrival — see the note in
+   * `e2e/axe-baseline.ts`), and `/compare`, which nobody has measured yet and
+   * which is therefore somebody's follow-up rather than this move's.
+   *
+   * `marketing: doc article` COVERS THE LARGEST ROUTE FAMILY ON THE SITE.
+   * Twenty-nine `/docs/[slug]` routes render one template with different
+   * content, so one stop on the representative slug grades the template every
+   * one of them uses — and until this PR that template had NO `PageHero` at
+   * all, which is the fourth time a route family turned out to be unconverted
+   * after a count of folders said otherwise.
+   *
+   * `/blog` AND `/blog/[slug]` GET NO STOP, and that is the same exclusion
+   * `e2e/marketing-viewport.spec.ts` argues for in its own header: their
+   * bodies come from the DATABASE and this suite is seed-free by design, so
+   * on a freshly migrated database they render an empty state that is not the
+   * page a reader gets. A stop that depends on fixture data is a stop that
+   * goes red for fixture reasons. Both routes were measured by hand instead,
+   * in BOTH states — populated and empty — at 390 / 834 / 1440: 0 rules / 0
+   * nodes, zero horizontal scroll, `scrollX` 0. When the blog gets a seeded
+   * stop, it gets one here too.
+   *
+   * MEASURED BEFORE THEY WERE ASSERTED, against the production build: 0 rules
+   * / 0 nodes on all three routes at 390, 834 and 1440,
+   * `wcag2a/2aa/21a/21aa`.
+   *
+   * WATCHED TO FAIL (§2d) once per stop, on the quiet-ink step every restyle
+   * of a reading page reaches for — `gray-400`, `#93a0bc` on white, **2.62**
+   * as rendered. On the changelog's twenty kind labels it reddens
+   * `marketing: changelog` `color-contrast (serious) x20`; on the docs index's
+   * twenty-nine summaries it reddens `marketing: docs` x29; on the article's
+   * body paragraphs it reddens `marketing: doc article` x2. **Each mutation
+   * reddened exactly one stop and left the other two at 0 rules / 0 nodes.**
+   * The node counts differ by an order of magnitude and that is the useful
+   * part: they are the real element counts of three different pages, which is
+   * a second, independent check that these stops are not all scanning the
+   * same tree.
+   *
+   * The three widths are `marketing-viewport.spec.ts`'s job. Nothing enters or
+   * leaves the tree on these pages as the viewport changes — the docs index
+   * reflows a two-column grid and everything else stacks.
+   */
+  test('the content routes carry the language, and the docs template with them', async ({
+    page,
+  }) => {
+    await page.goto('/changelog')
+    await expect(page.locator('h1').first()).toBeVisible()
+    // The owner's cadence, stated on the page a visitor reads it on.
+    await expect(page.locator('body')).toContainText('one entry per week')
+    await expectNoA11yViolations(page, 'marketing: changelog')
+
+    await page.goto('/docs')
+    await expect(page.locator('h1').first()).toBeVisible()
+    // The four shelves, which are what the Tier-B tiles mark.
+    await expect(page.locator('body')).toContainText('Money & integrations')
+    await expectNoA11yViolations(page, 'marketing: docs')
+
+    await page.goto('/docs/your-first-30-minutes')
+    await expect(page.locator('h1').first()).toBeVisible()
+    // The read-time spine in PageHero's children slot, and the shelf below.
+    await expect(page.locator('body')).toContainText('min read')
+    await expect(page.locator('body')).toContainText('More in Getting started')
+    await expectNoA11yViolations(page, 'marketing: doc article')
+  })
 })
 
 test.describe('the auth gate (middleware, invisible to happy-dom)', () => {

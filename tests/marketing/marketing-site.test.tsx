@@ -268,9 +268,18 @@ describe('content config integrity', () => {
   it('doc slugs are unique, categorized, and resolvable', () => {
     const slugs = DOCS.map((d) => d.slug)
     expect(new Set(slugs).size).toBe(slugs.length)
+    // A category is `{ name, glyph }` since move 6 page 6 — the index marks
+    // each shelf with the tone tile that says what is on it, and `glyph` is
+    // REQUIRED so a fifth shelf cannot ship without a subject.
+    const names = DOC_CATEGORIES.map((c) => c.name)
     for (const d of DOCS) {
-      expect(DOC_CATEGORIES).toContain(d.category)
+      expect(names).toContain(d.category)
       expect(d.sections.length).toBeGreaterThan(0)
+    }
+    // And the other direction: a shelf nobody files anything on is a heading
+    // the index would render empty, which is how a renamed category hides.
+    for (const c of DOC_CATEGORIES) {
+      expect(DOCS.some((d) => d.category === c.name), `no docs on the "${c.name}" shelf`).toBe(true)
     }
   })
 

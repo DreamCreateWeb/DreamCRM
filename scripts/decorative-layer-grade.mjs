@@ -647,6 +647,115 @@ const SAMPLES = [
     ink: '#4c5a78',
     ground: '#ffffff',
   },
+
+  /* ── MOVE 6 PAGE 6 — THE CONTENT ROUTES (DREAMCRM-80) ──────────────────
+     `/changelog`, `/docs` and a doc ARTICLE. Ten runs, and the article's
+     fourth is `PageHero`'s `children` slot — the read-time spine, the
+     position page 5 first measured on the guide hero and found costs nothing
+     thanks to the bottom fade. A second page putting text there is what turns
+     that from a one-page finding into a property of the component.
+
+     `/docs/[slug]` IS SAMPLED THROUGH ONE REPRESENTATIVE SLUG, not all
+     twenty-nine, and the choice is deliberate rather than lazy: every doc
+     renders the same `PageHero` with a different-LENGTH eyebrow, headline and
+     sub, and what orders these numbers is whether a run's x-span crosses a
+     lobe. `your-first-30-minutes` is the longest headline in `DOCS`, so it is
+     the run with the most lobe to cross. `e2e/marketing-viewport.spec.ts`
+     covers all twenty-nine for the width question, which is the one that
+     genuinely varies per slug.
+
+     `/blog` AND `/blog/[slug]` ARE ABSENT for the reason the viewport spec
+     names: their bodies come from the DATABASE and this harness, like that
+     spec, runs against a page rather than a fixture. They render the same
+     `PageHero` as these three with no page-specific decorative layer of their
+     own, and they were measured by hand alongside this run.
+
+     WHAT IS DELIBERATELY NOT SAMPLED beyond the heroes: everything below
+     them, for pages 1-5's reason. The week entries, the shelves, the article
+     body, the step lists and all three closes ride the page's own white at
+     their flat ratios. */
+  {
+    label: 'changelog hero eyebrow (teal-700)',
+    path: '/changelog',
+    region: 'hero',
+    selector: `${HERO} div.mkt-enter.mb-5`,
+    ink: '#2f52b3',
+    ground: '#ffffff',
+  },
+  {
+    label: 'changelog hero headline (gray-950)',
+    path: '/changelog',
+    region: 'hero',
+    selector: `${HERO} h1.mkt-d1`,
+    ink: '#10182e',
+    ground: '#ffffff',
+  },
+  {
+    label: 'changelog hero sub (gray-600)',
+    path: '/changelog',
+    region: 'hero',
+    selector: `${HERO} p.mkt-d2`,
+    ink: '#4c5a78',
+    ground: '#ffffff',
+  },
+  {
+    label: 'docs hub hero eyebrow (teal-700)',
+    path: '/docs',
+    region: 'hero',
+    selector: `${HERO} div.mkt-enter.mb-5`,
+    ink: '#2f52b3',
+    ground: '#ffffff',
+  },
+  {
+    label: 'docs hub hero headline (gray-950)',
+    path: '/docs',
+    region: 'hero',
+    selector: `${HERO} h1.mkt-d1`,
+    ink: '#10182e',
+    ground: '#ffffff',
+  },
+  {
+    label: 'docs hub hero sub (gray-600)',
+    path: '/docs',
+    region: 'hero',
+    selector: `${HERO} p.mkt-d2`,
+    ink: '#4c5a78',
+    ground: '#ffffff',
+  },
+  {
+    label: 'doc article hero eyebrow (teal-700)',
+    path: '/docs/your-first-30-minutes',
+    region: 'hero',
+    selector: `${HERO} div.mkt-enter.mb-5`,
+    ink: '#2f52b3',
+    ground: '#ffffff',
+  },
+  {
+    label: 'doc article hero headline (gray-950)',
+    path: '/docs/your-first-30-minutes',
+    region: 'hero',
+    selector: `${HERO} h1.mkt-d1`,
+    ink: '#10182e',
+    ground: '#ffffff',
+  },
+  {
+    label: 'doc article hero sub (gray-600)',
+    path: '/docs/your-first-30-minutes',
+    region: 'hero',
+    selector: `${HERO} p.mkt-d2`,
+    ink: '#4c5a78',
+    ground: '#ffffff',
+  },
+  {
+    // The second page on the site to put a run in `PageHero`'s `children`
+    // slot. Page 5 measured the first and found it costs nothing.
+    label: 'doc article hero read-time spine (gray-600)',
+    path: '/docs/your-first-30-minutes',
+    region: 'hero',
+    selector: `${HERO} div.mkt-d3 > div`,
+    ink: '#4c5a78',
+    ground: '#ffffff',
+  },
 ]
 
 /**

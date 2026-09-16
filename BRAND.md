@@ -5,22 +5,29 @@ The binding personality language for the **public marketing site**
 with Dustin Russenberger on DREAMCRM-43 (2026-09-14) and reversed from a night
 hero to light throughout on DREAMCRM-67 (2026-09-15).
 
-> **The fold, the list marks, the CHROME, the PRICING page, the COMPARISONS and
-> the PRODUCT TOUR look like this; two subpage bodies do not yet.** Moves 1–5
-> have landed: the homepage hero IS the daylight band (DREAMCRM-69), the
-> cinematic spine sits below the ticker (DREAMCRM-70), the tone tiles replaced
-> every check mark (DREAMCRM-71), the shared chrome — `MarketingHeader`,
-> `MarketingFooter`, `PageHero` — is Daylight Dream (DREAMCRM-72) so all eight
-> subpages already open in the language, and the decorative-layer grader is
-> re-pointed at the light (DREAMCRM-73). Move 6 is in progress: **pricing
-> (DREAMCRM-75), compare (DREAMCRM-76) and the product tour (DREAMCRM-77) are
-> done**, and why and resources still wear the old body below their hero.
+> **THE WHOLE MARKETING SITE LOOKS LIKE THIS. The build order is complete.**
+> Moves 1–6 have all landed: the homepage hero IS the daylight band
+> (DREAMCRM-69), the cinematic spine sits below the ticker (DREAMCRM-70), the
+> tone tiles replaced every check mark (DREAMCRM-71), the shared chrome —
+> `MarketingHeader`, `MarketingFooter`, `PageHero` — is Daylight Dream
+> (DREAMCRM-72), the decorative-layer grader is re-pointed at the light
+> (DREAMCRM-73), and move 6 converted every page BODY one PR at a time:
+> pricing (DREAMCRM-75), compare (DREAMCRM-76), the product tour
+> (DREAMCRM-77), the manifesto (DREAMCRM-78), the resource library
+> (DREAMCRM-79) and the six routes move 6 never named — grade, roi,
+> partner-program, blog, changelog and docs (DREAMCRM-80).
 > **Both owner vetoes
 > are closed in code at every call site**: `NIGHT_GRID`, `HERO_DOT_GRID` and
 > `CheckIcon` are deleted rather than dormant, and two guards hold each veto at
 > zero by asking the tree instead of trusting this paragraph. Where this file
 > and the code disagree, this file is the target and the code is the backlog —
-> and Part 8 says which move closes each gap.
+> and Part 8 records what each move settled.
+>
+> **The sentence this banner used to carry — "the fold looks like this; the
+> rest of the site does not yet" — is finally false**, and it is worth
+> recording that it stayed true for six moves across seven days. What ended it
+> was not the last PR; it was the discipline of one page per PR, each with its
+> own measured run.
 
 **Scope boundary.** This file governs the marketing site only. It does not
 touch `app/(default)` / `app/(double-sidebar)` (that is `DESIGN-SYSTEM.md` v3,
@@ -1443,6 +1450,128 @@ exactly. Three things to carry.
   next person to reach for a tinted well on a reading page should find out that
   this page tried it.
 
+### The tools, measured (DREAMCRM-80 — move 6, page 6a)
+
+Same instrument, same method: render, hide the CONTENT, screenshot the
+decorative layers alone, darkest pixel under each RUN OF GLYPHS, grain ON, six
+frozen phases of `mkt-bloom`, worst kept. Three pages, nine runs — `/grade`,
+`/roi` and `/partner-program`, none of which had ever been sampled because
+none of them had a decorative layer until this move gave them `PageHero`.
+
+| Run | Ink | Worst | 1440 | 834 | 390 | Flat |
+|---|---|---|---|---|---|---|
+| grade hero eyebrow + rule | `teal-700` | 6.40 | 6.81 | **6.40** | 6.81 | 7.05 |
+| grade hero headline | `gray-950` | 10.57 | 14.16 | **10.57** | 13.27 | 17.62 |
+| grade hero sub | `gray-600` | 6.07 | 6.67 | **6.07** | 6.40 | 6.91 |
+| roi hero eyebrow + rule | `teal-700` | 6.57 | 6.81 | **6.57** | 6.81 | 7.05 |
+| roi hero headline | `gray-950` | 10.95 | 14.64 | **10.95** | 12.37 | 17.62 |
+| roi hero sub | `gray-600` | 6.32 | 6.67 | **6.32** | 6.42 | 6.91 |
+| partner hero eyebrow + rule | `teal-700` | 6.81 | 6.81 | 6.81 | 6.81 | 7.05 |
+| partner hero headline | `gray-950` | 10.83 | 14.40 | **10.83** | 11.85 | 17.62 |
+| partner hero sub | `gray-600` | 6.53 | 6.67 | 6.67 | **6.53** | 6.91 |
+
+Worst rendered pair on these three pages: **6.07**, and everything passes.
+
+**EIGHT OF THESE NINE RUNS ARE WORST AT 834, WHICH IS THE OPPOSITE OF PAGE 5's
+FINDING AND CONFIRMS THE SAME RULE.** Page 5 killed "grade 834 first when a
+move is short of time" on the evidence that BOTH of its worst runs were at
+390. Read carelessly, this table looks like it takes that back. It does not,
+and the reason is the sentence page 5 actually wrote: **what orders these
+numbers is whether a run's x-span crosses a lobe, which is a property of that
+RUN on that PAGE.** The one exception here proves it rather than spoiling it —
+`/partner-program`'s sub is worst at 390 while its eyebrow measures a flat
+6.81 at all three widths, on the same page, in the same band. The deliverable
+is all three widths; neither 834 nor 390 is the shortcut.
+
+**`PageHero`'s `children` SLOT CARRIES BUTTONS ON `/partner-program` AND IS
+DELIBERATELY NOT SAMPLED.** That is the fourth-run position page 5 measured on
+the guide hero, and the reason it is skipped here is a real distinction rather
+than an omission: `PrimaryCta` carries white on a graded gradient FILL and
+`GhostCta` is an opaque white card carrying `gray-950`. Neither is ink on the
+page's ground, so the darkest pixel under them is not the pair that decides
+anything. Page 5's read-time spine WAS reading text on the ground, which is
+why that one is in.
+
+**NOTHING BELOW ANY OF THE THREE HEROES IS ON A DECORATIVE LAYER.** The
+checks list, the calculator, both formula panels, the step rows, the terms,
+the FAQ and all three closes ride the page's own white at their flat ratios.
+Two tinted wells went white on this move — `/roi`'s headline card
+(`bg-teal-50/50`) and its privacy note (`bg-gray-50`), both under reading
+text, which is the shape page 5's script cards were corrected from. Nothing
+measured under 4.5, so that is headroom bought rather than a defect closed.
+
+**ONE REAL CONTRAST FIX, AND IT IS `fuchsia-600`'s TRAP IN ANOTHER HUE.** Both
+form error lines were `rose-600`, which measures **4.53** on white through
+`tests/a11y/palette.ts` and **4.34** on `surface-1` — legal by 0.03 on the
+ground it happens to sit on today, illegal on the raised one. `rose-700` is
+6.03. Part 5 keeps error copy completely straight and not a word of it
+changed.
+
+### The content routes, measured (DREAMCRM-80 — move 6, page 6b)
+
+Same instrument, same method. Three pages, ten runs — `/changelog`, the `/docs`
+hub and a doc ARTICLE, whose hero puts a fourth run in `PageHero`'s `children`
+slot.
+
+| Run | Ink | Worst | 1440 | 834 | 390 | Flat |
+|---|---|---|---|---|---|---|
+| changelog hero eyebrow + rule | `teal-700` | 6.12 | 6.81 | **6.12** | 6.81 | 7.05 |
+| changelog hero headline | `gray-950` | 13.44 | 17.02 | **13.44** | 15.00 | 17.62 |
+| changelog hero sub | `gray-600` | 5.25 | 6.62 | **5.25** | 5.60 | 6.91 |
+| docs hub hero eyebrow + rule | `teal-700` | 6.40 | 6.81 | **6.40** | 6.81 | 7.05 |
+| docs hub hero headline | `gray-950` | 10.26 | 14.99 | **10.26** | 12.38 | 17.62 |
+| docs hub hero sub | `gray-600` | 6.20 | 6.67 | **6.20** | 6.37 | 6.91 |
+| doc article hero eyebrow + rule | `teal-700` | 6.23 | 6.81 | **6.23** | 6.81 | 7.05 |
+| doc article hero headline | `gray-950` | 16.02 | 17.02 | **16.02** | 17.02 | 17.62 |
+| doc article hero sub | `gray-600` | 5.60 | 6.67 | 6.57 | **5.60** | 6.91 |
+| doc article hero read-time spine | `gray-600` | 6.34 | 6.67 | 6.67 | **6.34** | 6.91 |
+
+Worst rendered pair on these three pages: **5.25** — the changelog's hero sub
+at 834, and **the most a bloom has cost any reading run in this whole move**
+(1.66 off its 6.91 flat). It is the longest sub on the site, so its x-span
+crosses more lobe than any other; the same property that put `/partner-program`'s
+sub at 390 and every other run on these pages at 834.
+
+Whole-site run: **153 samples across 51 sample definitions and six pages, zero
+failures, zero NOT MEASURED**, and the worst pair anywhere is still the
+homepage's **4.62** (`teal-600` at 834), re-derived exactly for the fourth
+move running.
+
+**THE FOURTH RUN COSTS NOTHING, ON A SECOND PAGE.** Page 5 measured the guide
+hero's read-time spine — the lowest reading text in any hero on this site —
+and found it read slightly BETTER than the sub above it, crediting the bottom
+fade (`bg-gradient-to-t from-white`). The doc article's spine is the second
+page to put text there, and it reports **6.34** against its sub's **5.60**:
+the same direction, the same margin, a different page. One measurement was a
+finding; two is a property of the component, and the fade is doing real work
+rather than removing a seam.
+
+**NOTHING BELOW ANY OF THESE HEROES IS ON A DECORATIVE LAYER.** The week
+entries, the four shelves, the article body, the step lists, the related
+shelves and all three closes ride the page's own white at their flat ratios —
+`gray-950` (headings, article titles) **17.62**, `gray-700` (bodies, summaries,
+steps) **10.30**, `gray-600` (ledes, the closes) **6.91**, `gray-500` (the
+mono labels, the kind labels, the counts) **5.30**, `teal-700` (links, the
+step numerals on `teal-50`) **7.05** flat and **6.39** on the tint. Resolved
+through `tests/a11y/palette.ts`, the resolver the guards use.
+
+**THE CHANGELOG'S KIND PILLS WERE GRADED ON THE WAY OUT AND THEY WERE FINE**,
+which is worth recording because it is not why they went. `teal-800` on
+`teal-50` is 8.61, `blue-800` on `blue-50` is 8.11, `amber-800` on `amber-50`
+is 6.84 — three comfortable pairs. They were replaced for a Part 2 reason
+(the brand hue is never a status; `blue` is not in the registry at all), not a
+Part 7 one, and conflating the two is how a palette rule gets argued as an
+accessibility one and then bargained with.
+
+**`/blog` AND `/blog/[slug]` ARE NOT IN THIS RUN AND THAT IS A REAL GAP.**
+Their bodies come from the database and this harness renders a page rather
+than a fixture. They render the same `PageHero` with no page-specific
+decorative layer of their own, and both were measured by hand in BOTH states —
+populated and empty — at all three widths: 0 axe rules / 0 nodes, zero
+horizontal scroll, `scrollX` 0. **A hand measurement expires the moment the
+run ends**, which is the lesson this Part keeps relearning from both
+directions, so that is a follow-up (a seeded stop) rather than a result.
+
 ### Rule 5 and the tone tiles
 
 Rule 5 (`TONE_FILL`, the solid-fill registry) had **no opinion** about the night
@@ -1646,8 +1775,12 @@ the reduced-motion path in the same PR.
    polarities, so it derives per sample now. The final CTA panel — `bg-gray-950`
    under two `aria-hidden` radial gradients — had never been measured by
    anything and is in the sample set for the first time.
-6. **Then per page, in this order:** pricing (the honest test of whether the
-   language survives a table), compare, product, why, resources.
+6. ~~**Then per page, in this order:** pricing (the honest test of whether the
+   language survives a table), compare, product, why, resources~~ — **COMPLETE**
+   (DREAMCRM-75 → -80, 2026-09-16). **The list above names five and the site
+   has eleven page bodies**, which is the first thing this move got wrong and
+   the last thing it fixed: a sixth PR closed grade, roi, partner-program,
+   blog, changelog and docs, the routes nobody had written down.
 
    - ~~**Pricing**~~ — **LANDED** (DREAMCRM-75, 2026-09-16). Hard-left sections
      on one `max-w-6xl` column, the price panel breaking the hero's seam,
@@ -1863,6 +1996,124 @@ the reduced-motion path in the same PR.
      the two stops were checked to be scanning different pages. Zero
      horizontal scroll at 390 / 834 / 1440 on all four.
 
+   - ~~**The pages this list never named**~~ — **LANDED** (DREAMCRM-80,
+     2026-09-16). SIX ROUTES in two PRs — the three tools (`/grade`, `/roi`,
+     `/partner-program`) and the three content routes (`/blog`, `/changelog`,
+     `/docs`), which are eight files once the dynamic halves are counted.
+     Measured runs: Part 7, "The tools, measured" and "The content routes,
+     measured".
+
+     **THE COUNT OF CONVERTED PAGES WAS WRONG A THIRD AND A FOURTH TIME, AND
+     THE PATTERN IS NOW COMPLETE ENOUGH TO STATE AS A RULE.** Page 2 found
+     `compare/[vendor]` wearing a bespoke `from-teal-50/60` band; page 5 found
+     `GuideShell` wearing the same one on three more routes. This page found
+     `/roi` and `/partner-program` wearing it too — and then found that
+     **`/docs/[slug]` and `/blog/[slug]` had no hero component at all**, which
+     DREAMCRM-80's own audit had listed under *"already inheriting the new
+     chrome from move 4; bodies only"*. That is 34 public routes (29 docs, the
+     blog template, and four more) that a reader of either this document or
+     that issue would have called converted.
+
+     The tell is always identical: the file IMPORTS `Eyebrow`, so a grep for
+     the shared chrome finds it, while it renders its own band around that
+     eyebrow. **So the rule widens past page 5's version.** "Check whether the
+     page actually renders `PageHero`" is right and insufficient, because the
+     thing that keeps being wrong is not a document — it is any audit written
+     by reading ROUTE FOLDERS instead of opening files, and an issue's audit
+     is exactly as unreliable as this file's. The instrument that has never
+     been wrong is `git grep PageHero -- "app/(marketing)"` against the route
+     list, and it costs one command.
+
+     **THE THREE TOOLS ARE INSTRUMENTS AND THE MOVE RESPECTED THAT.** `/grade`
+     and `/roi` state numbers about a real practice; nothing in either PR
+     touched `computeRecallRoi`, the grader's checks, the three hedged
+     scenarios or a single number they produce. What changed is the register
+     the numbers are SET IN: Part 4's mono, on every figure the reader is
+     meant to compare. `/roi`'s "how the math works" was an equation spelled
+     out in prose in a proportional face — Part 4's named failure case, one
+     page after page 5's leader-dot column — and is a mono formula line now.
+     `/partner-program`'s "what ten practices pays you" is the same move on
+     the one sum a reader wants to do in their head.
+
+     **THE LAST THREE DECORATIVE EMOJI ON THE SITE ARE GONE.** `/grade` had
+     🌐/📍/⭐ standing in for icons down a list, and `/roi` had a 🔒 beside its
+     privacy line. Part 5 bans emoji as DECORATION and bans them on "ROI and
+     grader numbers" by name, so both were doubly out — and a system glyph
+     that renders differently on every platform cannot be a brand mark at all.
+     They are tone tiles now, which is the owner's check-mark veto arriving on
+     the last pages that still carried its shape.
+
+     **AND ONE EMOJI ARRIVED, AT THE FIRST CALL SITE `planet` HAS EVER HAD.**
+     Part 5's table gives that glyph exactly one use — *"the space register
+     itself, where a page needs a mark and not a mood"* — and until now the
+     entry described a case with no example on the site. The empty `/blog` is
+     that case: nothing to celebrate, nothing shipped, nothing improved, just
+     a page that must not read as a 404. It is the ONE empty state on the
+     marketing site, which is what keeps the glyph from becoming decoration.
+
+     **THE CHANGELOG'S KIND PILLS WERE A PART 2 VIOLATION AND NOBODY HAD
+     NOTICED**, because they look like an obvious, tidy piece of UI. Three
+     `rounded-full` chips carried the meaning in colour — `teal` for New,
+     `blue` for Improved, `amber` for Fixed. **`teal` is the brand ramp and
+     Part 2 says the brand hue is never a status**; `blue` is not in the tone
+     registry at all; and Part 3 reserves `999px` for eyebrow badges and
+     status chips, which a changelog kind is neither. On a page a visitor
+     SCANS, that made the brand colour mean "New".
+
+     The file's own comment was the argument for the fix: *"the word carries
+     the meaning; the tone only reinforces it."* If the word carries it, the
+     colour is spending the brand ramp on nothing. So the kind is a mono
+     micro-label now and **the colour moved to the SUBJECT** — a tone tile per
+     item, saying "booking" or "payments" or "your website", which is what a
+     reader skimming a week actually wants and which cannot mean a status
+     because the registry has no statuses in it. `ChangelogItem.glyph` is
+     REQUIRED, page 5's `RESOURCE_GUIDES.glyph` call again. **The weekly
+     cadence is untouched** — no entry split, merged, reordered or added.
+
+     **THE PART 11 LAYOUT-SHIFT DEFECT CLOSED IN PASSING**, which is the
+     narrow case §10 allows: the blog cover's missing `width`/`height` was
+     recorded as somebody else's, and move 6 had to open that file anyway to
+     give it a hero. Part 11 carries the fix and the reasoning; the note that
+     recorded it as open is gone.
+
+     **THE PRICE-PROVENANCE COUNT REACHED NINE, AND THE NINTH IS A NEW
+     SHAPE.** `/roi`, `/partner-program`, `/blog/[slug]` and
+     `lib/marketing/docs.ts` each typed the plan price. `lib/recall-roi.ts` is
+     the one that matters: it held `PLAN_PRICE_MONTHLY = 200` and
+     `computeRecallRoi` **divides by it**, so a reprice would not have made
+     `/roi` stale — it would have made the break-even line the whole page is
+     built around arithmetically WRONG. **A price that is an INPUT TO A
+     CALCULATION is the shape to look for next**; every surface before it
+     merely printed one. `/partner-program`'s "ten practices = $200/mo to you"
+     is the sibling lesson: 10 x 10% of a $200 plan is correct TODAY BY
+     COINCIDENCE, and at the next reprice it would have started contradicting
+     the plan price printed three paragraphs above it.
+
+     **SIX NEW AXE STOPS, ALL AT A CEILING OF ZERO WITH NO EXEMPTION** —
+     `marketing: grade`, `roi`, `partner program`, `changelog`, `docs` and
+     `doc article`. With these, every code-backed marketing page that CAN hold
+     a ceiling of zero holds one; the two that cannot are named in
+     `e2e/smoke.spec.ts` rather than forgotten (`/product`, whose exclusion
+     would be dead on arrival, and `/compare`, which nobody has measured yet).
+     The three tools carry the only real INPUT surfaces on this site — eleven
+     labelled fields, a textarea, three range sliders, three submit buttons —
+     so `label`, `aria-input-field-name` and the focus-order rules are live
+     there and nowhere else, which is a class of defect the five reading-page
+     stops structurally cannot see. Each stop was watched to fail on `gray-400`
+     (`#93a0bc` on white, **2.62**) and **each mutation reddened exactly one
+     stop**, leaving the others at zero.
+
+     **`/blog` AND `/blog/[slug]` ARE OUTSIDE EVERY GUARD, AND THAT IS THE
+     ONE HONEST GAP THIS MOVE LEAVES.** Their bodies come from the database;
+     `e2e/marketing-viewport.spec.ts` and `e2e/smoke.spec.ts` are both
+     seed-free by design, so a stop there would go red for fixture reasons.
+     They were measured by hand instead, in BOTH states — populated and empty
+     — at all three widths: 0 axe rules / 0 nodes, zero horizontal scroll,
+     `scrollX` 0. That hand measurement expires the moment the run ends, which
+     is this Part's oldest lesson; the fix is a seeded stop, and it is a
+     follow-up rather than something this move could do without making a width
+     guard depend on fixture data.
+
    **What page 6 inherits from these five.** Four of them cost real time
    earlier in the move and none is page-specific: SECTION CONTAINERS ALL
    MATCH (a narrower container for a reading block moves its hard-left edge off
@@ -1878,6 +2129,29 @@ the reduced-motion path in the same PR.
    CHECK WHETHER THE PAGE ACTUALLY RENDERS `PageHero` rather than trusting a
    count of subpages — two of the five found a bespoke hero nobody had
    counted, and page 6 is six routes none of which has been opened.
+
+**THE BUILD ORDER IS COMPLETE, AND THE MARKETING SITE CARRIES ONE LANGUAGE.**
+Every page a visitor can reach under `app/(marketing)` opens on `PageHero`,
+runs hard left on one `max-w-6xl` column, marks its lists with the tone
+vocabulary, sets its comparable numbers in mono, and closes on the same 36px
+gradient rule it opened with. Six moves, eleven page bodies, seventeen routes,
+one PR each with its own measured run at 390 / 834 / 1440.
+
+What the moves cost, recorded once rather than rediscovered: the count of
+converted pages was wrong FOUR times, always in the same direction and always
+because somebody read route folders instead of opening files. The tone-tile
+census went stale TWICE before it became a test. "Grade 834 first" held for
+five pages and then stopped being true. Every one of those was a sentence in a
+document doing a job only a guard can do — which is why what this move leaves
+behind is eleven axe stops, a page-list-derived width spec, a tree-walking
+tone-tile census, a no-drawn-grid rule, and a price scan over nine surfaces,
+rather than a longer paragraph here.
+
+What is NOT done, stated plainly so nobody reads the line above as more than
+it is: `/blog` and `/blog/[slug]` are converted but ungraded (their bodies
+come from the database and both suites are seed-free), `/compare` has no axe
+stop because nobody has measured it, and `/product` cannot have one for the
+reason `e2e/axe-baseline.ts` explains at length.
 
 The site is light-only today (zero `dark:` classes under `app/(marketing)`) and
 nothing here changes that. Whether the marketing site ever gets a real dark
@@ -1970,10 +2244,28 @@ keep this from being a screenshot gallery.
 anything added later:
 
 - AVIF/WebP with a raster fallback.
-- **Explicit width and height**, so nothing reflows on load. *The blog cover at
-  `app/(marketing)/blog/[slug]/page.tsx` has neither today — a real
-  layout-shift defect, and it belongs to whoever owns UI correctness rather than
-  to this document.*
+- **Explicit width and height**, so nothing reflows on load. **CLOSED on
+  DREAMCRM-80** (move 6 page 6). This bullet used to record the blog cover at
+  `app/(marketing)/blog/[slug]/page.tsx` as having neither — a real
+  layout-shift defect, handed to whoever owned UI correctness. Move 6 had to
+  open that file anyway to give it a `PageHero`, which made this the cheapest
+  it was ever going to be, so it was fixed in the same PR rather than handed
+  on.
+
+  **The fix is the ratio, not the intrinsic size, and that is the part to
+  carry.** The obvious objection is that we cannot know an author-supplied
+  image's real dimensions — and we do not need to. What the browser reserves
+  space from is the RATIO the `width`/`height` attributes express;
+  `object-cover` then fits the actual pixels into the reserved box. The cover
+  carries `width={1200} height={630}` with a matching `aspect-[1200/630]`,
+  which is the ratio `app/opengraph-image.tsx` already uses, so an image sized
+  for sharing arrives uncropped and one that was not is cropped consistently
+  rather than setting the page's height from whatever came out of a phone.
+
+  It stays a raw `<img>` deliberately: `next/image` would need the storage
+  host in `next.config.js`'s `remotePatterns`, and an optimizer 400 on a
+  public page is a worse failure than an unoptimized cover. This Part asks for
+  the reserved box, not the optimizer.
 - `priority` on the one above-the-fold asset only; lazy everywhere else.
 - Real alt text. Decorative art gets `aria-hidden`; an empty `alt` on something
   that carries meaning is a defect, not a shortcut. (The animated emoji set's

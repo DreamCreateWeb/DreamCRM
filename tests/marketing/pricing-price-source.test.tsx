@@ -102,6 +102,17 @@ const PRICING_ROUTE = ['app/(marketing)/pricing/page.tsx', 'app/(marketing)/pric
  * quotes no price at all, and adding a file with nothing to find would make
  * the third test below (the one that proves this scan still SEES something)
  * a weaker claim than it is.
+ *
+ * AND THE CONTENT ROUTES BROUGHT TWO MORE, WHICH TAKES THE COUNT TO NINE.
+ * `/blog/[slug]`'s closing CTA typed `$200/mo founding practice rate`, and
+ * `lib/marketing/docs.ts` — the CONTENT of `/docs/[slug]` — carried `$200`
+ * and `$500` in two articles. The docs one is the shape worth naming: a
+ * REGISTRY is exactly as public as the route that renders it, and it does not
+ * look like a page, so a sweep that walks `app/(marketing)/**` never sees it.
+ * `GuideShell` was the same discovery one move earlier from the other
+ * direction — a shared COMPONENT counted as one surface while being live on
+ * three pages. **Neither a route walk nor a component walk finds both; what
+ * finds them is asking which files can put a price in front of a visitor.**
  */
 const PRICE_QUOTING_ROUTES = [
   ...PRICING_ROUTE,
@@ -109,7 +120,9 @@ const PRICE_QUOTING_ROUTES = [
   'app/(marketing)/resources/guide-ui.tsx',
   'app/(marketing)/roi/page.tsx',
   'app/(marketing)/partner-program/page.tsx',
+  'app/(marketing)/blog/[slug]/page.tsx',
   'lib/recall-roi.ts',
+  'lib/marketing/docs.ts',
 ]
 
 /**

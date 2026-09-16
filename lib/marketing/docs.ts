@@ -2,6 +2,26 @@
 // repo (the same honesty bar as everything else: every step describes the
 // product as it actually ships — if a doc would need to lie, fix the
 // product or don't write the doc).
+//
+// TWO THINGS ARRIVED HERE ON MOVE 6 PAGE 6 (`BRAND.md` Part 8, DREAMCRM-80).
+//
+// 1. A CATEGORY CARRIES A SUBJECT. `DOC_CATEGORIES` was four strings; it is
+//    four `{ name, glyph }` rows, so the index can mark each shelf with the
+//    tone tile that says what is on it (`BRAND.md` Part 3, Tier B — a tile on
+//    the GROUP, a tone dash on each row, because twenty-nine articles under
+//    four headings are one kind of thing per heading). `glyph` is REQUIRED,
+//    which is the call `RESOURCE_GUIDES` made on page 5: a fifth category
+//    cannot compile until somebody decides what it is about.
+//
+// 2. THE PRICE RESOLVES. Two articles here quoted `$200/mo` and `$500` as
+//    literals — the eighth surface holding a copy of DREAMCRM-38's number,
+//    and as public as the route that renders it. They read `getQuotedPlan()`
+//    now, and `tests/marketing/pricing-price-source.test.tsx` scans this file.
+import { getQuotedPlan } from '@/lib/stripe-config'
+import type { ToneTileGlyph } from '@/lib/marketing/tone-tiles'
+
+const PLAN = getQuotedPlan()
+const usd = (n: number) => `$${n.toLocaleString('en-US')}`
 
 export interface DocSection {
   heading?: string
@@ -18,12 +38,20 @@ export interface DocArticle {
   sections: DocSection[]
 }
 
-export const DOC_CATEGORIES = [
-  'Getting started',
-  'Front desk, daily',
-  'Patient-facing',
-  'Money & integrations',
-] as const
+export interface DocCategory {
+  name: string
+  /** What the shelf is about — `lib/marketing/tone-tiles.ts`. Required. */
+  glyph: ToneTileGlyph
+}
+
+export const DOC_CATEGORIES: DocCategory[] = [
+  // `door` is the way IN rather than the way out — the drawing is an arrow
+  // through a doorway, and this is the shelf a practice opens on day one.
+  { name: 'Getting started', glyph: 'door' },
+  { name: 'Front desk, daily', glyph: 'calendar' },
+  { name: 'Patient-facing', glyph: 'people' },
+  { name: 'Money & integrations', glyph: 'money' },
+]
 
 export const DOCS: DocArticle[] = [
   /* ── Getting started ────────────────────────────────────────────── */
@@ -41,7 +69,7 @@ export const DOCS: DocArticle[] = [
         steps: [
           'Click Get started and create your login (you can switch to passwordless sign-in links later).',
           'Answer the onboarding questions — practice name, services, hours, contact details. These seed your website copy, your booking rules, and your portal.',
-          'Add billing when you\u2019re ready. One plan with everything included \u2014 $200/mo at the founding practice rate (regularly $500), month-to-month, or annual with two months free.',
+          `Add billing when you\u2019re ready. One plan with everything included \u2014 ${usd(PLAN.price)}/mo at the founding practice rate (regularly ${usd(PLAN.listPrice ?? 0)}), month-to-month, or annual with two months free.`,
           'Finish checkout and you land on your dashboard. Your public site is already live on your subdomain.',
         ],
       },
@@ -355,7 +383,7 @@ export const DOCS: DocArticle[] = [
     sections: [
       {
         paragraphs: [
-          'One plan, everything included: the website and edit-in-place studio, AI copy help, lead capture, patients, agenda, leads queue, messages, intake forms, reviews, the patient portal, blog and SEO, recall campaigns, analytics, the shop and memberships, careers, and the PMS sync. $200/mo at the founding practice rate (regularly $500); annual billing gives you two months free.',
+          `One plan, everything included: the website and edit-in-place studio, AI copy help, lead capture, patients, agenda, leads queue, messages, intake forms, reviews, the patient portal, blog and SEO, recall campaigns, analytics, the shop and memberships, careers, and the PMS sync. ${usd(PLAN.price)}/mo at the founding practice rate (regularly ${usd(PLAN.listPrice ?? 0)}); annual billing gives you two months free.`,
           'Switch tiers any time under Settings → Plan; changes prorate through Stripe. Cancelling stops the next renewal — there is no term contract, and your website content exports with you.',
         ],
       },
@@ -666,9 +694,14 @@ export function getDoc(slug: string): DocArticle | undefined {
   return DOCS.find((d) => d.slug === slug)
 }
 
-export function docsByCategory(): Array<{ category: string; articles: DocArticle[] }> {
+export function docsByCategory(): Array<{ category: DocCategory; articles: DocArticle[] }> {
   return DOC_CATEGORIES.map((category) => ({
     category,
-    articles: DOCS.filter((d) => d.category === category),
+    articles: DOCS.filter((d) => d.category === category.name),
   }))
+}
+
+/** The shelf a doc sits on, for the article page's eyebrow and its tile. */
+export function docCategory(name: string): DocCategory | undefined {
+  return DOC_CATEGORIES.find((c) => c.name === name)
 }
