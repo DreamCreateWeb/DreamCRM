@@ -198,10 +198,37 @@ descriptions (2026-09-14, DREAMCRM-43):
      the client, only where the pin is legal — is the enhancement. JS failing,
      hydration failing, a media query never firing and reduced motion all land
      on the same correct page, and "no content is reachable only by animating"
-     is true by construction. The CSS ALSO hard-reverts the class under reduced
-     motion, a coarse pointer and any viewport under `lg`; either half alone
-     suffices, and both exist because the JS half is the one that can be wrong
-     about the environment.
+     is true by construction. The CSS half is a GATE, not a revert list: the
+     whole pinned sequence lives inside one
+     `@media screen and (min-width: 1024px) and (prefers-reduced-motion:
+     no-preference) and (hover: hover) and (pointer: fine)`, so outside those
+     conditions the pinned declarations are not in the stylesheet at all and
+     the class means nothing. That half alone suffices; both halves exist
+     because the JS half is the one that can be wrong about the environment.
+
+     **That last sentence used to be a claim rather than a fact, and it is
+     worth keeping the correction.** It shipped as three `@media` blocks that
+     UNDID the class, and Vesper's review measured them: they put back
+     `position`, `height`, `opacity` and `transform` and not `width`, `margin`,
+     `pointer-events` or the rail's reserved lane, so the CSS on its own left
+     the cards at 528px against the left edge. And there was no block for
+     `print` — printing the homepage produced three pages of pinned section
+     carrying NONE of the four chapters, i.e. exactly the content-reachable-
+     only-by-animating this Part forbids, in a medium nobody thought of. A
+     revert list is a copy of the thing it reverts, and a copy drifts; a gate
+     cannot. The lesson generalises past this section: **when a rule must not
+     apply somewhere, don't apply it and take it back — don't apply it.**
+   - **It un-pins rather than clipping, and the question is MEASURED.** The pin
+     is `overflow: hidden` and the card is centred, so a card taller than the
+     window loses its top and bottom with no scroll that reaches them. That is
+     not a viewport question: it is set by the reader's own text size, which no
+     media query reports — at the browser's 200% TEXT setting (the low-vision
+     one, not zoom) a 1024x640 window ran the card to 1,049px. So the component
+     measures the tallest card at mount and on resize and drops the pin when it
+     does not fit, with `CARD_TRAVEL` of headroom at each end. The fix is
+     always to UN-PIN: making the card scrollable would need `tabindex="0"`,
+     which puts the one focus stop back inside the pinned region and undoes the
+     keyboard answer below.
    - **Nothing inside the pinned region is focusable, and that is the whole
      keyboard answer.** Part 6 wants tab order through the chapters and out of
      the bottom, the section escapable at any point, and focus that does not
@@ -545,9 +572,22 @@ ones a future change will trip over:
   below the ticker.** Not the hero — the hero landed on move 1 with an
   owner-approved composition and its own measured run in Part 7, taken at rest.
 - **The stacked layout is the base; the pin is added by a class.** The server
-  renders four ordinary sections. `prefers-reduced-motion`, a coarse pointer and
-  anything under `lg` revert the class in CSS as well as never getting it from
-  JS.
+  renders four ordinary sections. The CSS puts the entire pinned sequence
+  behind ONE `@media screen and (min-width: 1024px) and
+  (prefers-reduced-motion: no-preference) and (hover: hover) and (pointer:
+  fine)` gate rather than reverting the class afterwards — a revert list is a
+  copy of the thing it reverts, and the first version of it missed four
+  properties and the whole `print` medium. Part 0 item 9 has the measurement.
+- **PRINT IS A MEDIUM, and it counts.** The stacked layout is what prints, and
+  "no content is reachable only by animating" is false the moment a pinned
+  section reaches a printer with its cards at `opacity: 0`. `screen` in that
+  gate is the one word doing it.
+- **It un-pins rather than clipping a card.** The tallest chapter card is
+  measured against the window at mount and on resize; if it does not fit with
+  room to travel, the pin does not happen. The reader's TEXT SIZE sets that
+  height and no media query reports it. Never answer this with
+  `overflow-y: auto` on the card — a scrollable region needs `tabindex="0"`,
+  which puts a focus stop back inside the pin.
 - **Nothing inside the pinned region is focusable.** That is the keyboard answer
   in full, and it is held at zero by
   `tests/marketing/cinematic-spine.test.tsx` — a chapter card spends most of the
@@ -752,6 +792,34 @@ sequence, and the stacked layout at 1440 / 834 / 390 under both
 `gray-950` / `gray-600` / `violet-700` on white (17.62 / 6.91 / 6.14), which the
 source rules in `tests/a11y/class-pairs.ts` grade from the class strings and do
 not depend on a scroll position at all.
+
+**The chapter rail's second channel is SIZE, not hue** (added after Vesper's
+DREAMCRM-70 review). The active row and the inactive rows are `#2f52b3` and
+`#4c5a78` — both legal against the pill (7.05 and 6.91, re-measured as rendered
+at all four chapters, on the white bar-chart card the pill actually sits on) —
+but they differ in hue at the same lightness, so they grade **1.02** against
+EACH OTHER. In greyscale, or to most kinds of colour blindness, the rail was
+four identical lines with no indication which one you were on. The old dot could
+not carry it either: `#c3d0e8` graded 1.55 on the pill. So the dot takes the
+row's own ink and the ACTIVE one is half again as big — no new colour, and a
+channel that survives greyscale. This was never a WCAG violation (the rail is
+`aria-hidden`, and the card says `02 · THE TEXT THAT BOOKS` as text a few inches
+away, so the information is never colour-only on the page), which is exactly why
+no gate would ever have raised it. **Two inks that both pass against the
+background can still be indistinguishable from each other, and nothing in CI
+measures that pair.**
+
+**One blind spot neither half of the build can close, recorded so it is not
+rediscovered.** A link that jumps to text INSIDE a chapter — Chrome's "copy link
+to highlight", and the highlighted-text links Google sometimes puts in search
+results — lands on the wrong chapter: the browser scrolls to the text's document
+position, where the sequence has not reached that chapter yet, so chapter 2 is
+on screen while chapter 4 is at `opacity: 0`. Find-on-page uses the same text
+finder and does the same. It is the sighted twin of "no content is reachable
+only by animating", it is inherent to every pinned sequence on the web, and it
+is not worth contorting the build over — but it belongs in the same list as the
+scroll-0 scan blind spot above, because the honest version of "we verified this"
+names what the verification could not see.
 
 ---
 

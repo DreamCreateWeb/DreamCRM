@@ -103,20 +103,38 @@ export const DAY_WIRE = 'rgb(76 125 240 / 0.16)'
  * lives in `components/marketing/cinematic-spine.tsx`; this is the half of it
  * that is not JavaScript, and the split matters:
  *
- * **The BASE rules are the real stacked layout, and `.is-cinematic` is the
- * pinned sequence added on top.** Part 6 requires that
+ * **The BASE rules are the real stacked layout, and the pinned sequence is a
+ * block of CSS that only EXISTS where the pin is legal.** Part 6 requires that
  * `prefers-reduced-motion` gets "a real layout, not a disabled one", and the
  * only way to owe that rather than claim it is for the ordinary reading layout
  * to be what the server renders and what every excluded reader keeps. So the
- * cascade runs in the safe direction: no class, no pin, real page.
+ * cascade runs in the safe direction: no gate, no pin, real page.
  *
- * The three `@media` blocks at the bottom then REVERT `.is-cinematic` under the
- * conditions where the pin is illegal — reduced motion, a coarse pointer
- * (Part 10: "the pinned scroll does not pin on touch"), and any viewport under
- * `lg`. That duplicates a check the component also makes, deliberately: the JS
- * half is the one that can be wrong about the environment or fail to hear a
- * change, and the CSS half cannot. Either alone is sufficient; both is the
- * point.
+ * ONE GATE, NOT A PILE OF REVERTS — and that is a correction, not a taste
+ * call. This shipped as three `@media` blocks that UNDID `.is-cinematic` under
+ * reduced motion, a coarse pointer and anything under `lg`, and the header
+ * here claimed "either half alone is sufficient". Vesper's review of
+ * DREAMCRM-70 measured that claim and it was false: the reverts put back
+ * `position`, `height`, `opacity` and `transform` but not `width`, `margin`,
+ * `pointer-events` or the rail's reserved lane, so the CSS half on its own
+ * left the chapter cards at 528px jammed against the left edge. Worse, there
+ * was no block for `print` at all — printing the homepage produced three pages
+ * of a pinned section carrying NONE of its four chapters, which is exactly the
+ * "content reachable only by animating" Part 6 forbids, in a medium nobody
+ * thought of.
+ *
+ * A revert list is a copy of the thing it reverts, and a copy drifts. So there
+ * is nothing to revert any more: every pinned rule sits inside the one
+ * `@media` gate below, and outside it those declarations are not in the
+ * stylesheet at all. `screen` is load-bearing — it is what keeps the sequence
+ * out of print. `no-preference` fails CLOSED on a browser that does not know
+ * the feature, which is the direction to be wrong in.
+ *
+ * The component ALSO decides, and adds `.is-cinematic` only where it agrees
+ * with this gate, plus one question CSS cannot ask: whether the tallest
+ * chapter card actually fits the window. The class is how the JavaScript knows
+ * to paint; the gate is what makes the layout safe whether or not the class is
+ * right. So the CSS half really is sufficient on its own now.
  *
  * Every animated property here is `transform` or `opacity` (Part 6), and none
  * of it is a CSS transition or animation — the values arrive as custom
@@ -146,7 +164,13 @@ const SPINE_CSS = `
       .mkt-spine-rail { display: none; }
       @media (min-width: 640px) { .mkt-spine-card-glass { padding: 1.85rem; } }
 
-      /* ── THE PINNED SEQUENCE ── */
+      /* ── THE PINNED SEQUENCE. Everything in this block exists ONLY under the
+            gate: a real pointer, a viewport wide enough, motion not asked
+            down, and \`screen\` — so print gets the stacked layout with all
+            four chapters on it. See this constant's header for why there is a
+            gate here rather than the three revert blocks that used to sit at
+            the bottom of this stylesheet. ── */
+      @media screen and (min-width: 1024px) and (prefers-reduced-motion: no-preference) and (hover: hover) and (pointer: fine) {
       .mkt-spine.is-cinematic .mkt-spine-track { height: calc(var(--mkt-spine-steps, 5) * 100vh); }
       /* \`position: sticky\` is the pin. The DOCUMENT keeps scrolling the whole
          time, which is what makes the section escapable and the sequence
@@ -208,6 +232,7 @@ const SPINE_CSS = `
         opacity: var(--mkt-ro, 0);
         will-change: opacity;
       }
+      }
       .mkt-spine-rail-list {
         display: grid; gap: 0.6rem; padding: 0.95rem 1.15rem;
         border-radius: 1.125rem; border-width: 1px; border-style: solid;
@@ -219,7 +244,17 @@ const SPINE_CSS = `
          (teal-700) is 7.05 — BRAND.md Part 7. The pill's own ground is white at
          0.94, not the product under it, so those are the pairs that render. */
       .mkt-spine-rail-item { display: flex; align-items: center; justify-content: space-between; gap: 1.75rem; color: #4c5a78; }
-      .mkt-spine-rail-dot { height: 0.5rem; width: 0.5rem; flex: none; border-radius: 999px; background: #c3d0e8; }
+      /* THE DOT IS THE RAIL'S SECOND CHANNEL, and the channel is SIZE, not hue.
+         Vesper's DREAMCRM-70 review graded the active row against the inactive
+         ones at 1.02 — the two inks differ in hue at the same lightness, so in
+         greyscale, or to most kinds of colour blindness, the rail read as four
+         identical lines. The old dot could not carry it either: #c3d0e8 graded
+         1.55 on the pill and was barely visible at all. So the dot takes the
+         row's own ink (6.91 inactive, 7.05 active — the two pairs already
+         graded above, no new colour) and the ACTIVE one is half again as big.
+         Size survives greyscale, and 0.7rem still sits inside the 0.9rem line
+         box, so nothing reflows when the chapter changes. */
+      .mkt-spine-rail-dot { height: 0.45rem; width: 0.45rem; flex: none; border-radius: 999px; background: currentColor; }
       .mkt-spine-rail[data-active="0"] .mkt-spine-rail-item:nth-child(1),
       .mkt-spine-rail[data-active="1"] .mkt-spine-rail-item:nth-child(2),
       .mkt-spine-rail[data-active="2"] .mkt-spine-rail-item:nth-child(3),
@@ -227,38 +262,7 @@ const SPINE_CSS = `
       .mkt-spine-rail[data-active="0"] .mkt-spine-rail-item:nth-child(1) .mkt-spine-rail-dot,
       .mkt-spine-rail[data-active="1"] .mkt-spine-rail-item:nth-child(2) .mkt-spine-rail-dot,
       .mkt-spine-rail[data-active="2"] .mkt-spine-rail-item:nth-child(3) .mkt-spine-rail-dot,
-      .mkt-spine-rail[data-active="3"] .mkt-spine-rail-item:nth-child(4) .mkt-spine-rail-dot { background: #2f52b3; }
-
-      /* ── THE THREE HARD REVERTS. Each one puts the stacked layout back even
-            if the class is present — see this constant's header for why the
-            component checking the same three conditions is not enough. ── */
-      @media (prefers-reduced-motion: reduce) {
-        .mkt-spine.is-cinematic .mkt-spine-track { height: auto; }
-        .mkt-spine.is-cinematic .mkt-spine-pin { position: static; height: auto; overflow: visible; }
-        .mkt-spine.is-cinematic .mkt-spine-intro,
-        .mkt-spine.is-cinematic .mkt-spine-stage,
-        .mkt-spine.is-cinematic .mkt-spine-cards,
-        .mkt-spine.is-cinematic .mkt-spine-card { position: static; opacity: 1; transform: none; }
-        .mkt-spine.is-cinematic .mkt-spine-rail { display: none; }
-      }
-      @media (hover: none), (pointer: coarse) {
-        .mkt-spine.is-cinematic .mkt-spine-track { height: auto; }
-        .mkt-spine.is-cinematic .mkt-spine-pin { position: static; height: auto; overflow: visible; }
-        .mkt-spine.is-cinematic .mkt-spine-intro,
-        .mkt-spine.is-cinematic .mkt-spine-stage,
-        .mkt-spine.is-cinematic .mkt-spine-cards,
-        .mkt-spine.is-cinematic .mkt-spine-card { position: static; opacity: 1; transform: none; }
-        .mkt-spine.is-cinematic .mkt-spine-rail { display: none; }
-      }
-      @media (max-width: 1023px) {
-        .mkt-spine.is-cinematic .mkt-spine-track { height: auto; }
-        .mkt-spine.is-cinematic .mkt-spine-pin { position: static; height: auto; overflow: visible; }
-        .mkt-spine.is-cinematic .mkt-spine-intro,
-        .mkt-spine.is-cinematic .mkt-spine-stage,
-        .mkt-spine.is-cinematic .mkt-spine-cards,
-        .mkt-spine.is-cinematic .mkt-spine-card { position: static; opacity: 1; transform: none; }
-        .mkt-spine.is-cinematic .mkt-spine-rail { display: none; }
-      }`
+      .mkt-spine-rail[data-active="3"] .mkt-spine-rail-item:nth-child(4) .mkt-spine-rail-dot { height: 0.7rem; width: 0.7rem; }`
 
 /**
  * The mono micro-label — `BRAND.md` Part 4 calls it the signature detail.

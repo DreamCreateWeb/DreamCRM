@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import React from 'react'
-import CinematicSpine, { CHAPTERS } from '@/components/marketing/cinematic-spine'
+import CinematicSpine, { CHAPTERS, pinnedCardFits } from '@/components/marketing/cinematic-spine'
 import { MarketingMotionStyles } from '@/components/marketing/ui'
 
 /**
@@ -176,74 +176,102 @@ describe('the cinematic spine — the owner-s veto on oversized numerals', () =>
   })
 })
 
-describe('the cinematic spine — the CSS reverts the pin where the pin is illegal', () => {
+describe('the cinematic spine — the pinned sequence exists only where the pin is legal', () => {
   /**
-   * The component decides when to ADD `is-cinematic`; these three media blocks
-   * take the pin back out even when it is present. Both halves are deliberate:
-   * the JS half is the one that can be wrong about the environment or fail to
-   * hear a change, and the CSS half cannot.
+   * The component decides when to ADD `is-cinematic`; this gate decides
+   * whether the class means anything. Both halves are deliberate: the JS half
+   * is the one that can be wrong about the environment or fail to hear a
+   * change, and the CSS half cannot.
    *
-   * Each condition is one of Part 6's / Part 10's own words — reduced motion
-   * gets a real layout, the sequence "does not pin on touch", and below `lg`
-   * phones and small tablets get the stacked reading order.
+   * WHY A GATE AND NOT REVERTS. This shipped as three `@media` blocks that
+   * undid `.is-cinematic` under reduced motion, a coarse pointer and anything
+   * under `lg`, and this file asserted each of them contained `position:
+   * static`, `height: auto`, `opacity: 1` and `transform: none`. All three
+   * passed while leaving the layout wrong — the reverts never put back
+   * `width`, `margin`, `pointer-events` or the rail's reserved lane — and
+   * there was no fourth block for `print`, so printing the homepage produced
+   * three pages of pinned section carrying none of its four chapters
+   * (Vesper's DREAMCRM-70 review). A revert list is a copy of the thing it
+   * reverts, and asserting four of its lines cannot tell you the copy is
+   * complete.
+   *
+   * So there is nothing to revert and nothing to keep in sync: the pinned
+   * declarations live inside ONE `@media` gate and do not exist outside it.
+   * That is a property this file can actually check, which is the whole
+   * reason for the shape.
    */
   const css = () => {
     const { container } = render(<MarketingMotionStyles />)
     return container.querySelector('style')!.textContent ?? ''
   }
 
-  /**
-   * The `@media` block whose condition contains `needle` AND which is the one
-   * about the spine.
-   *
-   * Both halves matter: there are TWO `prefers-reduced-motion` blocks in this
-   * stylesheet — the older one that stops the ambient loops, and the spine's,
-   * which puts a layout back — and a helper that returned the first match
-   * would have this whole describe passing against the wrong block.
-   */
-  const block = (text: string, needle: string): string => {
+  /** Every `@media` block in the stylesheet, prelude and body, brace-matched. */
+  const mediaBlocks = (text: string): Array<{ prelude: string; body: string; whole: string }> => {
+    const out: Array<{ prelude: string; body: string; whole: string }> = []
     let i = text.indexOf('@media')
     while (i !== -1) {
       const open = text.indexOf('{', i)
-      if (text.slice(i, open).includes(needle)) {
-        let depth = 0
-        for (let j = open; j < text.length; j++) {
-          if (text[j] === '{') depth++
-          else if (text[j] === '}') {
-            depth--
-            if (depth === 0) {
-              const found = text.slice(i, j + 1)
-              if (found.includes('.mkt-spine')) return found
-              break
-            }
+      let depth = 0
+      for (let j = open; j < text.length; j++) {
+        if (text[j] === '{') depth++
+        else if (text[j] === '}') {
+          depth--
+          if (depth === 0) {
+            out.push({
+              prelude: text.slice(i + '@media'.length, open).trim(),
+              body: text.slice(open + 1, j),
+              whole: text.slice(i, j + 1),
+            })
+            break
           }
         }
       }
       i = text.indexOf('@media', i + 1)
     }
-    return ''
+    return out
   }
 
-  for (const [label, needle] of [
-    ['prefers-reduced-motion', 'prefers-reduced-motion: reduce'],
-    ['a coarse pointer (touch)', 'pointer: coarse'],
-    ['viewports under lg', 'max-width: 1023px'],
-  ] as const) {
-    it(`puts the stacked layout back under ${label}`, () => {
-      const b = block(css(), needle)
-      expect(b, `no @media block for ${needle}`).not.toBe('')
-      expect(b).toContain('.mkt-spine.is-cinematic .mkt-spine-pin')
-      expect(b).toContain('position: static')
-      // The track must stop being five viewports tall, or the section leaves a
-      // screenful of blank space behind it.
-      expect(b).toContain('.mkt-spine.is-cinematic .mkt-spine-track { height: auto; }')
-      // And the chapter cards must come back to opacity 1 — a card left at
-      // `opacity: var(--mkt-co, 0)` with nothing writing the property is
-      // content that exists and cannot be read.
-      expect(b).toContain('opacity: 1')
-      expect(b).toContain('transform: none')
-    })
+  /** The one block the pinned sequence lives in. */
+  const gate = (text: string) => {
+    const found = mediaBlocks(text).filter((b) => b.body.includes('.mkt-spine.is-cinematic'))
+    expect(found.map((b) => b.prelude), 'the pinned sequence must live in exactly one @media block').toHaveLength(1)
+    return found[0]
   }
+
+  it('puts the whole pinned sequence behind one gate, and that gate names every exclusion', () => {
+    const { prelude } = gate(css())
+    // Part 6: reduced motion gets a real layout. `no-preference` rather than
+    // `not reduce`, because it also fails CLOSED on a browser that has never
+    // heard of the feature.
+    expect(prelude).toContain('prefers-reduced-motion: no-preference')
+    // Part 10: "the pinned scroll does not pin on touch" — a pointer test, not
+    // a width test, because a large tablet and a small laptop share widths and
+    // do not share pointers.
+    expect(prelude).toContain('hover: hover')
+    expect(prelude).toContain('pointer: fine')
+    // Below `lg`, phones and small tablets get the stacked reading order.
+    expect(prelude).toContain('min-width: 1024px')
+  })
+
+  it('keeps the whole sequence out of print', () => {
+    // Printing the homepage used to produce ~3 pages of a pinned section
+    // carrying NONE of its four chapters: nothing reverted the effect for
+    // print, so the pin stayed, the track stayed five screens tall, and every
+    // card kept the `opacity: 0` the last scroll frame wrote. That is Part 6's
+    // "no content is reachable only by animating" in a medium nobody thought
+    // of. `screen` is what fixes it, and it is one word, so it is the one
+    // most likely to be dropped by someone tidying the prelude.
+    expect(gate(css()).prelude.startsWith('screen and ')).toBe(true)
+  })
+
+  it('leaves no pinned declaration outside that gate', () => {
+    // The defect this watches for is the obvious next edit: someone adds "just
+    // one more" `.is-cinematic` rule at the bottom of the stylesheet, outside
+    // the gate, where it applies to print and to reduced motion and to phones.
+    const text = css()
+    const outside = text.replace(gate(text).whole, '')
+    expect(outside).not.toContain('.mkt-spine.is-cinematic')
+  })
 
   /**
    * THE PREMISE OF THIS SPINE'S ENTRY IN `tests/a11y/css-var-definitions.test.ts`.
@@ -279,6 +307,60 @@ describe('the cinematic spine — the CSS reverts the pin where the pin is illeg
     for (const decl of scrollDriven) {
       expect(decl.split(':')[0].trim()).toMatch(/^(transform|opacity)$/)
     }
+  })
+})
+
+describe('the cinematic spine — it un-pins rather than clipping a chapter card', () => {
+  /**
+   * The pin is `overflow: hidden` and the card is centred in the viewport, so a
+   * card taller than the window loses its top and its bottom with no scroll
+   * that brings them back. Vesper's DREAMCRM-70 review found it at the
+   * browser's own TEXT-SIZE setting — the low-vision one, not zoom: on a
+   * 1024x640 window at a 32px base font the card measured 1,049px and lost the
+   * chapter label and the last sentence, both unreachable.
+   *
+   * No media query reports a font size, so the height floor in the component
+   * cannot answer this: the same window is fine at 16px and broken at 26px.
+   * It has to be measured.
+   *
+   * THE FIX IS TO UN-PIN, NOT TO SCROLL THE CARD. `overflow-y: auto` on the
+   * card would make it a scrollable region, which must be keyboard-operable,
+   * which means `tabindex="0"` — putting the one focus stop back inside the
+   * pinned region and undoing the clean answer the describe above holds at
+   * zero. The stacked layout has no such problem.
+   */
+  it('refuses the pin when the tallest card cannot fit the window', () => {
+    // A card exactly as tall as the window does not fit: it rides CARD_TRAVEL
+    // either side of centre on its way in and out, so it needs that headroom
+    // at BOTH ends or it is clipped for part of its own arrival.
+    expect(pinnedCardFits(640, 640)).toBe(false)
+    expect(pinnedCardFits(1049, 640)).toBe(false)
+    expect(pinnedCardFits(400, 640)).toBe(true)
+    // The headroom is real rather than nominal — a card within a hair of the
+    // window height is still refused.
+    expect(pinnedCardFits(639, 640)).toBe(false)
+  })
+
+  it('takes the pin back off when the cards outgrow the window', () => {
+    const { container } = render(<CinematicSpine />)
+    const root = container.querySelector('.mkt-spine') as HTMLElement
+    // happy-dom has no layout, so every card measures 0 and the pin is live at
+    // its default 1024x768 — see the note on the server-markup case above.
+    expect(root.classList.contains('is-cinematic')).toBe(true)
+
+    for (const card of Array.from(container.querySelectorAll('.mkt-spine-card'))) {
+      Object.defineProperty(card, 'offsetHeight', { configurable: true, value: window.innerHeight })
+    }
+    window.dispatchEvent(new Event('resize'))
+    expect(root.classList.contains('is-cinematic')).toBe(false)
+
+    // And it comes back when there is room again — the decision is a
+    // measurement each time, not a latch that turns the section off for good.
+    for (const card of Array.from(container.querySelectorAll('.mkt-spine-card'))) {
+      Object.defineProperty(card, 'offsetHeight', { configurable: true, value: 300 })
+    }
+    window.dispatchEvent(new Event('resize'))
+    expect(root.classList.contains('is-cinematic')).toBe(true)
   })
 })
 
