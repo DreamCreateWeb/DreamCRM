@@ -1,20 +1,74 @@
 import React from 'react'
 import {
-  SectionTitle,
+  Eyebrow,
   PrimaryCta,
+  GhostCta,
   ToneTile,
   ToneDash,
   PageHero,
+  MONO_LABEL,
+  DAY_WIRE,
   type ToneTileGlyph,
 } from '@/components/marketing/ui'
 import { JsonLd, faqPageLd, softwareApplicationLd } from '@/lib/marketing/seo'
+import { usd } from '@/lib/marketing/site'
+import { getQuotedPlan } from '@/lib/stripe-config'
 import { PriceCard } from './price-card'
 
-export const metadata = {
-  title: 'Pricing — DreamCRM',
-  alternates: { canonical: '/pricing' },
-  description:
-    'One plan, everything included: $200/mo founding practice rate (regularly $500). Website, booking, portal, messaging, reviews, recall, shop, PMS sync. Month-to-month, no contract — or annual with 2 months free.',
+/**
+ * THE PRICING PAGE — `BRAND.md` Part 8 move 6, page 1.
+ *
+ * Move 4 gave every subpage a Daylight `PageHero`; this is the first page whose
+ * own BODY comes across, and pricing went first on purpose: it is the honest
+ * test of whether the language survives a table. A brand book that only works
+ * on hero sections is a brand book for hero sections.
+ *
+ * WHAT CARRIES THE LANGUAGE HERE, none of it new vocabulary:
+ *
+ *  - **Hard left** (Part 4). The centred SectionTitle is gone from this page in
+ *    favour of the `Eyebrow` + heading pair the homepage's "Honest by default"
+ *    section already uses — so every section opens with the mono micro-label
+ *    and the reading column starts where the hero's does.
+ *  - **The price panel breaks the section seam** (Part 3's grid-break, in the
+ *    only form this page has one). It is pulled UP into the hero's light rather
+ *    than floating in dead white a screen below it, which is what the old
+ *    centred card did. The panel is opaque, so no reading text moves onto the
+ *    bloom — the hero's own measured runs (Part 7, the DREAMCRM-72 table) are
+ *    the only ink on a decorative layer on this page, and move 6 re-derived
+ *    them against THIS page rather than trusting the component's.
+ *  - **`surface-1` and `DAY_WIRE`** instead of `gray-50` and `gray-100`: the
+ *    daylight ground and the daylight hairline, the same pair the ticker and
+ *    the chrome carry.
+ *  - **Part 3's radius ladder** — 14px cards, 12px tiles, 10px controls, and
+ *    nothing is a pill that is not an eyebrow badge or a status chip.
+ *
+ * NO EMOJI ON THIS PAGE. Part 5's reversal on DREAMCRM-56 turned the ban into
+ * a usage rule and left pricing on the never list by name. Delight here is
+ * light, alignment and type — not a glyph.
+ *
+ * EVERY NUMBER ON THE PAGE IS REAL. The price resolves from
+ * `lib/stripe-config.ts` (see the metadata note below); the per-group counts in
+ * the inventory are `rows.length`, computed rather than typed, so they cannot
+ * go stale the way the check-mark census did — twice — while a sentence claimed
+ * otherwise.
+ */
+
+/**
+ * THE PRICE IS RESOLVED, NEVER TYPED — DREAMCRM-38's rule, which exists
+ * because three surfaces had each drifted to quoting the $500 LIST price for a
+ * plan that costs $200. This page is the loudest place that could happen, and
+ * it was the last one still holding its own copy of the four numbers.
+ *
+ * It is read at module scope because `metadata` is a const and the founding
+ * rate is part of the page's description. `getQuotedPlan()` is pure config —
+ * no database, no Stripe call — so this costs nothing at render.
+ */
+const PLAN = getQuotedPlan()
+const PRICE = {
+  rateMonthly: PLAN.price,
+  rateAnnual: PLAN.annualPrice,
+  listMonthly: PLAN.listPrice ?? null,
+  listAnnual: PLAN.listAnnualPrice ?? null,
 }
 
 /**
@@ -28,7 +82,14 @@ export const metadata = {
    So the tile states the subject ONCE, on the group heading where it is
    actually news, and the rows take that group's tone as a dash. The reader
    still knows which domain they are in on every line; they are just not told
-   it twenty-six times. */
+   it twenty-six times.
+
+   MOVE 6 DID NOT TOUCH THAT SHAPE, and the temptation to was real: the
+   two-tier list is the quietest thing on a page the move is meant to make
+   louder. But a tile on all 26 rows is the identical mark the owner vetoed,
+   just prettier (Part 0 item 10), so what got louder is the group HEADER — a
+   mono micro-label, a hairline under it, and the group's real row count as a
+   mono numeral — while the rows stay exactly as legible as they were. */
 const INCLUDED: Array<{ group: string; glyph: ToneTileGlyph; rows: string[] }> = [
   {
     group: 'Website & brand',
@@ -82,6 +143,13 @@ const INCLUDED: Array<{ group: string; glyph: ToneTileGlyph; rows: string[] }> =
   },
 ]
 
+/* THE FAQ QUOTES THE CONFIG TOO, and that is the half of DREAMCRM-38's rule
+   that is easiest to leave undone. Three of these answers carry the price in
+   PROSE, a few hundred pixels below a panel that resolves it — so a reprice
+   that swapped the panel's numbers and left these alone would put two
+   different prices on the same page, under a heading that says "answered
+   straight". Prose is exactly where a stale number survives longest, because
+   nothing about it looks like configuration. */
 const PRICING_FAQS: Array<{ q: string; a: string }> = [
   {
     q: 'Do I have to pay to try it?',
@@ -89,11 +157,16 @@ const PRICING_FAQS: Array<{ q: string; a: string }> = [
   },
   {
     q: 'Is there a contract or setup fee?',
-    a: 'No. It’s month-to-month with no setup fee, and you can cancel anytime — your website content exports with you. Prefer annual? Pay for 10 months, get 12: $2,000/year.',
+    a:
+      'No. It’s month-to-month with no setup fee, and you can cancel anytime — your ' +
+      `website content exports with you. Prefer annual? Pay for 10 months, get 12: ${usd(PRICE.rateAnnual)}/year.`,
   },
   {
-    q: 'Why is the price $200 instead of $500?',
-    a: 'We’re building our founding group of practices, and their feedback shapes what we build next. Founding practices get the whole platform at $200/mo, and the rate stays locked for as long as you’re a subscriber — new modules land on the same price.',
+    q: `Why is the price ${usd(PRICE.rateMonthly)} instead of ${usd(PRICE.listMonthly ?? PRICE.rateMonthly)}?`,
+    a:
+      'We’re building our founding group of practices, and their feedback shapes what we ' +
+      `build next. Founding practices get the whole platform at ${usd(PRICE.rateMonthly)}/mo, and the ` +
+      'rate stays locked for as long as you’re a subscriber — new modules land on the same price.',
   },
   {
     q: 'What does Open Dental access cost on their side?',
@@ -117,40 +190,109 @@ const PRICING_FAQS: Array<{ q: string; a: string }> = [
   },
 ]
 
+export const metadata = {
+  title: 'Pricing — DreamCRM',
+  alternates: { canonical: '/pricing' },
+  description:
+    `One plan, everything included: ${usd(PRICE.rateMonthly)}/mo founding practice rate` +
+    `${PRICE.listMonthly ? ` (regularly ${usd(PRICE.listMonthly)})` : ''}. ` +
+    'Website, booking, portal, messaging, reviews, recall, shop, PMS sync. ' +
+    `Month-to-month, no contract — or annual with 2 months free (${usd(PRICE.rateAnnual)}/year).`,
+}
+
+/**
+ * A section opener in the brand's alignment: the mono eyebrow, a hard-left
+ * heading, an optional lede in the reading column. This is the homepage's
+ * "Honest by default" shape rather than the centred `SectionTitle`, and it is
+ * local to this page on purpose — `SectionTitle` is shared chrome, and
+ * re-pointing it would re-skin eight pages from inside a move that owns one.
+ */
+function SectionOpener({
+  eyebrow,
+  title,
+  lede,
+}: {
+  eyebrow: string
+  title: string
+  lede?: React.ReactNode
+}) {
+  return (
+    <div className="mb-10 max-w-2xl">
+      <Eyebrow>{eyebrow}</Eyebrow>
+      <h2 className="text-[1.7rem] font-bold leading-tight tracking-[-0.02em] text-gray-950 sm:text-[2.1rem]">
+        {title}
+      </h2>
+      {lede && <p className="mt-3 text-[0.98rem] leading-relaxed text-gray-600">{lede}</p>}
+    </div>
+  )
+}
+
 export default function PricingPage() {
   return (
     <>
       <JsonLd data={faqPageLd(PRICING_FAQS)} />
-      <JsonLd data={softwareApplicationLd([{ name: 'DreamCRM', price: 200 }])} />
+      <JsonLd data={softwareApplicationLd([{ name: 'DreamCRM', price: PRICE.rateMonthly }])} />
       <PageHero
         eyebrow="Pricing"
         title="One plan. The whole platform."
         sub="No tiers, no discovery calls, no per-feature add-ons. Everything DreamCRM does, one published price."
       />
 
-      <section className="mx-auto max-w-6xl px-4 py-14 sm:px-6">
-        <PriceCard />
-        <p className="mx-auto mt-6 max-w-xl text-center text-[0.85rem] text-gray-500">
-          Everything below is live in the product today. New modules ship
-          regularly — and land on your plan at no extra cost.
+      {/* ── THE PRICE PANEL, BREAKING THE SEAM ────────────────────────────
+             `BRAND.md` Part 3's grid-break, in the form this page has one: the
+             panel is pulled UP into the hero band's light instead of floating
+             in dead white below it. `relative z-10` is what puts it over the
+             hero — the hero is `relative` at z-auto, so a positioned sibling
+             paints above it without either one needing a z-index war.
+
+             IT COSTS NO CONTRAST. The panel is an opaque `bg-white` card, so
+             every run inside it rides white at its flat ratio no matter what
+             the bloom behind it is doing; the only ink on a decorative layer on
+             this page is still the hero's own, and move 6 re-measured those
+             against THIS page (Part 7). ── */}
+      <section className="relative z-10 mx-auto -mt-4 max-w-6xl px-4 sm:px-6 lg:-mt-10">
+        <PriceCard {...PRICE} />
+        <p className="mt-6 max-w-xl text-[0.9rem] leading-relaxed text-gray-600">
+          Everything below is live in the product today — not a roadmap. New modules
+          ship regularly, and they land on your plan at no extra cost.
         </p>
       </section>
 
-      <section className="border-t border-gray-100 bg-gray-50/70">
-        <div className="mx-auto max-w-5xl px-4 py-16 sm:px-6">
-          <SectionTitle sub="The product's real module list, mirrored one-to-one — nothing hidden behind a sales call, nothing gated behind a bigger plan.">
-            Everything included
-          </SectionTitle>
+      {/* ── THE INVENTORY — the table the language had to survive ───────── */}
+      <section className="mt-16 border-y bg-[#F8FAFF] lg:mt-20" style={{ borderColor: DAY_WIRE }}>
+        <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 lg:py-20">
+          <SectionOpener
+            eyebrow="Everything included"
+            title="The whole product, on one line item"
+            lede="The real module list, mirrored one-to-one — nothing hidden behind a sales call, nothing gated behind a bigger plan."
+          />
           <div className="grid gap-4 sm:grid-cols-2">
             {INCLUDED.map((group) => (
-              <div key={group.group} className="group rounded-xl border border-gray-200 bg-white p-6">
-                <h3 className="flex items-center gap-3 text-[0.78rem] font-bold uppercase tracking-wider text-gray-500">
+              <div
+                key={group.group}
+                className="group rounded-[14px] border bg-white p-6 shadow-[0_1px_4px_-2px_rgb(58_103_217/0.14),0_18px_44px_-34px_rgb(58_103_217/0.45)]"
+                style={{ borderColor: DAY_WIRE }}
+              >
+                <div
+                  className="flex items-center gap-3 border-b pb-4"
+                  style={{ borderColor: DAY_WIRE }}
+                >
                   <ToneTile glyph={group.glyph} size="lg" />
-                  {group.group}
-                </h3>
+                  <h3 className={`min-w-0 text-gray-950 ${MONO_LABEL}`}>{group.group}</h3>
+                  {/* The group's real row count, as a mono numeral. Computed,
+                      so it cannot drift away from the list beneath it the way
+                      a number written in prose does. */}
+                  <p className={`ml-auto shrink-0 text-gray-500 ${MONO_LABEL}`}>
+                    <span aria-hidden="true">{String(group.rows.length).padStart(2, '0')}</span>
+                    <span className="sr-only">{group.rows.length} included</span>
+                  </p>
+                </div>
                 <ul className="mt-4 space-y-2.5">
                   {group.rows.map((row) => (
-                    <li key={row} className="flex items-start gap-3 text-[0.875rem] leading-snug text-gray-700">
+                    <li
+                      key={row}
+                      className="flex items-start gap-3 text-[0.875rem] leading-snug text-gray-700"
+                    >
                       <ToneDash glyph={group.glyph} className="mt-[0.45rem]" />
                       {row}
                     </li>
@@ -162,21 +304,85 @@ export default function PricingPage() {
         </div>
       </section>
 
-      <section className="mx-auto max-w-3xl px-4 py-16 sm:px-6">
-        <SectionTitle>Pricing questions, answered straight</SectionTitle>
-        <div className="space-y-3">
+      {/* ── THE QUESTIONS ────────────────────────────────────────────────── */}
+      {/* Every section on this page is `max-w-6xl`, so every hard-left edge
+          lands on the same column as the hero's headline — Part 1's "precise"
+          is measured alignment now that the drawn grid is vetoed, and a
+          narrower CONTAINER here would have shifted this whole block inward by
+          ~110px at 1440. The reading measure is constrained on the list
+          instead, which is the thing that actually wanted to be narrow. */}
+      <section className="mx-auto max-w-6xl px-4 py-16 sm:px-6 lg:py-20">
+        <SectionOpener
+          eyebrow="Straight answers"
+          title="Pricing questions, answered"
+          lede="Including the ones with an awkward answer. The gaps are marked here for the same reason the price is: you find out before you buy, not after."
+        />
+        <div className="max-w-3xl space-y-2.5">
           {PRICING_FAQS.map((f) => (
-            <details key={f.q} className="group rounded-xl border border-gray-200 px-5 py-4">
-              <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-[0.95rem] font-semibold [&::-webkit-details-marker]:hidden">
+            <details
+              key={f.q}
+              className="group rounded-[14px] border bg-white px-5 py-4 transition-shadow duration-150 ease-out open:shadow-[0_1px_4px_-2px_rgb(58_103_217/0.14),0_18px_44px_-34px_rgb(58_103_217/0.45)]"
+              style={{ borderColor: DAY_WIRE }}
+            >
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-[0.95rem] font-semibold text-gray-950 [&::-webkit-details-marker]:hidden">
                 {f.q}
-                <span className="shrink-0 text-teal-700 transition-transform group-open:rotate-45" aria-hidden="true">+</span>
+                {/* 12px tile, Part 3's small-tile step — the same `teal-50` /
+                    `teal-700` affordance the homepage pillars carry, not a new
+                    recipe. The turn is 200ms ease-out: Part 6's interaction
+                    band, and no spring overshoot, which is the dashboard's
+                    register and reads as bounce here. */}
+                <span
+                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[10px] bg-teal-50 text-[1.05rem] font-bold leading-none text-teal-700 transition-transform duration-200 ease-out group-open:rotate-45"
+                  aria-hidden="true"
+                >
+                  +
+                </span>
               </summary>
               <p className="mt-3 text-[0.9rem] leading-relaxed text-gray-600">{f.a}</p>
             </details>
           ))}
         </div>
-        <div className="mt-10 text-center">
-          <PrimaryCta href="/signup">Start your free trial</PrimaryCta>
+      </section>
+
+      {/* ── THE CLOSE — the page's bookend ────────────────────────────────
+             It opens with a 36px gradient rule under the header and closes
+             with the same mark, so the brand's three hues are the first and
+             last thing on the page. Deliberately NOT a second dark panel: the
+             footer directly below is already `bg-gray-950`, and two dark slabs
+             stacked is what "the light ENDS here" stops being. ── */}
+      <section className="mx-auto max-w-6xl px-4 pb-20 sm:px-6">
+        <div className="max-w-2xl">
+          <div className={`mb-5 flex items-center gap-3 text-teal-700 ${MONO_LABEL}`}>
+            <span
+              className="h-[3px] w-9 shrink-0 rounded-full bg-gradient-to-r from-teal-600 via-violet-700 to-fuchsia-700"
+              aria-hidden="true"
+            />
+            Start today
+          </div>
+          <h2 className="text-[1.9rem] font-extrabold leading-[1.05] tracking-[-0.03em] text-gray-950 sm:text-[2.4rem]">
+            Run it for a week before you decide.
+          </h2>
+          <p className="mt-4 text-[1rem] leading-relaxed text-gray-600">
+            Seven days of the whole platform on your own practice — your website, your
+            booking page, your patients. No card, and nothing to cancel if you walk away.
+          </p>
+          <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+            <PrimaryCta href="/signup">Start your free trial</PrimaryCta>
+            <GhostCta href="/compare">See how we compare</GhostCta>
+          </div>
+          {/* The hero's trust row, arriving on this page: mono, dot separators,
+              no mark at all. Part 3 — "every mark says something", and four
+              tiles here would be four statements the price has already made. */}
+          <div className={`mt-8 flex flex-wrap items-center gap-x-3 gap-y-2 text-gray-600 ${MONO_LABEL}`}>
+            {['7 days free', 'No card to start', `${usd(PRICE.rateMonthly)}/mo after, flat`, 'Month-to-month'].map(
+              (t, i) => (
+                <span key={t} className="flex items-center gap-3">
+                  {i > 0 && <span className="h-1 w-1 rounded-full bg-teal-600" aria-hidden="true" />}
+                  {t}
+                </span>
+              ),
+            )}
+          </div>
         </div>
       </section>
     </>

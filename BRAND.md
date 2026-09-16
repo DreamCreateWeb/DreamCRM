@@ -5,19 +5,20 @@ The binding personality language for the **public marketing site**
 with Dustin Russenberger on DREAMCRM-43 (2026-09-14) and reversed from a night
 hero to light throughout on DREAMCRM-67 (2026-09-15).
 
-> **The fold, the list marks and the CHROME look like this; the subpage BODIES
-> do not yet.** Moves 1–4 have landed: the homepage hero IS the daylight band
-> (DREAMCRM-69), the cinematic spine sits below the ticker (DREAMCRM-70), the
-> tone tiles replaced every check mark (DREAMCRM-71), and the shared chrome —
-> `MarketingHeader`, `MarketingFooter`, `PageHero` — is Daylight Dream
-> (DREAMCRM-72), so all eight subpages already open in the language. **Both
-> owner vetoes are now closed in code at every call site**: `NIGHT_GRID`,
-> `HERO_DOT_GRID` and `CheckIcon` are deleted rather than dormant, and two
-> guards hold each veto at zero by asking the tree instead of trusting this
-> paragraph. Moves 5–6 remain: the decorative-layer grader still takes the
-> wrong extremum, and each subpage's own BODY below its hero still wears the
-> old layout. Where this file and the code disagree, this file is the target
-> and the code is the backlog — and Part 8 says which move closes each gap.
+> **The fold, the list marks, the CHROME and the PRICING page look like this;
+> four subpage bodies do not yet.** Moves 1–5 have landed: the homepage hero IS
+> the daylight band (DREAMCRM-69), the cinematic spine sits below the ticker
+> (DREAMCRM-70), the tone tiles replaced every check mark (DREAMCRM-71), the
+> shared chrome — `MarketingHeader`, `MarketingFooter`, `PageHero` — is Daylight
+> Dream (DREAMCRM-72) so all eight subpages already open in the language, and
+> the decorative-layer grader is re-pointed at the light (DREAMCRM-73). Move 6
+> is in progress: **pricing is done** (DREAMCRM-75), and compare, product, why
+> and resources still wear the old body below their hero. **Both owner vetoes
+> are closed in code at every call site**: `NIGHT_GRID`, `HERO_DOT_GRID` and
+> `CheckIcon` are deleted rather than dormant, and two guards hold each veto at
+> zero by asking the tree instead of trusting this paragraph. Where this file
+> and the code disagree, this file is the target and the code is the backlog —
+> and Part 8 says which move closes each gap.
 
 **Scope boundary.** This file governs the marketing site only. It does not
 touch `app/(default)` / `app/(double-sidebar)` (that is `DESIGN-SYSTEM.md` v3,
@@ -327,6 +328,64 @@ descriptions (2026-09-14, DREAMCRM-43):
       1440 swallows a 390px viewport, which put the eyebrow at **4.42** — a
       real failure, caught by rendering rather than by looking. Proportional
       lobes hold the composition at every width and the worst run is now 5.36.
+
+12. **Move 6 page 1 — pricing, and the four things a table decided that a hero
+    section never would** (DREAMCRM-75, 2026-09-16). The pricing page's BODY is
+    Daylight Dream. It went first because it is the honest test of the
+    direction: a brand book that only works above the fold is a brand book for
+    heroes.
+
+    - **The two-tier list was the temptation, and leaving it alone was the
+      decision.** The 26-row inventory is the quietest thing on a page this
+      move exists to make louder, and the obvious fix — a tile per row — is the
+      identical mark the owner vetoed, just prettier (item 10). So the ROWS did
+      not change at all. What got louder is the group HEADER: a mono
+      micro-label, a `DAY_WIRE` rule under it, and the group's row count as a
+      mono numeral, **computed from `rows.length` rather than typed**. The
+      check-mark census went stale twice as a number in prose; a count that
+      derives itself cannot.
+    - **Hard left is a PAGE property, not a hero property.** `SectionTitle` is
+      centred and it is shared chrome, so this page opens each section with the
+      `Eyebrow` + heading pair the homepage's "Honest by default" section
+      already uses, rather than re-pointing a component eight pages inherit.
+      Alignment then turned out to be measurable: the FAQ block sat in a
+      `max-w-4xl` container while everything above it was `max-w-6xl`, which
+      put its hard-left edge ~110px inside the hero's. Same container, narrower
+      LIST, and Part 1's "precise" is one column down the whole page.
+    - **The grid-break on a page with no product mock is the price panel
+      crossing the section seam.** Part 3's signature move is the mock bleeding
+      off the right edge; pricing has no mock, and inventing one would be
+      decoration. The panel is pulled UP into the hero's light instead of
+      floating in dead white a screen below it. It costs no contrast — the
+      panel is opaque `bg-white`, so every run inside it rides white at its
+      flat ratio whatever the bloom behind it is doing.
+    - **Part 3's radius ladder was being violated in the loudest place on the
+      page and nothing could see it.** The trial button was `rounded-full`, and
+      999px is *reserved* for eyebrow badges and status chips. There is no
+      guard for a radius — `tests/a11y` grades colour and `no-drawn-grid`
+      grades texture — so this is the class of drift only a person reading Part
+      3 against the page will ever catch. The page is now 14px cards, 12px
+      tiles, 10px controls, and its one pill is the two-months-free chip.
+
+    Two more, recorded because they are rules rather than taste:
+
+    - **The FAQ quotes the config too.** Three answers carried the price in
+      PROSE a few hundred pixels below a panel that resolves it, so a reprice
+      would have put two different prices on one page under a heading reading
+      *"answered straight"*. `tests/marketing/pricing-price-source.test.tsx`
+      holds it, and its watched-fail run against the old page settled which
+      half catches what: the source scan saw NOTHING wrong with
+      `price-card.tsx`, because its four numbers had no dollar sign
+      (`const LIST_MONTHLY = 500`) and printed through a template. Only the
+      mocked-plan render caught the file that was most wrong.
+    - **`scripts/decorative-layer-grade.mjs` grades subpages now, and fixing it
+      to do so found a false red in the committed script.** It never scrolled,
+      so `ScrollReveal` left the final CTA panel at `opacity: 0` and its three
+      samples graded the WHITE PAGE behind an invisible panel — 1.00 / 2.63 /
+      1.00. Reproduced against the committed version before it was touched. A
+      false red is the safe direction, and it still makes a run people learn to
+      discount, which for the instrument Part 7 rests on is the same defect
+      wearing a hat. Measured run below.
 
 **Why light is the right answer and not a retreat.** The original case for a
 night band was memorability, and it was a real argument — but the pages that
@@ -1060,6 +1119,47 @@ eventually sit on. Rule 4 grades against white, so it would pass the guard and
 fail the page. That is the 4.18 lesson in its light-ground costume: pin
 `fuchsia-700` and the question never arises.
 
+### The pricing page, measured (DREAMCRM-75 — move 6, page 1)
+
+The same instrument, pointed at a subpage for the first time
+(`scripts/decorative-layer-grade.mjs` now takes a `path` per sample). Method
+unchanged: render, hide the CONTENT, screenshot the decorative layers alone,
+darkest pixel under each RUN OF GLYPHS, grain ON, six frozen phases of
+`mkt-bloom`, worst kept.
+
+| Run | Ink | Worst | 1440 | 834 | 390 | Flat |
+|---|---|---|---|---|---|---|
+| pricing hero eyebrow + rule | `teal-700` | 6.81 | 6.81 | **6.08** | 6.81 | 7.05 |
+| pricing hero headline | `gray-950` | 10.36 | 15.24 | 11.35 | **10.36** | 17.62 |
+| pricing hero sub | `gray-600` | **5.28** | 6.62 | **5.28** | 5.59 | 6.91 |
+
+Worst rendered pair on this page: **5.28**, and everything passes. Three things
+worth carrying to the next four subpages.
+
+- **5.28 is BELOW the DREAMCRM-72 component table's 5.36, and that gap is the
+  whole argument for measuring the PAGE.** `PageHero`'s run was measured on one
+  subpage; the lobes are sized in `vw` but the reading column's LENGTH is each
+  page's own, so a sub that wraps one line further down meets a lobe the
+  component's numbers never met. The component table is not wrong — it is about
+  a component. **Measure every move-6 page; do not inherit a number.**
+- **Nothing below the hero is on a decorative layer, and that is a
+  composition decision rather than a gap in the sweep.** The price panel, the
+  inventory band and the FAQ are all OPAQUE surfaces — `bg-white` or the
+  ticker's `#F8FAFF` — painted over the ground, so no wash reaches their ink
+  and `class-pairs.ts` plus axe grade them correctly from the class strings.
+  Sampling them anyway would have made the run WORSE, not more thorough: the
+  script's own honest limit says hiding a sample's content hides its own
+  background, so it would report the bloom behind an opaque panel and could
+  fail a pair that really rides white at 17.62.
+- **The instrument had a false red and it is fixed.** It never scrolled, so
+  `ScrollReveal` left the homepage's final CTA panel at `opacity: 0` and its
+  three samples graded the white page behind it. `settleReveals` walks the page
+  before measuring, after EVERY load — the first version of the fix settled
+  only after `goto` and the samples stayed red, because two reloads sit between
+  that and the measurement. The evidence it is faithful rather than merely
+  green: every homepage number in the two tables above re-derives exactly,
+  4.62 included.
+
 ### Rule 5 and the tone tiles
 
 Rule 5 (`TONE_FILL`, the solid-fill registry) had **no opinion** about the night
@@ -1265,6 +1365,28 @@ the reduced-motion path in the same PR.
    anything and is in the sample set for the first time.
 6. **Then per page, in this order:** pricing (the honest test of whether the
    language survives a table), compare, product, why, resources.
+
+   - ~~**Pricing**~~ — **LANDED** (DREAMCRM-75, 2026-09-16). Hard-left sections
+     on one `max-w-6xl` column, the price panel breaking the hero's seam,
+     Part 3's radius ladder (the `rounded-full` trial button was the loudest
+     violation left and no guard can see a radius), mono micro-labels on the
+     toggle, the struck list price and the group headers, and the inventory's
+     two-tier shape untouched with its row counts computed. Every price on the
+     page — the panel, the metadata, the JSON-LD and three FAQ answers — now
+     resolves from `getQuotedPlan()`; `tests/marketing/pricing-price-source.test.ts[x]`
+     holds it. Emoji stayed banned (Part 5). Decisions it settled: Part 0 item
+     12. Measured run: Part 7, "The pricing page, measured". Zero horizontal
+     scroll at 390 / 834 / 1440; `marketing: pricing` clean at all three widths
+     in three states each (rest, annual, every FAQ open).
+
+   **What the next four pages inherit from this one.** Three of these cost real
+   time on pricing and none of them is page-specific: SECTION CONTAINERS ALL
+   MATCH (a narrower container for a reading block moves its hard-left edge off
+   the page's column — narrow the LIST, not the container); MEASURE THE PAGE
+   rather than inheriting `PageHero`'s numbers, because the reading column's
+   length is the page's own and the sub is the run with the least headroom; and
+   READ PART 3's RADIUS LADDER against the page, because nothing in CI grades a
+   radius and every one of these pages predates it.
 
 The site is light-only today (zero `dark:` classes under `app/(marketing)`) and
 nothing here changes that. Whether the marketing site ever gets a real dark
