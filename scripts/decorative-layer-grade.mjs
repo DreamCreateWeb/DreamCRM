@@ -89,6 +89,16 @@
  * A sample that does not resolve FAILS the run rather than being skipped — the
  * `deadExclusions` lesson, pointed at this. That is precisely what would have
  * caught the five dead selectors this rewrite found by hand.
+ *
+ * IT GRADES MORE THAN ONE PAGE (DREAMCRM-75, move 6). A sample carries an
+ * optional `path`, defaulting to `/`, and the run walks each page at each
+ * width. Move 4 put `PageHero`'s bloom under reading text on eight subpages,
+ * so "the homepage is where the decorative layers are" stopped being true
+ * three moves before this script could say so — and Part 7's own repeated
+ * lesson is that an instrument nobody can re-run is a number nobody re-checks.
+ * The homepage's samples, filenames and numbers are untouched by the change,
+ * which is what makes the homepage half of any run a regression check on the
+ * change itself.
  */
 import { chromium } from '@playwright/test'
 import { writeFileSync } from 'node:fs'
@@ -241,16 +251,85 @@ const SAMPLES = [
     ink: '#ffffff',
     ground: '#10182e',
   },
+
+  /* ── THE SUBPAGES (`BRAND.md` Part 8 move 6) ───────────────────────────
+     `PageHero` paints `DaylightSky variant="page"` on all eight of them, so
+     every subpage has ink on a decorative layer whether or not its body has
+     been touched yet. The DREAMCRM-72 table measured that component; these
+     measure it on the PAGE, which is a different claim: the bloom is sized in
+     `vw` and the reading column's LENGTH is the page's own, so a longer
+     headline wraps to a line the lobe reaches and the component's numbers do
+     not know that. Move 6 adds one page's runs as it lands.
+
+     WHAT IS DELIBERATELY NOT SAMPLED ON PRICING: the price panel, the module
+     inventory and the FAQ. Every one of them is an OPAQUE surface painted over
+     the ground — `bg-white` or `#F8FAFF` — so no wash reaches their ink, and
+     the script's own honest limit at the top of this file says what would
+     happen if they were listed anyway: hiding a sample's content hides its own
+     background too, so it would report the bloom BEHIND the panel and could
+     fail a pair that really rides white at 17.62. Conservative is the right
+     direction for an instrument to be wrong in; it is not a reason to point it
+     at something it cannot see. */
+  {
+    label: 'pricing hero eyebrow (teal-700)',
+    path: '/pricing',
+    region: 'hero',
+    selector: `${HERO} div.mkt-enter.mb-5`,
+    ink: '#2f52b3',
+    ground: '#ffffff',
+  },
+  {
+    label: 'pricing hero headline (gray-950)',
+    path: '/pricing',
+    region: 'hero',
+    selector: `${HERO} h1.mkt-d1`,
+    ink: '#10182e',
+    ground: '#ffffff',
+  },
+  {
+    label: 'pricing hero sub (gray-600)',
+    path: '/pricing',
+    region: 'hero',
+    selector: `${HERO} p.mkt-d2`,
+    ink: '#4c5a78',
+    ground: '#ffffff',
+  },
 ]
+
+/**
+ * WHICH PAGE EACH SAMPLE LIVES ON — `path`, defaulting to the homepage.
+ *
+ * Added for move 6 (DREAMCRM-75). Before it this script hard-coded `/`, which
+ * was right while the only decorative layers on the site were the homepage's;
+ * `PageHero`'s bloom put a wash under reading text on eight more pages on
+ * DREAMCRM-72, and an instrument that cannot be pointed at them is an
+ * instrument nobody re-runs — which is the failure mode Part 7 records this
+ * script as the answer to.
+ *
+ * The homepage's own samples and filenames are UNCHANGED, on purpose: Part 7's
+ * table is what this run re-derives, and a rename would have made "did the
+ * numbers move?" unanswerable in the same commit that widened the field of
+ * view.
+ */
+const pathOf = (s) => s.path ?? '/'
+const PAGES = [...new Set(SAMPLES.map(pathOf))]
+/** `/` keeps the bare filenames Part 7's evidence shots already use. */
+const slugOf = (path) => (path === '/' ? '' : `${path.replace(/^\/|\/$/g, '').replace(/\W+/g, '-')}-`)
 
 /** Derived, never declared: the ink's polarity against its own flat ground. */
 const extremumFor = (s) => (luminance(hex(s.ink)) < luminance(hex(s.ground)) ? 'darkest' : 'brightest')
 
 // Samples are keyed by `label`, not by selector: the headline's gradient is one
 // element graded as two runs, so a selector is no longer a unique name.
-const HIDE_CONTENT = [...new Set(SAMPLES.map((s) => s.selector))]
-  .map((selector) => `${selector} { visibility: hidden !important; }`)
-  .join('\n')
+//
+// Built per PAGE rather than once. Two pages share the `section:has(.mkt-bloom)`
+// anchor with different descendants, so a global hide list would reach across
+// them — harmless today, and exactly the kind of "it happened to still work"
+// that goes wrong the first time two pages share a class.
+const hideContentFor = (list) =>
+  [...new Set(list.map((s) => s.selector))]
+    .map((selector) => `${selector} { visibility: hidden !important; }`)
+    .join('\n')
 /**
  * Freeze every animation, then put the bloom at one chosen phase of its loop.
  * A negative `animation-delay` on a paused animation is how you address a
@@ -261,6 +340,52 @@ const freezeAt = (phase) => `
   .mkt-bloom { animation-delay: -${phase}s !important; }
 `
 
+/**
+ * SETTLE THE SCROLL REVEALS — and it must run after EVERY load, not once.
+ *
+ * Found on DREAMCRM-75, reproduced against the committed script before this
+ * was written: `components/clinic-site/scroll-reveal.tsx` renders every
+ * below-the-fold section at `opacity: 0` until an IntersectionObserver fires,
+ * and this script never scrolled. So whether the final CTA panel had been
+ * PAINTED AT ALL when it was graded came down to whether one of the `fullPage`
+ * screenshots happened to trip the observer first — and when it did not, all
+ * three CTA samples graded the WHITE PAGE behind an invisible panel and
+ * reported 1.00 / 2.63 / 1.00.
+ *
+ * That is a FALSE RED, which is the only direction an instrument like this is
+ * allowed to be wrong in — it can never pass a failing pair. It is still a
+ * defect, because a script whose whole argument is "an instrument nobody
+ * re-runs is a number nobody re-checks" cannot afford a run people learn to
+ * discount. Walking the page the way a reader does makes it deterministic.
+ *
+ * WHY IT IS A FUNCTION RATHER THAN A LINE AFTER `goto`. The run reloads twice
+ * between the first load and the measurement — once for the reduced-motion
+ * evidence shot and once to come back — and a reload resets every reveal to
+ * `pre`. The first version of this fix settled only after `goto`, and the CTA
+ * samples still reported 1.00: the whole point was two reloads downstream of
+ * it. Both call sites are load-bearing, so both are named.
+ *
+ * Rects are recorded in PAGE coordinates (`+ window.scrollY`) and every clip is
+ * `fullPage`, so returning to the top leaves every later step unchanged. The
+ * cinematic spine is safe to walk through: Part 6 derives it from one scroll
+ * position with nothing queued, so scrolling back to 0 returns it to rest —
+ * which is the state the hero samples are measured in, and the homepage's
+ * numbers re-deriving to Part 7's table is the evidence that it does.
+ */
+const settleReveals = async (page) => {
+  await page.evaluate(async () => {
+    const step = Math.round(window.innerHeight * 0.75)
+    for (let y = 0; y < document.body.scrollHeight; y += step) {
+      window.scrollTo(0, y)
+      await new Promise((r) => setTimeout(r, 90))
+    }
+    window.scrollTo(0, 0)
+  })
+  // The reveal's own transition is 700ms; measuring mid-fade measures a blend,
+  // which is the thing this step exists to stop doing.
+  await page.waitForTimeout(900)
+}
+
 const regionsOf = (list) => [...new Set(list.map((s) => s.region))]
 
 const browser = await chromium.launch()
@@ -269,24 +394,35 @@ let worst = Infinity
 let failed = false
 let anyPhaseMoved = false
 
-for (const width of WIDTHS) {
+// The page loop wraps the width loop at ONE space of indent rather than
+// re-indenting the 180 lines inside it. That is deliberate: this file's value
+// is that its every choice is readable and argued, and a whole-body reindent
+// would have hidden a four-line change inside a diff nobody could review.
+for (const pagePath of PAGES) {
+ const PAGE_SAMPLES = SAMPLES.filter((s) => pathOf(s) === pagePath)
+ const slug = slugOf(pagePath)
+ const HIDE_CONTENT = hideContentFor(PAGE_SAMPLES)
+ for (const width of WIDTHS) {
   const page = await browser.newPage({ viewport: { width, height: 1000 }, deviceScaleFactor: 2 })
-  await page.goto(`${BASE}/`, { waitUntil: 'networkidle' })
+  await page.goto(`${BASE}${pagePath}`, { waitUntil: 'networkidle' })
   // Entrance animations are opacity fades; measuring mid-fade measures a blend
   // (the lesson `e2e/axe.ts`'s settleAnimations note records).
   await page.waitForTimeout(3500)
 
+  await settleReveals(page)
+
   /* ── 1. the screenshots a person looks at ─────────────────────────────── */
-  await page.screenshot({ path: `${OUT}/hero-${width}.png`, clip: { x: 0, y: 0, width, height: 1000 } })
+  await page.screenshot({ path: `${OUT}/${slug}hero-${width}.png`, clip: { x: 0, y: 0, width, height: 1000 } })
   // `.boundingBox()` AUTO-WAITS, so a dead selector here hangs 30s and throws
   // a Playwright stack trace BEFORE the report is written — you learn that
   // something broke and not which samples went dark. That is the wrong failure
   // for the one defect this script exists to survive, so the evidence shot asks
   // whether the element is there and lets the grade below do the reporting.
-  const ctaBox = (await page.$(CTA)) ? await page.locator(CTA).first().boundingBox() : null
+  const wantsCta = PAGE_SAMPLES.some((s) => s.region === 'cta')
+  const ctaBox = wantsCta && (await page.$(CTA)) ? await page.locator(CTA).first().boundingBox() : null
   if (ctaBox) {
     await page.screenshot({
-      path: `${OUT}/cta-panel-${width}.png`,
+      path: `${OUT}/${slug}cta-panel-${width}.png`,
       fullPage: true,
       clip: { x: 0, y: Math.max(0, ctaBox.y - 16), width, height: ctaBox.height + 32 },
     })
@@ -294,10 +430,16 @@ for (const width of WIDTHS) {
   await page.emulateMedia({ reducedMotion: 'reduce' })
   await page.reload({ waitUntil: 'networkidle' })
   await page.waitForTimeout(1200)
-  await page.screenshot({ path: `${OUT}/hero-${width}-reduced-motion.png`, clip: { x: 0, y: 0, width, height: 1000 } })
+  await page.screenshot({
+    path: `${OUT}/${slug}hero-${width}-reduced-motion.png`,
+    clip: { x: 0, y: 0, width, height: 1000 },
+  })
   await page.emulateMedia({ reducedMotion: 'no-preference' })
   await page.reload({ waitUntil: 'networkidle' })
   await page.waitForTimeout(3500)
+  // The reload above reset every `ScrollReveal` to `opacity: 0`, and THIS is
+  // the load every number below is measured from. See `settleReveals`.
+  await settleReveals(page)
 
   /* ── 2. where the ink actually is ─────────────────────────────────────── */
   // One rect per LINE of text, not the block's box, and every element the
@@ -332,7 +474,7 @@ for (const width of WIDTHS) {
       if (found.length) out[key] = found
     }
     return out
-  }, SAMPLES.map(({ label, selector, exclude, xSpan }) => ({ key: label, selector, exclude: exclude ?? null, xSpan: xSpan ?? null })))
+  }, PAGE_SAMPLES.map(({ label, selector, exclude, xSpan }) => ({ key: label, selector, exclude: exclude ?? null, xSpan: xSpan ?? null })))
 
   /* ── 3. hide the content, sweep the bloom's loop ──────────────────────── */
   // Everything below the fold is measured with a `fullPage` clip per region:
@@ -347,8 +489,8 @@ for (const width of WIDTHS) {
 
   /** Region clip = the union of that region's own text rects, padded. */
   const clips = {}
-  for (const region of regionsOf(SAMPLES)) {
-    const list = SAMPLES.filter((s) => s.region === region).flatMap((s) => rects[s.label] ?? [])
+  for (const region of regionsOf(PAGE_SAMPLES)) {
+    const list = PAGE_SAMPLES.filter((s) => s.region === region).flatMap((s) => rects[s.label] ?? [])
     if (!list.length) continue
     const x0 = Math.max(0, Math.floor(Math.min(...list.map((r) => r.x)) - 4))
     const y0 = Math.max(0, Math.floor(Math.min(...list.map((r) => r.y)) - 4))
@@ -366,9 +508,9 @@ for (const width of WIDTHS) {
     for (const [region, clip] of Object.entries(clips)) {
       const shot = await page.screenshot({ fullPage: true, clip })
       if (phase === PHASES[0]) {
-        await page.screenshot({ path: `${OUT}/decorative-layers-${region}-${width}.png`, fullPage: true, clip })
+        await page.screenshot({ path: `${OUT}/${slug}decorative-layers-${region}-${width}.png`, fullPage: true, clip })
       }
-      const members = SAMPLES.filter((s) => s.region === region && rects[s.label])
+      const members = PAGE_SAMPLES.filter((s) => s.region === region && rects[s.label])
       const boxes = Object.fromEntries(members.map((s) => [s.label, rects[s.label]]))
       const modes = Object.fromEntries(members.map((s) => [s.label, extremumFor(s)]))
       const hits = await probe.evaluate(
@@ -429,8 +571,9 @@ for (const width of WIDTHS) {
   if (Object.keys(moved).length) anyPhaseMoved = true
 
   /* ── 4. the grade ─────────────────────────────────────────────────────── */
-  report.push('', `── ${width}px ${'─'.repeat(Math.max(0, 62 - String(width).length))}`)
-  for (const s of SAMPLES) {
+  const heading = `${pagePath}  ${width}px`
+  report.push('', `── ${heading} ${'─'.repeat(Math.max(0, 62 - heading.length))}`)
+  for (const s of PAGE_SAMPLES) {
     const hit = found[s.label]
     // A sample that did not resolve is a FAILURE of the instrument, not a pass.
     if (!hit) {
@@ -447,6 +590,7 @@ for (const width of WIDTHS) {
     )
   }
   await page.close()
+ }
 }
 
 report.push('')

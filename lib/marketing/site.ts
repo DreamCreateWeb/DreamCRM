@@ -10,6 +10,22 @@ export const MARKETING = {
   tagline: 'The front-office platform for dental practices',
 } as const
 
+/**
+ * The site's one money formatter.
+ *
+ * It lives HERE rather than beside either caller because the pricing page
+ * spans the server/client boundary: `page.tsx` renders the FAQ prose, the
+ * metadata and the JSON-LD on the server, and `price-card.tsx` re-formats on
+ * every toggle in the browser. Exporting it from the `'use client'` card and
+ * calling it from the page builds clean and then fails at collection with
+ * "Attempted to call usd() from the server but usd is on the client" — caught
+ * by `pnpm build`, which the vitest suite structurally cannot see (happy-dom
+ * has no boundary). A neutral module is the only home that serves both, and
+ * two local copies would be two answers to "how do we write a price" on the
+ * one page that exists to have a single answer about price.
+ */
+export const usd = (n: number) => `$${n.toLocaleString('en-US')}`
+
 const SITE_DOMAIN = process.env.NEXT_PUBLIC_SITE_DOMAIN ?? 'dreamcreatestudio.com'
 
 /**
