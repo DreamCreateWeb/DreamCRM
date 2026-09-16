@@ -1581,6 +1581,78 @@ heading).
 
 Same lane and same hand-off as the entry above — UI correctness, Vesper. · OPEN
 
+### Open — the Dream Create wordmark is invisible to every dark-OS visitor (found 2026-09-16)
+
+**S2 · marketing site · WCAG 1.4.3, and it is the company lockup on every
+page.** Found by the both-themes check on DREAMCRM-72 (Daylight Dream move 4),
+which re-skinned the header around this without touching the logo — **the
+defect is pre-existing and unrelated to that change**, isolated below rather
+than assumed.
+
+**Measured, as rendered** (Playwright, production build, `/why` at 1440):
+
+| Probe | `prefers-color-scheme: light` | `prefers-color-scheme: dark` |
+|---|---|---|
+| `<html>` class | `… light` | `… dark` |
+| wordmark computed `color` | `rgb(16, 24, 46)` | **`rgb(255, 255, 255)`** |
+| the ground it rides | `#ffffff` | `#ffffff` |
+| contrast | 17.62 | **1.00** |
+
+**The element:** `components/brand/dream-create-logo.tsx:121` and `:149` —
+`restClassName="text-[--brand-ink,#22304E] dark:text-white"`. The marketing
+layout forces a light page (`app/(marketing)/layout.tsx`, `bg-white
+text-gray-950`, zero `dark:` classes anywhere under `app/(marketing)`), but
+`next-themes` still puts `.dark` on `<html>` from the OS preference — so the
+wordmark's `dark:` half fires on a ground that never went dark. White on white.
+The bubble MARK still paints (it has its own gradient fill), so what a
+dark-OS visitor sees is the "D" alone with the words gone.
+
+**Why no guard caught it, which is the transferable part.**
+`tests/a11y/dark-mode-parity.test.ts` exists for exactly this shape — a
+`dark:text-*` with no `dark:bg-*` beside it — and it declined here because the
+LIGHT half is `text-[--brand-ink,#22304E]`, an arbitrary CSS-var value rather
+than a `text-<ramp>-<step>` the resolver can grade. A false negative in the
+documented direction, on the one element where the pair is 1.00.
+
+**The footer already works around it**, which is how long this has been true
+without being seen: `MarketingFooter` passes
+`wordmarkClassName="text-white [--brand-ink:#fff]"` with a comment explaining
+that the footer is dark in both themes. Somebody hit this pair from the other
+side, patched their own call site, and the header kept the bug.
+
+**Not fixed here on purpose** (§10): a fix has to choose between changing the
+shared `components/brand/` component — which also renders on the dashboard, the
+auth shell and the portal chrome, all outside the marketing lane — and scoping
+the override to the marketing header the way the footer did. That choice
+belongs to whoever owns those surfaces. UI correctness, Vesper. · OPEN
+
+### Open — the cinema stage carries two sub-12px literals at reading size (found 2026-09-16)
+
+**S3 · marketing site · `BRAND.md` Part 4.** Part 4 sets a 12px floor for this
+site — *"No `text-[11px]`, no sub-0.75rem literals"* — and
+`components/marketing/cinematic-spine.tsx:609` and `:621` render
+`text-[0.72rem]` = **11.52px** on the avatar initials and the status chips
+inside `CinemaStage`.
+
+**Why it is a defect rather than a mock at 7px.** `BRAND.md` Part 7 is explicit
+that the cinema stage is the one illustration on this site NOT covered by
+`DECORATIVE_MOCKS` in `e2e/axe.ts`, precisely because it is the product at full
+bleed and its type is real reading size — that is the argument the whole
+section is built on. A run below the site's own floor is inside the surface
+that argument applies to.
+
+**Why nothing catches it:** `tests/a11y/legibility-floor.test.ts` skips
+`components/marketing` wholesale, because the product mocks in that directory
+imitate a real screen at 7px. DREAMCRM-72 closed that gap for the shared chrome
+only (`tests/marketing/chrome-legibility.test.ts` grades the header, the footer
+and `PageHero` by component), and deliberately did not widen to the spine —
+scoping a floor to a surface that scales under a scroll-driven transform is a
+different instrument from listing three components.
+
+**Not fixed here on purpose:** it is the move-2 surface and move 4's diff is
+the chrome. Same lane (Daylight Dream), so it is not a hand-off — it belongs to
+move 5 or move 6. · OPEN
+
 ### R1 · S8 sweep — Compliance & data (2026-08-17)
 
 One finder produced the written posture assessment now in **`docs/COMPLIANCE.md`**

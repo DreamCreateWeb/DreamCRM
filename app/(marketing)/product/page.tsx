@@ -240,7 +240,7 @@ export default function ProductPage() {
         title="One system for the whole front office, zero copy-paste between the parts"
         sub="Because it's one product, the modules compound: a website lead becomes a patient record, the patient gets a portal, the visit triggers a review request, the recall campaign knows who's overdue, and the front desk sees all of it on one morning screen — automatically."
       >
-        <div className="flex flex-wrap justify-center gap-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
           <PrimaryCta href="/signup">Start your free trial</PrimaryCta>
           <GhostCta href={DEMO_URL} external>
             Browse the demo practice ↗
