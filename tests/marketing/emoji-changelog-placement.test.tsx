@@ -21,7 +21,11 @@ vi.mock('@/lib/marketing/changelog', async (importOriginal) => {
     weekOf,
     title,
     summary: `Summary for ${title}.`,
-    items: [{ kind: 'new' as const, title: `${title} item`, body: 'Body copy.' }],
+    // `glyph` is required on a ChangelogItem since move 6 page 6 — the tone
+    // tile carries the SUBJECT now that the kind carries only the word.
+    items: [
+      { kind: 'new' as const, glyph: 'calendar' as const, title: `${title} item`, body: 'Body copy.' },
+    ],
   })
   return {
     ...actual,
