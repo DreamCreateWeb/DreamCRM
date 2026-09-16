@@ -354,10 +354,54 @@ export const GATE_RULES = [
  *     each and change nothing for anybody else.
  *
  * `tests/guards/review-gate.test.ts` closes the hole a path list cannot: a
- * BRAND-NEW scanner file matches no pattern here, so the guard derives the set
- * from the tree — anything under `tests/**` or `e2e/**` that walks `app/`,
- * `components/` or `lib/` must appear on this list, and fails `test` by name on
- * the day it arrives. That is the direction #566 got through.
+ * BRAND-NEW guard file matches no pattern here, so the guard DERIVES the set
+ * from the tree and fails `test` by name on the day one arrives. That is the
+ * direction #566 got through. There are THREE derivations, and each keys on
+ * something that MEANS "repo-wide fact by construction" rather than on "reads
+ * another file" — §2 has twice refused the latter, because it describes most of
+ * an 8,000-test suite and a queue catching a third of all PRs gets routed
+ * around:
+ *
+ *   1. IT READS SOURCE IT DID NOT NAME. A suite file that walks a directory
+ *      (`readdirSync` / `git ls-files`) and names a product root — `'app'`,
+ *      `'components'`, `'lib'`, or one of their top-level divisions such as
+ *      `'app/(marketing)'` — is grading every file under a tree, including the
+ *      ones written after it.
+ *   2. IT GRADES THE PALETTE. `tests/a11y/palette.ts` is the one place this
+ *      repo resolves its own colours and computes AA, so a rule built on it is
+ *      a rule about every colour in the product whether or not it opens a
+ *      directory (#598).
+ *   3. IT NAVIGATES PAGES IT DID NOT NAME (DREAMCRM-81). A browser-driven spec
+ *      reads no source at all, so both predicates above correctly return false
+ *      about it while it asserts about a whole site — which is why
+ *      `e2e/marketing-viewport.spec.ts` had to be registered by hand. The
+ *      mechanical evidence is the PAGE LIST: a Playwright spec that expands a
+ *      product ROUTE REGISTRY (`COMPARISONS`, `DOCS`, …) into the paths it
+ *      visits covers pages nobody typed, including the ninth comparison added
+ *      next month. A spec that types its stops covers exactly those stops.
+ *
+ * WHAT THE THREE STILL DO NOT COVER, stated here rather than only in the test,
+ * because this comment is what the rulebook entry gets written from (Sentinel,
+ * #617):
+ *
+ *   - A browser-driven guard whose page list is TYPED rather than derived.
+ *     That is deliberate and it is the whole discrimination in rule 3:
+ *     `e2e/smoke.spec.ts` loops four hand-written paths and must stay silent.
+ *     A hand-typed list that grows to cover a whole site is invisible here.
+ *   - A spec that discovers its pages at RUNTIME — crawling links, reading a
+ *     sitemap over HTTP — imports no registry and matches nothing.
+ *   - A browser-driven guard that does not import `@playwright/test` (a raw
+ *     `chromium.launch()` script). None exists; `playwright.config.ts` is on
+ *     the REVIEW gate above, so the harness itself is watched either way.
+ *   - Rule 3 says nothing about WHAT the spec asserts. A derived-list spec
+ *     that checks one trivial thing still matches. Intake is a sentence on an
+ *     issue; a false positive costs that sentence and nothing else.
+ *   - Rule 1 matches a product root or one of its top-level divisions, NOT a
+ *     module path any depth down. `'lib/db/migrations'` and
+ *     `'lib/services/demo-clinic'` are named modules, and a file that names
+ *     what it reads is the bounded case this list is not for. The boundary is
+ *     one segment, and a segment carrying an extension (`'lib/read-checks.ts'`)
+ *     is a named FILE and never a root.
  */
 export const INTAKE_RULES = [
   {
@@ -504,6 +548,64 @@ export const INTAKE_RULES = [
       // its list is not graded, which is why a premise assertion fails loudly
       // on a rename instead of quietly scanning nothing.
       'tests/marketing/chrome-legibility.test.ts',
+      // ── THE TEN THE FIXED TREE-WALK DERIVATION FOUND (DREAMCRM-81) ──────
+      //
+      // None of these is new. Every one has been walking a product tree for
+      // weeks while `PRODUCT_ROOT` required a BARE quoted root and they all
+      // name a top-level division of one — `'app/(portal)'`, `'app/site'`,
+      // `'components/clinic-site'`, `'lib/services'`, `'app/(default)'`. To a
+      // regex, a subdirectory of a product root was not the product root, so
+      // the derivation read every one of them and matched zero times. Fixing
+      // the regex at a path boundary is what put them on this list; they are
+      // registered here on the merits, not because the fix swept them in.
+      //
+      // Read the group as ONE class, not ten: **a guard that holds an entire
+      // PERSONA TREE at zero for a convention.** Three personas are covered —
+      // the patient portal, the public clinic site, the staff app — plus the
+      // services layer and the chart kit. Each fails `test` for a stranger who
+      // writes an ordinary line in the wrong tree, which is the intake test
+      // exactly ("changes what everyone else can merge").
+      //
+      // WHAT THEY DO NOT COVER, here rather than only in their docblocks:
+      // every one is keyed on a SCAN_DIRS list, so a persona tree that grows a
+      // new top-level directory is ungraded until somebody adds it — the #615
+      // field-of-view shape, live in ten files at once. None of them grades
+      // `app/(marketing)`, which is the tone-tile and drawn-grid rules' tree.
+      //
+      // The portal: no dimmed ink, no raw meaning-hexes, brand tokens single-
+      // homed. Walks `app/(portal)` + `components/patient-portal`.
+      'tests/a11y/portal-brand.test.ts',
+      'tests/a11y/portal-ink-opacity.test.ts',
+      'tests/a11y/portal-tokens.test.ts',
+      // The public clinic site: the brand is never raw ink on text, never a
+      // `var()` with an alpha suffix glued on, never an unresized camera
+      // original, and its tokens are single-homed. Walks `app/site` +
+      // `components/clinic-site` (and, for the wash rule,
+      // `components/patient-portal` as well).
+      'tests/a11y/site-tokens.test.ts',
+      'tests/clinic-site/brand-as-text.test.ts',
+      'tests/clinic-site/brand-fill.test.ts',
+      'tests/clinic-site/brand-wash.test.ts',
+      'tests/clinic-site/site-image.test.ts',
+      // The services layer — the journey spine's ledger rules, walked across
+      // all of `lib/services` (190 files). The widest scan on this list.
+      'tests/journey/spine.test.ts',
+      // The staff app's charts: every chart in `app/(default)`,
+      // `app/(double-sidebar)` and `components/ui` comes from the kit rather
+      // than being hand-rolled. `components/ui/charts/` is exempt by
+      // construction, being the kit itself.
+      'tests/ui/chart-kit.test.tsx',
+      // The a11y harness every browser-driven spec calls (#534). Registered BY
+      // HAND and said so plainly: it neither reads source nor navigates, so no
+      // derivation above can see it, and nothing would have flagged the axe
+      // ratchet for the rulebook — the founding example of an intake owed for
+      // a new class inside an existing required check. It holds
+      // `expectNoA11yViolations`, the exclusion list and the baseline wiring,
+      // so an edit here re-grades every page every spec opens. It is already
+      // on the REVIEW gate above under `check-definitions`; a PR touching it
+      // owes both obligations, which is not a contradiction — one adds a
+      // reviewer, the other adds a sentence on an issue.
+      'e2e/axe.ts',
       // The remaining tree-wide scanners, each holding the product at zero for
       // one convention. Derived from the tree by the guard test, not recalled.
       // A NEW CLASS rather than another instance of an existing one: it holds

@@ -139,6 +139,269 @@ describe('the import resolver both derivations share', () => {
   })
 })
 
+/**
+ * A PRODUCT ROOT, MATCHED AT A PATH BOUNDARY RATHER THAN AT A CLOSING QUOTE.
+ *
+ * The shipped version was `/(^|[^\w])'(app|components|lib)'/`, and to that regex
+ * **a SUBDIRECTORY of a product root is not the product root.** Three tree-wide
+ * marketing guards name `'app/(marketing)'`, `'components/marketing'` and
+ * `'lib/marketing'`, so they matched it ZERO times while reading every source
+ * file under roots they never named:
+ *
+ *   grep -cE "(^|[^\w])'(app|components|lib)'" tests/marketing/tone-tiles.test.ts    # 0
+ *   grep -cE "(^|[^\w])'(app|components|lib)'" tests/marketing/no-drawn-grid.test.ts # 0
+ *
+ * All three were on the intake list anyway, and all three for the same
+ * accidental reason: they import `ROOT` from `tests/a11y/palette` for a PATH
+ * CONSTANT, which trips the palette derivation below by luck rather than on the
+ * merits. **Write `const ROOT = process.cwd()` instead** — one line, no
+ * behaviour change, nothing a reviewer would stop on — and before this fix a
+ * brand-new tree-wide rule matched NEITHER derivation and was told on the job
+ * summary that it merged on green owing nothing. That is #566's shape exactly,
+ * one directory down (Forge's gate sweep, #617/#618).
+ *
+ * ── WHERE THE BOUNDARY IS, AND WHY IT IS NOT "ANY DEPTH" ────────────────────
+ *
+ * One segment, and a segment carrying an extension does not count.
+ *
+ *   'app'                     ✓ the root itself
+ *   'app/(marketing)'         ✓ a route group — a whole site
+ *   'components/clinic-site'  ✓ a persona's component tree
+ *   'lib/services'            ✓ 190 files
+ *   'lib/db/migrations'       ✗ a named module, two levels down
+ *   'lib/read-checks.ts'      ✗ a named FILE — the bounded case this is not for
+ *
+ * Measured rather than argued, because #609's lesson applies to this fix as
+ * much as to what it is fixing. Against the tree at the time: the bare-root
+ * version derived 27 scanners; one segment derives 40; any depth derives 50 and
+ * sweeps in six guards that name exactly what they read — `app/api/cron`,
+ * `lib/services/demo-clinic`, `lib/db/schema`. A file that names what it reads
+ * is the bounded reader §2 keeps refusing to sweep in, and widening until a
+ * third of the suite matches is how a queue gets routed around.
+ */
+export const PRODUCT_ROOT_RE = /(^|[^\w])'(app|components|lib)(\/[^'/.]+)?'/
+
+describe('the product-root match, in both directions', () => {
+  // THE RED RUN §2d OWES THIS FIX (#609's lesson, applied to its own remedy).
+  // An absence assertion over a clean tree cannot tell a working detector from
+  // a narrowed one, so both directions are planted here.
+  const MUST_MATCH: Array<[string, string]> = [
+    ['the bare root, unchanged', "const ROOT = join(process.cwd(), 'app')"],
+    ['a route group — the #617 miss', "const SCAN_DIRS = ['app/(marketing)', 'components/marketing']"],
+    ['a component subtree — the #618 miss', "const ROOTS = ['components/marketing', 'lib/marketing']"],
+    ['a persona tree', "const SCAN_DIRS = ['app/(portal)', 'components/patient-portal']"],
+    ['the services layer', "const dir = join(ROOT, 'lib/services')"],
+    ['a parenthesised group with a dash', "walk(join(ROOT, 'app/(double-sidebar)'))"],
+  ]
+
+  it.each(MUST_MATCH)('counts %s as a product root', (_why, source) => {
+    expect(PRODUCT_ROOT_RE.test(source)).toBe(true)
+  })
+
+  // THE DIRECTION THE WIDENING COULD RUIN. Each of these NAMES what it reads,
+  // which is the bounded case the intake list exists not to sweep in.
+  const MUST_NOT_MATCH: Array<[string, string]> = [
+    ['a named file one level down', "readFileSync(resolve(process.cwd(), 'lib/read-checks.ts'), 'utf8')"],
+    ['a named file two levels down', "readFileSync(join(ROOT, 'lib/services/patient-journey.ts'), 'utf8')"],
+    ['a module path two levels down', "const MIG_DIR = resolve(process.cwd(), 'lib/db/migrations')"],
+    ['a feature directory two levels down', "const dir = join(process.cwd(), 'app/api/cron')"],
+    ['a root that is merely a word inside one', "const label = 'applications'"],
+    ['a root spelled as part of a longer identifier', "const x = myapp'"],
+    ['some other top-level directory', "const dir = join(ROOT, 'docs')"],
+    ['a root reached through a variable rather than quoted', 'const dir = join(ROOT, productRoot)'],
+  ]
+
+  it.each(MUST_NOT_MATCH)('leaves %s alone', (_why, source) => {
+    expect(PRODUCT_ROOT_RE.test(source)).toBe(false)
+  })
+})
+
+/**
+ * THE THIRD DERIVATION: A GUARD THAT DRIVES A BROWSER (DREAMCRM-81).
+ *
+ * The two derivations below this one decide "repo-wide fact by construction" by
+ * looking at what a suite file READS OFF DISK — one wants `readdirSync` or
+ * `'ls-files'` plus a product root, the other wants an import of
+ * `tests/a11y/palette.ts`. **A Playwright spec reads no source at all.** It
+ * opens pages and measures the rendered result, so every source-reading
+ * predicate correctly returns false about it while it asserts about every
+ * marketing page at once.
+ *
+ * This is NOT a field-of-view gap and the difference decides the fix. Both
+ * derivations already enumerate `e2e/` — each filters `trackedFiles()` by
+ * `/^(tests|e2e)\/.*\.tsx?$/` — so these files are inside the population and
+ * invisible to the predicates. Measured across all nineteen tracked `e2e/*.ts`
+ * files at the time, `WALKS` matched zero times and `PRODUCT_ROOT` matched zero
+ * times. Widening the product-root match above does nothing for this shape.
+ *
+ * ── WHAT IT KEYS ON, AND WHY THAT MEANS SOMETHING ──────────────────────────
+ *
+ * **The page list, not the assertion.** A spec is site-wide when it visits
+ * pages NOBODY TYPED: `e2e/marketing-viewport.spec.ts` expands `COMPARISONS`,
+ * `DOCS` and `RESOURCE_GUIDES` — the same registries the routes' own
+ * `generateStaticParams` reads — into its stops, so a ninth comparison is
+ * covered the day it is added rather than the day somebody remembers the spec.
+ * That is the identical logical shape as rule 1 one surface over: reading
+ * source it did not name becomes navigating pages it did not name.
+ *
+ * So the evidence is mechanical, on the same terms as the `@/lib/stripe` test:
+ * imports `@playwright/test`, calls `.goto(`, and EXPANDS a binding imported
+ * from `app/`, `components/` or `lib/` into a collection.
+ *
+ * ── WHY NOT "ITERATES A ROUTE COLLECTION" ──────────────────────────────────
+ *
+ * Because it catches `e2e/smoke.spec.ts`, which loops four hand-written paths
+ * (`PROTECTED = ['/dashboard', '/patients', '/appointments', '/settings']`)
+ * through `page.goto(path)` and is a bounded journey spec by anybody's reading.
+ * Nineteen innocents are sitting in `e2e/` and that one is the sharpest; a
+ * criterion that reddens it is the "208 places to catch 8" trade §2 keeps
+ * refusing.
+ *
+ * ── WHAT IT DOES NOT COVER ─────────────────────────────────────────────────
+ *
+ * Stated here AND beside the entry in `scripts/review-gate.mjs`, per Sentinel's
+ * #617 note, because that comment is what the rulebook entry gets written from:
+ *
+ *   - A browser-driven guard whose page list is TYPED. Deliberate — it is the
+ *     whole discrimination above — but a hand-typed list that grows to cover a
+ *     site is invisible here, exactly as `smoke.spec.ts` is.
+ *   - A spec that discovers its pages at RUNTIME (crawling links, fetching a
+ *     sitemap) imports no registry and matches nothing.
+ *   - A spec driving a browser without `@playwright/test`. None exists, and
+ *     `playwright.config.ts` is on the REVIEW gate, so the harness is watched.
+ *   - It says nothing about what the spec ASSERTS. A derived-list spec that
+ *     checks something trivial still matches, and that is the cheap direction
+ *     to be wrong in: intake costs a sentence on an issue.
+ *
+ * Returns the binding names that make the file site-wide, so a failure can say
+ * WHICH registry it expanded rather than only that it matched.
+ */
+const DRIVES_BROWSER = /from\s+['"]@playwright\/test['"]/
+const NAVIGATES = /\.goto\s*\(/
+const PRODUCT_MODULE = /^(app|components|lib)\//
+
+/** The bindings an import clause introduces: `{ A, B as C }`, `X`, `* as X`. */
+function importBindings(clause: string): string[] {
+  const names: string[] = []
+  const braced = clause.match(/\{([^}]*)\}/)
+  if (braced) {
+    for (const part of braced[1].split(',')) {
+      const m = part.trim().match(/(?:\w+\s+as\s+)?(\w+)$/)
+      if (m) names.push(m[1])
+    }
+  }
+  const head = clause.replace(/\{[^}]*\}/g, '').replace(/,/g, ' ').trim()
+  const star = head.match(/^\*\s+as\s+(\w+)$/)
+  if (star) names.push(star[1])
+  else if (/^\w+$/.test(head)) names.push(head)
+  return names
+}
+
+/**
+ * Is this binding EXPANDED into a collection, rather than merely called?
+ *
+ * The distinction a bounded spec turns on: importing `formatCents` from
+ * `lib/money` to build an expected string is not a page list; spreading
+ * `COMPARISONS` into one is. `\b` on both sides deliberately — §2d's
+ * identity-looseness family is the most common way a guard like this quietly
+ * matches a longer name and starts reporting about the wrong thing.
+ */
+function isExpanded(name: string, source: string): boolean {
+  const n = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  return new RegExp(
+    `(\\.\\.\\.\\s*${n}\\b|\\b${n}\\s*\\.\\s*(map|flatMap|filter|forEach|concat)\\s*\\(` +
+      `|\\bof\\s+${n}\\b|\\bin\\s+${n}\\b|\\bObject\\.(keys|values|entries)\\s*\\(\\s*${n}\\b)`,
+  ).test(source)
+}
+
+export function sitewidePageRegistries(file: string, source: string): string[] {
+  if (!DRIVES_BROWSER.test(source) || !NAVIGATES.test(source)) return []
+
+  const found = new Set<string>()
+  for (const m of Array.from(source.matchAll(/import\s+([^'"]*?)\s*from\s+['"]([^'"]+)['"]/g))) {
+    const [, clause, spec] = m
+    let base: string | null = null
+    if (spec.startsWith('.')) base = normalize(join(dirname(file), spec))
+    else if (spec.startsWith('@/')) base = normalize(spec.slice(2))
+    if (base === null) continue
+    if (!PRODUCT_MODULE.test(base.split('\\').join('/'))) continue
+    for (const name of importBindings(clause)) if (isExpanded(name, source)) found.add(name)
+  }
+  return Array.from(found).sort()
+}
+
+describe('the browser-driven site-wide detector, in both directions', () => {
+  // THE PLANTED POSITIVE, reduced from `e2e/marketing-viewport.spec.ts` — the
+  // spec PR #621 had to register by hand, which is the whole reason this rule
+  // exists. Both spellings of the import are covered because `@/` resolves the
+  // same way and Sentinel has already watched one derivation miss on exactly
+  // that (see `importedModules` above).
+  const SITE_WIDE = `
+import { test, expect } from '@playwright/test'
+import { COMPARISONS } from '../lib/marketing/comparisons'
+
+const PAGES = ['/', '/pricing', ...COMPARISONS.map((c) => \`/compare/\${c.slug}\`)]
+
+for (const path of PAGES) {
+  test(\`\${path} does not scroll sideways\`, async ({ page }) => {
+    await page.goto(path)
+  })
+}
+`
+
+  it('catches a new browser-driven site-wide spec', () => {
+    expect(sitewidePageRegistries('e2e/planted.spec.ts', SITE_WIDE)).toEqual(['COMPARISONS'])
+  })
+
+  it('catches it through the alias spelling too', () => {
+    const aliased = SITE_WIDE.replace("'../lib/marketing/comparisons'", "'@/lib/marketing/comparisons'")
+    expect(sitewidePageRegistries('e2e/planted.spec.ts', aliased)).toEqual(['COMPARISONS'])
+  })
+
+  it('catches a default-imported registry and a namespace import', () => {
+    const dflt = "import { test } from '@playwright/test'\nimport ROUTES from '@/lib/known-routes'\nfor (const p of ROUTES) { test(p, async ({ page }) => { await page.goto(p) }) }"
+    expect(sitewidePageRegistries('e2e/planted.spec.ts', dflt)).toEqual(['ROUTES'])
+
+    const ns = "import { test } from '@playwright/test'\nimport * as reg from '@/lib/marketing/docs'\nfor (const p of Object.keys(reg)) { test(p, async ({ page }) => { await page.goto(p) }) }"
+    expect(sitewidePageRegistries('e2e/planted.spec.ts', ns)).toEqual(['reg'])
+  })
+
+  // THE INNOCENT DIRECTION, which is the half #609 shipped without and the half
+  // that decides whether this rule survives contact with the suite. Nineteen
+  // bounded journey specs are sitting in `e2e/`; these are the shapes that
+  // would sweep them in if the criterion were sloppier.
+  const INNOCENTS: Array<[string, string]> = [
+    [
+      'a bounded journey spec that loops a HAND-TYPED list — the smoke.spec.ts shape',
+      "import { test } from '@playwright/test'\nconst PROTECTED = ['/dashboard', '/patients']\nfor (const p of PROTECTED) { test(p, async ({ page }) => { await page.goto(p) }) }",
+    ],
+    [
+      'a bounded spec that imports a product helper and merely CALLS it',
+      "import { test, expect } from '@playwright/test'\nimport { formatCents } from '@/lib/money'\ntest('shows the total', async ({ page }) => { await page.goto('/i/abc'); await expect(page.getByText(formatCents(1200))).toBeVisible() })",
+    ],
+    [
+      'a spec that expands a registry but never opens a browser',
+      "import { describe, it } from 'vitest'\nimport { COMPARISONS } from '@/lib/marketing/comparisons'\nfor (const c of COMPARISONS) { it(c.slug, () => {}) }",
+    ],
+    [
+      'a Playwright helper that imports a registry but navigates nothing',
+      "import { expect } from '@playwright/test'\nimport { DOCS } from '@/lib/marketing/docs'\nexport const slugs = DOCS.map((d) => d.slug)",
+    ],
+    [
+      'a spec expanding a fixture from inside the suite rather than a product registry',
+      "import { test } from '@playwright/test'\nimport { SEEDED } from './reseed'\nfor (const p of SEEDED) { test(p, async ({ page }) => { await page.goto(p) }) }",
+    ],
+    [
+      'identity looseness: a longer name that merely starts with the import',
+      "import { test } from '@playwright/test'\nimport { DOCS } from '@/lib/marketing/docs'\nconst DOCS_FIXTURE = ['/a']\nfor (const p of DOCS_FIXTURE) { test(p, async ({ page }) => { await page.goto(p) }) }",
+    ],
+  ]
+
+  it.each(INNOCENTS)('leaves alone %s', (_why, source) => {
+    expect(sitewidePageRegistries('e2e/some.spec.ts', source)).toEqual([])
+  })
+})
+
 describe('the review-gate classifier', () => {
   it('flags a change in every area the review gate names', () => {
     // One real path per rule, spelled out rather than generated: if somebody
@@ -468,7 +731,7 @@ describe('the review-gate classifier', () => {
     const localImports = (f: string): string[] => importedModules(f, src.get(f)!)
 
     const WALKS = /readdirSync|'ls-files'/
-    const PRODUCT_ROOT = /(^|[^\w])'(app|components|lib)'/
+    const PRODUCT_ROOT = PRODUCT_ROOT_RE
     const walkers = new Set(suite.filter((f) => WALKS.test(src.get(f)!)))
 
     const scanners = new Set(
@@ -572,6 +835,66 @@ describe('the review-gate classifier', () => {
         'and they are not on the intake list in scripts/review-gate.mjs. That is the gap #598 ' +
         'went through: a new class of assertion, merged with no label and no intake, because it ' +
         'was neither an enumerated path nor a directory walk. Add each to `blocking-assertions`.',
+    ).toEqual([])
+  })
+
+  it('puts every BROWSER-DRIVEN site-wide spec on the intake list — derived, not remembered', () => {
+    // THE THIRD DERIVATION, AGAINST THE REAL TREE. Its criterion, its two
+    // directions and everything it does not cover are on `sitewidePageRegistries`
+    // above; this is the part that asks the repo.
+    //
+    // WATCHED TO FAIL, STAGED FIRST (§2d — a `git ls-files`-derived guard is
+    // blind to the file you have not staged). `e2e/planted-sitewide.spec.ts`
+    // was written as a browser-driven spec expanding `COMPARISONS` from
+    // `lib/marketing/comparisons` into its stops, `git add`-ed so `git ls-files`
+    // could see it, and this test went red naming that exact path — while the
+    // nineteen real specs beside it stayed silent. Then the same file with its
+    // registry import replaced by a hand-typed list of the same eight paths ran
+    // GREEN, which is the discrimination rather than the detection. The fixture
+    // is not kept in the tree, for the reason Sentinel's mutation file is not:
+    // a permanent unlisted site-wide spec would trip the very rule it
+    // demonstrates. The durable form is the table above plus this record.
+    const suite = trackedFiles().filter((f) => /^(tests|e2e)\/.*\.tsx?$/.test(f))
+    const src = new Map(suite.map((f) => [f, readFileSync(join(process.cwd(), f), 'utf8')]))
+
+    // THE INSTRUMENT CHECK, and it cannot be a tracked file the way the other
+    // two derivations' can: a site-wide spec that is on the intake list is
+    // still a match, but the only one in the tree is whichever lands first, and
+    // a guard anchored to a single filename goes quiet on a rename. So the
+    // anchor is the planted positive — narrow any of the three predicates until
+    // this stops matching and the assertion below is worth nothing.
+    expect(
+      sitewidePageRegistries(
+        'e2e/anchor.spec.ts',
+        "import { test } from '@playwright/test'\nimport { COMPARISONS } from '@/lib/marketing/comparisons'\nfor (const c of COMPARISONS) { test(c.slug, async ({ page }) => { await page.goto(`/compare/${c.slug}`) }) }",
+      ),
+      'the browser-driven detector stopped matching its own planted positive, so it is no longer ' +
+        'detecting anything and the assertion below is worth nothing',
+    ).toEqual(['COMPARISONS'])
+
+    // And the innocent direction against the real files rather than fixtures:
+    // `smoke.spec.ts` loops four hand-typed paths through `page.goto`, which is
+    // the shape a looser criterion would redden. If this ever becomes a real
+    // match, the file has grown a derived page list and belongs on the list.
+    expect(
+      sitewidePageRegistries('e2e/smoke.spec.ts', src.get('e2e/smoke.spec.ts')!),
+      'e2e/smoke.spec.ts is a bounded journey spec with a hand-typed path list; a detector that ' +
+        'flags it is catching the nineteen innocents in e2e/ along with the guard it is after',
+    ).toEqual([])
+
+    const sitewide = suite.filter((f) => sitewidePageRegistries(f, src.get(f)!).length > 0)
+    const unlisted = sitewide.filter((f) => intakeAreasFor(f).length === 0).sort()
+
+    expect(
+      unlisted,
+      'These specs drive a browser and expand a PRODUCT ROUTE REGISTRY into the pages they ' +
+        'visit, so they assert about every page in that registry — including the ones added ' +
+        'after they were written — and they are not on the intake list in ' +
+        'scripts/review-gate.mjs. That is the gap PR #621 had to close by hand for ' +
+        'e2e/marketing-viewport.spec.ts: a browser-driven site-wide guard reads no source, so ' +
+        'neither source-reading derivation above can ever see it. Add each to ' +
+        '`blocking-assertions`; if the spec is genuinely a bounded journey, type the handful of ' +
+        'paths it visits instead of expanding a registry.',
     ).toEqual([])
   })
 
