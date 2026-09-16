@@ -29,9 +29,10 @@ vi.mock('next/navigation', () => ({
 import MarketingHome from '@/app/(marketing)/page'
 import PricingPage from '@/app/(marketing)/pricing/page'
 import ComparePage from '@/app/(marketing)/compare/[vendor]/page'
+import CompareIndexPage from '@/app/(marketing)/compare/page'
 import DocArticlePage from '@/app/(marketing)/docs/[slug]/page'
 import { PLANS } from '@/lib/stripe-config'
-import { COMPARISONS, getComparison } from '@/lib/marketing/comparisons'
+import { COMPARISONS, getComparison, comparisonCountLabel } from '@/lib/marketing/comparisons'
 import { DOCS, DOC_CATEGORIES, getDoc } from '@/lib/marketing/docs'
 import { MARKETING_NAV, MARKETING_PUBLIC_PATHS } from '@/lib/marketing/site'
 import WhyPage from '@/app/(marketing)/why/page'
@@ -137,6 +138,36 @@ describe('comparison pages', () => {
     await expect(ComparePage({ params: Promise.resolve({ vendor: 'dentrix-cloud-9000' }) })).rejects.toThrow(
       'NEXT_NOT_FOUND',
     )
+  })
+
+  // THE INDEX PAGE, WHICH NOTHING RENDERED UNTIL NOW — and that hole is the
+  // whole reason this test exists. DREAMCRM-76 added a section opener reading
+  // "Five comparisons" above eight cards and shipped it to review: no test
+  // mounted `/compare`, and neither screenshot covered it, so a wrong number
+  // on a public page had nowhere to be caught.
+  //
+  // The assertion is deliberately against `COMPARISONS.length` rather than
+  // the word "Eight". Pinning the literal would just move the hand-typed
+  // number into the test, where it would go stale in exactly the same silence
+  // — a ninth vendor has to turn this red, not agree with it.
+  it('renders the index with a count that derives from the registry', async () => {
+    render(await CompareIndexPage())
+
+    const opener = screen.getByRole('heading', {
+      name: /comparisons?, written the way we'd want one written about us/i,
+    })
+    // The page must state the DERIVED label. A revert to any hand-typed
+    // number — "Five", or a stale "Eight" after a ninth vendor lands — fails
+    // here, while a genuine ninth vendor passes without anyone editing a test.
+    expect(opener).toHaveTextContent(comparisonCountLabel())
+
+    // …and the count it states is the number of cards actually under it.
+    for (const c of COMPARISONS) {
+      const links = screen
+        .getAllByRole('link')
+        .filter((l) => l.getAttribute('href') === `/compare/${c.slug}`)
+      expect(links.length, `no card links to /compare/${c.slug}`).toBeGreaterThanOrEqual(1)
+    }
   })
 })
 

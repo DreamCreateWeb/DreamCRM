@@ -403,3 +403,40 @@ export function buildComparisonFaq(c: VendorComparison): Array<{ q: string; a: s
 
 export const COMPARISON_DISCLAIMER =
   'Competitor details reflect public vendor materials and independent reviews as of June 2026 and may change — verify specifics with each vendor. We aim to be scrupulously fair: every vendor on this page is good at something, and we say so.'
+
+/**
+ * How many comparisons there are, spelled for a headline.
+ *
+ * DERIVED, because `/compare`'s section opener says the number out loud and a
+ * hand-typed one goes stale in silence. It already did: the opener shipped
+ * reading "Five comparisons" over eight cards, caught in review on #621 — on
+ * the same PR whose own docblock argues that our price must resolve rather
+ * than be typed. A number about the registry belongs to the registry.
+ *
+ * The word map covers the plausible range and FALLS BACK to the numeral
+ * rather than `undefined`: a twelfth vendor making the page read "13
+ * comparisons" is merely inelegant, "undefined comparisons" is broken. The
+ * noun agrees with the count for the same reason — a derived string that
+ * lies about grammar is still a derived string that lies.
+ */
+const COUNT_WORDS = [
+  'No',
+  'One',
+  'Two',
+  'Three',
+  'Four',
+  'Five',
+  'Six',
+  'Seven',
+  'Eight',
+  'Nine',
+  'Ten',
+  'Eleven',
+  'Twelve',
+]
+
+export function comparisonCountLabel(): string {
+  const n = COMPARISONS.length
+  const word = COUNT_WORDS[n] ?? String(n)
+  return `${word} ${n === 1 ? 'comparison' : 'comparisons'}`
+}

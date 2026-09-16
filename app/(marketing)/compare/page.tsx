@@ -1,5 +1,9 @@
 import Link from 'next/link'
-import { COMPARISONS, COMPARISON_DISCLAIMER } from '@/lib/marketing/comparisons'
+import {
+  COMPARISONS,
+  COMPARISON_DISCLAIMER,
+  comparisonCountLabel,
+} from '@/lib/marketing/comparisons'
 import { PageHero, SectionOpener, MONO_LABEL, DAY_WIRE } from '@/components/marketing/ui'
 import { usd } from '@/lib/marketing/site'
 import { getQuotedPlan } from '@/lib/stripe-config'
@@ -30,6 +34,14 @@ import { JsonLd, SITE_URL } from '@/lib/marketing/seo'
  * the worst possible place to be wrong. What is NOT touched: the reported
  * spend bands beside it, which are ranges about a market rather than a price
  * we charge, and everything in `lib/marketing/comparisons.ts`.
+ *
+ * AND SO DOES THE COUNT, for the same reason and one draft later. The section
+ * opener below shipped reading "Five comparisons" above eight cards, and it
+ * was new text on this PR — the hand-typed number went stale before the PR
+ * that added it had merged. It resolves through `comparisonCountLabel()` now,
+ * so a ninth vendor cannot make the page lie; `marketing-site.test.tsx`
+ * renders this index and pins the heading against `COMPARISONS.length`, which
+ * is the check that was missing (nothing rendered this page at all).
  */
 
 /** Ours, resolved rather than typed. Pure config — no database, no Stripe. */
@@ -86,7 +98,7 @@ export default function CompareIndexPage() {
       <section className="mx-auto max-w-6xl px-4 py-16 sm:px-6 lg:py-20">
         <SectionOpener
           eyebrow="The field"
-          title="Five comparisons, written the way we'd want one written about us"
+          title={`${comparisonCountLabel()}, written the way we'd want one written about us`}
           lede="Each page leads with what the other vendor is genuinely better at. If that is your deciding factor, we would rather you found out here than three months in."
         />
         <ul className="grid gap-4 md:grid-cols-2">

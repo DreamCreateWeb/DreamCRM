@@ -1716,14 +1716,15 @@ move 5 or move 6. · OPEN
 ### Open — nothing grades `app/(marketing)` against Part 4's 12px floor (found 2026-09-16)
 
 **S3 · marketing site · `BRAND.md` Part 4.** Part 4 sets a 12px floor for this
-site — *"No `text-[11px]`, no sub-0.75rem literals"* — and **six** live
-literals sit under it in `app/(marketing)`, at 0.72rem = **11.52px**:
+site — *"No `text-[11px]`, no sub-0.75rem literals"* — and **eight** live
+literals sit under it, at 0.72rem = **11.52px**:
 
 | File | Line |
 |---|---|
 | `app/(marketing)/docs/page.tsx` | 37 |
 | `app/(marketing)/resources/guide-ui.tsx` | 98 |
 | `app/(marketing)/roi/roi-calculator.tsx` | 95 |
+| `components/marketing/cinematic-spine.tsx` | 609, 621 |
 | `components/marketing/ui.tsx` | 1395, 1633, 1693 |
 
 (Line numbers are against `main` as of DREAMCRM-76. Re-derive with
@@ -1738,21 +1739,25 @@ directory imitate a real screen at 7px). This one is about `SCAN_DIRS` in the
 same file, which is `['app/(default)', 'app/(portal)', 'app/(double-sidebar)',
 'components']` — **`app/(marketing)` is not in it at all.** The three
 `app/(marketing)` rows above are in no tree any guard walks, under any
-exemption, for no stated reason. The three `components/marketing/ui.tsx` rows
-are inside the skipped directory and need the same by-component treatment
+exemption, for no stated reason. The five `components/marketing` rows are
+inside the skipped directory and need the same by-component treatment
 `tests/marketing/chrome-legibility.test.ts` gave the shared chrome on
-DREAMCRM-72; two of them (`:1593`, `:1653`) are inside product MOCKS and are
-very likely correct under that skip's real reason, which is exactly why the
-instrument has to grade by component rather than by path.
+DREAMCRM-72. **All five are decorative** — `ui.tsx:1395/1633/1693` are inside
+`PortalMock`, `ReviewsMock` and `RecallFunnelMock`, and
+`cinematic-spine.tsx:609/621` are inside `CinemaStage` — so all five are very
+likely correct under that skip's real reason, which is exactly why the
+instrument has to grade by component rather than by path. Note that
+`aria-hidden` is NOT what earns them the pardon (`CinemaStage`'s own docblock
+says so): imitating a real screen at real-screen scale is.
 
 **Found by** the DREAMCRM-76 sweep while fixing the two compare literals in the
 same family (`compare/[vendor]/page.tsx:147,153` and `compare/page.tsx:75`,
 all three now 0.75rem). Those three are fixed because that PR was rebuilding
-the elements they were on; the six above are on four other people's pages and
-a blanket raise would be a restyle of surfaces this PR never opened.
+the elements they were on; the eight above are on five other people's surfaces
+and a blanket raise would be a restyle of surfaces this PR never opened.
 
-**Do not close this by adding `app/(marketing)` to `SCAN_DIRS`** until the six
-are resolved — the widened scan goes red on arrival, which is the correct
+**Do not close this by adding `app/(marketing)` to `SCAN_DIRS`** until the
+eight are resolved — the widened scan goes red on arrival, which is the correct
 behaviour and also means the widening and the fixes have to land together.
 Same lane as the entry above — UI correctness, Vesper. · OPEN
 
