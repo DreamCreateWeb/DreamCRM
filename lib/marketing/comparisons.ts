@@ -18,6 +18,8 @@ export interface MatrixRow {
   vendorNote?: string
 }
 
+import type { ToneTileGlyph } from './tone-tiles'
+
 export interface VendorComparison {
   slug: string
   name: string
@@ -28,8 +30,15 @@ export interface VendorComparison {
   summary: string
   /** What they genuinely do better — 3 honest bullets. */
   theirStrengths: Array<{ title: string; body: string }>
-  /** Where we win — concrete, verifiable in our product. */
-  ourStrengths: Array<{ title: string; body: string }>
+  /** Where we win — concrete, verifiable in our product.
+   *
+   *  `glyph` is REQUIRED on purpose (`BRAND.md` Part 3, DREAMCRM-71).
+   *  These titles render as tone tiles, and a tile only says something
+   *  because somebody chose it for that line — an optional field with a
+   *  generic fallback would quietly re-grow the identical mark the owner
+   *  vetoed, one new vendor at a time. TypeScript is the guard: a ninth
+   *  comparison cannot compile without naming what each win is about. */
+  ourStrengths: Array<{ glyph: ToneTileGlyph; title: string; body: string }>
   matrix: MatrixRow[]
   bottomLine: string
 }
@@ -81,10 +90,10 @@ export const COMPARISONS: VendorComparison[] = [
       { title: 'Payment terminals', body: 'Card-present terminals and text-to-pay tied into the comms stack.' },
     ],
     ourStrengths: [
-      { title: 'The website is included', body: 'Weave assumes you already have a website vendor. DreamCRM ships one — with an edit-in-place studio, SEO plumbing, and AI copy help — replacing that retainer entirely.' },
-      { title: 'A real patient portal', body: 'Confirm, self-reschedule, forms, balances, online payment — in your branding, with per-feature toggles. Weave has no patient portal.' },
-      { title: 'Everything in the base price', body: 'Weave gates online scheduling and digital forms to its Elite tier per its published pricing. In DreamCRM, booking and forms are in the one $200/mo plan with no per-location phone hardware.' },
-      { title: 'Shop & memberships', body: 'Whitening kits and in-house membership plans sold from your own site — no equivalent in Weave.' },
+      { glyph: 'globe', title: 'The website is included', body: 'Weave assumes you already have a website vendor. DreamCRM ships one — with an edit-in-place studio, SEO plumbing, and AI copy help — replacing that retainer entirely.' },
+      { glyph: 'people', title: 'A real patient portal', body: 'Confirm, self-reschedule, forms, balances, online payment — in your branding, with per-feature toggles. Weave has no patient portal.' },
+      { glyph: 'layers', title: 'Everything in the base price', body: 'Weave gates online scheduling and digital forms to its Elite tier per its published pricing. In DreamCRM, booking and forms are in the one $200/mo plan with no per-location phone hardware.' },
+      { glyph: 'cart', title: 'Shop & memberships', body: 'Whitening kits and in-house membership plans sold from your own site — no equivalent in Weave.' },
     ],
     matrix: baseMatrix({
       website: ['no', 'Assumes an existing site'],
@@ -117,10 +126,10 @@ export const COMPARISONS: VendorComparison[] = [
       { title: 'Developer API', body: 'A public API product lets DSOs build custom tooling on the sync layer.' },
     ],
     ourStrengths: [
-      { title: 'The whole front office, not booking + comms', body: 'NexHealth stops at booking, forms, reminders, and payments. DreamCRM adds the practice website, a clinic-branded portal, reviews that become website testimonials, recall campaigns, and an online store — the jobs around booking that otherwise stay with other vendors.' },
-      { title: 'The storefront comes with it', body: 'Website, blog, SEO dashboard, careers page, shop — NexHealth assumes you have vendors for all of that. We replace them.' },
-      { title: 'A portal patients recognize', body: 'NexHealth’s patient pages run under its own brand. DreamCRM’s portal wears your logo, your colors, your voice — with clinic-controlled feature toggles.' },
-      { title: 'Published flat pricing', body: '$200/mo on the pricing page, month-to-month. No discovery call required to learn the number.' },
+      { glyph: 'layers', title: 'The whole front office, not booking + comms', body: 'NexHealth stops at booking, forms, reminders, and payments. DreamCRM adds the practice website, a clinic-branded portal, reviews that become website testimonials, recall campaigns, and an online store — the jobs around booking that otherwise stay with other vendors.' },
+      { glyph: 'globe', title: 'The storefront comes with it', body: 'Website, blog, SEO dashboard, careers page, shop — NexHealth assumes you have vendors for all of that. We replace them.' },
+      { glyph: 'people', title: 'A portal patients recognize', body: 'NexHealth’s patient pages run under its own brand. DreamCRM’s portal wears your logo, your colors, your voice — with clinic-controlled feature toggles.' },
+      { glyph: 'tag', title: 'Published flat pricing', body: '$200/mo on the pricing page, month-to-month. No discovery call required to learn the number.' },
     ],
     matrix: baseMatrix({
       website: ['no'],
@@ -153,10 +162,10 @@ export const COMPARISONS: VendorComparison[] = [
       { title: 'PMS coverage', body: 'Long-standing sync with the major server PMSs.' },
     ],
     ourStrengths: [
-      { title: 'Toggles that actually hide', body: 'RevenueWell’s own help docs note disabling portal payments leaves the payments link visible to patients. In DreamCRM, off means gone — no dead links in front of patients.' },
-      { title: 'Preview as a patient', body: 'One click shows you the portal exactly as a patient sees it with your saved settings. No competitor we surveyed documents this.' },
-      { title: 'The website is the product, not an add-on', body: 'Edit-in-place studio, blog, SEO dashboard, careers, and shop are in the subscription — not a separately-sold service.' },
-      { title: 'One flat price', body: '$200/mo total versus a platform fee plus per-feature add-ons.' },
+      { glyph: 'sliders', title: 'Toggles that actually hide', body: 'RevenueWell’s own help docs note disabling portal payments leaves the payments link visible to patients. In DreamCRM, off means gone — no dead links in front of patients.' },
+      { glyph: 'eye', title: 'Preview as a patient', body: 'One click shows you the portal exactly as a patient sees it with your saved settings. No competitor we surveyed documents this.' },
+      { glyph: 'globe', title: 'The website is the product, not an add-on', body: 'Edit-in-place studio, blog, SEO dashboard, careers, and shop are in the subscription — not a separately-sold service.' },
+      { glyph: 'tag', title: 'One flat price', body: '$200/mo total versus a platform fee plus per-feature add-ons.' },
     ],
     matrix: baseMatrix({
       website: ['partial', 'Offered as an add-on service'],
@@ -189,10 +198,10 @@ export const COMPARISONS: VendorComparison[] = [
       { title: 'Broad PMS sync', body: 'Mature sync agents across the major server PMSs.' },
     ],
     ourStrengths: [
-      { title: 'The modern patient surface', body: 'A warm, mobile-first portal with self-reschedule, forms, and online payments — versus a legacy portal experience.' },
-      { title: 'Website + SEO + careers + shop included', body: 'Solutionreach is comms-only; we replace the website vendor, the job board, and the storefront too.' },
-      { title: 'No contract', body: 'Reviewers consistently cite Solutionreach’s term contracts. DreamCRM is month-to-month; leave whenever, your content exports with you.' },
-      { title: 'One inbox', body: 'Portal messages and patient email merge per patient; reminders are one thread of a relationship, not the product.' },
+      { glyph: 'people', title: 'The modern patient surface', body: 'A warm, mobile-first portal with self-reschedule, forms, and online payments — versus a legacy portal experience.' },
+      { glyph: 'globe', title: 'Website + SEO + careers + shop included', body: 'Solutionreach is comms-only; we replace the website vendor, the job board, and the storefront too.' },
+      { glyph: 'door', title: 'No contract', body: 'Reviewers consistently cite Solutionreach’s term contracts. DreamCRM is month-to-month; leave whenever, your content exports with you.' },
+      { glyph: 'chat', title: 'One inbox', body: 'Portal messages and patient email merge per patient; reminders are one thread of a relationship, not the product.' },
     ],
     matrix: baseMatrix({
       website: ['no'],
@@ -225,10 +234,10 @@ export const COMPARISONS: VendorComparison[] = [
       { title: 'Aggressive bundling', body: 'A lot of modules per dollar if you adopt the full Adit stack including phones.' },
     ],
     ourStrengths: [
-      { title: 'The patient-facing half', body: 'A real website product with edit-in-place studio, a clinic-branded portal, online store, memberships, careers — none of which Adit ships as product.' },
-      { title: 'Self-serve everything', body: 'Sign up, your site and dashboard exist in minutes, and every word of your site is yours to edit — no agency queue.' },
-      { title: 'Official-path PMS sync', body: 'Open Dental, Dentrix + more through one bridge — sanctioned paths, every write in your audit trail.' },
-      { title: 'Lower flat price', body: '$200/mo versus reported ~$399 bundles — because we don’t carry a phone network.' },
+      { glyph: 'people', title: 'The patient-facing half', body: 'A real website product with edit-in-place studio, a clinic-branded portal, online store, memberships, careers — none of which Adit ships as product.' },
+      { glyph: 'bolt', title: 'Self-serve everything', body: 'Sign up, your site and dashboard exist in minutes, and every word of your site is yours to edit — no agency queue.' },
+      { glyph: 'sync', title: 'Official-path PMS sync', body: 'Open Dental, Dentrix + more through one bridge — sanctioned paths, every write in your audit trail.' },
+      { glyph: 'tag', title: 'Lower flat price', body: '$200/mo versus reported ~$399 bundles — because we don’t carry a phone network.' },
     ],
     matrix: baseMatrix({
       website: ['partial', 'Agency-built sites as a service'],
@@ -261,10 +270,10 @@ export const COMPARISONS: VendorComparison[] = [
       { title: 'The Modento patient app', body: 'A mature patient-facing app for digital forms, reminders, and payments with strong adoption.' },
     ],
     ourStrengths: [
-      { title: 'A website is included', body: 'DI/Modento assumes you already have a website vendor. DreamCRM ships one — edit-in-place studio, blog, SEO dashboard, careers — and replaces that retainer.' },
-      { title: 'The portal wears your brand', body: 'Modento’s patient app runs under its own brand; DreamCRM’s portal is your logo, colors, and voice, with per-feature toggles and preview-as-patient.' },
-      { title: 'Store, memberships, and shop revenue', body: 'Whitening kits and in-house membership plans sold from your own site — no equivalent in DI.' },
-      { title: 'Published flat pricing', body: '$200/mo on the page, month-to-month — versus quote-based analytics + engagement bundles.' },
+      { glyph: 'globe', title: 'A website is included', body: 'DI/Modento assumes you already have a website vendor. DreamCRM ships one — edit-in-place studio, blog, SEO dashboard, careers — and replaces that retainer.' },
+      { glyph: 'people', title: 'The portal wears your brand', body: 'Modento’s patient app runs under its own brand; DreamCRM’s portal is your logo, colors, and voice, with per-feature toggles and preview-as-patient.' },
+      { glyph: 'cart', title: 'Store, memberships, and shop revenue', body: 'Whitening kits and in-house membership plans sold from your own site — no equivalent in DI.' },
+      { glyph: 'tag', title: 'Published flat pricing', body: '$200/mo on the page, month-to-month — versus quote-based analytics + engagement bundles.' },
     ],
     matrix: baseMatrix({
       website: ['no', 'Assumes an existing site'],
@@ -297,10 +306,10 @@ export const COMPARISONS: VendorComparison[] = [
       { title: 'Payments over text', body: 'Text-to-pay tied into the messaging stack.' },
     ],
     ourStrengths: [
-      { title: 'Dentistry-native, not generic', body: 'Visit-type booking rules, dental intake with insurance-card OCR, recall on PMS due dates, an OD chart mirror — none of which a general local-business tool models.' },
-      { title: 'The website + portal Podium has neither of', body: 'A real practice site with an edit-in-place studio and a clinic-branded patient portal — Podium ships no website and no portal.' },
-      { title: 'FTC-clean reviews', body: 'Same ask to every patient, no rating-gating — clean under the FTC fake-reviews rule, and the results feed your own site’s testimonials.' },
-      { title: 'One flat dental price', body: '$200/mo for the whole stack versus a messaging platform fee plus volume-based add-ons.' },
+      { glyph: 'tooth', title: 'Dentistry-native, not generic', body: 'Visit-type booking rules, dental intake with insurance-card OCR, recall on PMS due dates, an OD chart mirror — none of which a general local-business tool models.' },
+      { glyph: 'globe', title: 'The website + portal Podium has neither of', body: 'A real practice site with an edit-in-place studio and a clinic-branded patient portal — Podium ships no website and no portal.' },
+      { glyph: 'star', title: 'FTC-clean reviews', body: 'Same ask to every patient, no rating-gating — clean under the FTC fake-reviews rule, and the results feed your own site’s testimonials.' },
+      { glyph: 'tag', title: 'One flat dental price', body: '$200/mo for the whole stack versus a messaging platform fee plus volume-based add-ons.' },
     ],
     matrix: baseMatrix({
       website: ['no'],
@@ -333,10 +342,10 @@ export const COMPARISONS: VendorComparison[] = [
       { title: 'Billing under one roof (Tebra)', body: 'Post-merger, practices can add Kareo billing/EHR from the same vendor — a bigger footprint than ours.' },
     ],
     ourStrengths: [
-      { title: 'Dental-native, not multi-specialty', body: 'A curated dental services library, visit-type booking rules, dental intake, and PMS recall — versus a generic healthcare template.' },
-      { title: 'Edit it yourself, no agency queue', body: 'The Website Studio changes your live site by clicking it; PatientPop sites lean on managed changes.' },
-      { title: 'Store, memberships, and dental PMS sync', body: 'An online shop, in-house membership plans, and two-way dental PMS sync through the NexHealth bridge — none of which PatientPop ships.' },
-      { title: 'Month-to-month, published price', body: '$200/mo on the page with no annual contract, versus reported annual growth-suite agreements.' },
+      { glyph: 'tooth', title: 'Dental-native, not multi-specialty', body: 'A curated dental services library, visit-type booking rules, dental intake, and PMS recall — versus a generic healthcare template.' },
+      { glyph: 'pencil', title: 'Edit it yourself, no agency queue', body: 'The Website Studio changes your live site by clicking it; PatientPop sites lean on managed changes.' },
+      { glyph: 'cart', title: 'Store, memberships, and dental PMS sync', body: 'An online shop, in-house membership plans, and two-way dental PMS sync through the NexHealth bridge — none of which PatientPop ships.' },
+      { glyph: 'calendar', title: 'Month-to-month, published price', body: '$200/mo on the page with no annual contract, versus reported annual growth-suite agreements.' },
     ],
     matrix: baseMatrix({
       website: ['yes', 'Managed healthcare sites — its core'],

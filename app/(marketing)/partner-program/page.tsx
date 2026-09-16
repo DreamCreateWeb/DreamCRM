@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { Eyebrow, CheckIcon } from '@/components/marketing/ui'
+import { Eyebrow, ToneTile, type ToneTileGlyph } from '@/components/marketing/ui'
 import { JsonLd, breadcrumbLd, faqPageLd } from '@/lib/marketing/seo'
 import ApplyForm from './apply-form'
 
@@ -95,15 +95,15 @@ export default function PartnerProgramPage() {
             </Link>{' '}
             you can run with a client in five minutes.
           </p>
-          <ul className="mt-4 grid gap-2 sm:grid-cols-2">
-            {[
-              '10% of every paid invoice, standard',
-              'Recurring — not a one-time bounty',
-              'Live referral + commission tracking portal',
-              'Stripe payouts to your bank ($25 minimum)',
-            ].map((f) => (
-              <li key={f} className="flex items-start gap-2 text-[0.88rem] text-gray-700">
-                <CheckIcon className="mt-0.5 h-4 w-4 shrink-0 text-teal-700" />
+          <ul className="mt-4 grid gap-2.5 sm:grid-cols-2">
+            {([
+              ['tag', '10% of every paid invoice, standard'],
+              ['sync', 'Recurring — not a one-time bounty'],
+              ['chart', 'Live referral + commission tracking portal'],
+              ['money', 'Stripe payouts to your bank ($25 minimum)'],
+            ] as Array<[ToneTileGlyph, string]>).map(([glyph, f]) => (
+              <li key={f} className="flex items-start gap-2.5 text-[0.88rem] text-gray-700">
+                <ToneTile glyph={glyph} className="mt-px" />
                 {f}
               </li>
             ))}

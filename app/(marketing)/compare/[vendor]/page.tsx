@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { COMPARISONS, COMPARISON_DISCLAIMER, buildComparisonFaq, getComparison } from '@/lib/marketing/comparisons'
-import { Eyebrow, PrimaryCta, GhostCta, MatrixMark, CheckIcon } from '@/components/marketing/ui'
+import { Eyebrow, PrimaryCta, GhostCta, MatrixMark, ToneTile } from '@/components/marketing/ui'
 import { DEMO_URL } from '@/lib/marketing/site'
 import { JsonLd, breadcrumbLd, faqPageLd } from '@/lib/marketing/seo'
 
@@ -85,9 +85,9 @@ export default async function ComparePage({ params }: Props) {
             <p className="mt-1 text-[0.82rem] text-gray-500">Every claim verifiable in the product today.</p>
             <ul className="mt-5 space-y-4">
               {c.ourStrengths.map((s) => (
-                <li key={s.title} className="rounded-xl border border-teal-200 bg-teal-50/50 p-4">
-                  <p className="flex items-center gap-2 text-[0.92rem] font-bold text-gray-900">
-                    <CheckIcon className="h-4 w-4 text-teal-700" />
+                <li key={s.title} className="group rounded-xl border border-teal-200 bg-teal-50/50 p-4">
+                  <p className="flex items-center gap-2.5 text-[0.92rem] font-bold text-gray-900">
+                    <ToneTile glyph={s.glyph} size="md" />
                     {s.title}
                   </p>
                   <p className="mt-1 text-[0.85rem] leading-relaxed text-gray-700">{s.body}</p>
@@ -103,6 +103,31 @@ export default async function ComparePage({ params }: Props) {
           <h2 className="mb-6 text-center text-[1.4rem] font-bold tracking-tight">
             Feature by feature
           </h2>
+          {/* TWO OPEN DEFECTS live on these two lines, and they have SEPARATE
+              entries in docs/RELEASE.md Part 5 because they have separate
+              fixes — "/compare/[vendor] scrolls sideways 212px at 390" and
+              "the compare capability matrix is a scroll region with no
+              keyboard way in". Reflowing the matrix at 390 closes both;
+              keeping the scroll box closes only the first, and then this
+              wrapper still needs `tabindex="0"` and an accessible name
+              (axe: `scrollable-region-focusable`, WCAG 2.1.1).
+
+              On the width half, measured 2026-09-15: at 390px this
+              table renders 672px wide and the DOCUMENT pans with it:
+              `scrollWidth - clientWidth` is +212, and `window.scrollTo(9999, 0)`
+              really does leave `scrollX` at 212. `BRAND.md` Part 10 forbids
+              that at any width.
+
+              The `overflow-x-auto` below is not a missing intent — it is here
+              and it is not containing the table. A scan for elements exceeding
+              the viewport with no `overflow-x` ancestor returns zero, so the
+              width is travelling THROUGH this scroll container rather than
+              past it; the usual cause is an ancestor sizing to content as a
+              flex/grid item without `min-width: 0`. That is the lead, not the
+              diagnosis. Left for whoever owns UI correctness — DREAMCRM-71
+              touched two list markers on this page and confirmed the defect
+              predates it (removing every `.mkt-tile` leaves the 212 exactly
+              where it was). */}
           <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
             <table className="w-full min-w-[42rem] text-[0.875rem]">
               <thead>
@@ -161,8 +186,8 @@ export default async function ComparePage({ params }: Props) {
             </p>
             <ul className="mt-3 space-y-2">
               {c.ourStrengths.slice(0, 3).map((s) => (
-                <li key={s.title} className="flex items-start gap-2 text-[0.88rem] text-gray-800">
-                  <CheckIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-teal-700" />
+                <li key={s.title} className="flex items-start gap-2.5 text-[0.88rem] text-gray-800">
+                  <ToneTile glyph={s.glyph} className="mt-px" />
                   {s.title} — if that&apos;s what you&apos;re missing
                 </li>
               ))}

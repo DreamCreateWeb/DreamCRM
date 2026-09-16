@@ -1512,6 +1512,75 @@ unannounced error/success nodes (public booking, portal visit-card + booking,
 auth sign-in/up/reset, approval-inbox validation); + S3 (drawer `DialogTitle`,
 portal desktop-nav `aria-current`, phase-change announcements). · OPEN.
 
+### Open — /compare/[vendor] scrolls sideways 212px at 390 (found 2026-09-15)
+
+**S3 · marketing site · the capability matrix drags the whole document wider
+than the phone.** Found by the three-width check on DREAMCRM-71 (tone tiles),
+which touched two list markers on this page and nothing else — **the defect is
+pre-existing and unrelated to that change**, isolated below rather than
+assumed.
+
+`BRAND.md` Part 10 makes this build-blocking in its own words — *"Zero
+horizontal scroll at any width… check it by measuring `scrollWidth` against
+`clientWidth`, not by looking at it"* — so it is recorded with the measurement
+rather than a description.
+
+**Reproduction**, `/compare/weave` at 390 x 900 (every vendor slug does it;
+they share one template):
+
+| Probe | Result |
+|---|---|
+| `documentElement.scrollWidth - clientWidth` | **+212px** |
+| `window.scrollTo(9999, 0)` then `window.scrollX` | **212** — the page really does pan, it is not a measurement artifact |
+| same measure with every `.mkt-tile` removed | **+212px** — not the tone tiles |
+| same measure with `document.querySelectorAll('table')` removed | **+0px** — it is the matrix, alone |
+
+**A second, independent instrument names the same element** — an axe run
+(`wcag2a/2aa/21a/21aa`, the gate's own tag set) over the five marketing pages
+at all three widths returns exactly one live finding, and it is on this same
+`.overflow-x-auto`. **That is a SEPARATE defect and it has its own entry
+below** (Sentinel's note on #617: one defect per entry, or the wrong fix
+closes both). The two are related only in that one fix — reflowing the matrix
+at 390 — would happen to resolve both.
+
+**The element:** `app/(marketing)/compare/[vendor]/page.tsx:107` —
+`<table className="w-full min-w-[42rem] …">`, rendered 672px wide inside a
+390px viewport. Its wrapper on line 106 already carries `overflow-x-auto`, so
+the intent was right; what a fix has to explain is why that container is not
+containing it. A scan for elements whose `right` exceeds the viewport and which
+have NO `overflow-x: auto|hidden|scroll` ancestor returns **zero** — i.e. no
+element is escaping on its own, and the document is being widened through the
+scroll container rather than past it. The usual cause of that shape is an
+ancestor that is a flex/grid item without `min-width: 0`, so it sizes to
+content instead of to its track; that is a lead, not a diagnosis.
+
+**Not fixed here on purpose** (§10): it does not block the tone-tile work, it
+is UI correctness rather than brand character, and a layout fix to a page this
+PR only touched two list markers on would change how the diff classifies.
+Handed to Vesper with this reproduction. · OPEN
+
+### Open — the compare capability matrix is a scroll region with no keyboard way in (found 2026-09-15)
+
+**S3 · marketing site · WCAG 2.1.1.** `app/(marketing)/compare/[vendor]/page.tsx:106`
+— the `div.overflow-x-auto` wrapping the feature matrix scrolls horizontally
+and holds no focusable content, so a keyboard-only reader cannot reach the
+columns that are off-screen. axe names it directly:
+`scrollable-region-focusable`, *"Scrollable region must have keyboard access"*,
+measured at 390 × 900 on `/compare/weave`. It is the ONLY live axe finding on
+the five marketing pages across 390 / 834 / 1440 — the other 382 sit inside
+`aria-hidden` product mocks and are pardoned under WCAG 1.4.3.
+
+**Filed separately from the sideways-scroll entry above on purpose**, which is
+the whole point of the one-defect-one-entry rule: the two share an element but
+not a fix. Reflow the matrix at 390 and both go away; keep the box and let it
+scroll — a perfectly reasonable answer for a wide comparison table — and the
+width defect closes while THIS one survives with no entry of its own. In that
+case the box needs `tabindex="0"` plus an accessible name (`role="region"` +
+`aria-label`, or `aria-labelledby` pointed at the "Feature by feature"
+heading).
+
+Same lane and same hand-off as the entry above — UI correctness, Vesper. · OPEN
+
 ### R1 · S8 sweep — Compliance & data (2026-08-17)
 
 One finder produced the written posture assessment now in **`docs/COMPLIANCE.md`**

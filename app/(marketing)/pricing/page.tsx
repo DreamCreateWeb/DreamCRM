@@ -1,5 +1,12 @@
 import React from 'react'
-import { SectionTitle, PrimaryCta, CheckIcon, PageHero } from '@/components/marketing/ui'
+import {
+  SectionTitle,
+  PrimaryCta,
+  ToneTile,
+  ToneDash,
+  PageHero,
+  type ToneTileGlyph,
+} from '@/components/marketing/ui'
 import { JsonLd, faqPageLd, softwareApplicationLd } from '@/lib/marketing/seo'
 import { PriceCard } from './price-card'
 
@@ -15,9 +22,17 @@ export const metadata = {
  * product. One column, everything included: the tier matrix retired
  * 2026-07-19 when pricing collapsed to the founding practice rate.
  */
-const INCLUDED: Array<{ group: string; rows: string[] }> = [
+/* TIER B (`BRAND.md` Part 3). Twenty-six rows across four groups is an
+   INVENTORY, and a tone tile on every row of an inventory is wallpaper — the
+   same nothing-said-many-times that made the tick bland in the first place.
+   So the tile states the subject ONCE, on the group heading where it is
+   actually news, and the rows take that group's tone as a dash. The reader
+   still knows which domain they are in on every line; they are just not told
+   it twenty-six times. */
+const INCLUDED: Array<{ group: string; glyph: ToneTileGlyph; rows: string[] }> = [
   {
     group: 'Website & brand',
+    glyph: 'globe',
     rows: [
       'Practice website on your address',
       'Edit-in-place Website Studio',
@@ -31,6 +46,7 @@ const INCLUDED: Array<{ group: string; rows: string[] }> = [
   },
   {
     group: 'Front office',
+    glyph: 'calendar',
     rows: [
       'Patient records with action flags',
       'Appointments agenda + reminders',
@@ -43,6 +59,7 @@ const INCLUDED: Array<{ group: string; rows: string[] }> = [
   },
   {
     group: 'Patient experience',
+    glyph: 'people',
     rows: [
       'Clinic-branded patient portal',
       'Self-serve reschedule & cancel',
@@ -53,6 +70,7 @@ const INCLUDED: Array<{ group: string; rows: string[] }> = [
   },
   {
     group: 'Growth & integrations',
+    glyph: 'megaphone',
     rows: [
       'Recall & outreach campaigns',
       'Google Business sync + social posting',
@@ -125,14 +143,15 @@ export default function PricingPage() {
           </SectionTitle>
           <div className="grid gap-4 sm:grid-cols-2">
             {INCLUDED.map((group) => (
-              <div key={group.group} className="rounded-xl border border-gray-200 bg-white p-6">
-                <h3 className="text-[0.78rem] font-bold uppercase tracking-wider text-gray-500">
+              <div key={group.group} className="group rounded-xl border border-gray-200 bg-white p-6">
+                <h3 className="flex items-center gap-3 text-[0.78rem] font-bold uppercase tracking-wider text-gray-500">
+                  <ToneTile glyph={group.glyph} size="lg" />
                   {group.group}
                 </h3>
-                <ul className="mt-3 space-y-2.5">
+                <ul className="mt-4 space-y-2.5">
                   {group.rows.map((row) => (
-                    <li key={row} className="flex items-start gap-2.5 text-[0.875rem] leading-snug text-gray-700">
-                      <CheckIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-teal-700" />
+                    <li key={row} className="flex items-start gap-3 text-[0.875rem] leading-snug text-gray-700">
+                      <ToneDash glyph={group.glyph} className="mt-[0.45rem]" />
                       {row}
                     </li>
                   ))}

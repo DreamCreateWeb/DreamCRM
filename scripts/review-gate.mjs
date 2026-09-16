@@ -421,6 +421,41 @@ export const INTAKE_RULES = [
       // rule 1 needs a `bg-` on the same element to measure against. 177 places
       // were failing it in both themes when it landed.
       'tests/a11y/quiet-ink.test.ts',
+      // The check-mark veto (DREAMCRM-71, BRAND.md Part 3). A NEW CLASS of
+      // assertion rather than a case on an existing one, stated here rather
+      // than guessed as this entry's `why` asks: every rule above grades a
+      // COLOUR — a pair, a ramp, an ink direction. This one grades a SHAPE.
+      // It walks the marketing trees and fails any `d` attribute that is
+      // entirely a check-mark POLYLINE, under any component name or none.
+      //
+      // It is on this list on the merits and not merely because it imports
+      // `palette.ts` for `ROOT`: after it lands, no future PR can put a bare
+      // tick on the marketing site, which is exactly "changing what every
+      // other PR can merge". The owner vetoed those ticks on DREAMCRM-67 and
+      // the call-site count went stale twice while it lived in prose — a
+      // number in a document cannot ask the tree, so the veto became a test.
+      //
+      // WHAT THE RULE DOES NOT COVER, stated HERE and not only in the test's
+      // own docblock, because this comment is what the next author reads and
+      // what the rulebook entry gets written from (Sentinel, #617):
+      //
+      //   - **Stroked polylines only.** A CLOSED path — a solid/filled tick,
+      //     `…8.6-8.6Z` — is rejected at the door and passes the guard. That
+      //     is a deliberate scope, not an oversight: the filled form has never
+      //     appeared in these trees and widening to it would mean grading
+      //     filled areas rather than three points. If one shows up, widen the
+      //     detector rather than adding an exemption for it.
+      //   - A tick drawn as `<polyline>`, as a background image, or as the
+      //     character "✓" in copy is also invisible to it.
+      //
+      // So the sentence this entry earns is "no future PR can put a bare
+      // STROKED tick on the marketing site" — narrower than the first draft
+      // claimed, and a gate rule recorded as stronger than it is, is wrong
+      // quietly. The detector was corrected in the same review to resolve each
+      // segment against its own command letter and to normalise right-to-left
+      // traversal; before that it missed `M5 13l4 4L19 7`, which is in this
+      // repo five times.
+      'tests/marketing/tone-tiles.test.ts',
       // The remaining tree-wide scanners, each holding the product at zero for
       // one convention. Derived from the tree by the guard test, not recalled.
       // A NEW CLASS rather than another instance of an existing one: it holds
