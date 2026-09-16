@@ -647,6 +647,107 @@ const SAMPLES = [
     ink: '#4c5a78',
     ground: '#ffffff',
   },
+
+  /* ── MOVE 6, PAGE 6b — `/changelog` and the help docs ─────────────────
+     The last three heroes on the site to gain a decorative layer. All three
+     already rendered `PageHero` on the INDEX routes and one of them did not
+     on its article route (`/docs/[slug]` carried a hand-rolled `h1` with no
+     bloom behind it at all), so `/docs/<slug>` is in this set for the first
+     time rather than being re-measured.
+
+     WHY `/blog` AND `/blog/[slug]` ARE NOT HERE, and it is the same boundary
+     `e2e/marketing-viewport.spec.ts` draws for the same reason: their bodies
+     come out of the DATABASE. This script drives a real browser against a
+     built app, so on a freshly migrated database `/blog` renders its empty
+     state and `/blog/<slug>` does not resolve at all — a decorative-layer
+     grade that depends on fixture data is a grade that goes red for fixture
+     reasons. Their heroes are `PageHero` verbatim with no page-specific
+     runs, so the three `/docs` samples below measure the identical
+     composition. When the blog gets a seeded stop, add it in both files.
+
+     NOTHING BELOW ANY OF THESE HEROES IS SAMPLED, for pages 1–5's reason:
+     the shelves, the chapter heads, the changelog items, the rails and all
+     three closes ride the page's own white with no decorative layer, so the
+     darkest pixel under them is the page's ground and the flat ratio is the
+     rendered one. ── */
+  {
+    label: 'changelog hero eyebrow (teal-700)',
+    path: '/changelog',
+    region: 'hero',
+    selector: `${HERO} div.mkt-enter.mb-5`,
+    ink: '#2f52b3',
+    ground: '#ffffff',
+  },
+  {
+    label: 'changelog hero headline (gray-950)',
+    path: '/changelog',
+    region: 'hero',
+    selector: `${HERO} h1.mkt-d1`,
+    ink: '#10182e',
+    ground: '#ffffff',
+  },
+  {
+    label: 'changelog hero sub (gray-600)',
+    path: '/changelog',
+    region: 'hero',
+    selector: `${HERO} p.mkt-d2`,
+    ink: '#4c5a78',
+    ground: '#ffffff',
+  },
+  {
+    label: 'docs hero eyebrow (teal-700)',
+    path: '/docs',
+    region: 'hero',
+    selector: `${HERO} div.mkt-enter.mb-5`,
+    ink: '#2f52b3',
+    ground: '#ffffff',
+  },
+  {
+    label: 'docs hero headline (gray-950)',
+    path: '/docs',
+    region: 'hero',
+    selector: `${HERO} h1.mkt-d1`,
+    ink: '#10182e',
+    ground: '#ffffff',
+  },
+  {
+    label: 'docs hero sub (gray-600)',
+    path: '/docs',
+    region: 'hero',
+    selector: `${HERO} p.mkt-d2`,
+    ink: '#4c5a78',
+    ground: '#ffffff',
+  },
+  /* THE ARTICLE HERO, which is a DIFFERENT composition from the index's and
+     the reason this route is sampled separately: its eyebrow is the doc's
+     CATEGORY and its `h1` is the doc's title, so the runs are page-specific
+     lengths over the same bloom. The `children` spine (tile, read time, the
+     way back) is deliberately not sampled — `ToneTile` is a graded tint
+     carrying its own ink, not text on the page's ground. */
+  {
+    label: 'doc article hero eyebrow (teal-700)',
+    path: '/docs/create-your-practice-account',
+    region: 'hero',
+    selector: `${HERO} div.mkt-enter.mb-5`,
+    ink: '#2f52b3',
+    ground: '#ffffff',
+  },
+  {
+    label: 'doc article hero headline (gray-950)',
+    path: '/docs/create-your-practice-account',
+    region: 'hero',
+    selector: `${HERO} h1.mkt-d1`,
+    ink: '#10182e',
+    ground: '#ffffff',
+  },
+  {
+    label: 'doc article hero sub (gray-600)',
+    path: '/docs/create-your-practice-account',
+    region: 'hero',
+    selector: `${HERO} p.mkt-d2`,
+    ink: '#4c5a78',
+    ground: '#ffffff',
+  },
 ]
 
 /**

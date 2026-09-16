@@ -98,6 +98,29 @@ const PRICING_ROUTE = ['app/(marketing)/pricing/page.tsx', 'app/(marketing)/pric
  * quote and does not need to: both spellings are the literal, and the fix is
  * the same arithmetic the portal already runs.
  *
+ * MOVE 6 PAGE 6b ADDED THE EIGHTH AND NINTH, AND THE NINTH IS A NEW SHAPE.
+ * `/blog/[slug]`'s closing CTA carried "$200/mo founding practice rate" — an
+ * eighth ROUTE, the same defect for the eighth time. `lib/marketing/docs.ts`
+ * is the one worth reading: two help-article STEPS said "$200/mo at the
+ * founding practice rate (regularly $500)", so the price was sitting in a
+ * CONTENT REGISTRY — a `.ts` file full of sentences, rendered on two public
+ * doc pages.
+ *
+ * **Every one of the first eight was a route or a component**, which is why
+ * eight previous sweeps of "which files quote the price" walked past this
+ * one: nothing about `docs.ts` looks like a pricing surface, and the literal
+ * was inside prose inside a data array. `lib/recall-roi.ts` was the previous
+ * "not a page" and it was still CODE doing arithmetic. **The shape to look
+ * for next is CONTENT** — any registry whose strings reach a reader.
+ *
+ * This file's own header names both numbers to explain the defect, exactly as
+ * `/pricing` and `/why` do, and so does `docs.ts`'s new one — `stripComments`
+ * is what keeps the rule satisfiable, and the fixtures below pin that it
+ * still works on a JSDoc.
+ *
+ * `/changelog` and `/docs` (the index) are absent for `/grade`'s reason:
+ * neither quotes a price at all.
+ *
  * `/grade` is deliberately absent and it is not an oversight — that page
  * quotes no price at all, and adding a file with nothing to find would make
  * the third test below (the one that proves this scan still SEES something)
@@ -110,6 +133,9 @@ const PRICE_QUOTING_ROUTES = [
   'app/(marketing)/roi/page.tsx',
   'app/(marketing)/partner-program/page.tsx',
   'lib/recall-roi.ts',
+  'app/(marketing)/blog/[slug]/page.tsx',
+  'lib/marketing/docs.ts',
+  'app/opengraph-image.tsx',
 ]
 
 /**

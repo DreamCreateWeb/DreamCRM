@@ -1,5 +1,7 @@
 import { ImageResponse } from 'next/og'
 import { BRAND } from '@/components/brand/dream-create-logo'
+import { usd } from '@/lib/marketing/site'
+import { getQuotedPlan } from '@/lib/stripe-config'
 
 export const runtime = 'nodejs'
 export const alt = 'DreamCRM — the front-office platform for dental practices'
@@ -66,7 +68,24 @@ export default function OpengraphImage() {
           <div style={{ color: '#9ca3af', fontSize: 26 }}>
             Website · Booking · Portal · Reviews · Recall · Shop — keep your PMS
           </div>
-          <div style={{ color: '#e5e7eb', fontSize: 26, fontWeight: 700 }}>$150–500/mo</div>
+          {/* THE PRICE RESOLVES (DREAMCRM-38), AND THIS CARD WAS THE TENTH
+              SURFACE — found on move 6 page 6b by LOOKING at it, not by a
+              guard. It said `$150–500/mo`: the three-tier range from the
+              2026-07-02 reprice that was never executed Stripe-side, still
+              being served as the share card for every link to this site,
+              long after `/pricing` settled on one plan.
+
+              WORTH KNOWING BECAUSE IT SITS IN THE PRICE SCAN'S BLIND SPOT.
+              `moneyLiterals` matches `$` followed by digits, so in
+              `$150–500/mo` it saw `150` — not a plan price, correctly
+              ignored — and never saw the `500` at all, because that half of
+              the range carries no dollar sign. Adding this file to
+              `PRICE_QUOTING_ROUTES` would NOT have caught the defect it was
+              added for. It is in that list now to stop a `$200` being typed
+              back, which is a different and narrower claim. */}
+          <div style={{ color: '#e5e7eb', fontSize: 26, fontWeight: 700 }}>
+            {`${usd(getQuotedPlan().price)}/mo`}
+          </div>
         </div>
       </div>
     ),

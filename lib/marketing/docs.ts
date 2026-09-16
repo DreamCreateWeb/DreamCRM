@@ -3,6 +3,27 @@
 // product as it actually ships — if a doc would need to lie, fix the
 // product or don't write the doc).
 
+import type { ToneTileGlyph } from '@/lib/marketing/tone-tiles'
+import { usd } from '@/lib/marketing/site'
+import { getQuotedPlan } from '@/lib/stripe-config'
+
+/**
+ * OURS, RESOLVED RATHER THAN TYPED (DREAMCRM-38) — and this file is the NINTH
+ * surface that rule has caught, in a shape none of the previous eight had.
+ *
+ * Every surface before this one was a route or a component: `/pricing`, the
+ * price card, `/why`, `GuideShell`, `/roi`, `/partner-program`,
+ * `lib/recall-roi.ts` and `/blog/[slug]`. This is a CONTENT REGISTRY — two
+ * help articles whose prose said "$200/mo at the founding practice rate
+ * (regularly $500)", rendered on two public pages. Nothing about a `.ts` file
+ * full of sentences looks like a pricing surface, which is exactly why the
+ * number sat here through every previous sweep of "which files quote the
+ * price". **The shape to look for next is content, not code.**
+ *
+ * Pure config — no database, no Stripe call — so this costs nothing at render.
+ */
+const PLAN = getQuotedPlan()
+
 export interface DocSection {
   heading?: string
   paragraphs?: string[]
@@ -13,7 +34,7 @@ export interface DocArticle {
   slug: string
   title: string
   summary: string
-  category: string
+  category: DocCategory
   minutes: number
   sections: DocSection[]
 }
@@ -24,6 +45,37 @@ export const DOC_CATEGORIES = [
   'Patient-facing',
   'Money & integrations',
 ] as const
+
+export type DocCategory = (typeof DOC_CATEGORIES)[number]
+
+/**
+ * THE SUBJECT EACH CATEGORY IS ABOUT — `BRAND.md` Part 3's tone-tile
+ * vocabulary, arriving on the help docs (Part 8 move 6, page 6).
+ *
+ * IT IS A `Record<DocCategory, …>` FOR THE REASON `ourStrengths` TAKES A
+ * REQUIRED `glyph` AND A GUIDE DOES: a fifth category cannot compile without
+ * somebody deciding what it is ABOUT. The alternative — a lookup with a
+ * fallback — is the shape where a new category silently gets whatever the
+ * default is, and "which colour is money" stops having one answer.
+ *
+ * `category` on `DocArticle` is this union rather than `string` in the same
+ * change, which is the half that catches the other direction: a typo'd
+ * category on a new article used to compile and then vanish from the index,
+ * because `docsByCategory` filters BY the canonical list and silently drops
+ * anything that does not match. Thirty-one articles and nothing would have
+ * said so.
+ *
+ * The library lands 3 `brand` / 1 `growth`, and that is the honest reading
+ * rather than a decorative one: three of the four categories are about what
+ * the product IS, and exactly one is about what it EARNS you. Picking a
+ * subject to spread the colours is the failure Part 3's first tone rule names.
+ */
+export const DOC_CATEGORY_GLYPH: Record<DocCategory, ToneTileGlyph> = {
+  'Getting started': 'door',
+  'Front desk, daily': 'calendar',
+  'Patient-facing': 'people',
+  'Money & integrations': 'money',
+}
 
 export const DOCS: DocArticle[] = [
   /* ── Getting started ────────────────────────────────────────────── */
@@ -41,7 +93,7 @@ export const DOCS: DocArticle[] = [
         steps: [
           'Click Get started and create your login (you can switch to passwordless sign-in links later).',
           'Answer the onboarding questions — practice name, services, hours, contact details. These seed your website copy, your booking rules, and your portal.',
-          'Add billing when you\u2019re ready. One plan with everything included \u2014 $200/mo at the founding practice rate (regularly $500), month-to-month, or annual with two months free.',
+          `Add billing when you\u2019re ready. One plan with everything included \u2014 ${usd(PLAN.price)}/mo at the founding practice rate (regularly ${usd(PLAN.listPrice ?? 0)}), month-to-month, or annual with two months free.`,
           'Finish checkout and you land on your dashboard. Your public site is already live on your subdomain.',
         ],
       },
@@ -355,7 +407,7 @@ export const DOCS: DocArticle[] = [
     sections: [
       {
         paragraphs: [
-          'One plan, everything included: the website and edit-in-place studio, AI copy help, lead capture, patients, agenda, leads queue, messages, intake forms, reviews, the patient portal, blog and SEO, recall campaigns, analytics, the shop and memberships, careers, and the PMS sync. $200/mo at the founding practice rate (regularly $500); annual billing gives you two months free.',
+          `One plan, everything included: the website and edit-in-place studio, AI copy help, lead capture, patients, agenda, leads queue, messages, intake forms, reviews, the patient portal, blog and SEO, recall campaigns, analytics, the shop and memberships, careers, and the PMS sync. ${usd(PLAN.price)}/mo at the founding practice rate (regularly ${usd(PLAN.listPrice ?? 0)}); annual billing gives you two months free.`,
           'Switch tiers any time under Settings → Plan; changes prorate through Stripe. Cancelling stops the next renewal — there is no term contract, and your website content exports with you.',
         ],
       },
@@ -666,7 +718,7 @@ export function getDoc(slug: string): DocArticle | undefined {
   return DOCS.find((d) => d.slug === slug)
 }
 
-export function docsByCategory(): Array<{ category: string; articles: DocArticle[] }> {
+export function docsByCategory(): Array<{ category: DocCategory; articles: DocArticle[] }> {
   return DOC_CATEGORIES.map((category) => ({
     category,
     articles: DOCS.filter((d) => d.category === category),
