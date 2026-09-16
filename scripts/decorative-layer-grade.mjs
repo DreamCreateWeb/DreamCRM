@@ -367,6 +367,55 @@ const SAMPLES = [
     ink: '#4c5a78',
     ground: '#ffffff',
   },
+
+  /* ── MOVE 6 PAGE 3 — THE PRODUCT TOUR (DREAMCRM-77) ───────────────────
+     The page with the LONGEST HEADLINE on the site: "One system for the
+     whole front office, zero copy-paste between the parts" wraps to three
+     display lines at 1440 and to six at 390, so it reaches further down the
+     band than any headline `PageHero` has been measured with — and the
+     headline is the run the violet lobe passes behind (the DREAMCRM-72
+     table: the lobe costs it up to 7.24, which it can afford at 10.37).
+     This is the case that says whether "can afford" survives three more
+     lines of it.
+
+     WHAT IS DELIBERATELY NOT SAMPLED, and on this page the list is the
+     whole body. The ten chapters, the "everything else" band and the close
+     are all painted over the page's own ground — plain white, or the
+     ticker's opaque `#F8FAFF` for the band — with no wash reaching any of
+     them, exactly as on pricing and compare. The CHAPTER RAIL is the one
+     that changed to make that true: it shipped `bg-white/90 backdrop-blur`,
+     a translucent sticky bar with reading ink on it, and move 6 made it
+     opaque rather than adding a second surface no instrument can see (see
+     `app/(marketing)/product/chapter-rail.tsx`). Sampling any of these
+     anyway would make the run WORSE rather than more thorough — hiding a
+     sample's content hides its own background, so the script would report
+     the bloom BEHIND an opaque surface and could fail a pair that really
+     rides white at 17.62. */
+  {
+    label: 'product hero eyebrow (teal-700)',
+    path: '/product',
+    region: 'hero',
+    selector: `${HERO} div.mkt-enter.mb-5`,
+    ink: '#2f52b3',
+    ground: '#ffffff',
+  },
+  {
+    // The longest headline `PageHero` renders anywhere — see the note above.
+    label: 'product hero headline (gray-950)',
+    path: '/product',
+    region: 'hero',
+    selector: `${HERO} h1.mkt-d1`,
+    ink: '#10182e',
+    ground: '#ffffff',
+  },
+  {
+    label: 'product hero sub (gray-600)',
+    path: '/product',
+    region: 'hero',
+    selector: `${HERO} p.mkt-d2`,
+    ink: '#4c5a78',
+    ground: '#ffffff',
+  },
 ]
 
 /**

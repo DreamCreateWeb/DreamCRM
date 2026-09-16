@@ -151,6 +151,25 @@
  *   the exemption and the risk it carries) and holds ZERO, which is the only
  *   state in which a new contrast defect there fails on arrival.
  *
+ *   ⚠ AND THE SAME CLASS IS UNSCANNED ON `/product`, WHICH HAS NO STOP AT ALL
+ *   (Neon, DREAMCRM-77, 2026-09-16 — full write-up in `docs/RELEASE.md` Part 5).
+ *   The product tour renders NINE mocks and measures 89 / 103 / 103 violation
+ *   nodes at 390 / 834 / 1440 against the production build — `color-contrast`
+ *   only, every one inside an `aria-hidden` mock, ZERO on the page itself at
+ *   every width. Worst pairs as rendered: `#c9c2b6 on #faf7f2` at **1.65**
+ *   (10.56px, "9:00 AM", `BookingMock`), `#ffffff on #ffb900` at **1.72**
+ *   (9.28px, the "MJ" avatar, `DashboardMock`), `#b4ab9e on #ffffff` at
+ *   **2.26** (7.68px, "Visits", `PortalMock`).
+ *
+ *   THE BLOCKER IS THE EXCLUSION'S SHAPE, not the decision — that was settled
+ *   above. `DECORATIVE_MOCKS` keys on the drift wrapper (`.mkt-float >`), and
+ *   the tour's mocks do not float; they are the page's subject. So the
+ *   selector matches nothing there, `deadExclusions` would fail the stop by
+ *   name, and adding `marketing: product` needs an exclusion derived from what
+ *   those mocks ARE. `aria-hidden` alone is too wide — it would pardon every
+ *   decorative subtree on the site forever, which is the blanket allowance
+ *   §2d's third rule is about.
+ *
  * THE WOBBLE IS RESOLVED, and it was never data-dependence (QA, 2026-09-11).
  * It was the scan landing mid-fade: the clinic and marketing sites reveal
  * content with a 700ms opacity transition, and a partially-faded element
