@@ -10,6 +10,7 @@ import {
   PageHero,
   PrimaryCta,
   GhostCta,
+  ToneTile,
   MONO_LABEL,
   DAY_WIRE,
 } from '@/components/marketing/ui'
@@ -89,20 +90,55 @@ export const metadata = {
     'Everything that changes in DreamCRM, summarized once a week in plain English: new features, improvements, and fixes across the website, booking, patient portal, messages, and payments.',
 }
 
-/** Kind pill. The word carries the meaning; the tone only reinforces it. */
-const KIND_TONE: Record<ChangelogItemKind, string> = {
-  new: 'border-teal-200 bg-teal-50 text-teal-800',
-  improved: 'border-blue-200 bg-blue-50 text-blue-800',
-  fixed: 'border-amber-200 bg-amber-50 text-amber-800',
-}
-
-function KindPill({ kind }: { kind: ChangelogItemKind }) {
+/**
+ * THE KIND IS A WORD; THE COLOUR BELONGS TO THE SUBJECT — `BRAND.md` Part 2
+ * and Part 3, DREAMCRM-80 follow-up.
+ *
+ * This was three `rounded-full` chips carrying the meaning in colour: `teal`
+ * for New, `blue` for Improved, `amber` for Fixed. **Two of those three are
+ * wrong.** Part 2: *"the brand hue is never a status"* — `teal` IS the brand
+ * ramp, and on a page a visitor scans, a teal chip reading "New" beside two
+ * other chips makes the brand colour mean a status, which is the exact
+ * dilution that rule exists to stop. And `blue` is not in the tone registry
+ * at all (Part 2's status set is emerald / amber / rose / violet / fuchsia),
+ * so one of the three was borrowing a hue with no meaning behind it. Part 3
+ * adds a third: `999px` is reserved for eyebrow badges and status chips, and
+ * a changelog kind is neither.
+ *
+ * **The fix was written in the file's own comment**, which read *"the word
+ * carries the meaning; the tone only reinforces it."* If the word carries
+ * it, the colour is spending the brand ramp on nothing. So the kind is a mono
+ * micro-label now (Part 4's signature detail, one ink at 5.30 on white), and
+ * the colour moved to the thing a reader skimming a week actually wants: the
+ * SUBJECT. `ChangelogItem.glyph` is a tone tile from
+ * `lib/marketing/tone-tiles.ts` — "booking", "payments", "your website" —
+ * and it cannot mean a status because that registry has no statuses in it.
+ *
+ * TIER A (Part 3): a tile per LINE, because every item in a week is a
+ * different KIND of thing. Two items about the website get two globes and
+ * that is correct — the wallpaper rule is about one identical mark repeated
+ * down an inventory, not about a week that touched one area twice.
+ *
+ * `glyph` is REQUIRED on a `ChangelogItem`, the call `RESOURCE_GUIDES.glyph`
+ * made on move 6 page 5: a new entry cannot compile until somebody decides
+ * what it touched, which is a question the author answers anyway while
+ * writing the body.
+ *
+ * **NOTHING ABOUT THE CADENCE CHANGES.** Entries stay batched weekly, one
+ * longer entry per week (the owner's directive, §7). No entry is split,
+ * merged, reordered or added; `tests/marketing/changelog.test.tsx` holds all
+ * of that and stayed green through this.
+ *
+ * The pills graded FINE on the way out, and that is worth saying because it
+ * is not why they went — `teal-800` on `teal-50` is 8.61, `blue-800` on
+ * `blue-50` is 8.11, `amber-800` on `amber-50` is 6.84 through
+ * `tests/a11y/palette.ts`. This is a Part 2 fix, not a Part 7 one, and
+ * conflating the two is how a palette rule gets argued as an accessibility
+ * one and then bargained with.
+ */
+function KindLabel({ kind }: { kind: ChangelogItemKind }) {
   return (
-    <span
-      className={`inline-flex shrink-0 items-center rounded-full border px-2.5 py-0.5 text-[0.75rem] font-semibold ${KIND_TONE[kind]}`}
-    >
-      {CHANGELOG_KIND_LABELS[kind]}
-    </span>
+    <span className={`shrink-0 text-gray-500 ${MONO_LABEL}`}>{CHANGELOG_KIND_LABELS[kind]}</span>
   )
 }
 
@@ -219,12 +255,13 @@ export default function ChangelogPage() {
                       className="border-t py-6 first:border-t-0 first:pt-0"
                       style={{ borderColor: DAY_WIRE }}
                     >
-                      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1.5">
-                        <KindPill kind={item.kind} />
-                        <h3 className="max-w-2xl text-[1.05rem] font-semibold leading-snug tracking-[-0.01em] text-gray-950">
-                          {item.title}
-                        </h3>
+                      <div className="flex items-center gap-3">
+                        <ToneTile glyph={item.glyph} size="md" />
+                        <KindLabel kind={item.kind} />
                       </div>
+                      <h3 className="mt-2.5 max-w-2xl text-[1.05rem] font-semibold leading-snug tracking-[-0.01em] text-gray-950">
+                        {item.title}
+                      </h3>
                       <p className="mt-2 max-w-2xl text-[0.95rem] leading-relaxed text-gray-600">
                         {item.body}
                       </p>
