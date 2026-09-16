@@ -48,17 +48,30 @@ up" are different facts and only one of them is a backlog item.
    some are real text (fix), some are icons and glyphs (1.4.11 asks 3:1, not
    4.5, and 2.63 misses that too), some are genuinely disabled controls (exempt
    under 1.4.3). Rule 6 says out loud that it does not grade these.
-3. **The opacity sweep's TWO DEFERRED SURFACES.** Batch 66 graded the app
-   (`app/(default)`, `app/(double-sidebar)`, auth/onboarding, `components`) and
-   holds it at zero; two areas were deliberately left, and neither is "unknown":
-   **the marketing site — 7 dimming sites — is mid-rebuild** (BRAND.md's
-   Daylight Dream build order; the homepage still renders the retired night
-   band, and DREAMCRM-73 re-points the decorative-layer grader at the light
-   hero). Grading its ground today measures a surface that is about to move.
-   Sequence after Daylight lands. **The public clinic sites — 10 sites —** are a
-   tenant-derived palette, so they need the batch-65 treatment (grade against
-   `buildClinicPalette`, never one clinic's value) rather than the app's fixed
-   ramps. Own slice; nobody has picked it up.
+3. **The opacity sweep's TWO DEFERRED SURFACES.** `tests/a11y/dimmed-text.test.ts`
+   now WALKS `app/`, `components/` and `lib/` and holds them at zero, so the
+   only surfaces outside it are two component trees, each excluded for a reason
+   that was measured rather than assumed (raised in review of #612 — the first
+   version enumerated seven route groups and silently skipped sixteen, including
+   the token landing pages a patient opens from a text message).
+   **`components/marketing` — 4 dimmed-type sites, all inside the decorative
+   product MOCK-UPS** at 7–9px, which `e2e/axe.ts` already exempts as
+   `DECORATIVE_MOCKS` under 1.4.3 and which sit far below the 12px legibility
+   floor. The wider marketing sweep is still sequenced behind Daylight Dream
+   (BRAND.md Part 8; DREAMCRM-69 landed move 1, moves 2–6 are ahead) — but note
+   that reason defers the **measurements**, not this rule: it grades a shape,
+   and a shape does not move when a ground does, so `app/(marketing)` is in
+   scope and clean.
+   **`components/clinic-site` — 3 sites, none of them body copy**: an
+   `aria-hidden` arrow at `opacity-30` that a `group-hover` takes to 100, and
+   two `dc-edit-only` placeholders that render only for the site's EDITOR in the
+   Studio. The tenant-derived palette is the standing reason the wider slice
+   needs the batch-65 treatment (grade against `buildClinicPalette`, never one
+   clinic's value). Own slice; nobody has picked it up.
+   **Carry into that slice when it happens** (from Forge's #611 intake):
+   `fuchsia-600` is **4.66 on white and 4.46 on `surface-1`** — it PASSES rule 4,
+   which grades clipped text against white, and fails the page. Measure the new
+   signature gradient's terminal stop against `surface-1`, not white.
 4. **`ActionButton`'s `danger` variant clears AA at 4.53** — white on
    `rose-600` against a 4.5 floor. Not a defect and not swept with batch 63's
    tone fills (it is the button primitive's own single-home, and it passes),

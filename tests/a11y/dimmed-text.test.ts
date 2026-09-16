@@ -77,28 +77,60 @@ import { AA, contrast, DARK, LIGHT, over, ROOT, utilityColor } from './palette'
  *     10.98.
  */
 
-const SCAN_DIRS = [
-  'app/(default)',
-  'app/(double-sidebar)',
-  'app/(auth)',
-  'app/(onboarding)',
-  'app/(partner)',
-  'app/(partner-accept)',
-  'components',
-]
+/**
+ * THE WHOLE PRODUCT TREE — walked, not enumerated.
+ *
+ * The first version of this rule listed seven `app/` route groups, and `app/`
+ * has thirty-five top-level entries. Sixteen were never opened and, unlike the
+ * exclusions below, carried NO STATED REASON — which is the part that mattered
+ * (raised in review of #612). A new route group would have got zero coverage
+ * silently, and the field-of-view test would not have noticed: it proves the
+ * LISTED directories are not empty, which is a different claim.
+ *
+ * The repo has paid for this shape twice already. `legibility-floor` widened
+ * from `components/ui` to all of `components` after 31 dashboard files turned
+ * out never to have been swept, and `portal-tokens` widened specifically to
+ * reach the token landing pages. Those same landings — `app/r/`, `app/b/`,
+ * `app/c/`, `app/e/`, `app/g/`, `app/i/`, `app/n/`, `app/w/` — are pages a
+ * patient reaches from a text message, and they were outside this rule with
+ * nothing said about them. They are in scope now.
+ */
+const SCAN_ROOTS = ['app', 'components', 'lib']
 
 /**
- * Out of scope, each for a stated reason — not because they are clean.
+ * Out of scope, each for a reason that was MEASURED rather than assumed.
  *
- * The portal has its own, stricter rule already. The public clinic sites and
- * the marketing site are DIFFERENT PALETTES on different grounds, and the
- * marketing one is mid-rebuild (BRAND.md's Daylight Dream build order, and
- * DREAMCRM-73 re-points the decorative-layer grader at the light hero) — so
- * measuring its ground today grades a surface that is about to move. Both are
- * carried as OPEN NOW entries in docs/UI-BEST-VERSION.md rather than silently
- * skipped.
+ * Every entry here was checked by running this rule's own `gradeChunk` over the
+ * excluded tree and reading what came back, so each reason names what is
+ * actually there instead of gesturing at a category:
+ *
+ *   · `app/(portal)` + `components/patient-portal` — `portal-ink-opacity.test.ts`
+ *     owns these and is STRICTER: it refuses the technique outright rather than
+ *     only on type, and it resolves `aria-hidden` structurally, which a
+ *     chunk-at-a-time rule cannot. The three hits in there today are the
+ *     appointment page's `aria-hidden` emoji glyphs (🪪 💊 🕐), each sitting
+ *     beside the sentence it decorates — genuinely covered, not merely skipped.
+ *   · `components/clinic-site` — three hits, none of them body copy: an
+ *     `aria-hidden` arrow at `opacity-30` that a `group-hover` takes to 100,
+ *     and two `dc-edit-only` placeholders that render only for the site's
+ *     EDITOR inside the Studio, prompting them to fill an empty section. A
+ *     visitor never sees either. The tenant-derived palette is the second
+ *     reason and the OPEN NOW entry is the record.
+ *   · `components/marketing` — four hits, all inside the decorative product
+ *     MOCK-UPS at `text-[0.44rem]`–`text-[0.56rem]` (7–9px). `e2e/axe.ts`
+ *     already exempts those subtrees as `DECORATIVE_MOCKS` under WCAG 1.4.3
+ *     ("text that is part of a picture"), and they sit far below this repo's
+ *     own 12px legibility floor — so they are pictures by two independent
+ *     measures, not small text.
+ *
+ * Note what is NOT here any more: `app/(marketing)` and `app/site` are IN
+ * scope and clean. The rule grades a SHAPE rather than a ground, so the
+ * Daylight Dream rebuild repainting the marketing surface does not change
+ * whether dimming type is wrong there — that reason justified deferring the
+ * marketing *measurements* (OPEN NOW entry 3), never a blind spot in this rule.
  */
 const OUT_OF_SCOPE = [
+  'app/(portal)',
   'components/patient-portal',
   'components/clinic-site',
   'components/marketing',
@@ -137,7 +169,7 @@ export function gradeChunk(chunk: string): number | null {
 
 export function scanForDimmedText(): DimmedText[] {
   const found: DimmedText[] = []
-  for (const base of SCAN_DIRS) {
+  for (const base of SCAN_ROOTS) {
     for (const file of walk(join(ROOT, base))) {
       const rel = relative(ROOT, file).replace(/\\/g, '/')
       if (OUT_OF_SCOPE.some((d) => rel.startsWith(`${d}/`))) continue
@@ -225,16 +257,53 @@ describe('dimmed text — the red run', () => {
 /* ── the gate ────────────────────────────────────────────────────────────── */
 
 describe('the app never dims its own type', () => {
-  it('has opacity sites to look at (the scan is not narrowed to nothing)', () => {
-    // The field of view: the 45 correct uses are still in these directories, so
-    // a rule that reported clean because it stopped reading would be visible.
-    const anyOpacity = SCAN_DIRS.flatMap((base) =>
+  /** Every file this rule actually opens — the instrument's field of view. */
+  const swept = (): string[] =>
+    SCAN_ROOTS.flatMap((base) =>
       walk(join(ROOT, base))
         .map((f) => relative(ROOT, f).replace(/\\/g, '/'))
-        .filter((rel) => !OUT_OF_SCOPE.some((d) => rel.startsWith(`${d}/`)))
-        .filter((rel) => /(?:^|[\s'"`{])opacity-\d/.test(readFileSync(join(ROOT, rel), 'utf8'))),
+        .filter((rel) => !OUT_OF_SCOPE.some((d) => rel.startsWith(`${d}/`))),
+    )
+
+  it('has opacity sites to look at (the scan is not narrowed to nothing)', () => {
+    // The 45 correct uses are still in these trees, so a rule that reported
+    // clean because it stopped reading would be visible here.
+    const anyOpacity = swept().filter((rel) =>
+      /(?:^|[\s'"`{])opacity-\d/.test(readFileSync(join(ROOT, rel), 'utf8')),
     )
     expect(anyOpacity.length).toBeGreaterThan(20)
+  })
+
+  it('reaches the surfaces an enumeration kept missing — named, so widening cannot regress', () => {
+    // The whole point of walking rather than listing. `legibility-floor` and
+    // `portal-tokens` both had to be widened after the fact to reach exactly
+    // these, so they are pinned by name rather than trusted to a glob: a
+    // patient opens them from a text message, and a route group that quietly
+    // fell out of scope is the failure this rule was rewritten to prevent.
+    const files = swept()
+    const reaches = (dir: string) => files.some((f) => f.startsWith(`${dir}/`))
+    for (const landing of ['app/r', 'app/b', 'app/c', 'app/e', 'app/g', 'app/i', 'app/n', 'app/w']) {
+      expect(reaches(landing), `${landing} — a token landing page — must be swept`).toBe(true)
+    }
+    // And the two surfaces whose EXCLUSION would be about a moving ground
+    // rather than about this rule: both are in scope, because the rule grades a
+    // shape and a shape does not move when a palette does.
+    expect(reaches('app/(marketing)'), 'app/(marketing) is in scope').toBe(true)
+    expect(reaches('app/site'), 'app/site is in scope').toBe(true)
+  })
+
+  it('carries no exclusion it has stopped describing', () => {
+    // A dead exclusion is how an exemption rots into a blanket pardon — the
+    // same detector `e2e/axe.ts` and the tone-fill rule both carry.
+    const all = SCAN_ROOTS.flatMap((base) =>
+      walk(join(ROOT, base)).map((f) => relative(ROOT, f).replace(/\\/g, '/')),
+    )
+    for (const dir of OUT_OF_SCOPE) {
+      expect(
+        all.some((f) => f.startsWith(`${dir}/`)),
+        `${dir} matches nothing any more — re-derive the exclusion or delete it`,
+      ).toBe(true)
+    }
   })
 
   it('dims no element that declares its own type scale', () => {
