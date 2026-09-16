@@ -5,6 +5,7 @@ import {
   ToneDash,
   PageHero,
   SectionOpener,
+  FaqList,
   MONO_LABEL,
   DAY_WIRE,
   type ToneTileGlyph,
@@ -295,31 +296,11 @@ export default function PricingPage() {
           title="Pricing questions, answered"
           lede="Including the ones with an awkward answer. The gaps are marked here for the same reason the price is: you find out before you buy, not after."
         />
-        <div className="max-w-3xl space-y-2.5">
-          {PRICING_FAQS.map((f) => (
-            <details
-              key={f.q}
-              className="group rounded-[14px] border bg-white px-5 py-4 transition-shadow duration-150 ease-out open:shadow-[0_1px_4px_-2px_rgb(58_103_217/0.14),0_18px_44px_-34px_rgb(58_103_217/0.45)]"
-              style={{ borderColor: DAY_WIRE }}
-            >
-              <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-[0.95rem] font-semibold text-gray-950 [&::-webkit-details-marker]:hidden">
-                {f.q}
-                {/* 12px tile, Part 3's small-tile step — the same `teal-50` /
-                    `teal-700` affordance the homepage pillars carry, not a new
-                    recipe. The turn is 200ms ease-out: Part 6's interaction
-                    band, and no spring overshoot, which is the dashboard's
-                    register and reads as bounce here. */}
-                <span
-                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[10px] bg-teal-50 text-[1.05rem] font-bold leading-none text-teal-700 transition-transform duration-200 ease-out group-open:rotate-45"
-                  aria-hidden="true"
-                >
-                  +
-                </span>
-              </summary>
-              <p className="mt-3 text-[0.9rem] leading-relaxed text-gray-600">{f.a}</p>
-            </details>
-          ))}
-        </div>
+        {/* The disclosure recipe this page WROTE now lives in
+            `components/marketing/ui.tsx` as `FaqList` — move 6 page 6
+            promoted it when the fourth call site arrived, exactly as page 2
+            promoted `SectionOpener`. Same markup, same 200ms turn. */}
+        <FaqList items={PRICING_FAQS} className="max-w-3xl" />
       </section>
 
       {/* ── THE CLOSE — the page's bookend ────────────────────────────────

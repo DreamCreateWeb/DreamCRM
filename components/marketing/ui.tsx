@@ -814,6 +814,63 @@ export function SectionOpener({
 }
 
 /**
+ * THE FAQ DISCLOSURE — the rotating `+` tile, promoted on move 6 page 6.
+ *
+ * IT ARRIVED HERE THE WAY `SectionOpener` DID, by the same rule and one page
+ * later than that rule strictly allows. Page 1 wrote the recipe inline on
+ * `/pricing`; page 2 copied it verbatim onto `/compare/[vendor]` with a
+ * comment saying "the pricing page's affordance, not a second recipe" — which
+ * is the right instinct written down in the one place that cannot enforce it.
+ * Page 6 wants it on `/partner-program` and `/blog/[slug]`, so the count was
+ * about to be four private copies of a 12px tile, a 200ms turn and a
+ * `DAY_WIRE` card. Two copies is a coincidence; four is a dialect.
+ *
+ * Promoting it re-skins nothing that is not already in the language: the only
+ * two existing call sites render this exact markup today, which is what makes
+ * this safe to do in a page's own PR rather than a chrome move.
+ *
+ * WHY `<details>` AND NOT A CONTROLLED PANEL. It is server-rendered, it works
+ * with JavaScript off, the browser owns the expanded/collapsed announcement,
+ * and search engines read the answer whether or not anybody opened it — which
+ * matters on the three pages that also emit `FAQPage` structured data. The
+ * tile is `aria-hidden`: `<summary>` already announces its own state, and a
+ * `+` read aloud is noise.
+ *
+ * The turn is 200ms ease-out with NO spring overshoot — Part 6's interaction
+ * band. Overshoot is the dashboard's register and reads as bounce here.
+ */
+export function FaqList({
+  items,
+  className = '',
+}: {
+  items: ReadonlyArray<{ q: string; a: React.ReactNode }>
+  className?: string
+}) {
+  return (
+    <div className={`space-y-2.5 ${className}`}>
+      {items.map((f) => (
+        <details
+          key={f.q}
+          className="group rounded-[14px] border bg-white px-5 py-4 transition-shadow duration-150 ease-out open:shadow-[0_1px_4px_-2px_rgb(58_103_217/0.14),0_18px_44px_-34px_rgb(58_103_217/0.45)]"
+          style={{ borderColor: DAY_WIRE }}
+        >
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-[0.95rem] font-semibold text-gray-950 [&::-webkit-details-marker]:hidden">
+            {f.q}
+            <span
+              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[10px] bg-teal-50 text-[1.05rem] font-bold leading-none text-teal-700 transition-transform duration-200 ease-out group-open:rotate-45"
+              aria-hidden="true"
+            >
+              +
+            </span>
+          </summary>
+          <p className="mt-3 text-[0.9rem] leading-relaxed text-gray-600">{f.a}</p>
+        </details>
+      ))}
+    </div>
+  )
+}
+
+/**
  * THE SHARED SUBPAGE HERO — `BRAND.md` Part 8 move 4 (DREAMCRM-72).
  *
  * Eight pages open with this component, so it is the single largest lever on

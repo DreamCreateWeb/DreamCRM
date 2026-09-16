@@ -10,6 +10,7 @@
  * and the copy calls them scenarios out loud. Nothing here projects a
  * practice's actual results.
  */
+import { getQuotedPlan } from '@/lib/stripe-config'
 
 export interface RecallRoiInputs {
   /** Active patient charts. */
@@ -33,8 +34,25 @@ export const WIN_BACK_SCENARIOS = [
   { key: 'strong', label: 'Strong', rate: 0.4 },
 ] as const
 
-/** What DreamCRM costs, for the honest break-even line. */
-export const PLAN_PRICE_MONTHLY = 200
+/**
+ * What DreamCRM costs, for the honest break-even line.
+ *
+ * RESOLVED FROM THE PLAN CONFIG rather than typed, on DREAMCRM-80 (move 6
+ * page 6). This was `= 200`, a fifth copy of the number DREAMCRM-38 was
+ * about — and the worst-placed one, because it does not merely DISPLAY the
+ * price: `computeRecallRoi` divides by it, so at the next reprice the
+ * break-even line this whole page is built around would be arithmetically
+ * wrong rather than merely stale, on a page whose pitch is "that's
+ * arithmetic on your own numbers, not a projection".
+ *
+ * `lib/stripe-config.ts` imports nothing, so reading it here keeps this
+ * module client-safe — which it must stay: the calculator runs entirely in
+ * the visitor's browser and nothing they type is ever sent anywhere.
+ *
+ * Nothing about WHAT this file computes changed. The value is the same
+ * number from a different place.
+ */
+export const PLAN_PRICE_MONTHLY = getQuotedPlan().price
 
 export interface RecallRoiScenario {
   key: (typeof WIN_BACK_SCENARIOS)[number]['key']

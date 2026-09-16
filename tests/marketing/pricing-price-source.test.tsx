@@ -77,11 +77,39 @@ const PRICING_ROUTE = ['app/(marketing)/pricing/page.tsx', 'app/(marketing)/pric
  * once while "surfaces holding a copy" counted it as one. A shared component
  * is the cheapest place for this drift to hide, which is exactly why the scan
  * takes the COMPONENT rather than the three routes that render it.
+ *
+ * MOVE 6 PAGE 6 ADDED THREE MORE, AND ONE OF THEM IS NOT A PAGE.
+ * `/roi` and `/partner-program` each typed the plan price in our own voice —
+ * the sixth and seventh surface, and the count has gone up in every single
+ * move that opened a file DREAMCRM-38 never looked at. The third is
+ * `lib/recall-roi.ts`, and it is the worst one this rule has caught: it held
+ * `PLAN_PRICE_MONTHLY = 200` and `computeRecallRoi` DIVIDES by it, so a
+ * reprice would not have made `/roi` stale — it would have made the
+ * break-even line the whole page is built around arithmetically WRONG, on a
+ * page whose pitch is "that's arithmetic on your own numbers, not a
+ * projection". **A price that is an INPUT TO A CALCULATION is the shape to
+ * look for next**; every surface before it merely printed one.
+ *
+ * `/partner-program` is the one worth reading the diff of. Its old copy said
+ * "ten practices on DreamCRM = $200/mo to you", which is 10 x 10% of a $200
+ * plan — a number that is CORRECT TODAY BY COINCIDENCE and does not merely
+ * go stale at a reprice, it starts contradicting the plan price printed
+ * three paragraphs above it. Assertion 2 cannot tell a coincidence from a
+ * quote and does not need to: both spellings are the literal, and the fix is
+ * the same arithmetic the portal already runs.
+ *
+ * `/grade` is deliberately absent and it is not an oversight — that page
+ * quotes no price at all, and adding a file with nothing to find would make
+ * the third test below (the one that proves this scan still SEES something)
+ * a weaker claim than it is.
  */
 const PRICE_QUOTING_ROUTES = [
   ...PRICING_ROUTE,
   'app/(marketing)/why/page.tsx',
   'app/(marketing)/resources/guide-ui.tsx',
+  'app/(marketing)/roi/page.tsx',
+  'app/(marketing)/partner-program/page.tsx',
+  'lib/recall-roi.ts',
 ]
 
 /**

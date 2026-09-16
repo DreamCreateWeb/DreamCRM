@@ -8,6 +8,7 @@ import {
   MatrixMark,
   ToneTile,
   SectionOpener,
+  FaqList,
   MONO_LABEL,
   DAY_WIRE,
 } from '@/components/marketing/ui'
@@ -443,30 +444,11 @@ export default async function ComparePage({ params }: Props) {
             title={`Common questions about ${c.name}`}
             lede="The same questions people type before they ask us, answered the way we would answer them on a call."
           />
-          <div className="max-w-3xl space-y-2.5">
-            {faq.map((f) => (
-              <details
-                key={f.q}
-                className="group rounded-[14px] border bg-white px-5 py-4 transition-shadow duration-150 ease-out open:shadow-[0_1px_4px_-2px_rgb(58_103_217/0.14),0_18px_44px_-34px_rgb(58_103_217/0.45)]"
-                style={{ borderColor: DAY_WIRE }}
-              >
-                <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-[0.95rem] font-semibold text-gray-950 [&::-webkit-details-marker]:hidden">
-                  {f.q}
-                  {/* The pricing page's affordance, not a second recipe: a
-                      12px tile that turns 45° on open, 200ms ease-out with no
-                      spring overshoot (Part 6's interaction band — overshoot
-                      is the dashboard's register and reads as bounce here). */}
-                  <span
-                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[10px] bg-teal-50 text-[1.05rem] font-bold leading-none text-teal-700 transition-transform duration-200 ease-out group-open:rotate-45"
-                    aria-hidden="true"
-                  >
-                    +
-                  </span>
-                </summary>
-                <p className="mt-3 text-[0.9rem] leading-relaxed text-gray-600">{f.a}</p>
-              </details>
-            ))}
-          </div>
+          {/* `FaqList` — the recipe page 1 wrote and this page copied, now
+              single-homed in `components/marketing/ui.tsx` (move 6 page 6).
+              The comment that used to sit here said "not a second recipe",
+              which was true and unenforceable while it was a copy. */}
+          <FaqList items={faq} className="max-w-3xl" />
           <p className="mt-6 max-w-3xl text-[0.8rem] leading-relaxed text-gray-500">
             {COMPARISON_DISCLAIMER}
           </p>
