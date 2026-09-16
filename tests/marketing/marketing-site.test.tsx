@@ -112,7 +112,21 @@ describe('comparison pages', () => {
     expect(screen.getByText(/Where DreamCRM wins/i)).toBeInTheDocument()
     // The matrix shows our honest "no"s too (the switching FAQ answer also
     // says "keep your existing phone system", hence getAllByText).
-    expect(screen.getByText('VoIP phones')).toBeInTheDocument()
+    //
+    // TWICE, NOT ONCE, AND THAT IS THE ASSERTION — not a loosened `getByText`.
+    // DREAMCRM-76 reflowed the capability matrix into TWO presentations from
+    // one source: a card per capability below `md`, a real `<table>` from `md`
+    // up, exactly one of them displayed at a time. That is what closed the two
+    // Part 5 ledger entries on this element (the 212px sideways drag at 390
+    // and `scrollable-region-focusable`), so the duplication is the fix rather
+    // than a side effect of it, and a test that tolerated EITHER count would
+    // go green if one presentation quietly disappeared.
+    const voip = screen.getAllByText('VoIP phones')
+    expect(voip).toHaveLength(2)
+    expect(voip.some((el) => el.closest('table') !== null), 'the md+ table lost the row').toBe(true)
+    expect(voip.some((el) => el.closest('table') === null), 'the phone card list lost the row').toBe(
+      true,
+    )
     expect(screen.getAllByText(/Keep your existing phone system/i).length).toBeGreaterThanOrEqual(1)
     // Slice 4a: the buyer-question FAQ renders, with its schema twin.
     expect(screen.getByText('How much does Weave cost?')).toBeInTheDocument()

@@ -761,6 +761,46 @@ export function SectionTitle({ children, sub }: { children: React.ReactNode; sub
 }
 
 /**
+ * THE SECTION OPENER — `SectionTitle`'s hard-left sibling, and the shape every
+ * move-6 page body opens its sections with: the mono eyebrow, a hard-left
+ * heading, an optional lede held to the reading measure. It is the homepage's
+ * "Honest by default" composition rather than a new one (`BRAND.md` Part 4 —
+ * a centred subpage section under a hard-left hero is the drift move 6 exists
+ * to close).
+ *
+ * IT ARRIVED HERE ON MOVE 6 PAGE 2 RATHER THAN PAGE 1, deliberately, and the
+ * move is worth explaining because page 1 wrote the opposite down. Pricing
+ * declared this function locally and said so in a comment: shared chrome
+ * re-skins eight pages at once, and a move that owns ONE page has no business
+ * doing that. That was right while one page wanted the shape. The second page
+ * to want it is the moment the argument flips — two private copies of a
+ * heading recipe is how "which size is a section heading" drifts across a site
+ * whose Part 1 word for itself is *precise*, and the pages that have not been
+ * converted yet do not render this at all, so promoting it re-skins nothing
+ * that is not already in the language. `SectionTitle` stays exactly where it
+ * is, still centred, still used by the pages move 6 has not reached.
+ */
+export function SectionOpener({
+  eyebrow,
+  title,
+  lede,
+}: {
+  eyebrow: string
+  title: string
+  lede?: React.ReactNode
+}) {
+  return (
+    <div className="mb-10 max-w-2xl">
+      <Eyebrow>{eyebrow}</Eyebrow>
+      <h2 className="text-[1.7rem] font-bold leading-tight tracking-[-0.02em] text-gray-950 sm:text-[2.1rem]">
+        {title}
+      </h2>
+      {lede && <p className="mt-3 text-[0.98rem] leading-relaxed text-gray-600">{lede}</p>}
+    </div>
+  )
+}
+
+/**
  * THE SHARED SUBPAGE HERO — `BRAND.md` Part 8 move 4 (DREAMCRM-72).
  *
  * Eight pages open with this component, so it is the single largest lever on

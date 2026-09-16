@@ -1512,7 +1512,7 @@ unannounced error/success nodes (public booking, portal visit-card + booking,
 auth sign-in/up/reset, approval-inbox validation); + S3 (drawer `DialogTitle`,
 portal desktop-nav `aria-current`, phase-change announcements). · OPEN.
 
-### Open — /compare/[vendor] scrolls sideways 212px at 390 (found 2026-09-15)
+### Fixed — /compare/[vendor] scrolls sideways 212px at 390 (found 2026-09-15)
 
 **S3 · marketing site · the capability matrix drags the whole document wider
 than the phone.** Found by the three-width check on DREAMCRM-71 (tone tiles),
@@ -1557,9 +1557,50 @@ content instead of to its track; that is a lead, not a diagnosis.
 **Not fixed here on purpose** (§10): it does not block the tone-tile work, it
 is UI correctness rather than brand character, and a layout fix to a page this
 PR only touched two list markers on would change how the diff classifies.
-Handed to Vesper with this reproduction. · OPEN
+Handed to Vesper with this reproduction.
 
-### Open — the compare capability matrix is a scroll region with no keyboard way in (found 2026-09-15)
+**ROOT-CAUSED AND FIXED on DREAMCRM-76 (Daylight Dream move 6 page 2), and the
+lead above was WRONG — read the correction, because the mechanism is a trap
+that will catch somebody else.** Nothing was sizing to content: every ancestor
+of the scroll box measured `display: block`, computed `min-width: 0px`, and
+390px wide. The tell was already in the reproduction table and nobody had asked
+it — `document.body.scrollWidth` was **390**, correct, while
+`documentElement.scrollWidth` was **602**. A document that widens where its own
+body does not is not an in-flow overflow at all.
+
+**The actual cause: `MatrixMark`'s `sr-only` spans.** Tailwind's `sr-only` is
+`position: absolute`, and no ancestor inside the `overflow-x-auto` wrapper was
+positioned, so the containing block of all 26 of them resolved to the INITIAL
+containing block — outside the scroller (`offsetParent` read `BODY`). An
+absolutely-positioned descendant whose containing block is outside a scroll
+container contributes nothing to that container's scrollable overflow; it
+contributes to its real containing block's. Each span therefore sat at its
+static position inside the 672px table — the rightmost at **x = 601.5** — and
+widened the document. 601.5 → 602, and 602 − 390 = **212**.
+
+Isolated rather than argued, two ways, each taking the overflow to **+0**:
+deleting only the `sr-only` spans, and setting `position: relative` on the
+wrapper alone (which gives them a containing block inside the scroller).
+
+**Why the entry's own scan hid it, which is the transferable half.** "A scan
+for elements whose `right` exceeds the viewport and which have NO `overflow-x`
+ancestor returns zero" was a true measurement that could not answer the
+question. Those spans DO have an `overflow-x` ancestor in the DOM tree — and
+DOM ancestry is not what governs scrollable overflow. The containing-block
+chain is, and for an abspos element the two come apart. **A zero-escaping-
+elements result does not mean zero elements escaped**, so grade the DOCUMENT,
+not the elements.
+
+**The fix does not depend on knowing any of that**: the matrix now reflows to a
+card per capability below `md` and is a `<table>` with no `min-width` from `md`
+up, so there is no scroll container on the page at any width. Verified +0 and
+`scrollX` 0 on all EIGHT vendor slugs × 390 / 834 / 1440, and
+`e2e/marketing-viewport.spec.ts` now holds every marketing page there — the
+guard Part 10 has wanted since it was written. Watched to fail against this
+exact defect: on the pre-fix file it reddens the eight vendor stops at 390 with
+`+212`, and only those. · **FIXED — awaiting merge (#621)**
+
+### Fixed — the compare capability matrix is a scroll region with no keyboard way in (found 2026-09-15)
 
 **S3 · marketing site · WCAG 2.1.1.** `app/(marketing)/compare/[vendor]/page.tsx:106`
 — the `div.overflow-x-auto` wrapping the feature matrix scrolls horizontally
@@ -1579,7 +1620,26 @@ case the box needs `tabindex="0"` plus an accessible name (`role="region"` +
 `aria-label`, or `aria-labelledby` pointed at the "Feature by feature"
 heading).
 
-Same lane and same hand-off as the entry above — UI correctness, Vesper. · OPEN
+Same lane and same hand-off as the entry above — UI correctness, Vesper.
+
+**FIXED on DREAMCRM-76 by the first of those two answers**, which is the one
+`BRAND.md` Part 10 was always going to force: the matrix reflows below `md`
+instead of scrolling, so there is no scroll region left for the rule to be
+about. Not a `tabindex="0"` — adding a tab stop to a box that no longer scrolls
+would be a focus trap for no reader's benefit.
+
+**Confirmed with the instrument that raised it**, both directions, at 390 × 900
+on `/compare/weave`: axe (`wcag2a/2aa/21a/21aa`, the gate's own tag set) returns
+this finding on `.overflow-x-auto` on the pre-fix file and **zero violation
+nodes** on the rebuilt page. Re-run clean on `/compare`, `/compare/weave` and
+`/compare/patientpop` at all three widths.
+
+**The filed-separately decision was right and is worth keeping.** The two did
+share a fix in the end — but only because the width answer chosen was the
+reflow. Had the scroll box been kept and given `min-width: 0` plumbing, the
+width entry would have closed and this one would have survived with no entry of
+its own, which is exactly what the one-defect-one-entry rule exists to prevent.
+· **FIXED — awaiting merge (#621)**
 
 ### Open — the Dream Create wordmark is invisible to every dark-OS visitor (found 2026-09-16)
 
@@ -1652,6 +1712,83 @@ different instrument from listing three components.
 **Not fixed here on purpose:** it is the move-2 surface and move 4's diff is
 the chrome. Same lane (Daylight Dream), so it is not a hand-off — it belongs to
 move 5 or move 6. · OPEN
+
+### Open — nothing grades `app/(marketing)` against Part 4's 12px floor (found 2026-09-16)
+
+**S3 · marketing site · `BRAND.md` Part 4.** Part 4 sets a 12px floor for this
+site — *"No `text-[11px]`, no sub-0.75rem literals"* — and **six** live
+literals sit under it in `app/(marketing)`, at 0.72rem = **11.52px**:
+
+| File | Line |
+|---|---|
+| `app/(marketing)/docs/page.tsx` | 37 |
+| `app/(marketing)/resources/guide-ui.tsx` | 98 |
+| `app/(marketing)/roi/roi-calculator.tsx` | 95 |
+| `components/marketing/ui.tsx` | 1395, 1633, 1693 |
+
+(Line numbers are against `main` as of DREAMCRM-76. Re-derive with
+`git grep -n "text-\[0\.7[0-4]rem\]" -- "app/(marketing)" components/marketing`
+rather than trusting them — the count is the durable fact, not the lines.)
+
+**This is a DIFFERENT gap from the cinema-stage entry above, which is why it is
+its own entry.** That one is about `SKIP_DIRS` in
+`tests/a11y/legibility-floor.test.ts` pardoning `components/marketing`
+wholesale — a deliberate skip with a stated reason (the product mocks in that
+directory imitate a real screen at 7px). This one is about `SCAN_DIRS` in the
+same file, which is `['app/(default)', 'app/(portal)', 'app/(double-sidebar)',
+'components']` — **`app/(marketing)` is not in it at all.** The three
+`app/(marketing)` rows above are in no tree any guard walks, under any
+exemption, for no stated reason. The three `components/marketing/ui.tsx` rows
+are inside the skipped directory and need the same by-component treatment
+`tests/marketing/chrome-legibility.test.ts` gave the shared chrome on
+DREAMCRM-72; two of them (`:1593`, `:1653`) are inside product MOCKS and are
+very likely correct under that skip's real reason, which is exactly why the
+instrument has to grade by component rather than by path.
+
+**Found by** the DREAMCRM-76 sweep while fixing the two compare literals in the
+same family (`compare/[vendor]/page.tsx:147,153` and `compare/page.tsx:75`,
+all three now 0.75rem). Those three are fixed because that PR was rebuilding
+the elements they were on; the six above are on four other people's pages and
+a blanket raise would be a restyle of surfaces this PR never opened.
+
+**Do not close this by adding `app/(marketing)` to `SCAN_DIRS`** until the six
+are resolved — the widened scan goes red on arrival, which is the correct
+behaviour and also means the widening and the fixes have to land together.
+Same lane as the entry above — UI correctness, Vesper. · OPEN
+
+### Open — the matrix "no" mark reads 2.29 against its own tile (found 2026-09-16)
+
+**S3 · marketing site · `components/marketing/ui.tsx`, `MatrixMark`.** The
+three marks in the comparison matrix are the VALUE a reader scans the page
+for, and the "no" one is close to invisible. **Measured as rendered**
+(Playwright, computed styles resolved through a canvas, `/compare/weave` at
+1440, the rebuilt page):
+
+| Mark | Glyph, as rendered | Tile, as rendered | Ratio |
+|---|---|---|---|
+| Yes | `#007a55` | `#d0fae5` | **4.72** |
+| Partial | `#bb4d00` | `#fef3c6` | **4.52** |
+| No | `#93a0bc` | `#e9f0fc` | **2.29** |
+
+**Why axe is green on this page anyway, and why that is not a defence.** The
+glyph is an `aria-hidden` `<svg>` carrying an `sr-only` word, so no text-
+contrast rule grades it — a full axe run over `/compare`, `/compare/weave` and
+`/compare/patientpop` at all three widths returns **zero** violation nodes. The
+`sr-only` word means the meaning never rides on the glyph alone for a screen
+reader; it does nothing at all for a sighted reader, who has only the mark.
+
+Note the second row as much as the third: **`Partial` clears the floor by
+0.02.** That is `BRAND.md` Part 7's "4.18 reads as nearly fine" shape — a pair
+that passes today and fails the first time somebody warms the tint.
+
+**Not fixed here on purpose** (§10, and Neon's own scope rule — character, not
+correctness): it is a shared component rather than the page being rebuilt, its
+exemption premise is pinned by `tests/marketing/tone-tiles.test.ts` (the
+`sr-only` words), and the fix is a palette call on the tone registry rather
+than a brand-character one. **`MatrixMark` is also the one tick on this site
+the check-mark veto exempts BY COMPONENT with its premise asserted** — changing
+its structure, or the `sr-only` spans, fails that guard by name. Deepen the ink
+or the tint; do not restructure it. UI correctness, Vesper. · OPEN
 
 ### R1 · S8 sweep — Compliance & data (2026-08-17)
 
