@@ -5,14 +5,17 @@ The binding personality language for the **public marketing site**
 with Dustin Russenberger on DREAMCRM-43 (2026-09-14) and reversed from a night
 hero to light throughout on DREAMCRM-67 (2026-09-15).
 
-> **The fold looks like this; the rest of the site does not yet.** Part 8
-> move 1 landed on DREAMCRM-69 — the homepage hero IS the daylight band now,
-> and the night band is deleted rather than dormant (`NIGHT_GRID`, `NightSky`,
-> the star field, the scan sweep and both night CTAs are gone from
-> `components/marketing/ui.tsx`). Moves 2–6 are still ahead, so everything
-> below the ticker, the shared chrome and every subpage still wear the old
-> language. Where this file and the code disagree, this file is the target and
-> the code is the backlog — and Part 8 says which move closes each gap.
+> **The fold and the list marks look like this; the chrome and the subpage
+> layouts do not yet.** Moves 1–3 have landed: the homepage hero IS the
+> daylight band (DREAMCRM-69), the cinematic spine sits below the ticker
+> (DREAMCRM-70), and **both owner vetoes are now closed in code** — the night
+> band's 56px grid and `CheckIcon` are deleted rather than dormant, so
+> reaching for either is a build error rather than a review comment. Moves 4–6
+> are still ahead: the shared chrome (`MarketingHeader`, `MarketingFooter`,
+> `PageHero`) and every subpage's LAYOUT still wear the old language, even
+> though their list marks are now tone tiles. Where this file and the code
+> disagree, this file is the target and the code is the backlog — and Part 8
+> says which move closes each gap.
 
 **Scope boundary.** This file governs the marketing site only. It does not
 touch `app/(default)` / `app/(double-sidebar)` (that is `DESIGN-SYSTEM.md` v3,
@@ -252,6 +255,41 @@ descriptions (2026-09-14, DREAMCRM-43):
      in `DECORATIVE_MOCKS`, every pair in it is legal on its own ground, and
      `marketing: home` keeps its ceiling of ZERO on the merits. See Part 7.
 
+10. **Move 3 built — the tone tiles, and the three things the direction did not
+    say** (DREAMCRM-71, 2026-09-15). The veto and the shape were settled; what
+    building it decided:
+
+    - **A tile per line is the wrong default, and finding that out is most of
+      the work.** The direction said "replace `CheckIcon` everywhere", and the
+      literal reading puts a tile on each of the 26 rows of the pricing
+      inventory and each of the 54 bullets on the product tour. That is 80
+      coloured squares down two pages — a second uniform mark, differently
+      shaped. **The veto was against sameness, not against ticks**, so a fix
+      that re-creates the sameness in a new costume has not done anything. Hence
+      Part 3's two tiers: a tile earns its place where the line is a different
+      KIND of thing, and moves up to the group heading where the rows are one
+      kind of thing already named above them.
+    - **The subject list is required in content, not optional with a
+      fallback.** `ourStrengths` in `lib/marketing/comparisons.ts` takes a
+      `glyph` as a REQUIRED field, so a ninth vendor comparison cannot compile
+      without somebody deciding what each win is about. An optional field with
+      a generic default would have re-grown the identical mark one new vendor
+      at a time, which is the same drift that made this a three-issue job.
+    - **The ninth call site is not a marketing list and did not take a tile.**
+      The one inside `ReviewsMock` sits in a product mock, and the mocks wear
+      the dashboard's language — a marketing tile there would make the picture
+      an unfaithful one, which is item 4's argument in a different costume. It
+      borrows the registry's `star` PATH at mock scale instead: no tick, and
+      the glyph finally says what the strip is about.
+
+    One more thing, recorded because it was a near miss rather than a decision.
+    The guard's first version attributed a path to the nearest preceding
+    `function`, and a bare tick dropped into an arrow component after
+    `MatrixMark` was silently pardoned by `MatrixMark`'s exemption — **the scan
+    reported CLEAN with the defect live.** Only the mutation found it. That is
+    §2d's "the right string in the wrong scope": the boundary a search needs is
+    not always inside the regex, sometimes it is the region you ran it over.
+
 **Why light is the right answer and not a retreat.** The original case for a
 night band was memorability, and it was a real argument — but the pages that
 close the sale (pricing, comparisons, docs, blog) are long-form reading done on
@@ -364,15 +402,48 @@ continues to bind.
   (`NIGHT_GRID`) is deleted, not lightened — *"i'm not a big fan of thin black
   lines making up grids."* Content still locks to a column rhythm; the rhythm is
   no longer drawn on the page.
-- **No bland check marks. Owner veto, DREAMCRM-67.** `CheckIcon` is replaced
-  everywhere on the marketing site by a **tone-tile set**: a filled squircle
-  carrying a glyph that says what the line is actually about — a chart for
-  scheduling, a speech bubble for messaging, a currency glyph for payments.
-  Every identical tick becomes a statement. The tile fill is a tone tint; the
-  glyph is that tone's deep ink. (The count was eleven when the veto was given,
-  ten after move 1 corrected it (#614), and is **nine** now — move 2 retired the
-  "What it feels like" card with the section it sat on. Part 8 move 3 carries the
-  live census.)
+- **No bland check marks. Owner veto, DREAMCRM-67 — CLOSED on DREAMCRM-71.**
+  `CheckIcon` is deleted, not dormant, and every marketing call site now carries
+  a **tone tile**: a filled squircle whose glyph says what the line is actually
+  about — a calendar for the schedule, a speech bubble for messaging, a banknote
+  for payments. The tile fill is a tone tint; the glyph is that tone's deep ink.
+  The census reached zero rather than nine (Part 8 move 3).
+
+  **The tiles are a VOCABULARY, and it has three rules.**
+
+  1. **A subject owns its tone; a call site never picks one.** The registry is
+     `lib/marketing/tone-tiles.ts` — add a subject there, never at a call site.
+     A site that can choose its own colour will eventually choose a second one
+     for the same subject, which is the failure `TONE_FILL` exists to prevent.
+  2. **Three tone families, and the three that are missing are the point.**
+     `brand` is what the product IS (every surface, every module, and the
+     honesty terms — Part 2 says the brand hue is never a status, and
+     honest-by-default is identity rather than a state); `growth` is what it
+     earns you; `auto` is what it does without you. **`rose` and `amber` are
+     withheld** because they are the registry's urgency signals and nothing on
+     a benefit list is urgent or needs the reader's action. **`fuchsia` is
+     withheld** because Part 2 gives it exactly two homes and a feature bullet
+     is neither — and it is "never on pricing", which is where a third of these
+     tiles live.
+  3. **Two tiers, because a tile repeated down an inventory is wallpaper.**
+     This is the rule that keeps the fix from re-committing the original sin:
+     replacing one uniform mark with a second uniform mark satisfies the letter
+     of the veto and misses all of it.
+     - **Tier A — a tile per LINE**, where every line is a different KIND of
+       thing: the honesty tenets, the partner terms, a vendor's strengths, the
+       "everything else" cards.
+     - **Tier B — a tile on the GROUP, a tone dash on each row**, where the
+       rows are one kind of thing under a heading that already names the
+       subject: the pricing module inventory (26 rows, 4 groups) and the
+       product tour's bullets (54 across 10 sections). Eight ways of saying
+       "website" do not need eight globes; they need one globe and eight
+       legible lines.
+
+  **The hero's trust row takes NO mark at all** and that is not an oversight —
+  the composition the owner approved in round B is plain mono with dot
+  separators, and four tiles there would be four statements the headline has
+  already made. "Every list gets tiles" was never the rule; "every mark says
+  something" is.
 - **Geometry, chrome zones only.** Blooms and grain. Never behind reading text
   (Part 7 is not advisory about this), never inside a data surface, always
   `aria-hidden` and `pointer-events: none`.
@@ -737,6 +808,35 @@ fill, extend the registry rather than writing a local recipe. On a light ground
 `TONE_PILL`'s ink steps are finally the ones they were chosen for, which is one
 thing that genuinely got easier.
 
+**Built and measured on DREAMCRM-71.** The prediction above held: `FILL_STEPS`
+is 300–600, the tiles landed at **200**, and the exclusion is structural rather
+than an exemption entry. Graded through `tests/a11y/palette.ts`, the same
+resolver the guards use:
+
+| Tile | Fill | Ink | Ratio | vs white | vs `gray-50` |
+|---|---|---|---|---|---|
+| `brand` | `teal-200` | `teal-800` | **6.49** | 1.47 | 1.36 |
+| `growth` | `emerald-200` | `emerald-800` | **5.95** | 1.28 | 1.19 |
+| `auto` | `violet-200` | `violet-800` | **5.75** | 1.53 | 1.42 |
+
+Two decisions rather than measurements, and both are the cinema stage's
+reasoning reaching the same place independently:
+
+- **The `-800` ink, not the `-700`.** On these tints `-700` gives 4.81 / 4.16 /
+  4.35 — **two of the three are already under the floor**, and the one that
+  clears does so by 0.31. That is the 4.18 lesson again: a tile one step off
+  the floor passes today and fails the first time somebody warms the tint.
+- **The `-200` tint, not the `-100`.** Read the last two columns, which are the
+  tile against the card it sits on rather than the ink against the tile. At
+  `-100` those read 1.14–1.27 and the tile is a ghost — and a tile you cannot
+  quite see is Part 1's third "not us", which is the specific way this
+  direction fails. Contrast was never the binding constraint at this end; being
+  *seen at all* was.
+
+Both of those are pinned by `tests/marketing/tone-tiles.test.ts` rather than
+left to care — warming a fill to `-300` or softening an ink to `-700` fails the
+suite, naming the tone.
+
 ### The cinema stage — graded rather than exempted (DREAMCRM-70)
 
 The spine's full-bleed product surface (`CinemaStage`) is the first illustration
@@ -853,18 +953,27 @@ the reduced-motion path in the same PR.
    keyboard/screen-reader path and the reduced-motion layout was requested on
    the issue at the PR** — the one part of this move that is a second pair of
    eyes rather than a measurement.
-3. **The tone tiles replace `CheckIcon`** across the **nine** marketing call
-   sites left: homepage 2, compare 2, product 2, pricing 1, partner-program 1,
-   plus one inside `ui.tsx`. The two `CheckIcon`s in `app/(default)` are
-   separate local definitions in the dashboard's language and are out of scope.
+3. ~~**The tone tiles replace `CheckIcon`**~~ — **LANDED** (DREAMCRM-71,
+   2026-09-15). All nine sites carry a tone tile or, on the two Tier-B
+   inventories, a group tile plus tone dashes; `CheckIcon` is deleted from
+   `components/marketing/ui.tsx` rather than left dormant, so re-importing it
+   is a build error. `git grep "<CheckIcon" -- "app/(marketing)"
+   components/marketing` returns nothing. The two `CheckIcon`s in
+   `app/(default)` are separate local definitions in the dashboard's language
+   and were left alone. Decisions it settled: Part 0 item 10. Measured tints:
+   Part 7.
 
-   **The census has moved twice and this is the measured figure, not the
-   original one.** It was eleven when the direction was decided; move 1 took the
-   hero's trust row and #614 corrected this line to ten (Part 0 item 8); move 2
-   took the "What it feels like" card with the section it lived in, which is
-   this edit. Re-count before starting rather than trusting the number — the
-   point of naming it is that the veto is finished when it reaches zero, and a
-   line that has already been stale twice is how a call site gets left behind.
+   **The census moved twice before it reached zero, and the third check is now
+   a test rather than a sentence.** It was eleven when the direction was
+   decided; move 1 took the hero's trust row and #614 corrected the line to
+   ten; move 2 took the "What it feels like" card with the section it lived in,
+   leaving nine. A number written in prose goes stale silently — which is
+   exactly what happened, twice — so the closing move replaced it with
+   `tests/marketing/tone-tiles.test.ts`, which asks the tree on every run and
+   does not care what this paragraph says. **That guard is geometric, not
+   nominal:** it fails on any path that is *entirely* a check mark, under any
+   component name or none, because the way this comes back is not a re-import
+   (impossible now) but somebody hand-rolling a tick into a fresh `<svg>`.
 4. **Shared chrome** — `MarketingHeader`, `MarketingFooter` and `PageHero` in
    `components/marketing/` — so every subpage inherits the language for free
    instead of drifting page by page.

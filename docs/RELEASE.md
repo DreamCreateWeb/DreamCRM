@@ -1512,6 +1512,58 @@ unannounced error/success nodes (public booking, portal visit-card + booking,
 auth sign-in/up/reset, approval-inbox validation); + S3 (drawer `DialogTitle`,
 portal desktop-nav `aria-current`, phase-change announcements). · OPEN.
 
+### Open — /compare/[vendor] scrolls sideways 212px at 390 (found 2026-09-15)
+
+**S3 · marketing site · the capability matrix drags the whole document wider
+than the phone.** Found by the three-width check on DREAMCRM-71 (tone tiles),
+which touched two list markers on this page and nothing else — **the defect is
+pre-existing and unrelated to that change**, isolated below rather than
+assumed.
+
+`BRAND.md` Part 10 makes this build-blocking in its own words — *"Zero
+horizontal scroll at any width… check it by measuring `scrollWidth` against
+`clientWidth`, not by looking at it"* — so it is recorded with the measurement
+rather than a description.
+
+**Reproduction**, `/compare/weave` at 390 x 900 (every vendor slug does it;
+they share one template):
+
+| Probe | Result |
+|---|---|
+| `documentElement.scrollWidth - clientWidth` | **+212px** |
+| `window.scrollTo(9999, 0)` then `window.scrollX` | **212** — the page really does pan, it is not a measurement artifact |
+| same measure with every `.mkt-tile` removed | **+212px** — not the tone tiles |
+| same measure with `document.querySelectorAll('table')` removed | **+0px** — it is the matrix, alone |
+
+**A second, independent instrument names the same element.** An axe run
+(`wcag2a/2aa/21a/21aa`, the gate's own tag set) over the five marketing pages
+at all three widths returns exactly one live finding — everything else sits
+inside `aria-hidden` product mocks — and it is
+**`scrollable-region-focusable` on that same `.overflow-x-auto` at 390**:
+*"Scrollable region must have keyboard access."* So the container is a
+scrollable region with no way into it by keyboard, which is a second defect in
+the same element and a WCAG 2.1.1 issue rather than a brand-book one. Whoever
+fixes the width should fix both at once — if the right answer turns out to be
+"let the matrix scroll inside its box", that box then needs `tabindex="0"` and
+an accessible name; if it is "reflow the matrix at 390", both findings go away
+together.
+
+**The element:** `app/(marketing)/compare/[vendor]/page.tsx:107` —
+`<table className="w-full min-w-[42rem] …">`, rendered 672px wide inside a
+390px viewport. Its wrapper on line 106 already carries `overflow-x-auto`, so
+the intent was right; what a fix has to explain is why that container is not
+containing it. A scan for elements whose `right` exceeds the viewport and which
+have NO `overflow-x: auto|hidden|scroll` ancestor returns **zero** — i.e. no
+element is escaping on its own, and the document is being widened through the
+scroll container rather than past it. The usual cause of that shape is an
+ancestor that is a flex/grid item without `min-width: 0`, so it sizes to
+content instead of to its track; that is a lead, not a diagnosis.
+
+**Not fixed here on purpose** (§10): it does not block the tone-tile work, it
+is UI correctness rather than brand character, and a layout fix to a page this
+PR only touched two list markers on would change how the diff classifies.
+Handed to Vesper with this reproduction. · OPEN
+
 ### R1 · S8 sweep — Compliance & data (2026-08-17)
 
 One finder produced the written posture assessment now in **`docs/COMPLIANCE.md`**

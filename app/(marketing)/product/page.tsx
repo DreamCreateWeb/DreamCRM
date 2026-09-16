@@ -2,7 +2,9 @@ import {
   Eyebrow,
   PrimaryCta,
   GhostCta,
-  CheckIcon,
+  ToneTile,
+  ToneDash,
+  type ToneTileGlyph,
   DashboardMock,
   PortalMock,
   EditorMock,
@@ -31,6 +33,13 @@ interface ModuleSection {
   title: string
   body: string
   bullets: string[]
+  /* TIER B (`BRAND.md` Part 3). Ten sections × ~six bullets is fifty-four
+     lines, and fifty-four tone tiles is wallpaper rather than fifty-four
+     statements — the bullets under "Online booking" are all about online
+     booking, which the eyebrow, the headline and the mock have already said
+     three ways. So the tile states the section ONCE, in the eyebrow, and the
+     bullets take that section's tone as a dash. */
+  glyph: ToneTileGlyph
   docHref: string
   visual: 'dashboard' | 'portal' | 'editor' | 'booking' | 'messages' | 'reviews' | 'recall' | 'shop' | 'gbp'
 }
@@ -38,6 +47,7 @@ interface ModuleSection {
 const SECTIONS: ModuleSection[] = [
   {
     id: 'frontdesk',
+    glyph: 'calendar',
     eyebrow: 'Run the day',
     title: 'The front desk’s whole morning on one screen',
     body: 'Every module above feeds a daily-ops layer built for the person at the desk. The Overview is a morning huddle — today’s chairs, who hasn’t confirmed, what came in overnight. The Appointments agenda groups the day the way the desk thinks and ages unconfirmed visits from green to red; a freed slot offers itself to your fast-pass waitlist before it goes empty. Follow-ups create themselves from balances, overdue recall, and unconfirmed visits, so nothing slips. And the money side is handled: booking deposits, online balance payments, patient-started payment plans with card-on-file autopay, and a collections workboard.',
@@ -54,6 +64,7 @@ const SECTIONS: ModuleSection[] = [
   },
   {
     id: 'website',
+    glyph: 'globe',
     eyebrow: 'The storefront',
     title: 'A practice website you actually control',
     body: 'Most practices rent their website from an agency and email support to change a sentence. Your DreamCRM site is yours: open the Website Studio and your real, live site appears in an editable canvas — hover any section, click Edit, save, published. Services come from a curated dental library with per-practice AI customization; the blog, SEO plumbing (sitemaps, local schema, social cards), careers page, and lead forms are all part of the same site.',
@@ -70,6 +81,7 @@ const SECTIONS: ModuleSection[] = [
   },
   {
     id: 'booking',
+    glyph: 'clock',
     eyebrow: 'Acquisition',
     title: 'Online booking that protects the schedule',
     body: 'Patients book from your real availability — office hours minus what is already on the books, in your timezone — on your public site and in the portal. The classic self-scheduling failure (a root canal booked into a 30-minute cleaning slot) is designed out: you choose which visit types are bookable online, and everything else routes to a phone call.',
@@ -86,6 +98,7 @@ const SECTIONS: ModuleSection[] = [
   },
   {
     id: 'portal',
+    glyph: 'people',
     eyebrow: 'Retention',
     title: 'A patient portal wearing your brand, not ours',
     body: 'Patients get a warm, mobile-first portal with your logo, your colors, your voice — not dental-software chrome. They confirm and self-reschedule visits, fill forms before they arrive, see their balance with an honest as-of date, pay online, and manage the whole family from one passwordless login. You control every feature with toggles where off means gone — no dead links — and preview the result as a patient before sharing it.',
@@ -102,6 +115,7 @@ const SECTIONS: ModuleSection[] = [
   },
   {
     id: 'messages',
+    glyph: 'chat',
     eyebrow: 'Communication',
     title: 'Every patient conversation in one thread',
     body: 'Portal messages and patient email merge into a single conversation per patient, so the front desk answers people, not channels. Threads a patient is waiting on grow an aging edge from green to red — the inbox triages itself. Your practice Gmail connects too, with team triage for everything that isn’t a patient thread.',
@@ -117,6 +131,7 @@ const SECTIONS: ModuleSection[] = [
   },
   {
     id: 'reviews',
+    glyph: 'star',
     eyebrow: 'Reputation',
     title: 'Reviews collected at the right moment',
     body: 'After a good visit, send a one-tap review request. The patient writes their words on your page; you choose which become testimonials on your website — their exact words, never edited — and they’re invited onward to Google where public reputation compounds. Same ask to every patient, no rating-gating: clean under the FTC’s fake-reviews rule.',
@@ -132,6 +147,7 @@ const SECTIONS: ModuleSection[] = [
   },
   {
     id: 'gbp',
+    glyph: 'megaphone',
     eyebrow: 'Local presence',
     title: 'Your Google profile and socials, run from one place',
     body: 'Connect your Google Business Profile in a couple of clicks and the real reviews patients leave sync in — reply from your dashboard, and your live star rating shows on your website. The same connection keeps your Google hours, address, and photos in step with your site and surfaces your local search performance on the SEO and Analytics pages. Then compose once and publish — or schedule — to Google, Instagram, Facebook, TikTok, YouTube, and LinkedIn from a single composer with a content calendar.',
@@ -148,6 +164,7 @@ const SECTIONS: ModuleSection[] = [
   },
   {
     id: 'recall',
+    glyph: 'bolt',
     eyebrow: 'Reactivation',
     title: 'Recall that fills chairs, measured honestly',
     body: 'Audiences build themselves from live patient data — due, overdue, lapsed, birthdays — and stay current without list maintenance. Warm templates go out by email with booking links, and the funnel reports what matters: not opens, but visits actually booked. If your PMS is connected, its recall engine drives the due dates.',
@@ -164,6 +181,7 @@ const SECTIONS: ModuleSection[] = [
   },
   {
     id: 'shop',
+    glyph: 'cart',
     eyebrow: 'New revenue',
     title: 'A shop and membership plans nobody else ships',
     body: 'Sell whitening kits, electric brushes, and branded merch from your own website, and run in-house membership plans (the uninsured-patient answer) with benefit tracking. Payments run through your own Stripe account — payouts land in your bank, not ours. No orbital-layer competitor ships a storefront; this is yours alone in the category.',
@@ -179,6 +197,7 @@ const SECTIONS: ModuleSection[] = [
   },
   {
     id: 'integrations',
+    glyph: 'sync',
     eyebrow: 'The foundation',
     title: 'PMS sync through official, sanctioned paths — only',
     body: 'DreamCRM wraps your PMS; it never replaces it and never sneaks behind it. One bridge reaches Open Dental, Dentrix, Eaglesoft, and most other systems — we set it up with you in a short server install. Patients, appointments, providers, insurance, and family links flow in; bookings and cancellations flow back; everything moves through official, sanctioned paths. Open Dental has publicly cautioned its customers about vendors writing directly into its database; we built the kind of integration they recommend instead.',
@@ -249,10 +268,13 @@ export default function ProductPage() {
           <section key={s.id} id={s.id} className="scroll-mt-28 border-b border-gray-100 py-16 last:border-b-0">
             <div className={`grid items-start gap-10 lg:grid-cols-2 ${i % 2 === 1 ? 'lg:[&>*:first-child]:order-2' : ''}`}>
               <div>
-                <Eyebrow>
-                  <span className="mr-2 text-gray-500">{String(i + 1).padStart(2, '0')}</span>
-                  {s.eyebrow}
-                </Eyebrow>
+                <div className="group mb-3 flex items-center gap-3">
+                  <ToneTile glyph={s.glyph} size="lg" />
+                  <p className="text-[0.75rem] font-bold uppercase tracking-[0.14em] text-teal-700">
+                    <span className="mr-2 text-gray-500">{String(i + 1).padStart(2, '0')}</span>
+                    {s.eyebrow}
+                  </p>
+                </div>
                 <h2 className="text-[1.6rem] font-bold leading-tight tracking-tight sm:text-[1.9rem]">{s.title}</h2>
                 <p className="mt-4 text-[0.95rem] leading-relaxed text-gray-600">{s.body}</p>
                 {s.docHref && (
@@ -265,8 +287,8 @@ export default function ProductPage() {
                 <ScrollReveal>{VISUALS[s.visual]}</ScrollReveal>
                 <ul className="mt-5 grid gap-2 sm:grid-cols-2">
                   {s.bullets.map((b) => (
-                    <li key={b} className="flex items-start gap-2 text-[0.85rem] leading-snug text-gray-700">
-                      <CheckIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-teal-700" />
+                    <li key={b} className="flex items-start gap-3 text-[0.85rem] leading-snug text-gray-700">
+                      <ToneDash glyph={s.glyph} className="mt-[0.4rem]" />
                       {b}
                     </li>
                   ))}
@@ -290,20 +312,20 @@ export default function ProductPage() {
           </p>
         </div>
         <div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {[
-            ['Digital intake forms', 'Photo & insurance-card fields, OCR autofill, AI pre-visit summary, Spanish, kiosk mode, and an OD chart mirror.'],
-            ['Membership plans', 'In-house plans for the uninsured — monthly or annual, with benefit-usage tracking and a portal upsell.'],
-            ['Payment plans', 'Patient-started installments with card-on-file autopay, retries, and a collections workboard.'],
-            ['Careers + ATS', 'Public job postings with JobPosting schema (Google for Jobs) and a hiring pipeline.'],
-            ['Practice analytics', 'A scorecard of new patients, retention, reputation, and search — measured against the prior window.'],
-            ['Loyalty + referrals', 'Points for visits and a refer-a-friend link with booking attribution baked in.'],
-            ['Custom domains', 'Point your own domain at your DreamCRM site with managed SSL.'],
-            ['Family access', 'One passwordless login runs the whole household’s visits, forms, and balances.'],
-            ['Honest by default', 'Published pricing, month-to-month, official APIs only, and every gap marked before you buy.'],
-          ].map(([title, body]) => (
-            <div key={title} className="rounded-xl border border-gray-200 bg-white p-5">
-              <h3 className="flex items-center gap-2 text-[0.95rem] font-bold text-gray-950">
-                <CheckIcon className="h-3.5 w-3.5 shrink-0 text-teal-700" />
+          {([
+            ['form', 'Digital intake forms', 'Photo & insurance-card fields, OCR autofill, AI pre-visit summary, Spanish, kiosk mode, and an OD chart mirror.'],
+            ['cart', 'Membership plans', 'In-house plans for the uninsured — monthly or annual, with benefit-usage tracking and a portal upsell.'],
+            ['money', 'Payment plans', 'Patient-started installments with card-on-file autopay, retries, and a collections workboard.'],
+            ['people', 'Careers + ATS', 'Public job postings with JobPosting schema (Google for Jobs) and a hiring pipeline.'],
+            ['chart', 'Practice analytics', 'A scorecard of new patients, retention, reputation, and search — measured against the prior window.'],
+            ['gift', 'Loyalty + referrals', 'Points for visits and a refer-a-friend link with booking attribution baked in.'],
+            ['globe', 'Custom domains', 'Point your own domain at your DreamCRM site with managed SSL.'],
+            ['key', 'Family access', 'One passwordless login runs the whole household’s visits, forms, and balances.'],
+            ['shield', 'Honest by default', 'Published pricing, month-to-month, official APIs only, and every gap marked before you buy.'],
+          ] as Array<[ToneTileGlyph, string, string]>).map(([glyph, title, body]) => (
+            <div key={title} className="group rounded-xl border border-gray-200 bg-white p-5">
+              <h3 className="flex items-center gap-2.5 text-[0.95rem] font-bold text-gray-950">
+                <ToneTile glyph={glyph} size="md" />
                 {title}
               </h3>
               <p className="mt-1.5 text-[0.85rem] leading-relaxed text-gray-600">{body}</p>

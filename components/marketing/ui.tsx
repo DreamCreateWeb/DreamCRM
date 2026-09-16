@@ -3,6 +3,11 @@ import { FOOTER_COLUMNS, MARKETING } from '@/lib/marketing/site'
 import { COMPARISONS } from '@/lib/marketing/comparisons'
 import { DreamCreateLogo } from '@/components/brand/dream-create-logo'
 import { TONE_FILL } from '@/lib/ui/encodings'
+import {
+  TILE_TONE_CLASSES,
+  TONE_TILE_TONE,
+  type ToneTileGlyph,
+} from '@/lib/marketing/tone-tiles'
 
 /**
  * Server-side primitives for the marketing site: footer, section scaffolds,
@@ -73,6 +78,17 @@ export function MarketingMotionStyles() {
       .mkt-marquee:hover .mkt-marquee-track { animation-play-state: paused; }
       .mkt-bloom { animation: mkt-bloom 18s ease-in-out infinite; will-change: transform; }
       .mkt-live { animation: mkt-live 1.8s ease-in-out infinite; }
+      /* The tone tile's hover lift (BRAND.md Part 6: "Hover, pointer-fine
+         only", 140ms, ease-out, NO spring overshoot — the overshoot is the
+         dashboard's cute register and reads as bounce here). A media query
+         rather than a Tailwind \`hover:\` because \`hover:\` also fires on a
+         touch-and-hold, which is the case Part 6's rule excludes. The
+         transition is declared INSIDE the gate too, so a coarse pointer never
+         carries a transition it can never trigger. */
+      @media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+        .mkt-tile { transition: transform 140ms ease-out; }
+        .group:hover .mkt-tile { transform: translateY(-1px) scale(1.06); }
+      }
       @media (prefers-reduced-motion: reduce) {
         .mkt-enter { opacity: 1; animation: none; }
         .mkt-float, .mkt-float-slow { animation: none; }
@@ -651,11 +667,14 @@ export function SectionTitle({ children, sub }: { children: React.ReactNode; sub
 
 /** The DAYLIGHT hero texture — subpage heroes only now.
  *
- *  It used to be shared with the homepage hero, which is the night band since
- *  DREAMCRM-54; the export stays because `PageHero` is about to be reskinned
- *  too (BRAND.md Part 8, move 3) and this is the thing that will be replaced
- *  wholesale rather than edited. Until then every subpage still wears it, so
- *  changing it here changes pricing, compare, docs and the blog at once. */
+ *  It used to be shared with the homepage hero, which became the daylight band
+ *  on DREAMCRM-69 and no longer uses this. The export stays because `PageHero`
+ *  is due to be reskinned with the rest of the shared chrome (BRAND.md Part 8,
+ *  move 4 — move 3 was the tone tiles, which changed the list MARKS on these
+ *  pages and nothing about their layout), and this is the thing that will be
+ *  replaced wholesale rather than edited. Until then every subpage still wears
+ *  it, so changing it here changes pricing, compare, docs and the blog at
+ *  once. */
 export const HERO_DOT_GRID = {
   backgroundImage: 'radial-gradient(circle, #c1d6ff 1px, transparent 1px)',
   backgroundSize: '22px 22px',
@@ -731,11 +750,160 @@ export function GhostCta({
   )
 }
 
-export function CheckIcon({ className = 'h-4 w-4 text-teal-700' }: { className?: string }) {
+/* ── The tone tiles — BRAND.md Part 3, the owner's second veto ───────── */
+
+/**
+ * WHAT REPLACED `CheckIcon`, AND WHY IT IS A VOCABULARY RATHER THAN AN ICON.
+ *
+ * The owner's words on DREAMCRM-67 were *"bland check marks as icons"*, and
+ * the blandness was never the tick's draughtsmanship — it was that nine
+ * identical ticks down a feature list say the same nothing nine times. The
+ * replacement therefore cannot be a nicer tick. It is a filled squircle
+ * carrying a glyph that says what the line is ABOUT: a calendar for the
+ * schedule, a speech bubble for messaging, a banknote for payments. Every
+ * tick becomes a statement (`BRAND.md` Part 3, Part 8 move 3).
+ *
+ * THE SUBJECT LIST, THE TONE FAMILIES AND THE GRADED TINT/INK RECIPES LIVE IN
+ * `lib/marketing/tone-tiles.ts` — read that file for the reasoning, including
+ * the measured ratios and why `rose`, `amber` and `fuchsia` are deliberately
+ * not available here. What lives on THIS side is only the drawings, because
+ * marketing content files name a subject on the line it belongs to
+ * (`lib/marketing/comparisons.ts` does) and must not have to import the
+ * component that renders it.
+ *
+ * NOTHING CAN DRIFT ACROSS THAT SPLIT: both halves are keyed
+ * `Record<ToneTileGlyph, …>`, so a subject with no drawing — or a drawing for
+ * a subject with no tone — does not compile.
+ *
+ * THE TILES ARE DECORATIVE AND `aria-hidden`, deliberately. The line of text
+ * beside every one of them already says what it is about; a tile that
+ * announced itself would read the subject twice to a screen reader and add
+ * nothing. The glyph is a second channel for the EYE, not a second channel for
+ * the meaning — which is also why no page on this site depends on one.
+ */
+export type { ToneTileGlyph }
+
+/**
+ * THE DRAWINGS. Every `d` sits on a 16×16 grid and is stroked in
+ * `currentColor`, so one definition renders at all three tile sizes without a
+ * second copy at a second weight — and so `ReviewsMock` can borrow `star` at
+ * product-mock scale instead of keeping its own.
+ */
+export const TONE_TILE_PATH: Record<ToneTileGlyph, React.ReactNode> = {
+  /* ── brand: what the product is ── */
+  calendar: (<><rect x="2.2" y="3.4" width="11.6" height="10.4" rx="1.6" /><path d="M2.2 6.6h11.6M5.4 2.2v2.6M10.6 2.2v2.6" /></>),
+  chat: <path d="M2 4.6A2.2 2.2 0 0 1 4.2 2.4h7.6A2.2 2.2 0 0 1 14 4.6v4.6a2.2 2.2 0 0 1-2.2 2.2H6.8L3.4 14v-2.6h-.2" />,
+  globe: (<><circle cx="8" cy="8" r="5.9" /><path d="M2.1 8h11.8M8 2.1c2.2 1.9 2.2 10 0 11.8M8 2.1C5.8 4 5.8 12 8 13.9" /></>),
+  people: (<><circle cx="6.1" cy="5.3" r="2.3" /><path d="M1.9 13.6c0-2.4 1.9-3.8 4.2-3.8s4.2 1.4 4.2 3.8M10.8 3.3a2.3 2.3 0 0 1 0 4M11.5 10.2c1.7.4 2.7 1.6 2.7 3.4" /></>),
+  form: (<><path d="M4 1.9h5.1l3.4 3.4v8.9a.9.9 0 0 1-.9.9H4a.9.9 0 0 1-.9-.9V2.8a.9.9 0 0 1 .9-.9Z" /><path d="M9.1 1.9v3.4h3.4M5.7 8.6h4.6M5.7 11.1h3.2" /></>),
+  layers: (<><path d="M8 1.8 14.2 5 8 8.2 1.8 5Z" /><path d="M2.4 7.9 8 10.7l5.6-2.8M2.4 10.9 8 13.7l5.6-2.8" /></>),
+  clock: (<><circle cx="8" cy="8" r="5.9" /><path d="M8 4.6v3.7l2.4 1.5" /></>),
+  key: (<><circle cx="10.4" cy="5.6" r="2.8" /><path d="M8.4 7.6 2.2 13.8M4.3 11.7l1.5 1.5M6 10l1.5 1.5" /></>),
+  shield: (<><path d="M8 1.8 13.3 3.7v4c0 3.3-2.2 5.5-5.3 6.5-3.1-1-5.3-3.2-5.3-6.5v-4Z" /><path d="M8 6.2v3.2" /></>),
+  door: (<><path d="M8.8 2.2H3.9a.9.9 0 0 0-.9.9v9.8a.9.9 0 0 0 .9.9h4.9" /><path d="M9.4 8h4.6M11.9 5.8 14.1 8l-2.2 2.2" /></>),
+  flag: <path d="M3.7 14.1V2.3m0 .9h8.4l-1.7 2.7 1.7 2.7H3.7" />,
+  tag: (<><path d="M2.6 7.7V3.5a.9.9 0 0 1 .9-.9h4.2l5.8 5.8a.9.9 0 0 1 0 1.3l-3.9 3.9a.9.9 0 0 1-1.3 0L2.6 7.7Z" /><circle cx="5.6" cy="5.6" r="1" /></>),
+  sliders: (<><path d="M2.4 4.2h11.2M2.4 8h11.2M2.4 11.8h11.2" /><circle cx="5.4" cy="4.2" r="1.5" /><circle cx="10.2" cy="8" r="1.5" /><circle cx="6.6" cy="11.8" r="1.5" /></>),
+  eye: (<><path d="M1.5 8S4.2 3.5 8 3.5 14.5 8 14.5 8 11.8 12.5 8 12.5 1.5 8 1.5 8Z" /><circle cx="8" cy="8" r="2.1" /></>),
+  pencil: (<><path d="M11.1 2.3 13.7 4.9 5.6 13H3v-2.6Z" /><path d="M9.6 3.8l2.6 2.6" /></>),
+  /* The one glyph on this site that could only belong to this product, and the
+     tile that earns the set its keep: a practice reading "dentistry-native,
+     not generic" beside a literal tooth is the difference between a claim and
+     a demonstration. */
+  tooth: <path d="M4.6 2.2c1 0 1.6.6 3.4.6s2.4-.6 3.4-.6c1.5 0 2 1.3 2 3.2 0 2-.8 3.1-1.2 5-.3 1.5-.4 3.6-1.5 3.6s-1.1-2-1.5-3.4c-.2-.8-.5-1.2-1.2-1.2s-1 .4-1.2 1.2c-.4 1.4-.4 3.4-1.5 3.4s-1.2-2.1-1.5-3.6c-.4-1.9-1.2-3-1.2-5 0-1.9.5-3.2 2-3.2Z" />,
+
+  /* ── auto: what it does without you ── */
+  sync: (<><path d="M2.9 7.3a5.2 5.2 0 0 1 8.8-3.2l1.6 1.5" /><path d="M13.3 2.3v3.4H9.9" /><path d="M13.1 8.7a5.2 5.2 0 0 1-8.8 3.2l-1.6-1.5" /><path d="M2.7 13.7v-3.4h3.4" /></>),
+  bolt: <path d="M8.9 1.7 3.5 9.1h3.7l-.7 5.2 5.6-7.6H8.2Z" />,
+  megaphone: (<><path d="M3.3 6.2h2.4l5.6-3.1v9.8L5.7 9.8H3.3a1.3 1.3 0 0 1-1.3-1.3V7.5a1.3 1.3 0 0 1 1.3-1.3Z" /><path d="M5.7 9.9v2.8a1.1 1.1 0 0 0 1.1 1.1h.6a1.1 1.1 0 0 0 1.1-1.1v-1.9M13.2 6.4a2.5 2.5 0 0 1 0 3.2" /></>),
+
+  /* ── growth: what it earns you ── */
+  money: (<><rect x="1.4" y="4" width="13.2" height="8" rx="1.4" /><circle cx="8" cy="8" r="1.9" /><path d="M3.9 6.3v3.4M12.1 6.3v3.4" /></>),
+  chart: <path d="M2.4 13.6h11.2M4.8 13.6V8.9M8 13.6V4.8M11.2 13.6V7.1" />,
+  cart: (<><path d="M1.7 2.5h1.9l1.9 7.6h6.5l1.6-5.3H4.4" /><circle cx="6.2" cy="13" r="1.1" /><circle cx="11.5" cy="13" r="1.1" /></>),
+  gift: (<><path d="M2.5 7.6h11v5.5a.9.9 0 0 1-.9.9H3.4a.9.9 0 0 1-.9-.9Z" /><rect x="1.7" y="5" width="12.6" height="2.6" rx=".8" /><path d="M8 5v9" /><path d="M8 5C8 3.3 7.1 2.1 5.9 2.1a1.5 1.5 0 0 0 0 2.9M8 5c0-1.7.9-2.9 2.1-2.9a1.5 1.5 0 0 1 0 2.9" /></>),
+  star: <path d="m8 1.9 1.95 4.05L14.4 6.6l-3.2 3.15.75 4.45L8 12.1l-3.95 2.1.75-4.45L1.6 6.6l4.45-.65Z" />,
+}
+
+const TILE_SIZE = {
+  sm: { box: 'h-5 w-5 rounded-lg', glyph: 'h-3 w-3', stroke: 1.7 },
+  md: { box: 'h-7 w-7 rounded-[10px]', glyph: 'h-4 w-4', stroke: 1.55 },
+  lg: { box: 'h-9 w-9 rounded-xl', glyph: 'h-[1.1rem] w-[1.1rem]', stroke: 1.5 },
+} as const
+
+/**
+ * A tone tile. Decorative — the text beside it carries the meaning.
+ *
+ * The radii track `BRAND.md` Part 3's existing ladder (10px controls · 12px
+ * small tiles) as the tile grows — 8 / 10 / 12px — rather than inventing a
+ * fourth. Holding that ratio is what keeps a 20px tile reading as the same
+ * SHAPE as a 36px one instead of collapsing into a circle. Nothing here is a
+ * pill: Part 3 reserves `999px` for eyebrow badges and status chips, and a
+ * tone tile is neither.
+ *
+ * `mkt-tile` is the hover lift, and it lives in `MarketingMotionStyles` rather
+ * than in a `hover:` utility for one reason — Part 6 makes hover motion
+ * pointer-fine only, and a Tailwind `hover:` also fires on a touch-and-hold.
+ * The media gate is the only way to owe that rather than claim it.
+ */
+export function ToneTile({
+  glyph,
+  size = 'sm',
+  className = '',
+}: {
+  glyph: ToneTileGlyph
+  size?: keyof typeof TILE_SIZE
+  className?: string
+}) {
+  const s = TILE_SIZE[size]
   return (
-    <svg viewBox="0 0 16 16" className={className} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M2.5 8.5l3.5 3.5 7.5-8" />
-    </svg>
+    <span
+      className={`mkt-tile inline-flex shrink-0 items-center justify-center ${s.box} ${TILE_TONE_CLASSES[TONE_TILE_TONE[glyph]].tile} ${className}`}
+      aria-hidden="true"
+    >
+      <svg
+        viewBox="0 0 16 16"
+        className={s.glyph}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={s.stroke}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        {TONE_TILE_PATH[glyph]}
+      </svg>
+    </span>
+  )
+}
+
+/**
+ * THE TIER-B ROW MARKER, and the rule that decides which tier a list is.
+ *
+ * A tile is a statement, and a statement repeated down twenty-six rows is
+ * wallpaper — which is precisely how the tick became bland in the first place.
+ * Replacing one uniform mark with a second uniform mark would satisfy the
+ * letter of the veto and miss all of it. So the tiles come in two tiers, and
+ * `BRAND.md` Part 3 carries the rule:
+ *
+ *   - **Tier A — a tile per LINE**, where every line is a different KIND of
+ *     thing: the honesty tenets, the partner terms, a vendor's strengths.
+ *   - **Tier B — a tile on the GROUP, a dash on each row**, where the rows are
+ *     one kind of thing under a heading that already names the subject. The
+ *     pricing module inventory and the product tour's bullets are that shape:
+ *     eight ways of saying "website" do not need eight globes, they need one
+ *     globe and eight legible lines.
+ *
+ * The dash takes the group's tone at `-500`, so the colour still says which
+ * domain the reader is in while the glyph is stated once, where it means
+ * something. It carries no `text-*` of its own, which is also what keeps it
+ * clear of rule 5's (ink, surface) pairing.
+ */
+export function ToneDash({ glyph, className = '' }: { glyph: ToneTileGlyph; className?: string }) {
+  return (
+    <span
+      className={`h-[3px] w-2.5 shrink-0 rounded-full ${TILE_TONE_CLASSES[TONE_TILE_TONE[glyph]].dash} ${className}`}
+      aria-hidden="true"
+    />
   )
 }
 
@@ -1263,8 +1431,19 @@ export function ReviewsMock() {
           </span>
         </div>
       </div>
+      {/* THE NINTH CALL SITE, and the one that is not a marketing list.
+          It sits INSIDE a product mock, so it does NOT take a `ToneTile` — the
+          mocks wear the dashboard's v3 language, and dropping a marketing tile
+          in here would make the picture an unfaithful one, which is the
+          argument `BRAND.md` Part 0 item 4 already settled for the emoji ban.
+          What it takes instead is the registry's `star` PATH at mock scale:
+          the veto is satisfied, the glyph finally says what the strip is about
+          (a review went live), and it rhymes with the five amber stars a few
+          pixels above it rather than with a form field. */}
       <div className={`ml-8 flex items-center gap-2 rounded-xl bg-emerald-50/70 px-3 py-2.5 ${MOCK_TILE_SHADOW}`}>
-        <CheckIcon className="h-3.5 w-3.5 shrink-0 text-emerald-600" />
+        <svg viewBox="0 0 16 16" className="h-3.5 w-3.5 shrink-0 fill-current text-emerald-600" aria-hidden="true">
+          {TONE_TILE_PATH.star}
+        </svg>
         <p className="text-[0.64rem] font-bold text-emerald-800">
           Live on your testimonials as “Noah M. · Cedar Park” — and invited onward to Google.
         </p>

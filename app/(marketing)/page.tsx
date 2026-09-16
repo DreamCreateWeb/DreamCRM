@@ -11,7 +11,8 @@ import {
   Eyebrow,
   SectionTitle,
   GhostCta,
-  CheckIcon,
+  ToneTile,
+  type ToneTileGlyph,
   DashboardMock,
   MarqueeStrip,
   MONO_LABEL,
@@ -92,20 +93,28 @@ const PILLARS: Array<{ title: string; body: string; href: string; glyph: React.R
   },
 ]
 
-const TENETS: Array<{ title: string; body: string }> = [
+/* The glyph is part of the tenet, not a decoration chosen at render time —
+   `BRAND.md` Part 3's tone tiles are a vocabulary, and the subject a line is
+   about belongs beside the line's own words. Four tenets, four statements:
+   the published price, the marked gaps, the audit trail, the open door. */
+const TENETS: Array<{ title: string; body: string; glyph: ToneTileGlyph }> = [
   {
+    glyph: 'tag',
     title: 'The price is on the page',
     body: 'One plan, $200/mo — published. No discovery call, no custom quote, no per-feature add-ons appearing on invoice three.',
   },
   {
+    glyph: 'flag',
     title: 'Our gaps are marked',
     body: 'No VoIP phones. No SMS texting yet — it\u2019s on the roadmap, not on the invoice. It says so on the pricing page and in every comparison — before you buy, not after.',
   },
   {
+    glyph: 'shield',
     title: 'Audit-clean sync',
     body: 'Every write we make into your PMS lands in its own audit trail under a sanctioned integration — visible, attributable, yours. The system of record stays the system of record.',
   },
   {
+    glyph: 'door',
     title: 'Leaving is allowed',
     body: 'Month-to-month, no contract. Your PMS stays the system of record and your website content exports with you. Lock-in is not a feature.',
   },
@@ -202,10 +211,12 @@ export default async function MarketingHome() {
             </div>
             {/* The trust row loses its check marks here. That is the owner's
                 second veto from DREAMCRM-67 — "bland check marks as icons" —
-                and the mono row is what he approved in round B. The tone-tile
-                SET that replaces `CheckIcon` at the other marketing call sites
-                is move 3; this is only the hero's own row, which the approved
-                composition shows as plain mono with dot separators.
+                and the mono row is what he approved in round B. Move 3
+                (DREAMCRM-71) took the tick everywhere else and replaced it
+                with the tone-tile set; this row keeps NO mark at all, because
+                the approved composition shows it as plain mono with dot
+                separators. Four tiles here would be four statements the
+                headline has already made.
 
                 gray-600, not gray-500: 6.91 on white against 5.30, and this
                 row sits closest to the fuchsia lobe's tail. */}
@@ -340,9 +351,9 @@ export default async function MarketingHome() {
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             {TENETS.map((t) => (
-              <div key={t.title} className="rounded-xl border border-gray-200 p-5">
-                <p className="flex items-center gap-2 text-[0.95rem] font-bold text-gray-950">
-                  <CheckIcon className="h-4 w-4 shrink-0 text-teal-700" />
+              <div key={t.title} className="group rounded-xl border border-gray-200 p-5">
+                <p className="flex items-center gap-2.5 text-[0.95rem] font-bold text-gray-950">
+                  <ToneTile glyph={t.glyph} size="md" />
                   {t.title}
                 </p>
                 <p className="mt-2 text-[0.85rem] leading-relaxed text-gray-600">{t.body}</p>
@@ -440,10 +451,14 @@ export default async function MarketingHome() {
             Everything DreamCRM does — website, booking, portal, messaging,
             reviews, recall, shop, PMS sync. Rate locked for as long as you stay.
           </p>
-          <ul className="mx-auto mt-4 max-w-xs space-y-2 text-left">
-            {['Every module included', 'Month-to-month, no contract', 'Annual option: 2 months free'].map((f) => (
-              <li key={f} className="flex items-start gap-2 text-[0.85rem] text-gray-700">
-                <CheckIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-teal-700" />
+          <ul className="mx-auto mt-4 max-w-xs space-y-2.5 text-left">
+            {([
+              ['layers', 'Every module included'],
+              ['calendar', 'Month-to-month, no contract'],
+              ['gift', 'Annual option: 2 months free'],
+            ] as Array<[ToneTileGlyph, string]>).map(([glyph, f]) => (
+              <li key={f} className="flex items-center gap-2.5 text-[0.85rem] text-gray-700">
+                <ToneTile glyph={glyph} />
                 {f}
               </li>
             ))}

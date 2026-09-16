@@ -421,6 +421,22 @@ export const INTAKE_RULES = [
       // rule 1 needs a `bg-` on the same element to measure against. 177 places
       // were failing it in both themes when it landed.
       'tests/a11y/quiet-ink.test.ts',
+      // The check-mark veto (DREAMCRM-71, BRAND.md Part 3). A NEW CLASS of
+      // assertion rather than a case on an existing one, stated here rather
+      // than guessed as this entry's `why` asks: every rule above grades a
+      // COLOUR — a pair, a ramp, an ink direction. This one grades a SHAPE.
+      // It walks `app/(marketing)` and `components/marketing` and fails any
+      // `d` attribute that is entirely a check-mark polyline (one subpath,
+      // three points, rightward, middle lowest, last highest), under any
+      // component name or none.
+      //
+      // It is on this list on the merits and not merely because it imports
+      // `palette.ts` for `ROOT`: after it lands, no future PR can put a bare
+      // tick on the marketing site, which is exactly "changing what every
+      // other PR can merge". The owner vetoed those ticks on DREAMCRM-67 and
+      // the call-site count went stale twice while it lived in prose — a
+      // number in a document cannot ask the tree, so the veto became a test.
+      'tests/marketing/tone-tiles.test.ts',
       // The remaining tree-wide scanners, each holding the product at zero for
       // one convention. Derived from the tree by the guard test, not recalled.
       // A NEW CLASS rather than another instance of an existing one: it holds
