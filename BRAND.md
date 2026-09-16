@@ -170,6 +170,88 @@ descriptions (2026-09-14, DREAMCRM-43):
      mock keeps it on the right side of that line, and `94% / 38 / $14,200`
      from the round-B renders deliberately did not ship.
 
+9. **Move 2 built — the spine, and the four things building it decided that the
+   spec did not** (DREAMCRM-70, 2026-09-15). The pin-and-scroll sequence is
+   live on the homepage. The spec in Part 6 was right about the behaviour and
+   silent on four questions that only come up once it is real:
+
+   - **The spine is the section BELOW the ticker, not the hero.** Part 6 step 1
+     says "the product sits in its frame under the headline" and step 2 "the
+     headline fades behind it", which reads at first like the HERO's headline
+     and mock. It is the spine's own. The reason is not convenience: the
+     daylight hero landed on move 1 with the owner's sign-off on a specific
+     composition — 86px hard left, the mock bleeding off the RIGHT edge with
+     pieces detached in front of it — and Part 8 says move 2 "is not a
+     re-skin". Growing that asymmetric mock to full bleed under a fading hero
+     headline would rebuild what move 1 just shipped, and would invalidate the
+     hero's measured decorative-layer run in Part 7, which was taken AT REST.
+     So the spine takes the slot the old "What it feels like" section held —
+     which is where it belongs anyway, since it tells that section's story by
+     showing the product working instead of asserting three bullets about it.
+     That section's headline and lede carry forward; its three bullet cards do
+     not.
+   - **The stacked layout is the BASE, and the pin is what gets added.** Part 6
+     asks for "a real layout, not a disabled one" under
+     `prefers-reduced-motion`, and the only way to owe that rather than promise
+     it is for the ordinary reading layout to be what the server renders. So
+     the server HTML is four stacked sections, and `.is-cinematic` — added by
+     the client, only where the pin is legal — is the enhancement. JS failing,
+     hydration failing, a media query never firing and reduced motion all land
+     on the same correct page, and "no content is reachable only by animating"
+     is true by construction. The CSS half is a GATE, not a revert list: the
+     whole pinned sequence lives inside one
+     `@media screen and (min-width: 1024px) and (prefers-reduced-motion:
+     no-preference) and (hover: hover) and (pointer: fine)`, so outside those
+     conditions the pinned declarations are not in the stylesheet at all and
+     the class means nothing. That half alone suffices; both halves exist
+     because the JS half is the one that can be wrong about the environment.
+
+     **That last sentence used to be a claim rather than a fact, and it is
+     worth keeping the correction.** It shipped as three `@media` blocks that
+     UNDID the class, and Vesper's review measured them: they put back
+     `position`, `height`, `opacity` and `transform` and not `width`, `margin`,
+     `pointer-events` or the rail's reserved lane, so the CSS on its own left
+     the cards at 528px against the left edge. And there was no block for
+     `print` — printing the homepage produced three pages of pinned section
+     carrying NONE of the four chapters, i.e. exactly the content-reachable-
+     only-by-animating this Part forbids, in a medium nobody thought of. A
+     revert list is a copy of the thing it reverts, and a copy drifts; a gate
+     cannot. The lesson generalises past this section: **when a rule must not
+     apply somewhere, don't apply it and take it back — don't apply it.**
+   - **It un-pins rather than clipping, and the question is MEASURED.** The pin
+     is `overflow: hidden` and the card is centred, so a card taller than the
+     window loses its top and bottom with no scroll that reaches them. That is
+     not a viewport question: it is set by the reader's own text size, which no
+     media query reports — at the browser's 200% TEXT setting (the low-vision
+     one, not zoom) a 1024x640 window ran the card to 1,049px. So the component
+     measures the tallest card at mount and on resize and drops the pin when it
+     does not fit, with `CARD_TRAVEL` of headroom at each end. The fix is
+     always to UN-PIN: making the card scrollable would need `tabindex="0"`,
+     which puts the one focus stop back inside the pinned region and undoes the
+     keyboard answer below.
+   - **Nothing inside the pinned region is focusable, and that is the whole
+     keyboard answer.** Part 6 wants tab order through the chapters and out of
+     the bottom, the section escapable at any point, and focus that does not
+     fight the scroll position. Three decisions carry it: the pin is
+     `position: sticky` so the document never stops scrolling and nothing
+     calls `preventDefault`, `scrollTo` or `scrollIntoView`; the chapter cards
+     are text; and the chapter rail is a position indicator rather than
+     navigation — a clickable rail would be the one control on the page that
+     fights the reader's own scroll. The section's single link sits in the
+     RELEASE block after the pin. **A card link would be an invisible focus
+     stop**, because a card spends most of the scroll at opacity 0, so this is
+     held at zero by a test rather than by care.
+   - **The product behind the cards is NOT dimmed, and this is the one place
+     the build departs from the approved storyboard.** The storyboard washes
+     the schedule pale behind the glass. On a light ground that is a contrast
+     crime: veil a white surface at 55% and `gray-950` lands near 3.1 at real
+     product size. Part 3 already had the better answer — "depth is emission,
+     not stacking" — so the card reads as raised because coloured light spills
+     out from under it, and the product stays crisp and fully legible. The
+     stage is therefore **graded rather than exempted**: it is deliberately NOT
+     in `DECORATIVE_MOCKS`, every pair in it is legal on its own ground, and
+     `marketing: home` keeps its ceiling of ZERO on the merits. See Part 7.
+
 **Why light is the right answer and not a retreat.** The original case for a
 night band was memorability, and it was a real argument — but the pages that
 close the sale (pricing, comparisons, docs, blog) are long-form reading done on
@@ -286,8 +368,11 @@ continues to bind.
   everywhere on the marketing site by a **tone-tile set**: a filled squircle
   carrying a glyph that says what the line is actually about — a chart for
   scheduling, a speech bubble for messaging, a currency glyph for payments.
-  Ten identical ticks become ten statements. The tile fill is a tone tint;
-  the glyph is that tone's deep ink.
+  Every identical tick becomes a statement. The tile fill is a tone tint; the
+  glyph is that tone's deep ink. (The count was eleven when the veto was given,
+  ten after move 1 corrected it (#614), and is **nine** now — move 2 retired the
+  "What it feels like" card with the section it sat on. Part 8 move 3 carries the
+  live census.)
 - **Geometry, chrome zones only.** Blooms and grain. Never behind reading text
   (Part 7 is not advisory about this), never inside a data surface, always
   `aria-hidden` and `pointer-events: none`.
@@ -479,6 +564,43 @@ specification. One such sequence per page, and on the homepage it is the spine:
 - **A chapter card's copy is static once the card has arrived** — the
   never-animate-text rule is not suspended inside the spine.
 
+**BUILT ON DREAMCRM-70 (2026-09-15), and four things the spec above did not
+say.** Full reasoning in Part 0 item 9; the short forms, because they are the
+ones a future change will trip over:
+
+- **"Under the headline" is the SPINE's headline, and the spine is the section
+  below the ticker.** Not the hero — the hero landed on move 1 with an
+  owner-approved composition and its own measured run in Part 7, taken at rest.
+- **The stacked layout is the base; the pin is added by a class.** The server
+  renders four ordinary sections. The CSS puts the entire pinned sequence
+  behind ONE `@media screen and (min-width: 1024px) and
+  (prefers-reduced-motion: no-preference) and (hover: hover) and (pointer:
+  fine)` gate rather than reverting the class afterwards — a revert list is a
+  copy of the thing it reverts, and the first version of it missed four
+  properties and the whole `print` medium. Part 0 item 9 has the measurement.
+- **PRINT IS A MEDIUM, and it counts.** The stacked layout is what prints, and
+  "no content is reachable only by animating" is false the moment a pinned
+  section reaches a printer with its cards at `opacity: 0`. `screen` in that
+  gate is the one word doing it.
+- **It un-pins rather than clipping a card.** The tallest chapter card is
+  measured against the window at mount and on resize; if it does not fit with
+  room to travel, the pin does not happen. The reader's TEXT SIZE sets that
+  height and no media query reports it. Never answer this with
+  `overflow-y: auto` on the card — a scrollable region needs `tabindex="0"`,
+  which puts a focus stop back inside the pin.
+- **Nothing inside the pinned region is focusable.** That is the keyboard answer
+  in full, and it is held at zero by
+  `tests/marketing/cinematic-spine.test.tsx` — a chapter card spends most of the
+  scroll at opacity 0, so a link in one is an invisible focus stop.
+- **The product is not dimmed behind the cards.** Part 3's "depth is emission,
+  not stacking" replaces the storyboard's pale wash, which on a light ground
+  would put `gray-950` near 3.1 at real product size. The stage is graded, not
+  exempted — it is deliberately outside `DECORATIVE_MOCKS`.
+
+One more thing the sequence owes and the list above does not name: the chapter
+rail is a position INDICATOR, never navigation. A clickable rail is the one
+control a pinned section can carry that fights the reader's own scroll position.
+
 ---
 
 ## Part 7 — The contrast law
@@ -615,6 +737,90 @@ fill, extend the registry rather than writing a local recipe. On a light ground
 `TONE_PILL`'s ink steps are finally the ones they were chosen for, which is one
 thing that genuinely got easier.
 
+### The cinema stage — graded rather than exempted (DREAMCRM-70)
+
+The spine's full-bleed product surface (`CinemaStage`) is the first illustration
+on this site that is **not** covered by `DECORATIVE_MOCKS` in `e2e/axe.ts`, and
+the reason is the one this Part is about.
+
+Those two exclusions pardon the hero's miniature mocks under WCAG 1.4.3 — text
+that is part of a picture — and the argument rests entirely on SIZE: every
+finding they discount measures 5.8–8.2pt. The cinema stage is the same product
+at **full bleed**, so its type is real reading size, and
+`exclusionsHidingReadableText` exists precisely to fail a run that pardons that.
+Adding a third selector would have widened the one mechanism in the harness that
+makes the gate LOOSER, in order to excuse text a person can read.
+
+So the stage is graded instead, and the grading shaped it:
+
+| Pair | Where | Ratio |
+|---|---|---|
+| `gray-950` on `#F3F7FE` | patient names, the KPI numbers | 16.40 |
+| `gray-600` on `#F3F7FE` | visit lines, times, the mono labels | 6.43 |
+| `teal-700` on `#F3F7FE` | the practice label | 6.56 |
+| `amber-800` on `amber-50` | *Needs a text* | 6.84 |
+| `emerald-800` on `emerald-50` | *Confirmed* | 7.23 |
+| `fuchsia-800` on `fuchsia-50` | *First visit* | 7.79 |
+| `#1F3D8F` on `#DCE7FD` | the avatar initials | 7.96 |
+
+Two of those are the decisions rather than the measurements:
+
+- **The status chips take the `-800` ink, not the `-700`** the existing mocks
+  use. `-700` also passes (4.85 / 5.09 / 5.84), and it is the right choice
+  INSIDE a picture exemption where nothing re-grades it. Out here the surface is
+  graded by axe on every run, and a chip one step off the floor is the "4.18
+  reads as passing" shape waiting for someone to warm the tint.
+- **The avatars are a tint carrying deep ink, not white on the brand blue.**
+  White on `#4C7DF0` is **3.82** — fine at 7px inside the hero's exemption, a
+  real failure at reading size out here. This is the same shape as Part 3's tone
+  tiles, arrived at independently by the same constraint.
+
+**`aria-hidden` is not a contrast exemption and never was.** The stage carries it
+because it is an illustration and the chapter cards hold every word of the
+meaning — but axe reports contrast on visible text regardless, which is the
+entire reason `DECORATIVE_MOCKS` had to name the hero's mocks by selector in the
+first place. Anyone reaching for `aria-hidden` to quiet a contrast finding is
+about to discover that.
+
+**What the committed gate still cannot see here, stated so nobody assumes it
+can.** `marketing: home` scans at scroll 0 in one viewport, where the chapter
+cards sit at `opacity: 0` — invisible to axe, so never graded — and the stage is
+at rest scale. Before merge the same page was scanned at a ceiling of zero in
+nine further states: each of the four chapters fully on screen in the pinned
+sequence, and the stacked layout at 1440 / 834 / 390 under both
+`prefers-reduced-motion` and touch. All clean. The cards' own pairs are
+`gray-950` / `gray-600` / `violet-700` on white (17.62 / 6.91 / 6.14), which the
+source rules in `tests/a11y/class-pairs.ts` grade from the class strings and do
+not depend on a scroll position at all.
+
+**The chapter rail's second channel is SIZE, not hue** (added after Vesper's
+DREAMCRM-70 review). The active row and the inactive rows are `#2f52b3` and
+`#4c5a78` — both legal against the pill (7.05 and 6.91, re-measured as rendered
+at all four chapters, on the white bar-chart card the pill actually sits on) —
+but they differ in hue at the same lightness, so they grade **1.02** against
+EACH OTHER. In greyscale, or to most kinds of colour blindness, the rail was
+four identical lines with no indication which one you were on. The old dot could
+not carry it either: `#c3d0e8` graded 1.55 on the pill. So the dot takes the
+row's own ink and the ACTIVE one is half again as big — no new colour, and a
+channel that survives greyscale. This was never a WCAG violation (the rail is
+`aria-hidden`, and the card says `02 · THE TEXT THAT BOOKS` as text a few inches
+away, so the information is never colour-only on the page), which is exactly why
+no gate would ever have raised it. **Two inks that both pass against the
+background can still be indistinguishable from each other, and nothing in CI
+measures that pair.**
+
+**One blind spot neither half of the build can close, recorded so it is not
+rediscovered.** A link that jumps to text INSIDE a chapter — Chrome's "copy link
+to highlight", and the highlighted-text links Google sometimes puts in search
+results — lands on the wrong chapter: the browser scrolls to the text's document
+position, where the sequence has not reached that chapter yet, so chapter 2 is
+on screen while chapter 4 is at `opacity: 0`. Find-on-page uses the same text
+finder and does the same. It is the sighted twin of "no content is reachable
+only by animating", it is inherent to every pinned sequence on the web, and it
+is not worth contorting the build over — but it belongs in the same list as the
+scroll-0 scan blind spot above, because the honest version of "we verified this"
+names what the verification could not see.
+
 ---
 
 ## Part 8 — Build order
@@ -633,13 +839,32 @@ the reduced-motion path in the same PR.
    document predicted it would**, naming the entry through both halves — the
    dead-exemption detector and the structural premise check — and rule 4 was
    not touched. Decisions it settled: Part 0 item 8. Measured run: Part 7.
-2. **The cinematic spine** — the pin-and-scroll sequence, its reduced-motion
-   stacked layout, and its keyboard path. Vesper reviews before merge. This is
-   the one move in the list that is not a re-skin.
-3. **The tone tiles replace `CheckIcon`** across the ten marketing call sites
-   (homepage 3, compare 2, product 2, pricing 1, partner-program 1, plus one
-   inside `ui.tsx`). The two `CheckIcon`s in `app/(default)` are separate local
-   definitions in the dashboard's language and are out of scope.
+2. ~~**The cinematic spine**~~ — **LANDED** (DREAMCRM-70, 2026-09-15). The
+   pin-and-scroll sequence, its reduced-motion stacked layout and its keyboard
+   path, sitting in the slot the old "What it feels like" section held — the
+   section BELOW the ticker, not the hero, for the reasons in Part 0 item 9.
+   The stacked layout is the base and the pin is a class added on top, so
+   reduced motion, touch and anything under `lg` get the real reading layout
+   from the server rather than a disabled sequence. Nothing inside the pinned
+   region is focusable, which is the whole keyboard answer. The product behind
+   the cards is NOT dimmed — Part 3's emission replaces the storyboard's wash,
+   and the stage is graded rather than exempted (Part 7). Decisions it settled:
+   Part 0 item 9. Measured pairs: Part 7. **Vesper's review of the
+   keyboard/screen-reader path and the reduced-motion layout was requested on
+   the issue at the PR** — the one part of this move that is a second pair of
+   eyes rather than a measurement.
+3. **The tone tiles replace `CheckIcon`** across the **nine** marketing call
+   sites left: homepage 2, compare 2, product 2, pricing 1, partner-program 1,
+   plus one inside `ui.tsx`. The two `CheckIcon`s in `app/(default)` are
+   separate local definitions in the dashboard's language and are out of scope.
+
+   **The census has moved twice and this is the measured figure, not the
+   original one.** It was eleven when the direction was decided; move 1 took the
+   hero's trust row and #614 corrected this line to ten (Part 0 item 8); move 2
+   took the "What it feels like" card with the section it lived in, which is
+   this edit. Re-count before starting rather than trusting the number — the
+   point of naming it is that the veto is finished when it reaches zero, and a
+   line that has already been stale twice is how a call site gets left behind.
 4. **Shared chrome** — `MarketingHeader`, `MarketingFooter` and `PageHero` in
    `components/marketing/` — so every subpage inherits the language for free
    instead of drifting page by page.

@@ -6,6 +6,7 @@ import { DEMO_URL } from '@/lib/marketing/site'
 import { COMPARISONS } from '@/lib/marketing/comparisons'
 import { JsonLd, softwareApplicationLd } from '@/lib/marketing/seo'
 import ScrollReveal from '@/components/clinic-site/scroll-reveal'
+import CinematicSpine from '@/components/marketing/cinematic-spine'
 import {
   Eyebrow,
   SectionTitle,
@@ -261,44 +262,33 @@ export default async function MarketingHome() {
 
       <MarqueeStrip />
 
-      {/* ── What it feels like (2026-07-19: identity-first — the
-             consolidation-math table moved down-funnel to /compare) ── */}
-      <ScrollReveal as="section" className="mx-auto max-w-6xl px-4 py-16 sm:px-6 lg:py-20">
-        <div className="grid items-center gap-10 lg:grid-cols-2">
-          <div>
-            <Eyebrow>What it feels like</Eyebrow>
-            <h2 className="text-[1.7rem] font-bold leading-tight tracking-tight sm:text-[2.1rem]">
-              A Tuesday that runs itself
-              <br />
-              is the whole product.
-            </h2>
-            <p className="mt-4 text-[0.98rem] leading-relaxed text-gray-600">
-              Your front desk opens one screen and sees the morning in one breath: who&apos;s
-              in the chair, who still needs a text, which review just landed. A website
-              lead becomes a patient, the patient gets a portal, the visit asks for its
-              own review — nobody copies data between tabs, because there are no tabs.
-            </p>
-            <div className="mt-6 flex flex-wrap gap-3">
-              <GhostCta href="/why">What this platform believes</GhostCta>
-            </div>
-          </div>
-          <div className="space-y-3">
-            {[
-              ['One conversation, not six systems', 'The website, booking, portal, messages, reviews, and recall already know about each other — a change in one shows up in all of them.'],
-              ['Warm, plain language', '“3 still need a text,” never “3 records pending confirmation.” Software your team actually likes opening at 7:45am.'],
-              ['Numbers that live', 'Every stat carries its own pulse — bookings trending, confirmations filling, reviews arriving. You see the practice moving, not a report about where it used to be.'],
-            ].map(([title, body]) => (
-              <div key={title} className="rounded-2xl border border-gray-200 bg-white p-6">
-                <p className="flex items-center gap-2 text-[0.95rem] font-bold text-gray-950">
-                  <CheckIcon className="h-4 w-4 shrink-0 text-teal-700" />
-                  {title}
-                </p>
-                <p className="mt-2 text-[0.875rem] leading-relaxed text-gray-600">{body}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </ScrollReveal>
+      {/* ── THE CINEMATIC SPINE — BRAND.md Part 6, Part 8 move 2
+             (DREAMCRM-70). "On the homepage it is the spine", so it takes the
+             slot the old "What it feels like" section held: the same story,
+             told by showing the product working rather than asserting three
+             bullets about it. That section's headline and lede are carried
+             forward into the spine's own intro.
+
+             WHERE IT SITS, AND WHY NOT IN THE HERO. Part 6's step 1 says "the
+             product sits in its frame under the headline" and step 2 "the
+             headline fades behind it", which reads at first like the HERO's
+             headline and mock. It is the spine's own headline and the spine's
+             own frame, and it has to be: the daylight hero landed on
+             DREAMCRM-69 with the owner's sign-off on its composition — 86px
+             hard left, the mock bleeding off the RIGHT edge with detached
+             pieces floating in front of it — and Part 8 is explicit that move
+             2 "is not a re-skin". Growing that asymmetric hero mock to full
+             bleed under a fading hero headline would rebuild the thing move 1
+             just shipped, and would invalidate the decorative-layer run Part 7
+             records for the hero AT REST. So the spine is the section below
+             the ticker, with a frame of its own, and the hero is untouched.
+
+             It is a client component because the sequence needs the scroll
+             position. Everything a reader has to be able to read is in the
+             server HTML as four ordinary stacked sections — the component's
+             header says why the stacked layout is the BASE rather than the
+             fallback. ── */}
+      <CinematicSpine />
 
       {/* ── Pillars ── */}
       <section className="border-y border-gray-100 bg-gray-50/70">
