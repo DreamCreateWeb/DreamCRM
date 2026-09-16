@@ -463,6 +463,94 @@ const SAMPLES = [
     ink: '#4c5a78',
     ground: '#ffffff',
   },
+
+  /* ── MOVE 6 PAGE 5 — THE RESOURCE LIBRARY (DREAMCRM-79) ───────────────
+     TWO PAGES, AND THE SECOND ONE IS THE POINT. The hub is an index; the
+     ARTICLE is the longest sustained reading column on this site, and it
+     is the surface `BRAND.md` Part 7's bloom rule is ultimately about.
+
+     THE ARTICLE HERO GAINED A FOURTH RUN, which no other move-6 page has:
+     `PageHero`'s `children` slot carries the read-time spine, and it sits
+     LOWER in the band than the sub does — the one place on this site where
+     a run of reading text is deliberately pushed further down into the
+     blooms. The bottom fade is over it, which helps; nothing measured that
+     before, so it is sampled rather than reasoned about.
+
+     THE SLUG IS `dental-recall-scripts` because it has the LONGEST title
+     of the three, which is what decides where the `h1` wraps and therefore
+     which lobes each run crosses. `PageHero`'s title is `guide.title` on
+     these pages, so the headline is content rather than a fixed string —
+     the same property that made `/compare/weave`'s sub worth measuring.
+     The other two slugs are checked by hand against this run when a title
+     moves.
+
+     WHAT IS DELIBERATELY NOT SAMPLED: everything below either hero, for
+     pages 1–4's reason. The shelf, the article body, the script cards, the
+     notes and both closes ride the page's own white with no decorative
+     layer — and the script cards in particular went from a `teal-50/40`
+     tint to white ON this move, precisely so no run of eight-line reading
+     text sits on a wash. There is nothing left down there to point an
+     instrument at, and pointing one anyway would report the ground behind
+     an opaque card and could fail a pair that really rides white. */
+  {
+    label: 'resources hub hero eyebrow (teal-700)',
+    path: '/resources',
+    region: 'hero',
+    selector: `${HERO} div.mkt-enter.mb-5`,
+    ink: '#2f52b3',
+    ground: '#ffffff',
+  },
+  {
+    label: 'resources hub hero headline (gray-950)',
+    path: '/resources',
+    region: 'hero',
+    selector: `${HERO} h1.mkt-d1`,
+    ink: '#10182e',
+    ground: '#ffffff',
+  },
+  {
+    label: 'resources hub hero sub (gray-600)',
+    path: '/resources',
+    region: 'hero',
+    selector: `${HERO} p.mkt-d2`,
+    ink: '#4c5a78',
+    ground: '#ffffff',
+  },
+  {
+    label: 'guide hero eyebrow (teal-700)',
+    path: '/resources/dental-recall-scripts',
+    region: 'hero',
+    selector: `${HERO} div.mkt-enter.mb-5`,
+    ink: '#2f52b3',
+    ground: '#ffffff',
+  },
+  {
+    label: 'guide hero headline (gray-950)',
+    path: '/resources/dental-recall-scripts',
+    region: 'hero',
+    selector: `${HERO} h1.mkt-d1`,
+    ink: '#10182e',
+    ground: '#ffffff',
+  },
+  {
+    label: 'guide hero sub (gray-600)',
+    path: '/resources/dental-recall-scripts',
+    region: 'hero',
+    selector: `${HERO} p.mkt-d2`,
+    ink: '#4c5a78',
+    ground: '#ffffff',
+  },
+  {
+    // THE LOWEST RUN OF READING TEXT IN ANY HERO ON THIS SITE. See the note
+    // above — it is `PageHero`'s `children`, below the sub, and no other
+    // move-6 page puts text there.
+    label: 'guide hero read-time spine (gray-600)',
+    path: '/resources/dental-recall-scripts',
+    region: 'hero',
+    selector: `${HERO} div.mkt-d3 > div`,
+    ink: '#4c5a78',
+    ground: '#ffffff',
+  },
 ]
 
 /**
