@@ -1,10 +1,13 @@
 import {
-  Eyebrow,
   PrimaryCta,
   GhostCta,
   ToneTile,
   ToneDash,
   type ToneTileGlyph,
+  PageHero,
+  SectionOpener,
+  MONO_LABEL,
+  DAY_WIRE,
   DashboardMock,
   PortalMock,
   EditorMock,
@@ -16,9 +19,100 @@ import {
   GoogleSocialMock,
 } from '@/components/marketing/ui'
 import ScrollReveal from '@/components/clinic-site/scroll-reveal'
-import { PageHero } from '@/components/marketing/ui'
 import { DEMO_URL } from '@/lib/marketing/site'
 import Link from 'next/link'
+import ChapterRail from './chapter-rail'
+
+/**
+ * THE PRODUCT TOUR — `BRAND.md` Part 8 move 6, page 3.
+ *
+ * The longest page on the site (16,100px at 390 before this move) and the one
+ * most likely to read as a wall: ten module sections, each a headline, a
+ * paragraph, a product mock and six bullets, alternating left and right and
+ * separated by identical `gray-100` hairlines. Nothing about it was wrong. It
+ * was ten of the same thing in a row, which is the same failure the tone tiles
+ * were built to fix, one altitude up — a page-level version of nine identical
+ * ticks saying nothing nine times.
+ *
+ * SO THE MOVE HERE IS STRUCTURE RATHER THAN SKIN. Three decisions, in the
+ * order they matter:
+ *
+ *  1. **The page is a numbered tour and now says so.** Every section opens on
+ *     a chapter mark — the tone tile, `NN / 10` as a mono numeral, a dot, the
+ *     eyebrow — and the numeral is the whole reason the page reads as ten of
+ *     something rather than as an unbounded scroll. Part 4's veto is on the
+ *     210px outlined ghost numeral, and the sentence that closes it names this
+ *     exact alternative: *"A chapter number belongs in the eyebrow and the
+ *     chapter rail, at reading size, where it is real text."* Both homes it
+ *     names are now real.
+ *  2. **The sticky nav became a chapter rail that answers "where am I".** It
+ *     was ten grey pills that never changed; it is now mono micro-labels with
+ *     the header's own active underline tracking the reader down the page. See
+ *     `chapter-rail.tsx` — that is where the reasoning for the client boundary
+ *     lives.
+ *  3. **Hard left, one column, no alternation.** The old left/right swap was
+ *     the page's only defence against monotony and it cost the thing Part 4
+ *     asks for: on odd sections the heading started at the middle of the page.
+ *     Now the chapter mark, the headline, the lede, the product and the spec
+ *     list all start on the column the hero's headline starts on, and the
+ *     rhythm is carried by the chapter head leading full width before the
+ *     section splits — the screen on the left at seven columns (up from six),
+ *     what is in it on the right at five.
+ *
+ *     A SPINE IN THE LEFT MARGIN WAS THE FIRST DRAFT AND IT IS WHY THIS SAYS
+ *     "hard left" TWICE. A sticky three-column rail carrying the chapter mark
+ *     beside its section looks good and reads well, and it moved every heading
+ *     on the page ~180px right of the hero's. That is the pricing page's cost
+ *     in a new costume — a structural column is a narrower container by
+ *     another name — so the rail went to the top of the page, where it is
+ *     chrome, and the chapter mark came back to the reading column.
+ *
+ * THE PAGE IS NOT SHORTER AND THAT IS NOT THE GOAL — 17,100px at 390 against
+ * 16,100 before, because the spec block gained a header and the chapters gained
+ * air. A wall is not a length problem; it is a "how much is left and where am
+ * I" problem, and a tour you can see the shape of is navigable at any length.
+ * The one thing that WOULD have shortened it is cutting content off the page a
+ * visitor came to read.
+ *
+ * WHY THE MOCKS DO NOT BLEED OFF THE EDGE HERE, since Part 3 calls that the
+ * signature move and this is the page with ten product mocks on it. The bleed
+ * is a crop, and it is the right trade on a hero whose job is to say "this is
+ * a real product" in one glance. It is the wrong trade on the page whose job
+ * is showing the screens in full: cropping ten of them charges the reader the
+ * exact thing they came for. The grid-break this page has instead is one of
+ * proportion — the product column is wider than the reading measure — which is
+ * Part 11's "the app is the picture" written as a layout fact.
+ *
+ * THE TWO-TIER SHAPE IS UNTOUCHED (Part 3, and the pricing page's note on the
+ * same trap). Fifty-four bullets across ten sections is an INVENTORY: the tile
+ * states the subject ONCE, on the chapter, and the rows take that chapter's
+ * tone as a dash. A tile on all fifty-four rows is the identical mark the
+ * owner vetoed, just prettier. What got louder is the group HEADER — a mono
+ * label, a `DAY_WIRE` hairline and the section's real bullet count as a mono
+ * numeral, computed rather than typed, for the reason the check-mark census
+ * went stale twice.
+ *
+ * THE TONE VOCABULARY IS LOAD-BEARING AND THE LIST IS SHORT ENOUGH TO READ:
+ * `brand` (teal) is what the product IS — the front desk, the website,
+ * booking, the portal, messages; `growth` (emerald) is what it EARNS —
+ * reviews, the shop and memberships; `auto` (violet) is what it does WITHOUT
+ * YOU — the Google/social sync, recall, the PMS bridge. `rose` and `amber` are
+ * withheld because they are the app's needs-attention colours and nothing on a
+ * sales page is urgent; `fuchsia` is withheld because Part 2 gives it exactly
+ * two homes and a module is neither. The tones come from
+ * `lib/marketing/tone-tiles.ts` with the subject, never picked here.
+ *
+ * NO EMOJI ON THIS PAGE. Part 5 bans them in product mocks, and a tour that is
+ * ten product mocks with captions is the same register — the glyphs INSIDE the
+ * mocks (the birthday cake on a patient row, the `$` on an unpaid balance) are
+ * the real product showing its own marks, which Part 0 decision 4 allows and
+ * which this page renders unchanged. Delight here is light, alignment, type
+ * and a rail that keeps its place.
+ *
+ * EVERY NUMBER IN A MOCK IS THE MOCK'S (Part 5). `$523`, `214 website visits`,
+ * `4.9 · 128` and Dream Dental itself are illustrative and stay inside a
+ * frame; nothing on this page states one of them in our own voice.
+ */
 
 export const metadata = {
   title: 'Platform tour — DreamCRM',
@@ -37,8 +131,8 @@ interface ModuleSection {
      lines, and fifty-four tone tiles is wallpaper rather than fifty-four
      statements — the bullets under "Online booking" are all about online
      booking, which the eyebrow, the headline and the mock have already said
-     three ways. So the tile states the section ONCE, in the eyebrow, and the
-     bullets take that section's tone as a dash. */
+     three ways. So the tile states the section ONCE, in the chapter mark, and
+     the bullets take that section's tone as a dash. */
   glyph: ToneTileGlyph
   docHref: string
   visual: 'dashboard' | 'portal' | 'editor' | 'booking' | 'messages' | 'reviews' | 'recall' | 'shop' | 'gbp'
@@ -214,6 +308,13 @@ const SECTIONS: ModuleSection[] = [
   },
 ]
 
+/**
+ * The rail's chapters, derived from the sections themselves rather than typed
+ * beside them. An eleventh module is in the rail the day it is in the tour —
+ * the tone-tile census lesson (Part 8 move 3) applied to a nav.
+ */
+const CHAPTERS = SECTIONS.map((s) => ({ id: s.id, label: s.eyebrow }))
+
 // Exhaustive by construction: a new section's `visual` value won't compile
 // until it has a mock here (the old ternary chain silently fell through).
 const VISUALS: Record<ModuleSection['visual'], React.ReactNode> = {
@@ -232,6 +333,27 @@ const VISUALS: Record<ModuleSection['visual'], React.ReactNode> = {
   gbp: <GoogleSocialMock />,
 }
 
+/* TIER A (`BRAND.md` Part 3): every card here is a different KIND of thing, so
+   every card earns its own tile. That is the opposite call from the bullets
+   above and it is the same rule — a mark has to say something, and nine
+   different subjects are nine different statements. */
+const ALSO: Array<[ToneTileGlyph, string, string]> = [
+  ['form', 'Digital intake forms', 'Photo & insurance-card fields, OCR autofill, AI pre-visit summary, Spanish, kiosk mode, and an OD chart mirror.'],
+  ['cart', 'Membership plans', 'In-house plans for the uninsured — monthly or annual, with benefit-usage tracking and a portal upsell.'],
+  ['money', 'Payment plans', 'Patient-started installments with card-on-file autopay, retries, and a collections workboard.'],
+  ['people', 'Careers + ATS', 'Public job postings with JobPosting schema (Google for Jobs) and a hiring pipeline.'],
+  ['chart', 'Practice analytics', 'A scorecard of new patients, retention, reputation, and search — measured against the prior window.'],
+  ['gift', 'Loyalty + referrals', 'Points for visits and a refer-a-friend link with booking attribution baked in.'],
+  ['globe', 'Custom domains', 'Point your own domain at your DreamCRM site with managed SSL.'],
+  ['key', 'Family access', 'One passwordless login runs the whole household’s visits, forms, and balances.'],
+  ['shield', 'Honest by default', 'Published pricing, month-to-month, official APIs only, and every gap marked before you buy.'],
+]
+
+/** Part 3's card step (14px) with the emission shadow — depth is light spilling
+ *  out from under a raised object, never a hard-edged drop shadow. */
+const CARD_LIFT =
+  'shadow-[0_1px_4px_-2px_rgb(58_103_217/0.14),0_18px_44px_-34px_rgb(58_103_217/0.45)]'
+
 export default function ProductPage() {
   return (
     <>
@@ -248,47 +370,102 @@ export default function ProductPage() {
         </div>
       </PageHero>
 
-      {/* Sticky in-page nav */}
-      <nav className="sticky top-[60px] z-30 border-b border-gray-100 bg-white/90 backdrop-blur" aria-label="Modules">
-        <div className="no-scrollbar mx-auto flex max-w-6xl gap-1 overflow-x-auto px-4 py-2 sm:px-6">
-          {SECTIONS.map((s) => (
-            <a
-              key={s.id}
-              href={`#${s.id}`}
-              className="shrink-0 rounded-lg px-3 py-1.5 text-[0.82rem] font-medium text-gray-600 hover:bg-gray-50 hover:text-gray-950"
-            >
-              {s.eyebrow}
-            </a>
-          ))}
-        </div>
-      </nav>
+      <ChapterRail chapters={CHAPTERS} />
 
+      {/* ── THE TEN CHAPTERS ──────────────────────────────────────────────
+             One `max-w-6xl` column, hard left, no alternation. Every section
+             on this page uses this container and no other, so every hard-left
+             edge lands where the hero's headline starts — the move-6 rule the
+             pricing page paid for ("narrow the LIST, not the container"). ── */}
       <div className="mx-auto max-w-6xl px-4 sm:px-6">
         {SECTIONS.map((s, i) => (
-          <section key={s.id} id={s.id} className="scroll-mt-28 border-b border-gray-100 py-16 last:border-b-0">
-            <div className={`grid items-start gap-10 lg:grid-cols-2 ${i % 2 === 1 ? 'lg:[&>*:first-child]:order-2' : ''}`}>
-              <div>
-                <div className="group mb-3 flex items-center gap-3">
-                  <ToneTile glyph={s.glyph} size="lg" />
-                  <p className="text-[0.75rem] font-bold uppercase tracking-[0.14em] text-teal-700">
-                    <span className="mr-2 text-gray-500">{String(i + 1).padStart(2, '0')}</span>
-                    {s.eyebrow}
+          <section
+            key={s.id}
+            id={s.id}
+            className="scroll-mt-[7rem] border-b py-14 last:border-b-0 lg:py-20"
+            style={{ borderColor: DAY_WIRE }}
+          >
+            {/* ── THE CHAPTER MARK, HARD LEFT ──────────────────────────
+                   The tile, the chapter numeral and the eyebrow, on the
+                   same column the hero's headline starts on — and so is
+                   everything under it. The gradient rule that leads a
+                   `PageHero` eyebrow is deliberately absent here: Part 2
+                   gives fuchsia exactly two homes, and ten gradient marks
+                   down one page is precisely the dilution that rule exists
+                   to stop. The rail above carries one, on the chapter you
+                   are actually in. ── */}
+            <div className="flex items-center gap-3">
+              <ToneTile glyph={s.glyph} size="lg" />
+              {/* Computed, never typed — a number written by hand goes stale
+                  silently, and this repo has watched one do it twice
+                  (Part 8 move 3). */}
+              <p className={`text-gray-500 ${MONO_LABEL}`}>
+                <span aria-hidden="true">
+                  {String(i + 1).padStart(2, '0')} / {SECTIONS.length}
+                </span>
+                <span className="sr-only">
+                  Chapter {i + 1} of {SECTIONS.length}
+                </span>
+              </p>
+              <span className="h-1 w-1 shrink-0 rounded-full bg-teal-600" aria-hidden="true" />
+              <p className={`min-w-0 text-teal-700 ${MONO_LABEL}`}>{s.eyebrow}</p>
+            </div>
+
+            <h2 className="mt-4 max-w-3xl text-[1.7rem] font-bold leading-tight tracking-[-0.02em] text-gray-950 sm:text-[2.1rem]">
+              {s.title}
+            </h2>
+            {/* The reading MEASURE is constrained, never the container — the
+                move-6 rule the pricing page paid for. */}
+            <p className="mt-4 max-w-2xl text-[0.98rem] leading-relaxed text-gray-600">
+              {s.body}
+            </p>
+            {s.docHref && (
+              <Link
+                href={s.docHref}
+                className="group mt-5 inline-flex items-center gap-2 text-[0.88rem] font-semibold text-teal-700"
+              >
+                <span className="group-hover:underline">Read the setup doc</span>
+                {/* 150ms ease-out, compositor-only, no overshoot — Part 6's
+                    interaction band. The arrow leans toward the doc. */}
+                <span
+                  aria-hidden="true"
+                  className="transition-transform duration-150 ease-out group-hover:translate-x-1"
+                >
+                  →
+                </span>
+              </Link>
+            )}
+
+            {/* ── THE EVIDENCE AND THE SPEC ────────────────────────────
+                   The screen on the left, what is in it on the right —
+                   seven columns to the product, five to the list. Part 11:
+                   the app is the picture, and on this page that is a
+                   layout fact rather than a sentence. ── */}
+            <div className="mt-8 grid gap-8 lg:grid-cols-12 lg:gap-10">
+              <div className="lg:col-span-7">
+                <ScrollReveal>{VISUALS[s.visual]}</ScrollReveal>
+              </div>
+
+              {/* ── TIER B: the subject is stated once, on the chapter mark
+                     above; these rows take that chapter's tone as a dash. ── */}
+              <div className="lg:col-span-5">
+                <div
+                  className="flex items-center gap-3 border-b pb-3"
+                  style={{ borderColor: DAY_WIRE }}
+                >
+                  <h3 className={`min-w-0 text-gray-950 ${MONO_LABEL}`}>What’s included</h3>
+                  <p className={`ml-auto shrink-0 text-gray-500 ${MONO_LABEL}`}>
+                    <span aria-hidden="true">{String(s.bullets.length).padStart(2, '0')}</span>
+                    <span className="sr-only">{s.bullets.length} included</span>
                   </p>
                 </div>
-                <h2 className="text-[1.6rem] font-bold leading-tight tracking-tight sm:text-[1.9rem]">{s.title}</h2>
-                <p className="mt-4 text-[0.95rem] leading-relaxed text-gray-600">{s.body}</p>
-                {s.docHref && (
-                  <Link href={s.docHref} className="mt-4 inline-block text-[0.88rem] font-semibold text-teal-700 hover:underline">
-                    Read the setup doc →
-                  </Link>
-                )}
-              </div>
-              <div>
-                <ScrollReveal>{VISUALS[s.visual]}</ScrollReveal>
-                <ul className="mt-5 grid gap-2 sm:grid-cols-2">
+                <ul className="mt-4 grid gap-2.5 sm:grid-cols-2 sm:gap-x-10 lg:grid-cols-1">
                   {s.bullets.map((b) => (
-                    <li key={b} className="flex items-start gap-3 text-[0.85rem] leading-snug text-gray-700">
-                      <ToneDash glyph={s.glyph} className="mt-[0.4rem]" />
+                    <li
+                      key={b}
+                      className="flex items-start gap-3 text-[0.875rem] leading-snug text-gray-700"
+                    >
+                      <ToneDash glyph={s.glyph} className="mt-[0.45rem]" />
                       {b}
                     </li>
                   ))}
@@ -299,50 +476,79 @@ export default function ProductPage() {
         ))}
       </div>
 
-      {/* ── Everything else in the box ── */}
-      <section className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
-        <div className="text-center">
-          <Eyebrow>And so much more</Eyebrow>
-          <h2 className="text-[1.6rem] font-bold tracking-tight sm:text-[1.9rem]">
-            The parts that don’t need their own tour
-          </h2>
-          <p className="mx-auto mt-3 max-w-2xl text-[0.95rem] text-gray-600">
-            Deep systems that ride along with the modules above — no add-on line items, all
-            in the same flat price.
-          </p>
-        </div>
-        <div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {([
-            ['form', 'Digital intake forms', 'Photo & insurance-card fields, OCR autofill, AI pre-visit summary, Spanish, kiosk mode, and an OD chart mirror.'],
-            ['cart', 'Membership plans', 'In-house plans for the uninsured — monthly or annual, with benefit-usage tracking and a portal upsell.'],
-            ['money', 'Payment plans', 'Patient-started installments with card-on-file autopay, retries, and a collections workboard.'],
-            ['people', 'Careers + ATS', 'Public job postings with JobPosting schema (Google for Jobs) and a hiring pipeline.'],
-            ['chart', 'Practice analytics', 'A scorecard of new patients, retention, reputation, and search — measured against the prior window.'],
-            ['gift', 'Loyalty + referrals', 'Points for visits and a refer-a-friend link with booking attribution baked in.'],
-            ['globe', 'Custom domains', 'Point your own domain at your DreamCRM site with managed SSL.'],
-            ['key', 'Family access', 'One passwordless login runs the whole household’s visits, forms, and balances.'],
-            ['shield', 'Honest by default', 'Published pricing, month-to-month, official APIs only, and every gap marked before you buy.'],
-          ] as Array<[ToneTileGlyph, string, string]>).map(([glyph, title, body]) => (
-            <div key={title} className="group rounded-xl border border-gray-200 bg-white p-5">
-              <h3 className="flex items-center gap-2.5 text-[0.95rem] font-bold text-gray-950">
-                <ToneTile glyph={glyph} size="md" />
-                {title}
-              </h3>
-              <p className="mt-1.5 text-[0.85rem] leading-relaxed text-gray-600">{body}</p>
-            </div>
-          ))}
+      {/* ── EVERYTHING ELSE IN THE BOX ────────────────────────────────────
+             The one band on the page, on the ticker's `surface-1` with
+             `DAY_WIRE` edges — opaque, painted over the ground, so no bloom
+             reaches its ink. It sits here on purpose: after ten chapters the
+             page needs a change of surface more than it needs an eleventh
+             hairline. ── */}
+      <section className="border-y bg-[#F8FAFF]" style={{ borderColor: DAY_WIRE }}>
+        <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 lg:py-20">
+          <SectionOpener
+            eyebrow="And so much more"
+            title="The parts that don’t need their own tour"
+            lede="Deep systems that ride along with the modules above — no add-on line items, all in the same flat price."
+          />
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {ALSO.map(([glyph, title, body]) => (
+              <div
+                key={title}
+                className={`rounded-[14px] border bg-white p-5 transition-all duration-150 ease-out hover:-translate-y-px hover:shadow-[0_2px_6px_-2px_rgb(58_103_217/0.18),0_26px_54px_-32px_rgb(58_103_217/0.6)] ${CARD_LIFT}`}
+                style={{ borderColor: DAY_WIRE }}
+              >
+                <h3 className="flex items-center gap-2.5 text-[0.95rem] font-bold text-gray-950">
+                  <ToneTile glyph={glyph} size="md" />
+                  {title}
+                </h3>
+                <p className="mt-2 text-[0.85rem] leading-relaxed text-gray-600">{body}</p>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
 
-      <section className="mx-auto max-w-6xl px-4 pb-16 sm:px-6">
-        <div className="rounded-2xl border border-teal-200 bg-teal-50/60 px-8 py-12 text-center">
-          <h2 className="text-[1.6rem] font-bold tracking-tight">Ten minutes from signup to a live website</h2>
-          <p className="mx-auto mt-2 max-w-xl text-[0.95rem] text-gray-600">
-            Everything is included from day one — one plan, one price. Month-to-month, no contract.
+      {/* ── THE CLOSE — the page's bookend ────────────────────────────────
+             It opens with a 36px gradient rule under the header and closes
+             with the same mark, so the brand's three hues are the first and
+             last thing on the page. The same shape the pricing page closes
+             on; deliberately not a second panel, and deliberately not a
+             second dark slab above the `gray-950` footer. ── */}
+      <section className="mx-auto max-w-6xl px-4 py-16 sm:px-6 lg:py-20">
+        <div className="max-w-2xl">
+          <div className={`mb-5 flex items-center gap-3 text-teal-700 ${MONO_LABEL}`}>
+            <span
+              className="h-[3px] w-9 shrink-0 rounded-full bg-gradient-to-r from-teal-600 via-violet-700 to-fuchsia-700"
+              aria-hidden="true"
+            />
+            End of the tour
+          </div>
+          <h2 className="text-[1.9rem] font-extrabold leading-[1.05] tracking-[-0.03em] text-gray-950 sm:text-[2.4rem]">
+            Ten minutes from signup to a live website.
+          </h2>
+          <p className="mt-4 text-[1rem] leading-relaxed text-gray-600">
+            Everything you just read is live in the product today — one plan, one price,
+            month-to-month. Run it on your own practice for a week before you decide.
           </p>
-          <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-center">
+          <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
             <PrimaryCta href="/signup">Start your free trial</PrimaryCta>
             <GhostCta href="/pricing">See pricing</GhostCta>
+          </div>
+          {/* The hero's trust row, arriving on this page: mono, dot
+              separators, no mark at all. Part 3 — "every mark says
+              something", and four tiles here would be four statements the
+              tour has already made. The module count is computed. */}
+          <div className={`mt-8 flex flex-wrap items-center gap-x-3 gap-y-2 text-gray-600 ${MONO_LABEL}`}>
+            {[
+              `${SECTIONS.length} modules, one product`,
+              '7 days free',
+              'No card to start',
+              'Month-to-month',
+            ].map((t, i) => (
+              <span key={t} className="flex items-center gap-3">
+                {i > 0 && <span className="h-1 w-1 rounded-full bg-teal-600" aria-hidden="true" />}
+                {t}
+              </span>
+            ))}
           </div>
         </div>
       </section>

@@ -1795,6 +1795,64 @@ the check-mark veto exempts BY COMPONENT with its premise asserted** — changin
 its structure, or the `sr-only` spans, fails that guard by name. Deepen the ink
 or the tint; do not restructure it. UI correctness, Vesper. · OPEN
 
+### Open — `/product` has never been axe-scanned, and the exemption that would let it be is spelled for the homepage's composition only (found 2026-09-16)
+
+**S7 · marketing site · `e2e/axe.ts` (`DECORATIVE_MOCKS`), `e2e/axe-baseline.ts`,
+`app/(marketing)/product/page.tsx`.** `smoke.spec.ts` scans `marketing: home`
+and `marketing: pricing`. The product tour is the longest page on the site and
+carries **nine** of the repo's product mocks, and no stop reaches it, so nothing
+grades it at all.
+
+**Measured, against the production build** (the repo's own
+`findA11yViolations`, WCAG 2.0/2.1 A + AA, after walking the page so every
+`ScrollReveal` has fired; two runs per width, identical):
+
+| Width | Violation nodes | Inside an `aria-hidden` mock | On the page itself |
+|---|---|---|---|
+| 390 | 89 | 89 | **0** |
+| 834 | 103 | 103 | **0** |
+| 1440 | 103 | 103 | **0** |
+
+One rule only — `color-contrast`. The worst pairs, as rendered:
+
+| Ratio | Foreground | Background | Size | Text | Section |
+|---|---|---|---|---|---|
+| **1.65** | `#c9c2b6` | `#faf7f2` | 10.56px | "9:00 AM" | `#booking` (`BookingMock`) |
+| **1.72** | `#ffffff` | `#ffb900` | 9.28px | "MJ" avatar | `#frontdesk` (`DashboardMock`) |
+| **1.93** | `#ffffff` | `#00d492` | 9.28px | "LL" avatar | `#frontdesk` |
+| **2.26** | `#b4ab9e` | `#ffffff` | 7.68px | "Visits" | `#portal` (`PortalMock`) |
+
+**This is a known-and-answered CLASS with no answer available on this page,
+which is the actual defect.** `marketing: home` carried 41 of exactly these and
+the decision (UI lane + QA, recorded in `e2e/axe-baseline.ts`) was that WCAG
+1.4.3 exempts them as incidental and restyling a deliberate 7px illustration to
+reach 4.5:1 helps nobody — so the stop `exclude`s them and holds **ZERO**, the
+only state in which a NEW contrast defect there fails on arrival. The exclusion
+is `DECORATIVE_MOCKS` = `.mkt-float > [aria-hidden="true"]`: the drift wrapper
+AND the attribute. **Every mock on `/product` is `aria-hidden` and none is a
+`.mkt-float` child** — they are not floating, they are the page's subject — so
+that selector matches nothing here, `deadExclusions` would fail the stop by
+name, and baselining `/product` today would mean either a ceiling of 103 (103
+real defects' worth of room to hide in, on the second-busiest public page) or a
+second exclusion derived from what the mocks ARE rather than from a drift
+class.
+
+**DREAMCRM-77 added 2 of the 103, at 1440 only**, and they are named here rather
+than absorbed: `#93a0bc on #ffffff`, **2.62**, 7.68px, the string `"across all
+channels"` in `DashboardMock`'s BOOKINGS TODAY tile, once each in `#frontdesk`
+and `#integrations` — the two chapters that render that mock. Same component,
+same colour, same size as the 101 already there; the move widened the mock's
+column from six grid columns to seven and that caption becomes a node axe
+resolves. 390 and 834 are byte-identical before and after. Nothing on the page
+itself moved: **0 → 0 at all three widths.**
+
+**Not fixed here on purpose** (§10, and Neon's scope rule — character, not
+correctness). The fix is a stop plus an exclusion, which is `check-definitions`
+machinery rather than brand work, and choosing the exclusion's shape is the
+interesting part: deriving it from `aria-hidden` alone would exempt every
+decorative subtree on the site forever, which is the blanket pardon §2d warns
+about. Accessibility + the harness: Vesper / Quinn. · OPEN
+
 ### R1 · S8 sweep — Compliance & data (2026-08-17)
 
 One finder produced the written posture assessment now in **`docs/COMPLIANCE.md`**

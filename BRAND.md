@@ -5,15 +5,17 @@ The binding personality language for the **public marketing site**
 with Dustin Russenberger on DREAMCRM-43 (2026-09-14) and reversed from a night
 hero to light throughout on DREAMCRM-67 (2026-09-15).
 
-> **The fold, the list marks, the CHROME and the PRICING page look like this;
-> four subpage bodies do not yet.** Moves 1–5 have landed: the homepage hero IS
-> the daylight band (DREAMCRM-69), the cinematic spine sits below the ticker
-> (DREAMCRM-70), the tone tiles replaced every check mark (DREAMCRM-71), the
-> shared chrome — `MarketingHeader`, `MarketingFooter`, `PageHero` — is Daylight
-> Dream (DREAMCRM-72) so all eight subpages already open in the language, and
-> the decorative-layer grader is re-pointed at the light (DREAMCRM-73). Move 6
-> is in progress: **pricing is done** (DREAMCRM-75), and compare, product, why
-> and resources still wear the old body below their hero. **Both owner vetoes
+> **The fold, the list marks, the CHROME, the PRICING page, the COMPARISONS and
+> the PRODUCT TOUR look like this; two subpage bodies do not yet.** Moves 1–5
+> have landed: the homepage hero IS the daylight band (DREAMCRM-69), the
+> cinematic spine sits below the ticker (DREAMCRM-70), the tone tiles replaced
+> every check mark (DREAMCRM-71), the shared chrome — `MarketingHeader`,
+> `MarketingFooter`, `PageHero` — is Daylight Dream (DREAMCRM-72) so all eight
+> subpages already open in the language, and the decorative-layer grader is
+> re-pointed at the light (DREAMCRM-73). Move 6 is in progress: **pricing
+> (DREAMCRM-75), compare (DREAMCRM-76) and the product tour (DREAMCRM-77) are
+> done**, and why and resources still wear the old body below their hero.
+> **Both owner vetoes
 > are closed in code at every call site**: `NIGHT_GRID`, `HERO_DOT_GRID` and
 > `CheckIcon` are deleted rather than dormant, and two guards hold each veto at
 > zero by asking the tree instead of trusting this paragraph. Where this file
@@ -433,6 +435,37 @@ descriptions (2026-09-14, DREAMCRM-43):
       `getQuotedPlan()` (DREAMCRM-38's rule): our own price sat at the bottom
       of a column of competitor prices, which is the worst place in the product
       to be quietly stale.
+
+14. **Move 6 page 3 — the product tour, where the page-level version of the
+    check-mark veto turned up** (DREAMCRM-77, 2026-09-16). Three things this
+    one decided that neither the direction nor the two pages before it had.
+
+    - **Ten of the same section IS the bland check mark, one altitude up.** The
+      owner's words on DREAMCRM-67 were *"bland check marks as icons"*, and the
+      blandness was never the draughtsmanship — it was nine identical marks
+      saying the same nothing nine times. This page was ten identical SECTIONS
+      doing exactly that, and the fix has the same shape the tiles' did: not a
+      nicer section, a section that says which one it is. The chapter mark
+      (tile, `NN / 10`, eyebrow) and the rail that tracks you through them are
+      the page-level tone tile.
+    - **A sticky structural column is a narrower CONTAINER wearing a different
+      word.** The first draft put the chapter mark in a three-column rail that
+      stuck beside its section — a good-looking spine that moved every heading
+      on the page ~180px right of the hero's. Move 6 page 1 had already paid
+      for this lesson in the form the rule is written in ("narrow the LIST, not
+      the container"), and it did not read as the same mistake until it was on
+      screen. **If a structure shifts where the reading column starts, it is a
+      container decision, whatever it is called.**
+    - **A second translucent sticky bar is ungraded by construction, so it went
+      opaque.** The old module nav was `bg-white/90 backdrop-blur` — reading
+      ink on a surface that is a SIBLING scrolling past rather than an
+      ancestor, which axe, `dark-mode-parity` and every rule in
+      `class-pairs.ts` correctly decline to grade. The one instrument that does
+      grade that shape reads the alpha out of `chrome.tsx` by name and asserts
+      it finds exactly ONE there, so it could never have reached this one.
+      Going opaque answers the question instead of adding a second guarded
+      number — which is what that test's own docblock names as the
+      alternative. The site keeps one glass bar, the graded one.
 
 **Why light is the right answer and not a retreat.** The original case for a
 night band was memorability, and it was a real argument — but the pages that
@@ -1253,6 +1286,54 @@ things worth carrying forward, one of which corrects an expectation.
 The homepage's numbers re-derived exactly in the same run, **4.62 included**,
 which is what says the instrument measured rather than merely returned green.
 
+### The product tour, measured (DREAMCRM-77 — move 6, page 3)
+
+Same instrument, same method: render, hide the CONTENT, screenshot the
+decorative layers alone, darkest pixel under each RUN OF GLYPHS, grain ON, six
+frozen phases of `mkt-bloom`, worst kept. This page carries the **longest
+headline `PageHero` renders anywhere** — three display lines at 1440, six at
+390 — which matters because the headline is the run the violet lobe passes
+behind (the DREAMCRM-72 table has it costing up to 7.24).
+
+| Run | Ink | Worst | 1440 | 834 | 390 | Flat |
+|---|---|---|---|---|---|---|
+| product hero eyebrow + rule | `teal-700` | 6.81 | 6.81 | 6.81 | 6.81 | 7.05 |
+| product hero headline | `gray-950` | **11.35** | 15.12 | **11.35** | **11.35** | 17.62 |
+| product hero sub | `gray-600` | 6.67 | 6.67 | 6.67 | 6.67 | 6.91 |
+
+Worst rendered pair on this page: **6.67**, and everything passes. Three things
+worth carrying to the last two subpages.
+
+- **The longest headline costs 6.27 and still lands at 11.35**, which is the
+  DREAMCRM-72 prediction holding at three times the length it was made at. The
+  lobe's whole cost lands on the display type, exactly as designed, and display
+  type is the one run on the page with the headroom to pay it.
+- **This is the first move-6 page whose SUB is the cheapest run rather than the
+  dearest** — 6.67 at all three widths, against pricing's 5.28 and compare's
+  5.83. Nothing changed in `PageHero`; the reading column is simply further
+  left of the violet lobe here than on either of those pages, because this sub
+  is one paragraph on a page whose eyebrow is two words. **Measure the page**
+  is now three-for-three as the rule, and "the sub is the run with the least
+  headroom" is two-for-three as a habit — it is a tendency, not a law, and the
+  only way to know which you have is the run.
+- **The 834 pattern holds at four pages plus the homepage.** Every column that
+  is not 1440 here ties at its worst, and the homepage's 4.62 re-derived
+  exactly in the same run — 66 samples, zero failures, zero NOT MEASURED.
+
+**Nothing below this hero is on a decorative layer, and one thing had to change
+to make that true.** The ten chapters, the "everything else" band and the close
+are all painted over the page's own ground — plain white, or the ticker's
+opaque `#F8FAFF` for the band. The exception was the sticky module nav, which
+shipped `bg-white/90 backdrop-blur`: a SECOND translucent sticky surface on the
+site, carrying reading ink, that no instrument here can see. Move 6 made it
+**opaque** rather than adding a second guarded alpha —
+`token-contrast.test.ts`'s sticky-fill arithmetic is anchored to `chrome.tsx`
+and asserts it finds exactly one alpha there, so it was never going to reach
+this one. On `bg-white` the rail's inactive chips are `gray-600` at 6.91 and
+its active chip `teal-700` at 7.05, both flat, both visible to the source rules
+and to axe. The page keeps a glass bar — the header above it is still
+`white/85` and still graded.
+
 ### Rule 5 and the tone tiles
 
 Rule 5 (`TONE_FILL`, the solid-fill registry) had **no opinion** about the night
@@ -1501,10 +1582,39 @@ the reduced-motion path in the same PR.
      `e2e/marketing-viewport.spec.ts` now does on every marketing page at all
      three widths.
 
-   **What the next four pages inherit from this one.** Three of these cost real
-   time on pricing and none of them is page-specific: SECTION CONTAINERS ALL
+   - ~~**Product**~~ — **LANDED** (DREAMCRM-77, 2026-09-16). The longest page
+     on the site, and the one that read as a wall: ten module sections, each a
+     headline, a paragraph, a mock and six bullets, alternating left and right
+     between identical `gray-100` hairlines. The move was STRUCTURE rather than
+     skin. It is a numbered tour now — every section opens on a chapter mark
+     (the tone tile, `NN / 10` as a mono numeral, the eyebrow) and the sticky
+     module nav became a CHAPTER RAIL that answers *where am I*, carrying the
+     header's own 2px gradient underline on the chapter you are actually in.
+     Hard left throughout, one `max-w-6xl` column, the alternation retired; the
+     chapter head leads full width and the section then splits seven columns of
+     product to five of spec, so the screens are larger than they were. Part
+     3's radius ladder against a page that was uniformly `rounded-xl`,
+     `DAY_WIRE` for `gray-100`, `SectionOpener` and the pricing page's
+     bookend close. Emoji stayed banned (Part 5 bans them in product mocks, and
+     a tour of ten product mocks is that register). Measured run: Part 7, "The
+     product tour, measured".
+
+     **The two things worth carrying.** A SPINE IN THE LEFT MARGIN WAS THE
+     FIRST DRAFT and it is the pricing page's cost in a new costume — a sticky
+     three-column rail carrying the chapter mark beside its section reads well
+     and moved every heading on the page ~180px right of the hero's. A
+     structural column is a narrower CONTAINER by another name. And the rail's
+     translucent fill went OPAQUE rather than gaining a second guard, which is
+     the Part 7 note above: the alpha `token-contrast.test.ts` grades is
+     anchored to `chrome.tsx` by name, so a second sticky bar anywhere else on
+     the site is ungraded by construction.
+
+   **What the last two pages inherit from these three.** Three of them cost
+   real time on pricing and none is page-specific: SECTION CONTAINERS ALL
    MATCH (a narrower container for a reading block moves its hard-left edge off
-   the page's column — narrow the LIST, not the container); MEASURE THE PAGE
+   the page's column — narrow the LIST, not the container, and note that a
+   sticky rail column is a container by another name, which is what page 3
+   nearly shipped); MEASURE THE PAGE
    rather than inheriting `PageHero`'s numbers, because the reading column's
    length is the page's own and the sub is the run with the least headroom; and
    READ PART 3's RADIUS LADDER against the page, because nothing in CI grades a
