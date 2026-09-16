@@ -396,6 +396,27 @@ export const GATE_RULES = [
  *   - Rule 3 says nothing about WHAT the spec asserts. A derived-list spec
  *     that checks one trivial thing still matches. Intake is a sentence on an
  *     issue; a false positive costs that sentence and nothing else.
+ *   - Rule 3 wants the navigation IN the spec. `NAVIGATES` is a literal
+ *     `.goto(`, so a spec with a fully derived page list that calls
+ *     `await visit(page, slug)` — the `page.goto` living in an `e2e/` helper —
+ *     matches nothing. Wrapping navigation is an ordinary thing for an e2e
+ *     suite to grow, so treat this as the first thing to widen rather than as
+ *     a settled scope: when a navigation helper appears, teach `NAVIGATES` to
+ *     follow one hop into it, the way rule 1 already follows a walker through
+ *     an import. (Sentinel, reviewing #622.)
+ *   - Rule 3 resolves the registry import ONE HOP. `import { COMPARISONS }
+ *     from './routes'`, where `e2e/routes.ts` re-exports
+ *     `lib/marketing/comparisons`, matches nothing — the binding arrives from
+ *     inside the suite, which is the same shape as importing a fixture. That
+ *     one-hop limit is deliberate (a spec expanding `./reseed` is a fixture
+ *     loop, not a site-wide guard) and it is also a hole, and it is the #597
+ *     shape again: the right module reached by a different path spelling. The
+ *     other two derivations follow imports transitively; this one does not.
+ *     If a re-export appears, resolve through it rather than exempting it.
+ *   - Rule 3's population contains one permanent SELF-MATCH:
+ *     `tests/guards/review-gate.test.ts` carries the detector's own fixture
+ *     strings, so it matches itself. Harmless — that file is registered — but
+ *     do not read a count of one as "the detector found something".
  *   - Rule 1 matches a product root or one of its top-level divisions, NOT a
  *     module path any depth down. `'lib/db/migrations'` and
  *     `'lib/services/demo-clinic'` are named modules, and a file that names
