@@ -408,6 +408,11 @@ export const INTAKE_RULES = [
       // because it was neither an enumerated path nor a walk.
       'tests/a11y/muted-ink-direction.test.ts',
       'tests/a11y/portal-palette.test.ts',
+      // The dimmed-type rule (DREAMCRM-62 / UI batch 66). It trips BOTH
+      // derivations — it walks the app roots and it grades the palette — and
+      // it was the guard's own author it caught, which is the point of
+      // deriving the list from the tree rather than remembering it.
+      'tests/a11y/dimmed-text.test.ts',
       // Rule 6, the quiet-ink gate (DREAMCRM-62 / UI batch 64). A NEW CLASS of
       // assertion rather than a case on an existing one, which is the
       // distinction this entry's `why` asks to be stated rather than guessed:
