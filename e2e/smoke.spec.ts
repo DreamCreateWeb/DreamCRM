@@ -143,6 +143,78 @@ test.describe('the marketing site (the storefront)', () => {
     await expect(page.getByRole('navigation', { name: 'In this guide' })).toBeVisible()
     await expectNoA11yViolations(page, 'marketing: resource guide')
   })
+
+  /**
+   * THE THREE TOOLS — the sixth, seventh and eighth marketing stops, added
+   * with the pages' Daylight Dream rebuild (Neon, DREAMCRM-80, move 6 page 6).
+   *
+   * THEY MEET THE CONDITION `/why` AND THE RESOURCE PAGES MEET, which is the
+   * only one that earns a ceiling of zero: NO EXEMPTION. `e2e/axe-baseline.ts`
+   * spends a note explaining why `/product` cannot have a stop —
+   * `DECORATIVE_MOCKS` keys on the drift wrapper (`.mkt-float >`) and the
+   * tour's nine mocks do not float, so the selector would match nothing and
+   * `deadExclusions` would fail the stop by name. None of these three renders
+   * a product mock of any kind: they are type, tone tiles, hairlines and
+   * FORMS.
+   *
+   * THE FORMS ARE WHY THESE ARE WORTH THEIR RUNTIME, and it is a different
+   * argument from the five stops above. Every marketing stop so far has been
+   * a READING page, where the only realistic finding is `color-contrast`.
+   * These three carry the only real INPUT surfaces on the marketing site —
+   * eleven labelled fields, a `<textarea>`, three `type=range` sliders and
+   * three submit buttons across `grade-form.tsx`, `roi-calculator.tsx` and
+   * `apply-form.tsx` — so `label`, `form-field-multiple-labels`,
+   * `aria-input-field-name` and the focus-order rules are live here and
+   * nowhere else on this site. That is a class of defect the other five stops
+   * structurally cannot see.
+   *
+   * MEASURED BEFORE THEY WERE ASSERTED, against the production build: 0 rules
+   * / 0 nodes on all three routes at 390, 834 and 1440,
+   * `wcag2a/2aa/21a/21aa`. Nine stops, zero findings.
+   *
+   * WATCHED TO FAIL (§2d) once per stop, against the defect each page is
+   * actually at risk of rather than a synthetic one — the quiet-ink step,
+   * which is what every restyle of these pages reaches for. `gray-400`
+   * (`#93a0bc` on white, **2.62** as rendered) on the grader's three check
+   * bodies reddens `marketing: grade` `color-contrast (serious) x3`; on the
+   * calculator's three scenario labels it reddens `marketing: roi` x3; on the
+   * partner steps' three bodies it reddens `marketing: partner program` x3.
+   * **Each mutation reddened exactly one stop and left the other two at 0
+   * rules / 0 nodes**, which is the half that matters: three stops are only
+   * worth three runs if they are scanning three pages, and nothing about a
+   * green run tells you that.
+   *
+   * ONE STOP PER ROUTE RATHER THAN ONE FOR THE SET, for the reason the
+   * resource pages took two: these are three different pages with three
+   * different forms under one heading in this file, and a stop on `/grade`
+   * would scan neither of the others.
+   *
+   * The three widths are `marketing-viewport.spec.ts`'s job. Axe's findings
+   * here do not move with the viewport — every one of these pages reflows by
+   * stacking a grid, and nothing enters or leaves the tree.
+   */
+  test('the three tools open, and their forms are usable', async ({ page }) => {
+    await page.goto('/grade')
+    await expect(page.locator('h1').first()).toBeVisible()
+    // The grader's promise, and the three things it actually checks.
+    await expect(page.locator('body')).toContainText('Your Google listing')
+    await expect(page.getByLabel('Practice name')).toBeVisible()
+    await expectNoA11yViolations(page, 'marketing: grade')
+
+    await page.goto('/roi')
+    await expect(page.locator('h1').first()).toBeVisible()
+    // The honesty line the whole page rests on, and the hedging beside it.
+    await expect(page.locator('body')).toContainText('Scenarios, not promises')
+    await expect(page.locator('body')).toContainText('Nothing you type is sent')
+    await expectNoA11yViolations(page, 'marketing: roi')
+
+    await page.goto('/partner-program')
+    await expect(page.locator('h1').first()).toBeVisible()
+    // The published terms, and the hedge that keeps them honest.
+    await expect(page.locator('body')).toContainText('10% of every payment')
+    await expect(page.locator('body')).toContainText('written into your partner agreement')
+    await expectNoA11yViolations(page, 'marketing: partner program')
+  })
 })
 
 test.describe('the auth gate (middleware, invisible to happy-dom)', () => {

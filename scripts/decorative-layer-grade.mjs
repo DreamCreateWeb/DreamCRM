@@ -551,6 +551,102 @@ const SAMPLES = [
     ink: '#4c5a78',
     ground: '#ffffff',
   },
+
+  /* ── MOVE 6 PAGE 6 — THE TOOLS (DREAMCRM-80) ───────────────────────────
+     Three pages, nine runs. All three carried a BESPOKE hero before this
+     move — `/grade` had no hero component at all and `/roi` and
+     `/partner-program` each wore the `from-teal-50/60` band
+     `compare/[vendor]` and `GuideShell` were found in — so none of them had
+     a decorative layer for this script to point at, and none of them was in
+     the sample set. They render `PageHero` now, which means they have one.
+
+     `/partner-program` PUTS BUTTONS IN `PageHero`'s `children` SLOT, which
+     is the same fourth-run position page 5 measured on the guide hero. It is
+     deliberately NOT sampled: `PrimaryCta` carries white on a graded
+     gradient FILL and `GhostCta` is an opaque white card carrying `gray-950`
+     — neither is ink on the page's ground, so the darkest pixel under them
+     is not the pair that decides anything. Page 5's read-time spine WAS
+     reading text on the ground, which is why that one is in.
+
+     WHAT IS DELIBERATELY NOT SAMPLED beyond that: everything below all three
+     heroes, for pages 1–5's reason. The checks list, the calculator, the
+     formula panels, the step rows, the terms, the FAQ and all three closes
+     ride the page's own white with no decorative layer — the ROI headline
+     card and the privacy note in particular went from `teal-50/50` and
+     `gray-50` tints to white on this move, precisely so no run of reading
+     text sits on a wash. */
+  {
+    label: 'grade hero eyebrow (teal-700)',
+    path: '/grade',
+    region: 'hero',
+    selector: `${HERO} div.mkt-enter.mb-5`,
+    ink: '#2f52b3',
+    ground: '#ffffff',
+  },
+  {
+    label: 'grade hero headline (gray-950)',
+    path: '/grade',
+    region: 'hero',
+    selector: `${HERO} h1.mkt-d1`,
+    ink: '#10182e',
+    ground: '#ffffff',
+  },
+  {
+    label: 'grade hero sub (gray-600)',
+    path: '/grade',
+    region: 'hero',
+    selector: `${HERO} p.mkt-d2`,
+    ink: '#4c5a78',
+    ground: '#ffffff',
+  },
+  {
+    label: 'roi hero eyebrow (teal-700)',
+    path: '/roi',
+    region: 'hero',
+    selector: `${HERO} div.mkt-enter.mb-5`,
+    ink: '#2f52b3',
+    ground: '#ffffff',
+  },
+  {
+    label: 'roi hero headline (gray-950)',
+    path: '/roi',
+    region: 'hero',
+    selector: `${HERO} h1.mkt-d1`,
+    ink: '#10182e',
+    ground: '#ffffff',
+  },
+  {
+    label: 'roi hero sub (gray-600)',
+    path: '/roi',
+    region: 'hero',
+    selector: `${HERO} p.mkt-d2`,
+    ink: '#4c5a78',
+    ground: '#ffffff',
+  },
+  {
+    label: 'partner hero eyebrow (teal-700)',
+    path: '/partner-program',
+    region: 'hero',
+    selector: `${HERO} div.mkt-enter.mb-5`,
+    ink: '#2f52b3',
+    ground: '#ffffff',
+  },
+  {
+    label: 'partner hero headline (gray-950)',
+    path: '/partner-program',
+    region: 'hero',
+    selector: `${HERO} h1.mkt-d1`,
+    ink: '#10182e',
+    ground: '#ffffff',
+  },
+  {
+    label: 'partner hero sub (gray-600)',
+    path: '/partner-program',
+    region: 'hero',
+    selector: `${HERO} p.mkt-d2`,
+    ink: '#4c5a78',
+    ground: '#ffffff',
+  },
 ]
 
 /**
