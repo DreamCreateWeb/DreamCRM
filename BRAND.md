@@ -14,10 +14,20 @@ hero to light throughout on DREAMCRM-67 (2026-09-15).
 > 6 then converted every subpage BODY, one page per PR: pricing (75), compare
 > (76), the product tour (77), the manifesto (78), the resource library (79),
 > and the pages Part 8 never named — `/grade`, `/roi`, `/partner-program` (80a)
-> and `/blog`, `/changelog`, `/docs` (80b). **Every route under
-> `app/(marketing)` now opens on `PageHero` and carries one language below it**,
-> and that sentence is checkable rather than asserted: `git grep -L PageHero`
-> over the route files returns nothing.
+> and `/blog`, `/changelog`, `/docs` (80b). **All seventeen route files under
+> `app/(marketing)` now open on `PageHero` and carry one language below it**,
+> and that sentence is checkable rather than asserted:
+> `git grep -L -E "PageHero|GuideShell" -- 'app/(marketing)/**/page.tsx'`
+> returns nothing.
+>
+> **The `GuideShell` half of that command is not noise, it is the whole
+> lesson.** The three resource guides render their hero through the shared
+> shell, so they never name `PageHero` themselves — a grep for the component
+> alone reports them as unconverted, which is the MIRROR of the mistake this
+> Part records four times. Counting subpages missed pages that render their own
+> hero; grepping for one component name misses pages that render a shell that
+> renders it. **Both failures are the same error: asking about the spelling
+> instead of about the page.**
 >
 > **Both owner vetoes are closed in code at every call site**: `NIGHT_GRID`,
 > `HERO_DOT_GRID` and `CheckIcon` are deleted rather than dormant, and two
@@ -2039,8 +2049,10 @@ What that does NOT mean is that this Part has stopped being useful. The four
 miscounts it records are a property of how coverage was CLAIMED rather than of
 any one page, and the same mistake is available to the next person who adds a
 route: a page that renders its own hero does not inherit the one it never
-called. The standing checks this Part leaves behind are `git grep -L PageHero`
-over the route files, `e2e/marketing-viewport.spec.ts` at all three widths, and
+called. The standing checks this Part leaves behind are
+`git grep -L -E "PageHero|GuideShell" -- 'app/(marketing)/**/page.tsx'` (and
+that second alternative is load-bearing — see the banner),
+`e2e/marketing-viewport.spec.ts` at all three widths, and
 `scripts/decorative-layer-grade.mjs` against anything that puts a wash behind
 text. What remains open is Part 9's list, which is the owner's rather than this
 document's.
