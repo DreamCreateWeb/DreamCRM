@@ -79,6 +79,7 @@ export function MarketingMotionStyles() {
         .mkt-marquee-track { animation: none; }
         .mkt-bloom, .mkt-live { animation: none; }
       }
+${SPINE_CSS}
     `}</style>
   )
 }
@@ -96,6 +97,168 @@ export function MarketingMotionStyles() {
  * idea pointed at a dark ground and went with the band.
  */
 export const DAY_WIRE = 'rgb(76 125 240 / 0.16)'
+
+/**
+ * THE CINEMATIC SPINE'S LAYOUT — `BRAND.md` Part 6, DREAMCRM-70. The behaviour
+ * lives in `components/marketing/cinematic-spine.tsx`; this is the half of it
+ * that is not JavaScript, and the split matters:
+ *
+ * **The BASE rules are the real stacked layout, and `.is-cinematic` is the
+ * pinned sequence added on top.** Part 6 requires that
+ * `prefers-reduced-motion` gets "a real layout, not a disabled one", and the
+ * only way to owe that rather than claim it is for the ordinary reading layout
+ * to be what the server renders and what every excluded reader keeps. So the
+ * cascade runs in the safe direction: no class, no pin, real page.
+ *
+ * The three `@media` blocks at the bottom then REVERT `.is-cinematic` under the
+ * conditions where the pin is illegal — reduced motion, a coarse pointer
+ * (Part 10: "the pinned scroll does not pin on touch"), and any viewport under
+ * `lg`. That duplicates a check the component also makes, deliberately: the JS
+ * half is the one that can be wrong about the environment or fail to hear a
+ * change, and the CSS half cannot. Either alone is sufficient; both is the
+ * point.
+ *
+ * Every animated property here is `transform` or `opacity` (Part 6), and none
+ * of it is a CSS transition or animation — the values arrive as custom
+ * properties recomputed from one scroll position, which is what makes the
+ * sequence interruptible with nothing to unwind.
+ */
+const SPINE_CSS = `
+      /* ── BASE: four ordinary stacked sections, top to bottom ── */
+      .mkt-spine-intro { max-width: 46rem; margin-inline: auto; padding: 3.5rem 1rem 0; text-align: center; }
+      /* NO aspect-ratio here, on purpose. A fixed ratio clipped the last row
+         of the schedule at 390 and at 834 — a frame cropping its own content
+         mid-row reads as broken rather than as a crop, and Part 10's rule is
+         that what changes down the widths is scale and stacking, never
+         identity. So the frame's height follows the product it contains. The
+         pinned sequence overrides this to the viewport anyway. */
+      .mkt-spine-stage {
+        position: relative; overflow: hidden; margin: 2.5rem auto 0;
+        width: min(100% - 2rem, 72rem);
+        border-radius: 1.75rem; border: 1px solid ${DAY_WIRE};
+        box-shadow: 0 0 70px -24px rgb(93 71 222 / 0.35), 0 24px 80px -44px rgb(26 36 64 / 0.4);
+      }
+      .mkt-spine-cards { margin: 2.5rem auto 0; width: min(100% - 2rem, 72rem); display: grid; gap: 0.85rem; }
+      .mkt-spine-card-glass {
+        border-radius: 1.25rem; border: 1px solid ${DAY_WIRE}; background: #fff; padding: 1.5rem;
+        box-shadow: 0 2px 6px rgb(76 125 240 / 0.06), 0 14px 36px rgb(76 125 240 / 0.1);
+      }
+      .mkt-spine-rail { display: none; }
+      @media (min-width: 640px) { .mkt-spine-card-glass { padding: 1.85rem; } }
+
+      /* ── THE PINNED SEQUENCE ── */
+      .mkt-spine.is-cinematic .mkt-spine-track { height: calc(var(--mkt-spine-steps, 5) * 100vh); }
+      /* \`position: sticky\` is the pin. The DOCUMENT keeps scrolling the whole
+         time, which is what makes the section escapable and the sequence
+         reversible — nothing here touches the reader's scroll input. */
+      .mkt-spine.is-cinematic .mkt-spine-pin { position: sticky; top: 0; height: 100vh; overflow: hidden; }
+      /* z-index 0, UNDER the stage: Part 6 step 2 says the headline "fades
+         BEHIND it", and the first draft had the intro at z-index 2, where it
+         faded ON TOP of the product and went muddy grey over the schedule on
+         the way out. Behind is both the spec and the better picture — the
+         growing frame occludes the headline while it fades, which is the
+         cinematic move rather than a cross-dissolve. At rest the frame sits
+         low enough in the viewport that it covers nothing. */
+      .mkt-spine.is-cinematic .mkt-spine-intro {
+        position: absolute; inset: 0 0 auto 0; z-index: 0; margin: 0; max-width: none;
+        padding: clamp(5.5rem, 13vh, 9rem) 1.5rem 0;
+        opacity: var(--mkt-io, 1);
+        transform: translate3d(0, calc(var(--mkt-iy, 0) * 1px), 0);
+        will-change: opacity, transform;
+      }
+      .mkt-spine.is-cinematic .mkt-spine-intro > * { margin-inline: auto; max-width: 46rem; }
+      .mkt-spine.is-cinematic .mkt-spine-stage {
+        position: absolute; inset: 0; z-index: 1;
+        width: auto; margin: 0; transform-origin: 50% 50%;
+        transform: translate3d(0, calc(var(--mkt-sy, 12) * 1vh), 0) scale(var(--mkt-ss, 0.56));
+        will-change: transform;
+      }
+      /* RESERVE THE CHAPTER RAIL'S LANE, and reserve it from the one element
+         in the picture that is pure decoration. The rail has to land somewhere,
+         and the first draft padded the whole stage to clear it — which read as
+         a gap on the right of the frame AT REST, where the rail is not even
+         visible yet. So the bar chart gives up its right end instead: the bars
+         are the data, they carry no text, and a chart that spans slightly less
+         width is not something a reader can notice. Reserved rather than
+         parked-where-nothing-is-today, because the stage's column heights move
+         with the viewport and "nothing is there" is only true at one size. */
+      .mkt-spine.is-cinematic .mkt-stage-chart { padding-right: clamp(15rem, 19vw, 17rem); }
+      .mkt-spine.is-cinematic .mkt-spine-cards {
+        position: absolute; inset: 0; z-index: 3; display: block;
+        width: auto; margin: 0; pointer-events: none;
+      }
+      .mkt-spine.is-cinematic .mkt-spine-card {
+        position: absolute; top: 50%; left: clamp(1.5rem, 6vw, 6.5rem);
+        width: min(33rem, 46vw);
+        opacity: var(--mkt-co, 0);
+        transform: translate3d(0, calc(-50% + var(--mkt-cy, 44) * 1px), 0);
+        will-change: opacity, transform;
+      }
+      /* Part 3: "depth is emission, not stacking" — the card reads as raised
+         because coloured light spills out from under it, NOT because the
+         product behind it was dimmed. Dimming is what the storyboard showed
+         and it is a contrast defect on a light ground. */
+      .mkt-spine.is-cinematic .mkt-spine-card-glass {
+        padding: clamp(1.85rem, 2.6vw, 2.5rem);
+        box-shadow: 0 0 100px -22px rgb(93 71 222 / 0.5), 0 30px 70px -32px rgb(26 36 64 / 0.35);
+      }
+      .mkt-spine.is-cinematic .mkt-spine-rail {
+        display: block; position: absolute; z-index: 4;
+        right: clamp(1.5rem, 4vw, 4rem); bottom: clamp(1.75rem, 4vh, 3.25rem);
+        opacity: var(--mkt-ro, 0);
+        will-change: opacity;
+      }
+      .mkt-spine-rail-list {
+        display: grid; gap: 0.6rem; padding: 0.95rem 1.15rem;
+        border-radius: 1.125rem; border-width: 1px; border-style: solid;
+        background: rgb(255 255 255 / 0.94); backdrop-filter: blur(8px);
+        box-shadow: 0 2px 6px rgb(76 125 240 / 0.06), 0 18px 44px rgb(76 125 240 / 0.16);
+      }
+      /* Hand-graded, because the rail is \`aria-hidden\` and axe's contrast pass
+         does not reach it: #4c5a78 (gray-600) on white is 6.91 and #2f52b3
+         (teal-700) is 7.05 — BRAND.md Part 7. The pill's own ground is white at
+         0.94, not the product under it, so those are the pairs that render. */
+      .mkt-spine-rail-item { display: flex; align-items: center; justify-content: space-between; gap: 1.75rem; color: #4c5a78; }
+      .mkt-spine-rail-dot { height: 0.5rem; width: 0.5rem; flex: none; border-radius: 999px; background: #c3d0e8; }
+      .mkt-spine-rail[data-active="0"] .mkt-spine-rail-item:nth-child(1),
+      .mkt-spine-rail[data-active="1"] .mkt-spine-rail-item:nth-child(2),
+      .mkt-spine-rail[data-active="2"] .mkt-spine-rail-item:nth-child(3),
+      .mkt-spine-rail[data-active="3"] .mkt-spine-rail-item:nth-child(4) { color: #2f52b3; }
+      .mkt-spine-rail[data-active="0"] .mkt-spine-rail-item:nth-child(1) .mkt-spine-rail-dot,
+      .mkt-spine-rail[data-active="1"] .mkt-spine-rail-item:nth-child(2) .mkt-spine-rail-dot,
+      .mkt-spine-rail[data-active="2"] .mkt-spine-rail-item:nth-child(3) .mkt-spine-rail-dot,
+      .mkt-spine-rail[data-active="3"] .mkt-spine-rail-item:nth-child(4) .mkt-spine-rail-dot { background: #2f52b3; }
+
+      /* ── THE THREE HARD REVERTS. Each one puts the stacked layout back even
+            if the class is present — see this constant's header for why the
+            component checking the same three conditions is not enough. ── */
+      @media (prefers-reduced-motion: reduce) {
+        .mkt-spine.is-cinematic .mkt-spine-track { height: auto; }
+        .mkt-spine.is-cinematic .mkt-spine-pin { position: static; height: auto; overflow: visible; }
+        .mkt-spine.is-cinematic .mkt-spine-intro,
+        .mkt-spine.is-cinematic .mkt-spine-stage,
+        .mkt-spine.is-cinematic .mkt-spine-cards,
+        .mkt-spine.is-cinematic .mkt-spine-card { position: static; opacity: 1; transform: none; }
+        .mkt-spine.is-cinematic .mkt-spine-rail { display: none; }
+      }
+      @media (hover: none), (pointer: coarse) {
+        .mkt-spine.is-cinematic .mkt-spine-track { height: auto; }
+        .mkt-spine.is-cinematic .mkt-spine-pin { position: static; height: auto; overflow: visible; }
+        .mkt-spine.is-cinematic .mkt-spine-intro,
+        .mkt-spine.is-cinematic .mkt-spine-stage,
+        .mkt-spine.is-cinematic .mkt-spine-cards,
+        .mkt-spine.is-cinematic .mkt-spine-card { position: static; opacity: 1; transform: none; }
+        .mkt-spine.is-cinematic .mkt-spine-rail { display: none; }
+      }
+      @media (max-width: 1023px) {
+        .mkt-spine.is-cinematic .mkt-spine-track { height: auto; }
+        .mkt-spine.is-cinematic .mkt-spine-pin { position: static; height: auto; overflow: visible; }
+        .mkt-spine.is-cinematic .mkt-spine-intro,
+        .mkt-spine.is-cinematic .mkt-spine-stage,
+        .mkt-spine.is-cinematic .mkt-spine-cards,
+        .mkt-spine.is-cinematic .mkt-spine-card { position: static; opacity: 1; transform: none; }
+        .mkt-spine.is-cinematic .mkt-spine-rail { display: none; }
+      }`
 
 /**
  * The mono micro-label — `BRAND.md` Part 4 calls it the signature detail.
