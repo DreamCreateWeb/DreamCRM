@@ -414,10 +414,23 @@ export const COMPARISON_DISCLAIMER =
  * than be typed. A number about the registry belongs to the registry.
  *
  * The word map covers the plausible range and FALLS BACK to the numeral
- * rather than `undefined`: a twelfth vendor making the page read "13
- * comparisons" is merely inelegant, "undefined comparisons" is broken. The
- * noun agrees with the count for the same reason — a derived string that
- * lies about grammar is still a derived string that lies.
+ * rather than `undefined`: a THIRTEENTH vendor making the page read "13
+ * comparisons" is merely inelegant, "undefined comparisons" is broken
+ * (`COUNT_WORDS[12]` is 'Twelve', so twelve is still spelled). The noun
+ * agrees with the count for the same reason — a derived string that lies
+ * about grammar is still a derived string that lies.
+ *
+ * `n` IS A PARAMETER SO THE FUNCTION CAN BE ASKED QUESTIONS. Pinning the
+ * rendered heading against `comparisonCountLabel()` — which is what the
+ * render test does, correctly — can only catch a literal typed at the CALL
+ * SITE, because page and test then ask the same function what the answer is.
+ * Drop the leading 'No' from the map and the page reads "Nine comparisons"
+ * over eight cards with that test still green: the same wrong number on the
+ * same public page, one level in. The default keeps every caller unchanged;
+ * the parameter is what lets `comparisons-count.test.ts` state the answers
+ * independently, and it is the only thing that reaches the singular branch
+ * or the numeral fallback — nothing else on the site has one comparison or
+ * thirteen.
  */
 const COUNT_WORDS = [
   'No',
@@ -435,8 +448,7 @@ const COUNT_WORDS = [
   'Twelve',
 ]
 
-export function comparisonCountLabel(): string {
-  const n = COMPARISONS.length
+export function comparisonCountLabel(n: number = COMPARISONS.length): string {
   const word = COUNT_WORDS[n] ?? String(n)
   return `${word} ${n === 1 ? 'comparison' : 'comparisons'}`
 }
