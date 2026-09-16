@@ -387,6 +387,53 @@ descriptions (2026-09-14, DREAMCRM-43):
       discount, which for the instrument Part 7 rests on is the same defect
       wearing a hat. Measured run below.
 
+13. **Move 6 page 2 — the comparison pages, where the brand work and a
+    correctness fix turned out to be one edit** (DREAMCRM-76, 2026-09-16). Four
+    decisions, none of them about colour.
+
+    - **A data table that does not fit gets TWO presentations, not a scroll
+      box.** The capability matrix is 13 rows × 3 columns with a note under
+      every mark; at 390 it wanted 672px inside 358, and the old answer was
+      `overflow-x-auto` around a `min-w-[42rem]` table. Below `md` it is now a
+      card per capability with the two verdicts side by side — the comparison
+      is the point of the page, so stacking them would turn a matrix into two
+      lists — and from `md` up it is a real `<table>` with no `min-width`. Both
+      render from `c.matrix`, so they cannot disagree, and exactly one is in
+      the accessibility tree at a time. **The rejected alternative is the
+      instructive one:** reflowing a single `<table>` with `display: block`
+      drops the implicit table roles and needs ARIA to put back what semantic
+      markup already had. The duplication costs 7.5 KB gzipped on this page and
+      was measured rather than waved at; it is worth it on the one page whose
+      entire job is a matrix, and `compare/page.tsx`'s six-row table — which
+      fits 390 with room — deliberately does not make the same trade.
+    - **Grade the DOCUMENT, not the elements.** The ledger blamed "an ancestor
+      sizing to content without `min-width: 0`" and offered it as a lead; it
+      was wrong. Every ancestor computed `min-width: 0px` at 390px wide.
+      `MatrixMark`'s `sr-only` spans are `position: absolute`, nothing inside
+      the scroll box was positioned, so their containing block resolved to the
+      ICB *outside* it and 26 of them sat at their static positions out to
+      x=601.5, widening the document by exactly 212. The entry's own scan for
+      "elements with no `overflow-x` ancestor" returned zero and was *correct* —
+      those spans have one in the DOM. Scrollable overflow follows the
+      containing-block chain, and for an abspos element the two come apart.
+      **A zero-escaping-elements result does not mean zero elements escaped**,
+      which is why Part 10's guard grades the document's own number.
+    - **The second page to want a shape is when it stops being local.**
+      `SectionOpener` was declared inside the pricing page with a comment
+      saying why — shared chrome re-skins eight pages, and a move that owns one
+      page has no business doing that. Right, while one page wanted it. Two
+      private copies of a heading recipe is the drift this direction exists to
+      prevent, so it moved to `components/marketing/ui.tsx` unchanged.
+      `SectionTitle` stayed centred and untouched for the pages move 6 has not
+      reached.
+    - **A restyle does not get to sharpen what we say about a competitor.**
+      `lib/marketing/comparisons.ts` is untouched by this move — every claim,
+      hedge and reported price still renders verbatim. The one number that is
+      OURS stopped being typed on these two pages and resolves from
+      `getQuotedPlan()` (DREAMCRM-38's rule): our own price sat at the bottom
+      of a column of competitor prices, which is the worst place in the product
+      to be quietly stale.
+
 **Why light is the right answer and not a retreat.** The original case for a
 night band was memorability, and it was a real argument — but the pages that
 close the sale (pricing, comparisons, docs, blog) are long-form reading done on
@@ -1160,6 +1207,52 @@ worth carrying to the next four subpages.
   green: every homepage number in the two tables above re-derives exactly,
   4.62 included.
 
+### The comparison pages, measured (DREAMCRM-76 — move 6, page 2)
+
+Same instrument, same method: render, hide the CONTENT, screenshot the
+decorative layers alone, darkest pixel under each RUN OF GLYPHS, grain ON, six
+frozen phases of `mkt-bloom`, worst kept. Two pages rather than one, because
+`/compare/[vendor]` gained a `PageHero` on this move (it had carried a bespoke
+`bg-gradient-to-b from-teal-50/60` band since before move 4) and its sub is
+`c.summary` — **the longest run of body copy `PageHero` renders anywhere on the
+site**, ten lines at 390. `/compare` sits beside it as the two-line control.
+
+| Run | Ink | Worst | 1440 | 834 | 390 | Flat |
+|---|---|---|---|---|---|---|
+| compare index eyebrow + rule | `teal-700` | 6.40 | 6.81 | **6.40** | 6.81 | 7.05 |
+| compare index headline | `gray-950` | 10.87 | 14.64 | **10.87** | 13.14 | 17.62 |
+| compare index sub | `gray-600` | 6.07 | 6.67 | **6.07** | 6.34 | 6.91 |
+| compare vendor eyebrow + rule | `teal-700` | 6.81 | 6.81 | 6.81 | 6.81 | 7.05 |
+| compare vendor headline | `gray-950` | 15.51 | 17.02 | 17.02 | **15.51** | 17.62 |
+| compare vendor sub | `gray-600` | **5.83** | 6.67 | **5.83** | 6.47 | 6.91 |
+
+Worst rendered pair on these two pages: **5.83**, and everything passes. Three
+things worth carrying forward, one of which corrects an expectation.
+
+- **The longest sub on the site is NOT the worst sub on the site**, and the
+  move-6 rule survives the surprise intact. Pricing measured 5.28; this page's
+  sub is four times longer and reads 5.83. Length decides how far down the band
+  a run reaches, but the lobes are positioned in `vw` — what actually costs
+  contrast is whether a run's x-span crosses a lobe, and this page's reading
+  column clears the violet one at 834 where pricing's does not. **Measure the
+  page** still holds; "the longest page will be the worst" does not, and
+  reasoning from length instead of measuring would have put a wrong number in
+  this table.
+- **834 is where the cost lands, on both pages and on pricing.** Five of the
+  six worst-column entries above are the 834 column, and the homepage's own
+  worst pair (4.62, `teal-600`) is 834 too. That is now four pages agreeing,
+  which makes it a property of the lobe geometry at that width rather than a
+  coincidence — grade 834 first when a move is short of time.
+- **Nothing below either hero is on a decorative layer**, same as pricing, and
+  for the same composition reason: the vendor page's new two-price panel, the
+  matrix band and the FAQ are all OPAQUE (`bg-white` or the ticker's `#F8FAFF`)
+  painted over the ground. The panel is deliberately NOT sampled — hiding a
+  sample's content hides its own background, so the script would report the
+  bloom BEHIND it and could fail a pair that really rides white at 17.62.
+
+The homepage's numbers re-derived exactly in the same run, **4.62 included**,
+which is what says the instrument measured rather than merely returned green.
+
 ### Rule 5 and the tone tiles
 
 Rule 5 (`TONE_FILL`, the solid-fill registry) had **no opinion** about the night
@@ -1379,6 +1472,35 @@ the reduced-motion path in the same PR.
      scroll at 390 / 834 / 1440; `marketing: pricing` clean at all three widths
      in three states each (rest, annual, every FAQ open).
 
+   - ~~**Compare**~~ — **LANDED** (DREAMCRM-76, 2026-09-16). Both files: the
+     index and `compare/[vendor]`. The vendor page had never inherited move 4
+     — it carried a bespoke `from-teal-50/60` band with a hand-rolled
+     `Eyebrow`/`h1` pair — so it gained `PageHero`, a two-price panel breaking
+     the hero's seam, hard-left sections on one `max-w-6xl` column, Part 3's
+     radius ladder, and the FAQ's rotating `+` tile from page 1.
+     `SectionOpener` was promoted out of the pricing page into
+     `components/marketing/ui.tsx` on the way: it was local there **on purpose
+     while one page wanted it**, and the second page wanting it is the moment
+     that argument flips. Emoji stayed banned (Part 5). Measured run: Part 7,
+     "The comparison pages, measured".
+
+     **AND IT CLOSED THE TWO PART 5 LEDGER ENTRIES ON THE CAPABILITY MATRIX**,
+     which is the rare case where fixing a correctness defect and doing the
+     brand work are the same edit. The matrix now reflows to a card per
+     capability below `md` and is a `<table>` with no `min-width` from `md` up,
+     so the page has no scroll container at any width: the 212px sideways drag
+     at 390 and `scrollable-region-focusable` both go, on all eight vendor
+     slugs. **The ledger's stated cause was wrong and the correction is the
+     part to carry** — nothing was sizing to content; `MatrixMark`'s `sr-only`
+     spans are `position: absolute` with no positioned ancestor inside the
+     scroll box, so their containing block resolved to the ICB *outside* it and
+     they widened the DOCUMENT from their static position at x=601.5. Scrollable
+     overflow follows the containing-block chain, not DOM ancestry, and for an
+     abspos element those come apart — so **grade the document, not the
+     elements**, which is what Part 10 already says and what
+     `e2e/marketing-viewport.spec.ts` now does on every marketing page at all
+     three widths.
+
    **What the next four pages inherit from this one.** Three of these cost real
    time on pricing and none of them is page-specific: SECTION CONTAINERS ALL
    MATCH (a narrower container for a reading block moves its hard-left edge off
@@ -1430,6 +1552,28 @@ A contrast or accessibility fix that stays inside the existing colour family is
   **clipping**, not by letting the document get wider. That bug appeared while
   building round B and is exactly what ships if nobody checks — check it by
   measuring `scrollWidth` against `clientWidth`, not by looking at it.
+
+  **Since DREAMCRM-76 this rule is a TEST rather than a habit** —
+  `e2e/marketing-viewport.spec.ts`, inside the required `e2e` check: every
+  marketing page whose content is code, at all three widths, graded on
+  `documentElement.scrollWidth - clientWidth` and on `scrollTo(9999, 0)`
+  leaving `scrollX` at 0. The dynamic routes expand from the same registries
+  their own `generateStaticParams` reads, so a ninth comparison is covered the
+  day it is added. `/blog` is deliberately out: its body comes from the
+  database and the spec is seed-free.
+
+  It exists because the rule was enforced by whoever remembered, and
+  `/compare/[vendor]` shipped dragging **212px** at 390 through three moves and
+  two ledger entries. Moves 3 and 4 both found it by hand and both were right;
+  what a hand sweep cannot do is still be true tomorrow.
+
+  **Grade the DOCUMENT, never the elements.** The element-level version of this
+  check — walk the DOM for anything clearing the viewport with no `overflow-x`
+  ancestor — was tried on that very defect and returned ZERO while the page
+  panned 212px, because the culprits were `sr-only` spans whose containing
+  block sat outside the scroll container they were inside in the DOM. The
+  document's own number cannot be fooled that way: it is not an inference about
+  a mechanism, it is what the reader experiences.
 - **The pinned scroll does not pin on touch.** Phones get the stacked reading
   order, which is the same layout `prefers-reduced-motion` gets (Part 6).
 

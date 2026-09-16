@@ -29,9 +29,10 @@ vi.mock('next/navigation', () => ({
 import MarketingHome from '@/app/(marketing)/page'
 import PricingPage from '@/app/(marketing)/pricing/page'
 import ComparePage from '@/app/(marketing)/compare/[vendor]/page'
+import CompareIndexPage from '@/app/(marketing)/compare/page'
 import DocArticlePage from '@/app/(marketing)/docs/[slug]/page'
 import { PLANS } from '@/lib/stripe-config'
-import { COMPARISONS, getComparison } from '@/lib/marketing/comparisons'
+import { COMPARISONS, getComparison, comparisonCountLabel } from '@/lib/marketing/comparisons'
 import { DOCS, DOC_CATEGORIES, getDoc } from '@/lib/marketing/docs'
 import { MARKETING_NAV, MARKETING_PUBLIC_PATHS } from '@/lib/marketing/site'
 import WhyPage from '@/app/(marketing)/why/page'
@@ -112,7 +113,21 @@ describe('comparison pages', () => {
     expect(screen.getByText(/Where DreamCRM wins/i)).toBeInTheDocument()
     // The matrix shows our honest "no"s too (the switching FAQ answer also
     // says "keep your existing phone system", hence getAllByText).
-    expect(screen.getByText('VoIP phones')).toBeInTheDocument()
+    //
+    // TWICE, NOT ONCE, AND THAT IS THE ASSERTION — not a loosened `getByText`.
+    // DREAMCRM-76 reflowed the capability matrix into TWO presentations from
+    // one source: a card per capability below `md`, a real `<table>` from `md`
+    // up, exactly one of them displayed at a time. That is what closed the two
+    // Part 5 ledger entries on this element (the 212px sideways drag at 390
+    // and `scrollable-region-focusable`), so the duplication is the fix rather
+    // than a side effect of it, and a test that tolerated EITHER count would
+    // go green if one presentation quietly disappeared.
+    const voip = screen.getAllByText('VoIP phones')
+    expect(voip).toHaveLength(2)
+    expect(voip.some((el) => el.closest('table') !== null), 'the md+ table lost the row').toBe(true)
+    expect(voip.some((el) => el.closest('table') === null), 'the phone card list lost the row').toBe(
+      true,
+    )
     expect(screen.getAllByText(/Keep your existing phone system/i).length).toBeGreaterThanOrEqual(1)
     // Slice 4a: the buyer-question FAQ renders, with its schema twin.
     expect(screen.getByText('How much does Weave cost?')).toBeInTheDocument()
@@ -123,6 +138,36 @@ describe('comparison pages', () => {
     await expect(ComparePage({ params: Promise.resolve({ vendor: 'dentrix-cloud-9000' }) })).rejects.toThrow(
       'NEXT_NOT_FOUND',
     )
+  })
+
+  // THE INDEX PAGE, WHICH NOTHING RENDERED UNTIL NOW — and that hole is the
+  // whole reason this test exists. DREAMCRM-76 added a section opener reading
+  // "Five comparisons" above eight cards and shipped it to review: no test
+  // mounted `/compare`, and neither screenshot covered it, so a wrong number
+  // on a public page had nowhere to be caught.
+  //
+  // The assertion is deliberately against `COMPARISONS.length` rather than
+  // the word "Eight". Pinning the literal would just move the hand-typed
+  // number into the test, where it would go stale in exactly the same silence
+  // — a ninth vendor has to turn this red, not agree with it.
+  it('renders the index with a count that derives from the registry', async () => {
+    render(await CompareIndexPage())
+
+    const opener = screen.getByRole('heading', {
+      name: /comparisons?, written the way we'd want one written about us/i,
+    })
+    // The page must state the DERIVED label. A revert to any hand-typed
+    // number — "Five", or a stale "Eight" after a ninth vendor lands — fails
+    // here, while a genuine ninth vendor passes without anyone editing a test.
+    expect(opener).toHaveTextContent(comparisonCountLabel())
+
+    // …and the count it states is the number of cards actually under it.
+    for (const c of COMPARISONS) {
+      const links = screen
+        .getAllByRole('link')
+        .filter((l) => l.getAttribute('href') === `/compare/${c.slug}`)
+      expect(links.length, `no card links to /compare/${c.slug}`).toBeGreaterThanOrEqual(1)
+    }
   })
 })
 

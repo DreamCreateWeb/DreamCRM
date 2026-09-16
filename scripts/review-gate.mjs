@@ -521,6 +521,44 @@ export const INTAKE_RULES = [
       'tests/middleware.test.ts',
       'tests/settings/no-plan-gating.test.ts',
       'tests/timezone/server-render-tz.test.ts',
+      // `BRAND.md` Part 10's zero-horizontal-scroll rule, inside `e2e`
+      // (DREAMCRM-76). A NEW CLASS rather than a case on an existing one,
+      // stated here rather than guessed as this entry's `why` asks: every
+      // file above grades SOURCE — a class string, a `d` attribute, a style
+      // object, a palette. This one grades a RENDERED DOCUMENT, at three
+      // viewport widths, and fails any marketing page whose
+      // `documentElement.scrollWidth` exceeds its `clientWidth`. After it
+      // lands, no future PR can widen a marketing page past the viewport at
+      // 390, 834 or 1440 — which is "changing what every other PR can merge"
+      // in the plain sense, and is the second accessibility-shaped gate to
+      // arrive inside `e2e` after the axe ratchet (#534).
+      //
+      // IT IS HERE BY HAND BECAUSE NEITHER DERIVATION IN
+      // `tests/guards/review-gate.test.ts` CAN SEE IT, and that is the part
+      // worth carrying rather than the file name. The walk detector looks for
+      // a suite file that reads a product root off disk; the palette detector
+      // looks for one built on `tests/a11y/palette.ts`. This file does
+      // neither — it opens a BROWSER and measures pixels, so it reads no
+      // source at all and grades every marketing page at once. That is a
+      // third shape, and #598 is what the second one cost when nobody
+      // registered it: merged with no label, no mention, and reached the
+      // rulebook by the morning sweep alone.
+      //
+      // So registering one path closes one hole rather than the class. The
+      // class — "a suite file that drives a real page and asserts about all
+      // of them" — needs a third derivation beside the other two, and that is
+      // gate machinery rather than a marketing change, so it is routed to
+      // Forge with this PR rather than written here.
+      //
+      // WHAT IT DOES NOT COVER, here rather than only in the spec's docblock,
+      // because this comment is what the rulebook entry gets written from:
+      // `/blog` and `/blog/[slug]`, whose bodies come out of the database.
+      // The spec is seed-free like `smoke.spec.ts`, so on a freshly migrated
+      // database those two render an empty state rather than the page a
+      // reader gets. Every other marketing page is covered, and the dynamic
+      // families are expanded from the same registries their own
+      // `generateStaticParams` reads rather than typed out.
+      'e2e/marketing-viewport.spec.ts',
     ],
   },
 ]

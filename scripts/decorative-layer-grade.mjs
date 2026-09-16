@@ -294,6 +294,79 @@ const SAMPLES = [
     ink: '#4c5a78',
     ground: '#ffffff',
   },
+
+  /* ── MOVE 6 PAGE 2 — THE COMPARISON PAGES (DREAMCRM-76) ───────────────
+     Two pages rather than one, because they are two different reading
+     columns under the same component. `/compare/[vendor]` is the one that
+     matters: its sub is `c.summary`, the longest run of body copy `PageHero`
+     renders anywhere on the site — ten lines at 390 — so it reaches further
+     down into the band than any sub the component's own table measured, and
+     "the reading column's LENGTH is each page's own" (Part 7, the move-6
+     rule) is exactly the case it is. `/compare` has a two-line sub and is
+     here as the control.
+
+     The vendor page also gained a hero CHILD on this move — the two-price
+     panel. It is NOT sampled, for the reason the pricing page's panel is
+     not: it is an opaque `bg-white` card, so no wash reaches its ink, and
+     hiding a sample's content hides its own background too — the script
+     would report the bloom BEHIND the panel and could fail a pair that
+     really rides white. Conservative is the right direction for an
+     instrument to be wrong in; it is not a reason to point it at something
+     it cannot see.
+
+     `weave` is the slug measured because it is the one both ledger entries
+     were reproduced on. Every vendor page is the same template and the same
+     `PageHero`; what differs between them is the LENGTH of the summary, and
+     `patientpop` is checked by hand against this run when the copy moves. */
+  {
+    label: 'compare index hero eyebrow (teal-700)',
+    path: '/compare',
+    region: 'hero',
+    selector: `${HERO} div.mkt-enter.mb-5`,
+    ink: '#2f52b3',
+    ground: '#ffffff',
+  },
+  {
+    label: 'compare index hero headline (gray-950)',
+    path: '/compare',
+    region: 'hero',
+    selector: `${HERO} h1.mkt-d1`,
+    ink: '#10182e',
+    ground: '#ffffff',
+  },
+  {
+    label: 'compare index hero sub (gray-600)',
+    path: '/compare',
+    region: 'hero',
+    selector: `${HERO} p.mkt-d2`,
+    ink: '#4c5a78',
+    ground: '#ffffff',
+  },
+  {
+    label: 'compare vendor hero eyebrow (teal-700)',
+    path: '/compare/weave',
+    region: 'hero',
+    selector: `${HERO} div.mkt-enter.mb-5`,
+    ink: '#2f52b3',
+    ground: '#ffffff',
+  },
+  {
+    label: 'compare vendor hero headline (gray-950)',
+    path: '/compare/weave',
+    region: 'hero',
+    selector: `${HERO} h1.mkt-d1`,
+    ink: '#10182e',
+    ground: '#ffffff',
+  },
+  {
+    // The longest `PageHero` sub on the site — see the note above.
+    label: 'compare vendor hero sub (gray-600)',
+    path: '/compare/weave',
+    region: 'hero',
+    selector: `${HERO} p.mkt-d2`,
+    ink: '#4c5a78',
+    ground: '#ffffff',
+  },
 ]
 
 /**

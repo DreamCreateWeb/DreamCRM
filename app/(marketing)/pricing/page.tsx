@@ -1,11 +1,10 @@
-import React from 'react'
 import {
-  Eyebrow,
   PrimaryCta,
   GhostCta,
   ToneTile,
   ToneDash,
   PageHero,
+  SectionOpener,
   MONO_LABEL,
   DAY_WIRE,
   type ToneTileGlyph,
@@ -200,32 +199,11 @@ export const metadata = {
     `Month-to-month, no contract — or annual with 2 months free (${usd(PRICE.rateAnnual)}/year).`,
 }
 
-/**
- * A section opener in the brand's alignment: the mono eyebrow, a hard-left
- * heading, an optional lede in the reading column. This is the homepage's
- * "Honest by default" shape rather than the centred `SectionTitle`, and it is
- * local to this page on purpose — `SectionTitle` is shared chrome, and
- * re-pointing it would re-skin eight pages from inside a move that owns one.
- */
-function SectionOpener({
-  eyebrow,
-  title,
-  lede,
-}: {
-  eyebrow: string
-  title: string
-  lede?: React.ReactNode
-}) {
-  return (
-    <div className="mb-10 max-w-2xl">
-      <Eyebrow>{eyebrow}</Eyebrow>
-      <h2 className="text-[1.7rem] font-bold leading-tight tracking-[-0.02em] text-gray-950 sm:text-[2.1rem]">
-        {title}
-      </h2>
-      {lede && <p className="mt-3 text-[0.98rem] leading-relaxed text-gray-600">{lede}</p>}
-    </div>
-  )
-}
+/* `SectionOpener` moved to `components/marketing/ui.tsx` on move 6 page 2
+   (DREAMCRM-76). It was local here on purpose while ONE page wanted the shape;
+   the second page to want it is the moment two private copies of a heading
+   recipe become the drift this direction is supposed to prevent. The component
+   is unchanged — same measurements, same `Eyebrow`, same reading measure. */
 
 export default function PricingPage() {
   return (
