@@ -1,0 +1,468 @@
+/**
+ * Grade every run of reading text that sits on a DECORATIVE LAYER, against the
+ * ground that layer actually paints — and take the screenshots.
+ *
+ * Was `scripts/night-band-grade.mjs`. The night band is retired (Daylight
+ * Dream, `BRAND.md` Part 8 move 1) and five of this script's six samples were
+ * anchored to `section.bg-gray-950`, which no longer exists on the homepage —
+ * so they matched nothing and the run reported zero rects rather than a wrong
+ * number. The sixth still resolved and was actively wrong. Move 5 re-anchors it
+ * at the surfaces that are actually there.
+ *
+ * WHY THIS EXISTS RATHER THAN A UNIT TEST, which has not changed and is the
+ * whole reason it earns its keep. axe grades ink against `background-color`;
+ * the source rules in `tests/a11y/class-pairs.ts` read class strings. A
+ * `background-image` — a bloom, a grain, a radial wash — is invisible to both.
+ * The only way to know a decorative layer has not walked a pair under 4.5:1 is
+ * to render the page, hide the CONTENT, screenshot the decorative layers alone
+ * and measure the pixels under each run of glyphs.
+ *
+ * THE EXTREMUM FOLLOWS THE INK; IT IS NOT A CONSTANT. This is the part the
+ * rename is easy to get wrong.
+ *
+ *   - Dark ink on a LIGHT ground (the daylight hero, the ticker) — the worst
+ *     case is the ground going DARK under the glyphs, so take the DARKEST pixel.
+ *   - Pale ink on a DARK ground (the final CTA panel) — the worst case is the
+ *     ground going BRIGHT, so take the BRIGHTEST pixel.
+ *
+ * Flipping the whole script to "darkest" — which is what the daylight ground
+ * asks for on its own — and then adding any dark surface to the list would
+ * grade that surface by its BEST case and report a false pass. So each sample
+ * carries its own flat ground and the extremum is DERIVED from the ink's
+ * polarity against it: one fewer thing a future editor can set wrong, and the
+ * chosen extremum is printed in the report so a mis-set ground is visible.
+ *
+ * Three more choices, all of which move the number:
+ *
+ *   - EXTREMUM, never average. An average hides a lobe crossing one corner of a
+ *     caption, which is exactly the failure this is looking for.
+ *   - TEXT RECTS, not element boxes. The first draft sampled the `<p>`'s box
+ *     and reported the night band's caption at 3.40 — but the caption was
+ *     `text-center` in a full-width block, and the extreme pixel was 400px away
+ *     from the nearest letter. Ground with no ink on it is not a contrast pair;
+ *     this is what axe measures too. It is NOT a softening: the same change
+ *     left a real 4.18 standing until the design moved.
+ *   - A PHASE SWEEP, not one instant. `mkt-bloom` drifts the lobes on an 18s
+ *     loop (-1.5% / +1.2% / scale 1.04), so "wait 3.5s and screenshot" grades
+ *     whichever phase the wait happened to land on. Every region is measured at
+ *     six frozen phases across the loop and the worst is kept. Phase 0 is the
+ *     identity transform, which is also what `prefers-reduced-motion` pins the
+ *     bloom to, so the reduced-motion ground is inside the sweep by
+ *     construction. If the sweep ever stops moving — no sample's extremum
+ *     changes at any phase — the run FAILS: a measurement that has quietly
+ *     stopped measuring looks exactly like a clean one.
+ *
+ * WHAT IS DELIBERATELY NOT HERE.
+ *
+ *   - `MarketingFooter`. It is flat `bg-gray-950` with no wash under its text —
+ *     the 3px gradient bar at its top edge carries no text, by rule. A flat
+ *     ground is exactly what `tests/a11y/token-contrast.test.ts` and Part 7's
+ *     hand table already grade correctly, so adding it here would duplicate a
+ *     guard that works. The CTA selector below is a `div`, and the footer is a
+ *     `<footer>`, so that boundary is structural rather than a comment.
+ *   - The final CTA's primary button. Its fill is opaque `teal-700` painted
+ *     OVER the wash, so the wash is not its ground; rule 3 in `class-pairs.ts`
+ *     grades white-text fills from the class string and is right about it.
+ *
+ * ONE HONEST LIMIT, stated so nobody reads a number here as the last word.
+ * Hiding a sample's content hides that element's OWN background too, so where a
+ * run rides an opaque surface of its own the ground reported here is the
+ * decorative layer BEHIND that surface rather than the surface. The hero
+ * eyebrow is the live case: it is a `bg-white` pill, so its real ground is
+ * white (7.05) and this script reports the bloom under the pill. That error is
+ * always in the CONSERVATIVE direction — it can cost a passing pair a red run,
+ * it can never pass a failing one — which is the only direction an instrument
+ * like this is allowed to be wrong in.
+ *
+ * RUN IT AGAINST ANYTHING THAT SERVES THE PAGE:
+ *
+ *   BASE_URL=https://www.dreamcreatestudio.com node scripts/decorative-layer-grade.mjs
+ *   BETTER_AUTH_SECRET=anything npx next dev -p 3112   # then BASE_URL=http://127.0.0.1:3112
+ *
+ * The local case needs only that one env var — it is what the homepage's
+ * signed-in redirect checks reach for before they ever touch the database, so
+ * without it every page is a 500 error shell. It does NOT need a database, and
+ * it does not need the page edited: an earlier version of this harness stubbed
+ * the auth guard out of `app/(marketing)/page.tsx` and put it back afterwards,
+ * which was a scary amount of machinery for a missing environment variable.
+ *
+ * A sample that does not resolve FAILS the run rather than being skipped — the
+ * `deadExclusions` lesson, pointed at this. That is precisely what would have
+ * caught the five dead selectors this rewrite found by hand.
+ */
+import { chromium } from '@playwright/test'
+import { writeFileSync } from 'node:fs'
+
+const BASE = process.env.BASE_URL ?? 'http://127.0.0.1:3100'
+const OUT = process.env.OUT_DIR ?? '.'
+const WIDTHS = (process.env.WIDTHS ?? '1440,834,390').split(',').map((w) => Number(w.trim()))
+/** `mkt-bloom` is an 18s loop; six phases across it, phase 0 included. */
+const PHASES = [0, 3, 6, 9, 12, 15]
+const FLOOR = 4.5
+
+const lin = (v) => {
+  const s = v / 255
+  return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4)
+}
+const luminance = ([r, g, b]) => 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b)
+const contrast = (a, b) => {
+  const la = luminance(a)
+  const lb = luminance(b)
+  const [hi, lo] = la >= lb ? [la, lb] : [lb, la]
+  return (hi + 0.05) / (lo + 0.05)
+}
+const hex = (h) => [0, 2, 4].map((i) => parseInt(h.replace('#', '').slice(i, i + 2), 16))
+
+/**
+ * The hero is anchored on the layer this script is ABOUT rather than on its
+ * ground colour: `.mkt-bloom` is the decorative wash, so the selector says "the
+ * section that paints one". A future move that changes the band's ground keeps
+ * this pointed at the right section; a move that deletes the wash turns every
+ * hero sample NOT MEASURED, which is the correct loud failure.
+ */
+const HERO = 'section:has(.mkt-bloom)'
+const TICKER = '[aria-label="Everything included"]'
+/** The final CTA panel — a `div`, which is what keeps the `<footer>` out. */
+const CTA = 'div.bg-gray-950'
+
+/**
+ * Every run of reading text that sits on a decorative layer, with the ink it is
+ * written in and the flat ground it would ride with the layer removed — both
+ * read off the element's own className and `app/css/style.css`, rather than
+ * kept in a second list that can disagree.
+ *
+ * `region` groups samples into one screenshot each; `exclude` drops text nodes
+ * under a descendant that is its own sample (the headline's two halves are two
+ * different inks inside one `<h1>`).
+ */
+const SAMPLES = [
+  {
+    label: 'hero eyebrow badge (teal-700)',
+    region: 'hero',
+    selector: `${HERO} p.mkt-enter.mb-6`,
+    ink: '#2f52b3',
+    ground: '#ffffff',
+  },
+  {
+    // The flat half: "Your whole front office." The gradient half is excluded
+    // and graded below in its own ink — grading it as `gray-950` would report
+    // a ratio the gradient's lighter stops do not have.
+    label: 'hero headline, flat half (gray-950)',
+    region: 'hero',
+    selector: `${HERO} h1.mkt-d1`,
+    exclude: '.bg-clip-text',
+    ink: '#10182e',
+    ground: '#ffffff',
+  },
+  {
+    // THE GRADIENT HALF, IN TWO RUNS, BECAUSE THE INK MOVES ACROSS IT.
+    // `from-teal-600 via-violet-700 to-fuchsia-700` puts its stops at 0 / 50 /
+    // 100% of the element's background box, and the three are 5.09 / 6.14 /
+    // 6.27 flat on white — a 1.2-point spread. Grading the whole run against
+    // the shallowest stop pairs `teal-600` with a dark pixel that may be 500px
+    // away under the fuchsia end, which reported 4.58 at 834 and is not a
+    // number about anything. So each half is clipped to its own span of the
+    // box and graded against the SHALLOWER of its two endpoints.
+    //
+    // Still conservative in one small way, stated rather than hidden: Tailwind
+    // v4 interpolates in oklab, so a midpoint could in principle sit under both
+    // endpoints. Rule 4 in `class-pairs.ts` grades every named stop flat on
+    // white and is the instrument for the stops themselves; what this adds is
+    // the bloom's COST, which nothing else in the repo can see.
+    label: 'hero headline, gradient left half (graded at teal-600)',
+    region: 'hero',
+    selector: `${HERO} h1.mkt-d1 .bg-clip-text`,
+    xSpan: [0, 0.5],
+    ink: '#3a67d9',
+    ground: '#ffffff',
+  },
+  {
+    label: 'hero headline, gradient right half (graded at violet-700)',
+    region: 'hero',
+    selector: `${HERO} h1.mkt-d1 .bg-clip-text`,
+    xSpan: [0.5, 1],
+    ink: '#5d47de',
+    ground: '#ffffff',
+  },
+  {
+    label: 'hero body copy (gray-600)',
+    region: 'hero',
+    selector: `${HERO} p.mkt-d2`,
+    ink: '#4c5a78',
+    ground: '#ffffff',
+  },
+  {
+    label: 'hero trust row (gray-600)',
+    region: 'hero',
+    selector: `${HERO} div.mkt-d4.mt-8`,
+    ink: '#4c5a78',
+    ground: '#ffffff',
+  },
+  {
+    // Its own region: it sits BELOW the hero section on `surface-1`, so its
+    // ground is not a bloom at all, and grading it with the hero is what
+    // catches a lobe that has grown far enough down to reach it.
+    label: 'ticker labels (gray-600)',
+    region: 'ticker',
+    selector: `${TICKER} span.flex`,
+    ink: '#4c5a78',
+    ground: '#f8faff',
+  },
+  {
+    // THE DARK SURFACE NOTHING HAS EVER GRADED. `bg-gray-950` carrying white
+    // and `gray-400`, with two `aria-hidden` radial gradients painted over it
+    // as a `background-image` at 15% opacity — a decorative wash axe cannot
+    // see, under reading text, on a surface no source rule grades. Pale ink on
+    // a dark ground, so the extremum derives to BRIGHTEST here while every
+    // sample above derives to darkest. That is the whole reason the extremum is
+    // per-sample.
+    label: 'final CTA headline (white)',
+    region: 'cta',
+    selector: `${CTA} h2`,
+    ink: '#ffffff',
+    ground: '#10182e',
+  },
+  {
+    // The palest ink on that panel, and so the one with the least headroom:
+    // 6.71 flat, and Part 7 records a single teal lobe at 16% alpha costing the
+    // palest night ink 1.7 points.
+    label: 'final CTA body copy (gray-400)',
+    region: 'cta',
+    selector: `${CTA} p`,
+    ink: '#93a0bc',
+    ground: '#10182e',
+  },
+  {
+    // The ghost button's label rides the wash directly — its own fill is
+    // transparent and only its border is drawn.
+    label: 'final CTA ghost button (white)',
+    region: 'cta',
+    selector: `${CTA} a[target="_blank"]`,
+    ink: '#ffffff',
+    ground: '#10182e',
+  },
+]
+
+/** Derived, never declared: the ink's polarity against its own flat ground. */
+const extremumFor = (s) => (luminance(hex(s.ink)) < luminance(hex(s.ground)) ? 'darkest' : 'brightest')
+
+// Samples are keyed by `label`, not by selector: the headline's gradient is one
+// element graded as two runs, so a selector is no longer a unique name.
+const HIDE_CONTENT = [...new Set(SAMPLES.map((s) => s.selector))]
+  .map((selector) => `${selector} { visibility: hidden !important; }`)
+  .join('\n')
+/**
+ * Freeze every animation, then put the bloom at one chosen phase of its loop.
+ * A negative `animation-delay` on a paused animation is how you address a
+ * specific frame of it without a video capture.
+ */
+const freezeAt = (phase) => `
+  *, *::before, *::after { animation-play-state: paused !important; transition: none !important; }
+  .mkt-bloom { animation-delay: -${phase}s !important; }
+`
+
+const regionsOf = (list) => [...new Set(list.map((s) => s.region))]
+
+const browser = await chromium.launch()
+const report = []
+let worst = Infinity
+let failed = false
+let anyPhaseMoved = false
+
+for (const width of WIDTHS) {
+  const page = await browser.newPage({ viewport: { width, height: 1000 }, deviceScaleFactor: 2 })
+  await page.goto(`${BASE}/`, { waitUntil: 'networkidle' })
+  // Entrance animations are opacity fades; measuring mid-fade measures a blend
+  // (the lesson `e2e/axe.ts`'s settleAnimations note records).
+  await page.waitForTimeout(3500)
+
+  /* ── 1. the screenshots a person looks at ─────────────────────────────── */
+  await page.screenshot({ path: `${OUT}/hero-${width}.png`, clip: { x: 0, y: 0, width, height: 1000 } })
+  // `.boundingBox()` AUTO-WAITS, so a dead selector here hangs 30s and throws
+  // a Playwright stack trace BEFORE the report is written — you learn that
+  // something broke and not which samples went dark. That is the wrong failure
+  // for the one defect this script exists to survive, so the evidence shot asks
+  // whether the element is there and lets the grade below do the reporting.
+  const ctaBox = (await page.$(CTA)) ? await page.locator(CTA).first().boundingBox() : null
+  if (ctaBox) {
+    await page.screenshot({
+      path: `${OUT}/cta-panel-${width}.png`,
+      fullPage: true,
+      clip: { x: 0, y: Math.max(0, ctaBox.y - 16), width, height: ctaBox.height + 32 },
+    })
+  }
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await page.reload({ waitUntil: 'networkidle' })
+  await page.waitForTimeout(1200)
+  await page.screenshot({ path: `${OUT}/hero-${width}-reduced-motion.png`, clip: { x: 0, y: 0, width, height: 1000 } })
+  await page.emulateMedia({ reducedMotion: 'no-preference' })
+  await page.reload({ waitUntil: 'networkidle' })
+  await page.waitForTimeout(3500)
+
+  /* ── 2. where the ink actually is ─────────────────────────────────────── */
+  // One rect per LINE of text, not the block's box, and every element the
+  // selector matches rather than only the first — the ticker is 19 labels.
+  const rects = await page.evaluate((specs) => {
+    const out = {}
+    for (const { key, selector, exclude, xSpan } of specs) {
+      const found = []
+      for (const el of document.querySelectorAll(selector)) {
+        // `xSpan` is a fraction of the ELEMENT's box, not of each line's box:
+        // a `bg-clip-text` gradient is laid out across the background box, so
+        // that is the frame its stops are positioned in.
+        const box = el.getBoundingClientRect()
+        const lo = xSpan ? box.x + xSpan[0] * box.width : -Infinity
+        const hi = xSpan ? box.x + xSpan[1] * box.width : Infinity
+        const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT)
+        let node
+        while ((node = walker.nextNode())) {
+          if (!node.nodeValue || !node.nodeValue.trim()) continue
+          if (exclude && node.parentElement?.closest(exclude)) continue
+          const range = document.createRange()
+          range.selectNodeContents(node)
+          for (const r of range.getClientRects()) {
+            const x0 = Math.max(r.x, lo)
+            const x1 = Math.min(r.x + r.width, hi)
+            if (x1 - x0 > 0 && r.height > 0) {
+              found.push({ x: x0 + window.scrollX, y: r.y + window.scrollY, width: x1 - x0, height: r.height })
+            }
+          }
+        }
+      }
+      if (found.length) out[key] = found
+    }
+    return out
+  }, SAMPLES.map(({ label, selector, exclude, xSpan }) => ({ key: label, selector, exclude: exclude ?? null, xSpan: xSpan ?? null })))
+
+  /* ── 3. hide the content, sweep the bloom's loop ──────────────────────── */
+  // Everything below the fold is measured with a `fullPage` clip per region:
+  // a viewport-clipped shot silently drops the ticker and the CTA panel, which
+  // reads as "selector not found" — the exact shape of a measurement that has
+  // quietly stopped measuring.
+  await page.addStyleTag({ content: HIDE_CONTENT })
+  await page.waitForTimeout(150)
+
+  const probe = await browser.newPage()
+  await probe.setContent('<canvas id="c"></canvas>')
+
+  /** Region clip = the union of that region's own text rects, padded. */
+  const clips = {}
+  for (const region of regionsOf(SAMPLES)) {
+    const list = SAMPLES.filter((s) => s.region === region).flatMap((s) => rects[s.label] ?? [])
+    if (!list.length) continue
+    const x0 = Math.max(0, Math.floor(Math.min(...list.map((r) => r.x)) - 4))
+    const y0 = Math.max(0, Math.floor(Math.min(...list.map((r) => r.y)) - 4))
+    const x1 = Math.ceil(Math.max(...list.map((r) => r.x + r.width)) + 4)
+    const y1 = Math.ceil(Math.max(...list.map((r) => r.y + r.height)) + 4)
+    clips[region] = { x: x0, y: y0, width: Math.min(width - x0, x1 - x0), height: y1 - y0 }
+  }
+
+  /** selector → { rgb, phase } for the worst pixel seen at any phase. */
+  const found = {}
+  const moved = {}
+  for (const phase of PHASES) {
+    const freeze = await page.addStyleTag({ content: freezeAt(phase) })
+    await page.waitForTimeout(120)
+    for (const [region, clip] of Object.entries(clips)) {
+      const shot = await page.screenshot({ fullPage: true, clip })
+      if (phase === PHASES[0]) {
+        await page.screenshot({ path: `${OUT}/decorative-layers-${region}-${width}.png`, fullPage: true, clip })
+      }
+      const members = SAMPLES.filter((s) => s.region === region && rects[s.label])
+      const boxes = Object.fromEntries(members.map((s) => [s.label, rects[s.label]]))
+      const modes = Object.fromEntries(members.map((s) => [s.label, extremumFor(s)]))
+      const hits = await probe.evaluate(
+        async ([dataUrl, boxSet, modeSet, origin]) => {
+          const img = new Image()
+          await new Promise((res) => {
+            img.onload = res
+            img.src = dataUrl
+          })
+          const c = document.getElementById('c')
+          c.width = img.width
+          c.height = img.height
+          const ctx = c.getContext('2d')
+          ctx.drawImage(img, 0, 0)
+          const scale = img.width / origin.width
+          const out = {}
+          for (const [key, list] of Object.entries(boxSet)) {
+            const wantDark = modeSet[key] === 'darkest'
+            let best = null
+            let bestSum = wantDark ? Infinity : -1
+            for (const b of list) {
+              const x = Math.max(0, Math.round((b.x - origin.x) * scale))
+              const y = Math.max(0, Math.round((b.y - origin.y) * scale))
+              const w = Math.min(img.width - x, Math.round(b.width * scale))
+              const h = Math.min(img.height - y, Math.round(b.height * scale))
+              if (w <= 0 || h <= 0) continue
+              const d = ctx.getImageData(x, y, w, h).data
+              for (let i = 0; i < d.length; i += 4) {
+                const sum = d[i] + d[i + 1] + d[i + 2]
+                if (wantDark ? sum < bestSum : sum > bestSum) {
+                  bestSum = sum
+                  best = [d[i], d[i + 1], d[i + 2]]
+                }
+              }
+            }
+            if (best) out[key] = best
+          }
+          return out
+        },
+        [`data:image/png;base64,${shot.toString('base64')}`, boxes, modes, clip],
+      )
+      for (const s of members) {
+        const rgb = hits[s.label]
+        if (!rgb) continue
+        const ratio = contrast(hex(s.ink), rgb)
+        const prev = found[s.label]
+        if (prev && prev.rgb.join() !== rgb.join()) moved[s.label] = true
+        if (!prev || ratio < prev.ratio) found[s.label] = { rgb, ratio, phase }
+      }
+    }
+    await freeze.evaluate((el) => el.remove())
+  }
+  await probe.close()
+
+  // The sweep is an instrument too. If NOT ONE sample's extremum changed at any
+  // phase, the freeze is not addressing the loop and every number above is a
+  // single instant wearing a sweep's clothes.
+  if (Object.keys(moved).length) anyPhaseMoved = true
+
+  /* ── 4. the grade ─────────────────────────────────────────────────────── */
+  report.push('', `── ${width}px ${'─'.repeat(Math.max(0, 62 - String(width).length))}`)
+  for (const s of SAMPLES) {
+    const hit = found[s.label]
+    // A sample that did not resolve is a FAILURE of the instrument, not a pass.
+    if (!hit) {
+      report.push(`NOT MEASURED  ${s.label}  (${s.selector})`)
+      failed = true
+      continue
+    }
+    const flat = contrast(hex(s.ink), hex(s.ground))
+    worst = Math.min(worst, hit.ratio)
+    report.push(
+      `${hit.ratio >= FLOOR ? 'PASS' : 'FAIL'}  ${s.label}`,
+      `        ink ${s.ink} · ${extremumFor(s)} ground under it rgb(${hit.rgb.join(' ')}) at phase ${hit.phase}s`,
+      `        ${hit.ratio.toFixed(2)} rendered   (${flat.toFixed(2)} flat on ${s.ground}, cost ${(flat - hit.ratio).toFixed(2)})`,
+    )
+  }
+  await page.close()
+}
+
+report.push('')
+if (!anyPhaseMoved) {
+  report.push('PHASE SWEEP NOT MOVING — no sample changed at any phase of `mkt-bloom`.')
+  report.push('The freeze is not addressing the loop; these numbers are one instant, not a sweep.')
+  failed = true
+}
+report.push(
+  failed
+    ? 'THE INSTRUMENT DID NOT FULLY MEASURE — the grade above is incomplete.'
+    : `worst rendered pair on a decorative layer: ${worst.toFixed(2)} against a ${FLOOR} floor`,
+)
+const text = report.join('\n')
+console.log(text)
+writeFileSync(`${OUT}/decorative-layer-grade.txt`, text + '\n')
+
+await browser.close()
+process.exit(!failed && worst >= FLOOR ? 0 : 1)

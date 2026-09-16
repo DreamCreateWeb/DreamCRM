@@ -789,6 +789,16 @@ The hero's night band is gone, and with it:
   ink that lands on the footer is still hand-graded, and the negative assertion
   pinning `gray-500` — **3.32** on that ground, the pair that actually shipped
   live for months at 3.42 — stays exactly where it is.
+
+  **And it stays OUTSIDE the decorative-layer grader, which is a different
+  question from the one above.** That script grades text sitting on a
+  `background-image`; this footer is a FLAT `bg-gray-950` with no wash under
+  its text — the 3px gradient bar at its top edge carries no text, by rule. A
+  flat ground is exactly what `token-contrast.test.ts` and the hand table
+  already grade correctly, so adding it there would duplicate a guard that
+  works — and under a global extremum flip it would have been duplicated
+  BACKWARDS. The boundary is structural rather than a comment: the grader's CTA
+  selector is a `div`, and this footer is a `<footer>`.
 - **The bloom-under-text risk inverts; it does not disappear.** On the night
   band a bright wash walked pale ink down. On white, a saturated bloom walks the
   *ground* down under **dark** ink, and the arithmetic is just as unforgiving.
@@ -803,6 +813,19 @@ The hero's night band is gone, and with it:
   else: screenshotting the decorative layers alone is what makes a
   `background-image` visible to a guard at all, and axe reads only
   `background-color`.
+
+  **DONE on DREAMCRM-73, and the sentence above is wrong in one place — read
+  the correction, because acting on "flip the extremum" as written would put a
+  false pass in this document.** It is `scripts/decorative-layer-grade.mjs`
+  now. The extremum is **not a constant and not a global flip**: it follows the
+  INK. Dark ink on a light ground takes the darkest pixel; pale ink on a dark
+  ground takes the brightest one — and this page has both, because the final
+  CTA panel is `bg-gray-950` under its own wash. A script flipped wholesale to
+  "darkest" grades that panel by its BEST case, which was measured rather than
+  argued: under the flip the panel's palest ink reported **6.48** where the
+  correct extremum says 5.69. So the script derives the extremum per sample
+  from the ink's polarity against its own flat ground, and prints which one it
+  chose. The measured run is below.
 
 ### The rules that bind the new ground
 
@@ -833,7 +856,20 @@ where the lobes are largest.
 | headline | `gray-950` | `rgb(220 229 249)` | **13.94** | 17.62 |
 | body copy | `gray-600` | `rgb(251 251 251)` | **6.67** | 6.91 |
 | trust row | `gray-600` | `rgb(246 227 248)` | **5.68** | 6.91 |
-| daylight ticker | `gray-600` | `rgb(220 229 253)` | **5.48** | 6.91 |
+| daylight ticker | `gray-600` | `rgb(220 229 253)` | ~~**5.48**~~ | ~~6.91~~ |
+
+**The ticker row is WRONG and DREAMCRM-73 found it by re-running the
+measurement with a committed instrument.** Both of its numbers are graded
+against the wrong ground. The strip has carried an opaque `bg-[#F8FAFF]` since
+this very PR (`375ce1fb`), so its flat pair is **6.61**, not 6.91 — and nothing
+paints over it, so its rendered pair is 6.61 as well, cost 0.00. The throwaway
+harness hid the STRIP rather than its labels, exposing the hero bloom behind an
+opaque surface and grading the ticker against a wash that never touches it;
+`rgb(220 229 253)` is that bloom. The lesson is the one this Part keeps
+relearning from the other direction — **an instrument nobody re-runs is a
+number nobody re-checks** — and it is the concrete argument for the committed
+script over a throwaway. Every other row above re-derived within the phase
+sweep's spread (see the DREAMCRM-73 table).
 
 Read the gap between the last two columns rather than the last column: the
 blooms cost the eyebrow **2.03** and the trust row **1.23**, and the trust row's
@@ -855,6 +891,104 @@ The instrument used here was a throwaway: `scripts/night-band-grade.mjs` is the
 committed one and it still takes the BRIGHTEST pixel, which was correct for the
 band it was written for and is backwards for this ground. Flipping the extremum
 and renaming it is the move-5 build issue, and this table is what it re-derives.
+**It re-derived it on DREAMCRM-73 and found one row wrong — see the strikeout
+above, and the replacement table below.**
+
+### The decorative layers, re-measured (DREAMCRM-73 — move 5)
+
+`scripts/decorative-layer-grade.mjs`, the re-pointed instrument, run against the
+real page at all three widths. Method unchanged where it was right — render,
+hide the CONTENT, screenshot the decorative layers alone, take the extreme pixel
+under each RUN OF GLYPHS rather than under an element box. Grain ON. Three
+things are new, each because the old run could not have been trusted without
+them:
+
+- **The extremum is per sample**, derived from the ink's polarity against its
+  own flat ground. Not a global flip — see the correction under "What does NOT
+  retire".
+- **Six frozen phases of `mkt-bloom`'s 18s drift**, worst kept. The old script
+  waited 3.5s and screenshotted whichever phase that landed on; six of the
+  fifteen worst readings below are NOT at phase 0, and the trust row at 1440
+  moves 1.02 across the loop. Phase 0 is the identity transform, which is also
+  where `prefers-reduced-motion` pins the bloom, so that path is inside the
+  sweep by construction.
+- **The headline is two runs**, because the ink moves across it: the flat half
+  is `gray-950`, and the `bg-clip-text` half is clipped at the 50% stop and each
+  side graded against its own shallower endpoint. Grading the whole gradient
+  against its shallowest stop pairs `teal-600` with a pixel 500px away under the
+  fuchsia end, and reported 4.58 — a number about nothing.
+
+| Run | Ink | Worst | 1440 | 834 | 390 | Flat |
+|---|---|---|---|---|---|---|
+| hero eyebrow badge | `teal-700` | darkest | 5.08 | 5.15 | **4.73** | 7.05 |
+| hero headline, flat half | `gray-950` | darkest | 13.36 | 13.67 | 14.67 | 17.62 |
+| hero headline, gradient left | `teal-600` | darkest | 4.92 | **4.62** | 4.92 | 5.09 |
+| hero headline, gradient right | `violet-700` | darkest | 5.83 | 5.52 | 5.93 | 6.14 |
+| hero body copy | `gray-600` | darkest | 6.67 | 6.67 | 6.67 | 6.91 |
+| hero trust row | `gray-600` | darkest | 5.54 | 6.56 | 5.96 | 6.91 |
+| ticker labels | `gray-600` | darkest | 6.61 | 6.61 | 6.61 | 6.61 |
+| final CTA headline | `white` | brightest | 15.97 | 15.97 | 15.97 | 17.62 |
+| final CTA body copy | `gray-400` | brightest | **5.69** | 5.85 | 6.33 | 6.71 |
+| final CTA ghost button | `white` | brightest | 14.73 | 14.00 | 13.76 | 17.62 |
+
+Worst rendered pair on the site's decorative layers: **4.62**, and everything
+passes. Five things in that table are worth carrying forward.
+
+- **4.62 is the "nearly fine" band, and it is the thinnest number on this
+  page.** The gradient's shallowest stop starts at 5.09 flat — rule 4 grades it
+  there and is right — so it has 0.59 of headroom before the floor, and the
+  bloom takes up to 0.47 of it at 834. Nothing is wrong today. But **this is the
+  one run where warming a lobe, widening the headline, or nudging the gradient's
+  first stop half a step lands under 4.5**, and no source rule would say a word:
+  rule 4 would still read 5.09 and pass. If the signature gradient ever needs
+  more room, `teal-700` (7.05 flat) is the stop with it. It also re-reads
+  4.62/4.63 between runs — glyph antialiasing at the clip boundary — so treat
+  anything at this end as ±0.01 rather than exact.
+- **The dark CTA panel was never graded by anything, and it is fine.** The
+  prediction in the move-5 issue held: `gray-400` at 6.71 flat, two radial
+  lobes at 15% opacity, and the wash costs it **1.02** at its worst — landing at
+  5.69, comfortably clear. Reference point for the next dark wash: Part 7
+  records a single teal lobe at 16% alpha costing the palest night ink 1.7, so
+  1.02 at 15% over two lobes is the same order of magnitude and this panel is
+  spending about three fifths of what it could afford.
+- **The eyebrow badge's 4.73 at 390 is CONSERVATIVE, not a near miss.** The
+  badge is a `bg-white` pill, so its real ground is white at 7.05; hiding a
+  sample's content hides that element's own background too, so the script
+  reports the bloom BEHIND the pill. That error only ever costs a passing pair
+  a red run — it can never pass a failing one — which is the only direction an
+  instrument like this is allowed to be wrong in. Stated here so nobody
+  "fixes" the badge.
+- **The body copy reads 6.67 against 6.91 at every width** — the lobes genuinely
+  miss it, which is what "centred outside the reading column" buys, and it is
+  the target shape for a reading column rather than a happy accident.
+- **The ticker costs 0.00 and that is the finding, not a boring row.** Its
+  ground is the strip's own opaque `#F8FAFF` and no wash reaches it — which is
+  how we know the DREAMCRM-69 row was measured against the wrong surface, and
+  how a lobe that ever grows far enough down to reach the strip would announce
+  itself as a cost above zero.
+
+**The instrument was watched failing before this table was believed**
+(`dreamcrm-conventions` §2d), four ways, and one of them found a real defect in
+the script itself:
+
+1. **The defect it exists for.** A hero lobe moved into the reading column at
+   0.95 alpha: four runs went red, worst 1.80, exit 1 — and the worst readings
+   landed at phases 3s, 6s and 12s, so the sweep is load-bearing. **The same
+   tree passed all 340 `tests/a11y` + `tests/design-system` tests green**, which
+   is this whole Part's premise measured rather than asserted.
+2. **The global extremum flip** — the bug the move-5 issue warned about. Forcing
+   every sample to "darkest" graded the CTA panel by its best case (6.48 where
+   the truth is 5.69) and the run went **green**. A false pass, reproduced.
+3. **A dead selector.** Re-pointing the CTA at `section.bg-gray-950` — the exact
+   shape that killed five of the old script's six samples — reports `NOT
+   MEASURED` naming each one, and fails. It first did this by hanging 30s on
+   Playwright's auto-waiting `boundingBox()` and throwing a stack trace BEFORE
+   writing the report, which is the wrong failure for the one defect this script
+   has to survive; fixed so the grade does the reporting.
+4. **The sweep itself.** Breaking the phase freeze so all six phases return the
+   same instant fails the run with `PHASE SWEEP NOT MOVING` — because a
+   measurement that has quietly stopped measuring looks exactly like a clean
+   one.
 ### The shared chrome, measured (DREAMCRM-72)
 
 Two surfaces, two instruments, because they fail in two different ways.
@@ -1114,8 +1248,21 @@ the reduced-motion path in the same PR.
    Part 0 item 11. Measured runs: Part 7. Zero horizontal scroll on twelve
    marketing pages x three widths; `/compare/[vendor]` still reads +212 at 390,
    unchanged, and is filed in `docs/RELEASE.md` Part 5 as somebody else's.
-5. **Re-point the decorative-layer grader** per Part 7, and put it on the light
-   hero.
+5. ~~**Re-point the decorative-layer grader**~~ — **LANDED** (DREAMCRM-73,
+   2026-09-16). `scripts/night-band-grade.mjs` → `decorative-layer-grade.mjs`,
+   re-anchored at the light hero, the ticker and the final CTA panel. Measured
+   run: Part 7, "The decorative layers, re-measured".
+
+   **It was more than a rename and a flipped constant, and both halves of that
+   are worth knowing before the next move touches a wash.** Five of its six
+   samples were anchored to `section.bg-gray-950`, which move 1 deleted — they
+   had been matching NOTHING, so the script reported zero rects rather than a
+   wrong number, and the sixth (the ticker) still resolved and was grading a
+   light surface by its BEST case. And "flip the extremum" is wrong as a global
+   instruction: the extremum follows the INK, which this page has in both
+   polarities, so it derives per sample now. The final CTA panel — `bg-gray-950`
+   under two `aria-hidden` radial gradients — had never been measured by
+   anything and is in the sample set for the first time.
 6. **Then per page, in this order:** pricing (the honest test of whether the
    language survives a table), compare, product, why, resources.
 
