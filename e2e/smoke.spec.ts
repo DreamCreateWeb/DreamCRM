@@ -43,6 +43,50 @@ test.describe('the marketing site (the storefront)', () => {
 
     await expectNoA11yViolations(page, 'marketing: pricing')
   })
+
+  /**
+   * THE MANIFESTO — the third marketing stop, added with the page's Daylight
+   * Dream rebuild (Neon, DREAMCRM-78).
+   *
+   * IT IS HERE BECAUSE IT IS THE ONE SUBPAGE THAT CAN HOLD A CEILING OF ZERO
+   * WITH NO EXCLUSION AT ALL, which is the condition `e2e/axe-baseline.ts`
+   * spends a whole note explaining that `/product` cannot meet. The blocker
+   * there is the exclusion's SHAPE: `DECORATIVE_MOCKS` keys on the drift
+   * wrapper (`.mkt-float >`) and the tour's nine mocks do not float, so the
+   * selector matches nothing and `deadExclusions` would fail the stop by
+   * name. `/why` renders no mock of any kind — it is prose, tone tiles and
+   * type — so there is nothing to exempt and nothing to derive. A stop with
+   * no exemption is the only kind whose zero means what it says.
+   *
+   * MEASURED BEFORE IT WAS ASSERTED: 0 rules / 0 nodes at 390, 834 and 1440
+   * against the production build, `wcag2a/2aa/21a/21aa`. Zero is the state in
+   * which the FIRST violation to arrive fails on arrival, which is the whole
+   * argument the home stop's 41 → 0 move was about.
+   *
+   * WATCHED TO FAIL (§2d) against the defect this page is actually at risk
+   * of, rather than a synthetic one: the receipt links are the only quiet-ink
+   * interactive text on it, so dropping them from `teal-700` to `teal-400`
+   * (3.82 flat, the identity step that is not a white-text or ink step —
+   * `BRAND.md` Part 7) reddens the stop `color-contrast (serious) x2`,
+   * naming `#7ca5ff on #ffffff` at **2.41** and "baseline allows 0". Both
+   * receipts, nothing else on the page. Restored and re-run green.
+   *
+   * The three widths are `marketing-viewport.spec.ts`'s job; one stop here is
+   * the accessibility question, and axe's findings on this page do not move
+   * with the viewport (there is no reflow that changes what is in the tree).
+   */
+  test('the manifesto renders its beliefs and the price it publishes', async ({ page }) => {
+    await page.goto('/why')
+    await expect(page.locator('h1').first()).toBeVisible()
+    // The honesty tenets, as a visitor meets them: the gaps named, the terms
+    // named, the price named. `tests/marketing/marketing-site.test.tsx` pins
+    // the same three at render; this is the browser-level twin.
+    await expect(page.locator('body')).toContainText('No SMS yet')
+    await expect(page.locator('body')).toContainText('Month-to-month, no contract, no setup fee')
+    await expect(page.locator('body')).toContainText('$200')
+
+    await expectNoA11yViolations(page, 'marketing: why')
+  })
 })
 
 test.describe('the auth gate (middleware, invisible to happy-dom)', () => {

@@ -31,7 +31,7 @@ import PricingPage from '@/app/(marketing)/pricing/page'
 import ComparePage from '@/app/(marketing)/compare/[vendor]/page'
 import CompareIndexPage from '@/app/(marketing)/compare/page'
 import DocArticlePage from '@/app/(marketing)/docs/[slug]/page'
-import { PLANS } from '@/lib/stripe-config'
+import { PLANS, getQuotedPlan } from '@/lib/stripe-config'
 import { COMPARISONS, getComparison, comparisonCountLabel } from '@/lib/marketing/comparisons'
 import { DOCS, DOC_CATEGORIES, getDoc } from '@/lib/marketing/docs'
 import { MARKETING_NAV, MARKETING_PUBLIC_PATHS } from '@/lib/marketing/site'
@@ -197,6 +197,46 @@ describe('why page (the manifesto)', () => {
     // Middleware allowlist: a nav'd marketing page absent from
     // MARKETING_PUBLIC_PATHS ships auth-walled — pin the membership.
     expect(MARKETING_PUBLIC_PATHS).toContain('/why')
+  })
+
+  /**
+   * THE THREE HONESTY TENETS, PINNED WHERE A RESTYLE WOULD REACH THEM.
+   *
+   * `DESIGN.md`'s three — the price is on the page, the gaps are marked,
+   * leaving is allowed — are load-bearing brand personality rather than small
+   * print (`BRAND.md` Part 5), and the assertion above only sees two of them:
+   * it pins the belief HEADINGS, which is the half a restyle is least likely
+   * to touch. What a restyle actually softens is the body — the named gaps
+   * ("no SMS yet"), the named terms ("month-to-month, no contract") — and the
+   * page carried no price at all until DREAMCRM-78 put one on it.
+   *
+   * WATCHED TO FAIL (§2d) by deleting each of the three from the page in
+   * turn: the run reddens naming that tenet by its own text, leaves the other
+   * two green, and the pre-existing heading assertion above stays green in
+   * all three cases — which is what says this test sees something that one
+   * does not.
+   *
+   * WHAT IT DOES **NOT** CATCH, stated because the watched run is what
+   * settled it rather than a guess: a `$200` TYPED into the trust row passes
+   * here. Asserting against `getQuotedPlan()` sounds like it would fail, and
+   * it does not — a typed literal agrees with the config on the day it is
+   * written, which is exactly the shape DREAMCRM-38 was and exactly why the
+   * source scan in `pricing-price-source.test.tsx` exists as a second,
+   * different question. That scan covers this route now; this assertion only
+   * answers "is a price on the page at all".
+   */
+  it('keeps all three honesty tenets on the page, not just their headings', () => {
+    render(<WhyPage />)
+
+    // 1. The price is on the page — and it follows the plan config.
+    expect(
+      screen.getByText(new RegExp(`\\$${getQuotedPlan().price.toLocaleString('en-US')}/mo`)),
+    ).toBeInTheDocument()
+    // 2. The gaps are marked — named, not gestured at.
+    expect(screen.getByText(/No SMS yet/i)).toBeInTheDocument()
+    expect(screen.getByText(/what the other vendor does better/i)).toBeInTheDocument()
+    // 3. Leaving is allowed — the terms, not the sentiment.
+    expect(screen.getByText(/Month-to-month, no contract, no setup fee/i)).toBeInTheDocument()
   })
 })
 
