@@ -1334,6 +1334,52 @@ its active chip `teal-700` at 7.05, both flat, both visible to the source rules
 and to axe. The page keeps a glass bar — the header above it is still
 `white/85` and still graded.
 
+### The manifesto, measured (DREAMCRM-78 — move 6, page 4)
+
+Same instrument, same method: render, hide the CONTENT, screenshot the
+decorative layers alone, darkest pixel under each RUN OF GLYPHS, grain ON, six
+frozen phases of `mkt-bloom`, worst kept. This is the page the bloom rule was
+written for — almost all prose — and it is also the CONTROL at the short end:
+its sub is two lines at 1440 against `/compare/weave`'s ten.
+
+| Run | Ink | Worst | 1440 | 834 | 390 | Flat |
+|---|---|---|---|---|---|---|
+| why hero eyebrow + rule | `teal-700` | 6.40 | 6.81 | **6.40** | 6.81 | 7.05 |
+| why hero headline | `gray-950` | **10.38** | 13.80 | **10.38** | 13.71 | 17.62 |
+| why hero sub | `gray-600` | 6.23 | 6.67 | **6.23** | 6.62 | 6.91 |
+
+Worst rendered pair on this page: **6.23**, and everything passes. Three things
+worth carrying to the last page.
+
+- **THE SHORT SUB IS NOT THE CHEAP ONE, which settles what the length
+  hypothesis was worth.** Compare measured 5.83 on the longest sub
+  `PageHero` renders and predicted the wrong lesson; product measured 6.67 on
+  one paragraph and this page's TWO-LINE sub reads 6.23 — worse than the
+  one-paragraph page and better than the ten-line one. Length does not order
+  these numbers in either direction. What orders them is whether a run's
+  x-span crosses a lobe, which is a property of the eyebrow's width and the
+  headline's wrap on each page. **Measure the page** is now four-for-four, and
+  "the sub is the run with the least headroom" is three-for-four — still a
+  tendency, never a law.
+- **834 holds at five pages plus the homepage.** Every worst column here is
+  834, on all three runs, and the homepage's own worst pair (4.62, `teal-600`)
+  re-derived exactly in the same run — 75 samples, zero failures, zero NOT
+  MEASURED. Grade 834 first when a move is short of time.
+- **The headline pays 7.23 at 834 and lands at 10.38**, the deepest cost the
+  violet lobe has been measured taking anywhere and within 0.01 of the
+  DREAMCRM-72 prediction (7.24). The lobe's whole spend keeps landing on the
+  display type, which is the only run with the headroom for it.
+
+**Nothing below this hero is on a decorative layer, and on this page that
+mattered most.** The thesis paragraph, the six numbered beliefs and the close
+all ride the page's own white with no wash, no grain and no tinted band — so
+every run in the body grades at its flat ratio and no instrument here needs to
+see them. Resolved through `tests/a11y/palette.ts`, the resolver the guards
+use: `gray-700` (the belief bodies and the thesis) **10.30**, `gray-600` (the
+close) **6.91**, `gray-500` (the mono labels and the `NN / 06` numerals)
+**5.30**, `teal-700` (the receipts) **7.05**. A reading page is exactly where a decorative layer buys the least and
+costs the most, which is what the 4.18 in the rules above is a record of.
+
 ### Rule 5 and the tone tiles
 
 Rule 5 (`TONE_FILL`, the solid-fill registry) had **no opinion** about the night
@@ -1609,7 +1655,51 @@ the reduced-motion path in the same PR.
      anchored to `chrome.tsx` by name, so a second sticky bar anywhere else on
      the site is ungraded by construction.
 
-   **What the last two pages inherit from these three.** Three of them cost
+   - ~~**Why**~~ — **LANDED** (DREAMCRM-78, 2026-09-16). The manifesto, and
+     the page Part 7's bloom rule was written for — almost all prose, which
+     is half a reading measure away from the 4.18 this Part keeps quoting.
+     The answer was the same one pages 1–3 reached: **nothing below the hero
+     carries a decorative layer**, so every run on the body rides white at its
+     flat ratio and only the three hero runs needed measuring. Measured run:
+     Part 7, "The manifesto, measured".
+
+     **The move was the six beliefs, and it is the tone-tile lesson one
+     altitude up.** They were a 2x3 card grid — six equivalent tiles, which is
+     what a CHECKLIST looks like — on a page whose whole argument is that each
+     line is a position somebody could disagree with. They are a numbered
+     manifesto now: `NN / 06` as a mono numeral under the subject's tone tile,
+     the claim in five of twelve columns and its argument in the other seven,
+     hard left on the hero's own `max-w-6xl` column with `DAY_WIRE` hairlines
+     between. The count is computed everywhere it appears. Tones come from the
+     registry with the subject and land 4 `brand` / 2 `auto` with no `growth`
+     at all — no belief on a positioning page is about what the product EARNS
+     you, and that is the honest reading rather than a flat one.
+
+     **Two things are new here rather than inherited.** The two checkable
+     beliefs — the gaps are marked, leaving is allowed — carry a mono RECEIPT
+     link to the page that proves them, and the other four carry none, because
+     a decorative receipt is worse than no receipt. And **the price is on the
+     page**: `DESIGN.md`'s three honesty tenets are the price on the page, the
+     gaps marked, leaving allowed, and the page ABOUT those tenets carried two
+     of them and never named the number. It resolves from `getQuotedPlan()`
+     (DREAMCRM-38) and `tests/marketing/pricing-price-source.test.tsx` now
+     scans this route for a typed one; all three are pinned by
+     `tests/marketing/marketing-site.test.tsx` against a restyle that softens
+     a BODY rather than a heading, which is the half the old assertion could
+     not see. No emoji — Part 5's permission is marking a MOMENT, and a
+     manifesto has none in it.
+
+     **AND IT IS THE FIRST MARKETING SUBPAGE WITH AN AXE STOP**, which is
+     worth a line because `e2e/axe-baseline.ts` explains at length why
+     `/product` cannot have one: `DECORATIVE_MOCKS` keys on the drift
+     wrapper and the tour's nine mocks do not float, so the exclusion would
+     be dead on arrival. This page renders no mock at all, so it needs no
+     exemption and holds a CEILING OF ZERO — measured 0 rules / 0 nodes at
+     all three widths before it was asserted, and watched to fail on a
+     `teal-400` receipt link (`#7ca5ff` on white, **2.41**). A stop with no
+     exemption is the only kind whose zero means what it says.
+
+   **What the last page inherits from these four.** Three of them cost
    real time on pricing and none is page-specific: SECTION CONTAINERS ALL
    MATCH (a narrower container for a reading block moves its hard-left edge off
    the page's column — narrow the LIST, not the container, and note that a

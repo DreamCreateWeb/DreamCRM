@@ -52,6 +52,26 @@ import userEvent from '@testing-library/user-event'
 const PRICING_ROUTE = ['app/(marketing)/pricing/page.tsx', 'app/(marketing)/pricing/price-card.tsx']
 
 /**
+ * EVERY MARKETING SURFACE THAT QUOTES THE PLAN PRICE IN OUR OWN VOICE, because
+ * DREAMCRM-38 was never a pricing-page defect — it was FOUR surfaces holding
+ * four copies of a number, and the pricing page was merely the loudest.
+ * `/why` gained the price on DREAMCRM-78 (move 6 page 4): "the price is on the
+ * page" is one of `DESIGN.md`'s three honesty tenets and the manifesto page
+ * is the page about those tenets, so the number belongs there — which makes it
+ * a fifth place for the drift to come back.
+ *
+ * `/compare` IS DELIBERATELY NOT IN THIS LIST, and the reason is the rule's
+ * own field of view rather than an oversight. Its savings table carries market
+ * BANDS — `'$200–350/mo'` for a booking vendor — whose low end is the same
+ * integer as our rate today. Scanning that file would report a number that is
+ * not our price at all, and §2d is explicit that a guard which fires on
+ * something innocent is a guard somebody turns off. Its own quote already
+ * resolves through `getQuotedPlan()`; what protects it is assertion 1's shape
+ * pointed at that page, not this scan.
+ */
+const PRICE_QUOTING_ROUTES = [...PRICING_ROUTE, 'app/(marketing)/why/page.tsx']
+
+/**
  * Drop comments, keep everything that can reach the page.
  *
  * THIS IS NOT TIDINESS — without it the rule below is unsatisfiable. Both
@@ -173,7 +193,7 @@ describe('the pricing page resolves its price from the plan config (DREAMCRM-38)
     expect(screen.getAllByText('$7,770').length).toBeGreaterThanOrEqual(1)
   })
 
-  it('spells no plan price as a literal anywhere under the pricing route', async () => {
+  it('spells no plan price as a literal on any surface that quotes it', async () => {
     const { getQuotedPlan } = await import('@/lib/stripe-config')
     const plan = getQuotedPlan()
     const planPrices = new Set(
@@ -183,7 +203,7 @@ describe('the pricing page resolves its price from the plan config (DREAMCRM-38)
     )
 
     const offenders: string[] = []
-    for (const rel of PRICING_ROUTE) {
+    for (const rel of PRICE_QUOTING_ROUTES) {
       const source = readFileSync(join(process.cwd(), rel), 'utf8')
       for (const n of moneyLiterals(source)) {
         if (planPrices.has(n)) offenders.push(`${rel}: $${n.toLocaleString('en-US')}`)
@@ -192,9 +212,9 @@ describe('the pricing page resolves its price from the plan config (DREAMCRM-38)
 
     expect(
       offenders,
-      'A plan price typed into the pricing route agrees with the config on the day it is ' +
-        'written and disagrees at the next reprice — which is the shape DREAMCRM-38 was. ' +
-        'Resolve it through `getQuotedPlan()` (the page reads it once into `PRICE`).',
+      'A plan price typed into a page that quotes it agrees with the config on the day it ' +
+        'is written and disagrees at the next reprice — which is the shape DREAMCRM-38 was. ' +
+        'Resolve it through `getQuotedPlan()` (each page reads it once into `PLAN`/`PRICE`).',
     ).toEqual([])
   })
 

@@ -416,6 +416,53 @@ const SAMPLES = [
     ink: '#4c5a78',
     ground: '#ffffff',
   },
+
+  /* ── MOVE 6 PAGE 4 — THE MANIFESTO (DREAMCRM-78) ──────────────────────
+     The page `BRAND.md` Part 7's bloom rule was written for. It is almost
+     entirely prose — a long reading measure under a decorative band is the
+     exact combination that produced the 4.18 this Part keeps quoting — so
+     it is sampled for the same reason the others are, not as a formality.
+     Its hero is the SHORTEST of the four move-6 subs (two lines at 1440),
+     which makes it the control at the opposite end from `/compare/weave`'s
+     ten: if the sub is the run with the least headroom because of where it
+     crosses the violet lobe rather than because of its length, a two-line
+     sub on this page should read close to the product tour's one-paragraph
+     6.67 rather than close to pricing's 5.28.
+
+     WHAT IS DELIBERATELY NOT SAMPLED: everything below the hero, because
+     there is nothing to sample. The thesis, the six numbered beliefs and
+     the close all ride the page's own white with no decorative layer of any
+     kind — the same composition answer pages 1, 2 and 3 reached, and the
+     one Part 7 asks for on a reading page. Sampling them anyway would make
+     the run worse rather than more thorough: hiding a sample's content
+     hides its own background, so the script would report whatever is behind
+     an opaque surface and could fail a pair that really rides white. */
+  {
+    label: 'why hero eyebrow (teal-700)',
+    path: '/why',
+    region: 'hero',
+    selector: `${HERO} div.mkt-enter.mb-5`,
+    ink: '#2f52b3',
+    ground: '#ffffff',
+  },
+  {
+    label: 'why hero headline (gray-950)',
+    path: '/why',
+    region: 'hero',
+    selector: `${HERO} h1.mkt-d1`,
+    ink: '#10182e',
+    ground: '#ffffff',
+  },
+  {
+    // The shortest move-6 sub — the control at the other end from
+    // `/compare/weave`'s ten lines. See the note above.
+    label: 'why hero sub (gray-600)',
+    path: '/why',
+    region: 'hero',
+    selector: `${HERO} p.mkt-d2`,
+    ink: '#4c5a78',
+    ground: '#ffffff',
+  },
 ]
 
 /**
