@@ -344,6 +344,30 @@ const DAY_GRAIN = {
 } as const
 
 /**
+ * THE SUBPAGE BLOOM — the same light, tuned for a band a third the height.
+ *
+ * `PageHero` is ~280px tall against the homepage band's ~700px, and that
+ * changes the arithmetic rather than the composition: a lobe with the band's
+ * alpha, squeezed into a third of the vertical run, puts its dense middle
+ * where the band only ever put a tail. So the lobes here are SMALLER, WEAKER
+ * and pushed further outside the reading column, and the run is measured the
+ * same way the band's was (`BRAND.md` Part 7, the DREAMCRM-72 table).
+ *
+ * The reading column on a subpage is hard LEFT (Part 4), so the strong violet
+ * lobe sits right and the fuchsia lobe sits bottom-right — the two that never
+ * meet a glyph. The teal lobe is centred above the top edge, which is the one
+ * whose tail reaches the eyebrow, and the eyebrow is the run with the least
+ * headroom on the homepage too. Measure it when you move it.
+ */
+const PAGE_BLOOM = {
+  backgroundImage: [
+    'radial-gradient(52vw 22rem at -6% -46%, rgb(76 125 240 / 0.55), transparent 70%)',
+    'radial-gradient(54vw 24rem at 94% -6%, rgb(117 95 248 / 0.62), transparent 68%)',
+    'radial-gradient(46vw 18rem at 74% 126%, rgb(200 0 222 / 0.34), transparent 68%)',
+  ].join(','),
+} as const
+
+/**
  * Every decorative layer of the daylight band, in paint order: the blooms,
  * then the grain over them.
  *
@@ -358,11 +382,18 @@ const DAY_GRAIN = {
  * the orb, the star field and the one-shot scan sweep went with the night
  * band. The page's one deliberate grid-break is the product mock bleeding off
  * the right edge, in `app/(marketing)/page.tsx`.
+ *
+ * ONE COMPONENT, TWO TUNINGS (DREAMCRM-72). `variant="page"` is the subpage
+ * hero's lighter set. The alternative was a second sky component beside this
+ * one, and two places that both answer "what does our light look like" is how
+ * the marketing site drifts a hue at a time — the same argument `DAY_WIRE`
+ * makes one export up. The grain is shared verbatim: the light has one
+ * surface.
  */
-export function DaylightSky() {
+export function DaylightSky({ variant = 'band' }: { variant?: 'band' | 'page' } = {}) {
   return (
     <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
-      <div className="mkt-bloom absolute inset-0" style={DAYLIGHT_BLOOM} />
+      <div className="mkt-bloom absolute inset-0" style={variant === 'page' ? PAGE_BLOOM : DAYLIGHT_BLOOM} />
       <div className="absolute inset-0" style={DAY_GRAIN} />
     </div>
   )
@@ -549,6 +580,45 @@ export function MarqueeStrip() {
 
 /* ── Footer ─────────────────────────────────────────────────────────── */
 
+/**
+ * THE ONE DARK SURFACE LEFT, AND IT STAYS DARK (`BRAND.md` Part 2).
+ *
+ * Daylight Dream turned the whole page light and this did not move: the site
+ * has always closed on `bg-gray-950`, and Part 7 is explicit that its
+ * hand-graded discipline "does NOT retire" here. So move 4 re-skinned the
+ * header and `PageHero` around it and changed nothing about this surface's
+ * GROUND or its INKS — `gray-300` headings at 11.33, `gray-400` links and body
+ * at 6.71, white wordmark at 17.62, all re-derived from `app/css/style.css` by
+ * `tests/a11y/token-contrast.test.ts` on every run, together with the
+ * `gray-500` NEGATIVE pin (3.32) that this footer actually shipped live at for
+ * months.
+ *
+ * WHY THERE IS NO BLOOM DOWN HERE, since the rest of the move added light
+ * everywhere. A bloom over `gray-950` walks the ground UP, and every ink on
+ * this surface is PALER than the ground — so lifting the ground closes the
+ * gap on all three pairs at once, and it does it as a `background-image`,
+ * which is the one thing no gate in this repo can see (Part 7). The Part 7
+ * table would still read green while the footer got quietly less legible.
+ * A flat ground is what makes that table a guarantee rather than an estimate.
+ *
+ * WHAT DID CHANGE, and both are inkless by construction:
+ *
+ *  1. The signature gradient arrives as the footer's top EDGE — a 3px rule,
+ *     `aria-hidden`, carrying no text. It is the page's light ending rather
+ *     than a grey slab starting, which is the whole reason the dark band is
+ *     allowed to feel deliberate instead of left over.
+ *
+ *     It uses the LUMINOUS steps (`teal-400` / `violet-500` / `fuchsia-500`)
+ *     rather than the signature's ink steps, and that is legal for exactly one
+ *     reason: Part 2's "white text starts at `teal-600`" governs FILLS THAT
+ *     CARRY WHITE, and rule 3 in `tests/a11y/class-pairs.ts` grades a gradient
+ *     only where a `text-white` rides it. Nothing rides this. On a dark ground
+ *     the ink steps read as mud; the luminous ones read as light. Put a label
+ *     on this bar and it becomes a rule-3 violation the same afternoon.
+ *
+ *  2. Column headings take `MONO_LABEL` (Part 4's signature micro-label),
+ *     same `gray-300`, same 0.75rem. A type change, not a colour change.
+ */
 export function MarketingFooter() {
   // The Compare column derives from the comparisons config so a new vendor
   // page can never be missing from the footer (the hand-written list already
@@ -566,6 +636,12 @@ export function MarketingFooter() {
   )
   return (
     <footer className="bg-gray-950 text-gray-400">
+      {/* The page's light, ending. See the component header for why these are
+          the luminous steps and why nothing may ever be written on this bar. */}
+      <div
+        className="h-[3px] w-full bg-gradient-to-r from-teal-400 via-violet-500 to-fuchsia-500"
+        aria-hidden="true"
+      />
       <div className="mx-auto grid max-w-6xl gap-10 px-4 py-14 sm:px-6 md:grid-cols-[1.2fr_repeat(4,1fr)]">
         <div>
           {/* Footer sits on gray-950 in both themes — force the wordmark to white ink. */}
@@ -585,7 +661,7 @@ export function MarketingFooter() {
                 runtime accessibility checks reported this on every marketing
                 stop; it is the pair that looked like a dark-mode token bug
                 and was not one. */}
-            <p className="text-[0.75rem] font-bold uppercase tracking-wider text-gray-300">{col.title}</p>
+            <p className={`text-gray-300 ${MONO_LABEL}`}>{col.title}</p>
             <ul className="mt-3 space-y-2">
               {col.links.map((l) =>
                 l.external ? (
@@ -617,8 +693,19 @@ export function MarketingFooter() {
             not a nicety, and the reason it sits on every marketing page rather
             than on one credits page. Underlined so it does not depend on colour
             alone; gray-400 on gray-950 is 6.71:1. `public/emoji/LICENSE.md`
-            has the provenance, and a test fails if this line disappears. */}
-        <div className="mx-auto max-w-6xl px-4 pb-5 text-[0.72rem] sm:px-6">
+            has the provenance, and a test fails if this line disappears.
+
+            0.75rem, NOT 0.72rem. It shipped at 0.72 — 11.52px, under the 12px
+            floor `BRAND.md` Part 4 sets for this site — and nothing could have
+            caught it: `tests/a11y/legibility-floor.test.ts` skips
+            `components/marketing` entirely, because the product mocks in this
+            file imitate a real screen at 7px. Corrected on DREAMCRM-72, which
+            is also where that blanket skip stopped covering the shared chrome:
+            `tests/marketing/chrome-legibility.test.ts` now holds the header,
+            the footer and `PageHero` to the floor while leaving the mocks
+            alone. Exactly the arithmetic slip Part 4 already records against
+            the mono label, found the same way — by multiplying it out. */}
+        <div className="mx-auto max-w-6xl px-4 pb-5 text-[0.75rem] sm:px-6">
           <span>
             Animated emoji from{' '}
             <a
@@ -648,10 +735,18 @@ export function MarketingFooter() {
 
 /* ── Scaffolds ──────────────────────────────────────────────────────── */
 
+/**
+ * The site-wide eyebrow. `BRAND.md` Part 4 names eyebrows as one of the runs
+ * that carry the MONO micro-label — the signature detail — so this now spells
+ * the recipe as `MONO_LABEL` rather than a second, sans copy of its
+ * measurements. Same 0.75rem, same `teal-700` (7.05 on white), one home.
+ *
+ * Changed on DREAMCRM-72 rather than per page, which is the point of move 4:
+ * `why` and `product` render this directly, mid-page, and inherit the language
+ * without either file being opened.
+ */
 export function Eyebrow({ children }: { children: React.ReactNode }) {
-  return (
-    <p className="mb-3 text-[0.75rem] font-bold uppercase tracking-[0.14em] text-teal-700">{children}</p>
-  )
+  return <p className={`mb-3 text-teal-700 ${MONO_LABEL}`}>{children}</p>
 }
 
 export function SectionTitle({ children, sub }: { children: React.ReactNode; sub?: string }) {
@@ -665,22 +760,53 @@ export function SectionTitle({ children, sub }: { children: React.ReactNode; sub
   )
 }
 
-/** The DAYLIGHT hero texture — subpage heroes only now.
+/**
+ * THE SHARED SUBPAGE HERO — `BRAND.md` Part 8 move 4 (DREAMCRM-72).
  *
- *  It used to be shared with the homepage hero, which became the daylight band
- *  on DREAMCRM-69 and no longer uses this. The export stays because `PageHero`
- *  is due to be reskinned with the rest of the shared chrome (BRAND.md Part 8,
- *  move 4 — move 3 was the tone tiles, which changed the list MARKS on these
- *  pages and nothing about their layout), and this is the thing that will be
- *  replaced wholesale rather than edited. Until then every subpage still wears
- *  it, so changing it here changes pricing, compare, docs and the blog at
- *  once. */
-export const HERO_DOT_GRID = {
-  backgroundImage: 'radial-gradient(circle, #c1d6ff 1px, transparent 1px)',
-  backgroundSize: '22px 22px',
-} as const
-
-/** Shared subpage hero: dot-grid texture + eyebrow + title + sub. */
+ * Eight pages open with this component, so it is the single largest lever on
+ * whether the site reads as Daylight Dream: pricing, compare, product, why,
+ * resources, docs, blog and changelog all inherit whatever it says. Move 6
+ * then tunes each page's BODY, rather than re-skinning eight heroes by hand
+ * and ending up with eight dialects of the same idea.
+ *
+ * THE DOT GRID IS DELETED, NOT LIGHTENED — and it is the owner's first veto
+ * from DREAMCRM-67 arriving somewhere nobody had looked. `HERO_DOT_GRID` was
+ * a `radial-gradient` dot tiled every 22px: a lattice drawn on the page, which
+ * is precisely *"i'm not a big fan of thin black lines making up grids"*. Move
+ * 1 deleted `NIGHT_GRID` and closed the veto on the homepage; this one was a
+ * second drawn grid on the other eight pages, and it survived four months and
+ * three moves because it lived under a different name in a different
+ * component. That is the tone-tile census lesson in a new costume — **a veto
+ * closed at one call site is not a veto closed** — so it leaves behind
+ * `tests/marketing/no-drawn-grid.test.ts`, which asks the tree instead of
+ * trusting this paragraph, and knows the difference between a lattice and the
+ * film grain.
+ *
+ * WHAT REPLACES IT: the same daylight the homepage band is made of, at
+ * subpage weight (`DaylightSky variant="page"`), plus Part 4's alignment.
+ *
+ *  - **Hard left, not centred.** The homepage headline is hard left and round
+ *    B's *"only halfway"* was as much about alignment as about colour. A
+ *    centred subpage hero under a hard-left home page is exactly the drift
+ *    this move exists to stop.
+ *  - **Display type, stepped down** (Part 10): 3.6rem at 1440 against the
+ *    homepage's 5.375rem, through 3rem at 834 to 2.35rem at 390. Subordinate
+ *    to the home hero, still unmistakably display, and it steps rather than
+ *    reflowing into a different design.
+ *  - **The signature gradient arrives as a MARK, not as type.** A 36px rule in
+ *    `teal-600 → violet-700 → fuchsia-700` leads the eyebrow, so every subpage
+ *    opens with the brand's three hues. It is deliberately not the HEADLINE
+ *    treatment: Part 2 gives fuchsia exactly two homes and one of them is *the*
+ *    signature headline gradient, singular. Eight subpage titles wearing it
+ *    would dilute the one place it means something.
+ *  - **No bottom border.** The old `border-b border-gray-100` drew the seam;
+ *    the light fades into the page instead. Part 0 decision 5, superseded —
+ *    there is no seam left to explain.
+ *
+ * The fade sits between the sky and the content on purpose: it has to paint
+ * over the bloom and under the words, and DOM order is what does that. Keep
+ * the content wrapper `relative` or the fade washes the buttons.
+ */
 export function PageHero({
   eyebrow,
   title,
@@ -693,38 +819,76 @@ export function PageHero({
   children?: React.ReactNode
 }) {
   return (
-    <section className="relative overflow-hidden border-b border-gray-100">
-      <div className="absolute inset-0 opacity-30" style={HERO_DOT_GRID} aria-hidden="true" />
+    <section className="relative overflow-hidden bg-white">
+      <DaylightSky variant="page" />
+      {/* THE LIGHT RISES OUT OF THE PAGE AND SETTLES BACK INTO IT. The blooms
+          are clipped by the section box, so without these two the hero would
+          announce its own top and bottom edges as ruled lines — the seam this
+          move exists to remove, redrawn in colour instead of in grey. The top
+          fade matters more than it looks: the header sits directly above in
+          normal flow, so that edge is the one a reader sees first. */}
+      <div className="absolute inset-x-0 top-0 h-10 bg-gradient-to-b from-white to-transparent" aria-hidden="true" />
       <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-white to-transparent" aria-hidden="true" />
-      <div className="relative mx-auto max-w-3xl px-4 py-16 text-center sm:px-6">
-        <div className="mkt-enter">
-          <Eyebrow>{eyebrow}</Eyebrow>
+      <div className="relative mx-auto max-w-6xl px-4 pb-14 pt-12 text-left sm:px-6 lg:pb-16 lg:pt-16">
+        <div className={`mkt-enter mb-5 flex items-center gap-3 text-teal-700 ${MONO_LABEL}`}>
+          <span
+            className="h-[3px] w-9 shrink-0 rounded-full bg-gradient-to-r from-teal-600 via-violet-700 to-fuchsia-700"
+            aria-hidden="true"
+          />
+          {eyebrow}
         </div>
-        <h1 className="mkt-enter mkt-d1 text-[2.1rem] font-extrabold leading-tight tracking-tight sm:text-[2.7rem]">
+        <h1 className="mkt-enter mkt-d1 max-w-4xl text-[2.35rem] font-extrabold leading-[1.02] tracking-[-0.035em] text-gray-950 sm:text-[3rem] lg:text-[3.6rem]">
           {title}
         </h1>
         {sub && (
-          <p className="mkt-enter mkt-d2 mx-auto mt-4 max-w-2xl text-[1rem] leading-relaxed text-gray-600">
+          <p className="mkt-enter mkt-d2 mt-5 max-w-2xl text-[1.05rem] leading-relaxed text-gray-600">
             {sub}
           </p>
         )}
-        {children && <div className="mkt-enter mkt-d3 mt-7">{children}</div>}
+        {children && <div className="mkt-enter mkt-d3 mt-8">{children}</div>}
       </div>
     </section>
   )
 }
 
+/**
+ * THE SUBPAGE ACTIONS — the hero CTAs' vocabulary, one size down.
+ *
+ * `HeroPrimaryCta` / `HeroGhostCta` are the homepage band's pair; these are
+ * the same two recipes at subpage scale, and they are re-skinned here on
+ * DREAMCRM-72 for the same reason `PageHero` is: they are what `PageHero`
+ * renders as children, and a Daylight hero with a flat `bg-teal-700`
+ * square-shouldered button inside it is drift visible in one screenshot.
+ * Fifteen call sites across eight pages inherit this without being opened.
+ *
+ *  - `teal-600 → teal-700` carrying white (Part 2's primary action). Rule 3 in
+ *    `tests/a11y/class-pairs.ts` grades every stop a white-text gradient names
+ *    — 5.09 and 7.05 — so both ends are legal by construction.
+ *  - 10px radius: Part 3's controls-and-buttons step. `rounded-lg` is 8px and
+ *    belongs to the dashboard.
+ *  - Depth is emission, not stacking (Part 3). The glow deepens on hover
+ *    instead of the fill darkening, which is also what keeps the label's
+ *    contrast fixed across the interaction rather than drifting with it.
+ *  - Full width at 390, auto from `sm` up — Part 10, in the component rather
+ *    than at fifteen call sites.
+ */
 export function PrimaryCta({ href, children }: { href: string; children: React.ReactNode }) {
   return (
     <Link
       href={href}
-      className="inline-flex items-center justify-center rounded-lg bg-teal-700 px-5 py-2.5 text-[0.92rem] font-semibold text-white shadow-sm shadow-teal-200 transition-all hover:-translate-y-px hover:bg-teal-800 hover:shadow-md hover:shadow-teal-200"
+      className="inline-flex w-full items-center justify-center rounded-[10px] bg-gradient-to-r from-teal-600 to-teal-700 px-5 py-2.5 text-[0.92rem] font-semibold text-white shadow-[0_6px_20px_-8px_rgb(58_103_217/0.6)] transition-all duration-150 ease-out hover:-translate-y-px hover:shadow-[0_9px_26px_-8px_rgb(58_103_217/0.78)] sm:w-auto"
     >
       {children}
     </Link>
   )
 }
 
+/**
+ * The secondary action — a white CARD on the light, one `DAY_WIRE` hairline,
+ * no fill colour. An outline button lets a bloom through and the bloom is the
+ * thing walking the ground down (Part 7), so this reads as a raised surface
+ * instead: `gray-950` on white, 17.62, whatever the light behind it is doing.
+ */
 export function GhostCta({
   href,
   children,
@@ -735,16 +899,22 @@ export function GhostCta({
   external?: boolean
 }) {
   const cls =
-    'inline-flex items-center justify-center rounded-lg border border-gray-300 bg-white px-5 py-2.5 text-[0.92rem] font-semibold text-gray-800 transition-all hover:-translate-y-px hover:border-gray-400 hover:shadow-sm'
+    'inline-flex w-full items-center justify-center rounded-[10px] border bg-white px-5 py-2.5 text-[0.92rem] font-semibold text-gray-950 shadow-[0_2px_10px_-4px_rgb(26_36_64/0.18)] transition-all duration-150 ease-out hover:-translate-y-px hover:shadow-[0_6px_18px_-6px_rgb(26_36_64/0.24)] sm:w-auto'
   if (external) {
     return (
-      <a href={href} target="_blank" rel="noreferrer" className={cls}>
+      <a
+        href={href}
+        target="_blank"
+        rel="noreferrer"
+        className={cls}
+        style={{ borderColor: DAY_WIRE }}
+      >
         {children}
       </a>
     )
   }
   return (
-    <Link href={href} className={cls}>
+    <Link href={href} className={cls} style={{ borderColor: DAY_WIRE }}>
       {children}
     </Link>
   )

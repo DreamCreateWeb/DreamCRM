@@ -766,6 +766,92 @@ describe('CLIPPED TEXT, where the background IS the ink', () => {
     // pass paid for twice.
     ).toMatch(/<footer className="(?:[^"]*\s)?bg-gray-950(?![\w-])/)
   })
+
+  /**
+   * THE STICKY HEADER'S FILL, GRADED AGAINST THE DARKEST THING IT EVER SLIDES
+   * OVER — `BRAND.md` Part 7, DREAMCRM-72.
+   *
+   * The marketing header is `position: sticky` with a TRANSLUCENT fill, so the
+   * surface under its nav ink is not `white` and not any declared token: it is
+   * white composited at some alpha over whatever the page is showing at that
+   * scroll position. Every gate in this repo grades ink against a declared
+   * background on an ANCESTOR, and the thing under a sticky bar is a sibling
+   * that happens to be passing beneath it — so axe, `dark-mode-parity` and
+   * rules 1-6 in `class-pairs.ts` all correctly decline to see this pair. It
+   * is the footer's problem in a second costume, and the answer is the same
+   * one: grade it here, from the palette, on every run.
+   *
+   * THE WORST CASE IS THE FOOTER, and that is not hypothetical — it is what
+   * the rail sits over for the last screenful of every page on the site.
+   * `gray-950` is also the darkest surface the marketing site declares, so
+   * nothing else can beat it.
+   *
+   * THE ALPHA IS READ OUT OF THE SOURCE rather than transcribed, which is the
+   * whole point: the number this defends is a DECISION somebody could thin on
+   * taste. The quietest nav ink (`gray-600`) over the footer lands at 5.63 /
+   * **5.05** / 4.51 / **4.01** at `white/90` / `85` / `80` / `75`. The 80 row
+   * is the one to read: it clears a 4.5 floor by ONE HUNDREDTH, which is Part
+   * 7's "4.18 reads as nearly fine" in its sharpest form. Thinning the fill
+   * turns this red naming the ratio; both directions were watched.
+   *
+   * THE ARITHMETIC IS EXACT FOR THE CASE IT GRADES, not a model of one: the
+   * footer is a FLAT `gray-950` field, so `over()` is precisely what the
+   * compositor does there. `backdrop-blur-xl` moves the mean of a flat field
+   * by nothing, and over a varied field it averages toward the middle — i.e.
+   * away from the extreme this grades. The bound is true either way, which is
+   * the rule-6 method: when the real value is out of reach, grade against the
+   * bound that makes your answer true whichever way it falls.
+   */
+  it('the sticky marketing header keeps its ink legal over the darkest surface it crosses', () => {
+    const chrome = readFileSync(join(ROOT, 'components/marketing/chrome.tsx'), 'utf8')
+
+    // ANCHORED TO EXACTLY ONE MATCH, not to the first one (Sentinel, #618).
+    // Reading by `.exec` is correct today — `chrome.tsx` carries one
+    // `bg-white/<alpha>` (the rail) and its other `bg-white` are opaque — but
+    // the correctness is an ORDERING accident. If the megamenu card, the
+    // mobile panel or the mobile Sign-in button ever takes an alpha AND sits
+    // above the rail in the file, this assertion silently re-points at a
+    // different element's number and goes on passing while the thing it names
+    // is ungraded. That is the premise drifting out from under a test whose
+    // whole argument is "the alpha is read out of the source rather than
+    // transcribed", so the count is asserted rather than assumed.
+    const fills = Array.from(chrome.matchAll(/bg-white\/(\d{1,3})/g))
+    expect(
+      fills.map((m) => m[0]),
+      'MarketingHeader must carry EXACTLY ONE translucent `bg-white/<alpha>` ' +
+        '— the sticky rail. None means it went opaque (its ink is then graded ' +
+        'against a declared token and this test should go with the ' +
+        'translucency) or the elevated state was re-spelled. More than one ' +
+        'means this test can no longer tell which element it is grading: ' +
+        'name the rail explicitly before adding a second translucent white.',
+    ).toHaveLength(1)
+
+    const alpha = Number(fills[0][1]) / 100
+    const rail = over(hexToRgb('#ffffff'), alpha, token(LIGHT, 'gray-950'))
+
+    // Every ink the header renders on that fill, in the order it renders them.
+    const pairs: Array<[string, Rgb]> = [
+      ['gray-950 active nav + ghost labels', token(LIGHT, 'gray-950')],
+      ['gray-700 Sign in', token(LIGHT, 'gray-700')],
+      ['gray-600 inactive nav + the menu button', token(LIGHT, 'gray-600')],
+    ]
+
+    const failures = pairs
+      .map(([what, ink]) => [what, contrast(ink, rail)] as const)
+      .filter(([, ratio]) => ratio < AA)
+      .map(([what, ratio]) => `${what} = ${ratio.toFixed(2)} over white/${fills[0][1]} on gray-950`)
+
+    expect(
+      failures,
+      'The sticky header composites over the page, and the darkest thing it ' +
+        'ever crosses is the gray-950 footer. No source rule and no axe stop ' +
+        'can see that pair — the surface is a sibling scrolling underneath, ' +
+        'not an ancestor. Thinning the fill is a MEASUREMENT, never a ' +
+        'preference: white/80 clears the floor by 0.01 and white/75 puts the ' +
+        'nav ink at 4.01, which is the shape BRAND.md Part 7 keeps as its ' +
+        'example of a failure that reads as passing.',
+    ).toEqual([])
+  })
 })
 
 describe('TONE_FILL — the one answer for a solid fill with a label on it', () => {

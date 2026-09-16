@@ -456,6 +456,54 @@ export const INTAKE_RULES = [
       // traversal; before that it missed `M5 13l4 4L19 7`, which is in this
       // repo five times.
       'tests/marketing/tone-tiles.test.ts',
+      // The drawn-grid veto (DREAMCRM-72, BRAND.md Part 3), the SECOND of the
+      // owner's two vetoes to become a test. A NEW CLASS rather than a case on
+      // an existing one, stated here as this entry's `why` asks: the tone-tile
+      // rule beside it grades the SHAPE OF A GLYPH, this one grades a
+      // DECORATIVE LAYER — a `backgroundImage` that repeats on a fixed pitch,
+      // which is invisible to axe (it reads `background-color`) and to every
+      // class-string scanner in the repo (the recipe is a style object).
+      //
+      // Why it is on the merits and not merely because it imports `palette.ts`
+      // for `ROOT`: after it lands, no future PR can rule a lattice across any
+      // marketing page. It exists because the veto was recorded as CLOSED when
+      // `NIGHT_GRID` was deleted, while a second drawn grid under a different
+      // name in a different component went on rendering on eight pages for
+      // three more moves. A number in a document cannot ask the tree; neither
+      // can a sentence saying a veto is closed.
+      //
+      // WHAT IT DOES NOT COVER, here rather than only in the test's docblock,
+      // because this comment is what the rulebook entry gets written from:
+      //
+      //   - A lattice drawn as an `<svg>` of `<line>` elements, as a repeated
+      //     `border-right` down a flex row, or as a pair of Tailwind ARBITRARY
+      //     utilities rather than a style object. None has appeared in these
+      //     trees; the third is the cheapest to add if one does.
+      //   - It says nothing about a gradient with NO pitch. A bloom is one
+      //     wash across a band and is the direction this brand is built on —
+      //     that case is pinned in the test so the rule cannot drift into
+      //     banning gradients.
+      //
+      // The film grain is tiled at 140px and is deliberately NOT a lattice:
+      // noise has no lattice in it, and the discrimination is derived from
+      // what the tile PAINTS rather than from a name or an exemption entry.
+      'tests/marketing/no-drawn-grid.test.ts',
+      // BRAND.md Part 4's 12px floor inside the shared marketing chrome
+      // (DREAMCRM-72). Read this one as a FIELD-OF-VIEW entry rather than a
+      // new assertion — the #615 shape: `tests/a11y/legibility-floor.test.ts`
+      // already holds this floor and already skips `components/marketing`
+      // wholesale, because the product mocks in that directory imitate a real
+      // screen at 7px. That skip is keyed on a DIRECTORY while the exemption
+      // is about a KIND of thing, and the shared chrome sits in the same
+      // directory as the mocks. Two literals were live under the floor on
+      // every marketing page when it shipped.
+      //
+      // It grades BY COMPONENT rather than by path, so the mocks stay out by
+      // construction and there is no exemption list to go stale. The cost is a
+      // false NEGATIVE stated in the test: a new chrome component not added to
+      // its list is not graded, which is why a premise assertion fails loudly
+      // on a rename instead of quietly scanning nothing.
+      'tests/marketing/chrome-legibility.test.ts',
       // The remaining tree-wide scanners, each holding the product at zero for
       // one convention. Derived from the tree by the guard test, not recalled.
       // A NEW CLASS rather than another instance of an existing one: it holds

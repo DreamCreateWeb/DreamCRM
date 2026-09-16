@@ -5,17 +5,19 @@ The binding personality language for the **public marketing site**
 with Dustin Russenberger on DREAMCRM-43 (2026-09-14) and reversed from a night
 hero to light throughout on DREAMCRM-67 (2026-09-15).
 
-> **The fold and the list marks look like this; the chrome and the subpage
-> layouts do not yet.** Moves 1–3 have landed: the homepage hero IS the
-> daylight band (DREAMCRM-69), the cinematic spine sits below the ticker
-> (DREAMCRM-70), and **both owner vetoes are now closed in code** — the night
-> band's 56px grid and `CheckIcon` are deleted rather than dormant, so
-> reaching for either is a build error rather than a review comment. Moves 4–6
-> are still ahead: the shared chrome (`MarketingHeader`, `MarketingFooter`,
-> `PageHero`) and every subpage's LAYOUT still wear the old language, even
-> though their list marks are now tone tiles. Where this file and the code
-> disagree, this file is the target and the code is the backlog — and Part 8
-> says which move closes each gap.
+> **The fold, the list marks and the CHROME look like this; the subpage BODIES
+> do not yet.** Moves 1–4 have landed: the homepage hero IS the daylight band
+> (DREAMCRM-69), the cinematic spine sits below the ticker (DREAMCRM-70), the
+> tone tiles replaced every check mark (DREAMCRM-71), and the shared chrome —
+> `MarketingHeader`, `MarketingFooter`, `PageHero` — is Daylight Dream
+> (DREAMCRM-72), so all eight subpages already open in the language. **Both
+> owner vetoes are now closed in code at every call site**: `NIGHT_GRID`,
+> `HERO_DOT_GRID` and `CheckIcon` are deleted rather than dormant, and two
+> guards hold each veto at zero by asking the tree instead of trusting this
+> paragraph. Moves 5–6 remain: the decorative-layer grader still takes the
+> wrong extremum, and each subpage's own BODY below its hero still wears the
+> old layout. Where this file and the code disagree, this file is the target
+> and the code is the backlog — and Part 8 says which move closes each gap.
 
 **Scope boundary.** This file governs the marketing site only. It does not
 touch `app/(default)` / `app/(double-sidebar)` (that is `DESIGN-SYSTEM.md` v3,
@@ -290,6 +292,42 @@ descriptions (2026-09-14, DREAMCRM-43):
     §2d's "the right string in the wrong scope": the boundary a search needs is
     not always inside the regex, sometimes it is the region you ran it over.
 
+11. **Move 4 brought the shared chrome across, and it found a second drawn
+    grid nobody was looking for** (DREAMCRM-72, 2026-09-16). `MarketingHeader`,
+    `MarketingFooter` and `PageHero` are now Daylight Dream, so all eight
+    subpages inherit the language before move 6 touches any of them. What
+    building it decided:
+
+    - **Decision 5 is now fully spent.** The header is TRANSPARENT at rest
+      rather than `white/85`, because the treatment that existed to explain a
+      seam has no seam to explain. What it gains is a state it did not have: a
+      glass rail that only appears once something is scrolling under it —
+      `white/85`, `backdrop-blur-xl`, a `DAY_WIRE` hairline and a BLUE shadow
+      rather than a grey one, which is Part 3's "depth is emission" arriving in
+      the chrome.
+    - **`HERO_DOT_GRID` was a second drawn grid, and it outlived the veto by
+      three moves.** Move 1 deleted `NIGHT_GRID` and the owner's first veto was
+      recorded as closed; a `radial-gradient` dot tiled every 22px went on
+      rendering on the other eight pages the whole time, because it lived under
+      a different name in a different component. **A veto closed at one call
+      site is not a veto closed** — the same lesson the check-mark census
+      taught twice — so it leaves behind `tests/marketing/no-drawn-grid.test.ts`
+      rather than another sentence. The guard states the rule geometrically (a
+      gradient repeating on a fixed pitch) and knows the film grain is not one,
+      which is the distinction that makes it safe to hold at zero.
+    - **A translucent sticky bar is the footer's problem in a second costume.**
+      The surface under the rail is a SIBLING scrolling past, not an ancestor,
+      so axe and every source rule decline to grade the pair — and the darkest
+      thing it ever crosses is the `gray-950` footer, on every page. The fill
+      is graded in `token-contrast.test.ts` beside the footer's own table, with
+      the alpha read out of the source. Measured run in Part 7; the `white/80`
+      row is the one to read.
+    - **The subpage bloom is sized in `vw`, not `rem`, and that was a contrast
+      fix rather than a layout preference.** At `rem` widths a lobe tuned at
+      1440 swallows a 390px viewport, which put the eyebrow at **4.42** — a
+      real failure, caught by rendering rather than by looking. Proportional
+      lobes hold the composition at every width and the worst run is now 5.36.
+
 **Why light is the right answer and not a retreat.** The original case for a
 night band was memorability, and it was a real argument — but the pages that
 close the sale (pricing, comparisons, docs, blog) are long-form reading done on
@@ -365,6 +403,19 @@ always closed on.
 exactly as it always was. This is the surface Part 7's night-band discipline
 continues to bind.
 
+**Its top edge carries the signature gradient** (DREAMCRM-72) — a 3px rule,
+`aria-hidden`, so the page's light ENDS here rather than a grey slab starting.
+It uses the luminous steps (`teal-400` / `violet-500` / `fuchsia-500`) rather
+than the ink steps, and that is legal for one reason only: "white text starts
+at `teal-600`" governs fills that CARRY WHITE, and nothing rides this bar. Put
+a label on it and it becomes a rule-3 violation the same afternoon.
+
+**No bloom down here, deliberately.** Every ink on this surface is PALER than
+its ground, so a wash lifts the ground and closes all three pairs at once — as
+a `background-image`, which is the one thing no gate in this repo can see. The
+Part 7 table would stay green while the footer got quietly less legible. A flat
+ground is what makes that table a guarantee rather than an estimate.
+
 ### Standing rules
 
 - **The brand hue is never a status.** Inherited verbatim from
@@ -398,10 +449,27 @@ continues to bind.
 - **Depth is emission, not stacking.** One hairline plus a soft blue shadow, and
   coloured light spilling out from under a raised object. No hard-edged drop
   shadows anywhere.
-- **No drawn grid. Owner veto, DREAMCRM-67.** The 56px blueprint grid
-  (`NIGHT_GRID`) is deleted, not lightened — *"i'm not a big fan of thin black
-  lines making up grids."* Content still locks to a column rhythm; the rhythm is
-  no longer drawn on the page.
+- **No drawn grid. Owner veto, DREAMCRM-67 — CLOSED on DREAMCRM-72.** The 56px
+  blueprint grid (`NIGHT_GRID`) was deleted rather than lightened by move 1 —
+  *"i'm not a big fan of thin black lines making up grids."* Content still locks
+  to a column rhythm; the rhythm is no longer drawn on the page.
+
+  **It took two deletions, not one, and that is the part to carry.** A SECOND
+  drawn grid — `HERO_DOT_GRID`, a `radial-gradient` dot tiled every 22px inside
+  `PageHero` — survived move 1 and two moves after it, rendering on all eight
+  subpages, because it lived under a different name in a different component
+  while a sentence in this document said the veto was closed. Move 4 deleted it
+  and replaced the sentence with `tests/marketing/no-drawn-grid.test.ts`.
+
+  **The guard states the rule in its own terms rather than by name**, for the
+  same reason the tone-tile census does: both names are gone, so asserting
+  their absence would assert what `tsc` asserts. A lattice is **a gradient that
+  repeats on a fixed pitch** — a `backgroundImage` carrying `gradient(` in the
+  same declaration as a `backgroundSize`, or a `repeating-*-gradient`, which
+  brings its own pitch and had zero instances when the rule shipped. The film
+  grain is tiled at 140px and is NOT a lattice: noise has no lattice in it, and
+  the discrimination is derived from what the tile PAINTS rather than from a
+  name or an exemption entry.
 - **No bland check marks. Owner veto, DREAMCRM-67 — CLOSED on DREAMCRM-71.**
   `CheckIcon` is deleted, not dormant, and every marketing call site now carries
   a **tone tile**: a filled squircle whose glyph says what the line is actually
@@ -479,6 +547,18 @@ continues to bind.
   because the product mocks there imitate a real screen at 7px. Corrected on
   DREAMCRM-54 before the first mono label shipped; the recipe is single-homed as
   `MONO_LABEL` in `components/marketing/ui.tsx`.
+- **The subpage display steps down to 3.6rem** (DREAMCRM-72): 3.6rem at 1440
+  against the homepage's 5.375rem, through 3rem at 834 to 2.35rem at 390, hard
+  left like the home hero. Subordinate, still unmistakably display, and it
+  steps rather than reflowing — Part 10. `PageHero` is where that lives, so all
+  eight subpages carry it without being opened.
+- **The eyebrow IS the mono micro-label** — `Eyebrow` spells `MONO_LABEL`
+  rather than keeping a second sans copy of the same measurements. On
+  `PageHero` a 36px rule in the signature gradient leads it, so every subpage
+  opens with the brand's three hues. That is deliberately not the HEADLINE
+  treatment: Part 2 gives fuchsia exactly two homes and one of them is *the*
+  signature headline gradient, singular — eight subpage titles wearing it would
+  dilute the one place it means something.
 - **No oversized decorative numerals.** Owner veto, DREAMCRM-67. A chapter
   number belongs in the eyebrow and the chapter rail, at reading size, where it
   is real text. A 210px outlined ghost of it behind the card is decoration
@@ -775,6 +855,54 @@ The instrument used here was a throwaway: `scripts/night-band-grade.mjs` is the
 committed one and it still takes the BRIGHTEST pixel, which was correct for the
 band it was written for and is backwards for this ground. Flipping the extremum
 and renaming it is the move-5 build issue, and this table is what it re-derives.
+### The shared chrome, measured (DREAMCRM-72)
+
+Two surfaces, two instruments, because they fail in two different ways.
+
+**`PageHero`'s blooms — rendered, darkest pixel under each run of glyphs, grain
+ON**, the same method as the daylight hero above, at all three widths. The
+subpage band is a third the height of the homepage band, so a lobe tuned there
+lands its dense middle where the home band only ever put a tail:
+
+| Run | Ink | 390 | 834 | 1440 | Flat |
+|---|---|---|---|---|---|
+| eyebrow + rule | `teal-700` | 6.81 | 6.17 | 6.81 | 7.05 |
+| headline | `gray-950` | 10.37 | 11.35 | 15.29 | 17.62 |
+| sub | `gray-600` | **5.64** | **5.36** | 6.62 | 6.91 |
+
+Worst run **5.36**. Read the headline row against the eyebrow row: the violet
+lobe passes behind the display type and costs it up to 7.24, which it can
+afford at 10.37 — and it misses the eyebrow and the reading column almost
+entirely, which is the shape Part 7 asks for.
+
+**Two numbers that are not in the table, because they are the reason it looks
+like this.** At `rem`-width lobes the eyebrow measured **4.42** at 390 — a real
+failure, found by rendering and invisible to every source rule. Sizing the
+lobes in `vw` instead holds the composition proportionally at every width and
+took it to 6.81. An intermediate tuning then sat at **4.72**, which passes and
+is exactly the "nearly fine" band this Part keeps warning about; it was not
+shipped either.
+
+**The sticky header's fill — arithmetic, not a render, and exact for the case
+it grades.** A `position: sticky` bar composites over whatever is passing
+beneath it, and that surface is a SIBLING rather than an ancestor, so axe,
+`dark-mode-parity` and rules 1-6 all correctly decline. The worst case is the
+`gray-950` footer, which the rail sits over for the last screenful of every
+page. The quietest nav ink is `gray-600`:
+
+| Fill | Rail ground | `gray-600` |
+|---|---|---|
+| `white/90` | `rgb(231 232 234)` | 5.63 |
+| **`white/85`** — shipped | **`rgb(219 220 224)`** | **5.05** |
+| `white/80` | `rgb(207 209 213)` | **4.51** |
+| `white/75` | `rgb(195 197 203)` | **4.01** |
+
+**Read the `white/80` row: it clears a 4.5 floor by one hundredth.** That is
+the 4.18 lesson in its sharpest form, and it is why the fill sits two steps
+above it rather than one. `token-contrast.test.ts` reads the alpha out of
+`chrome.tsx`, so thinning it turns a required check red naming the ratio —
+a measurement, never a preference.
+
 ### The signature gradient, graded
 
 Rule 4 grades every stop of a `bg-clip-text` gradient as ink on white, with a
@@ -974,9 +1102,18 @@ the reduced-motion path in the same PR.
    nominal:** it fails on any path that is *entirely* a check mark, under any
    component name or none, because the way this comes back is not a re-import
    (impossible now) but somebody hand-rolling a tick into a fresh `<svg>`.
-4. **Shared chrome** — `MarketingHeader`, `MarketingFooter` and `PageHero` in
-   `components/marketing/` — so every subpage inherits the language for free
-   instead of drifting page by page.
+4. ~~**Shared chrome**~~ — **LANDED** (DREAMCRM-72, 2026-09-16).
+   `MarketingHeader`, `MarketingFooter` and `PageHero`, plus the scaffolds
+   `PageHero` actually renders (`Eyebrow`, `PrimaryCta`, `GhostCta`) — a
+   Daylight hero with a flat square-shouldered button inside it is drift
+   visible in one screenshot, so they moved together. All eight subpages
+   inherit it without being opened. The footer stayed `bg-gray-950` with its
+   inks untouched and gained an inkless gradient top edge; the header lost
+   decision 5's treatment and gained the glass rail. `HERO_DOT_GRID` was
+   deleted, closing the grid veto's second call site. Decisions it settled:
+   Part 0 item 11. Measured runs: Part 7. Zero horizontal scroll on twelve
+   marketing pages x three widths; `/compare/[vendor]` still reads +212 at 390,
+   unchanged, and is filed in `docs/RELEASE.md` Part 5 as somebody else's.
 5. **Re-point the decorative-layer grader** per Part 7, and put it on the light
    hero.
 6. **Then per page, in this order:** pricing (the honest test of whether the

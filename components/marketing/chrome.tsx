@@ -5,13 +5,52 @@ import { usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { MARKETING, MARKETING_NAV, type MarketingNavChild } from '@/lib/marketing/site'
 import { DreamCreateLogo } from '@/components/brand/dream-create-logo'
+import { DAY_WIRE } from '@/components/marketing/ui'
 
 /**
  * Marketing-site header: megamenu dropdowns for Product / Compare /
- * Resources, scroll-aware elevation, full mobile menu. B2B SaaS register —
- * ink on white, brand-blue accent, Inter, dense. The Dream Create lockup
+ * Resources, scroll-aware elevation, full mobile menu. The Dream Create lockup
  * (bubble-D mark + wordmark) is the company brand in the chrome; "DreamCRM"
  * stays the product name in copy.
+ *
+ * DAYLIGHT DREAM — `BRAND.md` Part 8 move 4 (DREAMCRM-72). Part 0 decision 5
+ * is superseded here: this bar used to sit at `white/85` ABOVE a dark hero
+ * band, and it drew an edge whose job was to explain the seam between the two.
+ * The page is light end to end now, so there is no seam, and the treatment
+ * that explained it goes with it — the header is TRANSPARENT at rest and
+ * simply part of the page.
+ *
+ * WHAT IT BECOMES ON SCROLL is the whole design: a glass rail that only exists
+ * once there is something under it. `white/85` + `backdrop-blur-xl`, a
+ * `DAY_WIRE` hairline (Part 2 names that blue; it is not `gray-200`), and a
+ * BLUE shadow rather than a grey one — Part 3's "depth is emission, not
+ * stacking". The light belongs to the page, so when the bar lifts, what spills
+ * out from under it is the page's own colour.
+ *
+ * THE 85% IS A CONTRAST DECISION, NOT A TASTE ONE, and it is the one number in
+ * this file worth defending. A sticky bar composites over whatever is beneath
+ * it, and the worst case on this site is the FOOTER — `gray-950`, the darkest
+ * surface the marketing site declares, and what this rail sits over for the
+ * last screenful of every page. The quietest nav ink (`gray-600`) renders:
+ *
+ *   | fill | rail ground | `gray-600` |
+ *   |---|---|---|
+ *   | `white/90` | `rgb(231 232 234)` | 5.63 |
+ *   | **`white/85`** | **`rgb(219 220 224)`** | **5.05** |
+ *   | `white/80` | `rgb(207 209 213)` | **4.51** |
+ *   | `white/75` | `rgb(195 197 203)` | **4.01** |
+ *
+ * **Read the 80 row.** It clears a 4.5 floor by one hundredth — that is Part
+ * 7's "4.18 reads as nearly fine" in its sharpest form, and it is why the fill
+ * sits two steps above it rather than one. Nothing in CI could see this on its
+ * own: the surface under a sticky bar is a SIBLING scrolling past, not an
+ * ancestor, so axe and every source rule in `class-pairs.ts` correctly decline
+ * to grade the pair. `tests/a11y/token-contrast.test.ts` grades it beside the
+ * footer's own table, reading the alpha out of THIS file — so thinning the
+ * fill turns a required check red naming the ratio. It is a measurement, never
+ * a preference.
+ *
+ * Radii are Part 3's: 10px controls and buttons, 14px the megamenu card.
  */
 
 function ChildLink({
@@ -25,14 +64,19 @@ function ChildLink({
     <>
       <span className="block text-[0.85rem] font-semibold text-gray-900 group-hover/item:text-teal-700">
         {child.label}
-        {child.external && <span className="ml-1 text-gray-500">↗</span>}
+        {child.external && <span className="ml-1 text-gray-600">↗</span>}
       </span>
+      {/* 0.78rem / `gray-600`, not 0.74rem / `gray-500`. 0.74rem is 11.84px —
+          under the 12px floor `BRAND.md` Part 4 sets — and `gray-500` is 5.30
+          on white against `gray-600`'s 6.91, the quiet-ink direction the
+          design system already picked. Both corrected on DREAMCRM-72; the
+          first is now held by `tests/marketing/chrome-legibility.test.ts`. */}
       {child.description && (
-        <span className="mt-0.5 block text-[0.74rem] leading-snug text-gray-500">{child.description}</span>
+        <span className="mt-0.5 block text-[0.78rem] leading-snug text-gray-600">{child.description}</span>
       )}
     </>
   )
-  const cls = 'group/item block rounded-lg px-3 py-2 hover:bg-gray-50 focus-visible:bg-gray-50'
+  const cls = 'group/item block rounded-[10px] px-3 py-2 hover:bg-[#F8FAFF] focus-visible:bg-[#F8FAFF]'
   if (child.external) {
     return (
       <a href={child.href} target="_blank" rel="noreferrer" className={cls} onClick={onNavigate}>
@@ -47,16 +91,47 @@ function ChildLink({
   )
 }
 
+/**
+ * THE ACTIVE MARK — the signature gradient at nav scale.
+ *
+ * The bar used to say "you are here" with `text-gray-950` against
+ * `text-gray-600` and nothing else. Those grade 17.62 and 6.91 against white,
+ * both fine on their own, and **2.55 against EACH OTHER** — which is the same
+ * shape the cinematic spine's chapter rail was corrected for on DREAMCRM-70:
+ * two inks that both pass the background can still be hard to tell apart, and
+ * nothing in CI measures that pair. So the state gets a second channel that is
+ * not a hue at all: a 2px rule under the label, in `teal-600 → violet-700 →
+ * fuchsia-700`. Present or absent reads in greyscale.
+ *
+ * It renders in BOTH states at `opacity-0`/`opacity-100` rather than mounting
+ * conditionally, so the reserved box is identical and nothing in the bar
+ * shifts by a pixel when a route changes. `aria-hidden` — `aria-current` is
+ * not this component's job and the link text already says where you are.
+ */
+function ActiveSpark({ on }: { on: boolean }) {
+  return (
+    <span
+      className={`pointer-events-none absolute inset-x-3 bottom-1 h-[2px] rounded-full bg-gradient-to-r from-teal-600 via-violet-700 to-fuchsia-700 transition-opacity duration-200 ${
+        on ? 'opacity-100' : 'opacity-0'
+      }`}
+      aria-hidden="true"
+    />
+  )
+}
+
 export function MarketingHeader() {
   const pathname = usePathname()
   const [mobileOpen, setMobileOpen] = useState(false)
   const [openMenu, setOpenMenu] = useState<string | null>(null)
   const [elevated, setElevated] = useState(false)
 
-  // Subtle elevation once the page scrolls — keeps the header feeling
-  // attached to the content instead of floating arbitrarily.
+  // The rail appears only once there is something under it. 2px rather than
+  // the old 8: at rest this bar has NO fill, so the gap between "content is
+  // sliding under me" and "I have a surface" is a gap where ink composites
+  // over whatever is passing. Nothing on this site puts text in the top 2px of
+  // a hero, so 2 closes it.
   useEffect(() => {
-    const onScroll = () => setElevated(window.scrollY > 8)
+    const onScroll = () => setElevated(window.scrollY > 2)
     onScroll()
     window.addEventListener('scroll', onScroll, { passive: true })
     return () => window.removeEventListener('scroll', onScroll)
@@ -72,9 +147,12 @@ export function MarketingHeader() {
 
   return (
     <header
-      className={`sticky top-0 z-40 border-b bg-white/85 backdrop-blur transition-shadow ${
-        elevated ? 'border-gray-200 shadow-sm' : 'border-transparent'
+      className={`sticky top-0 z-40 border-b transition-[background-color,box-shadow,border-color] duration-200 ease-out ${
+        elevated
+          ? 'bg-white/85 shadow-[0_10px_30px_-22px_rgb(47_82_179/0.55)] backdrop-blur-xl'
+          : 'bg-transparent'
       }`}
+      style={{ borderBottomColor: elevated ? DAY_WIRE : 'transparent' }}
     >
       <div className="mx-auto flex h-[60px] max-w-6xl items-center justify-between gap-6 px-4 sm:px-6">
         <div className="flex items-center gap-8">
@@ -107,12 +185,13 @@ export function MarketingHeader() {
                 >
                   <Link
                     href={item.href}
-                    className={`flex items-center gap-1 rounded-lg px-3 py-2 text-[0.875rem] font-medium ${
+                    className={`relative flex items-center gap-1 rounded-[10px] px-3 py-2 text-[0.875rem] font-medium transition-colors ${
                       isActive(item.href) ? 'text-gray-950' : 'text-gray-600 hover:text-gray-950'
                     }`}
                     aria-expanded={openMenu === item.label}
                   >
                     {item.label}
+                    <ActiveSpark on={isActive(item.href)} />
                     <svg
                       viewBox="0 0 12 12"
                       className={`h-2.5 w-2.5 fill-current opacity-60 transition-transform ${openMenu === item.label ? 'rotate-180' : ''}`}
@@ -124,9 +203,10 @@ export function MarketingHeader() {
                   {openMenu === item.label && (
                     <div className="absolute left-0 top-full pt-1.5">
                       <div
-                        className={`rounded-xl border border-gray-200 bg-white p-2 shadow-xl shadow-gray-200/60 ${
+                        className={`rounded-[14px] border bg-white p-2 shadow-[0_28px_70px_-30px_rgb(47_82_179/0.55)] ${
                           item.children.length > 5 ? 'grid w-[34rem] grid-cols-2 gap-x-2' : 'w-72'
                         }`}
+                        style={{ borderColor: DAY_WIRE }}
                       >
                         {item.children.map((child) => (
                           <ChildLink key={child.href} child={child} onNavigate={() => setOpenMenu(null)} />
@@ -139,11 +219,12 @@ export function MarketingHeader() {
                 <Link
                   key={item.label}
                   href={item.href}
-                  className={`rounded-lg px-3 py-2 text-[0.875rem] font-medium ${
+                  className={`relative rounded-[10px] px-3 py-2 text-[0.875rem] font-medium transition-colors ${
                     isActive(item.href) ? 'text-gray-950' : 'text-gray-600 hover:text-gray-950'
                   }`}
                 >
                   {item.label}
+                  <ActiveSpark on={isActive(item.href)} />
                 </Link>
               ),
             )}
@@ -153,13 +234,19 @@ export function MarketingHeader() {
         <div className="hidden items-center gap-2 lg:flex">
           <Link
             href="/signin"
-            className="rounded-lg px-3.5 py-2 text-[0.875rem] font-medium text-gray-700 hover:text-gray-950"
+            className="rounded-[10px] px-3.5 py-2 text-[0.875rem] font-medium text-gray-700 transition-colors hover:text-gray-950"
           >
             Sign in
           </Link>
+          {/* Part 2's primary action, at chrome scale: `teal-600 → teal-700`
+              carrying white (5.09 / 7.05, both graded by rule 3 in
+              `tests/a11y/class-pairs.ts`), 10px radius, and the glow deepening
+              on hover rather than the fill darkening — Part 3, depth is
+              emission. It was a flat `bg-teal-700` that went `teal-800` on
+              hover, which is the dashboard's move. */}
           <Link
             href="/signup"
-            className="rounded-lg bg-teal-700 px-3.5 py-2 text-[0.875rem] font-semibold text-white transition-colors hover:bg-teal-800"
+            className="rounded-[10px] bg-gradient-to-r from-teal-600 to-teal-700 px-3.5 py-2 text-[0.875rem] font-semibold text-white shadow-[0_6px_18px_-8px_rgb(58_103_217/0.65)] transition-all duration-150 ease-out hover:-translate-y-px hover:shadow-[0_9px_24px_-8px_rgb(58_103_217/0.8)]"
           >
             Start free trial
           </Link>
@@ -167,7 +254,7 @@ export function MarketingHeader() {
 
         <button
           type="button"
-          className="rounded-lg p-2 text-gray-600 lg:hidden"
+          className="rounded-[10px] p-2 text-gray-600 lg:hidden"
           aria-expanded={mobileOpen}
           aria-label="Menu"
           onClick={() => setMobileOpen((v) => !v)}
@@ -183,12 +270,20 @@ export function MarketingHeader() {
       </div>
 
       {mobileOpen && (
-        <nav className="max-h-[calc(100dvh-60px)] overflow-y-auto border-t border-gray-200 bg-white px-4 pb-6 pt-2 lg:hidden" aria-label="Mobile">
+        <nav
+          className="max-h-[calc(100dvh-60px)] overflow-y-auto border-t bg-white px-4 pb-6 pt-2 lg:hidden"
+          style={{ borderColor: DAY_WIRE }}
+          aria-label="Mobile"
+        >
           {MARKETING_NAV.map((item) => (
-            <div key={item.label} className="border-b border-gray-50 py-1 last:border-b-0">
+            <div
+              key={item.label}
+              className="border-b py-1 last:border-b-0"
+              style={{ borderColor: DAY_WIRE }}
+            >
               <Link
                 href={item.href}
-                className="block rounded-lg px-3 py-2.5 text-[0.95rem] font-bold text-gray-900"
+                className="block rounded-[10px] px-3 py-2.5 text-[0.95rem] font-bold text-gray-900"
                 onClick={() => setMobileOpen(false)}
               >
                 {item.label}
@@ -202,7 +297,7 @@ export function MarketingHeader() {
                         href={child.href}
                         target="_blank"
                         rel="noreferrer"
-                        className="rounded-lg py-1.5 pl-6 pr-3 text-[0.85rem] text-gray-600"
+                        className="rounded-[10px] py-1.5 pl-6 pr-3 text-[0.85rem] text-gray-600"
                         onClick={() => setMobileOpen(false)}
                       >
                         {child.label} ↗
@@ -211,7 +306,7 @@ export function MarketingHeader() {
                       <Link
                         key={child.href}
                         href={child.href}
-                        className="rounded-lg py-1.5 pl-6 pr-3 text-[0.85rem] text-gray-600"
+                        className="rounded-[10px] py-1.5 pl-6 pr-3 text-[0.85rem] text-gray-600"
                         onClick={() => setMobileOpen(false)}
                       >
                         {child.label}
@@ -225,14 +320,15 @@ export function MarketingHeader() {
           <div className="mt-4 flex gap-2">
             <Link
               href="/signin"
-              className="flex-1 rounded-lg border border-gray-200 px-3 py-2.5 text-center text-[0.9rem] font-semibold text-gray-800"
+              className="flex-1 rounded-[10px] border bg-white px-3 py-2.5 text-center text-[0.9rem] font-semibold text-gray-950 shadow-[0_2px_10px_-4px_rgb(26_36_64/0.18)]"
+              style={{ borderColor: DAY_WIRE }}
               onClick={() => setMobileOpen(false)}
             >
               Sign in
             </Link>
             <Link
               href="/signup"
-              className="flex-1 rounded-lg bg-teal-700 px-3 py-2.5 text-center text-[0.9rem] font-semibold text-white"
+              className="flex-1 rounded-[10px] bg-gradient-to-r from-teal-600 to-teal-700 px-3 py-2.5 text-center text-[0.9rem] font-semibold text-white shadow-[0_6px_18px_-8px_rgb(58_103_217/0.65)]"
               onClick={() => setMobileOpen(false)}
             >
               Start free trial
