@@ -43,7 +43,7 @@ export function FilterChip({
   const inner = (
     <>
       {children}
-      {typeof count === 'number' && <span className="tabular-nums opacity-70">{count}</span>}
+      {typeof count === 'number' && <span className="tabular-nums">{count}</span>}
     </>
   )
 

@@ -457,7 +457,7 @@ function AccountChip({
     >
       <span className="truncate">{label}</span>
       {count > 0 && (
-        <span className={cn('text-xs rounded-full px-1 tabular-nums', active ? 'opacity-80' : 'text-gray-500 dark:text-gray-400')}>
+        <span className={cn('text-xs rounded-full px-1 tabular-nums', active ? '' : 'text-gray-500 dark:text-gray-400')}>
           {count}
         </span>
       )}

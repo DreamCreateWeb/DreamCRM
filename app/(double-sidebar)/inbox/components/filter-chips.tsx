@@ -106,7 +106,7 @@ export default function FilterChips({
               >
                 <span className={cn('w-1.5 h-1.5 rounded-full', c.dot)} aria-hidden="true" />
                 <span className="font-medium">{c.label}</span>
-                <span className="tabular-nums opacity-70">{count}</span>
+                <span className="tabular-nums">{count}</span>
               </Link>
             )
           })}

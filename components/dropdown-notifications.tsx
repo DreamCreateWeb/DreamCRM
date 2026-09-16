@@ -238,7 +238,7 @@ export default function DropdownNotifications({ align }: { align?: 'left' | 'rig
                         <button
                           type="button"
                           onClick={() => handleItemClick(n, close)}
-                          className={`block w-full py-3 pl-4 pr-9 text-left hover:bg-gray-50 focus-visible:bg-gray-50 dark:hover:bg-gray-700/20 dark:focus-visible:bg-gray-700/20 ${n.readAt ? 'opacity-75' : ''}`}
+                          className={`block w-full py-3 pl-4 pr-9 text-left hover:bg-gray-50 focus-visible:bg-gray-50 dark:hover:bg-gray-700/20 dark:focus-visible:bg-gray-700/20 `}
                         >
                           <div className="flex items-start gap-3">
                             <span
