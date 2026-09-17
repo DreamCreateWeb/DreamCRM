@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import React from 'react'
-import CinematicSpine, { CHAPTERS, pinnedCardFits } from '@/components/marketing/cinematic-spine'
+import CinematicSpine, { CHAPTERS, pinnedCardFits, sceneAt } from '@/components/marketing/cinematic-spine'
 import { MarketingMotionStyles } from '@/components/marketing/ui'
 
 /**
@@ -124,8 +124,13 @@ describe('the cinematic spine — the pin cannot trap a keyboard or screen-reade
 
   it('marks the product stage decorative, and does NOT hide it behind the DECORATIVE_MOCKS exemption', () => {
     const { container } = render(<CinematicSpine />)
-    const stage = container.querySelector('.mkt-spine-stage') as HTMLElement
-    expect(stage.getAttribute('aria-hidden')).toBe('true')
+    const stages = Array.from(container.querySelectorAll('.mkt-spine-stage'))
+    // One scene per chapter since DREAMCRM-82, and EVERY one of them has to
+    // carry the attribute — the four are written by one `.map`, so a check on
+    // the first would pass on a fifth that was added by hand.
+    expect(stages).toHaveLength(CHAPTERS.length)
+    expect(stages.map((s) => s.getAttribute('aria-hidden'))).toEqual(CHAPTERS.map(() => 'true'))
+    const stage = stages[0] as HTMLElement
 
     // THE LOAD-BEARING HALF. `DECORATIVE_MOCKS` in `e2e/axe.ts` pardons
     // `.mkt-float > [aria-hidden="true"]` under WCAG 1.4.3 — text inside a
@@ -302,8 +307,26 @@ describe('the cinematic spine — the pinned sequence exists only where the pin 
     // `height` or `margin` is a reflow on every frame and will not hold 60fps.
     const text = css()
     const spine = text.slice(text.indexOf('.mkt-spine-intro'))
-    const scrollDriven = spine.match(/[a-z-]+:[^;]*var\(--mkt-(?:ss|sy|io|iy|co|cy|ro)[^;]*;/g) ?? []
+    // DERIVED, not enumerated (DREAMCRM-82). This used to name the seven
+    // tokens that existed when it was written, which is a COPY of the
+    // component's token set and drifts the same way the three revert blocks
+    // above did: `--mkt-so` arrived with the four-scene stage and the list did
+    // not, so the one new scroll-driven declaration in the batch was graded by
+    // nothing. Every `--mkt-` reference is now graded, minus the ONE layout
+    // token named below with its reason.
+    const LAYOUT_TOKENS = [
+      // The track's length in viewport heights. Written ONCE, inline on the
+      // element in JSX, from a constant — it is a layout dimension, not a
+      // value the scroll position moves, so it is legitimately a `height`.
+      '--mkt-spine-steps',
+    ]
+    const scrollDriven = (spine.match(/[a-z-]+\s*:[^;{}]*var\(\s*--mkt-[^;{}]*;/g) ?? []).filter(
+      (d) => !LAYOUT_TOKENS.some((t) => d.includes(t)),
+    )
     expect(scrollDriven.length).toBeGreaterThan(0)
+    // …and the exception still describes something, so it cannot quietly
+    // become a blanket pardon for a token nobody looks at (§2b).
+    expect(text).toContain(LAYOUT_TOKENS[0])
     for (const decl of scrollDriven) {
       expect(decl.split(':')[0].trim()).toMatch(/^(transform|opacity)$/)
     }
@@ -341,6 +364,77 @@ describe('the cinematic spine — it un-pins rather than clipping a chapter card
     expect(pinnedCardFits(639, 640)).toBe(false)
   })
 
+  /**
+   * WHAT IS MEASURED IS THE GLASS, not the `<li>` (DREAMCRM-82).
+   *
+   * Since the four-scene rebuild, each `<li>` is a full-viewport LAYER holding
+   * a chapter's card and the picture it narrates, so under `.is-cinematic` its
+   * own height is the viewport's — and measuring it would hand `pinnedCardFits`
+   * `pinnedCardFits(vh, vh)`, which is false at every size. The pin would never
+   * come on again, on any machine, and every case above would still be green
+   * because happy-dom reports 0 for both.
+   *
+   * The glass is also the honest subject: it is the element `overflow: hidden`
+   * clips when a card outgrows the window, which is the defect the function is
+   * named for. This case is what pins the ref to it.
+   */
+  it('measures the chapter card itself, not the layer it sits in', () => {
+    const { container } = render(<CinematicSpine />)
+    const root = container.querySelector('.mkt-spine') as HTMLElement
+    // A layer that fills the viewport, with a card comfortably inside it. If
+    // the measurement moved back to the `<li>`, the pin would go off here.
+    for (const li of Array.from(container.querySelectorAll('.mkt-spine-card'))) {
+      Object.defineProperty(li, 'offsetHeight', { configurable: true, value: window.innerHeight })
+    }
+    for (const glass of Array.from(container.querySelectorAll('.mkt-spine-card-glass'))) {
+      Object.defineProperty(glass, 'offsetHeight', { configurable: true, value: 300 })
+    }
+    window.dispatchEvent(new Event('resize'))
+    expect(root.classList.contains('is-cinematic')).toBe(true)
+  })
+
+  /**
+   * THE PREMISE OF THE CARD'S BOTTOM INSET (DREAMCRM-82).
+   *
+   * The card is anchored to the BOTTOM of the pin now, because centred its top
+   * edge landed across the scene panel and cut a sentence in half. Bottom
+   * anchoring puts `pinnedCardFits` and the stylesheet in a relationship they
+   * did not have before: the function guarantees `height <= viewport - 2 *
+   * CARD_TRAVEL`, so an inset of at most `2 * CARD_TRAVEL` cannot clip the
+   * ARRIVED card at any window the pin is legal at.
+   *
+   * That is arithmetic somebody has to keep true, and the way it goes wrong is
+   * a designer nudging the card up for air — `8vh` to `12vh`, or the ceiling to
+   * `8rem` — with nothing anywhere saying what the ceiling was for. So it is
+   * asserted, derived from `CARD_TRAVEL` rather than transcribed beside it.
+   */
+  it('keeps the card-s bottom inset inside the headroom pinnedCardFits guarantees', () => {
+    const { container } = render(<MarketingMotionStyles />)
+    const text = container.querySelector('style')!.textContent ?? ''
+    const glass = text.slice(text.indexOf('.mkt-spine.is-cinematic .mkt-spine-card-glass'))
+    // `CARD_TRAVEL`, read off the stylesheet rather than transcribed: the
+    // fallback on `--mkt-cy` IS the at-rest travel, pinned as such by the
+    // at-rest-fallback case above.
+    const travel = Number(glass.match(/var\(--mkt-cy,\s*(\d+)\)/)![1])
+    expect(travel).toBeGreaterThan(0)
+    const inset = glass.match(/bottom:\s*clamp\(([^)]*)\)/)
+    expect(inset, 'the card must be anchored to the bottom of the pin').toBeTruthy()
+    const stops = inset![1].split(',').map((s) => s.trim())
+    expect(stops).toHaveLength(3)
+    // The ceiling, in px. `rem` is 16px on this site (no root font-size
+    // override anywhere under `app/(marketing)`).
+    const rem = Number(stops[2].replace('rem', ''))
+    expect(Number.isFinite(rem)).toBe(true)
+    expect(rem * 16).toBeLessThanOrEqual(travel * 2)
+    // …and the floor leaves the card off the very edge of the window.
+    expect(Number(stops[0].replace('rem', '')) * 16).toBeGreaterThanOrEqual(travel)
+    // The viewport-relative middle stop cannot exceed the ceiling at any height
+    // the pin is legal at, which is what makes the clamp's ceiling the bound
+    // rather than a suggestion: it only bites above 1100px.
+    const vh = Number(stops[1].replace('vh', ''))
+    expect((vh / 100) * 1100).toBeGreaterThanOrEqual(rem * 16)
+  })
+
   it('takes the pin back off when the cards outgrow the window', () => {
     const { container } = render(<CinematicSpine />)
     const root = container.querySelector('.mkt-spine') as HTMLElement
@@ -348,7 +442,7 @@ describe('the cinematic spine — it un-pins rather than clipping a chapter card
     // its default 1024x768 — see the note on the server-markup case above.
     expect(root.classList.contains('is-cinematic')).toBe(true)
 
-    for (const card of Array.from(container.querySelectorAll('.mkt-spine-card'))) {
+    for (const card of Array.from(container.querySelectorAll('.mkt-spine-card-glass'))) {
       Object.defineProperty(card, 'offsetHeight', { configurable: true, value: window.innerHeight })
     }
     window.dispatchEvent(new Event('resize'))
@@ -356,11 +450,94 @@ describe('the cinematic spine — it un-pins rather than clipping a chapter card
 
     // And it comes back when there is room again — the decision is a
     // measurement each time, not a latch that turns the section off for good.
-    for (const card of Array.from(container.querySelectorAll('.mkt-spine-card'))) {
+    for (const card of Array.from(container.querySelectorAll('.mkt-spine-card-glass'))) {
       Object.defineProperty(card, 'offsetHeight', { configurable: true, value: 300 })
     }
     window.dispatchEvent(new Event('resize'))
     expect(root.classList.contains('is-cinematic')).toBe(true)
+  })
+})
+
+describe('the cinematic spine — the background plays the journey the cards narrate', () => {
+  /**
+   * DREAMCRM-82, the owner on the built section: *"the cards discuss a
+   * transition of a patient through the system, but the card in the background
+   * should literally show that journey."*
+   *
+   * The stage used to be ONE illustration, identical at every scroll position,
+   * while four cards narrated a patient moving through the product. What this
+   * describe holds is the two structural halves of the fix — that there really
+   * are four DIFFERENT pictures, and that they are in the stacked markup rather
+   * than reachable only by animating.
+   *
+   * The cross-fade itself is scroll behaviour and is verified in a real browser
+   * for the same reason as everything else in this file: happy-dom has no
+   * layout, so a test here that claimed to check it would measure zeroes.
+   */
+  it('renders one scene per chapter, in the server markup, in reading order', () => {
+    const html = renderToStaticMarkup(<CinematicSpine />)
+    // Part 6's "no content is reachable only by animating", now including the
+    // pictures: the stacked page a print / reduced-motion / no-JS reader gets
+    // carries all four, not one screenshot repeated.
+    expect(html.match(/mkt-spine-stage/g) ?? []).toHaveLength(CHAPTERS.length)
+
+    const { container } = render(<CinematicSpine />)
+    const cards = Array.from(container.querySelectorAll('.mkt-spine-card'))
+    expect(cards).toHaveLength(CHAPTERS.length)
+    for (const card of cards) {
+      expect(card.querySelectorAll('.mkt-spine-stage')).toHaveLength(1)
+    }
+  })
+
+  it('moves the anchor patient through four different states', () => {
+    const { container } = render(<CinematicSpine />)
+    const scenes = Array.from(container.querySelectorAll('.mkt-spine-stage'))
+    // Rosa Silva's row is the thread: she is in every scene and her STATUS is
+    // the thing that changes. Four identical pictures would satisfy "one scene
+    // per chapter" above and would be the defect this issue is about, so the
+    // difference is what gets asserted.
+    const pills = ['6 mo overdue', 'Confirmed · Thu', 'Balance cleared', 'Review received']
+    scenes.forEach((scene, i) => {
+      expect(scene.textContent).toContain('Rosa Silva')
+      expect(scene.textContent).toContain(pills[i])
+      for (const other of pills.filter((p) => p !== pills[i])) {
+        expect(scene.textContent).not.toContain(other)
+      }
+    })
+  })
+
+  it('selects the scene from the same scroll position the rail reads', () => {
+    // A rail reading "03 · THE BALANCE" over the review scene is the one way
+    // this section can lie to a reader, and the way that happens is two
+    // expressions computing the same index. There is one, and the component
+    // calls it for both.
+    expect(sceneAt(0)).toBe(0)
+    expect(sceneAt(-1)).toBe(0)
+    expect(sceneAt(0.15)).toBe(0) // still inside the opening move
+    expect(sceneAt(0.3)).toBe(0)
+    expect(sceneAt(0.5)).toBe(1)
+    expect(sceneAt(0.72)).toBe(2)
+    expect(sceneAt(0.95)).toBe(3)
+    expect(sceneAt(1)).toBe(CHAPTERS.length - 1)
+    expect(sceneAt(9)).toBe(CHAPTERS.length - 1)
+    // Monotonic: the picture never goes backwards while the reader goes
+    // forwards, which a `%`-style expression would allow.
+    let last = 0
+    for (let p = 0; p <= 1; p += 0.01) {
+      expect(sceneAt(p)).toBeGreaterThanOrEqual(last)
+      last = sceneAt(p)
+    }
+  })
+
+  it('adds no focus stop and no live region inside the scenes', () => {
+    const { container } = render(<CinematicSpine />)
+    for (const scene of Array.from(container.querySelectorAll('.mkt-spine-stage'))) {
+      // The toggle in scene 04 and the button in scene 03 are ILLUSTRATION.
+      // Drawn as `<span>`s on purpose: a real control here would be a focus
+      // stop inside a layer that spends most of the scroll at opacity 0.
+      expect(focusables(scene as HTMLElement)).toEqual([])
+      expect(scene.querySelectorAll('button, input, a[href]')).toHaveLength(0)
+    }
   })
 })
 

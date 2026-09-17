@@ -171,7 +171,10 @@ export const DAY_WIRE = 'rgb(76 125 240 / 0.16)'
  * sequence interruptible with nothing to unwind.
  */
 const SPINE_CSS = `
-      /* ── BASE: four ordinary stacked sections, top to bottom ── */
+      /* ── BASE: four ordinary stacked sections, top to bottom — and since
+            DREAMCRM-82 each one is a CARD PLUS ITS OWN SCENE, so a reader who
+            never gets the pin reads four chapters each illustrated by the
+            picture it narrates, in order. ── */
       .mkt-spine-intro { max-width: 46rem; margin-inline: auto; padding: 3.5rem 1rem 0; text-align: center; }
       /* NO aspect-ratio here, on purpose. A fixed ratio clipped the last row
          of the schedule at 390 and at 834 — a frame cropping its own content
@@ -180,12 +183,16 @@ const SPINE_CSS = `
          identity. So the frame's height follows the product it contains. The
          pinned sequence overrides this to the viewport anyway. */
       .mkt-spine-stage {
-        position: relative; overflow: hidden; margin: 2.5rem auto 0;
-        width: min(100% - 2rem, 72rem);
+        position: relative; overflow: hidden; margin-top: 1.25rem;
         border-radius: 1.75rem; border: 1px solid ${DAY_WIRE};
         box-shadow: 0 0 70px -24px rgb(93 71 222 / 0.35), 0 24px 80px -44px rgb(26 36 64 / 0.4);
       }
-      .mkt-spine-cards { margin: 2.5rem auto 0; width: min(100% - 2rem, 72rem); display: grid; gap: 0.85rem; }
+      /* \`minmax(0, 1fr)\` rather than the implicit \`auto\` column: an \`auto\` grid
+         track takes its item's MAX-CONTENT, so one wide panel inside a chapter's
+         scene would widen the list past the frame and put horizontal scroll on
+         the DOCUMENT at 390 — which is what \`e2e/marketing-viewport.spec.ts\`
+         grades, and it grades the document rather than the element. */
+      .mkt-spine-cards { margin: 2.5rem auto 0; width: min(100% - 2rem, 72rem); display: grid; grid-template-columns: minmax(0, 1fr); gap: 3rem; }
       .mkt-spine-card-glass {
         border-radius: 1.25rem; border: 1px solid ${DAY_WIRE}; background: #fff; padding: 1.5rem;
         box-shadow: 0 2px 6px rgb(76 125 240 / 0.06), 0 14px 36px rgb(76 125 240 / 0.1);
@@ -220,50 +227,117 @@ const SPINE_CSS = `
         will-change: opacity, transform;
       }
       .mkt-spine.is-cinematic .mkt-spine-intro > * { margin-inline: auto; max-width: 46rem; }
-      .mkt-spine.is-cinematic .mkt-spine-stage {
-        position: absolute; inset: 0; z-index: 1;
-        width: auto; margin: 0; transform-origin: 50% 50%;
-        transform: translate3d(0, calc(var(--mkt-sy, 12) * 1vh), 0) scale(var(--mkt-ss, 0.56));
-        will-change: transform;
-      }
-      /* RESERVE THE CHAPTER RAIL'S LANE, and reserve it from the one element
-         in the picture that is pure decoration. The rail has to land somewhere,
-         and the first draft padded the whole stage to clear it — which read as
-         a gap on the right of the frame AT REST, where the rail is not even
-         visible yet. So the bar chart gives up its right end instead: the bars
-         are the data, they carry no text, and a chart that spans slightly less
-         width is not something a reader can notice. Reserved rather than
-         parked-where-nothing-is-today, because the stage's column heights move
-         with the viewport and "nothing is there" is only true at one size. */
-      .mkt-spine.is-cinematic .mkt-stage-chart { padding-right: clamp(15rem, 19vw, 17rem); }
+      /* ── FOUR LAYERS, ONE PER CHAPTER (DREAMCRM-82). Each \`<li>\` becomes a
+            full-viewport layer holding its own scene and its own card, so the
+            SAME dom serves the stacked reading page and the pinned sequence —
+            no second copy of the stage, and no picture that exists only when
+            the animation runs. The \`<li>\`s carry no \`z-index\`, so they do not
+            open stacking contexts: every scene paints at 1 and every card at
+            3 against the list's own context, in dom order within each. ── */
       .mkt-spine.is-cinematic .mkt-spine-cards {
-        position: absolute; inset: 0; z-index: 3; display: block;
+        position: absolute; inset: 0; z-index: 1; display: block;
         width: auto; margin: 0; pointer-events: none;
       }
-      .mkt-spine.is-cinematic .mkt-spine-card {
-        position: absolute; top: 50%; left: clamp(1.5rem, 6vw, 6.5rem);
-        width: min(33rem, 46vw);
-        opacity: var(--mkt-co, 0);
-        transform: translate3d(0, calc(-50% + var(--mkt-cy, 44) * 1px), 0);
-        will-change: opacity, transform;
+      .mkt-spine.is-cinematic .mkt-spine-card { position: absolute; inset: 0; }
+      /* The scene. \`--mkt-so\` rises to 1 on its chapter's arrival and stays
+         there — each scene paints an opaque canvas, so the next fades in ON
+         TOP rather than two translucent copies washing out together. */
+      .mkt-spine.is-cinematic .mkt-spine-stage {
+        position: absolute; inset: 0; z-index: 1;
+        margin: 0; transform-origin: 50% 50%;
+        opacity: var(--mkt-so, 1);
+        transform: translate3d(0, calc(var(--mkt-sy, 12) * 1vh), 0) scale(var(--mkt-ss, 0.56));
+        will-change: transform, opacity;
       }
+      /* RESERVE THE CHAPTER RAIL'S LANE — a gutter down the RIGHT of the
+         picture, taken from the stage as a whole.
+
+         It used to be taken from the bar chart, which spanned the bottom of
+         the frame, and that is why the rail landed bottom-right ON the chart
+         at full bleed instead of beside the chapter card. A lane reserved from
+         a horizontal element can only ever be a lane at the bottom, and the
+         bottom is where the picture's own content ends up whenever a scene is
+         taller than the shortest legal viewport. The chart is gone
+         (DREAMCRM-82: it was the one panel carrying no part of the patient's
+         story), so the reservation is stated in the axis it is actually about.
+
+         The objection the chart was chosen to avoid — "a gap on the right of
+         the frame AT REST, where the rail is not even visible yet" — is real
+         and is the price. It is the right price: the alternative is a rail
+         whose clearance depends on how tall this scene's panels happen to
+         render, which is exactly the defect being fixed.
+
+         A CONSTANT rather than a \`clamp\`, and that is the rail's own doing:
+         its width is four mono labels at a fixed 0.75rem, so it does not
+         scale with the viewport and neither should the lane it needs. 15.5rem
+         is the rail (~12.6rem) plus its own right inset plus a hair — a \`vw\`
+         lane looked tidier and was wrong at both ends, eating a third of the
+         frame at 1024 and letting the rail sit on the last KPI tile at 1280.
+
+         THE TOP INSET IS THE STICKY NAV'S LANE, same idea one axis over. At
+         full bleed the frame starts at the top of the viewport and the site
+         header — 61px, \`position: sticky\`, a TRANSLUCENT white fill — sits on
+         it, so the stage's own chrome line ghosted through the bar rather than
+         either showing or being covered. 5.5rem clears it at every width; it
+         costs height, and the only thing that overlap now buys the card is
+         more of the queue column's tail rows, which is the column the card
+         owns by construction. */
+      .mkt-spine.is-cinematic .mkt-stage { padding-right: 15.5rem; padding-top: 5.5rem; }
       /* Part 3: "depth is emission, not stacking" — the card reads as raised
          because coloured light spills out from under it, NOT because the
          product behind it was dimmed. Dimming is what the storyboard showed
-         and it is a contrast defect on a light ground. */
+         and it is a contrast defect on a light ground.
+
+         ANCHORED TO THE BOTTOM, not to the middle (DREAMCRM-82). Centred, the
+         card's top edge landed across the middle of the scene panel and CUT A
+         SENTENCE IN HALF — "…and landed in your PMS u" with a white card edge
+         through it, which reads as broken rendering rather than as depth. The
+         stage's panels size to their content and sit in the upper band, so the
+         bottom of the frame is the card's own ground.
+
+         THE INSET IS BOUNDED AT 5.5rem = 88px FOR A REASON, and the reason is
+         \`pinnedCardFits\`: that function guarantees the tallest card plus
+         \`CARD_TRAVEL\` (44px) at each end fits the window, i.e. height <=
+         viewport - 88. A bottom inset of at most 88 therefore cannot clip the
+         ARRIVED card — the state a reader actually reads — at any window size
+         the pin is legal at. What the extra travel can still clip is the top
+         ~44px of a card within a hair of that limit, during the EXIT, while it
+         is fading out; that is the bound, stated rather than hidden. Raise
+         this clamp's ceiling above 5.5rem and the arrived state stops being
+         provably safe.
+
+         AND IT IS NARROWER: 26rem against 33rem, hard left. The card and the
+         picture now divide the frame by COLUMN rather than by luck — the card
+         owns the app's left lane (the queue panel, whose rows are one line
+         each and expendable at the bottom) and stops short of the scene's own
+         panel, at every width the pin is legal at. The old 33rem/6vw card
+         reached ~160px into the scene column, which is how "…and landed in
+         your PMS u" happened; with the widths tied to the stage's own left
+         column that is not a matter of how tall the window is. 26rem is also
+         the storyboard's own proportion (~28rem at 1440). */
       .mkt-spine.is-cinematic .mkt-spine-card-glass {
+        position: absolute; z-index: 3;
+        bottom: clamp(2.75rem, 8vh, 5.5rem); left: clamp(1.25rem, 3vw, 2.5rem);
+        width: min(26rem, 32vw);
         padding: clamp(1.85rem, 2.6vw, 2.5rem);
+        opacity: var(--mkt-co, 0);
+        transform: translate3d(0, calc(var(--mkt-cy, 44) * 1px), 0);
+        will-change: opacity, transform;
         box-shadow: 0 0 100px -22px rgb(93 71 222 / 0.5), 0 30px 70px -32px rgb(26 36 64 / 0.35);
       }
+      /* Vertically centred on the card it tracks, in the gutter above. The
+         \`translate3d\` here is STATIC — it is layout, not one of the values the
+         scroll position writes. */
       .mkt-spine.is-cinematic .mkt-spine-rail {
         display: block; position: absolute; z-index: 4;
-        right: clamp(1.5rem, 4vw, 4rem); bottom: clamp(1.75rem, 4vh, 3.25rem);
+        right: clamp(1rem, 2vw, 2rem); top: 50%;
+        transform: translate3d(0, -50%, 0);
         opacity: var(--mkt-ro, 0);
         will-change: opacity;
       }
       }
       .mkt-spine-rail-list {
-        display: grid; gap: 0.6rem; padding: 0.95rem 1.15rem;
+        display: grid; gap: 0.6rem; padding: 0.8rem 1rem;
         border-radius: 1.125rem; border-width: 1px; border-style: solid;
         background: rgb(255 255 255 / 0.94); backdrop-filter: blur(8px);
         box-shadow: 0 2px 6px rgb(76 125 240 / 0.06), 0 18px 44px rgb(76 125 240 / 0.16);
@@ -272,7 +346,7 @@ const SPINE_CSS = `
          does not reach it: #4c5a78 (gray-600) on white is 6.91 and #2f52b3
          (teal-700) is 7.05 — BRAND.md Part 7. The pill's own ground is white at
          0.94, not the product under it, so those are the pairs that render. */
-      .mkt-spine-rail-item { display: flex; align-items: center; justify-content: space-between; gap: 1.75rem; color: #4c5a78; }
+      .mkt-spine-rail-item { display: flex; align-items: center; justify-content: space-between; gap: 1rem; color: #4c5a78; }
       /* THE DOT IS THE RAIL'S SECOND CHANNEL, and the channel is SIZE, not hue.
          Vesper's DREAMCRM-70 review graded the active row against the inactive
          ones at 1.02 — the two inks differ in hue at the same lightness, so in
