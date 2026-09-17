@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef } from 'react'
 import { MONO_LABEL, DAY_WIRE } from '@/components/marketing/ui'
+import { CinemaStage } from '@/components/marketing/cinema-scenes'
 
 /**
  * THE CINEMATIC SPINE — `BRAND.md` Part 6, built on Part 8 move 2
@@ -79,11 +80,25 @@ import { MONO_LABEL, DAY_WIRE } from '@/components/marketing/ui'
  *    ordered sections regardless of what the sighted sequence is doing.
  *
  * 4. TRANSFORM AND OPACITY ONLY, and nothing on the compositor that a guard
- *    cannot see. `CinemaStage` below is a product illustration at REAL product
- *    scale, and every ink/surface pair in it is legal on its own ground —
- *    deliberately, because it is NOT in `DECORATIVE_MOCKS` (`e2e/axe.ts`) and
- *    must pass the homepage's ceiling of zero on its own merits. See its own
- *    note for why it is not dimmed.
+ *    cannot see. `CinemaStage` (`components/marketing/cinema-scenes.tsx`) is a
+ *    product illustration at REAL product scale, and every ink/surface pair in
+ *    it is legal on its own ground — deliberately, because it is NOT in
+ *    `DECORATIVE_MOCKS` (`e2e/axe.ts`) and must pass the homepage's ceiling of
+ *    zero on its own merits. See its own note for why it is not dimmed.
+ *
+ * 5. THE PICTURE PLAYS THE JOURNEY THE CARDS NARRATE (DREAMCRM-82). The stage
+ *    is a FOUR-STATE illustration selected by `sceneAt(p)` — the same single
+ *    normalised scroll position that drives every transform above, so there is
+ *    still no second listener, no timer and no state to unwind. One patient,
+ *    Rosa Silva, carried through four scenes with her queue row as the anchor.
+ *
+ *    THE STACKED LAYOUT GETS ALL FOUR AS STATIC PICTURES, in reading order,
+ *    because each scene lives inside its own chapter's `<li>` rather than in a
+ *    separate stage element. That is why this is a structural change and not a
+ *    class toggle: reduced-motion, narrow, no-JS and PRINT readers get the four
+ *    pictures the sighted sequence gets, each beneath the chapter it belongs
+ *    to, instead of one generic screenshot repeated. Under `.is-cinematic` the
+ *    four `<li>`s become four full-viewport layers stacked in chapter order.
  */
 
 /** How much of the scroll the opening move (frame grows, headline fades) gets.
@@ -210,13 +225,35 @@ export function pinnedCardFits(tallestCard: number, viewportHeight: number): boo
   return tallestCard + CARD_TRAVEL * 2 <= viewportHeight
 }
 
+/**
+ * WHICH SCENE THE STAGE PLAYS at normalised scroll position `p`.
+ *
+ * The same expression the chapter rail uses for its active index, extracted so
+ * the picture and the indicator cannot drift apart: a rail reading "03 · THE
+ * BALANCE" over the review scene is the one way this section can lie. Pure, so
+ * the scene is a function of the one scroll position rather than a fifth piece
+ * of state (Part 6 forbids "a chain of listeners" and "a queue").
+ */
+export function sceneAt(p: number): number {
+  const slot = (1 - OPEN) / CHAPTERS.length
+  return Math.min(CHAPTERS.length - 1, Math.max(0, Math.floor((p - OPEN) / slot)))
+}
+
 export default function CinematicSpine() {
   const rootRef = useRef<HTMLElement | null>(null)
   const trackRef = useRef<HTMLDivElement | null>(null)
   const introRef = useRef<HTMLDivElement | null>(null)
-  const stageRef = useRef<HTMLDivElement | null>(null)
+  /** The `<ol>`. It carries the opening move's scale and shift as INHERITED
+   *  custom properties, so all four scene layers grow together off one write
+   *  per frame rather than four. */
+  const stagesRef = useRef<HTMLOListElement | null>(null)
   const railRef = useRef<HTMLDivElement | null>(null)
-  const cardRefs = useRef<Array<HTMLLIElement | null>>([])
+  /** The four scene layers, and the four glass cards. `cardRefs` points at the
+   *  GLASS rather than at the `<li>`, because under `.is-cinematic` the `<li>`
+   *  is a full-viewport layer and the glass is the thing `pinnedCardFits` is
+   *  about — the element that gets clipped when it outgrows the window. */
+  const sceneRefs = useRef<Array<HTMLDivElement | null>>([])
+  const cardRefs = useRef<Array<HTMLDivElement | null>>([])
   /** The last rail index written, so a `data-` attribute write (a style
    *  recalculation) happens on the ~4 frames it changes rather than all of
    *  them. Pure book-keeping — the value it guards is still derived from `p`. */
@@ -245,10 +282,10 @@ export default function CinematicSpine() {
 
     // ── The opening move: the frame grows, the headline fades behind it.
     const open = easeOut(clamp01(p / OPEN))
-    const stage = stageRef.current
-    if (stage) {
-      stage.style.setProperty('--mkt-ss', String(REST_SCALE + (1 - REST_SCALE) * open))
-      stage.style.setProperty('--mkt-sy', String(REST_SHIFT_VH * (1 - open)))
+    const stages = stagesRef.current
+    if (stages) {
+      stages.style.setProperty('--mkt-ss', String(REST_SCALE + (1 - REST_SCALE) * open))
+      stages.style.setProperty('--mkt-sy', String(REST_SHIFT_VH * (1 - open)))
     }
     const intro = introRef.current
     if (intro) {
@@ -259,10 +296,29 @@ export default function CinematicSpine() {
     // ── The chapters: one screen each, over the pinned product.
     const slot = (1 - OPEN) / CHAPTERS.length
     for (let i = 0; i < CHAPTERS.length; i++) {
-      const card = cardRefs.current[i]
-      if (!card) continue
       // Local progress through THIS chapter's slot: <0 before it, >1 after.
       const t = (p - OPEN - i * slot) / slot
+
+      // ── THE SCENE BEHIND THIS CHAPTER. It rises to 1 on the chapter's own
+      //    arrival and STAYS there: every scene paints its own opaque canvas,
+      //    so the next one fades in ON TOP rather than the two cross-fading
+      //    into the ground beneath them — which is what a symmetric fade would
+      //    do, washing both pictures out for a quarter of every chapter.
+      //    Monotonic and still a pure function of `p`, so reversing the wheel
+      //    walks it back down the same curve with nothing to unwind.
+      //
+      //    Scene 0 is the base and never fades: it is the picture the opening
+      //    move grows to full bleed, before any chapter has arrived.
+      const scene = sceneRefs.current[i]
+      if (scene) {
+        scene.style.setProperty(
+          '--mkt-so',
+          String(i === 0 ? 1 : t <= 0 ? 0 : t < 0.26 ? easeOut(t / 0.26) : 1),
+        )
+      }
+
+      const card = cardRefs.current[i]
+      if (!card) continue
       let o: number
       let y: number
       if (t <= 0) {
@@ -298,7 +354,7 @@ export default function CinematicSpine() {
     const rail = railRef.current
     if (rail) {
       rail.style.setProperty('--mkt-ro', String(easeOut(clamp01((p - OPEN * 0.6) / (OPEN * 0.4)))))
-      const at = Math.min(CHAPTERS.length - 1, Math.max(0, Math.floor((p - OPEN) / slot)))
+      const at = sceneAt(p)
       if (at !== railAt.current) {
         railAt.current = at
         rail.dataset.active = String(at)
@@ -326,9 +382,27 @@ export default function CinematicSpine() {
      * product without covering it, and a short window (a half-height browser
      * on a laptop) is the case where the effect reads as broken rather than
      * cinematic. Below it, the stacked layout is simply better.
+     *
+     * IT WENT 620 → 760 ON DREAMCRM-82, and that sentence above is why rather
+     * than a second opinion. The floor was set when the stage was one frozen
+     * screenshot whose queue panel stretched to full height, so the card
+     * covered blank white and nothing was lost at 620. The four-scene stage
+     * sizes every panel to its content and puts the chapter's own picture in
+     * the upper band, and the card now sits under it — so the number this
+     * judgement is about has an arithmetic answer: header and padding (~70px)
+     * plus the tallest scene's panels (~355px) plus the card (~285px at the
+     * default font size) plus its bottom inset. Under ~760 the card's top edge
+     * lands back across the scene panel and cuts a sentence, which is the
+     * exact failure "reads as broken rather than cinematic" names.
+     *
+     * The cost is stated rather than glossed: a 1366x768 laptop is now on the
+     * stacked layout. That layout is four chapters each with its own picture in
+     * reading order — since DREAMCRM-82 a genuinely good page rather than a
+     * consolation, which is what makes raising the floor the cheap answer here
+     * instead of trimming panels at short heights.
      */
     const legal = () =>
-      !reduced.matches && fine.matches && window.innerWidth >= 1024 && window.innerHeight >= 620
+      !reduced.matches && fine.matches && window.innerWidth >= 1024 && window.innerHeight >= 760
 
     /**
      * The second half of that question, and the half only a measurement can
@@ -368,9 +442,15 @@ export default function CinematicSpine() {
         // Back to the stacked layout: drop every custom property this
         // component wrote, so the ordinary sections are not left wearing a
         // transform from a mode that is no longer running.
-        for (const el of [introRef.current, stageRef.current, railRef.current, ...cardRefs.current]) {
+        for (const el of [
+          introRef.current,
+          stagesRef.current,
+          railRef.current,
+          ...sceneRefs.current,
+          ...cardRefs.current,
+        ]) {
           if (!el) continue
-          for (const prop of ['--mkt-ss', '--mkt-sy', '--mkt-io', '--mkt-iy', '--mkt-co', '--mkt-cy', '--mkt-ro']) {
+          for (const prop of ['--mkt-ss', '--mkt-sy', '--mkt-io', '--mkt-iy', '--mkt-so', '--mkt-co', '--mkt-cy', '--mkt-ro']) {
             el.style.removeProperty(prop)
           }
         }
@@ -424,25 +504,31 @@ export default function CinematicSpine() {
             </p>
           </div>
 
-          {/* ── The product. `aria-hidden` because it is an illustration and
-                 the chapters carry every word of the meaning — and NOT in
-                 `DECORATIVE_MOCKS`, so axe grades every pair inside it. ── */}
-          <div ref={stageRef} className="mkt-spine-stage" aria-hidden="true">
-            <CinemaStage />
-          </div>
+          {/* ── Step 3: the chapters, each one a card AND the picture it
+                 narrates. An ordered list because they are one.
 
-          {/* ── Step 3: the chapters. An ordered list because they are one,
-                 and four stacked sections when the pin is off. ── */}
-          <ol className="mkt-spine-cards">
+                 Stacked (the base): four sections top to bottom, each a card
+                 followed by its own scene — so the reduced-motion, narrow,
+                 no-JS and print readers get FOUR pictures in reading order
+                 rather than one screenshot repeated, which is a content
+                 improvement for them and not a fallback.
+
+                 Pinned: each `<li>` becomes a full-viewport layer holding its
+                 scene and its card, stacked in chapter order. That is what
+                 lets one DOM serve both without a second copy of the stage.
+
+                 Each scene is `aria-hidden` because it is an illustration and
+                 the card above it carries every word of the meaning — and NOT
+                 in `DECORATIVE_MOCKS`, so axe grades every pair inside it. ── */}
+          <ol ref={stagesRef} className="mkt-spine-cards">
             {CHAPTERS.map((c, i) => (
-              <li
-                key={c.n}
-                ref={(el) => {
-                  cardRefs.current[i] = el
-                }}
-                className="mkt-spine-card"
-              >
-                <div className="mkt-spine-card-glass">
+              <li key={c.n} className="mkt-spine-card">
+                <div
+                  ref={(el) => {
+                    cardRefs.current[i] = el
+                  }}
+                  className="mkt-spine-card-glass"
+                >
                   <p className={`text-violet-700 ${MONO_LABEL}`}>
                     {c.n} · {c.eyebrow}
                   </p>
@@ -450,6 +536,15 @@ export default function CinematicSpine() {
                     {c.title}
                   </h3>
                   <p className="mt-4 text-[1rem] leading-relaxed text-gray-600">{c.body}</p>
+                </div>
+                <div
+                  ref={(el) => {
+                    sceneRefs.current[i] = el
+                  }}
+                  className="mkt-spine-stage"
+                  aria-hidden="true"
+                >
+                  <CinemaStage scene={i} />
                 </div>
               </li>
             ))}
@@ -493,178 +588,5 @@ export default function CinematicSpine() {
         </a>
       </div>
     </section>
-  )
-}
-
-/* ── The stage ───────────────────────────────────────────────────────────── */
-
-const STAGE_CANVAS = '#F3F7FE'
-
-/** The day, as the product actually shows it. Every number here is part of the
- *  mock rather than a claim in our own voice (`BRAND.md` Part 5), and
- *  `Riverbend`-style names are placeholders. */
-const QUEUE: Array<{
-  t: string
-  name: string
-  visit: string
-  status: string
-  tone: 'warn' | 'ok' | 'special'
-  initials: string
-}> = [
-  { t: '09:30', name: 'Liam Brooks', visit: 'Checkup · 30 min', status: 'Needs a text', tone: 'warn', initials: 'LB' },
-  { t: '10:00', name: 'Ana Reyes', visit: 'Hygiene · 45 min', status: 'Confirmed', tone: 'ok', initials: 'AR' },
-  { t: '10:45', name: 'Jordan Tate', visit: 'New patient · 60 min', status: 'First visit', tone: 'special', initials: 'JT' },
-  { t: '11:30', name: 'Mara Kline', visit: 'Crown seat · 60 min', status: 'Confirmed', tone: 'ok', initials: 'MK' },
-  { t: '13:15', name: 'Priya Raman', visit: 'Whitening · 30 min', status: 'Needs a text', tone: 'warn', initials: 'PR' },
-  { t: '14:15', name: 'Tom Okafor', visit: 'Filling · 45 min', status: 'Confirmed', tone: 'ok', initials: 'TO' },
-]
-
-/** Tone TINT plus that tone's DEEP ink — the shape `BRAND.md` Part 7 calls
- *  "Rule 5 and the tone tiles", which sits outside `TONE_FILL` by
- *  construction. Every pair measured against its own tint: amber 6.84,
- *  emerald 7.23, fuchsia 7.79. The one-step-shallower ink (`-700`) grades
- *  4.85 / 5.09 / 5.84 and would also pass — `-800` is the choice that keeps
- *  headroom on a surface no automated gate re-grades if the tint moves. */
-const STAGE_TONE = {
-  warn: 'bg-amber-50 text-amber-800',
-  ok: 'bg-emerald-50 text-emerald-800',
-  special: 'bg-fuchsia-50 text-fuchsia-800',
-} as const
-
-const KPIS: Array<{ label: string; value: string; delta: string }> = [
-  { label: 'Chairs filled', value: '94%', delta: '+11 pts this month' },
-  { label: 'Recalls recovered', value: '38', delta: '+$14,200 booked' },
-  { label: 'Reviews this week', value: '4.9', delta: '+27 new' },
-]
-
-/** Eight weeks of chairs filled. Decorative bars, no text — heights are the
- *  data, so nothing in here needs grading. */
-const BARS = [38, 44, 41, 58, 63, 57, 82, 94]
-
-/**
- * THE CINEMA STAGE — the picture the chapters scroll over.
- *
- * WHY IT IS NOT DIMMED, which is the one place this build departs from the
- * approved storyboard. The storyboard shows the product washed pale behind the
- * glass, and that is a contrast crime on a light ground: veil a white surface
- * at 55% and `gray-950` ink lands near 3.1:1 at real product size. `BRAND.md`
- * Part 3 already has the right answer and it is better design anyway — "depth
- * is emission, not stacking": the card reads as raised because coloured light
- * spills out from under it, not because the layer below was damaged. So the
- * product stays crisp and legible and the glass does the work.
- *
- * WHY IT IS NOT IN `DECORATIVE_MOCKS` (`e2e/axe.ts`), which is the decision
- * that shaped every colour below. The two existing entries pardon the hero's
- * miniature mocks under WCAG 1.4.3 — text inside a picture, measured at 5.8 to
- * 8.2pt. This stage is the same product at FULL BLEED, so its type is real
- * reading size, and `exclusionsHidingReadableText` exists precisely to fail a
- * run that pardons that. Adding a third selector here would have been widening
- * the one mechanism in the harness that makes the gate looser, in order to
- * excuse text a person can read. So the stage is graded instead: every pair in
- * it is legal on its own ground, and `marketing: home` keeps its ceiling of
- * zero on the merits.
- *
- * It stays `aria-hidden` — it is an illustration, and the chapter cards carry
- * every word of the meaning. `aria-hidden` is not a contrast exemption and
- * never was: the hero's 41 pardoned findings are all inside `aria-hidden`
- * subtrees, which is the whole reason `DECORATIVE_MOCKS` had to name them.
- */
-export function CinemaStage() {
-  return (
-    <div
-      className="flex h-full w-full flex-col gap-3 overflow-hidden p-5 text-left sm:gap-4 sm:p-7 lg:p-9"
-      style={{ backgroundColor: STAGE_CANVAS }}
-    >
-      <div className="flex shrink-0 flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
-        <p className={`text-gray-600 ${MONO_LABEL}`}>DreamCRM · Today · Tuesday 15 September</p>
-        <p className={`text-teal-700 ${MONO_LABEL}`}>Dream Dental · Premium</p>
-      </div>
-
-      <div className="flex min-h-0 flex-1 flex-col gap-3 lg:flex-row lg:gap-4">
-        {/* ── The queue ── */}
-        <div
-          className="flex min-h-0 flex-1 flex-col rounded-2xl border bg-white p-4 shadow-[0_2px_6px_rgba(76,125,240,.06),0_14px_36px_rgba(76,125,240,.10)] lg:p-5"
-          style={{ borderColor: DAY_WIRE }}
-        >
-          <p className="shrink-0 text-[1.05rem] font-bold tracking-[-0.01em] text-gray-950 lg:text-[1.2rem]">
-            4 patients still need a text
-          </p>
-          <ul className="mt-3 min-h-0 flex-1 divide-y" style={{ borderColor: DAY_WIRE }}>
-            {QUEUE.map((r, i) => (
-              <li
-                key={r.name}
-                /* The tail of the day, and the time column, are hidden at 390:
-                   with both in, the patient names truncated to "Liam Br..." and
-                   the stacked frame ran past a screen. Part 10 — scale and
-                   stacking change down the widths, identity does not. */
-                className={`items-center gap-3 py-2.5 lg:gap-4 lg:py-3 ${i < 4 ? 'flex' : 'hidden sm:flex'}`}
-              >
-                <span className={`hidden w-12 shrink-0 text-gray-600 sm:block lg:w-14 ${MONO_LABEL}`}>
-                  {r.t}
-                </span>
-                {/* Tint + deep ink again, rather than white on the brand blue:
-                    white on `#4C7DF0` is 3.82 and would fail here at real
-                    size. `#1F3D8F` on `#DCE7FD` is 7.96. */}
-                <span
-                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[0.72rem] font-bold lg:h-9 lg:w-9"
-                  style={{ backgroundColor: '#DCE7FD', color: '#1F3D8F' }}
-                >
-                  {r.initials}
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-[0.95rem] font-semibold text-gray-950">
-                    {r.name}
-                  </span>
-                  <span className="block truncate text-[0.82rem] text-gray-600">{r.visit}</span>
-                </span>
-                <span
-                  className={`shrink-0 rounded-full px-2.5 py-1 text-[0.72rem] font-bold ${STAGE_TONE[r.tone]}`}
-                >
-                  {r.status}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </div>
-
-        {/* ── The trend column ── */}
-        <div className="hidden w-[15rem] shrink-0 flex-col gap-3 lg:flex xl:w-[17rem]">
-          {KPIS.map((k) => (
-            <div
-              key={k.label}
-              className="rounded-2xl border bg-white p-4 shadow-[0_2px_6px_rgba(76,125,240,.06)]"
-              style={{ borderColor: DAY_WIRE }}
-            >
-              <p className={`text-gray-600 ${MONO_LABEL}`}>{k.label}</p>
-              <p className="mt-1.5 text-[1.9rem] font-extrabold leading-none tracking-[-0.03em] text-gray-950">
-                {k.value}
-              </p>
-              <p className="mt-1.5 text-[0.8rem] font-semibold text-emerald-800">{k.delta}</p>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* ── Eight weeks of chairs filled ── */}
-      {/* `mkt-stage-chart` is load-bearing, not cosmetic: it is how the pinned
-          sequence reserves the chapter rail's lane (see `SPINE_CSS` in
-          `ui.tsx`). The bars give up their right end because they are the one
-          part of this picture carrying no text. */}
-      <div
-        className="mkt-stage-chart hidden shrink-0 rounded-2xl border bg-white p-4 sm:block lg:p-5"
-        style={{ borderColor: DAY_WIRE }}
-      >
-        <p className={`text-gray-600 ${MONO_LABEL}`}>Chairs filled · last 8 weeks</p>
-        <div className="mt-3 flex h-16 items-end gap-2 lg:h-24 lg:gap-3">
-          {BARS.map((h, i) => (
-            <span
-              key={i}
-              className="flex-1 rounded-t-lg bg-gradient-to-t from-[#A8C0FF] to-[#6E5BF2]"
-              style={{ height: `${h}%` }}
-            />
-          ))}
-        </div>
-      </div>
-    </div>
   )
 }

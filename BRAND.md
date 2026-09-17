@@ -905,6 +905,66 @@ One more thing the sequence owes and the list above does not name: the chapter
 rail is a position INDICATOR, never navigation. A clickable rail is the one
 control a pinned section can carry that fights the reader's own scroll position.
 
+**AMENDED ON DREAMCRM-82 (2026-09-17): THE PICTURE PLAYS THE JOURNEY THE CARDS
+NARRATE.** The owner, on the built section — *"the cards discuss a transition of
+a patient through the system, but the card in the background should literally
+show that journey"* — and he was right. Step 3 above said "the schedule behind
+them keeps working", and what shipped was ONE illustration, identical at every
+scroll position, while four cards narrated a patient moving through the product.
+Four screens of scroll to say one thing. Step 3 now reads: the chapter cards
+scroll over the product **and the product is on the chapter the card is on.**
+
+The five rules that make that shippable, and the first is the one every future
+change will be tempted to break:
+
+- **THE SCENE IS A PURE FUNCTION OF THE SAME SCROLL POSITION.** `sceneAt(p)` —
+  the same expression the chapter rail reads for its active index, extracted so
+  the two cannot disagree. A rail reading `03 · THE BALANCE` over the review
+  scene is the one way this section can lie to a reader, and the way that
+  happens is two expressions computing one index. No new listener, no timer, no
+  CSS animation, nothing to unwind: "one scroll position drives everything"
+  holds unchanged.
+- **ONE PATIENT, AND HER ROW IS THE THREAD.** Rosa Silva sits at the top of the
+  queue panel in all four scenes and only her status pill changes — `6 mo
+  overdue` then `Confirmed · Thu` then `Balance cleared` then `Review
+  received`. Four unrelated pictures would satisfy "the background changes" and
+  fail the ask; the eye needs ONE anchor to follow or a fast scroll reads as
+  four screenshots. The numbers move only where the story earns it (recalls
+  recovered 31 to 38 when she books, collected this week +$184 when she pays,
+  which is exactly her balance), and exactly one tile is lit per scene.
+- **EVERY SCENE IS IN THE STACKED MARKUP, BENEATH ITS OWN CHAPTER.** Each scene
+  lives inside its chapter's own `<li>`, so reduced-motion, narrow, no-JS and
+  PRINT readers get four pictures in reading order rather than one screenshot
+  repeated. That is a CONTENT improvement for them, not a fallback — and it is
+  what makes "no content is reachable only by animating" true of the pictures
+  as well as of the copy.
+- **THE CARD AND THE PICTURE DIVIDE THE FRAME BY COLUMN.** The card is 26rem,
+  hard left, anchored to the BOTTOM of the pin; the scene's own panel sits to
+  the right of it and the stage's panels size to their content. Centred and
+  33rem wide, the card's top edge landed across the middle of the scene panel
+  and cut a sentence in half — *"…and landed in your PMS u"* with a white card
+  edge through it, which reads as broken rendering rather than as depth. The
+  bottom inset is bounded by twice `CARD_TRAVEL` so `pinnedCardFits` still
+  guarantees the ARRIVED card is never clipped.
+- **THE CHAPTER RAIL'S LANE IS A GUTTER DOWN THE RIGHT**, 15.5rem, reserved
+  from the stage as a whole. It used to be reserved from the bar chart, which
+  spanned the bottom of the frame — so at full bleed the rail landed on the
+  chart rather than beside the card. A lane reserved from a horizontal element
+  can only ever be a lane at the bottom, and the bottom is where the picture's
+  content lands the moment a scene is taller than the shortest legal viewport.
+  The chart is gone: it was the one panel in the picture carrying no part of
+  the patient's story.
+
+**And the pin's height floor moved 620 to 760**, which is a judgement call with
+an arithmetic answer now rather than a guess. The floor was set when the stage
+was one frozen screenshot whose queue panel stretched to full height, so the
+card covered blank white and nothing was lost at 620. With every panel sized to
+its content the frame owes header and padding (~70px) plus the tallest scene
+(~355px) plus the card (~285px at the default font size) plus its inset. Under
+~760 the card lands back across the scene panel. The cost is named rather than
+glossed: a 1366x768 laptop is on the stacked layout now — which, since this
+change, is four chapters each carrying its own picture in reading order.
+
 ---
 
 ## Part 7 — The contrast law
@@ -1517,9 +1577,9 @@ So the stage is graded instead, and the grading shaped it:
 | `gray-950` on `#F3F7FE` | patient names, the KPI numbers | 16.40 |
 | `gray-600` on `#F3F7FE` | visit lines, times, the mono labels | 6.43 |
 | `teal-700` on `#F3F7FE` | the practice label | 6.56 |
-| `amber-800` on `amber-50` | *Needs a text* | 6.84 |
-| `emerald-800` on `emerald-50` | *Confirmed* | 7.23 |
-| `fuchsia-800` on `fuchsia-50` | *First visit* | 7.79 |
+| `amber-800` on `amber-50` | *Needs a text* — **superseded, DREAMCRM-82** | 6.84 |
+| `emerald-800` on `emerald-50` | *Confirmed* — **superseded, DREAMCRM-82** | 7.23 |
+| `fuchsia-800` on `fuchsia-50` | *First visit* — **retired, DREAMCRM-82** | 7.79 |
 | `#1F3D8F` on `#DCE7FD` | the avatar initials | 7.96 |
 
 Two of those are the decisions rather than the measurements:
@@ -1579,6 +1639,103 @@ only by animating", it is inherent to every pinned sequence on the web, and it
 is not worth contorting the build over — but it belongs in the same list as the
 scroll-0 scan blind spot above, because the honest version of "we verified this"
 names what the verification could not see.
+
+---
+
+### The four scenes, measured (DREAMCRM-82)
+
+The stage became a four-state illustration — one patient carried through the
+four chapters — so the pairs above are no longer the whole surface. Everything
+below is measured through `tests/a11y/palette.ts`, the one place this repo
+resolves its own colours. The pairs the table above now marks *superseded* are
+these four: the status pills are one registry of four tones rather than three
+Tailwind tint/ink pairs, because Rosa's pill is the thread the whole picture
+hangs on and the other five patients spend the first two of those tones.
+
+| Pair | Where | Ratio |
+|---|---|---|
+| `#7C4A05` on `#FDF0D8` | the amber pill — *6 mo overdue* / *Needs a text* | 6.56 |
+| `#04543C` on `#D7F0E3` | the green pill — *Confirmed · Thu* / *Paid* / *Cleared* | 7.47 |
+| `#4C2CB0` on `#EDE6FE` | the violet pill — *Balance cleared* / *live* | 7.56 |
+| `#86206F` on `#FBE3F8` | the pink pill — *Review received* | 7.12 |
+| `#1F3D8F` on `#DCE7FD` | the avatar well (unchanged) | 7.96 |
+| white on `#1F3D8F` | **Rosa's** avatar — the same pair inverted | 9.89 |
+| `#04543C` on `#FFFFFF` | the green delta under every number | 8.98 |
+| `#04543C` on `#EAF6F0` | her cleared line in the payments ledger | 8.10 |
+| `gray-950` on `#EEF2FE` | her highlighted queue row | 15.74 |
+| `gray-600` on `#EEF2FE` | the visit line in that row | 6.17 |
+| `gray-950` on `#EDF2FC` | the practice's message bubbles | 15.69 |
+| `gray-600` on `#EDF2FC` | their timestamps | 6.15 |
+| white on `violet-700` | **her reply** bubble | 6.14 |
+| white on `teal-700` | the portal's *Receipt emailed* button | 7.05 |
+| `#B45309` on `#FFFFFF` | the review stars — a graphic, 1.4.11's 3:1 | 5.02 |
+
+**Her avatar is the SAME pair inverted, and that is the anchor doing double
+duty.** One tint and one deep ink, swapped: the well the other five patients
+wear becomes her fill, and 7.96 becomes 9.89. No new colour enters the palette
+to mark the one row the whole picture is about.
+
+**Two pairs the storyboard asked for were changed to be GRADED rather than
+merely correct, which is rule 3's lesson pointed at our own spec.** Her reply
+bubble was specified as white on a `#3A67D9` to `#5D47DE` gradient, and the
+measurement (5.09 at the light end) is not the problem — the problem is that
+**nothing in this repo can take it.** axe reports a gradient as `incomplete`,
+not as a pass; the source-level gradient rule grades only the teal brand ramp,
+so an arbitrary-hex gradient under white ink reaches neither. It is a solid
+`violet-700` now, which axe measures on every run, and the *Receipt emailed*
+button is a solid `teal-700` for the same reason. **A tool that answers "can't
+tell" has not answered "fine."**
+
+**THE COLOURED LIGHT IS NEW, AND IT IS THE ONE THING HERE CI CANNOT SEE.** Part
+3 promised "depth is emission, not stacking" and DREAMCRM-70 spent the veil
+without adding the emission, so the stage shipped flat white. It now carries
+three bloom lobes, every one centred OUTSIDE the frame, and every panel above
+them is opaque — so the only text that ever sits on that layer is the header
+strip. axe reads `background-color` and cannot see a `background-image` at all,
+so a bloom walking the ground down under dark ink is a defect no run would ever
+report. Measured as RENDERED — darkest pixel inside each glyph run's own box
+with the panels hidden, Chromium, the production build:
+
+| State | Darkest ground under the strip | `gray-600` | `teal-700` |
+|---|---|---|---|
+| pinned 1024x800 / 1280x800 / 1440x900 / 1920x1080, worst of five scroll positions each | `#F3F7FE` | 6.43 | 6.56 |
+| stacked 1440 and 834, in frame | `#ECEFFD` | **6.03** | **6.15** |
+| stacked 390, in frame | `#ECEFFD` / `#F2F6FD` | 6.03 | 6.15 |
+
+Worst pair on the surface: **6.03**, and the direction is the useful part — at
+FULL BLEED no lobe reaches the strip at all (pure canvas, 6.43), and the tails
+only get there in the CONTAINED frame, where the same percentages describe a
+box a third the height. That is the subpage-bloom arithmetic from the
+DREAMCRM-72 table arriving a second time: a lobe with the same alpha squeezed
+into a shorter box puts its dense middle where the tall box only ever put a
+tail. Re-measure when you move a lobe, and do not reason about it from the
+alpha values — the lobes compound.
+
+**One measuring note worth keeping, because it produced two wrong numbers
+first.** The stage is scroll-TRANSFORMED, so `getBoundingClientRect()` read
+immediately after `scrollTo` returns the box of the PREVIOUS frame — the
+resting 0.56 scale — and a clip taken from it samples the wrong region
+entirely. The first two runs of this table reported 5.82 and then 5.08 that
+way, both of them measurements of the resting frame's edge rather than of the
+strip. Wait a frame, then confirm the box is the size you expect (738x18 at
+1024, 1634x18 at 1920) before you believe the pixel.
+
+**No `backgroundSize` in that recipe, deliberately.** A gradient tiled on a
+fixed pitch is a lattice, which is the owner's second veto and what
+`tests/marketing/no-drawn-grid.test.ts` fails a PR on. One wash, no pitch.
+
+**And the scene-03 phone shows a green *Paid · 11:38am* CHIP where the
+storyboard drew a tick.** Part 3 carries the owner's veto on bland check marks
+and `tests/marketing/tone-tiles.test.ts` holds it at zero by grading the shape
+of a `d` attribute. A tone chip is the answer the veto already has; drawing the
+tick would have been that veto's fifth costume.
+
+**The two sub-12px literals inside this surface are closed.** Part 4's floor
+(*"no sub-0.75rem literals"*) was live at `0.72rem` = 11.52px on the avatar
+initials and the status chips, recorded in `docs/RELEASE.md` Part 5 rather than
+absorbed because DREAMCRM-72's diff was the chrome. This change rebuilt both
+elements, so they close on that entry's own stated rule: nothing in the stage is
+under 0.75rem now.
 
 ---
 
