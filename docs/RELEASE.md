@@ -1686,7 +1686,7 @@ auth shell and the portal chrome, all outside the marketing lane — and scoping
 the override to the marketing header the way the footer did. That choice
 belongs to whoever owns those surfaces. UI correctness, Vesper. · OPEN
 
-### FIXED — awaiting merge (#PRNUM) — the cinema stage carries two sub-12px literals at reading size (found 2026-09-16)
+### FIXED — awaiting merge (#633) — the cinema stage carries two sub-12px literals at reading size (found 2026-09-16)
 
 **S3 · marketing site · `BRAND.md` Part 4.** Part 4 sets a 12px floor for this
 site — *"No `text-[11px]`, no sub-0.75rem literals"* — and
@@ -1719,7 +1719,7 @@ alone. Both are `0.75rem` now, and the whole surface (moved to
 **What this does NOT close:** the instrument. `tests/a11y/legibility-floor.test.ts`
 still skips `components/marketing` wholesale and still nothing grades the stage
 by component. That is the entry below, which is why these were two entries.
-· FIXED — awaiting merge (#PRNUM)
+· FIXED — awaiting merge (#633)
 
 ### Open — nothing grades `app/(marketing)` against Part 4's 12px floor (found 2026-09-16)
 
