@@ -88,6 +88,98 @@ export interface ChangelogEntry {
 
 export const CHANGELOG_ENTRIES: ChangelogEntry[] = [
   {
+    weekOf: '2026-09-14',
+    title: 'Our website steps into daylight, and a long week of honest fixes',
+    summary:
+      'Two piles this week. Our own website — the pages you and your colleagues see when you look DreamCRM up — moved into daylight: one lighter design across every page, and a homepage that now walks a single patient through the product instead of describing it. The other pile was plain fixes, and the plainest ones are the ones worth reading: a booking screen that promised patients an email it had not sent, reminders and messages that could go out twice, and a long sweep of text that was simply too faint to read.',
+    items: [
+      {
+        kind: 'improved',
+        glyph: 'globe',
+        title: 'Our website is lighter, and every page finally matches',
+        body:
+          'The homepage, pricing, the comparison pages, the product tour, the manifesto, the guide library, the free tools, the blog, the help docs and this changelog have all been rebuilt on one light design, in place of the mixture of dark and light they had grown into. Four of those pages had quietly never picked up the shared header and page opening at all, so they read like a different company; they all open the same way now. If you send a colleague or a prospective associate a link, it looks like one product.',
+      },
+      {
+        kind: 'new',
+        glyph: 'globe',
+        title: 'The homepage now follows one patient through the product',
+        body:
+          'The middle of the homepage used to be one screenshot with four paragraphs beside it. It is a short scrolling sequence now that follows a single patient — she comes off the recall list, gets a text, pays her balance, leaves a review — and the screen behind the words changes with her as you scroll, so the recalls figure ticks up when she books and the week’s collected total moves by exactly what she paid. On a phone, or if you have asked your device to reduce motion, it lays out as four ordinary sections in reading order with nothing lost.',
+      },
+      {
+        kind: 'improved',
+        glyph: 'layers',
+        title: 'The comparison pages fit on a phone',
+        body:
+          'On the pages comparing DreamCRM with the other systems a practice might be looking at, the feature table ran about two hundred pixels wider than a phone screen. The page slid sideways, the marks along the right-hand edge could only be reached by dragging, and anyone browsing by keyboard could not get into that table at all. It reflows to the screen now instead of scrolling, and the small notes under each mark are back above the size we hold ourselves to.',
+      },
+      {
+        kind: 'fixed',
+        glyph: 'calendar',
+        title: 'The booking screen no longer promises an email it never sent',
+        body:
+          'After someone booked on your public booking page, the confirmation screen said we had sent a confirmation to their email before the email had actually gone anywhere. A patient whose address was wrong, or whose message failed on the way out, was told in the past tense about an email that was never coming — and your front desk never heard about it. The screen waits for the send now and says what really happened, including a case it could not say before: we have your email, the confirmation did not get through, so please save these details.',
+      },
+      {
+        kind: 'fixed',
+        glyph: 'chat',
+        title: 'Reminders and scheduled messages can no longer go out twice',
+        body:
+          'Three separate places could send the same thing more than once, or jam and send nothing at all. Trial reminder emails could repeat when two background runs overlapped. A scheduled message that had just been sent could be pushed back into the queue and reach the patient a second time — and a message that had failed could be revived the same way, discarding the error your staff were about to read. And a prospect outreach sequence whose send failed sat at the front of the queue forever, holding a slot in that day’s batch and never moving. All three now claim their work before they act on it, so only one run can own a send.',
+      },
+      {
+        kind: 'fixed',
+        glyph: 'sync',
+        title: 'One practice’s bad minute no longer stops everyone else’s automations',
+        body:
+          'The nightly jobs that send review requests and refresh the service descriptions on clinic websites worked through every practice in one long loop, and a database hiccup on any single practice ended the run for every practice queued behind it — silently, and a different set each time, depending on what order they came back in. Each practice runs on its own now, and a failure is reported rather than swallowed. The service-text job also stopped overwriting you: it read every website’s services at the start of a long run and wrote that stale copy back at the end, quietly undoing anything you had changed in Website Studio in the meantime.',
+      },
+      {
+        kind: 'improved',
+        glyph: 'bolt',
+        title: 'A practice-management connection that is down stops looking healthy',
+        body:
+          'When the link to a practice’s scheduling system was unusable rather than merely failing — a missing key, a half-finished setup, no connection to the provider at all — the attempt gave up before it could write down that it had happened, so our own monitoring went on reporting that practice as healthy while nothing synced. A sync that quietly stops is the complaint we hear most about every system in this category, and this was the shape of it we could not see. Those attempts now register as the failures they are.',
+      },
+      {
+        kind: 'fixed',
+        glyph: 'cart',
+        title: 'Orders that never really started stop sitting in your list',
+        body:
+          'When a shop checkout failed to get off the ground, the order it had already created was supposed to be cleaned up and was not — so a pending order nobody had actually placed stayed in your Orders list, looking like a sale waiting to be fulfilled and counting itself alongside the real ones. Those are cleaned up properly now, so what you see in Orders is what a customer actually did.',
+      },
+      {
+        kind: 'improved',
+        glyph: 'shield',
+        title: 'Your intake form cannot be flooded any more',
+        body:
+          'The patient intake form on your clinic website was the last public form of ours with no limit on how often it could be sent, which meant someone acting in bad faith could bury your submissions list and your owners’ inboxes at no cost to themselves. It has a limit now, and the number was chosen against real life rather than copied from the other forms: a waiting room where a whole family fills in a ten-form packet on one iPad looks like a single visitor to us, and turning that family away would have been the worse failure.',
+      },
+      {
+        kind: 'fixed',
+        glyph: 'megaphone',
+        title: 'A switched-off account stops getting a cheerful Monday email',
+        body:
+          'Every other automatic message already checks whether a practice’s account has been switched off. The Monday morning summary did not — so a practice whose trial had ended received one upbeat weekly report of everything their stopped system had supposedly been doing for them, on top of a dashboard telling them it had all stopped. It checks now, and picks up again untouched on the first Monday after someone comes back.',
+      },
+      {
+        kind: 'fixed',
+        glyph: 'form',
+        title: 'A failed upload tells you why',
+        body:
+          'Uploading a file could fail in a way that came back completely blank — a photo that arrived incomplete, or a storage hiccup at our end — and the screen had nothing to show, so your staff saw a failure with no reason attached and no idea whether trying again would help. Every refusal on that path now comes back with something a person can read.',
+      },
+      {
+        kind: 'improved',
+        glyph: 'eye',
+        title: 'Text you can actually read, on every screen we walk',
+        body:
+          'A readability sweep that had been running for several weeks reached the end: every page our automated browser tests visit is now held to zero accessibility findings with nothing carried over, so the next faint label fails before it ever reaches you. Cleared on the way there: a grey that was the wrong way round in both light and dark mode in a hundred and seventy-seven places, a time slot in the patient portal marked taken that was almost invisible against its own background, headings and links set in your practice’s own brand colour that vanished whenever that colour was pale, and a dozen spots where type already chosen to be quiet had been faded a second time on top.',
+      },
+    ],
+  },
+  {
     weekOf: '2026-09-07',
     release: 'Foundations',
     title: 'A safety net under everything, and the fixes it caught',
