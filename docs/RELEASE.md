@@ -1102,7 +1102,20 @@ binding are all correct. The payment-plan charger was the exception.
   reasoned allowlist, matching the prose spellings (`a month`, `per month`,
   `/month`) as well as `/mo`. This introduces a new invariant, so it is
   Forge's intake before it is anyone's implementation. Raised by Sentinel in
-  review of DREAMCRM-38. · OPEN.
+  review of DREAMCRM-38. · **FIXED — awaiting merge (#665)** (DREAMCRM-102).
+  Intaken as `dreamcrm-conventions` §2c, then implemented: the field of view
+  is DERIVED from `git ls-files` over `app`, `components` and `lib` (1,342
+  files) rather than listed, and `PRICE_QUOTING_ROUTES` — the list of ten
+  routes #620 shipped, which had grown in every move since — is deleted. All
+  three prose spellings are graded, plus the dollar-signless
+  `const LIST_MONTHLY = 500` the original source scan walked past, which is
+  the shape that matters most: `lib/recall-roi.ts` DIVIDED by its copy, so a
+  reprice there would not have gone stale, it would have gone wrong. Market
+  BANDS are discriminated structurally (two numbers joined by a dash), which
+  is what let `/compare` come inside the field of view instead of staying a
+  file-shaped hole; the reasoned allowlist is four per-MATCH entries. It found
+  28 live literals in four files the old list had never named — the homepage
+  among them — and all resolve through `getQuotedPlan()` now.
 Unbundled 2026-09-10 — these five shipped as ONE entry, which made the whole
 line unresolvable while they shared a verdict. Since unbundling, three have
 closed on their own evidence (the demo cart, the MRR cadence math, and the
