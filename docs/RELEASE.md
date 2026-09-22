@@ -2270,6 +2270,42 @@ decides which ones are equivalent, not the source. The mutation that finds it
 is the one nobody ran: write the attribute the OTHER way.
 · FIXED (#647, DREAMCRM-87)
 
+**S2 · the public grade report's quiet ink failed AA on its own card, and
+nothing in the repo could see it.** Found on DREAMCRM-98 the moment `/g` got
+its first browser stop — the new stop went red on arrival, on eleven elements,
+before any of this was looked for.
+
+Measured, as rendered, at `token: practice grade report`:
+
+- `#66738a` on `#0d111b` → **3.93:1** at 12px / weight 500. Ten elements: the
+  `.dg-mono` micro-labels in all four axis panels
+  (`#website|#listing|#reviews|#search > .mt-6 > .mb-2.hidden.gap-6 >
+  .dg-mono:nth-child(1)`, the axis score `span` in each
+  `.items-baseline.justify-between > .text-base.dg-mono`, and the row labels at
+  `.space-y-2.mt-5 > .items-center.gap-3.flex > .w-28.sm\:w-36`).
+- `#66738a` on `#070b15` → **4.10:1**, the `footer`.
+
+`#0d111b` is a COMPOSITE, not a token: `.dg-card` is
+`rgba(255,255,255,0.025)` over the page's `CANVAS`. The suspected token was
+right here, but the background it fails against is not written anywhere — which
+is half of why this survived.
+
+**Why three gates were all green with it live**, which is the part worth
+keeping. `pnpm lint` reads JSX and cannot compute a ratio. The contrast rules
+in `tests/a11y` read `className` strings, and this page styles by inline hex on
+purpose — it is framework-free so the offline design harness can render it with
+`react-dom/server`, which is a good reason and also an exemption nobody wrote
+down. And the runtime check that CAN see a composited colour had no stop here
+at all: `/g` is a single-letter token route, and eight of those ten had never
+been scanned. The instrument that finds this class of defect existed; it was
+simply not pointed at the page.
+
+· **FIXED** on DREAMCRM-98 — `INK_3` raised one step of lightness to `#78849c`,
+same hue and saturation, graded against the DEEPEST composite on the page
+(`.dg-cell` adds another `rgba(255,255,255,0.02)`, and a lighter ground is the
+harder one for light text): 4.80:1 on `#121620`, 5.01:1 on `#0d111b`, 5.23:1 on
+`#070b15`. The stop holds at ZERO.
+
 ### R1 · S8 sweep — Compliance & data (2026-08-17)
 
 One finder produced the written posture assessment now in **`docs/COMPLIANCE.md`**

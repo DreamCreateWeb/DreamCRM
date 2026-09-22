@@ -36,7 +36,37 @@ import type { PublicGradeView } from '@/lib/services/practice-grader'
 //    dashboard and the marketing chrome). One accent; status is semantic. ──
 const INK = '#e9eef6'
 const INK_2 = '#9aa8bd'
-const INK_3 = '#66738a'
+/**
+ * The quiet ink, RAISED from `#66738a` (DREAMCRM-98). It is spent almost
+ * entirely on `.dg-mono`, which this page's own CSS fixes at 12px — so every
+ * use of it is small text needing the full 4.5:1, and it did not have it.
+ *
+ * MEASURED, as rendered, at the `token: practice grade report` stop:
+ *
+ *   #66738a on #0d111b  →  3.93:1   (`.dg-mono` inside `.dg-card`; the card is
+ *                                    rgba(255,255,255,0.025) over CANVAS, so
+ *                                    #0d111b is the composite, not a token)
+ *   #66738a on #070b15  →  4.10:1   (`footer`, straight on the canvas)
+ *
+ * Eleven elements across the four axis panels and the footer. Nothing in the
+ * repo could see it: the contrast guards in `tests/a11y` read `className`
+ * strings, this page styles by inline hex BY DESIGN (it is framework-free so
+ * the offline harness can render it), and until DREAMCRM-98 there was no
+ * browser stop on /g at all.
+ *
+ * The replacement is graded against the DEEPEST composite on the page rather
+ * than the card, because `.dg-cell` / `.dg-slot` add another
+ * rgba(255,255,255,0.02) on top and a lighter ground is the harder one for
+ * light text:
+ *
+ *   #78849c on #121620  →  4.80:1   (.dg-mono inside .dg-cell inside .dg-card)
+ *   #78849c on #0d111b  →  5.01:1
+ *   #78849c on #070b15  →  5.23:1
+ *
+ * Same hue and saturation — this is one step of lightness, not a new colour,
+ * and it stays clearly quieter than INK_2 so the three-step hierarchy holds.
+ */
+const INK_3 = '#78849c'
 const CANVAS = '#070b15'
 const MONO = 'ui-monospace, SFMono-Regular, Menlo, monospace'
 
