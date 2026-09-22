@@ -251,7 +251,7 @@
  *   node scripts/review-sweep.mjs --prs prs.json --limit 500 --last-green runs.json
  *   node scripts/review-sweep.mjs --prs prs.json --limit 500 --since 2026-09-20T00:00:00Z
  */
-import { readFileSync, appendFileSync, existsSync } from 'node:fs'
+import { readFileSync, writeFileSync, appendFileSync, existsSync } from 'node:fs'
 import { pathToFileURL } from 'node:url'
 
 /**
@@ -879,6 +879,112 @@ function readLastGreen(path) {
   }
 }
 
+/**
+ * DOES THIS RUN WAKE FORGE? (DREAMCRM-99 deliverable 3.)
+ *
+ * THE GAP, and it is a pattern rather than an incident. The gate applies
+ * `needs-forge-intake` correctly and this sweep grades it correctly. What was
+ * never owned by anything that RUNS is the hop after the label: somebody has to
+ * notice the red and route the rule into the rulebook. #534's shape cost three
+ * days. #658 and #659 both merged with the label unsatisfied and sat until a
+ * planning meeting happened to open — the only reason the wait was minutes
+ * rather than days. §2 records a third instance. Asking authors to remember
+ * harder has now failed three times; this is wiring, not diligence.
+ *
+ * GITHUB CANNOT DISPATCH ANYBODY — §3 says so in as many words about the verdict
+ * mention, and it is just as true here. A red run is a notification to one
+ * inbox. So the run POSTs to a Multica autopilot webhook, and the autopilot
+ * opens an issue assigned to Forge. That is the same shape §3 gives a verdict:
+ * the record lives on GitHub where the sweep can see it, and the WAKE rides
+ * Multica, where an agent's next run actually starts. Two artefacts, two jobs.
+ *
+ * ------------------------------------------------------------------------
+ * IT IS SCOPED HARDER THAN THE EXIT STATUS, AND THE ASYMMETRY IS THE POINT.
+ *
+ * A wake enqueues a PAID RUN. §3 scopes the author mention to the verdict
+ * itself for exactly that reason — right for "your PR is clear to merge", wrong
+ * for a discussion reply. So:
+ *
+ *   1. **The INTAKE half only.** The review half already has an owner: §2a's
+ *      standing issue, DREAMCRM-93, assigned to Sentinel. Waking a second agent
+ *      for it would be two owners for one queue.
+ *   2. **Fresh entries only.** A standing entry is printed every morning by
+ *      design — "an unremediated miss is not less true tomorrow" — and waking
+ *      Forge for it every morning is the paid version of the permanently-red
+ *      alarm §2a warns about. He was woken when it was new.
+ *   3. **NOT AT ALL WHEN THE LAST-GREEN LOOKUP FAILED**, which is the one place
+ *      this deliberately diverges from the exit status. The run still fails
+ *      CLOSED and goes red — that is free. The wake fails QUIET, because with
+ *      no green instant every entry reads as fresh and a throttled API call
+ *      would dispatch Forge over a queue he has already seen. The costs are not
+ *      symmetric: a missed wake costs one day (the red run still names the
+ *      entry, and the next green-anchored run wakes for it), a spurious wake
+ *      costs a paid run and, repeated, the credibility of the wire.
+ *      A SUPPRESSED WAKE IS ANNOUNCED — `::error` plus a line in the summary —
+ *      because a wake that silently never fires is this file's own failure mode
+ *      wearing a different hat.
+ *
+ * `--ping` is the fourth reason it can fire, and it is not test scaffolding: it
+ * is the thing that notices the wire has stopped. Nothing else here can tell a
+ * healthy wake from an endpoint whose token was rotated, because the healthy
+ * state is silence. Dispatch the workflow with it by hand after touching the
+ * secret or the autopilot.
+ */
+export function wakeDecision({ intake, lastGreen, ping = false }) {
+  if (ping) {
+    return {
+      wake: true,
+      reason: 'ping',
+      prs: [],
+      why: 'a hand-dispatched ping: this proves the wire from the run to Forge is live, which is ' +
+        'otherwise indistinguishable from a quiet week.',
+      suppressed: null,
+    }
+  }
+
+  const unsatisfied = intake?.unsatisfied ?? []
+  if (!unsatisfied.length) {
+    return { wake: false, reason: 'clean', prs: [], why: 'the intake half is clear.', suppressed: null }
+  }
+
+  if (!Number.isFinite(lastGreen?.at)) {
+    return {
+      wake: false,
+      reason: 'undated',
+      prs: [],
+      why: 'the intake half has findings, but nothing dates the window.',
+      suppressed:
+        `${unsatisfied.length} unrouted intake(s) are in the summary and Forge was NOT woken: ` +
+        `${lastGreen?.why ?? 'no run history was supplied'}. Without a green instant every entry ` +
+        'reads as new, and waking Forge over a queue he has already seen is how this wire loses ' +
+        'the credibility it needs. The run is red and names them; route them by hand, or re-run ' +
+        'once this sweep has a green to measure against.',
+    }
+  }
+
+  const fresh = newSince(unsatisfied, lastGreen).fresh
+  if (!fresh.length) {
+    return {
+      wake: false,
+      reason: 'standing-only',
+      prs: [],
+      why:
+        `${unsatisfied.length} unrouted intake(s) are standing from before the last green run. ` +
+        'Forge was woken when they were new; waking him again every morning is the paid version ' +
+        'of an alarm nobody reads.',
+      suppressed: null,
+    }
+  }
+
+  return {
+    wake: true,
+    reason: 'intake',
+    prs: fresh.map((p) => ({ number: p.number, title: p.title, url: p.url, mergedAt: p.mergedAt })),
+    why: `${fresh.length} PR(s) merged owing an intake that is new since the last green run.`,
+    suppressed: null,
+  }
+}
+
 function main() {
   const path = argValue('--prs')
   if (!path || !existsSync(path)) {
@@ -931,6 +1037,38 @@ function main() {
     }
   }
   if (gap) console.log(`::error title=The review sweep could not see its whole window::${gap}`)
+
+  // DOES THIS RUN WAKE FORGE? See `wakeDecision` for why it is scoped harder
+  // than the exit status. The decision is written to a file and to
+  // `GITHUB_OUTPUT`; the workflow owns the POST, so this file stays a pure
+  // comparator the guard test can drive with fixtures, offline.
+  const wake = wakeDecision({ intake, lastGreen, ping: process.argv.includes('--ping') })
+  const wakePath = argValue('--wake-out')
+  if (wakePath) {
+    writeFileSync(
+      wakePath,
+      JSON.stringify(
+        {
+          ...wake,
+          repository: process.env.GITHUB_REPOSITORY ?? null,
+          run: process.env.GITHUB_RUN_ID ?? null,
+          runUrl:
+            process.env.GITHUB_SERVER_URL && process.env.GITHUB_REPOSITORY && process.env.GITHUB_RUN_ID
+              ? `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`
+              : null,
+        },
+        null,
+        2,
+      ),
+    )
+  }
+  if (process.env.GITHUB_OUTPUT) {
+    appendFileSync(process.env.GITHUB_OUTPUT, `wake=${wake.wake ? 'true' : 'false'}\nwake-reason=${wake.reason}\n`)
+  }
+  console.log(`[review-sweep] wake=${wake.wake} (${wake.reason}) — ${wake.why}`)
+  if (wake.suppressed) {
+    console.log(`::error title=Forge was NOT woken for an unrouted intake::${wake.suppressed}`)
+  }
 
   process.exitCode = fresh || gap ? 1 : 0
 }

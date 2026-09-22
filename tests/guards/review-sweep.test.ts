@@ -23,6 +23,7 @@ import {
   renderSummary,
   reviewRecord,
   sweep,
+  wakeDecision,
   windowGap,
 } from '../../scripts/review-sweep.mjs'
 import { effectiveContexts, runsOnPullRequest } from '../../scripts/rulebook-drift.mjs'
@@ -334,6 +335,132 @@ describe('the sweep knows when it could not see its whole window', () => {
   })
 })
 
+/**
+ * A RED INTAKE SWEEP WAKES FORGE (DREAMCRM-99 deliverable 3).
+ *
+ * THE GAP, and it is a pattern rather than an incident. `review-gate.yml`
+ * applies `needs-forge-intake` correctly and this sweep grades it correctly.
+ * The hop AFTER the label — somebody noticing the red and routing the rule into
+ * the rulebook — was owned by nothing that runs. #534's shape cost three days;
+ * #658 and #659 both merged with the label unsatisfied and sat until a planning
+ * meeting happened to open, which is the only reason the wait was minutes
+ * rather than days. §2 records a third instance.
+ *
+ * WHAT IS BEING GRADED HERE is a decision about spending money. A wake enqueues
+ * a PAID RUN, so `wakeDecision` is scoped harder than the exit status, and each
+ * narrowing has a failure mode written against it rather than noted:
+ *
+ *   1. THE INTAKE HALF ONLY. The review half already has an owner — §2a's
+ *      standing issue, DREAMCRM-93, assigned to Sentinel. Waking Forge for it
+ *      would be two owners for one queue, which is how both stop owning it.
+ *   2. FRESH ENTRIES ONLY. A standing entry is printed every morning by design.
+ *      Waking Forge for it every morning is the paid version of the
+ *      permanently-red alarm §2a spent six mornings learning about.
+ *   3. NOT AT ALL WHEN THE WINDOW IS UNDATED — the one place this diverges from
+ *      the exit status, deliberately. The run still fails closed and goes red;
+ *      that is free. With no green instant every entry reads as new, so one
+ *      throttled API call would dispatch Forge over a queue he has already
+ *      seen. Both directions are tested: it must not wake, AND it must SAY it
+ *      did not, because a wake that silently never fires is this file's own
+ *      failure mode wearing a different hat.
+ *   4. THE PING MUST WAKE. It is the only thing that can tell a healthy wire
+ *      from a rotated token — the healthy state of this wire is silence, which
+ *      is exactly the state it exists to make impossible elsewhere.
+ */
+describe('the wake: which red runs cost Forge a run', () => {
+  // After INTAKE_SWEPT_SINCE (08:00Z), so an entry can sit on either side of
+  // the green instant and still be inside the intake window. A fixture where
+  // "standing" also meant "out of window" would test the cut-off twice and
+  // the freshness rule not at all.
+  const green = { at: Date.parse('2026-09-22T12:00:00Z'), run: 1, why: null }
+  const undated = { at: null, run: null, why: 'no run of this sweep concluded `success`' }
+
+  const unrouted = (over: Pr = {}) =>
+    pr({ number: 658, mergedAt: '2026-09-22T14:00:00Z', labels: [{ name: INTAKE_LABEL }], ...over })
+
+  /** What `intakeSweep` hands the decision, built from real PR rows. */
+  const half = (prs: Pr[]) => intakeSweep(prs, INTAKE_SWEPT_SINCE)
+
+  it('wakes on a fresh unrouted intake, and names the PRs', () => {
+    const d = wakeDecision({ intake: half([unrouted()]), lastGreen: green })
+    expect(d.wake).toBe(true)
+    expect(d.reason).toBe('intake')
+    expect(d.prs.map((p: { number: number }) => p.number)).toEqual([658])
+    // The payload has to carry enough for Forge to start without re-deriving
+    // it: #658 sat 2h20m because nothing pointed anybody at it.
+    expect(d.prs[0]).toHaveProperty('url')
+    expect(d.prs[0]).toHaveProperty('title')
+  })
+
+  it('does NOT wake for the review half, which has its own owner', () => {
+    // A PR owing a REVIEW and nothing else. Sentinel owns that queue through
+    // DREAMCRM-93; a second agent woken for it is two owners, which is none.
+    const reviewOnly = pr({ number: 700, mergedAt: '2026-09-22T14:00:00Z', labels: [{ name: REVIEW_LABEL }] })
+    const d = wakeDecision({ intake: half([reviewOnly]), lastGreen: green })
+    expect(d.wake, 'a review miss must not spend a Forge run').toBe(false)
+    expect(d.reason).toBe('clean')
+  })
+
+  it('does NOT wake for an entry standing from before the last green run', () => {
+    // Printed every morning by design; woken once, when it was new.
+    const old = unrouted({ mergedAt: '2026-09-22T09:00:00Z' })
+    const d = wakeDecision({ intake: half([old]), lastGreen: green })
+    expect(d.wake).toBe(false)
+    expect(d.reason).toBe('standing-only')
+    expect(d.why).toContain('the paid version of an alarm nobody reads')
+  })
+
+  it('wakes for the fresh entry even when a standing one is alongside it', () => {
+    // The mixed queue, which is the common real shape. Waking must not be
+    // suppressed by an old entry sitting next to a new one — that is how the
+    // #636 silence formed on the exit status, one channel over.
+    const d = wakeDecision({
+      intake: half([unrouted({ number: 600, mergedAt: '2026-09-22T09:00:00Z' }), unrouted()]),
+      lastGreen: green,
+    })
+    expect(d.wake).toBe(true)
+    expect(d.prs.map((p: { number: number }) => p.number), 'only the fresh one is the reason').toEqual([658])
+  })
+
+  it('does NOT wake when nothing dates the window — and SAYS it did not', () => {
+    // THE DIVERGENCE FROM THE EXIT STATUS, and the asymmetry is the argument:
+    // failing closed is free for a run's colour and expensive for a dispatch.
+    // The second assertion is the load-bearing one — a suppression nobody is
+    // told about is indistinguishable from a wake that quietly stopped
+    // working.
+    const d = wakeDecision({ intake: half([unrouted()]), lastGreen: undated })
+    expect(d.wake).toBe(false)
+    expect(d.reason).toBe('undated')
+    expect(
+      d.suppressed,
+      'a suppressed wake must be announced, or a broken wire and a quiet week look identical',
+    ).toBeTruthy()
+    expect(d.suppressed).toContain('1 unrouted intake')
+  })
+
+  it('says nothing about suppression when there was nothing to suppress', () => {
+    // The other direction: an `::error` every morning on a clean sweep is the
+    // false alarm that gets the whole channel muted.
+    expect(wakeDecision({ intake: half([]), lastGreen: undated }).suppressed).toBeNull()
+    expect(wakeDecision({ intake: half([]), lastGreen: green }).suppressed).toBeNull()
+  })
+
+  it('a ping wakes unconditionally — it is what notices the wire has stopped', () => {
+    // The healthy state of this wire is SILENCE, which is the exact state this
+    // whole file exists to refuse elsewhere. Nothing else here can tell a quiet
+    // week from a rotated token.
+    const d = wakeDecision({ intake: half([]), lastGreen: undated, ping: true })
+    expect(d.wake).toBe(true)
+    expect(d.reason).toBe('ping')
+  })
+
+  it('a clean intake half wakes nobody', () => {
+    const routed = unrouted({ comments: [comment('Forge intake: §2b — routed, landed there')] })
+    expect(half([routed]).unsatisfied).toEqual([])
+    expect(wakeDecision({ intake: half([routed]), lastGreen: green }).wake).toBe(false)
+  })
+})
+
 describe('the sweep workflow', () => {
   const wf = () => readFileSync(join(process.cwd(), '.github/workflows/review-sweep.yml'), 'utf8')
 
@@ -420,6 +547,142 @@ describe('the sweep workflow', () => {
       'review-sweep.yml calls `gh run list` without `actions: read`, so the green lookup 403s ' +
         'every morning and the sweep fails closed forever.',
     ).toMatch(/^ {2}actions: read$/m)
+  })
+
+  /**
+   * THE WAKE STEP (DREAMCRM-99 deliverable 3).
+   *
+   * The decision itself is graded above, against fixtures. What is graded here
+   * is the WIRING, and it has one property that is more dangerous than
+   * anything else in this file: to let the wake run after a RED sweep — the
+   * only kind of run that has anything to wake anybody for — the grading step
+   * is `continue-on-error: true`, and the job's real verdict is restored by a
+   * later step.
+   *
+   * Delete that restore step and this whole alarm reports GREEN every morning
+   * while finding everything. That is the same `process.exitCode = 0` mutation
+   * the ringer block refuses at the script level, moved into YAML where no test
+   * of the script can see it. Both halves are pinned.
+   */
+  it('lets the wake run after a red sweep — AND restores the sweep\'s own verdict', () => {
+    const source = wf()
+
+    expect(
+      source,
+      'the grading step must be `continue-on-error` or the wake never runs on the only kind of ' +
+        'run that needs it',
+    ).toMatch(/^ {8}continue-on-error: true$/m)
+
+    // THE HALF THAT MATTERS. `continue-on-error` without this makes the job
+    // green forever.
+    expect(
+      source,
+      'the sweep step is `continue-on-error` and NOTHING restores its verdict, so this alarm ' +
+        'reports green every morning while finding everything. Add a final step keyed on ' +
+        "`steps.sweep.outcome == 'failure'` that exits 1.",
+    ).toMatch(/steps\.sweep\.outcome == 'failure'/)
+    expect(source, 'the restore step must actually fail the job').toMatch(/exit 1/)
+  })
+
+  it('posts the wake to a SECRET url, and never echoes it', () => {
+    const source = wf()
+    expect(
+      source,
+      'GitHub cannot dispatch anybody — the wake has to leave GitHub. Without the POST this is ' +
+        'back to a red run in one inbox, which is the state #658 and #659 sat in.',
+    ).toContain('secrets.FORGE_INTAKE_WAKE_URL')
+
+    // The Multica webhook token lives in the URL path, so the URL IS the
+    // credential. Anything that prints it puts it in a public run log.
+    const post = shellCommand(source, 'curl')
+    expect(post, 'the wake must actually POST something').toBeTruthy()
+    expect(post!).toContain('-X POST')
+
+    // GRADED OVER THE WHOLE FILE, not just the POST command — and that is a
+    // mutation finding rather than caution. The first draft checked only the
+    // curl invocation, so moving the leak one line down into the success
+    // `::notice` left it green. A credential printed anywhere in this job is a
+    // credential in a run log.
+    const leaks = source
+      .split('\n')
+      .filter((l) => !l.trimStart().startsWith('#'))
+      // The EXPANSION, not the name. Saying `FORGE_INTAKE_WAKE_URL is not set`
+      // in a summary is the correct thing to print; `${WAKE_URL}` is the
+      // credential itself.
+      .filter((l) => /(?:echo|printf)\b/.test(l) && /\$\{?WAKE_URL\}?|\$\{\{\s*secrets\./.test(l))
+    expect(
+      leaks,
+      'the wake URL is a credential — the Multica webhook token is in its path — and these lines ' +
+        'print it into a run log:\n  ' + leaks.join('\n  '),
+    ).toEqual([])
+  })
+
+  it('a rejected POST is LOUD, not swallowed', () => {
+    // A wake that silently 404s is indistinguishable from a quiet week, which
+    // is the failure class this entire file is about. `--fail-with-body` is
+    // what makes a 4xx a non-zero exit at all; without it curl reports success
+    // on an error page.
+    const post = shellCommand(wf(), 'curl')!
+    expect(post, 'without --fail-with-body curl exits 0 on a 404 and the wake fails silently').toContain(
+      '--fail-with-body',
+    )
+    expect(wf()).toMatch(/::error::the wake POST failed/)
+  })
+
+  it('an unset secret is SKIPPED, not a failure', () => {
+    // The same contract `error-scan.yml` carries for its IAM role. A wake that
+    // is not configured yet must not turn a working sweep red every morning —
+    // a workflow red for a fortnight for an unrelated reason is one nobody
+    // reads on the day it finally means something.
+    const source = wf()
+    expect(source).toMatch(/if \[ -z "\$\{WAKE_URL\}" \]/)
+    expect(source, 'an unconfigured wake must say it is unconfigured, not pass quietly').toContain(
+      'Skipped, not passed',
+    )
+  })
+
+  it('the wake runs even when the sweep step failed outright', () => {
+    // `continue-on-error` covers a non-zero exit; `if: always()` also covers
+    // the step erroring before it gets that far. Either way the decision file
+    // is checked for existence first, and a missing one is reported rather
+    // than read as "no wake needed".
+    const source = wf()
+    expect(source).toMatch(/^ {8}if: always\(\)$/m)
+    expect(source).toMatch(/the sweep wrote no wake decision/)
+  })
+
+  it('the script is told where to write its wake decision', () => {
+    // Without `--wake-out` the decision is computed and thrown away, and the
+    // wake step reads a file that never appears — the whole wire is dead code
+    // in production while every test above still passes.
+    expect(
+      wf(),
+      'scripts/review-sweep.mjs is not given --wake-out, so the wake decision is never written ' +
+        'and the POST step can never fire.',
+    ).toMatch(/scripts\/review-sweep\.mjs[^\n]*--wake-out/)
+  })
+
+  it('exposes a ping, because the healthy state of this wire is silence', () => {
+    // The only thing that can tell a live wake from a rotated token. Run it by
+    // hand after touching the secret or the autopilot.
+    const source = wf()
+    expect(source).toMatch(/^ {6}ping:$/m)
+    expect(source).toMatch(/scripts\/review-sweep\.mjs[^\n]*--ping/)
+  })
+
+  it('gained no write scope for any of it', () => {
+    // The wake leaves GitHub entirely, which is the point: it needs no
+    // `pull-requests: write`, no `issues: write`, nothing. The three read
+    // scopes this job has always had are still all it has.
+    const block = /permissions:\n((?:\s{2}\w[\w-]*:\s*\w+\n)+)/.exec(wf())?.[1] ?? ''
+    const scopes = Object.fromEntries(
+      block
+        .trim()
+        .split('\n')
+        .map((l) => l.trim().split(/:\s*/) as [string, string]),
+    )
+    expect(Object.values(scopes).filter((v) => v === 'write')).toEqual([])
+    expect(Object.keys(scopes).sort()).toEqual(['actions', 'contents', 'pull-requests'])
   })
 
   it('cannot publish a required check name', () => {
