@@ -327,12 +327,35 @@ jobs:
       #     `create_issue` mode and is assigned to Forge, so the most a holder
       #     of this URL can do is open issues assigned to him. It grants no
       #     read of anything, and nothing on the deploy path.
-      #   * SO THE MITIGATION IS ROTATION, NOT SECRECY. If it leaks, rotate:
-      #     `multica autopilot trigger-rotate-url <trigger-id>`, then reset the
-      #     secret and dispatch this workflow with `ping: true` from a feature
-      #     branch to prove the new one is live. Do not reach for a narrower
-      #     scope instead — there is not one; `create_issue` is already the
-      #     floor.
+      #   * `run_only` IS THE OTHER MODE, AND IT IS WORSE HERE. It exists —
+      #     `multica autopilot create --mode` takes `create_issue` or
+      #     `run_only` — so "there is no narrower option" would be false. It is
+      #     not narrower: it still dispatches a paid run to the same agent, and
+      #     it leaves NO ISSUE BEHIND, so a holder of this URL could spend
+      #     Forge's runs with nothing on the board recording that they did.
+      #     `create_issue` is kept for the audit trail, not for lack of a
+      #     choice.
+      #   * NOTHING CAN MAKE THE URL INSUFFICIENT ON ITS OWN, and this clause
+      #     is here to stop the next reader repeating a search that dead-ends.
+      #     The trigger reports `provider: generic` with
+      #     `has_signing_secret: false`, so the platform clearly models a
+      #     signing secret — which would mean a leaked URL alone was not
+      #     enough. But neither `trigger-add` nor `trigger-update` exposes a
+      #     flag to set one. There is no reachable way to require anything but
+      #     the URL.
+      #   * SO THE MITIGATION IS ROTATION, NOT SECRECY — which is the only true
+      #     statement available rather than a shrug. If it leaks:
+      #
+      #       multica autopilot list                        # the autopilot id
+      #       multica autopilot trigger-list <autopilot-id> # the trigger id
+      #       multica autopilot trigger-rotate-url <autopilot-id> <trigger-id>
+      #
+      #     BOTH positionals are required; the command exits on a usage error
+      #     with one, which is the worst moment to be reading `--help`. Then
+      #     reset `FORGE_INTAKE_WAKE_URL` and dispatch this workflow with
+      #     `ping: true` FROM A FEATURE BRANCH to prove the new URL is live.
+      #     The ids are deliberately not written here — they drift, and a stale
+      #     id sends the reader somewhere worse than nowhere.
       - name: Wake Forge
         if: always()
         env:
