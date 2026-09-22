@@ -1,6 +1,6 @@
 import 'server-only'
 import { unstable_cache } from 'next/cache'
-import { and, desc, eq, gte, lt, sql } from 'drizzle-orm'
+import { and, desc, eq, gte, lt, min, sql } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import {
   assessEngine,
@@ -11,6 +11,7 @@ import {
   NOTE_VISIBLE_DAYS,
   STALL_DROP_RATIO,
   STALL_MIN_BASELINE,
+  PARKED_WRITE_ALARM_DAYS,
   type EngineSignals,
   type EngineState,
   type EngineVerdict,
@@ -380,6 +381,106 @@ async function ledgerCountsByOrg(
   return out
 }
 
+/* ─────────────────────────────────────────────────────────────────────────
+ * PARKED PMS WRITE-OPS (DREAMCRM-68)
+ * ───────────────────────────────────────────────────────────────────────── */
+
+export interface ParkedWrites {
+  /** Open write-ops older than the cutoff. */
+  count: number
+  /** When the oldest of them was enqueued. */
+  oldestAt: Date
+}
+
+/**
+ * Bookings a practice's own software has not accepted yet, per org, in ONE
+ * grouped query — built here and rendered by the boundary test, for the same
+ * reason `sweepCountsQuery` is (round-11 audit: a query the test
+ * reconstructs is a query the test stops covering the day they drift).
+ *
+ * GROUPED, not a per-clinic fan-out. `assessClinic` already pays four
+ * round-trips per practice into a 10-connection pool; the sweep's own
+ * comment on the ledger read — "grouped rather than per-clinic so the sweep
+ * stays one query as the platform grows" — is the standing rule, and a
+ * fifth per-clinic read to answer "is anything stuck?" would be the wrong
+ * side of it at fifty practices.
+ *
+ * Three narrowings, each of which is a decision rather than a filter:
+ *
+ *  - 'pending' ONLY, not the `['pending','error']` pair every other reader
+ *    of this table treats as open. Those two lanes are different facts.
+ *    'pending' IS the WAITING lane — the bridge is unreachable, the op is
+ *    still being re-driven every sync, and it CLEARS ITSELF the moment the
+ *    server answers, which is exactly what an alarm with a stand-down
+ *    needs. An op in the 'error' lane past `MAX_WRITE_ATTEMPTS` is never
+ *    retried again and nothing in the product can ever resolve it, so
+ *    alarming on it would pin that practice at `blocked` and re-alert the
+ *    owner every week for the life of the account — the crying-wolf failure
+ *    this primitive is built to avoid. That lane is its own gap and is
+ *    written up as its own ledger entry, per the one-defect-one-entry rule.
+ *  - CONNECTED practices only. `disconnectPms` deliberately keeps write-op
+ *    history for the audit trail and `retryPendingWrites` only ever runs for
+ *    a live connection, so a practice that disconnected last spring carries
+ *    pending rows that nothing will ever drive again. Same permanent-alarm
+ *    shape as the error lane, same answer.
+ *  - CUT OFF at the threshold, in SQL. The alarm is about age, so the
+ *    predicate belongs where the `(organization_id, created_at)` index can
+ *    serve it, and the count that comes back is then the number the owner's
+ *    headline actually means: bookings that are LATE, never the ordinary
+ *    in-flight queue from this morning.
+ *
+ * Cross-org by construction, like every other sweep read here: rows come
+ * back keyed by `organization_id` and are only ever reached through a
+ * per-org lookup in `assessClinic`, so no clinic can be handed another's.
+ */
+export function parkedWritesQuery(
+  builder: { select: (cols: Record<string, unknown>) => never },
+  parkedBefore: Date,
+) {
+  return (builder as unknown as typeof db)
+    .select({
+      organizationId: schema.pmsWriteOp.organizationId,
+      parked: sql<number>`count(*)::int`,
+      // drizzle's `min`, never a hand-rolled `sql\`min(…)\`` — see
+      // tests/guards/timestamp-aggregate-mapping.test.ts, which caught
+      // exactly that in this query's first draft. `created_at` is
+      // `timestamp` WITHOUT zone holding a UTC wall clock, so the column's
+      // driver mapper is what reads the raw text AS UTC; a bare `sql`
+      // expression is not a column, gets no mapper, and the `new Date(...)`
+      // below would then parse it in the HOST's zone. Same string,
+      // different instant — and invisible in CI, which pins TZ=UTC.
+      oldestAt: min(schema.pmsWriteOp.createdAt),
+    })
+    .from(schema.pmsWriteOp)
+    .innerJoin(
+      schema.pmsConnection,
+      eq(schema.pmsConnection.organizationId, schema.pmsWriteOp.organizationId),
+    )
+    .where(
+      and(
+        eq(schema.pmsWriteOp.status, 'pending'),
+        lt(schema.pmsWriteOp.createdAt, parkedBefore),
+        eq(schema.pmsConnection.status, 'connected'),
+      ),
+    )
+    .groupBy(schema.pmsWriteOp.organizationId)
+}
+
+async function parkedWritesByOrg(parkedBefore: Date): Promise<Map<string, ParkedWrites>> {
+  const rows = await parkedWritesQuery(db as never, parkedBefore)
+  const out = new Map<string, ParkedWrites>()
+  for (const r of rows) {
+    // Already a Date via the column mapper; `new Date` only normalises the
+    // string a future driver change could hand back.
+    const oldestAt = r.oldestAt ? new Date(r.oldestAt) : null
+    // A row whose min() we cannot read is a row we cannot age, and an alarm
+    // needs the age to say anything at all. Drop it rather than invent one.
+    if (!oldestAt || Number.isNaN(oldestAt.getTime())) continue
+    out.set(r.organizationId, { count: Number(r.parked ?? 0), oldestAt })
+  }
+  return out
+}
+
 /** Assess one clinic. Not exported: the per-clinic drill-in the old comment
  *  promised was never built, and an export with no caller is a claim the
  *  code does not keep (round-2 audit). */
@@ -401,6 +502,7 @@ async function assessClinic(
   ledger: {
     this7: Map<string, { work: number; failures: number; engineFailures: number }>
     prev7: Map<string, { work: number; failures: number; engineFailures: number }>
+    parkedWrites: Map<string, ParkedWrites>
   },
 ): Promise<ClinicEngineReport> {
   const [switches, seated30, seatedPrev30, openProposals] = await Promise.all([
@@ -418,6 +520,7 @@ async function assessClinic(
     countOpenProposals(org.id, { excludeHandedBack: true }).catch(() => 0),
   ])
   const here = ledger.this7.get(org.id) ?? { work: 0, failures: 0, engineFailures: 0 }
+  const parked = ledger.parkedWrites.get(org.id)
   // Only when there is something to explain — no query on a healthy clinic.
   const failureCauses =
     here.failures > 0 ? await recentFailureSummaries(org.id, windows.weekStart) : []
@@ -445,6 +548,21 @@ async function assessClinic(
     // accusing a cron that may simply predate the column.
     hoursSinceCycle: org.dreamTeamCycleAt
       ? Math.max(0, (windows.now.getTime() - org.dreamTeamCycleAt.getTime()) / 3_600_000)
+      : null,
+    // PARKED BOOKINGS (DREAMCRM-68), read off the grouped query the sweep
+    // already ran — no per-clinic round trip for a fact that is one
+    // aggregate away. Absent from the map means nothing is parked, which is
+    // the overwhelmingly common case and the reason the query returns only
+    // the practices that have something wrong.
+    pmsWriteOpsParked: parked?.count ?? 0,
+    // WHOLE DAYS, floored, so the number in the headline is one the reader
+    // can check against a calendar. Floored (not rounded) deliberately: it
+    // must never claim the backlog is older than it is, and it agrees with
+    // the SQL cutoff by construction — an op only reaches this map once it
+    // is already past `PARKED_WRITE_ALARM_DAYS`, so the floor cannot land
+    // below the threshold and strand a row the query deliberately returned.
+    pmsWriteOpParkedDays: parked
+      ? Math.floor((windows.now.getTime() - parked.oldestAt.getTime()) / DAY_MS)
       : null,
   }
   const verdict = assessEngine(signals)
@@ -568,9 +686,31 @@ export async function sweepEngineHealth(now: Date = new Date()): Promise<Guardia
     }
   }
 
+  // PARKED BOOKINGS (DREAMCRM-68). Read AFTER the blind return, and
+  // deliberately not part of that blindness: the ledger is the sweep's
+  // substrate — without it there is no verdict to reach for any clinic, so
+  // a blind run must not pay for this query either — while this is one
+  // extra signal that a practice either has or does not. An unreadable write-op queue reads as
+  // "nothing is parked", on the same posture `hoursSinceCycle` takes with a
+  // null stamp: an absent signal says nothing, and alarming on one we could
+  // not read would fire on the entire platform the first time this table is
+  // slow. LOUDLY logged, per the round-8 lesson — a swallowed query error
+  // is indistinguishable from a path that never ran, and that is precisely
+  // how the failure explainer looked tested for three rounds.
+  const parkedWrites = await parkedWritesByOrg(
+    new Date(now.getTime() - PARKED_WRITE_ALARM_DAYS * DAY_MS),
+  ).catch((e) => {
+    console.error('[guardian] parked write-op read failed', e)
+    return new Map<string, ParkedWrites>()
+  })
+
   const settled = await Promise.all(
     orgs.map((o) =>
-      assessClinic(o, { weekStart, prevWeekStart, monthStart, prevMonthStart, now }, { this7, prev7 }).catch(
+      assessClinic(
+        o,
+        { weekStart, prevWeekStart, monthStart, prevMonthStart, now },
+        { this7, prev7, parkedWrites },
+      ).catch(
         (e) => {
           // One unreadable clinic must never blank the sweep — going blind
           // is the failure this whole primitive exists to prevent.
@@ -666,6 +806,13 @@ const EMPTY_SIGNALS: EngineSignals = {
   // live state, and a heartbeat it did not read must not be able to swing
   // the verdict to `silent` on the clinic's own card.
   hoursSinceCycle: null,
+  // NOTHING PARKED, for the same reason (DREAMCRM-68). This re-derive feeds
+  // `clinicNote` through `clinicActionable`, where a live parked-write
+  // alarm is a REFUSAL — so a value invented here could silence a switch
+  // note the practice genuinely needs. Zero is the only honest default for
+  // a queue this path never reads.
+  pmsWriteOpsParked: 0,
+  pmsWriteOpParkedDays: null,
 }
 
 export interface ActiveGuardianNote {

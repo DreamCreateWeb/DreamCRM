@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { PgDialect, QueryBuilder } from 'drizzle-orm/pg-core'
 import * as schema from '@/lib/db/schema'
-import { sweepCountsQuery, failureCountExpr } from '@/lib/services/guardian'
+import { sweepCountsQuery, failureCountExpr, parkedWritesQuery } from '@/lib/services/guardian'
 
 /**
  * THE GUARDIAN's grouped ledger read, RENDERED FOR REAL (Phase 4).
@@ -163,5 +163,73 @@ describe('the day expression cannot be taken down by one bad stored zone', () =>
   it('still buckets on the CLINIC’s zone, not the server’s', () => {
     expect(q.sql).toContain('"timezone"')
     expect(q.sql).toMatch(/at time zone 'UTC'/)
+  })
+})
+
+/**
+ * THE PARKED WRITE-OP READ, RENDERED FOR REAL (DREAMCRM-68).
+ *
+ * Same law as the sweep above: new raw SQL gets a test at the real
+ * boundary, built from the SERVICE'S OWN definition rather than a
+ * reconstruction of it. This query joins a second table and narrows on a
+ * status word in each — exactly the shape where a JS-modelled database
+ * proves nothing, and where the round-11 42P01 lived.
+ *
+ * The three narrowings asserted here are DECISIONS, not incidental
+ * filters. Each one, dropped, produces a specific production failure:
+ *
+ *  - widen `status = 'pending'` to the usual `('pending','error')` pair and
+ *    a practice that ever had one terminally-failed op is pinned at
+ *    `blocked` and re-alerted weekly forever — `MAX_WRITE_ATTEMPTS` stops
+ *    retrying it and nothing in the product can resolve it;
+ *  - drop the connected join and a practice that disconnected last spring
+ *    alarms forever on rows `retryPendingWrites` will never drive again;
+ *  - drop the cutoff and the alarm fires on this morning's ordinary
+ *    in-flight queue.
+ */
+describe('the parked write-op read as Postgres parses it', () => {
+  const cutoff = new Date('2026-09-18T14:00:00Z')
+  const q = dialect.sqlToQuery(parkedWritesQuery(new QueryBuilder() as never, cutoff).getSQL())
+  const flat = q.sql.replace(/\s+/g, ' ')
+
+  it('counts the WAITING lane only, never the terminally-failed one', () => {
+    // A bound 'pending' and no 'error' anywhere. The error lane is a
+    // different fact with no self-clearing path, and alarming on it would
+    // be the crying-wolf failure this primitive exists to avoid.
+    expect(q.params).toContain('pending')
+    expect(q.params).not.toContain('error')
+  })
+
+  it('only looks at practices whose bridge is actually connected', () => {
+    expect(flat).toMatch(/inner join "pms_connection"/i)
+    expect(flat).toContain('"pms_connection"."organization_id"')
+    // 'connected' is the second status bound, beside 'pending'.
+    expect(q.params.filter((p) => p === 'connected')).toHaveLength(1)
+  })
+
+  it('binds the age cutoff as a real parameter rather than interpolating a date', () => {
+    // Compared by VALUE: drizzle maps a Date through the column's driver
+    // encoder, so the bound parameter is not the same object the caller
+    // passed — only the instant it stands for survives, and that is the
+    // part a test can honestly assert.
+    const bound = q.params.filter((p) => p instanceof Date || typeof p === 'string')
+    expect(bound.some((p) => new Date(p as string).getTime() === cutoff.getTime())).toBe(true)
+    expect(flat).toMatch(/"created_at" < \$\d/)
+  })
+
+  it('aggregates the count AND the oldest instant — the headline needs both', () => {
+    expect(flat).toContain('count(*)::int')
+    expect(flat).toMatch(/min\("pms_write_op"\."created_at"\)/)
+  })
+
+  it('groups by the org, so one row comes back per practice', () => {
+    expect(flat).toMatch(/group by "pms_write_op"\."organization_id"/i)
+  })
+
+  it('quotes the real table and column names from the schema', () => {
+    expect(q.sql).toContain('"pms_write_op"')
+    expect(q.sql).toContain('"organization_id"')
+    expect(q.sql).toContain('"created_at"')
+    expect(q.sql).toContain('"status"')
   })
 })

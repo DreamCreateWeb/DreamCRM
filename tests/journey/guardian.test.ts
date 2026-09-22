@@ -26,6 +26,7 @@ import {
   RE_ALERT_DAYS,
   STALL_MIN_BASELINE,
   STALE_CYCLE_HOURS,
+  PARKED_WRITE_ALARM_DAYS,
   type AlertMemory,
   type EngineSignals,
   type EngineState,
@@ -51,7 +52,10 @@ const HEALTHY: EngineSignals = {
   openProposals: 1,
   // A HEALTHY baseline is one the pass is reaching. Explicit rather than
   // null so the heartbeat rule is exercised by the fixtures that mean to.
-  hoursSinceCycle: 1
+  hoursSinceCycle: 1,
+  // …and one whose bookings all reached the practice's own software.
+  pmsWriteOpsParked: 0,
+  pmsWriteOpParkedDays: null,
 }
 const sig = (over: Partial<EngineSignals> = {}): EngineSignals => ({ ...HEALTHY, ...over })
 
@@ -963,5 +967,125 @@ describe('THE HEARTBEAT STOPPED (D16) — the engine not reaching a clinic at al
     const v = assessEngine(sig({ hoursSinceCycle: 40 }))
     expect(v.why).toMatch(/not reaching them|not the machine failing/i)
     expect(v.recommendation).toMatch(/it is the job, not them/)
+  })
+})
+
+/**
+ * PARKED PMS WRITE-OPS (DREAMCRM-68) — the defect these pin.
+ *
+ * Slice 7b made the WAITING lane preserve the attempt counter, which is the
+ * behaviour a dental office needs: they power the server off at night, and
+ * six burned retries over a closed weekend would fail a real booking
+ * terminally. But `MAX_WRITE_ATTEMPTS` had been doing a SECOND job — "give
+ * up and become visible" — and nothing replaced it. A waiting op writes
+ * nothing to the action ledger (`settleWriteFailure` restores the row and
+ * returns), so before this rule EVERY signal in this module read a practice
+ * with a week of queued bookings as perfectly healthy.
+ *
+ * The failing case, precisely: `sig({ pmsWriteOpsParked: 3,
+ * pmsWriteOpParkedDays: 6 })` classified `healthy` with the headline
+ * "40 things handled this week".
+ */
+describe('bookings parked outside the practice’s own software', () => {
+  const parked = (over: Partial<EngineSignals> = {}) =>
+    sig({ pmsWriteOpsParked: 3, pmsWriteOpParkedDays: 6, ...over })
+
+  it('is the whole finding — an otherwise perfect week no longer reads as healthy', () => {
+    const v = assessEngine(parked())
+    expect(v.state).toBe('blocked')
+    expect(v.cause).toBe('pms_parked')
+    expect(v.headline).toContain('3 bookings')
+    expect(v.headline).toContain('6 days')
+  })
+
+  it('says nothing was LOST, because an owner reading at 8am must not go hunting for a restore', () => {
+    const v = assessEngine(parked())
+    expect(v.why).toMatch(/nothing is lost/i)
+    // …and names what IS wrong, which is narrower and worse.
+    expect(v.why).toMatch(/their own schedule does not have/i)
+  })
+
+  it('sends the owner to the phone, not to a fix they cannot perform', () => {
+    // The bridge runs on the practice's server. Every other "blocked"
+    // verdict in this module is ours; this one is structurally theirs.
+    expect(assessEngine(parked()).recommendation).toMatch(/ring the practice/i)
+    expect(assessEngine(parked()).recommendation).toMatch(/eConnector|Synchronizer/)
+  })
+
+  it('does not fire on a long weekend — the WAITING lane’s own design must not become the alarm', () => {
+    // Friday 17:00 → Tuesday 08:00 is ~3.6 days of ordinary, intended
+    // parking. A threshold that fired there would alarm on every holiday
+    // Monday on the platform.
+    expect(assessEngine(parked({ pmsWriteOpParkedDays: 3 })).state).toBe('healthy')
+    expect(assessEngine(parked({ pmsWriteOpParkedDays: PARKED_WRITE_ALARM_DAYS })).state).toBe(
+      'blocked',
+    )
+  })
+
+  it('needs BOTH halves of the signal — a count with no age cannot be aged', () => {
+    expect(assessEngine(parked({ pmsWriteOpParkedDays: null })).state).toBe('healthy')
+    expect(assessEngine(parked({ pmsWriteOpsParked: 0 })).state).toBe('healthy')
+  })
+
+  it('singularises, because "1 bookings have" is the machine showing its seams', () => {
+    const v = assessEngine(parked({ pmsWriteOpsParked: 1, pmsWriteOpParkedDays: 4 }))
+    expect(v.headline).toContain('1 booking has')
+    expect(v.headline).toContain('4 days')
+    expect(v.headline).not.toContain('bookings have')
+  })
+
+  it('outranks the failure alarm, and loses nothing by doing so', () => {
+    // Asymmetric on purpose: a parked verdict still carries the failure
+    // fact (alsoFailedClause rides along), while a failure verdict has no
+    // clause, count or surface anywhere that could carry the parked one —
+    // a waiting op files no ledger row. Failures-first would drop the
+    // finding entirely.
+    const v = assessEngine(parked({ failures7: FAILURE_ALARM_COUNT }))
+    expect(v.cause).toBe('pms_parked')
+    expect(v.why).toMatch(/also hit trouble on 3 days/)
+  })
+
+  it('still yields to the stopped heartbeat, which is upstream of everything', () => {
+    expect(assessEngine(parked({ hoursSinceCycle: 40 })).cause).toBe('no_cycle')
+  })
+
+  it('names the switches too rather than sending the reader hunting for them', () => {
+    const v = assessEngine(parked({ remindersOn: false, reviewRequestsOn: false }))
+    expect(v.why).toMatch(/both engines are switched off as well/i)
+    expect(v.recommendation).toMatch(/separate conversation/i)
+  })
+
+  it('is a DIFFERENT problem from a switch-blocked practice, so moving between them is news', () => {
+    const bridge = assessEngine(parked())
+    const switches = assessEngine(sig({ remindersOn: false, reviewRequestsOn: false }))
+    expect(problemKey(bridge)).toBe('blocked:pms_parked')
+    expect(problemKey(bridge)).not.toBe(problemKey(switches))
+  })
+
+  it('stays with Dream Create while the audience question is the owner’s', () => {
+    // The DREAMCRM-84 meeting (2026-09-22) referred "who hears this" to the
+    // owner rather than letting it inherit an answer. Until that lands the
+    // finding behaves like the lock as shipped.
+    const s = parked()
+    expect(clinicActionable(assessEngine(s).state, s)).toBe(false)
+    expect(clinicNote(assessEngine(s).state, s)).toBeNull()
+  })
+
+  it('REFUSES the clinic half rather than merely omitting it — a switch off must not misroute it', () => {
+    // The round-1 audit's defect, verbatim: a practice with a real
+    // Dream-Create-side problem AND a switch off was handed the switch note
+    // at 'clinic', which is the wrong half of the truth AND silences the
+    // owner's email. Misrouted and lost.
+    const s = parked({ remindersOn: false })
+    expect(clinicActionable('blocked', s)).toBe(false)
+    expect(clinicNote('blocked', s)).toBeNull()
+    // …and the same practice WITHOUT the parked bridge is still the
+    // practice's to hear, so the refusal is narrow rather than a blanket.
+    const justTheSwitch = sig({ remindersOn: false })
+    expect(clinicActionable('blocked', justTheSwitch)).toBe(true)
+  })
+
+  it('puts the practice on the owner’s list — a finding nobody reads is the defect itself', () => {
+    expect(needsAttention(assessEngine(parked()).state)).toBe(true)
   })
 })
