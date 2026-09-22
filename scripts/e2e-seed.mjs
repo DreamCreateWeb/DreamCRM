@@ -924,8 +924,26 @@ async function seedTokenPages(pool) {
 
   // /d needs booking TURNED ON, or the page renders a one-line "booking is
   // closed" card instead of the slot picker — which is the control worth
-  // scanning. `prospecting_config` is a platform-global singleton and this is
-  // the only scope that writes it.
+  // scanning.
+  //
+  // ⚠ THIS IS AN UNOWNED GLOBAL WRITE, AND THE DISJOINTNESS GUARD CANNOT SEE
+  // IT (Sentinel, reviewing #669). `prospecting_config` is a platform-global
+  // SINGLETON at the literal id `'default'`, and this upsert replaces the whole
+  // JSON blob before every test in `e2e/token-landings.spec.ts`, while other
+  // workers are running. `tests/guards/e2e-seed-scopes.test.ts` keys its
+  // declared-vs-written check on the `<prefix>_e2e_<name>` row shape, so
+  // `'default'` is invisible to it — the row has no owner and the guard reports
+  // that as fine. It goes QUIET, not red, which is exactly the failure mode
+  // that guard's own docblock was written about, one level up: there the hole
+  // is a missing prefix, here it is a row id that can never have one, and no
+  // amount of growing the prefix list closes it. The next scope that needs a
+  // singleton has the same problem.
+  //
+  // Safe TODAY, which is why it is a comment and not a fix:
+  // `lib/services/prospecting.ts` is the only reader, and no other spec walks
+  // `/d` or `/platform/prospecting`. It stops being safe the day one does —
+  // and the guard will not be the thing that tells you. If you are adding that
+  // spec, give this row an owner first.
   await pool.query(
     `insert into prospecting_config (id, config)
      values ('default', $1)
@@ -991,10 +1009,23 @@ async function seedTokenPages(pool) {
 // makes a clinic show up on a partner's portal, and stamping that onto
 // `org_e2e_live` would put a partner banner into every other spec's world.
 async function seedPartner(pool) {
+  // EVERY FIELD THE SPEC READS IS RESTORED, not only the ones something is
+  // known to mutate today (Sentinel, reviewing #669). Both of these rows used
+  // to carry the partner's NAME through an upsert that could not put it back —
+  // the user row was `do nothing`, and the partner row's `do update` named
+  // status and the Stripe fields only. Nothing mutates either one right now, so
+  // it was idempotent in practice; "idempotent in practice" is precisely the
+  // fixture that fails on the third retry of a bad afternoon, which is the
+  // sentence at the top of this file's scope headers. `partner-portal.spec.ts`
+  // asserts "Welcome back, Jules", and `app/(partner)/partner/page.tsx` reads
+  // that from `referral_partner.name`.
   await pool.query(
     `insert into "user" (id, name, email, email_verified)
      values ('user_e2e_partner', 'Jules Marchetti', 'jules.marchetti@example.com', true)
-     on conflict (id) do nothing`,
+     on conflict (id) do update set
+       name = excluded.name,
+       email = excluded.email,
+       email_verified = excluded.email_verified`,
   )
   await pool.query(
     `insert into session (id, token, user_id, expires_at)
@@ -1005,7 +1036,13 @@ async function seedPartner(pool) {
     `insert into referral_partner (id, name, company, email, status, default_percent_bps, default_term_months, terms_note, user_id)
      values ('rpart_e2e_partner', 'Jules Marchetti', 'Marchetti Dental Consulting', 'jules.marchetti@example.com', 'active', 1500, 24, 'Paid monthly once the balance clears $25.', 'user_e2e_partner')
      on conflict (id) do update set
+       name = excluded.name,
+       company = excluded.company,
        status = 'active',
+       default_percent_bps = excluded.default_percent_bps,
+       default_term_months = excluded.default_term_months,
+       terms_note = excluded.terms_note,
+       user_id = excluded.user_id,
        stripe_connect_account_id = null,
        payouts_enabled = 0`,
   )

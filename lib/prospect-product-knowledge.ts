@@ -21,8 +21,13 @@ import { getQuotedPlan } from '@/lib/stripe-config'
  * the pre-demo brief, the call script. A number that drifted here would be
  * read back to a prospect in our own voice, on a call, as a fact.
  *
- * Seventeen sites across three exported strings held the founding rate, the
- * list price and the annual as literals. The header above already says "UPDATE
+ * TEN sites across three exported strings held the founding rate, the list
+ * price and the annual as literals — measured on the pre-fix file, not the
+ * seventeen the intake's starting census estimated (which this docblock
+ * shipped as fact for one review round; §2d's predicate-right-sentence-wrong
+ * shape, caught by Sentinel re-running the scan rather than reading it). The
+ * file carries thirteen plan-valued numbers in all; the other three are
+ * competitor band ends, correctly left alone. The header above already says "UPDATE
  * THIS FILE when the platform, pricing, or positioning changes" — that
  * sentence is what a hand-kept copy always costs, and the three numbers do not
  * need it any more.
