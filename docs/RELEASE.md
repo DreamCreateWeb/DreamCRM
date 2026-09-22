@@ -1120,6 +1120,22 @@ collections header) and two remain open below.
   replay that re-emailed would be the same defect one channel over. The stored
   key is scoped by notification TYPE, so an event that ever grows a second,
   different notification still gets two rows.
+  THE TRADE, at its real width (Sentinel's review note, and worth carrying
+  because the first write-up understated it): the row and the email are not one
+  unit. The row commits first, and ANY email failure — not only a crash — is
+  swallowed by `notify()`'s own catch, so the retry conflicts and that email is
+  gone for good where it used to be re-attempted. The `deliver()` deadline
+  below turns a merely SLOW provider into a throwing one at 10s, so the two
+  land together and the window is more reachable than either entry describes
+  alone. Taken knowingly: the bell row still lands, so these alerts degrade
+  rather than disappear. Per-channel delivery state is the real answer and it
+  is a `docs/POST-1.0.md` item, not a rider.
+  The index is `(user_id, dedupe_key)` and NOT org-scoped — per user is right
+  for a fan-out — so the org has to live in the KEY for any tenant-scoped
+  caller, the way `campaigns_org_automation_key_idx`'s values do. Written into
+  the `dedupeKey` docblock rather than left for the next caller to rediscover.
+  The Stripe webhook is exempt on its own terms: its events belong to the
+  platform org, not to a tenant.
   `releaseStripeEvent` is unchanged: it exists so a failed handler is retried,
   and removing it would drop events. The retry was never the defect.
   The suppression direction is bounded by the key — `stripe:<event.id>#<type>`,

@@ -65,6 +65,15 @@ export interface NotifyInput {
    * alternative is a caller passing a bare event id and silently swallowing
    * its own second, different notification.
    *
+   * PUT THE ORGANIZATION IN THE KEY when the source event is tenant-scoped.
+   * The index is `(user_id, dedupe_key)`, not `(organization_id, …)` — per
+   * user is right for a fan-out, and it is why the ORG has to live in the
+   * string instead (`campaigns_org_automation_key_idx`'s keys read
+   * "birthday:org_x:2026-06-18" for the same reason). Without it, a user who
+   * belongs to two organizations silently loses the second one's
+   * notification. The platform Stripe webhook is exempt on its own terms: its
+   * events belong to the platform org, not to a tenant.
+   *
    * LEAVE IT UNSET for ordinary notifications, which is nearly all of them: a
    * second "Sarah replied" IS a second notification.
    */
@@ -155,11 +164,19 @@ export async function notify(input: NotifyInput): Promise<void> {
         .returning({ id: schema.notifications.id })
       // Already delivered on an earlier attempt. Return BEFORE the live push
       // and the email: a replay that re-emailed would be the same defect one
-      // channel over. The trade is at-most-once — a first attempt that wrote
-      // the row and then died before emailing does not get a second chance —
-      // and for the alerts this is set on (a clinic's payment failed, a
-      // subscription cancelled) a duplicate is worse than a bell row without
-      // its email.
+      // channel over.
+      //
+      // THE TRADE, stated at its real width (Sentinel's note on #651): the row
+      // and the email are not one unit. The row commits first, and ANY email
+      // failure — not only a crash — lands in this function's own catch below,
+      // so the retry conflicts here and that email is gone for good where it
+      // used to be re-attempted. `deliver()` gained a 10s deadline in #649,
+      // which turns a merely slow provider into a throwing one, so the window
+      // is more reachable than "the process died" suggests. Taken knowingly:
+      // the bell row still lands, so these alerts (a clinic's payment failed,
+      // a subscription cancelled) DEGRADE rather than disappear, and a
+      // duplicate is worse than a bell row without its email. Per-channel
+      // delivery state is the real answer and it is a POST-1.0 item, not this.
       if (inserted.length === 0) return
     } else {
       await db.insert(schema.notifications).values(values)
