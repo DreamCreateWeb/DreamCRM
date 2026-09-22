@@ -1520,7 +1520,7 @@ carrying its own. The eleventh entry is a gate hole the work turned up.
   digest — the same defect `submitContactRequest` was fixed for (it returns
   `PublicFormResult` now, see `lib/services/public-form-error.ts`), and the
   same class §2d records as 22 assertions that passed while production showed
-  patients an error digest. · **FIXED — awaiting merge (#663)**
+  patients an error digest. · **FIXED (#663, `a5166156`)**
   (DREAMCRM-97). They return `BillingActionState` now
   (`lib/services/billing-action-error.ts`, the staff sibling of
   `checkout-error.ts` / `public-form-error.ts`), and the two UI halves read
@@ -2678,7 +2678,7 @@ query sees it. `setSyncDirection` (`lib/services/pms/connection.ts`) was a
 bare UPDATE, and `getIntegrationsDashboard`'s "Awaiting write-back" card went
 on reporting *"Will push on next sync"* on every page load afterwards — so the
 one surface that could have said something said the opposite. ·
-**FIXED — awaiting merge (#663)** (DREAMCRM-97).
+**FIXED (#663, `a5166156`)** (DREAMCRM-97).
 
 The WARNING path only, exactly as the DREAMCRM-96 meeting scoped it: no
 drain, no resolution surface, no product decision — that is the entry above
