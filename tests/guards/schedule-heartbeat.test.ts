@@ -427,6 +427,41 @@ describe('schedule heartbeat — the workflow asks the question the script answe
     expect(wfCode()).toContain('--diff-filter=A')
   })
 
+  it('the shell loop and the script agree on which files are workflows', () => {
+    // `declaredSchedules` accepts `.ya?ml`. If this loop only globs `.yml`, a
+    // `.yaml` workflow with a cron is DERIVED by the script, has no run entry
+    // from here, and is graded `never-fired` — fail-closed, which is right, but
+    // the message sends the reader to `fetch-depth: 0` when the cause is the
+    // glob. A guard that is red for a reason the reader cannot act on is a
+    // guard that gets ignored. (Sentinel, reviewing #666.)
+    const code = wfCode()
+    const globs = Array.from(code.matchAll(/\.github\/workflows\/\*\.(ya?ml)/g)).map((m) => m[1])
+    expect(
+      new Set(globs),
+      'the shell loop globs ' +
+        `${globs.join(', ') || 'nothing'} while scripts/schedule-heartbeat.mjs accepts both .yml ` +
+        'and .yaml. A workflow in the spelling this loop misses is reported as dead, with the ' +
+        'wrong repair named.',
+    ).toEqual(new Set(['yml', 'yaml']))
+
+    // `nullglob`, so an unmatched branch contributes nothing rather than a
+    // literal `.github/workflows/*.yaml` path.
+    //
+    // WHAT IT COSTS TODAY, stated accurately because the first version of this
+    // comment was not (Sentinel, reviewing #673): omitting it does NOT fail the
+    // step. The `grep` is the condition of an `if !`, and `set -e` is
+    // explicitly ignored for a command in an `if` condition — measured, with
+    // `nullglob` absent and no `.yaml` file present, the loop completes and the
+    // step exits 0. The real cost is one stray `grep: … No such file` on stderr
+    // per run.
+    //
+    // It stays required anyway, and that is the useful half: the claim becomes
+    // true the moment anyone lifts that `grep` out of the `if`, and a literal
+    // glob reaching `basename` would then be graded as a workflow that has
+    // never fired.
+    expect(code, 'an unmatched glob must expand to nothing, not to itself').toContain('shopt -s nullglob')
+  })
+
   it('derives the files it asks about instead of naming them', () => {
     const code = wfCode()
     expect(code).toContain('.github/workflows/*.yml')
