@@ -761,10 +761,13 @@ export function MarketingFooter() {
             caught it: `tests/a11y/legibility-floor.test.ts` skips
             `components/marketing` entirely, because the product mocks in this
             file imitate a real screen at 7px. Corrected on DREAMCRM-72, which
-            is also where that blanket skip stopped covering the shared chrome:
-            `tests/marketing/chrome-legibility.test.ts` now holds the header,
-            the footer and `PageHero` to the floor while leaving the mocks
-            alone. Exactly the arithmetic slip Part 4 already records against
+            is also where that blanket skip stopped covering the shared chrome.
+            `tests/marketing/type-floor.test.ts` is where that guard ended up:
+            since DREAMCRM-87 it grades EVERY component in both marketing trees
+            and names the product mocks one at a time, so a new component is
+            held to the floor the day it is written rather than the day
+            somebody adds it to a list. Exactly the arithmetic slip Part 4
+            already records against
             the mono label, found the same way — by multiplying it out. */}
         <div className="mx-auto max-w-6xl px-4 pb-5 text-[0.75rem] sm:px-6">
           <span>

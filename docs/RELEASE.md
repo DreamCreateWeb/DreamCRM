@@ -1838,12 +1838,18 @@ closed `resources/guide-ui.tsx:98` on DREAMCRM-79 and left the other seven
 alone. Both are `0.75rem` now, and the whole surface (moved to
 `components/marketing/cinema-scenes.tsx`) carries nothing under it.
 
-**What this does NOT close:** the instrument. `tests/a11y/legibility-floor.test.ts`
-still skips `components/marketing` wholesale and still nothing grades the stage
-by component. That is the entry below, which is why these were two entries.
+~~**What this does NOT close:** the instrument.
+`tests/a11y/legibility-floor.test.ts` still skips `components/marketing`
+wholesale and still nothing grades the stage by component.~~ **CLOSED on
+DREAMCRM-87** by the entry below, which is why these were two entries:
+`tests/marketing/type-floor.test.ts` now walks both marketing trees and
+`components/marketing/cinema-scenes.tsx` (where `CinemaStage` moved) is in it
+with no component registered, so the stage is graded like any other reading
+surface. `legibility-floor` still skips the directory, and now says in its
+`SKIP_DIRS` comment which guard covers it.
 · FIXED (#633, `866991f5`, merged 2026-09-17)
 
-### Open — nothing grades `app/(marketing)` against Part 4's 12px floor (found 2026-09-16)
+### Fixed — nothing grades `app/(marketing)` against Part 4's 12px floor (found 2026-09-16)
 
 **S3 · marketing site · `BRAND.md` Part 4.** Part 4 sets a 12px floor for this
 site — *"No `text-[11px]`, no sub-0.75rem literals"* — and **three** live
@@ -1910,14 +1916,61 @@ all three now 0.75rem). Those three are fixed because that PR was rebuilding
 the elements they were on; the eight above are on five other people's surfaces
 and a blanket raise would be a restyle of surfaces this PR never opened.
 
-**Do not close this by adding `app/(marketing)` to `SCAN_DIRS`** until the
-remaining three are resolved — the widened scan goes red on arrival, which is
-the correct behaviour and also means the widening and the fixes have to land
-together. (As of 2026-09-17 `app/(marketing)` is in fact CLEAN, so that half of
-the widening is free today; the `components/marketing` half still needs the
-by-component treatment, because the three survivors are inside mocks that
-legitimately imitate a real screen at 7px.)
-Same lane as the entry above — UI correctness, Vesper. · OPEN
+**FIXED on DREAMCRM-87, and the three survivors were NOT "resolved" — they
+were NAMED.** That is the resolution this entry's own analysis asked for and it
+is worth stating plainly, because the sentence above ("until the remaining
+three are resolved") reads as though they needed raising. They did not: all
+three are inside `PortalMock`, `ReviewsMock` and `RecallFunnelMock`, which are
+exactly the population the directory skip's stated reason is about. Raising
+them would have been a restyle of an illustration to satisfy a rule that does
+not apply to it.
+
+**The instrument is `tests/marketing/type-floor.test.ts`** —
+`chrome-legibility.test.ts` widened and renamed, rather than a second guard
+beside it, because two guards grading one string is how they start disagreeing.
+It walks BOTH marketing trees, attributes every sub-floor literal to its
+enclosing component, and pardons only the **thirteen** registered product mocks
+(the nine `*Mock`s, `HeroStatTile` and `HeroReplyBubble` — pieces of
+`DashboardMock` pulled forward into the hero, which their own docblock says —
+and the two file-local helpers `StatusPill` and `Avatar`).
+
+**THE DIRECTION OF THE COST INVERTED, which is the point of the widening.** The
+old version named the eight components it GRADED, and stated its cost as a
+false NEGATIVE — a new chrome component nobody added to the list was not
+graded. This one enumerates the EXEMPTIONS, so a genuinely new mock fails
+`test` until somebody registers it and writes the sentence. For a floor that is
+the right direction, and it is what stops the count going 8 → 7 → 3 again while
+the instrument never moves.
+
+**`aria-hidden` is not what earns the pardon** (this entry said so, and
+`CinemaStage`'s docblock says so): the `why` on each row is the WCAG 1.4.3
+argument — a component imitating a real app screen at real-screen scale — and
+`aria-hidden` on the component's own root is the structural PREMISE beside it,
+asserted on the owning component's body rather than searched for file-wide
+(§2d's sixth identity-looseness entry: `ui.tsx` carries the attribute in a
+dozen places, so a file-wide search is satisfied by somebody else's).
+
+**`app/(marketing)` did NOT go into `legibility-floor`'s `SCAN_DIRS`**, which
+is a deliberate departure from this entry's suggested fix. That file's own
+header already says the public site is swept separately; the marketing tree
+needs the mock exemption and the dashboard tree does not; and the `SKIP_DIRS`
+comment there now points at the guard that covers the lane. One string, one
+guard.
+
+**And it closes the cinema-stage entry's leftover half.** That entry ends "what
+this does NOT close: the instrument… nothing grades the stage by component."
+`components/marketing/cinema-scenes.tsx` is in this scan now and no component
+in it is registered, so the stage is graded like any other reading surface.
+
+Watched to fail (§2d) against the real defects in their real shapes: the two
+`CinemaStage` literals DREAMCRM-82 fixed and `guide-ui.tsx`'s `ScriptCard`
+caption DREAMCRM-79 fixed were all restored to their shipped spellings and this
+guard named all three by file, line, component and px while
+`legibility-floor.test.ts` stayed green on every one. The DOCBLOCK in the same
+file that quotes `text-[0.72rem]` while explaining its removal was NOT named —
+comments are blanked before anything is counted, offsets preserved, which is
+the false positive this entry warned a re-derivation would produce.
+· FIXED (#642, DREAMCRM-87)
 
 ### Fixed — the matrix "no" mark reads 2.29 against its own tile (found 2026-09-16)
 

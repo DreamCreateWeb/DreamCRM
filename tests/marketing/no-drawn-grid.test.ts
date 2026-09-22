@@ -152,7 +152,7 @@ export function findLattices(file: string, source: string): Lattice[] {
   // from a CSS `background-size`, the nearest unmatched `{` is the rule's own
   // brace, which is exactly the unit to read.
   //
-  // `Array.from` for the same TS2802 reason as the chrome-legibility scanner.
+  // `Array.from` for the same TS2802 reason as the type-floor scanner.
   for (const m of Array.from(source.matchAll(/background-?[sS]ize\s*:/g))) {
     const obj = enclosingObject(source, m.index)
     if (isDrawnLattice(obj)) {
