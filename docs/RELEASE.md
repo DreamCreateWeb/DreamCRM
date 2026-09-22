@@ -1080,21 +1080,45 @@ binding are all correct. The payment-plan charger was the exception.
   month": the pre-collapse three-tier range, on a page a prospect can read
   while a presenter quotes them $200. Marketing lane. Repro: open
   `/blog/dreamcrm-is-live` (or whatever slug that entry carries) and read the
-  first paragraph. · **FIXED** (DREAMCRM-101, #660, `53c8bd23`) — the seed
-  copy interpolates `getQuotedPlan()`, and because `LAUNCH_POSTS` is read only
-  when a post does not exist yet, the row ALREADY PUBLISHED is corrected by an
-  exact-sentence pass in `seedPlatformBlogPosts` (`correctLaunchPostBody`, pure
-  and exported so it is graded without a database). Exact matching is what
-  keeps a post edited in the Posts manager from being overwritten on a deploy.
+  first paragraph. · **FIXED** (DREAMCRM-101, #660 + #670) — and **this entry
+  had the number wrong, which is the most useful thing on the line.**
+
+  **The published row said `$99-199`, not `$150-500`.** The `$150-500` above
+  is what `lib/services/marketing-blog.ts:50` said — this entry cites that
+  line, and it was written by reading the source rather than by opening the
+  page. Its own repro says *"open `/blog/dreamcrm-is-live` and read the first
+  paragraph"*. Running that repro, after #660 had already merged, is what
+  found a range from a pricing scheme older than the one recorded here.
+
+  **Why the two disagreed at all is this seed's own bug class, one generation
+  earlier**, and it is worth more than the price it produced: `LAUNCH_POSTS` is
+  read ONLY when a post does not exist, so the registry and the published row
+  have been free to diverge since launch. Somebody updated the copy in the
+  file; the live post kept what it was seeded with; nothing reconciled them.
+  Any entry about seeded content is about TWO artifacts, and naming a source
+  line describes only one of them.
+
+  The fix, across both PRs: the seed copy interpolates `getQuotedPlan()`
+  (#660, `53c8bd23`), and the already-published row is corrected in
+  `seedPlatformBlogPosts` by `correctLaunchPostBody` — pure and exported so it
+  is graded without a database. #660 keyed that on the exact `$150-500`
+  sentence and therefore matched nothing on the deploy; #670 made it a SHAPE
+  instead: a price RANGE inside our own sentence frame, stale whatever its
+  digits are, because there has been one purchasable plan since the 2026-07-19
+  collapse. Still narrow enough to leave a single price and a hand-reworded
+  sentence alone, which is what exact matching was protecting and the only
+  thing widening could have cost; both are pinned, and the test fixture is now
+  the LIVE bytes rather than a copy of the registry.
+
   `lib/services/marketing-blog.ts` joins `PRICE_QUOTING_ROUTES` as the tenth
-  surface, and it is the CONTENT shape that scan's header predicted one move
-  earlier. **Worth carrying: neither of that guard's assertions could have
-  found this one.** The drift was a RANGE — `$150` is nobody's price and the
-  `500` carries no dollar sign — so the literal scan correctly reported clean,
-  and the render-the-page assertion cannot see copy that lives in a database
-  row. A human writing this ledger entry found it. That is a second argument
-  for :1085's general rule matching PROSE SPELLINGS, and a new one that a
-  RANGE-shaped quote needs its own pattern.
+  surface — the CONTENT shape that scan's header predicted one move earlier.
+  **Worth carrying: neither of that guard's assertions could have found this
+  one.** The drift was a RANGE, so no plan price is spelled anywhere in it and
+  the literal scan correctly reported clean; and the render-the-page assertion
+  cannot see copy that lives in a database row. That is a second argument for
+  :1085's general rule matching PROSE SPELLINGS, a new one that a RANGE-shaped
+  quote needs its own pattern, and a third that the rule cannot only read
+  source — the wrong number here was never in a file at all.
 - S3 · `lib/types/social-entitlements.ts:12` — the comment table documenting
   the social add-on still prices the tiers `Pro ($250) | Premium ($500)`. A
   comment, so nothing renders it, but it is the file the next person reads to
