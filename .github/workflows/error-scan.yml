@@ -125,28 +125,44 @@ jobs:
           set -uo pipefail
           echo '[]' > last-green.json
 
+          # `--jq` RATHER THAN A NODE HOP, and this is the fix for a real bug
+          # rather than a tidy-up (Sentinel, reviewing #664). The first version
+          # built this list with `…join("\n")` inside a `run: |` block. A YAML
+          # block scalar does not process escapes and neither do the shell's
+          # single quotes, so node received the two characters `\` and `n`, and
+          # `candidates.txt` came out as ONE line reading `111\n222\n333`. The
+          # loop below then asked GitHub for run `111\n222\n333`, failed,
+          # `continue`d, and ended — so `last-green.json` stayed `[]`, every run
+          # took the 24-hour fallback, and the contiguous window this whole file
+          # is about never engaged once.
+          #
+          # It was LOUD (every run carried a hole annotation) rather than
+          # silent, which is the only reason it was survivable. But the hole's
+          # sentence blamed the IAM role, which is the wrong repair — a broken
+          # predicate that is confidently wrong about why is worse than one that
+          # says nothing.
+          #
+          # `gh --jq` emits real newlines AND a trailing one, which also closes
+          # the second bug in the same line: `while read` drops a final line
+          # that has no newline after it, so the twentieth candidate would never
+          # have been checked even with the escape corrected. The `|| [ -n
+          # "$ID" ]` below is belt to that braces.
           gh run list --repo ${{ github.repository }} --workflow error-scan.yml \
             --branch main --status success --limit 20 \
-            --json databaseId,conclusion,createdAt \
-            > candidates.json || echo '[]' > candidates.json
+            --json databaseId --jq '.[].databaseId' \
+            > candidates.txt || : > candidates.txt
 
-          node -e '
-            const fs = require("fs")
-            let rows = []
-            try { rows = JSON.parse(fs.readFileSync("candidates.json", "utf8")) } catch {}
-            fs.writeFileSync("candidates.txt", (Array.isArray(rows) ? rows : []).map((r) => r.databaseId).join("\\n"))
-          '
-
-          while read -r ID; do
+          while read -r ID || [ -n "${ID}" ]; do
             [ -n "${ID}" ] || continue
             gh api "repos/${{ github.repository }}/actions/runs/${ID}/jobs" > jobs.json 2>/dev/null || continue
             if node scripts/error-scan.mjs scanned --jobs jobs.json; then
-              RUN_ID="${ID}" node -e '
-                const fs = require("fs")
-                const rows = JSON.parse(fs.readFileSync("candidates.json", "utf8"))
-                const row = rows.find((r) => String(r.databaseId) === process.env.RUN_ID)
-                fs.writeFileSync("last-green.json", JSON.stringify(row ? [row] : []))
-              '
+              # The chosen run's row, asked for by id rather than fished back
+              # out of a list fetched separately. One `gh run list` and one
+              # `gh run view` cannot disagree with each other; two `gh run list`
+              # calls a second apart can, if a run lands between them.
+              gh run view "${ID}" --repo ${{ github.repository }} \
+                --json databaseId,conclusion,createdAt --jq '[.]' \
+                > last-green.json || echo '[]' > last-green.json
               echo "Anchoring this window on run ${ID}, the most recent one that actually read the logs."
               break
             fi

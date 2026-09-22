@@ -266,6 +266,183 @@ describe('error scan — a run that did not read the logs cannot close a window'
   })
 })
 
+/**
+ * THE ANCHOR STEP, EXECUTED — not read.
+ *
+ * WHY THIS EXISTS, and it is the sharpest §2d lesson in this issue. Every other
+ * guard here grades the workflow **as text** and the script **as a module**.
+ * Nothing executed the shell that joins the two, and `bash -n` is a syntax
+ * check that cannot see a wrong string constant. So this shipped:
+ *
+ *     fs.writeFileSync("candidates.txt", rows.map(…).join("\\n"))
+ *
+ * A YAML `run: |` block does not process escapes and neither do the shell's
+ * single quotes, so node received a backslash and an `n`. `candidates.txt` came
+ * out as ONE line — `111\n222\n333` — the loop asked GitHub for a run by that
+ * name, failed, and ended. `last-green.json` stayed `[]`, every run took the
+ * 24-hour fallback, and **the contiguous window this whole PR is about never
+ * engaged once**. Found by Sentinel reviewing #664, reproduced here by pulling
+ * the step out of the YAML byte-for-byte.
+ *
+ * Worse than a plain bug, and the reason it is worth a whole block: the run was
+ * LOUD but the hole's sentence blamed the IAM role. A broken predicate that is
+ * confidently wrong about why sends the reader to the wrong repair.
+ *
+ * Sentinel's generalisation, which is better than the "three for three" it
+ * corrects: the recurring shape is **grading a representation of the thing
+ * instead of the thing**. Comments quoting code is one representation; a string
+ * in a YAML file standing in for the shell that will run it is another.
+ * "Strip the comments" fixes the first. Only executing it fixes the second.
+ *
+ * So: the step's `run:` block is extracted from the real workflow, a stub `gh`
+ * is put on PATH, and it runs in a temp directory. What is asserted is
+ * `last-green.json` — the artefact the next step actually reads.
+ */
+describe('error scan — the anchor step, executed against a stub `gh`', () => {
+  type StubOpts = { ids: string[]; scannedId: string | null; noTrailingNewline?: boolean }
+
+  /** One step's `run:` block, dedented, straight out of the workflow file. */
+  function runBlock(name: string): string {
+    const lines = readFileSync(join(process.cwd(), '.github/workflows/error-scan.yml'), 'utf8').split(/\r?\n/)
+    const start = lines.findIndex((l) => l.trimStart().startsWith('- name:') && l.includes(name))
+    expect(start, `no step named ${name} in error-scan.yml`).toBeGreaterThan(-1)
+    const runAt = lines.findIndex((l, i) => i > start && /^\s*run: \|\s*$/.test(l))
+    expect(runAt, `step ${name} has no \`run: |\` block`).toBeGreaterThan(-1)
+
+    const body: string[] = []
+    const indent = lines[runAt + 1].length - lines[runAt + 1].trimStart().length
+    for (let i = runAt + 1; i < lines.length; i++) {
+      const l = lines[i]
+      if (l.trim() && l.length - l.trimStart().length < indent) break
+      body.push(l.slice(indent))
+    }
+    return body.join('\n')
+  }
+
+  /**
+   * A stub `gh` that answers the three calls this step makes, from fixtures.
+   *
+   * It is a script on PATH rather than a mock, because the defect this block
+   * exists for lived in the ARGUMENTS and the QUOTING — exactly the layer a
+   * mock replaces.
+   */
+  function stubGh(dir: string, opts: StubOpts) {
+    const gh = [
+      '#!/usr/bin/env bash',
+      'set -e',
+      'case "$1 $2" in',
+      '  "run list")',
+      // `printf '%s\n'` repeats its format once per argument, so this is one id
+      // per line WITH a trailing newline — what `gh --jq` really produces.
+      // `noTrailingNewline` produces the shape `while read` silently truncates.
+      opts.noTrailingNewline
+        ? // Escapes are interpreted in printf's FORMAT, not in its arguments —
+          // so the ids go in the format here. (Getting that backwards produced
+          // a literal `111\n222` and reproduced the very bug this stub is meant
+          // to distinguish itself from, which is a small joke at my expense.)
+          `    printf '${opts.ids.join('\\n')}'`
+        : `    printf '%s\\n' ${opts.ids.map((i) => `'${i}'`).join(' ')}`,
+      '    ;;',
+      '  "run view")',
+      '    printf \'[{"databaseId":%s,"conclusion":"success","createdAt":"2026-09-22T06:00:00Z"}]\' "$3"',
+      '    ;;',
+      '  "api "*|"api")',
+      '    RUN=$(echo "$2" | sed -E "s#.*/runs/([^/]+)/jobs#\\\\1#")',
+      `    if [ "$RUN" = "${opts.scannedId ?? '__none__'}" ]; then`,
+      '      printf \'{"jobs":[{"steps":[{"name":"%s","conclusion":"success"}]}]}\' "$SCAN_STEP"',
+      '    else',
+      '      printf \'{"jobs":[{"steps":[{"name":"%s","conclusion":"skipped"}]}]}\' "$SCAN_STEP"',
+      '    fi',
+      '    ;;',
+      '  *) echo "unexpected gh invocation: $*" >&2; exit 9 ;;',
+      'esac',
+    ].join('\n')
+    writeFileSync(join(dir, 'gh'), gh + '\n', { mode: 0o755 })
+  }
+
+  function runAnchorStep(opts: StubOpts) {
+    const dir = mkdtempSync(join(tmpdir(), 'anchor-'))
+    stubGh(dir, opts)
+    const script = runBlock('Where did the last run that actually scanned start?')
+      // The two GitHub expressions the runner would have substituted.
+      .replace(/\$\{\{ github\.repository \}\}/g, 'DreamCreateWeb/DreamCRM')
+      // `node scripts/error-scan.mjs` is relative to the repo root.
+      .replace(/node scripts\//g, `node ${JSON.stringify(join(process.cwd(), 'scripts')).slice(1, -1)}/`)
+    writeFileSync(join(dir, 'step.sh'), script)
+
+    const r = spawnSync('bash', ['step.sh'], {
+      cwd: dir,
+      encoding: 'utf8',
+      env: { ...process.env, PATH: `${dir}:${process.env.PATH}`, SCAN_STEP: SCAN_STEP_NAME },
+    })
+    let lastGreen: unknown = null
+    try {
+      lastGreen = JSON.parse(readFileSync(join(dir, 'last-green.json'), 'utf8'))
+    } catch {
+      /* left null — the assertions say what that means */
+    }
+    return { ...r, lastGreen, candidates: (() => {
+      try {
+        return readFileSync(join(dir, 'candidates.txt'), 'utf8')
+      } catch {
+        return ''
+      }
+    })() }
+  }
+
+  it('writes one candidate PER LINE (the defect: `\\n` as two characters)', () => {
+    const { candidates } = runAnchorStep({ ids: ['111', '222', '333'], scannedId: null })
+    expect(
+      candidates.split('\n').filter(Boolean),
+      'the candidate list is not newline-separated, so the loop asks GitHub for a run whose id is ' +
+        'the whole list joined together, fails once, and ends — leaving the anchor unresolved and ' +
+        'every run on the fallback window.',
+    ).toEqual(['111', '222', '333'])
+    expect(candidates, 'without a trailing newline `while read` drops the last candidate').toMatch(/\n$/)
+  })
+
+  it('anchors on the newest run that actually scanned, walking past the ones that did not', () => {
+    const { lastGreen, stdout } = runAnchorStep({ ids: ['111', '222', '333'], scannedId: '222' })
+    expect(lastGreen, 'last-green.json is what the window step reads; an empty one is the fallback').toEqual([
+      { databaseId: 222, conclusion: 'success', createdAt: '2026-09-22T06:00:00Z' },
+    ])
+    expect(stdout).toContain('Anchoring this window on run 222')
+  })
+
+  it('checks the LAST candidate too', () => {
+    // The second bug in the same line: `while read` drops a final line with no
+    // newline after it, so the twentieth candidate would never be examined.
+    const { lastGreen } = runAnchorStep({ ids: ['111', '222', '333'], scannedId: '333' })
+    expect(lastGreen).toEqual([
+      { databaseId: 333, conclusion: 'success', createdAt: '2026-09-22T06:00:00Z' },
+    ])
+  })
+
+  it('checks the last candidate even when the list has no trailing newline', () => {
+    // `while read -r ID` alone drops a final line with no newline after it.
+    // `gh --jq` does emit one, so this is belt to that braces — and it is the
+    // half that survives somebody changing how the list is produced, which is
+    // exactly what happened once already in this file.
+    const { lastGreen } = runAnchorStep({ ids: ['111', '222', '333'], scannedId: '333', noTrailingNewline: true })
+    expect(
+      lastGreen,
+      'the last candidate was never examined. `while read -r ID || [ -n "$ID" ]` is what reads a ' +
+        'final line with no newline after it.',
+    ).toEqual([{ databaseId: 333, conclusion: 'success', createdAt: '2026-09-22T06:00:00Z' }])
+  })
+
+  it('leaves an empty anchor — the loud fallback — when nothing scanned', () => {
+    const { lastGreen } = runAnchorStep({ ids: ['111', '222'], scannedId: null })
+    expect(lastGreen, 'that is the honest answer, and the window step turns it into a named hole').toEqual([])
+  })
+
+  it('survives a run history that comes back empty', () => {
+    const { lastGreen, status } = runAnchorStep({ ids: [], scannedId: null })
+    expect(status, 'a quiet history must not fail the step').toBe(0)
+    expect(lastGreen).toEqual([])
+  })
+})
+
 describe('error scan — a log group it could not read is a hole, not a quiet group', () => {
   it('names the group in the summary, above the findings', () => {
     // Sentinel, reviewing #664: the old `|| echo '[]'` turned a throttle or an
