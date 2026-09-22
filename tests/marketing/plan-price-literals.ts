@@ -151,13 +151,13 @@ const CADENCE =
  * DIVIDED by). A price that is an INPUT TO A CALCULATION does not go stale at
  * a reprice — it goes WRONG — and it never carries a dollar sign.
  *
- * `NAME_IS_PRICEY` is the discriminator, and it is deliberately a small closed
+ * `nameIsPricey` is the discriminator, and it is deliberately a small closed
  * vocabulary rather than "any identifier". A bare `= 200` scan is noise with a
  * rule attached: `200` is a Tailwind step, a pixel value, a row count, an HTTP
  * status and a timeout, and §2d is explicit that a guard which fires on
  * something innocent is a guard somebody turns off.
  */
-const ASSIGNMENT = /(^|[^\w$.])(['"]?)([A-Za-z_$][\w$]*)\2\s*[:=]\s*(\d+(?:,\d{3})*)(?![\w.])/g
+const ASSIGNMENT = /(^|[^\w$.])(['"]?)([A-Za-z_$][\w$]*)\2\s*[:=]\s*\{?\s*(\d+(?:,\d{3})*)(?![\w.])(?!\s*:)/g
 
 /**
  * The names that make a bare number a price.
@@ -169,7 +169,37 @@ const ASSIGNMENT = /(^|[^\w$.])(['"]?)([A-Za-z_$][\w$]*)\2\s*[:=]\s*(\d+(?:,\d{3
  * so every `amount` in the tree is cents and a plan price in cents (20000)
  * is not a number this rule is looking for.
  */
-const NAME_IS_PRICEY = /price|rate|cost|fee|msrp|mrr|monthly|annual/i
+const PRICEY_WORDS = /^(?:price|rate|cost|fee|msrp|mrr|monthly|annual|annually)s?$/i
+
+/**
+ * Split an identifier into the WORDS a reader sees in it — `LIST_MONTHLY`,
+ * `estMonthly`, `listAnnualPrice` and `plan-price` all become their parts.
+ */
+export const identifierWords = (name: string): string[] =>
+  name
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2')
+    .split(/[^A-Za-z]+/)
+    .filter(Boolean)
+
+/**
+ * Does this identifier NAME a price, or does it merely CONTAIN the letters?
+ *
+ * Found by Sentinel reviewing #665. The first version was a bare substring
+ * alternation, so `fee` matched inside `FEED_PAST_DAYS` and
+ * `showPrivateFeedback`, and `rate` matched inside `generate`, `separate` and
+ * `iterate`. None of them holds a plan number TODAY — but the day one lands on
+ * 200 or 2000, `test` goes red naming an innocent file, and §2d is explicit
+ * that the remedy for a false positive is to narrow the PREDICATE and never to
+ * register the file.
+ *
+ * This is the identity-looseness family arriving in the guard's own
+ * vocabulary: a word is not a substring, the same way a name is not a prefix.
+ * Splitting on the camel/snake boundary keeps `monthly` — which `LIST_MONTHLY`
+ * needs and which nothing narrower would catch — while losing the accidents.
+ */
+export const nameIsPricey = (name: string): boolean =>
+  identifierWords(name).some((w) => PRICEY_WORDS.test(w))
 
 /**
  * A RANGE — the discriminator that does the most work, and the reason
@@ -194,8 +224,33 @@ const NAME_IS_PRICEY = /price|rate|cost|fee|msrp|mrr|monthly|annual/i
  * dash and em dash; an optional `$` on the far number, which prose writes both
  * ways (`$800-2,000` and `$800-$2,000`).
  */
-const BAND_BEFORE = /\d(?:[\d,]*\d)?\s*[-–—]\s*\$?$/
-const BAND_AFTER = /^\s*[-–—]\s*\$?\d/
+/** A horizontal space — NOT `\s`, which crosses a newline. */
+/**
+ * A HORIZONTAL space — deliberately not `\s`, which crosses a newline.
+ *
+ * `\s*` let a band match run from the end of one line to a list item at the
+ * start of the next, so `the rate is $200\n- 7 day trial` read as a range and
+ * went silent. A band is something you write on ONE line.
+ */
+const H = String.raw`[^\S\n]`
+
+/**
+ * A far end that looks like MONEY rather than like any number at all.
+ *
+ * Found by Sentinel reviewing #665. The first version pardoned a number
+ * followed by dash-then-ANY-digit, so `$200 — 7 days free` read as a band —
+ * and this repo's marketing prose is made of em dashes. The failure direction
+ * is the QUIET one, which is what earns a fix rather than a note.
+ *
+ * A price band's far end is itself a price: it carries a `$`, or it is at
+ * least three digits (`$200–350`, `$800-2,000`, `$150–500`). Seven is not.
+ */
+const MONEYISH = String.raw`(?:\$\d|\d{3})`
+
+const BAND_BEFORE = new RegExp(
+  String.raw`(?:\$\d[\d,]*|\d{3}[\d,]*)` + `${H}*[-–—]${H}*` + String.raw`\$?$`,
+)
+const BAND_AFTER = new RegExp(`^${H}*[-–—]${H}*${MONEYISH}`)
 
 /**
  * Is the number at `[start, end)` one end of a market band rather than a
@@ -251,7 +306,7 @@ export const PRICE_SOURCE = 'lib/stripe-config.ts'
  *      the most likely next defect.
  *   3 and 4. A MONTHLY COUNT rather than a monthly price. `MONTHLY_CAP = 200`
  *      is 200 AI translations and `INCLUDED_MONTHLY_SEGMENTS = 2000` is 2,000
- *      SMS segments. `NAME_IS_PRICEY` matches them on `monthly`, which it must
+ *      SMS segments. `nameIsPricey` matches them on `monthly`, which it must
  *      keep — `LIST_MONTHLY = 500` is the defect that spelling exists for.
  *      Narrowing the vocabulary to lose these two would lose that one with
  *      them, so they are named instead of the rule being blunted.
@@ -291,7 +346,7 @@ export const ALLOWED_QUOTES: AllowedQuote[] = [
     near: 'MONTHLY_CAP',
     why:
       'A COUNT, not money: 200 AI form translations per org per month. It matches on `monthly`, ' +
-      'which `NAME_IS_PRICEY` has to keep because `LIST_MONTHLY = 500` is the dollar-signless ' +
+      'which `nameIsPricey` has to keep because `LIST_MONTHLY = 500` is the dollar-signless ' +
       'defect that spelling exists for.',
   },
   {
@@ -382,7 +437,7 @@ export function planPriceHits(file: string, source: string, planPrices: Readonly
 
   const assignment = new RegExp(ASSIGNMENT.source, 'g')
   while ((m = assignment.exec(code)) !== null) {
-    if (!NAME_IS_PRICEY.test(m[3]!)) continue
+    if (!nameIsPricey(m[3]!)) continue
     add(m.index + m[0]!.length - m[4]!.length, m[4]!, 'assignment')
   }
 

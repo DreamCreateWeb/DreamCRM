@@ -467,7 +467,11 @@ export default async function MarketingHome() {
             Founding practice rate
           </p>
           <p className="mt-2 flex items-baseline justify-center gap-3">
-            <span className="text-[1.2rem] font-semibold text-gray-500 line-through decoration-2">{usd(PRICE.listMonthly ?? PRICE.rateMonthly)}</span>
+            {PRICE.listMonthly ? (
+              <span className="text-[1.2rem] font-semibold text-gray-500 line-through decoration-2">
+                {usd(PRICE.listMonthly)}
+              </span>
+            ) : null}
             <span className="text-[2.6rem] font-extrabold tracking-tight text-gray-950">{usd(PRICE.rateMonthly)}</span>
             <span className="text-[0.9rem] font-medium text-gray-500">/mo</span>
           </p>
