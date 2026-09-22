@@ -3,12 +3,22 @@ import { spawnSync } from 'node:child_process'
 import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { gateFindings, renderSummary as renderGateSummary } from '../../scripts/review-gate.mjs'
 import {
+  gateFindings,
+  intakeFindings,
+  renderSummary as renderGateSummary,
+} from '../../scripts/review-gate.mjs'
+import {
+  INTAKE_LABEL,
+  INTAKE_SWEPT_SINCE,
   REVIEW_LABEL,
   SWEPT_SINCE,
   VERDICT_PATTERNS,
   VERDICT_REVIEW_STATES,
+  intakeRecord,
+  intakeSweep,
+  lastGreenAt,
+  newSince,
   renderSummary,
   reviewRecord,
   sweep,
@@ -40,6 +50,22 @@ import { effectiveContexts, runsOnPullRequest } from '../../scripts/rulebook-dri
  *      repo's real history: before the "record the verdict on the PR"
  *      convention landed, #575, #579 and #580 were genuinely reviewed and carry
  *      no more on-PR evidence than #573 and #582, which were not.
+ *
+ *   3a. THE SAME THREE, FOR THE INTAKE HALF (DREAMCRM-92). `needs-forge-intake`
+ *      is graded the same way under its own later cut-off, and it needs its
+ *      own copies rather than a shared loop: the record shape is different
+ *      (`Forge intake:` plus a section reference, not a verdict word), and the
+ *      cut-off's argument is its own — thirty merged PRs wore that label,
+ *      unread, on the day this half arrived.
+ *
+ *   3b. THE WINDOW MUST BE THE LAST GREEN ONE, NOT THE LAST RUN. The exit
+ *      status is keyed on what is new since the sweep last went green, and the
+ *      degradation to *last run* is the failure mode written against rather
+ *      than noted: it makes every miss a one-day alarm, red on the morning it
+ *      appears and green every morning after with the finding untouched. Both
+ *      directions run as a process — a standing miss leaves the run green
+ *      while still printing, a new one reddens it — because a one-directional
+ *      version of this passes on a sweep that has gone blind.
  *
  *   4. THE RINGER MUST RING. Everything above grades the CLASSIFIER, and the
  *      classifier can be perfect while the alarm is mute — this sweep has
@@ -79,15 +105,41 @@ const gateSummaryForAGatedPr = () => {
   return renderGateSummary(gateFindings(files), files.length, [])
 }
 
-/** Run the script the way the workflow does, as a process, and read what it says and returns. */
-function runSweep(prs: Pr[], limit = 500) {
-  const file = join(mkdtempSync(join(tmpdir(), 'sweep-')), 'prs.json')
+/** The same summary for a PR that owes an INTAKE, which is the half with its own record shape. */
+const gateSummaryForAnIntakePr = () => {
+  const files = ['tests/guards/review-gate.test.ts']
+  return renderGateSummary(gateFindings(files), files.length, intakeFindings(files))
+}
+
+/** A `gh run list --json databaseId,conclusion,createdAt` row. */
+const run = (conclusion: string, createdAt: string, databaseId = 1) => ({
+  databaseId,
+  conclusion,
+  createdAt,
+})
+
+/**
+ * Run the script the way the workflow does, as a process, and read what it says
+ * and returns.
+ *
+ * `lastGreen` mirrors the `--last-green` file the workflow writes. Omitting it
+ * is the FAILING-CLOSED path — no run history supplied, so every finding counts
+ * as new — which is why every test written before DREAMCRM-92 still reads the
+ * exit code it always did.
+ */
+function runSweep(prs: Pr[], limit = 500, lastGreen?: unknown[]) {
+  const dir = mkdtempSync(join(tmpdir(), 'sweep-'))
+  const file = join(dir, 'prs.json')
   writeFileSync(file, JSON.stringify(prs))
-  const r = spawnSync(
-    process.execPath,
-    ['scripts/review-sweep.mjs', '--prs', file, '--limit', String(limit)],
-    { cwd: process.cwd(), encoding: 'utf8' },
-  )
+
+  const args = ['scripts/review-sweep.mjs', '--prs', file, '--limit', String(limit)]
+  if (lastGreen) {
+    const runsFile = join(dir, 'runs.json')
+    writeFileSync(runsFile, JSON.stringify(lastGreen))
+    args.push('--last-green', runsFile)
+  }
+
+  const r = spawnSync(process.execPath, args, { cwd: process.cwd(), encoding: 'utf8' })
   return { code: r.status, out: r.stdout ?? '' }
 }
 
@@ -246,14 +298,40 @@ describe('the sweep knows when it could not see its whole window', () => {
 describe('the sweep workflow', () => {
   const wf = () => readFileSync(join(process.cwd(), '.github/workflows/review-sweep.yml'), 'utf8')
 
+  /**
+   * THE SHELL COMMAND containing `anchor`, following `\` continuations.
+   *
+   * Comment lines are skipped, and that is the whole point of this existing
+   * rather than a regex over the file. The first draft of the green-lookup
+   * guard below matched `/gh run list[\s\S]*?--json/`, which anchored on the
+   * `permissions:` block's comment — it explains what `gh run list` needs the
+   * `actions` scope FOR — and then swallowed half the file, including the real
+   * command. Deleting `--status success` from the command left it green: the
+   * guard was reading a sentence ABOUT the command. Watched fail (DREAMCRM-92,
+   * §2d), which is how it was found rather than shipped.
+   */
+  function shellCommand(source: string, anchor: string): string | null {
+    const lines = source.split(/\r?\n/)
+    const start = lines.findIndex((l) => !l.trimStart().startsWith('#') && l.includes(anchor))
+    if (start === -1) return null
+
+    const out = [lines[start]]
+    while (out[out.length - 1].trimEnd().endsWith('\\') && start + out.length < lines.length) {
+      out.push(lines[start + out.length])
+    }
+    return out.join('\n')
+  }
+
   it('runs the script and tells it the limit it asked GitHub for', () => {
     // The `--limit` argument is what lets the script detect its own truncated
     // window. Drop it and the gap check above can never fire in production.
     const source = wf()
     expect(source).toContain('node scripts/review-sweep.mjs')
 
-    const asked = source.match(/gh pr list[\s\S]*?--limit (\d+)/)
+    const list = shellCommand(source, 'gh pr list')
     const told = source.match(/scripts\/review-sweep\.mjs[^\n]*--limit (\d+)/)
+    expect(list, 'the sweep must ask GitHub for a bounded list').toBeTruthy()
+    const asked = list!.match(/--limit (\d+)/)
     expect(asked, 'the sweep must ask GitHub for a bounded list').toBeTruthy()
     expect(told, 'without --limit the script cannot detect its own truncated window').toBeTruthy()
     expect(
@@ -261,6 +339,48 @@ describe('the sweep workflow', () => {
       'the script is told a different limit than the gh call used, so its truncation check is ' +
         'grading the wrong number and a sweep with a hole in it would report clean.',
     ).toBe(asked![1])
+  })
+
+  it('looks its own run history up, and asks for GREEN runs specifically', () => {
+    // THE FAILURE MODE §2a NAMES, graded at the place it would actually
+    // happen. `lastGreenAt` filters on `conclusion` itself, so dropping
+    // `--status success` cannot silently change the answer — but the flag
+    // going missing is the first symptom of somebody "simplifying" this toward
+    // the last RUN, and that degradation turns every miss into a one-day
+    // alarm. Both halves of the belt-and-braces are asserted: here, and in
+    // `when the sweep last went green` above.
+    const source = wf()
+    const lookup = shellCommand(source, 'gh run list')
+
+    expect(lookup, 'the sweep must look up when it last went green, or it cannot key on it').toBeTruthy()
+    expect(
+      lookup!,
+      'the run-history lookup stopped asking for successful runs. Keyed on the last RUN rather ' +
+        'than the last GREEN one, a miss is red for one morning and green every morning after ' +
+        'with nothing remediated — worse than the permanently-red alarm this replaced.',
+    ).toContain('--status success')
+    expect(
+      lookup!,
+      'a green workflow_dispatch run from a feature branch graded a different version of this file',
+    ).toContain('--branch main')
+    expect(
+      source,
+      'the script is not told where the run history is, so it fails closed every morning and the ' +
+        'whole last-green window is dead code in production.',
+    ).toMatch(/scripts\/review-sweep\.mjs[^\n]*--last-green/)
+  })
+
+  it('asks for the scope its own run-history lookup needs', () => {
+    // `gh run list` cannot read a private repo's Actions history on `contents`
+    // alone. Without `actions: read` the lookup 403s, the `|| true` swallows
+    // it, the script fails CLOSED — and the sweep is back to permanently red
+    // with nobody able to tell from the summary why. That is a silent
+    // regression to the exact behaviour this change removed.
+    expect(
+      wf(),
+      'review-sweep.yml calls `gh run list` without `actions: read`, so the green lookup 403s ' +
+        'every morning and the sweep fails closed forever.',
+    ).toMatch(/^ {2}actions: read$/m)
   })
 
   it('cannot publish a required check name', () => {
@@ -370,6 +490,281 @@ describe('the alarm actually raises the alarm', () => {
   })
 })
 
+/**
+ * THE WINDOW THE RUN'S COLOUR IS KEYED ON (DREAMCRM-92).
+ *
+ * The first version of this sweep stayed red while ANY unremediated entry
+ * existed. That is right for the TEXT and it was a disaster in the exit status:
+ * six consecutive red runs — `35094044453` (2026-09-16) through `35605207003`
+ * (2026-09-21) — turned the alarm into wallpaper, and #636 merged into that
+ * silence carrying `needs-sentinel-review` and editing the gate's own rule
+ * list, with no verdict anywhere.
+ *
+ * The named failure mode of the fix is the one graded hardest below: **if the
+ * lookup degrades from LAST GREEN to LAST RUN, every miss becomes a one-day
+ * alarm** — red the morning it appears, green the morning after with the
+ * finding untouched, which is strictly worse than the permanently-red version
+ * it replaced. A green run is a positive claim that nothing is new, so that
+ * degradation does not merely lose a signal, it fabricates one.
+ */
+describe('when the sweep last went green', () => {
+  it('reaches past a newer FAILED run to the last green one', () => {
+    // THE DEGRADATION THIS EXISTS TO REFUSE. Every run since the green one
+    // failed — that is exactly the repo's real history — and a lookup keyed on
+    // the last RUN would date the window at yesterday, making every standing
+    // finding "old" overnight and the run green with nothing remediated.
+    const history = [
+      run('failure', '2026-09-21T13:22:34Z', 35605207003),
+      run('failure', '2026-09-20T11:50:11Z', 35508928448),
+      run('success', '2026-09-15T12:00:00Z', 35000000001),
+      run('failure', '2026-09-14T12:00:00Z', 34999999999),
+    ]
+
+    const green = lastGreenAt(history)
+    expect(
+      green.at,
+      'the lookup landed on a run that was not green. Keyed on the last RUN instead of the last ' +
+        'GREEN one, every miss is red for one morning and green forever after with nothing fixed.',
+    ).toBe(Date.parse('2026-09-15T12:00:00Z'))
+    expect(green.run).toBe(35000000001)
+  })
+
+  it('reports no green rather than guessing when the history holds none', () => {
+    // This is the repo's state on the day this landed: six runs, all failures.
+    // "No green yet" must read as UNKNOWN and fail closed, never as "nothing
+    // is new".
+    const green = lastGreenAt([run('failure', '2026-09-21T13:22:34Z')])
+    expect(green.at).toBeNull()
+    expect(green.why).toMatch(/success/)
+  })
+
+  it('treats every finding as new when there is no green to measure against', () => {
+    // FAIL CLOSED. `newSince` is what the exit status reads, so a null window
+    // that produced an empty `fresh` set would be a silent green morning.
+    const entries = [pr({ number: 594, mergedAt: '2026-09-15T20:00:16Z' })]
+    expect(newSince(entries, lastGreenAt([])).fresh.map((p: Pr) => p.number)).toEqual([594])
+    expect(newSince(entries, { at: null }).fresh).toHaveLength(1)
+  })
+
+  it('counts a PR that merged while the green run was executing as new', () => {
+    // `createdAt` is the conservative end of a run, and `>=` is the
+    // conservative side of the boundary: a merge the green run never examined
+    // must not inherit its silence.
+    const green = { at: Date.parse('2026-09-20T12:00:00Z') }
+    const split = newSince(
+      [
+        pr({ number: 700, mergedAt: '2026-09-20T12:00:00Z' }),
+        pr({ number: 699, mergedAt: '2026-09-20T11:59:59Z' }),
+      ],
+      green,
+    )
+    expect(split.fresh.map((p: Pr) => p.number)).toEqual([700])
+    expect(split.standing.map((p: Pr) => p.number)).toEqual([699])
+  })
+})
+
+/**
+ * BOTH DIRECTIONS OF THE NEW RULE, RUN AS A PROCESS.
+ *
+ * §2d: a guard counts only once you have watched it fail. A one-directional
+ * test here passes on a sweep that has quietly gone blind — "standing findings
+ * do not redden the run" is satisfied by an instrument that reddens for
+ * nothing at all — so both are graded, on the exit code, through `main()`.
+ */
+describe('the exit status is keyed on what is new since the last green run', () => {
+  const GREEN = [run('success', '2026-09-20T12:00:00Z', 42)]
+
+  it('stays GREEN on a standing miss, and prints it anyway', () => {
+    const { code, out } = runSweep([pr({ number: 594, mergedAt: '2026-09-18T20:00:00Z' })], 500, GREEN)
+
+    expect(
+      out,
+      'the summary must keep naming an unremediated entry every morning — Sentinel\'s property: ' +
+        'an unremediated miss is not less true tomorrow.',
+    ).toContain('#594')
+    expect(out).toContain('unremediated miss is not less true tomorrow')
+    expect(out).toContain('standing from before the last green run')
+    expect(
+      code,
+      'a finding that predates the last green run must not hold the run red forever. That is the ' +
+        'six-day wallpaper this change exists to end — and #636 merged into it.',
+    ).toBe(0)
+  })
+
+  it('goes RED on a miss that merged after the last green run', () => {
+    const { code, out } = runSweep([pr({ number: 640, mergedAt: '2026-09-21T09:00:00Z' })], 500, GREEN)
+
+    expect(out).toContain('::error title=PR #640')
+    expect(out).toContain('new since the last green run')
+    expect(
+      code,
+      'a NEW miss must always be a NEW red. If this reports green, the alarm has gone blind in ' +
+        'the quietest possible way.',
+    ).toBe(1)
+  })
+
+  it('goes RED on the new miss even when a standing one is sitting beside it', () => {
+    // The realistic morning: an old entry nobody has cleared, plus today's.
+    // The old one must not mask the new one, in either direction.
+    const { code, out } = runSweep(
+      [
+        pr({ number: 594, mergedAt: '2026-09-18T20:00:00Z' }),
+        pr({ number: 640, mergedAt: '2026-09-21T09:00:00Z' }),
+      ],
+      500,
+      GREEN,
+    )
+
+    expect(out).toContain('::error title=PR #640')
+    expect(out, 'the standing entry is still annotated, as a warning rather than an error').toContain(
+      '::warning title=PR #594',
+    )
+    expect(code).toBe(1)
+  })
+
+  it('fails closed when the run-history lookup came back empty', () => {
+    // A throttled `gh run list`, an empty history, a file the step never
+    // wrote. All of them are UNKNOWN, and unknown stays red: the alternative
+    // lets one bad API call print a green morning over a real miss.
+    const { code, out } = runSweep([pr({ number: 594, mergedAt: '2026-09-18T20:00:00Z' })], 500, [])
+
+    expect(out).toContain('Failing closed')
+    expect(code, 'an unknown window must never be read as a clean one').toBe(1)
+  })
+})
+
+/**
+ * THE INTAKE HALF (DREAMCRM-92).
+ *
+ * `needs-forge-intake` was applied correctly by the gate from #553 onward and
+ * read by nothing: never cleared at merge, THIRTY merged PRs wearing it on the
+ * day this landed. §2's answer is the same shape as the review half's — the
+ * record is mirrored onto the PR, where an instrument can see it — and this is
+ * the instrument.
+ *
+ * Same three directions as the review half, for the same reasons: a real
+ * record must never be flagged, a real miss must still be seen, and the
+ * cut-off must hold against a history that cannot be judged.
+ */
+describe('what counts as an intake that happened', () => {
+  const SATISFIED: Record<string, string> = {
+    'the convention, as §2 writes it':
+      'Forge intake: §2b, §6 — https://multica/issue/DREAMCRM-91#c7',
+    'several sections, folded': 'Forge intake: §§2, 2a — routed and landed, see the issue',
+    'sections spelled out': 'Forge intake — landed in sections 2b and 6 of the rulebook.',
+  }
+
+  it.each(Object.keys(SATISFIED))('reads "%s" as satisfied', (name) => {
+    expect(
+      intakeRecord(pr({ comments: [VERCEL_COMMENT, comment(SATISFIED[name])] })),
+      'this PR carries a real intake record and the sweep does not see it. Same cost as the ' +
+        'review half: an alarm that fires at the person who did the work is one people stop reading.',
+    ).not.toBeNull()
+  })
+
+  it('does not accept a record that never names where the rule landed', () => {
+    // §2: "name the sections it landed in, not merely that it landed." That is
+    // what makes the record gradeable rather than decorative — an intake's real
+    // record lives in a skill outside this repo, and the section number is the
+    // only part of it a reader standing at the PR can follow.
+    expect(intakeRecord(pr({ comments: [comment('Forge intake: routed, all done.')] }))).toBeNull()
+  })
+
+  it('does not read a verdict comment as an intake record', () => {
+    // The two obligations are separate and a PR can owe both. A mirrored
+    // VERDICT satisfying the INTAKE half would silently retire an obligation
+    // nobody paid — #636 owed both and paid neither.
+    expect(intakeRecord(pr({ comments: [comment('Sentinel review: APPROVE — link')] }))).toBeNull()
+  })
+
+  it('does not read a bot deployment comment as an intake record', () => {
+    expect(intakeRecord(pr({ comments: [VERCEL_COMMENT] }))).toBeNull()
+  })
+
+  it('names a PR that merged owing an intake with nothing recorded', () => {
+    // DIRECTION 2, the #636 shape: labelled by the gate, merged, nothing on
+    // the PR at all.
+    const { unsatisfied } = intakeSweep(
+      [pr({ number: 640, labels: [{ name: INTAKE_LABEL }], comments: [VERCEL_COMMENT] })],
+      '2026-09-01T00:00:00Z',
+    )
+    expect(unsatisfied.map((p: Pr) => p.number)).toEqual([640])
+  })
+
+  it('says nothing about a merged PR that only owed a review', () => {
+    const { unsatisfied, ungated } = intakeSweep([pr()], '2026-09-01T00:00:00Z')
+    expect(unsatisfied).toEqual([])
+    expect(ungated).toBe(1)
+  })
+
+  it('goes red as a process when an intake miss is new', () => {
+    // Grades the WIRING, not just the classifier — the #593 lesson, applied to
+    // the half that did not exist when it was learned. `intakeSweep` could be
+    // perfect while `main()` never consults it.
+    const { code, out } = runSweep(
+      [
+        pr({
+          number: 641,
+          labels: [{ name: INTAKE_LABEL }],
+          mergedAt: '2026-09-23T09:00:00Z',
+        }),
+      ],
+      500,
+      [run('success', '2026-09-22T12:00:00Z', 43)],
+    )
+
+    expect(out).toContain('::error title=PR #641 merged owing an intake')
+    expect(code, 'an intake nobody recorded must reach the one channel this sweep has').toBe(1)
+  })
+})
+
+describe('the intake cut-off', () => {
+  it('does not judge the thirty PRs that were labelled before the record existed', () => {
+    // THE FALSE-POSITIVE CLASS THIS HALF WOULD OTHERWISE HAVE SHIPPED WITH.
+    // Thirty merged PRs wore `needs-forge-intake` on 2026-09-22, #569 through
+    // #636, most of them routed to Forge long ago with the routing recorded on
+    // a Multica issue GitHub cannot see. Judging them would have opened the
+    // instrument with thirty findings, most of them wrong.
+    const history = [569, 593, 617, 636].map((number) =>
+      pr({ number, labels: [{ name: INTAKE_LABEL }], mergedAt: '2026-09-16T04:00:00Z' }),
+    )
+    const result = intakeSweep(history)
+
+    expect(result.unsatisfied).toEqual([])
+    expect(
+      result.outOfWindow.map((p: Pr) => p.number).sort(),
+      'skipped is not passed — every unjudged PR is named in the summary',
+    ).toEqual([569, 593, 617, 636])
+  })
+
+  it('opens after #636, the last merge that wore the label unjudged', () => {
+    // A cut-off that landed one merge too early would have opened this half
+    // with a finding against the very PR §2 uses as its worked example — and
+    // #636's intake is a lesson about the label, not a debt to collect.
+    expect(Date.parse(INTAKE_SWEPT_SINCE)).toBeGreaterThan(Date.parse('2026-09-22T01:24:20Z'))
+  })
+
+  it('pins the cut-off to a real instant that is not in the future', () => {
+    const t = Date.parse(INTAKE_SWEPT_SINCE)
+    expect(Number.isFinite(t), 'INTAKE_SWEPT_SINCE must be a parseable RFC3339 instant').toBe(true)
+    expect(t, 'a cut-off in the future silently exempts everything').toBeLessThan(Date.now())
+  })
+
+  it('stays LATER than the review cut-off, which is what keeps the truncation check honest', () => {
+    // `windowGap` grades the `gh pr list` truncation against SWEPT_SINCE only.
+    // That covers both halves for exactly one reason: SWEPT_SINCE is the
+    // earlier of the two. Add a third obligation with an older cut-off and the
+    // truncation check starts grading the wrong number, silently, which is the
+    // "a sweep with a hole in it looks like a clean sweep" failure this file
+    // has now written down three times.
+    expect(
+      Date.parse(SWEPT_SINCE),
+      'the truncation check reads SWEPT_SINCE, so it must be the earliest cut-off any obligation ' +
+        'uses — otherwise a truncated list can hide merges the intake half needed to see.',
+    ).toBeLessThanOrEqual(Date.parse(INTAKE_SWEPT_SINCE))
+  })
+})
+
 describe('what could blind this sweep from outside', () => {
   it('refuses to let the review-gate check post its summary as a PR comment', () => {
     // THE SHARPEST EDGE IN THE DESIGN, found by Sentinel reviewing #593 and
@@ -413,5 +808,39 @@ describe('what could blind this sweep from outside', () => {
       'the review-gate summary no longer carries a verdict word by ANY route, so the guard above ' +
         'is vacuous — restore a verdict word to that summary, or delete this pair deliberately.',
     ).toBe(true)
+  })
+
+  it('does not let the review-gate summary read as an intake record', () => {
+    // THE SAME HAZARD, ONE OBLIGATION OVER (DREAMCRM-92). The gate's intake
+    // section is the thing that tells an author an intake is owed, so it talks
+    // about Forge, about intake, and about §2 — three of the four ingredients
+    // of the record this sweep now looks for.
+    //
+    // It is safe today because it never writes the two adjacent: the heading
+    // says "tell Forge the same day" and the body says "This is intake". The
+    // assertion above already refuses the comment CHANNEL, so this is the
+    // canary on the other side — if that summary is ever reworded into
+    // "Forge intake: §2 …", the channel guard becomes the only thing standing
+    // between this alarm and every intake-labelled PR in the repo reading as
+    // routed.
+    //
+    // If that day comes the fix is a scoped exclusion for that comment's
+    // marker, NOT a narrower record pattern: narrowing takes the false-alarm
+    // risk back on, which is the trade this instrument refuses.
+    expect(
+      intakeRecord(pr({ comments: [comment(gateSummaryForAnIntakePr())] })),
+      'the review-gate summary now reads as an intake record. If it ever gains a comment channel, ' +
+        'every intake-labelled PR reads as routed and this half of the alarm goes blind on the ' +
+        'same day. Reword the summary, or exclude that comment by its marker in ' +
+        'scripts/review-sweep.mjs.',
+    ).toBeNull()
+
+    // The instrument check on the instrument check: the summary this is
+    // grading must actually be the one an intake-owing PR gets, or the
+    // assertion above is about an empty string.
+    expect(
+      gateSummaryForAnIntakePr(),
+      'the fixture no longer renders the intake section, so the guard above is vacuous',
+    ).toContain('Forge')
   })
 })

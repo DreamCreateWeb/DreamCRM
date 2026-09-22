@@ -394,8 +394,17 @@ export const GATE_RULES = [
  *     `chromium.launch()` script). None exists; `playwright.config.ts` is on
  *     the REVIEW gate above, so the harness itself is watched either way.
  *   - Rule 3 says nothing about WHAT the spec asserts. A derived-list spec
- *     that checks one trivial thing still matches. Intake is a sentence on an
- *     issue; a false positive costs that sentence and nothing else.
+ *     that checks one trivial thing still matches, and over-matching is the
+ *     direction to be wrong in — but NOT because it is free. That is what this
+ *     docblock used to say ("a false positive costs a sentence on an issue")
+ *     and it was wrong, which matters more here than elsewhere because §2 is
+ *     written from this comment (corrected DREAMCRM-92). The derivation runs
+ *     inside `tests/guards/review-gate.test.ts`, so a file it wrongly matches
+ *     FAILS `test` BY NAME until somebody acts — the obligation is a sentence,
+ *     the false positive is a red required check. When one happens, drop the
+ *     verb or narrow the predicate. Never register the innocent file to
+ *     quieten it: that trades a red run for a permanent lie on
+ *     `INTAKE_RULES`, which every later reader takes at its word.
  *   - Rule 3 wants the navigation IN the spec. `NAVIGATES` is a literal
  *     `.goto(`, so a spec with a fully derived page list that calls
  *     `await visit(page, slug)` — the `page.goto` living in an `e2e/` helper —
