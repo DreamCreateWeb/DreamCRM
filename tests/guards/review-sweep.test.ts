@@ -111,6 +111,22 @@ const gateSummaryForAnIntakePr = () => {
   return renderGateSummary(gateFindings(files), files.length, intakeFindings(files))
 }
 
+/**
+ * The `gh pr comment --body "…"` line the gate tells an INTAKE author to paste,
+ * pulled out of the real rendered summary rather than copied from it.
+ *
+ * Picked by its marker rather than by position, because a PR owing both
+ * obligations gets the review half's command in the same summary and the two
+ * must not be confused for each other.
+ */
+const intakeCommandFromGateSummary = (): string | null => {
+  const bodies: string[] = []
+  const pattern = /--body "([^"]+)"/g
+  let match: RegExpExecArray | null
+  while ((match = pattern.exec(gateSummaryForAnIntakePr())) !== null) bodies.push(match[1])
+  return bodies.find((body) => /forge\s+intake/i.test(body)) ?? null
+}
+
 /** A `gh run list --json databaseId,conclusion,createdAt` row. */
 const run = (conclusion: string, createdAt: string, databaseId = 1) => ({
   databaseId,
@@ -662,6 +678,40 @@ describe('what counts as an intake that happened', () => {
     ).not.toBeNull()
   })
 
+  it('does not count a marker and a section reference that never meet on one line', () => {
+    // THE TIGHTENING THAT CAME WITH DREAMCRM-94, and the one pattern in this
+    // file that got narrower rather than looser — so it is asserted rather
+    // than left implied.
+    //
+    // Matching the two independently over the whole body counted a comment
+    // that mentioned a Forge intake in one paragraph and cited a section in
+    // another. That is not a record of anything, and reading it as one is a
+    // MISSED MISS: the sweep reports an unrecorded PR as routed. The body
+    // below is the realistic shape — a mirrored issue update that talks about
+    // the intake and, separately, about where a rule lives.
+    //
+    // THE FIRST DRAFT OF THIS FIXTURE PASSED AGAINST THE OLD CODE, which is
+    // the §2d trap written down rather than quietly fixed: it said "Told Forge
+    // about the intake", and `INTAKE_MARKER` wants the two words ADJACENT, so
+    // the body matched neither test and the guard proved nothing. Both halves
+    // of a negative fixture have to be live — this one really does carry the
+    // marker, and really does carry a section reference, just never together.
+    expect(
+      intakeRecord(
+        pr({
+          comments: [
+            comment(
+              'Forge intake handled — I told them on the issue today.\n\n' +
+                'For anyone reading later: the rule this PR adds belongs under §2b.',
+            ),
+          ],
+        }),
+      ),
+      'a comment that mentions an intake in one paragraph and a section in another is not a ' +
+        'record — counting it retires an obligation nobody paid, silently.',
+    ).toBeNull()
+  })
+
   it('does not accept a record that never names where the rule landed', () => {
     // §2: "name the sections it landed in, not merely that it landed." That is
     // what makes the record gradeable rather than decorative — an intake's real
@@ -765,6 +815,76 @@ describe('the intake cut-off', () => {
   })
 })
 
+/**
+ * THE OTHER HALF OF AN ALARM: SOMEBODY HAS TO BE TOLD (DREAMCRM-94).
+ *
+ * Everything above grades whether this sweep can SEE a record. None of it
+ * grades whether anyone was ever asked to leave one — and for the intake half
+ * that was the live defect, not a hypothetical. `renderIntakeSection` told an
+ * author to mention Forge on their issue and said nothing about the PR, so the
+ * sweep graded a record whose only home was §2 of a skill document. #644
+ * merged carrying the label with no record and opened this half's finding
+ * list; its author had done everything the summary in front of them asked.
+ *
+ * That is the #575/#579/#580 shape pointed forwards instead of backwards, and
+ * an alarm that fires at somebody nobody told is the exact thing the
+ * zero-false-positives bar exists to prevent. So the contract is asserted
+ * ACROSS the two files rather than in either one: the command the gate prints,
+ * filled in, must satisfy the classifier the sweep runs. Grading the gate's
+ * wording alone would pass on a template the sweep rejects, which is the
+ * "assert the answer, not a proxy for it" rule from the conventions.
+ */
+describe('the gate asks for the record this sweep grades', () => {
+  it('prints a mirroring command in the summary an intake-owing PR actually gets', () => {
+    expect(
+      intakeCommandFromGateSummary(),
+      'the review-gate summary no longer tells an intake author to record anything on the PR, ' +
+        'so this sweep is back to grading a record nothing asks for and every finding it raises ' +
+        'lands on somebody who was never told. Restore the command in renderIntakeSection in ' +
+        'scripts/review-gate.mjs.',
+    ).not.toBeNull()
+  })
+
+  it('prints a command that satisfies this sweep once its placeholders are filled in', () => {
+    // THE CROSS-FILE CONTRACT, and the reason this is not a wording check.
+    // `scripts/review-gate.mjs` and `scripts/review-sweep.mjs` can each be
+    // internally perfect while the thing one tells you to paste is not the
+    // thing the other accepts — reword the template to "Forge routing:", or
+    // tighten `carriesIntake` a shade further, and the repo starts flagging
+    // authors who followed the instruction to the letter.
+    const filled = intakeCommandFromGateSummary()!
+      .replace('<sections>', '§2b, §6')
+      .replace('<link to the issue comment>', 'https://multica/issue/DREAMCRM-94#c3')
+
+    expect(
+      filled,
+      'the placeholders in the gate\'s command were renamed, so this test filled in nothing and ' +
+        'is about to assert on a template. Update the replacements above to match.',
+    ).not.toContain('<')
+
+    expect(
+      intakeRecord(pr({ comments: [comment(filled)] })),
+      'the command the review gate tells an author to paste does not satisfy intakeRecord. An ' +
+        'author who follows the instruction exactly still gets named by the sweep the next ' +
+        'morning — the DREAMCRM-94 defect, pointing the other way.',
+    ).not.toBeNull()
+  })
+
+  it('prints a template that does not satisfy the sweep until somebody fills it in', () => {
+    // WHY THE PLACEHOLDER CARRIES NO SECTION DIGIT. The gate's intake section
+    // cites `§2` in its own prose, so the template itself must never complete
+    // a record on its own — otherwise the summary reads as an intake record,
+    // and the canary below (plus the comment-channel guard beside it) is all
+    // that stands between this alarm and every intake-labelled PR in the repo
+    // reading as routed.
+    expect(
+      intakeRecord(pr({ comments: [comment(intakeCommandFromGateSummary()!)] })),
+      'the unfilled template already reads as an intake record. Put the sections back behind a ' +
+        'placeholder with no digit in it — do NOT narrow the record pattern to compensate.',
+    ).toBeNull()
+  })
+})
+
 describe('what could blind this sweep from outside', () => {
   it('refuses to let the review-gate check post its summary as a PR comment', () => {
     // THE SHARPEST EDGE IN THE DESIGN, found by Sentinel reviewing #593 and
@@ -816,17 +936,25 @@ describe('what could blind this sweep from outside', () => {
     // about Forge, about intake, and about §2 — three of the four ingredients
     // of the record this sweep now looks for.
     //
-    // It is safe today because it never writes the two adjacent: the heading
-    // says "tell Forge the same day" and the body says "This is intake". The
-    // assertion above already refuses the comment CHANNEL, so this is the
-    // canary on the other side — if that summary is ever reworded into
-    // "Forge intake: §2 …", the channel guard becomes the only thing standing
-    // between this alarm and every intake-labelled PR in the repo reading as
-    // routed.
+    // SINCE DREAMCRM-94 THAT SUMMARY PRINTS THE MARKER ON PURPOSE — it is
+    // where an author is now told to record the intake — so the margin this
+    // canary watches has changed and is worth restating. It is safe because
+    // the marker and a section reference never land on the SAME LINE: the
+    // command carries `Forge intake:` with a digitless `<sections>`
+    // placeholder, and the prose that cites §2 carries no marker.
+    // `carriesIntake` reads one line at a time, so neither completes a record.
+    // The assertion above already refuses the comment CHANNEL, so this is the
+    // canary on the other side — reword the summary so one line says
+    // "Forge intake: §2 …" and the channel guard becomes the only thing
+    // standing between this alarm and every intake-labelled PR in the repo
+    // reading as routed.
     //
     // If that day comes the fix is a scoped exclusion for that comment's
     // marker, NOT a narrower record pattern: narrowing takes the false-alarm
-    // risk back on, which is the trade this instrument refuses.
+    // risk back on, which is the trade this instrument refuses. (The one-line
+    // rule itself is a tightening and owes its own argument — it is in
+    // `carriesIntake`, and it shipped WITH the instruction rather than as a
+    // reaction to a blinding, which is the distinction that permits it.)
     expect(
       intakeRecord(pr({ comments: [comment(gateSummaryForAnIntakePr())] })),
       'the review-gate summary now reads as an intake record. If it ever gains a comment channel, ' +

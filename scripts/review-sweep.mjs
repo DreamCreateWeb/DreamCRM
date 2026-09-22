@@ -149,32 +149,36 @@
  * routes an intake mirrors it onto the PR the same way**. One `gh pr comment`
  * each.
  *
- * **THE TWO ARE NOT EQUALLY WELL SERVED YET, and the asymmetry is this half's
- * one real weakness rather than a detail.** The REVIEW instruction is rendered
- * by the review-gate summary itself (`renderReviewSection` in
- * `scripts/review-gate.mjs`), so it arrives attached to the label, on the run,
- * in front of the person about to merge. The INTAKE instruction does not:
- * `renderIntakeSection` tells an author to mention Forge on their issue and
- * says nothing about leaving a record on the PR. So this half currently grades
- * a record that the gate never asks anyone for, and the only place the
- * obligation is written down is §2.
+ * **BOTH INSTRUCTIONS NOW ARRIVE ON THE RUN, and the asymmetry that used to
+ * sit here was this half's one real weakness** (closed by DREAMCRM-94). Each
+ * is rendered by the review-gate summary itself — `renderReviewSection` and
+ * `renderIntakeSection` in `scripts/review-gate.mjs` — so the obligation turns
+ * up attached to the label, on the run, in front of the person about to merge,
+ * printing the exact one-line command this file grades.
  *
- * That is the #575/#579/#580 shape pointed at the future instead of the past —
- * an author can do everything the summary in front of them asks and still be
- * named here — and it is why `INTAKE_SWEPT_SINCE` opens where it does rather
- * than earlier. **The fix is to teach `renderIntakeSection` to print the
- * mirroring command the way `renderReviewSection` does** (DREAMCRM-94). Until
- * that lands, read an intake finding as "nobody was told from here", not as
- * "somebody ignored the instruction".
+ * Until that landed, `renderIntakeSection` told an author to mention Forge on
+ * their issue and said nothing about leaving a record on the PR, so this half
+ * graded a record the gate never asked anyone for — the #575/#579/#580 shape
+ * pointed at the future instead of the past, an author doing everything the
+ * summary asked and still being named here. It is also why
+ * `INTAKE_SWEPT_SINCE` opens where it does rather than earlier, and why the
+ * one entry that predates the fix (#644, merged 09:01Z on 2026-09-22, tracked
+ * on DREAMCRM-93) reads as "nobody was told from here" rather than as
+ * "somebody ignored the instruction". Findings dated after it do not get that
+ * excuse.
  *
- * Doing it needs one piece of care worth writing down before somebody tries
- * it: the gate's intake section already contains the words `§2`, so adding a
- * literal `Forge intake: §2b` example to it would make the summary itself
- * satisfy `intakeRecord`, and if that summary ever gained a comment channel
- * every intake-labelled PR in the repo would read as routed. The guard in
- * `tests/guards/review-sweep.test.ts` catches exactly that. The way through is
- * a placeholder with no section digit (`Forge intake: <sections> — <link>`),
- * or matching the marker and the section reference on ONE line.
+ * The care it needed, kept because it is now what holds the fix in place: the
+ * gate's intake section already contains the words `§2`, so printing a literal
+ * `Forge intake: §2b` example there would make the summary itself satisfy
+ * `intakeRecord`, and if that summary ever gained a comment channel every
+ * intake-labelled PR in the repo would read as routed. The guard in
+ * `tests/guards/review-sweep.test.ts` catches exactly that. Two ways through
+ * were open — a placeholder with no section digit, or matching the marker and
+ * the section reference on ONE line — and the second is what shipped, because
+ * the first is unsound on its own: `§2` in the intake section's own prose
+ * completes a whole-body match the moment the marker appears anywhere, so a
+ * placeholder would have worked only while nobody ever cited a section number
+ * in that section again. `carriesIntake` carries the full argument.
  *
  * WHAT IT THEREFORE CANNOT SEE, stated rather than implied — a blind-spot list
  * that omits a known blind spot spends the credibility it exists for:
@@ -332,6 +336,10 @@ export const VERDICT_PATTERNS = [
  * loose: `§2b`, `§§2, 6` and `sections 2b and 6` all count. It is forgeable,
  * like every other signal here, and §2a's argument applies unchanged — a sweep
  * only has to survive forgetting.
+ *
+ * The two are matched ON ONE LINE rather than anywhere in the body — see
+ * `carriesIntake` for why that is a deliberate tightening and not the narrowing
+ * this file refuses everywhere else.
  */
 export const INTAKE_MARKER = /\bforge\s+intake\b/i
 export const SECTION_REF = /(?:§+\s*\d|\bsections?\s+\d)/i
@@ -353,7 +361,52 @@ export const VERDICT_REVIEW_STATES = ['APPROVED', 'CHANGES_REQUESTED']
 
 const carriesVerdict = (body) => VERDICT_PATTERNS.some((p) => p.test(body ?? ''))
 
-const carriesIntake = (body) => INTAKE_MARKER.test(body ?? '') && SECTION_REF.test(body ?? '')
+/**
+ * THE MARKER AND THE SECTION REFERENCE MUST MEET ON ONE LINE (DREAMCRM-94).
+ *
+ * This used to test both patterns over the whole body, independently. It is
+ * the one place in this file where a pattern got NARROWER, so it owes the
+ * argument — the standing rule two hundred lines up is that the answer to a
+ * blinding hazard is a scoped exclusion, never a stingier pattern, because
+ * narrowing takes back the false-alarm risk this instrument exists to refuse.
+ *
+ * Three reasons that rule does not cover this edit:
+ *
+ *   1. IT IS NOT A REACTION TO A LIVE BLINDING. Nothing has gone blind. This
+ *      lands in the same change that teaches `renderIntakeSection` to PRINT
+ *      the record — the ask and the grade arrive together, in one shape, on
+ *      the run in front of the author. Narrowing is dangerous when the shape
+ *      is graded but never asked for; that was the DREAMCRM-94 defect and it
+ *      is what this PR removes.
+ *   2. ONE LINE IS THE DOCUMENTED SHAPE. §2 writes the record as a single
+ *      `gh pr comment --body` one-liner, and all three spellings this file
+ *      already accepts — `§2b, §6`, `§§2, 2a`, `sections 2b and 6` — are
+ *      one-liners. Nothing that satisfied the old test in its documented form
+ *      stops satisfying this one.
+ *   3. IT DROPS AN ACCIDENTAL-SATISFACTION CLASS. Whole-body matching counted
+ *      a comment that mentioned a Forge intake in one paragraph and cited a
+ *      section in another — a long issue-mirroring comment, for instance —
+ *      as a record. Those are MISSED MISSES: the sweep read an unrecorded PR
+ *      as routed. Removing them makes the alarm see more real misses, which is
+ *      the direction this half was short of.
+ *
+ * WHAT IT REFUSES THAT THE OLD TEST ACCEPTED, stated rather than discovered:
+ * a genuine record hard-wrapped across two source lines (`Forge intake —
+ * routed, landed in` / `§2b and §6`) no longer counts, and that is a FALSE
+ * ALARM, the bad direction. It is accepted because the gate now prints the
+ * one-line command to paste, so the wrapped spelling is one nobody is told to
+ * write; if one ever shows up in a finding, widen to the enclosing PARAGRAPH
+ * rather than back to the whole body — a paragraph still refuses the class in
+ * (3), and the whole body does not.
+ *
+ * Why it could not simply stay whole-body: the gate's intake section carries
+ * `§2` in its own prose, so the moment it prints the marker the summary
+ * satisfies a whole-body test — measured, not assumed. That is the hazard in
+ * the blind-spot list above, and `tests/guards/review-sweep.test.ts` refuses
+ * it in both directions.
+ */
+const carriesIntake = (body) =>
+  (body ?? '').split('\n').some((line) => INTAKE_MARKER.test(line) && SECTION_REF.test(line))
 
 /** Does this merged PR carry a review record anyone could point at? */
 export function reviewRecord(pr) {
