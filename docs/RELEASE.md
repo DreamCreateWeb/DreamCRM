@@ -818,8 +818,24 @@ binding are all correct. The payment-plan charger was the exception.
   drizzle applies migrations in order — silently blocks every later migration
   behind it. Whatever that migration was protecting is simply off in
   production with a tick beside it. The note in 0162 now says this instead of
-  the opposite, but the pipeline is the defect: it is the deploy path, it
-  belongs to nobody yet, and it needs its own item and its own owner. · OPEN.
+  the opposite, but the pipeline is the defect: it is the deploy path, and it
+  needed its own item and its own owner. It got both. · **FIXED**
+  (DREAMCRM-46, #575, `1d426787`, merged 2026-09-14) — `.github/workflows/migration-check.yml` +
+  `scripts/migration-check.mjs` ask production which migrations it has actually
+  applied and compare that against `meta/_journal.json`; `deploy.yml` calls it
+  with `needs: deploy` and NOT `continue-on-error`, so a merge whose migrations
+  did not land turns the deploy run red. It also runs daily, which is the only
+  reading that catches the silently-SKIPPED half (a journal entry whose `when`
+  lands at or below an already-applied row). The `|| true` in the Dockerfile
+  stays, deliberately: the failure mode was never that the container kept
+  serving, it was that nobody was told. Full write-up under THE POLISH PASS,
+  "A failed migration deployed green (2026-09-14)".
+  STILL NOT VERIFYING ANYTHING, on purpose, and that is not a hedge on the
+  verdict: the read path needs owner-side setup (DREAMCRM-42 steps 1–3) before
+  the question is answerable at all, so until that lands every run prints
+  `⚠️ NOT VERIFIED — nothing was checked` and exits 0, with a guard asserting
+  that wording can never read as a pass. The alarm is built and wired; what it
+  waits on is an owner step, not an engineering one.
 - S3 · a refund that later FAILS is never un-recorded. Stripe decrements the
   charge's `amount_refunded` and fires `charge.refund.updated` with status
   `failed`; `recordConnectRefund` is monotonic by design, so the record keeps
