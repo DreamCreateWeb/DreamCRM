@@ -7,6 +7,7 @@ import OnboardingImage from '../onboarding-image'
 import OnboardingProgress from '../onboarding-progress'
 import { checkClinicSlug, saveOnboardingStep3, type SlugCheckResult } from '../actions'
 import { isDeploymentSkewError } from '@/lib/auth/submit-guard'
+import { TONE_PILL } from '@/lib/ui/encodings'
 import { loadOnboardingState, saveOnboardingState } from '@/lib/onboarding/storage'
 import { isValidClinicSlug } from '@/lib/onboarding/slug'
 import { slugify } from '@/lib/utils'
@@ -211,7 +212,7 @@ export default function Onboarding03() {
                     </div>
                   </div>
                   {error && (
-                    <div className="mb-4 text-sm text-rose-600 bg-rose-50 dark:bg-rose-500/10 px-3 py-2 rounded">{error}</div>
+                    <div className={`mb-4 text-sm ${TONE_PILL.urgent} px-3 py-2 rounded`}>{error}</div>
                   )}
                   <div className="flex items-center justify-between">
                     <Link className="text-sm underline hover:no-underline text-gray-600 dark:text-gray-400" href="/onboarding-02">

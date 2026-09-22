@@ -21,14 +21,12 @@ from burying what is not done. Keep it to 5–10 lines and say *why* each one is
 still sitting there — "deferred, needs a data series" and "nobody has picked it
 up" are different facts and only one of them is a backlog item.
 
-## OPEN NOW (last rewritten: batch 67, 2026-09-22)
+## OPEN NOW (last rewritten: batch 68, 2026-09-22)
 
-> **Batch 67 (DREAMCRM-87) was a ledger burn-down rather than a punch-list
-> batch** — four `docs/RELEASE.md` Part 5 entries on the marketing site, plus
-> the one item on this list whose deferral had expired. Nothing on this list
-> moved except entry 3's marketing half and the `fuchsia-600` carry-in inside
-> it. Entries 1 and 2 are untouched on purpose: they were parked as their own
-> issue so the batches stay reviewable, and they are still the top of the list.
+> **Batch 68 (DREAMCRM-88) closed entry 1** — rule 7 plus the sweep behind it,
+> in one batch as the entry asked. Entry 2 is the top of the list now, and it
+> is the same issue's second half: one-sided, so it is a per-site pass rather
+> than a sweep, staged behind the rule so each batch stays reviewable.
 
 > **The axe burn-down is CLOSED.** `e2e/axe-baseline.ts` is `{}` — 214 → 0
 > across batches 54-64 — so every stop the browser suite walks now tolerates
@@ -38,23 +36,34 @@ up" are different facts and only one of them is a backlog item.
 > product: see the note on the baseline constant itself for why the last
 > defect to leave it was one no stop had ever rendered.
 
-1. **An ink/surface pair written in ONE class string is graded by nothing** —
-   **28 sites** (29 at batch 64's start; the sign-in alert was one of them and
-   is fixed here). `dark-mode-parity` (rule 1) deliberately returns null when
-   the light and dark renderings AGREE about which halves are overridden, so
-   `text-white bg-teal-600 dark:bg-teal-500 dark:text-gray-900` — 4.01 in dark,
-   seven auth buttons — is invisible to it. Rule 6 does not reach them either:
-   it declines any chunk carrying a `bg-`, which is documented in its header
-   as the one place the two rules leave a gap between them. Batch 65, the rule
-   plus the sweep. **This is the top of the list**, and it is the largest
-   measured population left.
+1. ~~**An ink/surface pair written in ONE class string is graded by
+   nothing.**~~ [**DONE, DREAMCRM-88 (batch 68)** — the rule plus the sweep,
+   in one batch. `tests/a11y/class-pairs.ts` rule 7 +
+   `tests/a11y/one-string-pairs.test.ts` hold it at ZERO with no exemption
+   list. **29 sites across 20 files**, not the 28 this entry predicted, and
+   the difference is the interesting part: the gap was WIDER than "the two
+   themes agree about which halves are overridden". Rule 1 also bails on a
+   chunk when any participating utility is a WASH, so
+   `text-rose-600 bg-rose-50 dark:bg-rose-500/10` — a fully opaque, fully
+   determined light rendering at 4.12 — went ungraded too, and that shape is
+   nine of the sites (the four onboarding steps, signup, three partner-accept
+   alerts, the PDF well). Rule 7 skips a RENDERING with an alpha half rather
+   than the whole chunk, which is the whole of that third gap. Deferrals to
+   rules 1, 2 and 5 are asserted over the tree rather than described, and rule
+   1's own grading condition is now exported (`isParitySubject`) and read by
+   rule 7, so the two partition one population instead of each describing it.
+   Watched to fail: the gate reddened naming all 29 before the sweep, and
+   re-planting the sign-in button's `dark:bg-teal-500 dark:text-gray-900`
+   after it reddens again naming the file, the line and the 4.01.]
 2. **~194 bare `text-gray-400` sites, with no `dark:` half** — the residual
    batch 64's sweep deliberately left. `#93a0bc on #ffffff = 2.63:1` in light;
    the dark side PASSES at 6.19:1, because with no override the ramp re-tints
    underneath them. One-sided, so it needs a per-site look rather than a sweep:
    some are real text (fix), some are icons and glyphs (1.4.11 asks 3:1, not
    4.5, and 2.63 misses that too), some are genuinely disabled controls (exempt
-   under 1.4.3). Rule 6 says out loud that it does not grade these.
+   under 1.4.3). Rule 6 says out loud that it does not grade these, and so does
+   rule 7 — a bare ink has no surface written beside it to pair with. **This is
+   the top of the list**, and it is the largest measured population left.
 3. **The opacity sweep's ~~TWO~~ ONE DEFERRED SURFACE.**
    `tests/a11y/dimmed-text.test.ts` WALKS `app/`, `components/` and `lib/` and
    holds them at zero; one component tree is still outside it, excluded for a
@@ -999,9 +1008,12 @@ of the list; they are the bottom, and they say so where they sit.
   assertion names it), and a too-dark well added as a token (five pairs named,
   1.52–1.80). No ceiling moved, because there was never one to move — which is
   what makes this worth writing down rather than just fixing.]
-- **FOUND, NOT FIXED (batch 64): 29 sites where an ink and its surface are
-  written in ONE class string and clear nothing.** Entry 1 of the OPEN NOW
-  index; this is the reproduction. `tests/a11y/class-pairs.ts`'s
+- ~~**FOUND, NOT FIXED (batch 64): 29 sites where an ink and its surface are
+  written in ONE class string and clear nothing.**~~ **FIXED, batch 68
+  (DREAMCRM-88)** — the closing note is at the end of this entry; the
+  measurements below are left exactly as batch 64 wrote them, because they are
+  the reproduction the rule was built against. Entry 1 of the OPEN NOW
+  index. `tests/a11y/class-pairs.ts`'s
   `gradeClasses` (rule 1) returns null unless EXACTLY ONE half carries a
   `dark:` override — "BOTH overridden is a pair somebody chose; NEITHER is a
   single pairing that `token-contrast` and axe already cover", says its own
@@ -1052,7 +1064,54 @@ of the list; they are the bottom, and they say so where they sit.
   alpha washes are the 208-sites-to-catch-8 trap rule 1 already learned, since
   a `/15` wash composites against an ancestor this rule cannot see. And the
   count being 29 rather than 200 is the whole argument for it being affordable:
-  the sweep is one batch, and it ends with the shape at zero.]
+  the sweep is one batch, and it ends with the shape at zero.
+
+  **THE CLOSING NOTE (batch 68, DREAMCRM-88).** The rule is
+  `tests/a11y/class-pairs.ts` rule 7, gated by
+  `tests/a11y/one-string-pairs.test.ts` at ZERO with no exemption list and no
+  ceiling. Four things worth carrying forward:
+
+  · **The first note above was half right, and the half it missed was a third
+    gap.** "Grade OPAQUE pairs only" is correct about the WASH and wrong about
+    the CHUNK. Rule 1 bails on the whole element when any participating utility
+    is alpha, so `text-rose-600 bg-rose-50 dark:bg-rose-500/10` had a fully
+    determined opaque light rendering at 4.12 that nothing graded — the shape
+    is nine of the sites, and this entry had them filed under the `rose-50`
+    heading without noticing they were a different gap from the other two.
+    Rule 7 skips a RENDERING with an alpha half, not the chunk.
+
+  · **It partitions with its neighbours instead of joining them.** Rule 1's
+    grading condition is exported as `isParitySubject` and READ by rule 7
+    rather than re-spelled, so the two cannot drift into overlapping or into
+    opening a new gap; white on the shallow brand ramp stays rule 2's (which
+    is how `components/marketing/ui.tsx`'s deliberately pardoned
+    `bg-teal-400 text-white` mock bar is not re-reported one rule over), and
+    the base pairing of a solid tone fill stays rule 5's. A test asserts that
+    no line in the tree is reported by rule 7 AND a neighbour — over the real
+    product, not over planted strings.
+
+  · **The two open questions this entry raised, answered.** The pager's
+    disabled arm (`components/pagination-classic.tsx`) was FIXED rather than
+    exempted: it is `aria-disabled` now and sits on the design system's own
+    quiet-ink pair (5.30 / 4.99) instead of relying on a 1.4.3 pardon it never
+    declared. And the rule does NOT require a text node — the
+    `components/dropdown-filter.tsx` icon button that prompted the question
+    now measures 5.30 and clears both floors, so no site is affected; rule 7's
+    header says out loud that an icon-only pair would be graded at 4.5 where
+    1.4.11 asks 3:1, and that the fix if one lands is to teach the rule a
+    shape it can see rather than to exempt a file.
+
+  · **What the sweep actually did**, since the fix is not one recolour
+    repeated: the seven auth buttons DROPPED their dark override entirely (a
+    solid opaque fill is the surface, so `bg-teal-600 text-white` measures 5.09
+    in both themes and needs no second answer); nine alerts moved onto
+    `TONE_PILL` — `urgent` for the failures, `ok` for reset-password's success
+    panel, which had been on the `green` ramp v3 never had; the two public
+    pages (`app/e/[token]`, `app/site/[slug]/intake-start`) moved off the
+    retired `red` ramp to rose in their own class strings rather than importing
+    the dashboard registry across a palette boundary; and four chips went one
+    ink step deeper, which for `integrations-panel.tsx` just brought rose and
+    violet into line with the amber and emerald rows beside them.]
 
 ---
 

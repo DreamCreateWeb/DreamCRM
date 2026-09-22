@@ -502,6 +502,28 @@ export const INTAKE_RULES = [
       // rule 1 needs a `bg-` on the same element to measure against. 177 places
       // were failing it in both themes when it landed.
       'tests/a11y/quiet-ink.test.ts',
+      // Rule 7, the one-string pair gate (DREAMCRM-88 / UI batch 68). A NEW
+      // CLASS of assertion rather than a case on an existing one, stated here
+      // rather than guessed as this entry's `why` asks: rule 1 grades an
+      // ink/surface pair only when EXACTLY ONE half carries the `dark:`
+      // override and every participating utility is opaque, and it declined
+      // the remainder on the written grounds that a chosen pair is deliberate
+      // and an unprefixed one is already covered. Rule 7 grades that whole
+      // remainder — both halves overridden, neither overridden, and the
+      // opaque rendering sitting under an alpha override rule 1 bails on. 29
+      // places across 20 files were failing it when it landed, including
+      // every sign-in, reset-password and accept-invite button in dark mode.
+      //
+      // WHAT IT MEANS FOR EVERY OTHER PR, which is the intake test: after
+      // this lands, writing an ink and a surface in the same `className` and
+      // not measuring the pair fails `test` by name. That is a bigger
+      // catchment than any single rule above — it is the ordinary way a chip,
+      // a badge or a button gets styled — so the deferrals to rules 1, 2 and 5
+      // are load-bearing rather than tidy, and `one-string-pairs.test.ts`
+      // asserts the partition over the whole tree instead of describing it.
+      // Nothing here is a new NUMBER: the floor is still AA out of
+      // `palette.ts`, and rule 7 holds at zero with no exemption list.
+      'tests/a11y/one-string-pairs.test.ts',
       // The check-mark veto (DREAMCRM-71, BRAND.md Part 3). A NEW CLASS of
       // assertion rather than a case on an existing one, stated here rather
       // than guessed as this entry's `why` asks: every rule above grades a

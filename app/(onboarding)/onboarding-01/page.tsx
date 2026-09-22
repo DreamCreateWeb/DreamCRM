@@ -7,6 +7,7 @@ import OnboardingProgress from '../onboarding-progress'
 import { saveOnboardingStep1 } from '../actions'
 import { loadOnboardingState, saveOnboardingState } from '@/lib/onboarding/storage'
 import { isDeploymentSkewError } from '@/lib/auth/submit-guard'
+import { TONE_PILL } from '@/lib/ui/encodings'
 import { ActionButton } from '@/components/ui/action-button'
 
 export default function Onboarding01() {
@@ -95,7 +96,7 @@ export default function Onboarding01() {
                     </div>
                   </div>
                   {error && (
-                    <div className="mb-4 text-sm text-rose-600 bg-rose-50 dark:bg-rose-500/10 px-3 py-2 rounded">
+                    <div className={`mb-4 text-sm ${TONE_PILL.urgent} px-3 py-2 rounded`}>
                       {error}
                     </div>
                   )}

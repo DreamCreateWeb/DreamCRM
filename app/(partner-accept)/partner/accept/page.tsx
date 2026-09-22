@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { authClient, signUp } from '@/lib/auth/client'
 import { DreamCreateLogo } from '@/components/brand/dream-create-logo'
 import { isDeploymentSkewError } from '@/lib/auth/submit-guard'
+import { TONE_PILL } from '@/lib/ui/encodings'
 import { getPartnerInviteDetailsAction, completePartnerAcceptAction } from './accept-actions'
 import type { PartnerInviteDetails } from '@/lib/services/referrals'
 
@@ -277,7 +278,7 @@ function AcceptInner() {
           partner program.
         </p>
         {formError && (
-          <p className="mb-4 text-sm text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-500/10 px-3 py-2 rounded-lg">{formError}</p>
+          <p className={`mb-4 text-sm ${TONE_PILL.urgent} px-3 py-2 rounded-lg`}>{formError}</p>
         )}
         <button
           onClick={() => accept(details)}
@@ -334,7 +335,7 @@ function AcceptInner() {
               We’ll email a one-time sign-in link to this address. No password needed.
             </p>
             {formError && (
-              <p className="text-sm text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-500/10 px-3 py-2 rounded-lg">{formError}</p>
+              <p className={`text-sm ${TONE_PILL.urgent} px-3 py-2 rounded-lg`}>{formError}</p>
             )}
             <button
               type="submit"
@@ -369,7 +370,7 @@ function AcceptInner() {
                 className="form-input w-full" autoComplete={mode === 'signin' ? 'current-password' : 'new-password'} />
             </div>
             {formError && (
-              <p className="text-sm text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-500/10 px-3 py-2 rounded-lg">{formError}</p>
+              <p className={`text-sm ${TONE_PILL.urgent} px-3 py-2 rounded-lg`}>{formError}</p>
             )}
             <button type="submit" disabled={submitting}
               className="btn w-full bg-teal-600 hover:bg-teal-700 text-white dark:bg-teal-400 dark:hover:bg-teal-300 dark:text-gray-900 disabled:opacity-60">

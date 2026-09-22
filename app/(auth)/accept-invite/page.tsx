@@ -301,7 +301,7 @@ function AcceptInviteInner() {
         <button
           onClick={handleSignOut}
           disabled={submitting}
-          className="btn w-full text-white hover:opacity-90 disabled:opacity-60 bg-teal-600 dark:bg-teal-500 dark:text-gray-900 dark:hover:bg-teal-400"
+          className="btn w-full text-white hover:opacity-90 disabled:opacity-60 bg-teal-600"
           style={accent ? { backgroundColor: accent, color: '#fff' } : undefined}
         >
           {submitting ? 'Signing out…' : `Sign out & continue as ${details.email}`}
@@ -387,7 +387,7 @@ function AcceptInviteInner() {
             <button
               type="submit"
               disabled={submitting}
-              className="btn w-full text-white hover:opacity-90 disabled:opacity-60 bg-teal-600 dark:bg-teal-500 dark:text-gray-900 dark:hover:bg-teal-400"
+              className="btn w-full text-white hover:opacity-90 disabled:opacity-60 bg-teal-600"
               style={accent ? { backgroundColor: accent, color: '#fff' } : undefined}
             >
               {submitting ? 'Sending…' : 'Email me a sign-in link'}
@@ -450,7 +450,7 @@ function AcceptInviteInner() {
             <button
               type="submit"
               disabled={submitting}
-              className="btn w-full text-white hover:opacity-90 disabled:opacity-60 bg-teal-600 dark:bg-teal-500 dark:text-gray-900 dark:hover:bg-teal-400"
+              className="btn w-full text-white hover:opacity-90 disabled:opacity-60 bg-teal-600"
               style={accent ? { backgroundColor: accent, color: '#fff' } : undefined}
             >
               {submitting
@@ -555,7 +555,7 @@ function AcceptInviteInner() {
         </p>
         <button
           onClick={() => window.location.assign(step.toWelcome ? '/welcome' : '/')}
-          className="btn w-full text-white hover:opacity-90 bg-teal-600 dark:bg-teal-500 dark:text-gray-900 dark:hover:bg-teal-400"
+          className="btn w-full text-white hover:opacity-90 bg-teal-600"
           style={accent ? { backgroundColor: accent, color: '#fff' } : undefined}
         >
           {step.toWelcome ? 'Build my website with AI →' : step.isClinic ? 'Go to my portal' : 'Go to dashboard'}
@@ -577,7 +577,7 @@ function AcceptInviteInner() {
       <p className="text-sm text-gray-500 dark:text-gray-400 mb-8">{step.message}</p>
       <button
         onClick={() => router.push('/signin')}
-        className="btn w-full bg-teal-600 text-white hover:bg-teal-700 dark:bg-teal-500 dark:text-gray-900 dark:hover:bg-teal-400"
+        className="btn w-full bg-teal-600 text-white hover:bg-teal-700"
       >
         Back to sign in
       </button>

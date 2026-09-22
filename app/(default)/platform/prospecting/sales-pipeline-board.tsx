@@ -23,7 +23,7 @@ interface StageStyle {
   avatar: string
 }
 const STAGE: Record<string, StageStyle> = {
-  prospects: { n: 1, numClass: 'bg-gray-200 text-gray-500 dark:bg-gray-700 dark:text-gray-300', accent: 'text-gray-500 dark:text-gray-400', avatar: 'bg-gray-400' },
+  prospects: { n: 1, numClass: 'bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-300', accent: 'text-gray-500 dark:text-gray-400', avatar: 'bg-gray-400' },
   communicated: { n: 2, numClass: 'bg-fuchsia-500/15 text-fuchsia-600 dark:text-fuchsia-400', accent: 'text-fuchsia-600 dark:text-fuchsia-400', avatar: 'bg-fuchsia-500' },
   scheduled: { n: 3, numClass: 'bg-violet-500/12 text-violet-600 dark:text-violet-400', accent: 'text-violet-600 dark:text-violet-400', avatar: 'bg-violet-500' },
   completed: { n: 4, numClass: 'bg-emerald-500/12 text-emerald-600 dark:text-emerald-400', accent: 'text-emerald-600 dark:text-emerald-400', avatar: 'bg-emerald-500' },

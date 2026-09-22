@@ -1,15 +1,25 @@
 /**
  * THE ONE PLACE THIS REPO READS A COLOUR PAIR OUT OF A `className`.
  *
- * Four source rules grade those pairs, and they share this scanner rather than
- * carrying one each: `dark-mode-parity.test.ts` (the unpaired `dark:`
- * override), and `token-contrast.test.ts` three times over — white on the
+ * Seven source rules grade those pairs, and they share this scanner rather
+ * than carrying one each: `dark-mode-parity.test.ts` (rule 1, the unpaired
+ * `dark:` override), `token-contrast.test.ts` four times over — white on the
  * shallow end of the brand ramp as a solid fill (rule 2), white on a GRADIENT
- * that runs through it (rule 3), and a background that IS the ink rather than
- * the fill (rule 4). A second copy of "which utility is the ink, which is the
+ * that runs through it (rule 3), a background that IS the ink rather than the
+ * fill (rule 4), and a solid tone fill that is not the registry's (rule 5) —
+ * `quiet-ink.test.ts` (rule 6, a neutral ink declared for both themes with no
+ * surface of its own), and `one-string-pairs.test.ts` (rule 7, the pair rule 1
+ * hands back). A second copy of "which utility is the ink, which is the
  * surface, and is either one a wash" is how two guards start disagreeing about
  * the same line — the same reason `./palette` is the one place the ratios are
  * computed.
+ *
+ * RULES 1 AND 7 PARTITION ONE POPULATION between them rather than each
+ * describing it, which is why `isParitySubject` is exported and read by both:
+ * rule 1 has the chunk when exactly one half carries the override and every
+ * participating utility is opaque, rule 7 has every other ink-and-surface
+ * string. Rule 7 arrived last because rule 1's header argued the remainder was
+ * somebody else's, and batch 64 measured 29 places where it was nobody's.
  *
  * Rules 3 and 4 are the two axe structurally cannot report, and they are the
  * same background read from opposite ends: rule 3 grades it as the SURFACE
@@ -186,6 +196,47 @@ function grade(
 }
 
 /**
+ * The four utilities a colour pair can be written with, pulled out of one
+ * chunk. Single-homed because rules 1 and 7 partition the same four values
+ * between them, and a second copy of "which one is the ink" is how a partition
+ * turns into an overlap on one side and a gap on the other.
+ */
+type PairParts = {
+  lightInk?: Utility
+  darkInk?: Utility
+  lightSurface?: Utility
+  darkSurface?: Utility
+}
+
+function pairParts(classes: string): PairParts {
+  const inks = utilities(classes, 'text')
+  const surfaces = utilities(classes, 'bg')
+  return {
+    lightInk: inks.find((u) => !u.dark),
+    darkInk: inks.find((u) => u.dark),
+    lightSurface: surfaces.find((u) => !u.dark),
+    darkSurface: surfaces.find((u) => u.dark),
+  }
+}
+
+/**
+ * Does rule 1 GRADE this chunk — exactly one half carrying the `dark:`
+ * override, and every participating utility present and opaque?
+ *
+ * Exported because rule 7 is defined as the complement of it, and the two must
+ * partition the population rather than each describing it. Read it as "rule 1
+ * has this one"; everything else with an ink and a surface in the same string
+ * is rule 7's. Note this says nothing about whether rule 1 REPORTS the chunk —
+ * a graded pair that clears AA is silent, and correctly so.
+ */
+export function isParitySubject(classes: string): boolean {
+  const { lightInk, darkInk, lightSurface, darkSurface } = pairParts(classes)
+  if (!!darkInk === !!darkSurface) return false
+  const parts = [lightInk, darkInk ?? lightInk, lightSurface, darkSurface ?? lightSurface]
+  return parts.every((p) => !!p && !p.alpha)
+}
+
+/**
  * Grade one quoted class string. Returns a finding only when the chunk carries
  * an UNPAIRED `dark:` override across an opaque ink/surface pair AND at least
  * one of its two renderings misses AA.
@@ -196,17 +247,15 @@ function grade(
  * exists to teach.
  */
 export function gradeClasses(classes: string): Omit<ParityFinding, 'file' | 'line'> | null {
-  const inks = utilities(classes, 'text')
-  const surfaces = utilities(classes, 'bg')
+  const { lightInk, darkInk, lightSurface, darkSurface } = pairParts(classes)
 
-  const lightInk = inks.find((u) => !u.dark)
-  const darkInk = inks.find((u) => u.dark)
-  const lightSurface = surfaces.find((u) => !u.dark)
-  const darkSurface = surfaces.find((u) => u.dark)
-
-  // Exactly one half overridden. BOTH overridden is a pair somebody chose;
-  // NEITHER is a single pairing that `token-contrast` and axe already cover.
-  if (!!darkInk === !!darkSurface) return null
+  // Exactly one half overridden, every participating utility opaque. BOTH
+  // overridden and NEITHER overridden are RULE 7's — this comment used to say
+  // they were a pair somebody chose and a pair `token-contrast` already
+  // covered, and batch 64 measured 29 places where both halves of that were
+  // false. So is the alpha bail below: an override this rule declines to grade
+  // is not thereby graded by nothing. See rule 7's header.
+  if (!isParitySubject(classes)) return null
 
   const overridden: 'ink' | 'surface' = darkInk ? 'ink' : 'surface'
 
@@ -214,11 +263,6 @@ export function gradeClasses(classes: string): Omit<ParityFinding, 'file' | 'lin
   // unprefixed class — unchanged, which is the whole point — where there is not.
   const inkDark = darkInk ?? lightInk
   const surfaceDark = darkSurface ?? lightSurface
-
-  // Every participating utility must be present and opaque. An alpha ink or an
-  // alpha wash composites against something outside this string.
-  const parts = [lightInk, inkDark, lightSurface, surfaceDark]
-  if (parts.some((p) => !p || p.alpha)) return null
 
   const failures = [
     grade(LIGHT, 'light', lightInk!.word, lightSurface!.word),
@@ -1170,10 +1214,15 @@ export function toneFillSites(roots: string[] = UI_ROOTS): { file: string; line:
  * against a planted case first, so zero means the instrument looked). A false
  * negative with no subject is worth writing down rather than closing, because
  * the fix is not free — grading both-overridden pairs here would put two rules
- * on the same line, which is how a repo gets two answers for it. The wider
- * question of a pair whose two themes AGREE about which half moves is already
- * an OPEN NOW entry in docs/UI-BEST-VERSION.md with 28 measured sites behind
- * it; this belongs to that entry, not to a quiet widening of this one.
+ * on the same line, which is how a repo gets two answers for it.
+ *
+ * **BOTH SHAPES ARE RULE 7's NOW** (batch 68). They went to the entry this
+ * paragraph pointed at rather than into a quiet widening of this rule, which
+ * is what it asked for: rule 7 grades every ink-and-surface string rule 1
+ * hands back, including the both-overridden pair and the alpha-surface one,
+ * and it declines any chunk WITHOUT a `bg-` so it and this rule still cannot
+ * both match a line. The bail below is unchanged and now covers the tree with
+ * nothing behind it.
  */
 
 /** Neutral ramps — the ones that carry no meaning, and so have no tone
@@ -1226,9 +1275,10 @@ export function gradeQuietInkClasses(
   const lightInk = inks.find((u) => !u.dark)
   const darkInk = inks.find((u) => u.dark)
   // Both halves declared, neither a wash, and no surface of its own. With a
-  // surface present this is USUALLY rule 1's element, and two rules grading
-  // one line is how a repo ends up with two answers for it — but "usually" is
-  // load-bearing and the header says which two shapes fall between us.
+  // surface present the element is rule 1's or rule 7's between them, and two
+  // rules grading one line is how a repo ends up with two answers for it. The
+  // "usually" this comment used to carry is gone: rule 7 closed the two shapes
+  // the header names, so the bail hands the chunk to somebody now.
   if (!lightInk || !darkInk || lightInk.alpha || darkInk.alpha) return null
   if (!isNeutralInk(lightInk.word) || !isNeutralInk(darkInk.word)) return null
   if (!namesAQuietStep(lightInk.word) && !namesAQuietStep(darkInk.word)) return null
@@ -1281,6 +1331,174 @@ export function quietInkSites(roots: string[] = UI_ROOTS): { file: string; line:
     if (!isNeutralInk(lightInk.word) || !isNeutralInk(darkInk.word)) return
     if (!namesAQuietStep(lightInk.word) && !namesAQuietStep(darkInk.word)) return
     if (utilities(chunk, 'bg').length > 0) return
+    found.push({ file, line })
+  })
+  return found
+}
+
+/* ── RULE 7: the pair rule 1 hands back — an ink and its surface written in
+      ONE class string, graded by nothing ────────────────────────────────── */
+
+/**
+ * THE LARGEST MEASURED POPULATION THIS FILE HAD NEVER LOOKED AT.
+ *
+ * Rule 1 grades a chunk only when EXACTLY ONE half carries the `dark:`
+ * override, and only when all four participating utilities are opaque. Its own
+ * comment said why it declined the rest — *"BOTH overridden is a pair somebody
+ * chose; NEITHER is a single pairing that `token-contrast` and axe already
+ * cover"* — and batch 64 went and measured that sentence. Both halves of it
+ * are false often enough to matter:
+ *
+ *   - **A chosen pair can be chosen wrong.** `bg-teal-600 text-white
+ *     dark:bg-teal-500 dark:text-gray-900` is both halves overridden, so rule 1
+ *     read it as deliberate. It is 4.01 in dark — the batch-58 defect verbatim,
+ *     near-black ink on teal-500 — and it was every sign-in, reset-password and
+ *     accept-invite button in the product.
+ *   - **`token-contrast` grades the pairs the design system DECLARES.** An
+ *     off-registry ramp on an off-registry wash (`text-red-600` on `bg-red-50`,
+ *     2.94 — and `red` was never a v3 tone) is declared nowhere, so it is
+ *     nobody's business. axe could see that one, in the one theme it walks, on
+ *     the one stop that renders it; it could not see the dark half of anything.
+ *
+ * And the alpha bail is the third way through. Rule 1 skips a chunk outright
+ * when any participating utility is a wash, which is right for the wash — but
+ * `text-rose-600 bg-rose-50 dark:bg-rose-500/10` has a fully determined, fully
+ * OPAQUE light rendering at 4.12 that nothing then grades. Rule 6's header
+ * names two of these shapes and says they belong to this entry rather than to
+ * a quiet widening of rule 6. They do; here they are.
+ *
+ * THE RULE: **an ink and a surface written in the same class string must clear
+ * AA in every theme where both halves of the pair resolve opaque.** No
+ * ancestor is needed — the element carries both ends of its own pairing, which
+ * is exactly what makes this gradeable from source and what makes a finding a
+ * fact rather than an estimate.
+ *
+ * HOW IT PARTITIONS WITH THE RULES AROUND IT, rather than joining them on a
+ * line. Two rules grading one string is how a repo ends up with two answers
+ * for it, so each deferral below is to a rule that really does grade the thing
+ * deferred, and `one-string-pairs.test.ts` asserts the disjointness over the
+ * whole tree rather than trusting this list:
+ *
+ *   - **Rule 1** owns the whole chunk when `isParitySubject` says so. That
+ *     predicate is rule 1's own grading condition, read rather than re-spelled,
+ *     so a change to one cannot open a gap under the other.
+ *   - **Rule 2** owns white on `teal-400`/`teal-500`, in both themes — it has
+ *     the brand-ramp cutoff and the one `BRAND_FILL_EXEMPTIONS` entry (the
+ *     `aria-hidden` RecallFunnelMock bar). Grading it here would re-report a
+ *     site that is deliberately pardoned one rule over.
+ *   - **Rule 5** owns the BASE pairing of a solid tone fill, because that is
+ *     the pairing it grades — is this `TONE_FILL`, yes or no. The base pairing
+ *     is the light rendering always, and the dark one too when nothing
+ *     overrides either half; a tone fill declared only for dark is graded
+ *     here, because rule 5 never looks at a `dark:` override and deferring it
+ *     would hand the rendering to nobody.
+ *   - **Rule 6** needs a chunk with NO `bg-` at all. This rule needs one. They
+ *     cannot both match, by construction rather than by agreement.
+ *   - **Rule 4** anchors on `text-transparent`, which is not a palette word, so
+ *     a clipped-text chunk has no ink here to pair with.
+ *
+ * WHAT IT DOES NOT SEE, so a green run is not mistaken for proof. The same
+ * false-negative direction as every rule in this file:
+ *
+ *   - An ink and its surface in DIFFERENT quoted strings. One quoted string is
+ *     the unit, here as everywhere else.
+ *   - A rendering with an alpha half — that half composites against an ancestor
+ *     no source scanner can resolve. Note this is now a PER-RENDERING skip
+ *     rather than rule 1's per-chunk one, which is the whole of the third gap
+ *     above: an alpha `dark:bg-*` no longer takes the opaque light pair down
+ *     with it.
+ *   - `hover:` and the other state variants, and colour words this palette does
+ *     not define (an arbitrary `[#hex]`, a `--c-*` clinic brand var).
+ *
+ * AND ONE THING IT IS STRICTER ABOUT THAN WCAG, written down rather than
+ * exempted. It does not ask whether the element has a text node, so a pair
+ * whose only child is an icon would be graded at 4.5 where 1.4.11 asks 3:1.
+ * No such site fails in the tree today — `components/dropdown-filter.tsx`'s
+ * `fill-current` button, which batch 64 flagged as the case to decide, now
+ * reads 5.30 and clears both floors. If one lands, the fix is to give the rule
+ * a shape it can actually see, not to exempt the file: a guard that cannot
+ * distinguish an icon from a sentence should over-report and be told, rather
+ * than acquire a list of pardons keyed on nothing.
+ */
+
+/**
+ * Grade one quoted class string against rule 7.
+ *
+ * Exported for the same reason every sibling `grade*` here is: an absence
+ * assertion over a clean tree cannot tell a scanner that is looking from one
+ * that has quietly stopped, so the test feeds this every shape it claims to
+ * catch — including the two the product actually shipped.
+ */
+export function gradeSameStringPair(
+  classes: string,
+): Omit<ParityFinding, 'file' | 'line'> | null {
+  const { lightInk, darkInk, lightSurface, darkSurface } = pairParts(classes)
+  // Both ends of the pairing have to be written here, or there is nothing to
+  // grade without an ancestor. A `dark:`-only half with no base spelling is
+  // not a pair either — it is half a decision, and the cascade fills the other
+  // half from somewhere this scanner cannot read.
+  if (!lightInk || !lightSurface) return null
+  if (isParitySubject(classes)) return null
+
+  const renderings: [Pairing['theme'], Theme, Utility, Utility][] = [
+    ['light', LIGHT, lightInk, lightSurface],
+    ['dark', DARK, darkInk ?? lightInk, darkSurface ?? lightSurface],
+  ]
+
+  const failures: Pairing[] = []
+  const participating = new Set<string>()
+  for (const [name, theme, ink, surface] of renderings) {
+    if (ink.alpha || surface.alpha) continue
+    // Rule 2 has white on the shallow brand ramp, in both themes, with the
+    // cutoff and the one exemption.
+    if (ink.word === 'white' && SHALLOW_BRAND_FILLS.includes(surface.word)) continue
+    // Rule 5 has the BASE pairing of a solid tone fill — which is the light
+    // rendering always, and the dark one too when no override moves either
+    // half. An overridden dark tone fill is nobody else's, so it is graded.
+    if (ink === lightInk && surface === lightSurface && isToneFillSurface(surface.word)) continue
+    const graded = grade(theme, name, ink.word, surface.word)
+    if (!graded || graded.ratio >= AA) continue
+    failures.push(graded)
+    participating.add(ink.raw)
+    participating.add(surface.raw)
+  }
+  if (failures.length === 0) return null
+
+  return {
+    overridden: null,
+    classes: Array.from(participating).join(' '),
+    failures,
+    note: 'an ink and its surface written in one class string, and the pair does not read',
+  }
+}
+
+/**
+ * Every ink/surface pair written in one class string that misses AA in a theme
+ * where both halves resolve opaque.
+ *
+ * Holds at ZERO with no ceiling and no exemption list, the same as rules 1, 3
+ * and 6. It can afford zero because the sweep that introduced it fixed all 30
+ * live instances; a number here would be room for the next one, in the gap
+ * three rules spent the whole program leaving open.
+ */
+export function scanForUngradedStringPairs(roots: string[] = UI_ROOTS): ParityFinding[] {
+  const found: ParityFinding[] = []
+  eachClassString(roots, (file, line, chunk) => {
+    const graded = gradeSameStringPair(chunk)
+    if (graded) found.push({ file, line, ...graded })
+  })
+  return found
+}
+
+/** Every ink/surface pair written in one class string, passing or not — the
+ *  instrument's field of view. A rule narrowed until it matches nothing
+ *  reports CLEAN forever. */
+export function sameStringPairSites(roots: string[] = UI_ROOTS): { file: string; line: number }[] {
+  const found: { file: string; line: number }[] = []
+  eachClassString(roots, (file, line, chunk) => {
+    const { lightInk, lightSurface } = pairParts(chunk)
+    if (!lightInk || !lightSurface) return
+    if (isParitySubject(chunk)) return
     found.push({ file, line })
   })
   return found

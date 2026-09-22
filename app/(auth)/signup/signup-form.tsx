@@ -8,6 +8,7 @@ import { isDeploymentSkewError } from '@/lib/auth/submit-guard'
 import { saveOnboardingState } from '@/lib/onboarding/storage'
 import { PLANS, type BillingInterval, type PlanId } from '@/lib/stripe-config'
 import { ActionButton } from '@/components/ui/action-button'
+import { TONE_PILL } from '@/lib/ui/encodings'
 
 const SIGN_UP_TIMEOUT_MS = 25_000
 
@@ -152,7 +153,7 @@ export default function SignUpForm() {
         </div>
       </div>
       {error && (
-        <div role="alert" className="mt-4 text-sm text-rose-600 bg-rose-50 dark:bg-rose-500/10 px-3 py-2 rounded">
+        <div role="alert" className={`mt-4 text-sm ${TONE_PILL.urgent} px-3 py-2 rounded`}>
           {error}
           {/^.*(exist|already|registered|taken).*$/i.test(error) && (
             <>
