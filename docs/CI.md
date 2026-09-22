@@ -21,6 +21,69 @@ loads, including the one real clinic site — is `docs/OPS.md`.
 | `.github/workflows/rulebook-drift.yml` | `schedule` 06:17 UTC + dispatch | `rulebook-drift` | the rulebook still describing this repo | no — never runs on a PR |
 | `.github/workflows/review-sweep.yml` | `schedule` 06:47 UTC + dispatch | `review-sweep` | that a PR owing Sentinel a review did not merge without one | no — post-merge alarm, never runs on a PR |
 
+## A green deploy must mean the new version is SERVING
+
+The `deploy` job's last assertion (new 2026-09-22, DREAMCRM-86) is a step inside
+`deploy.yml` rather than a workflow of its own, so it adds no row to the table
+above. It runs `scripts/rollout-check.mjs`.
+
+The defect it closes: the build step polls `codebuild batch-get-builds` and
+exits the moment the BUILD reports `SUCCEEDED`, while the App Runner rollout is
+fired from the buildspec's `POST_BUILD` *after* that point. Nothing downstream
+watched it. So the pipeline's green meant "the image built and App Runner
+accepted a request", never "the new version is serving" — and on 2026-09-21 a
+merge reported green on `test`, `e2e`, this job, `migration-check` and
+post-merge E2E while production served the previous build for 2h 40m, measured
+by etag (`docs/RELEASE.md` Part 5).
+
+What it does: finds the rollout this run's own build started, polls it until it
+leaves `IN_PROGRESS`, fails on anything but `SUCCEEDED`, and then asks the
+service itself whether it is `RUNNING`.
+
+Five things about it that are decisions rather than details:
+
+- **`ROLLBACK_SUCCEEDED` is a FAILURE.** It is App Runner saying the new version
+  failed its health check and the previous one is back — the 2026-09-21 harm
+  wearing the word `SUCCEEDED`. Statuses are looked up by exact key for that
+  reason, and a status the script does not recognise is a failure too: "we could
+  not tell" and "it served" are different answers.
+- **It identifies the rollout by `ROLLOUT_SINCE`**, a timestamp the build step
+  writes to `$GITHUB_ENV` immediately *before* `codebuild start-build`, and then
+  latches the operation by id. Without a baseline, the newest `START_DEPLOYMENT`
+  on the service passes for this run's — including one that finished an hour ago
+  for a different commit, which would be the same defect with a green tick and a
+  citation attached. A missing `ROLLOUT_SINCE` therefore FAILS the step rather
+  than falling back to anything.
+- **No rollout at all is also a failure.** A green build with no
+  `START_DEPLOYMENT` after the baseline means the buildspec's
+  `start-deployment` did not run or did not take, which is precisely the
+  invisibility this closes.
+- **It extends the `deploy-main` hold, on purpose.** The group exists because
+  App Runner allows one rollout at a time, and until now the job released it
+  while the rollout was still running — the real serialization was the
+  buildspec's 30x30s `start-deployment` retry. The cost is that a back-to-back
+  merge's image build queues behind this instead of racing it; the saving is
+  that its `start-deployment` no longer has to retry into a busy service.
+  `migration-check` stays OUTSIDE the group either way, which is what that split
+  was for.
+- **It needs an IAM grant, and says so out loud until it has one.** The deploy
+  role (`DreamCRMGitHubActionsDeploy`) needs `apprunner:ListOperations`,
+  `apprunner:ListServices` and `apprunner:DescribeService`; that is an
+  owner-side action on the DREAMCRM-65 checklist. Until it lands, every call
+  answers `AccessDenied` and the step prints
+  `::warning::rollout UNVERIFIED` and exits 0 — hard-failing would turn every
+  merge to `main` red for a reason nobody in CI can fix. **That is the only path
+  in the step allowed to report green without verifying anything**, it is keyed
+  to authorization errors alone (a throttle, a timeout, a missing service or an
+  unparseable response are all hard failures), and it clears itself the day the
+  grant lands with no code change. Set the repo variable
+  `APP_RUNNER_SERVICE_ARN` to skip the `list-services` lookup; it is optional.
+
+`tests/guards/rollout-check.test.ts` pins all of it inside `test`: the verdict
+tables, the baseline rule, the narrowness of the degrade path, and the
+`deploy.yml` wiring — including that the step is not `continue-on-error` and
+that the baseline is recorded before the build rather than after it.
+
 ## The deploy is not finished until the migrations are in
 
 `migration-check.yml` (new 2026-09-14, DREAMCRM-46) is the odd one out in the

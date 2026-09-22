@@ -617,6 +617,12 @@ describe('the review-gate classifier', () => {
       // "small tweak to a script" is exactly how such a check gets loosened
       // review-free.
       'scripts/migration-check.mjs': 'deploy-path',
+      // The post-build rollout assertion (DREAMCRM-86) — the same argument one
+      // step earlier in the pipeline. It decides whether the deploy JOB may
+      // report success, and it carries the repo's only deliberate
+      // green-while-unverified path (the missing IAM grant), which is exactly
+      // the kind of escape hatch that must not widen review-free.
+      'scripts/rollout-check.mjs': 'deploy-path',
       // The production read-check catalog (DREAMCRM-42). Pinned because the
       // per-entry review is the ENTIRE control on "no PHI in a log anything
       // with repo read can open" and on the cross-tenant waiver — and because

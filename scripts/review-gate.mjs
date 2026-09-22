@@ -120,6 +120,13 @@ export const GATE_RULES = [
       // success, so weakening it is a deploy-path change even though it runs
       // after the deploy rather than during it.
       'scripts/migration-check.mjs',
+      // The post-build assertion that the App Runner rollout actually served
+      // (DREAMCRM-86). Same argument as `scripts/migration-check.mjs` above and
+      // sharper: this one decides whether the deploy job reports success at
+      // all, and the edit that breaks it is the quiet one — widen the
+      // AccessDenied degrade path, or let ROLLBACK_SUCCEEDED read as a success,
+      // and the job goes green on a deploy that never served.
+      'scripts/rollout-check.mjs',
       'scripts/setup-cron-schedules.sh',
       'app/api/admin/migrate/**',
     ],
