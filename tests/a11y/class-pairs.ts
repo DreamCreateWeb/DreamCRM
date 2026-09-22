@@ -86,6 +86,13 @@
  *     NEGATIVE, which is the safe direction for a guard whose whole value is
  *     that a red run means something.
  *
+ *     **And for two years that sentence described something narrower than what
+ *     the code did**: the reader was a regex that could not span an
+ *     interpolation at all, so a template's static prefix was not merely
+ *     unjoined, it was never read. 10,021 chunks were invisible. See
+ *     `quotedChunks` below for the measurement and the fix; the
+ *     do-not-join rule above survives it unchanged.
+ *
  * Runtime axe stays the backstop for composition. This is the guard for the
  * one thing a single-theme browser suite structurally cannot look at.
  */
@@ -281,9 +288,233 @@ export function gradeClasses(classes: string): Omit<ParityFinding, 'file' | 'lin
   }
 }
 
-/** Every quoted string on a line — the unit an element's classes are written in. */
-function quotedChunks(line: string): string[] {
-  return line.match(/(["'`])[^"'`]*\1/g) ?? []
+/**
+ * EVERY CLASS STRING ON A LINE — the unit an element's classes are written in,
+ * and the one place this repo decides what that unit is.
+ *
+ * THE BLIND SPOT THIS REPLACES (Sentinel's review of #656, DREAMCRM-88). For
+ * two years this was one regex: `/(["'`])[^"'`]*\1/g`. It reads a template
+ * literal as "a backtick, then anything that is not a quote, then a backtick"
+ * — so the moment a template carries an interpolation with a quote in it, the
+ * WHOLE template stops matching and its static text is never seen at all:
+ *
+ *     className={`mt-2 text-xs text-gray-400 ${s.enabled ? '' : 'opacity-50'}`}
+ *
+ * The `'' : 'opacity-50'` branches match as their own chunks; `text-gray-400`
+ * is invisible. The file header used to describe this as "classes split across
+ * a template literal's static prefix and an interpolated branch are NOT
+ * joined", which is a different and much smaller claim — not joining a prefix
+ * to a branch is a deliberate false negative, dropping the prefix is a hole.
+ *
+ * Measured before it was closed: **10,021 chunks** the rules had never seen,
+ * 11% on top of the 87,460 they had. It cost batch 69 five sites — four
+ * disclosure chevrons and four lines of prose on the collections card, all at
+ * 2.63 — and the tell was that `balance-outreach-card.tsx` line 122 is a plain
+ * string and WAS swept while line 126, four lines below it on the same card
+ * with the same ink, is a template literal and was not.
+ *
+ * NO RULE FINDING WAS HIDING IN THOSE 10,021, which is why this could land in
+ * one batch: every `grade*` in this file was run over the newly-visible chunks
+ * and returned nothing, and the same widening over `dimmed-text`'s 9,430 added
+ * chunks returned nothing either. The hole was real and, this time, empty.
+ *
+ * WHAT IT YIELDS, and why each half is shaped the way it is:
+ *
+ *   - A plain `'…'` / `"…"` string yields its body — and, exactly as the old
+ *     regex did, a body may NOT contain another quote character. That is not
+ *     tidiness: JSX prose is full of apostrophes, and a scanner that ran from
+ *     a stray `'` to the next `"` would invent a chunk spanning two unrelated
+ *     strings and pair an ink in one with a surface in the other. A false
+ *     POSITIVE is the one direction this file refuses.
+ *   - A template literal yields its STATIC text with each `${…}` replaced by a
+ *     single SPACE — a space rather than nothing so `text-gray-${n}00` cannot
+ *     fuse into a colour word that was never written.
+ *   - Each `${…}` is then scanned in turn, so the ternary branches inside it
+ *     stay their own chunks. That is what keeps rule 1's conditional-form red
+ *     run honest, and it is still the case that a static prefix is never
+ *     JOINED to a branch — the branches are mutually exclusive and joining
+ *     them would invent pairings that never render together.
+ *
+ * `one-string-pairs.test.ts` asserts the widening LOSES NO CLASS TOKEN over
+ * the real tree, which is the only way to land a field-of-view change without
+ * trading one blind spot for another.
+ *
+ * ── WHAT IT STILL CANNOT SEE. Both found by Sentinel reviewing #657, both
+ * measured rather than assumed, and both written here so nobody reads "reads
+ * template literals" as "reads all template literals".
+ *
+ *   - **THE SCAN IS PER LINE, so a template broken across source lines is
+ *     invisible.** The opening line never closes, and the continuation lines
+ *     carry no quotes to find. **25 colour-bearing lines yield no chunk, 23 of
+ *     them real** (two are comments); joined by hand and run through all four
+ *     graders plus `dimmed-text`'s, they produce **0 findings**. The one to
+ *     look at if this is ever closed is
+ *     `app/(onboarding)/welcome/welcome-interview.tsx:579` —
+ *     `bg-stone-800 dark:bg-stone-200 … text-white dark:text-stone-900`, which
+ *     is rule 7's both-halves-overridden subject exactly, the auth-button
+ *     shape. It passes on both sides. It is still ungraded for a SYNTACTIC
+ *     reason, which is the sentence this whole batch exists to stop being
+ *     true, so this is a residual rather than a decision.
+ *   - **`skipInterpolation` does not know a regex literal from division**, so
+ *     a `}` inside one ends the skip early and the expression's source leaks
+ *     into the statics. Both colour tokens survive in the shape that does it
+ *     (`${s.replace(/}/g, '')}`), so nothing goes blind — but it over-reads,
+ *     and over-reading can in principle fuse across the boundary the blanking
+ *     exists to keep apart, which is the FALSE-POSITIVE direction this file
+ *     refuses everywhere else. No instance exists in the tree: that is the
+ *     result of a walk, not an assumption.
+ */
+export function quotedChunks(line: string): string[] {
+  const out: string[] = []
+  scanChunks(line, out)
+  return out
+}
+
+/** Index just past the literal opening at `i`, templates and escapes included. */
+function skipLiteral(s: string, i: number): number {
+  const q = s[i]
+  let j = i + 1
+  while (j < s.length) {
+    if (s[j] === '\\') {
+      j += 2
+      continue
+    }
+    if (s[j] === q) return j + 1
+    if (q === '`' && s[j] === '$' && s[j + 1] === '{') {
+      const end = skipInterpolation(s, j + 2)
+      // An interpolation the line never closes means the literal never closes
+      // either. Returning `-1` here would set `j = -1` and walk the string
+      // again from zero — an infinite loop, not a miss.
+      if (end === -1) return s.length
+      j = end
+      continue
+    }
+    j++
+  }
+  return j
+}
+
+/**
+ * Index just past the `}` closing an interpolation whose body starts at `i`,
+ * or **-1 when this line does not close it** — a template broken across source
+ * lines is the ordinary case, since the scan is per line.
+ *
+ * THE -1 IS LOAD-BEARING and it was learned the hard way. The first version
+ * returned `s.length` for both outcomes, and the caller sliced `end - 1` to
+ * drop the `}` — so on an unterminated interpolation it dropped a REAL
+ * character instead. `components/dropdown-help.tsx` is that shape:
+ *
+ *     className={`… rounded-full ${open && 'bg-gray-200 dark:bg-gray-800'
+ *       }`}
+ *
+ * The inner string ends the line, so the chop ate its closing quote and both
+ * colour tokens vanished. It passed on Windows and failed on Linux CI, because
+ * a CRLF working tree leaves a `\r` at the end of every line and the chop ate
+ * THAT instead — the two platforms read a different tree. Caught by the
+ * tree-wide token assertion in `one-string-pairs.test.ts`, which is the whole
+ * reason that assertion exists.
+ */
+function skipInterpolation(s: string, i: number): number {
+  let depth = 1
+  let j = i
+  while (j < s.length) {
+    const c = s[j]
+    if (c === '"' || c === "'" || c === '`') {
+      j = skipLiteral(s, j)
+      continue
+    }
+    if (c === '{') depth++
+    else if (c === '}' && --depth === 0) return j + 1
+    j++
+  }
+  return -1
+}
+
+function scanChunks(s: string, out: string[]): void {
+  let i = 0
+  while (i < s.length) {
+    // An escape is one token, wherever it sits. This is what keeps an escaped
+    // backtick in a template's static text from opening a template on the
+    // rescan below — and it is equally right outside a literal, where the
+    // backslashes that occur are inside regex literals rather than starting a
+    // string.
+    if (s[i] === '\\') {
+      i += 2
+      continue
+    }
+    const q = s[i]
+    if (q === '"' || q === "'") {
+      // The old regex's rule, kept deliberately: a plain string's body holds no
+      // other quote character. See the header for the apostrophe hazard.
+      let j = i + 1
+      while (j < s.length && s[j] !== '"' && s[j] !== "'" && s[j] !== '`') j++
+      if (j < s.length && s[j] === q) {
+        out.push(s.slice(i + 1, j))
+        i = j + 1
+      } else {
+        i++
+      }
+      continue
+    }
+    if (q === '`') {
+      let j = i + 1
+      let statics = ''
+      let closed = false
+      while (j < s.length) {
+        if (s[j] === '\\') {
+          statics += s.slice(j, j + 2)
+          j += 2
+          continue
+        }
+        if (s[j] === '`') {
+          closed = true
+          break
+        }
+        if (s[j] === '$' && s[j + 1] === '{') {
+          const end = skipInterpolation(s, j + 2)
+          // Closed on this line: the body is everything up to the `}`.
+          // NOT closed: the body is the rest of the line, and dropping a
+          // character here is what lost two tokens on Linux — see
+          // `skipInterpolation`.
+          scanChunks(end === -1 ? s.slice(j + 2) : s.slice(j + 2, end - 1), out)
+          statics += ' '
+          if (end === -1) {
+            j = s.length
+            break
+          }
+          j = end
+          continue
+        }
+        statics += s[j]
+        j++
+      }
+      if (closed) {
+        out.push(statics)
+        // A template's static text can itself contain a quoted run — an HTML
+        // string built in a template (`<div class="p-2">`) is the shape, and
+        // the old regex found that inner string precisely BECAUSE it refused
+        // to span quotes. Scanning the statics recovers it; without this the
+        // widening would have lost `text-white` in `dream-create-logo.tsx`,
+        // which is how the additive assertion in `one-string-pairs.test.ts`
+        // earned its keep.
+        //
+        // THIS USED TO SAY "one level deep by construction" AND THAT WAS
+        // WRONG (Sentinel, reviewing #657). `statics` keeps the raw two
+        // characters of an escape, so an escaped backtick puts a real
+        // backtick into it and the rescan re-enters the template branch. The
+        // escape skip at the top of this loop is what makes the claim true
+        // rather than the claim being softened: `\`` is consumed as one
+        // token, so no backtick survives into a rescan. Termination never
+        // depended on it — each level takes a strictly shorter slice — but a
+        // "by construction" in this file is something the next person builds
+        // on, so it is cheaper to make it hold than to hedge it.
+        scanChunks(statics, out)
+      }
+      i = j + 1
+      continue
+    }
+    i++
+  }
 }
 
 function walk(dir: string, out: string[] = []): string[] {
@@ -294,6 +525,21 @@ function walk(dir: string, out: string[] = []): string[] {
     else if (/\.tsx?$/.test(entry)) out.push(path)
   }
   return out
+}
+
+/**
+ * Every product source file under `roots`, repo-relative with forward slashes.
+ *
+ * Exported so a guard over the READER itself can get its file list without
+ * going through the reader — `eachClassString` only names a file that yields
+ * at least one chunk, so a file the reader went completely blind on would be
+ * skipped rather than reported by anything built on it. (Sentinel, reviewing
+ * #657.) Everything that grades CONTENT should still use `eachClassString`.
+ */
+export function uiSourceFiles(roots: string[] = UI_ROOTS): string[] {
+  return roots.flatMap((root) =>
+    walk(join(ROOT, root)).map((p) => relative(ROOT, p).replace(/\\/g, '/')),
+  )
 }
 
 /**

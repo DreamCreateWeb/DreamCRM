@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { join, relative } from 'node:path'
 import { AA, contrast, DARK, LIGHT, over, ROOT, utilityColor } from './palette'
+import { quotedChunks } from './class-pairs'
 
 /**
  * THE APP DOES NOT DIM ITS OWN TEXT.
@@ -200,10 +201,19 @@ const IS_TEXT = /(?:^|[\s'"`{])(?:text-(?:xs|sm|base|lg|xl|\dxl|\[[^\]]+\])|tabu
 
 export type DimmedText = { file: string; line: number; value: number; chunk: string }
 
-/** One quoted class string — the same unit `class-pairs.ts` reads. */
-function quotedChunks(line: string): string[] {
-  return Array.from(line.matchAll(/(['"`])((?:[^'"`\\\n]|\\.)*)\1/g)).map((m) => m[2])
-}
+/**
+ * ONE quoted class string — literally the same unit `class-pairs.ts` reads,
+ * because it is now the same function rather than a second spelling of it.
+ *
+ * The copy this replaces had `class-pairs.ts`'s own template-literal blind
+ * spot: a template carrying an interpolation with a quote in it matched
+ * nothing, so its static text was never graded. 9,430 chunks under this rule's
+ * roots were invisible to it. No dimmed-type finding was hiding in them — the
+ * widening was measured against the tree before it landed and returned zero —
+ * but "the copy had the same hole" is exactly why the comment this replaces
+ * promised a sameness only a shared function can keep. See `quotedChunks` in
+ * `class-pairs.ts` for the shape and the measurement.
+ */
 
 export function gradeChunk(chunk: string): number | null {
   if (!IS_TEXT.test(chunk)) return null

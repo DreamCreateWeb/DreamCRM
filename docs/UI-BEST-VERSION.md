@@ -21,14 +21,24 @@ from burying what is not done. Keep it to 5–10 lines and say *why* each one is
 still sitting there — "deferred, needs a data series" and "nobody has picked it
 up" are different facts and only one of them is a backlog item.
 
-## OPEN NOW (last rewritten: batch 69, 2026-09-22)
+## OPEN NOW (last rewritten: batch 70, 2026-09-22)
 
-> **Batches 68 and 69 (DREAMCRM-88) closed entries 1 and 2** — the rule plus
-> its sweep, then the per-site pass, staged as two batches so each stayed
-> reviewable. Entry 3's clinic-site slice is the top of the list now, and the
-> honest description of why it is still sitting there is that nobody has picked
-> it up: it needs the tenant-derived palette graded through
+> **Batches 68, 69 and 70 (DREAMCRM-88) closed entries 1 and 2** — the rule
+> plus its sweep, then the per-site pass, then Sentinel's five-site correction
+> and the reader bug under it. Entry 3's clinic-site slice is the top of the
+> list now, and the honest description of why it is still sitting there is that
+> nobody has picked it up: it needs the tenant-derived palette graded through
 > `buildClinicPalette` rather than against one clinic's value.
+
+> **READ THIS BEFORE THE NEXT SWEEP OF ANY KIND.** Batch 70 found that
+> `class-pairs.ts`'s chunk reader — shared by all seven contrast rules and, in
+> a second copy, by `dimmed-text` — could not span a template literal whose
+> interpolation carried a quote. **10,021 chunks, 11% of the tree, were
+> invisible to every one of them**, and no rule had ever reported a finding in
+> that region because no rule could see it. It is fixed and single-homed, with
+> an assertion that the widening loses no class token anywhere in the tree. The
+> lesson generalises past colour: *a sweep is only as wide as its reader, and
+> "I grepped for the class" is not the same as "the guard can see the class".*
 
 > **The axe burn-down is CLOSED.** `e2e/axe-baseline.ts` is `{}` — 214 → 0
 > across batches 54-64 — so every stop the browser suite walks now tolerates
@@ -104,7 +114,19 @@ up" are different facts and only one of them is a backlog item.
    stop the E2E suite walks is already gated at zero. What is genuinely
    unwatched is a bare `gray-400` landing on a light surface no stop renders,
    and the cheap thing that would close it is another STOP, not another source
-   rule.]
+   rule.
+   · **CORRECTION, batch 70** (Sentinel's review of #656). The numbers above
+   were 5 short and the reason was SYNTAX, not triage: batch 69's sweep read
+   plain quoted strings, and `class-pairs.ts`'s chunk reader could not span a
+   template literal whose interpolation carried a quote — so
+   `` className={`… text-gray-400 ${x ? '' : 'y'}`} `` was invisible to it. Five
+   sites sat in that hole: four disclosure chevrons and, on the collections
+   card, four lines of real explanatory prose at 2.63. The tell is that
+   `balance-outreach-card.tsx` line 122 is a plain string and WAS swept while
+   line 126, four lines below it on the same card with the same ink, is a
+   template literal and was not. All five are the §2.2 pair now. The reader is
+   fixed rather than the five patched — see the note under entry 3 — and with
+   it the residual reads **53**, not 52.]
 3. **The opacity sweep's ~~TWO~~ ONE DEFERRED SURFACE.**
    `tests/a11y/dimmed-text.test.ts` WALKS `app/`, `components/` and `lib/` and
    holds them at zero; one component tree is still outside it, excluded for a

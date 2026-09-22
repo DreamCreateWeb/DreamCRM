@@ -123,7 +123,7 @@ export default function BalanceOutreachCard({
           </div>
         </label>
       </div>
-      <p className={`mt-2 text-xs leading-relaxed text-gray-400 ${s.enabled ? '' : 'opacity-50'}`}>
+      <p className={`mt-2 text-xs leading-relaxed text-gray-500 dark:text-gray-400 ${s.enabled ? '' : 'opacity-50'}`}>
         After the cap, collections becomes a phone call — the front-desk follow-up list still
         tracks the balance. A pay link you send by hand pauses the schedule too, so patients
         never get two in a row.
