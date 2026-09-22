@@ -13,6 +13,10 @@ import {
   isRetryableAwsError,
   toMillis,
   parseSince,
+  EXIT_CODE,
+  EXIT_FOR,
+  exitFor,
+  runCheck,
   positiveSeconds,
   selectRolloutOperation,
   findOperationById,
@@ -462,6 +466,47 @@ describe('the deploy run, end to end', () => {
     expect(calls).toEqual([])
   })
 
+  it('A SLOW ROLLOUT THAT SERVED IS NOT A RED RUN', async () => {
+    // Sentinel's measured case, review of #639. Step 4 used to reuse step 3's
+    // `deadline`, so a rollout that consumed the whole budget and then
+    // SUCCEEDED reached the service check with nothing left and reported
+    // `not-served` on a deploy that had served. A false red on the deploy path
+    // is how a new alarm gets routed around.
+    //
+    // Timed to land exactly on the old boundary: five polls at 15s consume the
+    // 60s budget, the fifth SUCCEEDS, and the service needs one more tick.
+    const result = await run(
+      {
+        'list-operations': [
+          { OperationSummaryList: [op({ Status: 'IN_PROGRESS' })] },
+          { OperationSummaryList: [op({ Status: 'IN_PROGRESS' })] },
+          { OperationSummaryList: [op({ Status: 'IN_PROGRESS' })] },
+          { OperationSummaryList: [op({ Status: 'IN_PROGRESS' })] },
+          { OperationSummaryList: [op({ Status: 'SUCCEEDED' })] },
+        ],
+        'describe-service': [{ Service: { Status: 'OPERATION_IN_PROGRESS' } }, { Service: { Status: 'RUNNING' } }],
+      },
+      { ROLLOUT_CHECK_TIMEOUT_SECONDS: '60' },
+    )
+    expect(result.outcome, result.message).toBe(OUTCOME.served)
+  })
+
+  it('the settle wait is bounded too — it does not become the new forever', async () => {
+    // The other direction of the same fix. Giving step 4 its own budget must
+    // not give it an unbounded one: a service that never reaches RUNNING is
+    // not serving, and the message names the window it waited so the number is
+    // findable from the run.
+    const result = await run(
+      {
+        'list-operations': [{ OperationSummaryList: [op({ Status: 'SUCCEEDED' })] }],
+        'describe-service': [{ Service: { Status: 'OPERATION_IN_PROGRESS' } }],
+      },
+      { ROLLOUT_CHECK_SETTLE_SECONDS: '30' },
+    )
+    expect(result.outcome).toBe(OUTCOME.notServed)
+    expect(result.message).toMatch(/never left OPERATION_IN_PROGRESS within 30s/)
+  })
+
   it('resolves the service ARN by name when none is configured', async () => {
     const result = await run(
       {
@@ -473,6 +518,147 @@ describe('the deploy run, end to end', () => {
     )
     expect(result.outcome).toBe(OUTCOME.served)
     expect(result.calls.some((args) => args.includes('list-services'))).toBe(true)
+  })
+})
+
+/**
+ * THE HALF THAT TURNS A VERDICT INTO A RED RUN.
+ *
+ * Added after Sentinel's review of #639, which is the same finding as the
+ * blocking item on #593 / DREAMCRM-61: every table above was graded and the
+ * path from table to exit code was graded by nothing. Four mutations that
+ * silently muted the alarm — an `if:` on the step, `|| true` on the run line,
+ * `EXIT_CODE.failed` set to 0, and a `not-served` branch that printed and
+ * exited green — left all 49 tests passing.
+ *
+ * The decision now lives in `EXIT_FOR` / `exitFor` and the whole CLI path in
+ * `runCheck`, so these RUN the real thing rather than inspecting it.
+ */
+describe('a verdict has to become an exit code', () => {
+  it('every outcome has an exit code — a new one cannot arrive without a verdict', () => {
+    // Derived from OUTCOME rather than listed, the way migration-check grades
+    // itself over STATES. Add a fourth outcome and this fails until it is
+    // mapped, instead of `exitFor` silently returning undefined.
+    for (const outcome of Object.values(OUTCOME) as string[]) {
+      expect(EXIT_FOR, `${outcome} has no exit code — runCheck would exit undefined`).toHaveProperty(outcome)
+      expect(typeof exitFor(outcome).exitCode, `${outcome} maps to a non-number`).toBe('number')
+    }
+  })
+
+  it('a deploy that did not serve must FAIL the run', () => {
+    // The single assertion that stops `EXIT_CODE = { ok: 0, failed: 0 }`, and
+    // the reason this block exists. Written as "not 0" rather than "is 1"
+    // because any non-zero fails the step, and pinning the digit would be
+    // pinning a detail over the property.
+    expect(exitFor(OUTCOME.notServed).exitCode, 'a deploy that did not serve must fail the run').not.toBe(0)
+    expect(exitFor(OUTCOME.notServed).annotation).toBe('error')
+  })
+
+  it('served and degraded both leave the run green, and only one of them is silent', () => {
+    expect(exitFor(OUTCOME.served).exitCode).toBe(0)
+    expect(exitFor(OUTCOME.served).annotation).toBeNull()
+    // Degraded is green ON PURPOSE (the missing IAM grant) — but a green tick
+    // with nothing verified behind it has to say so where somebody sees it.
+    expect(exitFor(OUTCOME.degraded).exitCode).toBe(0)
+    expect(exitFor(OUTCOME.degraded).annotation).toBe('warning')
+  })
+
+  it('an outcome the table has never heard of fails rather than exiting 0', () => {
+    // Same rule as the status tables: a check that has stopped being able to
+    // answer may not report a good deploy. Exact-key lookup, so a prototype
+    // property cannot pass for a verdict either.
+    expect(exitFor('some-new-outcome').exitCode).not.toBe(0)
+    expect(exitFor('constructor').unknown).toBe(true)
+    expect(exitFor('constructor').exitCode).not.toBe(0)
+  })
+})
+
+describe('the whole CLI path, exit code included', () => {
+  const ARN = 'arn:aws:apprunner:us-east-1:952078552817:service/dreamcrm/abc'
+
+  /** Drives `runCheck` exactly as `main()` does, capturing what it printed. */
+  async function cli(responses: Record<string, unknown[]>) {
+    const lines: string[] = []
+    const summary: string[] = []
+    const seen: Record<string, number> = {}
+    let clock = T0 + 10 * 60_000
+    const aws = async (args: string[]) => {
+      const key = args[1]!
+      const queue = responses[key]
+      if (!queue || queue.length === 0) return { status: 1, stdout: '', stderr: `no scripted ${key}` }
+      const index = Math.min(seen[key] ?? 0, queue.length - 1)
+      seen[key] = index + 1
+      const next = queue[index]
+      if (typeof next === 'string') return { status: 255, stdout: '', stderr: next }
+      return { status: 0, stdout: JSON.stringify(next), stderr: '' }
+    }
+    const exitCode = await runCheck({
+      aws,
+      sleep: async (ms: number) => {
+        clock += ms
+      },
+      now: () => clock,
+      env: { ROLLOUT_SINCE: SINCE, APP_RUNNER_SERVICE_ARN: ARN, AWS_REGION: 'us-east-1' },
+      log: (line: string) => lines.push(line),
+      appendSummary: (text: string) => summary.push(text),
+    })
+    return { exitCode, out: lines.join('\n'), summary: summary.join('') }
+  }
+
+  it('a rollout that served exits 0 and raises no annotation', async () => {
+    const run = await cli({
+      'list-operations': [{ OperationSummaryList: [op({ Status: 'SUCCEEDED' })] }],
+      'describe-service': [{ Service: { Status: 'RUNNING' } }],
+    })
+    expect(run.exitCode).toBe(EXIT_CODE.ok)
+    expect(run.out).not.toContain('::error')
+    expect(run.out).not.toContain('::warning')
+    expect(run.summary).toContain('Rollout verified')
+  })
+
+  it('A REVERTED ROLLOUT EXITS NON-ZERO and prints an ::error annotation', async () => {
+    // End to end, this is the 2026-09-21 deploy: everything green, nothing
+    // serving. The exit code is the whole point — an annotation on its own is
+    // a line in a log nobody opens.
+    const run = await cli({
+      'list-operations': [{ OperationSummaryList: [op({ Status: 'ROLLBACK_SUCCEEDED' })] }],
+    })
+    expect(run.exitCode, 'a reverted rollout has to fail the deploy run').not.toBe(0)
+    expect(run.out).toContain('::error title=The deploy did not serve::')
+    expect(run.summary).toContain('did NOT serve')
+  })
+
+  it('the missing grant exits 0 and prints a ::warning annotation', async () => {
+    const run = await cli({
+      'list-operations': ['An error occurred (AccessDeniedException): is not authorized to perform'],
+    })
+    expect(run.exitCode).toBe(EXIT_CODE.ok)
+    expect(run.out).toContain('::warning title=Rollout unverified::')
+    expect(run.out).toContain('UNVERIFIED')
+  })
+
+  it('a job summary that cannot be written does not change the verdict', async () => {
+    // The summary is a courtesy; the exit code is the alarm. Letting a failed
+    // append throw would turn a red deploy into a crashed step and a green one
+    // into a red one.
+    const exitCode = await runCheck({
+      // Every call answers the same operation list, so `describe-service`
+      // returns a payload whose `Service.Status` is undefined — an unknown
+      // service status, which is NOT serving.
+      aws: async () => ({
+        status: 0,
+        stdout: JSON.stringify({ OperationSummaryList: [op({ Status: 'SUCCEEDED' })] }),
+        stderr: '',
+      }),
+      sleep: async () => {},
+      now: () => T0 + 10 * 60_000,
+      env: { ROLLOUT_SINCE: SINCE, APP_RUNNER_SERVICE_ARN: ARN, AWS_REGION: 'us-east-1' },
+      log: () => {},
+      appendSummary: () => {
+        throw new Error('disk full')
+      },
+    })
+    expect(exitCode).not.toBe(0)
   })
 })
 
@@ -526,6 +712,38 @@ describe('the wiring that lets a red result reach the deploy run', () => {
     // place, every log line printing and the step still listed in the run.
     expect(verifyStep, 'continue-on-error would make this check unable to fail the deploy run').not.toContain(
       'continue-on-error',
+    )
+  })
+
+  it('the step carries no `if:`, which skips it as thoroughly as continue-on-error', () => {
+    // An `if:` gating the step on a repo variable leaves every file in place,
+    // every test green, and the check never running. (Sentinel, review of #639.)
+    expect(verifyStep, 'an `if:` on this step turns the verification off silently').not.toMatch(/^\s+if:/m)
+  })
+
+  it('the run line does not swallow the exit code', () => {
+    // `|| true`, `; exit 0`, a pipe into anything — each leaves the annotation
+    // printing and the step green.
+    expect(
+      verifyStep,
+      'the run line must invoke the script and nothing else, or the exit code never reaches the job',
+    ).toMatch(/run: node scripts\/rollout-check\.mjs[ \t]*(\n|$)/)
+  })
+
+  it('the cron sync still runs when the rollout check fails', () => {
+    // It sits AFTER the new step, and a failed step stops the ones after it —
+    // `continue-on-error` on the cron step does not change that. On a failure
+    // the degrade path does not cover, the new code IS serving and its
+    // schedules would silently never be reconciled, which is the drift that
+    // step exists to prevent. (Sentinel, review of #639.)
+    const lines = deployJob.split('\n')
+    const at = lines.findIndex((line) => line.includes('scripts/setup-cron-schedules.sh'))
+    expect(at).toBeGreaterThan(-1)
+    let from = at
+    while (from > 0 && !/^ {6}- /.test(lines[from]!)) from -= 1
+    const cronStep = lines.slice(from, at + 1).join('\n')
+    expect(cronStep, 'the cron sync is skipped whenever the rollout check fails').toMatch(
+      /if:.*(always\(\)|!cancelled\(\))/,
     )
   })
 
@@ -607,8 +825,26 @@ describe('docs/CI.md describes the check that is actually wired', () => {
 
 describe('the defaults are bounded', () => {
   it('every window has a cap, and the cap is above the default', () => {
-    expect(DEFAULTS.timeoutSeconds).toBeLessThan(DEFAULTS.timeoutCapSeconds)
-    expect(DEFAULTS.appearanceSeconds).toBeLessThan(DEFAULTS.appearanceCapSeconds)
-    expect(DEFAULTS.pollSeconds).toBeLessThan(DEFAULTS.pollCapSeconds)
+    // DERIVED from DEFAULTS rather than listed. The hand-written version was
+    // blind to `settleSeconds` the moment that window was added — a list you
+    // write is a list you forget to extend — so the pairs come from the keys.
+    const windows = Object.keys(DEFAULTS).filter((key) => key.endsWith('CapSeconds'))
+    expect(windows.length, 'no capped windows found — this test is asserting about nothing').toBeGreaterThanOrEqual(4)
+
+    for (const capKey of windows) {
+      const key = `${capKey.slice(0, -'CapSeconds'.length)}Seconds`
+      expect(DEFAULTS, `${capKey} has no ${key} to bound`).toHaveProperty(key)
+      expect(
+        DEFAULTS[key as keyof typeof DEFAULTS],
+        `${key} is at or above its own cap, so the cap bounds nothing`,
+      ).toBeLessThan(DEFAULTS[capKey as keyof typeof DEFAULTS])
+    }
+
+    // And every window the script actually reads is one of those — a new
+    // `positiveSeconds` call with no cap would not be visible above.
+    const capped = windows.map((capKey) => `${capKey.slice(0, -'CapSeconds'.length)}Seconds`)
+    const read = Array.from(readLf(SCRIPT).matchAll(/DEFAULTS\.(\w+Seconds)\b(?!Cap)/g)).map((m) => m[1]!)
+    const ungoverned = Array.from(new Set(read)).filter((name) => !name.endsWith('CapSeconds') && !capped.includes(name))
+    expect(ungoverned, 'these windows are read with no matching cap').toEqual([])
   })
 })

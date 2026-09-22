@@ -199,7 +199,19 @@ jobs:
       # cron route can never again ship with no schedule (the drift that left
       # prospecting discovery + several other jobs silently un-fired). Runs
       # after the deploy and never blocks it — a transient failure just warns.
+      #
+      # `if: !cancelled()` because the rollout check above now sits in front of
+      # it, and a failed step stops the ones after it — `continue-on-error` on
+      # THIS step does not change that. On a genuine rollout failure skipping
+      # the sync would be defensible; on a failure the degrade path
+      # deliberately does not cover (an unparseable response, a bad ARN, a
+      # throttle outlasting its retries) the new code IS serving and its
+      # schedules would never be reconciled, which is exactly the drift this
+      # step exists to prevent. `!cancelled()` rather than `always()`: a job
+      # superseded in the `deploy-main` group has nothing to reconcile.
+      # (Sentinel, review of #639.)
       - name: Sync EventBridge cron schedules
+        if: ${{ !cancelled() }}
         continue-on-error: true
         run: bash scripts/setup-cron-schedules.sh
 

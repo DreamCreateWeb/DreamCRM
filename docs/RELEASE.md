@@ -377,7 +377,12 @@ DREAMCRM-65) every call answers `AccessDenied` and the step prints
 `rollout UNVERIFIED` and exits 0 — loud, keyed to authorization errors alone,
 and self-clearing the day the grant arrives. So the pipeline can now tell a
 landed rollout from a lost one as soon as it is allowed to look.
-· **FIXED — awaiting merge (#639)**
+· **FIXED — awaiting merge (#639)** — and on merge this reconciles to
+**FIXED (DEGRADED: the rollout is unverified until the DREAMCRM-65 IAM grant
+lands)**, not to a plain `FIXED`. Until the grant arrives every deploy still
+prints `rollout UNVERIFIED` and nothing is actually watching the rollout, so a
+bare `FIXED` would stop the ledger carrying a thing that is still true. The
+entry closes on the GRANT landing, not on the merge.
 
 ### R1 · S1 sweep — Tenant & auth (2026-08-17)
 

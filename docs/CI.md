@@ -40,7 +40,7 @@ What it does: finds the rollout this run's own build started, polls it until it
 leaves `IN_PROGRESS`, fails on anything but `SUCCEEDED`, and then asks the
 service itself whether it is `RUNNING`.
 
-Five things about it that are decisions rather than details:
+Six things about it that are decisions rather than details:
 
 - **`ROLLBACK_SUCCEEDED` is a FAILURE.** It is App Runner saying the new version
   failed its health check and the previous one is back — the 2026-09-21 harm
@@ -58,6 +58,11 @@ Five things about it that are decisions rather than details:
   `START_DEPLOYMENT` after the baseline means the buildspec's
   `start-deployment` did not run or did not take, which is precisely the
   invisibility this closes.
+- **The service-settle wait has its OWN budget** (`ROLLOUT_CHECK_SETTLE_SECONDS`,
+  120s) rather than the remainder of the rollout budget. Sharing one deadline
+  meant a rollout that ran long and then SUCCEEDED arrived at the service check
+  with nothing left and reported `not-served` on a deploy that served — a false
+  red on the deploy path, which is how a new alarm gets routed around.
 - **It extends the `deploy-main` hold, on purpose.** The group exists because
   App Runner allows one rollout at a time, and until now the job released it
   while the rollout was still running — the real serialization was the
@@ -79,10 +84,23 @@ Five things about it that are decisions rather than details:
   grant lands with no code change. Set the repo variable
   `APP_RUNNER_SERVICE_ARN` to skip the `list-services` lookup; it is optional.
 
+**The cron sync after it carries `if: ${{ !cancelled() }}`.** A failed step
+stops the steps after it, and `continue-on-error` on the LATER step does not
+change that. On a genuine rollout failure skipping the schedule reconcile is
+defensible; on a failure the degrade path does not cover — an unparseable
+response, a bad ARN, a throttle outlasting its retries — the new code IS
+serving and its schedules would never be reconciled, which is the exact drift
+that step exists to prevent.
+
 `tests/guards/rollout-check.test.ts` pins all of it inside `test`: the verdict
-tables, the baseline rule, the narrowness of the degrade path, and the
-`deploy.yml` wiring — including that the step is not `continue-on-error` and
-that the baseline is recorded before the build rather than after it.
+tables, the baseline rule, the narrowness of the degrade path, the
+VERDICT-TO-EXIT-CODE mapping graded over every outcome, and the `deploy.yml`
+wiring — that the step is not `continue-on-error`, carries no `if:`, does not
+swallow its exit code in the shell, that the baseline is recorded before the
+build rather than after it, and that the cron sync still runs when the check
+fails. The mapping half was added after review: the tables were graded
+thoroughly and the path from verdict to red run was not graded at all, so four
+mutations that silently muted the alarm passed the whole file.
 
 ## The deploy is not finished until the migrations are in
 

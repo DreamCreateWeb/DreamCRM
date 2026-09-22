@@ -88,6 +88,16 @@ export const DEFAULTS = {
   /** How long to wait for the rollout to show up in `list-operations` at all. */
   appearanceSeconds: 180,
   appearanceCapSeconds: 900,
+  /**
+   * Step 4's OWN budget for the service to settle into RUNNING, deliberately
+   * not the remainder of the rollout budget. Sharing one deadline meant a
+   * rollout that consumed most of it and then SUCCEEDED left the service check
+   * with nothing, and reported `not-served` on a deploy that served — a red on
+   * the deploy path for a deploy that was fine, which is how a new alarm gets
+   * routed around. (Sentinel, review of #639.)
+   */
+  settleSeconds: 120,
+  settleCapSeconds: 600,
   pollSeconds: 15,
   pollCapSeconds: 60,
   /** How many times a RETRYABLE AWS error is retried before it is a failure. */
@@ -254,10 +264,18 @@ export function parseSince(raw) {
  * started at or after `sinceMs`.
  *
  * Newest rather than oldest because a service with auto-deploy on ECR push can
- * produce a second START_DEPLOYMENT for the same image, and the last one is the
- * one that decides what finally serves. The `deploy` job's `deploy-main`
- * concurrency group is what makes that safe: the next merge's rollout cannot
- * begin until this job has exited, so a newer operation here is still ours.
+ * have TWO rollouts for the same image already visible on the first look, and
+ * the later one is the one that decides what finally serves.
+ *
+ * NOTE WHAT THE SORT DOES AND DOES NOT GOVERN. It decides only among the
+ * operations present at FIRST SIGHTING; the caller latches that operation's id
+ * and never re-selects, so a second rollout appearing later is tracked by
+ * nobody and cannot change this run's verdict. That is deliberate rather than
+ * an oversight — both carry the same image, and following the newest would let
+ * a stuck rollout be certified by its successor. The `deploy-main` concurrency
+ * group is what makes even the first-sighting case safe: the next MERGE's
+ * rollout cannot begin until this job has exited. (Sentinel, review of #639,
+ * on the rationale not matching the latch.)
  */
 export function selectRolloutOperation(operations, sinceMs) {
   if (!Number.isFinite(sinceMs)) throw new Error('selectRolloutOperation needs a numeric baseline')
@@ -304,6 +322,41 @@ export const OUTCOME = {
   served: 'served',
   notServed: 'not-served',
   degraded: 'degraded',
+}
+
+/**
+ * THE VERDICT-TO-EXIT MAPPING, and the reason it is a table out here rather
+ * than three `if`s inside `main()`.
+ *
+ * Everything above decides whether the new version is serving. THIS is the half
+ * that turns that decision into a red run, and it is the half worth muting: an
+ * `EXIT_CODE.failed` quietly set to 0, or a `not-served` branch that prints and
+ * exits green, leaves every verdict above correct and the alarm silent.
+ * `tests/guards/rollout-check.test.ts` grades this over `Object.values(OUTCOME)`
+ * so a new outcome cannot arrive without an exit code — the same move
+ * `scripts/migration-check.mjs` makes over its `STATES`. (Sentinel's blocking
+ * item on #639, and the same finding as #593 / DREAMCRM-61 one lane over.)
+ */
+export const EXIT_FOR = {
+  [OUTCOME.served]: { exitCode: EXIT_CODE.ok, annotation: null, title: null },
+  [OUTCOME.degraded]: { exitCode: EXIT_CODE.ok, annotation: 'warning', title: 'Rollout unverified' },
+  [OUTCOME.notServed]: { exitCode: EXIT_CODE.failed, annotation: 'error', title: 'The deploy did not serve' },
+}
+
+/** Exact-key lookup, for the reason `classifyOperation` is. */
+export function exitFor(outcome) {
+  const known = Object.prototype.hasOwnProperty.call(EXIT_FOR, outcome) ? EXIT_FOR[outcome] : null
+  if (known) return { outcome, unknown: false, ...known }
+  // An outcome nobody mapped must not exit 0. A verdict this table has not
+  // heard of is a check that has stopped being able to answer, and that is the
+  // one thing it may never report as a good deploy.
+  return {
+    outcome,
+    unknown: true,
+    exitCode: EXIT_CODE.failed,
+    annotation: 'error',
+    title: 'The rollout check produced an outcome it does not know',
+  }
 }
 
 /**
@@ -365,12 +418,14 @@ export async function verifyRollout({ aws, sleep, now = () => Date.now(), env = 
   let sinceMs
   let timeoutMs
   let appearanceMs
+  let settleMs
   let pollMs
   try {
     sinceMs = parseSince(env.ROLLOUT_SINCE)
     timeoutMs = positiveSeconds(env.ROLLOUT_CHECK_TIMEOUT_SECONDS, DEFAULTS.timeoutSeconds, DEFAULTS.timeoutCapSeconds) * 1000
     appearanceMs =
       positiveSeconds(env.ROLLOUT_CHECK_APPEARANCE_TIMEOUT_SECONDS, DEFAULTS.appearanceSeconds, DEFAULTS.appearanceCapSeconds) * 1000
+    settleMs = positiveSeconds(env.ROLLOUT_CHECK_SETTLE_SECONDS, DEFAULTS.settleSeconds, DEFAULTS.settleCapSeconds) * 1000
     pollMs = positiveSeconds(env.ROLLOUT_CHECK_POLL_SECONDS, DEFAULTS.pollSeconds, DEFAULTS.pollCapSeconds) * 1000
   } catch (error) {
     return { outcome: OUTCOME.notServed, message: error instanceof Error ? error.message : String(error) }
@@ -487,6 +542,12 @@ export async function verifyRollout({ aws, sleep, now = () => Date.now(), env = 
   }
 
   // ── 4. "SUCCEEDED" is not "serving" until the service says RUNNING ────────
+  //
+  // ITS OWN BUDGET, not what step 3 left behind. Sharing `deadline` meant a
+  // rollout that ran long and then SUCCEEDED arrived here with nothing left and
+  // reported `not-served` on a deploy that served (Sentinel, review of #639) —
+  // a false red on the deploy path, which is worse than a slow one.
+  const settleDeadline = now() + settleMs
   for (;;) {
     const described = await awsJson(['apprunner', 'describe-service', '--service-arn', serviceArn, ...regionArgs, '--output', 'json'], {
       aws,
@@ -513,10 +574,12 @@ export async function verifyRollout({ aws, sleep, now = () => Date.now(), env = 
         operationId,
       }
     }
-    if (now() >= deadline) {
+    if (now() >= settleDeadline) {
       return {
         outcome: OUTCOME.notServed,
-        message: `rollout ${operationId} SUCCEEDED but the service never left ${service.status}`,
+        message:
+          `rollout ${operationId} SUCCEEDED but the service never left ${service.status} within ` +
+          `${Math.round(settleMs / 1000)}s`,
         operationId,
       }
     }
@@ -542,33 +605,44 @@ function realAws(args) {
 
 const realSleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
-async function main() {
-  const result = await verifyRollout({
-    aws: realAws,
-    sleep: realSleep,
-    env: process.env,
-    log: (line) => console.log(`[${CHECK_ID}] ${line}`),
-  })
+/**
+ * The whole CLI path — verdict, job summary, annotation, EXIT CODE — with every
+ * side effect injected, so the half that turns a verdict into a red run is
+ * exercised rather than inspected.
+ *
+ * `main()` below is deliberately the one line this cannot cover: everything
+ * that decides anything lives here. Before this split, four mutations that
+ * silently muted the alarm left all 49 tests passing (Sentinel, review of #639).
+ */
+export async function runCheck({ aws, sleep, now, env, log, appendSummary }) {
+  const result = await verifyRollout({ aws, sleep, now, env, log: (line) => log(`[${CHECK_ID}] ${line}`) })
 
-  if (process.env.GITHUB_STEP_SUMMARY) {
+  if (appendSummary) {
     try {
-      appendFileSync(process.env.GITHUB_STEP_SUMMARY, renderSummary(result))
+      appendSummary(renderSummary(result))
     } catch {
       // A summary that cannot be written must not decide the verdict.
     }
   }
 
-  if (result.outcome === OUTCOME.served) {
-    console.log(`[${CHECK_ID}] ${result.message}`)
-    process.exit(EXIT_CODE.ok)
-  }
-  if (result.outcome === OUTCOME.degraded) {
-    console.log(`::warning title=Rollout unverified::${result.message}`)
-    console.log(`[${CHECK_ID}] AWS said: ${String(result.detail ?? '')}`)
-    process.exit(EXIT_CODE.ok)
-  }
-  console.log(`::error title=The deploy did not serve::${result.message}`)
-  process.exit(EXIT_CODE.failed)
+  const decision = exitFor(result.outcome)
+  if (decision.annotation) log(`::${decision.annotation} title=${decision.title}::${result.message}`)
+  else log(`[${CHECK_ID}] ${result.message}`)
+  if (result.detail) log(`[${CHECK_ID}] AWS said: ${String(result.detail)}`)
+  return decision.exitCode
+}
+
+async function main() {
+  const summaryPath = process.env.GITHUB_STEP_SUMMARY
+  process.exit(
+    await runCheck({
+      aws: realAws,
+      sleep: realSleep,
+      env: process.env,
+      log: (line) => console.log(line),
+      appendSummary: summaryPath ? (text) => appendFileSync(summaryPath, text) : null,
+    }),
+  )
 }
 
 // `import.meta.main` is Node 24+; `pathToFileURL` is what works on 22 too, and
