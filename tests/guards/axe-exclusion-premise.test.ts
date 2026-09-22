@@ -1,14 +1,16 @@
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
+import * as axeHarness from '../../e2e/axe'
 
 /**
  * AN AXE EXCLUSION IS CHECKED BOTH WAYS, AND BOTH CHECKS HAVE TO STAY WIRED.
  *
- * `DECORATIVE_MOCKS` is the only thing in the browser harness that makes the
- * gate LOOSER — it takes a subtree out of the scan entirely, which is what
- * lets `marketing: home` hold a ceiling of ZERO. Two different questions keep
- * that honest, and `expectNoA11yViolations` has to ask BOTH at every stop:
+ * An exclusion is the only thing in the browser harness that makes the gate
+ * LOOSER — it takes a subtree out of the scan entirely, which is what lets
+ * `marketing: home` and `marketing: product` each hold a ceiling of ZERO. Two
+ * different questions keep that honest, and `expectNoA11yViolations` has to
+ * ask BOTH at every stop:
  *
  *  1. `deadExclusions` — does the selector still MATCH something? An exclusion
  *     outliving the illustration it was written for is a blanket pardon.
@@ -104,9 +106,10 @@ describe('an axe exclusion is asked both questions at every stop', () => {
   })
 
   it('skips the extra scan when a stop carries no exclusions', () => {
-    // The premise check costs a second axe pass. Exactly one stop in the suite
-    // passes exclusions, and paying for it at the other thirty-odd would be a
-    // reason to take the check back out.
+    // The premise check costs a second axe pass. Two stops in the suite pass
+    // exclusions (`marketing: home` and, since DREAMCRM-87, `marketing:
+    // product`), and paying for it at the other thirty-odd would be a reason
+    // to take the check back out.
     const fn = AXE_SRC.slice(
       AXE_SRC.indexOf('export async function exclusionsHidingReadableText('),
       AXE_SRC.indexOf('export async function expectNoA11yViolations('),
@@ -116,4 +119,137 @@ describe('an axe exclusion is asked both questions at every stop', () => {
       'exclusionsHidingReadableText must return early when there is nothing to check.',
     ).toContain('if (exclude.length === 0) return []')
   })
+})
+
+/**
+ * AND THE THIRD QUESTION, WHICH NEITHER OF THE ABOVE ASKS: IS THE SELECTOR
+ * STILL A CLAIM THAT THE SUBTREE IS A PICTURE? - Quinn's review of #647,
+ * DREAMCRM-87.
+ *
+ * `deadExclusions` asks whether a selector still MATCHES. The premise check
+ * asks whether what it matches is still picture-scale. Neither asks whether
+ * the SELECTOR ITSELF still says anything.
+ *
+ * THE HISTORY MATTERS HERE, because the instance this was written for is
+ * closed and the CLASS is wider than it looked. The first draft reproduced it
+ * by replacing `PRODUCT_MOCKS` wholesale; #647 then grew a fourth rule in
+ * `tests/marketing/product-mocks.test.tsx` pinning that constant's literal,
+ * which closes that spelling properly.
+ *
+ * IT DOES NOT CLOSE THE SHAPE, and Sentinel found the reason while reviewing
+ * #647: rule 4 reads only `PRODUCT_MOCKS[0]`. An exclusion list is an ARRAY,
+ * so the blanket pardon does not have to replace anything - it can simply be
+ * APPENDED. Measured on `main` at `71f4037e` with this guard absent:
+ *
+ *     export const PRODUCT_MOCKS = ['[data-mkt-mock][aria-hidden="true"]',
+ *                                   '[aria-hidden="true"]']
+ *
+ *   -> `tests/guards` + `tests/marketing` + `tests/a11y`: **86 files, 1,177
+ *   tests, all green.** One comma from pardoning every `aria-hidden` subtree
+ *   on the site, with the suite clean. Rule 4 is not weak here; it is looking
+ *   at element 0 and the defect is at element 1.
+ *
+ * The same run, same subset, same tree, also green with the OTHER list
+ * blanketed - `DECORATIVE_MOCKS` reduced to `['[aria-hidden="true"]']`, which
+ * is the HOMEPAGE exclusion: **1,177 passed**. `e2e/axe-selftest.spec.ts`
+ * catches that one, but only there, and only because someone hand-wrote
+ * `toMatch(/^\.mkt-float/)` for that one name. And a NEW third list arriving
+ * blanketed is invisible to everything - that case is not hypothetical, it is
+ * exactly how `PRODUCT_MOCKS` itself arrived unpinned.
+ *
+ * So the pattern is: pinning is per-constant, per-element and hand-written,
+ * and it therefore covers exactly what somebody remembered to look at. This
+ * grades the PROPERTY over every selector in every exported list.
+ *
+ * THE PROPERTY, stated in its own terms rather than as a spelling.
+ * `[aria-hidden="true"]` is the author saying "not content". WCAG 1.4.3
+ * exempts something stronger - "this is a picture" - and only the second claim
+ * justifies taking a subtree out of a required accessibility check. So the
+ * attribute may be a necessary HALF of an exclusion and never the whole of
+ * one: strip it, and what remains must still restrict to something.
+ *
+ * Grading the PROPERTY rather than a literal also survives the case a literal
+ * pin cannot: rule 4 compares `PRODUCT_MOCKS` against an expected string
+ * written beside it, so widening the selector AND updating that string is a
+ * two-line edit that passes. It fails here.
+ *
+ * DERIVED, NOT ENUMERATED (§2d, and the same move as the intake list's tree
+ * walk). Every exported `string[]` in `e2e/axe.ts`, not the two that exist
+ * today.
+ *
+ * IT IMPORTS THE MODULE RATHER THAN GREPPING IT, which is §2d's "a guard that
+ * greps a module it could have imported is testing the file, not the rule" -
+ * the assertions above read source only because a function BODY cannot be.
+ * #647's rule 4 reads source instead, on the stated grounds that importing
+ * `e2e/axe.ts` drags Playwright into a vitest process. That cost is real and
+ * it was measured rather than assumed: the import resolves in ~0.3s, the full
+ * suite and CI's `test` job are both green with it, and `tests/guards/`
+ * already imports four other `e2e/` modules. It is also not optional here -
+ * this guard needs the RUNTIME VALUE of every exported array, and parsing
+ * arbitrary array literals out of source is the fragile thing §2d is warning
+ * about. Rule 4 reads a single known literal, so the cheaper shape is right
+ * there and wrong here.
+ *
+ * WATCHED TO FAIL, six ways, each red naming the constant and the offending
+ * selector: the blanket APPENDED to `PRODUCT_MOCKS` as a second element (the
+ * one rule 4 cannot see); `DECORATIVE_MOCKS` and `PRODUCT_MOCKS` each
+ * blanketed wholesale; `['* > [aria-hidden="true"]']`, the
+ * remainder-is-a-combinator dodge; the `aria-hidden` half dropped; and a new
+ * list arriving blanketed, which reddens the census AND the property.
+ */
+describe('no axe exclusion is satisfiable by aria-hidden alone', () => {
+  const HIDDEN = '[aria-hidden="true"]'
+
+  /** Every exclusion list the harness exports, derived rather than named. */
+  const exclusionLists = Object.entries(axeHarness).filter(
+    (entry): entry is [string, string[]] =>
+      Array.isArray(entry[1]) && entry[1].every((s) => typeof s === 'string'),
+  )
+
+  it('finds the exclusion lists it is meant to grade', () => {
+    // The anti-vacuity control, and the same reason the selftest pins
+    // `DECORATIVE_MOCKS.length`: a derivation that silently resolves to []
+    // makes every assertion below pass while grading nothing. Naming the two
+    // that exist today ALSO closes the escape hatch — un-exporting a list to
+    // duck the rule fails here rather than going quiet.
+    expect(
+      exclusionLists.map(([name]) => name).sort(),
+      'The set of axe exclusion lists in e2e/axe.ts has changed, and that is a deliberate edit ' +
+        'rather than a failure. ADDING one: an exclusion is the only thing in this harness that ' +
+        'makes a required gate LOOSER, so a new one costs a line here and the review that comes ' +
+        'with it — the same cost direction #642 chose for product mocks, where a new mock fails ' +
+        '`test` until somebody registers it. REMOVING or RENAMING one: update this list, and ' +
+        'check the stop that passes it — an un-exported list is still passed to `exclude` at ' +
+        'its call site while nothing grades its selectors any more.',
+    ).toEqual(['DECORATIVE_MOCKS', 'PRODUCT_MOCKS'])
+  })
+
+  it.each(exclusionLists)(
+    '%s pairs aria-hidden with a claim that the subtree is a picture',
+    (name, selectors) => {
+      expect(selectors.length, `${name} is empty — an exclusion list with no selectors`).toBeGreaterThan(0)
+
+      for (const selector of selectors) {
+        const why =
+          `${name} contains "${selector}". An axe exclusion takes a subtree out of a REQUIRED ` +
+          `accessibility check, so it has to carry the claim WCAG 1.4.3 actually exempts — ` +
+          `"this is a picture". \`aria-hidden="true"\` is the weaker claim "not content", it is ` +
+          `on hundreds of unrelated decorative things in this repo, and on its own it would ` +
+          `pardon every one of them forever on the strength of an attribute nobody would think ` +
+          `twice about typing. Pair it with something that identifies the subtree — the drift ` +
+          `wrapper (DECORATIVE_MOCKS) or the mock's own marker (PRODUCT_MOCKS).`
+
+        expect(selector, why).toContain(HIDDEN)
+
+        // What the selector still restricts to once the attribute is removed.
+        const remainder = selector.split(HIDDEN).join('').trim()
+        expect(remainder, why).not.toBe('')
+
+        // A combinator is not a restriction: `* > [aria-hidden="true"]` and
+        // `[aria-hidden="true"] *` leave a non-empty remainder and pardon just
+        // as widely. Require a class, an id or a second attribute.
+        expect(remainder, why).toMatch(/[.#[]/)
+      }
+    },
+  )
 })

@@ -21,7 +21,14 @@ from burying what is not done. Keep it to 5–10 lines and say *why* each one is
 still sitting there — "deferred, needs a data series" and "nobody has picked it
 up" are different facts and only one of them is a backlog item.
 
-## OPEN NOW (last rewritten: batch 66, 2026-09-16)
+## OPEN NOW (last rewritten: batch 67, 2026-09-22)
+
+> **Batch 67 (DREAMCRM-87) was a ledger burn-down rather than a punch-list
+> batch** — four `docs/RELEASE.md` Part 5 entries on the marketing site, plus
+> the one item on this list whose deferral had expired. Nothing on this list
+> moved except entry 3's marketing half and the `fuchsia-600` carry-in inside
+> it. Entries 1 and 2 are untouched on purpose: they were parked as their own
+> issue so the batches stay reviewable, and they are still the top of the list.
 
 > **The axe burn-down is CLOSED.** `e2e/axe-baseline.ts` is `{}` — 214 → 0
 > across batches 54-64 — so every stop the browser suite walks now tolerates
@@ -48,20 +55,28 @@ up" are different facts and only one of them is a backlog item.
    some are real text (fix), some are icons and glyphs (1.4.11 asks 3:1, not
    4.5, and 2.63 misses that too), some are genuinely disabled controls (exempt
    under 1.4.3). Rule 6 says out loud that it does not grade these.
-3. **The opacity sweep's TWO DEFERRED SURFACES.** `tests/a11y/dimmed-text.test.ts`
-   now WALKS `app/`, `components/` and `lib/` and holds them at zero, so the
-   only surfaces outside it are two component trees, each excluded for a reason
-   that was measured rather than assumed (raised in review of #612 — the first
-   version enumerated seven route groups and silently skipped sixteen, including
-   the token landing pages a patient opens from a text message).
-   **`components/marketing` — 4 dimmed-type sites, all inside the decorative
-   product MOCK-UPS** at 7–9px, which `e2e/axe.ts` already exempts as
-   `DECORATIVE_MOCKS` under 1.4.3 and which sit far below the 12px legibility
-   floor. The wider marketing sweep is still sequenced behind Daylight Dream
-   (BRAND.md Part 8; DREAMCRM-69 landed move 1, moves 2–6 are ahead) — but note
-   that reason defers the **measurements**, not this rule: it grades a shape,
-   and a shape does not move when a ground does, so `app/(marketing)` is in
-   scope and clean.
+3. **The opacity sweep's ~~TWO~~ ONE DEFERRED SURFACE.**
+   `tests/a11y/dimmed-text.test.ts` WALKS `app/`, `components/` and `lib/` and
+   holds them at zero; one component tree is still outside it, excluded for a
+   reason that was measured rather than assumed (raised in review of #612 — the
+   first version enumerated seven route groups and silently skipped sixteen,
+   including the token landing pages a patient opens from a text message).
+   ~~**`components/marketing` — 4 dimmed-type sites, all inside the decorative
+   product MOCK-UPS** at 7–9px … the wider marketing sweep is still sequenced
+   behind Daylight Dream (BRAND.md Part 8; DREAMCRM-69 landed move 1, moves 2–6
+   are ahead).~~ [**DONE, DREAMCRM-87 (#645)**. The deferral expired with move
+   7, and the tree is IN SCOPE now rather than excluded — the exclusion was
+   keyed on a DIRECTORY while its stated reason was about a KIND of thing (type
+   below the 12px legibility floor is part of a picture, not a sentence), which
+   is the same gap `legibility-floor`'s `SKIP_DIRS` opened twice. The four
+   sites are pardoned by `isPictureScale`, derived from the chunk's own
+   declared size, and the hole that opens is closed from the FLOOR's end: a
+   chunk cannot buy the pardon without failing `legibility-floor` or
+   `type-floor` first. The pardoned population is enumerated, so a fifth
+   arrives as a red diff. Watched to fail both ways — dropping the pardon
+   reddens on all four marketing sites, and a real `opacity-75` planted on the
+   header megamenu's 12.48px descriptions was GREEN before the widening and is
+   named after it.]
    **`components/clinic-site` — 3 sites, none of them body copy**: an
    `aria-hidden` arrow at `opacity-30` that a `group-hover` takes to 100, and
    two `dc-edit-only` placeholders that render only for the site's EDITOR in the
