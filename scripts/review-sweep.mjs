@@ -147,9 +147,34 @@
  * The conventions that make (2) work, one per obligation: **whoever merges a
  * gated PR records the verdict on the PR before merging**, and **whoever
  * routes an intake mirrors it onto the PR the same way**. One `gh pr comment`
- * each. Both are prompted by the review-gate summary itself
- * (`scripts/review-gate.mjs`), so the obligation arrives with the label rather
- * than living only in a document.
+ * each.
+ *
+ * **THE TWO ARE NOT EQUALLY WELL SERVED YET, and the asymmetry is this half's
+ * one real weakness rather than a detail.** The REVIEW instruction is rendered
+ * by the review-gate summary itself (`renderReviewSection` in
+ * `scripts/review-gate.mjs`), so it arrives attached to the label, on the run,
+ * in front of the person about to merge. The INTAKE instruction does not:
+ * `renderIntakeSection` tells an author to mention Forge on their issue and
+ * says nothing about leaving a record on the PR. So this half currently grades
+ * a record that the gate never asks anyone for, and the only place the
+ * obligation is written down is §2.
+ *
+ * That is the #575/#579/#580 shape pointed at the future instead of the past —
+ * an author can do everything the summary in front of them asks and still be
+ * named here — and it is why `INTAKE_SWEPT_SINCE` opens where it does rather
+ * than earlier. **The fix is to teach `renderIntakeSection` to print the
+ * mirroring command the way `renderReviewSection` does** (DREAMCRM-94). Until
+ * that lands, read an intake finding as "nobody was told from here", not as
+ * "somebody ignored the instruction".
+ *
+ * Doing it needs one piece of care worth writing down before somebody tries
+ * it: the gate's intake section already contains the words `§2`, so adding a
+ * literal `Forge intake: §2b` example to it would make the summary itself
+ * satisfy `intakeRecord`, and if that summary ever gained a comment channel
+ * every intake-labelled PR in the repo would read as routed. The guard in
+ * `tests/guards/review-sweep.test.ts` catches exactly that. The way through is
+ * a placeholder with no section digit (`Forge intake: <sections> — <link>`),
+ * or matching the marker and the section reference on ONE line.
  *
  * WHAT IT THEREFORE CANNOT SEE, stated rather than implied — a blind-spot list
  * that omits a known blind spot spends the credibility it exists for:
@@ -240,6 +265,19 @@ export const SWEPT_SINCE = '2026-09-15T16:00:00Z'
  * (2026-09-22T08:03Z, rounded down), which is after #636 — the last merge
  * wearing the label — and before the PR carrying this code. The thirty are
  * counted and named as NOT JUDGED, never as passes.
+ *
+ * **IT IS NOT NUDGED PAST WHATEVER MERGED WHILE THIS PR WAS IN REVIEW, and
+ * that is a deliberate refusal rather than an oversight.** #644 merged at
+ * 09:01Z on the day this landed, carrying the label and no record, and it is
+ * in window. Moving the cut-off an hour to the right would have made the
+ * first run green — which is precisely the axe-ceiling mistake `SWEPT_SINCE`
+ * names, special-pleading for the one PR that happens to be red today. The
+ * precedent runs the other way too: `SWEPT_SINCE` is 16:00 and #593, the PR
+ * that introduced it, merged at 18:09 and graded ITSELF. An entry the gate
+ * never prompted for is still a real unpaid obligation; it belongs on the
+ * standing issue with an owner, not hidden behind a constant. See the
+ * asymmetry note under "the conventions that make (2) work" for why such an
+ * entry means "nobody was told from here" rather than "somebody ignored it".
  *
  * It is LATER than `SWEPT_SINCE` and must stay that way: `windowGap` grades the
  * `gh pr list` truncation against the review cut-off, which only covers both

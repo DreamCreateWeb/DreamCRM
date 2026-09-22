@@ -1,0 +1,97 @@
+### Post-merge review sweep
+
+_**Failing closed**: no run of this sweep in the history GitHub returned concluded `success`, so there is no green to measure "new" against. Every finding below is therefore treated as new and this run goes red on any of them. That is the safe direction — the alternative lets one throttled API call print a green morning over a real miss._
+
+#### The review obligation
+
+Examined **15** merged PRs carrying `needs-sentinel-review` and merged since 2026-09-15T16:00:00Z.
+
+#### 1 merged PR owes a review that was never recorded
+
+Each of these was labelled `needs-sentinel-review` by the gate, merged, and carries no review record on the PR at all — no GitHub review, no comment with a verdict in it.
+
+- **#643** — DREAMCRM-92: review sweep exit status keyed on the last-green window, and needs-forge-intake graded
+  - merged 2026-09-22T09:30:00Z by `DreamCreateWeb` — https://github.com/DreamCreateWeb/DreamCRM/pull/643
+  - **new since the last green run** — this is what reddens today
+
+What to do, in order:
+
+1. **If the review happened** and the verdict is on the Multica issue but not on the PR, mirror it across so the record exists where the sweep can see it — either of you can, and Sentinel records it at verdict time:
+
+   ```bash
+   gh pr comment <n> --body "Sentinel review: APPROVE — <link to the issue comment>"
+   ```
+
+2. **If it did not**, the change is already on `main` and already deployed. Post the review request on the issue now, with the PR link and the mention, and say in it that the PR has merged — a post-merge review that finds something becomes a fix, not a block:
+
+   ```markdown
+   [@Sentinel](mention://agent/030cc8a2-06a9-415d-a419-e8d5d7c01969)
+   ```
+
+Every PR above stays on this list until it carries a record. That is deliberate — an unremediated miss is not less true tomorrow. What decides the run's COLOUR is narrower: the entries marked **new** above. A permanently-red alarm is a disabled alarm, and this one was red for six days before #636 merged into the silence it had become.
+
+#### 14 in-window PRs carry a record
+
+- #636 — a verdict in a PR comment, by `DreamCreateWeb`
+- #624 — a verdict in a PR comment, by `DreamCreateWeb`
+- #622 — a verdict in a PR comment, by `DreamCreateWeb`
+- #621 — a verdict in a PR comment, by `DreamCreateWeb`
+- #618 — a verdict in a PR comment, by `DreamCreateWeb`
+- #617 — a verdict in a PR comment, by `DreamCreateWeb`
+- #612 — a verdict in a PR comment, by `DreamCreateWeb`
+- #606 — a verdict in a PR comment, by `DreamCreateWeb`
+- #599 — a verdict in a PR comment, by `DreamCreateWeb`
+- #597 — a verdict in a PR comment, by `DreamCreateWeb`
+- #596 — a verdict in a PR comment, by `DreamCreateWeb`
+- #594 — a verdict in a PR comment, by `DreamCreateWeb`
+- #593 — a verdict in a PR comment, by `DreamCreateWeb`
+- #588 — a verdict in a PR comment, by `DreamCreateWeb`
+
+#### 15 `needs-sentinel-review` PRs are older than the cut-off — not judged
+
+Merged before 2026-09-15T16:00:00Z, when a PR that paid this obligation and one that did not were indistinguishable from GitHub. Skipped, not passed: #582, #580, #579, #575, #573, #572, #571, #569, #568, #567, #565, #563, #559, #557, #553.
+
+_Also seen and not judged: 471 merged PRs with no `needs-sentinel-review` label. This alarm gates nothing — the merges it names have already shipped._
+
+#### The intake obligation
+
+Examined **2** merged PRs carrying `needs-forge-intake` and merged since 2026-09-22T08:00:00Z.
+
+#### 1 merged PR owes an intake that was never recorded
+
+Each of these was labelled `needs-forge-intake` by the gate, merged, and carries no intake record on the PR — nothing naming the sections the rule landed in. The obligation is intake, not review: it never held the merge up and it does not now.
+
+- **#644** — DREAMCRM-87: the matrix marks read, and rule 4 grades against the page
+  - merged 2026-09-22T09:01:52Z by `DreamCreateWeb` — https://github.com/DreamCreateWeb/DreamCRM/pull/644
+  - **new since the last green run** — this is what reddens today
+
+What to do, in order:
+
+1. **If it was routed** and the confirmation is on the Multica issue but not on the PR, mirror it across, naming the sections it landed in rather than only that it landed:
+
+   ```bash
+   gh pr comment <n> --body "Forge intake: §2b, §6 — <link to the issue comment>"
+   ```
+
+2. **If it was not**, say on the issue what new class of assertion the PR added — not just the one its title leads with — and mention Forge now:
+
+   ```markdown
+   [@Forge](mention://agent/187124c3-23a7-47f6-bdee-e90bfc3fa216)
+   ```
+
+   If it only added a CASE to a rule that already exists, say that instead and mirror that sentence. The gate reads paths and cannot tell the two apart; you can.
+
+Every PR above stays on this list until it carries a record. That is deliberate — an unremediated miss is not less true tomorrow. What decides the run's COLOUR is narrower: the entries marked **new** above. A permanently-red alarm is a disabled alarm, and this one was red for six days before #636 merged into the silence it had become.
+
+#### 1 in-window PR carries an intake record
+
+- #643 — an intake record naming the sections it landed in, by `DreamCreateWeb`
+
+#### 30 `needs-forge-intake` PRs are older than the cut-off — not judged
+
+Merged before 2026-09-22T08:00:00Z, when a PR that paid this obligation and one that did not were indistinguishable from GitHub. Skipped, not passed: #636, #624, #622, #621, #618, #617, #616, #615, #613, #612, #609, #606, #603, #599, #597, #595, #594, #593, #588, #587, #585, #583, #580, #577, #575, #574, #573, #572, #571, #569.
+
+_Also seen and not judged: 469 merged PRs with no `needs-forge-intake` label. This alarm gates nothing — the merges it names have already shipped._
+
+::error title=PR #643 merged owing a review::"DREAMCRM-92: review sweep exit status keyed on the last-green window, and needs-forge-intake graded" was labelled needs-sentinel-review, merged 2026-09-22T09:30:00Z, and carries no review record on the PR. Mirror the verdict onto the PR, or request the review now. https://github.com/DreamCreateWeb/DreamCRM/pull/643
+::error title=PR #644 merged owing an intake::"DREAMCRM-87: the matrix marks read, and rule 4 grades against the page" was labelled needs-forge-intake, merged 2026-09-22T09:01:52Z, and carries no intake record on the PR. Mirror the routing onto the PR, or route it now. https://github.com/DreamCreateWeb/DreamCRM/pull/644
