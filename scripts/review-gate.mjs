@@ -702,6 +702,59 @@ export const INTAKE_RULES = [
       // `tests/a11y/palette.ts` — a palette-grading assertion that walks no
       // tree, the exact #598 shape this list exists for.
       'tests/marketing/cinema-fx.test.ts',
+      // PRICE PROVENANCE over three product roots (DREAMCRM-102). Read this
+      // as a RECLASSIFICATION first and a new spelling class second, and the
+      // reclassification is the reason it moved onto this list at all — the
+      // same reason `legibility-floor`, `retired-tones` and `type-floor` are
+      // here.
+      //
+      // `pricing-price-source.test.tsx` landed on #620 asserting exactly the
+      // right thing about a hand-written list of TEN FILE PATHS, which reads
+      // as a named list and was correctly off this list (the #610 ruling gave
+      // it a rulebook section anyway). Its own header then recorded that list
+      // growing in every move that opened a file DREAMCRM-38 had not looked at
+      // — eight, nine, ten — which is the hand-kept-list defect confessing in
+      // prose. The list is deleted. It now walks `git ls-files` over `app`,
+      // `components` and `lib` whole (1,342 files), and a rule grading three
+      // product roots grades everyone's diff.
+      //
+      // WHAT IT MEANS FOR EVERY OTHER PR, which is the intake test: after this
+      // lands, typing the plan's price anywhere under those three roots fails
+      // `test` by file, line and spelling — including in a `.ts` content
+      // registry, a metadata description, or a JSON-LD field. Resolve it
+      // through `getQuotedPlan()`. It found 28 live literals in four files the
+      // old list had never named, the homepage among them.
+      //
+      // THE NEW CLASS INSIDE IT: the subject is no longer only a `$`-prefixed
+      // literal. Two dollar-signless spellings are graded now — a CADENCE
+      // (`200/mo`, `200 a month`, `2,000 per year`) and an ASSIGNMENT to a
+      // price-shaped name (`const LIST_MONTHLY = 500`). The second is the one
+      // that matters: `lib/recall-roi.ts` held `PLAN_PRICE_MONTHLY = 200` and
+      // DIVIDED by it, so a reprice would not have made the page stale, it
+      // would have made its break-even arithmetic wrong. A price that is an
+      // INPUT TO A CALCULATION never carries a dollar sign.
+      //
+      // WHAT IT DOES NOT COVER, here rather than only in the module's
+      // docblock, because this comment is what the rulebook entry gets written
+      // from — every one MEASURED returning nothing, not reasoned about:
+      //
+      //   - A number assembled at runtime (`2 * 100`), or written in words.
+      //   - A number reaching a reader from the DATABASE or an env var. Blog
+      //     bodies are rows; this grades source.
+      //   - A cadence spelled some way the alternation does not list ("200
+      //     monthly", "200 each month"). Widen the alternation when one lands;
+      //     never answer it with a file entry.
+      //   - `docs/**`, `scripts/**`, `e2e/**`, `tests/**`. A price in a doc is
+      //     stale prose; a price on a page is a lie to a customer.
+      //
+      // Its only structural skip is a market BAND — two numbers joined by a
+      // dash, `$200–350/mo` for a booking vendor — which is what let `/compare`
+      // come INSIDE the field of view instead of staying a file-shaped hole.
+      // Everything else is four per-MATCH allowances, each anchored to a
+      // substring that must still be on the line and each carrying the
+      // sentence that makes its number not-a-plan-price.
+      'tests/marketing/plan-price-literals.ts',
+      'tests/marketing/pricing-price-source.test.tsx',
       // ── THE TEN THE FIXED TREE-WALK DERIVATION FOUND (DREAMCRM-81) ──────
       //
       // None of these is new. Every one has been walking a product tree for

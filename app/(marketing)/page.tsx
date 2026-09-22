@@ -2,7 +2,8 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { getTenantContext } from '@/lib/auth/context'
 import { getServerSession } from '@/lib/session'
-import { DEMO_URL } from '@/lib/marketing/site'
+import { DEMO_URL, usd } from '@/lib/marketing/site'
+import { getQuotedPlan } from '@/lib/stripe-config'
 import { COMPARISONS } from '@/lib/marketing/comparisons'
 import { JsonLd, softwareApplicationLd } from '@/lib/marketing/seo'
 import ScrollReveal from '@/components/clinic-site/scroll-reveal'
@@ -26,10 +27,33 @@ import {
 
 export const dynamic = 'force-dynamic'
 
+/**
+ * THE PRICE IS RESOLVED, NEVER TYPED — DREAMCRM-38's rule, arriving on the
+ * loudest surface on the site (DREAMCRM-102).
+ *
+ * The homepage carried its own copy of the number in FIVE places — the page
+ * description a search engine indexes, a hero chip, an honesty-tenet card, the
+ * JSON-LD `price` a search engine reads and nobody proofreads, and the pricing
+ * teaser's `$500` struck through beside `$200` as two literal JSX text nodes.
+ * None of it was on `tests/marketing/pricing-price-source.test.tsx`'s
+ * hand-written list of ten routes, which is exactly the defect that list had.
+ *
+ * Read at module scope for `/pricing`'s reason: `metadata` is a const, and the
+ * founding rate is part of the page's description. `getQuotedPlan()` is pure
+ * config — no database, no Stripe call — so this costs nothing at render.
+ */
+const PLAN = getQuotedPlan()
+const PRICE = {
+  rateMonthly: PLAN.price,
+  listMonthly: PLAN.listPrice ?? null,
+}
+
 export const metadata = {
   title: 'DreamCRM — the patient-relationship platform for dental practices',
   description:
-    'The patient-relationship platform for dental practices: website, online booking, patient portal, messaging, reviews, recall, and an online store — one system, wrapped around the PMS you already run. 7-day free trial, no card. $200/mo founding practice rate (regularly $500), month-to-month.',
+    'The patient-relationship platform for dental practices: website, online booking, patient portal, messaging, reviews, recall, and an online store — one system, wrapped around the PMS you already run. 7-day free trial, no card. ' +
+    `${usd(PRICE.rateMonthly)}/mo founding practice rate` +
+    `${PRICE.listMonthly ? ` (regularly ${usd(PRICE.listMonthly)})` : ''}, month-to-month.`,
   openGraph: {
     title: 'DreamCRM — the patient-relationship platform for dental practices',
     description:
@@ -101,7 +125,7 @@ const TENETS: Array<{ title: string; body: string; glyph: ToneTileGlyph }> = [
   {
     glyph: 'tag',
     title: 'The price is on the page',
-    body: 'One plan, $200/mo — published. No discovery call, no custom quote, no per-feature add-ons appearing on invoice three.',
+    body: `One plan, ${usd(PRICE.rateMonthly)}/mo — published. No discovery call, no custom quote, no per-feature add-ons appearing on invoice three.`,
   },
   {
     glyph: 'flag',
@@ -134,7 +158,7 @@ export default async function MarketingHome() {
 
   return (
     <>
-      <JsonLd data={softwareApplicationLd([{ name: 'DreamCRM', price: 200 }])} />
+      <JsonLd data={softwareApplicationLd([{ name: 'DreamCRM', price: PRICE.rateMonthly }])} />
       {/* ── Hero — THE DAYLIGHT BAND (BRAND.md Part 8, move 1) ───────────
              The page is light now, hero included. The owner lived with the
              night band that shipped on DREAMCRM-54 and reversed it on
@@ -221,7 +245,7 @@ export default async function MarketingHome() {
                 gray-600, not gray-500: 6.91 on white against 5.30, and this
                 row sits closest to the fuchsia lobe's tail. */}
             <div className={`mkt-enter mkt-d4 mt-8 flex flex-wrap items-center gap-x-3 gap-y-2 text-gray-600 ${MONO_LABEL}`}>
-              {['7 days free', 'No card to start', '$200/mo after, flat', 'Month-to-month'].map((t, i) => (
+              {['7 days free', 'No card to start', `${usd(PRICE.rateMonthly)}/mo after, flat`, 'Month-to-month'].map((t, i) => (
                 <span key={t} className="flex items-center gap-3">
                   {i > 0 && <span className="h-1 w-1 rounded-full bg-teal-600" aria-hidden="true" />}
                   {t}
@@ -443,8 +467,8 @@ export default async function MarketingHome() {
             Founding practice rate
           </p>
           <p className="mt-2 flex items-baseline justify-center gap-3">
-            <span className="text-[1.2rem] font-semibold text-gray-500 line-through decoration-2">$500</span>
-            <span className="text-[2.6rem] font-extrabold tracking-tight text-gray-950">$200</span>
+            <span className="text-[1.2rem] font-semibold text-gray-500 line-through decoration-2">{usd(PRICE.listMonthly ?? PRICE.rateMonthly)}</span>
+            <span className="text-[2.6rem] font-extrabold tracking-tight text-gray-950">{usd(PRICE.rateMonthly)}</span>
             <span className="text-[0.9rem] font-medium text-gray-500">/mo</span>
           </p>
           <p className="mt-1 text-[0.875rem] text-gray-600">
