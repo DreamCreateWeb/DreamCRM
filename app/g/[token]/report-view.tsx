@@ -11,6 +11,17 @@ import {
   type PracticeGradeResult,
 } from '@/lib/practice-grade'
 import type { PublicGradeView } from '@/lib/services/practice-grader'
+import { usd } from '@/lib/marketing/site'
+import { getQuotedPlan } from '@/lib/stripe-config'
+
+/**
+ * THE PRICE IS RESOLVED, NEVER TYPED (DREAMCRM-102). The closing CTA on the
+ * grade report quoted the founding rate as a literal, and this page is a page
+ * a cold prospect reaches from a link we sent them — the number being right is
+ * the whole pitch of the paragraph it sits in. `getQuotedPlan()` is pure
+ * config, no database and no Stripe call.
+ */
+const PLAN_RATE_MONTHLY = getQuotedPlan().price
 
 /**
  * The grade report's VISUAL BODY (marketing-engine slice 2; design run
@@ -196,8 +207,8 @@ export default function ReportView({ view }: { view: PublicGradeView }) {
             Every “With DreamCRM” line above is shipped, not promised.
           </h2>
           <p className="mx-auto mt-4 max-w-lg text-base" style={{ color: INK_2 }}>
-            A website that books, a Google listing that’s watched, review asks that send themselves.
-            $200/mo, no card to try it — and the trial is the whole product.
+            A website that books, a Google listing that’s watched, review asks that send themselves.{' '}
+            {usd(PLAN_RATE_MONTHLY)}/mo, no card to try it — and the trial is the whole product.
           </p>
           <a href="/signup" className="dg-btn mt-8">
             Start free — 7 days
