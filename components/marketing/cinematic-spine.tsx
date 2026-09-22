@@ -650,7 +650,10 @@ export default function CinematicSpine() {
           {/* ── The particle layer: between the scenes and the cards, so a
                  burst never crosses the copy a reader is reading. Exists only
                  under the gate. ── */}
-          <canvas ref={canvasRef} className="mkt-fx" aria-hidden="true" />
+          {/* `role="presentation"` rather than `aria-hidden`: jsx-a11y counts a
+                 canvas among the focusable elements, and the canvas is empty of
+                 content in every tree anyway — it paints only. */}
+          <canvas ref={canvasRef} className="mkt-fx" role="presentation" />
 
           {/* ── The chapter rail. A position indicator, not navigation, and
                  `aria-hidden` because every word in it is already in the card
