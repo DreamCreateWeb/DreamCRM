@@ -965,6 +965,53 @@ its content the frame owes header and padding (~70px) plus the tallest scene
 glossed: a 1366x768 laptop is on the stacked layout now — which, since this
 change, is four chapters each carrying its own picture in reading order.
 
+**AMENDED 2026-09-22, OWNER DIRECTIVE: THE LIVING STAGE.** The owner, on the
+DREAMCRM-82 build — *"it exists but its bland and annoying … it needs polished
+fx like genuine particle effects, and visual interactions, like it needs to
+showcase the app."* Four static pictures cross-fading under four cards was a
+slideshow. The stage is now a SHOWCASE, and it keeps every rule above by
+construction:
+
+- **Every beat on the stage is scrubbed by the reader's hand.** A scene layer
+  gets ONE custom property per frame, `--mkt-t` (the chapter's local progress),
+  and every bubble, pill, star, bar and roster chip computes its own eased
+  state from it in CSS `calc()` (`.mkt-k` in `SPINE_CSS`; the beat markup is
+  `components/marketing/cinema-scenes.tsx`). No transition, no animation, no
+  per-element JavaScript: scroll slowly and the reply rises slowly; scroll back
+  and it sinks along the same curve. "One scroll position drives everything"
+  holds at the level of every element in the picture.
+- **The particle layer is a pure function of the same position.** A burst
+  (`components/marketing/cinema-fx.ts`) is a PICTURE of where its particles are
+  at `t`, seeded, so it un-bursts on the way back up. The one time-driven thing
+  is the ambient mote field, which is this Part's "ambient, one loop per band"
+  — gated on the cinematic class, the track being on screen, and the document
+  being visible.
+- **The canvas sits BETWEEN the scenes and the chapter glass**, so a burst
+  never crosses reading copy. It is the one layer axe cannot grade, so the
+  arithmetic is asserted in `tests/marketing/cinema-fx.test.ts`: at
+  `MOTE_ALPHA_MAX` (0.12) the darkest tint over white leaves the stage's
+  gray-600 at ≥5.5 and gray-950 at ≥13, and two motes overlapping leave
+  gray-600 above 4.5.
+- **The pointer is a second INPUT, not a second clock.** A fine pointer over
+  the pin parallaxes the panels by 3/6/9px (`--mkt-px/--mkt-py`) and the motes
+  step aside for it. One listener, two properties, under the gate only.
+- **The cursor ghost is a `<span>`,** moved by a percentage transform of a
+  full-size overlay (never `left`/`top`), and every control it taps is drawn.
+  The zero-focus-stop guard is unchanged.
+- **Six chapters, not four.** The two new scenes are the Dream Team's sign-here
+  card (03 — the product's doctrine is "the employee, not the tool", and a
+  showcase that never showed the AI staff doing a job was showing the tool)
+  and the week's scoreboard (06). The track is 5.8 viewport heights: ~0.7 of a
+  screen per chapter, long enough to read and short enough not to feel held.
+- **Counters are living data, never text.** `31 → 38`, `$9,480 → $9,664`,
+  `83% → 94%`, `0 → 9` count on their beats; the server renders the FINAL
+  values, so the stacked page carries six finished pictures. A number
+  counting is not a sentence animating.
+- **The stacked layout is still the base.** The canvas and the cursor are
+  `display: none` outside the gate; every `.mkt-out` half of a swap is hidden
+  and every switch is on. Reduced motion, touch, narrow, no-JS and print get
+  the six finished scenes in reading order.
+
 ---
 
 ## Part 7 — The contrast law
@@ -2218,6 +2265,17 @@ The site is light-only today (zero `dark:` classes under `app/(marketing)`) and
 nothing here changes that. Whether the marketing site ever gets a real dark
 theme is a separate question and has not been decided — a smaller question now
 that no hero band depends on hand-grading.
+
+---
+
+**Move 7 — THE LIVING STAGE (2026-09-22, owner directive).** The homepage
+spine's picture plays its chapters: scroll-scrubbed beats in CSS, a seeded
+particle layer between the scenes and the cards, pointer parallax, a cursor
+ghost that taps the drawn controls, counters that count, and two new scenes
+(the Dream Team's sign-here card, the week's scoreboard). Part 6's amendment
+of the same date carries the rules. Guards: `tests/marketing/cinema-fx.test.ts`
+(purity, the header lane, the alpha arithmetic), `cinematic-spine.test.tsx`
+(six chapters, custom-property beats grade as what they are spent on).
 
 ---
 

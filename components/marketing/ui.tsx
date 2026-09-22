@@ -171,54 +171,39 @@ export const DAY_WIRE = 'rgb(76 125 240 / 0.16)'
  * sequence interruptible with nothing to unwind.
  */
 const SPINE_CSS = `
-      /* ── BASE: four ordinary stacked sections, top to bottom — and since
-            DREAMCRM-82 each one is a CARD PLUS ITS OWN SCENE, so a reader who
-            never gets the pin reads four chapters each illustrated by the
-            picture it narrates, in order. ── */
+      /* ── BASE: six ordinary stacked sections, top to bottom — each one a
+            CARD PLUS ITS OWN SCENE, so a reader who never gets the pin reads
+            six chapters each illustrated by the FINISHED picture it narrates,
+            in order. Every beat resolves to its final state here because
+            \`--mkt-t\` is never written outside the pin. ── */
       .mkt-spine-intro { max-width: 46rem; margin-inline: auto; padding: 3.5rem 1rem 0; text-align: center; }
-      /* NO aspect-ratio here, on purpose. A fixed ratio clipped the last row
-         of the schedule at 390 and at 834 — a frame cropping its own content
-         mid-row reads as broken rather than as a crop, and Part 10's rule is
-         that what changes down the widths is scale and stacking, never
-         identity. So the frame's height follows the product it contains. The
-         pinned sequence overrides this to the viewport anyway. */
       .mkt-spine-stage {
         position: relative; overflow: hidden; margin-top: 1.25rem;
         border-radius: 1.75rem; border: 1px solid ${DAY_WIRE};
         box-shadow: 0 0 70px -24px rgb(93 71 222 / 0.35), 0 24px 80px -44px rgb(26 36 64 / 0.4);
       }
-      /* \`minmax(0, 1fr)\` rather than the implicit \`auto\` column: an \`auto\` grid
-         track takes its item's MAX-CONTENT, so one wide panel inside a chapter's
-         scene would widen the list past the frame and put horizontal scroll on
-         the DOCUMENT at 390 — which is what \`e2e/marketing-viewport.spec.ts\`
-         grades, and it grades the document rather than the element. */
       .mkt-spine-cards { margin: 2.5rem auto 0; width: min(100% - 2rem, 72rem); display: grid; grid-template-columns: minmax(0, 1fr); gap: 3rem; }
       .mkt-spine-card-glass {
+        position: relative; overflow: hidden;
         border-radius: 1.25rem; border: 1px solid ${DAY_WIRE}; background: #fff; padding: 1.5rem;
         box-shadow: 0 2px 6px rgb(76 125 240 / 0.06), 0 14px 36px rgb(76 125 240 / 0.1);
       }
       .mkt-spine-rail { display: none; }
+      /* The particle layer and the cursor ghost do not exist outside the pin. */
+      .mkt-fx, .mkt-cursor { display: none; }
+      /* Finished states of the things that move: the "before" half of a swap
+         is gone, the switch is on, the typing dots have left. */
+      .mkt-out { opacity: 0; }
+      .mkt-knob { transform: translate3d(1.25rem, 0, 0); }
       @media (min-width: 640px) { .mkt-spine-card-glass { padding: 1.85rem; } }
 
       /* ── THE PINNED SEQUENCE. Everything in this block exists ONLY under the
             gate: a real pointer, a viewport wide enough, motion not asked
             down, and \`screen\` — so print gets the stacked layout with all
-            four chapters on it. See this constant's header for why there is a
-            gate here rather than the three revert blocks that used to sit at
-            the bottom of this stylesheet. ── */
+            six chapters on it. ── */
       @media screen and (min-width: 1024px) and (prefers-reduced-motion: no-preference) and (hover: hover) and (pointer: fine) {
       .mkt-spine.is-cinematic .mkt-spine-track { height: calc(var(--mkt-spine-steps, 5) * 100vh); }
-      /* \`position: sticky\` is the pin. The DOCUMENT keeps scrolling the whole
-         time, which is what makes the section escapable and the sequence
-         reversible — nothing here touches the reader's scroll input. */
       .mkt-spine.is-cinematic .mkt-spine-pin { position: sticky; top: 0; height: 100vh; overflow: hidden; }
-      /* z-index 0, UNDER the stage: Part 6 step 2 says the headline "fades
-         BEHIND it", and the first draft had the intro at z-index 2, where it
-         faded ON TOP of the product and went muddy grey over the schedule on
-         the way out. Behind is both the spec and the better picture — the
-         growing frame occludes the headline while it fades, which is the
-         cinematic move rather than a cross-dissolve. At rest the frame sits
-         low enough in the viewport that it covers nothing. */
       .mkt-spine.is-cinematic .mkt-spine-intro {
         position: absolute; inset: 0 0 auto 0; z-index: 0; margin: 0; max-width: none;
         padding: clamp(5.5rem, 13vh, 9rem) 1.5rem 0;
@@ -227,21 +212,15 @@ const SPINE_CSS = `
         will-change: opacity, transform;
       }
       .mkt-spine.is-cinematic .mkt-spine-intro > * { margin-inline: auto; max-width: 46rem; }
-      /* ── FOUR LAYERS, ONE PER CHAPTER (DREAMCRM-82). Each \`<li>\` becomes a
-            full-viewport layer holding its own scene and its own card, so the
-            SAME dom serves the stacked reading page and the pinned sequence —
-            no second copy of the stage, and no picture that exists only when
-            the animation runs. The \`<li>\`s carry no \`z-index\`, so they do not
-            open stacking contexts: every scene paints at 1 and every card at
-            3 against the list's own context, in dom order within each. ── */
+      /* SIX LAYERS, ONE PER CHAPTER. NO z-index on the list itself, on
+         purpose: the list must not open a stacking context, so that the
+         particle canvas (a sibling at z 2) can sit BETWEEN the scenes (z 1)
+         and the chapter glass (z 3). A burst never crosses reading copy. */
       .mkt-spine.is-cinematic .mkt-spine-cards {
-        position: absolute; inset: 0; z-index: 1; display: block;
+        position: absolute; inset: 0; display: block;
         width: auto; margin: 0; pointer-events: none;
       }
       .mkt-spine.is-cinematic .mkt-spine-card { position: absolute; inset: 0; }
-      /* The scene. \`--mkt-so\` rises to 1 on its chapter's arrival and stays
-         there — each scene paints an opaque canvas, so the next fades in ON
-         TOP rather than two translucent copies washing out together. */
       .mkt-spine.is-cinematic .mkt-spine-stage {
         position: absolute; inset: 0; z-index: 1;
         margin: 0; transform-origin: 50% 50%;
@@ -249,72 +228,74 @@ const SPINE_CSS = `
         transform: translate3d(0, calc(var(--mkt-sy, 12) * 1vh), 0) scale(var(--mkt-ss, 0.56));
         will-change: transform, opacity;
       }
-      /* RESERVE THE CHAPTER RAIL'S LANE — a gutter down the RIGHT of the
-         picture, taken from the stage as a whole.
-
-         It used to be taken from the bar chart, which spanned the bottom of
-         the frame, and that is why the rail landed bottom-right ON the chart
-         at full bleed instead of beside the chapter card. A lane reserved from
-         a horizontal element can only ever be a lane at the bottom, and the
-         bottom is where the picture's own content ends up whenever a scene is
-         taller than the shortest legal viewport. The chart is gone
-         (DREAMCRM-82: it was the one panel carrying no part of the patient's
-         story), so the reservation is stated in the axis it is actually about.
-
-         The objection the chart was chosen to avoid — "a gap on the right of
-         the frame AT REST, where the rail is not even visible yet" — is real
-         and is the price. It is the right price: the alternative is a rail
-         whose clearance depends on how tall this scene's panels happen to
-         render, which is exactly the defect being fixed.
-
-         A CONSTANT rather than a \`clamp\`, and that is the rail's own doing:
-         its width is four mono labels at a fixed 0.75rem, so it does not
-         scale with the viewport and neither should the lane it needs. 15.5rem
-         is the rail (~12.6rem) plus its own right inset plus a hair — a \`vw\`
-         lane looked tidier and was wrong at both ends, eating a third of the
-         frame at 1024 and letting the rail sit on the last KPI tile at 1280.
-
-         THE TOP INSET IS THE STICKY NAV'S LANE, same idea one axis over. At
-         full bleed the frame starts at the top of the viewport and the site
-         header — 61px, \`position: sticky\`, a TRANSLUCENT white fill — sits on
-         it, so the stage's own chrome line ghosted through the bar rather than
-         either showing or being covered. 5.5rem clears it at every width; it
-         costs height, and the only thing that overlap now buys the card is
-         more of the queue column's tail rows, which is the column the card
-         owns by construction. */
+      .mkt-spine.is-cinematic .mkt-fx { display: block; position: absolute; inset: 0; z-index: 2; pointer-events: none; }
+      /* The rail's lane down the right, and the sticky nav's lane at the top. */
       .mkt-spine.is-cinematic .mkt-stage { padding-right: 15.5rem; padding-top: 5.5rem; }
-      /* Part 3: "depth is emission, not stacking" — the card reads as raised
-         because coloured light spills out from under it, NOT because the
-         product behind it was dimmed. Dimming is what the storyboard showed
-         and it is a contrast defect on a light ground.
 
-         ANCHORED TO THE BOTTOM, not to the middle (DREAMCRM-82). Centred, the
-         card's top edge landed across the middle of the scene panel and CUT A
-         SENTENCE IN HALF — "…and landed in your PMS u" with a white card edge
-         through it, which reads as broken rendering rather than as depth. The
-         stage's panels size to their content and sit in the upper band, so the
-         bottom of the frame is the card's own ground.
+      /* ── THE BEATS. An element carrying \`mkt-k\` computes its own eased
+            progress from the scene's \`--mkt-t\` and its own start/duration —
+            \`k0\` is the linear ramp, \`k\` the quadratic ease-out (k(2-k)).
+            Then \`mkt-rise\` / \`mkt-pop\` / \`mkt-slide\` / \`mkt-out\` spend it.
+            No transition, no animation: scrubbed by the reader's hand. ── */
+      .mkt-spine.is-cinematic .mkt-k {
+        --mkt-k0: clamp(0, calc((var(--mkt-t, 1) - var(--mkt-b, 0)) / var(--mkt-d, 0.1)), 1);
+        --mkt-k: calc(var(--mkt-k0, 1) * (2 - var(--mkt-k0, 1)));
+      }
+      .mkt-spine.is-cinematic .mkt-rise { opacity: var(--mkt-k, 1); transform: translate3d(0, calc((1 - var(--mkt-k, 1)) * 14px), 0); }
+      .mkt-spine.is-cinematic .mkt-pop { opacity: var(--mkt-k, 1); transform: scale(calc(0.86 + 0.14 * var(--mkt-k, 1))); }
+      .mkt-spine.is-cinematic .mkt-slide { opacity: var(--mkt-k, 1); transform: translate3d(calc((1 - var(--mkt-k, 1)) * -18px), 0, 0); }
+      .mkt-spine.is-cinematic .mkt-out { opacity: calc(1 - var(--mkt-k, 1)); transform: scale(calc(1 - 0.1 * var(--mkt-k, 1))); }
+      /* THE LINE DRAWS ITSELF by a transform PAIR: the clip scales to k and the
+         picture inside it scales back by 1/k, so the reveal walks left to
+         right without a paint property — Part 6's transform-and-opacity rule
+         holds inside the stage too. \`max()\` keeps 1/k finite at k = 0. */
+      .mkt-spine.is-cinematic .mkt-draw-clip { overflow: hidden; transform: scaleX(var(--mkt-k, 1)); transform-origin: 0 50%; }
+      .mkt-spine.is-cinematic .mkt-draw-clip > * { transform: scaleX(calc(1 / max(var(--mkt-k, 1), 0.001))); transform-origin: 0 50%; }
+      .mkt-spine.is-cinematic .mkt-grow { transform: scaleX(var(--mkt-k, 1)); transform-origin: 0 50%; }
+      .mkt-spine.is-cinematic .mkt-wash { opacity: var(--mkt-k, 1); }
+      .mkt-spine.is-cinematic .mkt-knob { transform: translate3d(calc(var(--mkt-k, 1) * 1.25rem), 0, 0); }
+      /* The typing indicator's bob is the one AMBIENT loop inside the stage —
+         three dots, visible for a tenth of a chapter, gated with the pin. */
+      @keyframes mkt-typing { 0%, 60%, 100% { transform: translateY(0); opacity: 0.45; } 30% { transform: translateY(-3px); opacity: 1; } }
+      .mkt-spine.is-cinematic .mkt-typing { animation: mkt-typing 1.1s ease-in-out infinite; }
+      .mkt-spine.is-cinematic .mkt-typing:nth-child(2) { animation-delay: 0.16s; }
+      .mkt-spine.is-cinematic .mkt-typing:nth-child(3) { animation-delay: 0.32s; }
 
-         THE INSET IS BOUNDED AT 5.5rem = 88px FOR A REASON, and the reason is
-         \`pinnedCardFits\`: that function guarantees the tallest card plus
-         \`CARD_TRAVEL\` (44px) at each end fits the window, i.e. height <=
-         viewport - 88. A bottom inset of at most 88 therefore cannot clip the
-         ARRIVED card — the state a reader actually reads — at any window size
-         the pin is legal at. What the extra travel can still clip is the top
-         ~44px of a card within a hair of that limit, during the EXIT, while it
-         is fading out; that is the bound, stated rather than hidden. Raise
-         this clamp's ceiling above 5.5rem and the arrived state stops being
-         provably safe.
+      /* ── THE POINTER'S PARALLAX: three depths, a few pixels each, from two
+            custom properties the pin writes on pointermove. ── */
+      .mkt-spine.is-cinematic .mkt-depth-1 { transform: translate3d(calc(var(--mkt-px, 0) * 3px), calc(var(--mkt-py, 0) * 3px), 0); }
+      .mkt-spine.is-cinematic .mkt-depth-2 { transform: translate3d(calc(var(--mkt-px, 0) * 6px), calc(var(--mkt-py, 0) * 6px), 0); }
+      .mkt-spine.is-cinematic .mkt-depth-3 { transform: translate3d(calc(var(--mkt-px, 0) * 9px), calc(var(--mkt-py, 0) * 9px), 0); }
 
-         AND IT IS NARROWER: 26rem against 33rem, hard left. The card and the
-         picture now divide the frame by COLUMN rather than by luck — the card
-         owns the app's left lane (the queue panel, whose rows are one line
-         each and expendable at the bottom) and stops short of the scene's own
-         panel, at every width the pin is legal at. The old 33rem/6vw card
-         reached ~160px into the scene column, which is how "…and landed in
-         your PMS u" happened; with the widths tied to the stage's own left
-         column that is not a matter of how tall the window is. 26rem is also
-         the storyboard's own proportion (~28rem at 1440). */
+      /* ── THE CURSOR GHOST. Positioned by the spine from the same \`t\`
+            (\`cursorAt\`); the ring is its click, expanding as the press
+            releases. A \`<span>\`, never focusable. ── */
+      /* The ghost is an overlay the SIZE of the stage body, moved by a
+         percentage translate of its own box — so \`--mkt-cx\` in stage
+         fractions lands where the scene put the thing to tap, and the move is
+         a transform rather than \`left\`/\`top\` layout. */
+      .mkt-spine.is-cinematic .mkt-cursor {
+        display: block; position: absolute; inset: 0; z-index: 5; pointer-events: none;
+        opacity: var(--mkt-cv, 0);
+        transform: translate3d(calc(var(--mkt-cx, 0) * 100%), calc(var(--mkt-cy, 0) * 100%), 0);
+        will-change: transform, opacity;
+      }
+      .mkt-spine.is-cinematic .mkt-cursor > svg {
+        position: absolute; left: -3px; top: -2px;
+        filter: drop-shadow(0 2px 6px rgb(16 24 46 / 0.35));
+        transform: scale(calc(1 - 0.12 * var(--mkt-cp, 0))); transform-origin: 25% 15%;
+      }
+      .mkt-spine.is-cinematic .mkt-cursor-ring {
+        position: absolute; left: 0; top: 0; width: 30px; height: 30px; margin: -15px 0 0 -15px;
+        border-radius: 999px; border: 2px solid #5D47DE;
+        opacity: calc(var(--mkt-cp, 0) * 0.85);
+        transform: scale(calc(0.5 + (1 - var(--mkt-cp, 0)) * 1.3));
+      }
+
+      /* Part 3: the card reads as raised because coloured light spills out
+         from under it, not because the product behind was dimmed. Anchored
+         bottom-left, 26rem, in the queue column's lane (DREAMCRM-82). The
+         inset's 5.5rem ceiling is what \`pinnedCardFits\` guarantees against. */
       .mkt-spine.is-cinematic .mkt-spine-card-glass {
         position: absolute; z-index: 3;
         bottom: clamp(2.75rem, 8vh, 5.5rem); left: clamp(1.25rem, 3vw, 2.5rem);
@@ -325,9 +306,15 @@ const SPINE_CSS = `
         will-change: opacity, transform;
         box-shadow: 0 0 100px -22px rgb(93 71 222 / 0.5), 0 30px 70px -32px rgb(26 36 64 / 0.35);
       }
-      /* Vertically centred on the card it tracks, in the gutter above. The
-         \`translate3d\` here is STATIC — it is layout, not one of the values the
-         scroll position writes. */
+      /* The chapter's own progress, as the signature gradient drawn along the
+         card's top edge. It carries no text (Part 2's rule for the luminous
+         steps), and it is the reader's only "how much of this chapter is
+         left" — the rail says which, this says how far. */
+      .mkt-spine.is-cinematic .mkt-spine-card-glass::before {
+        content: ''; position: absolute; left: 0; right: 0; top: 0; height: 3px;
+        background: linear-gradient(90deg, #3A67D9, #5D47DE, #C026D3);
+        transform: scaleX(var(--mkt-prog, 0)); transform-origin: 0 50%;
+      }
       .mkt-spine.is-cinematic .mkt-spine-rail {
         display: block; position: absolute; z-index: 4;
         right: clamp(1rem, 2vw, 2rem); top: 50%;
@@ -342,30 +329,17 @@ const SPINE_CSS = `
         background: rgb(255 255 255 / 0.94); backdrop-filter: blur(8px);
         box-shadow: 0 2px 6px rgb(76 125 240 / 0.06), 0 18px 44px rgb(76 125 240 / 0.16);
       }
-      /* Hand-graded, because the rail is \`aria-hidden\` and axe's contrast pass
-         does not reach it: #4c5a78 (gray-600) on white is 6.91 and #2f52b3
-         (teal-700) is 7.05 — BRAND.md Part 7. The pill's own ground is white at
-         0.94, not the product under it, so those are the pairs that render. */
+      /* Hand-graded (the rail is aria-hidden): #4c5a78 on white 6.91, #2f52b3
+         7.05 — BRAND.md Part 7. The dot is the second channel and it is SIZE. */
       .mkt-spine-rail-item { display: flex; align-items: center; justify-content: space-between; gap: 1rem; color: #4c5a78; }
-      /* THE DOT IS THE RAIL'S SECOND CHANNEL, and the channel is SIZE, not hue.
-         Vesper's DREAMCRM-70 review graded the active row against the inactive
-         ones at 1.02 — the two inks differ in hue at the same lightness, so in
-         greyscale, or to most kinds of colour blindness, the rail read as four
-         identical lines. The old dot could not carry it either: #c3d0e8 graded
-         1.55 on the pill and was barely visible at all. So the dot takes the
-         row's own ink (6.91 inactive, 7.05 active — the two pairs already
-         graded above, no new colour) and the ACTIVE one is half again as big.
-         Size survives greyscale, and 0.7rem still sits inside the 0.9rem line
-         box, so nothing reflows when the chapter changes. */
       .mkt-spine-rail-dot { height: 0.45rem; width: 0.45rem; flex: none; border-radius: 999px; background: currentColor; }
-      .mkt-spine-rail[data-active="0"] .mkt-spine-rail-item:nth-child(1),
-      .mkt-spine-rail[data-active="1"] .mkt-spine-rail-item:nth-child(2),
-      .mkt-spine-rail[data-active="2"] .mkt-spine-rail-item:nth-child(3),
-      .mkt-spine-rail[data-active="3"] .mkt-spine-rail-item:nth-child(4) { color: #2f52b3; }
-      .mkt-spine-rail[data-active="0"] .mkt-spine-rail-item:nth-child(1) .mkt-spine-rail-dot,
-      .mkt-spine-rail[data-active="1"] .mkt-spine-rail-item:nth-child(2) .mkt-spine-rail-dot,
-      .mkt-spine-rail[data-active="2"] .mkt-spine-rail-item:nth-child(3) .mkt-spine-rail-dot,
-      .mkt-spine-rail[data-active="3"] .mkt-spine-rail-item:nth-child(4) .mkt-spine-rail-dot { height: 0.7rem; width: 0.7rem; }`
+${[0, 1, 2, 3, 4, 5]
+  .map(
+    (i) =>
+      `      .mkt-spine-rail[data-active="${i}"] .mkt-spine-rail-item:nth-child(${i + 1}) { color: #2f52b3; }
+      .mkt-spine-rail[data-active="${i}"] .mkt-spine-rail-item:nth-child(${i + 1}) .mkt-spine-rail-dot { height: 0.7rem; width: 0.7rem; }`,
+  )
+  .join('\n')}`
 
 /**
  * The mono micro-label — `BRAND.md` Part 4 calls it the signature detail.

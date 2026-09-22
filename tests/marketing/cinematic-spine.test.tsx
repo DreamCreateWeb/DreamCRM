@@ -2,7 +2,8 @@ import { describe, it, expect } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import React from 'react'
-import CinematicSpine, { CHAPTERS, pinnedCardFits, sceneAt } from '@/components/marketing/cinematic-spine'
+import CinematicSpine, { CHAPTERS, OPEN, pinnedCardFits, sceneAt } from '@/components/marketing/cinematic-spine'
+import { SCENE_COUNT } from '@/components/marketing/cinema-scenes'
 import { MarketingMotionStyles } from '@/components/marketing/ui'
 
 /**
@@ -52,7 +53,7 @@ describe('the cinematic spine — the stacked layout is what the server renders'
     expect(renderToStaticMarkup(<CinematicSpine />)).not.toContain('is-cinematic')
   })
 
-  it('renders all four chapters, in reading order', () => {
+  it('renders every chapter, in reading order', () => {
     const { container } = render(<CinematicSpine />)
 
     // "No content is reachable only by animating" (Part 6). The four chapters
@@ -67,7 +68,10 @@ describe('the cinematic spine — the stacked layout is what the server renders'
       const cards = container.querySelectorAll('.mkt-spine-card')
       expect(cards[i].textContent).toContain(c.n)
     })
-    expect(container.querySelectorAll('.mkt-spine-card')).toHaveLength(4)
+    expect(container.querySelectorAll('.mkt-spine-card')).toHaveLength(CHAPTERS.length)
+    // The stage's scene table and the chapter table are two lists that have
+    // to agree, and nothing but this asks.
+    expect(CHAPTERS).toHaveLength(SCENE_COUNT)
   })
 
   it('names the section by its own headline', () => {
@@ -328,7 +332,11 @@ describe('the cinematic spine — the pinned sequence exists only where the pin 
     // become a blanket pardon for a token nobody looks at (§2b).
     expect(text).toContain(LAYOUT_TOKENS[0])
     for (const decl of scrollDriven) {
-      expect(decl.split(':')[0].trim()).toMatch(/^(transform|opacity)$/)
+      // A `--mkt-*` DEFINITION paints nothing: it is how a beat on the stage
+      // derives its own eased progress from the scene's `--mkt-t` in CSS
+      // (`.mkt-k` in SPINE_CSS, 2026-09-22). What that progress is then SPENT
+      // on is the next declaration down, and that one is graded as before.
+      expect(decl.split(':')[0].trim()).toMatch(/^(transform|opacity|--mkt-[a-z0-9-]+)$/)
     }
   })
 })
@@ -489,21 +497,31 @@ describe('the cinematic spine — the background plays the journey the cards nar
     }
   })
 
-  it('moves the anchor patient through four different states', () => {
+  it('moves the anchor patient through her states, one per chapter', () => {
     const { container } = render(<CinematicSpine />)
     const scenes = Array.from(container.querySelectorAll('.mkt-spine-stage'))
     // Rosa Silva's row is the thread: she is in every scene and her STATUS is
-    // the thing that changes. Four identical pictures would satisfy "one scene
-    // per chapter" above and would be the defect this issue is about, so the
-    // difference is what gets asserted.
-    const pills = ['6 mo overdue', 'Confirmed · Thu', 'Balance cleared', 'Review received']
+    // the thing that changes. Since the living stage (2026-09-22) a scene in
+    // which her pill CHANGES carries both halves of the swap — the old one
+    // under `.mkt-out`, which the stacked stylesheet hides and the pinned one
+    // fades on its beat — so what is asserted is the pill that is VISIBLE at
+    // the scene's finished state, and that the hidden half is the previous
+    // chapter's.
+    const pills = ['6 mo overdue', 'Confirmed · Thu', 'Confirmed · Thu', 'Balance cleared', 'Review received', 'Review received']
+    expect(scenes).toHaveLength(pills.length)
     scenes.forEach((scene, i) => {
       expect(scene.textContent).toContain('Rosa Silva')
-      expect(scene.textContent).toContain(pills[i])
-      for (const other of pills.filter((p) => p !== pills[i])) {
-        expect(scene.textContent).not.toContain(other)
+      const visible = scene.cloneNode(true) as HTMLElement
+      for (const out of Array.from(visible.querySelectorAll('.mkt-out'))) out.remove()
+      expect(visible.textContent).toContain(pills[i])
+      for (const other of Array.from(new Set(pills.filter((p) => p !== pills[i])))) {
+        expect(visible.textContent).not.toContain(other)
       }
+      const before = scene.querySelector('.mkt-anchor-row .mkt-out')
+      if (before) expect(before.textContent).toBe(pills[i - 1])
     })
+    // And it is a journey: at least four distinct states across the six.
+    expect(new Set(pills).size).toBeGreaterThanOrEqual(4)
   })
 
   it('selects the scene from the same scroll position the rail reads', () => {
@@ -511,13 +529,14 @@ describe('the cinematic spine — the background plays the journey the cards nar
     // this section can lie to a reader, and the way that happens is two
     // expressions computing the same index. There is one, and the component
     // calls it for both.
+    const slot = (1 - OPEN) / CHAPTERS.length
     expect(sceneAt(0)).toBe(0)
     expect(sceneAt(-1)).toBe(0)
-    expect(sceneAt(0.15)).toBe(0) // still inside the opening move
-    expect(sceneAt(0.3)).toBe(0)
-    expect(sceneAt(0.5)).toBe(1)
-    expect(sceneAt(0.72)).toBe(2)
-    expect(sceneAt(0.95)).toBe(3)
+    expect(sceneAt(OPEN * 0.9)).toBe(0) // still inside the opening move
+    expect(sceneAt(OPEN + slot * 0.5)).toBe(0)
+    expect(sceneAt(OPEN + slot * 1.5)).toBe(1)
+    expect(sceneAt(OPEN + slot * 2.5)).toBe(2)
+    expect(sceneAt(OPEN + slot * (CHAPTERS.length - 0.5))).toBe(CHAPTERS.length - 1)
     expect(sceneAt(1)).toBe(CHAPTERS.length - 1)
     expect(sceneAt(9)).toBe(CHAPTERS.length - 1)
     // Monotonic: the picture never goes backwards while the reader goes
