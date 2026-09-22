@@ -3037,9 +3037,20 @@ req/s), so the ceiling is the per-request work of the clinic/marketing pages,
 not the HTTP layer.
 
 **The slowest tail is the page that sells** (`/site/[slug]`), which is exactly
-the surface a marketing push would hammer. Recommendation (not actioned —
-it is a design change, not a defect fix): cache the public clinic site, using
-the existing Draft→Publish flow as the natural invalidation point.
+the surface a marketing push would hammer. The recommendation — cache the
+public clinic site, using the existing Draft→Publish flow as the natural
+invalidation point — was deliberately NOT actioned by this deliverable, since
+it is a design change rather than a defect fix. **It has since landed, in two
+parts:** #507 (2026-09-10) cached the published site payload and theme behind
+a module that structurally cannot read the session, and DREAMCRM-90
+(2026-09-22) closed the residual — the public-site LAYOUT was still opening its
+own `clinic_profile` select for eleven chrome columns on every page. Which
+reads deliberately stay uncached (the template-frame preview, the draft
+overlay, the trial verdict) is written down in `docs/LOAD-SANITY.md`.
+
+**The table in that doc is still the PRE-CACHE one.** Nothing has re-run the
+script since the change, so there is no measured "after" — recommendation 4
+("re-run after any change to public-site rendering") is owed a run.
 
 Caveat written into the doc: these numbers are from the dev container and
 characterise the APPLICATION, not the prod t4g.micro's ceiling. A real ceiling

@@ -79,17 +79,44 @@ describe('getClinicSiteBySlug — draft overlay', () => {
 })
 
 describe('getClinicThemeBySlug — brand/template overlay + banner flag', () => {
+  /**
+   * The theme read is ONE left join from `organization` to `clinic_profile`,
+   * so the fixture is one row carrying both halves — the org columns, the two
+   * themed columns the overlay is about, and the CHROME the site layout reads
+   * (which the overlay deliberately does not touch: none of those columns is
+   * draftable, so published IS live and an editor sees exactly what a visitor
+   * does). `profileOrgId` is the join key, and the loader reads it to tell "no
+   * profile row" apart from "a profile row of nulls".
+   */
+  const CHROME = {
+    displayName: 'Acme Dental',
+    phone: null,
+    logoUrl: null,
+    timezone: null,
+    announcement: null,
+    chatWidgetEnabled: true,
+    hidePoweredBy: false,
+    siteLiveAt: null,
+    trialEndsAt: null,
+    subscriptionStatus: null,
+    stripeSubscriptionId: null,
+  }
+
+  function themeRow(websiteDraft: unknown) {
+    return {
+      id: 'org_1',
+      type: 'clinic',
+      brandColor: '#111111',
+      template: 'modern',
+      websiteDraft,
+      profileOrgId: 'org_1',
+      ...CHROME,
+    }
+  }
+
   it('overlays staged brand + template for the editor and flags hasEditorDraft', async () => {
     canEdit = true
-    selectQueue.push([
-      {
-        id: 'org_1',
-        type: 'clinic',
-        brandColor: '#111111',
-        template: 'modern',
-        websiteDraft: { brandColor: '#22C55E', template: 'pediatric' },
-      },
-    ])
+    selectQueue.push([themeRow({ brandColor: '#22C55E', template: 'pediatric' })])
     selectQueue.push([{ websiteDraft: { brandColor: '#22C55E', template: 'pediatric' } }])
     const theme = await getClinicThemeBySlug(`acme-${Math.random()}`)
     expect(theme).toEqual({
@@ -97,20 +124,13 @@ describe('getClinicThemeBySlug — brand/template overlay + banner flag', () => 
       brand: '#22C55E',
       template: 'pediatric',
       hasEditorDraft: true,
+      chrome: CHROME,
     })
   })
 
   it('visitors keep the stored brand/template and no banner flag', async () => {
     canEdit = false
-    selectQueue.push([
-      {
-        id: 'org_1',
-        type: 'clinic',
-        brandColor: '#111111',
-        template: 'modern',
-        websiteDraft: { brandColor: '#22C55E' },
-      },
-    ])
+    selectQueue.push([themeRow({ brandColor: '#22C55E' })])
     selectQueue.push([{ websiteDraft: { brandColor: '#22C55E' } }])
     const theme = await getClinicThemeBySlug(`acme-${Math.random()}`)
     expect(theme).toEqual({
@@ -118,6 +138,9 @@ describe('getClinicThemeBySlug — brand/template overlay + banner flag', () => 
       brand: '#111111',
       template: 'modern',
       hasEditorDraft: false,
+      // Byte-identical to the editor's above — the chrome is a clinic fact,
+      // which is the entire reason it may live in a shared cache.
+      chrome: CHROME,
     })
   })
 

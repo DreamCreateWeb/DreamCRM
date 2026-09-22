@@ -1,7 +1,4 @@
 import { headers } from 'next/headers'
-import { eq } from 'drizzle-orm'
-import { db } from '@/lib/db'
-import { clinicProfile } from '@/lib/db/schema/platform'
 import { getClinicThemeBySlug, resolveSiteBasePath } from '@/lib/services/clinic-site'
 import { appBaseUrl, shouldShowComingSoon } from '@/lib/clinic-site-helpers'
 import { resolveTrialState } from '@/lib/trial'
@@ -47,7 +44,14 @@ export default async function ClinicSiteLayout({
   params: Promise<{ slug: string }>
 }) {
   const { slug } = await params
-  const { orgId, brand, hasEditorDraft } = await getClinicThemeBySlug(slug)
+  // ONE read for the palette AND the chrome. This layout used to open its own
+  // `clinic_profile` select for the eleven columns below, right beside this
+  // call — a database round trip on every public page of every clinic site,
+  // uncached, on the slowest surface in the product
+  // (`docs/LOAD-SANITY.md`). They are all live-immediate columns with no
+  // draft overlay, so they ride the same cached payload as the theme; see
+  // `PublishedSiteChrome` for which read stays uncached and why.
+  const { orgId, brand, hasEditorDraft, chrome } = await getClinicThemeBySlug(slug)
   const { def, isPreview, isFrame } = await resolveActiveSiteTemplate(slug)
   const canEdit = orgId ? await canEditClinic(orgId) : false
   // The doors (portal sign-in, intake gate) are never gated by the MARKETING
@@ -76,44 +80,30 @@ export default async function ClinicSiteLayout({
   // loop, docs/marketing-engine.md). Default ON; Website → Design is the
   // off switch. Never in a gallery frame, never on coming-soon.
   let showPoweredBy = false
-  if (orgId) {
-    const [prof] = await db
-      .select({
-        enabled: clinicProfile.chatWidgetEnabled,
-        hidePoweredBy: clinicProfile.hidePoweredBy,
-        displayName: clinicProfile.displayName,
-        announcement: clinicProfile.announcement,
-        timezone: clinicProfile.timezone,
-        siteLiveAt: clinicProfile.siteLiveAt,
-        phone: clinicProfile.phone,
-        logoUrl: clinicProfile.logoUrl,
-        trialEndsAt: clinicProfile.trialEndsAt,
-        subscriptionStatus: clinicProfile.subscriptionStatus,
-        stripeSubscriptionId: clinicProfile.stripeSubscriptionId,
-      })
-      .from(clinicProfile)
-      .where(eq(clinicProfile.organizationId, orgId))
-      .limit(1)
+  if (orgId && chrome) {
     // THE KILL (owner ruling): an expired trial gates the site for everyone
     // — editors and gallery frames included. resolveTrialState is the same
-    // rule the dashboard wall uses, so the two can never disagree.
-    const shutDown = prof ? resolveTrialState(prof).expired : false
-    if (prof && shouldShowComingSoon({ siteLiveAt: prof.siteLiveAt, canEdit, isFrame, shutDown, isAccessRoute })) {
+    // rule the dashboard wall uses, so the two can never disagree. It runs
+    // HERE, against this request's clock, rather than inside the cache — so a
+    // trial that expires between two requests walls the site on the second
+    // one, with no TTL in the path.
+    const shutDown = resolveTrialState(chrome).expired
+    if (shouldShowComingSoon({ siteLiveAt: chrome.siteLiveAt, canEdit, isFrame, shutDown, isAccessRoute })) {
       comingSoon = {
-        clinicName: prof.displayName ?? 'Our practice',
-        phone: prof.phone ?? null,
-        logoUrl: prof.logoUrl ?? null,
+        clinicName: chrome.displayName ?? 'Our practice',
+        phone: chrome.phone,
+        logoUrl: chrome.logoUrl,
       }
     }
-    if (prof && prof.enabled !== false && !isFrame) {
-      chatWidget = { enabled: true, clinicName: prof.displayName ?? 'our office' }
+    if (chrome.chatWidgetEnabled && !isFrame) {
+      chatWidget = { enabled: true, clinicName: chrome.displayName ?? 'our office' }
     }
-    if (prof && prof.hidePoweredBy !== true && !isFrame) {
+    if (!chrome.hidePoweredBy && !isFrame) {
       showPoweredBy = true
     }
-    if (prof?.announcement && !isFrame) {
-      const tz = prof.timezone || 'America/New_York'
-      announcement = activeAnnouncement(prof.announcement, clinicDayKey(new Date(), tz))
+    if (chrome.announcement && !isFrame) {
+      const tz = chrome.timezone || 'America/New_York'
+      announcement = activeAnnouncement(chrome.announcement, clinicDayKey(new Date(), tz))
     }
   }
   if (comingSoon) {

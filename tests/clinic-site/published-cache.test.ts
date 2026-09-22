@@ -292,6 +292,221 @@ describe('invalidation drops the entry', () => {
 })
 
 /**
+ * THE LAYOUT'S CHROME CROSSES THE SAME BOUNDARY, AND CARRIES THE SAME
+ * LANDMINE.
+ *
+ * `app/site/[slug]/layout.tsx` used to run its own `clinic_profile` select on
+ * every public page. Those eleven columns now ride the cached THEME payload,
+ * which until this slice held nothing but strings and booleans — so it needed
+ * no timestamp revival and had none.
+ *
+ * `trialEndsAt` and `siteLiveAt` change that. `resolveTrialState` calls
+ * `.getTime()` on the first, and the layout hands it the chrome on EVERY
+ * public page — so an unrevived string is not a wrong answer, it is a
+ * TypeError on every page of a clinic's site, from the second request after a
+ * deploy, for exactly the cohort inside their 7-day trial. That is the same
+ * defect the site payload was already guarded against, arriving by a second
+ * door.
+ */
+describe('the layout chrome survives the round trip', () => {
+  /** The theme read joins FROM `organization`, so the mock serves the whole
+   *  joined row from `state.org` — chrome columns included. */
+  const THEME_ROW = {
+    id: 'org_1',
+    slug: 'smilebright',
+    name: 'SmileBright',
+    type: 'clinic',
+    brandColor: '#0d9488',
+    template: 'modern',
+    websiteDraft: null as unknown,
+    profileOrgId: 'org_1',
+    displayName: 'SmileBright Dental',
+    phone: '555-0100',
+    logoUrl: 'https://cdn.example/logo.png',
+    timezone: 'America/Chicago',
+    announcement: { message: 'Closed Friday' },
+    chatWidgetEnabled: true,
+    hidePoweredBy: false,
+    siteLiveAt: SITE_LIVE,
+    trialEndsAt: TRIAL_ENDS,
+    subscriptionStatus: null,
+    stripeSubscriptionId: null,
+  }
+
+  beforeEach(() => {
+    state.org = { ...THEME_ROW }
+  })
+
+  it('a hit and a miss agree on the whole theme payload', async () => {
+    const { loadPublishedTheme } = await import('@/lib/services/clinic-site-cache')
+    const miss = await loadPublishedTheme('smilebright')
+    const hit = await loadPublishedTheme('smilebright')
+    expect(miss).not.toBeNull()
+    expect(
+      hit,
+      'the cached theme differs from the freshly-read one — the layout paints\n' +
+        'one way on the first request after a deploy and another forever after',
+    ).toEqual(miss)
+  })
+
+  it('the chrome timestamps come back as Dates, at the same instant', async () => {
+    const { loadPublishedTheme } = await import('@/lib/services/clinic-site-cache')
+    await loadPublishedTheme('smilebright') // miss
+    const hit = await loadPublishedTheme('smilebright')
+
+    expect(hit!.chrome!.trialEndsAt).toBeInstanceOf(Date)
+    expect(hit!.chrome!.siteLiveAt).toBeInstanceOf(Date)
+    // Not merely "a Date" — the SAME instant. A revival that read the string
+    // in the host's zone rather than UTC passes the type check above and
+    // still moves a clinic's trial wall by hours.
+    expect(hit!.chrome!.trialEndsAt!.getTime()).toBe(TRIAL_ENDS.getTime())
+    expect(hit!.chrome!.siteLiveAt!.getTime()).toBe(SITE_LIVE.getTime())
+  })
+
+  /**
+   * THE REGRESSION THIS BLOCK EXISTS TO PREVENT — the layout's copy of it.
+   *
+   * The site payload already has this test for the robots/sitemap routes.
+   * This is the same crash on a far bigger surface: every public page of the
+   * site, not two text routes.
+   */
+  it('resolveTrialState still works on the cached chrome', async () => {
+    const { loadPublishedTheme } = await import('@/lib/services/clinic-site-cache')
+    const { resolveTrialState } = await import('@/lib/trial')
+
+    await loadPublishedTheme('smilebright') // miss
+    const hit = await loadPublishedTheme('smilebright')
+
+    const now = new Date('2026-09-13T00:00:00.000Z')
+    expect(() => resolveTrialState(hit!.chrome!, now)).not.toThrow()
+    const trial = resolveTrialState(hit!.chrome!, now)
+    expect(trial.onTrial).toBe(true)
+    expect(trial.expired).toBe(false)
+  })
+
+  it('an expired trial still walls the site on a CACHED payload', async () => {
+    // The expiry half is time-based, so it must be decided against the
+    // request's clock rather than frozen into the entry: same cached chrome,
+    // a later `now`, and the verdict has to flip.
+    const { loadPublishedTheme } = await import('@/lib/services/clinic-site-cache')
+    const { resolveTrialState } = await import('@/lib/trial')
+
+    await loadPublishedTheme('smilebright') // miss
+    const hit = await loadPublishedTheme('smilebright')
+
+    expect(resolveTrialState(hit!.chrome!, new Date('2026-09-14T00:00:00.000Z')).expired).toBe(false)
+    expect(
+      resolveTrialState(hit!.chrome!, new Date('2026-09-16T00:00:00.000Z')).expired,
+      'the trial wall was decided inside the cache — a clinic whose trial ran\n' +
+        'out mid-TTL kept serving, and one who paid stayed dark',
+    ).toBe(true)
+  })
+
+  it('the toggles keep their schema defaults when the column is absent', async () => {
+    // The left join types both NOT NULL columns as nullable, and the layout's
+    // rules were `!== false` / `!== true` — the default wins when absent.
+    const { loadPublishedTheme } = await import('@/lib/services/clinic-site-cache')
+    state.org = { ...THEME_ROW, chatWidgetEnabled: null, hidePoweredBy: null }
+    const theme = await loadPublishedTheme('smilebright')
+    expect(theme!.chrome!.chatWidgetEnabled, 'the chat bubble defaults ON').toBe(true)
+    expect(theme!.chrome!.hidePoweredBy, 'the credit defaults SHOWN').toBe(false)
+  })
+
+  it('a clinic org with no profile row has no chrome, rather than a row of defaults', async () => {
+    const { loadPublishedTheme } = await import('@/lib/services/clinic-site-cache')
+    state.org = { id: 'org_1', slug: 'smilebright', name: 'SmileBright', type: 'clinic' }
+    const theme = await loadPublishedTheme('smilebright')
+    expect(theme).not.toBeNull()
+    expect(
+      theme!.chrome,
+      '"no profile" and "a profile with every toggle at its default" are\n' +
+        'different states, and only one of them should paint chrome',
+    ).toBeNull()
+  })
+
+  /**
+   * THE PROPERTY THAT LICENSES THE WHOLE THING, MADE SELF-ENFORCING.
+   *
+   * The chrome may live in a shared cache for exactly one reason: not one of
+   * its columns is draftable, so the published value IS the live value and
+   * there is no viewer-dependent overlay to apply. Every other test here takes
+   * that as given. Sentinel's review note on #654: nothing FAILED if it
+   * stopped being true — make `announcement` or `displayName` draftable
+   * tomorrow and the editor-vs-visitor test would stay green (it stages
+   * `brandColor`/`tagline`) while a clinic's unpublished words reached every
+   * visitor to their live site.
+   *
+   * Derived from the RUNTIME payload rather than a written-down list, so a
+   * twelfth chrome field is covered the day somebody adds it — which is the
+   * whole failure mode, since nobody adding one would think to come here.
+   */
+  it('no chrome column is draftable — the claim the cache rests on', async () => {
+    const { loadPublishedTheme } = await import('@/lib/services/clinic-site-cache')
+    const { WEBSITE_DRAFT_COLUMNS } = await import('@/lib/website-draft')
+
+    const theme = await loadPublishedTheme('smilebright')
+    const chromeKeys = Object.keys(theme!.chrome!)
+    expect(chromeKeys.length, 'the chrome payload came back empty').toBeGreaterThan(5)
+    expect(WEBSITE_DRAFT_COLUMNS.size, 'the draftable set came back empty').toBeGreaterThan(5)
+
+    const draftable = chromeKeys.filter((k) => WEBSITE_DRAFT_COLUMNS.has(k))
+    expect(
+      draftable,
+      'These chrome columns are now DRAFTABLE, so the published value is no\n' +
+        "longer the live value — and the chrome is cached per clinic with no\n" +
+        'overlay applied. That puts an editor\'s unpublished words on the live\n' +
+        'public site for every visitor, for up to the TTL.\n' +
+        'Either take them out of PublishedSiteChrome and read them per request,\n' +
+        'or apply the draft overlay to them in getClinicThemeBySlug the way\n' +
+        'brand and template already are:\n' +
+        draftable.join(', '),
+    ).toEqual([])
+  })
+
+  it('the unpublished draft still never enters the theme entry', async () => {
+    const { loadPublishedTheme } = await import('@/lib/services/clinic-site-cache')
+    state.org = { ...THEME_ROW, websiteDraft: { tagline: 'UNPUBLISHED' } }
+    const theme = await loadPublishedTheme('smilebright')
+    expect(theme!.hasWebsiteDraft).toBe(true)
+    expect(
+      JSON.stringify(theme),
+      "a clinic's unpublished words rode into the shared theme entry",
+    ).not.toContain('UNPUBLISHED')
+  })
+
+  it('the chrome is frozen, like the rest of the shared payload', async () => {
+    const { loadPublishedTheme } = await import('@/lib/services/clinic-site-cache')
+    const theme = await loadPublishedTheme('smilebright')
+    expect(() => {
+      ;(theme!.chrome as unknown as Record<string, unknown>).displayName = 'hacked'
+    }).toThrow()
+    expect(theme!.chrome!.displayName).toBe('SmileBright Dental')
+  })
+
+  it('a slug invalidation drops the chrome too', async () => {
+    const { loadPublishedTheme, invalidateClinicSiteBySlug } = await import(
+      '@/lib/services/clinic-site-cache'
+    )
+    const first = await loadPublishedTheme('smilebright')
+    expect(first!.chrome!.hidePoweredBy).toBe(false)
+
+    // The clinic hides the credit...
+    state.org = { ...THEME_ROW, hidePoweredBy: true }
+    expect(
+      (await loadPublishedTheme('smilebright'))!.chrome!.hidePoweredBy,
+      'the entry was never cached, so this test proves nothing',
+    ).toBe(false)
+
+    invalidateClinicSiteBySlug('smilebright')
+    expect(
+      (await loadPublishedTheme('smilebright'))!.chrome!.hidePoweredBy,
+      'the toggle stayed stale — the clinic flips the switch, reloads their\n' +
+        'own site and the credit is still there',
+    ).toBe(true)
+  })
+})
+
+/**
  * THE SAFETY PROPERTY, ASSERTED STRUCTURALLY.
  *
  * The module's own doc comment claims "nothing here can see the session,

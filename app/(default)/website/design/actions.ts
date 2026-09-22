@@ -4,6 +4,7 @@ import { eq } from 'drizzle-orm'
 import { requireTenant } from '@/lib/auth/context'
 import { db } from '@/lib/db'
 import { clinicProfile } from '@/lib/db/schema/platform'
+import { invalidateClinicSiteEverywhere } from '@/lib/services/clinic-site-cache'
 
 /**
  * The "Powered by DreamCRM" site-credit switch (owner ruling 2026-08-26,
@@ -23,6 +24,10 @@ export async function setPoweredByVisibilityAction(
       .update(clinicProfile)
       .set({ hidePoweredBy: hidden === true, updatedAt: new Date() })
       .where(eq(clinicProfile.organizationId, ctx.organizationId))
+    // The credit renders in the public site LAYOUT, whose chrome is cached
+    // per clinic — without this the clinic flips the switch, reloads their
+    // own site and still sees it for up to the TTL, with nothing saying why.
+    invalidateClinicSiteEverywhere(ctx.organizationId, ctx.organizationSlug)
     return { ok: true }
   } catch {
     return { ok: false, error: 'Could not save that — try again.' }

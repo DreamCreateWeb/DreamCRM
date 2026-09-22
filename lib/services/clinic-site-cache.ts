@@ -90,6 +90,23 @@ export function invalidateClinicSite(orgId: string): void {
 const NO_REQUEST_SCOPE = 'E263'
 
 /**
+ * Next's error code for "you called this during a render".
+ *
+ * Read off the installed Next 16.2.10 rather than inferred:
+ * `server/web/spec-extension/revalidate.js` throws it when
+ * `workUnitStore.phase === 'render'`, with the message `Route <r> used
+ * "revalidateTag <tag>" during render which is unsupported.`
+ * `tests/clinic-site/next-cache-contract.test.ts` pins that against the real
+ * module, because this code is the only thing standing between a render-phase
+ * call site and an exception in the middle of somebody's checkout.
+ */
+const RENDER_PHASE = 'E7'
+
+/** What one tag drop actually did — the caller needs to know, not just that
+ *  nothing threw. See `invalidateClinicSiteForOrgUnlessRendering`. */
+type TagDrop = 'dropped' | 'no-request-scope' | 'rendering'
+
+/**
  * Swallow ONLY "we are not inside a request", and let everything else out.
  *
  * The previous version was a blanket `catch {}` with a comment asserting the
@@ -100,17 +117,27 @@ const NO_REQUEST_SCOPE = 'E263'
  *
  * Outside a request (a cron, the demo re-seeder, a boot script) there is
  * legitimately nothing to revalidate against and the TTL is the answer. Every
- * other throw Next can raise here — calling this during render (E7), inside a
- * `'use cache'` (E181), inside an `unstable_cache` callback (E306), inside
- * `generateStaticParams` (E1127) — is a real bug in a call site, and each one
- * means this clinic's site is not being invalidated. Those must surface.
+ * other throw Next can raise here — inside a `'use cache'` (E181), inside an
+ * `unstable_cache` callback (E306), inside `generateStaticParams` (E1127) — is
+ * a real bug in a call site, and each one means this clinic's site is not
+ * being invalidated. Those must surface.
+ *
+ * `tolerateRender` is the ONE addition to that list, and it is not a
+ * loosening: it is opt-in per call site, and only a call site that is
+ * genuinely reachable from a Server Component render may pass it. There is
+ * exactly one such writer today (`syncSubscriptionFromStripe`, via the
+ * checkout-success landing) and
+ * `tests/clinic-site/no-render-phase-invalidation.test.ts` is what stops a
+ * second one appearing without anybody noticing.
  */
-function invalidateTag(tag: string): void {
+function invalidateTag(tag: string, tolerateRender = false): TagDrop {
   try {
     revalidateTag(tag, { expire: 0 })
+    return 'dropped'
   } catch (err) {
     const code = (err as { __NEXT_ERROR_CODE?: string })?.__NEXT_ERROR_CODE
-    if (code === NO_REQUEST_SCOPE) return
+    if (code === NO_REQUEST_SCOPE) return 'no-request-scope'
+    if (tolerateRender && code === RENDER_PHASE) return 'rendering'
     throw err
   }
 }
@@ -205,14 +232,19 @@ const locationTimestamps = () => timestampKeysFor('clinic_location', clinicLocat
  * — there the raw text carried no zone and had to be read as UTC by hand.
  * Here the zone is in the string.
  */
-function reviveTimestamps<T extends Record<string, unknown>>(keys: string[], row: T): T {
+function reviveTimestamps<T extends object>(keys: string[], row: T): T {
   let copy: Record<string, unknown> | null = null
   for (const key of keys) {
-    const value = row[key]
+    // `T extends object` rather than `Record<string, unknown>`: an INTERFACE
+    // (PublishedSiteChrome) has no implicit index signature, so the narrower
+    // bound would have forced every caller through a cast. The lookup itself
+    // is unchanged — a key the object does not carry reads `undefined` and is
+    // skipped, which is what makes one revival serve both shapes.
+    const value = (row as Record<string, unknown>)[key]
     // Already a Date on the miss path; only strings need reviving. Idempotent
     // by construction, so both paths can run it.
     if (typeof value === 'string') {
-      copy ??= { ...row }
+      if (!copy) copy = { ...(row as Record<string, unknown>) }
       copy[key] = new Date(value)
     }
   }
@@ -260,12 +292,86 @@ export interface PublishedSite {
   hasWebsiteDraft: boolean
 }
 
+/**
+ * The site-wide CHROME the layout paints around every public page: the
+ * announcement strip, the chat bubble, the "Powered by" credit, the go-live
+ * lever and the shut-down wall.
+ *
+ * THIS IS THE LAST UNCACHED QUERY ON THE PUBLIC PAGE, AND IT WAS A WHOLE
+ * ROUND TRIP. `app/site/[slug]/layout.tsx` renders on EVERY public clinic
+ * page — home, book, services, blog, the portal door — and it opened its own
+ * `clinic_profile` select for these eleven columns, right next to the theme
+ * read that had just been cached. So the slice that made the site payload a
+ * cache hit left the layout paying the database on every single request.
+ *
+ * Every column here is LIVE-IMMEDIATE — none of them is in
+ * `WEBSITE_DRAFT_COLUMNS` — so the published value IS the live value and
+ * there is no overlay to apply. That is what makes the chrome a plain clinic
+ * fact and lets it ride the same entry as the theme it is read beside: the
+ * layout already calls `getClinicThemeBySlug`, so folding these in costs no
+ * extra query even on a cache MISS.
+ *
+ * WHAT STALENESS BUYS, PER FIELD — the reads the issue asked us to name:
+ *
+ *  - the GO-LIVE LEVER (`siteLiveAt`) invalidates explicitly
+ *    (`app/(default)/website/go-live-actions.ts`), so taking a site offline
+ *    is immediate rather than TTL-bounded. That direction matters most.
+ *  - the SHUT-DOWN WALL (`trialEndsAt` / `subscriptionStatus` /
+ *    `stripeSubscriptionId`) is resolved by `resolveTrialState` OUTSIDE this
+ *    cache, against `new Date()` per request — so a trial expiring on the
+ *    clock walls the site the moment it expires, with no cache in the path.
+ *    The write that could go the wrong way is a clinic PAYING and still
+ *    seeing the wall, so `lib/services/billing.ts` invalidates on the
+ *    subscription webhook.
+ *
+ *    WITH ONE HONEST GAP, stated rather than implied away: Stripe's
+ *    checkout-success landing (`app/(default)/settings/billing/page.tsx`)
+ *    runs the same sync DURING A RENDER, and Next forbids invalidation there
+ *    — so that path CANNOT drop the tag. It tolerates the refusal
+ *    (`invalidateClinicSiteForOrgUnlessRendering`) rather than throwing, and
+ *    what closes the window instead is Stripe delivering the same event to
+ *    the webhook moments later, or `CACHE_TTL_SECONDS`. So "a clinic that
+ *    pays gets their site back immediately" is true via the webhook and
+ *    within a minute via the landing page. It is not closed everywhere, and
+ *    the earlier version of this comment implied it was.
+ *  - the chrome toggles (chat bubble, "Powered by", the announcement bar)
+ *    invalidate from their own actions, because a human is watching.
+ *
+ * The TEMPLATE-FRAME PREVIEW ROUTE is the one read that stays per-request and
+ * cannot be folded in at all: `resolveActiveSiteTemplate` is chosen by a
+ * request header and a cookie, so it has no published half (category 3 in
+ * that module's doc comment).
+ */
+export interface PublishedSiteChrome {
+  displayName: string | null
+  phone: string | null
+  logoUrl: string | null
+  timezone: string | null
+  /** Raw column — `activeAnnouncement` resolves it per request against the
+   *  clinic-local day, so a timed bar never expires a day early. */
+  announcement: unknown
+  chatWidgetEnabled: boolean
+  hidePoweredBy: boolean
+  siteLiveAt: Date | null
+  trialEndsAt: Date | null
+  subscriptionStatus: string | null
+  stripeSubscriptionId: string | null
+}
+
 /** The published theme — the twin of the above for the palette + template. */
 export interface PublishedTheme {
   orgId: string
   brandColor: string | null
   template: string | null
   hasWebsiteDraft: boolean
+  /**
+   * `null` when the org has no `clinic_profile` row at all — the same
+   * distinction the layout's own `if (prof)` used to draw, kept rather than
+   * flattened into a row of defaults, because "no profile" and "a profile
+   * with every toggle at its default" are different states and only one of
+   * them should paint chrome.
+   */
+  chrome: PublishedSiteChrome | null
 }
 
 async function readPublishedSite(
@@ -310,6 +416,22 @@ async function readPublishedTheme(slug: string): Promise<PublishedTheme | null> 
       brandColor: clinicProfile.brandColor,
       template: clinicProfile.template,
       websiteDraft: clinicProfile.websiteDraft,
+      // The LEFT JOIN means every column below is null both when the clinic
+      // has no profile row and when the column itself is null, so the row's
+      // EXISTENCE needs a column that cannot be null when it is present.
+      // `organizationId` is that column — it is the join key.
+      profileOrgId: clinicProfile.organizationId,
+      displayName: clinicProfile.displayName,
+      phone: clinicProfile.phone,
+      logoUrl: clinicProfile.logoUrl,
+      timezone: clinicProfile.timezone,
+      announcement: clinicProfile.announcement,
+      chatWidgetEnabled: clinicProfile.chatWidgetEnabled,
+      hidePoweredBy: clinicProfile.hidePoweredBy,
+      siteLiveAt: clinicProfile.siteLiveAt,
+      trialEndsAt: clinicProfile.trialEndsAt,
+      subscriptionStatus: clinicProfile.subscriptionStatus,
+      stripeSubscriptionId: clinicProfile.stripeSubscriptionId,
     })
     .from(organization)
     .leftJoin(clinicProfile, eq(clinicProfile.organizationId, organization.id))
@@ -323,6 +445,26 @@ async function readPublishedTheme(slug: string): Promise<PublishedTheme | null> 
     brandColor: row.brandColor ?? null,
     template: row.template ?? null,
     hasWebsiteDraft: row.websiteDraft != null,
+    chrome: row.profileOrgId
+      ? {
+          displayName: row.displayName ?? null,
+          phone: row.phone ?? null,
+          logoUrl: row.logoUrl ?? null,
+          timezone: row.timezone ?? null,
+          announcement: row.announcement ?? null,
+          // Both columns are NOT NULL with a default in the schema, but the
+          // left join types them nullable and the layout's rules were written
+          // as `!== false` / `!== true` — i.e. the DEFAULT wins when the value
+          // is absent. Preserved exactly: chat on unless explicitly off,
+          // credit shown unless explicitly hidden.
+          chatWidgetEnabled: row.chatWidgetEnabled !== false,
+          hidePoweredBy: row.hidePoweredBy === true,
+          siteLiveAt: row.siteLiveAt ?? null,
+          trialEndsAt: row.trialEndsAt ?? null,
+          subscriptionStatus: row.subscriptionStatus ?? null,
+          stripeSubscriptionId: row.stripeSubscriptionId ?? null,
+        }
+      : null,
   }
 }
 
@@ -336,6 +478,31 @@ function settleSite(site: PublishedSite | null): PublishedSite | null {
     primaryLocation: site.primaryLocation
       ? reviveTimestamps(locationTimestamps(), site.primaryLocation)
       : null,
+  })
+}
+
+/**
+ * The theme's twin of `settleSite`, and it exists for exactly one reason:
+ * `chrome` carries `trialEndsAt`, and `resolveTrialState` calls `.getTime()`
+ * on it.
+ *
+ * That is the SAME landmine `reviveTimestamps` was written for, arriving by a
+ * second route. `unstable_cache` persists through JSON, so on a HIT that
+ * `Date` is a string while TypeScript still swears it is a `Date` — and the
+ * crash would land on exactly one cohort (clinics inside their 7-day trial),
+ * on every public page of their site, from the second request onward. The
+ * theme read had no timestamps at all before this change and therefore needed
+ * no revival; it does now.
+ *
+ * Reviving keys off the `clinic_profile` schema rather than a list of two, so
+ * a chrome field added tomorrow from another timestamp column is covered the
+ * day it arrives. `reviveTimestamps` ignores keys the object does not carry.
+ */
+function settleTheme(theme: PublishedTheme | null): PublishedTheme | null {
+  if (!theme) return null
+  return deepFreeze({
+    ...theme,
+    chrome: theme.chrome ? reviveTimestamps(profileTimestamps(), theme.chrome) : null,
   })
 }
 
@@ -385,7 +552,7 @@ export async function loadPublishedTheme(slug: string): Promise<PublishedTheme |
     ['clinic-theme-published', slug],
     { revalidate: CACHE_TTL_SECONDS, tags: [`clinic-site-slug:${slug}`] },
   )()
-  return resolved ? deepFreeze({ ...resolved }) : null
+  return settleTheme(resolved)
 }
 
 /**
@@ -425,9 +592,77 @@ export function invalidateClinicSiteEverywhere(orgId: string, slug: string | nul
  * is itself part of the cached payload, so a clinic starting their FIRST draft
  * would otherwise keep reading a cached `false` and not see their own edit on
  * the site preview until the TTL rolled over.
+ *
+ * **IT HAS NO CALLERS OUTSIDE THIS MODULE TODAY** (Sentinel, #654 round 2):
+ * both of the writers named above moved to the render-tolerant twin below —
+ * `website-draft.ts` because a Server Component imports it for two READ
+ * functions, `billing.ts` because one of its functions genuinely renders. The
+ * paragraph above describes the wiring as it stands after that move: those
+ * writers still invalidate, through the twin.
+ *
+ * This is still the RIGHT DEFAULT and is kept rather than deleted. A writer
+ * that is not reachable from a render should use it, because a render-phase
+ * refusal there would be a real bug and this is the version that says so. It
+ * simply happens that no such writer exists right now.
  */
 export async function invalidateClinicSiteForOrg(organizationId: string): Promise<void> {
-  invalidateClinicSite(organizationId)
+  await dropBothTagsForOrg(organizationId, false)
+}
+
+/**
+ * The render-tolerant twin, for the ONE writer that can run during a render.
+ *
+ * `syncSubscriptionFromStripe` has two kinds of caller. Three are fine — the
+ * Stripe webhook (a route handler) and `updateSubscriptionPlan` (a Server
+ * Action). The fourth is not: `app/(default)/settings/billing/page.tsx`
+ * calls it in its Server Component BODY, via `syncCheckoutSuccess`, on the
+ * `?checkout=success` landing — a page that exists precisely so activation
+ * does not hinge on webhook timing.
+ *
+ * `revalidateTag` throws during render (E7, verified against the installed
+ * Next; see RENDER_PHASE). So on that one path the strict invalidator would
+ * throw INSIDE the billing sync, and the first version of this PR shipped
+ * exactly that. The damage was not the missed invalidation — it was
+ * everything after the throw: `enforceSocialConnectionCap` never ran, so a
+ * clinic dropping from the full-Premium trial to a smaller plan KEPT social
+ * connections we are billed for, and `syncCheckoutSuccess` logged a
+ * successful activation as a failure. Caught by Sentinel on #654.
+ *
+ * So this call site tolerates the refusal, and NOTHING ELSE about the
+ * taxonomy changes. What covers the render path instead:
+ *
+ *  - Stripe delivers the same event to the webhook, which invalidates for
+ *    real, usually within seconds;
+ *  - failing that, `CACHE_TTL_SECONDS`.
+ *
+ * That is strictly better than the pre-PR behaviour on this path (which had
+ * no invalidation at all) and strictly worse than the webhook path — which is
+ * why it is written down here and in `docs/LOAD-SANITY.md` rather than
+ * implied to be closed everywhere.
+ */
+export async function invalidateClinicSiteForOrgUnlessRendering(
+  organizationId: string,
+): Promise<void> {
+  await dropBothTagsForOrg(organizationId, true)
+}
+
+async function dropBothTagsForOrg(
+  organizationId: string,
+  tolerateRender: boolean,
+): Promise<void> {
+  // The org tag first, and its OUTCOME decides whether the rest is worth
+  // doing. BOTH non-drop outcomes are properties of the CONTEXT rather than of
+  // the tag, so neither can come out differently for the slug tag a moment
+  // later: inside a render every drop is refused, and outside a request scope
+  // every drop is a no-op. Either way the database round trip that resolves
+  // the slug buys nothing — wasted on a page render, which is where latency is
+  // most visible, and wasted on every cron tick, which is where this path runs
+  // most often. Only `'dropped'` continues.
+  //
+  // (The render arm arrived first and the asymmetry was visible for one review
+  // round — Sentinel, #654. The cron case was pre-existing and has always been
+  // harmless; it is one query, not a wrong answer.)
+  if (invalidateTag(clinicSiteTag(organizationId), tolerateRender) !== 'dropped') return
   try {
     const [org] = await db
       .select({ slug: organization.slug })
@@ -435,7 +670,7 @@ export async function invalidateClinicSiteForOrg(organizationId: string): Promis
       .where(eq(organization.id, organizationId))
       .limit(1)
     if (!org?.slug) return
-    invalidateClinicSiteBySlug(org.slug)
+    invalidateTag(clinicSiteSlugTag(org.slug), tolerateRender)
   } catch (err) {
     // Same shape as the blocking fix above, lower stakes: a failed lookup
     // must not fail the save that triggered it, but it must not be invisible
