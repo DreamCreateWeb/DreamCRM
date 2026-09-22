@@ -125,6 +125,29 @@ const PRICING_ROUTE = ['app/(marketing)/pricing/page.tsx', 'app/(marketing)/pric
  * quotes no price at all, and adding a file with nothing to find would make
  * the third test below (the one that proves this scan still SEES something)
  * a weaker claim than it is.
+ *
+ * DREAMCRM-101 ADDED THE TENTH, AND IT IS THE SHAPE THE PARAGRAPH ABOUT THE
+ * NINTH TOLD THE NEXT READER TO GO LOOKING FOR. `lib/services/marketing-blog.ts`
+ * holds `LAUNCH_POSTS` — three `bodyHtml` strings seeded to `/blog` — and the
+ * launch announcement opened with *"for $150–500 a month"*, the PRE-COLLAPSE
+ * THREE-TIER RANGE. Two things about it are worth more than the fix:
+ *
+ *  - It is the second CONTENT REGISTRY, which is what `docs.ts` predicted,
+ *    and the prediction was written down ONE MOVE BEFORE the instance
+ *    arrived. A shape named in a guard's header is cheaper than a tenth
+ *    sweep; this is the first time that has paid off here.
+ *  - **The drift was a RANGE, not a wrong single number**, so every spelling
+ *    this rule has ever hunted for would have walked past it: the entry read
+ *    `$150–500`, and neither 150 nor the undollared 500 is a plan price. It
+ *    was found by a ledger entry a human wrote, not by any scan. Assertion 2
+ *    protects it going FORWARD — a corrected `$200` typed back in is what it
+ *    catches — and it is honest that it could not have found it in the first
+ *    place. The rule that WOULD is RELEASE.md:1085's, still Forge's intake.
+ *
+ * The `$150–500` needle survives in that file on purpose: the one-time
+ * content correction in `seedPlatformBlogPosts` has to match the row already
+ * published to find it, and it is not a plan price, so it costs this scan
+ * nothing.
  */
 const PRICE_QUOTING_ROUTES = [
   ...PRICING_ROUTE,
@@ -136,6 +159,7 @@ const PRICE_QUOTING_ROUTES = [
   'app/(marketing)/blog/[slug]/page.tsx',
   'lib/marketing/docs.ts',
   'app/opengraph-image.tsx',
+  'lib/services/marketing-blog.ts',
 ]
 
 /**
