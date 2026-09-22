@@ -112,7 +112,13 @@ jobs:
           # graded `never-fired` — fail-closed, which is right, but the message
           # sent the reader to `fetch-depth: 0` when the cause was this glob.
           # `nullglob` so the branch with no matches contributes nothing rather
-          # than a literal `*.yaml` path.
+          # than a literal `*.yaml` path. What that buys TODAY is one less stray
+          # `grep: … No such file` on stderr per run, and no more — `set -e` is
+          # ignored for a command in an `if` condition, so the `grep` below
+          # cannot fail this step whatever it is handed (measured, reviewing
+          # #673). It is still required: the moment that `grep` moves out of the
+          # `if`, a literal glob reaching `basename` becomes a workflow this
+          # check reports as never having fired.
           shopt -s nullglob
           for path in .github/workflows/*.yml .github/workflows/*.yaml; do
             file=$(basename "$path")

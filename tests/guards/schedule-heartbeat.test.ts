@@ -444,8 +444,21 @@ describe('schedule heartbeat — the workflow asks the question the script answe
         'wrong repair named.',
     ).toEqual(new Set(['yml', 'yaml']))
 
-    // `nullglob`, or the non-matching branch contributes a literal
-    // `.github/workflows/*.yaml` path and the `grep` on it fails the step.
+    // `nullglob`, so an unmatched branch contributes nothing rather than a
+    // literal `.github/workflows/*.yaml` path.
+    //
+    // WHAT IT COSTS TODAY, stated accurately because the first version of this
+    // comment was not (Sentinel, reviewing #673): omitting it does NOT fail the
+    // step. The `grep` is the condition of an `if !`, and `set -e` is
+    // explicitly ignored for a command in an `if` condition — measured, with
+    // `nullglob` absent and no `.yaml` file present, the loop completes and the
+    // step exits 0. The real cost is one stray `grep: … No such file` on stderr
+    // per run.
+    //
+    // It stays required anyway, and that is the useful half: the claim becomes
+    // true the moment anyone lifts that `grep` out of the `if`, and a literal
+    // glob reaching `basename` would then be graded as a workflow that has
+    // never fired.
     expect(code, 'an unmatched glob must expand to nothing, not to itself').toContain('shopt -s nullglob')
   })
 
