@@ -1042,7 +1042,16 @@ binding are all correct. The payment-plan charger was the exception.
   in a text, a Slack, or a tweet, and it contradicts the $200 on the page it
   links to. Repro: `curl -I https://www.dreamcreatestudio.com/opengraph-image`
   or paste the URL into any link-unfurling client. Marketing lane, not folded
-  into DREAMCRM-38's prospecting fix. · OPEN.
+  into DREAMCRM-38's prospecting fix. · **FIXED** (DREAMCRM-80, #629,
+  `0478d105`) — `app/opengraph-image.tsx:87` renders the price through
+  `usd(getQuotedPlan().price)`, and the file sits on `PRICE_QUOTING_ROUTES` in
+  `tests/marketing/pricing-price-source.test.tsx`, so the number cannot drift
+  back as a literal. **Fixed in a move-6 page PR and never closed here**, which
+  is the shape DREAMCRM-101's batch was about: three of the five price-truth
+  entries on this ledger had already landed and the ledger was the last thing
+  to know. §1's "reconcile the entry when that PR lands on `main`" is the rule
+  that would have caught all three, and it costs nothing when it is done in the
+  same breath as confirming the merge.
 - S3 · `app/(marketing)/pricing/price-card.tsx:14` — the public pricing page
   carries its OWN `LIST_MONTHLY/RATE_MONTHLY/LIST_ANNUAL/RATE_ANNUAL`
   literals rather than reading `lib/stripe-config.ts`, whose `price` /
@@ -1051,7 +1060,15 @@ binding are all correct. The payment-plan charger was the exception.
   same shape as the deal-room map one reprice before it drifted, filed now
   because that is the only time it is cheap. Repro: change `premium.price`
   in stripe-config and note the pricing page keeps saying 200 while
-  checkout charges the new number. · OPEN.
+  checkout charges the new number. · **FIXED** (DREAMCRM-75, #620,
+  `e9c58e44`) — the four literals are gone; the page reads
+  `const PLAN = getQuotedPlan()` and passes the numbers into the card as props.
+  Held by `tests/marketing/pricing-price-source.test.tsx`, which is the narrow
+  first version of the general guard this entry's sibling at :1085 asks for: it
+  mocks the plan to numbers no literal in the repo could match and checks the
+  page FOLLOWS them — the assertion an equality check against today's config
+  would have passed through the entire life of the defect. Closed late for the
+  same reason as :1039 above.
 - S3 · `lib/services/demo-clinic/seed-partners.ts:109` — the demo seeds
   partner commissions off a `$500/mo` invoice (`invoiceCents = 50000`), so
   the demo partner portal shows $50 per practice per month while
@@ -1063,7 +1080,48 @@ binding are all correct. The payment-plan charger was the exception.
   month": the pre-collapse three-tier range, on a page a prospect can read
   while a presenter quotes them $200. Marketing lane. Repro: open
   `/blog/dreamcrm-is-live` (or whatever slug that entry carries) and read the
-  first paragraph. · OPEN.
+  first paragraph. · **FIXED** (DREAMCRM-101, #660 + #670) — and **this entry
+  had the number wrong, which is the most useful thing on the line.**
+
+  **The published row said `$99-199`, not `$150-500`.** The `$150-500` above
+  is what `lib/services/marketing-blog.ts:50` said — this entry cites that
+  line, and it was written by reading the source rather than by opening the
+  page. Its own repro says *"open `/blog/dreamcrm-is-live` and read the first
+  paragraph"*. Running that repro, after #660 had already merged, is what
+  found a range from a pricing scheme older than the one recorded here.
+
+  **Why the two disagreed at all is this seed's own bug class, one generation
+  earlier**, and it is worth more than the price it produced: `LAUNCH_POSTS` is
+  read ONLY when a post does not exist, so the registry and the published row
+  have been free to diverge since launch. Somebody updated the copy in the
+  file; the live post kept what it was seeded with; nothing reconciled them.
+  Any entry about seeded content is about TWO artifacts, and naming a source
+  line describes only one of them.
+
+  The fix, across both PRs: the seed copy interpolates `getQuotedPlan()`
+  (#660, `53c8bd23`), and the already-published row is corrected in
+  `seedPlatformBlogPosts` by `correctLaunchPostBody` — pure and exported so it
+  is graded without a database. #660 keyed that on the exact `$150-500`
+  sentence and therefore matched nothing on the deploy; #670 made it a SHAPE
+  instead: a price RANGE inside our own sentence frame, stale whatever its
+  digits are, because there has been one purchasable plan since the 2026-07-19
+  collapse. Still narrow enough to leave a single price and a hand-reworded
+  sentence alone, which is what exact matching was protecting and the only
+  thing widening could have cost; both are pinned, and the test fixture is now
+  the LIVE bytes rather than a copy of the registry.
+
+  `lib/services/marketing-blog.ts` joined `PRICE_QUOTING_ROUTES` as the tenth
+  surface — the CONTENT shape that scan's header predicted one move earlier.
+  **Worth carrying: neither of that guard's assertions could have found this
+  one.** The drift was a RANGE, so no plan price is spelled anywhere in it and
+  the literal scan correctly reported clean; and the render-the-page assertion
+  cannot see copy that lives in a database row. That is a second argument for
+  :1085's general rule matching PROSE SPELLINGS, a new one that a RANGE-shaped
+  quote needs its own pattern, and a third that the rule cannot only read
+  source — the wrong number here was never in a file at all.
+  (That list is gone as of DREAMCRM-102 / #665, which derived the guard's field
+  of view from the tree instead — this file is covered by construction now, and
+  the tenth entry was the last one anybody had to notice by hand.)
 - S3 · `lib/types/social-entitlements.ts:12` — the comment table documenting
   the social add-on still prices the tiers `Pro ($250) | Premium ($500)`. A
   comment, so nothing renders it, but it is the file the next person reads to
@@ -2733,8 +2791,23 @@ go" — and that is a product decision. One smaller thing rides along with it:
 a commlog write-op parks identically and is excluded from DREAMCRM-68's count
 because that headline says "bookings" (so a down bridge with chart notes
 queued and NO bookings queued goes unreported until their next booking
-parks). · OPEN — for planning-meeting ranking; not 1.0
-work unless the meeting says so.
+parks). · OPEN — **RANKED NOT 1.0 by the DREAMCRM-96 planning meeting,
+2026-09-22.** The ranking is recorded rather than the item re-argued, and the
+reason is the one already written above: closing this needs a RESOLUTION PATH
+before it needs a query, and that is a product decision. An item whose next
+step is a decision cannot be scheduled as work, so putting it in a release
+would have bought a query nobody could act on.
+
+Note what the ranking is NOT: it is not `STRUCK BY DECISION`. §1 allows a
+strike only where the item is genuinely not a check, and this one names real
+stranded rows that no human can reach — its reopen condition would have to be
+"somebody decides", which is not a condition, it is the item. A deferral
+recorded with its reason is a different thing from the habit that verdict
+exists to end, and this entry is now the former.
+
+The meeting's other half is already below: the `setSyncDirection` warning was
+ranked 1.0, split out on contact, and shipped as its own entry. Nothing about
+the ranking is carried in this paragraph that is not also true there.
 
 A SECOND rider used to sit in that sentence — "`setSyncDirection` arguably
 owes a drain or a warning rather than silently stranding a queue" — and it is
