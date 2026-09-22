@@ -116,12 +116,12 @@ const SCAN_ROOTS = ['app', 'components', 'lib']
  *     EDITOR inside the Studio, prompting them to fill an empty section. A
  *     visitor never sees either. The tenant-derived palette is the second
  *     reason and the OPEN NOW entry is the record.
- *   · `components/marketing` — four hits, all inside the decorative product
- *     MOCK-UPS at `text-[0.44rem]`–`text-[0.56rem]` (7–9px). `e2e/axe.ts`
- *     already exempts those subtrees as `DECORATIVE_MOCKS` under WCAG 1.4.3
- *     ("text that is part of a picture"), and they sit far below this repo's
- *     own 12px legibility floor — so they are pictures by two independent
- *     measures, not small text.
+ * ~~· `components/marketing` — four hits, all inside the decorative product
+ * MOCK-UPS at 7–9px.~~ **IN SCOPE since DREAMCRM-87**, and the four are still
+ * pardoned — by CONTENT rather than by directory. See `isPictureScale` below.
+ * The deferral this exclusion carried was never about the rule: it was
+ * sequenced behind the Daylight Dream rebuild (`BRAND.md` Part 8), and moves
+ * 1–7 are merged, so the reason expired.
  *
  * Note what is NOT here any more: `app/(marketing)` and `app/site` are IN
  * scope and clean. The rule grades a SHAPE rather than a ground, so the
@@ -129,12 +129,59 @@ const SCAN_ROOTS = ['app', 'components', 'lib']
  * whether dimming type is wrong there — that reason justified deferring the
  * marketing *measurements* (OPEN NOW entry 3), never a blind spot in this rule.
  */
-const OUT_OF_SCOPE = [
-  'app/(portal)',
-  'components/patient-portal',
-  'components/clinic-site',
-  'components/marketing',
-]
+const OUT_OF_SCOPE = ['app/(portal)', 'components/patient-portal', 'components/clinic-site']
+
+/**
+ * THE ONE PARDON, AND IT IS DERIVED FROM THE CHUNK RATHER THAN FROM A PATH.
+ *
+ * `components/marketing` was excluded by DIRECTORY for a reason that was about
+ * a KIND of thing — "the four hits are inside the decorative product mock-ups
+ * at 7–9px, far below the repo's own legibility floor, so they are pictures
+ * rather than small text". That gap between a directory and a kind is the same
+ * one `legibility-floor`'s `SKIP_DIRS` opened twice, and it is why the
+ * exclusion is gone and this is here instead.
+ *
+ * **An element that declares its own type scale BELOW the 12px floor is not
+ * reading text.** That is not a number invented here: it is the repo's own
+ * legibility floor, the same one `e2e/axe.ts` calls
+ * `PICTURE_SCALE_CEILING_PX` and states in the same words — *"the size at
+ * which text stops being part of a picture and starts being something a person
+ * is meant to read"*. WCAG 1.4.3 exempts text that is part of a picture, and
+ * compositing a 7px illustration glyph toward its background does not make a
+ * sentence harder to read, because there is no sentence.
+ *
+ * **THE HOLE THIS OPENS, AND WHICH END IT IS CLOSED FROM** (§2d: derive an
+ * exclusion from content, then close the hole it opens from the other side).
+ * The hole is obvious — write `text-[0.7rem]` and the dimming rule stops
+ * looking. It is closed from the FLOOR's end rather than from this rule's:
+ * sub-12px type is itself banned across the dashboard, the portal and the
+ * shared components by `tests/a11y/legibility-floor.test.ts`, and across both
+ * marketing trees by `tests/marketing/type-floor.test.ts`. A chunk cannot buy
+ * this pardon without failing one of those first. The test below asserts the
+ * pardoned population by name, so a fifth site arrives as a red diff somebody
+ * has to look at rather than as silence.
+ *
+ * It says nothing about a size named through a SCALE STEP (`text-xs` and
+ * friends): none of Tailwind's scale is under 12px, so there is nothing to
+ * pardon, and a size assembled through a variable is invisible to it — the
+ * same false-negative direction as the rest of this file.
+ */
+const PICTURE_SCALE_PX = 12
+const REM_PX = 16
+const ARBITRARY_SIZE = /(?:^|[\s'"`{])text-\[(\d*\.?\d+)(px|rem)\](?![\w-])/
+
+/** The size this chunk declares in px, or null when it names none this rule can read. */
+export function declaredSizePx(chunk: string): number | null {
+  const m = ARBITRARY_SIZE.exec(chunk)
+  if (!m) return null
+  return m[2] === 'rem' ? Number(m[1]) * REM_PX : Number(m[1])
+}
+
+/** Is this chunk's own type scale below the floor — i.e. part of a picture? */
+export function isPictureScale(chunk: string): boolean {
+  const px = declaredSizePx(chunk)
+  return px !== null && px < PICTURE_SCALE_PX
+}
 
 function walk(dir: string, out: string[] = []): string[] {
   for (const entry of readdirSync(dir)) {
@@ -160,11 +207,44 @@ function quotedChunks(line: string): string[] {
 
 export function gradeChunk(chunk: string): number | null {
   if (!IS_TEXT.test(chunk)) return null
+  // Picture-scale type is not reading text — the pardon, derived from the
+  // chunk's own declared size. See `isPictureScale` above for the floor it
+  // borrows and which end the hole is closed from.
+  if (isPictureScale(chunk)) return null
   for (const m of Array.from(chunk.matchAll(DIMMING))) {
     const n = Number(m[1])
     if (n !== 0 && n !== 100) return n
   }
   return null
+}
+
+/**
+ * Every site the picture-scale pardon is actually buying — the other half of a
+ * derived exclusion. A pardon nobody can enumerate is a pardon nobody can
+ * review.
+ */
+export function scanForPardonedDimming(): DimmedText[] {
+  const found: DimmedText[] = []
+  for (const base of SCAN_ROOTS) {
+    for (const file of walk(join(ROOT, base))) {
+      const rel = relative(ROOT, file).replace(/\\/g, '/')
+      if (OUT_OF_SCOPE.some((d) => rel.startsWith(`${d}/`))) continue
+      readFileSync(file, 'utf8')
+        .split('\n')
+        .forEach((line, i) => {
+          for (const chunk of quotedChunks(line)) {
+            if (!IS_TEXT.test(chunk) || !isPictureScale(chunk)) continue
+            for (const m of Array.from(chunk.matchAll(DIMMING))) {
+              const n = Number(m[1])
+              if (n === 0 || n === 100) continue
+              found.push({ file: rel, line: i + 1, value: n, chunk: chunk.trim().slice(0, 90) })
+              break
+            }
+          }
+        })
+    }
+  }
+  return found
 }
 
 export function scanForDimmedText(): DimmedText[] {
@@ -248,9 +328,33 @@ describe('dimmed text — the red run', () => {
     ['a blurred background blob', 'absolute h-[30rem] w-[30rem] rounded-full opacity-60 blur-[90px]'],
     ['an ornament separator', 'opacity-40'],
     ['text alignment is not a type scale', 'py-3 pl-4 text-left opacity-75'],
+    ['picture-scale type inside a drawn screen', 'text-[0.44rem] font-semibold opacity-80'],
   ]
   it.each(LEFT_ALONE)('leaves %s alone', (_why, chunk) => {
     expect(gradeChunk(chunk)).toBeNull()
+  })
+
+  /**
+   * THE PARDON'S OWN FIELD OF VIEW. An exclusion that is looser than it claims
+   * reports CLEAN forever, so grade the boundary from both sides rather than
+   * trusting the arithmetic — §2d's "when you mutate a number, try an order of
+   * magnitude before you try off-by-one" read from the other end.
+   */
+  it('pardons only BELOW the floor, and the floor is the repo’s own 12px', () => {
+    expect(declaredSizePx('text-[0.44rem] opacity-80')).toBeCloseTo(7.04, 5)
+    expect(declaredSizePx('text-[11px] opacity-80')).toBe(11)
+    expect(declaredSizePx('text-xs opacity-80')).toBeNull()
+    expect(declaredSizePx('tabular-nums opacity-70')).toBeNull()
+
+    // Under the floor — a picture.
+    expect(gradeChunk('text-[11px] opacity-80')).toBeNull()
+    expect(gradeChunk('text-[0.56rem] font-semibold opacity-80')).toBeNull()
+    // AT the floor and above — reading text, and still a defect. `text-[13px]`
+    // is in CAUGHT above; these two are the pardon's exact edge.
+    expect(gradeChunk('text-[12px] opacity-80')).toBe(80)
+    expect(gradeChunk('text-[0.75rem] opacity-80')).toBe(80)
+    // A named scale step buys nothing: none of Tailwind's scale is sub-12px.
+    expect(gradeChunk('text-xs opacity-75')).toBe(75)
   })
 })
 
@@ -290,6 +394,44 @@ describe('the app never dims its own type', () => {
     // shape and a shape does not move when a palette does.
     expect(reaches('app/(marketing)'), 'app/(marketing) is in scope').toBe(true)
     expect(reaches('app/site'), 'app/site is in scope').toBe(true)
+    // DREAMCRM-87: the marketing COMPONENTS joined them. The exclusion that
+    // kept them out was sequenced behind the Daylight Dream rebuild
+    // (BRAND.md Part 8) and moves 1–7 are merged, so the reason expired. The
+    // four sites it covered are pardoned by `isPictureScale` instead, which is
+    // what the exclusion's own stated reason was actually about.
+    expect(reaches('components/marketing'), 'components/marketing is in scope').toBe(true)
+  })
+
+  /**
+   * WHAT THE DERIVED PARDON IS ACTUALLY BUYING — the other end of §2d's
+   * "derive an exclusion from content, then close the hole it opens".
+   *
+   * The hole is obvious: write `text-[0.7rem]` and this rule stops looking. It
+   * is closed from the FLOOR's end — sub-12px type is banned across the
+   * dashboard, the portal and the shared components by `legibility-floor` and
+   * across both marketing trees by `type-floor`, so a chunk cannot buy the
+   * pardon without failing one of those first. This is the second lock: the
+   * population is enumerated, so a fifth site arrives as a red diff somebody
+   * has to look at rather than as silence.
+   */
+  it('pardons four sites, all picture-scale, all inside the drawn product screens', () => {
+    const pardoned = scanForPardonedDimming()
+    expect(
+      pardoned.map((p) => `${p.file} — opacity-${p.value} at ${declaredSizePx(p.chunk)!.toFixed(2)}px`),
+      'the picture-scale pardon covers a different set than it did. Every ' +
+        'entry has to be type inside a DRAWN SCREEN — an illustration at 7–9px ' +
+        'where there is no sentence to make harder to read. If a new one is ' +
+        'reading text at a size the floor guards should have caught, fix the ' +
+        'size; the pardon is not the place to argue about it.',
+    ).toEqual([
+      'components/marketing/ui.tsx — opacity-80 at 7.04px',
+      'components/marketing/ui.tsx — opacity-90 at 8.00px',
+      'components/marketing/ui.tsx — opacity-80 at 7.68px',
+      'components/marketing/ui.tsx — opacity-80 at 8.96px',
+    ])
+    // Every one of them is under the floor by construction, asserted rather
+    // than read off the list above.
+    for (const p of pardoned) expect(declaredSizePx(p.chunk)!).toBeLessThan(12)
   })
 
   it('carries no exclusion it has stopped describing', () => {
