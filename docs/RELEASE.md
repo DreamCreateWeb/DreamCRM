@@ -2220,7 +2220,7 @@ after. The stop now ends the walk at `#frontdesk` and ASSERTS an
 `[aria-current="true"]` is visible before scanning, so it grades more of the
 page than the first draft did, not less. With that, the planted defect reddens
 at all three widths naming `"Run the day"` at 12px, outside every mock.
-· FIXED (#646, DREAMCRM-87)
+· FIXED (#647, DREAMCRM-87)
 
 ### R1 · S8 sweep — Compliance & data (2026-08-17)
 
