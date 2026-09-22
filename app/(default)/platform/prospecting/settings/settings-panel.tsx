@@ -101,7 +101,7 @@ function BrainEditor({ brain }: { brain: ProspectingConfig['brain'] }) {
 
       <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1.5">
         Product-knowledge override{' '}
-        <span className="font-normal text-gray-400">(blank = use the built-in default)</span>
+        <span className="font-normal text-gray-500 dark:text-gray-400">(blank = use the built-in default)</span>
       </label>
       <textarea
         className="form-textarea w-full text-sm font-mono leading-relaxed"
@@ -112,7 +112,7 @@ function BrainEditor({ brain }: { brain: ProspectingConfig['brain'] }) {
         onChange={(e) => setProductOverride(e.target.value)}
         disabled={pending}
       />
-      <div className="mt-1 text-right text-xs tabular-nums text-gray-400">
+      <div className="mt-1 text-right text-xs tabular-nums text-gray-500 dark:text-gray-400">
         {productOverride.length.toLocaleString()} / 12,000
       </div>
 
@@ -120,7 +120,7 @@ function BrainEditor({ brain }: { brain: ProspectingConfig['brain'] }) {
         <div className="flex items-center justify-between mb-2">
           <label className="text-xs font-medium text-gray-600 dark:text-gray-300">
             Competitor battle cards{' '}
-            <span className="font-normal text-gray-400">({cards.length}/20)</span>
+            <span className="font-normal text-gray-500 dark:text-gray-400">({cards.length}/20)</span>
           </label>
           {cards.length < 20 && (
             <button
@@ -174,7 +174,7 @@ function BrainEditor({ brain }: { brain: ProspectingConfig['brain'] }) {
                 type="button"
                 disabled={pending}
                 onClick={() => setCards(cards.filter((_, j) => j !== i))}
-                className="shrink-0 rounded-[var(--r-xs)] px-2 py-1.5 text-xs text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10 disabled:opacity-60"
+                className="shrink-0 rounded-[var(--r-xs)] px-2 py-1.5 text-xs text-gray-500 dark:text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10 disabled:opacity-60"
                 aria-label="Remove card"
               >
                 Remove
@@ -197,7 +197,7 @@ function BrainEditor({ brain }: { brain: ProspectingConfig['brain'] }) {
           <span className="text-xs text-teal-700 dark:text-teal-300">Saved ✓</span>
         )}
         {dirty && !pending && (
-          <span className="text-xs text-gray-400">Unsaved changes</span>
+          <span className="text-xs text-gray-500 dark:text-gray-400">Unsaved changes</span>
         )}
       </div>
     </section>
@@ -508,7 +508,7 @@ export default function SettingsPanel({
             <div key={label} className="rounded-[var(--r-xs)] bg-[color:var(--color-surface-sunk)] p-3">
               <div className="text-xs text-gray-500 dark:text-gray-400">{label}</div>
               <div className="mt-0.5 font-semibold tabular-nums text-gray-900 dark:text-gray-100">
-                {used.toLocaleString()} <span className="text-gray-400 font-normal">/ {budget.toLocaleString()}</span>
+                {used.toLocaleString()} <span className="text-gray-500 dark:text-gray-400 font-normal">/ {budget.toLocaleString()}</span>
               </div>
               <div className="mt-1.5 h-1.5 rounded-full bg-gray-200 dark:bg-gray-700 overflow-hidden">
                 <div

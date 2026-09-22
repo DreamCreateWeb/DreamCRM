@@ -107,7 +107,7 @@ export default function PlanForm({ plan }: { plan?: PlanRow }) {
               <div key={b.key} className="grid grid-cols-[1fr_4rem_1.5rem] gap-2 items-center">
                 <input aria-label={`Benefit ${i + 1}`} value={b.label} onChange={(e) => setBenefits((bs) => bs.map((x) => (x.key === b.key ? { ...x, label: e.target.value } : x)))} placeholder="e.g. 2 cleanings per year" className={FIELD} />
                 <input aria-label={`Benefit ${i + 1} quantity`} type="number" value={b.qty ?? ''} placeholder="qty" onChange={(e) => setBenefits((bs) => bs.map((x) => (x.key === b.key ? { ...x, qty: e.target.value ? parseInt(e.target.value) : undefined } : x)))} className={FIELD_NUM} />
-                <button aria-label={`Remove benefit ${i + 1}`} onClick={() => setBenefits((bs) => (bs.length > 1 ? bs.filter((x) => x.key !== b.key) : bs))} className="text-gray-400 hover:text-rose-600 text-sm">×</button>
+                <button aria-label={`Remove benefit ${i + 1}`} onClick={() => setBenefits((bs) => (bs.length > 1 ? bs.filter((x) => x.key !== b.key) : bs))} className="text-gray-500 dark:text-gray-400 hover:text-rose-600 text-sm">×</button>
               </div>
             ))}
           </div>

@@ -155,7 +155,7 @@ export default function PlanForm({
       {status === 'error' && error && (
         <p className="mt-3 text-[0.88rem] text-rose-600" role="alert">{error}</p>
       )}
-      <p className="mt-4 text-[0.8rem] text-gray-400">
+      <p className="mt-4 text-[0.8rem] text-gray-500 dark:text-gray-400">
         Rather handle it differently? Reply to the email or call the office — no pressure.
       </p>
     </>,

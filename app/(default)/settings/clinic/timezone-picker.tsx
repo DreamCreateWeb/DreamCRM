@@ -171,12 +171,12 @@ export default function TimezonePicker({
         <span className="truncate">
           {labelFor(value)}
           {currentOffset && (
-            <span className="ml-1.5 text-xs text-gray-400 font-mono-num tabular-nums">
+            <span className="ml-1.5 text-xs text-gray-500 dark:text-gray-400 font-mono-num tabular-nums">
               {currentOffset}
             </span>
           )}
         </span>
-        <svg className="w-4 h-4 shrink-0 text-gray-400" fill="none" viewBox="0 0 20 20" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round">
+        <svg className="w-4 h-4 shrink-0 text-gray-500 dark:text-gray-400" fill="none" viewBox="0 0 20 20" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round">
           <path d="M6 8l4 4 4-4" />
         </svg>
       </button>
@@ -219,7 +219,7 @@ export default function TimezonePicker({
                   >
                     <span className="truncate">{t.label}</span>
                     {off && (
-                      <span className="shrink-0 text-xs text-gray-400 font-mono-num tabular-nums">
+                      <span className="shrink-0 text-xs text-gray-500 dark:text-gray-400 font-mono-num tabular-nums">
                         {off}
                       </span>
                     )}

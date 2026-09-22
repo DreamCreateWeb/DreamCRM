@@ -83,7 +83,7 @@ export default function BookingForm({
             type="button"
             disabled={pending}
             onClick={cancel}
-            className="text-sm text-gray-400 hover:text-rose-600 dark:hover:text-rose-400 disabled:opacity-50"
+            className="text-sm text-gray-500 dark:text-gray-400 hover:text-rose-600 dark:hover:text-rose-400 disabled:opacity-50"
           >
             Cancel
           </button>
@@ -105,7 +105,7 @@ export default function BookingForm({
       {rescheduling && (
         <p className="mb-3 text-sm text-gray-500 dark:text-gray-400">Pick a new time below.</p>
       )}
-      <div className="text-xs text-gray-400 mb-2">Times shown in your timezone{tzAbbrev ? ` (${tzAbbrev})` : ''}</div>
+      <div className="text-xs text-gray-500 dark:text-gray-400 mb-2">Times shown in your timezone{tzAbbrev ? ` (${tzAbbrev})` : ''}</div>
       <div className="max-h-64 overflow-y-auto space-y-3 pr-1">
         {dayGroups.map((g) => (
           <div key={g.dayKey}>

@@ -124,7 +124,7 @@ export default function ImportPatientsModal({ onClose }: { onClose: () => void }
             type="button"
             onClick={onClose}
             aria-label="Close"
-            className="p-1 rounded-[var(--r-sm)] text-gray-400 hover:text-gray-700 hover:bg-gray-100 dark:hover:text-gray-200 dark:hover:bg-gray-800 transition-colors"
+            className="p-1 rounded-[var(--r-sm)] text-gray-500 dark:text-gray-400 hover:text-gray-700 hover:bg-gray-100 dark:hover:text-gray-200 dark:hover:bg-gray-800 transition-colors"
           >
             <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
               <path d="M6 6l12 12M6 18L18 6" strokeLinecap="round" />

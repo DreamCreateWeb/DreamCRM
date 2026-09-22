@@ -306,7 +306,7 @@ function ClinicRow({ clinic: c }: { clinic: ClinicListRow }) {
       </td>
       <td className="px-3 py-3 text-right font-medium text-gray-800 dark:text-gray-100 tabular-nums">
         {c.monthlyContributionCents == null ? (
-          <span className="text-gray-400" title="Couldn’t reach Stripe — this clinic’s amount is unknown, not zero">
+          <span className="text-gray-500 dark:text-gray-400" title="Couldn’t reach Stripe — this clinic’s amount is unknown, not zero">
             —
           </span>
         ) : (

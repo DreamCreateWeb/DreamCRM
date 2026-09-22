@@ -314,7 +314,7 @@ export function PlanArtifact({
               </span>
               <span
                 aria-hidden="true"
-                className="shrink-0 text-gray-400 transition-transform group-open:rotate-90"
+                className="shrink-0 text-gray-500 dark:text-gray-400 transition-transform group-open:rotate-90"
               >
                 ›
               </span>

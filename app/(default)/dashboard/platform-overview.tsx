@@ -214,7 +214,7 @@ export default async function PlatformOverview() {
                     </span>
                     <span className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 tabular-nums">
                       {d.pending} {d.pending === 1 ? 'clinic' : 'clinics'} waiting
-                      <span className="text-xs text-gray-400 transition-transform group-open:rotate-90" aria-hidden="true">
+                      <span className="text-xs text-gray-500 dark:text-gray-400 transition-transform group-open:rotate-90" aria-hidden="true">
                         ›
                       </span>
                     </span>

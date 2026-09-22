@@ -107,7 +107,7 @@ export default function Drawer({
                     <button
                       type="button"
                       onClick={onClose}
-                      className="p-1.5 rounded-[var(--r-sm)] text-gray-400 hover:text-gray-700 hover:bg-gray-100 dark:hover:text-gray-200 dark:hover:bg-gray-800 transition-colors"
+                      className="p-1.5 rounded-[var(--r-sm)] text-gray-500 dark:text-gray-400 hover:text-gray-700 hover:bg-gray-100 dark:hover:text-gray-200 dark:hover:bg-gray-800 transition-colors"
                       title="Close (Esc)"
                       aria-label="Close"
                     >

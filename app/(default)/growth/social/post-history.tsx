@@ -104,7 +104,7 @@ function PostCard({ post }: { post: SocialPostView }) {
               )}
               <StatusPill tone={STATUS_TONE[post.status]} label={STATUS_LABEL[post.status]} />
             </div>
-            <span className="text-xs text-gray-400 font-mono-num shrink-0">{dateLabel}</span>
+            <span className="text-xs text-gray-500 dark:text-gray-400 font-mono-num shrink-0">{dateLabel}</span>
           </div>
 
           {/* Per-channel target chips */}
@@ -201,7 +201,7 @@ function TargetChip({ target }: { target: SocialPostTargetView }) {
         title={`View on ${target.label} ↗`}
       >
         {inner}
-        <span aria-hidden="true" className="text-gray-400">↗</span>
+        <span aria-hidden="true" className="text-gray-500 dark:text-gray-400">↗</span>
       </a>
     )
   }

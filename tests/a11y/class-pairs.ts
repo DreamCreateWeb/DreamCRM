@@ -1188,15 +1188,24 @@ export function toneFillSites(roots: string[] = UI_ROOTS): { file: string; line:
  * the 15 sites are exempt by the sheet rather than by this rule's silence.
  *
  * WHAT IT DELIBERATELY DOES NOT SEE, so nobody reads a green run as more than
- * it is. A BARE `text-gray-400` with no `dark:` half is NOT graded here, and
- * there are about 194 of those left in the tree. They fail the light side on
- * the same 2.63:1 and pass the dark side at 6.19:1, because with no override
- * the dark theme re-tints the token underneath them. That is a real residual
- * and it is written down as such in docs/UI-BEST-VERSION.md rather than folded
- * in here — each one needs a per-site look (an icon owes 3:1 under 1.4.11, not
- * 4.5, and a genuinely disabled control owes nothing), and a rule that fires
- * on 194 sites to catch the ones that are real text is the guard people switch
- * off.
+ * it is. A BARE `text-gray-400` with no `dark:` half is NOT graded here. When
+ * this rule shipped there were about 194 of those, failing the light side on
+ * the same 2.63:1 and passing the dark side at 6.19:1 because with no override
+ * the theme re-tints the SURFACE underneath them; they were written down as a
+ * residual in docs/UI-BEST-VERSION.md rather than folded in here, on the
+ * grounds that each needs a per-site look and a rule firing on 194 sites to
+ * catch the real text is the guard people switch off.
+ *
+ * **THAT PASS IS DONE (batch 69) AND IT VINDICATED THE BAIL FOR A REASON THE
+ * ENTRY HAD NOT NAMED.** 115 of them were real text or a control's only
+ * affordance and are the §2.2 pair now. The 52 left are not a backlog: 22 sit
+ * on a DARK panel inside a light page — the Studio chrome, the presenter, the
+ * homepage's final CTA band — where `gray-400` measures 4.99 to 6.71 and the
+ * "fix" would have driven them to 2.47. The remaining 30 are pictures. So the
+ * thing that decides a bare ink is the ANCESTOR'S GROUND, which is exactly
+ * what no rule in this file can resolve — this rule grades a two-sided ink
+ * against its theme's BEST CASE precisely to avoid guessing one. Widening it
+ * to one-sided inks would not be strict, it would be wrong 22 times.
  *
  * AND THE `bg` BAIL IS WIDER THAN "rule 1 has this one" (found in review of
  * #597, and the comment on the bail below used to overstate it). This rule

@@ -275,7 +275,7 @@ export default function Composer({
     ? 'text-rose-600 dark:text-rose-400'
     : remaining < 100
       ? 'text-amber-600 dark:text-amber-400'
-      : 'text-gray-400'
+      : 'text-gray-500 dark:text-gray-400'
 
   // The live-preview feed reads the same state the form edits — true WYSIWYG.
   const previewChannels: PreviewChannel[] = channels
@@ -420,7 +420,7 @@ export default function Composer({
                                 {ch.label}
                               </span>
                               {ch.handle && (
-                                <span className="block text-xs text-gray-400 truncate">{ch.handle}</span>
+                                <span className="block text-xs text-gray-500 dark:text-gray-400 truncate">{ch.handle}</span>
                               )}
                             </span>
                             <span
@@ -478,7 +478,7 @@ export default function Composer({
                     <button
                       type="button"
                       onClick={() => handleRef.current?.cancel()}
-                      className="text-xs text-gray-400 underline underline-offset-2 hover:text-gray-600"
+                      className="text-xs text-gray-500 dark:text-gray-400 underline underline-offset-2 hover:text-gray-600"
                     >
                       Cancel
                     </button>
@@ -745,7 +745,7 @@ export default function Composer({
           </div>
 
           {/* Quiet footnotes under the card */}
-          <p className="mt-2 text-xs text-gray-400">
+          <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
             {selectedPlatforms.length > 1
               ? `Same text goes to every channel — counter shows the tightest limit (${charLimit}). `
               : ''}

@@ -97,7 +97,7 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
                         {c.gradeOverall != null ? ` · ${c.gradeOverall}` : ''}
                       </a>
                     ) : (
-                      <span className="text-gray-400">—</span>
+                      <span className="text-gray-500 dark:text-gray-400">—</span>
                     )}
                   </td>
                   <td className="px-3 py-2">

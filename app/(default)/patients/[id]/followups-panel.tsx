@@ -86,7 +86,7 @@ export default function FollowupsPanel({
     <div className="v2-card px-4 py-4">
       <div className="flex items-center justify-between mb-2">
         <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100">
-          Follow-ups{open.length > 0 && <span className="ml-1.5 text-xs font-normal text-gray-400">{open.length}</span>}
+          Follow-ups{open.length > 0 && <span className="ml-1.5 text-xs font-normal text-gray-500 dark:text-gray-400">{open.length}</span>}
         </h2>
         {!adding && (
           <button

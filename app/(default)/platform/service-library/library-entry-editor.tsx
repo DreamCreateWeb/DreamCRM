@@ -173,7 +173,7 @@ export default function LibraryEntryEditor({
             <button
               type="button"
               onClick={() => void requestClose()}
-              className="-mr-1.5 w-8 h-8 inline-flex shrink-0 items-center justify-center rounded-lg text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 transition"
+              className="-mr-1.5 w-8 h-8 inline-flex shrink-0 items-center justify-center rounded-lg text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 transition"
               aria-label="Close (Esc)"
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 20 20" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round"><path d="M6 6l8 8M14 6l-8 8" /></svg>
@@ -362,8 +362,8 @@ function RowBtn({
       aria-label={label}
       className={`w-8 h-8 shrink-0 inline-flex items-center justify-center rounded-md transition disabled:opacity-25 ${
         danger
-          ? 'text-gray-400 hover:text-rose-600 hover:bg-rose-500/10'
-          : 'text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-200/60 dark:hover:bg-gray-700/60'
+          ? 'text-gray-500 dark:text-gray-400 hover:text-rose-600 hover:bg-rose-500/10'
+          : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-200/60 dark:hover:bg-gray-700/60'
       }`}
     >
       <svg className="w-4 h-4" fill="none" viewBox="0 0 20 20" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round"><path d={d} /></svg>

@@ -164,7 +164,7 @@ export default function AddClinicButton() {
                   <button
                     type="button"
                     onClick={close}
-                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-gray-400 hover:bg-[color:var(--color-surface-sunk)] hover:text-gray-600 dark:hover:text-gray-200"
+                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-gray-500 dark:text-gray-400 hover:bg-[color:var(--color-surface-sunk)] hover:text-gray-600 dark:hover:text-gray-200"
                     aria-label="Close (Esc)"
                   >
                     ✕

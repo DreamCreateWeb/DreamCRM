@@ -44,7 +44,7 @@ export default async function BlogPreviewPage({ params }: { params: Promise<{ id
           <h1 className="mt-3 text-[2rem] font-extrabold leading-tight tracking-tight sm:text-[2.4rem]">
             {post.title}
           </h1>
-          <p className="mt-3 text-[0.85rem] font-medium text-gray-400">
+          <p className="mt-3 text-[0.85rem] font-medium text-gray-500 dark:text-gray-400">
             {post.authorName ?? 'The DreamCRM team'}
           </p>
           {post.coverImageUrl && (

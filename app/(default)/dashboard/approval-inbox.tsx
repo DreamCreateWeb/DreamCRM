@@ -508,7 +508,7 @@ function QueueRail({
           <button
             type="button"
             onClick={onSkip}
-            className="whitespace-nowrap text-xs font-medium text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+            className="whitespace-nowrap text-xs font-medium text-gray-500 dark:text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
           >
             Skip for now →
           </button>
@@ -647,7 +647,7 @@ function GrantsStrip({
                           }
                         })
                       }
-                      className="text-gray-400 underline decoration-dotted underline-offset-2 hover:text-gray-700 disabled:opacity-50 dark:hover:text-gray-200"
+                      className="text-gray-500 dark:text-gray-400 underline decoration-dotted underline-offset-2 hover:text-gray-700 disabled:opacity-50 dark:hover:text-gray-200"
                       aria-label={`Go back to asking before ${g.label}`}
                     >
                       back to asking

@@ -96,7 +96,7 @@ export default function PracticePanel({
           <button
             type="button"
             onClick={onClose}
-            className="flex h-8 w-8 items-center justify-center rounded-[var(--r-xs)] text-xl leading-none text-gray-400 hover:bg-[color:var(--color-surface-sunk)] hover:text-gray-600 dark:hover:text-gray-300"
+            className="flex h-8 w-8 items-center justify-center rounded-[var(--r-xs)] text-xl leading-none text-gray-500 dark:text-gray-400 hover:bg-[color:var(--color-surface-sunk)] hover:text-gray-600 dark:hover:text-gray-300"
             aria-label="Close rehearsal (Esc)"
           >
             ✕

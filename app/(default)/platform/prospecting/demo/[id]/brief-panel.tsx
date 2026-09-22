@@ -69,7 +69,7 @@ export default function BriefPanel({
           AI strategist one-pager
         </div>
         <div className="no-print flex items-center gap-2">
-          <span className="text-xs text-gray-400">
+          <span className="text-xs text-gray-500 dark:text-gray-400">
             {new Date(brief.generatedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
           </span>
           <ActionButton size="sm" variant="ghost" pending={pending} onClick={() => generate(true)}>

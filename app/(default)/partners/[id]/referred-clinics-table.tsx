@@ -117,7 +117,7 @@ export default function ReferredClinicsTable({
                         <input className="form-input w-16 text-xs py-1" type="number" min={0} max={100} step="0.5"
                           value={percent} onChange={(e) => setPercent(e.target.value)} aria-label="Percent"
                           placeholder={String(partnerDefaultPercentBps / 100)} />
-                        <span className="text-gray-400">%</span>
+                        <span className="text-gray-500 dark:text-gray-400">%</span>
                         <input className="form-input w-20 text-xs py-1" type="number" min={1}
                           value={term} onChange={(e) => setTerm(e.target.value)} placeholder="mo" aria-label="Term months" />
                       </div>

@@ -21,12 +21,14 @@ from burying what is not done. Keep it to 5–10 lines and say *why* each one is
 still sitting there — "deferred, needs a data series" and "nobody has picked it
 up" are different facts and only one of them is a backlog item.
 
-## OPEN NOW (last rewritten: batch 68, 2026-09-22)
+## OPEN NOW (last rewritten: batch 69, 2026-09-22)
 
-> **Batch 68 (DREAMCRM-88) closed entry 1** — rule 7 plus the sweep behind it,
-> in one batch as the entry asked. Entry 2 is the top of the list now, and it
-> is the same issue's second half: one-sided, so it is a per-site pass rather
-> than a sweep, staged behind the rule so each batch stays reviewable.
+> **Batches 68 and 69 (DREAMCRM-88) closed entries 1 and 2** — the rule plus
+> its sweep, then the per-site pass, staged as two batches so each stayed
+> reviewable. Entry 3's clinic-site slice is the top of the list now, and the
+> honest description of why it is still sitting there is that nobody has picked
+> it up: it needs the tenant-derived palette graded through
+> `buildClinicPalette` rather than against one clinic's value.
 
 > **The axe burn-down is CLOSED.** `e2e/axe-baseline.ts` is `{}` — 214 → 0
 > across batches 54-64 — so every stop the browser suite walks now tolerates
@@ -58,15 +60,51 @@ up" are different facts and only one of them is a backlog item.
    Watched to fail: the gate reddened naming all 29 before the sweep, and
    re-planting the sign-in button's `dark:bg-teal-500 dark:text-gray-900`
    after it reddens again naming the file, the line and the 4.01.]
-2. **~194 bare `text-gray-400` sites, with no `dark:` half** — the residual
-   batch 64's sweep deliberately left. `#93a0bc on #ffffff = 2.63:1` in light;
-   the dark side PASSES at 6.19:1, because with no override the ramp re-tints
-   underneath them. One-sided, so it needs a per-site look rather than a sweep:
-   some are real text (fix), some are icons and glyphs (1.4.11 asks 3:1, not
-   4.5, and 2.63 misses that too), some are genuinely disabled controls (exempt
-   under 1.4.3). Rule 6 says out loud that it does not grade these, and so does
-   rule 7 — a bare ink has no surface written beside it to pair with. **This is
-   the top of the list**, and it is the largest measured population left.
+2. ~~**~194 bare `text-gray-400` sites, with no `dark:` half.**~~ [**DONE,
+   DREAMCRM-88 (batch 69)** — the per-site pass, and the per-site part was the
+   work. **167 live sites in 70 files** when it started (the ~194 was measured
+   at batch 64 and batches 65–68 took some of it); **115 fixed**, 52 left
+   deliberately, each for a reason that is a measurement rather than a
+   judgement call.
+   · **Fixed → `text-gray-500 dark:text-gray-400`**, the §2.2 pair batch 64's
+   sweep already landed on, which clears AA on every declared surface in both
+   themes (worst light 4.63 on `surface-sunk`, worst dark 5.73 on
+   `surface-2`). That is every drawer and modal close ✕, every move/remove
+   glyph, the disclosure chevrons and ↗ marks (an `aria-hidden` affordance is
+   still the only thing telling a sighted person the row expands), the em-dash
+   "no value" cells, the hint and counter lines, and the three quiet glyphs in
+   `lib/ui/encodings.ts` — plus `rescheduled`, which was a bare `text-gray-500`
+   beside them and failed the DARK side at 2.47 while nothing was looking.
+   · **The entry's own triage was half right.** "Some are icons, and 1.4.11
+   asks 3:1" is true and changed nothing: 2.63 misses 3:1 as well, so the icons
+   were fixed with the text. And there were **no genuinely disabled controls**
+   in the population — the one element that was leaning on WCAG 1.4.3's
+   inactive-control pardon without declaring it was the classic pager's
+   Previous arm, and batch 68 fixed that instead.
+   · **The real discriminator was the GROUND, which the entry did not name.**
+   22 of the 52 left are on a DARK panel inside a light page — the Studio's
+   chrome and its popovers, the presenter's compare view, the homepage's final
+   CTA band — where `gray-400` measures **4.99 on `gray-800`, 5.83 on
+   `gray-900`, 6.71 on `gray-950`** and `gray-500` would have FAILED at 2.47 /
+   2.89 / 3.32. A sweep would have broken every one of them; this is what the
+   entry meant by per-site, even though it filed the reason under the wrong
+   heading.
+   · **The other 30 are pictures.** 24 in `components/marketing/ui.tsx` inside
+   `data-mkt-mock aria-hidden` illustrations at `text-[0.48rem]`–`text-[0.66rem]`
+   (WCAG 1.4.3 exempts text that is part of a picture — the same pardon
+   `dimmed-text`'s `isPictureScale` derives), the dark marketing footer, and
+   six inside `post-preview.tsx` / `post-feed.tsx`, which render Instagram's
+   and LinkedIn's own chrome and are already named in
+   `legibility-floor.test.ts`'s `ALLOWED` for that exact reason.
+   · **NO GUARD, and the reason is the point.** The honest rule here needs the
+   ANCESTOR's ground, and no source scanner in this repo can resolve one — that
+   is why rule 6 grades a two-sided ink against its theme's BEST CASE and says
+   out loud that it does not grade these. The instrument that CAN see it is the
+   browser suite, and `e2e/axe-baseline.ts` is `{}`: every one of these on a
+   stop the E2E suite walks is already gated at zero. What is genuinely
+   unwatched is a bare `gray-400` landing on a light surface no stop renders,
+   and the cheap thing that would close it is another STOP, not another source
+   rule.]
 3. **The opacity sweep's ~~TWO~~ ONE DEFERRED SURFACE.**
    `tests/a11y/dimmed-text.test.ts` WALKS `app/`, `components/` and `lib/` and
    holds them at zero; one component tree is still outside it, excluded for a

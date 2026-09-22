@@ -248,9 +248,9 @@ function ChannelCard({
           <ConnectButton channel={channel} handlers={handlers} primary />
         </>
       ) : !zernioConfigured ? (
-        <span className="text-xs text-gray-400 italic mt-1">Not enabled yet</span>
+        <span className="text-xs text-gray-500 dark:text-gray-400 italic mt-1">Not enabled yet</span>
       ) : !canManage ? (
-        <span className="text-xs text-gray-400 mt-1">Owner/admin only</span>
+        <span className="text-xs text-gray-500 dark:text-gray-400 mt-1">Owner/admin only</span>
       ) : !cap.allowed ? (
         <AtCapAction handlers={handlers} />
       ) : (
@@ -279,7 +279,7 @@ function ConnectButton({
 }) {
   // Members can't connect — surface a calm note instead of a dead button.
   if (!handlers.canManage) {
-    return <span className="text-xs text-gray-400 mt-1">Owner/admin only</span>
+    return <span className="text-xs text-gray-500 dark:text-gray-400 mt-1">Owner/admin only</span>
   }
   // Demo: simulate in place (no new tab / no real OAuth).
   if (handlers.isDemo) {
@@ -348,7 +348,7 @@ function CapNote({
     <p className={`text-xs text-gray-500 dark:text-gray-400 ${className}`}>
       Your plan includes{' '}
       <strong className="font-mono-num font-medium">{cap.current}</strong>
-      <span className="text-gray-400"> / </span>
+      <span className="text-gray-500 dark:text-gray-400"> / </span>
       <strong className="font-mono-num font-medium">{cap.limit}</strong> social connections. Google Business is always
       free and never counts.
     </p>

@@ -173,7 +173,7 @@ export default function DocumentsPanel({
                 onClick={() => remove(d.id)}
                 disabled={pending}
                 aria-label={`Remove ${d.label || d.fileName}`}
-                className="shrink-0 text-xs text-gray-400 hover:text-rose-600 dark:hover:text-rose-400 px-1 disabled:opacity-50"
+                className="shrink-0 text-xs text-gray-500 dark:text-gray-400 hover:text-rose-600 dark:hover:text-rose-400 px-1 disabled:opacity-50"
               >
                 Remove
               </button>

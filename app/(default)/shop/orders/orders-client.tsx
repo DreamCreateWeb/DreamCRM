@@ -341,7 +341,7 @@ export default function OrdersClient({
                 type="button"
                 onClick={() => setSelected(null)}
                 aria-label="Close"
-                className="shrink-0 rounded-md p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-700"
+                className="shrink-0 rounded-md p-1.5 text-gray-500 dark:text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-700"
               >
                 <svg className="h-4 w-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" aria-hidden="true">
                   <path d="M4 4l8 8M12 4l-8 8" />

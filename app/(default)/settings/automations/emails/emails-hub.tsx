@@ -397,7 +397,7 @@ function EmailCard({
                     />
                   )}
                   {f.hint && (
-                    <p id={hintId} className="mt-1 text-xs leading-relaxed text-gray-400">
+                    <p id={hintId} className="mt-1 text-xs leading-relaxed text-gray-500 dark:text-gray-400">
                       {f.hint}
                     </p>
                   )}
@@ -410,13 +410,13 @@ function EmailCard({
               a subject bar, an envelope-like framed body with preserved line
               breaks, and an honest note of the blocks we add for you. */}
           <div className="space-y-2">
-            <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">Preview</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Preview</p>
             <div className="v2-well overflow-hidden rounded-[var(--r-md)] text-left">
               {/* Subject bar — the line a patient sees in their inbox. */}
               <div className="border-b border-gray-200/70 bg-gray-100/60 px-4 py-2 dark:border-gray-700/60 dark:bg-gray-800/50">
-                <span className="text-xs font-medium uppercase tracking-wide text-gray-400">Subject</span>
+                <span className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">Subject</span>
                 <p className="truncate text-[13px] font-semibold text-gray-800 dark:text-gray-100">
-                  {fillTokens(slots.subject ?? '') || <span className="font-normal italic text-gray-400">(no subject)</span>}
+                  {fillTokens(slots.subject ?? '') || <span className="font-normal italic text-gray-500 dark:text-gray-400">(no subject)</span>}
                 </p>
               </div>
               {/* Body — mirrors the sent email's stacked heading / message / closing. */}
@@ -429,7 +429,7 @@ function EmailCard({
                   <p className="whitespace-pre-wrap text-gray-500 dark:text-gray-400">{fillTokens(slots.closing)}</p>
                 )}
                 {spec.includesNote.length > 0 && (
-                  <p className="mt-3 border-t border-dashed border-gray-200 pt-2.5 text-xs leading-relaxed text-gray-400 dark:border-gray-700/60">
+                  <p className="mt-3 border-t border-dashed border-gray-200 pt-2.5 text-xs leading-relaxed text-gray-500 dark:text-gray-400 dark:border-gray-700/60">
                     We automatically add: {spec.includesNote.join(' · ')}.
                   </p>
                 )}
@@ -537,7 +537,7 @@ function ReminderTiming({
 
       <div className={value.enabled ? 'space-y-2' : 'space-y-2 opacity-50'}>
         <p className="text-sm text-gray-700 dark:text-gray-300">
-          Reminder schedule <span className="text-xs text-gray-400">(hours before the visit)</span>
+          Reminder schedule <span className="text-xs text-gray-500 dark:text-gray-400">(hours before the visit)</span>
         </p>
         {touches.map((h, i) => (
           <div key={i} className="flex items-center justify-between gap-3">
@@ -562,7 +562,7 @@ function ReminderTiming({
                   type="button"
                   onClick={() => removeTouch(i)}
                   disabled={timingDisabled}
-                  className="text-xs text-gray-400 hover:text-rose-600 dark:hover:text-rose-400 disabled:opacity-40"
+                  className="text-xs text-gray-500 dark:text-gray-400 hover:text-rose-600 dark:hover:text-rose-400 disabled:opacity-40"
                   aria-label={`Remove reminder ${i + 1}`}
                 >
                   Remove
@@ -617,7 +617,7 @@ function ReminderTiming({
           srLabel="Also remind patients to finish their forms"
         />
       </label>
-      <p className="text-xs leading-relaxed text-gray-400">
+      <p className="text-xs leading-relaxed text-gray-500 dark:text-gray-400">
         Each reminder sends at most once per visit, never two within a day of each other. Patients
         who’ve already confirmed get the gentler “already confirmed” email below instead. Offsets
         between {REMINDER_OFFSET_MIN_HOURS} and {REMINDER_OFFSET_MAX_HOURS} hours (7 days). The

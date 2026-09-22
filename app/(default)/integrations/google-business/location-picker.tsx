@@ -64,12 +64,12 @@ export default function GbpLocationPicker({
             </option>
           ))}
         </select>
-        {pending && <span className="text-xs text-gray-400">Saving…</span>}
+        {pending && <span className="text-xs text-gray-500 dark:text-gray-400">Saving…</span>}
         {saved && !pending && <span className="text-xs text-emerald-600 dark:text-emerald-400">Saved ✓</span>}
       </div>
       {error && <p className="mt-1.5 text-xs text-rose-600 dark:text-rose-400">{error}</p>}
       {!canManage && (
-        <p className="mt-1.5 text-xs text-gray-400">Changing the location needs an owner or admin.</p>
+        <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">Changing the location needs an owner or admin.</p>
       )}
     </div>
   )

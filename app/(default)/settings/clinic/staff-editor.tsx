@@ -196,7 +196,7 @@ function StaffRow({
             <button
               type="button"
               onClick={() => handleRef.current?.cancel()}
-              className="text-xs text-gray-400 hover:text-rose-600 leading-tight"
+              className="text-xs text-gray-500 dark:text-gray-400 hover:text-rose-600 leading-tight"
             >
               Cancel
             </button>
@@ -210,7 +210,7 @@ function StaffRow({
             <button
               type="button"
               onClick={() => setReposition((v) => !v)}
-              className="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 leading-tight"
+              className="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 leading-tight"
             >
               {reposition ? 'Done' : '◎ Reposition'}
             </button>

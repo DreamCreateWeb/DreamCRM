@@ -253,7 +253,7 @@ export const GLYPHS: Record<GlyphId, GlyphDef> = {
     symbol: '💤',
     label: 'Lapsed — no visit in 9+ months',
     description: 'No visit in 9+ months and nothing booked. A recall nudge can bring them back.',
-    className: 'text-gray-400',
+    className: 'text-gray-500 dark:text-gray-400',
   },
   lapsedReturning: {
     id: 'lapsedReturning',
@@ -267,7 +267,7 @@ export const GLYPHS: Record<GlyphId, GlyphDef> = {
     symbol: '🔕',
     label: 'Opted out of marketing',
     description: 'They unsubscribed from marketing email. Transactional messages (confirmations, reminders) still send.',
-    className: 'text-gray-400',
+    className: 'text-gray-500 dark:text-gray-400',
   },
   bookedJustNow: {
     id: 'bookedJustNow',
@@ -281,14 +281,14 @@ export const GLYPHS: Record<GlyphId, GlyphDef> = {
     symbol: '📅',
     label: 'Rescheduled from an earlier slot',
     description: 'This visit was moved from an earlier time. The original slot was freed and stops reminding.',
-    className: 'text-gray-500',
+    className: 'text-gray-500 dark:text-gray-400',
   },
   reminderSent: {
     id: 'reminderSent',
     symbol: '⏱',
     label: 'Reminder sent in the last 24h — avoid double-texting',
     description: 'A reminder already went out in the last 24 hours. Give them time to reply before nudging again.',
-    className: 'text-gray-400',
+    className: 'text-gray-500 dark:text-gray-400',
   },
 }
 

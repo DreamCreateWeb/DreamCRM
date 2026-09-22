@@ -86,7 +86,7 @@ export default function HoursEditor({
                 aria-invalid={!!err}
                 className={`form-input text-sm py-1 disabled:opacity-40 ${err ? 'border-rose-400' : ''}`}
               />
-              <span className="text-gray-400 text-xs">to</span>
+              <span className="text-gray-500 dark:text-gray-400 text-xs">to</span>
               <input
                 type="time"
                 name={`hours[${id}].close`}

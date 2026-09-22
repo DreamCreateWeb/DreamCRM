@@ -341,7 +341,7 @@ function ConnectedStackHeader({
               <span className="text-xs font-medium text-gray-600 dark:text-gray-300">Social connections</span>
               <span className="text-xs text-gray-600 dark:text-gray-300">
                 <strong className="font-mono-num font-semibold">{cap.current}</strong>
-                <span className="text-gray-400"> / </span>
+                <span className="text-gray-500 dark:text-gray-400"> / </span>
                 <strong className="font-mono-num font-semibold">{cap.limit}</strong>
               </span>
             </div>
@@ -368,7 +368,7 @@ function ConnectedStackHeader({
 function SearchBox({ query, onQuery }: { query: string; onQuery: (v: string) => void }) {
   return (
     <div className="relative sm:w-80">
-      <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-gray-400" aria-hidden="true">
+      <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-gray-500 dark:text-gray-400" aria-hidden="true">
         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
         </svg>
