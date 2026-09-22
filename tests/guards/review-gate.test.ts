@@ -106,6 +106,255 @@ export function importedModules(file: string, source: string): string[] {
   return out
 }
 
+/**
+ * THE BINDINGS A SUITE FILE IMPORTS FROM ONE MODULE.
+ *
+ * Derivation 2 asked "does this file import `palette.ts`", and that predicate
+ * was over-broad from the day it shipped. `palette.ts` exports two different
+ * kinds of thing, and only one of them makes a test a repo-wide rule:
+ *
+ *   - **facts about THIS repo's colours** — `LIGHT`, `DARK`, `token`,
+ *     `utilityColor`, `SURFACES`, and `AA`, the threshold this repo grades
+ *     against. A test reaching for one of these is asking the repo what its
+ *     colours ARE, which is a rule about every colour in the product whether
+ *     or not it opens a directory. That is #598's shape and what rule 2 is for.
+ *   - **arithmetic that would work on anybody's colours**, plus one path
+ *     constant — `contrast`, `hexToRgb`, `over`, `luminance`, `oklchToRgb`,
+ *     `parseColor`, `ROOT`. A test reaching for these is using `palette.ts`
+ *     as a LIBRARY. It grades whatever hexes it typed in its own body, and
+ *     its blast radius is whatever it typed them about.
+ *
+ * **THE FALSE POSITIVE THIS FIXES, and why the file-level predicate hid it
+ * for so long** (Forge's ruling, 2026-09-22, on Sentinel's #636 referral).
+ * The accidental trip was already written down one docblock below: three
+ * marketing guards import `ROOT` for a PATH CONSTANT and "trip the palette
+ * derivation below by luck rather than on the merits". It stayed harmless
+ * because every accidental match happened to deserve its entry anyway —
+ * `review-gate.mjs` says so out loud twice, at the tone-tile and drawn-grid
+ * entries ("on the merits and not merely because it imports `palette.ts`").
+ * #636 is the first one where the accident was LOAD-BEARING:
+ * `tests/marketing/cinema-fx.test.ts` imports `contrast`, `hexToRgb` and
+ * `over`, applies them to six hex literals typed in its own body, asserts one
+ * constant in one module, and could fail no stranger's PR. Rule 2 reddened
+ * `test` naming it, and it was cleared by REGISTERING the file — the one
+ * remedy §2 rules out. So the predicate moves, and the innocent file comes
+ * back off the list.
+ *
+ * **Do not fix this shape by deleting the import instead.** For `ROOT` that is
+ * the right answer and the docblock below already gives it (`const ROOT =
+ * process.cwd()`). For the arithmetic it is the wrong one: `palette.ts` is the
+ * one place this repo computes a contrast ratio, and a remedy that teaches
+ * authors to copy `contrast` out of it to dodge a label un-single-homes the
+ * exact module both derivations depend on being single.
+ *
+ * Aliasing is resolved to the ORIGINAL export name (`AA as THRESHOLD` is still
+ * `AA`), `type` specifiers are stripped, and a namespace import (`import * as
+ * p`) counts as reaching everything — it is §2d's identity-looseness family,
+ * and a predicate that reads a brace list would be blind to the one spelling
+ * that grants the whole module. All three directions are red-run below.
+ *
+ * ── WATCHED TO FAIL, AGAINST THE REAL TREE, IN THREE DIRECTIONS (§2d) ───────
+ *
+ * The table below is the durable form; this is the record of the tree-level
+ * runs, because an absence assertion over a clean tree cannot tell a working
+ * detector from a narrowed one and this change NARROWS one.
+ *
+ *   1. **The defect it fixes.** Predicate reverted to the shipped
+ *      `importedModules(...).includes(PALETTE_MODULE)`, with
+ *      `cinema-fx.test.ts` already de-registered: this test goes RED naming
+ *      exactly `tests/marketing/cinema-fx.test.ts`. So the de-registration
+ *      alone would NOT have held — the predicate is what makes it legal.
+ *   2. **It is not blinded.** `tests/a11y/planted-fact-grader.test.ts`,
+ *      importing `AA`, `contrast`, `LIGHT` and `token`, `git add`-ed so
+ *      `git ls-files` can see it (the staging rule §2d owes every
+ *      tree-derived guard): RED, naming that exact path. #598's shape is
+ *      still caught on the day it arrives.
+ *   3. **The discrimination, not merely the detection.** The SAME planted
+ *      file with its imports changed to `contrast`, `hexToRgb`, `over` — the
+ *      #636 shape — runs GREEN. That pair is the whole ruling: one file, one
+ *      import line apart, correctly on opposite sides.
+ *
+ * The fixture is not kept in the tree, for the reason Sentinel's mutation file
+ * and the rule-3 spec are not: a permanent unlisted fact-grader would trip the
+ * very rule it demonstrates.
+ *
+ * ── WHAT THIS NARROWING DOES NOT COVER (Sentinel, reviewing #641) ───────────
+ *
+ * Written here because rule 3 carries three such bullets and a blind-spot list
+ * that omits a known blind spot spends the credibility it exists for.
+ *
+ *   - **The repo's colours reached through a module OTHER than `palette.ts`,
+ *     while borrowing only arithmetic from `palette.ts` itself.**
+ *     `tests/a11y/class-pairs.ts` is the live shape: it exports
+ *     `SHALLOW_BRAND_FILLS`, `BRAND_FILL_EXEMPTIONS`, `bestCaseSurface` and
+ *     the `TONE_FILL` grading built on them — every one a fact about this
+ *     repo's colours. A new rule written as `import { SHALLOW_BRAND_FILLS }
+ *     from './class-pairs'` plus `import { contrast } from './palette'`
+ *     matched rule 2 yesterday and matches nothing today unless it also walks
+ *     a tree for rule 1. Editing `class-pairs.ts` is covered — it is on
+ *     `INTAKE_RULES` as a path — but a NEW file grading the product through it
+ *     is not.
+ *     **Do not fix this by following the facts transitively into every module
+ *     that re-exports one.** That is "any test that reads another file" by
+ *     another name, which §2 has refused twice, and it would sweep in most of
+ *     an 8,000-test suite. If this shape actually arrives, the cheap answer is
+ *     the one the bounded guards already use: the author states the
+ *     classification, plus the sweep. Watch for it; do not widen for it.
+ *   - A fact reached through a re-export spelling (`import { AA } from
+ *     './helpers'`, where `helpers.ts` re-exports `palette`). `importedBindings`
+ *     resolves the import specifier ONE hop and reads the brace list on it, so
+ *     the binding is right but the module is not. Same one-hop limit rule 3
+ *     carries and the same instruction: resolve through it if one appears,
+ *     rather than exempting it.
+ */
+export const PALETTE_FACTS = ['AA', 'LIGHT', 'DARK', 'token', 'utilityColor', 'SURFACES']
+export const PALETTE_ARITHMETIC = [
+  'ROOT',
+  'contrast',
+  'hexToRgb',
+  'over',
+  'luminance',
+  'oklchToRgb',
+  'parseColor',
+]
+
+describe('the partition derivation 2 reads palette.ts through', () => {
+  /**
+   * THE PREMISE CHECK THE PARTITION OWES (Sentinel, reviewing #641).
+   *
+   * Moving rule 2's subject from the MODULE to a BINDING bought precision and
+   * sold a property: the old predicate covered every export `palette.ts` grew
+   * the day it was written, because it did not care which binding you reached
+   * for. The two lists above are hand-typed and `palette.ts` is independently
+   * editable, so they can come apart — and when they do the detector does not
+   * complain, it STOPS MATCHING. Add a seventh fact tomorrow, write
+   * `import { RAMP, contrast } from './palette'`, and `graders` never names
+   * the file, `unlisted` is `[]`, `test` is green. **That is #598 arriving
+   * through the hole rule 2 exists to close, silently** — and #598 at least
+   * had the excuse that nobody had thought of the shape.
+   *
+   * It is also the exact defect this repo spent the week writing up: "a guard
+   * whose subject is a LIST somebody maintains drifts, and it is the harder
+   * failure to see" (§2b, #633). The intake that recorded that rule shipped a
+   * maintained list inside the derivation that decides what reaches a
+   * reviewer, which is the more expensive of the two by a distance. So the
+   * partition is DERIVED from the module and asserted total, the way
+   * `chrome-legibility`'s premise fails loudly on a rename instead of quietly
+   * scanning nothing.
+   *
+   * `palette.ts` sitting on `INTAKE_RULES` as a path does not cover this. It
+   * buys the editor a label and a sentence; it does not make anything check
+   * these arrays. That is "enforced rather than remembered" pointed the wrong
+   * way round.
+   *
+   * ASSERTED IN BOTH DIRECTIONS, which is also what instruments it. A regex
+   * narrowed until it matches nothing reports clean forever under a
+   * one-directional remainder check, so this demands SET EQUALITY: every value
+   * export is classified, AND every classified name is still a value export.
+   * The second direction is not bookkeeping — it is what fails if the export
+   * scanner breaks, and it separately catches a fact that was renamed or
+   * deleted while its old spelling sat on in `PALETTE_FACTS` doing nothing.
+   *
+   * Types are deliberately out of scope: `Rgb` and `Theme` carry no colour and
+   * cannot be graded against.
+   *
+   * WATCHED TO FAIL IN BOTH DIRECTIONS (§2d), against the real file:
+   *
+   *   - **The drift it exists for.** `export const RAMP` appended to
+   *     `palette.ts` and classified nowhere: RED, naming `RAMP`. That is the
+   *     seventh-fact scenario, caught at the moment of the edit rather than on
+   *     the day a rule built on it merges unseen.
+   *   - **The instrument.** One export indented so the `^export` scanner
+   *     cannot see it — the way this check would quietly stop working: RED,
+   *     naming `SURFACES` as present in the arrays and absent from the file.
+   *     A one-directional remainder check passes that mutation, which is why
+   *     this asserts equality rather than emptiness.
+   */
+  it('classifies every value export of palette.ts, and nothing it does not export', () => {
+    const pal = readFileSync(join(process.cwd(), 'tests/a11y/palette.ts'), 'utf8')
+    // `Array.from` rather than a spread, for the same reason every other
+    // `matchAll` in this file uses it: the repo's `target` predates iterator
+    // spread and `tsc` refuses it (TS2802).
+    const exported = Array.from(pal.matchAll(/^export\s+(?:const|function|let|class)\s+(\w+)/gm))
+      .map((m) => m[1])
+      .sort()
+    const classified = [...PALETTE_FACTS, ...PALETTE_ARITHMETIC].sort()
+
+    expect(
+      exported,
+      'palette.ts and the two arrays above have come apart. An export missing from both is one ' +
+        'derivation 2 has not been told how to read: if it is a fact about THIS repo’s colours, ' +
+        'add it to PALETTE_FACTS — a test that reaches for it is a repo-wide rule by ' +
+        'construction. If it is arithmetic that would work on anybody’s colours, add it to ' +
+        'PALETTE_ARITHMETIC. Do NOT leave it unclassified: rule 2 reads an unlisted fact as a ' +
+        'library borrow and goes silent on the next #598. A name in the arrays that palette.ts ' +
+        'no longer exports means the opposite — either the export scanner above stopped working ' +
+        '(check it against the file by hand) or a fact was renamed and rule 2 is now grading a ' +
+        'spelling that does not exist.',
+    ).toEqual(classified)
+  })
+})
+
+export function importedBindings(file: string, source: string, module: string): string[] {
+  const out: string[] = []
+  const reaches = (spec: string): boolean => {
+    let base: string | null = null
+    if (spec.startsWith('.')) base = normalize(join(dirname(file), spec))
+    else if (spec.startsWith('@/')) base = normalize(spec.slice(2))
+    if (base === null) return false
+    const t = base.split('\\').join('/')
+    return [t, `${t}.ts`, `${t}.tsx`, `${t}/index.ts`].includes(module)
+  }
+  // A namespace import grants every export, so it reaches every fact.
+  for (const m of Array.from(source.matchAll(/import\s*\*\s*as\s+\w+\s+from\s+['"]([^'"]+)['"]/g))) {
+    if (reaches(m[1])) out.push(...PALETTE_FACTS)
+  }
+  for (const m of Array.from(source.matchAll(/import\s*\{([^}]*)\}\s*from\s*['"]([^'"]+)['"]/g))) {
+    if (!reaches(m[2])) continue
+    for (const raw of m[1].split(',')) {
+      const name = raw.trim().replace(/^type\s+/, '').split(/\s+as\s+/)[0].trim()
+      if (name) out.push(name)
+    }
+  }
+  return out
+}
+
+describe('the binding-level reach into the palette', () => {
+  // THE RED RUN, IN BOTH DIRECTIONS — the asymmetry `axe-selftest` teaches and
+  // the reason the shipped file-level predicate could not report its own
+  // over-breadth: an absence assertion over a clean tree cannot tell a working
+  // detector from one that matches everything.
+  const M = 'tests/a11y/palette.ts'
+  const F = 'tests/marketing/some-rule.test.ts'
+  const factOf = (src: string): boolean =>
+    importedBindings(F, src, M).some((b) => PALETTE_FACTS.includes(b))
+
+  const GRADES_THE_REPO: Array<[string, string]> = [
+    ['a theme', "import { contrast, LIGHT } from '../a11y/palette'"],
+    ['the token resolver', "import { token } from '@/tests/a11y/palette'"],
+    ['the utility resolver', "import { utilityColor } from '../a11y/palette'"],
+    ['the surface list', "import { SURFACES } from '../a11y/palette'"],
+    ['the AA threshold alone — portal-palette’s shape', "import { AA, contrast, hexToRgb, ROOT } from '../a11y/palette'"],
+    ['an ALIASED fact — the original name is what counts', "import { LIGHT as L } from '../a11y/palette'"],
+    ['a multi-line brace list', 'import {\n  AA,\n  contrast,\n} from "../a11y/palette"'],
+    ['a NAMESPACE import — grants everything', "import * as p from '../a11y/palette'"],
+  ]
+  it.each(GRADES_THE_REPO)('still catches %s', (_why, src) => {
+    expect(factOf(src)).toBe(true)
+  })
+
+  const LIBRARY_ONLY: Array<[string, string]> = [
+    ['the #636 shape — arithmetic on its own literals', "import { contrast, hexToRgb, over } from '../a11y/palette'"],
+    ['the ROOT path constant — the accidental trip', "import { ROOT } from '../a11y/palette'"],
+    ['raw luminance', "import { luminance, parseColor } from '@/tests/a11y/palette'"],
+    ['a TYPE-only reach', "import { type Rgb } from '../a11y/palette'"],
+    ['a fact-NAMED export of a different module', "import { LIGHT } from '@/lib/site-templates/cosmetic/palette'"],
+  ]
+  it.each(LIBRARY_ONLY)('no longer fires on %s', (_why, src) => {
+    expect(factOf(src)).toBe(false)
+  })
+})
+
 describe('the import resolver both derivations share', () => {
   // THE RED RUN, in the direction the shipped version could not fail in.
   // Every spelling below resolves to the SAME module; the alias one is the
@@ -841,11 +1090,36 @@ describe('the review-gate classifier', () => {
     // planted `from '@/tests/a11y/palette'` and watched this come back clean.
     // `importedModules` above now owns both spellings and is red-run against
     // each; see its header for why the miss was structural rather than sloppy.
+    // The THIRD draft narrows the predicate from the MODULE to the BINDING
+    // (Forge's ruling, 2026-09-22, on Sentinel's #636 referral). "Imports
+    // `palette.ts`" swept in every file that borrows its arithmetic or its
+    // `ROOT`; see `importedBindings` above for the split and for why the
+    // remedy is the predicate rather than the innocent file. Measured against
+    // the tree the day it changed: of the twelve suite files that reach
+    // `palette.ts`, EIGHT stay matched and four drop out.
+    //
+    // Eight is seven real palette rules — every one of them, the instrument
+    // check below among them — plus a PERMANENT SELF-MATCH, which rule 3
+    // documents about itself and rule 2 did not until Sentinel measured this
+    // (#641 note 1). `tests/guards/review-gate.test.ts` carries
+    // `"import { AA } from '@/tests/a11y/palette'"` in its own spelling
+    // tables, so the detector matches this file. It PRE-DATES the narrowing —
+    // the fixtures are on `origin/main` at :116-117 and the module-level
+    // predicate matched them too — and it is harmless, because `tests/guards/**`
+    // is registered as a path. Same caution rule 3 states: do not read a count
+    // of one as "the detector found something".
+    //
+    // The four that drop out: three (`tone-tiles`, `no-drawn-grid`,
+    // `chrome-legibility`) reach for `ROOT` only and lose nothing — the first
+    // two are held by derivation 1 on their own merits, and the third was
+    // never held by any derivation, staying registered on the `brand-as-text`
+    // ruling that covers a bounded guard. The fourth is #636's
+    // `cinema-fx.test.ts`, which is held by nothing — the correct answer.
     const PALETTE_MODULE = 'tests/a11y/palette.ts'
-    const importsPalette = (f: string): boolean =>
-      importedModules(f, src.get(f)!).includes(PALETTE_MODULE)
+    const gradesThePalette = (f: string): boolean =>
+      importedBindings(f, src.get(f)!, PALETTE_MODULE).some((b) => PALETTE_FACTS.includes(b))
 
-    const graders = suite.filter((f) => f !== PALETTE_MODULE && importsPalette(f))
+    const graders = suite.filter((f) => f !== PALETTE_MODULE && gradesThePalette(f))
 
     // The instrument check, for the same reason the walk-detector carries one:
     // a regex narrowed until it matches nothing reports CLEAN forever.
@@ -857,11 +1131,15 @@ describe('the review-gate classifier', () => {
     const unlisted = graders.filter((f) => intakeAreasFor(f).length === 0).sort()
     expect(
       unlisted,
-      'These files grade the PALETTE — the one module where this repo resolves its own colours ' +
-        'and computes AA — so they assert a repo-wide fact even when they never walk the tree, ' +
-        'and they are not on the intake list in scripts/review-gate.mjs. That is the gap #598 ' +
-        'went through: a new class of assertion, merged with no label and no intake, because it ' +
-        'was neither an enumerated path nor a directory walk. Add each to `blocking-assertions`.',
+      'These files ask tests/a11y/palette.ts what this repo’s colours ARE — they import one of ' +
+        `its FACTS (${PALETTE_FACTS.join(', ')}) rather than only its arithmetic — so they ` +
+        'assert a repo-wide fact even when they never walk the tree, and they are not on the ' +
+        'intake list in scripts/review-gate.mjs. That is the gap #598 went through: a new class ' +
+        'of assertion, merged with no label and no intake, because it was neither an enumerated ' +
+        'path nor a directory walk. Add each to `blocking-assertions`. If the file you are ' +
+        'reading about only borrows `contrast`/`hexToRgb`/`over` for hexes it typed itself, this ' +
+        'rule should not be naming it at all — fix the predicate above, do NOT register the file ' +
+        '(§2, and #636 is the worked example of getting that backwards).',
     ).toEqual([])
   })
 
