@@ -12,9 +12,11 @@ import {
   countAt,
   cursorAt,
   easeOutQuad,
+  fxScale,
   moteAlpha,
   seedMotes,
   stepMotes,
+  type AnchorMap,
   type Mote,
   type Particle,
 } from '@/components/marketing/cinema-fx'
@@ -190,6 +192,16 @@ export function pinnedCardFits(tallestCard: number, viewportHeight: number): boo
   return tallestCard + CARD_TRAVEL * 2 <= viewportHeight
 }
 
+/**
+ * THE FRAME FIT — how much to zoom the stage's composition so a large
+ * monitor shows what a 1440x900 window shows, bigger. Width and height both
+ * bound it (an ultrawide is not a taller scene) and it never shrinks below
+ * 1, so the laptop layout the sequence was designed on is untouched.
+ */
+export function frameZoom(width: number, height: number): number {
+  return Math.min(1.8, Math.max(1, Math.min(width / 1440, height / 900)))
+}
+
 /** Which scene the stage plays at normalised scroll position `p` — the same
  *  expression the rail reads, so the picture and the indicator cannot drift. */
 export function sceneAt(p: number): number {
@@ -205,6 +217,12 @@ export function chapterT(p: number, i: number): number {
 
 type Counter = { el: HTMLElement; from: number; to: number; b: number; d: number; format: 'int' | 'usd' | 'pct'; last: string }
 
+/** A scene's measured anchors: in STAGE fractions (what the canvas draws
+ *  in — at full bleed the stage is the pin) and in BODY fractions (what the
+ *  cursor overlay translates in). Both are ratios, so the opening move's
+ *  scale does not change them. */
+type SceneAnchors = { stage: AnchorMap; body: AnchorMap }
+
 const DPR_CAP = 2
 
 export default function CinematicSpine() {
@@ -218,6 +236,7 @@ export default function CinematicSpine() {
   const sceneRefs = useRef<Array<HTMLDivElement | null>>([])
   const cardRefs = useRef<Array<HTMLDivElement | null>>([])
   const countersRef = useRef<Counter[][]>([])
+  const anchorsRef = useRef<Array<SceneAnchors | null>>([])
   const railAt = useRef(-1)
   const frame = useRef(0)
 
@@ -297,7 +316,7 @@ export default function CinematicSpine() {
           scene.style.setProperty('--mkt-t', String(clamp01(t)))
           const stops = CURSOR_STOPS[i]
           if (stops) {
-            const c = cursorAt(stops, clamp01(t))
+            const c = cursorAt(stops, clamp01(t), anchorsRef.current[i]?.body ?? null)
             scene.style.setProperty('--mkt-cx', String(c.x))
             scene.style.setProperty('--mkt-cy', String(c.y))
             scene.style.setProperty('--mkt-cp', String(c.press))
@@ -395,10 +414,12 @@ export default function CinematicSpine() {
       }
     }
 
-    // Bursts: pure functions of the chapter's local progress.
+    // Bursts: pure functions of the chapter's local progress, from the
+    // measured element they belong to, sized to the frame.
+    const scale = fxScale(h)
     for (const b of BURSTS) {
       const t = chapterT(s.p, b.scene)
-      const parts = burstParticles(b, t, w, h, s.scratch)
+      const parts = burstParticles(b, t, w, h, s.scratch, anchorsRef.current[b.scene]?.stage ?? null, scale)
       for (const q of parts) {
         const [r, g, bl] = FX_RGB[q.hue]
         ctx.fillStyle = `rgba(${r},${g},${bl},${q.a})`
@@ -451,8 +472,11 @@ export default function CinematicSpine() {
     const legal = () => !reduced.matches && fine.matches && window.innerWidth >= 1024 && window.innerHeight >= 760
 
     const fits = () => {
+      // The glass is zoomed on a large frame, and `offsetHeight` reports the
+      // un-zoomed layout box — so the VISUAL height is that times the zoom.
+      const zoom = frameZoom(window.innerWidth, window.innerHeight)
       let tallest = 0
-      for (const card of cardRefs.current) if (card && card.offsetHeight > tallest) tallest = card.offsetHeight
+      for (const card of cardRefs.current) if (card && card.offsetHeight * zoom > tallest) tallest = card.offsetHeight * zoom
       return pinnedCardFits(tallest, window.innerHeight)
     }
 
@@ -470,12 +494,60 @@ export default function CinematicSpine() {
       }))
     })
 
+    /**
+     * MEASURE THE ANCHORS — where each scene actually put the button, the
+     * bubble, the switch — as fractions of the stage and of the stage body.
+     * The first version carried coordinates measured once at 1440x900, and
+     * the owner's 32" monitor put the sparks a panel away from the button:
+     * the panels have fixed widths, so a fraction of the frame is not a
+     * fraction of the layout. Measured here on mount, on resize and once
+     * the fonts settle, with every scene's `--mkt-t` forced to 1 so the
+     * beats sit where they FINISH (a beat mid-rise is 14px off). `paint`
+     * writes the real `--mkt-t` back on the next frame.
+     */
+    const measureAnchors = () => {
+      const out: Array<SceneAnchors | null> = []
+      for (const scene of sceneRefs.current) {
+        if (!scene) {
+          out.push(null)
+          continue
+        }
+        scene.style.setProperty('--mkt-t', '1')
+        const stage = scene.querySelector<HTMLElement>('.mkt-stage')
+        const body = scene.querySelector<HTMLElement>('.mkt-stage-body')
+        if (!stage || !body) {
+          out.push(null)
+          continue
+        }
+        const sr = stage.getBoundingClientRect()
+        const br = body.getBoundingClientRect()
+        if (sr.width === 0 || sr.height === 0 || br.width === 0 || br.height === 0) {
+          out.push(null)
+          continue
+        }
+        const stageMap: Record<string, AnchorMap[string]> = {}
+        const bodyMap: Record<string, AnchorMap[string]> = {}
+        for (const el of Array.from(scene.querySelectorAll<HTMLElement>('[data-anchor]'))) {
+          const name = el.dataset.anchor
+          if (!name) continue
+          const r = el.getBoundingClientRect()
+          if (r.width === 0 && r.height === 0) continue
+          stageMap[name] = { x: (r.left - sr.left) / sr.width, y: (r.top - sr.top) / sr.height, w: r.width / sr.width, h: r.height / sr.height }
+          bodyMap[name] = { x: (r.left - br.left) / br.width, y: (r.top - br.top) / br.height, w: r.width / br.width, h: r.height / br.height }
+        }
+        out.push({ stage: stageMap, body: bodyMap })
+      }
+      anchorsRef.current = out
+    }
+
     const sizeCanvas = () => {
       const canvas = canvasRef.current
       if (!canvas) return
       const dpr = Math.min(DPR_CAP, window.devicePixelRatio || 1)
       s.w = pin.clientWidth
       s.h = pin.clientHeight
+      // Written on resize only — a layout token, never a per-frame one.
+      pin.style.setProperty('--mkt-zoom', frameZoom(s.w, s.h).toFixed(3))
       canvas.width = Math.round(s.w * dpr)
       canvas.height = Math.round(s.h * dpr)
       const ctx = canvas.getContext('2d')
@@ -500,7 +572,10 @@ export default function CinematicSpine() {
       const on = eligible && fits()
       if (on !== eligible) root.classList.toggle('is-cinematic', on)
 
-      if (on) sizeCanvas()
+      if (on) {
+        sizeCanvas()
+        measureAnchors()
+      }
       if (on === s.live) {
         if (on) paint()
         return
@@ -568,6 +643,20 @@ export default function CinematicSpine() {
     }
 
     sync()
+    // Web fonts arriving after mount reflow the stage; measure again once.
+    const fonts = (document as Document & { fonts?: { ready?: Promise<unknown> } }).fonts
+    let fontsSettled = true
+    if (fonts?.ready) {
+      fontsSettled = false
+      fonts.ready.then(() => {
+        fontsSettled = true
+        if (s.live) {
+          measureAnchors()
+          paint()
+        }
+      })
+    }
+    void fontsSettled
     window.addEventListener('scroll', onScroll, { passive: true })
     window.addEventListener('resize', sync)
     reduced.addEventListener('change', sync)

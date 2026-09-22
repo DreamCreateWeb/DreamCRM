@@ -230,7 +230,16 @@ const SPINE_CSS = `
       }
       .mkt-spine.is-cinematic .mkt-fx { display: block; position: absolute; inset: 0; z-index: 2; pointer-events: none; }
       /* The rail's lane down the right, and the sticky nav's lane at the top. */
-      .mkt-spine.is-cinematic .mkt-stage { padding-right: 15.5rem; padding-top: 5.5rem; }
+      /* FRAME FIT (2026-09-22, the owner's 32" monitor). The stage's panels
+         have fixed rem widths, so on a 2560x1440 frame they sat in the top
+         40% with the bottom half empty and the chapter card the size of a
+         postcard. \`--mkt-zoom\` is written ONCE per resize by the spine —
+         min(width/1440, height/900), clamped to [1, 1.8] — so a large frame
+         shows the same composition a 1440x900 one does, bigger. It is a
+         layout token, not a per-frame one; the rail's lane grows with it. */
+      .mkt-spine.is-cinematic .mkt-stage { padding-right: calc(15.5rem * var(--mkt-zoom, 1)); padding-top: 5.5rem; }
+      .mkt-spine.is-cinematic .mkt-stage-head, .mkt-spine.is-cinematic .mkt-stage-body { zoom: var(--mkt-zoom, 1); }
+      .mkt-spine.is-cinematic .mkt-spine-rail-list { zoom: var(--mkt-zoom, 1); }
 
       /* ── THE BEATS. An element carrying \`mkt-k\` computes its own eased
             progress from the scene's \`--mkt-t\` and its own start/duration —
@@ -297,7 +306,7 @@ const SPINE_CSS = `
          bottom-left, 26rem, in the queue column's lane (DREAMCRM-82). The
          inset's 5.5rem ceiling is what \`pinnedCardFits\` guarantees against. */
       .mkt-spine.is-cinematic .mkt-spine-card-glass {
-        position: absolute; z-index: 3;
+        position: absolute; z-index: 3; zoom: var(--mkt-zoom, 1);
         bottom: clamp(2.75rem, 8vh, 5.5rem); left: clamp(1.25rem, 3vw, 2.5rem);
         width: min(26rem, 32vw);
         padding: clamp(1.85rem, 2.6vw, 2.5rem);

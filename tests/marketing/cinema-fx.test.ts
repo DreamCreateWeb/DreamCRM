@@ -1,19 +1,24 @@
 import { describe, it, expect } from 'vitest'
+import React from 'react'
+import { renderToStaticMarkup } from 'react-dom/server'
 import {
   BURSTS,
   BURST_LIFE,
   HEADER_BAND_PX,
   MOTE_ALPHA_MAX,
   beatK,
+  burstOrigin,
   burstParticles,
   countAt,
   cursorAt,
+  fxScale,
   moteAlpha,
   seedMotes,
   seeded,
   stepMotes,
+  stopPoint,
 } from '@/components/marketing/cinema-fx'
-import { CURSOR_STOPS, SCENE_COUNT } from '@/components/marketing/cinema-scenes'
+import { CinemaStage, CURSOR_STOPS, SCENE_ANCHORS, SCENE_COUNT } from '@/components/marketing/cinema-scenes'
 import { contrast, hexToRgb, over } from '../a11y/palette'
 
 /**
@@ -176,6 +181,60 @@ describe('the cursor ghost', () => {
         expect(s.y).toBeLessThan(1)
       }
     }
+  })
+})
+
+describe('anchors — the cursor and the bursts land on the element, on any monitor', () => {
+  /**
+   * The first version carried coordinates measured once at 1440x900 as
+   * fractions of the frame. The panels have fixed widths, so on the owner's
+   * 32" monitor the sparks landed a panel away from the Approve button. Every
+   * path and burst now names the ELEMENT it belongs to, the spine measures
+   * it at runtime, and the fraction is only the fallback.
+   */
+  it('every anchor a path or a burst names is in that scene’s markup', () => {
+    for (let i = 0; i < SCENE_COUNT; i++) {
+      const html = renderToStaticMarkup(React.createElement(CinemaStage, { scene: i }))
+      const named = new Set<string>()
+      for (const s of CURSOR_STOPS[i] ?? []) if (s.anchor) named.add(s.anchor)
+      for (const b of BURSTS) if (b.scene === i && b.anchor) named.add(b.anchor)
+      for (const name of Array.from(named)) {
+        expect(html, `scene ${i} must render data-anchor="${name}"`).toContain(`data-anchor="${name}"`)
+      }
+    }
+    // …and every registered anchor is used by something, so the list cannot
+    // quietly outlive its purpose.
+    const used = new Set<string>()
+    for (const stops of Object.values(CURSOR_STOPS)) for (const s of stops) if (s.anchor) used.add(s.anchor)
+    for (const b of BURSTS) if (b.anchor) used.add(b.anchor)
+    for (const a of SCENE_ANCHORS) expect(used.has(a), `anchor ${a} is registered but nothing uses it`).toBe(true)
+  })
+
+  it('a measured anchor beats the fallback; a missing one falls back', () => {
+    const anchors = { approve: { x: 0.3, y: 0.6, w: 0.1, h: 0.04 } }
+    const stop = { at: 0.5, x: 0.9, y: 0.9, anchor: 'approve' as const, dx: 0.02, dy: 0.01 }
+    expect(stopPoint(stop, anchors)).toEqual({ x: 0.3 + 0.05 + 0.02, y: 0.6 + 0.02 + 0.01 })
+    expect(stopPoint(stop, null)).toEqual({ x: 0.9, y: 0.9 })
+    expect(stopPoint({ ...stop, anchor: 'pay' }, anchors)).toEqual({ x: 0.9, y: 0.9 })
+    const burst = { ...BURSTS[1], anchor: 'approve' as const, ax: 0, ay: 1 }
+    expect(burstOrigin(burst, anchors)).toEqual({ x: 0.3, y: 0.64 })
+    expect(burstOrigin(burst, null)).toEqual({ x: BURSTS[1].x, y: BURSTS[1].y })
+    // The cursor path follows the anchors too.
+    const stops = [{ at: 0.1, x: 0, y: 0, anchor: 'approve' as const }, { at: 0.5, x: 1, y: 1, anchor: 'approve' as const, click: true }]
+    const c = cursorAt(stops, 0.3, anchors)
+    expect(c.x).toBeCloseTo(0.35, 5)
+    expect(c.y).toBeCloseTo(0.62, 5)
+  })
+
+  it('particles scale with the frame’s height, within bounds', () => {
+    expect(fxScale(900)).toBe(1)
+    expect(fxScale(1440)).toBeCloseTo(1.6, 5)
+    expect(fxScale(4000)).toBe(1.9)
+    expect(fxScale(400)).toBe(0.8)
+    const b = BURSTS[1]
+    const small = burstParticles(b, b.at + 0.08, 1440, 900, [], null, 1).map((p) => p.r)
+    const big = burstParticles(b, b.at + 0.08, 2560, 1440, [], null, fxScale(1440)).map((p) => p.r)
+    expect(Math.max(...big)).toBeGreaterThan(Math.max(...small))
   })
 })
 

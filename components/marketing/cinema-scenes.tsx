@@ -120,6 +120,7 @@ function Beat({
   style,
   children,
   as: Tag = 'div',
+  'data-anchor': anchor,
 }: {
   b: number
   d?: number
@@ -128,11 +129,13 @@ function Beat({
   style?: React.CSSProperties
   children: React.ReactNode
   as?: 'div' | 'span' | 'li' | 'p'
+  'data-anchor'?: string
 }) {
   return (
     <Tag
       className={`mkt-k mkt-${kind} ${className}`}
       style={{ ['--mkt-b' as string]: b, ['--mkt-d' as string]: d, ...style }}
+      data-anchor={anchor}
     >
       {children}
     </Tag>
@@ -445,7 +448,7 @@ function ThreadPanel() {
         </Beat>
         <Beat b={0.4} d={0.08} kind="pop" className="flex justify-end">
           {/* White on `violet-700` (#5D47DE) is 6.14 — axe measures it on every run. */}
-          <span className="max-w-[88%] rounded-2xl rounded-br-md bg-violet-700 px-3.5 py-2.5 text-white">
+          <span className="max-w-[88%] rounded-2xl rounded-br-md bg-violet-700 px-3.5 py-2.5 text-white" data-anchor="reply">
             <span className={`block text-white ${MONO_LABEL}`}>Rosa · 4:12pm</span>
             <span className="mt-1 block text-[0.95rem] font-semibold leading-snug">Yes please — Thursday 10:45 works.</span>
           </span>
@@ -519,7 +522,7 @@ function SignHerePanel() {
         <Beat as="span" b={0.36} d={0.08} kind="pop" className="relative">
           {/* Not a button. White on violet-700 is 6.14. The pressed look is
               the cursor's click beat, drawn by the spine. */}
-          <span className="mkt-approve inline-flex items-center gap-2 rounded-lg bg-violet-700 px-4 py-2 text-[0.9rem] font-bold text-white">
+          <span className="mkt-approve inline-flex items-center gap-2 rounded-lg bg-violet-700 px-4 py-2 text-[0.9rem] font-bold text-white" data-anchor="approve">
             Approve and send
           </span>
         </Beat>
@@ -615,7 +618,7 @@ function PhonePanel() {
         <p className="mt-1 text-[1.6rem] font-extrabold leading-none tabular-nums text-gray-950">$184.00</p>
       </Beat>
       {/* White on `teal-700` (#2F52B3) is 7.05. A `<span>`, never a button. */}
-      <Beat b={0.16} d={0.08} kind="pop" className="relative mt-2.5">
+      <Beat b={0.16} d={0.08} kind="pop" className="relative mt-2.5" data-anchor="pay">
         <Beat as="span" b={0.5} d={0.06} kind="out" className="mkt-pay block rounded-xl bg-teal-700 px-3 py-2.5 text-center text-[0.9rem] font-bold text-white">
           Pay $184.00
         </Beat>
@@ -655,7 +658,7 @@ function ReviewPanel() {
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
         <Beat b={0.56} d={0.08} className="flex items-center gap-3 rounded-xl px-3 py-3" style={{ backgroundColor: STAGE_TONE.info.tint }}>
           {/* A switch drawn, not built. The knob slides on its own beat. */}
-          <span className="mkt-switch flex h-6 w-11 shrink-0 items-center rounded-full px-1" style={{ backgroundColor: AVATAR_INK }}>
+          <span className="mkt-switch flex h-6 w-11 shrink-0 items-center rounded-full px-1" style={{ backgroundColor: AVATAR_INK }} data-anchor="switch">
             <Beat as="span" b={0.66} d={0.06} kind="still" className="mkt-knob block h-4 w-4 rounded-full bg-white">
               {''}
             </Beat>
@@ -686,7 +689,7 @@ function ReviewPanel() {
  *  `#B45309` on white is 5.02. */
 function Stars({ small, b }: { small?: boolean; b?: number }) {
   return (
-    <span className={`flex ${small ? 'gap-0.5' : 'gap-1'}`}>
+    <span className={`flex ${small ? 'gap-0.5' : 'gap-1'}`} data-anchor={b == null ? undefined : 'stars'}>
       {[0, 1, 2, 3, 4].map((i) => {
         const svg = (
           <svg viewBox="0 0 20 20" className={small ? 'h-2.5 w-2.5' : 'h-5 w-5'} fill="#B45309" aria-hidden="true">
@@ -743,7 +746,7 @@ function WeekPanel() {
       </div>
 
       <Beat b={0.12} d={0.42} kind="still" className="mt-3">
-        <div className="mkt-draw-clip">
+        <div className="mkt-draw-clip" data-anchor="spark">
           <svg viewBox={`0 0 ${W} ${H}`} className="block h-[4.5rem] w-full" aria-hidden="true" preserveAspectRatio="none">
             <path d={sparkPath(WEEKS, W, H)} fill="none" stroke="#2F52B3" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
@@ -809,22 +812,29 @@ function WeekPanel() {
  * Scenes without a script have no cursor.
  */
 export const CURSOR_STOPS: Readonly<Record<number, readonly CursorStop[]>> = {
+  // Anchored to the control it taps (`data-anchor` in the scene above), so
+  // the path is right on any monitor. The `x`/`y` are the 1440x900 fallback
+  // for a frame that could not be measured.
   2: [
-    { at: 0.34, x: 0.66, y: 0.72 },
-    { at: 0.56, x: 0.45, y: 0.45, click: true },
-    { at: 0.76, x: 0.52, y: 0.56 },
+    { at: 0.34, x: 0.66, y: 0.72, anchor: 'approve', dx: 0.18, dy: 0.26 },
+    { at: 0.56, x: 0.45, y: 0.45, anchor: 'approve', click: true },
+    { at: 0.76, x: 0.52, y: 0.56, anchor: 'approve', dx: 0.06, dy: 0.1 },
   ],
   3: [
-    { at: 0.22, x: 0.78, y: 0.55 },
-    { at: 0.46, x: 0.9, y: 0.25, click: true },
-    { at: 0.7, x: 0.94, y: 0.38 },
+    { at: 0.22, x: 0.78, y: 0.55, anchor: 'pay', dx: -0.1, dy: 0.28 },
+    { at: 0.46, x: 0.9, y: 0.25, anchor: 'pay', click: true },
+    { at: 0.7, x: 0.94, y: 0.38, anchor: 'pay', dx: 0.04, dy: 0.12 },
   ],
   4: [
-    { at: 0.48, x: 0.64, y: 0.5 },
-    { at: 0.64, x: 0.53, y: 0.27, click: true },
-    { at: 0.86, x: 0.6, y: 0.38 },
+    { at: 0.48, x: 0.64, y: 0.5, anchor: 'switch', dx: 0.12, dy: 0.22 },
+    { at: 0.64, x: 0.53, y: 0.27, anchor: 'switch', ax: 0.75, click: true },
+    { at: 0.86, x: 0.6, y: 0.38, anchor: 'switch', dx: 0.08, dy: 0.1 },
   ],
 }
+
+/** Every anchor a path or a burst may name. The scene markup must carry
+ *  each one (`tests/marketing/cinema-fx.test.ts` asks the rendered tree). */
+export const SCENE_ANCHORS = ['reply', 'approve', 'pay', 'switch', 'stars', 'spark'] as const
 
 function CursorGhost() {
   return (
@@ -857,7 +867,7 @@ export function CinemaStage({ scene }: { scene: number }) {
       className="mkt-stage flex h-full w-full flex-col gap-3 overflow-hidden p-5 text-left sm:gap-4 sm:p-7 lg:p-9"
       style={{ backgroundColor: STAGE_CANVAS, ...STAGE_BLOOM }}
     >
-      <div className="flex shrink-0 flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
+      <div className="mkt-stage-head flex shrink-0 flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
         <p className={`text-gray-600 ${MONO_LABEL}`}>DreamCRM · {STAGE_LABEL[scene]}</p>
         <p className={`text-teal-700 ${MONO_LABEL}`}>Dream Dental · Premium</p>
       </div>
