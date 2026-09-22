@@ -7,6 +7,22 @@ import { describe, it, expect, afterEach, vi } from 'vitest'
  * pre-collapse THREE-TIER RANGE — on a page a prospect reads while a
  * presenter quotes them $200. It had been live since launch.
  *
+ * ── THE FIRST FIX MISSED, AND THAT IS THE MOST USEFUL PART OF THIS FILE ──
+ *
+ * #660 shipped the correction as an exact match on the `$150-500` sentence:
+ * the range the ledger recorded, and the range sitting in `LAUNCH_POSTS`.
+ * It matched nothing on the deploy, because **the published row said
+ * `$99-199`** — a range from a pricing scheme older than the one the ledger
+ * named. The ledger entry had been written by reading the source file, whose
+ * `:50` it cites; its own repro said *"open `/blog/dreamcrm-is-live` and read
+ * the first paragraph"*, and nobody had.
+ *
+ * So `PUBLISHED_OPENER` below is now the LIVE bytes, fetched from
+ * production, and the rule under test is a SHAPE (`DEAD_RANGE`) rather than
+ * one spelling. A fixture copied out of the source file is a fixture that
+ * agrees with the source file, which is the one thing it must not be trusted
+ * to do here.
+ *
  * ── WHY THIS FILE EXISTS BESIDE `pricing-price-source.test.tsx` ──────────
  *
  * That guard has two assertions and NEITHER could have found this defect,
@@ -59,15 +75,35 @@ import { describe, it, expect, afterEach, vi } from 'vitest'
  *     it. Read it as documentation with a tick, not as evidence.
  */
 
-/** The opening paragraph AS PUBLISHED — the bytes in the production row,
- *  copied from the pre-fix registry. The en dashes and the curly apostrophe
- *  matter: the correction is an exact-sentence match, so a fixture that
- *  "looks the same" would grade nothing. */
+/**
+ * The opening paragraph AS PUBLISHED — the bytes actually served by
+ * `/blog/dreamcrm-is-live`, read off production on 2026-09-22, NOT copied out
+ * of `LAUNCH_POSTS`.
+ *
+ * That distinction is the whole reason the first fix missed. The registry and
+ * the published row are free to diverge — the seed only writes a row that does
+ * not exist — so a fixture taken from the registry grades the registry, agrees
+ * with itself, and says nothing at all about the page a visitor opens.
+ *
+ * Note the price: `$99–199`, not the `$150–500` the ledger and the registry
+ * both carried.
+ */
 const PUBLISHED_OPENER =
   "<p>Today we're opening DreamCRM to every dental practice. The pitch fits in a sentence: " +
   'the five or six patient-facing subscriptions a typical practice juggles — website agency, ' +
   'booking widget, reminder service, review tool, recall vendor — replaced by one system, ' +
-  'for $150–500 a month, month-to-month.</p>'
+  'for $99–199 a month, month-to-month.</p>'
+
+/** The range the ledger and the registry both believed was live. It is a
+ *  dead range too, so the shape rule has to catch it as well — a fix that
+ *  only handled the number we were surprised by would be the same mistake
+ *  pointed at a different generation of the copy. */
+const LEDGERS_OPENER = PUBLISHED_OPENER.replace('$99–199', '$150–500')
+
+/** And the one with a plain hyphen, which no generation of this copy is known
+ *  to have used. Which dash a given version reached for is exactly the kind of
+ *  detail this correction has already been wrong about once. */
+const HYPHEN_OPENER = PUBLISHED_OPENER.replace('$99–199', '$99-199')
 
 /** The other sentence the same row carries, from the earlier correction —
  *  present so a regression that drops it shows up here rather than in
@@ -106,15 +142,28 @@ describe('the launch post quotes the plan config (DREAMCRM-101)', () => {
     expect(live!.bodyHtml).not.toContain('–500')
   })
 
-  it('rewrites the published paragraph to the configured price', async () => {
+  it('rewrites the LIVE published paragraph to the configured price', async () => {
     const { correctLaunchPostBody } = await loadWithPlanPrice(314)
     const corrected = correctLaunchPostBody(PUBLISHED_OPENER)
 
     expect(corrected).toContain('for $314 a month, month-to-month.')
-    expect(corrected).not.toContain('$150')
+    expect(corrected).not.toContain('$99')
+    expect(corrected).not.toContain('199')
     // Voice untouched — this is a correction of a number, not a rewrite.
     expect(corrected).toContain('The pitch fits in a sentence')
     expect(corrected).toContain('website agency, booking widget, reminder service')
+  })
+
+  it('catches every dead range, not only the one we were surprised by', async () => {
+    const { correctLaunchPostBody } = await loadWithPlanPrice(314)
+    for (const [name, body] of [
+      ['the range the ledger recorded', LEDGERS_OPENER],
+      ['a plain hyphen', HYPHEN_OPENER],
+    ] as const) {
+      const corrected = correctLaunchPostBody(body)
+      expect(corrected, name).toContain('for $314 a month, month-to-month.')
+      expect(corrected, name).not.toMatch(/for \$\d[\d,]*\s*[‐-―-]/)
+    }
   })
 
   it('still carries the earlier SMS correction', async () => {
@@ -135,13 +184,24 @@ describe('the launch post quotes the plan config (DREAMCRM-101)', () => {
 
   it('leaves a hand-edited post alone', async () => {
     const { correctLaunchPostBody } = await loadWithPlanPrice(314)
-    // Somebody opened the Posts manager and reworded the sentence. The match
-    // is exact, so there is nothing here to find — and overwriting an
-    // editor's words on a deploy is the failure this shape exists to avoid.
+    // Somebody opened the Posts manager and reworded the sentence. A prose
+    // answer is not a RANGE, so there is nothing here to find — and
+    // overwriting an editor's words on a deploy is the one thing widening
+    // from an exact sentence to a shape could have cost.
     const edited = PUBLISHED_OPENER.replace(
-      'for $150–500 a month, month-to-month.',
+      'for $99–199 a month, month-to-month.',
       'for a flat monthly fee, month-to-month.',
     )
     expect(correctLaunchPostBody(edited)).toBe(edited)
+  })
+
+  it('leaves a SINGLE price alone, whoever wrote it', async () => {
+    const { correctLaunchPostBody } = await loadWithPlanPrice(314)
+    // The rule is about a dead RANGE. One plan means one number, so a single
+    // price in this sentence is either already correct or somebody's
+    // deliberate edit, and neither is ours to rewrite. This is also what
+    // makes the pass a no-op after the first deploy.
+    const single = PUBLISHED_OPENER.replace('$99–199', '$275')
+    expect(correctLaunchPostBody(single)).toBe(single)
   })
 })
