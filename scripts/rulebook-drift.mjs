@@ -142,6 +142,11 @@ export const WORKFLOW_CENSUS = {
     publishes: [],
     note: 'the post-merge half of review-gate.yml: names PRs that merged carrying needs-sentinel-review with no review recorded, or needs-forge-intake with no intake recorded. Runs after the merge commit is on main, so it cannot hold one. Its exit status is keyed on what is new since it last went green; the summary still prints every unremediated entry',
   },
+  'schedule-heartbeat.yml': {
+    gates: 'nothing',
+    publishes: [],
+    note: 'the alarm that watches the other alarms (DREAMCRM-99): one daily job asserting every scheduled workflow has a `schedule`-triggered run inside the window its own cron implies. Derives its list from the cron entries in this directory, so a schedule added tomorrow is watched tomorrow. No PR trigger, no required context, so it cannot hold a merge',
+  },
   'rulebook-drift.yml': {
     gates: 'nothing',
     publishes: [],
