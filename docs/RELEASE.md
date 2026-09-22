@@ -1110,7 +1110,7 @@ binding are all correct. The payment-plan charger was the exception.
   thing widening could have cost; both are pinned, and the test fixture is now
   the LIVE bytes rather than a copy of the registry.
 
-  `lib/services/marketing-blog.ts` joins `PRICE_QUOTING_ROUTES` as the tenth
+  `lib/services/marketing-blog.ts` joined `PRICE_QUOTING_ROUTES` as the tenth
   surface — the CONTENT shape that scan's header predicted one move earlier.
   **Worth carrying: neither of that guard's assertions could have found this
   one.** The drift was a RANGE, so no plan price is spelled anywhere in it and
@@ -1119,6 +1119,9 @@ binding are all correct. The payment-plan charger was the exception.
   :1085's general rule matching PROSE SPELLINGS, a new one that a RANGE-shaped
   quote needs its own pattern, and a third that the rule cannot only read
   source — the wrong number here was never in a file at all.
+  (That list is gone as of DREAMCRM-102 / #665, which derived the guard's field
+  of view from the tree instead — this file is covered by construction now, and
+  the tenth entry was the last one anybody had to notice by hand.)
 - S3 · `lib/types/social-entitlements.ts:12` — the comment table documenting
   the social add-on still prices the tiers `Pro ($250) | Premium ($500)`. A
   comment, so nothing renders it, but it is the file the next person reads to
