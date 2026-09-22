@@ -6,6 +6,8 @@ import { newId } from '@/lib/utils'
 import { sanitizeBlogHtml } from '@/lib/blog-sanitize'
 import { getPlatformOrgId } from '@/lib/services/gsc'
 import { listPublishedPosts, getPublishedPostBySlug } from '@/lib/services/blog'
+import { usd } from '@/lib/marketing/site'
+import { getQuotedPlan } from '@/lib/stripe-config'
 import type { BlogPost } from '@/lib/db/schema/clinic'
 
 /**
@@ -31,7 +33,31 @@ export const getMarketingPostBySlug = cache(async (slug: string): Promise<BlogPo
 
 /* ── Launch posts (idempotent seed) ─────────────────────────────────── */
 
-interface LaunchPost {
+/**
+ * THE PRICE IN THE PROSE RESOLVES (DREAMCRM-38's rule, TENTH surface).
+ *
+ * The launch post opened with *"for $150–500 a month"* — the pre-collapse
+ * three-tier range, on a page a prospect reads while a presenter quotes them
+ * $200 (`docs/RELEASE.md` Part 5). It is corrected to the number `/pricing`
+ * already shows, and resolved rather than retyped so the next reprice moves
+ * it with everything else.
+ *
+ * THIS FILE IS THE SHAPE `tests/marketing/pricing-price-source.test.tsx`
+ * PREDICTED AND ITS SCAN DID NOT YET COVER. That header, written for the
+ * ninth surface (`lib/marketing/docs.ts`), says the next one to look for is
+ * **content**: a registry whose strings reach a reader. This is that — an
+ * array of `bodyHtml` sentences published to `/blog`, in a `lib/services/`
+ * file whose name says "blog" and nothing about price. It is on
+ * `PRICE_QUOTING_ROUTES` now.
+ *
+ * Pure config, no database and no Stripe call, so it costs nothing at module
+ * load — the same argument every other surface's `PLAN` carries.
+ */
+const PLAN = getQuotedPlan()
+
+/** One seeded post. Exported with the array below so the launch copy can be
+ *  graded without a database — `tests/marketing/launch-post-price.test.ts`. */
+export interface LaunchPost {
   slug: string
   title: string
   excerpt: string
@@ -39,7 +65,7 @@ interface LaunchPost {
   bodyHtml: string
 }
 
-const LAUNCH_POSTS: LaunchPost[] = [
+export const LAUNCH_POSTS: LaunchPost[] = [
   {
     slug: 'dreamcrm-is-live',
     title: 'DreamCRM is live: one front office for your dental practice',
@@ -47,7 +73,7 @@ const LAUNCH_POSTS: LaunchPost[] = [
       'Website, online booking, patient portal, messages, reviews, recall, and a shop — one system at one flat price, wrapped around the PMS you already run.',
     category: 'Announcements',
     bodyHtml: `
-<p>Today we're opening DreamCRM to every dental practice. The pitch fits in a sentence: the five or six patient-facing subscriptions a typical practice juggles — website agency, booking widget, reminder service, review tool, recall vendor — replaced by one system, for $150–500 a month, month-to-month.</p>
+<p>Today we're opening DreamCRM to every dental practice. The pitch fits in a sentence: the five or six patient-facing subscriptions a typical practice juggles — website agency, booking widget, reminder service, review tool, recall vendor — replaced by one system, for ${usd(PLAN.price)} a month, month-to-month.</p>
 <h2>What's in the box</h2>
 <p>A practice website you edit by clicking the page itself. Online booking from your live availability, with visit-type rules so the schedule stays sane. A patient portal in your branding where patients confirm, self-reschedule, fill forms, and pay their balance. One inbox where portal messages and patient email merge per patient. Review collection that turns into website testimonials with one click. Recall campaigns measured in booked visits, not opens. An online store and membership plans paying out to your own bank. And a two-way PMS sync — Open Dental, Dentrix + more — that goes through official, sanctioned paths only.</p>
 <h2>What we deliberately don't do</h2>
@@ -89,6 +115,54 @@ const LAUNCH_POSTS: LaunchPost[] = [
 ]
 
 /**
+ * ONE-TIME CONTENT CORRECTIONS FOR THE ROWS ALREADY PUBLISHED.
+ *
+ * `LAUNCH_POSTS` above is read only when a post does not exist yet, so
+ * editing a sentence there fixes nothing that is already live — and the
+ * launch announcement has been live since launch. Every correction here is an
+ * EXACT-SENTENCE match, which is what keeps a post somebody edited in the
+ * Posts manager from being overwritten: if the sentence is not there verbatim,
+ * nothing happens.
+ *
+ * Pure and exported so the corrections can be graded against the real
+ * published body without a database — see
+ * `tests/marketing/launch-post-price.test.ts`.
+ */
+export const LAUNCH_POST_CORRECTIONS: { stale: string; fixed: string }[] = [
+  {
+    // The launch post overstated SMS status ("still in carrier registration").
+    stale: "our SMS channel is still in carrier registration; we'd",
+    fixed: 'SMS texting is on our roadmap rather than in the product today; we’d',
+  },
+  {
+    // DREAMCRM-101 — the pre-collapse three-tier RANGE, readable on /blog
+    // while /pricing quoted one number and a presenter quoted $200. The
+    // replacement resolves from `getQuotedPlan()` exactly as the seed copy
+    // above does, so this pass writes the price the config holds on the day it
+    // runs rather than minting a second copy of it.
+    //
+    // The dead range stays spelled out here on purpose: it is the only way to
+    // FIND the published row, it is not a plan price (150 is nobody's price
+    // and the 500 carries no dollar sign), and it is what tells the next
+    // reader what was wrong. `tests/marketing/pricing-price-source.test.tsx`
+    // scans this file and is untroubled by it.
+    stale: 'for $150–500 a month, month-to-month.',
+    fixed: `for ${usd(PLAN.price)} a month, month-to-month.`,
+  },
+]
+
+/** Every correction above applied to one stored body. Returns the input
+ *  unchanged when nothing matched, which is what lets the caller skip the
+ *  write — this runs on every deploy, forever. */
+export function correctLaunchPostBody(bodyHtml: string): string {
+  let out = bodyHtml
+  for (const { stale, fixed } of LAUNCH_POST_CORRECTIONS) {
+    if (out.includes(stale)) out = out.replace(stale, fixed)
+  }
+  return out
+}
+
+/**
  * Idempotent (by slug) seed of the marketing launch posts onto the platform
  * org. Runs on deploy alongside the demo resync; existing posts are never
  * touched, so edits made in the Posts manager stick.
@@ -126,26 +200,21 @@ export async function seedPlatformBlogPosts(): Promise<{ created: number }> {
     created++
   }
 
-  // One-time content correction for rows seeded with the original copy: the
-  // launch post overstated SMS status ("still in carrier registration").
-  // Exact-sentence match means a manually edited post is never touched.
-  const STALE_SMS_SENTENCE =
-    "our SMS channel is still in carrier registration; we'd"
-  const FIXED_SMS_SENTENCE =
-    'SMS texting is on our roadmap rather than in the product today; we\u2019d'
   const [livePost] = await db
     .select({ id: schema.blogPost.id, bodyHtml: schema.blogPost.bodyHtml })
     .from(schema.blogPost)
     .where(and(eq(schema.blogPost.organizationId, orgId), eq(schema.blogPost.slug, 'dreamcrm-is-live')))
     .limit(1)
-  if (livePost?.bodyHtml?.includes(STALE_SMS_SENTENCE)) {
-    await db
-      .update(schema.blogPost)
-      .set({
-        bodyHtml: livePost.bodyHtml.replace(STALE_SMS_SENTENCE, FIXED_SMS_SENTENCE),
-        updatedAt: new Date(),
-      })
-      .where(eq(schema.blogPost.id, livePost.id))
+  if (livePost?.bodyHtml) {
+    const corrected = correctLaunchPostBody(livePost.bodyHtml)
+    // One write for however many sentences moved, and none at all when the row
+    // is already current.
+    if (corrected !== livePost.bodyHtml) {
+      await db
+        .update(schema.blogPost)
+        .set({ bodyHtml: corrected, updatedAt: new Date() })
+        .where(eq(schema.blogPost.id, livePost.id))
+    }
   }
 
   return { created }
