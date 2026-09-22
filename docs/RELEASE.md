@@ -1693,7 +1693,7 @@ width entry would have closed and this one would have survived with no entry of
 its own, which is exactly what the one-defect-one-entry rule exists to prevent.
 · **FIXED — merged 2026-09-16 (#621, `57e289fa`)**
 
-### Open — the Dream Create wordmark is invisible to every dark-OS visitor (found 2026-09-16)
+### Fixed — the Dream Create wordmark is invisible to every dark-OS visitor (found 2026-09-16)
 
 **S2 · marketing site · WCAG 1.4.3, and it is the company lockup on every
 page.** Found by the both-themes check on DREAMCRM-72 (Daylight Dream move 4),
@@ -1732,11 +1732,35 @@ without being seen: `MarketingFooter` passes
 that the footer is dark in both themes. Somebody hit this pair from the other
 side, patched their own call site, and the header kept the bug.
 
-**Not fixed here on purpose** (§10): a fix has to choose between changing the
-shared `components/brand/` component — which also renders on the dashboard, the
-auth shell and the portal chrome, all outside the marketing lane — and scoping
-the override to the marketing header the way the footer did. That choice
-belongs to whoever owns those surfaces. UI correctness, Vesper. · OPEN
+**FIXED on DREAMCRM-87, scoped to the marketing call site.** The choice this
+entry left open — change shared `components/brand/`, or scope the override the
+way `MarketingFooter` did — went to the call site, on the measurement rather
+than on taste: every OTHER surface the lockup renders on is genuinely
+theme-aware (`app/(partner)/layout.tsx` is
+`bg-[color:var(--color-canvas)] text-gray-900 dark:text-gray-100`, and the auth
+shell and dashboard chrome the same), so `dark:text-white` is CORRECT there and
+the defect is one lane forcing a light page.
+
+It is a PROP rather than a class, which is the part worth keeping. The footer's
+workaround re-points the variable (`[--brand-ink:#fff]`) so the light half
+resolves to white and the dark half already is — that works because the footer
+wants white in both themes. The header wants INK in both themes, and
+`dark:text-white` names its colour outright, so beating it would mean a second
+`dark:text-*` at equal specificity and letting stylesheet order decide which
+one paints. The half has to not be EMITTED, so `DreamCreateLogo` grew
+`alwaysLightGround`, default off; nothing already rendering changed.
+
+**The guard grades the COMPOSITION, not a directory**, because a path scanner
+could never have caught this: `dark:` has a count of ZERO across
+`app/(marketing)` and `components/marketing` and always did — the offending
+class lives in `components/brand/`, where banning it would be wrong.
+`tests/marketing/forced-light-chrome.test.tsx` RENDERS the header, `PageHero`
+and the footer and fails on any `dark:` variant in the produced DOM, so a
+shared component leaking a dark half into this lane fails whatever file it
+lives in. The footer is the one exemption and its PREMISE is asserted rather
+than assumed — the test checks the band is still `bg-gray-9x0`, since an
+exemption that describes its subject but not its GROUND is the #587 shape.
+· FIXED (#638, DREAMCRM-87)
 
 ### Fixed — the cinema stage carries two sub-12px literals at reading size (found 2026-09-16) · FIXED (#633, `866991f5`)
 
