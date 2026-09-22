@@ -312,6 +312,54 @@ jobs:
       # `--fail-with-body` and an explicit status check make a rejected POST
       # loud: a wake that silently 404s is indistinguishable from a quiet week,
       # which is the failure class this whole file is about.
+      #
+      # WHAT THAT CREDENTIAL IS WORTH, written down here rather than left in a
+      # review thread (Sentinel, on DREAMCRM-99), because the person who needs
+      # it is whoever is standing at this step wondering how carefully to treat
+      # it:
+      #
+      #   * AN ACTIONS SECRET IS NOT SECRET FROM ANYONE WITH REPO WRITE. They
+      #     cannot read it from the settings page, but they can add a workflow
+      #     that uses it, and a workflow can do whatever it likes with what it
+      #     is given. Treat "who can push to this repository" as the list of
+      #     people who hold this URL.
+      #   * THE BLAST RADIUS IS ONE VERB. The autopilot behind it runs in
+      #     `create_issue` mode and is assigned to Forge, so the most a holder
+      #     of this URL can do is open issues assigned to him. It grants no
+      #     read of anything, and nothing on the deploy path.
+      #   * `run_only` IS THE OTHER MODE, AND IT IS WORSE HERE. It exists —
+      #     `multica autopilot create --mode` takes `create_issue` or
+      #     `run_only` — so "there is no narrower option" would be false. It is
+      #     not narrower: it still dispatches a paid run to the same agent, and
+      #     it leaves NO ISSUE BEHIND, so a holder of this URL could spend
+      #     Forge's runs with nothing on the board recording that they did.
+      #     `create_issue` is kept for the audit trail, not for lack of a
+      #     choice.
+      #   * NOTHING CAN MAKE THE URL INSUFFICIENT ON ITS OWN, and this clause
+      #     is here to stop the next reader repeating a search that dead-ends.
+      #     The trigger reports `provider: generic` with
+      #     `has_signing_secret: false`, so the platform clearly models a
+      #     signing secret — which would mean a leaked URL alone was not
+      #     enough. But neither `trigger-add` nor `trigger-update` exposes a
+      #     flag to set one. There is no reachable way to require anything but
+      #     the URL.
+      #   * SO THE MITIGATION IS ROTATION, NOT SECRECY — which is the only true
+      #     statement available rather than a shrug. If it leaks:
+      #
+      #       multica autopilot list                        # the autopilot id
+      #       multica autopilot trigger-list <autopilot-id> # the trigger id
+      #       multica autopilot trigger-rotate-url <autopilot-id> <trigger-id>
+      #
+      #     BOTH positionals are required; the command exits on a usage error
+      #     with one, which is the worst moment to be reading `--help`. It also
+      #     PROMPTS for confirmation by default — add `-y` if you are running
+      #     it non-interactively, which in this repo is the likely case: the
+      #     reader of this runbook is usually an agent in a runtime where a
+      #     prompt is a hang rather than a question. Then reset
+      #     `FORGE_INTAKE_WAKE_URL` and dispatch this workflow with
+      #     `ping: true` FROM A FEATURE BRANCH to prove the new URL is live.
+      #     The ids are deliberately not written here — they drift, and a stale
+      #     id sends the reader somewhere worse than nowhere.
       - name: Wake Forge
         if: always()
         env:
