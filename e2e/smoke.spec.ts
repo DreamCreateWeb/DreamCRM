@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { DECORATIVE_MOCKS, expectNoA11yViolations } from './axe'
+import { DECORATIVE_MOCKS, PRODUCT_MOCKS, expectNoA11yViolations } from './axe'
 
 /**
  * Golden-path smoke — the first browser-level coverage this repo has had.
@@ -61,18 +61,104 @@ test.describe('the marketing site (the storefront)', () => {
   })
 
   /**
+   * THE PRODUCT TOUR — the longest page on the site, and until DREAMCRM-87 the
+   * only one of its size that **no stop reached at all**.
+   *
+   * IT WAS NEVER THE DECISION THAT WAS MISSING, IT WAS THE SELECTOR.
+   * `docs/RELEASE.md` Part 5 recorded the measurement in September: 89 / 103 /
+   * 103 violation nodes at 390 / 834 / 1440, `color-contrast` only, every one
+   * inside an `aria-hidden` product mock and **ZERO on the page itself at
+   * every width**. The homepage settled what to do with that class — exclude
+   * the pictures, hold the stop at zero — and the exclusion could not be
+   * reused: `DECORATIVE_MOCKS` keys on the hero's drift wrapper and these nine
+   * mocks do not float, so it would have matched nothing and `deadExclusions`
+   * would have failed this stop by name. `PRODUCT_MOCKS` in `e2e/axe.ts`
+   * carries the shape that replaced it and why `[aria-hidden="true"]` alone
+   * was not it.
+   *
+   * ZERO, NOT A CEILING, and that is the only number worth having: a ceiling
+   * of 103 on the second-busiest public page we have is 103 real defects'
+   * worth of room to hide in. Getting there cost two real fixes rather than a
+   * pardon — `exclusionsHidingReadableText` found `EditorMock`'s 16.8px hero
+   * headline and `BookingMock`'s 12.8px day numeral, both at 2.97 on the
+   * fictional clinic's sage, both above the 12px picture-scale ceiling and so
+   * CONTENT by the repo's own definition.
+   *
+   * WHY THE PAGE IS WALKED, AND WHY IT IS LEFT AT A CHAPTER RATHER THAN BACK
+   * AT THE TOP. Both halves were found by watching this stop fail, and the
+   * second one is the part worth copying.
+   *
+   * The walk is because every chapter's illustration is inside a
+   * `ScrollReveal`, which holds it at `opacity-0` until it enters the
+   * viewport, and an element at opacity 0 is invisible to axe — not measured
+   * at all. A stop that loaded the page and scanned would report a confident
+   * ZERO having graded roughly the first screenful.
+   *
+   * The SCROLL POSITION is because the chapter rail's active chip does not
+   * exist at the top of the page: `active` is null until a chapter is in view,
+   * so no element carries the active ink and there is nothing to grade. The
+   * first draft of this stop walked down and back to `scrollTo(0, 0)`, and its
+   * watched-fail run came back **GREEN with the defect live** — §2d's "a red
+   * run that passes is a broken test, not a clean tree", found here rather
+   * than discovered later. Leaving the page at `#frontdesk` keeps every
+   * reveal fired (they do not un-reveal) AND puts the rail in its active
+   * state, so the stop grades more of the page than it did, not less.
+   *
+   * WATCHED TO FAIL (§2d) against the defect this page is actually at risk of
+   * rather than a synthetic one: the chapter rail's active label dropped from
+   * `teal-700` to `teal-400` reddens the stop `color-contrast` at ALL THREE
+   * widths naming `"Run the day"` at 12px on `.text-teal-400` — an ink on the
+   * page itself, outside every mock, which is the half an exclusion must never
+   * hide. Restored and re-run green: 0 / 0 / 0.
+   *
+   * And with `PRODUCT_MOCKS` removed the scan reports **85 / 99 / 99**, every
+   * one inside a marked mock and none of them at or above 12px — which is what
+   * proves the exclusion is load-bearing rather than decorative, and what
+   * `exclusionsHidingReadableText` re-checks on every run.
+   */
+  test('the product tour renders its chapters and grades clean outside the drawn screens', async ({
+    page,
+  }) => {
+    await page.goto('/product')
+    await expect(page.locator('h1').first()).toBeVisible()
+    // Hand-typed, as this file requires — a registry expansion here is the
+    // shape `tests/guards/review-gate.test.ts` fails this file for.
+    await expect(page.locator('body')).toContainText('The front desk’s whole morning on one screen')
+
+    // Fire every ScrollReveal, then LEAVE the page at the first chapter so the
+    // rail is in its active state when the scan lands. See the note above —
+    // ending at the top made this stop's own watched-fail run come back green.
+    await page.evaluate(async () => {
+      for (let y = 0; y < document.body.scrollHeight; y += 300) {
+        window.scrollTo(0, y)
+        await new Promise((r) => setTimeout(r, 30))
+      }
+      document.getElementById('frontdesk')?.scrollIntoView()
+    })
+    // The rail's active chip is what the walk above exists to make real, so
+    // assert it is there rather than trusting the scroll. Without this, a
+    // change to the rail's activation could take the stop back to grading a
+    // page with no active state on it and nothing would say so.
+    await expect(page.locator('[aria-current="true"]').first()).toBeVisible()
+
+    await expectNoA11yViolations(page, 'marketing: product', { exclude: PRODUCT_MOCKS })
+  })
+
+  /**
    * THE MANIFESTO — the third marketing stop, added with the page's Daylight
    * Dream rebuild (Neon, DREAMCRM-78).
    *
-   * IT IS HERE BECAUSE IT IS THE ONE SUBPAGE THAT CAN HOLD A CEILING OF ZERO
-   * WITH NO EXCLUSION AT ALL, which is the condition `e2e/axe-baseline.ts`
-   * spends a whole note explaining that `/product` cannot meet. The blocker
-   * there is the exclusion's SHAPE: `DECORATIVE_MOCKS` keys on the drift
-   * wrapper (`.mkt-float >`) and the tour's nine mocks do not float, so the
-   * selector matches nothing and `deadExclusions` would fail the stop by
-   * name. `/why` renders no mock of any kind — it is prose, tone tiles and
-   * type — so there is nothing to exempt and nothing to derive. A stop with
-   * no exemption is the only kind whose zero means what it says.
+   * IT IS HERE BECAUSE IT CAN HOLD A CEILING OF ZERO WITH NO EXCLUSION AT
+   * ALL. `/why` renders no mock of any kind — it is prose, tone tiles and type
+   * — so there is nothing to exempt and nothing to derive. A stop with no
+   * exemption is the only kind whose zero means what it says.
+   *
+   * (This note used to name `/product` as the page that could not meet that
+   * condition, because `DECORATIVE_MOCKS` keys on the drift wrapper and the
+   * tour's nine mocks do not float. That is CLOSED — the stop above it holds
+   * zero on `PRODUCT_MOCKS`, an exclusion derived from what those mocks say
+   * they are. The point this paragraph is making survives the closure: `/why`
+   * needs no exemption at all, which is still the stronger position.)
    *
    * MEASURED BEFORE IT WAS ASSERTED: 0 rules / 0 nodes at 390, 834 and 1440
    * against the production build, `wcag2a/2aa/21a/21aa`. Zero is the state in
@@ -108,14 +194,15 @@ test.describe('the marketing site (the storefront)', () => {
    * THE RESOURCE LIBRARY — the fourth and fifth marketing stops, added with
    * the pages' Daylight Dream rebuild (Neon, DREAMCRM-79, move 6 page 5).
    *
-   * THEY MEET THE SAME CONDITION `/why` DOES, which is the only condition
-   * that earns a ceiling of zero: no exemption. `e2e/axe-baseline.ts` spends
-   * a note explaining why `/product` cannot have a stop — `DECORATIVE_MOCKS`
-   * keys on the drift wrapper (`.mkt-float >`) and the tour's nine mocks do
-   * not float, so the selector would match nothing and `deadExclusions`
-   * would fail the stop by name. Neither of these pages renders a mock of
-   * any kind: the hub is type, tone tiles and hairlines, and a guide is that
-   * plus prose. There is nothing to exempt and nothing to derive.
+   * THEY MEET THE SAME CONDITION `/why` DOES, which is the strongest
+   * condition a ceiling of zero can rest on: no exemption at all. (This note
+   * used to add that `/product` could not have a stop, because
+   * `DECORATIVE_MOCKS` keys on the drift wrapper and the tour's nine mocks do
+   * not float. CLOSED on DREAMCRM-87 — it has a stop, at zero, on an
+   * exclusion derived from what those mocks say they are.) Neither of these
+   * pages renders a mock of any kind: the hub is type, tone tiles and
+   * hairlines, and a guide is that plus prose. There is nothing to exempt and
+   * nothing to derive.
    *
    * TWO STOPS RATHER THAN ONE, because they are two different pages under
    * one route. The hub is an index; the ARTICLE carries everything this move
@@ -165,13 +252,10 @@ test.describe('the marketing site (the storefront)', () => {
    * with the pages' Daylight Dream rebuild (Neon, DREAMCRM-80, move 6 page 6).
    *
    * THEY MEET THE CONDITION `/why` AND THE RESOURCE PAGES MEET, which is the
-   * only one that earns a ceiling of zero: NO EXEMPTION. `e2e/axe-baseline.ts`
-   * spends a note explaining why `/product` cannot have a stop —
-   * `DECORATIVE_MOCKS` keys on the drift wrapper (`.mkt-float >`) and the
-   * tour's nine mocks do not float, so the selector would match nothing and
-   * `deadExclusions` would fail the stop by name. None of these three renders
-   * a product mock of any kind: they are type, tone tiles, hairlines and
-   * FORMS.
+   * strongest a ceiling of zero can rest on: NO EXEMPTION. None of these three
+   * renders a product mock of any kind: they are type, tone tiles, hairlines
+   * and FORMS. (This note used to add that `/product` could not have a stop
+   * for want of a selector; CLOSED on DREAMCRM-87 — see `PRODUCT_MOCKS`.)
    *
    * THE FORMS ARE WHY THESE ARE WORTH THEIR RUNTIME, and it is a different
    * argument from the five stops above. Every marketing stop so far has been
@@ -237,12 +321,11 @@ test.describe('the marketing site (the storefront)', () => {
    * stops, added with the pages' Daylight Dream rebuild (Neon, DREAMCRM-80,
    * move 6 page 6b).
    *
-   * THEY MEET THE CONDITION EVERY STOP ON THIS SITE MEETS EXCEPT `/product`:
-   * NO EXEMPTION. `e2e/axe-baseline.ts` explains why `/product` cannot have a
-   * stop — `DECORATIVE_MOCKS` keys on the drift wrapper (`.mkt-float >`) and
-   * the tour's nine mocks do not float, so the selector would match nothing
-   * and `deadExclusions` would fail the stop by name. None of these three
-   * renders a mock: they are type, tone tiles, hairlines and status chips.
+   * THEY MEET THE CONDITION EVERY STOP ON THIS SITE MEETS EXCEPT THE TWO THAT
+   * RENDER PRODUCT MOCKS: NO EXEMPTION. None of these three renders a mock —
+   * they are type, tone tiles, hairlines and status chips. (`/product` is the
+   * second of those two since DREAMCRM-87; it holds zero on `PRODUCT_MOCKS`,
+   * and the note that used to say it could not have a stop at all is closed.)
    *
    * THREE STOPS RATHER THAN ONE, and the doc pair is the reason. The docs
    * INDEX is a shelf — four group headers and thirty-one rows. The doc
