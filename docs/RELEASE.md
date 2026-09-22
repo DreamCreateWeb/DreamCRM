@@ -1102,7 +1102,26 @@ binding are all correct. The payment-plan charger was the exception.
   reasoned allowlist, matching the prose spellings (`a month`, `per month`,
   `/month`) as well as `/mo`. This introduces a new invariant, so it is
   Forge's intake before it is anyone's implementation. Raised by Sentinel in
-  review of DREAMCRM-38. · OPEN.
+  review of DREAMCRM-38. · **FIXED (#665, `c8a0f094`)** (DREAMCRM-102).
+  Intaken as `dreamcrm-conventions` §2c, then implemented: the field of view
+  is DERIVED from `git ls-files` over `app`, `components` and `lib` (1,342
+  files) rather than listed, and `PRICE_QUOTING_ROUTES` — the list of ten
+  routes #620 shipped, which had grown in every move since — is deleted. All
+  three prose spellings are graded, plus the dollar-signless
+  `const LIST_MONTHLY = 500` the original source scan walked past, which is
+  the shape that matters most: `lib/recall-roi.ts` DIVIDED by its copy, so a
+  reprice there would not have gone stale, it would have gone wrong. Market
+  BANDS are discriminated structurally (two numbers joined by a dash), which
+  is what let `/compare` come inside the field of view instead of staying a
+  file-shaped hole; the reasoned allowlist is four per-MATCH entries. It found
+  28 live literals in four files the old list had never named — the homepage
+  among them — and all resolve through `getQuotedPlan()` now. Sharpened on merge by
+  #665's review (Sentinel, APPROVE WITH NOTES): the price-name vocabulary
+  matches a WORD rather than a substring (`fee` was matching inside
+  `FEED_PAST_DAYS`), the assignment spelling crosses a JSX brace
+  (`price={200}`), and a band now needs its far end to look like money and to
+  sit on the same line — `$200 — 7 days free` had been reading as a range and
+  going silent, which is the quiet failure direction.
 Unbundled 2026-09-10 — these five shipped as ONE entry, which made the whole
 line unresolvable while they shared a verdict. Since unbundling, three have
 closed on their own evidence (the demo cart, the MRR cadence math, and the
@@ -2303,6 +2322,71 @@ looseness one step over — an attribute has more than one spelling, and the DOM
 decides which ones are equivalent, not the source. The mutation that finds it
 is the one nobody ran: write the attribute the OTHER way.
 · FIXED (#647, DREAMCRM-87)
+
+**S2 · the public grade report's quiet ink failed AA on its own card, and
+nothing in the repo could see it.** Found on DREAMCRM-98 the moment `/g` got
+its first browser stop — the new stop went red on arrival, on eleven elements,
+before any of this was looked for.
+
+Measured, as rendered, at `token: practice grade report`:
+
+- `#66738a` on `#0d111b` → **3.93:1** at 12px / weight 500. Ten elements: the
+  `.dg-mono` micro-labels in all four axis panels
+  (`#website|#listing|#reviews|#search > .mt-6 > .mb-2.hidden.gap-6 >
+  .dg-mono:nth-child(1)`, the axis score `span` in each
+  `.items-baseline.justify-between > .text-base.dg-mono`, and the row labels at
+  `.space-y-2.mt-5 > .items-center.gap-3.flex > .w-28.sm\:w-36`).
+- `#66738a` on `#070b15` → **4.10:1**, the `footer`.
+
+`#0d111b` is a COMPOSITE, not a token: `.dg-card` is
+`rgba(255,255,255,0.025)` over the page's `CANVAS`. The suspected token was
+right here, but the background it fails against is not written anywhere — which
+is half of why this survived.
+
+**Why three gates were all green with it live**, which is the part worth
+keeping. `pnpm lint` reads JSX and cannot compute a ratio. The contrast rules
+in `tests/a11y` read `className` strings, and this page styles by inline hex on
+purpose — it is framework-free so the offline design harness can render it with
+`react-dom/server`, which is a good reason and also an exemption nobody wrote
+down. And the runtime check that CAN see a composited colour had no stop here
+at all: `/g` is a single-letter token route, and eight of those ten had never
+been scanned. The instrument that finds this class of defect existed; it was
+simply not pointed at the page.
+
+· **FIXED** on DREAMCRM-98 — `INK_3` raised one step of lightness to `#78849c`,
+same hue and saturation, graded against the DEEPEST composite on the page
+(`.dg-cell` adds another `rgba(255,255,255,0.02)`, and a lighter ground is the
+harder one for light text): 4.80:1 on `#121620`, 5.01:1 on `#0d111b`, 5.23:1 on
+`#070b15`. The stop holds at ZERO.
+
+**S3 · the axe stops cannot see text over a gradient, and one page has a
+gradient a label could drift into.** Raised by Sentinel reviewing #669, while
+re-deriving the entry above; pre-existing, and NOT the fix that entry made.
+
+Two halves, and the first is the one that generalises:
+
+- **The instrument.** `findA11yViolations` in `e2e/axe.ts:271` destructures
+  `const { violations } = await builder.analyze()` and discards the rest. For
+  text over a gradient, axe-core cannot resolve a single background colour and
+  reports the node under **`incomplete`**, not `violations` — so every stop in
+  the suite, at zero or not, is silent about it. This is not a ceiling that
+  needs shrinking; it is a category the gate never receives.
+- **The reachable case.** `app/g/[token]/report-view.tsx` — `.dg-glow` is two
+  radial gradients over the canvas, and at the teal peak it composites to about
+  `#0d2d32`, where the page's quiet ink `#78849c` grades **3.87:1**. It does not
+  bite today: `transparent 70%` of a 640×420 ellipse anchored at `80% 150px`
+  reaches roughly x 576–1472, y ≤ 444, and every `INK_3` node is either
+  left-column hero (out of reach horizontally) or below the axis panels' top
+  edge (out of reach vertically). Repro for the day it does: move any
+  `.dg-mono` label into the hero's right half above y=444 and watch
+  `token: practice grade report` stay GREEN.
+
+Fix shape: read `incomplete` alongside `violations` in `expectNoA11yViolations`
+and report it as its own class — not as a violation (it is genuinely
+undecidable, and a gate people have to interpret is one they learn to ignore),
+but not as silence either. `e2e/axe.ts` is on the `check-definitions` REVIEW
+gate, so that is a reviewed change and a separate PR; it is written here rather
+than beside the code for that reason. · OPEN.
 
 ### R1 · S8 sweep — Compliance & data (2026-08-17)
 
