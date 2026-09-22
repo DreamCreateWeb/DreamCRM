@@ -134,22 +134,57 @@ export const LAUNCH_POST_CORRECTIONS: { stale: string; fixed: string }[] = [
     stale: "our SMS channel is still in carrier registration; we'd",
     fixed: 'SMS texting is on our roadmap rather than in the product today; we’d',
   },
-  {
-    // DREAMCRM-101 — the pre-collapse three-tier RANGE, readable on /blog
-    // while /pricing quoted one number and a presenter quoted $200. The
-    // replacement resolves from `getQuotedPlan()` exactly as the seed copy
-    // above does, so this pass writes the price the config holds on the day it
-    // runs rather than minting a second copy of it.
-    //
-    // The dead range stays spelled out here on purpose: it is the only way to
-    // FIND the published row, it is not a plan price (150 is nobody's price
-    // and the 500 carries no dollar sign), and it is what tells the next
-    // reader what was wrong. `tests/marketing/pricing-price-source.test.tsx`
-    // scans this file and is untroubled by it.
-    stale: 'for $150–500 a month, month-to-month.',
-    fixed: `for ${usd(PLAN.price)} a month, month-to-month.`,
-  },
+  // DREAMCRM-101's PRICE correction is deliberately not in this list — it
+  // cannot be an exact sentence. `DEAD_RANGE` below says how that was found
+  // out, and it is the more useful half of the story.
 ]
+
+/**
+ * THE OPENING SENTENCE WITH A DEAD PRICE RANGE IN IT.
+ *
+ * ── WHY THIS ONE IS A SHAPE AND NOT AN EXACT SENTENCE ────────────────────
+ *
+ * DREAMCRM-101 first shipped this correction as an exact match on
+ * *"for $150–500 a month, month-to-month."* — the range `docs/RELEASE.md`
+ * Part 5 recorded, and the range sitting in `LAUNCH_POSTS` above. On the
+ * deploy it matched nothing, because **the published row said `$99–199`**: a
+ * range from a pricing scheme older than the one the ledger named.
+ *
+ * That is this seed's OWN bug class, one generation earlier. `LAUNCH_POSTS`
+ * is read only when a post does not exist, so the registry and the published
+ * row have been free to diverge since launch — somebody updated the copy in
+ * this file, the live post kept the copy it was seeded with, and the ledger
+ * entry was later written by reading THIS FILE rather than the page. Its own
+ * repro said *"open `/blog/dreamcrm-is-live` and read the first paragraph"*,
+ * and running that repro is what found the real number. **The lesson is
+ * cheaper than the bug: run the repro you wrote down.**
+ *
+ * **So the rule is about the SHAPE of a dead quote rather than one spelling
+ * of it.** There has been one purchasable plan since the 2026-07-19 collapse,
+ * so a RANGE in this sentence is stale whatever its digits are — and a rule
+ * keyed on today's wrong number has to be rewritten every time somebody
+ * discovers yesterday's.
+ *
+ * ── AND IT IS STILL NARROW, WHICH IS THE WHOLE TRADE ─────────────────────
+ *
+ * A range ONLY, inside our own sentence frame, ending in our own
+ * "month-to-month." clause. It therefore does not touch:
+ *
+ *  - a row already corrected to a single price — so this stays a no-op on
+ *    every deploy after the first, and the caller goes on skipping the write;
+ *  - a post somebody reworded in the Posts manager. *"for a flat monthly
+ *    fee, month-to-month."* is not a range and is left exactly alone, which
+ *    is the property the exact-match design existed to protect and the one
+ *    thing widening this could have cost.
+ *
+ * The dash class covers the hyphen and the whole unicode dash range, because
+ * which one a given generation of the copy used is precisely the kind of
+ * detail this correction has already been wrong about once.
+ *
+ * `tests/marketing/launch-post-price.test.ts` pins all of those directions
+ * against the real published body.
+ */
+const DEAD_RANGE = /for \$\d[\d,]*\s*[‐-―-]\s*\$?\d[\d,]* a month, month-to-month\./
 
 /** Every correction above applied to one stored body. Returns the input
  *  unchanged when nothing matched, which is what lets the caller skip the
@@ -159,6 +194,10 @@ export function correctLaunchPostBody(bodyHtml: string): string {
   for (const { stale, fixed } of LAUNCH_POST_CORRECTIONS) {
     if (out.includes(stale)) out = out.replace(stale, fixed)
   }
+  // The price, by shape rather than by spelling. A non-global regex rewrites
+  // the FIRST match only, which is what we want here: the sentence occurs
+  // once, and a second one would be a post we did not write.
+  out = out.replace(DEAD_RANGE, `for ${usd(PLAN.price)} a month, month-to-month.`)
   return out
 }
 
