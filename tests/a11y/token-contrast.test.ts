@@ -31,6 +31,7 @@ import {
   gradeClippedTextClasses,
   isClippedText,
   CLIPPED_TEXT_EXEMPTIONS,
+  CLIPPED_TEXT_GROUND,
   clippedTextSites,
   scanForUnreadableClippedText,
   scanForWhiteOnShallowBrand,
@@ -448,16 +449,67 @@ describe('CLIPPED TEXT, where the background IS the ink', () => {
    * assertion over a clean tree cannot tell a scanner that is looking from one
    * that has quietly stopped.
    */
-  it('DERIVES its cutoff from rule 2 rather than opening a second one', () => {
-    // The WCAG ratio is symmetric, so "white reads on this step" and "this
-    // step reads on white" are one measurement. That is what lets rule 4 grade
-    // INK against rule 2's FILL cutoff instead of the repo carrying two
-    // numbers that can drift apart. Asserted, not assumed.
+  it('keeps rule 2’s cutoff for the BRAND RAMP even though the ground moved off white', () => {
+    // Rule 4 graded against plain white until DREAMCRM-87, on the argument
+    // that the WCAG ratio is symmetric — "white reads on this step" and "this
+    // step reads on white" are one measurement — so the repo carried one
+    // cutoff rather than two that can drift. The ground is `surface-1` now
+    // (see the rule's header for why), and this is the half of that argument
+    // that had to survive: the BRAND RAMP's cutoff must not move, or the repo
+    // really would carry two opinions about which teal step is legal.
     for (const step of [...SHALLOW_BRAND_FILLS, 'teal-600', 'teal-700']) {
       const asFill = contrast(white, token(LIGHT, step))
-      const asInk = contrast(token(LIGHT, step), white)
-      expect(asInk, `${step} graded both ways`).toBeCloseTo(asFill, 10)
+      const asInk = contrast(token(LIGHT, step), token(LIGHT, CLIPPED_TEXT_GROUND))
+      expect(asFill >= AA, `${step} as a white-text FILL`).toBe(asInk >= AA)
     }
+    // Named, not just implied: the step DESIGN-SYSTEM.md calls the shallowest
+    // legal one stays legal, and the one below it stays illegal.
+    expect(contrast(token(LIGHT, 'teal-600'), token(LIGHT, CLIPPED_TEXT_GROUND))).toBeGreaterThan(AA)
+    expect(contrast(token(LIGHT, 'teal-500'), token(LIGHT, CLIPPED_TEXT_GROUND))).toBeLessThan(AA)
+  })
+
+  /**
+   * THE FOUR WORDS THE GROUND MOVE ACTUALLY CHANGES — re-derived from the
+   * palette rather than transcribed, because a list in a comment is a list
+   * that goes stale on the next Tailwind bump.
+   *
+   * This is the blast radius of DREAMCRM-87's change, and it is the honest
+   * answer to "did you just make the rule stricter everywhere". Four words out
+   * of the whole resolved palette, none of them on the brand ramp.
+   * `fuchsia-600` is the one this was done for: Forge's #611 intake measured
+   * it at 4.66 on white and 4.46 on `surface-1` — it PASSED rule 4 and failed
+   * the page, one step off the signature gradient's terminal stop.
+   */
+  it('names every palette word whose verdict the ground move flips', () => {
+    const ground = token(LIGHT, CLIPPED_TEXT_GROUND)
+    const flipped: string[] = []
+    // `Array.from` rather than iterating the Map directly: this repo's tsconfig
+    // target makes a bare `for…of` over one a TS2802.
+    for (const name of Array.from(LIGHT.keys())) {
+      const c = utilityColor(LIGHT, name)
+      if (!c) continue
+      if (contrast(c, white) >= AA && contrast(c, ground) < AA) flipped.push(name)
+    }
+    expect(flipped.sort()).toEqual(['fuchsia-600', 'indigo-500', 'pink-600', 'rose-600'])
+  })
+
+  it('catches fuchsia-600 as clipped ink — the stop this rule used to pass', () => {
+    // The real shape: `app/(marketing)/page.tsx` runs the signature gradient as
+    // clipped text and carries a comment saying `fuchsia-600` is the trap and
+    // is NOT used. A person holding a line is not a rule holding it.
+    const trap = gradeClippedTextClasses(
+      '"bg-gradient-to-r from-teal-600 via-violet-700 to-fuchsia-600 bg-clip-text text-transparent"',
+    )
+    expect(trap).not.toBeNull()
+    expect(trap!.failures.map((f) => `${f.ink} ${f.ratio.toFixed(2)}`)).toEqual(['fuchsia-600 4.46'])
+
+    // …and the gradient the site actually ships still passes, so this is a
+    // closed trap rather than a restyle of the headline.
+    expect(
+      gradeClippedTextClasses(
+        '"bg-gradient-to-r from-teal-600 via-violet-700 to-fuchsia-700 bg-clip-text text-transparent"',
+      ),
+    ).toBeNull()
   })
 
   it('catches the GRADIENT defect, in the real shape it shipped in', () => {
@@ -465,10 +517,18 @@ describe('CLIPPED TEXT, where the background IS the ink', () => {
       '"bg-gradient-to-r from-teal-600 to-teal-400 bg-clip-text text-transparent"',
     )
     expect(found).not.toBeNull()
-    // Only the `to-` end. `from-teal-600` reads at 5.09 and is not a defect —
-    // a rule that condemned the whole span would be telling the author to
-    // change something that was already right.
-    expect(found!.failures.map((f) => `${f.ink} ${f.ratio.toFixed(2)}`)).toEqual(['teal-400 2.42'])
+    // Only the `to-` end. `from-teal-600` reads at 4.88 on this ground and is
+    // not a defect — a rule that condemned the whole span would be telling the
+    // author to change something that was already right.
+    //
+    // **2.32, not the 2.42 this suite reported until DREAMCRM-87.** Same
+    // defect, same verdict; the rule grades against `surface-1` rather than
+    // plain white now, so every ratio it prints is a little lower. 2.42 is
+    // still the right number for the shipped defect on the homepage, because
+    // that headline really is on white — see the rule's header. Where a doc
+    // says 2.42 it is describing DREAMCRM-44's site; where this suite prints a
+    // number it is describing the rule.
+    expect(found!.failures.map((f) => `${f.ink} ${f.ratio.toFixed(2)}`)).toEqual(['teal-400 2.32'])
   })
 
   it('reads a via- stop, so a pale middle cannot hide between two dark ends', () => {
@@ -508,7 +568,7 @@ describe('CLIPPED TEXT, where the background IS the ink', () => {
   it('catches clipped text over a SOLID fill, which nothing graded before', () => {
     const found = gradeClippedTextClasses('"bg-teal-400 bg-clip-text text-transparent"')
     expect(found).not.toBeNull()
-    expect(found!.failures.map((f) => `${f.ink} ${f.ratio.toFixed(2)}`)).toEqual(['teal-400 2.42'])
+    expect(found!.failures.map((f) => `${f.ink} ${f.ratio.toFixed(2)}`)).toEqual(['teal-400 2.32'])
     expect(found!.classes).toBe('bg-teal-400')
     // The note has to say which shape was found: "a stop is too pale" sends a
     // reader looking for a gradient that is not in the chunk.
@@ -1243,5 +1303,106 @@ describe('TONE_FILL — the one answer for a solid fill with a label on it', () 
       'white on orange-500 must stay below the floor — it is why the ink is dark',
     ).toBeLessThan(AA)
     expect(src).not.toContain('bg-orange-500 text-white')
+  })
+})
+
+/**
+ * THE COMPARISON MATRIX'S THREE MARKS — a (glyph, tile) pair that is the VALUE
+ * a reader came to the page for, and that no other rule in this repo grades.
+ *
+ * WHY NOTHING ELSE SEES IT. The glyph is an `aria-hidden` `<svg>` painted in
+ * `currentColor` with an `sr-only` word beside it, so axe returns ZERO
+ * violation nodes over `/compare`, `/compare/weave` and `/compare/patientpop`
+ * at all three widths — correctly, because there is no TEXT node to grade. The
+ * source rules decline for their own reasons: rule 1 wants a `dark:` half
+ * (this site has none, it is light in both themes), rules 2–4 want white or a
+ * clipped background, and rule 5 wants a registry tone fill. The generic
+ * ink-and-surface-in-one-class-string rule that WOULD cover this is
+ * `docs/UI-BEST-VERSION.md`'s open item 1 and is deliberately not built here.
+ *
+ * So this grades the three pairs out of `ui.tsx` BY NAME, the same shape as
+ * the trial banner above: read the class strings, resolve them through the
+ * palette, require AA. Nothing is transcribed — the ratios come from the
+ * stylesheet, so a Tailwind bump that re-tints a ramp re-grades the marks.
+ *
+ * AND IT ASSERTS THE MARGIN, NOT ONLY THE FLOOR. `Partial` shipped at 4.52 and
+ * `Yes` at 4.72 — one clearing by 0.02 — which is `BRAND.md` Part 7's "4.18
+ * reads as nearly fine" shape: a pair that passes today and fails the first
+ * time somebody warms the tint. A floor-only assertion would have called that
+ * healthy. `MARK_FLOOR` is the bar these three are actually held to.
+ *
+ * WATCHED TO FAIL (§2d) against the real defect in its real shape:
+ * `text-gray-400` restored on the "no" mark reddens this naming
+ * `#93a0bc on #e9f0fc = 2.29`, and `text-amber-700` restored on `Partial`
+ * reddens it at 4.52 — the coincidence the margin exists for. The extractor
+ * was mutated too: forcing `markPairs` to return `[]` reddens the
+ * field-of-view assertion rather than passing silently.
+ */
+describe('the comparison matrix marks, where the colour IS the value', () => {
+  /**
+   * These three carry no `sr-only`-free text and are the page's whole answer,
+   * so they are held one clear step above AA rather than at it. 5.5 is not a
+   * new bar invented here: it is below every one of the three as they ship
+   * (6.03 / 6.36 / 6.70) and above the coincidence band that two of them were
+   * sitting in, so it fails a one-step revert on any of them.
+   */
+  const MARK_FLOOR = 5.5
+
+  /** The (tile, glyph) pairs `MatrixMark` actually renders, read from source. */
+  function markPairs(): Array<{ tile: string; glyph: string }> {
+    const src = readFileSync(join(ROOT, 'components/marketing/ui.tsx'), 'utf8')
+    const body = src.slice(src.indexOf('export function MatrixMark'))
+    const scoped = body.slice(0, body.indexOf('\n/* ── Product mocks'))
+    return Array.from(scoped.matchAll(/bg-([a-z]+-\d{2,3}) text-([a-z]+-\d{2,3})/g)).map((m) => ({
+      tile: m[1],
+      glyph: m[2],
+    }))
+  }
+
+  it('renders exactly three marks, so a narrowed scan cannot report clean', () => {
+    // The field of view. A rule that has quietly stopped matching anything is
+    // indistinguishable from a clean tree, which is why every scanner in this
+    // file asserts its own subject before it asserts a ratio.
+    const pairs = markPairs()
+    expect(pairs).toHaveLength(3)
+    expect(pairs.map((p) => `${p.glyph} on ${p.tile}`)).toEqual([
+      'emerald-800 on emerald-100',
+      'amber-800 on amber-100',
+      'gray-600 on gray-100',
+    ])
+  })
+
+  it('every mark reads clear of the floor against its OWN tile', () => {
+    const failures: string[] = []
+    for (const { tile, glyph } of markPairs()) {
+      const fg = utilityColor(LIGHT, glyph)
+      const bg = utilityColor(LIGHT, tile)
+      if (!fg || !bg) {
+        failures.push(`${glyph} on ${tile} — not in this repo's palette`)
+        continue
+      }
+      const ratio = contrast(fg, bg)
+      if (ratio < MARK_FLOOR) failures.push(`${glyph} on ${tile} = ${ratio.toFixed(2)}`)
+    }
+
+    expect(
+      failures,
+      `the three marks in the comparison matrix are the VALUE a reader scans ` +
+        `that page for, and the glyph is aria-hidden with an sr-only word — so ` +
+        `axe grades nothing here and a sighted reader has only the mark. They ` +
+        `are held to ${MARK_FLOOR}, not to ${AA}: Partial shipped clearing AA ` +
+        `by 0.02 and the "no" mark sat at 2.29. Deepen the ink or the tint; the ` +
+        `structure and the sr-only spans are pinned by tone-tiles.test.ts.`,
+    ).toEqual([])
+  })
+
+  it('the three still read as one family, not one shout and two whispers', () => {
+    // The reason all three moved rather than only the failing one. A negative
+    // mark left as the heaviest of the three reads as emphasis on the answer a
+    // vendor page should be quietest about.
+    const ratios = markPairs().map(({ tile, glyph }) =>
+      contrast(utilityColor(LIGHT, glyph)!, utilityColor(LIGHT, tile)!),
+    )
+    expect(Math.max(...ratios) - Math.min(...ratios)).toBeLessThan(1.5)
   })
 })

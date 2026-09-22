@@ -602,27 +602,50 @@ export function scanForWhiteOnShallowBrandGradient(roots: string[] = UI_ROOTS): 
  * formula means the legal ink steps on white come out identical to rule 2's
  * legal white-text fills without either list being copied.
  *
- * WHAT IT GRADES AGAINST: plain `white`. Two reasons, and the second is the
- * one that decided it.
+ * WHAT IT GRADES AGAINST: `surface-1` (#F8FAFF) — **changed from plain
+ * `white` on DREAMCRM-87**, and the paragraph this replaces asked to be come
+ * back to rather than raised around, so here is the coming back.
  *
- *   1. It is the ground that is actually there. `app/(marketing)/layout.tsx`
- *      hard-codes `bg-white text-gray-950`, and every `bg-clip-text` in `app/`,
- *      `components/` and `lib/` is inside it.
- *   2. **It keeps rule 4's cutoff IDENTICAL to rule 2's, rather than opening a
- *      third opinion about which teal step is legal.** The WCAG ratio is
- *      symmetric, so "white reads on this step" and "this step reads on white"
- *      are the same measurement — `token-contrast.test.ts` asserts that
- *      equality rather than trusting it. Grading against the worst light
- *      surface instead would have been defensible in the abstract and wrong
- *      here: `teal-600` is 5.09 on white and 4.45 on `surface-sunk`, so the
- *      stricter version would outlaw the exact step DESIGN-SYSTEM.md calls the
- *      shallowest legal one, and the repo would carry two cutoffs that
- *      disagree. One number, three rules.
+ * THE ORIGINAL ARGUMENT, and which half of it survived. It graded against
+ * white for two reasons: white is the ground actually under the one clipped
+ * site in the tree, and it kept rule 4's cutoff identical to rule 2's rather
+ * than opening a third opinion about which teal step is legal. The second was
+ * the one that decided it, and the stated cost was a bounded gap — "gradient
+ * text on `canvas` (4.74 at teal-600) or `surface-sunk` (4.45) is graded a
+ * little more kindly than it deserves. No such site exists; if one lands, this
+ * is the paragraph to come back to."
  *
- * The cost is a bounded, named gap: gradient text on `canvas` (4.74 at
- * teal-600) or `surface-sunk` (4.45) is graded a little more kindly than it
- * deserves. No such site exists; if one lands, this is the paragraph to come
- * back to rather than a ceiling to raise.
+ * WHAT CAME BACK WAS NOT A SITE BUT A STOP (Forge's #611 intake, carried on
+ * `docs/UI-BEST-VERSION.md` since). **`fuchsia-600` is 4.66 on white and 4.46
+ * on `surface-1`.** It PASSES this rule and fails the page — and it is not a
+ * hypothetical colour: it is one step off the terminal stop of the signature
+ * gradient, the treatment that runs as clipped text in the homepage headline
+ * and as a rule under every `PageHero` on the site. `app/(marketing)/page.tsx`
+ * carries a comment naming it "the trap" and saying it is NOT used, which is
+ * a person holding a line a rule should hold. That is `BRAND.md` Part 7's
+ * "4.18 reads as nearly fine" wearing a light-ground costume.
+ *
+ * WHY `surface-1` AND NOT `surface-sunk`. The old objection to grading against
+ * the worst light surface was exactly right and still is: `teal-600` is 4.45
+ * on `surface-sunk`, so that version would outlaw the step DESIGN-SYSTEM.md
+ * calls the shallowest legal one. `surface-1` is a different number and it is
+ * the marketing site's SECOND ground — 13 sites spell `bg-[#F8FAFF]` under
+ * `app/(marketing)` and `components/marketing` — so it is a ground clipped
+ * text can actually land on, not a worst case borrowed from a dashboard well.
+ *
+ * AND THE BRAND-RAMP CUTOFF DOES NOT MOVE, which is what keeps "one number,
+ * three rules" true where that phrase was load-bearing. `teal-600` is 5.09 on
+ * white and **4.88** on `surface-1` — legal on both; `teal-500` is 3.82 and
+ * 3.66 — illegal on both. Across this repo's whole resolved palette exactly
+ * **four** words change verdict between the two grounds, and not one is on the
+ * brand ramp: `fuchsia-600` (4.66 → 4.46), `indigo-500` (4.58 → 4.38),
+ * `pink-600` (4.54 → 4.35), `rose-600` (4.53 → 4.34). `token-contrast.test.ts`
+ * re-derives that list from the palette and asserts the ramp's invariance,
+ * rather than either being trusted from this comment.
+ *
+ * The residual gap is now `surface-sunk` (4.45 at teal-600) and it is smaller
+ * and named the same way. Nothing in the tree paints clipped text there; if
+ * something does, this is still the paragraph rather than a ceiling.
  *
  * WHAT IT DOES NOT SEE, so a green run is not mistaken for proof:
  *
@@ -686,6 +709,14 @@ export function scanForWhiteOnShallowBrandGradient(roots: string[] = UI_ROOTS): 
  */
 const CLIP_TEXT = /bg-clip-text(?![\w-])/
 const TRANSPARENT_INK = new RegExp(`${BOUNDARY}text-transparent${NOT_IN_WORD}`)
+
+/**
+ * The ground rule 4 grades clipped letterforms against — the marketing site's
+ * raised panel, not plain white. Exported so the test grades the same token
+ * this rule does rather than a copy of it; the header above carries the
+ * measurement and the four palette words it moves.
+ */
+export const CLIPPED_TEXT_GROUND = 'surface-1'
 
 export type ClippedTextExemption = { file: string; classes: string; why: string }
 
@@ -801,9 +832,11 @@ export function gradeClippedTextClasses(
   const participating = new Set<string>()
   for (const ink of inks) {
     if (ink.alpha) continue
-    // The background is the INK and white is the ground — the inverse of every
-    // other rule in this file, which is the whole point of rule 4 existing.
-    const graded = grade(LIGHT, 'light', ink.word, 'white')
+    // The background is the INK and the page is the ground — the inverse of
+    // every other rule in this file, which is the whole point of rule 4
+    // existing. The ground is `surface-1` rather than white since DREAMCRM-87;
+    // the header above has the measurement and the four words it moves.
+    const graded = grade(LIGHT, 'light', ink.word, CLIPPED_TEXT_GROUND)
     if (!graded || graded.ratio >= AA) continue
     failures.push(graded)
     participating.add(ink.raw)

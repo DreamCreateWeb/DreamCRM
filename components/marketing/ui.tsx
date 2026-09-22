@@ -1244,10 +1244,51 @@ export function ToneDash({ glyph, className = '' }: { glyph: ToneTileGlyph; clas
   )
 }
 
+/**
+ * THE COMPARISON MATRIX'S THREE MARKS, and the one component on this site
+ * whose colour is the VALUE a reader came for.
+ *
+ * THE INK IS ONE STEP DEEPER THAN IT SHIPPED (DREAMCRM-87), on a measurement
+ * rather than a preference. Measured as rendered through a canvas on
+ * `/compare/weave` at 1440, the marks were:
+ *
+ *   | mark | glyph | tile | was | is |
+ *   |---|---|---|---|---|
+ *   | Yes | `emerald-700 → 800` | `emerald-100` | 4.72 | **6.70** |
+ *   | Partial | `amber-700 → 800` | `amber-100` | 4.52 | **6.36** |
+ *   | No | `gray-400 → 600` | `gray-100` | **2.29** | **6.03** |
+ *
+ * **The "no" mark was the defect and the other two were the lesson.** At 2.29
+ * the mark a reader scans this page for was close to invisible; `gray-600` is
+ * the step `BRAND.md` Part 7 already names as the readable quiet ink, and it
+ * is the same move batch 62 and batch 66 made everywhere else a quiet ink had
+ * been quietened twice.
+ *
+ * ALL THREE MOVED BECAUSE TWO OF THEM WERE COINCIDENCES. `Partial` cleared the
+ * 4.5 floor by **0.02** and `Yes` by 0.22 — Part 7's "4.18 reads as nearly
+ * fine" shape, a pair that passes today and fails the first time somebody
+ * warms the tint. Deepening only the one that failed would also have left the
+ * negative mark the HEAVIEST of the three, which reads as emphasis on the
+ * answer a vendor page should be quietest about. At 6.70 / 6.36 / 6.03 they
+ * are one family again, and none of them is sitting on the bar.
+ *
+ * WHY AXE IS GREEN ON THIS PAGE AND THAT IS NOT A DEFENCE: the glyph is an
+ * `aria-hidden` `<svg>` carrying an `sr-only` word, so no text-contrast rule
+ * grades it — a full axe run over `/compare`, `/compare/weave` and
+ * `/compare/patientpop` at all three widths returns ZERO violation nodes. The
+ * `sr-only` word means the meaning never rides on the glyph alone for a SCREEN
+ * READER; it does nothing at all for a sighted reader, who has only the mark.
+ * `token-contrast.test.ts` grades the three pairs out of this file by name.
+ *
+ * THE STRUCTURE IS PINNED AND MUST NOT MOVE. This is the one tick on this site
+ * `tests/marketing/tone-tiles.test.ts` exempts BY COMPONENT with its premise
+ * asserted — changing the `d` attributes or the `sr-only` spans fails that
+ * guard by name. Deepen the ink or the tint; do not restructure it.
+ */
 export function MatrixMark({ value }: { value: 'yes' | 'no' | 'partial' }) {
   if (value === 'yes') {
     return (
-      <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
+      <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-100 text-emerald-800">
         <svg viewBox="0 0 12 12" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
           <path d="M2 6.5 4.5 9 10 3" />
         </svg>
@@ -1257,7 +1298,7 @@ export function MatrixMark({ value }: { value: 'yes' | 'no' | 'partial' }) {
   }
   if (value === 'partial') {
     return (
-      <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-amber-100 text-amber-700">
+      <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-amber-100 text-amber-800">
         <svg viewBox="0 0 12 12" className="h-3 w-3" fill="currentColor" aria-hidden="true">
           <rect x="2" y="5" width="8" height="2" rx="1" />
         </svg>
@@ -1266,7 +1307,7 @@ export function MatrixMark({ value }: { value: 'yes' | 'no' | 'partial' }) {
     )
   }
   return (
-    <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-gray-100 text-gray-400">
+    <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-gray-100 text-gray-600">
       <svg viewBox="0 0 12 12" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
         <path d="M3 3l6 6M9 3l-6 6" />
       </svg>

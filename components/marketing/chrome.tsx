@@ -162,7 +162,15 @@ export function MarketingHeader() {
             aria-label={`${MARKETING.companyName} — home`}
             onClick={() => setMobileOpen(false)}
           >
-            <DreamCreateLogo size={32} />
+            {/* `alwaysLightGround` because this site is light in BOTH themes
+                (`app/(marketing)/layout.tsx` is `bg-white text-gray-950` and
+                nothing under it carries a `dark:` class) while `next-themes`
+                still puts `.dark` on `<html>` from the OS preference. Without
+                it the shared lockup's `dark:text-white` painted white on white
+                — 1.00, the company name gone on every page for every dark-OS
+                visitor. See the prop's own docblock for why this is a call-site
+                opt-out rather than a change to the shared default. */}
+            <DreamCreateLogo size={32} alwaysLightGround />
           </Link>
 
           <nav className="hidden items-center gap-1 lg:flex" aria-label="Main">
