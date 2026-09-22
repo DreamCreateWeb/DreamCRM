@@ -356,7 +356,28 @@ Not a launch blocker — nothing was wrong with the code that shipped and the
 next merge repaired it. But "merge to `main` auto-deploys to production" is a
 standing claim in `CLAUDE.md`, it is what the weekly changelog cadence and
 every "shipped" report rest on, and a deploy that silently does not deploy
-makes the other green signals worth less than they look. · **OPEN**
+makes the other green signals worth less than they look.
+
+**The fix is the one named above** (DREAMCRM-86, #639): a step at the end of
+the `deploy` job runs `scripts/rollout-check.mjs`, which finds the
+`START_DEPLOYMENT` this run's own build started — identified by a
+`ROLLOUT_SINCE` mark taken before `start-build`, then latched by operation id —
+polls it to a terminal status, fails on anything but `SUCCEEDED`, and then
+requires `describe-service` to report `RUNNING`. `ROLLBACK_SUCCEEDED` fails, an
+unrecognised status fails, and NO rollout at all fails. `docs/CI.md` has the
+mechanics; `tests/guards/rollout-check.test.ts` holds the wiring in place
+inside `test` (14 mutations, 14 red).
+
+**Two things this entry's closure does NOT include, both deliberate.** The
+root cause of the 2026-09-21 event is still not established — the check makes
+the NEXT one visible rather than explaining that one, which is what the entry
+asked for. And until the owner-side IAM grant lands (`apprunner:ListOperations`
++ `ListServices` + `DescribeService` on `DreamCRMGitHubActionsDeploy`,
+DREAMCRM-65) every call answers `AccessDenied` and the step prints
+`rollout UNVERIFIED` and exits 0 — loud, keyed to authorization errors alone,
+and self-clearing the day the grant arrives. So the pipeline can now tell a
+landed rollout from a lost one as soon as it is allowed to look.
+· **FIXED — awaiting merge (#639)**
 
 ### R1 · S1 sweep — Tenant & auth (2026-08-17)
 
