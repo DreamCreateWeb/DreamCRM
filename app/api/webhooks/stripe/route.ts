@@ -56,6 +56,26 @@ async function accrueReferralForInvoice(invoice: {
   })
 }
 
+/**
+ * The in-app notification's own idempotency key, scoped to this webhook.
+ *
+ * The event claim below is not enough on its own. It is RELEASED when a handler
+ * throws — deliberately, so Stripe's retry re-processes the event — and the
+ * retry then re-runs the whole handler. Every other step here is idempotent by
+ * construction (`syncSubscriptionFromStripe` upserts, `accrueCommissionForInvoice`
+ * is unique on the invoice id, `reverseCommissionForInvoice` is monotonic);
+ * `notifyOrgMembers` is the one that is not, and it inserts a fresh row per
+ * recipient per call. The claim is also FAIL-OPEN, so a delivery whose ledger
+ * write errored is processed with nothing recorded at all, and Stripe's retry
+ * after a slow response finds a clean ledger and notifies a second time.
+ *
+ * `notify()` scopes the stored key by notification type, so an event that ever
+ * grows a second, different notification still gets two rows.
+ */
+function notifyKey(eventId: string): string {
+  return `stripe:${eventId}`
+}
+
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
@@ -81,6 +101,10 @@ export async function POST(request: Request) {
   // delivery (Stripe retries on timeout, App Runner restarts mid-process) is a
   // no-op so it can't double-notify or re-run side effects. Best-effort — if the
   // ledger itself errors we fall through and process rather than drop the event.
+  // Note what that fail-open costs, and what covers it: a delivery processed
+  // with no claim recorded is re-processed in full on Stripe's retry. Every
+  // step below survives that except the notifications, which carry their own
+  // key — `notifyKey` above.
   try {
     const claimed = await claimStripeEvent(event.id, event.type)
     if (!claimed) {
@@ -111,6 +135,7 @@ export async function POST(request: Request) {
               title: `New clinic signed up`,
               body: `${who} just completed checkout and is provisioned on DreamCRM.`,
               linkPath: '/ecommerce/customers',
+              dedupeKey: notifyKey(event.id),
             },
             { roles: ['owner', 'admin'] },
           )
@@ -138,6 +163,7 @@ export async function POST(request: Request) {
               body: `A clinic just cancelled. Check the Subscriptions module for context.`,
               linkPath: '/ecommerce/invoices',
               meta: { subscriptionId: sub.id, customerId: sub.customer },
+              dedupeKey: notifyKey(event.id),
             },
             { roles: ['owner', 'admin'] },
           )
@@ -185,6 +211,7 @@ export async function POST(request: Request) {
                 body: `${invoice.customer_email ?? 'A clinic'} failed to pay ${amount}. Stripe will retry automatically; reach out if it stays unpaid.`,
                 linkPath: '/ecommerce/invoices',
                 meta: { subscriptionId: invoice.subscription ?? null },
+                dedupeKey: notifyKey(event.id),
               },
               { roles: ['owner', 'admin'] },
             )

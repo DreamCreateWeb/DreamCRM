@@ -662,11 +662,25 @@ export const notifications = pgTable(
     body: text('body'),
     linkPath: text('link_path'),
     meta: jsonb('meta').notNull().default(sql`'{}'::jsonb`),
+    // Idempotency key for a notification that can be DISPATCHED TWICE for one
+    // real-world event — today that means the platform Stripe webhook, whose
+    // release-and-retry path re-runs a whole handler after a failure and whose
+    // fail-open claim means a retry can arrive with no claim recorded at all.
+    // NULL for everything else, which is nearly every notification in the
+    // product: a second "Sarah replied" IS a second notification.
+    dedupeKey: text('dedupe_key'),
     readAt: timestamp('read_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
     uniqueIndex('notifications_user_created_idx').on(t.userId, t.createdAt),
+    // PARTIAL on purpose — the same shape as `campaigns_org_automation_key_idx`
+    // above. Per USER rather than per org because `notifyOrgMembers` fans one
+    // event out to every owner/admin: each of them earns exactly one row, and a
+    // replay earns none.
+    uniqueIndex('notifications_user_dedupe_idx')
+      .on(t.userId, t.dedupeKey)
+      .where(sql`${t.dedupeKey} is not null`),
   ],
 )
 

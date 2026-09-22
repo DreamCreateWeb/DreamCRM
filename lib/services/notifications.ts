@@ -52,6 +52,23 @@ export interface NotifyInput {
   linkLabel?: string | null
   /** Arbitrary structured data carried with the row. */
   meta?: Record<string, unknown>
+  /**
+   * Idempotency key for a dispatch that can legitimately happen TWICE for one
+   * real-world event — a webhook redelivery, a handler re-run after a release
+   * -and-retry. Set it and the insert becomes at-most-once per (recipient,
+   * key): the second dispatch writes nothing, pushes nothing and emails
+   * nothing.
+   *
+   * The stored value is SCOPED BY `type`, so one source event that produces
+   * two different notifications still produces two rows. That is deliberate
+   * and structural rather than a rule call sites have to remember — the
+   * alternative is a caller passing a bare event id and silently swallowing
+   * its own second, different notification.
+   *
+   * LEAVE IT UNSET for ordinary notifications, which is nearly all of them: a
+   * second "Sarah replied" IS a second notification.
+   */
+  dedupeKey?: string | null
   /** Set true to force-send the email even if the user's mode wouldn't. */
   forceEmail?: boolean
   /** Set true to guarantee NO email regardless of mode or forceEmail — the
@@ -101,6 +118,9 @@ async function getPrefs(userId: string): Promise<PrefsRow> {
  * Dispatch a single notification. No-ops silently if the user has muted
  * the bucket (or all notifications). Failures are logged, not thrown — a
  * crashed notification dispatch must never break a triggering action.
+ *
+ * With `dedupeKey` set it is also at-most-once per (recipient, key) — see the
+ * field's own note for what that is for and when NOT to set it.
  */
 export async function notify(input: NotifyInput): Promise<void> {
   try {
@@ -108,7 +128,8 @@ export async function notify(input: NotifyInput): Promise<void> {
     if (prefs.pushNothing && !input.forceEmail) return
     if (!prefs[input.bucket] && !input.forceEmail) return
 
-    await db.insert(schema.notifications).values({
+    const dedupeKey = input.dedupeKey ? `${input.dedupeKey}#${input.type}` : null
+    const values = {
       userId: input.userId,
       organizationId: input.organizationId ?? null,
       bucket: input.bucket,
@@ -117,7 +138,32 @@ export async function notify(input: NotifyInput): Promise<void> {
       body: input.body ?? null,
       linkPath: input.linkPath ?? null,
       meta: input.meta ?? {},
-    })
+      dedupeKey,
+    }
+    if (dedupeKey) {
+      // `where` mirrors the INDEX PREDICATE, not a row filter — Postgres cannot
+      // infer a partial unique index from a bare conflict target and would
+      // raise "no unique or exclusion constraint matching the ON CONFLICT
+      // specification".
+      const inserted = await db
+        .insert(schema.notifications)
+        .values(values)
+        .onConflictDoNothing({
+          target: [schema.notifications.userId, schema.notifications.dedupeKey],
+          where: sql`${schema.notifications.dedupeKey} is not null`,
+        })
+        .returning({ id: schema.notifications.id })
+      // Already delivered on an earlier attempt. Return BEFORE the live push
+      // and the email: a replay that re-emailed would be the same defect one
+      // channel over. The trade is at-most-once — a first attempt that wrote
+      // the row and then died before emailing does not get a second chance —
+      // and for the alerts this is set on (a clinic's payment failed, a
+      // subscription cancelled) a duplicate is worse than a bell row without
+      // its email.
+      if (inserted.length === 0) return
+    } else {
+      await db.insert(schema.notifications).values(values)
+    }
 
     // Live-push so the header bell + sidebar badges update the instant this
     // lands, instead of on their next poll. User-targeted (only this recipient's
