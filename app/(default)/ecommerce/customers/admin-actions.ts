@@ -432,9 +432,20 @@ export async function bindNexHealthAction(
 /**
  * The WRITE-BACK SWITCH (write-back v1, §2.8) — per-clinic, platform-ops
  * only, OFF by default. Flipping to two_way lets the sync queue push
- * DreamCRM bookings + cancellations into the practice's PMS; flipping back
- * to import stops all writes (queued ops simply wait). The bind pins
+ * DreamCRM bookings + cancellations into the practice's PMS. The bind pins
  * 'import', so nothing writes until a human deliberately throws this.
+ *
+ * FLIPPING BACK TO import DOES NOT MEAN "queued ops simply wait" — that
+ * sentence was here and it was false (DREAMCRM-97). `syncPms` gates the
+ * write-back flush on `syncDirection === 'two_way'` and that is its only call
+ * site, so neither the hourly cron nor "Sync now" drains an import-only
+ * connection: whatever is already queued is STRANDED until somebody flips it
+ * back. The clinic-facing toggle (`setSyncDirection`,
+ * `lib/services/pms/connection.ts`) now counts what the flip stranded and says
+ * so; this ops-side flip writes the column directly and still says nothing.
+ * Routing it through `setSyncDirection` is the obvious next step and was left
+ * out of DREAMCRM-97's scope deliberately — different surface, its own
+ * provider/status filters, and a human on both ends of an ops flip.
  */
 export async function setNexHealthWriteBackAction(input: {
   orgId: string

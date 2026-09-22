@@ -1102,7 +1102,20 @@ binding are all correct. The payment-plan charger was the exception.
   reasoned allowlist, matching the prose spellings (`a month`, `per month`,
   `/month`) as well as `/mo`. This introduces a new invariant, so it is
   Forge's intake before it is anyone's implementation. Raised by Sentinel in
-  review of DREAMCRM-38. · OPEN.
+  review of DREAMCRM-38. · **FIXED — awaiting merge (#665)** (DREAMCRM-102).
+  Intaken as `dreamcrm-conventions` §2c, then implemented: the field of view
+  is DERIVED from `git ls-files` over `app`, `components` and `lib` (1,342
+  files) rather than listed, and `PRICE_QUOTING_ROUTES` — the list of ten
+  routes #620 shipped, which had grown in every move since — is deleted. All
+  three prose spellings are graded, plus the dollar-signless
+  `const LIST_MONTHLY = 500` the original source scan walked past, which is
+  the shape that matters most: `lib/recall-roi.ts` DIVIDED by its copy, so a
+  reprice there would not have gone stale, it would have gone wrong. Market
+  BANDS are discriminated structurally (two numbers joined by a dash), which
+  is what let `/compare` come inside the field of view instead of staying a
+  file-shaped hole; the reasoned allowlist is four per-MATCH entries. It found
+  28 live literals in four files the old list had never named — the homepage
+  among them — and all resolve through `getQuotedPlan()` now.
 Unbundled 2026-09-10 — these five shipped as ONE entry, which made the whole
 line unresolvable while they shared a verdict. Since unbundling, three have
 closed on their own evidence (the demo cart, the MRR cadence math, and the
@@ -1507,8 +1520,42 @@ carrying its own. The eleventh entry is a gate hole the work turned up.
   digest — the same defect `submitContactRequest` was fixed for (it returns
   `PublicFormResult` now, see `lib/services/public-form-error.ts`), and the
   same class §2d records as 22 assertions that passed while production showed
-  patients an error digest. · **OPEN.**
-  THE REPRODUCTION, so whoever picks this up is not rediscovering it:
+  patients an error digest. · **FIXED (#663, `a5166156`)**
+  (DREAMCRM-97). They return `BillingActionState` now
+  (`lib/services/billing-action-error.ts`, the staff sibling of
+  `checkout-error.ts` / `public-form-error.ts`), and the two UI halves read
+  it — the Settings panel through the value, both trial-wall buttons and
+  `/billing/activate` through `useActionState` in
+  `components/ui/billing-action-form.tsx`.
+  Three things from the fix worth carrying, because the next person to touch
+  one of these actions will hit all three:
+  - **The shape is `{ error }`, not `{ ok, error }`.** The success path
+    redirects, so a `{ ok: true }` arm would be a branch no caller can reach
+    and a `useActionState` initial value would have to claim a success that
+    has not happened.
+  - **The two lanes are decided by POSITION, not by an error class.** A
+    refusal we wrote is returned before anything is attempted, so nothing can
+    mis-classify it; only the Stripe/DB leg is inside the try, and what it
+    raises (`Stripe price for Premium (annual) is not configured`) is a
+    sentence about OUR deployment, logged rather than quoted at a clinic.
+  - **The hazard the conversion introduces is the redirect**, and it is worse
+    than the defect it replaces: a `redirect()` inside the try reads as a
+    failure, so a clinic that CAN pay is told checkout is down while the
+    navigation silently never happens. Guarded by six tests, verified by
+    making exactly that mutation.
+  `startActivationCheckout` (`app/(default)/billing/activate/actions.ts`) was
+  converted in the same PR though the issue did not name it: it is the OTHER
+  button on the same wall, with the identical defect, and for a managed clinic
+  it is the only one.
+  One correction to the reproduction below, recorded rather than quietly
+  fixed: the role arm it leads with is already pre-gated —
+  `dashboard-shell.tsx` derives `canManageBilling` from the role and the wall
+  renders "ask your owner" instead of buttons, so a non-admin never reaches
+  that check. The defect is unchanged in severity; its REACHABLE causes are
+  Stripe unreachable, a price id missing from the deployment, a session
+  returned with no URL, and a role that changed since the page rendered. The
+  button was silent on all of them.
+  THE REPRODUCTION, as it was written for whoever picked this up:
   - `settings/billing/subscription-panel.tsx:163` and `:176` already
     `catch (err) { setFeedback({ error: (err as Error).message }) }` — that
     renders the digest, not the sentence, and a test asserting
@@ -2270,6 +2317,71 @@ decides which ones are equivalent, not the source. The mutation that finds it
 is the one nobody ran: write the attribute the OTHER way.
 · FIXED (#647, DREAMCRM-87)
 
+**S2 · the public grade report's quiet ink failed AA on its own card, and
+nothing in the repo could see it.** Found on DREAMCRM-98 the moment `/g` got
+its first browser stop — the new stop went red on arrival, on eleven elements,
+before any of this was looked for.
+
+Measured, as rendered, at `token: practice grade report`:
+
+- `#66738a` on `#0d111b` → **3.93:1** at 12px / weight 500. Ten elements: the
+  `.dg-mono` micro-labels in all four axis panels
+  (`#website|#listing|#reviews|#search > .mt-6 > .mb-2.hidden.gap-6 >
+  .dg-mono:nth-child(1)`, the axis score `span` in each
+  `.items-baseline.justify-between > .text-base.dg-mono`, and the row labels at
+  `.space-y-2.mt-5 > .items-center.gap-3.flex > .w-28.sm\:w-36`).
+- `#66738a` on `#070b15` → **4.10:1**, the `footer`.
+
+`#0d111b` is a COMPOSITE, not a token: `.dg-card` is
+`rgba(255,255,255,0.025)` over the page's `CANVAS`. The suspected token was
+right here, but the background it fails against is not written anywhere — which
+is half of why this survived.
+
+**Why three gates were all green with it live**, which is the part worth
+keeping. `pnpm lint` reads JSX and cannot compute a ratio. The contrast rules
+in `tests/a11y` read `className` strings, and this page styles by inline hex on
+purpose — it is framework-free so the offline design harness can render it with
+`react-dom/server`, which is a good reason and also an exemption nobody wrote
+down. And the runtime check that CAN see a composited colour had no stop here
+at all: `/g` is a single-letter token route, and eight of those ten had never
+been scanned. The instrument that finds this class of defect existed; it was
+simply not pointed at the page.
+
+· **FIXED** on DREAMCRM-98 — `INK_3` raised one step of lightness to `#78849c`,
+same hue and saturation, graded against the DEEPEST composite on the page
+(`.dg-cell` adds another `rgba(255,255,255,0.02)`, and a lighter ground is the
+harder one for light text): 4.80:1 on `#121620`, 5.01:1 on `#0d111b`, 5.23:1 on
+`#070b15`. The stop holds at ZERO.
+
+**S3 · the axe stops cannot see text over a gradient, and one page has a
+gradient a label could drift into.** Raised by Sentinel reviewing #669, while
+re-deriving the entry above; pre-existing, and NOT the fix that entry made.
+
+Two halves, and the first is the one that generalises:
+
+- **The instrument.** `findA11yViolations` in `e2e/axe.ts:271` destructures
+  `const { violations } = await builder.analyze()` and discards the rest. For
+  text over a gradient, axe-core cannot resolve a single background colour and
+  reports the node under **`incomplete`**, not `violations` — so every stop in
+  the suite, at zero or not, is silent about it. This is not a ceiling that
+  needs shrinking; it is a category the gate never receives.
+- **The reachable case.** `app/g/[token]/report-view.tsx` — `.dg-glow` is two
+  radial gradients over the canvas, and at the teal peak it composites to about
+  `#0d2d32`, where the page's quiet ink `#78849c` grades **3.87:1**. It does not
+  bite today: `transparent 70%` of a 640×420 ellipse anchored at `80% 150px`
+  reaches roughly x 576–1472, y ≤ 444, and every `INK_3` node is either
+  left-column hero (out of reach horizontally) or below the axis panels' top
+  edge (out of reach vertically). Repro for the day it does: move any
+  `.dg-mono` label into the hero's right half above y=444 and watch
+  `token: practice grade report` stay GREEN.
+
+Fix shape: read `incomplete` alongside `violations` in `expectNoA11yViolations`
+and report it as its own class — not as a violation (it is genuinely
+undecidable, and a gate people have to interpret is one they learn to ignore),
+but not as silence either. `e2e/axe.ts` is on the `check-definitions` REVIEW
+gate, so that is a reviewed change and a separate PR; it is written here rather
+than beside the code for that reason. · OPEN.
+
 ### R1 · S8 sweep — Compliance & data (2026-08-17)
 
 One finder produced the written posture assessment now in **`docs/COMPLIANCE.md`**
@@ -2611,13 +2723,67 @@ and told the owner to ring them about a bridge that is fine.
 
 Closing this needs a RESOLUTION PATH before it needs a query — somewhere a
 human can see the stranded rows and say "I entered that one by hand, let it
-go" — and that is a product decision. Two smaller things ride along with it:
+go" — and that is a product decision. One smaller thing rides along with it:
 a commlog write-op parks identically and is excluded from DREAMCRM-68's count
 because that headline says "bookings" (so a down bridge with chart notes
 queued and NO bookings queued goes unreported until their next booking
-parks), and `setSyncDirection` arguably owes a drain or a warning rather than
-silently stranding a queue. · OPEN — for planning-meeting ranking; not 1.0
+parks). · OPEN — for planning-meeting ranking; not 1.0
 work unless the meeting says so.
+
+A SECOND rider used to sit in that sentence — "`setSyncDirection` arguably
+owes a drain or a warning rather than silently stranding a queue" — and it is
+split out below on contact (§1: one defect, one entry). It had to be: the
+DREAMCRM-96 meeting ranked the WARNING as 1.0 and this entry's resolution path
+as not-1.0, so one entry could not carry both verdicts.
+
+### S3 — the "Import only" toggle stranded its queue without a word (found 2026-09-22)
+
+Door 2 above, as the practice experiences it rather than as the Guardian
+query sees it. `setSyncDirection` (`lib/services/pms/connection.ts`) was a
+bare UPDATE, and `getIntegrationsDashboard`'s "Awaiting write-back" card went
+on reporting *"Will push on next sync"* on every page load afterwards — so the
+one surface that could have said something said the opposite. ·
+**FIXED (#663, `a5166156`)** (DREAMCRM-97).
+
+The WARNING path only, exactly as the DREAMCRM-96 meeting scoped it: no
+drain, no resolution surface, no product decision — that is the entry above
+and it stays parked. The flip returns `{ strandedWrites, oldestStrandedAt }`,
+the toast names the number and the way back, and the KPI reads "Held — two-way
+sync is off". Both halves were needed: a warning shown once and contradicted
+on every page load afterwards is not a warning.
+
+Two decisions the next person should not have to re-derive:
+- **The count mirrors `retryPendingWrites` exactly** — the same two entity
+  types, the same two statuses, the same attempt cap. The number is only
+  worth showing if it means "what the flush would have drained", and an op
+  already at `MAX_WRITE_ATTEMPTS` was undrainable whatever the direction says
+  (door 1), so counting one would blame this click for it. That constant
+  moved to `lib/types/pms.ts` because `sync.ts` already imports
+  `connection.ts` and the other direction is a cycle; a re-declared copy is
+  how the count and the drain would drift apart with nothing going red.
+- **The count is taken AFTER the update.** Every enqueue path refuses unless
+  the connection is two-way, so once the column is flipped nothing further can
+  arrive and everything counted is genuinely stranded. Counting first would
+  miss an op enqueued in the gap — the one direction of error that costs the
+  practice a booking.
+- **The toast speaks in the CARD's number, not only its own** (Sentinel's N3
+  on #663). "Awaiting write-back" counts every unfinished op; the flip strands
+  only the ones still being retried, so a toast reading "4 will not be sent"
+  beside a card reading "10" left the reader to guess which number was about
+  them. Both now come from one `unfinishedWriteOps` filter and the sentence
+  names both when they differ. The gap between them is door 1 showing through
+  — ops that had already stopped retrying — which is the entry above, visible
+  rather than smoothed over.
+
+What this does NOT close: doors 1, 3 and 4, and door 2's own aftermath. A
+practice that flips the toggle is now TOLD, and still has no way to resolve
+the rows other than turning two-way sync back on. The platform-ops sibling
+`setNexHealthWriteBackAction`
+(`app/(default)/ecommerce/customers/admin-actions.ts`) writes the column
+directly and is deliberately NOT routed through `setSyncDirection` here — it
+is a different surface with its own filters, it was outside the meeting's
+scope, and an ops flip has a human on both ends. It is the obvious next thing
+if anyone widens this.
 
 ### Slice 13 — the insurance-card scanner only reads our own storage · DONE
 

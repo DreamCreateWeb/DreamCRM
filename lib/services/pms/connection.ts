@@ -1,8 +1,9 @@
 import 'server-only'
-import { and, count, desc, eq, inArray } from 'drizzle-orm'
+import { and, count, desc, eq, inArray, lt, min } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import { encryptSecret } from '@/lib/crypto'
 import type { PmsConnection, PmsSyncRun } from '@/lib/db/schema/clinic'
+import { MAX_WRITE_ATTEMPTS } from '@/lib/types/pms'
 import type { PmsProviderId, SyncDirection, WriteOpStatus } from '@/lib/types/pms'
 import { OpenDentalProvider, openDentalConfigured } from './open-dental'
 import type { PmsTestResult } from './provider'
@@ -136,11 +137,108 @@ export async function disconnectPms(organizationId: string): Promise<void> {
     .where(eq(schema.pmsConnection.organizationId, organizationId))
 }
 
-export async function setSyncDirection(organizationId: string, direction: SyncDirection): Promise<void> {
+/**
+ * THE UNFINISHED WRITE-OP FILTER, single-homed.
+ *
+ * `getIntegrationsDashboard`'s "Awaiting write-back" KPI and the direction
+ * flip's warning both count this, and they sit on the same screen — so they
+ * agree by construction rather than by two comments hoping to stay in step
+ * (Sentinel's N3 on #663, where the toast and the card next to it could show
+ * different numbers with nothing reconciling them for the reader).
+ */
+function unfinishedWriteOps(organizationId: string) {
+  return and(
+    eq(schema.pmsWriteOp.organizationId, organizationId),
+    inArray(schema.pmsWriteOp.status, ['pending', 'error']),
+  )
+}
+
+/** What a direction flip left behind, for the caller to tell the practice. */
+export interface SyncDirectionChange {
+  /** Everything unfinished on the write-back queue — the SAME number the
+   *  Integrations page's "Awaiting write-back" card shows. Always 0 when
+   *  flipping TO two-way. */
+  queuedWrites: number
+  /** The subset of those the flush WOULD have drained: the entity types the
+   *  retry loop drives, under the attempt cap. Never more than `queuedWrites`;
+   *  less when the queue also holds ops that had already stopped retrying. */
+  strandedWrites: number
+  /** When the oldest of the stranded ones was queued — null when there are
+   *  none. */
+  oldestStrandedAt: Date | null
+}
+
+/**
+ * Flip the connection's sync direction, and REPORT what flipping it stranded.
+ *
+ * This used to be a bare UPDATE, and that was the defect (DREAMCRM-97).
+ * `syncPms` gates the write-back flush on `syncDirection === 'two_way'`
+ * (`sync.ts`) and that is its only call site, so "Sync now" does not drain the
+ * queue either: pressing "Import only" with bookings already queued strands
+ * them permanently, silently, with the Integrations page still promising they
+ * "Will push on next sync". The practice most likely to press it is one whose
+ * bridge is down — exactly the practice with a queue.
+ *
+ * Scope, per the DREAMCRM-96 planning meeting: this is the WARNING path only.
+ * It does not drain the queue and it adds no way to resolve a stranded op —
+ * that needs a product decision and is tracked as its own (not-1.0) ledger
+ * entry. All this does is stop the flip being silent.
+ *
+ * The count is taken AFTER the update, not before, and the order is the honest
+ * one rather than an accident: every enqueue path refuses unless the connection
+ * is two-way, so once the column is flipped no further op can arrive, and
+ * everything counted is genuinely stranded. Counting first would miss an op
+ * enqueued in between — the one case where under-reporting is the outcome that
+ * actually costs the practice a booking.
+ */
+export async function setSyncDirection(
+  organizationId: string,
+  direction: SyncDirection,
+): Promise<SyncDirectionChange> {
   await db
     .update(schema.pmsConnection)
     .set({ syncDirection: direction, updatedAt: new Date() })
     .where(eq(schema.pmsConnection.organizationId, organizationId))
+
+  // Turning write-back ON strands nothing — the next flush picks the queue up.
+  if (direction === 'two_way') {
+    return { queuedWrites: 0, strandedWrites: 0, oldestStrandedAt: null }
+  }
+
+  // TWO reads rather than one aggregate with a FILTER clause, deliberately: a
+  // filtered `min()` has to be hand-written `sql`, which is not a column and so
+  // gets no driver mapper — the exact defect
+  // tests/guards/timestamp-aggregate-mapping.test.ts exists for. Both are
+  // served by the `(organization_id, status)` index and they run in parallel.
+  const [[queuedRow], [strandedRow]] = await Promise.all([
+    db.select({ c: count() }).from(schema.pmsWriteOp).where(unfinishedWriteOps(organizationId)),
+    db
+      .select({
+        // drizzle's `min`, never a hand-rolled `sql`min(…)`` — `created_at` is
+        // `timestamp` without zone, and only the column's own driver mapper
+        // reads it back as UTC.
+        oldest: min(schema.pmsWriteOp.createdAt),
+        c: count(),
+      })
+      .from(schema.pmsWriteOp)
+      .where(
+        and(
+          unfinishedWriteOps(organizationId),
+          // Exactly what `retryPendingWrites` drives — the same two entity
+          // types, under the same attempt cap. A row it would not have driven
+          // anyway is not something this flip took away.
+          inArray(schema.pmsWriteOp.entityType, ['appointment', 'commlog']),
+          lt(schema.pmsWriteOp.attempts, MAX_WRITE_ATTEMPTS),
+        ),
+      ),
+  ])
+
+  const oldest = strandedRow?.oldest ? new Date(strandedRow.oldest) : null
+  return {
+    queuedWrites: Number(queuedRow?.c ?? 0),
+    strandedWrites: Number(strandedRow?.c ?? 0),
+    oldestStrandedAt: oldest && !Number.isNaN(oldest.getTime()) ? oldest : null,
+  }
 }
 
 export async function setAutoSync(organizationId: string, enabled: boolean): Promise<void> {
@@ -191,10 +289,7 @@ export async function getIntegrationsDashboard(organizationId: string): Promise<
   const [[patTotal], [aptTotal], [pending]] = await Promise.all([
     db.select({ c: count() }).from(schema.patient).where(eq(schema.patient.organizationId, organizationId)),
     db.select({ c: count() }).from(schema.appointment).where(eq(schema.appointment.organizationId, organizationId)),
-    db
-      .select({ c: count() })
-      .from(schema.pmsWriteOp)
-      .where(and(eq(schema.pmsWriteOp.organizationId, organizationId), inArray(schema.pmsWriteOp.status, ['pending', 'error']))),
+    db.select({ c: count() }).from(schema.pmsWriteOp).where(unfinishedWriteOps(organizationId)),
   ])
 
   const recentRuns = await db

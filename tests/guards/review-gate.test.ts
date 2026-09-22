@@ -564,6 +564,12 @@ describe('the review-gate classifier', () => {
       'app/site/[slug]/actions.ts': 'money',
       'app/(default)/billing/activate/actions.ts': 'money',
       'app/(onboarding)/actions.ts': 'money',
+      // The clinic's own subscription (DREAMCRM-97) — `startStripeCheckout`
+      // opens a Checkout session or swaps the price in place with proration,
+      // `openBillingPortal` opens the surface that cancels it, and the
+      // cancel/resume/add-on actions live in the same file. The activate
+      // sibling above was on the rule; the primary purchase path was not.
+      'app/(default)/settings/actions.ts': 'money',
       'lib/mrr.ts': 'money',
       'lib/stripe.ts': 'money',
       'app/api/webhooks/stripe/route.ts': 'money',

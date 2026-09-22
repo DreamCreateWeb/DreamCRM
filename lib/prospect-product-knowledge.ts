@@ -10,6 +10,37 @@
 // the ONE place the whole outbound engine's product knowledge lives. Pure
 // (no server-only) so the pure prompt builders can import it.
 
+import { usd } from '@/lib/marketing/site'
+import { getQuotedPlan } from '@/lib/stripe-config'
+
+/**
+ * THE PRICE IS RESOLVED, NEVER TYPED (DREAMCRM-38's rule, arriving here on
+ * DREAMCRM-102) — and this file is the worst place in the repo for a stale
+ * one, because these strings are not printed, they are SPOKEN. Every
+ * prospecting AI surface is grounded in them: the cold email, the reply draft,
+ * the pre-demo brief, the call script. A number that drifted here would be
+ * read back to a prospect in our own voice, on a call, as a fact.
+ *
+ * Seventeen sites across three exported strings held the founding rate, the
+ * list price and the annual as literals. The header above already says "UPDATE
+ * THIS FILE when the platform, pricing, or positioning changes" — that
+ * sentence is what a hand-kept copy always costs, and the three numbers do not
+ * need it any more.
+ *
+ * THE COMPETITOR BANDS BESIDE THEM ARE LEFT EXACTLY AS WRITTEN. `$800-2,000/mo`
+ * is what a practice pays other vendors; its high end colliding with our
+ * annual is a coincidence and a reprice must not touch it. The guard
+ * discriminates a band structurally (two numbers joined by a dash), so nothing
+ * here needed a carve-out.
+ *
+ * `getQuotedPlan()` is pure config — no database, no Stripe call — which keeps
+ * this module importable by the pure prompt builders exactly as before.
+ */
+const PLAN = getQuotedPlan()
+const RATE_MONTHLY = usd(PLAN.price)
+const LIST_MONTHLY = usd(PLAN.listPrice ?? PLAN.price)
+const RATE_ANNUAL = usd(PLAN.annualPrice)
+
 /** Full product knowledge — for the high-value sonnet demo brief. */
 export const PRODUCT_KNOWLEDGE = `ABOUT THE PRODUCT YOU ARE SELLING — know this cold; use it as the source of truth and never contradict or exceed it.
 
@@ -17,10 +48,10 @@ WHAT IT IS
 DreamCRM (built by Dream Create) is an all-in-one, dental-only patient-relationship platform: a modern clinic website + online booking + patient CRM + automated Google reviews + recall & marketing + digital intake forms + a clinic-branded patient portal + online shop & membership plans + practice analytics. It WRAPS the practice's existing practice-management system (PMS) — it does not replace it.
 
 THE WEDGE (why a practice switches)
-A typical dental practice juggles 5-10 separate tools (website host, booking widget, review tool, forms vendor, patient messaging, marketing/recall) costing $800-2,000/mo. DreamCRM consolidates that whole "orbital layer" into ONE product for $200/mo (founding practice rate; regularly $500) — usually saving ~$1,000/mo — while the practice keeps the PMS its team already knows. It is dental-only: every default, template, and integration is built for dental, not a generic CRM (generic tools get dismissed by dentists).
+A typical dental practice juggles 5-10 separate tools (website host, booking widget, review tool, forms vendor, patient messaging, marketing/recall) costing $800-2,000/mo. DreamCRM consolidates that whole "orbital layer" into ONE product for ${RATE_MONTHLY}/mo (founding practice rate; regularly ${LIST_MONTHLY}) — usually saving ~$1,000/mo — while the practice keeps the PMS its team already knows. It is dental-only: every default, template, and integration is built for dental, not a generic CRM (generic tools get dismissed by dentists).
 
 PRICING (7-day free trial, no credit card; annual billing = 2 months free)
-- ONE plan, everything included — $200/mo at the founding practice rate (regularly $500; the rate stays locked for as long as they subscribe; annual $2,000 = 2 months free): clinic website on their own domain with the edit-in-place Website Studio + AI copy assistant, online booking with live availability, patient records/appointments/reminders, website-leads queue + unified patient messages, digital intake forms, clinic-branded patient portal, reviews collection + website testimonials, blog + SEO dashboard, recall & outreach campaigns, practice analytics, online shop + membership plans (payouts to the clinic's bank), careers page + applicant tracking, two-way Open Dental PMS integration, priority support.
+- ONE plan, everything included — ${RATE_MONTHLY}/mo at the founding practice rate (regularly ${LIST_MONTHLY}; the rate stays locked for as long as they subscribe; annual ${RATE_ANNUAL} = 2 months free): clinic website on their own domain with the edit-in-place Website Studio + AI copy assistant, online booking with live availability, patient records/appointments/reminders, website-leads queue + unified patient messages, digital intake forms, clinic-branded patient portal, reviews collection + website testimonials, blog + SEO dashboard, recall & outreach campaigns, practice analytics, online shop + membership plans (payouts to the clinic's bank), careers page + applicant tracking, two-way Open Dental PMS integration, priority support.
 - Never frame the founding rate as a pre-release or early-access discount, and never imply the platform is unfinished — it's finished software that keeps growing; founding practices lock the rate and new modules land free.
 
 DIFFERENTIATORS
@@ -42,11 +73,11 @@ OBJECTIONS → HONEST RESPONSES
 - "We already have a website" → We replace the host and add booking, reviews, patient portal, forms, and marketing on top — editable yourself in minutes. Most practices are paying 5-6 vendors we fold into one.
 - "We already use [a PMS]" → Perfect, keep it. We wrap it (two-way with Open Dental) and never touch your charts or claims.
 - "We're too busy to switch" → The orbital layer switches in weeks, not months (no insurance claims to rebuild), and we build the website for you.
-- "How much / is it worth it?" → You're likely paying $800-2,000/mo across separate tools; we consolidate for $200/mo (founding rate, regularly $500) and typically save ~$1,000/mo.
+- "How much / is it worth it?" → You're likely paying $800-2,000/mo across separate tools; we consolidate for ${RATE_MONTHLY}/mo (founding rate, regularly ${LIST_MONTHLY}) and typically save ~$1,000/mo.
 - "Do you do texting?" → Not yet — email + patient portal today, SMS on the roadmap. Say it honestly.`
 
 /** Condensed knowledge — for the token-conscious haiku cold email + reply draft. */
-export const PRODUCT_KNOWLEDGE_SHORT = `ABOUT THE PRODUCT (source of truth — never exceed or contradict): DreamCRM (by Dream Create) is a dental-only, all-in-one patient-relationship platform — clinic website + online booking + patient CRM + automated Google reviews + recall/marketing + intake forms + branded patient portal + online shop/memberships + analytics — that WRAPS a practice's existing PMS (two-way Open Dental), it does NOT replace it. It consolidates the 5-6 separate tools a practice pays $800-2,000/mo for into one plan with everything included at $200/mo — the founding practice rate, regularly $500, locked for as long as they stay (7-day free trial, no card; annual $2,000 = 2 months free; never framed as a pre-release discount) — typically saving ~$1,000/mo. Edge: dental-only; the website is the trunk (booking/forms/portal live on their own branded site); Google-first reviews auto-loop; we build the site for them. HONEST LIMITS — never overpromise: it's NOT a PMS (no charts, claims, or clinical notes); SMS texting is NOT live yet (email + portal today).`
+export const PRODUCT_KNOWLEDGE_SHORT = `ABOUT THE PRODUCT (source of truth — never exceed or contradict): DreamCRM (by Dream Create) is a dental-only, all-in-one patient-relationship platform — clinic website + online booking + patient CRM + automated Google reviews + recall/marketing + intake forms + branded patient portal + online shop/memberships + analytics — that WRAPS a practice's existing PMS (two-way Open Dental), it does NOT replace it. It consolidates the 5-6 separate tools a practice pays $800-2,000/mo for into one plan with everything included at ${RATE_MONTHLY}/mo — the founding practice rate, regularly ${LIST_MONTHLY}, locked for as long as they stay (7-day free trial, no card; annual ${RATE_ANNUAL} = 2 months free; never framed as a pre-release discount) — typically saving ~$1,000/mo. Edge: dental-only; the website is the trunk (booking/forms/portal live on their own branded site); Google-first reviews auto-loop; we build the site for them. HONEST LIMITS — never overpromise: it's NOT a PMS (no charts, claims, or clinical notes); SMS texting is NOT live yet (email + portal today).`
 
 /** The owner-editable "brain": a product-knowledge override + battle cards.
  *  Mirrors ProspectingConfig['brain'] but declared here so this pure module
