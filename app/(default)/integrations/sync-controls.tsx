@@ -70,14 +70,14 @@ export default function SyncControls({ syncDirection, autoSyncEnabled, isDemo }:
   // The three controls below are on screen together, so one shared flag spun
   // all three — `active` names the one whose work is actually running.
   const [active, setActive] = useState<'direction' | 'auto' | 'disconnect' | null>(null)
-  const [toast, setToast] = useState<string | null>(null)
+  const [toast, setToast] = useState<{ text: string; tone: 'ok' | 'warn' } | null>(null)
 
   function toggleDirection() {
     const next: SyncDirection = syncDirection === 'two_way' ? 'import' : 'two_way'
     setActive('direction')
     start(async () => {
-      await setSyncDirectionAction(next)
-      setToast(next === 'two_way' ? 'Two-way sync on — bookings push to your PMS.' : 'Import only — bookings stay in DreamCRM.')
+      const change = await setSyncDirectionAction(next)
+      setToast(directionToast(next, change))
       router.refresh()
     })
   }
@@ -86,7 +86,7 @@ export default function SyncControls({ syncDirection, autoSyncEnabled, isDemo }:
     setActive('auto')
     start(async () => {
       await setAutoSyncAction(!autoSyncEnabled)
-      setToast(!autoSyncEnabled ? 'Auto-sync on.' : 'Auto-sync off.')
+      setToast({ text: !autoSyncEnabled ? 'Auto-sync on.' : 'Auto-sync off.', tone: 'ok' })
       router.refresh()
     })
   }
@@ -137,9 +137,53 @@ export default function SyncControls({ syncDirection, autoSyncEnabled, isDemo }:
         </p>
       )}
 
-      {toast && <FlashToast message={toast} onDone={() => setToast(null)} />}
+      {toast && (
+        <FlashToast
+          message={toast.text}
+          tone={toast.tone}
+          // A warning nobody can finish reading is not a warning. The stranded
+          // count is a longer sentence than "Auto-sync off." and it is the one
+          // sentence on this page a practice must not miss.
+          duration={toast.tone === 'warn' ? 12000 : 4000}
+          onDone={() => setToast(null)}
+        />
+      )}
     </div>
   )
+}
+
+/**
+ * What the practice is told after a direction flip.
+ *
+ * Turning write-back OFF with bookings already queued strands them: the flush
+ * only ever runs on a two-way connection, so neither the hourly cron nor "Sync
+ * now" will drive them again. Before DREAMCRM-97 the flip said nothing about
+ * it and the page went on promising the queue would "push on next sync".
+ *
+ * The WARNING only — it does not offer to drain or discard anything. That is a
+ * product decision with its own (not-1.0) ledger entry, and a toast is not
+ * where it would go.
+ */
+function directionToast(
+  next: SyncDirection,
+  change: { strandedWrites: number; oldestStrandedAt: Date | null },
+): { text: string; tone: 'ok' | 'warn' } {
+  if (next === 'two_way') {
+    return { text: 'Two-way sync on — bookings push to your PMS.', tone: 'ok' }
+  }
+  const n = change.strandedWrites
+  if (n === 0) return { text: 'Import only — bookings stay in DreamCRM.', tone: 'ok' }
+  const oldest = change.oldestStrandedAt ? new Date(change.oldestStrandedAt) : null
+  const since =
+    oldest && !Number.isNaN(oldest.getTime())
+      ? ` (oldest queued ${oldest.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })})`
+      : ''
+  return {
+    tone: 'warn',
+    text:
+      `Import only — ${n} ${n === 1 ? 'change that was' : 'changes that were'} waiting to reach your PMS` +
+      `${since} will not be sent. Turn two-way sync back on to send ${n === 1 ? 'it' : 'them'}.`,
+  }
 }
 
 /** Decorative only — the busy state is ActionButton's own overlaid spinner,

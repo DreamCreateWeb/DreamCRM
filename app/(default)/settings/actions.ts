@@ -13,6 +13,7 @@ import {
   upsertNotificationPrefs,
 } from '@/lib/services/settings'
 import { createCheckoutSession, createPortalSession, setSubscriptionCancelation, updateSubscriptionPlan } from '@/lib/services/billing'
+import { billingActionFailure, type BillingActionState } from '@/lib/services/billing-action-error'
 import { PURCHASABLE_PLANS } from '@/lib/stripe-config'
 import type { BillingInterval, PlanId } from '@/lib/stripe-config'
 
@@ -36,13 +37,29 @@ export async function saveAccount(input: unknown) {
 // `changePlan` in `app/(default)/ecommerce/invoices/admin-actions.ts` (a Stripe
 // price swap), which is exactly the confusion a dead twin causes.
 
-export async function startStripeCheckout(planId: PlanId, interval: BillingInterval) {
+/**
+ * Start a Stripe Checkout (or swap the plan in place) for this clinic.
+ *
+ * RETURNS its refusal rather than throwing — see
+ * `lib/services/billing-action-error.ts` for why a thrown message never reaches
+ * the person who clicked. A resolved result is ALWAYS a failure: every success
+ * path below ends in `redirect()`, which throws NEXT_REDIRECT.
+ *
+ * Note the shape of the try: it wraps the Stripe/DB leg ONLY, and every
+ * `redirect()` sits outside it. A redirect inside the try would be caught as a
+ * failure, and the clinic would be told checkout could not start while it in
+ * fact could — the navigation simply never happening.
+ */
+export async function startStripeCheckout(
+  planId: PlanId,
+  interval: BillingInterval,
+): Promise<BillingActionState> {
   const ctx = await requireTenant()
   if (ctx.tenantType !== 'clinic') {
-    throw new Error('Only clinic tenants can change plans here')
+    return { error: 'Only clinic tenants can change plans here' }
   }
   if (ctx.role !== 'owner' && ctx.role !== 'admin') {
-    throw new Error('Only an owner or admin can change billing.')
+    return { error: 'Only an owner or admin can change billing.' }
   }
   // Self-serve may only buy a PURCHASABLE plan. The legacy Basic/Pro rows
   // survive in PLANS as managed-provisioning lookups (used by /billing/activate
@@ -50,47 +67,80 @@ export async function startStripeCheckout(planId: PlanId, interval: BillingInter
   // would let a clinic mint a subscription at the cheaper legacy price for the
   // same full access (no-plan-gating).
   if (!PURCHASABLE_PLANS.some((p) => p.id === planId)) {
-    throw new Error('That plan isn’t available for self-serve checkout.')
+    return { error: 'That plan isn’t available for self-serve checkout.' }
   }
-  // A clinic that ALREADY has a live subscription changes plan in place
-  // (price swap + proration) — Checkout would mint a SECOND subscription and
-  // the old one would keep billing. Checkout is only for the first purchase.
-  const changedInPlace = await updateSubscriptionPlan({
-    organizationId: ctx.organizationId,
-    planId,
-    interval,
-  })
-  if (changedInPlace) {
-    revalidatePath('/settings/billing')
-    redirect('/settings/billing?checkout=success')
+
+  let destination: string
+  try {
+    // A clinic that ALREADY has a live subscription changes plan in place
+    // (price swap + proration) — Checkout would mint a SECOND subscription and
+    // the old one would keep billing. Checkout is only for the first purchase.
+    const changedInPlace = await updateSubscriptionPlan({
+      organizationId: ctx.organizationId,
+      planId,
+      interval,
+    })
+    if (changedInPlace) {
+      revalidatePath('/settings/billing')
+      destination = '/settings/billing?checkout=success'
+    } else {
+      const session = await createCheckoutSession({
+        organizationId: ctx.organizationId,
+        email: ctx.userEmail,
+        name: ctx.organizationName,
+        planId,
+        interval,
+      })
+      if (!session.url) {
+        return { error: 'We couldn’t start checkout just now — please try again in a moment.' }
+      }
+      destination = session.url
+    }
+  } catch (err) {
+    return billingActionFailure('settings.checkout', err)
   }
-  const session = await createCheckoutSession({
-    organizationId: ctx.organizationId,
-    email: ctx.userEmail,
-    name: ctx.organizationName,
-    planId,
-    interval,
-  })
-  if (!session.url) throw new Error('We couldn’t start checkout just now — please try again in a moment.')
-  redirect(session.url)
+  redirect(destination)
 }
 
-export async function openBillingPortal() {
+/**
+ * The `useActionState` adapter for the above, for surfaces that reach checkout
+ * through a `<form action={…}>` rather than a direct call — today the
+ * trial-ended wall, which had nothing to read a result with at all. Bind the
+ * plan and interval; React supplies the last two arguments.
+ */
+export async function startStripeCheckoutFormAction(
+  planId: PlanId,
+  interval: BillingInterval,
+  _prevState: BillingActionState,
+  _formData: FormData,
+): Promise<BillingActionState> {
+  return startStripeCheckout(planId, interval)
+}
+
+/** Open the Stripe Customer Portal. Returns its refusal for the same reason
+ *  `startStripeCheckout` does; the success path redirects and never returns. */
+export async function openBillingPortal(): Promise<BillingActionState> {
   const ctx = await requireTenant()
   if (ctx.tenantType !== 'clinic') {
-    throw new Error('Only clinic tenants can open a billing portal here')
+    return { error: 'Only clinic tenants can open a billing portal here' }
   }
   // The Stripe Customer Portal can cancel the subscription and swap the card —
   // owner/admin only, like every sibling billing action.
   if (ctx.role !== 'owner' && ctx.role !== 'admin') {
-    throw new Error('Only an owner or admin can manage billing.')
+    return { error: 'Only an owner or admin can manage billing.' }
   }
-  const portal = await createPortalSession({
-    organizationId: ctx.organizationId,
-    email: ctx.userEmail,
-    name: ctx.organizationName,
-  })
-  redirect(portal.url)
+  let portalUrl: string
+  try {
+    const portal = await createPortalSession({
+      organizationId: ctx.organizationId,
+      email: ctx.userEmail,
+      name: ctx.organizationName,
+    })
+    portalUrl = portal.url
+  } catch (err) {
+    return billingActionFailure('settings.portal', err)
+  }
+  redirect(portalUrl)
 }
 
 // ── Social-connection add-on (Zernio social module) ──────────────────────────

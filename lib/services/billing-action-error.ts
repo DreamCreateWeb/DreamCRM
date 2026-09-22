@@ -1,0 +1,55 @@
+import 'server-only'
+
+/**
+ * What a clinic's owner or admin is told when a BILLING action can't start.
+ *
+ * The staff-side sibling of `lib/services/checkout-error.ts` (patient checkout)
+ * and `lib/services/public-form-error.ts` (public forms). Same reasoning, same
+ * reason it exists at all: a plain `throw` out of a server action does not
+ * reach the person who clicked. Next.js replaces a thrown server-action message
+ * with an opaque digest in production, so every carefully worded refusal —
+ * "Only an owner or admin can change billing." — arrived on screen as "An error
+ * occurred in the Server Components render", or, on a bare `<form action={…}>`
+ * with nothing reading a result, as nothing at all.
+ *
+ * Two lanes, as in both siblings, but decided by POSITION rather than by an
+ * error class, and deliberately so:
+ *
+ *  - A REFUSAL we wrote — wrong tenant type, wrong role, a plan that is not
+ *    self-serve. Those sentences are written for the reader and are returned
+ *    directly by the action, before anything is attempted. No classification
+ *    step can mis-assign them because there is no throw to classify.
+ *
+ *  - Anything the Stripe/DB leg raises — an unconfigured price id, Stripe
+ *    unreachable, a bug. `Stripe price for Premium (annual) is not configured`
+ *    is a sentence about OUR deployment, not about anything a clinic can do;
+ *    it gets logged where staff can find it and the reader is told something
+ *    true and actionable instead. That leg is the only code inside the try.
+ *
+ * Why this is NOT the `{ ok: true } | { ok: false; error }` shape its two
+ * siblings use: every action here ends in `redirect()` on success, which throws
+ * NEXT_REDIRECT, so the success value is unreachable — a resolved result from
+ * one of these actions is ALWAYS a failure. A `{ ok: true }` arm would be a
+ * branch no caller can ever take, and an initial `useActionState` value would
+ * have to claim a success that has not happened. `{ error }` says exactly what
+ * the type can actually hold. The corollary, and the thing to keep in mind when
+ * editing one of these actions: the `redirect()` call must stay OUTSIDE the
+ * try, or the try swallows the navigation instead of performing it.
+ */
+
+/** The state a billing form action carries. `null` means "nothing has failed" —
+ *  either nothing has been attempted yet, or the attempt navigated away. */
+export type BillingActionState = { error: string | null }
+
+export const BILLING_UNAVAILABLE_MESSAGE =
+  'We couldn’t start that just now, and nothing has been charged. Please try again in a few minutes — if it keeps happening, contact support and we’ll sort it out.'
+
+/**
+ * Turn a thrown billing failure into the staff result shape. `scope` is the log
+ * prefix ('settings.checkout', 'settings.portal', …) — it is never shown to
+ * anyone.
+ */
+export function billingActionFailure(scope: string, err: unknown): BillingActionState {
+  console.error(`[${scope}] billing action failed`, err)
+  return { error: BILLING_UNAVAILABLE_MESSAGE }
+}

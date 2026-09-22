@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { requireTenant } from '@/lib/auth/context'
 import type { PlanTier } from '@/lib/modules'
-import { disconnectPms, runImport, setAutoSync, setSyncDirection } from '@/lib/services/pms'
+import { disconnectPms, runImport, setAutoSync, setSyncDirection, type SyncDirectionChange } from '@/lib/services/pms'
 import type { SyncDirection } from '@/lib/types/pms'
 import { isConnectablePlatform, type ZernioPlatform } from '@/lib/types/zernio'
 
@@ -102,11 +102,17 @@ export async function disconnectPmsAction() {
   revalidatePath('/integrations')
 }
 
-export async function setSyncDirectionAction(direction: SyncDirection) {
+/**
+ * Flip two-way sync on or off. Returns what the flip STRANDED so the control
+ * can say so — pressing "Import only" with bookings already queued parks them
+ * permanently, and until DREAMCRM-97 it did that without a word.
+ */
+export async function setSyncDirectionAction(direction: SyncDirection): Promise<SyncDirectionChange> {
   const ctx = await requireTenant()
   ensureClinicAdmin(ctx)
-  await setSyncDirection(ctx.organizationId, direction)
+  const change = await setSyncDirection(ctx.organizationId, direction)
   revalidatePath('/integrations')
+  return change
 }
 
 export async function setAutoSyncAction(enabled: boolean) {

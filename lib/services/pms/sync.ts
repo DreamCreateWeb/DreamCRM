@@ -8,6 +8,7 @@ import { OpenDentalProvider } from './open-dental'
 import { NexHealthProvider } from './nexhealth'
 import { DemoProvider } from './demo'
 import { getPmsConnection } from './connection'
+import { MAX_WRITE_ATTEMPTS } from '@/lib/types/pms'
 import {
   PmsWriteWaitingError,
   PmsWriteNotSupportedError,
@@ -1136,8 +1137,6 @@ export async function queueCommLogWriteBack(
     // Best-effort: never block a comms send on PMS mirroring.
   }
 }
-
-const MAX_WRITE_ATTEMPTS = 6
 
 export async function retryPendingWrites(organizationId: string, client: PmsProviderClient): Promise<void> {
   const ops = await db

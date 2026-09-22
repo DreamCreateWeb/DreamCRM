@@ -159,10 +159,13 @@ export default function SubscriptionPanel({
     setPendingPlan(planId)
     setFeedback(null)
     startTransition(async () => {
-      try {
-        await startStripeCheckout(planId, interval)
-      } catch (err) {
-        setFeedback({ error: (err as Error).message })
+      // A RESOLVED result is always a failure — the success path redirects, so
+      // this only lands when checkout refused. The old `catch (err) =>
+      // err.message` rendered the production digest ("An error occurred in the
+      // Server Components render") instead of the sentence (DREAMCRM-97).
+      const r = await startStripeCheckout(planId, interval)
+      if (r?.error) {
+        setFeedback({ error: r.error })
         setPendingPlan(null)
       }
     })
@@ -172,13 +175,9 @@ export default function SubscriptionPanel({
     setFeedback(null)
     setActiveAction('portal')
     startTransition(async () => {
-      try {
-        await openBillingPortal()
-      } catch (err) {
-        setFeedback({ error: (err as Error).message })
-      } finally {
-        setActiveAction(null)
-      }
+      const r = await openBillingPortal()
+      if (r?.error) setFeedback({ error: r.error })
+      setActiveAction(null)
     })
   }
 

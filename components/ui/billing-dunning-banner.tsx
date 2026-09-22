@@ -42,12 +42,12 @@ export default function BillingDunningBanner({ ctx }: { ctx: TenantContext }) {
 
   function handleClick() {
     startTransition(async () => {
-      try {
-        await openBillingPortal()
-      } catch {
-        // openBillingPortal redirects on success; a failure just leaves the
-        // banner up. Nothing to surface from a non-interactive banner.
-      }
+      // openBillingPortal redirects on success and RETURNS its refusal on
+      // failure (DREAMCRM-97). This banner deliberately swallows that refusal:
+      // it is a one-line non-interactive strip with nowhere to put a sentence,
+      // and the same button with the same message sits on Settings → Billing,
+      // which is where the refusal is shown.
+      await openBillingPortal()
     })
   }
 

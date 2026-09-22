@@ -1,8 +1,9 @@
 import 'server-only'
-import { and, count, desc, eq, inArray } from 'drizzle-orm'
+import { and, count, desc, eq, inArray, lt, min } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import { encryptSecret } from '@/lib/crypto'
 import type { PmsConnection, PmsSyncRun } from '@/lib/db/schema/clinic'
+import { MAX_WRITE_ATTEMPTS } from '@/lib/types/pms'
 import type { PmsProviderId, SyncDirection, WriteOpStatus } from '@/lib/types/pms'
 import { OpenDentalProvider, openDentalConfigured } from './open-dental'
 import type { PmsTestResult } from './provider'
@@ -136,11 +137,76 @@ export async function disconnectPms(organizationId: string): Promise<void> {
     .where(eq(schema.pmsConnection.organizationId, organizationId))
 }
 
-export async function setSyncDirection(organizationId: string, direction: SyncDirection): Promise<void> {
+/** What a direction flip left behind, for the caller to tell the practice. */
+export interface SyncDirectionChange {
+  /** Queued write-ops that nothing will drive again while the connection is
+   *  import-only. Always 0 when flipping TO two-way. */
+  strandedWrites: number
+  /** When the oldest of them was queued — null when there are none. */
+  oldestStrandedAt: Date | null
+}
+
+/**
+ * Flip the connection's sync direction, and REPORT what flipping it stranded.
+ *
+ * This used to be a bare UPDATE, and that was the defect (DREAMCRM-97).
+ * `syncPms` gates the write-back flush on `syncDirection === 'two_way'`
+ * (`sync.ts`) and that is its only call site, so "Sync now" does not drain the
+ * queue either: pressing "Import only" with bookings already queued strands
+ * them permanently, silently, with the Integrations page still promising they
+ * "Will push on next sync". The practice most likely to press it is one whose
+ * bridge is down — exactly the practice with a queue.
+ *
+ * Scope, per the DREAMCRM-96 planning meeting: this is the WARNING path only.
+ * It does not drain the queue and it adds no way to resolve a stranded op —
+ * that needs a product decision and is tracked as its own (not-1.0) ledger
+ * entry. All this does is stop the flip being silent.
+ *
+ * The count is taken AFTER the update, not before, and the order is the honest
+ * one rather than an accident: every enqueue path refuses unless the connection
+ * is two-way, so once the column is flipped no further op can arrive, and
+ * everything counted is genuinely stranded. Counting first would miss an op
+ * enqueued in between — the one case where under-reporting is the outcome that
+ * actually costs the practice a booking.
+ */
+export async function setSyncDirection(
+  organizationId: string,
+  direction: SyncDirection,
+): Promise<SyncDirectionChange> {
   await db
     .update(schema.pmsConnection)
     .set({ syncDirection: direction, updatedAt: new Date() })
     .where(eq(schema.pmsConnection.organizationId, organizationId))
+
+  // Turning write-back ON strands nothing — the next flush picks the queue up.
+  if (direction === 'two_way') return { strandedWrites: 0, oldestStrandedAt: null }
+
+  const [row] = await db
+    .select({
+      // drizzle's `min`, never a hand-rolled `sql`min(…)`` — `created_at` is
+      // `timestamp` without zone, and only the column's own driver mapper reads
+      // it back as UTC. See tests/guards/timestamp-aggregate-mapping.test.ts.
+      oldest: min(schema.pmsWriteOp.createdAt),
+      c: count(),
+    })
+    .from(schema.pmsWriteOp)
+    .where(
+      and(
+        eq(schema.pmsWriteOp.organizationId, organizationId),
+        // Exactly what `retryPendingWrites` drives — the same two entity types,
+        // the same two statuses, under the same attempt cap. A row it would not
+        // have driven anyway is not something this flip took away.
+        inArray(schema.pmsWriteOp.entityType, ['appointment', 'commlog']),
+        inArray(schema.pmsWriteOp.status, ['pending', 'error']),
+        lt(schema.pmsWriteOp.attempts, MAX_WRITE_ATTEMPTS),
+      ),
+    )
+
+  const oldest = row?.oldest ? new Date(row.oldest) : null
+  return {
+    strandedWrites: Number(row?.c ?? 0),
+    oldestStrandedAt: oldest && !Number.isNaN(oldest.getTime()) ? oldest : null,
+  }
 }
 
 export async function setAutoSync(organizationId: string, enabled: boolean): Promise<void> {
