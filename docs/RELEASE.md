@@ -1124,36 +1124,28 @@ binding are all correct. The payment-plan charger was the exception.
   comment, so nothing renders it, but it is the file the next person reads to
   learn what a tier costs and it teaches them the list price. Repro: read the
   header. · OPEN.
-- S3 · the MARKETING struck-through list price named itself with `aria-label`
-  on a bare `<span>` — `app/(marketing)/pricing/price-card.tsx:55`. ARIA
-  prohibits an accessible name on `role=generic`, so that label is author
-  error: NVDA and JAWS honour it in practice and other combinations are
-  entitled not to, in which case the reader gets "$500 $200/mo" as one run with
-  nothing saying which number is dead. Repro: a screen reader on the public
-  pricing page. · **FIXED** (DREAMCRM-75, #620, `e9c58e44`) — the card carries
-  a real visually-hidden text node (`sr-only` "Regular price" at `:157`, with a
-  second supplying the sentence break at `:167`) instead of an attribute on an
-  element that cannot hold a name.
-- S3 · the DEAL-ROOM struck-through list price still names itself with
-  `aria-label` on a bare `<span>` —
-  `app/(default)/platform/prospecting/prospect-drawer.tsx:344`. The same ARIA
-  defect as its marketing sibling above, on the surface the owner presents
-  from. Repro: a screen reader on any prospect's deal room. Fix shape: match
-  what `price-card.tsx` now does — a visually-hidden text node, or move the
-  label onto an element that can carry a name (`<s>`/`<del>`) — since a quiet
-  deviation on one of two identical surfaces is worse than a consistent
-  imperfection. Owned by Vesper's DREAMCRM-98, deliverable 4. · OPEN.
-  **SPLIT on 2026-09-22 (DREAMCRM-101) out of the single entry that had covered
-  both surfaces**, and the split is §1's rule arriving one step late rather
-  than on contact: #620 fixed the marketing half and not the in-app half, so
-  the bundled entry could not be closed honestly and went on reading `OPEN`
-  while half of it was shipped. Raised originally by Sentinel reviewing
-  DREAMCRM-38, where the deal-room half was written to MATCH its existing
-  sibling deliberately rather than diverge from it — which is exactly why one
-  entry looked right at write time and stopped being right the moment one side
-  moved. **Two surfaces that are deliberately identical are still two
-  defects**, and the identical-by-design argument is the one that most reliably
-  produces a bundled entry.
+- S3 · the MARKETING half of the struck-price naming defect —
+  `app/(marketing)/pricing/price-card.tsx` named its struck list price with an
+  `aria-label` on a bare `<span>`. ARIA prohibits an accessible name on
+  `role=generic`, so that label was author error: NVDA and JAWS honour it in
+  practice and other combinations are entitled not to, in which case the reader
+  gets "$500 $200/mo" as one run with nothing saying which number is dead.
+  Repro: a screen reader on the public pricing page. Raised by Sentinel
+  reviewing DREAMCRM-38. · FIXED on `main` — `e9c58e44` (#620, the Daylight
+  Dream pricing move) replaced the label with `sr-only` text nodes
+  ("Regular price" before the figure, "." after it), which is the fix shape
+  this entry asked for. It landed as part of a restyle rather than as a
+  deliberate close, which is why the entry went on reading OPEN for a week.
+- S3 · the IN-APP half of the same defect —
+  `app/(default)/platform/prospecting/prospect-drawer.tsx:344` still carried
+  the `aria-label` on a bare `<span>` after the marketing half was fixed, which
+  is precisely the "quiet deviation on one of two identical surfaces" the
+  original write-up warned about. Same readers, same failure: the deal room
+  reads "$500 $200/mo" with nothing marking the dead number. Repro: a screen
+  reader on any prospect's deal room. · FIXED — split from the marketing half
+  and closed on DREAMCRM-98, matching the marketing shape exactly
+  (`sr-only` "Regular price", the struck figure, `sr-only` "."), pinned by
+  `tests/prospecting/deal-room-quote.test.tsx`.
 - S3 · nothing in the repo fails when a plan price is pasted somewhere new.
   Four separate surfaces had drifted to quoting $500 (the deal room, the demo
   track picker, the demo script's closing line, the launch blog post) and the
@@ -1693,7 +1685,21 @@ clinic, none breaking at the current one-beta-clinic scale.
   render-blocking third-party `@import` in `app/css/style.css:1` — violates
   the self-hosted-woff2 font doctrine (Nunito is already self-hosted correctly).
   Self-host Inter as woff2 `@font-face` with matching latin/latin-ext subsets. ·
-  OPEN.
+  **FIXED** on `main` — `15e0365d` (#587, DREAMCRM-54) deleted the `@import` and
+  put the two `@font-face` blocks in `app/css/style.css` on the Nunito pattern:
+  `public/fonts/inter-latin-var.woff2` (48 KB) and `inter-latin-ext-var.woff2`
+  (85 KB), variable weight 100–900, `font-display: swap`, with the same
+  latin / latin-ext `unicode-range` splits Google Fonts served. One variable
+  face per subset replaces the four static weights the `@import` fetched, and
+  `app/layout.tsx` puts `font-inter` on `<body>`, so the public clinic sites
+  inherit the self-hosted face too (`app/site/[slug]/layout.tsx` loads no body
+  font of its own). Verified 2026-09-22 on DREAMCRM-98: no
+  `fonts.googleapis.com/css` reference survives outside the two per-template
+  display faces (`Playfair Display`, `Fredoka`) and the token landings'
+  `Fraunces`, which are deliberate per-page runtime `<link>`s and not the body
+  face this entry is about. The entry read OPEN for a week because the fix
+  rode a hero restyle rather than an entry-closing PR — the same way the
+  struck-price marketing half above did.
 - S3/watch · `daily-digest` / `generate-proposals` / `retention-automations`
   fan out per-clinic SEQUENTIALLY (by design, to spare the t4g.micro), so the
   risk is cron wall-clock OVERRUN as clinic count grows, not DB overload —
