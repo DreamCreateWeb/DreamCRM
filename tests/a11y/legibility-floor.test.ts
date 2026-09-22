@@ -33,7 +33,18 @@ import { join, resolve, relative } from 'node:path'
 const ROOT = resolve(__dirname, '../..')
 const SCAN_DIRS = ['app/(default)', 'app/(portal)', 'app/(double-sidebar)', 'components']
 
-/** Swept by their own guards, against their own type systems. */
+/**
+ * Swept by their own guards, against their own type systems.
+ *
+ * `components/marketing` is held to the SAME 12px floor by
+ * `tests/marketing/type-floor.test.ts` (DREAMCRM-87), which grades every
+ * component in both marketing trees and names the product mocks one at a time
+ * — the population this skip's stated reason is about. `app/(marketing)` is in
+ * that guard too rather than in `SCAN_DIRS` here, deliberately: this file's
+ * header says the public site is swept separately, the marketing tree needs
+ * the mock exemption and the dashboard tree does not, and two guards grading
+ * one string is how they start disagreeing.
+ */
 const SKIP_DIRS = ['components/clinic-site', 'components/marketing']
 
 /**
