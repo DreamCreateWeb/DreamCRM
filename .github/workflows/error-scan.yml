@@ -1,6 +1,6 @@
 name: Production error scan
 
-# DREAMCRM-12, rehomed (DREAMCRM-42).
+# DREAMCRM-12, rehomed (DREAMCRM-42), window re-derived (DREAMCRM-99).
 #
 # The original ask was to put an AWS credential on the machine the agents run
 # on. That is the precise thing the owner restricted on DREAMCRM-41 — key usage
@@ -18,6 +18,31 @@ name: Production error scan
 # read-only job should not run under a write-capable role.
 #
 # Gates nothing; it is not a required check.
+#
+# ======================= THE WINDOW IS NOT 35 MINUTES ========================
+#
+# This file used to scan a fixed 35 minutes and carry a comment promising that
+# the extra five minutes past the declared half-hourly cron meant "nothing can
+# fall between two runs".
+#
+# That promise was FALSE BY AN ORDER OF MAGNITUDE, measured over the last 40
+# scheduled fires: **median gap 239 minutes, min 117, max 412**. GitHub runs
+# `schedule` on a best-effort queue, and `docs/CI.md` ("When it really runs")
+# already carried the sample table showing a `0 7` schedule landing up to
+# +6h34m late. A 35-minute window on a 239-minute cadence scans about 15% of
+# production wall-clock and reports "No errors in the window" about the other
+# 85%, in the same words, on the same green tick.
+#
+# The window is now `[previous completed scan's createdAt, this run's
+# createdAt)`, so consecutive windows are CONTIGUOUS by construction — no gap
+# and no overlap at any cadence. `scripts/error-scan.mjs` is the whole
+# implementation and carries the full argument, including why both ends are
+# `createdAt`, why the anchor is the last SUCCESSFUL run, and why a capped
+# window reports a named hole but still exits 0.
+#
+# THE CRON STAYS `*/30`. It is not a claim about how often this runs — nothing
+# in this repo can make that claim — it is the most frequent thing GitHub will
+# accept. The window no longer depends on it being honoured.
 
 on:
   schedule:
@@ -25,29 +50,97 @@ on:
   workflow_dispatch:
     inputs:
       minutes:
-        description: 'How far back to scan (minutes)'
+        description: 'Fixed lookback in minutes (leave blank to scan from the previous run)'
         required: false
-        default: '35'
+        default: ''
         type: string
 
 concurrency:
   group: error-scan
   cancel-in-progress: false
 
+# `actions: read` is new (DREAMCRM-99): the job reads its own run history to
+# find where the last completed scan started, the same way `review-sweep.yml`
+# does. Still no write scope of any kind, still no `pull_request` trigger, no
+# required context and no `needs:` — it gates nothing.
 permissions:
+  actions: read
   id-token: write
   contents: read
 
 jobs:
   scan:
     runs-on: ubuntu-latest
+    # One `gh` pair, one AWS query and one small node script. No install step in
+    # this job; it has no business inheriting GitHub's 6-hour default.
+    timeout-minutes: 10
     steps:
+      # The window math is a module so the guard test can drive it with
+      # fixtures, offline — the same shape as `scripts/review-sweep.mjs` and
+      # `scripts/rulebook-drift.mjs`. Nothing but the trigger, the credential
+      # and the AWS query lives in this file.
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # WHERE DID THE LAST COMPLETED SCAN START?
+      #
+      # `--status success` is LOAD-BEARING and it is also not trusted on its
+      # own. This workflow exits 0 on every path that actually looked (errors
+      # found is a warning, not a failure), so `success` means "this run
+      # scanned its window". Drop the flag and a run that died before reaching
+      # the logs would close a window nobody looked at. `lastScanAt` in
+      # `scripts/error-scan.mjs` therefore re-filters on `conclusion` itself,
+      # and the guard test drives it with a history whose newest run FAILED.
+      #
+      # `--branch main` because GitHub only runs `schedule` from the default
+      # branch, and a green `workflow_dispatch` run from a feature branch
+      # scanned under a different version of this file.
+      #
+      # `|| true` so a throttled lookup does not abort the job: the script
+      # reads a missing or unparseable file as a FAILED LOOKUP, falls back to
+      # the widest window it will ask for, and names that as a hole in the
+      # summary. Letting the step fail would lose the scan entirely.
+      - name: Where did the last completed scan start?
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh run list --repo ${{ github.repository }} --workflow error-scan.yml \
+            --branch main --status success --limit 1 \
+            --json databaseId,conclusion,createdAt \
+            > last-green.json || true
+
+      # THIS RUN'S OWN `createdAt` IS THE UPPER BOUND, not "now". Using the
+      # current instant would end each window later than the next one begins,
+      # by however long the job sat in GitHub's queue — a sliver scanned twice.
+      # On a failed lookup the script falls back to "now" and says so; that
+      # errs towards duplicating, never towards dropping.
+      - name: When was this run created?
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh run view ${{ github.run_id }} --repo ${{ github.repository }} \
+            --json createdAt > this-run.json || true
+
+      - name: Resolve the window
+        id: window
+        run: |
+          node scripts/error-scan.mjs window \
+            --last-green last-green.json \
+            --this-run this-run.json \
+            --minutes "${{ inputs.minutes }}" \
+            --out window.json
+
       # NOT CONFIGURED YET is not a failure. The role does not exist until the
-      # owner creates it (docs/PROD-READ-ACCESS.md step 4), and this runs every
-      # 30 minutes — so without this, merging would produce 48 red runs a day,
-      # each one mailing the owner, until setup is done. A workflow that has
-      # been red for a fortnight for an unrelated reason is one nobody reads on
-      # the day it finally means something.
+      # owner creates it (docs/PROD-READ-ACCESS.md step 4), and this runs on a
+      # half-hourly cron — so without this, merging would produce red runs all
+      # day, each one mailing the owner, until setup is done. A workflow that
+      # has been red for a fortnight for an unrelated reason is one nobody
+      # reads on the day it finally means something.
       - name: Configure AWS credentials (OIDC, keyless)
         id: aws
         continue-on-error: true
@@ -60,17 +153,20 @@ jobs:
         if: steps.aws.outcome == 'failure'
         run: |
           echo "::warning::Could not assume DreamCRMGitHubActionsReadOnly — error scanning is not set up yet. See docs/PROD-READ-ACCESS.md."
-          echo "Not configured yet (could not assume the read-only role) — skipped, not failed." >> "$GITHUB_STEP_SUMMARY"
+          node scripts/error-scan.mjs report --window window.json --not-configured
 
       - name: Scan App Runner logs for errors
         if: steps.aws.outcome == 'success'
         env:
-          # Overlaps the 30-minute schedule slightly so nothing can fall between
-          # two runs. A repeated error is noise; a missed one is the whole point.
-          MINUTES: ${{ inputs.minutes || '35' }}
+          START_MS: ${{ steps.window.outputs.start }}
+          END_MS: ${{ steps.window.outputs.end }}
+          # The event ceiling for one run. The script goes loud if the list
+          # comes back at exactly this length, because a truncated scan and a
+          # quiet window look identical from the outside — the same rule
+          # `windowGap` applies to `gh pr list` in scripts/review-sweep.mjs.
+          MAX_EVENTS: '2000'
         run: |
           set -euo pipefail
-          SINCE=$(( ($(date +%s) - MINUTES * 60) * 1000 ))
 
           # Discovered rather than hardcoded: the App Runner service id is not
           # stable across a service recreate, and a scan pointed at a log group
@@ -79,51 +175,39 @@ jobs:
             --log-group-name-prefix /aws/apprunner \
             --query 'logGroups[].logGroupName' --output text)
 
-          if [ -z "${GROUPS}" ]; then
-            echo "::warning::No /aws/apprunner log groups found - nothing was scanned."
-            echo "No App Runner log groups found." >> "$GITHUB_STEP_SUMMARY"
-            exit 0
-          fi
-
-          TOTAL=0
-          {
-            echo "### Production error scan"
-            echo ""
-            echo "Window: last ${MINUTES} minutes."
-            echo ""
-          } >> "$GITHUB_STEP_SUMMARY"
+          SCANNED=""
+          echo '[]' > events.json
 
           for G in ${GROUPS}; do
             # Only the application log group carries app output; the service
             # group is deploy chatter and would drown the signal.
             case "$G" in *"/application") ;; *) continue ;; esac
+            SCANNED="${SCANNED} ${G}"
 
-            HITS=$(aws logs filter-log-events \
+            # BOTH ENDS ARE BOUND. `--end-time` is what makes consecutive
+            # windows join exactly instead of overlapping by the queue wait;
+            # without it every run reads to the present and re-reports whatever
+            # the next one is about to start at.
+            aws logs filter-log-events \
               --log-group-name "$G" \
-              --start-time "${SINCE}" \
+              --start-time "${START_MS}" \
+              --end-time "${END_MS}" \
               --filter-pattern '?ERROR ?Error ?error: ?Unhandled ?UnhandledPromiseRejection ?FATAL' \
-              --max-items 50 \
-              --query 'events[].message' --output text 2>/dev/null || true)
+              --max-items "${MAX_EVENTS}" \
+              --query "events[].{eventId:eventId,timestamp:timestamp,message:message,logGroup:'${G}'}" \
+              --output json > "group-events.json" 2>/dev/null || echo '[]' > "group-events.json"
 
-            COUNT=$(printf '%s' "$HITS" | grep -c . || true)
-            TOTAL=$(( TOTAL + COUNT ))
-            if [ "$COUNT" -gt 0 ]; then
-              {
-                echo "<details><summary>${G} — ${COUNT} line(s)</summary>"
-                echo ""
-                echo '```'
-                printf '%s\n' "$HITS" | head -50
-                echo '```'
-                echo ""
-                echo "</details>"
-              } >> "$GITHUB_STEP_SUMMARY"
-            fi
+            node -e '
+              const fs = require("fs")
+              const all = JSON.parse(fs.readFileSync("events.json", "utf8"))
+              let add = []
+              try { add = JSON.parse(fs.readFileSync("group-events.json", "utf8")) } catch {}
+              fs.writeFileSync("events.json", JSON.stringify(all.concat(Array.isArray(add) ? add : [])))
+            '
           done
 
-          if [ "$TOTAL" -gt 0 ]; then
-            # A warning, not a failure. This job reports; it does not gate, and
-            # a red tick here would train people to ignore it.
-            echo "::warning::${TOTAL} error line(s) in the last ${MINUTES} minutes - see the job summary."
-          else
-            echo "No errors in the window." >> "$GITHUB_STEP_SUMMARY"
-          fi
+          node scripts/error-scan.mjs report \
+            --window window.json \
+            --events events.json \
+            --groups "${SCANNED}" \
+            --limit "${MAX_EVENTS}"
