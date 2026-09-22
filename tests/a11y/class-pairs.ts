@@ -335,10 +335,34 @@ export function gradeClasses(classes: string): Omit<ParityFinding, 'file' | 'lin
  *     JOINED to a branch — the branches are mutually exclusive and joining
  *     them would invent pairings that never render together.
  *
- * `one-string-pairs.test.ts` asserts the widening is strictly ADDITIVE over
- * the real tree — every chunk the old regex produced is still produced — which
- * is the only way to land a field-of-view change without trading one blind
- * spot for another.
+ * `one-string-pairs.test.ts` asserts the widening LOSES NO CLASS TOKEN over
+ * the real tree, which is the only way to land a field-of-view change without
+ * trading one blind spot for another.
+ *
+ * ── WHAT IT STILL CANNOT SEE. Both found by Sentinel reviewing #657, both
+ * measured rather than assumed, and both written here so nobody reads "reads
+ * template literals" as "reads all template literals".
+ *
+ *   - **THE SCAN IS PER LINE, so a template broken across source lines is
+ *     invisible.** The opening line never closes, and the continuation lines
+ *     carry no quotes to find. **25 colour-bearing lines yield no chunk, 23 of
+ *     them real** (two are comments); joined by hand and run through all four
+ *     graders plus `dimmed-text`'s, they produce **0 findings**. The one to
+ *     look at if this is ever closed is
+ *     `app/(onboarding)/welcome/welcome-interview.tsx:579` —
+ *     `bg-stone-800 dark:bg-stone-200 … text-white dark:text-stone-900`, which
+ *     is rule 7's both-halves-overridden subject exactly, the auth-button
+ *     shape. It passes on both sides. It is still ungraded for a SYNTACTIC
+ *     reason, which is the sentence this whole batch exists to stop being
+ *     true, so this is a residual rather than a decision.
+ *   - **`skipInterpolation` does not know a regex literal from division**, so
+ *     a `}` inside one ends the skip early and the expression's source leaks
+ *     into the statics. Both colour tokens survive in the shape that does it
+ *     (`${s.replace(/}/g, '')}`), so nothing goes blind — but it over-reads,
+ *     and over-reading can in principle fuse across the boundary the blanking
+ *     exists to keep apart, which is the FALSE-POSITIVE direction this file
+ *     refuses everywhere else. No instance exists in the tree: that is the
+ *     result of a walk, not an assumption.
  */
 export function quotedChunks(line: string): string[] {
   const out: string[] = []
@@ -357,7 +381,12 @@ function skipLiteral(s: string, i: number): number {
     }
     if (s[j] === q) return j + 1
     if (q === '`' && s[j] === '$' && s[j + 1] === '{') {
-      j = skipInterpolation(s, j + 2)
+      const end = skipInterpolation(s, j + 2)
+      // An interpolation the line never closes means the literal never closes
+      // either. Returning `-1` here would set `j = -1` and walk the string
+      // again from zero — an infinite loop, not a miss.
+      if (end === -1) return s.length
+      j = end
       continue
     }
     j++
@@ -365,7 +394,26 @@ function skipLiteral(s: string, i: number): number {
   return j
 }
 
-/** Index just past the `}` closing an interpolation whose body starts at `i`. */
+/**
+ * Index just past the `}` closing an interpolation whose body starts at `i`,
+ * or **-1 when this line does not close it** — a template broken across source
+ * lines is the ordinary case, since the scan is per line.
+ *
+ * THE -1 IS LOAD-BEARING and it was learned the hard way. The first version
+ * returned `s.length` for both outcomes, and the caller sliced `end - 1` to
+ * drop the `}` — so on an unterminated interpolation it dropped a REAL
+ * character instead. `components/dropdown-help.tsx` is that shape:
+ *
+ *     className={`… rounded-full ${open && 'bg-gray-200 dark:bg-gray-800'
+ *       }`}
+ *
+ * The inner string ends the line, so the chop ate its closing quote and both
+ * colour tokens vanished. It passed on Windows and failed on Linux CI, because
+ * a CRLF working tree leaves a `\r` at the end of every line and the chop ate
+ * THAT instead — the two platforms read a different tree. Caught by the
+ * tree-wide token assertion in `one-string-pairs.test.ts`, which is the whole
+ * reason that assertion exists.
+ */
 function skipInterpolation(s: string, i: number): number {
   let depth = 1
   let j = i
@@ -379,12 +427,21 @@ function skipInterpolation(s: string, i: number): number {
     else if (c === '}' && --depth === 0) return j + 1
     j++
   }
-  return j
+  return -1
 }
 
 function scanChunks(s: string, out: string[]): void {
   let i = 0
   while (i < s.length) {
+    // An escape is one token, wherever it sits. This is what keeps an escaped
+    // backtick in a template's static text from opening a template on the
+    // rescan below — and it is equally right outside a literal, where the
+    // backslashes that occur are inside regex literals rather than starting a
+    // string.
+    if (s[i] === '\\') {
+      i += 2
+      continue
+    }
     const q = s[i]
     if (q === '"' || q === "'") {
       // The old regex's rule, kept deliberately: a plain string's body holds no
@@ -415,8 +472,16 @@ function scanChunks(s: string, out: string[]): void {
         }
         if (s[j] === '$' && s[j + 1] === '{') {
           const end = skipInterpolation(s, j + 2)
-          scanChunks(s.slice(j + 2, Math.max(j + 2, end - 1)), out)
+          // Closed on this line: the body is everything up to the `}`.
+          // NOT closed: the body is the rest of the line, and dropping a
+          // character here is what lost two tokens on Linux — see
+          // `skipInterpolation`.
+          scanChunks(end === -1 ? s.slice(j + 2) : s.slice(j + 2, end - 1), out)
           statics += ' '
+          if (end === -1) {
+            j = s.length
+            break
+          }
           j = end
           continue
         }
@@ -431,8 +496,18 @@ function scanChunks(s: string, out: string[]): void {
         // to span quotes. Scanning the statics recovers it; without this the
         // widening would have lost `text-white` in `dream-create-logo.tsx`,
         // which is how the additive assertion in `one-string-pairs.test.ts`
-        // earned its keep. `statics` has no backticks and no `${…}` left, so
-        // this recursion is one level deep by construction.
+        // earned its keep.
+        //
+        // THIS USED TO SAY "one level deep by construction" AND THAT WAS
+        // WRONG (Sentinel, reviewing #657). `statics` keeps the raw two
+        // characters of an escape, so an escaped backtick puts a real
+        // backtick into it and the rescan re-enters the template branch. The
+        // escape skip at the top of this loop is what makes the claim true
+        // rather than the claim being softened: `\`` is consumed as one
+        // token, so no backtick survives into a rescan. Termination never
+        // depended on it — each level takes a strictly shorter slice — but a
+        // "by construction" in this file is something the next person builds
+        // on, so it is cheaper to make it hold than to hedge it.
         scanChunks(statics, out)
       }
       i = j + 1
@@ -450,6 +525,21 @@ function walk(dir: string, out: string[] = []): string[] {
     else if (/\.tsx?$/.test(entry)) out.push(path)
   }
   return out
+}
+
+/**
+ * Every product source file under `roots`, repo-relative with forward slashes.
+ *
+ * Exported so a guard over the READER itself can get its file list without
+ * going through the reader — `eachClassString` only names a file that yields
+ * at least one chunk, so a file the reader went completely blind on would be
+ * skipped rather than reported by anything built on it. (Sentinel, reviewing
+ * #657.) Everything that grades CONTENT should still use `eachClassString`.
+ */
+export function uiSourceFiles(roots: string[] = UI_ROOTS): string[] {
+  return roots.flatMap((root) =>
+    walk(join(ROOT, root)).map((p) => relative(ROOT, p).replace(/\\/g, '/')),
+  )
 }
 
 /**

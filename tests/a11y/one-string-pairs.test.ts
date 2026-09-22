@@ -15,6 +15,7 @@ import {
   quotedChunks,
   scanForWhiteOnShallowBrand,
   UI_ROOTS,
+  uiSourceFiles,
 } from './class-pairs'
 import { AA, contrast, DARK, LIGHT, ROOT, token, utilityColor } from './palette'
 
@@ -116,6 +117,47 @@ describe('the shared chunk reader', () => {
     expect(quotedChunks(line).some((c) => c.includes('don') && c.includes('bg-white'))).toBe(false)
   })
 
+  it('loses nothing when a template runs off the end of the line', () => {
+    // THE ONE THAT SHIPPED RED. `components/dropdown-help.tsx` opens a template
+    // and an interpolation on one line and closes both on the next, so the
+    // inner string is the last thing on line one. The first version of the
+    // reader sliced `end - 1` to drop the `}` and — with no `}` on the line —
+    // dropped the string's closing quote instead, losing both colour tokens.
+    //
+    // IT PASSED ON WINDOWS AND FAILED ON LINUX. A CRLF working tree leaves a
+    // `\r` at the end of every line, so the chop ate the `\r` and the quote
+    // survived; the tree-wide assertion below is per-platform because the
+    // SOURCE is. This case is spelled out with an explicit LF so it fails on
+    // either, rather than relying on whoever runs it next being on Linux.
+    const line =
+      "className={`w-8 h-8 rounded-full ${open && 'bg-gray-200 dark:bg-gray-800'"
+    const chunks = quotedChunks(line)
+
+    expect(chunks).toContain('bg-gray-200 dark:bg-gray-800')
+    expect(quotedChunks(`${line}\r`)).toContain('bg-gray-200 dark:bg-gray-800')
+  })
+
+  it('treats an escaped backtick as one token rather than a template opener', () => {
+    // The statics pass keeps the RAW two characters of an escape, so without a
+    // top-level escape skip an escaped backtick re-entered the template branch
+    // on the rescan — the "one level deep by construction" the comment claimed
+    // and the code did not do. (Sentinel, reviewing #657.) Nothing was ever
+    // lost by it; the point is that the claim now holds.
+    const chunks = quotedChunks('const t = `a \\` bg-gray-100 text-gray-400`')
+
+    expect(chunks.some((c) => c.includes('bg-gray-100') && c.includes('text-gray-400'))).toBe(true)
+    expect(chunks.filter((c) => c.includes('bg-gray-100'))).toHaveLength(1)
+  })
+
+  it('terminates on an unclosed interpolation inside a nested literal', () => {
+    // `skipLiteral` walks into an interpolation too, and an unterminated one
+    // there used to hand it `-1` — which is not a miss, it is `j = -1` and the
+    // whole string walked again from zero. A hang, in a guard that runs over
+    // 277,000 lines.
+    expect(() => quotedChunks('const a = `x ${ `y ${')).not.toThrow()
+    expect(() => quotedChunks("`${'")).not.toThrow()
+  })
+
   it('handles a nested template inside an interpolation without losing the outer statics', () => {
     const line = "className={`p-2 ${on ? `bg-white ${k}` : ''} text-gray-400`}"
     const chunks = quotedChunks(line)
@@ -153,22 +195,36 @@ describe('the shared chunk reader', () => {
     const tokens = (chunk: string): string[] =>
       chunk.split(/\s+/).filter((t) => t && !t.includes('${') && GRADEABLE.test(t))
 
-    const files = new Set<string>()
-    eachClassString(UI_ROOTS, (file) => files.add(file))
+    // THE FILE LIST COMES FROM THE WALK, NOT FROM THE READER. Deriving it from
+    // `eachClassString` — as the first version did — only names files that
+    // yield at least one chunk under the NEW reader, so a file it went
+    // completely blind on would be skipped rather than reported. The `> 1000`
+    // floor catches a catastrophic version of that; it would not catch one
+    // file. (Sentinel, reviewing #657.)
+    const files = uiSourceFiles()
 
+    // AND BOTH LINE ENDINGS, ON EVERY PLATFORM. This assertion reads the
+    // working tree, and a Windows checkout is CRLF while CI is LF — so the two
+    // read a different string per line and can disagree about a parser bug.
+    // They did: the unterminated-interpolation defect above was invisible here
+    // on Windows for exactly that reason and only showed up on CI. Grading the
+    // LF form as well means a Windows run now exercises what CI will see.
     const lost: string[] = []
     let lines = 0
-    for (const file of Array.from(files)) {
-      for (const line of readFileSync(join(ROOT, file), 'utf8').split('\n')) {
+    for (const file of files) {
+      const src = readFileSync(join(ROOT, file), 'utf8')
+      for (const raw of src.split('\n')) {
         lines++
-        const before = Array.from(new Set(OLD(line).flatMap((c) => tokens(c.slice(1, -1)))))
-        if (before.length === 0) continue
-        const after = new Set(quotedChunks(line).flatMap(tokens))
-        for (const t of before) if (!after.has(t)) lost.push(`${file}: ${t}`)
+        for (const line of raw.endsWith('\r') ? [raw, raw.slice(0, -1)] : [raw]) {
+          const before = Array.from(new Set(OLD(line).flatMap((c) => tokens(c.slice(1, -1)))))
+          if (before.length === 0) continue
+          const after = new Set(quotedChunks(line).flatMap(tokens))
+          for (const t of before) if (!after.has(t)) lost.push(`${file}: ${t}`)
+        }
       }
     }
 
-    expect(files.size, 'the walk must actually be visiting files').toBeGreaterThan(1000)
+    expect(files.length, 'the walk must actually be visiting files').toBeGreaterThan(1000)
     expect(lines, 'and reading their lines').toBeGreaterThan(100_000)
     expect(lost.slice(0, 20), 'class tokens the old reader saw and the new one does not').toEqual([])
   })
