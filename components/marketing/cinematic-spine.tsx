@@ -77,6 +77,18 @@ import {
 
 /** How much of the scroll the opening move (frame grows, headline fades) gets. */
 export const OPEN = 0.12
+/**
+ * Chapter 1's local progress never reads below this. The stage is on screen
+ * BEFORE the visitor scrolls (the resting frame under the headline), and a
+ * chapter whose every beat starts at 0 shows that frame as an app with
+ * nothing in it: empty panels, a queue with one row, a bare ledger. So the
+ * first chapter's opening beats (the queue filling, the recall rows, the
+ * KPI strip, the ledger's first line) are simply already there at rest,
+ * and its scroll slot begins from here rather than from a blank screen.
+ * Only the STAGE reads the floor — the card, the scene fade and the
+ * cursor still run from the true chapter progress.
+ */
+export const REST_T = 0.24
 
 /** Rest scale of the stage — the "frame under the headline" of Part 6 step 1. */
 const REST_SCALE = 0.56
@@ -306,14 +318,19 @@ export default function CinematicSpine() {
       // is the base the opening move grows to full bleed.
       const scene = sceneRefs.current[i]
       if (scene) {
-        scene.style.setProperty('--mkt-so', String(i === 0 ? 1 : t <= 0 ? 0 : t < 0.2 ? easeOut(t / 0.2) : 1))
+        const so = i === 0 ? 1 : t <= 0 ? 0 : t < 0.2 ? easeOut(t / 0.2) : 1
+        scene.style.setProperty('--mkt-so', String(so))
+        // The incoming picture settles DOWN onto the last one (28px → 0).
+        scene.style.setProperty('--mkt-si', String(i === 0 ? 0 : (1 - so) * 28))
         // The chapter's local progress, which every beat on the stage reads.
         // Written for EVERY scene every frame (six cheap writes), never only
         // the neighbours: a fast wheel can carry a scene from "not yet" to
         // "long gone" in one frame, and a scene skipped that way would hold
         // a half-played picture under the next chapter's fade.
         {
-          scene.style.setProperty('--mkt-t', String(clamp01(t)))
+          // Chapter 1 pre-rolls to REST_T so the resting frame is a full app.
+          const st = i === 0 ? Math.max(REST_T, clamp01(t)) : clamp01(t)
+          scene.style.setProperty('--mkt-t', String(st))
           const stops = CURSOR_STOPS[i]
           if (stops) {
             const c = cursorAt(stops, clamp01(t), anchorsRef.current[i]?.body ?? null)
@@ -323,7 +340,7 @@ export default function CinematicSpine() {
             scene.style.setProperty('--mkt-cv', c.visible ? '1' : '0')
           }
           for (const k of countersRef.current[i] ?? []) {
-            const n = countAt(k.from, k.to, easeOutQuad(clamp01((clamp01(t) - k.b) / k.d)))
+            const n = countAt(k.from, k.to, easeOutQuad(clamp01((st - k.b) / k.d)))
             const text = formatCount(n, k.format)
             if (text !== k.last) {
               k.last = text
@@ -340,17 +357,17 @@ export default function CinematicSpine() {
       if (t <= 0) {
         o = 0
         y = CARD_TRAVEL
-      } else if (t < 0.22) {
-        const e = easeOut(t / 0.22)
+      } else if (t < 0.18) {
+        const e = easeOut(t / 0.18)
         o = e
         y = CARD_TRAVEL * (1 - e)
-      } else if (t < 0.8 || i === CHAPTERS.length - 1) {
+      } else if (t < 0.86 || i === CHAPTERS.length - 1) {
         // ARRIVED, and dead still: "a chapter card's copy is static once the
         // card has arrived". The last chapter holds to the end of the track.
         o = 1
         y = 0
       } else if (t < 1) {
-        const e = easeOut((t - 0.8) / 0.2)
+        const e = easeOut((t - 0.86) / 0.14)
         o = 1 - e
         y = -CARD_TRAVEL * e
       } else {
@@ -371,6 +388,7 @@ export default function CinematicSpine() {
         railAt.current = at
         rail.dataset.active = String(at)
       }
+      rail.style.setProperty('--mkt-prog', String(clamp01(chapterT(p, at))))
     }
   }, [])
 
@@ -590,7 +608,7 @@ export default function CinematicSpine() {
         // component wrote, and put every counter back on its final value.
         for (const el of [introRef.current, stagesRef.current, railRef.current, pin, ...sceneRefs.current, ...cardRefs.current]) {
           if (!el) continue
-          for (const prop of ['--mkt-ss', '--mkt-sy', '--mkt-io', '--mkt-iy', '--mkt-so', '--mkt-co', '--mkt-cy', '--mkt-ro', '--mkt-t', '--mkt-cx', '--mkt-cp', '--mkt-cv', '--mkt-prog', '--mkt-px', '--mkt-py']) {
+          for (const prop of ['--mkt-ss', '--mkt-sy', '--mkt-io', '--mkt-iy', '--mkt-so', '--mkt-si', '--mkt-co', '--mkt-cy', '--mkt-ro', '--mkt-t', '--mkt-cx', '--mkt-cp', '--mkt-cv', '--mkt-prog', '--mkt-px', '--mkt-py']) {
             el.style.removeProperty(prop)
           }
         }

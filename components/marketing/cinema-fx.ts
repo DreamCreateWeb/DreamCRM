@@ -91,7 +91,7 @@ export const HEADER_BAND_PX = 88
 /** See the file header for the arithmetic behind this number. */
 export const MOTE_ALPHA_MAX = 0.12
 
-export const MOTE_COUNT = 14
+export const MOTE_COUNT = 18
 
 export interface Mote {
   x: number
@@ -297,6 +297,8 @@ export function burstParticles(
  * table edited.
  */
 export const BURSTS: readonly BurstDef[] = [
+  // 01 · the texts are queued — the pill that says so
+  { scene: 0, at: 0.64, x: 0.68, y: 0.17, anchor: 'queued', kind: 'sparks', hue: 'emerald', n: 16, seed: 11 },
   // 02 · her "yes" lands — the top-right corner of the reply bubble
   { scene: 1, at: 0.44, x: 0.8, y: 0.34, anchor: 'reply', ax: 0.95, ay: 0.05, kind: 'bubbles', hue: 'violet', n: 24, seed: 21 },
   // 03 · the machine's card is approved — the Approve button
