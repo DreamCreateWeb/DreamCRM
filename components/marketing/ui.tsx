@@ -189,8 +189,9 @@ const SPINE_CSS = `
         box-shadow: 0 2px 6px rgb(76 125 240 / 0.06), 0 14px 36px rgb(76 125 240 / 0.1);
       }
       .mkt-spine-rail { display: none; }
-      /* The particle layer and the cursor ghost do not exist outside the pin. */
-      .mkt-fx, .mkt-cursor { display: none; }
+      /* The particle layer, the cursor ghost and the toasts do not exist
+         outside the pin — a toast in a stacked page is a sticker. */
+      .mkt-fx, .mkt-cursor, .mkt-toast { display: none; }
       /* Finished states of the things that move: the "before" half of a swap
          is gone, the switch is on, the typing dots have left. */
       .mkt-out { opacity: 0; }
@@ -221,13 +222,25 @@ const SPINE_CSS = `
         width: auto; margin: 0; pointer-events: none;
       }
       .mkt-spine.is-cinematic .mkt-spine-card { position: absolute; inset: 0; }
+      /* \`--mkt-si\` is the incoming scene's RISE: the next chapter's picture
+         settles down onto the last one as it fades in, instead of a flat
+         dissolve. Zero once arrived, zero for scene 0. */
       .mkt-spine.is-cinematic .mkt-spine-stage {
         position: absolute; inset: 0; z-index: 1;
         margin: 0; transform-origin: 50% 50%;
         opacity: var(--mkt-so, 1);
-        transform: translate3d(0, calc(var(--mkt-sy, 12) * 1vh), 0) scale(var(--mkt-ss, 0.56));
+        transform: translate3d(0, calc(var(--mkt-sy, 12) * 1vh + var(--mkt-si, 0) * 1px), 0) scale(var(--mkt-ss, 0.56));
         will-change: transform, opacity;
       }
+      /* THE TOAST: top-right of the frame, in the rail's lane above the rail,
+         the way the dashboard's tray announces a reply or a payment. */
+      .mkt-spine.is-cinematic .mkt-toast {
+        display: block; position: absolute; z-index: 2;
+        top: 6.25rem; right: 1.25rem; width: 15rem;
+      }
+      /* THE PRESS: the control the cursor ghost taps gives under it. \`--mkt-cp\`
+         is the click's press, written on the scene layer and inherited. */
+      .mkt-spine.is-cinematic [data-press] { transform: scale(calc(1 - 0.08 * var(--mkt-cp, 0))); }
       .mkt-spine.is-cinematic .mkt-fx { display: block; position: absolute; inset: 0; z-index: 2; pointer-events: none; }
       /* The rail's lane down the right, and the sticky nav's lane at the top. */
       /* FRAME FIT (2026-09-22, the owner's 32" monitor). The stage's panels
@@ -341,12 +354,21 @@ const SPINE_CSS = `
       /* Hand-graded (the rail is aria-hidden): #4c5a78 on white 6.91, #2f52b3
          7.05 — BRAND.md Part 7. The dot is the second channel and it is SIZE. */
       .mkt-spine-rail-item { display: flex; align-items: center; justify-content: space-between; gap: 1rem; color: #4c5a78; }
+      /* The active label carries the chapter's own progress as a hairline
+         underneath it, scaled from the left — the rail says WHICH, this says
+         HOW FAR. \`--mkt-prog\` on the rail is the active chapter's progress. */
+      .mkt-spine-rail-label { position: relative; }
+      .mkt-spine-rail-label::after {
+        content: ''; position: absolute; left: 0; right: 0; bottom: -0.2rem; height: 2px; border-radius: 999px;
+        background: currentColor; opacity: 0; transform: scaleX(0); transform-origin: 0 50%;
+      }
       .mkt-spine-rail-dot { height: 0.45rem; width: 0.45rem; flex: none; border-radius: 999px; background: currentColor; }
 ${[0, 1, 2, 3, 4, 5]
   .map(
     (i) =>
       `      .mkt-spine-rail[data-active="${i}"] .mkt-spine-rail-item:nth-child(${i + 1}) { color: #2f52b3; }
-      .mkt-spine-rail[data-active="${i}"] .mkt-spine-rail-item:nth-child(${i + 1}) .mkt-spine-rail-dot { height: 0.7rem; width: 0.7rem; }`,
+      .mkt-spine-rail[data-active="${i}"] .mkt-spine-rail-item:nth-child(${i + 1}) .mkt-spine-rail-dot { height: 0.7rem; width: 0.7rem; }
+      .mkt-spine-rail[data-active="${i}"] .mkt-spine-rail-item:nth-child(${i + 1}) .mkt-spine-rail-label::after { opacity: 0.6; transform: scaleX(var(--mkt-prog, 0)); }`,
   )
   .join('\n')}`
 

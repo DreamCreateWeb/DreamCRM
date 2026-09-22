@@ -393,7 +393,7 @@ function RecallPanel() {
     <div className={`${PANEL} mkt-depth-2 p-4 lg:p-5`} style={{ borderColor: DAY_WIRE }}>
       <p className={`flex items-center justify-between text-gray-600 ${MONO_LABEL}`}>
         Recall queue · found overnight
-        <Beat as="span" b={0.62} d={0.08} kind="pop">
+        <Beat as="span" b={0.62} d={0.08} kind="pop" data-anchor="queued">
           <Pill tone="ok">4 texts queued</Pill>
         </Beat>
       </p>
@@ -523,7 +523,7 @@ function SignHerePanel() {
           {/* Not a button. White on violet-700 is 6.14. The pressed look is
               the cursor's click beat, drawn by the spine. */}
           <span className="mkt-approve inline-flex items-center gap-2 rounded-lg bg-violet-700 px-4 py-2 text-[0.9rem] font-bold text-white" data-anchor="approve">
-            Approve and send
+            <span className="block" data-press="">Approve and send</span>
           </span>
         </Beat>
         <Beat as="span" b={0.4} d={0.08} className="flex items-center gap-2 text-[0.85rem] text-gray-600">
@@ -620,7 +620,7 @@ function PhonePanel() {
       {/* White on `teal-700` (#2F52B3) is 7.05. A `<span>`, never a button. */}
       <Beat b={0.16} d={0.08} kind="pop" className="relative mt-2.5" data-anchor="pay">
         <Beat as="span" b={0.5} d={0.06} kind="out" className="mkt-pay block rounded-xl bg-teal-700 px-3 py-2.5 text-center text-[0.9rem] font-bold text-white">
-          Pay $184.00
+          <span className="block" data-press="">Pay $184.00</span>
         </Beat>
         <Beat as="span" b={0.5} d={0.08} kind="pop" className="absolute inset-0 flex items-center justify-center">
           <Pill tone="ok" className="text-[0.85rem]">Paid · 11:38am</Pill>
@@ -658,7 +658,7 @@ function ReviewPanel() {
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
         <Beat b={0.56} d={0.08} className="flex items-center gap-3 rounded-xl px-3 py-3" style={{ backgroundColor: STAGE_TONE.info.tint }}>
           {/* A switch drawn, not built. The knob slides on its own beat. */}
-          <span className="mkt-switch flex h-6 w-11 shrink-0 items-center rounded-full px-1" style={{ backgroundColor: AVATAR_INK }} data-anchor="switch">
+          <span className="mkt-switch flex h-6 w-11 shrink-0 items-center rounded-full px-1" style={{ backgroundColor: AVATAR_INK }} data-anchor="switch" data-press="">
             <Beat as="span" b={0.66} d={0.06} kind="still" className="mkt-knob block h-4 w-4 rounded-full bg-white">
               {''}
             </Beat>
@@ -804,6 +804,101 @@ function WeekPanel() {
   )
 }
 
+/* ── The ledger strip: what the machine did, as the chapter plays ────────── */
+
+/**
+ * THE ACTION LEDGER, three lines per chapter. The band under the panels sat
+ * empty in every chapter (the card only covers the queue column), and the
+ * product's own doctrine is that the machine REPORTS — so the report is the
+ * thing that fills it. Each row arrives on the beat of the moment it
+ * describes. Times are the mock's own (Part 5: never a claim in our voice).
+ */
+const LEDGER_ROWS: ReadonlyArray<ReadonlyArray<{ t: string; body: string; tone: StageTone; b: number }>> = [
+  [
+    { t: '6:02am', body: 'Recall queue found Rosa Silva — 14 months since her last visit.', tone: 'warn', b: 0.16 },
+    { t: '6:15am', body: '4 reminder texts queued for this morning. Nobody was asked.', tone: 'ok', b: 0.48 },
+    { t: '7:40am', body: 'Overnight, 3 of 6 confirmed themselves.', tone: 'ok', b: 0.72 },
+  ],
+  [
+    { t: '4:09pm', body: 'Texted Rosa Silva — Thursday 10:45 offered.', tone: 'info', b: 0.14 },
+    { t: '4:12pm', body: 'She said yes. Appointment #48213 written to your PMS.', tone: 'ok', b: 0.58 },
+    { t: '4:12pm', body: 'Reminder scheduled for Wednesday evening.', tone: 'ok', b: 0.78 },
+  ],
+  [
+    { t: '6:14am', body: 'Drafted a recall invitation for Thursday’s two open chairs.', tone: 'info', b: 0.14 },
+    { t: '9:05am', body: 'You approved it. Sent to 38 due patients, in your voice.', tone: 'ok', b: 0.66 },
+    { t: '9:06am', body: 'Every Book-a-time link carries real openings.', tone: 'ok', b: 0.84 },
+  ],
+  [
+    { t: '11:31am', body: 'Rosa’s balance after insurance posted: $184.00.', tone: 'info', b: 0.14 },
+    { t: '11:38am', body: 'Paid from her phone. Receipt emailed.', tone: 'ok', b: 0.6 },
+    { t: 'Friday', body: '$9,664 on its way to your bank account.', tone: 'ok', b: 0.8 },
+  ],
+  [
+    { t: 'Sat 9:10am', body: 'Review request sent, two days after her visit.', tone: 'info', b: 0.14 },
+    { t: 'Sat 6:40pm', body: 'Rosa S. left five stars, in her own words.', tone: 'praise', b: 0.5 },
+    { t: 'Sat 6:41pm', body: 'Featured on your website.', tone: 'ok', b: 0.78 },
+  ],
+  [
+    { t: 'Mon 6:00am', body: 'Monday’s note written for you.', tone: 'info', b: 0.2 },
+    { t: 'Fri 5:00pm', body: '9 new patients seated this week — every one with a source.', tone: 'ok', b: 0.5 },
+    { t: 'Fri 5:00pm', body: 'Every engine healthy. The Guardian checked at 6:00am.', tone: 'ok', b: 0.82 },
+  ],
+]
+
+function LedgerStrip({ scene }: { scene: number }) {
+  const rows = LEDGER_ROWS[scene] ?? LEDGER_ROWS[0]
+  return (
+    <div className={`${PANEL} mkt-depth-1 p-4 lg:px-5 lg:py-4`} style={{ borderColor: DAY_WIRE }}>
+      <p className={`text-gray-600 ${MONO_LABEL}`}>What I did · logged as it happened</p>
+      <ul className="mt-2 grid gap-1.5 lg:grid-cols-3 lg:gap-3">
+        {rows.map((r) => (
+          <Beat as="li" key={r.body} b={r.b} d={0.1} kind="slide" className="flex items-start gap-2.5 rounded-xl px-3 py-2 text-[0.85rem] leading-snug text-gray-950" style={{ backgroundColor: STAGE_CANVAS }}>
+            <Dot tone={r.tone} />
+            <span className="min-w-0">
+              <span className={`mr-2 text-gray-600 ${MONO_LABEL}`}>{r.t}</span>
+              {r.body}
+            </span>
+          </Beat>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
+/* ── The toast: the app telling the desk what just happened ──────────────── */
+
+/**
+ * One notification per chapter, at the top-right of the frame — the way the
+ * dashboard's own tray announces a reply, a payment, a review. It rises on
+ * the moment's beat and leaves a little later (a nested `out` beat), so in
+ * the stacked layout it is gone, like a real toast.
+ */
+const TOASTS: ReadonlyArray<{ eyebrow: string; body: string; tone: StageTone; b: number; out: number } | null> = [
+  { eyebrow: 'Recall queue', body: '4 patients found overnight', tone: 'warn', b: 0.5, out: 0.82 },
+  { eyebrow: 'New text · Rosa Silva', body: '“Yes please — Thursday 10:45 works.”', tone: 'info', b: 0.42, out: 0.74 },
+  { eyebrow: 'Dream Team', body: 'Sent to 38 patients', tone: 'ok', b: 0.64, out: 0.9 },
+  { eyebrow: 'Payment received', body: '$184.00 · Rosa Silva', tone: 'ok', b: 0.54, out: 0.84 },
+  { eyebrow: 'New review · 5★', body: 'Rosa S. · unprompted', tone: 'praise', b: 0.46, out: 0.76 },
+  { eyebrow: 'Monday’s note', body: 'Written and waiting for you', tone: 'info', b: 0.84, out: 1.2 },
+]
+
+function Toast({ scene }: { scene: number }) {
+  const t = TOASTS[scene]
+  if (!t) return null
+  return (
+    <Beat b={t.b} d={0.06} kind="slide" className="mkt-toast">
+      <Beat b={t.out} d={0.06} kind="out" className={`${PANEL} flex items-start gap-3 p-3`} style={{ borderColor: STAGE_TONE[t.tone].ink }}>
+        <Dot tone={t.tone} />
+        <span className="min-w-0">
+          <span className={`block text-gray-600 ${MONO_LABEL}`}>{t.eyebrow}</span>
+          <span className="mt-0.5 block truncate text-[0.88rem] font-bold text-gray-950">{t.body}</span>
+        </span>
+      </Beat>
+    </Beat>
+  )
+}
+
 /* ── The cursor ghost ───────────────────────────────────────────────────── */
 
 /**
@@ -834,7 +929,7 @@ export const CURSOR_STOPS: Readonly<Record<number, readonly CursorStop[]>> = {
 
 /** Every anchor a path or a burst may name. The scene markup must carry
  *  each one (`tests/marketing/cinema-fx.test.ts` asks the rendered tree). */
-export const SCENE_ANCHORS = ['reply', 'approve', 'pay', 'switch', 'stars', 'spark'] as const
+export const SCENE_ANCHORS = ['reply', 'approve', 'pay', 'switch', 'stars', 'spark', 'queued'] as const
 
 function CursorGhost() {
   return (
@@ -864,7 +959,7 @@ export function CinemaStage({ scene }: { scene: number }) {
   const phone = scene === 3
   return (
     <div
-      className="mkt-stage flex h-full w-full flex-col gap-3 overflow-hidden p-5 text-left sm:gap-4 sm:p-7 lg:p-9"
+      className="mkt-stage relative flex h-full w-full flex-col gap-3 overflow-hidden p-5 text-left sm:gap-4 sm:p-7 lg:p-9"
       style={{ backgroundColor: STAGE_CANVAS, ...STAGE_BLOOM }}
     >
       <div className="mkt-stage-head flex shrink-0 flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
@@ -882,9 +977,11 @@ export function CinemaStage({ scene }: { scene: number }) {
             {phone ? <PhonePanel /> : <KpiStrip scene={scene} className="hidden 2xl:flex 2xl:w-[15rem] 2xl:shrink-0 2xl:flex-col 2xl:gap-4" />}
           </div>
           <KpiStrip scene={scene} className={`hidden gap-3 sm:grid sm:grid-cols-3 ${phone ? '' : '2xl:hidden'}`} />
+          <LedgerStrip scene={scene} />
         </div>
         {CURSOR_STOPS[scene] ? <CursorGhost /> : null}
       </div>
+      <Toast scene={scene} />
     </div>
   )
 }

@@ -1012,6 +1012,34 @@ construction:
   and every switch is on. Reduced motion, touch, narrow, no-JS and print get
   the six finished scenes in reading order.
 
+**Pass 2 (same day, owner: "focus on refinement and improvement").** Same
+laws, more of the app on the stage, and three timing corrections:
+
+- **The Action Ledger is on the stage.** The empty band under every chapter's
+  panels now carries "What I did · logged as it happened" — three ledger rows
+  per scene, sliding in on their own beats. The product's whole doctrine is
+  that the machine reports; a showcase whose stage never showed the report
+  was showing half the product.
+- **Each chapter announces itself once,** with a toast at the frame's top
+  right (`.mkt-toast`, the same slide-then-out beat pair as every other swap).
+  It is inside the frame, under the canvas, and hidden outside the gate like
+  the cursor.
+- **Tapped controls press.** Every control the cursor ghost lands on carries
+  `data-press` and scales by the cursor's own press value, so the tap reads
+  as a tap rather than the cursor pausing on a button.
+- **The resting frame is a full app.** The stage is on screen before the
+  reader scrolls, and with chapter 1's progress at zero it showed empty
+  panels and a bare ledger. Chapter 1's stage now reads a floor (`REST_T`,
+  `cinematic-spine.tsx`): its opening beats are already there at rest, and
+  every burst and cursor stop in it fires after the floor, so the pre-roll
+  skips nothing the reader should see. Only the stage reads the floor — the
+  card, the scene fade and the cursor keep the true chapter progress.
+- **An incoming scene settles down onto the last** (`--mkt-si`, 28px → 0,
+  transform only), the chapter card holds longer before it leaves (enter to
+  0.18, exit from 0.86), the rail's active label carries the chapter's own
+  progress as a hairline (`--mkt-prog` on the rail), and chapter 1 gained its
+  own burst on the "queued" pill so no chapter is without a particle moment.
+
 ---
 
 ## Part 7 — The contrast law
@@ -2275,7 +2303,11 @@ ghost that taps the drawn controls, counters that count, and two new scenes
 (the Dream Team's sign-here card, the week's scoreboard). Part 6's amendment
 of the same date carries the rules. Guards: `tests/marketing/cinema-fx.test.ts`
 (purity, the header lane, the alpha arithmetic), `cinematic-spine.test.tsx`
-(six chapters, custom-property beats grade as what they are spent on).
+(six chapters, custom-property beats grade as what they are spent on). Pass
+2 (same day) put the Action Ledger and a per-chapter toast on the stage,
+pressed the tapped controls, floored chapter 1 so the resting frame is a
+full app, and tightened the card and scene timing — the Part 6 amendment
+carries the detail.
 
 ---
 

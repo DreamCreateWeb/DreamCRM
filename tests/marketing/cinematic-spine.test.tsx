@@ -2,8 +2,9 @@ import { describe, it, expect } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import React from 'react'
-import CinematicSpine, { CHAPTERS, OPEN, frameZoom, pinnedCardFits, sceneAt } from '@/components/marketing/cinematic-spine'
-import { SCENE_COUNT } from '@/components/marketing/cinema-scenes'
+import CinematicSpine, { CHAPTERS, OPEN, REST_T, frameZoom, pinnedCardFits, sceneAt } from '@/components/marketing/cinematic-spine'
+import { CURSOR_STOPS, SCENE_COUNT } from '@/components/marketing/cinema-scenes'
+import { BURSTS } from '@/components/marketing/cinema-fx'
 import { MarketingMotionStyles } from '@/components/marketing/ui'
 
 /**
@@ -587,5 +588,33 @@ describe('the cinematic spine — the frame fit', () => {
     expect(frameZoom(2560, 1440)).toBeCloseTo(1.6, 5) // height-bound, not width-bound
     expect(frameZoom(3440, 1440)).toBeCloseTo(1.6, 5) // an ultrawide is not a taller scene
     expect(frameZoom(3840, 2160)).toBe(1.8)
+  })
+})
+
+describe('the cinematic spine — the resting frame is a full app', () => {
+  /**
+   * Pass 2 of the living stage (2026-09-22). The stage is on screen BEFORE
+   * the visitor scrolls, under the headline, and with chapter 1's progress at
+   * zero that frame showed empty panels and a bare ledger: an app with
+   * nothing in it, as the first thing the section says. Chapter 1 now reads a
+   * floor (`REST_T`), so its opening beats are simply already there.
+   */
+  it('finishes chapter 1-s opening beats inside the floor, and starts every event after it', () => {
+    expect(REST_T).toBeGreaterThan(0)
+    expect(REST_T).toBeLessThan(0.5)
+    const { container } = render(<CinematicSpine />)
+    const first = container.querySelector('.mkt-spine-stage') as HTMLElement
+    const beats = Array.from(first.querySelectorAll('.mkt-k')) as HTMLElement[]
+    const done = beats.filter((el) => {
+      const b = Number(el.style.getPropertyValue('--mkt-b'))
+      const d = Number(el.style.getPropertyValue('--mkt-d') || 0)
+      return !el.classList.contains('mkt-out') && b + d <= REST_T
+    })
+    // The queue rows, the KPI strip and the ledger's first line: a real screen.
+    expect(done.length).toBeGreaterThanOrEqual(8)
+    // And nothing the visitor should SEE happen is skipped by the pre-roll:
+    // every burst and every cursor stop in chapter 1 fires after the floor.
+    for (const b of BURSTS.filter((x) => x.scene === 0)) expect(b.at).toBeGreaterThan(REST_T)
+    for (const stop of CURSOR_STOPS[0] ?? []) expect(stop.at).toBeGreaterThan(REST_T)
   })
 })
