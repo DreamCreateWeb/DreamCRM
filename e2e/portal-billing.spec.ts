@@ -232,9 +232,61 @@ test.describe('paying a balance from the portal', () => {
     // (`error-context.md` is already saved by the failing run) and find out
     // WHERE the second copy comes from before choosing a locator.
     //
-    // Still not fixed here: this needs the Playwright harness and its
-    // throwaway Postgres to reproduce, which is a session of its own. It is
-    // Quinn's, it is written down, and the count of occurrences is now two.
+    // ── THE DUPLICATE IS TRANSIENT, AND THAT IS MEASURED ──
+    //
+    // The remaining question was whether the two forms coexist for a moment or
+    // for the whole page life. It is a moment, and the evidence is already in
+    // the failing runs: both attempts died in **525ms and 738ms** against a
+    // `toBeVisible({ timeout: 30_000 })`.
+    //
+    // That timing is the tell, because a strict-mode violation does not retry.
+    // Measured with Playwright 1.62.1 against `page.setContent`, no app and no
+    // database needed — re-runnable in a minute by anyone:
+    //
+    //   two matching inputs from the start ....... throws in    24ms
+    //   ONE input, genuinely late by 3s .......... PASSES after 3392ms
+    //   two inputs, duplicate removed after 2s ... throws in     4ms
+    //
+    // The middle row is the control: the locator *does* wait for an element
+    // that is merely late. The third row is this flake's shape — the page
+    // becomes correct two seconds later and Playwright never finds out,
+    // because it resolved two elements and threw on the spot. So the duplicate
+    // only has to exist for an instant during the render, and 525ms is what
+    // that looks like; a genuinely ABSENT form would have burned the full 30s.
+    //
+    // WHICH KILLS THE SEEDED-STATE READING A SECOND WAY. A stray unpaid row
+    // would be there for the whole page, not for 500ms. Combined with the
+    // single render site above, there is no version of "bad fixture" that
+    // produces this.
+    //
+    // AND IT IS A SECOND REASON `.first()` IS WRONG: it would silently accept
+    // a page that renders two payment forms mid-navigation, which is the thing
+    // worth knowing about.
+    //
+    // THE LEAD, for whoever picks this up. The three tests in this file that
+    // reach the form do not reach it the same way:
+    //
+    //   test 1 (passes)  clicks in from the dashboard, then asserts
+    //                    `getByText('Your balance')` and `#portal-main`
+    //                    content BEFORE locating the input — it settles first
+    //   test 2           `goto` -> straight to `getByLabel`
+    //   test 3 (this one, the one that fails)  `goto` -> straight to
+    //                    `getByLabel`
+    //
+    // The two that skip the settle are the two with no barrier between
+    // navigation and a strict locator, and one of them is the one that fails.
+    // That predicts test 2 is next. Start by asserting a stable unique element
+    // after the `goto` and see whether it goes away — but WATCH IT FAIL FIRST,
+    // because a fix that only ever passed proves nothing here (§2d), and the
+    // whole reason this comment is long is that the last hypothesis was
+    // confidently written and wrong.
+    //
+    // Still not reproduced end to end: that needs the Playwright harness and
+    // its throwaway Postgres, and the blocker is specifically POSTGRES —
+    // `initdb` is not on PATH, `/usr/lib/postgresql` does not exist and Docker
+    // is unavailable on the box this was investigated from. Playwright and
+    // Chromium are present, which is how the timing above was measured. It is
+    // Quinn's, and the count of occurrences is two.
     const amount = page.getByLabel('Payment amount in dollars')
     await expect(amount).toBeVisible({ timeout: 30_000 })
     await amount.fill('50.00')
