@@ -29,12 +29,22 @@ import { AA, contrast, DARK, LIGHT, token, utilityColor } from './palette'
  * separate rules each believed somebody else had it. A number here would be
  * room in the room nothing else can see into.
  *
- * THE POPULATION IT LANDED ON: 30 sites across 20 files, every one fixed in
- * the same batch (DREAMCRM-88, UI batch 68). Batch 64 measured 29 of them from
- * outside and wrote the reproduction into `docs/UI-BEST-VERSION.md`; the count
- * moved because the alpha-bail shape it had listed under one heading is
- * several sites, and because the tree moved under it in between. Zero is a
- * measured state of the tree, not an aspiration.
+ * THE POPULATION IT LANDED ON: **29 sites across 19 files**, every one fixed
+ * in the same batch (DREAMCRM-88, UI batch 68). Batch 64 measured this
+ * population from outside and predicted 28 in `docs/UI-BEST-VERSION.md`; the
+ * one it missed is the alpha-bail shape, which it had filed under an existing
+ * heading rather than as its own gap.
+ *
+ * THAT NUMBER IS THE INSTRUMENT'S, NOT ANYBODY'S MEMORY OF IT — and it is
+ * written here once for that reason. The first draft of this batch carried
+ * FOUR counts across four files and two of them disagreed (Forge's read of
+ * #655), which is §2b's own "a number in a header is prose, and the header is
+ * what the next author trusts instead of reading the body". It was settled by
+ * replaying `scanForUngradedStringPairs` against the pre-sweep tree
+ * (`git archive <parent> app components lib` into a scratch root, then scan
+ * that root) rather than by picking one of the four. Zero here is a measured
+ * state of the tree, not an aspiration; 29/19 is the count that measurement
+ * returned.
  */
 
 /* ── the red run, kept permanently ───────────────────────────────────────── */

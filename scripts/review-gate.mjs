@@ -511,8 +511,13 @@ export const INTAKE_RULES = [
       // and an unprefixed one is already covered. Rule 7 grades that whole
       // remainder — both halves overridden, neither overridden, and the
       // opaque rendering sitting under an alpha override rule 1 bails on. 29
-      // places across 20 files were failing it when it landed, including
+      // places across 19 files were failing it when it landed, including
       // every sign-in, reset-password and accept-invite button in dark mode.
+      // That count is `scanForUngradedStringPairs` replayed against the
+      // pre-sweep tree, not a number anybody carried across four files — two
+      // of the four disagreed in this PR's first draft, which is the failure
+      // §2b records three instances of, and this list's `why` is the copy
+      // everyone else reads when deciding whether their own file belongs.
       //
       // WHAT IT MEANS FOR EVERY OTHER PR, which is the intake test: after
       // this lands, writing an ink and a surface in the same `className` and

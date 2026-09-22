@@ -1477,9 +1477,11 @@ export function gradeSameStringPair(
  * where both halves resolve opaque.
  *
  * Holds at ZERO with no ceiling and no exemption list, the same as rules 1, 3
- * and 6. It can afford zero because the sweep that introduced it fixed all 30
+ * and 6. It can afford zero because the sweep that introduced it fixed all 29
  * live instances; a number here would be room for the next one, in the gap
- * three rules spent the whole program leaving open.
+ * three rules spent the whole program leaving open. That count is this
+ * function's own, replayed against the pre-sweep tree — see the header of
+ * `one-string-pairs.test.ts` for why it is derived rather than remembered.
  */
 export function scanForUngradedStringPairs(roots: string[] = UI_ROOTS): ParityFinding[] {
   const found: ParityFinding[] = []

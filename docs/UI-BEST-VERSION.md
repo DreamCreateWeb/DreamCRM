@@ -40,7 +40,10 @@ up" are different facts and only one of them is a backlog item.
    nothing.**~~ [**DONE, DREAMCRM-88 (batch 68)** — the rule plus the sweep,
    in one batch. `tests/a11y/class-pairs.ts` rule 7 +
    `tests/a11y/one-string-pairs.test.ts` hold it at ZERO with no exemption
-   list. **29 sites across 20 files**, not the 28 this entry predicted, and
+   list. **29 sites across 19 files** — the instrument's own count, replayed
+   against the pre-sweep tree rather than carried by hand (the first draft had
+   four counts in four files and two disagreed; Forge caught it on #655) —
+   against the 28 this entry predicted, and
    the difference is the interesting part: the gap was WIDER than "the two
    themes agree about which halves are overridden". Rule 1 also bails on a
    chunk when any participating utility is a WASH, so
