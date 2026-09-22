@@ -133,7 +133,7 @@ The kinds of tests they run, mapped to our reality:
 | E2E browser journeys | **None** (happy-dom only) | **The biggest single gap** |
 | Cross-device / mobile QA | Ad-hoc (owner's phone) | Needs a pass |
 | Accessibility | Targeted CI guards (legibility floor, tone contract) | No full WCAG pass |
-| Performance/load | Never run | Needs a pass (t4g.micro RDS!) |
+| Performance/load | Server: `docs/LOAD-SANITY.md`. Client: `docs/MOBILE-WEIGHT.md` | Both baselines emulated; neither run on prod-shaped hardware or a real phone |
 | Security review | Tenant-scoping tests + conventions | No adversarial pass |
 | Failure-mode drills | Never-throw laws + best-effort patterns | Never drilled end-to-end |
 | Backup/restore drill | RDS snapshots exist | **Never actually restored** |
@@ -3115,6 +3115,50 @@ Caveat written into the doc: these numbers are from the dev container and
 characterise the APPLICATION, not the prod t4g.micro's ceiling. A real ceiling
 needs a staging run on prod-shaped hardware before the marketing pivot. · OPEN
 (prod-shaped re-run).
+
+### Deliverable 3b — mobile weight, the CLIENT half · BASELINE MEASURED
+
+DREAMCRM-101, 2026-09-22. `scripts/mobile-weight.mjs` (no dependencies — Node's
+own `fetch` and `WebSocket` driving headless Chrome over CDP) +
+`docs/MOBILE-WEIGHT.md`. Measured against production on Lighthouse's mobile
+profile: 412x823 at DPR 1.75, CPU 4x, Slow 4G, cold cache, touch emulation on,
+`/pricing` as the control in both halves so the two files talk about the same
+page. Deliverable 3 above measures what the SERVER does under load and is
+structurally blind to this: the homepage's living stage costs the server
+nothing at all.
+
+**The one number: the homepage costs a phone ~950ms of LCP for motion the
+phone cannot see** — 3,424ms against 2,472ms on the identical page under
+`prefers-reduced-motion: reduce`, with the control at 2,944ms. Load blocking
+follows it (315ms vs 187ms vs 190ms).
+
+Three findings worth carrying:
+
+- **The living stage never activates on a phone, and that is the design
+  working.** Read off the DOM every run rather than assumed: `.is-cinematic`
+  absent, the particle canvas at `display: none`, fine pointer false.
+  `cinematic-spine.tsx`'s `legal()` wants a fine pointer, width >= 1024 and
+  height >= 760, and a phone fails all three.
+- **So the weight is not the stage, and it is not bytes** — the homepage ships
+  70 KB more transfer and only 14 KB more script than the pricing page. It is
+  the hero's entrance animation: `.mkt-enter { opacity: 0 }` plus a 0.16s delay
+  and a 0.65s fade holds the LCP element unpaintable for ~0.81s, which is the
+  ~0.95s measured. Mechanism and measurement agree, which is the only reason
+  this reads as a cause rather than a suspicion.
+- **The LCP element FLIPS on the motion path** — on some runs it is
+  `div.absolute.inset-0`, `DaylightSky`'s aria-hidden film-grain layer, because
+  the real copy is at `opacity: 0` and a decorative `background-image` is an
+  LCP candidate. Under reduced motion it is the hero sentence on every run. The
+  metric Google ranks this page on is sometimes measuring a texture.
+
+Not actioned here on purpose, and that is the R3 pattern rather than a
+deferral: this is a BRAND-MOTION decision on the site's most-looked-at surface
+(`BRAND.md` Part 6 owns `.mkt-enter`), and the issue that produced this number
+was scoped to measurement. One open item is recorded as NOT REPRODUCED rather
+than reported — scroll blocking ranged 0ms to 1,894ms across passes with
+machine contention as the only variable, so it is written down with what would
+settle it and no conclusion drawn. · OPEN (the hero's LCP element, Neon's lane;
+and a real-device run).
 
 ### Deliverable 4 — error aggregation · NOT BUILT (owner decision)
 
