@@ -312,6 +312,27 @@ jobs:
       # `--fail-with-body` and an explicit status check make a rejected POST
       # loud: a wake that silently 404s is indistinguishable from a quiet week,
       # which is the failure class this whole file is about.
+      #
+      # WHAT THAT CREDENTIAL IS WORTH, written down here rather than left in a
+      # review thread (Sentinel, on DREAMCRM-99), because the person who needs
+      # it is whoever is standing at this step wondering how carefully to treat
+      # it:
+      #
+      #   * AN ACTIONS SECRET IS NOT SECRET FROM ANYONE WITH REPO WRITE. They
+      #     cannot read it from the settings page, but they can add a workflow
+      #     that uses it, and a workflow can do whatever it likes with what it
+      #     is given. Treat "who can push to this repository" as the list of
+      #     people who hold this URL.
+      #   * THE BLAST RADIUS IS ONE VERB. The autopilot behind it runs in
+      #     `create_issue` mode and is assigned to Forge, so the most a holder
+      #     of this URL can do is open issues assigned to him. It grants no
+      #     read of anything, and nothing on the deploy path.
+      #   * SO THE MITIGATION IS ROTATION, NOT SECRECY. If it leaks, rotate:
+      #     `multica autopilot trigger-rotate-url <trigger-id>`, then reset the
+      #     secret and dispatch this workflow with `ping: true` from a feature
+      #     branch to prove the new one is live. Do not reach for a narrower
+      #     scope instead — there is not one; `create_issue` is already the
+      #     floor.
       - name: Wake Forge
         if: always()
         env:
