@@ -10,6 +10,7 @@ import { expandServedHosts } from '@/lib/services/custom-domain'
 import { canEditClinic } from '@/lib/clinic-site-edit'
 import { mergeWebsiteDraft, websiteDraftKeys } from '@/lib/website-draft'
 import { loadPublishedSite, loadPublishedTheme } from '@/lib/services/clinic-site-cache'
+import type { PublishedSiteChrome } from '@/lib/services/clinic-site-cache'
 
 /**
  * Read a clinic's staged draft — the one thing the cached published payload
@@ -161,11 +162,31 @@ export interface ClinicTheme {
   /** True when THIS viewer is a verified editor with staged (unpublished)
    *  edits — the layout mounts the "you're seeing your draft" banner. */
   hasEditorDraft: boolean
+  /**
+   * The site-wide chrome the layout paints around every page — announcement
+   * strip, chat bubble, "Powered by" credit, the go-live lever and the
+   * shut-down wall's billing fields. `null` for an unknown/non-clinic slug,
+   * or a clinic org with no `clinic_profile` row.
+   *
+   * It rides here because the layout ALREADY calls this loader for the
+   * palette, so the eleven columns cost nothing extra — where the layout's
+   * own `clinic_profile` select cost a database round trip on every public
+   * page of every clinic site, uncached, next to a theme read that was not.
+   *
+   * NO DRAFT OVERLAY, deliberately: every column in `PublishedSiteChrome` is
+   * live-immediate (none is in `WEBSITE_DRAFT_COLUMNS`), so the published
+   * value IS the live value and there is nothing for an editor to see
+   * differently. That is also why it can sit inside the cached payload while
+   * `brand` and `template` — which DO overlay — are merged out here.
+   */
+  chrome: PublishedSiteChrome | null
 }
 
 export const getClinicThemeBySlug = cache(async (slug: string): Promise<ClinicTheme> => {
   const published = await loadPublishedTheme(slug)
-  if (!published) return { orgId: null, brand: null, template: null, hasEditorDraft: false }
+  if (!published) {
+    return { orgId: null, brand: null, template: null, hasEditorDraft: false, chrome: null }
+  }
 
   // Draft→Publish overlay for the palette + template — same gate as loadSite's
   // content overlay, so a staged brand color / design shows for the editor
@@ -180,6 +201,7 @@ export const getClinicThemeBySlug = cache(async (slug: string): Promise<ClinicTh
       brand: published.brandColor,
       template: published.template,
       hasEditorDraft: false,
+      chrome: published.chrome,
     }
   }
 
@@ -190,6 +212,7 @@ export const getClinicThemeBySlug = cache(async (slug: string): Promise<ClinicTh
       brand: published.brandColor,
       template: published.template,
       hasEditorDraft: false,
+      chrome: published.chrome,
     }
   }
 
@@ -210,6 +233,9 @@ export const getClinicThemeBySlug = cache(async (slug: string): Promise<ClinicTh
     brand: merged.brandColor ?? null,
     template: merged.template ?? null,
     hasEditorDraft: true,
+    // Unmerged on purpose — every chrome column is live-immediate, so an
+    // editor's staged draft has nothing to say about any of them.
+    chrome: published.chrome,
   }
 })
 

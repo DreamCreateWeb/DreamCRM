@@ -6,6 +6,7 @@ import { db } from '@/lib/db'
 import { clinicProfile } from '@/lib/db/schema/platform'
 import { requireTenant } from '@/lib/auth/context'
 import { publishRealtime } from '@/lib/services/realtime'
+import { invalidateClinicSiteEverywhere } from '@/lib/services/clinic-site-cache'
 
 type Result = { ok: true } | { ok: false; error: string }
 
@@ -33,6 +34,10 @@ export async function saveChatWidgetAction(enabled: boolean): Promise<Result> {
     revalidatePath('/website/forms')
     // The bubble renders on every public page — repaint the whole site subtree.
     revalidatePath(`/site/${ctx.organizationSlug}`, 'layout')
+    // `revalidatePath` alone is not enough: the layout reads this toggle from
+    // the per-clinic TAGGED chrome payload, which a path revalidation does
+    // not touch. Same reasoning as the go-live lever.
+    invalidateClinicSiteEverywhere(ctx.organizationId, ctx.organizationSlug)
     await publishRealtime(ctx.organizationId, 'settings', { section: 'practice' })
     return { ok: true }
   } catch (err) {

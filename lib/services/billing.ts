@@ -10,6 +10,7 @@ import {
   type BillingInterval,
   type PlanId,
 } from '@/lib/stripe-config'
+import { invalidateClinicSiteForOrg } from '@/lib/services/clinic-site-cache'
 
 function publicUrl(path: string) {
   const base =
@@ -509,6 +510,17 @@ export async function syncSubscriptionFromStripe(subscriptionId: string) {
     })
     .where(eq(schema.clinicProfile.organizationId, organizationId))
 
+  // THE SHUT-DOWN WALL READS THESE COLUMNS FROM A CACHE NOW.
+  //
+  // `subscriptionStatus` and `stripeSubscriptionId` are two thirds of
+  // `resolveTrialState`, which the public site layout uses to decide whether
+  // to serve the clinic's site at all. The expiry half is time-based and
+  // resolved per request, so a trial running out still walls the site
+  // instantly — but a clinic PAYING is a WRITE, and without this the money
+  // has landed and their site is still dark for up to the TTL. That is the
+  // one direction of staleness this surface must not have.
+  await invalidateClinicSiteForOrg(organizationId)
+
   // Entitlement may have SHRUNK (add-on dropped / tier downgraded) — actually
   // disconnect over-cap social channels; each Zernio connection is billable to
   // us. Best-effort: cap enforcement must never fail the webhook.
@@ -548,6 +560,11 @@ export async function clearSubscription(subscriptionId: string) {
       updatedAt: new Date(),
     })
     .where(eq(schema.clinicProfile.organizationId, profile.organizationId))
+
+  // Same reason as the sync above, in the other direction: a canceled
+  // subscription can put a clinic back behind the trial wall, and the public
+  // site reads that verdict from the cached chrome.
+  await invalidateClinicSiteForOrg(profile.organizationId)
 }
 
 /**

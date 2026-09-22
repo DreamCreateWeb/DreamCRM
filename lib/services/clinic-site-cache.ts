@@ -205,14 +205,19 @@ const locationTimestamps = () => timestampKeysFor('clinic_location', clinicLocat
  * — there the raw text carried no zone and had to be read as UTC by hand.
  * Here the zone is in the string.
  */
-function reviveTimestamps<T extends Record<string, unknown>>(keys: string[], row: T): T {
+function reviveTimestamps<T extends object>(keys: string[], row: T): T {
   let copy: Record<string, unknown> | null = null
   for (const key of keys) {
-    const value = row[key]
+    // `T extends object` rather than `Record<string, unknown>`: an INTERFACE
+    // (PublishedSiteChrome) has no implicit index signature, so the narrower
+    // bound would have forced every caller through a cast. The lookup itself
+    // is unchanged — a key the object does not carry reads `undefined` and is
+    // skipped, which is what makes one revival serve both shapes.
+    const value = (row as Record<string, unknown>)[key]
     // Already a Date on the miss path; only strings need reviving. Idempotent
     // by construction, so both paths can run it.
     if (typeof value === 'string') {
-      copy ??= { ...row }
+      if (!copy) copy = { ...(row as Record<string, unknown>) }
       copy[key] = new Date(value)
     }
   }
@@ -260,12 +265,75 @@ export interface PublishedSite {
   hasWebsiteDraft: boolean
 }
 
+/**
+ * The site-wide CHROME the layout paints around every public page: the
+ * announcement strip, the chat bubble, the "Powered by" credit, the go-live
+ * lever and the shut-down wall.
+ *
+ * THIS IS THE LAST UNCACHED QUERY ON THE PUBLIC PAGE, AND IT WAS A WHOLE
+ * ROUND TRIP. `app/site/[slug]/layout.tsx` renders on EVERY public clinic
+ * page — home, book, services, blog, the portal door — and it opened its own
+ * `clinic_profile` select for these eleven columns, right next to the theme
+ * read that had just been cached. So the slice that made the site payload a
+ * cache hit left the layout paying the database on every single request.
+ *
+ * Every column here is LIVE-IMMEDIATE — none of them is in
+ * `WEBSITE_DRAFT_COLUMNS` — so the published value IS the live value and
+ * there is no overlay to apply. That is what makes the chrome a plain clinic
+ * fact and lets it ride the same entry as the theme it is read beside: the
+ * layout already calls `getClinicThemeBySlug`, so folding these in costs no
+ * extra query even on a cache MISS.
+ *
+ * WHAT STALENESS BUYS, PER FIELD — the reads the issue asked us to name:
+ *
+ *  - the GO-LIVE LEVER (`siteLiveAt`) invalidates explicitly
+ *    (`app/(default)/website/go-live-actions.ts`), so taking a site offline
+ *    is immediate rather than TTL-bounded. That direction matters most.
+ *  - the SHUT-DOWN WALL (`trialEndsAt` / `subscriptionStatus` /
+ *    `stripeSubscriptionId`) is resolved by `resolveTrialState` OUTSIDE this
+ *    cache, against `new Date()` per request — so a trial expiring on the
+ *    clock walls the site the moment it expires, with no cache in the path.
+ *    The write that could go the wrong way is a clinic PAYING and still
+ *    seeing the wall, so `lib/services/billing.ts` invalidates on the
+ *    subscription webhook.
+ *  - the chrome toggles (chat bubble, "Powered by", the announcement bar)
+ *    invalidate from their own actions, because a human is watching.
+ *
+ * The TEMPLATE-FRAME PREVIEW ROUTE is the one read that stays per-request and
+ * cannot be folded in at all: `resolveActiveSiteTemplate` is chosen by a
+ * request header and a cookie, so it has no published half (category 3 in
+ * that module's doc comment).
+ */
+export interface PublishedSiteChrome {
+  displayName: string | null
+  phone: string | null
+  logoUrl: string | null
+  timezone: string | null
+  /** Raw column — `activeAnnouncement` resolves it per request against the
+   *  clinic-local day, so a timed bar never expires a day early. */
+  announcement: unknown
+  chatWidgetEnabled: boolean
+  hidePoweredBy: boolean
+  siteLiveAt: Date | null
+  trialEndsAt: Date | null
+  subscriptionStatus: string | null
+  stripeSubscriptionId: string | null
+}
+
 /** The published theme — the twin of the above for the palette + template. */
 export interface PublishedTheme {
   orgId: string
   brandColor: string | null
   template: string | null
   hasWebsiteDraft: boolean
+  /**
+   * `null` when the org has no `clinic_profile` row at all — the same
+   * distinction the layout's own `if (prof)` used to draw, kept rather than
+   * flattened into a row of defaults, because "no profile" and "a profile
+   * with every toggle at its default" are different states and only one of
+   * them should paint chrome.
+   */
+  chrome: PublishedSiteChrome | null
 }
 
 async function readPublishedSite(
@@ -310,6 +378,22 @@ async function readPublishedTheme(slug: string): Promise<PublishedTheme | null> 
       brandColor: clinicProfile.brandColor,
       template: clinicProfile.template,
       websiteDraft: clinicProfile.websiteDraft,
+      // The LEFT JOIN means every column below is null both when the clinic
+      // has no profile row and when the column itself is null, so the row's
+      // EXISTENCE needs a column that cannot be null when it is present.
+      // `organizationId` is that column — it is the join key.
+      profileOrgId: clinicProfile.organizationId,
+      displayName: clinicProfile.displayName,
+      phone: clinicProfile.phone,
+      logoUrl: clinicProfile.logoUrl,
+      timezone: clinicProfile.timezone,
+      announcement: clinicProfile.announcement,
+      chatWidgetEnabled: clinicProfile.chatWidgetEnabled,
+      hidePoweredBy: clinicProfile.hidePoweredBy,
+      siteLiveAt: clinicProfile.siteLiveAt,
+      trialEndsAt: clinicProfile.trialEndsAt,
+      subscriptionStatus: clinicProfile.subscriptionStatus,
+      stripeSubscriptionId: clinicProfile.stripeSubscriptionId,
     })
     .from(organization)
     .leftJoin(clinicProfile, eq(clinicProfile.organizationId, organization.id))
@@ -323,6 +407,26 @@ async function readPublishedTheme(slug: string): Promise<PublishedTheme | null> 
     brandColor: row.brandColor ?? null,
     template: row.template ?? null,
     hasWebsiteDraft: row.websiteDraft != null,
+    chrome: row.profileOrgId
+      ? {
+          displayName: row.displayName ?? null,
+          phone: row.phone ?? null,
+          logoUrl: row.logoUrl ?? null,
+          timezone: row.timezone ?? null,
+          announcement: row.announcement ?? null,
+          // Both columns are NOT NULL with a default in the schema, but the
+          // left join types them nullable and the layout's rules were written
+          // as `!== false` / `!== true` — i.e. the DEFAULT wins when the value
+          // is absent. Preserved exactly: chat on unless explicitly off,
+          // credit shown unless explicitly hidden.
+          chatWidgetEnabled: row.chatWidgetEnabled !== false,
+          hidePoweredBy: row.hidePoweredBy === true,
+          siteLiveAt: row.siteLiveAt ?? null,
+          trialEndsAt: row.trialEndsAt ?? null,
+          subscriptionStatus: row.subscriptionStatus ?? null,
+          stripeSubscriptionId: row.stripeSubscriptionId ?? null,
+        }
+      : null,
   }
 }
 
@@ -336,6 +440,31 @@ function settleSite(site: PublishedSite | null): PublishedSite | null {
     primaryLocation: site.primaryLocation
       ? reviveTimestamps(locationTimestamps(), site.primaryLocation)
       : null,
+  })
+}
+
+/**
+ * The theme's twin of `settleSite`, and it exists for exactly one reason:
+ * `chrome` carries `trialEndsAt`, and `resolveTrialState` calls `.getTime()`
+ * on it.
+ *
+ * That is the SAME landmine `reviveTimestamps` was written for, arriving by a
+ * second route. `unstable_cache` persists through JSON, so on a HIT that
+ * `Date` is a string while TypeScript still swears it is a `Date` — and the
+ * crash would land on exactly one cohort (clinics inside their 7-day trial),
+ * on every public page of their site, from the second request onward. The
+ * theme read had no timestamps at all before this change and therefore needed
+ * no revival; it does now.
+ *
+ * Reviving keys off the `clinic_profile` schema rather than a list of two, so
+ * a chrome field added tomorrow from another timestamp column is covered the
+ * day it arrives. `reviveTimestamps` ignores keys the object does not carry.
+ */
+function settleTheme(theme: PublishedTheme | null): PublishedTheme | null {
+  if (!theme) return null
+  return deepFreeze({
+    ...theme,
+    chrome: theme.chrome ? reviveTimestamps(profileTimestamps(), theme.chrome) : null,
   })
 }
 
@@ -385,7 +514,7 @@ export async function loadPublishedTheme(slug: string): Promise<PublishedTheme |
     ['clinic-theme-published', slug],
     { revalidate: CACHE_TTL_SECONDS, tags: [`clinic-site-slug:${slug}`] },
   )()
-  return resolved ? deepFreeze({ ...resolved }) : null
+  return settleTheme(resolved)
 }
 
 /**

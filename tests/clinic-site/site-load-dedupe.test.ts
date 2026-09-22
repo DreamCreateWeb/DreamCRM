@@ -514,4 +514,75 @@ describe('the theme loader is split the same way', () => {
     state.org = null
     expect((await mod.getClinicThemeBySlug('nope')).orgId).toBeNull()
   })
+
+  /**
+   * THE LAYOUT'S CHROME IS A CLINIC FACT, NOT A VIEWER FACT — WHICH IS THE
+   * WHOLE REASON IT MAY RIDE THE CACHE.
+   *
+   * `app/site/[slug]/layout.tsx` used to read these eleven columns with its
+   * own query on every public page. They moved into the cached theme payload
+   * on one argument: not one of them is in `WEBSITE_DRAFT_COLUMNS`, so the
+   * published value IS the live value and there is no overlay to apply.
+   *
+   * If that ever stops being true — if somebody makes the announcement bar or
+   * the clinic name draftable — the chrome becomes viewer-dependent and the
+   * tests below are where it shows up, rather than on a clinic's live site.
+   */
+  describe('the chrome rides along, unmerged', () => {
+    const CHROMED = {
+      ...THEMED,
+      profileOrgId: 'org_1',
+      displayName: 'SmileBright Dental',
+      phone: '555-0100',
+      logoUrl: null,
+      timezone: 'America/Chicago',
+      announcement: { message: 'Closed Friday' },
+      chatWidgetEnabled: true,
+      hidePoweredBy: false,
+      siteLiveAt: new Date('2026-09-01T08:00:00.000Z'),
+      trialEndsAt: null,
+      subscriptionStatus: 'active',
+      stripeSubscriptionId: 'sub_1',
+    }
+
+    it('reaches the layout through the same loader as the palette', async () => {
+      state.org = { ...CHROMED }
+      const mod = await freshRequest()
+      const theme = await mod.getClinicThemeBySlug('smilebright')
+      expect(theme.chrome).not.toBeNull()
+      expect(theme.chrome!.displayName).toBe('SmileBright Dental')
+      expect(theme.chrome!.chatWidgetEnabled).toBe(true)
+      expect(theme.chrome!.hidePoweredBy).toBe(false)
+      expect(theme.chrome!.announcement).toEqual({ message: 'Closed Friday' })
+    })
+
+    it('a verified editor and a visitor get the SAME chrome', async () => {
+      // The palette overlays per viewer; the chrome must not. A draft that
+      // stages a colour and a tagline says nothing about whether the site is
+      // live or whether the chat bubble is on — and if an editor's chrome
+      // ever differed from a visitor's, the cached copy would be one of the
+      // two and serve it to everyone.
+      state.org = { ...CHROMED, websiteDraft: { brandColor: '#ff0000', tagline: 'draft' } }
+      state.profile = { ...state.profile, websiteDraft: { brandColor: '#ff0000', tagline: 'draft' } }
+
+      state.canEdit = true
+      const editor = await (await freshRequest()).getClinicThemeBySlug('smilebright')
+      state.canEdit = false
+      const visitor = await (await freshRequest()).getClinicThemeBySlug('smilebright')
+
+      expect(editor.brand, 'the overlay stopped working — this test proves nothing').toBe('#ff0000')
+      expect(visitor.brand).toBe('#0d9488')
+      expect(
+        editor.chrome,
+        'the chrome differs per viewer, so the cached copy is one viewer’s\n' +
+          'answer being served to the next',
+      ).toEqual(visitor.chrome)
+    })
+
+    it('an unknown slug has no chrome rather than a crash', async () => {
+      state.org = null
+      const mod = await freshRequest()
+      expect((await mod.getClinicThemeBySlug('nope')).chrome).toBeNull()
+    })
+  })
 })

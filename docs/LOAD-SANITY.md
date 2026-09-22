@@ -17,6 +17,12 @@ a patient experiences.
 
 ## Baseline — 2026-08-18, local dev container
 
+**This table is PRE-CACHE.** Recommendation 1 below landed after it was
+measured (#507, 2026-09-10 and DREAMCRM-90, 2026-09-22), and nothing has
+re-run the script since. The clinic-site rows describe an app that rendered
+every public page from scratch; they are the "before" half of a comparison
+whose "after" half does not exist yet.
+
 **Read this caveat first.** These numbers are from the development container,
 not production. They characterise the **application** (render cost, query
 shape, queueing); they do **not** predict the prod t4g.micro's ceiling, which
@@ -65,13 +71,53 @@ slowest surface and the lowest throughput. A marketing push that drives real
 traffic to clinic sites is the exact scenario that would expose this, and on
 prod hardware these numbers get worse.
 
-## Recommendations (not yet actioned)
+## Recommendations
 
-1. **Cache the public clinic site.** It is the highest-traffic, lowest-churn
-   surface in the product — content changes when a clinic edits it, not per
-   request. ISR/revalidate-on-publish (the Draft→Publish flow already gives a
-   natural invalidation point) would move this from a per-request render to a
-   cache hit. Highest-leverage single change.
+1. **Cache the public clinic site.** · **ACTIONED — the table above predates
+   it and has not been re-measured.**
+
+   It is the highest-traffic, lowest-churn surface in the product — content
+   changes when a clinic edits it, not per request. Revalidate-on-publish (the
+   Draft→Publish flow already gives a natural invalidation point) moves this
+   from a per-request render to a cache hit. Highest-leverage single change,
+   and it landed in two parts:
+
+   - **#507 (2026-09-10)** — `lib/services/clinic-site-cache.ts`: the
+     published site payload and the published theme, cached per clinic behind
+     a module that structurally cannot read the session, with a 60s TTL as the
+     contract and explicit `revalidateTag` on the writers a human is watching
+     (publish, staging a draft, the go-live lever, the identity save).
+   - **#TBD (2026-09-22, DREAMCRM-90)** — the residual: `app/site/[slug]/
+     layout.tsx` still opened its OWN `clinic_profile` select for eleven chrome
+     columns on every public page, three lines below the cached theme read.
+     Those columns moved into the cached payload (`PublishedSiteChrome`), so a
+     warm public page now costs zero uncached profile queries.
+     `tests/clinic-site/layout-reads-the-cache.test.ts` keeps it that way.
+
+   **Which reads deliberately stay uncached**, since the recommendation did
+   not say and the design has to:
+
+   - the **template-frame preview route** and the owner's preview cookie
+     (`resolveActiveSiteTemplate`) — the whole answer is chosen by a request
+     header and a cookie, so there is no published half to lift out. Caching
+     it would serve one owner's preview as the live design for every visitor.
+   - the **draft overlay** — a verified editor's unpublished words are merged
+     per request, outside the cache boundary, and the draft CONTENT never
+     enters a shared entry at all.
+   - the **shut-down wall's verdict** — `trialEndsAt` is cached, but
+     `resolveTrialState` runs per request against that request's clock, so a
+     trial expiring mid-TTL walls the site immediately. The write in the other
+     direction (a clinic PAYS and should stop being walled) invalidates from
+     the Stripe subscription webhook.
+   - the **go-live lever** writes `siteLiveAt`, which IS cached — and the
+     lever invalidates explicitly, because "taking my site offline takes a
+     minute to happen" is the wrong direction to be slow in.
+
+   **No re-measured table yet.** Point 4 below still applies to this change,
+   and honouring it needs the app running against a database — which the
+   development session that made the change did not have. Re-run the script
+   and add a post-cache table before treating the numbers above as current.
+
 2. **Re-run after the Patients-list pagination slice** (R2 deferred item) —
    that surface is not in this baseline because it needs auth; it is the one
    most likely to be worse.
