@@ -592,6 +592,18 @@ export function invalidateClinicSiteEverywhere(orgId: string, slug: string | nul
  * is itself part of the cached payload, so a clinic starting their FIRST draft
  * would otherwise keep reading a cached `false` and not see their own edit on
  * the site preview until the TTL rolled over.
+ *
+ * **IT HAS NO CALLERS OUTSIDE THIS MODULE TODAY** (Sentinel, #654 round 2):
+ * both of the writers named above moved to the render-tolerant twin below —
+ * `website-draft.ts` because a Server Component imports it for two READ
+ * functions, `billing.ts` because one of its functions genuinely renders. The
+ * paragraph above describes the wiring as it stands after that move: those
+ * writers still invalidate, through the twin.
+ *
+ * This is still the RIGHT DEFAULT and is kept rather than deleted. A writer
+ * that is not reachable from a render should use it, because a render-phase
+ * refusal there would be a real bug and this is the version that says so. It
+ * simply happens that no such writer exists right now.
  */
 export async function invalidateClinicSiteForOrg(organizationId: string): Promise<void> {
   await dropBothTagsForOrg(organizationId, false)
@@ -639,10 +651,18 @@ async function dropBothTagsForOrg(
   tolerateRender: boolean,
 ): Promise<void> {
   // The org tag first, and its OUTCOME decides whether the rest is worth
-  // doing. Inside a render every tag drop is refused identically, so paying
-  // for a database round trip to resolve a slug we could not use anyway would
-  // be pure waste on a page render — the one place latency is most visible.
-  if (invalidateTag(clinicSiteTag(organizationId), tolerateRender) === 'rendering') return
+  // doing. BOTH non-drop outcomes are properties of the CONTEXT rather than of
+  // the tag, so neither can come out differently for the slug tag a moment
+  // later: inside a render every drop is refused, and outside a request scope
+  // every drop is a no-op. Either way the database round trip that resolves
+  // the slug buys nothing — wasted on a page render, which is where latency is
+  // most visible, and wasted on every cron tick, which is where this path runs
+  // most often. Only `'dropped'` continues.
+  //
+  // (The render arm arrived first and the asymmetry was visible for one review
+  // round — Sentinel, #654. The cron case was pre-existing and has always been
+  // harmless; it is one query, not a wrong answer.)
+  if (invalidateTag(clinicSiteTag(organizationId), tolerateRender) !== 'dropped') return
   try {
     const [org] = await db
       .select({ slug: organization.slug })

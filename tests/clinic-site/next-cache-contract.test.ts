@@ -209,7 +209,12 @@ describe('the real next/cache, unmocked', () => {
       // throws, this fails instead of quietly asserting against our own
       // idea of that error.
       const real = await revalidateInPhase('render')
-      expect(real, 'no error to feed the catch — the test above must run first').not.toBeNull()
+      expect(
+        real,
+        'Next did not refuse a render-phase revalidateTag, so there is no real\n' +
+          'error object to feed the catch. Order-independent: this re-derives it\n' +
+          'rather than reading one the previous test left behind.',
+      ).not.toBeNull()
 
       const { invalidateClinicSite, invalidateClinicSiteForOrgUnlessRendering } = await import(
         '@/lib/services/clinic-site-cache'

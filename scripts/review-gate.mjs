@@ -760,8 +760,20 @@ export const INTAKE_RULES = [
       // wiring an invalidator into any module a page can reach fails `test`
       // with the import chain printed.
       //
-      // WHAT IT DOES NOT COVER, here rather than only in the test's docblock:
+      // WHAT IT DOES NOT COVER, here rather than only in the test's docblock.
+      // The list below was three entries when this landed and read as though
+      // that was all of them; the fourth is the one review found (Sentinel,
+      // #654 round 2), and it is the one worth reading first, because a
+      // BLIND SPOT IN THE ROOT SET is silently wider than any of the others —
+      // it ungrades whole subtrees rather than one call:
       //
+      //   - THE ROOT SET IS A NAMED LIST OF NEXT'S FILE CONVENTIONS, so a new
+      //     convention is ungraded until somebody adds it. It named three
+      //     (`page` / `layout` / `template`) and missed `loading.tsx` — 32
+      //     files — and `not-found.tsx`. Exposure was zero, and the count
+      //     anchor could never have said so: `page.tsx` alone is 216, so
+      //     `roots.length > 50` stays green with both kinds removed. Fixed by
+      //     naming all six and asserting each kind that exists is represented.
       //   - It is MODULE-granular, not function-granular. `billing.ts` is
       //     render-reachable through one function, so the whole module owes
       //     the tolerant variant. That is deliberate — a per-function rule

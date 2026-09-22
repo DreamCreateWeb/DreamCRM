@@ -89,12 +89,35 @@ const STRICT_INVALIDATOR = /\binvalidateClinicSite(?:BySlug|Everywhere|ForOrg)?\
  */
 const PHASE_BOUNDARY = /^\s*['"]use (server|client)['"]/
 
+/**
+ * EVERY file convention Next renders as a Server Component — a fact about the
+ * framework, not about this repo.
+ *
+ * The first version named three of them and missed `loading.tsx` (32 files) and
+ * `not-found.tsx` (4), which render exactly like a page and could reach a
+ * service the same way (Sentinel, #654 round 2). Exposure was zero — not one of
+ * the 36 imports `@/lib/services` or `@/lib/db` — but `roots.length > 50` was
+ * never going to notice the omission, since `page.tsx` alone is 216.
+ *
+ * `error.tsx` / `global-error.tsx` are deliberately absent: Next REQUIRES them
+ * to be client components, so they are covered by the `'use client'` boundary
+ * below rather than by an exclusion here. `template.tsx` and `default.tsx` have
+ * no instances in this repo today (no parallel routes); they are named anyway,
+ * because the cost of listing a convention that does not exist yet is nothing
+ * and the cost of missing one the day it arrives is this defect again.
+ */
+const SERVER_COMPONENT_FILES = [
+  'page.tsx',
+  'layout.tsx',
+  'template.tsx',
+  'loading.tsx',
+  'not-found.tsx',
+  'default.tsx',
+]
+
 describe('no render-reachable module calls the strict invalidator', () => {
   /** Server Components: the roots of the render phase. */
-  const roots = walk(
-    'app',
-    (n) => n === 'page.tsx' || n === 'layout.tsx' || n === 'template.tsx',
-  )
+  const roots = walk('app', (n) => SERVER_COMPONENT_FILES.includes(n))
 
   /** Transitive closure over our own source, stopping at phase boundaries. */
   function renderReachable(): { modules: Set<string>; chainTo: Map<string, string> } {
@@ -132,6 +155,20 @@ describe('no render-reachable module calls the strict invalidator', () => {
     // to still be true, and each fails here rather than by silently shrinking
     // the set to nothing.
     expect(roots.length, 'no Server Components found under app/').toBeGreaterThan(50)
+
+    // A COUNT FLOOR CANNOT SEE A MISSING KIND. `page.tsx` alone is 216, so
+    // dropping every `loading.tsx` and `not-found.tsx` from the predicate
+    // leaves the assertion above comfortably green — which is exactly how
+    // those two were missing in the first place. Named literally rather than
+    // read back off SERVER_COMPONENT_FILES, so narrowing the list fails here
+    // instead of narrowing the test along with it.
+    for (const kind of ['page.tsx', 'layout.tsx', 'loading.tsx', 'not-found.tsx']) {
+      expect(
+        roots.some((f) => f.endsWith(`/${kind}`)),
+        `no ${kind} in the root set — Next renders it as a Server Component,\n` +
+          `so whatever it imports is render-reachable and is now ungraded`,
+      ).toBe(true)
+    }
 
     const { modules } = renderReachable()
     expect(
