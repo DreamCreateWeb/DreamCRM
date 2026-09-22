@@ -162,6 +162,15 @@ export class EmailTimeoutError extends Error {
  * transport here exposes an abort handle — so it is left with a no-op catch
  * attached: an HTTP call that eventually fails after we stopped waiting must
  * not surface as an unhandled rejection and take the process down.
+ *
+ * WHERE THAT CATCH ACTUALLY EARNS ITS KEEP (Sentinel, reviewing #649): not on
+ * the raced path, where `Promise.race` subscribes to `pending` itself. It is
+ * the `ms <= 0` throw below — the transport promise is constructed as this
+ * function's ARGUMENT, then thrown past before anything races it, so the catch
+ * is the only subscriber it ever gets. That is the branch
+ * `tests/email/deliver-deadline.test.ts` pins, and it pins it by asserting the
+ * handler is attached rather than by listening for `unhandledRejection`, which
+ * under vitest reports nothing either way.
  */
 async function withDeadline<T>(work: PromiseLike<T> | T, ms: number, transport: string): Promise<T> {
   // `Promise.resolve` rather than assuming a promise: a transport adapter that

@@ -11,10 +11,12 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
  * `not_sent` — the state whose copy tells them to save their details — was only
  * reachable at the socket timeout.
  *
- * Every test here drives a transport that NEVER SETTLES. Against the code as it
- * stood before this change each one hangs until vitest's own test timeout
- * (watched: 5 failures, all "Test timed out in 5000ms"), which is the defect
- * stated as a test.
+ * Most of these drive a transport that NEVER SETTLES. Against the code as it
+ * stood before this change each of those hangs until vitest's own test timeout
+ * (watched: 6 failed / 2 passed, every failure "Test timed out in 20000ms"),
+ * which is the defect stated as a test. The two that passed then are the two
+ * that pin what must NOT change: a prompt send is untouched, and a real
+ * provider rejection still surfaces as itself rather than as a timeout.
  */
 const mocks = vi.hoisted(() => ({
   resendSend: vi.fn<(msg: unknown) => Promise<unknown>>(),
@@ -123,22 +125,71 @@ describe('deliver() deadline', () => {
     expect(mocks.resendSend).toHaveBeenCalledOnce()
   })
 
-  it('does not leave an unhandled rejection when an abandoned send fails later', async () => {
+  /**
+   * THE ABANDONED SEND KEEPS A HANDLER, and this is the branch where that is
+   * load-bearing (Sentinel's note on #649). Two corrections behind the shape
+   * of this case, both his:
+   *
+   *   1. On the RACED path `Promise.race` subscribes to the send itself, so a
+   *      late rejection is already handled and the guard is redundant. The
+   *      only branch it carries is the budget-already-spent one: the transport
+   *      promise is constructed as the argument, then `ms <= 0` throws before
+   *      the race, so nothing else ever subscribes.
+   *   2. Asserting on `process.on('unhandledRejection')` proves nothing here.
+   *      Deleting the guard and rejecting late still fires no event this
+   *      listener sees under vitest — watched, three runs, 9/9 green with the
+   *      line removed. So the assertion is on the MECHANISM instead: a
+   *      `catch` handler is attached to the promise being walked away from.
+   *      Delete `void pending.catch(() => {})` and this goes red.
+   *
+   * Reached by moving the CLOCK rather than shrinking the budget: a 1ms budget
+   * lands here about eleven runs in twelve, and the twelfth reads one
+   * millisecond left and races instead. A guard that needs repeated runs to
+   * fail is not a guard.
+   */
+  it('attaches a handler to the send it abandons when the budget is already spent', async () => {
+    const realNow = Date.now()
+    const now = vi.spyOn(Date, 'now')
+    // First reading is `startedAt`; every later one is past the deadline.
+    now.mockReturnValueOnce(realNow).mockReturnValue(realNow + BUDGET_MS + 10)
+
+    const caught = vi.fn()
+    mocks.resendSend.mockImplementation(() => {
+      const p: Promise<unknown> = new Promise(() => {})
+      const real = p.catch.bind(p)
+      p.catch = (...a: Parameters<typeof real>) => {
+        caught()
+        return real(...a)
+      }
+      return p
+    })
+    try {
+      await expect(deliver({ ...MSG })).rejects.toThrow(/didn’t respond in time/)
+      // The send was CONSTRUCTED — it is the argument — and then thrown past
+      // before anything raced it. `within 0ms` is that path's fingerprint; a
+      // raced timeout names the budget it actually waited out.
+      expect(mocks.resendSend).toHaveBeenCalledOnce()
+      expect(warn.mock.calls.flat().join(' ')).toMatch(/Resend did not respond within 0ms/)
+      expect(caught).toHaveBeenCalled()
+    } finally {
+      now.mockRestore()
+    }
+  })
+
+  it('reports the DEADLINE to the caller, not the provider failure that lands afterwards', async () => {
     let rejectLate: (err: unknown) => void = () => {}
     mocks.resendSend.mockImplementation(
       () => new Promise((_resolve, reject) => { rejectLate = reject }),
     )
-    const unhandled = vi.fn()
-    process.on('unhandledRejection', unhandled)
-    try {
-      await expect(deliver({ ...MSG })).rejects.toThrow(/didn’t respond in time/)
-      // The provider finally answers — with an error — after nobody is waiting.
-      rejectLate(new Error('connection reset'))
-      await new Promise((r) => setTimeout(r, 30))
-      expect(unhandled).not.toHaveBeenCalled()
-    } finally {
-      process.off('unhandledRejection', unhandled)
-    }
+    const settled = deliver({ ...MSG })
+    await expect(settled).rejects.toThrow(/didn’t respond in time/)
+    // The provider finally answers — with an error — after nobody is waiting.
+    // The caller's outcome must not change under it: what they were told is
+    // "we do not know whether this went out", and a later `connection reset`
+    // does not retroactively make that a rejection.
+    rejectLate(new Error('connection reset'))
+    await new Promise((r) => setTimeout(r, 30))
+    await expect(settled).rejects.toThrow(/didn’t respond in time/)
   })
 
   it('leaves a send that answers promptly completely alone', async () => {
