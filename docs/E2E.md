@@ -302,6 +302,22 @@ Since DREAMCRM-19 that ownership is **named in the seed itself**, as a scope
 - Every other scope is one spec file's **consumable** rows, and the scopes are
   row-disjoint by construction.
 
+**One row is written by a scope and owned by nobody, and the guard is blind to
+it.** `token-pages` upserts `prospecting_config` — a platform-global SINGLETON
+at the literal id `'default'` — to turn demo booking on for `/d`, replacing the
+whole JSON blob before every test in its spec, while other workers run.
+`tests/guards/e2e-seed-scopes.test.ts` keys its declared-vs-written check on the
+`<prefix>_e2e_<name>` row shape, so `'default'` is invisible to it: the row has
+no owner and the guard reports that as fine. It goes **quiet, not red**, and no
+amount of growing the prefix list closes it — the next scope that needs a
+singleton has the same problem.
+
+Safe today, which is why it is written down rather than fixed:
+`lib/services/prospecting.ts` is the only reader, and no other spec walks `/d`
+or `/platform/prospecting`. **It stops being safe the day one does, and the
+guard will not be the thing that tells you** — so if you are adding that spec,
+give the row an owner first. (Sentinel, reviewing #669.)
+
 A spec declares the scope it owns at the top of the file, and that scope is
 restored before each of its tests:
 

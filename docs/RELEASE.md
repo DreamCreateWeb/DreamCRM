@@ -2411,6 +2411,35 @@ same hue and saturation, graded against the DEEPEST composite on the page
 harder one for light text): 4.80:1 on `#121620`, 5.01:1 on `#0d111b`, 5.23:1 on
 `#070b15`. The stop holds at ZERO.
 
+**S3 · the axe stops cannot see text over a gradient, and one page has a
+gradient a label could drift into.** Raised by Sentinel reviewing #669, while
+re-deriving the entry above; pre-existing, and NOT the fix that entry made.
+
+Two halves, and the first is the one that generalises:
+
+- **The instrument.** `findA11yViolations` in `e2e/axe.ts:271` destructures
+  `const { violations } = await builder.analyze()` and discards the rest. For
+  text over a gradient, axe-core cannot resolve a single background colour and
+  reports the node under **`incomplete`**, not `violations` — so every stop in
+  the suite, at zero or not, is silent about it. This is not a ceiling that
+  needs shrinking; it is a category the gate never receives.
+- **The reachable case.** `app/g/[token]/report-view.tsx` — `.dg-glow` is two
+  radial gradients over the canvas, and at the teal peak it composites to about
+  `#0d2d32`, where the page's quiet ink `#78849c` grades **3.87:1**. It does not
+  bite today: `transparent 70%` of a 640×420 ellipse anchored at `80% 150px`
+  reaches roughly x 576–1472, y ≤ 444, and every `INK_3` node is either
+  left-column hero (out of reach horizontally) or below the axis panels' top
+  edge (out of reach vertically). Repro for the day it does: move any
+  `.dg-mono` label into the hero's right half above y=444 and watch
+  `token: practice grade report` stay GREEN.
+
+Fix shape: read `incomplete` alongside `violations` in `expectNoA11yViolations`
+and report it as its own class — not as a violation (it is genuinely
+undecidable, and a gate people have to interpret is one they learn to ignore),
+but not as silence either. `e2e/axe.ts` is on the `check-definitions` REVIEW
+gate, so that is a reviewed change and a separate PR; it is written here rather
+than beside the code for that reason. · OPEN.
+
 ### R1 · S8 sweep — Compliance & data (2026-08-17)
 
 One finder produced the written posture assessment now in **`docs/COMPLIANCE.md`**
