@@ -1100,7 +1100,7 @@ closed on their own evidence (the demo cart, the MRR cadence math, and the
 collections header) and two remain open below.
 
 - S3 · stripe-webhook release-and-retry re-fires non-idempotent in-app
-  notifications. · **FIXED — awaiting merge (#651)** (DREAMCRM-89) — and the
+  notifications. · **FIXED** (#651, `48fa9271`) (DREAMCRM-89) — and the
   claim turned out to be short in TWO ways, not one. It is released when a
   handler throws (by design, so Stripe's retry re-processes) and the retry
   re-runs the WHOLE handler; and it is FAIL-OPEN, so a delivery whose ledger
@@ -1532,7 +1532,7 @@ carrying its own. The eleventh entry is a gate hole the work turned up.
   patient sitting on a spinner after their visit is already committed. Found
   by Sentinel reviewing #599 and deliberately NOT taken there: changing the
   timeout behaviour of the one shared send path deserves its own slice rather
-  than a rider on an approved diff. · **FIXED — awaiting merge (#649)**
+  than a rider on an approved diff. · **FIXED** (#649, `6f924193`)
   (DREAMCRM-89) — ONE budget for the whole call (`EMAIL_TIMEOUT_MS`, default
   10s) rather than one per transport, so a caller gets a single number it can
   reason about; Gmail is capped at HALF of it, because a best-effort first tier
@@ -1550,6 +1550,20 @@ carrying its own. The eleventh entry is a gate hole the work turned up.
   SLOWLY (>10s) now reads as not-sent where it used to read as sent. Intended
   direction — the booking screen has honest copy for it and the alternative is
   an unbounded spinner — and `EMAIL_TIMEOUT_MS` is the dial if 10s is tight.
+  A SECOND one, raised by Sentinel in review and worth writing down because
+  nothing in the product says it out loud: the Gmail half-budget means a merely
+  SLOW clinic mailbox (>5s) now falls through to the platform sender, so that
+  patient's confirmation arrives from DreamCRM rather than from their clinic.
+  That is the tier's designed fallback, but until now it only fired on a broken
+  connection, never on a slow one.
+  Where the no-op catch on the abandoned promise actually earns its keep: NOT
+  the raced path, where `Promise.race` subscribes to the send itself, but the
+  budget-already-spent throw, where the transport promise is constructed as the
+  argument and thrown past before anything races it. Found by Sentinel deleting
+  the line and watching the suite stay green — the two cases that named it were
+  asserting on `unhandledRejection`, which reports nothing either way under
+  vitest. The guard is now pinned on the MECHANISM (a handler is attached) and
+  watched red without it.
 
 **S4 sweep CLOSED (2026-08-17):** 6 S2 fixed (3 client timeouts as one
 class, domain double-charge, trial-KILL leak ×2, 2 Guardian signals); the
