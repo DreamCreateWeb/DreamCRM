@@ -1970,7 +1970,7 @@ guard named all three by file, line, component and px while
 file that quotes `text-[0.72rem]` while explaining its removal was NOT named —
 comments are blanked before anything is counted, offsets preserved, which is
 the false positive this entry warned a re-derivation would produce.
-· FIXED (#639, DREAMCRM-87)
+· FIXED (#642, DREAMCRM-87)
 
 ### Fixed — the matrix "no" mark reads 2.29 against its own tile (found 2026-09-16)
 
