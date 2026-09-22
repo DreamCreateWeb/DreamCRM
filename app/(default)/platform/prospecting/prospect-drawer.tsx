@@ -329,6 +329,18 @@ function DealRoom({ vendors, crawled }: { vendors: DetectedVendor[]; crawled: bo
           </span>
           <span className="shrink-0 font-semibold tabular-nums text-emerald-700 dark:text-emerald-300">
             {est.ourPlanListPrice != null && (
+              // THE LABEL IS A TEXT NODE, NOT AN `aria-label` (RELEASE.md Part 5,
+              // S3). A bare <span> is `role=generic`, and ARIA prohibits an
+              // accessible name on it: NVDA and JAWS honour one anyway, other
+              // combinations are entitled not to, and the ones that do not read
+              // "$500 $200/mo" as a single run with nothing saying which number
+              // is dead. A visually-hidden node is announced by all of them.
+              // Same shape as the marketing half in
+              // `app/(marketing)/pricing/price-card.tsx` — a quiet deviation on
+              // one of two identical surfaces is worse than a consistent
+              // imperfection — down to the trailing full stop, which is what
+              // stops the struck figure running into the live one.
+              //
               // text-gray-600, NOT the gray-500 the two sibling struck prices
               // use: this card is bg-emerald-500/10 over the drawer's white
               // panel, which composites to #e7f8f2, and at text-sm/font-normal
@@ -339,12 +351,13 @@ function DealRoom({ vendors, crawled }: { vendors: DetectedVendor[]; crawled: bo
               // contrast scanners skip alpha backgrounds and there is no e2e
               // stop on /platform/prospecting — so it is pinned by a source
               // assertion in tests/prospecting/deal-room-quote.test.tsx.
-              <span
-                className="mr-1.5 font-normal text-gray-600 line-through decoration-2 dark:text-gray-400"
-                aria-label={`Regular price $${est.ourPlanListPrice.toLocaleString('en-US')} per month`}
-              >
-                ${est.ourPlanListPrice.toLocaleString('en-US')}
-              </span>
+              <>
+                <span className="sr-only">Regular price</span>
+                <span className="mr-1.5 font-normal text-gray-600 line-through decoration-2 dark:text-gray-400">
+                  ${est.ourPlanListPrice.toLocaleString('en-US')}
+                </span>
+                <span className="sr-only">.</span>
+              </>
             )}
             ${est.ourPlanPrice.toLocaleString('en-US')}/mo
           </span>
