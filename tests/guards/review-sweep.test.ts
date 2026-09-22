@@ -1209,11 +1209,18 @@ describe('the sweep workflow', () => {
     expect(wf()).toMatch(/::error::the wake POST failed/)
   })
 
-  it('an unset secret is SKIPPED, not a failure', () => {
-    // The same contract `error-scan.yml` carries for its IAM role. A wake that
-    // is not configured yet must not turn a working sweep red every morning —
-    // a workflow red for a fortnight for an unrelated reason is one nobody
-    // reads on the day it finally means something.
+  it('an unset secret says so in words — and does not read as a wake that happened', () => {
+    // RENAMED, because the old name — `an unset secret is SKIPPED, not a
+    // failure` — became the opposite of what the code does when the wake gained
+    // its step-conclusion anchor, and a test whose NAME asserts the opposite of
+    // its subject is the one a future reader trusts first (Sentinel, third pass
+    // on #671).
+    //
+    // What is true now: the step FAILS, because its conclusion is the anchor
+    // and a due wake that did not happen is not "Forge was told". What is
+    // unchanged is the half the old name was reaching for — the summary says
+    // `Skipped, not passed`, so nobody is told a wake happened that did not.
+    // The exit code is graded by the execution block above, not here.
     const source = wf()
     expect(source).toMatch(/if \[ -z "\$\{WAKE_URL\}" \]/)
     expect(source, 'an unconfigured wake must say it is unconfigured, not pass quietly').toContain(
