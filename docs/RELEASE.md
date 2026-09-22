@@ -133,7 +133,7 @@ The kinds of tests they run, mapped to our reality:
 | E2E browser journeys | **None** (happy-dom only) | **The biggest single gap** |
 | Cross-device / mobile QA | Ad-hoc (owner's phone) | Needs a pass |
 | Accessibility | Targeted CI guards (legibility floor, tone contract) | No full WCAG pass |
-| Performance/load | Never run | Needs a pass (t4g.micro RDS!) |
+| Performance/load | Server: `docs/LOAD-SANITY.md`. Client: `docs/MOBILE-WEIGHT.md` | Both baselines emulated; neither run on prod-shaped hardware or a real phone |
 | Security review | Tenant-scoping tests + conventions | No adversarial pass |
 | Failure-mode drills | Never-throw laws + best-effort patterns | Never drilled end-to-end |
 | Backup/restore drill | RDS snapshots exist | **Never actually restored** |
@@ -1069,19 +1069,28 @@ binding are all correct. The payment-plan charger was the exception.
   comment, so nothing renders it, but it is the file the next person reads to
   learn what a tier costs and it teaches them the list price. Repro: read the
   header. · OPEN.
-- S3 · the two struck-through list prices name themselves with `aria-label` on
-  a bare `<span>` — `app/(marketing)/pricing/price-card.tsx:55` and
-  `app/(default)/platform/prospecting/prospect-drawer.tsx:344`. ARIA prohibits
-  an accessible name on `role=generic`, so that label is author error: NVDA and
-  JAWS honour it in practice and other combinations are entitled not to, in
-  which case the reader gets "$500 $200/mo" as one run with nothing saying
-  which number is dead. Repro: a screen reader on the public pricing page, or
-  on any prospect's deal room. Fix shape: a visually-hidden text node, or move
-  the label onto an element that can carry a name (`<s>`/`<del>`) — across BOTH
-  sites, since a quiet deviation on one of two identical surfaces is worse than
-  a consistent imperfection. Raised by Sentinel reviewing DREAMCRM-38, where
-  the deal-room half was written to match the existing sibling deliberately
-  rather than diverge from it. · OPEN.
+- S3 · the MARKETING half of the struck-price naming defect —
+  `app/(marketing)/pricing/price-card.tsx` named its struck list price with an
+  `aria-label` on a bare `<span>`. ARIA prohibits an accessible name on
+  `role=generic`, so that label was author error: NVDA and JAWS honour it in
+  practice and other combinations are entitled not to, in which case the reader
+  gets "$500 $200/mo" as one run with nothing saying which number is dead.
+  Repro: a screen reader on the public pricing page. Raised by Sentinel
+  reviewing DREAMCRM-38. · FIXED on `main` — `e9c58e44` (#620, the Daylight
+  Dream pricing move) replaced the label with `sr-only` text nodes
+  ("Regular price" before the figure, "." after it), which is the fix shape
+  this entry asked for. It landed as part of a restyle rather than as a
+  deliberate close, which is why the entry went on reading OPEN for a week.
+- S3 · the IN-APP half of the same defect —
+  `app/(default)/platform/prospecting/prospect-drawer.tsx:344` still carried
+  the `aria-label` on a bare `<span>` after the marketing half was fixed, which
+  is precisely the "quiet deviation on one of two identical surfaces" the
+  original write-up warned about. Same readers, same failure: the deal room
+  reads "$500 $200/mo" with nothing marking the dead number. Repro: a screen
+  reader on any prospect's deal room. · FIXED — split from the marketing half
+  and closed on DREAMCRM-98, matching the marketing shape exactly
+  (`sr-only` "Regular price", the struck figure, `sr-only` "."), pinned by
+  `tests/prospecting/deal-room-quote.test.tsx`.
 - S3 · nothing in the repo fails when a plan price is pasted somewhere new.
   Four separate surfaces had drifted to quoting $500 (the deal room, the demo
   track picker, the demo script's closing line, the launch blog post) and the
@@ -1621,7 +1630,21 @@ clinic, none breaking at the current one-beta-clinic scale.
   render-blocking third-party `@import` in `app/css/style.css:1` — violates
   the self-hosted-woff2 font doctrine (Nunito is already self-hosted correctly).
   Self-host Inter as woff2 `@font-face` with matching latin/latin-ext subsets. ·
-  OPEN.
+  **FIXED** on `main` — `15e0365d` (#587, DREAMCRM-54) deleted the `@import` and
+  put the two `@font-face` blocks in `app/css/style.css` on the Nunito pattern:
+  `public/fonts/inter-latin-var.woff2` (48 KB) and `inter-latin-ext-var.woff2`
+  (85 KB), variable weight 100–900, `font-display: swap`, with the same
+  latin / latin-ext `unicode-range` splits Google Fonts served. One variable
+  face per subset replaces the four static weights the `@import` fetched, and
+  `app/layout.tsx` puts `font-inter` on `<body>`, so the public clinic sites
+  inherit the self-hosted face too (`app/site/[slug]/layout.tsx` loads no body
+  font of its own). Verified 2026-09-22 on DREAMCRM-98: no
+  `fonts.googleapis.com/css` reference survives outside the two per-template
+  display faces (`Playfair Display`, `Fredoka`) and the token landings'
+  `Fraunces`, which are deliberate per-page runtime `<link>`s and not the body
+  face this entry is about. The entry read OPEN for a week because the fix
+  rode a hero restyle rather than an entry-closing PR — the same way the
+  struck-price marketing half above did.
 - S3/watch · `daily-digest` / `generate-proposals` / `retention-automations`
   fan out per-clinic SEQUENTIALLY (by design, to spare the t4g.micro), so the
   risk is cron wall-clock OVERRUN as clinic count grows, not DB overload —
@@ -3056,6 +3079,50 @@ Caveat written into the doc: these numbers are from the dev container and
 characterise the APPLICATION, not the prod t4g.micro's ceiling. A real ceiling
 needs a staging run on prod-shaped hardware before the marketing pivot. · OPEN
 (prod-shaped re-run).
+
+### Deliverable 3b — mobile weight, the CLIENT half · BASELINE MEASURED
+
+DREAMCRM-101, 2026-09-22. `scripts/mobile-weight.mjs` (no dependencies — Node's
+own `fetch` and `WebSocket` driving headless Chrome over CDP) +
+`docs/MOBILE-WEIGHT.md`. Measured against production on Lighthouse's mobile
+profile: 412x823 at DPR 1.75, CPU 4x, Slow 4G, cold cache, touch emulation on,
+`/pricing` as the control in both halves so the two files talk about the same
+page. Deliverable 3 above measures what the SERVER does under load and is
+structurally blind to this: the homepage's living stage costs the server
+nothing at all.
+
+**The one number: the homepage costs a phone ~950ms of LCP for motion the
+phone cannot see** — 3,424ms against 2,472ms on the identical page under
+`prefers-reduced-motion: reduce`, with the control at 2,944ms. Load blocking
+follows it (315ms vs 187ms vs 190ms).
+
+Three findings worth carrying:
+
+- **The living stage never activates on a phone, and that is the design
+  working.** Read off the DOM every run rather than assumed: `.is-cinematic`
+  absent, the particle canvas at `display: none`, fine pointer false.
+  `cinematic-spine.tsx`'s `legal()` wants a fine pointer, width >= 1024 and
+  height >= 760, and a phone fails all three.
+- **So the weight is not the stage, and it is not bytes** — the homepage ships
+  70 KB more transfer and only 14 KB more script than the pricing page. It is
+  the hero's entrance animation: `.mkt-enter { opacity: 0 }` plus a 0.16s delay
+  and a 0.65s fade holds the LCP element unpaintable for ~0.81s, which is the
+  ~0.95s measured. Mechanism and measurement agree, which is the only reason
+  this reads as a cause rather than a suspicion.
+- **The LCP element FLIPS on the motion path** — on some runs it is
+  `div.absolute.inset-0`, `DaylightSky`'s aria-hidden film-grain layer, because
+  the real copy is at `opacity: 0` and a decorative `background-image` is an
+  LCP candidate. Under reduced motion it is the hero sentence on every run. The
+  metric Google ranks this page on is sometimes measuring a texture.
+
+Not actioned here on purpose, and that is the R3 pattern rather than a
+deferral: this is a BRAND-MOTION decision on the site's most-looked-at surface
+(`BRAND.md` Part 6 owns `.mkt-enter`), and the issue that produced this number
+was scoped to measurement. One open item is recorded as NOT REPRODUCED rather
+than reported — scroll blocking ranged 0ms to 1,894ms across passes with
+machine contention as the only variable, so it is written down with what would
+settle it and no conclusion drawn. · OPEN (the hero's LCP element, Neon's lane;
+and a real-device run).
 
 ### Deliverable 4 — error aggregation · NOT BUILT (owner decision)
 

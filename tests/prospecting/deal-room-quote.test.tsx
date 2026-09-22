@@ -96,11 +96,16 @@ describe('the deal room quote', () => {
     // The number a prospect is quoted. Before the fix this row read "$500/mo".
     expect(screen.getByText('$200/mo')).toBeTruthy()
     // The list price, struck through, exactly as the pricing page frames it —
-    // and named, so a screen reader gets "Regular price $500 per month"
-    // rather than "$500 $200/mo" as an undifferentiated run.
-    const list = screen.getByLabelText('Regular price $500 per month')
-    expect(list.textContent).toBe('$500')
+    // and named by a VISUALLY-HIDDEN TEXT NODE rather than an `aria-label`, so
+    // a screen reader gets "Regular price $500. $200/mo" rather than
+    // "$500 $200/mo" as an undifferentiated run. The label cannot ride on the
+    // struck <span> itself: that is `role=generic`, which ARIA forbids naming,
+    // and the readers entitled to ignore such a label are exactly the ones
+    // left with the undifferentiated run (RELEASE.md Part 5, S3).
+    const list = screen.getByText('$500')
     expect(list.className).toContain('line-through')
+    expect(list.getAttribute('aria-label')).toBeNull()
+    expect(screen.getByText('Regular price').className).toContain('sr-only')
     // Contrast: this card is bg-emerald-500/10 over the drawer's white panel
     // (#e7f8f2 composited), and the struck price is text-sm/font-normal, so
     // the bar is 4.5:1. gray-500 measures 4.40:1 there and gray-600 is
