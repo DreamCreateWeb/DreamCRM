@@ -139,3 +139,12 @@ prod hardware these numbers get worse.
    staging deploy on a t4g.micro to learn the real ceiling, then decide whether
    the instance class needs to change for launch.
 4. Re-run after any change to public-site rendering and compare the table.
+
+## The other half
+
+This file measures what the SERVER does under load. It says nothing about what
+a page costs the device that opened it, and on the marketing homepage that is
+the larger question — the living stage costs the server nothing at all.
+`docs/MOBILE-WEIGHT.md` (DREAMCRM-101, 2026-09-22) is the client half, with the
+first mid-range-phone numbers this site has ever had. `/pricing` is the control
+in both, deliberately, so the two files talk about the same page.
