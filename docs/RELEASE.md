@@ -2188,7 +2188,7 @@ timer, and nothing replaced that second job. `getPmsHealth`
 integration page, so it is visible to somebody who looks; nothing alerts on
 "op pending for N days", so nobody is told. A practice whose bridge stays down
 over a holiday week has bookings queued and no prompt to go and look. · **FIXED
-— awaiting merge (#PR_NUMBER)**. Unbundled to DREAMCRM-68 (2026-09-15,
+— awaiting merge (#640)**. Unbundled to DREAMCRM-68 (2026-09-15,
 DREAMCRM-58 triage), parked at `backlog`, and ranked **1.0** by the DREAMCRM-84
 planning meeting (2026-09-22, unanimous): it closes a REGRESSION rather than
 adding scope — Slice 7b took away the "give up and become visible" half of
