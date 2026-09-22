@@ -133,7 +133,7 @@ The kinds of tests they run, mapped to our reality:
 | E2E browser journeys | **None** (happy-dom only) | **The biggest single gap** |
 | Cross-device / mobile QA | Ad-hoc (owner's phone) | Needs a pass |
 | Accessibility | Targeted CI guards (legibility floor, tone contract) | No full WCAG pass |
-| Performance/load | Never run | Needs a pass (t4g.micro RDS!) |
+| Performance/load | Server: `docs/LOAD-SANITY.md`. Client: `docs/MOBILE-WEIGHT.md` | Both baselines emulated; neither run on prod-shaped hardware or a real phone |
 | Security review | Tenant-scoping tests + conventions | No adversarial pass |
 | Failure-mode drills | Never-throw laws + best-effort patterns | Never drilled end-to-end |
 | Backup/restore drill | RDS snapshots exist | **Never actually restored** |
@@ -1562,8 +1562,42 @@ carrying its own. The eleventh entry is a gate hole the work turned up.
   digest — the same defect `submitContactRequest` was fixed for (it returns
   `PublicFormResult` now, see `lib/services/public-form-error.ts`), and the
   same class §2d records as 22 assertions that passed while production showed
-  patients an error digest. · **OPEN.**
-  THE REPRODUCTION, so whoever picks this up is not rediscovering it:
+  patients an error digest. · **FIXED (#663, `a5166156`)**
+  (DREAMCRM-97). They return `BillingActionState` now
+  (`lib/services/billing-action-error.ts`, the staff sibling of
+  `checkout-error.ts` / `public-form-error.ts`), and the two UI halves read
+  it — the Settings panel through the value, both trial-wall buttons and
+  `/billing/activate` through `useActionState` in
+  `components/ui/billing-action-form.tsx`.
+  Three things from the fix worth carrying, because the next person to touch
+  one of these actions will hit all three:
+  - **The shape is `{ error }`, not `{ ok, error }`.** The success path
+    redirects, so a `{ ok: true }` arm would be a branch no caller can reach
+    and a `useActionState` initial value would have to claim a success that
+    has not happened.
+  - **The two lanes are decided by POSITION, not by an error class.** A
+    refusal we wrote is returned before anything is attempted, so nothing can
+    mis-classify it; only the Stripe/DB leg is inside the try, and what it
+    raises (`Stripe price for Premium (annual) is not configured`) is a
+    sentence about OUR deployment, logged rather than quoted at a clinic.
+  - **The hazard the conversion introduces is the redirect**, and it is worse
+    than the defect it replaces: a `redirect()` inside the try reads as a
+    failure, so a clinic that CAN pay is told checkout is down while the
+    navigation silently never happens. Guarded by six tests, verified by
+    making exactly that mutation.
+  `startActivationCheckout` (`app/(default)/billing/activate/actions.ts`) was
+  converted in the same PR though the issue did not name it: it is the OTHER
+  button on the same wall, with the identical defect, and for a managed clinic
+  it is the only one.
+  One correction to the reproduction below, recorded rather than quietly
+  fixed: the role arm it leads with is already pre-gated —
+  `dashboard-shell.tsx` derives `canManageBilling` from the role and the wall
+  renders "ask your owner" instead of buttons, so a non-admin never reaches
+  that check. The defect is unchanged in severity; its REACHABLE causes are
+  Stripe unreachable, a price id missing from the deployment, a session
+  returned with no URL, and a role that changed since the page rendered. The
+  button was silent on all of them.
+  THE REPRODUCTION, as it was written for whoever picked this up:
   - `settings/billing/subscription-panel.tsx:163` and `:176` already
     `catch (err) { setFeedback({ error: (err as Error).message }) }` — that
     renders the digest, not the sentence, and a test asserting
@@ -2666,32 +2700,82 @@ and told the owner to ring them about a bridge that is fine.
 
 Closing this needs a RESOLUTION PATH before it needs a query — somewhere a
 human can see the stranded rows and say "I entered that one by hand, let it
-go" — and that is a product decision. Two smaller things ride along with it:
+go" — and that is a product decision. One smaller thing rides along with it:
 a commlog write-op parks identically and is excluded from DREAMCRM-68's count
 because that headline says "bookings" (so a down bridge with chart notes
 queued and NO bookings queued goes unreported until their next booking
-parks), and `setSyncDirection` arguably owes a drain or a warning rather than
-silently stranding a queue. · OPEN — **RANKED NOT 1.0 by the DREAMCRM-96
-planning meeting, 2026-09-22.** The ranking is recorded rather than the item
-re-argued, and the reason is the one already written above: closing this needs
-a RESOLUTION PATH before it needs a query, and that is a product decision. An
-item whose next step is a decision cannot be scheduled as work, so putting it
-in a release would have bought a query nobody could act on.
+parks). · OPEN — **RANKED NOT 1.0 by the DREAMCRM-96 planning meeting,
+2026-09-22.** The ranking is recorded rather than the item re-argued, and the
+reason is the one already written above: closing this needs a RESOLUTION PATH
+before it needs a query, and that is a product decision. An item whose next
+step is a decision cannot be scheduled as work, so putting it in a release
+would have bought a query nobody could act on.
 
 Note what the ranking is NOT: it is not `STRUCK BY DECISION`. §1 allows a
 strike only where the item is genuinely not a check, and this one names real
 stranded rows that no human can reach — its reopen condition would have to be
-"somebody decides", which is not a condition, it is the item. A deferral that
-has been recorded with its reason is a different thing from a habit, and this
-entry is now the former.
+"somebody decides", which is not a condition, it is the item. A deferral
+recorded with its reason is a different thing from the habit that verdict
+exists to end, and this entry is now the former.
 
-The `setSyncDirection` rider named in the paragraph above — door 2, the bare
-UPDATE with no drain — was PROMOTED SEPARATELY by the same meeting onto Rio's
-DREAMCRM-99 slate as the warning slice. It is separable precisely because it
-needs no product decision: warning somebody that pressing "Import only" strands
-a queued write is true whatever the resolution path turns out to be. The other
-rider, the commlog write-op excluded from DREAMCRM-68's count, stays here with
-the parent — it has the same unanswered question.
+The meeting's other half is already below: the `setSyncDirection` warning was
+ranked 1.0, split out on contact, and shipped as its own entry. Nothing about
+the ranking is carried in this paragraph that is not also true there.
+
+A SECOND rider used to sit in that sentence — "`setSyncDirection` arguably
+owes a drain or a warning rather than silently stranding a queue" — and it is
+split out below on contact (§1: one defect, one entry). It had to be: the
+DREAMCRM-96 meeting ranked the WARNING as 1.0 and this entry's resolution path
+as not-1.0, so one entry could not carry both verdicts.
+
+### S3 — the "Import only" toggle stranded its queue without a word (found 2026-09-22)
+
+Door 2 above, as the practice experiences it rather than as the Guardian
+query sees it. `setSyncDirection` (`lib/services/pms/connection.ts`) was a
+bare UPDATE, and `getIntegrationsDashboard`'s "Awaiting write-back" card went
+on reporting *"Will push on next sync"* on every page load afterwards — so the
+one surface that could have said something said the opposite. ·
+**FIXED (#663, `a5166156`)** (DREAMCRM-97).
+
+The WARNING path only, exactly as the DREAMCRM-96 meeting scoped it: no
+drain, no resolution surface, no product decision — that is the entry above
+and it stays parked. The flip returns `{ strandedWrites, oldestStrandedAt }`,
+the toast names the number and the way back, and the KPI reads "Held — two-way
+sync is off". Both halves were needed: a warning shown once and contradicted
+on every page load afterwards is not a warning.
+
+Two decisions the next person should not have to re-derive:
+- **The count mirrors `retryPendingWrites` exactly** — the same two entity
+  types, the same two statuses, the same attempt cap. The number is only
+  worth showing if it means "what the flush would have drained", and an op
+  already at `MAX_WRITE_ATTEMPTS` was undrainable whatever the direction says
+  (door 1), so counting one would blame this click for it. That constant
+  moved to `lib/types/pms.ts` because `sync.ts` already imports
+  `connection.ts` and the other direction is a cycle; a re-declared copy is
+  how the count and the drain would drift apart with nothing going red.
+- **The count is taken AFTER the update.** Every enqueue path refuses unless
+  the connection is two-way, so once the column is flipped nothing further can
+  arrive and everything counted is genuinely stranded. Counting first would
+  miss an op enqueued in the gap — the one direction of error that costs the
+  practice a booking.
+- **The toast speaks in the CARD's number, not only its own** (Sentinel's N3
+  on #663). "Awaiting write-back" counts every unfinished op; the flip strands
+  only the ones still being retried, so a toast reading "4 will not be sent"
+  beside a card reading "10" left the reader to guess which number was about
+  them. Both now come from one `unfinishedWriteOps` filter and the sentence
+  names both when they differ. The gap between them is door 1 showing through
+  — ops that had already stopped retrying — which is the entry above, visible
+  rather than smoothed over.
+
+What this does NOT close: doors 1, 3 and 4, and door 2's own aftermath. A
+practice that flips the toggle is now TOLD, and still has no way to resolve
+the rows other than turning two-way sync back on. The platform-ops sibling
+`setNexHealthWriteBackAction`
+(`app/(default)/ecommerce/customers/admin-actions.ts`) writes the column
+directly and is deliberately NOT routed through `setSyncDirection` here — it
+is a different surface with its own filters, it was outside the meeting's
+scope, and an ops flip has a human on both ends. It is the obvious next thing
+if anyone widens this.
 
 ### Slice 13 — the insurance-card scanner only reads our own storage · DONE
 
@@ -3153,6 +3237,50 @@ Caveat written into the doc: these numbers are from the dev container and
 characterise the APPLICATION, not the prod t4g.micro's ceiling. A real ceiling
 needs a staging run on prod-shaped hardware before the marketing pivot. · OPEN
 (prod-shaped re-run).
+
+### Deliverable 3b — mobile weight, the CLIENT half · BASELINE MEASURED
+
+DREAMCRM-101, 2026-09-22. `scripts/mobile-weight.mjs` (no dependencies — Node's
+own `fetch` and `WebSocket` driving headless Chrome over CDP) +
+`docs/MOBILE-WEIGHT.md`. Measured against production on Lighthouse's mobile
+profile: 412x823 at DPR 1.75, CPU 4x, Slow 4G, cold cache, touch emulation on,
+`/pricing` as the control in both halves so the two files talk about the same
+page. Deliverable 3 above measures what the SERVER does under load and is
+structurally blind to this: the homepage's living stage costs the server
+nothing at all.
+
+**The one number: the homepage costs a phone ~950ms of LCP for motion the
+phone cannot see** — 3,424ms against 2,472ms on the identical page under
+`prefers-reduced-motion: reduce`, with the control at 2,944ms. Load blocking
+follows it (315ms vs 187ms vs 190ms).
+
+Three findings worth carrying:
+
+- **The living stage never activates on a phone, and that is the design
+  working.** Read off the DOM every run rather than assumed: `.is-cinematic`
+  absent, the particle canvas at `display: none`, fine pointer false.
+  `cinematic-spine.tsx`'s `legal()` wants a fine pointer, width >= 1024 and
+  height >= 760, and a phone fails all three.
+- **So the weight is not the stage, and it is not bytes** — the homepage ships
+  70 KB more transfer and only 14 KB more script than the pricing page. It is
+  the hero's entrance animation: `.mkt-enter { opacity: 0 }` plus a 0.16s delay
+  and a 0.65s fade holds the LCP element unpaintable for ~0.81s, which is the
+  ~0.95s measured. Mechanism and measurement agree, which is the only reason
+  this reads as a cause rather than a suspicion.
+- **The LCP element FLIPS on the motion path** — on some runs it is
+  `div.absolute.inset-0`, `DaylightSky`'s aria-hidden film-grain layer, because
+  the real copy is at `opacity: 0` and a decorative `background-image` is an
+  LCP candidate. Under reduced motion it is the hero sentence on every run. The
+  metric Google ranks this page on is sometimes measuring a texture.
+
+Not actioned here on purpose, and that is the R3 pattern rather than a
+deferral: this is a BRAND-MOTION decision on the site's most-looked-at surface
+(`BRAND.md` Part 6 owns `.mkt-enter`), and the issue that produced this number
+was scoped to measurement. One open item is recorded as NOT REPRODUCED rather
+than reported — scroll blocking ranged 0ms to 1,894ms across passes with
+machine contention as the only variable, so it is written down with what would
+settle it and no conclusion drawn. · OPEN (the hero's LCP element, Neon's lane;
+and a real-device run).
 
 ### Deliverable 4 — error aggregation · NOT BUILT (owner decision)
 

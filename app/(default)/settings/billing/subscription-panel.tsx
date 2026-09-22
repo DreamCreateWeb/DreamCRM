@@ -9,6 +9,7 @@ import {
   reactivateSubscriptionAction,
   startStripeCheckout,
 } from '../actions'
+import { BILLING_UNAVAILABLE_MESSAGE } from '@/lib/types/billing-action'
 import { ActionButton } from '@/components/ui/action-button'
 import { StatusPill } from '@/components/ui/status-pill'
 import { EmptyState } from '@/components/ui/empty-state'
@@ -159,10 +160,23 @@ export default function SubscriptionPanel({
     setPendingPlan(planId)
     setFeedback(null)
     startTransition(async () => {
+      // A RESOLVED result is always a failure — the success path redirects, so
+      // this only lands when checkout refused. The old `catch (err) =>
+      // err.message` rendered the production digest ("An error occurred in the
+      // Server Components render") instead of the sentence (DREAMCRM-97).
+      //
+      // The catch still earns its keep even though the action handles its own
+      // Stripe/DB leg (Sentinel's N2 on #663): a transport-level failure —
+      // offline, a 500, `requireTenant` throwing — rejects the promise, and an
+      // unhandled rejection inside `startTransition` escalates instead of
+      // showing anybody anything. It no longer renders `err.message`, which is
+      // the digest; it says the written sentence.
       try {
-        await startStripeCheckout(planId, interval)
-      } catch (err) {
-        setFeedback({ error: (err as Error).message })
+        const r = await startStripeCheckout(planId, interval)
+        if (r?.error) setFeedback({ error: r.error })
+      } catch {
+        setFeedback({ error: BILLING_UNAVAILABLE_MESSAGE })
+      } finally {
         setPendingPlan(null)
       }
     })
@@ -173,9 +187,10 @@ export default function SubscriptionPanel({
     setActiveAction('portal')
     startTransition(async () => {
       try {
-        await openBillingPortal()
-      } catch (err) {
-        setFeedback({ error: (err as Error).message })
+        const r = await openBillingPortal()
+        if (r?.error) setFeedback({ error: r.error })
+      } catch {
+        setFeedback({ error: BILLING_UNAVAILABLE_MESSAGE })
       } finally {
         setActiveAction(null)
       }

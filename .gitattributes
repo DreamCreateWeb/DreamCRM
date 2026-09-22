@@ -1,0 +1,69 @@
+# ONE LINE ENDING, EVERYWHERE. (DREAMCRM-99, deliverable 4.)
+#
+# WHAT WAS ACTUALLY WRONG. This repository has always stored LF — measured, not
+# assumed: on 2026-09-22 `git ls-files --eol` reported 2,577 tracked files at
+# `i/lf`, 150 binary, 58 with no line ending at all, and ZERO at `i/crlf`. The
+# committed bytes were never the problem.
+#
+# The WORKING TREE was. Git for Windows ships `core.autocrlf=true` in its system
+# config, so a Windows checkout of this repo materialises every one of those
+# 2,577 files with CRLF — 276,016 CRLF lines against 1,342 bare LF on the tree
+# this file was written in — while every Linux checkout, CI's included, gets LF.
+# Nothing in the repository said otherwise, because there was no `.gitattributes`
+# at all.
+#
+# WHY THAT MATTERS HERE MORE THAN IN MOST REPOS. A large share of this repo's
+# test suite is guards that READ FILES OFF DISK and grade what they find —
+# `quotedChunks`, the control-byte rule, the legibility floor, the tree-wide
+# sweeps in `tests/guards/**`. Every one of them sees different bytes on a Windows
+# author's machine than on the runner that gates the merge. A `\r` is a non-word
+# character, it terminates a line early, it sits inside a captured group, and it
+# ends up in a snapshot. On #657 two independently built tree-wide audits —
+# Vesper's assertion and Sentinel's — shared one blind spot for exactly this
+# reason. That is not a coincidence between two people; it is the environment
+# both were standing in.
+#
+# WHAT THIS FILE CHANGES, AND WHAT IT DOES NOT. It changes the working tree, not
+# the history: `git add --renormalize .` against this file produces an EMPTY
+# diff, because the index was already LF. There is no renormalization commit to
+# time against in-flight PRs, and no merge in the queue can conflict with one.
+# What it does is make a fresh checkout LF on every platform, so a guard reads
+# the same bytes wherever it runs.
+#
+# AN EXISTING WINDOWS TREE DOES NOT REFRESH ITSELF. Checking this file out leaves
+# already-materialised files as they are — `git status` stays clean, because
+# `text` normalises on check-IN and a CRLF file still hashes to the LF blob. To
+# take the new endings in a tree you already have:
+#
+#     git add --renormalize .      # confirms: nothing to commit
+#     git rm --cached -r . -q && git reset --hard
+#
+# `tests/guards/line-endings.test.ts` grades the committed bytes, which is the
+# half that is true on every platform. It deliberately does NOT grade the working
+# tree: that would fail an otherwise-correct stale Windows checkout and teach
+# people to ignore it.
+
+# Text is detected by content, stored as LF, and CHECKED OUT as LF everywhere.
+# `eol=lf` is the half `text=auto` alone does not give you — without it the
+# checkout still honours `core.autocrlf`, which is the whole defect above.
+* text=auto eol=lf
+
+# Binaries, named rather than left to detection. `text=auto` gets these right
+# today; naming them means a new .jpg cannot be misdetected as text and have a
+# 0x0d inside it rewritten. Derived from what is actually tracked — jpg (114),
+# png (15), webp (14), woff2 (6), ico (1) — plus the neighbouring formats this
+# repo would plausibly add next.
+*.avif  binary
+*.gif   binary
+*.ico   binary
+*.jpeg  binary
+*.jpg   binary
+*.mp4   binary
+*.otf   binary
+*.pdf   binary
+*.png   binary
+*.ttf   binary
+*.webm  binary
+*.webp  binary
+*.woff  binary
+*.woff2 binary

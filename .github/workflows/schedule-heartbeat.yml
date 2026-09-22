@@ -1,0 +1,156 @@
+name: Scheduled-workflow heartbeat
+
+# IS EVERY OTHER ALARM STILL FIRING? (DREAMCRM-99 deliverable 2.)
+#
+# This repository has six scheduled workflows and nothing checked that any of
+# them ran. Every one of them is an alarm — the production error scan, the
+# nightly suite, the production read check, the post-merge review sweep, the
+# rulebook drift check, the migration check. A stopped alarm and an alarm
+# reporting that everything is fine look identical from every surface anybody
+# looks at: both are silence.
+#
+# That is a documented property of this platform, not a worry. `nightly.yml`'s
+# own header records that GitHub DISABLES SCHEDULED WORKFLOWS in a repository
+# with 60 days of no activity, and its advice is "check the Actions tab for the
+# re-enable banner before assuming the suite is fine" — which works only while
+# somebody chooses to look. On DREAMCRM-99 all six were verified by hand, which
+# is exactly what you do when nothing else is checking.
+#
+# `scripts/schedule-heartbeat.mjs` is the whole implementation and carries the
+# argument: why the list is derived from the tree rather than typed, why the
+# window is twice each cadence plus twelve hours (measured — the daily jobs
+# fired 5h26m late on an ordinary Tuesday), why this one goes RED when
+# `error-scan.yml` deliberately does not, and what still watches nothing.
+#
+# ============================ THIS DOES NOT GATE =============================
+#
+# No `pull_request` trigger, no required status-check context, no `needs:` on
+# anything, one read scope plus `actions: read`. It cannot hold a merge and must
+# never try to. It is not named `test` or `e2e` — main's two required contexts —
+# and `tests/guards/schedule-heartbeat.test.ts` pins that, the same way the
+# review-gate, review-sweep and rulebook-drift guards pin theirs.
+#
+# WHO READS A RED RUN — the same honest answer `post-merge-e2e.yml` and
+# `review-sweep.yml` both give, written down rather than assumed. Nothing in
+# `.github/` routes a workflow failure anywhere, so delivery is GitHub's default
+# failed-run notification to the account that owns the schedule, plus the
+# Actions tab. That is ONE inbox. If this starts getting ignored, give it a real
+# addressee; do not delete it.
+
+on:
+  # 07:07 UTC, off the hour and behind the morning group — rulebook-drift at
+  # :17, nightly at :37, review-sweep at :47, all an hour earlier. The top of an
+  # hour is when GitHub's scheduler queue is longest (`docs/CI.md`, "When it
+  # really runs").
+  #
+  # The exact minute does not matter much here and that is by design: this check
+  # grades the AGE of each schedule's newest run against a window twice its own
+  # cadence, so it is indifferent to when it happens to run itself. A heartbeat
+  # whose own punctuality mattered would be measuring GitHub's queue.
+  schedule:
+    - cron: '7 7 * * *'
+  workflow_dispatch: {}
+
+concurrency:
+  group: schedule-heartbeat
+  cancel-in-progress: false
+
+# Two READ scopes and nothing else: `contents` for the checkout and `actions`
+# for `gh run list` / `gh workflow list` — other workflows' run history and
+# enabled state, which is the entire question this job asks. It writes nothing
+# back to GitHub.
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  heartbeat:
+    name: schedule-heartbeat (alarm, gates nothing)
+    runs-on: ubuntu-latest
+    # A handful of `gh` calls and one small node script. No install step; it has
+    # no business inheriting GitHub's 6-hour default.
+    timeout-minutes: 10
+    steps:
+      # `fetch-depth: 0` is load-bearing and it is the only reason this job
+      # clones more than a tip. A workflow merged this morning has no scheduled
+      # run yet, and reporting it as "stopped" on the day it lands would be a
+      # false positive on an instrument whose entire value is being believed. The
+      # script needs the instant each workflow FILE first appeared to tell a new
+      # schedule from a dead one, and that is a git fact.
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # THE LIST IS DERIVED, HERE TOO. This shell loop asks the same question
+      # the script does — which workflow files declare a `cron:` — rather than
+      # naming them, so a schedule added tomorrow is looked up tomorrow with no
+      # edit to this file. The script re-derives it independently and grades
+      # what it derives, so a file this loop misses is reported by the script as
+      # a lookup that never came back rather than quietly passing.
+      #
+      # `--event schedule` is LOAD-BEARING: a `workflow_dispatch` run proves
+      # somebody pressed the button, which is the one thing this check must not
+      # accept as evidence that the SCHEDULE is alive. `--branch main` for the
+      # same reason — GitHub only runs `schedule` from the default branch.
+      - name: When did each schedule last fire?
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          echo '{}' > runs.json
+          echo '{}' > added.json
+
+          for path in .github/workflows/*.yml; do
+            file=$(basename "$path")
+            # Only files that actually declare a schedule.
+            if ! grep -qE '^\s*-\s*cron:' "$path"; then continue; fi
+
+            gh run list --repo ${{ github.repository }} --workflow "$file" \
+              --branch main --event schedule --limit 1 \
+              --json databaseId,conclusion,createdAt > "run-$file.json" || echo '[]' > "run-$file.json"
+
+            # When did this workflow file first exist? `--diff-filter=A` with
+            # `--follow` off: a rename reads as a new file, which is the
+            # conservative direction — a renamed workflow really is a new
+            # registration as far as GitHub's scheduler is concerned.
+            first=$(git log --diff-filter=A --format=%cI -1 -- "$path" || true)
+
+            FILE="$file" FIRST="$first" node -e '
+              const fs = require("fs")
+              const file = process.env.FILE
+              const runs = JSON.parse(fs.readFileSync("runs.json", "utf8"))
+              const added = JSON.parse(fs.readFileSync("added.json", "utf8"))
+              let list = []
+              try { list = JSON.parse(fs.readFileSync(`run-${file}.json`, "utf8")) } catch {}
+              runs[file] = Array.isArray(list) && list.length ? list[0] : null
+              if (process.env.FIRST) added[file] = process.env.FIRST
+              fs.writeFileSync("runs.json", JSON.stringify(runs))
+              fs.writeFileSync("added.json", JSON.stringify(added))
+            '
+          done
+
+      # THE DIRECT SIGNAL, and the strongest one here. `gh run list` can only
+      # tell you a workflow has not run lately; this tells you GitHub has turned
+      # it off — `disabled_inactivity` is the 60-day case `nightly.yml` warns
+      # about, and it is the difference between "late" and "will never fire
+      # again".
+      #
+      # `|| true` so a throttled lookup does not abort the job: the script reads
+      # a missing or unparseable file as a FAILED LOOKUP, names it in the
+      # summary, and goes red. Failing closed is the only safe default for a
+      # check whose green means "nothing has stopped".
+      - name: Which workflows has GitHub turned off?
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow list --repo ${{ github.repository }} --all \
+            --json name,path,state > workflows.json || true
+
+      - name: Does every schedule still have a pulse?
+        run: node scripts/schedule-heartbeat.mjs --runs runs.json --workflows workflows.json --added added.json
