@@ -351,8 +351,12 @@ jobs:
       #       multica autopilot trigger-rotate-url <autopilot-id> <trigger-id>
       #
       #     BOTH positionals are required; the command exits on a usage error
-      #     with one, which is the worst moment to be reading `--help`. Then
-      #     reset `FORGE_INTAKE_WAKE_URL` and dispatch this workflow with
+      #     with one, which is the worst moment to be reading `--help`. It also
+      #     PROMPTS for confirmation by default — add `-y` if you are running
+      #     it non-interactively, which in this repo is the likely case: the
+      #     reader of this runbook is usually an agent in a runtime where a
+      #     prompt is a hang rather than a question. Then reset
+      #     `FORGE_INTAKE_WAKE_URL` and dispatch this workflow with
       #     `ping: true` FROM A FEATURE BRANCH to prove the new URL is live.
       #     The ids are deliberately not written here — they drift, and a stale
       #     id sends the reader somewhere worse than nowhere.
