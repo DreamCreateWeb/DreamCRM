@@ -110,6 +110,15 @@ jobs:
       - name: Build image + deploy (CodeBuild -> ECR -> App Runner)
         run: |
           set -euo pipefail
+          # THE ROLLOUT BASELINE (DREAMCRM-86). Taken BEFORE start-build, so the
+          # verification step below can tell this run's App Runner rollout from
+          # a previous one — the build takes minutes, so every operation the
+          # buildspec starts is comfortably on the far side of this mark, and
+          # every operation from an earlier deploy is comfortably before it.
+          # `scripts/rollout-check.mjs` FAILS when this is missing rather than
+          # falling back to "the newest rollout", which would certify somebody
+          # else's deploy.
+          echo "ROLLOUT_SINCE=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_ENV"
           # PINNED to this commit's own zip (verified 2026-08-25: the CodeBuild
           # role's s3:GetObject covers the whole source bucket). Without the
           # override, a build read whatever sat at the fixed key at fetch time
@@ -132,6 +141,49 @@ jobs:
           fi
           echo "Build succeeded — App Runner deployment triggered by the buildspec (start-deployment)."
 
+      # GREEN MUST MEAN SERVING (DREAMCRM-86).
+      #
+      # The step above exits the moment the BUILD reports SUCCEEDED, and the
+      # rollout is fired from the buildspec's POST_BUILD after that point.
+      # Nothing downstream watched it, so on 2026-09-21 a merge reported green
+      # on `test`, `e2e`, this job and `migration-check` while production served
+      # the previous build for 2h 40m (docs/RELEASE.md Part 5, measured by etag).
+      # A rollout that is accepted and then does not land looked exactly like one
+      # that did.
+      #
+      # `scripts/rollout-check.mjs` finds the operation the buildspec started —
+      # identified by ROLLOUT_SINCE, recorded above before `start-build` — polls
+      # it until it leaves IN_PROGRESS, and fails on anything but SUCCEEDED.
+      # ROLLBACK_SUCCEEDED is a FAILURE: it is App Runner saying the new version
+      # failed its health check and the previous one is back.
+      #
+      # NOT `continue-on-error`. A job that cannot turn the run red is the state
+      # this closes — same reasoning as `migration-check` below.
+      #
+      # IT EXTENDS THE `deploy-main` HOLD, ON PURPOSE. The group exists because
+      # App Runner allows ONE rollout at a time, and until now the job released
+      # it while the rollout was still running — the real serialization was the
+      # buildspec's 30x30s start-deployment retry. Holding the group until the
+      # rollout is genuinely done is what the group always claimed to do. The
+      # cost is that a back-to-back merge's image build now queues behind this
+      # instead of racing it; the saving is that its start-deployment no longer
+      # has to retry into a busy service. `migration-check` stays outside the
+      # group either way, which is what that split was for.
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Verify the App Runner rollout actually served
+        env:
+          # Optional. Left unset, the check resolves the service ARN by name
+          # through `apprunner list-services`.
+          APP_RUNNER_SERVICE_ARN: ${{ vars.APP_RUNNER_SERVICE_ARN }}
+          APP_RUNNER_SERVICE_NAME: dreamcrm
+        # No `pnpm install`: the script imports node builtins only, so this
+        # alarm has no dependency tree to fail on. Same rule as migration-check.
+        run: node scripts/rollout-check.mjs
+
       # NO rollout hold here any more (2026-08-25). App Runner allows ONE
       # rollout at a time, and three deploys on 2026-08-23 died at the
       # buildspec's start-deployment ("isn't in RUNNING state") when a
@@ -147,7 +199,19 @@ jobs:
       # cron route can never again ship with no schedule (the drift that left
       # prospecting discovery + several other jobs silently un-fired). Runs
       # after the deploy and never blocks it — a transient failure just warns.
+      #
+      # `if: !cancelled()` because the rollout check above now sits in front of
+      # it, and a failed step stops the ones after it — `continue-on-error` on
+      # THIS step does not change that. On a genuine rollout failure skipping
+      # the sync would be defensible; on a failure the degrade path
+      # deliberately does not cover (an unparseable response, a bad ARN, a
+      # throttle outlasting its retries) the new code IS serving and its
+      # schedules would never be reconciled, which is exactly the drift this
+      # step exists to prevent. `!cancelled()` rather than `always()`: a job
+      # superseded in the `deploy-main` group has nothing to reconcile.
+      # (Sentinel, review of #639.)
       - name: Sync EventBridge cron schedules
+        if: ${{ !cancelled() }}
         continue-on-error: true
         run: bash scripts/setup-cron-schedules.sh
 
