@@ -127,12 +127,26 @@ export const DECORATIVE_MOCKS = [
  *
  * SO THE CLAIM MOVED TO THE COMPONENT THAT MAKES IT. A page can place a mock
  * anywhere; only the mock knows it is a drawing of our own product at reduced
- * scale, so it says so — `data-mkt-mock="true"` on its outermost element
+ * scale, so it says so — `data-mkt-mock` on its outermost element
  * (`components/marketing/ui.tsx`, which carries the full argument). Both
  * halves are still required, exactly as on the homepage: a half-declared
  * element is not exempt, and `tests/marketing/product-mocks.test.tsx` fails
  * any call site that carries one attribute without the other, so the
  * vocabulary cannot spread to a real surface without somebody seeing it.
+ *
+ * IT KEYS ON THE ATTRIBUTE'S PRESENCE, NOT ON `="true"`, and that is a
+ * correction rather than a preference (Sentinel, review of #647). This
+ * selector runs against the RENDERED DOM, and React renders a valueless JSX
+ * attribute as `="true"` — so `<div data-mkt-mock aria-hidden="true">` and
+ * `data-mkt-mock={true}` produce exactly the node `[data-mkt-mock="true"]`
+ * would have pardoned, while the SOURCE guard's string search for
+ * `data-mkt-mock="true"` saw neither. The gate was therefore wider than the
+ * thing watching it, in the one spelling nobody had mutated: the shared
+ * marketing header, which renders on every page of the site, could be taken
+ * out of every rule at this stop with `test` green. Presence on both ends
+ * makes the selector and the guard ONE predicate, which is what stops them
+ * drifting again — and `product-mocks.test.tsx` asserts that agreement by
+ * reading this line rather than trusting this paragraph.
  *
  * WHAT KEEPS IT HONEST IS NOT THIS COMMENT — it is
  * `exclusionsHidingReadableText` below, which measures what the exclusion
@@ -160,7 +174,7 @@ export const DECORATIVE_MOCKS = [
  * attribute. That stop holds ZERO today on a narrower selector, and swapping a
  * green stop's exclusion buys nothing.
  */
-export const PRODUCT_MOCKS = ['[data-mkt-mock="true"][aria-hidden="true"]']
+export const PRODUCT_MOCKS = ['[data-mkt-mock][aria-hidden="true"]']
 
 type A11yOptions = {
   /** Scan only this subtree (CSS selector) instead of the whole page. */

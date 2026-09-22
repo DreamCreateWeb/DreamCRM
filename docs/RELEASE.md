@@ -2220,6 +2220,31 @@ after. The stop now ends the walk at `#frontdesk` and ASSERTS an
 `[aria-current="true"]` is visible before scanning, so it grades more of the
 page than the first draft did, not less. With that, the planted defect reddens
 at all three widths naming `"Run the day"` at 12px, outside every mock.
+**AND THE FIRST VERSION OF THE MARKER GUARD SHIPPED THE HOLE IT WAS WRITTEN TO
+CLOSE** — found in Sentinel's review of #647, and the most useful thing on this
+entry. The guard searched the source for the literal string
+`data-mkt-mock="true"`. The exclusion runs against the **rendered DOM**, and
+React turns a valueless JSX attribute into `="true"` — so
+`<header data-mkt-mock aria-hidden="true">` and `data-mkt-mock={true}` each
+produce a node the gate pardons and the guard could not see. Reproduced before
+fixing: the marker planted valueless on the shared marketing header — which
+renders on every page of the site — took that header out of every axe rule at
+the stop, and the guard reported **4 passed**.
+
+The correction is one predicate at both ends: the exclusion keys on the
+attribute's PRESENCE (`[data-mkt-mock][aria-hidden="true"]`), the guard matches
+the attribute NAME, and a fourth assertion reads `e2e/axe.ts` and fails if the
+two ever spell it differently — they already did, the docblocks saying presence
+while the selector said `="true"`, which is the crack the bug lived in. The
+guard also rejects any value that is not the flag spelling, because
+`data-mkt-mock="false"` reads as "not a mock" to a person and a presence
+selector pardons it all the same.
+
+**Read it as §2d's identity-looseness family reaching the VALUE.** That list
+already says a prefix is not a name and a number has no end; this is the same
+looseness one step over — an attribute has more than one spelling, and the DOM
+decides which ones are equivalent, not the source. The mutation that finds it
+is the one nobody ran: write the attribute the OTHER way.
 · FIXED (#647, DREAMCRM-87)
 
 ### R1 · S8 sweep — Compliance & data (2026-08-17)

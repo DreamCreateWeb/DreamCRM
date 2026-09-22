@@ -1324,8 +1324,17 @@ export function MatrixMark({ value }: { value: 'yes' | 'no' | 'partial' }) {
 /* ── Product mocks (real content, not wireframes) ───────────────────── */
 
 /**
- * `data-mkt-mock="true"` — A DRAWN SCREEN DECLARING ITSELF ONE, and the thing
+ * `data-mkt-mock` — A DRAWN SCREEN DECLARING ITSELF ONE, and the thing
  * `e2e/axe.ts`'s `PRODUCT_MOCKS` exclusion is derived from (DREAMCRM-87).
+ *
+ * WRITE IT AS `data-mkt-mock="true"` HERE, and know that the `"true"` is a
+ * house style rather than a requirement: React renders a bare attribute,
+ * `={true}` and `="true"` as the same node, the exclusion keys on the
+ * attribute's PRESENCE, and `tests/marketing/product-mocks.test.tsx` grades
+ * every spelling. It is written out because a reader of this file should be
+ * able to see the flag, and the guard rejects any value that is not one of
+ * those three — `data-mkt-mock="false"` reads as "not a mock" to a person and
+ * would be pardoned all the same.
  *
  * WHY AN ATTRIBUTE AND NOT `aria-hidden` ALONE. `aria-hidden="true"` is the
  * author saying "not content", which is a WEAKER claim than "this is a

@@ -617,7 +617,7 @@ export const INTAKE_RULES = [
       // A NEW CLASS rather than a case on an existing one, stated here as this
       // entry's `why` asks: every rule above grades what a file CONTAINS — a
       // colour, a glyph's shape, a decorative layer, a type size. This one
-      // grades a VOCABULARY. `data-mkt-mock="true"` is the first half of
+      // grades a VOCABULARY. `data-mkt-mock` is the first half of
       // `PRODUCT_MOCKS` in `e2e/axe.ts`, and the `marketing: product` stop
       // holds a ceiling of ZERO on the back of it — 99 `color-contrast` nodes
       // at 1440 disappear when it is applied.
@@ -630,6 +630,19 @@ export const INTAKE_RULES = [
       // same element. An attribute that exempts a subtree from a required
       // accessibility check is exactly the shape that should not be typeable
       // without somebody seeing it.
+      //
+      // **THAT SENTENCE WAS FALSE FOR ONE REVIEW ROUND, and the correction is
+      // the part worth carrying** (Sentinel, #647). The guard matched the
+      // literal string `data-mkt-mock="true"`, while the exclusion runs
+      // against the RENDERED DOM — where React turns a valueless JSX attribute
+      // into `="true"`. So `<header data-mkt-mock aria-hidden="true">` was
+      // pardoned by the gate and invisible to the guard, which means the
+      // shared marketing header could have left every axe rule at that stop
+      // with `test` green. It matches the attribute NAME now, and both ends
+      // key on presence so they are ONE predicate. §2d's identity-looseness
+      // family already says a prefix is not a name and a number has no end;
+      // this is the same lesson at the VALUE: an attribute has more than one
+      // spelling, and the DOM decides which ones are equivalent.
       //
       // WHAT IT DOES NOT COVER, here rather than only in the test's docblock:
       // it says nothing about whether a marked subtree is still picture-scale.

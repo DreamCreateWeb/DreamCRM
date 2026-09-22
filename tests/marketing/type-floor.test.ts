@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { join, relative } from 'node:path'
 import { ROOT } from '../a11y/palette'
+import { stripComments } from './source-text'
 
 /**
  * `BRAND.md` PART 4'S 12px FLOOR, OVER THE WHOLE MARKETING SITE — DREAMCRM-87,
@@ -77,7 +78,9 @@ import { ROOT } from '../a11y/palette'
  *   - **A size that is not a `text-[…]` literal.** `text-sm` and friends
  *     resolve through Tailwind's scale and none of them is under 12px; a size
  *     assembled through a variable is invisible, the same false-negative
- *     direction every source scanner in this repo has.
+ *     direction every source scanner in this repo has. Tailwind's explicit
+ *     type hint — `text-[length:11px]` — IS read, since #642's review; it
+ *     used to be in this list by accident rather than by decision.
  *   - **`MONO_LABEL`**, a shared constant rather than a literal in a component
  *     body. It is 0.75rem and Part 4 pins it there in prose; it is not
  *     re-derived here, because two guards grading one string is how they start
@@ -209,36 +212,6 @@ const PRODUCT_MOCKS: MockEntry[] = [
 
 export type SizeLiteral = { raw: string; px: number; index: number }
 
-/**
- * Blank every comment, PRESERVING offsets and line breaks.
- *
- * Offsets have to survive because a hit is attributed to a component by its
- * position and reported by its line. `//` is only a comment when it is not a
- * URL's `://`, which is the one false strip that could hide a real literal.
- */
-export function stripComments(src: string): string {
-  const out = src.split('')
-  let i = 0
-  while (i < src.length) {
-    if (src[i] === '/' && src[i + 1] === '*') {
-      let end = src.indexOf('*/', i + 2)
-      end = end === -1 ? src.length : end + 2
-      for (let k = i; k < end; k++) if (out[k] !== '\n') out[k] = ' '
-      i = end
-      continue
-    }
-    if (src[i] === '/' && src[i + 1] === '/' && src[i - 1] !== ':') {
-      let end = src.indexOf('\n', i)
-      end = end === -1 ? src.length : end
-      for (let k = i; k < end; k++) out[k] = ' '
-      i = end
-      continue
-    }
-    i++
-  }
-  return out.join('')
-}
-
 export type ComponentRange = { name: string; start: number; end: number }
 
 /**
@@ -286,12 +259,23 @@ export function componentRanges(src: string): ComponentRange[] {
   return out
 }
 
-/** Every `text-[<n>rem]` / `text-[<n>px]` literal in a source, in px. */
+/**
+ * Every `text-[<n>rem]` / `text-[<n>px]` literal in a source, in px.
+ *
+ * `length:` IS READ, and that is a correction rather than a flourish
+ * (Sentinel, review of #642). Tailwind lets an arbitrary value carry an
+ * explicit type hint — `text-[length:11px]` — for the case where `text-[…]`
+ * would otherwise be ambiguous between a size and a colour. It renders the
+ * same 11px and the first version of this scanner could not see it. Zero uses
+ * in either tree today, so nothing was hiding behind it; the blind-spot list
+ * above read as though only NON-literal sizes escaped, and that spelling did
+ * too. One alternation costs nothing and stops the list being wrong.
+ */
 export function textSizeLiterals(source: string): SizeLiteral[] {
   const out: SizeLiteral[] = []
   // `Array.from` rather than iterating the iterator directly: this repo's
   // tsconfig target makes a bare `for…of` over `matchAll` a TS2802.
-  for (const m of Array.from(source.matchAll(/text-\[([0-9]*\.?[0-9]+)(rem|px)\]/g))) {
+  for (const m of Array.from(source.matchAll(/text-\[(?:length:)?([0-9]*\.?[0-9]+)(rem|px)\]/g))) {
     const n = Number(m[1])
     out.push({ raw: m[0], px: m[2] === 'rem' ? n * ROOT_FONT_PX : n, index: m.index })
   }
@@ -471,6 +455,18 @@ describe('the field of view — the scanner, the stripper and the extractor', ()
     expect(underFloor('text-[1.05rem] text-sm text-gray-600')).toEqual([])
   })
 
+  it('reads Tailwind’s explicit length: hint, which renders the same px', () => {
+    // #642's review: `text-[length:11px]` is the disambiguating spelling of an
+    // arbitrary size, it renders 11px, and the first scanner could not see it.
+    // Zero uses in either tree — the point is that the blind-spot list said
+    // only non-literal sizes escaped, and this one did too.
+    expect(underFloor('text-[length:11px]').map((s) => s.px)).toEqual([11])
+    expect(underFloor('text-[length:0.72rem]').map((s) => s.px)).toEqual([11.52])
+    expect(underFloor('text-[length:0.75rem]')).toEqual([])
+    // …and the hint is not a licence to match anything in brackets.
+    expect(underFloor('text-[color:var(--x)] text-[length:14px]')).toEqual([])
+  })
+
   it('does not count a literal quoted in a docblock or a line comment', () => {
     // The guide-ui.tsx trap, in miniature: the RELEASE.md entry records a
     // re-derivation that counted a comment and reported a defect that was not
@@ -490,6 +486,16 @@ describe('the field of view — the scanner, the stripper and the extractor', ()
     // later on the same line.
     expect(stripComments('const u = "https://x.test" // text-[0.5rem]')).toContain('https://x.test')
     expect(stripComments('const u = "https://x.test" // text-[0.5rem]')).not.toContain('0.5rem')
+
+    // A COMMENT-SHAPED SUBSTRING INSIDE A STRING is not a comment either
+    // (#642's review). Blanking forward from it to the next closing marker
+    // deletes real code from the scanner's view, which is the false-NEGATIVE
+    // direction — the one that reports CLEAN forever. Latent when it was
+    // found, in two copies of this function at once, which is why the
+    // stripper now lives in `./source-text` and is imported twice.
+    const trap = 'const s = "/* not a comment"\nconst t = "text-[0.5rem]"'
+    expect(stripComments(trap)).toContain('text-[0.5rem]')
+    expect(underFloor(stripComments(trap)).map((s) => s.px)).toEqual([8])
   })
 
   it('attributes a literal to the component whose body it is in, and flags one in none', () => {
