@@ -132,21 +132,51 @@ export function DreamCrmLogo({ size = 30, className = '' }: { size?: number; cla
 /**
  * The COMPANY lockup — "Dream Create", with the mark as the D (same
  * no-duplicate-D rule). Used by auth / partner / marketing chrome.
+ *
+ * `alwaysLightGround` DROPS THE `dark:` HALF, and it exists because the
+ * wordmark was invisible to every dark-OS visitor on the whole marketing site
+ * (`docs/RELEASE.md` Part 5, found 2026-09-16; measured 1.00 on `/why` at
+ * 1440). `app/(marketing)/layout.tsx` hard-codes `bg-white text-gray-950` and
+ * carries no `dark:` class anywhere under it — but `next-themes` still puts
+ * `.dark` on `<html>` from the OS preference, so `dark:text-white` fired on a
+ * ground that never went dark and the words vanished while the bubble MARK
+ * (its own gradient fill) kept painting.
+ *
+ * WHY A PROP RATHER THAN A CLASS OVERRIDE. `MarketingFooter` patched its own
+ * call site with `wordmarkClassName="text-white [--brand-ink:#fff]"`, which
+ * works there because the footer is dark in BOTH themes — it re-points the
+ * variable so the light half resolves to white and the dark half already is.
+ * The header needs the opposite (ink in both themes) and cannot get there by
+ * re-pointing a variable: `dark:text-white` names its colour outright, so
+ * beating it would mean a second `dark:text-*` at equal specificity and
+ * letting stylesheet order decide. The half has to not be emitted.
+ *
+ * WHY NOT CHANGE THE SHARED DEFAULT. Everything else this renders on is
+ * genuinely theme-aware — `app/(partner)/layout.tsx` is
+ * `bg-[color:var(--color-canvas)] text-gray-900 dark:text-gray-100`, and the
+ * auth shell and dashboard chrome the same. `dark:text-white` is CORRECT
+ * there; the defect is one lane forcing a light page, so the opt-out belongs
+ * at that lane's call site.
  */
 export function DreamCreateLogo({
   size = 28,
   className = '',
   wordmarkClassName = '',
+  alwaysLightGround = false,
 }: {
   size?: number
   className?: string
   wordmarkClassName?: string
+  /** The surface is light in BOTH themes — emit no `dark:` half at all. */
+  alwaysLightGround?: boolean
 }) {
   return (
     <IntegratedLockup
       size={size}
       className={className}
-      restClassName={`text-[--brand-ink,#22304E] dark:text-white ${wordmarkClassName}`}
+      restClassName={`text-[--brand-ink,#22304E] ${
+        alwaysLightGround ? '' : 'dark:text-white'
+      } ${wordmarkClassName}`}
       rest={<>ream&nbsp;Create</>}
     />
   )
