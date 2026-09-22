@@ -72,7 +72,7 @@ up" are different facts and only one of them is a backlog item.
    `fuchsia-600` is **4.66 on white and 4.46 on `surface-1`** — it PASSES rule 4,
    which grades clipped text against white, and fails the page. Measure the new
    signature gradient's terminal stop against `surface-1`, not white.~~
-   [**DISCHARGED, DREAMCRM-87 (#643)**, and not by measuring one stop — rule 4
+   [**DISCHARGED, DREAMCRM-87 (#644)**, and not by measuring one stop — rule 4
    grades against `surface-1` now, so the trap is closed for every colour
    rather than for the one somebody remembered. Planting `to-fuchsia-600` in
    the real homepage headline was GREEN before and reddens after, naming

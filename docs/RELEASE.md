@@ -1931,7 +1931,7 @@ Watched to fail (§2d): `text-gray-400` restored on the "no" mark reddens it
 naming `gray-400 on gray-100 = 2.29`; `text-amber-700` restored on `Partial`
 reddens it at 4.52, the coincidence the margin exists for; forcing the pair
 extractor to return `[]` reddens the field-of-view assertion rather than
-passing silently. · FIXED (#643, DREAMCRM-87)
+passing silently. · FIXED (#644, DREAMCRM-87)
 
 ### Open — `/product` has never been axe-scanned, and the exemption that would let it be is spelled for the homepage's composition only (found 2026-09-16)
 
