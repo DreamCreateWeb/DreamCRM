@@ -326,6 +326,13 @@ export function gradeClasses(classes: string): Omit<ParityFinding, 'file' | 'lin
  *     a stray `'` to the next `"` would invent a chunk spanning two unrelated
  *     strings and pair an ink in one with a surface in the other. A false
  *     POSITIVE is the one direction this file refuses.
+ *
+ *     THE PRICE OF THAT RULE IS LIVE IN THE TREE AND MEASURED:
+ *     `app/site/[slug]/new-patients/page.tsx:84` yields the chunk
+ *     `"s been a while and I"`, a run between two apostrophes in prose. It
+ *     carries no class token, it predates this reader, and it is exactly the
+ *     false chunk the rule accepts in exchange for never spanning two real
+ *     strings. On the record next to the others rather than discovered again.
  *   - A template literal yields its STATIC text with each `${…}` replaced by a
  *     single SPACE — a space rather than nothing so `text-gray-${n}00` cannot
  *     fuse into a colour word that was never written.

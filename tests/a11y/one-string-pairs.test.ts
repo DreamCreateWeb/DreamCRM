@@ -64,6 +64,17 @@ import { AA, contrast, DARK, LIGHT, ROOT, token, utilityColor } from './palette'
  * quote in it, so 10,021 chunks were never read and batch 69's sweep missed
  * five sites for a purely syntactic reason. The two things worth pinning are
  * that it now SEES the shape, and that widening it LOST nothing.
+ *
+ * WHY THIS GRADES BOTH LINE ENDINGS RATHER THAN THE GIT-NORMALISED BLOB, since
+ * the blob is the obvious answer and it is the wrong one. Reading the blob
+ * would make this assertion correct on the platform CI happens to use;
+ * grading both renderings makes it platform-INDEPENDENT, which is the property
+ * that was actually missing when the chop shipped green on Windows and red on
+ * Linux — and pinning to the blob would re-create that failure in mirror
+ * image, with a Windows contributor's guard no longer describing the tree in
+ * their own editor. The cost is nil: across 277,358 lines there is not one
+ * line where a rule's verdict differs between the two renderings (measured
+ * independently by Sentinel and re-derived here before this was written).
  */
 describe('the shared chunk reader', () => {
   /** The reader this replaced, verbatim — backreference included. A copy of a
@@ -153,9 +164,15 @@ describe('the shared chunk reader', () => {
     // `skipLiteral` walks into an interpolation too, and an unterminated one
     // there used to hand it `-1` — which is not a miss, it is `j = -1` and the
     // whole string walked again from zero. A hang, in a guard that runs over
-    // 277,000 lines.
-    expect(() => quotedChunks('const a = `x ${ `y ${')).not.toThrow()
-    expect(() => quotedChunks("`${'")).not.toThrow()
+    // 277,000 lines. Sentinel confirmed it from outside: with the guard
+    // removed this input never returns (killed at 90s); with it, 0 ms.
+    //
+    // ASSERTED ON THE RETURN VALUE, NOT ON `not.toThrow()`. The failure mode
+    // is non-termination, and `not.toThrow()` does catch that — but only via
+    // the 20 s `testTimeout`, so it would fail with a timeout while claiming
+    // to be about exceptions. A test should fail for the reason it names.
+    expect(quotedChunks('const a = `x ${ `y ${')).toEqual([])
+    expect(quotedChunks("`${'")).toEqual([])
   })
 
   it('handles a nested template inside an interpolation without losing the outer statics', () => {
@@ -215,7 +232,20 @@ describe('the shared chunk reader', () => {
       const src = readFileSync(join(ROOT, file), 'utf8')
       for (const raw of src.split('\n')) {
         lines++
-        for (const line of raw.endsWith('\r') ? [raw, raw.slice(0, -1)] : [raw]) {
+        // NORMALISE, THEN GRADE BOTH — unconditionally, rather than branching
+        // on what the checkout happens to hold. The first version read
+        // `raw.endsWith('\r') ? [raw, raw.slice(0, -1)] : [raw]`, which grades
+        // both endings on a CRLF tree and only ONE on an LF tree — so the
+        // sentence "exercises both line endings on every platform" was true
+        // here and half-true on CI, which is the same over-claiming shape as
+        // the `by construction` comment two rounds ago. (Sentinel, reviewing
+        // #657 at f0879741.) Measured on this checkout: 276,016 CRLF lines and
+        // 1,342 bare LF — exactly one per file, i.e. the trailing empty split.
+        // There is effectively no LF content line here at all, so on Windows
+        // the old form was the only thing standing between this assertion and
+        // the platform it could not see.
+        const lf = raw.endsWith('\r') ? raw.slice(0, -1) : raw
+        for (const line of [lf, `${lf}\r`]) {
           const before = Array.from(new Set(OLD(line).flatMap((c) => tokens(c.slice(1, -1)))))
           if (before.length === 0) continue
           const after = new Set(quotedChunks(line).flatMap(tokens))

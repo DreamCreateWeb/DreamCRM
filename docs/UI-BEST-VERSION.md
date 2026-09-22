@@ -21,11 +21,11 @@ from burying what is not done. Keep it to 5–10 lines and say *why* each one is
 still sitting there — "deferred, needs a data series" and "nobody has picked it
 up" are different facts and only one of them is a backlog item.
 
-## OPEN NOW (last rewritten: batch 70, 2026-09-22)
+## OPEN NOW (last rewritten: batch 71, 2026-09-22)
 
-> **Batches 68, 69 and 70 (DREAMCRM-88) closed entries 1 and 2** — the rule
+> **Batches 68-71 (DREAMCRM-88) closed entries 1 and 2** — the rule
 > plus its sweep, then the per-site pass, then Sentinel's five-site correction
-> and the reader bug under it. Entry 3's clinic-site slice is the top of the
+> and the reader bug under it. Entry 4's clinic-site slice is the top of the
 > list now, and the honest description of why it is still sitting there is that
 > nobody has picked it up: it needs the tenant-derived palette graded through
 > `buildClinicPalette` rather than against one clinic's value.
@@ -127,7 +127,25 @@ up" are different facts and only one of them is a backlog item.
    template literal and was not. All five are the §2.2 pair now. The reader is
    fixed rather than the five patched — see the note under entry 3 — and with
    it the residual reads **53**, not 52.]
-3. **The opacity sweep's ~~TWO~~ ONE DEFERRED SURFACE.**
+3. **The chunk reader is still PER LINE, so a template broken across source
+   lines is ungraded** — named here rather than left in a docblock, because it
+   is the one residual this issue created and did not close. `quotedChunks`
+   reads a line at a time, so the opening line of a multi-line template never
+   closes and the continuation lines carry no quotes to find. **25
+   colour-bearing lines yield no chunk, 23 of them real** (Sentinel's
+   measurement on DREAMCRM-88); joined by hand and run through all four
+   graders plus `dimmed-text`'s, they produce **0 findings**. The one to look
+   at is `app/(onboarding)/welcome/welcome-interview.tsx:579` —
+   `bg-stone-800 dark:bg-stone-200 … text-white dark:text-stone-900`, rule 7's
+   both-halves-overridden subject exactly, the auth-button shape. It PASSES on
+   both sides; it is ungraded for a syntactic reason, which is the sentence
+   batches 68–71 exist to stop being true. Closing it means scanning per FILE
+   rather than per line, which also deletes the boundary both of batch 70's
+   bugs lived on (the `end - 1` chop and the `j = -1` walk-again). That is a
+   field-of-view change and it wants its own measurement, its own red run and
+   its own review — deliberately not ridden along on an urgent fix. Nobody has
+   picked it up.
+4. **The opacity sweep's ~~TWO~~ ONE DEFERRED SURFACE.**
    `tests/a11y/dimmed-text.test.ts` WALKS `app/`, `components/` and `lib/` and
    holds them at zero; one component tree is still outside it, excluded for a
    reason that was measured rather than assumed (raised in review of #612 — the
@@ -171,7 +189,7 @@ up" are different facts and only one of them is a backlog item.
    the whole palette change verdict (`fuchsia-600`, `indigo-500`, `pink-600`,
    `rose-600`) and `token-contrast.test.ts` re-derives that list from the
    stylesheet rather than trusting this paragraph.]
-4. **`ActionButton`'s `danger` variant clears AA at 4.53** — white on
+5. **`ActionButton`'s `danger` variant clears AA at 4.53** — white on
    `rose-600` against a 4.5 floor. Not a defect and not swept with batch 63's
    tone fills (it is the button primitive's own single-home, and it passes),
    but it is the coincidence-margin `TONE_PILL`'s header warns about, sitting
@@ -182,7 +200,7 @@ up" are different facts and only one of them is a backlog item.
    `VARIANT_CLASSES` (the single-home argument the exemption rests on) and
    re-derives the 4.53 from the palette, so if the margin ever goes the wrong
    way the suite says so instead of the pardon quietly widening.
-5. **The trial banner's escalation borrows a SEVENTH hue** — violet → amber →
+6. **The trial banner's escalation borrows a SEVENTH hue** — violet → amber →
    orange → rose, and orange is not one of v3's six tones, so `TONE_FILL` has
    no entry for it and batch 64 hand-spelled that one tier's recipe
    (`components/ui/trial-banner.tsx`). It measures fine (5.31 resting, 6.45
