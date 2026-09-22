@@ -47,7 +47,16 @@ export default function BillingDunningBanner({ ctx }: { ctx: TenantContext }) {
       // it is a one-line non-interactive strip with nowhere to put a sentence,
       // and the same button with the same message sits on Settings → Billing,
       // which is where the refusal is shown.
-      await openBillingPortal()
+      //
+      // The catch is for the case the action cannot answer at all — offline, a
+      // 500, `requireTenant` throwing. This strip renders on EVERY staff page
+      // (dashboard-shell), so an unhandled rejection here escalates across the
+      // whole app; a silent no-op was its shipped behaviour and stays it.
+      try {
+        await openBillingPortal()
+      } catch {
+        // Nothing to surface from a non-interactive banner.
+      }
     })
   }
 

@@ -2665,6 +2665,14 @@ Two decisions the next person should not have to re-derive:
   arrive and everything counted is genuinely stranded. Counting first would
   miss an op enqueued in the gap — the one direction of error that costs the
   practice a booking.
+- **The toast speaks in the CARD's number, not only its own** (Sentinel's N3
+  on #663). "Awaiting write-back" counts every unfinished op; the flip strands
+  only the ones still being retried, so a toast reading "4 will not be sent"
+  beside a card reading "10" left the reader to guess which number was about
+  them. Both now come from one `unfinishedWriteOps` filter and the sentence
+  names both when they differ. The gap between them is door 1 showing through
+  — ops that had already stopped retrying — which is the entry above, visible
+  rather than smoothed over.
 
 What this does NOT close: doors 1, 3 and 4, and door 2's own aftermath. A
 practice that flips the toggle is now TOLD, and still has no way to resolve

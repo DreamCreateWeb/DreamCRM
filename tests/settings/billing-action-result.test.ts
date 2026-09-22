@@ -77,7 +77,10 @@ import {
   startStripeCheckoutFormAction,
 } from '@/app/(default)/settings/actions'
 import { startActivationCheckout } from '@/app/(default)/billing/activate/actions'
-import { BILLING_UNAVAILABLE_MESSAGE } from '@/lib/services/billing-action-error'
+import {
+  BILLING_UNAVAILABLE_MESSAGE,
+  PLAN_CHANGE_UNCONFIRMED_MESSAGE,
+} from '@/lib/types/billing-action'
 import { PURCHASABLE_PLANS } from '@/lib/stripe-config'
 
 const PLAN = PURCHASABLE_PLANS[0].id
@@ -135,6 +138,22 @@ describe('startStripeCheckout — the refusal comes back as a value', () => {
     const r = await startStripeCheckout(PLAN, 'monthly')
     expect(r.error).toMatch(/couldn’t start checkout/i)
     expect(redirect).not.toHaveBeenCalled()
+  })
+
+  it('does NOT tell a clinic "nothing has been charged" when the plan swap may have committed', async () => {
+    // Sentinel's N1 on #663. `updateSubscriptionPlan` calls
+    // `stripe.subscriptions.update(…, proration_behavior: 'create_prorations')`
+    // and then syncs the result back; if the sync half throws, the subscription
+    // is already on the new price with prorations queued onto the next invoice.
+    // The generic line would be a false statement about their money.
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {})
+    updateSubscriptionPlan.mockRejectedValue(new Error('Subscription has no customer'))
+    const r = await startStripeCheckout(PLAN, 'annual')
+    expect(r.error).toBe(PLAN_CHANGE_UNCONFIRMED_MESSAGE)
+    expect(r.error).not.toMatch(/nothing has been charged/i)
+    expect(logged.mock.calls.flat().join(' ')).toContain('settings.plan-swap')
+    expect(createCheckoutSession).not.toHaveBeenCalled()
+    logged.mockRestore()
   })
 
   it('does NOT quote an internal Stripe/config failure at the clinic', async () => {
@@ -240,5 +259,17 @@ describe('startActivationCheckout — the managed arm of the same wall', () => {
       digest: expect.stringContaining('NEXT_REDIRECT'),
     })
     expect(redirect).toHaveBeenCalledWith('https://checkout.stripe.test/s/managed')
+  })
+
+  it('falls back to the home redirect when provisioning returns no URL', async () => {
+    // The one `redirect()` in the diff with no test, named in Sentinel's N1
+    // read of #663. It is outside the try like the other three, and it must
+    // stay a redirect rather than becoming a returned error — a clinic sent
+    // nowhere is a clinic staring at a button that did nothing.
+    createActivationCheckout.mockResolvedValue({ url: null })
+    await expect(startActivationCheckout()).rejects.toMatchObject({
+      digest: expect.stringContaining('NEXT_REDIRECT'),
+    })
+    expect(redirect).toHaveBeenCalledWith('/')
   })
 })

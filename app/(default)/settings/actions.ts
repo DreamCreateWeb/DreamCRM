@@ -13,7 +13,8 @@ import {
   upsertNotificationPrefs,
 } from '@/lib/services/settings'
 import { createCheckoutSession, createPortalSession, setSubscriptionCancelation, updateSubscriptionPlan } from '@/lib/services/billing'
-import { billingActionFailure, type BillingActionState } from '@/lib/services/billing-action-error'
+import { billingActionFailure } from '@/lib/services/billing-action-error'
+import { PLAN_CHANGE_UNCONFIRMED_MESSAGE, type BillingActionState } from '@/lib/types/billing-action'
 import { PURCHASABLE_PLANS } from '@/lib/stripe-config'
 import type { BillingInterval, PlanId } from '@/lib/stripe-config'
 
@@ -45,10 +46,18 @@ export async function saveAccount(input: unknown) {
  * the person who clicked. A resolved result is ALWAYS a failure: every success
  * path below ends in `redirect()`, which throws NEXT_REDIRECT.
  *
- * Note the shape of the try: it wraps the Stripe/DB leg ONLY, and every
- * `redirect()` sits outside it. A redirect inside the try would be caught as a
+ * Note the shape of the trys: they wrap the Stripe/DB legs ONLY, and every
+ * `redirect()` sits outside them. A redirect inside a try would be caught as a
  * failure, and the clinic would be told checkout could not start while it in
  * fact could — the navigation simply never happening.
+ *
+ * And note that there are TWO of them rather than one (Sentinel's N1 on #663),
+ * because the two legs have different things to say about money. Opening a
+ * Checkout session has charged nothing. The in-place swap has already called
+ * `stripe.subscriptions.update(…, proration_behavior: 'create_prorations')` by
+ * the time its sync-back can throw, so a clinic whose swap committed and whose
+ * sync failed must not be told "nothing has been charged" — that is a false
+ * statement about their money on the one path where money has actually moved.
  */
 export async function startStripeCheckout(
   planId: PlanId,
@@ -70,32 +79,37 @@ export async function startStripeCheckout(
     return { error: 'That plan isn’t available for self-serve checkout.' }
   }
 
-  let destination: string
+  // A clinic that ALREADY has a live subscription changes plan in place
+  // (price swap + proration) — Checkout would mint a SECOND subscription and
+  // the old one would keep billing. Checkout is only for the first purchase.
+  let changedInPlace: boolean
   try {
-    // A clinic that ALREADY has a live subscription changes plan in place
-    // (price swap + proration) — Checkout would mint a SECOND subscription and
-    // the old one would keep billing. Checkout is only for the first purchase.
-    const changedInPlace = await updateSubscriptionPlan({
+    changedInPlace = await updateSubscriptionPlan({
       organizationId: ctx.organizationId,
       planId,
       interval,
     })
-    if (changedInPlace) {
-      revalidatePath('/settings/billing')
-      destination = '/settings/billing?checkout=success'
-    } else {
-      const session = await createCheckoutSession({
-        organizationId: ctx.organizationId,
-        email: ctx.userEmail,
-        name: ctx.organizationName,
-        planId,
-        interval,
-      })
-      if (!session.url) {
-        return { error: 'We couldn’t start checkout just now — please try again in a moment.' }
-      }
-      destination = session.url
+  } catch (err) {
+    return billingActionFailure('settings.plan-swap', err, PLAN_CHANGE_UNCONFIRMED_MESSAGE)
+  }
+  if (changedInPlace) {
+    revalidatePath('/settings/billing')
+    redirect('/settings/billing?checkout=success')
+  }
+
+  let destination: string
+  try {
+    const session = await createCheckoutSession({
+      organizationId: ctx.organizationId,
+      email: ctx.userEmail,
+      name: ctx.organizationName,
+      planId,
+      interval,
+    })
+    if (!session.url) {
+      return { error: 'We couldn’t start checkout just now — please try again in a moment.' }
     }
+    destination = session.url
   } catch (err) {
     return billingActionFailure('settings.checkout', err)
   }

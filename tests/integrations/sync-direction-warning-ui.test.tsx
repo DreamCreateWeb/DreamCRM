@@ -38,12 +38,13 @@ import { PmsConnectedDashboard } from '@/app/(default)/integrations/_pms-dashboa
 beforeEach(() => {
   setSyncDirectionAction.mockReset()
   setAutoSyncAction.mockReset()
-  setSyncDirectionAction.mockResolvedValue({ strandedWrites: 0, oldestStrandedAt: null })
+  setSyncDirectionAction.mockResolvedValue({ queuedWrites: 0, strandedWrites: 0, oldestStrandedAt: null })
 })
 
 describe('the "Import only" flip names what it stranded', () => {
   it('tells the practice how many queued changes will not be sent, and how to send them', async () => {
     setSyncDirectionAction.mockResolvedValue({
+      queuedWrites: 4,
       strandedWrites: 4,
       oldestStrandedAt: new Date('2026-09-18T09:15:00Z'),
     })
@@ -60,8 +61,46 @@ describe('the "Import only" flip names what it stranded', () => {
     expect(toast).toHaveTextContent(/oldest queued/i)
   })
 
+  it('speaks in the card’s number when the queue holds more than the flip stranded', async () => {
+    // Sentinel's N3 on #663: the "Awaiting write-back" card counts every
+    // unfinished op and the flip strands only the ones still being retried, so
+    // a toast reading "4 will not be sent" beside a card reading "10" left the
+    // reader to guess which number was about them.
+    setSyncDirectionAction.mockResolvedValue({
+      queuedWrites: 10,
+      strandedWrites: 4,
+      oldestStrandedAt: new Date('2026-09-18T09:15:00Z'),
+    })
+    render(<SyncControls syncDirection="two_way" autoSyncEnabled isDemo={false} />)
+    fireEvent.click(screen.getByRole('button', { name: /Two-way sync/i }))
+
+    const toast = await screen.findByRole('status')
+    expect(toast).toHaveTextContent(/none of the 10 changes waiting for your PMS will be sent/i)
+    expect(toast).toHaveTextContent(/4 of them were still being retried/i)
+    expect(toast).toHaveTextContent(/turn two-way sync back on/i)
+  })
+
+  it('still warns when the whole queue had already stopped retrying', async () => {
+    // Nothing was taken away by THIS click, but the card still shows 6 and now
+    // reads "Held" — a toast that said "bookings stay in DreamCRM" beside it
+    // would be the reassuring half of the same defect.
+    setSyncDirectionAction.mockResolvedValue({
+      queuedWrites: 6,
+      strandedWrites: 0,
+      oldestStrandedAt: null,
+    })
+    render(<SyncControls syncDirection="two_way" autoSyncEnabled isDemo={false} />)
+    fireEvent.click(screen.getByRole('button', { name: /Two-way sync/i }))
+
+    const toast = await screen.findByRole('status')
+    expect(toast.className).toContain('border-l-amber-500')
+    expect(toast).toHaveTextContent(/nothing more will be sent to your PMS/i)
+    expect(toast).toHaveTextContent(/The 6 on your write-back queue had already stopped retrying/i)
+  })
+
   it('reads as a warning rather than a confirmation, and counts in English', async () => {
     setSyncDirectionAction.mockResolvedValue({
+      queuedWrites: 1,
       strandedWrites: 1,
       oldestStrandedAt: new Date('2026-09-20T12:00:00Z'),
     })

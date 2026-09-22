@@ -163,26 +163,56 @@ export default function SyncControls({ syncDirection, autoSyncEnabled, isDemo }:
  * The WARNING only — it does not offer to drain or discard anything. That is a
  * product decision with its own (not-1.0) ledger entry, and a toast is not
  * where it would go.
+ *
+ * It speaks in terms of `queuedWrites` — the same number the "Awaiting
+ * write-back" card beside it shows — and names the stranded subset separately
+ * when the two differ (Sentinel's N3 on #663). A queue can hold ops that had
+ * already stopped retrying, and a sentence saying "4 will not be sent" next to
+ * a card reading "10" leaves the reader to guess which number is about them.
  */
 function directionToast(
   next: SyncDirection,
-  change: { strandedWrites: number; oldestStrandedAt: Date | null },
+  change: { queuedWrites: number; strandedWrites: number; oldestStrandedAt: Date | null },
 ): { text: string; tone: 'ok' | 'warn' } {
   if (next === 'two_way') {
     return { text: 'Two-way sync on — bookings push to your PMS.', tone: 'ok' }
   }
-  const n = change.strandedWrites
-  if (n === 0) return { text: 'Import only — bookings stay in DreamCRM.', tone: 'ok' }
+  const queued = change.queuedWrites
+  const stranded = change.strandedWrites
+  if (queued === 0) return { text: 'Import only — bookings stay in DreamCRM.', tone: 'ok' }
+
   const oldest = change.oldestStrandedAt ? new Date(change.oldestStrandedAt) : null
   const since =
     oldest && !Number.isNaN(oldest.getTime())
       ? ` (oldest queued ${oldest.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })})`
       : ''
+
+  if (stranded === 0) {
+    // Everything on the queue had already stopped retrying, so this flip took
+    // nothing away — but the queue is still not going anywhere, and the card
+    // now says "Held", so the toast has to account for the number it shows.
+    return {
+      tone: 'warn',
+      text:
+        `Import only — nothing more will be sent to your PMS. The ${queued} on your write-back ` +
+        `queue had already stopped retrying.`,
+    }
+  }
+  if (stranded === queued) {
+    return {
+      tone: 'warn',
+      text:
+        `Import only — ${stranded} ${stranded === 1 ? 'change that was' : 'changes that were'} ` +
+        `waiting to reach your PMS${since} will not be sent. Turn two-way sync back on to send ` +
+        `${stranded === 1 ? 'it' : 'them'}.`,
+    }
+  }
   return {
     tone: 'warn',
     text:
-      `Import only — ${n} ${n === 1 ? 'change that was' : 'changes that were'} waiting to reach your PMS` +
-      `${since} will not be sent. Turn two-way sync back on to send ${n === 1 ? 'it' : 'them'}.`,
+      `Import only — none of the ${queued} changes waiting for your PMS will be sent. ` +
+      `${stranded} of them ${stranded === 1 ? 'was' : 'were'} still being retried${since} — turn ` +
+      `two-way sync back on to send ${stranded === 1 ? 'it' : 'them'}.`,
   }
 }
 

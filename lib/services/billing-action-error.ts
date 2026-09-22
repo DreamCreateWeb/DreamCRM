@@ -1,4 +1,5 @@
 import 'server-only'
+import { BILLING_UNAVAILABLE_MESSAGE, type BillingActionState } from '@/lib/types/billing-action'
 
 /**
  * What a clinic's owner or admin is told when a BILLING action can't start.
@@ -11,6 +12,10 @@ import 'server-only'
  * "Only an owner or admin can change billing." — arrived on screen as "An error
  * occurred in the Server Components render", or, on a bare `<form action={…}>`
  * with nothing reading a result, as nothing at all.
+ *
+ * The result SHAPE and the two user-facing sentences live in
+ * `lib/types/billing-action.ts`, because the client call sites need them and
+ * this module is `server-only`. What lives here is the classifier.
  *
  * Two lanes, as in both siblings, but decided by POSITION rather than by an
  * error class, and deliberately so:
@@ -26,6 +31,12 @@ import 'server-only'
  *    it gets logged where staff can find it and the reader is told something
  *    true and actionable instead. That leg is the only code inside the try.
  *
+ * Which is why `message` is a parameter rather than a constant: the two legs of
+ * `startStripeCheckout` have different things to say about money. Opening a
+ * Checkout session has charged nothing; the in-place plan swap may already have
+ * committed a proration by the time its sync throws (`PLAN_CHANGE_UNCONFIRMED_
+ * MESSAGE`). One try per leg, one sentence per try.
+ *
  * Why this is NOT the `{ ok: true } | { ok: false; error }` shape its two
  * siblings use: every action here ends in `redirect()` on success, which throws
  * NEXT_REDIRECT, so the success value is unreachable — a resolved result from
@@ -37,19 +48,23 @@ import 'server-only'
  * try, or the try swallows the navigation instead of performing it.
  */
 
-/** The state a billing form action carries. `null` means "nothing has failed" —
- *  either nothing has been attempted yet, or the attempt navigated away. */
-export type BillingActionState = { error: string | null }
-
-export const BILLING_UNAVAILABLE_MESSAGE =
-  'We couldn’t start that just now, and nothing has been charged. Please try again in a few minutes — if it keeps happening, contact support and we’ll sort it out.'
-
 /**
  * Turn a thrown billing failure into the staff result shape. `scope` is the log
  * prefix ('settings.checkout', 'settings.portal', …) — it is never shown to
- * anyone.
+ * anyone. `message` defaults to the "nothing has been charged" line; pass one
+ * when that claim would not be true of the leg that failed.
  */
-export function billingActionFailure(scope: string, err: unknown): BillingActionState {
+export function billingActionFailure(
+  scope: string,
+  err: unknown,
+  message: string = BILLING_UNAVAILABLE_MESSAGE,
+): BillingActionState {
   console.error(`[${scope}] billing action failed`, err)
-  return { error: BILLING_UNAVAILABLE_MESSAGE }
+  return { error: message }
 }
+
+export {
+  BILLING_UNAVAILABLE_MESSAGE,
+  PLAN_CHANGE_UNCONFIRMED_MESSAGE,
+  type BillingActionState,
+} from '@/lib/types/billing-action'
