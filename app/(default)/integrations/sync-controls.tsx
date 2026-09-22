@@ -70,14 +70,14 @@ export default function SyncControls({ syncDirection, autoSyncEnabled, isDemo }:
   // The three controls below are on screen together, so one shared flag spun
   // all three — `active` names the one whose work is actually running.
   const [active, setActive] = useState<'direction' | 'auto' | 'disconnect' | null>(null)
-  const [toast, setToast] = useState<string | null>(null)
+  const [toast, setToast] = useState<{ text: string; tone: 'ok' | 'warn' } | null>(null)
 
   function toggleDirection() {
     const next: SyncDirection = syncDirection === 'two_way' ? 'import' : 'two_way'
     setActive('direction')
     start(async () => {
-      await setSyncDirectionAction(next)
-      setToast(next === 'two_way' ? 'Two-way sync on — bookings push to your PMS.' : 'Import only — bookings stay in DreamCRM.')
+      const change = await setSyncDirectionAction(next)
+      setToast(directionToast(next, change))
       router.refresh()
     })
   }
@@ -86,7 +86,7 @@ export default function SyncControls({ syncDirection, autoSyncEnabled, isDemo }:
     setActive('auto')
     start(async () => {
       await setAutoSyncAction(!autoSyncEnabled)
-      setToast(!autoSyncEnabled ? 'Auto-sync on.' : 'Auto-sync off.')
+      setToast({ text: !autoSyncEnabled ? 'Auto-sync on.' : 'Auto-sync off.', tone: 'ok' })
       router.refresh()
     })
   }
@@ -137,9 +137,83 @@ export default function SyncControls({ syncDirection, autoSyncEnabled, isDemo }:
         </p>
       )}
 
-      {toast && <FlashToast message={toast} onDone={() => setToast(null)} />}
+      {toast && (
+        <FlashToast
+          message={toast.text}
+          tone={toast.tone}
+          // A warning nobody can finish reading is not a warning. The stranded
+          // count is a longer sentence than "Auto-sync off." and it is the one
+          // sentence on this page a practice must not miss.
+          duration={toast.tone === 'warn' ? 12000 : 4000}
+          onDone={() => setToast(null)}
+        />
+      )}
     </div>
   )
+}
+
+/**
+ * What the practice is told after a direction flip.
+ *
+ * Turning write-back OFF with bookings already queued strands them: the flush
+ * only ever runs on a two-way connection, so neither the hourly cron nor "Sync
+ * now" will drive them again. Before DREAMCRM-97 the flip said nothing about
+ * it and the page went on promising the queue would "push on next sync".
+ *
+ * The WARNING only — it does not offer to drain or discard anything. That is a
+ * product decision with its own (not-1.0) ledger entry, and a toast is not
+ * where it would go.
+ *
+ * It speaks in terms of `queuedWrites` — the same number the "Awaiting
+ * write-back" card beside it shows — and names the stranded subset separately
+ * when the two differ (Sentinel's N3 on #663). A queue can hold ops that had
+ * already stopped retrying, and a sentence saying "4 will not be sent" next to
+ * a card reading "10" leaves the reader to guess which number is about them.
+ */
+function directionToast(
+  next: SyncDirection,
+  change: { queuedWrites: number; strandedWrites: number; oldestStrandedAt: Date | null },
+): { text: string; tone: 'ok' | 'warn' } {
+  if (next === 'two_way') {
+    return { text: 'Two-way sync on — bookings push to your PMS.', tone: 'ok' }
+  }
+  const queued = change.queuedWrites
+  const stranded = change.strandedWrites
+  if (queued === 0) return { text: 'Import only — bookings stay in DreamCRM.', tone: 'ok' }
+
+  const oldest = change.oldestStrandedAt ? new Date(change.oldestStrandedAt) : null
+  const since =
+    oldest && !Number.isNaN(oldest.getTime())
+      ? ` (oldest queued ${oldest.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })})`
+      : ''
+
+  if (stranded === 0) {
+    // Everything on the queue had already stopped retrying, so this flip took
+    // nothing away — but the queue is still not going anywhere, and the card
+    // now says "Held", so the toast has to account for the number it shows.
+    return {
+      tone: 'warn',
+      text:
+        `Import only — nothing more will be sent to your PMS. The ${queued} on your write-back ` +
+        `queue had already stopped retrying.`,
+    }
+  }
+  if (stranded === queued) {
+    return {
+      tone: 'warn',
+      text:
+        `Import only — ${stranded} ${stranded === 1 ? 'change that was' : 'changes that were'} ` +
+        `waiting to reach your PMS${since} will not be sent. Turn two-way sync back on to send ` +
+        `${stranded === 1 ? 'it' : 'them'}.`,
+    }
+  }
+  return {
+    tone: 'warn',
+    text:
+      `Import only — none of the ${queued} changes waiting for your PMS will be sent. ` +
+      `${stranded} of them ${stranded === 1 ? 'was' : 'were'} still being retried${since} — turn ` +
+      `two-way sync back on to send ${stranded === 1 ? 'it' : 'them'}.`,
+  }
 }
 
 /** Decorative only — the busy state is ActionButton's own overlaid spinner,

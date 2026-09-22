@@ -44,8 +44,26 @@ const seedSrc = readFileSync(SEED_PATH, 'utf8')
  * declared-vs-written check below, so a new table seeded under a prefix
  * nobody added here is a row with no owner that this guard reports as fine.
  * Add the prefix in the same PR as the scope.
+ *
+ * Eleven more arrived with `token-pages` and `partner` (DREAMCRM-98), which is
+ * the largest single addition this list has taken and worth a word about why.
+ * Those two scopes reach further across the schema than any before them: the
+ * eight text-message landings each read a DIFFERENT table (a balance request,
+ * a payment plan, a review request, a waitlist offer, a prospect meeting, a
+ * practice grade, a marketing event, an event capture), and the partner portal
+ * reads a persona that is not an org member at all. Each new table needs its
+ * prefix here or its rows are invisible to the ownership check — which is the
+ * exact failure mode this docblock was written for, and it goes quiet rather
+ * than red.
+ *
+ * `prop` and `pros` are two prefixes, not one: `prop_e2e_…` is a proposal
+ * (`sign-here`) and `pros_e2e_…` is a prospect (`token-pages`). Alternation
+ * cannot confuse them — every branch has to be followed by a literal `_e2e_`
+ * — but a reader can, so they are named apart here rather than merged into a
+ * pattern that would also match a table neither scope writes.
  */
-const ROW_ID = /'((?:org|pat|appt|nps|user|mem|sess|lead|prop|bp)_e2e_[a-z0-9_]+)'/g
+const ROW_ID =
+  /'((?:org|pat|appt|nps|user|mem|sess|lead|prop|bp|prv|bpr|plan|rev|wl|wlo|pros|pmtg|pgrd|mevt|mcap|rpart)_e2e_[a-z0-9_]+)'/g
 
 /**
  * Everything above the first seeding function: the shared fixture constants
@@ -75,6 +93,8 @@ const FN_FOR_SCOPE: Record<string, string> = {
   'go-live': 'seedGoLive',
   billing: 'seedBilling',
   webhook: 'seedWebhook',
+  'token-pages': 'seedTokenPages',
+  partner: 'seedPartner',
 }
 
 /** `SCOPE_ROWS` is a literal, so reading it by a runtime scope name needs a widened view. */

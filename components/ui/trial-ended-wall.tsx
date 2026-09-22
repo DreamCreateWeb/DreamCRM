@@ -2,8 +2,7 @@
 
 import { useState } from 'react'
 import { PURCHASABLE_PLANS, type BillingInterval, type PlanId } from '@/lib/stripe-config'
-import { startStripeCheckout } from '@/app/(default)/settings/actions'
-import { startActivationCheckout } from '@/app/(default)/billing/activate/actions'
+import { ActivationCheckoutForm, PlanCheckoutForm } from './billing-action-form'
 
 /**
  * The trial-ended LOCK. DashboardShell renders this IN PLACE of the page content
@@ -14,9 +13,17 @@ import { startActivationCheckout } from '@/app/(default)/billing/activate/action
  * It embeds the EXISTING checkout flows directly (no link to another gated page):
  *   - managed clinic (reserved plan) → the coupon-pre-applied activation checkout
  *   - self-serve → the standard plan picker → Stripe Checkout
- * Both are plain form actions that redirect to Stripe (redirect-safe — no
- * try/catch swallowing the navigation). A non-billing staffer sees a "contact
- * your owner" message instead of a dead-end checkout.
+ * Both are form actions that redirect to Stripe (redirect-safe — no try/catch
+ * swallowing the navigation). A non-billing staffer sees a "contact your owner"
+ * message instead of a dead-end checkout.
+ *
+ * DREAMCRM-97: both buttons used to be a bare `<form action={serverAction}>`
+ * with nothing reading a result, so every way checkout can refuse — Stripe
+ * unreachable, a price id missing from this deployment, a session that came
+ * back without a URL, a role that changed since this page rendered — left the
+ * button doing visibly nothing on the last screen a clinic sees. They go
+ * through `billing-action-form.tsx` now, which reads the action's returned
+ * refusal with `useActionState` and shows it under the button pressed.
  */
 export default function TrialEndedWall({
   orgName,
@@ -55,7 +62,7 @@ export default function TrialEndedWall({
             Ask your clinic’s owner or an admin to set up billing to restore access.
           </p>
         ) : managed ? (
-          <form action={startActivationCheckout} className="mt-6">
+          <ActivationCheckoutForm className="mt-6">
             <p className="text-sm text-gray-600 dark:text-gray-300 mb-3">
               Your plan is reserved at the price we agreed — finish setup to activate it.
             </p>
@@ -65,7 +72,7 @@ export default function TrialEndedWall({
             >
               Set up billing →
             </button>
-          </form>
+          </ActivationCheckoutForm>
         ) : (
           <div className="mt-6 text-left">
             <div className="flex items-center justify-between bg-[color:var(--color-surface-2)] rounded-lg p-2 mb-3">
@@ -93,7 +100,7 @@ export default function TrialEndedWall({
                 const price = interval === 'annual' ? p.annualPrice : p.price
                 const suffix = interval === 'annual' ? '/yr' : '/mo'
                 return (
-                  <form key={p.id} action={startStripeCheckout.bind(null, p.id as PlanId, interval)}>
+                  <PlanCheckoutForm key={p.id} planId={p.id as PlanId} interval={interval}>
                     <button
                       type="submit"
                       className="w-full flex items-center justify-between rounded-lg border-2 border-gray-200 dark:border-gray-700/60 hover:border-teal-400 dark:hover:border-teal-500 p-3 transition text-left"
@@ -107,7 +114,7 @@ export default function TrialEndedWall({
                         <span className="text-xs font-normal text-gray-500">{suffix}</span>
                       </span>
                     </button>
-                  </form>
+                  </PlanCheckoutForm>
                 )
               })}
             </div>
