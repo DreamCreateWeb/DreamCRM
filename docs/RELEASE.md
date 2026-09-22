@@ -2205,17 +2205,20 @@ than built: `problemKey` makes this its own problem, so `shouldAlert` raises it
 once and then only every `RE_ALERT_DAYS`, and the stand-down and the
 per-audience memory come with it.
 
-Three narrowings carry the weight, each guarded by a test that fails when it is
-dropped. The read takes the `'pending'` lane ONLY, not the usual
-`('pending','error')` pair — `'pending'` IS the WAITING lane and clears itself
-when the bridge answers, while an op past `MAX_WRITE_ATTEMPTS` is never retried
-and nothing in the product can resolve it, so alarming on it would pin that
-practice at `blocked` for the life of the account. It requires a CONNECTED
-connection, since `disconnectPms` keeps write-op history deliberately and those
-rows will never be driven again. And `PARKED_WRITE_ALARM_DAYS = 4` clears the
-longest ordinary closure a dental office has (Friday 17:00 through a holiday
-Monday, ~3.6 days) — parking is the FEATURE here, and a threshold that fired on
-it would turn the WAITING lane's own design into an alarm.
+ONE RULE generates every narrowing on the read: count a row only if something
+is still actively trying to deliver it. A row nothing will ever drive again
+cannot clear, so alarming on it pins that practice at `blocked` forever — the
+crying-wolf failure caused by the fix for the opposite one. The first round
+applied that rule THREE PREDICATES SHORT and #640's review caught it (see the
+undrainable-write-op entry below for all four doors); the read now takes the
+`'pending'` lane and `entity_type = 'appointment'` only, on a connection that
+is CONNECTED, TWO-WAY and AUTO-SYNCING. Each predicate is graded by a test
+that fails when it is dropped.
+
+Separately, `PARKED_WRITE_ALARM_DAYS = 4` clears the longest ordinary closure
+a dental office has (Friday 17:00 through a holiday Monday, ~3.6 days) —
+parking is the FEATURE here, and a threshold that fired on it would turn the
+WAITING lane's own design into an alarm.
 
 WHO HEARS IT is the one part still open, and it is an owner decision, not a
 default: every other finding withheld from a practice is withheld because they
@@ -2230,29 +2233,63 @@ which is the wrong half of the truth and silences the owner's email (the
 round-1 audit's defect, verbatim). Dustin's answer flips that one predicate and
 adds the clinic-voiced sentence; nothing else moves.
 
-### Open — nothing alerts on a terminally-failed PMS write-op either (found 2026-09-22)
+### Open — a PMS write-op can become undrainable, and then it is invisible to everyone (found 2026-09-22)
 
-The sibling of the entry above, split out on contact rather than folded into
-it (§1: one defect, one entry). `retryPendingWrites` skips any op whose
-`attempts >= MAX_WRITE_ATTEMPTS`, and `settleWriteFailure`'s error lane is the
-only thing that puts an op there — so a write that is genuinely WRONG (a
-payload the practice's software refuses, a chart that cannot be created) burns
-its six attempts, lands in `'error'`, and then sits forever. Reproduction:
-insert a `pms_write_op` with `status='error'`, `attempts=6`; every subsequent
-sync passes it over, `getIntegrationsDashboard` counts it in `pendingWrites`
-for anyone who opens the Integrations page, and no other surface mentions it.
-Same real-world cost as its parked sibling — a booking that never reached the
-schedule — with the opposite cause and the opposite fix.
+The sibling of the entry above, split out on contact (§1: one defect, one
+entry) — and it is ONE defect with several doors, not one per door. A
+`pms_write_op` row can reach a state in which nothing will ever drive it
+again; when that happens no surface says so, and the product has no way for a
+human to resolve it. Same real-world cost as its parked sibling — a booking
+that never reached the practice's schedule — with the opposite cause and the
+opposite fix.
 
-DREAMCRM-68's parked-write signal deliberately does NOT cover it, and the
-reason is why this is a separate defect rather than a wider `status` filter:
-a parked op self-clears when the bridge answers, and a terminally-failed one
-never clears at all. Feeding it to the Guardian as-is would pin its practice
-at `blocked` and re-alert the owner weekly for the life of the account, which
-is the crying-wolf failure that primitive exists to avoid. Closing this needs
-a RESOLUTION PATH first — somewhere a human can say "I entered this one by
-hand, let it go" — and that is a product decision, not a query change. · OPEN
-— for planning-meeting ranking; not 1.0 work unless the meeting says so.
+Four doors are known, the first found while scoping DREAMCRM-68's `status`
+filter and the rest during its review (#640):
+
+1. **The terminal error lane.** `retryPendingWrites` skips any op whose
+   `attempts >= MAX_WRITE_ATTEMPTS` (`lib/services/pms/sync.ts:1155`), and
+   `settleWriteFailure`'s error lane is the only thing that puts one there —
+   so a write that is genuinely WRONG (a payload their software refuses)
+   burns its six attempts, lands in `'error'`, and sits forever.
+   Reproduction: insert a `pms_write_op` with `status='error'`, `attempts=6`.
+2. **Direction flipped to import.** `syncPms` gates the write-back flush on
+   `syncDirection === 'two_way'` (`:252`) and that is its ONLY call site, so
+   "Sync now" does not drain it either — while `setSyncDirection`
+   (`lib/services/pms/connection.ts:142`) is a bare UPDATE with no drain.
+   Reproduction: queue a write-op on a two-way connection, then press the
+   "Import only" toggle on the Integrations page. The row is stranded.
+3. **Auto-sync off.** The hourly job never selects the connection
+   (`app/api/cron/pms-sync/route.ts:73`). Softer than the others — a manual
+   "Sync now" still drains a two-way connection — but nothing guarantees
+   anyone presses it.
+4. **Disconnected.** `disconnectPms` deliberately keeps write-op history for
+   the audit trail, and nothing drives a dead connection.
+
+In every door the row is counted in `getIntegrationsDashboard`'s
+`pendingWrites` for anyone who opens the Integrations page, and mentioned
+nowhere else.
+
+**Why DREAMCRM-68's signal deliberately excludes all four, and why that is
+the right call rather than a gap being tolerated.** A parked op self-clears
+the moment the bridge answers, which is what gives that alarm a stand-down.
+None of these clear at all. Feeding any of them to the Guardian as-is would
+pin that practice at `blocked` and re-raise it every `RE_ALERT_DAYS` for the
+life of the account — the crying-wolf failure the primitive exists to avoid,
+introduced by the fix for the opposite one. Door 2 is the sharpest: the
+practice most likely to press "Import only" is one whose bridge is down, so
+the alarm would have fired hardest at exactly the people it was built for,
+and told the owner to ring them about a bridge that is fine.
+
+Closing this needs a RESOLUTION PATH before it needs a query — somewhere a
+human can see the stranded rows and say "I entered that one by hand, let it
+go" — and that is a product decision. Two smaller things ride along with it:
+a commlog write-op parks identically and is excluded from DREAMCRM-68's count
+because that headline says "bookings" (so a down bridge with chart notes
+queued and NO bookings queued goes unreported until their next booking
+parks), and `setSyncDirection` arguably owes a drain or a warning rather than
+silently stranding a queue. · OPEN — for planning-meeting ranking; not 1.0
+work unless the meeting says so.
+
 ### Slice 13 — the insurance-card scanner only reads our own storage · DONE
 
 `lib/services/insurance-ocr.ts` filtered its `imageUrls` on `/^https?:\/\//` and

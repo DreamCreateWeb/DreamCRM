@@ -185,16 +185,19 @@ vi.mock('@/lib/db', () => {
         __name: 'pms_write_op',
         organizationId: col('organizationId'),
         status: col('status'),
+        entityType: col('entityType'),
         createdAt: col('createdAt'),
       },
       pmsConnection: {
-        // The connection's status reaches the fixture DENORMALISED onto the
-        // write-op row, so the predicate the service writes against it lands
+        // The connection's three settings reach the fixture DENORMALISED
+        // onto the write-op row, so each predicate the service writes lands
         // on a field that is really there. `organizationId` is the join key
         // and never a filter, so it maps to the same name harmlessly.
         __name: 'pms_connection',
         organizationId: col('organizationId'),
         status: col('connStatus'),
+        syncDirection: col('connDirection'),
+        autoSyncEnabled: col('connAutoSync'),
       },
     },
   }
@@ -244,17 +247,28 @@ function seedFailure(orgId: string, daysAgo: number, n = 1) {
   }
 }
 
-/** One open PMS write-op, enqueued `daysAgo` days ago, belonging to a
- *  practice whose bridge is connected unless the caller says otherwise. */
+/** One open PMS write-op, enqueued `daysAgo` days ago, on a practice whose
+ *  bridge is connected, two-way and auto-syncing unless the caller says
+ *  otherwise — i.e. the only configuration in which anything is actually
+ *  going to try to deliver it. */
 function seedWriteOp(
   orgId: string,
   daysAgo: number,
-  over: { status?: string; connStatus?: string } = {},
+  over: {
+    status?: string
+    entityType?: string
+    connStatus?: string
+    connDirection?: string
+    connAutoSync?: number
+  } = {},
 ) {
   store.writeOps.push({
     organizationId: orgId,
     status: over.status ?? 'pending',
+    entityType: over.entityType ?? 'appointment',
     connStatus: over.connStatus ?? 'connected',
+    connDirection: over.connDirection ?? 'two_way',
+    connAutoSync: over.connAutoSync ?? 1,
     createdAt: old(daysAgo),
   })
 }
@@ -675,6 +689,56 @@ describe('sweepEngineHealth — bookings parked outside the practice’s softwar
 
     const sweep = await sweepEngineHealth(NOW)
     expect(sweep.reports[0].signals.pmsWriteOpsParked).toBe(0)
+  })
+
+  it('ignores an IMPORT-ONLY practice — the toggle strands the queue, it does not break the bridge', async () => {
+    // THE DEFECT PR #640's REVIEW CAUGHT, at the sweep. `syncPms` gates the
+    // flush on `syncDirection === 'two_way'` (sync.ts:252) and that is the
+    // only call site, so nothing — not even "Sync now" — drains this row
+    // again. Without the predicate the practice is pinned at `blocked` and
+    // the owner is told, every week forever, to ring them about a bridge
+    // that is running perfectly well. And the practice most likely to have
+    // flipped that toggle is one whose bridge WAS down: exactly who this
+    // alarm exists for.
+    seedOrg('org_a', 'Ash Dental')
+    seedWork('org_a', 1, 40)
+    seedWriteOp('org_a', 40, { connDirection: 'import' })
+
+    const sweep = await sweepEngineHealth(NOW)
+    expect(sweep.reports[0].signals.pmsWriteOpsParked).toBe(0)
+    expect(sweep.reports[0].verdict.state).toBe('healthy')
+  })
+
+  it('ignores an auto-sync-off practice — nothing has tried, so we know nothing about their bridge', async () => {
+    // The hourly job never selects them (cron/pms-sync/route.ts:73). This
+    // verdict's whole claim is that their practice system is unreachable,
+    // and we have no evidence for that when nothing attempted to reach it.
+    // Same posture getPmsHealth takes with this column (health.ts:128).
+    seedOrg('org_a', 'Ash Dental')
+    seedWork('org_a', 1, 40)
+    seedWriteOp('org_a', 40, { connAutoSync: 0 })
+
+    const sweep = await sweepEngineHealth(NOW)
+    expect(sweep.reports[0].signals.pmsWriteOpsParked).toBe(0)
+  })
+
+  it('counts appointments only — an orphaned patient op is undrainable, and is not a booking', async () => {
+    // `retryPendingWrites` drives ['appointment','commlog'] (sync.ts:1150);
+    // a 'patient' op rides the appointment leg, so one whose appointment
+    // has since errored out at the cap is never driven again. And the
+    // headline counts BOOKINGS — a patient op is a precondition of one and
+    // a commlog is a mirrored chart note, so counting either would make the
+    // number disagree with the word beside it.
+    seedOrg('org_a', 'Ash Dental')
+    seedWork('org_a', 1, 40)
+    seedWriteOp('org_a', 9, { entityType: 'patient' })
+    seedWriteOp('org_a', 9, { entityType: 'commlog' })
+    seedWriteOp('org_a', 7)
+
+    const sweep = await sweepEngineHealth(NOW)
+    expect(sweep.reports[0].signals.pmsWriteOpsParked).toBe(1)
+    expect(sweep.reports[0].signals.pmsWriteOpParkedDays).toBe(7)
+    expect(sweep.reports[0].verdict.headline).toContain('1 booking has')
   })
 
   it('keeps each practice’s queue to itself — one grouped read, one clinic per row', async () => {

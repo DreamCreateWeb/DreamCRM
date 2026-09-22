@@ -405,24 +405,60 @@ export interface ParkedWrites {
  * fifth per-clinic read to answer "is anything stuck?" would be the wrong
  * side of it at fifty practices.
  *
- * Three narrowings, each of which is a decision rather than a filter:
+ * ONE RULE GENERATES EVERY NARROWING BELOW: only count a row that something
+ * is still actively trying to deliver.
+ *
+ * A row nothing will ever drive again cannot clear, so alarming on it pins
+ * that practice at `blocked` and re-raises it every `RE_ALERT_DAYS` for the
+ * life of the account — the crying-wolf failure this primitive exists to
+ * avoid, caused by the fix for the opposite one. The first draft of this
+ * query applied that rule one predicate short and PR #640's review caught
+ * it, so the rule is stated once here rather than re-argued per line.
  *
  *  - 'pending' ONLY, not the `['pending','error']` pair every other reader
  *    of this table treats as open. Those two lanes are different facts.
  *    'pending' IS the WAITING lane — the bridge is unreachable, the op is
  *    still being re-driven every sync, and it CLEARS ITSELF the moment the
  *    server answers, which is exactly what an alarm with a stand-down
- *    needs. An op in the 'error' lane past `MAX_WRITE_ATTEMPTS` is never
- *    retried again and nothing in the product can ever resolve it, so
- *    alarming on it would pin that practice at `blocked` and re-alert the
- *    owner every week for the life of the account — the crying-wolf failure
- *    this primitive is built to avoid. That lane is its own gap and is
- *    written up as its own ledger entry, per the one-defect-one-entry rule.
- *  - CONNECTED practices only. `disconnectPms` deliberately keeps write-op
- *    history for the audit trail and `retryPendingWrites` only ever runs for
- *    a live connection, so a practice that disconnected last spring carries
- *    pending rows that nothing will ever drive again. Same permanent-alarm
- *    shape as the error lane, same answer.
+ *    needs. An op in the 'error' lane past `MAX_WRITE_ATTEMPTS` is skipped
+ *    forever at sync.ts:1155 and nothing in the product can resolve it.
+ *  - entityType 'appointment' ONLY. Two reasons, and either alone would do
+ *    it. (a) `retryPendingWrites` drives `['appointment','commlog']`
+ *    (sync.ts:1150); a 'patient' op is driven only INDIRECTLY, through
+ *    `ensurePatientInPms` on the appointment leg, so one left 'pending'
+ *    whose appointment op has since landed in 'error' at the cap is
+ *    orphaned — the same undrainable class as the lane above. (b) The
+ *    headline counts BOOKINGS. A patient op is a precondition of a booking
+ *    rather than one, and a commlog is a mirrored chart note, so counting
+ *    either would make the number disagree with the word beside it — this
+ *    phase's signature defect. The commlog exclusion is a real, accepted
+ *    gap: a down bridge with chart notes queued and no bookings queued goes
+ *    unreported until their next booking parks. It rides the ledger entry
+ *    on stranded write-ops rather than being smuggled in under "bookings".
+ *  - CONNECTED, TWO-WAY, AUTO-SYNC-ON practices only — three clauses, one
+ *    question: is anything actually going to try? All three are live
+ *    clinic-facing buttons on the Integrations page, not rare states.
+ *      · `disconnectPms` deliberately keeps write-op history for the audit
+ *        trail, and nothing drives a dead connection.
+ *      · DIRECTION is the one that blocked PR #640's first round, and it is
+ *        the sharpest of the three: `syncPms` gates the flush on
+ *        `syncDirection === 'two_way'` (sync.ts:252) and that is the ONLY
+ *        call site, so "Sync now" does not drain it either. Every enqueue
+ *        path already refuses unless two-way — but `setSyncDirection`
+ *        (connection.ts:142) is a bare UPDATE with no drain, so flipping the
+ *        toggle to "Import only" STRANDS whatever is already queued,
+ *        permanently. The practice most likely to flip it is the one whose
+ *        bridge is down: exactly who this alarm is for, told to ring a
+ *        practice about a bridge that is fine, every week, forever.
+ *      · AUTO-SYNC off means the hourly job never selects them at all
+ *        (`app/api/cron/pms-sync/route.ts:73`). A manual "Sync now" would
+ *        still drain a two-way connection, so this is the softest of the
+ *        three — but nothing has TRIED, so we have no evidence about their
+ *        bridge, and this verdict's whole claim is that their bridge is
+ *        unreachable. Silence on a state we have no evidence for is the
+ *        posture the rest of this signal takes, and it is the posture
+ *        `getPmsHealth` already takes with the same column: it refuses to
+ *        raise staleness unless `autoSyncEnabled === 1` (health.ts:128).
  *  - CUT OFF at the threshold, in SQL. The alarm is about age, so the
  *    predicate belongs where the `(organization_id, created_at)` index can
  *    serve it, and the count that comes back is then the number the owner's
@@ -459,8 +495,11 @@ export function parkedWritesQuery(
     .where(
       and(
         eq(schema.pmsWriteOp.status, 'pending'),
+        eq(schema.pmsWriteOp.entityType, 'appointment'),
         lt(schema.pmsWriteOp.createdAt, parkedBefore),
         eq(schema.pmsConnection.status, 'connected'),
+        eq(schema.pmsConnection.syncDirection, 'two_way'),
+        eq(schema.pmsConnection.autoSyncEnabled, 1),
       ),
     )
     .groupBy(schema.pmsWriteOp.organizationId)
