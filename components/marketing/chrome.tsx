@@ -70,7 +70,7 @@ function ChildLink({
           under the 12px floor `BRAND.md` Part 4 sets — and `gray-500` is 5.30
           on white against `gray-600`'s 6.91, the quiet-ink direction the
           design system already picked. Both corrected on DREAMCRM-72; the
-          first is now held by `tests/marketing/chrome-legibility.test.ts`. */}
+          first is now held by `tests/marketing/type-floor.test.ts`. */}
       {child.description && (
         <span className="mt-0.5 block text-[0.78rem] leading-snug text-gray-600">{child.description}</span>
       )}
