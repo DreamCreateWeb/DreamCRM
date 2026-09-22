@@ -1042,7 +1042,16 @@ binding are all correct. The payment-plan charger was the exception.
   in a text, a Slack, or a tweet, and it contradicts the $200 on the page it
   links to. Repro: `curl -I https://www.dreamcreatestudio.com/opengraph-image`
   or paste the URL into any link-unfurling client. Marketing lane, not folded
-  into DREAMCRM-38's prospecting fix. · OPEN.
+  into DREAMCRM-38's prospecting fix. · **FIXED** (DREAMCRM-80, #629,
+  `0478d105`) — `app/opengraph-image.tsx:87` renders the price through
+  `usd(getQuotedPlan().price)`, and the file sits on `PRICE_QUOTING_ROUTES` in
+  `tests/marketing/pricing-price-source.test.tsx`, so the number cannot drift
+  back as a literal. **Fixed in a move-6 page PR and never closed here**, which
+  is the shape DREAMCRM-101's batch was about: three of the five price-truth
+  entries on this ledger had already landed and the ledger was the last thing
+  to know. §1's "reconcile the entry when that PR lands on `main`" is the rule
+  that would have caught all three, and it costs nothing when it is done in the
+  same breath as confirming the merge.
 - S3 · `app/(marketing)/pricing/price-card.tsx:14` — the public pricing page
   carries its OWN `LIST_MONTHLY/RATE_MONTHLY/LIST_ANNUAL/RATE_ANNUAL`
   literals rather than reading `lib/stripe-config.ts`, whose `price` /
@@ -1051,7 +1060,15 @@ binding are all correct. The payment-plan charger was the exception.
   same shape as the deal-room map one reprice before it drifted, filed now
   because that is the only time it is cheap. Repro: change `premium.price`
   in stripe-config and note the pricing page keeps saying 200 while
-  checkout charges the new number. · OPEN.
+  checkout charges the new number. · **FIXED** (DREAMCRM-75, #620,
+  `e9c58e44`) — the four literals are gone; the page reads
+  `const PLAN = getQuotedPlan()` and passes the numbers into the card as props.
+  Held by `tests/marketing/pricing-price-source.test.tsx`, which is the narrow
+  first version of the general guard this entry's sibling at :1085 asks for: it
+  mocks the plan to numbers no literal in the repo could match and checks the
+  page FOLLOWS them — the assertion an equality check against today's config
+  would have passed through the entire life of the defect. Closed late for the
+  same reason as :1039 above.
 - S3 · `lib/services/demo-clinic/seed-partners.ts:109` — the demo seeds
   partner commissions off a `$500/mo` invoice (`invoiceCents = 50000`), so
   the demo partner portal shows $50 per practice per month while
@@ -1063,25 +1080,56 @@ binding are all correct. The payment-plan charger was the exception.
   month": the pre-collapse three-tier range, on a page a prospect can read
   while a presenter quotes them $200. Marketing lane. Repro: open
   `/blog/dreamcrm-is-live` (or whatever slug that entry carries) and read the
-  first paragraph. · OPEN.
+  first paragraph. · **FIXED** (DREAMCRM-101, #660, `53c8bd23`) — the seed
+  copy interpolates `getQuotedPlan()`, and because `LAUNCH_POSTS` is read only
+  when a post does not exist yet, the row ALREADY PUBLISHED is corrected by an
+  exact-sentence pass in `seedPlatformBlogPosts` (`correctLaunchPostBody`, pure
+  and exported so it is graded without a database). Exact matching is what
+  keeps a post edited in the Posts manager from being overwritten on a deploy.
+  `lib/services/marketing-blog.ts` joins `PRICE_QUOTING_ROUTES` as the tenth
+  surface, and it is the CONTENT shape that scan's header predicted one move
+  earlier. **Worth carrying: neither of that guard's assertions could have
+  found this one.** The drift was a RANGE — `$150` is nobody's price and the
+  `500` carries no dollar sign — so the literal scan correctly reported clean,
+  and the render-the-page assertion cannot see copy that lives in a database
+  row. A human writing this ledger entry found it. That is a second argument
+  for :1085's general rule matching PROSE SPELLINGS, and a new one that a
+  RANGE-shaped quote needs its own pattern.
 - S3 · `lib/types/social-entitlements.ts:12` — the comment table documenting
   the social add-on still prices the tiers `Pro ($250) | Premium ($500)`. A
   comment, so nothing renders it, but it is the file the next person reads to
   learn what a tier costs and it teaches them the list price. Repro: read the
   header. · OPEN.
-- S3 · the two struck-through list prices name themselves with `aria-label` on
-  a bare `<span>` — `app/(marketing)/pricing/price-card.tsx:55` and
-  `app/(default)/platform/prospecting/prospect-drawer.tsx:344`. ARIA prohibits
-  an accessible name on `role=generic`, so that label is author error: NVDA and
-  JAWS honour it in practice and other combinations are entitled not to, in
-  which case the reader gets "$500 $200/mo" as one run with nothing saying
-  which number is dead. Repro: a screen reader on the public pricing page, or
-  on any prospect's deal room. Fix shape: a visually-hidden text node, or move
-  the label onto an element that can carry a name (`<s>`/`<del>`) — across BOTH
-  sites, since a quiet deviation on one of two identical surfaces is worse than
-  a consistent imperfection. Raised by Sentinel reviewing DREAMCRM-38, where
-  the deal-room half was written to match the existing sibling deliberately
-  rather than diverge from it. · OPEN.
+- S3 · the MARKETING struck-through list price named itself with `aria-label`
+  on a bare `<span>` — `app/(marketing)/pricing/price-card.tsx:55`. ARIA
+  prohibits an accessible name on `role=generic`, so that label is author
+  error: NVDA and JAWS honour it in practice and other combinations are
+  entitled not to, in which case the reader gets "$500 $200/mo" as one run with
+  nothing saying which number is dead. Repro: a screen reader on the public
+  pricing page. · **FIXED** (DREAMCRM-75, #620, `e9c58e44`) — the card carries
+  a real visually-hidden text node (`sr-only` "Regular price" at `:157`, with a
+  second supplying the sentence break at `:167`) instead of an attribute on an
+  element that cannot hold a name.
+- S3 · the DEAL-ROOM struck-through list price still names itself with
+  `aria-label` on a bare `<span>` —
+  `app/(default)/platform/prospecting/prospect-drawer.tsx:344`. The same ARIA
+  defect as its marketing sibling above, on the surface the owner presents
+  from. Repro: a screen reader on any prospect's deal room. Fix shape: match
+  what `price-card.tsx` now does — a visually-hidden text node, or move the
+  label onto an element that can carry a name (`<s>`/`<del>`) — since a quiet
+  deviation on one of two identical surfaces is worse than a consistent
+  imperfection. Owned by Vesper's DREAMCRM-98, deliverable 4. · OPEN.
+  **SPLIT on 2026-09-22 (DREAMCRM-101) out of the single entry that had covered
+  both surfaces**, and the split is §1's rule arriving one step late rather
+  than on contact: #620 fixed the marketing half and not the in-app half, so
+  the bundled entry could not be closed honestly and went on reading `OPEN`
+  while half of it was shipped. Raised originally by Sentinel reviewing
+  DREAMCRM-38, where the deal-room half was written to MATCH its existing
+  sibling deliberately rather than diverge from it — which is exactly why one
+  entry looked right at write time and stopped being right the moment one side
+  moved. **Two surfaces that are deliberately identical are still two
+  defects**, and the identical-by-design argument is the one that most reliably
+  produces a bundled entry.
 - S3 · nothing in the repo fails when a plan price is pasted somewhere new.
   Four separate surfaces had drifted to quoting $500 (the deal room, the demo
   track picker, the demo script's closing line, the launch blog post) and the
@@ -2593,8 +2641,27 @@ a commlog write-op parks identically and is excluded from DREAMCRM-68's count
 because that headline says "bookings" (so a down bridge with chart notes
 queued and NO bookings queued goes unreported until their next booking
 parks), and `setSyncDirection` arguably owes a drain or a warning rather than
-silently stranding a queue. · OPEN — for planning-meeting ranking; not 1.0
-work unless the meeting says so.
+silently stranding a queue. · OPEN — **RANKED NOT 1.0 by the DREAMCRM-96
+planning meeting, 2026-09-22.** The ranking is recorded rather than the item
+re-argued, and the reason is the one already written above: closing this needs
+a RESOLUTION PATH before it needs a query, and that is a product decision. An
+item whose next step is a decision cannot be scheduled as work, so putting it
+in a release would have bought a query nobody could act on.
+
+Note what the ranking is NOT: it is not `STRUCK BY DECISION`. §1 allows a
+strike only where the item is genuinely not a check, and this one names real
+stranded rows that no human can reach — its reopen condition would have to be
+"somebody decides", which is not a condition, it is the item. A deferral that
+has been recorded with its reason is a different thing from a habit, and this
+entry is now the former.
+
+The `setSyncDirection` rider named in the paragraph above — door 2, the bare
+UPDATE with no drain — was PROMOTED SEPARATELY by the same meeting onto Rio's
+DREAMCRM-99 slate as the warning slice. It is separable precisely because it
+needs no product decision: warning somebody that pressing "Import only" strands
+a queued write is true whatever the resolution path turns out to be. The other
+rider, the commlog write-op excluded from DREAMCRM-68's count, stays here with
+the parent — it has the same unanswered question.
 
 ### Slice 13 — the insurance-card scanner only reads our own storage · DONE
 
