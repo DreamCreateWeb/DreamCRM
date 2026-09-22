@@ -119,6 +119,73 @@ export function isReservedUndeliverableAddress(to: string): boolean {
   return RESERVED_TLDS.includes(tld)
 }
 
+/**
+ * How long ONE `deliver()` call may take, end to end, across every transport
+ * it tries. Override with EMAIL_TIMEOUT_MS.
+ *
+ * Why there is a number here at all: until DREAMCRM-89 there was none, on any
+ * transport — the Gmail token fetch and send, SES and Resend all ran to the
+ * default socket timeout (minutes). That was survivable while every
+ * patient-facing caller fired and forgot; #599 put an AWAITED send inside the
+ * public booking action, so a hung provider became a patient sitting on a
+ * spinner after their visit was already committed. The appointment row is
+ * committed before the send and `insertAppointmentIfBookable`'s advisory
+ * re-check means a resubmit cannot double-book — the cost was purely the wait,
+ * and this is the ceiling on it.
+ *
+ * 10s is chosen against the slowest thing on the same request: that booking
+ * path already awaits a Stripe Checkout call for the deposit. A send that has
+ * not come back in ten seconds is not one the patient should keep waiting on,
+ * and the booking screen has an honest sentence for it — `not_sent` tells them
+ * to save their details, which a timeout now reaches in bounded time instead of
+ * at the socket timeout.
+ */
+const DEFAULT_DELIVER_TIMEOUT_MS = 10_000
+
+function deliverTimeoutMs(): number {
+  const raw = Number(process.env.EMAIL_TIMEOUT_MS)
+  return Number.isFinite(raw) && raw > 0 ? raw : DEFAULT_DELIVER_TIMEOUT_MS
+}
+
+/** A transport that did not answer inside the budget. Distinct from a provider
+ *  REJECTION — nothing is known about whether this message was sent, which is
+ *  why `deliver()`'s callers must treat it as "not sent" rather than "failed". */
+export class EmailTimeoutError extends Error {
+  constructor(transport: string, ms: number) {
+    super(`${transport} did not respond within ${ms}ms`)
+    this.name = 'EmailTimeoutError'
+  }
+}
+
+/**
+ * Race `work` against a deadline. The losing promise is NOT cancelled — no
+ * transport here exposes an abort handle — so it is left with a no-op catch
+ * attached: an HTTP call that eventually fails after we stopped waiting must
+ * not surface as an unhandled rejection and take the process down.
+ */
+async function withDeadline<T>(work: PromiseLike<T> | T, ms: number, transport: string): Promise<T> {
+  // `Promise.resolve` rather than assuming a promise: a transport adapter that
+  // returns synchronously is not a reason for the one shared send path to throw
+  // a TypeError.
+  const pending = Promise.resolve(work)
+  void pending.catch(() => {})
+  if (ms <= 0) throw new EmailTimeoutError(transport, 0)
+  let timer: ReturnType<typeof setTimeout> | undefined
+  try {
+    return await Promise.race([
+      pending,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new EmailTimeoutError(transport, ms)), ms)
+        // A pending send must never be the reason a process (or a test run)
+        // stays alive.
+        ;(timer as unknown as { unref?: () => void }).unref?.()
+      }),
+    ])
+  } finally {
+    if (timer) clearTimeout(timer)
+  }
+}
+
 export async function deliver(msg: {
   to: string
   subject: string
@@ -153,20 +220,39 @@ export async function deliver(msg: {
   const from = msg.from?.trim() || FROM
   const replyTo = msg.replyTo?.trim() || undefined
 
+  // ONE budget for the whole call, shared across the tiers below, so every
+  // caller gets a single promise about how long `deliver()` can take rather
+  // than a per-transport number they would have to add up themselves.
+  const budgetMs = deliverTimeoutMs()
+  const startedAt = Date.now()
+  const remainingMs = () => budgetMs - (Date.now() - startedAt)
+
   // Tier 2 — send AS the clinic's own Google mailbox via the Gmail API. If the
   // connection is broken (token revoked, etc.) we DON'T fail the send: fall
   // through to the platform sender so the patient still gets the email.
-  if (msg.gmail) {
+  const gmail = msg.gmail
+  if (gmail) {
     try {
+      // HALF the budget at most. Gmail is a best-effort first tier with a
+      // fallback underneath it, and letting a hung Gmail eat the whole budget
+      // would leave the platform sender no room to run — turning a tier that
+      // exists to improve delivery into one that prevents it.
+      const gmailBudgetMs = Math.min(remainingMs(), Math.ceil(budgetMs / 2))
       const { getAccessToken, sendMessage } = await import('./services/gmail')
-      const token = await getAccessToken(msg.gmail.accountId)
-      await sendMessage(token, {
-        from: msg.gmail.from,
-        to: [msg.to],
-        subject: msg.subject,
-        bodyText: htmlToText(msg.html),
-        bodyHtml: msg.html,
-      })
+      await withDeadline(
+        (async () => {
+          const token = await getAccessToken(gmail.accountId)
+          await sendMessage(token, {
+            from: gmail.from,
+            to: [msg.to],
+            subject: msg.subject,
+            bodyText: htmlToText(msg.html),
+            bodyHtml: msg.html,
+          })
+        })(),
+        gmailBudgetMs,
+        'Gmail',
+      )
       return
     } catch (err) {
       console.warn(
@@ -179,7 +265,11 @@ export async function deliver(msg: {
   if (emailDriver() === 'ses') {
     const { sendEmailViaSes } = await import('./ses')
     try {
-      await sendEmailViaSes({ from, to: msg.to, subject: msg.subject, html: msg.html, replyTo })
+      await withDeadline(
+        sendEmailViaSes({ from, to: msg.to, subject: msg.subject, html: msg.html, replyTo }),
+        remainingMs(),
+        'SES',
+      )
     } catch (err) {
       console.warn('[email] SES delivery failed:', err instanceof Error ? `${err.name}: ${err.message}` : err)
       throw new Error(friendlyEmailError(err))
@@ -193,14 +283,18 @@ export async function deliver(msg: {
     // domain, rejected recipient) — it RETURNS `{ data, error }`. If we don't
     // inspect `error`, a failed send is silently reported as success: the app
     // shows "sent" while nothing is ever delivered. So check it and throw.
-    const res = await new Resend(key).emails.send({
-      from,
-      to: msg.to,
-      subject: msg.subject,
-      html: msg.html,
-      ...(replyTo ? { replyTo } : {}),
-      ...(msg.tags?.length ? { tags: msg.tags } : {}),
-    })
+    const res = await withDeadline(
+      new Resend(key).emails.send({
+        from,
+        to: msg.to,
+        subject: msg.subject,
+        html: msg.html,
+        ...(replyTo ? { replyTo } : {}),
+        ...(msg.tags?.length ? { tags: msg.tags } : {}),
+      }),
+      remainingMs(),
+      'Resend',
+    )
     if (res?.error) throw res.error
   } catch (err) {
     console.warn('[email] Resend delivery failed:', err instanceof Error ? `${err.name}: ${err.message}` : JSON.stringify(err))
@@ -212,6 +306,12 @@ export async function deliver(msg: {
  *  Handles both thrown Errors (SES) and Resend's returned `{ name, message }`
  *  error object. */
 function friendlyEmailError(err: unknown): string {
+  // A deadline is not a rejection: the provider never answered, so we do not
+  // know whether this message went out. Say "didn't go through" rather than
+  // borrowing the generic retry line, which reads as a refusal.
+  if (err instanceof EmailTimeoutError) {
+    return "The email service didn’t respond in time, so this message hasn’t gone out. Please try again."
+  }
   const raw =
     err instanceof Error
       ? `${err.name} ${err.message}`
