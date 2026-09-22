@@ -209,7 +209,7 @@ export default function IntakeStartForm({ orgId, clinicName, brand, purpose = 'i
         />
 
         {errorMsg && (
-          <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{errorMsg}</p>
+          <p className="text-sm text-rose-700 bg-rose-50 px-3 py-2 rounded-lg">{errorMsg}</p>
         )}
 
         <button

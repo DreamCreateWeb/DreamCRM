@@ -133,7 +133,7 @@ export default function CopilotBar() {
       >
         <span aria-hidden="true">✨</span>
         Ask the copilot
-        <kbd className="ml-1 hidden sm:inline rounded bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 text-xs font-medium text-gray-500 dark:text-gray-400">
+        <kbd className="ml-1 hidden sm:inline rounded bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 text-xs font-medium text-gray-500 dark:text-gray-300">
           ⌘J
         </kbd>
       </button>

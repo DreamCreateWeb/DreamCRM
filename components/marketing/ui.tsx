@@ -1421,7 +1421,7 @@ export function DashboardMock() {
         <span className="h-2.5 w-2.5 rounded-full bg-rose-300" />
         <span className="h-2.5 w-2.5 rounded-full bg-amber-300" />
         <span className="h-2.5 w-2.5 rounded-full bg-emerald-300" />
-        <span className="ml-3 rounded-md bg-white px-2 py-0.5 text-[0.62rem] font-medium text-gray-400">
+        <span className="ml-3 rounded-md bg-white px-2 py-0.5 text-[0.62rem] font-medium text-gray-500">
           www.dreamcreatestudio.com
         </span>
       </div>
@@ -1708,7 +1708,7 @@ export function EditorMock() {
         <span className="h-2.5 w-2.5 rounded-full bg-rose-300" />
         <span className="h-2.5 w-2.5 rounded-full bg-amber-300" />
         <span className="h-2.5 w-2.5 rounded-full bg-emerald-300" />
-        <span className="ml-3 rounded-md bg-white px-2 py-0.5 text-[0.62rem] font-medium text-gray-400">
+        <span className="ml-3 rounded-md bg-white px-2 py-0.5 text-[0.62rem] font-medium text-gray-500">
           acme-dental.dreamcreatestudio.com
         </span>
         <span className={`ml-auto rounded-full ${MOCK_PILL} px-2 py-0.5 text-[0.6rem] font-bold`}>Editing</span>

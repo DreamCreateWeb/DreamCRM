@@ -13,13 +13,13 @@ export const OrdersProperties = () => {
       case 'processing':
         return 'bg-blue-500/20 text-blue-700'
       case 'pending':
-        return 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400'
+        return 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-300'
       case 'refunded':
         return 'bg-yellow-500/20 text-yellow-700'
       case 'cancelled':
         return 'bg-red-500/20 text-red-700'
       default:
-        return 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400'
+        return 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-300'
     }
   }
 

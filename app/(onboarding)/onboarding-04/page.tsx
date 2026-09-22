@@ -7,6 +7,7 @@ import OnboardingImage from '../onboarding-image'
 import OnboardingProgress from '../onboarding-progress'
 import { submitOnboarding } from '../actions'
 import { isDeploymentSkewError } from '@/lib/auth/submit-guard'
+import { TONE_PILL } from '@/lib/ui/encodings'
 import { clearOnboardingState, loadOnboardingState } from '@/lib/onboarding/storage'
 import { TRIAL_DAYS } from '@/lib/trial'
 import { ActionButton } from '@/components/ui/action-button'
@@ -126,7 +127,7 @@ export default function Onboarding04() {
                   )}
 
                   {error && (
-                    <div className="text-sm text-rose-600 bg-rose-50 dark:bg-rose-500/10 px-3 py-2 rounded">{error}</div>
+                    <div className={`text-sm ${TONE_PILL.urgent} px-3 py-2 rounded`}>{error}</div>
                   )}
 
                   <ActionButton type="submit" variant="primary" pending={pending} className="w-full">

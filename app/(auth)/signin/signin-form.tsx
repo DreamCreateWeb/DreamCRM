@@ -167,7 +167,7 @@ export default function SignInForm() {
       <button
         type="submit"
         disabled={loading}
-        className="btn w-full mt-6 bg-teal-600 text-white hover:bg-teal-700 dark:bg-teal-500 dark:text-gray-900 dark:hover:bg-teal-400 disabled:opacity-60"
+        className="btn w-full mt-6 bg-teal-600 text-white hover:bg-teal-700 disabled:opacity-60"
       >
         {loading ? (magicMode ? 'Sending…' : 'Signing In…') : magicMode ? 'Email me a link' : 'Sign In'}
       </button>

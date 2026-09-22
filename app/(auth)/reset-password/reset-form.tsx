@@ -56,7 +56,7 @@ export default function ResetForm() {
   // the only feedback that the link went out is visual.
   if (sent) {
     return (
-      <div role="status" className="text-sm text-green-700 bg-green-50 dark:bg-green-500/10 px-3 py-3 rounded">
+      <div role="status" className={`text-sm ${TONE_PILL.ok} px-3 py-3 rounded`}>
         If an account exists for <strong>{email}</strong>, a reset link has been sent.
       </div>
     )
@@ -89,7 +89,7 @@ export default function ResetForm() {
         <button
           type="submit"
           disabled={loading}
-          className="btn w-full bg-teal-600 text-white hover:bg-teal-700 dark:bg-teal-500 dark:text-gray-900 dark:hover:bg-teal-400 disabled:opacity-60"
+          className="btn w-full bg-teal-600 text-white hover:bg-teal-700 disabled:opacity-60"
         >
           {loading ? 'Sending…' : 'Send reset link'}
         </button>
