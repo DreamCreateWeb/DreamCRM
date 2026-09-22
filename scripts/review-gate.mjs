@@ -235,6 +235,25 @@ export const GATE_RULES = [
       // Same principle, checked on the same pass: both open a Stripe checkout.
       'app/(default)/billing/activate/actions.ts', // createActivationCheckout
       'app/(onboarding)/actions.ts', // provisions the plan tier at signup
+      // THE CLINIC'S OWN SUBSCRIPTION (DREAMCRM-97). Found the way #569's and
+      // #599's were — by its author, while fixing an unrelated defect in the
+      // same file — and widened in that PR rather than deferred. This is where
+      // a clinic BUYS: `startStripeCheckout` opens a Checkout session and,
+      // for a clinic that already has a live subscription, swaps the price in
+      // place with proration; `openBillingPortal` opens the surface that can
+      // cancel the subscription and change the card; `cancelSubscriptionAction`
+      // / `reactivateSubscriptionAction` end and resume a paid plan; and
+      // `buySocialAddonAction` adds a paid subscription item. Every one of
+      // those moves real money, and the whole file reported "merges on green"
+      // — the activate sibling two lines up was on the rule and the primary
+      // purchase path was not, which is the quiet-wrong case rather than a
+      // near miss. The `lib/services/*billing*.ts` pattern covers the service
+      // it calls, never the action that decides to call it.
+      //
+      // The file rather than `app/(default)/settings/**`: the settings tree is
+      // overwhelmingly presentation, and gating it wholesale is the objection
+      // the shop and payments trees already raised and won.
+      'app/(default)/settings/actions.ts',
     ],
   },
   {
