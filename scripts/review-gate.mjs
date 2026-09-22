@@ -370,7 +370,18 @@ export const GATE_RULES = [
  *   2. IT GRADES THE PALETTE. `tests/a11y/palette.ts` is the one place this
  *      repo resolves its own colours and computes AA, so a rule built on it is
  *      a rule about every colour in the product whether or not it opens a
- *      directory (#598).
+ *      directory (#598). **The mechanical evidence is the BINDING, not the
+ *      import** (narrowed 2026-09-22, #636): the module exports both facts
+ *      about this repo's colours — `AA`, `LIGHT`, `DARK`, `token`,
+ *      `utilityColor`, `SURFACES` — and arithmetic that would work on
+ *      anybody's (`contrast`, `hexToRgb`, `over`, `luminance`, `parseColor`),
+ *      plus the `ROOT` path constant. Reaching for a FACT is asking the repo
+ *      what its colours are; borrowing the arithmetic is using this module as
+ *      a library, and grades only the hexes the borrower typed itself. Keying
+ *      on the file swept in four library users, three of them documented as
+ *      tripping it "by luck rather than on the merits" and harmless only
+ *      because they earned their entries elsewhere. #636 was the first where
+ *      the luck was load-bearing.
  *   3. IT NAVIGATES PAGES IT DID NOT NAME (DREAMCRM-81). A browser-driven spec
  *      reads no source at all, so both predicates above correctly return false
  *      about it while it asserts about a whole site — which is why
@@ -569,11 +580,18 @@ export const INTAKE_RULES = [
       // its list is not graded, which is why a premise assertion fails loudly
       // on a rename instead of quietly scanning nothing.
       'tests/marketing/chrome-legibility.test.ts',
-      // The living stage's particle layer (BRAND.md Part 6, 2026-09-22):
-      // asserts MOTE_ALPHA_MAX against the stage's graded inks through
-      // `tests/a11y/palette.ts` — a palette-grading assertion that walks no
-      // tree, the exact #598 shape this list exists for.
-      'tests/marketing/cinema-fx.test.ts',
+      // NOT HERE, DELIBERATELY: `tests/marketing/cinema-fx.test.ts`. #636
+      // registered it on 2026-09-22 with the reason "a palette-grading
+      // assertion that walks no tree, the exact #598 shape this list exists
+      // for", and that reason does not hold (Forge's ruling, same day, on
+      // Sentinel's referral). #598's shape is a rule about every colour in the
+      // PRODUCT; that file imports `contrast`, `hexToRgb` and `over` and
+      // applies them to six hex literals typed in its own body. It asserts one
+      // constant in one module and can fail no stranger's PR, which is the
+      // test the `brand-as-text` ruling settled. What put it here was a false
+      // positive of derivation 2, cleared by registering the file — the one
+      // remedy the conventions rule out. The predicate moved instead; see
+      // `importedBindings` in tests/guards/review-gate.test.ts.
       // ── THE TEN THE FIXED TREE-WALK DERIVATION FOUND (DREAMCRM-81) ──────
       //
       // None of these is new. Every one has been walking a product tree for
