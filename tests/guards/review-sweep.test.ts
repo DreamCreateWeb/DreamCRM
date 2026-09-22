@@ -21,11 +21,13 @@ import {
   lastGreenAt,
   newSince,
   renderSummary,
+  WAKE_STEP_NAME,
   previousRunAt,
   reviewRecord,
   sweep,
   wakeDecision,
   windowGap,
+  wokeForge,
 } from '../../scripts/review-sweep.mjs'
 import { effectiveContexts, runsOnPullRequest } from '../../scripts/rulebook-drift.mjs'
 
@@ -590,6 +592,119 @@ describe('the wake anchor survives `main()` (the ringer, for the wake)', () => {
   })
 })
 
+/**
+ * THE ANCHOR IS A RUN THAT TOLD FORGE SOMETHING, not merely a run.
+ *
+ * The first version of this narrowing anchored on the previous run whatever it
+ * did. Sentinel's second pass found the hole: a run that SUPPRESSED a due wake
+ * is still a run, so it would advance the anchor and the entry it declined to
+ * wake for would read as standing from the next morning on — never dispatched
+ * at all. One throttled lookup on the single morning an entry is new, and Forge
+ * is never told, which is the state #658 and #659 sat in.
+ *
+ * MEASURED, because the design turns on it and guessing here is how the wrong
+ * thing ships: GitHub's jobs API applies `continue-on-error` to the STEP's
+ * conclusion. Run `35780097119`'s `Configure AWS credentials` step really
+ * failed — the IAM role does not exist — and the API reports
+ * `"conclusion": "success"` for it, while the genuinely skipped scan step
+ * reports `"skipped"`. So a `continue-on-error` step can never report failure
+ * here, and `Wake Forge` therefore carries no `continue-on-error` and fails for
+ * real when a due wake did not happen.
+ *
+ * That costs the job nothing it was not already paying: a wake is only DUE when
+ * there are unsatisfied intake entries newer than the last green run, and those
+ * redden the run anyway. `wakeDecision` checks the green instant first
+ * precisely so that a failed anchor lookup on a quiet morning cannot manufacture
+ * a red.
+ */
+describe('was Forge up to date as of that run?', () => {
+  const job = (steps: { name: string; conclusion: string }[]) => ({ jobs: [{ steps }] })
+
+  it('a run that woke him counts, and so does one that owed nothing', () => {
+    // Both are `success` on that step, and both mean the same thing to the
+    // anchor: he is up to date as of then.
+    expect(wokeForge(job([{ name: WAKE_STEP_NAME, conclusion: 'success' }]))).toBe(true)
+  })
+
+  it('a run that SUPPRESSED a due wake does not count', () => {
+    // The hole this closes. Without it the entry reads as standing tomorrow and
+    // he is never told.
+    expect(wokeForge(job([{ name: WAKE_STEP_NAME, conclusion: 'failure' }]))).toBe(false)
+    expect(wokeForge(job([{ name: WAKE_STEP_NAME, conclusion: 'skipped' }]))).toBe(false)
+  })
+
+  it('an unreadable jobs payload errs towards NOT having told him', () => {
+    for (const bad of [null, {}, { jobs: null }, { jobs: [{}] }, { jobs: [{ steps: 'nope' }] }]) {
+      expect(wokeForge(bad as never), `${JSON.stringify(bad)} must not read as "he was told"`).toBe(false)
+    }
+  })
+
+  it('the step name the anchor hangs off exists in the workflow', () => {
+    const wf = readFileSync(join(process.cwd(), '.github/workflows/review-sweep.yml'), 'utf8')
+    expect(
+      wf,
+      `scripts/review-sweep.mjs looks for a step named "${WAKE_STEP_NAME}" to decide whether a run ` +
+        'told Forge anything, and no step in review-sweep.yml has that name.',
+    ).toContain(`- name: ${WAKE_STEP_NAME}`)
+  })
+
+  it('that step carries NO continue-on-error, or its failure is invisible', () => {
+    // MEASURED, not assumed — see this block's docblock. `continue-on-error`
+    // rewrites a failed step's conclusion to `success` in the jobs API, so the
+    // anchor would advance over exactly the runs it must not.
+    const wf = readFileSync(join(process.cwd(), '.github/workflows/review-sweep.yml'), 'utf8')
+    const lines = wf.split(/\r?\n/)
+    const start = lines.findIndex((l) => l.trimStart().startsWith('- name:') && l.includes(WAKE_STEP_NAME))
+    const block: string[] = [lines[start]]
+    for (let i = start + 1; i < lines.length; i++) {
+      if (lines[i].trim() && lines[i].trimStart().startsWith('- name:')) break
+      block.push(lines[i])
+    }
+    expect(
+      block.join('\n'),
+      'the `Wake Forge` step gained `continue-on-error`. GitHub then reports it as `success` even ' +
+        'when it failed (measured on run 35780097119), the anchor advances over a run that did ' +
+        'not tell Forge anything, and the entry it declined to wake for is never dispatched.',
+    ).not.toMatch(/^\s*continue-on-error:/m)
+  })
+
+  it('a quiet morning with a broken anchor lookup does NOT suppress — or redden', () => {
+    // The other direction, and the reason `wakeDecision` consults the green
+    // instant before the anchor. A green run owed no wake, so its `Wake Forge`
+    // step succeeded, so it is itself a candidate anchor — the anchor can never
+    // be older than the last green run. An entry older than that is therefore
+    // standing whatever the anchor lookup did, and saying so keeps a throttled
+    // API call from failing a step on a morning with nothing owed.
+    const standing = pr({
+      number: 658,
+      mergedAt: '2026-09-22T09:00:00Z',
+      labels: [{ name: INTAKE_LABEL }],
+    })
+    const d = wakeDecision({
+      intake: intakeSweep([standing], INTAKE_SWEPT_SINCE),
+      wakeAnchor: { at: null, run: null, why: 'throttled' },
+      lastGreen: { at: Date.parse('2026-09-22T12:00:00Z'), run: 1, why: null },
+    })
+    expect(d.reason, 'nothing was owed, so nothing was suppressed').toBe('standing-only')
+    expect(d.suppressed).toBeNull()
+  })
+
+  it('a genuinely new entry with a broken anchor lookup DOES suppress, and says so', () => {
+    const fresh = pr({
+      number: 659,
+      mergedAt: '2026-09-22T14:00:00Z',
+      labels: [{ name: INTAKE_LABEL }],
+    })
+    const d = wakeDecision({
+      intake: intakeSweep([fresh], INTAKE_SWEPT_SINCE),
+      wakeAnchor: { at: null, run: null, why: 'throttled' },
+      lastGreen: { at: Date.parse('2026-09-22T12:00:00Z'), run: 1, why: null },
+    })
+    expect(d.reason).toBe('undated')
+    expect(d.suppressed).toContain('DOES NOT ADVANCE THE ANCHOR')
+  })
+})
+
 describe('the wake anchor is the previous RUN, not the last green one', () => {
   const runs = [
     { databaseId: 9, conclusion: null, createdAt: '2026-09-23T06:47:00Z' },
@@ -624,6 +739,241 @@ describe('the wake anchor is the previous RUN, not the last green one', () => {
       expect(r.at).toBeNull()
       expect(r.why).toBeTruthy()
     }
+  })
+})
+
+/**
+ * THE TWO WAKE STEPS, EXECUTED — not read.
+ *
+ * WHY THIS EXISTS, and it is Sentinel's generalisation rather than mine: the
+ * recurring failure in this issue is **grading a representation of the thing
+ * instead of the thing**. Comments quoting code are one representation; a
+ * string in a YAML file standing in for the shell that will run it is another.
+ * Stripping comments fixes the first. Only executing it fixes the second — and
+ * #664 shipped a `join("\n")` inside a `run: |` block that silently became a
+ * backslash and an `n`, killing its whole anchor, because nothing ever ran it.
+ *
+ * Three mutations survived the read-only guards here, all of them in shell:
+ * the suppressed branch exiting 0, the unconfigured branch exiting 0, and the
+ * candidate list going back to a node `join`. Every one of them is caught by
+ * running the step.
+ *
+ * WHAT IS BEING PROTECTED. The `Wake Forge` step's EXIT CODE is the wake's
+ * anchor signal — `wokeForge` reads that step's conclusion out of the jobs API,
+ * and (measured on run `35780097119`) GitHub rewrites a `continue-on-error`
+ * step's conclusion to `success`, so the step has to fail for real. It may
+ * succeed only when Forge is up to date: woken, or owed nothing. Every state
+ * where a wake was DUE and did not happen has to exit non-zero, or the anchor
+ * advances over it and that entry is never dispatched.
+ */
+describe('the wake steps, executed against stubs', () => {
+  /** One step's `run:` block, dedented, straight out of the workflow file. */
+  function runBlock(name: string): string {
+    const lines = readFileSync(join(process.cwd(), '.github/workflows/review-sweep.yml'), 'utf8').split(/\r?\n/)
+    const start = lines.findIndex((l) => l.trimStart().startsWith('- name:') && l.includes(name))
+    expect(start, `no step named ${name} in review-sweep.yml`).toBeGreaterThan(-1)
+    const runAt = lines.findIndex((l, i) => i > start && /^\s*run: \|\s*$/.test(l))
+    expect(runAt, `step ${name} has no \`run: |\` block`).toBeGreaterThan(-1)
+
+    const body: string[] = []
+    const indent = lines[runAt + 1].length - lines[runAt + 1].trimStart().length
+    for (let i = runAt + 1; i < lines.length; i++) {
+      const l = lines[i]
+      if (l.trim() && l.length - l.trimStart().length < indent) break
+      body.push(l.slice(indent))
+    }
+    return body
+      .join('\n')
+      .replace(/\$\{\{ github\.repository \}\}/g, 'DreamCreateWeb/DreamCRM')
+      .replace(/\$\{\{ github\.run_id \}\}/g, '999')
+      .replace(/\$\{\{ secrets\.FORGE_INTAKE_WAKE_URL \}\}/g, '')
+      .replace(/node scripts\//g, `node ${join(process.cwd(), 'scripts').replace(/\\/g, '/')}/`)
+  }
+
+  // ------------------------------------------------------------- Wake Forge
+
+  function runWakeStep(wake: unknown, opts: { url?: string; postFails?: boolean } = {}) {
+    const dir = mkdtempSync(join(tmpdir(), 'wake-step-'))
+    if (wake !== undefined) writeFileSync(join(dir, 'wake.json'), JSON.stringify(wake))
+
+    // A stub `curl` rather than a mock: the defect class here lives in the
+    // ARGUMENTS and the QUOTING, which is exactly the layer a mock replaces.
+    writeFileSync(
+      join(dir, 'curl'),
+      ['#!/usr/bin/env bash', `printf '200'`, opts.postFails ? 'exit 22' : 'exit 0'].join('\n') + '\n',
+      { mode: 0o755 },
+    )
+    writeFileSync(join(dir, 'summary.md'), '')
+    writeFileSync(join(dir, 'step.sh'), runBlock('Wake Forge'))
+
+    const r = spawnSync('bash', ['step.sh'], {
+      cwd: dir,
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        PATH: `${dir}:${process.env.PATH}`,
+        WAKE_URL: opts.url ?? '',
+        GITHUB_STEP_SUMMARY: join(dir, 'summary.md'),
+      },
+    })
+    return { status: r.status, out: r.stdout ?? '', err: r.stderr ?? '' }
+  }
+
+  const URL = 'https://multica.example/api/webhooks/autopilots/awt_stub'
+
+  it('SUCCEEDS when it woke him', () => {
+    const r = runWakeStep({ wake: true, reason: 'intake' }, { url: URL })
+    expect(r.status, r.out + r.err).toBe(0)
+    expect(r.out).toContain('::notice::Forge woken')
+  })
+
+  it('SUCCEEDS when nothing was owed', () => {
+    // `clean` and `standing-only` both mean "he is up to date", which is what
+    // the anchor has to be able to advance over.
+    for (const reason of ['clean', 'standing-only']) {
+      const r = runWakeStep({ wake: false, reason })
+      expect(r.status, `${reason}: ${r.out}${r.err}`).toBe(0)
+    }
+  })
+
+  it('FAILS when a due wake was suppressed', () => {
+    // THE MUTATION THAT SURVIVED THE READ-ONLY GUARDS. `undated` means a wake
+    // was due and this run could not date the window, so it declined to send
+    // one. Exiting 0 lets the anchor advance over it, and the entry it
+    // declined to wake for reads as standing from tomorrow on — never
+    // dispatched at all.
+    const r = runWakeStep({ wake: false, reason: 'undated' })
+    expect(
+      r.status,
+      'a run that suppressed a due wake must not advance the anchor, so this step must fail',
+    ).not.toBe(0)
+  })
+
+  it('FAILS when the wake was due and the secret is unset', () => {
+    // Also survived the read-only guards. The JOB staying green here is the
+    // `error-scan.yml` contract — an unconfigured wake must not redden a
+    // working sweep — but the STEP is the anchor signal and a wake that did
+    // not happen is not "he was told".
+    const r = runWakeStep({ wake: true, reason: 'intake' }, { url: '' })
+    expect(r.status, 'an unconfigured wake did not happen, so the anchor must not move').not.toBe(0)
+    expect(r.out, 'and it must say why, on the run rather than only in the summary').toContain(
+      'FORGE_INTAKE_WAKE_URL is not set',
+    )
+  })
+
+  it('FAILS when the POST is rejected', () => {
+    const r = runWakeStep({ wake: true, reason: 'intake' }, { url: URL, postFails: true })
+    expect(r.status).not.toBe(0)
+    expect(r.out).toContain('the wake POST failed')
+  })
+
+  it('FAILS when there is no wake decision at all', () => {
+    const r = runWakeStep(undefined)
+    expect(r.status, 'a run that never decided cannot claim he was told').not.toBe(0)
+    expect(r.out).toContain('no wake decision')
+  })
+
+  it('never prints the wake URL', () => {
+    // The Multica webhook token is in the path, so the URL IS the credential.
+    // Graded on what the step actually emits, not on what the file says.
+    const r = runWakeStep({ wake: true, reason: 'intake' }, { url: URL })
+    expect(r.out + r.err, 'the wake URL reached the run log').not.toContain('awt_stub')
+  })
+
+  // --------------------------------------------- When was Forge last up to date?
+
+  function runAnchorStep(opts: { ids: string[]; wokeId: string | null }) {
+    const dir = mkdtempSync(join(tmpdir(), 'wake-anchor-'))
+    const gh = [
+      '#!/usr/bin/env bash',
+      'set -e',
+      'case "$1 $2" in',
+      '  "run list")',
+      // THE STUB HONOURS `--jq`, which is what makes it able to see the #664
+      // defect at all: real `gh` emits a JSON array unless asked to filter, and
+      // a stub that always emits bare ids would pass whatever the step asked
+      // for. A stub that answers questions it was not asked is a mock of the
+      // thing, not the thing.
+      '    case "$*" in',
+      `      *--jq*) printf '%s\\n' ${opts.ids.map((i) => `'${i}'`).join(' ')} ;;`,
+      `      *) printf '[%s]' "${opts.ids.map((i) => `{\\"databaseId\\":${i}}`).join(',')}" ;;`,
+      '    esac',
+      '    ;;',
+      '  "run view")',
+      '    printf \'[{"databaseId":%s,"conclusion":"failure","createdAt":"2026-09-23T06:47:00Z"}]\' "$3"',
+      '    ;;',
+      '  "api "*|"api")',
+      '    RUN=$(echo "$2" | sed -E "s#.*/runs/([^/]+)/jobs#\\\\1#")',
+      `    if [ "$RUN" = "${opts.wokeId ?? '__none__'}" ]; then`,
+      '      printf \'{"jobs":[{"steps":[{"name":"%s","conclusion":"success"}]}]}\' "$WAKE_STEP"',
+      '    else',
+      '      printf \'{"jobs":[{"steps":[{"name":"%s","conclusion":"failure"}]}]}\' "$WAKE_STEP"',
+      '    fi',
+      '    ;;',
+      '  *) echo "unexpected gh invocation: $*" >&2; exit 9 ;;',
+      'esac',
+    ].join('\n')
+    writeFileSync(join(dir, 'gh'), gh + '\n', { mode: 0o755 })
+    writeFileSync(join(dir, 'step.sh'), runBlock('When was Forge last up to date?'))
+
+    const r = spawnSync('bash', ['step.sh'], {
+      cwd: dir,
+      encoding: 'utf8',
+      env: { ...process.env, PATH: `${dir}:${process.env.PATH}`, WAKE_STEP: WAKE_STEP_NAME },
+    })
+    let lastRun: unknown = null
+    try {
+      lastRun = JSON.parse(readFileSync(join(dir, 'last-run.json'), 'utf8'))
+    } catch {
+      /* left null */
+    }
+    let candidates = ''
+    try {
+      candidates = readFileSync(join(dir, 'wake-candidates.txt'), 'utf8')
+    } catch {
+      /* left empty */
+    }
+    return { status: r.status, out: r.stdout ?? '', err: r.stderr ?? '', lastRun, candidates }
+  }
+
+  it('writes one candidate per line (the `\\n`-as-two-characters trap, from #664)', () => {
+    const { candidates } = runAnchorStep({ ids: ['111', '222', '333'], wokeId: null })
+    expect(
+      candidates.split('\n').filter(Boolean),
+      'the candidate list is not newline-separated, so the loop asks GitHub for a run whose id is ' +
+        'the whole list joined together and the anchor never resolves. This is the exact defect ' +
+        'that shipped in #664.',
+    ).toEqual(['111', '222', '333'])
+  })
+
+  it('walks past runs that told Forge nothing, and anchors on the one that did', () => {
+    const { lastRun, out } = runAnchorStep({ ids: ['111', '222', '333'], wokeId: '222' })
+    expect(lastRun).toEqual([
+      { databaseId: 222, conclusion: 'failure', createdAt: '2026-09-23T06:47:00Z' },
+    ])
+    expect(out).toContain('Forge was last up to date as of run 222')
+  })
+
+  it('anchors on a RED run that told him — the conclusion is not the question', () => {
+    // The stub returns `conclusion: failure` for every row on purpose. A red
+    // sweep that woke Forge did tell him; filtering the list on run conclusion
+    // would skip exactly the mornings that matter.
+    const { lastRun } = runAnchorStep({ ids: ['111'], wokeId: '111' })
+    expect((lastRun as { conclusion: string }[])[0].conclusion).toBe('failure')
+  })
+
+  it('excludes the asking run', () => {
+    // `gh run list` returns the in-progress run. Without the exclusion the
+    // anchor is this run's own instant, every entry is older than it, and the
+    // wake never fires at all — the silent failure.
+    const { lastRun } = runAnchorStep({ ids: ['999', '111'], wokeId: '999' })
+    expect(lastRun, 'run 999 is this run; it must not become its own anchor').toEqual([])
+  })
+
+  it('leaves an empty anchor when nothing told him anything', () => {
+    const { lastRun, status } = runAnchorStep({ ids: ['111', '222'], wokeId: null })
+    expect(status, 'a quiet history must not fail the step').toBe(0)
+    expect(lastRun, 'which the script reads as a failed lookup and announces').toEqual([])
   })
 })
 
@@ -900,7 +1250,7 @@ describe('the sweep workflow', () => {
     // `gh pr list --limit 500` above it, and matching on it silently graded the
     // wrong command. (Caught by this assertion failing on a correct file, which
     // is the cheap version of the §2d lesson.)
-    const previous = stepBlock(source, 'When did this sweep previously run?')
+    const previous = stepBlock(source, 'When was Forge last up to date?')
     expect(previous, 'the previous-run lookup must exist as its own step').toBeTruthy()
     expect(
       previous!,
@@ -908,6 +1258,31 @@ describe('the sweep workflow', () => {
         'lookup, and the wake goes back to firing every morning until somebody routes the entry.',
     ).not.toContain('--status')
     expect(previous!).toContain('--branch main')
+
+    // It asks each candidate whether its own `Wake Forge` step succeeded,
+    // rather than taking the newest run whatever it did. A run that suppressed
+    // a due wake must not advance the anchor.
+    expect(
+      previous!,
+      'the anchor is back to taking the previous run whatever it did. A run that SUPPRESSED a due ' +
+        'wake would then advance it, and the entry it declined to wake for reads as standing from ' +
+        'tomorrow on — never dispatched at all.',
+    ).toContain('/jobs')
+    expect(previous!).toContain('scripts/review-sweep.mjs woke')
+
+    // The same `\n` trap that cost #664 its entire anchor: a YAML block scalar
+    // does not process escapes, so a `join("\\n")` here collapses the candidate
+    // list to one line. `gh --jq` emits real newlines.
+    expect(previous!, 'build the candidate list with `gh --jq`, never a node `join`').toContain('--jq')
+    // Comment-stripped: this step's own prose NAMES the `join` trap as the
+    // reason it does not use one, and a file-wide match reads that warning as
+    // the defect. Third time in this issue.
+    const previousCode = previous!
+      .split('\n')
+      .filter((l) => !l.trimStart().startsWith('#'))
+      .join('\n')
+    expect(previousCode).not.toMatch(/join\(/)
+    expect(previous!, 'and read a final line with no newline after it').toContain('|| [ -n "${ID}" ]')
 
     expect(
       source,
