@@ -72,7 +72,35 @@
  *     Sentinel's property intact — an unremediated miss is not less true
  *     tomorrow.
  *   * THE EXIT STATUS is keyed on the entries that are NEW SINCE THIS SWEEP
- *     LAST WENT GREEN. A new miss is always a *new* red.
+ *     LAST WENT GREEN.
+ *
+ * **WHAT THAT DOES AND DOES NOT BUY, because the first draft of this comment
+ * claimed more than the code does and a maintainer who believes it will
+ * misread a legitimately red week** (Sentinel, reviewing #643). A red run does
+ * NOT advance the last-green instant. So an unremediated entry is still
+ * `>= lastGreen` tomorrow, and the morning after, and every morning until
+ * somebody clears it — the run stays red for as long as the queue is dirty,
+ * exactly as it did before.
+ *
+ * The property this actually adds is narrower and still worth having: **once
+ * the queue IS clear, a new miss is a NEW red rather than the continuation of
+ * an old one**, and a green morning becomes a positive claim that nothing is
+ * outstanding. Before this, a queue nobody cleared made every subsequent miss
+ * invisible — which is the #636 story.
+ *
+ * Stated the other way, because this file's whole discipline is saying what it
+ * cannot see: **this change alone would not have prevented #636.** Those six
+ * red mornings were over four UNREMEDIATED entries; under this code the lookup
+ * finds no green, fails closed, and all four are fresh — six red mornings
+ * again. What prevents the recurrence is §2a's other half, the standing issue
+ * that gives the red an owner, plus the queue being kept at zero. The two were
+ * always meant to land together.
+ *
+ * The `standing` branch in `newSince` is therefore reached rarely in practice:
+ * a record that DISAPPEARS after a green run (the deleted-verdict-comment
+ * blind spot below), a label applied to an already-merged PR by hand, or a
+ * cut-off moving. It is not the common path, and the summary — not the exit
+ * code — is the channel that catches those.
  *
  * **The lookup is pinned to LAST GREEN and that is the load-bearing word.**
  * Degrade it to *last run* and every miss becomes a one-day alarm: red on the
@@ -133,6 +161,12 @@
  *     have labelled it.
  *   * A verdict or intake comment somebody typed without a review or a routing
  *     behind it.
+ *   * A STANDING QUEUE LONGER THAN GITHUB WILL ANNOTATE. Every unremediated
+ *     entry gets an annotation, and GitHub caps a step at 10 `::error` plus 10
+ *     `::warning` — so a large queue truncates the annotation list silently.
+ *     The summary still carries every entry, which is why that is an FYI
+ *     rather than a hole; the annotations are the convenience channel and the
+ *     summary is the record. (Sentinel, reviewing #643.)
  *   * AN ENTRY THAT GOES BACK TO UNSATISFIED WITHOUT A NEW MERGE. Newness is
  *     dated by `mergedAt`, because that is the only instant on a PR this sweep
  *     can trust. Delete a verdict comment off a PR that merged last week and

@@ -605,7 +605,34 @@ So the two halves are split:
   and still annotates each one (`::error` for the new, `::warning` for the
   standing);
 - **the exit status** is keyed on the entries that merged after this sweep last
-  went green. A new miss is always a *new* red.
+  went green.
+
+### What that buys, and what it does not (Sentinel, reviewing #643)
+
+**A red run does not advance the last-green instant.** So an unremediated entry
+is still newer than `lastGreen` tomorrow, and the morning after, and every
+morning until somebody clears it: the run stays red for as long as the queue is
+dirty, exactly as it did before. The first draft of this section, and of the two
+comments it is written from, claimed "it no longer stays red forever" — that is
+wrong, and a maintainer who believes it will misread a legitimately red week.
+
+The property it actually adds is narrower and still worth having: **once the
+queue IS clear, a new miss is a NEW red rather than the continuation of an old
+one**, and a green morning becomes a positive claim that nothing is outstanding.
+
+Said the blunt way, because this check's whole discipline is stating what it
+cannot see: **this change alone would not have prevented #636.** Those six red
+mornings were over four *unremediated* entries; under the new code the lookup
+finds no green, fails closed, and all four are fresh — six red mornings again,
+and #636 merges into the same wallpaper. What prevents the recurrence is §2a's
+other half — the standing issue that gives the red an owner — plus the queue
+being kept at zero. The two halves were always meant to land together.
+
+The consequence for reading the code: `newSince`'s `standing` branch is rare in
+practice. It needs a record that DISAPPEARS after a green run (the
+deleted-verdict-comment blind spot), a label applied to an already-merged PR by
+hand, or a cut-off moving. The summary, not the exit code, is the channel that
+catches those.
 
 **The lookup is pinned to LAST GREEN and that word is load-bearing.** Degrade it
 to *last run* and every miss becomes a one-day alarm — red the morning it
@@ -635,8 +662,8 @@ window, because GitHub's scheduler is best-effort and this file's own table
 shows a `0 7` schedule landing up to +6h34m late — a 24-hour window on a
 six-hour slip drops merges into a gap and never looks at them again. The cost is
 that a finding stays PRINTED until it is remediated, which is what an unresolved
-miss should do. Since DREAMCRM-92 it no longer stays RED forever on it; see the
-last-green window above.
+miss should do — and RED too, until the queue is clear. What DREAMCRM-92 changed
+is narrower than that; see the last-green window above.
 
 The script is told the same `--limit` the `gh` call used and goes **red** if the
 list came back truncated before reaching the cut-off, for the reason this

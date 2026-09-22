@@ -65,9 +65,15 @@ on:
   # is indistinguishable from no miss. It sweeps everything merged since each
   # obligation's cut-off instead, so nothing can fall through, and a finding
   # stays PRINTED until it is remediated — an unremediated miss is not less
-  # true tomorrow. What it no longer does is stay RED forever on it: the exit
-  # status is keyed on what is new since the last green run (DREAMCRM-92), for
-  # the reason the step below spells out.
+  # true tomorrow.
+  #
+  # The run also stays RED until the queue is clear; a red run does not advance
+  # the last-green instant. What DREAMCRM-92 added is narrower than "it no
+  # longer stays red forever", which is what this comment used to say: once the
+  # queue IS clear, a new miss is a NEW red rather than the continuation of an
+  # old one, and a green morning is a positive claim that nothing is
+  # outstanding. See the step below and the docblock in
+  # `scripts/review-sweep.mjs`.
   schedule:
     - cron: '47 6 * * *'
   workflow_dispatch: {}
@@ -143,12 +149,16 @@ jobs:
       # WHEN DID THIS SWEEP LAST GO GREEN? (DREAMCRM-92.)
       #
       # The summary keeps printing every unremediated entry; the run's EXIT
-      # STATUS is keyed on the ones that are new since this instant. Without it
-      # the alarm is red forever the first time somebody forgets, and a
-      # permanently-red alarm is a disabled alarm — that is not a prediction,
-      # it is what happened: six consecutive red runs, `35094044453` through
+      # STATUS is keyed on the ones that are new since this instant. Without
+      # it, a miss that arrives while an older one is still outstanding
+      # produces no new signal at all — that is not a prediction, it is what
+      # happened: six consecutive red runs, `35094044453` through
       # `35605207003`, and then #636 merged into the silence carrying
       # `needs-sentinel-review` and editing the gate's own rule list.
+      #
+      # This does NOT make a dirty queue go green (see the `schedule:` comment
+      # above). It makes a CLEAN one mean something, which is what a new miss
+      # needs in order to be visible as new.
       #
       # `--status success` is LOAD-BEARING and it is also not trusted on its
       # own. Drop it and this reads the last RUN rather than the last GREEN
