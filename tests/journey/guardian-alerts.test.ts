@@ -167,6 +167,12 @@ const SIGNALS = {
   // The pass is reaching this fixture — these cases are about the ALERT
   // cadence, not about a stopped engine.
   hoursSinceCycle: 1,
+  // …and nothing is stuck outside their practice software. Explicit for the
+  // same reason: the parked-write rule outranks every verdict these
+  // fixtures ask for, so a fixture that left it implicit would classify as
+  // `blocked:pms_parked` no matter what state the test named.
+  pmsWriteOpsParked: 0,
+  pmsWriteOpParkedDays: null,
 }
 
 /**
@@ -986,6 +992,22 @@ describe('the all-clear names the PROBLEM, not just the state (D16)', () => {
       new Date('2026-07-29T12:00:00Z'),
     )
     expect(body).toContain('the hourly pass never reaching them')
+  })
+
+  it('a recovered bridge reads as the queue clearing, not as "the machine could not act" (DREAMCRM-68)', () => {
+    // The state word would close a loop the owner never opened: what they
+    // have been chasing is a practice's own server being unreachable and
+    // bookings sitting outside their schedule, and the all-clear has to
+    // name THAT. Every other `blocked` all-clear is about our end.
+    const body = __testables.standDownBody(
+      { ...report('org_a', 'Ash Dental', 'healthy'), troubleForDays: null } as unknown as Parameters<
+        typeof __testables.standDownBody
+      >[0],
+      { state: 'blocked:pms_parked', alertedAt: new Date('2026-07-20T12:00:00Z'), firstSeenAt: null },
+      new Date('2026-07-29T12:00:00Z'),
+    )
+    expect(body).toContain('holding bookings their practice software had not taken')
+    expect(body).not.toContain('the machine could not act for them')
   })
 
   it('an ordinary silent recovery keeps its own words', () => {

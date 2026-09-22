@@ -10,7 +10,21 @@ const store: {
   orgs: Array<Record<string, unknown>>
   ledger: Array<Record<string, unknown>>
   ledgerThrows: boolean
-} = { orgs: [], ledger: [], ledgerThrows: false }
+  /** Rows of `pms_write_op` ALREADY JOINED to their practice's connection
+   *  — each carries `connStatus`, the connection's own status (DREAMCRM-68).
+   *
+   *  Materialising the join in the fixture rather than teaching this mock to
+   *  perform one is deliberate, and it is the repo's own standing lesson
+   *  pointed at itself: a database modelled in JavaScript is not a database,
+   *  so a hand-rolled join engine here would grade a join this harness
+   *  invented rather than the one Postgres runs. The REAL `inner join
+   *  pms_connection` is rendered and asserted at the boundary, in
+   *  guardian-sql.test.ts. What these rows exercise is everything
+   *  downstream of it: the aggregate, the age arithmetic, the threshold and
+   *  the verdict. */
+  writeOps: Array<Record<string, unknown>>
+  writeOpsThrow: boolean
+} = { orgs: [], ledger: [], ledgerThrows: false, writeOps: [], writeOpsThrow: false }
 
 const deps = vi.hoisted(() => ({
   switches: new Map<string, { remindersOn: boolean; reviewRequestsOn: boolean }>(),
@@ -58,6 +72,8 @@ vi.mock('@/lib/db', () => {
     // The org read LEFT JOINs clinic_profile for the lifecycle columns; the
     // fixture carries them on the org row, so the join is a no-op here.
     api.leftJoin = () => api
+    // Same no-op as leftJoin, for the same reason — see `store.writeOps`.
+    api.innerJoin = () => api
     api.where = (preds: unknown) => {
       // Only FUNCTION predicates are row filters. Raw `sql` fragments
       // (failureOnly() and friends) arrive as opaque objects; pushing them
@@ -68,8 +84,12 @@ vi.mock('@/lib/db', () => {
       for (const p of list) if (typeof p === 'function') filters.push(p as never)
       return api
     }
-    const rows = () =>
-      (table === 'organization' ? store.orgs : store.ledger).filter((r) => filters.every((f) => f(r)))
+    const source = () => {
+      if (table === 'organization') return store.orgs
+      if (table === 'pms_write_op') return store.writeOps
+      return store.ledger
+    }
+    const rows = () => source().filter((r) => filters.every((f) => f(r)))
     // The grouped ledger read: model the FILTER aggregates the service asks
     // for, so the work/failure split is really exercised rather than stubbed.
     // ROUND-8 AUDIT: this mock had no orderBy/limit, so recentFailureSummaries
@@ -83,6 +103,23 @@ vi.mock('@/lib/db', () => {
       return typeof n === 'number' ? out.slice(0, n) : out
     }
     api.groupBy = async () => {
+      // THE PARKED WRITE-OP AGGREGATE (DREAMCRM-68): count + min(created_at)
+      // per org, which is all the service reads off it.
+      if (table === 'pms_write_op') {
+        if (store.writeOpsThrow) throw new Error('write-op aggregate timed out')
+        const byOrg = new Map<string, { organizationId: string; parked: number; oldestAt: Date }>()
+        for (const r of rows()) {
+          const orgId = String(r.organizationId)
+          const at = r.createdAt as Date
+          const acc = byOrg.get(orgId)
+          if (!acc) byOrg.set(orgId, { organizationId: orgId, parked: 1, oldestAt: at })
+          else {
+            acc.parked++
+            if (at < acc.oldestAt) acc.oldestAt = at
+          }
+        }
+        return Array.from(byOrg.values())
+      }
       if (store.ledgerThrows) throw new Error('aggregate timed out')
       const byOrg = new Map<string, { organizationId: string; work: number; failures: number }>()
       for (const r of rows()) {
@@ -144,6 +181,24 @@ vi.mock('@/lib/db', () => {
         occurredAt: col('occurredAt'),
         detail: col('detail'),
       },
+      pmsWriteOp: {
+        __name: 'pms_write_op',
+        organizationId: col('organizationId'),
+        status: col('status'),
+        entityType: col('entityType'),
+        createdAt: col('createdAt'),
+      },
+      pmsConnection: {
+        // The connection's three settings reach the fixture DENORMALISED
+        // onto the write-op row, so each predicate the service writes lands
+        // on a field that is really there. `organizationId` is the join key
+        // and never a filter, so it maps to the same name harmlessly.
+        __name: 'pms_connection',
+        organizationId: col('organizationId'),
+        status: col('connStatus'),
+        syncDirection: col('connDirection'),
+        autoSyncEnabled: col('connAutoSync'),
+      },
     },
   }
 })
@@ -156,6 +211,13 @@ vi.mock('drizzle-orm', () => ({
   lt: (c: { __col: string }, v: Date) => (r: Record<string, unknown>) =>
     r[c.__col] instanceof Date && (r[c.__col] as Date) < v,
   desc: () => 'desc',
+  // The parked-write aggregate uses drizzle's `min` rather than a
+  // hand-rolled `sql`min(…)`` so the timestamp column's driver mapper
+  // survives (tests/guards/timestamp-aggregate-mapping.test.ts). Absent
+  // from this mock it resolves to undefined, the query throws, the
+  // service's catch swallows it and every parked-write test quietly
+  // asserted against an empty map — the round-8 lesson, one import wide.
+  min: (c: { __col: string }) => ({ __agg: 'min', __col: c.__col }),
   sql: Object.assign(() => 'sql', { raw: () => 'sql', join: () => 'sql' }),
 }))
 
@@ -185,11 +247,39 @@ function seedFailure(orgId: string, daysAgo: number, n = 1) {
   }
 }
 
+/** One open PMS write-op, enqueued `daysAgo` days ago, on a practice whose
+ *  bridge is connected, two-way and auto-syncing unless the caller says
+ *  otherwise — i.e. the only configuration in which anything is actually
+ *  going to try to deliver it. */
+function seedWriteOp(
+  orgId: string,
+  daysAgo: number,
+  over: {
+    status?: string
+    entityType?: string
+    connStatus?: string
+    connDirection?: string
+    connAutoSync?: number
+  } = {},
+) {
+  store.writeOps.push({
+    organizationId: orgId,
+    status: over.status ?? 'pending',
+    entityType: over.entityType ?? 'appointment',
+    connStatus: over.connStatus ?? 'connected',
+    connDirection: over.connDirection ?? 'two_way',
+    connAutoSync: over.connAutoSync ?? 1,
+    createdAt: old(daysAgo),
+  })
+}
+
 beforeEach(() => {
   vi.clearAllMocks()
   store.orgs = []
   store.ledger = []
   store.ledgerThrows = false
+  store.writeOps = []
+  store.writeOpsThrow = false
   deps.switches = new Map()
   deps.seated = new Map()
   deps.seatedCalls = []
@@ -538,5 +628,145 @@ describe('the heartbeat reaches the verdict (D16)', () => {
     const out = await sweepEngineHealth(NOW)
     expect(out.reports[0].signals.hoursSinceCycle).toBeNull()
     expect(out.reports[0].verdict.state).not.toBe('silent')
+  })
+})
+
+/**
+ * PARKED PMS WRITE-OPS, END TO END THROUGH THE SWEEP (DREAMCRM-68).
+ *
+ * The pure rule is pinned in guardian.test.ts and the query is rendered in
+ * guardian-sql.test.ts; what is only testable HERE is the seam between
+ * them — that the sweep actually runs the read, that the age arithmetic
+ * turns an instant into the days the verdict names, and that a practice
+ * with a week of queued bookings and an otherwise flawless ledger comes
+ * back flagged rather than healthy. That last one IS the defect: before
+ * this, `getIntegrationsDashboard` could show the backlog to somebody who
+ * went and looked, and nothing anywhere told anyone.
+ */
+describe('sweepEngineHealth — bookings parked outside the practice’s software', () => {
+  it('flags a practice whose busy, clean week hides a queue nobody was told about', async () => {
+    seedOrg('org_a', 'Ash Dental')
+    seedWork('org_a', 1, 40)
+    seedWriteOp('org_a', 6)
+    seedWriteOp('org_a', 5)
+
+    const sweep = await sweepEngineHealth(NOW)
+    const r = sweep.reports[0]
+    expect(r.signals.pmsWriteOpsParked).toBe(2)
+    // The OLDEST of the two is what the headline ages.
+    expect(r.signals.pmsWriteOpParkedDays).toBe(6)
+    expect(r.verdict.cause).toBe('pms_parked')
+    expect(sweep.flagged.map((f) => f.organizationId)).toEqual(['org_a'])
+  })
+
+  it('leaves the ordinary in-flight queue alone — the cutoff is in the query, not an afterthought', async () => {
+    seedOrg('org_a', 'Ash Dental')
+    seedWork('org_a', 1, 40)
+    // Enqueued this morning; the bridge will take it on the next sync.
+    seedWriteOp('org_a', 0)
+
+    const sweep = await sweepEngineHealth(NOW)
+    expect(sweep.reports[0].signals.pmsWriteOpsParked).toBe(0)
+    expect(sweep.reports[0].signals.pmsWriteOpParkedDays).toBeNull()
+    expect(sweep.reports[0].verdict.state).toBe('healthy')
+  })
+
+  it('ignores the terminally-failed lane, which would alarm forever with no way to clear', async () => {
+    seedOrg('org_a', 'Ash Dental')
+    seedWork('org_a', 1, 40)
+    seedWriteOp('org_a', 30, { status: 'error' })
+    seedWriteOp('org_a', 30, { status: 'skipped' })
+
+    const sweep = await sweepEngineHealth(NOW)
+    expect(sweep.reports[0].signals.pmsWriteOpsParked).toBe(0)
+    expect(sweep.reports[0].verdict.state).toBe('healthy')
+  })
+
+  it('ignores a practice that disconnected — nothing will ever drive those rows again', async () => {
+    seedOrg('org_a', 'Ash Dental')
+    seedWork('org_a', 1, 40)
+    seedWriteOp('org_a', 40, { connStatus: 'not_connected' })
+
+    const sweep = await sweepEngineHealth(NOW)
+    expect(sweep.reports[0].signals.pmsWriteOpsParked).toBe(0)
+  })
+
+  it('ignores an IMPORT-ONLY practice — the toggle strands the queue, it does not break the bridge', async () => {
+    // THE DEFECT PR #640's REVIEW CAUGHT, at the sweep. `syncPms` gates the
+    // flush on `syncDirection === 'two_way'` (sync.ts:252) and that is the
+    // only call site, so nothing — not even "Sync now" — drains this row
+    // again. Without the predicate the practice is pinned at `blocked` and
+    // the owner is told, every week forever, to ring them about a bridge
+    // that is running perfectly well. And the practice most likely to have
+    // flipped that toggle is one whose bridge WAS down: exactly who this
+    // alarm exists for.
+    seedOrg('org_a', 'Ash Dental')
+    seedWork('org_a', 1, 40)
+    seedWriteOp('org_a', 40, { connDirection: 'import' })
+
+    const sweep = await sweepEngineHealth(NOW)
+    expect(sweep.reports[0].signals.pmsWriteOpsParked).toBe(0)
+    expect(sweep.reports[0].verdict.state).toBe('healthy')
+  })
+
+  it('ignores an auto-sync-off practice — nothing has tried, so we know nothing about their bridge', async () => {
+    // The hourly job never selects them (cron/pms-sync/route.ts:73). This
+    // verdict's whole claim is that their practice system is unreachable,
+    // and we have no evidence for that when nothing attempted to reach it.
+    // Same posture getPmsHealth takes with this column (health.ts:128).
+    seedOrg('org_a', 'Ash Dental')
+    seedWork('org_a', 1, 40)
+    seedWriteOp('org_a', 40, { connAutoSync: 0 })
+
+    const sweep = await sweepEngineHealth(NOW)
+    expect(sweep.reports[0].signals.pmsWriteOpsParked).toBe(0)
+  })
+
+  it('counts appointments only — an orphaned patient op is undrainable, and is not a booking', async () => {
+    // `retryPendingWrites` drives ['appointment','commlog'] (sync.ts:1150);
+    // a 'patient' op rides the appointment leg, so one whose appointment
+    // has since errored out at the cap is never driven again. And the
+    // headline counts BOOKINGS — a patient op is a precondition of one and
+    // a commlog is a mirrored chart note, so counting either would make the
+    // number disagree with the word beside it.
+    seedOrg('org_a', 'Ash Dental')
+    seedWork('org_a', 1, 40)
+    seedWriteOp('org_a', 9, { entityType: 'patient' })
+    seedWriteOp('org_a', 9, { entityType: 'commlog' })
+    seedWriteOp('org_a', 7)
+
+    const sweep = await sweepEngineHealth(NOW)
+    expect(sweep.reports[0].signals.pmsWriteOpsParked).toBe(1)
+    expect(sweep.reports[0].signals.pmsWriteOpParkedDays).toBe(7)
+    expect(sweep.reports[0].verdict.headline).toContain('1 booking has')
+  })
+
+  it('keeps each practice’s queue to itself — one grouped read, one clinic per row', async () => {
+    seedOrg('org_a', 'Ash Dental')
+    seedOrg('org_b', 'Bay Dental')
+    seedWork('org_a', 1, 40)
+    seedWork('org_b', 1, 40)
+    seedWriteOp('org_a', 9)
+
+    const sweep = await sweepEngineHealth(NOW)
+    const byId = new Map(sweep.reports.map((r) => [r.organizationId, r]))
+    expect(byId.get('org_a')!.signals.pmsWriteOpsParked).toBe(1)
+    expect(byId.get('org_b')!.signals.pmsWriteOpsParked).toBe(0)
+    expect(byId.get('org_b')!.verdict.state).toBe('healthy')
+  })
+
+  it('an unreadable write-op queue says NOTHING rather than alarming on the whole platform', async () => {
+    seedOrg('org_a', 'Ash Dental')
+    seedWork('org_a', 1, 40)
+    seedWriteOp('org_a', 9)
+    store.writeOpsThrow = true
+
+    const sweep = await sweepEngineHealth(NOW)
+    // The sweep is NOT blind — the ledger is its substrate and that read
+    // was fine. This one signal is simply absent, the same posture an
+    // unstamped heartbeat takes.
+    expect(sweep.blind).toBe(false)
+    expect(sweep.reports[0].signals.pmsWriteOpsParked).toBe(0)
+    expect(sweep.reports[0].verdict.state).toBe('healthy')
   })
 })

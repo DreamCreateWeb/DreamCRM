@@ -229,6 +229,12 @@ const STATE_IN_WORDS: Partial<Record<EngineState, string>> = {
  */
 const PROBLEM_IN_WORDS: Record<string, string> = {
   'silent:no_cycle': 'showing the hourly pass never reaching them',
+  // DREAMCRM-68. The state word would say "blocked — the machine could not
+  // act for them", which is the wrong thing to hear is over: what the owner
+  // has been chasing is a practice's own bridge being down and bookings
+  // sitting outside their schedule, and the all-clear has to name THAT or
+  // it closes a loop the reader never opened.
+  'blocked:pms_parked': 'holding bookings their practice software had not taken',
 }
 
 /**

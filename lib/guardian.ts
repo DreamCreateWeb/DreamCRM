@@ -96,6 +96,27 @@ export interface EngineSignals {
    * still caught — by the fourteen-empty-days rule that caught it before.
    */
   hoursSinceCycle: number | null
+  /**
+   * OPEN PMS WRITE-OPS THAT HAVE BEEN PARKED past PARKED_WRITE_ALARM_DAYS —
+   * bookings and chart notes DreamCRM accepted from a patient and has not
+   * been able to hand to the practice's own software (DREAMCRM-68).
+   *
+   * Slice 7b made the WAITING lane preserve the attempt counter, which is
+   * right: an office that powers its server off over a closed weekend must
+   * not burn six retries and fail the booking terminally. But
+   * `MAX_WRITE_ATTEMPTS` had been doing a SECOND job — "give up and become
+   * visible" — and nothing replaced it. A parked op writes no ledger row at
+   * all (`settleWriteFailure` restores the op and returns), so every other
+   * signal in this interface reads the practice as fine while their
+   * schedule quietly misses patients who booked days ago.
+   *
+   * 0 when nothing is parked — and also 0 when the read failed, on the same
+   * "null is not evidence" posture `hoursSinceCycle` takes. See the service.
+   */
+  pmsWriteOpsParked: number
+  /** How long the OLDEST of those has been waiting, in whole days. Null
+   *  when nothing is parked. */
+  pmsWriteOpParkedDays: number | null
 }
 
 export interface EngineVerdict {
@@ -117,7 +138,7 @@ export interface EngineVerdict {
    * was the wrong half of the truth. Null when the state is its own whole
    * answer.
    */
-  cause: 'failures' | 'switches' | 'no_cycle' | null
+  cause: 'failures' | 'switches' | 'no_cycle' | 'pms_parked' | null
 }
 
 /** A clinic younger than this has no meaningful baseline to fall from. */
@@ -154,6 +175,32 @@ export const PILEUP_COUNT = 8
  * depends on the observer's clock is not an alarm.
  */
 export const STALE_CYCLE_HOURS = 24
+
+/**
+ * How long a PMS write-op may sit in the WAITING lane before somebody is
+ * told (DREAMCRM-68).
+ *
+ * FOUR DAYS, and the number is the whole argument. Parking is the FEATURE
+ * here — `settleWriteFailure` restores the attempt counter precisely so a
+ * practice that powers its server off at night, or closes Friday evening,
+ * does not lose a booking to six burned retries. So this threshold may not
+ * fire on any closure a dental office treats as ordinary, or the WAITING
+ * lane's own design becomes an alarm:
+ *
+ *   - overnight, ~16h;
+ *   - a closed weekend, Friday 17:00 → Monday 08:00, ~2.6 days;
+ *   - a LONG weekend, Friday 17:00 → Tuesday 08:00, ~3.6 days.
+ *
+ * Four clears the longest of those with a few hours in hand, and still names
+ * a genuine outage on the Wednesday of a holiday week — days before the
+ * front desk would find out by a patient arriving for a visit their own
+ * schedule has never heard of.
+ *
+ * DAYS rather than hours, for the reason STALE_CYCLE_HOURS gives: the sweep
+ * runs once a day, and an alarm whose meaning depends on where the run
+ * landed relative to the clock is not an alarm.
+ */
+export const PARKED_WRITE_ALARM_DAYS = 4
 
 /** The pile-up clause, appended to whatever the finding already recommends.
  *  Exported so the copy has one home and the tests read the real string. */
@@ -217,6 +264,69 @@ function silentByStoppedHeartbeat(s: EngineSignals, hours: number): EngineVerdic
     recommendation:
       'Check the generate-proposals schedule and the last cron run before looking at anything clinic-side. If several practices show this at once, it is the job, not them.',
     cause: 'no_cycle',
+  }
+}
+
+/**
+ * THE PARKED-WRITE ALARM, AS ONE PREDICATE (DREAMCRM-68).
+ *
+ * `classify` raises the verdict on it and `clinicActionable` refuses on it,
+ * and this module has already paid once for letting those two disagree: the
+ * round-1 audit found `clinicActionable` true for a blocked-BY-FAILURES
+ * clinic that happened to have a switch off, which routed a stale-token
+ * finding to the practice as "reminders are switched off" — misrouted AND
+ * lost, because the owner was then never emailed at all. The identical
+ * shape is live here (a practice with a down bridge AND a switch off), so
+ * the two readers ask one question rather than two copies of it.
+ */
+export function parkedWritesAlarming(s: EngineSignals): boolean {
+  return (
+    s.pmsWriteOpsParked > 0 &&
+    s.pmsWriteOpParkedDays !== null &&
+    s.pmsWriteOpParkedDays >= PARKED_WRITE_ALARM_DAYS
+  )
+}
+
+/**
+ * BOOKINGS THAT NEVER REACHED THE PRACTICE'S OWN SCHEDULE (DREAMCRM-68).
+ *
+ * The only finding in this module with a named patient behind it. Every
+ * other verdict describes the machine being quiet, switched off or turned
+ * away; this one describes a visit that exists in DreamCRM, was confirmed to
+ * somebody, and is not on the schedule the front desk actually works from.
+ *
+ * It is also the only one NO OTHER RULE CAN REACH. A waiting write-op writes
+ * nothing to the action ledger by design — `settleWriteFailure` puts the op
+ * back in the pending lane and returns — so `failures7` never sees it,
+ * `actions7` never sees it, and the practice can look perfectly healthy on
+ * every other signal while the backlog grows.
+ *
+ * WHOSE IT IS: theirs, and only theirs. The bridge is a service running on
+ * the practice's own server (Open Dental's eConnector, NexHealth's
+ * Synchronizer). Dream Create cannot restart it and cannot see into that
+ * server room — which is why the recommendation is a phone call rather than
+ * a fix, and why the rest of this module's "ours to fix, not theirs to
+ * notice" framing deliberately does not apply here.
+ */
+function blockedByParkedWrites(s: EngineSignals, days: number): EngineVerdict {
+  const n = s.pmsWriteOpsParked
+  const they = n === 1 ? 'it' : 'them'
+  return {
+    state: 'blocked',
+    headline: `${n} ${n === 1 ? 'booking has' : 'bookings have'} not reached their practice software in ${days} ${days === 1 ? 'day' : 'days'}`,
+    // NOTHING IS LOST, said out loud. The parking is deliberate and the
+    // queue hands everything over the moment the bridge answers, so an
+    // owner reading this at 8am must not conclude that data was dropped and
+    // go looking for a restore. What IS wrong is narrower and worse: the
+    // practice's own schedule is missing patients who think they are booked.
+    why:
+      `Their practice system has not been reachable, so the queue is holding ${they} rather than failing ${they} — nothing is lost and it all goes over the moment the bridge answers. Until then their own schedule does not have ${n === 1 ? 'this patient' : 'these patients'} on it, and the front desk has no way to know that from inside their software.` +
+      switchClause(s) +
+      alsoFailedClause(s),
+    recommendation:
+      'Ring the practice — the bridge runs on their server (the Open Dental eConnector, or the NexHealth Synchronizer), so restarting it is theirs and only theirs. Tell them what their schedule is missing in the meantime; that is the part that costs them a chair.' +
+      (switchClause(s) ? ' The switches are a separate conversation for once the bridge is back.' : ''),
+    cause: 'pms_parked',
   }
 }
 
@@ -300,6 +410,24 @@ function classify(s: EngineSignals): EngineVerdict {
   // or has not had its first pass — never evidence of a dead engine.
   if (s.hoursSinceCycle !== null && s.hoursSinceCycle >= STALE_CYCLE_HOURS) {
     return silentByStoppedHeartbeat(s, s.hoursSinceCycle)
+  }
+
+  // PARKED BOOKINGS next, ahead of the failure alarm (DREAMCRM-68). The
+  // order is decided by what each arrangement COSTS, and it is asymmetric:
+  //
+  //  - parked first loses nothing. A week that also had failures still says
+  //    so, because `alsoFailedClause` rides along inside this verdict's own
+  //    `why` — the round-9 sibling-sweep rule, applied on the way in.
+  //  - failures first loses the WHOLE finding. A waiting write-op files no
+  //    ledger row, so there is no clause, no count and no surface anywhere
+  //    in this module that could carry it — the practice simply reads as
+  //    "the machine hit trouble on 3 days", and the bookings sitting outside
+  //    their schedule are never mentioned to anybody.
+  //
+  // The heartbeat still outranks it: a pass that is not reaching them at all
+  // is upstream of everything, including this.
+  if (parkedWritesAlarming(s)) {
+    return blockedByParkedWrites(s, s.pmsWriteOpParkedDays as number)
   }
 
   // BLOCKED BY FAILURES next, ahead of silence (round-1 audit). A clinic
@@ -854,6 +982,28 @@ export function clinicActionable(state: EngineState, s: EngineSignals): boolean 
   // that hid the real break, while the owner (the only party who can fix a
   // stale token) was never emailed at all. Misrouted AND lost.
   if (s.failures7 >= FAILURE_ALARM_COUNT) return false
+  // A PARKED BRIDGE IS NOT (YET) THE PRACTICE'S TO HEAR (DREAMCRM-68).
+  //
+  // This one is genuinely arguable and the argument is not ours to settle.
+  // Every other finding withheld from a clinic is withheld because they
+  // could do nothing about it; a down bridge is the exact opposite — it is
+  // their server, and they are the ONLY party who can restart it. So the
+  // usual reasoning for the lock points the other way here, and the
+  // DREAMCRM-84 planning meeting (2026-09-22) referred the question to the
+  // owner rather than letting the signal inherit an answer by default.
+  //
+  // Until that lands, the finding behaves like the lock as shipped: it
+  // reaches whoever `guardianAudience` currently says, and at 'clinic' it
+  // stays with Dream Create rather than starting to talk to practices about
+  // something nobody decided to tell them. Flipping this to `true` is the
+  // whole of the practice-facing half — `clinicNote` below gains its
+  // sentence at the same time.
+  //
+  // It is a REFUSAL, not an omission: without it a practice with a parked
+  // bridge AND a switch off would be handed the switch note at 'clinic',
+  // which is the wrong half of the truth AND silences the owner's email —
+  // the round-1 audit's defect, verbatim.
+  if (parkedWritesAlarming(s)) return false
   return !s.remindersOn || !s.reviewRequestsOn
 }
 
