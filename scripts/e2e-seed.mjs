@@ -727,6 +727,325 @@ async function seedWebhook(pool) {
   console.log('seeded the webhook backstop clinics (one paid payment, one rival pending)')
 }
 
+// ---------------------------------------------------------------------------
+// `token-pages` — THE PAGES A PATIENT OPENS FROM A TEXT MESSAGE (DREAMCRM-98)
+//
+// Eight of the ten single-letter link routes had no browser stop at all: /b
+// pay your balance, /i your payment plan, /r leave a review, /w an earlier
+// opening, /g your practice's online grade, /d book a demo, /e the conference
+// floor's capture page, /h the attendee's headshot. Only /c and /n were
+// walked (`tokens`).
+//
+// WHY THESE EIGHT ARE ONE SCOPE rather than eight. They are one POPULATION —
+// a page opened from a text or an email, on a phone, by somebody who is not
+// signed in and has no account to fall back on — and the spec that walks them
+// makes one pass over that population. Splitting them would give eight scopes
+// each claimed by the same file, which the disjointness guard forbids for good
+// reason: the claim is per FILE.
+//
+// NOTHING HERE IS SPENT BY THE SPEC. It opens each page and scans it; the one
+// write any of them performs on a GET is `recordReviewClick`, which flips the
+// review request 'sent' → 'clicked'. That is restored below anyway — a fixture
+// that is only nearly idempotent is the kind that fails on the third retry of
+// a bad afternoon, months from now, for reasons nobody remembers.
+//
+// The clinic is its OWN org (not `org_e2e_live`) because /b and /i need a
+// CONNECTED Stripe account to render the paying state, and giving the shared
+// live clinic one would change what every other spec sees.
+const TOKEN_PAGES_BALANCE_CENTS = 24_000 // $240.00 — over $20, so /b offers the Half chip too.
+
+/**
+ * /g, /e and /h validate the token against `/^[a-f0-9]{32}$/` BEFORE touching
+ * the database, so those three cannot use the readable `e2e-…-token` shape the
+ * rest of the seed uses — a spec with a readable token there would 404 with no
+ * hint as to why. This keeps them recognisable inside the constraint: a
+ * hex-only mnemonic prefix, zero-padded to the 32 characters the route demands.
+ */
+const hexToken = (prefix) => prefix.padEnd(32, '0')
+const GRADE_TOKEN = hexToken('e2e60ade') // "e2e grade"
+const EVENT_TOKEN = hexToken('e2ecafe0') // the floor's own device
+const CAPTURE_TOKEN = hexToken('e2eface0') // the attendee's headshot
+
+/**
+ * A minimal `practice_grade.result` that survives `parsePracticeGradeResult`.
+ * All four axes are present with a score, findings and wins, because the
+ * report renders a different (and much emptier) page for a missing axis — and
+ * an axe stop over the empty page would be a stop over markup no visitor sees.
+ */
+const GRADE_RESULT = {
+  overall: 72,
+  headline: 'A solid practice that is hard to find online.',
+  computedAt: new Date('2026-01-02T00:00:00.000Z').toISOString(),
+  axes: {
+    website: {
+      score: 64,
+      findings: [{ text: 'No way to book without calling.', after: 'Patients book themselves, day or night.' }],
+      wins: ['Loads fast on a phone.'],
+    },
+    listing: {
+      score: 81,
+      findings: [{ text: 'Your hours are out of date on Google.', after: 'Hours stay in step with the practice.' }],
+      wins: ['Verified listing.'],
+    },
+    reviews: {
+      score: 70,
+      findings: [{ text: 'Nobody has asked a happy patient in months.', after: 'Every finished visit gets the ask.' }],
+      wins: ['4.8 stars from the reviews you have.'],
+    },
+    search: {
+      score: 58,
+      findings: [{ text: 'You are on page two for your own town.', after: null }],
+      wins: [],
+    },
+  },
+}
+
+async function seedTokenPages(pool) {
+  await pool.query(
+    `insert into organization (id, name, slug, type, is_demo)
+     values ('org_e2e_tokenpages', 'E2E Token Pages', 'e2e-tokenpages', 'clinic', false)
+     on conflict (id) do update set name = excluded.name, slug = excluded.slug`,
+  )
+  await pool.query(
+    `insert into clinic_profile (organization_id, display_name, timezone, hours, chair_count, site_live_at, phone, brand_color)
+     values ('org_e2e_tokenpages', 'E2E Token Pages Dental', 'America/New_York', $1, 2, now(), '+15550100700', '#2F6D6A')
+     on conflict (organization_id) do update set
+       display_name = excluded.display_name,
+       timezone = excluded.timezone,
+       hours = excluded.hours,
+       chair_count = excluded.chair_count,
+       site_live_at = excluded.site_live_at,
+       phone = excluded.phone,
+       brand_color = excluded.brand_color`,
+    [JSON.stringify(HOURS)],
+  )
+  // `canTakeBalancePayments` reads this, and both /b and /i render a
+  // "call the office" apology instead of their real UI without it. Nothing
+  // reaches Stripe — the harness sets no STRIPE_SECRET_KEY (see
+  // scripts/e2e-harness.sh) — so the account id is a shape, not a credential.
+  await pool.query(
+    `insert into shop_config (organization_id, stripe_account_id, stripe_account_status, charges_enabled, currency)
+     values ('org_e2e_tokenpages', 'acct_e2e_not_a_real_account', 'active', 1, 'usd')
+     on conflict (organization_id) do update set
+       stripe_account_id = excluded.stripe_account_id,
+       stripe_account_status = excluded.stripe_account_status,
+       charges_enabled = excluded.charges_enabled`,
+  )
+  // /r branches hard on this row. No google_place_id and the page has no
+  // primary action at all; star_gate_enabled and show_private_feedback are
+  // what put the 5-star radio group and the private-note path on screen —
+  // the custom controls a static a11y gate cannot see.
+  await pool.query(
+    `insert into clinic_review_config (organization_id, google_place_id, star_gate_enabled, show_private_feedback)
+     values ('org_e2e_tokenpages', 'ChIJe2eNotARealPlaceId', 1, 1)
+     on conflict (organization_id) do update set
+       google_place_id = excluded.google_place_id,
+       star_gate_enabled = excluded.star_gate_enabled,
+       show_private_feedback = excluded.show_private_feedback`,
+  )
+  await pool.query(
+    `insert into clinic_provider (id, organization_id, display_name, role)
+     values ('prv_e2e_tokenpages', 'org_e2e_tokenpages', 'Dr. Reese Okonjo', 'dentist')
+     on conflict (id) do update set display_name = excluded.display_name`,
+  )
+  await pool.query(
+    `insert into patient (id, organization_id, first_name, last_name, email, phone, pms_balance_cents, pms_balance_updated_at)
+     values ('pat_e2e_tokenpages', 'org_e2e_tokenpages', 'Robin', 'Textbound', 'robin.textbound@example.com', '+15550100701', $1, now())
+     on conflict (id) do update set
+       pms_balance_cents = excluded.pms_balance_cents,
+       pms_balance_updated_at = excluded.pms_balance_updated_at`,
+    [TOKEN_PAGES_BALANCE_CENTS],
+  )
+
+  // /b — the balance email's landing, in the state that takes money.
+  await pool.query(
+    `insert into balance_payment_request (id, organization_id, patient_id, token, balance_cents_at_send, status, source)
+     values ('bpr_e2e_tokenpages', 'org_e2e_tokenpages', 'pat_e2e_tokenpages', 'e2e-pay-balance-token', $1, 'sent', 'staff')
+     on conflict (id) do update set status = 'sent', paid_at = null, payment_id = null`,
+    [TOKEN_PAGES_BALANCE_CENTS],
+  )
+
+  // /i — a plan still waiting on the patient's yes. 'proposed' is the state
+  // with the terms and the Accept button; every later state is a status page.
+  await pool.query(
+    `insert into payment_plan (id, organization_id, patient_id, token, total_cents, installment_cents, installments, status)
+     values ('plan_e2e_tokenpages', 'org_e2e_tokenpages', 'pat_e2e_tokenpages', 'e2e-payment-plan-token', 24000, 6000, 4, 'proposed')
+     on conflict (id) do update set
+       status = 'proposed',
+       installments_paid = 0,
+       accepted_at = null,
+       next_charge_at = null,
+       stripe_customer_id = null,
+       stripe_payment_method_id = null,
+       stripe_setup_session_id = null`,
+  )
+
+  // /r — the review ask, unanswered. Restored to 'sent' because opening the
+  // page records a click; see the scope header.
+  await pool.query(
+    `insert into review_request (id, organization_id, patient_id, channel, status, token, sent_at)
+     values ('rev_e2e_tokenpages', 'org_e2e_tokenpages', 'pat_e2e_tokenpages', 'email', 'sent', 'e2e-review-token', now())
+     on conflict (id) do update set
+       status = 'sent',
+       clicked_at = null,
+       completed_at = null,
+       selected_site = null,
+       rating = null,
+       review_text = null,
+       private_feedback = null`,
+  )
+
+  // /w — an earlier opening, still claimable. The slot has to be in the
+  // FUTURE on every restore: `getOfferByToken` reads a pending offer whose
+  // slot has already started as expired, which would quietly swap the page
+  // under the stop for a different one.
+  const offerStart = nextWednesday()
+  offerStart.setUTCHours(13, 0, 0, 0)
+  await pool.query(
+    `insert into appointment_waitlist (id, organization_id, patient_id, visit_type, provider_id, status, source)
+     values ('wl_e2e_tokenpages', 'org_e2e_tokenpages', 'pat_e2e_tokenpages', 'cleaning', 'prv_e2e_tokenpages', 'active', 'portal')
+     on conflict (id) do update set status = 'active', fulfilled_at = null`,
+  )
+  await pool.query(
+    `insert into appointment_waitlist_offer
+       (id, organization_id, waitlist_id, patient_id, slot_start, provider_id, visit_type, token, status, sent_at)
+     values ('wlo_e2e_tokenpages', 'org_e2e_tokenpages', 'wl_e2e_tokenpages', 'pat_e2e_tokenpages', $1, 'prv_e2e_tokenpages', 'cleaning', 'e2e-fastpass-token', 'pending', now())
+     on conflict (id) do update set
+       slot_start = excluded.slot_start,
+       status = 'pending',
+       claimed_at = null,
+       claimed_appointment_id = null`,
+    [offerStart],
+  )
+
+  // --- the platform's own token pages. No clinic org exists for any of
+  // these: a prospect, a grader lead and a stranger met on a conference
+  // floor are all people Dream Create has not sold anything to yet.
+
+  // /d needs booking TURNED ON, or the page renders a one-line "booking is
+  // closed" card instead of the slot picker — which is the control worth
+  // scanning. `prospecting_config` is a platform-global singleton and this is
+  // the only scope that writes it.
+  await pool.query(
+    `insert into prospecting_config (id, config)
+     values ('default', $1)
+     on conflict (id) do update set config = excluded.config`,
+    [JSON.stringify({ booking: { enabled: true } })],
+  )
+  await pool.query(
+    `insert into prospect (id, name, city, state, timezone, status, email)
+     values ('pros_e2e_tokenpages', 'Cedar Hollow Family Dental', 'Fayetteville', 'AR', 'America/Chicago', 'interested', 'front.desk@cedarhollow.example.com')
+     on conflict (id) do update set name = excluded.name, timezone = excluded.timezone`,
+  )
+  await pool.query(
+    `insert into prospect_meeting (id, prospect_id, token, status, duration_min, host_time_zone)
+     values ('pmtg_e2e_tokenpages', 'pros_e2e_tokenpages', 'e2e-demo-booking-token', 'proposed', 30, 'America/New_York')
+     on conflict (id) do update set
+       status = 'proposed',
+       scheduled_at = null,
+       booked_at = null,
+       canceled_at = null`,
+  )
+
+  // /g — the public grade report.
+  await pool.query(
+    `insert into practice_grade (id, token, email, practice_name, city, state, website_url, result)
+     values ('pgrd_e2e_tokenpages', $1, 'front.desk@cedarhollow.example.com', 'Cedar Hollow Family Dental', 'Fayetteville', 'AR', 'https://cedarhollow.example.com', $2)
+     on conflict (id) do update set result = excluded.result`,
+    [GRADE_TOKEN, JSON.stringify(GRADE_RESULT)],
+  )
+
+  // /e (the floor) and /h (the attendee). The capture points at the grade
+  // above so /h renders its scan card and the door through to /g.
+  await pool.query(
+    `insert into marketing_event (id, slug, name, organizer, state, capture_token, active)
+     values ('mevt_e2e_tokenpages', 'e2e-state-dental', 'E2E State Dental Meeting', 'E2E State Dental Association', 'AR', $1, 1)
+     on conflict (id) do update set active = 1, capture_token = excluded.capture_token`,
+    [EVENT_TOKEN],
+  )
+  await pool.query(
+    `insert into event_capture
+       (id, event_id, token, first_name, last_name, email, practice_name, role, city, photo_url, photo_release_at, grade_id)
+     values ('mcap_e2e_tokenpages', 'mevt_e2e_tokenpages', $1, 'Robin', 'Textbound', 'robin.textbound@example.com', 'Cedar Hollow Family Dental', 'dentist', 'Fayetteville', '/images/user-64-01.jpg', now(), 'pgrd_e2e_tokenpages')
+     on conflict (id) do update set photo_url = excluded.photo_url, grade_id = excluded.grade_id`,
+    [CAPTURE_TOKEN],
+  )
+  console.log('seeded the eight text-message landings (/b /i /r /w /g /d /e /h)')
+}
+
+// ---------------------------------------------------------------------------
+// `partner` — THE FOURTH PERSONA, SIGNED IN (DREAMCRM-98)
+//
+// The public `/partner-program` sales page has been scanned since the first
+// batch of stops; the thing a partner actually LOGS INTO had none. This seeds
+// a partner with a referred clinic and a commission history, so the portal
+// renders its real surface — KPI stats, the referred-clinic table, the payout
+// panel — rather than the empty state.
+//
+// The partner is NOT an org member (`requirePartner` looks the row up by
+// `referral_partner.user_id` directly), so there is no `member` row here and
+// the session carries no active organization. That is the persona, not an
+// omission.
+//
+// Its clinic is its own org: `clinic_profile.referral_partner_id` is what
+// makes a clinic show up on a partner's portal, and stamping that onto
+// `org_e2e_live` would put a partner banner into every other spec's world.
+async function seedPartner(pool) {
+  await pool.query(
+    `insert into "user" (id, name, email, email_verified)
+     values ('user_e2e_partner', 'Jules Marchetti', 'jules.marchetti@example.com', true)
+     on conflict (id) do nothing`,
+  )
+  await pool.query(
+    `insert into session (id, token, user_id, expires_at)
+     values ('sess_e2e_partner', 'e2e-partner-session-token', 'user_e2e_partner', now() + interval '7 days')
+     on conflict (id) do update set expires_at = now() + interval '7 days'`,
+  )
+  await pool.query(
+    `insert into referral_partner (id, name, company, email, status, default_percent_bps, default_term_months, terms_note, user_id)
+     values ('rpart_e2e_partner', 'Jules Marchetti', 'Marchetti Dental Consulting', 'jules.marchetti@example.com', 'active', 1500, 24, 'Paid monthly once the balance clears $25.', 'user_e2e_partner')
+     on conflict (id) do update set
+       status = 'active',
+       stripe_connect_account_id = null,
+       payouts_enabled = 0`,
+  )
+  await pool.query(
+    `insert into organization (id, name, slug, type, is_demo)
+     values ('org_e2e_referred', 'E2E Referred Dental', 'e2e-referred', 'clinic', false)
+     on conflict (id) do update set name = excluded.name, slug = excluded.slug`,
+  )
+  await pool.query(
+    `insert into clinic_profile
+       (organization_id, display_name, timezone, hours, chair_count, plan_tier, subscription_status, referral_partner_id, referral_started_at)
+     values ('org_e2e_referred', 'E2E Referred Dental', 'America/New_York', $1, 3, 'premium', 'active', 'rpart_e2e_partner', now() - interval '120 days')
+     on conflict (organization_id) do update set
+       plan_tier = excluded.plan_tier,
+       subscription_status = excluded.subscription_status,
+       referral_partner_id = excluded.referral_partner_id,
+       referral_started_at = excluded.referral_started_at`,
+    [JSON.stringify(HOURS)],
+  )
+  // The ledger. Two accrued rows put a real balance on the page (and over the
+  // $25 payout floor, which is what makes the payout panel offer anything);
+  // one paid row gives the lifetime figure something to say. Both tables key
+  // on a serial id, so a restore clears by partner rather than upserting.
+  await pool.query(`delete from referral_commission where partner_id = 'rpart_e2e_partner'`)
+  await pool.query(`delete from referral_payout where partner_id = 'rpart_e2e_partner'`)
+  await pool.query(
+    `insert into referral_commission (partner_id, organization_id, stripe_invoice_id, invoice_total_cents, percent_bps, amount_cents, status)
+     values
+       ('rpart_e2e_partner', 'org_e2e_referred', 'in_e2e_partner_1', 20000, 1500, 3000, 'accrued'),
+       ('rpart_e2e_partner', 'org_e2e_referred', 'in_e2e_partner_2', 20000, 1500, 3000, 'accrued'),
+       ('rpart_e2e_partner', 'org_e2e_referred', 'in_e2e_partner_3', 20000, 1500, 3000, 'paid')
+     on conflict (stripe_invoice_id) do nothing`,
+  )
+  await pool.query(
+    `insert into referral_payout (partner_id, amount_cents, stripe_transfer_id, status, note)
+     values ('rpart_e2e_partner', 3000, 'tr_e2e_not_a_real_transfer', 'paid', 'E2E fixture payout')`,
+  )
+  console.log('seeded the referral partner (one referred clinic, $60 owed)')
+}
+
 /**
  * Every scope, in the order a full seed applies them. `base` first because the
  * consumable scopes reference its patients; the rest are row-disjoint and so
@@ -742,6 +1061,8 @@ export const SCOPES = {
   'go-live': seedGoLive,
   billing: seedBilling,
   webhook: seedWebhook,
+  'token-pages': seedTokenPages,
+  partner: seedPartner,
 }
 
 /** Everything except `base` — the rows a spec can spend and a retry must get back. */
@@ -808,6 +1129,32 @@ export const SCOPE_ROWS = {
     'org_e2e_webhook_rival',
     'pat_e2e_webhook_rival',
     'bp_e2e_webhook_rival',
+  ],
+  // The eight text-message landings. The clinic half and the platform half
+  // (prospect / grade / event) are ONE scope because one spec walks both —
+  // see the scope header for why splitting by route would not work.
+  'token-pages': [
+    'org_e2e_tokenpages',
+    'pat_e2e_tokenpages',
+    'prv_e2e_tokenpages',
+    'bpr_e2e_tokenpages',
+    'plan_e2e_tokenpages',
+    'rev_e2e_tokenpages',
+    'wl_e2e_tokenpages',
+    'wlo_e2e_tokenpages',
+    'pros_e2e_tokenpages',
+    'pmtg_e2e_tokenpages',
+    'pgrd_e2e_tokenpages',
+    'mevt_e2e_tokenpages',
+    'mcap_e2e_tokenpages',
+  ],
+  partner: [
+    'user_e2e_partner',
+    'sess_e2e_partner',
+    'rpart_e2e_partner',
+    // The referred clinic is the partner's, not `base`'s: the referral stamp
+    // on its profile is what makes it appear on the portal at all.
+    'org_e2e_referred',
   ],
 }
 
