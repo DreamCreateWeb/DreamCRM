@@ -81,6 +81,16 @@ const BENIGN: Array<{ table: string; column: string; why: string }> = [
     why: 'deterministic dedupe key for rule-created follow-ups ("recall:<patientId>:<YYYY-MM>")',
   },
   { table: 'proposal', column: 'source_key', why: "the generator's dedupe anchor — one proposal per piece of work" },
+  {
+    table: 'notifications',
+    column: 'dedupe_key',
+    why:
+      'the same shape as campaigns.automation_key above — a deterministic replay key ' +
+      '("stripe:evt_1NxA…#payment_failed") so a re-run of a Stripe webhook handler writes one row ' +
+      'instead of two. The Stripe EVENT id authorises nothing on its own: fetching that event needs ' +
+      'the platform secret key, and this column is never a credential for anything we hold. NULL on ' +
+      'every notification that is not replayable, which is nearly all of them.',
+  },
   { table: 'rate_limit', column: 'key', why: 'the fixed-window rate-limit bucket key ("{action}:{ip}")' },
   {
     table: 'referral_payout',

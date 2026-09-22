@@ -1100,7 +1100,47 @@ closed on their own evidence (the demo cart, the MRR cadence math, and the
 collections header) and two remain open below.
 
 - S3 · stripe-webhook release-and-retry re-fires non-idempotent in-app
-  notifications. · OPEN.
+  notifications. · **FIXED — awaiting merge (#651)** (DREAMCRM-89) — and the
+  claim turned out to be short in TWO ways, not one. It is released when a
+  handler throws (by design, so Stripe's retry re-processes) and the retry
+  re-runs the WHOLE handler; and it is FAIL-OPEN, so a delivery whose ledger
+  write errored is processed with nothing recorded at all and the retry finds a
+  clean ledger. Every other step in that handler survives a re-run —
+  `syncSubscriptionFromStripe` upserts, `accrueCommissionForInvoice` is unique
+  on the invoice id, `reverseCommissionForInvoice` is monotonic — so
+  `notifyOrgMembers` was the only one that did not, and its three branches are
+  "a new clinic signed up", "a clinic cancelled" and "payment failed", each
+  reaching every platform owner and admin in the bell AND the inbox.
+  Fixed at the DISPATCHER rather than at the webhook, so the property belongs
+  to the thing that is not idempotent instead of to one caller that happens to
+  replay: migration 0164 adds `notifications.dedupe_key` + a PARTIAL unique
+  index on (user_id, dedupe_key), the same shape as
+  `campaigns_org_automation_key_idx`, and `notify()` becomes at-most-once per
+  (recipient, key). The conflict returns BEFORE the live push and the email — a
+  replay that re-emailed would be the same defect one channel over. The stored
+  key is scoped by notification TYPE, so an event that ever grows a second,
+  different notification still gets two rows.
+  THE TRADE, at its real width (Sentinel's review note, and worth carrying
+  because the first write-up understated it): the row and the email are not one
+  unit. The row commits first, and ANY email failure — not only a crash — is
+  swallowed by `notify()`'s own catch, so the retry conflicts and that email is
+  gone for good where it used to be re-attempted. The `deliver()` deadline
+  below turns a merely SLOW provider into a throwing one at 10s, so the two
+  land together and the window is more reachable than either entry describes
+  alone. Taken knowingly: the bell row still lands, so these alerts degrade
+  rather than disappear. Per-channel delivery state is the real answer and it
+  is a `docs/POST-1.0.md` item, not a rider.
+  The index is `(user_id, dedupe_key)` and NOT org-scoped — per user is right
+  for a fan-out — so the org has to live in the KEY for any tenant-scoped
+  caller, the way `campaigns_org_automation_key_idx`'s values do. Written into
+  the `dedupeKey` docblock rather than left for the next caller to rediscover.
+  The Stripe webhook is exempt on its own terms: its events belong to the
+  platform org, not to a tenant.
+  `releaseStripeEvent` is unchanged: it exists so a failed handler is retried,
+  and removing it would drop events. The retry was never the defect.
+  The suppression direction is bounded by the key — `stripe:<event.id>#<type>`,
+  and Stripe issues a new event id per real occurrence, so a clinic that fails
+  payment twice still produces two alerts.
 - S3 · collections board header total truncated at 200 rows. · **FIXED**
   (DREAMCRM-23) — the header now reads `getCollectionsSnapshot`, the SQL
   aggregate the Payments hub's doorway card already used, so the two surfaces

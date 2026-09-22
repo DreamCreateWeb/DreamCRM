@@ -1,0 +1,32 @@
+-- DREAMCRM-89 — `notifications.dedupe_key`.
+--
+-- The platform Stripe webhook claims each event id before handling it and
+-- RELEASES that claim when the handler throws, so Stripe's retry re-processes
+-- the event from the top. Everything else the handler does is idempotent by
+-- construction (`syncSubscriptionFromStripe` upserts, `accrueCommissionForInvoice`
+-- is unique on the invoice id, `reverseCommissionForInvoice` is monotonic) —
+-- `notifyOrgMembers` is the one step that is not. It inserts a fresh row per
+-- recipient per call, so a re-run tells every platform owner a second time that
+-- a clinic's payment failed. The same hole opens without any throw at all: the
+-- claim is deliberately FAIL-OPEN, so a delivery whose ledger write errored is
+-- processed with nothing recorded, and Stripe's retry finds a clean ledger.
+--
+-- The key is scoped by (user, key): `notifyOrgMembers` fans one event out to
+-- every owner/admin, so each of them earns exactly one row and a replay earns
+-- none.
+--
+-- NO PRODUCTION PRECONDITION. The column is new and NULLABLE, so every existing
+-- row gets NULL, and the index is PARTIAL on `dedupe_key IS NOT NULL` — it
+-- qualifies zero existing rows and therefore cannot fail on existing data. A
+-- plain unique index would have been satisfied by those NULLs anyway (Postgres
+-- treats NULLs as distinct), but it would also carry every row in the table for
+-- a column almost nothing sets.
+--
+-- LOCK NOTE (deploy path): `CREATE INDEX` without CONCURRENTLY takes a SHARE
+-- lock and blocks WRITES to `notifications` while it builds. Drizzle applies a
+-- boot's migrations in one transaction, which rules CONCURRENTLY out. The build
+-- still scans the table once; on today's row counts that is well under a second
+-- and it happens on a container that App Runner has already marked healthy.
+
+ALTER TABLE "notifications" ADD COLUMN "dedupe_key" text;--> statement-breakpoint
+CREATE UNIQUE INDEX "notifications_user_dedupe_idx" ON "notifications" USING btree ("user_id","dedupe_key") WHERE "notifications"."dedupe_key" is not null;
