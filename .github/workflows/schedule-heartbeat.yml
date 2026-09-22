@@ -106,7 +106,21 @@ jobs:
           echo '{}' > runs.json
           echo '{}' > added.json
 
-          for path in .github/workflows/*.yml; do
+          # BOTH SPELLINGS, because `declaredSchedules` accepts both and this
+          # loop did not (Sentinel, reviewing #666). A `.yaml` workflow with a
+          # cron was derived by the script, had no run entry from here, and was
+          # graded `never-fired` — fail-closed, which is right, but the message
+          # sent the reader to `fetch-depth: 0` when the cause was this glob.
+          # `nullglob` so the branch with no matches contributes nothing rather
+          # than a literal `*.yaml` path. What that buys TODAY is one less stray
+          # `grep: … No such file` on stderr per run, and no more — `set -e` is
+          # ignored for a command in an `if` condition, so the `grep` below
+          # cannot fail this step whatever it is handed (measured, reviewing
+          # #673). It is still required: the moment that `grep` moves out of the
+          # `if`, a literal glob reaching `basename` becomes a workflow this
+          # check reports as never having fired.
+          shopt -s nullglob
+          for path in .github/workflows/*.yml .github/workflows/*.yaml; do
             file=$(basename "$path")
             # Only files that actually declare a schedule.
             if ! grep -qE '^\s*-\s*cron:' "$path"; then continue; fi
