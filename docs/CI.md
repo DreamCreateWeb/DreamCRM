@@ -40,7 +40,7 @@ What it does: finds the rollout this run's own build started, polls it until it
 leaves `IN_PROGRESS`, fails on anything but `SUCCEEDED`, and then asks the
 service itself whether it is `RUNNING`.
 
-Six things about it that are decisions rather than details:
+Seven things about it that are decisions rather than details:
 
 - **`ROLLBACK_SUCCEEDED` is a FAILURE.** It is App Runner saying the new version
   failed its health check and the previous one is back — the 2026-09-21 harm
@@ -72,17 +72,25 @@ Six things about it that are decisions rather than details:
   `migration-check` stays OUTSIDE the group either way, which is what that split
   was for.
 - **It needs an IAM grant, and says so out loud until it has one.** The deploy
-  role (`DreamCRMGitHubActionsDeploy`) needs `apprunner:ListOperations`,
-  `apprunner:ListServices` and `apprunner:DescribeService`; that is an
-  owner-side action on the DREAMCRM-65 checklist. Until it lands, every call
+  role (`DreamCRMGitHubActionsDeploy`) needs `apprunner:ListOperations` and
+  `apprunner:DescribeService` — two permissions, given the repo variable below;
+  `apprunner:ListServices` is needed only when that variable is unset. This is
+  an owner-side action on the DREAMCRM-65 checklist. Until it lands, every call
   answers `AccessDenied` and the step prints
   `::warning::rollout UNVERIFIED` and exits 0 — hard-failing would turn every
   merge to `main` red for a reason nobody in CI can fix. **That is the only path
   in the step allowed to report green without verifying anything**, it is keyed
   to authorization errors alone (a throttle, a timeout, a missing service or an
   unparseable response are all hard failures), and it clears itself the day the
-  grant lands with no code change. Set the repo variable
-  `APP_RUNNER_SERVICE_ARN` to skip the `list-services` lookup; it is optional.
+  grant lands with no code change.
+- **Set the `APP_RUNNER_SERVICE_ARN` repo variable — it is part of the grant,
+  not a nicety.** Unset, the check resolves the ARN through `apprunner
+  list-services`, which needs a THIRD permission the checklist does not ask
+  for. Setting it means that call never happens: one less runtime AWS call on
+  the deploy path, and the two permissions above are then exactly what the
+  check needs. Its value cannot be derived from anything in this repo — the
+  service id is not the `APP_RUNNER_DEFAULT_HOST` subdomain — so it comes from
+  the AWS console alongside the grant.
 
 **The cron sync after it carries `if: ${{ !cancelled() }}`.** A failed step
 stops the steps after it, and `continue-on-error` on the LATER step does not

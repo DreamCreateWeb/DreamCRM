@@ -377,12 +377,32 @@ DREAMCRM-65) every call answers `AccessDenied` and the step prints
 `rollout UNVERIFIED` and exits 0 — loud, keyed to authorization errors alone,
 and self-clearing the day the grant arrives. So the pipeline can now tell a
 landed rollout from a lost one as soon as it is allowed to look.
-· **FIXED — awaiting merge (#639)** — and on merge this reconciles to
-**FIXED (DEGRADED: the rollout is unverified until the DREAMCRM-65 IAM grant
-lands)**, not to a plain `FIXED`. Until the grant arrives every deploy still
-prints `rollout UNVERIFIED` and nothing is actually watching the rollout, so a
-bare `FIXED` would stop the ledger carrying a thing that is still true. The
-entry closes on the GRANT landing, not on the merge.
+**THE GRANT IS TWO PERMISSIONS PLUS A REPO VARIABLE** (Forge's finding,
+Sentinel's call, review of #639). The check resolves the service ARN from the
+`APP_RUNNER_SERVICE_ARN` repo variable and falls back to `apprunner
+list-services` when it is unset — and it was unset, so the fallback was the
+live path and the two-permission ask on the DREAMCRM-65 checklist would have
+left every deploy still reporting `rollout UNVERIFIED`. The fix is the
+VARIABLE, not a third permission: setting it means `list-services` is never
+called, which removes a runtime AWS call from the deploy path, keeps the grant
+to what the check actually needs, and leaves the checklist ask correct as
+written. So the whole remaining dependency is:
+
+- `apprunner:ListOperations` + `apprunner:DescribeService` on
+  `DreamCRMGitHubActionsDeploy` (already on the checklist), and
+- the `APP_RUNNER_SERVICE_ARN` repo variable, whose value nobody in the repo
+  can derive — the service id is not the `APP_RUNNER_DEFAULT_HOST` subdomain.
+
+A two-permission grant with no variable is not a silent failure: the degrade
+path prints the denied call, so the run says `is not authorized to perform:
+apprunner:ListServices` rather than shrugging.
+
+· **FIXED (DEGRADED: the rollout is unverified until the DREAMCRM-65 grant and
+the `APP_RUNNER_SERVICE_ARN` variable land) — #639** — deliberately not a plain
+`FIXED`. Until both arrive every deploy prints `rollout UNVERIFIED` and nothing
+is actually watching the rollout, so a bare verdict would stop the ledger
+carrying something that is still true. **This entry closes when the grant and
+the variable land, not when the PR merged.**
 
 ### R1 · S1 sweep — Tenant & auth (2026-08-17)
 
