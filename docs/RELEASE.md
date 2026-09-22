@@ -2273,7 +2273,7 @@ ops for the integration page — but nothing ALERTS on "op pending for N days",
 so a practice whose bridge stays down doesn't get told. Recorded as its own
 entry below rather than hedging this one's verdict.
 
-### FIXED — awaiting merge — a PMS write-op can sit parked with nobody told (found 2026-09-10)
+### Fixed — a PMS write-op can sit parked with nobody told (found 2026-09-10) · FIXED (#640, `20ba13bd`)
 
 Found reviewing Slice 7b. Since the WAITING lane preserves the attempt counter,
 a write-op parks for as long as the practice system is unreachable — which is
@@ -2284,7 +2284,7 @@ timer, and nothing replaced that second job. `getPmsHealth`
 integration page, so it is visible to somebody who looks; nothing alerts on
 "op pending for N days", so nobody is told. A practice whose bridge stays down
 over a holiday week has bookings queued and no prompt to go and look. · **FIXED
-— awaiting merge (#640)**. Unbundled to DREAMCRM-68 (2026-09-15,
+(#640, `20ba13bd`, merged 2026-09-22)**. Unbundled to DREAMCRM-68 (2026-09-15,
 DREAMCRM-58 triage), parked at `backlog`, and ranked **1.0** by the DREAMCRM-84
 planning meeting (2026-09-22, unanimous): it closes a REGRESSION rather than
 adding scope — Slice 7b took away the "give up and become visible" half of
