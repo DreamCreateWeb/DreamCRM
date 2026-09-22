@@ -151,7 +151,7 @@ export default function ProductForm({ product }: { product?: ProductRow }) {
                 <button aria-label={`Remove photo ${i + 1}`} onClick={() => setImages((imgs) => imgs.filter((_, j) => j !== i))} className="absolute top-0.5 right-0.5 w-5 h-5 rounded-full bg-black/60 text-white text-xs leading-none">×</button>
               </div>
             ))}
-            <label className="w-20 h-20 rounded-[var(--r-md)] border border-dashed border-gray-300 dark:border-gray-600 flex items-center justify-center text-xs text-gray-400 cursor-pointer hover:border-teal-400">
+            <label className="w-20 h-20 rounded-[var(--r-md)] border border-dashed border-gray-300 dark:border-gray-600 flex items-center justify-center text-xs text-gray-500 dark:text-gray-400 cursor-pointer hover:border-teal-400">
               {uploading ? '…' : '+ Photo'}
               <input type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) onUpload(f) }} />
             </label>
@@ -176,7 +176,7 @@ export default function ProductForm({ product }: { product?: ProductRow }) {
                 <input aria-label={`Variant ${i + 1} price in dollars`} type="number" step="0.01" value={v.priceDollars} onChange={(e) => updateVariant(v.key, { priceDollars: parseFloat(e.target.value) })} className={FIELD_NUM} />
                 <input aria-label={`Variant ${i + 1} compare-at price in dollars`} type="number" step="0.01" value={v.compareAtDollars ?? ''} onChange={(e) => updateVariant(v.key, { compareAtDollars: e.target.value ? parseFloat(e.target.value) : null })} className={FIELD_NUM} />
                 <input aria-label={`Variant ${i + 1} stock`} type="number" value={v.inventoryQty ?? ''} placeholder="∞" onChange={(e) => updateVariant(v.key, { inventoryQty: e.target.value ? parseInt(e.target.value) : null })} className={FIELD_NUM} />
-                <button aria-label={`Remove variant ${i + 1}`} onClick={() => setVariants((vs) => (vs.length > 1 ? vs.filter((x) => x.key !== v.key) : vs))} className="text-gray-400 hover:text-rose-600 text-sm">×</button>
+                <button aria-label={`Remove variant ${i + 1}`} onClick={() => setVariants((vs) => (vs.length > 1 ? vs.filter((x) => x.key !== v.key) : vs))} className="text-gray-500 dark:text-gray-400 hover:text-rose-600 text-sm">×</button>
               </div>
             ))}
           </div>

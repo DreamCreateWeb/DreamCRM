@@ -32,7 +32,7 @@ export default function PostsView({
     <div>
       <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
         <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100">
-          Your posts {posts.length > 0 && <span className="font-mono-num text-gray-400">· {posts.length}</span>}
+          Your posts {posts.length > 0 && <span className="font-mono-num text-gray-500 dark:text-gray-400">· {posts.length}</span>}
         </h2>
         <div className="inline-flex rounded-full bg-[color:var(--color-surface-sunk)] ring-1 ring-inset ring-[color:var(--color-hairline)] p-0.5" role="group" aria-label="View">
           <Toggle active={view === 'showcase'} onClick={() => setView('showcase')}>

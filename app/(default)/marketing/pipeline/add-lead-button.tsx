@@ -85,7 +85,7 @@ export default function AddLeadButton({ stages, sources }: Props) {
               <button
                 type="button"
                 onClick={() => setOpen(false)}
-                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[var(--r-xs)] text-gray-400 hover:bg-[color:var(--color-surface-sunk)] hover:text-gray-600 dark:hover:text-gray-200"
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[var(--r-xs)] text-gray-500 dark:text-gray-400 hover:bg-[color:var(--color-surface-sunk)] hover:text-gray-600 dark:hover:text-gray-200"
                 aria-label="Close (Esc)"
               >
                 ✕

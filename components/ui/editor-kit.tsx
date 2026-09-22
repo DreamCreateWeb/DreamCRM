@@ -85,8 +85,8 @@ function Ctrl({
       title={label}
       className={`w-8 h-8 inline-flex items-center justify-center rounded-md transition disabled:opacity-25 disabled:cursor-default ${
         danger
-          ? 'text-gray-400 hover:text-rose-600 hover:bg-rose-500/10'
-          : 'text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-200/60 dark:hover:bg-gray-700/60'
+          ? 'text-gray-500 dark:text-gray-400 hover:text-rose-600 hover:bg-rose-500/10'
+          : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-200/60 dark:hover:bg-gray-700/60'
       }`}
     >
       {children}
@@ -251,7 +251,7 @@ export function TagListEditor({
             <button
               type="button"
               onClick={() => remove(i)}
-              className="text-gray-400 hover:text-rose-600 transition"
+              className="text-gray-500 dark:text-gray-400 hover:text-rose-600 transition"
               aria-label={`Remove ${it}`}
             >
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 20 20" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round">

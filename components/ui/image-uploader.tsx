@@ -89,7 +89,7 @@ export default function ImageUploader({
           /* eslint-disable-next-line @next/next/no-img-element */
           <img src={url} alt="" className="w-full h-full object-cover" />
         ) : (
-          <span className="text-xs text-gray-400">No image</span>
+          <span className="text-xs text-gray-500 dark:text-gray-400">No image</span>
         )}
         {uploading && (
           <div className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center gap-2 text-white text-xs">
@@ -120,7 +120,7 @@ export default function ImageUploader({
           <button
             type="button"
             onClick={() => setUrl(null)}
-            className="inline-flex items-center justify-center rounded-lg px-3 py-1.5 text-[13px] font-medium text-gray-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/20 transition"
+            className="inline-flex items-center justify-center rounded-lg px-3 py-1.5 text-[13px] font-medium text-gray-500 dark:text-gray-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/20 transition"
           >
             Remove
           </button>

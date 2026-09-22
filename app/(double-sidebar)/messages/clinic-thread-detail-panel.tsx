@@ -788,7 +788,7 @@ export default function ThreadDetailPanel({
             className={`inline-flex h-8 w-8 items-center justify-center rounded-[var(--r-sm)] transition-colors disabled:opacity-50 ${
               starred
                 ? 'text-amber-500 hover:bg-amber-500/10'
-                : 'text-gray-400 hover:bg-gray-500/[0.08] hover:text-gray-600 dark:hover:text-gray-300'
+                : 'text-gray-500 dark:text-gray-400 hover:bg-gray-500/[0.08] hover:text-gray-600 dark:hover:text-gray-300'
             }`}
           >
             <IconStar filled={starred} />

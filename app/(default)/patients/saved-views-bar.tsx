@@ -172,7 +172,7 @@ export default function SavedViewsBar({
               className="form-input text-xs py-0.5 w-36"
             />
             <button type="button" onClick={saveView} disabled={pending} className="text-xs font-medium text-teal-700 dark:text-teal-400">Save</button>
-            <button type="button" onClick={() => setNaming(false)} className="text-xs text-gray-400">Cancel</button>
+            <button type="button" onClick={() => setNaming(false)} className="text-xs text-gray-500 dark:text-gray-400">Cancel</button>
           </span>
         ) : (
           <button
@@ -295,7 +295,7 @@ function BulkFollowupInline({
         aria-label="Due date"
       />
       <button type="button" onClick={() => onSubmit(title, dueDate)} disabled={pending} className="text-xs font-medium text-teal-700 dark:text-teal-400 px-1">Add</button>
-      <button type="button" onClick={onCancel} className="text-xs text-gray-400 px-0.5">Cancel</button>
+      <button type="button" onClick={onCancel} className="text-xs text-gray-500 dark:text-gray-400 px-0.5">Cancel</button>
     </span>
   )
 }

@@ -127,7 +127,7 @@ export default function BroadcastButton() {
                                       · {counts[s.key]}
                                     </span>
                                   ) : (
-                                    <span className="ml-1.5 text-xs font-normal text-gray-400">· …</span>
+                                    <span className="ml-1.5 text-xs font-normal text-gray-500 dark:text-gray-400">· …</span>
                                   )}
                                 </span>
                                 <span className="block text-xs text-gray-500 dark:text-gray-400">{s.hint}</span>
@@ -149,7 +149,7 @@ export default function BroadcastButton() {
                           value={body}
                           onChange={(e) => setBody(e.target.value)}
                         />
-                        <p className="mt-1 text-xs text-gray-400 tabular-nums">
+                        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400 tabular-nums">
                           {body.length}/{BROADCAST_BODY_MAX}
                         </p>
                       </div>

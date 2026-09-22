@@ -62,7 +62,7 @@ export function SearchInput({
           type="button"
           onClick={onClear}
           aria-label="Clear search"
-          className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-1 text-gray-400 transition-colors hover:text-gray-700 dark:hover:text-gray-200"
+          className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-1 text-gray-500 dark:text-gray-400 transition-colors hover:text-gray-700 dark:hover:text-gray-200"
         >
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true">
             <path d="M6 6l12 12M18 6 6 18" />

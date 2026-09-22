@@ -192,7 +192,7 @@ export default function HoursGrid({
                   disabled={!isOpen}
                   className="form-input w-32 font-mono-num tabular-nums"
                 />
-                <span className="text-xs text-gray-400">to</span>
+                <span className="text-xs text-gray-500 dark:text-gray-400">to</span>
                 <input
                   name={`hours[${id}].close`}
                   type="time"

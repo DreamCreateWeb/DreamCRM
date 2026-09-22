@@ -601,7 +601,7 @@ function CampaignPreviewModal({
           <button
             onClick={onClose}
             aria-label="Close preview"
-            className="flex h-8 w-8 items-center justify-center rounded-[var(--r-xs)] text-gray-400 hover:bg-[color:var(--color-surface-sunk)] hover:text-gray-600 dark:hover:text-gray-200 text-xl leading-none"
+            className="flex h-8 w-8 items-center justify-center rounded-[var(--r-xs)] text-gray-500 dark:text-gray-400 hover:bg-[color:var(--color-surface-sunk)] hover:text-gray-600 dark:hover:text-gray-200 text-xl leading-none"
           >
             ×
           </button>
@@ -625,7 +625,7 @@ function CampaignPreviewModal({
             <div className="flex gap-2">
               <span className="text-gray-500 dark:text-gray-400 w-14 shrink-0">Subject</span>
               <span className="text-gray-800 dark:text-gray-100 font-medium truncate">
-                {state.subject || <span className="italic font-normal text-gray-400">(no subject yet)</span>}
+                {state.subject || <span className="italic font-normal text-gray-500 dark:text-gray-400">(no subject yet)</span>}
               </span>
             </div>
           </div>

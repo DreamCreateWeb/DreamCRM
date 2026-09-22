@@ -102,7 +102,7 @@ export default function CalendarView({ posts }: { posts: SocialPostView[] }) {
       {/* Weekday header */}
       <div className="grid grid-cols-7 gap-px mb-px">
         {WEEKDAYS.map((d) => (
-          <div key={d} className="text-xs font-semibold text-gray-400 text-center py-1">
+          <div key={d} className="text-xs font-semibold text-gray-500 dark:text-gray-400 text-center py-1">
             {d}
           </div>
         ))}

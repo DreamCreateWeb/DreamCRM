@@ -109,7 +109,7 @@ export default function QuickEdits({ data, states }: { data: QuickEditsData; sta
             </label>
             <label className="block">
               <span className="block text-sm font-semibold text-gray-800 dark:text-gray-100 mb-1">
-                Automatically hide after <span className="font-normal text-gray-400">(optional)</span>
+                Automatically hide after <span className="font-normal text-gray-500 dark:text-gray-400">(optional)</span>
               </span>
               <input
                 type="date"
@@ -123,7 +123,7 @@ export default function QuickEdits({ data, states }: { data: QuickEditsData; sta
             </label>
             <label className="block">
               <span className="block text-sm font-semibold text-gray-800 dark:text-gray-100 mb-1">
-                Link the bar to <span className="font-normal text-gray-400">(optional)</span>
+                Link the bar to <span className="font-normal text-gray-500 dark:text-gray-400">(optional)</span>
               </span>
               <input
                 type="text"
@@ -245,7 +245,7 @@ function QuickEditModal({
             type="button"
             onClick={onClose}
             aria-label="Close"
-            className="inline-flex h-9 w-9 items-center justify-center rounded-[var(--r-pill)] text-gray-400 hover:text-gray-700 hover:bg-gray-500/10 dark:hover:text-gray-200"
+            className="inline-flex h-9 w-9 items-center justify-center rounded-[var(--r-pill)] text-gray-500 dark:text-gray-400 hover:text-gray-700 hover:bg-gray-500/10 dark:hover:text-gray-200"
           >
             ✕
           </button>

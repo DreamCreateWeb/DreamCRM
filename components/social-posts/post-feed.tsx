@@ -109,7 +109,7 @@ export default function PostFeed({
             >
               <BrandLogo id={id} size={16} className={on ? '' : 'opacity-50 grayscale'} />
               {TAB_NAME[p]}
-              <span className="text-[11px] text-gray-400 font-mono-num">{count}</span>
+              <span className="text-[11px] text-gray-500 dark:text-gray-400 font-mono-num">{count}</span>
             </button>
           )
         })}
@@ -148,7 +148,7 @@ export default function PostFeed({
           onClose={() => setOpenPost(null)}
         />
       )}
-      <p className="text-center text-[11px] text-gray-400 mt-3">
+      <p className="text-center text-[11px] text-gray-500 dark:text-gray-400 mt-3">
         Your {feedPosts.length} {TAB_NAME[current]} {feedPosts.length === 1 ? 'post' : 'posts'}, shown the way {TAB_NAME[current]} displays them.
       </p>
     </div>

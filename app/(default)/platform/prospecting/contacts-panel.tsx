@@ -69,7 +69,7 @@ export default function ContactsPanel({
     <div>
       <div className="flex items-center justify-between mb-2">
         <div className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
-          Contacts {contacts.length > 0 && <span className="text-gray-400">· {contacts.length}</span>}
+          Contacts {contacts.length > 0 && <span className="text-gray-500 dark:text-gray-400">· {contacts.length}</span>}
         </div>
         <div className="flex items-center gap-2">
           {contacts.length > 0 && (
@@ -100,7 +100,7 @@ export default function ContactsPanel({
       </div>
 
       {contacts.length === 0 && !adding && (
-        <p className="text-sm text-gray-400">
+        <p className="text-sm text-gray-500 dark:text-gray-400">
           No email found on their site — this is a phone-first prospect. Add one here if you track it down.
         </p>
       )}

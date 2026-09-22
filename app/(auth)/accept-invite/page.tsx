@@ -595,7 +595,7 @@ function isExistingUserError(message?: string): boolean {
 export default function AcceptInvitePage() {
   return (
     <AuthShell>
-      <Suspense fallback={<div className="w-full text-sm text-gray-400">Loading…</div>}>
+      <Suspense fallback={<div className="w-full text-sm text-gray-500 dark:text-gray-400">Loading…</div>}>
         <AcceptInviteInner />
       </Suspense>
     </AuthShell>

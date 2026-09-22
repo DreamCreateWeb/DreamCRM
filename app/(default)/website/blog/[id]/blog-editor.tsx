@@ -988,7 +988,7 @@ function FaqEditor({
                 <button
                   type="button"
                   onClick={() => onChange(faq.filter((_, idx) => idx !== i))}
-                  className="text-gray-400 hover:text-rose-600 dark:hover:text-rose-400 text-sm shrink-0 px-1"
+                  className="text-gray-500 dark:text-gray-400 hover:text-rose-600 dark:hover:text-rose-400 text-sm shrink-0 px-1"
                   title="Remove"
                 >
                   ✕

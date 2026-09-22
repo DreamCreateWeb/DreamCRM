@@ -102,7 +102,7 @@ export default function PostCommentsPanel({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-full w-8 h-8 inline-flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800"
+            className="rounded-full w-8 h-8 inline-flex items-center justify-center text-gray-500 dark:text-gray-400 hover:text-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800"
             aria-label="Close"
           >
             ✕
@@ -189,7 +189,7 @@ function EngagementRow({ e, platform }: { e: PostEngagementView; platform: strin
             <p className="text-base font-semibold font-mono-num text-gray-900 dark:text-gray-100 leading-tight">
               {fmt(s.value)}
             </p>
-            <p className="text-xs uppercase tracking-wide text-gray-400">{s.label}</p>
+            <p className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">{s.label}</p>
           </div>
         ))}
       </div>
@@ -413,9 +413,9 @@ function CommentRow({
                   You
                 </span>
               )}
-              {c.isHidden && <span className="text-xs text-gray-400">· hidden</span>}
+              {c.isHidden && <span className="text-xs text-gray-500 dark:text-gray-400">· hidden</span>}
             </div>
-            <p className={`text-sm whitespace-pre-wrap break-words ${c.isHidden ? 'text-gray-400 line-through' : 'text-gray-700 dark:text-gray-200'}`}>
+            <p className={`text-sm whitespace-pre-wrap break-words ${c.isHidden ? 'text-gray-500 dark:text-gray-400 line-through' : 'text-gray-700 dark:text-gray-200'}`}>
               {c.message}
             </p>
           </div>

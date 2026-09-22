@@ -52,7 +52,7 @@ export default function ProfileBody() {
             {/* Actions */}
             <div className="flex space-x-2 sm:mb-2">
               <button className="p-1.5 shrink-0 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 hover:border-gray-300 dark:hover:border-gray-600 shadow-sm">
-                <svg className="w-4 h-1 fill-current text-gray-400" viewBox="0 0 16 4">
+                <svg className="w-4 h-1 fill-current text-gray-500 dark:text-gray-400" viewBox="0 0 16 4">
                   <circle cx="8" cy="2" r="2" />
                   <circle cx="2" cy="2" r="2" />
                   <circle cx={14} cy="2" r="2" />

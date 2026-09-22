@@ -66,7 +66,7 @@ export default async function OnboardingComplete() {
                     >
                       <span className="inline-block h-2 w-2 rounded-full bg-amber-400" aria-hidden="true" />
                       {siteHost}
-                      <span className="text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-300" aria-hidden="true">↗</span>
+                      <span className="text-gray-500 dark:text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-300" aria-hidden="true">↗</span>
                     </a>
                   )}
 

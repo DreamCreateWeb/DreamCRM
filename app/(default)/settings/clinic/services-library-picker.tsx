@@ -389,7 +389,7 @@ function SelectedServiceRow({
           type="button"
           onClick={() => onMove('up')}
           disabled={busy || isFirst}
-          className="w-7 h-7 inline-flex items-center justify-center rounded-md text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-200/60 dark:hover:bg-gray-700/60 disabled:opacity-30 transition"
+          className="w-7 h-7 inline-flex items-center justify-center rounded-md text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-200/60 dark:hover:bg-gray-700/60 disabled:opacity-30 transition"
           aria-label="Move up"
         >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 20 20" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round"><path d="M5 12.5L10 7.5l5 5" /></svg>
@@ -398,7 +398,7 @@ function SelectedServiceRow({
           type="button"
           onClick={() => onMove('down')}
           disabled={busy || isLast}
-          className="w-7 h-7 inline-flex items-center justify-center rounded-md text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-200/60 dark:hover:bg-gray-700/60 disabled:opacity-30 transition"
+          className="w-7 h-7 inline-flex items-center justify-center rounded-md text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-200/60 dark:hover:bg-gray-700/60 disabled:opacity-30 transition"
           aria-label="Move down"
         >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 20 20" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round"><path d="M5 7.5L10 12.5l5-5" /></svg>
@@ -426,7 +426,7 @@ function SelectedServiceRow({
           type="button"
           onClick={onRemove}
           disabled={busy}
-          className="inline-flex items-center rounded-md px-2.5 py-1 text-xs font-medium text-gray-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/20 disabled:opacity-40 transition"
+          className="inline-flex items-center rounded-md px-2.5 py-1 text-xs font-medium text-gray-500 dark:text-gray-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/20 disabled:opacity-40 transition"
         >
           Remove
         </button>
@@ -522,7 +522,7 @@ function PickerDrawer({
         <button
           type="button"
           onClick={onClose}
-          className="-mr-1.5 w-8 h-8 inline-flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 transition"
+          className="-mr-1.5 w-8 h-8 inline-flex items-center justify-center rounded-lg text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 transition"
           aria-label="Close"
         >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 20 20" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round"><path d="M6 6l8 8M14 6l-8 8" /></svg>
@@ -732,7 +732,7 @@ function OverridesDrawer({
         <button
           type="button"
           onClick={onClose}
-          className="-mr-1.5 w-8 h-8 inline-flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 transition"
+          className="-mr-1.5 w-8 h-8 inline-flex items-center justify-center rounded-lg text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 transition"
           aria-label="Close"
         >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 20 20" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round"><path d="M6 6l8 8M14 6l-8 8" /></svg>
@@ -963,7 +963,7 @@ function ContentEditDrawer({
         <button
           type="button"
           onClick={onClose}
-          className="-mr-1.5 w-8 h-8 inline-flex shrink-0 items-center justify-center rounded-lg text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 transition"
+          className="-mr-1.5 w-8 h-8 inline-flex shrink-0 items-center justify-center rounded-lg text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 transition"
           aria-label="Close"
         >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 20 20" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round"><path d="M6 6l8 8M14 6l-8 8" /></svg>
@@ -1019,7 +1019,7 @@ function ContentEditDrawer({
                 type="button"
                 onClick={() => setBullets((p) => swapAt(p, i, i - 1))}
                 disabled={i === 0}
-                className="w-7 h-7 shrink-0 inline-flex items-center justify-center rounded-md text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-200/60 dark:hover:bg-gray-700/60 disabled:opacity-25 transition"
+                className="w-7 h-7 shrink-0 inline-flex items-center justify-center rounded-md text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-200/60 dark:hover:bg-gray-700/60 disabled:opacity-25 transition"
                 aria-label="Move up"
               >
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 20 20" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round"><path d="M5 12.5L10 7.5l5 5" /></svg>
@@ -1028,7 +1028,7 @@ function ContentEditDrawer({
                 type="button"
                 onClick={() => setBullets((p) => swapAt(p, i, i + 1))}
                 disabled={i === bullets.length - 1}
-                className="w-7 h-7 shrink-0 inline-flex items-center justify-center rounded-md text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-200/60 dark:hover:bg-gray-700/60 disabled:opacity-25 transition"
+                className="w-7 h-7 shrink-0 inline-flex items-center justify-center rounded-md text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-200/60 dark:hover:bg-gray-700/60 disabled:opacity-25 transition"
                 aria-label="Move down"
               >
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 20 20" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round"><path d="M5 7.5L10 12.5l5-5" /></svg>
@@ -1036,7 +1036,7 @@ function ContentEditDrawer({
               <button
                 type="button"
                 onClick={() => setBullets((p) => p.filter((_, idx) => idx !== i))}
-                className="w-7 h-7 shrink-0 inline-flex items-center justify-center rounded-md text-gray-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/25 transition"
+                className="w-7 h-7 shrink-0 inline-flex items-center justify-center rounded-md text-gray-500 dark:text-gray-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/25 transition"
                 aria-label="Remove highlight"
               >
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 20 20" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round"><path d="M5.5 6.5h9M8 6.5V5h4v1.5M6.5 6.5l.5 8h6l.5-8" /></svg>
