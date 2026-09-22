@@ -569,22 +569,50 @@ export const INTAKE_RULES = [
       // noise has no lattice in it, and the discrimination is derived from
       // what the tile PAINTS rather than from a name or an exemption entry.
       'tests/marketing/no-drawn-grid.test.ts',
-      // BRAND.md Part 4's 12px floor inside the shared marketing chrome
-      // (DREAMCRM-72). Read this one as a FIELD-OF-VIEW entry rather than a
-      // new assertion — the #615 shape: `tests/a11y/legibility-floor.test.ts`
-      // already holds this floor and already skips `components/marketing`
-      // wholesale, because the product mocks in that directory imitate a real
-      // screen at 7px. That skip is keyed on a DIRECTORY while the exemption
-      // is about a KIND of thing, and the shared chrome sits in the same
-      // directory as the mocks. Two literals were live under the floor on
-      // every marketing page when it shipped.
+      // BRAND.md Part 4's 12px floor over the MARKETING SITE (DREAMCRM-72 as
+      // `chrome-legibility.test.ts`, widened and renamed on DREAMCRM-87). Read
+      // this one as a FIELD-OF-VIEW entry rather than a new assertion — the
+      // #615 shape: `tests/a11y/legibility-floor.test.ts` already holds this
+      // floor and already skips `components/marketing` wholesale, because the
+      // product mocks in that directory imitate a real screen at 7px. That
+      // skip is keyed on a DIRECTORY while the exemption is about a KIND of
+      // thing, and those two came apart twice — the shared chrome, then
+      // `CinemaStage`, which is the product at full bleed at real reading
+      // size. `app/(marketing)` meanwhile was in no `SCAN_DIRS` at all.
       //
-      // It grades BY COMPONENT rather than by path, so the mocks stay out by
-      // construction and there is no exemption list to go stale. The cost is a
-      // false NEGATIVE stated in the test: a new chrome component not added to
-      // its list is not graded, which is why a premise assertion fails loudly
-      // on a rename instead of quietly scanning nothing.
-      'tests/marketing/chrome-legibility.test.ts',
+      // **THE 2026-09-22 WIDENING IS A RECLASSIFICATION AND IS WHY THE ENTRY
+      // MOVED**, the same reason `legibility-floor` and `retired-tones` are on
+      // this list: the old version named the EIGHT COMPONENTS IT GRADED, which
+      // reads as a named list; it now grades every component in
+      // `app/(marketing)` and `components/marketing`, which is two product
+      // roots, and a rule grading a product root grades everyone's diff.
+      //
+      // THE DIRECTION OF ITS COST INVERTED WITH THE SCOPE, and that is the
+      // part to carry: the old version's cost was a false NEGATIVE (a new
+      // chrome component nobody added to the list was not graded). The new one
+      // enumerates the EXEMPTIONS instead — thirteen product mocks, each with
+      // a written reason and its own premise asserted (`aria-hidden` on the
+      // component's own root, or file-local-and-only-called-from-mocks for the
+      // two private helpers) — so the cost is a false POSITIVE: a genuinely
+      // new mock fails `test` until somebody registers it and says why. For a
+      // FLOOR that is the right direction, and it is the practical effect a
+      // stranger feels: writing `text-[0.7rem]` anywhere on the marketing site
+      // now fails a required check by file, line, component and px.
+      //
+      // WHAT IT DOES NOT COVER, here rather than only in the test's docblock,
+      // because this comment is what the rulebook entry gets written from:
+      //
+      //   - A size that is not a `text-[…]` literal — `text-sm` resolves
+      //     through Tailwind's scale and none of that scale is under 12px, but
+      //     a size assembled through a variable is invisible.
+      //   - `MONO_LABEL`, the shared 0.75rem constant. Part 4 pins it in prose
+      //     and it is not re-derived here: two guards grading one string is how
+      //     they start disagreeing.
+      //   - A literal inside a nested arrow component. Attribution walks
+      //     top-level `function` declarations; anything in no such body is
+      //     reported as `<no component>` and FAILS, which is the safe
+      //     direction, and a test asserts that population is empty today.
+      'tests/marketing/type-floor.test.ts',
       // The living stage's particle layer (BRAND.md Part 6, 2026-09-22):
       // asserts MOTE_ALPHA_MAX against the stage's graded inks through
       // `tests/a11y/palette.ts` — a palette-grading assertion that walks no
