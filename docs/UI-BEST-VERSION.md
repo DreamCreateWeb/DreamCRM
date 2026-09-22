@@ -68,10 +68,22 @@ up" are different facts and only one of them is a backlog item.
    Studio. The tenant-derived palette is the standing reason the wider slice
    needs the batch-65 treatment (grade against `buildClinicPalette`, never one
    clinic's value). Own slice; nobody has picked it up.
-   **Carry into that slice when it happens** (from Forge's #611 intake):
+   ~~**Carry into that slice when it happens** (from Forge's #611 intake):
    `fuchsia-600` is **4.66 on white and 4.46 on `surface-1`** — it PASSES rule 4,
    which grades clipped text against white, and fails the page. Measure the new
-   signature gradient's terminal stop against `surface-1`, not white.
+   signature gradient's terminal stop against `surface-1`, not white.~~
+   [**DISCHARGED, DREAMCRM-87 (#644)**, and not by measuring one stop — rule 4
+   grades against `surface-1` now, so the trap is closed for every colour
+   rather than for the one somebody remembered. Planting `to-fuchsia-600` in
+   the real homepage headline was GREEN before and reddens after, naming
+   `app/(marketing)/page.tsx:198 — fuchsia-600 on surface-1 = 4.46`. The old
+   rule's stated objection to a stricter ground survives intact: it was that
+   `teal-600` is 4.45 on `surface-sunk`, which would outlaw the shallowest
+   legal brand step. On `surface-1` teal-600 is **4.88** and teal-500 is 3.66,
+   so the brand-ramp cutoff does not move at all — exactly **four** words in
+   the whole palette change verdict (`fuchsia-600`, `indigo-500`, `pink-600`,
+   `rose-600`) and `token-contrast.test.ts` re-derives that list from the
+   stylesheet rather than trusting this paragraph.]
 4. **`ActionButton`'s `danger` variant clears AA at 4.53** — white on
    `rose-600` against a 4.5 floor. Not a defect and not swept with batch 63's
    tone fills (it is the button primitive's own single-home, and it passes),
