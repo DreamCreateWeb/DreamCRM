@@ -21,6 +21,7 @@ import {
   lastGreenAt,
   newSince,
   renderSummary,
+  previousRunAt,
   reviewRecord,
   sweep,
   wakeDecision,
@@ -372,8 +373,8 @@ describe('the wake: which red runs cost Forge a run', () => {
   // the green instant and still be inside the intake window. A fixture where
   // "standing" also meant "out of window" would test the cut-off twice and
   // the freshness rule not at all.
-  const green = { at: Date.parse('2026-09-22T12:00:00Z'), run: 1, why: null }
-  const undated = { at: null, run: null, why: 'no run of this sweep concluded `success`' }
+  const anchor = { at: Date.parse('2026-09-22T12:00:00Z'), run: 1, why: null }
+  const undated = { at: null, run: null, why: 'GitHub returned no previous run of this sweep' }
 
   const unrouted = (over: Pr = {}) =>
     pr({ number: 658, mergedAt: '2026-09-22T14:00:00Z', labels: [{ name: INTAKE_LABEL }], ...over })
@@ -382,7 +383,7 @@ describe('the wake: which red runs cost Forge a run', () => {
   const half = (prs: Pr[]) => intakeSweep(prs, INTAKE_SWEPT_SINCE)
 
   it('wakes on a fresh unrouted intake, and names the PRs', () => {
-    const d = wakeDecision({ intake: half([unrouted()]), lastGreen: green })
+    const d = wakeDecision({ intake: half([unrouted()]), wakeAnchor: anchor })
     expect(d.wake).toBe(true)
     expect(d.reason).toBe('intake')
     expect(d.prs.map((p: { number: number }) => p.number)).toEqual([658])
@@ -396,7 +397,7 @@ describe('the wake: which red runs cost Forge a run', () => {
     // A PR owing a REVIEW and nothing else. Sentinel owns that queue through
     // DREAMCRM-93; a second agent woken for it is two owners, which is none.
     const reviewOnly = pr({ number: 700, mergedAt: '2026-09-22T14:00:00Z', labels: [{ name: REVIEW_LABEL }] })
-    const d = wakeDecision({ intake: half([reviewOnly]), lastGreen: green })
+    const d = wakeDecision({ intake: half([reviewOnly]), wakeAnchor: anchor })
     expect(d.wake, 'a review miss must not spend a Forge run').toBe(false)
     expect(d.reason).toBe('clean')
   })
@@ -404,7 +405,7 @@ describe('the wake: which red runs cost Forge a run', () => {
   it('does NOT wake for an entry standing from before the last green run', () => {
     // Printed every morning by design; woken once, when it was new.
     const old = unrouted({ mergedAt: '2026-09-22T09:00:00Z' })
-    const d = wakeDecision({ intake: half([old]), lastGreen: green })
+    const d = wakeDecision({ intake: half([old]), wakeAnchor: anchor })
     expect(d.wake).toBe(false)
     expect(d.reason).toBe('standing-only')
     expect(d.why).toContain('the paid version of an alarm nobody reads')
@@ -416,7 +417,7 @@ describe('the wake: which red runs cost Forge a run', () => {
     // #636 silence formed on the exit status, one channel over.
     const d = wakeDecision({
       intake: half([unrouted({ number: 600, mergedAt: '2026-09-22T09:00:00Z' }), unrouted()]),
-      lastGreen: green,
+      wakeAnchor: anchor,
     })
     expect(d.wake).toBe(true)
     expect(d.prs.map((p: { number: number }) => p.number), 'only the fresh one is the reason').toEqual([658])
@@ -428,7 +429,7 @@ describe('the wake: which red runs cost Forge a run', () => {
     // The second assertion is the load-bearing one — a suppression nobody is
     // told about is indistinguishable from a wake that quietly stopped
     // working.
-    const d = wakeDecision({ intake: half([unrouted()]), lastGreen: undated })
+    const d = wakeDecision({ intake: half([unrouted()]), wakeAnchor: undated })
     expect(d.wake).toBe(false)
     expect(d.reason).toBe('undated')
     expect(
@@ -441,15 +442,15 @@ describe('the wake: which red runs cost Forge a run', () => {
   it('says nothing about suppression when there was nothing to suppress', () => {
     // The other direction: an `::error` every morning on a clean sweep is the
     // false alarm that gets the whole channel muted.
-    expect(wakeDecision({ intake: half([]), lastGreen: undated }).suppressed).toBeNull()
-    expect(wakeDecision({ intake: half([]), lastGreen: green }).suppressed).toBeNull()
+    expect(wakeDecision({ intake: half([]), wakeAnchor: undated }).suppressed).toBeNull()
+    expect(wakeDecision({ intake: half([]), wakeAnchor: anchor }).suppressed).toBeNull()
   })
 
   it('a ping wakes unconditionally — it is what notices the wire has stopped', () => {
     // The healthy state of this wire is SILENCE, which is the exact state this
     // whole file exists to refuse elsewhere. Nothing else here can tell a quiet
     // week from a rotated token.
-    const d = wakeDecision({ intake: half([]), lastGreen: undated, ping: true })
+    const d = wakeDecision({ intake: half([]), wakeAnchor: undated, ping: true })
     expect(d.wake).toBe(true)
     expect(d.reason).toBe('ping')
   })
@@ -457,7 +458,172 @@ describe('the wake: which red runs cost Forge a run', () => {
   it('a clean intake half wakes nobody', () => {
     const routed = unrouted({ comments: [comment('Forge intake: §2b — routed, landed there')] })
     expect(half([routed]).unsatisfied).toEqual([])
-    expect(wakeDecision({ intake: half([routed]), lastGreen: green }).wake).toBe(false)
+    expect(wakeDecision({ intake: half([routed]), wakeAnchor: anchor }).wake).toBe(false)
+  })
+
+  /**
+   * THE MORNING-AFTER-MORNING REGRESSION, and the reason the wake has its own
+   * anchor at all (Sentinel, reviewing #671).
+   *
+   * The first version measured freshness against `lastGreenAt`. That is the
+   * right anchor for the EXIT STATUS — it is what makes a clean morning a
+   * positive claim — and the wrong one for a dispatch, because **a red run does
+   * not advance the last-green instant** and an unrouted intake is exactly what
+   * keeps the run red. The entry is therefore fresh on the day it lands and
+   * still fresh every morning after, forever: one paid Forge run per morning
+   * per unrouted PR, which is the thing narrowing 2 exists to prevent, arriving
+   * through the clock instead of through the scope.
+   *
+   * It is simulated as a SEQUENCE rather than asserted on one call, because the
+   * defect is invisible in any single morning — every individual day's answer
+   * was correct.
+   */
+  it('wakes ONCE for an entry nobody routes, not every morning until they do', () => {
+    const entry = unrouted({ mergedAt: '2026-09-22T09:00:00Z' })
+    const intake = half([entry])
+
+    // Five consecutive 06:47 runs with nothing routing it. The sweep is red on
+    // all five, so under the old green anchor none of them advances anything.
+    const mornings = ['23', '24', '25', '26', '27'].map((d) => Date.parse(`2026-09-${d}T06:47:00Z`))
+    const lastGreen = { at: Date.parse('2026-09-22T06:47:00Z'), run: 1, why: null }
+
+    const wokeUnderGreen = mornings.filter(
+      (_, i) => wakeDecision({ intake, wakeAnchor: lastGreen }).wake && i >= 0,
+    ).length
+    expect(
+      wokeUnderGreen,
+      'the green anchor wakes on all five mornings — this is the measurement, kept so the reason ' +
+        'for the second anchor survives in the file rather than only in a review thread',
+    ).toBe(5)
+
+    // Under the previous-RUN anchor, each morning measures against the morning
+    // before: new on the 23rd, standing on every day after.
+    const woke = mornings.map((_, i) =>
+      wakeDecision({
+        intake,
+        wakeAnchor: { at: i === 0 ? Date.parse('2026-09-22T06:47:00Z') : mornings[i - 1], run: i, why: null },
+      }),
+    )
+    expect(
+      woke.map((w) => w.wake),
+      'one unrouted PR must cost exactly one Forge run, not one per morning until somebody ' +
+        'routes it. Anchor the wake on the previous RUN, never on the last GREEN one.',
+    ).toEqual([true, false, false, false, false])
+    expect(woke[1].reason).toBe('standing-only')
+  })
+})
+
+describe('the wake anchor survives `main()` (the ringer, for the wake)', () => {
+  /**
+   * EVERY TEST ABOVE DRIVES `wakeDecision` DIRECTLY, so every one of them stays
+   * green if `main()` hands it the WRONG ANCHOR. That is not hypothetical: the
+   * whole correction in review of #671 was a one-line wiring choice, and
+   * re-pointing `wakeAnchor` at `lastGreen` in `main()` passed all 77 tests
+   * before this block existed. The classifier can be perfect while the
+   * production call site restores the defect.
+   *
+   * So this drives the script as a PROCESS, with a history the two anchors
+   * disagree about:
+   *
+   *   green run    21st 06:47   ← an entry after this is FRESH under lastGreen
+   *   PR merged    22nd 09:00
+   *   previous run 23rd 06:47   ← an entry before this is STANDING under it
+   *
+   * Under the green anchor the entry is new and Forge is woken — every morning,
+   * forever. Under the previous-run anchor he was woken on the 23rd and is not
+   * woken again.
+   */
+  function runWithBothAnchors() {
+    const dir = mkdtempSync(join(tmpdir(), 'sweep-wake-'))
+    const prsFile = join(dir, 'prs.json')
+    const greenFile = join(dir, 'green.json')
+    const runFile = join(dir, 'run.json')
+    const wakeFile = join(dir, 'wake.json')
+
+    writeFileSync(
+      prsFile,
+      JSON.stringify([
+        pr({
+          number: 658,
+          mergedAt: '2026-09-22T09:00:00Z',
+          labels: [{ name: INTAKE_LABEL }],
+        }),
+      ]),
+    )
+    writeFileSync(greenFile, JSON.stringify([{ databaseId: 7, conclusion: 'success', createdAt: '2026-09-21T06:47:00Z' }]))
+    writeFileSync(runFile, JSON.stringify([{ databaseId: 8, conclusion: 'failure', createdAt: '2026-09-23T06:47:00Z' }]))
+
+    const r = spawnSync(
+      process.execPath,
+      [
+        'scripts/review-sweep.mjs',
+        '--prs', prsFile,
+        '--limit', '500',
+        '--last-green', greenFile,
+        '--last-run', runFile,
+        '--wake-out', wakeFile,
+      ],
+      { cwd: process.cwd(), encoding: 'utf8', env: { ...process.env, GITHUB_RUN_ID: '99' } },
+    )
+    return { code: r.status, out: r.stdout ?? '', wake: JSON.parse(readFileSync(wakeFile, 'utf8')) }
+  }
+
+  it('does not wake for an entry the previous run already carried', () => {
+    const { wake } = runWithBothAnchors()
+    expect(
+      wake.wake,
+      '`main()` is feeding the wake the last-GREEN instant. A red run does not advance that, and ' +
+        'an unrouted intake is what keeps the run red — so this entry is "new" every morning ' +
+        'until somebody routes it, and every morning is a paid Forge run. Pass `--last-run` to ' +
+        '`wakeAnchor`, not `--last-green`.',
+    ).toBe(false)
+    expect(wake.reason).toBe('standing-only')
+  })
+
+  it('still reddens the run, because the exit status keeps the GREEN anchor', () => {
+    // The other direction, and the reason these are two anchors rather than a
+    // replacement: the entry is unremediated, so the sweep must stay red and
+    // keep printing it. Only the DISPATCH is quiet.
+    const { code, out } = runWithBothAnchors()
+    expect(code, 'suppressing the wake must not also suppress the alarm').toBe(1)
+    expect(out).toContain('#658')
+  })
+})
+
+describe('the wake anchor is the previous RUN, not the last green one', () => {
+  const runs = [
+    { databaseId: 9, conclusion: null, createdAt: '2026-09-23T06:47:00Z' },
+    { databaseId: 8, conclusion: 'failure', createdAt: '2026-09-22T06:47:00Z' },
+    { databaseId: 7, conclusion: 'success', createdAt: '2026-09-21T06:47:00Z' },
+  ]
+
+  it('takes the newest run whatever it concluded, excluding this one', () => {
+    // A FAILED previous run still counts: it printed the entry and, if the
+    // entry was new then, it woke him. `lastGreenAt` would reach past it to the
+    // 21st and wake again — the every-morning defect in miniature.
+    const found = previousRunAt(runs, 9)
+    expect(found.at).toBe(Date.parse('2026-09-22T06:47:00Z'))
+    expect(found.run).toBe(8)
+
+    // And the two functions must disagree on this history, or one of them is
+    // reading the wrong question.
+    expect(lastGreenAt(runs).at).toBe(Date.parse('2026-09-21T06:47:00Z'))
+  })
+
+  it('excludes the asking run by id, since `gh run list` returns it', () => {
+    // Without the exclusion the anchor is THIS run's own createdAt, every entry
+    // is older than it, and the wake never fires at all — the opposite failure,
+    // and the silent one.
+    expect(previousRunAt(runs, null).run, 'unfiltered, the newest row is the run that is asking').toBe(9)
+    expect(previousRunAt([runs[0]], 9).at, 'with only this run in the history there is no anchor').toBeNull()
+  })
+
+  it('says which way it failed rather than guessing', () => {
+    for (const bad of [null, 'not an array', [], [{ databaseId: 1 }]]) {
+      const r = previousRunAt(bad as never, 9)
+      expect(r.at).toBeNull()
+      expect(r.why).toBeTruthy()
+    }
   })
 })
 
@@ -564,6 +730,30 @@ describe('the sweep workflow', () => {
    * the ringer block refuses at the script level, moved into YAML where no test
    * of the script can see it. Both halves are pinned.
    */
+  /**
+   * One `- name:` step's own YAML block, comments included.
+   *
+   * WHY THIS EXISTS, and it is a §2d finding rather than tidiness: the first
+   * draft of the restore-step guard below asserted `exit 1` over the WHOLE
+   * FILE, and the wake step has an `exit 1` of its own. Sentinel deleted the
+   * restore step's `exit 1`, replaced it with an `echo`, and all 72 tests
+   * stayed green — the assertion was satisfied by a different step's line.
+   * Every assertion about a step now runs against that step's own block.
+   */
+  function stepBlock(source: string, name: string): string | null {
+    const lines = source.split(/\r?\n/)
+    const start = lines.findIndex((l) => l.trimStart().startsWith('- name:') && l.includes(name))
+    if (start === -1) return null
+    const indent = lines[start].length - lines[start].trimStart().length
+    const out = [lines[start]]
+    for (let i = start + 1; i < lines.length; i++) {
+      const l = lines[i]
+      if (l.trim() && l.length - l.trimStart().length <= indent && l.trimStart().startsWith('- name:')) break
+      out.push(l)
+    }
+    return out.join('\n')
+  }
+
   it('lets the wake run after a red sweep — AND restores the sweep\'s own verdict', () => {
     const source = wf()
 
@@ -573,15 +763,55 @@ describe('the sweep workflow', () => {
         'run that needs it',
     ).toMatch(/^ {8}continue-on-error: true$/m)
 
-    // THE HALF THAT MATTERS. `continue-on-error` without this makes the job
-    // green forever.
+    // THE HALF THAT MATTERS. `continue-on-error` without a working restore
+    // makes the job green forever while it finds everything.
+    const restore = stepBlock(source, 'Did the sweep pass?')
+    expect(
+      restore,
+      'the sweep step is `continue-on-error` and there is no step restoring its verdict, so this ' +
+        'alarm reports green every morning while finding everything.',
+    ).toBeTruthy()
+
+    const condition = /steps\.([\w-]+)\.outcome == 'failure'/.exec(restore!)
+    expect(
+      condition,
+      "the restore step must be keyed on the grading step's outcome, or it never runs",
+    ).toBeTruthy()
+
+    // MUTATION A, from the review: rename `id: sweep` to `id: grade` and leave
+    // the `if:` alone. `steps.sweep` is then null, the condition is never true,
+    // the restore never runs, and the job is green every morning. So the id the
+    // condition NAMES has to exist on a step in this file — a pin on the id
+    // literal would not have caught it, because the id literal is what moved.
+    const referenced = condition![1]
     expect(
       source,
-      'the sweep step is `continue-on-error` and NOTHING restores its verdict, so this alarm ' +
-        'reports green every morning while finding everything. Add a final step keyed on ' +
-        "`steps.sweep.outcome == 'failure'` that exits 1.",
-    ).toMatch(/steps\.sweep\.outcome == 'failure'/)
-    expect(source, 'the restore step must actually fail the job').toMatch(/exit 1/)
+      `the restore step is keyed on \`steps.${referenced}.outcome\`, but no step in this workflow ` +
+        `carries \`id: ${referenced}\`. GitHub evaluates that to null, the condition is never ` +
+        'true, and this alarm goes green forever while finding everything.',
+    ).toMatch(new RegExp(`^\\s*id: ${referenced}$`, 'm'))
+
+    // And the step carrying that id must be the one that is allowed to fail —
+    // pointing the restore at some other step is the same hole by a longer
+    // route.
+    const graded = source
+      .split(/\r?\n/)
+      .findIndex((l) => new RegExp(`^\\s*id: ${referenced}$`).test(l))
+    const gradedBlock = source.split(/\r?\n/).slice(graded, graded + 12).join('\n')
+    expect(
+      gradedBlock,
+      `\`id: ${referenced}\` is not on a \`continue-on-error\` step, so the restore step is ` +
+        'watching an outcome that can never be `failure`.',
+    ).toContain('continue-on-error: true')
+
+    // MUTATION B: the restore step stops failing. Graded INSIDE the block, not
+    // over the file — the wake step's own `exit 1` satisfied the file-wide
+    // version.
+    expect(
+      restore!,
+      'the restore step does not `exit 1`, so the sweep\'s verdict is never restored and the job ' +
+        'is green whatever it found.',
+    ).toMatch(/^\s*exit 1$/m)
   })
 
   it('posts the wake to a SECRET url, and never echoes it', () => {
@@ -649,6 +879,60 @@ describe('the sweep workflow', () => {
     const source = wf()
     expect(source).toMatch(/^ {8}if: always\(\)$/m)
     expect(source).toMatch(/the sweep wrote no wake decision/)
+  })
+
+  it('looks the PREVIOUS run up separately, with no --status filter', () => {
+    // TWO ANCHORS, TWO QUESTIONS. The exit status asks "is anything
+    // outstanding" and keys on the last GREEN run; the wake asks "is anything
+    // NEW since I last looked" and keys on the previous RUN. Collapsing them —
+    // by adding `--status success` here, or by passing the same file to both
+    // flags — restores the defect this was reworked for: a red run does not
+    // advance the green instant, so an unrouted entry stays "new" every morning
+    // and costs a paid Forge run every morning.
+    const source = wf()
+    const lookups = source
+      .split('\n')
+      .filter((l) => !l.trimStart().startsWith('#'))
+      .filter((l) => l.includes('gh run list'))
+    expect(lookups.length, 'the sweep needs BOTH lookups: the last green run and the previous run').toBe(2)
+
+    // Located by STEP, not by a flag substring: `--limit 5` is a prefix of the
+    // `gh pr list --limit 500` above it, and matching on it silently graded the
+    // wrong command. (Caught by this assertion failing on a correct file, which
+    // is the cheap version of the §2d lesson.)
+    const previous = stepBlock(source, 'When did this sweep previously run?')
+    expect(previous, 'the previous-run lookup must exist as its own step').toBeTruthy()
+    expect(
+      previous!,
+      'the previous-run lookup gained a `--status` filter. That turns it back into the green ' +
+        'lookup, and the wake goes back to firing every morning until somebody routes the entry.',
+    ).not.toContain('--status')
+    expect(previous!).toContain('--branch main')
+
+    expect(
+      source,
+      'the script is not told where the previous-run history is, so the wake suppresses itself ' +
+        'every morning and the whole wire is dead in production.',
+    ).toMatch(/scripts\/review-sweep\.mjs[^\n]*--last-run/)
+
+    // And the two files must be different files. Passing `last-green.json` to
+    // both is a one-token edit with exactly the old behaviour.
+    // The real invocation, not the five comment lines that NAME the script.
+    // A bare `/scripts\/review-sweep\.mjs[^\n]*/` matches a docblock reference
+    // first and then grades a sentence about the command — the same trap
+    // `shellCommand`'s own docblock records from the green-lookup guard.
+    const invocation = source
+      .split('\n')
+      .find((l) => !l.trimStart().startsWith('#') && l.includes('scripts/review-sweep.mjs') && l.includes('--prs'))!
+    const green = /--last-green (\S+)/.exec(invocation)?.[1]
+    const run = /--last-run (\S+)/.exec(invocation)?.[1]
+    expect(green).toBeTruthy()
+    expect(run).toBeTruthy()
+    expect(
+      run,
+      'the wake anchor and the exit-status anchor are being fed the same file, so they are the ' +
+        'same question again and the every-morning wake is back.',
+    ).not.toBe(green)
   })
 
   it('the script is told where to write its wake decision', () => {

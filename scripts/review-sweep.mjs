@@ -908,18 +908,36 @@ function readLastGreen(path) {
  *   1. **The INTAKE half only.** The review half already has an owner: §2a's
  *      standing issue, DREAMCRM-93, assigned to Sentinel. Waking a second agent
  *      for it would be two owners for one queue.
- *   2. **Fresh entries only.** A standing entry is printed every morning by
- *      design — "an unremediated miss is not less true tomorrow" — and waking
- *      Forge for it every morning is the paid version of the permanently-red
- *      alarm §2a warns about. He was woken when it was new.
- *   3. **NOT AT ALL WHEN THE LAST-GREEN LOOKUP FAILED**, which is the one place
+ *   2. **Fresh entries only — measured against the PREVIOUS RUN, not against
+ *      the last green one.** This is the correction from Sentinel's review of
+ *      #671 and it is the difference between waking Forge once and waking him
+ *      every morning forever, so it is worth the paragraph.
+ *
+ *      The exit status is keyed on `lastGreen` for a good reason: it is what
+ *      makes a clean morning a positive claim. But **a red run does not advance
+ *      the last-green instant** — the docblock above says so in as many words —
+ *      and an unrouted intake is exactly what keeps the run red. So an entry
+ *      measured against `lastGreen` is fresh on the day it lands and *still
+ *      fresh* every morning after, until somebody routes it. Simulated over
+ *      five consecutive mornings with one unrouted PR and nothing clearing it,
+ *      that is five paid Forge runs for one finding — precisely the "paid
+ *      version of an alarm nobody reads" this narrowing exists to prevent.
+ *
+ *      So the wake gets **its own anchor**: the `createdAt` of the previous run
+ *      of this workflow, whatever it concluded. An entry newer than that ran
+ *      the wake; an entry older than it was already carried into a run that
+ *      woke him. Two anchors for two different questions — "is anything
+ *      outstanding" (green) and "is anything NEW since I last looked" (previous
+ *      run) — which is the same asymmetry narrowing 3 argues for, applied to
+ *      the clock instead of the failure mode.
+ *   3. **NOT AT ALL WHEN THE ANCHOR LOOKUP FAILED**, which is the one place
  *      this deliberately diverges from the exit status. The run still fails
  *      CLOSED and goes red — that is free. The wake fails QUIET, because with
- *      no green instant every entry reads as fresh and a throttled API call
- *      would dispatch Forge over a queue he has already seen. The costs are not
+ *      no anchor every entry reads as fresh and a throttled API call would
+ *      dispatch Forge over a queue he has already seen. The costs are not
  *      symmetric: a missed wake costs one day (the red run still names the
- *      entry, and the next green-anchored run wakes for it), a spurious wake
- *      costs a paid run and, repeated, the credibility of the wire.
+ *      entry, and the next anchored run wakes for it), a spurious wake costs a
+ *      paid run and, repeated, the credibility of the wire.
  *      A SUPPRESSED WAKE IS ANNOUNCED — `::error` plus a line in the summary —
  *      because a wake that silently never fires is this file's own failure mode
  *      wearing a different hat.
@@ -939,7 +957,7 @@ function readLastGreen(path) {
  * alone and send him to this sweep's latest run for the entries. Do not move
  * information a reader needs into the payload; it lands nowhere.
  */
-export function wakeDecision({ intake, lastGreen, ping = false }) {
+export function wakeDecision({ intake, wakeAnchor, ping = false }) {
   if (ping) {
     return {
       wake: true,
@@ -956,31 +974,31 @@ export function wakeDecision({ intake, lastGreen, ping = false }) {
     return { wake: false, reason: 'clean', prs: [], why: 'the intake half is clear.', suppressed: null }
   }
 
-  if (!Number.isFinite(lastGreen?.at)) {
+  if (!Number.isFinite(wakeAnchor?.at)) {
     return {
       wake: false,
       reason: 'undated',
       prs: [],
-      why: 'the intake half has findings, but nothing dates the window.',
+      why: 'the intake half has findings, but nothing dates what Forge has already been shown.',
       suppressed:
         `${unsatisfied.length} unrouted intake(s) are in the summary and Forge was NOT woken: ` +
-        `${lastGreen?.why ?? 'no run history was supplied'}. Without a green instant every entry ` +
-        'reads as new, and waking Forge over a queue he has already seen is how this wire loses ' +
-        'the credibility it needs. The run is red and names them; route them by hand, or re-run ' +
-        'once this sweep has a green to measure against.',
+        `${wakeAnchor?.why ?? 'no run history was supplied'}. Without the previous run's instant ` +
+        'every entry reads as new, and waking Forge over a queue he has already seen is how this ' +
+        'wire loses the credibility it needs. The run is red and names them; route them by hand, ' +
+        'or re-run once the lookup works.',
     }
   }
 
-  const fresh = newSince(unsatisfied, lastGreen).fresh
+  const fresh = newSince(unsatisfied, wakeAnchor).fresh
   if (!fresh.length) {
     return {
       wake: false,
       reason: 'standing-only',
       prs: [],
       why:
-        `${unsatisfied.length} unrouted intake(s) are standing from before the last green run. ` +
-        'Forge was woken when they were new; waking him again every morning is the paid version ' +
-        'of an alarm nobody reads.',
+        `${unsatisfied.length} unrouted intake(s) merged before this sweep's previous run, which ` +
+        'already woke him for them. Waking him again every morning is the paid version of an ' +
+        'alarm nobody reads.',
       suppressed: null,
     }
   }
@@ -989,8 +1007,78 @@ export function wakeDecision({ intake, lastGreen, ping = false }) {
     wake: true,
     reason: 'intake',
     prs: fresh.map((p) => ({ number: p.number, title: p.title, url: p.url, mergedAt: p.mergedAt })),
-    why: `${fresh.length} PR(s) merged owing an intake that is new since the last green run.`,
+    why: `${fresh.length} PR(s) merged owing an intake since this sweep's previous run.`,
     suppressed: null,
+  }
+}
+
+/**
+ * WHEN DID THIS SWEEP PREVIOUSLY RUN — green, red, or otherwise?
+ *
+ * The wake's anchor, and deliberately NOT `lastGreenAt`. Fed the
+ * `gh run list --workflow review-sweep.yml --json databaseId,conclusion,createdAt`
+ * array with NO `--status` filter, plus this run's own id so it can exclude
+ * itself: `gh run list` returns the in-progress run that is asking.
+ *
+ * WHY NOT REUSE `lastGreenAt`. A red run does not advance the last-green
+ * instant, and an unrouted intake is what keeps this sweep red — so an entry
+ * measured against green is fresh every morning until somebody routes it, and
+ * every one of those mornings is a paid Forge run. Measured against the
+ * PREVIOUS RUN it is fresh exactly once. The exit status keeps the green
+ * anchor, which is right for the question it answers. Two anchors, two
+ * questions; do not collapse them back into one.
+ *
+ * Fails with a `why` rather than a guess, because `wakeDecision` suppresses the
+ * wake on a failed lookup and announces the suppression.
+ *
+ * @param {unknown} runs
+ * @param {string | number | null} [selfRunId]
+ */
+export function previousRunAt(runs, selfRunId = null) {
+  if (!Array.isArray(runs)) {
+    return { at: null, run: null, why: 'the run history was not a JSON array, so the lookup returned nothing usable' }
+  }
+  const self = selfRunId == null ? null : String(selfRunId)
+  const others = runs
+    .filter((r) => r && (self == null || String(r.databaseId ?? '') !== self))
+    .map((r) => ({ at: Date.parse(r.createdAt ?? ''), id: r.databaseId ?? null }))
+    .filter((r) => Number.isFinite(r.at))
+
+  if (!others.length) {
+    return {
+      at: null,
+      run: null,
+      why:
+        'GitHub returned no previous run of this sweep other than this one, so there is nothing ' +
+        'to measure "new since I last looked" against',
+    }
+  }
+  const newest = others.reduce((a, b) => (b.at > a.at ? b : a))
+  return { at: newest.at, run: newest.id, why: null }
+}
+
+/**
+ * Read the unfiltered `gh run list` output for the WAKE's anchor.
+ *
+ * Sibling of `readLastGreen` and deliberately not folded into it: they answer
+ * different questions off different queries, and the one thing that must not
+ * happen is somebody noticing they look alike and passing the same file to
+ * both. That would silently restore the every-morning wake `previousRunAt`
+ * exists to stop.
+ */
+function readPreviousRun(path) {
+  if (!path) return { at: null, run: null, why: 'no previous-run history was supplied to this invocation' }
+  if (!existsSync(path)) {
+    return {
+      at: null,
+      run: null,
+      why: `the previous-run file \`${path}\` was not written — the \`gh run list\` step produced nothing`,
+    }
+  }
+  try {
+    return previousRunAt(JSON.parse(readFileSync(path, 'utf8')), process.env.GITHUB_RUN_ID ?? null)
+  } catch (err) {
+    return { at: null, run: null, why: `the previous-run file \`${path}\` is not JSON (${err.message})` }
   }
 }
 
@@ -1051,7 +1139,11 @@ function main() {
   // than the exit status. The decision is written to a file and to
   // `GITHUB_OUTPUT`; the workflow owns the POST, so this file stays a pure
   // comparator the guard test can drive with fixtures, offline.
-  const wake = wakeDecision({ intake, lastGreen, ping: process.argv.includes('--ping') })
+  // The wake's own anchor — the previous RUN, not the last GREEN one. See
+  // `previousRunAt` for why these are two questions and not one.
+  const wakeAnchor = readPreviousRun(argValue('--last-run'))
+
+  const wake = wakeDecision({ intake, wakeAnchor, ping: process.argv.includes('--ping') })
   const wakePath = argValue('--wake-out')
   if (wakePath) {
     writeFileSync(

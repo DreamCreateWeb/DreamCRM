@@ -192,6 +192,34 @@ jobs:
             --json databaseId,conclusion,createdAt \
             > last-green.json || true
 
+      # WHEN DID THIS SWEEP PREVIOUSLY RUN — green, red or otherwise? (The WAKE's
+      # anchor, added in review of #671.)
+      #
+      # NOT THE SAME QUESTION AS THE STEP ABOVE, and the whole correction turns
+      # on that. A red run does not advance the last-GREEN instant, and an
+      # unrouted intake is exactly what keeps this sweep red — so an entry
+      # measured against green stays "new" every morning until somebody routes
+      # it, and every one of those mornings would be a paid Forge run. Measured
+      # against the PREVIOUS RUN it is new exactly once.
+      #
+      # So: NO `--status` filter here, deliberately. Adding one turns this back
+      # into the green lookup and restores the every-morning wake.
+      # `previousRunAt` excludes this run by `databaseId` — `gh run list`
+      # returns the in-progress run that is asking.
+      #
+      # `|| true` for the same reason as above: the script reads a missing or
+      # unparseable file as a failed lookup and SUPPRESSES the wake, announcing
+      # the suppression. That is the one place the wake diverges from failing
+      # closed, and `scripts/review-sweep.mjs` carries the argument.
+      - name: When did this sweep previously run?
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh run list --repo ${{ github.repository }} --workflow review-sweep.yml \
+            --branch main --limit 5 \
+            --json databaseId,conclusion,createdAt \
+            > last-run.json || true
+
       - name: Which of them merged owing a review or an intake nobody recorded?
         id: sweep
         # `continue-on-error` so the wake step below still runs on a RED sweep —
@@ -207,7 +235,7 @@ jobs:
         # history is. A `\` continuation here leaves both guards green while
         # grading nothing.
         run: |
-          node scripts/review-sweep.mjs --prs merged-prs.json --limit 500 --last-green last-green.json --wake-out wake.json ${{ (inputs.ping && '--ping') || '' }}
+          node scripts/review-sweep.mjs --prs merged-prs.json --limit 500 --last-green last-green.json --last-run last-run.json --wake-out wake.json ${{ (inputs.ping && '--ping') || '' }}
 
       # A RED SWEEP WAKES FORGE (DREAMCRM-99 deliverable 3).
       #
