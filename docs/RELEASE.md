@@ -1873,7 +1873,7 @@ by-component treatment, because the three survivors are inside mocks that
 legitimately imitate a real screen at 7px.)
 Same lane as the entry above — UI correctness, Vesper. · OPEN
 
-### Open — the matrix "no" mark reads 2.29 against its own tile (found 2026-09-16)
+### Fixed — the matrix "no" mark reads 2.29 against its own tile (found 2026-09-16)
 
 **S3 · marketing site · `components/marketing/ui.tsx`, `MatrixMark`.** The
 three marks in the comparison matrix are the VALUE a reader scans the page
@@ -1898,14 +1898,40 @@ Note the second row as much as the third: **`Partial` clears the floor by
 0.02.** That is `BRAND.md` Part 7's "4.18 reads as nearly fine" shape — a pair
 that passes today and fails the first time somebody warms the tint.
 
-**Not fixed here on purpose** (§10, and Neon's own scope rule — character, not
-correctness): it is a shared component rather than the page being rebuilt, its
-exemption premise is pinned by `tests/marketing/tone-tiles.test.ts` (the
-`sr-only` words), and the fix is a palette call on the tone registry rather
-than a brand-character one. **`MatrixMark` is also the one tick on this site
-the check-mark veto exempts BY COMPONENT with its premise asserted** — changing
-its structure, or the `sr-only` spans, fails that guard by name. Deepen the ink
-or the tint; do not restructure it. UI correctness, Vesper. · OPEN
+**FIXED on DREAMCRM-87 — the ink deepened one ramp step, and all three moved.**
+The structure and the `sr-only` spans are untouched, so the check-mark veto's
+by-component exemption still holds with its premise intact:
+
+| mark | glyph | tile | was | is |
+|---|---|---|---|---|
+| Yes | `emerald-700 → 800` | `emerald-100` | 4.72 | **6.70** |
+| Partial | `amber-700 → 800` | `amber-100` | 4.52 | **6.36** |
+| No | `gray-400 → 600` | `gray-100` | **2.29** | **6.03** |
+
+**Two of the three were not defects and moved anyway, which is the part worth
+keeping.** This entry flagged `Partial` clearing by 0.02 as the Part 7 "4.18
+reads as nearly fine" shape; `Yes` cleared by 0.22, the same family. Deepening
+only the failing one would also have left the NEGATIVE mark the heaviest of the
+three — emphasis on the answer a vendor page should be quietest about. `gray-600`
+is the step Part 7 already names as the readable quiet ink, so this is the same
+move batches 62 and 66 made everywhere else a quiet ink had been quietened
+twice.
+
+**The guard grades the pairs, not the strings.** `token-contrast.test.ts` reads
+the three `bg-…/text-…` pairs out of `MatrixMark`'s own body, resolves them
+through `palette.ts` and holds them at **5.5** rather than at AA — a
+floor-only assertion would have called 4.52 healthy, which is exactly how this
+defect's neighbour stayed invisible. It asserts its own field of view first
+(three pairs, named), so a narrowed scan cannot report clean, and it asserts
+the three stay within 1.5 of each other so the family argument above is a test
+rather than a note. Nothing is transcribed — a Tailwind bump that re-tints a
+ramp re-grades the marks.
+
+Watched to fail (§2d): `text-gray-400` restored on the "no" mark reddens it
+naming `gray-400 on gray-100 = 2.29`; `text-amber-700` restored on `Partial`
+reddens it at 4.52, the coincidence the margin exists for; forcing the pair
+extractor to return `[]` reddens the field-of-view assertion rather than
+passing silently. · FIXED (#643, DREAMCRM-87)
 
 ### Open — `/product` has never been axe-scanned, and the exemption that would let it be is spelled for the homepage's composition only (found 2026-09-16)
 
