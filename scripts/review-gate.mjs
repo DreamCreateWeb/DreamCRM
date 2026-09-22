@@ -812,6 +812,23 @@ export function renderSummary(findings, totalFiles, intake = []) {
  * review (test-only diff, nothing on the gate list) and still added a new
  * blocking assertion to `test`. The old summary had no way to say both, so it
  * said the reassuring half and stopped.
+ *
+ * IT PRINTS THE MIRRORING COMMAND, the way `renderReviewSection` does
+ * (DREAMCRM-94). Until it did, `scripts/review-sweep.mjs` graded an on-PR
+ * intake record that nothing in front of the author ever asked for, so an
+ * author could do everything this summary said and still be named by the sweep
+ * the next morning — #644 was.
+ *
+ * ONE CONSTRAINT ON EDITING THIS TEXT, and it is load-bearing rather than
+ * stylistic: **never write the words `Forge intake` and a section number on
+ * the SAME rendered line.** `carriesIntake` in the sweep looks for exactly that
+ * pair on one line, so a line carrying both would make this summary read as an
+ * intake record — and if this check ever gained a `gh pr comment` channel,
+ * every intake-labelled PR in the repo would read as routed and that half of
+ * the alarm would go blind, green and silent on the same day. The placeholder
+ * in the command below has no digit in it for this reason. Both directions are
+ * pinned in `tests/guards/review-sweep.test.ts`; do not work around a failure
+ * there by narrowing the sweep's record pattern.
  */
 function renderIntakeSection(intake) {
   const count = intake.reduce((n, f) => n + f.files.length, 0)
@@ -845,6 +862,20 @@ function renderIntakeSection(intake) {
       'This check reads paths and genuinely cannot tell the two apart — naming which one it is ' +
       'costs a sentence, and is the difference between the skill learning the rule today and ' +
       'somebody rediscovering it in three days.',
+    '',
+    '**Then mirror it onto this PR before you merge** (DREAMCRM-94), naming the sections it ' +
+      'landed in rather than merely that it landed:',
+    '',
+    '```bash',
+    'gh pr comment <n> --body "Forge intake: <sections> — <link to the issue comment>"',
+    '```',
+    '',
+    'Replace the placeholder with the rulebook sections the rule actually landed in — the ' +
+      'worked example in the conventions reads `§2b, §6`. The routing itself lives on a Multica ' +
+      'issue, which GitHub cannot see, so without this line a routed PR and a forgotten one are ' +
+      'indistinguishable from the outside — thirty merged PRs wore this label unread before ' +
+      'anyone noticed. `review-sweep.yml` reads it the next morning and goes red on anything ' +
+      'that merged with this label and no record. It does not block your merge either.',
     '',
   )
   return lines.join('\n')
