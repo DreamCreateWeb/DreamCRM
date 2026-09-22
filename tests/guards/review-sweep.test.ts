@@ -6,6 +6,7 @@ import { join } from 'node:path'
 import {
   gateFindings,
   intakeFindings,
+  INTAKE_RULES,
   renderSummary as renderGateSummary,
 } from '../../scripts/review-gate.mjs'
 import {
@@ -81,6 +82,7 @@ import { effectiveContexts, runsOnPullRequest } from '../../scripts/rulebook-dri
  */
 
 type Pr = Record<string, any>
+type Rule = { id: string; patterns: string[] }
 
 /** A merged PR as `gh pr list --json number,title,url,mergedAt,author,labels,comments,reviews` returns it. */
 function pr(overrides: Pr = {}): Pr {
@@ -105,9 +107,30 @@ const gateSummaryForAGatedPr = () => {
   return renderGateSummary(gateFindings(files), files.length, [])
 }
 
-/** The same summary for a PR that owes an INTAKE, which is the half with its own record shape. */
+/**
+ * The same summary for a PR that owes an INTAKE, which is the half with its own
+ * record shape.
+ *
+ * THE FILE LIST IS DERIVED FROM `INTAKE_RULES`, NOT HAND-PICKED (Sentinel, note
+ * 3 on #648). The summary renders one `**area** — why` block per finding, and
+ * those `why` strings are DATA THAT GROWS. A fixture naming one path trips
+ * whatever rule that path happens to be on — today there is only one, so it
+ * looked complete — and the day a second intake rule lands whose prose puts
+ * `Forge intake` near a section number, a hand-picked fixture would not render
+ * it and the canary below would go on passing about a body it never saw.
+ *
+ * Same move as the intake list's own derive-from-the-tree half: a list you
+ * wrote is a list you will forget to extend. `intakeCoversEveryRule` is the
+ * premise check that keeps the derivation honest — materialising a glob is
+ * best-effort, so a future pattern shape that does not materialise has to say
+ * so rather than quietly shrink the fixture.
+ */
+const materialise = (pattern: string) => pattern.replace(/\*\*/g, 'derived').replace(/\*/g, 'derived')
+
+const everyIntakeArea = () => INTAKE_RULES.map((rule: Rule) => materialise(rule.patterns[0]))
+
 const gateSummaryForAnIntakePr = () => {
-  const files = ['tests/guards/review-gate.test.ts']
+  const files = everyIntakeArea()
   return renderGateSummary(gateFindings(files), files.length, intakeFindings(files))
 }
 
@@ -928,6 +951,25 @@ describe('what could blind this sweep from outside', () => {
       'the review-gate summary no longer carries a verdict word by ANY route, so the guard above ' +
         'is vacuous — restore a verdict word to that summary, or delete this pair deliberately.',
     ).toBe(true)
+  })
+
+  it('grades that summary with every intake area rendered into it, not just one', () => {
+    // THE PREMISE UNDER THE CANARY BELOW (Sentinel, note 3 on #648). The
+    // fixture derives its file list from `INTAKE_RULES`, so the summary it
+    // grades carries EVERY area's `why` prose — but materialising a glob is
+    // best-effort, and a future pattern shape that does not materialise would
+    // silently drop its area out of the body while the canary went on passing.
+    //
+    // Asserting the CLASSIFIER's answer rather than the fixture's shape, for
+    // the reason §2d gives: a guard that greps a module it could have imported
+    // is testing the file, not the rule.
+    expect(
+      intakeFindings(everyIntakeArea())
+        .map((f: { id: string }) => f.id)
+        .sort(),
+      'an INTAKE_RULES area no longer renders into the canary fixture, so the guard below is ' +
+        'grading a summary with that area missing. Teach `materialise` the new pattern shape.',
+    ).toEqual(INTAKE_RULES.map((rule: Rule) => rule.id).sort())
   })
 
   it('does not let the review-gate summary read as an intake record', () => {

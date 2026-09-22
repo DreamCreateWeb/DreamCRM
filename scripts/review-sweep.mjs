@@ -211,9 +211,40 @@
  *     comment`. Give it a comment channel and every gated PR in the repo reads
  *     as satisfied on the day that lands — this whole alarm goes blind, green
  *     and silent at once. The guard refuses that edit; do not work around it by
- *     narrowing the verdict patterns instead. The intake half inherits the
- *     hazard and the guard: that same summary must never read as an intake
- *     record either.
+ *     narrowing the verdict patterns instead.
+ *   * THE SAME EDGE ON THE INTAKE HALF, WHICH NO LONGER MERELY INHERITS IT
+ *     (DREAMCRM-94). Since that PR the gate's intake section prints
+ *     `Forge intake:` ON PURPOSE — it is where an author is told to leave the
+ *     record — so "that summary happens not to say the words" stopped being
+ *     the margin. TWO specific things keep it from reading as a record, and
+ *     both are load-bearing rather than incidental:
+ *       1. `carriesIntake` matches the marker and a section reference on ONE
+ *          LINE. The intake section cites `§2` in its own prose and always
+ *          will; under the old whole-body matching, printing the marker
+ *          anywhere completed the match and the summary read as a record.
+ *          Measured on #648's branch, canary red — not a worry, an observed
+ *          failure.
+ *       2. The printed command's placeholder carries NO SECTION DIGIT
+ *          (`<sections>`). A literal `§2b, §6` in the template completes a
+ *          record on one line and defeats (1).
+ *     So the rule for anyone editing that text: never write the marker and a
+ *     section number on the same rendered line. The comment-channel bullet
+ *     above is still the outer wall; this is the inner one, and both are
+ *     pinned in `tests/guards/review-sweep.test.ts`. If it ever does go blind,
+ *     the fix is a scoped exclusion for that comment's marker, NOT a narrower
+ *     record pattern.
+ *   * A HARD-WRAPPED INTAKE RECORD — the one false alarm this file knowingly
+ *     accepts, and it is named here because whoever meets it will be triaging
+ *     a finding from this list rather than reading the classifier. A genuine
+ *     record split across two source lines (`Forge intake — routed, landed
+ *     in` / `§2b and §6`) does not count, because of the one-line rule above.
+ *     Nothing in the documented form is affected: the gate prints the
+ *     one-liner to paste, and all 528 comment and review bodies across the
+ *     500 merged PRs this sweep reads classify identically under the old rule
+ *     and the new one. **If a finding ever turns out to be this, widen to the
+ *     enclosing PARAGRAPH — never back to the whole body**, which would
+ *     re-open the edge above and the accidental-match class `carriesIntake`
+ *     describes.
  *
  * Usage:
  *   node scripts/review-sweep.mjs --prs prs.json --limit 500
@@ -378,11 +409,19 @@ const carriesVerdict = (body) => VERDICT_PATTERNS.some((p) => p.test(body ?? '')
  *      the run in front of the author. Narrowing is dangerous when the shape
  *      is graded but never asked for; that was the DREAMCRM-94 defect and it
  *      is what this PR removes.
- *   2. ONE LINE IS THE DOCUMENTED SHAPE. §2 writes the record as a single
+ *   2. ONE LINE IS THE DOCUMENTED SHAPE, and the cost of the narrowing is
+ *      MEASURED rather than argued. §2 writes the record as a single
  *      `gh pr comment --body` one-liner, and all three spellings this file
  *      already accepts — `§2b, §6`, `§§2, 2a`, `sections 2b and 6` — are
- *      one-liners. Nothing that satisfied the old test in its documented form
- *      stops satisfying this one.
+ *      one-liners. Run over the real population this sweep reads — all 500
+ *      merged PRs from `gh pr list --json comments,reviews`, 528 comment and
+ *      review bodies — **not one body changes classification** between the
+ *      old whole-body rule and this one; the same 3 satisfy under both.
+ *      (Measured independently twice: Sentinel reviewing #648, and again on
+ *      the branch before this was written down.) That is the strongest answer
+ *      available to the never-a-narrower-pattern rule, and it is the number
+ *      the next person to reopen this will want — re-run it rather than
+ *      trusting it if the record shape moves again.
  *   3. IT DROPS AN ACCIDENTAL-SATISFACTION CLASS. Whole-body matching counted
  *      a comment that mentioned a Forge intake in one paragraph and cited a
  *      section in another — a long issue-mirroring comment, for instance —
