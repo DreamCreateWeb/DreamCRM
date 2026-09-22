@@ -76,7 +76,7 @@ export default function FollowupRulesCard({
           </span>
           <svg
             viewBox="0 0 12 12"
-            className={`h-3 w-3 text-gray-400 transition-transform ${open ? 'rotate-180' : ''}`}
+            className={`h-3 w-3 text-gray-500 dark:text-gray-400 transition-transform ${open ? 'rotate-180' : ''}`}
             fill="none"
             stroke="currentColor"
             strokeWidth="1.5"

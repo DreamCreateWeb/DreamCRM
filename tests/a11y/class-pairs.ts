@@ -86,6 +86,13 @@
  *     NEGATIVE, which is the safe direction for a guard whose whole value is
  *     that a red run means something.
  *
+ *     **And for two years that sentence described something narrower than what
+ *     the code did**: the reader was a regex that could not span an
+ *     interpolation at all, so a template's static prefix was not merely
+ *     unjoined, it was never read. 10,021 chunks were invisible. See
+ *     `quotedChunks` below for the measurement and the fix; the
+ *     do-not-join rule above survives it unchanged.
+ *
  * Runtime axe stays the backstop for composition. This is the guard for the
  * one thing a single-theme browser suite structurally cannot look at.
  */
@@ -281,9 +288,158 @@ export function gradeClasses(classes: string): Omit<ParityFinding, 'file' | 'lin
   }
 }
 
-/** Every quoted string on a line — the unit an element's classes are written in. */
-function quotedChunks(line: string): string[] {
-  return line.match(/(["'`])[^"'`]*\1/g) ?? []
+/**
+ * EVERY CLASS STRING ON A LINE — the unit an element's classes are written in,
+ * and the one place this repo decides what that unit is.
+ *
+ * THE BLIND SPOT THIS REPLACES (Sentinel's review of #656, DREAMCRM-88). For
+ * two years this was one regex: `/(["'`])[^"'`]*\1/g`. It reads a template
+ * literal as "a backtick, then anything that is not a quote, then a backtick"
+ * — so the moment a template carries an interpolation with a quote in it, the
+ * WHOLE template stops matching and its static text is never seen at all:
+ *
+ *     className={`mt-2 text-xs text-gray-400 ${s.enabled ? '' : 'opacity-50'}`}
+ *
+ * The `'' : 'opacity-50'` branches match as their own chunks; `text-gray-400`
+ * is invisible. The file header used to describe this as "classes split across
+ * a template literal's static prefix and an interpolated branch are NOT
+ * joined", which is a different and much smaller claim — not joining a prefix
+ * to a branch is a deliberate false negative, dropping the prefix is a hole.
+ *
+ * Measured before it was closed: **10,021 chunks** the rules had never seen,
+ * 11% on top of the 87,460 they had. It cost batch 69 five sites — four
+ * disclosure chevrons and four lines of prose on the collections card, all at
+ * 2.63 — and the tell was that `balance-outreach-card.tsx` line 122 is a plain
+ * string and WAS swept while line 126, four lines below it on the same card
+ * with the same ink, is a template literal and was not.
+ *
+ * NO RULE FINDING WAS HIDING IN THOSE 10,021, which is why this could land in
+ * one batch: every `grade*` in this file was run over the newly-visible chunks
+ * and returned nothing, and the same widening over `dimmed-text`'s 9,430 added
+ * chunks returned nothing either. The hole was real and, this time, empty.
+ *
+ * WHAT IT YIELDS, and why each half is shaped the way it is:
+ *
+ *   - A plain `'…'` / `"…"` string yields its body — and, exactly as the old
+ *     regex did, a body may NOT contain another quote character. That is not
+ *     tidiness: JSX prose is full of apostrophes, and a scanner that ran from
+ *     a stray `'` to the next `"` would invent a chunk spanning two unrelated
+ *     strings and pair an ink in one with a surface in the other. A false
+ *     POSITIVE is the one direction this file refuses.
+ *   - A template literal yields its STATIC text with each `${…}` replaced by a
+ *     single SPACE — a space rather than nothing so `text-gray-${n}00` cannot
+ *     fuse into a colour word that was never written.
+ *   - Each `${…}` is then scanned in turn, so the ternary branches inside it
+ *     stay their own chunks. That is what keeps rule 1's conditional-form red
+ *     run honest, and it is still the case that a static prefix is never
+ *     JOINED to a branch — the branches are mutually exclusive and joining
+ *     them would invent pairings that never render together.
+ *
+ * `one-string-pairs.test.ts` asserts the widening is strictly ADDITIVE over
+ * the real tree — every chunk the old regex produced is still produced — which
+ * is the only way to land a field-of-view change without trading one blind
+ * spot for another.
+ */
+export function quotedChunks(line: string): string[] {
+  const out: string[] = []
+  scanChunks(line, out)
+  return out
+}
+
+/** Index just past the literal opening at `i`, templates and escapes included. */
+function skipLiteral(s: string, i: number): number {
+  const q = s[i]
+  let j = i + 1
+  while (j < s.length) {
+    if (s[j] === '\\') {
+      j += 2
+      continue
+    }
+    if (s[j] === q) return j + 1
+    if (q === '`' && s[j] === '$' && s[j + 1] === '{') {
+      j = skipInterpolation(s, j + 2)
+      continue
+    }
+    j++
+  }
+  return j
+}
+
+/** Index just past the `}` closing an interpolation whose body starts at `i`. */
+function skipInterpolation(s: string, i: number): number {
+  let depth = 1
+  let j = i
+  while (j < s.length) {
+    const c = s[j]
+    if (c === '"' || c === "'" || c === '`') {
+      j = skipLiteral(s, j)
+      continue
+    }
+    if (c === '{') depth++
+    else if (c === '}' && --depth === 0) return j + 1
+    j++
+  }
+  return j
+}
+
+function scanChunks(s: string, out: string[]): void {
+  let i = 0
+  while (i < s.length) {
+    const q = s[i]
+    if (q === '"' || q === "'") {
+      // The old regex's rule, kept deliberately: a plain string's body holds no
+      // other quote character. See the header for the apostrophe hazard.
+      let j = i + 1
+      while (j < s.length && s[j] !== '"' && s[j] !== "'" && s[j] !== '`') j++
+      if (j < s.length && s[j] === q) {
+        out.push(s.slice(i + 1, j))
+        i = j + 1
+      } else {
+        i++
+      }
+      continue
+    }
+    if (q === '`') {
+      let j = i + 1
+      let statics = ''
+      let closed = false
+      while (j < s.length) {
+        if (s[j] === '\\') {
+          statics += s.slice(j, j + 2)
+          j += 2
+          continue
+        }
+        if (s[j] === '`') {
+          closed = true
+          break
+        }
+        if (s[j] === '$' && s[j + 1] === '{') {
+          const end = skipInterpolation(s, j + 2)
+          scanChunks(s.slice(j + 2, Math.max(j + 2, end - 1)), out)
+          statics += ' '
+          j = end
+          continue
+        }
+        statics += s[j]
+        j++
+      }
+      if (closed) {
+        out.push(statics)
+        // A template's static text can itself contain a quoted run — an HTML
+        // string built in a template (`<div class="p-2">`) is the shape, and
+        // the old regex found that inner string precisely BECAUSE it refused
+        // to span quotes. Scanning the statics recovers it; without this the
+        // widening would have lost `text-white` in `dream-create-logo.tsx`,
+        // which is how the additive assertion in `one-string-pairs.test.ts`
+        // earned its keep. `statics` has no backticks and no `${…}` left, so
+        // this recursion is one level deep by construction.
+        scanChunks(statics, out)
+      }
+      i = j + 1
+      continue
+    }
+    i++
+  }
 }
 
 function walk(dir: string, out: string[] = []): string[] {

@@ -1,6 +1,9 @@
 import { describe, it, expect } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import {
   describeFinding,
+  eachClassString,
   gradeClasses,
   gradeSameStringPair,
   gradeToneFillClasses,
@@ -9,10 +12,11 @@ import {
   scanForOffRegistryToneFills,
   scanForParityFailures,
   scanForUngradedStringPairs,
+  quotedChunks,
   scanForWhiteOnShallowBrand,
   UI_ROOTS,
 } from './class-pairs'
-import { AA, contrast, DARK, LIGHT, token, utilityColor } from './palette'
+import { AA, contrast, DARK, LIGHT, ROOT, token, utilityColor } from './palette'
 
 /**
  * THE ONE-STRING PAIR GUARD — rule 7.
@@ -46,6 +50,129 @@ import { AA, contrast, DARK, LIGHT, token, utilityColor } from './palette'
  * state of the tree, not an aspiration; 29/19 is the count that measurement
  * returned.
  */
+
+/* ── the shared chunk reader ─────────────────────────────────────────────── */
+
+/**
+ * `quotedChunks` decides what every rule in `class-pairs.ts` — and
+ * `dimmed-text.test.ts` — is even able to look at, so its own red run lives
+ * here rather than being assumed from the rules that sit on top of it.
+ *
+ * It was widened on DREAMCRM-88 after Sentinel's review of #656: the regex it
+ * replaces could not span a template literal carrying an interpolation with a
+ * quote in it, so 10,021 chunks were never read and batch 69's sweep missed
+ * five sites for a purely syntactic reason. The two things worth pinning are
+ * that it now SEES the shape, and that widening it LOST nothing.
+ */
+describe('the shared chunk reader', () => {
+  /** The reader this replaced, verbatim — backreference included. A copy of a
+   *  regex is where the escaping goes wrong, and a copy that has quietly
+   *  stopped matching would make the additive assertion below pass on nothing;
+   *  the self-check right after it is what stops that. (It went wrong once
+   *  while this very test was being written: the backreference arrived as a
+   *  literal control byte.) */
+  const OLD = (line: string): string[] => line.match(/(["'`])[^"'`]*\1/g) ?? []
+
+  it('the OLD reader here still behaves like the one it replaced', () => {
+    expect(OLD(`<a className="p-2" title='x'>`)).toEqual(['"p-2"', "'x'"])
+    // The defining miss: a template whose interpolation carries a quote.
+    expect(OLD("`a text-gray-400 ${x ? '' : 'b'}`")).toEqual(["''", "'b'"])
+  })
+
+  it('reads the static text of a template literal the old regex could not span', () => {
+    // The real line from `balance-outreach-card.tsx`, which is four lines below
+    // a plain-string sibling that batch 69 DID sweep.
+    const line = "className={`mt-2 text-xs leading-relaxed text-gray-400 ${s.enabled ? '' : 'opacity-50'}`}"
+
+    expect(OLD(line).some((c) => c.includes('text-gray-400'))).toBe(false)
+    expect(quotedChunks(line).some((c) => c.includes('text-gray-400'))).toBe(true)
+  })
+
+  it('still yields each ternary branch as its own chunk, and never joins one to the prefix', () => {
+    // Rule 1's conditional-form red run depends on the branches being separate
+    // chunks, and the do-not-join rule depends on them never being merged with
+    // the static text. Both survive the widening.
+    const chunks = quotedChunks(
+      "className={`inline-flex ${active ? 'bg-teal-500 text-white' : 'text-gray-600'}`}",
+    )
+
+    expect(chunks).toContain('bg-teal-500 text-white')
+    expect(chunks).toContain('text-gray-600')
+    expect(chunks.some((c) => c.includes('inline-flex') && c.includes('bg-teal-500'))).toBe(false)
+  })
+
+  it('replaces an interpolation with a SPACE so two tokens cannot fuse', () => {
+    // `text-gray-${n}00` must not become the colour word `text-gray-400`'s
+    // neighbour by accident — an invented utility is a false positive.
+    expect(quotedChunks('className={`text-gray-${n}00 p-2`}')).toEqual(['text-gray- 00 p-2'])
+  })
+
+  it('does not run a plain string past a stray apostrophe into the next quote', () => {
+    // JSX prose is full of apostrophes. A reader that paired this `'` with the
+    // NEXT quote would invent a chunk spanning two unrelated strings — and
+    // pair an ink in one with a surface in the other. The old regex refused
+    // this and so does the new one.
+    const line = `<p title="don't" className="bg-white">{x}</p>`
+    expect(quotedChunks(line).some((c) => c.includes('don') && c.includes('bg-white'))).toBe(false)
+  })
+
+  it('handles a nested template inside an interpolation without losing the outer statics', () => {
+    const line = "className={`p-2 ${on ? `bg-white ${k}` : ''} text-gray-400`}"
+    const chunks = quotedChunks(line)
+
+    expect(chunks.some((c) => c.includes('p-2') && c.includes('text-gray-400'))).toBe(true)
+    expect(chunks.some((c) => c.includes('bg-white'))).toBe(true)
+  })
+
+  it('LOSES NO CLASS TOKEN the old reader could see, across the real tree', () => {
+    // THE ASSERTION THAT MAKES THIS SAFE TO LAND. A field-of-view change can
+    // trade one blind spot for another, and an absence assertion downstream
+    // cannot tell the difference — a green `scanForUngradedStringPairs` reads
+    // identically whether the tree is clean or the reader has gone blind.
+    //
+    // NOT "the chunk sets are equal", and the first draft of this test made
+    // that mistake. The old regex matched a template with no quotes inside it
+    // WHOLE, interpolation text included (`` `/patients/${input.patientId}` ``);
+    // the new reader blanks each `${…}` to a space, so those two chunks differ
+    // as strings while carrying exactly the same class tokens. The property
+    // that matters to a contrast scanner is the TOKENS, so that is what this
+    // asserts: every Tailwind-shaped token the old reader could see on a line
+    // is still visible somewhere in that line's chunks.
+    //
+    // Run over the tree rather than over planted strings, because the shapes
+    // that break a parser are the ones nobody thinks to plant.
+    //
+    // "Token" here means one a RULE can read — an ink, a surface, a gradient
+    // stop, a dimming, a type scale — and not any lowercase word. That
+    // narrowing is not convenience: the old regex swallowed a whole template
+    // including its interpolation SOURCE, so `${typeof x}` handed it the token
+    // `typeof`, and the new reader blanks that. Losing a JavaScript identifier
+    // is the point of the change; losing `text-gray-400` would be the bug.
+    const GRADEABLE =
+      /^(?:[a-z-]+:)*(?:(?:text|bg|from|via|to|opacity)-[\w./[\]%-]+|tabular-nums|font-mono-num)$/
+    const tokens = (chunk: string): string[] =>
+      chunk.split(/\s+/).filter((t) => t && !t.includes('${') && GRADEABLE.test(t))
+
+    const files = new Set<string>()
+    eachClassString(UI_ROOTS, (file) => files.add(file))
+
+    const lost: string[] = []
+    let lines = 0
+    for (const file of Array.from(files)) {
+      for (const line of readFileSync(join(ROOT, file), 'utf8').split('\n')) {
+        lines++
+        const before = Array.from(new Set(OLD(line).flatMap((c) => tokens(c.slice(1, -1)))))
+        if (before.length === 0) continue
+        const after = new Set(quotedChunks(line).flatMap(tokens))
+        for (const t of before) if (!after.has(t)) lost.push(`${file}: ${t}`)
+      }
+    }
+
+    expect(files.size, 'the walk must actually be visiting files').toBeGreaterThan(1000)
+    expect(lines, 'and reading their lines').toBeGreaterThan(100_000)
+    expect(lost.slice(0, 20), 'class tokens the old reader saw and the new one does not').toEqual([])
+  })
+})
 
 /* ── the red run, kept permanently ───────────────────────────────────────── */
 

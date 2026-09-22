@@ -273,7 +273,7 @@ function EmailCard({
           aria-expanded={open}
         >
           <svg
-            className={`mt-0.5 h-4 w-4 shrink-0 fill-current text-gray-400 transition-transform ${open ? 'rotate-90' : ''}`}
+            className={`mt-0.5 h-4 w-4 shrink-0 fill-current text-gray-500 dark:text-gray-400 transition-transform ${open ? 'rotate-90' : ''}`}
             viewBox="0 0 16 16"
             aria-hidden="true"
           >

@@ -62,7 +62,7 @@ export default function PagesManager({
                     aria-expanded={isOpen}
                     className="flex items-center gap-2 text-sm font-medium text-gray-800 dark:text-gray-100 hover:underline underline-offset-4"
                   >
-                    <span aria-hidden="true" className={`text-gray-400 transition-transform ${isOpen ? 'rotate-90' : ''}`}>
+                    <span aria-hidden="true" className={`text-gray-500 dark:text-gray-400 transition-transform ${isOpen ? 'rotate-90' : ''}`}>
                       ›
                     </span>
                     {p.label}

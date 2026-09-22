@@ -235,7 +235,7 @@ export default function SeoMetaForm({
                 className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-gray-50 dark:hover:bg-gray-900/30 first:rounded-t-[var(--r-md)] last:rounded-b-[var(--r-md)]"
               >
                 <svg
-                  className={`h-3 w-3 shrink-0 fill-current text-gray-400 transition-transform ${isOpen ? 'rotate-90' : ''}`}
+                  className={`h-3 w-3 shrink-0 fill-current text-gray-500 dark:text-gray-400 transition-transform ${isOpen ? 'rotate-90' : ''}`}
                   viewBox="0 0 16 16"
                   aria-hidden="true"
                 >
