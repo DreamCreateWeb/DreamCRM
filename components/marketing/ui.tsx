@@ -552,6 +552,7 @@ export function HeroStatTile({
     <div
       className={`w-[12.5rem] rounded-xl border bg-white px-3.5 py-2.5 text-left ${MOCK_FRAME_SHADOW}`}
       style={{ borderColor: DAY_WIRE }}
+      data-mkt-mock="true"
       aria-hidden="true"
     >
       <p className="font-mono-num text-[0.62rem] font-bold uppercase tracking-[0.12em] text-gray-600">
@@ -570,6 +571,7 @@ export function HeroReplyBubble() {
   return (
     <div
       className="w-[16rem] rounded-2xl bg-gradient-to-r from-teal-600 to-violet-700 px-4 py-3 text-left text-white shadow-[0_10px_34px_-10px_rgb(93_71_222/0.7)]"
+      data-mkt-mock="true"
       aria-hidden="true"
     >
       <p className="flex items-center gap-2 font-mono-num text-[0.62rem] font-bold uppercase tracking-[0.12em] text-white/85">
@@ -1321,6 +1323,54 @@ export function MatrixMark({ value }: { value: 'yes' | 'no' | 'partial' }) {
 
 /* ── Product mocks (real content, not wireframes) ───────────────────── */
 
+/**
+ * `data-mkt-mock` — A DRAWN SCREEN DECLARING ITSELF ONE, and the thing
+ * `e2e/axe.ts`'s `PRODUCT_MOCKS` exclusion is derived from (DREAMCRM-87).
+ *
+ * WRITE IT AS `data-mkt-mock="true"` HERE, and know that the `"true"` is a
+ * house style rather than a requirement: React renders a bare attribute,
+ * `={true}` and `="true"` as the same node, the exclusion keys on the
+ * attribute's PRESENCE, and `tests/marketing/product-mocks.test.tsx` grades
+ * every spelling. It is written out because a reader of this file should be
+ * able to see the flag, and the guard rejects any value that is not one of
+ * those three — `data-mkt-mock="false"` reads as "not a mock" to a person and
+ * would be pardoned all the same.
+ *
+ * WHY AN ATTRIBUTE AND NOT `aria-hidden` ALONE. `aria-hidden="true"` is the
+ * author saying "not content", which is a WEAKER claim than "this is a
+ * picture" — and it is on hundreds of unrelated decorative things in this repo,
+ * so a bare `[aria-hidden="true"]` exclusion would pardon every decorative
+ * subtree on the site forever. That is the blanket allowance §2d's third rule
+ * is about, and it is why `/product` had no axe stop for a week after the
+ * defect was written up: the decision was settled, the SELECTOR was not.
+ *
+ * WHY NOT THE HOMEPAGE'S SHAPE. `DECORATIVE_MOCKS` is
+ * `.mkt-float > [aria-hidden="true"]` — the drift wrapper AND the attribute,
+ * both halves — and it works there because the hero's mocks float. The tour's
+ * nine do not float; they are the page's subject, so that selector matches
+ * NOTHING on `/product` and `deadExclusions` would fail the stop by name.
+ *
+ * SO THE CLAIM MOVED TO THE COMPONENT THAT MAKES IT. A page can place a mock
+ * anywhere; only the mock knows it is a drawing of our own product at reduced
+ * scale. Both halves are still required — the exclusion is
+ * `[data-mkt-mock][aria-hidden="true"]`, so a half-declared element is not
+ * exempt — and a source guard (`tests/marketing/product-mocks.test.tsx`) fails
+ * any call site that carries one without the other.
+ *
+ * WHAT KEEPS IT FROM BECOMING A BLANKET PARDON IS NOT THIS COMMENT. It is
+ * `exclusionsHidingReadableText` in `e2e/axe.ts`, which measures what the
+ * exclusion actually BUYS and fails the stop on anything at or above the 12px
+ * picture-scale ceiling that is also failing contrast. It found two on
+ * `/product` the day this shipped — `EditorMock`'s 16.8px hero headline and
+ * `BookingMock`'s 12.8px day numeral, both ~2.97 on the fictional clinic's
+ * sage — and both are FIXED above rather than pardoned. A mock that grows a
+ * readable panel reddens the stop; it does not get to keep the exemption.
+ *
+ * The homepage's own exclusion is deliberately NOT re-pointed at this
+ * attribute: it holds ZERO today with a narrower selector, and swapping a
+ * green stop's exclusion buys nothing.
+ */
+
 /* v3 "Cute Dream" chrome recipes (DESIGN-SYSTEM.md 2.1/2.3/2.4 + Part 4):
    sky canvas #F3F7FE, borderless white cards floating on a soft dream-blue
    shadow, and blue gradient pills for primary actions + the active nav item.
@@ -1366,7 +1416,7 @@ export function DashboardMock() {
     { t: '11:30', n: 'Marcus Johnson', v: 'Consultation', s: 'Unconfirmed', i: 'MJ', c: 'bg-amber-400' },
   ]
   return (
-    <div className={`overflow-hidden rounded-2xl bg-[#F3F7FE] text-left ${MOCK_FRAME_SHADOW}`} aria-hidden="true">
+    <div className={`overflow-hidden rounded-2xl bg-[#F3F7FE] text-left ${MOCK_FRAME_SHADOW}`} data-mkt-mock="true" aria-hidden="true">
       <div className="flex items-center gap-1.5 bg-[#E9F0FC] px-3 py-2">
         <span className="h-2.5 w-2.5 rounded-full bg-rose-300" />
         <span className="h-2.5 w-2.5 rounded-full bg-amber-300" />
@@ -1530,7 +1580,7 @@ export function DashboardMock() {
  *  canvas stays). */
 export function PortalMock() {
   return (
-    <div className="mx-auto w-[236px] overflow-hidden rounded-[2.6rem] border-[8px] border-gray-900 bg-[#FAF7F2] text-left shadow-2xl shadow-gray-500/30 ring-1 ring-black/5" aria-hidden="true">
+    <div className="mx-auto w-[236px] overflow-hidden rounded-[2.6rem] border-[8px] border-gray-900 bg-[#FAF7F2] text-left shadow-2xl shadow-gray-500/30 ring-1 ring-black/5" data-mkt-mock="true" aria-hidden="true">
       {/* status bar + notch */}
       <div className="relative flex items-center justify-between bg-[#FAF7F2] px-4 pt-2 pb-1 text-[#1C1A17]">
         <span className="text-[0.5rem] font-bold tabular-nums">9:41</span>
@@ -1653,7 +1703,7 @@ export function PortalMock() {
 /** Edit-in-place website studio over the warm clinic site. */
 export function EditorMock() {
   return (
-    <div className={`overflow-hidden rounded-2xl bg-[#F3F7FE] text-left ${MOCK_FRAME_SHADOW}`} aria-hidden="true">
+    <div className={`overflow-hidden rounded-2xl bg-[#F3F7FE] text-left ${MOCK_FRAME_SHADOW}`} data-mkt-mock="true" aria-hidden="true">
       <div className="flex items-center gap-1.5 bg-[#E9F0FC] px-3 py-2">
         <span className="h-2.5 w-2.5 rounded-full bg-rose-300" />
         <span className="h-2.5 w-2.5 rounded-full bg-amber-300" />
@@ -1668,7 +1718,18 @@ export function EditorMock() {
           <span className={`absolute -top-2.5 right-3 rounded-full ${MOCK_PILL} px-2 py-0.5 text-[0.58rem] font-bold`}>
             ✎ Edit headline
           </span>
-          <p className="font-serif text-[1.05rem] font-semibold leading-snug text-[#7E957F]">
+          {/* THE HEADLINE IS INK, NOT THE SAGE ACCENT, and that is a
+              faithfulness fix as much as a contrast one. The real template
+              paints this line with `headingInk`
+              (`components/clinic-site/templates/modern/home.tsx`), a value
+              `lib/clinic-site-theme.ts` derives and contrast-checks — no real
+              clinic site renders its hero headline in a 2.97 brand tint. The
+              mock did: `#7E957F` on the editor card's near-white ground at
+              16.8px, which is reading size, so the repo's own picture-scale
+              ceiling (12px, `e2e/axe.ts`) says it is CONTENT and WCAG 1.4.3
+              does not exempt it. Found by the premise check on DREAMCRM-87's
+              `/product` stop rather than by eye. */}
+          <p className="font-serif text-[1.05rem] font-semibold leading-snug text-[#1C1A17]">
             Dental care that finally feels human.
           </p>
           <p className="mt-1 text-[0.62rem] text-[#6B635A]">Same-week visits · No judgment, ever · Most PPO plans</p>
@@ -1682,7 +1743,7 @@ export function EditorMock() {
           ))}
         </div>
         <div className="mt-3 flex items-center gap-2 rounded-lg bg-white p-2.5">
-          <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#7E957F] text-[0.6rem] font-bold text-white">
+          <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#5F7561] text-[0.6rem] font-bold text-white">
             DR
           </span>
           <div>
@@ -1706,14 +1767,14 @@ export function BookingMock() {
     ['9:30 AM', 'open'], ['10:00 AM', 'selected'], ['10:30 AM', 'open'],
   ]
   return (
-    <div className={`rounded-2xl bg-white p-5 text-left ${MOCK_FRAME_SHADOW}`} aria-hidden="true">
+    <div className={`rounded-2xl bg-white p-5 text-left ${MOCK_FRAME_SHADOW}`} data-mkt-mock="true" aria-hidden="true">
       <p className="font-serif text-[0.85rem] font-bold text-[#1C1A17]">Book a visit — Cleaning</p>
       <p className="mt-0.5 text-[0.66rem] text-[#6B635A]">Real openings from Dream Dental&apos;s calendar</p>
       <div className="mt-3 flex gap-2">
         {days.map(([dow, d, active]) => (
           <div
             key={d}
-            className={`flex-1 rounded-lg border px-2 py-1.5 text-center ${active ? 'border-[#7E957F] bg-[#7E957F] text-white' : 'border-[#E8E2D9] text-[#6B635A]'}`}
+            className={`flex-1 rounded-lg border px-2 py-1.5 text-center ${active ? 'border-[#5F7561] bg-[#5F7561] text-white' : 'border-[#E8E2D9] text-[#6B635A]'}`}
           >
             <p className="text-[0.56rem] font-semibold opacity-80">{dow}</p>
             <p className="text-[0.8rem] font-extrabold leading-tight">{d}</p>
@@ -1736,7 +1797,7 @@ export function BookingMock() {
           </div>
         ))}
       </div>
-      <div className="mt-4 rounded-full bg-[#7E957F] py-2 text-center text-[0.7rem] font-bold text-white">
+      <div className="mt-4 rounded-full bg-[#5F7561] py-2 text-center text-[0.7rem] font-bold text-white">
         Book Tuesday · 10:00 AM
       </div>
       <p className="mt-2 text-center text-[0.58rem] text-[#6B635A]">Confirmation + intake form sent automatically</p>
@@ -1747,7 +1808,7 @@ export function BookingMock() {
 /** One patient thread across portal + email. */
 export function MessagesMock() {
   return (
-    <div className={`rounded-2xl bg-white p-5 text-left ${MOCK_FRAME_SHADOW}`} aria-hidden="true">
+    <div className={`rounded-2xl bg-white p-5 text-left ${MOCK_FRAME_SHADOW}`} data-mkt-mock="true" aria-hidden="true">
       <div className="flex items-center gap-2.5 border-b border-gray-100 pb-3">
         <Avatar initials="SI" color="bg-teal-400" />
         <div>
@@ -1788,7 +1849,7 @@ export function MessagesMock() {
 /** Patient review → featured testimonial flow. */
 export function ReviewsMock() {
   return (
-    <div className="space-y-3 text-left" aria-hidden="true">
+    <div className="space-y-3 text-left" data-mkt-mock="true" aria-hidden="true">
       <div className={`rounded-2xl bg-white p-4 ${MOCK_FRAME_SHADOW}`}>
         <div className="flex items-center gap-2">
           <Avatar initials="NM" color="bg-emerald-500" />
@@ -1842,7 +1903,7 @@ export function RecallFunnelMock() {
     ['Booked', 18, 'w-[26%]', 'bg-teal-600 text-white'],
   ]
   return (
-    <div className={`rounded-2xl bg-white p-5 text-left ${MOCK_FRAME_SHADOW}`} aria-hidden="true">
+    <div className={`rounded-2xl bg-white p-5 text-left ${MOCK_FRAME_SHADOW}`} data-mkt-mock="true" aria-hidden="true">
       <div className="flex items-center justify-between">
         <p className="text-[0.85rem] font-bold text-gray-900">“Time for your next cleaning”</p>
         <StatusPill tone="emerald">Sent Jun 2</StatusPill>
@@ -1872,7 +1933,7 @@ export function ShopMock() {
     ['Retainer cleaner', '$14', 'bg-amber-50', '🫧'],
   ]
   return (
-    <div className={`rounded-2xl bg-white p-5 text-left ${MOCK_FRAME_SHADOW}`} aria-hidden="true">
+    <div className={`rounded-2xl bg-white p-5 text-left ${MOCK_FRAME_SHADOW}`} data-mkt-mock="true" aria-hidden="true">
       <div className="flex items-center justify-between">
         <p className="text-[0.85rem] font-bold text-gray-900">Dream Dental Shop</p>
         <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-[0.6rem] font-bold text-emerald-700">
@@ -1908,7 +1969,7 @@ export function GoogleSocialMock() {
     ['TikTok', 'bg-gray-900'],
   ]
   return (
-    <div className={`rounded-2xl bg-white p-5 text-left ${MOCK_FRAME_SHADOW}`} aria-hidden="true">
+    <div className={`rounded-2xl bg-white p-5 text-left ${MOCK_FRAME_SHADOW}`} data-mkt-mock="true" aria-hidden="true">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#4285F4] text-[0.66rem] font-bold text-white">G</span>

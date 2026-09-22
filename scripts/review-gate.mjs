@@ -613,6 +613,44 @@ export const INTAKE_RULES = [
       //     reported as `<no component>` and FAILS, which is the safe
       //     direction, and a test asserts that population is empty today.
       'tests/marketing/type-floor.test.ts',
+      // The product-mock marker an AXE EXCLUSION is derived from (DREAMCRM-87).
+      // A NEW CLASS rather than a case on an existing one, stated here as this
+      // entry's `why` asks: every rule above grades what a file CONTAINS — a
+      // colour, a glyph's shape, a decorative layer, a type size. This one
+      // grades a VOCABULARY. `data-mkt-mock` is the first half of
+      // `PRODUCT_MOCKS` in `e2e/axe.ts`, and the `marketing: product` stop
+      // holds a ceiling of ZERO on the back of it — 99 `color-contrast` nodes
+      // at 1440 disappear when it is applied.
+      //
+      // Why it is on the merits and not merely because it imports `palette.ts`
+      // for `ROOT` (the tone-tile entry above makes the same disclaimer): after
+      // it lands, writing `data-mkt-mock` anywhere in `app/`, `components/` or
+      // `lib/` outside `components/marketing/ui.tsx` fails `test` for a
+      // stranger, and so does carrying it without `aria-hidden="true"` on the
+      // same element. An attribute that exempts a subtree from a required
+      // accessibility check is exactly the shape that should not be typeable
+      // without somebody seeing it.
+      //
+      // **THAT SENTENCE WAS FALSE FOR ONE REVIEW ROUND, and the correction is
+      // the part worth carrying** (Sentinel, #647). The guard matched the
+      // literal string `data-mkt-mock="true"`, while the exclusion runs
+      // against the RENDERED DOM — where React turns a valueless JSX attribute
+      // into `="true"`. So `<header data-mkt-mock aria-hidden="true">` was
+      // pardoned by the gate and invisible to the guard, which means the
+      // shared marketing header could have left every axe rule at that stop
+      // with `test` green. It matches the attribute NAME now, and both ends
+      // key on presence so they are ONE predicate. §2d's identity-looseness
+      // family already says a prefix is not a name and a number has no end;
+      // this is the same lesson at the VALUE: an attribute has more than one
+      // spelling, and the DOM decides which ones are equivalent.
+      //
+      // WHAT IT DOES NOT COVER, here rather than only in the test's docblock:
+      // it says nothing about whether a marked subtree is still picture-scale.
+      // That needs a rendered page, and `exclusionsHidingReadableText` in
+      // `e2e/axe.ts` answers it on every run of the stop — it found two
+      // reading-size contrast defects inside the mocks the day the marker
+      // shipped, and both were fixed rather than pardoned.
+      'tests/marketing/product-mocks.test.tsx',
       // The living stage's particle layer (BRAND.md Part 6, 2026-09-22):
       // asserts MOTE_ALPHA_MAX against the stage's graded inks through
       // `tests/a11y/palette.ts` — a palette-grading assertion that walks no

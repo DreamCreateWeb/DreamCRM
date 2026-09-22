@@ -151,7 +151,11 @@
  *   the exemption and the risk it carries) and holds ZERO, which is the only
  *   state in which a new contrast defect there fails on arrival.
  *
- *   ⚠ AND THE SAME CLASS IS UNSCANNED ON `/product`, WHICH HAS NO STOP AT ALL
+ *   ✔ AND `/product` NOW HAS A STOP, AT ZERO — closed on DREAMCRM-87. What
+ *   follows is the state it was closed FROM; the measurement is unchanged and
+ *   the resolution is at the end of this block.
+ *
+ *   ⚠ THE SAME CLASS WAS UNSCANNED ON `/product`, WHICH HAD NO STOP AT ALL
  *   (Neon, DREAMCRM-77, 2026-09-16 — full write-up in `docs/RELEASE.md` Part 5).
  *   The product tour renders NINE mocks and measures 89 / 103 / 103 violation
  *   nodes at 390 / 834 / 1440 against the production build — `color-contrast`
@@ -161,14 +165,38 @@
  *   (9.28px, the "MJ" avatar, `DashboardMock`), `#b4ab9e on #ffffff` at
  *   **2.26** (7.68px, "Visits", `PortalMock`).
  *
- *   THE BLOCKER IS THE EXCLUSION'S SHAPE, not the decision — that was settled
+ *   THE BLOCKER WAS THE EXCLUSION'S SHAPE, not the decision — that was settled
  *   above. `DECORATIVE_MOCKS` keys on the drift wrapper (`.mkt-float >`), and
  *   the tour's mocks do not float; they are the page's subject. So the
- *   selector matches nothing there, `deadExclusions` would fail the stop by
- *   name, and adding `marketing: product` needs an exclusion derived from what
- *   those mocks ARE. `aria-hidden` alone is too wide — it would pardon every
- *   decorative subtree on the site forever, which is the blanket allowance
- *   §2d's third rule is about.
+ *   selector matched nothing there, `deadExclusions` would have failed the stop
+ *   by name, and adding `marketing: product` needed an exclusion derived from
+ *   what those mocks ARE. `aria-hidden` alone is too wide — it would pardon
+ *   every decorative subtree on the site forever, which is the blanket
+ *   allowance §2d's third rule is about.
+ *
+ *   **CLOSED, DREAMCRM-87, and the stop holds ZERO rather than a ceiling.**
+ *   The claim moved to the component that makes it: each drawn screen carries
+ *   `data-mkt-mock="true"` on the root it already marks `aria-hidden`, and
+ *   `PRODUCT_MOCKS` in `e2e/axe.ts` is both halves —
+ *   `[data-mkt-mock="true"][aria-hidden="true"]`. A page can place a mock
+ *   anywhere; only the mock knows it is a drawing of our own product at
+ *   reduced scale.
+ *
+ *   **Getting to zero cost two real fixes rather than a pardon**, and they are
+ *   the reason `exclusionsHidingReadableText` exists: it reported
+ *   `EditorMock`'s 16.8px hero headline and `BookingMock`'s 12.8px day
+ *   numeral, both the fictional clinic's sage at **2.97**, both above the 12px
+ *   picture-scale ceiling and therefore CONTENT by this repo's own definition.
+ *   The first was unfaithful as well as illegible — the real template paints
+ *   that line with a contrast-checked `headingInk`, so no actual clinic site
+ *   renders its hero headline in a 2.97 brand tint. Re-measured after:
+ *   **85 / 99 / 99** nodes without the exclusion (down from 89 / 103 / 103),
+ *   every one inside a marked mock, **none at or above 12px**, and
+ *   **0 / 0 / 0** with it.
+ *
+ *   The two DREAMCRM-77 nodes named below went with them: same component, same
+ *   `#93a0bc`, still picture-scale, still excluded — and now excluded by a
+ *   selector that says why.
  *
  * THE WOBBLE IS RESOLVED, and it was never data-dependence (QA, 2026-09-11).
  * It was the scan landing mid-fade: the clinic and marketing sites reveal

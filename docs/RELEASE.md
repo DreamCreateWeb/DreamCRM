@@ -2113,7 +2113,7 @@ reddens it at 4.52, the coincidence the margin exists for; forcing the pair
 extractor to return `[]` reddens the field-of-view assertion rather than
 passing silently. · FIXED (#644, DREAMCRM-87)
 
-### Open — `/product` has never been axe-scanned, and the exemption that would let it be is spelled for the homepage's composition only (found 2026-09-16)
+### Fixed — `/product` has never been axe-scanned, and the exemption that would let it be is spelled for the homepage's composition only (found 2026-09-16)
 
 **S7 · marketing site · `e2e/axe.ts` (`DECORATIVE_MOCKS`), `e2e/axe-baseline.ts`,
 `app/(marketing)/product/page.tsx`.** `smoke.spec.ts` scans `marketing: home`
@@ -2164,12 +2164,88 @@ column from six grid columns to seven and that caption becomes a node axe
 resolves. 390 and 834 are byte-identical before and after. Nothing on the page
 itself moved: **0 → 0 at all three widths.**
 
-**Not fixed here on purpose** (§10, and Neon's scope rule — character, not
-correctness). The fix is a stop plus an exclusion, which is `check-definitions`
-machinery rather than brand work, and choosing the exclusion's shape is the
-interesting part: deriving it from `aria-hidden` alone would exempt every
-decorative subtree on the site forever, which is the blanket pardon §2d warns
-about. Accessibility + the harness: Vesper / Quinn. · OPEN
+**FIXED on DREAMCRM-87 — the stop holds ZERO, and the exclusion's shape is the
+answer this entry was waiting for.**
+
+**The claim moved to the component that makes it.** A page can place a mock
+anywhere; only the mock knows it is a drawing of our own product at reduced
+scale — so each drawn screen carries `data-mkt-mock="true"` on the root it
+already marks `aria-hidden`, and `PRODUCT_MOCKS` in `e2e/axe.ts` requires BOTH
+halves: `[data-mkt-mock="true"][aria-hidden="true"]`. Same discipline as the
+homepage's `.mkt-float > [aria-hidden]`, with the first half relocated from the
+page's composition to the component's own declaration, because the tour's mocks
+have no composition in common — they are the page's subject.
+
+`tests/marketing/product-mocks.test.tsx` holds the vocabulary: the marker never
+appears without `aria-hidden` on the same ELEMENT (bounded by walking to the
+matching `<`/`>`, not by reading the line — two call sites spell it
+differently), it still matches something so a rename cannot empty the exclusion
+between browser runs, and it has not left `components/marketing/ui.tsx`. That
+last one is the only path-shaped assertion in the file and it is deliberate: a
+use elsewhere is somebody about to exempt a real surface from a required
+check, which should cost a review rather than a diff nobody reads.
+
+**GETTING TO ZERO COST TWO REAL FIXES RATHER THAN A PARDON, and that is the
+part to read off this entry.** `exclusionsHidingReadableText` — the premise
+check, which measures what an exclusion actually BUYS rather than whether its
+selector still matches — reported two findings at or above the 12px
+picture-scale ceiling:
+
+| Ratio | Element | Size | Where |
+|---|---|---|---|
+| **2.97** | `#7E957F` on the editor card's ground | 16.8px | `EditorMock`'s hero headline |
+| **2.97** | `#ffffff` on `#7E957F` | 12.8px | `BookingMock`'s selected day numeral |
+
+By the repo's own definition those are CONTENT, not picture, and WCAG 1.4.3
+does not exempt content. The first was **unfaithful as well as illegible**: the
+real template paints that line with a contrast-checked `headingInk`
+(`lib/clinic-site-theme.ts`), so no actual clinic site renders its hero
+headline in a 2.97 brand tint — it is ink now. The white-on-sage fills moved to
+`#5F7561`, already a member of this mock's palette (4.92 for white), so no new
+colour was introduced.
+
+**Re-measured, same harness, production build, all three widths after walking
+the page:** 85 / 99 / 99 nodes without the exclusion — down from 89 / 103 / 103
+— every one inside a marked mock, **none at or above 12px**, and **0 / 0 / 0**
+with it.
+
+**One thing this entry could not have predicted, and it is the transferable
+half.** The stop's first watched-fail run came back **GREEN with the defect
+live**. The planted defect was the chapter rail's active chip dropped to
+`teal-400`, and the rail has no active chip at the top of the page — `active`
+is null until a chapter is in view, so the first draft's `scrollTo(0, 0)` at
+the end of the walk left nothing carrying the ink. §2d's "a red run that passes
+is a broken test, not a clean tree", found by doing the red run rather than
+after. The stop now ends the walk at `#frontdesk` and ASSERTS an
+`[aria-current="true"]` is visible before scanning, so it grades more of the
+page than the first draft did, not less. With that, the planted defect reddens
+at all three widths naming `"Run the day"` at 12px, outside every mock.
+**AND THE FIRST VERSION OF THE MARKER GUARD SHIPPED THE HOLE IT WAS WRITTEN TO
+CLOSE** — found in Sentinel's review of #647, and the most useful thing on this
+entry. The guard searched the source for the literal string
+`data-mkt-mock="true"`. The exclusion runs against the **rendered DOM**, and
+React turns a valueless JSX attribute into `="true"` — so
+`<header data-mkt-mock aria-hidden="true">` and `data-mkt-mock={true}` each
+produce a node the gate pardons and the guard could not see. Reproduced before
+fixing: the marker planted valueless on the shared marketing header — which
+renders on every page of the site — took that header out of every axe rule at
+the stop, and the guard reported **4 passed**.
+
+The correction is one predicate at both ends: the exclusion keys on the
+attribute's PRESENCE (`[data-mkt-mock][aria-hidden="true"]`), the guard matches
+the attribute NAME, and a fourth assertion reads `e2e/axe.ts` and fails if the
+two ever spell it differently — they already did, the docblocks saying presence
+while the selector said `="true"`, which is the crack the bug lived in. The
+guard also rejects any value that is not the flag spelling, because
+`data-mkt-mock="false"` reads as "not a mock" to a person and a presence
+selector pardons it all the same.
+
+**Read it as §2d's identity-looseness family reaching the VALUE.** That list
+already says a prefix is not a name and a number has no end; this is the same
+looseness one step over — an attribute has more than one spelling, and the DOM
+decides which ones are equivalent, not the source. The mutation that finds it
+is the one nobody ran: write the attribute the OTHER way.
+· FIXED (#647, DREAMCRM-87)
 
 ### R1 · S8 sweep — Compliance & data (2026-08-17)
 

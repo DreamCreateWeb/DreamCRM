@@ -105,6 +105,77 @@ export const DECORATIVE_MOCKS = [
   '.mkt-float-slow > [aria-hidden="true"]',
 ]
 
+/**
+ * The same class of thing on `/product`, where the mocks are the page's
+ * SUBJECT rather than decoration drifting beside it (DREAMCRM-87).
+ *
+ * WHY THE HOMEPAGE'S SELECTOR COULD NOT BE REUSED, which is the whole reason
+ * the product tour had no stop for a week after its defect was written up. The
+ * decision above was settled — WCAG 1.4.3 exempts text that is part of a
+ * picture, and a ceiling of 103 on the second-busiest public page is 103 real
+ * defects' worth of room to hide in. What was not settled was the SELECTOR.
+ * `DECORATIVE_MOCKS` keys on the hero's drift wrapper (`.mkt-float >`), the
+ * tour's nine mocks do not float, so that selector matches NOTHING there and
+ * `deadExclusions` would fail the stop by name.
+ *
+ * AND THE OBVIOUS REPLACEMENT IS THE TRAP. A bare `[aria-hidden="true"]` is
+ * the author saying "not content", which is a weaker claim than "this is a
+ * picture", and it is on hundreds of unrelated decorative things in this repo
+ * — the blanket allowance §2d's third rule is about. It would pardon every
+ * decorative subtree on the site, forever, on the strength of an attribute
+ * nobody would think twice about typing.
+ *
+ * SO THE CLAIM MOVED TO THE COMPONENT THAT MAKES IT. A page can place a mock
+ * anywhere; only the mock knows it is a drawing of our own product at reduced
+ * scale, so it says so — `data-mkt-mock` on its outermost element
+ * (`components/marketing/ui.tsx`, which carries the full argument). Both
+ * halves are still required, exactly as on the homepage: a half-declared
+ * element is not exempt, and `tests/marketing/product-mocks.test.tsx` fails
+ * any call site that carries one attribute without the other, so the
+ * vocabulary cannot spread to a real surface without somebody seeing it.
+ *
+ * IT KEYS ON THE ATTRIBUTE'S PRESENCE, NOT ON `="true"`, and that is a
+ * correction rather than a preference (Sentinel, review of #647). This
+ * selector runs against the RENDERED DOM, and React renders a valueless JSX
+ * attribute as `="true"` — so `<div data-mkt-mock aria-hidden="true">` and
+ * `data-mkt-mock={true}` produce exactly the node `[data-mkt-mock="true"]`
+ * would have pardoned, while the SOURCE guard's string search for
+ * `data-mkt-mock="true"` saw neither. The gate was therefore wider than the
+ * thing watching it, in the one spelling nobody had mutated: the shared
+ * marketing header, which renders on every page of the site, could be taken
+ * out of every rule at this stop with `test` green. Presence on both ends
+ * makes the selector and the guard ONE predicate, which is what stops them
+ * drifting again — and `product-mocks.test.tsx` asserts that agreement by
+ * reading this line rather than trusting this paragraph.
+ *
+ * WHAT KEEPS IT HONEST IS NOT THIS COMMENT — it is
+ * `exclusionsHidingReadableText` below, which measures what the exclusion
+ * actually buys. It found TWO on `/product` the day this shipped:
+ * `EditorMock`'s 16.8px hero headline and `BookingMock`'s 12.8px day numeral,
+ * both the fictional clinic's sage at **2.97**. Both were FIXED rather than
+ * pardoned — the first was unfaithful as well as illegible, since the real
+ * template paints that line with a contrast-checked `headingInk` — which is
+ * what let this stop hold ZERO rather than a ceiling.
+ *
+ * MEASURED BEFORE IT WAS ASSERTED, against the production build at 390 / 834 /
+ * 1440, `wcag2a/2aa/21a/21aa`, after walking the page so every `ScrollReveal`
+ * has fired: **89 / 103 / 103** violation nodes without it, `color-contrast`
+ * only, every one inside an `aria-hidden` mock and ZERO on the page itself at
+ * every width — reproducing the numbers `docs/RELEASE.md` Part 5 recorded. With
+ * the exclusion and the two fixes: **0 / 0 / 0**.
+ *
+ * WHAT IT DOES NOT DEFEND, stated because an exclusion hides every rule and
+ * not only the one it is argued for: `exclusionsHidingReadableText` measures
+ * `color-contrast` alone, so an unlabelled control or a missing `alt` inside a
+ * marked subtree would be excluded with nothing asking. Same residue the
+ * homepage's exclusion carries; named here rather than discovered later.
+ *
+ * The homepage keeps `DECORATIVE_MOCKS` rather than being re-pointed at this
+ * attribute. That stop holds ZERO today on a narrower selector, and swapping a
+ * green stop's exclusion buys nothing.
+ */
+export const PRODUCT_MOCKS = ['[data-mkt-mock][aria-hidden="true"]']
+
 type A11yOptions = {
   /** Scan only this subtree (CSS selector) instead of the whole page. */
   include?: string
