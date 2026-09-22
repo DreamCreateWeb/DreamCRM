@@ -306,6 +306,58 @@ next merge — run 803's commit never got its own rollout.
 narrate the service status while it waits. · **FIXED — verified live on
 the next deploys (runs 807–808).**
 
+### Deploy pipeline — a green deploy can leave prod on the previous commit, and nothing notices (found 2026-09-21)
+
+DREAMCRM-83's changelog merge (`95e0c33c`, deploy run 35664809013) reported
+green on everything we have — `test`, `e2e`, the deploy job's own gate,
+`migration-check`, post-merge E2E — and production went on serving the
+2026-09-17 build for **2h 40m** after its own rollout was requested, until an
+unrelated merge (`9269da58`) carried the commit in as a passenger.
+
+Measured, not inferred: `/changelog` returned the same `etag`
+(`"xjgppisco23but"`) at 23:19 and again at 01:27 while the homepage was
+already showing the 2026-09-17 cinema stage, so the container had not been
+replaced; the new week appeared at 01:44:44 with a new etag, **eight minutes
+after the NEXT deploy's `start-deployment`**.
+
+**This is the 2026-08-23 entry's harm reached by its other cause.** That
+entry closed the COLLISION (`start-deployment` REFUSED while a previous
+rollout was still running) and the source-zip race. It did not close the
+INVISIBILITY, and that half is structural rather than incidental:
+`.github/workflows/deploy.yml`'s build step polls `codebuild
+batch-get-builds` and exits as soon as the BUILD reports `SUCCEEDED`, and
+the rollout is fired from the buildspec's POST_BUILD after that point.
+Nothing downstream observes it — the next step is the EventBridge cron sync,
+which by design never blocks the deploy. So the pipeline's green means "the
+image built and App Runner accepted a request", never "the new version is
+serving", and a rollout that is accepted and then does not complete — a
+failed health check with App Runner's automatic rollback being the obvious
+candidate — is indistinguishable from a successful deploy in every signal we
+collect.
+
+**Deliberately NOT root-caused here.** Which of those actually happened needs
+App Runner's own operation history (`apprunner list-operations`, the service
+event log), and the session that found this had no AWS credentials. The
+defect above does not depend on the answer: the pipeline cannot tell a landed
+rollout from a lost one either way, so the verdict is the same whichever it
+was.
+
+**What a fix looks like**, noted because it is NOT a docs change and lands on
+the review gate (`.github/workflows/**` plus the deploy pipeline): after the
+build step, poll `apprunner list-operations` for the operation the buildspec
+started until it leaves `IN_PROGRESS` and fail the job on anything but
+`SUCCEEDED`. That needs `apprunner:ListOperations` + `DescribeService` on the
+deploy role — the same grant the 2026-08-23 entry already listed as
+"optional" for narrating status while the retry loop waits, which is now the
+load-bearing half. The IAM-free alternative is asserting a commit marker
+served by production, which we do not expose today.
+
+Not a launch blocker — nothing was wrong with the code that shipped and the
+next merge repaired it. But "merge to `main` auto-deploys to production" is a
+standing claim in `CLAUDE.md`, it is what the weekly changelog cadence and
+every "shipped" report rest on, and a deploy that silently does not deploy
+makes the other green signals worth less than they look. · **OPEN**
+
 ### R1 · S1 sweep — Tenant & auth (2026-08-17)
 
 Parallel finders enumerated every server action, API route, and cron; the
