@@ -270,8 +270,15 @@ describe('the product-root match, in both directions', () => {
  *   - A spec driving a browser without `@playwright/test`. None exists, and
  *     `playwright.config.ts` is on the REVIEW gate, so the harness is watched.
  *   - It says nothing about what the spec ASSERTS. A derived-list spec that
- *     checks something trivial still matches, and that is the cheap direction
- *     to be wrong in: intake costs a sentence on an issue.
+ *     checks something trivial still matches, and that is still the direction
+ *     to be wrong in — but it is not free, and the price was stated wrongly
+ *     here (corrected DREAMCRM-92). A false positive is not "a sentence on an
+ *     issue": this detector runs INSIDE `test`, so a file it wrongly matches
+ *     fails a required check BY NAME until somebody acts. The fix when that
+ *     happens is to drop the verb or narrow the predicate. It is NEVER to
+ *     register the innocent file — that quietens the red by putting a
+ *     permanent lie on `INTAKE_RULES`, and every future reader takes the list
+ *     at its word.
  *
  * Returns the binding names that make the file site-wide, so a failure can say
  * WHICH registry it expanded rather than only that it matched.

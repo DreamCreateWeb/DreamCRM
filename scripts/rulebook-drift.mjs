@@ -140,7 +140,7 @@ export const WORKFLOW_CENSUS = {
   'review-sweep.yml': {
     gates: 'nothing',
     publishes: [],
-    note: 'the post-merge half of review-gate.yml: names PRs that merged carrying needs-sentinel-review with no review recorded. Runs after the merge commit is on main, so it cannot hold one',
+    note: 'the post-merge half of review-gate.yml: names PRs that merged carrying needs-sentinel-review with no review recorded, or needs-forge-intake with no intake recorded. Runs after the merge commit is on main, so it cannot hold one. Its exit status is keyed on what is new since it last went green; the summary still prints every unremediated entry',
   },
   'rulebook-drift.yml': {
     gates: 'nothing',

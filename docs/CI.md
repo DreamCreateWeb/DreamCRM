@@ -19,7 +19,7 @@ loads, including the one real clinic site — is `docs/OPS.md`.
 | `.github/workflows/error-scan.yml` | `schedule` every 30 min + dispatch | `scan` | noticing errors inside the product | no — warns only |
 | `.github/workflows/migration-check.yml` | `workflow_call` from `deploy.yml` + `schedule` 08:20 UTC + dispatch | `migration-check` | that a deploy's migrations actually applied | no required context — but it CAN fail the deploy run |
 | `.github/workflows/rulebook-drift.yml` | `schedule` 06:17 UTC + dispatch | `rulebook-drift` | the rulebook still describing this repo | no — never runs on a PR |
-| `.github/workflows/review-sweep.yml` | `schedule` 06:47 UTC + dispatch | `review-sweep` | that a PR owing Sentinel a review did not merge without one | no — post-merge alarm, never runs on a PR |
+| `.github/workflows/review-sweep.yml` | `schedule` 06:47 UTC + dispatch | `review-sweep` | that a PR owing Sentinel a review, or Forge an intake, did not merge without one | no — post-merge alarm, never runs on a PR |
 
 ## The deploy is not finished until the migrations are in
 
@@ -540,6 +540,7 @@ by whoever happens to look.
 | Mechanism | What it prevents |
 | --- | --- |
 | `SWEPT_SINCE` — a hard cut-off, `2026-09-15T16:00:00Z` | judging merges from before the record-keeping convention existed, when a reviewed PR and an unreviewed one were indistinguishable |
+| `INTAKE_SWEPT_SINCE` — the intake half's own cut-off, `2026-09-22T08:00:00Z` | the same thing for the obligation whose record did not exist until DREAMCRM-91: thirty merged PRs wore `needs-forge-intake` unread that morning, #569 through #636, most of them routed long ago onto a Multica issue GitHub cannot see |
 | the reviewer recording the verdict, not only the merger | the cut-off's own failure mode at the *other* end of the window — PRs already open when this landed, whose review-gate summaries were rendered before the instruction existed |
 | generous satisfaction — a GitHub review carrying a verdict, or any PR comment with a verdict word in it, however phrased | firing at the one person who did the work because they wrote it differently |
 | the **label** is the trigger, not a re-run of today's `GATE_RULES` over the diff | retro-flagging PRs that were correctly clean when they merged — that list has been widened four times in twelve days |
@@ -554,8 +555,76 @@ Being loose about what counts as satisfied buys **false negatives**, and that is
 the deliberate direction: a missed miss costs the manual sweep we already had, a
 false alarm costs the instrument. What it therefore cannot see is written down
 at the top of `scripts/review-sweep.mjs` — a PR whose `continue-on-error` label
-step hiccuped, a verdict comment with no review behind it, and the
-`needs-forge-intake` obligation, which is deliberately not folded in.
+step hiccuped, a verdict comment with no review behind it, and an entry that
+goes back to unsatisfied without a new merge (a deleted verdict comment), which
+keeps printing but reads as standing rather than new.
+
+### The intake half, and why its cut-off is a different date (added 2026-09-22, DREAMCRM-92)
+
+`review-gate.yml` applies `needs-forge-intake` with exactly the same care and,
+until this landed, **nothing read it**: the sweep excluded it by design, it is
+never cleared at merge, and **thirty merged PRs carried it** on 2026-09-22,
+#569 through #636. An obligation with no closing record is not a queue, it is a
+note in a drawer — which is the argument #593 already made for the review half.
+
+§2 gives it the same shape of record, mirrored where an instrument can see it:
+
+```bash
+gh pr comment <n> --body "Forge intake: §2b, §6 — <link to the issue comment>"
+```
+
+Two parts, and the second is what makes it gradeable rather than decorative: the
+marker, and a **section reference** naming where the rule landed. A bare "routed
+to Forge" does not satisfy it. An intake's real record lives in a skill document
+outside this repo, so the section number is the only part of it a reader
+standing at the PR can follow.
+
+The cut-off is its own, and LATER. Those thirty are the review half's
+#575/#579/#580 problem one obligation over — a routed PR and a forgotten one are
+indistinguishable from GitHub — so judging them would have opened this half with
+thirty findings, most of them wrong, on an instrument whose entire value is
+being believed. They are counted and named as *not judged*, never as passes.
+`SWEPT_SINCE` must stay the EARLIER of the two, because the truncation check
+below grades the `gh pr list` window against it alone.
+
+### The exit status is keyed on the last green run (added 2026-09-22, DREAMCRM-92)
+
+The first version stayed red while any unremediated entry existed. Right for the
+text, and a disaster in the exit status: **six consecutive red runs**,
+`35094044453` (2026-09-16) through `35605207003` (2026-09-21), over four PRs,
+three of which had genuinely been reviewed and never mirrored. After six
+mornings the red read as wallpaper, and **#636 merged into that silence on
+2026-09-22 carrying `needs-sentinel-review`, editing `scripts/review-gate.mjs`,
+with no verdict anywhere.** A permanently-red alarm is a disabled alarm, and the
+first thing this one disabled was the gate's own rule list.
+
+So the two halves are split:
+
+- **the summary** still prints every unremediated entry every morning, with
+  Sentinel's property intact — an unremediated miss is not less true tomorrow —
+  and still annotates each one (`::error` for the new, `::warning` for the
+  standing);
+- **the exit status** is keyed on the entries that merged after this sweep last
+  went green. A new miss is always a *new* red.
+
+**The lookup is pinned to LAST GREEN and that word is load-bearing.** Degrade it
+to *last run* and every miss becomes a one-day alarm — red the morning it
+appears, green the morning after with the finding untouched — which is strictly
+worse than the permanently-red version, because a green run is a positive claim
+that nothing is new. The workflow asks `gh run list --branch main --status
+success`, and `lastGreenAt` filters on `conclusion` itself rather than trusting
+that flag; the guard drives it with a history whose newest run FAILED.
+
+A failed lookup **fails closed**: an empty history, a throttled `gh`, a file the
+step never wrote all mean every entry counts as new and the run stays red, with
+the reason printed. The opposite default lets one rate-limited API call print a
+quiet morning over a real miss.
+
+On the day it landed the sweep had never been green — six runs, six failures —
+so the first run after the merge is what establishes the window. That run is
+green because the four standing entries were all remediated on DREAMCRM-85 and
+§3 before this shipped; had they not been, clearing them once would have been
+the price of the first green.
 
 ### Mechanics
 
@@ -565,8 +634,9 @@ holds the classifier. No `pnpm install` anywhere in the job. It sweeps
 window, because GitHub's scheduler is best-effort and this file's own table
 shows a `0 7` schedule landing up to +6h34m late — a 24-hour window on a
 six-hour slip drops merges into a gap and never looks at them again. The cost is
-that a finding stays red until it is remediated, which is what an unresolved
-miss should do.
+that a finding stays PRINTED until it is remediated, which is what an unresolved
+miss should do. Since DREAMCRM-92 it no longer stays RED forever on it; see the
+last-green window above.
 
 The script is told the same `--limit` the `gh` call used and goes **red** if the
 list came back truncated before reaching the cut-off, for the reason this

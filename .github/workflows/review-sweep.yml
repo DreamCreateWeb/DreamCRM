@@ -13,6 +13,13 @@ name: Post-merge review sweep
 # miss surfaced a day later, in a manual sweep somebody chose to run. This is
 # that sweep, on a schedule, so it stops depending on the choosing.
 #
+# IT GRADES `needs-forge-intake` TOO (DREAMCRM-92). Same gate, same care
+# applying the label, and nothing read it: thirty merged PRs wore it on the day
+# that changed. An obligation with no closing record is not a queue, it is a
+# note in a drawer. Its cut-off is its own and later — see
+# `INTAKE_SWEPT_SINCE` in `scripts/review-sweep.mjs` for why judging those
+# thirty would have opened the half with thirty mostly-wrong findings.
+#
 # ============================ THIS DOES NOT GATE =============================
 #
 # No `pull_request` trigger, no required status-check context, no `needs:` on
@@ -55,9 +62,12 @@ on:
   # That lateness is also why this sweep does NOT use a rolling "last N hours"
   # window. A 24-hour window on a schedule that can slip six hours drops merges
   # into a gap and never looks at them again, and a miss this check cannot see
-  # is indistinguishable from no miss. It sweeps everything merged since
-  # `SWEPT_SINCE` instead: nothing can fall through, and a finding stays red
-  # until it is remediated, which is what an unresolved miss should do.
+  # is indistinguishable from no miss. It sweeps everything merged since each
+  # obligation's cut-off instead, so nothing can fall through, and a finding
+  # stays PRINTED until it is remediated — an unremediated miss is not less
+  # true tomorrow. What it no longer does is stay RED forever on it: the exit
+  # status is keyed on what is new since the last green run (DREAMCRM-92), for
+  # the reason the step below spells out.
   schedule:
     - cron: '47 6 * * *'
   workflow_dispatch: {}
@@ -66,19 +76,22 @@ concurrency:
   group: review-sweep
   cancel-in-progress: false
 
-# Two READ scopes and nothing else: `contents` for the checkout, `pull-requests`
-# for `gh pr list` (which cannot read a private repo's PRs on `contents` alone).
+# Three READ scopes and nothing else: `contents` for the checkout,
+# `pull-requests` for `gh pr list` (which cannot read a private repo's PRs on
+# `contents` alone), and `actions` for `gh run list` — this workflow's own run
+# history, which is how it finds out when it last went green (DREAMCRM-92).
 # This job writes nothing back to GitHub — see "WHY NOT A COMMENT ON THE
 # OFFENDING PR" above for why the write scope `review-gate.yml` holds is not
 # wanted here.
 #
-# Both spellings are real `permissions:` keys. `rulebook-drift.yml` shipped a
-# draft asking for `administration: read`, which is not a scope at all: GitHub
+# All three spellings are real `permissions:` keys. `rulebook-drift.yml` shipped
+# a draft asking for `administration: read`, which is not a scope at all: GitHub
 # rejected the whole file and published NO check-run, twice, in 0 seconds — a
 # failure `gh pr checks` could not show. Nothing in CI validates workflow syntax
 # before GitHub does, so `tests/guards/review-sweep.test.ts` checks this block
 # against the documented scope list.
 permissions:
+  actions: read
   contents: read
   pull-requests: read
 
@@ -127,5 +140,41 @@ jobs:
             --json number,title,url,mergedAt,author,labels,comments,reviews \
             > merged-prs.json
 
-      - name: Which of them merged owing a review nobody recorded?
-        run: node scripts/review-sweep.mjs --prs merged-prs.json --limit 500
+      # WHEN DID THIS SWEEP LAST GO GREEN? (DREAMCRM-92.)
+      #
+      # The summary keeps printing every unremediated entry; the run's EXIT
+      # STATUS is keyed on the ones that are new since this instant. Without it
+      # the alarm is red forever the first time somebody forgets, and a
+      # permanently-red alarm is a disabled alarm — that is not a prediction,
+      # it is what happened: six consecutive red runs, `35094044453` through
+      # `35605207003`, and then #636 merged into the silence carrying
+      # `needs-sentinel-review` and editing the gate's own rule list.
+      #
+      # `--status success` is LOAD-BEARING and it is also not trusted on its
+      # own. Drop it and this reads the last RUN rather than the last GREEN
+      # one, after which every miss is a one-day alarm — red the morning it
+      # appears, green the morning after with the finding untouched, which is
+      # strictly worse than what it replaced. `lastGreenAt` in
+      # `scripts/review-sweep.mjs` therefore filters on `conclusion` itself,
+      # and the guard test drives it with a history whose newest run FAILED.
+      #
+      # `--branch main` because a green `workflow_dispatch` run from a feature
+      # branch graded a different version of this file.
+      #
+      # `|| true` so a throttled or failing lookup does not abort the job: the
+      # script reads a missing or unparseable file as a FAILED LOOKUP and fails
+      # CLOSED, treating every entry as new and staying red, with the reason in
+      # the summary. Letting the step fail would lose the sweep entirely; the
+      # opposite default — assuming green — would let one rate-limited API call
+      # print a quiet morning over a real miss.
+      - name: When did this sweep last go green?
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh run list --repo ${{ github.repository }} --workflow review-sweep.yml \
+            --branch main --status success --limit 1 \
+            --json databaseId,conclusion,createdAt \
+            > last-green.json || true
+
+      - name: Which of them merged owing a review or an intake nobody recorded?
+        run: node scripts/review-sweep.mjs --prs merged-prs.json --limit 500 --last-green last-green.json
