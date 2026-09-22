@@ -45,16 +45,33 @@ const seedSrc = readFileSync(SEED_PATH, 'utf8')
  * nobody added here is a row with no owner that this guard reports as fine.
  * Add the prefix in the same PR as the scope.
  *
- * Eleven more arrived with `token-pages` and `partner` (DREAMCRM-98), which is
+ * TWELVE more arrived with `token-pages` and `partner` (DREAMCRM-98), which is
  * the largest single addition this list has taken and worth a word about why.
- * Those two scopes reach further across the schema than any before them: the
- * eight text-message landings each read a DIFFERENT table (a balance request,
- * a payment plan, a review request, a waitlist offer, a prospect meeting, a
- * practice grade, a marketing event, an event capture), and the partner portal
- * reads a persona that is not an org member at all. Each new table needs its
- * prefix here or its rows are invisible to the ownership check — which is the
- * exact failure mode this docblock was written for, and it goes quiet rather
- * than red.
+ * Those two scopes reach further across the schema than any before them, so
+ * every one is named rather than summarised — the first draft of this paragraph
+ * said "eleven" and enumerated nine tables, which is §2d's "the predicate is
+ * right and the sentence is wrong" (caught by Sentinel reviewing #669). A
+ * prefix list is exactly the kind of thing a reader trusts the prose about
+ * instead of counting:
+ *
+ *   prv    clinic_provider                 bpr    balance_payment_request
+ *   plan   payment_plan                    rev    review_request
+ *   wl     appointment_waitlist            wlo    appointment_waitlist_offer
+ *   pros   prospect                        pmtg   prospect_meeting
+ *   pgrd   practice_grade                  mevt   marketing_event
+ *   mcap   event_capture                   rpart  referral_partner
+ *
+ * Each new table needs its prefix here or its rows are invisible to the
+ * ownership check — which is the exact failure mode this docblock was written
+ * for, and it goes quiet rather than red.
+ *
+ * WHAT A PREFIX LIST STILL CANNOT REACH, since this is the natural place to
+ * look for it: a row whose id is not of the `<prefix>_e2e_<name>` shape at all.
+ * `token-pages` writes one — the `prospecting_config` singleton at the literal
+ * id `'default'` — and no prefix can ever make it visible here. It is named as
+ * an unowned global write in that scope's header and in `docs/E2E.md`; if you
+ * are about to add a second such row, read both before assuming this guard has
+ * your back.
  *
  * `prop` and `pros` are two prefixes, not one: `prop_e2e_…` is a proposal
  * (`sign-here`) and `pros_e2e_…` is a prospect (`token-pages`). Alternation
