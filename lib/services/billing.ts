@@ -10,7 +10,13 @@ import {
   type BillingInterval,
   type PlanId,
 } from '@/lib/stripe-config'
-import { invalidateClinicSiteForOrg } from '@/lib/services/clinic-site-cache'
+// The RENDER-TOLERANT invalidator, because this module is reachable from a
+// Server Component body: `app/(default)/settings/billing/page.tsx` calls
+// `syncCheckoutSuccess` during render on the `?checkout=success` landing. The
+// strict one throws there (Next refuses `revalidateTag` during render), and
+// the throw does not merely skip the invalidation — it truncates the rest of
+// the billing sync. See the function's own doc comment.
+import { invalidateClinicSiteForOrgUnlessRendering } from '@/lib/services/clinic-site-cache'
 
 function publicUrl(path: string) {
   const base =
@@ -510,17 +516,6 @@ export async function syncSubscriptionFromStripe(subscriptionId: string) {
     })
     .where(eq(schema.clinicProfile.organizationId, organizationId))
 
-  // THE SHUT-DOWN WALL READS THESE COLUMNS FROM A CACHE NOW.
-  //
-  // `subscriptionStatus` and `stripeSubscriptionId` are two thirds of
-  // `resolveTrialState`, which the public site layout uses to decide whether
-  // to serve the clinic's site at all. The expiry half is time-based and
-  // resolved per request, so a trial running out still walls the site
-  // instantly — but a clinic PAYING is a WRITE, and without this the money
-  // has landed and their site is still dark for up to the TTL. That is the
-  // one direction of staleness this surface must not have.
-  await invalidateClinicSiteForOrg(organizationId)
-
   // Entitlement may have SHRUNK (add-on dropped / tier downgraded) — actually
   // disconnect over-cap social channels; each Zernio connection is billable to
   // us. Best-effort: cap enforcement must never fail the webhook.
@@ -534,6 +529,26 @@ export async function syncSubscriptionFromStripe(subscriptionId: string) {
       console.warn('[stripe] over-cap social enforcement failed', err)
     }
   }
+
+  // THE SHUT-DOWN WALL READS THESE COLUMNS FROM A CACHE NOW.
+  //
+  // `subscriptionStatus` and `stripeSubscriptionId` are two thirds of
+  // `resolveTrialState`, which the public site layout uses to decide whether
+  // to serve the clinic's site at all. The expiry half is time-based and
+  // resolved per request, so a trial running out still walls the site
+  // instantly — but a clinic PAYING is a WRITE, and without this the money
+  // has landed and their site is still dark for up to the TTL. That is the
+  // one direction of staleness this surface must not have.
+  //
+  // LAST IN THE FUNCTION, AND THAT IS THE POINT. This is cache bookkeeping
+  // sitting in the middle of a money path: every write and every entitlement
+  // consequence above is worth more than it is. The first version of this PR
+  // put it between the profile write and the over-cap enforcement, where a
+  // throw meant a clinic leaving the full-Premium trial for a smaller plan
+  // KEPT social connections we pay for. Ordering makes that structurally
+  // impossible, and the render tolerance below makes the throw not happen;
+  // both, because either alone is one edit away from the same bug.
+  await invalidateClinicSiteForOrgUnlessRendering(organizationId)
 }
 
 /**
@@ -564,7 +579,15 @@ export async function clearSubscription(subscriptionId: string) {
   // Same reason as the sync above, in the other direction: a canceled
   // subscription can put a clinic back behind the trial wall, and the public
   // site reads that verdict from the cached chrome.
-  await invalidateClinicSiteForOrg(profile.organizationId)
+  //
+  // The render-tolerant variant even though this one's only caller is the
+  // webhook route, where a render refusal cannot arise. It costs nothing —
+  // the tolerance is unreachable here, so no real signal is given up — and it
+  // keeps the rule checkable at MODULE granularity: `billing.ts` is imported
+  // by a Server Component, so nothing in it may reach the strict invalidator.
+  // A per-function rule would need a parser and would still be wrong the
+  // first time somebody moved a call between functions.
+  await invalidateClinicSiteForOrgUnlessRendering(profile.organizationId)
 }
 
 /**

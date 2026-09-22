@@ -10,7 +10,16 @@ import {
   type WebsiteDraftChange,
 } from '@/lib/website-draft'
 import { recordWebsiteEdit } from './website-history'
-import { invalidateClinicSiteForOrg } from './clinic-site-cache'
+// The RENDER-TOLERANT invalidator. Nothing here is called during a render
+// TODAY — `app/(default)/website/templates/page.tsx` imports this module for
+// its two READ functions — but a Server Component importing the module is all
+// it takes for a future page-level `publishWebsiteDraft` to land in the
+// render phase, where `revalidateTag` throws and the throw truncates whatever
+// follows the invalidation. That is the defect Sentinel caught in
+// `syncSubscriptionFromStripe` on #654; this is the same shape one edit away.
+// The tolerance is unreachable from the action and cron callers these
+// functions actually have, so no real signal is given up.
+import { invalidateClinicSiteForOrgUnlessRendering } from './clinic-site-cache'
 
 /**
  * Server plumbing for the website Draft→Publish layer (pure core:
@@ -43,7 +52,7 @@ export async function stageWebsiteValues(
     .where(eq(clinicProfile.organizationId, organizationId))
   // The public site caches `hasWebsiteDraft` and every live-immediate column
   // written above, so the editor must not read a stale copy of their own save.
-  await invalidateClinicSiteForOrg(organizationId)
+  await invalidateClinicSiteForOrgUnlessRendering(organizationId)
   return { stagedKeys: Object.keys(staged) }
 }
 
@@ -115,7 +124,7 @@ export async function publishWebsiteDraft(
         .update(clinicProfile)
         .set({ websiteDraft: null })
         .where(eq(clinicProfile.organizationId, organizationId))
-      await invalidateClinicSiteForOrg(organizationId)
+      await invalidateClinicSiteForOrgUnlessRendering(organizationId)
     }
     return { published: 0 }
   }
@@ -143,7 +152,7 @@ export async function publishWebsiteDraft(
     .where(eq(clinicProfile.organizationId, organizationId))
   // The whole point of Publish: the very next render of the live site shows
   // the new words. `updateTag` gives read-your-own-writes for exactly this.
-  await invalidateClinicSiteForOrg(organizationId)
+  await invalidateClinicSiteForOrgUnlessRendering(organizationId)
   return { published: changes.length }
 }
 

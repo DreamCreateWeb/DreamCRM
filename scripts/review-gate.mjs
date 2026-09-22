@@ -724,6 +724,58 @@ export const INTAKE_RULES = [
       // behind a meaning they never had.
       'tests/billing/no-billing-profiles-write.test.ts',
       'tests/clinic-site/jsonld-escaping.test.ts',
+      // ── THE TWO FROM DREAMCRM-90 (#654) ────────────────────────────────
+      //
+      // Read them as TWO classes, not one, because only the second is new in
+      // kind and this entry's `why` asks for that call to be made rather than
+      // guessed.
+      //
+      // `layout-reads-the-cache` is a CASE ON THE EXISTING SHAPE: it walks
+      // `app/site` and grades source, exactly like the four clinic-site
+      // scanners above it. What it grades is the novel part — a COST rather
+      // than a way of writing something. Every rule on this list bans a
+      // colour, a glyph, a token, a raw `<img>`; this one bans a DATABASE
+      // QUERY in a layout, because a layout renders on every page beneath it
+      // and one query there is one round trip per page view of a whole clinic
+      // site. After it lands, a stranger opening a `db.select()` in any
+      // `app/site` layout fails `test` by file and import.
+      'tests/clinic-site/layout-reads-the-cache.test.ts',
+      // `no-render-phase-invalidation` IS A NEW CLASS, and the newest thing on
+      // this list: it is the first guard here whose subject is derived from
+      // the IMPORT GRAPH rather than from a directory listing. Every scanner
+      // above asks "what does this file CONTAIN"; this one asks "what can a
+      // Server Component REACH", walking transitively from all 228 page /
+      // layout / template roots and stopping at `'use server'` / `'use
+      // client'` boundaries, then forbidding the reachable set a call to the
+      // strict clinic-site invalidator.
+      //
+      // WHY IT IS ON THE MERITS. Next throws on `revalidateTag` during a
+      // render, and `lib/services/clinic-site-cache.ts` deliberately rethrows
+      // everything but "no request scope" — so a render-reachable call site
+      // does not fail quietly, it truncates the function it sits in. #654
+      // shipped one: the throw landed between the Stripe profile write and
+      // `enforceSocialConnectionCap`, so a clinic moving off the full-Premium
+      // trial kept social connections the platform is billed for, and the
+      // activation logged itself as a failure. After this lands, a stranger
+      // wiring an invalidator into any module a page can reach fails `test`
+      // with the import chain printed.
+      //
+      // WHAT IT DOES NOT COVER, here rather than only in the test's docblock:
+      //
+      //   - It is MODULE-granular, not function-granular. `billing.ts` is
+      //     render-reachable through one function, so the whole module owes
+      //     the tolerant variant. That is deliberate — a per-function rule
+      //     needs a parser and would be wrong the first time somebody moved a
+      //     call between functions — but it means the rule asks for the
+      //     tolerant variant in places that do not strictly need it.
+      //   - The `'use server'` boundary is read from the first 400 bytes. A
+      //     module that declares the directive lower down is treated as
+      //     render-reachable, which is the safe direction.
+      //   - It says nothing about the OTHER phases Next refuses in
+      //     (`'use cache'`, `unstable_cache`, `generateStaticParams`). Those
+      //     still rethrow from both variants, and
+      //     `tests/clinic-site/next-cache-contract.test.ts` pins that.
+      'tests/clinic-site/no-render-phase-invalidation.test.ts',
       'tests/clinic-site/public-form-error.test.ts',
       'tests/clinic-site/site-load-dedupe.test.ts',
       'tests/intake-forms/insurance-ocr-host-adoption.test.ts',

@@ -90,6 +90,23 @@ export function invalidateClinicSite(orgId: string): void {
 const NO_REQUEST_SCOPE = 'E263'
 
 /**
+ * Next's error code for "you called this during a render".
+ *
+ * Read off the installed Next 16.2.10 rather than inferred:
+ * `server/web/spec-extension/revalidate.js` throws it when
+ * `workUnitStore.phase === 'render'`, with the message `Route <r> used
+ * "revalidateTag <tag>" during render which is unsupported.`
+ * `tests/clinic-site/next-cache-contract.test.ts` pins that against the real
+ * module, because this code is the only thing standing between a render-phase
+ * call site and an exception in the middle of somebody's checkout.
+ */
+const RENDER_PHASE = 'E7'
+
+/** What one tag drop actually did — the caller needs to know, not just that
+ *  nothing threw. See `invalidateClinicSiteForOrgUnlessRendering`. */
+type TagDrop = 'dropped' | 'no-request-scope' | 'rendering'
+
+/**
  * Swallow ONLY "we are not inside a request", and let everything else out.
  *
  * The previous version was a blanket `catch {}` with a comment asserting the
@@ -100,17 +117,27 @@ const NO_REQUEST_SCOPE = 'E263'
  *
  * Outside a request (a cron, the demo re-seeder, a boot script) there is
  * legitimately nothing to revalidate against and the TTL is the answer. Every
- * other throw Next can raise here — calling this during render (E7), inside a
- * `'use cache'` (E181), inside an `unstable_cache` callback (E306), inside
- * `generateStaticParams` (E1127) — is a real bug in a call site, and each one
- * means this clinic's site is not being invalidated. Those must surface.
+ * other throw Next can raise here — inside a `'use cache'` (E181), inside an
+ * `unstable_cache` callback (E306), inside `generateStaticParams` (E1127) — is
+ * a real bug in a call site, and each one means this clinic's site is not
+ * being invalidated. Those must surface.
+ *
+ * `tolerateRender` is the ONE addition to that list, and it is not a
+ * loosening: it is opt-in per call site, and only a call site that is
+ * genuinely reachable from a Server Component render may pass it. There is
+ * exactly one such writer today (`syncSubscriptionFromStripe`, via the
+ * checkout-success landing) and
+ * `tests/clinic-site/no-render-phase-invalidation.test.ts` is what stops a
+ * second one appearing without anybody noticing.
  */
-function invalidateTag(tag: string): void {
+function invalidateTag(tag: string, tolerateRender = false): TagDrop {
   try {
     revalidateTag(tag, { expire: 0 })
+    return 'dropped'
   } catch (err) {
     const code = (err as { __NEXT_ERROR_CODE?: string })?.__NEXT_ERROR_CODE
-    if (code === NO_REQUEST_SCOPE) return
+    if (code === NO_REQUEST_SCOPE) return 'no-request-scope'
+    if (tolerateRender && code === RENDER_PHASE) return 'rendering'
     throw err
   }
 }
@@ -296,6 +323,17 @@ export interface PublishedSite {
  *    The write that could go the wrong way is a clinic PAYING and still
  *    seeing the wall, so `lib/services/billing.ts` invalidates on the
  *    subscription webhook.
+ *
+ *    WITH ONE HONEST GAP, stated rather than implied away: Stripe's
+ *    checkout-success landing (`app/(default)/settings/billing/page.tsx`)
+ *    runs the same sync DURING A RENDER, and Next forbids invalidation there
+ *    — so that path CANNOT drop the tag. It tolerates the refusal
+ *    (`invalidateClinicSiteForOrgUnlessRendering`) rather than throwing, and
+ *    what closes the window instead is Stripe delivering the same event to
+ *    the webhook moments later, or `CACHE_TTL_SECONDS`. So "a clinic that
+ *    pays gets their site back immediately" is true via the webhook and
+ *    within a minute via the landing page. It is not closed everywhere, and
+ *    the earlier version of this comment implied it was.
  *  - the chrome toggles (chat bubble, "Powered by", the announcement bar)
  *    invalidate from their own actions, because a human is watching.
  *
@@ -556,7 +594,55 @@ export function invalidateClinicSiteEverywhere(orgId: string, slug: string | nul
  * the site preview until the TTL rolled over.
  */
 export async function invalidateClinicSiteForOrg(organizationId: string): Promise<void> {
-  invalidateClinicSite(organizationId)
+  await dropBothTagsForOrg(organizationId, false)
+}
+
+/**
+ * The render-tolerant twin, for the ONE writer that can run during a render.
+ *
+ * `syncSubscriptionFromStripe` has two kinds of caller. Three are fine — the
+ * Stripe webhook (a route handler) and `updateSubscriptionPlan` (a Server
+ * Action). The fourth is not: `app/(default)/settings/billing/page.tsx`
+ * calls it in its Server Component BODY, via `syncCheckoutSuccess`, on the
+ * `?checkout=success` landing — a page that exists precisely so activation
+ * does not hinge on webhook timing.
+ *
+ * `revalidateTag` throws during render (E7, verified against the installed
+ * Next; see RENDER_PHASE). So on that one path the strict invalidator would
+ * throw INSIDE the billing sync, and the first version of this PR shipped
+ * exactly that. The damage was not the missed invalidation — it was
+ * everything after the throw: `enforceSocialConnectionCap` never ran, so a
+ * clinic dropping from the full-Premium trial to a smaller plan KEPT social
+ * connections we are billed for, and `syncCheckoutSuccess` logged a
+ * successful activation as a failure. Caught by Sentinel on #654.
+ *
+ * So this call site tolerates the refusal, and NOTHING ELSE about the
+ * taxonomy changes. What covers the render path instead:
+ *
+ *  - Stripe delivers the same event to the webhook, which invalidates for
+ *    real, usually within seconds;
+ *  - failing that, `CACHE_TTL_SECONDS`.
+ *
+ * That is strictly better than the pre-PR behaviour on this path (which had
+ * no invalidation at all) and strictly worse than the webhook path — which is
+ * why it is written down here and in `docs/LOAD-SANITY.md` rather than
+ * implied to be closed everywhere.
+ */
+export async function invalidateClinicSiteForOrgUnlessRendering(
+  organizationId: string,
+): Promise<void> {
+  await dropBothTagsForOrg(organizationId, true)
+}
+
+async function dropBothTagsForOrg(
+  organizationId: string,
+  tolerateRender: boolean,
+): Promise<void> {
+  // The org tag first, and its OUTCOME decides whether the rest is worth
+  // doing. Inside a render every tag drop is refused identically, so paying
+  // for a database round trip to resolve a slug we could not use anyway would
+  // be pure waste on a page render — the one place latency is most visible.
+  if (invalidateTag(clinicSiteTag(organizationId), tolerateRender) === 'rendering') return
   try {
     const [org] = await db
       .select({ slug: organization.slug })
@@ -564,7 +650,7 @@ export async function invalidateClinicSiteForOrg(organizationId: string): Promis
       .where(eq(organization.id, organizationId))
       .limit(1)
     if (!org?.slug) return
-    invalidateClinicSiteBySlug(org.slug)
+    invalidateTag(clinicSiteSlugTag(org.slug), tolerateRender)
   } catch (err) {
     // Same shape as the blocking fix above, lower stakes: a failed lookup
     // must not fail the save that triggered it, but it must not be invisible

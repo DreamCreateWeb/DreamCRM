@@ -43,11 +43,44 @@ vi.mock('@/lib/auth/context', () => ({
   }),
 }))
 
+/**
+ * `revalidateTag` is a `vi.fn` here so the assertions can read the ARGUMENTS,
+ * and so a test can make it refuse the way Next refuses during a render.
+ */
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn(), revalidateTag: vi.fn() }))
 
 vi.mock('@/lib/services/realtime', () => ({ publishRealtime: vi.fn(async () => {}) }))
 
+/** The over-cap social disconnect — the money-path work that a throw in the
+ *  invalidation used to skip. Mocked so the tests can ask whether it RAN. */
+const enforceSocialConnectionCap = vi.fn(async () => {})
+vi.mock('@/lib/services/social-billing', () => ({ enforceSocialConnectionCap }))
+
+/** The Stripe subscription `syncSubscriptionFromStripe` will be handed. */
+const stripeSub = {
+  id: 'sub_123',
+  status: 'active',
+  customer: 'cus_123',
+  metadata: { organizationId: 'org_1' },
+  items: { data: [{ id: 'si_1', price: { id: 'price_unknown' } }] },
+}
+vi.mock('@/lib/stripe', () => ({
+  stripe: { subscriptions: { retrieve: vi.fn(async () => stripeSub) } },
+}))
+
 const updates: Array<{ table: string; values: Record<string, unknown> }> = []
+
+/** The `clinic_profile` row read back as `prev` by the subscription sync. */
+const profileRow: Record<string, unknown> = {
+  organizationId: 'org_1',
+  slug: 'acme',
+  socialAddon: 1,
+  // A tier that DIFFERS from what the sync will resolve, so `entitlementShrank`
+  // is true and the over-cap enforcement is actually reached. That is the
+  // scenario from the review: a clinic leaving the full-Premium trial for a
+  // smaller plan.
+  planTier: 'pro',
+}
 
 vi.mock('@/lib/db', async () => {
   const schema = await vi.importActual<typeof import('@/lib/db/schema')>('@/lib/db/schema')
@@ -63,14 +96,21 @@ vi.mock('@/lib/db', async () => {
           },
         }),
       }),
-      // `invalidateClinicSiteForOrg` resolves the slug for the theme tag.
+      // Two readers here: the sync's `prev` lookup on clinic_profile, and the
+      // invalidator's slug lookup on organization. Table-aware so one fixture
+      // is not silently answering both questions.
       select: () => {
+        let table = ''
+        const rows = () =>
+          table === 'organization' ? [{ slug: 'acme' }] : [profileRow]
         const chain: Record<string, unknown> = {}
-        chain.from = () => chain
+        chain.from = (t: unknown) => {
+          table = nameOf(t)
+          return chain
+        }
         chain.where = () => chain
-        chain.limit = async () => [{ slug: 'acme', organizationId: 'org_1' }]
-        chain.then = (resolve: (v: unknown) => void) =>
-          resolve([{ slug: 'acme', organizationId: 'org_1' }])
+        chain.limit = async () => rows()
+        chain.then = (resolve: (v: unknown) => void) => resolve(rows())
         return chain
       },
     },
@@ -82,7 +122,12 @@ import { clinicSiteTag, clinicSiteSlugTag } from '@/lib/services/clinic-site-cac
 
 beforeEach(() => {
   updates.length = 0
-  vi.mocked(revalidateTag).mockClear()
+  // `mockReset`, not `mockClear`: the render-refusal tests install a throwing
+  // implementation, and clearing only wipes the CALL LOG. One test leaking its
+  // implementation into the next would make the happy-path assertions above
+  // fail for a reason that has nothing to do with the code under test.
+  vi.mocked(revalidateTag).mockReset()
+  enforceSocialConnectionCap.mockClear()
   tenantCtx = {
     tenantType: 'clinic',
     role: 'owner',
@@ -141,13 +186,6 @@ describe('the chat-bubble toggle', () => {
 })
 
 describe('the Stripe subscription webhook', () => {
-  /**
-   * `clearSubscription` is the half of the billing sync that needs no Stripe
-   * API double — it resolves the org from the subscription id and writes.
-   * Exercised here rather than `syncSubscriptionFromStripe` for that reason;
-   * both call the same invalidation and the source assertion below covers the
-   * other one.
-   */
   it('a cleared subscription drops the clinic site cache', async () => {
     const { clearSubscription } = await import('@/lib/services/billing')
     await clearSubscription('sub_123')
@@ -158,21 +196,99 @@ describe('the Stripe subscription webhook', () => {
     expectBothTagsDropped()
   })
 
-  it('the paying direction invalidates too', async () => {
-    // The direction that matters most and is hardest to reach in a unit test
-    // (it needs a Stripe subscription object). Asserted on the source: the
-    // sync writes `subscriptionStatus` and must invalidate in the same
-    // function, or a clinic pays and their site stays walled for the TTL.
-    const { readFileSync } = await import('node:fs')
-    const src = readFileSync('lib/services/billing.ts', 'utf8')
-    const sync = src.slice(src.indexOf('export async function syncSubscriptionFromStripe'))
-    const body = sync.slice(0, sync.indexOf('\nexport '))
+  /**
+   * THE PAYING DIRECTION — AND THE DEFECT THAT HID BEHIND ITS FIRST TEST.
+   *
+   * The first version of this block asserted the paying direction by GREPPING
+   * `billing.ts` for the string `invalidateClinicSiteForOrg`. The string was
+   * present. The call threw. Sentinel found it in review on #654, and the
+   * lesson generalises: a source-text test cannot see the phase a call runs
+   * in, or what happens to the lines after it.
+   *
+   * So the sync is driven for real now, and each test below asks a question
+   * the grep could not.
+   */
+  describe('syncSubscriptionFromStripe', () => {
+    it('writes the columns, enforces the cap, and drops both tags', async () => {
+      const { syncSubscriptionFromStripe } = await import('@/lib/services/billing')
+      await syncSubscriptionFromStripe('sub_123')
 
-    expect(
-      body,
-      'syncSubscriptionFromStripe writes subscriptionStatus without dropping\n' +
-        'the clinic-site cache — a clinic that pays keeps seeing the shut-down\n' +
-        'wall on their own public site until the TTL rolls over',
-    ).toContain('invalidateClinicSiteForOrg')
+      const write = updates.find((u) => u.table === 'clinic_profile')
+      expect(write?.values.subscriptionStatus).toBe('active')
+      expect(
+        enforceSocialConnectionCap,
+        'the over-cap social disconnect never ran — each connection it leaves\n' +
+          'up is billable to the platform',
+      ).toHaveBeenCalledWith('org_1')
+      expectBothTagsDropped()
+    })
+
+    /**
+     * THE REGRESSION SENTINEL CAUGHT, PINNED.
+     *
+     * `app/(default)/settings/billing/page.tsx` calls this in its Server
+     * Component BODY via `syncCheckoutSuccess`, and Next throws on
+     * `revalidateTag` during render (E7 — proved against the real module in
+     * `next-cache-contract.test.ts`, which also proves our catch recognises
+     * that exact error object; the code is constructed here because what is
+     * under test is the BILLING function's control flow, not Next's).
+     *
+     * Before the fix the throw landed between the profile write and the
+     * over-cap enforcement, so a clinic activating a smaller plan kept social
+     * connections the platform pays for — and `syncCheckoutSuccess` caught,
+     * logged a false failure, and returned false on an activation that
+     * actually succeeded.
+     */
+    it('a render-phase refusal does not truncate the sync', async () => {
+      vi.mocked(revalidateTag).mockImplementation(() => {
+        throw Object.assign(new Error('used "revalidateTag" during render'), {
+          __NEXT_ERROR_CODE: 'E7',
+        })
+      })
+
+      const { syncSubscriptionFromStripe } = await import('@/lib/services/billing')
+      await expect(
+        syncSubscriptionFromStripe('sub_123'),
+        'the sync threw on the checkout-success landing — syncCheckoutSuccess\n' +
+          'will log a successful activation as a failure',
+      ).resolves.toBeUndefined()
+
+      expect(updates.find((u) => u.table === 'clinic_profile')?.values.subscriptionStatus).toBe(
+        'active',
+      )
+      expect(
+        enforceSocialConnectionCap,
+        'THE #654 DEFECT: the invalidation refused during render, the throw\n' +
+          'truncated the function, and the over-cap social disconnect never\n' +
+          'ran. A clinic leaving the full-Premium trial for a smaller plan\n' +
+          'keeps connections the platform is billed for.',
+      ).toHaveBeenCalledWith('org_1')
+    })
+
+    /**
+     * ORDERING, PINNED SEPARATELY FROM THE TOLERANCE.
+     *
+     * The tolerance stops the render refusal specifically. This stops the
+     * CLASS: cache bookkeeping runs last, so no future refusal — for a reason
+     * nobody has thought of yet — can eat the money-path work above it. Both,
+     * because either alone is one edit away from the same bug.
+     */
+    it('the cap is enforced even when the invalidation throws for a reason we do NOT tolerate', async () => {
+      vi.mocked(revalidateTag).mockImplementation(() => {
+        throw Object.assign(new Error('used inside a "use cache"'), {
+          __NEXT_ERROR_CODE: 'E181',
+        })
+      })
+
+      const { syncSubscriptionFromStripe } = await import('@/lib/services/billing')
+      // It still surfaces — that error IS a real bug and must not be swallowed.
+      await expect(syncSubscriptionFromStripe('sub_123')).rejects.toThrow(/use cache/)
+
+      expect(
+        enforceSocialConnectionCap,
+        'the invalidation is still ahead of the over-cap enforcement, so any\n' +
+          'throw there skips money-path work. Move it to the END of the function.',
+      ).toHaveBeenCalledWith('org_1')
+    })
   })
 })

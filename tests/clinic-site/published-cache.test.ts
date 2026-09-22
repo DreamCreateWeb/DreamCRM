@@ -424,6 +424,45 @@ describe('the layout chrome survives the round trip', () => {
     ).toBeNull()
   })
 
+  /**
+   * THE PROPERTY THAT LICENSES THE WHOLE THING, MADE SELF-ENFORCING.
+   *
+   * The chrome may live in a shared cache for exactly one reason: not one of
+   * its columns is draftable, so the published value IS the live value and
+   * there is no viewer-dependent overlay to apply. Every other test here takes
+   * that as given. Sentinel's review note on #654: nothing FAILED if it
+   * stopped being true — make `announcement` or `displayName` draftable
+   * tomorrow and the editor-vs-visitor test would stay green (it stages
+   * `brandColor`/`tagline`) while a clinic's unpublished words reached every
+   * visitor to their live site.
+   *
+   * Derived from the RUNTIME payload rather than a written-down list, so a
+   * twelfth chrome field is covered the day somebody adds it — which is the
+   * whole failure mode, since nobody adding one would think to come here.
+   */
+  it('no chrome column is draftable — the claim the cache rests on', async () => {
+    const { loadPublishedTheme } = await import('@/lib/services/clinic-site-cache')
+    const { WEBSITE_DRAFT_COLUMNS } = await import('@/lib/website-draft')
+
+    const theme = await loadPublishedTheme('smilebright')
+    const chromeKeys = Object.keys(theme!.chrome!)
+    expect(chromeKeys.length, 'the chrome payload came back empty').toBeGreaterThan(5)
+    expect(WEBSITE_DRAFT_COLUMNS.size, 'the draftable set came back empty').toBeGreaterThan(5)
+
+    const draftable = chromeKeys.filter((k) => WEBSITE_DRAFT_COLUMNS.has(k))
+    expect(
+      draftable,
+      'These chrome columns are now DRAFTABLE, so the published value is no\n' +
+        "longer the live value — and the chrome is cached per clinic with no\n" +
+        'overlay applied. That puts an editor\'s unpublished words on the live\n' +
+        'public site for every visitor, for up to the TTL.\n' +
+        'Either take them out of PublishedSiteChrome and read them per request,\n' +
+        'or apply the draft overlay to them in getClinicThemeBySlug the way\n' +
+        'brand and template already are:\n' +
+        draftable.join(', '),
+    ).toEqual([])
+  })
+
   it('the unpublished draft still never enters the theme entry', async () => {
     const { loadPublishedTheme } = await import('@/lib/services/clinic-site-cache')
     state.org = { ...THEME_ROW, websiteDraft: { tagline: 'UNPUBLISHED' } }

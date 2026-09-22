@@ -113,6 +113,20 @@ prod hardware these numbers get worse.
      lever invalidates explicitly, because "taking my site offline takes a
      minute to happen" is the wrong direction to be slow in.
 
+   **And one read that cannot invalidate even though it would like to.**
+   Stripe's checkout-success landing (`app/(default)/settings/billing/
+   page.tsx`) runs the subscription sync in a Server Component BODY, so it
+   exists precisely to beat webhook timing. Next forbids `revalidateTag`
+   during a render and THROWS — which on #654 did not merely skip the
+   invalidation, it truncated the billing sync and stopped the code that
+   disconnects over-cap social channels from running. That path now tolerates
+   the refusal (`invalidateClinicSiteForOrgUnlessRendering`) and relies on
+   Stripe delivering the same event to the webhook moments later, or on the
+   60s TTL. So the paying direction is instant via the webhook and
+   TTL-bounded via the landing page — not closed everywhere.
+   `tests/clinic-site/no-render-phase-invalidation.test.ts` fails if any
+   other render-reachable module reaches for the strict invalidator.
+
    **No re-measured table yet.** Point 4 below still applies to this change,
    and honouring it needs the app running against a database — which the
    development session that made the change did not have. Re-run the script
