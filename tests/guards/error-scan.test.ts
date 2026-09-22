@@ -6,7 +6,9 @@ import { join } from 'node:path'
 import {
   FALLBACK_MINUTES,
   MAX_LOOKBACK_MINUTES,
+  SCAN_STEP_NAME,
   countPerGroup,
+  didScan,
   fingerprint,
   groupEvents,
   lastScanAt,
@@ -177,6 +179,129 @@ describe('error scan — the window is sized from the previous run', () => {
     const over = resolveWindow({ lastScan: { at: end, run: 1, why: null }, endAt: end, overrideMinutes: 99999 })
     expect(over.minutes).toBe(MAX_LOOKBACK_MINUTES)
     expect(over.holes.length).toBe(1)
+  })
+})
+
+/**
+ * "CONCLUDED SUCCESS" IS NOT "SCANNED" — the correction from Sentinel's review
+ * of #664, and the reason it is a whole block rather than a line.
+ *
+ * The first draft anchored the window on the last run whose `conclusion` was
+ * `success`, reasoning that this workflow exits 0 on every path that looked.
+ * That is true of a run that goes RED and **false of the one branch built
+ * specifically so it does not**: `configure-aws-credentials` is
+ * `continue-on-error`, the "Not configured yet" step prints a warning, the scan
+ * step is skipped by its `if:`, and the job concludes `success` having read
+ * nothing. That run would then close a window over logs nobody looked at — the
+ * 35-minute defect this PR exists to fix, arriving through a different door.
+ *
+ * Latent while the IAM role does not exist, because every run takes that branch
+ * and there is nothing to miss. It opens the day the role lands.
+ */
+describe('error scan — a run that did not read the logs cannot close a window', () => {
+  const job = (steps: { name: string; conclusion: string }[]) => ({ jobs: [{ steps }] })
+
+  it('a run that assumed the role and scanned counts', () => {
+    expect(
+      didScan(
+        job([
+          { name: 'Configure AWS credentials (OIDC, keyless)', conclusion: 'success' },
+          { name: SCAN_STEP_NAME, conclusion: 'success' },
+        ]),
+      ),
+    ).toBe(true)
+  })
+
+  it('THE NOT-CONFIGURED RUN DOES NOT COUNT, even though the job concluded success', () => {
+    // The exact shape: the credential step FAILS but is `continue-on-error`,
+    // so the job is green; the scan step is skipped by its `if:`.
+    const notConfigured = job([
+      { name: 'Configure AWS credentials (OIDC, keyless)', conclusion: 'failure' },
+      { name: 'Not configured yet', conclusion: 'success' },
+      { name: SCAN_STEP_NAME, conclusion: 'skipped' },
+    ])
+    expect(
+      didScan(notConfigured),
+      'a run that skipped the scan must not be allowed to close a window. Its JOB is green — ' +
+        'that is the whole trap — so the answer has to come from the STEP.',
+    ).toBe(false)
+
+    // And `lastScanAt` alone cannot tell the difference, which is why the
+    // step-level check exists at all rather than a smarter conclusion filter.
+    expect(
+      lastScanAt([{ databaseId: 1, conclusion: 'success', createdAt: '2026-09-22T12:00:00Z' }]).at,
+      'lastScanAt sees a green run and takes it — it is the belt, not the braces',
+    ).toBe(Date.parse('2026-09-22T12:00:00Z'))
+  })
+
+  it('a failed scan step does not count either', () => {
+    expect(didScan(job([{ name: SCAN_STEP_NAME, conclusion: 'failure' }]))).toBe(false)
+    expect(didScan(job([{ name: SCAN_STEP_NAME, conclusion: 'cancelled' }]))).toBe(false)
+  })
+
+  it('an unreadable jobs payload errs towards NOT having scanned', () => {
+    // Widening the next window is safe; closing one is not. Every unreadable
+    // shape has to land on the safe side.
+    for (const bad of [null, {}, { jobs: null }, { jobs: [{}] }, { jobs: [{ steps: 'nope' }] }]) {
+      expect(didScan(bad as never), `${JSON.stringify(bad)} must not read as a completed scan`).toBe(false)
+    }
+  })
+
+  it('the step name the anchor hangs off exists in the workflow', () => {
+    // `SCAN_STEP_NAME` is a string matched against GitHub's jobs API. If the
+    // step is renamed and this is not, every run reads as not-scanned — which
+    // fails safe but silently widens every window forever. Pinned against the
+    // file, so the two cannot drift.
+    const wf = readFileSync(join(process.cwd(), '.github/workflows/error-scan.yml'), 'utf8')
+    expect(
+      wf,
+      `scripts/error-scan.mjs looks for a step named "${SCAN_STEP_NAME}" to decide whether a run ` +
+        'actually read the logs, and no step in error-scan.yml has that name.',
+    ).toContain(`- name: ${SCAN_STEP_NAME}`)
+  })
+
+  it('the lookup message says the run did not READ, not that it failed', () => {
+    // The reader of a red morning needs to know which of the two happened.
+    expect(lastScanAt([]).why).toContain('actually READ the logs')
+  })
+})
+
+describe('error scan — a log group it could not read is a hole, not a quiet group', () => {
+  it('names the group in the summary, above the findings', () => {
+    // Sentinel, reviewing #664: the old `|| echo '[]'` turned a throttle or an
+    // expired token into an empty result with stderr discarded, and the group
+    // was still reported as scanned and clean. Same defect as the 35-minute
+    // window, one scale down, in this PR's own new code.
+    const win = resolveWindow({ lastScan: { at: 0, run: 1, why: null }, endAt: 239 * MIN })
+    const summary = renderSummary(win, groupEvents([]), {
+      scannedGroups: ['/aws/apprunner/a/application'],
+      unreadableGroups: 'the CloudWatch query failed for `/aws/apprunner/b/application`',
+    })
+    expect(summary).toContain('did not see its whole window')
+    expect(summary).toContain('/aws/apprunner/b/application')
+    expect(summary.indexOf('did not see its whole window')).toBeLessThan(summary.indexOf('No error lines'))
+  })
+
+  it('the workflow separates the groups it read from the ones it could not', () => {
+    const wf = readFileSync(join(process.cwd(), '.github/workflows/error-scan.yml'), 'utf8')
+    const code = wf
+      .split('\n')
+      .filter((l) => !/^\s*#/.test(l))
+      .join('\n')
+
+    expect(
+      code,
+      'a failed CloudWatch query must not add the group to the SCANNED list — that reports an ' +
+        'unread group as a clean one.',
+    ).toContain('FAILED="${FAILED} ${G}"')
+    expect(
+      code,
+      'the script is not told which groups failed, so the hole is computed and thrown away',
+    ).toContain('--failed-groups')
+    expect(
+      code,
+      'stderr is discarded again, so the summary cannot say WHY the group could not be read',
+    ).not.toMatch(/filter-log-events[\s\S]{0,600}2>\/dev\/null/)
   })
 })
 
@@ -434,8 +559,27 @@ describe('error scan — the workflow still asks the question the script answers
   it('asks for the last SUCCESSFUL run, not the last run', () => {
     // Pinned in both places on purpose: dropping the flag is a one-token edit,
     // and `lastScanAt` re-filters on `conclusion` so the script survives it.
+    // It is no longer the load-bearing check — see the next test.
     expect(wfCode()).toContain('--status success')
     expect(wfCode()).toContain('--branch main')
+  })
+
+  it('asks each candidate run whether it actually SCANNED', () => {
+    // THE CORRECTION FROM #664's REVIEW. `--status success` alone lets the
+    // "not configured yet" run — which is green by construction and read
+    // nothing — close a window over unread logs. The anchor therefore asks the
+    // jobs API per candidate and takes the first that really scanned.
+    const code = wfCode()
+    expect(
+      code,
+      'the anchor is back to trusting a run CONCLUSION. The not-configured branch concludes ' +
+        'success having read nothing, so it would close a window over logs nobody looked at.',
+    ).toContain('/jobs')
+    expect(code).toContain('scripts/error-scan.mjs scanned')
+    // Enough candidates to walk past a run of unconfigured mornings.
+    expect(code, 'one candidate is not a walk — the anchor needs a history to search').toMatch(
+      /--limit (?:[2-9]\d|\d{3,})/,
+    )
   })
 
   it('reads its own run history and holds no write scope', () => {
@@ -465,12 +609,41 @@ describe('error scan — the workflow still asks the question the script answers
     expect(jobs).not.toContain('e2e')
   })
 
+  it('does not interpolate a dispatch input straight into the shell', () => {
+    // Restored in review of #664. This job holds `id-token: write` and can
+    // assume the production read-only role; it is not the place to turn a typed
+    // input into shell text, and the version this file replaced already used
+    // `env:`. Losing that was a regression, not a simplification.
+    // Graded LINE BY LINE rather than with one regex over the file: the only
+    // question is whether a `${{ … }}` expression ends up on a line the shell
+    // runs, and `env:` lines are exactly where it is supposed to be.
+    const shellLines = wfCode()
+      .split('\n')
+      .filter((l) => /--minutes|--out window\.json|error-scan\.mjs window/.test(l))
+    const interpolated = shellLines.filter((l) => l.includes('${{'))
+    expect(
+      interpolated,
+      'a `${{ … }}` expression is being interpolated straight into the window command. This job ' +
+        'holds `id-token: write` and can assume the production read-only role; pass the input ' +
+        'through `env:` and read it as "$MINUTES".\n  ' + interpolated.join('\n  '),
+    ).toEqual([])
+    expect(wfCode()).toMatch(/MINUTES: \$\{\{ inputs\.minutes \}\}/)
+    expect(wfCode()).toContain('--minutes "$MINUTES"')
+  })
+
   it('no longer claims a 35-minute window overlaps a half-hourly cron', () => {
     // The sentence that was false by an order of magnitude. It is not enough
     // to change the code: the comment was the thing a reader believed.
-    const text = wf()
-    expect(text).not.toMatch(/MINUTES:\s*\$\{\{\s*inputs\.minutes\s*\|\|\s*'35'/)
-    expect(text, 'the measured cadence belongs in the file, not only in a PR body').toContain('median gap 239 minutes')
+    // The fixed default is graded over the CODE. The comment above the `env:`
+    // block quotes the old `MINUTES: ${{ inputs.minutes || '35' }}` line on
+    // purpose — it is why the input rides `env:` again — and a file-wide match
+    // reads that history as a reinstatement. (Which it did, once.)
+    expect(wfCode()).not.toMatch(/MINUTES:\s*\$\{\{\s*inputs\.minutes\s*\|\|\s*'35'/)
+    // This half IS about the prose: the sentence that was false by an order of
+    // magnitude, replaced by the measurement.
+    expect(wf(), 'the measured cadence belongs in the file, not only in a PR body').toContain(
+      'median gap 239 minutes',
+    )
   })
 
   it('gates nothing: no pull_request trigger and no required-context name', () => {

@@ -87,32 +87,70 @@ jobs:
         with:
           node-version: 22
 
-      # WHERE DID THE LAST COMPLETED SCAN START?
+      # WHERE DID THE LAST RUN THAT ACTUALLY SCANNED START?
       #
-      # `--status success` is LOAD-BEARING and it is also not trusted on its
-      # own. This workflow exits 0 on every path that actually looked (errors
-      # found is a warning, not a failure), so `success` means "this run
-      # scanned its window". Drop the flag and a run that died before reaching
-      # the logs would close a window nobody looked at. `lastScanAt` in
-      # `scripts/error-scan.mjs` therefore re-filters on `conclusion` itself,
-      # and the guard test drives it with a history whose newest run FAILED.
+      # NOT "the last run that concluded success" — that was the first draft
+      # and Sentinel's review of #664 showed the hole. The AWS credential step
+      # below is `continue-on-error` on purpose, so a run that could not assume
+      # the role prints a warning, skips the scan, and concludes `success`
+      # having read NOTHING. Anchoring on its `createdAt` would close a window
+      # over logs nobody ever looked at — the 35-minute defect this whole PR is
+      # about, arriving through the one branch built specifically so it does
+      # not go red.
+      #
+      # So "did it scan" is asked of the RUN'S OWN STEPS. Candidates come back
+      # newest-first; for each one the jobs API says whether the step named
+      # `Scan App Runner logs for errors` concluded `success` rather than
+      # `skipped`, and the first that did is the anchor. `didScan` and
+      # `SCAN_STEP_NAME` live in `scripts/error-scan.mjs`, and the guard test
+      # pins that name against THIS FILE so the two cannot drift apart
+      # silently.
+      #
+      # `--status success` stays: it is a cheap pre-filter, and `lastScanAt`
+      # re-filters on `conclusion` itself so dropping the flag cannot silently
+      # change the answer. It is no longer the load-bearing check.
       #
       # `--branch main` because GitHub only runs `schedule` from the default
       # branch, and a green `workflow_dispatch` run from a feature branch
       # scanned under a different version of this file.
       #
-      # `|| true` so a throttled lookup does not abort the job: the script
-      # reads a missing or unparseable file as a FAILED LOOKUP, falls back to
-      # the widest window it will ask for, and names that as a hole in the
-      # summary. Letting the step fail would lose the scan entirely.
-      - name: Where did the last completed scan start?
+      # EVERY FAILURE PATH ENDS IN AN EMPTY `last-green.json`, which the script
+      # reads as a failed lookup: it falls back to the widest window it will
+      # ask for and NAMES that as a hole. Letting a step fail here would lose
+      # the scan entirely.
+      - name: Where did the last run that actually scanned start?
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          set -uo pipefail
+          echo '[]' > last-green.json
+
           gh run list --repo ${{ github.repository }} --workflow error-scan.yml \
-            --branch main --status success --limit 1 \
+            --branch main --status success --limit 20 \
             --json databaseId,conclusion,createdAt \
-            > last-green.json || true
+            > candidates.json || echo '[]' > candidates.json
+
+          node -e '
+            const fs = require("fs")
+            let rows = []
+            try { rows = JSON.parse(fs.readFileSync("candidates.json", "utf8")) } catch {}
+            fs.writeFileSync("candidates.txt", (Array.isArray(rows) ? rows : []).map((r) => r.databaseId).join("\\n"))
+          '
+
+          while read -r ID; do
+            [ -n "${ID}" ] || continue
+            gh api "repos/${{ github.repository }}/actions/runs/${ID}/jobs" > jobs.json 2>/dev/null || continue
+            if node scripts/error-scan.mjs scanned --jobs jobs.json; then
+              RUN_ID="${ID}" node -e '
+                const fs = require("fs")
+                const rows = JSON.parse(fs.readFileSync("candidates.json", "utf8"))
+                const row = rows.find((r) => String(r.databaseId) === process.env.RUN_ID)
+                fs.writeFileSync("last-green.json", JSON.stringify(row ? [row] : []))
+              '
+              echo "Anchoring this window on run ${ID}, the most recent one that actually read the logs."
+              break
+            fi
+          done < candidates.txt
 
       # THIS RUN'S OWN `createdAt` IS THE UPPER BOUND, not "now". Using the
       # current instant would end each window later than the next one begins,
@@ -126,13 +164,22 @@ jobs:
           gh run view ${{ github.run_id }} --repo ${{ github.repository }} \
             --json createdAt > this-run.json || true
 
+      # `inputs.minutes` rides `env:` rather than being interpolated straight
+      # into the shell (restored in review of #664). This job holds
+      # `id-token: write` and can assume the production read-only role, so it is
+      # not the place to let a typed input become shell text — and the version
+      # this file replaced already did it this way, with
+      # `MINUTES: ${{ inputs.minutes || '35' }}`. Losing that was a regression,
+      # not a simplification.
       - name: Resolve the window
         id: window
+        env:
+          MINUTES: ${{ inputs.minutes }}
         run: |
           node scripts/error-scan.mjs window \
             --last-green last-green.json \
             --this-run this-run.json \
-            --minutes "${{ inputs.minutes }}" \
+            --minutes "$MINUTES" \
             --out window.json
 
       # NOT CONFIGURED YET is not a failure. The role does not exist until the
@@ -176,26 +223,41 @@ jobs:
             --query 'logGroups[].logGroupName' --output text)
 
           SCANNED=""
+          FAILED=""
           echo '[]' > events.json
 
           for G in ${GROUPS}; do
             # Only the application log group carries app output; the service
             # group is deploy chatter and would drown the signal.
             case "$G" in *"/application") ;; *) continue ;; esac
-            SCANNED="${SCANNED} ${G}"
 
             # BOTH ENDS ARE BOUND. `--end-time` is what makes consecutive
             # windows join exactly instead of overlapping by the queue wait;
             # without it every run reads to the present and re-reports whatever
             # the next one is about to start at.
-            aws logs filter-log-events \
+            #
+            # A FAILED QUERY IS A HOLE, NOT A QUIET GROUP (Sentinel, reviewing
+            # #664). The old `|| echo '[]'` turned a throttle, an expired token
+            # mid-loop or a malformed filter into an empty result with stderr
+            # discarded — and the group was still reported as scanned and clean.
+            # That is this PR's own defect at a smaller scale. The `||` stays so
+            # one bad group does not abort the scan; what changes is that the
+            # group goes into `FAILED` instead of `SCANNED`, and the script
+            # prints it as a named hole.
+            if aws logs filter-log-events \
               --log-group-name "$G" \
               --start-time "${START_MS}" \
               --end-time "${END_MS}" \
               --filter-pattern '?ERROR ?Error ?error: ?Unhandled ?UnhandledPromiseRejection ?FATAL' \
               --max-items "${MAX_EVENTS}" \
               --query "events[].{eventId:eventId,timestamp:timestamp,message:message,logGroup:'${G}'}" \
-              --output json > "group-events.json" 2>/dev/null || echo '[]' > "group-events.json"
+              --output json > "group-events.json" 2> "group-error.txt"; then
+              SCANNED="${SCANNED} ${G}"
+            else
+              FAILED="${FAILED} ${G}"
+              echo "::warning::could not read ${G} over this window: $(head -c 400 group-error.txt)"
+              echo '[]' > "group-events.json"
+            fi
 
             node -e '
               const fs = require("fs")
@@ -210,4 +272,5 @@ jobs:
             --window window.json \
             --events events.json \
             --groups "${SCANNED}" \
+            --failed-groups "${FAILED}" \
             --limit "${MAX_EVENTS}"

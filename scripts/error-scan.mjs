@@ -44,13 +44,30 @@
  * `scripts/review-sweep.mjs` makes the same choice for the same reason, and the
  * conservative end is the one that cannot lose an event.
  *
- * WHY THE PREVIOUS SUCCESSFUL RUN AND NOT THE PREVIOUS RUN. This workflow exits
- * 0 on every path that actually looked — errors found is a `::warning`, not a
- * failure, because a red tick on a non-gating alarm trains people to ignore it.
- * So `success` here means "this run scanned its window", and a run that failed
- * before reaching the logs scanned nothing and must not be allowed to close a
- * window over it. Anchoring on the last SUCCESS makes a failed run
- * self-healing: the next one simply covers both.
+ * WHY THE PREVIOUS RUN THAT ACTUALLY SCANNED — and not merely the previous
+ * SUCCESSFUL one, which is what the first draft of this file said and got
+ * wrong (Sentinel, reviewing #664).
+ *
+ * The reasoning was: this workflow exits 0 on every path that looked, so
+ * `success` means "this run scanned its window". That is true of a run that
+ * goes RED, and **false of the single most likely non-scan path**, which is the
+ * branch built specifically so it does not go red: `configure-aws-credentials`
+ * is `continue-on-error`, the "Not configured yet" step prints a warning, and
+ * the job concludes `success` having read nothing. Filtering on `conclusion`
+ * alone would let that run close a window over logs nothing ever looked at —
+ * the exact defect the 35-minute window had, arriving through a different door.
+ *
+ * Latent while the role does not exist, because every run takes that branch and
+ * there is nothing to miss. It opens the day the role lands and STS, OIDC or
+ * the role itself has a bad five minutes, which is precisely the day a real
+ * error is likely to be in the logs.
+ *
+ * So "did this run scan" is asked of the RUN'S OWN STEPS rather than inferred
+ * from its conclusion: `didScan` grades the jobs payload for
+ * `SCAN_STEP_NAME` concluding `success` rather than `skipped`. The workflow
+ * walks candidates newest-first and anchors on the first one that did. A run
+ * that failed, and a run that was never configured, are now both correctly
+ * incapable of closing a window — and the next run simply covers both.
  *
  * ------------------------------------------------------------------------
  * THE CAP, AND WHY IT DOES NOT MAKE THE RUN RED.
@@ -130,20 +147,60 @@ export const FALLBACK_MINUTES = MAX_LOOKBACK_MINUTES
 const MIN_SANE_MINUTES = 1
 
 /**
+ * The step whose conclusion answers "did this run actually read the logs".
+ *
+ * Exported and pinned by `tests/guards/error-scan.test.ts` against the workflow
+ * file, because the whole anchor hangs off this string matching a step that
+ * exists. Rename the step without renaming this and every run reads as
+ * not-scanned — which fails safe (the window widens) but loudly, in the
+ * summary, rather than silently.
+ */
+export const SCAN_STEP_NAME = 'Scan App Runner logs for errors'
+
+/**
+ * DID THIS RUN ACTUALLY SCAN, or did it only conclude `success`?
+ *
+ * Fed a `gh api repos/{repo}/actions/runs/{id}/jobs` payload. Returns true only
+ * when a step named `SCAN_STEP_NAME` concluded `success`.
+ *
+ * `skipped` is the case this exists for and it is not an edge: when the OIDC
+ * role cannot be assumed, `configure-aws-credentials` is `continue-on-error`,
+ * the scan step's `if:` is false, and the JOB concludes `success` having read
+ * nothing. Only the step knows.
+ *
+ * Unreadable input returns false — a run this cannot interrogate is one that
+ * must not close a window, and erring that way widens the next window rather
+ * than punching a hole in it.
+ */
+export function didScan(jobsPayload) {
+  const jobs = Array.isArray(jobsPayload?.jobs) ? jobsPayload.jobs : []
+  for (const job of jobs) {
+    for (const step of Array.isArray(job?.steps) ? job.steps : []) {
+      if (step?.name === SCAN_STEP_NAME && step?.conclusion === 'success') return true
+    }
+  }
+  return false
+}
+
+/**
  * WHEN DID THIS SCAN LAST COMPLETE?
  *
- * Fed the `gh run list --workflow error-scan.yml --json
- * databaseId,conclusion,createdAt` array. Returns `{ at, run, why }` — `at` is
- * the epoch ms of the most recent SUCCESSFUL run, or `null` with a `why` that
- * says which way the lookup failed.
+ * Fed the rows the workflow selected — runs it has ALREADY established actually
+ * scanned, via `didScan` against each candidate's jobs payload. Returns
+ * `{ at, run, why }` — `at` is the epoch ms of the most recent one, or `null`
+ * with a `why` that says which way the lookup failed.
  *
- * It filters on `conclusion === 'success'` here rather than trusting the
+ * It re-filters on `conclusion === 'success'` here rather than trusting the
  * `--status success` flag the workflow passes. The flag and the filter are the
  * same assertion written twice on purpose — dropping the flag is a one-token
- * YAML edit, after which this anchors on the last RUN instead of the last
- * COMPLETED SCAN and a failed run silently closes a window nobody looked at.
- * `lastGreenAt` in `scripts/review-sweep.mjs` is pinned the same way, for the
- * same reason.
+ * YAML edit. `lastGreenAt` in `scripts/review-sweep.mjs` is pinned the same
+ * way, for the same reason.
+ *
+ * THE CONCLUSION FILTER IS NOT THE LOAD-BEARING ONE, and that is the correction
+ * from #664's review. A run that took the "not configured yet" branch concludes
+ * `success` and scanned nothing, so `conclusion` alone would let it close a
+ * window over unread logs. The step-level check in `didScan` is what actually
+ * decides; this filter is the belt behind it.
  */
 export function lastScanAt(runs) {
   if (!Array.isArray(runs)) {
@@ -159,8 +216,9 @@ export function lastScanAt(runs) {
       at: null,
       run: null,
       why:
-        'no run of this scan in the history GitHub returned concluded `success`, so there is no ' +
-        'completed scan to start this window at',
+        'none of the recent runs of this scan actually READ the logs — each either failed, or ' +
+        'took the "not configured yet" branch, which concludes `success` having scanned nothing. ' +
+        'There is therefore no completed scan to start this window at',
     }
   }
   const newest = greens.reduce((a, b) => (b.at > a.at ? b : a))
@@ -385,7 +443,7 @@ const iso = (ms) => (Number.isFinite(ms) ? new Date(ms).toISOString() : 'unknown
  * thing this rewrite exists to make impossible.
  */
 export function renderSummary(window, grouped, extra = {}) {
-  const { scannedGroups = [], truncated = null, notConfigured = false } = extra
+  const { scannedGroups = [], truncated = null, unreadableGroups = null, notConfigured = false } = extra
   const lines = ['### Production error scan', '']
 
   if (notConfigured) {
@@ -408,7 +466,11 @@ export function renderSummary(window, grouped, extra = {}) {
     '',
   )
 
-  const holes = [...(window.holes ?? []), ...(truncated ? [truncated] : [])]
+  const holes = [
+    ...(window.holes ?? []),
+    ...(truncated ? [truncated] : []),
+    ...(unreadableGroups ? [unreadableGroups] : []),
+  ]
   if (holes.length) {
     lines.push(
       '#### This run did not see its whole window',
@@ -550,6 +612,14 @@ function cmdReport() {
   const scannedRaw = argValue('--groups', '')
   const scannedGroups = scannedRaw ? scannedRaw.split(/\s+/).filter(Boolean) : []
 
+  // A LOG GROUP WHOSE QUERY FAILED IS A HOLE, NOT A QUIET GROUP (Sentinel,
+  // reviewing #664). The loop keeps going so one throttled call does not lose
+  // the whole scan, and the group it could not read is named here instead of
+  // being reported as scanned and clean — the same defect as the 35-minute
+  // window, one scale down, inside this PR's own new code.
+  const failedRaw = argValue('--failed-groups', '')
+  const failedGroups = failedRaw ? failedRaw.split(/\s+/).filter(Boolean) : []
+
   // TRUNCATION IS GRADED PER LOG GROUP, not on the combined list. `--max-items`
   // is a per-query ceiling, so comparing the aggregate against it would report
   // a hole the moment two quiet groups add up to the limit between them — a
@@ -563,10 +633,25 @@ function cmdReport() {
       '`.github/workflows/error-scan.yml`.'
     : null
 
-  const summary = renderSummary(win.value, grouped, { scannedGroups, truncated })
+  const unreadable = failedGroups.length
+    ? `the CloudWatch query failed for ${failedGroups.map((g) => `\`${g}\``).join(', ')} — that log ` +
+      'group was NOT read over this window, and is reported here rather than counted as quiet. A ' +
+      'throttle, an expired token mid-loop or a malformed filter all look like an empty result ' +
+      'from the outside, which is the whole failure this scan exists to refuse.'
+    : null
+
+  const summary = renderSummary(win.value, grouped, {
+    scannedGroups,
+    truncated,
+    unreadableGroups: unreadable,
+  })
   emit(summary)
 
-  for (const h of [...(win.value.holes ?? []), ...(truncated ? [truncated] : [])]) {
+  for (const h of [
+    ...(win.value.holes ?? []),
+    ...(truncated ? [truncated] : []),
+    ...(unreadable ? [unreadable] : []),
+  ]) {
     console.log(`::error title=The error scan could not see its whole window::${h}`)
   }
   if (grouped.total) {
@@ -580,11 +665,33 @@ function cmdReport() {
   }
 }
 
+/**
+ * `scanned` — exit 0 if the run whose jobs payload this is actually READ the
+ * logs, non-zero otherwise. The workflow walks candidate runs newest-first and
+ * anchors its window on the first one this says yes to.
+ *
+ * It is a separate command rather than a flag on `window` because the workflow
+ * has to ask it once per candidate, inside a loop, before it knows which run to
+ * pass to `window` at all.
+ */
+function cmdScanned() {
+  const jobs = readJson(argValue('--jobs'))
+  if (!jobs.value) {
+    console.log(`[error-scan] ${jobs.why} — treating this run as one that did not scan`)
+    process.exitCode = 2
+    return
+  }
+  const scanned = didScan(jobs.value)
+  console.log(`[error-scan] ${scanned ? 'scanned' : 'did NOT scan'} (looking for step "${SCAN_STEP_NAME}")`)
+  process.exitCode = scanned ? 0 : 1
+}
+
 function main() {
   const cmd = process.argv[2]
   if (cmd === 'window') return cmdWindow()
   if (cmd === 'report') return cmdReport()
-  console.log('[error-scan] usage: node scripts/error-scan.mjs (window|report) [flags]')
+  if (cmd === 'scanned') return cmdScanned()
+  console.log('[error-scan] usage: node scripts/error-scan.mjs (window|report|scanned) [flags]')
   process.exitCode = 1
 }
 
