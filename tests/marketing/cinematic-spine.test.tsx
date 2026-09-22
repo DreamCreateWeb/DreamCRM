@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import React from 'react'
-import CinematicSpine, { CHAPTERS, OPEN, pinnedCardFits, sceneAt } from '@/components/marketing/cinematic-spine'
+import CinematicSpine, { CHAPTERS, OPEN, frameZoom, pinnedCardFits, sceneAt } from '@/components/marketing/cinematic-spine'
 import { SCENE_COUNT } from '@/components/marketing/cinema-scenes'
 import { MarketingMotionStyles } from '@/components/marketing/ui'
 
@@ -323,6 +323,11 @@ describe('the cinematic spine — the pinned sequence exists only where the pin 
       // element in JSX, from a constant — it is a layout dimension, not a
       // value the scroll position moves, so it is legitimately a `height`.
       '--mkt-spine-steps',
+      // The frame fit (2026-09-22): the stage's zoom on a large monitor,
+      // written by `sizeCanvas` on mount and resize — never by `paint` — so
+      // `zoom` and the rail lane's `padding-right` reading it are layout
+      // that happens a handful of times, not a reflow per frame.
+      '--mkt-zoom',
     ]
     const scrollDriven = (spine.match(/[a-z-]+\s*:[^;{}]*var\(\s*--mkt-[^;{}]*;/g) ?? []).filter(
       (d) => !LAYOUT_TOKENS.some((t) => d.includes(t)),
@@ -574,3 +579,13 @@ function plain(node: React.ReactNode): string {
 function escapeRe(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
+
+describe('the cinematic spine — the frame fit', () => {
+  it('leaves the laptop layout alone and grows with the smaller of width and height, capped', () => {
+    expect(frameZoom(1440, 900)).toBe(1)
+    expect(frameZoom(1024, 760)).toBe(1) // never shrinks below the design size
+    expect(frameZoom(2560, 1440)).toBeCloseTo(1.6, 5) // height-bound, not width-bound
+    expect(frameZoom(3440, 1440)).toBeCloseTo(1.6, 5) // an ultrawide is not a taller scene
+    expect(frameZoom(3840, 2160)).toBe(1.8)
+  })
+})

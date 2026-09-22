@@ -116,7 +116,7 @@ export function seedMotes(w: number, h: number, seed = 7, n = MOTE_COUNT): Mote[
     out.push({
       x: rng() * w,
       y: HEADER_BAND_PX + rng() * Math.max(1, h - HEADER_BAND_PX),
-      r: 40 + rng() * 80,
+      r: (40 + rng() * 80) * fxScale(h),
       hue: MOTE_HUES[i % MOTE_HUES.length],
       vx: (rng() - 0.5) * 12,
       vy: -6 - rng() * 10,
@@ -184,13 +184,48 @@ export interface BurstDef {
   scene: number
   /** Local chapter progress at which it fires, 0..1. */
   at: number
-  /** Origin, as a fraction of the stage's width and height. */
+  /** Origin, as a fraction of the stage's width and height — the FALLBACK
+   *  when the anchor below cannot be measured. */
   x: number
   y: number
+  /** The element the burst comes from (`data-anchor` in the scene markup),
+   *  and where inside its box: `ax`/`ay` as fractions of the box (0.5, 0.5
+   *  is its centre). Measured at runtime, so a 32" monitor and a laptop
+   *  both put the sparks on the button. */
+  anchor?: string
+  ax?: number
+  ay?: number
   kind: BurstKind
   hue: FxHue
   n: number
   seed: number
+}
+
+/** A measured element, as fractions of the frame it will be drawn in. */
+export interface AnchorBox {
+  x: number
+  y: number
+  w: number
+  h: number
+}
+export type AnchorMap = Readonly<Record<string, AnchorBox>>
+
+/** Where a burst starts, in frame fractions: the anchor when it was measured,
+ *  the fallback otherwise. */
+export function burstOrigin(b: BurstDef, anchors: AnchorMap | null): { x: number; y: number } {
+  const a = b.anchor && anchors ? anchors[b.anchor] : undefined
+  if (!a) return { x: b.x, y: b.y }
+  return { x: a.x + a.w * (b.ax ?? 0.5), y: a.y + a.h * (b.ay ?? 0.5) }
+}
+
+/**
+ * How much bigger the particles and their travel should be on a larger
+ * frame: 1 at the 900px-tall frame they were designed on, growing with the
+ * frame's height and clamped so a 4K monitor gets bigger sparks rather than
+ * a blizzard. Height, not width — an ultrawide is not a bigger scene.
+ */
+export function fxScale(frameHeight: number): number {
+  return Math.min(1.9, Math.max(0.8, frameHeight / 900))
 }
 
 /** How much of a chapter's scroll a burst lives for. Short: a burst is a
@@ -215,25 +250,34 @@ export interface Particle {
  * function of `(t - at)` and a seeded draw, so the picture at any `t` is
  * the same on the way down as on the way up.
  */
-export function burstParticles(b: BurstDef, t: number, w: number, h: number, out: Particle[] = []): Particle[] {
+export function burstParticles(
+  b: BurstDef,
+  t: number,
+  w: number,
+  h: number,
+  out: Particle[] = [],
+  anchors: AnchorMap | null = null,
+  scale = 1,
+): Particle[] {
   out.length = 0
   const life = (t - b.at) / BURST_LIFE
   if (life <= 0 || life >= 1) return out
   const rng = seeded(b.seed)
-  const ox = b.x * w
-  const oy = b.y * h
+  const o = burstOrigin(b, anchors)
+  const ox = o.x * w
+  const oy = o.y * h
   const e = easeOutQuad(life)
   const fade = 1 - life * life
   for (let i = 0; i < b.n; i++) {
     const ang = rng() * Math.PI * 2
-    const speed = 40 + rng() * 110
-    const size = b.kind === 'sparks' ? 1.5 + rng() * 2 : 2.5 + rng() * 4.5
+    const speed = (40 + rng() * 110) * scale
+    const size = (b.kind === 'sparks' ? 1.5 + rng() * 2 : 2.5 + rng() * 4.5) * scale
     const spin = (rng() - 0.5) * 6
-    const lift = b.kind === 'bubbles' ? -60 : b.kind === 'coins' ? 30 : 0
+    const lift = (b.kind === 'bubbles' ? -60 : b.kind === 'coins' ? 30 : 0) * scale
     const dist = speed * e
     out.push({
       x: ox + Math.cos(ang) * dist,
-      y: oy + Math.sin(ang) * dist + lift * e + (b.kind === 'coins' ? 90 * life * life : 0),
+      y: oy + Math.sin(ang) * dist + lift * e + (b.kind === 'coins' ? 90 * scale * life * life : 0),
       r: size * (b.kind === 'bubbles' ? 1 + e * 0.6 : 1 - life * 0.5),
       a: fade * (b.kind === 'bubbles' ? 0.42 : 0.9),
       rot: spin * e,
@@ -253,16 +297,16 @@ export function burstParticles(b: BurstDef, t: number, w: number, h: number, out
  * table edited.
  */
 export const BURSTS: readonly BurstDef[] = [
-  // 02 · her "yes" lands (the reply bubble)
-  { scene: 1, at: 0.44, x: 0.8, y: 0.34, kind: 'bubbles', hue: 'violet', n: 24, seed: 21 },
-  // 03 · the machine's card is approved (the Approve button)
-  { scene: 2, at: 0.57, x: 0.385, y: 0.51, kind: 'sparks', hue: 'teal', n: 36, seed: 33 },
-  // 04 · paid (the phone's chip)
-  { scene: 3, at: 0.48, x: 0.79, y: 0.33, kind: 'coins', hue: 'amber', n: 18, seed: 44 },
-  // 05 · five stars (the fifth star)
-  { scene: 4, at: 0.4, x: 0.5, y: 0.19, kind: 'stars', hue: 'fuchsia', n: 28, seed: 55 },
-  // 06 · the week, seen (the line reaches this week)
-  { scene: 5, at: 0.54, x: 0.8, y: 0.24, kind: 'bubbles', hue: 'teal', n: 22, seed: 66 },
+  // 02 · her "yes" lands — the top-right corner of the reply bubble
+  { scene: 1, at: 0.44, x: 0.8, y: 0.34, anchor: 'reply', ax: 0.95, ay: 0.05, kind: 'bubbles', hue: 'violet', n: 24, seed: 21 },
+  // 03 · the machine's card is approved — the Approve button
+  { scene: 2, at: 0.57, x: 0.385, y: 0.51, anchor: 'approve', kind: 'sparks', hue: 'teal', n: 36, seed: 33 },
+  // 04 · paid — the phone's Pay button
+  { scene: 3, at: 0.48, x: 0.79, y: 0.33, anchor: 'pay', ax: 0.5, ay: 0.3, kind: 'coins', hue: 'amber', n: 18, seed: 44 },
+  // 05 · five stars — the star row's right end
+  { scene: 4, at: 0.4, x: 0.5, y: 0.19, anchor: 'stars', ax: 0.9, ay: 0.5, kind: 'stars', hue: 'fuchsia', n: 28, seed: 55 },
+  // 06 · the week, seen — where the line reaches this week
+  { scene: 5, at: 0.54, x: 0.8, y: 0.24, anchor: 'spark', ax: 1, ay: 0.12, kind: 'bubbles', hue: 'teal', n: 22, seed: 66 },
 ]
 
 /** Every burst that has particles at scene `scene`, progress `t`. */
@@ -279,22 +323,46 @@ export function activeBursts(scene: number, t: number): BurstDef[] {
  */
 export interface CursorStop {
   at: number
+  /** Fallback position, as fractions of the stage body. */
   x: number
   y: number
+  /** The element to go to (`data-anchor`), a point inside its box (`ax`/`ay`
+   *  fractions, centre by default) and an offset from there in body
+   *  fractions — a stop that approaches the button from below-right is
+   *  `{ anchor: 'approve', dx: 0.12, dy: 0.18 }`. */
+  anchor?: string
+  ax?: number
+  ay?: number
+  dx?: number
+  dy?: number
   /** The stop is a click — the ring pulses here. */
   click?: boolean
 }
 
-export function cursorAt(stops: readonly CursorStop[], t: number): { x: number; y: number; press: number; visible: boolean } {
+/** A stop's position, in body fractions, given what was measured. */
+export function stopPoint(s: CursorStop, anchors: AnchorMap | null): { x: number; y: number } {
+  const a = s.anchor && anchors ? anchors[s.anchor] : undefined
+  if (!a) return { x: s.x, y: s.y }
+  return { x: a.x + a.w * (s.ax ?? 0.5) + (s.dx ?? 0), y: a.y + a.h * (s.ay ?? 0.5) + (s.dy ?? 0) }
+}
+
+export function cursorAt(
+  stops: readonly CursorStop[],
+  t: number,
+  anchors: AnchorMap | null = null,
+): { x: number; y: number; press: number; visible: boolean } {
   if (stops.length === 0) return { x: 0, y: 0, press: 0, visible: false }
-  if (t < stops[0].at) return { x: stops[0].x, y: stops[0].y, press: 0, visible: false }
+  const p0 = stopPoint(stops[0], anchors)
+  if (t < stops[0].at) return { x: p0.x, y: p0.y, press: 0, visible: false }
   let i = 0
   while (i < stops.length - 1 && t >= stops[i + 1].at) i++
   const a = stops[i]
   const b = stops[i + 1]
-  if (!b) return { x: a.x, y: a.y, press: a.click ? 1 : 0, visible: t < a.at + 0.3 }
+  const pa = stopPoint(a, anchors)
+  if (!b) return { x: pa.x, y: pa.y, press: a.click ? 1 : 0, visible: t < a.at + 0.3 }
+  const pb = stopPoint(b, anchors)
   const k = easeOutQuad(clamp01((t - a.at) / (b.at - a.at)))
   // A click "presses" for a short window after arrival at a click stop.
   const press = a.click ? 1 - clamp01((t - a.at) / 0.06) : 0
-  return { x: a.x + (b.x - a.x) * k, y: a.y + (b.y - a.y) * k, press, visible: true }
+  return { x: pa.x + (pb.x - pa.x) * k, y: pa.y + (pb.y - pa.y) * k, press, visible: true }
 }
