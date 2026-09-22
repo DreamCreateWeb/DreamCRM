@@ -929,6 +929,15 @@ function readLastGreen(path) {
  * healthy wake from an endpoint whose token was rotated, because the healthy
  * state is silence. Dispatch the workflow with it by hand after touching the
  * secret or the autopilot.
+ *
+ * THE PAYLOAD DOES NOT REACH FORGE, and that is measured rather than assumed —
+ * the first ping through the live wire (run `35776171759`, HTTP 200) produced
+ * an autopilot run whose `trigger_payload` is `null`. So the POST body is a
+ * DEBUGGING ARTEFACT: it says in the run log why the wake fired and about what.
+ * What Forge actually receives is the issue the autopilot opens, whose prompt
+ * is the autopilot's own description — which is therefore written to stand
+ * alone and send him to this sweep's latest run for the entries. Do not move
+ * information a reader needs into the payload; it lands nowhere.
  */
 export function wakeDecision({ intake, lastGreen, ping = false }) {
   if (ping) {
