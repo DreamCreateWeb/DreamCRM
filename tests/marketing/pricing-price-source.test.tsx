@@ -8,7 +8,9 @@ import {
   PRICE_ROOTS,
   PRICE_SOURCE,
   formatHit,
+  identifierWords,
   isBand,
+  nameIsPricey,
   partition,
   planPriceHits,
   priceQuotingFiles,
@@ -352,6 +354,38 @@ describe('the field of view — the extractor, on fixtures', () => {
     expect(hits('if (res.status === 200) return')).toEqual([])
   })
 
+  it('names a price rather than merely containing the letters — Sentinel, #665 note 1', () => {
+    // §2d's identity-looseness family, arriving in the guard's own VOCABULARY:
+    // a word is not a substring, the same way a name is not a prefix. The
+    // first version alternated bare substrings, so `fee` matched inside
+    // `FEED_PAST_DAYS` and `rate` inside `generate`. None held a plan number
+    // on the day it was found — but the remedy for a false positive is to
+    // narrow the predicate, never to register the innocent file.
+    for (const id of ['LIST_MONTHLY', 'RATE_ANNUAL', 'PLAN_PRICE_MONTHLY', 'listPrice', 'estMonthly', 'rateAnnual', 'plan-price', 'MONTHLY_CAP'])
+      expect(nameIsPricey(id), `${id} should still be read as a price name`).toBe(true)
+
+    for (const id of ['FEED_PAST_DAYS', 'FEED_FUTURE_DAYS', 'showPrivateFeedback', 'generate', 'separate', 'iterate', 'DEBOUNCE_MS', 'fontWeight'])
+      expect(nameIsPricey(id), `${id} is not a price and must not be graded as one`).toBe(false)
+
+    // The splitter itself, because everything above rides on it.
+    expect(identifierWords('listAnnualPrice')).toEqual(['list', 'Annual', 'Price'])
+    expect(identifierWords('INCLUDED_MONTHLY_SEGMENTS')).toEqual(['INCLUDED', 'MONTHLY', 'SEGMENTS'])
+    expect(identifierWords('MRRByMonth')).toEqual(['MRR', 'By', 'Month'])
+  })
+
+  it('crosses a JSX brace — `price={200}`, Sentinel, #665 note 2', () => {
+    // A price SURFACE is exactly where this spelling gets written, and
+    // `[:=]\s*\d` cannot get past the `{`. Nothing in the tree was live, which
+    // is the reason it is a widening rather than a repair.
+    expect(hits('<PriceTag price={200} />')).toEqual([200])
+    expect(hits('<Card listPrice={500} rate={200} />')).toEqual([500, 200])
+    // A numeric OBJECT KEY is not a price, and `= {` reaches one too.
+    expect(hits("const priceCopy = { 200: 'founding rate' }")).toEqual([])
+    // The innocents the brace could have swept in.
+    expect(hits('<Input maxLength={200} />')).toEqual([])
+    expect(hits('<circle cx={500} cy={200} />')).toEqual([])
+  })
+
   it('leaves a market BAND alone, from either end — the discriminator that does the most work', () => {
     // `/compare` carries vendor bands whose low end is our rate and whose high
     // end is our annual. Neither is our price, and the old answer was to leave
@@ -363,6 +397,31 @@ describe('the field of view — the extractor, on fixtures', () => {
     // It is STRUCTURAL, not nominal: nothing here knows what a vendor is
     // called, so a competitor added next month needs no list entry.
     expect(hits('AcmeCo, reported $150-200/mo')).toEqual([])
+  })
+
+  it('needs the far end of a band to look like MONEY — Sentinel, #665 note 3', () => {
+    // THE QUIET DIRECTION, which is what earns a fix rather than a note. The
+    // first version pardoned a number followed by dash-then-ANY-digit, so a
+    // genuine `$200` went silent the moment an em dash and a small number
+    // followed it — and this repo's marketing prose is made of em dashes.
+    expect(hits('$200 — 7 days free')).toEqual([200])
+    expect(hits('$200 — 1 plan, everything in it')).toEqual([200])
+    expect(hits('$2,000 a year — 2 months free')).toEqual([2000])
+    // A real band's far end is itself a price: a `$`, or three digits.
+    expect(hits('reported $200–350/mo')).toEqual([])
+    expect(hits('reported $200–$99/mo')).toEqual([])
+    // ...and the near end too, so a countdown cannot pardon the price after it.
+    expect(hits('7 — $200/mo')).toEqual([200])
+    expect(hits('$800-$200/mo bundles')).toEqual([])
+  })
+
+  it('keeps a band on ONE LINE — a list item on the next line is not a range', () => {
+    // `\s*` crosses a newline, so a band match ran from the end of one line to
+    // a bullet at the start of the next and the price above it went silent.
+    expect(hits('the rate is $200\n- 7 day trial')).toEqual([200])
+    expect(hits('the rate is $200\n– 350 patients reached')).toEqual([200])
+    // On one line it is still a band.
+    expect(hits('the vendor is $200 – 350 a month')).toEqual([])
   })
 
   it('does NOT let a band swallow a real quote beside it — the dangerous direction', () => {
@@ -433,6 +492,24 @@ describe('the field of view — the extractor, on fixtures', () => {
     expect(hit!.line).toBe(3)
     expect(hit!.spelling).toBe('assignment')
     expect(formatHit(hit!)).toBe('fixture.ts:3 — 200 (assignment) — const rate = 200')
+  })
+
+  it('was ASSEMBLED without losing its escapes — the second-copy hazard, pinned', () => {
+    // §2d: a pattern you build rather than write owes a self-check that it
+    // still matches something it MUST match. `BAND_BEFORE`/`BAND_AFTER` are
+    // concatenated out of `String.raw` fragments now, and the first draft used
+    // a PLAIN template literal — where `\$` becomes `$` and `\d` becomes the
+    // letter `d`. A silently-broken regex pardons nothing and reports a clean
+    // tree, which is the same false green as the bug it was written to catch.
+    //
+    // These three assertions fail on that mutation and pass on the real thing,
+    // which is what makes them a self-check rather than a comment.
+    const band = '$800-2,000/mo'
+    expect(isBand(band, band.indexOf('2,000'), band.indexOf('2,000') + 5)).toBe(true)
+    const dollarFar = 'from $200-$99/mo'
+    expect(isBand(dollarFar, dollarFar.indexOf('200'), dollarFar.indexOf('200') + 3)).toBe(true)
+    const acrossLines = 'the rate is $200\n- 7 day trial'
+    expect(isBand(acrossLines, acrossLines.indexOf('200'), acrossLines.indexOf('200') + 3)).toBe(false)
   })
 
   it('grades a band by structure, in both directions, on the raw offsets', () => {

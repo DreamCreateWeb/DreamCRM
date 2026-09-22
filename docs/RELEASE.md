@@ -1102,7 +1102,7 @@ binding are all correct. The payment-plan charger was the exception.
   reasoned allowlist, matching the prose spellings (`a month`, `per month`,
   `/month`) as well as `/mo`. This introduces a new invariant, so it is
   Forge's intake before it is anyone's implementation. Raised by Sentinel in
-  review of DREAMCRM-38. · **FIXED — awaiting merge (#665)** (DREAMCRM-102).
+  review of DREAMCRM-38. · **FIXED (#665, `c8a0f094`)** (DREAMCRM-102).
   Intaken as `dreamcrm-conventions` §2c, then implemented: the field of view
   is DERIVED from `git ls-files` over `app`, `components` and `lib` (1,342
   files) rather than listed, and `PRICE_QUOTING_ROUTES` — the list of ten
@@ -1115,7 +1115,13 @@ binding are all correct. The payment-plan charger was the exception.
   is what let `/compare` come inside the field of view instead of staying a
   file-shaped hole; the reasoned allowlist is four per-MATCH entries. It found
   28 live literals in four files the old list had never named — the homepage
-  among them — and all resolve through `getQuotedPlan()` now.
+  among them — and all resolve through `getQuotedPlan()` now. Sharpened on merge by
+  #665's review (Sentinel, APPROVE WITH NOTES): the price-name vocabulary
+  matches a WORD rather than a substring (`fee` was matching inside
+  `FEED_PAST_DAYS`), the assignment spelling crosses a JSX brace
+  (`price={200}`), and a band now needs its far end to look like money and to
+  sit on the same line — `$200 — 7 days free` had been reading as a range and
+  going silent, which is the quiet failure direction.
 Unbundled 2026-09-10 — these five shipped as ONE entry, which made the whole
 line unresolvable while they shared a verdict. Since unbundling, three have
 closed on their own evidence (the demo cart, the MRR cadence math, and the
