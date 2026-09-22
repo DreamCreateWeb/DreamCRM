@@ -87,7 +87,7 @@ prod hardware these numbers get worse.
      a module that structurally cannot read the session, with a 60s TTL as the
      contract and explicit `revalidateTag` on the writers a human is watching
      (publish, staging a draft, the go-live lever, the identity save).
-   - **#TBD (2026-09-22, DREAMCRM-90)** — the residual: `app/site/[slug]/
+   - **#654 (2026-09-22, DREAMCRM-90)** — the residual: `app/site/[slug]/
      layout.tsx` still opened its OWN `clinic_profile` select for eleven chrome
      columns on every public page, three lines below the cached theme read.
      Those columns moved into the cached payload (`PublishedSiteChrome`), so a
