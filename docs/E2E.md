@@ -229,6 +229,64 @@ connected account at a session id belonging to the clinic that does not.
 **It owns the `webhook` scope** — both clinics, because they only mean anything
 together.
 
+## The text-message landings (`e2e/token-landings.spec.ts`, added 2026-09-22, DREAMCRM-98)
+
+Ten routes in this app are a single letter, and each one is a page somebody
+opens from a text or an email — on a phone, with no account, usually once,
+about one thing. `token-journeys.spec.ts` above walks two of them (`/c`, `/n`).
+This file walks the other eight:
+
+| Route | The page | The state it is scanned in |
+|---|---|---|
+| `/b` | pay your balance | an amount owing, clinic able to charge |
+| `/i` | your payment plan | `proposed` — the only state with an Accept |
+| `/r` | leave a review | star gate on, private path offered |
+| `/w` | an earlier opening | a `pending` offer whose slot is still ahead |
+| `/g` | your practice's online grade | all four axes scored |
+| `/d` | book a demo | booking enabled, so the slot picker renders |
+| `/e` | the conference floor's capture page | the form the owner's phone shows |
+| `/h` | the attendee's headshot | photo attached AND a scan to link to |
+
+**The state is chosen, not incidental**, and the seed is what makes each choice
+hold. Three are worth knowing because getting them wrong swaps the page under
+the stop and the suite goes on passing: `/b` and `/i` render a one-paragraph
+"call us" apology without an active connected account; `/w` reads a pending
+offer whose slot has already started as EXPIRED, so the slot is re-stamped into
+the future on every restore; `/d` ships with booking OFF and says so in one
+sentence instead of drawing the picker.
+
+**It is a scan, not a journey.** The spec never claims a slot, accepts a plan,
+starts a checkout or books a demo — each is a real write on a money or
+scheduling path, and an axe stop needs none of them. The only write any of
+these pages performs on a GET is `recordReviewClick` (`sent` → `clicked`), and
+the scope restores it.
+
+**It owns the `token-pages` scope** — its own clinic plus the platform-global
+prospect, grade and event rows. Its own clinic because the connected account
+`/b` and `/i` need would change what every other spec sees on `org_e2e_live`;
+one scope rather than eight because a scope is claimed per FILE.
+
+## The partner portal (`e2e/partner-portal.spec.ts`, added 2026-09-22, DREAMCRM-98)
+
+The fourth persona, signed in. The public `/partner-program` sales page has
+been scanned since the first batch of stops; the surface a partner logs into
+had nothing, which made it the only one of the four personas with no coverage
+at all.
+
+A partner is **not an organization member** — `requirePartner` looks the row up
+by `referral_partner.user_id` directly, the session carries no active
+organization, and the chrome is a minimal single column with no sidebar — so no
+clinic-surface stop says anything about it. The spec walks the closed door
+(no session → no portal) and then the open one, with the session cookie minted
+the same way `portal.spec.ts` mints Casey's.
+
+The seeded partner has a referred clinic, two accrued commissions and one paid,
+all three deliberately: without them the page is three empty states stacked on
+each other rather than the portal a partner reads.
+
+**It owns the `partner` scope**, including its referred clinic — the referral
+stamp on that clinic's profile is what puts it on the portal at all.
+
 **Row ownership matters**: spec files run in parallel workers, so every spec
 file owns its seeded rows outright (Casey belongs to portal + token specs,
 Morgan to portal-reschedule, Riley to staff-day, Robin/the proposal to
@@ -243,6 +301,22 @@ Since DREAMCRM-19 that ownership is **named in the seed itself**, as a scope
   re-runs it.
 - Every other scope is one spec file's **consumable** rows, and the scopes are
   row-disjoint by construction.
+
+**One row is written by a scope and owned by nobody, and the guard is blind to
+it.** `token-pages` upserts `prospecting_config` — a platform-global SINGLETON
+at the literal id `'default'` — to turn demo booking on for `/d`, replacing the
+whole JSON blob before every test in its spec, while other workers run.
+`tests/guards/e2e-seed-scopes.test.ts` keys its declared-vs-written check on the
+`<prefix>_e2e_<name>` row shape, so `'default'` is invisible to it: the row has
+no owner and the guard reports that as fine. It goes **quiet, not red**, and no
+amount of growing the prefix list closes it — the next scope that needs a
+singleton has the same problem.
+
+Safe today, which is why it is written down rather than fixed:
+`lib/services/prospecting.ts` is the only reader, and no other spec walks `/d`
+or `/platform/prospecting`. **It stops being safe the day one does, and the
+guard will not be the thing that tells you** — so if you are adding that spec,
+give the row an owner first. (Sentinel, reviewing #669.)
 
 A spec declares the scope it owns at the top of the file, and that scope is
 restored before each of its tests:
