@@ -251,7 +251,7 @@
  *   node scripts/review-sweep.mjs --prs prs.json --limit 500 --last-green runs.json
  *   node scripts/review-sweep.mjs --prs prs.json --limit 500 --since 2026-09-20T00:00:00Z
  */
-import { readFileSync, appendFileSync, existsSync } from 'node:fs'
+import { readFileSync, writeFileSync, appendFileSync, existsSync } from 'node:fs'
 import { pathToFileURL } from 'node:url'
 
 /**
@@ -879,7 +879,347 @@ function readLastGreen(path) {
   }
 }
 
+/**
+ * DOES THIS RUN WAKE FORGE? (DREAMCRM-99 deliverable 3.)
+ *
+ * THE GAP, and it is a pattern rather than an incident. The gate applies
+ * `needs-forge-intake` correctly and this sweep grades it correctly. What was
+ * never owned by anything that RUNS is the hop after the label: somebody has to
+ * notice the red and route the rule into the rulebook. #534's shape cost three
+ * days. #658 and #659 both merged with the label unsatisfied and sat until a
+ * planning meeting happened to open — the only reason the wait was minutes
+ * rather than days. §2 records a third instance. Asking authors to remember
+ * harder has now failed three times; this is wiring, not diligence.
+ *
+ * GITHUB CANNOT DISPATCH ANYBODY — §3 says so in as many words about the verdict
+ * mention, and it is just as true here. A red run is a notification to one
+ * inbox. So the run POSTs to a Multica autopilot webhook, and the autopilot
+ * opens an issue assigned to Forge. That is the same shape §3 gives a verdict:
+ * the record lives on GitHub where the sweep can see it, and the WAKE rides
+ * Multica, where an agent's next run actually starts. Two artefacts, two jobs.
+ *
+ * ------------------------------------------------------------------------
+ * IT IS SCOPED HARDER THAN THE EXIT STATUS, AND THE ASYMMETRY IS THE POINT.
+ *
+ * A wake enqueues a PAID RUN. §3 scopes the author mention to the verdict
+ * itself for exactly that reason — right for "your PR is clear to merge", wrong
+ * for a discussion reply. So:
+ *
+ *   1. **The INTAKE half only.** The review half already has an owner: §2a's
+ *      standing issue, DREAMCRM-93, assigned to Sentinel. Waking a second agent
+ *      for it would be two owners for one queue.
+ *   2. **Fresh entries only — measured against the PREVIOUS RUN, not against
+ *      the last green one.** This is the correction from Sentinel's review of
+ *      #671 and it is the difference between waking Forge once and waking him
+ *      every morning forever, so it is worth the paragraph.
+ *
+ *      The exit status is keyed on `lastGreen` for a good reason: it is what
+ *      makes a clean morning a positive claim. But **a red run does not advance
+ *      the last-green instant** — the docblock above says so in as many words —
+ *      and an unrouted intake is exactly what keeps the run red. So an entry
+ *      measured against `lastGreen` is fresh on the day it lands and *still
+ *      fresh* every morning after, until somebody routes it. Simulated over
+ *      five consecutive mornings with one unrouted PR and nothing clearing it,
+ *      that is five paid Forge runs for one finding — precisely the "paid
+ *      version of an alarm nobody reads" this narrowing exists to prevent.
+ *
+ *      So the wake gets **its own anchor**: the `createdAt` of the most recent
+ *      previous run **whose `Wake Forge` step concluded `success`**. Two
+ *      anchors for two different questions — "is anything outstanding" (green)
+ *      and "is anything NEW since Forge was last told" (this one) — which is
+ *      the same asymmetry narrowing 3 argues for, applied to the clock instead
+ *      of the failure mode.
+ *
+ *      WHY THE STEP AND NOT SIMPLY THE PREVIOUS RUN, which is what the first
+ *      version of this narrowing used (Sentinel, second pass on #671). A run
+ *      that SUPPRESSED a due wake — narrowing 3 below — is still a run, so it
+ *      would advance a plain previous-run anchor and the entry it declined to
+ *      wake for would read as standing forever after. One throttled
+ *      `gh run list`, or one failed POST, on the single morning an entry is
+ *      new, and Forge is never dispatched for it at all. Back to a red run in
+ *      one inbox, which is the state #658 and #659 sat in.
+ *
+ *      The `Wake Forge` step therefore FAILS when a wake was due and did not
+ *      happen — suppressed, unconfigured, or rejected by the endpoint — and
+ *      succeeds both when it woke him and when there was nothing to wake him
+ *      about. Both of those are "Forge is up to date as of this run", which is
+ *      exactly what the anchor has to mean. Failing that step costs the job
+ *      nothing it was not already paying: a suppressed wake only happens when
+ *      there are unsatisfied entries, and those redden the run anyway.
+ *
+ *      It is the same shape `didScan` uses in `scripts/error-scan.mjs` — ask
+ *      the run's own STEP rather than inferring from its conclusion — and it
+ *      arrived there first, for the same reason.
+ *   3. **NOT AT ALL WHEN THE ANCHOR LOOKUP FAILED**, which is the one place
+ *      this deliberately diverges from the exit status. The run still fails
+ *      CLOSED and goes red — that is free. The wake fails QUIET, because with
+ *      no anchor every entry reads as fresh and a throttled API call would
+ *      dispatch Forge over a queue he has already seen. The costs are not
+ *      symmetric: a spurious wake costs a paid run and, repeated, the
+ *      credibility of the wire; a missed wake costs ONE DAY, because the
+ *      suppressing run does not advance the anchor (see above) and the next
+ *      run's answer is the one it would have given today.
+ *      A SUPPRESSED WAKE IS ANNOUNCED — `::error` plus a line in the summary —
+ *      because a wake that silently never fires is this file's own failure mode
+ *      wearing a different hat.
+ *
+ *   4. **A HAND-DISPATCHED PING ON `main` WOULD MOVE THE ANCHOR.** The lookup
+ *      is `--branch main` with no `--status`, so a ping run on the default
+ *      branch becomes the next run's anchor and could mark a genuinely new
+ *      entry as standing. Run the ping from a feature branch; the input's own
+ *      description says so. Named here rather than guarded, because the whole
+ *      point of a ping is that a person runs it by hand and no check stands
+ *      between them and that choice.
+ *
+ * `--ping` is the fourth reason it can fire, and it is not test scaffolding: it
+ * is the thing that notices the wire has stopped. Nothing else here can tell a
+ * healthy wake from an endpoint whose token was rotated, because the healthy
+ * state is silence. Dispatch the workflow with it by hand after touching the
+ * secret or the autopilot.
+ *
+ * THE PAYLOAD DOES NOT REACH FORGE, and that is measured rather than assumed —
+ * the first ping through the live wire (run `35776171759`, HTTP 200) produced
+ * an autopilot run whose `trigger_payload` is `null`. So the POST body is a
+ * DEBUGGING ARTEFACT: it says in the run log why the wake fired and about what.
+ * What Forge actually receives is the issue the autopilot opens, whose prompt
+ * is the autopilot's own description — which is therefore written to stand
+ * alone and send him to this sweep's latest run for the entries. Do not move
+ * information a reader needs into the payload; it lands nowhere.
+ */
+/**
+ * @param {{
+ *   intake?: { unsatisfied?: any[] } | null,
+ *   wakeAnchor?: { at: number | null, run: number | null, why: string | null } | null,
+ *   lastGreen?: { at: number | null, run: number | null, why: string | null } | null,
+ *   ping?: boolean,
+ * }} args
+ */
+export function wakeDecision({ intake, wakeAnchor, lastGreen = null, ping = false }) {
+  if (ping) {
+    return {
+      wake: true,
+      reason: 'ping',
+      prs: [],
+      why: 'a hand-dispatched ping: this proves the wire from the run to Forge is live, which is ' +
+        'otherwise indistinguishable from a quiet week.',
+      suppressed: null,
+    }
+  }
+
+  const unsatisfied = intake?.unsatisfied ?? []
+  if (!unsatisfied.length) {
+    return { wake: false, reason: 'clean', prs: [], why: 'the intake half is clear.', suppressed: null }
+  }
+
+  // THE LAST GREEN RUN IS A LOWER BOUND ON THE WAKE ANCHOR, and checking it
+  // FIRST is what stops a failed anchor lookup suppressing — and so reddening
+  // the `Wake Forge` step — on a morning when nothing was owed anyway.
+  //
+  // The reasoning, because it is not obvious: a GREEN run had nothing
+  // unsatisfied, so it owed no wake, so its `Wake Forge` step concluded
+  // `success`, so it is itself a candidate for the anchor. The anchor is
+  // therefore never OLDER than the last green run. An entry older than the
+  // last green run is consequently older than the anchor too — standing, no
+  // wake owed — and that is knowable without the anchor lookup succeeding.
+  const candidates = Number.isFinite(lastGreen?.at) ? newSince(unsatisfied, lastGreen).fresh : unsatisfied
+  if (!candidates.length) {
+    return {
+      wake: false,
+      reason: 'standing-only',
+      prs: [],
+      why:
+        `${unsatisfied.length} unrouted intake(s) merged before this sweep last went green, so ` +
+        'they cannot be newer than the last run that told Forge anything either.',
+      suppressed: null,
+    }
+  }
+
+  if (!Number.isFinite(wakeAnchor?.at)) {
+    return {
+      wake: false,
+      reason: 'undated',
+      prs: [],
+      why: 'the intake half has findings, but nothing dates what Forge has already been shown.',
+      suppressed:
+        `${candidates.length} unrouted intake(s) are in the summary and Forge was NOT woken: ` +
+        `${wakeAnchor?.why ?? 'no run history was supplied'}. Without the instant he was last ` +
+        'told, every entry reads as new, and waking him over a queue he has already seen is how ' +
+        'this wire loses the credibility it needs. THIS RUN DOES NOT ADVANCE THE ANCHOR, so the ' +
+        'entry is still new tomorrow and the next working lookup wakes him. The run is red and ' +
+        'names them meanwhile.',
+    }
+  }
+
+  const fresh = newSince(candidates, wakeAnchor).fresh
+  if (!fresh.length) {
+    return {
+      wake: false,
+      reason: 'standing-only',
+      prs: [],
+      why:
+        `${candidates.length} unrouted intake(s) merged before the last run that told Forge ` +
+        'anything, which already woke him for them. Waking him again every morning is the paid ' +
+        'version of an alarm nobody reads.',
+      suppressed: null,
+    }
+  }
+
+  return {
+    wake: true,
+    reason: 'intake',
+    prs: fresh.map((p) => ({ number: p.number, title: p.title, url: p.url, mergedAt: p.mergedAt })),
+    why: `${fresh.length} PR(s) merged owing an intake since the last run that told Forge anything.`,
+    suppressed: null,
+  }
+}
+
+/**
+ * The step whose conclusion answers "was Forge up to date as of that run".
+ *
+ * Exported and pinned by `tests/guards/review-sweep.test.ts` against the
+ * workflow file, because the wake's whole anchor hangs off this string matching
+ * a step that exists. Rename the step without renaming this and every run reads
+ * as "Forge was not told" — which fails SAFE (he gets woken again) but would go
+ * on doing so quietly, so the guard refuses the drift rather than relying on
+ * the direction.
+ */
+export const WAKE_STEP_NAME = 'Wake Forge'
+
+/**
+ * WAS FORGE UP TO DATE AS OF THIS RUN?
+ *
+ * Fed a `gh api repos/{repo}/actions/runs/{id}/jobs` payload. True when a step
+ * named `WAKE_STEP_NAME` concluded `success` — which covers both "it woke him"
+ * and "there was nothing to wake him about", because those are the same fact
+ * from the anchor's point of view.
+ *
+ * It is FALSE for the case the anchor exists to survive: a run that had a due
+ * wake and did not deliver it. The `Wake Forge` step fails in exactly those
+ * states — suppressed on an undated window, unconfigured secret, rejected POST
+ * — so the step's own conclusion is the signal, and no run that failed to tell
+ * him can claim he was told.
+ *
+ * Same shape as `didScan` in `scripts/error-scan.mjs`: ask the run's STEP
+ * rather than infer from its conclusion. Unreadable input returns false, which
+ * widens the next wake rather than skipping one.
+ */
+export function wokeForge(jobsPayload) {
+  const jobs = Array.isArray(jobsPayload?.jobs) ? jobsPayload.jobs : []
+  for (const job of jobs) {
+    for (const step of Array.isArray(job?.steps) ? job.steps : []) {
+      if (step?.name === WAKE_STEP_NAME && step?.conclusion === 'success') return true
+    }
+  }
+  return false
+}
+
+/**
+ * WHEN WAS FORGE LAST UP TO DATE?
+ *
+ * The wake's anchor, and deliberately NOT `lastGreenAt`. Fed the rows the
+ * workflow selected — runs it has already established delivered or owed no
+ * wake, via `wokeForge` against each candidate's jobs payload — plus this run's
+ * own id so it can exclude itself: `gh run list` returns the in-progress run
+ * that is asking.
+ *
+ * WHY NOT REUSE `lastGreenAt`. A red run does not advance the last-green
+ * instant, and an unrouted intake is what keeps this sweep red — so an entry
+ * measured against green is fresh every morning until somebody routes it, and
+ * every one of those mornings is a paid Forge run. Measured against the last
+ * run that actually told him, it is fresh exactly once.
+ *
+ * WHY NOT SIMPLY THE PREVIOUS RUN, which is what the first version used: a run
+ * that SUPPRESSED a due wake is still a run, so it would advance a plain
+ * anchor and the entry would read as standing from then on — never woken at
+ * all. The step-level filter is what makes "one missed wake costs one day"
+ * true rather than aspirational.
+ *
+ * Fails with a `why` rather than a guess, because `wakeDecision` suppresses the
+ * wake on a failed lookup and announces the suppression.
+ *
+ * @param {unknown} runs
+ * @param {string | number | null} [selfRunId]
+ */
+export function previousRunAt(runs, selfRunId = null) {
+  if (!Array.isArray(runs)) {
+    return { at: null, run: null, why: 'the run history was not a JSON array, so the lookup returned nothing usable' }
+  }
+  const self = selfRunId == null ? null : String(selfRunId)
+  const others = runs
+    .filter((r) => r && (self == null || String(r.databaseId ?? '') !== self))
+    .map((r) => ({ at: Date.parse(r.createdAt ?? ''), id: r.databaseId ?? null }))
+    .filter((r) => Number.isFinite(r.at))
+
+  if (!others.length) {
+    return {
+      at: null,
+      run: null,
+      why:
+        'no previous run of this sweep, other than this one, is recorded as having told Forge ' +
+        'anything — so there is nothing to measure "new since he was last told" against',
+    }
+  }
+  const newest = others.reduce((a, b) => (b.at > a.at ? b : a))
+  return { at: newest.at, run: newest.id, why: null }
+}
+
+/**
+ * Read the unfiltered `gh run list` output for the WAKE's anchor.
+ *
+ * Sibling of `readLastGreen` and deliberately not folded into it: they answer
+ * different questions off different queries, and the one thing that must not
+ * happen is somebody noticing they look alike and passing the same file to
+ * both. That would silently restore the every-morning wake `previousRunAt`
+ * exists to stop.
+ */
+function readPreviousRun(path) {
+  if (!path) return { at: null, run: null, why: 'no previous-run history was supplied to this invocation' }
+  if (!existsSync(path)) {
+    return {
+      at: null,
+      run: null,
+      why: `the previous-run file \`${path}\` was not written — the \`gh run list\` step produced nothing`,
+    }
+  }
+  try {
+    return previousRunAt(JSON.parse(readFileSync(path, 'utf8')), process.env.GITHUB_RUN_ID ?? null)
+  } catch (err) {
+    return { at: null, run: null, why: `the previous-run file \`${path}\` is not JSON (${err.message})` }
+  }
+}
+
+/**
+ * `woke` — exit 0 if the run whose jobs payload this is left Forge up to date.
+ *
+ * A separate command rather than a flag, because the workflow has to ask it
+ * once per candidate inside a loop, before it knows which run to anchor on.
+ * Sibling of `scripts/error-scan.mjs scanned`, same shape, same reason.
+ */
+function cmdWoke() {
+  const jobs = readJsonFile(argValue('--jobs'))
+  if (!jobs.value) {
+    console.log(`[review-sweep] ${jobs.why} — treating this run as one that did not tell Forge anything`)
+    process.exitCode = 2
+    return
+  }
+  const woke = wokeForge(jobs.value)
+  console.log(`[review-sweep] ${woke ? 'up to date' : 'NOT up to date'} (looking for step "${WAKE_STEP_NAME}")`)
+  process.exitCode = woke ? 0 : 1
+}
+
+/** Read a JSON file, saying which way it failed rather than pretending it was empty. */
+function readJsonFile(path) {
+  if (!path || !existsSync(path)) return { value: null, why: `the file \`${path}\` was not written` }
+  try {
+    return { value: JSON.parse(readFileSync(path, 'utf8')), why: null }
+  } catch (err) {
+    return { value: null, why: `the file \`${path}\` is not JSON (${err.message})` }
+  }
+}
+
 function main() {
+  if (process.argv[2] === 'woke') return cmdWoke()
+
   const path = argValue('--prs')
   if (!path || !existsSync(path)) {
     console.log(`[review-sweep] no such file: ${path}`)
@@ -931,6 +1271,42 @@ function main() {
     }
   }
   if (gap) console.log(`::error title=The review sweep could not see its whole window::${gap}`)
+
+  // DOES THIS RUN WAKE FORGE? See `wakeDecision` for why it is scoped harder
+  // than the exit status. The decision is written to a file and to
+  // `GITHUB_OUTPUT`; the workflow owns the POST, so this file stays a pure
+  // comparator the guard test can drive with fixtures, offline.
+  // The wake's own anchor — the previous RUN, not the last GREEN one. See
+  // `previousRunAt` for why these are two questions and not one.
+  const wakeAnchor = readPreviousRun(argValue('--last-run'))
+
+  const wake = wakeDecision({ intake, wakeAnchor, lastGreen, ping: process.argv.includes('--ping') })
+  const wakePath = argValue('--wake-out')
+  if (wakePath) {
+    writeFileSync(
+      wakePath,
+      JSON.stringify(
+        {
+          ...wake,
+          repository: process.env.GITHUB_REPOSITORY ?? null,
+          run: process.env.GITHUB_RUN_ID ?? null,
+          runUrl:
+            process.env.GITHUB_SERVER_URL && process.env.GITHUB_REPOSITORY && process.env.GITHUB_RUN_ID
+              ? `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`
+              : null,
+        },
+        null,
+        2,
+      ),
+    )
+  }
+  if (process.env.GITHUB_OUTPUT) {
+    appendFileSync(process.env.GITHUB_OUTPUT, `wake=${wake.wake ? 'true' : 'false'}\nwake-reason=${wake.reason}\n`)
+  }
+  console.log(`[review-sweep] wake=${wake.wake} (${wake.reason}) — ${wake.why}`)
+  if (wake.suppressed) {
+    console.log(`::error title=Forge was NOT woken for an unrouted intake::${wake.suppressed}`)
+  }
 
   process.exitCode = fresh || gap ? 1 : 0
 }

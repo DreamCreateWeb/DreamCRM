@@ -76,7 +76,13 @@ on:
   # `scripts/review-sweep.mjs`.
   schedule:
     - cron: '47 6 * * *'
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      ping:
+        description: 'Ping the Forge wake endpoint - proves the wire is live. RUN IT FROM A FEATURE BRANCH: the wake anchor reads runs on main, so a ping there becomes the anchor for the next run and can mark a genuinely new entry as standing.'
+        required: false
+        default: false
+        type: boolean
 
 concurrency:
   group: review-sweep
@@ -186,5 +192,202 @@ jobs:
             --json databaseId,conclusion,createdAt \
             > last-green.json || true
 
+      # WHEN WAS FORGE LAST UP TO DATE? (The WAKE's anchor.)
+      #
+      # NOT THE SAME QUESTION AS THE STEP ABOVE, and the whole correction turns
+      # on that. A red run does not advance the last-GREEN instant, and an
+      # unrouted intake is exactly what keeps this sweep red — so an entry
+      # measured against green stays "new" every morning until somebody routes
+      # it, and every one of those mornings is a paid Forge run. Measured
+      # against the last run that actually told him, it is new exactly once.
+      #
+      # AND NOT MERELY "THE PREVIOUS RUN", which is where this landed first
+      # (Sentinel, second pass on #671). A run that SUPPRESSED a due wake is
+      # still a run, so it would advance a plain anchor and the entry it
+      # declined to wake for would read as standing from then on — never
+      # dispatched at all. One throttled lookup, or one rejected POST, on the
+      # single morning an entry is new, and Forge is never told.
+      #
+      # So each candidate is asked whether its own `Wake Forge` step concluded
+      # `success`, which is true both when it woke him and when there was
+      # nothing to wake him about — the two states that mean "he is up to
+      # date". Same shape as `didScan` in `scripts/error-scan.mjs`, which is
+      # where this pattern was written first.
+      #
+      # NO `--status` FILTER on the list: the sweep is red on exactly the
+      # mornings that matter, so filtering on run conclusion would skip them.
+      # `--branch main` because a `workflow_dispatch` ping from a feature
+      # branch must not become the anchor — and the ping's own input
+      # description says to keep it off `main` for the mirror-image reason.
+      #
+      # EVERY FAILURE PATH ENDS IN AN EMPTY `last-run.json`, which the script
+      # reads as a failed lookup: it SUPPRESSES the wake and announces the
+      # suppression. That is the one place the wake diverges from failing
+      # closed, and `scripts/review-sweep.mjs` carries the argument.
+      - name: When was Forge last up to date?
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -uo pipefail
+          echo '[]' > last-run.json
+
+          # `--jq` rather than a node hop: a YAML block scalar does not process
+          # escapes, so a `join("\n")` here becomes a backslash and an `n` and
+          # the whole list collapses to one line. That is not hypothetical —
+          # it shipped in #664 and cost that PR its entire anchor.
+          gh run list --repo ${{ github.repository }} --workflow review-sweep.yml \
+            --branch main --limit 20 \
+            --json databaseId --jq '.[].databaseId' \
+            > wake-candidates.txt || : > wake-candidates.txt
+
+          while read -r ID || [ -n "${ID}" ]; do
+            [ -n "${ID}" ] || continue
+            [ "${ID}" != "${{ github.run_id }}" ] || continue
+            gh api "repos/${{ github.repository }}/actions/runs/${ID}/jobs" > wake-jobs.json 2>/dev/null || continue
+            if node scripts/review-sweep.mjs woke --jobs wake-jobs.json; then
+              gh run view "${ID}" --repo ${{ github.repository }} \
+                --json databaseId,conclusion,createdAt --jq '[.]' \
+                > last-run.json || echo '[]' > last-run.json
+              echo "Forge was last up to date as of run ${ID}."
+              break
+            fi
+          done < wake-candidates.txt
+
       - name: Which of them merged owing a review or an intake nobody recorded?
-        run: node scripts/review-sweep.mjs --prs merged-prs.json --limit 500 --last-green last-green.json
+        id: sweep
+        # `continue-on-error` so the wake step below still runs on a RED sweep —
+        # which is the only kind of run that has anything to wake anybody for.
+        # The job's real exit status is restored by the last step; without that
+        # restore this whole check would go green forever, which is the exact
+        # `process.exitCode = 0` mutation `tests/guards/review-sweep.test.ts`
+        # exists to refuse.
+        continue-on-error: true
+        # ONE LINE, deliberately. `tests/guards/review-sweep.test.ts` reads this
+        # argument list with a single-line regex to check that the `--limit` it is
+        # told matches the one `gh pr list` used, and that it is told where the run
+        # history is. A `\` continuation here leaves both guards green while
+        # grading nothing.
+        run: |
+          node scripts/review-sweep.mjs --prs merged-prs.json --limit 500 --last-green last-green.json --last-run last-run.json --wake-out wake.json ${{ (inputs.ping && '--ping') || '' }}
+
+      # A RED SWEEP WAKES FORGE (DREAMCRM-99 deliverable 3).
+      #
+      # `review-gate.yml` labels `needs-forge-intake` correctly and this sweep
+      # grades it correctly. The hop AFTER the label — somebody noticing the red
+      # and routing the rule into the rulebook — was owned by nothing that runs.
+      # #534's shape cost three days; #658 and #659 both merged with the label
+      # unsatisfied and sat until a planning meeting happened to open. §2 records
+      # a third. Asking authors to remember harder has failed three times.
+      #
+      # GITHUB CANNOT DISPATCH ANYBODY — §3 says exactly that about the verdict
+      # mention, and it is why the mention rides Multica while the record stays
+      # on the PR. Same shape here: the record is the red run and its summary;
+      # the WAKE is a POST to a Multica autopilot webhook, which opens an issue
+      # assigned to Forge. Two artefacts, two jobs.
+      #
+      # WHEN IT FIRES is decided entirely by `wakeDecision` in
+      # `scripts/review-sweep.mjs`, which is scoped HARDER than the exit status
+      # because a wake enqueues a PAID RUN: the intake half only, fresh entries
+      # only, and never when the last-green lookup failed (the run still fails
+      # closed and goes red — that is free — but an undated window makes every
+      # entry look new, and dispatching Forge over a queue he has already seen
+      # is how this wire loses the credibility it needs). A suppressed wake is
+      # announced rather than silent.
+      #
+      # NOT CONFIGURED YET IS NOT A FAILURE, the same contract `error-scan.yml`
+      # carries: if the secret is absent the step says so in the summary and
+      # moves on. A missing wake must not turn a working sweep red.
+      #
+      # THE SECRET IS THE URL. The Multica webhook token lives in the path, so
+      # `FORGE_INTAKE_WAKE_URL` is a credential and nothing here may echo it.
+      # `--fail-with-body` and an explicit status check make a rejected POST
+      # loud: a wake that silently 404s is indistinguishable from a quiet week,
+      # which is the failure class this whole file is about.
+      - name: Wake Forge
+        if: always()
+        env:
+          WAKE_URL: ${{ secrets.FORGE_INTAKE_WAKE_URL }}
+        run: |
+          set -euo pipefail
+
+          if [ ! -f wake.json ]; then
+            echo "::error::the sweep wrote no wake decision — it did not get far enough to make one."
+            echo "The sweep produced no wake decision, so Forge was not woken." >> "$GITHUB_STEP_SUMMARY"
+            # THIS STEP'S CONCLUSION IS THE WAKE ANCHOR. It may only succeed
+            # when Forge is up to date — woken, or owed nothing. Without a
+            # decision this run knows neither, so it must not advance it.
+            exit 1
+          fi
+
+          WAKE=$(node -e 'process.stdout.write(String(JSON.parse(require("fs").readFileSync("wake.json","utf8")).wake))')
+          REASON=$(node -e 'process.stdout.write(String(JSON.parse(require("fs").readFileSync("wake.json","utf8")).reason))')
+
+          if [ "$WAKE" != "true" ]; then
+            echo "Forge was not woken (${REASON})." >> "$GITHUB_STEP_SUMMARY"
+            # `undated` is the SUPPRESSED case: a wake was due and this run
+            # could not date the window, so it declined to send one. That run
+            # must not advance the anchor, or the entry it declined to wake
+            # for reads as standing from tomorrow on and Forge is never told.
+            # The job is already red whenever this happens — a suppression
+            # only occurs when there are unsatisfied entries — so failing
+            # here costs nothing that was not already being paid.
+            #
+            # `clean` and `standing-only` are the opposite: nothing was owed,
+            # so he IS up to date and the anchor may move.
+            if [ "$REASON" = "undated" ]; then exit 1; fi
+            exit 0
+          fi
+
+          if [ -z "${WAKE_URL}" ]; then
+            echo "::warning::FORGE_INTAKE_WAKE_URL is not set — the intake wake is not configured yet, so nobody was woken."
+            {
+              echo ""
+              echo "#### Forge was NOT woken: the wake is not configured"
+              echo ""
+              echo "The sweep decided a wake was due (\`${REASON}\`) and \`FORGE_INTAKE_WAKE_URL\` is unset."
+              echo "Set it to the Multica autopilot webhook URL. Skipped, not passed."
+            } >> "$GITHUB_STEP_SUMMARY"
+            # A wake was DUE and did not happen. The job stays green — an
+            # unconfigured wake must not redden a working sweep, which is the
+            # `error-scan.yml` contract — but this STEP fails, so the anchor
+            # does not move and the entry is still new tomorrow. The two are
+            # separate signals and this is the one that means "he was not
+            # told".
+            exit 1
+          fi
+
+          CODE=$(curl --silent --show-error --fail-with-body \
+            --max-time 30 --retry 2 --retry-connrefused \
+            --output wake-response.txt --write-out '%{http_code}' \
+            -X POST "${WAKE_URL}" \
+            -H 'Content-Type: application/json' \
+            --data-binary @wake.json) || {
+              echo "::error::the wake POST failed (HTTP ${CODE:-none}). Forge was NOT woken about an unrouted intake."
+              echo "" >> "$GITHUB_STEP_SUMMARY"
+              echo "#### The wake POST failed (HTTP ${CODE:-none}) — Forge was not woken" >> "$GITHUB_STEP_SUMMARY"
+              exit 1
+            }
+
+          echo "::notice::Forge woken (${REASON}), HTTP ${CODE}."
+          {
+            echo ""
+            echo "#### Forge was woken"
+            echo ""
+            echo "Reason: \`${REASON}\`. The wake POST returned HTTP ${CODE}."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # RESTORE THE SWEEP'S OWN VERDICT. The grading step is
+      # `continue-on-error` only so the wake can run after a red one; this is
+      # what keeps the job's colour honest. Without it the sweep reports green
+      # every morning while finding everything — the mutation the guard test
+      # calls "the ringer must ring".
+      - name: Did the sweep pass?
+        # `always() &&` so this still prints when the `Wake Forge` step above
+        # failed. That step fails only when a wake was DUE and did not happen,
+        # which can only occur on a run the sweep is already reddening — but a
+        # failed step skips the ones after it by default, and the reader of a
+        # red morning should still be told which finding it was about.
+        if: always() && steps.sweep.outcome == 'failure'
+        run: |
+          echo "The sweep reported findings that are new since it last went green - see the summary above."
+          exit 1
