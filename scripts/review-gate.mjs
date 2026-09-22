@@ -569,6 +569,11 @@ export const INTAKE_RULES = [
       // its list is not graded, which is why a premise assertion fails loudly
       // on a rename instead of quietly scanning nothing.
       'tests/marketing/chrome-legibility.test.ts',
+      // The living stage's particle layer (BRAND.md Part 6, 2026-09-22):
+      // asserts MOTE_ALPHA_MAX against the stage's graded inks through
+      // `tests/a11y/palette.ts` — a palette-grading assertion that walks no
+      // tree, the exact #598 shape this list exists for.
+      'tests/marketing/cinema-fx.test.ts',
       // ── THE TEN THE FIXED TREE-WALK DERIVATION FOUND (DREAMCRM-81) ──────
       //
       // None of these is new. Every one has been walking a product tree for
