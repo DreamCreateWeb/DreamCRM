@@ -427,6 +427,28 @@ describe('schedule heartbeat — the workflow asks the question the script answe
     expect(wfCode()).toContain('--diff-filter=A')
   })
 
+  it('the shell loop and the script agree on which files are workflows', () => {
+    // `declaredSchedules` accepts `.ya?ml`. If this loop only globs `.yml`, a
+    // `.yaml` workflow with a cron is DERIVED by the script, has no run entry
+    // from here, and is graded `never-fired` — fail-closed, which is right, but
+    // the message sends the reader to `fetch-depth: 0` when the cause is the
+    // glob. A guard that is red for a reason the reader cannot act on is a
+    // guard that gets ignored. (Sentinel, reviewing #666.)
+    const code = wfCode()
+    const globs = Array.from(code.matchAll(/\.github\/workflows\/\*\.(ya?ml)/g)).map((m) => m[1])
+    expect(
+      new Set(globs),
+      'the shell loop globs ' +
+        `${globs.join(', ') || 'nothing'} while scripts/schedule-heartbeat.mjs accepts both .yml ` +
+        'and .yaml. A workflow in the spelling this loop misses is reported as dead, with the ' +
+        'wrong repair named.',
+    ).toEqual(new Set(['yml', 'yaml']))
+
+    // `nullglob`, or the non-matching branch contributes a literal
+    // `.github/workflows/*.yaml` path and the `grep` on it fails the step.
+    expect(code, 'an unmatched glob must expand to nothing, not to itself').toContain('shopt -s nullglob')
+  })
+
   it('derives the files it asks about instead of naming them', () => {
     const code = wfCode()
     expect(code).toContain('.github/workflows/*.yml')
