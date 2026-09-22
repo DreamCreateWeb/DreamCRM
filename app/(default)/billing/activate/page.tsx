@@ -3,7 +3,7 @@ import { requireTenant } from '@/lib/auth/context'
 import { getActivationDetails } from '@/lib/services/clinic-provisioning'
 import { ActionButton } from '@/components/ui/action-button'
 import { PageHeader } from '@/components/ui/page-header'
-import { startActivationCheckout } from './actions'
+import { ActivationCheckoutForm } from '@/components/ui/billing-action-form'
 
 export const metadata = {
   title: 'Finish billing setup — DreamCRM',
@@ -75,11 +75,11 @@ export default async function BillingActivatePage() {
 
         <div className="mt-6">
           {canActivate ? (
-            <form action={startActivationCheckout}>
+            <ActivationCheckoutForm>
               <ActionButton type="submit" variant="primary" breath className="w-full justify-center">
                 Add billing &amp; activate →
               </ActionButton>
-            </form>
+            </ActivationCheckoutForm>
           ) : (
             <p className="text-sm text-gray-500 dark:text-gray-400">
               Ask the clinic owner to finish this step — only owners and admins can add billing.

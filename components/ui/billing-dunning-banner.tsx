@@ -42,11 +42,20 @@ export default function BillingDunningBanner({ ctx }: { ctx: TenantContext }) {
 
   function handleClick() {
     startTransition(async () => {
+      // openBillingPortal redirects on success and RETURNS its refusal on
+      // failure (DREAMCRM-97). This banner deliberately swallows that refusal:
+      // it is a one-line non-interactive strip with nowhere to put a sentence,
+      // and the same button with the same message sits on Settings → Billing,
+      // which is where the refusal is shown.
+      //
+      // The catch is for the case the action cannot answer at all — offline, a
+      // 500, `requireTenant` throwing. This strip renders on EVERY staff page
+      // (dashboard-shell), so an unhandled rejection here escalates across the
+      // whole app; a silent no-op was its shipped behaviour and stays it.
       try {
         await openBillingPortal()
       } catch {
-        // openBillingPortal redirects on success; a failure just leaves the
-        // banner up. Nothing to surface from a non-interactive banner.
+        // Nothing to surface from a non-interactive banner.
       }
     })
   }
