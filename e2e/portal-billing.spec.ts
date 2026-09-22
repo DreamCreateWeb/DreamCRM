@@ -202,6 +202,39 @@ test.describe('paying a balance from the portal', () => {
     // bad row. The fix is probably `.first()` plus a fixture assertion that the
     // patient has exactly ONE payable balance — but the assertion is the point,
     // since `.first()` alone would make a wrong fixture invisible.
+    //
+    // ── SECOND OCCURRENCE, 2026-09-22, AND THE HYPOTHESIS ABOVE IS WRONG ──
+    //
+    // It came back on DREAMCRM-99/#671: run `35789025973`, job
+    // `106952776354`, again on a diff the browser suite never loads (a
+    // workflow file, a node script and a vitest guard). Same strict-mode
+    // violation, same two elements, first attempt AND `retry #1` — then a
+    // plain re-run of the same job at the same SHA went green. Identical
+    // signature to 2026-09-15, which makes this a recurrence rather than a
+    // coincidence, and `main`'s own `post-merge-e2e` was green at every
+    // commit either side of it.
+    //
+    // WHAT RULES THE SEEDED-STATE READING OUT. `PayBalanceForm` is rendered in
+    // exactly ONE place — `app/(portal)/patient/invoices/page.tsx:170`, not in
+    // a loop and not per invoice — and `aria-label="Payment amount in dollars"`
+    // occurs exactly once in the whole product tree. So a second unpaid
+    // balance, or any number of extra rows, CANNOT produce a second pay form.
+    // Two of them in the DOM means two copies of the same single render, not
+    // two invoices. The 2026-09-15 note reasoned from "the retry sees it too,
+    // therefore state, not timing" — but Playwright's retry repeats the same
+    // navigation on the same warm server, so a hydration or streaming
+    // duplicate reproduces across attempts just as happily as a bad row does.
+    //
+    // WHICH MEANS `.first()` IS THE WRONG FIX and would be actively harmful:
+    // it would hide two live payment forms on a patient's billing page, which
+    // is a product defect worth seeing, behind a green tick. Whoever picks this
+    // up should reproduce against the harness with the DOM dumped
+    // (`error-context.md` is already saved by the failing run) and find out
+    // WHERE the second copy comes from before choosing a locator.
+    //
+    // Still not fixed here: this needs the Playwright harness and its
+    // throwaway Postgres to reproduce, which is a session of its own. It is
+    // Quinn's, it is written down, and the count of occurrences is now two.
     const amount = page.getByLabel('Payment amount in dollars')
     await expect(amount).toBeVisible({ timeout: 30_000 })
     await amount.fill('50.00')

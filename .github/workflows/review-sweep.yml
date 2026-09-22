@@ -294,9 +294,18 @@ jobs:
       # is how this wire loses the credibility it needs). A suppressed wake is
       # announced rather than silent.
       #
-      # NOT CONFIGURED YET IS NOT A FAILURE, the same contract `error-scan.yml`
-      # carries: if the secret is absent the step says so in the summary and
-      # moves on. A missing wake must not turn a working sweep red.
+      # AN UNSET SECRET IS A FAILURE OF THIS STEP, and that sentence replaces
+      # one that was true before the anchor changed (Sentinel, third pass on
+      # #671). `error-scan.yml`'s "not configured is not a failure" contract
+      # is about a JOB going red every half hour before anyone has set the
+      # thing up. Here the step's conclusion is ALSO the wake's anchor, and a
+      # wake that was due and did not happen is not "Forge was told" whatever
+      # the reason. So it fails, and the anchor does not move.
+      #
+      # That costs nothing extra: this branch is only reachable when a wake is
+      # DUE, and a due wake means fresh unsatisfied entries, which redden the
+      # sweep anyway. The summary still says "Skipped, not passed" — nobody is
+      # being told the wake happened.
       #
       # THE SECRET IS THE URL. The Multica webhook token lives in the path, so
       # `FORGE_INTAKE_WAKE_URL` is a credential and nothing here may echo it.
@@ -347,12 +356,18 @@ jobs:
               echo "The sweep decided a wake was due (\`${REASON}\`) and \`FORGE_INTAKE_WAKE_URL\` is unset."
               echo "Set it to the Multica autopilot webhook URL. Skipped, not passed."
             } >> "$GITHUB_STEP_SUMMARY"
-            # A wake was DUE and did not happen. The job stays green — an
-            # unconfigured wake must not redden a working sweep, which is the
-            # `error-scan.yml` contract — but this STEP fails, so the anchor
-            # does not move and the entry is still new tomorrow. The two are
-            # separate signals and this is the one that means "he was not
-            # told".
+            # A wake was DUE and did not happen, so this step fails and the
+            # anchor does not move — the entry is still new tomorrow and the
+            # next configured run wakes him for it.
+            #
+            # IT FAILS THE JOB TOO, and the earlier version of this comment
+            # claimed otherwise (Sentinel, third pass on #671). A step exiting
+            # non-zero without `continue-on-error` fails the job; that is the
+            # whole mechanism the restore step one below exists to work
+            # around. The OUTCOME is unchanged, because this branch is only
+            # reachable when a wake is due and that already reddens the sweep
+            # — but "the job stays green" was not true of GitHub Actions and
+            # a reader would have built on it.
             exit 1
           fi
 
