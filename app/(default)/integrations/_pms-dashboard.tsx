@@ -243,10 +243,21 @@ export function PmsConnectedDashboard({
         <KpiStat label="Patients synced" value={counts.patients} sub={`${totals.patients} total in DreamCRM`} />
         <KpiStat label="Appointments synced" value={counts.appointments} sub={`${totals.appointments} total`} />
         <KpiStat label="Providers" value={counts.providers} sub="Linked to your agenda" />
+        {/* "Will push on next sync" is only true on a TWO-WAY connection: the
+            flush is gated on the direction, so on "Import only" this queue is
+            going nowhere and saying otherwise is the reassuring half of the
+            DREAMCRM-97 defect — the flip warns once, this card was contradicting
+            it on every page load afterwards. */}
         <KpiStat
           label="Awaiting write-back"
           value={pendingWrites}
-          sub={pendingWrites > 0 ? 'Will push on next sync' : 'All bookings pushed'}
+          sub={
+            pendingWrites === 0
+              ? 'All bookings pushed'
+              : connection!.syncDirection === 'two_way'
+                ? 'Will push on next sync'
+                : 'Held — two-way sync is off'
+          }
           tone={pendingWrites > 0 ? 'warn' : 'ok'}
         />
       </div>

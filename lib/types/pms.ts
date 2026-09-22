@@ -22,6 +22,16 @@ export type PmsConnectionStatus = 'not_connected' | 'connected' | 'error'
 export type SyncDirection = 'import' | 'two_way'
 export type SyncRunStatus = 'running' | 'success' | 'partial' | 'error'
 export type WriteOpStatus = 'pending' | 'success' | 'error' | 'skipped'
+/**
+ * How many times the write-back flush will drive one queued op before giving
+ * up on it (`retryPendingWrites`). It lives HERE rather than in `sync.ts`
+ * because `connection.ts` needs it too — to count what a flip to "Import only"
+ * is about to strand — and `sync.ts` already imports `connection.ts`, so the
+ * other direction would be a cycle. An op at or past this cap is undrainable
+ * whatever the direction says, so counting one as newly stranded would
+ * overstate what the flip cost.
+ */
+export const MAX_WRITE_ATTEMPTS = 6
 export type WriteOpOperation = 'create' | 'update'
 export type PmsEntityType = 'patient' | 'appointment' | 'provider'
 // Write-op entity types extend PmsEntityType with audit-only entries that
