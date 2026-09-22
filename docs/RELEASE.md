@@ -2273,7 +2273,7 @@ ops for the integration page — but nothing ALERTS on "op pending for N days",
 so a practice whose bridge stays down doesn't get told. Recorded as its own
 entry below rather than hedging this one's verdict.
 
-### Open — a PMS write-op can sit parked with nobody told (found 2026-09-10)
+### FIXED — awaiting merge — a PMS write-op can sit parked with nobody told (found 2026-09-10)
 
 Found reviewing Slice 7b. Since the WAITING lane preserves the attempt counter,
 a write-op parks for as long as the practice system is unreachable — which is
@@ -2283,15 +2283,109 @@ timer, and nothing replaced that second job. `getPmsHealth`
 (`lib/services/pms/connection.ts:196`) counts pending/error ops on the
 integration page, so it is visible to somebody who looks; nothing alerts on
 "op pending for N days", so nobody is told. A practice whose bridge stays down
-over a holiday week has bookings queued and no prompt to go and look. · OPEN
-— UNBUNDLED to DREAMCRM-68 (2026-09-15, DREAMCRM-58 triage) and parked at
-`backlog` for the next planning meeting to rank. It is the only item in that
-triage batch that is not a small correctness fix: closing it means a new
-alerting path — a sweep, a dedupe so a week-long outage is one notice rather
-than a daily nag, and a decision about who hears it (the practice, whose bridge
-it is, or Dream Create, who can do nothing about their server room). The
-Guardian's audience lock and `recordEngineFailure`'s `onceWithin` throttle are
-the shapes to reuse rather than invent.
+over a holiday week has bookings queued and no prompt to go and look. · **FIXED
+— awaiting merge (#640)**. Unbundled to DREAMCRM-68 (2026-09-15,
+DREAMCRM-58 triage), parked at `backlog`, and ranked **1.0** by the DREAMCRM-84
+planning meeting (2026-09-22, unanimous): it closes a REGRESSION rather than
+adding scope — Slice 7b took away the "give up and become visible" half of
+`MAX_WRITE_ATTEMPTS` and nothing replaced it — so the freeze does not bite.
+
+The fix is ONE NEW SIGNAL feeding the existing Guardian assessment, per the
+meeting's scope ruling; a parallel alerting path is post-1.0.
+`lib/guardian.ts` gains `pmsWriteOpsParked` / `pmsWriteOpParkedDays` and a
+`blocked:pms_parked` verdict ranked directly under the stopped heartbeat, and
+`lib/services/guardian.ts` gains `parkedWritesQuery` — one grouped
+`count(*)` + `min(created_at)` over `pms_write_op`, joined to `pms_connection`.
+Riding the Guardian means the dedupe the issue asked for is inherited rather
+than built: `problemKey` makes this its own problem, so `shouldAlert` raises it
+once and then only every `RE_ALERT_DAYS`, and the stand-down and the
+per-audience memory come with it.
+
+ONE RULE generates every narrowing on the read: count a row only if something
+is still actively trying to deliver it. A row nothing will ever drive again
+cannot clear, so alarming on it pins that practice at `blocked` forever — the
+crying-wolf failure caused by the fix for the opposite one. The first round
+applied that rule THREE PREDICATES SHORT and #640's review caught it (see the
+undrainable-write-op entry below for all four doors); the read now takes the
+`'pending'` lane and `entity_type = 'appointment'` only, on a connection that
+is CONNECTED, TWO-WAY and AUTO-SYNCING. Each predicate is graded by a test
+that fails when it is dropped.
+
+Separately, `PARKED_WRITE_ALARM_DAYS = 4` clears the longest ordinary closure
+a dental office has (Friday 17:00 through a holiday Monday, ~3.6 days) —
+parking is the FEATURE here, and a threshold that fired on it would turn the
+WAITING lane's own design into an alarm.
+
+WHO HEARS IT is the one part still open, and it is an owner decision, not a
+default: every other finding withheld from a practice is withheld because they
+can do nothing about it, and a down bridge is the exact opposite — their
+server, their restart, only they can do it. The meeting referred it to Dustin
+with a recommendation (notify the practice, Dream Create copied) and ruled the
+build must not block on it, so `clinicActionable` REFUSES this cause for now:
+the finding reaches whoever `guardianAudience` says, exactly as the lock ships.
+The refusal is load-bearing rather than cosmetic — without it a practice with a
+parked bridge AND a switch off would be handed the switch note at `'clinic'`,
+which is the wrong half of the truth and silences the owner's email (the
+round-1 audit's defect, verbatim). Dustin's answer flips that one predicate and
+adds the clinic-voiced sentence; nothing else moves.
+
+### Open — a PMS write-op can become undrainable, and then it is invisible to everyone (found 2026-09-22)
+
+The sibling of the entry above, split out on contact (§1: one defect, one
+entry) — and it is ONE defect with several doors, not one per door. A
+`pms_write_op` row can reach a state in which nothing will ever drive it
+again; when that happens no surface says so, and the product has no way for a
+human to resolve it. Same real-world cost as its parked sibling — a booking
+that never reached the practice's schedule — with the opposite cause and the
+opposite fix.
+
+Four doors are known, the first found while scoping DREAMCRM-68's `status`
+filter and the rest during its review (#640):
+
+1. **The terminal error lane.** `retryPendingWrites` skips any op whose
+   `attempts >= MAX_WRITE_ATTEMPTS` (`lib/services/pms/sync.ts:1155`), and
+   `settleWriteFailure`'s error lane is the only thing that puts one there —
+   so a write that is genuinely WRONG (a payload their software refuses)
+   burns its six attempts, lands in `'error'`, and sits forever.
+   Reproduction: insert a `pms_write_op` with `status='error'`, `attempts=6`.
+2. **Direction flipped to import.** `syncPms` gates the write-back flush on
+   `syncDirection === 'two_way'` (`:252`) and that is its ONLY call site, so
+   "Sync now" does not drain it either — while `setSyncDirection`
+   (`lib/services/pms/connection.ts:142`) is a bare UPDATE with no drain.
+   Reproduction: queue a write-op on a two-way connection, then press the
+   "Import only" toggle on the Integrations page. The row is stranded.
+3. **Auto-sync off.** The hourly job never selects the connection
+   (`app/api/cron/pms-sync/route.ts:73`). Softer than the others — a manual
+   "Sync now" still drains a two-way connection — but nothing guarantees
+   anyone presses it.
+4. **Disconnected.** `disconnectPms` deliberately keeps write-op history for
+   the audit trail, and nothing drives a dead connection.
+
+In every door the row is counted in `getIntegrationsDashboard`'s
+`pendingWrites` for anyone who opens the Integrations page, and mentioned
+nowhere else.
+
+**Why DREAMCRM-68's signal deliberately excludes all four, and why that is
+the right call rather than a gap being tolerated.** A parked op self-clears
+the moment the bridge answers, which is what gives that alarm a stand-down.
+None of these clear at all. Feeding any of them to the Guardian as-is would
+pin that practice at `blocked` and re-raise it every `RE_ALERT_DAYS` for the
+life of the account — the crying-wolf failure the primitive exists to avoid,
+introduced by the fix for the opposite one. Door 2 is the sharpest: the
+practice most likely to press "Import only" is one whose bridge is down, so
+the alarm would have fired hardest at exactly the people it was built for,
+and told the owner to ring them about a bridge that is fine.
+
+Closing this needs a RESOLUTION PATH before it needs a query — somewhere a
+human can see the stranded rows and say "I entered that one by hand, let it
+go" — and that is a product decision. Two smaller things ride along with it:
+a commlog write-op parks identically and is excluded from DREAMCRM-68's count
+because that headline says "bookings" (so a down bridge with chart notes
+queued and NO bookings queued goes unreported until their next booking
+parks), and `setSyncDirection` arguably owes a drain or a warning rather than
+silently stranding a queue. · OPEN — for planning-meeting ranking; not 1.0
+work unless the meeting says so.
+
 ### Slice 13 — the insurance-card scanner only reads our own storage · DONE
 
 `lib/services/insurance-ocr.ts` filtered its `imageUrls` on `/^https?:\/\//` and
