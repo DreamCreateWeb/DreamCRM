@@ -183,6 +183,47 @@ having count(*) > 1
   from drizzle.__drizzle_migrations
  limit 1`,
   },
+  {
+    id: 'campaign-events-volume',
+    question: 'How big is campaign_events in production?',
+    why:
+      'DREAMCRM-123. RELEASE.md Part 5 `:1840` asked for two partial indexes on this table "if ' +
+      'it shows in slow logs", and we have no slow logs. `scripts/frequency-cap-explain.ts` ' +
+      'measured the query instead and it stays in single-digit milliseconds all the way to ' +
+      '4,000,000 rows, so the entry was STRUCK — see docs/FREQUENCY-CAP-MEASUREMENT.md. A ' +
+      'strike owes a condition that reopens it, and that condition is a NUMBER on this table. ' +
+      'This is the number. Four million is the ceiling the measurement actually reached; past ' +
+      'it nobody has measured anything and the strike stops being evidence.\n' +
+      '\n' +
+      'It reads `pg_class.reltuples` rather than running `count(*)`, and that is the whole ' +
+      'point rather than a saving. A count over the largest table in the product is exactly the ' +
+      'kind of query this entry exists to warn about; an alarm whose own cost grows with the ' +
+      'thing it is watching gets switched off at the moment it starts mattering. The estimate ' +
+      'is good to a few percent against a threshold measured in millions.\n' +
+      '\n' +
+      '`last_analyze` / `last_autoanalyze` come back BECAUSE the row count is an estimate: ' +
+      '`reltuples` is whatever the last analyze saw, and is -1 on a table that has never been ' +
+      'analyzed. Returning the estimate without the timestamp that dates it would let a stale ' +
+      'or absent number read as a small one, which is the one misreading that matters here.',
+    returns:
+      'table_name, estimated_rows, total_bytes and the two analyze timestamps. Volume and ' +
+      'schema bookkeeping only: no clinic id, no recipient, no patient data, no message body.',
+    // Counts the table whole, across every clinic — which is the question. A
+    // per-tenant breakdown would name clinics for no gain: the cost this
+    // watches is the table's total size, not any one clinic's share of it.
+    tenantScope: 'cross-tenant-by-design',
+    sql: `select c.relname as table_name,
+       c.reltuples::bigint as estimated_rows,
+       pg_total_relation_size(c.oid) as total_bytes,
+       s.last_analyze,
+       s.last_autoanalyze
+  from pg_class c
+  join pg_namespace n on n.oid = c.relnamespace
+  left join pg_stat_user_tables s on s.relid = c.oid
+ where n.nspname = 'public'
+   and c.relname = 'campaign_events'
+ limit 1`,
+  },
 ]
 
 const BY_ID = new Map(READ_CHECKS.map((c) => [c.id, c]))
