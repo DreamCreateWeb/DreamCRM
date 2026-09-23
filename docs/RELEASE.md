@@ -716,6 +716,11 @@ binding are all correct. The payment-plan charger was the exception.
   reads "Paid order" at face value. It is an identifier in a result list
   rather than a record of money, and changing it is a search-UX call — named
   here rather than left unwritten.
+  **Re-verified 2026-09-23 (DREAMCRM-108).** `lib/services/global-search.ts` still builds a shop-order result as
+  `` `${who} — $${(o.totalCents / 100).toFixed(2)}` `` with
+  `o.status === 'paid' ? 'Paid order' : o.status` as its sublabel, so a
+  PARTLY refunded order still reads "Paid order" at face value. Unchanged,
+  and still a search-UX call rather than a money-record one.
 - S3 · a refunded online payment still earned its patient loyalty points.
   The balance-payment row keeps `status = 'paid'` after a refund on purpose,
   so the daily accrual sweep read it as money the patient had paid, and
@@ -787,6 +792,10 @@ binding are all correct. The payment-plan charger was the exception.
   and again after `disconnectShopStripe` clears it, so a plain unique index
   would be satisfied by those nulls and say nothing). It is deliberately
   OUTSIDE `meta/_journal.json`, so no deploy can run it.
+  **Re-verified 2026-09-23 (DREAMCRM-108).** `lib/db/migrations/parked/one-stripe-account-per-clinic.sql` is
+  still present and still absent from `meta/_journal.json`, so the index
+  remains drafted and unrunnable exactly as described. The one production
+  read it waits on has not happened.
   WHY IT IS NOT SHIPPED: `CREATE UNIQUE INDEX` fails on existing duplicates,
   and on this deploy path a failed migration is skipped in silence and takes
   every later migration with it (the S2 entry directly below). So the order has
@@ -1036,6 +1045,12 @@ binding are all correct. The payment-plan charger was the exception.
   all now that there is one plan, and if not, what do the four non-premium
   tracks say instead? That needs the owner. Repro: open any prospect's demo
   prep page → the track cards, then run a non-full track to the wrap-up. · OPEN.
+  **Re-verified 2026-09-23 (DREAMCRM-108).** `lib/types/demo-script.ts` still carries `$150` at `:195` and
+  `:232` and `$250` at `:244`, `:279`, `:291`, `:335`, `:347` and `:364`,
+  with `recommendedPlan` still `'basic'` or `'pro'` on four of the five
+  tracks. Untouched, and still owner-gated for the reason above: the open
+  question is what a track closes on now that there is one plan, not
+  which number to print.
 - S3 · `app/opengraph-image.tsx:69` — the social share card for the whole
   marketing site still reads `$150–500/mo`, the pre-collapse three-tier
   range. It is the price that appears when anyone links dreamcreatestudio.com
@@ -1075,6 +1090,10 @@ binding are all correct. The payment-plan charger was the exception.
   `/partner-program` tells real partners "At the $200/mo plan that's $20 per
   practice per month". Money the demo displays, not money that moves. Repro:
   view the demo clinic → the partner portal's commission rows. · OPEN.
+  **Re-verified 2026-09-23 (DREAMCRM-108).** `lib/services/demo-clinic/seed-partners.ts:110` still seeds
+  `invoiceCents = 50000`, with the comment above it still naming the
+  $500/mo Premium plan, so the demo partner portal still shows $50 per
+  practice per month against `/partner-program`'s $20.
 - S3 · `lib/services/marketing-blog.ts:50` — the launch announcement post,
   published on the marketing blog, still says the platform costs "$150–500 a
   month": the pre-collapse three-tier range, on a page a prospect can read
@@ -1127,6 +1146,8 @@ binding are all correct. The payment-plan charger was the exception.
   comment, so nothing renders it, but it is the file the next person reads to
   learn what a tier costs and it teaches them the list price. Repro: read the
   header. · OPEN.
+  **Re-verified 2026-09-23 (DREAMCRM-108).** `lib/types/social-entitlements.ts:12-14` still prices the tiers
+  `Basic ($150) | Pro ($250) | Premium ($500)` in its docblock table.
 - S3 · the MARKETING half of the struck-price naming defect —
   `app/(marketing)/pricing/price-card.tsx` named its struck list price with an
   `aria-label` on a bare `<span>`. ARIA prohibits an accessible name on
@@ -1359,6 +1380,15 @@ patient) and a handful of S3 polish items.
   hiding the out-links while the site is unpublished is another — a product
   call for whoever owns the portal, not a mechanical widening of the regex.
   · OPEN.
+  **Re-verified 2026-09-23 (DREAMCRM-108).** All three halves still hold: `app/(portal)/patient/shop/page.tsx:16`
+  redirects to `/site/{slug}/shop`,
+  `app/(portal)/patient/invoices/page.tsx:342` links to
+  `/site/{slug}/dental-plans`, and `middleware.ts:255` still matches only
+  `(portal|intake-start)`. Worth adding, because it is the obvious place
+  an accidental fix would have come from: `requirePortalFeature(pc,
+  'shopLink')` gates the Shop door on the clinic's STOREFRONT toggle, not
+  on `site_live_at`, so it does not hide the out-link while the site is
+  unpublished. Still the product call this entry describes.
 - S3 · portal visit-card offers no change affordance inside the notice window
   when the clinic has no phone on file (fall back to a "message us" link);
   family "Book for {name}" doesn't pre-select the dependent (`?for=` param);
@@ -1367,7 +1397,40 @@ patient) and a handful of S3 polish items.
   the top-level eyebrow instead of the `‹ Growth` back-link; dead `?upgrade`
   param on the `/settings/plans` redirect; partner payout button reads
   "Withdraw $0.00" at zero balance; unreachable `isManage` branch in
-  `website/seo/page.tsx`. · OPEN (polish).
+  `website/seo/page.tsx`. · **FIXED** — all seven, reconciled on
+  DREAMCRM-108 (2026-09-23). This is the shape §1 warns about, in its
+  slowest form: a BUNDLE whose items were each closed by a PR aimed at
+  something else, so no single merge ever made the verdict false and
+  nobody was ever handed a reason to re-read the line. Named per item,
+  with the commit rather than the batch:
+
+  - the visit-card fallback with no phone on file — `ActionPill` to
+    `/patient/messages`, "Need to change it? Message us"
+    (`components/patient-portal/visit-card.tsx:261`) · `ed53e388`
+  - the family "Book for {name}" pre-select — `?for=<dependentId>` is
+    honoured as `initialForPatientId`, and only for ids the guardian can
+    actually book for (`app/(portal)/patient/book/page.tsx`) · `ed53e388`
+  - the `‹ Growth` back-link on `/growth/audiences`
+    (`growth/audiences/audiences-client.tsx:92`) · `ed53e388`
+  - the partner payout button at zero balance — now "Nothing to withdraw
+    yet" (`app/(partner)/partner/partner-payout.tsx`) · `ed53e388`
+  - the unreachable `isManage` branch in `website/seo/page.tsx`
+    · `ed53e388`
+  - the hardcoded "SMS replies — coming soon" Overview tile, deleted
+    rather than hand-removed later (`dashboard/clinic-overview.tsx:599`
+    carries the note) · `51bbd8d4`
+  - the dead `?upgrade` param — gone with `requirePlan` itself when
+    `/settings/plans` became a redirect (`6aab041d`; the note explaining
+    it re-worded in `ed53e388`)
+
+  **The `isManage` one is the one to read if you are auditing this.** The
+  entry named a file and a symptom but never WHICH branch, so once the
+  dead ternary was deleted there was nothing left in the tree to check
+  the claim against. It was re-verifiable only because the fix left a
+  comment at `website/seo/page.tsx:216` saying the block renders under
+  `!isManage` and needs no tenant branch. A polish item whose evidence is
+  an ABSENCE has to name the thing that was absent, or the next reader
+  cannot close it and cannot confirm it either.
 
 **S3 sweep CLOSED (2026-08-17):** of 2 S2 found, 1 fixed (review dead-end)
 and 1 (portal coming-soon gate) scoped to R2; 2 S3 fixed (plan defaults,
@@ -1775,6 +1838,10 @@ clinic, none breaking at the current one-beta-clinic scale.
 - S2 · `campaign_events` frequency-cap query filters by `patientId`/`recipientEmail`
   but every index is `campaignId`-leading — a partial index
   `(patientId, occurredAt) where type='sent'` if it shows in slow logs. · OPEN.
+  **Re-verified 2026-09-23 (DREAMCRM-108).** Every `campaign_events` index is still `campaign_id`-leading
+  (`0010`, `0021`, `0098`, plus `0145`'s provider-message lookup); no
+  `(patient_id, occurred_at) where type='sent'` partial index exists. The
+  entry's own trigger — "if it shows in slow logs" — has not fired.
 - S2 · the public-site + marketing body font (Inter) loads via a
   render-blocking third-party `@import` in `app/css/style.css:1` — violates
   the self-hosted-woff2 font doctrine (Nunito is already self-hosted correctly).
@@ -1861,7 +1928,63 @@ add `<label sr-only>`/`aria-label` to the public booking visit-type select +
 placeholder-only inputs; a `role="alert"`/`role="status"` sweep over the ~7
 unannounced error/success nodes (public booking, portal visit-card + booking,
 auth sign-in/up/reset, approval-inbox validation); + S3 (drawer `DialogTitle`,
-portal desktop-nav `aria-current`, phase-change announcements). · OPEN.
+portal desktop-nav `aria-current`, phase-change announcements).
+
+· **FIXED** — reconciled on DREAMCRM-108 (2026-09-23), and it had been
+true for months in two halves that closed months apart.
+
+The S2 cluster is **R2 Slice 6 (`64ffd7fa`)**, which has its own DONE
+entry below: `aria-pressed` + labels + `focus-visible` on the portal slot
+picker and the booking choice-chips, the `sr-only` "— taken"
+(`components/patient-portal/slot-picker.tsx:265`), the public booking
+visit-type label (`app/site/[slug]/book/book-form.tsx:843`), and the live
+regions — public booking, portal booking, the VisitCard's
+`role={message.kind === 'ok' ? 'status' : 'alert'}`
+(`components/patient-portal/visit-card.tsx:348`), sign-in, sign-up,
+**reset-password** (`app/(auth)/reset-password/reset-form.tsx:59,84`) and
+the **approval-inbox validation** (`approval-inbox.tsx:1052,1213`). Those
+last two are in THIS entry's list and absent from Slice 6's write-up, so
+they are verified and named here rather than assumed closed with it.
+
+All three S3 items are closed too, and by an EARLIER commit than the
+slice — **`f9585545`** (#488, DREAMCRM-6, "portal a11y cluster"): the
+drawer's `DialogTitle` (`components/ui/drawer.tsx:86`), the portal
+desktop-nav `aria-current`
+(`components/patient-portal/portal-chrome.tsx:122`), and the
+phase-change announcement — one polite live region
+narrating checking → what landed on the portal slot picker
+(`components/patient-portal/slot-picker.tsx:132`).
+
+**Why that last one took a reconciliation sweep to close: the entry named
+no file for it.** "Phase-change announcements" is a BEHAVIOUR, and the
+only reason it was identifiable at all is that the fix left a comment
+using the same word ("One polite live region narrates the phase"). A
+reader checking this list could not otherwise tell whether it was done,
+which is how a closed item goes on reading OPEN for a year. A ledger item
+whose subject is a behaviour rather than a place owes a call site, or
+nobody but its author can ever close it.
+
+One instance of that same class is still live. It is the entry below,
+rather than a caveat hedging this verdict.
+
+- S3 · the portal's post-visit SURVEY card changes phase silently. Split
+  out of the cluster above on DREAMCRM-108 (2026-09-23): the slot-picker
+  half of "phase-change announcements" is fixed, and this is the same
+  class, unfixed. `components/patient-portal/survey-card.tsx:24` drives
+  the card through `'ask' → 'comment' → 'done'`, and the file contains
+  ZERO live regions — no `role="status"`, no `role="alert"`, no
+  `aria-live` (grep-verified at zero, not inferred from reading). A
+  screen-reader user taps a 0–10 score, the card silently swaps the
+  rating row for a comment textarea, and then silently swaps that for a
+  thank-you; nothing is announced at either step, so the only evidence
+  the tap registered is focus landing somewhere unexpected. Repro: open a
+  patient portal dashboard with a recent completed visit so the survey
+  card renders, then tap any score with a screen reader running. Fix
+  shape is already in the tree one file away — the slot picker's
+  `<p className="sr-only" role="status">` narrating the new phase.
+  **Vesper's lane** (portal accessibility), handed over rather than
+  absorbed: DREAMCRM-108 is a marketing-site issue and the portal is
+  outside its scope. · OPEN.
 
 ### Fixed — /compare/[vendor] scrolls sideways 212px at 390 (found 2026-09-15)
 
@@ -2899,6 +3022,12 @@ before it needs a query, and that is a product decision. An item whose next
 step is a decision cannot be scheduled as work, so putting it in a release
 would have bought a query nobody could act on.
 
+**Re-verified 2026-09-23 (DREAMCRM-108).** The premise behind the ranking is unchanged: all four doors still
+park rows that never self-clear, `getIntegrationsDashboard` is still the
+only place they are counted, and no resolution surface exists for a human
+to dismiss one. Still correctly OPEN and still correctly not scheduled —
+an item whose next step is a product decision cannot be worked.
+
 Note what the ranking is NOT: it is not `STRUCK BY DECISION`. §1 allows a
 strike only where the item is genuinely not a check, and this one names real
 stranded rows that no human can reach — its reopen condition would have to be
@@ -3390,6 +3519,10 @@ against it, and what is the true RTO.
 is an owner action; a result table at the bottom of the runbook is waiting for
 the RTO/RPO numbers. · OPEN (owner).
 
+**Re-verified 2026-09-23 (DREAMCRM-108).** The result table at `docs/RESTORE-DRILL.md:117` still reads
+`_not yet run_`. Unchanged, and unchangeable from a development session —
+it needs AWS credentials for account `952078552817`.
+
 ### Deliverable 3 — load sanity · BASELINE MEASURED
 
 `scripts/load-sanity.mjs` (no dependencies, read-only paths only — a load
@@ -3425,6 +3558,10 @@ Caveat written into the doc: these numbers are from the dev container and
 characterise the APPLICATION, not the prod t4g.micro's ceiling. A real ceiling
 needs a staging run on prod-shaped hardware before the marketing pivot. · OPEN
 (prod-shaped re-run).
+
+**Re-verified 2026-09-23 (DREAMCRM-108).** `docs/LOAD-SANITY.md:20` still opens "**This table is PRE-CACHE.**"
+— nothing has re-run the script since the caching work landed, so both
+halves are still owed: the post-cache numbers and the prod-shaped ceiling.
 
 ### Deliverable 3b — mobile weight, the CLIENT half · BASELINE MEASURED
 
@@ -3467,8 +3604,36 @@ deferral: this is a BRAND-MOTION decision on the site's most-looked-at surface
 was scoped to measurement. One open item is recorded as NOT REPRODUCED rather
 than reported — scroll blocking ranged 0ms to 1,894ms across passes with
 machine contention as the only variable, so it is written down with what would
-settle it and no conclusion drawn. · OPEN (the hero's LCP element, Neon's lane;
-and a real-device run).
+settle it and no conclusion drawn.
+
+**SPLIT ON RECONCILIATION (DREAMCRM-108, 2026-09-23).** This carried two
+verdicts under one word — a motion decision somebody owned, and a
+measurement nobody had taken — so it could not be closed honestly by the
+PR that fixed the first. Per §1, on contact:
+
+- **The hero's LCP element** — `.mkt-enter { opacity: 0 }` holding the
+  headline and the hero sentence unpaintable for ~0.81s, and the LCP
+  element flipping to the film-grain layer because a decorative
+  `background-image` is a candidate and transparent text is not. ·
+  **FIXED — awaiting merge (#698)** (DREAMCRM-108). `.mkt-rise` is the
+  same 0.65s, the same `cubic-bezier(.16,1,.3,1)` and the same delay
+  ladder with the opacity ramp removed, on the two LCP candidates only —
+  the rest of the hero stagger is untouched, and
+  `prefers-reduced-motion` switches it off. Held by
+  `tests/marketing/hero-lcp-paint.test.tsx`, which derives the banned
+  class set from the stylesheet rather than grepping for `mkt-enter`, so
+  a third entrance class that also starts at zero is covered the day it
+  is written. Reconcile this line when #698 lands on `main`.
+- **The real-device run** — every number in `docs/MOBILE-WEIGHT.md` comes
+  from headless Chrome under Lighthouse-profile emulation, and CPU
+  throttling is a multiplier rather than a phone. · OPEN. **Nothing here
+  is invalidated by the fix above**: the mechanism and the measurement
+  agreed, which is why it read as a cause. What a real device would
+  settle is the SIZE of the win, and the honest way to get it is to
+  re-run the script against production after #698 deploys and compare.
+- **The scroll-blocking outlier** — 0ms to 1,894ms across passes with
+  machine contention the only variable. · Still recorded as NOT
+  REPRODUCED rather than as a defect, unchanged and deliberately so.
 
 ### Deliverable 4 — error aggregation · NOT BUILT (owner decision)
 
@@ -3477,6 +3642,9 @@ decision, and it is a real one: a third-party error tracker means a new vendor,
 a new data-processor relationship, and — per `docs/COMPLIANCE.md` — a new place
 PHI-adjacent stack traces can land. Deliberately not chosen unilaterally. · OPEN
 (owner).
+
+**Re-verified 2026-09-23 (DREAMCRM-108).** Unchanged. `docs/COMPLIANCE.md` still records the HIPAA subprocessor
+posture as the whole of the real risk, and no tracker has been chosen.
 
 **Scars worth keeping:**
 - `@playwright/test` will not always match the pre-installed browser build, so

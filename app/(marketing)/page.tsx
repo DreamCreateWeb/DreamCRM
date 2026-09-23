@@ -202,8 +202,17 @@ export default async function MarketingHome() {
             </p>
             {/* 86px at 1440 (5.375rem), stepping down through 834 to a size
                 that still reads as DISPLAY at 390 — BRAND.md Parts 4 and 10.
-                Type steps down; it does not reflow into a different design. */}
-            <h1 className="mkt-enter mkt-d1 text-[2.85rem] font-extrabold leading-[0.98] tracking-[-0.035em] text-gray-950 sm:text-[4rem] lg:text-[5.375rem]">
+                Type steps down; it does not reflow into a different design.
+
+                `mkt-rise`, not `mkt-enter`, on the headline and the sentence
+                below it: those two are this page's LCP candidates, and the
+                fade's `opacity: 0` was costing a phone ~950ms of Largest
+                Contentful Paint for motion it renders the same either way
+                (BRAND.md Part 6, "the hero's LCP text"). Everything else in
+                the hero keeps the fade — the stagger is unchanged, the two
+                lines a reader reads first are simply already painted while
+                they travel. */}
+            <h1 className="mkt-rise mkt-d1 text-[2.85rem] font-extrabold leading-[0.98] tracking-[-0.035em] text-gray-950 sm:text-[4rem] lg:text-[5.375rem]">
               Your whole front office.
               <br />
               {/* THE SIGNATURE GRADIENT, and every stop is legal AS INK on
@@ -223,7 +232,7 @@ export default async function MarketingHome() {
                 One calm system.
               </span>
             </h1>
-            <p className="mkt-enter mkt-d2 mt-7 max-w-xl text-[1.08rem] leading-relaxed text-gray-600">
+            <p className="mkt-rise mkt-d2 mt-7 max-w-xl text-[1.08rem] leading-relaxed text-gray-600">
               DreamCRM is the patient-relationship platform for dental practices — the
               website, booking, portal, messages, reviews, and recall that run everything
               between you and your patients, in one system that feels calm. And your PMS?
