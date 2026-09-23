@@ -1214,8 +1214,32 @@ collections header) and two remain open below.
   below turns a merely SLOW provider into a throwing one at 10s, so the two
   land together and the window is more reachable than either entry describes
   alone. Taken knowingly: the bell row still lands, so these alerts degrade
-  rather than disappear. Per-channel delivery state is the real answer and it
-  is a `docs/POST-1.0.md` item, not a rider.
+  rather than disappear.
+  **THE TRADE IS CLOSED, NOT DEFERRED (DREAMCRM-106).** This entry said
+  per-channel delivery state was "a `docs/POST-1.0.md` item, not a rider", and
+  `lib/services/notifications.ts` carried the same sentence — while
+  `docs/POST-1.0.md` had no such item, so the deferral pointed at nothing and
+  nobody owned it. It is done instead: migration 0165 adds a nullable
+  `notifications.email_sent_at`, `notify()` stamps it the moment
+  `sendNotificationEmail` RESOLVES, and the ON CONFLICT branch reads it — a
+  replay that finds a row whose email never went out re-attempts the EMAIL
+  only, writes no second bell row and fires no second live push. NULL now means
+  exactly two things and never "probably went": no email was owed (the
+  recipient's mode, or `suppressEmail`), or one was owed and did not land.
+  Stamped for EVERY dispatch that emails, keyed or not, so the column means
+  what its name says rather than being true only of the handful of rows
+  carrying a dedupe key.
+  The residual, named rather than left to be found: if the send lands and the
+  stamping UPDATE fails, a replay re-emails. That needs the database to fail
+  between two statements, and a duplicate is the opposite direction of failure
+  from the silence it replaces.
+  The cross-user half is what the SQL-rendering test is for — the replay read
+  keys on (user_id, dedupe_key), and dropping the `user_id` half would decide
+  one owner's email from another owner's delivery state, in the one module that
+  fans a single event out to every owner and admin. A mocked `db` cannot see
+  that; `tests/notifications/email-durability-sql.test.ts` renders the
+  statement through drizzle's own dialect and fails when the predicate is
+  reverted by hand. · **STATE: FIXED — awaiting merge (#682).**
   The index is `(user_id, dedupe_key)` and NOT org-scoped — per user is right
   for a fan-out — so the org has to live in the KEY for any tenant-scoped
   caller, the way `campaigns_org_automation_key_idx`'s values do. Written into
