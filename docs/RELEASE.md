@@ -1239,7 +1239,21 @@ collections header) and two remain open below.
   fans a single event out to every owner and admin. A mocked `db` cannot see
   that; `tests/notifications/email-durability-sql.test.ts` renders the
   statement through drizzle's own dialect and fails when the predicate is
-  reverted by hand. · **STATE: FIXED — awaiting merge (#683).**
+  reverted by hand.
+  WHAT IS STILL OWED, so the fix is not read as wider than it is (Sentinel's
+  review note on #683): the state is recorded and nothing re-drives a send
+  from it. `notifyOrgMembers` is the LAST statement of each of the three
+  branches in `app/api/webhooks/stripe/route.ts` that use it, and `notify()`
+  swallows the email failure into its own `console.warn` — so the ordinary
+  shape, the provider timing out while everything else in the handler
+  succeeds, returns 200, Stripe does not retry, and that email is still gone.
+  The replay path is reached when the idempotency claim fails OPEN, or when
+  the process dies before the claim is released. The accurate sentence is
+  therefore *if Stripe retries, the email that failed now goes out* — a strict
+  restoration of the pre-#651 recovery without the duplicate, not a guarantee
+  of delivery. The sweep over `email_sent_at is null` that would close the
+  rest is new machinery and is queued in `docs/POST-1.0.md`. · **FIXED**
+  (#683, `fe597112`) (DREAMCRM-106).
   The index is `(user_id, dedupe_key)` and NOT org-scoped — per user is right
   for a fan-out — so the org has to live in the KEY for any tenant-scoped
   caller, the way `campaigns_org_automation_key_idx`'s values do. Written into
