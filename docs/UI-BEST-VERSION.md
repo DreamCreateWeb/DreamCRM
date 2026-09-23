@@ -166,7 +166,23 @@ up" are different facts and only one of them is a backlog item.
    caller un-joined, the `open` signal forced false, and the named site keyed
    on both halves together (the same file writes `bg-stone-800
    dark:bg-stone-200` on one line elsewhere, so the surface pair alone would
-   have passed with 579 still unread).]
+   have passed with 579 still unread).
+   · **AND THE FIRST DRAFT OF THIS ENTRY WAS ABOUT TO SET THE RECORD WRONG**
+   (Sentinel, reviewing #687) — worth keeping, because it is the same mistake
+   this entry exists to correct, one level out. It said the widening reached
+   "seven contrast rules plus `dimmed-text`". It did not reach `dimmed-text`:
+   #657 gave that rule the shared READER (`quotedChunks`) and it kept its own
+   `walk()` + per-line loop, i.e. its own CALLER — and the caller is what
+   widened. **Sharing a scanner does not share a field of view.** Measured
+   exposure was ZERO both ways, so it was a record defect and not a live one,
+   which is exactly what makes it dangerous: the new source-vs-chunks assertion
+   runs through `eachClassString`, so a dimming finding landing inside a
+   multi-line template tomorrow would go unreported while this entry said the
+   hole was closed. Fixed rather than narrowed — `dimmed-text` reads through
+   `eachClassString` now, and it carries its own **count** assertion (its
+   chunks must outnumber a per-line replay), because a rule holding the tree at
+   zero cannot produce a red run to notice a narrowing by. Watched to fail:
+   re-privatising the walk reddens it at `83654` vs `83654`.]
 4. **The opacity sweep's ~~TWO~~ ONE DEFERRED SURFACE.**
    `tests/a11y/dimmed-text.test.ts` WALKS `app/`, `components/` and `lib/` and
    holds them at zero; one component tree is still outside it, excluded for a

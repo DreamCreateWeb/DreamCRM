@@ -612,8 +612,17 @@ export function uiSourceFiles(roots: string[] = UI_ROOTS): string[] {
 }
 
 /**
- * Visit every quoted string in the product source. The one tree walk both
- * rules below share, so they can never end up looking at different files.
+ * Visit every quoted string in the product source. The one tree walk every
+ * rule shares, so they can never end up looking at different files.
+ *
+ * WHO ACTUALLY GOES THROUGH IT, named rather than implied, because a rule that
+ * imports `quotedChunks` and writes its own loop looks identical from the
+ * outside and is not sharing anything that matters (DREAMCRM-107, Sentinel's
+ * review of #687): the seven rules in this file, and `dimmed-text.test.ts` via
+ * its own `eachInScopeChunk` wrapper. **Sharing a SCANNER is not sharing a
+ * FIELD OF VIEW — the caller owns that**, and `dimmed-text` spent one PR
+ * proving it, still per-line while three places said it had widened. If a new
+ * rule reads class strings, it reads them here.
  *
  * ── IT FEEDS THE READER UNTIL THE READER IS DONE (DREAMCRM-107).
  *
@@ -630,10 +639,19 @@ export function uiSourceFiles(roots: string[] = UI_ROOTS): string[] {
  * to it, until `readChunks` reports the scan closed. Four properties of that,
  * each of which is a decision rather than a detail:
  *
- *   - **ONLY AN UNTERMINATED TEMPLATE JOINS.** An unpartnered `'` or `"` does
+ *   - **ONLY AN UNTERMINATED BACKTICK JOINS.** An unpartnered `'` or `"` does
  *     not open anything in this scanner, so JSX prose full of apostrophes
  *     cannot start a join. See `readChunks` for why that asymmetry is what
  *     makes joining safe at all.
+ *
+ *     **"TEMPLATE" WOULD BE THE WRONG WORD AND IT WAS THE FIRST ONE HERE**
+ *     (Sentinel, reviewing #687). This scanner has no idea what a comment is,
+ *     so a stray backtick in `// … the old \`catch (err) => …` opens a join
+ *     exactly as a real template does. **9 of the 379 joins are opened that
+ *     way** — `lib/zernio.ts:164`, `lib/clinic-timezone.ts:29`,
+ *     `app/api/cron/guardian/route.ts:26` and six more, all prose with an odd
+ *     backtick count, all spanning 2 lines and closing on the next comment
+ *     line. Harmless, and the sentence that pardoned them was wrong about why.
  *   - **THE CHUNK IS ATTRIBUTED TO THE LINE THE TEMPLATE OPENED ON**, because
  *     that is where a reader following a `file:line` in a red CI log would
  *     look, and because a class string genuinely starts there. A chunk from an
@@ -663,6 +681,17 @@ export function uiSourceFiles(roots: string[] = UI_ROOTS): string[] {
  *   - **Every grader in this file plus `dimmed-text`'s, over the newly-visible
  *     chunks: 0 findings.** That is what let the widening land in one PR
  *     rather than as a burn-down — the hole was real and, like #657's, empty.
+ *   - **THE BOUND THAT MATTERS MORE THAN THAT ZERO** (Sentinel, reviewing
+ *     #687): the shape that would actually hurt is a join FUSING an ink and a
+ *     surface from different source lines into one chunk, handing rule 7 a
+ *     pair nobody wrote. That is the FALSE-POSITIVE direction — a red `test`
+ *     naming an innocent file — and a count of findings cannot see it, because
+ *     the finding it would produce looks like any other. Measured directly
+ *     instead: **739 chunks pair an ink with a surface, and for 0 of them is
+ *     there no single source line carrying both.** Note it is a BOUND and not
+ *     an invariant: a `className` legitimately wrapped across lines SHOULD
+ *     fuse, and grading it is the point of this change, so the honest form of
+ *     this is a measurement to re-take rather than an assertion to add.
  *   - **115 chunks the per-line caller produced are gone, and 0 of them carry
  *     a colour utility.** They are interpolation SOURCE — `${BRAND.blueLight}`
  *     and friends — which the old caller leaked as chunks precisely because
