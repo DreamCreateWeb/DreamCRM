@@ -483,9 +483,15 @@ function productSources(): Array<[string, string]> {
  * anchors to the file, which is the third member of §2d's identity-looseness
  * family. Both quote characters, for the reason `IMPORTS_STRIPE_CLIENT` above
  * takes both.
+ *
+ * The route-handler match makes its directory segment OPTIONAL. The shipped
+ * version was `/^app\/.*\/route\.tsx?$/`, which requires one — so a root
+ * `app/route.ts` was not a surface (Sentinel, reviewing #681). Nothing lives
+ * there today, which is exactly why it would have gone unnoticed: this is the
+ * identity-looseness family at a PATH boundary rather than at a name's end.
  */
 const USE_SERVER_DIRECTIVE = /^\s*['"]use server['"]/m
-const ROUTE_HANDLER = /^app\/.*\/route\.tsx?$/
+const ROUTE_HANDLER = /^app\/(?:.*\/)?route\.tsx?$/
 
 export function mutationSurfaceKind(file: string, source: string): string | null {
   if (USE_SERVER_DIRECTIVE.test(source)) return "'use server' module"
@@ -523,6 +529,10 @@ describe('the mutation-surface predicate, in both directions', () => {
     ['a route handler', 'app/api/cron/domain-renewals/route.ts', 'export async function GET() {}', 'route handler'],
     ['a route handler with no directive and no POST', 'app/api/connect/shop/start/route.ts', 'export const GET = run', 'route handler'],
     ['a .tsx route handler', 'app/api/x/route.tsx', 'export async function POST() {}', 'route handler'],
+    // The segment the shipped regex required (Sentinel, #681). Nothing sits at
+    // the app root today; a rule that silently stops at depth 1 is the kind of
+    // gap that is only ever found by somebody re-deriving it.
+    ['a route handler at the app root', 'app/route.ts', 'export async function POST() {}', 'route handler'],
   ]
 
   it.each(SURFACES)('counts %s', (_why, file, source, kind) => {
@@ -903,26 +913,71 @@ describe('the review-gate classifier', () => {
     expect(surfaces.length).toBeGreaterThan(10)
 
     // And the DISCRIMINATION, which is the half that decides whether this rule
-    // survives contact with the repo: both of these sit one hop from Stripe
-    // through the clinic-site layout and neither moves a cent. If either ever
-    // lands in `surfaces`, the predicate has widened and the fix is the
-    // predicate — never an exemption entry for an innocent file.
-    for (const page of ['app/site/[slug]/privacy/page.tsx', 'app/site/[slug]/accessibility/page.tsx']) {
-      expect(oneHop, `${page} is the flat-hop population this rule exists not to gate`).toContain(page)
-      expect(surfaces, `${page} is a page, not a mutation surface`).not.toContain(page)
-    }
+    // survives contact with the repo. It is DERIVED rather than named (Sentinel,
+    // reviewing #681): the first draft pinned `app/site/[slug]/privacy/page.tsx`
+    // and `.../accessibility/page.tsx` by hand, which guaranteed the
+    // `not.toContain` half could not pass vacuously — and made a legitimate
+    // refactor redden `test` naming an innocent page. §2c has been pushing the
+    // clinic-site tree AWAY from reaching a Stripe-importing module through its
+    // layout, so the fixture was scheduled to decay on a good change.
+    //
+    // The property is the same and it asks the tree for its own witnesses: the
+    // one-hop population is mostly pages, and a widened predicate turns pages
+    // into surfaces. Both floors are what stop the emptiness below being
+    // vacuous — a predicate narrowed to nothing fails the instrument check
+    // above, one widened to everything fails here.
+    // RENDERERS FIRST, deliberately: it is the assertion whose message names
+    // the SHAPE that went wrong, and a widening reaches it before the count
+    // floor below on every mutation measured here.
+    const surfaceSet = new Set(surfaces)
+    const renderers = oneHop.filter((f) => /\/(page|layout|loading|error|not-found)\.tsx$/.test(f))
+    expect(
+      renderers.length,
+      'no renderers left in the one-hop population, so the assertion below cannot discriminate ' +
+        'against anything',
+    ).toBeGreaterThan(10)
+    expect(
+      renderers.filter((f) => surfaceSet.has(f)),
+      'A page, layout or error boundary is not a mutation surface — it renders, and calls an ' +
+        'action or a handler to change anything. These landed in the gated set, so the predicate ' +
+        'has widened into the flat hop and a privacy-policy copy edit now needs a reviewer. Fix ' +
+        'the predicate; never add an exemption entry for an innocent file.',
+    ).toEqual([])
 
+    // And the COUNT floor, which catches a widening that sweeps in shapes the
+    // line above does not name — a client component, a service module.
+    const nonSurfaces = oneHop.filter((f) => !surfaceSet.has(f))
+    expect(
+      nonSurfaces.length,
+      'the one-hop population is almost all pages and client components that reach Stripe only ' +
+        'because a shared layout does — if it is not, this rule is no longer leaving alone the ' +
+        'files whose existence is the argument for keying on the mutation surface',
+    ).toBeGreaterThan(20)
+
+    // MONEY, not merely SOME area (Sentinel, reviewing #681). The first draft
+    // filtered `areasFor(f).length === 0` while the direct-import check beside
+    // it demands `includes('money')`, and its own failure message told the
+    // author to "add each to the money patterns" — which the predicate did not
+    // actually require. One file fell in that gap:
+    // `app/(default)/ecommerce/customers/admin-actions.ts` calls
+    // `cancelSubscriptionNow` and satisfied the check purely through the `auth`
+    // pin it earned in #569 for minting the demo-context cookie. No hole — a PR
+    // touching it still reached a reviewer — but its money reach was real,
+    // derivable and unnamed, and a rule whose message and predicate disagree is
+    // how the next reader stops trusting the message. It is on the money
+    // patterns now, and the two derived checks ask the same question.
     const ungated = surfaces
       .filter((f) => !(f in ONE_HOP_EXEMPTIONS))
-      .filter((f) => areasFor(f).length === 0)
+      .filter((f) => !areasFor(f).includes('money'))
       .sort()
 
     expect(
       ungated,
       'These files are MUTATION SURFACES — a `use server` module or a route handler — one import ' +
-        'hop from a module that imports @/lib/stripe, and the review gate flags them under no rule ' +
-        'at all. A PR changing what one of them charges, renews or pays out would be told on the ' +
-        'job summary that it merges on green. Add each to the money patterns in ' +
+        'hop from a module that imports @/lib/stripe, and the review gate does not flag them as ' +
+        'MONEY. A PR changing what one of them charges, renews or pays out would be told on the ' +
+        'job summary that it merges on green, or would reach a reviewer under a rule whose stated ' +
+        'reason is about something else. Add each to the money patterns in ' +
         'scripts/review-gate.mjs, or exempt it in ONE_HOP_EXEMPTIONS with a reason and a premise ' +
         'this test can re-check.',
     ).toEqual([])
