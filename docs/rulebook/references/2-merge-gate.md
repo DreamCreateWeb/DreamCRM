@@ -3673,7 +3673,7 @@
   here whose subject is THIS LIST'S OWN BOOKKEEPING** rather than anything in
   the repo. Every `**THE <ORDINAL>:` marker must be unique and the set must have
   no gaps, or `test` fails naming the duplicate.
-  **STATE: on the PR — #721, review requested.**
+  **STATE: MERGED — PR #721, `38bd7773`, 2026-09-23 18:05:24Z.**
 
   **What it cost to learn.** On 2026-09-23 THREE open PRs each claimed the
   FIFTY-SEVENTH — #712, #713 and #714 — and GitHub called all three
