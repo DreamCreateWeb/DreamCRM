@@ -363,9 +363,12 @@ names rather than as stems.
   detector over the authored copy as well as the published one; and it asserts
   that `docs/RELEASE.md` R5 still names the command, because a release gate
   whose only record is a sentence can be deleted by anybody tidying a
-  paragraph. **What it cannot cover is whether the store matches `main` right
-  now** — nothing without a credential can know that, and the evidence for that
-  claim is a `--verify-only` run recorded on an issue, owed again at R5.
+  paragraph. It also grades the WRITE path's precondition — that the tree being
+  published is byte-identical to `origin/main` — which is the half §2's entry
+  records as having been paid for rather than imagined. **What it cannot cover
+  is whether the store matches `main` right now** — nothing without a credential
+  can know that, and the evidence for that claim is a `--verify-only` run
+  recorded on an issue, owed again at R5.
 
 ## The pricing page quotes the billing config — PRICE PROVENANCE, graded
 

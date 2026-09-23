@@ -180,6 +180,22 @@ export function findC1(text) {
  * do, this text is UTF-8 that somebody decoded as cp1252 — which is the defect,
  * stated as the thing it is.
  *
+ * ITS FALSE-POSITIVE SHAPE, MEASURED RATHER THAN ASSUMED (Sentinel, #712).
+ * Every non-surrogate codepoint from `U+0080` to `U+10FFFF` — 1,111,998 of them
+ * — was mangled through cp1252 and fed to this in three line positions; zero
+ * misses, and zero false positives on any single clean character. The one way
+ * clean text reddens is ADJACENCY: an accented Latin letter immediately
+ * followed, with no space between, by a cp1252 high punctuation character.
+ * 1,920 such two-character pairs exist and they are what a legitimate run would
+ * trip on. Ordinary prose does not — a space breaks the run, and `"Ça… voilà"`,
+ * `"Über — das"`, `"café § 2"` and `"naïve “quote”"` all come back clean. It is
+ * written here because a false positive on a RELEASE GATE is how a release gate
+ * gets waived, and the next person to see one should know the shape before they
+ * decide the instrument is noise. The continuation ranges for `0xE0`, `0xF0`
+ * and `0xF4` are likewise not narrowed for overlongs or for anything past
+ * `U+10FFFF`: that is over-acceptance, which errs toward a false positive and
+ * never toward losing a defect, and it stays that way deliberately.
+ *
  * WHAT THIS DELIBERATELY CANNOT SEE, said here rather than left to be found:
  * text that is genuinely about mojibake. A document quoting a mangled em dash
  * as a SPECIMEN is indistinguishable from a document that IS mangled, and that
@@ -425,19 +441,20 @@ export function compareTree(local, remote) {
  * 2026-09-14 mangling is legible in one line of this and in no amount of the
  * other.
  */
-export function describeFirstDifference(want, got) {
+export function describeFirstDifference(want, got, sides = ['tree', 'store']) {
+  const [a, b] = sides
   const n = Math.min(want.length, got.length)
   let i = 0
   while (i < n && want[i] === got[i]) i++
   if (i === n) {
-    const longer = want.length > got.length ? 'the tree' : 'the store'
-    return `identical for ${n} bytes, then ${longer} continues (${want.length} vs ${got.length} bytes)`
+    const longer = want.length > got.length ? a : b
+    return `identical for ${n} bytes, then the ${longer} continues (${want.length} vs ${got.length} bytes)`
   }
   const line = want.subarray(0, i).toString('utf8').split('\n').length
   const near = (buf) => JSON.stringify(buf.subarray(Math.max(0, i - 40), i + 40).toString('utf8'))
   return (
-    `first difference at byte ${i} (line ${line}): tree has 0x${want[i].toString(16).padStart(2, '0')}, ` +
-    `store has 0x${got[i].toString(16).padStart(2, '0')}; tree ${near(want)} vs store ${near(got)}; ` +
+    `first difference at byte ${i} (line ${line}): ${a} has 0x${want[i].toString(16).padStart(2, '0')}, ` +
+    `${b} has 0x${got[i].toString(16).padStart(2, '0')}; ${a} ${near(want)} vs ${b} ${near(got)}; ` +
     `${want.length} vs ${got.length} bytes`
   )
 }
@@ -539,11 +556,89 @@ function publish(bin, id, root, local, description, log) {
  * main
  * ========================================================================= */
 
+/* ========================================================================= *
+ * THE WRITE PATH'S OWN PRECONDITION
+ * ========================================================================= */
+
+/**
+ * THE STORE MAY ONLY EVER HOLD MERGED `main`, AND THIS IS WHAT REFUSES
+ * OTHERWISE.
+ *
+ * The four assertions above all grade whether the publish LANDED. None of them
+ * asks whether it should have happened, and on 2026-09-23 that gap was spent:
+ * within twenty minutes of this command existing, the store had been rewritten
+ * three times from working branches and was carrying rules from two PRs that
+ * had not merged. Every agent who opened the rulebook in that window read them
+ * as binding. That is a worse failure than a stale copy — a stale rulebook
+ * under-claims, an unmerged one invents — and it is the direction DREAMCRM-128
+ * never contemplated. (Sentinel, reviewing #712, who found it with this
+ * command's own `--verify-only`.)
+ *
+ * WHY THIS COMPARES BYTES AND NOT `HEAD`. The obvious guard is `git rev-parse
+ * HEAD` against `origin/main` plus a dirty check, and it was written that way
+ * first. It refuses the legitimate case: publishing `main` from a `git archive`
+ * extract, which is not a git repository at all and is the ONLY way to publish
+ * exactly `main` from a worktree that is mid-PR. And it accepts an illegitimate
+ * one — a clean checkout of a commit that merely happens to be on `main`'s
+ * history but is not its tip. The question is not where these bytes came from,
+ * it is whether they ARE merged `main`, and that is answerable directly: read
+ * each file out of `origin/main` and compare. Same instrument as everything
+ * else here, pointed one step earlier.
+ *
+ * `readMerged` is injected so the predicate is a pure function of two trees and
+ * `tests/guards/rulebook-publish.test.ts` can perturb it without a repository.
+ */
+export function diffAgainstMerged(local, readMerged) {
+  const problems = []
+  for (const path of [...local.keys()].sort()) {
+    const merged = readMerged(path)
+    if (merged === null) {
+      problems.push(`${path}: not on origin/main — this file exists only on a branch`)
+      continue
+    }
+    if (Buffer.compare(local.get(path), merged) !== 0) {
+      // The sides are NAMED, because this comparison's second buffer is
+      // `origin/main` and not the store, and a failure message that says
+      // "store" here sends the reader to investigate the wrong document.
+      problems.push(
+        `${path}: differs from origin/main — ${describeFirstDifference(local.get(path), merged, ['tree', 'origin/main'])}`,
+      )
+    }
+  }
+  return problems
+}
+
+/** `git show origin/main:<path>` as bytes, or null when the path is not there. */
+function mergedReader(dir = RULEBOOK_DIR) {
+  return (path) => {
+    try {
+      return execFileSync('git', ['show', `origin/main:${dir}/${path}`], {
+        maxBuffer: MAX_BUFFER,
+        windowsHide: true,
+        stdio: ['ignore', 'pipe', 'pipe'],
+      })
+    } catch {
+      return null
+    }
+  }
+}
+
 export function parseArgs(argv) {
-  const opts = { verifyOnly: false, cli: 'multica', skill: SKILL_NAME, root: process.cwd() }
+  const opts = {
+    verifyOnly: false,
+    allowUnmerged: false,
+    cli: 'multica',
+    skill: SKILL_NAME,
+    root: process.cwd(),
+  }
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i]
     if (a === '--verify-only') opts.verifyOnly = true
+    // The escape hatch exists for exactly one thing: the watched-to-fail runs
+    // §9 owes, which have to publish something deliberately wrong. It is spelled
+    // out loud so it cannot be typed by accident, and the run prints that it was
+    // used.
+    else if (a === '--allow-unmerged') opts.allowUnmerged = true
     else if (a === '--cli') opts.cli = argv[++i]
     else if (a === '--skill') opts.skill = argv[++i]
     else if (a === '--root') opts.root = argv[++i]
@@ -575,8 +670,30 @@ function main(argv) {
   const id = /^[0-9a-f-]{36}$/.test(opts.skill) ? opts.skill : resolveSkillId(opts.cli, opts.skill)
   console.log(`skill: ${opts.skill} (${id})`)
 
-  if (opts.verifyOnly) console.log('\n--verify-only: grading what is in the store, publishing nothing')
-  else {
+  if (opts.verifyOnly) {
+    // Verifying a BRANCH against the store is a legitimate thing to want — it
+    // is how you see the gap a PR will close — and the closing line already
+    // says "on this tree". Only the write path is constrained.
+    console.log('\n--verify-only: grading what is in the store, publishing nothing')
+  } else {
+    const unmerged = diffAgainstMerged(local, mergedReader())
+    if (unmerged.length && !opts.allowUnmerged) {
+      console.error('\nREFUSING TO PUBLISH — this tree is not merged `main`.\n')
+      for (const p of unmerged) console.error(`  - ${p}`)
+      console.error(
+        '\nThe store is the copy every agent reads and it may only ever hold merged `main`: an unmerged\n' +
+          'rulebook does not go stale, it INVENTS rules, and nothing on the agent side can tell the\n' +
+          'difference. Land the PR and publish from `main` (a `git archive origin/main docs/rulebook`\n' +
+          'extract published with --root is the supported way to do that mid-PR). `--allow-unmerged`\n' +
+          'exists only for the watched-to-fail runs §9 owes.\n' +
+          '\nIf this clone has simply not fetched, `git fetch origin main` first: everything above is\n' +
+          'measured against `origin/main` as THIS clone knows it.',
+      )
+      return 1
+    }
+    if (unmerged.length) {
+      console.log(`\n--allow-unmerged: publishing a tree that differs from origin/main in ${unmerged.length} file(s)`)
+    }
     console.log('\npublishing:')
     publish(opts.cli, id, opts.root, local, description, log)
   }
@@ -602,9 +719,26 @@ function main(argv) {
   const cd = []
   for (const [path, buf] of remote) cd.push(...gradeText(`store:${path}`, buf.toString('utf8')))
   cd.push(...gradeText('store:description', storedDescription))
+  // EVERY FINDING REACHES `failures`, AND THE PARTITION IS FOR THE CONSOLE
+  // ONLY. The first draft assembled `failures` from the two filtered halves,
+  // which is classification by string match sitting inside the one command
+  // whose whole argument is that classification by string match is the defect.
+  // All three of `gradeText`'s message shapes matched a regex, so nothing was
+  // lost — but rewording one message, or adding a fifth predicate, would have
+  // computed a genuine store failure, printed it nowhere, and exited 0 on a
+  // broken rulebook. Latent, not live, and closed at the same standard #686's
+  // comma-thousands case was closed at. (Sentinel, reviewing #712.)
+  //
+  // The label a finding carries is still derived from its text, because that is
+  // all a string finding offers — but an UNRECOGNISED one is labelled as such
+  // rather than filed under whichever half the ternary happens to reach. A new
+  // predicate then announces itself in the report instead of hiding inside a
+  // count that no longer describes it.
   const c = cd.filter((f) => /control byte|cp1252/.test(f))
   const d = cd.filter((f) => /ATX heading/.test(f))
-  failures.push(...c.map((f) => `[C encoding] ${f}`), ...d.map((f) => `[D headings] ${f}`))
+  const label = (f) =>
+    /ATX heading/.test(f) ? 'D headings' : /control byte|cp1252/.test(f) ? 'C encoding' : 'C/D unclassified'
+  failures.push(...cd.map((f) => `[${label(f)}] ${f}`))
   console.log(`  C. encoding:         ${c.length ? `${c.length} FAILED` : 'no C1, no mojibake'}`)
   console.log(`  D. headings:         ${d.length ? `${d.length} FAILED` : 'every leading # is a real heading'}`)
 

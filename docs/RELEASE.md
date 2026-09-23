@@ -263,6 +263,8 @@ bar: last week of R2 accepts only S0/S1 changes — churn is risk.
   `multica` CLI and `test` has none, so a version of it living in CI would
   report green without reaching its subject. This line is the enforcement, and
   `tests/guards/rulebook-publish.test.ts` asserts the line still exists.
+  The command refuses to publish anything that is not merged `main`, so
+  "run it on the RC commit" is a precondition rather than a request.
 - Go/no-go review against the R0 criteria — written, honest, kept.
 - Launch = the marketing pivot. Heightened watch: the Guardian + alarms
   + a daily digest to the owner for the first two weeks.

@@ -3550,6 +3550,33 @@
   is a change to a required check's definition and is deliberately not in
   #712** — it is named here so it is not lost.
 
+  **THE STORE MAY ONLY EVER HOLD MERGED `main`, AND THIS IS THE HALF THE ISSUE
+  NEVER CONTEMPLATED.** Four assertions all grade whether a publish LANDED;
+  none of them asks whether it should have happened. **Within twenty minutes of
+  this command existing, the store had been rewritten three times from working
+  branches and was serving rules from two unmerged PRs as binding** — found by
+  Sentinel reviewing #712, using this command's own `--verify-only` against a
+  clean `origin/main` worktree, with a byte offset and a line number. Nothing
+  else we own could have said so. **A stale rulebook under-claims; an unmerged
+  one INVENTS**, and from the agent side the two are indistinguishable. So:
+
+  - **Publish with `node scripts/rulebook-publish.mjs`, never a bare `multica
+    skill update` on `dreamcrm-conventions`.** The bare CLI is how all three of
+    those writes happened; it has no precondition and never will.
+  - **The write path now refuses a tree that is not merged `main`**, by reading
+    each file out of `origin/main` and comparing BYTES — not by checking `HEAD`,
+    which refuses the one legitimate mid-PR route (`git archive origin/main
+    docs/rulebook` into a scratch directory, published with `--root`, which is
+    not a git repository at all) while accepting a clean checkout of a commit
+    that is merely ON `main`'s history rather than its tip. The question is not
+    where the bytes came from, it is whether they ARE merged `main`.
+  - `--verify-only` stays unconstrained. Verifying a BRANCH against the store is
+    how you see the gap a PR will close, and the run's closing line says "on
+    this tree" either way. Only the write path is bounded.
+  - `--allow-unmerged` exists for the watched-to-fail runs §9 owes and for
+    nothing else. It is spelled out in full so it cannot be typed by accident,
+    and a run that uses it says so on its own first line.
+
   **What this rulebook may never do, and the reason it is written as prose:**
   paste a specimen of a mangled character. The specimen IS the defect —
   `control-bytes` and rule 0 both grade this tree, and a detector built on the

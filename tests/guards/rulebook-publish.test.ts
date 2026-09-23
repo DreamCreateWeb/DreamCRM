@@ -5,6 +5,7 @@ import {
   RULEBOOK_DIR,
   compareTree,
   describeFirstDifference,
+  diffAgainstMerged,
   findC1,
   findFalseHeadings,
   findMojibake,
@@ -280,6 +281,65 @@ describe('A — the byte compare, and the length that would have passed', () => 
   it('says which side is longer when one is a prefix of the other', () => {
     expect(describeFirstDifference(Buffer.from('abc'), Buffer.from('ab'))).toContain('the tree continues')
     expect(describeFirstDifference(Buffer.from('ab'), Buffer.from('abc'))).toContain('the store continues')
+  })
+})
+
+/**
+ * THE WRITE PATH'S PRECONDITION, AND IT IS THE ONE ASSERTION HERE WHOSE ABSENCE
+ * WAS PAID FOR RATHER THAN IMAGINED. Within twenty minutes of the publisher
+ * existing, the store had been rewritten three times from working branches and
+ * was serving rules from two unmerged PRs as though they were binding. A stale
+ * rulebook under-claims; an unmerged one invents.
+ */
+describe('the store may only ever hold merged main', () => {
+  const tree = (entries: Record<string, string>) =>
+    new Map(Object.entries(entries).map(([k, v]) => [k, Buffer.from(v, 'utf8')]))
+  /** The injected reader, standing in for `git show origin/main:<path>`. */
+  const merged = (entries: Record<string, string | null>) => (path: string) => {
+    const v = entries[path]
+    return v === undefined || v === null ? null : Buffer.from(v, 'utf8')
+  }
+
+  it('is silent when the tree IS origin/main', () => {
+    expect(diffAgainstMerged(tree({ 'SKILL.md': 'a', 'references/2.md': 'b' }), merged({ 'SKILL.md': 'a', 'references/2.md': 'b' }))).toEqual([])
+  })
+
+  it('refuses a file that differs from origin/main, which is the branch case', () => {
+    const problems = diffAgainstMerged(tree({ 'references/2.md': 'the rule, as merged' }), merged({ 'references/2.md': 'the rule, as drafted' }))
+    expect(problems).toEqual([expect.stringContaining('differs from origin/main')])
+  })
+
+  it('refuses a file that exists only on a branch', () => {
+    const problems = diffAgainstMerged(tree({ 'references/2e.md': 'new section' }), merged({}))
+    expect(problems).toEqual([expect.stringContaining('not on origin/main')])
+  })
+
+  /**
+   * A one-character, same-length drift is the shape the whole command exists
+   * for, so the precondition is held to it too rather than to a size check.
+   */
+  it('refuses a same-length one-character drift', () => {
+    const problems = diffAgainstMerged(tree({ 'references/8.md': 'on 2026-09-14' }), merged({ 'references/8.md': 'on 2026-09-15' }))
+    expect(problems).toHaveLength(1)
+    expect(problems[0]).toContain('13 vs 13 bytes')
+  })
+
+  /**
+   * The sides are named for this comparison, because its second buffer is
+   * `origin/main` and not the store. A failure message that says "store" here
+   * sends the reader to investigate the wrong document — which is how a correct
+   * refusal gets read as a broken instrument and waived.
+   */
+  it('names origin/main rather than the store in its own failure text', () => {
+    const problems = diffAgainstMerged(tree({ 'references/8.md': 'a' }), merged({ 'references/8.md': 'b' }))
+    expect(problems[0]).toContain('origin/main has 0x62')
+    expect(problems[0]).not.toContain('store has')
+  })
+
+  it('takes --allow-unmerged only when it is spelled out in full', () => {
+    expect(parseArgs([]).allowUnmerged).toBe(false)
+    expect(parseArgs(['--allow-unmerged']).allowUnmerged).toBe(true)
+    expect(() => parseArgs(['--allow-unmerge'])).toThrow(/unknown argument/)
   })
 })
 
