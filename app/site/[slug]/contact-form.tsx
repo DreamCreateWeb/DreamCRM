@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { submitContactRequest } from './actions'
 import { DEFAULT_LEAD_FORMS, type LeadFormField } from '@/lib/types/lead-forms'
 import FormTrustFields from '@/components/clinic-site/form-trust-fields'
@@ -41,6 +41,15 @@ export default function ContactForm({ slug, brand, selfBooking, basePath, fields
   const [errorMsg, setErrorMsg] = useState('')
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
 
+  // The success screen REPLACES the form, so the submit button unmounts and
+  // focus falls back to <body> — the lead funnel's payoff, spoken to nobody. A
+  // live region cannot carry a surface that mounts already-populated; focus is
+  // the phase-change contract, same as the booking form's BookingSuccess.
+  const successHeadingRef = useRef<HTMLHeadingElement | null>(null)
+  useEffect(() => {
+    if (status === 'success') successHeadingRef.current?.focus()
+  }, [status])
+
   const serviceList = (services ?? []).filter((s) => s.trim().length > 0)
   const carrierList = (carriers ?? []).filter((c) => c.trim().length > 0)
   const formFields = fields && fields.length > 0 ? fields : DEFAULT_LEAD_FORMS.contact
@@ -71,7 +80,13 @@ export default function ContactForm({ slug, brand, selfBooking, basePath, fields
             <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
           </svg>
         </div>
-        <h3 className="text-xl font-bold text-gray-900 mb-2">Request received!</h3>
+        <h3
+          ref={successHeadingRef}
+          tabIndex={-1}
+          className="text-xl font-bold text-gray-900 mb-2 focus:outline-none"
+        >
+          Request received!
+        </h3>
         <p className="text-gray-500">We'll be in touch within one business day to confirm your visit.</p>
       </div>
     )
@@ -220,8 +235,12 @@ export default function ContactForm({ slug, brand, selfBooking, basePath, fields
       <FormTrustFields />
       {formFields.map(renderField)}
 
+      {/* The one node that has to interrupt: the submit failed and the visitor
+          is still looking at the button they just pressed. */}
       {status === 'error' && (
-        <p className="text-sm text-red-600">{errorMsg}</p>
+        <p role="alert" className="text-sm text-red-600">
+          {errorMsg}
+        </p>
       )}
 
       <button

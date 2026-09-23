@@ -360,6 +360,43 @@ fallback is what paints, `/pricing`'s hero `<section>` at 412px measures
 the ledger entry recorded the hero growing INTO. The fallback frame now starts
 at the final height, so there is nothing left to move.
 
+### Verified on production — 2026-09-23 16:31–16:40Z
+
+Merged as `589891e6` (PR #718), deployed ~13:53Z. Re-measured against
+`www.dreamcreatestudio.com`, and deliberately NOT on the CLS number alone,
+because this file has now twice recorded WHY that number lies both ways: a
+shift is only counted against content that already painted, so a slow pass
+reports a clean page. The production pass did read `/pricing` **CLS 0.000**
+(495 KB, worst shift 0.0005 — a mono numeral moving 1px) against the 0.1157
+recorded above, but its FCP was 4,352 ms, which is exactly the regime where
+this metric goes quiet on its own.
+
+**So the verification is structural, and it cannot be fooled by timing.**
+Load each surface with Inter BLOCKED (the fallback paints) and again with
+Inter allowed; compare the hero `<section>`, the `<h1>` and the sub
+paragraph. If the boxes match, the swap has nothing to move no matter how
+fast the box or the network is:
+
+| width | surfaces | identical | worst delta |
+|---|---|---|---|
+| 390 | 11 | **11 / 11** | 0px |
+| 834 | 11 | **11 / 11** | 0px |
+| 1440 | 11 | **11 / 11** | 0px |
+
+**33 of 33, 0px everywhere** — `/pricing`, `/product`, `/why`, `/compare`,
+`/resources`, `/docs`, `/blog`, `/changelog`, `/roi`, `/grade` and
+`/partner-program`. `/pricing` at 390 reads **320.53px both ways**, which is
+the exact height the Part 5 entry recorded the hero growing INTO; the first
+frame now starts there.
+
+Worth keeping as the reusable part: **when a metric's variance is dominated by
+the environment rather than the subject, verify the SUBJECT instead.** The CLS
+number found this defect and could not have confirmed the fix on its own — a
+green reading from a contended pass is indistinguishable from a green reading
+from a fixed page. Asking "are the two boxes the same size" has no such
+failure mode. That is the same argument `dreamcrm-conventions` §2d makes
+about thresholds, arriving here from the measurement side.
+
 ## Recommendations
 
 Recommendation 1 below is **DONE** — it is kept rather than deleted because

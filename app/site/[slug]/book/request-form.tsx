@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { submitAppointmentRequest } from '../actions'
 import { readableInk, brandFill } from '@/lib/clinic-site-theme'
 import { SuccessWell } from '@/components/clinic-site/success-well'
@@ -32,6 +32,18 @@ export default function RequestForm({ slug, brand, clinicName, clinicPhone = nul
   const brandInk = readableInk(brand)
   const [status, setStatus] = useState<'idle' | 'pending' | 'success' | 'error'>('idle')
   const [errorMsg, setErrorMsg] = useState('')
+
+  // The success screen REPLACES the form outright — the submit button unmounts
+  // and focus falls back to <body>, so the whole payoff of the request funnel
+  // was silent. A live region cannot carry this one: it mounts
+  // already-populated, the case screen readers do not reliably announce. Focus
+  // is the phase-change contract here, same as the self-scheduling form's
+  // BookingSuccess: it speaks the heading AND puts the keyboard at the top of
+  // the new content.
+  const successHeadingRef = useRef<HTMLHeadingElement | null>(null)
+  useEffect(() => {
+    if (status === 'success') successHeadingRef.current?.focus()
+  }, [status])
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -70,7 +82,12 @@ export default function RequestForm({ slug, brand, clinicName, clinicPhone = nul
     return (
       <div className="text-center py-12 sm:py-14">
         <SuccessWell brand={brand} className="mb-6" />
-        <h2 className="text-3xl font-bold tracking-[-0.02em] mb-2" style={{ color: INK }}>
+        <h2
+          ref={successHeadingRef}
+          tabIndex={-1}
+          className="text-3xl font-bold tracking-[-0.02em] mb-2 focus:outline-none"
+          style={{ color: INK }}
+        >
           Request received.
         </h2>
         <p className="leading-relaxed mb-7 max-w-md mx-auto" style={{ color: INK_MUTED }}>
@@ -199,7 +216,13 @@ export default function RequestForm({ slug, brand, clinicName, clinicPhone = nul
         style={{ backgroundColor: SURFACE, color: INK, border: `1px solid ${BORDER}` }}
       />
 
-      {status === 'error' && errorMsg && <p className="text-sm text-red-600">{errorMsg}</p>}
+      {/* The one node that has to interrupt: the submit failed and the patient
+          is still looking at the button they just pressed. */}
+      {status === 'error' && errorMsg && (
+        <p role="alert" className="text-sm text-red-600">
+          {errorMsg}
+        </p>
+      )}
 
       <button
         type="submit"
