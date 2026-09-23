@@ -3367,6 +3367,62 @@
   and has a name to find it by, which is the difference between an intake that
   happens and one that waits for somebody to choose to look.
 
+  **THE FIFTY-FIFTH: #700, `.github/workflows/push-alarm.yml` +
+  `scripts/push-alarm.mjs` + `tests/guards/push-alarm.test.ts`
+  (DREAMCRM-115). A NEW CLASS — the first guard here whose subject is a
+  `workflow_run` TRIGGER, which is the one wire in this repository that
+  breaks silently by design.** `workflow_run.workflows:` matches an upstream
+  workflow's DISPLAY NAME, and a trigger that matches nothing is not an
+  error: GitHub publishes no warning, no check and no run. An alarm
+  disconnected by a one-line rename in an unrelated tidy-up PR looks exactly
+  like an alarm with nothing to report. **STATE: OPEN — PR #700, head
+  `1646fa19`, awaiting Sentinel.**
+
+  **The registration is what makes it gradeable, and the predicate is
+  DERIVED rather than enumerated.** The obvious guard is the one the first
+  draft shipped: read `deploy.yml`'s `name:` off disk and require the
+  trigger list to contain it. That catches a rename and is blind to the
+  failure that actually matters more — a THIRD workflow starting to push to
+  `main` and simply never being watched, which is DREAMCRM-115's own gap one
+  level over. So the guard finds every workflow whose `on:` block declares
+  `push:` to `main`, reads each one's `name:`, and requires the trigger list
+  to EQUAL that set. A rename reddens `test`; so does a new producer, on the
+  day it arrives, with the derived set printed in the failure message.
+  Equality rather than containment is deliberate: watching something that no
+  longer pushes to `main` is also drift, and a stale name in a trigger tells
+  the next reader the wrong thing about what is covered.
+
+  **It reads the `on:` block, not the file** — `push:` appearing in a job
+  step or in one of these long headers would satisfy a whole-file grep, which
+  is §2a's "a guard over a YAML file is a guard over a file that is half
+  prose", and this file's own first run found it: the unfiltered search for
+  the script invocation matched the header SENTENCE naming the script instead
+  of the line that runs it. The comment-stripping reader is applied
+  file-wide rather than at the one call site that caught it.
+
+  **The severity table is graded too, and that is the second assertion
+  nobody would think to ask for.** The trigger decides who gets woken;
+  `PRODUCER_DETAIL` decides what the first sentence says when they are. If
+  the two come apart the alarm still fires and tells its reader it does not
+  recognise the workflow that produced the run — honest, and useless at the
+  hour it arrives. So every push-to-main workflow must also have a
+  consequence sentence, and the two derivations are compared against each
+  other rather than against a list.
+
+  **What it is watched failing against, and the one thing it is NOT.** Ten
+  mutations, each reddening the intended test and only it: the second
+  producer dropped, a producer renamed, a third producer added, the history
+  lookup hardcoded to one workflow, `cancelled` moved into the red set,
+  `process.exitCode = 0`, and four more. And the alarm itself was replayed
+  against the REAL `workflow_run` payloads of the 2026-09-23 outage — three
+  genuine failures and the green that followed — waking once on the edge and
+  staying quiet on the continuations. **What no pre-merge evidence can
+  cover: GitHub only dispatches `workflow_run` from the default branch, so
+  the alarm cannot fire once until this merges.** The confirmation is a
+  DISPATCH rather than a broken `main` — `post-merge-e2e.yml` carries
+  `workflow_dispatch`, and `workflow_run` fires on an upstream completion
+  however it was started.
+
   **A CASE on the emoji registry, no ordinal: #706** (`ac32ebd8`, 2026-09-23
   09:0xZ, DREAMCRM-118, Neon) — **two cases at once in
   `tests/marketing/emoji-assets.test.tsx`, and it is the tidiest example yet
