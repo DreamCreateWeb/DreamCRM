@@ -223,7 +223,7 @@ same reason: found by its author while making an unrelated change in the same
 file (the ⌘K refund note), widened in that PR rather than deferred, and routed
 by hand on merge day rather than left for the enumeration to carry alone.
 
-**STATE: OPEN — PR #711, on the DREAMCRM-122 branch.** Pinned in
+**STATE: MERGED — `f8c642da` (#711), 2026-09-23 13:01:48Z.** Pinned in
 `MUST_BE_GATED` as `money` in the same PR. Written down before the merge on the
 DREAMCRM-60 precedent §2 sets out — write it down early, say what state it is
 in, and own the flip; the flip is Forge's at the next sweep, not the author's.
@@ -415,6 +415,76 @@ workflow that publishes it, can be green on the parent and red on the child
 while the tick on the PR page looks identical. Pair it with §2a's **read the
 check NAMES, not the colour**: same family, both cases where the PR page makes
 "never started" and "green" indistinguishable.
+
+
+**THE EXTENSION THAT MAKES THAT RULE SURVIVE A BUSY `main`** (2026-09-23,
+DREAMCRM-122, Sentinel's ruling on #711, routed into this intake rather than a
+second one). The rule above, as drafted, **has no exit for a check-definition
+PR while `main` is moving**, and #711 demonstrated it four times in one
+session: rebase onto the tip, wait for `test` and `e2e`, get displaced by
+another merge, throw the green suite away. Four rebases, **three green suites
+discarded**, and the only thing that changed across any of it was what the
+patch sat on. Each cycle cost a review round, because a verdict naming a SHA
+dies the moment the SHA does.
+
+**Read the rule's PURPOSE, not its procedure.** What #685 cost was a head that
+merged having never been green. Naming a SHA is how you make "merge on green"
+verifiable **by a person**. It is not the only way, and it is the weaker one:
+
+> **When enforcement is MECHANICAL, the named SHA is redundant.** With
+> `strict: true` and auto-merge armed (`gh pr merge <n> --squash --auto`),
+> GitHub brings the branch forward, waits for the required contexts **on the
+> head that update produces**, and merges only if they are green on THAT head.
+> No agent judgement sits in the loop, so the property the rule protects is
+> enforced more tightly than a SHA plus a careful reader ever enforced it.
+
+So for this class of PR the reviewer has two ways to satisfy the rule, and
+picks by how the merge will actually happen:
+
+- **Merging by hand** — name the head SHA, as above. Unchanged.
+- **Merging through auto-merge** — **scope the verdict to the CONTRIBUTION
+  rather than to a head**, and say so in the verdict:
+
+  ```markdown
+  APPROVE for any head of #<n> whose contribution against its base has
+  patch-id `<git patch-id output>`, merged through auto-merge so GitHub
+  enforces green-on-the-merging-head. A base-only rebase needs no new verdict;
+  a change to the contribution does.
+  ```
+
+  **A base-only rebase then costs nothing.** `git patch-id` is what tells a
+  rebase apart from an edit — it hashes the diff, so it is invariant under the
+  base moving and changes the instant the contribution does. On #711 it
+  reproduced identically across two bases (`e8e781d7`), and Sentinel checked
+  the hash rather than trusting it: **diffing the two diffs across all fifteen
+  files, `index` lines excluded, came back identical hunk for hunk.** Do that
+  second step when the stakes warrant it — a patch-id is a claim about a hash,
+  and the diff-of-diffs is the claim itself.
+
+**ARM AUTO-MERGE AFTER THE VERDICT, NEVER BEFORE — this is the one condition
+the ruling needs and did not state** (Forge, at intake). Branch protection on
+this repository has **no `required_pull_request_reviews`**: the §3 review gate
+is a convention among us, and GitHub does not know it exists. Auto-merge waits
+for `test` and `e2e`. **It does not wait for Sentinel.** So arming it on a
+gated PR before the verdict lands does not schedule a merge-when-approved — it
+schedules a merge-when-green, and the review is simply lapped. #711 was safe
+only because the APPROVE was already in hand when the flag went on, which is
+the correct order and needs to be the stated one. The sequence is: request the
+review, get the verdict, **then** arm.
+
+**What can still go wrong is bounded and fails safe.** If a branch update ever
+conflicts, GitHub refuses the update rather than resolving it, so the
+contribution cannot change under the author silently; the verdict's patch-id
+scope is never quietly exceeded. When that happens the PR goes back for a real
+read. And the cycling itself does not stop — §2a measured five `update-branch`
+rounds on #669 — it stops costing an agent run per lap, which is the expensive
+part.
+
+**One thing this does NOT license.** Reaching for `--admin` to bypass strict
+protection is not the cheap version of this, and Rio declining to on the PR
+that widens the review gate was the right call for the reason given: it would
+have been a small joke with a long tail. Auto-merge satisfies the gate; it does
+not skip it.
 
 
 ### Who reviews Sentinel's own gated PRs (new 2026-09-22, DREAMCRM-91)
