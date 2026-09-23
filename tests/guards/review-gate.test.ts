@@ -436,6 +436,129 @@ for (const path of PAGES) {
   })
 })
 
+/**
+ * THE STRIPE CLIENT'S IMPORT, IN EITHER QUOTE (DREAMCRM-106).
+ *
+ * Shared by the direct-import money check and the one-hop one below, for the
+ * reason `importedModules` above is shared: the two derivations must agree
+ * about what "reaches Stripe" means, and the version that shipped read
+ * `/from '@\/lib\/stripe'/` — single quotes only. Nothing but a lint rule keeps
+ * this repo on single quotes, and §2d's identity-looseness family has already
+ * paid for that exact assumption once (Sentinel's planted `@/` spelling). A
+ * double-quoted import of the Stripe client was invisible to the money gate's
+ * only derived check; no such import exists today, which is precisely why it
+ * would have been invisible on the day one did.
+ */
+export const IMPORTS_STRIPE_CLIENT = /from\s+['"]@\/lib\/stripe['"]/
+
+/** Every tracked product source, read once: `lib/**` and `app/**` .ts/.tsx. */
+function productSources(): Array<[string, string]> {
+  return trackedFiles()
+    .filter((f) => /^(lib|app)\/.*\.tsx?$/.test(f))
+    .map((f) => [f, readFileSync(join(process.cwd(), f), 'utf8')])
+}
+
+/**
+ * IS THIS FILE A MUTATION SURFACE — something an outside actor can INVOKE?
+ *
+ * The discriminator the one-hop rule turns on, and the reason it is not "any
+ * file that reaches Stripe in two steps". Two shapes, both structural:
+ *
+ *   - a `'use server'` module, where EVERY export is a callable server action
+ *     reachable from a browser;
+ *   - a route handler (`app/**\/route.ts`), which is an HTTP endpoint.
+ *
+ * A page or a client component is neither. It renders; it calls an action or a
+ * handler to change anything, and that action is the file this rule wants.
+ *
+ * NOT keyed on the HTTP METHOD, and that is deliberate rather than lazy:
+ * `app/api/cron/domain-renewals/route.ts` exports `GET`, and what it does with
+ * it is renew domains against a clinic's card. `app/api/connect/shop/callback`
+ * is a `GET` that stores the Stripe account a clinic's money is paid into.
+ * Reading `GET` as "a read" would have dropped the two sharpest holes this
+ * rule was written for.
+ *
+ * `'use server'` is matched with the `m` flag against the start of a LINE — the
+ * directive has to be the first statement in the module, and `^` without `m`
+ * anchors to the file, which is the third member of §2d's identity-looseness
+ * family. Both quote characters, for the reason `IMPORTS_STRIPE_CLIENT` above
+ * takes both.
+ */
+const USE_SERVER_DIRECTIVE = /^\s*['"]use server['"]/m
+const ROUTE_HANDLER = /^app\/.*\/route\.tsx?$/
+
+export function mutationSurfaceKind(file: string, source: string): string | null {
+  if (USE_SERVER_DIRECTIVE.test(source)) return "'use server' module"
+  if (ROUTE_HANDLER.test(file)) return 'route handler'
+  return null
+}
+
+/**
+ * THE ONE FILE THE ONE-HOP RULE PARDONS, with the premise that pardons it.
+ *
+ * `reaches` is the whole point: it is the set of Stripe-reaching modules the
+ * file imports, mapped to the exact bindings it takes from each, and a test
+ * below re-derives it from the tree every run. A reason nobody re-checks is a
+ * permanent hole wearing a sentence.
+ */
+const ONE_HOP_EXEMPTIONS: Record<string, { why: string; reaches: Record<string, string[]> }> = {
+  'app/site/[slug]/sitemap.xml/route.ts': {
+    why:
+      'it renders a public sitemap, and reaches the Stripe client only through listActivePlans — ' +
+      'it needs to know whether a clinic has membership plans so /dental-plans belongs in the ' +
+      'XML. No charge, no account, no payout: the money word in the import is a READ of a plan ' +
+      'list. Everything else this route touches is blog posts, jobs and services.',
+    reaches: { 'lib/services/membership.ts': ['listActivePlans'] },
+  },
+}
+
+describe('the mutation-surface predicate, in both directions', () => {
+  // THE RED RUN THIS PREDICATE OWES, planted in both directions, because an
+  // absence assertion over a clean tree cannot tell a working detector from a
+  // narrowed one (#609's lesson, the same one the product-root match carries).
+  const SURFACES: Array<[string, string, string, string]> = [
+    ['a server-action module', 'app/(default)/x/actions.ts', "'use server'\nexport async function pay() {}", "'use server' module"],
+    ['double-quoted directive', 'app/(default)/x/actions.ts', '"use server"\nexport async function pay() {}', "'use server' module"],
+    ['the directive under a license header', 'app/(default)/x/actions.ts', "// a comment\n'use server'\nexport async function pay() {}", "'use server' module"],
+    ['a route handler', 'app/api/cron/domain-renewals/route.ts', 'export async function GET() {}', 'route handler'],
+    ['a route handler with no directive and no POST', 'app/api/connect/shop/start/route.ts', 'export const GET = run', 'route handler'],
+    ['a .tsx route handler', 'app/api/x/route.tsx', 'export async function POST() {}', 'route handler'],
+  ]
+
+  it.each(SURFACES)('counts %s', (_why, file, source, kind) => {
+    expect(mutationSurfaceKind(file, source)).toBe(kind)
+  })
+
+  // THE 53 THIS RULE EXISTS NOT TO SWEEP IN, in their real shapes. A predicate
+  // that reddens any of these is gating the flat hop by another name.
+  const NOT_SURFACES: Array<[string, string, string]> = [
+    ['a server page', 'app/site/[slug]/privacy/page.tsx', "import { getClinicSiteBySlug } from '@/lib/services/clinic-site'\nexport default async function Page() { return null }"],
+    ['a client component', 'app/(default)/website/domain/buy-domain-card.tsx', "'use client'\nexport function BuyDomainCard() { return null }"],
+    ['a layout', 'app/site/[slug]/layout.tsx', 'export default function Layout() { return null }'],
+    ['a service module', 'lib/services/shop.ts', "import 'server-only'\nexport async function listProducts() {}"],
+    // IDENTITY LOOSENESS, the family §2d keeps paying for: a file that merely
+    // TALKS about the directive is not one, and neither is a file whose path
+    // merely contains the word route.
+    ['a file that mentions the directive in prose', 'lib/docs.ts', "// call this from a 'use server' module\nexport const x = 1"],
+    ['a module named route-something', 'lib/routes.ts', 'export const ROUTES = []'],
+    ['a component in a directory called route', 'app/api/route-helpers.ts', 'export const x = 1'],
+  ]
+
+  it.each(NOT_SURFACES)('leaves %s alone', (_why, file, source) => {
+    expect(mutationSurfaceKind(file, source)).toBeNull()
+  })
+
+  it('reads the Stripe client import in either quote', () => {
+    // The spelling that was invisible to the money gate's only derived check
+    // until DREAMCRM-106. Both resolve to the same module.
+    expect(IMPORTS_STRIPE_CLIENT.test("import { stripe } from '@/lib/stripe'")).toBe(true)
+    expect(IMPORTS_STRIPE_CLIENT.test('import { stripe } from "@/lib/stripe"')).toBe(true)
+    // And the widening direction: a longer module name is not the client.
+    expect(IMPORTS_STRIPE_CLIENT.test("import { PLANS } from '@/lib/stripe-config'")).toBe(false)
+    expect(IMPORTS_STRIPE_CLIENT.test("import { x } from '@/lib/services/stripe-admin'")).toBe(false)
+  })
+})
+
 describe('the review-gate classifier', () => {
   it('flags a change in every area the review gate names', () => {
     // One real path per rule, spelled out rather than generated: if somebody
@@ -697,9 +820,9 @@ describe('the review-gate classifier', () => {
     // never imports the client, and the curated list and the word patterns
     // stay responsible for that. This only catches the direction where the
     // evidence is mechanical.
-    const ungated = trackedFiles()
-      .filter((f) => /^(lib|app)\/.*\.tsx?$/.test(f))
-      .filter((f) => /from '@\/lib\/stripe'/.test(readFileSync(join(process.cwd(), f), 'utf8')))
+    const ungated = productSources()
+      .filter(([, source]) => IMPORTS_STRIPE_CLIENT.test(source))
+      .map(([file]) => file)
       .filter((f) => !areasFor(f).includes('money'))
 
     expect(
@@ -709,6 +832,137 @@ describe('the review-gate classifier', () => {
         'each to the money patterns in scripts/review-gate.mjs (and to MUST_BE_GATED above), or ' +
         'say in a comment why reaching Stripe is not money here.',
     ).toEqual([])
+  })
+
+  it('gates every MUTATION SURFACE one hop from the Stripe client — derived, not remembered', () => {
+    // THE SAME MOVE AS THE TEST ABOVE, ONE IMPORT HOP OUT (DREAMCRM-106).
+    //
+    // `from '@/lib/stripe'` is a good necessary condition and it stops at the
+    // SERVICE. `lib/services/payment-plans.ts` is gated; the cron route that
+    // calls `runDuePlanCharges` from it — the thing that actually charges a
+    // patient's card, unattended, every day — matched no rule at all and was
+    // reported "merges on green". So was `buy-domain-actions.ts`, which spends
+    // real money on the clinic's card, and both Stripe Connect onboarding
+    // routes, which decide the account every shop payment is paid INTO.
+    //
+    // MEASURED ON `main` AT `c1ca93c0`, which is what makes the shape of the
+    // rule an argument rather than a preference:
+    //
+    //   17 files import `@/lib/stripe` directly  (the test above's population)
+    //   78 tracked files sit ONE HOP from one of those
+    //   25 of the 78 are mutation surfaces
+    //   12 of the 25 matched NO gate rule — 11 real, 1 exempted below
+    //   53 of the 78 are pages and client components
+    //
+    // **THE HOP ALONE IS THE WRONG SUBJECT, and those 53 are why.** They are
+    // `app/site/[slug]/privacy/page.tsx`, `.../accessibility/page.tsx`, a dozen
+    // dashboard panels — files that reach Stripe only because a shared layout
+    // or a display helper does, and that move no money by any reading. Gating
+    // on the flat hop would put a privacy-policy copy edit into a review queue
+    // of one, which is the "208 places to catch 8" trade this file's siblings
+    // keep refusing, and the reliable way to get a gate routed around.
+    //
+    // So the subject is the MUTATION SURFACE: a `'use server'` module (every
+    // export is a callable server action) or a route handler. Both are entry
+    // points an outside actor invokes; a page is not. That predicate is what
+    // takes the population from 78 to 25 while keeping all twelve holes.
+    //
+    // DELIBERATELY A NECESSARY CONDITION, exactly as the test above is. It
+    // says nothing about money code that never reaches Stripe at any depth
+    // (fee math, cart totals, the payment-plan schedule), and nothing about a
+    // surface TWO hops out — that population is larger again and the evidence
+    // stops being mechanical. The curated `MUST_BE_GATED` map and the word
+    // patterns stay responsible for both.
+    //
+    // WHY THE ELEVEN ARE NOT ALSO ADDED TO `MUST_BE_GATED` ABOVE: that map
+    // exists for files nothing can derive. These are derived here, every run,
+    // from the tree — writing them down a second time creates two homes for
+    // one fact, which is how the price-quoting list and the marketing page
+    // counts each went stale. The instrument check below is what protects
+    // against the derivation quietly narrowing, which is the failure a
+    // hand-list is actually insurance against.
+    const sources = new Map(productSources())
+    const direct = new Set(
+      Array.from(sources).filter(([, s]) => IMPORTS_STRIPE_CLIENT.test(s)).map(([f]) => f),
+    )
+    const oneHop = Array.from(sources.keys()).filter(
+      (f) => !direct.has(f) && importedModules(f, sources.get(f)!).some((i) => direct.has(i)),
+    )
+    const surfaces = oneHop.filter((f) => mutationSurfaceKind(f, sources.get(f)!) !== null)
+
+    // THE INSTRUMENT CHECK, in both directions, against the real tree — the
+    // one the shared-pending guard taught us to write. This detector is three
+    // predicates deep (the Stripe import, the resolver, the surface test) and
+    // any of them narrowing to nothing reports CLEAN forever.
+    expect(
+      surfaces,
+      'the one-hop detector stopped seeing app/api/cron/retention-automations/route.ts — the cron ' +
+        'that calls runDuePlanCharges — so it is no longer detecting anything and the assertion ' +
+        'below is worth nothing',
+    ).toContain('app/api/cron/retention-automations/route.ts')
+    expect(surfaces.length).toBeGreaterThan(10)
+
+    // And the DISCRIMINATION, which is the half that decides whether this rule
+    // survives contact with the repo: both of these sit one hop from Stripe
+    // through the clinic-site layout and neither moves a cent. If either ever
+    // lands in `surfaces`, the predicate has widened and the fix is the
+    // predicate — never an exemption entry for an innocent file.
+    for (const page of ['app/site/[slug]/privacy/page.tsx', 'app/site/[slug]/accessibility/page.tsx']) {
+      expect(oneHop, `${page} is the flat-hop population this rule exists not to gate`).toContain(page)
+      expect(surfaces, `${page} is a page, not a mutation surface`).not.toContain(page)
+    }
+
+    const ungated = surfaces
+      .filter((f) => !(f in ONE_HOP_EXEMPTIONS))
+      .filter((f) => areasFor(f).length === 0)
+      .sort()
+
+    expect(
+      ungated,
+      'These files are MUTATION SURFACES — a `use server` module or a route handler — one import ' +
+        'hop from a module that imports @/lib/stripe, and the review gate flags them under no rule ' +
+        'at all. A PR changing what one of them charges, renews or pays out would be told on the ' +
+        'job summary that it merges on green. Add each to the money patterns in ' +
+        'scripts/review-gate.mjs, or exempt it in ONE_HOP_EXEMPTIONS with a reason and a premise ' +
+        'this test can re-check.',
+    ).toEqual([])
+  })
+
+  it('re-checks the premise of every one-hop exemption, rather than trusting the reason', () => {
+    // AN EXEMPTION THAT DOES NOT RE-CHECK ITS OWN PREMISE IS A PERMANENT HOLE
+    // (§2d). `app/site/[slug]/sitemap.xml/route.ts` is exempt because the only
+    // Stripe-reaching thing it imports is `listActivePlans` — it needs plan
+    // slugs to list `/dental-plans` pages in a sitemap. That is a READ, and the
+    // whole exemption rests on it.
+    //
+    // So the premise is asserted, not asserted-about: the set of
+    // Stripe-reaching modules the file imports, and the exact bindings it takes
+    // from each. Add `startMembershipCheckout` to that import list — the one
+    // edit that would make the exemption false — and this fails naming the
+    // binding, which is the direction that decays.
+    const sources = new Map(productSources())
+    const direct = new Set(
+      Array.from(sources).filter(([, s]) => IMPORTS_STRIPE_CLIENT.test(s)).map(([f]) => f),
+    )
+
+    for (const [file, exemption] of Object.entries(ONE_HOP_EXEMPTIONS)) {
+      const source = sources.get(file)
+      expect(source, `${file} is exempted here and is no longer in the tree`).toBeTruthy()
+
+      const reached = new Map<string, string[]>()
+      for (const m of Array.from(source!.matchAll(/import\s+([^'"]*?)\s*from\s+['"]([^'"]+)['"]/g))) {
+        const [, clause, spec] = m
+        const target = importedModules(file, `from '${spec}'`).find((c) => direct.has(c))
+        if (target) reached.set(target, importBindings(clause).sort())
+      }
+
+      expect(
+        Object.fromEntries(Array.from(reached).sort()),
+        `${file} is exempted from the one-hop money gate on this premise: ${exemption.why} It now ` +
+          'reaches the Stripe client through a different module or takes a different binding, so ' +
+          'the premise no longer holds. Re-derive the exemption or delete it and gate the file.',
+      ).toEqual(exemption.reaches)
+    }
   })
 
   it('replays PR #566: no review owed, an intake owed, and the summary says both', () => {
