@@ -721,24 +721,37 @@ ground is what makes that table a guarantee rather than an estimate.
 
 ## Part 5 — Emoji and copy voice
 
-**Emoji.** Six curated animated glyphs, used to mark moments — never as
-decoration, and never as the site's voice. The registry is
+**Emoji.** Three curated animated glyphs under a ceiling of six, used to mark
+moments — never as decoration, and never as the site's voice. The registry is
 `lib/marketing/emoji.ts`; the component is `<MarketingEmoji>`; the assets are
 Google's **Noto Animated Emoji**, CC BY 4.0, re-encoded and self-hosted under
 `public/images/emoji/`.
 
-| Glyph | For |
-|---|---|
-| 🚀 rocket | Something shipped — the newest changelog week, a launch. |
-| 🎉 popper | A real win the visitor caused. Never a win we caused ourselves. |
-| ✨ sparkles | Small delight; something got better without them asking. |
-| 💫 dizzy | Motion and arrival. Stands in for 🌠, which is not animated. |
-| 🪐 planet | The space register itself, where a page needs a mark not a mood. |
-| ⭐ star | A result worth keeping. The quiet anchor — it barely moves, on purpose. |
+| Glyph | For | Where it marks a moment today |
+|---|---|---|
+| 🚀 rocket | Something shipped — the newest changelog week, a launch. | `/changelog`, the newest week only |
+| 🎉 popper | A real win the visitor caused. Never a win we caused ourselves. | `/partner-program`, application received |
+| 🪐 planet | The space register itself, where a page needs a mark not a mood. | the marketing 404 |
 
-- **Six, not a pack.** A whole pack is weight nobody looks at, and the limit is
-  what keeps the set reading as a decision rather than a dependency. A seventh
-  is an edit to this table first.
+- **Six is a CEILING, not a quota, and the set is at three (DREAMCRM-118,
+  2026-09-23).** This table read six for a year, and ✨, 💫 and ⭐ spent all of
+  it registered, self-hosted, licence-attributed and referenced by nothing.
+  That is not a small untidiness — it is this Part's own rule broken from the
+  inside: **a glyph that is not marking anything is decoration**, and three of
+  six were marking nothing. They were cut rather than carried, and rather than
+  given invented moments to justify the assets. The third column above exists
+  so the next drift is visible in the brand book rather than only in the
+  registry.
+- **Three, not a pack, and not a set with spares.** A whole pack is weight
+  nobody looks at, and the limit is what keeps the set reading as a decision
+  rather than a dependency — which a set half of which marks nothing is not.
+  Adding a fourth (up to six) is an edit to this table FIRST, and the edit has
+  to name where it marks a moment; anything past six is a bigger conversation.
+- **Restoring a cut glyph is allowed and is not an apology.** Nothing in `CUT`
+  failed on its merits, so a real moment is a good reason to bring one back —
+  `lib/marketing/emoji.ts` carries the reasons and
+  `scripts/build-emoji.mjs` the re-encode parameters. What is banned is
+  restoring one and then looking for somewhere to put it.
 - **Still banned:** the chrome, the hero, product mocks, pricing, comparisons,
   ROI and grader numbers, error copy, billing copy, legal copy. Unchanged from
   the ban, and for the same reason — the site's job is *precise instrument*, and
@@ -828,7 +841,9 @@ file at all. That is the pattern; do not replace it with JS.
   happened". `scripts/build-emoji.mjs` records the chosen frame per glyph.
 - **A glyph that blinks out mid-loop is cut**, not tuned. ⚡ and 🌟 both scale
   to near-zero inside their loops and read as a flicker at 40px; they are in
-  the `REJECTED` list with the reason.
+  the `REJECTED` list with the reason. `REJECTED` and `CUT` are two lists on
+  purpose: the first is "failed on the merits, do not re-audition", the second
+  is "passed, and had nowhere to go".
 - **Always emit `width`/`height`.** These load inside text runs, and an image
   that arrives late and reflows a paragraph is worse than no image.
 

@@ -14,6 +14,15 @@
  * are — the skill lives outside the repo, so no test could fail when the repo
  * moved underneath it.
  *
+ * SINCE DREAMCRM-114 IT ALSO GRADES A SENTENCE THAT IS MISSING, which is a
+ * different question from a sentence that has gone stale and is the one every
+ * claim above is blind to. `guards-census` asserts that every file in
+ * `tests/guards/` is NAMED in the rulebook. #534 took three days to be
+ * written up, #598 was found only by an unscoped sweep pass, and #698 landed
+ * three blocking assertions at once — none of them moved a single fact the
+ * other eight claims read, and all three reached the rulebook because a person
+ * went looking.
+ *
  * It moves often. The axe ratchet (#534) changed what could merge and took
  * three days to reach the skill. A meeting sweep found the skill three claims
  * stale two minutes after #565 merged. Both were caught by a person choosing
@@ -69,6 +78,118 @@ import { pathToFileURL } from 'node:url'
 import { GATE_RULES } from './review-gate.mjs'
 
 const WORKFLOW_DIR = '.github/workflows'
+
+/**
+ * REGISTRATION BY LOCATION: the two directories the guards census compares.
+ *
+ * `tests/guards/` is where a never-again guard lives (§2d). The census below
+ * asserts that every file in it is NAMED, by its own file name, somewhere in
+ * the rulebook — so a machinery guard either reaches §2/§2c in the PR that
+ * introduces it, or fails `test` by name.
+ *
+ * WHY A DIRECTORY AND NOT A PREDICATE, which is the design decision and was
+ * measured before it was made. The tempting predicate — "a guard is a test
+ * that reads source off disk" — matches 81 files OUTSIDE this directory, most
+ * of them ordinary unit tests, and still misses `hero-lcp-paint`, which reads
+ * its subject out of a rendered stylesheet. Over-broad by roughly ten times
+ * AND blind to the case that prompted it. §2 is explicit that a false positive
+ * here costs a red `test` run naming an innocent file, so the predicate was
+ * not built. **A directory is self-declaring** — a file is in it because its
+ * author put it there — so the false-positive rate is zero by construction.
+ *
+ * WHAT THIS DOES NOT COVER, said here rather than left to be discovered: the
+ * design and accessibility guards in `tests/marketing/` and `tests/a11y/`.
+ * They are registered by hand in §2b and nothing goes red if the next one is
+ * forgotten. Moving such a guard into `tests/guards/` is how it earns
+ * coverage; moving one OUT is how coverage is lost silently.
+ */
+const GUARD_DIR = 'tests/guards'
+const RULEBOOK_DIR = 'docs/rulebook'
+
+/**
+ * NON-VACUITY FLOORS FOR THE CENSUS READER, and they are deliberately NOT
+ * shares.
+ *
+ * #691's lesson is that a floor written as a COUNT stops being an assertion
+ * once the population grows past it, and that a share keeps meaning the same
+ * thing at any tree size. That lesson is about a claim on a POPULATION. This
+ * is not one: it is a claim about the READER, and the only question it asks is
+ * whether anything was read at all. An absence assertion over an empty list
+ * passes — so a census whose directory moved, whose filter narrowed, or whose
+ * walk threw and returned nothing would report a clean tree forever. A share
+ * cannot express "you read nothing"; a floor can. They sit far below today's
+ * numbers (34 guard files, ~560 KB of rulebook) on purpose: this is a
+ * tripwire, not a second census.
+ */
+export const CENSUS_FLOORS = { guardFiles: 20, rulebookFiles: 2, rulebookBytes: 100_000 }
+
+/**
+ * Every `.md` under `docs/rulebook/`, recursively, as one string plus its file
+ * list. One string because the question is "is this name written down
+ * anywhere in the rulebook", and which file it landed in is the author's
+ * judgement rather than the check's.
+ */
+export function readRulebook(root = process.cwd()) {
+  const files = []
+  const walk = (dir, prefix) => {
+    const entries = readdirSync(join(root, dir), { withFileTypes: true })
+    for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {
+      if (entry.isDirectory()) walk(join(dir, entry.name), `${prefix}${entry.name}/`)
+      else if (entry.name.endsWith('.md')) files.push({ path: `${prefix}${entry.name}`, file: join(dir, entry.name) })
+    }
+  }
+  walk(RULEBOOK_DIR, '')
+  const text = files.map((f) => readFileSync(join(root, f.file), 'utf8')).join('\n')
+  return { files: files.map((f) => f.path), text }
+}
+
+/**
+ * Is `file` named in the rulebook AS A FILE NAME?
+ *
+ * Matched with boundaries on both sides, and both sides earn their keep:
+ *
+ *   - LEADING, so `tests/guards/control-bytes.ts` and a bare
+ *     `control-bytes.ts` both count. Which prefix an author wrote is style;
+ *     requiring one would redden 16 correct citations to no purpose.
+ *   - TRAILING, because `x.ts` is a prefix of `x.tsx` and a rulebook that
+ *     names only the `.tsx` file would otherwise report the `.ts` one
+ *     registered. §2d's a-prefix-is-not-a-name trap, answered before it fires
+ *     rather than after.
+ *
+ * And the STEM is deliberately not enough. `migration-check` is the live case:
+ * `scripts/migration-check.mjs` and `migration-check.yml` are both written up
+ * at length while `tests/guards/migration-check.test.ts` was named nowhere, so
+ * a stem match reported a guard registered when what was registered was a
+ * script. That is the identity-looseness family pointed at this document's own
+ * bookkeeping, and it is worth three false negatives to avoid.
+ */
+export function namedInRulebook(text, file) {
+  const escaped = file.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  // THE TWO BOUNDARIES ARE THE SAME CHARACTER CLASS, which the first version
+  // got wrong in the false-GREEN direction (Sentinel, reviewing #701). The
+  // leading class excluded `_` and `-`; the trailing lookahead excluded
+  // neither, so `widget.test.ts-old`, `widget.test.ts_bak` and
+  // `snap.control-bytes.ts` each reported the real file registered. For an
+  // absence assertion the false green is the direction that matters.
+  //
+  // `.` is handled separately rather than folded into the class, because the
+  // two cases it covers point opposite ways: `widget.test.ts.snap` and
+  // `snap.control-bytes.ts` must NOT count — a sibling artefact standing in
+  // for the guard — while a citation ending a sentence, `see
+  // control-bytes.ts.`, must. So a dot is refused only where it JOINS two
+  // name-shaped runs: something alphanumeric before it on the leading side,
+  // something alphanumeric after it on the trailing side. A path separator, a
+  // backtick, a space, a comma and a sentence-ending dot all still count.
+  //
+  // Both sides are lookarounds of the same shape, which is the point rather
+  // than a style choice: the first version spelled the leading boundary as a
+  // CONSUMING character class and the trailing one as a lookahead, and
+  // asymmetry between two halves of one predicate is exactly where §2d's
+  // identity-looseness family lives.
+  const before = '(?<![A-Za-z0-9_-])(?<![A-Za-z0-9]\\.)'
+  const after = '(?![A-Za-z0-9_-])(?!\\.[A-Za-z0-9])'
+  return new RegExp(`${before}${escaped}${after}`).test(text)
+}
 
 /**
  * THE WORKFLOW CENSUS, as the skill states it.
@@ -380,6 +501,126 @@ export const CLAIMS = [
       }
     },
   },
+  {
+    id: 'guards-census',
+    // `guardDir` IS AN INPUT, AND LEAVING IT OFF THIS LIST WAS THE BUG
+    // (Sentinel, reviewing #707). The comparison below is between two
+    // readings of the same directory, so BOTH are inputs — but the first
+    // version listed only one and defaulted the other, which turned a missing
+    // input into a vacuous pass instead of an ungradeable claim. See the
+    // comment on `ungraded` for the shape.
+    needs: ['guards', 'guardDir', 'rulebook'],
+    section: '§2d, "A never-again guard lives in `tests/guards/`", with the list in §2c',
+    states: 'every file in `tests/guards/**` is named, by its own file name, somewhere in `docs/rulebook/**`',
+    // THE ONLY CLAIM HERE WHOSE SUBJECT IS THE RULEBOOK'S OWN COMPLETENESS.
+    // The eight above ask whether a sentence about the repo is still true. This
+    // one asks whether a sentence EXISTS, which is the shape the other eight
+    // are blind to: #534 (three days), #598 (found only by an unscoped sweep
+    // pass) and #698 (three assertions in one merge) all moved nothing any of
+    // them grades. Measured on `main` at `66d087dc`: 34 guard files, 23 named.
+    //
+    // It is deliberately about NAMING and not about CORRECTNESS. Nothing here
+    // can tell whether the paragraph describing a guard is any good — that is
+    // §2d's sentence-versus-code family and it needs a reader. What this buys
+    // is that the paragraph EXISTS and has a name to find it by, which is the
+    // difference between an intake that happens and one that depends on
+    // somebody choosing to look.
+    check: (live) => {
+      const { files, text } = live.rulebook
+
+      // THE READER IS GRADED EXACTLY, NOT BY A FLOOR. Everything below is an
+      // absence assertion, so a reader that narrows makes this claim GREENER
+      // and no assertion downstream can feel it (§2d's reader family).
+      //
+      // THE FLOOR WAS NOT ENOUGH AND THIS IS THE MEASUREMENT (Sentinel,
+      // reviewing #701). A floor catches a reader that lands on ZERO. It
+      // cannot catch one that narrows PARTIALLY, which is the shape a
+      // plausible refactor actually takes: skipping `e2e-*` and `axe-*`
+      // dropped TWELVE of thirty-four guards out of the census, landed at 22
+      // — comfortably above a floor of 20 — and left `guards-census` green
+      // and all 35 tests passing. Twelve guards leave the census and nothing
+      // anywhere goes red. That is #691's rule holding after all: a count
+      // stops being an assertion the moment the population clears it, and the
+      // gap between 20 and 34 was never a tripwire margin, it was 41% of the
+      // census.
+      //
+      // So compare the filtered list against the UNFILTERED directory
+      // listing. Every entry in `tests/guards/` is either graded or named as
+      // the difference — neither a count nor a share, exact at any tree size.
+      // It also closes two holes the floor could never see: `readdirSync` is
+      // NON-RECURSIVE while `readRulebook`'s walk is recursive, so a guard at
+      // `tests/guards/<subdir>/foo.test.ts` used to be invisible AND silent;
+      // and a guard added with an extension nobody thought of now reddens
+      // instead of vanishing.
+      //
+      // NO `??` FALLBACK HERE, AND THE FIRST VERSION HAD ONE (Sentinel,
+      // reviewing #707). It read `(live.guardDir ?? live.guards).filter(f =>
+      // !live.guards.includes(f))`, which with `guardDir` absent becomes
+      // `guards.filter(f => !guards.includes(f))` — **empty by construction,
+      // for any input whatsoever.** The comparison did not fail, it
+      // DISAPPEARED, and because `guardDir` was missing from `needs` the
+      // runner did not file the claim as ungradeable either. Measured: the
+      // same partial narrowing that reddens naming twelve guards with
+      // `guardDir` present went GREEN with it absent, ungradeable=false.
+      //
+      // That is the floor's own failure mode reached through a different
+      // door, which makes it the third instance of one family: a check whose
+      // subject quietly leaves its field of view reports CLEAN. The fix is
+      // this file's own stated rule — A CLAIM THIS COULD NOT BE GRADED IS
+      // NEVER A CLAIM THAT HELD — so the input goes in `needs` and the
+      // default comes out. A defaulted input is a claim silently answering a
+      // question it was not able to ask.
+      //
+      // It was unreachable when it was written (`readLocalReality` always
+      // sets `guardDir`, and it has one production caller). It is fixed
+      // anyway, on the precedent already set a few lines up in `main()`'s
+      // `skipped` comment: a latent edge in the one classification this whole
+      // file exists to keep sharp is not somewhere to leave a maybe.
+      const ungraded = live.guardDir.filter((f) => !live.guards.includes(f))
+      if (ungraded.length) {
+        return {
+          actual: `${GUARD_DIR} holds ${live.guardDir.length} entries and the census grades ${live.guards.length}; ungraded: ${ungraded.join(', ')}`,
+          fix:
+            'something in `tests/guards/` is not being graded by the census, so it could be added ' +
+            'or changed with nothing going red. Either the extension filter narrowed, or a guard ' +
+            'moved into a subdirectory (this listing is not recursive), or a guard arrived with an ' +
+            'extension nobody anticipated. Widen the reader — never widen it by deleting this ' +
+            'comparison, which is the one edit that makes the census silently partial.',
+        }
+      }
+
+      // The floors below still earn their keep on the RULEBOOK side, where
+      // there is no exact expected size to compare against — a corpus is not
+      // a directory listing. They are tripwires against a walk that returned
+      // nothing, and nothing more is claimed for them.
+      if (
+        live.guards.length < CENSUS_FLOORS.guardFiles ||
+        files.length < CENSUS_FLOORS.rulebookFiles ||
+        text.length < CENSUS_FLOORS.rulebookBytes
+      ) {
+        return {
+          actual: `the census read ${live.guards.length} guard files and ${files.length} rulebook files (${text.length} bytes)`,
+          fix:
+            'the census reader found almost nothing, so its verdict means nothing. A directory ' +
+            'moved, a filter narrowed, or a walk returned empty. Fix the reader — do NOT lower ' +
+            'CENSUS_FLOORS, which is the one edit that makes this check permanently green.',
+        }
+      }
+
+      const absent = live.guards.filter((f) => !namedInRulebook(text, f))
+      if (!absent.length) return null
+      return {
+        actual: `${absent.length} of ${live.guards.length} guard files are named nowhere in the rulebook: ${absent.join(', ')}`,
+        fix:
+          'a guard that can fail a stranger\'s PR has reached the repo and not the rulebook. Write ' +
+          'it up — §2c for a machinery or invariant guard, §2b for a design or contrast one — and ' +
+          'cite it BY FILE NAME, including the extension. A bare stem does not count: ' +
+          '`migration-check` is satisfied by a script and a workflow of the same name while the ' +
+          'guard itself is registered nowhere. If the file is not a guard, it does not belong in ' +
+          '`tests/guards/`; move it rather than writing a paragraph about it.',
+      }
+    },
+  },
 ]
 
 /**
@@ -506,7 +747,17 @@ export function readLocalReality(root = process.cwd()) {
   for (const file of readdirSync(dir).filter((f) => /\.ya?ml$/.test(f)).sort()) {
     workflows[file] = readFileSync(join(dir, file), 'utf8')
   }
-  return { workflows, gateAreas: GATE_RULES.map((r) => r.id) }
+  // BOTH LISTS, and the unfiltered one is the load-bearing half. See
+  // `guards-census` for why the filtered list alone cannot be trusted.
+  const guardDir = readdirSync(join(root, GUARD_DIR)).sort()
+  const guards = guardDir.filter((f) => /\.tsx?$/.test(f))
+  return {
+    workflows,
+    gateAreas: GATE_RULES.map((r) => r.id),
+    guards,
+    guardDir,
+    rulebook: readRulebook(root),
+  }
 }
 
 /**
@@ -587,7 +838,7 @@ function loadJson(flag) {
  * The rule the first version was reaching for survives all of this: a drift
  * detector that reports green when it detected NOTHING is the failure it
  * exists to catch, aimed at itself. Which is why every summary leads with
- * "Graded N/8" instead of a tick, in all three cases.
+ * "Graded N/9" instead of a tick, in all three cases.
  */
 function main() {
   const credentialAbsent = process.argv.includes('--no-protection-credential')
