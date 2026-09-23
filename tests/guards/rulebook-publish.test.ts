@@ -111,7 +111,10 @@ describe('C — the encoding predicates fire, and fire on the thing they name', 
       [0x98, 0x02dc], [0x99, 0x2122], [0x9a, 0x0161], [0x9b, 0x203a], [0x9c, 0x0153],
       [0x9e, 0x017e], [0x9f, 0x0178],
     ])
-    return [...Buffer.from(utf8, 'utf8')]
+    // `Array.from` rather than a spread: `tsconfig.json` targets below ES2015,
+    // where spreading an iterator needs `downlevelIteration` and `pnpm
+    // typecheck` reddens instead. Same everywhere a Map is read below.
+    return Array.from(Buffer.from(utf8, 'utf8'))
       .map((b) => String.fromCodePoint(CP1252.get(b) ?? b))
       .join('')
   }
@@ -293,19 +296,19 @@ describe('the preflight, over the real tree', () => {
    */
   it('reads a rulebook rather than nothing', () => {
     expect(local.size).toBeGreaterThanOrEqual(5)
-    expect([...local.values()].reduce((n, b) => n + b.length, 0)).toBeGreaterThan(100_000)
+    expect(Array.from(local.values()).reduce((n, b) => n + b.length, 0)).toBeGreaterThan(100_000)
     expect(local.has('SKILL.md')).toBe(true)
-    expect([...local.keys()].filter((p) => p.startsWith('references/')).length).toBeGreaterThanOrEqual(4)
+    expect(Array.from(local.keys()).filter((p) => p.startsWith('references/')).length).toBeGreaterThanOrEqual(4)
   })
 
   it('every path is stored posix-style, because a backslash path creates a SECOND store file', () => {
-    for (const path of local.keys()) expect(path).not.toContain('\\')
+    local.forEach((_buf, path) => expect(path).not.toContain('\\'))
   })
 
   it('is clean on every file, which is the run that refuses to publish a mangled tree', () => {
-    for (const [path, buf] of local) {
+    local.forEach((buf, path) => {
       expect(gradeText(path, buf.toString('utf8')), path).toEqual([])
-    }
+    })
   })
 })
 
