@@ -6,10 +6,12 @@
 #   2. every drizzle migration, applied from scratch — which also proves a
 #      fresh-database boot works, the same path the deploy takes
 #   3. a production build + server on E2E_PORT
-#   4. playwright against it
+#   4. playwright against it — or, under `--load-sanity`, the load measurement
+#      instead (see THE LOAD MODE below)
 #
 # Usage:  bash scripts/e2e-harness.sh [--skip-build] [--spec <filter>]
 #                                     [--repeat <n>] [-- <playwright args…>]
+#         bash scripts/e2e-harness.sh --load-sanity [--load-level <C>x<N>]…
 # Teardown is automatic (trap), including on failure.
 #
 # ------------------------------- THE ARGUMENTS -------------------------------
@@ -32,6 +34,40 @@
 #   --repeat <n>      `--repeat-each=<n>`: run every selected test n times.
 #                     Also `E2E_REPEAT`.
 #   --                Everything after it goes to playwright untouched.
+#
+# ----------------------------- THE LOAD MODE --------------------------------
+#
+# `--load-sanity` runs `scripts/load-sanity.mjs` against the server this script
+# already stands up, INSTEAD of playwright.
+#
+# WHY IT BELONGS HERE (DREAMCRM-117). `docs/LOAD-SANITY.md`'s own
+# recommendation 4 is "re-run after any change to public-site rendering and
+# compare the table", and the clinic-site cache (#507, then #654) changed
+# exactly that — but the 2026-08-18 baseline has never been re-measured, so the
+# fix has been a PREDICTION in a document for a fortnight. The reason it stayed
+# one is mundane: `load-sanity.mjs` defaults to `http://127.0.0.1:3100` and
+# asks for `/site/e2e-dental`, and the only thing in this repo that produces a
+# live clinic site on that exact port and slug is the four steps above. Every
+# session that wanted to honour recommendation 4 had to hand-assemble them, and
+# none did.
+#
+#   --load-sanity        Measure instead of driving a browser.
+#   --load-level <C>x<N> Concurrency C, N requests per path. Repeatable, and
+#                        each level is a separate table. Default: `8x40 25x75`
+#                        — the two levels the 2026-08-18 baseline used, so the
+#                        after-table lines up with the before-table row for row.
+#
+# THE WEBHOOK SERVER IS NOT STARTED IN THIS MODE, and that is a measurement
+# decision rather than a saving. A second `next start` on the same box competes
+# for the same cores as the server being measured, and nothing on the five
+# public read-only paths `load-sanity.mjs` requests can reach a webhook route.
+# Leaving it up would put a variable in the table that has nothing to do with
+# the page being measured.
+#
+# A SPEC FILTER OR A REPEAT COUNT IS REFUSED HERE rather than ignored. Neither
+# reaches the load script, so accepting one would produce a full green run that
+# measured something other than what the reader asked for — the same silent
+# shape the `E2E_SPEC` agreement guard exists to refuse.
 #
 # ANYTHING NOT RECOGNISED IS STILL FORWARDED, so the existing
 # `pnpm test:e2e -- --grep foo` habits keep working and `--skip-build` keeps
@@ -88,6 +124,8 @@ REPEAT=""
 # is eight and that `E2E_SPEC` actually reaches playwright — would have been
 # the untested half, which is precisely the arrangement §2d refuses.
 PRINT_PLAN=0
+LOAD_SANITY=0
+LOAD_LEVELS=()
 
 # A SPEC FILTER IS A PATH-SHAPED TOKEN. Letters, digits, dot, dash, underscore
 # and slash — everything a test path is made of and nothing a shell reacts to.
@@ -120,6 +158,24 @@ SPEC_RE='^[A-Za-z0-9._/][A-Za-z0-9._/-]*$'
 # zero instead of a cancellation at minute sixty.
 REPEAT_MAX=200
 
+# A LOAD LEVEL IS `<concurrency>x<requests-per-path>` — `8x40`, the shape the
+# baseline table's own heading is written in ("Concurrency 8, 40
+# requests/path"), so the flag and the document say the same thing.
+LEVEL_RE='^[0-9]+x[0-9]+$'
+# THE CEILINGS, and they are sized off what the numbers would MEAN rather than
+# off what the box would survive. `load-sanity.mjs` opens `conc` sockets at
+# once and waits: past a couple of hundred the p99 it reports is the local
+# kernel's accept queue rather than the application, which is the one thing
+# this instrument exists to characterise. The request ceiling is a wall-clock
+# guard of the same kind as REPEAT_MAX — five paths at 5,000 requests each is
+# an afternoon, and the digit that gets it there is one keystroke from 500.
+LOAD_CONC_MAX=200
+LOAD_REQS_MAX=1000
+# The levels the 2026-08-18 baseline was measured at. The default is those two
+# and nothing else, because an after-table measured at a level the before-table
+# never used cannot be compared with it — which is the whole point of the run.
+LOAD_LEVELS_DEFAULT=('8 40' '25 75')
+
 die() { echo "e2e-harness: $1" >&2; exit 2; }
 
 add_spec() {
@@ -136,6 +192,18 @@ set_repeat() {
   (( n >= 1 )) || die "--repeat must be at least 1."
   (( n <= REPEAT_MAX )) || die "--repeat $n is above the $REPEAT_MAX ceiling — see the header."
   REPEAT="$n"
+}
+
+add_level() {
+  [[ -n "$1" ]] || die "--load-level needs a value."
+  [[ "$1" =~ $LEVEL_RE ]] || die "--load-level '$1' is not <concurrency>x<requests> (e.g. 8x40)."
+  # `10#` for the same reason `set_repeat` needs it: `08x40` is octal to bash
+  # arithmetic and would die with a syntax error nobody typed.
+  local c=$((10#${1%x*}))
+  local r=$((10#${1#*x}))
+  (( c >= 1 && c <= LOAD_CONC_MAX )) || die "--load-level concurrency $c is outside 1..$LOAD_CONC_MAX — see the header."
+  (( r >= 1 && r <= LOAD_REQS_MAX )) || die "--load-level requests $r is outside 1..$LOAD_REQS_MAX — see the header."
+  LOAD_LEVELS+=("$c $r")
 }
 
 # The env spellings come FIRST so an explicit flag beside them wins. A blank
@@ -157,10 +225,28 @@ while [[ $# -gt 0 ]]; do
     --spec=*) add_spec "${1#*=}"; shift ;;
     --repeat) set_repeat "${2:-}"; shift 2 ;;
     --repeat=*) set_repeat "${1#*=}"; shift ;;
+    --load-sanity) LOAD_SANITY=1; shift ;;
+    --load-level) add_level "${2:-}"; shift 2 ;;
+    --load-level=*) add_level "${1#*=}"; shift ;;
     --) shift; PW_ARGS+=("$@"); break ;;
     *) PW_ARGS+=("$1"); shift ;;
   esac
 done
+
+# A LEVEL WITHOUT THE MODE IS A TYPO, not a default. Accepting it would run the
+# whole browser suite and report green on a command whose author asked for a
+# measurement — the failure that looks exactly like success.
+if (( ! LOAD_SANITY )) && (( ${#LOAD_LEVELS[@]} )); then
+  die "--load-level needs --load-sanity; on its own it would run the browser suite instead."
+fi
+if (( LOAD_SANITY )); then
+  # Refused rather than ignored — see "A SPEC FILTER OR A REPEAT COUNT IS
+  # REFUSED HERE" in the header.
+  (( ${#SPECS[@]} )) && die "--spec has no meaning under --load-sanity (the load script drives no tests)."
+  [[ -n "$REPEAT" ]] && die "--repeat has no meaning under --load-sanity (use --load-level <C>x<N>)."
+  (( ${#PW_ARGS[@]} )) && die "--load-sanity takes no playwright arguments (got: ${PW_ARGS[*]})."
+  (( ${#LOAD_LEVELS[@]} )) || LOAD_LEVELS=("${LOAD_LEVELS_DEFAULT[@]}")
+fi
 
 # The resolved playwright invocation, built once and used by both exits below.
 PW_INVOCATION=()
@@ -169,6 +255,16 @@ PW_INVOCATION=()
 (( ${#PW_ARGS[@]} )) && PW_INVOCATION+=("${PW_ARGS[@]}")
 
 if (( PRINT_PLAN )); then
+  if (( LOAD_SANITY )); then
+    for level in "${LOAD_LEVELS[@]}"; do
+      # Word-split on purpose: a level is stored as the two numbers it resolved
+      # to, so the plan line is the command that will actually run.
+      # shellcheck disable=SC2086
+      set -- $level
+      echo "load-sanity --conc $1 --reqs $2"
+    done
+    exit 0
+  fi
   echo "playwright test ${PW_INVOCATION[*]-}"
   exit 0
 fi
@@ -253,6 +349,28 @@ for i in $(seq 1 60); do
   sleep 1
 done
 curl -sf "http://127.0.0.1:$PORT/api/health" >/dev/null || { echo "server never became healthy:"; tail -20 /tmp/e2e-server.log; exit 1; }
+
+# --- the load mode's exit (DREAMCRM-117) ------------------------------------
+#
+# Everything the measurement needs is now up, and everything below this block
+# would only compete with it for the cores it is about to measure. The `trap`
+# still tears the cluster and the server down on the way out.
+#
+# NO WARM-UP PASS, DELIBERATELY. The cache under measurement has a 60s TTL, so
+# the first requests of each batch pay the full uncached render and land in the
+# table — which understates the fix rather than flattering it, and keeps the
+# methodology byte-identical to the 2026-08-18 baseline it is compared against.
+# A warmed table would be a different measurement wearing the same headings.
+if (( LOAD_SANITY )); then
+  echo "--- load sanity ---"
+  for level in "${LOAD_LEVELS[@]}"; do
+    # shellcheck disable=SC2086
+    set -- $level
+    echo ""
+    node scripts/load-sanity.mjs --base "http://127.0.0.1:$PORT" --conc "$1" --reqs "$2"
+  done
+  exit 0
+fi
 
 # --- the webhook server (DREAMCRM-48) --------------------------------------
 #
