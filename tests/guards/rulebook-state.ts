@@ -51,7 +51,7 @@
  *
  *   - **paragraph** — the maximal run of non-blank lines around the `STATE:`.
  *   - **clause** — from `STATE:` to the end of that paragraph.
- *   - **claim** — the `**bold run**` containing the `STATE:`. All 35 entries in
+ *   - **claim** — the `**bold run**` containing the `STATE:`. All 37 entries in
  *     the rulebook are written `**STATE: …**`, and the claim ends where the
  *     bold does: what follows is commentary, and commentary routinely names
  *     SHAs that are NOT the merge commit (a review head, an earlier re-read).
@@ -276,10 +276,14 @@ export interface MainHistory {
  * between two readers of the same notation is precisely the wiring trap above.
  *   - A COMMIT SUBJECT's `#N` is unambiguous: it is either the squash trailer
  *     or the merge-commit prefix, and nothing else in a subject is shaped like
- *     one. So single-digit PRs count. `main` carries fourteen of them
- *     (`Merge pull request #8 from …` among them), and the first draft of this
- *     function silently dropped every one — caught by the real-tree assertion
- *     in the test rather than by review.
+ *     one. So single-digit PRs count. **`main` carries SIX of them** — `#1 #5
+ *     #6 #7 #8 #9`, all merge-commit prefixes; single-digit squash trailers are
+ *     zero — and the first draft of this function silently dropped every one,
+ *     caught by the real-tree assertion in the test rather than by review.
+ *     (The first draft of this COMMENT said fourteen, which was a number
+ *     nobody had measured. Sentinel counted it on #685. A docblock in a
+ *     document whose whole argument is that a claim has to be re-checkable is
+ *     the last place to put an unmeasured one.)
  *   - An ENTRY's `#N` is read out of PROSE, where `#1` is far more likely to be
  *     an ordinal than a PR. The rulebook's own PR numbers start at #534, so the
  *     two-digit floor costs nothing there and buys a quieter parse.

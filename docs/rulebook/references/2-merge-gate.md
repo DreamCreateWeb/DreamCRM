@@ -2852,6 +2852,20 @@
   clothes — §2d's "a guard's SENTENCE is a claim about a MACHINE", and the fix
   is the sentence.
 
+  **IF `test` FAILS ON A `STATE:` LINE YOU DID NOT WRITE, THIS IS WHY, AND IT IS
+  NOT A BROKEN GUARD.** (Sentinel's note 4 on #685, written here rather than
+  left to be discovered.) Rule 5's obligation lands on whoever touches
+  `docs/rulebook/` NEXT, not on whoever created the staleness — so an edit to
+  one line of §6 can go red naming a line in §2 about somebody else's PR. That
+  is deliberate, and it is the trade that keeps the rule out of `main`: the
+  alternative fires at the merge, where it stops the production deploy and
+  blocks every open PR instead of one author. **The fix is to flip the line it
+  names** — the verdict, the merge SHA and the UTC time, which `gh pr view <n>
+  --json state,mergedAt,mergeCommit` gives you in one call — and then carry on
+  with your own change. It is a minute of somebody else's bookkeeping, paid by
+  the person who happened to be standing there, which is the whole reason the
+  nine-line backlog could accumulate when nothing was paying it.
+
   **What this guard still cannot see**, stated here rather than left to its
   docblock: a merge that reaches `main` with no PR number in its subject
   (`947680cb` and `af59967e` — the same off-board class §3 writes up, and the
@@ -2940,10 +2954,23 @@
     the same PR that adds the section, which is worth the embarrassment of
     recording.
 
-  **STATE: on the PR — #685, routed before it merged. Forge owns the flip at
-  the next sweep, with the merge SHA and the UTC time.** Safe to leave as it
-  stands: the narrowing above is exactly what makes a pre-merge STATE line
-  legal, and the post-merge simulation asserts it.
+  **STATE: MERGED — `ad7e3f4f` (#685), 2026-09-23 03:40:24Z, Sentinel APPROVE WITH
+  NOTES** (reviewed at head `995fbf11` against a verified-green `test`/`e2e` on
+  `7bc4fc77`; the reviewer re-ran the predicate against the real tree in four
+  states rather than reading the argument, including the mutation that
+  reproduces his original finding). **Flipped by the follow-up that also
+  carries his four notes — which is the first real use of the narrowing above
+  working as designed**: this edit to `docs/rulebook/` is exactly what makes
+  `rulebookEditedSince` true for #685, so rule 5 was armed on the very PR that
+  owed the flip, and would have failed `test` had the flip been forgotten.
+
+  **It took FIVE update-branch cycles to land**, on a night when `main` was
+  taking a commit about every seven minutes and `test` runs about seven —
+  auto-merge armed throughout. That is §2a's corrected `allow_update_branch`
+  claim reproduced within a day of writing it down, and the honest reading is
+  that on a busy queue arming auto-merge is necessary and not sufficient: some
+  cycle has to win the race, and nothing shortens the race except a quieter
+  queue or a faster suite.
 
   **THE FIFTIETH: #688, `e2e/duplicate-watch.ts` +
   `tests/guards/e2e-duplicate-watch.test.ts` (DREAMCRM-105, `a7bdf172`,
@@ -3020,6 +3047,51 @@
   `app/route.ts` was not a surface. Nothing lives there today, which is exactly
   why it would have gone unnoticed.)
 
+
+  **THE FIFTY-FIRST: #680, `.github/workflows/e2e-flake-hunt.yml` +
+  `scripts/e2e-harness.sh` + `tests/guards/e2e-harness-args.test.ts`
+  (DREAMCRM-105, `0d7756a2`, 2026-09-23 02:47:00Z). A NEW CLASS, and the
+  TWELFTH workflow file** — the instrument that turns "fails about once a day,
+  can't reproduce" into a ratio, by running one spec N times. `workflow_dispatch`
+  ONLY, so it cannot hold a merge and costs nothing on a morning nobody is
+  hunting. Two things make it an entry rather than a footnote: its dispatch
+  inputs are **the repository's first user-controlled strings**, so they ride
+  `env:` and are validated in the harness rather than interpolated into a shell
+  line; and the census in `scripts/rulebook-drift.mjs` gained its entry in the
+  same diff, which is what keeps a new scheduled workflow from failing `test`
+  by name. §2a's count moved eleven → twelve in this pass.
+
+  **A CASE on it the same night, no ordinal: #692** (`183664d8`, 2026-09-23
+  03:13:09Z) — **the hunt reproduced the flake, 9 of 200, and found the watcher
+  blind while doing it.** That is the shape worth carrying: an instrument built
+  to measure a defect earned its keep by failing to see one, which is the only
+  way anybody learns a watcher's field of view is narrower than its name.
+
+  **A CASE on the one-hop money gate, no ordinal: #691** (`4508ffc1`, merged
+  `a77f7a19`, 2026-09-23 02:34:26Z) — **the one-hop instrument's floors are
+  SHARES, not counts.** A floor written as a count passes vacuously the moment
+  the population grows past it, which makes it a threshold that stops being an
+  assertion without anybody editing it. A share keeps meaning the same thing at
+  any tree size. Same family as the renderer-derived witness in #690: the
+  instrument holding a rule in place drifts exactly as the rule would.
+
+  **THE FIFTY-SECOND: #682, `e2e/axe-selftest.spec.ts` + the widened
+  `e2e/axe-headroom.ts` / `e2e/axe.ts` (DREAMCRM-107, `cd67e59c`, 2026-09-23
+  03:21:20Z). A NEW CLASS — the a11y gate reads what axe could not DECIDE.**
+  Every axe rule here has graded violations; this grades the INCOMPLETES — the
+  checks axe ran and could not resolve, which have always been reported as
+  neither pass nor fail and therefore counted as clean. A ceiling of zero over
+  violations says nothing about a page where the tool declined to answer.
+
+  **A CASE on the contrast reader, no ordinal: #687** (`10b1c96c`, 2026-09-23
+  03:28:04Z) — **the contrast rules read a template broken across lines.** This
+  is `quotedChunks`' residual from #657 closed: the reader was per-LINE, so a
+  multi-line template's static text was unread, and §2b recorded that as a live
+  blind spot with ten lines behind it. It is a CASE rather than a class because
+  no assertion, threshold or number moves — only the FIELD OF VIEW of every
+  rule built on the shared reader, which is the #669 shape and is routed for
+  the same reason: a field of view that grows with no new assertion still
+  changes what fails `test` by name.
 
 **Which repo-settings change goes where.** A setting that changes *which* checks
 are required or *who* may bypass them is branch protection: §3's review gate
