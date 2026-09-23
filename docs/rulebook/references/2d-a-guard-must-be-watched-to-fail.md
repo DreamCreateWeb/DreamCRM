@@ -500,6 +500,25 @@ went red **while the guard it was about was working perfectly**. Nobody
 reviewing it could see the difference, because the sentence and the code agreed
 with each other — they just disagreed with the machine that gates the merge.
 
+**THE THIRD INSTANCE, AND THE EXPENSIVE ONE: THE MACHINE CAN BE THE CI EVENT.**
+2026-09-23, hours after the two above. Every job that runs `pnpm test` had a
+fetch-of-main step, correctly spelled, pinned by a census that asserted it was
+there. On a `pull_request` it transferred main's history. On a `push` to `main`
+it transferred nothing — `actions/checkout` had already left main at depth
+1 with its tip equal to the remote tip, so there was nothing to fetch —
+and `origin/main` resolved with ONE commit. `ci.yml` was honestly green on
+every PR; `deploy.yml` was red on every push, and `deploy: needs: test` froze
+the production pipeline.
+
+Note what was NOT wrong: the step, its spelling, the census that pinned it, the
+tree, and the reasoning about the tree. **The sentence "this job fetches main's
+history" was a claim about a MACHINE, and there were two machines.** Ask the
+question this section is named for at the level of the RUNNER as well as the
+predicate: which event produced this run, and does the step do the same thing
+under both? If a workflow triggers on more than one event, that is the first
+place to look, and the cheapest fix is usually to remove the state the
+difference lives in rather than to branch on it.
+
 The fix is the one this section prescribes: **ask which machine, and then
 assert the part that is true on both.** The tree-level claim became "commentary
 SHAs EXIST" — which is a fact about the document, not about the clone — and the

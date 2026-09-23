@@ -169,7 +169,9 @@ describe('the guard can actually see main', () => {
     expect(
       commitCount,
       'origin/main was fetched shallow — rules 4 and 5 are blind and would report clean. ' +
-        'See the `Fetch main` step in .github/workflows/ci.yml and deploy.yml.',
+        'Check `fetch-depth: 0` on the CHECKOUT of this job, not just the `Fetch main` step: ' +
+        'on a push event the fetch is a no-op because the depth-1 tip already equals the ' +
+        'remote tip. .github/workflows/{ci,deploy,nightly}.yml.',
     ).toBeGreaterThanOrEqual(MAIN_HISTORY_FLOOR)
     expect(
       history.mergedPrs.size,
@@ -249,6 +251,19 @@ describe('no STATE line in the rulebook lies', () => {
    * (`deploy: needs: test`) and make every open PR unmergeable
    * (`strict: true`). It is the most expensive failure this guard can cause
    * and the cheapest one to check for.
+   *
+   * THIS TEST AND `holds at zero findings` ARE LOAD-BEARING TOGETHER — DO NOT
+   * DELETE EITHER ON THE GROUNDS THAT THE OTHER COVERS IT. (Sentinel's note 2
+   * on #685.) The simulation below is deliberately MORE PERMISSIVE than
+   * reality: it blankets `rulebookEditedSince: () => false` across every
+   * entry, while on real `main` only the just-merged subject answers false —
+   * every pre-`docs/rulebook/` subject answers TRUE, because the directory
+   * does not exist at those commits, so `git diff` always differs. What makes
+   * the pair sound is that `holds at zero findings` runs the REAL predicate
+   * over the same tree and the same SHAs, and this test covers only the one
+   * entry that the real-tree test structurally cannot reach — the PR being
+   * merged, whose number is not in `mergedPrs` until it lands. Neither alone
+   * is the assertion.
    */
   it('stays green on `main` at the instant this tree merges', () => {
     const { history } = readMainHistory()
@@ -627,7 +642,7 @@ describe('the subject reader main history is built from', () => {
     ).toBe(674)
   })
 
-  it('reads a single-digit PR number, which main carries fourteen of', () => {
+  it('reads a single-digit PR number, which main carries six of', () => {
     expect(prNumberFromSubject('Merge pull request #8 from DreamCreateWeb/claude/stripe-admin-ui')).toBe(8)
   })
 

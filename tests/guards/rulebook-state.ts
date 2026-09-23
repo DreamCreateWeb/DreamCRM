@@ -51,7 +51,7 @@
  *
  *   - **paragraph** — the maximal run of non-blank lines around the `STATE:`.
  *   - **clause** — from `STATE:` to the end of that paragraph.
- *   - **claim** — the `**bold run**` containing the `STATE:`. All 35 entries in
+ *   - **claim** — the `**bold run**` containing the `STATE:`. All 37 entries in
  *     the rulebook are written `**STATE: …**`, and the claim ends where the
  *     bold does: what follows is commentary, and commentary routinely names
  *     SHAs that are NOT the merge commit (a review head, an earlier re-read).
@@ -124,8 +124,25 @@
  *   - `strict: true` means a PR's `test` runs on the merge RESULT, so the tree
  *     it grades is byte-identical to the `main` it is about to create.
  *   - Therefore any tree that would fail on `main` fails on the PR first, where
- *     the author can fix it inside their own diff. `main` cannot go red from a
- *     merge that was green.
+ *     the author can fix it inside their own diff.
+ *
+ * **THAT ARGUMENT IS ABOUT THE TREE, AND IT IS ONLY ABOUT THE TREE.** The
+ * first draft of this docblock ended it with "`main` cannot go red from a
+ * merge that was green", full stop, and that sentence is FALSE — it was
+ * reviewed, agreed to, merged, and blocked two production deploys within the
+ * hour. A check is a function of the tree AND of the machine it runs on, and
+ * the two events do not hand it the same machine: `actions/checkout` leaves a
+ * `push` run holding main at depth 1 with its tip already current, so the
+ * fetch step that genuinely transfers history on a `pull_request` transfers
+ * NOTHING on a push, and `origin/main` resolved with one commit. The eyes
+ * floor fired, correctly, on `main`.
+ *
+ * So the honest claim is narrower: **`main` cannot go red from a merge that
+ * was green FOR REASONS THAT ARE A FUNCTION OF THE TREE.** Anything a check
+ * reads that is not in the tree — the clone's depth, the refs it has,
+ * the event that produced it — is outside the argument and has to be
+ * pinned separately. `tests/guards/axe-baseline-ratchet.test.ts` now does
+ * that statically, per job, so the next instance fails on a PR.
  *
  * And the obligation it encodes is the honest one: **you touched the rulebook
  * and left a stale line in it.** The nine-line incident is squarely inside
@@ -276,10 +293,14 @@ export interface MainHistory {
  * between two readers of the same notation is precisely the wiring trap above.
  *   - A COMMIT SUBJECT's `#N` is unambiguous: it is either the squash trailer
  *     or the merge-commit prefix, and nothing else in a subject is shaped like
- *     one. So single-digit PRs count. `main` carries fourteen of them
- *     (`Merge pull request #8 from …` among them), and the first draft of this
- *     function silently dropped every one — caught by the real-tree assertion
- *     in the test rather than by review.
+ *     one. So single-digit PRs count. **`main` carries SIX of them** — `#1 #5
+ *     #6 #7 #8 #9`, all merge-commit prefixes; single-digit squash trailers are
+ *     zero — and the first draft of this function silently dropped every one,
+ *     caught by the real-tree assertion in the test rather than by review.
+ *     (The first draft of this COMMENT said fourteen, which was a number
+ *     nobody had measured. Sentinel counted it on #685. A docblock in a
+ *     document whose whole argument is that a claim has to be re-checkable is
+ *     the last place to put an unmeasured one.)
  *   - An ENTRY's `#N` is read out of PROSE, where `#1` is far more likely to be
  *     an ordinal than a PR. The rulebook's own PR numbers start at #534, so the
  *     two-digit floor costs nothing there and buys a quieter parse.
