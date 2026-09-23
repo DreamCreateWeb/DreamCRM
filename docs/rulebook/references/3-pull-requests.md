@@ -223,20 +223,10 @@ same reason: found by its author while making an unrelated change in the same
 file (the ⌘K refund note), widened in that PR rather than deferred, and routed
 by hand on merge day rather than left for the enumeration to carry alone.
 
-**STATE: MERGED — `f8c642da` (#711), 2026-09-23 13:01:49Z.** Pinned in
+**STATE: MERGED — PR #711, `f8c642da`, 2026-09-23 13:01:48Z.** Pinned in
 `MUST_BE_GATED` as `money` in the same PR. Written down before the merge on the
 DREAMCRM-60 precedent §2 sets out — write it down early, say what state it is
-in, and own the flip.
-
-**The flip was owed to the next rulebook editor, and that is the mechanism
-working rather than a handover being missed.** The entry above said the flip
-was "Forge's at the next sweep, not the author's". `rulebook-state.ts` rule 5
-is narrower and better than that: it fires on a stale `STATE:` line only once
-`docs/rulebook/**` is edited again, so the obligation lands on whoever next
-touches the file rather than waiting for a sweep to notice. That was
-DREAMCRM-115 (#700), which is why this flip rides a workflow-alarm PR and not
-a rulebook one. **Nothing was late** — the line was correct when written and
-became stale 25 minutes later.
+in, and own the flip; the flip is Forge's at the next sweep, not the author's.
 Note what it is NOT: `GATE_RULES` gained a PATTERN, not an area, so the count
 stays **nine**, `tests/guards/rulebook-drift.test.ts` stays green through it,
 correctly, and `scripts/rulebook-drift.mjs` needs no edit. Nothing in the repo

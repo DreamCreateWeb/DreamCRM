@@ -349,6 +349,29 @@ names rather than as stems.
   premise is a component's behaviour can be pinned in vitest, and the E2E job is
   the wrong place to learn that an E2E assertion is vacuous.**
 
+- `rulebook-publish.test.ts` — **the publisher's verify, verified**
+  (DREAMCRM-128, §2's fifty-seventh entry). `scripts/rulebook-publish.mjs` is the
+  only thing between `main`'s `docs/rulebook/` and the copy of
+  `dreamcrm-conventions` in the Multica skill store that every agent actually
+  opens, and it cannot be a required check — verifying needs a credentialed
+  `multica` CLI, so a version of it running here would report GREEN without
+  reaching its subject. This file is the half that does live in the gate. It
+  perturbs all four of the publisher's predicates and watches each redden (the
+  byte compare on a SAME-LENGTH one-character change, which is the 2026-09-14
+  shape a length check passes); it runs the publisher's preflight over the real
+  `docs/rulebook/**`, which is what puts the inverse-of-the-defect mojibake
+  detector over the authored copy as well as the published one; and it asserts
+  that `docs/RELEASE.md` R5 still names the command, because a release gate
+  whose only record is a sentence can be deleted by anybody tidying a
+  paragraph. It also grades the WRITE path's precondition — that the tree being
+  published IS `origin/main`, iterating BOTH collections so a file missing from
+  the tree is caught rather than silently deleted from the store — which is the
+  half §2's entry records as having been paid for twice: once for the rule and
+  once for the precondition's own missing eyes. **What it cannot cover
+  is whether the store matches `main` right now** — nothing without a credential
+  can know that, and the evidence for that claim is a `--verify-only` run
+  recorded on an issue, owed again at R5.
+
 ## The pricing page quotes the billing config — PRICE PROVENANCE, graded
 
 `tests/marketing/pricing-price-source.test.tsx` (#620, `e9c58e44`, merged
