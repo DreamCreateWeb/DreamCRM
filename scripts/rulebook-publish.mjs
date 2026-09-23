@@ -640,6 +640,19 @@ export function diffAgainstMerged(local, readMerged, listMerged) {
     )
   }
   for (const path of mergedPaths) {
+    // AN ENTRY THAT DID NOT PARSE IS A REFUSAL, NEVER A DROP. Anything still
+    // carrying the directory prefix, a leading quote or a backslash came back
+    // from the lister in a shape it could not reduce to a rulebook-relative
+    // path — and a listing this function cannot read is not evidence that
+    // nothing is missing.
+    if (path.startsWith(`${RULEBOOK_DIR}/`) || /^["/]|\\/.test(path)) {
+      problems.push(
+        `${JSON.stringify(path)}: unreadable entry in the origin/main listing — it could not be reduced to a ` +
+          `path under ${RULEBOOK_DIR}. Refusing rather than dropping it: a listing this cannot read is not ` +
+          'evidence that nothing is missing.',
+      )
+      continue
+    }
     if (!/\.md$/.test(path)) {
       // The tree reader only sees `.md`, so a file of any other kind on `main`
       // is outside this command's field of view ENTIRELY — it would be left
@@ -692,17 +705,30 @@ export function diffAgainstMerged(local, readMerged, listMerged) {
 function mergedLister(dir = RULEBOOK_DIR) {
   return () => {
     try {
-      const out = execFileSync('git', ['ls-tree', '-r', '--name-only', 'origin/main', '--', dir], {
+      // `-z` IS LOAD-BEARING, and the first draft did not have it. Without it
+      // `git ls-tree` C-QUOTES any path containing a non-ASCII byte — the whole
+      // path comes back wrapped in double quotes with the bytes escaped — and
+      // such a line does not begin with the directory prefix. The first draft
+      // FILTERED on that prefix, so it dropped the line silently, reported a
+      // shorter `origin/main` than `main` has, and a file missing from the
+      // publish tree became invisible again: B1, narrowed to one filename
+      // class. `-z` removes the quoting entirely rather than teaching this
+      // function to unquote, and the split moves to NUL.
+      const out = execFileSync('git', ['ls-tree', '-r', '-z', '--name-only', 'origin/main', '--', dir], {
         maxBuffer: MAX_BUFFER,
         windowsHide: true,
         stdio: ['ignore', 'pipe', 'pipe'],
       })
       return out
         .toString('utf8')
-        .split('\n')
-        .map((l) => l.trim())
-        .filter((l) => l.startsWith(`${dir}/`))
-        .map((l) => l.slice(dir.length + 1))
+        .split('\0')
+        .filter((l) => l !== '')
+        // A line that does NOT strip is returned VERBATIM rather than dropped,
+        // and `diffAgainstMerged` refuses it. That is the half that matters as
+        // much as `-z`: a dropped line and a file that genuinely is not there
+        // used to be indistinguishable, and the quiet one is the wrong default
+        // in a function whose entire job is to be the eyes. (Sentinel, N8.)
+        .map((l) => (l.startsWith(`${dir}/`) ? l.slice(dir.length + 1) : l))
         .sort()
     } catch {
       return []

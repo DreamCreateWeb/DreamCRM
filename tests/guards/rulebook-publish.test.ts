@@ -362,6 +362,21 @@ describe('the store may only ever hold merged main', () => {
    * than a residual named in prose — which would be the weaker move when
    * refusing costs one branch.
    */
+  /**
+   * N8. `git ls-tree` C-quotes any path with a non-ASCII byte, and the first
+   * draft FILTERED such a line out — reporting a shorter `origin/main` than
+   * `main` has, which is B1 narrowed to one filename class. `-z` removes the
+   * quoting; this asserts the other half, that an entry which did not parse is
+   * refused rather than dropped. A listing this cannot read is not evidence
+   * that nothing is missing.
+   */
+  it('refuses an unparsed listing entry rather than dropping it — N8', () => {
+    for (const bad of ['"docs/rulebook/references/x.md"', 'docs/rulebook/references/x.md', 'references\\x.md']) {
+      const problems = diffAgainstMerged(tree({ 'SKILL.md': 'a' }), merged({ 'SKILL.md': 'a' }), () => ['SKILL.md', bad])
+      expect(problems, bad).toEqual([expect.stringContaining('unreadable entry')])
+    }
+  })
+
   it('refuses a non-md file on origin/main that its reader could never publish', () => {
     const problems = diffAgainstMerged(
       tree({ 'SKILL.md': 'a' }),
