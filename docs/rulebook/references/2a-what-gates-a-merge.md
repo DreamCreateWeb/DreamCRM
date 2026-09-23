@@ -6,7 +6,7 @@ Two checks can block a merge to `main`: the required contexts `test` and `e2e`,
 both from `.github/workflows/ci.yml`. **Re-read off the API on 2026-09-22 and
 unchanged**: `contexts: ["test", "e2e"]`, `strict: true`,
 `enforce_admins: true`, `allow_force_pushes: false`, `allow_deletions: false`,
-`required_linear_history: false`, eleven workflow files, nine §3 review areas in
+`required_linear_history: false`, twelve workflow files, nine §3 review areas in
 `GATE_RULES`, and the four merge-method toggles plus `allow_update_branch` and
 `delete_branch_on_merge` all as described below. Nothing on this page drifted. Branch protection is `strict: true` (a
 branch must be up to date with `main` before it merges) and the repository's
@@ -60,7 +60,12 @@ an emergency fix, and close it — two commands, leaving a settings-change recor
 `gh pr merge --admin` no longer bypasses anything either. `docs/CI.md` owns the
 procedure under "The emergency hatch"; do not restate the commands here.
 
-There are eleven workflow files and **eight of them gate nothing**.
+There are twelve workflow files and **ten of them gate nothing** — only
+`ci.yml` and `deploy.yml` publish a required context, which is the only thing
+that decides it (`WORKFLOW_CENSUS` in `scripts/rulebook-drift.mjs` is where
+that is asserted against the tree, and it is the copy a test can fail on).
+`e2e-flake-hunt.yml` is the twelfth, new 2026-09-23 on #680: `workflow_dispatch`
+only, so it cannot hold a merge.
 `nightly.yml` and `post-merge-e2e.yml` run after the fact, and `nightly.yml`'s
 `tz-canary` job is `continue-on-error: true` — **a green nightly does not mean
 the canary passed**; open the run and read that job. `review-gate.yml` (new
