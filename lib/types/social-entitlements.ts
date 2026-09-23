@@ -6,11 +6,21 @@
  *
  * Product spec (FINALIZED 2026-06-15 — see docs/zernio-google-integration.md):
  *
- *   Plan          | GBP | Free social | Social add-on | Social limit (base → +addon)
- *   --------------|-----|-------------|---------------|----------------------------
- *   Basic ($150)  |  ✓  |     0       | not available |  0
- *   Pro ($250)    |  ✓  |     1       |   $30/mo      |  1 → 3
- *   Premium ($500)|  ✓  |     2       |   $20/mo      |  2 → 5
+ *   Plan    | GBP | Free social | Social add-on | Social limit (base → +addon)
+ *   --------|-----|-------------|---------------|----------------------------
+ *   Basic   |  ✓  |     0       | not available |  0
+ *   Pro     |  ✓  |     1       |   $30/mo      |  1 → 3
+ *   Premium |  ✓  |     2       |   $20/mo      |  2 → 5
+ *
+ * THE PLAN PRICES ARE NOT IN THAT TABLE, and that is the fix rather than an
+ * omission (DREAMCRM-122). It read `Basic ($150) | Pro ($250) | Premium
+ * ($500)` — the 2026-07-02 reprice that was never executed Stripe-side, so two
+ * of the three tiers had been retired out of self-serve and the third costs
+ * $200, not $500. A reader trusting this table would have quoted a price no
+ * clinic can buy. **The plan price lives in `lib/stripe-config.ts` and nowhere
+ * else** (DREAMCRM-38/102); this module is the publisher of the ADD-ON prices
+ * beside it — `SOCIAL_ADDON_PRICE_CENTS` below is their one home — and of
+ * nothing else with a dollar sign on it.
  *
  * GBP is FREE + SEPARATE on every tier — it does NOT count toward the social
  * limit and is never blocked (see {@link GBP_ALLOWED_ALL_PLANS}). "Total
