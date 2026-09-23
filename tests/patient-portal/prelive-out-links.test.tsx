@@ -31,11 +31,14 @@ vi.mock('next/navigation', () => ({
   redirect: (url: string) => {
     throw new Error(`REDIRECT:${url}`)
   },
+  useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
+  useSearchParams: () => new URLSearchParams(),
 }))
 
-const { portalContext, shopConfig } = vi.hoisted(() => ({
+const { portalContext, shopConfig, clinicInfo } = vi.hoisted(() => ({
   portalContext: vi.fn(),
   shopConfig: vi.fn(),
+  clinicInfo: vi.fn(),
 }))
 
 vi.mock('@/app/(portal)/patient/portal-data', async () => {
@@ -46,9 +49,10 @@ vi.mock('@/app/(portal)/patient/portal-data', async () => {
 })
 vi.mock('@/lib/services/shop', () => ({ getShopConfig: shopConfig }))
 
-// The billing page's own data, none of which this rule touches. Held at the
-// values that make the upsell card ELIGIBLE (no membership, one plan on sale)
-// so the only thing left deciding whether it renders is the go-live lever.
+// The pages' own data, none of which this rule touches. The billing values are
+// held where the upsell card is ELIGIBLE (no membership, one plan on sale) and
+// the dashboard's where the rewards card RENDERS, so in both cases the only
+// thing left deciding the out-link is the go-live lever.
 vi.mock('@/lib/services/patient-portal', () => ({
   getMyBills: vi.fn(async () => ({
     pmsBalanceCents: 0,
@@ -57,6 +61,63 @@ vi.mock('@/lib/services/patient-portal', () => ({
     orders: [],
   })),
   getMyBalancePayments: vi.fn(async () => []),
+  getMyPatientRecord: vi.fn(async () => ({ firstName: 'Sam', pmsBalanceCents: 0 })),
+  getUpcomingVisits: vi.fn(async () => []),
+  getPastVisits: vi.fn(async () => []),
+  getMyRecallStatus: vi.fn(async () => 'ok'),
+  getMyPendingForms: vi.fn(async () => []),
+  getPortalClinicInfo: clinicInfo,
+}))
+vi.mock('@/lib/services/loyalty', () => ({
+  getLoyaltySettings: vi.fn(async () => ({
+    enabled: true,
+    redeemPoints: 500,
+    redeemValueCents: 2_500,
+  })),
+  getPointsBalance: vi.fn(async () => 120),
+}))
+vi.mock('@/lib/services/patient-referrals', () => ({ countReferrals: vi.fn(async () => 0) }))
+vi.mock('@/lib/services/nps', () => ({ getOrCreatePortalSurvey: vi.fn(async () => null) }))
+
+// A PROBE, not a stand-in. The rewards card only paints its shop link in the
+// post-redeem state — a client transition no server render reaches — so the
+// honest place to grade `app/(portal)/patient/dashboard/page.tsx` is the value
+// it hands the card. This stub paints that value and nothing else, so the
+// assertion below reads the same shape as the billing one and still fails for
+// the page's reason rather than the card's.
+vi.mock('@/components/patient-portal/loyalty-card', () => ({
+  default: ({ shopHref }: { shopHref: string | null }) =>
+    shopHref ? (
+      <a data-testid="rewards-shop-link" href={shopHref}>
+        Browse the shop
+      </a>
+    ) : (
+      <p data-testid="rewards-no-shop-link">rewards card, no shop link</p>
+    ),
+}))
+
+// The settings preview's own reads. It is a CLINIC-tenant page, so it resolves
+// its own tenant and opens one query of its own rather than going through the
+// portal page context.
+vi.mock('@/lib/auth/context', () => ({
+  requireTenant: vi.fn(async () => ({
+    tenantType: 'clinic',
+    organizationId: 'org_1',
+    organizationName: 'Acme Dental',
+  })),
+}))
+vi.mock('@/lib/services/portal-settings', () => ({
+  getPortalSettings: vi.fn(async () => {
+    const { DEFAULT_PORTAL_SETTINGS } = await import('@/lib/types/portal')
+    return DEFAULT_PORTAL_SETTINGS
+  }),
+}))
+vi.mock('@/lib/db', () => ({
+  db: {
+    select: () => ({
+      from: () => ({ where: () => ({ limit: async () => [{ staff: [] }] }) }),
+    }),
+  },
 }))
 vi.mock('@/lib/services/membership', () => ({
   listActivePlans: vi.fn(async () => [
@@ -79,6 +140,8 @@ vi.mock('@/lib/services/payment-plans', () => ({
 
 import PortalShopRedirect from '@/app/(portal)/patient/shop/page'
 import PortalBillingPage from '@/app/(portal)/patient/invoices/page'
+import PortalHome from '@/app/(portal)/patient/dashboard/page'
+import PortalPreviewPage from '@/app/(preview)/settings/portal/preview/page'
 
 function context(siteLiveAt: Date | null) {
   return {
@@ -171,5 +234,56 @@ describe('/patient/invoices, the membership upsell', () => {
     render(await PortalBillingPage({ searchParams: Promise.resolve({}) }) as React.ReactElement)
     const link = screen.getByRole('link', { name: /see the plans/i })
     expect(link.getAttribute('href')).toBe('/site/acme-dental/dental-plans')
+  })
+})
+
+describe('/patient/dashboard, the rewards card’s “spend them” link', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it('pre-live: the card is offered no shop to spend them in', async () => {
+    portalContext.mockResolvedValue(context(null))
+    render(await PortalHome() as React.ReactElement)
+    expect(screen.queryByTestId('rewards-shop-link')).toBeNull()
+    // Paired with the card still being THERE: the points balance is not what
+    // the lever decides, and a test that passed because the whole card
+    // vanished would be reporting the wrong thing.
+    expect(screen.getByTestId('rewards-no-shop-link')).toBeTruthy()
+  })
+
+  it('published: the link is back, pointing at the portal’s own shop route', async () => {
+    portalContext.mockResolvedValue(context(LIVE))
+    render(await PortalHome() as React.ReactElement)
+    expect(screen.getByTestId('rewards-shop-link').getAttribute('href')).toBe('/patient/shop')
+  })
+})
+
+describe('the clinic’s own portal preview', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  /** Everything the preview reads about the clinic, minus the lever. */
+  function previewClinic(siteLiveAt: Date | null) {
+    return {
+      organizationSlug: 'acme-dental',
+      displayName: 'Acme Dental',
+      brandColor: '#9CAF9F',
+      selfBookingEnabled: true,
+      timezone: 'America/New_York',
+      siteLiveAt,
+    }
+  }
+
+  it('pre-live: does not show the clinic a Shop entry no patient of theirs can see', async () => {
+    clinicInfo.mockResolvedValue(previewClinic(null))
+    render(await PortalPreviewPage() as React.ReactElement)
+    expect(screen.queryByText('Shop')).toBeNull()
+    // The control: the rest of the nav is rendering, so the absence above is
+    // the lever's doing rather than a preview that failed to draw.
+    expect(screen.getAllByText('Billing').length).toBeGreaterThan(0)
+  })
+
+  it('published: the preview shows Shop, like the portal it is a picture of', async () => {
+    clinicInfo.mockResolvedValue(previewClinic(LIVE))
+    render(await PortalPreviewPage() as React.ReactElement)
+    expect(screen.getAllByText('Shop').length).toBeGreaterThan(0)
   })
 })
