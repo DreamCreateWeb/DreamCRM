@@ -11,6 +11,9 @@ that actually reach a customer.
 ```bash
 pnpm test:e2e          # full: postgres + migrations + build + serve + playwright
 pnpm test:e2e:quick    # same, reusing the existing .next build
+
+# One spec, fifty times — the shape a flake question needs (DREAMCRM-105)
+pnpm test:e2e:quick --spec e2e/portal-billing.spec.ts --repeat 50 -- --retries=0
 ```
 
 `scripts/e2e-harness.sh` does everything and tears down after itself (trap on
@@ -33,6 +36,44 @@ exit, including failure):
 5. **Playwright** against that server.
 
 Nothing here touches the real database, Stripe, Resend, or any vendor.
+
+### Asking a narrower question (added 2026-09-22, DREAMCRM-105)
+
+The harness took no arguments until now, so the only browser run anybody could
+ask for was "the whole suite, once". That is the wrong instrument for a flake:
+`e2e/portal-billing.spec.ts` failed on 2026-09-15 and again on 2026-09-22, and
+everything written about it was a frequency nobody had measured.
+
+| Flag | Env | What it does |
+| --- | --- | --- |
+| `--spec <filter>` | `E2E_SPEC` (space-separated) | Playwright's positional filter — a path or a substring of one. Repeatable. |
+| `--repeat <n>` | `E2E_REPEAT` | `--repeat-each=<n>`. The harness refuses above **200**. |
+| `--print-plan` | — | Resolve the arguments, print the playwright invocation, stop before Postgres. |
+| `-- <args…>` | — | Everything after it goes to playwright untouched. |
+
+Anything unrecognised is forwarded, so existing habits (`--grep`, `--headed`)
+keep working, and `--skip-build` now works from any position rather than only as
+the first argument.
+
+**`--retries=0` is usually what you want with `--repeat`.**
+`playwright.config.ts` sets `retries: 1` under CI, so a spec failing eight times
+in fifty and passing on each second attempt reports green with a footnote. The
+hunt wants "8 of 50".
+
+**Without a local Postgres, dispatch it instead.**
+`.github/workflows/e2e-flake-hunt.yml` is the same run on a runner:
+
+```bash
+gh workflow run e2e-flake-hunt.yml -f spec=e2e/portal-billing.spec.ts -f repeat=50
+```
+
+It is `workflow_dispatch`-only — no PR, push or schedule trigger — so it gates
+nothing and costs nothing on a morning nobody is hunting. A **red run there is
+the good outcome**: the flake reproduced, and the uploaded Playwright report has
+the trace, the screenshot and the `error-context.md` DOM dump of it happening.
+The report is uploaded on a green run too, unlike every other e2e job here — a
+ratio is worthless without its denominator, and "50 of 50 passed" and "the
+filter matched nothing" are otherwise the same shade of green.
 
 ## Deliberately NOT part of `pnpm test`
 

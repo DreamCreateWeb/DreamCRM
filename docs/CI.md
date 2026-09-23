@@ -1,8 +1,16 @@
 # CI — what gates what
 
-Ten workflows, and three of them can stop something: `ci.yml` holds a merge,
+Twelve workflows, and three of them can stop something: `ci.yml` holds a merge,
 `deploy.yml` holds a deploy, and `migration-check.yml` can fail a deploy run
-without publishing a check of its own. The other seven are alarms and advisories.
+without publishing a check of its own. The other nine are alarms, advisories and
+instruments.
+
+(It said "ten" and listed ten until 2026-09-22. `schedule-heartbeat.yml` shipped
+on DREAMCRM-99 and never reached this table — which is the drift this file's own
+alarm exists to catch, arriving in the file that documents the alarm. The count
+is now derived nowhere and restated here, so it will go stale again; the thing
+that notices is `scripts/rulebook-drift.mjs`'s `WORKFLOW_CENSUS`, which grades
+the census against the real directory every morning.)
 
 This file covers what runs *before* a merge and on the way to production. What
 gets checked *after* the deploy lands — the URLs the production watch sweep
@@ -20,6 +28,8 @@ loads, including the one real clinic site — is `docs/OPS.md`.
 | `.github/workflows/migration-check.yml` | `workflow_call` from `deploy.yml` + `schedule` 08:20 UTC + dispatch | `migration-check` | that a deploy's migrations actually applied | no required context — but it CAN fail the deploy run |
 | `.github/workflows/rulebook-drift.yml` | `schedule` 06:17 UTC + dispatch | `rulebook-drift` | the rulebook still describing this repo | no — never runs on a PR |
 | `.github/workflows/review-sweep.yml` | `schedule` 06:47 UTC + dispatch | `review-sweep` | that a PR owing Sentinel a review, or Forge an intake, did not merge without one | no — post-merge alarm, never runs on a PR |
+| `.github/workflows/schedule-heartbeat.yml` | `schedule` 07:07 UTC + dispatch | `schedule-heartbeat` | that every OTHER scheduled workflow is still firing | no — never runs on a PR |
+| `.github/workflows/e2e-flake-hunt.yml` | `workflow_dispatch` only | `e2e-flake-hunt` | nothing — it is an instrument, not an alarm: one spec N times, reporting a rate | no — no PR, push or schedule trigger at all |
 
 ## A green deploy must mean the new version is SERVING
 
