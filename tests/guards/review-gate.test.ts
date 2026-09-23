@@ -654,6 +654,12 @@ describe('the review-gate classifier', () => {
     // named files whose being gated is not a judgement call.
     const MUST_BE_GATED: Record<string, string> = {
       'lib/services/refunds.ts': 'money',
+      // The netting rule's own home (DREAMCRM-122). `refunds.ts` WRITES refund
+      // truth and was on the list; `net-collected.ts` is what every clinic-side
+      // total READS it through, and it matched nothing — pure arithmetic, no
+      // money word in the name, no `@/lib/stripe` import for the derived check
+      // below to find.
+      'lib/net-collected.ts': 'money',
       'lib/services/orders.ts': 'money',
       'lib/services/revenue.ts': 'money',
       'lib/services/membership.ts': 'money',

@@ -434,11 +434,12 @@ written up beneath it.
   point of deriving it.
 - **Subject.** The four values come from `getQuotedPlan()` at run time, never a
   copy. A reprice moves what the guard looks for.
-- **Spellings, three.** A `$`-prefixed literal; a bare CADENCE (`200/mo`,
-  `200 a month`, `2,000 per year`); and an ASSIGNMENT to a price-shaped name
-  (`const LIST_MONTHLY = 500`, `price={200}`). `nameIsPricey` matches a WORD,
-  split on the camel/snake boundary — not a substring, so `fee` inside
-  `FEED_PAST_DAYS` and `rate` inside `generate` are innocent.
+- **Spellings, FOUR since DREAMCRM-122.** A `$`-prefixed literal; a bare
+  CADENCE (`200/mo`, `200 a month`, `2,000 per year`); an ASSIGNMENT to a
+  price-shaped name (`const LIST_MONTHLY = 500`, `price={200}`), where
+  `nameIsPricey` matches a WORD split on the camel/snake boundary — not a
+  substring, so `fee` inside `FEED_PAST_DAYS` and `rate` inside `generate` are
+  innocent; and CENTS, below.
 - **The band skip**, structural: two numbers joined by a dash on ONE line, the
   far end money-shaped. It pardons 8 sites on `main`, every one a competitor or
   tool-stack band, and it is what lets `/compare` sit INSIDE the field of view
@@ -447,6 +448,60 @@ written up beneath it.
   must still be on its line and each carrying its sentence. A DEAD allowance —
   one that has stopped pardoning anything — fails.
 - **Measured on `main`: 0 offenders, 0 dead allowances.**
+
+**THE FOURTH SPELLING — CENTS (DREAMCRM-122), and the DECLINED half beside
+it.** Two plan-price defects reached `lib/**` and were written up as a
+FIELD-OF-VIEW miss: "its eyes cover three product roots and these live in
+`lib/**`; widen it to `lib/**`". **That diagnosis was wrong and the correction
+is the part worth carrying** — `lib` has been the third root since #665, and
+measured on the branch both defect files were among the 1,346 in view. The
+widening asked for was a no-op. The two escapes had two DIFFERENT causes,
+neither of them the eyes, and they were answered differently:
+
+- **CENTS, which SHIPS.** `lib/services/demo-clinic/seed-partners.ts` seeded
+  the demo partner's commissions off `const invoiceCents = 50000` — the
+  struck-through LIST price — so the showcase paid 10% of $500 while
+  `/partner-program` published $20 per practice from `getQuotedPlan()` at the
+  same rate. The rule had DECLINED this class rather than missed it: its own
+  header read "this repo's money columns are `amountCents`, so a plan price in
+  cents is not a number this rule is looking for". The premise was right and
+  the conclusion was backwards — the `Cents` suffix being the repo's universal
+  money convention is what makes it the most reliable price-shaped NAME in the
+  tree. **The suffix alone is the discriminator and `nameIsPricey` is
+  deliberately NOT applied**: `invoiceCents` splits to `invoice` + `Cents`,
+  neither of them a pricey word, so requiring one would have re-missed the
+  defect the spelling exists for. Both casings, because a module constant
+  SHOUTS (`PAYOUT_MIN_CENTS`). **What keeps it quiet is the VALUE, measured:**
+  the three roots carry **50** `*Cents` assignments of a literal ≥ 1000 and
+  exactly ONE equals a plan price × 100 — the defect. Zero false positives on
+  the day it shipped; the thing that would raise that is a demo product priced
+  at exactly $200.00, which is an `ALLOWED_QUOTES` entry with a sentence.
+- **COMMENTS, which are DECLINED — with the number.**
+  `lib/types/social-entitlements.ts` priced the tiers `Basic ($150) | Pro
+  ($250) | Premium ($500)` in a docblock, which `stripComments` blanks on
+  purpose. Inverting the stripper and re-running the same passes over comments
+  alone returns **39 hits, 38 of them innocent** — this rule's own explanation
+  in `lib/stripe-config.ts`, `/pricing`, `/why`, `price-card.tsx`,
+  `lib/marketing/docs.ts` and eleven more, every one a sentence ABOUT a past
+  defect that must name the number to read at all. A rule that fails `test`
+  naming 38 innocent docblocks is a rule somebody turns off, and the narrow
+  predicates that fit the one real case — "a comment line with two pipes and a
+  `$`", "a comment matching `Word ($N)`" — each return exactly the 3 lines of
+  the file they were written against and nothing else, which is the hand-kept
+  list wearing a regex. **So the docblock was FIXED and PINNED in
+  `tests/billing/social-entitlements.test.ts`, and is not GUARDED tree-wide.**
+  The trigger for revisiting is written down rather than left to memory: **a
+  SECOND price-in-a-docblock defect**, which makes the class a population of
+  two and worth a predicate derived from both rather than fitted to one.
+
+**The cents pass holds a population at ZERO, so it ships a field-of-view
+assertion** (§2d's convention): it replays the reader against the real tree
+with everyday cents values that are NOT plan prices and asserts a count, across
+≥ 2 files and across BOTH halves of the suffix alternation — the camelCase
+branch the defect was written in and the SHOUTY `*_CENTS` branch a module
+constant uses. Blinding the pass reproduces the original escape exactly: the
+tree scan reports CLEAN with `const invoiceCents = 50000` live in it, and only
+the field-of-view assertion goes red.
 
 **One latent gap, known and open** (Forge, 2026-09-22, reproduced at intake):
 the band's far-end test cannot see a comma-thousands number, because it asks for
