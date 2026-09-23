@@ -681,6 +681,34 @@ ground is what makes that table a guarantee rather than an estimate.
 - **Inter stays the marketing face.** Self-hosted, already in
   `public/fonts/inter-latin-var.woff2`. Nunito is the dashboard's face and does
   not cross over; Fraunces belongs to the clinic sites.
+- **THE FALLBACK IS PART OF THE FACE** (DREAMCRM-127). `font-display: swap`
+  means the first frame a visitor sees is NOT Inter, so the fallback is a
+  brand surface whether or not anybody designed it — and for months nobody
+  had. `--font-inter` read `"Inter", "sans-serif"`, and a QUOTED generic is a
+  family name, not the generic: no family is named "sans-serif", so the site
+  fell through to the browser default and **every first paint on the
+  marketing site was set in Times New Roman.** The wordmark, the display
+  headline and the price, in a serif, on a brand whose type argument is a
+  neutral grotesk.
+
+  Two rules come out of it, and they bind:
+
+  1. **Never quote a generic family.** `sans-serif`, `serif`, `monospace` and
+     `ui-*` go unquoted or they are not generics.
+  2. **The fallback carries Inter's metrics, so it wraps where Inter wraps.**
+     `'Inter Fallback'` in `app/css/style.css` — `local()` faces given
+     `size-adjust` + `ascent`/`descent`/`line-gap-override`, in three weight
+     bands because the local face has two real weights where Inter has an
+     axis. The derivation and the measured constants are in the comment above
+     the declaration; re-derive them there, never guess them, and re-measure
+     after any change to the Inter woff2.
+
+  The two together took the PageHero heroes from **9 of 19 strings wrapping
+  differently to 0 of 19**, at all three graded widths, and removed a 0.1157
+  CLS on `/pricing`. The mobile before/after is in `docs/MOBILE-WEIGHT.md`.
+  **Reserving a line box was measured and rejected** — it hard-codes a line
+  count per breakpoint AND per string, and five `PageHero` call sites pass
+  dynamic copy, so it would be a defect waiting on a copy edit.
 - **Display is big now.** The hero headline is 86px at 1440 and hard left, not
   64px centred. Round B's *"only halfway"* was as much about type scale as about
   colour. Part 10 has the step-down.

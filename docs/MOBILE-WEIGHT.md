@@ -289,6 +289,77 @@ so it wraps the way Inter does — and that is `BRAND.md` Part 4, on eight
 subpages, wanting its own issue and its own before/after. Recorded in
 `docs/RELEASE.md` Part 5 with this reproduction.
 
+## After the font-swap fix — 2026-09-23 (DREAMCRM-127)
+
+The `/pricing` 0.116 the section above FOUND is fixed. Measured differently
+from both tables above, and the difference is the point: this defect is a
+comparison between the page **before** the font swap and the page **after**
+it, so the honest instrument is a local before/after on ONE box rather than a
+production run against a build that has only one of the two states.
+
+Both states were built from this repo and served with `next start` on the same
+machine, `--runs 5`, interleaved with the passes below. Contended passes are
+discarded on this file's own recommendation-4 criterion — transfer-byte
+shortfall — which mattered again: the contended passes read 453–486 KB on a
+surface the clean ones read 486–487 KB, and they carry 1,160–1,209 ms of
+scroll blocking against 0 ms.
+
+**`/pricing`, clean passes only, five runs each:**
+
+| | transfer | CLS | worst layout shift | runs that saw it |
+|---|---|---|---|---|
+| before | 486 KB | 0.116 | 0.1157 — `div.relative.overflow-hidden.rounded-[14px].border` moved **27.28px** | 5/5 |
+| before | 487 KB | 0.116 | same shift, same element, same pixels | 3/5 |
+| before | 487 KB | 0.000 | same shift, same element, same pixels | 2/5 |
+| **after** | 486 KB | **0.000** | **none reported** | **0/5** |
+| **after** | 486 KB | **0.000** | **none reported** | **0/5** |
+| **after** | 486 KB | **0.000** | **none reported** | **0/5** |
+
+The run-count column is why this reads as a fix rather than as three lucky
+passes: before, the shift appears in 10 of 15 runs and is IDENTICAL every time
+— same element, same 27.28px; after, the script's shift reporter prints
+nothing at all across 15 runs. One contended after-pass (458 KB) reported
+`0.0005` — a mono numeral moving 1px — which is a different, trivial event and
+not the font swap.
+
+### What the fix was, and what it says about the defect's real size
+
+Two things, and the first was not in the ledger entry because nobody had
+looked at what the fallback actually WAS:
+
+1. **`--font-inter` shipped as `"Inter", "sans-serif"`.** A quoted generic is
+   a family NAME, not the generic keyword — no family is called "sans-serif",
+   so Chrome fell through to its default standard font, **Times New Roman**.
+   Every pre-swap frame on the marketing site was set in a serif. Times is
+   8.2% narrower than a grotesk, which is most of why so much text rewrapped.
+2. **`'Inter Fallback'`** — `local()` faces carrying Inter's measured metrics
+   (`size-adjust` + the three overrides) in three weight bands, because the
+   local face has two real weights where Inter has a continuous axis. One band
+   was tried first and is WRONG: tuned on body copy it fixed all eleven sub
+   paragraphs and made the 800-weight display headline rewrap 38px on two of
+   six titles, a bigger shift than the one being removed.
+
+**The defect was wider than `/pricing` on mobile.** Graded as line counts —
+Inter versus the fallback, every shipping `PageHero` `sub` string and every
+subpage title, at the three widths `e2e/marketing-viewport.spec.ts` grades:
+
+| width | before | after | worst height delta, before |
+|---|---|---|---|
+| 390 | **9 / 19** disagree | **0 / 19** | −38.35px |
+| 834 | **5 / 19** disagree | **0 / 19** | −48.96px |
+| 1440 | **4 / 19** disagree | **0 / 19** | −58.74px |
+
+So the entry's "one line of the sub paragraph, 27px" was the mobile case of a
+defect that also moved HEADLINES, and whose worst single jump was 58.74px on a
+desktop viewport. The CLS number found it; the line-count grading is what
+sized it.
+
+**The direct before/after, on the hero itself.** With Inter blocked so the
+fallback is what paints, `/pricing`'s hero `<section>` at 412px measures
+**293.25px before and 320.53px after** — and 320.53px is exactly the height
+the ledger entry recorded the hero growing INTO. The fallback frame now starts
+at the final height, so there is nothing left to move.
+
 ## Recommendations
 
 Recommendation 1 below is **DONE** — it is kept rather than deleted because
