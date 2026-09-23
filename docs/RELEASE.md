@@ -3736,7 +3736,7 @@ it is a type-metrics change across eight subpages and wants its own issue and
 its own before/after, which is the same call `docs/MOBILE-WEIGHT.md`
 recommendation 1 made about the hero and which turned out right.
 
-**FIXED on DREAMCRM-127** (PR #TBD, `TBD`) — candidate 2, plus a cause this
+**FIXED on DREAMCRM-127** (PR #718) — candidate 2, plus a cause this
 entry had not found. Both halves are in `app/css/style.css`:
 
 1. **`--font-inter` shipped as `"Inter", "sans-serif"`, and a QUOTED generic
