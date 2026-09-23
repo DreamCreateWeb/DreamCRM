@@ -22,14 +22,17 @@ vi.mock('@/lib/db', () => {
     db: {
       select: () => chain(),
       insert: (table: unknown) => ({
-        values: async (values: unknown) => {
+        values: (values: unknown) => {
           state.inserts.push({ table, values })
-          return undefined
+          // `notify()` reads the inserted id back on BOTH paths — it is what
+          // the email's `email_sent_at` stamp is keyed on (DREAMCRM-106).
+          return { returning: async () => [{ id: state.inserts.length }] }
         },
       }),
+      update: () => ({ set: () => ({ where: async () => undefined }) }),
     },
     schema: {
-      notifications: { id: 'notifications' },
+      notifications: { id: 'notifications', emailSentAt: 'email_sent_at' },
       notificationPrefs: {
         userId: 'user_id',
         comments: 'comments',
