@@ -275,6 +275,46 @@ describe('the spec keeps the strict locator', () => {
     ).not.toMatch(/getByLabel\('Payment amount in dollars'\)\s*\)?\s*\.first\(\)/)
   })
 
+  it('scopes the amount field to the main landmark, and does so everywhere', () => {
+    // THE FIX THE HUNT EARNED, and the reason it is not `.first()` in a better
+    // hat. Run 35813473042 recorded both ancestor chains: one match in
+    // `main#portal-main`, the other in `div#S:0[hidden]` — React's own
+    // out-of-order Suspense streaming container, created because
+    // `app/(portal)/loading.tsx` wraps the portal segment in a boundary.
+    //
+    // `.first()` says "take whichever one you find" and would accept two live
+    // forms. Scoping says "exactly one payment form in the page's main
+    // content", which is a STRONGER claim and the one a patient cares about:
+    // two real forms both render inside `#portal-main` and still fail.
+    //
+    // Graded as a COUNT rather than a presence check, because one unscoped
+    // locator left behind is one flaky test left behind.
+    const count = (re: RegExp) => (specCode.match(re) ?? []).length
+    const scoped = count(/portalMain\(page\)\.getBy(Label|Text)\(/g)
+    const unscoped = count(/expectSole\(page, page\.getBy/g)
+
+    expect(scoped, 'the spec must reach the flaky elements through #portal-main').toBeGreaterThan(0)
+    expect(
+      unscoped,
+      'an unscoped `expectSole(page, page.getBy…)` is a locator that can still resolve into ' +
+        "React's hidden streaming buffer, which is what made this spec flake at 2-4.5% of page " +
+        'loads. Reach it through `portalMain(page)`.',
+    ).toBe(0)
+  })
+
+  it('still watches the WHOLE document, not just the scoped subtree', () => {
+    // The scoping narrows the ASSERTION. It must not narrow the DIAGNOSTIC:
+    // the whole point of the watcher is to see a copy appearing somewhere the
+    // assertion is not looking, which is exactly how the streaming buffer was
+    // found. `watchForDuplicates` takes selectors queried against `document`.
+    expect(specCode).toMatch(/watchForDuplicates\(context,/)
+    expect(
+      specCode,
+      'the watched selector list must include the bare input selector, unscoped — a watcher that ' +
+        'only looks inside #portal-main could never have found the copy outside it',
+    ).toMatch(/'input\[aria-label="Payment amount in dollars"\]'/)
+  })
+
   it('never polls the count until the page heals', () => {
     // `toHaveCount(1)` retries for the whole timeout, so a duplicate that is
     // gone two seconds later reports green. That is `.first()` with extra
@@ -308,7 +348,13 @@ describe('the spec keeps the strict locator', () => {
     // and that is the single most useful thing the next occurrence could say.
     const count = (re: RegExp) => (specCode.match(re) ?? []).length
     const bare = count(/getByLabel\('Payment amount in dollars'\)/g)
-    const wrapped = count(/expectSole\(page, page\.getByLabel\('Payment amount in dollars'\)\)/g)
+    // Scoped through `portalMain(page)` since the hunt named the second copy as
+    // React's streaming buffer — see the scoping test above. Both spellings are
+    // accepted here so this rule grades WRAPPING, which is its subject, rather
+    // than re-grading scoping, which has its own assertion.
+    const wrapped = count(
+      /expectSole\(page, (?:page|portalMain\(page\))\.getByLabel\('Payment amount in dollars'\)\)/g,
+    )
     expect(
       wrapped,
       `${bare - wrapped} use(s) of the amount locator are not wrapped in expectSole, so a ` +
