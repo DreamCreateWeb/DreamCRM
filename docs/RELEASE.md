@@ -249,6 +249,22 @@ bar: last week of R2 accepts only S0/S1 changes — churn is risk.
 
 ### R5 — Release candidate + go/no-go + launch watch
 - RC tagged; 72h change freeze except S0.
+- **RELEASE-BLOCKING — the published rulebook matches the RC.** Run
+  `node scripts/rulebook-publish.mjs` on the RC commit and paste its output
+  into the go/no-go. A red verify stops the release: `dreamcrm-conventions`
+  is authored in `docs/rulebook/` and published to the Multica skill store,
+  every check this repo owns grades the authored copy, and the copy every
+  agent actually reads is the published one. That hop has failed both ways
+  already — nine `STATE:` lines describing `main` wrongly for six days, and a
+  cp1252 round trip that replaced ninety characters while leaving the length
+  unchanged at 9,018 on both sides. The command compares BYTES, not lengths,
+  plus the stored description, the C1/mojibake range and the leading-`#`
+  lines. It cannot be a required status check — verifying needs a credentialed
+  `multica` CLI and `test` has none, so a version of it living in CI would
+  report green without reaching its subject. This line is the enforcement, and
+  `tests/guards/rulebook-publish.test.ts` asserts the line still exists.
+  The command refuses to publish anything that is not merged `main`, so
+  "run it on the RC commit" is a precondition rather than a request.
 - Go/no-go review against the R0 criteria — written, honest, kept.
 - Launch = the marketing pivot. Heightened watch: the Guardian + alarms
   + a daily digest to the owner for the first two weeks.
@@ -3813,7 +3829,7 @@ PR that fixed the first. Per §1, on contact:
   agreeing that the number tracks the machine. Still not a defect; what
   would settle it is unchanged.
 
-### Open — the Inter swap rewraps every subpage hero's sub paragraph and drops the page 27px (found 2026-09-23)
+### Fixed — the Inter swap rewraps every subpage hero's sub paragraph and drops the page 27px (found 2026-09-23, fixed 2026-09-23)
 
 Found by DREAMCRM-118's post-#698 re-measurement of
 `docs/MOBILE-WEIGHT.md`, on the mobile profile (412×823 at DPR 1.75, CPU 4×,
@@ -3891,8 +3907,55 @@ one because it fixes the cause rather than the symptom:
 **Deliberately not fixed on DREAMCRM-118**, whose scope was the measurement:
 it is a type-metrics change across eight subpages and wants its own issue and
 its own before/after, which is the same call `docs/MOBILE-WEIGHT.md`
-recommendation 1 made about the hero and which turned out right. ·
-**OPEN** (Neon's lane — marketing-site type and hero geometry).
+recommendation 1 made about the hero and which turned out right.
+
+**FIXED on DREAMCRM-127** (PR #718) — candidate 2, plus a cause this
+entry had not found. Both halves are in `app/css/style.css`:
+
+1. **`--font-inter` shipped as `"Inter", "sans-serif"`, and a QUOTED generic
+   is a family name rather than the generic keyword.** Nothing is named
+   "sans-serif", so the stack fell through to the browser's default standard
+   font — **Times New Roman**. The face this entry calls "the fallback face"
+   was a SERIF, which is both a brand failure on every first paint and most of
+   the reflow's size, Times being 8.2% narrower than a grotesk. Unquoting it
+   alone took the PageHero `sub` strings from 7 of 11 rewrapping to 1 of 11.
+2. **`'Inter Fallback'`** — `local()` faces carrying Inter's measured metrics
+   (`size-adjust` + ascent/descent/line-gap overrides) in **three weight
+   bands**. One band is wrong and was measured to be: tuned on body copy it
+   fixed all eleven sub paragraphs and then made the 800-weight display
+   headline rewrap **38px** on two of six subpage titles — a bigger shift than
+   the 27px being removed. The local face has two real weights where Inter has
+   a continuous axis, so the bands are the regimes those faces actually cover.
+
+**The entry's own numbers, re-measured.** With Inter blocked so the fallback
+is what paints, the `/pricing` hero `<section>` at 412px measures **293.25px
+before and 320.53px after the fix** — 320.53px being exactly the height this
+entry recorded the hero growing INTO, so the first frame now starts at the
+final height and nothing moves at `fonts.ready`. `node
+scripts/mobile-weight.mjs --runs 5` on a local build, clean passes only
+(contended ones discarded by transfer-byte shortfall): **before, the 27.28px
+shift in 10 of 15 runs, identical every time; after, no shift reported in 15
+of 15.** Full table in `docs/MOBILE-WEIGHT.md`.
+
+**The defect was bigger than this entry sized it**, which is worth recording
+because the entry was written from a single surface at a single width. Graded
+as line counts — Inter versus the fallback, every shipping `PageHero` `sub`
+string and every subpage title, at the three widths
+`e2e/marketing-viewport.spec.ts` grades — it was **9/19 at 390, 5/19 at 834
+and 4/19 at 1440**, now **0/19 at all three**. It moved HEADLINES too, and its
+worst single jump was **58.74px at 1440**, not 27px on mobile. The CLS number
+found it; grading line counts is what sized it.
+
+**Guarded** by two cases added to `tests/design-system/tokens.test.ts`, which
+already owned this region of the sheet: no quoted generic in `--font-inter`,
+and the fallback bands tile 100–900 with no gap, each carrying all four
+descriptors and a `local()` (not `url()`) source, with the stack actually
+naming the family. Watched to fail on five separate mutations, including the
+wiring seam — deleting the family from the stack while leaving the faces
+declared, which the first draft of the guard passed. The guard deliberately
+does NOT grade the CONSTANTS: re-deriving them needs a browser with the local
+faces installed and CI has neither, so per §2d the sentence says so rather
+than implying coverage it does not have. · **FIXED** (Neon).
 
 ### Deliverable 4 — error aggregation · NOT BUILT (owner decision)
 
