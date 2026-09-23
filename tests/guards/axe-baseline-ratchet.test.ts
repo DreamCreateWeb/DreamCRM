@@ -8,8 +8,10 @@ import { A11Y_BASELINE } from '../../e2e/axe-baseline'
 import { CEILING_RAISES, type CeilingRaise } from '../../e2e/axe-baseline-raises'
 import {
   FETCH_MAIN_COMMAND,
+  CHECKOUT_FULL_HISTORY,
   FETCH_MAIN_REFSPEC,
   MIN_WHY_LENGTH,
+  splitJobs,
   checkRatchet,
   formatFindings,
   parseBaseline,
@@ -531,6 +533,76 @@ describe('every workflow that runs the suite fetches main first', () => {
     }
     expect(runs, `expected .github/workflows/${name} to run the suite`).toBeGreaterThan(0)
   })
+})
+
+describe('every JOB that runs the suite can actually see main', () => {
+  /**
+   * THE ASSERTION THAT WOULD HAVE PREVENTED THE 2026-09-23 DEPLOY BLOCK.
+   *
+   * The census above asks whether a fetch-of-main STEP appears before each
+   * `pnpm test`. It did, in every job, correctly spelled — and on a `push`
+   * event it transferred nothing, because `actions/checkout` had already left
+   * main at depth 1 with its tip equal to the remote tip. `origin/main`
+   * resolved with one commit, `rulebook-state.test.ts`'s eyes-floor fired,
+   * and `deploy.yml`'s `test` job went red on every push to main, which
+   * `deploy: needs: test` turns into a blocked production deploy.
+   *
+   * Two things make this the right shape for the fix:
+   *
+   *  - it is PER JOB, which closes the per-file imprecision the census above
+   *    documents and never closed;
+   *  - it is STATIC. The dynamic half (the eyes-floor) can only fail where
+   *    the bad state actually occurs, and that is on `main` AFTER the merge —
+   *    the most expensive place to find out. This one fails on the PR.
+   */
+  const WORKFLOW_FILES = readdirSync(join(ROOT, '.github/workflows'))
+    .filter((f) => f.endsWith('.yml') || f.endsWith('.yaml'))
+    .sort()
+
+  const suiteJobs = WORKFLOW_FILES.flatMap((name) =>
+    splitJobs(readFileSync(join(ROOT, '.github/workflows', name), 'utf8'))
+      .filter((job) => job.lines.some((l) => /^\s+run: pnpm test\b/.test(l)))
+      .map((job) => ({ file: name, job })),
+  )
+
+  it('finds the jobs that run it at all', () => {
+    // Vacuity guard: if the splitter or the pattern stops matching, every
+    // assertion below silently stops running.
+    expect(suiteJobs.map((s) => `${s.file}:${s.job.name}`)).toEqual([
+      'ci.yml:test',
+      'deploy.yml:test',
+      'nightly.yml:nightly-test',
+      'nightly.yml:tz-canary',
+    ])
+  })
+
+  it.each(suiteJobs.map((s) => `${s.file}:${s.job.name}`))(
+    '%s checks out full history',
+    (id) => {
+      const { job } = suiteJobs.find((s) => `${s.file}:${s.job.name}` === id)!
+      expect(
+        job.lines.some((l) => l.trim() === CHECKOUT_FULL_HISTORY),
+        `${id} runs \`pnpm test\` but its checkout does not set \`${CHECKOUT_FULL_HISTORY}\`. ` +
+          'On a `push` event the fetch-main step below it is a NO-OP — the depth-1 tip already ' +
+          'equals the remote tip — so `origin/main` resolves with one commit and every guard that ' +
+          'reads main\'s history is blind. That is what blocked two production deploys on ' +
+          '2026-09-23.',
+      ).toBe(true)
+    },
+  )
+
+  it.each(suiteJobs.map((s) => `${s.file}:${s.job.name}`))(
+    '%s also fetches main into origin/main',
+    (id) => {
+      const { job } = suiteJobs.find((s) => `${s.file}:${s.job.name}` === id)!
+      expect(
+        job.lines.some((l) => l.includes(FETCH_MAIN_REFSPEC)),
+        `${id} does not fetch ${BASE_REF}. Full history is not enough on its own — on a ` +
+          '`pull_request` the checkout holds `refs/pull/N/merge` and `origin/main` is not a ref ' +
+          'this clone has at all.',
+      ).toBe(true)
+    },
+  )
 })
 
 describe('the opt-out list itself', () => {

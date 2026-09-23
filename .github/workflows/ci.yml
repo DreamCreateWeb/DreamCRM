@@ -23,7 +23,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
+        # FULL HISTORY, AND THE FETCH STEP BELOW IS NOT ENOUGH ON ITS OWN.
+        # This is the half that was missing, and it cost two blocked
+        # production deploys — read the `ON A PUSH` block below before
+        # removing it. Measured: 3.9s and 29 MiB for this repo's whole
+        # history over sixteen branches, against ~1-2s for a depth-1 clone.
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       # TWO GUARDS READ `origin/main`, AND THEY NEED DIFFERENT AMOUNTS OF IT.
       #
@@ -47,6 +54,27 @@ jobs:
       # red, which is the §2d defect the guard itself is written about. It
       # therefore asserts its own eyes against two floors and FAILS here rather
       # than passing blind, so a re-shallowed fetch breaks `test` loudly.
+      #
+      # ON A PUSH THE FETCH STEP BELOW IS A NO-OP, WHICH IS WHY THE CHECKOUT
+      # ABOVE CARRIES `fetch-depth: 0`. THIS IS THE BUG THAT BLOCKED TWO
+      # PRODUCTION DEPLOYS ON 2026-09-23 AND IT IS NOT OBVIOUS:
+      #
+      #   * on a `pull_request`, checkout holds `refs/pull/N/merge`, so
+      #     `origin/main` is a ref this clone does NOT have, and the fetch
+      #     below genuinely transfers main's history. Green, honestly.
+      #   * on a `push` to main, checkout holds main at depth 1 and its tip
+      #     ALREADY EQUALS the remote tip — so the identical fetch transfers
+      #     nothing, the shallow graft stays, and `origin/main` resolves with
+      #     exactly ONE commit.
+      #
+      # The same step, the same repository, two events, two different
+      # starting states. `ci.yml` was honestly green on every PR while
+      # `deploy.yml` was red on every push, and the pre-merge argument for
+      # "a green PR means a green main" did not cover it, because that
+      # argument was about the TREE and this difference is about the CLONE.
+      # `tests/guards/rulebook-state.test.ts` asserts its own eyes and failed
+      # loudly rather than reporting a clean rulebook, which is the only
+      # reason this was a blocked deploy and not a silent hole.
       #
       # The cost is measured, not assumed: `main`'s full history is 46 MiB
       # packed over 1,395 commits. No filter — a blobless partial clone would
