@@ -687,19 +687,42 @@ export async function expectNoA11yViolations(
   // A readable panel inside a mock, on a gradient, is pardoned by both halves.
   // No instance exists today (no stop that passes `exclude` has a gradient
   // ground); written here rather than fixed speculatively.
-  const needsReview = summariseNeedsReview(incomplete)
-  recordNeedsReviewSample({ stop, rules: needsReview })
-  if (needsReview.length > 0) {
-    const nodes = needsReview.reduce((n, r) => n + r.nodes, 0)
-    console.log(`[a11y] NEEDS REVIEW — ${stop}`)
-    for (const line of describeNeedsReview(stop, incomplete)) console.log(`  ${line}`)
-    console.log(
-      `::warning title=axe could not decide::"${stop}" — ${nodes} node${nodes === 1 ? '' : 's'} came ` +
-        `back incomplete (${needsReview.map((r) => `${r.rule} ×${r.nodes}`).join(', ')}). ` +
-        `These are NOT counted by any ceiling and this run is not red for them. Text over a ` +
-        `gradient or an image is the usual cause — measure it by hand at this stop and either fix ` +
-        `it or leave it, but do not read the green tick as covering it.`,
-    )
+  //
+  // THE WHOLE BLOCK IS WRAPPED, not just the annotation push (Sentinel's
+  // review of #682). `recordNeedsReviewSample` has its own `try` and says why
+  // — reporting attached to a required check must never be the reason one
+  // fails — and leaving the larger half of the same block bare made the file
+  // state a rule it then did not apply. The risk was small (every field read
+  // here is guaranteed or defaulted); the asymmetry was the defect.
+  //
+  // IT CANNOT SWALLOW A GATE FAILURE, which is the thing to check before
+  // wrapping anything in this file: nothing inside computes `counts`,
+  // `overIds` or `over`, and the soft assertions are all below it. A throw in
+  // here loses one stop's needs-review line and changes no verdict.
+  try {
+    const needsReview = summariseNeedsReview(incomplete)
+    recordNeedsReviewSample({ stop, rules: needsReview })
+    if (needsReview.length > 0) {
+      const nodes = needsReview.reduce((n, r) => n + r.nodes, 0)
+      console.log(`[a11y] NEEDS REVIEW — ${stop}`)
+      for (const line of describeNeedsReview(stop, incomplete)) console.log(`  ${line}`)
+      // ONE `::warning` PER STOP, AND GITHUB PRINTS TEN PER LEVEL PER JOB.
+      // So this is a log artefact rather than the delivery channel — the
+      // end-of-run table in `e2e/axe-headroom.ts` carries every row and goes
+      // to the job summary, which is where a reader should be sent. Named
+      // here so nobody later reads "a warning per stop" as "a person sees
+      // every stop". (Sentinel, reviewing #682.)
+      console.log(
+        `::warning title=axe could not decide::"${stop}" — ${nodes} node${nodes === 1 ? '' : 's'} came ` +
+          `back incomplete (${needsReview.map((r) => `${r.rule} ×${r.nodes}`).join(', ')}). ` +
+          `These are NOT counted by any ceiling and this run is not red for them. Text over a ` +
+          `gradient or an image is the usual cause — the full list is in the needs-review table at ` +
+          `the end of the run; measure it by hand at this stop and either fix it or leave it, but ` +
+          `do not read the green tick as covering it.`,
+      )
+    }
+  } catch (err) {
+    console.log(`[a11y] could not report what axe left undecided at "${stop}": ${String(err)}`)
   }
 
   const counts = Object.fromEntries(violations.map((v) => [v.id, v.nodes.length]))

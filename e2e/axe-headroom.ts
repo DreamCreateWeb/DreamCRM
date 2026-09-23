@@ -310,6 +310,25 @@ export function needsReviewFromAnnotations(
   return out
 }
 
+/**
+ * How many DISTINCT stops reported their needs-review status this run.
+ *
+ * Not `samples.length`, and the difference is the whole reason this is a
+ * function rather than a `.length` at the call site (Sentinel, reviewing
+ * #682). A sample arrives per ATTEMPT and `playwright.config.ts` sets
+ * `retries: 1` on CI, so a stop that failed and retried contributes two. The
+ * number this feeds is the one a reader uses to decide whether the emitter is
+ * still alive, so counting attempts there would report broader coverage than
+ * the run had — the same "a number in a header is what the next reader trusts"
+ * hazard §2b names, in a line nobody would think to check.
+ *
+ * Exported so the guard can pin it against its own literals instead of
+ * grepping the reporter for a spelling.
+ */
+export function scannedStops(samples: NeedsReviewSample[]): number {
+  return new Set(samples.map((s) => s.stop)).size
+}
+
 /** The markdown the reporter prints, or `null` when axe decided everything. */
 export function formatNeedsReviewTable(rows: NeedsReviewRow[]): string | null {
   if (rows.length === 0) return null
@@ -414,12 +433,20 @@ export default class AxeHeadroomReporter implements Reporter {
     try {
       const table = formatNeedsReviewTable(foldNeedsReview(this.needsReview))
       if (!table) {
+        // DISTINCT STOPS, NOT SAMPLES (Sentinel's review of #682). One sample
+        // arrives per ATTEMPT, and `playwright.config.ts` sets `retries: 1` on
+        // CI — so a stop that failed and retried for any reason contributes
+        // two. This line is specifically the one a reader uses to judge
+        // whether the emitter is alive, so an inflated count is the worst
+        // place in the file to be loose: it would read as broader coverage
+        // than the run actually had.
+        const stops = scannedStops(this.needsReview)
         console.log(
-          this.needsReview.length === 0
+          stops === 0
             ? '[a11y] no stop reported whether axe could decide — either no spec reached an ' +
                 'a11y stop, or e2e/axe.ts has stopped emitting. Not the same as "axe decided everything".'
-            : `[a11y] axe decided every node it saw, at all ${this.needsReview.length} scanned stop` +
-                `${this.needsReview.length === 1 ? '' : 's'} — nothing needs a human.`,
+            : `[a11y] axe decided every node it saw, at all ${stops} scanned stop` +
+                `${stops === 1 ? '' : 's'} — nothing needs a human.`,
         )
         return
       }

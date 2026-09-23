@@ -9,6 +9,7 @@ import {
   formatHeadroomTable,
   formatNeedsReviewTable,
   needsReviewFromAnnotations,
+  scannedStops,
   NEEDS_REVIEW_TARGET_CAP,
   samplesFromAnnotations,
   type HeadroomSample,
@@ -433,6 +434,25 @@ describe('the needs-review table cannot gate anything', () => {
     // somebody forgot to fail on.
     expect(table).toContain('This table gates nothing')
     expect(process.exitCode, 'the needs-review report must never touch the exit code').toBe(before)
+  })
+
+  it('counts distinct STOPS in the all-clear line, not samples', () => {
+    // A sample arrives per ATTEMPT and CI retries once, so a stop that failed
+    // and retried contributes two. This is the line a reader uses to judge
+    // whether the emitter is alive, so counting attempts would report broader
+    // coverage than the run had. (Sentinel, reviewing #682.)
+    const s = (stop: string): NeedsReviewSample => ({ stop, rules: [] })
+    expect(scannedStops([s('portal: agenda'), s('portal: agenda'), s('marketing: home')])).toBe(2)
+    expect(scannedStops([])).toBe(0)
+
+    // And the reporter must use it rather than a `.length` beside it — the
+    // whole point of extracting the function.
+    const quiet = REPORTER_SRC.slice(REPORTER_SRC.indexOf('private reportNeedsReview('))
+    expect(quiet).toContain('scannedStops(this.needsReview)')
+    expect(
+      quiet,
+      'the all-clear line must not branch on how many SAMPLES arrived',
+    ).not.toContain('this.needsReview.length')
   })
 
   it('no table when axe decided everything — but the reporter still says so out loud', () => {
