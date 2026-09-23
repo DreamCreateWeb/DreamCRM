@@ -9,7 +9,7 @@
 // = editing this registry (typed, reviewed, versioned).
 
 import type { ProspectAiVerdict, ProspectCrawlSignals } from '@/lib/types/prospecting'
-import { getQuotedPlan } from '@/lib/stripe-config'
+import { getQuotedPlan, type PlanId } from '@/lib/stripe-config'
 
 export type DemoBeatGroup = 'open' | 'run' | 'grow' | 'close'
 
@@ -43,7 +43,10 @@ export interface DemoTrack {
   label: string
   /** When to pick this track — shown on the prep page's story picker. */
   story: string
-  recommendedPlan: 'basic' | 'pro' | 'premium'
+  /** Which plan the story closes on. Since the single-plan collapse there is
+   *  exactly one a prospect can buy, so every track resolves it from
+   *  `getQuotedPlan()` rather than naming a tier — see QUOTED below. */
+  recommendedPlan: PlanId
   /** The money line — shown on the wrap-up screen as the close reminder. */
   planPitch: string
   /** Honest pacing for the story picker ("~15 min"). */
@@ -150,11 +153,25 @@ function moreBeat(talkTrack: string): DemoBeat {
   }
 }
 
-// The closing line of a live branded demo quotes THE plan a prospect can buy,
-// spelled the way the presenter says it out loud. Read from stripe-config so a
-// reprice reaches the script too: until DREAMCRM-38 these two sentences said
-// "$500 a month" — the struck-through LIST price — which is the last number a
-// prospect hears before they are asked to sign.
+// EVERY TRACK CLOSES ON THE ONE PLAN A PROSPECT CAN BUY, spelled the way the
+// presenter says it out loud, and resolved from stripe-config so a reprice
+// reaches the script too.
+//
+// Two defects, one rule. DREAMCRM-38: the full tour's two closing sentences
+// said "$500 a month" — the struck-through LIST price — which is the last
+// number a prospect hears before they are asked to sign. DREAMCRM-124: the
+// other four tracks closed on "Basic — $150 a month", "Pro — $250 a month"
+// and "a $30 add-on", which is worse in kind rather than in degree. $500 was
+// the wrong price for a real plan; Basic and Pro have not been purchasable
+// since the 2026-07-19 single-plan collapse, and the $150/$250 reprice they
+// quote was never executed Stripe-side at all (`lib/stripe-config.ts`). A
+// prospect who said yes to the website story was being closed on a plan
+// checkout cannot sell at a price Stripe has never held.
+//
+// So `recommendedPlan` is the quoted plan on every track, and no sentence
+// below spells a tier name or a price as a literal. The stories still differ —
+// what a practice gets for the money is the whole point of picking a track —
+// but the money is one number, from one place.
 const QUOTED = getQuotedPlan()
 const QUOTED_PLAN_NAME = QUOTED.name
 const QUOTED_MONTHLY = `$${QUOTED.price.toLocaleString('en-US')} a month`
@@ -167,7 +184,7 @@ export const DEMO_TRACKS: Record<DemoTrackId, DemoTrack> = {
     emoji: '🏛️',
     label: 'The whole platform',
     story: 'They need everything — the full open-to-close tour.',
-    recommendedPlan: 'premium',
+    recommendedPlan: QUOTED.id,
     planPitch: `Everything you just saw is the ${QUOTED_PLAN_NAME} plan — ${QUOTED_MONTHLY}, no contracts.`,
     targetMinutes: 25,
     beats: [
@@ -190,9 +207,8 @@ export const DEMO_TRACKS: Record<DemoTrackId, DemoTrack> = {
     emoji: '🖥️',
     label: 'The website story',
     story: 'No site, or a site that embarrasses them — lead with the rebuild.',
-    recommendedPlan: 'basic',
-    planPitch:
-      'The website story is the Basic plan — $150 a month for the site, booking, reviews, and SEO. Live in days, not months.',
+    recommendedPlan: QUOTED.id,
+    planPitch: `The website story runs on ${QUOTED_PLAN_NAME} — ${QUOTED_MONTHLY}, no contracts. The site, the booking, the reviews and the SEO are all in it. Live in days, not months.`,
     targetMinutes: 15,
     beats: [
       { ...COMPARE, group: 'open' },
@@ -229,7 +245,7 @@ export const DEMO_TRACKS: Record<DemoTrackId, DemoTrack> = {
         moves: ['Show what patients searched to find them'],
       },
       moreBeat(
-        'That’s the website story — and the same $150 a month also includes the patient inbox, follow-ups, and intake forms. And so much more on top.',
+        `That’s the website story — and the same ${QUOTED_MONTHLY} also includes the patient inbox, follow-ups, and intake forms. And so much more on top.`,
       ),
     ],
   },
@@ -239,9 +255,8 @@ export const DEMO_TRACKS: Record<DemoTrackId, DemoTrack> = {
     emoji: '📍',
     label: 'Found everywhere',
     story: 'Site’s fine, but Google, reviews, and social don’t tell one story.',
-    recommendedPlan: 'pro',
-    planPitch:
-      'Getting found everywhere is the Pro plan — $250 a month. Website, Google, reviews, and social in one engine.',
+    recommendedPlan: QUOTED.id,
+    planPitch: `Getting found everywhere runs on ${QUOTED_PLAN_NAME} — ${QUOTED_MONTHLY}. Website, Google, reviews, and social in one engine.`,
     targetMinutes: 15,
     beats: [
       {
@@ -276,7 +291,7 @@ export const DEMO_TRACKS: Record<DemoTrackId, DemoTrack> = {
         group: 'close',
       },
       moreBeat(
-        'That’s the presence story — Pro is $250 a month, and it also includes the patient inbox, recall campaigns, and the website editor. And so much more.',
+        `That’s the presence story — ${QUOTED_PLAN_NAME} is ${QUOTED_MONTHLY}, and it also includes the patient inbox, recall campaigns, and the website editor. And so much more.`,
       ),
     ],
   },
@@ -286,9 +301,13 @@ export const DEMO_TRACKS: Record<DemoTrackId, DemoTrack> = {
     emoji: '📣',
     label: 'The social suite',
     story: 'They know social matters and nobody at the office has time for it.',
-    recommendedPlan: 'pro',
-    planPitch:
-      'The social suite rides the Pro plan — $250 a month, and a $30 add-on unlocks every channel.',
+    recommendedPlan: QUOTED.id,
+    // No add-on price here on purpose. The social-connection add-on's Stripe
+    // prices do not exist yet (`SOCIAL_ADDON_PRICE_IDS` reads env vars that are
+    // unset, and the Settings CTA is a disabled "coming soon"), so the old
+    // "$30 add-on" line quoted a SKU nobody can buy — at the Pro rate, which is
+    // not this plan's rate either.
+    planPitch: `The social suite rides ${QUOTED_PLAN_NAME} — ${QUOTED_MONTHLY}, every channel included.`,
     targetMinutes: 12,
     beats: [
       {
@@ -332,7 +351,7 @@ export const DEMO_TRACKS: Record<DemoTrackId, DemoTrack> = {
         group: 'close',
       },
       moreBeat(
-        'The social suite rides Pro — $250 a month, plus a $30 add-on for every channel. And the whole platform comes underneath it.',
+        `The social suite rides ${QUOTED_PLAN_NAME} — ${QUOTED_MONTHLY}, every channel included. And the whole platform comes underneath it.`,
       ),
     ],
   },
@@ -342,9 +361,8 @@ export const DEMO_TRACKS: Record<DemoTrackId, DemoTrack> = {
     emoji: '🗓️',
     label: 'Run the day',
     story: 'Front-desk chaos — phone tag, no-shows, sticky notes everywhere.',
-    recommendedPlan: 'pro',
-    planPitch:
-      'Running the day is the Pro plan — $250 a month; most offices recover more than that in no-shows alone.',
+    recommendedPlan: QUOTED.id,
+    planPitch: `Running the day runs on ${QUOTED_PLAN_NAME} — ${QUOTED_MONTHLY}; most offices recover more than that in no-shows alone.`,
     targetMinutes: 15,
     beats: [
       HUDDLE,
@@ -361,7 +379,7 @@ export const DEMO_TRACKS: Record<DemoTrackId, DemoTrack> = {
         moves: ['Open a completed form → the AI pre-visit summary'],
       },
       moreBeat(
-        'That’s the front-desk story — Pro is $250 a month, and the reviews engine, website editor, and recall campaigns come with it. And so much more.',
+        `That’s the front-desk story — ${QUOTED_PLAN_NAME} is ${QUOTED_MONTHLY}, and the reviews engine, website editor, and recall campaigns come with it. And so much more.`,
       ),
     ],
   },

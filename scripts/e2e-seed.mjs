@@ -237,6 +237,36 @@ async function seedBase(pool) {
     [boundaryStart],
   )
 
+  // ── The platform-global singletons ─────────────────────────────────────
+  //
+  // `prospecting_config` is ONE row for the whole platform, at the literal id
+  // 'default'. `/d` (the prospect's demo-booking landing) and
+  // `/platform/prospecting` both read it, and `/d` renders a one-line "booking
+  // is closed" card instead of its slot picker when booking is off.
+  //
+  // IT LIVES IN `base` BECAUSE IT CANNOT LIVE IN A CONSUMABLE SCOPE
+  // (DREAMCRM-124). `token-pages` used to write it, so every
+  // `restoresSeedScope('token-pages')` replaced the whole JSON blob — in a
+  // parallel worker, while every other worker was mid-test. That was safe for
+  // exactly as long as one spec read it, which its own comment said out loud:
+  // "it stops being safe the day one does — and the guard will not be the
+  // thing that tells you." `e2e/demo-journey.spec.ts` is that second reader.
+  // `base` is restored by nobody, so a platform-global row placed here is
+  // seeded once per run and raced by nothing.
+  //
+  // AND IT IS DECLARED, in SCOPE_SINGLETONS below. A row id of this shape can
+  // never satisfy the `<prefix>_e2e_<name>` rule the ownership check is built
+  // on, so before DREAMCRM-124 an undeclared singleton was not a failure — it
+  // was INVISIBLE. Adding a prefix could never have fixed that; the guard now
+  // reads insert statements whose first column is `id` and requires every
+  // non-conforming literal to name an owner here.
+  await pool.query(
+    `insert into prospecting_config (id, config)
+     values ('default', $1)
+     on conflict (id) do update set config = excluded.config`,
+    [JSON.stringify({ booking: { enabled: true } })],
+  )
+
   console.log(`seeded patients + sessions (visit anchor ${start.toISOString()})`)
 }
 
@@ -924,32 +954,12 @@ async function seedTokenPages(pool) {
 
   // /d needs booking TURNED ON, or the page renders a one-line "booking is
   // closed" card instead of the slot picker — which is the control worth
-  // scanning.
-  //
-  // ⚠ THIS IS AN UNOWNED GLOBAL WRITE, AND THE DISJOINTNESS GUARD CANNOT SEE
-  // IT (Sentinel, reviewing #669). `prospecting_config` is a platform-global
-  // SINGLETON at the literal id `'default'`, and this upsert replaces the whole
-  // JSON blob before every test in `e2e/token-landings.spec.ts`, while other
-  // workers are running. `tests/guards/e2e-seed-scopes.test.ts` keys its
-  // declared-vs-written check on the `<prefix>_e2e_<name>` row shape, so
-  // `'default'` is invisible to it — the row has no owner and the guard reports
-  // that as fine. It goes QUIET, not red, which is exactly the failure mode
-  // that guard's own docblock was written about, one level up: there the hole
-  // is a missing prefix, here it is a row id that can never have one, and no
-  // amount of growing the prefix list closes it. The next scope that needs a
-  // singleton has the same problem.
-  //
-  // Safe TODAY, which is why it is a comment and not a fix:
-  // `lib/services/prospecting.ts` is the only reader, and no other spec walks
-  // `/d` or `/platform/prospecting`. It stops being safe the day one does —
-  // and the guard will not be the thing that tells you. If you are adding that
-  // spec, give this row an owner first.
-  await pool.query(
-    `insert into prospecting_config (id, config)
-     values ('default', $1)
-     on conflict (id) do update set config = excluded.config`,
-    [JSON.stringify({ booking: { enabled: true } })],
-  )
+  // scanning. That row is `prospecting_config` at the literal id 'default',
+  // and it is NO LONGER WRITTEN HERE: it is a platform-global singleton, it
+  // now lives in `base`, and it is declared in SCOPE_SINGLETONS. This scope's
+  // previous ownership of it was the hole DREAMCRM-124 closed — read the
+  // comment beside the write in `seedBase` for what went wrong and why moving
+  // it was the fix rather than declaring it here.
   await pool.query(
     `insert into prospect (id, name, city, state, timezone, status, email)
      values ('pros_e2e_tokenpages', 'Cedar Hollow Family Dental', 'Fayetteville', 'AR', 'America/Chicago', 'interested', 'front.desk@cedarhollow.example.com')
@@ -1083,6 +1093,130 @@ async function seedPartner(pool) {
   console.log('seeded the referral partner (one referred clinic, $60 owed)')
 }
 
+
+// ---------------------------------------------------------------------------
+// `demo-journey` — THE PRESENTER, THE PROSPECT, AND THE PITCH (DREAMCRM-124)
+//
+// `e2e/demo-journey.spec.ts` walks the surface a PROSPECT WATCHES during a
+// sales call: the demo prep page, the story picker, a live branded demo driven
+// from the pop-out presenter script, and the wrap-up whose closing line is the
+// last number anybody hears before being asked to sign. Two plan-price defects
+// survived three sweeps on it because nothing in `e2e/` had ever loaded it.
+//
+// This scope seeds the two ends of that call and NOTHING in between:
+//
+//   • the PRESENTER — a platform org, a platform-admin user, and a live
+//     session, because every one of those pages is gated on
+//     `tenantType === 'platform' && platformAdmin`. No other scope has a
+//     platform tenant at all; the suite's three personas are clinic, patient
+//     and partner.
+//   • the PROSPECT — one `prospect` row with a crawl verdict good enough that
+//     `suggestDemoTrack` returns the FULL tour, so the spec's explicit pick of
+//     a different story is visibly a choice rather than the default.
+//
+// The demo CLINIC is deliberately not seeded here. `startBrandedDemoAction`
+// calls `createDemoClinic()`, which is the real seeder and the thing that
+// writes the referral-commission rows the spec reads — seeding a stand-in
+// would grade a fixture instead of the code that had the defect.
+//
+// EVERYTHING THE SPEC SPENDS IS RESTORED. Ending the demo calls
+// `logCallOutcome`, which appends a `prospect_call_log` row and writes
+// `reply_draft`, `next_follow_up_at` and `follow_up_reason` back onto the
+// prospect (and `status` / `outcome_at` / `lost_reason` on a loss). A second
+// attempt would otherwise open on a prospect that has already been called, so
+// the restore clears the log rows and puts every one of those columns back —
+// all of them, not only the ones today's spec happens to set (#669's lesson:
+// "idempotent in practice" is the fixture that fails on the third retry).
+// The session's expiry is pushed forward on every restore for the same reason
+// `partner` does it.
+async function seedDemoJourney(pool) {
+  await pool.query(
+    `insert into organization (id, name, slug, type, is_demo)
+     values ('org_e2e_platform', 'E2E Dream Create', 'e2e-platform', 'platform', false)
+     on conflict (id) do update set
+       name = excluded.name,
+       slug = excluded.slug,
+       type = 'platform'`,
+  )
+  // `platform_admin` is a column on `user`, not a role on `member`: the tenant
+  // context reads it off the session user, and the prospecting pages gate on
+  // it directly. A member row with role 'owner' is what makes the PLATFORM the
+  // active tenant; both are needed and they answer different questions.
+  await pool.query(
+    `insert into "user" (id, name, email, email_verified, platform_admin)
+     values ('user_e2e_presenter', 'Quinn Presenter', 'quinn.presenter@example.com', true, true)
+     on conflict (id) do update set
+       name = excluded.name,
+       email = excluded.email,
+       email_verified = excluded.email_verified,
+       platform_admin = true`,
+  )
+  await pool.query(
+    `insert into member (id, organization_id, user_id, role)
+     values ('mem_e2e_presenter', 'org_e2e_platform', 'user_e2e_presenter', 'owner')
+     on conflict (id) do update set role = 'owner'`,
+  )
+  await pool.query(
+    `insert into session (id, token, user_id, active_organization_id, expires_at)
+     values ('sess_e2e_presenter', 'e2e-presenter-session-token', 'user_e2e_presenter', 'org_e2e_platform', now() + interval '7 days')
+     on conflict (id) do update set
+       active_organization_id = 'org_e2e_platform',
+       expires_at = now() + interval '7 days'`,
+  )
+
+  // A healthy practice on paper: a real site, a good rating, plenty of
+  // reviews, both social links present. `suggestDemoTrack` answers 'full' for
+  // this shape, which is the point — 'frontdesk' is never auto-suggested (you
+  // learn front-desk chaos on the call), so the spec picking it is the
+  // discovery-driven pick the picker exists for.
+  const enrichment = {
+    socialLinks: { facebook: 'https://facebook.com/ridgelinedental', instagram: 'https://instagram.com/ridgelinedental' },
+    mobileViewport: true,
+    bookingWidget: false,
+    builder: 'WordPress',
+    copyrightYear: new Date().getUTCFullYear(),
+    themeColor: '#2F6D6A',
+    fetchedAt: new Date().toISOString(),
+  }
+  // The call log the previous attempt left behind. Rows key on a random
+  // `pcall_…` id, so a restore clears by prospect rather than upserting.
+  await pool.query(`delete from prospect_call_log where prospect_id = 'pros_e2e_demojourney'`)
+
+  const verdict = {
+    hasWebsite: true,
+    websiteQuality: 78,
+    weaknesses: ['No online booking anywhere on the site'],
+    summary: 'A tidy site with no way to book — every new patient still has to call.',
+  }
+  await pool.query(
+    `insert into prospect
+       (id, name, city, state, timezone, status, email, phone, website_url,
+        authorized_official_name, google_rating_tenths, review_count,
+        opportunity_score, score_band, score_reasons, enrichment, ai_verdict)
+     values ('pros_e2e_demojourney', 'Ridgeline Family Dental', 'Boise', 'ID', 'America/Boise',
+             'interested', 'front.desk@ridgeline.example.com', '+15550100800',
+             'https://ridgeline.example.com', 'Avery Ridgeline', 47, 214, 71, 'warm', $1, $2, $3)
+     on conflict (id) do update set
+       status = 'interested',
+       outcome_at = null,
+       lost_reason = null,
+       converted_organization_id = null,
+       reply_draft = null,
+       next_follow_up_at = null,
+       follow_up_reason = null,
+       enrichment = excluded.enrichment,
+       ai_verdict = excluded.ai_verdict,
+       google_rating_tenths = excluded.google_rating_tenths,
+       review_count = excluded.review_count`,
+    [
+      JSON.stringify(['Strong reputation — lead with what they are leaving on the table', 'No online booking']),
+      JSON.stringify(enrichment),
+      JSON.stringify(verdict),
+    ],
+  )
+  console.log('seeded the demo presenter + one prospect to pitch')
+}
+
 /**
  * Every scope, in the order a full seed applies them. `base` first because the
  * consumable scopes reference its patients; the rest are row-disjoint and so
@@ -1100,6 +1234,7 @@ export const SCOPES = {
   webhook: seedWebhook,
   'token-pages': seedTokenPages,
   partner: seedPartner,
+  'demo-journey': seedDemoJourney,
 }
 
 /** Everything except `base` — the rows a spec can spend and a retry must get back. */
@@ -1193,6 +1328,42 @@ export const SCOPE_ROWS = {
     // on its profile is what makes it appear on the portal at all.
     'org_e2e_referred',
   ],
+  'demo-journey': [
+    'org_e2e_platform',
+    'user_e2e_presenter',
+    'mem_e2e_presenter',
+    'sess_e2e_presenter',
+    'pros_e2e_demojourney',
+  ],
+}
+
+/**
+ * The rows whose ids CANNOT carry a scope prefix — platform-global singletons
+ * at a literal id, declared as `<table>:<id>` (DREAMCRM-124).
+ *
+ * WHY THIS IS A SECOND MAP RATHER THAN MORE ENTRIES IN SCOPE_ROWS. Every id in
+ * SCOPE_ROWS is of the shape `<prefix>_e2e_<name>`, and that shape is what
+ * `tests/guards/e2e-seed-scopes.test.ts` matches to find written rows in the
+ * SQL. A singleton's id is `'default'` — a word that appears in ordinary SQL
+ * and in prose — so it cannot be found the same way and must not be looked for
+ * the same way. The guard reads the insert STATEMENT instead: every
+ * `insert into <table> (id, …) values ('<literal>', …)` whose literal does not
+ * match the row-id shape has to be named here, by table and id.
+ *
+ * That is the real fix for the hole #675 recorded and could not close: the old
+ * check keyed on the row-id shape alone, so an unowned singleton was not a
+ * failure, it was INVISIBLE — quiet rather than red — and no amount of growing
+ * the prefix list would ever have reached it.
+ *
+ * A singleton is almost always `base`'s. A consumable scope owning one means
+ * every restore of that scope rewrites a row the whole platform shares, in a
+ * parallel worker, under every other spec — which is exactly what
+ * `prospecting_config` was doing from `token-pages` until this issue. The
+ * disjointness check covers these too, so two consumable scopes claiming one
+ * singleton is red.
+ */
+export const SCOPE_SINGLETONS = {
+  base: ['prospecting_config:default'],
 }
 
 export async function seed(names = Object.keys(SCOPES)) {

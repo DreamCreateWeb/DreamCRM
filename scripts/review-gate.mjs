@@ -998,6 +998,30 @@ export const INTAKE_RULES = [
       // families are expanded from the same registries their own
       // `generateStaticParams` reads rather than typed out.
       'e2e/marketing-viewport.spec.ts',
+      // The demo presenter journey (DREAMCRM-124). A CASE of the rule above,
+      // not a new class — said rather than guessed, as this entry's `why`
+      // asks — and the FIRST file rule 3 caught on its own rather than a
+      // person catching it. That is the derivation working: #621 had to
+      // register `marketing-viewport` by hand and the class went unclosed for
+      // a batch; this one failed `test` by name the moment it was staged.
+      //
+      // WHAT IT ASSERTS ABOUT A POPULATION: it expands `DEMO_TRACK_LIST`
+      // (`lib/types/demo-script.ts`) and requires EVERY demo story's picker
+      // card to quote the one purchasable plan at its `getQuotedPlan()`
+      // price. So after it lands, adding a sixth demo track that closes on a
+      // typed number — or on a tier `PURCHASABLE_PLANS` no longer carries —
+      // reddens `e2e` for whoever writes it. Four of the five existing tracks
+      // were in exactly that state until this PR.
+      //
+      // It is a REGISTRY of stories rather than of routes, which is the one
+      // way it reads differently from the entry above. Rule 3's criterion is
+      // the derived PAGE LIST, and a story is not a page — but every story is
+      // a beat sequence the spec can be driven through, and the property the
+      // rule is actually about ("it asserts about members nobody typed,
+      // including next month's") holds exactly. Registering it is the honest
+      // answer; narrowing the spec to five hand-typed tracks would buy silence
+      // by giving up the coverage.
+      'e2e/demo-journey.spec.ts',
     ],
   },
 ]
