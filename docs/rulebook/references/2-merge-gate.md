@@ -3660,6 +3660,144 @@
   what no list can be widened enough to catch, which is the lesson of every entry
   above.
 
+  **THE SWEEP OF 2026-09-23T12:3xZ, boundary `2026-09-23T11:59:53+00:00`** — the
+  boundary the entry above committed to, used as written. **The widened path
+  list earned its keep on its first run and it is worth saying so, because a
+  widening that is never measured is just a longer list.** Pass one returned
+  `e6cbdc95` (#709) — through `scripts/review-gate.mjs`, a directory the old
+  four-entry list did not watch. Under the old list pass one would have returned
+  NOTHING and #709 would have depended entirely on the unscoped pass, which is
+  the arrangement the widening was taken to stop. It had merged twelve minutes
+  earlier carrying BOTH labels and no rulebook record, so it was a live intake
+  obligation rather than a drill. Protection and merge settings re-read and
+  unchanged; `rulebook-drift` 9/9, every claim held.
+
+  **THE FIFTY-EIGHTH: #709, the `components/clinic-site` widening of
+  `tests/a11y/dimmed-text.test.ts` (DREAMCRM-116, `e6cbdc95`, 2026-09-23
+  12:22:09Z, Vesper). A CASE, not a new class, and the author said so rather
+  than leaving it to be guessed** — no new kind of assertion arrived and the
+  file was already registered, so no list grows. **It is routed anyway, on §2's
+  own rule that a field of view which GROWS with no new assertion still changes
+  what fails `test` by name**: `OUT_OF_SCOPE` loses its last entry, and a
+  dimming written on type anywhere under the public clinic sites is a red run
+  now where it was silence before. That is the #669 rule in the shape it is
+  easiest to talk yourself out of.
+
+  **THE EXCLUSION WAS DISCHARGED BY MEASUREMENT, NOT BY ARGUMENT, AND THE
+  MEASUREMENT IS THE PART WORTH KEEPING.** The stated reason the tree sat
+  outside this rule was that its ink and its ground are derived per tenant:
+  `buildClinicPalette` turns the one colour a clinic picks into a seventeen-role
+  theme, so "is this dimming readable" reads as though it has as many answers as
+  there are brands. Measuring the demo clinic would have answered for exactly
+  one of them. So it was graded THROUGH THE BUILDER across every brand a clinic
+  can actually pick — the onboarding presets plus the adversarial extremes, the
+  same list `tests/clinic-site/palette.test.ts` pins its AA floor over — and the
+  answer does not depend on the brand at all. **The body ink at 50% measures
+  3.20 to 3.29 against a 4.5 floor: it fails on all twelve, best case included,
+  and the spread is 0.09.** Not a coincidence — the builder grades `ink` on `bg`
+  to clear AA with almost no headroom, so halving the ink spends all of it
+  whatever the hue. The named quiet ink clears on every one, 4.88 to 5.97, so
+  this rule's standing fix is available for every brand rather than the lucky
+  ones. **A per-tenant derivation is not automatically unmeasurable; it is
+  measurable through its own builder, and "it varies" is a hypothesis with a
+  cheap test rather than a reason to stop.** That generalises past this rule to
+  every exclusion in this document whose stated reason is variability.
+
+  **AND THE PARAGRAPH THAT JUSTIFIED THE EXCLUSION WAS WRONG IN BOTH HALVES**,
+  which is why re-deriving on the way in is a rule here rather than a courtesy.
+  It claimed three hits, none body copy. There are seven chunks carrying an
+  `opacity-N` under that tree, six of them unprefixed; four are graphics with no
+  type scale and are left alone exactly as the other 22 are; three declared a
+  type scale and were findings, all three fixed rather than pardoned. Its triage
+  was half right — the two `dc-edit-only` prompts really are editor-only — and
+  half beside the point, because **an editor is still a person reading type at
+  3.20.** A pardon that rests on WHO is reading rather than on what is rendered
+  is the weakest kind in this file.
+
+  **THE BLIND SPOT IT NAMED ON THE WAY IN, recorded here because the next author
+  will assume otherwise and because the file cannot fail on it:** a dimming
+  written in a STYLE OBJECT — `style={{ color: INK_MUTED, opacity: 0.65 }}` —
+  is invisible to every rule in `dimmed-text.test.ts`, because all of them read
+  CLASS STRINGS. Two exist under that tree today. It is the same false-negative
+  direction as the rest of the file, and closing it needs **a different reader,
+  not a wider regex** — which is §2d's derive-the-field-of-view family stated as
+  a limit instead of discovered as a defect. Naming a blind spot in the same
+  merge that narrows another one is the behaviour this document wants; nothing
+  goes red for it today and that is the honest position.
+
+**A HAND-ADDED `needs-sentinel-review` DOES NOT SURVIVE YOUR NEXT PUSH, AND THE
+MORNING SWEEP CANNOT SEE THE PR THAT LOSES ONE** (Sentinel's finding, found
+while reviewing PR #710; routed 2026-09-23, DREAMCRM-130). This is not a gate CHANGE and it takes
+no ordinal — it is a defect in the machinery this section describes, and it is
+recorded here because §2 is where an agent comes to find out what the labels
+mean.
+
+**THE RULE YOU NEED IF YOU READ NOTHING ELSE: the label is not the delivery
+mechanism. The MENTION is.** When the classifier misses a risk and you add
+`needs-sentinel-review` by hand, also comment on your issue with the PR link and
+the mention, exactly as project rule 3 says — and do not treat the label as
+having carried the request, because by the time anyone looks it will probably be
+gone. The same holds for `needs-forge-intake` and me.
+
+**The mechanism.** `.github/workflows/review-gate.yml` re-derives both labels
+from the changed paths on every push. When the classifier returns
+`needs-review=false` it takes an `else` branch that runs
+`gh pr edit --remove-label needs-sentinel-review` unconditionally. The intake
+half is symmetrical, with the same `else` and the same unconditional removal, so
+**a hand-added `needs-forge-intake` is stripped exactly as readily** — Sentinel
+found the review half; the intake half is the same three lines and is mine.
+
+**That `else` is correct for the label it was written for and wrong for the one
+it also hits.** For a classifier-DERIVED label it is right: a PR that drops its
+risky file in a later push should stop claiming it owes a review, and the
+comment beside the code says exactly that. But the classifier cannot distinguish
+*"the risk went away"* from *"I never saw the risk to begin with."* A
+hand-added label is a human overriding the classifier, and the classifier
+overwrites the override the moment the author saves their work again.
+
+**Why this is worse than a missing sticker, and it is the part to understand.**
+`scripts/review-sweep.mjs` is the morning net, built because #573, #582 and #636
+merged owing a review nobody noticed. Its review half is
+`labelled(pr, REVIEW_LABEL)` (line 572, via `reviewBucket` at 622) read over
+MERGED PRs at sweep time. A PR whose label was stripped by its last push merges
+carrying nothing, the sweep finds nothing to ask about, and the morning report
+is honestly clean. **So the net is blind in exactly the category where the path
+rule had already failed — the judgement call, which is the category the net is
+most needed for.** A control that reports CLEAN about a fact it can no longer
+see is the failure mode this whole section keeps naming, arriving this time in
+the control itself.
+
+**The reproduction, in #710's own timeline** — recorded here rather than only in
+the thread, per §10, because the agent who fixes this will be standing in this
+file and not in a comment stream. `labeled needs-sentinel-review` by
+`DreamCreateWeb` at 11:51:35Z (Rio, by hand, because `review-gate.mjs` had
+classified the diff `needs-forge-intake` only). `unlabeled` by
+`github-actions[bot]` at 12:02:43Z, on the `198b981b` push that fixed the
+typecheck. Absent from the PR now. No harm on this one: the review happened,
+because Rio mentioned Sentinel by hand — which is the whole point. **The label
+machinery contributed nothing to the review it was built to guarantee, and
+nobody would have known.**
+
+**`scripts/review-sweep.mjs`'s own blind-spot list owes an entry, and that is
+the sharpest way to put the defect.** That list is explicit and it is
+deliberately maintained — a label step that hiccuped, a PR that merged during
+the labelling run, a typed verdict with no review behind it, a queue longer than
+GitHub will annotate. Its docblock says, in so many words, that a blind-spot
+list which omits a known blind spot spends the credibility it exists for. This
+blind spot is not on it. Until it is, the list is making a completeness claim it
+no longer earns.
+
+**NOT PATCHED HERE, deliberately.** `review-gate.yml` is a CI workflow file and
+`review-sweep.mjs` sits in `review-gate.mjs`'s own `check-definitions` area, so
+both are review-gated; and the fix needs a DECISION rather than an edit —
+whether to stop removing the label at all, to remove it only when the bot
+applied it (the timeline knows who did), or to have the sweep key on something a
+push cannot erase. That is the owning agent's call and it should be made once,
+in the open. Filed as **DREAMCRM-130 for Quinn**, with Sentinel on the review.
+Sentinel found it while reviewing someone else's PR, declined to hold a green PR
+over another lane's defect, and handed it over with the reproduction — which is
+§10 working exactly as written.
+
 **Which repo-settings change goes where.** A setting that changes *which* checks
 are required or *who* may bypass them is branch protection: §3's review gate
 applies, and it is intake too. A setting that only changes *how* a merge is
