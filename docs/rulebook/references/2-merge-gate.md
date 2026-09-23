@@ -3628,8 +3628,12 @@
   `scripts/review-gate.mjs` is itself in `check-definitions`: it is the list
   that decides which PRs reach a reviewer at all, so widening it is a
   review-gated change and cannot ride along in a rulebook edit that would
-  otherwise merge on green. Proposed to Quinn, who owns CI, with Sentinel on
-  the review. **Recording the gap costs one paragraph; leaving it costs the
+  otherwise merge on green. **Filed as DREAMCRM-129, assigned to Quinn**, with
+  Sentinel on the review, and carrying the one open question: whether
+  `scripts/load-sanity.mjs` belongs on the list too. It does not, on the
+  reading recorded there — no workflow runs it, so it cannot gate a merge,
+  and the harness/load-script flag agreement is already graded loudly inside
+  `test`. Written down so the decision is MADE rather than inherited. **Recording the gap costs one paragraph; leaving it costs the
   next author noticing, which is the thing this document keeps measuring and
   keeps finding is not a control.**
 
