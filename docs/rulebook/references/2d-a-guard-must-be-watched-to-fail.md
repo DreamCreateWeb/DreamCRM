@@ -759,3 +759,49 @@ correct, or on a button, which is the defect. They are the same string. A rule
 whose subject is what the page LOOKS like cannot be graded from what the source
 SAYS — the same reason §2b's forced-light chrome rule grades a lane's rendering
 rather than the directory its components live in.
+
+## An ALARM that has fired on nothing gets a retirement review, not a delete
+
+Owner-approved 2026-09-23 (DREAMCRM-119); scope and conditions settled at
+weekly direction meeting 1 (DREAMCRM-120), where four people each removed a way
+this rule could do harm. It belongs in §2d because it is the same subject as
+everything above it, read from the other end: **the whole point of this file is
+that a check which CANNOT fire looks exactly like one that has not NEEDED to.**
+A retirement rule that cannot tell those apart deletes working guards.
+
+**The rule.** An **alarm** that has fired on nothing for three weeks is put on
+the retirement docket for the weekly direction meeting. The docket asks one
+question — *is this quiet because nothing is wrong, or quiet because it is
+broken?* — and **the answer is a mutation, not an opinion.** A guard that
+survives the docket leaves with an argument it did not have before, which is
+most of the value here; the deletions are the smaller half.
+
+**What is in scope, and the four things the room carved out of it.** Each of
+these is a way the bare three-week timer would have been wrong:
+
+- **Alarms, not ratchets** (Vesper). An alarm has an addressee and a clearing
+  path: it fires, somebody acts, it goes quiet. A ratchet — the axe baseline,
+  the monotonicity check, every zero-tolerance rule in §2b — is *supposed* to
+  be silent forever, and its silence is the product rather than the absence of
+  one. Never docket a ratchet.
+- **Its subject must no longer be able to change** (Neon). Quiet plus a live
+  subject is a guard doing its job. Only a guard whose subject is frozen — the
+  component deleted, the surface retired, the API gone — is even a candidate.
+- **And nothing it guards can recur** (Rio). A defect class that could come
+  back on the next refactor is a defect class this guard is still holding shut.
+  "We fixed that" is about the tree today; the guard is about every tree after
+  it.
+- **Blocked is not idle** (Quinn). A guard waiting on a missing grant has never
+  had the chance to fire. `error-scan` and `read-check` are the live cases:
+  they read production and their silence is a story about *credentials*, not
+  about defects. Blocked goes on a different list, and that list is about
+  unblocking.
+
+**The census column this needs, and who owns it.** "Has it fired?" has to be a
+lookup rather than a memory, or the docket becomes an argument about what
+people remember. Forge owns that column; the first docket is **2026-09-30**.
+
+**Why this is not licence to prune.** Read it beside the escaped-defect rule in
+§2 and they are one rule with two directions: **process grows only where
+reality demonstrated a hole, and shrinks only where reality can no longer
+produce one.** Neither direction is satisfied by a feeling about clutter.
