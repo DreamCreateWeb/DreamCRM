@@ -127,6 +127,11 @@ export const WORKFLOW_CENSUS = {
     publishes: [],
     note: 'after the fact; alerts, does not gate the deploy',
   },
+  'e2e-flake-hunt.yml': {
+    gates: 'nothing',
+    publishes: [],
+    note: 'runs one spec N times and reports the ratio (DREAMCRM-105): the instrument that turns "fails about once a day, can\'t reproduce" into a number. workflow_dispatch ONLY — no PR trigger, no push, no schedule — so it cannot hold a merge and costs nothing on a morning nobody is hunting. Its dispatch inputs are the repo\'s first user-controlled strings; they ride env: and are validated in scripts/e2e-harness.sh',
+  },
   'read-check.yml': {
     gates: 'nothing',
     publishes: [],

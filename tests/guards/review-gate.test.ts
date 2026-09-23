@@ -926,16 +926,66 @@ describe('the review-gate classifier', () => {
     // into surfaces. Both floors are what stop the emptiness below being
     // vacuous — a predicate narrowed to nothing fails the instrument check
     // above, one widened to everything fails here.
+    // THE TWO INSTRUMENT FLOORS ARE SHARES, NOT COUNTS (Sentinel's forward-
+    // looking note on #690). A constant over a population that shrinks on a
+    // legitimate refactor is the named-fixture decay one step out: it reddens
+    // `test` on a good change, and the failure names an instrument rather than
+    // a defect, so the tempting fix is to lower the number — which quietly
+    // guts the discrimination instead of re-deriving it.
+    //
+    // THE CONCENTRATION THAT MAKES THAT REACHABLE, measured on `main` at
+    // `c95ddeed` rather than argued. The renderers are NOT 39 independent
+    // witnesses: 26 of them reach the Stripe client through
+    // `lib/services/membership.ts` alone, 5 more through
+    // `lib/services/balance-payments.ts`, 4 through
+    // `lib/services/payment-plans.ts`. So one module moving its
+    // `@/lib/stripe` import behind another takes a third of the population
+    // with it, and the COUNTS collapse while the SHARES barely move:
+    //
+    //   population                      oneHop  rend  share   non-surf  share
+    //   today                              78    39   0.500      53     0.679
+    //   − membership                       53    17   0.321      31     0.585
+    //   − membership, balance-payments     49    16   0.327      29     0.592
+    //   − those + payment-plans            41    12   0.293      25     0.610
+    //   − those + social-billing, deposits 32     8   0.250      20     0.625
+    //
+    // A count floor of 10 survives the first two and dies on the fifth; a
+    // count floor of 20 on the non-surfaces dies there too. The shares never
+    // leave 0.25–0.50 and 0.58–0.68 across all of it, because both are
+    // statements about the SHAPE of the population rather than its size — and
+    // the shape is what the rule's argument actually rests on.
+    //
     // RENDERERS FIRST, deliberately: it is the assertion whose message names
-    // the SHAPE that went wrong, and a widening reaches it before the count
-    // floor below on every mutation measured here.
+    // the SHAPE that went wrong, and a widening reaches it before the
+    // non-surface share below on every mutation measured here.
+    const RENDERER_SHARE_FLOOR = 0.2
+    const NON_SURFACE_SHARE_FLOOR = 0.5
+
+    // THE OUTER POPULATION FIRST, for two reasons. A share is satisfiable by a
+    // tiny population (1 of 2 is 0.5), so something has to floor the
+    // denominator — and if `oneHop` is EMPTY the shares below are `NaN`, which
+    // fails every comparison with a message about a ratio rather than about
+    // the collapse that caused it. This is the one honest constant here: unlike
+    // the shares it does not decay when a refactor re-routes an import, because
+    // it falls only if the money surface genuinely stops being reachable in one
+    // hop — at which point this rule's premise has changed and a person should
+    // look rather than a number should move.
+    expect(
+      oneHop.length,
+      'the one-hop population has collapsed, so the shares below can be satisfied by a handful ' +
+        'of files and prove nothing. Re-derive the rule rather than adjusting it.',
+    ).toBeGreaterThan(20)
+
     const surfaceSet = new Set(surfaces)
     const renderers = oneHop.filter((f) => /\/(page|layout|loading|error|not-found)\.tsx$/.test(f))
     expect(
-      renderers.length,
-      'no renderers left in the one-hop population, so the assertion below cannot discriminate ' +
-        'against anything',
-    ).toBeGreaterThan(10)
+      renderers.length / oneHop.length,
+      `Renderers are ${renderers.length} of ${oneHop.length} one-hop files, below the share this ` +
+        'assertion needs to discriminate against anything. THE FIX IS A NEW WITNESS, NOT A LOWER ' +
+        'FLOOR: find the shape the one-hop population is now made of and assert the predicate ' +
+        'leaves THAT alone. Lowering the number keeps the run green and stops the check ' +
+        'discriminating, which is the failure this whole rule exists to avoid.',
+    ).toBeGreaterThan(RENDERER_SHARE_FLOOR)
     expect(
       renderers.filter((f) => surfaceSet.has(f)),
       'A page, layout or error boundary is not a mutation surface — it renders, and calls an ' +
@@ -944,15 +994,18 @@ describe('the review-gate classifier', () => {
         'the predicate; never add an exemption entry for an innocent file.',
     ).toEqual([])
 
-    // And the COUNT floor, which catches a widening that sweeps in shapes the
+    // And the second share, which catches a widening that sweeps in shapes the
     // line above does not name — a client component, a service module.
     const nonSurfaces = oneHop.filter((f) => !surfaceSet.has(f))
     expect(
-      nonSurfaces.length,
-      'the one-hop population is almost all pages and client components that reach Stripe only ' +
-        'because a shared layout does — if it is not, this rule is no longer leaving alone the ' +
-        'files whose existence is the argument for keying on the mutation surface',
-    ).toBeGreaterThan(20)
+      nonSurfaces.length / oneHop.length,
+      `Only ${nonSurfaces.length} of ${oneHop.length} one-hop files are NOT mutation surfaces. ` +
+        'Most of that population is supposed to be pages and client components reaching Stripe ' +
+        'through a shared layout — their existence is the whole argument for keying on the ' +
+        'mutation surface rather than on the flat hop. If they are gone, the predicate has ' +
+        'widened, or the argument has changed and a person should re-derive it. Same rule as ' +
+        'above: do not lower the floor.',
+    ).toBeGreaterThan(NON_SURFACE_SHARE_FLOOR)
 
     // MONEY, not merely SOME area (Sentinel, reviewing #681). The first draft
     // filtered `areasFor(f).length === 0` while the direct-import check beside
