@@ -3509,7 +3509,8 @@
   them now graded by a rule that could not read them yesterday.** A stranger's
   PR can go red on a line no rule in this repo could see last week; that is
   the test, and that is the answer.
-  **STATE: OPEN — PR #711, on the DREAMCRM-122 branch.** Forge owns the flip.
+  **STATE: MERGED — `f8c642da` (#711), 2026-09-23 13:01:48Z.** Flipped with §3's line in the
+  same commit, which is the point of the pair.
 
   **What this entry is NOT, and it is half the intake.** The same PR carries a
   §3 `GATE_RULES` widening (`lib/net-collected.ts` → `money`) and a DECLINED
