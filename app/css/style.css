@@ -188,7 +188,18 @@
   --color-yellow-900: #4f3d0e;
   --color-yellow-950: #342809;
 
-  --font-inter: "Inter", "sans-serif";
+  /* THE `sans-serif` HERE IS UNQUOTED ON PURPOSE, and that is a fix rather
+     than a formatting preference (DREAMCRM-127). It shipped as
+     `"Inter", "sans-serif"` — and a QUOTED generic is not the generic, it is
+     a request for a family literally named "sans-serif". No such family
+     exists, so the stack fell through to the browser's default standard
+     font, which in Chrome is **Times New Roman**. Every first paint before
+     Inter landed was set in a SERIF, on a brand whose whole type argument is
+     a neutral grotesk (BRAND.md Part 4) — and that is also most of the
+     font-swap reflow this token is named in, because Times is 8.2% narrower
+     than Arial and rewraps far more text when Inter replaces it.
+     `"Inter Fallback"` below is the metric-matched face that closes the rest. */
+  --font-inter: "Inter", "Inter Fallback", sans-serif;
 
   /* Dashboard UI font (Nunito — v3's rounded, friendly face; self-hosted
      variable woff2 in public/fonts, declared below the @theme block) with
@@ -426,6 +437,96 @@
   unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF,
     U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020,
     U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+/* --------------------------------------------------------------------
+   "Inter Fallback" — the face the reader sees BEFORE Inter lands, given
+   Inter's metrics so it wraps where Inter wraps (DREAMCRM-127).
+
+   THE DEFECT. `font-display: swap` above is the right call — text visible
+   immediately beats text invisible for 800ms — but it means the first frame
+   is set in a different face, and when Inter replaces it every paragraph
+   whose wrap points moved reflows and shoves the page down. Measured on the
+   mobile profile at 412px: the `/pricing` hero grew 293.25px -> 320.53px
+   (+27.28px) at `document.fonts.ready`, everything below it dropped with it,
+   and the page carried a **0.1157 CLS** — past the 0.1 "good" threshold on
+   one shift. It landed on every `PageHero` subpage, because they share the
+   geometry. `docs/MOBILE-WEIGHT.md` has the reproduction and the
+   before/after; `docs/RELEASE.md` Part 5 has the ledger entry.
+
+   WHY OVERRIDES RATHER THAN A RESERVED LINE BOX. Pinning the sub
+   paragraph's `min-height` at three lines also measured clean, and it was
+   rejected: it hard-codes a line count per breakpoint AND per string, and
+   `PageHero`'s `sub` is dynamic on five of its call sites (blog excerpts,
+   doc summaries, guide descriptions, vendor summaries). A constant that has
+   to be re-derived every time somebody edits marketing copy is a defect
+   waiting on a copy edit. This fixes the CAUSE — the two faces disagreeing
+   about how wide text is — so it covers every surface the swap touches
+   rather than the one that happened to be measured.
+
+   HOW THE NUMBERS WERE DERIVED, so they can be re-derived. Advance widths
+   were measured in Chrome at `font-size: 1000px` over the eleven `sub`
+   strings that actually ship plus a general sample, for Inter against the
+   local face, per weight:
+
+     size-adjust      = InterAdvance / LocalAdvance
+     ascent-override  = InterAscentRatio  / size-adjust   (the overrides are
+     descent-override = InterDescentRatio / size-adjust    applied BEFORE
+     line-gap-override= InterLineGapRatio / size-adjust    size-adjust scales)
+
+   Inter reads ascent 96.90%, descent 24.10%, line gap 0.
+
+   WHY THREE BANDS AND NOT ONE. Arial has two real weights where Inter has a
+   continuous axis, so one `size-adjust` cannot serve the range — and getting
+   this wrong is not neutral. A single 106.60% face (tuned on body text) fixed
+   all eleven sub paragraphs and then made the 800-weight display headline
+   rewrap by 38px on two of six subpage titles, which is a BIGGER shift than
+   the 27px it set out to remove. The bands are the weight regimes the local
+   faces actually cover; each carries the ratio measured at the weight inside
+   it. Verified as line counts rather than as ratios — Inter versus the
+   fallback, every shipping `sub` string and every subpage title, at the
+   three widths `e2e/marketing-viewport.spec.ts` grades:
+
+     390    9 of 19 disagreed, worst -38.35px   ->   0 of 19, 0px
+     834    5 of 19 disagreed, worst -48.96px   ->   0 of 19, 0px
+     1440   4 of 19 disagreed, worst -58.74px   ->   0 of 19, 0px
+
+   Which is also how the defect turned out to be bigger than the ledger
+   entry sized it: it moved HEADLINES too, and its worst jump was 58.74px on
+   a desktop viewport rather than 27px on a phone.
+
+   `local()` AND WHAT HAPPENS WHERE IT IS MISSING. On a platform with no
+   Arial — Android, most Linux — no face in this family loads, the family
+   contributes nothing, and the stack falls through to `sans-serif` exactly
+   as it does today. The overrides can only help a platform they were
+   measured on; they cannot regress one they were not.
+   -------------------------------------------------------------------- */
+@font-face {
+  font-family: 'Inter Fallback';
+  font-weight: 100 500;
+  src: local('Arial');
+  size-adjust: 106.60%;
+  ascent-override: 90.90%;
+  descent-override: 22.61%;
+  line-gap-override: 0%;
+}
+@font-face {
+  font-family: 'Inter Fallback';
+  font-weight: 501 700;
+  src: local('Arial Bold');
+  size-adjust: 102.33%;
+  ascent-override: 94.69%;
+  descent-override: 23.55%;
+  line-gap-override: 0%;
+}
+@font-face {
+  font-family: 'Inter Fallback';
+  font-weight: 701 900;
+  src: local('Arial Bold');
+  size-adjust: 104.35%;
+  ascent-override: 92.86%;
+  descent-override: 23.09%;
+  line-gap-override: 0%;
 }
 
 /* --------------------------------------------------------------------
