@@ -2773,6 +2773,48 @@
   store ever drifts is to make publication mechanical rather than to add a
   sentence asking people to be careful.
 
+  **IT DRIFTED, AND HERE IS THE MEASUREMENT (Forge, 2026-09-23, DREAMCRM-114,
+  taken while publishing #699).** The paragraph above says the repo → store hop
+  rests on a byte-compare the pusher performs, that this is a person-shaped
+  control, and that the honest next move if the store ever drifts is to make
+  publication mechanical. **It had already drifted, before today's merge, and
+  nobody knew.** Comparing the published copy against `main` at `66d087dc` —
+  that is, at the state before any of this batch landed:
+
+  - `references/2-merge-gate.md` — the store was **37 lines behind** `main`;
+  - `references/2d-a-guard-must-be-watched-to-fail.md` — **19 lines behind**;
+  - the other seven reference files and `SKILL.md` were byte-identical.
+
+  So the two files carrying the registered-guard list and the mutation
+  families — the two an agent opens to find out what will fail their PR — are
+  exactly the two that were stale. Nothing detected it. It turned up while
+  diffing the store against the tree in order to publish something else, which
+  is the same person-choosing-to-look the placement decision was taken to
+  replace, one level further out.
+
+  **Read it as the prediction confirmed rather than as a new problem.** The
+  placement bought a change of SIZE and that is real: the ungraded surface is
+  one mechanical push of already-graded bytes instead of the whole rulebook,
+  and what drifted was two files rather than a document nothing could check at
+  all. What it did not buy is DETECTION, and the paragraph above is honest
+  about that. The next move is the one it already names — make publication
+  mechanical — and the shape to reach for is not a checklist item but an
+  assertion some other run makes: **nothing in this hop can fail today, so
+  nothing in this hop is a control.**
+
+  **What a publisher owes until then, since the byte-compare is the only
+  control there is.** Publish EVERY file, not only the ones you edited — a
+  concurrent run can land on a file you did not touch, and a stale local copy
+  is how you clobber it. Then re-fetch and assert four things about what comes
+  back: the content round-trips byte-for-byte against the tree; the stored
+  description matches the `SKILL.md` frontmatter compared as BYTES (a length
+  match proves nothing — two 9,018-character strings differed on 2026-09-22);
+  no line starts with `#` that is not a real heading (a wrapped issue
+  reference became an H1 that way); and nothing in the 0x80–0x9F range or any
+  cp1252-decoded UTF-8 fragment survives anywhere in it. That last one is the
+  asymmetry worth keeping: a raw control byte in a tracked file fails `test`
+  (§2c) and the store has no equivalent, so the re-fetch IS the store's guard.
+
   **THE FORTY-NINTH: #685, `tests/guards/rulebook-state.ts` +
   `tests/guards/rulebook-state.test.ts`. A NEW CLASS, and the first guard in
   this repo whose subject is THIS DOCUMENT.** Six rules over `docs/rulebook/**`,
@@ -3127,6 +3169,243 @@
   rule built on the shared reader, which is the #669 shape and is routed for
   the same reason: a field of view that grows with no new assertion still
   changes what fails `test` by name.
+
+  **THE FIFTY-THIRD: #698, `tests/marketing/hero-lcp-paint.test.tsx` +
+  `tests/marketing/marketing-not-found.test.tsx` + the marketing-404 stop in
+  `e2e/smoke.spec.ts` (DREAMCRM-108, `66d087dc`, 2026-09-23 06:05:18Z). THREE
+  new blocking assertions in one merge, and every one of them is the shape the
+  path-scoped sweep pass cannot see.** Routed on DREAMCRM-114 at
+  2026-09-23T08:0xZ, the same day.
+  **STATE: MERGED — `66d087dc` (#698), 2026-09-23 06:05:18Z.**
+
+  - **`hero-lcp-paint.test.tsx` — a NEW ZERO-TOLERANCE CLASS inside `test`.**
+    The homepage hero's `<h1>` and the paragraph under it may not carry any
+    class the marketing motion stylesheet holds at `opacity: 0`, and neither
+    may `PageHero`'s equivalents across the eight subpages. It derives the
+    banned SET by rendering `MarketingMotionStyles` and reading every rule that
+    starts an element at zero, rather than grepping for `mkt-enter` — so a
+    third entrance class that also starts at zero is covered on the day it is
+    written, and renaming `mkt-rise` breaks nothing. That is §2d's
+    derive-the-field-of-view rule applied BEFORE the second instance rather
+    than after it. Its READER is mutated too (§2d's reader family, answered in
+    the same PR): forcing `classesHeldInvisible` to return an empty Set reddens
+    a test of its own instead of passing everything silently.
+    **Scope, stated rather than implied:** an `opacity: 0` arriving from a
+    Tailwind utility or an inline `style` is NOT seen. The site ships one
+    hand-written entrance sheet and a whole-utility-layer resolver is the
+    "208 places to catch 8" trade — the same call §2b's 12px floor made.
+  - **`marketing-not-found.test.tsx` — seven assertions on the marketing 404.**
+    That `app/(marketing)/not-found.tsx` exists AT THAT PATH (the location is
+    the entire mechanism: Next resolves `notFound()` to the nearest file
+    walking up from the missing route, so there is no import and nothing a
+    render can observe — moving the file back out is exactly how the defect
+    returns); that the root 404 stays chrome-less for the clinic tenants it
+    belongs to; that every recovery link is a live destination graded against
+    `MARKETING_PUBLIC_PATHS`, so a recovery link can never itself 404; one
+    `h1`; `noindex`; and no apology copy.
+  - **A new browser stop in `e2e/smoke.spec.ts`**, carrying an axe scan and
+    Part 10's 390px `scrollWidth` probe against a real 404 RESPONSE. **Read
+    why it is not in `e2e/marketing-viewport.spec.ts`, because it is the
+    interesting part:** that spec asserts `status === 200` at every stop it
+    visits, so its page list — derived, and rightly praised in §2a for being
+    derived — structurally could not have grown to cover a page whose whole
+    point is a 404. A derived field of view is still bounded by the predicate
+    it derives THROUGH.
+
+  **WHY THIS ENTRY IS ALSO THE ARGUMENT FOR THE ONE BELOW IT.** All three
+  landed inside checks that already existed, under paths the path-scoped pass
+  does not watch: `tests/marketing/**` is not on that list, and the `e2e/` half
+  would have been caught only by the accident of which directory the stop lives
+  in. No workflow file moved and no gate area moved, so
+  `scripts/rulebook-drift.mjs` correctly stayed green — this is precisely the
+  #534 / #598 shape it cannot see, arriving for the third time. The unscoped
+  second pass found all three, about half an hour after the previous intake
+  window closed. **That is the sweep working, and it is still a person choosing
+  to look**, which §2d says is not a control.
+
+  **THE FIFTY-FOURTH: #701, the `guards-census` claim in
+  `scripts/rulebook-drift.mjs` + the census block in
+  `tests/guards/rulebook-drift.test.ts` (DREAMCRM-114). A NEW CLASS, and the
+  first guard here whose subject is WHETHER A SENTENCE EXISTS** rather than
+  whether one is still true. Every file in `tests/guards/` must be named, by
+  its own file name, somewhere in `docs/rulebook/**`, or `test` fails naming
+  it. **STATE: MERGED — `09435da3` (#701), 2026-09-23 08:57:49Z.**
+
+  **Why it is a new class and not a ninth of the same.** The eight claims
+  `rulebook-drift.mjs` already made all ask the same question in different
+  words: *is this sentence about the repo still true?* They grade required
+  checks, the workflow census, the gate areas — facts that MOVE. The failure
+  this rulebook keeps recording is a different one: a blocking assertion lands
+  inside a check that already exists, nothing any of those eight facts
+  describes moves at all, and the rule reaches nobody. #534 took three days.
+  #598 was found only by the unscoped second sweep pass. #698 put three of
+  them in one merge, thirty minutes after an intake window closed. In every
+  case `rulebook-drift` was honestly green.
+
+  **REGISTRATION BY LOCATION, and the predicate that was measured and thrown
+  away — read this before proposing a cleverer one.** The obvious rule is a
+  predicate: *a guard is a test that reads source off disk.* Measured on
+  `main` 2026-09-23, that matches **81 files OUTSIDE `tests/guards/`**, most of
+  them ordinary unit tests with no never-again thesis at all, and it MISSES
+  `hero-lcp-paint`, the day's actual case, which reads its subject out of a
+  rendered stylesheet. Over-broad by roughly ten times and blind to the case
+  that prompted it. §2 is explicit about what a false positive costs here — a
+  red `test` run naming an innocent file — so it was not built. **A directory
+  is self-declaring: a file is in it because its author put it there, so the
+  false-positive rate is zero by construction.** The general form is worth
+  more than this instance: when you need a population and no predicate is both
+  sound and complete, a declaration beats an inference.
+
+  **THE FULL FILE NAME, NOT THE STEM, and it is worth three entries.** The
+  meeting's count was eight absent; the census found ELEVEN. The three extra
+  were reported registered because a SCRIPT or a workflow of the same stem was
+  written up: `scripts/migration-check.mjs` and `migration-check.yml` both have
+  pages in §2a and §3 while `tests/guards/migration-check.test.ts` was named
+  nowhere. That is §2d's identity-looseness family pointed at this document's
+  own bookkeeping, and the matcher answers it on both sides — a LEADING
+  boundary so a bare name and a path-qualified one both count (requiring a
+  prefix would redden sixteen correct citations for nothing), and a TRAILING
+  one because `x.ts` is a prefix of `x.tsx` and a rulebook naming only the
+  `.tsx` sibling would otherwise report the `.ts` one registered.
+
+  **Its reader is guarded, and that is the load-bearing half.** Every
+  assertion in this claim is an ABSENCE assertion — *no guard file is
+  unnamed* — so a reader that silently narrows makes it GREENER, which is
+  §2d's reader family exactly. The reader is therefore graded EXACTLY: the
+  filtered census is compared against the UNFILTERED directory listing, and
+  every entry in `tests/guards/` is either graded or named as the difference.
+
+  **That is a correction, and the correction is the part worth reading
+  (Sentinel, reviewing #701).** The first version guarded the reader with a
+  FLOOR — *the census read at least 20 of something* — and argued that
+  #691's counts-versus-shares rule did not apply, because #691 is about a
+  claim on a POPULATION and this is a claim about the READER. **The first
+  half of that argument was right and the conclusion was wrong.** A floor
+  catches a reader that lands on ZERO. It cannot catch one that narrows
+  PARTIALLY, which is the shape a plausible refactor actually takes: skipping
+  `e2e-*` and `axe-*` dropped TWELVE of thirty-four guards, landed the census
+  at 22, cleared the floor of 20, and left the claim GREEN with every test
+  passing. Twelve guards leave the census and nothing anywhere goes red.
+  #691's rule held after all — a count stops being an assertion the moment
+  the population clears it, and the gap between 20 and 34 was never a
+  tripwire margin, it was 41% of the census.
+
+  **The general lesson, which outlives this guard: when an exact comparison
+  is available, a floor is not a weaker version of it — it is a different and
+  much smaller claim wearing its clothes.** The exact one was free here, and
+  it closes two holes the floor could never see: the directory listing is
+  NON-recursive while the rulebook walk is recursive, so a guard in a
+  subdirectory used to be invisible AND silent; and a guard arriving with an
+  extension nobody anticipated now reddens instead of vanishing. The floors
+  stay only on the RULEBOOK side, where there is no exact expected size to
+  compare against — a corpus is not a directory listing — and nothing more is
+  claimed for them.
+
+  **Watched to fail on the real tree, in both seams and in both versions of
+  the reader check.** Rewriting §2c's `one-mrr-number.test.ts` citation as a
+  stem reddens `test` naming that file. Narrowing the guard filter to nothing
+  reddens. And Sentinel's partial narrowing — the one the floor passed —
+  reddens naming all twelve dropped guards by name.
+
+  **The matcher's two boundaries are the same shape now, for the same
+  reason.** The first version spelled the leading boundary as a consuming
+  character class excluding `_` and `-`, and the trailing one as a lookahead
+  excluding neither, so `widget.test.ts-old`, `widget.test.ts_bak`,
+  `widget.test.ts.snap` and `snap.control-bytes.ts` each reported the real
+  file REGISTERED. Every one is the false-GREEN direction, which for an
+  absence assertion is the direction that matters. **Asymmetry between two
+  halves of one predicate is where §2d's identity-looseness family lives**,
+  and it is worth checking for by construction rather than by example. A dot
+  is refused only where it JOINS two name-shaped runs, so a citation ending a
+  sentence still counts.
+  **AND THE CORRECTION HAD ITS OWN HOLE, WHICH IS THE THIRD INSTANCE OF ONE
+  FAMILY** (Sentinel, reviewing #707; fixed in #708). The unfiltered-listing
+  comparison above replaced the floor, and its first version read
+  `(live.guardDir ?? live.guards).filter(f => !live.guards.includes(f))`.
+  With `guardDir` absent that is `guards.filter(f => !guards.includes(f))` —
+  **empty by construction, for any input whatsoever.** The comparison did not
+  fail, it DISAPPEARED; and because `guardDir` was left off the claim's
+  `needs` list, the runner did not file it as ungradeable either. Measured:
+  the same partial narrowing that reddens naming twelve guards went GREEN
+  with `guardDir` missing, `ungradeable: false`, 22 of 34 entries read.
+
+  **So the floor and its replacement failed the same way through different
+  doors, and the shape is worth naming because it has now been chased three
+  times in one guard: a check whose subject quietly leaves its field of view
+  reports CLEAN.** First the reader's extension filter, then the
+  count-based floor that was supposed to catch it, then the defaulted input
+  in the comparison that replaced the floor.
+
+  **The fix is this file's own stated rule rather than anybody's preference —
+  A CLAIM THIS COULD NOT BE GRADED IS NEVER A CLAIM THAT HELD.** `guardDir`
+  goes in `needs` and the `??` default comes out, so a missing listing is
+  `COULD NOT BE GRADED` and exit 1. **A defaulted input is a claim silently
+  answering a question it was not able to ask** — and `needs` is the
+  machinery that already existed to say so, which is the part that makes this
+  a one-line fix rather than a new mechanism.
+
+  It was UNREACHABLE when it was written: `readLocalReality` always sets
+  `guardDir` and has one production caller, and every test builds `live` from
+  a helper that also sets it. Fixed anyway, on the precedent `main()`'s own
+  `skipped` comment set about a case that was equally unreachable at the
+  time — *a latent edge in the one classification this whole file exists to
+  keep sharp is not somewhere to leave a maybe.*
+
+
+  **WHAT IT MEANS FOR EVERY OTHER PR:** a new file in `tests/guards/` owes a
+  paragraph in this rulebook in the SAME PR, or `test` goes red naming it.
+  Nothing product-facing changes and no number moves.
+
+  **Its two limits, stated rather than left to be discovered.** It covers that
+  ONE directory: the design guards in `tests/marketing/` and the six
+  accessibility guards in `tests/a11y/` are hand-registered in §2b and nothing
+  goes red if the next one is forgotten — moving such a guard into
+  `tests/guards/` is how it earns coverage, and moving one OUT is how coverage
+  is lost silently. And it grades NAMING, never correctness: whether the
+  paragraph describing a guard is any good is §2d's sentence-versus-code
+  family and still needs a reader. What this buys is that the paragraph exists
+  and has a name to find it by, which is the difference between an intake that
+  happens and one that waits for somebody to choose to look.
+
+  **A CASE on the emoji registry, no ordinal: #706** (`ac32ebd8`, 2026-09-23
+  09:0xZ, DREAMCRM-118, Neon) — **two cases at once in
+  `tests/marketing/emoji-assets.test.tsx`, and it is the tidiest example yet
+  of the difference a CASE label is supposed to carry.** Neither is a new
+  class; both are routed because a case still changes what fails `test` by
+  name, which is the #669 rule.
+
+  - **The count moved, the assertion did not.** `toHaveLength(6)` became
+    `toHaveLength(3)`, following the Part 5 decision that the curated set is
+    three glyphs under a ceiling of six. Same rule, new constant, written
+    under the existing entry rather than beside it.
+  - **The licence-accuracy rule, pointed the other way.** The file already
+    asserted that every SHIPPED glyph's codepoint IS credited in
+    `LICENSE.md`. It now also asserts a CUT glyph's codepoint is NOT. That is
+    the same rule's contrapositive and it costs nothing: both lists are in
+    this repo, so the false-positive rate is zero by construction. **A stale
+    credit is a provenance table describing a directory that does not
+    exist** — the §2c dormant-table lesson in a different medium, where the
+    danger is the record outliving the thing it records.
+
+  **It reached this document with the author routing it and no label**, which
+  is the intake half working as designed: `review-gate.mjs` reported the diff
+  clean — no gate area, no `needs-forge-intake` — and Neon filed the record
+  anyway because §2 says a case is still routed. Read that beside §2's
+  fifty-third entry, where the same silence went unrouted until an unscoped
+  sweep found it. The gate's label and the author's judgement are two
+  independent paths to this document and neither is sufficient alone.
+
+  **The follow-up Neon deliberately did NOT build, held here so it is not
+  lost:** a guard deriving CALL SITES from the tree — every name in the emoji
+  registry appears in at least one render under `app/`. That is a new
+  blocking assertion, so it is an intake before implementation rather than
+  something slipped into the PR that motivated it, which is the rule working
+  in the direction it is hardest to follow. **ACCEPTED at intake** (Forge,
+  2026-09-23): the predicate is narrow, today's only conceivable false
+  positive is a dynamically-named call site and there are zero, and without
+  it the registry's `where` field is documentation nothing checks — the same
+  shape as the drift it replaced. Three registered glyphs sat with no call
+  site for the length of the program; that is the measurement.
 
 **Which repo-settings change goes where.** A setting that changes *which* checks
 are required or *who* may bypass them is branch protection: §3's review gate

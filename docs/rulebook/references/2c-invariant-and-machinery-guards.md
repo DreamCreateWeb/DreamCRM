@@ -231,6 +231,124 @@ Part 5 entry. Read those, not a retelling here.
 `docs/CI.md` is the single home for the mechanics — read it before changing a
 workflow, and update it in the same PR rather than restating it here.
 
+## The machinery guards this rulebook had never named
+
+*Forge's intake, 2026-09-23 (DREAMCRM-114), and the reason the guards census in
+§2 exists.* Measured on `main` at `66d087dc`: `tests/guards/` held 34 files and
+this document named 23 of them by their own file name. **The eleven below could
+each fail a stranger's PR and none of them appeared anywhere in the rulebook.**
+Three had been quietly miscounted as present because a SCRIPT or a workflow of
+the same stem was named — `migration-check` is the live example, where
+`scripts/migration-check.mjs` and `migration-check.yml` are both written up at
+length in §2a and §3 while the guard holding them in place was not. That is
+§2d's identity-looseness family pointed at this document's own bookkeeping, and
+it is why the census matches on the FULL file name rather than on the stem.
+
+Nine of these are written up below and all eleven are now covered by that
+census, so this list cannot go eleven short again without `test` saying so. The
+other two — `no-native-dialogs.test.ts` and `server-only-services.test.ts` —
+were already described in §2d and only needed their citations written as file
+names rather than as stems.
+
+- `cron-auth-shared.test.ts` — **the `CRON_SECRET` gate, and its adoption.**
+  Every `/api/cron/*` route and the `/api/admin/*` one-shots sit in the
+  middleware public-path allowlist, because EventBridge has no session. So the
+  only thing between the open internet and "email every patient", "run the
+  migrations" or "reseed the demo org" is one bearer check. It used to be 25
+  hand-rolled copies of the same string compare — non-constant-time, so it
+  leaks the secret prefix by prefix through response timing, and 25 chances to
+  forget the fail-closed branch on the next route. The durable half is the
+  ADOPTION assertion: a new route that hand-rolls the guard again fails `test`
+  by name. Read it as the shape to copy when a security primitive gets
+  consolidated — consolidating is the easy half, and the guard is what stops
+  the 26th copy.
+- `read-check-catalog.test.ts` — **the catalog IS the security argument.**
+  `/api/admin/read-check` is defensible only because the SQL it runs cannot come
+  from the caller: on a leaked `ADMIN_READ_SECRET` an attacker gets exactly
+  these entries and nothing else. The guard pins the properties that claim rests
+  on — ids unique and looked up EXACTLY (a trailing space, a case flip,
+  `__proto__` and `toString` all resolve to nothing), no bind placeholder and no
+  template interpolation in any entry's SQL, every entry a single statement
+  starting `select`, with no semicolon and no write verb. **The day somebody
+  adds a parameter "just for this one check", it fails a required check instead
+  of passing review on a reviewer's attention.**
+- `migration-check.test.ts` — **a failed migration must not deploy green**
+  (DREAMCRM-46). The check itself runs against production and cannot be
+  exercised in the suite, so what this pins is everything the check is MADE of:
+  the ledger comparison, the wording of its three verdicts, the catalog entry
+  that supplies the answer, the read-only grant without which that entry errors
+  instead of answering, and the wiring that lets a red result reach the deploy
+  run. Its comparison tests are named after the DEFECT SHAPES rather than after
+  cases — a batch rolled back, an entry skipped for being out of order,
+  production running ahead of the commit — which is §2d's rule that a test name
+  states the case it actually exercises, applied well.
+- `one-mrr-number.test.ts` — **recurring revenue comes from Stripe**
+  (DREAMCRM-23). The tier-to-price map existed in THREE copies, and one of them
+  priced premium BELOW pro, so two platform dashboards reported different MRR
+  from the same tenants and neither matched what any clinic was charged. A
+  hardcoded tier-to-price map anywhere under `app`, `lib` or `components` fails.
+  `lib/stripe-config.ts` is allowed because it is about what we ASK for, and MRR
+  is about what clinics actually pay, which only Stripe knows — **that is the
+  distinction to carry, not the allowlist entry**. Its allowlist also carries
+  the rulebook's favourite kind of comment: a REMOVED entry, with the reason it
+  was removed and an instruction not to put it back.
+- `timestamp-aggregate-mapping.test.ts` — **an aggregate over a timestamp
+  column keeps that column's driver mapper.** A `timestamp` column has no zone,
+  so drizzle's mapper reads the driver's text as UTC; a bare `sql` expression is
+  not a column, gets no mapper, and the same text is then parsed in the HOST's
+  zone. Same string, different instant. **This is the class that is invisible to
+  every ordinary test here**, because production is UTC and `vitest.config.ts`
+  pins `TZ=UTC` — it surfaces on somebody's laptop or in a future non-UTC
+  runtime. Its scope is stated rather than implied: the scan keys on the two
+  aggregate helpers BY NAME, so a `coalesce()` or a `least()` that drops the
+  mapper identically is NOT covered, and that boundary is written in the guard
+  rather than left to be inferred as a guarantee.
+- `ops-clinic-site-url.test.ts` — **the production watch sweep's target URL is
+  assembled, not typed.** The sweep loads one real clinic site every 30 minutes
+  and the only place it can learn which one is `docs/OPS.md`, because a clinic
+  slug is production data and nothing else in the repo carries it. A URL written
+  by hand in prose rots the moment either half moves — the demo slug or the
+  production host — and then the sweep quietly checks a 404 and reports the site
+  is down, or checks nothing at all. So the doc's URL must be derivable from the
+  two constants that are actually true, and moving either one tells you to move
+  the doc in the same PR. **A silent alarm pointed at the wrong address is §2a's
+  "a check that cannot fail is not a check" in its most ordinary clothes.**
+- `e2e-flaky-digest.test.ts` — **the weekly digest that COUNTS what the per-run
+  reporter could only name** (DREAMCRM-105, #684). Six load-bearing properties,
+  four of them general enough to copy: a repeat offender is counted in RUNS
+  rather than occurrences (forty records from one run is one runner having a bad
+  afternoon); the digest LEADS WITH ITS CENSUS, because "nothing flaked" and "I
+  read nothing" otherwise print the same headline; it fails CLOSED on a lookup
+  that did not return, an artifact that exists and could not be read, or a
+  window with no browser runs at all; and the producers' artifact retention is
+  graded AGAINST the window, so an eight-day window over seven-day artifacts
+  cannot quietly become a permanently red alarm — which §2a forbids outright.
+  The last block drives the script as a process, because every assertion above
+  it can pass while `main()` reports nothing.
+- `e2e-past-visit-window.test.ts` — **a fixture that has to be past in the
+  CLINIC's calendar, not in UTC.** The staff-day spec completes a past visit
+  through the `past_30d` chip, whose window ends at the clinic-local day start;
+  the E2E clinics are `America/New_York`, and a seed placing the visit one UTC
+  day back is TODAY in New York for the four hours between 00:00 and 04:00 UTC.
+  The visit was genuinely past, the chip's window genuinely excluded it, and the
+  spec went red on the clock alone — nightly, until the seed moved to two days
+  back. It reads the offset out of the seed script rather than restating it, and
+  it runs in the ordinary vitest suite with no database and no browser,
+  **because the point is to fail in the two minutes before a merge rather than
+  in the E2E job four hours a night.**
+- `e2e-reschedule-settled-signal.test.tsx` — **a PENDING action must not
+  satisfy a "the action finished" assertion** (DREAMCRM-21). The portal
+  reschedule spec moves a visit, waits for the move to settle, reloads, then
+  asserts the durable truth; the wait in the middle is load-bearing, and it used
+  to be "the Move my visit button is gone" — which looks like a settled signal
+  and is not, because the accessible name changes on the CLICK while the request
+  is still in the air. Three full-suite runs failed on a loaded box, three
+  isolated runs passed, and `retries: 1` absorbed it, which is how it survived.
+  The guard pins BOTH halves: the component behaviour the spec's wait depends
+  on, and the spec's own wording. **Carry the shape: a browser assertion whose
+  premise is a component's behaviour can be pinned in vitest, and the E2E job is
+  the wrong place to learn that an E2E assertion is vacuous.**
+
 ## The pricing page quotes the billing config — PRICE PROVENANCE, graded
 
 `tests/marketing/pricing-price-source.test.tsx` (#620, `e9c58e44`, merged
