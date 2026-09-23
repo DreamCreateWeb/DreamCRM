@@ -2478,11 +2478,34 @@ background color could not be determined due to a background gradient".
 stop still measures ZERO violations. What is different is the repro's ending:
 move a `.dg-mono` label into the hero's right half above y=444 today and
 `token: practice grade report` is still GREEN, but the run now names the
-element. The population of undecidables across the whole suite is **not
-measured** — it needs the browser harness, which needs Postgres — so the first
-CI `e2e` run after this merges is that measurement. A ceiling over this class
-is the obvious next step and is deliberately not taken on an unmeasured
-population.
+element.
+
+**AND THE POPULATION IS MEASURED — the first CI `e2e` run was the
+measurement, as promised** (PR #682, run 35804987254, `669a51df`, green).
+Across the whole suite: **848 nodes over 44 (stop, rule) pairs**, 41 pairs
+`color-contrast` and 3 `aria-prohibited-attr`, at 39 of the suite's stops. The
+worst are `token: book a demo, slots offered` (72),
+`clinic site: published home` (45) and `staff: dream team` (41); the staff app
+contributes a recurring ~30 at every stop, which is one shared component in its
+chrome rather than thirty defects.
+
+**THAT NUMBER RETROSPECTIVELY SETTLES THE DESIGN.** A zero-tolerance ceiling
+over this class — the obvious "proper" gate, and the one this PR was asked
+twice not to ship — would have turned `e2e` red on arrival at 39 stops, on a
+population nobody had looked at, for a verdict that is a question rather than a
+defect. It could not have been shipped at all. **Reporting was not the weaker
+option; it was the only one available before the number existed.** With the
+number in hand, a ceiling is now a decidable follow-up rather than a guess.
+
+**ONE ROW IS WORTH READING FIRST, and it is this entry's own page:**
+`token: practice grade report` reports **33 undecidable `color-contrast`
+nodes**. The geometry argument above is about `INK_3` nodes and the `.dg-glow`
+ellipse specifically, and it still holds; what the 33 say is that the page has
+far more composited ground than that argument covers (`.dg-card`, `.dg-cell`,
+`.dg-ring-wrap::before`, `.dg-cta`). None of them is known to fail — axe
+declined to answer, which is not a no — but before this change that whole
+question was invisible at a stop holding ZERO. Hand-measuring those 33 is the
+natural next piece of work on this page.
 
 ### R1 · S8 sweep — Compliance & data (2026-08-17)
 
