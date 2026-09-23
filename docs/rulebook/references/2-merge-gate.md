@@ -197,7 +197,7 @@
   defect.
   (#609 **merged 2026-09-15, `8edeac54`**. It owed no §3 review and this
   document said otherwise for a day — `tests/guards/review-gate.test.ts` is on
-  `INTAKE_RULES`, not on `check-definitions`, whose patterns are the seven
+  `INTAKE_RULES`, not on `check-definitions`, whose patterns are the
   files that decide what RUNS or what gets asked. It carried the intake label
   alone, correctly. **Recording a review as owed where none is is not the safe
   direction of error**: §3's list is narrow on purpose, and a rulebook that
@@ -660,9 +660,11 @@
   `.gitignore`, `BRAND.md` and `CLAUDE.md` — and by nothing that RUNS: no
   workflow, no `package.json` script, no test. It reports; it cannot fail
   anybody's PR. **A script under `scripts/` is not a gate by virtue of its
-  directory.** Three of the seven `check-definitions` patterns live there and
-  this one is on none of them, so ask what RUNS it — the same move as asking
-  what a change does to the gate rather than which file it lives in.
+  directory.** Four of the eight `check-definitions` patterns live there
+  (three at the time of writing; `scripts/e2e-harness.sh` joined them with
+  DREAMCRM-129) and this one is on none of them, so ask what RUNS it — the
+  same move as asking what a change does to the gate rather than which file it
+  lives in.
 
   **DREAMCRM-76 (PR #621) is the twenty-second, and it is the first assertion on
   this list that grades a RENDERED DOCUMENT rather than SOURCE.**
@@ -3671,7 +3673,7 @@
   here whose subject is THIS LIST'S OWN BOOKKEEPING** rather than anything in
   the repo. Every `**THE <ORDINAL>:` marker must be unique and the set must have
   no gaps, or `test` fails naming the duplicate.
-  **STATE: on the PR — #721, review requested.**
+  **STATE: MERGED — PR #721, `38bd7773`, 2026-09-23 18:05:24Z.**
 
   **What it cost to learn.** On 2026-09-23 THREE open PRs each claimed the
   FIFTY-SEVENTH — #712, #713 and #714 — and GitHub called all three
