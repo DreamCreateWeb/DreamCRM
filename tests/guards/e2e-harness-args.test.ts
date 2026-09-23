@@ -388,7 +388,7 @@ describe('the harness and the load script agree on the flag names', () => {
 
   /** Every `--name` `scripts/load-sanity.mjs` actually reads, via its own
    *  `flag('name', …)` helper. */
-  const accepted = [...loadSource.matchAll(/\bflag\(\s*'([a-z-]+)'/g)].map((m) => m[1])
+  const accepted = Array.from(loadSource.matchAll(/\bflag\(\s*'([a-z-]+)'/g)).map((m) => m[1])
 
   it('reads its own arguments through flag() at all — the population check', () => {
     // A scanner that found nothing to look at reports exactly as clean as a
@@ -421,9 +421,9 @@ describe('the default levels are the ones the document can be compared against',
   const doc = readFileSync(join(process.cwd(), LOAD_DOC), 'utf8')
 
   /** Every `### Concurrency C, N requests/path` heading in the document. */
-  const documented = [...doc.matchAll(/^###\s+Concurrency\s+(\d+),\s+(\d+)\s+requests\/path/gm)].map(
-    (m) => `${m[1]}x${m[2]}`,
-  )
+  const documented = Array.from(
+    doc.matchAll(/^###\s+Concurrency\s+(\d+),\s+(\d+)\s+requests\/path/gm),
+  ).map((m) => `${m[1]}x${m[2]}`)
 
   it('finds the level headings in the document — a rule over an empty set is not a rule', () => {
     expect(documented.length).toBeGreaterThan(0)
