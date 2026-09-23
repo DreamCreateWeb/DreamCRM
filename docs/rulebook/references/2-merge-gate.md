@@ -3616,7 +3616,7 @@
   `tests/guards/e2e-seed-scopes.test.ts` plus `e2e/demo-journey.spec.ts`. A
   NEW CLASS and a registered CASE in one PR**, and the first entry here whose
   subject is a hole a PREVIOUS entry named and declined to close. **STATE: on
-  the PR — review requested.**
+  the PR — #722, review requested.**
 
   **The new class: a row this repo CREATES and nobody owns.** #675 (a case on
   the forty-third above) recorded that `prospecting_config` is upserted at the
