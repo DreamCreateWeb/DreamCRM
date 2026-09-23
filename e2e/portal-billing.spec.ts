@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test'
 import { restoresSeedScope } from './reseed'
 import { expectNoA11yViolations } from './axe'
+import { expectSole, watchForDuplicates } from './duplicate-watch'
 import { createHmac } from 'node:crypto'
 
 /**
@@ -92,11 +93,19 @@ function signedSessionCookie(): string {
   return encodeURIComponent(`${SESSION_TOKEN}.${sig}`)
 }
 
+/** The one element the duplicate flake resolves to two of. */
+const AMOUNT_SELECTOR = 'input[aria-label="Payment amount in dollars"]'
+
 async function signedInPatient(browser: import('@playwright/test').Browser) {
   const context = await browser.newContext({ baseURL: BASE })
   await context.addCookies([
     { name: 'better-auth.session_token', value: signedSessionCookie(), url: BASE },
   ])
+  // Installed on the CONTEXT, before any navigation, because the render being
+  // investigated is the first one (DREAMCRM-105). See `./duplicate-watch`: the
+  // duplicate lives for ~500ms and a post-hoc `page.evaluate` reads a page that
+  // has already healed, which is how two occurrences produced two dead ends.
+  await watchForDuplicates(context, AMOUNT_SELECTOR)
   return { context, page: await context.newPage() }
 }
 
@@ -135,8 +144,11 @@ test.describe('paying a balance from the portal', () => {
     // the clinic has an active connected account. Both are seeded, so this
     // assertion is also the proof that `canTakeBalancePayments` agreed — the
     // alternative rendering is a "call us" paragraph with no controls at all.
-    const amount = page.getByLabel('Payment amount in dollars')
-    await expect(amount).toBeVisible()
+    // This is the test that has never flaked — it settles on `Your balance`
+    // and `#portal-main` content before locating the input, which is the lead
+    // test 3's note is built on. Watched anyway: if the duplicate ever shows
+    // up HERE, the settle is not the discriminator and that is worth knowing.
+    const amount = await expectSole(page, page.getByLabel('Payment amount in dollars'))
     await expect(amount).toHaveValue('185.00')
     await expect(page.getByRole('button', { name: 'Pay online' })).toBeEnabled()
 
@@ -148,8 +160,11 @@ test.describe('paying a balance from the portal', () => {
     const { context, page } = await signedInPatient(browser)
     await page.goto('/patient/invoices')
 
-    const amount = page.getByLabel('Payment amount in dollars')
-    await expect(amount).toBeVisible({ timeout: 30_000 })
+    // THE SPEC THE FLAKE'S OWN LEAD PREDICTS IS NEXT (see test 3's note): this
+    // and test 3 are the two that go `goto` -> straight to a strict locator,
+    // with no settle in between. `expectSole` keeps the locator STRICT — two
+    // forms still fail — and attaches what the watcher recorded.
+    const amount = await expectSole(page, page.getByLabel('Payment amount in dollars'))
 
     // Over the balance. The server refuses this too, but the client refusal is
     // the one a patient meets, and it must be a sentence rather than a silent
@@ -287,8 +302,45 @@ test.describe('paying a balance from the portal', () => {
     // is unavailable on the box this was investigated from. Playwright and
     // Chromium are present, which is how the timing above was measured. It is
     // Quinn's, and the count of occurrences is two.
-    const amount = page.getByLabel('Payment amount in dollars')
-    await expect(amount).toBeVisible({ timeout: 30_000 })
+    //
+    // ── DREAMCRM-105: THE NEXT OCCURRENCE ARRIVES WITH ITS EVIDENCE ──
+    //
+    // The 525ms measurement above is also what made both investigations dead
+    // ends: a strict-mode violation throws on the spot, and by the time any
+    // `page.evaluate` runs the page has healed and reports exactly one form.
+    // So twice now we have known the duplicate EXISTED and nothing about what
+    // it WAS — and the one diagnosis written down confidently was wrong.
+    //
+    // `./duplicate-watch` installs a MutationObserver through
+    // `context.addInitScript`, running before any page script on the very
+    // first render, and records the ancestor chain of every match the moment
+    // the count goes above one. The locator below is still STRICT — `.first()`
+    // would retire the only instrument reporting a possible money defect, and
+    // that is not this file's decision to make — but the failure now carries
+    // the recording.
+    //
+    // TWO CANDIDATES NEITHER EARLIER NOTE NAMED, both of which the chain tells
+    // apart on sight, and both of which are properties of THIS segment rather
+    // than of the fixture:
+    //
+    //   1. `app/(portal)/loading.tsx` exists, so the whole portal segment is a
+    //      Suspense boundary and its content arrives OUT OF ORDER — React
+    //      parks it in a `<div hidden>` at the end of `<body>` and an inline
+    //      script moves it into place. A chain ending in `div[hidden]` is this.
+    //   2. `PortalLiveRefresh` calls `router.refresh()` on realtime events and
+    //      the portal chrome is server-rendered. TWO `#portal-main` elements
+    //      means the LAYOUT doubled, not the form, and the question leaves
+    //      this file.
+    //
+    // HOW TO MAKE IT HAPPEN ON PURPOSE, now that the harness takes arguments:
+    //
+    //   gh workflow run e2e-flake-hunt.yml \
+    //     -f spec=e2e/portal-billing.spec.ts -f repeat=50
+    //
+    // A red run there is the good outcome. Read the recording in the failure
+    // message before choosing a locator — the last hypothesis was confidently
+    // written and wrong, which is why this comment is long.
+    const amount = await expectSole(page, page.getByLabel('Payment amount in dollars'))
     await amount.fill('50.00')
     await page.getByRole('button', { name: 'Pay online' }).click()
 

@@ -415,6 +415,30 @@ describe('the field of view — the extractor, on fixtures', () => {
     expect(hits('$800-$200/mo bundles')).toEqual([])
   })
 
+  it('grades BOTH ends of a band the same way — the comma asymmetry, DREAMCRM-105', () => {
+    // THE LATENT GAP, and the direction is the expensive one: a FALSE POSITIVE
+    // costs a red `test` run naming an innocent competitor line on `/compare`,
+    // a page whose whole job is printing somebody else's prices.
+    //
+    // `\d{3}` wanted three CONSECUTIVE digits and a thousands separator breaks
+    // a run of them — `2,000` has four digits and no three in a row. So which
+    // end of the band our number sat on decided whether the line was pardoned,
+    // which is not a distinction anybody chose:
+    expect(hits('$800-2,000/mo across separate tools')).toEqual([]) // ours far — always worked
+    expect(hits('vendors charge $200-2,000/mo')).toEqual([]) // ours NEAR — did not
+    expect(hits('their stack runs $200 – 1,500 a month')).toEqual([])
+    expect(hits('bundles from $200—12,000/yr')).toEqual([])
+
+    // AND THE NARROWING DOES NOT LEAK. `[\d,]{3}` would have been one
+    // character and would have graded three CHARACTERS rather than three
+    // digits, so a comma and one digit would read as money. These must all
+    // still be our price:
+    expect(hits('$200 — 7 days free')).toEqual([200])
+    expect(hits('$200 — 1, 2 or 3 chairs')).toEqual([200])
+    expect(hits('$200 — 1,2')).toEqual([200])
+    expect(hits('$2,000 a year — 2 months free')).toEqual([2000])
+  })
+
   it('keeps a band on ONE LINE — a list item on the next line is not a range', () => {
     // `\s*` crosses a newline, so a band match ran from the end of one line to
     // a bullet at the start of the next and the price above it went silent.

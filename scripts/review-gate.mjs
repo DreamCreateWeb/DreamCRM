@@ -254,6 +254,31 @@ export const GATE_RULES = [
       // overwhelmingly presentation, and gating it wholesale is the objection
       // the shop and payments trees already raised and won.
       'app/(default)/settings/actions.ts',
+      // ── THE ONE-HOP CLASS (DREAMCRM-106) ────────────────────────────────
+      //
+      // Every entry below was found the same way and none of them by reading
+      // a filename: `tests/guards/review-gate.test.ts` now asks the tree which
+      // MUTATION SURFACES — `'use server'` modules and route handlers — sit one
+      // import hop from a module that imports `@/lib/stripe`. Twelve matched no
+      // gate rule at all, and the eleven here are the ones where reaching
+      // Stripe is money. (The twelfth, `app/site/[slug]/sitemap.xml/route.ts`,
+      // is exempted in that test with its premise asserted — it reads plan
+      // names for a sitemap.)
+      //
+      // The pattern that already existed — "does this file import
+      // `@/lib/stripe`" — is a good necessary condition and it stops at the
+      // service. The action that CALLS `runDuePlanCharges` or
+      // `purchaseDomainAction` is where the decision to move money is made,
+      // and every one of these reported "merges on green".
+      'app/(default)/ecommerce/invoices/admin-actions.ts', // cancelSubscription / changePlan / archivePlanPrice, straight at Stripe
+      'app/(default)/payments/**/route.ts', // the balance-payment and booking-deposit CSV exports — a clinic's payment records
+      'app/(default)/settings/practice/actions.ts', // saveVisitTypesAction sets the per-visit-type DEPOSIT a patient is charged to hold a slot
+      'app/(default)/website/domain/buy-domain-actions.ts', // purchaseDomainAction — real spend on the clinic's card
+      'app/(portal)/patient/actions.ts', // startMyPaymentPlanAction + redeemMyPointsAction — a patient starting a plan, and loyalty
+      'app/api/connect/shop/**', // Stripe Connect onboarding: the account every shop payment is paid INTO
+      'app/api/cron/domain-renewals/**', // renews domains against the clinic's card, unattended
+      'app/api/cron/retention-automations/**', // runDuePlanCharges — this cron CHARGES payment plans
+      'app/api/integrations/zernio/connect/**', // canConnectSocialPlatform — the paid social add-on's entitlement check
     ],
   },
   {
