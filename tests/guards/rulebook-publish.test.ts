@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import {
+  MAX_DESCRIPTION_CHARS,
   RULEBOOK_DIR,
   compareTree,
   describeFirstDifference,
@@ -9,6 +10,7 @@ import {
   findC1,
   findFalseHeadings,
   findMojibake,
+  gradeDescriptionLength,
   gradeText,
   parseArgs,
   parseFrontmatterDescription,
@@ -206,6 +208,38 @@ describe('D — a leading # is a heading or it is a defect', () => {
 describe('B — the frontmatter description parses, or publishing stops', () => {
   it('reads the value the store is meant to hold', () => {
     expect(parseFrontmatterDescription(HEALTHY_SKILL_MD)).toBe('The map. Section one is the freeze.')
+  })
+
+  /**
+   * THE CEILING, AND IT IS HERE BECAUSE IT WAS PAID FOR. `skill update
+   * --description` has no file form, so the description travels as an argv
+   * element and Windows caps a command line at 32,767 characters. The first
+   * publish after #712 merged died with `ENAMETOOLONG` at 33,592 — an OS errno
+   * naming neither the field nor the cause, in the middle of a publish.
+   *
+   * The defect was never the limit. It was that **a document could grow past
+   * what its own publisher can transmit and nothing said so until the publish
+   * died.** This turns that into a red `test` on the PR that adds the clause,
+   * which is the only moment anybody can act on it cheaply.
+   */
+  it('the authored description still fits in a command line', () => {
+    const real = parseFrontmatterDescription(readFileSync(join(ROOT, RULEBOOK_DIR, 'SKILL.md'), 'utf8'))
+    expect(
+      real.length,
+      `\nThe frontmatter description is ${real.length} characters, over the ${MAX_DESCRIPTION_CHARS} that ` +
+        '`skill update --description` can carry as an argv element. SHORTEN IT rather than raising the ' +
+        'ceiling: this text is how an agent decides whether to OPEN the rulebook, not a second copy of it.\n',
+    ).toBeLessThanOrEqual(MAX_DESCRIPTION_CHARS)
+  })
+
+  it('the preflight refuses an over-long description, and is silent on one that fits', () => {
+    expect(gradeDescriptionLength('x'.repeat(MAX_DESCRIPTION_CHARS))).toEqual([])
+    const over = gradeDescriptionLength('x'.repeat(MAX_DESCRIPTION_CHARS + 1))
+    expect(over).toHaveLength(1)
+    expect(over[0]).toContain('over the')
+    // It must say what to DO. An errno that names neither the field nor the
+    // cause is what this replaces.
+    expect(over[0]).toContain('SHORTEN IT')
   })
 
   it('reads the real one, and it is the shape this parser accepts', () => {
