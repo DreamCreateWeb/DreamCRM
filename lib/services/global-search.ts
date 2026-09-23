@@ -1,6 +1,7 @@
 import 'server-only'
 import { and, desc, eq, gte, ilike, ne, or, sql } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
+import { appendRefund, refundNote } from '@/lib/net-collected'
 import { applyBundleGate, getVisibleModules } from '@/lib/modules'
 import { getActiveBundlesForSidebar } from '@/lib/services/integration-bundles'
 import { listSavedViews } from '@/lib/services/saved-views'
@@ -19,6 +20,12 @@ import type { SearchGroup, SearchResult } from '@/lib/types/global-search'
  */
 
 const ENTITY_LIMIT = 5
+
+/** ⌘K's money house style — cents to `$50.00`. Passed INTO `refundNote` so the
+ *  face value and the refund note beside it are spelled the same way; that
+ *  helper takes a formatter precisely because these surfaces disagree about
+ *  `$50` vs `$50.00`. */
+const money = (cents: number): string => `$${(Number(cents) / 100).toFixed(2)}`
 
 /** Escape LIKE wildcards so a literal "%" in the query can't scan-bomb.
  *  Exported for unit testing. */
@@ -253,6 +260,10 @@ async function searchClinicEntities(orgId: string, q: string): Promise<SearchGro
         email: schema.shopOrder.email,
         status: schema.shopOrder.status,
         totalCents: schema.shopOrder.totalCents,
+        // A PARTIAL refund leaves `status` at 'paid' (DREAMCRM-23 — the row
+        // never claims to be something it isn't), so without this column the
+        // result below says "Paid order" about money that has gone back.
+        refundedAmountCents: schema.shopOrder.refundedAmountCents,
         firstName: schema.patient.firstName,
         lastName: schema.patient.lastName,
       })
@@ -388,10 +399,20 @@ async function searchClinicEntities(orgId: string, q: string): Promise<SearchGro
       label: 'Shop orders',
       results: shopOrders.map((o) => {
         const who = o.firstName ? `${o.firstName} ${o.lastName ?? ''}`.trim() : o.name || o.email
+        // The LABEL keeps face value — a ⌘K row is a record of one order, and
+        // the netting rule is for TOTALS (`lib/net-collected.ts`). What
+        // changed since is APPENDED to the sublabel, in the same words the
+        // patient timeline and the thread markers use. A FULLY refunded order
+        // already says so in `status`, so the note stands alone there rather
+        // than reading "refunded · Refunded".
+        const note = refundNote(o.totalCents, o.refundedAmountCents, money)
         return {
           id: `order-${o.id}`,
-          label: `${who} — $${(o.totalCents / 100).toFixed(2)}`,
-          sublabel: o.status === 'paid' ? 'Paid order' : o.status,
+          label: `${who} — ${money(o.totalCents)}`,
+          sublabel:
+            o.status === 'refunded'
+              ? note ?? 'Refunded'
+              : appendRefund(o.status === 'paid' ? 'Paid order' : o.status, note),
           href: '/shop/orders',
           // Reuse the 'page' kind so the ⌘K modal's exhaustive glyph map stays
           // valid without a shared-type change (it navigates to a page anyway).

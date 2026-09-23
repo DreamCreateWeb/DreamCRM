@@ -1,0 +1,44 @@
+DREAMCRM-122: Sentinel's four review notes on #711
+
+Test-only plus one docs line, so it merges on green without review (§3).
+Deliberately split out of #711 rather than folded in: the diff Sentinel
+approved should be the diff that merged.
+
+1. COMPOSITION SAFETY on the `or()` inside `and()` in the demo partner
+   self-heal — the note that defends a property rather than tidying one, and
+   the one I would have missed. The predicate is correct; NONE of the four
+   existing assertions would have noticed if it weren't, because the
+   `toContain` strings and the bound-parameter multiset are identical whether
+   the OR is wrapped or not. drizzle's `and()` wraps the whole list in ONE
+   pair of parens and never parenthesizes the chunks
+   (tests/journey/work-law-sql.test.ts:118-152 is the written precedent), so
+   an unwrapped fragment escapes its own AND: `(partner AND org AND in AND
+   total<>A) OR percent<>B OR amount<>C` — an UPDATE rewriting three money
+   columns on every commission row in every tenant, rendered as valid SQL.
+   A depth scan now asserts every ` or ` sits deeper than the AND chain, with
+   a premise check that there IS an OR to be wrong about.
+
+   Watched red by replacing `or(...)` with an unwrapped `sql` fragment: that
+   assertion fails and NOTHING ELSE DOES, which is Sentinel's point measured
+   rather than repeated.
+
+2. The exact-params assertion was order-dependent while this file's header
+   promised "a harmless reordering of `and()` arguments reddens nothing".
+   Reorder the predicate innocently and it went red saying "nothing added,
+   nothing dropped" — the one thing that would not have happened. Sorted on
+   both sides plus an explicit length check: the swap-detection is a question
+   about the MULTISET of bound values, and clause ORDER is already graded by
+   the `toContain` assertions where it belongs.
+
+3. The set/gate correspondence was asserted for the commission heal and not
+   the payout heal, so a fourth column added to the payout SET would have
+   landed ungated — the exact asymmetry #711 had just closed one table over.
+   Watched red by adding `status: 'paid'` to the payout SET.
+
+4. docs/RELEASE.md entry :1092 was a broken sentence — my clause was spliced
+   between "`invoiceCents` resolves" and its object. The verb has its object
+   back and the WHERE-is-graded fact moved to where it belongs in the entry.
+
+pnpm typecheck clean; pnpm test 8,883 passed over 813 files.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>

@@ -39,6 +39,7 @@
  *
  * Usage:  node scripts/review-gate.mjs <file-with-one-path-per-line>
  *         node scripts/review-gate.mjs --paths a/b.ts c/d.ts
+ *         node scripts/review-gate.mjs --label-authorship <label> <events-file>
  */
 import { readFileSync, appendFileSync, existsSync } from 'node:fs'
 import { pathToFileURL } from 'node:url'
@@ -153,6 +154,22 @@ export const GATE_RULES = [
       'lib/stripe-config.ts',
       'lib/billing-status.ts',
       'lib/mrr.ts',
+      // THE NETTING RULE'S OWN HOME (DREAMCRM-122). `lib/net-collected.ts`
+      // decides whether refunded money comes out of a total — the invariant
+      // §2c holds at zero tolerance, with `tests/guards/net-refunds.test.ts`
+      // failing any clinic-side money total that is summed without going
+      // through it. It reaches further than any file already on this list:
+      // `sumNetCollectedSql` is in the collections header, the revenue
+      // figures, the reconciliation pages and the patient timeline at once,
+      // so a one-line change to `netCollectedCents` moves every "collected"
+      // number in the product. It matched NOTHING here — no money word in the
+      // filename, no `@/lib/stripe` import (it is pure arithmetic and a SQL
+      // fragment, which is exactly why it is client-safe and exactly why the
+      // derived import check in tests/guards/review-gate.test.ts cannot see
+      // it either). Found by its author while adding the ⌘K refund note in
+      // the same PR; widened here rather than deferred, on #569/#599/#663's
+      // precedent.
+      'lib/net-collected.ts',
       'lib/services/*stripe*.ts',
       'lib/services/*billing*.ts',
       'lib/services/*payment*.ts',
@@ -1058,6 +1075,174 @@ export const REVIEW_LABEL = 'needs-sentinel-review'
 /** The label the workflow puts on a PR that changes what can merge. */
 export const INTAKE_LABEL = 'needs-forge-intake'
 
+/**
+ * THE ACCOUNT THIS CLASSIFIER SPEAKS AS.
+ *
+ * `review-gate.yml` runs with `${{ github.token }}`, so every label it applies
+ * or removes is attributed to `github-actions[bot]`. That attribution is the
+ * whole of the evidence below: it is the only thing on a PR that distinguishes
+ * a label this file DERIVED from a label a person DECIDED.
+ */
+export const CLASSIFIER_ACTOR = 'github-actions[bot]'
+
+/**
+ * WHEN MAY THE CLASSIFIER TAKE A GATE LABEL BACK OFF? (DREAMCRM-130)
+ *
+ * The workflow re-derives both labels from the changed paths on every push, and
+ * until this function existed the `false` branch removed the label
+ * unconditionally. That is correct for a label this file put on — a PR that
+ * drops its risky file in a later push should stop claiming it owes a review —
+ * and it is wrong for every other label on the PR, because:
+ *
+ *   **the classifier cannot tell "the risk went away" from "I never saw the
+ *   risk to begin with", and a hand-added label is precisely a person
+ *   overriding the classifier on the second case.**
+ *
+ * So a hand-added `needs-sentinel-review` did not survive the author's next
+ * push. PR #710 is the observed case rather than the hypothetical one: labelled
+ * by hand at 11:51:35Z by `DreamCreateWeb` (the classifier had returned
+ * `needs-forge-intake` only), stripped at 12:02:43Z by `github-actions[bot]` on
+ * the `198b981b` push. No harm THAT time, because the author had also mentioned
+ * Sentinel by hand — which is the point: the label machinery contributed
+ * nothing to the review it exists to guarantee.
+ *
+ * And it does not stop at a missing sticker. `scripts/review-sweep.mjs` reads
+ * `labelled(pr, REVIEW_LABEL)` over MERGED PRs; a PR whose label was stripped
+ * by its last push merges carrying nothing, the sweep finds nothing to ask
+ * about, and the morning report is honestly clean. The net built for #573, #582
+ * and #636 goes blind in exactly the category where the path classifier had
+ * already failed — the judgement call, which is the category it is most needed
+ * for.
+ *
+ * WHAT THIS DOES INSTEAD. GitHub's issue-events timeline records who applied a
+ * label, and it is append-only: a push cannot rewrite it. Find the last event
+ * that touches THIS label; the removal is allowed only if that event is a
+ * `labeled` by `CLASSIFIER_ACTOR`.
+ *
+ * FAIL CLOSED. Every way this can be uncertain — a timeline that would not
+ * parse, a timestamp that would not order, an event with no actor, an API call
+ * that returned nothing — returns `remove: false`. The two errors are not
+ * symmetrical and it is not close: keeping a label that should have come off
+ * costs one question in tomorrow's sweep, and removing one that should have
+ * stayed costs the review this whole apparatus exists to guarantee.
+ *
+ * THE FIFTH UNCERTAINTY IS NOT IN THIS FILE, and saying "everywhere" here once
+ * hid it (Sentinel, reviewing #716). `gh api --paginate` streams each page to
+ * the file as it arrives, so a fetch that dies partway leaves JSONL that is
+ * well-formed and silently truncated — and that endpoint is ordered
+ * oldest-first, so the pages most likely to be lost are the recent ones, which
+ * is exactly where a hand-added label lives. Nothing below can see that: a
+ * truncated timeline and a complete one are the same input. Only the fetch
+ * knows it failed, so the workflow discards the file on failure and this reads
+ * the empty result as unreadable. If you ever move this reader somewhere that
+ * fetches for itself, that obligation moves with it.
+ *
+ * Fed the `labeled`/`unlabeled` entries of
+ * `GET /repos/{owner}/{repo}/issues/{n}/events`. Returns
+ * `{ remove, by, why }` — `why` is printed into the job log, because a decision
+ * nobody can read is a decision nobody can audit.
+ */
+export function labelRemovalDecision(events, label, classifier = CLASSIFIER_ACTOR) {
+  if (!Array.isArray(events)) {
+    return {
+      remove: false,
+      by: null,
+      why: `the label timeline for \`${label}\` was not readable, so this cannot tell a classifier label from a hand-added one`,
+    }
+  }
+
+  const relevant = events.filter(
+    (e) => e && (e.event === 'labeled' || e.event === 'unlabeled') && e.label && e.label.name === label,
+  )
+
+  if (relevant.length === 0) {
+    return { remove: true, by: null, why: `nobody has ever put \`${label}\` on this PR, so removing it is a no-op` }
+  }
+
+  // An event this cannot place in time is an event this cannot order, and the
+  // answer is decided entirely by which one is LAST. Refuse rather than guess.
+  const timed = relevant.map((e) => ({ e, at: Date.parse(e.created_at ?? '') }))
+  const unorderable = timed.find((t) => !Number.isFinite(t.at))
+  if (unorderable) {
+    return {
+      remove: false,
+      by: null,
+      why: `a \`${label}\` event carried no usable \`created_at\`, so the timeline cannot be ordered and the last word is unknown`,
+    }
+  }
+
+  // Stable sort, with the event id as the tie-break: GitHub's `created_at` has
+  // one-second granularity, and a hand-added label followed by a bot push
+  // inside the same second is the exact case this must not get backwards.
+  const ordered = timed
+    .slice()
+    .sort((a, b) => a.at - b.at || (Number(a.e.id ?? 0) - Number(b.e.id ?? 0) || 0))
+  const last = ordered[ordered.length - 1].e
+  const by = (last.actor && last.actor.login) || null
+
+  if (last.event === 'unlabeled') {
+    return {
+      remove: true,
+      by,
+      why: `\`${label}\` is already off this PR (removed by ${by ?? 'an unrecorded actor'}), so removing it is a no-op`,
+    }
+  }
+
+  if (by === classifier) {
+    return {
+      remove: true,
+      by,
+      why: `\`${label}\` was applied by ${classifier}, so it is this classifier's own label to take back`,
+    }
+  }
+
+  return {
+    remove: false,
+    by,
+    why:
+      `\`${label}\` was applied by ${by ?? 'an unrecorded actor'}, not ${classifier} — that is a person ` +
+      'overriding this classifier, and a push may not overrule them (DREAMCRM-130)',
+  }
+}
+
+/**
+ * Read a label timeline as the workflow hands it over.
+ *
+ * `gh api --paginate --jq '.[]'` emits ONE JSON object PER LINE rather than an
+ * array, because `--paginate` on an array endpoint concatenates arrays and the
+ * result is not valid JSON on its own. A whole-file JSON array is accepted too,
+ * so this is usable by hand and in a test fixture.
+ *
+ * Returns `null` — never `[]` — for anything unusable, INCLUDING an empty file.
+ * That distinction is load-bearing: the fetch step is `continue-on-error`, a
+ * failed `gh api` leaves an empty file behind, and reading that as "no events"
+ * would hand back `remove: true` and restore the exact defect this replaces.
+ */
+export function parseLabelEvents(text) {
+  if (typeof text !== 'string') return null
+  const trimmed = text.trim()
+  if (!trimmed) return null
+
+  try {
+    const whole = JSON.parse(trimmed)
+    if (Array.isArray(whole)) return whole
+  } catch {
+    // Not a single JSON value — fall through to the line-delimited reading.
+  }
+
+  const events = []
+  for (const line of trimmed.split('\n')) {
+    const t = line.trim()
+    if (!t) continue
+    try {
+      events.push(JSON.parse(t))
+    } catch {
+      return null
+    }
+  }
+  return events.length ? events : null
+}
+
 export function renderSummary(findings, totalFiles, intake = []) {
   const parts = []
 
@@ -1208,9 +1393,46 @@ function githubOutput(key, value) {
   if (process.env.GITHUB_OUTPUT) appendFileSync(process.env.GITHUB_OUTPUT, `${key}=${value}\n`)
 }
 
+/**
+ * `--label-authorship <label> <events-file>` — the removal decision, as an
+ * EXIT CODE, because that is what a shell `if` in the workflow can read.
+ *
+ *   0 = remove it: this classifier applied it, or it is not on the PR at all.
+ *   1 = keep it:   a person applied it, or this could not tell.
+ *
+ * The polarity is chosen so that FAILURE LANDS ON KEEP BY CONSTRUCTION. A
+ * crash, a missing file, a node that will not start — every one of them exits
+ * non-zero, and non-zero is the safe answer. A version of this that exited 0
+ * on "keep" would restore the defect on its first unhandled throw.
+ */
+function labelAuthorshipMain(args) {
+  const [label, file] = args
+
+  if (!label) {
+    console.log('[review-gate] --label-authorship needs a label name; keeping the label')
+    process.exitCode = 1
+    return
+  }
+
+  const text = file && existsSync(file) ? readFileSync(file, 'utf8') : null
+  const decision =
+    text === null
+      ? {
+          remove: false,
+          by: null,
+          why: `no label timeline was readable at \`${file ?? '(no path given)'}\`, so a hand-added label cannot be ruled out`,
+        }
+      : labelRemovalDecision(parseLabelEvents(text), label)
+
+  console.log(`[review-gate] ${decision.remove ? 'REMOVE' : 'KEEP'} ${label} — ${decision.why}`)
+  process.exitCode = decision.remove ? 0 : 1
+}
+
 function main() {
   const args = process.argv.slice(2)
   let files = []
+
+  if (args[0] === '--label-authorship') return labelAuthorshipMain(args.slice(1))
 
   if (args[0] === '--paths') {
     files = args.slice(1)
