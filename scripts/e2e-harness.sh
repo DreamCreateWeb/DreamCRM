@@ -94,7 +94,21 @@ PRINT_PLAN=0
 # Nothing here is ever eval'd, so this is not the only thing standing between a
 # dispatch input and a shell; it is the thing that makes a bad input a SENTENCE
 # rather than a silent eight-minute run of the wrong tests.
-SPEC_RE='^[A-Za-z0-9._/-]+$'
+#
+# AND IT MAY NOT START WITH A DASH (Sentinel, reviewing #680). The first version
+# admitted a leading `-` because a dash is a legal character inside a path, and
+# that quietly made the `--repeat` ceiling below bypassable: `E2E_SPEC` is
+# word-split, so `E2E_SPEC='--repeat-each 500'` became two accepted "spec"
+# tokens and planned as `playwright test --repeat-each 500`, exit 0, with
+# REPEAT_MAX never consulted. Not a security hole — nothing here reaches a
+# shell — but the header two screens up promises a bounded run and that promise
+# was not true as written.
+#
+# The fix is the first character rather than a blocklist of flag names: a test
+# path never begins with a dash, and every playwright flag does. Anything
+# genuinely needing to pass a flag through already has the `--` escape hatch,
+# where it is visible in the plan line instead of disguised as a filter.
+SPEC_RE='^[A-Za-z0-9._/][A-Za-z0-9._/-]*$'
 
 # THE CEILING ON `--repeat`, and it is a real guard rather than a shrug. A hunt
 # is dispatched by hand with a number typed into a box; 500 instead of 50 is one
@@ -110,7 +124,7 @@ die() { echo "e2e-harness: $1" >&2; exit 2; }
 
 add_spec() {
   [[ -n "$1" ]] || die "--spec needs a value."
-  [[ "$1" =~ $SPEC_RE ]] || die "--spec '$1' is not a test path (expected letters, digits, . _ - /)."
+  [[ "$1" =~ $SPEC_RE ]] || die "--spec '$1' is not a test path (letters, digits, . _ - /, and it may not start with a dash — pass playwright flags after \`--\` instead)."
   SPECS+=("$1")
 }
 

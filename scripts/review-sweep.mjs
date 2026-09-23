@@ -28,6 +28,13 @@
  * keeps its own label, its own cut-off and its own idea of a record; they
  * share the window, the summary and the exit status.
  *
+ * **And a THIRD, which has no label at all** (DREAMCRM-105): §3's first bullet,
+ * the `DREAMCRM-<n>` key in the PR title. That one is upstream of the other
+ * two — #659 merged owing an intake nobody could record, because no issue owned
+ * the work and so there was nobody the label could be about. See
+ * `KEY_SWEPT_SINCE` for the three ways it differs from the halves above and why
+ * each difference is deliberate.
+ *
  * ========================= WHAT THIS IS, PRECISELY ==========================
  *
  * A POST-MERGE ALARM. It gates nothing, blocks nothing, and runs after the
@@ -328,6 +335,78 @@ export const REVIEW_LABEL = 'needs-sentinel-review'
 export const INTAKE_LABEL = 'needs-forge-intake'
 
 /**
+ * THE THIRD OBLIGATION: the PR title carries its issue key (DREAMCRM-105).
+ *
+ * §3's first bullet — `DREAMCRM-<n>: <what changed>` — and it is the only link
+ * from a merged commit back to somebody who can answer for it. Everything else
+ * in this file is downstream of it: the review gate labels a diff, this sweep
+ * reads merged PRs, the planning meeting reads the board. Work that never
+ * reaches any of them is not lightly tracked, it is UNTRACKED, and it still
+ * ships to production.
+ *
+ * **The rule's review half has a machine and its key half did not.** #659
+ * merged carrying `needs-forge-intake` and nobody recorded the intake for a
+ * reason the label could not fix: no issue owned it, so there was nobody the
+ * label could be ABOUT. Then #674 merged unkeyed a few hours after §3's rule
+ * landed — the third in one day (#636 01:24Z, #659 17:54Z, #674 22:19Z, all
+ * from `claude/*`). A rule that has been broken three times on the day it was
+ * written is not going to be fixed by asking harder.
+ *
+ * **IT IS ONE PREDICATE AND A THIRD BUCKET.** This file already fetches every
+ * merged PR in the window WITH ITS TITLE and already owns the bucketing, so the
+ * whole check is "does the title carry a key". That cheapness is the argument:
+ * a separate workflow for this would be a second thing to keep alive.
+ *
+ * ---------------------------------------------------------------------------
+ * HOW THIS HALF DIFFERS FROM THE OTHER TWO, because the differences are where a
+ * copied-in obligation goes quietly wrong:
+ *
+ *   * **THERE IS NO LABEL.** The other two halves wait for `review-gate.yml` to
+ *     mark a PR in scope; this one is in scope for EVERY merged PR, because the
+ *     rule is universal and because a label is exactly what an untracked change
+ *     has nobody to receive. So `ungated` is meaningless here and is not
+ *     printed.
+ *   * **THE RECORD IS IN THE SUBJECT ITSELF**, not in a comment somebody has to
+ *     remember to leave. Which makes this the one half that is genuinely
+ *     self-clearing: `gh pr edit <n> --title` on a merged PR fixes the finding
+ *     at its source rather than mirroring a fact from somewhere else. It is
+ *     also the one half that cannot be satisfied by forgetting to do the work
+ *     and typing the record anyway.
+ *   * **THE BULK OF WHAT IT SEES IS FINE**, where the other two examine a
+ *     handful of labelled PRs. Hundreds of keyed merges sit in `satisfied` and
+ *     `outOfWindow`, so those two lists are capped in the summary (see
+ *     `MAX_ENUMERATED`). Findings are never capped.
+ */
+export const ISSUE_KEY = /\bDREAMCRM-\d+\b/i
+
+/**
+ * Where the key half opens, and it is the day the rule landed.
+ *
+ * §3's "work that never reaches the board at all" is dated **2026-09-22**
+ * (DREAMCRM-96/100), and the three PRs that generated it all merged that day.
+ * So this cut-off opens the half with exactly the queue the rule exists for —
+ * which is the OPPOSITE choice from `INTAKE_SWEPT_SINCE`, and deliberately.
+ *
+ * That cut-off was pushed LATE because judging thirty labelled PRs would have
+ * opened the intake half with thirty mostly-wrong findings, against a record
+ * nobody had been keeping. Here the record is the PR title, it has always been
+ * there, and every merge before 2026-09-22 already carries a key with three
+ * exceptions on one day. There is no archaeology to do and nothing to be wrong
+ * about: the queue is three, all three are genuinely unrepaired, and §3 names
+ * them by number.
+ *
+ * Earlier than this would be the mistake. `#483`–`#485` (2026-09-09) and the
+ * whole pre-program June tail are unkeyed because the convention did not exist
+ * yet, and a sweep whose first run reports ninety findings against a rule that
+ * post-dates them is the "note in a drawer" failure wearing an alarm's uniform.
+ *
+ * MUST NOT BE EARLIER THAN `SWEPT_SINCE` — `windowGap` grades the truncation
+ * window against the earliest cut-off of the three, and it names `SWEPT_SINCE`.
+ * `tests/guards/review-sweep.test.ts` pins the ordering.
+ */
+export const KEY_SWEPT_SINCE = '2026-09-22T00:00:00Z'
+
+/**
  * What counts as a verdict written down.
  *
  * The four §3 verdicts plus the spellings a real sentence uses. Matched
@@ -508,7 +587,7 @@ const labelled = (pr, label) => (pr.labels ?? []).some((l) => l.name === label)
  * unreachable path that stops being unreachable without anyone deciding it
  * should. Found by Sentinel reviewing #593.
  */
-function bucket(prs, { label, since, record, obligation }) {
+function bucket(prs, { label, since, record, obligation, gate = (pr) => labelled(pr, label) }) {
   const cutoff = Date.parse(since)
   const unsatisfied = []
   const satisfied = []
@@ -522,7 +601,7 @@ function bucket(prs, { label, since, record, obligation }) {
       unreadable.push(pr)
       continue
     }
-    if (!labelled(pr, label)) {
+    if (!gate(pr)) {
       ungated++
       continue
     }
@@ -546,6 +625,34 @@ export function sweep(prs, since = SWEPT_SINCE) {
 /** The intake half: PRs that merged carrying `needs-forge-intake` (DREAMCRM-92). */
 export function intakeSweep(prs, since = INTAKE_SWEPT_SINCE) {
   return bucket(prs, { label: INTAKE_LABEL, since, record: intakeRecord, obligation: 'intake' })
+}
+
+/** Does this merged PR's title carry the issue key §3 asks for? */
+export function issueKeyRecord(pr) {
+  const found = ISSUE_KEY.exec(pr.title ?? '')
+  if (!found) return null
+  return {
+    kind: 'key',
+    by: pr.author?.login ?? 'unknown',
+    detail: `\`${found[0].toUpperCase()}\` in the title`,
+  }
+}
+
+/**
+ * The key half: merged PRs whose title carries no issue key (DREAMCRM-105).
+ *
+ * `gate: () => true` is the whole difference from the other two — there is no
+ * label to wait for, because a change nobody opened an issue for is precisely
+ * the change no label has anybody to be about.
+ */
+export function keySweep(prs, since = KEY_SWEPT_SINCE) {
+  return bucket(prs, {
+    label: null,
+    since,
+    record: issueKeyRecord,
+    obligation: 'key',
+    gate: () => true,
+  })
 }
 
 /**
@@ -715,6 +822,57 @@ const OBLIGATION_COPY = {
       `"${pr.title}" was labelled ${INTAKE_LABEL}, merged ${pr.mergedAt}, and carries no intake ` +
       `record on the PR. Mirror the routing onto the PR, or route it now. ${pr.url}`,
   },
+  key: {
+    recordNoun: 'an issue key',
+    heading: (n) =>
+      `${n} merged ${n === 1 ? 'PR carries' : 'PRs carry'} no issue key — nobody can be asked about ${n === 1 ? 'it' : 'them'}`,
+    blurb:
+      'Each of these merged with no `DREAMCRM-<n>` in its title, so there is no link from the ' +
+      'commit back to an issue, an owner, or a planning meeting. The review gate still read the ' +
+      'diff and the label still went on — but a label has nobody to be about when no issue owns ' +
+      'the work, which is exactly how #659 merged owing an intake that reached no one.',
+    remedy: [
+      'What to do, in order — §3, "work that never reaches the board at all":',
+      '',
+      '1. **Open the issue after the fact**, carrying the PR link, with `--project` set so the ops ' +
+        'sweep can see it. A note on a thread is not the repair; the issue is.',
+      '',
+      '2. **Then put the key in the title**, which is what clears this finding at its source — ' +
+        'unlike the two obligations above, the record here IS the subject, so there is nothing to ' +
+        'mirror:',
+      '',
+      '   ```bash',
+      '   gh pr edit <n> --title "DREAMCRM-<n>: <the existing title>"',
+      '   ```',
+      '',
+      '   Editing a merged PR\'s title is allowed and changes no commit. It is the only way the ' +
+        'link exists in both directions.',
+    ],
+    annotationTitle: (pr) => `PR #${pr.number} merged with no issue key`,
+    annotation: (pr) =>
+      `"${pr.title}" merged ${pr.mergedAt} with no DREAMCRM-<n> in its title, so nothing links it ` +
+      `to an issue, an owner or a planning meeting. Open the issue, then \`gh pr edit ${pr.number} ` +
+      `--title\`. ${pr.url}`,
+  },
+}
+
+/**
+ * How many non-findings a list enumerates before it starts counting instead.
+ *
+ * "Counted and named, never silently dropped" is this file's discipline and it
+ * stays true for FINDINGS, which are never capped. It cannot stay true for the
+ * key half's other two lists: every keyed merge in the window lands in
+ * `satisfied` and every merge before the cut-off lands in `outOfWindow`, so a
+ * faithful enumeration is three hundred `#nnn`s in a job summary somebody has to
+ * scroll past to reach the three entries that matter. The count is still exact
+ * and the cap is announced, which is the part that was ever load-bearing.
+ */
+const MAX_ENUMERATED = 20
+
+const enumerate = (numbers) => {
+  const shown = numbers.slice(0, MAX_ENUMERATED)
+  const rest = numbers.length - shown.length
+  return shown.join(', ') + (rest > 0 ? `, and ${rest} more` : '')
 }
 
 /** The `--last-green` shape a caller that never looked up a run history should pass. */
@@ -751,8 +909,14 @@ function renderObligation(result, freshNumbers) {
   // LEADS WITH WHAT IT LOOKED AT, never with a tick. A clean report from an
   // alarm that examined nothing is the shape this whole file distrusts.
   lines.push(
-    `Examined **${looked}** merged ${looked === 1 ? 'PR' : 'PRs'} carrying \`${label}\` and ` +
-      `merged since ${since}.`,
+    label
+      ? `Examined **${looked}** merged ${looked === 1 ? 'PR' : 'PRs'} carrying \`${label}\` and ` +
+          `merged since ${since}.`
+      : // The key half has no label: every merged PR in the window is in scope,
+        // because a change nobody opened an issue for is precisely the change
+        // no label has anybody to be about.
+        `Examined **${looked}** merged ${looked === 1 ? 'PR' : 'PRs'} merged since ${since} — ` +
+          'every one of them, since this obligation has no label to wait for.',
     '',
   )
 
@@ -782,20 +946,25 @@ function renderObligation(result, freshNumbers) {
       `#### ${satisfied.length} in-window ${satisfied.length === 1 ? 'PR carries' : 'PRs carry'} ${copy.recordNoun}`,
       '',
     )
-    for (const { pr, record } of satisfied) {
+    for (const { pr, record } of satisfied.slice(0, MAX_ENUMERATED)) {
       lines.push(`- #${pr.number} — ${record.detail}, by \`${record.by}\``)
+    }
+    if (satisfied.length > MAX_ENUMERATED) {
+      lines.push(`- _…and ${satisfied.length - MAX_ENUMERATED} more, all carrying ${copy.recordNoun}._`)
     }
     lines.push('')
   }
 
-  // Counted and named, never silently dropped. See SWEPT_SINCE.
+  // Counted and named, never silently dropped. See SWEPT_SINCE. The COUNT is
+  // always exact; the enumeration caps at MAX_ENUMERATED and says so, because
+  // the key half puts every pre-cut-off merge in this bucket.
   if (outOfWindow.length) {
     lines.push(
-      `#### ${outOfWindow.length} \`${label}\` ${outOfWindow.length === 1 ? 'PR is' : 'PRs are'} older than the cut-off — not judged`,
+      `#### ${outOfWindow.length} ${label ? `\`${label}\` ` : ''}${outOfWindow.length === 1 ? 'PR is' : 'PRs are'} older than the cut-off — not judged`,
       '',
       `Merged before ${since}, when a PR that paid this obligation and one that did not were ` +
         'indistinguishable from GitHub. Skipped, not passed: ' +
-        outOfWindow.map((p) => `#${p.number}`).join(', ') +
+        enumerate(outOfWindow.map((p) => `#${p.number}`)) +
         '.',
       '',
     )
@@ -806,18 +975,30 @@ function renderObligation(result, freshNumbers) {
       `#### ${unreadable.length} ${unreadable.length === 1 ? 'row carries' : 'rows carry'} no readable merge time — not judged`,
       '',
       'Named rather than dropped: ' +
-        unreadable.map((p) => `#${p.number ?? '?'}`).join(', ') +
+        enumerate(unreadable.map((p) => `#${p.number ?? '?'}`)) +
         '. Unreachable under `--state merged`, so this appearing at all means the input changed shape.',
       '',
     )
   }
 
-  lines.push(
-    `_Also seen and not judged: ${ungated} merged ${ungated === 1 ? 'PR' : 'PRs'} with no ` +
-      `\`${label}\` label. This alarm gates nothing — the merges it names have already ` +
-      'shipped._',
-    '',
-  )
+  // Only a LABELLED obligation has an ungated population. Printing "0 merged
+  // PRs with no `null` label" for the key half would be a sentence that is
+  // true, meaningless and wrong-looking all at once.
+  if (label) {
+    lines.push(
+      `_Also seen and not judged: ${ungated} merged ${ungated === 1 ? 'PR' : 'PRs'} with no ` +
+        `\`${label}\` label. This alarm gates nothing — the merges it names have already ` +
+        'shipped._',
+      '',
+    )
+  } else {
+    lines.push(
+      '_This alarm gates nothing — the merges it names have already shipped. What it buys is that ' +
+        'the NEXT one is visible the following morning instead of at whichever planning meeting ' +
+        'happens to open._',
+      '',
+    )
+  }
 
   return lines
 }
@@ -832,10 +1013,12 @@ function renderObligation(result, freshNumbers) {
 export function renderSummary(result, gap = null, extra = {}) {
   const lastGreen = extra.lastGreen ?? NO_LOOKUP
   const intake = extra.intake ?? null
-  const fresh = new Set([
-    ...newSince(result.unsatisfied, lastGreen).fresh.map((p) => p.number),
-    ...(intake ? newSince(intake.unsatisfied, lastGreen).fresh.map((p) => p.number) : []),
-  ])
+  const key = extra.key ?? null
+  const fresh = new Set(
+    [result, intake, key]
+      .filter(Boolean)
+      .flatMap((half) => newSince(half.unsatisfied, lastGreen).fresh.map((p) => p.number)),
+  )
 
   const lines = ['### Post-merge review sweep', '', ...renderWindow(lastGreen)]
 
@@ -853,6 +1036,7 @@ export function renderSummary(result, gap = null, extra = {}) {
 
   lines.push('#### The review obligation', '', ...renderObligation(result, fresh))
   if (intake) lines.push('#### The intake obligation', '', ...renderObligation(intake, fresh))
+  if (key) lines.push('#### The issue-key obligation', '', ...renderObligation(key, fresh))
 
   return lines.join('\n')
 }
@@ -1238,13 +1422,15 @@ function main() {
 
   const since = argValue('--since', SWEPT_SINCE)
   const intakeSince = argValue('--intake-since', INTAKE_SWEPT_SINCE)
+  const keySince = argValue('--key-since', KEY_SWEPT_SINCE)
   const limit = Number(argValue('--limit', '0'))
   const lastGreen = readLastGreen(argValue('--last-green'))
 
   const result = sweep(prs, since)
   const intake = intakeSweep(prs, intakeSince)
+  const key = keySweep(prs, keySince)
   const gap = limit ? windowGap(prs, limit, since) : null
-  const summary = renderSummary(result, gap, { intake, lastGreen })
+  const summary = renderSummary(result, gap, { intake, key, lastGreen })
 
   console.log(summary)
   if (process.env.GITHUB_STEP_SUMMARY) {
@@ -1258,7 +1444,7 @@ function main() {
   // turned the run red. `::warning` for those, `::error` for the new ones, so
   // the distinction survives into the annotation list.
   let fresh = 0
-  for (const half of [result, intake]) {
+  for (const half of [result, intake, key]) {
     const copy = OBLIGATION_COPY[half.obligation]
     const split = newSince(half.unsatisfied, lastGreen)
     fresh += split.fresh.length
