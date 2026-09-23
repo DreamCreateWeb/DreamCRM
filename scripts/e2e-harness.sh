@@ -283,6 +283,16 @@ fi
 #
 # Bash's own `/dev/tcp` rather than `lsof`/`ss`/`nc`: a check that silently
 # passes because the tool it needs is not installed is not a check.
+#
+# ITS REACH, STATED EXACTLY (Sentinel's note on #710). This probes IPv4
+# loopback and nothing else, so what it refuses is "something is answering on
+# 127.0.0.1:$1" — not "this port is unavailable". A server bound solely to
+# `::1` would slip past it. That is the right size for the defect: every
+# address this script itself uses is `127.0.0.1` — the readiness probe, the
+# load base, `E2E_BASE_URL` — so a listener this cannot see is also one the run
+# would never have been fooled by. It is deliberately NOT widened to a general
+# port-availability test, which would be a claim the next reader could rely on
+# and this cannot keep.
 port_busy() {
   (exec 3<>"/dev/tcp/127.0.0.1/$1") 2>/dev/null || return 1
   exec 3<&-
