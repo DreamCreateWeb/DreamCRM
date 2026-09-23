@@ -1,6 +1,7 @@
 import 'server-only'
-import { and, eq, inArray } from 'drizzle-orm'
+import { and, eq, inArray, ne } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
+import { getQuotedPlan } from '@/lib/stripe-config'
 import { newId } from '@/lib/utils'
 import { buildPatientPersonas } from './personas'
 
@@ -106,9 +107,15 @@ export async function seedDemoReferralPartner(orgId: string) {
   }
 
   // 3 commission rows — deterministic invoice ids so re-seeding is idempotent.
-  // Premium plan = $500/mo = 50000 cents → 10% = 5000 cents each.
-  const invoiceCents = 50000
-  const amountCents = Math.floor((invoiceCents * DEMO_PERCENT_BPS) / 10000) // 5000
+  //
+  // THE INVOICE IS THE PLAN THE REFERRED CLINIC ACTUALLY PAYS, resolved rather
+  // than typed (DREAMCRM-38's rule, DREAMCRM-122's instance). This was a
+  // literal 50000 — the struck-through LIST price — so the demo paid a partner
+  // 10% of $500 while `/partner-program` published "$20 per practice per
+  // month" from `getQuotedPlan()` on the same rate. A prospect could open both
+  // in one sitting.
+  const invoiceCents = getQuotedPlan().price * 100
+  const amountCents = Math.floor((invoiceCents * DEMO_PERCENT_BPS) / 10000)
   const dayMs = 24 * 60 * 60 * 1000
   const rows: Array<{ inv: string; status: 'accrued' | 'paid'; ageDays: number }> = [
     { inv: `demo_inv_${orgId}_1`, status: 'paid', ageDays: 75 },
@@ -154,6 +161,45 @@ export async function seedDemoReferralPartner(orgId: string) {
         accruedAt: new Date(Date.now() - r.ageDays * dayMs),
       })
       .onConflictDoNothing({ target: schema.referralCommission.stripeInvoiceId })
+  }
+
+  // Self-heal a demo seeded before the resolution above (mirrors the
+  // `referralPercentBps` block earlier in this function). The rows upsert by
+  // their deterministic invoice ids, so `onConflictDoNothing` would leave every
+  // existing demo org quoting the old literal forever — and the showcase is
+  // exactly where somebody reads the number beside `/partner-program`.
+  //
+  // SCOPED THREE WAYS so it can reach no real commission: the demo partner's
+  // id, this org, and this org's three deterministic `demo_inv_` ids. The `ne`
+  // makes a correct demo a no-op rather than a write.
+  await db
+    .update(schema.referralCommission)
+    .set({ invoiceTotalCents: invoiceCents, amountCents })
+    .where(
+      and(
+        eq(schema.referralCommission.partnerId, partner.id),
+        eq(schema.referralCommission.organizationId, orgId),
+        inArray(
+          schema.referralCommission.stripeInvoiceId,
+          rows.map((r) => r.inv),
+        ),
+        ne(schema.referralCommission.invoiceTotalCents, invoiceCents),
+      ),
+    )
+
+  // The payout covers the ONE paid commission, so it moves with it or the
+  // partner-detail page shows a payout that does not match what it paid out.
+  if (payoutId !== null) {
+    await db
+      .update(schema.referralPayout)
+      .set({ amountCents })
+      .where(
+        and(
+          eq(schema.referralPayout.id, payoutId),
+          eq(schema.referralPayout.partnerId, partner.id),
+          ne(schema.referralPayout.amountCents, amountCents),
+        ),
+      )
   }
 }
 

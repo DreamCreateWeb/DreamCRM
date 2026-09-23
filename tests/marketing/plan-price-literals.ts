@@ -35,12 +35,48 @@
  *   - `app/g/[token]/report-view.tsx` — a page a prospect reaches from a link
  *     we sent them.
  *
- * THREE SPELLINGS, BECAUSE THE DOLLAR SIGN WAS NEVER THE PRICE. DREAMCRM-38's
+ * FOUR SPELLINGS, BECAUSE THE DOLLAR SIGN WAS NEVER THE PRICE. DREAMCRM-38's
  * worst site was `const LIST_MONTHLY = 500` and the worst this rule has ever
  * caught was `PLAN_PRICE_MONTHLY = 200` in `lib/recall-roi.ts`, which
  * `computeRecallRoi` DIVIDES by — a reprice would not have made `/roi` stale,
  * it would have made the break-even arithmetic the whole page is built around
- * wrong. A scan that needs a `$` walks past both. See `SPELLINGS`.
+ * wrong. A scan that needs a `$` walks past both. The fourth, `CENTS`, is
+ * DREAMCRM-122's and is the first that was DECLINED rather than missed — read
+ * its own note.
+ *
+ * ────────────────────────────────────────────────────────────────────────────
+ * WHAT DREAMCRM-122 ACTUALLY FOUND, because the issue's diagnosis was wrong
+ * and the correction is the useful half.
+ *
+ * Two plan-price defects escaped this rule into `lib/**` and were written up
+ * as a FIELD-OF-VIEW miss — "its eyes cover three product roots and these live
+ * in `lib/**`; widen it to `lib/**`". `lib` has been the third root since
+ * #665. Measured on the branch: 1,346 files in view, BOTH defect files among
+ * them. The widening asked for was a no-op, and the two escapes had two
+ * different causes, neither of them the eyes:
+ *
+ *   - `seed-partners.ts` wrote the price in CENTS. That is `CENTS` below, and
+ *     it ships — MEASURED at one hit (the defect) and zero false positives.
+ *   - `lib/types/social-entitlements.ts` wrote it in a DOCBLOCK, which
+ *     `stripComments` blanks on purpose. That one does NOT ship, and the
+ *     reason is the next paragraph.
+ *
+ * **THE COMMENT CLASS IS DECLINED, WITH THE NUMBER.** Inverting the stripper
+ * and re-running the same three passes over comments alone, across the same
+ * three roots, returns **39 hits — 38 of them innocent**: this rule's own
+ * explanation in `lib/stripe-config.ts`, `/pricing`, `/why`, `price-card.tsx`,
+ * `lib/marketing/docs.ts` and eleven more files, every one of them a sentence
+ * ABOUT a past defect that has to name the number to be readable at all. A
+ * rule that fails `test` naming 38 innocent docblocks is a rule somebody turns
+ * off (§2d), and the narrow predicates that fit the one real case — "a comment
+ * line with two pipes and a `$`", "a comment matching `Word ($N)`" — each
+ * return exactly the 3 lines of the file they were written against and nothing
+ * else, which is the hand-kept list wearing a regex. So the docblock was
+ * FIXED and is not GUARDED, and this paragraph is the record of that being a
+ * choice rather than an oversight. **The trigger for revisiting: a SECOND
+ * price-in-a-docblock defect, which would make the class a population of two
+ * and worth a predicate derived from both rather than fitted to one.**
+ * ────────────────────────────────────────────────────────────────────────────
  *
  * WHAT THIS MODULE DELIBERATELY DOES NOT SEE, stated here rather than
  * discovered later (§2d — a caveat describing a hole the detector does not
@@ -59,6 +95,8 @@
  *   - **`docs/**`, `scripts/**`, `e2e/**` and `tests/**`.** The roots are the
  *     three the product renders from. A price in a doc is stale prose; a price
  *     on a page is a lie to a customer.
+ *   - **A price inside a COMMENT.** 39 in the tree, 38 of them sentences
+ *     explaining this very rule. Declined with the measurement, above.
  */
 import { execFileSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
@@ -98,7 +136,7 @@ export function priceQuotingFiles(cwd: string = process.cwd()): string[] {
     .sort()
 }
 
-export type Spelling = 'dollar' | 'cadence' | 'assignment'
+export type Spelling = 'dollar' | 'cadence' | 'assignment' | 'cents'
 
 export interface PriceHit {
   /** Repo-relative, forward slashes. */
@@ -110,7 +148,14 @@ export interface PriceHit {
   index: number
   /** The number as written, commas and all — `2,000`, not `2000`. */
   text: string
-  /** The number as a number, which is what gets compared to the plan. */
+  /**
+   * The number AS WRITTEN, as a number — `50000` for a cents hit, not 500.
+   *
+   * It is what an allowlist entry is keyed on and what the failure message
+   * prints, so it has to be the thing a reader will find on the line. The
+   * comparison to the plan is scaled per spelling inside `planPriceHits`;
+   * see `CENTS`.
+   */
   value: number
   spelling: Spelling
   /** The source line, trimmed, so the failure says WHICH `$200` it means. */
@@ -160,14 +205,56 @@ const CADENCE =
 const ASSIGNMENT = /(^|[^\w$.])(['"]?)([A-Za-z_$][\w$]*)\2\s*[:=]\s*\{?\s*(\d+(?:,\d{3})*)(?![\w.])(?!\s*:)/g
 
 /**
+ * A plan price written in CENTS — `invoiceCents = 50000`.
+ *
+ * THE FOURTH SPELLING (DREAMCRM-122), and the one the rule had DECLINED
+ * rather than missed. The header above used to end with "this repo's money
+ * columns are `amountCents`, so every `amount` in the tree is cents and a plan
+ * price in cents (20000) is not a number this rule is looking for". The
+ * premise was right and the conclusion was backwards: the `Cents` suffix being
+ * this repo's universal money convention is exactly what makes it the most
+ * reliable price-shaped NAME in the tree, and dropping it left a hole one
+ * multiplication wide.
+ *
+ * What went through it: `lib/services/demo-clinic/seed-partners.ts` seeded the
+ * demo partner's commissions off `const invoiceCents = 50000` — the
+ * struck-through LIST price — so the showcase paid 10% of $500 while
+ * `/partner-program` published $20 per practice from `getQuotedPlan()` on the
+ * same rate. Both are two clicks apart in one demo.
+ *
+ * **THE SUFFIX IS THE WHOLE DISCRIMINATOR, and `nameIsPricey` deliberately is
+ * NOT applied.** `invoiceCents` splits to `invoice` + `Cents`, neither of
+ * which is in `PRICEY_WORDS`, so requiring a pricey word would have re-missed
+ * the defect this spelling exists for. A name ending in `Cents` has already
+ * declared itself to be money; asking it to also contain the word "price" is
+ * asking the same question twice and taking the narrower answer.
+ *
+ * **WHAT KEEPS IT QUIET IS THE VALUE, and that was MEASURED rather than
+ * assumed** (§2d). The tree carries **50** `*Cents` assignments of a literal
+ * ≥ 1000 — demo product prices, comp bands, deposits, the `$25` payout floor.
+ * Exactly ONE of them equals a plan price × 100, and it is the defect. So the
+ * false-positive count of this spelling on the day it shipped is zero, and the
+ * thing that would raise it is a demo product priced at exactly $200.00 or
+ * $500.00 — which is an `ALLOWED_QUOTES` entry with a sentence, the same as
+ * CareCredit's $200 threshold, not a reason to blunt the rule.
+ *
+ * `_CENTS` as well as `Cents`, because a module constant SHOUTS
+ * (`PAYOUT_MIN_CENTS`, `INCLUDED_MONTHLY_SEGMENTS`) and the camel boundary
+ * that finds the first cannot see the second.
+ */
+const CENTS =
+  /(^|[^\w$.])(['"]?)([A-Za-z_$][\w$]*[Cc]ents|[A-Z_$][A-Z0-9_$]*_CENTS)\2\s*[:=]\s*\{?\s*(\d+(?:,\d{3})*)(?![\w.])(?!\s*:)/g
+
+/**
  * The names that make a bare number a price.
  *
  * MEASURED, not guessed: this vocabulary was widened until it caught every
  * dollar-signless plan price the census found and then stopped, and the
  * innocents it swept in at each step are recorded in the test beside it.
  * `amount` is absent on purpose — this repo's money columns are `amountCents`,
- * so every `amount` in the tree is cents and a plan price in cents (20000)
- * is not a number this rule is looking for.
+ * so a bare `amount` is cents rather than dollars and would report every demo
+ * order total against a dollar-scale plan price. The CENTS SPELLING is what
+ * grades those names, at the right scale; this vocabulary stays dollars-only.
  */
 const PRICEY_WORDS = /^(?:price|rate|cost|fee|msrp|mrr|monthly|annual|annually)s?$/i
 
@@ -437,9 +524,12 @@ export function planPriceHits(file: string, source: string, planPrices: Readonly
   const hits: PriceHit[] = []
   const seen = new Set<number>()
 
-  const add = (start: number, text: string, spelling: Spelling) => {
+  // `scale` is the number of THESE units in a dollar — 1 for every spelling
+  // that writes dollars, 100 for `CENTS`. The hit keeps the number AS WRITTEN
+  // (see `PriceHit.value`); only the comparison is scaled.
+  const add = (start: number, text: string, spelling: Spelling, scale = 1) => {
     const value = Number(text.replace(/,/g, ''))
-    if (!planPrices.has(value)) return
+    if (!planPrices.has(value / scale)) return
     if (seen.has(start)) return
     if (isBand(code, start, start + text.length)) return
     seen.add(start)
@@ -468,6 +558,14 @@ export function planPriceHits(file: string, source: string, planPrices: Readonly
   while ((m = assignment.exec(code)) !== null) {
     if (!nameIsPricey(m[3]!)) continue
     add(m.index + m[0]!.length - m[4]!.length, m[4]!, 'assignment')
+  }
+
+  // AFTER `assignment`, so a name that is pricey AND ends in `Cents`
+  // (`unitPriceCents`) is reported under the spelling whose scale actually
+  // matched rather than twice — `seen` is keyed on the offset.
+  const cents = new RegExp(CENTS.source, 'g')
+  while ((m = cents.exec(code)) !== null) {
+    add(m.index + m[0]!.length - m[4]!.length, m[4]!, 'cents', 100)
   }
 
   // SOURCE ORDER, not report order. The three passes above each sweep the

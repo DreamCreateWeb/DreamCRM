@@ -195,6 +195,44 @@ stays **nine**, `tests/guards/rulebook-drift.test.ts` stayed green through it,
 correctly, and `scripts/rulebook-drift.mjs` needed no edit. That is the argument
 FOR routing a pattern widening by hand — nothing in the repo will carry one here.
 
+**The `money` rule reaches the NETTING RULE'S OWN HOME** (DREAMCRM-122, PR
+opened 2026-09-23, Rio). `lib/net-collected.ts` matched NOTHING, so a PR
+changing whether refunded money comes out of a clinic's totals reported *merges
+on green* — while `lib/services/refunds.ts`, which WRITES the refund truth that
+file reads, has been on the rule since the first pass. This is the widest reach
+of any file added to this rule: `sumNetCollectedSql` is in the collections
+header, the revenue figures, the reconciliation pages and the patient timeline
+at once, so a one-line change to `netCollectedCents` moves every "collected"
+number in the product at the same time. §2c holds the invariant at zero
+tolerance and `tests/guards/net-refunds.test.ts` fails any clinic-side money
+total summed without going through it — the rule was graded and the file that
+IS the rule was not gated.
+
+**Two independent reasons nothing caught it, both worth knowing.** There is no
+money word in the filename, which is what the word-pattern list is built on.
+And it does not import `@/lib/stripe` — it is pure arithmetic plus a Drizzle
+SQL fragment, deliberately client-safe like `lib/mrr.ts` — so the derived
+one-hop check in `tests/guards/review-gate.test.ts`, which found eleven files
+by asking the tree who reaches Stripe, structurally could not see it either.
+**A file can be money without touching Stripe**: this one decides what a number
+MEANS rather than moving a charge, and the ledger it corrects is the clinic's
+own reconciliation.
+
+It arrived the way #569's, #599's and #663's did and is recorded here for the
+same reason: found by its author while making an unrelated change in the same
+file (the ⌘K refund note), widened in that PR rather than deferred, and routed
+by hand on merge day rather than left for the enumeration to carry alone.
+
+**STATE: OPEN — PR #711, on the DREAMCRM-122 branch.** Pinned in
+`MUST_BE_GATED` as `money` in the same PR. Written down before the merge on the
+DREAMCRM-60 precedent §2 sets out — write it down early, say what state it is
+in, and own the flip; the flip is Forge's at the next sweep, not the author's.
+Note what it is NOT: `GATE_RULES` gained a PATTERN, not an area, so the count
+stays **nine**, `tests/guards/rulebook-drift.test.ts` stays green through it,
+correctly, and `scripts/rulebook-drift.mjs` needs no edit. Nothing in the repo
+will carry a pattern widening here, which is the argument for routing one by
+hand.
+
 **The `auth` rule reaches the demo-context minter** (widened with #569,
 `498a2cda`, 2026-09-14). Beside `lib/session.ts`, `lib/auth/context.ts`,
 `middleware.ts`, `app/(auth)/**` and `app/api/auth/**`, the rule now also matches
