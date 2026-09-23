@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useId, useState, useTransition } from 'react'
 import {
   confirmMyVisitAction,
   joinMyWaitlistAction,
@@ -72,6 +72,8 @@ function ActionPill({
   variant = 'quiet',
   disabled,
   pending = false,
+  expanded,
+  controls,
 }: {
   children: React.ReactNode
   onClick?: () => void
@@ -79,6 +81,12 @@ function ActionPill({
   brand?: string
   variant?: 'brand' | 'quiet' | 'danger'
   disabled?: boolean
+  /** Disclosure state, for a pill that toggles a panel open underneath it.
+   *  Sighted patients see the panel appear; without this the pill announces
+   *  as a plain button and the swap is silent. */
+  expanded?: boolean
+  /** Id of the panel `expanded` refers to. */
+  controls?: string
   /** Busy state on the BrandButton contract — holds the label's width under
    *  a spinner in the pill's own ink, announces aria-busy, and disables so a
    *  second tap can't move or cancel the visit twice. */
@@ -109,7 +117,15 @@ function ActionPill({
     )
   }
   return (
-    <button type="button" className={cls} style={style} onClick={onClick} disabled={disabled}>
+    <button
+      type="button"
+      className={cls}
+      style={style}
+      onClick={onClick}
+      disabled={disabled}
+      aria-expanded={expanded}
+      aria-controls={expanded === undefined ? undefined : controls}
+    >
       {children}
     </button>
   )
@@ -143,6 +159,12 @@ export default function VisitCard({
   minNoticeHours: number
   showFace: boolean
 }) {
+  // The reschedule/cancel pills open a panel directly beneath themselves. That
+  // is a DISCLOSURE, not a result — the patient pressed the button, so a live
+  // region would be the wrong instrument; what was missing is the pill saying
+  // whether its panel is open. Without `aria-expanded` both pills announce as
+  // plain buttons and the panel swap is silent in either direction.
+  const panelId = useId()
   const [panel, setPanel] = useState<'none' | 'reschedule' | 'cancel'>('none')
   const [waitlisted, setWaitlisted] = useState(false)
   const [newSlotIso, setNewSlotIso] = useState<string | null>(null)
@@ -243,10 +265,21 @@ export default function VisitCard({
         )}
         {canModify && !withinNotice && (
           <>
-            <ActionPill onClick={() => setPanel(panel === 'reschedule' ? 'none' : 'reschedule')} disabled={pending}>
+            <ActionPill
+              onClick={() => setPanel(panel === 'reschedule' ? 'none' : 'reschedule')}
+              disabled={pending}
+              expanded={panel === 'reschedule'}
+              controls={`${panelId}-reschedule`}
+            >
               Reschedule
             </ActionPill>
-            <ActionPill variant="danger" onClick={() => setPanel(panel === 'cancel' ? 'none' : 'cancel')} disabled={pending}>
+            <ActionPill
+              variant="danger"
+              onClick={() => setPanel(panel === 'cancel' ? 'none' : 'cancel')}
+              disabled={pending}
+              expanded={panel === 'cancel'}
+              controls={`${panelId}-cancel`}
+            >
               Cancel
             </ActionPill>
           </>
@@ -290,7 +323,7 @@ export default function VisitCard({
       </div>
 
       {panel === 'reschedule' && (
-        <div className="mt-4 rounded-2xl p-4" style={{ backgroundColor: '#FAF7F2' }}>
+        <div id={`${panelId}-reschedule`} className="mt-4 rounded-2xl p-4" style={{ backgroundColor: '#FAF7F2' }}>
           <p className="mb-3 text-[0.9rem] font-semibold" style={{ color: INK }}>
             Pick a new time — we’ll let the front desk know.
           </p>
@@ -322,7 +355,7 @@ export default function VisitCard({
       )}
 
       {panel === 'cancel' && (
-        <div className="mt-4 rounded-2xl p-4" style={{ backgroundColor: '#FAF7F2' }}>
+        <div id={`${panelId}-cancel`} className="mt-4 rounded-2xl p-4" style={{ backgroundColor: '#FAF7F2' }}>
           <p className="text-[0.9rem]" style={{ color: INK }}>
             Life happens — no judgment. Want us to cancel this visit?
           </p>

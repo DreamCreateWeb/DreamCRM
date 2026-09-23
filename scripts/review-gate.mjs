@@ -968,6 +968,61 @@ export const INTAKE_RULES = [
       // families are expanded from the same registries their own
       // `generateStaticParams` reads rather than typed out.
       'e2e/marketing-viewport.spec.ts',
+      // THE PHASE-CHANGE ANNOUNCEMENT RULE (DREAMCRM-116). A NEW CLASS rather
+      // than a case on an existing one, stated here rather than guessed as
+      // this entry's `why` asks: every a11y rule above grades a VALUE a file
+      // contains — a colour, a ratio, a glyph's shape, a type size, a
+      // decorative layer, a vocabulary. This one grades a BEHAVIOUR'S
+      // MACHINERY. It derives, from the patient-facing tree, every client
+      // component that declares a `useState` annotated with a union of two or
+      // more string literals, and fails any that carries no announcement
+      // instrument at all — no live region, no `tabIndex={-1}` focus move, and
+      // no imported primitive that renders one.
+      //
+      // WHAT IT MEANS FOR EVERY OTHER PR, which is the intake test: after this
+      // lands, adding a `useState<'idle' | 'done'>` to anything under
+      // `app/(portal)`, `app/site`, `components/patient-portal`,
+      // `components/clinic-site` or a token landing page fails `test` by file,
+      // line and variable name unless the component announces. That is the
+      // ordinary way a public form, a portal card or a booking flow gets
+      // built, so the catchment is wide — 18 machines across 16 files the day
+      // it landed, six of which were genuinely silent.
+      //
+      // IT IS HERE ON THE MERITS, not merely because it imports `palette.ts`
+      // for `ROOT`: it changes what every patient-facing PR can merge. The
+      // walk derivation in `tests/guards/review-gate.test.ts` sees it too —
+      // it reads product roots off disk — so this registration is what that
+      // guard asked for rather than a hand-remembered addition.
+      //
+      // WHAT IT DOES NOT COVER, here rather than only in the test's docblock,
+      // because this comment is what the rulebook entry gets written from —
+      // and the first one is load-bearing enough that a green run here is
+      // narrower than its name:
+      //
+      //   - **It cannot see whether the instrument speaks the PHASE.** A
+      //     component whose only live region is its error node passes. This is
+      //     MEASURED: reverting `survey-card.tsx` to the silent form
+      //     `docs/RELEASE.md` Part 5 describes leaves the static gate GREEN,
+      //     because the card still renders `PortalErrorText`. The rendered
+      //     contracts in the same file are what redden on that mutation. The
+      //     shape it DOES catch is a machine in a component with zero
+      //     instruments, which is what every instance of this defect has
+      //     actually looked like.
+      //   - **The staff tree is out**, deferred with a count rather than
+      //     silently: 33 more string-literal unions under `app/(default)` and
+      //     its siblings, dominated by nullable which-button-is-in-flight
+      //     flags (21) and tab/segment selections (9), neither of which this
+      //     contract describes. The test asserts that composition so the
+      //     deferral cannot rot into a pardon.
+      //   - A machine written through an IMPORTED type alias, a union built
+      //     from a `const` object, or state held anywhere but `useState`. A
+      //     local `type X = 'a' | 'b'` IS resolved — that spelling was three
+      //     of the eighteen and one of them was a live defect.
+      //   - Its one pardon is derived from the code, never from a path: a
+      //     phase whose every reading is an `if` deciding a `CSSProperties`
+      //     value has nothing to narrate. The pardoned population is
+      //     enumerated by name, so a second one arrives as a red diff.
+      'tests/a11y/announced-phase-changes.test.tsx',
     ],
   },
 ]
