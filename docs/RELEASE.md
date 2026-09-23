@@ -721,6 +721,15 @@ binding are all correct. The payment-plan charger was the exception.
   `o.status === 'paid' ? 'Paid order' : o.status` as its sublabel, so a
   PARTLY refunded order still reads "Paid order" at face value. Unchanged,
   and still a search-UX call rather than a money-record one.
+  **FIXED 2026-09-23 (DREAMCRM-122).** The search-UX call was made the way the
+  two narrative surfaces were: the LABEL keeps the face value — the patient
+  really did pay $89 — and the sublabel carries what changed since, through the
+  same `refundNote` the timeline and the thread markers use. The join is
+  single-homed too now: `appendRefund` moved out of `patient-timeline.ts`'s
+  privates into `lib/net-collected.ts` beside `refundNote`, so the three
+  surfaces cannot drift on the separator either. A partly refunded order reads
+  "Paid order · $20.00 refunded"; a fully refunded one still lets `status`
+  carry it alone rather than reading "refunded · Refunded".
 - S3 · a refunded online payment still earned its patient loyalty points.
   The balance-payment row keeps `status = 'paid'` after a refund on purpose,
   so the daily accrual sweep read it as money the patient had paid, and
@@ -1094,6 +1103,21 @@ binding are all correct. The payment-plan charger was the exception.
   `invoiceCents = 50000`, with the comment above it still naming the
   $500/mo Premium plan, so the demo partner portal still shows $50 per
   practice per month against `/partner-program`'s $20.
+  **FIXED 2026-09-23 (DREAMCRM-122).** `invoiceCents` resolves
+  `getQuotedPlan().price * 100`, so the demo invoices the plan a referred
+  clinic actually pays and 10% of it is the $20 `/partner-program` publishes
+  from the same source. A self-heal re-points an ALREADY-seeded demo — the
+  rows upsert by deterministic `demo_inv_` ids under `onConflictDoNothing`, so
+  without it every existing demo org would have kept quoting $50 — and the
+  payout row moves with the commission it covers. That self-heal's three-way
+  `WHERE` — the whole reason an `UPDATE` against two money tables is safe — is
+  GRADED rather than argued: the test renders the predicate through the real
+  `PgDialect` and fails naming any clause that goes missing. Found by Sentinel
+  in review, and worth the line because of what it measured: before it, the
+  mock took no `where` argument, so deleting the tenant scope, the invoice-id
+  scope and the `ne` together left all five assertions green. The escape route
+  is closed as well: the plan-price rule grew a CENTS spelling (§2c), and
+  reverting this line now fails `test` naming it.
 - S3 · `lib/services/marketing-blog.ts:50` — the launch announcement post,
   published on the marketing blog, still says the platform costs "$150–500 a
   month": the pre-collapse three-tier range, on a page a prospect can read
@@ -1148,6 +1172,17 @@ binding are all correct. The payment-plan charger was the exception.
   header. · OPEN.
   **Re-verified 2026-09-23 (DREAMCRM-108).** `lib/types/social-entitlements.ts:12-14` still prices the tiers
   `Basic ($150) | Pro ($250) | Premium ($500)` in its docblock table.
+  **FIXED 2026-09-23 (DREAMCRM-122).** The tier prices are out of the table
+  entirely rather than corrected — this module publishes the ADD-ON prices
+  ($30/$20, `SOCIAL_ADDON_PRICE_CENTS` is their one home) and has no business
+  publishing the plan's, which lives in `lib/stripe-config.ts`. Its sibling in
+  `tests/billing/social-entitlements.test.ts` carried a THIRD set of numbers
+  (`Basic ($99) | Pro ($149) | Premium ($199)`) — two files, three prices, one
+  plan — and is fixed in the same PR. Pinned there rather than guarded
+  tree-wide, and that is a measured choice with its number written down: a
+  comment-scanning version of the plan-price rule returns 39 hits over the
+  three roots, 38 of them sentences explaining that very rule. §2c carries the
+  argument and the trigger for revisiting it.
 - S3 · the MARKETING half of the struck-price naming defect —
   `app/(marketing)/pricing/price-card.tsx` named its struck list price with an
   `aria-label` on a bare `<span>`. ARIA prohibits an accessible name on
