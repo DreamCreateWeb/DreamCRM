@@ -3392,7 +3392,7 @@
   and has a name to find it by, which is the difference between an intake that
   happens and one that waits for somebody to choose to look.
 
-  **THE FIFTY-FIFTH: #700, `.github/workflows/push-alarm.yml` +
+  **THE FIFTY-NINTH: #700, `.github/workflows/push-alarm.yml` +
   `scripts/push-alarm.mjs` + `tests/guards/push-alarm.test.ts`
   (DREAMCRM-115). A NEW CLASS — the first guard here whose subject is a
   `workflow_run` TRIGGER, which is the one wire in this repository that
@@ -3400,8 +3400,8 @@
   workflow's DISPLAY NAME, and a trigger that matches nothing is not an
   error: GitHub publishes no warning, no check and no run. An alarm
   disconnected by a one-line rename in an unrelated tidy-up PR looks exactly
-  like an alarm with nothing to report. **STATE: OPEN — PR #700, head
-  `1646fa19`, awaiting Sentinel.**
+  like an alarm with nothing to report. **STATE: MERGED — PR #700, `28145ef4`,
+  2026-09-23 17:28:25Z.**
 
   **The registration is what makes it gradeable, and the predicate is
   DERIVED rather than enumerated.** The obvious guard is the one the first
@@ -3697,6 +3697,27 @@
   the map cannot resolve is a FINDING. `ORDINAL_WORDS` is DERIVED from units and
   tens rather than typed out — a hand-kept table of ninety-nine guarding a
   hand-kept list is the joke §2d makes at its own expense.
+
+  **ITS FIRST RUN CAUGHT A REAL ONE, which is the evidence §9 asks for.** #700
+  merged as `28145ef4` taking FIFTY-FIFTH, a number #697 already held — the
+  collision predicted that morning, landed, undetected, and invisible to
+  everything else this repo owns. `test` was green on `main` because the guard
+  that can see it did not exist there yet. Renumbered to FIFTY-NINTH.
+
+  **A COMPACTION LESSON, recorded because the shape generalises.** The §2
+  routing text in `SKILL.md`'s frontmatter was cut by 10,041 characters in the
+  same PR, against the right test — *would an agent deciding whether to OPEN §2
+  act differently without this?* — and the test was applied clause by clause.
+  It dropped **thirteen identifiers**: `text-gray-400`, `data-mkt-mock`,
+  `app/site`, `revalidateTag`, `carriesIntake` and eight more. The narrative
+  around them was correctly cut and they went with it, because each sat inside a
+  sentence that was mostly story.
+  **A section NAME routes an agent who already suspects a rule exists; a PATH or
+  a TOKEN routes the one who does not** — and that second reader is the one the
+  description exists for, and the one whose failure is silent. Restored as a
+  bare list with no argument attached, 310 characters. **Carry the rule: when a
+  clause-level test is applied to prose that mixes narrative and identifiers,
+  grade the identifiers separately.** (Sentinel, reviewing #721.)
 
   **Its eyes are floored rather than compared, and the reason is worth keeping.**
   Every branch is about a set the reader built, so a regex that stopped matching

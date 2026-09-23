@@ -688,6 +688,16 @@ export const CLAIMS = [
      * which is §2d's newest rule (run the instrument on the case in front of
      * you) catching this one BEFORE it was written rather than after.
      *
+     * **49 IS THE FLOOR OF THE NUMBERED ERA, and retrofitting the first
+     * forty-eight is DECLINED** (Sentinel, reviewing #721, and I agree).
+     * Rewriting forty-eight historical entries into the marker form is a large
+     * edit to records whose value IS the record, it risks transcription error
+     * across all of them, and it buys only contiguity-from-one, which nothing
+     * needs. The defect this exists for is a duplicate at the HEAD of the list
+     * — the live end, where concurrent PRs collide — and uniqueness plus
+     * no-gaps-in-range covers that completely. That is a fact about the
+     * document's history, not a shortcoming in the claim.
+     *
      * THE CANDIDATE TEST IS THE ORDINAL SUFFIX, NOT THE MAP. `**THE FIX:` is a
      * real heading in this rulebook and is not an ordinal; keying on the map
      * alone would silently skip it — and would equally silently skip
@@ -698,7 +708,22 @@ export const CLAIMS = [
      */
     check: (live) => {
       const { text } = live.rulebook
-      const candidates = [...text.matchAll(/\*\*THE ([A-Z][A-Z-]*(?:ST|ND|RD|TH)):/g)].map((m) => m[1])
+      // ANCHORED ON THE ENTRY FORM — ` #<digits>` — AND THE FIRST DRAFT WAS NOT
+      // (Sentinel, reviewing #721). `**THE <CAPS>:` is live house style here,
+      // and the suffix test alone made a candidate of every heading that
+      // happens to end in one: `**THE COST:`, `**THE FIRST:`, `**THE LAST:`,
+      // `**THE SECOND:`. The first two are the worse half — they RESOLVE, so
+      // they poison the set and produce a gap finding naming forty-seven
+      // innocent numbers, with remedy text telling the author to fix a typo or
+      // extend the map when the answer is "that is not an ordinal".
+      //
+      // Every real entry names its PR, all eleven of them, so the anchor costs
+      // nothing it was designed for: a typo'd ordinal in a real entry
+      // (`**THE FIFTY-EIGTH: #722`) still matches and is still LOUD, which was
+      // the whole point of the candidate/map split. §2's own rule is that a
+      // false positive costs a red `test` naming something innocent and the fix
+      // is to narrow the PREDICATE, never to exempt the file. This is that.
+      const candidates = [...text.matchAll(/\*\*THE ([A-Z][A-Z-]*(?:ST|ND|RD|TH)): #\d+/g)].map((m) => m[1])
 
       // NON-VACUITY, because everything below is about a set this reader
       // built: a regex that stopped matching reports a perfectly unique,

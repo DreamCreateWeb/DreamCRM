@@ -727,6 +727,28 @@ describe('the intake ordinal counter', () => {
     expect(finding.actual).toContain('FIFTY-EIGTH')
   })
 
+  /**
+   * THE FALSE-POSITIVE CLASS THE SUFFIX TEST ALONE LET THROUGH (Sentinel,
+   * reviewing #721). `**THE <CAPS>:` is live house style, so keying on the
+   * suffix made a candidate of every heading ending in one. `COST` and `LAST`
+   * would have been unresolvable — loud, wrong, and with remedy text telling
+   * the author to fix a typo. `FIRST` and `SECOND` are worse: they RESOLVE,
+   * poison the set, and produce a gap finding naming forty-seven innocent
+   * numbers. Anchoring on the entry form (` #<digits>`) closes all four.
+   */
+  it('ignores prose headings that merely end in an ordinal suffix', () => {
+    for (const word of ['COST', 'FIRST', 'SECOND', 'LAST']) {
+      const text = rulebookOf(NINE).rulebook.text + `\n\n**THE ${word}: a sentence about something else.**`
+      expect(ordinals.check({ rulebook: { files: ['SKILL.md'], text } }), word).toBeNull()
+    }
+  })
+
+  it('still catches a typo INSIDE a real entry, which is what the anchor must not cost', () => {
+    const text = rulebookOf(NINE).rulebook.text + '\n\n**THE FIFTY-EIGTH: #722, a real entry with a typo.**'
+    const finding = mustFind(ordinals.check({ rulebook: { files: ['SKILL.md'], text } }))
+    expect(finding.actual).toContain('FIFTY-EIGTH')
+  })
+
   it('ignores a heading that is not shaped like an ordinal at all', () => {
     const text = rulebookOf(NINE).rulebook.text + '\n\n**THE FIX: reword it.**'
     expect(ordinals.check({ rulebook: { files: ['SKILL.md'], text } })).toBeNull()
