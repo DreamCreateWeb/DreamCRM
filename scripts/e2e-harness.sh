@@ -8,8 +8,44 @@
 #   3. a production build + server on E2E_PORT
 #   4. playwright against it
 #
-# Usage:  bash scripts/e2e-harness.sh [--skip-build]
+# Usage:  bash scripts/e2e-harness.sh [--skip-build] [--spec <filter>]
+#                                     [--repeat <n>] [-- <playwright args…>]
 # Teardown is automatic (trap), including on failure.
+#
+# ------------------------------- THE ARGUMENTS -------------------------------
+#
+# WHY THEY EXIST (DREAMCRM-105 deliverable 1). Until now the workflows ran this
+# with no arguments at all, so the only shape of browser run anybody could ask
+# for was "the whole suite, once". That is exactly the wrong instrument for the
+# question a flake asks: `e2e/portal-billing.spec.ts` has failed twice in a
+# week, always on a diff the browser suite never loads, and both times a plain
+# re-run at the same SHA went green. "Fails about once a day and I cannot
+# reproduce it" is not a fact anybody can act on; "8 of 50 repetitions failed"
+# is. `--spec` and `--repeat` are how a run becomes that number, and
+# `.github/workflows/e2e-flake-hunt.yml` is how you ask for one without a local
+# Postgres.
+#
+#   --spec <filter>   Playwright's positional test filter — a path
+#                     (`e2e/portal-billing.spec.ts`) or a substring of one.
+#                     Repeatable. Also `E2E_SPEC`, space-separated, which is
+#                     how the workflow passes it (see below).
+#   --repeat <n>      `--repeat-each=<n>`: run every selected test n times.
+#                     Also `E2E_REPEAT`.
+#   --                Everything after it goes to playwright untouched.
+#
+# ANYTHING NOT RECOGNISED IS STILL FORWARDED, so the existing
+# `pnpm test:e2e -- --grep foo` habits keep working and `--skip-build` keeps
+# working from any position rather than only as `$1`.
+#
+# THE INPUTS ARE VALIDATED HERE RATHER THAN IN THE WORKFLOW, and that is the
+# load-bearing half. A `workflow_dispatch` input is attacker-controlled text
+# from anyone with repo write, so the workflow hands it over in `env:` and
+# never interpolates it into a `run:` block — but "never interpolated" is a
+# property of one file, and the next workflow to call this script would have to
+# rediscover it. Validating the VALUES here makes the guarantee travel with the
+# script: a spec filter is a path-shaped token, a repeat is a bounded integer,
+# and anything else stops the run with a sentence instead of becoming an
+# argument. `tests/guards/e2e-harness-args.test.ts` grades both halves.
 set -euo pipefail
 
 PORT="${E2E_PORT:-3100}"
@@ -19,15 +55,109 @@ WEBHOOK_PORT="${E2E_WEBHOOK_PORT:-$(( ${E2E_PORT:-3100} + 1 ))}"
 PGPORT="${E2E_PGPORT:-55432}"
 PGDIR="${E2E_PGDIR:-/tmp/e2e-pgdata}"
 DB="dreamcrm_e2e"
-PGBIN="$(ls -d /usr/lib/postgresql/*/bin 2>/dev/null | sort -V | tail -1)"
+# `|| true` IS LOAD-BEARING, and its absence was a live bug (DREAMCRM-105).
+# With `set -o pipefail`, an `ls` that matches nothing fails, the pipeline
+# fails, and the assignment's status is the pipeline's — so on any box WITHOUT
+# `/usr/lib/postgresql` (a mac, a Windows checkout, a runner image that
+# packages Postgres elsewhere) `set -e` killed the script on this line, silently,
+# with `ls`'s exit code and no message. Which meant the fallback on the next
+# three lines — and the friendly "No local postgres found" below it — were
+# unreachable on every platform they were written for. It only ever worked
+# where the glob already matched.
+PGBIN="$(ls -d /usr/lib/postgresql/*/bin 2>/dev/null | sort -V | tail -1 || true)"
 # Debian puts the binaries off PATH; anywhere else (CI runner images, a
 # homebrew/apt install on a dev box) initdb is on PATH — use that.
 if [[ -z "$PGBIN" ]] && command -v initdb >/dev/null 2>&1; then
   PGBIN="$(dirname "$(command -v initdb)")"
 fi
 SKIP_BUILD=0
-# shift so "$@" passed to playwright below never carries our own flag
-[[ "${1:-}" == "--skip-build" ]] && { SKIP_BUILD=1; shift; }
+# Collected rather than forwarded as "$@", so our own flags never reach
+# playwright and playwright's own flags never reach our parser.
+PW_ARGS=()
+SPECS=()
+REPEAT=""
+# `--print-plan`: resolve the arguments, print the playwright invocation they
+# produce, and stop before touching Postgres.
+#
+# It exists FOR THE GUARD (`tests/guards/e2e-harness-args.test.ts`). The
+# refusal cases can be driven against the real script for free — they die in the
+# parser, above the database — but the ACCEPTANCE cases cannot: on a runner that
+# has Postgres, `bash scripts/e2e-harness.sh --repeat 8` inside `pnpm test`
+# would initdb a cluster, build the app and run the browser suite from inside the
+# unit gate. So the half of this parser that matters most — that `--repeat 08`
+# is eight and that `E2E_SPEC` actually reaches playwright — would have been
+# the untested half, which is precisely the arrangement §2d refuses.
+PRINT_PLAN=0
+
+# A SPEC FILTER IS A PATH-SHAPED TOKEN. Letters, digits, dot, dash, underscore
+# and slash — everything a test path is made of and nothing a shell reacts to.
+# Nothing here is ever eval'd, so this is not the only thing standing between a
+# dispatch input and a shell; it is the thing that makes a bad input a SENTENCE
+# rather than a silent eight-minute run of the wrong tests.
+SPEC_RE='^[A-Za-z0-9._/-]+$'
+
+# THE CEILING ON `--repeat`, and it is a real guard rather than a shrug. A hunt
+# is dispatched by hand with a number typed into a box; 500 instead of 50 is one
+# keystroke, and on `e2e/portal-billing.spec.ts` (4 tests, 2 workers) it is the
+# difference between ten minutes and most of a runner-day with nobody watching.
+# 200 is comfortably above any hunt worth running — the two portal-billing
+# occurrences are ~1-in-100 page loads, so 50 is already the useful order — and
+# well under the workflow's own timeout, so the failure is a refusal at second
+# zero instead of a cancellation at minute sixty.
+REPEAT_MAX=200
+
+die() { echo "e2e-harness: $1" >&2; exit 2; }
+
+add_spec() {
+  [[ -n "$1" ]] || die "--spec needs a value."
+  [[ "$1" =~ $SPEC_RE ]] || die "--spec '$1' is not a test path (expected letters, digits, . _ - /)."
+  SPECS+=("$1")
+}
+
+set_repeat() {
+  [[ "$1" =~ ^[0-9]+$ ]] || die "--repeat '$1' is not a whole number."
+  # `10#` forces base 10: a zero-padded `050` is octal to bash's arithmetic and
+  # `--repeat 08` would die with a syntax error rather than run eight times.
+  local n=$((10#$1))
+  (( n >= 1 )) || die "--repeat must be at least 1."
+  (( n <= REPEAT_MAX )) || die "--repeat $n is above the $REPEAT_MAX ceiling — see the header."
+  REPEAT="$n"
+}
+
+# The env spellings come FIRST so an explicit flag beside them wins. A blank
+# env var is "unset", not an error: `workflow_dispatch` sends '' for an input
+# nobody filled in, and refusing that would make every default-valued dispatch
+# fail.
+if [[ -n "${E2E_SPEC:-}" ]]; then
+  # Word-split on purpose — `E2E_SPEC` is a space-separated list, which is how
+  # one dispatch box asks for two specs.
+  for s in ${E2E_SPEC}; do add_spec "$s"; done
+fi
+[[ -n "${E2E_REPEAT:-}" ]] && set_repeat "${E2E_REPEAT}"
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --skip-build) SKIP_BUILD=1; shift ;;
+    --print-plan) PRINT_PLAN=1; shift ;;
+    --spec) add_spec "${2:-}"; shift 2 ;;
+    --spec=*) add_spec "${1#*=}"; shift ;;
+    --repeat) set_repeat "${2:-}"; shift 2 ;;
+    --repeat=*) set_repeat "${1#*=}"; shift ;;
+    --) shift; PW_ARGS+=("$@"); break ;;
+    *) PW_ARGS+=("$1"); shift ;;
+  esac
+done
+
+# The resolved playwright invocation, built once and used by both exits below.
+PW_INVOCATION=()
+(( ${#SPECS[@]} )) && PW_INVOCATION+=("${SPECS[@]}")
+[[ -n "$REPEAT" ]] && PW_INVOCATION+=("--repeat-each=$REPEAT")
+(( ${#PW_ARGS[@]} )) && PW_INVOCATION+=("${PW_ARGS[@]}")
+
+if (( PRINT_PLAN )); then
+  echo "playwright test ${PW_INVOCATION[*]-}"
+  exit 0
+fi
 
 if [[ -z "$PGBIN" ]]; then
   echo "No local postgres found (expected /usr/lib/postgresql/*/bin or initdb on PATH)." >&2
@@ -151,6 +281,18 @@ echo "--- playwright ---"
 if [[ -z "${PLAYWRIGHT_BROWSERS_PATH:-}" && -d /opt/pw-browsers ]]; then
   export PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers
 fi
+
+# SAY WHAT IS ABOUT TO RUN. A hunt's whole output is a ratio, and a ratio is
+# worthless without its denominator: a dispatch whose `--spec` quietly matched
+# nothing of what the reader meant, or whose `--repeat` never arrived, reports
+# the same shape of green as a genuine clean 50. This line is printed into the
+# run log above the playwright output so the denominator is on the same page as
+# the result.
+if (( ${#SPECS[@]} )) || [[ -n "$REPEAT" ]]; then
+  echo "    spec filter: ${SPECS[*]:-(the whole suite)}"
+  echo "    repetitions: ${REPEAT:-1} per test"
+fi
+
 E2E_BASE_URL="http://127.0.0.1:$PORT" \
   E2E_WEBHOOK_BASE_URL="http://127.0.0.1:$WEBHOOK_PORT" \
-  npx playwright test "$@"
+  npx playwright test ${PW_INVOCATION[@]+"${PW_INVOCATION[@]}"}

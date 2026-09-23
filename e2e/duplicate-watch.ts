@@ -77,11 +77,16 @@ export interface DuplicateSnapshot {
   portalMains: number
 }
 
-export interface DuplicateReport {
+export interface DuplicateRecord {
   selector: string
-  /** The highest count ever seen. 1 means this never fired. */
+  /** The highest count ever seen. 1 means this selector never duplicated. */
   max: number
   snapshots: DuplicateSnapshot[]
+}
+
+/** One record per watched selector, because the duplicate is not one element. */
+export interface DuplicateReport {
+  records: DuplicateRecord[]
 }
 
 const WATCH_KEY = '__dcDuplicateWatch'
@@ -93,8 +98,8 @@ const WATCH_KEY = '__dcDuplicateWatch'
  * that has already navigated misses the render being investigated, which is
  * the only one that matters.
  */
-export async function watchForDuplicates(context: BrowserContext, selector: string) {
-  await context.addInitScript(installDuplicateWatch, [WATCH_KEY, selector] as [string, string])
+export async function watchForDuplicates(context: BrowserContext, selectors: string[]) {
+  await context.addInitScript(installDuplicateWatch, [WATCH_KEY, selectors] as [string, string[]])
 }
 
 /**
@@ -108,8 +113,10 @@ export async function watchForDuplicates(context: BrowserContext, selector: stri
  * watched work: §2d's rule, and a fair description of how the last two
  * investigations of this flake went.
  */
-export function installDuplicateWatch([key, sel]: [string, string]) {
-  const store = { selector: sel, max: 0, snapshots: [] as unknown[] }
+export function installDuplicateWatch([key, selectors]: [string, string[]]) {
+  const store = {
+    records: selectors.map((selector) => ({ selector, max: 0, snapshots: [] as unknown[] })),
+  }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ;(window as any)[key] = store
 
@@ -129,25 +136,48 @@ export function installDuplicateWatch([key, sel]: [string, string]) {
     return parts.join(' < ')
   }
 
+  // NOTHING IN HERE MAY THROW INTO THE SPEC. This runs on every mutation of
+  // every page in the context, including documents mid-parse and mid-teardown
+  // — and a diagnostic that turns a passing test red, or a failing test into a
+  // DIFFERENT failure, is worse than no diagnostic. The enumeration of what
+  // could throw is not the point; the property is.
   const check = () => {
-    const found = document.querySelectorAll(sel)
-    if (found.length <= store.max) return
-    store.max = found.length
-    if (found.length > 1) {
-      store.snapshots.push({
-        at: Math.round(typeof performance === 'undefined' ? 0 : performance.now()),
-        count: found.length,
-        chains: Array.prototype.map.call(found, chainOf) as string[],
-        portalMains: document.querySelectorAll('#portal-main').length,
-      })
+    try {
+      for (const record of store.records) {
+        const found = document.querySelectorAll(record.selector)
+        if (found.length <= record.max) continue
+        record.max = found.length
+        if (found.length > 1) {
+          record.snapshots.push({
+            at: Math.round(typeof performance === 'undefined' ? 0 : performance.now()),
+            count: found.length,
+            chains: Array.prototype.map.call(found, chainOf) as string[],
+            portalMains: document.querySelectorAll('#portal-main').length,
+          })
+        }
+      }
+    } catch {
+      /* see above */
     }
   }
 
   try {
-    new MutationObserver(check).observe(document.documentElement, {
-      childList: true,
-      subtree: true,
-    })
+    // OBSERVE `document`, NOT `document.documentElement` — and this one line is
+    // the whole reason the first hunt recorded nothing (DREAMCRM-105).
+    //
+    // `addInitScript` runs BEFORE any page script, which is the point: the
+    // render being investigated is the first one. But at that instant the
+    // document is empty and `document.documentElement` is **null**, so
+    // `observe(null)` threw, the `catch` below swallowed it exactly as designed,
+    // and the observer was never attached. Only the immediate `check()` ran —
+    // against an empty document — so the recording read `max: 0` while
+    // Playwright was resolving two elements on the same page.
+    //
+    // It passed its own guard because happy-dom always has a `documentElement`,
+    // and it failed in Chromium the first time it was asked a real question.
+    // `document` itself always exists and a subtree observer on it sees
+    // everything the parser inserts, including `<html>`.
+    new MutationObserver(check).observe(document, { childList: true, subtree: true })
   } catch {
     // A context where the observer cannot attach must not break the run. The
     // spec's own assertion is unaffected; only the diagnostic is.
@@ -171,33 +201,55 @@ export async function duplicateReport(page: Page): Promise<DuplicateReport | nul
 
 /** The evidence, rendered for a failure message. */
 export function describeReport(report: DuplicateReport | null): string {
-  if (!report) {
+  if (!report || !report.records?.length) {
     return 'The duplicate watcher recorded nothing — it was not installed on this context, or the page could not be read at failure time.'
   }
-  if (report.max <= 1) {
+
+  const fired = report.records.filter((r) => r.max > 1)
+  if (!fired.length) {
     return (
-      `The duplicate watcher saw at most ${report.max} element matching \`${report.selector}\` at ` +
-      'any point, which means this failure is NOT the two-forms flake. Read the assertion error ' +
-      'above on its own terms.'
+      'The duplicate watcher saw at most one element for each of ' +
+      report.records.map((r) => `\`${r.selector}\``).join(', ') +
+      ' at any point, which means this failure is NOT the duplicate-render flake. Read the ' +
+      'assertion error above on its own terms.'
     )
   }
-  const lines = [
-    `The duplicate watcher saw ${report.max} elements matching \`${report.selector}\`.`,
-    '',
-  ]
-  for (const snap of report.snapshots) {
+
+  const lines: string[] = []
+  for (const record of fired) {
+    lines.push(`The duplicate watcher saw ${record.max} elements matching \`${record.selector}\`.`, '')
+    for (const snap of record.snapshots) {
+      lines.push(
+        `  at ${snap.at}ms — ${snap.count} matches, ${snap.portalMains} \`#portal-main\` element(s)`,
+      )
+      for (const chain of snap.chains) lines.push(`    ${chain}`)
+    }
+    lines.push('')
+  }
+
+  // MORE THAN ONE SELECTOR FIRING IS ITSELF THE FINDING, and it is why this
+  // takes a LIST. The first hunt (run 35811927552, 9 of 200) duplicated
+  // `Your balance` three times and the payment form five — so whatever is
+  // doubling is the billing page's body, not the form.
+  if (fired.length > 1) {
     lines.push(
-      `  at ${snap.at}ms — ${snap.count} matches, ${snap.portalMains} \`#portal-main\` element(s)`,
+      `**${fired.length} different elements duplicated on the same page.** That is not a` +
+        ' component rendering twice; it is a SECTION of the page existing twice.',
+      '',
     )
-    for (const chain of snap.chains) lines.push(`    ${chain}`)
   }
+
   lines.push(
-    '',
-    'READ IT LIKE THIS (see this file\'s header):',
+    "READ IT LIKE THIS (see this file's header):",
     '  * a chain ending in `div[hidden]` → React streaming: the portal segment has a',
-    '    loading.tsx, so its content arrives out of order in a hidden container.',
-    '  * two `#portal-main` elements → the whole LAYOUT rendered twice, not the form.',
+    '    loading.tsx, so its content arrives out of order in a hidden container at the',
+    '    end of <body>, outside `#portal-main`.',
+    '  * two `#portal-main` elements → the whole LAYOUT rendered twice, not the page.',
     '    PortalLiveRefresh calls router.refresh(); start there.',
+    '  * ONE `#portal-main` with a match inside it and a match outside → the shape the',
+    "    first hunt's strict-mode errors implied but could not prove, because the",
+    '    observer was never attached (it observed document.documentElement, which is',
+    '    null at addInitScript time).',
     '  * two chains identical to a common parent → one render repeated, which rules out',
     '    the "a second unpaid balance" reading for the third time.',
   )

@@ -66,9 +66,11 @@ describe('the observer actually observes — the ringer, under happy-dom', () =>
   const store = () => (globalThis as unknown as Record<string, DuplicateReportish>)[KEY]
 
   interface DuplicateReportish {
-    selector: string
-    max: number
-    snapshots: Array<{ at: number; count: number; chains: string[]; portalMains: number }>
+    records: Array<{
+      selector: string
+      max: number
+      snapshots: Array<{ at: number; count: number; chains: string[]; portalMains: number }>
+    }>
   }
 
   /** MutationObserver callbacks are microtask-scheduled; let them land. */
@@ -83,12 +85,12 @@ describe('the observer actually observes — the ringer, under happy-dom', () =>
 
   it('records nothing while there is one of them', async () => {
     document.body.innerHTML = '<div id="portal-main"></div>'
-    installDuplicateWatch([KEY, SEL])
+    installDuplicateWatch([KEY, [SEL]])
     document.querySelector('#portal-main')!.appendChild(field())
     await settle()
 
-    expect(store().max, 'one field is the healthy page and must produce no snapshot').toBe(1)
-    expect(store().snapshots).toEqual([])
+    expect(store().records[0].max, 'one field is the healthy page and must produce no snapshot').toBe(1)
+    expect(store().records[0].snapshots).toEqual([])
   })
 
   it('catches a SECOND one the instant it appears, and says where it is', async () => {
@@ -96,7 +98,7 @@ describe('the observer actually observes — the ringer, under happy-dom', () =>
     // which is where React parks out-of-order Suspense content — and is gone
     // again before anything could go looking for it.
     document.body.innerHTML = '<div id="portal-main"></div>'
-    installDuplicateWatch([KEY, SEL])
+    installDuplicateWatch([KEY, [SEL]])
     const main = document.querySelector('#portal-main')!
     main.appendChild(field())
     await settle()
@@ -107,9 +109,9 @@ describe('the observer actually observes — the ringer, under happy-dom', () =>
     ghost.remove() // …and it heals, exactly as the real one does
     await settle()
 
-    expect(store().max).toBe(2)
-    expect(store().snapshots).toHaveLength(1)
-    const snap = store().snapshots[0]
+    expect(store().records[0].max).toBe(2)
+    expect(store().records[0].snapshots).toHaveLength(1)
+    const snap = store().records[0].snapshots[0]
     expect(snap.count).toBe(2)
     expect(snap.portalMains).toBe(1)
     expect(
@@ -127,18 +129,83 @@ describe('the observer actually observes — the ringer, under happy-dom', () =>
     document.body.innerHTML = '<div id="portal-main"></div>'
     document.querySelector('#portal-main')!.appendChild(field())
     document.body.appendChild(field(true))
-    installDuplicateWatch([KEY, SEL])
+    installDuplicateWatch([KEY, [SEL]])
     await settle()
 
-    expect(store().max).toBe(2)
-    expect(store().snapshots).toHaveLength(1)
+    expect(store().records[0].max).toBe(2)
+    expect(store().records[0].snapshots).toHaveLength(1)
+  })
+
+  it('attaches even when there is no documentElement yet — the defect the first hunt found', async () => {
+    // THE ONE THAT MATTERED, and it is the reason this test exists rather than
+    // a comment. `addInitScript` runs BEFORE any page script, which is the
+    // whole point — and at that instant the document is EMPTY, so
+    // `document.documentElement` is null. `observe(null)` threw, the catch
+    // swallowed it exactly as designed, and the observer was never attached.
+    //
+    // Hunt run `35811927552` reproduced the flake nine times in 200
+    // repetitions and every single failure carried "The duplicate watcher saw
+    // at most 0 elements" while Playwright was resolving two on the same page.
+    // The diagnostic built to end two dead ends produced a third.
+    //
+    // It passed its own guard because happy-dom always has a documentElement.
+    // So this test takes it away first.
+    const realDoc = document.documentElement
+    realDoc.remove()
+    expect(document.documentElement, 'the fixture must actually remove it').toBeNull()
+
+    let threw: unknown = null
+    try {
+      installDuplicateWatch([KEY, [SEL]])
+    } catch (err) {
+      threw = err
+    }
+    // Put the document back before asserting, so a failure here does not take
+    // the rest of the file down with it.
+    document.appendChild(realDoc)
+
+    expect(threw, 'installing must never throw into the spec').toBeNull()
+
+    document.body.innerHTML = '<div id="portal-main"></div>'
+    document.querySelector('#portal-main')!.appendChild(field())
+    document.body.appendChild(field(true))
+    await settle()
+
+    expect(
+      store().records[0].max,
+      'the observer must be attached to something that exists at init time. `document` always ' +
+        'does; `document.documentElement` does not, and observing the one that does not is how a ' +
+        'diagnostic reports a clean page over a duplicate it was watching for.',
+    ).toBe(2)
+  })
+
+  it('watches several selectors at once, because the duplicate is not one element', async () => {
+    // Three of the first hunt's nine failures were `Your balance` — a heading
+    // three sections up the page — not the payment form. A watcher pointed at
+    // one input could only ever have reported a third of what was happening.
+    const OTHER = 'h1'
+    document.body.innerHTML = '<div id="portal-main"><h1>Billing</h1></div>'
+    installDuplicateWatch([KEY, [SEL, OTHER]])
+    document.querySelector('#portal-main')!.appendChild(field())
+    await settle()
+
+    const ghost = document.createElement('div')
+    ghost.setAttribute('hidden', '')
+    ghost.innerHTML = '<h1>Billing</h1><input aria-label="Payment amount in dollars" />'
+    document.body.appendChild(ghost)
+    await settle()
+
+    expect(store().records.map((r) => r.max)).toEqual([2, 2])
+    const rendered = describeReport(store() as never)
+    expect(rendered).toContain('2 different elements duplicated on the same page')
+    expect(rendered).toContain('SECTION of the page existing twice')
   })
 
   it('counts the layout too, so a doubled page reads differently from a doubled form', async () => {
     // The second candidate: `PortalLiveRefresh` calls `router.refresh()`. Two
     // `#portal-main` elements means the question leaves the spec entirely.
     document.body.innerHTML = '<div id="portal-main"></div>'
-    installDuplicateWatch([KEY, SEL])
+    installDuplicateWatch([KEY, [SEL]])
     document.querySelector('#portal-main')!.appendChild(field())
     await settle()
 
@@ -148,24 +215,28 @@ describe('the observer actually observes — the ringer, under happy-dom', () =>
     document.body.appendChild(secondMain)
     await settle()
 
-    expect(store().snapshots[0].portalMains).toBe(2)
+    expect(store().records[0].snapshots[0].portalMains).toBe(2)
   })
 })
 
 describe('the duplicate watcher renders what it saw', () => {
   it('names the streaming candidate when a match sits in a hidden container', () => {
     const out = describeReport({
-      selector: 'input[aria-label="Payment amount in dollars"]',
-      max: 2,
-      snapshots: [
+      records: [
         {
-          at: 511,
-          count: 2,
-          chains: [
-            'input < div < div#portal-main < body',
-            'input < div < div[hidden] < body',
+          selector: 'input[aria-label="Payment amount in dollars"]',
+          max: 2,
+          snapshots: [
+            {
+              at: 511,
+              count: 2,
+              chains: [
+                'input < div < div#portal-main < body',
+                'input < div < div[hidden] < body',
+              ],
+              portalMains: 1,
+            },
           ],
-          portalMains: 1,
         },
       ],
     })
@@ -187,8 +258,8 @@ describe('the duplicate watcher renders what it saw', () => {
   })
 
   it('says when a failure is NOT this flake', () => {
-    const out = describeReport({ selector: 'x', max: 1, snapshots: [] })
-    expect(out).toMatch(/NOT the two-forms flake/)
+    const out = describeReport({ records: [{ selector: 'x', max: 1, snapshots: [] }] })
+    expect(out).toMatch(/NOT the duplicate-render flake/)
   })
 })
 
