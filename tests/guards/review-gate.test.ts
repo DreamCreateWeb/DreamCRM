@@ -772,8 +772,10 @@ describe('the review-gate classifier', () => {
       'scripts/review-sweep.mjs': 'check-definitions',
       // The `e2e` check, in its entirety (DREAMCRM-129). Pinned rather than
       // left to the pattern list because this one is not an EXAMPLE of the work
-      // inside a required check — `ci.yml`'s whole `e2e` job is one line,
-      // `bash scripts/e2e-harness.sh`, so the file IS the check. Every other
+      // inside a required check — every BLOCKING step of `ci.yml`'s `e2e` job
+      // is one line, `bash scripts/e2e-harness.sh`, so the file IS the check.
+      // (The job's other step, `scripts/e2e-flaky-summary.mjs`, cannot exit
+      // non-zero by design, so it is not a second way for the job to fail.) Every other
       // entry above names part of what a job runs; this names all of it, and
       // `nightly.yml`, `post-merge-e2e.yml` and `e2e-flake-hunt.yml` run it too.
       // It went unpinned for four PRs (#534 unrouted three days, #598 caught

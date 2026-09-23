@@ -662,8 +662,9 @@
   anybody's PR. **A script under `scripts/` is not a gate by virtue of its
   directory.** Four of the eight `check-definitions` patterns live there
   (three at the time of writing; `scripts/e2e-harness.sh` joined them with
-  DREAMCRM-129) and this one is on none of them, so ask what RUNS it — the same move as asking
-  what a change does to the gate rather than which file it lives in.
+  DREAMCRM-129) and this one is on none of them, so ask what RUNS it — the
+  same move as asking what a change does to the gate rather than which file it
+  lives in.
 
   **DREAMCRM-76 (PR #621) is the twenty-second, and it is the first assertion on
   this list that grades a RENDERED DOCUMENT rather than SOURCE.**

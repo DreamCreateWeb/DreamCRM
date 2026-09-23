@@ -80,8 +80,9 @@ export const GATE_RULES = [
       'e2e/axe-baseline-raises.ts is the sharpest case of all: every entry in it is a ' +
       'deliberate, argued RAISE of an axe ceiling — a required check told to tolerate more ' +
       'than it did yesterday — and nothing shrinks a ceiling by editing that file. ' +
-      'scripts/e2e-harness.sh is the widest: the e2e job is that one command, so the file ' +
-      'is not an example of the work inside a required check, it is the whole of it.',
+      'scripts/e2e-harness.sh is the widest: every BLOCKING step of the e2e job is that one ' +
+      'command, so the file is not an example of the work inside a required check, it is the ' +
+      'whole of it.',
     // DELIBERATELY NOT `tests/**` or `e2e/**` wholesale — see INTAKE_RULES
     // below for why the rest of the suite is an intake obligation and not a
     // review one. These are the files that decide what runs (or what gets
@@ -110,9 +111,13 @@ export const GATE_RULES = [
       'scripts/review-sweep.mjs',
       // THE `e2e` CHECK IN ITS ENTIRETY (DREAMCRM-129). Every other pattern
       // here names PART of what a required check runs; this one names all of
-      // it — `ci.yml`'s whole `e2e` job is the single line
+      // it — EVERY BLOCKING STEP of `ci.yml`'s `e2e` job is the single line
       // `bash scripts/e2e-harness.sh`, so the harness does not merely define
-      // the work inside that check, it IS the check. It decides which specs
+      // the work inside that check, it IS the check. (The job has one further
+      // step, `node scripts/e2e-flaky-summary.mjs`, which by explicit design
+      // cannot exit non-zero — "nothing this file does can make a run red,
+      // whatever happens inside it". So it is not a second way for the job to
+      // fail, and "one line" was the wrong word for a true claim.) It decides which specs
       // run, with what retries and against what database, and it owns every
       // blocking failure mode the job has. `nightly.yml`, `post-merge-e2e.yml`
       // and `e2e-flake-hunt.yml` run it too, so a loosening here is quiet in
@@ -127,12 +132,36 @@ export const GATE_RULES = [
       // choosing to look, which is a good second path to a reviewer and a bad
       // first one.
       //
-      // DELIBERATELY NOT `scripts/load-sanity.mjs` beside it. Nothing runs
-      // that script in any workflow, so it cannot gate a merge; the fact that
-      // `tests/guards/e2e-harness-args.test.ts` can redden `test` when it and
-      // the harness disagree on `--base` / `--conc` / `--reqs` is the guard
-      // working, not a gate. This area is about what gates a merge, not about
-      // everything reachable from a required check.
+      // DELIBERATELY NOT `scripts/load-sanity.mjs` beside it, and the reason
+      // is NOT that it is unreachable from a required check — it is reachable,
+      // and the distinction is the point of this whole area.
+      //
+      // WHAT IS TRUE: nothing in CI runs it. No workflow, no `package.json`
+      // script, and `scripts/e2e-harness.sh` reaches it only behind
+      // `--load-sanity`, which nothing in CI passes. It is a manual perf tool.
+      // So it cannot gate a merge, and "does it gate a merge" is the test this
+      // area applies.
+      //
+      // WHAT IS ALSO TRUE, and is the tempting counter-argument:
+      // `tests/guards/e2e-harness-args.test.ts` READS this script — it derives
+      // the accepted flags from `flag('name', …)` in the source and asserts
+      // that the harness and the script still agree on `--base` / `--conc` /
+      // `--reqs`. It reads `docs/LOAD-SANITY.md` the same way, grading the
+      // harness's default levels against the document's `### Concurrency C, N
+      // requests/path` headings. Rename a flag on either side and `test` goes
+      // RED, by name, in a guard that says what broke. That is a guard
+      // working loudly, which is precisely why the file does not ALSO need a
+      // reviewer standing over it. This area is about what gates a merge, not
+      // about everything reachable from a required check.
+      //
+      // THE DATE IS PART OF THE ANSWER, recorded so the next reader does not
+      // re-derive a stale one. That guard's load-sanity half arrived with #710,
+      // merged 2026-09-23 12:36:58Z. A review of THIS PR one minute later, on
+      // a checkout from just before it, found the reachability claim false and
+      // was correct about the tree it read. Both readings were right at their
+      // moment; the base moved between them. An inherited argument has to be
+      // verified before it is engraved — and RE-verified after a rebase,
+      // because the base is what decides whether it is true.
       'scripts/e2e-harness.sh',
     ],
   },
