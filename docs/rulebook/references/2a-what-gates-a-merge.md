@@ -1,14 +1,17 @@
-# §2a. What actually gates a merge (re-verified against the live repo 2026-09-22)
+# §2a. What actually gates a merge (re-verified against the live repo 2026-09-23)
 
 *`dreamcrm-conventions` §2a. `SKILL.md` is the map and carries §§4, 5, 7, 9 and 10 in full.*
 
 Two checks can block a merge to `main`: the required contexts `test` and `e2e`,
-both from `.github/workflows/ci.yml`. **Re-read off the API on 2026-09-22 and
+both from `.github/workflows/ci.yml`. **Re-read off the API on 2026-09-23 and
 unchanged**: `contexts: ["test", "e2e"]`, `strict: true`,
 `enforce_admins: true`, `allow_force_pushes: false`, `allow_deletions: false`,
-`required_linear_history: false`, twelve workflow files, nine §3 review areas in
+`required_linear_history: false`, thirteen workflow files, nine §3 review areas in
 `GATE_RULES`, and the four merge-method toggles plus `allow_update_branch` and
-`delete_branch_on_merge` all as described below. Nothing on this page drifted. Branch protection is `strict: true` (a
+`delete_branch_on_merge` all as described below. The workflow COUNT is the one
+thing that had drifted — `e2e-flaky-digest.yml` (#684) made it thirteen — and
+so had the criterion the sentence below used for what “gates” means; both are
+corrected there. Branch protection is `strict: true` (a
 branch must be up to date with `main` before it merges) and the repository's
 `allow_update_branch` is `true`.
 
@@ -60,12 +63,24 @@ an emergency fix, and close it — two commands, leaving a settings-change recor
 `gh pr merge --admin` no longer bypasses anything either. `docs/CI.md` owns the
 procedure under "The emergency hatch"; do not restate the commands here.
 
-There are twelve workflow files and **ten of them gate nothing** — only
-`ci.yml` and `deploy.yml` publish a required context, which is the only thing
-that decides it (`WORKFLOW_CENSUS` in `scripts/rulebook-drift.mjs` is where
-that is asserted against the tree, and it is the copy a test can fail on).
-`e2e-flake-hunt.yml` is the twelfth, new 2026-09-23 on #680: `workflow_dispatch`
-only, so it cannot hold a merge.
+There are thirteen workflow files and **ten of them gate nothing.** Three gate
+something, and they do it two different ways: `ci.yml` publishes both required
+contexts on a PR, `deploy.yml` publishes `test` on a push to `main`, and
+`migration-check.yml` publishes nothing at all yet can still fail the deploy
+run, because `deploy.yml` calls it with `uses:` under `needs: deploy` with no
+`continue-on-error`. **Publishing a required context is not the criterion —
+`gates` is.** This page used to say it was, which is literally consistent with
+the count and substantively false; `WORKFLOW_CENSUS` in
+`scripts/rulebook-drift.mjs` has kept `publishes` and `gates` apart since #575
+for exactly this case, that census is asserted against the tree, and it is the
+copy a test can fail on. This sentence is derived from it.
+
+`e2e-flake-hunt.yml` is the twelfth, new 2026-09-23 on #680:
+`workflow_dispatch` only, so it cannot hold a merge. `e2e-flaky-digest.yml` is
+the thirteenth, new 2026-09-23 on #684: weekly cron plus dispatch, no PR
+trigger, and it reads a WEEK of Playwright reports together to name any spec
+that flaked in two or more separate runs — the thing the per-run reporter never
+could. It cannot hold a merge either.
 `nightly.yml` and `post-merge-e2e.yml` run after the fact, and `nightly.yml`'s
 `tz-canary` job is `continue-on-error: true` — **a green nightly does not mean
 the canary passed**; open the run and read that job. `review-gate.yml` (new
