@@ -95,6 +95,85 @@ describe('v2 color + surface tokens', () => {
     expect(css).not.toMatch(/@import\s+url\(/)
   })
 
+  it('never falls back to a QUOTED generic, which is a family name and not the generic', () => {
+    // DREAMCRM-127. `--font-inter` shipped as `"Inter", "sans-serif"` for
+    // months. A quoted generic is a request for a family literally NAMED
+    // "sans-serif"; no such family exists, so Chrome fell through to its
+    // default standard font — Times New Roman. Every pre-swap frame on the
+    // marketing site was set in a serif, and Times being 8.2% narrower than
+    // Arial is most of the font-swap reflow that defect was opened for:
+    // 7 of 11 PageHero sub paragraphs rewrapped, against 1 once this was
+    // unquoted. One character of CSS, invisible in review, worth 27-38px of
+    // layout shift per surface.
+    const interStack = css.match(/--font-inter:\s*([^;]+);/)
+    expect(interStack, '--font-inter is declared').not.toBeNull()
+    expect(interStack![1]).toMatch(/(^|,)\s*sans-serif\s*$/)
+    expect(interStack![1]).not.toContain('"sans-serif"')
+  })
+
+  it('gives the pre-swap fallback Inter\'s metrics, in bands covering 100-900', () => {
+    // The other half of DREAMCRM-127, and the half that survives a copy edit:
+    // `font-display: swap` means the first frame is a DIFFERENT face, so the
+    // fallback is given Inter's advance widths and vertical metrics and wraps
+    // where Inter wraps. Reserving a line box instead was measured and
+    // rejected — it hard-codes a line count per breakpoint AND per string,
+    // and five PageHero call sites pass dynamic copy.
+    //
+    // WHAT THIS ASSERTS: the face exists, every band carries all four
+    // descriptors, and the bands tile 100-900 with no gap and no overlap. A
+    // gap is the failure that does not look like one — the weights inside it
+    // silently match a NEIGHBOURING band's size-adjust, which is how a single
+    // mistuned face made the 800-weight display headline rewrap 38px while
+    // fixing the body copy.
+    //
+    // WHAT IT DOES NOT ASSERT, named rather than left to be discovered: that
+    // the CONSTANTS are still correct. Deriving those needs a browser with
+    // the local faces installed, and CI has neither — per conventions section
+    // 2d, a guard's environment is part of its correctness, so this one
+    // grades the structure it can actually see. Re-derive the numbers with
+    // the procedure in the style.css comment after any change to the Inter
+    // woff2 or the fallback face.
+    // THE WIRING FIRST, because it is the failure that looks like nothing.
+    // Declaring the bands and not naming the family in `--font-inter` leaves
+    // a page that renders exactly as it did before the fix, with 80 lines of
+    // @font-face above it saying otherwise. Found by mutation: deleting the
+    // family from the stack left the rest of this test green.
+    const interStack = css.match(/--font-inter:\s*([^;]+);/)![1]
+    expect(interStack, 'the stack actually uses the fallback family').toContain('"Inter Fallback"')
+    expect(
+      interStack.indexOf('"Inter"'),
+      'real Inter is still ahead of the fallback',
+    ).toBeLessThan(interStack.indexOf('"Inter Fallback"'))
+
+    const faces = Array.from(css.matchAll(/@font-face\s*\{([^}]*)\}/g))
+      .map((m) => m[1])
+      .filter((b) => /font-family:\s*'Inter Fallback'/.test(b))
+    expect(faces.length, 'Inter Fallback bands').toBeGreaterThanOrEqual(2)
+
+    const ranges: Array<[number, number]> = []
+    for (const band of faces) {
+      for (const d of ['size-adjust', 'ascent-override', 'descent-override', 'line-gap-override']) {
+        expect(band, `${d} in band`).toContain(d)
+      }
+      // `local()` and not a url(): the point is a face already on the device,
+      // fetched zero bytes, available on the very first frame. A downloaded
+      // fallback would arrive no earlier than Inter and fix nothing.
+      expect(band).toMatch(/src:\s*local\(/)
+      expect(band).not.toMatch(/src:[^;]*url\(/)
+      const w = band.match(/font-weight:\s*(\d+)\s+(\d+)/)
+      expect(w, 'band declares a weight range').not.toBeNull()
+      ranges.push([Number(w![1]), Number(w![2])])
+    }
+    ranges.sort((a, b) => a[0] - b[0])
+    expect(ranges[0][0], 'bands start at 100').toBe(100)
+    expect(ranges[ranges.length - 1][1], 'bands end at 900').toBe(900)
+    for (let i = 1; i < ranges.length; i++) {
+      expect(ranges[i][0], `band ${i} abuts band ${i - 1} with no gap or overlap`).toBe(
+        ranges[i - 1][1] + 1,
+      )
+    }
+  })
+
   it('ships every self-hosted woff2 the sheet points at', () => {
     // A missing font file 404s silently — the page just renders the fallback
     // face, which is exactly the flash self-hosting was meant to remove.
