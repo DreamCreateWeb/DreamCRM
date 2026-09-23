@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { spawnSync } from 'node:child_process'
+import { createServer } from 'node:net'
+import type { AddressInfo } from 'node:net'
 import { readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
@@ -53,6 +55,8 @@ import { join } from 'node:path'
 const WORKFLOW_DIR = join(process.cwd(), '.github/workflows')
 const HARNESS = 'scripts/e2e-harness.sh'
 const HUNT = 'e2e-flake-hunt.yml'
+const LOAD_SCRIPT = 'scripts/load-sanity.mjs'
+const LOAD_DOC = 'docs/LOAD-SANITY.md'
 
 const harnessSource = readFileSync(join(process.cwd(), HARNESS), 'utf8')
 
@@ -222,6 +226,225 @@ describe('the arguments resolve to the playwright invocation they claim', () => 
     expect(plan(['--spec', 'e2e/portal.spec.ts', '--skip-build'])).toBe(
       'playwright test e2e/portal.spec.ts',
     )
+  })
+})
+
+/* ------------------------------------------------------------------------ */
+/* The load mode (DREAMCRM-117).                                             */
+/* ------------------------------------------------------------------------ */
+
+describe('the harness refuses to measure a server it did not start', () => {
+  /** Hold a port the way a stale `next-server` holds one, and hand back its
+   *  number. */
+  async function occupied(): Promise<{ port: string; release: () => Promise<void> }> {
+    const server = createServer(() => {})
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+    return {
+      port: String((server.address() as AddressInfo).port),
+      release: () => new Promise<void>((resolve) => server.close(() => resolve())),
+    }
+  }
+
+  it('stops when something is already listening on the port it needs', async () => {
+    // THE DEFECT THIS WAS WRITTEN AGAINST, watched on 2026-09-23 rather than
+    // imagined. `kill $SERVER_PID` reached `pnpm`, not the `next-server`
+    // grandchild that owns the socket, so a finished run left one listening.
+    // The next run could not bind — and did not notice, because the readiness
+    // probe is `curl /api/health` and the STALE server answers it. It then
+    // measured a build it had not made, with a Next in-memory cache the
+    // previous run had warmed, and said nothing.
+    //
+    // A wrong answer with a green exit code is the one outcome this harness
+    // may not produce, so the port is refused rather than shared.
+    const { port, release } = await occupied()
+    try {
+      const { status, stderr } = runHarness([], { E2E_PORT: port })
+      expect(status, 'a busy port must stop the run above the database').toBe(2)
+      expect(stderr).toMatch(/already serving/)
+    } finally {
+      await release()
+    }
+  })
+
+  it('tears down the whole server tree, not just the process it spawned', () => {
+    // The other half, and it is graded on the SOURCE because the defect is a
+    // process-tree fact no argument can reach: `kill "$SERVER_PID"` reached
+    // one of three processes. If this reverts to a bare `kill`, the refusal
+    // above turns from a backstop into the thing everybody trips over on
+    // every second run.
+    expect(harnessSource, 'the teardown must walk the process tree').toMatch(
+      /kill_tree\(\)\s*\{[\s\S]*pgrep -P/,
+    )
+    for (const pid of ['SERVER_PID', 'WEBHOOK_PID']) {
+      expect(
+        harnessSource,
+        `${pid} must be torn down with kill_tree, not a bare kill`,
+      ).toMatch(new RegExp(String.raw`kill_tree "\$${pid}"`))
+    }
+  })
+})
+
+describe('the harness refuses a load level it cannot trust', () => {
+  it('refuses --load-level without --load-sanity', () => {
+    // Accepting it would run the WHOLE BROWSER SUITE and report green on a
+    // command whose author asked for a measurement — a success that measured
+    // nothing, which is the failure this whole file is about.
+    const { status, stderr } = runHarness(['--load-level', '8x40'])
+    expect(status).toBe(2)
+    expect(stderr).toMatch(/needs --load-sanity/)
+  })
+
+  it('refuses a level that is not <concurrency>x<requests>', () => {
+    expect(runHarness(['--load-sanity', '--load-level', '9']).status).toBe(2)
+    expect(runHarness(['--load-sanity', '--load-level', '8x']).status).toBe(2)
+    expect(runHarness(['--load-sanity', '--load-level', 'eight x forty']).status).toBe(2)
+  })
+
+  it('refuses a concurrency or a request count outside the ceilings', () => {
+    // Same argument as REPEAT_MAX: the digit that turns 50 into 500 is one
+    // keystroke, and past a couple of hundred sockets the p99 in the table is
+    // the local kernel's accept queue rather than the application.
+    const conc = runHarness(['--load-sanity', '--load-level', '500x40'])
+    expect(conc.status).toBe(2)
+    expect(conc.stderr).toMatch(/concurrency 500 is outside/)
+
+    const reqs = runHarness(['--load-sanity', '--load-level', '8x5000'])
+    expect(reqs.status).toBe(2)
+    expect(reqs.stderr).toMatch(/requests 5000 is outside/)
+
+    expect(runHarness(['--load-sanity', '--load-level', '0x40']).status).toBe(2)
+    expect(runHarness(['--load-sanity', '--load-level', '8x0']).status).toBe(2)
+  })
+
+  it('refuses a browser argument instead of quietly dropping it', () => {
+    // None of these reaches `load-sanity.mjs`. Ignoring one would produce a
+    // full green run whose table measured something other than what was asked
+    // for — the same silent shape the `E2E_SPEC` agreement guard below refuses.
+    for (const args of [
+      ['--load-sanity', '--spec', 'e2e/portal.spec.ts'],
+      ['--load-sanity', '--repeat', '3'],
+      ['--load-sanity', '--', '--retries=0'],
+    ]) {
+      const { status, stderr } = runHarness(args)
+      expect(status, `\`${args.join(' ')}\` must be refused, not ignored`).toBe(2)
+      expect(stderr).toMatch(/no meaning under --load-sanity|takes no playwright arguments/)
+    }
+  })
+
+  it('still accepts the one flag that DOES mean something here', () => {
+    // `--skip-build` is how you re-measure against a build you already have.
+    // A refusal that swept it up with the browser flags would make the second
+    // run of a comparison cost a full build for nothing.
+    expect(runHarness(['--print-plan', '--load-sanity', '--skip-build']).status).toBe(0)
+  })
+})
+
+/** The levels `--load-sanity` resolves to, as `[concurrency, requests]` pairs. */
+function loadPlan(args: string[]): Array<[number, number]> {
+  const { status, stdout, stderr } = runHarness(['--print-plan', '--load-sanity', ...args])
+  expect(status, `--print-plan should exit 0; stderr was: ${stderr}`).toBe(0)
+  return stdout
+    .trim()
+    .split('\n')
+    .map((line) => {
+      const m = /^load-sanity --conc (\d+) --reqs (\d+)$/.exec(line.trim())
+      expect(m, `unreadable plan line: ${line}`).not.toBeNull()
+      return [Number(m![1]), Number(m![2])] as [number, number]
+    })
+}
+
+describe('the load mode resolves to the measurement it claims', () => {
+  it('defaults to the two levels the baseline table was measured at', () => {
+    expect(loadPlan([])).toEqual([
+      [8, 40],
+      [25, 75],
+    ])
+  })
+
+  it('takes levels in order, and only the ones asked for', () => {
+    expect(loadPlan(['--load-level', '12x60', '--load-level=4x20'])).toEqual([
+      [12, 60],
+      [4, 20],
+    ])
+  })
+
+  it('reads a zero-padded level as base ten', () => {
+    // `08` is octal to bash arithmetic, exactly as in `--repeat`. Without the
+    // `10#` this dies with a syntax error nobody typed.
+    expect(loadPlan(['--load-level', '08x040'])).toEqual([[8, 40]])
+  })
+
+  it('leaves the browser plan untouched when the mode is off', () => {
+    // The whole point of a mode: every existing caller — `pnpm test:e2e`,
+    // ci.yml, nightly.yml, post-merge-e2e.yml, the flake hunt — must plan
+    // exactly what it planned before.
+    expect(plan([])).toBe('playwright test')
+    expect(plan(['--spec', 'e2e/portal.spec.ts'])).toBe('playwright test e2e/portal.spec.ts')
+  })
+})
+
+describe('the harness and the load script agree on the flag names', () => {
+  const loadSource = readFileSync(join(process.cwd(), LOAD_SCRIPT), 'utf8')
+
+  /** Every `--name` `scripts/load-sanity.mjs` actually reads, via its own
+   *  `flag('name', …)` helper. */
+  const accepted = Array.from(loadSource.matchAll(/\bflag\(\s*'([a-z-]+)'/g)).map((m) => m[1])
+
+  it('reads its own arguments through flag() at all — the population check', () => {
+    // A scanner that found nothing to look at reports exactly as clean as a
+    // script with no defects in it.
+    expect(accepted.length).toBeGreaterThan(2)
+  })
+
+  it('passes --base, --conc and --reqs, which are the three the script parses', () => {
+    // THE DECORATIVE FAILURE THIS REFUSES. Rename `--conc` on either side and
+    // nothing breaks: `load-sanity.mjs` falls back to its own defaults (10
+    // concurrent, 100 requests) and prints a perfectly healthy table, which
+    // then gets pasted into `docs/LOAD-SANITY.md` under a heading claiming a
+    // level it never ran at. Same shape as the `E2E_SPEC` agreement below, and
+    // quiet in the same way.
+    for (const name of ['base', 'conc', 'reqs']) {
+      expect(accepted, `${LOAD_SCRIPT} must still read --${name}`).toContain(name)
+      expect(
+        harnessSource,
+        `${HARNESS} must pass --${name} to the load script`,
+      ).toMatch(new RegExp(`--${name}\\s`))
+    }
+  })
+
+  it('invokes the load script by the path it lives at', () => {
+    expect(harnessSource).toContain(`node ${LOAD_SCRIPT}`)
+  })
+})
+
+describe('the default levels are the ones the document can be compared against', () => {
+  const doc = readFileSync(join(process.cwd(), LOAD_DOC), 'utf8')
+
+  /** Every `### Concurrency C, N requests/path` heading in the document. */
+  const documented = Array.from(
+    doc.matchAll(/^###\s+Concurrency\s+(\d+),\s+(\d+)\s+requests\/path/gm),
+  ).map((m) => `${m[1]}x${m[2]}`)
+
+  it('finds the level headings in the document — a rule over an empty set is not a rule', () => {
+    expect(documented.length).toBeGreaterThan(0)
+  })
+
+  it('defaults to levels the document has a table for', () => {
+    // WHY THIS DIRECTION AND NOT THE OTHER. The default exists so that a
+    // re-measurement lands beside the 2026-08-18 baseline row for row; a
+    // default the document has never used produces an after-table that cannot
+    // be compared with anything, which is the entire purpose of running it.
+    // Adding a THIRD table at some new level is fine and does not fail here —
+    // only moving the default off the levels the document records does.
+    const missing = loadPlan([])
+      .map(([c, r]) => `${c}x${r}`)
+      .filter((level) => !documented.includes(level))
+
+    expect(
+      missing,
+      `${HARNESS} defaults to a load level ${LOAD_DOC} has no table for. An after-table measured ` +
+        'at a level the before-table never used is not a comparison.',
+    ).toEqual([])
   })
 })
 

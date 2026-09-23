@@ -292,6 +292,57 @@ describe('assertion 2 — no plan price is spelled as a literal, anywhere (DREAM
     expect(addOns).toContain(20)
   })
 
+  it('the CENTS pass is still reading the tree — the zero-holding rule’s field-of-view assertion', () => {
+    // §2d, "a rule that holds a population at ZERO ships a field-of-view
+    // assertion". The cents spelling's whole gate is *this scan returns
+    // nothing*, so the day its regex narrows — the suffix alternation loses
+    // the SHOUTY branch, the scale goes to 1, the pass stops being called —
+    // the rule gets GREENER and no other assertion here can tell.
+    //
+    // The shape is `dimmed-text.test.ts`'s: replay the reader against the real
+    // tree and assert a COUNT. The values are everyday money in cents (a $89
+    // product, a $149 one, a $29 one, the $25 payout floor) — none of them a
+    // plan price, all of them written on a `*Cents` name in more than one
+    // file, so this measures the pass's EYES and never its verdict.
+    const everydayMoney = new Set([89, 149, 29, 25])
+    const seen = scanTreeForPlanPriceLiterals(everydayMoney).filter((h) => h.spelling === 'cents')
+
+    expect(
+      seen.length,
+      'The cents pass found no `*Cents` money anywhere under app, components or lib. The tree ' +
+        'has not stopped carrying cents — the pass has stopped reading it, which makes "no plan ' +
+        'price is written in cents" a claim about nothing.',
+    ).toBeGreaterThanOrEqual(3)
+
+    expect(
+      new Set(seen.map((h) => h.file)).size,
+      'Every cents hit is in ONE file, so the pass may be reading a single path rather than the ' +
+        'derived tree.',
+    ).toBeGreaterThanOrEqual(2)
+
+    // BOTH NAME BRANCHES, because a suffix alternation can lose one half
+    // silently. `priceCents` is camel; `PAYOUT_MIN_CENTS` is a SHOUTY module
+    // constant, which the camel boundary structurally cannot see.
+    //
+    // Split on the MATCHED NAME rather than on `h.context`, which is the whole
+    // source line (Sentinel, #711). Every hit today is a lone
+    // `export const X_CENTS = …`, so the line-based version agreed by accident
+    // — and would have miscounted the first camel hit that shared a line with
+    // a `_CENTS` token. A name is not a line.
+    const isShouty = (h: { name?: string }) => /_CENTS$/.test(h.name ?? '')
+    const shouty = seen.filter(isShouty)
+    expect(
+      shouty.length,
+      'No SHOUTY `*_CENTS` constant matched, so the second half of the suffix alternation may ' +
+        'have been dropped — and that is the half a module-level price constant is written in.',
+    ).toBeGreaterThanOrEqual(1)
+    expect(
+      seen.filter((h) => !isShouty(h)).length,
+      'No camelCase `*Cents` name matched — the branch the DREAMCRM-122 defect itself was ' +
+        'written in (`invoiceCents`).',
+    ).toBeGreaterThanOrEqual(1)
+  })
+
   it('derives its field of view from the tree, and it reaches the four files the old list missed', () => {
     // THE ASSERTION THIS ISSUE IS ABOUT. `PRICE_QUOTING_ROUTES` was ten paths;
     // a file that quotes the price is graded the day it is written now, by
@@ -343,6 +394,57 @@ describe('the field of view — the extractor, on fixtures', () => {
     expect(hits('export const PLAN_PRICE_MONTHLY = 200')).toEqual([200])
     expect(hits("softwareApplicationLd([{ name: 'DreamCRM', price: 200 }])")).toEqual([200])
     expect(hits("{ 'listPrice': 500 }")).toEqual([500])
+  })
+
+  it('finds a plan price written in CENTS — DREAMCRM-122, the fourth spelling', () => {
+    // THE DEFECT IN THE SHAPE IT ACTUALLY HAD. `lib/services/demo-clinic/
+    // seed-partners.ts` seeded the demo partner's commissions off this exact
+    // line, so the showcase paid 10% of the struck-through $500 LIST price
+    // while `/partner-program` published $20 per practice from
+    // `getQuotedPlan()` — two clicks apart in one demo.
+    expect(hits('const invoiceCents = 50000')).toEqual([50000])
+
+    // `invoiceCents` is why the suffix ALONE is the discriminator: its words
+    // are `invoice` + `Cents` and neither is in `PRICEY_WORDS`, so requiring a
+    // pricey word too would have re-missed the defect this spelling exists
+    // for. Both casings of the suffix, because a module constant SHOUTS.
+    expect(hits('const planCents = 20000')).toEqual([20000])
+    expect(hits('const LIST_PRICE_CENTS = 50000')).toEqual([50000])
+    expect(hits('{ amountCents: 200000 }')).toEqual([200000])
+
+    // The number is reported AS WRITTEN — 50000, not 500. That is what an
+    // `ALLOWED_QUOTES` entry is keyed on and what the reader will find on the
+    // line; scaling it for display would send somebody hunting for a `500`
+    // that is not there.
+    const [hit] = planPriceHits('fixture.ts', 'const invoiceCents = 50000', PLAN)
+    expect(hit?.text).toBe('50000')
+    expect(hit?.spelling).toBe('cents')
+  })
+
+  it('leaves the tree’s other *Cents money alone — the measured noise floor', () => {
+    // MEASURED, not reasoned (§2d): the three roots carry 50 `*Cents`
+    // assignments of a literal >= 1000 and exactly ONE of them equals a plan
+    // price x100. These are real lines from that census — a demo product
+    // price, a comp band, the payout floor — and the VALUE is the only thing
+    // keeping them quiet, which is why they are pinned rather than trusted.
+    expect(hits('const priceCents = 8900')).toEqual([])
+    expect(hits('compMinCents: 3800')).toEqual([])
+    expect(hits('export const PAYOUT_MIN_CENTS = 2500')).toEqual([])
+    expect(hits('const totalCents = 9500')).toEqual([])
+    // A dollar-scale plan price on a cents name is NOT a hit either — 200
+    // cents is $2. The scale runs one way.
+    expect(hits('const amountCents = 200')).toEqual([])
+  })
+
+  it('reports a pricey *Cents name ONCE, under the spelling whose scale matched', () => {
+    // `unitPriceCents` satisfies `nameIsPricey` (on `price`) AND the cents
+    // suffix, so both passes reach the same offset. `seen` is keyed on the
+    // offset, and the passes run assignment-then-cents, so the report says
+    // one thing about one line.
+    const dollars = planPriceHits('fixture.ts', 'const unitPriceCents = 200', PLAN)
+    expect(dollars.map((h) => h.spelling)).toEqual(['assignment'])
+    const cents = planPriceHits('fixture.ts', 'const unitPriceCents = 20000', PLAN)
+    expect(cents.map((h) => h.spelling)).toEqual(['cents'])
   })
 
   it('leaves a bare number on an innocent name alone — a rule that fires on noise is a rule people turn off', () => {
