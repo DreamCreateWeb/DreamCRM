@@ -127,24 +127,62 @@ up" are different facts and only one of them is a backlog item.
    template literal and was not. All five are the §2.2 pair now. The reader is
    fixed rather than the five patched — see the note under entry 3 — and with
    it the residual reads **53**, not 52.]
-3. **The chunk reader is still PER LINE, so a template broken across source
-   lines is ungraded** — named here rather than left in a docblock, because it
-   is the one residual this issue created and did not close. `quotedChunks`
-   reads a line at a time, so the opening line of a multi-line template never
-   closes and the continuation lines carry no quotes to find. **25
+3. ~~**The chunk reader is still PER LINE, so a template broken across source
+   lines is ungraded**~~ — named here rather than left in a docblock, because
+   it was the one residual DREAMCRM-88 created and did not close. **25
    colour-bearing lines yield no chunk, 23 of them real** (Sentinel's
-   measurement on DREAMCRM-88); joined by hand and run through all four
-   graders plus `dimmed-text`'s, they produce **0 findings**. The one to look
-   at is `app/(onboarding)/welcome/welcome-interview.tsx:579` —
+   measurement on DREAMCRM-88); the one to look at is
+   `app/(onboarding)/welcome/welcome-interview.tsx:579` —
    `bg-stone-800 dark:bg-stone-200 … text-white dark:text-stone-900`, rule 7's
-   both-halves-overridden subject exactly, the auth-button shape. It PASSES on
-   both sides; it is ungraded for a syntactic reason, which is the sentence
-   batches 68–71 exist to stop being true. Closing it means scanning per FILE
-   rather than per line, which also deletes the boundary both of batch 70's
-   bugs lived on (the `end - 1` chop and the `j = -1` walk-again). That is a
-   field-of-view change and it wants its own measurement, its own red run and
-   its own review — deliberately not ridden along on an urgent fix. Nobody has
-   picked it up.
+   both-halves-overridden subject exactly, the auth-button shape.
+   [**DONE, DREAMCRM-107.** And the diagnosis in this entry was one word off,
+   which is the part worth keeping: **the SCAN was never per line, the CALLER
+   was.** `eachClassString` split a file on newlines and handed `quotedChunks`
+   one at a time, so a multi-line template's opening line never closed and its
+   statics were dropped. So closing it did NOT mean scanning per FILE and did
+   not delete the boundary both of batch 70's bugs lived on — the caller keeps
+   feeding lines into the same scan until the scan reports itself closed
+   (`readChunks`), `quotedChunks` is still the single-string entry point, and
+   the `end - 1` chop and the `j = -1` walk-again still live on the same
+   end-of-input path with the same tests on them. The boundary moved from
+   end-of-line to end-of-file; it did not go away.
+   · **MEASURED, by replaying the old caller against the same tree**: 88,985
+   chunks → 89,403, of which **533 are new** (132 carrying a colour utility,
+   217 utilities in all). **379 joins**, median 2 lines, longest 201 —
+   `SPINE_CSS` in `components/marketing/ui.tsx:173`, a genuine CSS template
+   and not a runaway. Every grader in `class-pairs.ts` plus `dimmed-text`'s,
+   over the newly-visible chunks: **0 findings**, exactly as this entry
+   predicted — so it landed in one PR rather than as a burn-down. 115 chunks
+   the per-line caller produced are gone and **none carries a colour utility**:
+   they are interpolation SOURCE (`${BRAND.blueLight}`) that leaked only
+   because the template never closed on the line.
+   · **THE RESIDUAL IS NOW AN ASSERTION, not a paragraph.**
+   `one-string-pairs.test.ts` compares the chunks against the SOURCE rather
+   than against the old reader — §2d's rule that an additive lock can never
+   measure what neither instrument sees — and fails if any colour utility
+   written in `app` / `components` / `lib` is carried by no chunk. It went
+   from **35 utilities across 22 lines to zero**, and it is what reddens if
+   anybody puts the per-line caller back. Watched to fail three ways: the
+   caller un-joined, the `open` signal forced false, and the named site keyed
+   on both halves together (the same file writes `bg-stone-800
+   dark:bg-stone-200` on one line elsewhere, so the surface pair alone would
+   have passed with 579 still unread).
+   · **AND THE FIRST DRAFT OF THIS ENTRY WAS ABOUT TO SET THE RECORD WRONG**
+   (Sentinel, reviewing #687) — worth keeping, because it is the same mistake
+   this entry exists to correct, one level out. It said the widening reached
+   "seven contrast rules plus `dimmed-text`". It did not reach `dimmed-text`:
+   #657 gave that rule the shared READER (`quotedChunks`) and it kept its own
+   `walk()` + per-line loop, i.e. its own CALLER — and the caller is what
+   widened. **Sharing a scanner does not share a field of view.** Measured
+   exposure was ZERO both ways, so it was a record defect and not a live one,
+   which is exactly what makes it dangerous: the new source-vs-chunks assertion
+   runs through `eachClassString`, so a dimming finding landing inside a
+   multi-line template tomorrow would go unreported while this entry said the
+   hole was closed. Fixed rather than narrowed — `dimmed-text` reads through
+   `eachClassString` now, and it carries its own **count** assertion (its
+   chunks must outnumber a per-line replay), because a rule holding the tree at
+   zero cannot produce a red run to notice a narrowing by. Watched to fail:
+   re-privatising the walk reddens it at `83654` vs `83654`.]
 4. **The opacity sweep's ~~TWO~~ ONE DEFERRED SURFACE.**
    `tests/a11y/dimmed-text.test.ts` WALKS `app/`, `components/` and `lib/` and
    holds them at zero; one component tree is still outside it, excluded for a

@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest'
-import { readdirSync, readFileSync, statSync } from 'node:fs'
-import { join, relative } from 'node:path'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { AA, contrast, DARK, LIGHT, over, ROOT, utilityColor } from './palette'
-import { quotedChunks } from './class-pairs'
+import { eachClassString, quotedChunks, uiSourceFiles } from './class-pairs'
 
 /**
  * THE APP DOES NOT DIM ITS OWN TEXT.
@@ -184,14 +184,42 @@ export function isPictureScale(chunk: string): boolean {
   return px !== null && px < PICTURE_SCALE_PX
 }
 
-function walk(dir: string, out: string[] = []): string[] {
-  for (const entry of readdirSync(dir)) {
-    if (entry === 'node_modules' || entry.startsWith('.')) continue
-    const full = join(dir, entry)
-    if (statSync(full).isDirectory()) walk(full, out)
-    else if (/\.tsx?$/.test(entry)) out.push(full)
-  }
-  return out
+/**
+ * Every file this rule reads, and every CHUNK it grades — both from the shared
+ * walk in `class-pairs.ts` rather than from a copy here (DREAMCRM-107).
+ *
+ * THE COPY THIS REPLACES WAS THE SECOND HALF OF A SINGLE-HOMING THAT ONLY GOT
+ * DONE ONCE, and it is worth stating because the lesson generalises past this
+ * file. #657 removed this rule's copy of the READER — it imported
+ * `quotedChunks` from `class-pairs.ts`, and the docblock below still says so.
+ * But it kept its own `walk()` + split-on-newline + one-line-at-a-time loop,
+ * i.e. its own CALLER. So when DREAMCRM-107 taught `eachClassString` to feed
+ * the scanner across line breaks, every rule in `class-pairs.ts` widened and
+ * this one did not — silently, because a narrower field of view only ever
+ * makes an absence assertion GREENER. Three places said otherwise before
+ * Sentinel caught it in review of #687.
+ *
+ * **Sharing a SCANNER does not share a FIELD OF VIEW. The caller owns that.**
+ * §2d's reader rule one level out: what decides where a guard looks is not
+ * only the function that parses a string, it is the loop that decides which
+ * strings exist at all.
+ *
+ * Measured at the swap, both ways, over `SCAN_ROOTS` minus `OUT_OF_SCOPE`:
+ * **0 dimming findings per line and 0 through the shared caller**, so nothing
+ * was hiding in the widening. The record was wrong; the tree was not.
+ */
+const inScope = (file: string): boolean => !OUT_OF_SCOPE.some((d) => file.startsWith(`${d}/`))
+
+/** Every file this rule opens — the instrument's field of view. */
+function sweptFiles(): string[] {
+  return uiSourceFiles(SCAN_ROOTS).filter(inScope)
+}
+
+/** Every chunk this rule grades. The ONE place its field of view is decided. */
+function eachInScopeChunk(visit: (file: string, line: number, chunk: string) => void): void {
+  eachClassString(SCAN_ROOTS, (file, line, chunk) => {
+    if (inScope(file)) visit(file, line, chunk)
+  })
 }
 
 /** An UNPREFIXED `opacity-N` that is neither animation endpoint. */
@@ -213,6 +241,13 @@ export type DimmedText = { file: string; line: number; value: number; chunk: str
  * but "the copy had the same hole" is exactly why the comment this replaces
  * promised a sameness only a shared function can keep. See `quotedChunks` in
  * `class-pairs.ts` for the shape and the measurement.
+ *
+ * **AND THAT PARAGRAPH WAS HALF TRUE FOR ONE PR** (DREAMCRM-107, Sentinel's
+ * review of #687). Sharing `quotedChunks` made the UNIT the same; it did not
+ * make the FIELD OF VIEW the same, because this file still owned its own
+ * per-line caller. `eachInScopeChunk` above is the other half, and the
+ * assertion under "the app never dims its own type" is what stops the two
+ * drifting apart again — a count, not a comment.
  */
 
 export function gradeChunk(chunk: string): number | null {
@@ -235,44 +270,24 @@ export function gradeChunk(chunk: string): number | null {
  */
 export function scanForPardonedDimming(): DimmedText[] {
   const found: DimmedText[] = []
-  for (const base of SCAN_ROOTS) {
-    for (const file of walk(join(ROOT, base))) {
-      const rel = relative(ROOT, file).replace(/\\/g, '/')
-      if (OUT_OF_SCOPE.some((d) => rel.startsWith(`${d}/`))) continue
-      readFileSync(file, 'utf8')
-        .split('\n')
-        .forEach((line, i) => {
-          for (const chunk of quotedChunks(line)) {
-            if (!IS_TEXT.test(chunk) || !isPictureScale(chunk)) continue
-            for (const m of Array.from(chunk.matchAll(DIMMING))) {
-              const n = Number(m[1])
-              if (n === 0 || n === 100) continue
-              found.push({ file: rel, line: i + 1, value: n, chunk: chunk.trim().slice(0, 90) })
-              break
-            }
-          }
-        })
+  eachInScopeChunk((file, line, chunk) => {
+    if (!IS_TEXT.test(chunk) || !isPictureScale(chunk)) return
+    for (const m of Array.from(chunk.matchAll(DIMMING))) {
+      const n = Number(m[1])
+      if (n === 0 || n === 100) continue
+      found.push({ file, line, value: n, chunk: chunk.trim().slice(0, 90) })
+      break
     }
-  }
+  })
   return found
 }
 
 export function scanForDimmedText(): DimmedText[] {
   const found: DimmedText[] = []
-  for (const base of SCAN_ROOTS) {
-    for (const file of walk(join(ROOT, base))) {
-      const rel = relative(ROOT, file).replace(/\\/g, '/')
-      if (OUT_OF_SCOPE.some((d) => rel.startsWith(`${d}/`))) continue
-      readFileSync(file, 'utf8')
-        .split('\n')
-        .forEach((line, i) => {
-          for (const chunk of quotedChunks(line)) {
-            const n = gradeChunk(chunk)
-            if (n !== null) found.push({ file: rel, line: i + 1, value: n, chunk: chunk.trim().slice(0, 90) })
-          }
-        })
-    }
-  }
+  eachInScopeChunk((file, line, chunk) => {
+    const n = gradeChunk(chunk)
+    if (n !== null) found.push({ file, line, value: n, chunk: chunk.trim().slice(0, 90) })
+  })
   return found
 }
 
@@ -372,12 +387,7 @@ describe('dimmed text — the red run', () => {
 
 describe('the app never dims its own type', () => {
   /** Every file this rule actually opens — the instrument's field of view. */
-  const swept = (): string[] =>
-    SCAN_ROOTS.flatMap((base) =>
-      walk(join(ROOT, base))
-        .map((f) => relative(ROOT, f).replace(/\\/g, '/'))
-        .filter((rel) => !OUT_OF_SCOPE.some((d) => rel.startsWith(`${d}/`))),
-    )
+  const swept = sweptFiles
 
   it('has opacity sites to look at (the scan is not narrowed to nothing)', () => {
     // The 45 correct uses are still in these trees, so a rule that reported
@@ -386,6 +396,55 @@ describe('the app never dims its own type', () => {
       /(?:^|[\s'"`{])opacity-\d/.test(readFileSync(join(ROOT, rel), 'utf8')),
     )
     expect(anyOpacity.length).toBeGreaterThan(20)
+  })
+
+  it('reads through the SHARED caller, so a multi-line template is in view', () => {
+    // THE ASSERTION SENTINEL'S REVIEW OF #687 ASKED FOR, and the reason it has
+    // to be a count rather than a finding: this rule holds the tree at ZERO, so
+    // a narrower field of view produces no red run at all. It is invisible from
+    // every direction the other tests look — which is exactly how this file
+    // spent one PR quietly per-line while three places said it had widened.
+    //
+    // So it asserts the FIELD OF VIEW directly, against a per-line replay of
+    // the caller this replaced. Re-privatise the walk and the two numbers
+    // collapse to equal, and this goes red naming the count.
+    let shared = 0
+    eachInScopeChunk(() => {
+      shared++
+    })
+
+    let perLine = 0
+    for (const file of swept()) {
+      for (const raw of readFileSync(join(ROOT, file), 'utf8').split('\n')) {
+        perLine += quotedChunks(raw).length
+      }
+    }
+
+    expect(perLine, 'the per-line replay must actually be reading the tree').toBeGreaterThan(10_000)
+    expect(
+      shared,
+      'this rule must read through eachClassString, which feeds the scanner across line breaks. ' +
+        'A private per-line walk here reads FEWER chunks than the rules in class-pairs.ts, and ' +
+        'nothing else in the suite can see the difference: a narrower scan only ever makes an ' +
+        'absence assertion greener.',
+    ).toBeGreaterThan(perLine)
+  })
+
+  it('sees the multi-line template the per-line caller could not', () => {
+    // The same claim keyed on a NAMED site rather than a count, because a count
+    // can drift for innocent reasons and a name cannot. `welcome-interview.tsx`
+    // writes its chat bubble's classes across a template broken at the
+    // interpolation; it is under `app/` and in scope for this rule.
+    const source = [
+      'const cls = `max-w-[85%] rounded-2xl text-sm opacity-90',
+      '  px-4 py-2.5`',
+    ].join('\n')
+
+    expect(
+      quotedChunks(source.split('\n')[0]).some((c) => gradeChunk(c) !== null),
+      'the per-line form must NOT grade this, or the assertion below proves nothing',
+    ).toBe(false)
+    expect(quotedChunks(source).some((c) => gradeChunk(c) !== null)).toBe(true)
   })
 
   it('reaches the surfaces an enumeration kept missing — named, so widening cannot regress', () => {
@@ -447,9 +506,7 @@ describe('the app never dims its own type', () => {
   it('carries no exclusion it has stopped describing', () => {
     // A dead exclusion is how an exemption rots into a blanket pardon — the
     // same detector `e2e/axe.ts` and the tone-fill rule both carry.
-    const all = SCAN_ROOTS.flatMap((base) =>
-      walk(join(ROOT, base)).map((f) => relative(ROOT, f).replace(/\\/g, '/')),
-    )
+    const all = uiSourceFiles(SCAN_ROOTS)
     for (const dir of OUT_OF_SCOPE) {
       expect(
         all.some((f) => f.startsWith(`${dir}/`)),
