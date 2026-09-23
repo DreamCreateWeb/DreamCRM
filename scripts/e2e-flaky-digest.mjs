@@ -235,7 +235,13 @@ export function aggregate(reports, runsById = {}) {
  *
  * @param {{
  *   specs: Array<Record<string, any>>,
- *   census: { runs: number, reports: number, unreadable?: string[] },
+ *   census: {
+ *     runs: number,
+ *     reports: number,
+ *     unreadable?: string[],
+ *     noJson?: string[],
+ *     truncated?: Array<{ workflow: string, count: number, limit: number }>,
+ *   },
  *   lookupFailures?: string[],
  * }} input
  */
@@ -245,11 +251,33 @@ export function assess({ specs, census, lookupFailures = [] }) {
 
   const blind = [...lookupFailures]
 
+  // THE DENOMINATOR CAME BACK AT THE LIMIT, so it is not the denominator.
+  //
+  // This is the finding Sentinel measured on #684: at `--limit 200` the
+  // window's 423 `ci.yml` runs came back as 200, most-recent-first, discarding
+  // the older half under a headline saying eight days. And the damage does not
+  // stop at the census — the workflow's artifact filter is built from this
+  // list, so every report belonging to a discarded run is dropped BEFORE the
+  // download step. Nothing reaches `unreadable`, `blind` stays empty, and the
+  // digest exits 0 over a half it never looked at.
+  //
+  // A silently short denominator is the only outcome here worse than no digest,
+  // because the whole argument for this file is "a number instead of a hunch".
+  for (const t of census.truncated ?? []) {
+    blind.push(
+      `the run lookup for \`${t.workflow}\` came back at its \`--limit\` of ${t.limit}, so the ` +
+        `window is TRUNCATED: runs older than the newest ${t.count} were never looked at, and ` +
+        'their report artifacts were filtered out before the download step. Raise `RUN_LIMIT` in ' +
+        '`.github/workflows/e2e-flaky-digest.yml` (and the `--run-limit` beside it — they are the ' +
+        'same number twice on purpose).',
+    )
+  }
+
   if (census.unreadable?.length) {
     blind.push(
       `${census.unreadable.length} report ${census.unreadable.length === 1 ? 'artifact' : 'artifacts'} ` +
-        `in the window could not be read (${census.unreadable.join(', ')}). Every run that left one ` +
-        'had already failed or flaked, so these are exactly the runs with something to say.',
+        `in the window could not be DOWNLOADED (${census.unreadable.join(', ')}). Every run that ` +
+        'left one had already failed or flaked, so these are exactly the runs with something to say.',
     )
   }
 
@@ -263,6 +291,34 @@ export function assess({ specs, census, lookupFailures = [] }) {
   }
 
   return { findings, watchlist, blind }
+}
+
+/**
+ * Per-workflow truncation, from the run list and the limit it was fetched with.
+ *
+ * DELIBERATELY NOT `windowGap`'s SHAPE, and the difference is worth a sentence
+ * because the two look like the same check. `scripts/review-sweep.mjs` compares
+ * the OLDEST merge it saw against a cut-off, because `gh pr list` has no date
+ * filter and a short list shows up as a window that does not reach back far
+ * enough. Here `gh run list --created ">=SINCE"` filters server-side, so
+ * everything returned is inside the window by construction and the oldest row
+ * proves nothing at all. Hitting the limit is the only signal there is.
+ *
+ * Grouped by `workflowFile` rather than by `workflowName`: the display name is
+ * a string GitHub owns and two workflows could share one. The file is what the
+ * `--limit` was spent on.
+ */
+export function truncatedLookups(runs, limit) {
+  if (!Number.isFinite(limit) || limit <= 0) return []
+  const counts = new Map()
+  for (const run of runs) {
+    const file = run?.workflowFile
+    if (!file) continue
+    counts.set(file, (counts.get(file) ?? 0) + 1)
+  }
+  return [...counts.entries()]
+    .filter(([, count]) => count >= limit)
+    .map(([workflow, count]) => ({ workflow, count, limit }))
 }
 
 /* --------------------------------------------------------------- report -- */
@@ -290,6 +346,24 @@ export function renderSummary({ findings, watchlist, blind }, census) {
       'below if there is one._',
     '',
   )
+
+  // NAMED, COUNTED, AND NOT A FINDING — the distinction Sentinel asked for on
+  // #684. The producers upload on `failure()`, which includes a run that died
+  // before playwright wrote its JSON (a build that never reached the browser).
+  // The artifact downloads fine and contains no results, so there is nothing
+  // the digest could have learned from it. That is a fact about the run, not a
+  // hole in the digest — filing it as "could not be read" would redden this
+  // alarm most weeks, and a weekly red is a weekly nobody reads.
+  if (census.noJson?.length) {
+    lines.push(
+      `_${plural(census.noJson.length, 'artifact', 'artifacts')} downloaded with no ` +
+        '`e2e-results.json` inside (' +
+        census.noJson.join(', ') +
+        ') — those runs failed before playwright wrote a report, so they carry no test results ' +
+        'either way. Counted here rather than filed as unreadable: nothing was lost._',
+      '',
+    )
+  }
 
   if (blind.length) {
     lines.push(`#### ${plural(blind.length, 'thing', 'things')} this digest could not see`, '')
@@ -374,6 +448,25 @@ export function readJson(path) {
 }
 
 /**
+ * A newline-delimited file the workflow wrote, as trimmed non-empty lines.
+ *
+ * `missing` is the sentence to return when the file is not there at all. Pass
+ * it for a file whose ABSENCE is itself a finding (the lookup record) and omit
+ * it for one whose absence is ordinary (no run lacked a results JSON).
+ */
+export function readLines(path, { missing = null } = {}) {
+  if (!path || !existsSync(path)) return missing ? [missing] : []
+  try {
+    return readFileSync(path, 'utf8')
+      .split('\n')
+      .map((l) => l.trim())
+      .filter(Boolean)
+  } catch (err) {
+    return [`the file \`${path}\` could not be read (${err.message})`]
+  }
+}
+
+/**
  * Every `<runId>.json` the workflow managed to download, keyed by run id.
  *
  * A directory that does not exist is not the same as a directory with nothing
@@ -400,7 +493,23 @@ function main() {
   const artifactsFile = readJson(argValue('--artifacts'))
   const { reports, failed = [], why: reportsWhy } = readReports(argValue('--reports'))
 
-  const lookupFailures = []
+  // WHAT THE WORKFLOW ITSELF COULD NOT DO, in its own words.
+  //
+  // This is the second half of Sentinel's fail-open finding on #684. A `gh`
+  // call that died used to write `[]` — valid JSON, so `readJson` reported no
+  // problem and the digest printed a quiet clean week over evidence it never
+  // read. The workflow now appends a sentence per dead lookup instead, and
+  // this is where those sentences arrive.
+  //
+  // A MISSING FILE IS ITSELF A FAILURE. The workflow truncates it at the top
+  // of its first step, so an absent file means that step never ran — which is
+  // a run that cannot say whether its lookups succeeded, and therefore red.
+  const lookupFailures = readLines(argValue('--lookups'), {
+    missing:
+      'the workflow never wrote its lookup record, so this run cannot say whether its `gh` calls ' +
+      'succeeded. That file is created at the top of the first step; its absence means the step ' +
+      'did not run.',
+  })
   if (runsFile.why) lookupFailures.push(`the browser-run lookup produced nothing usable — ${runsFile.why}`)
   if (artifactsFile.why) lookupFailures.push(`the artifact lookup produced nothing usable — ${artifactsFile.why}`)
   if (reportsWhy) lookupFailures.push(`the downloaded reports were not there — ${reportsWhy}`)
@@ -409,6 +518,10 @@ function main() {
   const runsById = {}
   for (const r of runs) if (r?.databaseId != null) runsById[String(r.databaseId)] = r
 
+  // Runs whose artifact downloaded and carried no results JSON. NOT a hole —
+  // see `renderSummary`. Read before `unreadable` so it can be subtracted.
+  const noJson = readLines(argValue('--no-json'))
+
   // An artifact that EXISTS in the window and produced no local file is the
   // one real hole: every run that uploads one had already failed or flaked, so
   // these are exactly the runs with something to say.
@@ -416,9 +529,16 @@ function main() {
     .filter((a) => REPORT_ARTIFACTS.includes(a?.name))
     .map((a) => String(a?.runId ?? ''))
     .filter(Boolean)
-  const unreadable = [...new Set(expected.filter((id) => !(id in reports)))].concat(failed)
+  const accountedFor = new Set([...Object.keys(reports), ...noJson])
+  const unreadable = [...new Set(expected.filter((id) => !accountedFor.has(id)))].concat(failed)
 
-  const census = { runs: runs.length, reports: Object.keys(reports).length, unreadable }
+  const census = {
+    runs: runs.length,
+    reports: Object.keys(reports).length,
+    unreadable,
+    noJson,
+    truncated: truncatedLookups(runs, Number(argValue('--run-limit', '0'))),
+  }
   const specs = aggregate(reports, runsById)
   const graded = assess({ specs, census, lookupFailures })
   const summary = renderSummary(graded, census)

@@ -350,6 +350,48 @@ describe('the digest workflow cannot gate a merge', () => {
   })
 })
 
+describe('the digest is told the same limit it fetched with', () => {
+  // THE HALF THAT MAKES THE LIMIT A CHECK RATHER THAN A GUESS. Raising
+  // `RUN_LIMIT` without raising `--run-limit` leaves the truncation detector
+  // grading against a number the fetch no longer uses — it would then either
+  // cry wolf on every run or, in the dangerous direction, never fire again.
+  // `review-sweep.yml` carries the identical contract for `gh pr list`.
+  const fetched = /RUN_LIMIT:\s*'(\d+)'/.exec(digestSource)?.[1]
+  const told = /--run-limit\s+(\d+)/.exec(digestSource)?.[1]
+
+  it('declares a fetch limit and passes it to the script', () => {
+    expect(fetched, 'the fetch limit must be a declared value, not inline in the gh call').toBeTruthy()
+    expect(told, 'the script must be told the limit or it cannot detect truncation').toBeTruthy()
+  })
+
+  it('uses the same number in both places', () => {
+    expect(
+      told,
+      `the run list is fetched at --limit ${fetched} and the script is told ${told}. They are the ` +
+        'same number twice on purpose: the detector grades the count against what was actually ' +
+        'asked for, and a mismatch makes it either permanently red or permanently blind.',
+    ).toBe(fetched)
+  })
+
+  it('fetches enough for the measured window', () => {
+    // Measured 2026-09-23 over the real 8-day window: 423 ci.yml runs, 127
+    // post-merge-e2e, 9 nightly. It was 200, which kept the last ~4 days of
+    // ci.yml under a headline saying 8. This floor is a reminder that the
+    // number is measured rather than picked — the detector is what catches it
+    // being outgrown, and this is what stops it shipping already outgrown.
+    expect(Number(fetched)).toBeGreaterThan(423 * 2)
+  })
+
+  it('filters the run list server-side, so the limit is the only truncation signal', () => {
+    // `--created` is what makes the count-at-limit test valid: everything
+    // returned is inside the window by construction, so `windowGap`'s
+    // oldest-row comparison would prove nothing here. Drop this flag and the
+    // list is the newest N runs of all time, the window becomes a fiction, and
+    // the truncation check silently starts grading something else.
+    expect(digestSource).toMatch(/--created\s+"?>=/)
+  })
+})
+
 describe('the alarm actually raises the alarm', () => {
   // #593's lesson, applied before it costs anything: every assertion above
   // imports the classifier and none of them executed the script, so zeroing the
@@ -360,15 +402,25 @@ describe('the alarm actually raises the alarm', () => {
     artifacts?: unknown
     reports?: Record<string, unknown>
     omitRuns?: boolean
+    /** Lines the workflow wrote about lookups that died. `null` omits the file. */
+    lookups?: string[] | null
+    noJson?: string[]
+    runLimit?: number
   }) {
     const dir = mkdtempSync(join(tmpdir(), 'digest-'))
     const runsPath = join(dir, 'runs.json')
     const artifactsPath = join(dir, 'artifacts.json')
+    const lookupsPath = join(dir, 'lookup-failures.txt')
+    const noJsonPath = join(dir, 'no-json.txt')
     const reportsDir = join(dir, 'reports')
     mkdirSync(reportsDir)
 
     if (!opts.omitRuns) writeFileSync(runsPath, JSON.stringify(opts.runs ?? []))
     writeFileSync(artifactsPath, JSON.stringify(opts.artifacts ?? []))
+    // The workflow truncates this file at the top of its first step, so the
+    // DEFAULT here is an empty file — present and clean — not an absent one.
+    if (opts.lookups !== null) writeFileSync(lookupsPath, (opts.lookups ?? []).join('\n'))
+    writeFileSync(noJsonPath, (opts.noJson ?? []).join('\n'))
     for (const [id, value] of Object.entries(opts.reports ?? {})) {
       writeFileSync(join(reportsDir, `${id}.json`), JSON.stringify(value))
     }
@@ -380,6 +432,9 @@ describe('the alarm actually raises the alarm', () => {
         '--runs', runsPath,
         '--artifacts', artifactsPath,
         '--reports', reportsDir,
+        '--lookups', lookupsPath,
+        '--no-json', noJsonPath,
+        '--run-limit', String(opts.runLimit ?? 1000),
       ],
       { cwd: process.cwd(), encoding: 'utf8' },
     )
@@ -419,7 +474,7 @@ describe('the alarm actually raises the alarm', () => {
       runs: runs(9),
       artifacts: [{ name: 'playwright-report', runId: 999, expired: false }],
     })
-    expect(out).toMatch(/could not be read/)
+    expect(out).toMatch(/could not be DOWNLOADED/)
     expect(code, 'a week it could not read is not a week it cleared').toBe(1)
   })
 
@@ -432,6 +487,99 @@ describe('the alarm actually raises the alarm', () => {
   it('exits non-zero when the window contains no browser run at all', () => {
     const { code, out } = runDigest({ runs: [] })
     expect(out).toMatch(/no browser-suite run at all/)
+    expect(code).toBe(1)
+  })
+
+  it('exits non-zero when a run lookup came back AT its limit — the truncated denominator', () => {
+    // BLOCKING FINDING 1 ON #684, driven end to end. At `--limit 200` the real
+    // window's 423 `ci.yml` runs came back as 200, most-recent-first, and the
+    // artifact filter is built from that list — so every report belonging to a
+    // discarded run was dropped before the download step, nothing reached
+    // `unreadable`, and the digest exited 0 over the half it never looked at.
+    const atLimit = Array.from({ length: 50 }, (_, i) => ({
+      databaseId: 100 + i,
+      workflowName: 'CI',
+      workflowFile: 'ci.yml',
+      conclusion: 'success',
+    }))
+    const { code, out } = runDigest({ runs: atLimit, runLimit: 50 })
+
+    expect(out).toMatch(/TRUNCATED/)
+    expect(out).toContain('ci.yml')
+    expect(
+      code,
+      'a silently short denominator is the one outcome worse than no digest, because the whole ' +
+        'argument for this file is "a number instead of a hunch"',
+    ).toBe(1)
+  })
+
+  it('exits zero when the same list comes back short of its limit', () => {
+    // The other direction: the truncation check must not fire on an ordinary
+    // week, or it is a weekly red and nobody reads it.
+    const { code, out } = runDigest({ runs: runs(41), runLimit: 1000 })
+    expect(out).not.toMatch(/TRUNCATED/)
+    expect(code).toBe(0)
+  })
+
+  it('exits non-zero when a lookup died, even though it left valid JSON behind', () => {
+    // BLOCKING FINDING 2 ON #684, and the shape matters: the old workflow
+    // wrote `[]` on failure. `[]` is VALID JSON, so `readJson` reported no
+    // problem, `lookupFailures` stayed empty, `expected` was `[]`, `unreadable`
+    // was `[]`, and the run printed "No test needed a retry in any of the 0
+    // reports this week" and exited 0 — a quiet clean week over evidence it
+    // could not read, in the file whose header says it fails closed.
+    //
+    // The ringer previously only covered the artifacts file being MISSING,
+    // which is not the shape the `||` produced.
+    const { code, out } = runDigest({
+      runs: runs(41),
+      artifacts: [], // exactly what the old `|| echo '[]'` wrote
+      lookups: ['the artifact lookup failed (gh api exited non-zero)'],
+    })
+
+    expect(out).toMatch(/could not see/)
+    expect(out).toMatch(/gh api exited non-zero/)
+    expect(code, 'valid JSON from a dead lookup must not read as a clean week').toBe(1)
+  })
+
+  it('exits non-zero when the workflow never wrote its lookup record at all', () => {
+    // The file is created at the top of the first step, so its absence means
+    // that step did not run — a run that cannot say whether its lookups
+    // succeeded. Fail closed.
+    const { code, out } = runDigest({ runs: runs(41), lookups: null })
+    expect(out).toMatch(/never wrote its lookup record/)
+    expect(code).toBe(1)
+  })
+
+  it('names an artifact with no results JSON — and does NOT redden on it', () => {
+    // Sentinel's non-blocking note, and the classification is the point. The
+    // producers upload on `failure()`, which includes a run that died before
+    // playwright wrote its JSON. The artifact downloads fine and holds no test
+    // results, so nothing was lost and nothing could have been learned. Filing
+    // that as "could not be read" would redden this alarm most weeks.
+    const { code, out } = runDigest({
+      runs: runs(41),
+      artifacts: [{ name: 'playwright-report', runId: 777, expired: false }],
+      noJson: ['777'],
+    })
+
+    expect(out).toContain('777')
+    expect(out).toMatch(/no `e2e-results.json` inside/)
+    expect(out, 'it is not a hole, so it must not be filed as one').not.toMatch(/could not be DOWNLOADED/)
+    expect(code, 'a run that failed before playwright wrote anything is not a blind spot').toBe(0)
+  })
+
+  it('still reddens when an artifact was listed and simply did not arrive', () => {
+    // The distinction above must not swallow the real hole: an artifact the
+    // digest was told about, that is neither on disk nor on the no-json list,
+    // is evidence it could not read.
+    const { code, out } = runDigest({
+      runs: runs(41),
+      artifacts: [{ name: 'playwright-report', runId: 999, expired: false }],
+      noJson: ['777'],
+    })
+    expect(out).toMatch(/could not be DOWNLOADED/)
+    expect(out).toContain('999')
     expect(code).toBe(1)
   })
 
