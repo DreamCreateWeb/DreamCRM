@@ -3581,7 +3581,7 @@ the RTO/RPO numbers. · OPEN (owner).
 `_not yet run_`. Unchanged, and unchangeable from a development session —
 it needs AWS credentials for account `952078552817`.
 
-### Deliverable 3 — load sanity · BASELINE MEASURED
+### Deliverable 3 — load sanity · MEASURED BEFORE AND AFTER
 
 `scripts/load-sanity.mjs` (no dependencies, read-only paths only — a load
 script must never be able to fabricate bookings or send email) +
@@ -3608,18 +3608,82 @@ own `clinic_profile` select for eleven chrome columns on every page. Which
 reads deliberately stay uncached (the template-frame preview, the draft
 overlay, the trial verdict) is written down in `docs/LOAD-SANITY.md`.
 
-**The table in that doc is still the PRE-CACHE one.** Nothing has re-run the
-script since the change, so there is no measured "after" — recommendation 4
-("re-run after any change to public-site rendering") is owed a run.
+**THE AFTER-TABLE LANDED 2026-09-23 (DREAMCRM-117).** `bash
+scripts/e2e-harness.sh --load-sanity` is the new mode that made honouring
+recommendation 4 a command rather than a session: the harness already stands up
+Postgres, the migrations, the seeded live clinic and a production server on the
+exact port and slug `load-sanity.mjs` asks for, and now runs the measurement
+against them instead of the browser suite.
 
-Caveat written into the doc: these numbers are from the dev container and
-characterise the APPLICATION, not the prod t4g.micro's ceiling. A real ceiling
-needs a staging run on prod-shaped hardware before the marketing pivot. · OPEN
-(prod-shaped re-run).
+**What it says, and it is not what recommendation 1 promised.** The clinic site
+**stopped being the slowest public surface** — in both baseline tables it was
+the worst p50 and the lowest throughput; at concurrency 8 it is now faster than
+the marketing homepage and carries more throughput, and the slowest tail is the
+homepage (which agrees with `docs/MOBILE-WEIGHT.md` about the same page).
+**But the SATURATION is unchanged**, which was the finding the cache was picked
+to fix: 8 → 25 concurrency still buys the clinic site ~16% more throughput
+while p50 triples, against +19% and 2.7× in the baseline.
 
-**Re-verified 2026-09-23 (DREAMCRM-108).** `docs/LOAD-SANITY.md:20` still opens "**This table is PRE-CACHE.**"
-— nothing has re-run the script since the caching work landed, so both
-halves are still owed: the post-cache numbers and the prod-shaped ceiling.
+**And the reason is not the one the doc had been guessing.** Latency on a
+shared desktop is noisy, so the structural half was measured on an instrument
+the host cannot move: the throwaway cluster started with `log_statement=all`
+and the statements counted for one request. A warm request to
+`/site/e2e-dental` runs **eight** statements; the first one the server ever
+serves runs **eleven**; `/pricing`, the control, runs **zero**. The three the
+cache removes are exactly the three `lib/services/clinic-site-cache.ts` owns
+(the chrome join #654 added, the published `clinic_profile` row,
+`clinic_location`) — so #654's "zero uncached profile queries" holds exactly as
+written. The other eight are the slug→`organization` lookup, which sits in
+FRONT of the cache, plus six content-section reads (`blog_post`,
+`platform_review` twice, `clinic_review_config`, `membership_plan`,
+`job_posting`) whose churn is as low as the profile's. Recommendation 1 said
+"cache the public clinic site"; what landed cached the chrome of it, and the
+warm page is a full dynamic render with eight queries still under it.
+Recommendation 5 in that doc now carries the rest — six more reads through the
+same tag and the same invalidation points, which is more of the change that
+landed rather than a new design — and leaves full-route caching, which is a
+design change, in front of the owner.
+
+Measured on a different machine from the baseline (WSL2 Ubuntu on a Windows
+desktop, ~2× the dev container on the control rows), so every LATENCY claim is
+made against `/pricing` in its own table rather than against a raw millisecond
+in the other. Three passes per level, median with the spread, and the control
+rows act as an admissibility gate — passes taken while the host was at 100% CPU
+on unrelated work were discarded rather than averaged in. The statement counts
+need none of that care, which is why they carry the structural claim.
+· FIXED (the after-table).
+
+The prod-shaped-hardware run that used to share this verdict is **split out
+below on contact** (§1: one defect, one entry). It had to be: the weekly
+direction meeting (DREAMCRM-120, 2026-09-23) ranked the after-table as 1.0 work
+and the prod-shaped ceiling as not-1.0, and one entry cannot carry both.
+
+### The load numbers are the APPLICATION's, not the prod t4g.micro's (found 2026-08-18)
+
+Split from Deliverable 3 above on 2026-09-23 (DREAMCRM-117), which closed the
+other half of it.
+
+Every table in `docs/LOAD-SANITY.md` — the 2026-08-18 baseline and the
+2026-09-23 after-table alike — was taken on development hardware. They
+characterise the application (render cost, query shape, queueing); they do not
+predict the ceiling of the production t4g.micro, which has different CPU and
+memory and a network hop to RDS. Expect production to be WORSE, not better. A
+real ceiling needs `--base` pointed at a staging deploy on prod-shaped
+hardware, and it is worth having before the marketing pivot drives real traffic
+at `/site/[slug]`.
+
+· OPEN — **RANKED NOT 1.0 by the DREAMCRM-120 weekly direction meeting,
+2026-09-23.** The ranking is recorded rather than the item re-argued: standing
+up a staging deploy on prod-shaped hardware is a SPEND decision, not a
+development task, and it is in the DREAMCRM-120 owner brief as one. An item
+whose next step is the owner agreeing to pay for an instance cannot be
+scheduled as work.
+
+Note what the ranking is NOT: it is not `STRUCK BY DECISION`. §1 allows a
+strike only where the item is not genuinely a check, and this one names a
+number nobody has — the ceiling the product actually runs against. Its reopen
+condition is a real event (staging hardware exists), not "somebody decides it
+matters".
 
 ### Deliverable 3b — mobile weight, the CLIENT half · BASELINE MEASURED
 
@@ -5107,6 +5171,46 @@ all tracked source and docs — Forge intake on the day, and the
 `needs-forge-intake` label fires by path (`tests/guards/**` is on
 `INTAKE_RULES`). Sentinel review classified by running `gateFindings()` on the
 real file list rather than by guessing; see the PR.
+
+### The e2e harness measured a server it had not started (2026-09-23) · FIXED
+
+Found by DREAMCRM-117 while taking the post-cache load measurement, which is
+the only reason it was ever visible: two harness runs of the SAME build should
+not disagree, and they did.
+
+**The mechanism.** `scripts/e2e-harness.sh` starts the app with
+`pnpm start --port "$PORT" &` and keeps `$!`. That PID is `pnpm`, which spawns
+`next start`, which spawns the `next-server` that actually owns the socket.
+Teardown killed the first of those three. So a **completed** run left a server
+listening on :3100 — observed directly: `ss -lnt` showing `next-server` pid 771
+on :3100, 169 seconds old, while the following run's `next build` was already
+running.
+
+**Why nothing caught it.** The next run's `pnpm start` cannot bind, and the
+harness never reads that failure: its readiness probe is
+`curl -sf http://127.0.0.1:$PORT/api/health`, and **the stale server answers
+it**. The run walks past its own health check and drives playwright — or, here,
+a load measurement — against a build it did not make, with a Next in-memory
+cache the previous run had warmed, and a fresh throwaway database the stale
+server's pool silently reconnects to because it is on the same port with the
+same name. Every line of output looks like a clean run.
+
+The cost on CI is nil (the runner is discarded after one run) which is exactly
+why it survived; the cost locally is any back-to-back run, and the cost to this
+issue was an A/B comparison whose two arms were the same process.
+
+**Fixed, both halves.** Teardown walks the process tree (`kill_tree`, children
+first, via `pgrep -P`), and the run REFUSES to start when the port it needs is
+already serving something — bash's own `/dev/tcp`, so the check cannot pass by
+virtue of `lsof` not being installed. The refusal is the load-bearing half: a
+tree-kill that misses now ends the next run with a sentence instead of a wrong
+answer wearing a green exit code.
+
+**Red runs, on the real defect.** `tests/guards/e2e-harness-args.test.ts` binds
+an ephemeral port, points `E2E_PORT` at it and requires exit 2 — watched red
+with the refusal disabled. The teardown half is graded on the source, because
+the defect is a process-tree fact no argument can reach, and watched red with
+the bare `kill` restored.
 
 ## Part 6 — The post-1.0 backlog
 Moved to `docs/POST-1.0.md` (2026-08-17) — the full seeded inventory:
