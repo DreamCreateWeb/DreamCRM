@@ -1176,9 +1176,10 @@ function readLastGreen(path) {
  *   wakeAnchor?: { at: number | null, run: number | null, why: string | null } | null,
  *   lastGreen?: { at: number | null, run: number | null, why: string | null } | null,
  *   ping?: boolean,
+ *   bootstrapSince?: string,
  * }} args
  */
-export function wakeDecision({ intake, wakeAnchor, lastGreen = null, ping = false }) {
+export function wakeDecision({ intake, wakeAnchor, lastGreen = null, ping = false, bootstrapSince = INTAKE_SWEPT_SINCE }) {
   if (ping) {
     return {
       wake: true,
@@ -1218,7 +1219,51 @@ export function wakeDecision({ intake, wakeAnchor, lastGreen = null, ping = fals
     }
   }
 
-  if (!Number.isFinite(wakeAnchor?.at)) {
+  // THE BOOTSTRAP, CLOSED DELIBERATELY (DREAMCRM-115).
+  //
+  // THE DEADLOCK, because it is circular and therefore easy to read past. A
+  // run becomes the anchor by concluding its `Wake Forge` step `success`. On a
+  // morning with unsatisfied entries and no anchor, the step SUPPRESSES and
+  // exits non-zero — so the run does not become the anchor, and tomorrow is
+  // identical. The only escape is the intake queue going clean, which is the
+  // thing the wake exists to cause. **The wake cannot fire until the queue is
+  // clean, and the queue gets cleaned because the wake fired.**
+  //
+  // That is not theory. On 2026-09-23 this sweep held FOUR unsatisfied entries
+  // (#673, #677, #694, #697), no run in the history had a `Wake Forge` step at
+  // all — the step merged with #671 at 22:06Z, after the newest run — and
+  // Forge would never have been woken for any of them. The colour half had the
+  // same shape and escaped it by accident: a hand-dispatched ping on `main`
+  // (run `35776664807`, 19:53Z) happened to be green and became the last-green
+  // anchor. An instrument that needs an accident to start working is one that
+  // will need another one.
+  //
+  // THE CLOSURE, and why it is not "assume green". The `undated` suppression
+  // below is right when the lookup FAILED: with no anchor every entry reads as
+  // fresh, and one throttled API call would dispatch Forge over a queue he has
+  // already seen. It is wrong when the lookup SUCCEEDED and honestly found
+  // nothing, because that state has a knowable date — the obligation's own
+  // cut-off. No wake can be owed for a PR that merged before the label this
+  // half grades was being read, which is exactly what `INTAKE_SWEPT_SINCE`
+  // already says, argued in its own docblock.
+  //
+  // ITS BLAST RADIUS IS BOUNDED BY THE CHECK ABOVE, which is what makes
+  // reusing that constant safe rather than merely convenient. The
+  // `standing-only` branch has already dropped every entry older than the last
+  // GREEN run, so a bootstrap fallback arriving later in life — GitHub ages
+  // run history out after 90 days — can only ever wake for entries inside the
+  // last-green window. It cannot re-wake for a year of them.
+  //
+  // WHAT IT IS NOT: a way to be quiet. The bootstrap wake DELIVERS, and the
+  // run is red either way.
+  const bootstrapped =
+    !Number.isFinite(wakeAnchor?.at) && wakeAnchor?.bootstrap === true
+      ? { at: Date.parse(bootstrapSince), run: null, why: null }
+      : null
+
+  const anchor = Number.isFinite(wakeAnchor?.at) ? wakeAnchor : bootstrapped
+
+  if (!Number.isFinite(anchor?.at)) {
     return {
       wake: false,
       reason: 'undated',
@@ -1234,7 +1279,7 @@ export function wakeDecision({ intake, wakeAnchor, lastGreen = null, ping = fals
     }
   }
 
-  const fresh = newSince(candidates, wakeAnchor).fresh
+  const fresh = newSince(candidates, anchor).fresh
   if (!fresh.length) {
     return {
       wake: false,
@@ -1250,9 +1295,16 @@ export function wakeDecision({ intake, wakeAnchor, lastGreen = null, ping = fals
 
   return {
     wake: true,
-    reason: 'intake',
+    reason: bootstrapped ? 'intake-bootstrap' : 'intake',
     prs: fresh.map((p) => ({ number: p.number, title: p.title, url: p.url, mergedAt: p.mergedAt })),
-    why: `${fresh.length} PR(s) merged owing an intake since the last run that told Forge anything.`,
+    why: bootstrapped
+      ? `${fresh.length} PR(s) merged owing an intake since \`INTAKE_SWEPT_SINCE\` (${bootstrapSince}). ` +
+        'This is the FIRST wake: no previous run of this sweep is recorded as having told Forge ' +
+        'anything, and the lookup that established that came back complete. Measuring against the ' +
+        "obligation's own cut-off is exactly true — no wake can be owed for a PR that merged " +
+        'before the label was being read — and it is what stops this wire needing a clean queue ' +
+        'in order to ever fire. This run DOES advance the anchor, so tomorrow measures against it.'
+      : `${fresh.length} PR(s) merged owing an intake since the last run that told Forge anything.`,
     suppressed: null,
   }
 }
@@ -1326,7 +1378,12 @@ export function wokeForge(jobsPayload) {
  */
 export function previousRunAt(runs, selfRunId = null) {
   if (!Array.isArray(runs)) {
-    return { at: null, run: null, why: 'the run history was not a JSON array, so the lookup returned nothing usable' }
+    return {
+      at: null,
+      run: null,
+      empty: false,
+      why: 'the run history was not a JSON array, so the lookup returned nothing usable',
+    }
   }
   const self = selfRunId == null ? null : String(selfRunId)
   const others = runs
@@ -1338,13 +1395,21 @@ export function previousRunAt(runs, selfRunId = null) {
     return {
       at: null,
       run: null,
+      // EMPTY, which is a neutral FACT and deliberately not a verdict. An
+      // empty history means "no candidate this run examined woke Forge" and
+      // nothing more; whether that is the BOOTSTRAP or a lookup that came back
+      // short is a question this function cannot answer, because it never saw
+      // the lookup. `readPreviousRun` promotes `empty` to `bootstrap` only
+      // after the shell's own claim that the search was complete, so a caller
+      // holding a bare `previousRunAt` result can never bootstrap off it.
+      empty: true,
       why:
         'no previous run of this sweep, other than this one, is recorded as having told Forge ' +
         'anything — so there is nothing to measure "new since he was last told" against',
     }
   }
   const newest = others.reduce((a, b) => (b.at > a.at ? b : a))
-  return { at: newest.at, run: newest.id, why: null }
+  return { at: newest.at, run: newest.id, empty: false, why: null }
 }
 
 /**
@@ -1356,8 +1421,10 @@ export function previousRunAt(runs, selfRunId = null) {
  * both. That would silently restore the every-morning wake `previousRunAt`
  * exists to stop.
  */
-function readPreviousRun(path) {
-  if (!path) return { at: null, run: null, why: 'no previous-run history was supplied to this invocation' }
+function readPreviousRun(path, searchPath = null) {
+  if (!path) {
+    return { at: null, run: null, why: 'no previous-run history was supplied to this invocation' }
+  }
   if (!existsSync(path)) {
     return {
       at: null,
@@ -1365,11 +1432,36 @@ function readPreviousRun(path) {
       why: `the previous-run file \`${path}\` was not written — the \`gh run list\` step produced nothing`,
     }
   }
+  let anchor
   try {
-    return previousRunAt(JSON.parse(readFileSync(path, 'utf8')), process.env.GITHUB_RUN_ID ?? null)
+    anchor = previousRunAt(JSON.parse(readFileSync(path, 'utf8')), process.env.GITHUB_RUN_ID ?? null)
   } catch (err) {
     return { at: null, run: null, why: `the previous-run file \`${path}\` is not JSON (${err.message})` }
   }
+  if (!anchor.empty) return anchor
+
+  // AN EMPTY `last-run.json` HAS THREE CAUSES AND ONLY ONE OF THEM IS THE
+  // BOOTSTRAP. The workflow's loop writes nothing when no candidate woke — but
+  // it also writes nothing when `gh run list` failed, and it SKIPS a candidate
+  // whose `gh api …/jobs` lookup failed. A skipped candidate might have been
+  // the anchor, so "we looked at all of them and none woke" is a claim the
+  // shell has to make; this file may not infer it from an empty file.
+  //
+  // The claim arrives as `wake-anchor-search.json`. Anything less than a
+  // COMPLETE search demotes back to the undated suppression, which is what the
+  // whole of reason 3 above argues for.
+  const search = readJsonFile(searchPath)
+  if (!search.value || search.value.complete !== true) {
+    return {
+      at: null,
+      run: null,
+      why:
+        'no previous run is recorded as having told Forge anything, and this run could not ' +
+        `establish that it looked at all of them — ${search.why ?? 'the anchor search reported an incomplete lookup'}. ` +
+        'An incomplete search cannot be told apart from a bootstrap, so it is treated as the lookup failing.',
+    }
+  }
+  return { ...anchor, bootstrap: true, searched: search.value.searched ?? null }
 }
 
 /**
@@ -1464,7 +1556,7 @@ function main() {
   // comparator the guard test can drive with fixtures, offline.
   // The wake's own anchor — the previous RUN, not the last GREEN one. See
   // `previousRunAt` for why these are two questions and not one.
-  const wakeAnchor = readPreviousRun(argValue('--last-run'))
+  const wakeAnchor = readPreviousRun(argValue('--last-run'), argValue('--anchor-search'))
 
   const wake = wakeDecision({ intake, wakeAnchor, lastGreen, ping: process.argv.includes('--ping') })
   const wakePath = argValue('--wake-out')

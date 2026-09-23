@@ -911,6 +911,57 @@ So the two halves are split:
 - **the exit status** is keyed on the entries that merged after this sweep last
   went green.
 
+### The wake could not fire until the queue was clean (fixed 2026-09-23, DREAMCRM-115)
+
+Both anchors on this sweep had the same bootstrap problem, and it is circular
+enough to read past.
+
+A run becomes the WAKE's anchor by concluding its `Wake Forge` step `success`.
+On a morning with unsatisfied intake entries and no anchor, that step SUPPRESSES
+and exits non-zero — so the run does not become the anchor, and tomorrow is
+identical. The only escape was the intake queue going clean, which is the thing
+the wake exists to cause. **The wake could not fire until the queue was clean,
+and the queue got cleaned because the wake fired.**
+
+It was live, not theoretical. On 2026-09-23 the sweep held four unsatisfied
+entries (#673, #677, #694, #697) and **no run in its history had a `Wake Forge`
+step at all** — the step merged with #671 at 22:06:23Z, after the newest run.
+Forge would never have been woken for any of the four. The COLOUR half had the
+same shape and escaped by accident: a hand-dispatched ping on `main`
+(`35776664807`, 19:53:16Z) happened to be green and became the last-green
+anchor. An instrument that needs an accident to start working will need another
+one.
+
+**The closure, and the part that is not "assume green".** The `undated`
+suppression is right when the lookup FAILED — with no anchor every entry reads
+as fresh, and one throttled API call would dispatch Forge over a queue he has
+already seen. It is wrong when the lookup SUCCEEDED and honestly found nothing,
+because that state has a knowable date: `INTAKE_SWEPT_SINCE`, the obligation's
+own cut-off. No wake can be owed for a PR that merged before the label this half
+grades was being read.
+
+Two things make that safe rather than merely convenient:
+
+- **The two states are not distinguishable from the file, so the shell has to
+  claim it.** An empty `last-run.json` means "no candidate woke", "the list
+  lookup failed", or "a candidate was SKIPPED because its jobs lookup failed" —
+  and a skipped candidate might have been the anchor. The workflow now writes
+  `wake-anchor-search.json` (`{"complete":…,"searched":…}`), every failure path
+  sets `complete` false, and the script refuses to bootstrap without it.
+  `previousRunAt` reports the neutral fact `empty`; only `readPreviousRun` may
+  promote that to `bootstrap`, after reading the claim.
+- **The blast radius is bounded by the check above it.** The `standing-only`
+  branch has already dropped every entry older than the last GREEN run, so a
+  bootstrap arriving later in life — GitHub ages run history out after 90 days —
+  can only reach entries inside the last-green window. It cannot re-wake for a
+  year of them.
+
+Verified against the real 2026-09-23 inputs before merging: the comparator run
+offline against that morning's `gh pr list` output wakes for all four entries
+(`intake-bootstrap`) instead of suppressing, and all three degraded-lookup paths
+— incomplete search, missing claim file, unparseable claim file — still
+suppress.
+
 ### What that buys, and what it does not (Sentinel, reviewing #643)
 
 **A red run does not advance the last-green instant.** So an unremediated entry
