@@ -72,6 +72,15 @@ import { ROOT } from './palette'
  * batch; they are not worth pretending this rule already covers them. The
  * assertion under "the staff tree is deferred, not forgotten" holds that count
  * so the deferral cannot quietly become a pardon.
+ *
+ * **ONE THING INSIDE THE POPULATION IS NOT A PHASE MACHINE EITHER**, and the
+ * census sentence should not be read as claiming otherwise (Sentinel's note 2):
+ * `intake-form-runner.tsx`'s `lang ('en' | 'es')` is a language segment
+ * selection — the same idiom the staff-tree deferral excludes BY ARGUMENT
+ * rather than by predicate, because the predicate cannot tell a segment from a
+ * lifecycle. It is in scope, and it passes only because its file carries an
+ * instrument for something else. False-POSITIVE direction, so it costs nothing
+ * but an inaccurate sentence if nobody says this out loud.
  */
 const PATIENT_ROOTS = [
   'app/(portal)',
@@ -572,6 +581,13 @@ describe('the derivation — what it catches and what it leaves alone', () => {
  * graded by rendering, one component at a time, for the ones that have earned
  * a test. A count is not a substitute for either.
  *
+ * **AND THE FOCUS HALF IS FILE-LEVEL IN THE SAME WAY** (Sentinel's note 3),
+ * said here so nobody reads it as the stricter of the two: `FOCUS_MOVE` is a
+ * search for `tabIndex={-1}` anywhere in the file. A skip target, a decorative
+ * wrapper or a modal's own focus anchor buys the pass exactly as an unrelated
+ * `role="alert"` does. Both halves of the predicate answer "is there an
+ * instrument in this file", and neither answers "does it fire on the phase".
+ *
  * Making it phase-aware statically was tried and dropped: the announcement is
  * usually a `const liveStatus = …` the region reads, so the check would have
  * to follow an identifier into its definition and back, guess where a JSX
@@ -598,12 +614,56 @@ describe('every patient-facing phase machine carries an announcement instrument'
     }
   })
 
+  /**
+   * THE CENSUS IS AN ASSERTION, because the last one was prose and the prose
+   * was wrong (Sentinel, reviewing #705).
+   *
+   * Three records — `docs/RELEASE.md`, this file, and the `review-gate.mjs`
+   * intake comment the rulebook entry gets written from — carried a
+   * hand-counted population, and re-running the derivation returned a
+   * different number than all three. One of them said **15 files**, which is
+   * exactly the pre-alias count this file's own docblock identifies as wrong:
+   * the paragraph written to correct a hand-carried count carried the count it
+   * was correcting. That is this PR's whole thesis failing on its own author.
+   *
+   * So the numbers live here, where re-deriving them is what the suite does.
+   * A record that disagrees with this test is a record that is wrong, and the
+   * SPLIT is asserted rather than the total alone — a total can stay right
+   * while the eyes narrow on one spelling and widen on another.
+   */
+  it('pins the census the three prose records quote', () => {
+    const { all, pardoned } = scanForSilentPhases()
+    const files = new Set(all.map((m) => m.file)).size
+    const inline = all.filter((m) => m.via === 'inline')
+    const alias = all.filter((m) => m.via.startsWith('type '))
+
+    expect(
+      { machines: all.length, files, inline: inline.length, alias: alias.length, pardoned: pardoned.length },
+      'the derived census moved. Re-derive every number quoting it — ' +
+        'docs/RELEASE.md, this file, and the blocking-assertions entry in ' +
+        'scripts/review-gate.mjs — rather than patching this assertion to ' +
+        'match. They are the same measurement written down three times.',
+    ).toEqual({ machines: 19, files: 18, inline: 15, alias: 4, pardoned: 1 })
+  })
+
   it('has a population to look at (the derivation is not narrowed to nothing)', () => {
     // An absence assertion only ever gets GREENER as its field of view shrinks,
-    // so the count is asserted directly. 18 machines across 16 files when this
-    // was written; the floor is what stops a broken regex reporting clean.
+    // so the count is asserted directly.
+    //
+    // THE FLOOR USED TO BE 15 AND WAS DOING NO WORK (Sentinel's note 1):
+    // 15 is exactly what a derivation with the alias resolution REMOVED
+    // returns, so the assertion meant to notice a narrowed field of view sat
+    // green through the narrowing that mattered most. The alias half carries
+    // its own floor now, keyed on `via` rather than on a total the inline half
+    // can satisfy alone.
     const { all } = scanForSilentPhases()
-    expect(all.length, 'phase machines derived from the patient-facing tree').toBeGreaterThanOrEqual(15)
+    expect(all.length, 'phase machines derived from the patient-facing tree').toBeGreaterThanOrEqual(18)
+    expect(
+      all.filter((m) => m.via.startsWith('type ')).length,
+      'machines resolved through a local type alias — remove the alias ' +
+        'resolution and this is the assertion that reddens, which the total ' +
+        'alone did not',
+    ).toBeGreaterThanOrEqual(4)
     const files = all.map((m) => m.file)
     // The four the Part 5 entry and its re-derivation name, pinned so a
     // narrowing cannot drop them silently.

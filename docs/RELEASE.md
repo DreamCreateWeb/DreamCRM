@@ -1999,8 +1999,19 @@ is on screen under its own state machine and speaks nothing* — was
 measured across the whole patient-facing tree rather than taken at the
 entry's word, by deriving every client component whose `useState` is
 annotated with a union of two or more string literals. That population is
-**15 files**, and the measurement corrected the hand-named list in BOTH
-directions:
+**19 machines across 18 files** — re-derived by running the rule's own
+`scanForSilentPhases()` against a clean checkout, and pinned by an assertion
+in the guard so this paragraph cannot drift from it again. **Five of the
+nineteen, across four files, carried no announcement instrument at all** at
+`66d087dc`, the commit this work started from.
+
+(The first draft of this paragraph said *15 files*, which is exactly the
+pre-alias count the guard's own docblock identifies as wrong. A ledger entry
+written to correct a hand-carried count carried the count it was correcting;
+Sentinel caught it by re-running the derivation. It is an assertion now for
+that reason and not a tidier one.)
+
+The measurement corrected the hand-named list in BOTH directions:
 
 - **`visit-card.tsx` was on the list and does not belong on it.** It has
   carried a live region since R2 Slice 6 — `role={message.kind === 'ok'

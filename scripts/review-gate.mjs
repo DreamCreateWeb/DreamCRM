@@ -998,8 +998,16 @@ export const INTAKE_RULES = [
       // `components/clinic-site` or a token landing page fails `test` by file,
       // line and variable name unless the component announces. That is the
       // ordinary way a public form, a portal card or a booking flow gets
-      // built, so the catchment is wide — 18 machines across 16 files the day
-      // it landed, six of which were genuinely silent.
+      // built, so the catchment is wide — 19 machines across 18 files the day
+      // it landed (15 written inline, 4 through a local type alias), of which
+      // FIVE across four files carried no announcement instrument at all.
+      //
+      // Those numbers are derived rather than carried: the guard asserts the
+      // census itself, so this comment and the `docs/RELEASE.md` entry cannot
+      // drift from the tree without a red run. The first draft of all three
+      // records disagreed with the derivation and with each other — which is
+      // the defect this whole registration is about, committed by its own
+      // author and caught by re-running the rule.
       //
       // IT IS HERE ON THE MERITS, not merely because it imports `palette.ts`
       // for `ROOT`: it changes what every patient-facing PR can merge. The

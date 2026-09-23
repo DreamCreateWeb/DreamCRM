@@ -124,7 +124,12 @@ function ActionPill({
       onClick={onClick}
       disabled={disabled}
       aria-expanded={expanded}
-      aria-controls={expanded === undefined ? undefined : controls}
+      // Only while the panel is actually in the DOM. `aria-controls` pointing
+      // at an id that does not exist is widely tolerated and widely ignored,
+      // but it is still a dangling reference, and the disclosure contract is
+      // carried by `aria-expanded` either way. Omitting it when collapsed is
+      // valid; pointing it at nothing is not (Sentinel's note 4, #705).
+      aria-controls={expanded ? controls : undefined}
     >
       {children}
     </button>
