@@ -234,8 +234,8 @@ workflow, and update it in the same PR rather than restating it here.
 ## The machinery guards this rulebook had never named
 
 *Forge's intake, 2026-09-23 (DREAMCRM-114), and the reason the guards census in
-§2 exists.* Measured on `main` at `66d087dc`: `tests/guards/` held 31 files and
-this document named 20 of them by their own file name. **The eleven below could
+§2 exists.* Measured on `main` at `66d087dc`: `tests/guards/` held 34 files and
+this document named 23 of them by their own file name. **The eleven below could
 each fail a stranger's PR and none of them appeared anywhere in the rulebook.**
 Three had been quietly miscounted as present because a SCRIPT or a workflow of
 the same stem was named — `migration-check` is the live example, where
