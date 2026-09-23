@@ -2134,3 +2134,231 @@ describe('what could blind this sweep from outside', () => {
     ).toContain('Forge')
   })
 })
+
+/**
+ * THE WAKE'S BOOTSTRAP DEADLOCK, CLOSED DELIBERATELY (DREAMCRM-115).
+ *
+ * THE DEADLOCK IS CIRCULAR, which is why it survived review twice. A run
+ * becomes the wake's anchor by concluding its `Wake Forge` step `success`. On a
+ * morning with unsatisfied intake entries and no anchor, that step SUPPRESSES
+ * and exits non-zero — so the run does not become the anchor, and tomorrow is
+ * identical. The only escape is the intake queue going clean, which is the
+ * thing the wake exists to cause. **The wake cannot fire until the queue is
+ * clean, and the queue gets cleaned because the wake fired.**
+ *
+ * It was live, not theoretical. On 2026-09-23 this sweep held four unsatisfied
+ * entries (#673, #677, #694, #697) and no run in its history had a `Wake Forge`
+ * step at all — the step merged with #671 at 22:06:23Z, after the newest run.
+ * Forge would never have been woken for any of them. The COLOUR half had the
+ * same shape and escaped by accident: a hand-dispatched ping on `main`
+ * (`35776664807`, 19:53:16Z) happened to be green and became the last-green
+ * anchor. An instrument that needs an accident to start working will need
+ * another one.
+ *
+ * THE CLOSURE, and the three properties it has to keep:
+ *
+ *   1. IT MUST NOT WEAKEN THE `undated` SUPPRESSION. That branch is right when
+ *      the lookup FAILED: with no anchor every entry reads as fresh, and one
+ *      throttled API call would dispatch Forge over a queue he has already
+ *      seen. It is wrong only when the lookup SUCCEEDED and honestly found
+ *      nothing — a state with a knowable date.
+ *   2. THE TWO ARE NOT DISTINGUISHABLE FROM THE FILE. An empty `last-run.json`
+ *      means "no candidate woke", "the list lookup failed", OR "a candidate was
+ *      skipped because its jobs lookup failed" — and a skipped candidate might
+ *      have been the anchor. So the shell makes an explicit claim
+ *      (`wake-anchor-search.json`), and the script refuses to bootstrap without
+ *      it. `previousRunAt` reports the neutral fact `empty`; only
+ *      `readPreviousRun` may promote that to `bootstrap`.
+ *   3. THE DATE IS ARGUED, NOT PICKED. `INTAKE_SWEPT_SINCE` is the obligation's
+ *      own cut-off: no wake can be owed for a PR that merged before the label
+ *      this half grades was being read. And the `standing-only` check runs
+ *      FIRST, so a bootstrap arriving later in life — GitHub ages run history
+ *      out after 90 days — can only reach entries inside the last-green window.
+ */
+describe('the wake bootstrap — an alarm must not need an accident to start working', () => {
+  const owing = (number: number, mergedAt: string) => ({
+    number,
+    title: `DREAMCRM-000: ${number}`,
+    url: `https://github.com/DreamCreateWeb/DreamCRM/pull/${number}`,
+    mergedAt,
+  })
+
+  // The real state of this sweep on the morning the deadlock was found.
+  const intake = {
+    unsatisfied: [
+      owing(697, '2026-09-23T04:47:55Z'),
+      owing(694, '2026-09-23T04:03:10Z'),
+      owing(677, '2026-09-22T22:35:45Z'),
+      owing(673, '2026-09-22T21:50:09Z'),
+    ],
+  }
+  const lastGreen = { at: Date.parse('2026-09-22T19:53:16Z'), run: 35776664807, why: null }
+  const verifiedBootstrap = {
+    at: null,
+    run: null,
+    bootstrap: true,
+    why: 'no previous run of this sweep is recorded as having told Forge anything',
+  }
+
+  it('the FIRST wake fires instead of suppressing forever', () => {
+    const d = wakeDecision({ intake, wakeAnchor: verifiedBootstrap, lastGreen })
+    expect(d.wake).toBe(true)
+    expect(d.reason).toBe('intake-bootstrap')
+    expect(d.prs.map((p: { number: number }) => p.number).sort()).toEqual([673, 677, 694, 697])
+    expect(d.suppressed).toBe(null)
+  })
+
+  it('it measures against the intake cut-off, which is a date with an argument behind it', () => {
+    expect(wakeDecision({ intake, wakeAnchor: verifiedBootstrap, lastGreen }).why).toContain(
+      INTAKE_SWEPT_SINCE,
+    )
+    // Anything merged before that cut-off cannot owe a wake, because the label
+    // was not being read yet. Same sentence `INTAKE_SWEPT_SINCE` already makes.
+    const old = { unsatisfied: [owing(500, '2026-09-21T00:00:00Z')] }
+    const d = wakeDecision({ intake: old, wakeAnchor: verifiedBootstrap, lastGreen: null })
+    expect(d.wake).toBe(false)
+  })
+
+  it('a LOOKUP FAILURE still suppresses — the closure must not weaken that', () => {
+    // The whole reason the `undated` branch exists: with no anchor every entry
+    // reads as fresh, and dispatching Forge over a queue he has already seen is
+    // how the wire loses the credibility it needs.
+    const failed = { at: null, run: null, why: 'the run history was not a JSON array' }
+    const d = wakeDecision({ intake, wakeAnchor: failed, lastGreen })
+    expect(d.wake).toBe(false)
+    expect(d.reason).toBe('undated')
+    expect(d.suppressed).toBeTruthy()
+  })
+
+  it('an UNVERIFIED empty history cannot bootstrap', () => {
+    // `previousRunAt` reports `empty`, which is a fact about the rows it was
+    // handed. It is NOT the bootstrap, because it says nothing about whether
+    // the lookup that produced those rows came back complete. A caller holding
+    // a bare result must fall through to the suppression.
+    const bare = previousRunAt([], null)
+    expect(bare.empty).toBe(true)
+    expect((bare as { bootstrap?: boolean }).bootstrap).toBeUndefined()
+    expect(wakeDecision({ intake, wakeAnchor: bare, lastGreen }).reason).toBe('undated')
+  })
+
+  it('a real anchor still beats the bootstrap', () => {
+    // Once one run has told Forge something, the bootstrap is never consulted
+    // again — otherwise a queue he has already seen would re-wake him every
+    // morning, which is the paid version of an alarm nobody reads.
+    const anchored = { at: Date.parse('2026-09-23T04:20:00Z'), run: 1, why: null }
+    const d = wakeDecision({ intake, wakeAnchor: anchored, lastGreen })
+    expect(d.reason).toBe('intake')
+    // Only #697 (04:47Z) is newer than that anchor. The other three were
+    // already in the wake he was last sent.
+    expect(d.prs.map((p: { number: number }) => p.number)).toEqual([697])
+  })
+
+  it('a clean queue never bootstraps a wake into existence', () => {
+    expect(wakeDecision({ intake: { unsatisfied: [] }, wakeAnchor: verifiedBootstrap, lastGreen }).wake).toBe(
+      false,
+    )
+  })
+
+  it('the `standing-only` check runs FIRST, which is what bounds the blast radius', () => {
+    // This is why reusing `INTAKE_SWEPT_SINCE` is safe rather than merely
+    // convenient. If run history ages out in a year's time and the anchor
+    // falls back to the bootstrap, it still cannot reach an entry older than
+    // the last GREEN run — that branch has already dropped it.
+    const stale = { unsatisfied: [owing(400, '2026-09-22T10:00:00Z')] }
+    const d = wakeDecision({ intake: stale, wakeAnchor: verifiedBootstrap, lastGreen })
+    expect(d.wake).toBe(false)
+    expect(d.reason).toBe('standing-only')
+  })
+})
+
+describe('the wake bootstrap — only a COMPLETE search may promote `empty` to `bootstrap`', () => {
+  function withFiles(lastRun: string, search: string | null) {
+    const dir = mkdtempSync(join(tmpdir(), 'sweep-bootstrap-'))
+    writeFileSync(join(dir, 'last-run.json'), lastRun)
+    if (search !== null) writeFileSync(join(dir, 'search.json'), search)
+    writeFileSync(
+      join(dir, 'prs.json'),
+      JSON.stringify([
+        {
+          number: 999,
+          title: 'DREAMCRM-000: owing an intake',
+          url: 'https://github.com/DreamCreateWeb/DreamCRM/pull/999',
+          mergedAt: '2026-09-23T04:00:00Z',
+          author: { login: 'DreamCreateWeb' },
+          labels: [{ name: 'needs-forge-intake' }],
+          comments: [],
+          reviews: [],
+        },
+      ]),
+    )
+    writeFileSync(join(dir, 'green.json'), '[]')
+    spawnSync(
+      process.execPath,
+      [
+        join(process.cwd(), 'scripts/review-sweep.mjs'),
+        '--prs',
+        'prs.json',
+        '--limit',
+        '500',
+        '--last-green',
+        'green.json',
+        '--last-run',
+        'last-run.json',
+        '--anchor-search',
+        'search.json',
+        '--wake-out',
+        'wake.json',
+      ],
+      { cwd: dir, encoding: 'utf8' },
+    )
+    return JSON.parse(readFileSync(join(dir, 'wake.json'), 'utf8'))
+  }
+
+  it('a complete search bootstraps', () => {
+    expect(withFiles('[]', '{"complete":true,"searched":8}').reason).toBe('intake-bootstrap')
+  })
+
+  it('an INCOMPLETE search does not — a skipped candidate might have been the anchor', () => {
+    expect(withFiles('[]', '{"complete":false,"searched":3}').reason).toBe('undated')
+  })
+
+  it('a MISSING claim file does not', () => {
+    expect(withFiles('[]', null).reason).toBe('undated')
+  })
+
+  it('an unparseable claim file does not', () => {
+    expect(withFiles('[]', 'not json').reason).toBe('undated')
+  })
+})
+
+describe('the wake bootstrap — the workflow makes the claim the script requires', () => {
+  const sweepCode = () =>
+    readFileSync(join(process.cwd(), '.github/workflows/review-sweep.yml'), 'utf8')
+      .split('\n')
+      .filter((l) => !/^\s*#/.test(l))
+      .join('\n')
+
+  it('writes the claim and hands it to the comparator', () => {
+    const code = sweepCode()
+    expect(code).toContain('wake-anchor-search.json')
+    const line = code.split('\n').find((l) => l.includes('scripts/review-sweep.mjs --prs'))
+    expect(line, 'the comparator invocation stays one line — see the step comment').toBeTruthy()
+    expect(line).toContain('--anchor-search wake-anchor-search.json')
+  })
+
+  it('every way the search can come back short sets the claim FALSE', () => {
+    // Three of them, and all three are reachable: the list lookup failing, a
+    // candidate's jobs lookup failing, and the loop never running. The claim
+    // may only be true after a pass that examined every candidate.
+    const code = sweepCode()
+    const falses = code.match(/COMPLETE=false/g) ?? []
+    expect(
+      falses.length,
+      'both the `gh run list` fallback and the skipped-candidate branch must poison the claim; ' +
+        'a skipped candidate is exactly the one that might have been the anchor.',
+    ).toBeGreaterThanOrEqual(2)
+    // And it is the SKIP that sets it, not a bare `|| continue` that loses the
+    // fact — the shape this whole guard exists to refuse.
+    expect(code).not.toMatch(/actions\/runs\/\$\{ID\}\/jobs.*\|\| continue/)
+  })
+})
