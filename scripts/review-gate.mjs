@@ -1103,12 +1103,23 @@ export const CLASSIFIER_ACTOR = 'github-actions[bot]'
  * that touches THIS label; the removal is allowed only if that event is a
  * `labeled` by `CLASSIFIER_ACTOR`.
  *
- * FAIL CLOSED, EVERYWHERE. Every way this can be uncertain — a timeline that
- * would not parse, a timestamp that would not order, an event with no actor, an
- * API call that returned nothing — returns `remove: false`. The two errors are
- * not symmetrical and it is not close: keeping a label that should have come
- * off costs one question in tomorrow's sweep, and removing one that should have
+ * FAIL CLOSED. Every way this can be uncertain — a timeline that would not
+ * parse, a timestamp that would not order, an event with no actor, an API call
+ * that returned nothing — returns `remove: false`. The two errors are not
+ * symmetrical and it is not close: keeping a label that should have come off
+ * costs one question in tomorrow's sweep, and removing one that should have
  * stayed costs the review this whole apparatus exists to guarantee.
+ *
+ * THE FIFTH UNCERTAINTY IS NOT IN THIS FILE, and saying "everywhere" here once
+ * hid it (Sentinel, reviewing #716). `gh api --paginate` streams each page to
+ * the file as it arrives, so a fetch that dies partway leaves JSONL that is
+ * well-formed and silently truncated — and that endpoint is ordered
+ * oldest-first, so the pages most likely to be lost are the recent ones, which
+ * is exactly where a hand-added label lives. Nothing below can see that: a
+ * truncated timeline and a complete one are the same input. Only the fetch
+ * knows it failed, so the workflow discards the file on failure and this reads
+ * the empty result as unreadable. If you ever move this reader somewhere that
+ * fetches for itself, that obligation moves with it.
  *
  * Fed the `labeled`/`unlabeled` entries of
  * `GET /repos/{owner}/{repo}/issues/{n}/events`. Returns

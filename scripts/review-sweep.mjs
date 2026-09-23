@@ -220,6 +220,16 @@
  *     "removed to duck the question" — from this side the two are the same
  *     API call, and an alarm that guesses between them spends the credibility
  *     it is here to hold.
+ *     AND ITS QUIETER TWIN, which is a consequence of the fix rather than a
+ *     leftover of the defect (Sentinel, reviewing #716): A PERSON WHO AGREES
+ *     WITH A BOT-APPLIED LABEL HAS NO WAY TO SAY SO. The rule above reads the
+ *     last `labeled` event, and agreement leaves no event to read — the label
+ *     is already on, so there is nothing to re-apply, and a later push that
+ *     drops the risky file takes it off under the fix's own rule. The human
+ *     judgement that the review is owed ANYWAY, for a reason the paths never
+ *     carried, is the one position this machinery still cannot record. The
+ *     answer is not a cleverer reading of the timeline: say it in a comment on
+ *     the PR and in the mention, which are the channels a push cannot rewrite.
  *   * A verdict or intake comment somebody typed without a review or a routing
  *     behind it.
  *   * A STANDING QUEUE LONGER THAN GITHUB WILL ANNOTATE. Every unremediated

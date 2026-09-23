@@ -1643,6 +1643,42 @@ describe('the workflow asks before it removes', () => {
     expect(wf).toContain('gh api --paginate')
   })
 
+  it('throws away a PARTIAL timeline rather than reading it', () => {
+    // Sentinel, reviewing #716: the fifth way this can be uncertain, and the
+    // only one that failed OPEN. `gh api --paginate` streams each page to the
+    // file as it arrives, so a call that dies partway leaves VALID JSONL that
+    // is silently truncated — and that endpoint is ordered oldest-first, so the
+    // pages most likely to be lost are the recent ones, which is exactly where
+    // a hand-added label lives. `parseLabelEvents` physically cannot tell that
+    // file from a complete one; only the fetch knows it failed, so only the
+    // fetch can throw it away.
+    //
+    // Fed #710's real events with the hand-add's page removed, the CLI printed
+    // REMOVE and exited 0 — DREAMCRM-130 again, green the whole way.
+    const fetchStep = (() => {
+      const start = wf.indexOf('- name: Who applied the labels')
+      if (start === -1) return null
+      const next = wf.indexOf('- name:', start + 1)
+      return wf.slice(start, next === -1 ? undefined : next)
+    })()
+
+    expect(fetchStep, 'review-gate.yml no longer has a step that fetches the label timeline').not.toBeNull()
+
+    const timeline = helperBody?.match(/--label-authorship "\$1" (\S+);/)?.[1]
+    expect(
+      fetchStep,
+      'The timeline fetch must be guarded (`if ! gh api …`), not a bare redirect: a bare one ' +
+        'leaves a truncated-but-well-formed file behind when it dies mid-pagination, and the ' +
+        'reader accepts it as the whole story (#716, Sentinel).',
+    ).toMatch(/if ! gh api --paginate/)
+    expect(
+      fetchStep,
+      `On that failure path the step must truncate ${timeline} to empty — the ONE input ` +
+        'parseLabelEvents reads as unreadable rather than as "no events", which is what makes ' +
+        'this fail closed like the other four.',
+    ).toContain(`: > ${timeline}`)
+  })
+
   it('keeps the token scope the timeline fetch needs', () => {
     // The timeline lives on the ISSUES side of the API even for a PR. Trim
     // `issues: read` and `gh api` 404s — at which point the reader fails closed

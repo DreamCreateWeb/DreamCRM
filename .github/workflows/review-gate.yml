@@ -114,7 +114,20 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           EVENTS: repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/events
         run: |
-          gh api --paginate --jq '.[]' "$EVENTS" > label-events.jsonl
+          # A PARTIAL FETCH IS NOT A SHORT ANSWER, IT IS NO ANSWER (Sentinel,
+          # reviewing #716 — the fifth uncertainty, and the only one that failed
+          # OPEN). `--paginate` streams each page to the file AS IT ARRIVES, so
+          # a call that dies partway leaves behind JSONL that is perfectly
+          # well-formed and silently truncated. The reader cannot tell it from a
+          # complete one — and because this endpoint is ordered oldest-first,
+          # the pages most likely to be lost are the RECENT ones, which is
+          # exactly where a hand-added label lives. So the reader must never see
+          # it: discard the file, because empty is the one input
+          # `parseLabelEvents` reads as unreadable rather than as "no events".
+          if ! gh api --paginate --jq '.[]' "$EVENTS" > label-events.jsonl; then
+            echo "::warning title=Label timeline fetch failed::Discarded a possibly-partial timeline. No gate label will be removed on this run."
+            : > label-events.jsonl
+          fi
 
       # Advisory means advisory: a label that fails to apply (a permissions
       # change, a GitHub hiccup) must not paint this run red and teach people
