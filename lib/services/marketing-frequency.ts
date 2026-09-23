@@ -87,6 +87,29 @@ function keyMatch(ids: string[], emails: string[]) {
  * Partition recipients into those still under the cap and those already at
  * it. Org-scoped via the campaigns join (campaign_events has no org column
  * of its own). One grouped query regardless of list size.
+ *
+ * THIS QUERY HAS BEEN MEASURED — do not add an index to `campaign_events` for
+ * it without reading `docs/FREQUENCY-CAP-MEASUREMENT.md` first (DREAMCRM-123,
+ * RELEASE.md Part 5 `:1840`, STRUCK BY DECISION 2026-09-23).
+ *
+ * The obvious read of the statement below is that it filters on `patient_id`
+ * and `occurred_at` while every index on the table leads with `campaign_id`,
+ * so it must be scanning. It is not. The `innerJoin` on `campaigns` scopes the
+ * org, and it also HANDS the planner campaign ids — so
+ * `campaign_events_campaign_patient_type_idx` serves this, and Postgres picks
+ * it at every row count that was tried. At 4,000,000 events the worst median
+ * under EXPLAIN (ANALYZE, BUFFERS) is 5.3 ms.
+ *
+ * The two partial indexes that were priced against it LOSE: they help a small
+ * recipient list, hurt a large one, and cost +24.8 ms of write amplification
+ * on a 2,000-recipient send — because this query runs ONCE per send while
+ * `campaign_events` takes one INSERT per RECIPIENT. The document names the
+ * three conditions that reopen the question.
+ *
+ * `scripts/frequency-cap-explain.ts` re-takes the measurement, and
+ * `tests/marketing/frequency-cap-explain-parity.test.ts` is what keeps it
+ * about THIS statement: it fails if the script's rendering and this one drift
+ * by a single byte.
  */
 export async function partitionByFrequencyCap<R extends CapKeyed>(
   organizationId: string,

@@ -1888,11 +1888,37 @@ clinic, none breaking at the current one-beta-clinic scale.
   "(512) 555-9117" still matches "9117".
 - S2 · `campaign_events` frequency-cap query filters by `patientId`/`recipientEmail`
   but every index is `campaignId`-leading — a partial index
-  `(patientId, occurredAt) where type='sent'` if it shows in slow logs. · OPEN.
-  **Re-verified 2026-09-23 (DREAMCRM-108).** Every `campaign_events` index is still `campaign_id`-leading
-  (`0010`, `0021`, `0098`, plus `0145`'s provider-message lookup); no
-  `(patient_id, occurred_at) where type='sent'` partial index exists. The
-  entry's own trigger — "if it shows in slow logs" — has not fired.
+  `(patientId, occurredAt) where type='sent'` if it shows in slow logs. ·
+  **STRUCK BY DECISION 2026-09-23 (DREAMCRM-123).** The entry could not end a
+  week under any verdict — "if it shows in slow logs" cannot fire until
+  DREAMCRM-42 lands — so the query was MEASURED instead, and the measurement
+  says the fix is worse than the defect. Evidence, the instrument and the full
+  plans: `docs/FREQUENCY-CAP-MEASUREMENT.md`; re-take it with
+  `scripts/frequency-cap-explain.ts` against a throwaway Postgres.
+  The three findings, all gathered before the strike:
+  (a) the premise is wrong — the query is NOT a sequential scan and never was.
+  It joins `campaigns` to scope the org, that join hands the planner campaign
+  ids, and Postgres uses `campaign_events_campaign_patient_type_idx` at every
+  row count measured.
+  (b) it is fast — at 4,000,000 rows (40 clinics × ~100k events; there is one
+  beta clinic today) the worst median is **5.3 ms** under
+  `EXPLAIN (ANALYZE, BUFFERS)`.
+  (c) the proposed indexes LOSE. They help a 100-recipient list and hurt a
+  2,000-recipient one (4.3 ms → 5.2 ms, planner declines them), while costing
+  **+24.8 ms per 2,000-recipient send** in write amplification — the cap query
+  runs once per send, `campaign_events` takes one INSERT per recipient — plus
+  142 MB of index on a 411 MB heap.
+  Also settled here: the OR the entry is about is unreachable in production.
+  `partitionByFrequencyCap` has one caller, `lib/services/marketing-send.ts:299`,
+  gated on `recipientSource === 'patients'`, and a patients-source recipient
+  always carries `patientId` — so `keyMatch` emits a single `IN`, never a
+  disjunction.
+  **Reopen when any of:** `campaign_events` passes 4,000,000 rows in production
+  (ask the `campaign-events-volume` read-check — it exists for this); the cap
+  query appears in slow logs once DREAMCRM-42 is live; or the recipient-source
+  gate at `lib/services/marketing-send.ts:299` changes so one call mixes
+  patient-keyed and address-keyed recipients, which is the only condition that
+  makes the two-index argument about a query we run.
 - S2 · the public-site + marketing body font (Inter) loads via a
   render-blocking third-party `@import` in `app/css/style.css:1` — violates
   the self-hosted-woff2 font doctrine (Nunito is already self-hosted correctly).
