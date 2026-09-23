@@ -2584,7 +2584,7 @@ re-deriving the entry above; pre-existing, and NOT the fix that entry made.
 
 Two halves, and the first is the one that generalises:
 
-- **The instrument.** `findA11yViolations` in `e2e/axe.ts:271` destructures
+- **The instrument.** `findA11yViolations` in `e2e/axe.ts` destructures
   `const { violations } = await builder.analyze()` and discards the rest. For
   text over a gradient, axe-core cannot resolve a single background colour and
   reports the node under **`incomplete`**, not `violations` — so every stop in
@@ -2605,7 +2605,70 @@ and report it as its own class — not as a violation (it is genuinely
 undecidable, and a gate people have to interpret is one they learn to ignore),
 but not as silence either. `e2e/axe.ts` is on the `check-definitions` REVIEW
 gate, so that is a reviewed change and a separate PR; it is written here rather
-than beside the code for that reason. · OPEN.
+than beside the code for that reason.
+
+· **FIXED** on DREAMCRM-107, on that shape exactly. `findA11yResults` reads
+both verdicts; `expectNoA11yViolations` prints the undecidables with their
+elements and axe's own reason, raises one `::warning` per stop, and folds them
+into a second end-of-run table in `e2e/axe-headroom.ts`. It FAILS NOTHING, and
+that half is deliberate rather than a shortfall — see the fix shape above.
+
+**WHAT THE FIX BUYS, STATED NARROWLY, because "the gate reads incomplete now"
+is a wider sentence than what shipped.** The category reaches a human instead
+of the floor. It does not reach `rulesOverBaseline`, so a gradient-ground
+contrast defect still merges green — what changes is that it merges green with
+its selector printed on the run summary rather than with nothing anywhere. Two
+consequences worth having written down: the ceilings are unaffected in both
+directions (nothing newly fails, nothing newly passes), and a ZERO in the
+end-of-run needs-review table is a measured state only because the emitter
+reports at every stop whether or not it found anything — an emit that fired
+only on a finding would make "axe decided everything" and "the emitter came
+unhooked" the same silence, which is §2a's rule about alarms that stop.
+
+**Watched to fail, against the real defect and against both of its shapes.**
+Restoring `const { violations } = await builder.analyze()` reddens four tests
+in `e2e/axe-selftest.spec.ts` plus `tests/guards/axe-headroom-table.test.ts`;
+moving the emit inside the finding branch reddens the §2a test by name. The
+self-test's document is the reachable case above with the labels moved into the
+glow's reach, and it is measured rather than asserted: **0 violations, 1
+`color-contrast` incomplete over 4 nodes**, axe's summary reading "Element's
+background color could not be determined due to a background gradient".
+
+**THE REACHABLE CASE IS UNCHANGED AND STILL DOES NOT BITE** — nothing on
+`app/g/[token]/report-view.tsx` moved, the geometry above still holds, and the
+stop still measures ZERO violations. What is different is the repro's ending:
+move a `.dg-mono` label into the hero's right half above y=444 today and
+`token: practice grade report` is still GREEN, but the run now names the
+element.
+
+**AND THE POPULATION IS MEASURED — the first CI `e2e` run was the
+measurement, as promised** (PR #682, run 35804987254, `669a51df`, green).
+Across the whole suite: **848 nodes over 44 (stop, rule) pairs** at 39 stops,
+41 pairs `color-contrast` and 3 `aria-prohibited-attr` — of which one pair, 4
+nodes at `selftest: over the glow`, is the harness's own planted document, so
+**844 over 43 pairs at 38 real stops**. The
+worst are `token: book a demo, slots offered` (72),
+`clinic site: published home` (45) and `staff: dream team` (41); the staff app
+contributes a recurring ~30 at every stop, which is one shared component in its
+chrome rather than thirty defects.
+
+**THAT NUMBER RETROSPECTIVELY SETTLES THE DESIGN.** A zero-tolerance ceiling
+over this class — the obvious "proper" gate, and the one this PR was asked
+twice not to ship — would have turned `e2e` red on arrival at 39 stops, on a
+population nobody had looked at, for a verdict that is a question rather than a
+defect. It could not have been shipped at all. **Reporting was not the weaker
+option; it was the only one available before the number existed.** With the
+number in hand, a ceiling is now a decidable follow-up rather than a guess.
+
+**ONE ROW IS WORTH READING FIRST, and it is this entry's own page:**
+`token: practice grade report` reports **33 undecidable `color-contrast`
+nodes**. The geometry argument above is about `INK_3` nodes and the `.dg-glow`
+ellipse specifically, and it still holds; what the 33 say is that the page has
+far more composited ground than that argument covers (`.dg-card`, `.dg-cell`,
+`.dg-ring-wrap::before`, `.dg-cta`). None of them is known to fail — axe
+declined to answer, which is not a no — but before this change that whole
+question was invisible at a stop holding ZERO. Hand-measuring those 33 is the
+natural next piece of work on this page.
 
 ### R1 · S8 sweep — Compliance & data (2026-08-17)
 

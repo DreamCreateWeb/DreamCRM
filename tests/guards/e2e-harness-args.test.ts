@@ -113,6 +113,22 @@ describe('the e2e harness refuses an argument it cannot trust', () => {
     expect(stderr).toMatch(/not a test path/)
   })
 
+  it('refuses a --spec that is really a flag — the ceiling bypass, Sentinel on #680', () => {
+    // THE CASE THE LEADING-DASH RULE EXISTS FOR. `E2E_SPEC` is word-split, so
+    // `E2E_SPEC='--repeat-each 500'` used to become two accepted spec tokens
+    // and plan as `playwright test --repeat-each 500`, exit 0, with REPEAT_MAX
+    // never consulted. Not a shell hole — nothing here is eval'd — but the
+    // harness header promises a bounded run and that promise was not true.
+    const viaEnv = runHarness(['--print-plan'], { E2E_SPEC: '--repeat-each 500' })
+    expect(viaEnv.status, 'the repeat ceiling must not be reachable through the spec box').toBe(2)
+    expect(viaEnv.stderr).toMatch(/not a test path/)
+
+    // Same refusal on the flag spelling, so the env path is not the only one
+    // closed.
+    expect(runHarness(['--spec', '--retries=0']).status).toBe(2)
+    expect(runHarness(['--spec', '-g']).status).toBe(2)
+  })
+
   it('refuses the same value arriving through the environment', () => {
     // The workflow's own path. Validating the FLAG and trusting the env var
     // would leave the dispatch route — the only untrusted one — ungraded.
@@ -166,6 +182,15 @@ describe('the arguments resolve to the playwright invocation they claim', () => 
     // syntax error nobody typed — the kind of refusal that teaches people the
     // flag is broken rather than that their input was.
     expect(plan(['--repeat', '08'])).toBe('playwright test --repeat-each=8')
+  })
+
+  it('keeps a dash INSIDE a path, which is most of the suite', () => {
+    // The leading-dash refusal must not become "no dashes": half the specs in
+    // `e2e/` are hyphenated, and a rule that rejected them would be reverted
+    // the first time somebody hunted `portal-billing`.
+    expect(plan(['--spec', 'e2e/portal-reschedule.spec.ts'])).toBe(
+      'playwright test e2e/portal-reschedule.spec.ts',
+    )
   })
 
   it('takes two specs from one space-separated dispatch box', () => {
@@ -262,37 +287,90 @@ describe('the hunt cannot gate a merge or mint a required check', () => {
 /* ------------------------------------------------------------------------ */
 
 /** Every `workflow_dispatch` input declared `type: string`, per file. */
+/**
+ * The three declared types that are NOT a string by the time they reach an
+ * expression, and are therefore out of scope.
+ *
+ * `boolean` and `number` are coerced by GitHub before substitution, so
+ * `review-sweep.yml` interpolating its `ping` input into a `run:` line is safe
+ * and correct. `choice` is safe for a different reason worth stating rather
+ * than leaving implied: its value is constrained to the `options:` list the
+ * workflow itself declares, so the dispatcher cannot supply a value the author
+ * did not write.
+ */
+const NON_STRING_TYPES = ['boolean', 'number', 'choice']
+
+/**
+ * Every `workflow_dispatch` input that reaches an expression AS A STRING.
+ *
+ * ---------------------------------------------------------------------------
+ * DEFAULT-IN, NOT DEFAULT-OUT — and the first version had this backwards
+ * (Forge, reviewing #680).
+ *
+ * It required a literal `type: string` line. **GitHub Actions defaults a
+ * `workflow_dispatch` input to string when `type:` is omitted**, so an untyped
+ * input is fully interpolatable and was completely invisible here: this
+ * returned `[]` for the file, and the caller's `if (!strings.length) continue`
+ * then skipped the *whole workflow*. A quoted `type: "string"` walked through
+ * the same gap.
+ *
+ * Nothing in the tree was unguarded — all thirteen workflow files happen to
+ * declare a bare `type: string` — which is also why the repo could never have
+ * suggested the mutation. But this rule exists for the SECOND string input,
+ * the one nobody has written yet, and the blind spot landed precisely on it.
+ *
+ * So the predicate is inverted: an input is a string unless it declares
+ * otherwise. The two forms agree on every file in the repo today and disagree
+ * on every file nobody has written yet — which is the only place a guard about
+ * future inputs can earn anything.
+ *
+ * §2d records the general shape as the identity-looseness family's ninth
+ * member: **when a guard keys on an OPTIONAL declaration, the mutation to
+ * reach for is omitting it, not misspelling it.**
+ */
 export function stringInputs(source: string): string[] {
   const lines = source.split('\n').map((l) => l.replace(/\r$/, ''))
   const names: string[] = []
 
   let inputsIndent: number | null = null
-  let current: { name: string; indent: number } | null = null
+  let current: { name: string; indent: number; type: string | null } | null = null
+
+  // An input is only decided once its block ends, because the `type:` line (if
+  // there is one at all) comes after the key.
+  const settle = () => {
+    if (current && !NON_STRING_TYPES.includes(current.type ?? 'string')) names.push(current.name)
+    current = null
+  }
 
   for (const line of lines) {
     if (!line.trim() || /^\s*#/.test(line)) continue
     const indent = line.length - line.trimStart().length
 
     if (/^\s*inputs:\s*$/.test(line)) {
+      settle()
       inputsIndent = indent
-      current = null
       continue
     }
     if (inputsIndent == null) continue
     if (indent <= inputsIndent) {
+      settle()
       inputsIndent = null
-      current = null
       continue
     }
 
     // A key one level under `inputs:` starts a new input.
     const key = /^\s*([A-Za-z0-9_-]+):\s*$/.exec(line)
     if (key && (current == null || indent <= current.indent)) {
-      current = { name: key[1], indent }
+      settle()
+      current = { name: key[1], indent, type: null }
       continue
     }
-    if (current && /^\s*type:\s*string\s*$/.test(line)) names.push(current.name)
+    // Quotes are stripped: `type: "string"` is the same declaration as
+    // `type: string`, and reading only the bare spelling was half the gap.
+    const declared = /^\s*type:\s*['"]?([A-Za-z]+)['"]?\s*$/.exec(line)
+    if (current && declared) current.type = declared[1].toLowerCase()
   }
+  settle()
   return names
 }
 
@@ -401,6 +479,51 @@ describe('no string dispatch input is interpolated into a run: block', () => {
       (l) => /\$\{\{\s*inputs\.ping\b/.test(l) && stringInputs(fixture).includes('ping'),
     )
     expect(booleanHits).toEqual([])
+  })
+
+  it('catches an UNTYPED input, which GitHub treats as a string — Forge, on #680', () => {
+    // THE BLIND SPOT THE FIRST VERSION HAD, and it landed precisely on the case
+    // this rule exists for. `type:` is OPTIONAL and defaults to string, so an
+    // author who simply omits it gets a fully interpolatable input that the
+    // old matcher could not see — and because the caller skips a file with no
+    // string inputs, the WHOLE workflow went ungraded.
+    //
+    // Nothing in the tree was ever unguarded, which is exactly why the tree
+    // could not have suggested this mutation. §2d: when a guard keys on an
+    // optional declaration, the mutation to reach for is OMITTING it.
+    const fixture = [
+      'on:',
+      '  workflow_dispatch:',
+      '    inputs:',
+      '      untyped:',
+      '        description: no type at all, so GitHub makes it a string',
+      '        required: false',
+      '      quoted:',
+      '        type: "string"',
+      '      ping:',
+      '        type: boolean',
+      '      count:',
+      '        type: number',
+      '      lane:',
+      '        type: choice',
+      '        options:',
+      '          - a',
+      '          - b',
+    ].join('\n')
+
+    expect(stringInputs(fixture).sort()).toEqual(['quoted', 'untyped'])
+  })
+
+  it('still lets a boolean, a number and a choice through — the narrowing is not a blanket', () => {
+    // If this ever starts failing, the repair above has over-corrected into
+    // "every input is a string", which would flag `review-sweep.yml`'s `ping`
+    // and make the rule's own remedy (narrow the predicate) unavailable.
+    const sweep = readFileSync(join(WORKFLOW_DIR, 'review-sweep.yml'), 'utf8')
+    expect(
+      stringInputs(sweep),
+      'review-sweep.yml declares exactly one input, `ping: boolean`, and interpolates it into a ' +
+        '`run:` line. It is right to. A rule that flags it is a rule somebody will delete.',
+    ).toEqual([])
   })
 
   it('reads the real hunt workflow as clean, through the same scanner', () => {

@@ -127,6 +127,11 @@ export const WORKFLOW_CENSUS = {
     publishes: [],
     note: 'after the fact; alerts, does not gate the deploy',
   },
+  'e2e-flaky-digest.yml': {
+    gates: 'nothing',
+    publishes: [],
+    note: 'reads a WEEK of Playwright reports together and names any spec that flaked in two or more separate runs (DREAMCRM-105). The per-run reporter could only ever say "this flaked"; nothing could say how often, so a flake had an anecdote instead of a rate. Weekly cron plus dispatch, no PR trigger, so it cannot hold a merge. Goes red on a repeat offender - the window is one cadence wide, so there is no queue to keep it red for weeks',
+  },
   'e2e-flake-hunt.yml': {
     gates: 'nothing',
     publishes: [],
@@ -145,7 +150,7 @@ export const WORKFLOW_CENSUS = {
   'review-sweep.yml': {
     gates: 'nothing',
     publishes: [],
-    note: 'the post-merge half of review-gate.yml: names PRs that merged carrying needs-sentinel-review with no review recorded, or needs-forge-intake with no intake recorded. Runs after the merge commit is on main, so it cannot hold one. Its exit status is keyed on what is new since it last went green; the summary still prints every unremediated entry',
+    note: 'the post-merge half of review-gate.yml: names PRs that merged carrying needs-sentinel-review with no review recorded, needs-forge-intake with no intake recorded, or (DREAMCRM-105) no DREAMCRM-<n> issue key in the title at all. The third half has no label - every merged PR in the window is in scope, because a label is exactly what untracked work has nobody to receive - and it never wakes Forge. Runs after the merge commit is on main, so it cannot hold one. Its exit status is keyed on what is new since it last went green; the summary still prints every unremediated entry',
   },
   'schedule-heartbeat.yml': {
     gates: 'nothing',

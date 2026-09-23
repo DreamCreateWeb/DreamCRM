@@ -1,9 +1,9 @@
 # CI — what gates what
 
-Twelve workflows, and three of them can stop something: `ci.yml` holds a merge,
-`deploy.yml` holds a deploy, and `migration-check.yml` can fail a deploy run
-without publishing a check of its own. The other nine are alarms, advisories and
-instruments.
+Thirteen workflows, and three of them can stop something: `ci.yml` holds a
+merge, `deploy.yml` holds a deploy, and `migration-check.yml` can fail a deploy
+run without publishing a check of its own. The other ten are alarms, advisories
+and instruments.
 
 (It said "ten" and listed ten until 2026-09-22. `schedule-heartbeat.yml` shipped
 on DREAMCRM-99 and never reached this table — which is the drift this file's own
@@ -30,6 +30,7 @@ loads, including the one real clinic site — is `docs/OPS.md`.
 | `.github/workflows/review-sweep.yml` | `schedule` 06:47 UTC + dispatch | `review-sweep` | that a PR owing Sentinel a review, or Forge an intake, did not merge without one | no — post-merge alarm, never runs on a PR |
 | `.github/workflows/schedule-heartbeat.yml` | `schedule` 07:07 UTC + dispatch | `schedule-heartbeat` | that every OTHER scheduled workflow is still firing | no — never runs on a PR |
 | `.github/workflows/e2e-flake-hunt.yml` | `workflow_dispatch` only | `e2e-flake-hunt` | nothing — it is an instrument, not an alarm: one spec N times, reporting a rate | no — no PR, push or schedule trigger at all |
+| `.github/workflows/e2e-flaky-digest.yml` | `schedule` Monday 09:23 UTC + dispatch | `e2e-flaky-digest` | noticing a spec that flaked in more than one run this week | no — never runs on a PR |
 
 ## A green deploy must mean the new version is SERVING
 
@@ -511,6 +512,90 @@ run keeps looking clean forever. The fourth matters because `nightly-e2e` and
 `e2e-post-merge` are the unattended runs — the ones this is most for, and the
 ones a workflow edit could revert with nobody watching.
 
+### …and a week of traces has a rate (added 2026-09-22, DREAMCRM-105)
+
+The reporter above names a flake **on the run it happened in**. It has never
+been able to count, because each report lands in one job summary and one
+artifact and nothing read two of them together. So the strongest sentence
+available about the portal-billing flake was "it happened twice that I know
+of", and the strongest anybody offered was "about once a day" — which was a
+guess. A flake in one run is weather; the same spec in four runs in a week is a
+defect with a rate, and that difference is the whole of whether anybody works on
+it.
+
+`e2e-flaky-digest.yml` runs Monday 09:23 UTC, pulls every Playwright report the
+week's `e2e` / `e2e-post-merge` / `nightly-e2e` runs left behind, folds them
+through the same `flakyTests` parser, and goes **red on a repeat offender** — a
+spec that flaked in **two or more separate runs**, on separate runners against
+separate throwaway databases.
+
+Four things about it are deliberate:
+
+- **Runs, not occurrences.** Forty flaky records from one run is one runner
+  having a bad afternoon. Two records from two runs is a property of the spec.
+- **It leads with the census.** This alarm's healthy state is genuinely quiet,
+  so "nothing flaked" and "I read nothing" are the same headline without the
+  denominators. It prints how many runs it saw and how many reports it read.
+- **The retention moved to 14 days, and the window is 8.** Seven-day artifacts
+  were sized for a person opening *one* report; a weekly digest with a
+  seven-day window over seven-day evidence loses that race every time the
+  scheduler slips — measured at five and a half hours on an ordinary day — and
+  would report a gap every single week. A permanently red alarm is a disabled
+  alarm. Raising the retention was the fix; shrinking the window would have been
+  the bug. The extra day of window is slip allowance, so consecutive digests
+  overlap instead of leaving a hole.
+- **It does not read `e2e-flake-hunt.yml`.** A hunt runs one spec fifty times at
+  `--retries=0`; its failures are the deliverable, not an accident, and pooling
+  them would put a number nobody should act on in the same column as the routine
+  runs.
+
+**What watches it**: it has a `cron:`, so `schedule-heartbeat.yml` picks it up
+from the tree with no edit anywhere — a check that cannot fail is not a check,
+and every new alarm here ships with the thing that notices it stopped.
+
+#### It has to be able to say "I could not see that"
+
+Both of Sentinel's blocking findings on #684 were the same defect wearing two
+hats: **the instrument reported a number it had not measured.** For a file whose
+entire argument is "a number instead of a hunch", that is the one class it
+cannot carry. Two properties close it, and both are graded:
+
+- **The denominator is checked against the limit it was fetched with.** The
+  first draft asked for `--limit 200`. Measured against the real 8-day window on
+  2026-09-23: **423** `ci.yml` runs, 127 `post-merge-e2e`, 9 `nightly`. `gh run
+  list` is most-recent-first, so 200 kept the last ~4 days under a headline
+  saying 8 — and because the artifact filter is built from that list, every
+  report belonging to a discarded run was dropped *before* the download step, so
+  nothing reached `unreadable`, `blind` stayed empty and the run exited 0 over
+  the half it never looked at. The limit is 1000 now **and** the script is told
+  the number, because a limit chosen today is one the repo's merge rate outgrows
+  quietly. Note this is deliberately *not* `windowGap`'s shape: `--created`
+  filters server-side, so everything returned is inside the window by
+  construction and the oldest row proves nothing. Hitting the limit is the only
+  signal there is.
+- **A dead lookup writes a reason, not an empty list.** `gh api … || echo '[]'`
+  wrote *valid JSON*, so the reader reported no problem and the digest printed
+  "No test needed a retry in any of the 0 reports this week" and exited 0 — a
+  quiet clean week over evidence it never read. Every `gh` call now appends a
+  sentence to `lookup-failures.txt`, and an **absent** file is itself a finding:
+  the workflow truncates it in its first step, so its absence means that step
+  did not run.
+
+And one distinction that goes the other way, so the alarm stays readable: an
+artifact that downloads with **no `e2e-results.json` inside** is named and
+counted but does **not** redden. The producers upload on `failure()`, which
+includes a run that died before playwright wrote its reporter output — there
+were no test results, so nothing was lost and nothing could have been learned.
+Filing that as "could not be read" would redden this most weeks, which is how an
+alarm becomes wallpaper.
+
+**The next step from a finding is the hunt**, and the summary prints the command
+rather than leaving the reader with the same problem in a bigger font:
+
+```bash
+gh workflow run e2e-flake-hunt.yml -f spec=e2e/portal-billing.spec.ts -f repeat=50
+```
+
 Deliberately not done: `retries: 0`. It trades a quiet flake for a loud false
 red on every PR, and a required check that goes red for reasons nobody caused
 is a check people route around.
@@ -758,6 +843,53 @@ thirty findings, most of them wrong, on an instrument whose entire value is
 being believed. They are counted and named as *not judged*, never as passes.
 `SWEPT_SINCE` must stay the EARLIER of the two, because the truncation check
 below grades the `gh pr list` window against it alone.
+
+### The third obligation: the PR title carries its issue key (added 2026-09-22, DREAMCRM-105)
+
+§3's first bullet — `DREAMCRM-<n>: <what changed>` — and it is not decoration.
+The key is the only link from a merged commit back to somebody who can answer
+for it, and **everything else on this page is downstream of it**: the review
+gate reads a diff, this sweep reads merged PRs, the planning meeting reads the
+board. Work that reaches none of them is not lightly tracked, it is untracked,
+and it still ships to production.
+
+The rule's review half has had a machine since #593. Its key half had memory,
+and memory lost three times in one day — **#636 (01:24Z), #659 (17:54Z) and
+#674 (22:19Z)**, all from `claude/*` branches, the last of them hours after §3's
+rule landed. #659 is the one that shows the cost: it merged carrying
+`needs-forge-intake` and nobody recorded the intake, for a reason no amount of
+labelling could fix — **no issue owned the work, so there was nobody the label
+could be about.**
+
+It is one predicate and a third bucket. The sweep already fetched every merged
+PR in the window *with its title*, so the whole check is "does the title carry a
+key". Three things about it differ from the other two halves, and each is
+deliberate:
+
+- **There is no label.** Every merged PR in the window is in scope. A version
+  that waited for a label would be permanently silent, because a label is
+  exactly what untracked work has nobody to receive.
+- **The record is the subject.** A key in the body or in a comment does not
+  satisfy it. That makes this the one half that is genuinely self-clearing —
+  `gh pr edit <n> --title "DREAMCRM-<n>: …"` on a merged PR fixes the finding at
+  its source rather than mirroring a fact from elsewhere — and the one half that
+  cannot be satisfied by skipping the work and typing the record anyway.
+- **It never wakes Forge.** The wake is scoped to the intake half and enqueues a
+  paid run; an unkeyed PR is not an intake question.
+
+**Its cut-off is `2026-09-22T00:00:00Z`, the day the rule landed** — and here
+the reasoning runs the *opposite* way from the intake half's. That one was
+pushed late because judging thirty labelled PRs would have opened it with thirty
+mostly-wrong findings against a record nobody had been keeping. Here the record
+is the title, it has always been there, and every merge before that day already
+carries a key with three exceptions. There is no archaeology and nothing to be
+wrong about. Earlier would be the mistake: #483–#485 (2026-09-09) and the whole
+pre-program June tail are unkeyed because the convention did not exist, and a
+first morning reporting ninety findings against a rule that post-dates them is
+the note-in-a-drawer failure wearing an alarm's uniform.
+
+Measured against the real history on the day it shipped: **43 in-window merges,
+3 findings, 0 false positives.**
 
 ### The exit status is keyed on the last green run (added 2026-09-22, DREAMCRM-92)
 

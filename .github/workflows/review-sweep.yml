@@ -20,6 +20,16 @@ name: Post-merge review sweep
 # `INTAKE_SWEPT_SINCE` in `scripts/review-sweep.mjs` for why judging those
 # thirty would have opened the half with thirty mostly-wrong findings.
 #
+# AND IT GRADES THE ISSUE KEY IN THE TITLE (DREAMCRM-105). §3's first bullet,
+# and the one everything else here is downstream of: the key is the only link
+# from a merged commit back to somebody who can answer for it. #636, #659 and
+# #674 merged unkeyed in ONE DAY, the last of them hours after §3's rule landed
+# — and #659 merged owing an intake nobody could record, because no issue owned
+# the work and so there was nobody the label could be about. This half has no
+# label of its own: every merged PR in the window is in scope, because a label
+# is exactly what untracked work has nobody to receive. It never wakes Forge —
+# a wake enqueues a paid run and an unkeyed PR is not an intake question.
+#
 # ============================ THIS DOES NOT GATE =============================
 #
 # No `pull_request` trigger, no required status-check context, no `needs:` on
@@ -253,7 +263,7 @@ jobs:
             fi
           done < wake-candidates.txt
 
-      - name: Which of them merged owing a review or an intake nobody recorded?
+      - name: Which of them merged owing a review, an intake or an issue key nobody recorded?
         id: sweep
         # `continue-on-error` so the wake step below still runs on a RED sweep —
         # which is the only kind of run that has anything to wake anybody for.
