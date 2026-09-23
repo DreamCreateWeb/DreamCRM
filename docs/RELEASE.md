@@ -249,6 +249,22 @@ bar: last week of R2 accepts only S0/S1 changes — churn is risk.
 
 ### R5 — Release candidate + go/no-go + launch watch
 - RC tagged; 72h change freeze except S0.
+- **RELEASE-BLOCKING — the published rulebook matches the RC.** Run
+  `node scripts/rulebook-publish.mjs` on the RC commit and paste its output
+  into the go/no-go. A red verify stops the release: `dreamcrm-conventions`
+  is authored in `docs/rulebook/` and published to the Multica skill store,
+  every check this repo owns grades the authored copy, and the copy every
+  agent actually reads is the published one. That hop has failed both ways
+  already — nine `STATE:` lines describing `main` wrongly for six days, and a
+  cp1252 round trip that replaced ninety characters while leaving the length
+  unchanged at 9,018 on both sides. The command compares BYTES, not lengths,
+  plus the stored description, the C1/mojibake range and the leading-`#`
+  lines. It cannot be a required status check — verifying needs a credentialed
+  `multica` CLI and `test` has none, so a version of it living in CI would
+  report green without reaching its subject. This line is the enforcement, and
+  `tests/guards/rulebook-publish.test.ts` asserts the line still exists.
+  The command refuses to publish anything that is not merged `main`, so
+  "run it on the RC commit" is a precondition rather than a request.
 - Go/no-go review against the R0 criteria — written, honest, kept.
 - Launch = the marketing pivot. Heightened watch: the Guardian + alarms
   + a daily digest to the owner for the first two weeks.
