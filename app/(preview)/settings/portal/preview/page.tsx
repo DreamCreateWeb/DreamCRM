@@ -21,6 +21,7 @@ import {
 } from '@/components/patient-portal/ui'
 import { fmtVisitDayTime, greetingFor } from '@/components/patient-portal/format'
 import { CLINIC_DEFAULT_TZ } from '@/lib/clinic-timezone'
+import { showsPortalSiteOutLinks } from '@/lib/clinic-site-helpers'
 import type { ClinicStaff } from '@/lib/types/clinic-content'
 import { db } from '@/lib/db'
 import { clinicProfile } from '@/lib/db/schema/platform'
@@ -58,7 +59,15 @@ export default async function PortalPreviewPage() {
   const staff = (profileRow?.staff ?? []) as ClinicStaff[]
   const sampleProvider = staff[0] ?? null
 
-  const nav = buildPortalNav({ settings, hasShop: settings.features.shopLink, hasDependents: false })
+  // sitePublished from the clinic's REAL lever, like every other value here:
+  // a preview that shows Shop while the site is pre-live would be showing the
+  // clinic something no patient of theirs can see (DREAMCRM-131).
+  const nav = buildPortalNav({
+    settings,
+    hasShop: settings.features.shopLink,
+    sitePublished: showsPortalSiteOutLinks(clinic?.siteLiveAt),
+    hasDependents: false,
+  })
   const sampleVisitTime = new Date(Date.now() + 26 * 3_600_000) // tomorrow-ish
 
   const headline = settings.copy.welcomeHeadline
