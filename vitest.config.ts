@@ -35,7 +35,38 @@ export default defineConfig({
     },
   },
   test: {
-    environment: 'happy-dom',
+    // THE DEFAULT IS `node`, AND A DOM IS OPTED INTO (DREAMCRM-115).
+    //
+    // It was `happy-dom` for every file in the suite, and `docs/CI.md`
+    // measured what that cost: of the `test` job's 8m 10s median, `pnpm test`
+    // is 6m 48s, and inside it **creating a happy-dom window per file is 33%
+    // of all worker time** — more than running the assertions, which is 16%.
+    // Six sevenths of this suite's cost is per-FILE overhead that scales with
+    // the file count, not with the test count.
+    //
+    // THE ROUTING IS DERIVED FROM THE TREE, never enumerated here. A
+    // `.test.tsx` renders components and needs a window; a `.test.ts` does
+    // not, unless it says so. That is the extension doing the coarse work and
+    // the FILE ITSELF declaring the exception, so there is no list in this
+    // config to fall out of date — the mistake `scripts/rulebook-drift.mjs`
+    // exists because of, and the one `docs/E2E.md` made against
+    // `e2e/axe-baseline.ts`.
+    //
+    // A `.test.ts` that needs a DOM writes it at the top of the file:
+    //
+    //     // @vitest-environment happy-dom
+    //
+    // and `tests/setup.ts` picks up the DOM half of the setup by asking
+    // whether a `document` exists, rather than by being told twice.
+    //
+    // GETTING IT WRONG FAILS LOUDLY, which is the property that makes this
+    // safe to do mechanically: a file that needs a window and lacks the
+    // docblock throws `document is not defined` on its first render. There is
+    // no silent-pass direction. A TRANSITIVE need — a module that touches
+    // `document` at import time — is found the same way, which is why the
+    // files carrying the docblock were established by running the suite rather
+    // than by grepping it.
+    environment: 'node',
     // Unit tests must not touch the network. happy-dom otherwise treats an
     // <iframe src> as a real navigation and fetches it: the website hub and
     // template-gallery specs render preview frames, so every run fired real
@@ -112,6 +143,33 @@ export default defineConfig({
     testTimeout: 20_000,
     hookTimeout: 20_000,
     setupFiles: ['./tests/setup.ts'],
-    include: ['tests/**/*.test.ts', 'tests/**/*.test.tsx'],
+    projects: [
+      {
+        extends: true,
+        test: {
+          name: 'node',
+          include: ['tests/**/*.test.ts'],
+          environment: 'node',
+        },
+      },
+      {
+        extends: true,
+        test: {
+          name: 'dom',
+          include: ['tests/**/*.test.tsx'],
+          environment: 'happy-dom',
+          // Repeated here rather than left at the root: with `projects`, the
+          // root's own `test.environment` no longer runs anything, and an
+          // option that applies to a window belongs with the project that
+          // creates one. See the `environmentOptions` note above for what
+          // `disableChildFrameNavigation` is holding.
+          environmentOptions: {
+            happyDOM: {
+              settings: { navigation: { disableChildFrameNavigation: true } },
+            },
+          },
+        },
+      },
+    ],
   },
 })

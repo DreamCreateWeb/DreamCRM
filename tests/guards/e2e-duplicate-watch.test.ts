@@ -1,3 +1,11 @@
+// @vitest-environment happy-dom
+//
+// This file drives a real `MutationObserver` against a real `document`, which
+// is the whole point of it — `installDuplicateWatch` is browser code and the
+// block below is titled "the ringer, under happy-dom". The suite's default
+// environment is `node` (DREAMCRM-115; `vitest.config.ts` carries the
+// measurement), so the need is declared here rather than inherited from a
+// global nobody reading this file could see.
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'

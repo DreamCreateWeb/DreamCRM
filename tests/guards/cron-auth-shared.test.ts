@@ -69,7 +69,38 @@ describe('isAuthorizedCronRequest', () => {
     expect(isAuthorizedCronRequest(req('Bearer wrong'))).toBe(false)
     expect(isAuthorizedCronRequest(req('Bearer s3cret-valu'))).toBe(false)
     expect(isAuthorizedCronRequest(req('Bearer s3cret-value-extra'))).toBe(false)
-    expect(isAuthorizedCronRequest(req('Bearer s3cret-value '))).toBe(false)
+  })
+
+  it('never sees trailing whitespace, because `Headers` strips it first', () => {
+    // THIS CASE USED TO READ `toBe(false)` IN THE BLOCK ABOVE, AND IT WAS
+    // WRONG ABOUT PRODUCTION (DREAMCRM-115). It passed only because the suite
+    // ran every file under happy-dom, whose `Headers` does not implement the
+    // fetch spec's OWS trimming. Flipping the default environment to `node` —
+    // which is what this code actually runs in — made it fail, and the failure
+    // was the truth arriving late. It is the §2d class exactly: the predicate
+    // was right and the SENTENCE was wrong, and no mutation could have found
+    // it because the defect was in the environment, not the code.
+    //
+    // Node's `Headers` strips leading and trailing whitespace from a field
+    // value on the way in (RFC 9110 OWS), so by the time
+    // `isAuthorizedCronRequest` reads the header the trailing space is already
+    // gone and the token matches. Measured on Node 24, not reasoned:
+    //
+    //     new Request(url, { headers: { authorization: 'Bearer s3cret-value ' } })
+    //       .headers.get('authorization')   // -> 'Bearer s3cret-value'
+    //
+    // THIS IS NOT A LOOSENED SECURITY CLAIM, and the distinction is worth the
+    // paragraph. The comparator is untouched and still byte-exact —
+    // `secretsMatch('Bearer x', 'Bearer x ')` is false, asserted above. What
+    // changed is only which string the comparator is handed, and that is the
+    // HTTP layer behaving to spec on every server this code has ever run on.
+    // The old assertion described a defence that was never there.
+    //
+    // The first line is the load-bearing one: it asserts the TRIM, so if a
+    // future runtime stops trimming, this fails here rather than quietly
+    // changing what the second line means.
+    expect(req('Bearer s3cret-value ').headers.get('authorization')).toBe('Bearer s3cret-value')
+    expect(isAuthorizedCronRequest(req('Bearer s3cret-value '))).toBe(true)
   })
 
   it('rejects a missing or malformed header', () => {
