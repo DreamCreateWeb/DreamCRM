@@ -145,6 +145,16 @@ export default function IntakeFormRunner({ orgId, templateId, schema, brand, cli
   const [status, setStatus] = useState<'idle' | 'pending' | 'success' | 'error'>('idle')
   const [errorMsg, setErrorMsg] = useState('')
 
+  // The all-set screen REPLACES the whole form, so the submit button unmounts
+  // and focus falls back to <body> — a patient who just finished a twenty-field
+  // intake heard nothing confirming it sent. A live region cannot carry a
+  // surface that mounts already-populated; focus is the phase-change contract,
+  // same as the booking form's BookingSuccess.
+  const successHeadingRef = useRef<HTMLHeadingElement | null>(null)
+  useEffect(() => {
+    if (status === 'success') successHeadingRef.current?.focus()
+  }, [status])
+
   // A STABLE setter (and a stable OCR-fill) so memoized FieldInputs only
   // re-render when THEIR own value changes — not every input on every keystroke.
   const setValue = useCallback((fieldId: string, value: FormFieldValue) => {
@@ -263,7 +273,12 @@ export default function IntakeFormRunner({ orgId, templateId, schema, brand, cli
       >
         {kioskMode && <KioskReset />}
         <SuccessWell brand={brand} className="mb-6" />
-        <h2 className="text-3xl font-bold tracking-[-0.02em] mb-3" style={{ color: INK }}>
+        <h2
+          ref={successHeadingRef}
+          tabIndex={-1}
+          className="text-3xl font-bold tracking-[-0.02em] mb-3 focus:outline-none"
+          style={{ color: INK }}
+        >
           {t.allSet}
         </h2>
         <p className="leading-relaxed max-w-sm mx-auto" style={{ color: INK_MUTED }}>
@@ -349,8 +364,12 @@ export default function IntakeFormRunner({ orgId, templateId, schema, brand, cli
         </section>
       ))}
 
+      {/* The one node that has to interrupt: the submit failed and the patient
+          is still looking at the button they just pressed. */}
       {status === 'error' && errorMsg && (
-        <p className="text-sm text-red-600">{errorMsg}</p>
+        <p role="alert" className="text-sm text-red-600">
+          {errorMsg}
+        </p>
       )}
 
       <button

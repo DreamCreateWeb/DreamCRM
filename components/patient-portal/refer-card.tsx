@@ -48,13 +48,36 @@ export default function ReferCard({
       await navigator.clipboard.writeText(r.shareUrl)
       setState('copied')
     } catch {
-      setError(r.shareUrl) // clipboard blocked — show the raw link to copy by hand
+      // Clipboard blocked — show the raw link to copy by hand. The URL carries
+      // its lead-in here rather than standing alone, because the live region
+      // below reads this string out and a bare URL announces as nothing but a
+      // URL.
+      setError(`Copying didn’t work — here’s your link: ${r.shareUrl}`)
       setState('error')
     }
   }
 
+  // Every outcome of the share tap is delivered by swapping silent text beside
+  // the button: the label becomes "One sec…", then a "Link copied" span appears
+  // (or "Thanks for spreading the word", or the fallback link). None of it is
+  // announced, so a screen-reader user taps Share and hears nothing at all —
+  // and on the copy path there is no other feedback anywhere. One polite live
+  // region narrates the phase; the error paragraph below takes role="alert"
+  // because it is the one state that needs interrupting.
+  const liveStatus =
+    state === 'working'
+      ? 'Getting your link…'
+      : state === 'copied'
+        ? 'Link copied — paste it anywhere.'
+        : state === 'shared'
+          ? 'Thanks for spreading the word.'
+          : ''
+
   return (
     <PortalCard>
+      <p className="sr-only" role="status">
+        {liveStatus}
+      </p>
       <p className="text-[1.05rem] font-semibold" style={{ color: PORTAL_INK }}>
         Know someone looking for a dentist?
       </p>
@@ -91,6 +114,7 @@ export default function ReferCard({
       </div>
       {state === 'error' && error && (
         <p
+          role="alert"
           className="mt-3 break-all rounded-xl px-3 py-2 text-[0.82rem]"
           style={{ border: `1px solid ${PORTAL_BORDER}`, color: PORTAL_MUTED }}
         >
