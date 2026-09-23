@@ -316,6 +316,21 @@ means something next to the argument it was taken from.
    This one has now paid for itself once: the LCP-element row is how the fix
    was verified as a fix rather than as 884 fewer milliseconds of something
    else.
+
+   **It now prints the worst layout shift the same way**, added on
+   DREAMCRM-118 for the same reason and after a throwaway probe had to be
+   written to learn what a 0.116 was about. Per surface it reports the moved
+   element, the pixels, the millisecond and **how many runs saw it** — that
+   last one because a shift is only counted against content that already
+   painted, so the run count is what separates "the page is fine" from "the
+   rig was slow". It reproduces the font-swap reflow below unprompted:
+
+   ```
+   pricing (control): worst layout shift 0.1157 at 5,817ms (3/3 runs)
+     div.relative.overflow-hidden.rounded-[14px].border moved 27.28px
+   home (reduced motion): worst layout shift 0.0131 at 8,307ms (3/3 runs)
+     div.mkt-enter.mkt-d3.mt-9.flex moved 28.08px
+   ```
 4. **Run it on an otherwise idle box, and discard passes by transfer bytes.**
    New, and it is the lesson of this file's second run rather than a tidiness
    note. Five of nine passes here were contended, and contention does not just

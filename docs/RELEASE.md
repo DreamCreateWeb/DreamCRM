@@ -3712,6 +3712,14 @@ defect, one mechanism, two surfaces — `/pricing` reliably because the eight
 `PageHero` subpages share the geometry, home rarely because its hero usually
 paints late enough not to care.
 
+**Reproducing it needs no probe any more.** `scripts/mobile-weight.mjs` now
+prints the worst layout shift per surface — the moved element, the pixels, the
+millisecond and how many runs saw it — so `node scripts/mobile-weight.mjs
+--runs 3` reports this defect by name. Verified: it names
+`div.relative.overflow-hidden.rounded-[14px].border moved 27.28px` on
+`/pricing` (3/3) and `div.mkt-enter.mkt-d3.mt-9.flex moved 28.08px` on the
+homepage under reduced motion (3/3).
+
 **The fix is typographic, not motion** — `BRAND.md` Part 4, `PageHero` in
 `components/marketing/ui.tsx`. Two candidates, and the second is the better
 one because it fixes the cause rather than the symptom:
