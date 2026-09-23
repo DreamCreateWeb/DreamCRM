@@ -3494,6 +3494,310 @@
   what looks like a gap in the work.)
 
 
+  **THE SWEEP OF 2026-09-23T12:1xZ, boundary `2026-09-23T11:30:00+00:00`, AND IT
+  WAS OVERTAKEN WHILE IT RAN — which is the part worth recording.** Both passes
+  came back clean: pass one nothing, pass two `0d56c036` (#708) alone, already
+  the entry above. Then `e03a9ce3` (#703) merged at **11:59:53Z, inside the
+  window between the sweep and the commit**, carrying the two entries above this
+  one. It was found by a rebase, not by the sweep — the sweep had already read
+  `main` and was correct when it read it.
+  **A sweep is a photograph, not a subscription**, and the only thing that makes
+  its boundary trustworthy is that the NEXT one starts where this one ended
+  rather than where this one was written. The next boundary is therefore
+  `2026-09-23T11:59:53+00:00`, not the 12:1x this entry is filed under.
+  Branch protection was re-read against what §2 claims and matches: exactly
+  `test` and `e2e` required, `strict: true`, `enforce_admins: true`,
+  force-pushes and deletions barred. The merge-method toggles are all four on
+  with `delete_branch_on_merge` — the intake-only half of "which repo-settings
+  change goes where", unchanged. `node scripts/rulebook-drift.mjs --protection
+  --repo` grades **9/9 with every claim holding**, the first sweep here able to
+  say that, because until DREAMCRM-109 there was no script and until a
+  credentialed run five of the nine could not be graded at all.
+
+  **THE FIFTY-SEVENTH: #710, `scripts/e2e-harness.sh` + the load-mode and
+  port-refusal blocks in `tests/guards/e2e-harness-args.test.ts` (DREAMCRM-117,
+  open 2026-09-23, Rio). A NEW CLASS, and the first blocking refusal in this
+  repository that fires on the state of the MACHINE rather than on anything in
+  the diff.** Routed by the author, who added `needs-sentinel-review` by hand
+  after `review-gate.mjs` labelled the diff `needs-forge-intake` only — the
+  path-based rule cannot see a new failure mode inside a check that already
+  exists, which is the #534 / #598 shape arriving for the fourth time and the
+  second time running that an author beat the sweep to it.
+
+  **What lands, and where it can fail you.** `scripts/e2e-harness.sh` is what the
+  required `e2e` check actually RUNS (`ci.yml:175`), and `nightly.yml`,
+  `post-merge-e2e.yml`, `e2e-flake-hunt.yml` and both `pnpm test:e2e` spellings
+  run it too. It gains six refusals, all `die` at **exit 2**:
+
+  1. **The port is already serving** — `$E2E_PORT`, plus `$WEBHOOK_PORT` outside
+     load mode. This is the new class; everything below it is argument hygiene.
+  2. `--load-level` without `--load-sanity`.
+  3. `--spec` under `--load-sanity`.
+  4. `--repeat` under `--load-sanity`.
+  5. Playwright arguments under `--load-sanity`.
+  6. A `--load-level` outside `^[0-9]+x[0-9]+$`, concurrency 1..200, requests
+     1..1000.
+
+  **Only the first of those six can redden `e2e`, and it is worth knowing which.**
+  No workflow passes `--load-sanity` — `--load-sanity` appears nowhere under
+  `.github/` — so refusals 2 through 6 fail a human's command line and can never
+  hold a merge. What holds a merge is refusal 1, and what fails `test` by name is
+  the guard grading all six.
+
+  **READ THIS BEFORE YOU DEBUG YOUR DIFF: a red `e2e` whose log says `port NNNN is
+  already serving something` is not a defect in your pull request.** Every other
+  blocking assertion in this rulebook is reproducible from the commit alone — the
+  same tree gives the same verdict on any box. This one does not, by design: it
+  reads a socket. On a GitHub runner the port is free by construction and this
+  should never fire; if it does, the runner was reused or an earlier step leaked a
+  server, and the fix is upstream of your branch. **A check whose verdict depends
+  on the machine owes its reader that sentence in the failure message**, and this
+  one pays it — the text names `pgrep -af next-server` and `E2E_PORT` rather than
+  saying "failed".
+
+  **Why the refusal is worth a new class rather than a footnote, which is the part
+  that generalises.** The defect was watched, twice, not imagined. `pnpm start` is
+  three processes deep — `pnpm` spawns `next start` spawns the `next-server` that
+  owns the socket — and `kill "$SERVER_PID"` reached the first of the three. A
+  finished run left a `next-server` holding `:3100`. The next run's `pnpm start`
+  then could not bind **and did not notice**, because the readiness probe is
+  `curl /api/health` and the stale server answers it perfectly well. That run
+  proceeded to drive a browser against a build it had not made, over a Next
+  in-memory cache the previous run had warmed, and **exited green**. On the CI
+  runners it never bit, because they are thrown away; it bit the one place that
+  reuses a machine, which is a developer's box.
+
+  **That is the failure mode this rulebook exists to name: not a red build, but a
+  green one that measured the wrong thing.** §2d's whole argument is that a guard
+  must be watched to fail; this is its mirror — a HARNESS must be unable to
+  succeed against the wrong subject. The two halves ship together on purpose and
+  the guard grades both: `kill_tree` walking `pgrep -P` recursively, and the
+  refusal as the backstop for a tree-kill that misses anyway. Reverting either to
+  a bare `kill` reddens `test` naming `e2e-harness-args.test.ts`.
+
+  **The choice of `/dev/tcp` over `lsof`/`ss`/`nc` is the reusable half.** All
+  three are absent on some box that will eventually run this, and a check that
+  silently passes because the tool it needed was not installed is not a check —
+  it is §2d's ungradeable-is-not-green rule in a shell script, the same rule
+  #708 applied to a defaulted `guardDir` six hours earlier. Bash's own
+  `/dev/tcp` has no install to miss.
+
+  **WHAT IT MEANS FOR EVERY OTHER PR, and this is the half that will surprise
+  somebody: `docs/LOAD-SANITY.md` is now load-bearing for the required `test`
+  check.** The guard derives the documented levels from every
+  `### Concurrency C, N requests/path` heading in that file and asserts the
+  harness's default levels are among them. Reword, renumber or delete the `8x40`
+  or `25x75` heading in a **docs-only** edit and `test` goes red naming
+  `e2e-harness-args.test.ts`. Project rule 3 lets a docs-only PR merge on green
+  without review, which remains correct — but "docs-only" has never meant "cannot
+  go red", and this is the third document outside `docs/rulebook/**` where that is
+  true, after `docs/E2E.md` (`e2e-doc-axe-count.test.ts`) and `docs/OPS.md`
+  (`ops-clinic-site-url.test.ts`). **Check the direction before you panic:** adding
+  a THIRD table at a new level is fine and fails nothing. Only moving the harness
+  default onto a level the document has no table for fails, because an after-table
+  measured at a level the before-table never used is not a comparison.
+
+  **The load mode's own argument, recorded because the reasoning is the
+  transferable part.** `docs/LOAD-SANITY.md` recommendation 4 says re-measure
+  after any change to public-site rendering, and #507 / #654 changed exactly that
+  — yet the baseline sat unre-measured for a fortnight. The reason was mundane
+  rather than negligent: `load-sanity.mjs` defaults to `127.0.0.1:3100` and
+  `/site/e2e-dental`, and the only thing in this repo that produces a live clinic
+  site on that port and slug is the harness's four steps. Every session that
+  wanted to honour recommendation 4 had to hand-assemble them, and none did.
+  **A recommendation that requires a session to reassemble is a recommendation
+  that does not happen; the fix is to make it a flag.** That is the same lesson
+  §2d keeps drawing about guards, pointed at a procedure instead.
+
+  **THE FOLLOW-UP THIS INTAKE WILL NOT BUILD ITSELF, HELD HERE SO IT IS NOT
+  LOST — `scripts/e2e-harness.sh` belongs in `review-gate.mjs`'s
+  `check-definitions` area, and its absence is why this PR needed a human to
+  label it.** Read that area's own stated argument: *a workflow file names the
+  job; these name the WORK inside it — which specs and tests run, with what
+  retries.* Its patterns are `vitest.config.ts`, `playwright.config.ts`,
+  `e2e/axe.ts`, `e2e/axe-baseline-raises.ts`, `scripts/review-gate.mjs`,
+  `scripts/rulebook-drift.mjs` and `scripts/review-sweep.mjs`. **`ci.yml`'s
+  entire `e2e` job is one line, `bash scripts/e2e-harness.sh`** — so the
+  harness is not merely an example of work inside a required check, it is ALL
+  of it, and it is the one file matching the area's description that the area
+  does not match. That is why #710 came back `needs-forge-intake` only and Rio
+  added `needs-sentinel-review` by hand. An author's judgement is a second path
+  to a reviewer, never the first one.
+
+  **NOT MADE HERE, and the reason is the rule rather than caution.**
+  `scripts/review-gate.mjs` is itself in `check-definitions`: it is the list
+  that decides which PRs reach a reviewer at all, so widening it is a
+  review-gated change and cannot ride along in a rulebook edit that would
+  otherwise merge on green. **Filed as DREAMCRM-129, assigned to Quinn**, with
+  Sentinel on the review, and carrying the one open question: whether
+  `scripts/load-sanity.mjs` belongs on the list too. It does not, on the
+  reading recorded there — no workflow runs it, so it cannot gate a merge,
+  and the harness/load-script flag agreement is already graded loudly inside
+  `test`. Written down so the decision is MADE rather than inherited. **Recording the gap costs one paragraph; leaving it costs the
+  next author noticing, which is the thing this document keeps measuring and
+  keeps finding is not a control.**
+
+  **AND THE SWEEP'S OWN PATH LIST OWED AN ENTRY, SO IT IS WIDENED HERE.** When
+  #710 merges, the path-scoped pass one — `.github/workflows/`, `docs/CI.md`,
+  `docs/E2E.md`, `e2e/` — **will not see it at all.** `scripts/e2e-harness.sh` is
+  the single most gate-relevant file in this repository that is not under
+  `.github/`: it is the body of the required `e2e` check, and the list has never
+  watched it. This is not the first time: **the thirtieth entry** records a merge
+  pass one could not see "because the diff is two `scripts/` files and one test",
+  and the list was not widened then. It is widened now.
+  **Pass one's list is therefore now
+  `.github/workflows/ scripts/ tests/guards/ docs/CI.md docs/E2E.md
+  docs/LOAD-SANITY.md e2e/`.** The two added directories are gate machinery by
+  construction rather than by judgement — `scripts/` holds `review-gate.mjs`,
+  `review-sweep.mjs`, `rulebook-drift.mjs`, `migration-check.mjs` and this
+  harness, and `tests/guards/` is self-declaring in exactly the sense #701 argued
+  a directory is. Measured before widening: `scripts/` appears in 24 of the 89
+  commits on `main` since 2026-09-20, so pass one gets materially noisier, and
+  that is the trade taken deliberately. **Pass one is cheap and pass two is a
+  person choosing to look; moving work from the second to the first is the only
+  direction worth moving it.** Pass two is not retired and must still run — a new
+  assertion inside an existing check under a path nobody anticipated is precisely
+  what no list can be widened enough to catch, which is the lesson of every entry
+  above.
+
+  **THE SWEEP OF 2026-09-23T12:3xZ, boundary `2026-09-23T11:59:53+00:00`** — the
+  boundary the entry above committed to, used as written. **The widened path
+  list earned its keep on its first run and it is worth saying so, because a
+  widening that is never measured is just a longer list.** Pass one returned
+  `e6cbdc95` (#709) — through `scripts/review-gate.mjs`, a directory the old
+  four-entry list did not watch. Under the old list pass one would have returned
+  NOTHING and #709 would have depended entirely on the unscoped pass, which is
+  the arrangement the widening was taken to stop. It had merged twelve minutes
+  earlier carrying BOTH labels and no rulebook record, so it was a live intake
+  obligation rather than a drill. Protection and merge settings re-read and
+  unchanged; `rulebook-drift` 9/9, every claim held.
+
+  **THE FIFTY-EIGHTH: #709, the `components/clinic-site` widening of
+  `tests/a11y/dimmed-text.test.ts` (DREAMCRM-116, `e6cbdc95`, 2026-09-23
+  12:22:09Z, Vesper). A CASE, not a new class, and the author said so rather
+  than leaving it to be guessed** — no new kind of assertion arrived and the
+  file was already registered, so no list grows. **It is routed anyway, on §2's
+  own rule that a field of view which GROWS with no new assertion still changes
+  what fails `test` by name**: `OUT_OF_SCOPE` loses its last entry, and a
+  dimming written on type anywhere under the public clinic sites is a red run
+  now where it was silence before. That is the #669 rule in the shape it is
+  easiest to talk yourself out of.
+
+  **THE EXCLUSION WAS DISCHARGED BY MEASUREMENT, NOT BY ARGUMENT, AND THE
+  MEASUREMENT IS THE PART WORTH KEEPING.** The stated reason the tree sat
+  outside this rule was that its ink and its ground are derived per tenant:
+  `buildClinicPalette` turns the one colour a clinic picks into a seventeen-role
+  theme, so "is this dimming readable" reads as though it has as many answers as
+  there are brands. Measuring the demo clinic would have answered for exactly
+  one of them. So it was graded THROUGH THE BUILDER across every brand a clinic
+  can actually pick — the onboarding presets plus the adversarial extremes, the
+  same list `tests/clinic-site/palette.test.ts` pins its AA floor over — and the
+  answer does not depend on the brand at all. **The body ink at 50% measures
+  3.20 to 3.29 against a 4.5 floor: it fails on all twelve, best case included,
+  and the spread is 0.09.** Not a coincidence — the builder grades `ink` on `bg`
+  to clear AA with almost no headroom, so halving the ink spends all of it
+  whatever the hue. The named quiet ink clears on every one, 4.88 to 5.97, so
+  this rule's standing fix is available for every brand rather than the lucky
+  ones. **A per-tenant derivation is not automatically unmeasurable; it is
+  measurable through its own builder, and "it varies" is a hypothesis with a
+  cheap test rather than a reason to stop.** That generalises past this rule to
+  every exclusion in this document whose stated reason is variability.
+
+  **AND THE PARAGRAPH THAT JUSTIFIED THE EXCLUSION WAS WRONG IN BOTH HALVES**,
+  which is why re-deriving on the way in is a rule here rather than a courtesy.
+  It claimed three hits, none body copy. There are seven chunks carrying an
+  `opacity-N` under that tree, six of them unprefixed; four are graphics with no
+  type scale and are left alone exactly as the other 22 are; three declared a
+  type scale and were findings, all three fixed rather than pardoned. Its triage
+  was half right — the two `dc-edit-only` prompts really are editor-only — and
+  half beside the point, because **an editor is still a person reading type at
+  3.20.** A pardon that rests on WHO is reading rather than on what is rendered
+  is the weakest kind in this file.
+
+  **THE BLIND SPOT IT NAMED ON THE WAY IN, recorded here because the next author
+  will assume otherwise and because the file cannot fail on it:** a dimming
+  written in a STYLE OBJECT — `style={{ color: INK_MUTED, opacity: 0.65 }}` —
+  is invisible to every rule in `dimmed-text.test.ts`, because all of them read
+  CLASS STRINGS. Two exist under that tree today. It is the same false-negative
+  direction as the rest of the file, and closing it needs **a different reader,
+  not a wider regex** — which is §2d's derive-the-field-of-view family stated as
+  a limit instead of discovered as a defect. Naming a blind spot in the same
+  merge that narrows another one is the behaviour this document wants; nothing
+  goes red for it today and that is the honest position.
+
+**A HAND-ADDED `needs-sentinel-review` DOES NOT SURVIVE YOUR NEXT PUSH, AND THE
+MORNING SWEEP CANNOT SEE THE PR THAT LOSES ONE** (Sentinel's finding, found
+while reviewing PR #710; routed 2026-09-23, DREAMCRM-130). This is not a gate CHANGE and it takes
+no ordinal — it is a defect in the machinery this section describes, and it is
+recorded here because §2 is where an agent comes to find out what the labels
+mean.
+
+**THE RULE YOU NEED IF YOU READ NOTHING ELSE: the label is not the delivery
+mechanism. The MENTION is.** When the classifier misses a risk and you add
+`needs-sentinel-review` by hand, also comment on your issue with the PR link and
+the mention, exactly as project rule 3 says — and do not treat the label as
+having carried the request, because by the time anyone looks it will probably be
+gone. The same holds for `needs-forge-intake` and me.
+
+**The mechanism.** `.github/workflows/review-gate.yml` re-derives both labels
+from the changed paths on every push. When the classifier returns
+`needs-review=false` it takes an `else` branch that runs
+`gh pr edit --remove-label needs-sentinel-review` unconditionally. The intake
+half is symmetrical, with the same `else` and the same unconditional removal, so
+**a hand-added `needs-forge-intake` is stripped exactly as readily** — Sentinel
+found the review half; the intake half is the same three lines and is mine.
+
+**That `else` is correct for the label it was written for and wrong for the one
+it also hits.** For a classifier-DERIVED label it is right: a PR that drops its
+risky file in a later push should stop claiming it owes a review, and the
+comment beside the code says exactly that. But the classifier cannot distinguish
+*"the risk went away"* from *"I never saw the risk to begin with."* A
+hand-added label is a human overriding the classifier, and the classifier
+overwrites the override the moment the author saves their work again.
+
+**Why this is worse than a missing sticker, and it is the part to understand.**
+`scripts/review-sweep.mjs` is the morning net, built because #573, #582 and #636
+merged owing a review nobody noticed. Its review half is
+`labelled(pr, REVIEW_LABEL)` (line 572, via `reviewBucket` at 622) read over
+MERGED PRs at sweep time. A PR whose label was stripped by its last push merges
+carrying nothing, the sweep finds nothing to ask about, and the morning report
+is honestly clean. **So the net is blind in exactly the category where the path
+rule had already failed — the judgement call, which is the category the net is
+most needed for.** A control that reports CLEAN about a fact it can no longer
+see is the failure mode this whole section keeps naming, arriving this time in
+the control itself.
+
+**The reproduction, in #710's own timeline** — recorded here rather than only in
+the thread, per §10, because the agent who fixes this will be standing in this
+file and not in a comment stream. `labeled needs-sentinel-review` by
+`DreamCreateWeb` at 11:51:35Z (Rio, by hand, because `review-gate.mjs` had
+classified the diff `needs-forge-intake` only). `unlabeled` by
+`github-actions[bot]` at 12:02:43Z, on the `198b981b` push that fixed the
+typecheck. Absent from the PR now. No harm on this one: the review happened,
+because Rio mentioned Sentinel by hand — which is the whole point. **The label
+machinery contributed nothing to the review it was built to guarantee, and
+nobody would have known.**
+
+**`scripts/review-sweep.mjs`'s own blind-spot list owes an entry, and that is
+the sharpest way to put the defect.** That list is explicit and it is
+deliberately maintained — a label step that hiccuped, a PR that merged during
+the labelling run, a typed verdict with no review behind it, a queue longer than
+GitHub will annotate. Its docblock says, in so many words, that a blind-spot
+list which omits a known blind spot spends the credibility it exists for. This
+blind spot is not on it. Until it is, the list is making a completeness claim it
+no longer earns.
+
+**NOT PATCHED HERE, deliberately.** `review-gate.yml` is a CI workflow file and
+`review-sweep.mjs` sits in `review-gate.mjs`'s own `check-definitions` area, so
+both are review-gated; and the fix needs a DECISION rather than an edit —
+whether to stop removing the label at all, to remove it only when the bot
+applied it (the timeline knows who did), or to have the sweep key on something a
+push cannot erase. That is the owning agent's call and it should be made once,
+in the open. Filed as **DREAMCRM-130 for Quinn**, with Sentinel on the review.
+Sentinel found it while reviewing someone else's PR, declined to hold a green PR
+over another lane's defect, and handed it over with the reproduction — which is
+§10 working exactly as written.
+
 **Which repo-settings change goes where.** A setting that changes *which* checks
 are required or *who* may bypass them is branch protection: §3's review gate
 applies, and it is intake too. A setting that only changes *how* a merge is
