@@ -7,6 +7,7 @@ import React from 'react'
 import {
   MARKETING_EMOJI,
   MARKETING_EMOJI_NAMES,
+  CUT,
   REJECTED,
 } from '@/lib/marketing/emoji'
 import { MarketingEmoji } from '@/components/marketing/emoji'
@@ -93,8 +94,45 @@ describe('animated emoji assets', () => {
     }
   })
 
-  it('keeps the curated set at six, and keeps the reasons for the cuts', () => {
-    expect(MARKETING_EMOJI_NAMES).toHaveLength(6)
+  it('credits what it ships and no more', () => {
+    // The same licence-accuracy rule as the case above, pointed the other way.
+    // Attribution is an obligation over the files actually DISTRIBUTED, so a
+    // credit left behind for an asset we deleted is the provenance table
+    // describing a directory that no longer exists. Found by DREAMCRM-118's
+    // cut, where three credited glyphs stopped shipping.
+    const licence = fs.readFileSync(path.join(DIR, 'LICENSE.md'), 'utf8')
+    const provenance = licence.slice(0, licence.indexOf('**This table is what we ship'))
+    for (const c of CUT) {
+      expect(
+        provenance,
+        `${c.glyph} is credited in the provenance table but no longer ships`,
+      ).not.toContain(c.codepoint)
+    }
+  })
+
+  it('keeps the curated set at three under a ceiling of six, with the reasons for both kinds of cut', () => {
+    // THREE, and six is the ceiling (`BRAND.md` Part 5, DREAMCRM-118). This
+    // read six until three of the six reached 1.0 marking nothing; the number
+    // is what the site USES, and the ceiling is the separate rule.
+    expect(MARKETING_EMOJI_NAMES).toHaveLength(3)
+    expect(MARKETING_EMOJI_NAMES.length + CUT.length).toBeLessThanOrEqual(6)
+
+    // Two lists, because they answer different questions. `CUT` passed the
+    // audition and had nowhere to go, so a real moment is a reason to restore
+    // one; `REJECTED` failed on the merits, so nothing there should be
+    // re-auditioned. Collapsing them loses exactly that.
+    const registered = new Set<string>(
+      MARKETING_EMOJI_NAMES.map((n) => MARKETING_EMOJI[n].codepoint),
+    )
+    for (const c of CUT) {
+      expect(registered, `${c.glyph} is both cut and registered`).not.toContain(c.codepoint)
+      expect(c.why.length).toBeGreaterThan(20)
+      // The re-encode parameters are the expensive part of a restore -- the
+      // still frame was picked by looking at the strip, and frame 0 is not
+      // always usable (popper's is the cone before the burst).
+      expect(c.build.name.length).toBeGreaterThan(0)
+    }
+
     // The rejects are the expensive half of the research. Losing them means
     // someone re-downloads 1.2 MB to rediscover that the milky way is a square.
     expect(REJECTED.length).toBeGreaterThanOrEqual(10)
@@ -132,7 +170,7 @@ describe('the middleware does not eat the assets', () => {
 
 describe('MarketingEmoji', () => {
   it('is silent to screen readers by default', () => {
-    const { container } = render(<MarketingEmoji name="sparkles" />)
+    const { container } = render(<MarketingEmoji name="planet" />)
     const img = container.querySelector('img')!
     expect(img.getAttribute('alt')).toBe('')
     expect(img.getAttribute('aria-hidden')).toBe('true')
@@ -155,7 +193,7 @@ describe('MarketingEmoji', () => {
   })
 
   it('reserves its box so a late image cannot reflow the text around it', () => {
-    const { container } = render(<MarketingEmoji name="star" size={32} />)
+    const { container } = render(<MarketingEmoji name="popper" size={32} />)
     const img = container.querySelector('img')!
     expect(img.getAttribute('width')).toBe('32')
     expect(img.getAttribute('height')).toBe('32')
