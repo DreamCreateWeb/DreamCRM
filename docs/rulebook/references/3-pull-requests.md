@@ -223,7 +223,7 @@ same reason: found by its author while making an unrelated change in the same
 file (the ⌘K refund note), widened in that PR rather than deferred, and routed
 by hand on merge day rather than left for the enumeration to carry alone.
 
-**STATE: OPEN — PR #711, on the DREAMCRM-122 branch.** Pinned in
+**STATE: MERGED — PR #711, `f8c642da`, 2026-09-23 13:01:48Z.** Pinned in
 `MUST_BE_GATED` as `money` in the same PR. Written down before the merge on the
 DREAMCRM-60 precedent §2 sets out — write it down early, say what state it is
 in, and own the flip; the flip is Forge's at the next sweep, not the author's.
@@ -415,6 +415,53 @@ workflow that publishes it, can be green on the parent and red on the child
 while the tick on the PR page looks identical. Pair it with §2a's **read the
 check NAMES, not the colour**: same family, both cases where the PR page makes
 "never started" and "green" indistinguishable.
+
+#### The same rule under `strict: true`, where the named SHA can never be the one that merges (new 2026-09-23, DREAMCRM-128)
+
+**Naming a SHA is unsatisfiable whenever `main` moves during a review**, which
+on this repo is most reviews. `strict: true` compels an update-branch, and the
+update creates a DIFFERENT head — so the SHA a reviewer can name is never the
+SHA that merges. #712's approved head held for eleven minutes; the branch was
+updated four times and `main` moved under it five. The rule above was never
+about the SHA. It was about nobody merging a diff a reviewer never saw.
+
+1. **The CI half is unchanged and already machine-enforced.** `strict: true`
+   guarantees the required checks re-run on the head that merges; that is
+   branch protection's job and no reviewer asserts it. #685's original worry —
+   a check definition reviewed on one head and merged on another — is covered
+   by strict mode outright. **This is not a weakening**, and saying so is part
+   of the rule: without this sentence a reader takes the rest as a licence.
+2. **The verdict names the DIFF, not only the head.** The reviewer records the
+   head read AND its patch-id:
+   `git diff $(git merge-base origin/main HEAD) HEAD | git patch-id --stable`.
+3. **The merger recomputes it at the merging head** and records both SHAs and
+   both patch-ids on the PR. Equal patch-ids mean the reviewed diff IS the
+   merged diff — a byte comparison rather than a judgement. **They do NOT mean
+   the merged RESULT is green.** A diff correct against one base can fail
+   against another, and no hash of the diff can see that, by construction,
+   because what changed is not in the diff. #712's patch-id held across an
+   update that brought in a stale `STATE:` line from another PR, and `test`
+   went red on the new head — rule 1 doing its job. **The required checks on
+   the merging head remain the other half, always.**
+4. **A changed patch-id returns the PR to review.** If `main` touched the same
+   lines, the hash moves and a human looks again — a STRONGER gate than the one
+   it replaces, which could not see a semantic conflict at all, only a SHA.
+
+**Use `patch-id --stable`, not a hash of the diff**, and this is a correction to
+the first draft of this rule rather than a preference. `git diff | git
+hash-object` also hashes the base's BLOB IDENTITY and the hunk header line
+numbers, both of which move whenever anyone edits the same files elsewhere. On
+PR #712 an unrelated commit to `docs/RELEASE.md` moved that hash while every
+`+` and `-` line stayed byte-identical — two `index` lines, nothing else. Rule 4
+would have fired on nothing, most reviews, which is the churn this rule exists
+to end. `patch-id` ignores blob hashes and line numbers and moves only when the
+changed lines move.
+
+**What it forgives, named rather than engineered around:** `patch-id`
+normalises whitespace, so a whitespace-only change to a reviewed diff would not
+bounce it. `test` already grades line endings (`line-endings.test.ts`) and
+control bytes (`control-bytes.ts`) across every tracked file, so that is not an
+unguarded surface here. Name the limit, cite what covers it.
 
 
 ### Who reviews Sentinel's own gated PRs (new 2026-09-22, DREAMCRM-91)

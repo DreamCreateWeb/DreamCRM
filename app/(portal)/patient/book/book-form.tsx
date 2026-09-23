@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useEffect, useRef, useState, useTransition } from 'react'
 import { bookMyVisitAction, getPortalSlotsAction } from '../actions'
 import SlotPicker from '@/components/patient-portal/slot-picker'
 import { PORTAL_VISIT_LABELS } from '@/lib/types/portal'
@@ -63,6 +63,16 @@ export default function PortalBookForm({
   const [error, setError] = useState('')
   const [pending, startTransition] = useTransition()
 
+  // The confirmation REPLACES the form outright — the submit button unmounts
+  // and focus falls back to <body>, so the payoff was spoken to nobody. A live
+  // region cannot carry it: the surface mounts already-populated, the case
+  // screen readers do not reliably announce. Focus is the phase-change
+  // contract, same as the public booking form's BookingSuccess.
+  const doneHeadingRef = useRef<HTMLHeadingElement | null>(null)
+  useEffect(() => {
+    if (state === 'done') doneHeadingRef.current?.focus()
+  }, [state])
+
   const people = [self, ...dependents]
 
   const submit = () => {
@@ -111,7 +121,9 @@ export default function PortalBookForm({
           ✓
         </span>
         <h2
-          className="mt-4 text-[1.45rem] font-semibold"
+          ref={doneHeadingRef}
+          tabIndex={-1}
+          className="mt-4 text-[1.45rem] font-semibold focus:outline-none"
           style={{ fontFamily: 'var(--font-display)', color: INK }}
         >
           {forPatientId === self.id ? 'You’re booked' : `${who?.firstName ?? 'They'}’s booked`}
