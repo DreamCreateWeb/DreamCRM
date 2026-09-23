@@ -349,6 +349,36 @@ the index disagreeing with the working tree, and this is the working tree
 disagreeing with what CI receives. **When a result could depend on which of the
 three you read, read the one the gate reads.**
 
+**And for a PR that changes a CHECK DEFINITION or a workflow file, the green
+run must be on the EXACT HEAD THAT MERGES** (new 2026-09-23, DREAMCRM-114,
+Sentinel's intake, ACCEPTED as written). The two rules above are about what a
+verdict says; this one is about what a verdict may CONCLUDE. "Merge on green" is
+not a verifiable instruction, and this is how the pipeline broke: #685 was
+approved at head `995fbf11` on a `test` success independently confirmed at
+`7bc4fc77` — an ANCESTOR. The head that actually merged was never green, and
+what reddened `main` was in the delta between them. Two agents then merged into
+the red pipeline before anything noticed, and production shipped nothing for 77
+minutes.
+
+So for this class of PR the reviewer names the SHA rather than delegating the
+check to the merger's judgement:
+
+```markdown
+`test` / `e2e` green at `<head SHA>` — merge THIS head. A new commit needs a new
+green run and a re-read.
+```
+
+**Why the rule is scoped to check definitions and workflow files rather than to
+every PR.** On an ordinary PR a stale-green approval is caught by branch
+protection: `strict: true` forces the branch up to date and the checks re-run
+before the merge button works. The class this rule covers is the one where that
+backstop is the thing being edited — a change to what `test` asserts, or to the
+workflow that publishes it, can be green on the parent and red on the child
+while the tick on the PR page looks identical. Pair it with §2a's **read the
+check NAMES, not the colour**: same family, both cases where the PR page makes
+"never started" and "green" indistinguishable.
+
+
 ### Who reviews Sentinel's own gated PRs (new 2026-09-22, DREAMCRM-91)
 
 Sentinel cannot be the second pair of eyes on his own diff, and until now the
@@ -407,6 +437,43 @@ and leaving the merge to whoever happens to pick the issue up next. Then act on 
 in that same run: merge on `APPROVE` / `APPROVE WITH NOTES`, or start the fix on
 `REQUEST CHANGES`. A request posted and abandoned turns a review into a stall, and
 the work sits finished-but-unmerged until someone notices.
+
+**Arm a wakeup in the same breath as requesting the review** (new 2026-09-23,
+DREAMCRM-114, Quinn's intake, ACCEPTED). Polling inside the run is the right
+thing to do while you are still in it; a wakeup is what covers you when you are
+not. Post the mention and arm the event in one step:
+
+```bash
+multica issue wakeup create <issue-id> --event comment.created \
+  --filter-actor-type agent --filter-actor-id 030cc8a2-06a9-415d-a419-e8d5d7c01969 \
+  --instruction-file ./wake.md
+```
+
+(That id is Sentinel's; for a PR he authored, use Quinn's — see "Who reviews
+Sentinel's own gated PRs" above.)
+
+**THE INSTRUCTION IS REQUIRED AND THE FLAG IS EASY TO LEAVE OFF.** Without it
+the CLI refuses with `instruction must contain 1-12000 bytes` — which reads
+like a length complaint about a string you never wrote, and is the kind of
+error that sends you to the wrong end of the problem. Use
+`--instruction-file` with a UTF-8 file in your working directory, for the
+`## Comment Formatting` reason: PowerShell 5.1 can replace a non-ASCII
+character in an inline string with `?`.
+
+**Write it for a reader with none of today's context, because it IS the next
+run's brief.** Name the PR, the conditions for merging, and everything the
+verdict leaves you owing — a `STATE:` flip, a publication, the intake record
+mirrored onto the PR. A wakeup whose instruction says "check the review" wakes
+somebody up to re-derive what you already knew.
+
+**The measurement this comes from:** two hand-offs stalled on one issue
+(DREAMCRM-105) and both needed an ops sweep to rescue them — two paid rescue
+runs where one armed wakeup would have cost nothing, and the pattern is not
+specific to one agent. The verdict mention in §3 above is the reviewer's half of
+the same problem; this is the author's half, and they are independent. The
+mention wakes you when Sentinel remembers to write it; the wakeup wakes you
+whatever the verdict comment looks like. **Arm both and neither depends on the
+other holding.**
 
 If the verdict genuinely has not arrived by the time you must stop, say so plainly
 in your closing comment and leave the issue at `in_review` — awaiting a Sentinel

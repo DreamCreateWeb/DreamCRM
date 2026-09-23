@@ -2,13 +2,16 @@ import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import {
+  CENSUS_FLOORS,
   CLAIMS,
   CLAIMED_GATE_AREAS,
   CLAIMED_REQUIRED_CHECKS,
   WORKFLOW_CENSUS,
   drift,
   effectiveContexts,
+  namedInRulebook,
   readLocalReality,
+  readRulebook,
   runsOnPullRequest,
 } from '../../scripts/rulebook-drift.mjs'
 
@@ -47,12 +50,14 @@ type Census = Record<string, { gates: string; publishes: string[]; note: string 
 type Live = {
   workflows: Record<string, string>
   gateAreas: string[]
+  guards: string[]
+  rulebook: { files: string[]; text: string }
   protection: Record<string, any> | null
   repo: Record<string, any> | null
 }
 
 const CENSUS = WORKFLOW_CENSUS as Census
-const localReality = () => readLocalReality(process.cwd()) as Pick<Live, 'workflows' | 'gateAreas'>
+const localReality = () => readLocalReality(process.cwd()) as Pick<Live, 'workflows' | 'gateAreas' | 'guards' | 'rulebook'>
 
 /** The live protection/repo shape, as `gh api` returns it today, claims holding. */
 const HEALTHY = {
@@ -146,13 +151,22 @@ describe('the rulebook drift check', () => {
       // needing a review and no PR goes red.
       live.gateAreas = live.gateAreas.filter((a) => a !== 'money')
     },
+    'guards-census': (live) => {
+      // THE SHAPE THIS ACTUALLY ARRIVES IN: a new guard lands in
+      // `tests/guards/` and its PR says nothing to the rulebook. #534 took
+      // three days that way, #598 was found only by an unscoped sweep pass.
+      // Deliberately a plausible NAME rather than `zzz.test.ts` — the failure
+      // message quotes it, and a reader who sees a realistic name learns what
+      // the check is about.
+      live.guards = [...live.guards, 'new-alarm-wiring.test.ts']
+    },
   }
 
   it('has a perturbation for every claim, so none of them ships ungraded', () => {
     expect(Object.keys(PERTURBATIONS).sort()).toEqual(CLAIMS.map((c: { id: string }) => c.id).sort())
   })
 
-  it('still makes all eight claims, spelled out', () => {
+  it('still makes all nine claims, spelled out', () => {
     // SPELLED OUT RATHER THAN COUNTED. The test above compares two lists that
     // MOVE TOGETHER: delete a claim and its perturbation and it stays green,
     // which makes the one edit that weakens this check the one edit nothing
@@ -164,6 +178,7 @@ describe('the rulebook drift check', () => {
       'every-required-check-has-a-producer',
       'force-push-and-deletion-bars',
       'gate-areas',
+      'guards-census',
       'required-checks',
       'strict-and-allow-update-branch',
       'who-can-publish-a-required-check',
@@ -238,6 +253,99 @@ describe('the rulebook drift check', () => {
       expect(claim.section, `${claim.id} must name where the skill states it`).toMatch(/^§\d/)
       expect(claim.states.length, `${claim.id} must quote what the skill says`).toBeGreaterThan(10)
     }
+  })
+})
+
+describe('the guards census, and its own eyes', () => {
+  // §2d: a guard's READER is a guard, and nothing downstream can grade it.
+  // Every assertion in this claim is an ABSENCE assertion — "no guard file is
+  // unnamed" — so a reader that silently narrows makes the census GREENER.
+  // The floors are the only thing standing between that and a check that
+  // reports a clean census about a directory it never opened.
+
+  it('reads the real directories, not an empty pair', () => {
+    const live = liveNow()
+    expect(
+      live.guards.length,
+      'the guard directory came back nearly empty. Every assertion in `guards-census` is an ' +
+        'absence assertion, so an empty read reports a clean census forever.',
+    ).toBeGreaterThanOrEqual(CENSUS_FLOORS.guardFiles)
+    expect(live.rulebook.files.length).toBeGreaterThanOrEqual(CENSUS_FLOORS.rulebookFiles)
+    expect(live.rulebook.text.length).toBeGreaterThanOrEqual(CENSUS_FLOORS.rulebookBytes)
+    // The walk is RECURSIVE, and that is load-bearing rather than incidental:
+    // eight of the nine rulebook files live under `references/`, so a
+    // non-recursive walk would read SKILL.md alone and report 30-odd guards
+    // unregistered — a red `test` run naming thirty innocent files.
+    expect(live.rulebook.files.filter((f) => f.includes('/')).length).toBeGreaterThan(0)
+  })
+
+  it('goes red when its own reader is blinded, in either half', () => {
+    // BLINDING THE GUARD SIDE. Not merely "does it find nothing to report" —
+    // it must OBJECT, naming the reader rather than the tree.
+    const blindGuards = liveNow()
+    blindGuards.guards = []
+    const a = drift(blindGuards).findings.find((f) => f.id === 'guards-census')
+    expect(a, 'an empty guard list must be a finding, not a clean census').toBeTruthy()
+    expect(a!.actual).toContain('read 0 guard files')
+
+    // BLINDING THE RULEBOOK SIDE is the more dangerous direction and the one
+    // an absence assertion cannot feel: with no rulebook text every guard
+    // reads unregistered, which is loud. With a TRUNCATED rulebook the census
+    // is quietly wrong in whichever direction the truncation lands. The floor
+    // catches both because it is about bytes read, not about matches found.
+    const blindBook = liveNow()
+    blindBook.rulebook = { files: ['SKILL.md'], text: '# tiny' }
+    const b = drift(blindBook).findings.find((f) => f.id === 'guards-census')
+    expect(b, 'a truncated rulebook read must be a finding about the READER').toBeTruthy()
+    expect(b!.actual).toContain('rulebook files')
+  })
+
+  it('needs a FILE NAME, not a stem — the `migration-check` trap', () => {
+    // MEASURED, not hypothetical. `scripts/migration-check.mjs` and
+    // `migration-check.yml` are both written up at length in §2a and §3, so a
+    // stem matcher reported `tests/guards/migration-check.test.ts` registered
+    // when what was registered was a script and a workflow. Three of the
+    // eleven guards backfilled on DREAMCRM-114 were hidden exactly this way.
+    const text = 'we run `scripts/migration-check.mjs` from `migration-check.yml`.'
+    expect(namedInRulebook(text, 'migration-check.test.ts')).toBe(false)
+    expect(namedInRulebook(`and ${'migration-check.test.ts'} holds it in place.`, 'migration-check.test.ts')).toBe(true)
+  })
+
+  it('accepts a citation with or without its directory, and nothing looser', () => {
+    expect(namedInRulebook('see `tests/guards/control-bytes.ts`', 'control-bytes.ts')).toBe(true)
+    expect(namedInRulebook('see `control-bytes.ts`', 'control-bytes.ts')).toBe(true)
+    // TRAILING BOUNDARY. `x.ts` is a prefix of `x.tsx`, so a rulebook naming
+    // only the `.tsx` sibling would otherwise report the `.ts` one registered
+    // — §2d's a-prefix-is-not-a-name trap, in the one place it would be
+    // silent. Both directions, because a matcher is only pinned by the case
+    // it must REFUSE plus the case it must accept.
+    expect(namedInRulebook('see `widget.test.tsx`', 'widget.test.ts')).toBe(false)
+    expect(namedInRulebook('see `widget.test.tsx`', 'widget.test.tsx')).toBe(true)
+    // LEADING BOUNDARY: a longer name must not satisfy a shorter one that
+    // happens to end it.
+    expect(namedInRulebook('see `portal-brand.test.ts`', 'brand.test.ts')).toBe(false)
+  })
+
+  it('names every unregistered guard in the finding, not just the count', () => {
+    const live = liveNow()
+    live.guards = [...live.guards, 'alpha-guard.test.ts', 'beta-guard.test.ts']
+    const f = drift(live).findings.find((c) => c.id === 'guards-census')
+    expect(f, 'two unregistered guards must be a finding').toBeTruthy()
+    // The whole value of this check is the follow-up being mechanical: a
+    // report saying "2 guards unregistered" sends the reader back to diff two
+    // directories by hand, which is the work the check exists to remove.
+    expect(f!.actual).toContain('alpha-guard.test.ts')
+    expect(f!.actual).toContain('beta-guard.test.ts')
+  })
+
+  it('reads the rulebook off disk the same way the claim does', () => {
+    // The claim is graded against `readLocalReality`; this asserts the
+    // exported reader and the wired one are the same thing, so a future
+    // refactor cannot leave the claim reading one corpus and the tests above
+    // proving properties of another.
+    const direct = readRulebook(process.cwd()) as { files: string[]; text: string }
+    expect(direct.files).toEqual(localReality().rulebook.files)
+    expect(direct.text.length).toBe(localReality().rulebook.text.length)
   })
 })
 

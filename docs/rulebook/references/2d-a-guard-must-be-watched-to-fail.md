@@ -23,18 +23,18 @@ something is the second one, not the first.**
 Five guards changed what `test` asserts, and all five can fail a PR that has
 nothing to do with guards:
 
-- `server-only-services` — **a commented-out banner is no longer proof.** The
-  scan ran against raw source, so `// import 'server-only'` read as full
-  protection; it strips comments first now. This is the one with a real
+- `server-only-services.test.ts` — **a commented-out banner is no longer
+  proof.** The scan ran against raw source, so `// import 'server-only'` read
+  as full protection; it strips comments first now. This is the one with a real
   consequence: the banner is what makes a client component importing a service a
   build error instead of database code — table names, query strings, env-var
   reads — shipping to a patient's browser. Nothing had gone wrong; the guard
   could not have told us if it had.
-- `no-native-dialogs` — bans a bare `confirm('…')` as well as `alert(` and
-  `window.confirm(`. The bare form is discriminated from the sanctioned
+- `no-native-dialogs.test.ts` — bans a bare `confirm('…')` as well as `alert(`
+  and `window.confirm(`. The bare form is discriminated from the sanctioned
   `const confirm = useConfirm()` by **argument shape**: a string is the native
-  dialog, an options object is the hook. Matching the bare name alone reported all
-  42 correct uses — see "suspect the widening" below.
+  dialog, an options object is the hook. Matching the bare name alone reported
+  all 42 correct uses — see "suspect the widening" below.
 - `legibility-floor` — scope widened from `components/ui` to **all of
   `components`** (31 dashboard files had never been swept), and arbitrary font
   sizes are now **parsed and compared numerically** against the 12px floor instead
@@ -565,3 +565,119 @@ needs widening at all.
 **And a guard you have watched fail can still stop running.** That is a
 different property from anything in this file, and it has its own rule: §2a's
 *every alarm ships with the thing that notices it stopped.*
+
+## A new check's ENVIRONMENT is part of its correctness
+
+*Sentinel's intake, 2026-09-23 (DREAMCRM-114, from the 2026-09-23 planning
+meeting). ACCEPTED as written. The families above cover the wiring between a
+guard and what it GRADES; this is the wiring between a guard and the MACHINE it
+runs on, and nothing in this file graded that until #685 proved it needed to.*
+
+**Run the new check the way CI runs it, not the way your workdir runs it.**
+`tests/guards/rulebook-state.ts` passed on a full local clone and reddened every
+CI push, because `actions/checkout` defaults to `fetch-depth: 1` and the guard
+reads `git log origin/main`. Neither the author's local run nor the review
+caught it. The thing that caught it was production traffic through the pipeline
+— a red `main`, a stopped deploy, and every open PR inheriting the failure
+through `strict: true`. The repair (#697) was to give every job that runs the
+suite full history, which is the right fix and arrived after the outage.
+
+The three differences that have actually bitten here, which is the whole list
+worth memorising:
+
+1. **A SHALLOW CLONE.** One commit, no `origin/main`, no tags, no history. Any
+   guard whose subject is the repository's own past — merge records, ancestry,
+   a comparison against `main` — reads an empty answer and either fails or,
+   worse, passes vacuously. §2c's axe-baseline ratchet needed the same fetch
+   step in four workflows for exactly this reason; the rulebook-state guard
+   needed it in three more.
+2. **NO SECRETS.** `test` has `contents: read` and the repo holds one secret. A
+   guard that reaches for a token gets `undefined`, and the interesting failure
+   is the one that treats `undefined` as "nothing to check" rather than as an
+   error. §2a's fail-closed rule applies here and is easy to forget when the
+   variable is populated on the box you wrote it on.
+3. **NO NETWORK YOU HAVE NOT ASKED FOR**, and a clean environment: no
+   `.env.local`, no globally-installed CLI, a different OS, different line
+   endings, a different locale, `TZ=UTC`.
+
+**How to satisfy this before review rather than after the outage.** The mutation
+is not to the predicate — it is to the environment. Re-run the new guard against
+a shallow clone of the repo (`git clone --depth 1` of your own branch into a
+temp directory is two commands) with the environment emptied, and check it
+reddens FOR THE STATED REASON rather than for a missing file. If the guard
+cannot run there at all, that is the finding: **a required check that needs
+something CI does not give it is not a check, it is a scheduled outage.**
+
+**And the asymmetry that makes this worth a section rather than a note.** Every
+other family here fails in the direction of a guard that cannot find a real
+defect. This one fails in the direction of a guard that fails a CORRECT tree, on
+`main`, after the merge — where the clearing action does not exist yet and every
+other PR in the repo is blocked behind it. It is the most expensive way a guard
+can be wrong.
+
+## A never-again guard lives in `tests/guards/`
+
+*Forge's intake, 2026-09-23 (DREAMCRM-114). This is the convention half of §2's
+guards census; the check half is `scripts/rulebook-drift.mjs`.*
+
+**If a test's thesis is "this pattern may never appear again", put it in
+`tests/guards/`.** Not "this function returns the right answer" — that is an
+ordinary unit test and belongs beside the thing it tests. The distinguishing
+question is what a failure MEANS: an ordinary test goes red because behaviour
+changed, and a guard goes red because somebody reintroduced a shape this repo
+has decided against. A guard's audience is the next author, not the current one.
+
+**Why the directory and not a predicate, which is the part that was measured.**
+The obvious mechanical answer — "a guard is a test that reads source off
+disk" — was tried on 2026-09-23 and hits **81 files outside `tests/guards/`**,
+most of them ordinary unit tests, while still missing `hero-lcp-paint`, which
+reads its subject out of a rendered stylesheet rather than off disk. Over-broad
+by roughly ten times AND blind to that day's actual case. Per §2 a false
+positive here costs a red `test` run naming an innocent file, so
+registration-by-predicate is the wrong shape and was not built. **A directory is
+self-declaring: a file is in it because its author put it there, so the
+false-positive rate is zero by construction.** That is the general lesson, not a
+fact about this directory — when you need a population and no predicate is both
+sound and complete, a declaration beats an inference.
+
+**What the census then buys.** Every file under `tests/guards/` must be named,
+by its own file name, somewhere in `docs/rulebook/**`. So a new machinery guard
+either reaches this rulebook in the PR that introduces it or fails `test` by
+name, and the intake stops depending on somebody choosing to look. **Its honest
+limit is that it covers exactly that directory**: the design and accessibility
+guards in `tests/marketing/` and `tests/a11y/` are registered by hand in §2b and
+nothing goes red if the next one is forgotten. Moving such a guard into
+`tests/guards/` is the way to buy it coverage — and moving one OUT is a way to
+lose coverage silently, so do not, and say why in the PR if you ever must.
+
+## A rule that holds a population at ZERO ships a field-of-view assertion
+
+*Vesper's intake, 2026-09-23 (DREAMCRM-114). ACCEPTED as a convention;
+DECLINED, for now, as a derivation — the reasoning is below, because a declined
+half is worth as much on the record as an accepted one.*
+
+**A rule whose gate is "this scan returns nothing" cannot go red when its own
+eyes narrow.** That is the reader family above, stated as the obligation it
+implies rather than as a lesson: *when you add or widen a rule that holds a
+population at zero, the same PR ships an assertion about what the rule can
+SEE.* The two shapes already in the tree are both legitimate and are the two
+worth copying — `tests/a11y/one-string-pairs.test.ts` compares the chunks its
+rule reads against the SOURCE, and `tests/a11y/dimmed-text.test.ts` replays its
+own former caller and asserts a count. Pick whichever actually measures the
+narrowing you are exposed to, and say in the docblock which one you picked.
+
+**Why not a derivation yet, measured rather than asserted.** It has been
+hand-built exactly twice, and Vesper is right that a pattern applied twice by
+hand is usually the shape of the next derivation. The reason to wait is that the
+two instances do not share a MECHANISM: one grades a reader against source text,
+the other replays a caller and counts. A derivation over "every zero-holding
+rule" would have to choose which of those a given rule needs, and choosing
+wrongly produces a lock that passes vacuously — **the exact failure the lock
+exists to prevent, wearing the lock's uniform**, which is the worst outcome
+available here. A derivation also needs every such rule to expose its reader as
+something callable, and most do not today.
+
+**So the trigger is written down instead of left to memory: when a THIRD
+zero-holding rule ships a field-of-view assertion and two of the three share a
+mechanism, that is the derivation, and it routes here.** Until then this is a
+convention a reviewer enforces, and §3's checklist is where a reviewer reads it.
