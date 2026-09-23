@@ -3488,6 +3488,75 @@
     label is exactly what untracked work has nobody to apply.** It never wakes
     Forge — §3's off-board count is what it feeds.
 
+  **THE FIFTY-SEVENTH: #712, `tests/guards/rulebook-publish.test.ts` +
+  `scripts/rulebook-publish.mjs` (DREAMCRM-128). A NEW CLASS, and the first
+  guard here whose subject is a document THIS REPO DOES NOT CONTAIN** — the
+  copy of `dreamcrm-conventions` in the Multica skill store, which is the copy
+  every agent actually opens. **STATE: on the PR — #712, review requested.**
+
+  **The gap it closes, stated as the asymmetry it is.** DREAMCRM-109 moved the
+  rulebook into `docs/rulebook/` so a check could read it, and three now do:
+  `rulebook-state` grades its `STATE:` lines, `rulebook-drift` grades the
+  claims it makes about the repo, `control-bytes` bans a raw C0 byte in it.
+  All three grade the AUTHORED copy. The hop from there to the store was
+  graded by nobody, and it has failed both ways: nine `STATE:` lines described
+  `main` wrongly for up to six days, and a cp1252 round trip replaced ninety
+  characters on 2026-09-14 **while leaving both strings 9,018 characters
+  long**. A length match is not a comparison; it is a comparison's shadow.
+
+  **WHAT ACTUALLY FAILS `test` BY NAME, which is the only part of this entry
+  that changes a merge.** One new file in `tests/guards/`, and what it asserts
+  is the publisher's four predicates — perturbed and watched to fail — plus two
+  facts about this tree: that `docs/rulebook/**` passes the publisher's own
+  preflight, and that `docs/RELEASE.md` R5 still names the command. Editing R5
+  to drop that line now reddens a required check. **The verify itself is NOT a
+  required check and may never become one**: it needs a credentialed `multica`
+  CLI and `test` has `contents: read` plus one secret, so a version of it
+  living in CI would report GREEN without ever reaching its subject — §2a's
+  standing convention in its purest form. The enforcement is therefore R5, and
+  a red verify stops the go/no-go.
+
+  **FOUR ASSERTIONS RATHER THAN ONE, AND THE REASON IS NOT THOROUGHNESS.** The
+  byte compare (A) is a COMPARISON, so it is satisfied by a faithful publish of
+  an already-mangled tree: if the repo copy carries the raw C1 byte, A is green
+  while the rulebook is wrong. So the encoding rule (C) and the heading rule
+  (D) run TWICE — once on the local tree as a preflight that refuses to
+  publish, once on what came back. A grades the transport; C and D grade the
+  text; neither is the other's proxy. The description (B) is a separate field
+  on the store record that A structurally cannot see, and it is the text an
+  agent reads to decide whether to open the rulebook at all — a drifted
+  description makes a whole section unfindable without making anything look
+  wrong.
+
+  **The server offers a `content_hash` per file and it is deliberately not the
+  verdict.** Comparing it would be one line and it grades the store against
+  ITSELF: a mangling that happened on the way IN produces a hash that honestly
+  describes the mangled bytes. The subject is the bytes in the working tree, so
+  the bytes in the working tree are what it compares against. The hash is
+  printed as corroboration and decides nothing.
+
+  **THE DETECTOR IS THE INVERSE OF THE DEFECT, NOT A LIST OF ITS SYMPTOMS, and
+  that is a correction to something already in this repo.** `rulebook-state.ts`
+  rule 0 finds mojibake with a hand-kept list of the sequences this office has
+  seen — so it is green on every character it was not told about, which is
+  §2d's identity-looseness family sitting inside the guard that exists to catch
+  encoding defects. `findMojibake` maps each character back through cp1252 and
+  asks whether the resulting bytes form a valid multi-byte UTF-8 sequence, so
+  it catches a curly quote, an ellipsis, a non-breaking space and an emoji
+  none of which has ever been seen mangled here. Its own first draft failed on
+  the emoji case by dropping cp1252's five unassigned slots as undecodable:
+  every real decoder maps them to their C1 control, and a four-byte
+  character's second byte is very often `0x90`. **Collapsing rule 0 onto this
+  is a change to a required check's definition and is deliberately not in
+  #712** — it is named here so it is not lost.
+
+  **What this rulebook may never do, and the reason it is written as prose:**
+  paste a specimen of a mangled character. The specimen IS the defect —
+  `control-bytes` and rule 0 both grade this tree, and a detector built on the
+  inverse cannot tell a document that quotes mojibake from one that is
+  mojibake. Every case in the guard is constructed at runtime for that reason.
+  The instructions this work grew out of failed their own check by pasting one.
+
   (**The ordinals record arrival HERE, not merge order.** #697 and #684 merged
   before #698 and #701 and are numbered after them, because this list records
   what has been ROUTED. Reading it as a timeline turns a gap in the intake into
