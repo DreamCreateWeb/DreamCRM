@@ -589,6 +589,21 @@ of the page than the first draft, not less. Zero rather than a ceiling cost two
 real fixes rather than a pardon, which is the standard the other eleven stops
 set.
 
+**And a stop arrived on 2026-09-23 that no marketing page list could have
+produced** (#698 / DREAMCRM-108, `66d087dc`, 06:05:18Z — §2's fifty-third
+entry). `e2e/smoke.spec.ts` now carries a stop on the marketing 404, with an
+axe scan and Part 10's 390px `scrollWidth` probe against a real **404
+response**. It is not in `e2e/marketing-viewport.spec.ts` and it cannot be:
+that spec asserts `status === 200` at every stop it visits. **Read that
+together with the praise above for the derived page list**, because it is the
+boundary of it — the list expands from the registries the routes' own
+`generateStaticParams` read, so it covers a ninth comparison on the day it is
+added, and it still cannot cover a page that exists only as a miss. A derived
+field of view is bounded by the predicate it derives THROUGH, and here that
+predicate is "a route with params that resolve". Count the
+`expectNoA11yViolations` call sites, as this section already says; do not count
+the marketing pages and assume the two numbers are the same question.
+
 **The two populations this section called uncovered are covered by DREAMCRM-98
 (PR #669, OPEN as of 2026-09-22, Vesper).** Counted the way this section asks —
 `expectNoA11yViolations` call sites rather than a number quoted from here — the
