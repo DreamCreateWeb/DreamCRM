@@ -3181,6 +3181,78 @@
   window closed. **That is the sweep working, and it is still a person choosing
   to look**, which §2d says is not a control.
 
+  **THE FIFTY-FOURTH: #701, the `guards-census` claim in
+  `scripts/rulebook-drift.mjs` + the census block in
+  `tests/guards/rulebook-drift.test.ts` (DREAMCRM-114). A NEW CLASS, and the
+  first guard here whose subject is WHETHER A SENTENCE EXISTS** rather than
+  whether one is still true. Every file in `tests/guards/` must be named, by
+  its own file name, somewhere in `docs/rulebook/**`, or `test` fails naming
+  it. **STATE: on the PR — #701, awaiting Sentinel.**
+
+  **Why it is a new class and not a ninth of the same.** The eight claims
+  `rulebook-drift.mjs` already made all ask the same question in different
+  words: *is this sentence about the repo still true?* They grade required
+  checks, the workflow census, the gate areas — facts that MOVE. The failure
+  this rulebook keeps recording is a different one: a blocking assertion lands
+  inside a check that already exists, nothing any of those eight facts
+  describes moves at all, and the rule reaches nobody. #534 took three days.
+  #598 was found only by the unscoped second sweep pass. #698 put three of
+  them in one merge, thirty minutes after an intake window closed. In every
+  case `rulebook-drift` was honestly green.
+
+  **REGISTRATION BY LOCATION, and the predicate that was measured and thrown
+  away — read this before proposing a cleverer one.** The obvious rule is a
+  predicate: *a guard is a test that reads source off disk.* Measured on
+  `main` 2026-09-23, that matches **81 files OUTSIDE `tests/guards/`**, most of
+  them ordinary unit tests with no never-again thesis at all, and it MISSES
+  `hero-lcp-paint`, the day's actual case, which reads its subject out of a
+  rendered stylesheet. Over-broad by roughly ten times and blind to the case
+  that prompted it. §2 is explicit about what a false positive costs here — a
+  red `test` run naming an innocent file — so it was not built. **A directory
+  is self-declaring: a file is in it because its author put it there, so the
+  false-positive rate is zero by construction.** The general form is worth
+  more than this instance: when you need a population and no predicate is both
+  sound and complete, a declaration beats an inference.
+
+  **THE FULL FILE NAME, NOT THE STEM, and it is worth three entries.** The
+  meeting's count was eight absent; the census found ELEVEN. The three extra
+  were reported registered because a SCRIPT or a workflow of the same stem was
+  written up: `scripts/migration-check.mjs` and `migration-check.yml` both have
+  pages in §2a and §3 while `tests/guards/migration-check.test.ts` was named
+  nowhere. That is §2d's identity-looseness family pointed at this document's
+  own bookkeeping, and the matcher answers it on both sides — a LEADING
+  boundary so a bare name and a path-qualified one both count (requiring a
+  prefix would redden sixteen correct citations for nothing), and a TRAILING
+  one because `x.ts` is a prefix of `x.tsx` and a rulebook naming only the
+  `.tsx` sibling would otherwise report the `.ts` one registered.
+
+  **Its reader is guarded, and that is the load-bearing half.** Every
+  assertion in this claim is an ABSENCE assertion — *no guard file is
+  unnamed* — so a reader that silently narrows makes it GREENER, which is
+  §2d's reader family exactly. `CENSUS_FLOORS` fails the claim when the census
+  read almost nothing, and the floors are deliberately COUNTS rather than
+  shares: #691's rule is about a claim on a POPULATION, and this is a claim
+  about the READER. A share cannot express *you read nothing*. Watched to fail
+  in both seams on the real tree — rewriting §2c's `one-mrr-number.test.ts`
+  citation as a stem reddens `test` naming that file, and narrowing the guard
+  filter reddens with *the census read 0 guard files* rather than reporting a
+  clean census.
+
+  **WHAT IT MEANS FOR EVERY OTHER PR:** a new file in `tests/guards/` owes a
+  paragraph in this rulebook in the SAME PR, or `test` goes red naming it.
+  Nothing product-facing changes and no number moves.
+
+  **Its two limits, stated rather than left to be discovered.** It covers that
+  ONE directory: the design guards in `tests/marketing/` and the six
+  accessibility guards in `tests/a11y/` are hand-registered in §2b and nothing
+  goes red if the next one is forgotten — moving such a guard into
+  `tests/guards/` is how it earns coverage, and moving one OUT is how coverage
+  is lost silently. And it grades NAMING, never correctness: whether the
+  paragraph describing a guard is any good is §2d's sentence-versus-code
+  family and still needs a reader. What this buys is that the paragraph exists
+  and has a name to find it by, which is the difference between an intake that
+  happens and one that waits for somebody to choose to look.
+
 **Which repo-settings change goes where.** A setting that changes *which* checks
 are required or *who* may bypass them is branch protection: §3's review gate
 applies, and it is intake too. A setting that only changes *how* a merge is
