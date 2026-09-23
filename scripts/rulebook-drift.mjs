@@ -124,6 +124,49 @@ const RULEBOOK_DIR = 'docs/rulebook'
 export const CENSUS_FLOORS = { guardFiles: 20, rulebookFiles: 2, rulebookBytes: 100_000 }
 
 /**
+ * The non-vacuity floor for `intake-ordinals`. Nine markers exist on this tree
+ * (49..57); five is a tripwire against a reader that stopped reading, not a
+ * claim about how long the list should be.
+ */
+export const INTAKE_ORDINAL_FLOOR = 5
+
+/**
+ * ORDINAL WORD TO NUMBER, and it is DERIVED rather than typed out.
+ *
+ * A hand-typed table of ninety-nine entries is a hand-kept list guarding a
+ * hand-kept list, which is the joke §2d would make at its own expense. The
+ * units and the tens are the only facts; every compound is `TENS-UNIT`, which
+ * is how English spells them and how this rulebook writes them.
+ *
+ * It runs to ninety-nine because the list is at fifty-seven and gains a handful
+ * a week. Past that the claim says so out loud rather than going quiet — see
+ * the `unknown` branch.
+ */
+export const ORDINAL_WORDS = (() => {
+  const units = [
+    'FIRST', 'SECOND', 'THIRD', 'FOURTH', 'FIFTH', 'SIXTH', 'SEVENTH', 'EIGHTH', 'NINTH', 'TENTH',
+    'ELEVENTH', 'TWELFTH', 'THIRTEENTH', 'FOURTEENTH', 'FIFTEENTH', 'SIXTEENTH', 'SEVENTEENTH',
+    'EIGHTEENTH', 'NINETEENTH',
+  ]
+  const tensOrdinal = {
+    20: 'TWENTIETH', 30: 'THIRTIETH', 40: 'FORTIETH', 50: 'FIFTIETH',
+    60: 'SIXTIETH', 70: 'SEVENTIETH', 80: 'EIGHTIETH', 90: 'NINETIETH',
+  }
+  const tensPrefix = {
+    20: 'TWENTY', 30: 'THIRTY', 40: 'FORTY', 50: 'FIFTY',
+    60: 'SIXTY', 70: 'SEVENTY', 80: 'EIGHTY', 90: 'NINETY',
+  }
+  const out = {}
+  units.forEach((w, i) => { out[w] = i + 1 })
+  for (const [tenStr, word] of Object.entries(tensOrdinal)) {
+    const ten = Number(tenStr)
+    out[word] = ten
+    for (let u = 1; u <= 9; u++) out[`${tensPrefix[ten]}-${units[u - 1]}`] = ten + u
+  }
+  return out
+})()
+
+/**
  * Every `.md` under `docs/rulebook/`, recursively, as one string plus its file
  * list. One string because the question is "is this name written down
  * anywhere in the rulebook", and which file it landed in is the author's
@@ -277,6 +320,11 @@ export const WORKFLOW_CENSUS = {
     gates: 'nothing',
     publishes: [],
     note: 'the alarm that watches the other alarms (DREAMCRM-99): one daily job asserting every scheduled workflow has a `schedule`-triggered run inside the window its own cron implies. Derives its list from the cron entries in this directory, so a schedule added tomorrow is watched tomorrow. No PR trigger, no required context, so it cannot hold a merge',
+  },
+  'push-alarm.yml': {
+    gates: 'nothing',
+    publishes: [],
+    note: "the repo's FIRST workflow_run-triggered file (DREAMCRM-115). ONE alarm, TWO producers: it runs on every completion of deploy.yml and post-merge-e2e.yml - the only two workflows that fire on push to main - goes red when its upstream did, and POSTs to a Multica autopilot webhook that opens an issue assigned to Quinn. It exists because a red deploy.yml went unnoticed for 21 minutes on 2026-09-23 while production shipped nothing for 77: nothing in .github/ was listening for a failed push-triggered workflow, and schedule-heartbeat.yml cannot see one by construction. The two producers differ in CONSEQUENCE, not in question - a red deploy holds production back, a red post-merge run means the broken commit is already live - so the severity sentence is keyed on workflow_run.path and so is the red-streak edge. No PR trigger, no push, no required context, so it cannot hold a merge; two read scopes and one POST. NOTE that workflow_run matches DISPLAY NAMES rather than filenames - tests/guards/push-alarm.test.ts derives the expected set from every workflow declaring push-to-main and requires the trigger list to equal it, so a rename or a third producer fails test by name",
   },
   'rulebook-drift.yml': {
     gates: 'nothing',
@@ -612,8 +660,131 @@ export const CLAIMS = [
           'cite it BY FILE NAME, including the extension. A bare stem does not count: ' +
           '`migration-check` is satisfied by a script and a workflow of the same name while the ' +
           'guard itself is registered nowhere. If the file is not a guard, it does not belong in ' +
-          '`tests/guards/`; move it rather than writing a paragraph about it.',
+          '\`tests/guards/\`; move it rather than writing a paragraph about it.',
       }
+    },
+  },
+  {
+    id: 'intake-ordinals',
+    needs: ['rulebook'],
+    section: '§2, the numbered intake list',
+    states: 'every `**THE <ORDINAL>:` entry marker is unique, and the set has no gaps',
+    /**
+     * THE ORDINAL IS A HAND-KEPT COUNTER AND NOTHING COULD SEE IT DOUBLE.
+     *
+     * On 2026-09-23 THREE open PRs each claimed §2's FIFTY-SEVENTH entry —
+     * #712, #713 and #714. All three were `MERGEABLE` against `main`, because
+     * they insert at different offsets in the same file and git has no opinion
+     * about what the words mean. Two fifty-sevenths would have landed and
+     * neither author would have known. §2d says a hand-kept list drifts
+     * exactly as a revert list does; this is that, in the document that says it.
+     *
+     * WHAT IT ASSERTS, AND WHAT IT DELIBERATELY DOES NOT. Uniqueness, and no
+     * gaps between the lowest ordinal present and the highest. It does NOT
+     * assert contiguity from ONE, and that is a MEASUREMENT rather than a
+     * concession: on this tree the entry markers run 49..57, because the first
+     * forty-eight entries predate the `**THE <ORDINAL>:` form and are written
+     * as prose. A from-one claim would have reddened on its own first run —
+     * which is §2d's newest rule (run the instrument on the case in front of
+     * you) catching this one BEFORE it was written rather than after.
+     *
+     * **49 IS THE FLOOR OF THE NUMBERED ERA, and retrofitting the first
+     * forty-eight is DECLINED** (Sentinel, reviewing #721, and I agree).
+     * Rewriting forty-eight historical entries into the marker form is a large
+     * edit to records whose value IS the record, it risks transcription error
+     * across all of them, and it buys only contiguity-from-one, which nothing
+     * needs. The defect this exists for is a duplicate at the HEAD of the list
+     * — the live end, where concurrent PRs collide — and uniqueness plus
+     * no-gaps-in-range covers that completely. That is a fact about the
+     * document's history, not a shortcoming in the claim.
+     *
+     * THE CANDIDATE TEST IS THE ORDINAL SUFFIX, NOT THE MAP. `**THE FIX:` is a
+     * real heading in this rulebook and is not an ordinal; keying on the map
+     * alone would silently skip it — and would equally silently skip
+     * `FIFTY-EIGTH`, a typo, which is the one thing a counter's guard must not
+     * wave through. So anything shaped like an ordinal (ST/ND/RD/TH) is a
+     * CANDIDATE, and a candidate the map cannot resolve is a FINDING rather
+     * than a skip. Unrecognised is loud; not-an-ordinal is quiet.
+     */
+    check: (live) => {
+      const { text } = live.rulebook
+      // ANCHORED ON THE ENTRY FORM — ` #<digits>` — AND THE FIRST DRAFT WAS NOT
+      // (Sentinel, reviewing #721). `**THE <CAPS>:` is live house style here,
+      // and the suffix test alone made a candidate of every heading that
+      // happens to end in one: `**THE COST:`, `**THE FIRST:`, `**THE LAST:`,
+      // `**THE SECOND:`. The first two are the worse half — they RESOLVE, so
+      // they poison the set and produce a gap finding naming forty-seven
+      // innocent numbers, with remedy text telling the author to fix a typo or
+      // extend the map when the answer is "that is not an ordinal".
+      //
+      // Every real entry names its PR, all eleven of them, so the anchor costs
+      // nothing it was designed for: a typo'd ordinal in a real entry
+      // (`**THE FIFTY-EIGTH: #722`) still matches and is still LOUD, which was
+      // the whole point of the candidate/map split. §2's own rule is that a
+      // false positive costs a red `test` naming something innocent and the fix
+      // is to narrow the PREDICATE, never to exempt the file. This is that.
+      const candidates = [...text.matchAll(/\*\*THE ([A-Z][A-Z-]*(?:ST|ND|RD|TH)): #\d+/g)].map((m) => m[1])
+
+      // NON-VACUITY, because everything below is about a set this reader
+      // built: a regex that stopped matching reports a perfectly unique,
+      // perfectly contiguous EMPTY list. There is no independent census to
+      // compare against here — unlike the guards, whose directory is a second
+      // reading — so a floor is the honest instrument rather than a weaker
+      // version of an exact one.
+      if (candidates.length < INTAKE_ORDINAL_FLOOR) {
+        return {
+          actual: `found ${candidates.length} ordinal entry markers in the rulebook`,
+          fix:
+            'the reader found almost no numbered entries, so its verdict means nothing. The entry ' +
+            'form is \`**THE <ORDINAL>:\` — if §2 changed how it writes them, teach this claim the ' +
+            'new form. Do NOT lower the floor.',
+        }
+      }
+
+      const unknown = candidates.filter((w) => ORDINAL_WORDS[w] === undefined)
+      if (unknown.length) {
+        return {
+          actual: `ordinal marker(s) this claim cannot resolve: ${unknown.join(', ')}`,
+          fix:
+            'a word shaped like an ordinal is not in \`ORDINAL_WORDS\`. Either it is a typo in the ' +
+            'rulebook — fix the entry — or the list has grown past the map, in which case extend ' +
+            '\`ORDINAL_WORDS\`. Never make this quiet: an unresolvable ordinal is a counter nobody ' +
+            'is counting.',
+        }
+      }
+
+      const seen = new Map()
+      candidates.forEach((w) => {
+        const n = ORDINAL_WORDS[w]
+        if (seen.has(n)) seen.get(n).push(w)
+        else seen.set(n, [w])
+      })
+
+      const dupes = [...seen].filter(([, words]) => words.length > 1)
+      if (dupes.length) {
+        return {
+          actual: `duplicate entry ordinal(s): ${dupes.map(([n, w]) => `${n} (x${w.length})`).join(', ')}`,
+          fix:
+            'two §2 entries claim the same number. That is what happens when concurrent PRs each ' +
+            'take the next ordinal off the same base — three did on 2026-09-23 and git called all ' +
+            'three mergeable, because they insert at different offsets in one file. The PR that ' +
+            'lands SECOND renumbers: check \`origin/main\` before you merge rather than after.',
+        }
+      }
+
+      const sorted = [...seen.keys()].sort((a, b) => a - b)
+      const gaps = []
+      for (let n = sorted[0]; n < sorted[sorted.length - 1]; n++) if (!seen.has(n)) gaps.push(n)
+      if (gaps.length) {
+        return {
+          actual: `ordinals run ${sorted[0]}..${sorted[sorted.length - 1]} with ${gaps.length} missing: ${gaps.join(', ')}`,
+          fix:
+            'a numbered entry is missing from the middle of the list — most likely a renumber that ' +
+            'skipped one, or an entry deleted rather than struck. Close the gap, or say in the ' +
+            'entry itself why that number is retired.',
+        }
+      }
+      return null
     },
   },
 ]

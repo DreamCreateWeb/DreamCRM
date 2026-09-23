@@ -3392,6 +3392,62 @@
   and has a name to find it by, which is the difference between an intake that
   happens and one that waits for somebody to choose to look.
 
+  **THE FIFTY-NINTH: #700, `.github/workflows/push-alarm.yml` +
+  `scripts/push-alarm.mjs` + `tests/guards/push-alarm.test.ts`
+  (DREAMCRM-115). A NEW CLASS — the first guard here whose subject is a
+  `workflow_run` TRIGGER, which is the one wire in this repository that
+  breaks silently by design.** `workflow_run.workflows:` matches an upstream
+  workflow's DISPLAY NAME, and a trigger that matches nothing is not an
+  error: GitHub publishes no warning, no check and no run. An alarm
+  disconnected by a one-line rename in an unrelated tidy-up PR looks exactly
+  like an alarm with nothing to report. **STATE: MERGED — PR #700, `28145ef4`,
+  2026-09-23 17:28:25Z.**
+
+  **The registration is what makes it gradeable, and the predicate is
+  DERIVED rather than enumerated.** The obvious guard is the one the first
+  draft shipped: read `deploy.yml`'s `name:` off disk and require the
+  trigger list to contain it. That catches a rename and is blind to the
+  failure that actually matters more — a THIRD workflow starting to push to
+  `main` and simply never being watched, which is DREAMCRM-115's own gap one
+  level over. So the guard finds every workflow whose `on:` block declares
+  `push:` to `main`, reads each one's `name:`, and requires the trigger list
+  to EQUAL that set. A rename reddens `test`; so does a new producer, on the
+  day it arrives, with the derived set printed in the failure message.
+  Equality rather than containment is deliberate: watching something that no
+  longer pushes to `main` is also drift, and a stale name in a trigger tells
+  the next reader the wrong thing about what is covered.
+
+  **It reads the `on:` block, not the file** — `push:` appearing in a job
+  step or in one of these long headers would satisfy a whole-file grep, which
+  is §2a's "a guard over a YAML file is a guard over a file that is half
+  prose", and this file's own first run found it: the unfiltered search for
+  the script invocation matched the header SENTENCE naming the script instead
+  of the line that runs it. The comment-stripping reader is applied
+  file-wide rather than at the one call site that caught it.
+
+  **The severity table is graded too, and that is the second assertion
+  nobody would think to ask for.** The trigger decides who gets woken;
+  `PRODUCER_DETAIL` decides what the first sentence says when they are. If
+  the two come apart the alarm still fires and tells its reader it does not
+  recognise the workflow that produced the run — honest, and useless at the
+  hour it arrives. So every push-to-main workflow must also have a
+  consequence sentence, and the two derivations are compared against each
+  other rather than against a list.
+
+  **What it is watched failing against, and the one thing it is NOT.** Ten
+  mutations, each reddening the intended test and only it: the second
+  producer dropped, a producer renamed, a third producer added, the history
+  lookup hardcoded to one workflow, `cancelled` moved into the red set,
+  `process.exitCode = 0`, and four more. And the alarm itself was replayed
+  against the REAL `workflow_run` payloads of the 2026-09-23 outage — three
+  genuine failures and the green that followed — waking once on the edge and
+  staying quiet on the continuations. **What no pre-merge evidence can
+  cover: GitHub only dispatches `workflow_run` from the default branch, so
+  the alarm cannot fire once until this merges.** The confirmation is a
+  DISPATCH rather than a broken `main` — `post-merge-e2e.yml` carries
+  `workflow_dispatch`, and `workflow_run` fires on an upstream completion
+  however it was started.
+
   **A CASE on the emoji registry, no ordinal: #706** (`ac32ebd8`, 2026-09-23
   09:0xZ, DREAMCRM-118, Neon) — **two cases at once in
   `tests/marketing/emoji-assets.test.tsx`, and it is the tidiest example yet
@@ -3609,6 +3665,90 @@
   inverse cannot tell a document that quotes mojibake from one that is
   mojibake. Every case in the guard is constructed at runtime for that reason.
   The instructions this work grew out of failed their own check by pasting one.
+
+  **THE FIFTY-EIGHTH: #721, the `intake-ordinals` claim in
+  `scripts/rulebook-drift.mjs` (DREAMCRM-128). A NEW CLASS, and the first guard
+  here whose subject is THIS LIST'S OWN BOOKKEEPING** rather than anything in
+  the repo. Every `**THE <ORDINAL>:` marker must be unique and the set must have
+  no gaps, or `test` fails naming the duplicate.
+  **STATE: on the PR — #721, review requested.**
+
+  **What it cost to learn.** On 2026-09-23 THREE open PRs each claimed the
+  FIFTY-SEVENTH — #712, #713 and #714 — and GitHub called all three
+  `MERGEABLE`. They insert at different offsets in one file, so git has no
+  opinion about what the words mean; two fifty-sevenths would have landed and
+  neither author would have known. §2d already says a hand-kept list drifts
+  exactly as a revert list does. This list is in the document that says it, and
+  had no guard.
+
+  **WHAT IT DOES NOT ASSERT, AND WHY THAT IS A MEASUREMENT.** It does not
+  require contiguity from ONE. The markers on this tree run **49..57**, because
+  the first forty-eight entries predate the `**THE <ORDINAL>:` form and are
+  written as prose — so a from-one claim would have reddened on its own first
+  run, naming forty-eight innocent absences. That is §2d's newest rule (run the
+  instrument on the case in front of you) catching this guard BEFORE it was
+  written rather than after, which is the only time it is cheap.
+
+  **The candidate test is the ordinal SUFFIX, not the map, and the pair is the
+  design.** `**THE FIX:` is a real heading here and must stay quiet;
+  `FIFTY-EIGTH` is a typo and must be loud. Keying on the map alone would skip
+  both silently, and the second is the one a counter's guard may never wave
+  through. So anything shaped like an ordinal is a CANDIDATE, and a candidate
+  the map cannot resolve is a FINDING. `ORDINAL_WORDS` is DERIVED from units and
+  tens rather than typed out — a hand-kept table of ninety-nine guarding a
+  hand-kept list is the joke §2d makes at its own expense.
+
+  **ITS FIRST RUN CAUGHT A REAL ONE, which is the evidence §9 asks for.** #700
+  merged as `28145ef4` taking FIFTY-FIFTH, a number #697 already held — the
+  collision predicted that morning, landed, undetected, and invisible to
+  everything else this repo owns. `test` was green on `main` because the guard
+  that can see it did not exist there yet. Renumbered to FIFTY-NINTH.
+
+  **A COMPACTION LESSON, recorded because the shape generalises.** The §2
+  routing text in `SKILL.md`'s frontmatter was cut by 10,041 characters in the
+  same PR, against the right test — *would an agent deciding whether to OPEN §2
+  act differently without this?* — and the test was applied clause by clause.
+  It dropped **thirteen identifiers**: `text-gray-400`, `data-mkt-mock`,
+  `app/site`, `revalidateTag`, `carriesIntake` and eight more. The narrative
+  around them was correctly cut and they went with it, because each sat inside a
+  sentence that was mostly story.
+  **A section NAME routes an agent who already suspects a rule exists; a PATH or
+  a TOKEN routes the one who does not** — and that second reader is the one the
+  description exists for, and the one whose failure is silent. Restored as a
+  bare list with no argument attached, 310 characters. **Carry the rule: when a
+  clause-level test is applied to prose that mixes narrative and identifiers,
+  grade the identifiers separately.** (Sentinel, reviewing #721.)
+
+  **Its eyes are floored rather than compared, and the reason is worth keeping.**
+  Every branch is about a set the reader built, so a regex that stopped matching
+  reports a perfectly unique, perfectly contiguous EMPTY list. Unlike the guards
+  census there is no second reading to compare against — a directory is an
+  independent census, a prose list is not — so a floor is the honest instrument
+  here rather than a weaker version of an exact one.
+
+  **A CASE on the review gate, no ordinal: #716** (`85829c9a`, 2026-09-23,
+  DREAMCRM-130) — **a push may no longer strip a gate label a person put on**,
+  and it reaches this document late, which is worth saying plainly: it merged
+  while three rulebook PRs were queued against this file and was held rather
+  than routed. `review-gate.yml` gained an `issues: read` scope,
+  `review-gate.mjs` gained `labelRemovalDecision`, and
+  `tests/guards/review-gate.test.ts` gained new blocking assertions over the
+  wiring. The gate used to re-derive both labels on every push and remove them
+  unconditionally on the `false` branch — right for a label the classifier
+  applied, wrong for a hand-added one, because the classifier cannot tell "the
+  risk went away" from "I never saw the risk". The cost was not a missing
+  sticker: `review-sweep.mjs` reads the label off the MERGED PR, so a PR whose
+  last push stripped its label merged carrying nothing and the morning report
+  was honestly clean — blind in exactly the category the path classifier had
+  already missed. Every uncertainty returns KEEP, because the two errors are not
+  symmetrical: a stale label costs one question in tomorrow's sweep, a stripped
+  one costs the review.
+
+  **A CASE on the E2E harness, no ordinal: #704** (`a75497fa`, 2026-09-23,
+  DREAMCRM-115) — `e2e/portal-billing.spec.ts` and `docs/E2E.md`. The
+  portal-billing residual has a measured rate now rather than an adjective, and
+  the hunt found a second thing. Routed because §2 says a CASE is still routed:
+  no new class, but what the browser-driven spec asserts moved.
 
   (**The ordinals record arrival HERE, not merge order.** #697 and #684 merged
   before #698 and #701 and are numbered after them, because this list records

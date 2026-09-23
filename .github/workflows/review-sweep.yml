@@ -241,6 +241,22 @@ jobs:
           set -uo pipefail
           echo '[]' > last-run.json
 
+          # DID THIS RUN ACTUALLY LOOK AT ALL OF THEM? (DREAMCRM-115.)
+          #
+          # An empty `last-run.json` has three causes and only one of them is
+          # the bootstrap: no candidate woke, the list lookup failed, or a
+          # candidate was SKIPPED because its jobs lookup failed. A skipped
+          # candidate might have been the anchor, so the script may not read an
+          # empty file as "there has never been one" -- it needs this claim,
+          # and only the shell is in a position to make it.
+          #
+          # It starts TRUE and every failure path below sets it false; the
+          # script treats anything but a complete search as the lookup having
+          # failed, which is the `undated` suppression rather than a bootstrap
+          # nobody verified.
+          COMPLETE=true
+          SEARCHED=0
+
           # `--jq` rather than a node hop: a YAML block scalar does not process
           # escapes, so a `join("\n")` here becomes a backslash and an `n` and
           # the whole list collapses to one line. That is not hypothetical —
@@ -248,12 +264,18 @@ jobs:
           gh run list --repo ${{ github.repository }} --workflow review-sweep.yml \
             --branch main --limit 20 \
             --json databaseId --jq '.[].databaseId' \
-            > wake-candidates.txt || : > wake-candidates.txt
+            > wake-candidates.txt || { : > wake-candidates.txt; COMPLETE=false; }
 
           while read -r ID || [ -n "${ID}" ]; do
             [ -n "${ID}" ] || continue
             [ "${ID}" != "${{ github.run_id }}" ] || continue
-            gh api "repos/${{ github.repository }}/actions/runs/${ID}/jobs" > wake-jobs.json 2>/dev/null || continue
+            # A SKIPPED CANDIDATE POISONS THE CLAIM rather than being passed
+            # over quietly: this is the one it might have been.
+            if ! gh api "repos/${{ github.repository }}/actions/runs/${ID}/jobs" > wake-jobs.json 2>/dev/null; then
+              COMPLETE=false
+              continue
+            fi
+            SEARCHED=$((SEARCHED + 1))
             if node scripts/review-sweep.mjs woke --jobs wake-jobs.json; then
               gh run view "${ID}" --repo ${{ github.repository }} \
                 --json databaseId,conclusion,createdAt --jq '[.]' \
@@ -262,6 +284,13 @@ jobs:
               break
             fi
           done < wake-candidates.txt
+
+          # `echo` rather than a `printf` with a trailing newline escape. This
+          # is the same hazard the `--jq` comment above records: a YAML block
+          # scalar does not process escapes, so anything relying on one here is
+          # one more thing to get wrong for no gain. The file is read as JSON.
+          echo "{\"complete\":${COMPLETE},\"searched\":${SEARCHED}}" > wake-anchor-search.json
+          cat wake-anchor-search.json
 
       - name: Which of them merged owing a review, an intake or an issue key nobody recorded?
         id: sweep
@@ -278,7 +307,7 @@ jobs:
         # history is. A `\` continuation here leaves both guards green while
         # grading nothing.
         run: |
-          node scripts/review-sweep.mjs --prs merged-prs.json --limit 500 --last-green last-green.json --last-run last-run.json --wake-out wake.json ${{ (inputs.ping && '--ping') || '' }}
+          node scripts/review-sweep.mjs --prs merged-prs.json --limit 500 --last-green last-green.json --last-run last-run.json --anchor-search wake-anchor-search.json --wake-out wake.json ${{ (inputs.ping && '--ping') || '' }}
 
       # A RED SWEEP WAKES FORGE (DREAMCRM-99 deliverable 3).
       #
