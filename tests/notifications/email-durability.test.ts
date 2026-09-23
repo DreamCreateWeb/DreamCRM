@@ -147,7 +147,9 @@ const LOUD_PREFS = { comments: true, candidates: true, offers: true, emailMode: 
 function queuePrefs(over: Record<string, unknown> = {}) {
   state.selectQueue.push([{ ...LOUD_PREFS, ...over }])
 }
-/** The row an ON CONFLICT collided with. `[]` models it having been dismissed. */
+/** The row an ON CONFLICT collided with. `[]` models it being GONE — which
+ *  the conflict proves is a race, not the ordinary case: the row was deleted
+ *  between the insert and this read. */
 function queueExistingRow(row: { id: number; emailSentAt: Date | null } | null) {
   state.selectQueue.push(row ? [row] : [])
 }
@@ -242,10 +244,12 @@ describe('per-channel delivery state on a replayable notification', () => {
     expect(state.pushes, 'a replay must not make one event flash twice').toHaveLength(1)
   })
 
-  it('does not re-mint a row the recipient dismissed between attempts', async () => {
-    // The conflict says a row exists; the read says it does not. Clearing the
-    // tray between two Stripe deliveries is the ordinary way to get there, and
-    // re-creating the row would undo a deliberate action.
+  it('does not re-mint a row that was deleted between the insert and the read', async () => {
+    // The conflict PROVES a row existed; the read says it does not. So this is
+    // a race and not an ordinary path (Sentinel's note on #683) — the tray
+    // cleared, or a cascade delete, in the window between two statements. The
+    // guard earns its place anyway: re-creating a row somebody just dismissed
+    // would undo a deliberate action.
     queuePrefs()
     queueExistingRow(null)
     queueRecipient()
