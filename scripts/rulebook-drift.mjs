@@ -498,7 +498,13 @@ export const CLAIMS = [
   },
   {
     id: 'guards-census',
-    needs: ['guards', 'rulebook'],
+    // `guardDir` IS AN INPUT, AND LEAVING IT OFF THIS LIST WAS THE BUG
+    // (Sentinel, reviewing #707). The comparison below is between two
+    // readings of the same directory, so BOTH are inputs — but the first
+    // version listed only one and defaulted the other, which turned a missing
+    // input into a vacuous pass instead of an ungradeable claim. See the
+    // comment on `ungraded` for the shape.
+    needs: ['guards', 'guardDir', 'rulebook'],
     section: '§2d, "A never-again guard lives in `tests/guards/`", with the list in §2c',
     states: 'every file in `tests/guards/**` is named, by its own file name, somewhere in `docs/rulebook/**`',
     // THE ONLY CLAIM HERE WHOSE SUBJECT IS THE RULEBOOK'S OWN COMPLETENESS.
@@ -541,10 +547,34 @@ export const CLAIMS = [
       // `tests/guards/<subdir>/foo.test.ts` used to be invisible AND silent;
       // and a guard added with an extension nobody thought of now reddens
       // instead of vanishing.
-      const ungraded = (live.guardDir ?? live.guards).filter((f) => !live.guards.includes(f))
+      //
+      // NO `??` FALLBACK HERE, AND THE FIRST VERSION HAD ONE (Sentinel,
+      // reviewing #707). It read `(live.guardDir ?? live.guards).filter(f =>
+      // !live.guards.includes(f))`, which with `guardDir` absent becomes
+      // `guards.filter(f => !guards.includes(f))` — **empty by construction,
+      // for any input whatsoever.** The comparison did not fail, it
+      // DISAPPEARED, and because `guardDir` was missing from `needs` the
+      // runner did not file the claim as ungradeable either. Measured: the
+      // same partial narrowing that reddens naming twelve guards with
+      // `guardDir` present went GREEN with it absent, ungradeable=false.
+      //
+      // That is the floor's own failure mode reached through a different
+      // door, which makes it the third instance of one family: a check whose
+      // subject quietly leaves its field of view reports CLEAN. The fix is
+      // this file's own stated rule — A CLAIM THIS COULD NOT BE GRADED IS
+      // NEVER A CLAIM THAT HELD — so the input goes in `needs` and the
+      // default comes out. A defaulted input is a claim silently answering a
+      // question it was not able to ask.
+      //
+      // It was unreachable when it was written (`readLocalReality` always
+      // sets `guardDir`, and it has one production caller). It is fixed
+      // anyway, on the precedent already set a few lines up in `main()`'s
+      // `skipped` comment: a latent edge in the one classification this whole
+      // file exists to keep sharp is not somewhere to leave a maybe.
+      const ungraded = live.guardDir.filter((f) => !live.guards.includes(f))
       if (ungraded.length) {
         return {
-          actual: `${GUARD_DIR} holds ${(live.guardDir ?? []).length} entries and the census grades ${live.guards.length}; ungraded: ${ungraded.join(', ')}`,
+          actual: `${GUARD_DIR} holds ${live.guardDir.length} entries and the census grades ${live.guards.length}; ungraded: ${ungraded.join(', ')}`,
           fix:
             'something in `tests/guards/` is not being graded by the census, so it could be added ' +
             'or changed with nothing going red. Either the extension filter narrowed, or a guard ' +
