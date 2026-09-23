@@ -3609,6 +3609,30 @@
   that does not happen; the fix is to make it a flag.** That is the same lesson
   §2d keeps drawing about guards, pointed at a procedure instead.
 
+  **THE FOLLOW-UP THIS INTAKE WILL NOT BUILD ITSELF, HELD HERE SO IT IS NOT
+  LOST — `scripts/e2e-harness.sh` belongs in `review-gate.mjs`'s
+  `check-definitions` area, and its absence is why this PR needed a human to
+  label it.** Read that area's own stated argument: *a workflow file names the
+  job; these name the WORK inside it — which specs and tests run, with what
+  retries.* Its patterns are `vitest.config.ts`, `playwright.config.ts`,
+  `e2e/axe.ts`, `e2e/axe-baseline-raises.ts`, `scripts/review-gate.mjs`,
+  `scripts/rulebook-drift.mjs` and `scripts/review-sweep.mjs`. **`ci.yml`'s
+  entire `e2e` job is one line, `bash scripts/e2e-harness.sh`** — so the
+  harness is not merely an example of work inside a required check, it is ALL
+  of it, and it is the one file matching the area's description that the area
+  does not match. That is why #710 came back `needs-forge-intake` only and Rio
+  added `needs-sentinel-review` by hand. An author's judgement is a second path
+  to a reviewer, never the first one.
+
+  **NOT MADE HERE, and the reason is the rule rather than caution.**
+  `scripts/review-gate.mjs` is itself in `check-definitions`: it is the list
+  that decides which PRs reach a reviewer at all, so widening it is a
+  review-gated change and cannot ride along in a rulebook edit that would
+  otherwise merge on green. Proposed to Quinn, who owns CI, with Sentinel on
+  the review. **Recording the gap costs one paragraph; leaving it costs the
+  next author noticing, which is the thing this document keeps measuring and
+  keeps finding is not a control.**
+
   **AND THE SWEEP'S OWN PATH LIST OWED AN ENTRY, SO IT IS WIDENED HERE.** When
   #710 merges, the path-scoped pass one — `.github/workflows/`, `docs/CI.md`,
   `docs/E2E.md`, `e2e/` — **will not see it at all.** `scripts/e2e-harness.sh` is
