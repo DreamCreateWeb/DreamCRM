@@ -1,13 +1,19 @@
 import { describe, it, expect } from 'vitest'
-import { execFileSync } from 'node:child_process'
-import { readFileSync } from 'node:fs'
+import { execFileSync, spawnSync } from 'node:child_process'
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { dirname, join, normalize } from 'node:path'
 import {
+  CLASSIFIER_ACTOR,
   GATE_RULES,
+  INTAKE_LABEL,
   INTAKE_RULES,
+  REVIEW_LABEL,
   gateFindings,
   globToRegExp,
   intakeFindings,
+  labelRemovalDecision,
+  parseLabelEvents,
   renderSummary,
 } from '../../scripts/review-gate.mjs'
 
@@ -1396,5 +1402,328 @@ describe('the review-gate classifier', () => {
           `name that says so.`,
       ).not.toContain(context)
     }
+  })
+})
+
+/**
+ * WHO MAY TAKE A GATE LABEL BACK OFF (DREAMCRM-130).
+ *
+ * `review-gate.yml` re-derives both labels from the changed paths on every
+ * push, and its `false` branch used to remove the label unconditionally. That
+ * is right for a label the classifier applied and wrong for every other one:
+ * the classifier cannot tell "the risk went away" from "I never saw the risk",
+ * and a hand-added label is exactly a person overruling it on the second case.
+ *
+ * The cost is not a missing sticker. `scripts/review-sweep.mjs` reads
+ * `labelled(pr, REVIEW_LABEL)` over MERGED PRs — so a PR whose label its own
+ * last push stripped merges carrying nothing, the sweep finds nothing to ask
+ * about, and the morning report is honestly clean. The net built after #573,
+ * #582 and #636 goes blind in precisely the category the path classifier had
+ * already missed.
+ *
+ * THE REPRODUCTION IS PR #710's OWN TIMELINE, kept here rather than in the
+ * thread (§10) because this is where the next person will be standing:
+ *
+ *   11:51:35Z  labeled   needs-sentinel-review  DreamCreateWeb      (by hand)
+ *   12:02:43Z  unlabeled needs-sentinel-review  github-actions[bot] (push 198b981b)
+ *
+ * The classifier had returned `needs-forge-intake` only. No harm that time,
+ * because the author had also mentioned Sentinel by hand — which IS the point:
+ * the label machinery contributed nothing to the review it exists to guarantee,
+ * and nobody would have known.
+ */
+describe('who may take a gate label back off', () => {
+  const bot = (event: string, name: string, at: string, id = 1) => ({
+    event,
+    id,
+    created_at: at,
+    actor: { login: CLASSIFIER_ACTOR },
+    label: { name },
+  })
+  const human = (event: string, name: string, at: string, login = 'DreamCreateWeb', id = 1) => ({
+    event,
+    id,
+    created_at: at,
+    actor: { login },
+    label: { name },
+  })
+
+  it('replays PR #710: the push may not strip a label a person put on', () => {
+    // The defect, exactly as it happened. Before the fix the workflow reached
+    // `gh pr edit --remove-label` here with no question asked.
+    const timeline = [
+      bot('labeled', INTAKE_LABEL, '2026-09-23T11:48:02Z', 100),
+      human('labeled', REVIEW_LABEL, '2026-09-23T11:51:35Z', 'DreamCreateWeb', 101),
+    ]
+
+    const decision = labelRemovalDecision(timeline, REVIEW_LABEL)
+
+    expect(
+      decision.remove,
+      'A hand-added needs-sentinel-review must survive the author next push. Removing it here ' +
+        'is what made review-sweep.mjs blind on the merged PR — in the one category (the ' +
+        'judgement call the path classifier missed) the sweep is most needed for.',
+    ).toBe(false)
+    expect(decision.by).toBe('DreamCreateWeb')
+  })
+
+  it('still takes back a label it applied itself, which is the behaviour worth keeping', () => {
+    // The `else` branch was written for this and it is still correct: a PR that
+    // drops its risky file in a later push should stop claiming it owes a
+    // review. Option 1 on the issue (never remove) would have lost this.
+    const decision = labelRemovalDecision([bot('labeled', REVIEW_LABEL, '2026-09-23T09:00:00Z')], REVIEW_LABEL)
+    expect(decision.remove).toBe(true)
+    expect(decision.by).toBe(CLASSIFIER_ACTOR)
+  })
+
+  it('reads the LAST word on the label, not the first', () => {
+    // Bot applied it, a person took it off, the person put it back: the last
+    // `labeled` is theirs, so it stays. Deciding on the first event — or on
+    // "did the bot ever apply this" — gets this backwards.
+    const timeline = [
+      bot('labeled', REVIEW_LABEL, '2026-09-23T09:00:00Z', 1),
+      human('unlabeled', REVIEW_LABEL, '2026-09-23T09:30:00Z', 'DreamCreateWeb', 2),
+      human('labeled', REVIEW_LABEL, '2026-09-23T10:00:00Z', 'DreamCreateWeb', 3),
+    ]
+    expect(labelRemovalDecision(timeline, REVIEW_LABEL).remove).toBe(false)
+
+    // …and the mirror: a person removed it, so re-removing is a harmless no-op.
+    expect(labelRemovalDecision(timeline.slice(0, 2), REVIEW_LABEL).remove).toBe(true)
+  })
+
+  it('orders two events inside the same second by id', () => {
+    // `created_at` has one-second granularity. A hand-added label and a bot
+    // push landing in the same second is the case this must not get backwards,
+    // and an unstable or time-only sort decides it by luck.
+    const sameSecond = [
+      bot('labeled', REVIEW_LABEL, '2026-09-23T11:51:35Z', 500),
+      human('unlabeled', REVIEW_LABEL, '2026-09-23T11:51:35Z', 'DreamCreateWeb', 501),
+      human('labeled', REVIEW_LABEL, '2026-09-23T11:51:35Z', 'DreamCreateWeb', 502),
+    ]
+    expect(labelRemovalDecision(sameSecond, REVIEW_LABEL).remove).toBe(false)
+  })
+
+  it('answers about ONE label and is not confused by the other', () => {
+    // The two halves are separate obligations (DREAMCRM-49) and the workflow
+    // asks this function twice. A filter that ignored `label.name` would let a
+    // bot-applied intake label authorise stripping a hand-added review label.
+    const timeline = [
+      human('labeled', REVIEW_LABEL, '2026-09-23T11:51:35Z', 'DreamCreateWeb', 1),
+      bot('labeled', INTAKE_LABEL, '2026-09-23T11:52:00Z', 2),
+    ]
+    expect(labelRemovalDecision(timeline, REVIEW_LABEL).remove).toBe(false)
+    expect(labelRemovalDecision(timeline, INTAKE_LABEL).remove).toBe(true)
+  })
+
+  it('removes a label nobody has ever applied, because that is a no-op', () => {
+    expect(labelRemovalDecision([], REVIEW_LABEL).remove).toBe(true)
+    expect(labelRemovalDecision([bot('labeled', INTAKE_LABEL, '2026-09-23T09:00:00Z')], REVIEW_LABEL).remove).toBe(true)
+  })
+
+  it('fails CLOSED on every way the timeline can be uncertain', () => {
+    // The two errors are not symmetrical and it is not close. Keeping a label
+    // that should have come off costs one question in tomorrow's sweep;
+    // removing one that should have stayed costs the review.
+    const cases: Array<[string, unknown]> = [
+      ['a timeline that did not parse at all', null],
+      ['a timeline that came back as an object', { events: [] }],
+      [
+        'an event with no usable created_at, so nothing can be ordered',
+        [
+          {
+            event: 'labeled',
+            id: 1,
+            created_at: 'not a date',
+            actor: { login: 'DreamCreateWeb' },
+            label: { name: REVIEW_LABEL },
+          },
+        ],
+      ],
+      [
+        'an event whose actor GitHub did not record',
+        [
+          {
+            event: 'labeled',
+            id: 1,
+            created_at: '2026-09-23T11:51:35Z',
+            actor: null,
+            label: { name: REVIEW_LABEL },
+          },
+        ],
+      ],
+    ]
+
+    for (const [what, events] of cases) {
+      expect(
+        labelRemovalDecision(events as never, REVIEW_LABEL).remove,
+        `With ${what}, this cannot tell a classifier label from a hand-added one and must keep it.`,
+      ).toBe(false)
+    }
+  })
+
+  it('reads an EMPTY timeline file as unreadable, never as "no events"', () => {
+    // The fetch step is `continue-on-error`, so a failed `gh api` leaves an
+    // empty file behind. Reading that as `[]` would answer "remove" and restore
+    // the defect on every GitHub hiccup — silently, and only on the PRs where
+    // the API was having a bad morning.
+    expect(parseLabelEvents('')).toBeNull()
+    expect(parseLabelEvents('   \n  \n')).toBeNull()
+    expect(labelRemovalDecision(parseLabelEvents(''), REVIEW_LABEL).remove).toBe(false)
+  })
+
+  it('reads the JSONL the workflow actually produces, and a plain array too', () => {
+    const rows = [
+      JSON.stringify(human('labeled', REVIEW_LABEL, '2026-09-23T11:51:35Z', 'DreamCreateWeb', 1)),
+      JSON.stringify(bot('labeled', INTAKE_LABEL, '2026-09-23T11:48:02Z', 2)),
+    ]
+
+    expect(parseLabelEvents(rows.join('\n'))).toHaveLength(2)
+    expect(parseLabelEvents(`[${rows.join(',')}]`)).toHaveLength(2)
+    // Half a page of JSONL is not half an answer — it is an unreadable one.
+    expect(parseLabelEvents(`${rows.join('\n')}\n{"event": "labe`)).toBeNull()
+  })
+})
+
+/**
+ * THE WIRING between that decision and the `gh pr edit` it is supposed to
+ * govern — the seam §2d names, where the predicate is right and the caller
+ * quietly is not. Nothing above would notice if the workflow went back to
+ * removing the label unconditionally, or kept a second copy of the command
+ * somewhere else in the file.
+ */
+describe('the workflow asks before it removes', () => {
+  const wf = readFileSync(join(process.cwd(), '.github/workflows/review-gate.yml'), 'utf8')
+  const HELPER = 'remove_if_classifier_applied'
+
+  const helperBody = (() => {
+    const start = wf.indexOf(`${HELPER}() {`)
+    if (start === -1) return null
+    const end = wf.indexOf('\n          }', start)
+    return end === -1 ? null : wf.slice(start, end)
+  })()
+
+  it('routes every label removal through the authorship question', () => {
+    const removals = wf.match(/--remove-label/g) ?? []
+
+    expect(
+      removals.length,
+      'review-gate.yml should contain exactly ONE `--remove-label`, inside ' +
+        `${HELPER}. A second copy anywhere else in the file is the unconditional removal coming ` +
+        'back — which strips hand-added gate labels on the author next push and takes ' +
+        'review-sweep.mjs blind with it (DREAMCRM-130).',
+    ).toBe(1)
+
+    expect(helperBody, `review-gate.yml no longer defines ${HELPER}()`).not.toBeNull()
+    expect(helperBody, `The one --remove-label must sit inside ${HELPER}, not beside it.`).toContain('--remove-label')
+  })
+
+  it('gates that removal on the exit code of this repo own decision', () => {
+    expect(
+      helperBody,
+      `${HELPER} must decide by running scripts/review-gate.mjs --label-authorship. A hand-rolled ` +
+        'jq expression in the YAML would be the same rule written twice, and the copy nothing ' +
+        'imports is the copy that rots.',
+    ).toContain('node scripts/review-gate.mjs --label-authorship')
+
+    // The question has to BE the `if`, not a line that runs and is ignored.
+    expect(helperBody).toMatch(/if node scripts\/review-gate\.mjs --label-authorship "\$1" \S+; then/)
+  })
+
+  it('reads a timeline this same workflow fetched', () => {
+    // A guard that only checked the `if` would pass against a path no step
+    // writes — after which every answer is the fail-closed one, the label never
+    // comes off again, and the check still looks like it is working.
+    const readsFrom = helperBody?.match(/--label-authorship "\$1" (\S+);/)?.[1]
+    expect(readsFrom, `${HELPER} names no timeline file`).toBeTruthy()
+    expect(
+      wf,
+      `Nothing in review-gate.yml writes ${readsFrom}, so the decision would always fall back to ` +
+        'KEEP and no label would ever be removed again.',
+    ).toContain(`> ${readsFrom}`)
+    expect(wf).toContain('gh api --paginate')
+  })
+
+  it('keeps the token scope the timeline fetch needs', () => {
+    // The timeline lives on the ISSUES side of the API even for a PR. Trim
+    // `issues: read` and `gh api` 404s — at which point the reader fails closed
+    // (nothing is stripped by mistake) and the gate quietly stops removing
+    // stale labels AT ALL, with a green check the whole way. A permissions
+    // trim is exactly the edit nobody would connect to this.
+    expect(
+      wf,
+      'review-gate.yml must grant `issues: read`: without it the label timeline cannot be ' +
+        'fetched, and the removal half of this gate silently stops working (DREAMCRM-130).',
+    ).toMatch(/^ {2}issues: read$/m)
+  })
+
+  it('asks the question for BOTH gate labels', () => {
+    for (const label of [REVIEW_LABEL, INTAKE_LABEL]) {
+      expect(
+        wf,
+        `The ${label} half must route its removal through ${HELPER} too — the two labels are two ` +
+          'obligations, and review-sweep.mjs reads both off the merged PR.',
+      ).toContain(`${HELPER} ${label}`)
+    }
+  })
+})
+
+/**
+ * The exit code is the interface, so it gets its own test. A decision function
+ * that is right while the CLI exits 0 on both answers is a check that removes
+ * every label it is asked about.
+ */
+describe('the --label-authorship exit code', () => {
+  const fixtures = mkdtempSync(join(tmpdir(), 'review-gate-labels-'))
+
+  const run = (label: string, file: string | null) =>
+    spawnSync(process.execPath, ['scripts/review-gate.mjs', '--label-authorship', label, ...(file ? [file] : [])], {
+      cwd: process.cwd(),
+      encoding: 'utf8',
+    })
+
+  const write = (name: string, body: string) => {
+    const path = join(fixtures, name)
+    writeFileSync(path, body, 'utf8')
+    return path
+  }
+
+  it('exits 0 — remove — for the classifier own label', () => {
+    const path = write(
+      'bot.jsonl',
+      JSON.stringify({
+        event: 'labeled',
+        id: 1,
+        created_at: '2026-09-23T09:00:00Z',
+        actor: { login: CLASSIFIER_ACTOR },
+        label: { name: REVIEW_LABEL },
+      }),
+    )
+    const out = run(REVIEW_LABEL, path)
+    expect(out.status, out.stdout + out.stderr).toBe(0)
+    expect(out.stdout).toContain(`REMOVE ${REVIEW_LABEL}`)
+  })
+
+  it('exits non-zero — keep — for a hand-added label', () => {
+    const path = write(
+      'human.jsonl',
+      JSON.stringify({
+        event: 'labeled',
+        id: 1,
+        created_at: '2026-09-23T11:51:35Z',
+        actor: { login: 'DreamCreateWeb' },
+        label: { name: REVIEW_LABEL },
+      }),
+    )
+    const out = run(REVIEW_LABEL, path)
+    expect(out.status, out.stdout + out.stderr).toBe(1)
+    expect(out.stdout).toContain(`KEEP ${REVIEW_LABEL}`)
+  })
+
+  it('exits non-zero when there is no timeline to read at all', () => {
+    // The fetch step is continue-on-error; this is the path a GitHub outage
+    // takes, and every one of these has to land on KEEP.
+    expect(run(REVIEW_LABEL, join(fixtures, 'does-not-exist.jsonl')).status).toBe(1)
+    expect(run(REVIEW_LABEL, null).status).toBe(1)
+    expect(run(REVIEW_LABEL, write('empty.jsonl', '')).status).toBe(1)
   })
 })

@@ -195,6 +195,31 @@
  *     unlabelled and this sweep never looks at it.
  *   * A PR that merged during the same run of `review-gate.yml` that would
  *     have labelled it.
+ *   * A GATE LABEL A PERSON TOOK OFF BY HAND. Both halves here read the label
+ *     as it stands on the MERGED PR, which makes a mutable sticker the record
+ *     of an obligation: anyone with write access can end the obligation by
+ *     removing it, and this sweep never learns there was one.
+ *     Until DREAMCRM-130 the gate did that BY ITSELF and without anyone
+ *     choosing to. `review-gate.yml` re-derived both labels from the changed
+ *     paths on every push and its `false` branch removed them unconditionally,
+ *     so a HAND-ADDED label did not survive the author's next push — observed
+ *     on #710, `labeled needs-sentinel-review` by `DreamCreateWeb` at
+ *     11:51:35Z and `unlabeled` by `github-actions[bot]` at 12:02:43Z on the
+ *     `198b981b` push. That was the sharp version of this hole, because the
+ *     classifier cannot tell "the risk went away" from "I never saw the risk",
+ *     so the sweep went blind in exactly the category the path rule had
+ *     already missed: the judgement call a person made and the machine did
+ *     not, which is the category this net is most needed for. The gate now
+ *     removes a label only when GitHub's append-only issue-events timeline
+ *     says this classifier applied it, and fails closed on anything it cannot
+ *     attribute — `labelRemovalDecision` in `scripts/review-gate.mjs`, pinned
+ *     by `tests/guards/review-gate.test.ts`.
+ *     WHAT REMAINS, and remains on purpose: the deliberate act. A person
+ *     removing the label is invisible from here, and it should stay that way
+ *     until somebody can tell "removed because the classifier was wrong" from
+ *     "removed to duck the question" — from this side the two are the same
+ *     API call, and an alarm that guesses between them spends the credibility
+ *     it is here to hold.
  *   * A verdict or intake comment somebody typed without a review or a routing
  *     behind it.
  *   * A STANDING QUEUE LONGER THAN GITHUB WILL ANNOTATE. Every unremediated
