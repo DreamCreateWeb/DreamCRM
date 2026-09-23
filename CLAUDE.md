@@ -246,7 +246,7 @@ components/ui/       dashboard-shell.tsx (all authed layouts go through it),
                      new hand-rolled polylines
 middleware.ts        Auth gate + public-path allowlist + {slug} subdomain rewrite
                      + custom-domain host→slug routing + app./apex → www redirect
-tests/               Vitest (happy-dom), ~650 files / 6,400+ tests; pnpm test
+tests/               Vitest (happy-dom), 804 files / 8,633 tests; pnpm test
 scripts/             db-migrate.mjs + resync-demo.mjs (run on container boot),
                      migrate.mjs (direct), setup-cron-schedules.sh (EventBridge)
 ```
@@ -605,8 +605,9 @@ sitemap/robots/OG.
   seeder populates every column shown anywhere (empty/common/edge covered);
   self-heal backfills legacy demos. Ship wiring + seed + self-heal in one PR.
 - Vertical slices: schema + service + UI + tests in one PR. Tenant scoping is
-  non-negotiable. Tests before merge — the FULL `pnpm test` (~4 min), not a
-  module subset: the repo-wide CI guards (legibility floor, tenant scoping,
+  non-negotiable. Tests before merge — the FULL `pnpm test` (~7 min on CI —
+  the whole `test` job is 8m 10s median; see docs/CI.md), not a module subset:
+  the repo-wide CI guards (legibility floor, tenant scoping,
   cron parity, token single-homes) only run in the full pass. Since
   2026-09-09 GitHub Actions enforces this: `ci.yml` runs typecheck + the
   full suite on every PR, and `deploy.yml` runs the same gate on every push
@@ -1253,7 +1254,8 @@ pnpm lint                 # the accessibility gate (jsx-a11y over app/ +
                           # CI runs it on every PR.
 pnpm lint:prune           # after fixing suppressed hits: shrink
                           # eslint-suppressions.json to what is still true
-pnpm test                 # vitest run (~6,400 tests, ~4 min)
+pnpm test                 # vitest run (8,633 tests over 804 files; ~7 min
+                          # on CI - see docs/CI.md for where it goes)
 pnpm test:watch
 ```
 
