@@ -204,22 +204,43 @@ test.describe('paying a balance from the portal', () => {
     //
     // What that hunt DID produce is one failure of a different kind, and this
     // is it: the click lands, and the page is still on `/patient/dashboard`
-    // ten seconds later. Hunt 1 saw it once too — **2 in 600 repetitions,
-    // ~0.3%**.
+    // ten seconds later. Hunt 1 saw it once too.
     //
-    // It is not the same defect and it is not the same shape. The link is a
-    // real `<a href>`, so a dispatched click always navigates; a click that
-    // does nothing means the node Playwright resolved was REPLACED between
-    // resolving it and dispatching on it — which is hydration swapping the
-    // server-rendered tree, the same streaming machinery one layer up.
+    // HUNTED AGAIN 2026-09-23 (DREAMCRM-115, run `35835599351`, 200 repeats):
+    // **once more, at repeat 76**, same line, same shape —
     //
-    // NOT FIXED HERE, on purpose. The obvious move is to retry the click or
-    // wait for a post-hydration signal, and both are plausible; neither has
-    // been watched to fix anything, and a 0.3% flake is exactly the rate at
-    // which a hopeful fix looks like it worked. It gets its own hunt before it
-    // gets a patch. Written down with its number so the next person starts
-    // where this one finished rather than rediscovering it — §10, and the
-    // lesson of the three notes above.
+    //     Expected pattern: /\/patient\/invoices/
+    //     Received string:  "http://127.0.0.1:3100/patient/dashboard"
+    //     24 x locator resolved to <html ...> - unexpected value
+    //
+    // POOLED, THAT IS **3 IN 800 REPETITIONS: 0.375%**, and the number is now
+    // worth stating with its uncertainty rather than as a point: the 95%
+    // interval on 3/800 runs from roughly **0.08% to 1.1%**. Three events is
+    // enough to say the thing is real and recurring and NOT enough to tell a
+    // 1-in-1000 defect from a 1-in-100 one. A fix judged against this rate
+    // would need on the order of a thousand clean repetitions to be
+    // distinguishable from luck, which is four hunts at the harness ceiling.
+    //
+    // STILL NOT FIXED, and the measurement is the reason rather than an
+    // excuse. The hypothesis below is unchanged and still unwatched: the link
+    // is a real `<a href>`, so a dispatched click always navigates, and a
+    // click that does nothing means the node Playwright resolved was REPLACED
+    // between resolving it and dispatching on it. What would settle it is the
+    // TRACE from repeat 76 (on run `35835599351`) rather than another hunt —
+    // it records whether the dashboard re-rendered in that window, which is
+    // the one fact that separates the hydration hypothesis from every other
+    // one. Start there.
+    //
+    // It is not the same defect as the duplicate render and it is not the same
+    // shape. The suspected mechanism is hydration swapping the server-rendered
+    // tree — the same streaming machinery one layer up.
+    //
+    // The obvious moves are to retry the click or wait for a post-hydration
+    // signal. Both are plausible, neither has been watched to fix anything, and
+    // 0.375% is exactly the rate at which a hopeful fix looks like it worked.
+    // Written down with its number so the next person starts where this one
+    // finished rather than rediscovering it — §10, and the lesson of the
+    // three notes above.
     await page.getByRole('link', { name: /\$185\.00 balance/ }).click()
     await expect(page).toHaveURL(/\/patient\/invoices/)
 
@@ -267,6 +288,41 @@ test.describe('paying a balance from the portal', () => {
 
     // Durable: refused amounts never became a payment. The balance is
     // unchanged after a fresh load, and the history carries nothing.
+    //
+    // THIS ASSERTION HAS FAILED ONCE, AND IT IS NOT THE FILE'S KNOWN FLAKE.
+    // Hunt run `35835599351` (2026-09-23, DREAMCRM-115, 200 repeats) failed
+    // here at repeat 140:
+    //
+    //     Expected: 0   Received: 1
+    //     24 x locator resolved to 1 element — unexpected value "1"
+    //
+    // READ THE SHAPE BEFORE THE CAUSE. The value was STABLE at 1 for the whole
+    // 10-second window — twenty-four polls, never once 0. That rules out a
+    // render race on the reload: the row was genuinely in the page the entire
+    // time. A phantom "Balance payment" after a failed checkout is precisely
+    // what the paragraph above says this assertion exists to catch, so it is
+    // NOT safe to read this as test noise.
+    //
+    // WHAT IT IS NOT, established from the hunt rather than argued: it is not
+    // a row left behind by an earlier repeat. `restoresSeedScope` upserts the
+    // seeded rows before every test and deletes nothing, so a genuinely
+    // persisted phantom would have failed repeats 141 through 200 as well.
+    // Exactly one repeat failed. The row was there at that reload and gone
+    // afterwards.
+    //
+    // WHICH LEAVES ONE HYPOTHESIS WORTH TESTING, and it is a product question
+    // rather than a spec one: that the rollback of the pending payment row is
+    // not ordered before the server action returns its error, so a fast enough
+    // reload can observe the row mid-flight. If that is right, the same window
+    // exists for a real patient who refreshes after a failed payment — they
+    // would see a "Balance payment" on their record that is about to vanish.
+    //
+    // WHAT WOULD SETTLE IT: read `lib/services/checkout-error.ts` and the
+    // balance-payment server action for whether the rollback is awaited on the
+    // throwing path, and check the trace on that run's repeat-140 artefact for
+    // the row's state. Characterised here rather than fixed, because the fix
+    // is product code and this is a QA lane (§10) — and because ONE event is
+    // a reproduction, not a rate.
     await page.reload()
     await expect(page.locator('#portal-main')).toContainText(BALANCE)
     await expect(page.getByText('Balance payment')).toHaveCount(0)
