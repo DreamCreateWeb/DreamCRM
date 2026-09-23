@@ -53,9 +53,29 @@ const BASELINE_EXPORT_RE = /export const A11Y_BASELINE(?![\w$])/
  * once, here, and pinned into the workflows by the test: an emitter and a
  * reader that disagree about a string is how the headroom table nearly shipped
  * mute (`tests/guards/axe-headroom-table.test.ts`).
+ *
+ * THE `--depth=1` CAME OFF ON DREAMCRM-109, and the census below now matches on
+ * the REFSPEC rather than on the whole command line. A CASE on this rule, not a
+ * new one: nothing about what it asserts moved. The reason is that this guard's
+ * subject is "main is in this checkout", and the DEPTH was never part of that
+ * — it was one consumer's minimum. A second consumer
+ * (`tests/guards/rulebook-state.test.ts`) reads main's HISTORY, so the depth had
+ * to grow, and a census keyed on the exact string would have failed three
+ * correct workflows for a flag it does not care about. §2d's "a guard's SENTENCE
+ * is a claim about a MACHINE" — the sentence said depth and meant presence.
  */
 export const FETCH_MAIN_COMMAND =
-  'git fetch --no-tags --depth=1 origin +refs/heads/main:refs/remotes/origin/main'
+  'git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main'
+
+/**
+ * What the workflow census actually matches.
+ *
+ * The refspec is the part that makes a line a fetch OF MAIN INTO `origin/main`;
+ * the flags around it are the caller's business. Narrow enough that a fetch of
+ * some other ref does not count, wide enough that changing a flag is not a
+ * four-file edit.
+ */
+export const FETCH_MAIN_REFSPEC = '+refs/heads/main:refs/remotes/origin/main'
 
 /** A `why` shorter than this is a shrug, and a shrug is not an argument. */
 export const MIN_WHY_LENGTH = 120

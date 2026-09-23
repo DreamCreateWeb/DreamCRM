@@ -25,16 +25,36 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # THE AXE RATCHET NEEDS A PREVIOUS VALUE (DREAMCRM-60).
-      # `tests/guards/axe-baseline-ratchet.test.ts` reads every ceiling in
-      # `e2e/axe-baseline.ts` as `origin/main` has it and fails any increase —
-      # the enforcement behind "ceilings only ever go down". On a
-      # `pull_request`, actions/checkout fetches `refs/pull/N/merge` and nothing
-      # else, so `origin/main` does not resolve without this and the guard would
-      # be silently unable to do its job in the one check it exists to defend.
-      # Depth 1: the tip's tree is all it reads.
-      - name: Fetch main for the axe-baseline ratchet
-        run: git fetch --no-tags --depth=1 origin +refs/heads/main:refs/remotes/origin/main
+      # TWO GUARDS READ `origin/main`, AND THEY NEED DIFFERENT AMOUNTS OF IT.
+      #
+      # 1. `tests/guards/axe-baseline-ratchet.test.ts` reads every ceiling in
+      #    `e2e/axe-baseline.ts` as `origin/main` has it and fails any increase
+      #    — the enforcement behind "ceilings only ever go down" (DREAMCRM-60).
+      #    The tip's tree is all it reads.
+      # 2. `tests/guards/rulebook-state.test.ts` (DREAMCRM-109) asks whether a
+      #    `STATE:` line in `docs/rulebook/` is telling the truth about what has
+      #    merged. `main`'s own HISTORY is the record — a squash lands as
+      #    `<subject> (#N)`, a merge commit as `Merge pull request #N` — so it
+      #    walks the log and tests ancestry. That is the whole reason the guard
+      #    needs no GitHub credential inside a `contents: read` job.
+      #
+      # On a `pull_request`, actions/checkout fetches `refs/pull/N/merge` and
+      # nothing else, so `origin/main` does not resolve at all without this step.
+      #
+      # WHY THE `--depth=1` IS GONE. It resolved `origin/main` to a tip with NO
+      # history, under which guard 2 finds zero commits, zero PR numbers, and
+      # reports a clean rulebook — a narrowed reader going quiet rather than
+      # red, which is the §2d defect the guard itself is written about. It
+      # therefore asserts its own eyes against two floors and FAILS here rather
+      # than passing blind, so a re-shallowed fetch breaks `test` loudly.
+      #
+      # The cost is measured, not assumed: `main`'s full history is 46 MiB
+      # packed over 1,395 commits. No filter — a blobless partial clone would
+      # make guard 1's `git show origin/main:e2e/axe-baseline.ts` a lazy network
+      # fetch in the middle of a required check, and trading two seconds of
+      # checkout for a new flake in the merge gate is a bad trade.
+      - name: Fetch main's history for the ratchet and the rulebook guard
+        run: git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main
 
       - name: Set up pnpm
         uses: pnpm/action-setup@v4

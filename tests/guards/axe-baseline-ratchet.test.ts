@@ -8,6 +8,7 @@ import { A11Y_BASELINE } from '../../e2e/axe-baseline'
 import { CEILING_RAISES, type CeilingRaise } from '../../e2e/axe-baseline-raises'
 import {
   FETCH_MAIN_COMMAND,
+  FETCH_MAIN_REFSPEC,
   MIN_WHY_LENGTH,
   checkRatchet,
   formatFindings,
@@ -517,7 +518,7 @@ describe('every workflow that runs the suite fetches main first', () => {
     let fetches = 0
     let runs = 0
     for (const line of lines) {
-      if (line.includes(FETCH_MAIN_COMMAND)) fetches++
+      if (line.includes(FETCH_MAIN_REFSPEC)) fetches++
       if (!RUNS_SUITE.test(line)) continue
       runs++
       expect(
