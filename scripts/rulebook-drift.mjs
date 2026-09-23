@@ -165,7 +165,30 @@ export function readRulebook(root = process.cwd()) {
  */
 export function namedInRulebook(text, file) {
   const escaped = file.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-  return new RegExp(`(?:^|[^A-Za-z0-9_-])${escaped}(?![A-Za-z0-9])`).test(text)
+  // THE TWO BOUNDARIES ARE THE SAME CHARACTER CLASS, which the first version
+  // got wrong in the false-GREEN direction (Sentinel, reviewing #701). The
+  // leading class excluded `_` and `-`; the trailing lookahead excluded
+  // neither, so `widget.test.ts-old`, `widget.test.ts_bak` and
+  // `snap.control-bytes.ts` each reported the real file registered. For an
+  // absence assertion the false green is the direction that matters.
+  //
+  // `.` is handled separately rather than folded into the class, because the
+  // two cases it covers point opposite ways: `widget.test.ts.snap` and
+  // `snap.control-bytes.ts` must NOT count — a sibling artefact standing in
+  // for the guard — while a citation ending a sentence, `see
+  // control-bytes.ts.`, must. So a dot is refused only where it JOINS two
+  // name-shaped runs: something alphanumeric before it on the leading side,
+  // something alphanumeric after it on the trailing side. A path separator, a
+  // backtick, a space, a comma and a sentence-ending dot all still count.
+  //
+  // Both sides are lookarounds of the same shape, which is the point rather
+  // than a style choice: the first version spelled the leading boundary as a
+  // CONSUMING character class and the trailing one as a lookahead, and
+  // asymmetry between two halves of one predicate is exactly where §2d's
+  // identity-looseness family lives.
+  const before = '(?<![A-Za-z0-9_-])(?<![A-Za-z0-9]\\.)'
+  const after = '(?![A-Za-z0-9_-])(?!\\.[A-Za-z0-9])'
+  return new RegExp(`${before}${escaped}${after}`).test(text)
 }
 
 /**
@@ -492,11 +515,49 @@ export const CLAIMS = [
     // difference between an intake that happens and one that depends on
     // somebody choosing to look.
     check: (live) => {
-      // NON-VACUITY FIRST. Everything below is an absence assertion, and an
-      // absence assertion over an empty list passes. If the reader came back
-      // with almost nothing, say THAT rather than reporting a clean census —
-      // the failure this whole file exists to catch, aimed at itself.
       const { files, text } = live.rulebook
+
+      // THE READER IS GRADED EXACTLY, NOT BY A FLOOR. Everything below is an
+      // absence assertion, so a reader that narrows makes this claim GREENER
+      // and no assertion downstream can feel it (§2d's reader family).
+      //
+      // THE FLOOR WAS NOT ENOUGH AND THIS IS THE MEASUREMENT (Sentinel,
+      // reviewing #701). A floor catches a reader that lands on ZERO. It
+      // cannot catch one that narrows PARTIALLY, which is the shape a
+      // plausible refactor actually takes: skipping `e2e-*` and `axe-*`
+      // dropped TWELVE of thirty-four guards out of the census, landed at 22
+      // — comfortably above a floor of 20 — and left `guards-census` green
+      // and all 35 tests passing. Twelve guards leave the census and nothing
+      // anywhere goes red. That is #691's rule holding after all: a count
+      // stops being an assertion the moment the population clears it, and the
+      // gap between 20 and 34 was never a tripwire margin, it was 41% of the
+      // census.
+      //
+      // So compare the filtered list against the UNFILTERED directory
+      // listing. Every entry in `tests/guards/` is either graded or named as
+      // the difference — neither a count nor a share, exact at any tree size.
+      // It also closes two holes the floor could never see: `readdirSync` is
+      // NON-RECURSIVE while `readRulebook`'s walk is recursive, so a guard at
+      // `tests/guards/<subdir>/foo.test.ts` used to be invisible AND silent;
+      // and a guard added with an extension nobody thought of now reddens
+      // instead of vanishing.
+      const ungraded = (live.guardDir ?? live.guards).filter((f) => !live.guards.includes(f))
+      if (ungraded.length) {
+        return {
+          actual: `${GUARD_DIR} holds ${(live.guardDir ?? []).length} entries and the census grades ${live.guards.length}; ungraded: ${ungraded.join(', ')}`,
+          fix:
+            'something in `tests/guards/` is not being graded by the census, so it could be added ' +
+            'or changed with nothing going red. Either the extension filter narrowed, or a guard ' +
+            'moved into a subdirectory (this listing is not recursive), or a guard arrived with an ' +
+            'extension nobody anticipated. Widen the reader — never widen it by deleting this ' +
+            'comparison, which is the one edit that makes the census silently partial.',
+        }
+      }
+
+      // The floors below still earn their keep on the RULEBOOK side, where
+      // there is no exact expected size to compare against — a corpus is not
+      // a directory listing. They are tripwires against a walk that returned
+      // nothing, and nothing more is claimed for them.
       if (
         live.guards.length < CENSUS_FLOORS.guardFiles ||
         files.length < CENSUS_FLOORS.rulebookFiles ||
@@ -651,10 +712,17 @@ export function readLocalReality(root = process.cwd()) {
   for (const file of readdirSync(dir).filter((f) => /\.ya?ml$/.test(f)).sort()) {
     workflows[file] = readFileSync(join(dir, file), 'utf8')
   }
-  const guards = readdirSync(join(root, GUARD_DIR))
-    .filter((f) => /\.tsx?$/.test(f))
-    .sort()
-  return { workflows, gateAreas: GATE_RULES.map((r) => r.id), guards, rulebook: readRulebook(root) }
+  // BOTH LISTS, and the unfiltered one is the load-bearing half. See
+  // `guards-census` for why the filtered list alone cannot be trusted.
+  const guardDir = readdirSync(join(root, GUARD_DIR)).sort()
+  const guards = guardDir.filter((f) => /\.tsx?$/.test(f))
+  return {
+    workflows,
+    gateAreas: GATE_RULES.map((r) => r.id),
+    guards,
+    guardDir,
+    rulebook: readRulebook(root),
+  }
 }
 
 /**

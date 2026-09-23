@@ -681,3 +681,81 @@ something callable, and most do not today.
 zero-holding rule ships a field-of-view assertion and two of the three share a
 mechanism, that is the derivation, and it routes here.** Until then this is a
 convention a reviewer enforces, and §3's checklist is where a reviewer reads it.
+
+## A THRESHOLD is not the property you care about
+
+*Neon's intake, 2026-09-23 (DREAMCRM-114, from DREAMCRM-118's performance
+work). ACCEPTED, and generalised out of the performance-budget proposal it
+arrived in, because the argument is not about performance.*
+
+**Before you put a number in a check, say what would still be wrong if the
+number were fine.** The homepage's LCP measured 3,424ms and the fix brought it
+to 2,540ms — but the real defect was never the milliseconds. It was that the
+metric Google ranks the page on was intermittently measuring an `aria-hidden`
+film-grain texture instead of the headline, because the real text was held at
+`opacity: 0` and a decorative `background-image` IS an LCP candidate. **A
+millisecond ceiling set before the fix would have gone GREEN on every run
+where the winner was the texture** — and green for a worse reason than red.
+
+So the assertion worth having is the binary one about the PAGE: *the LCP
+element is text a visitor reads, and it is not `aria-hidden`*. It does not
+move when the runner has a bad morning, it needs no threshold, and it is the
+one that would have caught the defect. This is §2d's *assert the answer, not a
+proxy for it* — arriving from the direction where the proxy is a NUMBER rather
+than a tool's verdict, and where the proxy is genuinely correlated with the
+thing you want, which is what makes it persuasive.
+
+**And a threshold on a shared runner measures the runner.** Nine passes of the
+identical build on the identical page ranged 2,516ms to 5,076ms; the only
+variable was what else the box was doing. An absolute ceiling there produces a
+flaky required check, and §2a is unambiguous about where that ends — a gate
+that flakes is a gate people route around. When a number genuinely must be
+asserted, prefer a RELATIVE form that cancels the runner (this page within N%
+of a control page **on the same run**) and check that the control is still a
+control: the obvious one here stopped being one the moment the fix was applied
+to the shared component both pages render.
+
+**The three-way ranking this produces is the reusable part.** Rank a proposed
+assertion by how much of its variance is the SUBJECT rather than the
+environment: a structural property of the page (none), a byte count (almost
+none — 2 KB of spread across 20 samples), a wall-clock duration (most of it).
+Ship them in that order, and if only one is wanted, ship the first.
+
+## When classification is the risky half, grade the DISTRIBUTION
+
+*Neon's intake, 2026-09-23 (DREAMCRM-114, from the radius-ladder proposal).
+ACCEPTED as the shape, and it answers a question this file had not been asked
+before.*
+
+Some rules are about a LADDER — a small set of legal values, each belonging to
+a different kind of thing. `BRAND.md` Part 3 is one: 10px controls · 12px
+tiles · 14px cards · 16px the product mock · `999px` badges only. The rule is
+easy to state and the guard is hard to write, and **the hard half is not
+reading the value, it is deciding which rung the element belongs to.** Geometry
+gives you the radius; it does not tell you whether the thing is a card or a
+tile. Guess wrong and you get a red `test` naming an innocent file, which §2
+prices as the expensive direction.
+
+**So split the rule in two and ship the half that needs no classification
+first.** Assert that the SET of distinct values present is a subset of the
+legal ladder. That catches every off-ladder value — an 8px, a 20px — anywhere
+on the surface, needs no notion of what anything IS, and has a false-positive
+rate of zero by construction. Then add a narrow per-kind rule only where the
+kind is readable off the DOM without judgement (a `button`, an
+`a[role="button"]`, an `input` are controls) and where drift has actually
+happened.
+
+**What the split buys is that the ungraded part is NAMED rather than implied.**
+The distribution rule cannot catch a right-value-wrong-rung error — a 999px
+button is a legal value on an illegal element — and the control rule leaves
+tiles and cards alone. Both gaps go in the guard's own header, because §2d's
+sentence family says a docblock claiming more coverage than the code has is
+worse than no docblock: the next reader believes it.
+
+**And the binding constraint, which is why this belongs in `e2e/` and not in
+`tests/`: grade COMPUTED GEOMETRY on the rendered page, never a class name.** A
+grep sees `rounded-full` and cannot see whether it landed on a badge, which is
+correct, or on a button, which is the defect. They are the same string. A rule
+whose subject is what the page LOOKS like cannot be graded from what the source
+SAYS — the same reason §2b's forced-light chrome rule grades a lane's rendering
+rather than the directory its components live in.

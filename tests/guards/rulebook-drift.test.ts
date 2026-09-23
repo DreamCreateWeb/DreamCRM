@@ -51,13 +51,15 @@ type Live = {
   workflows: Record<string, string>
   gateAreas: string[]
   guards: string[]
+  guardDir: string[]
   rulebook: { files: string[]; text: string }
   protection: Record<string, any> | null
   repo: Record<string, any> | null
 }
 
 const CENSUS = WORKFLOW_CENSUS as Census
-const localReality = () => readLocalReality(process.cwd()) as Pick<Live, 'workflows' | 'gateAreas' | 'guards' | 'rulebook'>
+const localReality = () =>
+  readLocalReality(process.cwd()) as Pick<Live, 'workflows' | 'gateAreas' | 'guards' | 'guardDir' | 'rulebook'>
 
 /** The live protection/repo shape, as `gh api` returns it today, claims holding. */
 const HEALTHY = {
@@ -159,6 +161,7 @@ describe('the rulebook drift check', () => {
       // message quotes it, and a reader who sees a realistic name learns what
       // the check is about.
       live.guards = [...live.guards, 'new-alarm-wiring.test.ts']
+      live.guardDir = [...live.guardDir, 'new-alarm-wiring.test.ts']
     },
   }
 
@@ -281,12 +284,17 @@ describe('the guards census, and its own eyes', () => {
 
   it('goes red when its own reader is blinded, in either half', () => {
     // BLINDING THE GUARD SIDE. Not merely "does it find nothing to report" —
-    // it must OBJECT, naming the reader rather than the tree.
+    // it must OBJECT, naming the reader rather than the tree. Since #701's
+    // review this is caught by the exact comparison against the unfiltered
+    // listing rather than by the floor, so the finding NAMES the guards that
+    // fell out instead of reporting a count — strictly more than the floor
+    // said, and the floor below is no longer the thing standing here.
     const blindGuards = liveNow()
     blindGuards.guards = []
     const a = drift(blindGuards).findings.find((f) => f.id === 'guards-census')
     expect(a, 'an empty guard list must be a finding, not a clean census').toBeTruthy()
-    expect(a!.actual).toContain('read 0 guard files')
+    expect(a!.actual).toContain('the census grades 0')
+    expect(a!.actual).toContain('control-bytes.ts')
 
     // BLINDING THE RULEBOOK SIDE is the more dangerous direction and the one
     // an absence assertion cannot feel: with no rulebook text every guard
@@ -295,6 +303,9 @@ describe('the guards census, and its own eyes', () => {
     // catches both because it is about bytes read, not about matches found.
     const blindBook = liveNow()
     blindBook.rulebook = { files: ['SKILL.md'], text: '# tiny' }
+    // guardDir stays in step here on purpose: this case is about the RULEBOOK
+    // side, and letting the guard-side comparison fire first would prove
+    // nothing about the floors.
     const b = drift(blindBook).findings.find((f) => f.id === 'guards-census')
     expect(b, 'a truncated rulebook read must be a finding about the READER').toBeTruthy()
     expect(b!.actual).toContain('rulebook files')
@@ -336,6 +347,66 @@ describe('the guards census, and its own eyes', () => {
     // directories by hand, which is the work the check exists to remove.
     expect(f!.actual).toContain('alpha-guard.test.ts')
     expect(f!.actual).toContain('beta-guard.test.ts')
+  })
+
+  it('goes red when the reader narrows PARTIALLY — the mutation a floor cannot catch', () => {
+    // SENTINEL'S MUTATION, reviewing #701, reproduced as a test rather than
+    // remembered as a note. A floor only catches a reader that lands on ZERO.
+    // Skipping `e2e-*` and `axe-*` — the shape a plausible refactor actually
+    // takes — dropped TWELVE of thirty-four guards, landed at 22, cleared a
+    // floor of 20, and left the claim green with every test passing.
+    const live = liveNow()
+    live.guards = live.guards.filter((f) => !/^(e2e|axe)-/.test(f))
+
+    expect(
+      live.guards.length,
+      'this mutation has to land ABOVE the floor or it is just the empty-reader case again',
+    ).toBeGreaterThan(CENSUS_FLOORS.guardFiles)
+    expect(live.guardDir.length - live.guards.length).toBeGreaterThan(10)
+
+    const f = drift(live).findings.find((c) => c.id === 'guards-census')
+    expect(
+      f,
+      'a reader that silently drops a third of the census must object. A floor cannot see this ' +
+        'and that is the whole reason the unfiltered listing is compared.',
+    ).toBeTruthy()
+    // And it must NAME them, so the next reader is not left diffing two
+    // directory listings by hand.
+    expect(f!.actual).toContain('e2e-flaky-digest.test.ts')
+    expect(f!.actual).toContain('axe-headroom-table.test.ts')
+  })
+
+  it('sees a guard in a subdirectory, which the listing is not recursive enough to grade', () => {
+    // The non-recursive/recursive mismatch: `readdirSync` on the guard
+    // directory does not descend, while `readRulebook`'s walk does. Before
+    // the unfiltered comparison a guard at `tests/guards/<subdir>/x.test.ts`
+    // was invisible to the census AND silent about it.
+    const live = liveNow()
+    live.guardDir = [...live.guardDir, 'nested']
+    const f = drift(live).findings.find((c) => c.id === 'guards-census')
+    expect(f, 'a directory entry the census does not grade must object').toBeTruthy()
+    expect(f!.actual).toContain('nested')
+  })
+
+  it('refuses a name that is only a PREFIX of the text, on both sides alike', () => {
+    // The two boundaries are the same class now. Every case below reported
+    // the real file REGISTERED before that fix — the false-green direction,
+    // which for an absence assertion is the one that matters.
+    expect(namedInRulebook('see `widget.test.ts-old`', 'widget.test.ts')).toBe(false)
+    expect(namedInRulebook('see `widget.test.ts_bak`', 'widget.test.ts')).toBe(false)
+    expect(namedInRulebook('see `widget.test.ts.snap`', 'widget.test.ts')).toBe(false)
+    expect(namedInRulebook('see `snap.control-bytes.ts`', 'control-bytes.ts')).toBe(false)
+    expect(namedInRulebook('see `_control-bytes.ts`', 'control-bytes.ts')).toBe(false)
+  })
+
+  it('still accepts a citation that ends a sentence, which is why `.` is not in the class', () => {
+    // The dot points both ways, so it is refused only when something
+    // name-shaped follows it. Putting `.` in the boundary class outright
+    // would refuse every citation at the end of a sentence — a false
+    // NEGATIVE, i.e. a red `test` naming a correctly-registered guard.
+    expect(namedInRulebook('graded by control-bytes.ts.', 'control-bytes.ts')).toBe(true)
+    expect(namedInRulebook('graded by control-bytes.ts, and others', 'control-bytes.ts')).toBe(true)
+    expect(namedInRulebook('graded by `control-bytes.ts`)', 'control-bytes.ts')).toBe(true)
   })
 
   it('reads the rulebook off disk the same way the claim does', () => {
