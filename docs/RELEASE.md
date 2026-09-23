@@ -5329,6 +5329,60 @@ with the refusal disabled. The teardown half is graded on the source, because
 the defect is a process-tree fact no argument can reach, and watched red with
 the bare `kill` restored.
 
+### The live-demo presenter panel fails AA on the two controls that end the demo (2026-09-23) · OPEN
+
+Found by `e2e/demo-journey.spec.ts` (DREAMCRM-124, #722) on its first run —
+the first spec in the suite ever to load `/demo/script`, the pop-out panel a
+salesperson reads from during a live branded demo. **14 WCAG 2.1 AA
+`color-contrast` failures across its two states**, all live on `main`, none
+reachable by any spec that existed before that PR. This is the
+`e2e/axe-baseline.ts` note from the day it was emptied, arriving one day later:
+*a ceiling of zero is not evidence a surface is clean; it is evidence that
+nothing has scanned the state that is dirty.*
+
+Measured as rendered on the Ubuntu runner (foreground / background / ratio /
+element), not derived from the token table — §10's rule, because the two most
+interesting pairs here are exactly the ones an attribution would have got
+wrong:
+
+- **1.92:1 — the CURRENT BEAT marker**, `#4c5a78` on `#282f43`, at
+  `.ring-white\/20 > .justify-between… > .shrink-0.uppercase.tracking-wider`.
+  The worst on the surface, and it is the one row the presenter is looking at
+  mid-call. It **composites**: the ink sits on the current beat's `bg-white/10`
+  over the panel, so the ground is lighter than the panel and the ratio is
+  worse than the identical ink one row down (2.55:1 on `#10182e`, ×5). Grading
+  the token against the panel alone reports 2.55 and misses the real number.
+- **2.56:1 — both action buttons**, `#1a2440` on `#2f6d6a`: "Wrap up →"
+  (`.px-2\.5`) and "Log & end demo". The ground is **not a palette colour** —
+  it is `var(--demo-accent)`, the PROSPECT'S OWN BRAND COLOUR out of the demo
+  skin, so the ratio is a function of whoever is being pitched and no constant
+  ink can fix it. The shape of the fix already exists one persona over:
+  `portalBrand()` (UI batch 54) derives a contrast-safe ink from a clinic's raw
+  brand for the patient portal, and this surface never got the equivalent.
+- **3.32:1 ×4** — `#5c6c89` on `#10182e`: the "Story" `label`, the wrap-up's
+  "Wrap up · N of M beats" eyebrow, and "Skip logging".
+- **2.55:1 ×2** — `#4c5a78` on `#10182e`: the keyboard hint in both states.
+
+Every pair is 12px, which is the floor rather than an aggravation.
+
+**Not decoration, which is why it is filed rather than carried quietly.** The
+1.92:1 is the beat marker and the two 2.56:1 pairs are the controls that END
+the demo and log its outcome.
+
+**AND THE MORE VALUABLE HALF: no SOURCE rule fired.** `tests/a11y/quiet-ink.test.ts`
+grades the tree and was green through all fourteen. Whether it is its reach or
+its ground model that misses a dark panel whose ink composites over
+`bg-white/10` is the UI lane's own intake question — a source rule does not
+wait for a spec to walk past, so closing that is worth more than closing these
+fourteen.
+
+**Carried, not pardoned.** `e2e/axe-baseline.ts` holds 9 and 5 against the two
+stops with the full measurement beside them, and `e2e/axe-baseline-raises.ts`
+carries the two argued raises from zero (the reviewed opt-out; #722). Shrink
+both in the PR that fixes the tokens and delete the raises with them. QA owns
+the checks; the pixels are the UI lane's, and choosing which grey is the
+readable one is what §2b's quiet-ink direction exists to decide.
+
 ## Part 6 — The post-1.0 backlog
 Moved to `docs/POST-1.0.md` (2026-08-17) — the full seeded inventory:
 externally-gated items (OD vendor portal, first A2P approval,

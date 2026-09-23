@@ -380,6 +380,56 @@ each other rather than the portal a partner reads.
 **It owns the `partner` scope**, including its referred clinic — the referral
 stamp on that clinic's profile is what puts it on the portal at all.
 
+## The demo presenter journey (`e2e/demo-journey.spec.ts`, added 2026-09-23, DREAMCRM-124)
+
+**The surface a PROSPECT WATCHES during a sales call, and it had zero browser
+coverage.** Nothing here had ever loaded `/platform/prospecting` or the branded
+demo — which is why two plan-price defects survived three sweeps on it. Both
+are on the `docs/RELEASE.md` Part 5 ledger: the story picker's
+"closes on Premium · $500/mo", and the demo script's closing line quoting $500
+a month for a plan that costs $200. The second is the **last number a prospect
+hears before being asked to sign**, and both were found by reading source.
+
+One test, four states, four axe stops:
+
+1. **The prep page** (`/platform/prospecting/demo/[id]`) — every story card
+   carries the plan its story closes on.
+2. **A live branded demo**, started from the picker and driven from the pop-out
+   presenter script over its BroadcastChannel. The script window advances a
+   beat; the demo tab navigates. No unit test can see that round trip.
+3. **The wrap-up** — the close reminder the presenter reads out loud. The
+   screenshot of this beat is the issue's deliverable.
+4. **The demo clinic's referral commission ledger** — `createDemoClinic()` ran
+   for real when the demo started, so `seedDemoReferralPartner` ran with it.
+   Those rows used to carry the struck-through LIST price, paying a demo
+   partner 10% of $500 while `/partner-program` published "$20 per practice per
+   month" from the same config. A prospect could open both in one sitting.
+
+**Every price assertion is BY VALUE, resolved from `lib/stripe-config.ts`.**
+That is the point of the file rather than a detail of it: the unit test
+covering these surfaces asserted `/\$\d+/` — a SHAPE — and stayed green for
+the entire life of both defects. On a money surface a shape check has agreed in
+advance to accept any number.
+
+**It picks the `frontdesk` story, and the reason is worth knowing before you
+change it.** It is a non-full track (the full tour is the only one DREAMCRM-38
+ever pinned), it is never auto-suggested, and every one of its beats is an
+ordinary dashboard route. That last part is load-bearing: the `website` track
+opens on `/demo/compare`, a chrome-less `(preview)` page that does not mount
+the presenter conductor, so the remote cannot drive from it.
+
+**It is the slowest test in the suite and that is deliberate.** Starting the
+demo calls `createDemoClinic()` against a cold throwaway Postgres — the real
+seeder, the one that had the defect. A stand-in fixture would grade the
+fixture. Its timeout is 300s for that reason.
+
+**It owns the `demo-journey` scope** — a platform org, a platform-admin user
+with a live session (no other scope has a platform tenant at all), and one
+prospect to pitch. The demo CLINIC is deliberately not seeded: the product
+creates it. Ending the demo logs a call outcome onto the prospect, so the
+restore clears the call log and puts every column `logCallOutcome` touches
+back.
+
 **Row ownership matters**: spec files run in parallel workers, so every spec
 file owns its seeded rows outright (Casey belongs to portal + token specs,
 Morgan to portal-reschedule, Riley to staff-day, Robin/the proposal to
@@ -395,21 +445,31 @@ Since DREAMCRM-19 that ownership is **named in the seed itself**, as a scope
 - Every other scope is one spec file's **consumable** rows, and the scopes are
   row-disjoint by construction.
 
-**One row is written by a scope and owned by nobody, and the guard is blind to
-it.** `token-pages` upserts `prospecting_config` — a platform-global SINGLETON
-at the literal id `'default'` — to turn demo booking on for `/d`, replacing the
-whole JSON blob before every test in its spec, while other workers run.
-`tests/guards/e2e-seed-scopes.test.ts` keys its declared-vs-written check on the
-`<prefix>_e2e_<name>` row shape, so `'default'` is invisible to it: the row has
-no owner and the guard reports that as fine. It goes **quiet, not red**, and no
-amount of growing the prefix list closes it — the next scope that needs a
-singleton has the same problem.
+**And a third kind, added by DREAMCRM-124: a declared SINGLETON.** A
+platform-global row whose id is a literal word — `prospecting_config` at
+`'default'`, which turns demo booking on for `/d` — cannot carry a scope
+prefix, so `tests/guards/e2e-seed-scopes.test.ts` could not see it at all: the
+row had no owner and the guard reported that as fine. **Quiet, not red**, and
+growing the prefix list could never have reached it.
 
-Safe today, which is why it is written down rather than fixed:
-`lib/services/prospecting.ts` is the only reader, and no other spec walks `/d`
-or `/platform/prospecting`. **It stops being safe the day one does, and the
-guard will not be the thing that tells you** — so if you are adding that spec,
-give the row an owner first. (Sentinel, reviewing #669.)
+Two things changed, and the placement is the more important of them:
+
+- **The row moved into `base`.** `token-pages` used to write it, so every
+  `restoresSeedScope('token-pages')` replaced the whole JSON blob in a parallel
+  worker while every other spec was running. That was safe for exactly as long
+  as one spec read it — which its own comment said out loud — and
+  `e2e/demo-journey.spec.ts` is the second reader. `base` is restored by
+  nobody, so a platform-global row placed there is seeded once per run and
+  raced by nothing. **A singleton belongs in `base` unless you can say why a
+  scope some spec restores mid-run should be rewriting a row the whole platform
+  shares.**
+- **It is declared, in `SCOPE_SINGLETONS`, as `<table>:<id>`** — and the guard
+  now reads the insert STATEMENT rather than the row id. Every
+  `insert into <table> (id, …) values ('<literal>', …)` whose literal the
+  row-id rule did not already see has to name an owner there. So the NEXT
+  singleton, under any id, on any table, is graded on the day it is written.
+  (The hole was Sentinel's, reviewing #669; the fix is the separate PR that
+  entry asked for.)
 
 A spec declares the scope it owns at the top of the file, and that scope is
 restored before each of its tests:

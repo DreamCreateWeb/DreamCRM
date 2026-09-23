@@ -3400,8 +3400,10 @@
   workflow's DISPLAY NAME, and a trigger that matches nothing is not an
   error: GitHub publishes no warning, no check and no run. An alarm
   disconnected by a one-line rename in an unrelated tidy-up PR looks exactly
-  like an alarm with nothing to report. **STATE: OPEN — PR #700, head
-  `1646fa19`, awaiting Sentinel.**
+  like an alarm with nothing to report. **STATE: MERGED — #700, `28145ef4`,
+  2026-09-23 17:28:25Z.** Flipped by Quinn while landing DREAMCRM-124 —
+  `rulebook-state` rule 5 is what asked, the same hop that caught #712's line
+  an hour earlier.
 
   **The registration is what makes it gradeable, and the predicate is
   DERIVED rather than enumerated.** The obvious guard is the one the first
@@ -3665,6 +3667,98 @@
   inverse cannot tell a document that quotes mojibake from one that is
   mojibake. Every case in the guard is constructed at runtime for that reason.
   The instructions this work grew out of failed their own check by pasting one.
+
+  (**A NOTE ON THIS ORDINAL, because the sequence below it is not what it
+  looks like.** `main` carries TWO entries numbered FIFTY-FIFTH — #700
+  (`push-alarm.yml`) and #697 (the per-job full-history assertion) — both
+  merged before this one and neither of them mine to renumber. This entry
+  follows the LABEL sequence (…56, 57, so 58) rather than a count of entries,
+  which would make it the fifty-ninth. Reconciling the collision is Forge's
+  column; it is named here so the next author does not quietly pick 58 again.)
+
+  **THE FIFTY-EIGHTH: DREAMCRM-124, the singleton half of
+  `tests/guards/e2e-seed-scopes.test.ts` plus `e2e/demo-journey.spec.ts`. A
+  NEW CLASS and a registered CASE in one PR**, and the first entry here whose
+  subject is a hole a PREVIOUS entry named and declined to close. **STATE: on
+  the PR — #722, review requested.**
+
+  **The new class: a row this repo CREATES and nobody owns.** #675 (a case on
+  the forty-third above) recorded that `prospecting_config` is upserted at the
+  literal id `'default'`, that the seed-ownership guard keys on the
+  `<prefix>_e2e_<name>` row shape, and that a platform-global singleton is
+  therefore INVISIBLE to it — quiet, not red — with the note that *"widening
+  the guard to see id-literals on singleton tables is a separate PR and is the
+  real answer."* This is that PR. The subject moves from the ID to the
+  STATEMENT: every `insert into <table> (id, …) values ('<literal>', …)` whose
+  literal the row-id reader did not already see must be declared in
+  `SCOPE_SINGLETONS` as `<table>:<id>`, **by the scope that writes it**. So a
+  singleton under any id, on any table, is graded on the day it is written
+  rather than on the day somebody remembers this file — which is the same
+  derive-rather-than-list move as #665's `PRICE_QUOTING_ROUTES` deletion, one
+  guard over.
+
+  **What fails `test` by name today that did not yesterday.** Nothing outside
+  `scripts/e2e-seed.mjs`, which was already wholly inside the guard's view.
+  Inside it: an insert keyed on `id` whose literal is not of the row-id shape
+  and is not declared — one row today (`prospecting_config:default`, now owned
+  by `base`) and zero offenders. Plus two directions on the declaration
+  itself: a stale `SCOPE_SINGLETONS` entry naming a row its scope does not
+  write, and two scopes claiming one singleton.
+
+  **THE MUTATION THAT CAME BACK GREEN IS THE PART WORTH CARRYING.** The first
+  draft compared each scope's inserts against the UNION of every scope's
+  declarations, and the defect planted in its real shape — the singleton
+  written back into `token-pages`, #675 verbatim — **passed**. It was
+  "declared", by `base`. A rule about OWNERSHIP had been written as a rule
+  about EXISTENCE, and the one defect it was built for walked through it.
+  Three other mutations were red the whole time, which is exactly §2d's
+  warning that the mutation which finds something is the second one: this
+  guard's predicate, eyes and wiring were all fine and it graded nothing.
+  Ownership is per-scope now, and the disjointness check covers `base` too —
+  an insert is a WRITE, never a mention. Four mutations, four reds, recorded
+  in the guard's own docblock beside the green one.
+
+  **The placement half, which a predicate could not have fixed.** The row moved
+  out of `token-pages` and into `base`. A consumable scope owning a
+  platform-global singleton means every `restoresSeedScope('token-pages')`
+  rewrites a row the whole platform shares, in a parallel worker, under every
+  other spec — safe only while exactly one spec reads it, which #675 said out
+  loud. `e2e/demo-journey.spec.ts` is the second reader. **The standing rule:
+  a singleton belongs in `base` unless you can say why a scope some spec
+  restores mid-run should be rewriting a row nothing else can see change.**
+
+  **The registered case: `e2e/demo-journey.spec.ts` on `blocking-assertions`,
+  and RULE 3 CAUGHT IT ITSELF.** That is the derivation earning its keep: #621
+  had to register `e2e/marketing-viewport.spec.ts` by hand and the class stayed
+  open for a batch; this spec failed `test` by name the moment it was staged,
+  naming its own path. It expands `DEMO_TRACK_LIST` and requires EVERY demo
+  story's picker card to quote the one purchasable plan at its
+  `getQuotedPlan()` price, so after it lands a sixth demo track closing on a
+  typed number reddens `e2e` for whoever writes it. It is a registry of
+  STORIES rather than of ROUTES, which is the one way it reads differently
+  from the entry rule 3 was written against — and the property the rule is
+  actually about ("it asserts about members nobody typed, including next
+  month's") holds exactly. Registering it is the honest answer; narrowing the
+  spec to five hand-typed tracks would have bought silence by giving up the
+  coverage.
+
+  **Four new axe stops, all at a ceiling of ZERO**, on a persona the suite has
+  never scanned: the demo prep page, the pop-out presenter script mid-demo, the
+  wrap-up, and a referral partner's detail page. `e2e/axe-baseline.ts` is
+  untouched and still `{}`; `e2e/axe-baseline-raises.ts` is untouched.
+
+  **And the product change riding with it, called out because it is copy a
+  prospect HEARS rather than infrastructure.** Four of the five demo tracks
+  closed on `Basic — $150 a month`, `Pro — $250 a month` and `a $30 add-on`.
+  Those tiers have not been purchasable since the 2026-07-19 single-plan
+  collapse and the $150/$250 reprice was never executed Stripe-side, so the
+  presenter was closing on a plan checkout cannot sell at a price Stripe has
+  never held — strictly worse in KIND than DREAMCRM-38's `$500`, which was at
+  least a real number for a real plan. Every close now resolves
+  `getQuotedPlan()`. The unit test that covered this asserted `/\$\d+/` and
+  pinned `full` by name, so it stayed green through both defects: **a test that
+  pins one member of a population reads, from outside, exactly like a test that
+  pins the population.**
 
   (**The ordinals record arrival HERE, not merge order.** #697 and #684 merged
   before #698 and #701 and are numbered after them, because this list records
