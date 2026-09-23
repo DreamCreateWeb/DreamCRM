@@ -153,6 +153,22 @@ export const GATE_RULES = [
       'lib/stripe-config.ts',
       'lib/billing-status.ts',
       'lib/mrr.ts',
+      // THE NETTING RULE'S OWN HOME (DREAMCRM-122). `lib/net-collected.ts`
+      // decides whether refunded money comes out of a total — the invariant
+      // §2c holds at zero tolerance, with `tests/guards/net-refunds.test.ts`
+      // failing any clinic-side money total that is summed without going
+      // through it. It reaches further than any file already on this list:
+      // `sumNetCollectedSql` is in the collections header, the revenue
+      // figures, the reconciliation pages and the patient timeline at once,
+      // so a one-line change to `netCollectedCents` moves every "collected"
+      // number in the product. It matched NOTHING here — no money word in the
+      // filename, no `@/lib/stripe` import (it is pure arithmetic and a SQL
+      // fragment, which is exactly why it is client-safe and exactly why the
+      // derived import check in tests/guards/review-gate.test.ts cannot see
+      // it either). Found by its author while adding the ⌘K refund note in
+      // the same PR; widened here rather than deferred, on #569/#599/#663's
+      // precedent.
+      'lib/net-collected.ts',
       'lib/services/*stripe*.ts',
       'lib/services/*billing*.ts',
       'lib/services/*payment*.ts',
