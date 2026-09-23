@@ -3318,6 +3318,39 @@
   and it is worth checking for by construction rather than by example. A dot
   is refused only where it JOINS two name-shaped runs, so a citation ending a
   sentence still counts.
+  **AND THE CORRECTION HAD ITS OWN HOLE, WHICH IS THE THIRD INSTANCE OF ONE
+  FAMILY** (Sentinel, reviewing #707; fixed in #708). The unfiltered-listing
+  comparison above replaced the floor, and its first version read
+  `(live.guardDir ?? live.guards).filter(f => !live.guards.includes(f))`.
+  With `guardDir` absent that is `guards.filter(f => !guards.includes(f))` —
+  **empty by construction, for any input whatsoever.** The comparison did not
+  fail, it DISAPPEARED; and because `guardDir` was left off the claim's
+  `needs` list, the runner did not file it as ungradeable either. Measured:
+  the same partial narrowing that reddens naming twelve guards went GREEN
+  with `guardDir` missing, `ungradeable: false`, 22 of 34 entries read.
+
+  **So the floor and its replacement failed the same way through different
+  doors, and the shape is worth naming because it has now been chased three
+  times in one guard: a check whose subject quietly leaves its field of view
+  reports CLEAN.** First the reader's extension filter, then the
+  count-based floor that was supposed to catch it, then the defaulted input
+  in the comparison that replaced the floor.
+
+  **The fix is this file's own stated rule rather than anybody's preference —
+  A CLAIM THIS COULD NOT BE GRADED IS NEVER A CLAIM THAT HELD.** `guardDir`
+  goes in `needs` and the `??` default comes out, so a missing listing is
+  `COULD NOT BE GRADED` and exit 1. **A defaulted input is a claim silently
+  answering a question it was not able to ask** — and `needs` is the
+  machinery that already existed to say so, which is the part that makes this
+  a one-line fix rather than a new mechanism.
+
+  It was UNREACHABLE when it was written: `readLocalReality` always sets
+  `guardDir` and has one production caller, and every test builds `live` from
+  a helper that also sets it. Fixed anyway, on the precedent `main()`'s own
+  `skipped` comment set about a case that was equally unreachable at the
+  time — *a latent edge in the one classification this whole file exists to
+  keep sharp is not somewhere to leave a maybe.*
+
 
   **WHAT IT MEANS FOR EVERY OTHER PR:** a new file in `tests/guards/` owes a
   paragraph in this rulebook in the SAME PR, or `test` goes red naming it.

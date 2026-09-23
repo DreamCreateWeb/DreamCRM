@@ -409,6 +409,47 @@ describe('the guards census, and its own eyes', () => {
     expect(namedInRulebook('graded by `control-bytes.ts`)', 'control-bytes.ts')).toBe(true)
   })
 
+  it('files the census as UNGRADEABLE when its directory listing is missing, never as a pass', () => {
+    // THE DEFECT SENTINEL FOUND REVIEWING #707, frozen as a test.
+    //
+    // `ungraded` used to read `(live.guardDir ?? live.guards).filter(f =>
+    // !live.guards.includes(f))`. With `guardDir` absent that is
+    // `guards.filter(f => !guards.includes(f))` — EMPTY BY CONSTRUCTION, for
+    // any input at all. The comparison did not fail, it disappeared; and
+    // because `guardDir` was not in `needs`, the runner did not file the
+    // claim as ungradeable either. A narrowed reader went green through a
+    // second door after the first one was closed.
+    //
+    // Both halves are asserted, because either alone leaves the hole open: a
+    // `needs` entry with a defaulted read still passes vacuously, and an
+    // undefaulted read with no `needs` entry throws instead of reporting.
+    const live = { ...liveNow(), guardDir: null } as unknown as Live
+    const { findings, unchecked } = drift(live)
+
+    expect(
+      unchecked.map((u) => u.id),
+      'a census that could not read its own directory listing must be UNGRADEABLE. Reporting it ' +
+        'as held is this file’s own stated failure, aimed at itself.',
+    ).toContain('guards-census')
+    expect(
+      findings.map((f) => f.id),
+      'an ungradeable claim is not a finding either — blurring the two is how a check starts ' +
+        'reporting on a fact it never read',
+    ).not.toContain('guards-census')
+  })
+
+  it('still reddens on a narrowed reader when the listing IS present', () => {
+    // The companion to the case above: the mutation that Sentinel used to
+    // demonstrate the hole must still produce a finding once the listing is
+    // read. Without this, deleting the comparison entirely would satisfy the
+    // ungradeable test and nothing else would notice.
+    const live = liveNow()
+    live.guards = live.guards.filter((f) => !/^(e2e|axe)-/.test(f))
+    const f = drift(live).findings.find((c) => c.id === 'guards-census')
+    expect(f, 'a narrowed reader with a readable listing must still be a FINDING').toBeTruthy()
+    expect(f!.actual).toContain('e2e-flaky-digest.test.ts')
+  })
+
   it('reads the rulebook off disk the same way the claim does', () => {
     // The claim is graded against `readLocalReality`; this asserts the
     // exported reader and the wired one are the same thing, so a future
