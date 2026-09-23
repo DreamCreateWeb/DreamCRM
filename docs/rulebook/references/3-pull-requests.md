@@ -54,7 +54,25 @@ same day (`9c96b0b7`) and is the same shape again — a pattern, not an area, so
 the count below is still nine. It decides which merged PRs get reported as
 having skipped a review, and the edit that breaks it is the quiet one: widen what
 counts as "satisfied" and the sweep goes on running green every morning while
-seeing nothing.) **An exclusion is the one edit to a gate that can only ever make it
+seeing nothing.
+An eighth, `scripts/e2e-harness.sh`, arrived with DREAMCRM-129 — a pattern, not
+an area, so the count below is still nine — and it is the WIDEST entry on the
+list rather than another instance. Every pattern above names part of what a
+required check runs; `ci.yml`'s entire `e2e` job is the single line `bash
+scripts/e2e-harness.sh`, so that file does not define the work inside the check,
+it IS the check, and `nightly.yml`, `post-merge-e2e.yml` and `e2e-flake-hunt.yml`
+run it too. It was the one file matching this area's own description that the
+area did not match, and it cost four routings by hand — #534 went three days
+unrouted, #598 was caught only by an unscoped sweep pass, #698 landed three at
+once, and #710 added a new blocking exit to the `e2e` job and was labelled
+`needs-forge-intake` alone until its author added the review himself. **An
+author's judgement is a good second path to a reviewer and a bad first one.**
+`scripts/load-sanity.mjs` was considered beside it and deliberately left off: no
+workflow runs it, so it cannot gate a merge, and the fact that
+`tests/guards/e2e-harness-args.test.ts` reddens `test` when it and the harness
+disagree on `--base` / `--conc` / `--reqs` is that guard working rather than a
+gate. **This area is about what gates a merge, not about everything reachable
+from a required check.**) **An exclusion is the one edit to a gate that can only ever make it
 looser, and it leaves no trace under `.github/`.**
 
 **`GATE_RULES` is the source of truth for the gate's areas; prose follows it,

@@ -770,6 +770,17 @@ describe('the review-gate classifier', () => {
       // widened definition of "satisfied", after which the alarm runs green
       // every morning and sees nothing.
       'scripts/review-sweep.mjs': 'check-definitions',
+      // The `e2e` check, in its entirety (DREAMCRM-129). Pinned rather than
+      // left to the pattern list because this one is not an EXAMPLE of the work
+      // inside a required check — `ci.yml`'s whole `e2e` job is one line,
+      // `bash scripts/e2e-harness.sh`, so the file IS the check. Every other
+      // entry above names part of what a job runs; this names all of it, and
+      // `nightly.yml`, `post-merge-e2e.yml` and `e2e-flake-hunt.yml` run it too.
+      // It went unpinned for four PRs (#534 unrouted three days, #598 caught
+      // only by an unscoped sweep, #698, #710) — each time routed, correctly,
+      // by an author who chose to look. That is a good second path to a
+      // reviewer and a bad first one.
+      'scripts/e2e-harness.sh': 'check-definitions',
       // The post-deploy migration assertion (DREAMCRM-46). Pinned because it is
       // the thing that decides whether a deploy may report success, and a
       // "small tweak to a script" is exactly how such a check gets loosened

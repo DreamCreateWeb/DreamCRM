@@ -79,11 +79,15 @@ export const GATE_RULES = [
       'daily drift check goes on reporting CLEAN about something it no longer looks at. ' +
       'e2e/axe-baseline-raises.ts is the sharpest case of all: every entry in it is a ' +
       'deliberate, argued RAISE of an axe ceiling — a required check told to tolerate more ' +
-      'than it did yesterday — and nothing shrinks a ceiling by editing that file.',
+      'than it did yesterday — and nothing shrinks a ceiling by editing that file. ' +
+      'scripts/e2e-harness.sh is the widest: the e2e job is that one command, so the file ' +
+      'is not an example of the work inside a required check, it is the whole of it.',
     // DELIBERATELY NOT `tests/**` or `e2e/**` wholesale — see INTAKE_RULES
     // below for why the rest of the suite is an intake obligation and not a
-    // review one. These five are the files that decide what runs (or what gets
-    // asked), as opposed to the files that assert something.
+    // review one. These are the files that decide what runs (or what gets
+    // asked), as opposed to the files that assert something. The count is
+    // deliberately not written here: it read "these five" for two patterns
+    // longer than it was true.
     patterns: [
       'vitest.config.ts',
       'playwright.config.ts',
@@ -104,6 +108,32 @@ export const GATE_RULES = [
       // argument as `scripts/rulebook-drift.mjs` beside it — a control that
       // reports CLEAN about a fact it no longer looks at.
       'scripts/review-sweep.mjs',
+      // THE `e2e` CHECK IN ITS ENTIRETY (DREAMCRM-129). Every other pattern
+      // here names PART of what a required check runs; this one names all of
+      // it — `ci.yml`'s whole `e2e` job is the single line
+      // `bash scripts/e2e-harness.sh`, so the harness does not merely define
+      // the work inside that check, it IS the check. It decides which specs
+      // run, with what retries and against what database, and it owns every
+      // blocking failure mode the job has. `nightly.yml`, `post-merge-e2e.yml`
+      // and `e2e-flake-hunt.yml` run it too, so a loosening here is quiet in
+      // four places at once and leaves no trace under `.github/`.
+      //
+      // It was the one file matching this area's description that the area did
+      // not match, and the cost was paid four times — #534 went three days
+      // unrouted, #598 was caught only by an unscoped sweep pass, #698 landed
+      // three at once, and #710 (which added a new blocking exit to the job)
+      // was labelled `needs-forge-intake` alone until its author added the
+      // review by hand. Each of those was routed in the end by somebody
+      // choosing to look, which is a good second path to a reviewer and a bad
+      // first one.
+      //
+      // DELIBERATELY NOT `scripts/load-sanity.mjs` beside it. Nothing runs
+      // that script in any workflow, so it cannot gate a merge; the fact that
+      // `tests/guards/e2e-harness-args.test.ts` can redden `test` when it and
+      // the harness disagree on `--base` / `--conc` / `--reqs` is the guard
+      // working, not a gate. This area is about what gates a merge, not about
+      // everything reachable from a required check.
+      'scripts/e2e-harness.sh',
     ],
   },
   {
