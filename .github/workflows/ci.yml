@@ -49,10 +49,18 @@ jobs:
       # than passing blind, so a re-shallowed fetch breaks `test` loudly.
       #
       # The cost is measured, not assumed: `main`'s full history is 46 MiB
-      # packed over 1,395 commits. No filter — a blobless partial clone would
-      # make guard 1's `git show origin/main:e2e/axe-baseline.ts` a lazy network
-      # fetch in the middle of a required check, and trading two seconds of
-      # checkout for a new flake in the merge gate is a bad trade.
+      # packed over 1,395 commits. No filter, and TWO consumers now depend on
+      # that:
+      #   * guard 1 reads a blob of an old commit
+      #     (`git show origin/main:e2e/axe-baseline.ts`);
+      #   * guard 2's `rulebookEditedSince` runs
+      #     `git diff --quiet <sha> -- docs/rulebook`, which is also a
+      #     blob-level read of an old commit.
+      # Under `--filter=blob:none` each of those becomes a LAZY NETWORK FETCH
+      # inside a required check. Trading two seconds of checkout for a new
+      # flake in the merge gate is a bad trade, and it is a worse one now than
+      # when the filter was first refused. (Sentinel, #685 note 3 — the next
+      # person reading "46 MiB" will reach for the filter.)
       - name: Fetch main's history for the ratchet and the rulebook guard
         run: git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main
 
