@@ -216,9 +216,13 @@ export async function notify(input: NotifyInput): Promise<void> {
             ),
           )
           .limit(1)
-        // Fully delivered already — or the row vanished under us (dismissed
-        // from the tray between attempts), in which case re-minting it would
-        // undo a user's deliberate action. Either way nothing is owed.
+        // Fully delivered already — or the row is gone, which is narrower than
+        // it looks (Sentinel's note on #683). The ON CONFLICT has already
+        // PROVEN a row existed, so `!existing` is only reachable as a race:
+        // the row was deleted between the insert and this read — the tray
+        // cleared, or the user or org cascade-deleted. Either way nothing is
+        // owed here, and re-minting a row somebody just dismissed would undo a
+        // deliberate action.
         if (!existing || existing.emailSentAt) return
         rowId = existing.id
       }
