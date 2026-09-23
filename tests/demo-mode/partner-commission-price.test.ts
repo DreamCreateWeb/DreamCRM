@@ -290,13 +290,43 @@ describe('the demo partner’s commissions resolve the plan price', () => {
         expect(where).toContain(`"referral_payout"."amount_cents" <> ${String(set.amountCents)}`)
       })
 
+      it('gates on every column the PAYOUT heal writes too — the same asymmetry, one table over', async () => {
+        // Sentinel, #711: the commission heal got its set/gate correspondence
+        // asserted in both directions and the payout heal did not. The test
+        // above checks the `amount_cents` gate is PRESENT; nothing checked that
+        // `amount_cents` is the only thing the `SET` writes, so a fourth column
+        // added to the payout `SET` would have landed ungated — exactly the
+        // hole that had just been closed on `referral_commission`.
+        const { where, set } = await heal('referral_payout')
+        const columns: Record<string, string> = { amountCents: 'amount_cents' }
+        expect(Object.keys(set).sort()).toEqual(Object.keys(columns).sort())
+        for (const [field, column] of Object.entries(columns)) {
+          expect(
+            where,
+            `the payout heal SETs ${field} but does not gate on it — an already-correct ` +
+              'payout takes a write, and a drifted one can heal on a column nobody is watching',
+          ).toContain(`"referral_payout"."${column}" <> ${String(set[field])}`)
+        }
+      })
+
       it('binds exactly the values the scope is made of — nothing added, nothing dropped', async () => {
         // The counterpart to the clause checks above: those prove a named
         // clause is PRESENT, this proves no clause was swapped for something
         // else that happens to mention the same column.
+        //
+        // SORTED ON BOTH SIDES, and that is the fix rather than a style choice
+        // (Sentinel, #711). The first version asserted `toEqual([...])` on
+        // eight POSITIONAL params while this file's header promised "a harmless
+        // reordering of `and()` arguments reddens nothing". Reorder the
+        // predicate innocently and it went red saying "nothing added, nothing
+        // dropped" — the one thing that would not have happened. Sorting keeps
+        // the swap-detection, which is a question about the MULTISET of bound
+        // values, and drops the false alarm; clause ORDER is already graded by
+        // the `toContain` assertions above, where it belongs.
         const plan = getQuotedPlan()
         const commission = await heal('referral_commission')
-        expect(dialect.sqlToQuery(commission.raw as never).params).toEqual([
+        const bound = dialect.sqlToQuery(commission.raw as never).params
+        const expected = [
           'rp_demo',
           'org_demo',
           'demo_inv_org_demo_1',
@@ -305,7 +335,56 @@ describe('the demo partner’s commissions resolve the plan price', () => {
           plan.price * 100,
           DEMO_PERCENT_BPS,
           Math.floor((plan.price * 100 * DEMO_PERCENT_BPS) / 10000),
-        ])
+        ]
+        const key = (xs: unknown[]) => xs.map((x) => `${typeof x}:${String(x)}`).sort()
+        // Length first: it is the assertion that catches a DROPPED clause, and
+        // it fails with a number rather than a diff of eight values.
+        expect(bound).toHaveLength(expected.length)
+        expect(key(bound)).toEqual(key(expected))
+      })
+
+      /**
+       * COMPOSITION SAFETY — the note that defends a property rather than
+       * tidying one (Sentinel, #711).
+       *
+       * The commission heal's gate is an `or(...)` nested inside an `and(...)`,
+       * and **every other assertion in this file is identical whether that OR
+       * is wrapped or not** — the `toContain` strings are all still present and
+       * the bound-parameter multiset is unchanged. The safety of the sharpest
+       * predicate in the PR was resting on a drizzle property this file neither
+       * stated nor checked.
+       *
+       * `tests/journey/work-law-sql.test.ts:118-152` is the written precedent
+       * and the reason it is not hypothetical: drizzle's `and()` wraps the whole
+       * list in ONE pair of parens and never parenthesizes the chunks, so an
+       * unwrapped fragment escapes its own AND. Unwrapped, this heal reads
+       * `(partner AND org AND in AND total<>A) OR percent<>B OR amount<>C` — an
+       * UPDATE rewriting three money columns on every commission row in the
+       * database, for every partner, in every tenant. It renders as valid SQL.
+       *
+       * The property is inherited from a library, so it is asserted rather than
+       * assumed; the day `or()` stops wrapping itself, this goes red here
+       * instead of going quiet in production.
+       */
+      it('keeps the OR inside the AND chain — a top-level OR would reach every tenant', async () => {
+        const { where } = await heal('referral_commission')
+
+        // The premise: there IS an OR to be wrong about. Without this the scan
+        // below passes vacuously the moment the disjunction is refactored away.
+        expect(where, 'no OR in the predicate — this scan is grading nothing').toContain(' or ')
+
+        // Every ` or ` must sit deeper than the AND chain's own paren level.
+        let depth = 0
+        for (let i = 0; i < where.length; i++) {
+          if (where[i] === '(') depth++
+          else if (where[i] === ')') depth--
+          else if (where.startsWith(' or ', i) && depth <= 1) {
+            throw new Error(
+              `TOP-LEVEL OR ESCAPES THE AND CHAIN — the tenant and invoice-id scopes stop ` +
+                `applying and this UPDATE reaches every commission row in every org:\n${where}`,
+            )
+          }
+        }
       })
     })
   })
