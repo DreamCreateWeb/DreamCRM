@@ -223,7 +223,7 @@ same reason: found by its author while making an unrelated change in the same
 file (the ⌘K refund note), widened in that PR rather than deferred, and routed
 by hand on merge day rather than left for the enumeration to carry alone.
 
-**STATE: OPEN — PR #711, on the DREAMCRM-122 branch.** Pinned in
+**STATE: MERGED — PR #711, `f8c642da`, 2026-09-23 13:01:48Z.** Pinned in
 `MUST_BE_GATED` as `money` in the same PR. Written down before the merge on the
 DREAMCRM-60 precedent §2 sets out — write it down early, say what state it is
 in, and own the flip; the flip is Forge's at the next sweep, not the author's.
