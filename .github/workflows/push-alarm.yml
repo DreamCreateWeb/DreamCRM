@@ -1,0 +1,317 @@
+name: Push-triggered alarm
+
+# DID A PUSH-TRIGGERED WORKFLOW ON `main` GO RED, AND DOES ANYBODY KNOW?
+# (DREAMCRM-115.)
+#
+# TWO PRODUCERS, ONE ALARM. `main` auto-deploys to production (§4), and two
+# workflows fire on every push to it:
+#
+#   * `deploy.yml` — the loudest thing that can happen in this repository.
+#     Red means production is serving an older commit than `main`.
+#   * `post-merge-e2e.yml` — the browser suite against the tree that just
+#     shipped. Red means a patient-facing journey broke on `main`, and unlike
+#     the deploy it does NOT hold anything back: that commit is already live.
+#
+# On 2026-09-23 a red `deploy.yml` went unnoticed for 21 minutes and production
+# shipped nothing for 77: three consecutive runs failed on `test` between
+# 03:40Z and 04:03Z, and the only surfaces carrying that fact were the Actions
+# tab and GitHub's default failed-run email to one account. `post-merge-e2e.yml`
+# has the same hole and says so in its own header — "nothing in `.github/`
+# routes a workflow failure anywhere".
+#
+# The gap was structural, not bad luck, and all three halves of it are worth
+# stating because together they are why this is a new workflow rather than a
+# step inside an existing one:
+#
+#   * NO WORKFLOW HERE USED A `workflow_run` TRIGGER. This is the first. A
+#     failed push-triggered workflow had nowhere to route to because nothing
+#     was listening for one.
+#   * `schedule-heartbeat.yml` CANNOT SEE EITHER OF THEM BY CONSTRUCTION. It
+#     derives its list from `cron:` entries and grades the AGE of each
+#     schedule's newest run. Both of these fire on merges, which arrive when
+#     somebody merges — there is no window to be late against. Not a hole in
+#     that check; outside its subject.
+#   * A RED POST-MERGE RUN IS NOT A RED PR. The merge that caused it is already
+#     on `main` and still green on its own PR page. Nothing on the board moves.
+#
+# WHY ONE ALARM AND NOT TWO. The question is identical for both — "a
+# push-triggered workflow on `main` finished red and nobody is looking" — and
+# the routing, the edge rule and the wake are all the same machinery. Two files
+# would be two copies of it drifting apart, and the SEVERITY difference that
+# genuinely exists is one sentence in the report rather than a second workflow.
+# What is per-producer is the red STREAK: a broken deploy and a broken browser
+# journey are independent facts and each gets its own edge.
+#
+# `scripts/push-alarm.mjs` is the whole implementation and carries the
+# argument: which conclusions are red, why `cancelled` is not one of them, why
+# the wake fires on the EDGE of a red streak, and why its wake fails OPEN where
+# `review-sweep.yml`'s fails closed.
+#
+# ============================ THIS DOES NOT GATE =============================
+#
+# No `pull_request` trigger, no `push`, no required status-check context, no
+# `needs:` on anything, and it runs entirely AFTER its upstream has finished.
+# It cannot hold a merge and must never try to. It is not named `test` or
+# `e2e` — main's two required contexts — and
+# `tests/guards/push-alarm.test.ts` pins that, the same way the review-gate,
+# review-sweep, rulebook-drift and schedule-heartbeat guards pin theirs.
+#
+# IT CANNOT MAKE A BAD DEPLOY WORSE EITHER, which is the question a reviewer
+# should ask of anything new on this path. It holds two READ scopes, it runs in
+# its own workflow after the rollout is over, and the only thing it can do to
+# the outside world is POST a JSON body to one Multica webhook.
+# =============================================================================
+#
+# A NOTE ON WHEN THIS STARTS WORKING, because it will look broken until it
+# does. GitHub only dispatches `workflow_run` from the version of this file on
+# the DEFAULT BRANCH. Until it is merged to `main` it will not fire once, no
+# matter how red either upstream goes on a branch.
+#
+# WHICH IS WHY THE CONFIRMATION IS A DISPATCH, NOT A BROKEN `main`.
+# `post-merge-e2e.yml` carries `workflow_dispatch: {}`, and `workflow_run`
+# fires on an upstream completion however the upstream was started. So the
+# alarm can be watched against a GENUINELY failing run — real payload, real
+# conclusion, real POST — by dispatching that workflow on a branch whose tree
+# fails it, with `main` never touched. See the PR for the run ids.
+
+on:
+  workflow_run:
+    # MATCHED ON THE DISPLAY NAME, NOT THE FILENAME. This is the single
+    # sharpest edge in this file: `workflows:` takes the `name:` of the
+    # upstream workflow, so editing the first line of either producer would
+    # disconnect this alarm silently — a workflow_run trigger that matches
+    # nothing is not an error, it is a workflow that never runs.
+    #
+    # `tests/guards/push-alarm.test.ts` does not check this list against two
+    # strings typed in a test. It DERIVES the expected set from the tree —
+    # every workflow whose `on:` block declares `push:` to `main` — reads each
+    # one's `name:` off disk, and requires this list to equal that set exactly.
+    # So a third push-triggered workflow added tomorrow fails `test` by name
+    # until it is watched, and a rename fails it the same day.
+    workflows: ['Deploy to AWS App Runner', 'Post-merge E2E']
+    # `completed` fires for every terminal conclusion, including `cancelled`
+    # and `startup_failure`. That is deliberate and wider than "when it fails":
+    # there is no `types: [failure]`, and a green run reaching this workflow is
+    # also what makes its run history a pairable record of every deploy — which
+    # is how `schedule-heartbeat.yml` can tell this alarm has stopped.
+    types: [completed]
+
+# `deploy-main` is `deploy.yml`'s group and must not be shared: queueing an
+# alarm behind a rollout is how an alarm arrives after the incident. Keyed on
+# the upstream run so two deploys finishing together are graded independently,
+# and `cancel-in-progress: false` because the point of this file is that no
+# deploy result goes ungraded.
+concurrency:
+  group: push-alarm-${{ github.event.workflow_run.id }}
+  cancel-in-progress: false
+
+# Two READ scopes and nothing else: `contents` for the checkout and `actions`
+# for `gh run list` — `deploy.yml`'s own run history, which is the entire
+# question the edge rule asks. It writes nothing back to GitHub.
+#
+# All spellings here are real `permissions:` keys. `rulebook-drift.yml` shipped
+# a draft asking for `administration: read`, which is not a scope at all:
+# GitHub rejected the whole file and published NO check-run, twice, in 0
+# seconds — a failure `gh pr checks` could not show. Nothing in CI validates
+# workflow syntax before GitHub does, so `tests/guards/push-alarm.test.ts`
+# checks this block against the documented scope list.
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  # NOT named `test` or `e2e` — those are main's required contexts, and a
+  # second producer of either name can report a green check onto a commit the
+  # real suite never ran against.
+  push-alarm:
+    name: push-alarm (alarm, gates nothing)
+    runs-on: ubuntu-latest
+    # One `gh` call and one small node script. No install step; it has no
+    # business inheriting GitHub's 6-hour default.
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # THE EVENT, THROUGH `env:` RATHER THAN INTERPOLATED INTO THE SCRIPT.
+      # `display_title` is attacker-influenced text — it is the commit subject
+      # — and `${{ }}` inside a `run:` block is substituted before the shell
+      # sees it, which is the standard script-injection shape. An `env:` var is
+      # passed as data and never parsed as shell.
+      #
+      # Written to a file rather than piped so `scripts/push-alarm.mjs` stays
+      # a pure comparator the guard test can drive with fixtures, offline — the
+      # same shape as `scripts/review-sweep.mjs` and `scripts/rulebook-drift.mjs`.
+      - name: What did the upstream do?
+        env:
+          RUN_JSON: ${{ toJSON(github.event.workflow_run) }}
+        run: printf '%s' "$RUN_JSON" > event.json
+
+      # WAS IT ALREADY RED? (The EDGE the wake is keyed on.)
+      #
+      # A broken `main` produces one red deploy per merge until somebody fixes
+      # it — 2026-09-23 was three in 23 minutes over ONE defect. The run goes
+      # red every time, because colour is free; the ISSUE is opened once.
+      #
+      # `--limit 20` rather than 1: the newest run is often this deploy's own,
+      # and on a busy afternoon several later ones can already exist by the
+      # time this alarm is scheduled. `previousSettled` in the script picks the
+      # newest COMPLETED run that started before the graded one, which is the
+      # only ordering that survives overlapping rollouts.
+      #
+      # `|| true` so a throttled lookup does not abort the job: the script
+      # reads a missing or unparseable file as a failed lookup, says so, and
+      # WAKES — the opposite default from the sweep's, argued in the script's
+      # docblock. Letting the step fail would lose the alarm entirely.
+      # WAS THIS PRODUCER ALREADY RED? (The EDGE the wake is keyed on.)
+      #
+      # PER PRODUCER, which is the whole reason the workflow file comes out of
+      # the EVENT rather than being named here. A broken `main` produces one
+      # red deploy per merge — 2026-09-23 was three in 23 minutes over ONE
+      # defect — and a broken browser journey does the same on its own
+      # workflow. They are independent facts: a red deploy must not silence
+      # the first red post-merge run, and vice versa. Reading
+      # `workflow_run.path` keeps the two histories apart with no second list
+      # here to drift out of step with the trigger's.
+      #
+      # `basename` because `gh run list --workflow` takes the file name while
+      # the payload carries the repo-relative path. Through `env:` rather than
+      # interpolated, for the same script-injection reason as the event itself.
+      #
+      # `--limit 20` rather than 1: the newest run is often this one's own
+      # upstream, and on a busy afternoon several later ones can already exist
+      # by the time this alarm is scheduled. `previousSettled` picks the newest
+      # COMPLETED run that started before the graded one, which is the only
+      # ordering that survives overlapping runs.
+      #
+      # `|| true` so a throttled lookup does not abort the job: the script
+      # reads a missing or unparseable file as a failed lookup, says so, and
+      # WAKES — the opposite default from the sweep's, argued in the script's
+      # docblock. Letting the step fail would lose the alarm entirely.
+      - name: Was this producer already red?
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_PATH: ${{ github.event.workflow_run.path }}
+        run: |
+          set -uo pipefail
+          WF=$(basename "${RUN_PATH:-}")
+          echo "Upstream workflow file: ${WF:-<unknown>}"
+          if [ -n "${WF}" ]; then
+            gh run list --repo ${{ github.repository }} --workflow "${WF}" \
+              --limit 20 --json databaseId,conclusion,status,createdAt,headSha \
+              > upstream-runs.json || true
+          fi
+
+      - name: Did it pass?
+        id: grade
+        # `continue-on-error` so the wake step below still runs on a RED
+        # grading — which is the only kind of run that has anything to wake
+        # anybody for. The job's real exit status is restored by the last step;
+        # without that restore this whole check would go green forever, which
+        # is the exact `process.exitCode = 0` mutation
+        # `tests/guards/push-alarm.test.ts` exists to refuse.
+        continue-on-error: true
+        # ONE LINE, deliberately — the same reason `review-sweep.yml` gives.
+        # The guard test reads this argument list with a single-line regex to
+        # check the script is told where the event and the history are. A `\`
+        # continuation leaves the guard green while grading nothing.
+        run: node scripts/push-alarm.mjs --event event.json --history upstream-runs.json --wake-out wake.json
+
+      # A RED DEPLOY WAKES QUINN.
+      #
+      # GITHUB CANNOT DISPATCH ANYBODY — §3 says exactly that about the verdict
+      # mention, and `review-sweep.yml` says it about the intake wake. Same
+      # shape here: the record is this red run and its summary; the WAKE is a
+      # POST to a Multica autopilot webhook, which opens an issue assigned to
+      # Quinn, who owns the deploy path. Two artefacts, two jobs.
+      #
+      # THE SECRET IS THE URL. The Multica webhook token lives in the path, so
+      # `PUSH_ALARM_WAKE_URL` is a credential and nothing here may echo it.
+      # `--fail-with-body` and an explicit status check make a rejected POST
+      # loud: a wake that silently 404s is indistinguishable from a quiet week,
+      # which is the failure class this whole file is about.
+      #
+      # WHAT THAT CREDENTIAL IS WORTH is written out once, on
+      # `review-sweep.yml`'s `Wake Forge` step, and every word of it applies
+      # here: an Actions secret is not secret from anyone with repo write, the
+      # blast radius is one verb (`create_issue` mode, one assignee), there is
+      # no reachable way to require a signing secret as well as the URL, and
+      # the mitigation is `multica autopilot trigger-rotate-url` rather than
+      # secrecy. Read it there rather than trusting a second copy of it here;
+      # the only difference is which agent the issue lands on.
+      #
+      # AN UNSET SECRET IS A FAILURE OF THIS STEP, for the same reason it is on
+      # the sweep: a wake that was due and did not happen is not "Quinn was
+      # told", whatever the reason. It costs nothing extra — this branch is
+      # only reachable when the deploy was red, which reddens the run anyway.
+      - name: Wake Quinn
+        if: always()
+        env:
+          WAKE_URL: ${{ secrets.PUSH_ALARM_WAKE_URL }}
+        run: |
+          set -euo pipefail
+
+          if [ ! -f wake.json ]; then
+            echo "::error::the alarm wrote no wake decision — it did not get far enough to make one."
+            echo "The alarm produced no wake decision, so nobody was woken." >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+
+          WAKE=$(node -e 'process.stdout.write(String(JSON.parse(require("fs").readFileSync("wake.json","utf8")).wake))')
+          REASON=$(node -e 'process.stdout.write(String(JSON.parse(require("fs").readFileSync("wake.json","utf8")).reason))')
+
+          if [ "$WAKE" != "true" ]; then
+            echo "Nobody was woken (${REASON})." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          if [ -z "${WAKE_URL}" ]; then
+            echo "::warning::PUSH_ALARM_WAKE_URL is not set — the deploy wake is not configured, so nobody was woken."
+            {
+              echo ""
+              echo "#### Quinn was NOT woken: the wake is not configured"
+              echo ""
+              echo "The deploy went red (\`${REASON}\`) and \`PUSH_ALARM_WAKE_URL\` is unset."
+              echo "Set it to the Multica autopilot webhook URL. Skipped, not passed."
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+
+          CODE=$(curl --silent --show-error --fail-with-body \
+            --max-time 30 --retry 2 --retry-connrefused \
+            --output wake-response.txt --write-out '%{http_code}' \
+            -X POST "${WAKE_URL}" \
+            -H 'Content-Type: application/json' \
+            --data-binary @wake.json) || {
+              echo "::error::the wake POST failed (HTTP ${CODE:-none}). Quinn was NOT woken about a red production deploy."
+              echo "" >> "$GITHUB_STEP_SUMMARY"
+              echo "#### The wake POST failed (HTTP ${CODE:-none}) — Quinn was not woken" >> "$GITHUB_STEP_SUMMARY"
+              exit 1
+            }
+
+          echo "::notice::Quinn woken (${REASON}), HTTP ${CODE}."
+          {
+            echo ""
+            echo "#### Quinn was woken"
+            echo ""
+            echo "Reason: \`${REASON}\`. The wake POST returned HTTP ${CODE}."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # RESTORE THE ALARM'S OWN VERDICT. The grading step is
+      # `continue-on-error` only so the wake can run after a red one; this is
+      # what keeps the job's colour honest. Without it this reports green while
+      # production is down — the mutation the guard test calls "the ringer must
+      # ring".
+      - name: Restore the alarm's verdict
+        # `always() &&` so this still prints when `Wake Quinn` failed above. A
+        # failed step skips the ones after it by default, and the reader of a
+        # red alarm should still be told what it was about.
+        if: always() && steps.grade.outcome == 'failure'
+        run: |
+          echo "A push-triggered workflow on main finished red - see the summary above."
+          exit 1
