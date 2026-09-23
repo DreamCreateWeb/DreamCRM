@@ -269,6 +269,36 @@ if (( PRINT_PLAN )); then
   exit 0
 fi
 
+# ------------------- THE PORT MUST BE FREE (DREAMCRM-117) -------------------
+#
+# WATCHED, NOT IMAGINED. A `next-server` from a FINISHED harness run was still
+# holding :3100 while the next run was building — see "KILL THE TREE" below for
+# why it survived. What that costs is the thing worth refusing over: the next
+# run's `pnpm start` cannot bind, but `/api/health` ANSWERS, because the stale
+# server answers it. So the readiness check below passes, the run proceeds, and
+# playwright (or a load measurement) is pointed at a build this script did not
+# make — against a Next in-memory cache warmed by the previous run. Nothing in
+# the output says so. That is a green run measuring the wrong thing, which is
+# the one failure this harness may not have.
+#
+# Bash's own `/dev/tcp` rather than `lsof`/`ss`/`nc`: a check that silently
+# passes because the tool it needs is not installed is not a check.
+port_busy() {
+  (exec 3<>"/dev/tcp/127.0.0.1/$1") 2>/dev/null || return 1
+  exec 3<&-
+  return 0
+}
+
+PORTS_NEEDED=("$PORT")
+# The webhook server is not started under `--load-sanity`, so its port is not
+# this run's to claim and something benign sitting on it is not our problem.
+(( LOAD_SANITY )) || PORTS_NEEDED+=("$WEBHOOK_PORT")
+for needed in "${PORTS_NEEDED[@]}"; do
+  if port_busy "$needed"; then
+    die "port $needed is already serving something. This script cannot take it, and it must not measure whatever has it — set E2E_PORT, or stop the stale server (\`pgrep -af next-server\`)."
+  fi
+done
+
 if [[ -z "$PGBIN" ]]; then
   echo "No local postgres found (expected /usr/lib/postgresql/*/bin or initdb on PATH)." >&2
   exit 1
@@ -284,10 +314,25 @@ else
   as_pg() { bash -c "$1"; }
 fi
 
+# KILL THE TREE, NOT THE PID WE SPAWNED (DREAMCRM-117).
+#
+# `pnpm start` is a node process that spawns `next start`, which spawns the
+# actual `next-server` that owns the socket. `kill $SERVER_PID` reached the
+# first of those three and left the third LISTENING after this script exited —
+# watched on 2026-09-23, a `next-server` from a completed run still holding
+# :3100 while the following run was building. The port refusal above is the
+# other half: a tree-kill that misses now ends the next run with a sentence
+# instead of silently handing it somebody else's server.
+kill_tree() {
+  local pid="$1" kid
+  for kid in $(pgrep -P "$pid" 2>/dev/null); do kill_tree "$kid"; done
+  kill "$pid" 2>/dev/null || true
+}
+
 cleanup() {
   echo "--- teardown ---"
-  [[ -n "${SERVER_PID:-}" ]] && kill "$SERVER_PID" 2>/dev/null || true
-  [[ -n "${WEBHOOK_PID:-}" ]] && kill "$WEBHOOK_PID" 2>/dev/null || true
+  [[ -n "${SERVER_PID:-}" ]] && kill_tree "$SERVER_PID"
+  [[ -n "${WEBHOOK_PID:-}" ]] && kill_tree "$WEBHOOK_PID"
   as_pg "$PGBIN/pg_ctl -D $PGDIR stop -m immediate" >/dev/null 2>&1 || true
 }
 trap cleanup EXIT
