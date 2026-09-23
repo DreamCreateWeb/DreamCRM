@@ -16,6 +16,31 @@
 - Convention-guard tests (tenant scoping, design-system token single-homes,
   known-routes lists) are part of the gate — keep them passing rather than
   editing them to match your change.
+- **EVERY DEFECT FOUND AFTER MERGE ANSWERS ONE QUESTION: which existing gate
+  should have caught this, and why didn't it.** Owner-approved 2026-09-23
+  (DREAMCRM-119), placement confirmed by the chair at weekly direction meeting 1
+  (DREAMCRM-120). The answer is not a sentence in the fix's PR description — it
+  **routes through Forge's intake as a change to that gate**, on the same terms
+  as everything else in this list. Three consequences, each of which has been
+  got wrong here:
+  - **A plain “no gate could have caught it” is a legal answer, and it is the
+    one that owes the most.** It names a class this repo cannot currently see,
+    which is either a new guard or a deliberate, written decision not to build
+    one. What it may not be is silence.
+  - **The gate that FAILED is often not the gate nearest the defect.** #647's
+    marker rule graded the SOURCE literal while the exclusion ran against the
+    RENDERED DOM; what failed there was the guard's READER, not its predicate.
+    Ask which instrument had the defect in its field of view and came back
+    clean — that is the one that failed.
+  - **Process only grows where reality demonstrated a hole.** This rule is the
+    licence for new process and equally the limit on it: a guard proposed from
+    an imagined defect has no escaped defect behind it, and under the
+    `team-operating-model` skill's usage-discipline rule that is meta work
+    which has not earned its run.
+
+  The escaped-defect COUNT is a weekly scorecard metric, which is what keeps
+  this from being a rule nobody totals.
+
 - **Changing the gate itself is a policy change, and it routes to Forge.** If you
   alter branch protection, the required-check set, a `.github/workflows/**` file,
   or the deploy pipeline — **or make any other change that alters what can
@@ -3406,6 +3431,68 @@
   it the registry's `where` field is documentation nothing checks — the same
   shape as the drift it replaced. Three registered glyphs sat with no call
   site for the length of the program; that is the measurement.
+
+  **THE FIFTY-FIFTH: #697, the per-JOB full-history assertion in
+  `tests/guards/axe-baseline-ratchet.test.ts` (DREAMCRM-109, `8d7ed95c`,
+  2026-09-23 04:47:54Z). A NEW CLASS — the first assertion here whose subject
+  is what the CI EVENT hands a job**, rather than anything in the tree. Every
+  job that runs `pnpm test` must check out with `fetch-depth: 0`; revert
+  `deploy.yml`'s checkout and `test` reddens naming `deploy.yml:test`.
+  **STATE: MERGED — `8d7ed95c` (#697), 2026-09-23 04:47:54Z.**
+
+  Why it is a class and not a tightening: the census it replaces asserted that
+  a fetch-of-`main` STEP was present, and it was — in all four jobs, correctly
+  spelled, doing nothing. `actions/checkout` hands a `pull_request` the merge
+  ref, so the fetch genuinely transfers `main`'s history; on a `push` to `main`
+  it hands over a depth-1 clone whose tip already equals the remote tip, so the
+  identical fetch transfers nothing and `origin/main` resolves to ONE commit.
+  That is §2d's assert-the-answer-not-the-proxy **with the proxy looking
+  perfect**, and it froze the production pipeline: `main` red on every push
+  since #685, `deploy: needs: test`, two merges that built nothing.
+
+  **AND READ WHAT THE SPLIT COST, because it is this list's own failure mode.**
+  #697 EDITED this rulebook in its own diff — it had to, to narrow the
+  merge-safety claim to reasons that are a function of the TREE — and still did
+  not register the guard it shipped. An author who has already opened
+  `docs/rulebook/` has cleared every obstacle the intake rule complains about
+  and can *still* route the half the PR's headline is about while missing the
+  half it merely contains. That is the #555 lesson with the excuse removed:
+  **name every new class of assertion, not the one the title leads with**, and
+  a rulebook edit in the diff is not evidence the intake happened.
+
+  **THE FIFTY-SIXTH: #684, `.github/workflows/e2e-flaky-digest.yml` +
+  `scripts/e2e-flaky-digest.mjs` + `tests/guards/e2e-flaky-digest.test.ts`, and
+  the widened `scripts/review-sweep.mjs` (DREAMCRM-105, `ba6ded97`, 2026-09-23
+  05:07:21Z). A NEW CLASS, and the THIRTEENTH workflow file** — §2a's count
+  moves twelve → thirteen in this pass, and ten still gate nothing.
+  **STATE: MERGED — `ba6ded97` (#684), 2026-09-23 05:07:21Z.**
+
+  Two things here, and both change what the team is held to:
+
+  - **The digest counts what the per-run reporter could only name.** Each
+    Playwright report landed in one run's summary and nothing had ever read two
+    together, so “portal-billing flaked” was a sentence somebody saw on a
+    Tuesday and “about once a day” was a guess. A repeat offender is counted in
+    **runs, not occurrences** — forty flaky records from one run is one runner
+    having a bad afternoon, two records from two runs is a property of the
+    spec — and it **leads with the census**, because an alarm whose steady
+    state is quiet cannot otherwise tell “nothing flaked” from “I read
+    nothing”. Weekly cron plus dispatch, no PR trigger, so it holds no merge;
+    its window is one cadence wide, so there is no queue keeping it red for
+    weeks. It is `test`-gated by `tests/guards/e2e-flaky-digest.test.ts`, which
+    also reads `WORKFLOW_CENSUS` — so the workflow and its census entry cannot
+    come apart.
+  - **The morning sweep learned a predicate with NO LABEL behind it:** a merged
+    PR carrying no `DREAMCRM-<n>` key in its title at all. The other two
+    predicates read a label the gate applied; this one cannot, **because a
+    label is exactly what untracked work has nobody to apply.** It never wakes
+    Forge — §3's off-board count is what it feeds.
+
+  (**The ordinals record arrival HERE, not merge order.** #697 and #684 merged
+  before #698 and #701 and are numbered after them, because this list records
+  what has been ROUTED. Reading it as a timeline turns a gap in the intake into
+  what looks like a gap in the work.)
+
 
 **Which repo-settings change goes where.** A setting that changes *which* checks
 are required or *who* may bypass them is branch protection: §3's review gate
