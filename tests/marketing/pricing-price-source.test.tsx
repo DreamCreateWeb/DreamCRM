@@ -323,14 +323,21 @@ describe('assertion 2 — no plan price is spelled as a literal, anywhere (DREAM
     // BOTH NAME BRANCHES, because a suffix alternation can lose one half
     // silently. `priceCents` is camel; `PAYOUT_MIN_CENTS` is a SHOUTY module
     // constant, which the camel boundary structurally cannot see.
-    const shouty = seen.filter((h) => /_CENTS\b/.test(h.context))
+    //
+    // Split on the MATCHED NAME rather than on `h.context`, which is the whole
+    // source line (Sentinel, #711). Every hit today is a lone
+    // `export const X_CENTS = …`, so the line-based version agreed by accident
+    // — and would have miscounted the first camel hit that shared a line with
+    // a `_CENTS` token. A name is not a line.
+    const isShouty = (h: { name?: string }) => /_CENTS$/.test(h.name ?? '')
+    const shouty = seen.filter(isShouty)
     expect(
       shouty.length,
       'No SHOUTY `*_CENTS` constant matched, so the second half of the suffix alternation may ' +
         'have been dropped — and that is the half a module-level price constant is written in.',
     ).toBeGreaterThanOrEqual(1)
     expect(
-      seen.filter((h) => !/_CENTS\b/.test(h.context)).length,
+      seen.filter((h) => !isShouty(h)).length,
       'No camelCase `*Cents` name matched — the branch the DREAMCRM-122 defect itself was ' +
         'written in (`invoiceCents`).',
     ).toBeGreaterThanOrEqual(1)

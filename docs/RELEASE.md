@@ -1103,7 +1103,12 @@ binding are all correct. The payment-plan charger was the exception.
   `invoiceCents = 50000`, with the comment above it still naming the
   $500/mo Premium plan, so the demo partner portal still shows $50 per
   practice per month against `/partner-program`'s $20.
-  **FIXED 2026-09-23 (DREAMCRM-122).** `invoiceCents` resolves
+  **FIXED 2026-09-23 (DREAMCRM-122).** `invoiceCents` resolves — and the
+  self-heal's three-way `WHERE`, which is the whole reason that `UPDATE`
+  against two money tables is safe, is GRADED: the test renders it through the
+  real `PgDialect` and fails naming any clause that goes missing. Found by
+  Sentinel in review; before it, deleting the tenant scope, the invoice-id
+  scope and the `ne` left all five assertions green.
   `getQuotedPlan().price * 100`, so the demo invoices the plan a referred
   clinic actually pays and 10% of it is the $20 `/partner-program` publishes
   from the same source. A self-heal re-points an ALREADY-seeded demo — the

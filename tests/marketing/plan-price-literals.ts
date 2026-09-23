@@ -158,6 +158,19 @@ export interface PriceHit {
    */
   value: number
   spelling: Spelling
+  /**
+   * The IDENTIFIER that made this a price — `invoiceCents`, `LIST_MONTHLY` —
+   * for the two name-shaped spellings, and `undefined` for `dollar` and
+   * `cadence`, which have no name to report.
+   *
+   * Sentinel, #711: the field-of-view assertion beside this told the SHOUTY
+   * `*_CENTS` branch of the suffix alternation from the camelCase one by
+   * testing `h.context`, which is the whole LINE. Cosmetic today — all three
+   * hits are `export const X_CENTS = …` alone on a line — and wrong the
+   * moment a camel hit shares a line with a `_CENTS` token. A name is not a
+   * line, the same way a word is not a substring.
+   */
+  name?: string
   /** The source line, trimmed, so the failure says WHICH `$200` it means. */
   context: string
 }
@@ -527,7 +540,7 @@ export function planPriceHits(file: string, source: string, planPrices: Readonly
   // `scale` is the number of THESE units in a dollar — 1 for every spelling
   // that writes dollars, 100 for `CENTS`. The hit keeps the number AS WRITTEN
   // (see `PriceHit.value`); only the comparison is scaled.
-  const add = (start: number, text: string, spelling: Spelling, scale = 1) => {
+  const add = (start: number, text: string, spelling: Spelling, scale = 1, name?: string) => {
     const value = Number(text.replace(/,/g, ''))
     if (!planPrices.has(value / scale)) return
     if (seen.has(start)) return
@@ -540,6 +553,7 @@ export function planPriceHits(file: string, source: string, planPrices: Readonly
       text,
       value,
       spelling,
+      name,
       context: contextOf(code, start),
     })
   }
@@ -557,7 +571,7 @@ export function planPriceHits(file: string, source: string, planPrices: Readonly
   const assignment = new RegExp(ASSIGNMENT.source, 'g')
   while ((m = assignment.exec(code)) !== null) {
     if (!nameIsPricey(m[3]!)) continue
-    add(m.index + m[0]!.length - m[4]!.length, m[4]!, 'assignment')
+    add(m.index + m[0]!.length - m[4]!.length, m[4]!, 'assignment', 1, m[3]!)
   }
 
   // AFTER `assignment`, so a name that is pricey AND ends in `Cents`
@@ -565,7 +579,7 @@ export function planPriceHits(file: string, source: string, planPrices: Readonly
   // matched rather than twice — `seen` is keyed on the offset.
   const cents = new RegExp(CENTS.source, 'g')
   while ((m = cents.exec(code)) !== null) {
-    add(m.index + m[0]!.length - m[4]!.length, m[4]!, 'cents', 100)
+    add(m.index + m[0]!.length - m[4]!.length, m[4]!, 'cents', 100, m[3]!)
   }
 
   // SOURCE ORDER, not report order. The three passes above each sweep the

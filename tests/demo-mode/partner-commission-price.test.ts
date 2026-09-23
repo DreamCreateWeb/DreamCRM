@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { PgDialect } from 'drizzle-orm/pg-core'
 import { getQuotedPlan } from '@/lib/stripe-config'
 import { formatBps } from '@/lib/types/referrals'
 
@@ -17,6 +18,32 @@ import { formatBps } from '@/lib/types/referrals'
  * moment somebody wrote `50000` a different way, and the rule that DOES grade
  * the spelling (`tests/marketing/pricing-price-source.test.tsx`, the cents
  * spelling) grades the tree rather than this arithmetic.
+ *
+ * ──────────────────────────────────────────────────────────────────────────
+ * THE SECOND HALF IS THE `WHERE`, AND IT IS RENDERED THROUGH THE REAL DIALECT.
+ *
+ * The self-heal below issues an `UPDATE` against two MONEY tables, and its
+ * entire safety argument is a three-way scope: the demo partner's id, this
+ * org, and this org's three deterministic `demo_inv_` ids. Found by Sentinel
+ * reviewing #711 — the first version of this file mocked the update chain as
+ * `where: async () => …`, taking no argument, so every assertion read `set`
+ * and only `set`. **Deleting the org scope, the invoice-id scope and the `ne`
+ * left all five tests green**, which is a blind `UPDATE ... SET amountCents`
+ * over every commission row in the database with nothing in the repo to say
+ * so. That is §2d part 1 exactly: a test that mocks `@/lib/db` physically
+ * cannot see a wrong `WHERE`, so when the defect is PREDICATE-shaped the query
+ * gets rendered through drizzle's own `PgDialect`.
+ *
+ * THE BOUNDARY, stated rather than discovered (§2d part 2): **this proves the
+ * SQL we RENDER, not the rows Postgres RETURNS.** It cannot tell you an index
+ * is used, that a column means what its name says, or that those three ids
+ * exist. What it can tell you — and what nothing else here could — is that a
+ * clause the safety argument names is still in the statement.
+ *
+ * Assertions are on the CLAUSE, never on a golden SQL string (§2d part 3): the
+ * params are inlined back into the rendered text so a failure reads like SQL,
+ * and a harmless reordering of `and()` arguments reddens nothing.
+ * ──────────────────────────────────────────────────────────────────────────
  */
 
 interface InsertCall {
@@ -26,6 +53,9 @@ interface InsertCall {
 interface UpdateCall {
   table: string
   set: Record<string, unknown>
+  /** The `WHERE` expression, UNRENDERED — the thing the first version of this
+   *  file threw away, and the entire safety argument for both heals. */
+  where: unknown
 }
 
 const state: {
@@ -68,8 +98,11 @@ vi.mock('@/lib/db', async () => {
       }),
       update: (t: unknown) => ({
         set: (set: Record<string, unknown>) => ({
-          where: async () => {
-            state.updates.push({ table: tableName(t), set })
+          // `where` TAKES ITS ARGUMENT. The first version of this mock was
+          // `where: async () => …`, which discarded the predicate — and a
+          // discarded predicate is an ungraded one (Sentinel, #711).
+          where: async (pred: unknown) => {
+            state.updates.push({ table: tableName(t), set, where: pred })
           },
         }),
       }),
@@ -94,6 +127,24 @@ function stageReads({ payoutExists = false }: { payoutExists?: boolean } = {}) {
   state.selectQueue.push([{ id: 'rp_demo' }])
   state.selectQueue.push([{ referralPartnerId: 'rp_demo', referralPercentBps: null }])
   state.selectQueue.push(payoutExists ? [{ id: 42 }] : [])
+}
+
+const dialect = new PgDialect()
+
+/** SQL-ish literal for a bound param, so a failure message reads like a query. */
+const lit = (v: unknown): string => (typeof v === 'string' ? `'${v}'` : String(v))
+
+/**
+ * Render a captured `WHERE` through the REAL dialect and inline its params.
+ *
+ * Inlining rather than asserting on `(sql, params)` separately is what makes
+ * these CLAUSE assertions: `"organization_id" = 'org_demo'` is one string to
+ * look for, and it cannot be satisfied by the right value bound to the wrong
+ * column — which a bare `params` check can.
+ */
+const inlineWhere = (where: unknown): string => {
+  const q = dialect.sqlToQuery(where as never)
+  return q.sql.replace(/\$(\d+)/g, (_m, n: string) => lit(q.params[Number(n) - 1]))
 }
 
 const commissions = () => state.inserts.filter((c) => c.table === 'referral_commission')
@@ -171,6 +222,90 @@ describe('the demo partner’s commissions resolve the plan price', () => {
       const payout = state.updates.find((u) => u.table === 'referral_payout')
       expect(payout?.set).toMatchObject({
         amountCents: Math.floor((getQuotedPlan().price * 100 * DEMO_PERCENT_BPS) / 10000),
+      })
+    })
+
+    /**
+     * THE SCOPE ITSELF, GRADED. The file header says why this is rendered
+     * rather than inspected, and what it deliberately cannot see.
+     */
+    describe('the WHERE that makes it safe', () => {
+      const heal = async (table: string) => {
+        stageReads({ payoutExists: true })
+        await seedDemoReferralPartner('org_demo')
+        const u = state.updates.find((x) => x.table === table)
+        expect(u, `the seeder issued no UPDATE against ${table}`).toBeDefined()
+        return { where: inlineWhere(u!.where), set: u!.set, raw: u!.where }
+      }
+
+      it('confines the commission heal to the demo partner, this org, and three known invoice ids', async () => {
+        const { where } = await heal('referral_commission')
+
+        // Each clause names the COLUMN as well as the value — a param on its
+        // own would be satisfied by the right value against the wrong column.
+        expect(where, 'the demo partner scope is gone').toContain(
+          `"referral_commission"."partner_id" = 'rp_demo'`,
+        )
+        expect(where, 'THE TENANT SCOPE IS GONE — this would reach every org').toContain(
+          `"referral_commission"."organization_id" = 'org_demo'`,
+        )
+        for (const n of [1, 2, 3]) {
+          expect(where, `demo invoice id ${n} is no longer named`).toContain(
+            `'demo_inv_org_demo_${n}'`,
+          )
+        }
+        expect(where, 'the invoice-id scope is no longer an IN list').toMatch(
+          /"stripe_invoice_id" in \(/,
+        )
+      })
+
+      it('gates on EVERY column it writes, so a correct demo is a no-op in every direction', async () => {
+        const { where, set } = await heal('referral_commission')
+
+        // Sentinel's note on #711: gating on `invoiceTotalCents` alone left a
+        // demo whose total was already right but whose commission or rate had
+        // drifted unable to heal, while the comment claimed a correct demo is
+        // a no-op. The set and the gate are one list now, asserted both ways.
+        const columns: Record<string, string> = {
+          invoiceTotalCents: 'invoice_total_cents',
+          percentBps: 'percent_bps',
+          amountCents: 'amount_cents',
+        }
+        expect(Object.keys(set).sort()).toEqual(Object.keys(columns).sort())
+        for (const [field, column] of Object.entries(columns)) {
+          expect(
+            where,
+            `the heal SETs ${field} but does not gate on it — a demo that drifted ` +
+              'only there can never heal, and every correct demo takes a pointless write',
+          ).toContain(`"referral_commission"."${column}" <> ${String(set[field])}`)
+        }
+      })
+
+      it('confines the payout heal to the one row it read', async () => {
+        const { where, set } = await heal('referral_payout')
+        expect(where).toContain(`"referral_payout"."id" = 42`)
+        expect(where, 'the partner scope is gone').toContain(
+          `"referral_payout"."partner_id" = 'rp_demo'`,
+        )
+        expect(where).toContain(`"referral_payout"."amount_cents" <> ${String(set.amountCents)}`)
+      })
+
+      it('binds exactly the values the scope is made of — nothing added, nothing dropped', async () => {
+        // The counterpart to the clause checks above: those prove a named
+        // clause is PRESENT, this proves no clause was swapped for something
+        // else that happens to mention the same column.
+        const plan = getQuotedPlan()
+        const commission = await heal('referral_commission')
+        expect(dialect.sqlToQuery(commission.raw as never).params).toEqual([
+          'rp_demo',
+          'org_demo',
+          'demo_inv_org_demo_1',
+          'demo_inv_org_demo_2',
+          'demo_inv_org_demo_3',
+          plan.price * 100,
+          DEMO_PERCENT_BPS,
+          Math.floor((plan.price * 100 * DEMO_PERCENT_BPS) / 10000),
+        ])
       })
     })
   })
