@@ -196,6 +196,30 @@ test.describe('paying a balance from the portal', () => {
     // carries a "Billing — Balance & history" link too, and `/balance/i` would
     // be two matches and a strict-mode violation the first time the grid moved
     // above the strip.
+    // ── THE RESIDUAL, MEASURED AND DELIBERATELY NOT PAPERED OVER ──
+    //
+    // The duplicate-render flake is closed (see `portalMain` above): hunt run
+    // `35815991515` ran this file 200 times against the scoped locators and
+    // produced ZERO duplicate failures, down from 9 and 4.
+    //
+    // What that hunt DID produce is one failure of a different kind, and this
+    // is it: the click lands, and the page is still on `/patient/dashboard`
+    // ten seconds later. Hunt 1 saw it once too — **2 in 600 repetitions,
+    // ~0.3%**.
+    //
+    // It is not the same defect and it is not the same shape. The link is a
+    // real `<a href>`, so a dispatched click always navigates; a click that
+    // does nothing means the node Playwright resolved was REPLACED between
+    // resolving it and dispatching on it — which is hydration swapping the
+    // server-rendered tree, the same streaming machinery one layer up.
+    //
+    // NOT FIXED HERE, on purpose. The obvious move is to retry the click or
+    // wait for a post-hydration signal, and both are plausible; neither has
+    // been watched to fix anything, and a 0.3% flake is exactly the rate at
+    // which a hopeful fix looks like it worked. It gets its own hunt before it
+    // gets a patch. Written down with its number so the next person starts
+    // where this one finished rather than rediscovering it — §10, and the
+    // lesson of the three notes above.
     await page.getByRole('link', { name: /\$185\.00 balance/ }).click()
     await expect(page).toHaveURL(/\/patient\/invoices/)
 
