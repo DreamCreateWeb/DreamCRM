@@ -115,6 +115,37 @@ const SKILL_MD = 'SKILL.md'
  */
 const MAX_BUFFER = 64 * 1024 * 1024
 
+/**
+ * THE DESCRIPTION HAS TO FIT IN A COMMAND LINE, AND ON 2026-09-23 IT STOPPED.
+ *
+ * `skill update --description` is the one text-carrying flag on this CLI with
+ * NO file form, so the description travels as an argv element. Windows'
+ * `CreateProcess` caps the whole command line at 32,767 characters, and the
+ * first publish after #712 merged died with `spawnSync multica ENAMETOOLONG`
+ * at 33,592 — mid-publish, with the store left holding main's files and the
+ * previous description.
+ *
+ * **The defect is not the limit, it is that nothing said so until the publish
+ * died.** A document can grow past what its own publisher can transmit, and
+ * the only signal was an OS errno that names neither the field nor the cause.
+ * So the ceiling is asserted in the PREFLIGHT, before anything is written, and
+ * `tests/guards/rulebook-publish.test.ts` asserts the authored description is
+ * under it — which turns "the next person to add a clause breaks publishing"
+ * into a red `test` on the PR that adds the clause.
+ *
+ * THE HEADROOM IS SIZED FROM THE REST OF THE COMMAND LINE, not guessed. The
+ * invocation is `skill update <36-char uuid> --content-file <path>
+ * --description <desc> --output json`, which is a little over 270 characters
+ * before the description; 767 leaves roughly 500 of slack for a longer
+ * checkout path. The first draft reserved 2,000 and that was wrong in the
+ * expensive direction — it would have condemned a description that had been
+ * publishing cleanly all day, which is a guard inventing work rather than
+ * catching a defect.
+ */
+const ARGV_CEILING = 32767
+const DESCRIPTION_HEADROOM = 767
+export const MAX_DESCRIPTION_CHARS = ARGV_CEILING - DESCRIPTION_HEADROOM
+
 /* ========================================================================= *
  * C. ENCODING
  * ========================================================================= */
@@ -392,6 +423,23 @@ export function readRulebookTree(root = process.cwd(), dir = RULEBOOK_DIR) {
  * and left the rulebook wrong, and the verify pass afterwards would agree with
  * it byte for byte. This is the run that refuses.
  */
+/**
+ * The description's own ceiling, graded in the preflight so it is a refusal
+ * BEFORE the first write rather than an OS errno in the middle of one. See
+ * `MAX_DESCRIPTION_CHARS` for why the limit exists and what it is made of.
+ */
+export function gradeDescriptionLength(description) {
+  if (description.length <= MAX_DESCRIPTION_CHARS) return []
+  return [
+    `${RULEBOOK_DIR}/${SKILL_MD}: the frontmatter description is ${description.length} characters, over the ` +
+      `${MAX_DESCRIPTION_CHARS} this command can transmit. \`skill update --description\` has no file form, so it ` +
+      "travels as an argv element and Windows caps a command line at 32,767 — the publish would die with " +
+      'ENAMETOOLONG naming neither the field nor the cause. SHORTEN IT: this text is how an agent decides ' +
+      'whether to OPEN the rulebook, not a second copy of it, and a description this long has stopped being ' +
+      'either.',
+  ]
+}
+
 export function gradeText(name, text) {
   const failures = []
   for (const hit of findC1(text)) {
@@ -795,6 +843,7 @@ function main(argv) {
   const preflight = []
   for (const [path, buf] of local) preflight.push(...gradeText(`${RULEBOOK_DIR}/${path}`, buf.toString('utf8')))
   preflight.push(...gradeText(`${RULEBOOK_DIR}/${SKILL_MD} frontmatter description`, description))
+  preflight.push(...gradeDescriptionLength(description))
   if (preflight.length) {
     console.error('\nPREFLIGHT FAILED — the authored copy is already wrong, so nothing was published.\n')
     for (const f of preflight) console.error(`  - ${f}`)

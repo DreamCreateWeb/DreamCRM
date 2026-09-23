@@ -6,7 +6,7 @@ Two checks can block a merge to `main`: the required contexts `test` and `e2e`,
 both from `.github/workflows/ci.yml`. **Re-read off the API on 2026-09-23 and
 unchanged**: `contexts: ["test", "e2e"]`, `strict: true`,
 `enforce_admins: true`, `allow_force_pushes: false`, `allow_deletions: false`,
-`required_linear_history: false`, thirteen workflow files, nine §3 review areas in
+`required_linear_history: false`, fourteen workflow files, nine §3 review areas in
 `GATE_RULES`, and the four merge-method toggles plus `allow_update_branch` and
 `delete_branch_on_merge` all as described below. The workflow COUNT is the one
 thing that had drifted — `e2e-flaky-digest.yml` (#684) made it thirteen — and
@@ -63,7 +63,7 @@ an emergency fix, and close it — two commands, leaving a settings-change recor
 `gh pr merge --admin` no longer bypasses anything either. `docs/CI.md` owns the
 procedure under "The emergency hatch"; do not restate the commands here.
 
-There are thirteen workflow files and **ten of them gate nothing.** Three gate
+There are fourteen workflow files and **eleven of them gate nothing.** Three gate
 something, and they do it two different ways: `ci.yml` publishes both required
 contexts on a PR, `deploy.yml` publishes `test` on a push to `main`, and
 `migration-check.yml` publishes nothing at all yet can still fail the deploy
@@ -81,6 +81,13 @@ the thirteenth, new 2026-09-23 on #684: weekly cron plus dispatch, no PR
 trigger, and it reads a WEEK of Playwright reports together to name any spec
 that flaked in two or more separate runs — the thing the per-run reporter never
 could. It cannot hold a merge either.
+
+`push-alarm.yml` is the fourteenth, new 2026-09-23 on DREAMCRM-115: the
+repository's FIRST `workflow_run`-triggered file. It runs on every completion
+of `deploy.yml` and `post-merge-e2e.yml` — the only two workflows that fire on
+push to `main` — entirely after its upstream has finished, so it cannot hold a
+merge either.
+
 `nightly.yml` and `post-merge-e2e.yml` run after the fact, and `nightly.yml`'s
 `tz-canary` job is `continue-on-error: true` — **a green nightly does not mean
 the canary passed**; open the run and read that job. `review-gate.yml` (new
@@ -843,18 +850,48 @@ each one's STATE line lives on its §2 entry rather than here:
   existing tree keeps its CRLF and `git status` stays clean. `.gitattributes`
   carries the refresh incantation; the guard deliberately does not grade the
   working-tree column, so a stale tree will not tell you it is stale.
-- **The error-scan window — PR #664, OPEN**, head `9e4ee5e6` after a second
-  Sentinel round. Until it merges, `error-scan.yml` still scans a fixed 35
-  minutes on a measured 239-minute median cadence: **read a green run there as
-  "about 15% of the window was looked at", not as "production is healthy".**
-- **The intake hop — PR #671, OPEN**, head `497f8ec5` after a second Sentinel
-  round. This is obligation 1 applied to the rulebook's own queue:
+- **The error-scan window — PR #664, MERGED `1b34d257`, 2026-09-22T21:38:38Z.
+  CLOSED.** `error-scan.yml` derives its lookback from the previous SUCCESSFUL
+  run instead of from the fixed 35 minutes its cron implied on a measured
+  239-minute median cadence.
+- **The intake hop — PR #671, MERGED `94a36ba0`, 2026-09-22T22:06:23Z.
+  CLOSED.** Obligation 1 applied to the rulebook's own queue:
   `review-gate.yml` labels `needs-forge-intake`, the sweep grades it, and the
-  hop AFTER the label has no owner that runs. **Note what makes it an instance
+  hop AFTER the label now wakes Forge. **Note what makes it an instance
   rather than a fifth alarm:** it adds no new thing to watch, it gives an
   existing red run an addressee that is a mechanism.
 
-**The two open ones are where the convention is earning its keep, and the
+  **BOTH OF THE ABOVE SAID `OPEN` UNTIL 2026-09-23 AND BOTH HAD MERGED THE
+  NIGHT BEFORE** — found by Quinn on DREAMCRM-115, while reading this section
+  for the rule it states. Worth one sentence because of WHICH guard missed
+  them: `tests/guards/rulebook-state.ts` grades `**STATE: …**` claims and these
+  two are written as inline `— PR #NNN, OPEN`, so they are outside its unit by
+  construction, not by a bug. That is the same shape as the count above: the
+  graded copy was right and a second, ungraded copy of the same fact was
+  wrong. If you write a verdict about a PR anywhere on this page, write it as a
+  `STATE:` claim or expect nothing to check it.
+
+- **A red push-triggered workflow on `main` — DREAMCRM-115,
+  `push-alarm.yml`. THE FIFTH
+  FACE, and the first one found after the convention existed.** `main`
+  auto-deploys, and on 2026-09-23 a red `deploy.yml` went unnoticed for 21
+  minutes while production shipped nothing for 77. Nothing in
+  `.github/workflows/**` used a `workflow_run` trigger, so a failed
+  push-triggered workflow routed nowhere — and `schedule-heartbeat.yml` cannot
+  see one by construction, since it grades the AGE of a cron's newest run and a
+  deploy fires when somebody merges. **Read what obligation 3 cost here**: the
+  heartbeat was WIDENED rather than a second watcher built, and it needed a
+  different question, because an alarm with no cadence cannot be late. The
+  question is PAIRING — is there a run of the alarm at or after the newest
+  settled run of the workflow it watches — and a quiet week of merges is
+  explicitly not a finding. **It watches BOTH push-triggered producers**
+  (`deploy.yml` and `post-merge-e2e.yml`) from one file, and the guard derives
+  that list from the tree rather than taking two typed strings — so a third
+  push-triggered workflow fails `test` by name until it is watched.
+  `docs/CI.md`, "A red push-triggered workflow has to reach somebody",
+  carries the rest.
+
+**The two that were open are where the convention earned its keep, and the
 evidence is in their review history rather than in this paragraph.** Between
 them the two PRs took four blocking findings across two Sentinel rounds, and
 **three of the four were the same shape: a guard reading a sentence ABOUT the

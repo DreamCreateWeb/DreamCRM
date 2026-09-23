@@ -141,6 +141,11 @@ export default function PlanForm({
           type="button"
           onClick={accept}
           disabled={status === 'redirecting'}
+          // The only sign the tap took is this button's own label changing to
+          // "Opening secure setup…" before Stripe loads. aria-busy is what
+          // makes the wait a state rather than a silent pause — the same
+          // contract BrandButton and the visit card's pills already carry.
+          aria-busy={status === 'redirecting'}
           className="mt-6 w-full rounded-full px-6 py-3.5 text-[0.95rem] font-semibold text-white disabled:opacity-60"
           style={{ backgroundColor: brand }}
         >
