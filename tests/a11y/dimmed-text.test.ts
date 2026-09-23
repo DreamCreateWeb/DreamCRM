@@ -394,7 +394,19 @@ describe('why dimming type is a defect', () => {
     expect(Math.min(...quietInk).toFixed(2)).toBe('4.88')
   })
 
-  it('grades the cosmetic hover arrow, which was under the graphic floor too', () => {
+  /**
+   * WHAT THE DIMMING COST, AND WHAT THE ARROW ACTUALLY WEARS NOW — two
+   * measurements, because the first draft only had the first one and its NAME
+   * claimed the second (Sentinel, reviewing #709).
+   *
+   * The test below graded `cosmeticAccentInk`, which is the colour the arrow
+   * USED to be dimmed from. The shipped fix rests it at `SITE_INK_MUTED`
+   * instead, so a green run proved the old value failed and said nothing about
+   * the new one — a guard whose predicate is right and whose sentence is
+   * wrong, which is the §2d family no mutation can find. Both halves are
+   * measured here now, and the names say which is which.
+   */
+  it('grades what the dimming COST — the accent the arrow was dimmed from', () => {
     const dimmed = CLINIC_BRANDS.map((b) => {
       const pal = buildCosmeticPalette(b)
       const bg = hexToRgb(pal.bg)
@@ -410,6 +422,34 @@ describe('why dimming type is a defect', () => {
     expect(Math.min(...dimmed).toFixed(2)).toBe('1.46')
     // The builder had already bought AA at full strength. The dimming spent it.
     expect(Math.min(...full)).toBeGreaterThanOrEqual(AA)
+  })
+
+  it('grades what the arrow WEARS — the quiet ink it rests at now', () => {
+    // `SITE_INK_MUTED` is `var(--c-ink-muted, #6B635A)`, so it resolves two
+    // ways and BOTH have to clear: the tenant value the cosmetic recipe emits,
+    // and the literal fallback a surface rendered outside the site layout
+    // paints (previews, tests). Graded against the 4.5 TYPE owes rather than
+    // the 3:1 a graphic owes — the glyph declares `text-xl`, and the stricter
+    // floor is the one that is free to meet here.
+    const tenant = CLINIC_BRANDS.map((b) => {
+      const pal = buildCosmeticPalette(b)
+      return contrast(hexToRgb(pal.inkMuted), hexToRgb(pal.bg))
+    })
+    expect(Math.min(...tenant)).toBeGreaterThanOrEqual(AA)
+    expect(Math.min(...tenant).toFixed(2)).toBe('6.10')
+
+    // The literal fallback, on the default ground — the no-tenant rendering.
+    expect(contrast(hexToRgb('#6B635A'), hexToRgb('#FAF7F2'))).toBeGreaterThanOrEqual(AA)
+    expect(contrast(hexToRgb('#6B635A'), hexToRgb('#FAF7F2')).toFixed(2)).toBe('5.52')
+
+    // And the claim that makes the fix a FIX rather than a different colour:
+    // every brand gains headroom over what the dimming left behind.
+    for (const b of CLINIC_BRANDS) {
+      const pal = buildCosmeticPalette(b)
+      const bg = hexToRgb(pal.bg)
+      const before = contrast(over(hexToRgb(cosmeticAccentInk(b)), 0.3, bg), bg)
+      expect(contrast(hexToRgb(pal.inkMuted), bg)).toBeGreaterThan(before)
+    }
   })
 
   it('pins the shared FilterChip count, which is what made this a batch', () => {

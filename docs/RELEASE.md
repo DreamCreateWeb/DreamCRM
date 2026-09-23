@@ -2035,7 +2035,65 @@ rather than a caveat hedging this verdict.
   `<p className="sr-only" role="status">` narrating the new phase.
   **Vesper's lane** (portal accessibility), handed over rather than
   absorbed: DREAMCRM-108 is a marketing-site issue and the portal is
-  outside its scope. · OPEN.
+  outside its scope. · **FIXED** — DREAMCRM-116, 2026-09-23.
+  `survey-card.tsx` carries one always-mounted `<p className="sr-only"
+  role="status">` summarising the new phase, and so does the public
+  survey page's identical `stage` machine
+  (`app/n/[token]/survey-form.tsx`) — which this entry called the
+  “working reference” and which announced its phase no better. See
+  the re-derivation below.
+
+**THE RE-DERIVATION THIS ENTRY FORCED, AND THE TWO THINGS IT FOUND THAT
+THE HAND-NAMED LIST GOT WRONG** (DREAMCRM-116, 2026-09-23). The entry
+above names one file. The CLASS it describes — *a component swaps what
+is on screen under its own state machine and speaks nothing* — was
+measured across the whole patient-facing tree rather than taken at the
+entry's word, by deriving every client component whose `useState` is
+annotated with a union of two or more string literals. That population is
+**19 machines across 18 files** — re-derived by running the rule's own
+`scanForSilentPhases()` against a clean checkout, and pinned by an assertion
+in the guard so this paragraph cannot drift from it again. **Five of the
+nineteen, across four files, carried no announcement instrument at all** at
+`66d087dc`, the commit this work started from.
+
+(The first draft of this paragraph said *15 files*, which is exactly the
+pre-alias count the guard's own docblock identifies as wrong. A ledger entry
+written to correct a hand-carried count carried the count it was correcting;
+Sentinel caught it by re-running the derivation. It is an assertion now for
+that reason and not a tidier one.)
+
+The measurement corrected the hand-named list in BOTH directions:
+
+- **`visit-card.tsx` was on the list and does not belong on it.** It has
+  carried a live region since R2 Slice 6 — `role={message.kind === 'ok'
+  ? 'status' : 'alert'}` at line 348, which this ledger's own entry above
+  names. Its `panel` machine is a DISCLOSURE: the patient presses
+  Reschedule and a panel opens directly beneath the button they pressed,
+  so a live region is the wrong instrument outright. What was missing is
+  `aria-expanded`/`aria-controls` on the two pills, which is what it now
+  has.
+- **Four more files are the same defect and were not on the list**, each
+  announcing its `error` phase through `role="alert"` and its TERMINAL
+  phase through nothing at all: the portal's own book and request forms
+  (`app/(portal)/patient/book/`), the public survey page, and the clinic
+  site's chat widget. A fifth, the shop cart
+  (`app/site/[slug]/shop/cart-view.tsx`), is the adjacent shape — its
+  fulfillment chips carried the selection in a brand fill with no
+  `aria-pressed` and no named group, the exact parity defect R2 Slice 6
+  fixed on the booking chips.
+
+**AND THE BLIND SPOT THAT MAKES A GREP-LEVEL READING OF THIS CLASS
+UNSAFE**, named because the next person will reach for the same grep. The
+entry above says `survey-card.tsx` contains ZERO live regions,
+grep-verified, and that was true OF THE FILE. Its error text was already
+announced — by `PortalErrorText`, the shared primitive, which carries
+`role="alert"` itself (`components/patient-portal/ui.tsx:307`). A live
+region reached through a shared component is invisible to a grep over the
+call site, so *“zero live regions in this file”* and *“nothing here is
+announced”* are different claims and the first does not imply the second.
+`tests/a11y/announced-phase-changes.test.tsx` resolves the announcing
+primitives by name for exactly this reason, and asserts that resolution
+against the primitives' own source rather than trusting the list.
 
 ### Fixed — /compare/[vendor] scrolls sideways 212px at 390 (found 2026-09-15)
 
@@ -3851,7 +3909,8 @@ it is a type-metrics change across eight subpages and wants its own issue and
 its own before/after, which is the same call `docs/MOBILE-WEIGHT.md`
 recommendation 1 made about the hero and which turned out right.
 
-**FIXED on DREAMCRM-127** (PR #718) — candidate 2, plus a cause this
+**FIXED on DREAMCRM-127** (PR #718, `589891e6`, merged 2026-09-23 13:41Z,
+deployed ~13:53Z and VERIFIED ON PRODUCTION below) — candidate 2, plus a cause this
 entry had not found. Both halves are in `app/css/style.css`:
 
 1. **`--font-inter` shipped as `"Inter", "sans-serif"`, and a QUOTED generic
@@ -3897,7 +3956,25 @@ wiring seam — deleting the family from the stack while leaving the faces
 declared, which the first draft of the guard passed. The guard deliberately
 does NOT grade the CONSTANTS: re-deriving them needs a browser with the local
 faces installed and CI has neither, so per §2d the sentence says so rather
-than implying coverage it does not have. · **FIXED** (Neon).
+than implying coverage it does not have.
+
+**Verified on production 2026-09-23 16:31–16:40Z**, and deliberately NOT by
+the CLS number, because this entry is the reason not to trust that number
+alone: a late first paint means the font lands before the text and there is
+nothing left to shift, so a green CLS can mean a fixed page OR a slow one.
+The structural check cannot be fooled that way — load each surface with
+Inter BLOCKED (the fallback is what paints) and again with Inter allowed, and
+compare the boxes:
+
+**33 of 33 identical, 0px on every one** — all eleven `PageHero` pages
+(`/pricing`, `/product`, `/why`, `/compare`, `/resources`, `/docs`, `/blog`,
+`/changelog`, `/roi`, `/grade`, `/partner-program`) × the three graded widths
+(390 / 834 / 1440), measured on hero `<section>`, `<h1>` and the sub
+paragraph. `/pricing` at 390 reads **320.53px both ways** — the exact height
+this entry recorded the hero growing INTO, now present from the first frame.
+The production run also reports `/pricing` CLS **0.000** with the only shift
+a 1px mono numeral (0.0005), against the 0.1157 recorded here. · **FIXED**
+(Neon).
 
 ### Deliverable 4 — error aggregation · NOT BUILT (owner decision)
 
