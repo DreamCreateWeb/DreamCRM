@@ -2901,8 +2901,43 @@
   - `strict: true` means a PR's `test` runs on the merge RESULT, so the tree it
     grades is byte-identical to the `main` it is about to create;
   - therefore any tree that would fail on `main` fails on the PR FIRST, where
-    the author fixes it inside their own diff. **`main` cannot go red from a
-    merge that was green.**
+    the author fixes it inside their own diff.
+
+  **AND THAT ARGUMENT IS ABOUT THE TREE — A CORRECTION, WRITTEN THE SAME
+  NIGHT, BECAUSE THE SENTENCE THAT USED TO END IT WAS FALSE.** It read
+  "`main` cannot go red from a merge that was green", full stop. It was
+  reviewed, agreed, merged — and **it blocked two production deploys
+  within the hour**. `deploy.yml`'s `test` job went red on every push to
+  `main` while `ci.yml` was honestly green on every PR, and
+  `deploy: needs: test` turned that into a frozen deploy pipeline.
+
+  The cause is not in any tree. **`actions/checkout` hands the two events
+  different clones.** On a `pull_request` it holds `refs/pull/N/merge`, so
+  `origin/main` is a ref the clone does not have and the fetch step genuinely
+  transfers main's history. On a `push` to `main` it holds main at depth 1
+  with its tip ALREADY EQUAL to the remote tip — so the identical fetch
+  transfers nothing, the shallow graft survives, and `origin/main` resolves
+  with exactly ONE commit. Same step, same repo, two starting states.
+
+  **The honest claim is narrower, and it is the one to reason with: `main`
+  cannot go red from a merge that was green FOR REASONS THAT ARE A FUNCTION OF
+  THE TREE.** A check reads the tree AND the machine. Anything it takes from
+  the machine — the clone's depth, which refs exist, what event produced
+  the run — sits outside the argument and needs pinning separately. It is
+  now pinned: `axe-baseline-ratchet.test.ts` asserts PER JOB that everything
+  running `pnpm test` checks out with `fetch-depth: 0`, which fails on a PR
+  rather than on `main`.
+
+  **Two things about this are worth more than the fix.** The first: the
+  guard's own eyes-floor is the only reason this was a blocked deploy instead
+  of a silent hole — it refused to grade a rulebook it could not see, on
+  a branch where nobody would have checked. Writing the floor is what turned
+  an invisible defect into an expensive, obvious one, and that trade is the
+  right one every time. The second: **the old census asserted the fetch STEP
+  existed, and it did** — in all four jobs, correctly spelled, doing
+  nothing. That is §2d's assert-the-answer-not-the-proxy with the proxy
+  looking perfect, and it is the reason the new assertion is about the
+  CHECKOUT rather than about a step being present.
 
   And the obligation it encodes is the honest one — *you touched the rulebook
   and left a stale line in it*. The nine-line incident sits squarely inside it:

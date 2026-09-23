@@ -169,7 +169,9 @@ describe('the guard can actually see main', () => {
     expect(
       commitCount,
       'origin/main was fetched shallow — rules 4 and 5 are blind and would report clean. ' +
-        'See the `Fetch main` step in .github/workflows/ci.yml and deploy.yml.',
+        'Check `fetch-depth: 0` on the CHECKOUT of this job, not just the `Fetch main` step: ' +
+        'on a push event the fetch is a no-op because the depth-1 tip already equals the ' +
+        'remote tip. .github/workflows/{ci,deploy,nightly}.yml.',
     ).toBeGreaterThanOrEqual(MAIN_HISTORY_FLOOR)
     expect(
       history.mergedPrs.size,

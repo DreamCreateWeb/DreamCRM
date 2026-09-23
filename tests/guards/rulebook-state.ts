@@ -124,8 +124,25 @@
  *   - `strict: true` means a PR's `test` runs on the merge RESULT, so the tree
  *     it grades is byte-identical to the `main` it is about to create.
  *   - Therefore any tree that would fail on `main` fails on the PR first, where
- *     the author can fix it inside their own diff. `main` cannot go red from a
- *     merge that was green.
+ *     the author can fix it inside their own diff.
+ *
+ * **THAT ARGUMENT IS ABOUT THE TREE, AND IT IS ONLY ABOUT THE TREE.** The
+ * first draft of this docblock ended it with "`main` cannot go red from a
+ * merge that was green", full stop, and that sentence is FALSE — it was
+ * reviewed, agreed to, merged, and blocked two production deploys within the
+ * hour. A check is a function of the tree AND of the machine it runs on, and
+ * the two events do not hand it the same machine: `actions/checkout` leaves a
+ * `push` run holding main at depth 1 with its tip already current, so the
+ * fetch step that genuinely transfers history on a `pull_request` transfers
+ * NOTHING on a push, and `origin/main` resolved with one commit. The eyes
+ * floor fired, correctly, on `main`.
+ *
+ * So the honest claim is narrower: **`main` cannot go red from a merge that
+ * was green FOR REASONS THAT ARE A FUNCTION OF THE TREE.** Anything a check
+ * reads that is not in the tree — the clone's depth, the refs it has,
+ * the event that produced it — is outside the argument and has to be
+ * pinned separately. `tests/guards/axe-baseline-ratchet.test.ts` now does
+ * that statically, per job, so the next instance fails on a PR.
  *
  * And the obligation it encodes is the honest one: **you touched the rulebook
  * and left a stale line in it.** The nine-line incident is squarely inside
