@@ -2860,12 +2860,137 @@
   MERGED, names a real on-`main` SHA, and describes the wrong rule — §2d's
   predicate-right-sentence-wrong family, which no scanner finds.
 
+  **THE REVIEW CAME BACK REQUEST CHANGES, AND THE FINDING WAS THE ENTRY YOU
+  ARE READING.** Sentinel, at head `f99e4630`. Rule 5 as first written fires on
+  a non-MERGED verdict the moment its PR lands — and this entry, written before
+  the merge on the DREAMCRM-60 precedent, IS a non-MERGED verdict about #685.
+  So the guard would have reddened `main` at its own merge. What that costs was
+  traced rather than assumed: `deploy.yml` has `deploy: needs: test`, so the
+  **production deploy stops**; branch protection is `strict: true`, so **every
+  open PR becomes unmergeable** the moment it updates onto `main` and inherits
+  the line. And the clearing action — writing the merge SHA — does not exist
+  until after the merge, so no version of the PR could pre-empt it.
+
+  **It was never a one-off.** This list writes the entry before the merge every
+  time, so the next guard registration reproduces it exactly. A fix scoped to
+  this entry would have been a fix to the symptom.
+
+  **THE NARROWING, which is the whole answer: rule 5 fires only once
+  `docs/rulebook/` has been EDITED SINCE the subject's merge commit.** Not a
+  grace window — the narrowing offered in review ("don't fire while the
+  subject's merge commit is the tip of `origin/main`") buys exactly one commit
+  and an unrelated merge reopens it, which is a shorter race rather than no
+  race. The predicate compares **the tree under test** against the subject's
+  merge commit, and that comparison gives the SAME ANSWER before and after the
+  merge, which is the property that makes it safe:
+
+  - `strict: true` means a PR's `test` runs on the merge RESULT, so the tree it
+    grades is byte-identical to the `main` it is about to create;
+  - therefore any tree that would fail on `main` fails on the PR FIRST, where
+    the author fixes it inside their own diff. **`main` cannot go red from a
+    merge that was green.**
+
+  And the obligation it encodes is the honest one — *you touched the rulebook
+  and left a stale line in it*. The nine-line incident sits squarely inside it:
+  the rulebook was edited several times a day throughout, so every one of those
+  edits would have gone red. **The residual is named rather than implied**: a
+  line whose PR merged and whose rulebook is then never touched again stays
+  stale with nothing red. "Wrong for six days" is a claim about the CALENDAR
+  that can become true with no diff at all, and §2a already says where that
+  belongs — `rulebook-drift.yml`, the daily alarm that gates nothing and whose
+  own header says a stale sentence is not a reason to hold a production fix.
+  Wiring it there is the named follow-up.
+
+  **The post-merge state is now an ASSERTION rather than an argument.** Two
+  standing tests: the real entries plus the real history, with every open
+  subject added to `mergedPrs` (what a squash merge does) and
+  `rulebookEditedSince` answering `false` (what `main` answers at the merge) —
+  zero findings; and the same simulation with the rulebook edited, which must
+  fire on every open subject, so the first test cannot pass because rule 5 has
+  quietly stopped working. Mutating the second condition back out reproduces
+  Sentinel's finding exactly: same file, same line 2863, same PR.
+
+  **TWO WIRING DEFECTS CAME OUT OF THE SAME REVIEW, and both are the family
+  this PR adds to §2d.** Neither is a new ordinal; both are CASES on this entry.
+
+  - **A test that asserted on a COPY of the thing it claimed to cover.** The
+    merge-commit subject test re-declared both regexes as literals and matched
+    them against two literal strings — it never called the reader. Deleting the
+    merge-commit branch from the real function left it GREEN, while 15 of the
+    658 recoverable PR numbers on `main` (including `#674`) vanished and
+    `MERGED_PR_FLOOR` of 100 did not notice. Rule 5 would have gone quiet on
+    every merge-commit-landed PR with nothing red. Fixed by exporting
+    `prNumberFromSubject` and grading THAT — and the real-tree assertion added
+    beside it immediately earned its place by finding a second, unrelated
+    narrowing nobody had noticed: the reader's `{2,5}` digit bound silently
+    dropped every single-digit PR, and `main` carries fourteen. The bound is
+    `{1,5}` on a commit SUBJECT (where `#N` is unambiguous) and stays `{2,5}` in
+    the entry parser (where it is read out of PROSE and `#1` is an ordinal) —
+    **the difference between two readers of the same notation is now written
+    down, because an undocumented one is the trap itself.**
+  - **An assertion whose SENTENCE was true on the author's box and false on the
+    runner.** The "rule 4's narrowing is doing work" test required a commentary
+    SHA to be resolvable AND not an ancestor of `main`. A developer's full clone
+    still has the deleted PR-branch heads; a runner fetching only `main` does
+    not, so `ancestry` answers `unknown`, the set is empty, and the assertion
+    went red on CI **while the guard was working perfectly**. It now asserts the
+    part that does not depend on what the clone happens to have fetched — that
+    commentary SHAs EXIST — and leaves the behaviour to fixtures, where both
+    machines agree. §2d has the general form; this is the instance, shipped in
+    the same PR that adds the section, which is worth the embarrassment of
+    recording.
+
   **STATE: on the PR — #685, routed before it merged. Forge owns the flip at
-  the next sweep, with the merge SHA and the UTC time.** Written down before
-  the merge on the DREAMCRM-60 precedent this list sets, and it is the first
-  entry whose own STATE line will be graded by the guard it describes: rule 5
-  reddens `test` the moment #685 lands on `main` and this line still says
-  anything but MERGED. The flip is no longer a promise somebody keeps.
+  the next sweep, with the merge SHA and the UTC time.** Safe to leave as it
+  stands: the narrowing above is exactly what makes a pre-merge STATE line
+  legal, and the post-merge simulation asserts it.
+
+  **THE FIFTIETH: #688, `e2e/duplicate-watch.ts` +
+  `tests/guards/e2e-duplicate-watch.test.ts` (DREAMCRM-105, `a7bdf172`,
+  2026-09-22 23:58:58Z). A NEW CLASS** — a blocking assertion inside `e2e`
+  whose subject is a duplicate that is TRANSIENT, so the spec has to
+  distinguish "arrived twice and settled" from "arrived twice and stayed",
+  and the guard holds the watcher itself in place. **STATE: MERGED —
+  `a7bdf172` (#688), 2026-09-22 23:58:58Z.**
+
+  **A CASE on the plan-price entry, no ordinal: #686 closes the comma
+  asymmetry §2c had open** (`53586aaa`, 2026-09-22 23:49:47Z). The band's two
+  ends were graded by different rules and nobody chose that: `MONEYISH` wanted
+  three CONSECUTIVE digits, and a thousands separator breaks a run of them, so
+  `$800-2,000/mo` was pardoned and `$200-2,000/mo` was not — a red `test`
+  naming a competitor's number on `/compare`, the page whose whole job is
+  printing somebody else's prices. Closed with `\\d[\\d,]*\\d\\d` rather than the
+  tempting one-character `[\\d,]{3}`, which would grade three CHARACTERS and
+  quietly falsify the comment above it. Watched to fail in both directions.
+  **This is §2c's named latent gap, and it is now CLOSED** — §2c and the
+  frontmatter both say so.
+
+  **And a §3 gate widening, #681: the money review area reaches ONE IMPORT HOP
+  from Stripe** (`5abd4b37`, 2026-09-23 00:59:11Z, DREAMCRM-106, Rio).
+  `from '@/lib/stripe'` was a good necessary condition that stopped at the
+  SERVICE, so the cron that calls `runDuePlanCharges` — the thing that charges
+  a patient's card, unattended, every day — matched no gate rule at all and was
+  reported "merges on green". So did `buy-domain-actions.ts`, which spends real
+  money on the clinic's card, and both Connect onboarding routes, which decide
+  the account every shop payment is paid INTO. Measured on `main` at
+  `c1ca93c0`: 17 files import the client directly, 78 sit one hop out, 25 of
+  those are mutation surfaces, and **12 of the 25 matched nothing**.
+
+  **Read the keying, because it is the interesting part and it is the answer to
+  the obvious objection.** It keys on the MUTATION SURFACE, not the flat hop:
+  the other 53 one-hop files are pages and client components —
+  `app/site/[slug]/privacy/page.tsx` among them — that reach Stripe only
+  because a shared layout does, and gating the hop wholesale would put a
+  privacy-policy copy edit into a review queue of one. One exemption
+  (`sitemap.xml/route.ts`), with its premise re-derived from the tree every run
+  rather than asserted once. It also fixed a latent looseness inherited from
+  the old rule: the direct-import check read `from '@/lib/stripe'` in SINGLE
+  quotes only, so a double-quoted import of the Stripe client was invisible to
+  the money gate's only derived check — §2d's identity-looseness family, fifth
+  spelling. **What it means for every other PR: a file that mutates money one
+  hop from Stripe now owes Sentinel a review.** **STATE: MERGED — `5abd4b37`
+  (#681), 2026-09-23 00:59:11Z.**
+
 
 **Which repo-settings change goes where.** A setting that changes *which* checks
 are required or *who* may bypass them is branch protection: §3's review gate

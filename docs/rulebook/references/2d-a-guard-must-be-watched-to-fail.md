@@ -489,6 +489,26 @@ behaviour are tied together.
 
 ## A guard's SENTENCE is a claim about a MACHINE — ask which one
 
+**THE WORKED INSTANCE, 2026-09-23 (#685), and it is the cheapest possible
+demonstration: it shipped in the same PR that added this section.** A
+tree-level assertion claimed "rule 4's narrowing is doing work" by requiring at
+least one commentary SHA that was RESOLVABLE and not an ancestor of `main`.
+True in a developer's full clone, which still carries the deleted PR-branch
+heads. **False on the runner**, which fetches only `main`: there those objects
+do not exist, the lookup answers `unknown`, the set is empty, and the assertion
+went red **while the guard it was about was working perfectly**. Nobody
+reviewing it could see the difference, because the sentence and the code agreed
+with each other — they just disagreed with the machine that gates the merge.
+
+The fix is the one this section prescribes: **ask which machine, and then
+assert the part that is true on both.** The tree-level claim became "commentary
+SHAs EXIST" — which is a fact about the document, not about the clone — and the
+behavioural half moved to fixtures, where the answer does not depend on what
+anybody happened to fetch. Read your tree-walking assertion and ask: *does this
+depend on an object being present, or on the document saying something?* Only
+the second kind survives a shallow checkout.
+
+
 *Forge's intake, 2026-09-22 (DREAMCRM-96/100). Three guards in two days
 described a reach they did not have, and all three read green either way.*
 

@@ -94,12 +94,51 @@
  * a deleted PR branch's head is unresolvable here and failing on it would be a
  * red `test` run naming an innocent entry.
  *
- * RULE 5 — A NON-MERGED VERDICT IS NOT ALREADY ON `main`. This is the
- * nine-line defect itself. The subject is the FIRST PR in the clause, else the
- * LAST PR before the `STATE:` in the same paragraph ("… / PR #618. **STATE:
- * …**" is how §2b writes it). Deliberately ONE PR rather than all of them: a
- * clause may cite neighbours, and this rule's false positive is a red required
- * check naming a correct entry.
+ * RULE 5 — A NON-MERGED VERDICT IS NOT ALREADY ON `main`, ONCE THE RULEBOOK
+ * HAS BEEN EDITED SINCE. This is the nine-line defect itself. The subject is
+ * the FIRST PR in the clause, else the LAST PR before the `STATE:` in the same
+ * paragraph ("… / PR #618. **STATE: …**" is how §2b writes it). Deliberately
+ * ONE PR rather than all of them: a clause may cite neighbours, and this
+ * rule's false positive is a red required check naming a correct entry.
+ *
+ * THE SECOND CONDITION IS NOT A SOFTENING — IT IS WHAT MAKES THE RULE LEGAL IN
+ * A MERGE GATE AT ALL, and the first draft shipped without it. §2 writes a
+ * registered-guard entry BEFORE its PR merges, on the DREAMCRM-60 precedent,
+ * which means the entry says something other than MERGED at the moment the PR
+ * lands. A rule that fires on that fires **on `main`, at the merge** — and
+ * `deploy.yml` has `deploy: needs: test`, so the production deploy stops; and
+ * branch protection is `strict: true`, so every open PR inherits the line the
+ * moment it updates and becomes unmergeable too. The clearing action (writing
+ * the merge SHA) does not exist until after the merge, so no version of the PR
+ * could pre-empt it. That is not a bug in one entry; it reproduces on every
+ * future guard registration. (Sentinel, REQUEST CHANGES on #685, correctly.)
+ *
+ * WHY "EDITED SINCE" IS THE RIGHT SECOND CONDITION rather than a grace window.
+ * The narrowing offered in review was "don't fire while the subject's merge
+ * commit is the tip of `origin/main`", which buys exactly one commit — an
+ * unrelated merge reopens the window and the outage lands anyway. The property
+ * this needs is not a shorter race; it is NO race. So the predicate compares
+ * THE TREE UNDER TEST against the subject's merge commit, and that comparison
+ * gives the same answer before and after the merge:
+ *
+ *   - `strict: true` means a PR's `test` runs on the merge RESULT, so the tree
+ *     it grades is byte-identical to the `main` it is about to create.
+ *   - Therefore any tree that would fail on `main` fails on the PR first, where
+ *     the author can fix it inside their own diff. `main` cannot go red from a
+ *     merge that was green.
+ *
+ * And the obligation it encodes is the honest one: **you touched the rulebook
+ * and left a stale line in it.** The nine-line incident is squarely inside
+ * that — the rulebook was edited several times a day throughout, so every one
+ * of those edits would have gone red.
+ *
+ * THE RESIDUAL, NAMED: a line whose PR merged and whose rulebook is then never
+ * touched again stays stale with nothing red. That is deliberate. "This line
+ * has been wrong for six days" is a claim about the CALENDAR, it can become
+ * true with no diff at all, and §2a already says where that kind of claim
+ * belongs — `rulebook-drift.yml`, the daily alarm that gates nothing, whose own
+ * header says a stale sentence in a document is not a reason to hold a
+ * production fix. Wiring it there is the named follow-up.
  *
  * ========================= WHAT THIS CANNOT SEE =============================
  *
@@ -204,6 +243,53 @@ export interface MainHistory {
   mergedPrs: Map<number, string>
   /** `yes` / `no` / `unknown` — `unknown` means this clone cannot resolve it. */
   ancestry(sha: string): 'yes' | 'no' | 'unknown'
+  /**
+   * Has `docs/rulebook/` in THE TREE UNDER TEST changed since `sha`?
+   *
+   * This is rule 5's second condition and the whole reason it is safe to run
+   * inside a required check — see the rule's docblock. It compares the tree
+   * being graded against a commit, NOT two commits, which is what makes the
+   * answer identical before and after the merge.
+   */
+  rulebookEditedSince(sha: string): boolean
+}
+
+/**
+ * The PR number a commit subject on `main` carries, or `null`.
+ *
+ * A squash lands as `<subject> (#N)`; a merge commit as `Merge pull request #N
+ * from …`. Both spellings are read because `main` carries both, and the second
+ * one is not decorative: **15 of the 658 recoverable PR numbers on `main` come
+ * from merge-commit subjects only**, `#674` among them.
+ *
+ * EXPORTED, AND GRADED FROM FIXTURES, because the first version of this lived
+ * inline in the test's `readMainHistory` while the test that claimed to cover
+ * it re-declared both regexes as literals and matched them against two literal
+ * strings. Deleting the merge-commit branch from the real function left that
+ * test GREEN — and `MERGED_PR_FLOOR` of 100 does not notice 15 missing, so rule
+ * 5 would have gone quiet on merge-commit-landed PRs with nothing red.
+ * (Sentinel, reviewing #685.) That is mutation 1 of the wiring family this same
+ * PR adds to §2d: rename the id the guard references and watch it keep passing.
+ *
+ * THE DIGIT BOUND HERE IS `{1,5}` AND THE ENTRY PARSER'S IS `{2,5}`, and the
+ * difference is deliberate rather than a slip — an undocumented disagreement
+ * between two readers of the same notation is precisely the wiring trap above.
+ *   - A COMMIT SUBJECT's `#N` is unambiguous: it is either the squash trailer
+ *     or the merge-commit prefix, and nothing else in a subject is shaped like
+ *     one. So single-digit PRs count. `main` carries fourteen of them
+ *     (`Merge pull request #8 from …` among them), and the first draft of this
+ *     function silently dropped every one — caught by the real-tree assertion
+ *     in the test rather than by review.
+ *   - An ENTRY's `#N` is read out of PROSE, where `#1` is far more likely to be
+ *     an ordinal than a PR. The rulebook's own PR numbers start at #534, so the
+ *     two-digit floor costs nothing there and buys a quieter parse.
+ */
+export function prNumberFromSubject(subject: string): number | null {
+  const squashed = /\(#(\d{1,5})\)\s*$/.exec(subject)
+  if (squashed) return Number(squashed[1])
+  const merged = /^Merge pull request #(\d{1,5})\b/.exec(subject)
+  if (merged) return Number(merged[1])
+  return null
 }
 
 const SHA_IN_CODE = /`([0-9a-f]{7,40})`/g
@@ -514,13 +600,19 @@ export function gradeAgainstHistory(entries: StateEntry[], history: MainHistory)
     if (e.subject === null) continue
     const landed = history.mergedPrs.get(e.subject)
     if (!landed) continue
+    // THE SECOND CONDITION IS WHAT MAKES THIS SAFE IN A MERGE GATE. See the
+    // rule's docblock: until the rulebook is edited again, the flip has not
+    // had its turn, and firing here would redden `main` for everybody at the
+    // instant of the merge that created the obligation.
+    if (!history.rulebookEditedSince(landed)) continue
     findings.push({
       rule: 5,
       file: e.file,
       line: e.line,
       message:
         `this STATE line does not say MERGED, but #${e.subject} is on \`main\` as ` +
-        `\`${landed.slice(0, 8)}\`. Flip it, with the SHA and the UTC time. Line: ${e.text}`,
+        `\`${landed.slice(0, 8)}\`, and ${RULEBOOK_DIR} has been edited since. Flip it, ` +
+        `with the SHA and the UTC time. Line: ${e.text}`,
     })
   }
   return findings

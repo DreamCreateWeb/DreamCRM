@@ -510,3 +510,18 @@ tell a new assertion inside a registered file from an edit to an old one, and
 because a case-only intake still owes a named section: this one. The false-alarm
 it exposed in `carriesIntake` — a case has no NEW section to name, and the sweep
 demands one anyway — is worked through in §2.
+
+**THE ONE LATENT GAP ABOVE IS CLOSED — #686, `53586aaa`, 2026-09-22
+23:49:47Z (DREAMCRM-105).** The band's two ends were graded by different rules
+and nobody chose that: `MONEYISH` wanted three CONSECUTIVE digits, and a
+thousands separator breaks a run of them, so `$800-2,000/mo` (ours at the far
+end) was pardoned while `$200-2,000/mo` (ours at the NEAR end) read as a plain
+quote of our rate — a red `test` naming a competitor's number on `/compare`,
+the page whose whole job is printing somebody else's prices. Closed with
+`\d[\d,]*\d\d` rather than the tempting one-character `[\d,]{3}`, which grades
+three CHARACTERS and would have quietly falsified the comment above it. Watched
+to fail in both directions: the new case returns `[200]` against the old
+predicate and `[]` against the new one. **Latent when it was closed, and that
+was the point** — §2d's remedy for a false positive is to narrow the predicate
+and never to register the file, and the moment to do that is before an innocent
+line is in front of somebody with a red `test` behind it.

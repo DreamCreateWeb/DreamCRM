@@ -15,6 +15,7 @@ import {
   gradeShape,
   maskInlineCode,
   parseStateEntries,
+  prNumberFromSubject,
   type MainHistory,
   type StateEntry,
 } from './rulebook-state'
@@ -70,10 +71,8 @@ function readMainHistory(): { history: MainHistory; commitCount: number } {
   const mergedPrs = new Map<number, string>()
   for (const row of log) {
     const [sha, subject = ''] = row.split('\0')
-    const squashed = subject.match(/\(#(\d{2,5})\)\s*$/)
-    if (squashed) mergedPrs.set(Number(squashed[1]), sha)
-    const merged = subject.match(/^Merge pull request #(\d{2,5})\b/)
-    if (merged) mergedPrs.set(Number(merged[1]), sha)
+    const pr = prNumberFromSubject(subject)
+    if (pr !== null) mergedPrs.set(pr, sha)
   }
 
   const cache = new Map<string, 'yes' | 'no' | 'unknown'>()
@@ -98,7 +97,37 @@ function readMainHistory(): { history: MainHistory; commitCount: number } {
     return answer
   }
 
-  return { history: { mergedPrs, ancestry }, commitCount: log.length }
+  /**
+   * Does the TREE UNDER TEST differ from `sha` under `docs/rulebook/`?
+   *
+   * Working tree vs a commit, deliberately — not commit vs commit. `git diff
+   * --quiet <sha> -- <dir>` exits 0 when they match, 1 when they differ. On a
+   * `pull_request` run the working tree is the MERGE RESULT, so this answers
+   * the same question `main` will ask after the merge, which is the property
+   * rule 5's docblock leans on.
+   */
+  const editedCache = new Map<string, boolean>()
+  const rulebookEditedSince = (sha: string): boolean => {
+    const hit = editedCache.get(sha)
+    if (hit !== undefined) return hit
+    let answer: boolean
+    try {
+      execFileSync('git', ['diff', '--quiet', sha, '--', RULEBOOK_DIR], { cwd: process.cwd() })
+      answer = false
+    } catch {
+      // Exit 1 is "they differ", which is the ordinary answer. A commit this
+      // clone cannot resolve also lands here, and that direction is right: if
+      // we cannot prove the rulebook is untouched, we do not grant the grace.
+      answer = true
+    }
+    editedCache.set(sha, answer)
+    return answer
+  }
+
+  return {
+    history: { mergedPrs, ancestry, rulebookEditedSince },
+    commitCount: log.length,
+  }
 }
 
 function allEntries(): StateEntry[] {
@@ -169,21 +198,114 @@ describe('no STATE line in the rulebook lies', () => {
    * Rule 4's narrowing, asserted on the real tree rather than described.
    *
    * The claim is the bold run, not the clause, and `2-merge-gate.md` is where
-   * that matters: three SHAs in the rulebook today sit in commentary AFTER the
-   * bold closes (a review head, an earlier re-read, a second reviewer's head)
-   * and none of them is on `main`. Grading the clause would fail three correct
-   * entries. If this ever drops to zero the narrowing has stopped being
-   * load-bearing and rule 4 can widen; it is not an exemption list.
+   * that matters: SHAs in this document sit in commentary AFTER the bold
+   * closes (a review head, an earlier re-read, a second reviewer's head), and
+   * none of them is the merge commit. Grading the clause would put them in
+   * rule 4's population.
+   *
+   * WHAT THIS USED TO ASSERT, AND WHY IT WAS WRONG ON THE RUNNER. The first
+   * version required at least one of those commentary SHAs to be resolvable
+   * AND not an ancestor of `origin/main`. That is true in a developer's full
+   * clone, which still has the deleted PR-branch heads, and FALSE on a runner
+   * that fetches only `main` — there they are unresolvable, `ancestry` answers
+   * `unknown`, and the set is empty. The assertion went red on CI while the
+   * guard was working perfectly. That is §2d's "a guard's SENTENCE is a claim
+   * about a MACHINE — ask which one", shipped in the same PR that adds the
+   * section, which is worth the embarrassment of writing down.
+   *
+   * So the tree-level claim is now the part that does not depend on what this
+   * clone happens to have fetched: commentary SHAs EXIST, so the narrowing has
+   * a non-empty population to act on. That rule 4 declines to grade them is
+   * pinned from fixtures below, where both machines agree.
    */
-  it('excludes commentary SHAs from the merge claim, and that exclusion is doing work', () => {
-    const { history } = readMainHistory()
+  it('has commentary SHAs outside the merge claim for the narrowing to act on', () => {
     const entries = allEntries()
     const offClaim = entries.flatMap((e) =>
-      e.clauseShas
-        .filter((sha) => !e.claimShas.includes(sha))
-        .filter((sha) => history.ancestry(sha) === 'no'),
+      e.clauseShas.filter((sha) => !e.claimShas.includes(sha)),
     )
-    expect(offClaim.length).toBeGreaterThan(0)
+    expect(
+      offClaim.length,
+      'no entry carries a SHA outside its bold claim any more, so rule 4 grading the whole ' +
+        'clause would now be equivalent. Re-measure before widening it — do not assume.',
+    ).toBeGreaterThan(0)
+  })
+
+  /**
+   * THE TREE THIS COMMIT CREATES DOES NOT REDDEN `main` AT THE MERGE.
+   *
+   * The property Sentinel's REQUEST CHANGES on #685 was about, asserted rather
+   * than reasoned about — and it is a standing assertion, not a one-off for
+   * that PR, because §2 writes a registered-guard entry BEFORE its PR merges
+   * on the DREAMCRM-60 precedent, so every future guard registration arrives
+   * in exactly this state.
+   *
+   * The simulation is the honest one: take the REAL entries and the REAL
+   * history, then add every not-yet-merged subject in the rulebook to
+   * `mergedPrs` — which is what a squash merge does — and answer
+   * `rulebookEditedSince` with `false`, which is what `main` answers the
+   * instant the merge lands, since its tree IS this tree.
+   *
+   * A red here means the merge would stop the production deploy
+   * (`deploy: needs: test`) and make every open PR unmergeable
+   * (`strict: true`). It is the most expensive failure this guard can cause
+   * and the cheapest one to check for.
+   */
+  it('stays green on `main` at the instant this tree merges', () => {
+    const { history } = readMainHistory()
+    const entries = allEntries()
+
+    const openSubjects = entries
+      .filter((e) => e.verdict !== 'MERGED' && e.subject !== null)
+      .map((e) => e.subject as number)
+
+    const atMerge: MainHistory = {
+      ...history,
+      mergedPrs: new Map([
+        ...Array.from(history.mergedPrs.entries()),
+        ...openSubjects.map((pr) => [pr, 'f'.repeat(40)] as [number, string]),
+      ]),
+      // `main`'s tree at the merge is this tree, so nothing has been edited
+      // since — the state in which rule 5 owes its grace.
+      rulebookEditedSince: () => false,
+    }
+
+    const findings = gradeRulebook(entries, atMerge)
+    expect(
+      findings.length,
+      'this tree would redden `main` the moment it merges, blocking the deploy and ' +
+        `every open PR:\n${describeFindings(findings)}\n`,
+    ).toBe(0)
+  })
+
+  /**
+   * …and the grace is not a hole. The same simulation with the rulebook
+   * EDITED since must fire on every open subject, or the test above is passing
+   * because rule 5 has stopped working rather than because the grace applies.
+   *
+   * Skipped only when the rulebook carries no open entry at all, which is a
+   * legitimate state and is asserted as such rather than passed over.
+   */
+  it('would fire on those same entries once the rulebook is edited again', () => {
+    const { history } = readMainHistory()
+    const entries = allEntries()
+    const open = entries.filter((e) => e.verdict !== 'MERGED' && e.subject !== null)
+
+    if (open.length === 0) {
+      expect(entries.every((e) => e.verdict === 'MERGED')).toBe(true)
+      return
+    }
+
+    const afterAnEdit: MainHistory = {
+      ...history,
+      mergedPrs: new Map([
+        ...Array.from(history.mergedPrs.entries()),
+        ...open.map((e) => [e.subject as number, 'f'.repeat(40)] as [number, string]),
+      ]),
+      rulebookEditedSince: () => true,
+    }
+
+    const findings = gradeAgainstHistory(entries, afterAnEdit).filter((f) => f.rule === 5)
+    expect(findings).toHaveLength(open.length)
   })
 
   /**
@@ -202,12 +324,29 @@ describe('no STATE line in the rulebook lies', () => {
 // written for, and every one of these is the shape that actually occurred.
 // ===========================================================================
 
-const NO_HISTORY: MainHistory = { mergedPrs: new Map(), ancestry: () => 'unknown' }
+const NO_HISTORY: MainHistory = {
+  mergedPrs: new Map(),
+  ancestry: () => 'unknown',
+  rulebookEditedSince: () => true,
+}
 
-function historyWith(prs: Record<number, string>, onMain: string[] = []): MainHistory {
+/**
+ * `edited` defaults to TRUE — the state where rule 5 is ALLOWED to fire.
+ *
+ * Defaulting the other way would make every rule-5 fixture below pass for the
+ * wrong reason, which is the shape §2d's wiring family calls "the fixture
+ * reddens, but not for the stated reason". The one fixture that exercises the
+ * grace passes `false` explicitly and says so.
+ */
+function historyWith(
+  prs: Record<number, string>,
+  onMain: string[] = [],
+  edited = true,
+): MainHistory {
   return {
     mergedPrs: new Map(Object.entries(prs).map(([k, v]) => [Number(k), v])),
     ancestry: (sha) => (onMain.includes(sha) ? 'yes' : 'no'),
+    rulebookEditedSince: () => edited,
   }
 }
 
@@ -445,13 +584,68 @@ describe('rule 5 — a non-MERGED verdict is not already on main', () => {
     expect(gradeAgainstHistory(parseStateEntries(source, 'f.md'), historyWith({}))).toHaveLength(0)
   })
 
-  it('reads a merge-commit subject as well as a squash subject', () => {
-    // main carries both spellings: `… (#679)` and `Merge pull request #674`.
-    const squash = /\(#(\d{2,5})\)\s*$/.exec('DREAMCRM-99: the portal-billing duplicate (#679)')
-    const merge = /^Merge pull request #(\d{2,5})\b/.exec(
-      'Merge pull request #674 from DreamCreateWeb/claude/focused-einstein-evqdd5',
-    )
-    expect(squash?.[1]).toBe('679')
-    expect(merge?.[1]).toBe('674')
+  it('does not fire while the rulebook has not been touched since the merge', () => {
+    // THE SECOND CONDITION, and the whole reason this rule is legal in a merge
+    // gate. #685's own entry is this exact shape: routed before the merge, so
+    // it says "on the PR" at the instant the PR lands. Firing here reddens
+    // `main` — `deploy: needs: test` stops the production deploy and
+    // `strict: true` makes every open PR unmergeable — with no clearing action
+    // available, because the merge SHA does not exist until afterwards.
+    const source = 'PR #685. **STATE: on the PR — Forge owns the flip.**'
+    const entries = parseStateEntries(source, '2-merge-gate.md')
+    const landed = { 685: 'aaaaaaaabbbbbbbbccccccccdddddddd' }
+
+    expect(gradeAgainstHistory(entries, historyWith(landed, [], false))).toHaveLength(0)
+
+    // …and the obligation is real the moment the rulebook is edited again.
+    const findings = gradeAgainstHistory(entries, historyWith(landed, [], true))
+    expect(findings.map((f) => f.rule)).toEqual([5])
+    expect(findings[0].message).toContain('has been edited since')
+  })
+})
+
+describe('the subject reader main history is built from', () => {
+  /**
+   * Graded through the REAL exported function, not a copy of its regexes.
+   *
+   * The previous version of this test re-declared both patterns as literals
+   * and matched them against two literal strings — so deleting the
+   * merge-commit branch from the real reader left it green, while 15 of the
+   * 658 recoverable PR numbers on `main` (including `#674`) silently vanished
+   * and `MERGED_PR_FLOOR` of 100 never noticed. Rule 5 would have gone quiet
+   * on every merge-commit-landed PR with nothing red. (Sentinel, #685.)
+   */
+  it('reads a squash subject', () => {
+    expect(
+      prNumberFromSubject('DREAMCRM-99: the portal-billing duplicate is TRANSIENT (#679)'),
+    ).toBe(679)
+  })
+
+  it('reads a merge-commit subject', () => {
+    expect(
+      prNumberFromSubject('Merge pull request #674 from DreamCreateWeb/claude/focused-einstein'),
+    ).toBe(674)
+  })
+
+  it('reads a single-digit PR number, which main carries fourteen of', () => {
+    expect(prNumberFromSubject('Merge pull request #8 from DreamCreateWeb/claude/stripe-admin-ui')).toBe(8)
+  })
+
+  it('ignores a PR number that is neither the trailer nor the merge prefix', () => {
+    // An issue key or a cross-reference in the middle of a subject is not the
+    // PR this commit carried.
+    expect(prNumberFromSubject('DREAMCRM-98: Sentinel notes 2 and 3 on #669')).toBeNull()
+  })
+
+  it('recovers every merge-commit PR number on the real main', () => {
+    // The fixtures above prove the branch exists; this proves it is LOAD
+    // BEARING on the tree that actually gates merges. Deleting the
+    // merge-commit branch drops these to zero.
+    const subjects = git(['log', 'origin/main', '--format=%s']).split('\n').filter(Boolean)
+    const fromMergeCommits = subjects.filter((s) => s.startsWith('Merge pull request #'))
+    expect(fromMergeCommits.length).toBeGreaterThan(0)
+    for (const subject of fromMergeCommits) {
+      expect(prNumberFromSubject(subject), subject).not.toBeNull()
+    }
   })
 })
