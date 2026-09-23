@@ -124,6 +124,49 @@ const RULEBOOK_DIR = 'docs/rulebook'
 export const CENSUS_FLOORS = { guardFiles: 20, rulebookFiles: 2, rulebookBytes: 100_000 }
 
 /**
+ * The non-vacuity floor for `intake-ordinals`. Nine markers exist on this tree
+ * (49..57); five is a tripwire against a reader that stopped reading, not a
+ * claim about how long the list should be.
+ */
+export const INTAKE_ORDINAL_FLOOR = 5
+
+/**
+ * ORDINAL WORD TO NUMBER, and it is DERIVED rather than typed out.
+ *
+ * A hand-typed table of ninety-nine entries is a hand-kept list guarding a
+ * hand-kept list, which is the joke §2d would make at its own expense. The
+ * units and the tens are the only facts; every compound is `TENS-UNIT`, which
+ * is how English spells them and how this rulebook writes them.
+ *
+ * It runs to ninety-nine because the list is at fifty-seven and gains a handful
+ * a week. Past that the claim says so out loud rather than going quiet — see
+ * the `unknown` branch.
+ */
+export const ORDINAL_WORDS = (() => {
+  const units = [
+    'FIRST', 'SECOND', 'THIRD', 'FOURTH', 'FIFTH', 'SIXTH', 'SEVENTH', 'EIGHTH', 'NINTH', 'TENTH',
+    'ELEVENTH', 'TWELFTH', 'THIRTEENTH', 'FOURTEENTH', 'FIFTEENTH', 'SIXTEENTH', 'SEVENTEENTH',
+    'EIGHTEENTH', 'NINETEENTH',
+  ]
+  const tensOrdinal = {
+    20: 'TWENTIETH', 30: 'THIRTIETH', 40: 'FORTIETH', 50: 'FIFTIETH',
+    60: 'SIXTIETH', 70: 'SEVENTIETH', 80: 'EIGHTIETH', 90: 'NINETIETH',
+  }
+  const tensPrefix = {
+    20: 'TWENTY', 30: 'THIRTY', 40: 'FORTY', 50: 'FIFTY',
+    60: 'SIXTY', 70: 'SEVENTY', 80: 'EIGHTY', 90: 'NINETY',
+  }
+  const out = {}
+  units.forEach((w, i) => { out[w] = i + 1 })
+  for (const [tenStr, word] of Object.entries(tensOrdinal)) {
+    const ten = Number(tenStr)
+    out[word] = ten
+    for (let u = 1; u <= 9; u++) out[`${tensPrefix[ten]}-${units[u - 1]}`] = ten + u
+  }
+  return out
+})()
+
+/**
  * Every `.md` under `docs/rulebook/`, recursively, as one string plus its file
  * list. One string because the question is "is this name written down
  * anywhere in the rulebook", and which file it landed in is the author's
@@ -612,8 +655,106 @@ export const CLAIMS = [
           'cite it BY FILE NAME, including the extension. A bare stem does not count: ' +
           '`migration-check` is satisfied by a script and a workflow of the same name while the ' +
           'guard itself is registered nowhere. If the file is not a guard, it does not belong in ' +
-          '`tests/guards/`; move it rather than writing a paragraph about it.',
+          '\`tests/guards/\`; move it rather than writing a paragraph about it.',
       }
+    },
+  },
+  {
+    id: 'intake-ordinals',
+    needs: ['rulebook'],
+    section: '§2, the numbered intake list',
+    states: 'every `**THE <ORDINAL>:` entry marker is unique, and the set has no gaps',
+    /**
+     * THE ORDINAL IS A HAND-KEPT COUNTER AND NOTHING COULD SEE IT DOUBLE.
+     *
+     * On 2026-09-23 THREE open PRs each claimed §2's FIFTY-SEVENTH entry —
+     * #712, #713 and #714. All three were `MERGEABLE` against `main`, because
+     * they insert at different offsets in the same file and git has no opinion
+     * about what the words mean. Two fifty-sevenths would have landed and
+     * neither author would have known. §2d says a hand-kept list drifts
+     * exactly as a revert list does; this is that, in the document that says it.
+     *
+     * WHAT IT ASSERTS, AND WHAT IT DELIBERATELY DOES NOT. Uniqueness, and no
+     * gaps between the lowest ordinal present and the highest. It does NOT
+     * assert contiguity from ONE, and that is a MEASUREMENT rather than a
+     * concession: on this tree the entry markers run 49..57, because the first
+     * forty-eight entries predate the `**THE <ORDINAL>:` form and are written
+     * as prose. A from-one claim would have reddened on its own first run —
+     * which is §2d's newest rule (run the instrument on the case in front of
+     * you) catching this one BEFORE it was written rather than after.
+     *
+     * THE CANDIDATE TEST IS THE ORDINAL SUFFIX, NOT THE MAP. `**THE FIX:` is a
+     * real heading in this rulebook and is not an ordinal; keying on the map
+     * alone would silently skip it — and would equally silently skip
+     * `FIFTY-EIGTH`, a typo, which is the one thing a counter's guard must not
+     * wave through. So anything shaped like an ordinal (ST/ND/RD/TH) is a
+     * CANDIDATE, and a candidate the map cannot resolve is a FINDING rather
+     * than a skip. Unrecognised is loud; not-an-ordinal is quiet.
+     */
+    check: (live) => {
+      const { text } = live.rulebook
+      const candidates = [...text.matchAll(/\*\*THE ([A-Z][A-Z-]*(?:ST|ND|RD|TH)):/g)].map((m) => m[1])
+
+      // NON-VACUITY, because everything below is about a set this reader
+      // built: a regex that stopped matching reports a perfectly unique,
+      // perfectly contiguous EMPTY list. There is no independent census to
+      // compare against here — unlike the guards, whose directory is a second
+      // reading — so a floor is the honest instrument rather than a weaker
+      // version of an exact one.
+      if (candidates.length < INTAKE_ORDINAL_FLOOR) {
+        return {
+          actual: `found ${candidates.length} ordinal entry markers in the rulebook`,
+          fix:
+            'the reader found almost no numbered entries, so its verdict means nothing. The entry ' +
+            'form is \`**THE <ORDINAL>:\` — if §2 changed how it writes them, teach this claim the ' +
+            'new form. Do NOT lower the floor.',
+        }
+      }
+
+      const unknown = candidates.filter((w) => ORDINAL_WORDS[w] === undefined)
+      if (unknown.length) {
+        return {
+          actual: `ordinal marker(s) this claim cannot resolve: ${unknown.join(', ')}`,
+          fix:
+            'a word shaped like an ordinal is not in \`ORDINAL_WORDS\`. Either it is a typo in the ' +
+            'rulebook — fix the entry — or the list has grown past the map, in which case extend ' +
+            '\`ORDINAL_WORDS\`. Never make this quiet: an unresolvable ordinal is a counter nobody ' +
+            'is counting.',
+        }
+      }
+
+      const seen = new Map()
+      candidates.forEach((w) => {
+        const n = ORDINAL_WORDS[w]
+        if (seen.has(n)) seen.get(n).push(w)
+        else seen.set(n, [w])
+      })
+
+      const dupes = [...seen].filter(([, words]) => words.length > 1)
+      if (dupes.length) {
+        return {
+          actual: `duplicate entry ordinal(s): ${dupes.map(([n, w]) => `${n} (x${w.length})`).join(', ')}`,
+          fix:
+            'two §2 entries claim the same number. That is what happens when concurrent PRs each ' +
+            'take the next ordinal off the same base — three did on 2026-09-23 and git called all ' +
+            'three mergeable, because they insert at different offsets in one file. The PR that ' +
+            'lands SECOND renumbers: check \`origin/main\` before you merge rather than after.',
+        }
+      }
+
+      const sorted = [...seen.keys()].sort((a, b) => a - b)
+      const gaps = []
+      for (let n = sorted[0]; n < sorted[sorted.length - 1]; n++) if (!seen.has(n)) gaps.push(n)
+      if (gaps.length) {
+        return {
+          actual: `ordinals run ${sorted[0]}..${sorted[sorted.length - 1]} with ${gaps.length} missing: ${gaps.join(', ')}`,
+          fix:
+            'a numbered entry is missing from the middle of the list — most likely a renumber that ' +
+            'skipped one, or an entry deleted rather than struck. Close the gap, or say in the ' +
+            'entry itself why that number is retired.',
+        }
+      }
+      return null
     },
   },
 ]

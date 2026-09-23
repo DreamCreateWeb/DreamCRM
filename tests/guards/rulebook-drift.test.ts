@@ -4,6 +4,8 @@ import { join } from 'node:path'
 import {
   CENSUS_FLOORS,
   CLAIMS,
+  INTAKE_ORDINAL_FLOOR,
+  ORDINAL_WORDS,
   CLAIMED_GATE_AREAS,
   CLAIMED_REQUIRED_CHECKS,
   WORKFLOW_CENSUS,
@@ -103,6 +105,17 @@ describe('the rulebook drift check', () => {
   // exactly the fact its claim describes, in the shape it would really arrive
   // in, and asserts that claim — and only that claim — objects.
   const PERTURBATIONS: Record<string, (live: Live) => void> = {
+    'intake-ordinals': (live) => {
+      // THE 2026-09-23 SHAPE, and it is a duplicate rather than a gap because
+      // that is the one that actually happened: #712, #713 and #714 each took
+      // FIFTY-SEVENTH off the same base and git called all three mergeable.
+      // Appending a second marker for a number already present is exactly what
+      // the second of those PRs would have merged.
+      live.rulebook.text += String.raw`
+
+  **THE FIFTY-SEVENTH: #999, a second entry nobody noticed.**
+`
+    },
     'required-checks': (live) => {
       // The DREAMCRM-19 shape: somebody makes review-gate required, or drops e2e.
       live.protection!.required_status_checks.contexts = ['test']
@@ -169,7 +182,7 @@ describe('the rulebook drift check', () => {
     expect(Object.keys(PERTURBATIONS).sort()).toEqual(CLAIMS.map((c: { id: string }) => c.id).sort())
   })
 
-  it('still makes all nine claims, spelled out', () => {
+  it('still makes all ten claims, spelled out', () => {
     // SPELLED OUT RATHER THAN COUNTED. The test above compares two lists that
     // MOVE TOGETHER: delete a claim and its perturbation and it stays green,
     // which makes the one edit that weakens this check the one edit nothing
@@ -182,6 +195,7 @@ describe('the rulebook drift check', () => {
       'force-push-and-deletion-bars',
       'gate-areas',
       'guards-census',
+      'intake-ordinals',
       'required-checks',
       'strict-and-allow-update-branch',
       'who-can-publish-a-required-check',
@@ -646,5 +660,98 @@ describe('the gate areas', () => {
         'update CLAIMED_GATE_AREAS and dreamcrm-conventions §3 together — the enumeration is ' +
         'allowed to run ahead of the prose, but not to leave it behind indefinitely.',
     ).toEqual([...CLAIMED_GATE_AREAS].sort())
+  })
+})
+
+/**
+ * THE INTAKE ORDINAL, BRANCH BY BRANCH.
+ *
+ * The `PERTURBATIONS` table above exercises exactly one path — the duplicate,
+ * which is the case that actually happened. The claim has four, and three of
+ * them are the ones that make it trustworthy rather than merely present: an
+ * ordinal it cannot resolve, a hole in the middle, and a reader that stopped
+ * reading. §2d's rule is that a predicate counts once you have watched it fail,
+ * and "it failed on the case I already knew about" is not the whole of that.
+ */
+describe('the intake ordinal counter', () => {
+  const ordinals = CLAIMS.find((c: { id: string }) => c.id === 'intake-ordinals')!
+  /** A rulebook whose only content is the entry markers for `numbers`. */
+  const rulebookOf = (words: string[]) => ({
+    rulebook: { files: ['SKILL.md'], text: words.map((w) => `**THE ${w}: #1, an entry.**`).join('\n\n') },
+  })
+  const NINE = ['FORTY-NINTH', 'FIFTIETH', 'FIFTY-FIRST', 'FIFTY-SECOND', 'FIFTY-THIRD',
+    'FIFTY-FOURTH', 'FIFTY-FIFTH', 'FIFTY-SIXTH', 'FIFTY-SEVENTH']
+
+  it('is silent on a clean run of ordinals', () => {
+    expect(ordinals.check(rulebookOf(NINE))).toBeNull()
+  })
+
+  /**
+   * THE 2026-09-23 CASE. Three PRs, one number, all three mergeable because
+   * they insert at different offsets in one file.
+   */
+  it('catches a duplicate, which is what three concurrent PRs produce', () => {
+    const finding = ordinals.check(rulebookOf([...NINE, 'FIFTY-SEVENTH']))
+    expect(finding).not.toBeNull()
+    expect(finding.actual).toContain('duplicate')
+    expect(finding.actual).toContain('57')
+    // It must tell the reader which PR renumbers, not merely that something is wrong.
+    expect(finding.fix).toContain('lands SECOND renumbers')
+  })
+
+  it('catches a hole in the middle, which is a renumber that skipped one', () => {
+    const finding = ordinals.check(rulebookOf(NINE.filter((w) => w !== 'FIFTY-THIRD')))
+    expect(finding).not.toBeNull()
+    expect(finding.actual).toContain('53')
+  })
+
+  /**
+   * A TYPO'D ORDINAL IS LOUD AND A NON-ORDINAL IS QUIET, and the pair is the
+   * design. `**THE FIX:` is a real heading in this rulebook; keying on the map
+   * alone would skip it AND skip `FIFTY-EIGTH`, which is the one a counter's
+   * guard must never wave through.
+   */
+  it('reports an ordinal it cannot resolve rather than skipping it', () => {
+    const finding = ordinals.check(rulebookOf([...NINE, 'FIFTY-EIGTH']))
+    expect(finding).not.toBeNull()
+    expect(finding.actual).toContain('cannot resolve')
+    expect(finding.actual).toContain('FIFTY-EIGTH')
+  })
+
+  it('ignores a heading that is not shaped like an ordinal at all', () => {
+    const text = rulebookOf(NINE).rulebook.text + '\n\n**THE FIX: reword it.**'
+    expect(ordinals.check({ rulebook: { files: ['SKILL.md'], text } })).toBeNull()
+  })
+
+  /**
+   * THE EYES. Every branch above is about a set this reader built, so a regex
+   * that stopped matching reports a perfectly unique, perfectly contiguous
+   * EMPTY list. There is no second census to compare against here — unlike the
+   * guards, whose directory is an independent reading — so the floor is the
+   * honest instrument rather than a weaker version of an exact one.
+   */
+  it('refuses a reader that found almost nothing', () => {
+    const finding = ordinals.check(rulebookOf(NINE.slice(0, INTAKE_ORDINAL_FLOOR - 1)))
+    expect(finding).not.toBeNull()
+    expect(finding.actual).toContain('ordinal entry markers')
+    expect(finding.fix).toContain('Do NOT lower the floor')
+  })
+
+  /**
+   * The map is DERIVED from units and tens rather than typed out — a
+   * hand-kept table guarding a hand-kept list would be the joke §2d makes at
+   * its own expense. These are the joints where a derivation goes wrong.
+   */
+  it('spells the tens and the compounds the way English does', () => {
+    expect(ORDINAL_WORDS.FIRST).toBe(1)
+    expect(ORDINAL_WORDS.NINETEENTH).toBe(19)
+    expect(ORDINAL_WORDS.TWENTIETH).toBe(20)
+    expect(ORDINAL_WORDS['TWENTY-FIRST']).toBe(21)
+    expect(ORDINAL_WORDS.FIFTIETH).toBe(50)
+    expect(ORDINAL_WORDS['FIFTY-SEVENTH']).toBe(57)
+    expect(ORDINAL_WORDS['NINETY-NINTH']).toBe(99)
+    // The shapes English does NOT use, so a compound cannot resolve two ways.
+    expect(ORDINAL_WORDS['TWENTY-TENTH']).toBeUndefined()
+    expect(ORDINAL_WORDS.TWENTIETH_FIRST).toBeUndefined()
   })
 })
