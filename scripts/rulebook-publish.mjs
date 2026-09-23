@@ -369,6 +369,20 @@ export function readRulebookTree(root = process.cwd(), dir = RULEBOOK_DIR) {
   }
   walk(base)
   if (!out.has(SKILL_MD)) throw new Error(`${dir}/${SKILL_MD} is missing`)
+  // THE READER'S OWN EYES. A wrong `--root`, a truncated `git archive` extract
+  // or a prefix that landed one directory off all produce a tree that parses,
+  // grades clean and is almost empty — and every assertion downstream of here
+  // is an ABSENCE assertion, which an almost-empty tree only makes greener.
+  // The exact comparison against `origin/main` is what actually catches this
+  // (see `diffAgainstMerged`); this is the independent tripwire for the case
+  // where that comparison is itself what broke, and it is deliberately a floor
+  // rather than a count, because there is no expected size to compare to here.
+  if (![...out.keys()].some((p) => p.startsWith('references/'))) {
+    throw new Error(
+      `${dir} holds ${out.size} file(s) and none under references/ — this does not look like the rulebook. ` +
+        'Check --root: the tree reader found almost nothing, so anything it reports means nothing.',
+    )
+  }
   return out
 }
 
@@ -588,8 +602,63 @@ function publish(bin, id, root, local, description, log) {
  * `readMerged` is injected so the predicate is a pure function of two trees and
  * `tests/guards/rulebook-publish.test.ts` can perturb it without a repository.
  */
-export function diffAgainstMerged(local, readMerged) {
+export function diffAgainstMerged(local, readMerged, listMerged) {
   const problems = []
+
+  /**
+   * THE EYES COME FIRST, AND THE FIRST DRAFT HAD NONE. It iterated
+   * `local.keys()` and nothing else, so every assertion in it was about a file
+   * the tree HAS — and a file on `origin/main` that the tree LACKS was never
+   * examined, because nothing iterated `origin/main`. `publish()` then deletes
+   * from the store anything the tree does not hold, and assertion A reports
+   * CLEAN afterwards **because the publish made the two agree, by deleting the
+   * difference.** A tree holding only `SKILL.md`, byte-identical to `main`'s,
+   * returned `[]` from the precondition and took nine of ten sections out of
+   * the store under a green verdict. (Sentinel, REQUEST CHANGES on #712, who
+   * ran it rather than argued it.)
+   *
+   * That is DREAMCRM-128's ORIGINAL defect — a store no check can notice is
+   * wrong — reconstituted inside the guard built to abolish it, and it needed
+   * nothing exotic to reach: a commit to `main` that only ADDS a rulebook file
+   * (the §2 split added four at once) is enough, as is a truncated `git
+   * archive` extract, which is the very route §2 now names as supported.
+   *
+   * §2d has the general form and it is why six passing perturbation tests
+   * said nothing about this: **watching a PREDICATE fail tells you nothing
+   * about the guard's EYES.** So the set comparison is exact and runs FIRST,
+   * `compareTree`'s own rule applied one step earlier — an absence from the
+   * tree is a failure, not a warning.
+   */
+  const mergedPaths = listMerged()
+  if (mergedPaths.length === 0) {
+    // An absence assertion over an empty list passes, so an empty answer is
+    // never read as agreement. A clone with no `origin/main`, an unfetched
+    // one, or a lookup that threw all arrive here.
+    problems.push(
+      `origin/main:${RULEBOOK_DIR} lists NO files — the lookup failed, or this clone has no origin/main. ` +
+        'Refusing rather than treating an empty answer as "nothing is missing".',
+    )
+  }
+  for (const path of mergedPaths) {
+    if (!/\.md$/.test(path)) {
+      // The tree reader only sees `.md`, so a file of any other kind on `main`
+      // is outside this command's field of view ENTIRELY — it would be left
+      // out of the store silently and for ever. Naming it in prose as a
+      // residual would be the weaker move when refusing costs one branch.
+      problems.push(
+        `${path}: on origin/main and not a .md file — this command's tree reader cannot see it, so ` +
+          'publishing would leave it out of the store with nothing to say so. Teach the reader or move the file.',
+      )
+      continue
+    }
+    if (!local.has(path)) {
+      problems.push(
+        `${path}: on origin/main, MISSING from this tree — publishing would DELETE it from the store, ` +
+          'and the byte compare afterwards would be green because the deletion is what made the two agree.',
+      )
+    }
+  }
+
   for (const path of [...local.keys()].sort()) {
     const merged = readMerged(path)
     if (merged === null) {
@@ -606,6 +675,39 @@ export function diffAgainstMerged(local, readMerged) {
     }
   }
   return problems
+}
+
+/**
+ * EVERY path under `docs/rulebook` on `origin/main`, relative to it, UNFILTERED
+ * by extension. The filter lives in `diffAgainstMerged`, where a non-`.md` file
+ * becomes a refusal rather than a silent omission — filtering here instead
+ * would narrow the eyes back to what the tree reader already sees, which is the
+ * shape of the defect this list exists to close.
+ *
+ * `git ls-tree` rather than a walk of the working tree: the subject is the
+ * COMMIT, and a worktree sitting on a PR does not have `origin/main`'s files on
+ * disk. A failed lookup returns `[]`, which `diffAgainstMerged` refuses rather
+ * than reads as agreement.
+ */
+function mergedLister(dir = RULEBOOK_DIR) {
+  return () => {
+    try {
+      const out = execFileSync('git', ['ls-tree', '-r', '--name-only', 'origin/main', '--', dir], {
+        maxBuffer: MAX_BUFFER,
+        windowsHide: true,
+        stdio: ['ignore', 'pipe', 'pipe'],
+      })
+      return out
+        .toString('utf8')
+        .split('\n')
+        .map((l) => l.trim())
+        .filter((l) => l.startsWith(`${dir}/`))
+        .map((l) => l.slice(dir.length + 1))
+        .sort()
+    } catch {
+      return []
+    }
+  }
 }
 
 /** `git show origin/main:<path>` as bytes, or null when the path is not there. */
@@ -650,6 +752,13 @@ export function parseArgs(argv) {
 function main(argv) {
   const opts = parseArgs(argv)
   const log = (m) => console.log(`  ${m}`)
+  // FIRST LINE, BEFORE ANYTHING ELSE, because §2 says it announces itself on
+  // its own first line and it used to print fourth. A small wrong sentence in
+  // the rulebook is still a wrong sentence in the rulebook, and the cheaper
+  // fix was the code rather than the rule. (Sentinel, N7 on #712.)
+  if (opts.allowUnmerged) {
+    console.log('*** --allow-unmerged: the merged-main precondition is OFF. This is for the §9 runs only. ***')
+  }
   const local = readRulebookTree(opts.root)
   const skillMd = local.get(SKILL_MD).toString('utf8')
   const description = parseFrontmatterDescription(skillMd)
@@ -676,7 +785,7 @@ function main(argv) {
     // says "on this tree". Only the write path is constrained.
     console.log('\n--verify-only: grading what is in the store, publishing nothing')
   } else {
-    const unmerged = diffAgainstMerged(local, mergedReader())
+    const unmerged = diffAgainstMerged(local, mergedReader(), mergedLister())
     if (unmerged.length && !opts.allowUnmerged) {
       console.error('\nREFUSING TO PUBLISH — this tree is not merged `main`.\n')
       for (const p of unmerged) console.error(`  - ${p}`)
@@ -692,7 +801,8 @@ function main(argv) {
       return 1
     }
     if (unmerged.length) {
-      console.log(`\n--allow-unmerged: publishing a tree that differs from origin/main in ${unmerged.length} file(s)`)
+      console.log(`\n--allow-unmerged: publishing anyway over ${unmerged.length} precondition failure(s):`)
+      for (const p of unmerged) console.log(`  ! ${p}`)
     }
     console.log('\npublishing:')
     publish(opts.cli, id, opts.root, local, description, log)
@@ -734,13 +844,22 @@ function main(argv) {
   // rather than filed under whichever half the ternary happens to reach. A new
   // predicate then announces itself in the report instead of hiding inside a
   // count that no longer describes it.
-  const c = cd.filter((f) => /control byte|cp1252/.test(f))
-  const d = cd.filter((f) => /ATX heading/.test(f))
   const label = (f) =>
     /ATX heading/.test(f) ? 'D headings' : /control byte|cp1252/.test(f) ? 'C encoding' : 'C/D unclassified'
-  failures.push(...cd.map((f) => `[${label(f)}] ${f}`))
+  // THE COUNTERS ARE DERIVED FROM THE SAME `label()` THE VERDICT IS, so the
+  // summary cannot disagree with the exit code. They used to be two
+  // independent `filter`s, which printed two GREEN lines over a run that
+  // correctly exited 1 on an unclassified finding — the verdict right and the
+  // summary wrong, which is the half of a report a reader actually acts on.
+  // (Sentinel, reviewing #712.)
+  const labelled = cd.map((f) => ({ text: f, kind: label(f) }))
+  const c = labelled.filter((x) => x.kind === 'C encoding')
+  const d = labelled.filter((x) => x.kind === 'D headings')
+  const u = labelled.filter((x) => x.kind === 'C/D unclassified')
+  failures.push(...labelled.map((x) => `[${x.kind}] ${x.text}`))
   console.log(`  C. encoding:         ${c.length ? `${c.length} FAILED` : 'no C1, no mojibake'}`)
   console.log(`  D. headings:         ${d.length ? `${d.length} FAILED` : 'every leading # is a real heading'}`)
+  if (u.length) console.log(`  C/D unclassified:    ${u.length} FAILED — a predicate this summary does not know`)
 
   if (failures.length) {
     console.error(`\nPUBLISHED RULEBOOK VERIFY: FAILED (${failures.length})\n`)

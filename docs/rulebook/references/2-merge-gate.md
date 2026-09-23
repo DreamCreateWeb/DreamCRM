@@ -3563,8 +3563,10 @@
   - **Publish with `node scripts/rulebook-publish.mjs`, never a bare `multica
     skill update` on `dreamcrm-conventions`.** The bare CLI is how all three of
     those writes happened; it has no precondition and never will.
-  - **The write path now refuses a tree that is not merged `main`**, by reading
-    each file out of `origin/main` and comparing BYTES — not by checking `HEAD`,
+  - **The write path now refuses a tree that is not merged `main`** — a file
+    that DIFFERS, a file that is MISSING, and a file of a kind its reader
+    cannot see — by listing `origin/main` and reading each file out of it and
+    comparing BYTES, not by checking `HEAD`,
     which refuses the one legitimate mid-PR route (`git archive origin/main
     docs/rulebook` into a scratch directory, published with `--root`, which is
     not a git repository at all) while accepting a clean checkout of a commit
@@ -3576,6 +3578,30 @@
   - `--allow-unmerged` exists for the watched-to-fail runs §9 owes and for
     nothing else. It is spelled out in full so it cannot be typed by accident,
     and a run that uses it says so on its own first line.
+
+  **AND THE PRECONDITION'S FIRST DRAFT HAD NO EYES, WHICH IS THE LESSON WORTH
+  MORE THAN THE RULE.** It iterated the TREE and nothing else, so every
+  assertion in it was about a file the tree HAS — and a file on `origin/main`
+  that the tree LACKS was never examined, because nothing iterated
+  `origin/main`. The publisher deletes from the store whatever the tree does not
+  hold, so the two composed into silent data loss: a tree holding one file,
+  byte-identical to `main`'s, passed the precondition, took nine of ten sections
+  out of the store, and the byte compare afterwards was GREEN — **because the
+  deletion is what made the two agree.** DREAMCRM-128's original defect, a store
+  no check can notice is wrong, reconstituted inside the guard built to abolish
+  it. It needed nothing exotic to reach: a commit to `main` that only ADDS a
+  rulebook file (the §2 split added four at once) is enough, and so is a
+  truncated `git archive` extract — the route this section names as supported.
+
+  **Six perturbation tests passed over that hole**, which is the general form:
+  **watching a PREDICATE fail tells you nothing about its EYES** (§2d's reader
+  family, and this is its clearest instance yet — the reader was not a
+  narrowing, it was an absence). So the set comparison is EXACT and runs first,
+  an empty listing is refused rather than read as agreement, and a file of a
+  kind the tree reader cannot see is a refusal rather than a residual named in
+  prose. The rule to carry: **when a guard's subject is the difference between
+  two collections, iterate BOTH of them.** (Sentinel, REQUEST CHANGES on #712,
+  who ran it rather than argued it.)
 
   **What this rulebook may never do, and the reason it is written as prose:**
   paste a specimen of a mangled character. The specimen IS the defect —

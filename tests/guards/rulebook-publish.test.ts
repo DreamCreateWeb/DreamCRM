@@ -299,19 +299,76 @@ describe('the store may only ever hold merged main', () => {
     const v = entries[path]
     return v === undefined || v === null ? null : Buffer.from(v, 'utf8')
   }
+  /** The injected LISTER, standing in for `git ls-tree origin/main`. */
+  const lister = (entries: Record<string, string | null>) => () => Object.keys(entries).sort()
+
+  const grade = (t: Record<string, string>, m: Record<string, string | null>) =>
+    diffAgainstMerged(tree(t), merged(m), lister(m))
 
   it('is silent when the tree IS origin/main', () => {
-    expect(diffAgainstMerged(tree({ 'SKILL.md': 'a', 'references/2.md': 'b' }), merged({ 'SKILL.md': 'a', 'references/2.md': 'b' }))).toEqual([])
+    expect(grade({ 'SKILL.md': 'a', 'references/2.md': 'b' }, { 'SKILL.md': 'a', 'references/2.md': 'b' })).toEqual([])
   })
 
   it('refuses a file that differs from origin/main, which is the branch case', () => {
-    const problems = diffAgainstMerged(tree({ 'references/2.md': 'the rule, as merged' }), merged({ 'references/2.md': 'the rule, as drafted' }))
+    const problems = grade({ 'references/2.md': 'the rule, as merged' }, { 'references/2.md': 'the rule, as drafted' })
     expect(problems).toEqual([expect.stringContaining('differs from origin/main')])
   })
 
   it('refuses a file that exists only on a branch', () => {
-    const problems = diffAgainstMerged(tree({ 'references/2e.md': 'new section' }), merged({}))
+    // `main` is never EMPTY in this case — an empty listing is its own refusal,
+    // asserted below — so the fixture is a real branch: main's file plus one.
+    const problems = grade({ 'SKILL.md': 'a', 'references/2e.md': 'new section' }, { 'SKILL.md': 'a' })
     expect(problems).toEqual([expect.stringContaining('not on origin/main')])
+  })
+
+  /**
+   * THE EYES, AND THIS IS THE ASSERTION THE FIRST DRAFT DID NOT HAVE. Six
+   * perturbations of the predicate all passed while the predicate looked only
+   * at files the tree HELD — so a tree missing nine of ten sections graded
+   * clean, `publish()` deleted them from the store, and the byte compare
+   * afterwards was green because the deletion is what made the two agree.
+   * §2d's rule, exactly: watching a predicate fail says nothing about its
+   * field of view.
+   */
+  it('refuses a file that is on origin/main and missing from the tree — B1', () => {
+    const onMain = { 'SKILL.md': 'a', 'references/2.md': 'b', 'references/3.md': 'c' }
+    const problems = grade({ 'SKILL.md': 'a' }, onMain)
+    expect(problems).toHaveLength(2)
+    for (const p of problems) {
+      expect(p).toContain('MISSING from this tree')
+      expect(p).toContain('would DELETE it from the store')
+    }
+  })
+
+  it('says so even when every file the tree DOES hold is byte-perfect', () => {
+    // The whole trap: nothing the per-file loop can see is wrong.
+    const problems = grade({ 'SKILL.md': 'identical' }, { 'SKILL.md': 'identical', 'references/2.md': 'gone' })
+    expect(problems).toEqual([expect.stringContaining('references/2.md')])
+  })
+
+  /**
+   * An absence assertion over an empty list passes, so an empty answer from the
+   * lister is refused rather than read as "nothing is missing". An unfetched
+   * clone and a lookup that threw both arrive here.
+   */
+  it('refuses an empty listing rather than calling it agreement', () => {
+    const problems = diffAgainstMerged(tree({ 'SKILL.md': 'a' }), merged({ 'SKILL.md': 'a' }), () => [])
+    expect(problems).toEqual([expect.stringContaining('lists NO files')])
+  })
+
+  /**
+   * The tree reader only sees `.md`. A file of another kind on `main` is
+   * outside this command's field of view entirely, so it is a refusal rather
+   * than a residual named in prose — which would be the weaker move when
+   * refusing costs one branch.
+   */
+  it('refuses a non-md file on origin/main that its reader could never publish', () => {
+    const problems = diffAgainstMerged(
+      tree({ 'SKILL.md': 'a' }),
+      merged({ 'SKILL.md': 'a' }),
+      () => ['SKILL.md', 'references/diagram.png'],
+    )
+    expect(problems).toEqual([expect.stringContaining('not a .md file')])
   })
 
   /**
@@ -319,7 +376,7 @@ describe('the store may only ever hold merged main', () => {
    * for, so the precondition is held to it too rather than to a size check.
    */
   it('refuses a same-length one-character drift', () => {
-    const problems = diffAgainstMerged(tree({ 'references/8.md': 'on 2026-09-14' }), merged({ 'references/8.md': 'on 2026-09-15' }))
+    const problems = grade({ 'references/8.md': 'on 2026-09-14' }, { 'references/8.md': 'on 2026-09-15' })
     expect(problems).toHaveLength(1)
     expect(problems[0]).toContain('13 vs 13 bytes')
   })
@@ -331,7 +388,7 @@ describe('the store may only ever hold merged main', () => {
    * refusal gets read as a broken instrument and waived.
    */
   it('names origin/main rather than the store in its own failure text', () => {
-    const problems = diffAgainstMerged(tree({ 'references/8.md': 'a' }), merged({ 'references/8.md': 'b' }))
+    const problems = grade({ 'references/8.md': 'a' }, { 'references/8.md': 'b' })
     expect(problems[0]).toContain('origin/main has 0x62')
     expect(problems[0]).not.toContain('store has')
   })
