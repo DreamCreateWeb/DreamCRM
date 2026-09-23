@@ -3548,7 +3548,8 @@
   `scripts/rulebook-publish.mjs` (DREAMCRM-128). A NEW CLASS, and the first
   guard here whose subject is a document THIS REPO DOES NOT CONTAIN** — the
   copy of `dreamcrm-conventions` in the Multica skill store, which is the copy
-  every agent actually opens. **STATE: on the PR — #712, review requested.**
+  every agent actually opens. **STATE: MERGED — PR #712, `b79893f8`,
+  2026-09-23 16:20:39Z.**
 
   **The gap it closes, stated as the asymmetry it is.** DREAMCRM-109 moved the
   rulebook into `docs/rulebook/` so a check could read it, and three now do:
