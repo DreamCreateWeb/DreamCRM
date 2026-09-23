@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
   BENIGN_CONCLUSIONS,
+  CANCELLED_DETAIL,
   PRODUCER_DETAIL,
   RED_CONCLUSIONS,
   assess,
@@ -107,14 +108,41 @@ const workflowName = (file: string) => /^name:\s*(.+)$/m.exec(wf(file))?.[1]?.tr
  * `push:` trigger, and if it ever grew one it SHOULD appear here and fail this
  * — a `workflow_run` alarm that also runs on push would be watching itself.
  */
-function pushToMainWorkflows(): string[] {
-  const dir = join(process.cwd(), '.github/workflows')
+function pushToMainWorkflows(dir = join(process.cwd(), '.github/workflows')): string[] {
+  // THE DIRECTORY IS A PARAMETER so the fixture case below drives THIS
+  // function rather than a copy of it. The first version of that test inlined
+  // the predicate, which meant breaking the real one left the test GREEN — a
+  // guard grading a duplicate of its subject, which is the shape this whole
+  // file exists to refuse. Caught by mutating the real predicate and watching
+  // nothing go red, which is the only reason it is written this way.
+  const read = (f: string) =>
+    readFileSync(join(dir, f), 'utf8')
+      .split('\n')
+      .filter((l) => !/^\s*#/.test(l))
+      .join('\n')
   return readdirSync(dir)
     .filter((f) => /\.ya?ml$/.test(f))
     .filter((f) => {
-      const onBlock = /^on:\n([\s\S]*?)(?=^\S)/m.exec(wf(f))?.[1] ?? ''
+      const onBlock = /^on:\n([\s\S]*?)(?=^\S)/m.exec(read(f))?.[1] ?? ''
       if (!/^ {2}push:/m.test(onBlock)) return false
-      const branches = /^ {2}push:\n(?:\s+.*\n)*?\s+branches:\s*(.+)$/m.exec(onBlock)?.[1] ?? ''
+
+      // A MISSING `branches:` MATCHES EVERY BRANCH, `main` INCLUDED.
+      //
+      // Sentinel's note 4 on #700, and it is the direction that matters: the
+      // first version read the `branches:` line and required it to contain
+      // `main`, so a workflow declaring a BARE `push:` — which fires on every
+      // branch there is — produced `''`, failed the test, dropped out of the
+      // expected set, and left `test` GREEN while the alarm did not watch it.
+      // A third producer would have arrived unwatched and nothing would have
+      // said so.
+      //
+      // Latent when it was found: all thirteen workflow files carried
+      // `branches: [main]`. Closed anyway, while it was still latent and free
+      // — the same call #686 made on the comma-thousands gap, and the same
+      // reason: the fix is to widen the PREDICATE, never to add the file to an
+      // allowlist.
+      const branches = /^ {2}push:\n(?:\s+.*\n)*?\s+branches:\s*(.+)$/m.exec(onBlock)?.[1]
+      if (branches === undefined) return true
       return branches.includes('main')
     })
 }
@@ -523,5 +551,117 @@ describe('deploy alarm — the ringer rings (the script run as a process)', () =
     writeFileSync(summaryPath, '')
     run(args, dir, { GITHUB_STEP_SUMMARY: summaryPath })
     expect(readFileSync(summaryPath, 'utf8')).toContain('Push-triggered alarm')
+  })
+})
+
+/**
+ * SENTINEL'S NOTES 3 AND 4 ON #700, both taken.
+ *
+ * Neither was blocking and both are real. They are grouped here because they
+ * are the same family one level apart: a thing that is CORRECT and says
+ * something FALSE about itself, and a predicate whose EYES are narrower than
+ * its sentence claims.
+ */
+describe('push alarm — `cancelled` is benign for a reason that is true of THAT producer', () => {
+  it('cites the deploy job\'s own concurrency for a cancelled deploy', () => {
+    const v = assess({ run: { ...RUN, conclusion: 'cancelled' }, previous: null })
+    expect(v.red).toBe(false)
+    expect(v.detail).toContain('deploy-main')
+    expect(v.detail).toContain('cancel-in-progress: false')
+  })
+
+  it('cites the BROWSER suite\'s own concurrency for a cancelled post-merge run', () => {
+    // THE DEFECT THIS REFUSES: one justification printed for both producers.
+    // The flags are OPPOSITE — `post-merge-e2e.yml` is `cancel-in-progress:
+    // true` — so the old sentence handed a reader woken at 04:00 the wrong
+    // file AND the wrong setting. No mutation finds this; only reading does.
+    const v = assess({
+      run: {
+        ...RUN,
+        conclusion: 'cancelled',
+        name: 'Post-merge E2E',
+        path: '.github/workflows/post-merge-e2e.yml',
+      },
+      previous: null,
+    })
+    expect(v.red).toBe(false)
+    expect(v.detail).toContain('cancel-in-progress: true')
+    expect(
+      v.detail,
+      'the browser suite has its own concurrency group; naming the deploy\'s sends the reader to ' +
+        'the wrong file',
+    ).not.toContain('deploy-main')
+  })
+
+  it('both justifications match what the workflow files actually say', () => {
+    // BOTH SIDES READ OFF DISK. A sentence about a concurrency setting is
+    // exactly the kind that rots when somebody edits the YAML, and the whole
+    // point of this note was that such a sentence had already rotted.
+    const deployOn = wf('deploy.yml')
+    expect(deployOn).toContain('group: deploy-main')
+    expect(deployOn).toMatch(/group: deploy-main\s*\n\s*cancel-in-progress: false/)
+
+    const pmOn = wf('post-merge-e2e.yml')
+    expect(pmOn).toMatch(/group: post-merge-e2e-[^\n]*\n\s*cancel-in-progress: true/)
+
+    expect(CANCELLED_DETAIL['deploy.yml']).toContain('cancel-in-progress: false')
+    expect(CANCELLED_DETAIL['post-merge-e2e.yml']).toContain('cancel-in-progress: true')
+  })
+
+  it('an unrecognised producer says it cannot name the rule, rather than naming the wrong one', () => {
+    const v = assess({
+      run: { ...RUN, conclusion: 'cancelled', path: '.github/workflows/zz-new.yml' },
+      previous: null,
+    })
+    expect(v.red).toBe(false)
+    expect(v.detail).toContain('does not recognise')
+    expect(v.detail).not.toContain('deploy-main')
+  })
+
+  it('says out loud that a HUMAN cancellation is benign too', () => {
+    // Deliberate and, until Sentinel asked, unstated: somebody pressing Cancel
+    // leaves production on the old commit, and waking them to report their own
+    // click is how an alarm gets muted.
+    expect(CANCELLED_DETAIL['deploy.yml']).toContain('human pressing Cancel')
+  })
+})
+
+describe('push alarm — the producer derivation sees a bare `push:` too', () => {
+  it('a workflow with NO `branches:` filter counts as a producer', () => {
+    // THE BLIND SPOT: a bare `push:` fires on EVERY branch, `main` included.
+    // The first version read the `branches:` line, got `''`, and dropped the
+    // file out of the expected set — so a third producer could arrive
+    // unwatched with `test` staying green. Latent when found (all thirteen
+    // files carried `branches: [main]`), closed while it was still free.
+    const dir = mkdtempSync(join(tmpdir(), 'push-alarm-eyes-'))
+    writeFileSync(
+      join(dir, 'bare-push.yml'),
+      ['name: Bare push', 'on:', '  push:', 'jobs:', '  a:', '    runs-on: ubuntu-latest', ''].join('\n'),
+    )
+    writeFileSync(
+      join(dir, 'main-only.yml'),
+      ['name: Main only', 'on:', '  push:', '    branches: [main]', 'jobs:', '  a:', '    runs-on: x', ''].join('\n'),
+    )
+    writeFileSync(
+      join(dir, 'other-branch.yml'),
+      ['name: Other', 'on:', '  push:', '    branches: [release]', 'jobs:', '  a:', '    runs-on: x', ''].join('\n'),
+    )
+    writeFileSync(
+      join(dir, 'no-push.yml'),
+      ['name: No push', 'on:', '  schedule:', "    - cron: '0 0 * * *'", 'jobs:', '  a:', '    runs-on: x', ''].join('\n'),
+    )
+
+    // THE REAL DERIVATION, pointed at a fixture tree.
+    const matched = pushToMainWorkflows(dir).sort()
+
+    expect(
+      matched,
+      'a bare `push:` fires on every branch and is a producer; a `branches: [release]` one is not',
+    ).toEqual(['bare-push.yml', 'main-only.yml'])
+  })
+
+  it('and the real tree still resolves to exactly the two known producers', () => {
+    // The widening must not have made the predicate promiscuous.
+    expect(pushToMainWorkflows().sort()).toEqual(['deploy.yml', 'post-merge-e2e.yml'])
   })
 })

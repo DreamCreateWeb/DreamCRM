@@ -185,6 +185,50 @@ export const PRODUCER_DETAIL = {
     'Grade it by hand and reconcile the two.',
 }
 
+/**
+ * WHY `cancelled` IS BENIGN — PER PRODUCER, because the mechanism is not the
+ * same one (Sentinel, reviewing #700, note 3).
+ *
+ * The VERDICT is producer-independent: a cancelled run is not a failure. The
+ * JUSTIFICATION is not, and the first version of this file printed
+ * `deploy.yml`'s for both. That is §2d's predicate-right/sentence-wrong family
+ * exactly — no mutation finds it, because the code does the right thing and
+ * only the explanation is false. A reader woken at 04:00 would have been
+ * handed a reason citing the wrong file AND the wrong concurrency setting:
+ *
+ *   * `deploy.yml`   `group: deploy-main`, `cancel-in-progress: FALSE`
+ *   * `post-merge-e2e.yml`   `group: post-merge-e2e-${{ github.ref }}`,
+ *     `cancel-in-progress: TRUE`
+ *
+ * Opposite flags, and the verdict is MORE justified on the second, not less:
+ * `cancel-in-progress: true` means superseding is the designed behaviour
+ * rather than a side effect of queue depth.
+ *
+ * AND IT IS ALSO BENIGN FOR A HUMAN CANCELLATION, which was deliberate and
+ * unstated. Somebody pressing Cancel on a deploy leaves production on the old
+ * commit — a state somebody already knows about, by construction, because they
+ * caused it. Waking them to report their own click is the kind of false
+ * positive that gets an alarm muted.
+ */
+export const CANCELLED_DETAIL = {
+  'deploy.yml':
+    'cancelled, which `deploy.yml`\'s `deploy` job produces as routine behaviour when merges ' +
+    'arrive inside a rollout: `concurrency: { group: deploy-main, cancel-in-progress: false }` ' +
+    'keeps one pending run and cancels the rest, so a later run does this one\'s work. It is also ' +
+    'what a human pressing Cancel looks like — production stays on the old commit, and whoever ' +
+    'clicked already knows.',
+  'post-merge-e2e.yml':
+    'cancelled, which `post-merge-e2e.yml` produces by design rather than by accident: its ' +
+    '`concurrency: { group: post-merge-e2e-<ref>, cancel-in-progress: true }` supersedes an ' +
+    'in-flight run the moment a newer commit lands on the same ref. The newer run grades the ' +
+    'tree that is actually live, which is the one worth grading. Note the flag is the OPPOSITE of ' +
+    '`deploy.yml`\'s — same verdict, different mechanism.',
+  unknown:
+    'cancelled. This alarm does not recognise the workflow that produced the run, so it cannot say ' +
+    'which concurrency rule cancelled it — but a cancelled run is not a failure either way. ' +
+    'Reconcile the `workflows:` trigger list with `CANCELLED_DETAIL` in `scripts/push-alarm.mjs`.',
+}
+
 /** The sentence about the CONCLUSION, which is producer-independent. */
 export const CONCLUSION_DETAIL = {
   failure: 'The run FAILED.',
@@ -247,9 +291,7 @@ export function assess({ run, previous, historyRead = true }) {
   if (!red) {
     verdict.detail =
       conclusion === 'cancelled'
-        ? 'cancelled, which `deploy.yml`\'s `deploy` job produces as routine behaviour when merges ' +
-          'arrive inside a rollout: `concurrency: { group: deploy-main, cancel-in-progress: false }` ' +
-          'keeps one pending run and cancels the rest. A later run does this one\'s work.'
+        ? (CANCELLED_DETAIL[verdict.producer] ?? CANCELLED_DETAIL.unknown)
         : `\`${conclusion}\` — the run did not fail.`
     return verdict
   }
