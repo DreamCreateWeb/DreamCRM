@@ -549,5 +549,75 @@
  * gap is the source rules, which do not depend on a spec happening to walk
  * past: `tests/a11y/portal-palette.test.ts` grades every portal ink on every
  * portal surface, and `tests/a11y/quiet-ink.test.ts` grades the tree.
+ *
+ * ── RE-OPENED 2026-09-23 · DREAMCRM-124 · #722 ──────────────────────────────
+ *
+ * AND THE PARAGRAPH ABOVE PREDICTED THIS ONE, WHICH IS WHY IT IS WORTH
+ * READING TWICE. "A ceiling of zero is not evidence a surface is clean; it is
+ * evidence that nothing has scanned the state that is dirty." The file was
+ * empty for one day. `e2e/demo-journey.spec.ts` then walked the PRESENTER
+ * PANEL for the first time — the pop-out script window a salesperson reads
+ * from during a live demo — and found **14 WCAG 2.1 AA `color-contrast`
+ * failures across its two states**, every one of them live on `main` and none
+ * of them reachable by any spec that existed yesterday.
+ *
+ * The panel is dark chrome (`bg-gray-950`) and the failures are the quiet inks
+ * on it, all at 12px. Measured foreground / background / ratio, as rendered on
+ * the Ubuntu runner rather than as specified, with the element each was
+ * measured on (§10 — a measurement is a fact, an attributed token is a guess):
+ *
+ *   PRESENTER SCRIPT, beat 1 of a live demo — 9 nodes
+ *     · `label` (the "Story" track-picker label)
+ *         #5c6c89 on #10182e — 3.32:1
+ *     · the group label on the CURRENT beat
+ *       `.ring-white\/20 > .justify-between… > .shrink-0.uppercase.tracking-wider`
+ *         #4c5a78 on #282f43 — **1.92:1**, the worst on the surface. This one
+ *         composites: the ink sits on the current beat's `bg-white/10` over the
+ *         panel, so the ground is lighter than the panel and the ratio is worse
+ *         than the same ink one row down. Grading the token against #10182e
+ *         alone would have called it 2.55 and missed the real number.
+ *     · the same group label on beats 2-6 (`li:nth-child(2..6) > …`)
+ *         #4c5a78 on #10182e — 2.55:1, ×5
+ *     · the keyboard hint `.mt-4… > .text-gray-600.text-xs`
+ *         #4c5a78 on #10182e — 2.55:1
+ *     · the "Wrap up →" button `.px-2\.5`
+ *         #1a2440 on #2f6d6a — 2.56:1. NOT a grey: this is `text-gray-900` on
+ *         `var(--demo-accent)`, which is the PROSPECT'S OWN BRAND COLOUR out
+ *         of the demo skin (#2F6D6A for this fixture's prospect). So the ratio
+ *         is a function of whoever we are pitching, and any fix has to derive
+ *         a readable ink from the brand the way `portalBrand()` already does
+ *         for the patient portal (UI batch 54) rather than pick a constant.
+ *
+ *   THE WRAP-UP, outcome not yet chosen — 5 nodes
+ *     · `label` — #5c6c89 on #10182e — 3.32:1
+ *     · the "Wrap up · N of M beats · 0:14" eyebrow
+ *       `div[data-testid="demo-wrapup"] > .font-medium.uppercase.tracking-wider`
+ *         #5c6c89 on #10182e — 3.32:1
+ *     · "Skip logging" `.hover\:text-gray-300` — #5c6c89 on #10182e — 3.32:1
+ *     · the keyboard hint `.mt-4… > span` — #4c5a78 on #10182e — 2.55:1
+ *     · "Log & end demo" `.mt-4… > .text-gray-900.px-2\.5.py-1\.5`
+ *         #1a2440 on #2f6d6a — 2.56:1, the same brand-derived pair as above
+ *
+ * TWO THINGS THAT MAKE THIS WORTH FIXING RATHER THAN CARRYING. The 1.92:1 is
+ * the presenter's CURRENT BEAT marker — the one row on the panel they are
+ * actually looking at mid-call — and the two 2.56:1 pairs are the primary
+ * ACTION buttons, the controls that end the demo. Neither is decoration.
+ *
+ * Owned by the UI lane, handed over with this reproduction (DREAMCRM-124's
+ * comment thread and the `docs/RELEASE.md` Part 5 entry). QA owns the checks;
+ * the pixels are not ours, and guessing which grey is the readable one is
+ * exactly what §2b's quiet-ink direction exists to decide. The ceilings below
+ * are a RATCHET as everything above says — shrink them in the PR that fixes
+ * the tokens, and delete the matching `CEILING_RAISES` entries with them.
+ *
+ * WHY THESE ARE NOT ALSO CAUGHT BY A SOURCE RULE, named rather than left to be
+ * discovered: `tests/a11y/quiet-ink.test.ts` grades the tree, and it did not
+ * fire here. Whether its reach or its ground model is what misses a dark panel
+ * whose ink composites over `bg-white/10` is a question for the UI lane's own
+ * intake — it is in the hand-off, and it is the more valuable half, because a
+ * source rule does not wait for a spec to walk past.
  */
-export const A11Y_BASELINE: Record<string, Record<string, number>> = {}
+export const A11Y_BASELINE: Record<string, Record<string, number>> = {
+  'demo: presenter script, beat 1 of a live demo': { 'color-contrast': 9 },
+  'demo: the wrap-up, outcome not yet chosen': { 'color-contrast': 5 },
+}

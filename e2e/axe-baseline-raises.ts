@@ -82,4 +82,40 @@ export type CeilingRaise = {
   why: string
 }
 
-export const CEILING_RAISES: CeilingRaise[] = []
+const DEMO_PANEL_WHY =
+  'PRE-EXISTING, on a surface nothing had ever scanned. `e2e/demo-journey.spec.ts` ' +
+  '(DREAMCRM-124) is the first spec in the suite to load the pop-out presenter panel — the ' +
+  'script window a salesperson reads from during a live branded demo. Nothing in `e2e/` had ' +
+  'walked `/demo/script`, or `/platform/prospecting` at all, which is the same situation the ' +
+  'three portal-billing stops entered under on 2026-09-14 and the situation this opt-out was ' +
+  'written for. Every failing node is live on `main` and none of them is reachable by any spec ' +
+  'that existed before this PR: the panel is dark chrome and these are the quiet inks on it, ' +
+  'all at 12px. The measured pairs, hexes/ratios/elements, are enumerated in ' +
+  '`e2e/axe-baseline.ts` beside the ceiling — worst is #4c5a78 on #282f43 at 1.92:1 on the ' +
+  'CURRENT beat marker, and the two action buttons are #1a2440 on #2f6d6a at 2.56:1, where ' +
+  'the ground is the prospect\'s own brand colour out of the demo skin. The fix is UI-lane ' +
+  'token work (and, for the buttons, a brand-derived readable ink the way `portalBrand()` ' +
+  'already does for the portal); QA changes tests, not pixels. The alternative was to not ' +
+  'land the coverage, which leaves 14 defects on the surface a prospect watches invisible for ' +
+  'the same reason they have been invisible until today.'
+
+export const CEILING_RAISES: CeilingRaise[] = [
+  {
+    stop: 'demo: presenter script, beat 1 of a live demo',
+    rule: 'color-contrast',
+    from: 0,
+    to: 9,
+    date: '2026-09-23',
+    ref: '#722',
+    why: DEMO_PANEL_WHY,
+  },
+  {
+    stop: 'demo: the wrap-up, outcome not yet chosen',
+    rule: 'color-contrast',
+    from: 0,
+    to: 5,
+    date: '2026-09-23',
+    ref: '#722',
+    why: DEMO_PANEL_WHY,
+  },
+]
