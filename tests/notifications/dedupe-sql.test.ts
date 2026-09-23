@@ -97,6 +97,11 @@ describe('the deduped notification insert as Postgres parses it', () => {
     await notify({ ...BASE, type: 'inbox_message' })
     const { sql: text } = insertStatement()
     expect(text).not.toMatch(/on conflict/i)
-    expect(text).not.toMatch(/returning/i)
+    // It DOES return the id (DREAMCRM-106) — every dispatch that emails stamps
+    // `email_sent_at` on its own row, keyed or not, so the column means what
+    // its name says rather than "…for the handful of rows carrying a dedupe
+    // key". The property this case is about is the absence of the conflict
+    // clause, which is what `dedupeKey` gates.
+    expect(text).toMatch(/returning\s+"id"/i)
   })
 })
