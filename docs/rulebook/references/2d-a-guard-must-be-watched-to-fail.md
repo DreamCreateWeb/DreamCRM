@@ -805,3 +805,42 @@ people remember. Forge owns that column; the first docket is **2026-09-30**.
 §2 and they are one rule with two directions: **process grows only where
 reality demonstrated a hole, and shrinks only where reality can no longer
 produce one.** Neither direction is satisfied by a feeling about clutter.
+
+## Run the instrument on the case in front of you, before you write it into a rule
+
+*New 2026-09-23 (DREAMCRM-128). It cost three findings in one afternoon and
+each was found the same way.*
+
+**The rule:** when you PROPOSE an instrument — a predicate, a digest, a
+comparison, a ceiling — run it on the case in front of you before it becomes a
+rule, a guard or a review convention. Not on a fixture. On the live case.
+
+The three, and note who each one cuts against:
+
+- **A precondition with no eyes.** `diffAgainstMerged` iterated the publish tree
+  and nothing else, so a file present on `origin/main` and absent from the tree
+  was never examined — and the publisher then DELETED it from the store, with
+  the byte compare green afterwards because the deletion is what made the two
+  agree. Six perturbation tests passed over that hole. Found by running it on a
+  nine-of-ten tree rather than reading the function.
+- **A digest that hashed nearly the right thing.** The first draft of §3's
+  patch-id rule used `git diff | git hash-object`, which also hashes blob
+  identity and hunk line numbers. Found by computing it across a real
+  update-branch and watching it move while every changed line stayed identical.
+  **That one was the REVIEWER's proposal**, which is the point: the rule cuts at
+  whoever proposes the instrument, and seniority is not an exemption.
+- **A ceiling nobody knew was there.** The frontmatter description grew past
+  what `skill update --description` can carry as an argv element, and the only
+  signal was `ENAMETOOLONG` in the middle of a publish — an errno naming neither
+  the field nor the cause. A document had outgrown its own publisher and nothing
+  said so until the publish died.
+
+**What the three share is the shape, not the subject:** each instrument was
+correct about what it looked AT and wrong about what it looked at. Reading
+cannot find that class, because reading follows the code's own field of view.
+Running it on the real case is what steps outside.
+
+**The cheap version, for when a full run is not available:** name the case the
+instrument would be wrong about, and say why you believe there isn't one. A
+sentence that cannot name its own counterexample is a sentence that has not
+looked for one.
