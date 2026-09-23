@@ -96,7 +96,7 @@ describe('a repeat offender is counted in RUNS, not occurrences', () => {
     expect(specs[0].runCount).toBe(2)
 
     const { findings, watchlist } = assess({ specs, census: { runs: 9, reports: 2, unreadable: [] } })
-    expect(findings.map((f) => f.file)).toEqual(['e2e/portal-billing.spec.ts'])
+    expect(findings.map((f) => String(f.file))).toEqual(['e2e/portal-billing.spec.ts'])
     expect(watchlist).toEqual([])
   })
 
@@ -175,14 +175,14 @@ describe('a repeat offender is counted in RUNS, not occurrences', () => {
 })
 
 describe('the digest says what it could not see', () => {
-  const specs: unknown[] = []
+  const specs: Array<Record<string, unknown>> = []
 
   it('reddens on an artifact that existed and did not arrive', () => {
     // NOT THE SAME AS "no artifact". A clean run uploads nothing by design, so
     // absence is a zero. An artifact that EXISTS belongs to a run that had
     // already failed or flaked — exactly the runs with something to say.
     const { blind } = assess({
-      specs: specs as never[],
+      specs,
       census: { runs: 40, reports: 3, unreadable: ['35789025973'] },
     })
     expect(blind).toHaveLength(1)
@@ -193,13 +193,13 @@ describe('the digest says what it could not see', () => {
     // Zero is not a quiet week: every PR runs `e2e` and every merge runs
     // `e2e-post-merge`. Zero means the suite stopped, the lookup is reading the
     // wrong thing, or the window is wrong — and all three are worth a red run.
-    const { blind } = assess({ specs: specs as never[], census: { runs: 0, reports: 0, unreadable: [] } })
+    const { blind } = assess({ specs, census: { runs: 0, reports: 0, unreadable: [] } })
     expect(blind.join(' ')).toMatch(/no browser-suite run at all/)
   })
 
   it('passes a failed lookup straight through rather than treating it as clean', () => {
     const { blind } = assess({
-      specs: specs as never[],
+      specs,
       census: { runs: 40, reports: 3, unreadable: [] },
       lookupFailures: ['the artifact lookup produced nothing usable'],
     })
@@ -207,7 +207,7 @@ describe('the digest says what it could not see', () => {
   })
 
   it('is quiet when there is genuinely nothing to say — but prints the denominator', () => {
-    const graded = assess({ specs: specs as never[], census: { runs: 41, reports: 0, unreadable: [] } })
+    const graded = assess({ specs, census: { runs: 41, reports: 0, unreadable: [] } })
     expect(graded.blind).toEqual([])
     const summary = renderSummary(graded, { runs: 41, reports: 0, unreadable: [] })
     expect(
@@ -254,7 +254,7 @@ describe('the evidence outlives the window', () => {
   it('every workflow that uploads a report keeps it longer than the window', () => {
     for (const file of producers) {
       const source = readFileSync(join(WORKFLOW_DIR, file), 'utf8')
-      const retentions = [...source.matchAll(/retention-days:\s*(\d+)/g)].map((m) => Number(m[1]))
+      const retentions = (source.match(/retention-days:\s*\d+/g) ?? []).map((m) => Number(/\d+/.exec(m)?.[0]))
       expect(retentions.length, `${file} uploads a report, so it must set a retention`).toBeGreaterThan(0)
       for (const days of retentions) {
         expect(
@@ -284,12 +284,13 @@ describe('the evidence outlives the window', () => {
     // and reporting a rate that is quietly too low.
     for (const file of producers) {
       const source = readFileSync(join(WORKFLOW_DIR, file), 'utf8')
-      for (const match of source.matchAll(/name:\s*(playwright-report[\w-]*)/g)) {
+      for (const line of source.match(/name:\s*playwright-report[\w-]*/g) ?? []) {
+        const artifact = line.replace(/^name:\s*/, '')
         expect(
           REPORT_ARTIFACTS,
-          `${file} uploads \`${match[1]}\` and the digest does not read it, so every rate it ` +
+          `${file} uploads \`${artifact}\` and the digest does not read it, so every rate it ` +
             'prints is too low by whatever that workflow contributes.',
-        ).toContain(match[1])
+        ).toContain(artifact)
       }
     }
   })
@@ -336,9 +337,9 @@ describe('the digest workflow cannot gate a merge', () => {
     // scope: GitHub rejected the whole file and published NO check-run, twice,
     // in 0 seconds — a failure `gh pr checks` cannot show.
     const block = /permissions:\n((?:\s{2}\w[\w-]*:\s*\w+\n)+)/.exec(digestSource)?.[1] ?? ''
-    const scopes = [...block.matchAll(/(\w[\w-]*):\s*(\w+)/g)]
+    const scopes = (block.match(/\w[\w-]*:\s*\w+/g) ?? []).map((l) => l.split(/:\s*/))
     expect(scopes.length, 'the digest must declare an explicit permissions block').toBeGreaterThan(0)
-    for (const [, name, level] of scopes) {
+    for (const [name, level] of scopes) {
       expect(['actions', 'contents']).toContain(name)
       expect(level, 'this job writes nothing back to GitHub').toBe('read')
     }

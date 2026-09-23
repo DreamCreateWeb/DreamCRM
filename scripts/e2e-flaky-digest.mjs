@@ -145,8 +145,20 @@ export const REPORT_ARTIFACTS = [
  */
 export const BROWSER_WORKFLOWS = ['ci.yml', 'post-merge-e2e.yml', 'nightly.yml']
 
-/** A stable identity for one test across runs: where it lives and what it is called. */
-export const specKey = (t) => `${t.file} ${t.title}${t.project ? ` ${t.project}` : ''}`
+/**
+ * A stable identity for one test across runs: where it lives, what it is
+ * called, and which project ran it.
+ *
+ * The separator is written as an ESCAPE rather than typed, which is
+ * `tests/guards/control-bytes.ts`'s rule and which this line learned the hard
+ * way — the first version reached disk carrying two raw NULs, and a NUL in the
+ * first 8000 bytes makes git render the whole file as "Binary files … differ"
+ * in every diff view. The guard caught it on the first run. A byte no title
+ * can contain is the right separator; typing it is not the right way to get
+ * one.
+ */
+const KEY_SEPARATOR = String.fromCharCode(0)
+export const specKey = (t) => [t.file, t.title, t.project || ''].join(KEY_SEPARATOR)
 
 /**
  * Fold every run's report into one entry per spec.
@@ -216,6 +228,16 @@ export function aggregate(reports, runsById = {}) {
  * read, or a window with no browser runs in it at all. Each of those makes the
  * number above it a lie of a different shape, so each reddens the run on its
  * own terms.
+ *
+ * The `@param` is load-bearing rather than decorative: without it TypeScript
+ * infers `lookupFailures` as `never[]` from its own default, and the guard test
+ * cannot pass it a reason.
+ *
+ * @param {{
+ *   specs: Array<Record<string, any>>,
+ *   census: { runs: number, reports: number, unreadable?: string[] },
+ *   lookupFailures?: string[],
+ * }} input
  */
 export function assess({ specs, census, lookupFailures = [] }) {
   const findings = specs.filter((s) => s.runCount >= REPEAT_OFFENDER_RUNS)
