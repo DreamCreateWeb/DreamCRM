@@ -157,6 +157,11 @@ export const WORKFLOW_CENSUS = {
     publishes: [],
     note: 'the alarm that watches the other alarms (DREAMCRM-99): one daily job asserting every scheduled workflow has a `schedule`-triggered run inside the window its own cron implies. Derives its list from the cron entries in this directory, so a schedule added tomorrow is watched tomorrow. No PR trigger, no required context, so it cannot hold a merge',
   },
+  'deploy-alarm.yml': {
+    gates: 'nothing',
+    publishes: [],
+    note: "the repo's FIRST workflow_run-triggered file (DREAMCRM-115): it runs on every completion of deploy.yml, goes red when the deploy did, and POSTs to a Multica autopilot webhook that opens an issue assigned to Quinn. It exists because a red deploy.yml went unnoticed for 21 minutes on 2026-09-23 while production shipped nothing for 77 - nothing in .github/ was listening for a failed push-triggered workflow, and schedule-heartbeat.yml cannot see one by construction. No PR trigger, no push, no required context, so it cannot hold a merge; two read scopes and one POST. NOTE that workflow_run matches deploy.yml's DISPLAY NAME rather than its filename - tests/guards/deploy-alarm.test.ts pins the two together",
+  },
   'rulebook-drift.yml': {
     gates: 'nothing',
     publishes: [],

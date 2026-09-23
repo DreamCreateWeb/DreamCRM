@@ -1,18 +1,23 @@
 import { describe, it, expect } from 'vitest'
 import { spawnSync } from 'node:child_process'
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
+  PAIRING_GRACE_MINUTES,
   SLIP_ALLOWANCE_MINUTES,
   assess,
+  assessWatcher,
   assessWorkflow,
   cronsIn,
   declaredSchedules,
+  declaredWatchers,
   expectedWindowMinutes,
   nominalIntervalMinutes,
   parseCron,
   renderSummary,
+  watchersIn,
+  workflowName,
 } from '../../scripts/schedule-heartbeat.mjs'
 import { WORKFLOW_CENSUS } from '../../scripts/rulebook-drift.mjs'
 
@@ -280,7 +285,7 @@ describe('schedule heartbeat — the summary never reports silence as health', (
     const out = renderSummary(graded)
     expect(out).toContain('Asked GitHub about **1 scheduled workflow**')
     expect(out).toContain('420m ago')
-    expect(out).toContain('derived from the `cron:` entries')
+    expect(out).toContain('derived from the `cron:` and `workflow_run:` entries')
   })
 
   it('a run that graded ZERO workflows is reported as a non-result, not a clean one', () => {
@@ -493,5 +498,250 @@ describe('schedule heartbeat — the workflow asks the question the script answe
     const jobs = Array.from(wf().matchAll(/^ {2}([a-z][\w-]*):$/gm)).map((m) => m[1])
     expect(jobs).not.toContain('test')
     expect(jobs).not.toContain('e2e')
+  })
+})
+
+/**
+ * THE OTHER KIND OF ALARM (DREAMCRM-115).
+ *
+ * `deploy-alarm.yml` is the first workflow here that runs on another
+ * workflow's completion rather than on a clock, and §2a's standing convention
+ * — every new alarm ships with the thing that notices it STOPPED — is why it
+ * is watched by this job rather than by nothing.
+ *
+ * IT NEEDED A DIFFERENT QUESTION, and that is why these blocks exist
+ * separately from the ones above. A `workflow_run` alarm has no cadence: it is
+ * exactly as punctual as its upstream, so "has it run in the last N hours"
+ * would report a quiet Sunday as a dead alarm and the check would be muted
+ * inside a fortnight — this file's own argument, pointed at itself. The
+ * question that works is PAIRING.
+ *
+ * The property worth the most here is `unknown-upstream`.
+ * `workflow_run.workflows:` matches the upstream's DISPLAY NAME, so editing
+ * the first line of `deploy.yml` disconnects the alarm and GitHub reports
+ * nothing at all — a trigger that matches nothing is not an error. That is
+ * pinned at merge time by `tests/guards/deploy-alarm.test.ts` and caught at
+ * runtime here, because the two catch different things: the guard catches the
+ * rename in the diff, this catches a disconnection that arrives some other way.
+ */
+describe('schedule heartbeat — the watcher list is derived from the tree too', () => {
+  it('finds every workflow that declares a `workflow_run` trigger', () => {
+    const { watchers } = declaredWatchers()
+    const onDisk = readdirSync(join(process.cwd(), '.github/workflows'))
+      .filter((f) => /\.ya?ml$/.test(f))
+      .filter((f) =>
+        /^\s*workflow_run:\s*$/m.test(readFileSync(join(process.cwd(), '.github/workflows', f), 'utf8')),
+      )
+    expect(watchers.map((w: { file: string }) => w.file).sort()).toEqual(onDisk.sort())
+  })
+
+  it('every upstream name a watcher declares is a real workflow in this tree', () => {
+    // The live version of `unknown-upstream`, run against the real files: if
+    // this ever fails, an alarm in this repository is currently firing for
+    // nothing.
+    const { watchers, byName } = declaredWatchers()
+    const dangling = watchers.flatMap((w: { upstream: string[] }) =>
+      w.upstream.filter((n: string) => !(n in byName)),
+    )
+    expect(
+      dangling,
+      `these \`workflow_run.workflows:\` entries match no workflow's \`name:\`: ${dangling.join(', ')}. ` +
+        'GitHub matches the display name, so those alarms never run.',
+    ).toEqual([])
+  })
+
+  it('reads both the flow and the block spelling of `workflows:`', () => {
+    expect(watchersIn(['on:', '  workflow_run:', "    workflows: ['A', \"B\"]"].join('\n'))).toEqual([
+      'A',
+      'B',
+    ])
+    expect(
+      watchersIn(['on:', '  workflow_run:', '    workflows:', '      - A', '      - B'].join('\n')),
+    ).toEqual(['A', 'B'])
+  })
+
+  it('takes `workflows:` under `workflow_run:` and nothing else', () => {
+    // The shapes that would fool a naive grep, each one real: the key under a
+    // DIFFERENT trigger, a dedent back out of the block, and the word in a
+    // comment.
+    const text = [
+      'on:',
+      '  workflow_run:',
+      "    workflows: ['Deploy']",
+      '    types: [completed]',
+      '  workflow_call:',
+      "    workflows: ['Not this one']",
+      'jobs:',
+      '  x:',
+      '    steps:',
+      "      # workflows: ['nor this']",
+    ].join('\n')
+    expect(watchersIn(text)).toEqual(['Deploy'])
+  })
+
+  it('CRLF line endings do not change what the scanner sees', () => {
+    const lf = "on:\n  workflow_run:\n    workflows: ['Deploy']\n"
+    expect(watchersIn(lf.replace(/\n/g, '\r\n'))).toEqual(watchersIn(lf))
+  })
+
+  it('takes the FIRST top-level `name:` and nothing deeper', () => {
+    // A job called `name:` two levels in is not the workflow's display name,
+    // and matching one would pair an alarm against the wrong file.
+    expect(workflowName('name: Deploy to AWS App Runner\non:\n  push:\n')).toBe(
+      'Deploy to AWS App Runner',
+    )
+    expect(workflowName('on:\n  push:\njobs:\n  a:\n    name: not it\n')).toBe(null)
+    expect(workflowName("# name: in a comment\nname: 'Real'\n")).toBe('Real')
+  })
+})
+
+describe('schedule heartbeat — a disconnected watcher is a finding, a quiet week is not', () => {
+  const now = Date.parse('2026-09-23T12:00:00Z')
+  const byName = { 'Deploy to AWS App Runner': 'deploy.yml' }
+  const base = {
+    file: 'deploy-alarm.yml',
+    upstream: ['Deploy to AWS App Runner'],
+    byName,
+    state: 'active',
+    addedAt: '2026-09-01T00:00:00Z',
+    now,
+  }
+  const deployed = (at: string, id = 1) => ({
+    'deploy.yml': [{ databaseId: id, conclusion: 'success', status: 'completed', createdAt: at }],
+  })
+
+  it('an alarm that ran after the newest settled deploy is OK', () => {
+    const r = assessWatcher({
+      ...base,
+      upstreamRuns: deployed('2026-09-23T06:05:22Z'),
+      run: { createdAt: '2026-09-23T06:07:00Z', conclusion: 'success' },
+    })
+    expect(r.verdict).toBe('ok')
+  })
+
+  it('an alarm with NO run since the newest settled deploy is UNPAIRED', () => {
+    const r = assessWatcher({
+      ...base,
+      upstreamRuns: deployed('2026-09-23T06:05:22Z'),
+      run: { createdAt: '2026-09-22T10:00:00Z', conclusion: 'success' },
+    })
+    expect(r.verdict).toBe('unpaired')
+    expect(r.detail).toContain('disconnected')
+  })
+
+  it('an alarm that has NEVER fired while deploys happened is UNPAIRED', () => {
+    const r = assessWatcher({ ...base, upstreamRuns: deployed('2026-09-23T06:05:22Z'), run: null })
+    expect(r.verdict).toBe('unpaired')
+    expect(r.detail).toContain('never fired at all')
+  })
+
+  it('a deploy inside the grace period is NOT yet expected to have paired', () => {
+    // `workflow_run` dispatch is usually seconds, but it rides the same
+    // best-effort queue as everything else here, and this file's whole
+    // argument is that GitHub's queue must never be graded as a defect.
+    const r = assessWatcher({
+      ...base,
+      upstreamRuns: deployed('2026-09-23T11:30:00Z'),
+      run: { createdAt: '2026-09-20T00:00:00Z', conclusion: 'success' },
+    })
+    expect(r.verdict).toBe('no-upstream-activity')
+    expect(PAIRING_GRACE_MINUTES).toBe(120)
+  })
+
+  it('a QUIET WEEK is not a dead alarm', () => {
+    // The mirror of the generous window above: reporting "nobody merged" as
+    // "the alarm is dead" is how a check gets muted.
+    const r = assessWatcher({ ...base, upstreamRuns: { 'deploy.yml': [] }, run: null })
+    expect(r.verdict).toBe('no-upstream-activity')
+  })
+
+  it('an UNSETTLED upstream run is not paired against', () => {
+    // A deploy still rolling out has triggered nothing yet. Grading against it
+    // would report every alarm as missing during every deploy.
+    const r = assessWatcher({
+      ...base,
+      upstreamRuns: {
+        'deploy.yml': [
+          { databaseId: 2, conclusion: null, status: 'in_progress', createdAt: '2026-09-23T05:00:00Z' },
+        ],
+      },
+      run: null,
+    })
+    expect(r.verdict).toBe('no-upstream-activity')
+  })
+
+  it('an upstream NAME that matches no workflow is the rename, caught', () => {
+    const r = assessWatcher({
+      ...base,
+      byName: { 'Deploy to production': 'deploy.yml' },
+      upstreamRuns: deployed('2026-09-23T06:05:22Z'),
+      run: { createdAt: '2026-09-23T06:07:00Z' },
+    })
+    expect(r.verdict).toBe('unknown-upstream')
+    expect(r.detail).toContain('DISPLAY NAME')
+  })
+
+  it('GitHub reporting the alarm DISABLED is a finding whatever the pairing says', () => {
+    const r = assessWatcher({
+      ...base,
+      state: 'disabled_inactivity',
+      upstreamRuns: deployed('2026-09-23T06:05:22Z'),
+      run: { createdAt: '2026-09-23T06:07:00Z' },
+    })
+    expect(r.verdict).toBe('disabled')
+  })
+
+  it('an alarm merged AFTER the deploy it would be graded against is not yet due', () => {
+    const r = assessWatcher({
+      ...base,
+      addedAt: '2026-09-23T07:00:00Z',
+      upstreamRuns: deployed('2026-09-23T06:05:22Z'),
+      run: null,
+    })
+    expect(r.verdict).toBe('not-yet-due')
+    expect(r.detail).toContain('DEFAULT branch')
+  })
+
+  it('both kinds are graded in one pass, and only the real findings count', () => {
+    const graded = assess({
+      declared: [{ file: 'nightly.yml', crons: ['37 6 * * *'] }],
+      runs: { 'nightly.yml': { createdAt: '2026-09-23T11:59:48Z', conclusion: 'success' } },
+      states: { 'nightly.yml': 'active', 'deploy-alarm.yml': 'active' },
+      watchers: [{ file: 'deploy-alarm.yml', upstream: ['Deploy to AWS App Runner'] }],
+      watcherRuns: { 'deploy-alarm.yml': { createdAt: '2026-09-22T10:00:00Z' } },
+      upstreamRuns: deployed('2026-09-23T06:05:22Z'),
+      byName,
+      added: { 'deploy-alarm.yml': '2026-09-01T00:00:00Z' },
+      now,
+    })
+    expect(graded.results).toHaveLength(2)
+    expect(graded.findings.map((f: { file: string }) => f.file)).toEqual(['deploy-alarm.yml'])
+    const out = renderSummary(graded)
+    expect(out).toContain("and **1 alarm** triggered by another workflow's completion")
+    expect(out).toContain('**unpaired**')
+  })
+})
+
+describe('schedule heartbeat — the workflow gathers what the watcher half needs', () => {
+  const watcherWfCode = () =>
+    readFileSync(join(process.cwd(), '.github/workflows/schedule-heartbeat.yml'), 'utf8')
+      .split('\n')
+      .filter((l) => !/^\s*#/.test(l))
+      .join('\n')
+
+  it('counts only `workflow_run`-triggered runs when asking whether an alarm fired', () => {
+    // The same reason `--event schedule` is load-bearing above: a
+    // `workflow_dispatch` run proves somebody pressed the button, which is the
+    // one signal that must never count as the wire being live.
+    expect(watcherWfCode()).toContain('--event workflow_run')
+  })
+
+  it('tells the script where both new lookups landed, on the same one line', () => {
+    const line = watcherWfCode()
+      .split('\n')
+      .find((l) => l.includes('scripts/schedule-heartbeat.mjs'))
+    expect(line).toBeTruthy()
+    expect(line).toContain('--watcher-runs watcher-runs.json')
+    expect(line).toContain('--recent-runs recent-runs.json')
   })
 })

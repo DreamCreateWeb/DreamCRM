@@ -6,7 +6,15 @@
 // leaves the `\r` behind when it strips `#!…` and every test importing this
 // module dies with a parse error at column 1.
 /**
- * IS EVERY SCHEDULED WORKFLOW STILL FIRING?
+ * IS EVERY ALARM IN THIS REPOSITORY STILL FIRING?
+ *
+ * WIDENED 2026-09-23 (DREAMCRM-115). This file was "is every SCHEDULED
+ * workflow still firing" because a cron was the only way an alarm ran here.
+ * `deploy-alarm.yml` is the first that runs on another workflow's completion,
+ * and it inherits the exact property below, so it is watched by the same job —
+ * with a different QUESTION, because an alarm with no cadence cannot be late.
+ * See "THE OTHER KIND OF ALARM" further down for the pairing rule; the rest of
+ * this docblock is about the schedules and is unchanged.
  *
  * This repo has six scheduled workflows and, until now, **nothing checked that
  * any of them ran**. Every one of them is an alarm — the production error scan,
@@ -96,9 +104,16 @@
  *     failure anywhere, so delivery is GitHub's default failed-run notification
  *     plus the Actions tab. If this starts getting ignored, give it a real
  *     addressee; do not delete it.
+ *   * **A `workflow_run` alarm whose upstream has been quiet.** Graded
+ *     `no-upstream-activity` and NOT a finding: there is genuinely nothing to
+ *     pair against, and reporting a quiet week of merges as a dead alarm is
+ *     how a check gets muted. The cost is real and stated — such an alarm can
+ *     be disconnected for as long as nobody merges, which in this repository
+ *     is hours rather than days.
  *
  * Usage:
  *   node scripts/schedule-heartbeat.mjs --runs runs.json --workflows workflows.json
+ *     [--added added.json] [--watcher-runs watcher-runs.json] [--recent-runs recent-runs.json]
  */
 import { readdirSync, readFileSync, appendFileSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
@@ -290,6 +305,242 @@ export function cronsIn(text) {
   return crons
 }
 
+/* ------------------------------------------------ the OTHER kind of alarm -- */
+
+/**
+ * THE SECOND SUBJECT, ADDED DREAMCRM-115.
+ *
+ * This file started as "is every SCHEDULED workflow still firing", and that
+ * was the whole set of alarms the repository had. `deploy-alarm.yml` is the
+ * first that runs on another workflow's completion instead of on a clock, and
+ * it inherits the property this file exists for exactly: an alarm that has
+ * stopped firing is indistinguishable from one reporting that everything is
+ * fine. Both are silence.
+ *
+ * IT NEEDED A DIFFERENT QUESTION, not a bigger window. A `workflow_run` alarm
+ * has no cadence to be late against — it is precisely as punctual as the
+ * workflow it watches, and `deploy.yml` fires when somebody merges. Asking
+ * "has it run in the last N hours" would report a quiet Sunday as a dead
+ * alarm. The honest question is PAIRING: for the newest settled run of the
+ * workflow it watches, is there a run of the alarm at or after it?
+ *
+ * That catches every way this can break — the file deleted, GitHub disabling
+ * it, and the sharp one: `workflow_run.workflows:` matches the upstream's
+ * DISPLAY NAME, so editing the first line of `deploy.yml` disconnects the
+ * alarm with no error anywhere. `unknown-upstream` below is that case, and it
+ * is graded from the tree rather than from a list kept here.
+ */
+
+/**
+ * How long after an upstream run settles before a missing alarm run is a
+ * finding, in minutes.
+ *
+ * TWO HOURS. `workflow_run` dispatch is usually seconds, but it rides the same
+ * best-effort queue as everything else here and this file's whole argument is
+ * that GitHub's queue must never be graded as a defect — the daily crons were
+ * measured five and a half hours late on an ordinary day. Two hours is far
+ * more headroom than any observed `workflow_run` delay and still means a
+ * disconnected alarm is reported by the next morning's heartbeat, which is the
+ * cadence this check has anyway.
+ */
+export const PAIRING_GRACE_MINUTES = 120
+
+/**
+ * Every workflow that runs on another workflow's completion, and which
+ * upstream NAMES it watches.
+ *
+ * Same scanner shape as `cronsIn` and for the same reason: this repo has no
+ * YAML dependency, and adding one to a guard would put a parser between the
+ * check and the bytes GitHub actually reads.
+ */
+export function watchersIn(text) {
+  const lines = String(text ?? '').split('\n')
+  const names = []
+  let depth = null
+  let inList = false
+  for (const raw of lines) {
+    const line = raw.replace(/\r$/, '')
+    if (/^\s*#/.test(line) || !line.trim()) continue
+    const indent = line.length - line.trimStart().length
+
+    if (depth != null && indent <= depth) {
+      depth = null
+      inList = false
+    }
+    if (/^\s*workflow_run:\s*$/.test(line)) {
+      depth = indent
+      continue
+    }
+    if (depth == null) continue
+
+    // Flow style: `workflows: ['A', "B"]` — one line, which is how
+    // `deploy-alarm.yml` writes it.
+    const flow = /^\s*workflows:\s*\[(.*)\]\s*$/.exec(line)
+    if (flow) {
+      for (const part of flow[1].split(',')) {
+        const v = part.trim().replace(/^['"]|['"]$/g, '')
+        if (v) names.push(v)
+      }
+      continue
+    }
+    // Block style: `workflows:` then `- A` on following lines.
+    if (/^\s*workflows:\s*$/.test(line)) {
+      inList = true
+      continue
+    }
+    if (inList) {
+      const item = /^\s*-\s*(.+?)\s*$/.exec(line)
+      if (item) {
+        names.push(item[1].replace(/^['"]|['"]$/g, ''))
+        continue
+      }
+      inList = false
+    }
+  }
+  return names
+}
+
+/** The top-level `name:` of a workflow file — what `workflow_run` matches on. */
+export function workflowName(text) {
+  for (const raw of String(text ?? '').split('\n')) {
+    const line = raw.replace(/\r$/, '')
+    if (/^\s*#/.test(line) || !line.trim()) continue
+    const m = /^name:\s*(.+?)\s*$/.exec(line)
+    if (m) return m[1].replace(/^['"]|['"]$/g, '')
+    // Only the first top-level key can be `name:`; anything else at column 0
+    // means this file does not declare one.
+    if (/^\S/.test(line)) return null
+  }
+  return null
+}
+
+/**
+ * Read the tree once: which files watch which upstream NAMES, and which file
+ * answers to each name.
+ */
+export function declaredWatchers(dir = join(process.cwd(), WORKFLOW_DIR)) {
+  const watchers = []
+  const byName = {}
+  for (const name of readdirSync(dir).sort()) {
+    if (!/\.ya?ml$/.test(name)) continue
+    const text = readFileSync(join(dir, name), 'utf8')
+    const declared = workflowName(text)
+    if (declared) byName[declared] = name
+    const upstream = watchersIn(text)
+    if (upstream.length) watchers.push({ file: name, upstream })
+  }
+  return { watchers, byName }
+}
+
+/**
+ * Grade one `workflow_run` alarm.
+ *
+ * `run` is its newest `workflow_run`-triggered run (or null). `upstreamRuns`
+ * maps upstream FILE name to that workflow's recent runs, newest first.
+ * `byName` maps an upstream display name to the file that declares it.
+ */
+export function assessWatcher({ file, upstream, run, upstreamRuns = {}, byName = {}, state, addedAt, now }) {
+  const unknown = upstream.filter((n) => !(n in byName))
+  if (unknown.length) {
+    return {
+      file,
+      kind: 'watcher',
+      verdict: 'unknown-upstream',
+      detail:
+        `it watches ${unknown.map((n) => `\`${n}\``).join(', ')}, and no workflow file in ` +
+        '`.github/workflows/` declares that `name:`. `workflow_run` matches the upstream\'s DISPLAY ' +
+        'NAME rather than its filename, so this alarm currently fires for nothing — and a trigger ' +
+        'that matches nothing is not an error anywhere, it is a workflow that never runs.',
+    }
+  }
+
+  if (state && state !== 'active') {
+    return {
+      file,
+      kind: 'watcher',
+      verdict: 'disabled',
+      detail:
+        `GitHub reports this workflow as \`${state}\`, so it is not firing at all. ` +
+        (state === 'disabled_inactivity'
+          ? 'That is the 60-day-quiet-repository case `nightly.yml` warns about — re-enable it from ' +
+            'the Actions tab.'
+          : 'Someone disabled it by hand. Re-enable it, or delete the workflow so this check stops ' +
+            'expecting it.'),
+    }
+  }
+
+  // The newest upstream run that has SETTLED and has had the grace period to
+  // dispatch this alarm. `status === 'completed'` is load-bearing: a run still
+  // rolling out has not triggered anything yet, and grading against it would
+  // report every alarm as missing during every deploy.
+  const cutoff = now - PAIRING_GRACE_MINUTES * 60_000
+  let newest = null
+  for (const name of upstream) {
+    for (const r of upstreamRuns[byName[name]] ?? []) {
+      if (!r || r.status !== 'completed') continue
+      const at = Date.parse(r.createdAt ?? '')
+      if (!Number.isFinite(at) || at > cutoff) continue
+      if (!newest || at > newest.at) newest = { at, run: r, upstream: name }
+    }
+  }
+
+  if (!newest) {
+    return {
+      file,
+      kind: 'watcher',
+      verdict: 'no-upstream-activity',
+      detail:
+        `${upstream.map((n) => `\`${n}\``).join(', ')} has no settled run older than the ` +
+        `${PAIRING_GRACE_MINUTES}-minute grace period, so there is nothing to pair against. A quiet ` +
+        'week of merges is not a dead alarm, and reporting it as one is how a check gets muted.',
+    }
+  }
+
+  const lastAt = run?.createdAt ? Date.parse(run.createdAt) : NaN
+  const paired = Number.isFinite(lastAt) && lastAt >= newest.at
+
+  if (paired) {
+    return {
+      file,
+      kind: 'watcher',
+      verdict: 'ok',
+      ageMinutes: Math.round((now - lastAt) / 60_000),
+      lastAt,
+      conclusion: run?.conclusion ?? null,
+      upstream: newest.upstream,
+    }
+  }
+
+  const added = addedAt ? Date.parse(addedAt) : NaN
+  if (Number.isFinite(added) && added > newest.at) {
+    return {
+      file,
+      kind: 'watcher',
+      verdict: 'not-yet-due',
+      ageMinutes: null,
+      detail:
+        'this workflow file is newer than the upstream run being paired against, so it could not ' +
+        'have run for it. Not a finding until the next one. Note that GitHub only dispatches ' +
+        '`workflow_run` from the DEFAULT branch — an alarm that has only ever existed on a feature ' +
+        'branch has never been registered.',
+    }
+  }
+
+  return {
+    file,
+    kind: 'watcher',
+    verdict: 'unpaired',
+    ageMinutes: Number.isFinite(lastAt) ? Math.round((now - lastAt) / 60_000) : null,
+    detail:
+      `\`${newest.upstream}\` run ${newest.run.databaseId} settled at ${newest.run.createdAt} and ` +
+      'this alarm has no `workflow_run` run at or after it' +
+      (Number.isFinite(lastAt) ? `; its newest is ${run.createdAt}` : ' — it has never fired at all') +
+      `. That is past the ${PAIRING_GRACE_MINUTES}-minute grace period, so it is not the queue. ` +
+      'The alarm is disconnected: check it still exists on the default branch, that GitHub has not ' +
+      'disabled it, and that its `workflows:` list still matches the upstream\'s `name:`.',
+  }
+}
+
 /* --------------------------------------------------------------- verdict -- */
 
 /**
@@ -387,10 +638,39 @@ export function assessWorkflow({ file, crons, run, state, addedAt, now }) {
   return { file, verdict: 'ok', interval, window, ageMinutes, lastAt, conclusion: run?.conclusion ?? null }
 }
 
-/** Grade every declared schedule. Findings are everything that is not `ok` or `not-yet-due`. */
-export function assess({ declared, runs = {}, states = {}, added = {}, now = Date.now() }) {
-  const results = declared.map((d) =>
-    assessWorkflow({
+/**
+ * Grade every alarm in the tree — both kinds.
+ *
+ * Findings are everything that is not `ok`, `not-yet-due` or
+ * `no-upstream-activity`. The third is a watcher with nothing to pair against
+ * yet, which is a quiet week rather than a dead alarm.
+ *
+ * @param {{
+ *   declared: { file: string, crons: string[] }[],
+ *   runs?: Record<string, any>,
+ *   states?: Record<string, string>,
+ *   added?: Record<string, string>,
+ *   watchers?: { file: string, upstream: string[] }[],
+ *   watcherRuns?: Record<string, any>,
+ *   upstreamRuns?: Record<string, any[]>,
+ *   byName?: Record<string, string>,
+ *   now?: number,
+ * }} input
+ */
+export function assess({
+  declared,
+  runs = {},
+  states = {},
+  added = {},
+  watchers = [],
+  watcherRuns = {},
+  upstreamRuns = {},
+  byName = {},
+  now = Date.now(),
+}) {
+  const scheduled = declared.map((d) => ({
+    kind: 'schedule',
+    ...assessWorkflow({
       file: d.file,
       crons: d.crons,
       run: runs[d.file] ?? null,
@@ -398,8 +678,22 @@ export function assess({ declared, runs = {}, states = {}, added = {}, now = Dat
       addedAt: added[d.file] ?? null,
       now,
     }),
+  }))
+  const watched = watchers.map((w) =>
+    assessWatcher({
+      file: w.file,
+      upstream: w.upstream,
+      run: watcherRuns[w.file] ?? null,
+      upstreamRuns,
+      byName,
+      state: states[w.file] ?? null,
+      addedAt: added[w.file] ?? null,
+      now,
+    }),
   )
-  const findings = results.filter((r) => r.verdict !== 'ok' && r.verdict !== 'not-yet-due')
+  const results = [...scheduled, ...watched]
+  const clean = new Set(['ok', 'not-yet-due', 'no-upstream-activity'])
+  const findings = results.filter((r) => !clean.has(r.verdict))
   return { results, findings }
 }
 
@@ -421,9 +715,17 @@ const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`
 export function renderSummary({ results, findings }, { lookupFailures = [] } = {}) {
   const lines = ['### Scheduled-workflow heartbeat', '']
 
+  const scheduled = results.filter((r) => r.kind !== 'watcher')
+  const watched = results.filter((r) => r.kind === 'watcher')
+
   lines.push(
-    `Asked GitHub about **${plural(results.length, 'scheduled workflow', 'scheduled workflows')}**, ` +
-      'derived from the `cron:` entries in `.github/workflows/` rather than from a list kept here.',
+    `Asked GitHub about **${plural(scheduled.length, 'scheduled workflow', 'scheduled workflows')}**` +
+      (watched.length
+        ? ` and **${plural(watched.length, 'alarm', 'alarms')}** triggered by another workflow's ` +
+          'completion'
+        : '') +
+      ', derived from the `cron:` and `workflow_run:` entries in `.github/workflows/` rather than ' +
+      'from a list kept here.',
     '',
   )
 
@@ -431,9 +733,9 @@ export function renderSummary({ results, findings }, { lookupFailures = [] } = {
     lines.push(
       '#### This run graded nothing',
       '',
-      'No workflow file in `.github/workflows/` declares a `schedule:`. Either every scheduled ' +
-        'job was deleted, or the scanner in `scripts/schedule-heartbeat.mjs` stopped matching the ' +
-        'file format. A heartbeat that looked at nothing is not a clean heartbeat.',
+      'No workflow file in `.github/workflows/` declares a `schedule:` or a `workflow_run:`. Either ' +
+        'every alarm was deleted, or the scanners in `scripts/schedule-heartbeat.mjs` stopped ' +
+        'matching the file format. A heartbeat that looked at nothing is not a clean heartbeat.',
       '',
     )
     return lines.join('\n')
@@ -452,7 +754,7 @@ export function renderSummary({ results, findings }, { lookupFailures = [] } = {
   }
 
   if (findings.length) {
-    lines.push(`#### ${plural(findings.length, 'schedule has', 'schedules have')} stopped firing`, '')
+    lines.push(`#### ${plural(findings.length, 'alarm has', 'alarms have')} stopped firing`, '')
     for (const f of findings) {
       lines.push(`- **\`${f.file}\`** — ${f.verdict}`, `  - ${f.detail}`)
     }
@@ -466,10 +768,10 @@ export function renderSummary({ results, findings }, { lookupFailures = [] } = {
   }
 
   lines.push('#### What fired, and how late', '')
-  lines.push('| workflow | cadence | window | last `schedule` run | |', '|---|---|---|---|---|')
+  lines.push('| workflow | cadence | window | last run | |', '|---|---|---|---|---|')
   for (const r of results) {
-    const cadence = r.interval ? `${r.interval}m` : '—'
-    const win = r.window ? `${r.window}m` : '—'
+    const cadence = r.kind === 'watcher' ? 'on upstream' : r.interval ? `${r.interval}m` : '—'
+    const win = r.kind === 'watcher' ? `${PAIRING_GRACE_MINUTES}m grace` : r.window ? `${r.window}m` : '—'
     const age = r.ageMinutes == null ? 'never' : `${r.ageMinutes}m ago`
     const mark = r.verdict === 'ok' ? 'ok' : r.verdict === 'not-yet-due' ? 'new' : `**${r.verdict}**`
     lines.push(`| \`${r.file}\` | ${cadence} | ${win} | ${age} | ${mark} |`)
@@ -484,6 +786,15 @@ export function renderSummary({ results, findings }, { lookupFailures = [] } = {
         'ordinary day and a tighter window would report the queue as a defect._',
       '',
     )
+    if (watched.length) {
+      lines.push(
+        '_And every `workflow_run` alarm has a run at or after the newest settled run of the ' +
+          'workflow it watches. That one is PAIRING rather than age: such an alarm is exactly as ' +
+          'punctual as its upstream, so a quiet week of merges is not a dead alarm and must never ' +
+          'be graded as one._',
+        '',
+      )
+    }
   }
 
   return lines.join('\n')
@@ -507,24 +818,57 @@ function readJson(path) {
 
 function main() {
   const declared = declaredSchedules()
+  const { watchers, byName } = declaredWatchers()
 
   const runsFile = readJson(argValue('--runs'))
   const wfFile = readJson(argValue('--workflows'))
   const addedFile = readJson(argValue('--added'))
+  // OPTIONAL, and that is a decision rather than an oversight. These two
+  // arrive with DREAMCRM-115 and a workflow file is deployed a moment before
+  // or after the script it calls; a missing file with NO watchers in the tree
+  // is nothing to report, while a missing file WITH watchers is a lookup
+  // failure named below. The distinction is made against the tree, not against
+  // the argv.
+  const watcherRunsFile = readJson(argValue('--watcher-runs'))
+  const recentRunsFile = readJson(argValue('--recent-runs'))
 
   const lookupFailures = []
   if (runsFile.why) lookupFailures.push(`the run lookup produced nothing usable — ${runsFile.why}`)
   if (wfFile.why) lookupFailures.push(`the workflow-state lookup produced nothing usable — ${wfFile.why}`)
+  if (watchers.length && watcherRunsFile.why) {
+    lookupFailures.push(
+      `${watchers.length} workflow(s) run on another workflow's completion and the \`workflow_run\` ` +
+        `run lookup produced nothing usable — ${watcherRunsFile.why}`,
+    )
+  }
+  if (watchers.length && recentRunsFile.why) {
+    lookupFailures.push(
+      `${watchers.length} workflow(s) run on another workflow's completion and the upstream run ` +
+        `lookup produced nothing usable — ${recentRunsFile.why}, so there is nothing to pair against`,
+    )
+  }
 
   const runs = runsFile.value ?? {}
   const added = addedFile.value ?? {}
+  const watcherRuns = watcherRunsFile.value ?? {}
+  const upstreamRuns = recentRunsFile.value ?? {}
   const states = {}
   for (const wf of Array.isArray(wfFile.value) ? wfFile.value : []) {
     const file = String(wf?.path ?? '').split('/').pop()
     if (file) states[file] = wf.state
   }
 
-  const graded = assess({ declared, runs, states, added, now: Date.now() })
+  const graded = assess({
+    declared,
+    runs,
+    states,
+    added,
+    watchers,
+    watcherRuns,
+    upstreamRuns,
+    byName,
+    now: Date.now(),
+  })
   const summary = renderSummary(graded, { lookupFailures })
 
   console.log(summary)

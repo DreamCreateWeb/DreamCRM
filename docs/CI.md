@@ -1,9 +1,9 @@
 # CI — what gates what
 
-Thirteen workflows, and three of them can stop something: `ci.yml` holds a
+Fourteen workflows, and three of them can stop something: `ci.yml` holds a
 merge, `deploy.yml` holds a deploy, and `migration-check.yml` can fail a deploy
-run without publishing a check of its own. The other ten are alarms, advisories
-and instruments.
+run without publishing a check of its own. The other eleven are alarms,
+advisories and instruments.
 
 (It said "ten" and listed ten until 2026-09-22. `schedule-heartbeat.yml` shipped
 on DREAMCRM-99 and never reached this table — which is the drift this file's own
@@ -31,6 +31,7 @@ loads, including the one real clinic site — is `docs/OPS.md`.
 | `.github/workflows/schedule-heartbeat.yml` | `schedule` 07:07 UTC + dispatch | `schedule-heartbeat` | that every OTHER scheduled workflow is still firing | no — never runs on a PR |
 | `.github/workflows/e2e-flake-hunt.yml` | `workflow_dispatch` only | `e2e-flake-hunt` | nothing — it is an instrument, not an alarm: one spec N times, reporting a rate | no — no PR, push or schedule trigger at all |
 | `.github/workflows/e2e-flaky-digest.yml` | `schedule` Monday 09:23 UTC + dispatch | `e2e-flaky-digest` | noticing a spec that flaked in more than one run this week | no — never runs on a PR |
+| `.github/workflows/deploy-alarm.yml` | `workflow_run` on `deploy.yml`, `types: [completed]` | `deploy-alarm` | that a red production deploy reaches somebody | no — runs entirely after the deploy, cannot hold a merge |
 
 ## A green deploy must mean the new version is SERVING
 
@@ -355,6 +356,73 @@ should not be able to hold up a deploy that already passed the check on the PR.
 Postgres from the runner image's binaries, applies every migration from zero — a
 deploy-path rehearsal — then builds, serves, and runs Playwright). See
 `docs/E2E.md`.
+
+## A red deploy has to reach somebody (added 2026-09-23, DREAMCRM-115)
+
+`main` auto-deploys to production, so `deploy.yml` failing is the loudest thing
+that can happen here — and until 2026-09-23 it was also one of the quietest.
+**A red `deploy.yml` went unnoticed for 21 minutes that morning and production
+shipped nothing for 77.** Three consecutive runs failed on `test` between
+03:40Z and 04:03Z (`35815260160`, `35815939172`, `35816757446`) and the only
+surfaces carrying that fact were the Actions tab and GitHub's default
+failed-run email to one account.
+
+The gap was structural rather than bad luck, and all three halves are worth
+knowing because each one looks like coverage until you check:
+
+- **Nothing in `.github/workflows/**` used a `workflow_run` trigger.**
+  `deploy-alarm.yml` is the first. A failed push-triggered workflow had nowhere
+  to route to because nothing was listening for one.
+- **`schedule-heartbeat.yml` cannot see `deploy.yml` by construction.** It
+  derives its list from `cron:` entries and grades the AGE of each schedule's
+  newest run. A deploy fires when somebody merges; there is no window to be
+  late against. Not a hole in that check — outside its subject.
+- **A red deploy is not a red PR.** The merge that caused it is already on
+  `main` and still green on its own PR page. Nothing on the board moves.
+
+**What it does.** `deploy-alarm.yml` runs on every `deploy.yml` completion,
+goes red when the deploy did, and POSTs to a Multica autopilot webhook
+(`DEPLOY_ALARM_WAKE_URL`) that opens an issue assigned to Quinn. Same two
+artefacts as the intake wake on `review-sweep.yml`: GitHub cannot dispatch
+anybody, so the RECORD is the red run and the WAKE is the POST.
+
+Three things in `scripts/deploy-alarm.mjs` are worth reading before changing it:
+
+- **`cancelled` is not a deploy failure, and that is mechanical.**
+  `deploy.yml`'s `deploy` job carries
+  `concurrency: { group: deploy-main, cancel-in-progress: false }`. That flag
+  protects the RUNNING rollout; GitHub still keeps one PENDING run per group
+  and cancels the rest. Three merges inside one rollout produce a cancellation
+  as routine behaviour, on the busiest hour of the day — the hour this alarm
+  most needs to be believed. `failure`, `timed_out` and `startup_failure` are
+  red, and **any conclusion the script does not recognise is red too**.
+- **The wake fires on the EDGE of a red streak.** A broken `main` produces one
+  red deploy per merge; 2026-09-23 was three in 23 minutes over one defect, and
+  three issues would have been two pieces of noise. Every run still goes red —
+  the colour is free, the agent run is not.
+- **But a failed history lookup wakes anyway**, which is the OPPOSITE default
+  from `review-sweep.yml`'s `undated` suppression. The costs are not the same
+  size: a duplicate issue costs one run and a sentence saying "already
+  handled"; a missed one costs the thing the alarm exists for. There, the
+  expensive mistake is the dispatch; here it is the silence.
+
+**What notices if this alarm stops** — §2a's standing convention, obligation 3.
+`schedule-heartbeat.yml` was widened for it and now watches two kinds of alarm:
+those with a `cron:`, and those triggered by another workflow's completion. The
+question for the second kind is not age — such an alarm is exactly as punctual
+as its upstream — it is **pairing**: is there a run of the alarm at or after the
+newest settled run of the workflow it watches? A quiet week of merges grades
+`no-upstream-activity` and is not a finding, which is the same "never report
+GitHub's queue as a defect" rule that sizes the schedule window.
+
+**The sharpest edge, stated because it is invisible at review time.**
+`workflow_run.workflows:` matches the upstream's **display name**, not its
+filename. Editing the first line of `deploy.yml` disconnects this alarm and
+GitHub reports nothing at all — a trigger that matches nothing is not an error,
+it is a workflow that never runs. Two things hold it: the heartbeat's
+`unknown-upstream` verdict catches it the next morning, and
+`tests/guards/deploy-alarm.test.ts` reads both files off disk and fails `test`
+on the rename in the diff that causes it.
 
 ## The two suite alarms
 
