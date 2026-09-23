@@ -69,6 +69,22 @@ memory.
   `tests/billing/no-billing-profiles-write.test.ts` — a READ arriving is
   the risk, not the write returning, because it would give those stale rows
   a meaning they never had. The `billing_plan` pgEnum goes with the table.
+- **Re-drive a notification email nobody ever retried** — the sweep
+  `notifications.email_sent_at is null` now makes possible. Recorded
+  2026-09-23 with DREAMCRM-106, which added the column and the replay
+  branch that reads it, and recorded HERE rather than in the ledger because
+  the defect it belonged to is closed: a retry now sends the email that
+  failed. The remaining gap is that SOMETHING HAS TO RETRY. In
+  `app/api/webhooks/stripe/route.ts` `notifyOrgMembers` is the last
+  statement of each of the three branches that use it and `notify()`
+  swallows its own email failure, so the ordinary shape — the provider
+  times out, everything else in the handler succeeded — returns 200, Stripe
+  does not retry, and that email is still gone. The replay path is reached
+  when the idempotency claim fails open, or when the process dies before
+  the claim is released. A periodic sweep over rows with a NULL stamp and a
+  bell row older than N minutes would close the rest; it is new machinery (a
+  writer, a window, a retry budget) rather than a correction, so the freeze
+  puts it here. Raised by Sentinel reviewing #683.
 - Facebook review reply (no Zernio endpoint), per-staff booking widgets,
   patient-view audit log, 2FA, per-location booking (CLAUDE.md item 8).
 - Dentistry-type site templates expansion (CLAUDE.md item 0b — design
