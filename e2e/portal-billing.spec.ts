@@ -108,6 +108,56 @@ const WATCHED_SELECTORS = [
   '#portal-main h1',
 ]
 
+/**
+ * THE PAGE THE PATIENT IS ON — and the answer to the duplicate flake.
+ *
+ * ════════════════════ WHAT THE SECOND COPY ACTUALLY IS ════════════════════
+ *
+ * Hunt run `35813473042` recorded the ancestor chain of both matches, and it
+ * ends the question that two occurrences, two investigations and one
+ * confidently-wrong diagnosis could not:
+ *
+ *   input < div < … < section < div < main#portal-main    < div < body < html
+ *   input < div < … < section < div < div#S:0[hidden]     <       body < html
+ *
+ * `div#S:0[hidden]` is **React's own out-of-order streaming container**. When a
+ * Suspense boundary resolves after the shell has flushed, React writes the
+ * content into a `hidden` div at the end of `<body>` under an `S:n` id and an
+ * inline script moves it into the boundary. `app/(portal)/loading.tsx` is that
+ * boundary — its mere existence wraps the whole portal segment in Suspense.
+ *
+ * So for a window of ~400–520ms the markup genuinely exists twice: once in
+ * place, once in the transport buffer React has not swept yet. Measured at 2.0%
+ * and 4.5% of page loads across two hunts of 200 repetitions each.
+ *
+ * ═══════════════════════ WHY THAT IS NOT A DEFECT ═════════════════════════
+ *
+ * The issue that commissioned this work said "two payment forms on a patient's
+ * billing page does not go into 1.0 unexplained", and the explanation is that
+ * **there are not two payment forms on the page**. There is one, in
+ * `main#portal-main`, and one copy inside a `hidden` container that is
+ * `display: none`, unreachable, and gone milliseconds later. No patient can see
+ * it, focus it, or type into it. No money surface is doubled.
+ *
+ * ══════════════ WHY SCOPING IS NOT `.first()` IN A BETTER HAT ═════════════
+ *
+ * This is the distinction the whole investigation turned on, so it is worth
+ * being exact. `.first()` says *"take whichever one you find"* — it would
+ * accept two live payment forms inside the page and report green. Scoping to
+ * `#portal-main` says *"there is exactly one payment form in the page's main
+ * content"*, which is a STRONGER claim than the one this spec used to make and
+ * the one a patient actually cares about. Two real forms both render here, and
+ * two forms here still fail.
+ *
+ * What it removes from the field of view is React's transport buffer — which
+ * was never part of the page, and whose presence the strict page-wide locator
+ * was reporting as a product fact.
+ *
+ * The watcher stays installed on the whole document. If a second form ever
+ * appears INSIDE `#portal-main`, the failure still arrives with its chain.
+ */
+const portalMain = (page: import('@playwright/test').Page) => page.locator('#portal-main')
+
 async function signedInPatient(browser: import('@playwright/test').Browser) {
   const context = await browser.newContext({ baseURL: BASE })
   await context.addCookies([
@@ -149,7 +199,7 @@ test.describe('paying a balance from the portal', () => {
     await page.getByRole('link', { name: /\$185\.00 balance/ }).click()
     await expect(page).toHaveURL(/\/patient\/invoices/)
 
-    await expectSole(page, page.getByText('Your balance'), 10_000)
+    await expectSole(page, portalMain(page).getByText('Your balance'), 10_000)
     await expect(page.locator('#portal-main')).toContainText(BALANCE)
 
     // The pay form only renders when the portal's payments feature is on AND
@@ -160,7 +210,7 @@ test.describe('paying a balance from the portal', () => {
     // and `#portal-main` content before locating the input, which is the lead
     // test 3's note is built on. Watched anyway: if the duplicate ever shows
     // up HERE, the settle is not the discriminator and that is worth knowing.
-    const amount = await expectSole(page, page.getByLabel('Payment amount in dollars'))
+    const amount = await expectSole(page, portalMain(page).getByLabel('Payment amount in dollars'))
     await expect(amount).toHaveValue('185.00')
     await expect(page.getByRole('button', { name: 'Pay online' })).toBeEnabled()
 
@@ -176,7 +226,7 @@ test.describe('paying a balance from the portal', () => {
     // and test 3 are the two that go `goto` -> straight to a strict locator,
     // with no settle in between. `expectSole` keeps the locator STRICT — two
     // forms still fail — and attaches what the watcher recorded.
-    const amount = await expectSole(page, page.getByLabel('Payment amount in dollars'))
+    const amount = await expectSole(page, portalMain(page).getByLabel('Payment amount in dollars'))
 
     // Over the balance. The server refuses this too, but the client refusal is
     // the one a patient meets, and it must be a sentence rather than a silent
@@ -397,7 +447,7 @@ test.describe('paying a balance from the portal', () => {
     // A red run there is the good outcome. Read the recording in the failure
     // message before choosing a locator — the last hypothesis was confidently
     // written and wrong, which is why this comment is long.
-    const amount = await expectSole(page, page.getByLabel('Payment amount in dollars'))
+    const amount = await expectSole(page, portalMain(page).getByLabel('Payment amount in dollars'))
     await amount.fill('50.00')
     await page.getByRole('button', { name: 'Pay online' }).click()
 
@@ -446,7 +496,7 @@ test.describe('paying a balance from the portal', () => {
     // Still the billing page, still signed in — not an error shell and not a
     // bounce to sign-in, which is what a return URL that loses its session
     // looks like to a patient who has just paid.
-    await expectSole(page, page.getByText('Your balance'), 10_000)
+    await expectSole(page, portalMain(page).getByText('Your balance'), 10_000)
 
     await expectNoA11yViolations(page, 'portal: billing, back from a completed checkout')
     await context.close()
