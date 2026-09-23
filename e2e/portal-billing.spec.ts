@@ -93,8 +93,20 @@ function signedSessionCookie(): string {
   return encodeURIComponent(`${SESSION_TOKEN}.${sig}`)
 }
 
-/** The one element the duplicate flake resolves to two of. */
-const AMOUNT_SELECTOR = 'input[aria-label="Payment amount in dollars"]'
+/**
+ * The elements the duplicate-render flake resolves to two of.
+ *
+ * It was one — the amount input — until the first hunt ran it to ground (run
+ * `35811927552`, 9 failures in 200 repetitions). Three of those nine were
+ * `getByText('Your balance')` resolving to two elements, which is a heading
+ * three sections up the page. So whatever doubles is not the payment form; it
+ * is the billing page's BODY, and a watcher pointed at one input could only
+ * ever have reported a third of it.
+ */
+const WATCHED_SELECTORS = [
+  'input[aria-label="Payment amount in dollars"]',
+  '#portal-main h1',
+]
 
 async function signedInPatient(browser: import('@playwright/test').Browser) {
   const context = await browser.newContext({ baseURL: BASE })
@@ -105,7 +117,7 @@ async function signedInPatient(browser: import('@playwright/test').Browser) {
   // investigated is the first one (DREAMCRM-105). See `./duplicate-watch`: the
   // duplicate lives for ~500ms and a post-hoc `page.evaluate` reads a page that
   // has already healed, which is how two occurrences produced two dead ends.
-  await watchForDuplicates(context, AMOUNT_SELECTOR)
+  await watchForDuplicates(context, WATCHED_SELECTORS)
   return { context, page: await context.newPage() }
 }
 
@@ -137,7 +149,7 @@ test.describe('paying a balance from the portal', () => {
     await page.getByRole('link', { name: /\$185\.00 balance/ }).click()
     await expect(page).toHaveURL(/\/patient\/invoices/)
 
-    await expect(page.getByText('Your balance')).toBeVisible()
+    await expectSole(page, page.getByText('Your balance'), 10_000)
     await expect(page.locator('#portal-main')).toContainText(BALANCE)
 
     // The pay form only renders when the portal's payments feature is on AND
@@ -296,6 +308,51 @@ test.describe('paying a balance from the portal', () => {
     // whole reason this comment is long is that the last hypothesis was
     // confidently written and wrong.
     //
+    // ══════ REPRODUCED, WITH A RATE — hunt run 35811927552, 2026-09-23 ══════
+    //
+    // `gh workflow run e2e-flake-hunt.yml -f spec=e2e/portal-billing.spec.ts
+    // -f repeat=50` — 200 repetitions at `--retries=0`:
+    //
+    //   9 of 200 failed .................................... 4.5%
+    //     5x  getByLabel('Payment amount in dollars') → 2 elements
+    //     3x  getByText('Your balance')               → 2 elements
+    //     1x  a click on the dashboard's balance link that never navigated
+    //
+    // THREE THINGS THAT CHANGE, and each retires something written above.
+    //
+    // 1. IT IS NOT THE PAYMENT FORM. `Your balance` is a heading three
+    //    sections up the page and it duplicates too. Whatever doubles is the
+    //    billing page's BODY, so every sentence above that reasons about
+    //    `PayBalanceForm` being rendered in one place is answering the wrong
+    //    question. It was never about the form.
+    //
+    // 2. ALL FOUR TESTS FLAKE — 1/50, 3/50, 2/50, 3/50. The "test 1 settles
+    //    first and has never flaked" lead below is dead: test 1 failed too,
+    //    and its failure was the navigation, not the locator. The
+    //    settle-versus-no-settle theory explained a sample of two.
+    //
+    // 3. THERE IS EXACTLY ONE `#portal-main`. Playwright named the first match
+    //    `locator('#portal-main').getByText('Your balance')` and could only
+    //    reach the second as `.nth(1)` — so one copy is inside the main
+    //    landmark and the other is NOT, and the layout is not doubled. That is
+    //    the shape of React streaming a Suspense boundary's content into a
+    //    `<div hidden>` at the end of `<body>` before moving it into place,
+    //    and `app/(portal)/loading.tsx` is the boundary. It is not yet PROVEN:
+    //    see the next paragraph for why not.
+    //
+    // WHAT THE FIRST HUNT COULD NOT SAY, and it is this file's own fault: the
+    // duplicate watcher reported `max: 0` on every one of the nine failures.
+    // It observed `document.documentElement`, which is **null** at
+    // `addInitScript` time — the observer never attached, and the diagnostic
+    // built to end two dead ends produced a third. Fixed (it observes
+    // `document`, which always exists) and pinned by a regression test that
+    // removes the documentElement first. The next hunt gets the ancestor chain
+    // and turns point 3 from an inference into a reading.
+    //
+    // Everything below this line is the investigation as it stood BEFORE the
+    // hunt. Kept because the reasoning is the durable part and because two of
+    // its conclusions were wrong in instructive ways.
+    //
     // Still not reproduced end to end: that needs the Playwright harness and
     // its throwaway Postgres, and the blocker is specifically POSTGRES —
     // `initdb` is not on PATH, `/usr/lib/postgresql` does not exist and Docker
@@ -389,7 +446,7 @@ test.describe('paying a balance from the portal', () => {
     // Still the billing page, still signed in — not an error shell and not a
     // bounce to sign-in, which is what a return URL that loses its session
     // looks like to a patient who has just paid.
-    await expect(page.getByText('Your balance')).toBeVisible()
+    await expectSole(page, page.getByText('Your balance'), 10_000)
 
     await expectNoA11yViolations(page, 'portal: billing, back from a completed checkout')
     await context.close()
