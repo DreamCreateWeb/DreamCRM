@@ -2773,7 +2773,7 @@
   store ever drifts is to make publication mechanical rather than to add a
   sentence asking people to be careful.
 
-  **THE FORTY-NINTH: #<PR>, `tests/guards/rulebook-state.ts` +
+  **THE FORTY-NINTH: #685, `tests/guards/rulebook-state.ts` +
   `tests/guards/rulebook-state.test.ts`. A NEW CLASS, and the first guard in
   this repo whose subject is THIS DOCUMENT.** Six rules over `docs/rulebook/**`,
   all at zero, no exemption list:
@@ -2859,6 +2859,13 @@
   hole to patch here); a SHA outside a bold claim; and an entry that says
   MERGED, names a real on-`main` SHA, and describes the wrong rule — §2d's
   predicate-right-sentence-wrong family, which no scanner finds.
+
+  **STATE: on the PR — #685, routed before it merged. Forge owns the flip at
+  the next sweep, with the merge SHA and the UTC time.** Written down before
+  the merge on the DREAMCRM-60 precedent this list sets, and it is the first
+  entry whose own STATE line will be graded by the guard it describes: rule 5
+  reddens `test` the moment #685 lands on `main` and this line still says
+  anything but MERGED. The flip is no longer a promise somebody keeps.
 
 **Which repo-settings change goes where.** A setting that changes *which* checks
 are required or *who* may bypass them is branch protection: §3's review gate

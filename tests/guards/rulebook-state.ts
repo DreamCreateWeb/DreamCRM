@@ -51,10 +51,19 @@
  *
  *   - **paragraph** — the maximal run of non-blank lines around the `STATE:`.
  *   - **clause** — from `STATE:` to the end of that paragraph.
- *   - **claim** — the `**bold run**` containing the `STATE:`. All 34 entries in
+ *   - **claim** — the `**bold run**` containing the `STATE:`. All 35 entries in
  *     the rulebook are written `**STATE: …**`, and the claim ends where the
  *     bold does: what follows is commentary, and commentary routinely names
  *     SHAs that are NOT the merge commit (a review head, an earlier re-read).
+ *
+ * THE VERDICT IS READ OFF THE CLAIM, NOT THE CLAUSE, and the first draft got
+ * this wrong in the direction that matters. #685's own entry — the one
+ * describing this guard — says `STATE: on the PR` and then explains, two
+ * sentences later, that rule 5 will redden `test` if the line "still says
+ * anything but MERGED". A clause-scoped verdict read that word and graded a
+ * correct OPEN entry as MERGED, which is a red required check naming an
+ * innocent line. The claim is where the verdict is ASSERTED; everything after
+ * the bold is prose ABOUT the verdict, including prose that quotes it.
  *
  * RULE 0 — THE BYTES ARE STILL UTF-8 AND STILL SAY WHAT THEY SAID. Its own
  * docblock is on `gradeEncoding` below, with why `control-bytes.ts` does not
@@ -310,7 +319,7 @@ export function parseStateEntries(source: string, file: string): StateEntry[] {
         file,
         line: first + li + 1,
         text: lines[first + li].trim(),
-        verdict: /\bMERGED\b/.test(clause) ? 'MERGED' : 'UNMERGED',
+        verdict: /\bMERGED\b/.test(claim ?? clause) ? 'MERGED' : 'UNMERGED',
         subject: prsInClause[0] ?? prsBefore[prsBefore.length - 1] ?? null,
         claimShas: allMatches(SHA_IN_CODE, claim ?? clause),
         clauseShas: allMatches(SHA_IN_CODE, clause),

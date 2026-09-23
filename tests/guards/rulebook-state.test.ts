@@ -225,6 +225,21 @@ describe('parsing a STATE line', () => {
     expect(entry.claimShas).toEqual(['16dd4fcd'])
   })
 
+  it('reads the verdict off the bold claim, not off commentary that quotes it', () => {
+    // #685's own entry. The clause explains what will happen if the line
+    // "still says anything but MERGED" — a clause-scoped verdict read that
+    // word and graded a correct OPEN entry as merged, which is a red required
+    // check naming an innocent line.
+    const source = [
+      '**STATE: on the PR — #685, routed before it merged. Forge owns the flip at',
+      'the next sweep.** Rule 5 reddens `test` the moment #685 lands on `main`',
+      'and this line still says anything but MERGED.',
+    ].join('\n')
+    const [entry] = parseStateEntries(source, 'f.md')
+    expect(entry.verdict).toBe('UNMERGED')
+    expect(entry.subject).toBe(685)
+  })
+
   it('takes the subject from before the STATE when the clause names no PR', () => {
     const source = 'DREAMCRM-87 / PR #647. **STATE: MERGED — `71f4037e`, 2026-09-22.**'
     expect(parseStateEntries(source, 'f.md')[0].subject).toBe(647)
