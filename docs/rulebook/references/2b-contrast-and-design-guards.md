@@ -1678,3 +1678,86 @@ visible to an ordinary grep and never has.
 the PR, found by §2's unscoped sweep pass on 2026-09-22. The path-scoped pass
 could not have seen it: the diff is two components, `docs/RELEASE.md` and one
 new test file.
+
+## The guards that live OUTSIDE `tests/guards/` — hand-registered
+
+*Forge's intake, 2026-09-23 (DREAMCRM-114). Read this together with §2d's
+"a never-again guard lives in `tests/guards/`" and §2's guards-census entry.*
+
+**The census is `tests/guards/**` and these files are not in it.** From
+DREAMCRM-114, `scripts/rulebook-drift.mjs` asserts that every file under
+`tests/guards/` is named somewhere in `docs/rulebook/**`, so a machinery guard
+arriving unregistered fails `test` by name. That mechanism is registration by
+LOCATION, and its honest limit is exactly this list: the design and
+accessibility guards grew up in `tests/marketing/` and `tests/a11y/` beside the
+ordinary unit tests for the same surfaces, and no predicate separates them from
+those neighbours that does not also sweep in ~80 innocent files (measured
+2026-09-23: "a test that reads source off disk" hits 81 files outside
+`tests/guards/`, and still misses `hero-lcp-paint`, which reads its subject out
+of a rendered stylesheet). **So these are registered BY HAND, the two-pass
+sweep is the only control over them, and nothing goes red if the next one is
+forgotten.** Do not read this section as coverage. It is an inventory with a
+known way of going stale, written down so the staleness is visible rather than
+assumed away.
+
+**The design guards in `tests/marketing/`.** Each is written up in full
+elsewhere in this file or in §2c; this is the registration, not the retelling.
+
+- `no-drawn-grid.test.ts` — the drawn-grid veto, the first rule here to grade a
+  DECORATIVE LAYER.
+- `tone-tiles.test.ts` — the check-mark veto, geometric rather than nominal.
+- `product-mocks.test.tsx` — the `data-mkt-mock` VOCABULARY rule, half of an
+  axe exclusion.
+- `plan-price-literals.ts` — the plan-price invariant's scanner (§2c).
+- `type-floor.test.ts` — the 12px floor over both marketing trees.
+- `cinema-fx.test.ts` / `cinematic-spine.test.tsx` — the cinematic spine's
+  stylesheet guards and the living stage's particle arithmetic.
+- `forced-light-chrome.test.tsx` — the forced-light marketing chrome rule,
+  whose subject is a RENDERED COMPOSITION rather than a path.
+- `pricing-price-source.test.tsx` — the pricing page FOLLOWS the billing config
+  (§2c), which is a stronger claim than agreeing with it.
+- `comparisons-count.test.ts`, `launch-post-price.test.ts`,
+  `emoji-changelog-placement.test.tsx` — the comparison-matrix marks rule, the
+  launch post's price, and the emoji registry's placement rule.
+- `hero-lcp-paint.test.tsx`, `marketing-not-found.test.tsx` — #698, §2's
+  fifty-third entry.
+
+**The accessibility guards in `tests/a11y/` that this rulebook had never named
+at all.** Found at the same intake, by running the census predicate over the
+sibling directory rather than only over the one it was written for — six
+zero-holding guards, every one of them able to fail a stranger's PR, none of
+them mentioned anywhere in this document before today:
+
+- `announced-phase-changes.test.tsx` — a phase swap narrates itself: an
+  `aria-pressed` set is announced inside a NAMED group, a grid that reloads on
+  another control's touch carries a live region, and a swap that REPLACES the
+  surface moves focus. **Read its field of view before you trust it**: it
+  renders TWO named components (the slot picker and the booking success
+  screen), so it holds nothing at zero and cannot see a third. Vesper measured
+  the real population on 2026-09-23 — 15 patient-facing files drive a phase
+  state machine and 8 carry no live region at all. That widening is a new
+  blocking assertion and routes here when it lands.
+- `clickable-rows.test.tsx` — a clickable row is a list item, not a button. It
+  re-implements axe's `nested-interactive` and `list` rules over the rendered
+  DOM so the shape cannot come back between browser runs.
+- `form-labels.test.ts` — `eslint-suppressions.json` stays EMPTY of
+  `label-has-associated-control`. Lint already fails a new unassociated label;
+  what this pins is the other way the class returns, `eslint --suppress-rule`
+  turning a red gate green and making 78 the new floor.
+- `portal-brand.test.ts` — the patient portal's clinic-brand ink and button
+  fill are swept across the whole hue wheel at every plausible lightness,
+  rather than against the handful of brands a fixture happened to hold. It also
+  asserts the ALGEBRA the derivation rests on.
+- `retired-tones.test.ts` — `sky` and `stone` stay retired, including in the
+  two shared REGISTRIES that hand colours to everything else. A registry on a
+  retired ramp re-seeds it everywhere it is read.
+- `site-tokens.test.ts` — the public-site token names live once in
+  `components/clinic-site/tokens.ts`; a parallel LOCAL CONSTANT fails. Its
+  mutation pass is §2d's identity-looseness family three times in one regex.
+
+**What this section costs if nobody maintains it.** Every name above was
+absent, or absent from any list, until an intake went looking. The guards
+census closes that for `tests/guards/`; here the answer is either to move a
+guard into `tests/guards/` when it is genuinely a never-again rule (§2d), or to
+accept that this list is a hand-kept list — the defect this rulebook writes up
+more often than any other — and say so, which is what this paragraph is.

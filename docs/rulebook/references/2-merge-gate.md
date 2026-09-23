@@ -3128,6 +3128,59 @@
   the same reason: a field of view that grows with no new assertion still
   changes what fails `test` by name.
 
+  **THE FIFTY-THIRD: #698, `tests/marketing/hero-lcp-paint.test.tsx` +
+  `tests/marketing/marketing-not-found.test.tsx` + the marketing-404 stop in
+  `e2e/smoke.spec.ts` (DREAMCRM-108, `66d087dc`, 2026-09-23 06:05:18Z). THREE
+  new blocking assertions in one merge, and every one of them is the shape the
+  path-scoped sweep pass cannot see.** Routed on DREAMCRM-114 at
+  2026-09-23T08:0xZ, the same day.
+  **STATE: MERGED — `66d087dc` (#698), 2026-09-23 06:05:18Z.**
+
+  - **`hero-lcp-paint.test.tsx` — a NEW ZERO-TOLERANCE CLASS inside `test`.**
+    The homepage hero's `<h1>` and the paragraph under it may not carry any
+    class the marketing motion stylesheet holds at `opacity: 0`, and neither
+    may `PageHero`'s equivalents across the eight subpages. It derives the
+    banned SET by rendering `MarketingMotionStyles` and reading every rule that
+    starts an element at zero, rather than grepping for `mkt-enter` — so a
+    third entrance class that also starts at zero is covered on the day it is
+    written, and renaming `mkt-rise` breaks nothing. That is §2d's
+    derive-the-field-of-view rule applied BEFORE the second instance rather
+    than after it. Its READER is mutated too (§2d's reader family, answered in
+    the same PR): forcing `classesHeldInvisible` to return an empty Set reddens
+    a test of its own instead of passing everything silently.
+    **Scope, stated rather than implied:** an `opacity: 0` arriving from a
+    Tailwind utility or an inline `style` is NOT seen. The site ships one
+    hand-written entrance sheet and a whole-utility-layer resolver is the
+    "208 places to catch 8" trade — the same call §2b's 12px floor made.
+  - **`marketing-not-found.test.tsx` — seven assertions on the marketing 404.**
+    That `app/(marketing)/not-found.tsx` exists AT THAT PATH (the location is
+    the entire mechanism: Next resolves `notFound()` to the nearest file
+    walking up from the missing route, so there is no import and nothing a
+    render can observe — moving the file back out is exactly how the defect
+    returns); that the root 404 stays chrome-less for the clinic tenants it
+    belongs to; that every recovery link is a live destination graded against
+    `MARKETING_PUBLIC_PATHS`, so a recovery link can never itself 404; one
+    `h1`; `noindex`; and no apology copy.
+  - **A new browser stop in `e2e/smoke.spec.ts`**, carrying an axe scan and
+    Part 10's 390px `scrollWidth` probe against a real 404 RESPONSE. **Read
+    why it is not in `e2e/marketing-viewport.spec.ts`, because it is the
+    interesting part:** that spec asserts `status === 200` at every stop it
+    visits, so its page list — derived, and rightly praised in §2a for being
+    derived — structurally could not have grown to cover a page whose whole
+    point is a 404. A derived field of view is still bounded by the predicate
+    it derives THROUGH.
+
+  **WHY THIS ENTRY IS ALSO THE ARGUMENT FOR THE ONE BELOW IT.** All three
+  landed inside checks that already existed, under paths the path-scoped pass
+  does not watch: `tests/marketing/**` is not on that list, and the `e2e/` half
+  would have been caught only by the accident of which directory the stop lives
+  in. No workflow file moved and no gate area moved, so
+  `scripts/rulebook-drift.mjs` correctly stayed green — this is precisely the
+  #534 / #598 shape it cannot see, arriving for the third time. The unscoped
+  second pass found all three, about half an hour after the previous intake
+  window closed. **That is the sweep working, and it is still a person choosing
+  to look**, which §2d says is not a control.
+
 **Which repo-settings change goes where.** A setting that changes *which* checks
 are required or *who* may bypass them is branch protection: §3's review gate
 applies, and it is intake too. A setting that only changes *how* a merge is
