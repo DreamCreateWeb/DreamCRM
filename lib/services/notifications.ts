@@ -55,9 +55,19 @@ export interface NotifyInput {
   /**
    * Idempotency key for a dispatch that can legitimately happen TWICE for one
    * real-world event — a webhook redelivery, a handler re-run after a release
-   * -and-retry. Set it and the insert becomes at-most-once per (recipient,
-   * key): the second dispatch writes nothing, pushes nothing and emails
-   * nothing.
+   * -and-retry. Set it and the BELL ROW becomes at-most-once per (recipient,
+   * key): the second dispatch writes nothing and pushes nothing.
+   *
+   * THE EMAIL IS TRACKED SEPARATELY, and that is the point (DREAMCRM-106).
+   * When this shipped, a replay returned at the conflict and emailed nothing —
+   * which was right for a replay whose email had already gone out and wrong
+   * for one whose email had failed, and the two were indistinguishable. The
+   * row commits before the email, ANY email failure is swallowed by this
+   * module's catch, and `deliver()`'s 10s deadline turns a slow provider into
+   * a throwing one, so "the email never went out" was a reachable state with
+   * no way to say so. `notifications.email_sent_at` is the way to say so: a
+   * replay that finds a row whose email never landed re-attempts the EMAIL
+   * only, and still never writes a second bell row.
    *
    * The stored value is SCOPED BY `type`, so one source event that produces
    * two different notifications still produces two rows. That is deliberate
@@ -128,8 +138,11 @@ async function getPrefs(userId: string): Promise<PrefsRow> {
  * the bucket (or all notifications). Failures are logged, not thrown — a
  * crashed notification dispatch must never break a triggering action.
  *
- * With `dedupeKey` set it is also at-most-once per (recipient, key) — see the
- * field's own note for what that is for and when NOT to set it.
+ * With `dedupeKey` set the BELL ROW is also at-most-once per (recipient, key),
+ * while the email carries its own state in `notifications.email_sent_at` — so
+ * a replay of a dispatch whose email failed re-attempts that email without
+ * minting a second row. See the field's own note for what that is for and when
+ * NOT to set it.
  */
 export async function notify(input: NotifyInput): Promise<void> {
   try {
@@ -149,6 +162,13 @@ export async function notify(input: NotifyInput): Promise<void> {
       meta: input.meta ?? {},
       dedupeKey,
     }
+    // The row this dispatch owns, and whether it WROTE that row or found one
+    // an earlier attempt had already committed. `rowId` is what the email
+    // stamp at the bottom is keyed on; `isReplay` is what keeps the live push
+    // from firing twice for one real-world event.
+    let rowId: number | null = null
+    let isReplay = false
+
     if (dedupeKey) {
       // `where` mirrors the INDEX PREDICATE, not a row filter — Postgres cannot
       // infer a partial unique index from a bare conflict target and would
@@ -162,30 +182,61 @@ export async function notify(input: NotifyInput): Promise<void> {
           where: sql`${schema.notifications.dedupeKey} is not null`,
         })
         .returning({ id: schema.notifications.id })
-      // Already delivered on an earlier attempt. Return BEFORE the live push
-      // and the email: a replay that re-emailed would be the same defect one
-      // channel over.
-      //
-      // THE TRADE, stated at its real width (Sentinel's note on #651): the row
-      // and the email are not one unit. The row commits first, and ANY email
-      // failure — not only a crash — lands in this function's own catch below,
-      // so the retry conflicts here and that email is gone for good where it
-      // used to be re-attempted. `deliver()` gained a 10s deadline in #649,
-      // which turns a merely slow provider into a throwing one, so the window
-      // is more reachable than "the process died" suggests. Taken knowingly:
-      // the bell row still lands, so these alerts (a clinic's payment failed,
-      // a subscription cancelled) DEGRADE rather than disappear, and a
-      // duplicate is worse than a bell row without its email. Per-channel
-      // delivery state is the real answer and it is a POST-1.0 item, not this.
-      if (inserted.length === 0) return
+
+      if (inserted.length > 0) {
+        rowId = inserted[0].id
+      } else {
+        // THE CONFLICT BRANCH (DREAMCRM-106), and the whole reason
+        // `email_sent_at` exists. A conflict means the BELL ROW is already
+        // there. It does NOT mean the email is.
+        //
+        // The trade #651 took knowingly and wrote down (Sentinel's review
+        // note) was this: the row and the email are not one unit. The row
+        // commits first, ANY email failure — not only a crash — lands in this
+        // function's own catch below, and `deliver()`'s 10s deadline (#649)
+        // turns a merely slow provider into a throwing one, so the window is
+        // wider than "the process died" suggests. A replay then conflicted
+        // here and returned, and the "payment failed" / "subscription
+        // cancelled" email was gone for good where it used to be re-attempted.
+        //
+        // Per-channel state collapses that trade instead of documenting it.
+        // The row is never written twice; the EMAIL is re-attempted exactly
+        // when the row says it never went out.
+        isReplay = true
+        const [existing] = await db
+          .select({
+            id: schema.notifications.id,
+            emailSentAt: schema.notifications.emailSentAt,
+          })
+          .from(schema.notifications)
+          .where(
+            and(
+              eq(schema.notifications.userId, input.userId),
+              eq(schema.notifications.dedupeKey, dedupeKey),
+            ),
+          )
+          .limit(1)
+        // Fully delivered already — or the row vanished under us (dismissed
+        // from the tray between attempts), in which case re-minting it would
+        // undo a user's deliberate action. Either way nothing is owed.
+        if (!existing || existing.emailSentAt) return
+        rowId = existing.id
+      }
     } else {
-      await db.insert(schema.notifications).values(values)
+      const [row] = await db
+        .insert(schema.notifications)
+        .values(values)
+        .returning({ id: schema.notifications.id })
+      rowId = row?.id ?? null
     }
 
     // Live-push so the header bell + sidebar badges update the instant this
     // lands, instead of on their next poll. User-targeted (only this recipient's
     // browser reacts); best-effort inside notify()'s own try/catch.
-    if (input.organizationId) {
+    //
+    // NOT on a replay: no bell row was written, so there is nothing new for a
+    // badge to count, and a push would make one event flash twice.
+    if (!isReplay && input.organizationId) {
       const { publishRealtime } = await import('./realtime')
       await publishRealtime(
         input.organizationId,
@@ -215,6 +266,27 @@ export async function notify(input: NotifyInput): Promise<void> {
           linkPath: input.linkPath ?? null,
           linkLabel: input.linkLabel ?? null,
         })
+        // STAMPED ONLY ONCE THE SEND RESOLVED. `sendNotificationEmail` throws
+        // on a provider failure and on `deliver()`'s deadline, so anything but
+        // a landed handoff skips this line and leaves the column NULL — which
+        // is what a later replay reads to decide it still owes an email.
+        //
+        // Stamped for EVERY dispatch that emails, keyed or not, so the column
+        // means what its name says rather than "…for the handful of rows that
+        // happen to carry a dedupe key". The cost is one indexed UPDATE after
+        // a network round-trip that already happened.
+        //
+        // THE RESIDUAL, named rather than left to be discovered: if the send
+        // lands and THIS update fails, a replay re-emails. That is a duplicate
+        // instead of a silence, it needs the database to fail in the window
+        // between two statements, and it is the opposite direction from the
+        // one #651 was stuck with — a narrower window and a kinder failure.
+        if (rowId !== null) {
+          await db
+            .update(schema.notifications)
+            .set({ emailSentAt: new Date() })
+            .where(eq(schema.notifications.id, rowId))
+        }
       }
     }
   } catch (err) {
