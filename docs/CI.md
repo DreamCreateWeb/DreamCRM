@@ -216,6 +216,79 @@ names — that is why the nightly and post-merge jobs are called `nightly-test`,
 `nightly-e2e` and `e2e-post-merge`. A second producer of a required context can
 report a green check onto a commit the real gate never ran against.
 
+## Where the eight-minute gate actually goes (measured 2026-09-22, DREAMCRM-105)
+
+Every doc in the repo said the unit gate took **~4 minutes**. It has not for
+some time, and nobody had measured *what* the time is. Numbers below are medians
+over **30 successful `ci.yml` runs**, from the Actions jobs API
+(`gh api repos/<repo>/actions/runs/<id>/jobs`, then the per-step
+`started_at`/`completed_at`). Re-derive rather than trusting these once they are
+a month old.
+
+### The `test` job — median **8m 10s** (min 4m 49s, max 8m 39s)
+
+| Step | Median | Share |
+| --- | ---: | ---: |
+| `pnpm test` | **6m 48s** | **83.3%** |
+| `pnpm typecheck` | 56s | 11.4% |
+| `pnpm lint` (the a11y gate) | 8s | 1.6% |
+| checkout + node + pnpm + `install --frozen-lockfile` | ~12s | 2.5% |
+| unattributed (job setup/teardown) | 6s | 1.1% |
+
+`pnpm install --frozen-lockfile` is **3 seconds** — the pnpm cache is working
+and is not worth another look. The gate is the suite, and nothing else is close.
+
+### Inside the suite: it is not the assertions
+
+Vitest's own end-of-run line, read off six CI logs. A representative run —
+411.76s wall, **804 files, 8,633 tests**:
+
+| | Worker-seconds | Share of worker time |
+| --- | ---: | ---: |
+| `environment` (creating a happy-dom window per file) | 365.20s | **33%** |
+| `import` (loading each file's module graph) | 295.58s | 27% |
+| `setup` (`tests/setup.ts`, once per file) | 233.60s | 21% |
+| `tests` (actually running assertions) | 172.57s | **16%** |
+| `transform` | 27.21s | 2.5% |
+
+Those overlap across ~3 workers, which is why they sum past the 411.76s wall
+clock. **Six-sevenths of the suite's cost is per-FILE overhead, not per-test
+work** — it scales with the 804 files, not with the 8,633 tests.
+
+Two facts follow, and both matter to a sharding decision:
+
+- **Time is concentrated.** The 10 slowest files are 35% of assertion time, the
+  top 25 are 51%, the top 50 are 66%. A shard split by file *count* would be
+  badly unbalanced; splitting has to be time-aware, and the slowest ten files
+  (`tests/clinic-site/modern-template`, `tests/a11y/token-contrast`,
+  `tests/guards/review-sweep`, `tests/a11y/one-string-pairs`,
+  `tests/guards/error-scan` lead it) are also where a targeted fix would pay.
+- **`environment: 'happy-dom'` is global, and most files do not need a DOM.**
+  804 files: 212 `.test.tsx`, and of the 592 `.test.ts` only 18 mention
+  `@testing-library`, `document.`, `window.`, `HTMLElement` or
+  `getComputedStyle`. So on a grep-level reading **574 files (71%) pay ~0.45s of
+  happy-dom window creation they never use** — roughly 258 of those 365
+  environment-seconds. That is a heuristic and not a verdict: a `.test.ts` can
+  reach a DOM transitively through a component import, so the real number is
+  found by moving files and re-measuring, not by trusting this paragraph.
+
+### The `e2e` job — median **5m 43s** (min 3m 59s, max 6m 53s)
+
+`bash scripts/e2e-harness.sh` is 4m 58s of it; Chromium install 23s; the rest
+~22s. Inside the harness (medians over 10 runs): `pnpm build` **1m 59s** (46%),
+`npx playwright test` **2m 14s** (52%), and Postgres + migrations + fixture +
+both `next start`s together **~7 seconds**. The throwaway database everybody
+assumes is the expensive part is 1.4% of it. The post-merge twin
+(`e2e-post-merge`) runs 5m 44s median over 15 runs — the same job, as expected.
+
+### What is NOT decided here
+
+This section is **measurement only**. Whether to shard `test` across runners,
+add a wall-clock budget guard, cut the per-file environment cost, or leave it
+alone is a planning-meeting decision — it trades runner cost, gate latency and
+one more thing that can go wrong against each other, and none of that is
+settled by a table. The numbers exist so the argument can be about the numbers.
+
 ## The two blocking gates
 
 The unit gate is deliberately duplicated rather than shared. `deploy` needs its

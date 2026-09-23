@@ -35,6 +35,21 @@ exit, including failure):
 4. **A production build + `next start`** on `:3100`, then a health poll.
 5. **Playwright** against that server.
 
+**What each phase costs** (medians over 10 successful `e2e` jobs on CI,
+2026-09-22; the whole `e2e` job is **5m 43s** median, min 3m 59s, max 6m 53s):
+
+| Phase | Median | Share of the harness |
+| --- | ---: | ---: |
+| `pnpm build` | 1m 59s | 46% |
+| `npx playwright test` | 2m 14s | 52% |
+| Postgres + migrations + fixture + both servers | ~7s | 1.4% |
+
+The throwaway database everybody assumes is the expensive part costs **seven
+seconds**. The harness is a Next build and a browser suite, in roughly equal
+halves, and `--skip-build` genuinely removes about half the wait locally. On top
+of the harness the job spends ~23s installing Chromium and ~12s on
+checkout/node/pnpm.
+
 Nothing here touches the real database, Stripe, Resend, or any vendor.
 
 ### Asking a narrower question (added 2026-09-22, DREAMCRM-105)
@@ -77,7 +92,10 @@ filter matched nothing" are otherwise the same shade of green.
 
 ## Deliberately NOT part of `pnpm test`
 
-The merge gate must stay fast (~4 min for the unit suite). The E2E suite needs
+The merge gate must stay fast — though "fast" is now **8m 10s median for the
+`test` job**, not the ~4 min this line claimed for a year (measured 2026-09-22
+over 30 successful runs; see `docs/CI.md`, "Where the eight-minute gate actually
+goes"). The E2E suite needs
 a build and a server, so it is a separate command. Wired into CI 2026-09-09:
 the `e2e` job in `.github/workflows/ci.yml` runs the harness on every PR (the
 runner image's own Postgres binaries stand up the throwaway cluster). The
