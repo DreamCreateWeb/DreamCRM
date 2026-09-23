@@ -2482,8 +2482,10 @@ element.
 
 **AND THE POPULATION IS MEASURED — the first CI `e2e` run was the
 measurement, as promised** (PR #682, run 35804987254, `669a51df`, green).
-Across the whole suite: **848 nodes over 44 (stop, rule) pairs**, 41 pairs
-`color-contrast` and 3 `aria-prohibited-attr`, at 39 of the suite's stops. The
+Across the whole suite: **848 nodes over 44 (stop, rule) pairs** at 39 stops,
+41 pairs `color-contrast` and 3 `aria-prohibited-attr` — of which one pair, 4
+nodes at `selftest: over the glow`, is the harness's own planted document, so
+**844 over 43 pairs at 38 real stops**. The
 worst are `token: book a demo, slots offered` (72),
 `clinic site: published home` (45) and `staff: dream team` (41); the staff app
 contributes a recurring ~30 at every stop, which is one shared component in its
