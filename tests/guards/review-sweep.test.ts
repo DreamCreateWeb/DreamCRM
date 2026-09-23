@@ -12,8 +12,11 @@ import {
 import {
   INTAKE_LABEL,
   INTAKE_SWEPT_SINCE,
+  KEY_SWEPT_SINCE,
   REVIEW_LABEL,
   SWEPT_SINCE,
+  issueKeyRecord,
+  keySweep,
   VERDICT_PATTERNS,
   VERDICT_REVIEW_STATES,
   intakeRecord,
@@ -1754,16 +1757,204 @@ describe('the intake cut-off', () => {
 
   it('stays LATER than the review cut-off, which is what keeps the truncation check honest', () => {
     // `windowGap` grades the `gh pr list` truncation against SWEPT_SINCE only.
-    // That covers both halves for exactly one reason: SWEPT_SINCE is the
-    // earlier of the two. Add a third obligation with an older cut-off and the
-    // truncation check starts grading the wrong number, silently, which is the
-    // "a sweep with a hole in it looks like a clean sweep" failure this file
-    // has now written down three times.
+    // That covers every half for exactly one reason: SWEPT_SINCE is the
+    // earliest. Add an obligation with an older cut-off and the truncation
+    // check starts grading the wrong number, silently, which is the "a sweep
+    // with a hole in it looks like a clean sweep" failure this file has now
+    // written down three times.
+    //
+    // DERIVED OVER EVERY CUT-OFF rather than named pairwise — the third
+    // obligation arrived (DREAMCRM-105) and the pairwise version of this
+    // assertion would have gone on passing about the two it knew.
+    for (const [name, value] of [
+      ['INTAKE_SWEPT_SINCE', INTAKE_SWEPT_SINCE],
+      ['KEY_SWEPT_SINCE', KEY_SWEPT_SINCE],
+    ] as const) {
+      expect(
+        Date.parse(SWEPT_SINCE),
+        `the truncation check reads SWEPT_SINCE, so it must be the earliest cut-off any ` +
+          `obligation uses — otherwise a truncated list can hide merges ${name}'s half needed to ` +
+          'see.',
+      ).toBeLessThanOrEqual(Date.parse(value))
+    }
+  })
+})
+
+/**
+ * THE THIRD OBLIGATION: THE PR TITLE CARRIES ITS ISSUE KEY (DREAMCRM-105).
+ *
+ * §3's first bullet, and the only link from a merged commit back to somebody
+ * who can answer for it. Its REVIEW half has had a machine since #593; its KEY
+ * half had nothing but memory, and memory lost three times in one day — #636
+ * (01:24Z), #659 (17:54Z) and #674 (22:19Z), all from `claude/*` branches, the
+ * last of them hours after §3's rule landed.
+ *
+ * #659 is the one that shows why this is not a bookkeeping nicety: it merged
+ * carrying `needs-forge-intake` and nobody recorded the intake, for a reason no
+ * amount of labelling could fix — **no issue owned the work, so there was
+ * nobody the label could be about.** The key half is upstream of the other two.
+ *
+ * What is graded here, and why:
+ *
+ *   1. THE PREDICATE, in both directions. A missing key must be found; a
+ *      present one must never be flagged, including the spellings this repo
+ *      actually writes.
+ *   2. THE SUBJECT IS THE TITLE, and nothing else. A key in the body or in a
+ *      comment does not satisfy it — that would make the record forgeable by
+ *      the one action that means nothing (typing the key somewhere), and it
+ *      would leave the commit-to-issue link still broken.
+ *   3. THERE IS NO LABEL. Every merged PR in the window is in scope. A version
+ *      that waited for a label would be permanently silent, because the label
+ *      is exactly what untracked work has nobody to receive.
+ *   4. THE CUT-OFF IS BOUNDED AT BOTH ENDS. Early enough to catch all three
+ *      generating PRs; late enough that the pre-convention tail (#483–#485 and
+ *      the whole June run) is out of window rather than ninety findings on the
+ *      first morning.
+ *   5. IT NEVER WAKES FORGE. A wake enqueues a PAID run and is scoped to the
+ *      intake half. An unkeyed PR is not an intake question.
+ *   6. THE RINGER RINGS — the script driven as a process, because #593's
+ *      lesson was that every classifier test above can pass while `main()`
+ *      never reports anything.
+ */
+describe('what counts as a PR that reached the board', () => {
+  const unkeyed = (overrides: Pr = {}) =>
+    pr({
+      number: 674,
+      title: 'The living stage, pass 2: the ledger on the stage, toasts, press',
+      mergedAt: '2026-09-22T22:19:37Z',
+      labels: [],
+      ...overrides,
+    })
+
+  it('finds the key in the titles this repo actually writes', () => {
+    for (const title of [
+      'DREAMCRM-105: give the E2E harness a spec filter and a repeat count',
+      'DREAMCRM-99: the portal-billing duplicate is TRANSIENT, and that is measured',
+      'DREAMCRM-88: the bare text-gray-400 per-site pass (batch 69)',
+      // Not at the start, because §3 asks for a key and not for a prefix.
+      'the launch post quotes the plan config (DREAMCRM-101)',
+    ]) {
+      expect(issueKeyRecord({ title }), `"${title}" carries a key`).not.toBeNull()
+    }
+  })
+
+  it('does not accept something that merely looks like one', () => {
+    for (const title of [
+      'The living stage: the homepage showcase plays its chapters',
+      'Settings maintenance: fix 5 bugs + refresh docs',
+      // The LEGACY tracker prefix. Deliberately not accepted: `DREAM-164` is
+      // not an issue on this board, so it is not a link to anybody who can
+      // answer for the merge. If that spelling ever comes back, widen the
+      // pattern on purpose rather than discovering it as a silent pass.
+      'Unknown URLs return a real 404 instead of the sign-in page (DREAM-164)',
+      // A word boundary, not a substring: the guard's own identity-looseness
+      // family, which §2b names.
+      'NOTDREAMCRM-105: something else entirely',
+      'DREAMCRM- : a key with no number',
+    ]) {
+      expect(issueKeyRecord({ title }), `"${title}" must NOT read as keyed`).toBeNull()
+    }
+  })
+
+  it('reads the TITLE and refuses the same key anywhere else', () => {
+    // THE FORGEABLE-RECORD DIRECTION. Every other obligation here grades a
+    // record somebody leaves; this one grades the subject itself, which is
+    // what makes it the only self-clearing half. Accepting a key in the body
+    // or a comment would restore exactly the gap — the merged commit still has
+    // no key on it, and `gh pr list --json title` is what a later reader sees.
+    const inBodyOnly = unkeyed({
+      body: 'Closes DREAMCRM-100.',
+      comments: [comment('part of DREAMCRM-100')],
+    })
+    expect(issueKeyRecord(inBodyOnly)).toBeNull()
+    expect(keySweep([inBodyOnly]).unsatisfied).toHaveLength(1)
+  })
+
+  it('puts every merged PR in scope — there is no label to wait for', () => {
+    // A labelled version of this check would be permanently silent: the label
+    // is applied by a gate reading a diff, and what an untracked change lacks
+    // is not a label, it is an owner.
+    const result = keySweep([unkeyed(), unkeyed({ number: 659, mergedAt: '2026-09-22T17:54:01Z' })])
+    expect(result.unsatisfied.map((p) => p.number)).toEqual([674, 659])
+    expect(result.ungated, 'nothing is out of scope for this obligation').toBe(0)
+  })
+
+  it('leaves a keyed merge alone, and counts it', () => {
+    const keyed = pr({ number: 679, title: 'DREAMCRM-99: measured', mergedAt: '2026-09-22T23:28:02Z', labels: [] })
+    const result = keySweep([keyed])
+    expect(result.unsatisfied).toEqual([])
+    expect(result.satisfied).toHaveLength(1)
+    expect(result.satisfied[0].record.detail).toContain('DREAMCRM-99')
+  })
+})
+
+describe('the issue-key cut-off', () => {
+  it('reaches back far enough to hold all three PRs the rule came from', () => {
+    // #636 is the earliest of the three (2026-09-22T01:24:20Z). A cut-off
+    // after it would open this half having quietly excused the PR that started
+    // the pattern.
+    for (const at of ['2026-09-22T01:24:20Z', '2026-09-22T17:54:01Z', '2026-09-22T22:19:37Z']) {
+      expect(
+        Date.parse(KEY_SWEPT_SINCE),
+        `the PR that merged at ${at} must be inside this half's window`,
+      ).toBeLessThanOrEqual(Date.parse(at))
+    }
+  })
+
+  it('stops before the convention existed, so the first run is three findings and not ninety', () => {
+    // THE OPPOSITE FAILURE, and the one `INTAKE_SWEPT_SINCE` was moved to
+    // avoid: an alarm whose first morning reports a queue against a rule that
+    // post-dates most of it is a note in a drawer wearing an alarm's uniform.
+    // #483–#485 merged 2026-09-09 and the whole pre-program June tail before
+    // that; none of them could have carried a key that did not exist.
     expect(
-      Date.parse(SWEPT_SINCE),
-      'the truncation check reads SWEPT_SINCE, so it must be the earliest cut-off any obligation ' +
-        'uses — otherwise a truncated list can hide merges the intake half needed to see.',
-    ).toBeLessThanOrEqual(Date.parse(INTAKE_SWEPT_SINCE))
+      Date.parse(KEY_SWEPT_SINCE),
+      'a cut-off earlier than the convention turns this into ninety findings nobody can act on',
+    ).toBeGreaterThan(Date.parse('2026-09-09T15:18:55Z'))
+  })
+
+  it('is a real instant, and not in the future', () => {
+    const t = Date.parse(KEY_SWEPT_SINCE)
+    expect(Number.isFinite(t), 'KEY_SWEPT_SINCE must be a parseable RFC3339 instant').toBe(true)
+    expect(t, 'a cut-off in the future silently exempts everything').toBeLessThan(Date.now())
+  })
+})
+
+describe('an unkeyed PR reddens the run and never wakes Forge', () => {
+  const unkeyedFresh = pr({
+    number: 674,
+    title: 'The living stage, pass 2',
+    mergedAt: '2026-09-22T22:19:37Z',
+    labels: [],
+  })
+
+  it('exits non-zero and annotates, driven as a process', () => {
+    // #593's lesson: every classifier assertion above can pass while `main()`
+    // reports nothing. The wiring is what ships.
+    const { code, out } = runSweep([unkeyedFresh])
+
+    expect(out).toContain('::error title=PR #674 merged with no issue key')
+    expect(out, 'the remedy has to be in the summary, or the finding is a complaint').toMatch(
+      /gh pr edit <n> --title/,
+    )
+    expect(code, 'a finding that does not redden the run is a finding nobody sees').toBe(1)
+  })
+
+  it('does NOT wake Forge — a wake enqueues a paid run and this is not an intake', () => {
+    // `wakeDecision` takes the INTAKE half by name. This asserts the wiring
+    // agrees: the key half's findings must not reach it, because the cheapest
+    // way to make a new alarm distrusted is to spend somebody else's runs on
+    // it. Driven as a process so a future `main()` that passed the wrong half
+    // in is caught here rather than on an invoice.
+    const { out } = runSweep([unkeyedFresh])
+    expect(out).toMatch(/\[review-sweep\] wake=false/)
+  })
+
+  it('still exits zero when the unkeyed merge predates the cut-off', () => {
+    const old = pr({ number: 482, title: 'Settings maintenance', mergedAt: '2026-07-02T01:42:31Z', labels: [] })
+    const { code, out } = runSweep([old])
+    expect(out).toContain('older than the cut-off')
+    expect(code, 'the pre-convention tail must not cry wolf').toBe(0)
   })
 })
 

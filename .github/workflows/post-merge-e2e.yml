@@ -127,7 +127,16 @@ jobs:
           path: |
             playwright-report/
             e2e-results.json
-          retention-days: 7
+          # FOURTEEN, NOT SEVEN (DREAMCRM-105). Seven was sized for a person
+          # opening ONE report after a red run. `scripts/e2e-flaky-digest.mjs`
+          # now reads a WEEK of these together, and a weekly digest with an
+          # eight-day window against seven-day evidence loses that race every
+          # time GitHub's scheduler slips — which it does by five and a half
+          # hours on an ordinary day. The digest would then report a gap every
+          # single week, and a permanently-red alarm is a disabled alarm (§2a).
+          # Raising the retention was the fix; shrinking the window would have
+          # been the bug.
+          retention-days: 14
 
       - name: Say plainly what a red run here means
         if: failure()
