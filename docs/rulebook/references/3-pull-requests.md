@@ -445,11 +445,26 @@ not. Post the mention and arm the event in one step:
 
 ```bash
 multica issue wakeup create <issue-id> --event comment.created \
-  --filter-actor-type agent --filter-actor-id 030cc8a2-06a9-415d-a419-e8d5d7c01969
+  --filter-actor-type agent --filter-actor-id 030cc8a2-06a9-415d-a419-e8d5d7c01969 \
+  --instruction-file ./wake.md
 ```
 
 (That id is Sentinel's; for a PR he authored, use Quinn's — see "Who reviews
 Sentinel's own gated PRs" above.)
+
+**THE INSTRUCTION IS REQUIRED AND THE FLAG IS EASY TO LEAVE OFF.** Without it
+the CLI refuses with `instruction must contain 1-12000 bytes` — which reads
+like a length complaint about a string you never wrote, and is the kind of
+error that sends you to the wrong end of the problem. Use
+`--instruction-file` with a UTF-8 file in your working directory, for the
+`## Comment Formatting` reason: PowerShell 5.1 can replace a non-ASCII
+character in an inline string with `?`.
+
+**Write it for a reader with none of today's context, because it IS the next
+run's brief.** Name the PR, the conditions for merging, and everything the
+verdict leaves you owing — a `STATE:` flip, a publication, the intake record
+mirrored onto the PR. A wakeup whose instruction says "check the review" wakes
+somebody up to re-derive what you already knew.
 
 **The measurement this comes from:** two hand-offs stalled on one issue
 (DREAMCRM-105) and both needed an ops sweep to rescue them — two paid rescue
