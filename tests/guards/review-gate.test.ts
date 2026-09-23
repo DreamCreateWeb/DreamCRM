@@ -483,9 +483,15 @@ function productSources(): Array<[string, string]> {
  * anchors to the file, which is the third member of §2d's identity-looseness
  * family. Both quote characters, for the reason `IMPORTS_STRIPE_CLIENT` above
  * takes both.
+ *
+ * The route-handler match makes its directory segment OPTIONAL. The shipped
+ * version was `/^app\/.*\/route\.tsx?$/`, which requires one — so a root
+ * `app/route.ts` was not a surface (Sentinel, reviewing #681). Nothing lives
+ * there today, which is exactly why it would have gone unnoticed: this is the
+ * identity-looseness family at a PATH boundary rather than at a name's end.
  */
 const USE_SERVER_DIRECTIVE = /^\s*['"]use server['"]/m
-const ROUTE_HANDLER = /^app\/.*\/route\.tsx?$/
+const ROUTE_HANDLER = /^app\/(?:.*\/)?route\.tsx?$/
 
 export function mutationSurfaceKind(file: string, source: string): string | null {
   if (USE_SERVER_DIRECTIVE.test(source)) return "'use server' module"
@@ -523,6 +529,10 @@ describe('the mutation-surface predicate, in both directions', () => {
     ['a route handler', 'app/api/cron/domain-renewals/route.ts', 'export async function GET() {}', 'route handler'],
     ['a route handler with no directive and no POST', 'app/api/connect/shop/start/route.ts', 'export const GET = run', 'route handler'],
     ['a .tsx route handler', 'app/api/x/route.tsx', 'export async function POST() {}', 'route handler'],
+    // The segment the shipped regex required (Sentinel, #681). Nothing sits at
+    // the app root today; a rule that silently stops at depth 1 is the kind of
+    // gap that is only ever found by somebody re-deriving it.
+    ['a route handler at the app root', 'app/route.ts', 'export async function POST() {}', 'route handler'],
   ]
 
   it.each(SURFACES)('counts %s', (_why, file, source, kind) => {
@@ -903,26 +913,124 @@ describe('the review-gate classifier', () => {
     expect(surfaces.length).toBeGreaterThan(10)
 
     // And the DISCRIMINATION, which is the half that decides whether this rule
-    // survives contact with the repo: both of these sit one hop from Stripe
-    // through the clinic-site layout and neither moves a cent. If either ever
-    // lands in `surfaces`, the predicate has widened and the fix is the
-    // predicate — never an exemption entry for an innocent file.
-    for (const page of ['app/site/[slug]/privacy/page.tsx', 'app/site/[slug]/accessibility/page.tsx']) {
-      expect(oneHop, `${page} is the flat-hop population this rule exists not to gate`).toContain(page)
-      expect(surfaces, `${page} is a page, not a mutation surface`).not.toContain(page)
-    }
+    // survives contact with the repo. It is DERIVED rather than named (Sentinel,
+    // reviewing #681): the first draft pinned `app/site/[slug]/privacy/page.tsx`
+    // and `.../accessibility/page.tsx` by hand, which guaranteed the
+    // `not.toContain` half could not pass vacuously — and made a legitimate
+    // refactor redden `test` naming an innocent page. §2c has been pushing the
+    // clinic-site tree AWAY from reaching a Stripe-importing module through its
+    // layout, so the fixture was scheduled to decay on a good change.
+    //
+    // The property is the same and it asks the tree for its own witnesses: the
+    // one-hop population is mostly pages, and a widened predicate turns pages
+    // into surfaces. Both floors are what stop the emptiness below being
+    // vacuous — a predicate narrowed to nothing fails the instrument check
+    // above, one widened to everything fails here.
+    // THE TWO INSTRUMENT FLOORS ARE SHARES, NOT COUNTS (Sentinel's forward-
+    // looking note on #690). A constant over a population that shrinks on a
+    // legitimate refactor is the named-fixture decay one step out: it reddens
+    // `test` on a good change, and the failure names an instrument rather than
+    // a defect, so the tempting fix is to lower the number — which quietly
+    // guts the discrimination instead of re-deriving it.
+    //
+    // THE CONCENTRATION THAT MAKES THAT REACHABLE, measured on `main` at
+    // `c95ddeed` rather than argued. The renderers are NOT 39 independent
+    // witnesses: 26 of them reach the Stripe client through
+    // `lib/services/membership.ts` alone, 5 more through
+    // `lib/services/balance-payments.ts`, 4 through
+    // `lib/services/payment-plans.ts`. So one module moving its
+    // `@/lib/stripe` import behind another takes a third of the population
+    // with it, and the COUNTS collapse while the SHARES barely move:
+    //
+    //   population                      oneHop  rend  share   non-surf  share
+    //   today                              78    39   0.500      53     0.679
+    //   − membership                       53    17   0.321      31     0.585
+    //   − membership, balance-payments     49    16   0.327      29     0.592
+    //   − those + payment-plans            41    12   0.293      25     0.610
+    //   − those + social-billing, deposits 32     8   0.250      20     0.625
+    //
+    // A count floor of 10 survives the first two and dies on the fifth; a
+    // count floor of 20 on the non-surfaces dies there too. The shares never
+    // leave 0.25–0.50 and 0.58–0.68 across all of it, because both are
+    // statements about the SHAPE of the population rather than its size — and
+    // the shape is what the rule's argument actually rests on.
+    //
+    // RENDERERS FIRST, deliberately: it is the assertion whose message names
+    // the SHAPE that went wrong, and a widening reaches it before the
+    // non-surface share below on every mutation measured here.
+    const RENDERER_SHARE_FLOOR = 0.2
+    const NON_SURFACE_SHARE_FLOOR = 0.5
 
+    // THE OUTER POPULATION FIRST, for two reasons. A share is satisfiable by a
+    // tiny population (1 of 2 is 0.5), so something has to floor the
+    // denominator — and if `oneHop` is EMPTY the shares below are `NaN`, which
+    // fails every comparison with a message about a ratio rather than about
+    // the collapse that caused it. This is the one honest constant here: unlike
+    // the shares it does not decay when a refactor re-routes an import, because
+    // it falls only if the money surface genuinely stops being reachable in one
+    // hop — at which point this rule's premise has changed and a person should
+    // look rather than a number should move.
+    expect(
+      oneHop.length,
+      'the one-hop population has collapsed, so the shares below can be satisfied by a handful ' +
+        'of files and prove nothing. Re-derive the rule rather than adjusting it.',
+    ).toBeGreaterThan(20)
+
+    const surfaceSet = new Set(surfaces)
+    const renderers = oneHop.filter((f) => /\/(page|layout|loading|error|not-found)\.tsx$/.test(f))
+    expect(
+      renderers.length / oneHop.length,
+      `Renderers are ${renderers.length} of ${oneHop.length} one-hop files, below the share this ` +
+        'assertion needs to discriminate against anything. THE FIX IS A NEW WITNESS, NOT A LOWER ' +
+        'FLOOR: find the shape the one-hop population is now made of and assert the predicate ' +
+        'leaves THAT alone. Lowering the number keeps the run green and stops the check ' +
+        'discriminating, which is the failure this whole rule exists to avoid.',
+    ).toBeGreaterThan(RENDERER_SHARE_FLOOR)
+    expect(
+      renderers.filter((f) => surfaceSet.has(f)),
+      'A page, layout or error boundary is not a mutation surface — it renders, and calls an ' +
+        'action or a handler to change anything. These landed in the gated set, so the predicate ' +
+        'has widened into the flat hop and a privacy-policy copy edit now needs a reviewer. Fix ' +
+        'the predicate; never add an exemption entry for an innocent file.',
+    ).toEqual([])
+
+    // And the second share, which catches a widening that sweeps in shapes the
+    // line above does not name — a client component, a service module.
+    const nonSurfaces = oneHop.filter((f) => !surfaceSet.has(f))
+    expect(
+      nonSurfaces.length / oneHop.length,
+      `Only ${nonSurfaces.length} of ${oneHop.length} one-hop files are NOT mutation surfaces. ` +
+        'Most of that population is supposed to be pages and client components reaching Stripe ' +
+        'through a shared layout — their existence is the whole argument for keying on the ' +
+        'mutation surface rather than on the flat hop. If they are gone, the predicate has ' +
+        'widened, or the argument has changed and a person should re-derive it. Same rule as ' +
+        'above: do not lower the floor.',
+    ).toBeGreaterThan(NON_SURFACE_SHARE_FLOOR)
+
+    // MONEY, not merely SOME area (Sentinel, reviewing #681). The first draft
+    // filtered `areasFor(f).length === 0` while the direct-import check beside
+    // it demands `includes('money')`, and its own failure message told the
+    // author to "add each to the money patterns" — which the predicate did not
+    // actually require. One file fell in that gap:
+    // `app/(default)/ecommerce/customers/admin-actions.ts` calls
+    // `cancelSubscriptionNow` and satisfied the check purely through the `auth`
+    // pin it earned in #569 for minting the demo-context cookie. No hole — a PR
+    // touching it still reached a reviewer — but its money reach was real,
+    // derivable and unnamed, and a rule whose message and predicate disagree is
+    // how the next reader stops trusting the message. It is on the money
+    // patterns now, and the two derived checks ask the same question.
     const ungated = surfaces
       .filter((f) => !(f in ONE_HOP_EXEMPTIONS))
-      .filter((f) => areasFor(f).length === 0)
+      .filter((f) => !areasFor(f).includes('money'))
       .sort()
 
     expect(
       ungated,
       'These files are MUTATION SURFACES — a `use server` module or a route handler — one import ' +
-        'hop from a module that imports @/lib/stripe, and the review gate flags them under no rule ' +
-        'at all. A PR changing what one of them charges, renews or pays out would be told on the ' +
-        'job summary that it merges on green. Add each to the money patterns in ' +
+        'hop from a module that imports @/lib/stripe, and the review gate does not flag them as ' +
+        'MONEY. A PR changing what one of them charges, renews or pays out would be told on the ' +
+        'job summary that it merges on green, or would reach a reviewer under a rule whose stated ' +
+        'reason is about something else. Add each to the money patterns in ' +
         'scripts/review-gate.mjs, or exempt it in ONE_HOP_EXEMPTIONS with a reason and a premise ' +
         'this test can re-check.',
     ).toEqual([])

@@ -256,14 +256,14 @@ export const GATE_RULES = [
       'app/(default)/settings/actions.ts',
       // ── THE ONE-HOP CLASS (DREAMCRM-106) ────────────────────────────────
       //
-      // Every entry below was found the same way and none of them by reading
+      // Every file below was found the same way and none of them by reading
       // a filename: `tests/guards/review-gate.test.ts` now asks the tree which
       // MUTATION SURFACES — `'use server'` modules and route handlers — sit one
       // import hop from a module that imports `@/lib/stripe`. Twelve matched no
-      // gate rule at all, and the eleven here are the ones where reaching
-      // Stripe is money. (The twelfth, `app/site/[slug]/sitemap.xml/route.ts`,
-      // is exempted in that test with its premise asserted — it reads plan
-      // names for a sitemap.)
+      // gate rule at all, and eleven of those are files where reaching Stripe
+      // is money; the nine patterns below cover them. (The twelfth,
+      // `app/site/[slug]/sitemap.xml/route.ts`, is exempted in that test with
+      // its premise asserted — it reads plan names for a sitemap.)
       //
       // The pattern that already existed — "does this file import
       // `@/lib/stripe`" — is a good necessary condition and it stops at the
@@ -279,6 +279,17 @@ export const GATE_RULES = [
       'app/api/cron/domain-renewals/**', // renews domains against the clinic's card, unattended
       'app/api/cron/retention-automations/**', // runDuePlanCharges — this cron CHARGES payment plans
       'app/api/integrations/zernio/connect/**', // canConnectSocialPlatform — the paid social add-on's entitlement check
+      // A THIRTEENTH, found by Sentinel reviewing #681 rather than by the
+      // predicate: this file WAS already gated, under `auth`, for minting the
+      // `demo_context` cookie (#569). `deleteClinic` in it also calls
+      // `cancelSubscriptionNow` — it ends a clinic's Stripe subscription — so
+      // a PR touching that reached a reviewer under a rule whose stated reason
+      // is about who is signed in. Both are true, and the gate's `why` strings
+      // are what a reader trusts, so it earns the money pin too. The derived
+      // check in tests/guards/review-gate.test.ts now demands `money`
+      // specifically rather than any area, which is what its failure message
+      // always said.
+      'app/(default)/ecommerce/customers/admin-actions.ts',
     ],
   },
   {
