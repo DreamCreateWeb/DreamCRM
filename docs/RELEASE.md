@@ -3615,7 +3615,14 @@ PR that fixed the first. Per §1, on contact:
   headline and the hero sentence unpaintable for ~0.81s, and the LCP
   element flipping to the film-grain layer because a decorative
   `background-image` is a candidate and transparent text is not. ·
-  **FIXED — awaiting merge (#698)** (DREAMCRM-108). `.mkt-rise` is the
+  **FIXED (#698, `66d087dc`, merged + deployed 2026-09-23 06:05Z)**
+  (DREAMCRM-108). Reconciled on DREAMCRM-118 against a production
+  re-measurement rather than against the merge: home LCP **3,424ms →
+  2,540ms** (−884ms, −26%) with the reduced-motion path at 2,546ms, so the
+  952ms gap this entry is about is now 6ms; and the LCP element is
+  `p.mkt-rise.mkt-d2` — the hero sentence — on **20 of 20 runs** on the
+  motion path, where the flip to the film-grain layer was the worse half of
+  the defect. `docs/MOBILE-WEIGHT.md`, "After the hero fix". `.mkt-rise` is the
   same 0.65s, the same `cubic-bezier(.16,1,.3,1)` and the same delay
   ladder with the opacity ramp removed, on the two LCP candidates only —
   the rest of the hero stagger is untouched, and
@@ -3623,17 +3630,112 @@ PR that fixed the first. Per §1, on contact:
   `tests/marketing/hero-lcp-paint.test.tsx`, which derives the banned
   class set from the stylesheet rather than grepping for `mkt-enter`, so
   a third entrance class that also starts at zero is covered the day it
-  is written. Reconcile this line when #698 lands on `main`.
+  is written.
 - **The real-device run** — every number in `docs/MOBILE-WEIGHT.md` comes
   from headless Chrome under Lighthouse-profile emulation, and CPU
-  throttling is a multiplier rather than a phone. · OPEN. **Nothing here
+  throttling is a multiplier rather than a phone. · **OPEN.** **Nothing here
   is invalidated by the fix above**: the mechanism and the measurement
   agreed, which is why it read as a cause. What a real device would
-  settle is the SIZE of the win, and the honest way to get it is to
-  re-run the script against production after #698 deploys and compare.
+  settle is the SIZE of the win.
+  **The re-run half of this line is done and the real-device half is not**,
+  and they are kept apart on purpose because they are two different claims.
+  The re-run landed on DREAMCRM-118, 2026-09-23, against production after
+  #698 deployed — 20 samples per surface over 4 clean passes, with the
+  before/after tables beside each other in `docs/MOBILE-WEIGHT.md`. It
+  confirmed the win and sized it. It did **not** make any of it
+  unemulated, which is the whole of what this entry asks for, so this reads
+  OPEN until somebody points `--base` at production from a real mid-range
+  Android.
 - **The scroll-blocking outlier** — 0ms to 1,894ms across passes with
   machine contention the only variable. · Still recorded as NOT
-  REPRODUCED rather than as a defect, unchanged and deliberately so.
+  REPRODUCED rather than as a defect, and the 2026-09-23 re-run is a
+  second independent observation of the same pattern rather than a new
+  one: 0ms on every clean pass, 552–3,267ms on the five contended ones,
+  and the contended passes are identifiable without reference to this
+  metric at all (their transfer bytes fall short). Two runs on two days,
+  agreeing that the number tracks the machine. Still not a defect; what
+  would settle it is unchanged.
+
+### Open — the Inter swap rewraps every subpage hero's sub paragraph and drops the page 27px (found 2026-09-23)
+
+Found by DREAMCRM-118's post-#698 re-measurement of
+`docs/MOBILE-WEIGHT.md`, on the mobile profile (412×823 at DPR 1.75, CPU 4×,
+Slow 4G, cold cache) against production `www.dreamcreatestudio.com`.
+
+**Measured, on the live page, 2026-09-23 07:47–08:40Z:**
+
+- **Surface:** `https://www.dreamcreatestudio.com/pricing`, the `PageHero`
+  section at the top of the page. Reproduces on the homepage hero too, rarely
+  (below).
+- **The shift:** one layout shift at **~2.6 s**, value **0.1157**, no recent
+  input. Selector of the largest moved box:
+  `div.relative.overflow-hidden.rounded-[14px].border.bg-white` — the first
+  pricing panel — moving `y 305.25 → 332.53`.
+- **What resizes:** the hero `<section>` grows **293.25 px → 320.53 px**
+  (+27.28 px). The `<h1>` measures **76.69 px before and after**, so the
+  headline is not it. +27.28 px is one line of the sub paragraph at `1.05rem`
+  on `leading-relaxed` (16.8 × 1.625 = 27.3 px): `PageHero`'s
+  `<p className="mkt-rise mkt-d2 …">` rewraps from two lines to three.
+- **When:** within ~30 ms of `document.fonts.ready` on every run — self-hosted
+  Inter (`public/fonts/inter-latin-var.woff2`) replacing the fallback face.
+- **Frequency:** the reflow happens on **8 of 8** runs. Whether it is *counted*
+  as CLS depends on whether the text painted first — the runs that report
+  0.000 are exactly those with FCP ≥ 3,156 ms, where the font beat the paint.
+  At a 412 px width 0.1157 is past the 0.1 "good" threshold on its own.
+
+**Not motion, and not #698.** Both worth stating because both are the obvious
+suspects and both are wrong:
+
+- It reproduces identically under `prefers-reduced-motion: reduce`, where
+  `.mkt-rise` and `.mkt-enter` are both `animation: none`. `@keyframes
+  mkt-rise` animates `transform` only, which cannot move layout.
+- Re-created the pre-#698 condition on the live page — a stylesheet injected
+  before first paint holding `.mkt-rise` at `opacity: 0` through the same
+  delay and duration `.mkt-enter` used — and ran the arms interleaved, 8
+  single runs each. The opacity-ramp arm reflowed **8/8** and reported
+  0.1157 in **6/8**, against the shipping arm's 8/8 and 5/8. Holding the text
+  transparent suppresses neither the reflow nor its CLS. **The reflow predates
+  the hero fix.**
+
+**Why the before table said 0.000 across 25 samples**, since that is the part
+that misleads the next reader: the 2026-09-22 run was contended — its own
+notes record a discarded pass with a 9,672 ms FCP — and a contended pass paints
+late enough that the font arrives before the text and there is nothing left to
+shift. The metric was measuring the rig. `docs/MOBILE-WEIGHT.md` recommendation
+4 now carries the discard criterion that would have caught it.
+
+**The homepage, rarely.** 0.000 on the motion path across all 20 samples;
+0.013 on two of four reduced-motion passes. Probed: the same mechanism, a
++28.08 px step with the hero CTA row (`div.mkt-enter.mkt-d3`) dropping at
+`fonts.ready`, on a run where the font did not land until 6,999 ms. One
+defect, one mechanism, two surfaces — `/pricing` reliably because the eight
+`PageHero` subpages share the geometry, home rarely because its hero usually
+paints late enough not to care.
+
+**Reproducing it needs no probe any more.** `scripts/mobile-weight.mjs` now
+prints the worst layout shift per surface — the moved element, the pixels, the
+millisecond and how many runs saw it — so `node scripts/mobile-weight.mjs
+--runs 3` reports this defect by name. Verified: it names
+`div.relative.overflow-hidden.rounded-[14px].border moved 27.28px` on
+`/pricing` (3/3) and `div.mkt-enter.mkt-d3.mt-9.flex moved 28.08px` on the
+homepage under reduced motion (3/3).
+
+**The fix is typographic, not motion** — `BRAND.md` Part 4, `PageHero` in
+`components/marketing/ui.tsx`. Two candidates, and the second is the better
+one because it fixes the cause rather than the symptom:
+
+1. Reserve the sub paragraph's line box (`min-height` at three lines), which
+   measured **0 reflows in 8/8** runs and dropped CLS to 0.0073. Cheap, but it
+   hard-codes a line count per breakpoint and per string.
+2. Give the fallback face `size-adjust` / `ascent-override` metric overrides so
+   it wraps where Inter wraps. One declaration, no per-string constant, and it
+   covers every surface the swap touches rather than the one that was measured.
+
+**Deliberately not fixed on DREAMCRM-118**, whose scope was the measurement:
+it is a type-metrics change across eight subpages and wants its own issue and
+its own before/after, which is the same call `docs/MOBILE-WEIGHT.md`
+recommendation 1 made about the hero and which turned out right. ·
+**OPEN** (Neon's lane — marketing-site type and hero geometry).
 
 ### Deliverable 4 — error aggregation · NOT BUILT (owner decision)
 

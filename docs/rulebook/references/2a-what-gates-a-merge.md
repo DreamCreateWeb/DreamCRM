@@ -1,14 +1,17 @@
-# §2a. What actually gates a merge (re-verified against the live repo 2026-09-22)
+# §2a. What actually gates a merge (re-verified against the live repo 2026-09-23)
 
 *`dreamcrm-conventions` §2a. `SKILL.md` is the map and carries §§4, 5, 7, 9 and 10 in full.*
 
 Two checks can block a merge to `main`: the required contexts `test` and `e2e`,
-both from `.github/workflows/ci.yml`. **Re-read off the API on 2026-09-22 and
+both from `.github/workflows/ci.yml`. **Re-read off the API on 2026-09-23 and
 unchanged**: `contexts: ["test", "e2e"]`, `strict: true`,
 `enforce_admins: true`, `allow_force_pushes: false`, `allow_deletions: false`,
-`required_linear_history: false`, twelve workflow files, nine §3 review areas in
+`required_linear_history: false`, thirteen workflow files, nine §3 review areas in
 `GATE_RULES`, and the four merge-method toggles plus `allow_update_branch` and
-`delete_branch_on_merge` all as described below. Nothing on this page drifted. Branch protection is `strict: true` (a
+`delete_branch_on_merge` all as described below. The workflow COUNT is the one
+thing that had drifted — `e2e-flaky-digest.yml` (#684) made it thirteen — and
+so had the criterion the sentence below used for what “gates” means; both are
+corrected there. Branch protection is `strict: true` (a
 branch must be up to date with `main` before it merges) and the repository's
 `allow_update_branch` is `true`.
 
@@ -60,12 +63,24 @@ an emergency fix, and close it — two commands, leaving a settings-change recor
 `gh pr merge --admin` no longer bypasses anything either. `docs/CI.md` owns the
 procedure under "The emergency hatch"; do not restate the commands here.
 
-There are twelve workflow files and **ten of them gate nothing** — only
-`ci.yml` and `deploy.yml` publish a required context, which is the only thing
-that decides it (`WORKFLOW_CENSUS` in `scripts/rulebook-drift.mjs` is where
-that is asserted against the tree, and it is the copy a test can fail on).
-`e2e-flake-hunt.yml` is the twelfth, new 2026-09-23 on #680: `workflow_dispatch`
-only, so it cannot hold a merge.
+There are thirteen workflow files and **ten of them gate nothing.** Three gate
+something, and they do it two different ways: `ci.yml` publishes both required
+contexts on a PR, `deploy.yml` publishes `test` on a push to `main`, and
+`migration-check.yml` publishes nothing at all yet can still fail the deploy
+run, because `deploy.yml` calls it with `uses:` under `needs: deploy` with no
+`continue-on-error`. **Publishing a required context is not the criterion —
+`gates` is.** This page used to say it was, which is literally consistent with
+the count and substantively false; `WORKFLOW_CENSUS` in
+`scripts/rulebook-drift.mjs` has kept `publishes` and `gates` apart since #575
+for exactly this case, that census is asserted against the tree, and it is the
+copy a test can fail on. This sentence is derived from it.
+
+`e2e-flake-hunt.yml` is the twelfth, new 2026-09-23 on #680:
+`workflow_dispatch` only, so it cannot hold a merge. `e2e-flaky-digest.yml` is
+the thirteenth, new 2026-09-23 on #684: weekly cron plus dispatch, no PR
+trigger, and it reads a WEEK of Playwright reports together to name any spec
+that flaked in two or more separate runs — the thing the per-run reporter never
+could. It cannot hold a merge either.
 `nightly.yml` and `post-merge-e2e.yml` run after the fact, and `nightly.yml`'s
 `tz-canary` job is `continue-on-error: true` — **a green nightly does not mean
 the canary passed**; open the run and read that job. `review-gate.yml` (new
@@ -588,6 +603,21 @@ and asserts an `[aria-current="true"]` is visible before scanning — grading MO
 of the page than the first draft, not less. Zero rather than a ceiling cost two
 real fixes rather than a pardon, which is the standard the other eleven stops
 set.
+
+**And a stop arrived on 2026-09-23 that no marketing page list could have
+produced** (#698 / DREAMCRM-108, `66d087dc`, 06:05:18Z — §2's fifty-third
+entry). `e2e/smoke.spec.ts` now carries a stop on the marketing 404, with an
+axe scan and Part 10's 390px `scrollWidth` probe against a real **404
+response**. It is not in `e2e/marketing-viewport.spec.ts` and it cannot be:
+that spec asserts `status === 200` at every stop it visits. **Read that
+together with the praise above for the derived page list**, because it is the
+boundary of it — the list expands from the registries the routes' own
+`generateStaticParams` read, so it covers a ninth comparison on the day it is
+added, and it still cannot cover a page that exists only as a miss. A derived
+field of view is bounded by the predicate it derives THROUGH, and here that
+predicate is "a route with params that resolve". Count the
+`expectNoA11yViolations` call sites, as this section already says; do not count
+the marketing pages and assume the two numbers are the same question.
 
 **The two populations this section called uncovered are covered by DREAMCRM-98
 (PR #669, OPEN as of 2026-09-22, Vesper).** Counted the way this section asks —

@@ -85,6 +85,23 @@ memory.
   bell row older than N minutes would close the rest; it is new machinery (a
   writer, a window, a retry budget) rather than a correction, so the freeze
   puts it here. Raised by Sentinel reviewing #683.
+- **Move the repository to a GitHub organization — an OWNER decision.**
+  Recorded 2026-09-23 (DREAMCRM-114) from Sentinel's DREAMCRM-110 finding,
+  which until now lived only in a comment on a closed issue. DreamCRM is owned
+  by Dustin's personal account, and GitHub's **merge queue requires an
+  organization-owned repository** — Sentinel probed it and GitHub refused, so
+  the structural fix for merge contention is unavailable to us for a reason
+  that has nothing to do with our CI. The cost it leaves in place is measured:
+  `strict: true` means every PR must be up to date before it merges, and on a
+  busy queue that is 1.90 test runs per PR at the current 8m 10s gate, with two
+  of Rio's four DREAMCRM-106 PRs needing a merge of `main` plus a full re-run
+  purely to satisfy it. The recommendation ON the merge rules is unchanged and
+  is NOT this entry — do not relax the up-to-date requirement; make the suite
+  faster (DREAMCRM-110). This is the other lever, and it is post-1.0 because it
+  is an owner decision rather than an effort question: an org move touches
+  billing, the deploy credentials and the Vercel connection, which is the wrong
+  set of things to disturb mid-freeze. Nothing is broken today; it is recorded
+  so the after-1.0 answer has somewhere to be found.
 - Facebook review reply (no Zernio endpoint), per-staff booking widgets,
   patient-view audit log, 2FA, per-location booking (CLAUDE.md item 8).
 - Dentistry-type site templates expansion (CLAUDE.md item 0b — design

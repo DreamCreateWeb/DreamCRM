@@ -63,6 +63,33 @@ tightens nothing. **Do not read this verdict across to anything that grades
 something** — striking a ledger item that asks you to shrink an axe ceiling or
 tighten a contrast rule is §2's "never weaken a failing test" with extra steps.
 
+**An OPEN entry whose evidence is an ABSENCE or a BEHAVIOUR must name a call
+site.** Rio's intake, 2026-09-23 (DREAMCRM-114), recorded first beside the two
+entries closed on DREAMCRM-108 and lifted here because it generalises. Most
+ledger entries point at something you can go and read — a wrong number, a
+missing label, a colour that measures 2.63. Two shapes do not:
+
+- an **absence** ("the `isManage` branch is unreachable"), where the fix
+  DELETES the thing the claim was about;
+- a **behaviour** ("this card announces nothing to a screen reader"), where
+  nothing in the source says so either way.
+
+For both, once the fix lands there is nothing left to check the claim against.
+The 2026-09-23 reconciliation closed two such entries and both were
+re-verifiable only because their fixes happened to leave a comment saying so —
+**an accident, not a control.** Absent that accident, the entry reads `OPEN`
+indefinitely and nobody but its author can settle it, which is how fifteen OPEN
+verdicts came to need a re-verification pass rather than a read.
+
+So an entry of either shape names the file and the symbol a later reader should
+stand in front of — `lib/services/billing.ts` `activateFullPremium()`, the
+component and the phase, the branch and its caller. It costs one line at write
+time. **It is the ledger's version of §10's contrast hand-off**, which owes the
+measured hex, the element and the stop rather than a suspected token, and of
+§2d's rule that a claim about EXECUTION is not settled by a claim about TEXT: an
+entry saying a call is missing has said nothing about whether the call RUNS, and
+naming the call site is what lets the next reader ask.
+
 **A ledger entry about PUBLISHED COPY quotes the string as it appears on the
 LIVE PAGE, and names where it was observed.** Neon's intake, 2026-09-23. The
 launch-post entry described what the registry held; the visitor was still
