@@ -300,8 +300,15 @@ export default function CosmeticHome(props: HomePageProps) {
                         </span>
                         <span
                           aria-hidden="true"
-                          className="text-xl opacity-30 transition-all duration-200 group-hover:opacity-100 group-hover:translate-x-1"
-                          style={{ color: accent }}
+                          // The row's only hover affordance. It rested at
+                          // opacity-30 on the accent — a SETTLED colour, not a
+                          // momentary one — which measures 1.46-1.97 on the
+                          // cream ground for every brand, under the 3:1 a
+                          // meaningful graphic owes. It rests at the quiet ink
+                          // the description beside it already uses, and the
+                          // hover is the slide.
+                          className="text-xl transition-transform duration-200 group-hover:translate-x-1"
+                          style={{ color: SITE_INK_MUTED }}
                         >
                           →
                         </span>

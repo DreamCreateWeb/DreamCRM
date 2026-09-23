@@ -90,6 +90,40 @@ The report is uploaded on a green run too, unlike every other e2e job here — a
 ratio is worthless without its denominator, and "50 of 50 passed" and "the
 filter matched nothing" are otherwise the same shade of green.
 
+### What three hunts have actually bought (2026-09-23, DREAMCRM-115)
+
+Worth reading before dispatching a fourth, because the pattern in the results is
+more useful than any one of them.
+
+| Hunt | Repeats | Found |
+| --- | ---: | --- |
+| `35813473042` | 200 | the duplicate-render flake, 9 and 4 |
+| `35815991515` | 200 | duplicate render **closed at 0**; one balance-link no-navigation |
+| `35835599351` | 200 | one balance-link no-navigation (repeat 76); **one previously unseen failure** (repeat 140) |
+
+**The balance-link residual now has a real number: 3 in 800, 0.375%.** And the
+number comes with its uncertainty, which is the part that decides what to do
+next: the 95% interval on 3/800 runs from about **0.08% to 1.1%**. Three events
+say the defect is real and recurring; they do not distinguish a 1-in-1000 defect
+from a 1-in-100 one. **A fix judged against this rate needs on the order of a
+thousand clean repetitions to beat luck** — four more hunts at the harness
+ceiling. That is the honest cost of the obvious next step, and it is why the
+next move on that one is the TRACE from repeat 76 rather than another hunt.
+`e2e/portal-billing.spec.ts` §10 carries the detail.
+
+**The other thing a hunt does, which the first two did not show: it finds
+failures nobody was hunting.** Run `35835599351` failed a SECOND test, at
+`portal-billing.spec.ts:502`, on the assertion that no phantom "Balance payment"
+survives a failed checkout — expected 0, received 1, **stable across all 24
+polls of the 10-second window**. That stability is what makes it interesting: it
+is not a render race, the row was really there. It is characterised beside the
+assertion rather than here, including what the hunt itself rules out (a row left
+by an earlier repeat would have failed every repeat after 140; exactly one
+failed).
+
+So: a hunt aimed at one flake is also a 200x replay of everything else in the
+file, and the report is worth reading past the spec you came for.
+
 ## Deliberately NOT part of `pnpm test`
 
 The merge gate must stay fast — though "fast" is now **8m 10s median for the

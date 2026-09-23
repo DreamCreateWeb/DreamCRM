@@ -21,14 +21,30 @@ from burying what is not done. Keep it to 5–10 lines and say *why* each one is
 still sitting there — "deferred, needs a data series" and "nobody has picked it
 up" are different facts and only one of them is a backlog item.
 
-## OPEN NOW (last rewritten: batch 71, 2026-09-22)
+## OPEN NOW (last rewritten: batch 72, 2026-09-23)
 
+> **Batch 72 (DREAMCRM-116) closed entry 4 outright** — `components/clinic-site`
+> was its last deferred tree and is in the rule now, with the tenant palette
+> graded through `buildClinicPalette` across every brand a clinic can pick
+> rather than against one clinic's value. Three sites fixed, none pardoned; the
+> entry's own count of 3 was really 7 chunks / 6 unprefixed, which is the second
+> time in four batches a hand-carried count in this file was low.
+>
+> **The top of the list is now entry 7, and it is new** — and it is not
+> hypothetical: this rule and every rule in `class-pairs.ts` read CLASS
+> STRINGS, so a dimming written in a style object (`style={{ color: INK_MUTED,
+> opacity: 0.65 }}`) is invisible to all of them. Widening the directory found
+> two more live defects under it that way, by hand — including public body copy
+> on the clinic home page at **2.66** — and both are fixed in batch 72. The
+> population is measured (**24** inline non-endpoint opacities tree-wide, **4**
+> on a declared ink or type), so this is a bounded job, not a swamp. Nobody has
+> picked it up; the honest reason it is not a two-line fix is that it needs a
+> different READER — a JSX style-object walker — rather than a wider regex on
+> the one we have.
+>
 > **Batches 68-71 (DREAMCRM-88) closed entries 1 and 2** — the rule
 > plus its sweep, then the per-site pass, then Sentinel's five-site correction
-> and the reader bug under it. Entry 4's clinic-site slice is the top of the
-> list now, and the honest description of why it is still sitting there is that
-> nobody has picked it up: it needs the tenant-derived palette graded through
-> `buildClinicPalette` rather than against one clinic's value.
+> and the reader bug under it.
 
 > **READ THIS BEFORE THE NEXT SWEEP OF ANY KIND.** Batch 70 found that
 > `class-pairs.ts`'s chunk reader — shared by all seven contrast rules and, in
@@ -205,12 +221,72 @@ up" are different facts and only one of them is a backlog item.
    reddens on all four marketing sites, and a real `opacity-75` planted on the
    header megamenu's 12.48px descriptions was GREEN before the widening and is
    named after it.]
-   **`components/clinic-site` — 3 sites, none of them body copy**: an
+   ~~**`components/clinic-site` — 3 sites, none of them body copy**: an
    `aria-hidden` arrow at `opacity-30` that a `group-hover` takes to 100, and
    two `dc-edit-only` placeholders that render only for the site's EDITOR in the
    Studio. The tenant-derived palette is the standing reason the wider slice
    needs the batch-65 treatment (grade against `buildClinicPalette`, never one
-   clinic's value). Own slice; nobody has picked it up.
+   clinic's value). Own slice; nobody has picked it up.~~
+   [**DONE, DREAMCRM-116 (batch 72)** — the last tree joins the rule, and
+   **the entry's own count was wrong in both halves**, which is the part worth
+   keeping. Seven chunks under this tree carry an `opacity-N`, six of them
+   unprefixed — not three. Four are graphics with no type scale (an
+   announcement-bar glyph, two `shrink-0` chevrons, a decor mark) and the rule
+   leaves them alone exactly as it leaves the other 22. **Three declared their
+   own type scale, and all three are FIXED rather than pardoned**, because the
+   batch-65 treatment this entry asked for came back unambiguous.
+   · **The measurement, across every brand a clinic can pick** (the twelve
+   `tests/clinic-site/palette.test.ts` pins its AA floor over), through
+   `buildClinicPalette` rather than one clinic's value: the tenant body ink at
+   **50% measures 3.20-3.29** on the tenant ground against a 4.5 floor — the
+   BEST case fails, and the spread across twelve brands is 0.09, because the
+   builder grades `ink` on `bg` to clear AA with very little headroom and
+   halving it spends all of that whatever the hue. The named quiet ink
+   (`inkMuted`) measures **4.88-5.97**, so this rule's standing fix is
+   available for every brand rather than the lucky ones. That is the thing a
+   one-clinic measurement structurally could not have told anybody, and it is
+   why the deferral was correct at the time.
+   · **The cosmetic template's hover arrow was under the GRAPHIC floor, not
+   just the type one** — the entry filed it as "none of them body copy" and let
+   it sit. `cosmeticAccentInk` at 30% on the cream ground measures **1.46-1.97**
+   against the 3:1 WCAG 1.4.11 asks of a meaningful graphic; at full strength
+   the same accent never measures below 4.62, by construction. It was the only
+   thing telling a sighted person a services row is a link, and it rested as a
+   ghost. It rests at the quiet ink the description beside it already uses now,
+   and the hover is the slide.
+   · **The two `dc-edit-only` prompts are editor-only and that changes
+   nothing** — an editor is a person reading type at 3.20. `italic` already
+   says "not your copy yet"; the dimming was a second quietening doing the
+   same job worse.
+   · **A SECOND READER IS MISSING, and it was hiding two live defects under
+   this very tree.** A dimming written in a STYLE OBJECT (`style={{ color:
+   INK_MUTED, opacity: 0.65 }}`) is invisible to every rule in `class-pairs.ts`
+   and to this one, because they all read class strings — so bringing the
+   directory into scope did NOT finish the sweep of it. Three inline dimmings
+   sit on type here; two are fixed in this batch because they were real and
+   measured, and the third is a genuine ornament:
+   **`google-rating-badge.tsx:73`** — "· 12 reviews on Google", the heading ink
+   at 70%. The badge paints on two grounds: on the deep band it composites to
+   **4.66-6.94** and is fine, on the light ground it is **2.66-6.81** —
+   readable for some brands a clinic can pick and not for others, which is
+   precisely what a one-clinic measurement cannot see. It is public body copy on
+   the home and services pages. `font-normal` beside the `font-semibold` number
+   carries the same hierarchy on every brand.
+   **`modern/home.tsx:746`** — the team-placeholder's "Their role", the QUIET
+   ink at 65%, composites to **2.54-2.83** on every brand. A second quietening
+   of an ink already chosen to be quiet, which is this rule's whole thesis.
+   **`cosmetic/home.tsx:389`** — a decorative `"` glyph at `text-8xl`,
+   `aria-hidden`, accent at 35%. Left alone deliberately: there is no sentence
+   to make harder to read, and a style-object reader would flag it, which is
+   part of what entry 7 has to get right.
+   Tree-wide there are **24** non-endpoint inline `opacity:` values under `app`,
+   `components` and `lib`; **4** share a style object with a `color:` or a font
+   declaration, and the fourth is an `<svg>` in `post-preview.tsx` that renders
+   LinkedIn's own chrome. That is the whole measured population, and it is
+   entry 7 below rather than a caveat hiding in a docblock.
+   · Watched to fail both ways — putting the three dimmings back reddens the
+   gate naming each by file, line and value, and re-adding the directory to
+   `OUT_OF_SCOPE` reddens the field-of-view assertion by name.]
    ~~**Carry into that slice when it happens** (from Forge's #611 intake):
    `fuchsia-600` is **4.66 on white and 4.46 on `surface-1`** — it PASSES rule 4,
    which grades clipped text against white, and fails the page. Measure the new
@@ -246,6 +322,32 @@ up" are different facts and only one of them is a backlog item.
    the deferral is watched rather than silent. Whether a four-step escalation
    should reach outside the tone set, or collapse to three, is a design
    decision — deferred, needs an owner call.
+7. **No rule in this repo can see a dimming written in a STYLE OBJECT.**
+   `dimmed-text` and all seven rules in `class-pairs.ts` grade quoted CLASS
+   strings, so `style={{ color: INK_MUTED, opacity: 0.65 }}` is invisible to
+   every one of them — a whole spelling of the defect they exist to hold at
+   zero. **This is not theoretical.** Batch 72 brought `components/clinic-site`
+   into `dimmed-text` and the class-string rule reported the tree clean while
+   two live sites sat in it, both found by hand: the Google rating badge's
+   "· 12 reviews on Google" at **2.66** on the light ground (public body copy,
+   home + services), and a team placeholder at **2.54-2.83**. Both are fixed;
+   the READER is not.
+   · **The population is measured, so this is bounded**: **24** non-endpoint
+   inline `opacity:` values across `app`, `components` and `lib`; **4** share
+   their style object with a `color:` or a font declaration. Two of those four
+   were the defects above. The third is a decorative `"` glyph
+   (`cosmetic/home.tsx:389`, `aria-hidden`, `text-8xl`, accent at 35%) and the
+   fourth is an `<svg>` rendering LinkedIn's chrome (`post-preview.tsx:166`) —
+   which is the interesting half of the job: a style-object reader that flags
+   both of those is a reader nobody will keep, so it needs the same
+   derived-pardon treatment `isPictureScale` gave the class-string rule.
+   · **`opacity` is not the only inline spelling** — `color: 'rgba(...)'` and a
+   `/15` alpha written into a style object are the same defect wearing
+   different clothes, and none of them are graded either. Scope the reader
+   before scoping the sweep.
+   · Nobody has picked it up. The honest reason it is not a two-line fix: it is
+   a different READER (a JSX style-object walker), not a wider regex on the one
+   we have.
 
 Everything else unstruck in this file is **deferred with a stated reason**
 (needs a data series the services do not keep, or a deliberate design decision
