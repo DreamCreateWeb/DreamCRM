@@ -60,6 +60,8 @@ type Live = {
 }
 
 const CENSUS = WORKFLOW_CENSUS as Census
+/** Built in an IIFE in plain JS, so it infers as {} at the import — same treatment as WORKFLOW_CENSUS. */
+const ORDINALS = ORDINAL_WORDS as Record<string, number>
 const localReality = () =>
   readLocalReality(process.cwd()) as Pick<Live, 'workflows' | 'gateAreas' | 'guards' | 'guardDir' | 'rulebook'>
 
@@ -682,6 +684,16 @@ describe('the intake ordinal counter', () => {
   const NINE = ['FORTY-NINTH', 'FIFTIETH', 'FIFTY-FIRST', 'FIFTY-SECOND', 'FIFTY-THIRD',
     'FIFTY-FOURTH', 'FIFTY-FIFTH', 'FIFTY-SIXTH', 'FIFTY-SEVENTH']
 
+  /**
+   * Asserts a finding came back AND narrows it, so each branch below reads as
+   * the claim it is making rather than as a null check. Without the narrowing
+   * the assertions type-check against `null` and `pnpm typecheck` reddens.
+   */
+  const mustFind = (f: { actual: string; fix: string } | null) => {
+    expect(f, 'the claim returned nothing, so the branch under test is vacuous').not.toBeNull()
+    return f!
+  }
+
   it('is silent on a clean run of ordinals', () => {
     expect(ordinals.check(rulebookOf(NINE))).toBeNull()
   })
@@ -691,8 +703,7 @@ describe('the intake ordinal counter', () => {
    * they insert at different offsets in one file.
    */
   it('catches a duplicate, which is what three concurrent PRs produce', () => {
-    const finding = ordinals.check(rulebookOf([...NINE, 'FIFTY-SEVENTH']))
-    expect(finding).not.toBeNull()
+    const finding = mustFind(ordinals.check(rulebookOf([...NINE, 'FIFTY-SEVENTH'])))
     expect(finding.actual).toContain('duplicate')
     expect(finding.actual).toContain('57')
     // It must tell the reader which PR renumbers, not merely that something is wrong.
@@ -700,8 +711,7 @@ describe('the intake ordinal counter', () => {
   })
 
   it('catches a hole in the middle, which is a renumber that skipped one', () => {
-    const finding = ordinals.check(rulebookOf(NINE.filter((w) => w !== 'FIFTY-THIRD')))
-    expect(finding).not.toBeNull()
+    const finding = mustFind(ordinals.check(rulebookOf(NINE.filter((w) => w !== 'FIFTY-THIRD'))))
     expect(finding.actual).toContain('53')
   })
 
@@ -712,8 +722,7 @@ describe('the intake ordinal counter', () => {
    * guard must never wave through.
    */
   it('reports an ordinal it cannot resolve rather than skipping it', () => {
-    const finding = ordinals.check(rulebookOf([...NINE, 'FIFTY-EIGTH']))
-    expect(finding).not.toBeNull()
+    const finding = mustFind(ordinals.check(rulebookOf([...NINE, 'FIFTY-EIGTH'])))
     expect(finding.actual).toContain('cannot resolve')
     expect(finding.actual).toContain('FIFTY-EIGTH')
   })
@@ -731,8 +740,7 @@ describe('the intake ordinal counter', () => {
    * honest instrument rather than a weaker version of an exact one.
    */
   it('refuses a reader that found almost nothing', () => {
-    const finding = ordinals.check(rulebookOf(NINE.slice(0, INTAKE_ORDINAL_FLOOR - 1)))
-    expect(finding).not.toBeNull()
+    const finding = mustFind(ordinals.check(rulebookOf(NINE.slice(0, INTAKE_ORDINAL_FLOOR - 1))))
     expect(finding.actual).toContain('ordinal entry markers')
     expect(finding.fix).toContain('Do NOT lower the floor')
   })
@@ -743,15 +751,15 @@ describe('the intake ordinal counter', () => {
    * its own expense. These are the joints where a derivation goes wrong.
    */
   it('spells the tens and the compounds the way English does', () => {
-    expect(ORDINAL_WORDS.FIRST).toBe(1)
-    expect(ORDINAL_WORDS.NINETEENTH).toBe(19)
-    expect(ORDINAL_WORDS.TWENTIETH).toBe(20)
-    expect(ORDINAL_WORDS['TWENTY-FIRST']).toBe(21)
-    expect(ORDINAL_WORDS.FIFTIETH).toBe(50)
-    expect(ORDINAL_WORDS['FIFTY-SEVENTH']).toBe(57)
-    expect(ORDINAL_WORDS['NINETY-NINTH']).toBe(99)
+    expect(ORDINALS.FIRST).toBe(1)
+    expect(ORDINALS.NINETEENTH).toBe(19)
+    expect(ORDINALS.TWENTIETH).toBe(20)
+    expect(ORDINALS['TWENTY-FIRST']).toBe(21)
+    expect(ORDINALS.FIFTIETH).toBe(50)
+    expect(ORDINALS['FIFTY-SEVENTH']).toBe(57)
+    expect(ORDINALS['NINETY-NINTH']).toBe(99)
     // The shapes English does NOT use, so a compound cannot resolve two ways.
-    expect(ORDINAL_WORDS['TWENTY-TENTH']).toBeUndefined()
-    expect(ORDINAL_WORDS.TWENTIETH_FIRST).toBeUndefined()
+    expect(ORDINALS['TWENTY-TENTH']).toBeUndefined()
+    expect(ORDINALS.TWENTIETH_FIRST).toBeUndefined()
   })
 })

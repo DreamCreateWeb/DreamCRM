@@ -3610,6 +3610,69 @@
   mojibake. Every case in the guard is constructed at runtime for that reason.
   The instructions this work grew out of failed their own check by pasting one.
 
+  **THE FIFTY-EIGHTH: #721, the `intake-ordinals` claim in
+  `scripts/rulebook-drift.mjs` (DREAMCRM-128). A NEW CLASS, and the first guard
+  here whose subject is THIS LIST'S OWN BOOKKEEPING** rather than anything in
+  the repo. Every `**THE <ORDINAL>:` marker must be unique and the set must have
+  no gaps, or `test` fails naming the duplicate.
+  **STATE: on the PR — #721, review requested.**
+
+  **What it cost to learn.** On 2026-09-23 THREE open PRs each claimed the
+  FIFTY-SEVENTH — #712, #713 and #714 — and GitHub called all three
+  `MERGEABLE`. They insert at different offsets in one file, so git has no
+  opinion about what the words mean; two fifty-sevenths would have landed and
+  neither author would have known. §2d already says a hand-kept list drifts
+  exactly as a revert list does. This list is in the document that says it, and
+  had no guard.
+
+  **WHAT IT DOES NOT ASSERT, AND WHY THAT IS A MEASUREMENT.** It does not
+  require contiguity from ONE. The markers on this tree run **49..57**, because
+  the first forty-eight entries predate the `**THE <ORDINAL>:` form and are
+  written as prose — so a from-one claim would have reddened on its own first
+  run, naming forty-eight innocent absences. That is §2d's newest rule (run the
+  instrument on the case in front of you) catching this guard BEFORE it was
+  written rather than after, which is the only time it is cheap.
+
+  **The candidate test is the ordinal SUFFIX, not the map, and the pair is the
+  design.** `**THE FIX:` is a real heading here and must stay quiet;
+  `FIFTY-EIGTH` is a typo and must be loud. Keying on the map alone would skip
+  both silently, and the second is the one a counter's guard may never wave
+  through. So anything shaped like an ordinal is a CANDIDATE, and a candidate
+  the map cannot resolve is a FINDING. `ORDINAL_WORDS` is DERIVED from units and
+  tens rather than typed out — a hand-kept table of ninety-nine guarding a
+  hand-kept list is the joke §2d makes at its own expense.
+
+  **Its eyes are floored rather than compared, and the reason is worth keeping.**
+  Every branch is about a set the reader built, so a regex that stopped matching
+  reports a perfectly unique, perfectly contiguous EMPTY list. Unlike the guards
+  census there is no second reading to compare against — a directory is an
+  independent census, a prose list is not — so a floor is the honest instrument
+  here rather than a weaker version of an exact one.
+
+  **A CASE on the review gate, no ordinal: #716** (`85829c9a`, 2026-09-23,
+  DREAMCRM-130) — **a push may no longer strip a gate label a person put on**,
+  and it reaches this document late, which is worth saying plainly: it merged
+  while three rulebook PRs were queued against this file and was held rather
+  than routed. `review-gate.yml` gained an `issues: read` scope,
+  `review-gate.mjs` gained `labelRemovalDecision`, and
+  `tests/guards/review-gate.test.ts` gained new blocking assertions over the
+  wiring. The gate used to re-derive both labels on every push and remove them
+  unconditionally on the `false` branch — right for a label the classifier
+  applied, wrong for a hand-added one, because the classifier cannot tell "the
+  risk went away" from "I never saw the risk". The cost was not a missing
+  sticker: `review-sweep.mjs` reads the label off the MERGED PR, so a PR whose
+  last push stripped its label merged carrying nothing and the morning report
+  was honestly clean — blind in exactly the category the path classifier had
+  already missed. Every uncertainty returns KEEP, because the two errors are not
+  symmetrical: a stale label costs one question in tomorrow's sweep, a stripped
+  one costs the review.
+
+  **A CASE on the E2E harness, no ordinal: #704** (`a75497fa`, 2026-09-23,
+  DREAMCRM-115) — `e2e/portal-billing.spec.ts` and `docs/E2E.md`. The
+  portal-billing residual has a measured rate now rather than an adjective, and
+  the hunt found a second thing. Routed because §2 says a CASE is still routed:
+  no new class, but what the browser-driven spec asserts moved.
+
   (**The ordinals record arrival HERE, not merge order.** #697 and #684 merged
   before #698 and #701 and are numbered after them, because this list records
   what has been ROUTED. Reading it as a timeline turns a gap in the intake into
