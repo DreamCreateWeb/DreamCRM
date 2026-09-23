@@ -1,0 +1,47 @@
+DREAMCRM-116: the clinic-site dimmed-text slice (UI batch 72)
+
+Closes punch-list entry 4. `components/clinic-site` was the last tree
+excluded from `tests/a11y/dimmed-text.test.ts`; it is in scope now, and
+nothing in it is pardoned.
+
+THE DEFERRAL'S STATED REASON WAS A MEASUREMENT, so the measurement is what
+discharges it. The tree's ink and ground are derived per tenant, so the rule
+is graded across every brand a clinic can actually pick — the twelve
+`tests/clinic-site/palette.test.ts` pins its AA floor over — through
+`buildClinicPalette` rather than one clinic's value. The answer does not
+depend on the brand, which is the finding:
+
+  - the tenant body ink at 50% measures 3.20-3.29 against a 4.5 floor. The
+    BEST case fails, and the spread across twelve brands is 0.09, because
+    the builder grades `ink` on `bg` with very little headroom and halving
+    it spends all of that whatever the hue;
+  - the named quiet ink measures 4.88-5.97, so this rule's standing fix is
+    available for every brand rather than the lucky ones;
+  - the cosmetic template's hover arrow was under the GRAPHIC floor, not
+    just the type one: its accent at 30% on cream measures 1.46-1.97
+    against the 3:1 WCAG 1.4.11 asks. At full strength that accent never
+    measures below 4.62, by construction.
+
+THE ENTRY'S COUNT WAS WRONG IN BOTH HALVES. Seven chunks carry an
+`opacity-N`, six unprefixed — not three. Four are graphics with no type
+scale and the rule leaves them alone as it leaves the other 22; three
+declared their own type scale and all three are fixed.
+
+AND WIDENING THE DIRECTORY DID NOT FINISH SWEEPING IT. Every rule in this
+repo reads quoted CLASS strings, so `style={{ color: INK_MUTED, opacity:
+0.65 }}` is invisible to all of them. Two live defects sat in this tree that
+way and were found by hand — the Google rating badge's "· N reviews on
+Google" at 2.66 on the light ground (public body copy on the home and
+services pages) and a team placeholder at 2.54-2.83. Both fixed. The missing
+READER is new punch-list entry 7, with its population measured (24 inline
+non-endpoint opacities tree-wide, 4 on a declared ink or type) so it is a
+bounded job rather than a rumour.
+
+Watched to fail both ways: putting the three dimmings back reddens the gate
+naming each by file, line and value; re-adding the directory to
+`OUT_OF_SCOPE` reddens the field-of-view assertion by name; and pointing the
+quiet-ink half of the palette measurement at the dimmed ink reddens that.
+
+`dimmed-text.test.ts` is already on the `blocking-assertions` intake list;
+its entry records this as a CASE (a field of view that grew, no new class).
+Full suite green (8,843); typecheck, `pnpm build` and `pnpm lint` clean.
