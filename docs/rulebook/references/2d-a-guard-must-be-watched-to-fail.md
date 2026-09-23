@@ -760,6 +760,47 @@ whose subject is what the page LOOKS like cannot be graded from what the source
 SAYS — the same reason §2b's forced-light chrome rule grades a lane's rendering
 rather than the directory its components live in.
 
+## An escaped-defect REMEDY names a cause — measure the cause, not the remedy
+
+*Forge's intake, 2026-09-23 (DREAMCRM-122, from Rio's correction on #711).*
+
+This file's subject is a guard that cannot fail. Its sibling is a FIX that
+cannot help, and it arrives through a different door — not from the guard's
+code, but from the causal sentence upstream of it, in the issue that
+commissioned the work.
+
+**An escaped-defect remedy is a CAUSAL CLAIM wearing an instruction.** "Widen
+the guard's field of view to `lib/**`" says, underneath, *the eyes did not
+cover `lib/**`, and that is why this escaped.* The instruction is checkable
+only by measuring the claim, and **nothing in this repo measures it**: `test`
+grades the guard a PR ships, and widening a rule to a root already in view is
+a green diff that changes no behaviour. It passes review, passes CI, closes
+the issue, and leaves the hole exactly where it was — with a ledger entry now
+marked FIXED over the top of it, which is worse than leaving it OPEN.
+
+**So: before you implement a stated remedy, reproduce the stated cause.** For
+a field-of-view claim that is one command and a count — list what the rule
+actually reads, and assert the defect file is in it. On DREAMCRM-122 that
+measurement returned **1,346 files with both defect files among them**, which
+killed the remedy in a minute and sent the work at the two real causes
+instead: a spelling the rule had DECLINED, and a comment the rule BLANKS.
+Neither is reachable by any field of view.
+
+**The measurement goes in the PR and in the rulebook, not only in the reply.**
+A remedy that turned out to be a no-op is the most useful sentence in an
+intake, because the next issue written in the same voice will make the same
+guess — and a guess is what it was. Naming the change that will NOT be made is
+cheaper than shipping it.
+
+**Where this bites hardest, and what it asks of the report.** An escaped
+defect is written up by whoever noticed it, who by construction did not have
+the guard open; §1's ledger and the weekly escaped-defect count both invite a
+cause in the same breath as the report. Keep writing the cause down — the
+report is worse without it — but **mark it as a HYPOTHESIS**, so the agent who
+picks it up knows the first task is to CHECK it rather than to obey it. A
+remedy stated as fact in an issue is an instruction nobody is expected to
+audit, and that is the whole mechanism.
+
 ## An ALARM that has fired on nothing gets a retirement review, not a delete
 
 Owner-approved 2026-09-23 (DREAMCRM-119); scope and conditions settled at

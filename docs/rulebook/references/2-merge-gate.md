@@ -3488,10 +3488,87 @@
     label is exactly what untracked work has nobody to apply.** It never wakes
     Forge — §3's off-board count is what it feeds.
 
+  **THE FIFTY-SEVENTH: #711, the CENTS spelling on
+  `tests/marketing/plan-price-literals.ts` (DREAMCRM-122, Rio, routed the day
+  it was written). A NEW CLASS — and the call is contestable, so the reasoning
+  is here rather than the verdict alone.** The plan-price rule was already
+  registered and has taken three CASES since (#676, #686, #690), so "another
+  spelling on the plan-price rule" is exactly the shape this list has four
+  times refused an ordinal. It gets one anyway, on the test §2 states rather
+  than on the label: **ask what population the assertion holds at zero.** The
+  three existing spellings all key on a number that LOOKS like the plan price
+  — a `$` prefix, a cadence, a price-shaped NAME. CENTS keys on neither half
+  of that: the subject is shifted by a factor of 100, and the discriminator is
+  the `Cents` SUFFIX with `nameIsPricey` deliberately NOT applied, because
+  `invoiceCents` splits to `invoice` + `Cents` and neither is a pricey word.
+  **No narrowing or widening of any existing spelling reaches it** — which is
+  the difference from #676, whose two widenings changed what an existing
+  spelling matched and correctly took no ordinal. The population it brings
+  into view is real and was previously invisible: **50 `*Cents` literal
+  assignments ≥ 1000 across the three roots, one of them the defect and 49 of
+  them now graded by a rule that could not read them yesterday.** A stranger's
+  PR can go red on a line no rule in this repo could see last week; that is
+  the test, and that is the answer.
+  **STATE: OPEN — PR #711, on the DREAMCRM-122 branch.** Forge owns the flip.
+
+  **What this entry is NOT, and it is half the intake.** The same PR carries a
+  §3 `GATE_RULES` widening (`lib/net-collected.ts` → `money`) and a DECLINED
+  comment-reading spelling, and **neither takes an ordinal here.** The
+  widening is a PATTERN and not an area — `GATE_RULES` stays at nine,
+  `rulebook-drift` stays green through it correctly, and it is written up in
+  §3 with its own `STATE:` line against the same PR. **Those two `STATE:`
+  lines must agree**, and rule 3 of `tests/guards/rulebook-state.ts` fails
+  `test` if they ever stop; flipping one of them alone is the nine-line defect
+  that guard was built for. The declined half is in §2c with the number behind
+  it — 39 hits, 38 of them innocent — and a stated trigger for revisiting. **A
+  declined derivation takes no ordinal because it adds no assertion**, which
+  is §2d's zero-population convention read from this end: the record owes the
+  measurement, not the number.
+
+  **AND THE DIAGNOSIS IN THE ISSUE WAS WRONG, which is the durable finding
+  here.** DREAMCRM-122 was written with its remedy already chosen — "the guard
+  missed these because its eyes cover three product roots and these live in
+  `lib/**`; widen that guard's field of view to `lib/**`" — and the remedy was
+  a no-op: `lib` has been the third root since #665, and both defect files
+  were among the 1,346 in view, measured on the branch. Implemented as
+  written, that PR merges green, satisfies its own evidence-of-done, closes
+  three ledger entries and widens the field of view of **nothing** — while
+  both real causes (a spelling the rule had DECLINED, and a comment the rule
+  BLANKS) sit untouched. Rio measured the claim instead of obeying it. **§2d
+  carries the rule this earns**, because the failure is not in any guard's
+  code: it is in the causal sentence upstream of it, which nothing in this
+  repo grades.
+
   (**The ordinals record arrival HERE, not merge order.** #697 and #684 merged
   before #698 and #701 and are numbered after them, because this list records
   what has been ROUTED. Reading it as a timeline turns a gap in the intake into
   what looks like a gap in the work.)
+
+
+  **THE SWEEP OF 2026-09-23T12:1xZ, boundary `2026-09-23T06:00:00-05:00`** —
+  run to open the DREAMCRM-122 intake, deliberately back inside the previous
+  sweep's window. **Pass one returned NOTHING and pass two returned THREE** —
+  `e03a9ce3` (#703), `0d56c036` (#708), `977c24a2` (#707) — **all three already
+  graded at the intake that merged them, so nothing was ungraded and the sweep
+  took no ordinal.** The FIFTY-SEVENTH above arrived from its author routing
+  it, not from here.
+
+  **Pass one returning zero over a window in which two gate changes merged is
+  the ordinary case, and it is the argument FOR pass two, not against it.**
+  Neither #708 nor #707 touches `.github/workflows/`, `e2e/`, `docs/CI.md` or
+  `docs/E2E.md`; #708 changes what `guards-census` DOES when its directory is
+  missing — ungradeable instead of a silent pass — which alters what can merge
+  and carries no gate-path file at all. That is the #598 shape, and the path
+  list still cannot see it.
+
+  Branch protection and the merge settings were read again here and had **NOT
+  drifted**: `contexts: ["test", "e2e"]`, `strict: true`, `enforce_admins:
+  true`, force-pushes and deletions off, `required_pull_request_reviews`
+  absent, `required_linear_history: false`,
+  `required_conversation_resolution: false`, `block_creations: false`,
+  `lock_branch: false`; squash, merge-commit and rebase all on,
+  `allow_auto_merge` on, `allow_update_branch` on, `delete_branch_on_merge`
+  on.
 
 
 **Which repo-settings change goes where.** A setting that changes *which* checks
