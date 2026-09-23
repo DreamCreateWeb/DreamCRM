@@ -1,7 +1,9 @@
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { AA, contrast, DARK, LIGHT, over, ROOT, utilityColor } from './palette'
+import { AA, contrast, DARK, hexToRgb, LIGHT, over, ROOT, utilityColor } from './palette'
+import { buildClinicPalette } from '@/lib/clinic-site-theme'
+import { buildCosmeticPalette, cosmeticAccentInk } from '@/lib/site-templates/cosmetic/palette'
 import { eachClassString, quotedChunks, uiSourceFiles } from './class-pairs'
 
 /**
@@ -111,12 +113,34 @@ const SCAN_ROOTS = ['app', 'components', 'lib']
  *     chunk-at-a-time rule cannot. The three hits in there today are the
  *     appointment page's `aria-hidden` emoji glyphs (🪪 💊 🕐), each sitting
  *     beside the sentence it decorates — genuinely covered, not merely skipped.
- *   · `components/clinic-site` — three hits, none of them body copy: an
- *     `aria-hidden` arrow at `opacity-30` that a `group-hover` takes to 100,
- *     and two `dc-edit-only` placeholders that render only for the site's
- *     EDITOR inside the Studio, prompting them to fill an empty section. A
- *     visitor never sees either. The tenant-derived palette is the second
- *     reason and the OPEN NOW entry is the record.
+ * ~~· `components/clinic-site` — three hits, none of them body copy: an
+ * `aria-hidden` arrow at `opacity-30` that a `group-hover` takes to 100, and
+ * two `dc-edit-only` placeholders that render only for the site's EDITOR inside
+ * the Studio, prompting them to fill an empty section. A visitor never sees
+ * either. The tenant-derived palette is the second reason and the OPEN NOW
+ * entry is the record.~~ **IN SCOPE since DREAMCRM-116**, and nothing in it is
+ * pardoned — all three are FIXED. The exclusion's stated reason was about
+ * MEASURING a per-tenant palette rather than about the shape this rule grades,
+ * and the measurement came back the same for every brand: see "the tenant
+ * palette, graded through its own builder" below.
+ *
+ * **THE COUNT IN THAT STRUCK PARAGRAPH WAS ALSO WRONG IN BOTH HALVES**, which
+ * is why re-deriving on the way in is the rule and not a courtesy. Seven chunks
+ * under this tree carry an `opacity-N`, six of them unprefixed — not three.
+ * Four are graphics with no type scale (an announcement-bar glyph, two
+ * `shrink-0` chevrons, a decor mark) and this rule leaves them alone exactly as
+ * it leaves the other 22. Three declared their own type scale and were
+ * findings. And the paragraph's own triage was half right: the two
+ * `dc-edit-only` prompts really are editor-only, and an editor is still a
+ * person reading type at 3.20.
+ *
+ * ONE THING IT SAYS NOTHING ABOUT, found on the way in and named because the
+ * next author will assume otherwise: a dimming written in a STYLE OBJECT
+ * (`style={{ color: INK_MUTED, opacity: 0.65 }}`) is invisible to every rule
+ * in this file, because they all read class strings. There are two under this
+ * tree today. That is the same false-negative direction as the rest of the
+ * file, and closing it means grading style objects — a different reader, not a
+ * wider regex.
  * ~~· `components/marketing` — four hits, all inside the decorative product
  * MOCK-UPS at 7–9px.~~ **IN SCOPE since DREAMCRM-87**, and the four are still
  * pardoned — by CONTENT rather than by directory. See `isPictureScale` below.
@@ -130,7 +154,7 @@ const SCAN_ROOTS = ['app', 'components', 'lib']
  * whether dimming type is wrong there — that reason justified deferring the
  * marketing *measurements* (OPEN NOW entry 3), never a blind spot in this rule.
  */
-const OUT_OF_SCOPE = ['app/(portal)', 'components/patient-portal', 'components/clinic-site']
+const OUT_OF_SCOPE = ['app/(portal)', 'components/patient-portal']
 
 /**
  * THE ONE PARDON, AND IT IS DERIVED FROM THE CHUNK RATHER THAN FROM A PATH.
@@ -309,6 +333,85 @@ describe('why dimming type is a defect', () => {
     expect(dimmed(LIGHT, 'gray-600', 'surface-2', 0.8)).toBeLessThan(AA)
   })
 
+  /**
+   * THE TENANT PALETTE, GRADED THROUGH ITS OWN BUILDER — never through one
+   * clinic's value (DREAMCRM-116; the batch-65 treatment this exclusion was
+   * waiting for).
+   *
+   * `components/clinic-site` was the last tree outside this rule, and the
+   * stated reason was that its ink and its ground are DERIVED PER TENANT:
+   * `buildClinicPalette` takes the one colour a clinic picks and emits the
+   * whole seventeen-role theme, so "is this dimming readable" has as many
+   * answers as there are brands, and measuring the demo clinic's would have
+   * answered for exactly one of them.
+   *
+   * So it is graded across every brand a clinic can actually pick — the real
+   * onboarding presets plus the adversarial extremes, the same list
+   * `tests/clinic-site/palette.test.ts` pins the AA floor over — and the answer
+   * turns out not to depend on the brand at all, which is the finding:
+   *
+   *   · **The body ink at 50% fails on every one of them, BEST case
+   *     included**: 3.20 to 3.29 on the tenant ground, against a 4.5 floor,
+   *     and the spread across twelve brands is 0.09. That is not a coincidence
+   *     — `buildClinicPalette` grades `ink` on `bg` to clear AA with very
+   *     little headroom, so halving the ink spends all of it whatever the hue.
+   *     This is the `dc-edit-only` prompt the Studio shows an editor.
+   *   · **The named quiet ink clears it on every one**: `inkMuted` measures
+   *     4.88 to 5.97. This rule's standing fix — delete the dimming, name the
+   *     quiet ink — is available here for every brand rather than the lucky
+   *     ones, which is the thing a one-clinic measurement could not have told
+   *     anybody.
+   *   · **And the cosmetic template's hover arrow was dimmer than either
+   *     floor**: its accent at 30% on the cream ground measures **1.46 to
+   *     1.97**, against the 3:1 WCAG 1.4.11 asks of a meaningful graphic and
+   *     the 4.5 it would owe as type. At full strength that same accent never
+   *     measures below 4.62, by construction — `cosmeticAccentInk` darkens
+   *     along the brand's own hue until it clears AA on cream. The dimming
+   *     threw away every bit of headroom the builder had just bought.
+   */
+  const CLINIC_BRANDS: Array<string | null> = [
+    '#9CAF9F', '#7C9CB8', '#D4A284', '#E87B5E', '#F0A658', '#7C3AED',
+    '#DC2626', '#1D4ED8', '#EAB308', '#F5F5F4', '#111111', null,
+  ]
+
+  it('grades the tenant ink at 50% across every brand a clinic can pick', () => {
+    const dimmedInk = CLINIC_BRANDS.map((b) => {
+      const pal = buildClinicPalette(b)
+      const bg = hexToRgb(pal.bg)
+      return contrast(over(hexToRgb(pal.ink), 0.5, bg), bg)
+    })
+    const quietInk = CLINIC_BRANDS.map((b) => {
+      const pal = buildClinicPalette(b)
+      return contrast(hexToRgb(pal.inkMuted), hexToRgb(pal.bg))
+    })
+
+    // The BEST case fails. That is what makes this a rule rather than a triage.
+    expect(Math.max(...dimmedInk)).toBeLessThan(AA)
+    expect(Math.max(...dimmedInk).toFixed(2)).toBe('3.29')
+    expect(Math.min(...dimmedInk).toFixed(2)).toBe('3.20')
+    // ...and the fix is available on every brand, not the lucky ones.
+    expect(Math.min(...quietInk)).toBeGreaterThanOrEqual(AA)
+    expect(Math.min(...quietInk).toFixed(2)).toBe('4.88')
+  })
+
+  it('grades the cosmetic hover arrow, which was under the graphic floor too', () => {
+    const dimmed = CLINIC_BRANDS.map((b) => {
+      const pal = buildCosmeticPalette(b)
+      const bg = hexToRgb(pal.bg)
+      return contrast(over(hexToRgb(cosmeticAccentInk(b)), 0.3, bg), bg)
+    })
+    const full = CLINIC_BRANDS.map((b) => contrast(
+      hexToRgb(cosmeticAccentInk(b)),
+      hexToRgb(buildCosmeticPalette(b).bg),
+    ))
+    // Under the 3:1 a meaningful graphic owes, on every brand, at the best case.
+    expect(Math.max(...dimmed)).toBeLessThan(3)
+    expect(Math.max(...dimmed).toFixed(2)).toBe('1.97')
+    expect(Math.min(...dimmed).toFixed(2)).toBe('1.46')
+    // The builder had already bought AA at full strength. The dimming spent it.
+    expect(Math.min(...full)).toBeGreaterThanOrEqual(AA)
+  })
+
   it('pins the shared FilterChip count, which is what made this a batch', () => {
     // `gray-600` at 70% on the chip's own `gray-100` fill. One primitive, every
     // filtered list in the product.
@@ -469,6 +572,11 @@ describe('the app never dims its own type', () => {
     // four sites it covered are pardoned by `isPictureScale` instead, which is
     // what the exclusion's own stated reason was actually about.
     expect(reaches('components/marketing'), 'components/marketing is in scope').toBe(true)
+    // DREAMCRM-116: the last deferred tree. Its exclusion was about MEASURING a
+    // per-tenant palette rather than about the shape this rule grades, and the
+    // two tests above are that measurement — across every brand, through
+    // `buildClinicPalette` rather than one clinic's value.
+    expect(reaches('components/clinic-site'), 'components/clinic-site is in scope').toBe(true)
   })
 
   /**
