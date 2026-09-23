@@ -2991,6 +2991,35 @@
   hop from Stripe now owes Sentinel a review.** **STATE: MERGED — `5abd4b37`
   (#681), 2026-09-23 00:59:11Z.**
 
+  **A CASE on it the same night, no ordinal: #690** (`7502947c`, merged
+  `a635ebfd`, 2026-09-23 01:48:25Z), answering Sentinel's three non-blocking
+  notes. Two of the three are worth carrying because they are general:
+
+  - **The predicate did not ask what its own failure message asked for.** The
+    new check accepted ANY gate area while the direct-import check beside it
+    demands `money`, and its message told the author to "add each to the money
+    patterns". One file fell straight into the gap —
+    `app/(default)/ecommerce/customers/admin-actions.ts` calls
+    `cancelSubscriptionNow` and satisfied the check purely through the `auth`
+    pin it had earned back in #569, so a subscription-cancelling surface was
+    reported covered by a rule that was not about money. **A message that
+    describes a stricter predicate than the code enforces is the
+    sentence-versus-code family in §2d, and it is worse than a wrong message:
+    the next reader believes the message.**
+  - **The discrimination witness was HAND-PICKED** — two named clinic-site
+    pages standing in for "the one-hop files that are not surfaces". A
+    legitimate refactor that stopped that tree reaching a Stripe-importing
+    module would have reddened `test` naming an innocent page. It is derived
+    now from the one-hop population's own RENDERERS
+    (page/layout/loading/error/not-found), with a floor under both the renderer
+    count and the non-surface count so neither half can pass vacuously.
+    **A witness is a hand-kept list wearing one entry's clothes** — the defect
+    §2c and §2d keep naming, at its smallest possible size.
+
+  (The third note: `ROUTE_HANDLER` required a directory segment, so a root
+  `app/route.ts` was not a surface. Nothing lives there today, which is exactly
+  why it would have gone unnoticed.)
+
 
 **Which repo-settings change goes where.** A setting that changes *which* checks
 are required or *who* may bypass them is branch protection: §3's review gate
