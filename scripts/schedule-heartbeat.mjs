@@ -10,7 +10,7 @@
  *
  * WIDENED 2026-09-23 (DREAMCRM-115). This file was "is every SCHEDULED
  * workflow still firing" because a cron was the only way an alarm ran here.
- * `deploy-alarm.yml` is the first that runs on another workflow's completion,
+ * `push-alarm.yml` is the first that runs on another workflow's completion,
  * and it inherits the exact property below, so it is watched by the same job —
  * with a different QUESTION, because an alarm with no cadence cannot be late.
  * See "THE OTHER KIND OF ALARM" further down for the pairing rule; the rest of
@@ -311,7 +311,7 @@ export function cronsIn(text) {
  * THE SECOND SUBJECT, ADDED DREAMCRM-115.
  *
  * This file started as "is every SCHEDULED workflow still firing", and that
- * was the whole set of alarms the repository had. `deploy-alarm.yml` is the
+ * was the whole set of alarms the repository had. `push-alarm.yml` is the
  * first that runs on another workflow's completion instead of on a clock, and
  * it inherits the property this file exists for exactly: an alarm that has
  * stopped firing is indistinguishable from one reporting that everything is
@@ -374,7 +374,7 @@ export function watchersIn(text) {
     if (depth == null) continue
 
     // Flow style: `workflows: ['A', "B"]` — one line, which is how
-    // `deploy-alarm.yml` writes it.
+    // `push-alarm.yml` writes it.
     const flow = /^\s*workflows:\s*\[(.*)\]\s*$/.exec(line)
     if (flow) {
       for (const part of flow[1].split(',')) {

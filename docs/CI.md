@@ -31,7 +31,7 @@ loads, including the one real clinic site — is `docs/OPS.md`.
 | `.github/workflows/schedule-heartbeat.yml` | `schedule` 07:07 UTC + dispatch | `schedule-heartbeat` | that every OTHER scheduled workflow is still firing | no — never runs on a PR |
 | `.github/workflows/e2e-flake-hunt.yml` | `workflow_dispatch` only | `e2e-flake-hunt` | nothing — it is an instrument, not an alarm: one spec N times, reporting a rate | no — no PR, push or schedule trigger at all |
 | `.github/workflows/e2e-flaky-digest.yml` | `schedule` Monday 09:23 UTC + dispatch | `e2e-flaky-digest` | noticing a spec that flaked in more than one run this week | no — never runs on a PR |
-| `.github/workflows/deploy-alarm.yml` | `workflow_run` on `deploy.yml`, `types: [completed]` | `deploy-alarm` | that a red production deploy reaches somebody | no — runs entirely after the deploy, cannot hold a merge |
+| `.github/workflows/push-alarm.yml` | `workflow_run` on `deploy.yml` + `post-merge-e2e.yml`, `types: [completed]` | `push-alarm` | that a red push-triggered workflow on `main` reaches somebody | no — runs entirely after its upstream, cannot hold a merge |
 
 ## A green deploy must mean the new version is SERVING
 
@@ -357,7 +357,7 @@ Postgres from the runner image's binaries, applies every migration from zero —
 deploy-path rehearsal — then builds, serves, and runs Playwright). See
 `docs/E2E.md`.
 
-## A red deploy has to reach somebody (added 2026-09-23, DREAMCRM-115)
+## A red push-triggered workflow has to reach somebody (added 2026-09-23, DREAMCRM-115)
 
 `main` auto-deploys to production, so `deploy.yml` failing is the loudest thing
 that can happen here — and until 2026-09-23 it was also one of the quietest.
@@ -371,22 +371,35 @@ The gap was structural rather than bad luck, and all three halves are worth
 knowing because each one looks like coverage until you check:
 
 - **Nothing in `.github/workflows/**` used a `workflow_run` trigger.**
-  `deploy-alarm.yml` is the first. A failed push-triggered workflow had nowhere
+  `push-alarm.yml` is the first. A failed push-triggered workflow had nowhere
   to route to because nothing was listening for one.
-- **`schedule-heartbeat.yml` cannot see `deploy.yml` by construction.** It
+- **`schedule-heartbeat.yml` cannot see either of them by construction.** It
   derives its list from `cron:` entries and grades the AGE of each schedule's
-  newest run. A deploy fires when somebody merges; there is no window to be
-  late against. Not a hole in that check — outside its subject.
-- **A red deploy is not a red PR.** The merge that caused it is already on
+  newest run. Both fire when somebody merges; there is no window to be late
+  against. Not a hole in that check — outside its subject.
+- **A red post-merge run is not a red PR.** The merge that caused it is already on
   `main` and still green on its own PR page. Nothing on the board moves.
 
-**What it does.** `deploy-alarm.yml` runs on every `deploy.yml` completion,
-goes red when the deploy did, and POSTs to a Multica autopilot webhook
-(`DEPLOY_ALARM_WAKE_URL`) that opens an issue assigned to Quinn. Same two
+**TWO PRODUCERS, ONE ALARM.** Two workflows fire on every push to `main`, and
+both had the same hole. `deploy.yml` red means production is serving an older
+commit than `main`. `post-merge-e2e.yml` red means a patient-facing journey
+broke on a commit that is **already live** — it holds nothing back, and its own
+header says "nothing in `.github/` routes a workflow failure anywhere".
+
+One alarm rather than two because the question and the machinery are identical.
+What differs is the CONSEQUENCE, and that is one sentence chosen by the
+upstream's own file name (`PRODUCER_DETAIL`), in the first line a woken reader
+sees. What is also per-producer is the red STREAK: a broken deploy and a broken
+browser journey are independent facts, so the history lookup derives its
+`--workflow` from `workflow_run.path` rather than naming one.
+
+**What it does.** `push-alarm.yml` runs on every completion of either,
+goes red when its upstream did, and POSTs to a Multica autopilot webhook
+(`PUSH_ALARM_WAKE_URL`) that opens an issue assigned to Quinn. Same two
 artefacts as the intake wake on `review-sweep.yml`: GitHub cannot dispatch
 anybody, so the RECORD is the red run and the WAKE is the POST.
 
-Three things in `scripts/deploy-alarm.mjs` are worth reading before changing it:
+Three things in `scripts/push-alarm.mjs` are worth reading before changing it:
 
 - **`cancelled` is not a deploy failure, and that is mechanical.**
   `deploy.yml`'s `deploy` job carries
@@ -421,7 +434,7 @@ filename. Editing the first line of `deploy.yml` disconnects this alarm and
 GitHub reports nothing at all — a trigger that matches nothing is not an error,
 it is a workflow that never runs. Two things hold it: the heartbeat's
 `unknown-upstream` verdict catches it the next morning, and
-`tests/guards/deploy-alarm.test.ts` reads both files off disk and fails `test`
+`tests/guards/push-alarm.test.ts` reads both files off disk and fails `test`
 on the rename in the diff that causes it.
 
 ## The two suite alarms

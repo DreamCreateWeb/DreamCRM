@@ -1,16 +1,18 @@
 import { describe, it, expect } from 'vitest'
 import { spawnSync } from 'node:child_process'
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
   BENIGN_CONCLUSIONS,
+  PRODUCER_DETAIL,
   RED_CONCLUSIONS,
   assess,
   previousSettled,
+  producerOf,
   renderSummary,
   wakeDecision,
-} from '../../scripts/deploy-alarm.mjs'
+} from '../../scripts/push-alarm.mjs'
 import { WORKFLOW_CENSUS } from '../../scripts/rulebook-drift.mjs'
 
 /**
@@ -59,6 +61,8 @@ import { WORKFLOW_CENSUS } from '../../scripts/rulebook-drift.mjs'
 
 const RUN = {
   id: 35815260160,
+  name: 'Deploy to AWS App Runner',
+  path: '.github/workflows/deploy.yml',
   conclusion: 'failure',
   status: 'completed',
   html_url: 'https://github.com/DreamCreateWeb/DreamCRM/actions/runs/35815260160',
@@ -75,7 +79,7 @@ const raw = (name: string) => readFileSync(join(process.cwd(), '.github/workflow
  * A workflow file with every comment line removed.
  *
  * §2a's generalisable remedy, and this file needed it on its first run: the
- * header names `scripts/deploy-alarm.mjs`, so the unfiltered search for the
+ * header names `scripts/push-alarm.mjs`, so the unfiltered search for the
  * invocation found a SENTENCE ABOUT it instead of the invocation. Three of the
  * four blocking findings across #664 and #671 were that same shape. Every
  * assertion here is about what the workflow DOES, so every one of them reads
@@ -87,24 +91,118 @@ const wf = (name: string) =>
     .filter((l) => !/^\s*#/.test(l))
     .join('\n')
 
-describe('deploy alarm — the trigger is wired to the workflow it thinks it is', () => {
-  it("watches `deploy.yml`'s actual `name:`, read off disk from both files", () => {
-    // The defect this refuses: somebody renames `deploy.yml`'s display name in
-    // a tidy-up PR, `workflow_run` silently stops matching, and the alarm
-    // never fires again with no error anywhere. Both sides are read from the
-    // tree so neither can be satisfied by a string typed here.
-    const deployName = /^name:\s*(.+)$/m.exec(wf('deploy.yml'))?.[1]?.trim()
-    expect(deployName, '`deploy.yml` must declare a top-level `name:`').toBeTruthy()
+/** A workflow's top-level `name:` — the string `workflow_run` actually matches. */
+const workflowName = (file: string) => /^name:\s*(.+)$/m.exec(wf(file))?.[1]?.trim() ?? ''
 
-    const alarm = wf('deploy-alarm.yml')
+/**
+ * Every workflow file whose `on:` block declares `push:` to `main`.
+ *
+ * THE DERIVATION THE TRIGGER IS GRADED AGAINST, and it deliberately reads the
+ * `on:` block only. Matching `push:` anywhere in the file would be satisfied by
+ * the word appearing in a job step or, worse, in one of these headers — the
+ * "a guard over a YAML file is a guard over a file that is half prose" lesson
+ * `wf` already exists for, one level deeper.
+ *
+ * The alarm itself is excluded by construction rather than by name: it has no
+ * `push:` trigger, and if it ever grew one it SHOULD appear here and fail this
+ * — a `workflow_run` alarm that also runs on push would be watching itself.
+ */
+function pushToMainWorkflows(): string[] {
+  const dir = join(process.cwd(), '.github/workflows')
+  return readdirSync(dir)
+    .filter((f) => /\.ya?ml$/.test(f))
+    .filter((f) => {
+      const onBlock = /^on:\n([\s\S]*?)(?=^\S)/m.exec(wf(f))?.[1] ?? ''
+      if (!/^ {2}push:/m.test(onBlock)) return false
+      const branches = /^ {2}push:\n(?:\s+.*\n)*?\s+branches:\s*(.+)$/m.exec(onBlock)?.[1] ?? ''
+      return branches.includes('main')
+    })
+}
+
+describe('deploy alarm — the trigger is wired to the workflow it thinks it is', () => {
+  it('watches EVERY push-to-main workflow, derived from the tree rather than typed', () => {
+    // THE LIST IS NOT WRITTEN HERE, and that is the whole point. Two defects
+    // are refused by one assertion:
+    //
+    //   1. A RENAME. Somebody changes a producer's display name in a tidy-up
+    //      PR, `workflow_run` silently stops matching, and the alarm never
+    //      fires again with no error anywhere.
+    //   2. A THIRD PRODUCER. Somebody adds a workflow on `push: [main]` and
+    //      nobody remembers this file exists. The alarm would be correct about
+    //      the two it knows and blind to the new one — which is exactly the
+    //      shape of the gap DREAMCRM-115 was filed about, one level over.
+    //
+    // Both sides are read off disk, so neither can be satisfied by a string in
+    // this test. The equality is deliberate rather than `toContain`: watching
+    // something that no longer pushes to main is also drift, and reading a
+    // stale name in the trigger tells the next reader the wrong thing about
+    // what is covered.
+    const expected = pushToMainWorkflows()
+      .map((f) => workflowName(f))
+      .sort()
+
+    expect(
+      expected.length,
+      'no workflow in the tree declares `push:` to `main`. Either the repo changed shape or this ' +
+        'derivation stopped matching — and a guard that derives an empty set passes vacuously, ' +
+        'which is the failure this whole file is about.',
+    ).toBeGreaterThanOrEqual(2)
+
+    const alarm = wf('push-alarm.yml')
     const list = /workflow_run:[\s\S]*?workflows:\s*\[(.*?)\]/.exec(alarm)?.[1] ?? ''
-    const watched = list.split(',').map((s) => s.trim().replace(/^['"]|['"]$/g, ''))
+    const watched = list
+      .split(',')
+      .map((s) => s.trim().replace(/^['"]|['"]$/g, ''))
+      .filter(Boolean)
+      .sort()
 
     expect(
       watched,
-      "`deploy-alarm.yml`'s `workflow_run.workflows:` must contain `deploy.yml`'s `name:` verbatim " +
-        '— GitHub matches the DISPLAY NAME, and a trigger that matches nothing never runs.',
-    ).toContain(deployName)
+      "`push-alarm.yml`'s `workflow_run.workflows:` must equal the `name:` of every workflow that " +
+        'triggers on `push:` to `main` — GitHub matches the DISPLAY NAME, and a trigger that ' +
+        'matches nothing never runs. Derived set: ' +
+        `[${expected.join(', ')}].`,
+    ).toEqual(expected)
+  })
+
+  it('names a consequence for every producer it watches', () => {
+    // The trigger decides what WAKES somebody; `PRODUCER_DETAIL` decides what
+    // the first sentence says when it does. If they come apart, a woken reader
+    // gets "this alarm does not recognise the workflow that produced this run"
+    // — honest, and useless at the hour it arrives. The unknown branch stays
+    // as the fail-safe; this keeps it from being the normal path.
+    const files = pushToMainWorkflows().sort()
+    const described = Object.keys(PRODUCER_DETAIL)
+      .filter((k) => k !== 'unknown')
+      .sort()
+    expect(
+      described,
+      'every push-to-main workflow needs an entry in `PRODUCER_DETAIL` saying what ITS red means ' +
+        '— a red deploy and a red post-merge browser run have different consequences and the ' +
+        'reader needs the difference, not the average.',
+    ).toEqual(files)
+  })
+
+  it('reads the producer from the event PATH, not the display name', () => {
+    // The display name is the renameable thing — that is the hazard the
+    // trigger comment is about — so the severity lookup must not depend on it.
+    expect(producerOf({ path: '.github/workflows/deploy.yml' })).toBe('deploy.yml')
+    expect(producerOf({ path: '.github/workflows/post-merge-e2e.yml' })).toBe('post-merge-e2e.yml')
+    expect(producerOf({ path: '.github/workflows/something-else.yml' })).toBe('unknown')
+    expect(producerOf({})).toBe('unknown')
+  })
+
+  it('looks the run history up PER PRODUCER, so one red streak cannot silence the other', () => {
+    // A broken deploy and a broken browser journey are independent facts. If
+    // the history lookup named one workflow, a red deploy streak would make
+    // the first red post-merge run read as a continuation and nobody would be
+    // woken for it.
+    const code = wf('push-alarm.yml')
+    expect(code).toContain('github.event.workflow_run.path')
+    expect(
+      code,
+      'the history lookup must derive its `--workflow` from the event, never name one',
+    ).not.toMatch(/gh run list[^\n]*--workflow\s+(deploy|post-merge-e2e)\.yml/)
   })
 
   it('fires on every completion, not only on failure', () => {
@@ -113,20 +211,20 @@ describe('deploy alarm — the trigger is wired to the workflow it thinks it is'
     // reaching this workflow is what makes its run history a pairable record
     // of every deploy — which is how `schedule-heartbeat.yml` can tell the
     // alarm has stopped.
-    expect(wf('deploy-alarm.yml')).toMatch(/types:\s*\[completed\]/)
+    expect(wf('push-alarm.yml')).toMatch(/types:\s*\[completed\]/)
   })
 
   it('does not share `deploy.yml`\'s concurrency group', () => {
     // Queueing the alarm behind the rollout it is reporting on is how an alarm
     // arrives after the incident.
-    const alarm = wf('deploy-alarm.yml')
+    const alarm = wf('push-alarm.yml')
     const group = /concurrency:\s*\n\s*group:\s*(.+)/.exec(alarm)?.[1]?.trim()
     expect(group).toBeTruthy()
     expect(group).not.toContain('deploy-main')
   })
 
   it('holds no write scope and gates nothing', () => {
-    const alarm = wf('deploy-alarm.yml')
+    const alarm = wf('push-alarm.yml')
     const block = /^permissions:\n((?:\s{2}\S+:.*\n)+)/m.exec(alarm)?.[1] ?? ''
     const scopes = block
       .trim()
@@ -149,7 +247,7 @@ describe('deploy alarm — the trigger is wired to the workflow it thinks it is'
   it('does not publish a check named `test` or `e2e`', () => {
     // Main's two required contexts. A second producer of either name can
     // report a green check onto a commit the real suite never ran against.
-    const alarm = wf('deploy-alarm.yml')
+    const alarm = wf('push-alarm.yml')
     for (const line of alarm.split('\n')) {
       const m = /^\s{2,}(?:name):\s*(.+?)\s*$/.exec(line)
       if (!m) continue
@@ -159,11 +257,11 @@ describe('deploy alarm — the trigger is wired to the workflow it thinks it is'
 
   it('is in the workflow census, which is what §2 reads', () => {
     expect(
-      'deploy-alarm.yml' in WORKFLOW_CENSUS,
+      'push-alarm.yml' in WORKFLOW_CENSUS,
       'a workflow file with no `WORKFLOW_CENSUS` entry in `scripts/rulebook-drift.mjs` is one ' +
         'nobody wrote down, and `rulebook-drift.yml` goes red on it the next morning.',
     ).toBe(true)
-    expect(WORKFLOW_CENSUS['deploy-alarm.yml'].publishes).toEqual([])
+    expect(WORKFLOW_CENSUS['push-alarm.yml'].publishes).toEqual([])
   })
 
   it('tells the script where the event and the history are, on one line', () => {
@@ -174,19 +272,19 @@ describe('deploy alarm — the trigger is wired to the workflow it thinks it is'
     // This is the test that caught the prose problem `wf` now solves for the
     // whole file: unfiltered, it found the header sentence naming the script
     // rather than the line that runs it.
-    const line = wf('deploy-alarm.yml')
+    const line = wf('push-alarm.yml')
       .split('\n')
-      .find((l) => l.includes('scripts/deploy-alarm.mjs'))
+      .find((l) => l.includes('scripts/push-alarm.mjs'))
     expect(line).toBeTruthy()
     expect(line).toContain('--event event.json')
-    expect(line).toContain('--history deploy-runs.json')
+    expect(line).toContain('--history upstream-runs.json')
     expect(line).toContain('--wake-out wake.json')
   })
 
   it('passes the event payload through `env:` rather than interpolating it', () => {
     // `display_title` is the commit subject — attacker-influenced text — and
     // `${{ }}` inside a `run:` block is substituted before the shell sees it.
-    const alarm = wf('deploy-alarm.yml')
+    const alarm = wf('push-alarm.yml')
     const runLines = alarm.split('\n').filter((l) => /^\s+(run:|\s{2,}\S)/.test(l))
     for (const line of runLines) {
       expect(line, 'never interpolate the upstream run object into a shell line').not.toMatch(
@@ -199,17 +297,46 @@ describe('deploy alarm — the trigger is wired to the workflow it thinks it is'
   it('restores the grading step\'s verdict after the wake', () => {
     // Without the restore step the whole alarm reports green while production
     // is down — the `process.exitCode = 0` mutation in workflow form.
-    const alarm = wf('deploy-alarm.yml')
+    const alarm = wf('push-alarm.yml')
     expect(alarm).toMatch(/continue-on-error:\s*true/)
     expect(alarm).toMatch(/steps\.grade\.outcome == 'failure'/)
   })
 })
 
 describe('deploy alarm — which conclusions are red', () => {
-  it('a failed deploy is a finding', () => {
+  it('a failed deploy is a finding, and says production is behind', () => {
     const v = assess({ run: RUN, previous: null })
     expect(v.red).toBe(true)
-    expect(v.detail).toContain('Production is serving an older commit')
+    expect(v.producer).toBe('deploy.yml')
+    expect(v.detail).toContain('The run FAILED.')
+    expect(v.detail).toContain('production is serving an older commit')
+  })
+
+  it('a failed POST-MERGE run is a finding, and says the commit is already live', () => {
+    // The severity difference that justifies one alarm rather than two: the
+    // deploy holds production back, the browser suite does not. A reader woken
+    // at 3am needs that in the first sentence, not after opening two tabs.
+    const v = assess({
+      run: {
+        ...RUN,
+        name: 'Post-merge E2E',
+        path: '.github/workflows/post-merge-e2e.yml',
+      },
+      previous: null,
+    })
+    expect(v.red).toBe(true)
+    expect(v.producer).toBe('post-merge-e2e.yml')
+    expect(v.detail).toContain('ALREADY LIVE')
+    expect(v.detail).not.toContain('production is serving an older commit')
+  })
+
+  it('an unrecognised producer is named as unrecognised, not described as one of them', () => {
+    const v = assess({
+      run: { ...RUN, name: 'Something new', path: '.github/workflows/something-new.yml' },
+      previous: null,
+    })
+    expect(v.red).toBe(true)
+    expect(v.detail).toContain('does not recognise the workflow')
   })
 
   it('a successful deploy is not', () => {
@@ -320,7 +447,7 @@ describe('deploy alarm — the summary never reports a red deploy as a quiet mor
     const v = assess({ run: RUN, previous: null, historyRead: false })
     const out = renderSummary(v, wakeDecision(v))
     expect(out).toContain('35815260160')
-    expect(out).toContain('The production deploy went red')
+    expect(out).toContain('Deploy to AWS App Runner finished red on `main`')
     expect(out).toContain('Waking Quinn')
   })
 
@@ -343,7 +470,7 @@ describe('deploy alarm — the summary never reports a red deploy as a quiet mor
 
 describe('deploy alarm — the ringer rings (the script run as a process)', () => {
   function run(args: string[], cwd: string, env: Record<string, string> = {}) {
-    return spawnSync(process.execPath, [join(process.cwd(), 'scripts/deploy-alarm.mjs'), ...args], {
+    return spawnSync(process.execPath, [join(process.cwd(), 'scripts/push-alarm.mjs'), ...args], {
       cwd,
       encoding: 'utf8',
       env: { ...process.env, ...env },
@@ -351,7 +478,7 @@ describe('deploy alarm — the ringer rings (the script run as a process)', () =
   }
 
   function fixture(event: unknown, history: unknown) {
-    const dir = mkdtempSync(join(tmpdir(), 'deploy-alarm-'))
+    const dir = mkdtempSync(join(tmpdir(), 'push-alarm-'))
     writeFileSync(join(dir, 'event.json'), JSON.stringify(event))
     if (history !== undefined) writeFileSync(join(dir, 'runs.json'), JSON.stringify(history))
     return dir
@@ -370,7 +497,7 @@ describe('deploy alarm — the ringer rings (the script run as a process)', () =
     const dir = fixture(RUN, [])
     const r = run(args, dir)
     expect(r.status).toBe(1)
-    expect(r.stdout).toContain('::error title=The production deploy went red::')
+    expect(r.stdout).toContain('::error title=Deploy to AWS App Runner finished red on main::')
     expect(JSON.parse(readFileSync(join(dir, 'wake.json'), 'utf8')).wake).toBe(true)
   })
 
@@ -383,7 +510,7 @@ describe('deploy alarm — the ringer rings (the script run as a process)', () =
   })
 
   it('a missing EVENT file is red, not a quiet pass', () => {
-    const dir = mkdtempSync(join(tmpdir(), 'deploy-alarm-'))
+    const dir = mkdtempSync(join(tmpdir(), 'push-alarm-'))
     writeFileSync(join(dir, 'runs.json'), '[]')
     const r = run(args, dir)
     expect(r.status).toBe(1)
@@ -395,6 +522,6 @@ describe('deploy alarm — the ringer rings (the script run as a process)', () =
     const summaryPath = join(dir, 'summary.md')
     writeFileSync(summaryPath, '')
     run(args, dir, { GITHUB_STEP_SUMMARY: summaryPath })
-    expect(readFileSync(summaryPath, 'utf8')).toContain('Deploy alarm')
+    expect(readFileSync(summaryPath, 'utf8')).toContain('Push-triggered alarm')
   })
 })

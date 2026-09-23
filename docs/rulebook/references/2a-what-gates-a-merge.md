@@ -66,7 +66,7 @@ There are fourteen workflow files and **twelve of them gate nothing** — only
 that decides it (`WORKFLOW_CENSUS` in `scripts/rulebook-drift.mjs` is where
 that is asserted against the tree, and it is the copy a test can fail on).
 `e2e-flake-hunt.yml` is the twelfth, new 2026-09-23 on #680: `workflow_dispatch`
-only, so it cannot hold a merge. `deploy-alarm.yml` is the fourteenth, new
+only, so it cannot hold a merge. `push-alarm.yml` is the fourteenth, new
 2026-09-23 on DREAMCRM-115 — the repository's FIRST `workflow_run`-triggered
 file; it runs entirely after `deploy.yml` has finished, so it cannot hold a
 merge either.
@@ -850,7 +850,8 @@ each one's STATE line lives on its §2 entry rather than here:
   wrong. If you write a verdict about a PR anywhere on this page, write it as a
   `STATE:` claim or expect nothing to check it.
 
-- **A red production deploy — DREAMCRM-115, `deploy-alarm.yml`. THE FIFTH
+- **A red push-triggered workflow on `main` — DREAMCRM-115,
+  `push-alarm.yml`. THE FIFTH
   FACE, and the first one found after the convention existed.** `main`
   auto-deploys, and on 2026-09-23 a red `deploy.yml` went unnoticed for 21
   minutes while production shipped nothing for 77. Nothing in
@@ -862,7 +863,11 @@ each one's STATE line lives on its §2 entry rather than here:
   different question, because an alarm with no cadence cannot be late. The
   question is PAIRING — is there a run of the alarm at or after the newest
   settled run of the workflow it watches — and a quiet week of merges is
-  explicitly not a finding. `docs/CI.md`, "A red deploy has to reach somebody",
+  explicitly not a finding. **It watches BOTH push-triggered producers**
+  (`deploy.yml` and `post-merge-e2e.yml`) from one file, and the guard derives
+  that list from the tree rather than taking two typed strings — so a third
+  push-triggered workflow fails `test` by name until it is watched.
+  `docs/CI.md`, "A red push-triggered workflow has to reach somebody",
   carries the rest.
 
 **The two that were open are where the convention earned its keep, and the

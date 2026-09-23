@@ -159,7 +159,7 @@ jobs:
       # a missing or unparseable file as a FAILED LOOKUP, names it in the
       # summary, and goes red. Failing closed is the only safe default for a
       # check whose green means "nothing has stopped".
-      # THE OTHER KIND OF ALARM (DREAMCRM-115). `deploy-alarm.yml` runs on
+      # THE OTHER KIND OF ALARM (DREAMCRM-115). `push-alarm.yml` runs on
       # `deploy.yml`'s completion rather than on a clock, so the question above
       # cannot be asked of it — it has no cadence to be late against, and a
       # quiet week of merges is not a dead alarm. The question that DOES work

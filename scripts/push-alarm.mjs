@@ -1,20 +1,33 @@
 // NO SHEBANG, DELIBERATELY — the same lesson `scripts/review-gate.mjs`,
 // `scripts/rulebook-drift.mjs`, `scripts/review-sweep.mjs`,
 // `scripts/error-scan.mjs` and `scripts/schedule-heartbeat.mjs` all carry. The
-// workflow runs `node scripts/deploy-alarm.mjs`, so it was never load-bearing,
+// workflow runs `node scripts/push-alarm.mjs`, so it was never load-bearing,
 // and git hands this file to a Windows working tree with CRLF endings:
 // vitest's SSR transform leaves the `\r` behind when it strips `#!…` and every
 // test importing this module dies with a parse error at column 1.
 /**
- * DID THE PRODUCTION DEPLOY GO RED, AND DOES ANYBODY KNOW?
+ * DID A PUSH-TRIGGERED WORKFLOW ON `main` GO RED, AND DOES ANYBODY KNOW?
  *
- * `main` auto-deploys to production (§4), so `deploy.yml` failing is the single
- * loudest thing that can happen in this repository — and until this file
- * existed it was also one of the quietest. On 2026-09-23 a red `deploy.yml`
- * went unnoticed for 21 minutes and production shipped nothing for 77. Three
- * consecutive deploy runs failed on `test` between 03:40Z and 04:03Z and the
+ * TWO PRODUCERS, ONE ALARM. `main` auto-deploys to production (§4), and two
+ * workflows fire on every push to it: `deploy.yml`, whose red means production
+ * is serving an older commit than `main`, and `post-merge-e2e.yml`, whose red
+ * means a patient-facing journey broke on a commit that is ALREADY LIVE.
+ *
+ * Until this file existed neither had an addressee. On 2026-09-23 a red
+ * `deploy.yml` went unnoticed for 21 minutes and production shipped nothing for
+ * 77: three consecutive runs failed on `test` between 03:40Z and 04:03Z and the
  * only surfaces carrying that fact were the Actions tab and GitHub's default
- * failed-run email to one account.
+ * failed-run email to one account. `post-merge-e2e.yml` has the same hole and
+ * says so in its own header.
+ *
+ * WHY ONE ALARM AND NOT TWO. The question is identical for both and so is the
+ * machinery — routing, the edge rule, the wake. Two files would be two copies
+ * of it drifting apart. What genuinely differs is the CONSEQUENCE, and that is
+ * `PRODUCER_DETAIL` below: one sentence, chosen by the upstream's own file
+ * name, in the first line a woken reader sees. What is also per-producer is the
+ * red STREAK — a broken deploy and a broken browser journey are independent
+ * facts, so each gets its own edge, which is why the workflow looks the history
+ * up from `workflow_run.path` rather than from a name written here.
  *
  * The gap was structural rather than bad luck, and it is worth stating exactly
  * because it is the reason this is a new workflow rather than a step somewhere:
@@ -22,16 +35,16 @@
  *   * NO WORKFLOW IN `.github/workflows/**` USED A `workflow_run` TRIGGER. A
  *     failed push-triggered workflow had nowhere to route to, because nothing
  *     was listening for one.
- *   * `schedule-heartbeat.yml` CANNOT SEE `deploy.yml` BY CONSTRUCTION. It
+ *   * `schedule-heartbeat.yml` CANNOT SEE EITHER OF THEM BY CONSTRUCTION. It
  *     derives its list from `cron:` entries and grades the AGE of each
- *     schedule's newest run. `deploy.yml` has no cron and fires on merges,
- *     which arrive whenever somebody merges — there is no window to be late
+ *     schedule's newest run. Neither has a cron; both fire on merges, which
+ *     arrive whenever somebody merges — there is no window to be late
  *     against. It is not a hole in that check; it is outside its subject.
- *   * A RED DEPLOY IS NOT A RED PR. The merge that caused it is already on
- *     `main` and already green on its own PR page. Nothing on the board moves.
+ *   * A RED POST-MERGE RUN IS NOT A RED PR. The merge that caused it is already
+ *     on `main` and already green on its own PR page. Nothing on the board moves.
  *
- * So: one workflow that runs on every `deploy.yml` completion, goes red when
- * the deploy did, and POSTs to a Multica autopilot webhook that opens an issue
+ * So: one workflow that runs on every completion of either, goes red when the
+ * upstream did, and POSTs to a Multica autopilot webhook that opens an issue
  * assigned to Quinn. GitHub cannot dispatch anybody — §3 says exactly that
  * about the verdict mention and `review-sweep.yml` says it about the intake
  * wake — so the record is the red run and the WAKE is the POST. Two artefacts,
@@ -43,8 +56,10 @@
  * This is the part most likely to be got wrong by reading GitHub's docs rather
  * than this repository's `deploy.yml`.
  *
- * `failure`, `timed_out` and `startup_failure` are red: the deploy did not
- * finish, so production is serving an older commit than `main`.
+ * `failure`, `timed_out` and `startup_failure` are red: the run did not
+ * finish, which for the deploy means production is serving an older commit
+ * than `main` and for the browser suite means nobody graded the tree that
+ * shipped.
  * `startup_failure` especially — `review-sweep.yml`'s header records
  * `rulebook-drift.yml` shipping a draft with an invalid `permissions:` scope
  * and publishing NO check at all, twice, in 0 seconds. That is a deploy that
@@ -75,8 +90,8 @@
  * the difference is worth reading rather than assuming this file is
  * inconsistent with that one:
  *
- *   * ON THE EDGE. A red streak wakes ONCE, on the transition from a
- *     not-red previous deploy. 2026-09-23 was three red runs in 23 minutes over
+ *   * ON THE EDGE, PER PRODUCER. A red streak wakes ONCE, on the transition
+ *     from a not-red previous run OF THE SAME WORKFLOW. 2026-09-23 was three red runs in 23 minutes over
  *     ONE broken `main`; three issues would have been two pieces of noise and
  *     a worse signal-to-noise ratio for the next one. Every run still goes red
  *     — the colour is free, the run is not.
@@ -95,41 +110,99 @@
  * another workflow's completion. For the second kind the question is not age —
  * a `workflow_run` alarm is exactly as punctual as its upstream — it is
  * PAIRING: is there an alarm run at or after the newest settled run of the
- * workflow it watches? If this file is deleted, disabled, or its
- * `workflows:` list stops naming `deploy.yml`'s `name:`, the heartbeat says so
+ * workflows it watches? If this file is deleted, disabled, or its
+ * `workflows:` list stops naming a producer's `name:`, the heartbeat says so
  * the next morning.
  *
- * The third of those is also pinned at merge time.
- * `tests/guards/deploy-alarm.test.ts` reads `deploy.yml`'s `name:` off disk and
- * requires this workflow's `workflows:` list to contain it, because
- * `workflow_run` matches on the DISPLAY NAME and not the filename — renaming
- * `deploy.yml`'s `name:` would disconnect this alarm with nothing else in the
- * repository noticing.
+ * The third of those is also pinned at merge time, and DERIVED rather than
+ * typed. `tests/guards/push-alarm.test.ts` finds every workflow whose `on:`
+ * block declares `push:` to `main`, reads each one's `name:` off disk, and
+ * requires the trigger's `workflows:` list to equal that set exactly — because
+ * `workflow_run` matches on the DISPLAY NAME and not the filename, so a rename
+ * would disconnect this alarm with nothing else noticing, and a THIRD
+ * push-triggered workflow would simply never be watched.
  *
  * Usage:
- *   node scripts/deploy-alarm.mjs --event event.json --history runs.json --wake-out wake.json
+ *   node scripts/push-alarm.mjs --event event.json --history runs.json --wake-out wake.json
  *
  *   --event    the `github.event.workflow_run` object, as JSON
- *   --history  `gh run list --workflow deploy.yml` output, newest first
+ *   --history  `gh run list --workflow <the upstream's own file>` output,
+ *              newest first — per producer, never a fixed workflow
  *   --wake-out where to write the wake decision the workflow's POST step reads
  */
 import { readFileSync, writeFileSync, appendFileSync, existsSync } from 'node:fs'
 import { pathToFileURL } from 'node:url'
 
 /**
- * Conclusions that mean the deploy finished without shipping. See the docblock
- * for why `cancelled` is absent and why this list is not exhaustive by design.
+ * Conclusions that mean the run finished without doing its job. See the
+ * docblock for why `cancelled` is absent and why this list is not exhaustive by
+ * design.
  */
 export const RED_CONCLUSIONS = ['failure', 'timed_out', 'startup_failure']
 
 /**
- * Conclusions that are genuinely not a deploy failure.
+ * Conclusions that are genuinely not a failure.
  *
- * `skipped` and `neutral` cannot be produced by `deploy.yml` as it stands —
- * they are here so an unrecognised value is unrecognised because GitHub added
- * one, not because this list forgot an ordinary one.
+ * `skipped` and `neutral` cannot be produced by either upstream as they stand
+ * — they are here so an unrecognised value is unrecognised because GitHub
+ * added one, not because this list forgot an ordinary one.
  */
 export const BENIGN_CONCLUSIONS = ['success', 'cancelled', 'skipped']
+
+/* ------------------------------------------------------------- producers -- */
+
+/**
+ * WHAT THE RUN FAILED AT, in words that mean different things.
+ *
+ * Two workflows push to `main` and this alarm watches both. The QUESTION is
+ * identical — a push-triggered workflow finished red and nobody is looking —
+ * which is why one alarm covers them; the CONSEQUENCE is not, and a reader
+ * woken at the wrong hour needs that difference in the first sentence rather
+ * than after opening two tabs.
+ *
+ * Keyed on the workflow FILE, taken from the event's own `path`, because the
+ * display name is the thing that can be renamed out from under us — that is
+ * the hazard the trigger's own comment is about. An unrecognised producer is
+ * reported as unrecognised rather than described as one of these.
+ */
+export const PRODUCER_DETAIL = {
+  'deploy.yml':
+    'This is the DEPLOY, so production is serving an older commit than `main` and will keep doing ' +
+    'so until a green run lands. Read which job went red — `test` means `main` itself is broken ' +
+    'and nothing will ship at all; `deploy` means the rollout or `scripts/rollout-check.mjs` ' +
+    'failed; `migration-check` means the container booted on a journal that does not match the ' +
+    'commit.',
+  'post-merge-e2e.yml':
+    'This is the POST-MERGE BROWSER SUITE, and the difference from a red deploy is the part to ' +
+    'read first: it holds nothing back, so the commit that broke a patient-facing journey IS ' +
+    'ALREADY LIVE. The PR `e2e` job ran against a stale merge — `main` as it stood when that run ' +
+    'started — so two PRs green against yesterday\'s tree can merge into one neither was tested ' +
+    'on. That is the case this job exists for. Open the run\'s Playwright report for the trace ' +
+    'and screenshot before re-running anything.',
+  unknown:
+    'This alarm does not recognise the workflow that produced this run, which means its ' +
+    '`workflows:` trigger list and `PRODUCER_DETAIL` in `scripts/push-alarm.mjs` have come apart. ' +
+    'Grade it by hand and reconcile the two.',
+}
+
+/** The sentence about the CONCLUSION, which is producer-independent. */
+export const CONCLUSION_DETAIL = {
+  failure: 'The run FAILED.',
+  timed_out:
+    'The run TIMED OUT, and unlike a failure there is no error to read — start from which job was ' +
+    'still running when the clock ran out.',
+  startup_failure:
+    'The run NEVER STARTED. GitHub refused the workflow file itself, which it does for an invalid ' +
+    '`permissions:` scope among other things, and it publishes no check when it does — a 0-second ' +
+    'run that looks from every list exactly like one that has not begun.',
+}
+
+/** The upstream workflow file, from the event's `path`. */
+export function producerOf(run) {
+  const path = String(run?.path ?? '')
+  const file = path.split('/').pop()
+  return file && file in PRODUCER_DETAIL && file !== 'unknown' ? file : 'unknown'
+}
 
 /* -------------------------------------------------------------- verdict -- */
 
@@ -156,6 +229,10 @@ export function assess({ run, previous, historyRead = true }) {
     sha: run?.head_sha ?? null,
     title: run?.display_title ?? null,
     event: run?.event ?? null,
+    /** The upstream workflow FILE, so the reader knows which alarm this is. */
+    producer: /** @type {string} */ ('unknown'),
+    /** Its display name, which is what the trigger actually matched on. */
+    workflowName: run?.name ?? null,
     detail: '',
     // `new` | `continuing` | `unknown`, set below only when the run is red. It
     // is declared here rather than assigned late so the shape of a verdict is
@@ -165,35 +242,24 @@ export function assess({ run, previous, historyRead = true }) {
     previous: /** @type {any} */ (null),
   }
 
+  verdict.producer = producerOf(run)
+
   if (!red) {
     verdict.detail =
       conclusion === 'cancelled'
         ? 'cancelled, which `deploy.yml`\'s `deploy` job produces as routine behaviour when merges ' +
           'arrive inside a rollout: `concurrency: { group: deploy-main, cancel-in-progress: false }` ' +
           'keeps one pending run and cancels the rest. A later run does this one\'s work.'
-        : `\`${conclusion}\` — the deploy did not fail.`
+        : `\`${conclusion}\` — the run did not fail.`
     return verdict
   }
 
   verdict.detail = known
-    ? {
-        failure:
-          'the deploy FAILED. Production is serving an older commit than `main`, and it will keep ' +
-          'doing so until a green run lands. Read which job went red — `test` means `main` itself ' +
-          'is broken and nothing will ship at all; `deploy` means the rollout or ' +
-          '`scripts/rollout-check.mjs` failed; `migration-check` means the container booted on a ' +
-          'journal that does not match the commit.',
-        timed_out:
-          'the deploy TIMED OUT. Nothing shipped, and unlike a failure there is no error to read — ' +
-          'start from which job was still running when the clock ran out.',
-        startup_failure:
-          'the deploy NEVER STARTED. GitHub refused the workflow file itself, which it does for an ' +
-          'invalid `permissions:` scope among other things, and it publishes no check when it does ' +
-          '— a 0-second run that looks from every list exactly like one that has not begun.',
-      }[conclusion]
+    ? `${CONCLUSION_DETAIL[conclusion]} ${PRODUCER_DETAIL[verdict.producer] ?? PRODUCER_DETAIL.unknown}`
     : `GitHub reported \`${conclusion}\`, which this alarm does not recognise. It is graded RED on ` +
       'purpose: a value nobody has looked at is not a value this check may pass. Decide what it ' +
-      'means and add it to `RED_CONCLUSIONS` or `BENIGN_CONCLUSIONS` in `scripts/deploy-alarm.mjs`.'
+      'means and add it to `RED_CONCLUSIONS` or `BENIGN_CONCLUSIONS` in `scripts/push-alarm.mjs`. ' +
+      (PRODUCER_DETAIL[verdict.producer] ?? PRODUCER_DETAIL.unknown)
 
   if (!historyRead) {
     verdict.streak = 'unknown'
@@ -259,20 +325,21 @@ export function wakeDecision(verdict) {
  * printed "deploy OK" would be this file's failure mode wearing its uniform.
  */
 export function renderSummary(verdict, wake, { lookupFailures = [] } = {}) {
-  const lines = ['### Deploy alarm', '']
+  const lines = ['### Push-triggered alarm', '']
 
   if (!verdict.runId && !verdict.conclusion) {
     lines.push(
       '#### This run graded nothing',
       '',
       'The `workflow_run` event payload was missing or unreadable, so this alarm does not know ' +
-        'what the deploy did. That is a finding, not a quiet morning.',
+        'which workflow ran or what it did. That is a finding, not a quiet morning.',
       '',
     )
   } else {
     lines.push(
-      `Graded \`deploy.yml\` run [${verdict.runId}](${verdict.url}) — \`${verdict.conclusion}\` on ` +
-        `\`${verdict.branch}\` at \`${String(verdict.sha ?? '').slice(0, 8)}\`` +
+      `Graded \`${verdict.producer}\` run [${verdict.runId}](${verdict.url}) — ` +
+        `\`${verdict.conclusion}\` on \`${verdict.branch}\` at ` +
+        `\`${String(verdict.sha ?? '').slice(0, 8)}\`` +
         (verdict.title ? ` (${verdict.title})` : ''),
       '',
     )
@@ -290,20 +357,29 @@ export function renderSummary(verdict, wake, { lookupFailures = [] } = {}) {
   }
 
   if (verdict.red) {
-    lines.push('#### The production deploy went red', '', verdict.detail, '')
+    lines.push(
+      `#### ${verdict.workflowName ?? 'A push-triggered workflow'} finished red on \`${verdict.branch}\``,
+      '',
+      verdict.detail,
+      '',
+    )
     if (verdict.streak === 'continuing') {
       lines.push(
-        `This is a CONTINUATION: run \`${verdict.previous.databaseId}\` was already ` +
-          `\`${verdict.previous.conclusion}\`, so the wake fired then and does not fire again. The ` +
-          'run is still red — the colour is free and the issue is not.',
+        `This is a CONTINUATION: run \`${verdict.previous.databaseId}\` of the same workflow was ` +
+          `already \`${verdict.previous.conclusion}\`, so the wake fired then and does not fire ` +
+          'again. The run is still red — the colour is free and the issue is not. The streak is ' +
+          'per PRODUCER: a red deploy does not silence the first red post-merge run, or the other ' +
+          'way round.',
         '',
       )
     }
-    lines.push(
-      '`main` auto-deploys to production, so until `deploy.yml` is green again production is ' +
-        'serving an older commit than `main`.',
-      '',
-    )
+    if (verdict.producer === 'deploy.yml') {
+      lines.push(
+        '`main` auto-deploys to production, so until `deploy.yml` is green again production is ' +
+          'serving an older commit than `main`.',
+        '',
+      )
+    }
   } else {
     lines.push(`_Not a finding: ${verdict.detail}_`, '')
   }
@@ -368,7 +444,9 @@ function main() {
         {
           wake: wake.wake,
           reason: wake.reason,
-          source: 'deploy-alarm',
+          source: 'push-alarm',
+          producer: verdict.producer,
+          workflow: verdict.workflowName,
           conclusion: verdict.conclusion,
           run_id: verdict.runId,
           run_url: verdict.url,
@@ -385,7 +463,8 @@ function main() {
 
   if (verdict.red) {
     console.log(
-      `::error title=The production deploy went red::${verdict.detail} See ${verdict.url ?? 'the deploy run'}.`,
+      `::error title=${verdict.workflowName ?? 'A push-triggered workflow'} finished red on main::` +
+        `${verdict.detail} See ${verdict.url ?? 'the upstream run'}.`,
     )
   }
   for (const f of lookupFailures) {

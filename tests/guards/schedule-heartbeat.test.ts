@@ -504,7 +504,7 @@ describe('schedule heartbeat — the workflow asks the question the script answe
 /**
  * THE OTHER KIND OF ALARM (DREAMCRM-115).
  *
- * `deploy-alarm.yml` is the first workflow here that runs on another
+ * `push-alarm.yml` is the first workflow here that runs on another
  * workflow's completion rather than on a clock, and §2a's standing convention
  * — every new alarm ships with the thing that notices it STOPPED — is why it
  * is watched by this job rather than by nothing.
@@ -520,7 +520,7 @@ describe('schedule heartbeat — the workflow asks the question the script answe
  * `workflow_run.workflows:` matches the upstream's DISPLAY NAME, so editing
  * the first line of `deploy.yml` disconnects the alarm and GitHub reports
  * nothing at all — a trigger that matches nothing is not an error. That is
- * pinned at merge time by `tests/guards/deploy-alarm.test.ts` and caught at
+ * pinned at merge time by `tests/guards/push-alarm.test.ts` and caught at
  * runtime here, because the two catch different things: the guard catches the
  * rename in the diff, this catches a disconnection that arrives some other way.
  */
@@ -599,7 +599,7 @@ describe('schedule heartbeat — a disconnected watcher is a finding, a quiet we
   const now = Date.parse('2026-09-23T12:00:00Z')
   const byName = { 'Deploy to AWS App Runner': 'deploy.yml' }
   const base = {
-    file: 'deploy-alarm.yml',
+    file: 'push-alarm.yml',
     upstream: ['Deploy to AWS App Runner'],
     byName,
     state: 'active',
@@ -706,16 +706,16 @@ describe('schedule heartbeat — a disconnected watcher is a finding, a quiet we
     const graded = assess({
       declared: [{ file: 'nightly.yml', crons: ['37 6 * * *'] }],
       runs: { 'nightly.yml': { createdAt: '2026-09-23T11:59:48Z', conclusion: 'success' } },
-      states: { 'nightly.yml': 'active', 'deploy-alarm.yml': 'active' },
-      watchers: [{ file: 'deploy-alarm.yml', upstream: ['Deploy to AWS App Runner'] }],
-      watcherRuns: { 'deploy-alarm.yml': { createdAt: '2026-09-22T10:00:00Z' } },
+      states: { 'nightly.yml': 'active', 'push-alarm.yml': 'active' },
+      watchers: [{ file: 'push-alarm.yml', upstream: ['Deploy to AWS App Runner'] }],
+      watcherRuns: { 'push-alarm.yml': { createdAt: '2026-09-22T10:00:00Z' } },
       upstreamRuns: deployed('2026-09-23T06:05:22Z'),
       byName,
-      added: { 'deploy-alarm.yml': '2026-09-01T00:00:00Z' },
+      added: { 'push-alarm.yml': '2026-09-01T00:00:00Z' },
       now,
     })
     expect(graded.results).toHaveLength(2)
-    expect(graded.findings.map((f: { file: string }) => f.file)).toEqual(['deploy-alarm.yml'])
+    expect(graded.findings.map((f: { file: string }) => f.file)).toEqual(['push-alarm.yml'])
     const out = renderSummary(graded)
     expect(out).toContain("and **1 alarm** triggered by another workflow's completion")
     expect(out).toContain('**unpaired**')
