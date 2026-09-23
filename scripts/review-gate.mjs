@@ -548,6 +548,19 @@ export const INTAKE_RULES = [
       // derivations — it walks the app roots and it grades the palette — and
       // it was the guard's own author it caught, which is the point of
       // deriving the list from the tree rather than remembering it.
+      //
+      // WIDENED on DREAMCRM-116, and this is a CASE rather than a new CLASS —
+      // said rather than guessed, as this entry's `why` asks. `components/
+      // clinic-site` was its last excluded tree and is in scope now; no new
+      // kind of assertion arrived, and the file was already on this list, so
+      // the list does not grow. It is written here anyway because §2 says a
+      // field of view that grows with no new assertion still changes what
+      // fails `test` by name: a dimming written on type anywhere under the
+      // public clinic sites is a red run now and was silence before. The
+      // exclusion's stated reason was that the ink and the ground are derived
+      // per tenant, so the measurement that discharged it runs across every
+      // brand a clinic can pick, through `buildClinicPalette` rather than one
+      // clinic's value — the body ink at 50% measures 3.20-3.29 on all twelve.
       'tests/a11y/dimmed-text.test.ts',
       // Rule 6, the quiet-ink gate (DREAMCRM-62 / UI batch 64). A NEW CLASS of
       // assertion rather than a case on an existing one, which is the
