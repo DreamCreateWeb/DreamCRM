@@ -3851,7 +3851,8 @@ it is a type-metrics change across eight subpages and wants its own issue and
 its own before/after, which is the same call `docs/MOBILE-WEIGHT.md`
 recommendation 1 made about the hero and which turned out right.
 
-**FIXED on DREAMCRM-127** (PR #718) — candidate 2, plus a cause this
+**FIXED on DREAMCRM-127** (PR #718, `589891e6`, merged 2026-09-23 13:41Z,
+deployed ~13:53Z and VERIFIED ON PRODUCTION below) — candidate 2, plus a cause this
 entry had not found. Both halves are in `app/css/style.css`:
 
 1. **`--font-inter` shipped as `"Inter", "sans-serif"`, and a QUOTED generic
@@ -3897,7 +3898,25 @@ wiring seam — deleting the family from the stack while leaving the faces
 declared, which the first draft of the guard passed. The guard deliberately
 does NOT grade the CONSTANTS: re-deriving them needs a browser with the local
 faces installed and CI has neither, so per §2d the sentence says so rather
-than implying coverage it does not have. · **FIXED** (Neon).
+than implying coverage it does not have.
+
+**Verified on production 2026-09-23 16:31–16:40Z**, and deliberately NOT by
+the CLS number, because this entry is the reason not to trust that number
+alone: a late first paint means the font lands before the text and there is
+nothing left to shift, so a green CLS can mean a fixed page OR a slow one.
+The structural check cannot be fooled that way — load each surface with
+Inter BLOCKED (the fallback is what paints) and again with Inter allowed, and
+compare the boxes:
+
+**33 of 33 identical, 0px on every one** — all eleven `PageHero` pages
+(`/pricing`, `/product`, `/why`, `/compare`, `/resources`, `/docs`, `/blog`,
+`/changelog`, `/roi`, `/grade`, `/partner-program`) × the three graded widths
+(390 / 834 / 1440), measured on hero `<section>`, `<h1>` and the sub
+paragraph. `/pricing` at 390 reads **320.53px both ways** — the exact height
+this entry recorded the hero growing INTO, now present from the first frame.
+The production run also reports `/pricing` CLS **0.000** with the only shift
+a 1px mono numeral (0.0005), against the 0.1157 recorded here. · **FIXED**
+(Neon).
 
 ### Deliverable 4 — error aggregation · NOT BUILT (owner decision)
 
