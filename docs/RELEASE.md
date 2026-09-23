@@ -2423,7 +2423,7 @@ re-deriving the entry above; pre-existing, and NOT the fix that entry made.
 
 Two halves, and the first is the one that generalises:
 
-- **The instrument.** `findA11yViolations` in `e2e/axe.ts:271` destructures
+- **The instrument.** `findA11yViolations` in `e2e/axe.ts` destructures
   `const { violations } = await builder.analyze()` and discards the rest. For
   text over a gradient, axe-core cannot resolve a single background colour and
   reports the node under **`incomplete`**, not `violations` — so every stop in
@@ -2444,7 +2444,45 @@ and report it as its own class — not as a violation (it is genuinely
 undecidable, and a gate people have to interpret is one they learn to ignore),
 but not as silence either. `e2e/axe.ts` is on the `check-definitions` REVIEW
 gate, so that is a reviewed change and a separate PR; it is written here rather
-than beside the code for that reason. · OPEN.
+than beside the code for that reason.
+
+· **FIXED** on DREAMCRM-107, on that shape exactly. `findA11yResults` reads
+both verdicts; `expectNoA11yViolations` prints the undecidables with their
+elements and axe's own reason, raises one `::warning` per stop, and folds them
+into a second end-of-run table in `e2e/axe-headroom.ts`. It FAILS NOTHING, and
+that half is deliberate rather than a shortfall — see the fix shape above.
+
+**WHAT THE FIX BUYS, STATED NARROWLY, because "the gate reads incomplete now"
+is a wider sentence than what shipped.** The category reaches a human instead
+of the floor. It does not reach `rulesOverBaseline`, so a gradient-ground
+contrast defect still merges green — what changes is that it merges green with
+its selector printed on the run summary rather than with nothing anywhere. Two
+consequences worth having written down: the ceilings are unaffected in both
+directions (nothing newly fails, nothing newly passes), and a ZERO in the
+end-of-run needs-review table is a measured state only because the emitter
+reports at every stop whether or not it found anything — an emit that fired
+only on a finding would make "axe decided everything" and "the emitter came
+unhooked" the same silence, which is §2a's rule about alarms that stop.
+
+**Watched to fail, against the real defect and against both of its shapes.**
+Restoring `const { violations } = await builder.analyze()` reddens four tests
+in `e2e/axe-selftest.spec.ts` plus `tests/guards/axe-headroom-table.test.ts`;
+moving the emit inside the finding branch reddens the §2a test by name. The
+self-test's document is the reachable case above with the labels moved into the
+glow's reach, and it is measured rather than asserted: **0 violations, 1
+`color-contrast` incomplete over 4 nodes**, axe's summary reading "Element's
+background color could not be determined due to a background gradient".
+
+**THE REACHABLE CASE IS UNCHANGED AND STILL DOES NOT BITE** — nothing on
+`app/g/[token]/report-view.tsx` moved, the geometry above still holds, and the
+stop still measures ZERO violations. What is different is the repro's ending:
+move a `.dg-mono` label into the hero's right half above y=444 today and
+`token: practice grade report` is still GREEN, but the run now names the
+element. The population of undecidables across the whole suite is **not
+measured** — it needs the browser harness, which needs Postgres — so the first
+CI `e2e` run after this merges is that measurement. A ceiling over this class
+is the obvious next step and is deliberately not taken on an unmeasured
+population.
 
 ### R1 · S8 sweep — Compliance & data (2026-08-17)
 
