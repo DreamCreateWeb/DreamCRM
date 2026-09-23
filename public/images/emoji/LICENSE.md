@@ -31,10 +31,17 @@ Sources are the `512.webp` renders at
 |---|---|---|
 | `rocket.webp` | `1f680` | 🚀 rocket |
 | `planet.webp` | `1fa90` | 🪐 ringed planet |
-| `sparkles.webp` | `2728` | ✨ sparkles |
-| `dizzy.webp` | `1f4ab` | 💫 dizzy |
 | `popper.webp` | `1f389` | 🎉 party popper |
-| `star.webp` | `2b50` | ⭐ star |
+
+**This table is what we ship, and that is the point of it.** Attribution is a
+licence obligation over the files actually distributed, so when the set
+changes this table changes with it — it is not a history of everything ever
+downloaded. Three glyphs were removed on 2026-09-23 (DREAMCRM-118) because
+nothing on the site referenced them: `sparkles` (`2728`), `dizzy` (`1f4ab`)
+and `star` (`2b50`). Their assets are deleted, so they are no longer
+distributed and no longer need crediting. The decision and the reasons live
+in `lib/marketing/emoji.ts` under `CUT`; the re-encode parameters to restore
+one live in `scripts/build-emoji.mjs`.
 
 Each `<name>-still.webp` is a single frame of the same source, used as the
 `prefers-reduced-motion` fallback.

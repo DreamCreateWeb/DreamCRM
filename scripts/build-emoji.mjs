@@ -39,11 +39,27 @@ const SRC = path.join(process.cwd(), '.emoji-src')
 const SET = [
   { cp: '1f680', name: 'rocket', stillFrame: 0, stride: 2 },
   { cp: '1fa90', name: 'planet', stillFrame: 0, stride: 2 },
+  { cp: '1f389', name: 'popper', stillFrame: 14, stride: 2 },
+]
+
+/**
+ * CUT ON DREAMCRM-118, kept here so a restore is exact rather than
+ * re-researched. These three shipped in the original six and reached 1.0
+ * with no call site; `lib/marketing/emoji.ts`'s `CUT` list carries the
+ * decision and the reason per glyph. `stillFrame` is the expensive part —
+ * it was chosen by looking at the strip, and frame 0 is not always usable.
+ *
+ * To bring one back: move its row into `SET` above, run this script, add the
+ * registry entry with a REAL `where`, and update `BRAND.md` Part 5's table
+ * and `public/images/emoji/LICENSE.md`. Do not restore one without a moment
+ * to put it on — that is exactly how the set drifted to six.
+ */
+const CUT = [
   { cp: '2728', name: 'sparkles', stillFrame: 0, stride: 2 },
   { cp: '1f4ab', name: 'dizzy', stillFrame: 0, stride: 2 },
-  { cp: '1f389', name: 'popper', stillFrame: 14, stride: 2 },
   { cp: '2b50', name: 'star', stillFrame: 0, stride: 3 },
 ]
+void CUT
 
 fs.mkdirSync(OUT, { recursive: true })
 fs.mkdirSync(SRC, { recursive: true })
