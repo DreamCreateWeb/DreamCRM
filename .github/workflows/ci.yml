@@ -23,18 +23,94 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
+        # FULL HISTORY, AND THE FETCH STEP BELOW IS NOT ENOUGH ON ITS OWN.
+        # This is the half that was missing, and it cost two blocked
+        # production deploys — read the `ON A PUSH` block below before
+        # removing it. Measured: 3.9s and 29 MiB for this repo's whole
+        # history over sixteen branches, against ~1-2s for a depth-1 clone.
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      # THE AXE RATCHET NEEDS A PREVIOUS VALUE (DREAMCRM-60).
-      # `tests/guards/axe-baseline-ratchet.test.ts` reads every ceiling in
-      # `e2e/axe-baseline.ts` as `origin/main` has it and fails any increase —
-      # the enforcement behind "ceilings only ever go down". On a
-      # `pull_request`, actions/checkout fetches `refs/pull/N/merge` and nothing
-      # else, so `origin/main` does not resolve without this and the guard would
-      # be silently unable to do its job in the one check it exists to defend.
-      # Depth 1: the tip's tree is all it reads.
-      - name: Fetch main for the axe-baseline ratchet
-        run: git fetch --no-tags --depth=1 origin +refs/heads/main:refs/remotes/origin/main
+      # TWO GUARDS READ `origin/main`, AND THEY NEED DIFFERENT AMOUNTS OF IT.
+      #
+      # 1. `tests/guards/axe-baseline-ratchet.test.ts` reads every ceiling in
+      #    `e2e/axe-baseline.ts` as `origin/main` has it and fails any increase
+      #    — the enforcement behind "ceilings only ever go down" (DREAMCRM-60).
+      #    The tip's tree is all it reads.
+      # 2. `tests/guards/rulebook-state.test.ts` (DREAMCRM-109) asks whether a
+      #    `STATE:` line in `docs/rulebook/` is telling the truth about what has
+      #    merged. `main`'s own HISTORY is the record — a squash lands as
+      #    `<subject> (#N)`, a merge commit as `Merge pull request #N` — so it
+      #    walks the log and tests ancestry. That is the whole reason the guard
+      #    needs no GitHub credential inside a `contents: read` job.
+      #
+      # On a `pull_request`, actions/checkout fetches `refs/pull/N/merge` and
+      # nothing else, so `origin/main` does not resolve at all without this step.
+      #
+      # WHY THE `--depth=1` IS GONE. It resolved `origin/main` to a tip with NO
+      # history, under which guard 2 finds zero commits, zero PR numbers, and
+      # reports a clean rulebook — a narrowed reader going quiet rather than
+      # red, which is the §2d defect the guard itself is written about. It
+      # therefore asserts its own eyes against two floors and FAILS here rather
+      # than passing blind, so a re-shallowed fetch breaks `test` loudly.
+      #
+      # ON A PUSH THE FETCH STEP BELOW IS A NO-OP, WHICH IS WHY THE CHECKOUT
+      # ABOVE CARRIES `fetch-depth: 0`. THIS IS THE BUG THAT BLOCKED TWO
+      # PRODUCTION DEPLOYS ON 2026-09-23 AND IT IS NOT OBVIOUS:
+      #
+      #   * on a `pull_request`, checkout holds `refs/pull/N/merge`, so
+      #     `origin/main` is a ref this clone does NOT have, and the fetch
+      #     below genuinely transfers main's history. Green, honestly.
+      #   * on a `push` to main, checkout holds main at depth 1 and its tip
+      #     ALREADY EQUALS the remote tip — so the identical fetch transfers
+      #     nothing, the shallow graft stays, and `origin/main` resolves with
+      #     exactly ONE commit.
+      #
+      # The same step, the same repository, two events, two different
+      # starting states. `ci.yml` was honestly green on every PR while
+      # `deploy.yml` was red on every push, and the pre-merge argument for
+      # "a green PR means a green main" did not cover it, because that
+      # argument was about the TREE and this difference is about the CLONE.
+      # `tests/guards/rulebook-state.test.ts` asserts its own eyes and failed
+      # loudly rather than reporting a clean rulebook, which is the only
+      # reason this was a blocked deploy and not a silent hole.
+      #
+      # WHICH MECHANISM ACTUALLY BRINGS THE HISTORY, because this paragraph
+      # used to get it wrong and that is what froze the deploy pipeline:
+      #
+      #   * THE CHECKOUT does the deepening, on every event. `fetch-depth: 0`
+      #     above is the only thing that is true on all three triggers.
+      #   * THE FETCH STEP below does NOT deepen anything. On a `pull_request`
+      #     it creates `refs/remotes/origin/main`, which a PR checkout has no
+      #     reason to have; on a `push` or a `schedule` it is a cheap no-op,
+      #     because the checkout already holds main and its tip. It stays
+      #     because it is what guarantees `origin/main` names the current
+      #     remote tip, and because the axe census requires the refspec before
+      #     each `pnpm test`.
+      #
+      # Do not read the fetch line as the thing that makes the guards work.
+      # It was, once, on exactly one of the three triggers.
+      #
+      # The cost is measured, not assumed, and it is the CHECKOUT's cost:
+      # cloning this repository complete took 3.9s for 29 MiB of `.git` over
+      # 1,420 commits and sixteen branches, against ~1-2s at depth 1.
+      #
+      # NO FILTER, and that decision now belongs to the checkout too
+      # (`actions/checkout` takes a `filter:` input). TWO consumers depend on
+      # it:
+      #   * guard 1 reads a blob of an old commit
+      #     (`git show origin/main:e2e/axe-baseline.ts`);
+      #   * guard 2's `rulebookEditedSince` runs
+      #     `git diff --quiet <sha> -- docs/rulebook`, which is also a
+      #     blob-level read of an old commit.
+      # Under `--filter=blob:none` each of those becomes a LAZY NETWORK FETCH
+      # inside a required check. Trading two seconds of checkout for a new
+      # flake in the merge gate is a bad trade, and it is a worse one now than
+      # when the filter was first refused. (Sentinel, #685 note 3 — the next
+      # person reading a size in MiB will reach for the filter.)
+      - name: Fetch main's history for the ratchet and the rulebook guard
+        run: git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main
 
       - name: Set up pnpm
         uses: pnpm/action-setup@v4

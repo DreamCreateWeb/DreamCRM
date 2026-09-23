@@ -350,18 +350,24 @@ export function gradeClasses(classes: string): Omit<ParityFinding, 'file' | 'lin
  * measured rather than assumed, and both written here so nobody reads "reads
  * template literals" as "reads all template literals".
  *
- *   - **THE SCAN IS PER LINE, so a template broken across source lines is
- *     invisible.** The opening line never closes, and the continuation lines
- *     carry no quotes to find. **25 colour-bearing lines yield no chunk, 23 of
- *     them real** (two are comments); joined by hand and run through all four
- *     graders plus `dimmed-text`'s, they produce **0 findings**. The one to
- *     look at if this is ever closed is
- *     `app/(onboarding)/welcome/welcome-interview.tsx:579` —
- *     `bg-stone-800 dark:bg-stone-200 … text-white dark:text-stone-900`, which
- *     is rule 7's both-halves-overridden subject exactly, the auth-button
- *     shape. It passes on both sides. It is still ungraded for a SYNTACTIC
- *     reason, which is the sentence this whole batch exists to stop being
- *     true, so this is a residual rather than a decision.
+ *   - ~~**THE SCAN IS PER LINE, so a template broken across source lines is
+ *     invisible.**~~ **CLOSED on DREAMCRM-107**, and the diagnosis in this
+ *     bullet was one word off: the SCAN was never per line, the CALLER was.
+ *     `eachClassString` split a file on newlines and fed the scanner one at a
+ *     time, so a multi-line template's opening line never closed and its
+ *     statics were dropped. It now keeps feeding lines into the same scan
+ *     until the scan reports itself closed — see `eachClassString` for the
+ *     measurement and `readChunks` for the one-line mechanism. The named site,
+ *     `app/(onboarding)/welcome/welcome-interview.tsx:579`
+ *     (`bg-stone-800 dark:bg-stone-200 … text-white dark:text-stone-900`,
+ *     rule 7's both-halves-overridden subject exactly), is graded now and
+ *     PASSES — which is what the residual predicted and is a different fact
+ *     from having predicted it.
+ *
+ *     THE BOUNDARY THIS BULLET LIVED ON IS NOT GONE, which #658's note asked
+ *     for: `quotedChunks` is still the single-string entry point, and both of
+ *     batch 70's bugs still live on the same end-of-input path, still pinned
+ *     by the same tests. It fires at end of FILE now instead of end of line.
  *   - **`skipInterpolation` does not know a regex literal from division**, so
  *     a `}` inside one ends the skip early and the expression's source leaks
  *     into the statics. Both colour tokens survive in the shape that does it
@@ -372,9 +378,46 @@ export function gradeClasses(classes: string): Omit<ParityFinding, 'file' | 'lin
  *     result of a walk, not an assumption.
  */
 export function quotedChunks(line: string): string[] {
+  return readChunks(line).chunks
+}
+
+/**
+ * The same scan, plus the one fact a caller needs to know to hand it MORE:
+ * whether the text ran out while a template literal was still open.
+ *
+ * THIS IS THE WHOLE OF THE MULTI-LINE FIX (DREAMCRM-107, punch-list item 3).
+ * The scanner was never per-line — `eachClassString` was. It split a file on
+ * newlines and handed the reader one line at a time, so the opening line of a
+ * multi-line template never closed, its static text was dropped (an
+ * unterminated template pushes no statics, by design), and the continuation
+ * lines carried no quote to find. **25 colour-bearing lines in the tree
+ * yielded no chunk**, one of them a full rule 7 subject.
+ *
+ * So the reader does not change and the CALLER does: it keeps feeding lines
+ * into the same scan until the scan says it is closed. Three things that buys,
+ * all of which a rewrite into a file-level parser would have cost:
+ *
+ *   - **The unit stays the CHUNK.** Nothing downstream learns a new shape.
+ *   - **The line boundary is not deleted**, which is what #658 warned about:
+ *     `quotedChunks` is still the single-string entry point, both of batch
+ *     70's bugs still live on the end-of-INPUT path (the `end - 1` chop and
+ *     the `j = -1` walk-again), and every test that pins them still exercises
+ *     exactly the code the tree walk runs. The boundary moved from
+ *     end-of-line to end-of-file; it did not go away.
+ *   - **Findings keep a line number.** A chunk is attributed to the line its
+ *     template OPENED on, which is where a reader of `file:line` would look.
+ *
+ * `open` is TRUE only for an unterminated TEMPLATE. A plain `'` or `"` with no
+ * partner does not open anything — the scanner steps over it rather than
+ * running to the next quote, which is the apostrophe rule the header above
+ * explains — so a line of JSX prose can never start swallowing the rest of the
+ * file. That asymmetry is what makes joining safe: the only thing that
+ * continues onto the next line is the only thing that really does.
+ */
+export function readChunks(source: string): { chunks: string[]; open: boolean } {
   const out: string[] = []
-  scanChunks(line, out)
-  return out
+  const open = scanChunks(source, out)
+  return { chunks: out, open }
 }
 
 /** Index just past the literal opening at `i`, templates and escapes included. */
@@ -437,7 +480,18 @@ function skipInterpolation(s: string, i: number): number {
   return -1
 }
 
-function scanChunks(s: string, out: string[]): void {
+/**
+ * Scan `s`, push every chunk, and report whether it ended inside an open
+ * template literal.
+ *
+ * The return value is the ONLY thing that changed here for the multi-line
+ * widening — see `readChunks`. The openness of a RECURSIVE call (an
+ * interpolation body, a statics rescan) is deliberately discarded: if an inner
+ * text is unterminated the outer one already is, and reporting the inner
+ * answer would say "open" about a string the caller cannot extend.
+ */
+function scanChunks(s: string, out: string[]): boolean {
+  let openTemplate = false
   let i = 0
   while (i < s.length) {
     // An escape is one token, wherever it sits. This is what keeps an escaped
@@ -516,12 +570,20 @@ function scanChunks(s: string, out: string[]): void {
         // "by construction" in this file is something the next person builds
         // on, so it is cheaper to make it hold than to hedge it.
         scanChunks(statics, out)
+      } else {
+        // The text ran out with this template still open. Its statics are NOT
+        // pushed (an unterminated template describes no element yet), and the
+        // caller is told so it can hand the scan the next line — see
+        // `readChunks`. Before DREAMCRM-107 nobody asked, which is why the
+        // static text of every multi-line template in the tree was unread.
+        openTemplate = true
       }
       i = j + 1
       continue
     }
     i++
   }
+  return openTemplate
 }
 
 function walk(dir: string, out: string[] = []): string[] {
@@ -550,8 +612,94 @@ export function uiSourceFiles(roots: string[] = UI_ROOTS): string[] {
 }
 
 /**
- * Visit every quoted string in the product source. The one tree walk both
- * rules below share, so they can never end up looking at different files.
+ * Visit every quoted string in the product source. The one tree walk every
+ * rule shares, so they can never end up looking at different files.
+ *
+ * WHO ACTUALLY GOES THROUGH IT, named rather than implied, because a rule that
+ * imports `quotedChunks` and writes its own loop looks identical from the
+ * outside and is not sharing anything that matters (DREAMCRM-107, Sentinel's
+ * review of #687): the seven rules in this file, and `dimmed-text.test.ts` via
+ * its own `eachInScopeChunk` wrapper. **Sharing a SCANNER is not sharing a
+ * FIELD OF VIEW — the caller owns that**, and `dimmed-text` spent one PR
+ * proving it, still per-line while three places said it had widened. If a new
+ * rule reads class strings, it reads them here.
+ *
+ * ── IT FEEDS THE READER UNTIL THE READER IS DONE (DREAMCRM-107).
+ *
+ * This loop used to hand `quotedChunks` one line and move on, and THAT — not
+ * the scanner — was the per-line limitation the punch list carried as item 3.
+ * A template literal broken across source lines never closed on its opening
+ * line, so its static text was dropped; the continuation lines held no quote
+ * to find; and **25 colour-bearing lines in the tree produced no chunk at
+ * all**, `app/(onboarding)/welcome/welcome-interview.tsx:579` among them — a
+ * both-halves-overridden rule 7 subject, ungraded for a purely syntactic
+ * reason.
+ *
+ * Now a line that leaves a template open is held and the next line is appended
+ * to it, until `readChunks` reports the scan closed. Four properties of that,
+ * each of which is a decision rather than a detail:
+ *
+ *   - **ONLY AN UNTERMINATED BACKTICK JOINS.** An unpartnered `'` or `"` does
+ *     not open anything in this scanner, so JSX prose full of apostrophes
+ *     cannot start a join. See `readChunks` for why that asymmetry is what
+ *     makes joining safe at all.
+ *
+ *     **"TEMPLATE" WOULD BE THE WRONG WORD AND IT WAS THE FIRST ONE HERE**
+ *     (Sentinel, reviewing #687). This scanner has no idea what a comment is,
+ *     so a stray backtick in `// … the old \`catch (err) => …` opens a join
+ *     exactly as a real template does. **9 of the 379 joins are opened that
+ *     way** — `lib/zernio.ts:164`, `lib/clinic-timezone.ts:29`,
+ *     `app/api/cron/guardian/route.ts:26` and six more, all prose with an odd
+ *     backtick count, all spanning 2 lines and closing on the next comment
+ *     line. Harmless, and the sentence that pardoned them was wrong about why.
+ *   - **THE CHUNK IS ATTRIBUTED TO THE LINE THE TEMPLATE OPENED ON**, because
+ *     that is where a reader following a `file:line` in a red CI log would
+ *     look, and because a class string genuinely starts there. A chunk from an
+ *     interpolation branch three lines down reports the opening line too; it
+ *     is one element's className either way.
+ *   - **THE JOINED TEXT KEEPS ITS NEWLINES.** They rejoin with `\n`, which
+ *     reconstructs a CRLF tree's lines exactly (`\r` rides on the line before
+ *     the split), and inside a template a newline is ordinary whitespace — so
+ *     it separates class tokens instead of fusing them, which is the same
+ *     reason an interpolation blanks to a SPACE rather than to nothing.
+ *   - **THE LAST LINE NEVER JOINS.** A file that ends mid-template is scanned
+ *     as it stands, which is the end-of-input path the two batch-70 bugs live
+ *     on. That path is still reached, still on the same code, still pinned by
+ *     the same tests.
+ *
+ * MEASURED over `app` + `components` + `lib` before it shipped, by replaying
+ * the old per-line caller against the same tree rather than by recalling
+ * anything:
+ *
+ *   - **88,985 chunks → 89,403.** 533 of them the rules had never seen, 132
+ *     carrying a colour utility, 217 colour utilities in total.
+ *   - **379 joins**, median 2 lines, longest 201 — `SPINE_CSS` in
+ *     `components/marketing/ui.tsx:173`, a real 201-line CSS template and not
+ *     a runaway. The next four are `patient-import.ts` (70),
+ *     `email-iframe.tsx` (67), `shared-brain.ts` (61) and `edit-bridge.tsx`
+ *     (58); all genuine multi-line templates.
+ *   - **Every grader in this file plus `dimmed-text`'s, over the newly-visible
+ *     chunks: 0 findings.** That is what let the widening land in one PR
+ *     rather than as a burn-down — the hole was real and, like #657's, empty.
+ *   - **THE BOUND THAT MATTERS MORE THAN THAT ZERO** (Sentinel, reviewing
+ *     #687): the shape that would actually hurt is a join FUSING an ink and a
+ *     surface from different source lines into one chunk, handing rule 7 a
+ *     pair nobody wrote. That is the FALSE-POSITIVE direction — a red `test`
+ *     naming an innocent file — and a count of findings cannot see it, because
+ *     the finding it would produce looks like any other. Measured directly
+ *     instead: **739 chunks pair an ink with a surface, and for 0 of them is
+ *     there no single source line carrying both.** Note it is a BOUND and not
+ *     an invariant: a `className` legitimately wrapped across lines SHOULD
+ *     fuse, and grading it is the point of this change, so the honest form of
+ *     this is a measurement to re-take rather than an assertion to add.
+ *   - **115 chunks the per-line caller produced are gone, and 0 of them carry
+ *     a colour utility.** They are interpolation SOURCE — `${BRAND.blueLight}`
+ *     and friends — which the old caller leaked as chunks precisely because
+ *     the template around them never closed on the line. Now that it closes,
+ *     the interpolation blanks to a space as it was always meant to. Losing a
+ *     JavaScript identifier is the point of the change; losing `text-white`
+ *     would be the bug, and `one-string-pairs.test.ts` asserts the difference
+ *     over the real tree.
  */
 export function eachClassString(
   roots: string[],
@@ -560,11 +708,20 @@ export function eachClassString(
   for (const root of roots) {
     for (const path of walk(join(ROOT, root))) {
       const file = relative(ROOT, path).replace(/\\/g, '/')
-      readFileSync(path, 'utf8')
-        .split('\n')
-        .forEach((line, i) => {
-          for (const chunk of quotedChunks(line)) visit(file, i + 1, chunk)
-        })
+      const lines = readFileSync(path, 'utf8').split('\n')
+      // The text held over from earlier lines, and the line it started on.
+      let held: { text: string; line: number } | null = null
+      lines.forEach((raw, i) => {
+        const text = held ? `${held.text}\n${raw}` : raw
+        const at = held ? held.line : i + 1
+        const { chunks, open } = readChunks(text)
+        if (open && i + 1 < lines.length) {
+          held = { text, line: at }
+          return
+        }
+        held = null
+        for (const chunk of chunks) visit(file, at, chunk)
+      })
     }
   }
 }
