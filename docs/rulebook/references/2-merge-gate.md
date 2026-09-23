@@ -3400,8 +3400,10 @@
   workflow's DISPLAY NAME, and a trigger that matches nothing is not an
   error: GitHub publishes no warning, no check and no run. An alarm
   disconnected by a one-line rename in an unrelated tidy-up PR looks exactly
-  like an alarm with nothing to report. **STATE: OPEN — PR #700, head
-  `1646fa19`, awaiting Sentinel.**
+  like an alarm with nothing to report. **STATE: MERGED — #700, `28145ef4`,
+  2026-09-23 17:28:25Z.** Flipped by Quinn while landing DREAMCRM-124 —
+  `rulebook-state` rule 5 is what asked, the same hop that caught #712's line
+  an hour earlier.
 
   **The registration is what makes it gradeable, and the predicate is
   DERIVED rather than enumerated.** The obvious guard is the one the first
