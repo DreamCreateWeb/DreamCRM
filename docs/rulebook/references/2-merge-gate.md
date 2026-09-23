@@ -3494,6 +3494,144 @@
   what looks like a gap in the work.)
 
 
+  **THE SWEEP OF 2026-09-23T12:1xZ, boundary `2026-09-23T11:30:00+00:00`, AND IT
+  WAS OVERTAKEN WHILE IT RAN — which is the part worth recording.** Both passes
+  came back clean: pass one nothing, pass two `0d56c036` (#708) alone, already
+  the entry above. Then `e03a9ce3` (#703) merged at **11:59:53Z, inside the
+  window between the sweep and the commit**, carrying the two entries above this
+  one. It was found by a rebase, not by the sweep — the sweep had already read
+  `main` and was correct when it read it.
+  **A sweep is a photograph, not a subscription**, and the only thing that makes
+  its boundary trustworthy is that the NEXT one starts where this one ended
+  rather than where this one was written. The next boundary is therefore
+  `2026-09-23T11:59:53+00:00`, not the 12:1x this entry is filed under.
+  Branch protection was re-read against what §2 claims and matches: exactly
+  `test` and `e2e` required, `strict: true`, `enforce_admins: true`,
+  force-pushes and deletions barred. The merge-method toggles are all four on
+  with `delete_branch_on_merge` — the intake-only half of "which repo-settings
+  change goes where", unchanged. `node scripts/rulebook-drift.mjs --protection
+  --repo` grades **9/9 with every claim holding**, the first sweep here able to
+  say that, because until DREAMCRM-109 there was no script and until a
+  credentialed run five of the nine could not be graded at all.
+
+  **THE FIFTY-SEVENTH: #710, `scripts/e2e-harness.sh` + the load-mode and
+  port-refusal blocks in `tests/guards/e2e-harness-args.test.ts` (DREAMCRM-117,
+  open 2026-09-23, Rio). A NEW CLASS, and the first blocking refusal in this
+  repository that fires on the state of the MACHINE rather than on anything in
+  the diff.** Routed by the author, who added `needs-sentinel-review` by hand
+  after `review-gate.mjs` labelled the diff `needs-forge-intake` only — the
+  path-based rule cannot see a new failure mode inside a check that already
+  exists, which is the #534 / #598 shape arriving for the fourth time and the
+  second time running that an author beat the sweep to it.
+
+  **What lands, and where it can fail you.** `scripts/e2e-harness.sh` is what the
+  required `e2e` check actually RUNS (`ci.yml:175`), and `nightly.yml`,
+  `post-merge-e2e.yml`, `e2e-flake-hunt.yml` and both `pnpm test:e2e` spellings
+  run it too. It gains six refusals, all `die` at **exit 2**:
+
+  1. **The port is already serving** — `$E2E_PORT`, plus `$WEBHOOK_PORT` outside
+     load mode. This is the new class; everything below it is argument hygiene.
+  2. `--load-level` without `--load-sanity`.
+  3. `--spec` under `--load-sanity`.
+  4. `--repeat` under `--load-sanity`.
+  5. Playwright arguments under `--load-sanity`.
+  6. A `--load-level` outside `^[0-9]+x[0-9]+$`, concurrency 1..200, requests
+     1..1000.
+
+  **Only the first of those six can redden `e2e`, and it is worth knowing which.**
+  No workflow passes `--load-sanity` — `--load-sanity` appears nowhere under
+  `.github/` — so refusals 2 through 6 fail a human's command line and can never
+  hold a merge. What holds a merge is refusal 1, and what fails `test` by name is
+  the guard grading all six.
+
+  **READ THIS BEFORE YOU DEBUG YOUR DIFF: a red `e2e` whose log says `port NNNN is
+  already serving something` is not a defect in your pull request.** Every other
+  blocking assertion in this rulebook is reproducible from the commit alone — the
+  same tree gives the same verdict on any box. This one does not, by design: it
+  reads a socket. On a GitHub runner the port is free by construction and this
+  should never fire; if it does, the runner was reused or an earlier step leaked a
+  server, and the fix is upstream of your branch. **A check whose verdict depends
+  on the machine owes its reader that sentence in the failure message**, and this
+  one pays it — the text names `pgrep -af next-server` and `E2E_PORT` rather than
+  saying "failed".
+
+  **Why the refusal is worth a new class rather than a footnote, which is the part
+  that generalises.** The defect was watched, twice, not imagined. `pnpm start` is
+  three processes deep — `pnpm` spawns `next start` spawns the `next-server` that
+  owns the socket — and `kill "$SERVER_PID"` reached the first of the three. A
+  finished run left a `next-server` holding `:3100`. The next run's `pnpm start`
+  then could not bind **and did not notice**, because the readiness probe is
+  `curl /api/health` and the stale server answers it perfectly well. That run
+  proceeded to drive a browser against a build it had not made, over a Next
+  in-memory cache the previous run had warmed, and **exited green**. On the CI
+  runners it never bit, because they are thrown away; it bit the one place that
+  reuses a machine, which is a developer's box.
+
+  **That is the failure mode this rulebook exists to name: not a red build, but a
+  green one that measured the wrong thing.** §2d's whole argument is that a guard
+  must be watched to fail; this is its mirror — a HARNESS must be unable to
+  succeed against the wrong subject. The two halves ship together on purpose and
+  the guard grades both: `kill_tree` walking `pgrep -P` recursively, and the
+  refusal as the backstop for a tree-kill that misses anyway. Reverting either to
+  a bare `kill` reddens `test` naming `e2e-harness-args.test.ts`.
+
+  **The choice of `/dev/tcp` over `lsof`/`ss`/`nc` is the reusable half.** All
+  three are absent on some box that will eventually run this, and a check that
+  silently passes because the tool it needed was not installed is not a check —
+  it is §2d's ungradeable-is-not-green rule in a shell script, the same rule
+  #708 applied to a defaulted `guardDir` six hours earlier. Bash's own
+  `/dev/tcp` has no install to miss.
+
+  **WHAT IT MEANS FOR EVERY OTHER PR, and this is the half that will surprise
+  somebody: `docs/LOAD-SANITY.md` is now load-bearing for the required `test`
+  check.** The guard derives the documented levels from every
+  `### Concurrency C, N requests/path` heading in that file and asserts the
+  harness's default levels are among them. Reword, renumber or delete the `8x40`
+  or `25x75` heading in a **docs-only** edit and `test` goes red naming
+  `e2e-harness-args.test.ts`. Project rule 3 lets a docs-only PR merge on green
+  without review, which remains correct — but "docs-only" has never meant "cannot
+  go red", and this is the third document outside `docs/rulebook/**` where that is
+  true, after `docs/E2E.md` (`e2e-doc-axe-count.test.ts`) and `docs/OPS.md`
+  (`ops-clinic-site-url.test.ts`). **Check the direction before you panic:** adding
+  a THIRD table at a new level is fine and fails nothing. Only moving the harness
+  default onto a level the document has no table for fails, because an after-table
+  measured at a level the before-table never used is not a comparison.
+
+  **The load mode's own argument, recorded because the reasoning is the
+  transferable part.** `docs/LOAD-SANITY.md` recommendation 4 says re-measure
+  after any change to public-site rendering, and #507 / #654 changed exactly that
+  — yet the baseline sat unre-measured for a fortnight. The reason was mundane
+  rather than negligent: `load-sanity.mjs` defaults to `127.0.0.1:3100` and
+  `/site/e2e-dental`, and the only thing in this repo that produces a live clinic
+  site on that port and slug is the harness's four steps. Every session that
+  wanted to honour recommendation 4 had to hand-assemble them, and none did.
+  **A recommendation that requires a session to reassemble is a recommendation
+  that does not happen; the fix is to make it a flag.** That is the same lesson
+  §2d keeps drawing about guards, pointed at a procedure instead.
+
+  **AND THE SWEEP'S OWN PATH LIST OWED AN ENTRY, SO IT IS WIDENED HERE.** When
+  #710 merges, the path-scoped pass one — `.github/workflows/`, `docs/CI.md`,
+  `docs/E2E.md`, `e2e/` — **will not see it at all.** `scripts/e2e-harness.sh` is
+  the single most gate-relevant file in this repository that is not under
+  `.github/`: it is the body of the required `e2e` check, and the list has never
+  watched it. This is not the first time: **the thirtieth entry** records a merge
+  pass one could not see "because the diff is two `scripts/` files and one test",
+  and the list was not widened then. It is widened now.
+  **Pass one's list is therefore now
+  `.github/workflows/ scripts/ tests/guards/ docs/CI.md docs/E2E.md
+  docs/LOAD-SANITY.md e2e/`.** The two added directories are gate machinery by
+  construction rather than by judgement — `scripts/` holds `review-gate.mjs`,
+  `review-sweep.mjs`, `rulebook-drift.mjs`, `migration-check.mjs` and this
+  harness, and `tests/guards/` is self-declaring in exactly the sense #701 argued
+  a directory is. Measured before widening: `scripts/` appears in 24 of the 89
+  commits on `main` since 2026-09-20, so pass one gets materially noisier, and
+  that is the trade taken deliberately. **Pass one is cheap and pass two is a
+  person choosing to look; moving work from the second to the first is the only
+  direction worth moving it.** Pass two is not retired and must still run — a new
+  assertion inside an existing check under a path nobody anticipated is precisely
+  what no list can be widened enough to catch, which is the lesson of every entry
+  above.
+
 **Which repo-settings change goes where.** A setting that changes *which* checks
 are required or *who* may bypass them is branch protection: §3's review gate
 applies, and it is intake too. A setting that only changes *how* a merge is
