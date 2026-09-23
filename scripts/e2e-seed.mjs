@@ -237,6 +237,56 @@ async function seedBase(pool) {
     [boundaryStart],
   )
 
+  // --- a SIGNED-IN PATIENT at the pre-live clinic (DREAMCRM-131) -----------
+  //
+  // `e2e-prelive` exists to be a practice that is operating while its
+  // marketing site is unpublished, and until now it was only ever read from
+  // the OUTSIDE — the public gate, the tenant boundary. The portal out-links
+  // defect lives on the inside: signed into a portal whose clinic has not
+  // published, every link out to the public site landed on "coming soon".
+  // Walking that needs a patient with a session HERE rather than at the live
+  // clinic, because the lever is a per-clinic fact.
+  //
+  // The storefront is ON for the same reason `payments` is on at the billing
+  // clinic: it is the precondition of the thing under test. With it off the
+  // Shop entry is hidden for a reason that has nothing to do with the lever,
+  // and the spec would pass against a portal that never fixed anything.
+  //
+  // In `base`, not a scope: nothing here is spent. The journey taps a link,
+  // reads where it lands, and writes nothing. It also never PULLS the lever —
+  // `e2e/clinic-site.spec.ts` asserts this clinic serves coming-soon from a
+  // parallel worker, and `e2e/go-live.spec.ts` owns its own clinic precisely
+  // so that stays true.
+  //
+  // "Comingsoon" is deliberately unlike every other fixture surname, on the
+  // same reasoning as Rivalclinic above.
+  await pool.query(
+    `insert into shop_config (organization_id, storefront_enabled, currency)
+     values ('org_e2e_prelive', 1, 'usd')
+     on conflict (organization_id) do update set
+       storefront_enabled = excluded.storefront_enabled`,
+  )
+  await pool.query(
+    `insert into "user" (id, name, email, email_verified)
+     values ('user_e2e_prelive_patient', 'Robin Comingsoon', 'robin.comingsoon@example.com', true)
+     on conflict (id) do nothing`,
+  )
+  await pool.query(
+    `insert into member (id, organization_id, user_id, role)
+     values ('mem_e2e_prelive_patient', 'org_e2e_prelive', 'user_e2e_prelive_patient', 'patient')
+     on conflict (id) do nothing`,
+  )
+  await pool.query(
+    `insert into patient (id, organization_id, first_name, last_name, email, phone, user_id)
+     values ('pat_e2e_prelive_patient', 'org_e2e_prelive', 'Robin', 'Comingsoon', 'robin.comingsoon@example.com', '+15550100008', 'user_e2e_prelive_patient')
+     on conflict (id) do update set user_id = 'user_e2e_prelive_patient'`,
+  )
+  await pool.query(
+    `insert into session (id, token, user_id, active_organization_id, expires_at)
+     values ('sess_e2e_prelive_patient', 'e2e-prelive-patient-session-token', 'user_e2e_prelive_patient', 'org_e2e_prelive', now() + interval '7 days')
+     on conflict (id) do update set expires_at = now() + interval '7 days'`,
+  )
+
   console.log(`seeded patients + sessions (visit anchor ${start.toISOString()})`)
 }
 
@@ -1140,6 +1190,13 @@ export const SCOPE_ROWS = {
     'pat_e2e_ours',
     'appt_e2e_ours',
     'appt_e2e_rival',
+    // The pre-live clinic's own signed-in patient (DREAMCRM-131). Read-only
+    // for the spec that walks it — it taps a link and reads where it lands —
+    // so it is structure, like the boundary's two sides above.
+    'user_e2e_prelive_patient',
+    'mem_e2e_prelive_patient',
+    'pat_e2e_prelive_patient',
+    'sess_e2e_prelive_patient',
   ],
   tokens: ['appt_e2e_confirm', 'nps_e2e_1'],
   portal: ['appt_e2e_portal'],

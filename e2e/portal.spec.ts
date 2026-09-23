@@ -19,12 +19,14 @@ import { createHmac } from 'node:crypto'
  */
 
 const SESSION_TOKEN = 'e2e-patient-session-token'
+/** Robin, at the clinic whose site is still unpublished (DREAMCRM-131). */
+const PRELIVE_SESSION_TOKEN = 'e2e-prelive-patient-session-token'
 
-function signedSessionCookie(): string {
+function signedSessionCookie(token: string = SESSION_TOKEN): string {
   const secret = process.env.BETTER_AUTH_SECRET
   if (!secret) throw new Error('BETTER_AUTH_SECRET not set — run through scripts/e2e-harness.sh')
-  const sig = createHmac('sha256', secret).update(SESSION_TOKEN).digest('base64')
-  return encodeURIComponent(`${SESSION_TOKEN}.${sig}`)
+  const sig = createHmac('sha256', secret).update(token).digest('base64')
+  return encodeURIComponent(`${token}.${sig}`)
 }
 
 const BASE = process.env.E2E_BASE_URL ?? 'http://127.0.0.1:3100'
@@ -99,6 +101,67 @@ test.describe('patient portal', () => {
 
     // The confirmed state: different badge, different actions, same page.
     await expectNoA11yViolations(page, 'portal: visits list after confirming')
+
+    await context.close()
+  })
+
+  /**
+   * THE PRE-LIVE CLINIC'S PORTAL DOES NOT SEND ANYONE INTO A WALL
+   * (DREAMCRM-131, ledger :1382).
+   *
+   * The portal's Shop entry points at `/site/<slug>/shop` — the storefront
+   * lives on the clinic's PUBLIC site, and that site sits behind the go-live
+   * lever. Before a practice publishes, tapping Shop from inside the product
+   * they are signed into landed a patient on the branded "coming soon" page.
+   *
+   * This drives a DIFFERENT patient at a DIFFERENT clinic from the journey
+   * above: Robin at `e2e-prelive`, whose `site_live_at` is null and whose
+   * storefront is on (scripts/e2e-seed.mjs, `base`). The storefront being on
+   * is what makes the test mean something — with it off the entry is hidden
+   * for a reason that has nothing to do with the lever.
+   *
+   * The wall is proved REAL in the same run before it is proved unreachable:
+   * the public storefront URL is loaded first and must show coming-soon. A
+   * "does not say coming soon" assertion on its own passes just as well
+   * against a page that failed to render, a lever that quietly got pulled, or
+   * copy that changed under it.
+   *
+   * Nothing here writes, and nothing pulls the lever —
+   * `e2e/clinic-site.spec.ts` asserts this clinic serves coming-soon from a
+   * parallel worker, and `e2e/go-live.spec.ts` owns its own clinic so it can
+   * pull one without disturbing either of us.
+   */
+  test('a pre-live clinic offers no Shop link, and the route home is not the coming-soon page', async ({
+    browser,
+  }) => {
+    const context = await browser.newContext({ baseURL: BASE })
+    await context.addCookies([
+      {
+        name: 'better-auth.session_token',
+        value: signedSessionCookie(PRELIVE_SESSION_TOKEN),
+        url: BASE,
+      },
+    ])
+    const page = await context.newPage()
+
+    // The control: the wall this clinic's out-links used to hit is standing.
+    await page.goto('/site/e2e-prelive/shop')
+    await expect(page.locator('body')).toContainText(/on its way/i, { timeout: 30_000 })
+
+    // Signed in at that same clinic, the portal offers no way to walk there.
+    await page.goto('/patient/dashboard')
+    await expect(page.locator('body')).toContainText('Robin', { timeout: 30_000 })
+    await expect(page.getByRole('link', { name: 'Shop' })).toHaveCount(0)
+
+    // And the destination itself — the typed URL, the stale tab, the
+    // bookmark — lands the patient back on their own home rather than on the
+    // wall the first assertion just showed is there.
+    await page.goto('/patient/shop')
+    await expect(page).toHaveURL(/\/patient\/dashboard/, { timeout: 30_000 })
+    await expect(page.locator('body')).not.toContainText(/on its way/i)
+    await expect(page.locator('#portal-main')).toBeVisible()
+
+    await expectNoA11yViolations(page, 'portal: home of a clinic whose site is pre-live')
 
     await context.close()
   })
