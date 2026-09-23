@@ -1239,7 +1239,7 @@ collections header) and two remain open below.
   fans a single event out to every owner and admin. A mocked `db` cannot see
   that; `tests/notifications/email-durability-sql.test.ts` renders the
   statement through drizzle's own dialect and fails when the predicate is
-  reverted by hand. · **STATE: FIXED — awaiting merge (#682).**
+  reverted by hand. · **STATE: FIXED — awaiting merge (#683).**
   The index is `(user_id, dedupe_key)` and NOT org-scoped — per user is right
   for a fan-out — so the org has to live in the KEY for any tenant-scoped
   caller, the way `campaigns_org_automation_key_idx`'s values do. Written into
