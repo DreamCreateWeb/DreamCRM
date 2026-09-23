@@ -553,6 +553,42 @@ Four things about it are deliberate:
 from the tree with no edit anywhere — a check that cannot fail is not a check,
 and every new alarm here ships with the thing that notices it stopped.
 
+#### It has to be able to say "I could not see that"
+
+Both of Sentinel's blocking findings on #684 were the same defect wearing two
+hats: **the instrument reported a number it had not measured.** For a file whose
+entire argument is "a number instead of a hunch", that is the one class it
+cannot carry. Two properties close it, and both are graded:
+
+- **The denominator is checked against the limit it was fetched with.** The
+  first draft asked for `--limit 200`. Measured against the real 8-day window on
+  2026-09-23: **423** `ci.yml` runs, 127 `post-merge-e2e`, 9 `nightly`. `gh run
+  list` is most-recent-first, so 200 kept the last ~4 days under a headline
+  saying 8 — and because the artifact filter is built from that list, every
+  report belonging to a discarded run was dropped *before* the download step, so
+  nothing reached `unreadable`, `blind` stayed empty and the run exited 0 over
+  the half it never looked at. The limit is 1000 now **and** the script is told
+  the number, because a limit chosen today is one the repo's merge rate outgrows
+  quietly. Note this is deliberately *not* `windowGap`'s shape: `--created`
+  filters server-side, so everything returned is inside the window by
+  construction and the oldest row proves nothing. Hitting the limit is the only
+  signal there is.
+- **A dead lookup writes a reason, not an empty list.** `gh api … || echo '[]'`
+  wrote *valid JSON*, so the reader reported no problem and the digest printed
+  "No test needed a retry in any of the 0 reports this week" and exited 0 — a
+  quiet clean week over evidence it never read. Every `gh` call now appends a
+  sentence to `lookup-failures.txt`, and an **absent** file is itself a finding:
+  the workflow truncates it in its first step, so its absence means that step
+  did not run.
+
+And one distinction that goes the other way, so the alarm stays readable: an
+artifact that downloads with **no `e2e-results.json` inside** is named and
+counted but does **not** redden. The producers upload on `failure()`, which
+includes a run that died before playwright wrote its reporter output — there
+were no test results, so nothing was lost and nothing could have been learned.
+Filing that as "could not be read" would redden this most weeks, which is how an
+alarm becomes wallpaper.
+
 **The next step from a finding is the hunt**, and the summary prints the command
 rather than leaving the reader with the same problem in a bigger font:
 
