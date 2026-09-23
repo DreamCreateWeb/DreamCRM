@@ -1,5 +1,7 @@
 import Link from 'next/link'
 import { MarketingEmoji } from '@/components/marketing/emoji'
+import { usd } from '@/lib/marketing/site'
+import { getQuotedPlan } from '@/lib/stripe-config'
 import {
   PageHero,
   PrimaryCta,
@@ -64,6 +66,16 @@ export const metadata = {
 }
 
 /**
+ * THE PRICE IS RESOLVED, NEVER TYPED. `pricing-price-source.test.tsx` caught
+ * the first draft of the Pricing card below carrying a literal `$200/mo` —
+ * exactly the defect that guard exists for, arriving exactly the way it does:
+ * a new marketing page quoting the plan in passing, on a route nobody thinks
+ * of as a pricing surface. `getQuotedPlan()` is pure config, so this stays a
+ * static render.
+ */
+const PLAN = getQuotedPlan()
+
+/**
  * WHERE PEOPLE ACTUALLY MEANT TO GO. Hand-typed rather than expanded from
  * `DOCS` / `COMPARISONS` / `RESOURCE_GUIDES`: the four routes that can miss
  * are all INDEXES of those registries, so the honest answer to "your guide
@@ -92,7 +104,7 @@ const DESTINATIONS = [
     href: '/pricing',
     glyph: 'money' as const,
     title: 'Pricing',
-    body: 'One plan, $200/mo, flat. The number is on the page — it always is.',
+    body: `One plan, ${usd(PLAN.price)}/mo, flat. The number is on the page — it always is.`,
   },
 ]
 
