@@ -244,8 +244,37 @@ const H = String.raw`[^\S\n]`
  *
  * A price band's far end is itself a price: it carries a `$`, or it is at
  * least three digits (`$200–350`, `$800-2,000`, `$150–500`). Seven is not.
+ *
+ * ------------------------------------------------------------------------
+ * THE COMMA ASYMMETRY, closed 2026-09-22 (DREAMCRM-105).
+ *
+ * `\d{3}` wanted three CONSECUTIVE digits, and a thousands separator breaks a
+ * run of them: `2,000` has four digits and no three in a row. So the two ends
+ * of a band were graded by different rules without anybody choosing that.
+ *
+ *   `$800-2,000/mo`  — ours is the far end. `BAND_BEFORE` reads the text
+ *                      before the number and pardons it. Always worked.
+ *   `$200-2,000/mo`  — ours is the NEAR end, and this one did not. `2,000`
+ *                      failed `\d{3}`, so the line read as a plain quote of
+ *                      our rate and `test` would go red naming a competitor's
+ *                      number on `/compare` — a page whose whole job is to
+ *                      print somebody else's prices.
+ *
+ * Nothing on the marketing site spells a band that way TODAY, which is why
+ * this was a latent gap rather than a red run. It is also why it was worth
+ * fixing now: the remedy for a false positive is to narrow the PREDICATE and
+ * never to register the file (§2d), and the moment to do that is before an
+ * innocent line is sitting in front of somebody with a red `test` behind it.
+ *
+ * `\d[\d,]*\d\d` rather than the tempting `[\d,]{3}`, which would have been
+ * one character. `[\d,]{3}` grades three CHARACTERS, so `1,2` would read as a
+ * price and the sentence above it ("at least three digits") would quietly stop
+ * being true. This spelling means what that sentence says: a digit, then
+ * anything digit-or-comma, then two more digits — three real digits with
+ * separators allowed between them. `$200 — 7 days free` is still not a band,
+ * which is the case this whole constant exists for.
  */
-const MONEYISH = String.raw`(?:\$\d|\d{3})`
+const MONEYISH = String.raw`(?:\$\d|\d[\d,]*\d\d)`
 
 const BAND_BEFORE = new RegExp(
   String.raw`(?:\$\d[\d,]*|\d{3}[\d,]*)` + `${H}*[-–—]${H}*` + String.raw`\$?$`,
