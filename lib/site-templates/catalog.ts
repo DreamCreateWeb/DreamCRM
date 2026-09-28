@@ -70,6 +70,16 @@ export const SITE_TEMPLATE_CATALOG: SiteTemplateCatalogEntry[] = [
     bestFor:
       'Practices without a photo library — color, type, and plain talk do the work, so the site looks finished on day one.',
   },
+  {
+    id: 'established',
+    label: 'Established',
+    description:
+      'Cream, navy and one accent — a lettered crest, serif numerals, editorial sections. For the practice that wants to look like it sits on the board.',
+    practiceTypes: ['general', 'ortho'],
+    styleTags: ['serious', 'editorial', 'serif', 'brand-accent'],
+    bestFor:
+      'Established practices and credentialed doctors who want a serious, sharp site — the register of a professional association, in their own accent color.',
+  },
 ]
 
 export const SITE_TEMPLATE_IDS = SITE_TEMPLATE_CATALOG.map((t) => t.id)

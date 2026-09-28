@@ -15,7 +15,7 @@ import type { HomePageProps, SiteChromeProps, SiteChromeMobileProps } from './pa
  * `components/clinic-site/templates/<id>/` + a manifest entry. The conformance
  * harness (tests/site-templates/) auto-enrolls every registered template.
  */
-export type SiteTemplateId = 'modern' | 'cosmetic' | 'pediatric' | 'hometown'
+export type SiteTemplateId = 'modern' | 'cosmetic' | 'pediatric' | 'hometown' | 'established'
 
 /** Content-driven visibility gates, computed once per request by the page
  *  shells and threaded to nav/sitemap/renderers so no template can link to a

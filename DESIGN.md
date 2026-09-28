@@ -344,9 +344,15 @@ These shape every decision. Re-read before any module design.
 
 ## Website templates
 
-The variant system below was the founding spec; **four templates are live
-today** (modern, cosmetic, pediatric, hometown — registry defaults to
-modern) with more planned as their own design project (CLAUDE.md item 0b).
+The variant system below was the founding spec; **five templates are live
+today** (modern, cosmetic, pediatric, hometown, established — registry
+defaults to modern) with more planned as their own design project (CLAUDE.md
+item 0b). Established (2026-09-28) is the "serious and sharp" register: the
+owner's ASDA site generalized — cream ground, fixed navy ink, the clinic's
+brand as ONE accent, a fixed gold hairline, a lettered crest, serif
+numerals. It exists because every earlier template was designed for the
+patient's feelings and none for the dentist's self-image, and the dentist
+signs the subscription.
 Default install is **Modern Family/Wellness**; others are clinic-switchable
 instantly (content is universal across templates).
 
