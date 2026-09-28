@@ -179,7 +179,15 @@ app/
                      hairline, a lettered CREST where others put a photo,
                      serif box-score stats, the last word of every headline
                      in the accent italic — the register of the ASDA site the
-                     owner is known for); /book,
+                     owner is known for), 'hometeam' the practice everyone
+                     in town knows (2026-09-28, built for Complete Family
+                     Dentistry / Ted Pinney DDS, a clinic decorated like a
+                     ballpark: the brand color IS the team color on trim,
+                     scoreboard digits and pennants; charcoal + home whites
+                     are the uniform; a HOME-PLATE crest, a SCOREBOARD for the
+                     stats, pennant eyebrows, jersey-numbered services — the
+                     lineup / the skipper / from the stands — and NO baseball
+                     imagery by law: structure and voice carry it); /book,
                      /services,
                      /intake, /shop, /careers, /blog, /team, …). Page SHELLS own
                      every read/SEO/gate and dispatch typed props to the active

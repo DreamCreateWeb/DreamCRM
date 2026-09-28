@@ -80,6 +80,16 @@ export const SITE_TEMPLATE_CATALOG: SiteTemplateCatalogEntry[] = [
     bestFor:
       'Established practices and credentialed doctors who want a serious, sharp site — the register of a professional association, in their own accent color.',
   },
+  {
+    id: 'hometeam',
+    label: 'Home Team',
+    description:
+      'Your color as the team color — a home-plate crest, a scoreboard for the numbers, pennant eyebrows, the lineup. Team spirit with a straight face.',
+    practiceTypes: ['general', 'pediatric'],
+    styleTags: ['team-spirit', 'bold', 'slab', 'brand-color'],
+    bestFor:
+      'The practice everyone in town knows — a clinic with a personality (a ballpark, a hometown, a mascot) that wants the site to feel like the building, and stay serious.',
+  },
 ]
 
 export const SITE_TEMPLATE_IDS = SITE_TEMPLATE_CATALOG.map((t) => t.id)

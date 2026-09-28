@@ -352,7 +352,12 @@ owner's ASDA site generalized — cream ground, fixed navy ink, the clinic's
 brand as ONE accent, a fixed gold hairline, a lettered crest, serif
 numerals. It exists because every earlier template was designed for the
 patient's feelings and none for the dentist's self-image, and the dentist
-signs the subscription.
+signs the subscription. Home Team (2026-09-28) is the first template built
+FROM a client outward rather than from a reference site: a Jacksonville
+practice decorated like a ballpark, whose sky-blue-and-gray logo became the
+team color and the uniform. Its law is "structure and voice, never
+imagery" — a home-plate crest, a scoreboard, pennants and a lineup, and not
+one stitched ball — so a district-board dentist is proud of it.
 Default install is **Modern Family/Wellness**; others are clinic-switchable
 instantly (content is universal across templates).
 

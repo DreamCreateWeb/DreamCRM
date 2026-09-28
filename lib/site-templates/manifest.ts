@@ -24,6 +24,7 @@ export const SITE_TEMPLATE_MANIFEST: SiteTemplateManifest = {
     'components/clinic-site/site-footer.tsx',
     'components/clinic-site/numbered-steps.tsx',
     'components/clinic-site/closing-cta.tsx',
+    'components/clinic-site/name-initials.ts',
   ],
   base: [
     'app/site/[slug]/about/page.tsx',
@@ -68,7 +69,13 @@ export const SITE_TEMPLATE_MANIFEST: SiteTemplateManifest = {
       'components/clinic-site/templates/established/footer.tsx',
       'components/clinic-site/templates/established/mobile-actions.tsx',
       'components/clinic-site/templates/established/crest.tsx',
-      'components/clinic-site/templates/established/initials.tsx',
+    ],
+    hometeam: [
+      'components/clinic-site/templates/hometeam/home.tsx',
+      'components/clinic-site/templates/hometeam/header.tsx',
+      'components/clinic-site/templates/hometeam/footer.tsx',
+      'components/clinic-site/templates/hometeam/mobile-actions.tsx',
+      'components/clinic-site/templates/hometeam/plate.tsx',
     ],
   },
 }
