@@ -37,6 +37,7 @@ authenticate anybody.
 | `duplicate-stripe-accounts` | Are any two clinics connected to the same Stripe account? (the DREAMCRM-32 merge gate) |
 | `readonly-role-privileges` | Can the read-only account see anything it must not? Must be **zero rows**. |
 | `migrations-applied` | Which migrations has production actually applied? (DREAMCRM-46 — the answer half of the post-deploy migration check) |
+| `campaign-events-volume` | How big is `campaign_events` in production? (DREAMCRM-123 — the number that reopens the struck `:1840` ledger entry; see `docs/FREQUENCY-CAP-MEASUREMENT.md`) |
 
 `readonly-role-privileges` also runs on a schedule (06:37 UTC daily) and fails
 the workflow if it finds anything. The odd minute is deliberate — GitHub queues
