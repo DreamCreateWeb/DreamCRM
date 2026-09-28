@@ -3754,7 +3754,7 @@
   (DREAMCRM-134). The first guard here whose subject is a tool that GATES
   NOTHING** — the digest is a reading, never a verdict, and it goes red for
   exactly one reason, that it could not collect something it was asked for.
-  **STATE: on the PR — review requested.**
+  **STATE: on the PR — #728, review requested.**
 
   **Why a thing that gates nothing is registered at all, since that question is
   the interesting half.** `team-operating-model` §7 makes the digest the input

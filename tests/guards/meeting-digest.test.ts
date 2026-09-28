@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import {
   DOCKET_QUIET_DAYS,
+  RUN_LOOKBACK,
   OPEN_VERDICT,
   PROCESS_PATHS,
   alarmTable,
@@ -298,5 +299,28 @@ describe('an incomplete collection is announced above the numbers it damages', (
     })
     expect(text.indexOf('Collected incompletely')).toBeLessThan(text.indexOf('### 1.'))
     expect(text).toContain('rate limited')
+  })
+})
+
+describe('the alarm table states the window it read', () => {
+  // `never fired` MEANS "not in the last RUN_LOOKBACK runs", and the docket is
+  // exactly the reader who would take the stronger reading. The denominator is
+  // printed on the row rather than in a footnote, and the caption says which
+  // of the two claims it is — §2d's predicate-right/sentence-wrong family.
+  it('prints the runs-read denominator beside every never-fired claim', () => {
+    const text = renderDigest({
+      since: Date.parse('2026-09-23T16:00:00Z'),
+      until: Date.parse('2026-09-28T16:00:00Z'),
+      prs: [],
+      split: { product: [], process: [], mixed: [], unknown: [] },
+      firstTry: { firstTry: [], retried: [], ungradeable: [], graded: 0, rate: null },
+      ledger: { rows: [], totalBefore: 0, totalAfter: 0, open: [] },
+      alarms: alarmTable([{ file: 'a.yml' }], { 'a.yml': [{ createdAt: '2026-09-28T11:00:00Z', conclusion: 'success' }] }, Date.parse('2026-09-28T16:00:00Z')),
+      guards: [],
+      sweep: null,
+      collectionErrors: [],
+    })
+    expect(text).toMatch(new RegExp(`not in the last ${RUN_LOOKBACK} runs, never "not ever"`))
+    expect(text).toMatch(/\| never fired \| 1 \|/)
   })
 })

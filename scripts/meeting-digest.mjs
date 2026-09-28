@@ -332,6 +332,16 @@ export function firstTryRate(prs, required = ['test']) {
  */
 export const DOCKET_QUIET_DAYS = 21
 
+/**
+ * HOW FAR BACK THE RUN HISTORY IS READ, and it is a stated limit rather than a
+ * tuning knob. `never fired` in this table means "not in the last
+ * `RUN_LOOKBACK` runs of this workflow", never "not ever" — and the docket is
+ * exactly the reader who would take the stronger reading. The table prints the
+ * number of runs it read for each row so the claim is checkable at the point
+ * it is made.
+ */
+export const RUN_LOOKBACK = 60
+
 export function alarmTable(workflows, runsByWorkflow, now = Date.now()) {
   const day = 86_400_000
   return workflows
@@ -461,15 +471,17 @@ export function renderDigest(model) {
     '_The census column `dreamcrm-conventions` §2d\'s retirement docket reads. **`timer` is the ' +
       `${DOCKET_QUIET_DAYS}-day clock and nothing else** — the room still answers §2d's four ` +
       'carve-outs (a ratchet is not an alarm; a live subject means the guard is working; a ' +
-      'recurrable defect class is still held shut; blocked is not idle)._',
+      'recurrable defect class is still held shut; blocked is not idle). **`never fired` means ' +
+      `not in the last ${RUN_LOOKBACK} runs, never "not ever"** — the runs-read column is that ` +
+      "claim's denominator, printed where the claim is made._",
   )
   out.push('')
-  out.push('| workflow | state | last run | last FIRED | quiet (days) | timer |')
-  out.push('|---|---|---|---|---|---|')
+  out.push('| workflow | state | last run | last FIRED | quiet (days) | runs read | timer |')
+  out.push('|---|---|---|---|---|---|---|')
   for (const a of alarms) {
     out.push(
       `| \`${a.file}\` | ${a.state} | ${iso(a.lastRunAt)} (${a.lastRunConclusion ?? '—'}) | ` +
-        `${iso(a.lastFiredAt)} | ${a.quietDays ?? 'never fired'} | ${a.docketEligible ? '**eligible**' : '—'} |`,
+        `${iso(a.lastFiredAt)} | ${a.quietDays ?? 'never fired'} | ${a.runs} | ${a.docketEligible ? '**eligible**' : '—'} |`,
     )
   }
   out.push('')
@@ -615,7 +627,7 @@ async function main() {
         runsByWorkflow[wf.file] = JSON.parse(
           sh('gh', [
             'run', 'list', '--repo', repo, '--workflow', file,
-            '--limit', '60', '--json', 'conclusion,createdAt,databaseId',
+            '--limit', String(RUN_LOOKBACK), '--json', 'conclusion,createdAt,databaseId',
           ]),
         )
       } catch (e) {
