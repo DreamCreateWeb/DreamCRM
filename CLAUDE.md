@@ -174,7 +174,12 @@ app/
                      default, 'cosmetic' charcoal/cream luxury, 'pediatric'
                      playful pastels w/ the /coloring kids' corner, 'hometown'
                      no-photos-needed classic (solid brand hero + marigold
-                     hours card); /book,
+                     hours card), 'established' the credentialed practice
+                     (2026-09-28: cream/navy/one brand accent + a fixed gold
+                     hairline, a lettered CREST where others put a photo,
+                     serif box-score stats, the last word of every headline
+                     in the accent italic — the register of the ASDA site the
+                     owner is known for); /book,
                      /services,
                      /intake, /shop, /careers, /blog, /team, …). Page SHELLS own
                      every read/SEO/gate and dispatch typed props to the active

@@ -62,5 +62,13 @@ export const SITE_TEMPLATE_MANIFEST: SiteTemplateManifest = {
       'components/clinic-site/templates/hometown/footer.tsx',
       'components/clinic-site/templates/hometown/mobile-actions.tsx',
     ],
+    established: [
+      'components/clinic-site/templates/established/home.tsx',
+      'components/clinic-site/templates/established/header.tsx',
+      'components/clinic-site/templates/established/footer.tsx',
+      'components/clinic-site/templates/established/mobile-actions.tsx',
+      'components/clinic-site/templates/established/crest.tsx',
+      'components/clinic-site/templates/established/initials.tsx',
+    ],
   },
 }
