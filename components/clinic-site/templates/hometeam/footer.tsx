@@ -35,9 +35,17 @@ export default function HometeamFooter({
   const mapsQuery = [addressLine1, city, state, postal].filter(Boolean).join(', ')
 
   return (
-    <footer id="site-footer-contact" className="mt-10" style={{ background: SITE_DEEP, color: SITE_DEEP_INK }}>
+    <footer id="site-footer-contact" className="relative mt-10 overflow-hidden" style={{ background: SITE_DEEP, color: SITE_DEEP_INK }}>
       <div className="h-1.5" style={{ background: TEAM }} aria-hidden="true" />
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 pt-14 sm:pt-18 pb-10">
+      {/* Outfield-wall lettering behind the closer. */}
+      <span
+        aria-hidden="true"
+        className="absolute -top-[0.1em] -right-4 select-none pointer-events-none whitespace-nowrap font-bold uppercase leading-none text-[10rem] sm:text-[14rem]"
+        style={{ fontFamily: SCORE, color: 'rgba(255,255,255,0.04)' }}
+      >
+        {(data.profile.city ?? name).toUpperCase()}
+      </span>
+      <div className="relative max-w-6xl mx-auto px-4 sm:px-6 pt-14 sm:pt-18 pb-10">
         <div className="grid lg:grid-cols-[7fr_5fr] gap-10 items-end pb-12 mb-12" style={{ borderBottom: '1px solid rgba(255,255,255,0.14)' }}>
           <div>
             <p className="text-sm font-bold uppercase tracking-[0.2em] mb-4" style={{ color: TEAM, fontFamily: SCORE }}>

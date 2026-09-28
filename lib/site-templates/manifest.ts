@@ -76,6 +76,7 @@ export const SITE_TEMPLATE_MANIFEST: SiteTemplateManifest = {
       'components/clinic-site/templates/hometeam/footer.tsx',
       'components/clinic-site/templates/hometeam/mobile-actions.tsx',
       'components/clinic-site/templates/hometeam/plate.tsx',
+      'components/clinic-site/templates/hometeam/live.tsx',
     ],
   },
 }
