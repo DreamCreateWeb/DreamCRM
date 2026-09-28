@@ -389,9 +389,9 @@ number.** Ten of them merged on 2026-09-22/23 and **had genuinely been routed** 
 the rules are in this rulebook, several of them in entries numbered above —
 while the one-line mirror onto the PR was never left. That is not an intake
 backlog, it is a *record* backlog, and the two want different repairs: the first
-needs a rule written, the second needs a comment posted. Two were real: #725 and
-#726, the owner's clinic-site session, whose case is the §2 entry beside the
-SIXTIETH. All twelve carry their record now.
+needs a rule written, the second needs a comment posted. Two were real: the
+pair #725 and #726, the owner's clinic-site session, whose case is the §2 entry
+beside the SIXTIETH. All twelve carry their record now.
 
 **The key half is the one that cost something, and it is §3's off-board
 count reaching five.** #725, #726 and #727 merged UNKEYED in one morning from a

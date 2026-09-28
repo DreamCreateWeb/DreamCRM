@@ -153,7 +153,10 @@ export function ledgerDelta(beforeText, afterText) {
   const before = openVerdicts(beforeText)
   const after = openVerdicts(afterText)
   const lanes = [...new Set([...before, ...after].map((e) => e.lane))].sort()
-  const key = (e) => `${e.lane} ${e.text}`
+  // A NUL separator, written as an ESCAPE: a lane name and an entry line can each
+  // contain anything, and a raw control byte in a tracked file is what
+  // `tests/guards/control-bytes.ts` exists to refuse -- it caught this one.
+  const key = (e) => `${e.lane}\u0000${e.text}`
   const beforeKeys = new Set(before.map(key))
   const afterKeys = new Set(after.map(key))
 
