@@ -564,3 +564,39 @@ export function shouldShowComingSoon(opts: {
   if (opts.isAccessRoute) return false
   return true
 }
+
+/**
+ * THE GATE, READ FROM THE PORTAL SIDE (DREAMCRM-131). Is a portal out-link to
+ * the clinic's public marketing site worth showing to a patient?
+ *
+ * The signed-in portal sends patients out to two pages that live on the public
+ * site — the storefront (`/site/<slug>/shop`) and the membership pitch
+ * (`/site/<slug>/dental-plans`). Both are marketing content, so both sit
+ * behind the go-live lever: before the practice publishes, a patient who taps
+ * them lands on "coming soon" and the portal has walked them into a wall.
+ *
+ * The product call was to HIDE the links rather than exempt the routes. The
+ * access-route exemption above exists for DOORS — the portal sign-in, the
+ * intake gate — the things a practice hands out by link and QR while its
+ * website is still a draft. A storefront is not a door, and exempting it would
+ * publish the commerce pages of a site the practice has deliberately not
+ * published. Hiding is reversible: pull the lever and the links come back.
+ *
+ * Deliberately the exact COMPLEMENT of `shouldShowComingSoon` for a patient's
+ * request rather than a second opinion about it — a portal patient is never
+ * the site's editor and never inside a template frame, and neither destination
+ * is an access route, so those three escapes are pinned false here. If the
+ * gate's rule changes, this follows it instead of drifting away from it.
+ *
+ * `shutDown` is not a parameter because it cannot be reached: the portal
+ * layout renders its own calm notice for a shut-down clinic long before any
+ * nav or page body is built.
+ */
+export function showsPortalSiteOutLinks(siteLiveAt: Date | string | null | undefined): boolean {
+  return !shouldShowComingSoon({
+    siteLiveAt,
+    canEdit: false,
+    isFrame: false,
+    isAccessRoute: false,
+  })
+}

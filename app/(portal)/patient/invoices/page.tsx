@@ -16,6 +16,7 @@ import PayBalanceForm from './pay-form'
 import PlanOffer, { type PlanOption } from './plan-offer'
 import BillingHistory, { type BillingHistoryRow } from './billing-history'
 import { listActivePlans } from '@/lib/services/membership'
+import { showsPortalSiteOutLinks } from '@/lib/clinic-site-helpers'
 import {
   getMyOpenPaymentPlan,
   planInstallmentCents,
@@ -324,8 +325,11 @@ export default async function PortalBillingPage({
 
       {/* Membership upsell — only for patients WITHOUT a plan, and only when
           the clinic actually sells one. Links into the public dental-plans
-          page, which carries the full pitch + checkout. */}
-      {!bills.membership && activePlans.length > 0 && (
+          page, which carries the full pitch + checkout.
+          The whole card goes when the site is pre-live (DREAMCRM-131): the
+          link IS the card, and pre-live it lands on coming-soon. A pitch with
+          nowhere to say yes is worse than no pitch. */}
+      {!bills.membership && activePlans.length > 0 && showsPortalSiteOutLinks(clinic?.siteLiveAt) && (
         <section className="mt-7">
           <PortalSectionLabel>Worth a look</PortalSectionLabel>
           <PortalCard>

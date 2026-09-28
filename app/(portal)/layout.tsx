@@ -22,7 +22,7 @@ import {
   PortalAnnouncement,
 } from '@/components/patient-portal/portal-chrome'
 import { PORTAL_MUTED } from '@/components/patient-portal/ui'
-import { todaysHoursLabel } from '@/lib/clinic-site-helpers'
+import { todaysHoursLabel, showsPortalSiteOutLinks } from '@/lib/clinic-site-helpers'
 import DemoBanner from '@/components/ui/demo-banner'
 import { SkipToContent } from '@/components/ui/skip-to-content'
 import { RealtimeProvider } from '@/components/realtime/realtime-provider'
@@ -131,6 +131,7 @@ export default async function PortalLayout({ children }: { children: React.React
   const nav = buildPortalNav({
     settings,
     hasShop: shopConfig.storefrontEnabled,
+    sitePublished: showsPortalSiteOutLinks(clinic?.siteLiveAt),
     hasDependents: dependents.length > 0,
     unreadMessages,
   })

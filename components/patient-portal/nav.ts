@@ -33,6 +33,11 @@ export function buildPortalNav(opts: {
   settings: PortalSettings
   /** Clinic storefront is enabled (Shop module) — gates the Shop link. */
   hasShop: boolean
+  /** The clinic's public site is published (the go-live lever is pulled).
+   *  The storefront LIVES on that site, so while it is pre-live the Shop
+   *  entry has nowhere to go but the coming-soon page — hide it rather than
+   *  walk a patient into one. `showsPortalSiteOutLinks` owns the rule. */
+  sitePublished: boolean
   /** Signed-in patient has linked dependents — gates the Family entry. */
   hasDependents: boolean
   /** Unread clinic replies — renders a badge on the Messages entry. */
@@ -51,7 +56,7 @@ export function buildPortalNav(opts: {
     // requesting your first family link — hiding it until a dependent exists
     // left no nav path to ever get one.
     { href: '/patient/family', label: 'Family', icon: 'users', enabled: f.family },
-    { href: '/patient/shop', label: 'Shop', icon: 'bag', enabled: f.shopLink && opts.hasShop },
+    { href: '/patient/shop', label: 'Shop', icon: 'bag', enabled: f.shopLink && opts.hasShop && opts.sitePublished },
     { href: '/patient/profile', label: 'My info', icon: 'user', enabled: true },
   ]
 

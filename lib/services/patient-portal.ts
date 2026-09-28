@@ -455,6 +455,10 @@ export interface PortalClinicInfo {
    *  request-an-appointment form (→ inbox message) instead of the live slot
    *  picker, mirroring the public website. */
   selfBookingEnabled: boolean
+  /** THE GO-LIVE LEVER. Null = the clinic's public site still serves the
+   *  branded coming-soon page, so every portal link OUT to that site is a
+   *  dead end — see `showsPortalSiteOutLinks` in lib/clinic-site-helpers. */
+  siteLiveAt: Date | null
 }
 
 /** Clinic identity + practical info for the portal chrome (header / footer / contact cards). */
@@ -476,6 +480,7 @@ export async function getPortalClinicInfo(organizationId: string): Promise<Porta
       timezone: clinicProfile.timezone,
       cancellationPolicy: clinicProfile.cancellationPolicy,
       selfBookingEnabled: clinicProfile.selfBookingEnabled,
+      siteLiveAt: clinicProfile.siteLiveAt,
     })
     .from(clinicProfile)
     .innerJoin(organization, eq(organization.id, clinicProfile.organizationId))

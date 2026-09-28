@@ -10,14 +10,14 @@ import { DEFAULT_PORTAL_SETTINGS, resolvePortalSettings } from '@/lib/types/port
 
 describe('buildPortalNav', () => {
   it('default settings: Home/Visits/Messages/Billing primary, rest in More', () => {
-    const nav = buildPortalNav({ settings: DEFAULT_PORTAL_SETTINGS, hasShop: false, hasDependents: false })
+    const nav = buildPortalNav({ settings: DEFAULT_PORTAL_SETTINGS, hasShop: false, sitePublished: true, hasDependents: false })
     expect(nav.primary.map((i) => i.label)).toEqual(['Home', 'Visits', 'Messages', 'Billing'])
     expect(nav.more.map((i) => i.label)).toEqual(['Records', 'Forms', 'Family', 'My info'])
   })
 
   it('a toggled-off feature produces NO nav item anywhere', () => {
     const settings = resolvePortalSettings({ features: { messages: false, billing: false } })
-    const nav = buildPortalNav({ settings, hasShop: false, hasDependents: false })
+    const nav = buildPortalNav({ settings, hasShop: false, sitePublished: true, hasDependents: false })
     const all = [...nav.primary, ...nav.more].map((i) => i.label)
     expect(all).not.toContain('Messages')
     expect(all).not.toContain('Billing')
@@ -26,35 +26,59 @@ describe('buildPortalNav', () => {
   })
 
   it('Family gates on the feature ONLY — day-0 patients need the nav path to request their first link', () => {
-    const on = buildPortalNav({ settings: DEFAULT_PORTAL_SETTINGS, hasShop: false, hasDependents: true })
+    const on = buildPortalNav({ settings: DEFAULT_PORTAL_SETTINGS, hasShop: false, sitePublished: true, hasDependents: true })
     expect([...on.primary, ...on.more].map((i) => i.label)).toContain('Family')
 
     // No dependents yet → Family STILL shows (the page's day-0 value is the
     // link-request form; hiding it left no nav path to ever get a dependent).
-    const noDeps = buildPortalNav({ settings: DEFAULT_PORTAL_SETTINGS, hasShop: false, hasDependents: false })
+    const noDeps = buildPortalNav({ settings: DEFAULT_PORTAL_SETTINGS, hasShop: false, sitePublished: true, hasDependents: false })
     expect([...noDeps.primary, ...noDeps.more].map((i) => i.label)).toContain('Family')
 
     const off = buildPortalNav({
       settings: resolvePortalSettings({ features: { family: false } }),
       hasShop: false,
+      sitePublished: true,
       hasDependents: true,
     })
     expect([...off.primary, ...off.more].map((i) => i.label)).not.toContain('Family')
   })
 
   it('Shop appears only when the link is enabled AND the storefront exists', () => {
-    const both = buildPortalNav({ settings: DEFAULT_PORTAL_SETTINGS, hasShop: true, hasDependents: false })
+    const both = buildPortalNav({ settings: DEFAULT_PORTAL_SETTINGS, hasShop: true, sitePublished: true, hasDependents: false })
     expect([...both.primary, ...both.more].map((i) => i.label)).toContain('Shop')
 
-    const noStore = buildPortalNav({ settings: DEFAULT_PORTAL_SETTINGS, hasShop: false, hasDependents: false })
+    const noStore = buildPortalNav({ settings: DEFAULT_PORTAL_SETTINGS, hasShop: false, sitePublished: true, hasDependents: false })
     expect([...noStore.primary, ...noStore.more].map((i) => i.label)).not.toContain('Shop')
 
     const linkOff = buildPortalNav({
       settings: resolvePortalSettings({ features: { shopLink: false } }),
       hasShop: true,
+      sitePublished: true,
       hasDependents: false,
     })
     expect([...linkOff.primary, ...linkOff.more].map((i) => i.label)).not.toContain('Shop')
+  })
+
+  it('Shop disappears while the clinic site is pre-live — the storefront lives on it', () => {
+    const preLive = buildPortalNav({
+      settings: DEFAULT_PORTAL_SETTINGS,
+      hasShop: true,
+      sitePublished: false,
+      hasDependents: false,
+    })
+    expect([...preLive.primary, ...preLive.more].map((i) => i.label)).not.toContain('Shop')
+
+    // And nothing ELSE goes with it: only the entry that points off-site.
+    const live = buildPortalNav({
+      settings: DEFAULT_PORTAL_SETTINGS,
+      hasShop: true,
+      sitePublished: true,
+      hasDependents: false,
+    })
+    const lost = [...live.primary, ...live.more]
+      .map((i) => i.label)
+      .filter((l) => ![...preLive.primary, ...preLive.more].map((i) => i.label).includes(l))
+    expect(lost).toEqual(['Shop'])
   })
 
   it('Home, Visits, and My info are always present (core floor)', () => {
@@ -71,7 +95,7 @@ describe('buildPortalNav', () => {
         payments: false,
       },
     })
-    const nav = buildPortalNav({ settings, hasShop: false, hasDependents: false })
+    const nav = buildPortalNav({ settings, hasShop: false, sitePublished: true, hasDependents: false })
     expect([...nav.primary, ...nav.more].map((i) => i.label)).toEqual(['Home', 'Visits', 'My info'])
   })
 
@@ -79,6 +103,7 @@ describe('buildPortalNav', () => {
     const nav = buildPortalNav({
       settings: DEFAULT_PORTAL_SETTINGS,
       hasShop: false,
+      sitePublished: true,
       hasDependents: false,
       unreadMessages: 3,
     })
@@ -89,6 +114,7 @@ describe('buildPortalNav', () => {
     const quiet = buildPortalNav({
       settings: DEFAULT_PORTAL_SETTINGS,
       hasShop: false,
+      sitePublished: true,
       hasDependents: false,
       unreadMessages: 0,
     })
@@ -96,7 +122,7 @@ describe('buildPortalNav', () => {
   })
 
   it('primary never exceeds 4 entries', () => {
-    const nav = buildPortalNav({ settings: DEFAULT_PORTAL_SETTINGS, hasShop: true, hasDependents: true })
+    const nav = buildPortalNav({ settings: DEFAULT_PORTAL_SETTINGS, hasShop: true, sitePublished: true, hasDependents: true })
     expect(nav.primary.length).toBeLessThanOrEqual(4)
   })
 })

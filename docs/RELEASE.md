@@ -5329,6 +5329,40 @@ with the refusal disabled. The teardown half is graded on the source, because
 the defect is a process-tree fact no argument can reach, and watched red with
 the bare `kill` restored.
 
+### The portal PREVIEW still fetches Fraunces from Google (2026-09-23) · OPEN
+
+Found in passing while adding a render test for that page on DREAMCRM-131, and
+written down here rather than only in the issue thread (§10) because the next
+person to work on it will be standing in the repo, not in the comment.
+
+`app/(preview)/settings/portal/preview/page.tsx:139` and `:143` still carry the
+runtime `preconnect` + `<link rel="stylesheet">` to
+`https://fonts.googleapis.com/css2?family=Fraunces:…`. The real portal stopped
+doing that — `app/(portal)/layout.tsx` self-hosts the same family from
+`/fonts/fraunces-latin.woff2` on the Nunito pattern, for the stated reason that
+the third-party DNS+TLS round trip flashed Georgia over every heading. The
+preview was not brought along.
+
+**Two costs, and the second is the one that matters.** The obvious one is the
+round trip on a staff-facing page. The real one is that this page's entire job
+is to be an accurate picture of the patient portal, and it is rendering in a
+different font pipeline from the thing it depicts — so the one surface a clinic
+uses to decide "is this what my patients see?" answers slightly wrong, and
+answers *visibly* wrong on a cold cell connection.
+
+**Reproduction, no browser needed.** Render the page under the vitest happy-dom
+environment — `tests/patient-portal/prelive-out-links.test.tsx` does — and the
+run emits `DOMException [NetworkError]: Failed to execute "fetch()" on "Window"
+with URL "https://fonts.googleapis.com/css2?family=Fraunces:…"`. That stderr
+line IS the defect: nothing else in the portal tree produces it, because
+nothing else in the portal tree still asks Google for a font.
+
+**The fix is a copy, not a design decision:** lift the `<link rel="preload">` +
+two `@font-face` blocks + `--font-display` from `app/(portal)/layout.tsx`. Not
+done here because DREAMCRM-131 is a behaviour change to the out-links and this
+is a font-loading change to a different concern; batching them would have put
+an unrelated edit inside a money-gated review.
+
 ## Part 6 — The post-1.0 backlog
 Moved to `docs/POST-1.0.md` (2026-08-17) — the full seeded inventory:
 externally-gated items (OD vendor portal, first A2P approval,

@@ -23,7 +23,7 @@ import { getOrCreatePortalSurvey } from '@/lib/services/nps'
 import { PortalIcon } from '@/components/patient-portal/portal-chrome'
 import { PortalCard, PortalHeading, PortalSectionLabel, PortalEmptyState, PortalNotice, PORTAL_INK, PORTAL_MUTED, PORTAL_BORDER } from '@/components/patient-portal/ui'
 import { greetingFor } from '@/components/patient-portal/format'
-import { todaysHoursLabel } from '@/lib/clinic-site-helpers'
+import { todaysHoursLabel, showsPortalSiteOutLinks } from '@/lib/clinic-site-helpers'
 import type { PortalIconName } from '@/components/patient-portal/nav'
 
 const WEEK_MS = 7 * 86_400_000
@@ -81,6 +81,15 @@ export default async function PortalHome() {
   // Reads the balance off `me` (a full patient row) — zero extra queries.
   const balanceDueCents = settings.features.billing ? (me?.pmsBalanceCents ?? 0) : 0
   const showBalanceTask = balanceDueCents > 0
+
+  // Where "spend them" on the rewards card points. Pre-live, /patient/shop
+  // bounces straight back here (DREAMCRM-131) because the storefront lives on
+  // an unpublished site — so the affordance is a round trip to nowhere and
+  // the card drops it. Same rule as the Shop nav entry.
+  const shopHref =
+    settings.features.shopLink && showsPortalSiteOutLinks(clinic?.siteLiveAt)
+      ? '/patient/shop'
+      : null
 
   const verbs: Array<{ href: string; label: string; sub: string; icon: PortalIconName; show: boolean }> = [
     { href: '/patient/book', label: bookLabel, sub: bookSub, icon: 'calendar', show: settings.features.booking },
@@ -257,7 +266,7 @@ export default async function PortalHome() {
             balance={loyaltyBalance}
             redeemPoints={loyalty.redeemPoints}
             redeemValueCents={loyalty.redeemValueCents}
-            shopHref={settings.features.shopLink ? '/patient/shop' : null}
+            shopHref={shopHref}
           />
         </section>
       )}
