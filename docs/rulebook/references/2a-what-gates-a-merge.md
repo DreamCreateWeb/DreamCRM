@@ -360,6 +360,51 @@ reading if you touch this file:
   The summary still carries everything; read that, not the annotations, when the
   queue is long.
 
+**THE QUEUE WAS PAID DOWN ON 2026-09-28 AND THE CUT-OFF DID NOT MOVE
+(DREAMCRM-134), and the first thing to record is that the diagnosis was wrong.**
+The sweep had been red six consecutive mornings — 09-23 through 09-28, last
+green `35776664807` at 2026-09-22 19:53Z. Weekly direction meeting 1 read that
+red as an unpayable backlog: *"~42 merged PRs owing an intake record plus 30
+skipped as pre-cut-off"*, and staged the work as a choice between paying it down
+and **moving the cut-off forward with a reasoned record**.
+
+**Measured against the same 500 merged PRs the workflow reads, the queue was
+twelve, not forty-two.** Review half: **0** findings, 51 satisfied. Intake half:
+**12** findings, 43 satisfied, 30 counted-and-named as pre-cut-off. Key half:
+**3** findings. The forty-two was the *satisfied* count read as the queue, and
+the thirty were never a backlog at all — they are the out-of-window bucket doing
+exactly the job `INTAKE_SWEPT_SINCE` exists to do, reported as a count so that a
+run which looked at nothing cannot be mistaken for a run that found nothing.
+
+**So the second option was never needed, and it is worth being explicit that it
+would have been wrong even if it had been.** Nudging `INTAKE_SWEPT_SINCE` past
+twelve live findings is the axe-ceiling mistake this section already names two
+bullets up, wearing the authorisation of a meeting. **A cut-off moves when a
+record-keeping convention did not exist yet, never when the queue is
+inconvenient.** The reasoned record the meeting asked for is this paragraph, and
+what it records is a re-measurement rather than a move.
+
+**What the twelve actually were, because the shape matters more than the
+number.** Ten of them merged on 2026-09-22/23 and **had genuinely been routed** —
+the rules are in this rulebook, several of them in entries numbered above —
+while the one-line mirror onto the PR was never left. That is not an intake
+backlog, it is a *record* backlog, and the two want different repairs: the first
+needs a rule written, the second needs a comment posted. Two were real: the
+pair #725 and #726, the owner's clinic-site session, whose case is the §2 entry
+beside the SIXTIETH. All twelve carry their record now.
+
+**The key half is the one that cost something, and it is §3's off-board
+count reaching five.** #725, #726 and #727 merged UNKEYED in one morning from a
+direct owner session — the exact shape §3 names, *brand work gets a board issue
+even when it starts in a direct owner session*, and the exact reason the key
+half has no label: a change nobody opened an issue for is the change no label
+has anybody to be about. Repaired at source with `gh pr edit --title`, which is
+the one half of this sweep that is genuinely self-clearing, against a board
+issue opened for the session. **The instrument was right on all three halves;
+what failed was the reading of it**, and a red alarm that six mornings of agents
+each re-derived a different way is the §7 argument for a compiled digest stated
+from the other end.
+
 **`schedule-heartbeat.yml` is the eleventh, and it is the alarm that watches the
 other alarms** — DREAMCRM-99, PR #666 / Quinn, `82f365fd`, merged 2026-09-22
 20:20:09Z on a Sentinel APPROVE. One daily job asserts every scheduled workflow

@@ -3671,7 +3671,7 @@
   here whose subject is THIS LIST'S OWN BOOKKEEPING** rather than anything in
   the repo. Every `**THE <ORDINAL>:` marker must be unique and the set must have
   no gaps, or `test` fails naming the duplicate.
-  **STATE: on the PR — #721, review requested.**
+  **STATE: MERGED — `38bd7773` (#721), 2026-09-23 18:05:24Z.**
 
   **What it cost to learn.** On 2026-09-23 THREE open PRs each claimed the
   FIFTY-SEVENTH — #712, #713 and #714 — and GitHub called all three
@@ -3749,6 +3749,97 @@
   portal-billing residual has a measured rate now rather than an adjective, and
   the hunt found a second thing. Routed because §2 says a CASE is still routed:
   no new class, but what the browser-driven spec asserts moved.
+
+  **THE SIXTIETH: `tests/guards/meeting-digest.test.ts` + `scripts/meeting-digest.mjs`
+  (DREAMCRM-134). The first guard here whose subject is a tool that GATES
+  NOTHING** — the digest is a reading, never a verdict, and it goes red for
+  exactly one reason, that it could not collect something it was asked for.
+  **STATE: on the PR — #728, review requested.**
+
+  **Why a thing that gates nothing is registered at all, since that question is
+  the interesting half.** `team-operating-model` §7 makes the digest the input
+  the weekly meeting reads instead of six agents each re-deriving the same
+  window from `git log`, and §2d's rule about a reader applies with full force
+  to a document nobody re-derives afterwards: every count in it is an ABSENCE
+  reading, so a narrowing makes the week look quieter and nothing anywhere goes
+  red. A number that is merely MISSING from a digest gets noticed in the room. A
+  number that is present and wrong is the whole risk of compiling pre-work at
+  all, and it is invisible by construction.
+
+  **The three subjects, and each one is a family this document already names.**
+
+  * **The BOUNDARY.** `--since` with no offset is read in the runtime's local
+    zone, which on this box is UTC-5. It has emptied two real windows: on
+    2026-09-15 an `--after='<date> 00:00'` sweep returned ZERO over fourteen
+    commits, a brand-new workflow file and three new zero-tolerance guards; at
+    23:43 on 2026-09-13 the `--since=<YYYY-MM-DD>` spelling did the same over
+    three gate-file commits, filling the missing hour in from the current clock.
+    Both read as "nothing happened". `parseBoundary` REFUSES a zoneless
+    boundary rather than assuming UTC, and the refusal is the assertion — the
+    obvious kindness produces a window that is right on CI and wrong on the
+    author's box, which is the same defect with a longer fuse.
+  * **The READER.** `OPEN_VERDICT` distinguishes a Part 5 verdict (`· OPEN.`,
+    `· **OPEN — …**`, `· OPEN (owner).`) from the word in prose ("fails OPEN",
+    "read OPEN for a week"). A bare `grep -c OPEN` returns 25 against the
+    document and twelve of those are sentences about a defect rather than a
+    defect's verdict. It is graded in BOTH directions, against specimens taken
+    out of the real `docs/RELEASE.md` — the prose spellings it must refuse
+    beside the verdict spellings it must accept — because an absence reader
+    graded in one direction is the §2d shape that only ever gets greener.
+  * **The two CLASSIFIERS that reach the owner.** Product-vs-process keeps MIXED
+    as its own bucket rather than folding it, and first-try never counts a PR
+    nobody could grade as a pass. Each has a direction that would flatter the
+    week, and in both cases it is the FOLD rather than the data that a reader
+    cannot check — §2d's rule that when classification is the risky half, the
+    distribution is graded first and the ungraded half is named.
+
+  **It was watched failing before it was believed** (§2d, §9). Six mutations,
+  each reddening for its own stated reason and no other: the boundary assuming
+  UTC instead of refusing, `OPEN_VERDICT` dropping the middot, MIXED folding
+  into product, the ungradeable counting as first-try, `lastFired` reading the
+  last run rather than the last FAILURE, and the ledger delta collapsing
+  closed/opened into the net. The tree restores to 34 passing.
+
+  **The reader is VALIDATED AGAINST A HAND COUNT, which is the evidence this
+  file usually cannot get.** At `66d087dc` `openVerdicts` returns exactly the
+  thirteen lines DREAMCRM-121 names — 712, 788, 1047, 1092, 1148, 1382, 1840,
+  1987, 3018, 3520, 3559, 3629, 3643 — no more and no fewer. Quinn and Rio
+  established those thirteen independently, by hand, at that SHA. Two agents'
+  arithmetic is now a regex with a receipt, and that receipt is also the §4
+  usage-negative argument stated as a number rather than as a hope.
+
+  **WHAT THE ALARM COLUMN CAN AND CANNOT ANSWER, because the docket depends on
+  the distinction.** §2d's retirement review needs "has it fired?" to be a
+  LOOKUP. For an ALARM it is one: a scheduled workflow's last FAILED run, read
+  off the run history, and `alarmTable` reports it with `never ran`, `red now`
+  and `red since its first run` kept separate from `quiet` — absent is not
+  silent, and blocked is not idle. **For a GUARD there is no such lookup and
+  the census does not invent one.** A guard fires as a red `test` run and
+  Actions records the JOB's conclusion, not the assertion's. So the guard census
+  reports AGE and says in the rendered table that age is not a firing record —
+  §2d's answer for a guard was always a mutation rather than a date, and a
+  column of numbers sitting next to a docket timer reads as one unless the
+  sentence says otherwise. That sentence is itself asserted, which is §2d's
+  predicate-right/sentence-wrong family pointed at this guard.
+
+  **A CASE on the palette graders, no ordinal: #725 and #726** (`10009bca` and
+  `e62926b6`, 2026-09-28, the owner's clinic-site session) — two new public-site
+  templates, `established` and `hometeam`, each of which had to REMEMBER TO ADD
+  ITSELF to the instrument that grades it. `tests/clinic-site/brand-fill.test.ts`
+  holds a `RECIPES` array of `[name, buildXPalette]` pairs, hand-written; #725
+  appended `established` and #726 appended `hometeam`, and the array is total
+  over `lib/site-templates/*/palette.ts` today only because both authors
+  happened to do it. A seventh template that forgets is not graded, and nothing
+  goes red — the hand-kept-list defect §2b already writes up about itself, on
+  the day it arrived twice. The repair is §2d's field-of-view rule: derive the
+  partition from the tree and assert it total in BOTH directions, exactly as the
+  rule-2 narrowing was made to do. **Filed rather than fixed here** — it is a
+  test in the clinic-site lane and this intake does not write product code.
+  #726 also added `--font-score` to `RUNTIME_PROVIDED` in
+  `tests/a11y/css-var-definitions.test.ts`; that one is an exclusion carrying its
+  own `why`, which is the documented shape, and is recorded rather than flagged.
+  Both PRs also merged UNKEYED — see §2a's morning-sweep note for what that cost
+  and how it was repaired.
 
   (**The ordinals record arrival HERE, not merge order.** #697 and #684 merged
   before #698 and #701 and are numbered after them, because this list records
