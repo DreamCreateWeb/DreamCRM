@@ -6,6 +6,7 @@ import { buildCosmeticPalette } from '@/lib/site-templates/cosmetic/palette'
 import { buildHometownPalette } from '@/lib/site-templates/hometown/palette'
 import { buildPediatricPalette } from '@/lib/site-templates/pediatric/palette'
 import { buildEstablishedPalette } from '@/lib/site-templates/established/palette'
+import { buildHometeamPalette } from '@/lib/site-templates/hometeam/palette'
 
 /**
  * BRAND-AS-FILL IS NEVER THE RAW BRAND.
@@ -83,6 +84,7 @@ const RECIPES: [string, (b: string | null | undefined) => { brandStrong: string 
   ['hometown', buildHometownPalette],
   ['pediatric', buildPediatricPalette],
   ['established', buildEstablishedPalette],
+  ['hometeam', buildHometeamPalette],
 ]
 
 /** Real onboarding presets, the pale traps, and the degenerate cases. */

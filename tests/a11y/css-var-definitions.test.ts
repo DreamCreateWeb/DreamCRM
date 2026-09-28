@@ -45,6 +45,13 @@ const RUNTIME_PROVIDED: Array<{ prefix: string; why: string }> = [
       'tests/marketing/cinematic-spine.test.tsx holds that premise',
   },
   { prefix: '--font-display', why: 'public-site font, set on the site layout element' },
+  {
+    prefix: '--font-score',
+    why:
+      'the Home Team template’s second face (the scoreboard numerals), set on the ' +
+      'site layout element through the template def’s fontCss like --font-display; ' +
+      'every reference carries a generic fallback',
+  },
   { prefix: '--font-sans', why: 'public-site font, set on the site layout element' },
   { prefix: '--color-amber-', why: 'Tailwind 4 theme colour' },
   { prefix: '--color-teal-', why: 'Tailwind 4 theme colour' },

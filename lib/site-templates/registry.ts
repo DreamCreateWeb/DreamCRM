@@ -3,6 +3,7 @@ import { cosmeticTemplate } from './cosmetic'
 import { pediatricTemplate } from './pediatric'
 import { hometownTemplate } from './hometown'
 import { establishedTemplate } from './established'
+import { hometeamTemplate } from './hometeam'
 import type { SiteTemplateDef, SiteTemplateId } from './types'
 
 /**
@@ -15,6 +16,7 @@ const TEMPLATES: Record<SiteTemplateId, SiteTemplateDef> = {
   pediatric: pediatricTemplate,
   hometown: hometownTemplate,
   established: establishedTemplate,
+  hometeam: hometeamTemplate,
 }
 
 /**

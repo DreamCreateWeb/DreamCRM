@@ -1,5 +1,5 @@
 import SiteImage from '../../site-image'
-import { nameInitials } from './initials'
+import { nameInitials } from '@/components/clinic-site/name-initials'
 
 /**
  * The crest — the Established template's hero object, where other templates

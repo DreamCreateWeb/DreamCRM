@@ -28,7 +28,7 @@ import EstablishedHeader from './header'
 import EstablishedFooter from './footer'
 import EstablishedMobileActions from './mobile-actions'
 import Crest from './crest'
-import { nameInitials } from './initials'
+import { nameInitials } from '@/components/clinic-site/name-initials'
 import {
   SITE_BG,
   SITE_INK,
