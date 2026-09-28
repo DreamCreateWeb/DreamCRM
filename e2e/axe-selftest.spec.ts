@@ -2,11 +2,15 @@ import { test, expect } from '@playwright/test'
 import {
   deadExclusions,
   DECORATIVE_MOCKS,
+  describeNeedsReview,
   exclusionsHidingReadableText,
   expectNoA11yViolations,
+  findA11yResults,
   findA11yViolations,
   rulesOverBaseline,
+  summariseNeedsReview,
 } from './axe'
+import { A11Y_NEEDS_REVIEW_ANNOTATION, NEEDS_REVIEW_TARGET_CAP } from './axe-headroom'
 
 /**
  * THE RED RUN FOR THE ACCESSIBILITY CHECKS, kept permanently.
@@ -444,4 +448,177 @@ test.describe('an exemption cannot outlive the REASON it was given', () => {
    * `expectNoA11yViolations` stops asserting on either detector — the same
    * answer `axe-headroom-table.test.ts` gives for its reporter.
    */
+})
+
+/**
+ * THE RED RUN FOR THE NEEDS-REVIEW CLASS (DREAMCRM-107).
+ *
+ * THE DEFECT THIS IS THE RED RUN FOR IS AN ABSENCE, which is the hardest kind
+ * to watch and the reason it survived. `findA11yViolations` used to be
+ * `const { violations } = await builder.analyze()`, and axe does not put text
+ * over a gradient in `violations` — it cannot resolve a single background
+ * colour, so the node comes back under `incomplete`. Every stop in this suite
+ * was therefore silent about that whole category BY CONSTRUCTION: not a
+ * ceiling one too high, not a rule missing from the baseline, but a verdict
+ * the gate never received. Nothing downstream could have noticed, because a
+ * dropped category makes every absence assertion in the file GREENER.
+ *
+ * SO THE DOCUMENT BELOW IS THE REACHABLE CASE ON `main`, NOT A STAND-IN.
+ * `app/g/[token]/report-view.tsx` paints `.dg-glow` — two radial gradients
+ * over `#070b15` — and writes its quiet ink `#78849c` on top of it; at the
+ * teal peak the ground composites to roughly `#0d2d32`, where that ink grades
+ * **3.87:1**. The real page is saved today only by where the ellipse lands
+ * (roughly x 576–1472, y <= 444, and every `INK_3` node sits outside it). This
+ * copies the CSS verbatim and puts the labels inside the reach, which is the
+ * one-line edit away the real page is.
+ *
+ * MEASURED BEFORE IT WAS ASSERTED, in this browser, against this document:
+ * **0 violations, 1 `color-contrast` incomplete**, failure summary "Element's
+ * background color could not be determined due to a background gradient".
+ * The first assertion below is that zero — it is the defect, stated as a
+ * passing test, and it is what the rest of this block is worth anything
+ * against.
+ */
+const GLOW_CSS = `
+  body { margin: 0; background: #070b15; }
+  /* Verbatim from app/g/[token]/report-view.tsx's PAGE_CSS. */
+  .dg-glow { position: absolute; inset: 0 0 auto 0; height: 620px; pointer-events: none;
+    background: radial-gradient(640px 420px at 80% 150px, rgba(45,212,191,0.17), transparent 70%),
+                radial-gradient(560px 360px at 12% 30px, rgba(56,189,248,0.10), transparent 70%); }
+  .dg-mono { position: relative; font-size: 12px; font-weight: 500; color: #78849c; }
+  .in-reach { position: absolute; left: 70%; }
+`
+
+/** Four quiet-ink labels inside the glow's reach — the shape one edit away. */
+const OVER_THE_GLOW = `<!doctype html>
+<html lang="en">
+  <head><title>Quiet ink over the glow</title><style>${GLOW_CSS}</style></head>
+  <body>
+    <div class="dg-glow" aria-hidden="true"></div>
+    <main>
+      <p class="dg-mono in-reach" style="top:120px" id="a">WEBSITE</p>
+      <p class="dg-mono in-reach" style="top:160px" id="b">LISTING</p>
+      <p class="dg-mono in-reach" style="top:200px" id="c">REVIEWS</p>
+      <p class="dg-mono in-reach" style="top:240px" id="d">SEARCH</p>
+    </main>
+  </body>
+</html>`
+
+/** The same page with the labels where they actually sit — off the gradient. */
+const CLEAR_OF_THE_GLOW = `<!doctype html>
+<html lang="en">
+  <head><title>Quiet ink clear of the glow</title><style>${GLOW_CSS}</style></head>
+  <body>
+    <div class="dg-glow" aria-hidden="true"></div>
+    <main>
+      <p class="dg-mono" style="margin-top:700px">Quiet ink on the plain canvas.</p>
+    </main>
+  </body>
+</html>`
+
+test.describe('what axe could not decide is reported rather than dropped', () => {
+  test('the gate sees NOTHING here — this is the defect, not the control', async ({ page }) => {
+    await page.setContent(OVER_THE_GLOW)
+
+    // Four labels at 3.87:1 and the violation list is empty. Read this
+    // assertion as the sentence the ledger entry is about: a page can fail AA
+    // on every line of text it has and every ceiling in the suite stays happy.
+    expect(
+      await findA11yViolations(page),
+      'axe reports gradient-ground text as incomplete, never as a violation — if this ever ' +
+        'starts returning something, axe has learned to composite gradients and the class below ' +
+        'has stopped being the only channel that can see them',
+    ).toEqual([])
+  })
+
+  test('the same scan reports them under incomplete, by rule and by element', async ({ page }) => {
+    await page.setContent(OVER_THE_GLOW)
+
+    const { incomplete } = await findA11yResults(page)
+    const contrast = incomplete.filter((r) => r.id === 'color-contrast')
+
+    expect(contrast, 'the gradient ground must come back as one color-contrast entry').toHaveLength(1)
+    expect(contrast[0].nodes).toHaveLength(4)
+    // Axe's own words for WHY, which is what tells a reader this is an
+    // undecidable rather than a failure. Asserting the reason and not just the
+    // rule id is the difference between "something was incomplete" and "the
+    // background could not be resolved".
+    expect(contrast[0].nodes[0].failureSummary ?? '').toContain('background gradient')
+  })
+
+  test('a document axe CAN grade reports nothing — the other half', async ({ page }) => {
+    // Without this, a summariser that returned a row unconditionally would
+    // satisfy every assertion above. Same argument as "a clean document
+    // reports nothing" at the top of this file.
+    await page.setContent(CLEAR_OF_THE_GLOW)
+
+    expect(await findA11yViolations(page)).toEqual([])
+    expect(summariseNeedsReview((await findA11yResults(page)).incomplete)).toEqual([])
+  })
+
+  test('the summary carries the TRUE node count and caps only the selectors', async ({ page }) => {
+    await page.setContent(OVER_THE_GLOW)
+
+    const rows = summariseNeedsReview((await findA11yResults(page)).incomplete)
+    expect(rows).toHaveLength(1)
+    expect(rows[0].rule).toBe('color-contrast')
+    // Four nodes, three selectors. The cap is for the table's width; a capped
+    // row that also under-reported its count would make a big problem look
+    // like a small one, which is the direction this whole file refuses.
+    expect(rows[0].nodes, 'the count is never capped').toBe(4)
+    expect(rows[0].targets).toHaveLength(NEEDS_REVIEW_TARGET_CAP)
+    expect(rows[0].targets).toContain('#a')
+  })
+
+  test('the log lines name the element and axe own reason, not just a count', async ({ page }) => {
+    await page.setContent(OVER_THE_GLOW)
+
+    const lines = describeNeedsReview(
+      'token: practice grade report',
+      (await findA11yResults(page)).incomplete,
+    )
+
+    expect(lines[0]).toContain('token: practice grade report')
+    expect(lines[0]).toContain('color-contrast ×4')
+    expect(lines.some((l) => l.includes('at: #a') && l.includes('background gradient'))).toBe(true)
+  })
+
+  test('THE PRODUCTION PATH: the stop stays green and says so anyway', async ({ page }) => {
+    // Both halves of the decision in one test. `expectNoA11yViolations` must
+    // NOT fail on an undecidable — an `expect.soft` red here would mark this
+    // test failed, so a passing run is itself the assertion — and it must not
+    // stay quiet about it either.
+    await page.setContent(OVER_THE_GLOW)
+    await expectNoA11yViolations(page, 'selftest: over the glow')
+
+    const emitted = test
+      .info()
+      .annotations.filter((a) => a.type === A11Y_NEEDS_REVIEW_ANNOTATION)
+      .map((a) => JSON.parse(a.description ?? '{}'))
+      .filter((s) => s.stop === 'selftest: over the glow')
+
+    expect(emitted, 'the stop must emit exactly one needs-review sample').toHaveLength(1)
+    expect(emitted[0].rules).toEqual([
+      { rule: 'color-contrast', nodes: 4, targets: ['#a', '#b', '#c'] },
+    ])
+  })
+
+  test('a stop with nothing to report emits a sample ANYWAY', async ({ page }) => {
+    // THE §2a HALF: an alarm ships with the thing that notices it stopped. If
+    // the emit only fired on a finding, then "no rows in the end-of-run table"
+    // would mean either "axe decided everything" or "this emitter is unhooked"
+    // — identical silence, and the second is the likelier bug. An empty
+    // `rules` is what makes those two distinguishable in the reporter.
+    await page.setContent(CLEAR_OF_THE_GLOW)
+    await expectNoA11yViolations(page, 'selftest: clear of the glow')
+
+    const emitted = test
+      .info()
+      .annotations.filter((a) => a.type === A11Y_NEEDS_REVIEW_ANNOTATION)
+      .map((a) => JSON.parse(a.description ?? '{}'))
+      .filter((s) => s.stop === 'selftest: clear of the glow')
+
+    expect(emitted).toHaveLength(1)
+    expect(emitted[0].rules, 'an all-decidable stop still reports that it was scanned').toEqual([])
+  })
 })

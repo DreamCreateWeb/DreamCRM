@@ -12,8 +12,11 @@ import {
 import {
   INTAKE_LABEL,
   INTAKE_SWEPT_SINCE,
+  KEY_SWEPT_SINCE,
   REVIEW_LABEL,
   SWEPT_SINCE,
+  issueKeyRecord,
+  keySweep,
   VERDICT_PATTERNS,
   VERDICT_REVIEW_STATES,
   intakeRecord,
@@ -1209,11 +1212,18 @@ describe('the sweep workflow', () => {
     expect(wf()).toMatch(/::error::the wake POST failed/)
   })
 
-  it('an unset secret is SKIPPED, not a failure', () => {
-    // The same contract `error-scan.yml` carries for its IAM role. A wake that
-    // is not configured yet must not turn a working sweep red every morning —
-    // a workflow red for a fortnight for an unrelated reason is one nobody
-    // reads on the day it finally means something.
+  it('an unset secret says so in words — and does not read as a wake that happened', () => {
+    // RENAMED, because the old name — `an unset secret is SKIPPED, not a
+    // failure` — became the opposite of what the code does when the wake gained
+    // its step-conclusion anchor, and a test whose NAME asserts the opposite of
+    // its subject is the one a future reader trusts first (Sentinel, third pass
+    // on #671).
+    //
+    // What is true now: the step FAILS, because its conclusion is the anchor
+    // and a due wake that did not happen is not "Forge was told". What is
+    // unchanged is the half the old name was reaching for — the summary says
+    // `Skipped, not passed`, so nobody is told a wake happened that did not.
+    // The exit code is graded by the execution block above, not here.
     const source = wf()
     expect(source).toMatch(/if \[ -z "\$\{WAKE_URL\}" \]/)
     expect(source, 'an unconfigured wake must say it is unconfigured, not pass quietly').toContain(
@@ -1747,16 +1757,204 @@ describe('the intake cut-off', () => {
 
   it('stays LATER than the review cut-off, which is what keeps the truncation check honest', () => {
     // `windowGap` grades the `gh pr list` truncation against SWEPT_SINCE only.
-    // That covers both halves for exactly one reason: SWEPT_SINCE is the
-    // earlier of the two. Add a third obligation with an older cut-off and the
-    // truncation check starts grading the wrong number, silently, which is the
-    // "a sweep with a hole in it looks like a clean sweep" failure this file
-    // has now written down three times.
+    // That covers every half for exactly one reason: SWEPT_SINCE is the
+    // earliest. Add an obligation with an older cut-off and the truncation
+    // check starts grading the wrong number, silently, which is the "a sweep
+    // with a hole in it looks like a clean sweep" failure this file has now
+    // written down three times.
+    //
+    // DERIVED OVER EVERY CUT-OFF rather than named pairwise — the third
+    // obligation arrived (DREAMCRM-105) and the pairwise version of this
+    // assertion would have gone on passing about the two it knew.
+    for (const [name, value] of [
+      ['INTAKE_SWEPT_SINCE', INTAKE_SWEPT_SINCE],
+      ['KEY_SWEPT_SINCE', KEY_SWEPT_SINCE],
+    ] as const) {
+      expect(
+        Date.parse(SWEPT_SINCE),
+        `the truncation check reads SWEPT_SINCE, so it must be the earliest cut-off any ` +
+          `obligation uses — otherwise a truncated list can hide merges ${name}'s half needed to ` +
+          'see.',
+      ).toBeLessThanOrEqual(Date.parse(value))
+    }
+  })
+})
+
+/**
+ * THE THIRD OBLIGATION: THE PR TITLE CARRIES ITS ISSUE KEY (DREAMCRM-105).
+ *
+ * §3's first bullet, and the only link from a merged commit back to somebody
+ * who can answer for it. Its REVIEW half has had a machine since #593; its KEY
+ * half had nothing but memory, and memory lost three times in one day — #636
+ * (01:24Z), #659 (17:54Z) and #674 (22:19Z), all from `claude/*` branches, the
+ * last of them hours after §3's rule landed.
+ *
+ * #659 is the one that shows why this is not a bookkeeping nicety: it merged
+ * carrying `needs-forge-intake` and nobody recorded the intake, for a reason no
+ * amount of labelling could fix — **no issue owned the work, so there was
+ * nobody the label could be about.** The key half is upstream of the other two.
+ *
+ * What is graded here, and why:
+ *
+ *   1. THE PREDICATE, in both directions. A missing key must be found; a
+ *      present one must never be flagged, including the spellings this repo
+ *      actually writes.
+ *   2. THE SUBJECT IS THE TITLE, and nothing else. A key in the body or in a
+ *      comment does not satisfy it — that would make the record forgeable by
+ *      the one action that means nothing (typing the key somewhere), and it
+ *      would leave the commit-to-issue link still broken.
+ *   3. THERE IS NO LABEL. Every merged PR in the window is in scope. A version
+ *      that waited for a label would be permanently silent, because the label
+ *      is exactly what untracked work has nobody to receive.
+ *   4. THE CUT-OFF IS BOUNDED AT BOTH ENDS. Early enough to catch all three
+ *      generating PRs; late enough that the pre-convention tail (#483–#485 and
+ *      the whole June run) is out of window rather than ninety findings on the
+ *      first morning.
+ *   5. IT NEVER WAKES FORGE. A wake enqueues a PAID run and is scoped to the
+ *      intake half. An unkeyed PR is not an intake question.
+ *   6. THE RINGER RINGS — the script driven as a process, because #593's
+ *      lesson was that every classifier test above can pass while `main()`
+ *      never reports anything.
+ */
+describe('what counts as a PR that reached the board', () => {
+  const unkeyed = (overrides: Pr = {}) =>
+    pr({
+      number: 674,
+      title: 'The living stage, pass 2: the ledger on the stage, toasts, press',
+      mergedAt: '2026-09-22T22:19:37Z',
+      labels: [],
+      ...overrides,
+    })
+
+  it('finds the key in the titles this repo actually writes', () => {
+    for (const title of [
+      'DREAMCRM-105: give the E2E harness a spec filter and a repeat count',
+      'DREAMCRM-99: the portal-billing duplicate is TRANSIENT, and that is measured',
+      'DREAMCRM-88: the bare text-gray-400 per-site pass (batch 69)',
+      // Not at the start, because §3 asks for a key and not for a prefix.
+      'the launch post quotes the plan config (DREAMCRM-101)',
+    ]) {
+      expect(issueKeyRecord({ title }), `"${title}" carries a key`).not.toBeNull()
+    }
+  })
+
+  it('does not accept something that merely looks like one', () => {
+    for (const title of [
+      'The living stage: the homepage showcase plays its chapters',
+      'Settings maintenance: fix 5 bugs + refresh docs',
+      // The LEGACY tracker prefix. Deliberately not accepted: `DREAM-164` is
+      // not an issue on this board, so it is not a link to anybody who can
+      // answer for the merge. If that spelling ever comes back, widen the
+      // pattern on purpose rather than discovering it as a silent pass.
+      'Unknown URLs return a real 404 instead of the sign-in page (DREAM-164)',
+      // A word boundary, not a substring: the guard's own identity-looseness
+      // family, which §2b names.
+      'NOTDREAMCRM-105: something else entirely',
+      'DREAMCRM- : a key with no number',
+    ]) {
+      expect(issueKeyRecord({ title }), `"${title}" must NOT read as keyed`).toBeNull()
+    }
+  })
+
+  it('reads the TITLE and refuses the same key anywhere else', () => {
+    // THE FORGEABLE-RECORD DIRECTION. Every other obligation here grades a
+    // record somebody leaves; this one grades the subject itself, which is
+    // what makes it the only self-clearing half. Accepting a key in the body
+    // or a comment would restore exactly the gap — the merged commit still has
+    // no key on it, and `gh pr list --json title` is what a later reader sees.
+    const inBodyOnly = unkeyed({
+      body: 'Closes DREAMCRM-100.',
+      comments: [comment('part of DREAMCRM-100')],
+    })
+    expect(issueKeyRecord(inBodyOnly)).toBeNull()
+    expect(keySweep([inBodyOnly]).unsatisfied).toHaveLength(1)
+  })
+
+  it('puts every merged PR in scope — there is no label to wait for', () => {
+    // A labelled version of this check would be permanently silent: the label
+    // is applied by a gate reading a diff, and what an untracked change lacks
+    // is not a label, it is an owner.
+    const result = keySweep([unkeyed(), unkeyed({ number: 659, mergedAt: '2026-09-22T17:54:01Z' })])
+    expect(result.unsatisfied.map((p) => p.number)).toEqual([674, 659])
+    expect(result.ungated, 'nothing is out of scope for this obligation').toBe(0)
+  })
+
+  it('leaves a keyed merge alone, and counts it', () => {
+    const keyed = pr({ number: 679, title: 'DREAMCRM-99: measured', mergedAt: '2026-09-22T23:28:02Z', labels: [] })
+    const result = keySweep([keyed])
+    expect(result.unsatisfied).toEqual([])
+    expect(result.satisfied).toHaveLength(1)
+    expect(result.satisfied[0].record.detail).toContain('DREAMCRM-99')
+  })
+})
+
+describe('the issue-key cut-off', () => {
+  it('reaches back far enough to hold all three PRs the rule came from', () => {
+    // #636 is the earliest of the three (2026-09-22T01:24:20Z). A cut-off
+    // after it would open this half having quietly excused the PR that started
+    // the pattern.
+    for (const at of ['2026-09-22T01:24:20Z', '2026-09-22T17:54:01Z', '2026-09-22T22:19:37Z']) {
+      expect(
+        Date.parse(KEY_SWEPT_SINCE),
+        `the PR that merged at ${at} must be inside this half's window`,
+      ).toBeLessThanOrEqual(Date.parse(at))
+    }
+  })
+
+  it('stops before the convention existed, so the first run is three findings and not ninety', () => {
+    // THE OPPOSITE FAILURE, and the one `INTAKE_SWEPT_SINCE` was moved to
+    // avoid: an alarm whose first morning reports a queue against a rule that
+    // post-dates most of it is a note in a drawer wearing an alarm's uniform.
+    // #483–#485 merged 2026-09-09 and the whole pre-program June tail before
+    // that; none of them could have carried a key that did not exist.
     expect(
-      Date.parse(SWEPT_SINCE),
-      'the truncation check reads SWEPT_SINCE, so it must be the earliest cut-off any obligation ' +
-        'uses — otherwise a truncated list can hide merges the intake half needed to see.',
-    ).toBeLessThanOrEqual(Date.parse(INTAKE_SWEPT_SINCE))
+      Date.parse(KEY_SWEPT_SINCE),
+      'a cut-off earlier than the convention turns this into ninety findings nobody can act on',
+    ).toBeGreaterThan(Date.parse('2026-09-09T15:18:55Z'))
+  })
+
+  it('is a real instant, and not in the future', () => {
+    const t = Date.parse(KEY_SWEPT_SINCE)
+    expect(Number.isFinite(t), 'KEY_SWEPT_SINCE must be a parseable RFC3339 instant').toBe(true)
+    expect(t, 'a cut-off in the future silently exempts everything').toBeLessThan(Date.now())
+  })
+})
+
+describe('an unkeyed PR reddens the run and never wakes Forge', () => {
+  const unkeyedFresh = pr({
+    number: 674,
+    title: 'The living stage, pass 2',
+    mergedAt: '2026-09-22T22:19:37Z',
+    labels: [],
+  })
+
+  it('exits non-zero and annotates, driven as a process', () => {
+    // #593's lesson: every classifier assertion above can pass while `main()`
+    // reports nothing. The wiring is what ships.
+    const { code, out } = runSweep([unkeyedFresh])
+
+    expect(out).toContain('::error title=PR #674 merged with no issue key')
+    expect(out, 'the remedy has to be in the summary, or the finding is a complaint').toMatch(
+      /gh pr edit <n> --title/,
+    )
+    expect(code, 'a finding that does not redden the run is a finding nobody sees').toBe(1)
+  })
+
+  it('does NOT wake Forge — a wake enqueues a paid run and this is not an intake', () => {
+    // `wakeDecision` takes the INTAKE half by name. This asserts the wiring
+    // agrees: the key half's findings must not reach it, because the cheapest
+    // way to make a new alarm distrusted is to spend somebody else's runs on
+    // it. Driven as a process so a future `main()` that passed the wrong half
+    // in is caught here rather than on an invoice.
+    const { out } = runSweep([unkeyedFresh])
+    expect(out).toMatch(/\[review-sweep\] wake=false/)
+  })
+
+  it('still exits zero when the unkeyed merge predates the cut-off', () => {
+    const old = pr({ number: 482, title: 'Settings maintenance', mergedAt: '2026-07-02T01:42:31Z', labels: [] })
+    const { code, out } = runSweep([old])
+    expect(out).toContain('older than the cut-off')
+    expect(code, 'the pre-convention tail must not cry wolf').toBe(0)
   })
 })
 
@@ -1934,5 +2132,233 @@ describe('what could blind this sweep from outside', () => {
       gateSummaryForAnIntakePr(),
       'the fixture no longer renders the intake section, so the guard above is vacuous',
     ).toContain('Forge')
+  })
+})
+
+/**
+ * THE WAKE'S BOOTSTRAP DEADLOCK, CLOSED DELIBERATELY (DREAMCRM-115).
+ *
+ * THE DEADLOCK IS CIRCULAR, which is why it survived review twice. A run
+ * becomes the wake's anchor by concluding its `Wake Forge` step `success`. On a
+ * morning with unsatisfied intake entries and no anchor, that step SUPPRESSES
+ * and exits non-zero — so the run does not become the anchor, and tomorrow is
+ * identical. The only escape is the intake queue going clean, which is the
+ * thing the wake exists to cause. **The wake cannot fire until the queue is
+ * clean, and the queue gets cleaned because the wake fired.**
+ *
+ * It was live, not theoretical. On 2026-09-23 this sweep held four unsatisfied
+ * entries (#673, #677, #694, #697) and no run in its history had a `Wake Forge`
+ * step at all — the step merged with #671 at 22:06:23Z, after the newest run.
+ * Forge would never have been woken for any of them. The COLOUR half had the
+ * same shape and escaped by accident: a hand-dispatched ping on `main`
+ * (`35776664807`, 19:53:16Z) happened to be green and became the last-green
+ * anchor. An instrument that needs an accident to start working will need
+ * another one.
+ *
+ * THE CLOSURE, and the three properties it has to keep:
+ *
+ *   1. IT MUST NOT WEAKEN THE `undated` SUPPRESSION. That branch is right when
+ *      the lookup FAILED: with no anchor every entry reads as fresh, and one
+ *      throttled API call would dispatch Forge over a queue he has already
+ *      seen. It is wrong only when the lookup SUCCEEDED and honestly found
+ *      nothing — a state with a knowable date.
+ *   2. THE TWO ARE NOT DISTINGUISHABLE FROM THE FILE. An empty `last-run.json`
+ *      means "no candidate woke", "the list lookup failed", OR "a candidate was
+ *      skipped because its jobs lookup failed" — and a skipped candidate might
+ *      have been the anchor. So the shell makes an explicit claim
+ *      (`wake-anchor-search.json`), and the script refuses to bootstrap without
+ *      it. `previousRunAt` reports the neutral fact `empty`; only
+ *      `readPreviousRun` may promote that to `bootstrap`.
+ *   3. THE DATE IS ARGUED, NOT PICKED. `INTAKE_SWEPT_SINCE` is the obligation's
+ *      own cut-off: no wake can be owed for a PR that merged before the label
+ *      this half grades was being read. And the `standing-only` check runs
+ *      FIRST, so a bootstrap arriving later in life — GitHub ages run history
+ *      out after 90 days — can only reach entries inside the last-green window.
+ */
+describe('the wake bootstrap — an alarm must not need an accident to start working', () => {
+  const owing = (number: number, mergedAt: string) => ({
+    number,
+    title: `DREAMCRM-000: ${number}`,
+    url: `https://github.com/DreamCreateWeb/DreamCRM/pull/${number}`,
+    mergedAt,
+  })
+
+  // The real state of this sweep on the morning the deadlock was found.
+  const intake = {
+    unsatisfied: [
+      owing(697, '2026-09-23T04:47:55Z'),
+      owing(694, '2026-09-23T04:03:10Z'),
+      owing(677, '2026-09-22T22:35:45Z'),
+      owing(673, '2026-09-22T21:50:09Z'),
+    ],
+  }
+  const lastGreen = { at: Date.parse('2026-09-22T19:53:16Z'), run: 35776664807, why: null }
+  const verifiedBootstrap = {
+    at: null,
+    run: null,
+    bootstrap: true,
+    why: 'no previous run of this sweep is recorded as having told Forge anything',
+  }
+
+  it('the FIRST wake fires instead of suppressing forever', () => {
+    const d = wakeDecision({ intake, wakeAnchor: verifiedBootstrap, lastGreen })
+    expect(d.wake).toBe(true)
+    expect(d.reason).toBe('intake-bootstrap')
+    expect(d.prs.map((p: { number: number }) => p.number).sort()).toEqual([673, 677, 694, 697])
+    expect(d.suppressed).toBe(null)
+  })
+
+  it('it measures against the intake cut-off, which is a date with an argument behind it', () => {
+    expect(wakeDecision({ intake, wakeAnchor: verifiedBootstrap, lastGreen }).why).toContain(
+      INTAKE_SWEPT_SINCE,
+    )
+    // Anything merged before that cut-off cannot owe a wake, because the label
+    // was not being read yet. Same sentence `INTAKE_SWEPT_SINCE` already makes.
+    const old = { unsatisfied: [owing(500, '2026-09-21T00:00:00Z')] }
+    const d = wakeDecision({ intake: old, wakeAnchor: verifiedBootstrap, lastGreen: null })
+    expect(d.wake).toBe(false)
+  })
+
+  it('a LOOKUP FAILURE still suppresses — the closure must not weaken that', () => {
+    // The whole reason the `undated` branch exists: with no anchor every entry
+    // reads as fresh, and dispatching Forge over a queue he has already seen is
+    // how the wire loses the credibility it needs.
+    const failed = { at: null, run: null, why: 'the run history was not a JSON array' }
+    const d = wakeDecision({ intake, wakeAnchor: failed, lastGreen })
+    expect(d.wake).toBe(false)
+    expect(d.reason).toBe('undated')
+    expect(d.suppressed).toBeTruthy()
+  })
+
+  it('an UNVERIFIED empty history cannot bootstrap', () => {
+    // `previousRunAt` reports `empty`, which is a fact about the rows it was
+    // handed. It is NOT the bootstrap, because it says nothing about whether
+    // the lookup that produced those rows came back complete. A caller holding
+    // a bare result must fall through to the suppression.
+    const bare = previousRunAt([], null)
+    expect(bare.empty).toBe(true)
+    expect((bare as { bootstrap?: boolean }).bootstrap).toBeUndefined()
+    expect(wakeDecision({ intake, wakeAnchor: bare, lastGreen }).reason).toBe('undated')
+  })
+
+  it('a real anchor still beats the bootstrap', () => {
+    // Once one run has told Forge something, the bootstrap is never consulted
+    // again — otherwise a queue he has already seen would re-wake him every
+    // morning, which is the paid version of an alarm nobody reads.
+    const anchored = { at: Date.parse('2026-09-23T04:20:00Z'), run: 1, why: null }
+    const d = wakeDecision({ intake, wakeAnchor: anchored, lastGreen })
+    expect(d.reason).toBe('intake')
+    // Only #697 (04:47Z) is newer than that anchor. The other three were
+    // already in the wake he was last sent.
+    expect(d.prs.map((p: { number: number }) => p.number)).toEqual([697])
+  })
+
+  it('a clean queue never bootstraps a wake into existence', () => {
+    expect(wakeDecision({ intake: { unsatisfied: [] }, wakeAnchor: verifiedBootstrap, lastGreen }).wake).toBe(
+      false,
+    )
+  })
+
+  it('the `standing-only` check runs FIRST, which is what bounds the blast radius', () => {
+    // This is why reusing `INTAKE_SWEPT_SINCE` is safe rather than merely
+    // convenient. If run history ages out in a year's time and the anchor
+    // falls back to the bootstrap, it still cannot reach an entry older than
+    // the last GREEN run — that branch has already dropped it.
+    const stale = { unsatisfied: [owing(400, '2026-09-22T10:00:00Z')] }
+    const d = wakeDecision({ intake: stale, wakeAnchor: verifiedBootstrap, lastGreen })
+    expect(d.wake).toBe(false)
+    expect(d.reason).toBe('standing-only')
+  })
+})
+
+describe('the wake bootstrap — only a COMPLETE search may promote `empty` to `bootstrap`', () => {
+  function withFiles(lastRun: string, search: string | null) {
+    const dir = mkdtempSync(join(tmpdir(), 'sweep-bootstrap-'))
+    writeFileSync(join(dir, 'last-run.json'), lastRun)
+    if (search !== null) writeFileSync(join(dir, 'search.json'), search)
+    writeFileSync(
+      join(dir, 'prs.json'),
+      JSON.stringify([
+        {
+          number: 999,
+          title: 'DREAMCRM-000: owing an intake',
+          url: 'https://github.com/DreamCreateWeb/DreamCRM/pull/999',
+          mergedAt: '2026-09-23T04:00:00Z',
+          author: { login: 'DreamCreateWeb' },
+          labels: [{ name: 'needs-forge-intake' }],
+          comments: [],
+          reviews: [],
+        },
+      ]),
+    )
+    writeFileSync(join(dir, 'green.json'), '[]')
+    spawnSync(
+      process.execPath,
+      [
+        join(process.cwd(), 'scripts/review-sweep.mjs'),
+        '--prs',
+        'prs.json',
+        '--limit',
+        '500',
+        '--last-green',
+        'green.json',
+        '--last-run',
+        'last-run.json',
+        '--anchor-search',
+        'search.json',
+        '--wake-out',
+        'wake.json',
+      ],
+      { cwd: dir, encoding: 'utf8' },
+    )
+    return JSON.parse(readFileSync(join(dir, 'wake.json'), 'utf8'))
+  }
+
+  it('a complete search bootstraps', () => {
+    expect(withFiles('[]', '{"complete":true,"searched":8}').reason).toBe('intake-bootstrap')
+  })
+
+  it('an INCOMPLETE search does not — a skipped candidate might have been the anchor', () => {
+    expect(withFiles('[]', '{"complete":false,"searched":3}').reason).toBe('undated')
+  })
+
+  it('a MISSING claim file does not', () => {
+    expect(withFiles('[]', null).reason).toBe('undated')
+  })
+
+  it('an unparseable claim file does not', () => {
+    expect(withFiles('[]', 'not json').reason).toBe('undated')
+  })
+})
+
+describe('the wake bootstrap — the workflow makes the claim the script requires', () => {
+  const sweepCode = () =>
+    readFileSync(join(process.cwd(), '.github/workflows/review-sweep.yml'), 'utf8')
+      .split('\n')
+      .filter((l) => !/^\s*#/.test(l))
+      .join('\n')
+
+  it('writes the claim and hands it to the comparator', () => {
+    const code = sweepCode()
+    expect(code).toContain('wake-anchor-search.json')
+    const line = code.split('\n').find((l) => l.includes('scripts/review-sweep.mjs --prs'))
+    expect(line, 'the comparator invocation stays one line — see the step comment').toBeTruthy()
+    expect(line).toContain('--anchor-search wake-anchor-search.json')
+  })
+
+  it('every way the search can come back short sets the claim FALSE', () => {
+    // Three of them, and all three are reachable: the list lookup failing, a
+    // candidate's jobs lookup failing, and the loop never running. The claim
+    // may only be true after a pass that examined every candidate.
+    const code = sweepCode()
+    const falses = code.match(/COMPLETE=false/g) ?? []
+    expect(
+      falses.length,
+      'both the `gh run list` fallback and the skipped-candidate branch must poison the claim; ' +
+        'a skipped candidate is exactly the one that might have been the anchor.',
+    ).toBeGreaterThanOrEqual(2)
+    // And it is the SKIP that sets it, not a bare `|| continue` that loses the
+    // fact — the shape this whole guard exists to refuse.
+    expect(code).not.toMatch(/actions\/runs\/\$\{ID\}\/jobs.*\|\| continue/)
   })
 })

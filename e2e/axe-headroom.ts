@@ -22,11 +22,19 @@ import { appendFileSync } from 'node:fs'
  * it ("after you fix something at a stop, go and read the count rather than
  * waiting to be told") asks a person to remember to go looking. This prints it.
  *
+ * THE SECOND TABLE, SINCE DREAMCRM-107: what axe could not DECIDE. A node
+ * whose background is a gradient comes back under `incomplete` rather than
+ * `violations`, so no ceiling in the suite is about it and no stop is red for
+ * it — the gate does not receive that category at all. It is not a violation
+ * and it is deliberately not treated as one; it is the other thing this file
+ * already exists to refuse, a measurement nobody can see. Same annotation
+ * channel, same powerlessness, its own fold and its own table.
+ *
  * WHAT IT IS NOT. It is reporting, not a gate. This reporter never fails a
  * run, never sets an exit code, and never changes which rules are over their
  * ceiling — that is `rulesOverBaseline` in `e2e/axe.ts` and nothing here
  * touches it. Everything it knows arrives as test annotations, so a bug in
- * here can lose the table; it cannot turn a green run red or a red run green.
+ * here can lose a table; it cannot turn a green run red or a red run green.
  * `tests/guards/axe-headroom-table.test.ts` pins that direction.
  *
  * WHY A REPORTER AND NOT A WORKFLOW STEP. `scripts/e2e-flaky-summary.mjs` is a
@@ -175,8 +183,184 @@ export function formatHeadroomTable(rows: HeadroomRow[]): string | null {
   return lines.join('\n')
 }
 
+/* ── WHAT AXE COULD NOT DECIDE (DREAMCRM-107) ────────────────────────────── */
+
 /**
- * Print the table once, at the end of the run, to the log and to the GitHub
+ * The annotation type `e2e/axe.ts` emits for the NEEDS-REVIEW class, and this
+ * reporter reads.
+ *
+ * Separate from `A11Y_HEADROOM_ANNOTATION` rather than folded into it, because
+ * the two carry different questions and a reader of either has to know which
+ * one they are looking at. Headroom is *this ceiling has room in it*. This one
+ * is *axe declined to answer*, which is not a count under a ceiling at all.
+ * `tests/guards/axe-headroom-table.test.ts` pins both wires.
+ */
+export const A11Y_NEEDS_REVIEW_ANNOTATION = 'a11y-needs-review'
+
+/**
+ * One rule axe returned under `incomplete` at a stop.
+ *
+ * `nodes` is the true count; `targets` is capped (see `NEEDS_REVIEW_TARGET_CAP`)
+ * because this travels as a JSON annotation and a stop with sixty undecidable
+ * nodes should still produce a readable row rather than a wall.
+ */
+export type NeedsReviewRule = {
+  /** The axe rule id — `color-contrast`, `aria-hidden-focus`, … */
+  rule: string
+  /** How many nodes axe could not decide about. */
+  nodes: number
+  /** Up to `NEEDS_REVIEW_TARGET_CAP` of their selectors, for the table. */
+  targets: string[]
+}
+
+/** How many selectors one (stop, rule) row carries. */
+export const NEEDS_REVIEW_TARGET_CAP = 3
+
+/**
+ * One stop's needs-review status, as `e2e/axe.ts` takes it.
+ *
+ * EMITTED FOR EVERY STOP, INCLUDING THE ONES WITH NOTHING TO SAY — `rules` is
+ * empty in the ordinary case and the annotation goes out anyway. That is the
+ * whole reason this is a sample per stop rather than a sample per finding: a
+ * run where axe decided everything and a run where the emit side has come
+ * unhooked are otherwise the same silence, and the second is the likelier bug.
+ * §2a of the conventions: every alarm ships with the thing that notices it
+ * stopped.
+ */
+export type NeedsReviewSample = {
+  /** The stop name — page AND state, the same key the baseline uses. */
+  stop: string
+  /** Every rule axe returned under `incomplete` here. Empty is ordinary. */
+  rules: NeedsReviewRule[]
+}
+
+/** One row of the table: a (stop, rule) axe could not grade. */
+export type NeedsReviewRow = NeedsReviewRule & {
+  stop: string
+  /** How many attempts reported it, retries included. */
+  attempts: number
+}
+
+/**
+ * Fold every needs-review sample in a run into the rows worth printing.
+ *
+ * TAKES THE MAXIMUM NODE COUNT, for the same reason `foldHeadroom` takes the
+ * worst count: a retry that happened to land before a gradient painted would
+ * otherwise erase what the first attempt saw. Targets are unioned across
+ * attempts and then capped, so a row names as many distinct elements as it can
+ * rather than whichever attempt came last.
+ *
+ * Pure, and exported separately from the reporter, so the guard can pin it
+ * against its own literals.
+ */
+export function foldNeedsReview(samples: NeedsReviewSample[]): NeedsReviewRow[] {
+  const byKey = new Map<string, NeedsReviewRow & { seen: Set<string> }>()
+  for (const sample of samples) {
+    for (const r of sample.rules) {
+      const key = `${sample.stop} :: ${r.rule}`
+      const prev = byKey.get(key)
+      if (!prev) {
+        byKey.set(key, {
+          stop: sample.stop,
+          rule: r.rule,
+          nodes: r.nodes,
+          targets: [],
+          attempts: 1,
+          seen: new Set(r.targets),
+        })
+        continue
+      }
+      prev.nodes = Math.max(prev.nodes, r.nodes)
+      prev.attempts += 1
+      for (const t of r.targets) prev.seen.add(t)
+    }
+  }
+  return Array.from(byKey.values())
+    .map(({ seen, ...row }) => ({ ...row, targets: Array.from(seen).slice(0, NEEDS_REVIEW_TARGET_CAP) }))
+    .sort((a, b) => b.nodes - a.nodes || a.stop.localeCompare(b.stop) || a.rule.localeCompare(b.rule))
+}
+
+/**
+ * Pull this run's needs-review samples out of whatever annotations the tests
+ * carried. Tolerant for the same reason `samplesFromAnnotations` is.
+ */
+export function needsReviewFromAnnotations(
+  annotations: ReadonlyArray<{ type: string; description?: string }>,
+): NeedsReviewSample[] {
+  const out: NeedsReviewSample[] = []
+  for (const a of annotations) {
+    if (a.type !== A11Y_NEEDS_REVIEW_ANNOTATION || !a.description) continue
+    try {
+      const parsed = JSON.parse(a.description) as Partial<NeedsReviewSample>
+      if (typeof parsed.stop !== 'string' || !Array.isArray(parsed.rules)) continue
+      const rules: NeedsReviewRule[] = []
+      for (const r of parsed.rules as Partial<NeedsReviewRule>[]) {
+        if (typeof r?.rule !== 'string' || typeof r.nodes !== 'number') continue
+        rules.push({
+          rule: r.rule,
+          nodes: r.nodes,
+          targets: Array.isArray(r.targets) ? r.targets.filter((t): t is string => typeof t === 'string') : [],
+        })
+      }
+      out.push({ stop: parsed.stop, rules })
+    } catch {
+      // Not ours, or corrupted. Either way it is not worth a word.
+    }
+  }
+  return out
+}
+
+/**
+ * How many DISTINCT stops reported their needs-review status this run.
+ *
+ * Not `samples.length`, and the difference is the whole reason this is a
+ * function rather than a `.length` at the call site (Sentinel, reviewing
+ * #682). A sample arrives per ATTEMPT and `playwright.config.ts` sets
+ * `retries: 1` on CI, so a stop that failed and retried contributes two. The
+ * number this feeds is the one a reader uses to decide whether the emitter is
+ * still alive, so counting attempts there would report broader coverage than
+ * the run had — the same "a number in a header is what the next reader trusts"
+ * hazard §2b names, in a line nobody would think to check.
+ *
+ * Exported so the guard can pin it against its own literals instead of
+ * grepping the reporter for a spelling.
+ */
+export function scannedStops(samples: NeedsReviewSample[]): number {
+  return new Set(samples.map((s) => s.stop)).size
+}
+
+/** The markdown the reporter prints, or `null` when axe decided everything. */
+export function formatNeedsReviewTable(rows: NeedsReviewRow[]): string | null {
+  if (rows.length === 0) return null
+  const total = rows.reduce((n, r) => n + r.nodes, 0)
+  const lines = [
+    '### Axe could not decide — needs a human',
+    '',
+    `${total} node${total === 1 ? '' : 's'} across ${rows.length} (stop, rule) ` +
+      `${rows.length === 1 ? 'pair' : 'pairs'} came back \`incomplete\` rather than pass or fail. ` +
+      'Every stop in this suite is silent about these in its violation count, by construction.',
+    '',
+    '| Stop | Rule | Nodes | Where | Samples |',
+    '| --- | --- | ---: | --- | ---: |',
+    ...rows.map(
+      (r) =>
+        `| ${r.stop} | \`${r.rule}\` | ${r.nodes} | ${
+          r.targets.length ? r.targets.map((t) => `\`${t}\``).join(', ') : '—'
+        } | ${r.attempts} |`,
+    ),
+    '',
+    '`incomplete` is axe saying it could not resolve the question, not that the element is fine and ' +
+      'not that it is broken — text over a gradient or an image is the common case, because there is ' +
+      'no single background colour to compute a ratio against. **This table gates nothing**: an ' +
+      'undecidable result is not a violation, and failing a required check on one would be a gate ' +
+      'people have to interpret. Read the row, measure the element by hand at the stop it names, and ' +
+      'either fix it or leave it — but do not read a green run as a claim about anything listed here.',
+  ]
+  return lines.join('\n')
+}
+
+/**
+ * Print the tables once, at the end of the run, to the log and to the GitHub
  * job summary when there is one.
  *
  * Nothing here is allowed to be load-bearing, so everything is wrapped: a
@@ -184,16 +368,27 @@ export function formatHeadroomTable(rows: HeadroomRow[]): string | null {
  */
 export default class AxeHeadroomReporter implements Reporter {
   private samples: HeadroomSample[] = []
+  private needsReview: NeedsReviewSample[] = []
 
   onTestEnd(_test: TestCase, result: TestResult): void {
     try {
       this.samples.push(...samplesFromAnnotations(result.annotations ?? []))
+      this.needsReview.push(...needsReviewFromAnnotations(result.annotations ?? []))
     } catch {
       // See the class doc: losing the table is acceptable, breaking the run is not.
     }
   }
 
   onEnd(): void {
+    // TWO INDEPENDENT REPORTS, EACH IN ITS OWN TRY. They answer different
+    // questions and one falling over must not take the other's table with it —
+    // that is the same "silence that could mean either" failure this file is
+    // built around, just arriving through an exception instead of a bad wire.
+    this.reportHeadroom()
+    this.reportNeedsReview()
+  }
+
+  private reportHeadroom(): void {
     try {
       const table = formatHeadroomTable(foldHeadroom(this.samples))
       if (!table) {
@@ -221,6 +416,45 @@ export default class AxeHeadroomReporter implements Reporter {
       if (summaryPath) appendFileSync(summaryPath, `\n${table}\n`)
     } catch (err) {
       console.log(`[a11y] could not print the ceiling-headroom table: ${String(err)}`)
+    }
+  }
+
+  /**
+   * The other half of the run's a11y picture: what axe DECLINED to grade.
+   *
+   * Same silence argument as the headroom table above and one notch sharper,
+   * because the emit side here fires at every stop whether or not it has
+   * anything to report. Zero samples therefore cannot mean "everything was
+   * decidable" — it means no stop was scanned, or `e2e/axe.ts` has stopped
+   * emitting. That distinction is the whole reason a sample goes out on a
+   * clean stop.
+   */
+  private reportNeedsReview(): void {
+    try {
+      const table = formatNeedsReviewTable(foldNeedsReview(this.needsReview))
+      if (!table) {
+        // DISTINCT STOPS, NOT SAMPLES (Sentinel's review of #682). One sample
+        // arrives per ATTEMPT, and `playwright.config.ts` sets `retries: 1` on
+        // CI — so a stop that failed and retried for any reason contributes
+        // two. This line is specifically the one a reader uses to judge
+        // whether the emitter is alive, so an inflated count is the worst
+        // place in the file to be loose: it would read as broader coverage
+        // than the run actually had.
+        const stops = scannedStops(this.needsReview)
+        console.log(
+          stops === 0
+            ? '[a11y] no stop reported whether axe could decide — either no spec reached an ' +
+                'a11y stop, or e2e/axe.ts has stopped emitting. Not the same as "axe decided everything".'
+            : `[a11y] axe decided every node it saw, at all ${stops} scanned stop` +
+                `${stops === 1 ? '' : 's'} — nothing needs a human.`,
+        )
+        return
+      }
+      console.log(`\n${table}\n`)
+      const summaryPath = process.env.GITHUB_STEP_SUMMARY
+      if (summaryPath) appendFileSync(summaryPath, `\n${table}\n`)
+    } catch (err) {
+      console.log(`[a11y] could not print the needs-review table: ${String(err)}`)
     }
   }
 

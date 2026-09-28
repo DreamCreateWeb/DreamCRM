@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test'
 import { restoresSeedScope } from './reseed'
 import { expectNoA11yViolations } from './axe'
+import { expectSole, watchForDuplicates } from './duplicate-watch'
 import { createHmac } from 'node:crypto'
 
 /**
@@ -92,11 +93,81 @@ function signedSessionCookie(): string {
   return encodeURIComponent(`${SESSION_TOKEN}.${sig}`)
 }
 
+/**
+ * The elements the duplicate-render flake resolves to two of.
+ *
+ * It was one — the amount input — until the first hunt ran it to ground (run
+ * `35811927552`, 9 failures in 200 repetitions). Three of those nine were
+ * `getByText('Your balance')` resolving to two elements, which is a heading
+ * three sections up the page. So whatever doubles is not the payment form; it
+ * is the billing page's BODY, and a watcher pointed at one input could only
+ * ever have reported a third of it.
+ */
+const WATCHED_SELECTORS = [
+  'input[aria-label="Payment amount in dollars"]',
+  '#portal-main h1',
+]
+
+/**
+ * THE PAGE THE PATIENT IS ON — and the answer to the duplicate flake.
+ *
+ * ════════════════════ WHAT THE SECOND COPY ACTUALLY IS ════════════════════
+ *
+ * Hunt run `35813473042` recorded the ancestor chain of both matches, and it
+ * ends the question that two occurrences, two investigations and one
+ * confidently-wrong diagnosis could not:
+ *
+ *   input < div < … < section < div < main#portal-main    < div < body < html
+ *   input < div < … < section < div < div#S:0[hidden]     <       body < html
+ *
+ * `div#S:0[hidden]` is **React's own out-of-order streaming container**. When a
+ * Suspense boundary resolves after the shell has flushed, React writes the
+ * content into a `hidden` div at the end of `<body>` under an `S:n` id and an
+ * inline script moves it into the boundary. `app/(portal)/loading.tsx` is that
+ * boundary — its mere existence wraps the whole portal segment in Suspense.
+ *
+ * So for a window of ~400–520ms the markup genuinely exists twice: once in
+ * place, once in the transport buffer React has not swept yet. Measured at 2.0%
+ * and 4.5% of page loads across two hunts of 200 repetitions each.
+ *
+ * ═══════════════════════ WHY THAT IS NOT A DEFECT ═════════════════════════
+ *
+ * The issue that commissioned this work said "two payment forms on a patient's
+ * billing page does not go into 1.0 unexplained", and the explanation is that
+ * **there are not two payment forms on the page**. There is one, in
+ * `main#portal-main`, and one copy inside a `hidden` container that is
+ * `display: none`, unreachable, and gone milliseconds later. No patient can see
+ * it, focus it, or type into it. No money surface is doubled.
+ *
+ * ══════════════ WHY SCOPING IS NOT `.first()` IN A BETTER HAT ═════════════
+ *
+ * This is the distinction the whole investigation turned on, so it is worth
+ * being exact. `.first()` says *"take whichever one you find"* — it would
+ * accept two live payment forms inside the page and report green. Scoping to
+ * `#portal-main` says *"there is exactly one payment form in the page's main
+ * content"*, which is a STRONGER claim than the one this spec used to make and
+ * the one a patient actually cares about. Two real forms both render here, and
+ * two forms here still fail.
+ *
+ * What it removes from the field of view is React's transport buffer — which
+ * was never part of the page, and whose presence the strict page-wide locator
+ * was reporting as a product fact.
+ *
+ * The watcher stays installed on the whole document. If a second form ever
+ * appears INSIDE `#portal-main`, the failure still arrives with its chain.
+ */
+const portalMain = (page: import('@playwright/test').Page) => page.locator('#portal-main')
+
 async function signedInPatient(browser: import('@playwright/test').Browser) {
   const context = await browser.newContext({ baseURL: BASE })
   await context.addCookies([
     { name: 'better-auth.session_token', value: signedSessionCookie(), url: BASE },
   ])
+  // Installed on the CONTEXT, before any navigation, because the render being
+  // investigated is the first one (DREAMCRM-105). See `./duplicate-watch`: the
+  // duplicate lives for ~500ms and a post-hoc `page.evaluate` reads a page that
+  // has already healed, which is how two occurrences produced two dead ends.
+  await watchForDuplicates(context, WATCHED_SELECTORS)
   return { context, page: await context.newPage() }
 }
 
@@ -125,18 +196,66 @@ test.describe('paying a balance from the portal', () => {
     // carries a "Billing — Balance & history" link too, and `/balance/i` would
     // be two matches and a strict-mode violation the first time the grid moved
     // above the strip.
+    // ── THE RESIDUAL, MEASURED AND DELIBERATELY NOT PAPERED OVER ──
+    //
+    // The duplicate-render flake is closed (see `portalMain` above): hunt run
+    // `35815991515` ran this file 200 times against the scoped locators and
+    // produced ZERO duplicate failures, down from 9 and 4.
+    //
+    // What that hunt DID produce is one failure of a different kind, and this
+    // is it: the click lands, and the page is still on `/patient/dashboard`
+    // ten seconds later. Hunt 1 saw it once too.
+    //
+    // HUNTED AGAIN 2026-09-23 (DREAMCRM-115, run `35835599351`, 200 repeats):
+    // **once more, at repeat 76**, same line, same shape —
+    //
+    //     Expected pattern: /\/patient\/invoices/
+    //     Received string:  "http://127.0.0.1:3100/patient/dashboard"
+    //     24 x locator resolved to <html ...> - unexpected value
+    //
+    // POOLED, THAT IS **3 IN 800 REPETITIONS: 0.375%**, and the number is now
+    // worth stating with its uncertainty rather than as a point: the 95%
+    // interval on 3/800 runs from roughly **0.08% to 1.1%**. Three events is
+    // enough to say the thing is real and recurring and NOT enough to tell a
+    // 1-in-1000 defect from a 1-in-100 one. A fix judged against this rate
+    // would need on the order of a thousand clean repetitions to be
+    // distinguishable from luck, which is four hunts at the harness ceiling.
+    //
+    // STILL NOT FIXED, and the measurement is the reason rather than an
+    // excuse. The hypothesis below is unchanged and still unwatched: the link
+    // is a real `<a href>`, so a dispatched click always navigates, and a
+    // click that does nothing means the node Playwright resolved was REPLACED
+    // between resolving it and dispatching on it. What would settle it is the
+    // TRACE from repeat 76 (on run `35835599351`) rather than another hunt —
+    // it records whether the dashboard re-rendered in that window, which is
+    // the one fact that separates the hydration hypothesis from every other
+    // one. Start there.
+    //
+    // It is not the same defect as the duplicate render and it is not the same
+    // shape. The suspected mechanism is hydration swapping the server-rendered
+    // tree — the same streaming machinery one layer up.
+    //
+    // The obvious moves are to retry the click or wait for a post-hydration
+    // signal. Both are plausible, neither has been watched to fix anything, and
+    // 0.375% is exactly the rate at which a hopeful fix looks like it worked.
+    // Written down with its number so the next person starts where this one
+    // finished rather than rediscovering it — §10, and the lesson of the
+    // three notes above.
     await page.getByRole('link', { name: /\$185\.00 balance/ }).click()
     await expect(page).toHaveURL(/\/patient\/invoices/)
 
-    await expect(page.getByText('Your balance')).toBeVisible()
+    await expectSole(page, portalMain(page).getByText('Your balance'), 10_000)
     await expect(page.locator('#portal-main')).toContainText(BALANCE)
 
     // The pay form only renders when the portal's payments feature is on AND
     // the clinic has an active connected account. Both are seeded, so this
     // assertion is also the proof that `canTakeBalancePayments` agreed — the
     // alternative rendering is a "call us" paragraph with no controls at all.
-    const amount = page.getByLabel('Payment amount in dollars')
-    await expect(amount).toBeVisible()
+    // This is the test that has never flaked — it settles on `Your balance`
+    // and `#portal-main` content before locating the input, which is the lead
+    // test 3's note is built on. Watched anyway: if the duplicate ever shows
+    // up HERE, the settle is not the discriminator and that is worth knowing.
+    const amount = await expectSole(page, portalMain(page).getByLabel('Payment amount in dollars'))
     await expect(amount).toHaveValue('185.00')
     await expect(page.getByRole('button', { name: 'Pay online' })).toBeEnabled()
 
@@ -148,8 +267,11 @@ test.describe('paying a balance from the portal', () => {
     const { context, page } = await signedInPatient(browser)
     await page.goto('/patient/invoices')
 
-    const amount = page.getByLabel('Payment amount in dollars')
-    await expect(amount).toBeVisible({ timeout: 30_000 })
+    // THE SPEC THE FLAKE'S OWN LEAD PREDICTS IS NEXT (see test 3's note): this
+    // and test 3 are the two that go `goto` -> straight to a strict locator,
+    // with no settle in between. `expectSole` keeps the locator STRICT — two
+    // forms still fail — and attaches what the watcher recorded.
+    const amount = await expectSole(page, portalMain(page).getByLabel('Payment amount in dollars'))
 
     // Over the balance. The server refuses this too, but the client refusal is
     // the one a patient meets, and it must be a sentence rather than a silent
@@ -166,6 +288,41 @@ test.describe('paying a balance from the portal', () => {
 
     // Durable: refused amounts never became a payment. The balance is
     // unchanged after a fresh load, and the history carries nothing.
+    //
+    // THIS ASSERTION HAS FAILED ONCE, AND IT IS NOT THE FILE'S KNOWN FLAKE.
+    // Hunt run `35835599351` (2026-09-23, DREAMCRM-115, 200 repeats) failed
+    // here at repeat 140:
+    //
+    //     Expected: 0   Received: 1
+    //     24 x locator resolved to 1 element — unexpected value "1"
+    //
+    // READ THE SHAPE BEFORE THE CAUSE. The value was STABLE at 1 for the whole
+    // 10-second window — twenty-four polls, never once 0. That rules out a
+    // render race on the reload: the row was genuinely in the page the entire
+    // time. A phantom "Balance payment" after a failed checkout is precisely
+    // what the paragraph above says this assertion exists to catch, so it is
+    // NOT safe to read this as test noise.
+    //
+    // WHAT IT IS NOT, established from the hunt rather than argued: it is not
+    // a row left behind by an earlier repeat. `restoresSeedScope` upserts the
+    // seeded rows before every test and deletes nothing, so a genuinely
+    // persisted phantom would have failed repeats 141 through 200 as well.
+    // Exactly one repeat failed. The row was there at that reload and gone
+    // afterwards.
+    //
+    // WHICH LEAVES ONE HYPOTHESIS WORTH TESTING, and it is a product question
+    // rather than a spec one: that the rollback of the pending payment row is
+    // not ordered before the server action returns its error, so a fast enough
+    // reload can observe the row mid-flight. If that is right, the same window
+    // exists for a real patient who refreshes after a failed payment — they
+    // would see a "Balance payment" on their record that is about to vanish.
+    //
+    // WHAT WOULD SETTLE IT: read `lib/services/checkout-error.ts` and the
+    // balance-payment server action for whether the rollback is awaited on the
+    // throwing path, and check the trace on that run's repeat-140 artefact for
+    // the row's state. Characterised here rather than fixed, because the fix
+    // is product code and this is a QA lane (§10) — and because ONE event is
+    // a reproduction, not a rate.
     await page.reload()
     await expect(page.locator('#portal-main')).toContainText(BALANCE)
     await expect(page.getByText('Balance payment')).toHaveCount(0)
@@ -202,8 +359,175 @@ test.describe('paying a balance from the portal', () => {
     // bad row. The fix is probably `.first()` plus a fixture assertion that the
     // patient has exactly ONE payable balance — but the assertion is the point,
     // since `.first()` alone would make a wrong fixture invisible.
-    const amount = page.getByLabel('Payment amount in dollars')
-    await expect(amount).toBeVisible({ timeout: 30_000 })
+    //
+    // ── SECOND OCCURRENCE, 2026-09-22, AND THE HYPOTHESIS ABOVE IS WRONG ──
+    //
+    // It came back on DREAMCRM-99/#671: run `35789025973`, job
+    // `106952776354`, again on a diff the browser suite never loads (a
+    // workflow file, a node script and a vitest guard). Same strict-mode
+    // violation, same two elements, first attempt AND `retry #1` — then a
+    // plain re-run of the same job at the same SHA went green. Identical
+    // signature to 2026-09-15, which makes this a recurrence rather than a
+    // coincidence, and `main`'s own `post-merge-e2e` was green at every
+    // commit either side of it.
+    //
+    // WHAT RULES THE SEEDED-STATE READING OUT. `PayBalanceForm` is rendered in
+    // exactly ONE place — `app/(portal)/patient/invoices/page.tsx:170`, not in
+    // a loop and not per invoice — and `aria-label="Payment amount in dollars"`
+    // occurs exactly once in the whole product tree. So a second unpaid
+    // balance, or any number of extra rows, CANNOT produce a second pay form.
+    // Two of them in the DOM means two copies of the same single render, not
+    // two invoices. The 2026-09-15 note reasoned from "the retry sees it too,
+    // therefore state, not timing" — but Playwright's retry repeats the same
+    // navigation on the same warm server, so a hydration or streaming
+    // duplicate reproduces across attempts just as happily as a bad row does.
+    //
+    // WHICH MEANS `.first()` IS THE WRONG FIX and would be actively harmful:
+    // it would hide two live payment forms on a patient's billing page, which
+    // is a product defect worth seeing, behind a green tick. Whoever picks this
+    // up should reproduce against the harness with the DOM dumped
+    // (`error-context.md` is already saved by the failing run) and find out
+    // WHERE the second copy comes from before choosing a locator.
+    //
+    // ── THE DUPLICATE IS TRANSIENT, AND THAT IS MEASURED ──
+    //
+    // The remaining question was whether the two forms coexist for a moment or
+    // for the whole page life. It is a moment, and the evidence is already in
+    // the failing runs: both attempts died in **525ms and 738ms** against a
+    // `toBeVisible({ timeout: 30_000 })`.
+    //
+    // That timing is the tell, because a strict-mode violation does not retry.
+    // Measured with Playwright 1.62.1 against `page.setContent`, no app and no
+    // database needed — re-runnable in a minute by anyone:
+    //
+    //   two matching inputs from the start ....... throws in    24ms
+    //   ONE input, genuinely late by 3s .......... PASSES after 3392ms
+    //   two inputs, duplicate removed after 2s ... throws in     4ms
+    //
+    // The middle row is the control: the locator *does* wait for an element
+    // that is merely late. The third row is this flake's shape — the page
+    // becomes correct two seconds later and Playwright never finds out,
+    // because it resolved two elements and threw on the spot. So the duplicate
+    // only has to exist for an instant during the render, and 525ms is what
+    // that looks like; a genuinely ABSENT form would have burned the full 30s.
+    //
+    // WHICH KILLS THE SEEDED-STATE READING A SECOND WAY. A stray unpaid row
+    // would be there for the whole page, not for 500ms. Combined with the
+    // single render site above, there is no version of "bad fixture" that
+    // produces this.
+    //
+    // AND IT IS A SECOND REASON `.first()` IS WRONG: it would silently accept
+    // a page that renders two payment forms mid-navigation, which is the thing
+    // worth knowing about.
+    //
+    // THE LEAD, for whoever picks this up. The three tests in this file that
+    // reach the form do not reach it the same way:
+    //
+    //   test 1 (passes)  clicks in from the dashboard, then asserts
+    //                    `getByText('Your balance')` and `#portal-main`
+    //                    content BEFORE locating the input — it settles first
+    //   test 2           `goto` -> straight to `getByLabel`
+    //   test 3 (this one, the one that fails)  `goto` -> straight to
+    //                    `getByLabel`
+    //
+    // The two that skip the settle are the two with no barrier between
+    // navigation and a strict locator, and one of them is the one that fails.
+    // That predicts test 2 is next. Start by asserting a stable unique element
+    // after the `goto` and see whether it goes away — but WATCH IT FAIL FIRST,
+    // because a fix that only ever passed proves nothing here (§2d), and the
+    // whole reason this comment is long is that the last hypothesis was
+    // confidently written and wrong.
+    //
+    // ══════ REPRODUCED, WITH A RATE — hunt run 35811927552, 2026-09-23 ══════
+    //
+    // `gh workflow run e2e-flake-hunt.yml -f spec=e2e/portal-billing.spec.ts
+    // -f repeat=50` — 200 repetitions at `--retries=0`:
+    //
+    //   9 of 200 failed .................................... 4.5%
+    //     5x  getByLabel('Payment amount in dollars') → 2 elements
+    //     3x  getByText('Your balance')               → 2 elements
+    //     1x  a click on the dashboard's balance link that never navigated
+    //
+    // THREE THINGS THAT CHANGE, and each retires something written above.
+    //
+    // 1. IT IS NOT THE PAYMENT FORM. `Your balance` is a heading three
+    //    sections up the page and it duplicates too. Whatever doubles is the
+    //    billing page's BODY, so every sentence above that reasons about
+    //    `PayBalanceForm` being rendered in one place is answering the wrong
+    //    question. It was never about the form.
+    //
+    // 2. ALL FOUR TESTS FLAKE — 1/50, 3/50, 2/50, 3/50. The "test 1 settles
+    //    first and has never flaked" lead below is dead: test 1 failed too,
+    //    and its failure was the navigation, not the locator. The
+    //    settle-versus-no-settle theory explained a sample of two.
+    //
+    // 3. THERE IS EXACTLY ONE `#portal-main`. Playwright named the first match
+    //    `locator('#portal-main').getByText('Your balance')` and could only
+    //    reach the second as `.nth(1)` — so one copy is inside the main
+    //    landmark and the other is NOT, and the layout is not doubled. That is
+    //    the shape of React streaming a Suspense boundary's content into a
+    //    `<div hidden>` at the end of `<body>` before moving it into place,
+    //    and `app/(portal)/loading.tsx` is the boundary. It is not yet PROVEN:
+    //    see the next paragraph for why not.
+    //
+    // WHAT THE FIRST HUNT COULD NOT SAY, and it is this file's own fault: the
+    // duplicate watcher reported `max: 0` on every one of the nine failures.
+    // It observed `document.documentElement`, which is **null** at
+    // `addInitScript` time — the observer never attached, and the diagnostic
+    // built to end two dead ends produced a third. Fixed (it observes
+    // `document`, which always exists) and pinned by a regression test that
+    // removes the documentElement first. The next hunt gets the ancestor chain
+    // and turns point 3 from an inference into a reading.
+    //
+    // Everything below this line is the investigation as it stood BEFORE the
+    // hunt. Kept because the reasoning is the durable part and because two of
+    // its conclusions were wrong in instructive ways.
+    //
+    // Still not reproduced end to end: that needs the Playwright harness and
+    // its throwaway Postgres, and the blocker is specifically POSTGRES —
+    // `initdb` is not on PATH, `/usr/lib/postgresql` does not exist and Docker
+    // is unavailable on the box this was investigated from. Playwright and
+    // Chromium are present, which is how the timing above was measured. It is
+    // Quinn's, and the count of occurrences is two.
+    //
+    // ── DREAMCRM-105: THE NEXT OCCURRENCE ARRIVES WITH ITS EVIDENCE ──
+    //
+    // The 525ms measurement above is also what made both investigations dead
+    // ends: a strict-mode violation throws on the spot, and by the time any
+    // `page.evaluate` runs the page has healed and reports exactly one form.
+    // So twice now we have known the duplicate EXISTED and nothing about what
+    // it WAS — and the one diagnosis written down confidently was wrong.
+    //
+    // `./duplicate-watch` installs a MutationObserver through
+    // `context.addInitScript`, running before any page script on the very
+    // first render, and records the ancestor chain of every match the moment
+    // the count goes above one. The locator below is still STRICT — `.first()`
+    // would retire the only instrument reporting a possible money defect, and
+    // that is not this file's decision to make — but the failure now carries
+    // the recording.
+    //
+    // TWO CANDIDATES NEITHER EARLIER NOTE NAMED, both of which the chain tells
+    // apart on sight, and both of which are properties of THIS segment rather
+    // than of the fixture:
+    //
+    //   1. `app/(portal)/loading.tsx` exists, so the whole portal segment is a
+    //      Suspense boundary and its content arrives OUT OF ORDER — React
+    //      parks it in a `<div hidden>` at the end of `<body>` and an inline
+    //      script moves it into place. A chain ending in `div[hidden]` is this.
+    //   2. `PortalLiveRefresh` calls `router.refresh()` on realtime events and
+    //      the portal chrome is server-rendered. TWO `#portal-main` elements
+    //      means the LAYOUT doubled, not the form, and the question leaves
+    //      this file.
+    //
+    // HOW TO MAKE IT HAPPEN ON PURPOSE, now that the harness takes arguments:
+    //
+    //   gh workflow run e2e-flake-hunt.yml \
+    //     -f spec=e2e/portal-billing.spec.ts -f repeat=50
+    //
+    // A red run there is the good outcome. Read the recording in the failure
+    // message before choosing a locator — the last hypothesis was confidently
+    // written and wrong, which is why this comment is long.
+    const amount = await expectSole(page, portalMain(page).getByLabel('Payment amount in dollars'))
     await amount.fill('50.00')
     await page.getByRole('button', { name: 'Pay online' }).click()
 
@@ -252,7 +576,7 @@ test.describe('paying a balance from the portal', () => {
     // Still the billing page, still signed in — not an error shell and not a
     // bounce to sign-in, which is what a return URL that loses its session
     // looks like to a patient who has just paid.
-    await expect(page.getByText('Your balance')).toBeVisible()
+    await expectSole(page, portalMain(page).getByText('Your balance'), 10_000)
 
     await expectNoA11yViolations(page, 'portal: billing, back from a completed checkout')
     await context.close()

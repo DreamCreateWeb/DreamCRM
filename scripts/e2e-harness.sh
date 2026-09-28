@@ -6,10 +6,82 @@
 #   2. every drizzle migration, applied from scratch — which also proves a
 #      fresh-database boot works, the same path the deploy takes
 #   3. a production build + server on E2E_PORT
-#   4. playwright against it
+#   4. playwright against it — or, under `--load-sanity`, the load measurement
+#      instead (see THE LOAD MODE below)
 #
-# Usage:  bash scripts/e2e-harness.sh [--skip-build]
+# Usage:  bash scripts/e2e-harness.sh [--skip-build] [--spec <filter>]
+#                                     [--repeat <n>] [-- <playwright args…>]
+#         bash scripts/e2e-harness.sh --load-sanity [--load-level <C>x<N>]…
 # Teardown is automatic (trap), including on failure.
+#
+# ------------------------------- THE ARGUMENTS -------------------------------
+#
+# WHY THEY EXIST (DREAMCRM-105 deliverable 1). Until now the workflows ran this
+# with no arguments at all, so the only shape of browser run anybody could ask
+# for was "the whole suite, once". That is exactly the wrong instrument for the
+# question a flake asks: `e2e/portal-billing.spec.ts` has failed twice in a
+# week, always on a diff the browser suite never loads, and both times a plain
+# re-run at the same SHA went green. "Fails about once a day and I cannot
+# reproduce it" is not a fact anybody can act on; "8 of 50 repetitions failed"
+# is. `--spec` and `--repeat` are how a run becomes that number, and
+# `.github/workflows/e2e-flake-hunt.yml` is how you ask for one without a local
+# Postgres.
+#
+#   --spec <filter>   Playwright's positional test filter — a path
+#                     (`e2e/portal-billing.spec.ts`) or a substring of one.
+#                     Repeatable. Also `E2E_SPEC`, space-separated, which is
+#                     how the workflow passes it (see below).
+#   --repeat <n>      `--repeat-each=<n>`: run every selected test n times.
+#                     Also `E2E_REPEAT`.
+#   --                Everything after it goes to playwright untouched.
+#
+# ----------------------------- THE LOAD MODE --------------------------------
+#
+# `--load-sanity` runs `scripts/load-sanity.mjs` against the server this script
+# already stands up, INSTEAD of playwright.
+#
+# WHY IT BELONGS HERE (DREAMCRM-117). `docs/LOAD-SANITY.md`'s own
+# recommendation 4 is "re-run after any change to public-site rendering and
+# compare the table", and the clinic-site cache (#507, then #654) changed
+# exactly that — but the 2026-08-18 baseline has never been re-measured, so the
+# fix has been a PREDICTION in a document for a fortnight. The reason it stayed
+# one is mundane: `load-sanity.mjs` defaults to `http://127.0.0.1:3100` and
+# asks for `/site/e2e-dental`, and the only thing in this repo that produces a
+# live clinic site on that exact port and slug is the four steps above. Every
+# session that wanted to honour recommendation 4 had to hand-assemble them, and
+# none did.
+#
+#   --load-sanity        Measure instead of driving a browser.
+#   --load-level <C>x<N> Concurrency C, N requests per path. Repeatable, and
+#                        each level is a separate table. Default: `8x40 25x75`
+#                        — the two levels the 2026-08-18 baseline used, so the
+#                        after-table lines up with the before-table row for row.
+#
+# THE WEBHOOK SERVER IS NOT STARTED IN THIS MODE, and that is a measurement
+# decision rather than a saving. A second `next start` on the same box competes
+# for the same cores as the server being measured, and nothing on the five
+# public read-only paths `load-sanity.mjs` requests can reach a webhook route.
+# Leaving it up would put a variable in the table that has nothing to do with
+# the page being measured.
+#
+# A SPEC FILTER OR A REPEAT COUNT IS REFUSED HERE rather than ignored. Neither
+# reaches the load script, so accepting one would produce a full green run that
+# measured something other than what the reader asked for — the same silent
+# shape the `E2E_SPEC` agreement guard exists to refuse.
+#
+# ANYTHING NOT RECOGNISED IS STILL FORWARDED, so the existing
+# `pnpm test:e2e -- --grep foo` habits keep working and `--skip-build` keeps
+# working from any position rather than only as `$1`.
+#
+# THE INPUTS ARE VALIDATED HERE RATHER THAN IN THE WORKFLOW, and that is the
+# load-bearing half. A `workflow_dispatch` input is attacker-controlled text
+# from anyone with repo write, so the workflow hands it over in `env:` and
+# never interpolates it into a `run:` block — but "never interpolated" is a
+# property of one file, and the next workflow to call this script would have to
+# rediscover it. Validating the VALUES here makes the guarantee travel with the
+# script: a spec filter is a path-shaped token, a repeat is a bounded integer,
+# and anything else stops the run with a sentence instead of becoming an
+# argument. `tests/guards/e2e-harness-args.test.ts` grades both halves.
 set -euo pipefail
 
 PORT="${E2E_PORT:-3100}"
@@ -19,15 +91,223 @@ WEBHOOK_PORT="${E2E_WEBHOOK_PORT:-$(( ${E2E_PORT:-3100} + 1 ))}"
 PGPORT="${E2E_PGPORT:-55432}"
 PGDIR="${E2E_PGDIR:-/tmp/e2e-pgdata}"
 DB="dreamcrm_e2e"
-PGBIN="$(ls -d /usr/lib/postgresql/*/bin 2>/dev/null | sort -V | tail -1)"
+# `|| true` IS LOAD-BEARING, and its absence was a live bug (DREAMCRM-105).
+# With `set -o pipefail`, an `ls` that matches nothing fails, the pipeline
+# fails, and the assignment's status is the pipeline's — so on any box WITHOUT
+# `/usr/lib/postgresql` (a mac, a Windows checkout, a runner image that
+# packages Postgres elsewhere) `set -e` killed the script on this line, silently,
+# with `ls`'s exit code and no message. Which meant the fallback on the next
+# three lines — and the friendly "No local postgres found" below it — were
+# unreachable on every platform they were written for. It only ever worked
+# where the glob already matched.
+PGBIN="$(ls -d /usr/lib/postgresql/*/bin 2>/dev/null | sort -V | tail -1 || true)"
 # Debian puts the binaries off PATH; anywhere else (CI runner images, a
 # homebrew/apt install on a dev box) initdb is on PATH — use that.
 if [[ -z "$PGBIN" ]] && command -v initdb >/dev/null 2>&1; then
   PGBIN="$(dirname "$(command -v initdb)")"
 fi
 SKIP_BUILD=0
-# shift so "$@" passed to playwright below never carries our own flag
-[[ "${1:-}" == "--skip-build" ]] && { SKIP_BUILD=1; shift; }
+# Collected rather than forwarded as "$@", so our own flags never reach
+# playwright and playwright's own flags never reach our parser.
+PW_ARGS=()
+SPECS=()
+REPEAT=""
+# `--print-plan`: resolve the arguments, print the playwright invocation they
+# produce, and stop before touching Postgres.
+#
+# It exists FOR THE GUARD (`tests/guards/e2e-harness-args.test.ts`). The
+# refusal cases can be driven against the real script for free — they die in the
+# parser, above the database — but the ACCEPTANCE cases cannot: on a runner that
+# has Postgres, `bash scripts/e2e-harness.sh --repeat 8` inside `pnpm test`
+# would initdb a cluster, build the app and run the browser suite from inside the
+# unit gate. So the half of this parser that matters most — that `--repeat 08`
+# is eight and that `E2E_SPEC` actually reaches playwright — would have been
+# the untested half, which is precisely the arrangement §2d refuses.
+PRINT_PLAN=0
+LOAD_SANITY=0
+LOAD_LEVELS=()
+
+# A SPEC FILTER IS A PATH-SHAPED TOKEN. Letters, digits, dot, dash, underscore
+# and slash — everything a test path is made of and nothing a shell reacts to.
+# Nothing here is ever eval'd, so this is not the only thing standing between a
+# dispatch input and a shell; it is the thing that makes a bad input a SENTENCE
+# rather than a silent eight-minute run of the wrong tests.
+#
+# AND IT MAY NOT START WITH A DASH (Sentinel, reviewing #680). The first version
+# admitted a leading `-` because a dash is a legal character inside a path, and
+# that quietly made the `--repeat` ceiling below bypassable: `E2E_SPEC` is
+# word-split, so `E2E_SPEC='--repeat-each 500'` became two accepted "spec"
+# tokens and planned as `playwright test --repeat-each 500`, exit 0, with
+# REPEAT_MAX never consulted. Not a security hole — nothing here reaches a
+# shell — but the header two screens up promises a bounded run and that promise
+# was not true as written.
+#
+# The fix is the first character rather than a blocklist of flag names: a test
+# path never begins with a dash, and every playwright flag does. Anything
+# genuinely needing to pass a flag through already has the `--` escape hatch,
+# where it is visible in the plan line instead of disguised as a filter.
+SPEC_RE='^[A-Za-z0-9._/][A-Za-z0-9._/-]*$'
+
+# THE CEILING ON `--repeat`, and it is a real guard rather than a shrug. A hunt
+# is dispatched by hand with a number typed into a box; 500 instead of 50 is one
+# keystroke, and on `e2e/portal-billing.spec.ts` (4 tests, 2 workers) it is the
+# difference between ten minutes and most of a runner-day with nobody watching.
+# 200 is comfortably above any hunt worth running — the two portal-billing
+# occurrences are ~1-in-100 page loads, so 50 is already the useful order — and
+# well under the workflow's own timeout, so the failure is a refusal at second
+# zero instead of a cancellation at minute sixty.
+REPEAT_MAX=200
+
+# A LOAD LEVEL IS `<concurrency>x<requests-per-path>` — `8x40`, the shape the
+# baseline table's own heading is written in ("Concurrency 8, 40
+# requests/path"), so the flag and the document say the same thing.
+LEVEL_RE='^[0-9]+x[0-9]+$'
+# THE CEILINGS, and they are sized off what the numbers would MEAN rather than
+# off what the box would survive. `load-sanity.mjs` opens `conc` sockets at
+# once and waits: past a couple of hundred the p99 it reports is the local
+# kernel's accept queue rather than the application, which is the one thing
+# this instrument exists to characterise. The request ceiling is a wall-clock
+# guard of the same kind as REPEAT_MAX — five paths at 5,000 requests each is
+# an afternoon, and the digit that gets it there is one keystroke from 500.
+LOAD_CONC_MAX=200
+LOAD_REQS_MAX=1000
+# The levels the 2026-08-18 baseline was measured at. The default is those two
+# and nothing else, because an after-table measured at a level the before-table
+# never used cannot be compared with it — which is the whole point of the run.
+LOAD_LEVELS_DEFAULT=('8 40' '25 75')
+
+die() { echo "e2e-harness: $1" >&2; exit 2; }
+
+add_spec() {
+  [[ -n "$1" ]] || die "--spec needs a value."
+  [[ "$1" =~ $SPEC_RE ]] || die "--spec '$1' is not a test path (letters, digits, . _ - /, and it may not start with a dash — pass playwright flags after \`--\` instead)."
+  SPECS+=("$1")
+}
+
+set_repeat() {
+  [[ "$1" =~ ^[0-9]+$ ]] || die "--repeat '$1' is not a whole number."
+  # `10#` forces base 10: a zero-padded `050` is octal to bash's arithmetic and
+  # `--repeat 08` would die with a syntax error rather than run eight times.
+  local n=$((10#$1))
+  (( n >= 1 )) || die "--repeat must be at least 1."
+  (( n <= REPEAT_MAX )) || die "--repeat $n is above the $REPEAT_MAX ceiling — see the header."
+  REPEAT="$n"
+}
+
+add_level() {
+  [[ -n "$1" ]] || die "--load-level needs a value."
+  [[ "$1" =~ $LEVEL_RE ]] || die "--load-level '$1' is not <concurrency>x<requests> (e.g. 8x40)."
+  # `10#` for the same reason `set_repeat` needs it: `08x40` is octal to bash
+  # arithmetic and would die with a syntax error nobody typed.
+  local c=$((10#${1%x*}))
+  local r=$((10#${1#*x}))
+  (( c >= 1 && c <= LOAD_CONC_MAX )) || die "--load-level concurrency $c is outside 1..$LOAD_CONC_MAX — see the header."
+  (( r >= 1 && r <= LOAD_REQS_MAX )) || die "--load-level requests $r is outside 1..$LOAD_REQS_MAX — see the header."
+  LOAD_LEVELS+=("$c $r")
+}
+
+# The env spellings come FIRST so an explicit flag beside them wins. A blank
+# env var is "unset", not an error: `workflow_dispatch` sends '' for an input
+# nobody filled in, and refusing that would make every default-valued dispatch
+# fail.
+if [[ -n "${E2E_SPEC:-}" ]]; then
+  # Word-split on purpose — `E2E_SPEC` is a space-separated list, which is how
+  # one dispatch box asks for two specs.
+  for s in ${E2E_SPEC}; do add_spec "$s"; done
+fi
+[[ -n "${E2E_REPEAT:-}" ]] && set_repeat "${E2E_REPEAT}"
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --skip-build) SKIP_BUILD=1; shift ;;
+    --print-plan) PRINT_PLAN=1; shift ;;
+    --spec) add_spec "${2:-}"; shift 2 ;;
+    --spec=*) add_spec "${1#*=}"; shift ;;
+    --repeat) set_repeat "${2:-}"; shift 2 ;;
+    --repeat=*) set_repeat "${1#*=}"; shift ;;
+    --load-sanity) LOAD_SANITY=1; shift ;;
+    --load-level) add_level "${2:-}"; shift 2 ;;
+    --load-level=*) add_level "${1#*=}"; shift ;;
+    --) shift; PW_ARGS+=("$@"); break ;;
+    *) PW_ARGS+=("$1"); shift ;;
+  esac
+done
+
+# A LEVEL WITHOUT THE MODE IS A TYPO, not a default. Accepting it would run the
+# whole browser suite and report green on a command whose author asked for a
+# measurement — the failure that looks exactly like success.
+if (( ! LOAD_SANITY )) && (( ${#LOAD_LEVELS[@]} )); then
+  die "--load-level needs --load-sanity; on its own it would run the browser suite instead."
+fi
+if (( LOAD_SANITY )); then
+  # Refused rather than ignored — see "A SPEC FILTER OR A REPEAT COUNT IS
+  # REFUSED HERE" in the header.
+  (( ${#SPECS[@]} )) && die "--spec has no meaning under --load-sanity (the load script drives no tests)."
+  [[ -n "$REPEAT" ]] && die "--repeat has no meaning under --load-sanity (use --load-level <C>x<N>)."
+  (( ${#PW_ARGS[@]} )) && die "--load-sanity takes no playwright arguments (got: ${PW_ARGS[*]})."
+  (( ${#LOAD_LEVELS[@]} )) || LOAD_LEVELS=("${LOAD_LEVELS_DEFAULT[@]}")
+fi
+
+# The resolved playwright invocation, built once and used by both exits below.
+PW_INVOCATION=()
+(( ${#SPECS[@]} )) && PW_INVOCATION+=("${SPECS[@]}")
+[[ -n "$REPEAT" ]] && PW_INVOCATION+=("--repeat-each=$REPEAT")
+(( ${#PW_ARGS[@]} )) && PW_INVOCATION+=("${PW_ARGS[@]}")
+
+if (( PRINT_PLAN )); then
+  if (( LOAD_SANITY )); then
+    for level in "${LOAD_LEVELS[@]}"; do
+      # Word-split on purpose: a level is stored as the two numbers it resolved
+      # to, so the plan line is the command that will actually run.
+      # shellcheck disable=SC2086
+      set -- $level
+      echo "load-sanity --conc $1 --reqs $2"
+    done
+    exit 0
+  fi
+  echo "playwright test ${PW_INVOCATION[*]-}"
+  exit 0
+fi
+
+# ------------------- THE PORT MUST BE FREE (DREAMCRM-117) -------------------
+#
+# WATCHED, NOT IMAGINED. A `next-server` from a FINISHED harness run was still
+# holding :3100 while the next run was building — see "KILL THE TREE" below for
+# why it survived. What that costs is the thing worth refusing over: the next
+# run's `pnpm start` cannot bind, but `/api/health` ANSWERS, because the stale
+# server answers it. So the readiness check below passes, the run proceeds, and
+# playwright (or a load measurement) is pointed at a build this script did not
+# make — against a Next in-memory cache warmed by the previous run. Nothing in
+# the output says so. That is a green run measuring the wrong thing, which is
+# the one failure this harness may not have.
+#
+# Bash's own `/dev/tcp` rather than `lsof`/`ss`/`nc`: a check that silently
+# passes because the tool it needs is not installed is not a check.
+#
+# ITS REACH, STATED EXACTLY (Sentinel's note on #710). This probes IPv4
+# loopback and nothing else, so what it refuses is "something is answering on
+# 127.0.0.1:$1" — not "this port is unavailable". A server bound solely to
+# `::1` would slip past it. That is the right size for the defect: every
+# address this script itself uses is `127.0.0.1` — the readiness probe, the
+# load base, `E2E_BASE_URL` — so a listener this cannot see is also one the run
+# would never have been fooled by. It is deliberately NOT widened to a general
+# port-availability test, which would be a claim the next reader could rely on
+# and this cannot keep.
+port_busy() {
+  (exec 3<>"/dev/tcp/127.0.0.1/$1") 2>/dev/null || return 1
+  exec 3<&-
+  return 0
+}
+
+PORTS_NEEDED=("$PORT")
+# The webhook server is not started under `--load-sanity`, so its port is not
+# this run's to claim and something benign sitting on it is not our problem.
+(( LOAD_SANITY )) || PORTS_NEEDED+=("$WEBHOOK_PORT")
+for needed in "${PORTS_NEEDED[@]}"; do
+  if port_busy "$needed"; then
+    die "port $needed is already serving something. This script cannot take it, and it must not measure whatever has it — set E2E_PORT, or stop the stale server (\`pgrep -af next-server\`)."
+  fi
+done
 
 if [[ -z "$PGBIN" ]]; then
   echo "No local postgres found (expected /usr/lib/postgresql/*/bin or initdb on PATH)." >&2
@@ -44,10 +324,25 @@ else
   as_pg() { bash -c "$1"; }
 fi
 
+# KILL THE TREE, NOT THE PID WE SPAWNED (DREAMCRM-117).
+#
+# `pnpm start` is a node process that spawns `next start`, which spawns the
+# actual `next-server` that owns the socket. `kill $SERVER_PID` reached the
+# first of those three and left the third LISTENING after this script exited —
+# watched on 2026-09-23, a `next-server` from a completed run still holding
+# :3100 while the following run was building. The port refusal above is the
+# other half: a tree-kill that misses now ends the next run with a sentence
+# instead of silently handing it somebody else's server.
+kill_tree() {
+  local pid="$1" kid
+  for kid in $(pgrep -P "$pid" 2>/dev/null); do kill_tree "$kid"; done
+  kill "$pid" 2>/dev/null || true
+}
+
 cleanup() {
   echo "--- teardown ---"
-  [[ -n "${SERVER_PID:-}" ]] && kill "$SERVER_PID" 2>/dev/null || true
-  [[ -n "${WEBHOOK_PID:-}" ]] && kill "$WEBHOOK_PID" 2>/dev/null || true
+  [[ -n "${SERVER_PID:-}" ]] && kill_tree "$SERVER_PID"
+  [[ -n "${WEBHOOK_PID:-}" ]] && kill_tree "$WEBHOOK_PID"
   as_pg "$PGBIN/pg_ctl -D $PGDIR stop -m immediate" >/dev/null 2>&1 || true
 }
 trap cleanup EXIT
@@ -110,6 +405,28 @@ for i in $(seq 1 60); do
 done
 curl -sf "http://127.0.0.1:$PORT/api/health" >/dev/null || { echo "server never became healthy:"; tail -20 /tmp/e2e-server.log; exit 1; }
 
+# --- the load mode's exit (DREAMCRM-117) ------------------------------------
+#
+# Everything the measurement needs is now up, and everything below this block
+# would only compete with it for the cores it is about to measure. The `trap`
+# still tears the cluster and the server down on the way out.
+#
+# NO WARM-UP PASS, DELIBERATELY. The cache under measurement has a 60s TTL, so
+# the first requests of each batch pay the full uncached render and land in the
+# table — which understates the fix rather than flattering it, and keeps the
+# methodology byte-identical to the 2026-08-18 baseline it is compared against.
+# A warmed table would be a different measurement wearing the same headings.
+if (( LOAD_SANITY )); then
+  echo "--- load sanity ---"
+  for level in "${LOAD_LEVELS[@]}"; do
+    # shellcheck disable=SC2086
+    set -- $level
+    echo ""
+    node scripts/load-sanity.mjs --base "http://127.0.0.1:$PORT" --conc "$1" --reqs "$2"
+  done
+  exit 0
+fi
+
 # --- the webhook server (DREAMCRM-48) --------------------------------------
 #
 # A SECOND `next start` on the same build and the same database, differing
@@ -151,6 +468,18 @@ echo "--- playwright ---"
 if [[ -z "${PLAYWRIGHT_BROWSERS_PATH:-}" && -d /opt/pw-browsers ]]; then
   export PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers
 fi
+
+# SAY WHAT IS ABOUT TO RUN. A hunt's whole output is a ratio, and a ratio is
+# worthless without its denominator: a dispatch whose `--spec` quietly matched
+# nothing of what the reader meant, or whose `--repeat` never arrived, reports
+# the same shape of green as a genuine clean 50. This line is printed into the
+# run log above the playwright output so the denominator is on the same page as
+# the result.
+if (( ${#SPECS[@]} )) || [[ -n "$REPEAT" ]]; then
+  echo "    spec filter: ${SPECS[*]:-(the whole suite)}"
+  echo "    repetitions: ${REPEAT:-1} per test"
+fi
+
 E2E_BASE_URL="http://127.0.0.1:$PORT" \
   E2E_WEBHOOK_BASE_URL="http://127.0.0.1:$WEBHOOK_PORT" \
-  npx playwright test "$@"
+  npx playwright test ${PW_INVOCATION[@]+"${PW_INVOCATION[@]}"}

@@ -1,6 +1,7 @@
 import 'server-only'
-import { and, eq, inArray } from 'drizzle-orm'
+import { and, eq, inArray, ne, or } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
+import { getQuotedPlan } from '@/lib/stripe-config'
 import { newId } from '@/lib/utils'
 import { buildPatientPersonas } from './personas'
 
@@ -106,9 +107,15 @@ export async function seedDemoReferralPartner(orgId: string) {
   }
 
   // 3 commission rows — deterministic invoice ids so re-seeding is idempotent.
-  // Premium plan = $500/mo = 50000 cents → 10% = 5000 cents each.
-  const invoiceCents = 50000
-  const amountCents = Math.floor((invoiceCents * DEMO_PERCENT_BPS) / 10000) // 5000
+  //
+  // THE INVOICE IS THE PLAN THE REFERRED CLINIC ACTUALLY PAYS, resolved rather
+  // than typed (DREAMCRM-38's rule, DREAMCRM-122's instance). This was a
+  // literal 50000 — the struck-through LIST price — so the demo paid a partner
+  // 10% of $500 while `/partner-program` published "$20 per practice per
+  // month" from `getQuotedPlan()` on the same rate. A prospect could open both
+  // in one sitting.
+  const invoiceCents = getQuotedPlan().price * 100
+  const amountCents = Math.floor((invoiceCents * DEMO_PERCENT_BPS) / 10000)
   const dayMs = 24 * 60 * 60 * 1000
   const rows: Array<{ inv: string; status: 'accrued' | 'paid'; ageDays: number }> = [
     { inv: `demo_inv_${orgId}_1`, status: 'paid', ageDays: 75 },
@@ -154,6 +161,71 @@ export async function seedDemoReferralPartner(orgId: string) {
         accruedAt: new Date(Date.now() - r.ageDays * dayMs),
       })
       .onConflictDoNothing({ target: schema.referralCommission.stripeInvoiceId })
+  }
+
+  // Self-heal a demo seeded before the resolution above (mirrors the
+  // `referralPercentBps` block earlier in this function). The rows upsert by
+  // their deterministic invoice ids, so `onConflictDoNothing` would leave every
+  // existing demo org quoting the old literal forever — and the showcase is
+  // exactly where somebody reads the number beside `/partner-program`.
+  //
+  // SCOPED THREE WAYS so it can reach no real commission: the demo partner's
+  // id, this org, and this org's three deterministic `demo_inv_` ids. That
+  // `WHERE` is the whole safety argument, so it is GRADED rather than asserted
+  // — `tests/demo-mode/partner-commission-price.test.ts` renders it through the
+  // real `PgDialect` and fails if a clause goes missing. (Sentinel, #711: a
+  // test that mocks `@/lib/db` physically cannot see a wrong `WHERE`, and every
+  // clause here could be deleted with all five assertions still green.)
+  //
+  // THE GATE IS A DISJUNCTION over every column the `SET` writes, not just the
+  // invoice total. Gating on `invoiceTotalCents` alone made "a correct demo is
+  // a no-op" true in one direction only: a demo whose total was already right
+  // but whose commission or rate had drifted — a future change to
+  // `DEMO_PERCENT_BPS` — would never have healed.
+  await db
+    .update(schema.referralCommission)
+    .set({ invoiceTotalCents: invoiceCents, percentBps: DEMO_PERCENT_BPS, amountCents })
+    .where(
+      and(
+        eq(schema.referralCommission.partnerId, partner.id),
+        eq(schema.referralCommission.organizationId, orgId),
+        inArray(
+          schema.referralCommission.stripeInvoiceId,
+          rows.map((r) => r.inv),
+        ),
+        or(
+          ne(schema.referralCommission.invoiceTotalCents, invoiceCents),
+          ne(schema.referralCommission.percentBps, DEMO_PERCENT_BPS),
+          ne(schema.referralCommission.amountCents, amountCents),
+        ),
+      ),
+    )
+
+  // The payout covers the ONE paid commission, so it moves with it or the
+  // partner-detail page shows a payout that does not match what it paid out.
+  //
+  // WHY THIS CANNOT REACH A REAL PAYOUT, and the load-bearing half is not the
+  // `partnerId` filter (Sentinel, #711). The row id comes from an UNORDERED
+  // `limit(1)` above, so "it is this partner's payout" is the weaker argument.
+  // The strong one is that this partner can have no OTHER payout: `payoutPartner`
+  // (`lib/services/referral-payouts.ts:173`) refuses before it inserts anything
+  // unless the partner has a `stripeConnectAccountId` AND `payoutsEnabled === 1`,
+  // and the demo partner is seeded with neither and has no portal login. Every
+  // `referral_payout` row for it can only have come from this seeder.
+  // ⚠️ THAT ARGUMENT EXPIRES THE DAY SOMEBODY ONBOARDS THE DEMO PARTNER TO
+  // CONNECT. If that ever happens, this block needs a real key — the payout the
+  // seeded commission actually points at — not a `limit(1)`.
+  if (payoutId !== null) {
+    await db
+      .update(schema.referralPayout)
+      .set({ amountCents })
+      .where(
+        and(
+          eq(schema.referralPayout.id, payoutId),
+          eq(schema.referralPayout.partnerId, partner.id),
+          ne(schema.referralPayout.amountCents, amountCents),
+        ),
+      )
   }
 }
 

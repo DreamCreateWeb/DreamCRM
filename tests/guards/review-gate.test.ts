@@ -1,13 +1,19 @@
 import { describe, it, expect } from 'vitest'
-import { execFileSync } from 'node:child_process'
-import { readFileSync } from 'node:fs'
+import { execFileSync, spawnSync } from 'node:child_process'
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { dirname, join, normalize } from 'node:path'
 import {
+  CLASSIFIER_ACTOR,
   GATE_RULES,
+  INTAKE_LABEL,
   INTAKE_RULES,
+  REVIEW_LABEL,
   gateFindings,
   globToRegExp,
   intakeFindings,
+  labelRemovalDecision,
+  parseLabelEvents,
   renderSummary,
 } from '../../scripts/review-gate.mjs'
 
@@ -436,6 +442,139 @@ for (const path of PAGES) {
   })
 })
 
+/**
+ * THE STRIPE CLIENT'S IMPORT, IN EITHER QUOTE (DREAMCRM-106).
+ *
+ * Shared by the direct-import money check and the one-hop one below, for the
+ * reason `importedModules` above is shared: the two derivations must agree
+ * about what "reaches Stripe" means, and the version that shipped read
+ * `/from '@\/lib\/stripe'/` — single quotes only. Nothing but a lint rule keeps
+ * this repo on single quotes, and §2d's identity-looseness family has already
+ * paid for that exact assumption once (Sentinel's planted `@/` spelling). A
+ * double-quoted import of the Stripe client was invisible to the money gate's
+ * only derived check; no such import exists today, which is precisely why it
+ * would have been invisible on the day one did.
+ */
+export const IMPORTS_STRIPE_CLIENT = /from\s+['"]@\/lib\/stripe['"]/
+
+/** Every tracked product source, read once: `lib/**` and `app/**` .ts/.tsx. */
+function productSources(): Array<[string, string]> {
+  return trackedFiles()
+    .filter((f) => /^(lib|app)\/.*\.tsx?$/.test(f))
+    .map((f) => [f, readFileSync(join(process.cwd(), f), 'utf8')])
+}
+
+/**
+ * IS THIS FILE A MUTATION SURFACE — something an outside actor can INVOKE?
+ *
+ * The discriminator the one-hop rule turns on, and the reason it is not "any
+ * file that reaches Stripe in two steps". Two shapes, both structural:
+ *
+ *   - a `'use server'` module, where EVERY export is a callable server action
+ *     reachable from a browser;
+ *   - a route handler (`app/**\/route.ts`), which is an HTTP endpoint.
+ *
+ * A page or a client component is neither. It renders; it calls an action or a
+ * handler to change anything, and that action is the file this rule wants.
+ *
+ * NOT keyed on the HTTP METHOD, and that is deliberate rather than lazy:
+ * `app/api/cron/domain-renewals/route.ts` exports `GET`, and what it does with
+ * it is renew domains against a clinic's card. `app/api/connect/shop/callback`
+ * is a `GET` that stores the Stripe account a clinic's money is paid into.
+ * Reading `GET` as "a read" would have dropped the two sharpest holes this
+ * rule was written for.
+ *
+ * `'use server'` is matched with the `m` flag against the start of a LINE — the
+ * directive has to be the first statement in the module, and `^` without `m`
+ * anchors to the file, which is the third member of §2d's identity-looseness
+ * family. Both quote characters, for the reason `IMPORTS_STRIPE_CLIENT` above
+ * takes both.
+ *
+ * The route-handler match makes its directory segment OPTIONAL. The shipped
+ * version was `/^app\/.*\/route\.tsx?$/`, which requires one — so a root
+ * `app/route.ts` was not a surface (Sentinel, reviewing #681). Nothing lives
+ * there today, which is exactly why it would have gone unnoticed: this is the
+ * identity-looseness family at a PATH boundary rather than at a name's end.
+ */
+const USE_SERVER_DIRECTIVE = /^\s*['"]use server['"]/m
+const ROUTE_HANDLER = /^app\/(?:.*\/)?route\.tsx?$/
+
+export function mutationSurfaceKind(file: string, source: string): string | null {
+  if (USE_SERVER_DIRECTIVE.test(source)) return "'use server' module"
+  if (ROUTE_HANDLER.test(file)) return 'route handler'
+  return null
+}
+
+/**
+ * THE ONE FILE THE ONE-HOP RULE PARDONS, with the premise that pardons it.
+ *
+ * `reaches` is the whole point: it is the set of Stripe-reaching modules the
+ * file imports, mapped to the exact bindings it takes from each, and a test
+ * below re-derives it from the tree every run. A reason nobody re-checks is a
+ * permanent hole wearing a sentence.
+ */
+const ONE_HOP_EXEMPTIONS: Record<string, { why: string; reaches: Record<string, string[]> }> = {
+  'app/site/[slug]/sitemap.xml/route.ts': {
+    why:
+      'it renders a public sitemap, and reaches the Stripe client only through listActivePlans — ' +
+      'it needs to know whether a clinic has membership plans so /dental-plans belongs in the ' +
+      'XML. No charge, no account, no payout: the money word in the import is a READ of a plan ' +
+      'list. Everything else this route touches is blog posts, jobs and services.',
+    reaches: { 'lib/services/membership.ts': ['listActivePlans'] },
+  },
+}
+
+describe('the mutation-surface predicate, in both directions', () => {
+  // THE RED RUN THIS PREDICATE OWES, planted in both directions, because an
+  // absence assertion over a clean tree cannot tell a working detector from a
+  // narrowed one (#609's lesson, the same one the product-root match carries).
+  const SURFACES: Array<[string, string, string, string]> = [
+    ['a server-action module', 'app/(default)/x/actions.ts', "'use server'\nexport async function pay() {}", "'use server' module"],
+    ['double-quoted directive', 'app/(default)/x/actions.ts', '"use server"\nexport async function pay() {}', "'use server' module"],
+    ['the directive under a license header', 'app/(default)/x/actions.ts', "// a comment\n'use server'\nexport async function pay() {}", "'use server' module"],
+    ['a route handler', 'app/api/cron/domain-renewals/route.ts', 'export async function GET() {}', 'route handler'],
+    ['a route handler with no directive and no POST', 'app/api/connect/shop/start/route.ts', 'export const GET = run', 'route handler'],
+    ['a .tsx route handler', 'app/api/x/route.tsx', 'export async function POST() {}', 'route handler'],
+    // The segment the shipped regex required (Sentinel, #681). Nothing sits at
+    // the app root today; a rule that silently stops at depth 1 is the kind of
+    // gap that is only ever found by somebody re-deriving it.
+    ['a route handler at the app root', 'app/route.ts', 'export async function POST() {}', 'route handler'],
+  ]
+
+  it.each(SURFACES)('counts %s', (_why, file, source, kind) => {
+    expect(mutationSurfaceKind(file, source)).toBe(kind)
+  })
+
+  // THE 53 THIS RULE EXISTS NOT TO SWEEP IN, in their real shapes. A predicate
+  // that reddens any of these is gating the flat hop by another name.
+  const NOT_SURFACES: Array<[string, string, string]> = [
+    ['a server page', 'app/site/[slug]/privacy/page.tsx', "import { getClinicSiteBySlug } from '@/lib/services/clinic-site'\nexport default async function Page() { return null }"],
+    ['a client component', 'app/(default)/website/domain/buy-domain-card.tsx', "'use client'\nexport function BuyDomainCard() { return null }"],
+    ['a layout', 'app/site/[slug]/layout.tsx', 'export default function Layout() { return null }'],
+    ['a service module', 'lib/services/shop.ts', "import 'server-only'\nexport async function listProducts() {}"],
+    // IDENTITY LOOSENESS, the family §2d keeps paying for: a file that merely
+    // TALKS about the directive is not one, and neither is a file whose path
+    // merely contains the word route.
+    ['a file that mentions the directive in prose', 'lib/docs.ts', "// call this from a 'use server' module\nexport const x = 1"],
+    ['a module named route-something', 'lib/routes.ts', 'export const ROUTES = []'],
+    ['a component in a directory called route', 'app/api/route-helpers.ts', 'export const x = 1'],
+  ]
+
+  it.each(NOT_SURFACES)('leaves %s alone', (_why, file, source) => {
+    expect(mutationSurfaceKind(file, source)).toBeNull()
+  })
+
+  it('reads the Stripe client import in either quote', () => {
+    // The spelling that was invisible to the money gate's only derived check
+    // until DREAMCRM-106. Both resolve to the same module.
+    expect(IMPORTS_STRIPE_CLIENT.test("import { stripe } from '@/lib/stripe'")).toBe(true)
+    expect(IMPORTS_STRIPE_CLIENT.test('import { stripe } from "@/lib/stripe"')).toBe(true)
+    // And the widening direction: a longer module name is not the client.
+    expect(IMPORTS_STRIPE_CLIENT.test("import { PLANS } from '@/lib/stripe-config'")).toBe(false)
+    expect(IMPORTS_STRIPE_CLIENT.test("import { x } from '@/lib/services/stripe-admin'")).toBe(false)
+  })
+})
+
 describe('the review-gate classifier', () => {
   it('flags a change in every area the review gate names', () => {
     // One real path per rule, spelled out rather than generated: if somebody
@@ -521,6 +660,12 @@ describe('the review-gate classifier', () => {
     // named files whose being gated is not a judgement call.
     const MUST_BE_GATED: Record<string, string> = {
       'lib/services/refunds.ts': 'money',
+      // The netting rule's own home (DREAMCRM-122). `refunds.ts` WRITES refund
+      // truth and was on the list; `net-collected.ts` is what every clinic-side
+      // total READS it through, and it matched nothing — pure arithmetic, no
+      // money word in the name, no `@/lib/stripe` import for the derived check
+      // below to find.
+      'lib/net-collected.ts': 'money',
       'lib/services/orders.ts': 'money',
       'lib/services/revenue.ts': 'money',
       'lib/services/membership.ts': 'money',
@@ -697,9 +842,9 @@ describe('the review-gate classifier', () => {
     // never imports the client, and the curated list and the word patterns
     // stay responsible for that. This only catches the direction where the
     // evidence is mechanical.
-    const ungated = trackedFiles()
-      .filter((f) => /^(lib|app)\/.*\.tsx?$/.test(f))
-      .filter((f) => /from '@\/lib\/stripe'/.test(readFileSync(join(process.cwd(), f), 'utf8')))
+    const ungated = productSources()
+      .filter(([, source]) => IMPORTS_STRIPE_CLIENT.test(source))
+      .map(([file]) => file)
       .filter((f) => !areasFor(f).includes('money'))
 
     expect(
@@ -709,6 +854,235 @@ describe('the review-gate classifier', () => {
         'each to the money patterns in scripts/review-gate.mjs (and to MUST_BE_GATED above), or ' +
         'say in a comment why reaching Stripe is not money here.',
     ).toEqual([])
+  })
+
+  it('gates every MUTATION SURFACE one hop from the Stripe client — derived, not remembered', () => {
+    // THE SAME MOVE AS THE TEST ABOVE, ONE IMPORT HOP OUT (DREAMCRM-106).
+    //
+    // `from '@/lib/stripe'` is a good necessary condition and it stops at the
+    // SERVICE. `lib/services/payment-plans.ts` is gated; the cron route that
+    // calls `runDuePlanCharges` from it — the thing that actually charges a
+    // patient's card, unattended, every day — matched no rule at all and was
+    // reported "merges on green". So was `buy-domain-actions.ts`, which spends
+    // real money on the clinic's card, and both Stripe Connect onboarding
+    // routes, which decide the account every shop payment is paid INTO.
+    //
+    // MEASURED ON `main` AT `c1ca93c0`, which is what makes the shape of the
+    // rule an argument rather than a preference:
+    //
+    //   17 files import `@/lib/stripe` directly  (the test above's population)
+    //   78 tracked files sit ONE HOP from one of those
+    //   25 of the 78 are mutation surfaces
+    //   12 of the 25 matched NO gate rule — 11 real, 1 exempted below
+    //   53 of the 78 are pages and client components
+    //
+    // **THE HOP ALONE IS THE WRONG SUBJECT, and those 53 are why.** They are
+    // `app/site/[slug]/privacy/page.tsx`, `.../accessibility/page.tsx`, a dozen
+    // dashboard panels — files that reach Stripe only because a shared layout
+    // or a display helper does, and that move no money by any reading. Gating
+    // on the flat hop would put a privacy-policy copy edit into a review queue
+    // of one, which is the "208 places to catch 8" trade this file's siblings
+    // keep refusing, and the reliable way to get a gate routed around.
+    //
+    // So the subject is the MUTATION SURFACE: a `'use server'` module (every
+    // export is a callable server action) or a route handler. Both are entry
+    // points an outside actor invokes; a page is not. That predicate is what
+    // takes the population from 78 to 25 while keeping all twelve holes.
+    //
+    // DELIBERATELY A NECESSARY CONDITION, exactly as the test above is. It
+    // says nothing about money code that never reaches Stripe at any depth
+    // (fee math, cart totals, the payment-plan schedule), and nothing about a
+    // surface TWO hops out — that population is larger again and the evidence
+    // stops being mechanical. The curated `MUST_BE_GATED` map and the word
+    // patterns stay responsible for both.
+    //
+    // WHY THE ELEVEN ARE NOT ALSO ADDED TO `MUST_BE_GATED` ABOVE: that map
+    // exists for files nothing can derive. These are derived here, every run,
+    // from the tree — writing them down a second time creates two homes for
+    // one fact, which is how the price-quoting list and the marketing page
+    // counts each went stale. The instrument check below is what protects
+    // against the derivation quietly narrowing, which is the failure a
+    // hand-list is actually insurance against.
+    const sources = new Map(productSources())
+    const direct = new Set(
+      Array.from(sources).filter(([, s]) => IMPORTS_STRIPE_CLIENT.test(s)).map(([f]) => f),
+    )
+    const oneHop = Array.from(sources.keys()).filter(
+      (f) => !direct.has(f) && importedModules(f, sources.get(f)!).some((i) => direct.has(i)),
+    )
+    const surfaces = oneHop.filter((f) => mutationSurfaceKind(f, sources.get(f)!) !== null)
+
+    // THE INSTRUMENT CHECK, in both directions, against the real tree — the
+    // one the shared-pending guard taught us to write. This detector is three
+    // predicates deep (the Stripe import, the resolver, the surface test) and
+    // any of them narrowing to nothing reports CLEAN forever.
+    expect(
+      surfaces,
+      'the one-hop detector stopped seeing app/api/cron/retention-automations/route.ts — the cron ' +
+        'that calls runDuePlanCharges — so it is no longer detecting anything and the assertion ' +
+        'below is worth nothing',
+    ).toContain('app/api/cron/retention-automations/route.ts')
+    expect(surfaces.length).toBeGreaterThan(10)
+
+    // And the DISCRIMINATION, which is the half that decides whether this rule
+    // survives contact with the repo. It is DERIVED rather than named (Sentinel,
+    // reviewing #681): the first draft pinned `app/site/[slug]/privacy/page.tsx`
+    // and `.../accessibility/page.tsx` by hand, which guaranteed the
+    // `not.toContain` half could not pass vacuously — and made a legitimate
+    // refactor redden `test` naming an innocent page. §2c has been pushing the
+    // clinic-site tree AWAY from reaching a Stripe-importing module through its
+    // layout, so the fixture was scheduled to decay on a good change.
+    //
+    // The property is the same and it asks the tree for its own witnesses: the
+    // one-hop population is mostly pages, and a widened predicate turns pages
+    // into surfaces. Both floors are what stop the emptiness below being
+    // vacuous — a predicate narrowed to nothing fails the instrument check
+    // above, one widened to everything fails here.
+    // THE TWO INSTRUMENT FLOORS ARE SHARES, NOT COUNTS (Sentinel's forward-
+    // looking note on #690). A constant over a population that shrinks on a
+    // legitimate refactor is the named-fixture decay one step out: it reddens
+    // `test` on a good change, and the failure names an instrument rather than
+    // a defect, so the tempting fix is to lower the number — which quietly
+    // guts the discrimination instead of re-deriving it.
+    //
+    // THE CONCENTRATION THAT MAKES THAT REACHABLE, measured on `main` at
+    // `c95ddeed` rather than argued. The renderers are NOT 39 independent
+    // witnesses: 26 of them reach the Stripe client through
+    // `lib/services/membership.ts` alone, 5 more through
+    // `lib/services/balance-payments.ts`, 4 through
+    // `lib/services/payment-plans.ts`. So one module moving its
+    // `@/lib/stripe` import behind another takes a third of the population
+    // with it, and the COUNTS collapse while the SHARES barely move:
+    //
+    //   population                      oneHop  rend  share   non-surf  share
+    //   today                              78    39   0.500      53     0.679
+    //   − membership                       53    17   0.321      31     0.585
+    //   − membership, balance-payments     49    16   0.327      29     0.592
+    //   − those + payment-plans            41    12   0.293      25     0.610
+    //   − those + social-billing, deposits 32     8   0.250      20     0.625
+    //
+    // A count floor of 10 survives the first two and dies on the fifth; a
+    // count floor of 20 on the non-surfaces dies there too. The shares never
+    // leave 0.25–0.50 and 0.58–0.68 across all of it, because both are
+    // statements about the SHAPE of the population rather than its size — and
+    // the shape is what the rule's argument actually rests on.
+    //
+    // RENDERERS FIRST, deliberately: it is the assertion whose message names
+    // the SHAPE that went wrong, and a widening reaches it before the
+    // non-surface share below on every mutation measured here.
+    const RENDERER_SHARE_FLOOR = 0.2
+    const NON_SURFACE_SHARE_FLOOR = 0.5
+
+    // THE OUTER POPULATION FIRST, for two reasons. A share is satisfiable by a
+    // tiny population (1 of 2 is 0.5), so something has to floor the
+    // denominator — and if `oneHop` is EMPTY the shares below are `NaN`, which
+    // fails every comparison with a message about a ratio rather than about
+    // the collapse that caused it. This is the one honest constant here: unlike
+    // the shares it does not decay when a refactor re-routes an import, because
+    // it falls only if the money surface genuinely stops being reachable in one
+    // hop — at which point this rule's premise has changed and a person should
+    // look rather than a number should move.
+    expect(
+      oneHop.length,
+      'the one-hop population has collapsed, so the shares below can be satisfied by a handful ' +
+        'of files and prove nothing. Re-derive the rule rather than adjusting it.',
+    ).toBeGreaterThan(20)
+
+    const surfaceSet = new Set(surfaces)
+    const renderers = oneHop.filter((f) => /\/(page|layout|loading|error|not-found)\.tsx$/.test(f))
+    expect(
+      renderers.length / oneHop.length,
+      `Renderers are ${renderers.length} of ${oneHop.length} one-hop files, below the share this ` +
+        'assertion needs to discriminate against anything. THE FIX IS A NEW WITNESS, NOT A LOWER ' +
+        'FLOOR: find the shape the one-hop population is now made of and assert the predicate ' +
+        'leaves THAT alone. Lowering the number keeps the run green and stops the check ' +
+        'discriminating, which is the failure this whole rule exists to avoid.',
+    ).toBeGreaterThan(RENDERER_SHARE_FLOOR)
+    expect(
+      renderers.filter((f) => surfaceSet.has(f)),
+      'A page, layout or error boundary is not a mutation surface — it renders, and calls an ' +
+        'action or a handler to change anything. These landed in the gated set, so the predicate ' +
+        'has widened into the flat hop and a privacy-policy copy edit now needs a reviewer. Fix ' +
+        'the predicate; never add an exemption entry for an innocent file.',
+    ).toEqual([])
+
+    // And the second share, which catches a widening that sweeps in shapes the
+    // line above does not name — a client component, a service module.
+    const nonSurfaces = oneHop.filter((f) => !surfaceSet.has(f))
+    expect(
+      nonSurfaces.length / oneHop.length,
+      `Only ${nonSurfaces.length} of ${oneHop.length} one-hop files are NOT mutation surfaces. ` +
+        'Most of that population is supposed to be pages and client components reaching Stripe ' +
+        'through a shared layout — their existence is the whole argument for keying on the ' +
+        'mutation surface rather than on the flat hop. If they are gone, the predicate has ' +
+        'widened, or the argument has changed and a person should re-derive it. Same rule as ' +
+        'above: do not lower the floor.',
+    ).toBeGreaterThan(NON_SURFACE_SHARE_FLOOR)
+
+    // MONEY, not merely SOME area (Sentinel, reviewing #681). The first draft
+    // filtered `areasFor(f).length === 0` while the direct-import check beside
+    // it demands `includes('money')`, and its own failure message told the
+    // author to "add each to the money patterns" — which the predicate did not
+    // actually require. One file fell in that gap:
+    // `app/(default)/ecommerce/customers/admin-actions.ts` calls
+    // `cancelSubscriptionNow` and satisfied the check purely through the `auth`
+    // pin it earned in #569 for minting the demo-context cookie. No hole — a PR
+    // touching it still reached a reviewer — but its money reach was real,
+    // derivable and unnamed, and a rule whose message and predicate disagree is
+    // how the next reader stops trusting the message. It is on the money
+    // patterns now, and the two derived checks ask the same question.
+    const ungated = surfaces
+      .filter((f) => !(f in ONE_HOP_EXEMPTIONS))
+      .filter((f) => !areasFor(f).includes('money'))
+      .sort()
+
+    expect(
+      ungated,
+      'These files are MUTATION SURFACES — a `use server` module or a route handler — one import ' +
+        'hop from a module that imports @/lib/stripe, and the review gate does not flag them as ' +
+        'MONEY. A PR changing what one of them charges, renews or pays out would be told on the ' +
+        'job summary that it merges on green, or would reach a reviewer under a rule whose stated ' +
+        'reason is about something else. Add each to the money patterns in ' +
+        'scripts/review-gate.mjs, or exempt it in ONE_HOP_EXEMPTIONS with a reason and a premise ' +
+        'this test can re-check.',
+    ).toEqual([])
+  })
+
+  it('re-checks the premise of every one-hop exemption, rather than trusting the reason', () => {
+    // AN EXEMPTION THAT DOES NOT RE-CHECK ITS OWN PREMISE IS A PERMANENT HOLE
+    // (§2d). `app/site/[slug]/sitemap.xml/route.ts` is exempt because the only
+    // Stripe-reaching thing it imports is `listActivePlans` — it needs plan
+    // slugs to list `/dental-plans` pages in a sitemap. That is a READ, and the
+    // whole exemption rests on it.
+    //
+    // So the premise is asserted, not asserted-about: the set of
+    // Stripe-reaching modules the file imports, and the exact bindings it takes
+    // from each. Add `startMembershipCheckout` to that import list — the one
+    // edit that would make the exemption false — and this fails naming the
+    // binding, which is the direction that decays.
+    const sources = new Map(productSources())
+    const direct = new Set(
+      Array.from(sources).filter(([, s]) => IMPORTS_STRIPE_CLIENT.test(s)).map(([f]) => f),
+    )
+
+    for (const [file, exemption] of Object.entries(ONE_HOP_EXEMPTIONS)) {
+      const source = sources.get(file)
+      expect(source, `${file} is exempted here and is no longer in the tree`).toBeTruthy()
+
+      const reached = new Map<string, string[]>()
+      for (const m of Array.from(source!.matchAll(/import\s+([^'"]*?)\s*from\s+['"]([^'"]+)['"]/g))) {
+        const [, clause, spec] = m
+        const target = importedModules(file, `from '${spec}'`).find((c) => direct.has(c))
+        if (target) reached.set(target, importBindings(clause).sort())
+      }
+
+      expect(
+        Object.fromEntries(Array.from(reached).sort()),
+        `${file} is exempted from the one-hop money gate on this premise: ${exemption.why} It now ` +
+          'reaches the Stripe client through a different module or takes a different binding, so ' +
+          'the premise no longer holds. Re-derive the exemption or delete it and gate the file.',
+      ).toEqual(exemption.reaches)
+    }
   })
 
   it('replays PR #566: no review owed, an intake owed, and the summary says both', () => {
@@ -1034,5 +1408,364 @@ describe('the review-gate classifier', () => {
           `name that says so.`,
       ).not.toContain(context)
     }
+  })
+})
+
+/**
+ * WHO MAY TAKE A GATE LABEL BACK OFF (DREAMCRM-130).
+ *
+ * `review-gate.yml` re-derives both labels from the changed paths on every
+ * push, and its `false` branch used to remove the label unconditionally. That
+ * is right for a label the classifier applied and wrong for every other one:
+ * the classifier cannot tell "the risk went away" from "I never saw the risk",
+ * and a hand-added label is exactly a person overruling it on the second case.
+ *
+ * The cost is not a missing sticker. `scripts/review-sweep.mjs` reads
+ * `labelled(pr, REVIEW_LABEL)` over MERGED PRs — so a PR whose label its own
+ * last push stripped merges carrying nothing, the sweep finds nothing to ask
+ * about, and the morning report is honestly clean. The net built after #573,
+ * #582 and #636 goes blind in precisely the category the path classifier had
+ * already missed.
+ *
+ * THE REPRODUCTION IS PR #710's OWN TIMELINE, kept here rather than in the
+ * thread (§10) because this is where the next person will be standing:
+ *
+ *   11:51:35Z  labeled   needs-sentinel-review  DreamCreateWeb      (by hand)
+ *   12:02:43Z  unlabeled needs-sentinel-review  github-actions[bot] (push 198b981b)
+ *
+ * The classifier had returned `needs-forge-intake` only. No harm that time,
+ * because the author had also mentioned Sentinel by hand — which IS the point:
+ * the label machinery contributed nothing to the review it exists to guarantee,
+ * and nobody would have known.
+ */
+describe('who may take a gate label back off', () => {
+  const bot = (event: string, name: string, at: string, id = 1) => ({
+    event,
+    id,
+    created_at: at,
+    actor: { login: CLASSIFIER_ACTOR },
+    label: { name },
+  })
+  const human = (event: string, name: string, at: string, login = 'DreamCreateWeb', id = 1) => ({
+    event,
+    id,
+    created_at: at,
+    actor: { login },
+    label: { name },
+  })
+
+  it('replays PR #710: the push may not strip a label a person put on', () => {
+    // The defect, exactly as it happened. Before the fix the workflow reached
+    // `gh pr edit --remove-label` here with no question asked.
+    const timeline = [
+      bot('labeled', INTAKE_LABEL, '2026-09-23T11:48:02Z', 100),
+      human('labeled', REVIEW_LABEL, '2026-09-23T11:51:35Z', 'DreamCreateWeb', 101),
+    ]
+
+    const decision = labelRemovalDecision(timeline, REVIEW_LABEL)
+
+    expect(
+      decision.remove,
+      'A hand-added needs-sentinel-review must survive the author next push. Removing it here ' +
+        'is what made review-sweep.mjs blind on the merged PR — in the one category (the ' +
+        'judgement call the path classifier missed) the sweep is most needed for.',
+    ).toBe(false)
+    expect(decision.by).toBe('DreamCreateWeb')
+  })
+
+  it('still takes back a label it applied itself, which is the behaviour worth keeping', () => {
+    // The `else` branch was written for this and it is still correct: a PR that
+    // drops its risky file in a later push should stop claiming it owes a
+    // review. Option 1 on the issue (never remove) would have lost this.
+    const decision = labelRemovalDecision([bot('labeled', REVIEW_LABEL, '2026-09-23T09:00:00Z')], REVIEW_LABEL)
+    expect(decision.remove).toBe(true)
+    expect(decision.by).toBe(CLASSIFIER_ACTOR)
+  })
+
+  it('reads the LAST word on the label, not the first', () => {
+    // Bot applied it, a person took it off, the person put it back: the last
+    // `labeled` is theirs, so it stays. Deciding on the first event — or on
+    // "did the bot ever apply this" — gets this backwards.
+    const timeline = [
+      bot('labeled', REVIEW_LABEL, '2026-09-23T09:00:00Z', 1),
+      human('unlabeled', REVIEW_LABEL, '2026-09-23T09:30:00Z', 'DreamCreateWeb', 2),
+      human('labeled', REVIEW_LABEL, '2026-09-23T10:00:00Z', 'DreamCreateWeb', 3),
+    ]
+    expect(labelRemovalDecision(timeline, REVIEW_LABEL).remove).toBe(false)
+
+    // …and the mirror: a person removed it, so re-removing is a harmless no-op.
+    expect(labelRemovalDecision(timeline.slice(0, 2), REVIEW_LABEL).remove).toBe(true)
+  })
+
+  it('orders two events inside the same second by id', () => {
+    // `created_at` has one-second granularity. A hand-added label and a bot
+    // push landing in the same second is the case this must not get backwards,
+    // and an unstable or time-only sort decides it by luck.
+    const sameSecond = [
+      bot('labeled', REVIEW_LABEL, '2026-09-23T11:51:35Z', 500),
+      human('unlabeled', REVIEW_LABEL, '2026-09-23T11:51:35Z', 'DreamCreateWeb', 501),
+      human('labeled', REVIEW_LABEL, '2026-09-23T11:51:35Z', 'DreamCreateWeb', 502),
+    ]
+    expect(labelRemovalDecision(sameSecond, REVIEW_LABEL).remove).toBe(false)
+  })
+
+  it('answers about ONE label and is not confused by the other', () => {
+    // The two halves are separate obligations (DREAMCRM-49) and the workflow
+    // asks this function twice. A filter that ignored `label.name` would let a
+    // bot-applied intake label authorise stripping a hand-added review label.
+    const timeline = [
+      human('labeled', REVIEW_LABEL, '2026-09-23T11:51:35Z', 'DreamCreateWeb', 1),
+      bot('labeled', INTAKE_LABEL, '2026-09-23T11:52:00Z', 2),
+    ]
+    expect(labelRemovalDecision(timeline, REVIEW_LABEL).remove).toBe(false)
+    expect(labelRemovalDecision(timeline, INTAKE_LABEL).remove).toBe(true)
+  })
+
+  it('removes a label nobody has ever applied, because that is a no-op', () => {
+    expect(labelRemovalDecision([], REVIEW_LABEL).remove).toBe(true)
+    expect(labelRemovalDecision([bot('labeled', INTAKE_LABEL, '2026-09-23T09:00:00Z')], REVIEW_LABEL).remove).toBe(true)
+  })
+
+  it('fails CLOSED on every way the timeline can be uncertain', () => {
+    // The two errors are not symmetrical and it is not close. Keeping a label
+    // that should have come off costs one question in tomorrow's sweep;
+    // removing one that should have stayed costs the review.
+    const cases: Array<[string, unknown]> = [
+      ['a timeline that did not parse at all', null],
+      ['a timeline that came back as an object', { events: [] }],
+      [
+        'an event with no usable created_at, so nothing can be ordered',
+        [
+          {
+            event: 'labeled',
+            id: 1,
+            created_at: 'not a date',
+            actor: { login: 'DreamCreateWeb' },
+            label: { name: REVIEW_LABEL },
+          },
+        ],
+      ],
+      [
+        'an event whose actor GitHub did not record',
+        [
+          {
+            event: 'labeled',
+            id: 1,
+            created_at: '2026-09-23T11:51:35Z',
+            actor: null,
+            label: { name: REVIEW_LABEL },
+          },
+        ],
+      ],
+    ]
+
+    for (const [what, events] of cases) {
+      expect(
+        labelRemovalDecision(events as never, REVIEW_LABEL).remove,
+        `With ${what}, this cannot tell a classifier label from a hand-added one and must keep it.`,
+      ).toBe(false)
+    }
+  })
+
+  it('reads an EMPTY timeline file as unreadable, never as "no events"', () => {
+    // The fetch step is `continue-on-error`, so a failed `gh api` leaves an
+    // empty file behind. Reading that as `[]` would answer "remove" and restore
+    // the defect on every GitHub hiccup — silently, and only on the PRs where
+    // the API was having a bad morning.
+    expect(parseLabelEvents('')).toBeNull()
+    expect(parseLabelEvents('   \n  \n')).toBeNull()
+    expect(labelRemovalDecision(parseLabelEvents(''), REVIEW_LABEL).remove).toBe(false)
+  })
+
+  it('reads the JSONL the workflow actually produces, and a plain array too', () => {
+    const rows = [
+      JSON.stringify(human('labeled', REVIEW_LABEL, '2026-09-23T11:51:35Z', 'DreamCreateWeb', 1)),
+      JSON.stringify(bot('labeled', INTAKE_LABEL, '2026-09-23T11:48:02Z', 2)),
+    ]
+
+    expect(parseLabelEvents(rows.join('\n'))).toHaveLength(2)
+    expect(parseLabelEvents(`[${rows.join(',')}]`)).toHaveLength(2)
+    // Half a page of JSONL is not half an answer — it is an unreadable one.
+    expect(parseLabelEvents(`${rows.join('\n')}\n{"event": "labe`)).toBeNull()
+  })
+})
+
+/**
+ * THE WIRING between that decision and the `gh pr edit` it is supposed to
+ * govern — the seam §2d names, where the predicate is right and the caller
+ * quietly is not. Nothing above would notice if the workflow went back to
+ * removing the label unconditionally, or kept a second copy of the command
+ * somewhere else in the file.
+ */
+describe('the workflow asks before it removes', () => {
+  const wf = readFileSync(join(process.cwd(), '.github/workflows/review-gate.yml'), 'utf8')
+  const HELPER = 'remove_if_classifier_applied'
+
+  const helperBody = (() => {
+    const start = wf.indexOf(`${HELPER}() {`)
+    if (start === -1) return null
+    const end = wf.indexOf('\n          }', start)
+    return end === -1 ? null : wf.slice(start, end)
+  })()
+
+  it('routes every label removal through the authorship question', () => {
+    const removals = wf.match(/--remove-label/g) ?? []
+
+    expect(
+      removals.length,
+      'review-gate.yml should contain exactly ONE `--remove-label`, inside ' +
+        `${HELPER}. A second copy anywhere else in the file is the unconditional removal coming ` +
+        'back — which strips hand-added gate labels on the author next push and takes ' +
+        'review-sweep.mjs blind with it (DREAMCRM-130).',
+    ).toBe(1)
+
+    expect(helperBody, `review-gate.yml no longer defines ${HELPER}()`).not.toBeNull()
+    expect(helperBody, `The one --remove-label must sit inside ${HELPER}, not beside it.`).toContain('--remove-label')
+  })
+
+  it('gates that removal on the exit code of this repo own decision', () => {
+    expect(
+      helperBody,
+      `${HELPER} must decide by running scripts/review-gate.mjs --label-authorship. A hand-rolled ` +
+        'jq expression in the YAML would be the same rule written twice, and the copy nothing ' +
+        'imports is the copy that rots.',
+    ).toContain('node scripts/review-gate.mjs --label-authorship')
+
+    // The question has to BE the `if`, not a line that runs and is ignored.
+    expect(helperBody).toMatch(/if node scripts\/review-gate\.mjs --label-authorship "\$1" \S+; then/)
+  })
+
+  it('reads a timeline this same workflow fetched', () => {
+    // A guard that only checked the `if` would pass against a path no step
+    // writes — after which every answer is the fail-closed one, the label never
+    // comes off again, and the check still looks like it is working.
+    const readsFrom = helperBody?.match(/--label-authorship "\$1" (\S+);/)?.[1]
+    expect(readsFrom, `${HELPER} names no timeline file`).toBeTruthy()
+    expect(
+      wf,
+      `Nothing in review-gate.yml writes ${readsFrom}, so the decision would always fall back to ` +
+        'KEEP and no label would ever be removed again.',
+    ).toContain(`> ${readsFrom}`)
+    expect(wf).toContain('gh api --paginate')
+  })
+
+  it('throws away a PARTIAL timeline rather than reading it', () => {
+    // Sentinel, reviewing #716: the fifth way this can be uncertain, and the
+    // only one that failed OPEN. `gh api --paginate` streams each page to the
+    // file as it arrives, so a call that dies partway leaves VALID JSONL that
+    // is silently truncated — and that endpoint is ordered oldest-first, so the
+    // pages most likely to be lost are the recent ones, which is exactly where
+    // a hand-added label lives. `parseLabelEvents` physically cannot tell that
+    // file from a complete one; only the fetch knows it failed, so only the
+    // fetch can throw it away.
+    //
+    // Fed #710's real events with the hand-add's page removed, the CLI printed
+    // REMOVE and exited 0 — DREAMCRM-130 again, green the whole way.
+    const fetchStep = (() => {
+      const start = wf.indexOf('- name: Who applied the labels')
+      if (start === -1) return null
+      const next = wf.indexOf('- name:', start + 1)
+      return wf.slice(start, next === -1 ? undefined : next)
+    })()
+
+    expect(fetchStep, 'review-gate.yml no longer has a step that fetches the label timeline').not.toBeNull()
+
+    const timeline = helperBody?.match(/--label-authorship "\$1" (\S+);/)?.[1]
+    expect(
+      fetchStep,
+      'The timeline fetch must be guarded (`if ! gh api …`), not a bare redirect: a bare one ' +
+        'leaves a truncated-but-well-formed file behind when it dies mid-pagination, and the ' +
+        'reader accepts it as the whole story (#716, Sentinel).',
+    ).toMatch(/if ! gh api --paginate/)
+    expect(
+      fetchStep,
+      `On that failure path the step must truncate ${timeline} to empty — the ONE input ` +
+        'parseLabelEvents reads as unreadable rather than as "no events", which is what makes ' +
+        'this fail closed like the other four.',
+    ).toContain(`: > ${timeline}`)
+  })
+
+  it('keeps the token scope the timeline fetch needs', () => {
+    // The timeline lives on the ISSUES side of the API even for a PR. Trim
+    // `issues: read` and `gh api` 404s — at which point the reader fails closed
+    // (nothing is stripped by mistake) and the gate quietly stops removing
+    // stale labels AT ALL, with a green check the whole way. A permissions
+    // trim is exactly the edit nobody would connect to this.
+    expect(
+      wf,
+      'review-gate.yml must grant `issues: read`: without it the label timeline cannot be ' +
+        'fetched, and the removal half of this gate silently stops working (DREAMCRM-130).',
+    ).toMatch(/^ {2}issues: read$/m)
+  })
+
+  it('asks the question for BOTH gate labels', () => {
+    for (const label of [REVIEW_LABEL, INTAKE_LABEL]) {
+      expect(
+        wf,
+        `The ${label} half must route its removal through ${HELPER} too — the two labels are two ` +
+          'obligations, and review-sweep.mjs reads both off the merged PR.',
+      ).toContain(`${HELPER} ${label}`)
+    }
+  })
+})
+
+/**
+ * The exit code is the interface, so it gets its own test. A decision function
+ * that is right while the CLI exits 0 on both answers is a check that removes
+ * every label it is asked about.
+ */
+describe('the --label-authorship exit code', () => {
+  const fixtures = mkdtempSync(join(tmpdir(), 'review-gate-labels-'))
+
+  const run = (label: string, file: string | null) =>
+    spawnSync(process.execPath, ['scripts/review-gate.mjs', '--label-authorship', label, ...(file ? [file] : [])], {
+      cwd: process.cwd(),
+      encoding: 'utf8',
+    })
+
+  const write = (name: string, body: string) => {
+    const path = join(fixtures, name)
+    writeFileSync(path, body, 'utf8')
+    return path
+  }
+
+  it('exits 0 — remove — for the classifier own label', () => {
+    const path = write(
+      'bot.jsonl',
+      JSON.stringify({
+        event: 'labeled',
+        id: 1,
+        created_at: '2026-09-23T09:00:00Z',
+        actor: { login: CLASSIFIER_ACTOR },
+        label: { name: REVIEW_LABEL },
+      }),
+    )
+    const out = run(REVIEW_LABEL, path)
+    expect(out.status, out.stdout + out.stderr).toBe(0)
+    expect(out.stdout).toContain(`REMOVE ${REVIEW_LABEL}`)
+  })
+
+  it('exits non-zero — keep — for a hand-added label', () => {
+    const path = write(
+      'human.jsonl',
+      JSON.stringify({
+        event: 'labeled',
+        id: 1,
+        created_at: '2026-09-23T11:51:35Z',
+        actor: { login: 'DreamCreateWeb' },
+        label: { name: REVIEW_LABEL },
+      }),
+    )
+    const out = run(REVIEW_LABEL, path)
+    expect(out.status, out.stdout + out.stderr).toBe(1)
+    expect(out.stdout).toContain(`KEEP ${REVIEW_LABEL}`)
+  })
+
+  it('exits non-zero when there is no timeline to read at all', () => {
+    // The fetch step is continue-on-error; this is the path a GitHub outage
+    // takes, and every one of these has to land on KEEP.
+    expect(run(REVIEW_LABEL, join(fixtures, 'does-not-exist.jsonl')).status).toBe(1)
+    expect(run(REVIEW_LABEL, null).status).toBe(1)
+    expect(run(REVIEW_LABEL, write('empty.jsonl', '')).status).toBe(1)
   })
 })

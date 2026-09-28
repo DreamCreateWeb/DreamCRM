@@ -20,6 +20,16 @@ name: Post-merge review sweep
 # `INTAKE_SWEPT_SINCE` in `scripts/review-sweep.mjs` for why judging those
 # thirty would have opened the half with thirty mostly-wrong findings.
 #
+# AND IT GRADES THE ISSUE KEY IN THE TITLE (DREAMCRM-105). §3's first bullet,
+# and the one everything else here is downstream of: the key is the only link
+# from a merged commit back to somebody who can answer for it. #636, #659 and
+# #674 merged unkeyed in ONE DAY, the last of them hours after §3's rule landed
+# — and #659 merged owing an intake nobody could record, because no issue owned
+# the work and so there was nobody the label could be about. This half has no
+# label of its own: every merged PR in the window is in scope, because a label
+# is exactly what untracked work has nobody to receive. It never wakes Forge —
+# a wake enqueues a paid run and an unkeyed PR is not an intake question.
+#
 # ============================ THIS DOES NOT GATE =============================
 #
 # No `pull_request` trigger, no required status-check context, no `needs:` on
@@ -231,6 +241,22 @@ jobs:
           set -uo pipefail
           echo '[]' > last-run.json
 
+          # DID THIS RUN ACTUALLY LOOK AT ALL OF THEM? (DREAMCRM-115.)
+          #
+          # An empty `last-run.json` has three causes and only one of them is
+          # the bootstrap: no candidate woke, the list lookup failed, or a
+          # candidate was SKIPPED because its jobs lookup failed. A skipped
+          # candidate might have been the anchor, so the script may not read an
+          # empty file as "there has never been one" -- it needs this claim,
+          # and only the shell is in a position to make it.
+          #
+          # It starts TRUE and every failure path below sets it false; the
+          # script treats anything but a complete search as the lookup having
+          # failed, which is the `undated` suppression rather than a bootstrap
+          # nobody verified.
+          COMPLETE=true
+          SEARCHED=0
+
           # `--jq` rather than a node hop: a YAML block scalar does not process
           # escapes, so a `join("\n")` here becomes a backslash and an `n` and
           # the whole list collapses to one line. That is not hypothetical —
@@ -238,12 +264,18 @@ jobs:
           gh run list --repo ${{ github.repository }} --workflow review-sweep.yml \
             --branch main --limit 20 \
             --json databaseId --jq '.[].databaseId' \
-            > wake-candidates.txt || : > wake-candidates.txt
+            > wake-candidates.txt || { : > wake-candidates.txt; COMPLETE=false; }
 
           while read -r ID || [ -n "${ID}" ]; do
             [ -n "${ID}" ] || continue
             [ "${ID}" != "${{ github.run_id }}" ] || continue
-            gh api "repos/${{ github.repository }}/actions/runs/${ID}/jobs" > wake-jobs.json 2>/dev/null || continue
+            # A SKIPPED CANDIDATE POISONS THE CLAIM rather than being passed
+            # over quietly: this is the one it might have been.
+            if ! gh api "repos/${{ github.repository }}/actions/runs/${ID}/jobs" > wake-jobs.json 2>/dev/null; then
+              COMPLETE=false
+              continue
+            fi
+            SEARCHED=$((SEARCHED + 1))
             if node scripts/review-sweep.mjs woke --jobs wake-jobs.json; then
               gh run view "${ID}" --repo ${{ github.repository }} \
                 --json databaseId,conclusion,createdAt --jq '[.]' \
@@ -253,7 +285,14 @@ jobs:
             fi
           done < wake-candidates.txt
 
-      - name: Which of them merged owing a review or an intake nobody recorded?
+          # `echo` rather than a `printf` with a trailing newline escape. This
+          # is the same hazard the `--jq` comment above records: a YAML block
+          # scalar does not process escapes, so anything relying on one here is
+          # one more thing to get wrong for no gain. The file is read as JSON.
+          echo "{\"complete\":${COMPLETE},\"searched\":${SEARCHED}}" > wake-anchor-search.json
+          cat wake-anchor-search.json
+
+      - name: Which of them merged owing a review, an intake or an issue key nobody recorded?
         id: sweep
         # `continue-on-error` so the wake step below still runs on a RED sweep —
         # which is the only kind of run that has anything to wake anybody for.
@@ -268,7 +307,7 @@ jobs:
         # history is. A `\` continuation here leaves both guards green while
         # grading nothing.
         run: |
-          node scripts/review-sweep.mjs --prs merged-prs.json --limit 500 --last-green last-green.json --last-run last-run.json --wake-out wake.json ${{ (inputs.ping && '--ping') || '' }}
+          node scripts/review-sweep.mjs --prs merged-prs.json --limit 500 --last-green last-green.json --last-run last-run.json --anchor-search wake-anchor-search.json --wake-out wake.json ${{ (inputs.ping && '--ping') || '' }}
 
       # A RED SWEEP WAKES FORGE (DREAMCRM-99 deliverable 3).
       #
@@ -294,15 +333,72 @@ jobs:
       # is how this wire loses the credibility it needs). A suppressed wake is
       # announced rather than silent.
       #
-      # NOT CONFIGURED YET IS NOT A FAILURE, the same contract `error-scan.yml`
-      # carries: if the secret is absent the step says so in the summary and
-      # moves on. A missing wake must not turn a working sweep red.
+      # AN UNSET SECRET IS A FAILURE OF THIS STEP, and that sentence replaces
+      # one that was true before the anchor changed (Sentinel, third pass on
+      # #671). `error-scan.yml`'s "not configured is not a failure" contract
+      # is about a JOB going red every half hour before anyone has set the
+      # thing up. Here the step's conclusion is ALSO the wake's anchor, and a
+      # wake that was due and did not happen is not "Forge was told" whatever
+      # the reason. So it fails, and the anchor does not move.
+      #
+      # That costs nothing extra: this branch is only reachable when a wake is
+      # DUE, and a due wake means fresh unsatisfied entries, which redden the
+      # sweep anyway. The summary still says "Skipped, not passed" — nobody is
+      # being told the wake happened.
       #
       # THE SECRET IS THE URL. The Multica webhook token lives in the path, so
       # `FORGE_INTAKE_WAKE_URL` is a credential and nothing here may echo it.
       # `--fail-with-body` and an explicit status check make a rejected POST
       # loud: a wake that silently 404s is indistinguishable from a quiet week,
       # which is the failure class this whole file is about.
+      #
+      # WHAT THAT CREDENTIAL IS WORTH, written down here rather than left in a
+      # review thread (Sentinel, on DREAMCRM-99), because the person who needs
+      # it is whoever is standing at this step wondering how carefully to treat
+      # it:
+      #
+      #   * AN ACTIONS SECRET IS NOT SECRET FROM ANYONE WITH REPO WRITE. They
+      #     cannot read it from the settings page, but they can add a workflow
+      #     that uses it, and a workflow can do whatever it likes with what it
+      #     is given. Treat "who can push to this repository" as the list of
+      #     people who hold this URL.
+      #   * THE BLAST RADIUS IS ONE VERB. The autopilot behind it runs in
+      #     `create_issue` mode and is assigned to Forge, so the most a holder
+      #     of this URL can do is open issues assigned to him. It grants no
+      #     read of anything, and nothing on the deploy path.
+      #   * `run_only` IS THE OTHER MODE, AND IT IS WORSE HERE. It exists —
+      #     `multica autopilot create --mode` takes `create_issue` or
+      #     `run_only` — so "there is no narrower option" would be false. It is
+      #     not narrower: it still dispatches a paid run to the same agent, and
+      #     it leaves NO ISSUE BEHIND, so a holder of this URL could spend
+      #     Forge's runs with nothing on the board recording that they did.
+      #     `create_issue` is kept for the audit trail, not for lack of a
+      #     choice.
+      #   * NOTHING CAN MAKE THE URL INSUFFICIENT ON ITS OWN, and this clause
+      #     is here to stop the next reader repeating a search that dead-ends.
+      #     The trigger reports `provider: generic` with
+      #     `has_signing_secret: false`, so the platform clearly models a
+      #     signing secret — which would mean a leaked URL alone was not
+      #     enough. But neither `trigger-add` nor `trigger-update` exposes a
+      #     flag to set one. There is no reachable way to require anything but
+      #     the URL.
+      #   * SO THE MITIGATION IS ROTATION, NOT SECRECY — which is the only true
+      #     statement available rather than a shrug. If it leaks:
+      #
+      #       multica autopilot list                        # the autopilot id
+      #       multica autopilot trigger-list <autopilot-id> # the trigger id
+      #       multica autopilot trigger-rotate-url <autopilot-id> <trigger-id>
+      #
+      #     BOTH positionals are required; the command exits on a usage error
+      #     with one, which is the worst moment to be reading `--help`. It also
+      #     PROMPTS for confirmation by default — add `-y` if you are running
+      #     it non-interactively, which in this repo is the likely case: the
+      #     reader of this runbook is usually an agent in a runtime where a
+      #     prompt is a hang rather than a question. Then reset
+      #     `FORGE_INTAKE_WAKE_URL` and dispatch this workflow with
+      #     `ping: true` FROM A FEATURE BRANCH to prove the new URL is live.
+      #     The ids are deliberately not written here — they drift, and a stale
+      #     id sends the reader somewhere worse than nowhere.
       - name: Wake Forge
         if: always()
         env:
@@ -347,12 +443,18 @@ jobs:
               echo "The sweep decided a wake was due (\`${REASON}\`) and \`FORGE_INTAKE_WAKE_URL\` is unset."
               echo "Set it to the Multica autopilot webhook URL. Skipped, not passed."
             } >> "$GITHUB_STEP_SUMMARY"
-            # A wake was DUE and did not happen. The job stays green — an
-            # unconfigured wake must not redden a working sweep, which is the
-            # `error-scan.yml` contract — but this STEP fails, so the anchor
-            # does not move and the entry is still new tomorrow. The two are
-            # separate signals and this is the one that means "he was not
-            # told".
+            # A wake was DUE and did not happen, so this step fails and the
+            # anchor does not move — the entry is still new tomorrow and the
+            # next configured run wakes him for it.
+            #
+            # IT FAILS THE JOB TOO, and the earlier version of this comment
+            # claimed otherwise (Sentinel, third pass on #671). A step exiting
+            # non-zero without `continue-on-error` fails the job; that is the
+            # whole mechanism the restore step one below exists to work
+            # around. The OUTCOME is unchanged, because this branch is only
+            # reachable when a wake is due and that already reddens the sweep
+            # — but "the job stays green" was not true of GitHub Actions and
+            # a reader would have built on it.
             exit 1
           fi
 

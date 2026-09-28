@@ -53,6 +53,14 @@ permissions:
   # Labelling the PR is the whole point of the write scope. Nothing here reads
   # or writes code, secrets, or any other repository content.
   pull-requests: write
+  # READ-ONLY, AND IT IS LOAD-BEARING (DREAMCRM-130). The label timeline lives
+  # on the ISSUES side of the API (`/issues/{n}/events`) even for a pull
+  # request, and it is what tells the removal step whether a label is this
+  # workflow's own or a person's. Trim this and the fetch 404s: the reader
+  # fails closed, so nothing is stripped by mistake, but the gate quietly
+  # stops removing stale labels at all and the sweep starts asking about PRs
+  # for ever. `tests/guards/review-gate.test.ts` holds it here for that reason.
+  issues: read
 
 jobs:
   # NOT named `test` or `e2e`: those are the required status-check contexts on
@@ -88,6 +96,39 @@ jobs:
         id: gate
         run: node scripts/review-gate.mjs changed-files.txt
 
+      # WHO PUT THE LABELS THERE (DREAMCRM-130).
+      #
+      # The removal below is allowed only for a label THIS WORKFLOW applied, and
+      # the issue-events timeline is the only place on a PR that records who
+      # applied one. It is append-only, so a push cannot rewrite it.
+      #
+      # `--paginate --jq '.[]'` on purpose: `--paginate` on an array endpoint
+      # concatenates arrays, which is not valid JSON, so the jq filter flattens
+      # it to one object per line instead. `continue-on-error` because this must
+      # never paint an advisory check red — and a failed fetch leaves an empty
+      # file, which the reader below treats as UNREADABLE and answers KEEP.
+      - name: Who applied the labels this PR is carrying?
+        if: always()
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENTS: repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/events
+        run: |
+          # A PARTIAL FETCH IS NOT A SHORT ANSWER, IT IS NO ANSWER (Sentinel,
+          # reviewing #716 — the fifth uncertainty, and the only one that failed
+          # OPEN). `--paginate` streams each page to the file AS IT ARRIVES, so
+          # a call that dies partway leaves behind JSONL that is perfectly
+          # well-formed and silently truncated. The reader cannot tell it from a
+          # complete one — and because this endpoint is ordered oldest-first,
+          # the pages most likely to be lost are the RECENT ones, which is
+          # exactly where a hand-added label lives. So the reader must never see
+          # it: discard the file, because empty is the one input
+          # `parseLabelEvents` reads as unreadable rather than as "no events".
+          if ! gh api --paginate --jq '.[]' "$EVENTS" > label-events.jsonl; then
+            echo "::warning title=Label timeline fetch failed::Discarded a possibly-partial timeline. No gate label will be removed on this run."
+            : > label-events.jsonl
+          fi
+
       # Advisory means advisory: a label that fails to apply (a permissions
       # change, a GitHub hiccup) must not paint this run red and teach people
       # the check is broken. The summary above is the real output; the label is
@@ -115,15 +156,35 @@ jobs:
             --color FBCA04 \
             --description "May change what can merge — tell Forge the same day (intake, not review)" \
             || true
+          # REMOVING A LABEL IS NOT THE MIRROR OF ADDING ONE (DREAMCRM-130).
+          #
+          # Removing it still matters — a PR that drops its risky file in a
+          # later push should stop claiming it owes a review. But this
+          # classifier cannot tell "the risk went away" from "I never saw the
+          # risk to begin with", and a HAND-ADDED label is precisely a person
+          # overruling it on the second case. Until this function existed, the
+          # author's next push stripped that person's label (observed on #710),
+          # and `scripts/review-sweep.mjs` — which reads the label off the
+          # MERGED PR — went blind with it, in the one category the classifier
+          # had already failed.
+          #
+          # The exit code is the whole interface, and its polarity is chosen so
+          # that any failure lands on KEEP: 0 means "this workflow's own label,
+          # safe to take back", and every other outcome, a crash included, is
+          # non-zero and leaves the label alone.
+          remove_if_classifier_applied() {
+            if node scripts/review-gate.mjs --label-authorship "$1" label-events.jsonl; then
+              gh pr edit "$PR" --remove-label "$1" || true
+            fi
+          }
+
           if [ "$NEEDS_REVIEW" = "true" ]; then
             gh pr edit "$PR" --add-label needs-sentinel-review
           else
-            # Removing it matters as much as adding it: a PR that drops its
-            # risky file in a later push should stop claiming it owes a review.
-            gh pr edit "$PR" --remove-label needs-sentinel-review || true
+            remove_if_classifier_applied needs-sentinel-review
           fi
           if [ "$NEEDS_INTAKE" = "true" ]; then
             gh pr edit "$PR" --add-label needs-forge-intake
           else
-            gh pr edit "$PR" --remove-label needs-forge-intake || true
+            remove_if_classifier_applied needs-forge-intake
           fi

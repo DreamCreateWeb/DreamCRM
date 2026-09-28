@@ -332,16 +332,32 @@ describe('error scan — the anchor step, executed against a stub `gh`', () => {
       'set -e',
       'case "$1 $2" in',
       '  "run list")',
+      // THE STUB HONOURS `--jq`, and that is the difference between a guard
+      // that catches this defect and one that catches it by accident (Sentinel,
+      // reviewing #664 the second time).
+      //
+      // The first version emitted bare ids no matter what it was asked for. So
+      // when the `join("\n")` defect was restored, the step wrote
+      // `--json databaseId,conclusion,createdAt` into a file, got bare ids back,
+      // `JSON.parse` threw, and the test went red with *"expected [] to deeply
+      // equal ['111','222','333']"* — while the message beside it said the loop
+      // had asked GitHub for one run named after the whole list. Red for the
+      // wrong reason, and the reason is what a future reader is told.
+      //
+      // Real `gh` emits a JSON array unless asked to filter. A stub that answers
+      // questions it was not asked is a mock of the thing, not the thing.
+      '    case "$*" in',
+      `      *--jq*)`,
       // `printf '%s\n'` repeats its format once per argument, so this is one id
       // per line WITH a trailing newline — what `gh --jq` really produces.
-      // `noTrailingNewline` produces the shape `while read` silently truncates.
+      // `noTrailingNewline` produces the shape `while read` silently truncates;
+      // escapes are interpreted in printf's FORMAT, not in its arguments, so
+      // the ids go in the format there.
       opts.noTrailingNewline
-        ? // Escapes are interpreted in printf's FORMAT, not in its arguments —
-          // so the ids go in the format here. (Getting that backwards produced
-          // a literal `111\n222` and reproduced the very bug this stub is meant
-          // to distinguish itself from, which is a small joke at my expense.)
-          `    printf '${opts.ids.join('\\n')}'`
-        : `    printf '%s\\n' ${opts.ids.map((i) => `'${i}'`).join(' ')}`,
+        ? `        printf '${opts.ids.join('\\n')}' ;;`
+        : `        printf '%s\\n' ${opts.ids.map((i) => `'${i}'`).join(' ')} ;;`,
+      `      *) printf '[%s]' "${opts.ids.map((i) => `{\\"databaseId\\":${i}}`).join(',')}" ;;`,
+      '    esac',
       '    ;;',
       '  "run view")',
       '    printf \'[{"databaseId":%s,"conclusion":"success","createdAt":"2026-09-22T06:00:00Z"}]\' "$3"',

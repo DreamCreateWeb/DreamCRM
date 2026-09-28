@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { submitChatMessage } from '@/app/site/[slug]/actions'
 import FormTrustFields from '@/components/clinic-site/form-trust-fields'
 import { SITE_INK as INK, SITE_BORDER as BORDER } from '@/components/clinic-site/tokens'
@@ -30,6 +30,16 @@ export default function SiteChatWidget({
   const [state, setState] = useState<'idle' | 'pending' | 'sent' | 'error'>('idle')
   const [error, setError] = useState('')
   const [sentTo, setSentTo] = useState('')
+
+  // Sending REPLACES the form inside the popover — the submit button unmounts
+  // and focus falls back to <body>, several landmarks away from the panel the
+  // visitor is looking at, with nothing spoken. A live region cannot carry a
+  // surface that mounts already-populated; focus is the phase-change contract,
+  // same as the booking form's BookingSuccess.
+  const sentHeadingRef = useRef<HTMLParagraphElement | null>(null)
+  useEffect(() => {
+    if (state === 'sent') sentHeadingRef.current?.focus()
+  }, [state])
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -81,7 +91,12 @@ export default function SiteChatWidget({
           {state === 'sent' ? (
             <div className="p-5 text-center">
               <div className="text-3xl mb-2" aria-hidden="true">📬</div>
-              <p className="text-sm font-semibold mb-1" style={{ color: INK }}>
+              <p
+                ref={sentHeadingRef}
+                tabIndex={-1}
+                className="text-sm font-semibold mb-1 focus:outline-none"
+                style={{ color: INK }}
+              >
                 Got it — thanks!
               </p>
               <p className="text-xs leading-relaxed" style={{ color: MUTED }}>

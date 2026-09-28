@@ -66,8 +66,28 @@ export default function SurveyForm({
     setStage('done')
   }
 
+  // Tapping a score swaps the whole card body — rating row → comment box →
+  // thank-you — in place, with nothing spoken. Same defect and same fix as the
+  // portal's survey card: one polite live region narrates the new stage.
+  //
+  // It SUMMARISES the new stage rather than repeating the copy word for word:
+  // the announcement fires, and then the reader arrives at the visible text and
+  // reads it again. Two different sentences is one fact told twice; two
+  // identical ones is a stutter.
+  const liveStatus =
+    stage === 'comment'
+      ? `Saved — you rated ${score} out of 10. A note is optional.`
+      : stage === 'done'
+        ? 'Thanks — your answer is with the team.'
+        : ''
+
   const card = (children: React.ReactNode) => (
-    <div className="bg-white rounded-2xl shadow-sm p-6 sm:p-8" style={{ border: `1px solid ${BORDER}` }}>{children}</div>
+    <div className="bg-white rounded-2xl shadow-sm p-6 sm:p-8" style={{ border: `1px solid ${BORDER}` }}>
+      <p className="sr-only" role="status">
+        {liveStatus}
+      </p>
+      {children}
+    </div>
   )
 
   if (stage === 'done') {

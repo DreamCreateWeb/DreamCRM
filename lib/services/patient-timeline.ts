@@ -1,7 +1,7 @@
 import 'server-only'
 import { and, asc, desc, eq, inArray, isNull, or } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
-import { refundNote } from '@/lib/net-collected'
+import { appendRefund, refundNote } from '@/lib/net-collected'
 import { cancelActorLabel } from '@/lib/cancel-actor'
 import { formatClinicDayTime } from '@/lib/format-datetime'
 import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
@@ -173,11 +173,6 @@ function dollars(cents: number): string {
   return `$${(Number(cents) / 100).toFixed(2)}`
 }
 
-/** One way of joining a refund note onto a subtitle, so the two money entries
- *  on this timeline cannot drift apart in how they say it. */
-function appendRefund(base: string, note: string | null): string {
-  return note ? `${base} · ${note}` : base
-}
 
 export async function getPatientTimeline(
   organizationId: string,

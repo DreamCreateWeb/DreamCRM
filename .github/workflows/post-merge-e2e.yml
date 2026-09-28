@@ -85,8 +85,13 @@ jobs:
     # a merge visibly and someone notices in minutes. This one runs UNATTENDED
     # by design, so a hang would burn up to six runner-hours with nobody
     # looking, and cancel-in-progress only rescues it if another merge happens
-    # to land. Observed wall time is ~4 minutes; 25 caps the failure mode while
-    # leaving ~6x headroom.
+    # to land. MEASURED 2026-09-22 (DREAMCRM-105): median 5m 44s over the last
+    # 15 successful runs, min 4m 13s, max 6m 04s. The line this replaces said
+    # "~4 minutes" and claimed ~6x headroom; the real figure is ~4.4x, which is
+    # still the right shape for a cap on an unattended job. Inside it, the
+    # harness is 4m 38s: a Next build (~2m) and the browser suite (~2m 14s) in
+    # roughly equal halves, with Postgres, the migrations, the fixture and both
+    # servers together costing about seven seconds. docs/E2E.md has the table.
     timeout-minutes: 25
     steps:
       - name: Checkout
@@ -127,7 +132,16 @@ jobs:
           path: |
             playwright-report/
             e2e-results.json
-          retention-days: 7
+          # FOURTEEN, NOT SEVEN (DREAMCRM-105). Seven was sized for a person
+          # opening ONE report after a red run. `scripts/e2e-flaky-digest.mjs`
+          # now reads a WEEK of these together, and a weekly digest with an
+          # eight-day window against seven-day evidence loses that race every
+          # time GitHub's scheduler slips — which it does by five and a half
+          # hours on an ordinary day. The digest would then report a gap every
+          # single week, and a permanently-red alarm is a disabled alarm (§2a).
+          # Raising the retention was the fix; shrinking the window would have
+          # been the bug.
+          retention-days: 14
 
       - name: Say plainly what a red run here means
         if: failure()

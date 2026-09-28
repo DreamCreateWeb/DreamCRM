@@ -669,6 +669,17 @@ export const notifications = pgTable(
     // NULL for everything else, which is nearly every notification in the
     // product: a second "Sarah replied" IS a second notification.
     dedupeKey: text('dedupe_key'),
+    // PER-CHANNEL DELIVERY STATE (DREAMCRM-106). The bell row and the email
+    // are not one unit — the row commits first and the email is a network call
+    // after it — so a row on its own cannot answer "did the email go out?".
+    // Without that answer a replay has to choose between re-emailing everybody
+    // and emailing nobody, and `dedupeKey` chose nobody.
+    //
+    // Stamped by `notify()` the moment `sendNotificationEmail` RESOLVES, for
+    // every dispatch that emails, keyed or not. NULL therefore means one of
+    // two things and never "we think it probably went": no email was owed
+    // (the user's mode, `suppressEmail`), or one was owed and did not land.
+    emailSentAt: timestamp('email_sent_at', { withTimezone: true }),
     readAt: timestamp('read_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },

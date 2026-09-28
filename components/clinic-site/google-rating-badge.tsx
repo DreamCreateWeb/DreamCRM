@@ -70,7 +70,14 @@ export default function GoogleRatingBadge({
       </span>
       <span className={`font-semibold ${textSize}`} style={{ color: headingInk }}>
         <span className="tabular-nums">{average.toFixed(1)}</span>
-        <span className="font-normal" style={{ opacity: 0.7 }}>
+        {/* "· 12 reviews on Google". This rode `opacity: 0.7` on the heading
+            ink, and the badge paints on TWO grounds: on the deep band that
+            composites to 4.66-6.94 and is fine, on the light ground it is
+            2.66-6.81 — readable for some brands a clinic can pick and not for
+            others, which is exactly what grading one clinic's value hides.
+            `font-normal` beside a `font-semibold` number carries the same
+            hierarchy and is graded on every brand. */}
+        <span className="font-normal">
           {' '}
           · {count} {count === 1 ? 'review' : 'reviews'} on Google
         </span>

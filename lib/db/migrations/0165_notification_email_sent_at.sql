@@ -1,0 +1,32 @@
+-- DREAMCRM-106 — `notifications.email_sent_at`, the per-channel half of 0164.
+--
+-- 0164 made a replayable notification at-most-once per (recipient, key), and
+-- took a trade to do it: the bell row and the email are not one unit. The row
+-- commits first, ANY email failure — not only a crash — is swallowed by
+-- `notify()`'s own catch, and `deliver()`'s 10s deadline turns a merely slow
+-- provider into a throwing one. So a replay conflicted on the row and returned,
+-- and the email it would have re-attempted before 0164 was gone for good. The
+-- three dispatches this reaches are "a clinic signed up", "a clinic cancelled"
+-- and "payment failed", each to every platform owner and admin.
+--
+-- That trade existed because a row cannot say whether its email went out. This
+-- column says so. `notify()` stamps it the moment `sendNotificationEmail`
+-- RESOLVES; a replay that finds a row with a NULL stamp re-attempts the EMAIL
+-- ONLY and still writes no second bell row.
+--
+-- NULL therefore means one of exactly two things and never "probably went": no
+-- email was owed (the recipient's mode, or `suppressEmail`), or one was owed
+-- and did not land.
+--
+-- NO PRODUCTION PRECONDITION and NO INDEX. The column is new and NULLABLE, so
+-- every existing row gets NULL — correct on its own terms, since none of them
+-- has a recorded send. Nothing queries by this column: it is read one row at a
+-- time, on the replay path, through `notifications_user_dedupe_idx`, which
+-- already exists and already identifies that row uniquely.
+--
+-- LOCK NOTE (deploy path): a nullable `ADD COLUMN` with no default is a
+-- catalog-only change in Postgres 11+ — no table rewrite, no scan, an ACCESS
+-- EXCLUSIVE lock held for the duration of the catalog write. Unlike 0164's
+-- `CREATE INDEX` beside it, this one does not touch a page of the table.
+
+ALTER TABLE "notifications" ADD COLUMN "email_sent_at" timestamp with time zone;

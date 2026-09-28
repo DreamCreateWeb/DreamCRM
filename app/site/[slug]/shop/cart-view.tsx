@@ -188,11 +188,17 @@ export default function CartView({
 
       {/* Fulfillment */}
       {pickupEnabled && shippingEnabled && (
-        <div className="flex gap-2 mb-5">
+        // Parity with the booking choice-chips and the portal slot picker: a
+        // set of aria-pressed siblings needs a NAMED group, or each chip is
+        // announced as a loose toggle belonging to nothing — and the selection
+        // was carried by the brand fill alone, which is not spoken at all.
+        <div className="flex gap-2 mb-5" role="group" aria-label="How would you like to get it?">
           {(['pickup', 'ship'] as const).map((f) => (
             <button
               key={f}
+              type="button"
               onClick={() => setFulfillment(f)}
+              aria-pressed={fulfillment === f}
               className="flex-1 text-[14px] font-medium px-4 py-2.5 rounded-xl border"
               style={fulfillment === f ? { backgroundColor: brandFill(brand), color: '#fff', borderColor: brandFill(brand) } : { borderColor: BORDER, color: INK_MUTED }}
             >
@@ -201,12 +207,14 @@ export default function CartView({
           ))}
         </div>
       )}
-      {fulfillment === 'ship' && (
-        <p className="text-[13px] mb-4" style={{ color: INK_MUTED }}>Shipping + any tax are calculated at checkout. You&apos;ll enter your address on the next screen.</p>
-      )}
-      {fulfillment === 'pickup' && (
-        <p className="text-[13px] mb-4" style={{ color: INK_MUTED }}>We&apos;ll have your order ready to grab at your next visit.</p>
-      )}
+      {/* Switching fulfillment also swaps this note and re-labels the total
+          ("Total" ↔ "Total before shipping/tax"). One polite region narrates
+          the phase rather than letting the copy change in silence. */}
+      <p className="text-[13px] mb-4" role="status" style={{ color: INK_MUTED }}>
+        {fulfillment === 'ship'
+          ? 'Shipping + any tax are calculated at checkout. You’ll enter your address on the next screen.'
+          : 'We’ll have your order ready to grab at your next visit.'}
+      </p>
 
       {/* Contact */}
       <div className="space-y-3 mb-5">

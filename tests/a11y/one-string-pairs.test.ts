@@ -13,6 +13,7 @@ import {
   scanForParityFailures,
   scanForUngradedStringPairs,
   quotedChunks,
+  readChunks,
   scanForWhiteOnShallowBrand,
   UI_ROOTS,
   uiSourceFiles,
@@ -257,6 +258,246 @@ describe('the shared chunk reader', () => {
     expect(files.length, 'the walk must actually be visiting files').toBeGreaterThan(1000)
     expect(lines, 'and reading their lines').toBeGreaterThan(100_000)
     expect(lost.slice(0, 20), 'class tokens the old reader saw and the new one does not').toEqual([])
+  })
+})
+
+
+/* ── the tree walk feeds the reader until the reader is done ─────────────── */
+
+/**
+ * THE MULTI-LINE WIDENING (DREAMCRM-107, punch-list item 3).
+ *
+ * The residual #657 left behind and named: a template literal broken across
+ * source lines was invisible, because `eachClassString` split a file on
+ * newlines and handed the scanner one line at a time. The opening line never
+ * closed, so its static text was dropped; the continuation lines carried no
+ * quote to find. 22 lines in the tree carried a colour utility no chunk
+ * contained, `welcome-interview.tsx:579` among them — a full rule 7 subject,
+ * ungraded for a purely syntactic reason.
+ *
+ * `readChunks` is the whole mechanism: the same scan, plus whether it ended
+ * inside an open template. The caller keeps appending lines until it is
+ * closed. The reader itself did not change, which is why the per-line
+ * assertions above are untouched and still exercise exactly the code the tree
+ * walk runs.
+ *
+ * FOUR THINGS ARE ASSERTED HERE, and they are four different questions:
+ *
+ *   1. `readChunks` answers `open` correctly, both directions.
+ *   2. The joined walk reads a multi-line template that the per-line walk did
+ *      not — the field of view really widened.
+ *   3. Over the REAL TREE, the widening loses no colour utility the per-line
+ *      walk could see. Additive, measured, not by construction.
+ *   4. Over the REAL TREE, no colour utility in any source line is left with
+ *      no chunk carrying it. **This is the one that is not a comparison
+ *      against the predecessor** — §2d's rule that an additive lock can never
+ *      measure what neither instrument sees, so to measure what an instrument
+ *      cannot see you compare it against the SOURCE. It is also the assertion
+ *      that fails if anybody ever puts the per-line caller back.
+ */
+describe('the tree walk feeds the reader until the reader is done', () => {
+  /**
+   * A colour utility as the RULES define one — a ramp step, `white` or
+   * `black`. Deliberately not "any lowercase word with a dash": `to-do`,
+   * `text-only` and `bg-soft` are English and appear in this tree's prose, and
+   * counting them would report a residual the graders never had.
+   *
+   * A COPY OF A PATTERN OWES A SELF-CHECK (§2d, and this file's own header
+   * about the OLD regex arriving with a mangled backreference). The first test
+   * below is that self-check; without it, a pattern that had quietly stopped
+   * matching would make assertions 3 and 4 pass over nothing at all.
+   */
+  const COLOUR_UTILITY =
+    /(?:^|[\s'"`{(])((?:[a-z-]+:)*(?:text|bg|from|via|to)-(?:[a-z]+-\d{2,3}|white|black))(?![\w-])/g
+  const colourUtilities = (text: string): string[] =>
+    Array.from(text.matchAll(COLOUR_UTILITY)).map((m) => m[1])
+
+  /** The caller as it was before this change, verbatim, to measure against. */
+  function eachClassStringPerLine(visit: (file: string, chunk: string) => void): void {
+    for (const file of uiSourceFiles()) {
+      readFileSync(join(ROOT, file), 'utf8')
+        .split('\n')
+        .forEach((line) => {
+          for (const chunk of quotedChunks(line)) visit(file, chunk)
+        })
+    }
+  }
+
+  it('the colour-utility pattern this file grades WITH still matches, and still discriminates', () => {
+    expect(colourUtilities('rounded bg-stone-800 dark:text-white p-2')).toEqual([
+      'bg-stone-800',
+      'dark:text-white',
+    ])
+    expect(colourUtilities('`hover:bg-teal-600`')).toEqual(['hover:bg-teal-600'])
+    // The English this tree actually contains. A pattern that matched these
+    // would report a residual of prose forever and be switched off.
+    expect(colourUtilities('three to-dos and a text-only fallback, bg-soft')).toEqual([])
+    expect(colourUtilities('bg-[var(--c-brand)] text-[13px]')).toEqual([])
+  })
+
+  it('reports whether the text ran out inside an open template', () => {
+    expect(readChunks("className={`p-2 text-gray-400`}").open).toBe(false)
+    expect(readChunks("className={`p-2 text-gray-400").open).toBe(true)
+    // An interpolation that does not close leaves the template open too.
+    expect(readChunks("className={`p-2 ${on && 'bg-white'").open).toBe(true)
+    // AND THE ASYMMETRY THAT MAKES JOINING SAFE. An unpartnered quote opens
+    // nothing — the scanner steps over it rather than running to the next
+    // quote — so a line of JSX prose can never start swallowing the file.
+    expect(readChunks(`<p>it's fine</p>`).open).toBe(false)
+    expect(readChunks(`const s = "unterminated`).open).toBe(false)
+  })
+
+  it('reads a template broken across lines that the per-line walk could not', () => {
+    // The `welcome-interview.tsx:579` shape, split the way the real file does.
+    const source = [
+      'const cls = `max-w-[85%] rounded-2xl',
+      "  bg-stone-800 dark:bg-stone-200 px-4 py-2.5",
+      '  text-sm text-white dark:text-stone-900`',
+    ]
+    const perLine = source.flatMap((l) => quotedChunks(l))
+    expect(
+      perLine.some((c) => c.includes('bg-stone-800')),
+      'the per-line reader must NOT see this, or the test below proves nothing',
+    ).toBe(false)
+
+    const joined = quotedChunks(source.join('\n'))
+    const whole = joined.find((c) => c.includes('bg-stone-800'))
+    expect(whole, 'the joined text must yield the template statics as one chunk').toBeDefined()
+    // ONE chunk carrying BOTH halves, which is what makes it rule 7's subject
+    // rather than two unrelated fragments.
+    expect(whole).toContain('dark:bg-stone-200')
+    expect(whole).toContain('text-white')
+    expect(whole).toContain('dark:text-stone-900')
+  })
+
+  it('grades THE named residual site, at the line its template opens on', () => {
+    // `welcome-interview.tsx:579` is the one the punch list named — rule 7's
+    // both-halves-overridden subject, the auth-button shape, sitting ungraded
+    // for a purely syntactic reason. It is the whole point of this change, so
+    // it is asserted by name rather than left to a tree-wide count.
+    //
+    // KEYED ON BOTH HALVES TOGETHER. The same file writes
+    // `bg-stone-800 dark:bg-stone-200` on a single line elsewhere (a progress
+    // bar at 284), so matching the surface pair alone would pass with this
+    // site still unread. Rule 7's subject is an ink AND a surface in ONE
+    // string, and that is the chunk this has to find.
+    const found: { line: number; chunk: string }[] = []
+    eachClassString(['app'], (file, line, chunk) => {
+      if (!file.endsWith('welcome/welcome-interview.tsx')) return
+      if (chunk.includes('dark:bg-stone-200') && chunk.includes('dark:text-stone-900')) {
+        found.push({ line, chunk })
+      }
+    })
+
+    expect(found, 'the named residual site must yield exactly one chunk').toHaveLength(1)
+    // The line the TEMPLATE opens on — where a reader following a `file:line`
+    // in a red CI log would look, and where the class string really starts.
+    expect(found[0].line).toBe(579)
+    expect(found[0].chunk).toContain('rounded-tr-sm')
+    // And it reads: this residual was always predicted to be clean, and
+    // grading it is a different fact from having predicted it.
+    expect(gradeSameStringPair(found[0].chunk)).toBeNull()
+  })
+
+  it('LOSES NO COLOUR UTILITY the per-line walk could see, across the real tree', () => {
+    // THE ADDITIVE LOCK, at the CALLER this time. The one above it is about
+    // `quotedChunks` over a line; this is about what the tree walk delivers,
+    // and they are different instruments — a caller change can lose a chunk
+    // without the reader losing a thing.
+    //
+    // MEASURED: the join drops 115 chunks the per-line walk produced and NOT
+    // ONE of them carries a colour utility. They are interpolation SOURCE
+    // (`${BRAND.blueLight}` and friends) that leaked as chunks only because
+    // the template around them never closed on the line. Losing a JavaScript
+    // expression is the point of the change.
+    const per = new Map<string, string[]>()
+    eachClassStringPerLine((file, chunk) => {
+      const have = per.get(file) ?? []
+      have.push(...colourUtilities(chunk))
+      per.set(file, have)
+    })
+
+    const now = new Map<string, Set<string>>()
+    eachClassString(UI_ROOTS, (file, _line, chunk) => {
+      let have = now.get(file)
+      if (!have) now.set(file, (have = new Set()))
+      for (const t of colourUtilities(chunk)) have.add(t)
+    })
+
+    const lost: string[] = []
+    let counted = 0
+    // `Array.from` rather than iterating the Map: this tsconfig targets below
+    // es2015 and refuses a bare `for...of` over one, the same reason
+    // `foldHeadroom` spells it out in e2e/axe-headroom.ts.
+    for (const [file, tokens] of Array.from(per)) {
+      for (const t of tokens) {
+        counted++
+        if (!now.get(file)?.has(t)) lost.push(`${file}: ${t}`)
+      }
+    }
+
+    expect(counted, 'the per-line walk must actually be finding colour utilities').toBeGreaterThan(
+      10_000,
+    )
+    expect(lost.slice(0, 20), 'colour utilities the per-line walk saw and the joined one does not').toEqual(
+      [],
+    )
+  })
+
+  it('leaves NO colour utility in the tree with no chunk carrying it', () => {
+    // THE RESIDUAL, ASSERTED RATHER THAN CARRIED. §2d: an additive lock
+    // compares the new instrument against the old one, so anything BOTH are
+    // blind to is invisible to it by construction — to measure what an
+    // instrument cannot see you compare it against the SOURCE.
+    //
+    // That is exactly how the per-line hole was found and it is what this
+    // assertion now closes: **35 colour utilities across 22 lines** had no
+    // chunk containing them before this change, and zero do after.
+    //
+    // WHAT IT CLAIMS, precisely, because the scope is the honest part: for
+    // every FILE, every colour utility appearing anywhere in its text appears
+    // in some chunk of that file. It does not claim the chunk came from the
+    // same LINE — a token inside a multi-line template is attributed to the
+    // template's opening line, so a per-line form of this would be false by
+    // design rather than by defect. A colour utility written only inside a
+    // comment is covered when the same utility is used elsewhere in the file
+    // and would be reported here otherwise; today the tree has none.
+    const inChunks = new Map<string, Set<string>>()
+    eachClassString(UI_ROOTS, (file, _line, chunk) => {
+      let have = inChunks.get(file)
+      if (!have) inChunks.set(file, (have = new Set()))
+      for (const t of colourUtilities(chunk)) have.add(t)
+    })
+
+    const unread: string[] = []
+    let scanned = 0
+    for (const file of uiSourceFiles()) {
+      const have = inChunks.get(file) ?? new Set<string>()
+      readFileSync(join(ROOT, file), 'utf8')
+        .split('\n')
+        .forEach((raw, i) => {
+          // Both renderings, on every platform — the same reason the per-line
+          // lock grades LF and CRLF: a Windows checkout and the Ubuntu runner
+          // read a different string per line, and only one of them gates a
+          // merge.
+          const lf = raw.endsWith('\r') ? raw.slice(0, -1) : raw
+          for (const t of Array.from(
+            new Set([...colourUtilities(lf), ...colourUtilities(`${lf}\r`)]),
+          )) {
+            scanned++
+            if (!have.has(t)) unread.push(`${file}:${i + 1} ${t}`)
+          }
+        })
+    }
+
+    expect(scanned, 'the source scan must actually be finding colour utilities').toBeGreaterThan(
+      10_000,
+    )
+    expect(
+      unread.slice(0, 20),
+      'colour utilities written in the tree that NO chunk carries — every rule in class-pairs.ts ' +
+        'and dimmed-text.ts is structurally blind to these, whatever their scan returns',
+    ).toEqual([])
   })
 })
 

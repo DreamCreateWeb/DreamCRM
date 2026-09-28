@@ -451,8 +451,13 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
                 </p>
               ) : (
                 <p
-                  className="dc-edit-only text-base sm:text-lg italic opacity-50 leading-[1.55] mb-8 max-w-[460px] mx-auto"
-                  style={{ color: INK }}
+                  className="dc-edit-only text-base sm:text-lg italic leading-[1.55] mb-8 max-w-[460px] mx-auto"
+                  // The Studio's own prompt, and the editor reading it is a
+                  // person. `italic` already says "not your copy yet"; the
+                  // opacity was a second quietening on an ink the tenant
+                  // palette had graded UNquietened, and nothing graded the
+                  // composite — 3.20-3.29 across every brand a clinic can pick.
+                  style={{ color: INK_MUTED }}
                   data-edit-field="about"
                   data-edit-kind="modal"
                   data-edit-label="intro"
@@ -738,7 +743,11 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
                         <div className="font-semibold text-[15px] leading-tight" style={{ color: INK_MUTED }}>
                           Add a team member
                         </div>
-                        <div className="text-[12.5px] mt-0.5 font-medium" style={{ color: INK_MUTED, opacity: 0.65 }}>
+                        {/* The quiet ink at 65% composites to 2.54-2.83 on the
+                            tenant ground for every brand — a second quietening
+                            of an ink already chosen to be quiet. The smaller
+                            size is the hierarchy. */}
+                        <div className="text-[12.5px] mt-0.5 font-medium" style={{ color: INK_MUTED }}>
                           Their role
                         </div>
                       </figcaption>
@@ -853,8 +862,9 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
                 </p>
               ) : (
                 <p
-                  className="dc-edit-only text-lg italic opacity-50 leading-[1.55] mb-8"
-                  style={{ color: INK }}
+                  className="dc-edit-only text-lg italic leading-[1.55] mb-8"
+                  // Same prompt, the narrow layout's copy of it.
+                  style={{ color: INK_MUTED }}
                   data-edit-field="about"
                   data-edit-kind="modal"
                   data-edit-label="intro"

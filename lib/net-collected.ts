@@ -113,6 +113,24 @@ export function refundNote(
     : `${formatCents(refunded)} refunded`
 }
 
+/**
+ * How a per-EVENT surface JOINS that note onto whatever it already said —
+ * `Paid · $100.00 refunded`.
+ *
+ * Single-homed for the reason `refundNote` is, one level out: the note is
+ * useless if one surface appends it with a `·`, the next with a dash and the
+ * third with a parenthesis, because a clinic reading two screens is then
+ * reading two different things. It lived as a private helper in
+ * `lib/services/patient-timeline.ts` until DREAMCRM-122 needed the same join
+ * in ⌘K, which is the moment a second copy would have been written.
+ *
+ * A null note returns `base` UNCHANGED — the separator is not printed on its
+ * own, so a surface can call this unconditionally without testing first.
+ */
+export function appendRefund(base: string, note: string | null): string {
+  return note ? `${base} · ${note}` : base
+}
+
 /** `amount − refunded`, clamped at 0, for ONE row. */
 export function netCollectedSql(amount: AnyColumn, refunded: AnyColumn): SQL<number> {
   return sql<number>`greatest(${amount} - coalesce(${refunded}, 0), 0)`

@@ -159,6 +159,65 @@ jobs:
       # a missing or unparseable file as a FAILED LOOKUP, names it in the
       # summary, and goes red. Failing closed is the only safe default for a
       # check whose green means "nothing has stopped".
+      # THE OTHER KIND OF ALARM (DREAMCRM-115). `push-alarm.yml` runs on
+      # `deploy.yml`'s completion rather than on a clock, so the question above
+      # cannot be asked of it — it has no cadence to be late against, and a
+      # quiet week of merges is not a dead alarm. The question that DOES work
+      # is pairing: is there a run of the alarm at or after the newest settled
+      # run of the workflow it watches?
+      #
+      # UNIFORM ON PURPOSE. This loop asks the same two things of EVERY
+      # workflow file rather than working out which ones are watchers and which
+      # are upstreams — that derivation lives in `declaredWatchers`, in node,
+      # against the tree, and a second copy of it in bash is the drifting list
+      # this whole job exists to refuse. The cost is two extra `gh` calls per
+      # file on a daily job; the alternative is a bash parser for
+      # `on.workflow_run.workflows`.
+      #
+      # `--event workflow_run` is LOAD-BEARING for the same reason
+      # `--event schedule` is above: a `workflow_dispatch` run proves somebody
+      # pressed the button, and this check must never read that as the wire
+      # being live. No `--event` filter on the upstream half, because a deploy
+      # is a `push` run and its event is not the question.
+      - name: Which alarms fire on another workflow, and did they?
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -uo pipefail
+          echo '{}' > watcher-runs.json
+          echo '{}' > recent-runs.json
+
+          # BOTH SPELLINGS and `nullglob`, the same as the loop above — a
+          # `.yaml` workflow that `declaredWatchers` derives and this loop
+          # missed would be graded with no run entry at all.
+          shopt -s nullglob
+          for path in .github/workflows/*.yml .github/workflows/*.yaml; do
+            file=$(basename "$path")
+
+            gh run list --repo ${{ github.repository }} --workflow "$file" \
+              --branch main --event workflow_run --limit 1 \
+              --json databaseId,conclusion,createdAt > "wr-$file.json" || echo '[]' > "wr-$file.json"
+
+            gh run list --repo ${{ github.repository }} --workflow "$file" \
+              --branch main --limit 10 \
+              --json databaseId,conclusion,status,createdAt > "any-$file.json" || echo '[]' > "any-$file.json"
+
+            FILE="$file" node -e '
+              const fs = require("fs")
+              const file = process.env.FILE
+              const watcher = JSON.parse(fs.readFileSync("watcher-runs.json", "utf8"))
+              const recent = JSON.parse(fs.readFileSync("recent-runs.json", "utf8"))
+              let wr = []
+              let any = []
+              try { wr = JSON.parse(fs.readFileSync(`wr-${file}.json`, "utf8")) } catch {}
+              try { any = JSON.parse(fs.readFileSync(`any-${file}.json`, "utf8")) } catch {}
+              watcher[file] = Array.isArray(wr) && wr.length ? wr[0] : null
+              recent[file] = Array.isArray(any) ? any : []
+              fs.writeFileSync("watcher-runs.json", JSON.stringify(watcher))
+              fs.writeFileSync("recent-runs.json", JSON.stringify(recent))
+            '
+          done
+
       - name: Which workflows has GitHub turned off?
         env:
           GH_TOKEN: ${{ github.token }}
@@ -166,5 +225,10 @@ jobs:
           gh workflow list --repo ${{ github.repository }} --all \
             --json name,path,state > workflows.json || true
 
-      - name: Does every schedule still have a pulse?
-        run: node scripts/schedule-heartbeat.mjs --runs runs.json --workflows workflows.json --added added.json
+      # ONE LINE, deliberately — the same reason `review-sweep.yml` gives.
+      # `tests/guards/schedule-heartbeat.test.ts` reads this argument list with
+      # a single-line regex to check the script is told where every lookup
+      # landed. A `\` continuation here would leave that guard green while
+      # grading nothing.
+      - name: Does every alarm still have a pulse?
+        run: node scripts/schedule-heartbeat.mjs --runs runs.json --workflows workflows.json --added added.json --watcher-runs watcher-runs.json --recent-runs recent-runs.json

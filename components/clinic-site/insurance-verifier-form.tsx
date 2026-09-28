@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { submitInsuranceVerifyRequest } from '@/app/site/[slug]/insurance-verify-action'
 import { DEFAULT_LEAD_FORMS, type LeadFormField } from '@/lib/types/lead-forms'
 import FormTrustFields from '@/components/clinic-site/form-trust-fields'
@@ -41,6 +41,16 @@ export default function InsuranceVerifierForm({ slug, brand, carriers, services,
   const [errorMsg, setErrorMsg] = useState('')
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
 
+  // The success panel REPLACES the form, so the submit button unmounts and
+  // focus falls back to <body> — a patient asking whether their plan is
+  // accepted pressed Check and heard nothing. A live region cannot carry a
+  // surface that mounts already-populated; focus is the phase-change contract,
+  // same as the booking form's BookingSuccess.
+  const successHeadingRef = useRef<HTMLParagraphElement | null>(null)
+  useEffect(() => {
+    if (status === 'success') successHeadingRef.current?.focus()
+  }, [status])
+
   const carrierList = (carriers ?? []).filter((c) => c.trim().length > 0)
   const serviceList = (services ?? []).filter((s) => s.trim().length > 0)
   const formFields = fields && fields.length > 0 ? fields : DEFAULT_LEAD_FORMS.insurance_verifier
@@ -68,7 +78,13 @@ export default function InsuranceVerifierForm({ slug, brand, carriers, services,
             <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
           </svg>
         </div>
-        <p className="text-base font-semibold text-[var(--c-deep-ink,#FFFFFF)] mb-1">Thanks!</p>
+        <p
+          ref={successHeadingRef}
+          tabIndex={-1}
+          className="text-base font-semibold text-[var(--c-deep-ink,#FFFFFF)] mb-1 focus:outline-none"
+        >
+          Thanks!
+        </p>
         <p className="text-sm text-[var(--c-deep-ink,#FFFFFF)]/80">
           We&apos;ll be in touch within one business day.
         </p>
@@ -208,8 +224,10 @@ export default function InsuranceVerifierForm({ slug, brand, carriers, services,
       <FormTrustFields />
       {formFields.map(renderField)}
 
+      {/* The one node that has to interrupt: the submit failed and the patient
+          is still looking at the button they just pressed. */}
       {status === 'error' && (
-        <p className="text-sm font-medium text-rose-100 bg-rose-900/30 rounded-xl px-4 py-2">
+        <p role="alert" className="text-sm font-medium text-rose-100 bg-rose-900/30 rounded-xl px-4 py-2">
           {errorMsg}
         </p>
       )}

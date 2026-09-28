@@ -1,0 +1,278 @@
+name: Weekly E2E flake digest
+
+# WHICH SPECS FLAKED THIS WEEK — ACROSS RUNS (DREAMCRM-105 deliverable 2).
+#
+# `scripts/e2e-flaky-summary.mjs` closed the first half: a retry no longer
+# erases its own evidence. It names every test that passed only on a second
+# attempt, on that run's job summary, and keeps the Playwright report for a
+# green run too.
+#
+# What it cannot do is COUNT. Each report lands in one run's summary and one
+# artifact, and nothing had ever read two of them together — so "portal-billing
+# flaked" was a sentence somebody happened to see on a Tuesday and "it flakes
+# about once a day" was a guess. One flake in one run is weather. The same spec
+# in four runs in a week is a defect with a rate, and that difference is the
+# only thing that decides whether anybody works on it.
+#
+# ============================ THIS GATES NOTHING =============================
+#
+# No `pull_request`, no `push`, no required status-check context, no `needs:`.
+# It reads runs that had already happened. It cannot hold a merge.
+#
+# WHY IT GOES RED, when `error-scan.yml` deliberately does not. §2a's lesson is
+# that a permanently red alarm is a disabled alarm — six red review-sweep
+# mornings became wallpaper and #636 merged into them. That bites when the red
+# has a QUEUE behind it somebody has to work through entry by entry. This one
+# has none: the window is one cadence wide, so a flake fixed on Tuesday reddens
+# at most ONE more digest before the window rolls past it. Red is the right
+# signal here and exit 0 would be the wrong one.
+#
+# WHAT WATCHES IT. This workflow has a `cron:`, so it is in
+# `scripts/schedule-heartbeat.mjs`'s derived list automatically and reports on
+# its own silence like every other schedule — no edit to that file, no second
+# list to fall out of date. That is the standing convention: every new alarm
+# ships with the thing that notices it STOPPED.
+#
+# WHO READS A RED RUN — the same honest answer `post-merge-e2e.yml`,
+# `review-sweep.yml` and `schedule-heartbeat.yml` all give. Nothing in
+# `.github/` routes a workflow failure anywhere, so delivery is GitHub's default
+# failed-run notification plus the Actions tab. One inbox. If this starts being
+# ignored, give it a real addressee; do not delete it.
+on:
+  schedule:
+    # Monday 09:23 UTC = 05:23 EDT. Off the hour because the top of one is when
+    # GitHub's scheduler queue is longest (`docs/CI.md`, "When it really runs",
+    # has the sample table), and behind the morning cluster — rulebook-drift at
+    # 06:17, nightly 06:37, review-sweep 06:47, heartbeat 07:07 — so a slipping
+    # daily job and this weekly one are not asking at the same moment.
+    #
+    # Monday so the week's rate is on the page at the start of the week it
+    # would be acted on, rather than on a Friday afternoon.
+    #
+    # THE WINDOW IS EIGHT DAYS AGAINST THIS SEVEN-DAY CADENCE. The extra day is
+    # slip allowance: GitHub put this repo's daily jobs five and a half hours
+    # late on an ordinary Tuesday, and a window exactly one cadence wide leaves
+    # a hole that size every time — a run in the hole is never examined by any
+    # digest, which is the rolling-window failure `review-sweep.yml` refuses.
+    # Overlapping is the safe direction. See WINDOW_DAYS in the script.
+    - cron: '23 9 * * 1'
+  workflow_dispatch: {}
+
+concurrency:
+  group: e2e-flaky-digest
+  cancel-in-progress: false
+
+# `contents` for the checkout, `actions` for `gh run list` / `gh api
+# .../artifacts` / `gh run download` — this repository's own run history and
+# its artifacts. Nothing is written back to GitHub.
+#
+# All three spellings are real `permissions:` keys. `rulebook-drift.yml` shipped
+# a draft asking for `administration: read`, which is not a scope at all: GitHub
+# rejected the whole file and published NO check-run, twice, in 0 seconds — a
+# failure `gh pr checks` could not show.
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  # NOT named `test` or `e2e`. Those two are the required status-check contexts
+  # on main's branch protection, and a second producer of either name reporting
+  # onto a commit is how a green check stops meaning anything.
+  # `tests/guards/e2e-flaky-digest.test.ts` pins it.
+  e2e-flaky-digest:
+    name: e2e-flaky-digest (alarm, gates nothing)
+    runs-on: ubuntu-latest
+    # A `gh` call, some artifact downloads and one small node script. No
+    # install step anywhere; it has no business inheriting GitHub's 6-hour
+    # default. The downloads are the only part with any weight — about forty
+    # reports at ~1–10 MB each in a bad week.
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # THE DENOMINATOR. Written to a file rather than piped so the script
+      # stays a pure comparator the guard test can drive with fixtures,
+      # offline — the same shape as `scripts/rulebook-drift.mjs` and
+      # `scripts/schedule-heartbeat.mjs`.
+      #
+      # `e2e-flake-hunt.yml` is deliberately NOT in this list: a hunt runs one
+      # spec fifty times at --retries=0, so its failures are the deliverable
+      # rather than an accident, and pooling them would put a number nobody
+      # should act on into the same column as the routine runs.
+      # ============================ THE DENOMINATOR ==========================
+      #
+      # `--limit 1000`, AND THE SCRIPT IS TOLD THE NUMBER. Both halves are the
+      # fix for the same finding (Sentinel, reviewing #684).
+      #
+      # It was 200. Measured against the real history for the 8-day window this
+      # workflow opens with: **423** `ci.yml` runs, 127 `post-merge-e2e`, 9
+      # `nightly`. `gh run list` returns most-recent-first, so 200 kept the last
+      # ~4 days of `ci.yml` and discarded 223 runs under a headline saying 8
+      # days — and the damage does not stop at a wrong census: the artifact
+      # filter below is `wanted.has(a.runId)` built from THIS file, so every
+      # report belonging to a discarded run is dropped before the download step.
+      # Nothing reaches `expected`, nothing reaches `unreadable`, `blind` stays
+      # empty, and the run exits 0. A spec that flaked twice in the discarded
+      # half is invisible, and `e2e/portal-billing.spec.ts` flakes on PR `e2e`
+      # runs — exactly the population being cut.
+      #
+      # THE LIMIT ALONE WOULD NOT BE A FIX, which is the part worth keeping: a
+      # number chosen today is a number the repo's own merge rate outgrows
+      # quietly. `--run-limit` hands the same figure to the script, which goes
+      # RED when any workflow's list comes back AT it. Raise the number when it
+      # says so.
+      #
+      # It differs from `windowGap` in `scripts/review-sweep.mjs` in one way
+      # worth stating: that one compares the oldest merge it saw against a
+      # cut-off, because `gh pr list` has no date filter. Here `--created`
+      # filters server-side, so everything returned is inside the window by
+      # construction and the oldest row proves nothing. The count hitting the
+      # limit is the only signal there is.
+      #
+      # PER-WORKFLOW FAILURE IS RECORDED, NOT SWALLOWED. `|| true` meant one
+      # rate-limited query produced a silently short denominator with no blind
+      # entry — only all three failing was caught, by the zero-runs branch. Each
+      # query now writes its own file and a failure appends a line to
+      # `lookup-failures.txt`, which the script reads and reddens on.
+      - name: List this week's browser-suite runs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_LIMIT: '1000'
+        run: |
+          set -uo pipefail
+          : > lookup-failures.txt
+          SINCE=$(node -e 'const d=new Date(Date.now()-8*864e5);process.stdout.write(d.toISOString())')
+          echo "Window opens $SINCE (limit ${RUN_LIMIT} per workflow)"
+          for WF in ci.yml post-merge-e2e.yml nightly.yml; do
+            if gh run list --repo ${{ github.repository }} --workflow "$WF" \
+                 --created ">=${SINCE}" --limit "${RUN_LIMIT}" \
+                 --json databaseId,workflowName,conclusion,createdAt,event \
+                 --jq '.[]' > "runs-${WF}.ndjson"; then
+              echo "  ${WF}: $(grep -c . "runs-${WF}.ndjson" || echo 0) run(s)"
+            else
+              : > "runs-${WF}.ndjson"
+              echo "the run lookup for \`${WF}\` failed, so this run cannot say how many of its runs the window held — the denominator below is short by an unknown amount" >> lookup-failures.txt
+              echo "::warning::run lookup failed for ${WF}"
+            fi
+          done
+          # Stamp each row with the workflow FILE it came from. `workflowName`
+          # is the display name and the script groups the truncation check by
+          # file, so the two must not be the same string by luck.
+          node -e '
+            const fs = require("fs")
+            const out = []
+            for (const wf of ["ci.yml", "post-merge-e2e.yml", "nightly.yml"]) {
+              const raw = fs.readFileSync(`runs-${wf}.ndjson`, "utf8")
+              for (const line of raw.split("\n").filter(Boolean)) {
+                out.push({ ...JSON.parse(line), workflowFile: wf })
+              }
+            }
+            fs.writeFileSync("runs.json", JSON.stringify(out))
+            console.log(`Runs in window: ${out.length}`)
+          '
+
+      # WHICH OF THEM LEFT EVIDENCE. A run that passed cleanly uploads nothing
+      # (the producers upload `if: failure() || flaky`), so absence here is a
+      # zero rather than a hole. The hole is an artifact that EXISTS and cannot
+      # be downloaded — and every run that uploads one had already failed or
+      # flaked, so those are exactly the runs with something to say. The script
+      # compares this list against what actually landed on disk and reddens on
+      # the difference.
+      #
+      # A FAILED LOOKUP WRITES A REASON, NOT AN EMPTY LIST (Sentinel, reviewing
+      # #684). This step used to end `|| echo '[]' > artifacts-pages.json`, and
+      # an empty array is VALID JSON: `readJson` reported no problem,
+      # `lookupFailures` stayed empty, `expected` was `[]`, `unreadable` was
+      # `[]`, and the digest printed "No test needed a retry in any of the 0
+      # reports this week" and exited 0 — a quiet clean week over evidence it
+      # never read, in the file whose header says it fails closed.
+      #
+      # The line in `lookup-failures.txt` is what the script reads. Writing a
+      # sentence rather than relying on a file's absence keeps the two cases
+      # distinguishable: "the lookup died" and "the step never ran" are
+      # different sentences and both are red.
+      - name: Which runs left a Playwright report?
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -uo pipefail
+          if ! gh api --paginate \
+            "repos/${{ github.repository }}/actions/artifacts?per_page=100" \
+            --jq '[.artifacts[] | {name, runId: .workflow_run.id, expired, createdAt: .created_at}]' \
+            > artifacts-pages.json; then
+            : > artifacts-pages.json
+            echo "the artifact lookup failed (gh api exited non-zero), so this run does not know which runs left a Playwright report — every report in the window is unread, not absent" >> lookup-failures.txt
+            echo "::warning::artifact lookup failed"
+          fi
+          # --paginate concatenates one JSON array per page; flatten, then keep
+          # only the report artifacts belonging to a run inside the window.
+          node -e '
+            const fs = require("fs")
+            const raw = fs.readFileSync("artifacts-pages.json", "utf8").trim()
+            const pages = raw ? raw.split("\n").filter(Boolean).map((l) => JSON.parse(l)) : []
+            const all = pages.flat()
+            const wanted = new Set(JSON.parse(fs.readFileSync("runs.json", "utf8")).map((r) => r.databaseId))
+            const names = new Set(["playwright-report", "playwright-report-post-merge", "playwright-report-nightly"])
+            const keep = all.filter((a) => names.has(a.name) && !a.expired && wanted.has(a.runId))
+            fs.writeFileSync("artifacts.json", JSON.stringify(keep))
+            console.log(`${keep.length} report artifact(s) in the window, of ${all.length} artifacts total`)
+          '
+
+      # `|| continue` per download: one artifact that will not come back must
+      # not lose the whole week. The script names every run whose artifact was
+      # listed and did not land, and goes red on it — failing closed rather
+      # than printing a quiet clean week over evidence it could not read.
+      #
+      # TWO OUTCOMES THAT ARE NOT THE SAME THING, and the first version filed
+      # both as "could not be read" (Sentinel, reviewing #684):
+      #
+      #   * THE DOWNLOAD FAILED. The digest was told a report exists and could
+      #     not read it — a genuine hole, and red.
+      #   * THE ARTIFACT HAD NO `e2e-results.json`. The producers upload on
+      #     `failure()`, which includes a run that died before playwright wrote
+      #     its JSON reporter output — a build that never got to the browser,
+      #     say. There were no test results, so there is nothing the digest
+      #     could have learned. That is a fact about the run, not a blind spot
+      #     in the digest, and reddening on it weekly is how this alarm becomes
+      #     wallpaper. Named and counted, not a finding.
+      #
+      # `no-json.txt` is what tells them apart; without it the honest fix would
+      # have been to redden on both, which is the same alarm nobody reads.
+      - name: Download them
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -uo pipefail
+          mkdir -p reports raw
+          : > no-json.txt
+          node -e 'JSON.parse(require("fs").readFileSync("artifacts.json","utf8")).forEach((a)=>console.log(`${a.runId} ${a.name}`))' \
+            > to-download.txt
+          while read -r RUN NAME || [ -n "${RUN:-}" ]; do
+            [ -n "${RUN}" ] || continue
+            rm -rf "raw/${RUN}"
+            gh run download "${RUN}" --repo ${{ github.repository }} --name "${NAME}" --dir "raw/${RUN}" || continue
+            # The json report sits OUTSIDE playwright-report/ (the html
+            # reporter clears that folder), so it lands at the artifact root.
+            if [ -f "raw/${RUN}/e2e-results.json" ]; then
+              cp "raw/${RUN}/e2e-results.json" "reports/${RUN}.json"
+            else
+              echo "${RUN}" >> no-json.txt
+            fi
+          done < to-download.txt
+          echo "Reports on disk: $(ls -1 reports | wc -l); artifacts with no results JSON: $(grep -c . no-json.txt || echo 0)"
+
+      # `--run-limit` and `--lookups` are the two arguments that turned this
+      # from an instrument into a trustworthy one. The first is how a truncated
+      # denominator becomes a red run instead of a confident wrong number; the
+      # second is how a dead `gh` call does. Both are graded in
+      # `tests/guards/e2e-flaky-digest.test.ts` against THIS argument list.
+      - name: Name any spec that flaked in more than one run
+        run: >-
+          node scripts/e2e-flaky-digest.mjs --runs runs.json --artifacts artifacts.json
+          --reports reports --no-json no-json.txt --lookups lookup-failures.txt --run-limit 1000

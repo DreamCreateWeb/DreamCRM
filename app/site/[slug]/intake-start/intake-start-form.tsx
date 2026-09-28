@@ -117,10 +117,22 @@ export default function IntakeStartForm({ orgId, clinicName, brand, purpose = 'i
 
   return (
     <div>
-      {/* Mode toggle */}
+      {/* The toggle swaps the form under itself — the name fields and the phone
+          field mount and unmount, and the submit label changes — with nothing
+          spoken. One polite region narrates which form is now showing. */}
+      <p className="sr-only" role="status">
+        {isSignIn
+          ? 'Sign in — email and password.'
+          : 'New patient — name, email, optional phone and a new password.'}
+      </p>
+      {/* Mode toggle. Parity with the booking choice-chips: a set of
+          aria-pressed siblings needs a NAMED group, or each button is
+          announced as a loose toggle belonging to nothing. */}
       <div
         className="inline-flex items-center p-1 rounded-full mb-6"
         style={{ backgroundColor: 'var(--c-surface-alt, #F1ECE3)' }}
+        role="group"
+        aria-label="Do you already have an account?"
       >
         <button
           type="button"
@@ -208,13 +220,18 @@ export default function IntakeStartForm({ orgId, clinicName, brand, purpose = 'i
           style={inputStyle}
         />
 
+        {/* The one node that has to interrupt: sign-in failed and the patient
+            is still looking at the button they just pressed. */}
         {errorMsg && (
-          <p className="text-sm text-rose-700 bg-rose-50 px-3 py-2 rounded-lg">{errorMsg}</p>
+          <p role="alert" className="text-sm text-rose-700 bg-rose-50 px-3 py-2 rounded-lg">
+            {errorMsg}
+          </p>
         )}
 
         <button
           type="submit"
           disabled={submitting}
+          aria-busy={submitting}
           className="w-full py-3.5 rounded-full text-base font-semibold text-white shadow-sm transition hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
           style={{ backgroundColor: brandFill(brand) }}
         >

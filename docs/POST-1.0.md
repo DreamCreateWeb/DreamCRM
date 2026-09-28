@@ -69,6 +69,39 @@ memory.
   `tests/billing/no-billing-profiles-write.test.ts` — a READ arriving is
   the risk, not the write returning, because it would give those stale rows
   a meaning they never had. The `billing_plan` pgEnum goes with the table.
+- **Re-drive a notification email nobody ever retried** — the sweep
+  `notifications.email_sent_at is null` now makes possible. Recorded
+  2026-09-23 with DREAMCRM-106, which added the column and the replay
+  branch that reads it, and recorded HERE rather than in the ledger because
+  the defect it belonged to is closed: a retry now sends the email that
+  failed. The remaining gap is that SOMETHING HAS TO RETRY. In
+  `app/api/webhooks/stripe/route.ts` `notifyOrgMembers` is the last
+  statement of each of the three branches that use it and `notify()`
+  swallows its own email failure, so the ordinary shape — the provider
+  times out, everything else in the handler succeeded — returns 200, Stripe
+  does not retry, and that email is still gone. The replay path is reached
+  when the idempotency claim fails open, or when the process dies before
+  the claim is released. A periodic sweep over rows with a NULL stamp and a
+  bell row older than N minutes would close the rest; it is new machinery (a
+  writer, a window, a retry budget) rather than a correction, so the freeze
+  puts it here. Raised by Sentinel reviewing #683.
+- **Move the repository to a GitHub organization — an OWNER decision.**
+  Recorded 2026-09-23 (DREAMCRM-114) from Sentinel's DREAMCRM-110 finding,
+  which until now lived only in a comment on a closed issue. DreamCRM is owned
+  by Dustin's personal account, and GitHub's **merge queue requires an
+  organization-owned repository** — Sentinel probed it and GitHub refused, so
+  the structural fix for merge contention is unavailable to us for a reason
+  that has nothing to do with our CI. The cost it leaves in place is measured:
+  `strict: true` means every PR must be up to date before it merges, and on a
+  busy queue that is 1.90 test runs per PR at the current 8m 10s gate, with two
+  of Rio's four DREAMCRM-106 PRs needing a merge of `main` plus a full re-run
+  purely to satisfy it. The recommendation ON the merge rules is unchanged and
+  is NOT this entry — do not relax the up-to-date requirement; make the suite
+  faster (DREAMCRM-110). This is the other lever, and it is post-1.0 because it
+  is an owner decision rather than an effort question: an org move touches
+  billing, the deploy credentials and the Vercel connection, which is the wrong
+  set of things to disturb mid-freeze. Nothing is broken today; it is recorded
+  so the after-1.0 answer has somewhere to be found.
 - Facebook review reply (no Zernio endpoint), per-staff booking widgets,
   patient-view audit log, 2FA, per-location booking (CLAUDE.md item 8).
 - Dentistry-type site templates expansion (CLAUDE.md item 0b — design

@@ -11,6 +11,9 @@ that actually reach a customer.
 ```bash
 pnpm test:e2e          # full: postgres + migrations + build + serve + playwright
 pnpm test:e2e:quick    # same, reusing the existing .next build
+
+# One spec, fifty times — the shape a flake question needs (DREAMCRM-105)
+pnpm test:e2e:quick --spec e2e/portal-billing.spec.ts --repeat 50 -- --retries=0
 ```
 
 `scripts/e2e-harness.sh` does everything and tears down after itself (trap on
@@ -32,11 +35,101 @@ exit, including failure):
 4. **A production build + `next start`** on `:3100`, then a health poll.
 5. **Playwright** against that server.
 
+**What each phase costs** (medians over 10 successful `e2e` jobs on CI,
+2026-09-22; the whole `e2e` job is **5m 43s** median, min 3m 59s, max 6m 53s):
+
+| Phase | Median | Share of the harness |
+| --- | ---: | ---: |
+| `pnpm build` | 1m 59s | 46% |
+| `npx playwright test` | 2m 14s | 52% |
+| Postgres + migrations + fixture + both servers | ~7s | 1.4% |
+
+The throwaway database everybody assumes is the expensive part costs **seven
+seconds**. The harness is a Next build and a browser suite, in roughly equal
+halves, and `--skip-build` genuinely removes about half the wait locally. On top
+of the harness the job spends ~23s installing Chromium and ~12s on
+checkout/node/pnpm.
+
 Nothing here touches the real database, Stripe, Resend, or any vendor.
+
+### Asking a narrower question (added 2026-09-22, DREAMCRM-105)
+
+The harness took no arguments until now, so the only browser run anybody could
+ask for was "the whole suite, once". That is the wrong instrument for a flake:
+`e2e/portal-billing.spec.ts` failed on 2026-09-15 and again on 2026-09-22, and
+everything written about it was a frequency nobody had measured.
+
+| Flag | Env | What it does |
+| --- | --- | --- |
+| `--spec <filter>` | `E2E_SPEC` (space-separated) | Playwright's positional filter — a path or a substring of one. Repeatable. |
+| `--repeat <n>` | `E2E_REPEAT` | `--repeat-each=<n>`. The harness refuses above **200**. |
+| `--print-plan` | — | Resolve the arguments, print the playwright invocation, stop before Postgres. |
+| `-- <args…>` | — | Everything after it goes to playwright untouched. |
+
+Anything unrecognised is forwarded, so existing habits (`--grep`, `--headed`)
+keep working, and `--skip-build` now works from any position rather than only as
+the first argument.
+
+**`--retries=0` is usually what you want with `--repeat`.**
+`playwright.config.ts` sets `retries: 1` under CI, so a spec failing eight times
+in fifty and passing on each second attempt reports green with a footnote. The
+hunt wants "8 of 50".
+
+**Without a local Postgres, dispatch it instead.**
+`.github/workflows/e2e-flake-hunt.yml` is the same run on a runner:
+
+```bash
+gh workflow run e2e-flake-hunt.yml -f spec=e2e/portal-billing.spec.ts -f repeat=50
+```
+
+It is `workflow_dispatch`-only — no PR, push or schedule trigger — so it gates
+nothing and costs nothing on a morning nobody is hunting. A **red run there is
+the good outcome**: the flake reproduced, and the uploaded Playwright report has
+the trace, the screenshot and the `error-context.md` DOM dump of it happening.
+The report is uploaded on a green run too, unlike every other e2e job here — a
+ratio is worthless without its denominator, and "50 of 50 passed" and "the
+filter matched nothing" are otherwise the same shade of green.
+
+### What three hunts have actually bought (2026-09-23, DREAMCRM-115)
+
+Worth reading before dispatching a fourth, because the pattern in the results is
+more useful than any one of them.
+
+| Hunt | Repeats | Found |
+| --- | ---: | --- |
+| `35813473042` | 200 | the duplicate-render flake, 9 and 4 |
+| `35815991515` | 200 | duplicate render **closed at 0**; one balance-link no-navigation |
+| `35835599351` | 200 | one balance-link no-navigation (repeat 76); **one previously unseen failure** (repeat 140) |
+
+**The balance-link residual now has a real number: 3 in 800, 0.375%.** And the
+number comes with its uncertainty, which is the part that decides what to do
+next: the 95% interval on 3/800 runs from about **0.08% to 1.1%**. Three events
+say the defect is real and recurring; they do not distinguish a 1-in-1000 defect
+from a 1-in-100 one. **A fix judged against this rate needs on the order of a
+thousand clean repetitions to beat luck** — four more hunts at the harness
+ceiling. That is the honest cost of the obvious next step, and it is why the
+next move on that one is the TRACE from repeat 76 rather than another hunt.
+`e2e/portal-billing.spec.ts` §10 carries the detail.
+
+**The other thing a hunt does, which the first two did not show: it finds
+failures nobody was hunting.** Run `35835599351` failed a SECOND test, at
+`portal-billing.spec.ts:502`, on the assertion that no phantom "Balance payment"
+survives a failed checkout — expected 0, received 1, **stable across all 24
+polls of the 10-second window**. That stability is what makes it interesting: it
+is not a render race, the row was really there. It is characterised beside the
+assertion rather than here, including what the hunt itself rules out (a row left
+by an earlier repeat would have failed every repeat after 140; exactly one
+failed).
+
+So: a hunt aimed at one flake is also a 200x replay of everything else in the
+file, and the report is worth reading past the spec you came for.
 
 ## Deliberately NOT part of `pnpm test`
 
-The merge gate must stay fast (~4 min for the unit suite). The E2E suite needs
+The merge gate must stay fast — though "fast" is now **8m 10s median for the
+`test` job**, not the ~4 min this line claimed for a year (measured 2026-09-22
+over 30 successful runs; see `docs/CI.md`, "Where the eight-minute gate actually
+goes"). The E2E suite needs
 a build and a server, so it is a separate command. Wired into CI 2026-09-09:
 the `e2e` job in `.github/workflows/ci.yml` runs the harness on every PR (the
 runner image's own Postgres binaries stand up the throwaway cluster). The

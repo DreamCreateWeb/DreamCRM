@@ -218,6 +218,7 @@ describe('globalSearch — querying', () => {
         email: 'daniel@x.com',
         status: 'paid',
         totalCents: 9500,
+        refundedAmountCents: 0,
         firstName: 'Mia',
         lastName: 'Hayes',
       },
@@ -230,6 +231,71 @@ describe('globalSearch — querying', () => {
       label: 'Mia Hayes — $95.00',
       sublabel: 'Paid order',
       href: '/shop/orders',
+    })
+  })
+
+  /**
+   * A ⌘K order row is a per-EVENT surface, so the netting rule for TOTALS does
+   * not apply to its label — the patient really did pay $95 (`lib/net-collected.ts`).
+   * What it owes the reader is the rest of the story, in the SAME words the
+   * patient timeline and the thread markers use.
+   *
+   * DREAMCRM-122: it said "Paid order" at face value. A PARTIAL refund leaves
+   * `shop_order.status` at 'paid' by design, so a front desk could read
+   * "Paid order — $95.00" in ⌘K while the patient's own portal already said
+   * money had come back.
+   */
+  describe('a refunded order says so — DREAMCRM-122', () => {
+    const order = (over: Record<string, unknown>) => {
+      state.shopOrders = [
+        {
+          id: 'ord_1',
+          name: 'Daniel Park',
+          email: 'daniel@x.com',
+          status: 'paid',
+          totalCents: 9500,
+          refundedAmountCents: 0,
+          firstName: 'Mia',
+          lastName: 'Hayes',
+          ...over,
+        },
+      ]
+    }
+    const sublabel = async () => {
+      const groups = await globalSearch(ctx(), 'mia')
+      return groups.find((g) => g.label === 'Shop orders')!.results[0]!.sublabel
+    }
+
+    it('appends the note on a PARTIAL refund, keeping the face value in the label', async () => {
+      order({ refundedAmountCents: 2000 })
+      expect(await sublabel()).toBe('Paid order · $20.00 refunded')
+      const groups = await globalSearch(ctx(), 'mia')
+      // The label is untouched — the order really was $95.00 on the day.
+      expect(groups.find((g) => g.label === 'Shop orders')!.results[0]!.label).toBe('Mia Hayes — $95.00')
+    })
+
+    it('does not read "refunded · Refunded" when the status already carries the news', async () => {
+      order({ status: 'refunded', refundedAmountCents: 9500 })
+      expect(await sublabel()).toBe('Refunded')
+    })
+
+    it('says nothing extra when nothing came back', async () => {
+      order({ refundedAmountCents: 0 })
+      expect(await sublabel()).toBe('Paid order')
+    })
+
+    it('survives a NULL refund column rather than printing NaN', async () => {
+      order({ refundedAmountCents: null })
+      expect(await sublabel()).toBe('Paid order')
+    })
+
+    it('spells the note the same way the patient timeline does', async () => {
+      // The single-home check. If either surface grows its own formatter, a
+      // clinic reading two screens is reading two different things.
+      const { appendRefund, refundNote } = await import('@/lib/net-collected')
+      const money = (c: number) => `$${(c / 100).toFixed(2)}`
+      order({ refundedAmountCents: 2000 })
+      expect(await sublabel()).toBe(appendRefund('Paid order', refundNote(9500, 2000, money)))
     })
   })
 

@@ -14,6 +14,15 @@
  * are — the skill lives outside the repo, so no test could fail when the repo
  * moved underneath it.
  *
+ * SINCE DREAMCRM-114 IT ALSO GRADES A SENTENCE THAT IS MISSING, which is a
+ * different question from a sentence that has gone stale and is the one every
+ * claim above is blind to. `guards-census` asserts that every file in
+ * `tests/guards/` is NAMED in the rulebook. #534 took three days to be
+ * written up, #598 was found only by an unscoped sweep pass, and #698 landed
+ * three blocking assertions at once — none of them moved a single fact the
+ * other eight claims read, and all three reached the rulebook because a person
+ * went looking.
+ *
  * It moves often. The axe ratchet (#534) changed what could merge and took
  * three days to reach the skill. A meeting sweep found the skill three claims
  * stale two minutes after #565 merged. Both were caught by a person choosing
@@ -69,6 +78,161 @@ import { pathToFileURL } from 'node:url'
 import { GATE_RULES } from './review-gate.mjs'
 
 const WORKFLOW_DIR = '.github/workflows'
+
+/**
+ * REGISTRATION BY LOCATION: the two directories the guards census compares.
+ *
+ * `tests/guards/` is where a never-again guard lives (§2d). The census below
+ * asserts that every file in it is NAMED, by its own file name, somewhere in
+ * the rulebook — so a machinery guard either reaches §2/§2c in the PR that
+ * introduces it, or fails `test` by name.
+ *
+ * WHY A DIRECTORY AND NOT A PREDICATE, which is the design decision and was
+ * measured before it was made. The tempting predicate — "a guard is a test
+ * that reads source off disk" — matches 81 files OUTSIDE this directory, most
+ * of them ordinary unit tests, and still misses `hero-lcp-paint`, which reads
+ * its subject out of a rendered stylesheet. Over-broad by roughly ten times
+ * AND blind to the case that prompted it. §2 is explicit that a false positive
+ * here costs a red `test` run naming an innocent file, so the predicate was
+ * not built. **A directory is self-declaring** — a file is in it because its
+ * author put it there — so the false-positive rate is zero by construction.
+ *
+ * WHAT THIS DOES NOT COVER, said here rather than left to be discovered: the
+ * design and accessibility guards in `tests/marketing/` and `tests/a11y/`.
+ * They are registered by hand in §2b and nothing goes red if the next one is
+ * forgotten. Moving such a guard into `tests/guards/` is how it earns
+ * coverage; moving one OUT is how coverage is lost silently.
+ */
+const GUARD_DIR = 'tests/guards'
+const RULEBOOK_DIR = 'docs/rulebook'
+
+/**
+ * NON-VACUITY FLOORS FOR THE CENSUS READER, and they are deliberately NOT
+ * shares.
+ *
+ * #691's lesson is that a floor written as a COUNT stops being an assertion
+ * once the population grows past it, and that a share keeps meaning the same
+ * thing at any tree size. That lesson is about a claim on a POPULATION. This
+ * is not one: it is a claim about the READER, and the only question it asks is
+ * whether anything was read at all. An absence assertion over an empty list
+ * passes — so a census whose directory moved, whose filter narrowed, or whose
+ * walk threw and returned nothing would report a clean tree forever. A share
+ * cannot express "you read nothing"; a floor can. They sit far below today's
+ * numbers (34 guard files, ~560 KB of rulebook) on purpose: this is a
+ * tripwire, not a second census.
+ */
+export const CENSUS_FLOORS = { guardFiles: 20, rulebookFiles: 2, rulebookBytes: 100_000 }
+
+/**
+ * The non-vacuity floor for `intake-ordinals`. Nine markers exist on this tree
+ * (49..57); five is a tripwire against a reader that stopped reading, not a
+ * claim about how long the list should be.
+ */
+export const INTAKE_ORDINAL_FLOOR = 5
+
+/**
+ * ORDINAL WORD TO NUMBER, and it is DERIVED rather than typed out.
+ *
+ * A hand-typed table of ninety-nine entries is a hand-kept list guarding a
+ * hand-kept list, which is the joke §2d would make at its own expense. The
+ * units and the tens are the only facts; every compound is `TENS-UNIT`, which
+ * is how English spells them and how this rulebook writes them.
+ *
+ * It runs to ninety-nine because the list is at fifty-seven and gains a handful
+ * a week. Past that the claim says so out loud rather than going quiet — see
+ * the `unknown` branch.
+ */
+export const ORDINAL_WORDS = (() => {
+  const units = [
+    'FIRST', 'SECOND', 'THIRD', 'FOURTH', 'FIFTH', 'SIXTH', 'SEVENTH', 'EIGHTH', 'NINTH', 'TENTH',
+    'ELEVENTH', 'TWELFTH', 'THIRTEENTH', 'FOURTEENTH', 'FIFTEENTH', 'SIXTEENTH', 'SEVENTEENTH',
+    'EIGHTEENTH', 'NINETEENTH',
+  ]
+  const tensOrdinal = {
+    20: 'TWENTIETH', 30: 'THIRTIETH', 40: 'FORTIETH', 50: 'FIFTIETH',
+    60: 'SIXTIETH', 70: 'SEVENTIETH', 80: 'EIGHTIETH', 90: 'NINETIETH',
+  }
+  const tensPrefix = {
+    20: 'TWENTY', 30: 'THIRTY', 40: 'FORTY', 50: 'FIFTY',
+    60: 'SIXTY', 70: 'SEVENTY', 80: 'EIGHTY', 90: 'NINETY',
+  }
+  const out = {}
+  units.forEach((w, i) => { out[w] = i + 1 })
+  for (const [tenStr, word] of Object.entries(tensOrdinal)) {
+    const ten = Number(tenStr)
+    out[word] = ten
+    for (let u = 1; u <= 9; u++) out[`${tensPrefix[ten]}-${units[u - 1]}`] = ten + u
+  }
+  return out
+})()
+
+/**
+ * Every `.md` under `docs/rulebook/`, recursively, as one string plus its file
+ * list. One string because the question is "is this name written down
+ * anywhere in the rulebook", and which file it landed in is the author's
+ * judgement rather than the check's.
+ */
+export function readRulebook(root = process.cwd()) {
+  const files = []
+  const walk = (dir, prefix) => {
+    const entries = readdirSync(join(root, dir), { withFileTypes: true })
+    for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {
+      if (entry.isDirectory()) walk(join(dir, entry.name), `${prefix}${entry.name}/`)
+      else if (entry.name.endsWith('.md')) files.push({ path: `${prefix}${entry.name}`, file: join(dir, entry.name) })
+    }
+  }
+  walk(RULEBOOK_DIR, '')
+  const text = files.map((f) => readFileSync(join(root, f.file), 'utf8')).join('\n')
+  return { files: files.map((f) => f.path), text }
+}
+
+/**
+ * Is `file` named in the rulebook AS A FILE NAME?
+ *
+ * Matched with boundaries on both sides, and both sides earn their keep:
+ *
+ *   - LEADING, so `tests/guards/control-bytes.ts` and a bare
+ *     `control-bytes.ts` both count. Which prefix an author wrote is style;
+ *     requiring one would redden 16 correct citations to no purpose.
+ *   - TRAILING, because `x.ts` is a prefix of `x.tsx` and a rulebook that
+ *     names only the `.tsx` file would otherwise report the `.ts` one
+ *     registered. §2d's a-prefix-is-not-a-name trap, answered before it fires
+ *     rather than after.
+ *
+ * And the STEM is deliberately not enough. `migration-check` is the live case:
+ * `scripts/migration-check.mjs` and `migration-check.yml` are both written up
+ * at length while `tests/guards/migration-check.test.ts` was named nowhere, so
+ * a stem match reported a guard registered when what was registered was a
+ * script. That is the identity-looseness family pointed at this document's own
+ * bookkeeping, and it is worth three false negatives to avoid.
+ */
+export function namedInRulebook(text, file) {
+  const escaped = file.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  // THE TWO BOUNDARIES ARE THE SAME CHARACTER CLASS, which the first version
+  // got wrong in the false-GREEN direction (Sentinel, reviewing #701). The
+  // leading class excluded `_` and `-`; the trailing lookahead excluded
+  // neither, so `widget.test.ts-old`, `widget.test.ts_bak` and
+  // `snap.control-bytes.ts` each reported the real file registered. For an
+  // absence assertion the false green is the direction that matters.
+  //
+  // `.` is handled separately rather than folded into the class, because the
+  // two cases it covers point opposite ways: `widget.test.ts.snap` and
+  // `snap.control-bytes.ts` must NOT count — a sibling artefact standing in
+  // for the guard — while a citation ending a sentence, `see
+  // control-bytes.ts.`, must. So a dot is refused only where it JOINS two
+  // name-shaped runs: something alphanumeric before it on the leading side,
+  // something alphanumeric after it on the trailing side. A path separator, a
+  // backtick, a space, a comma and a sentence-ending dot all still count.
+  //
+  // Both sides are lookarounds of the same shape, which is the point rather
+  // than a style choice: the first version spelled the leading boundary as a
+  // CONSUMING character class and the trailing one as a lookahead, and
+  // asymmetry between two halves of one predicate is exactly where §2d's
+  // identity-looseness family lives.
+  const before = '(?<![A-Za-z0-9_-])(?<![A-Za-z0-9]\\.)'
+  const after = '(?![A-Za-z0-9_-])(?!\\.[A-Za-z0-9])'
+  return new RegExp(`${before}${escaped}${after}`).test(text)
+}
 
 /**
  * THE WORKFLOW CENSUS, as the skill states it.
@@ -127,6 +291,16 @@ export const WORKFLOW_CENSUS = {
     publishes: [],
     note: 'after the fact; alerts, does not gate the deploy',
   },
+  'e2e-flaky-digest.yml': {
+    gates: 'nothing',
+    publishes: [],
+    note: 'reads a WEEK of Playwright reports together and names any spec that flaked in two or more separate runs (DREAMCRM-105). The per-run reporter could only ever say "this flaked"; nothing could say how often, so a flake had an anecdote instead of a rate. Weekly cron plus dispatch, no PR trigger, so it cannot hold a merge. Goes red on a repeat offender - the window is one cadence wide, so there is no queue to keep it red for weeks',
+  },
+  'e2e-flake-hunt.yml': {
+    gates: 'nothing',
+    publishes: [],
+    note: 'runs one spec N times and reports the ratio (DREAMCRM-105): the instrument that turns "fails about once a day, can\'t reproduce" into a number. workflow_dispatch ONLY — no PR trigger, no push, no schedule — so it cannot hold a merge and costs nothing on a morning nobody is hunting. Its dispatch inputs are the repo\'s first user-controlled strings; they ride env: and are validated in scripts/e2e-harness.sh',
+  },
   'read-check.yml': {
     gates: 'nothing',
     publishes: [],
@@ -140,12 +314,17 @@ export const WORKFLOW_CENSUS = {
   'review-sweep.yml': {
     gates: 'nothing',
     publishes: [],
-    note: 'the post-merge half of review-gate.yml: names PRs that merged carrying needs-sentinel-review with no review recorded, or needs-forge-intake with no intake recorded. Runs after the merge commit is on main, so it cannot hold one. Its exit status is keyed on what is new since it last went green; the summary still prints every unremediated entry',
+    note: 'the post-merge half of review-gate.yml: names PRs that merged carrying needs-sentinel-review with no review recorded, needs-forge-intake with no intake recorded, or (DREAMCRM-105) no DREAMCRM-<n> issue key in the title at all. The third half has no label - every merged PR in the window is in scope, because a label is exactly what untracked work has nobody to receive - and it never wakes Forge. Runs after the merge commit is on main, so it cannot hold one. Its exit status is keyed on what is new since it last went green; the summary still prints every unremediated entry',
   },
   'schedule-heartbeat.yml': {
     gates: 'nothing',
     publishes: [],
     note: 'the alarm that watches the other alarms (DREAMCRM-99): one daily job asserting every scheduled workflow has a `schedule`-triggered run inside the window its own cron implies. Derives its list from the cron entries in this directory, so a schedule added tomorrow is watched tomorrow. No PR trigger, no required context, so it cannot hold a merge',
+  },
+  'push-alarm.yml': {
+    gates: 'nothing',
+    publishes: [],
+    note: "the repo's FIRST workflow_run-triggered file (DREAMCRM-115). ONE alarm, TWO producers: it runs on every completion of deploy.yml and post-merge-e2e.yml - the only two workflows that fire on push to main - goes red when its upstream did, and POSTs to a Multica autopilot webhook that opens an issue assigned to Quinn. It exists because a red deploy.yml went unnoticed for 21 minutes on 2026-09-23 while production shipped nothing for 77: nothing in .github/ was listening for a failed push-triggered workflow, and schedule-heartbeat.yml cannot see one by construction. The two producers differ in CONSEQUENCE, not in question - a red deploy holds production back, a red post-merge run means the broken commit is already live - so the severity sentence is keyed on workflow_run.path and so is the red-streak edge. No PR trigger, no push, no required context, so it cannot hold a merge; two read scopes and one POST. NOTE that workflow_run matches DISPLAY NAMES rather than filenames - tests/guards/push-alarm.test.ts derives the expected set from every workflow declaring push-to-main and requires the trigger list to equal it, so a rename or a third producer fails test by name",
   },
   'rulebook-drift.yml': {
     gates: 'nothing',
@@ -365,6 +544,249 @@ export const CLAIMS = [
       }
     },
   },
+  {
+    id: 'guards-census',
+    // `guardDir` IS AN INPUT, AND LEAVING IT OFF THIS LIST WAS THE BUG
+    // (Sentinel, reviewing #707). The comparison below is between two
+    // readings of the same directory, so BOTH are inputs — but the first
+    // version listed only one and defaulted the other, which turned a missing
+    // input into a vacuous pass instead of an ungradeable claim. See the
+    // comment on `ungraded` for the shape.
+    needs: ['guards', 'guardDir', 'rulebook'],
+    section: '§2d, "A never-again guard lives in `tests/guards/`", with the list in §2c',
+    states: 'every file in `tests/guards/**` is named, by its own file name, somewhere in `docs/rulebook/**`',
+    // THE ONLY CLAIM HERE WHOSE SUBJECT IS THE RULEBOOK'S OWN COMPLETENESS.
+    // The eight above ask whether a sentence about the repo is still true. This
+    // one asks whether a sentence EXISTS, which is the shape the other eight
+    // are blind to: #534 (three days), #598 (found only by an unscoped sweep
+    // pass) and #698 (three assertions in one merge) all moved nothing any of
+    // them grades. Measured on `main` at `66d087dc`: 34 guard files, 23 named.
+    //
+    // It is deliberately about NAMING and not about CORRECTNESS. Nothing here
+    // can tell whether the paragraph describing a guard is any good — that is
+    // §2d's sentence-versus-code family and it needs a reader. What this buys
+    // is that the paragraph EXISTS and has a name to find it by, which is the
+    // difference between an intake that happens and one that depends on
+    // somebody choosing to look.
+    check: (live) => {
+      const { files, text } = live.rulebook
+
+      // THE READER IS GRADED EXACTLY, NOT BY A FLOOR. Everything below is an
+      // absence assertion, so a reader that narrows makes this claim GREENER
+      // and no assertion downstream can feel it (§2d's reader family).
+      //
+      // THE FLOOR WAS NOT ENOUGH AND THIS IS THE MEASUREMENT (Sentinel,
+      // reviewing #701). A floor catches a reader that lands on ZERO. It
+      // cannot catch one that narrows PARTIALLY, which is the shape a
+      // plausible refactor actually takes: skipping `e2e-*` and `axe-*`
+      // dropped TWELVE of thirty-four guards out of the census, landed at 22
+      // — comfortably above a floor of 20 — and left `guards-census` green
+      // and all 35 tests passing. Twelve guards leave the census and nothing
+      // anywhere goes red. That is #691's rule holding after all: a count
+      // stops being an assertion the moment the population clears it, and the
+      // gap between 20 and 34 was never a tripwire margin, it was 41% of the
+      // census.
+      //
+      // So compare the filtered list against the UNFILTERED directory
+      // listing. Every entry in `tests/guards/` is either graded or named as
+      // the difference — neither a count nor a share, exact at any tree size.
+      // It also closes two holes the floor could never see: `readdirSync` is
+      // NON-RECURSIVE while `readRulebook`'s walk is recursive, so a guard at
+      // `tests/guards/<subdir>/foo.test.ts` used to be invisible AND silent;
+      // and a guard added with an extension nobody thought of now reddens
+      // instead of vanishing.
+      //
+      // NO `??` FALLBACK HERE, AND THE FIRST VERSION HAD ONE (Sentinel,
+      // reviewing #707). It read `(live.guardDir ?? live.guards).filter(f =>
+      // !live.guards.includes(f))`, which with `guardDir` absent becomes
+      // `guards.filter(f => !guards.includes(f))` — **empty by construction,
+      // for any input whatsoever.** The comparison did not fail, it
+      // DISAPPEARED, and because `guardDir` was missing from `needs` the
+      // runner did not file the claim as ungradeable either. Measured: the
+      // same partial narrowing that reddens naming twelve guards with
+      // `guardDir` present went GREEN with it absent, ungradeable=false.
+      //
+      // That is the floor's own failure mode reached through a different
+      // door, which makes it the third instance of one family: a check whose
+      // subject quietly leaves its field of view reports CLEAN. The fix is
+      // this file's own stated rule — A CLAIM THIS COULD NOT BE GRADED IS
+      // NEVER A CLAIM THAT HELD — so the input goes in `needs` and the
+      // default comes out. A defaulted input is a claim silently answering a
+      // question it was not able to ask.
+      //
+      // It was unreachable when it was written (`readLocalReality` always
+      // sets `guardDir`, and it has one production caller). It is fixed
+      // anyway, on the precedent already set a few lines up in `main()`'s
+      // `skipped` comment: a latent edge in the one classification this whole
+      // file exists to keep sharp is not somewhere to leave a maybe.
+      const ungraded = live.guardDir.filter((f) => !live.guards.includes(f))
+      if (ungraded.length) {
+        return {
+          actual: `${GUARD_DIR} holds ${live.guardDir.length} entries and the census grades ${live.guards.length}; ungraded: ${ungraded.join(', ')}`,
+          fix:
+            'something in `tests/guards/` is not being graded by the census, so it could be added ' +
+            'or changed with nothing going red. Either the extension filter narrowed, or a guard ' +
+            'moved into a subdirectory (this listing is not recursive), or a guard arrived with an ' +
+            'extension nobody anticipated. Widen the reader — never widen it by deleting this ' +
+            'comparison, which is the one edit that makes the census silently partial.',
+        }
+      }
+
+      // The floors below still earn their keep on the RULEBOOK side, where
+      // there is no exact expected size to compare against — a corpus is not
+      // a directory listing. They are tripwires against a walk that returned
+      // nothing, and nothing more is claimed for them.
+      if (
+        live.guards.length < CENSUS_FLOORS.guardFiles ||
+        files.length < CENSUS_FLOORS.rulebookFiles ||
+        text.length < CENSUS_FLOORS.rulebookBytes
+      ) {
+        return {
+          actual: `the census read ${live.guards.length} guard files and ${files.length} rulebook files (${text.length} bytes)`,
+          fix:
+            'the census reader found almost nothing, so its verdict means nothing. A directory ' +
+            'moved, a filter narrowed, or a walk returned empty. Fix the reader — do NOT lower ' +
+            'CENSUS_FLOORS, which is the one edit that makes this check permanently green.',
+        }
+      }
+
+      const absent = live.guards.filter((f) => !namedInRulebook(text, f))
+      if (!absent.length) return null
+      return {
+        actual: `${absent.length} of ${live.guards.length} guard files are named nowhere in the rulebook: ${absent.join(', ')}`,
+        fix:
+          'a guard that can fail a stranger\'s PR has reached the repo and not the rulebook. Write ' +
+          'it up — §2c for a machinery or invariant guard, §2b for a design or contrast one — and ' +
+          'cite it BY FILE NAME, including the extension. A bare stem does not count: ' +
+          '`migration-check` is satisfied by a script and a workflow of the same name while the ' +
+          'guard itself is registered nowhere. If the file is not a guard, it does not belong in ' +
+          '\`tests/guards/\`; move it rather than writing a paragraph about it.',
+      }
+    },
+  },
+  {
+    id: 'intake-ordinals',
+    needs: ['rulebook'],
+    section: '§2, the numbered intake list',
+    states: 'every `**THE <ORDINAL>:` entry marker is unique, and the set has no gaps',
+    /**
+     * THE ORDINAL IS A HAND-KEPT COUNTER AND NOTHING COULD SEE IT DOUBLE.
+     *
+     * On 2026-09-23 THREE open PRs each claimed §2's FIFTY-SEVENTH entry —
+     * #712, #713 and #714. All three were `MERGEABLE` against `main`, because
+     * they insert at different offsets in the same file and git has no opinion
+     * about what the words mean. Two fifty-sevenths would have landed and
+     * neither author would have known. §2d says a hand-kept list drifts
+     * exactly as a revert list does; this is that, in the document that says it.
+     *
+     * WHAT IT ASSERTS, AND WHAT IT DELIBERATELY DOES NOT. Uniqueness, and no
+     * gaps between the lowest ordinal present and the highest. It does NOT
+     * assert contiguity from ONE, and that is a MEASUREMENT rather than a
+     * concession: on this tree the entry markers run 49..57, because the first
+     * forty-eight entries predate the `**THE <ORDINAL>:` form and are written
+     * as prose. A from-one claim would have reddened on its own first run —
+     * which is §2d's newest rule (run the instrument on the case in front of
+     * you) catching this one BEFORE it was written rather than after.
+     *
+     * **49 IS THE FLOOR OF THE NUMBERED ERA, and retrofitting the first
+     * forty-eight is DECLINED** (Sentinel, reviewing #721, and I agree).
+     * Rewriting forty-eight historical entries into the marker form is a large
+     * edit to records whose value IS the record, it risks transcription error
+     * across all of them, and it buys only contiguity-from-one, which nothing
+     * needs. The defect this exists for is a duplicate at the HEAD of the list
+     * — the live end, where concurrent PRs collide — and uniqueness plus
+     * no-gaps-in-range covers that completely. That is a fact about the
+     * document's history, not a shortcoming in the claim.
+     *
+     * THE CANDIDATE TEST IS THE ORDINAL SUFFIX, NOT THE MAP. `**THE FIX:` is a
+     * real heading in this rulebook and is not an ordinal; keying on the map
+     * alone would silently skip it — and would equally silently skip
+     * `FIFTY-EIGTH`, a typo, which is the one thing a counter's guard must not
+     * wave through. So anything shaped like an ordinal (ST/ND/RD/TH) is a
+     * CANDIDATE, and a candidate the map cannot resolve is a FINDING rather
+     * than a skip. Unrecognised is loud; not-an-ordinal is quiet.
+     */
+    check: (live) => {
+      const { text } = live.rulebook
+      // ANCHORED ON THE ENTRY FORM — ` #<digits>` — AND THE FIRST DRAFT WAS NOT
+      // (Sentinel, reviewing #721). `**THE <CAPS>:` is live house style here,
+      // and the suffix test alone made a candidate of every heading that
+      // happens to end in one: `**THE COST:`, `**THE FIRST:`, `**THE LAST:`,
+      // `**THE SECOND:`. The first two are the worse half — they RESOLVE, so
+      // they poison the set and produce a gap finding naming forty-seven
+      // innocent numbers, with remedy text telling the author to fix a typo or
+      // extend the map when the answer is "that is not an ordinal".
+      //
+      // Every real entry names its PR, all eleven of them, so the anchor costs
+      // nothing it was designed for: a typo'd ordinal in a real entry
+      // (`**THE FIFTY-EIGTH: #722`) still matches and is still LOUD, which was
+      // the whole point of the candidate/map split. §2's own rule is that a
+      // false positive costs a red `test` naming something innocent and the fix
+      // is to narrow the PREDICATE, never to exempt the file. This is that.
+      const candidates = [...text.matchAll(/\*\*THE ([A-Z][A-Z-]*(?:ST|ND|RD|TH)): #\d+/g)].map((m) => m[1])
+
+      // NON-VACUITY, because everything below is about a set this reader
+      // built: a regex that stopped matching reports a perfectly unique,
+      // perfectly contiguous EMPTY list. There is no independent census to
+      // compare against here — unlike the guards, whose directory is a second
+      // reading — so a floor is the honest instrument rather than a weaker
+      // version of an exact one.
+      if (candidates.length < INTAKE_ORDINAL_FLOOR) {
+        return {
+          actual: `found ${candidates.length} ordinal entry markers in the rulebook`,
+          fix:
+            'the reader found almost no numbered entries, so its verdict means nothing. The entry ' +
+            'form is \`**THE <ORDINAL>:\` — if §2 changed how it writes them, teach this claim the ' +
+            'new form. Do NOT lower the floor.',
+        }
+      }
+
+      const unknown = candidates.filter((w) => ORDINAL_WORDS[w] === undefined)
+      if (unknown.length) {
+        return {
+          actual: `ordinal marker(s) this claim cannot resolve: ${unknown.join(', ')}`,
+          fix:
+            'a word shaped like an ordinal is not in \`ORDINAL_WORDS\`. Either it is a typo in the ' +
+            'rulebook — fix the entry — or the list has grown past the map, in which case extend ' +
+            '\`ORDINAL_WORDS\`. Never make this quiet: an unresolvable ordinal is a counter nobody ' +
+            'is counting.',
+        }
+      }
+
+      const seen = new Map()
+      candidates.forEach((w) => {
+        const n = ORDINAL_WORDS[w]
+        if (seen.has(n)) seen.get(n).push(w)
+        else seen.set(n, [w])
+      })
+
+      const dupes = [...seen].filter(([, words]) => words.length > 1)
+      if (dupes.length) {
+        return {
+          actual: `duplicate entry ordinal(s): ${dupes.map(([n, w]) => `${n} (x${w.length})`).join(', ')}`,
+          fix:
+            'two §2 entries claim the same number. That is what happens when concurrent PRs each ' +
+            'take the next ordinal off the same base — three did on 2026-09-23 and git called all ' +
+            'three mergeable, because they insert at different offsets in one file. The PR that ' +
+            'lands SECOND renumbers: check \`origin/main\` before you merge rather than after.',
+        }
+      }
+
+      const sorted = [...seen.keys()].sort((a, b) => a - b)
+      const gaps = []
+      for (let n = sorted[0]; n < sorted[sorted.length - 1]; n++) if (!seen.has(n)) gaps.push(n)
+      if (gaps.length) {
+        return {
+          actual: `ordinals run ${sorted[0]}..${sorted[sorted.length - 1]} with ${gaps.length} missing: ${gaps.join(', ')}`,
+          fix:
+            'a numbered entry is missing from the middle of the list — most likely a renumber that ' +
+            'skipped one, or an entry deleted rather than struck. Close the gap, or say in the ' +
+            'entry itself why that number is retired.',
+        }
+      }
+      return null
+    },
+  },
 ]
 
 /**
@@ -491,7 +913,17 @@ export function readLocalReality(root = process.cwd()) {
   for (const file of readdirSync(dir).filter((f) => /\.ya?ml$/.test(f)).sort()) {
     workflows[file] = readFileSync(join(dir, file), 'utf8')
   }
-  return { workflows, gateAreas: GATE_RULES.map((r) => r.id) }
+  // BOTH LISTS, and the unfiltered one is the load-bearing half. See
+  // `guards-census` for why the filtered list alone cannot be trusted.
+  const guardDir = readdirSync(join(root, GUARD_DIR)).sort()
+  const guards = guardDir.filter((f) => /\.tsx?$/.test(f))
+  return {
+    workflows,
+    gateAreas: GATE_RULES.map((r) => r.id),
+    guards,
+    guardDir,
+    rulebook: readRulebook(root),
+  }
 }
 
 /**
@@ -572,7 +1004,7 @@ function loadJson(flag) {
  * The rule the first version was reaching for survives all of this: a drift
  * detector that reports green when it detected NOTHING is the failure it
  * exists to catch, aimed at itself. Which is why every summary leads with
- * "Graded N/8" instead of a tick, in all three cases.
+ * "Graded N/9" instead of a tick, in all three cases.
  */
 function main() {
   const credentialAbsent = process.argv.includes('--no-protection-credential')

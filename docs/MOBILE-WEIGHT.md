@@ -53,7 +53,13 @@ work, so a client-side reading of it is this site's ordinary cost. "565 KB" is
 a number; "565 KB where an ordinary page on the same site is 495 KB" is a
 finding.
 
-## Baseline — 2026-09-22, production (`www.dreamcreatestudio.com`)
+## Before — 2026-09-22, production (`www.dreamcreatestudio.com`)
+
+**This is the BEFORE table.** The hero fix (DREAMCRM-108, #698, `66d087dc`)
+deployed 2026-09-23 06:05Z and the after-numbers are in "After the hero fix"
+below. Everything in this section is kept verbatim as the record the fix was
+argued from — do not update it in place, because the whole value of a before
+table is that it says what was true before.
 
 Median of 5 runs, repeated over 5 passes (25 samples per surface); the bracket
 is the spread across pass medians. Measured from a Windows dev box on a home
@@ -149,34 +155,316 @@ Pass 1 of the six taken is excluded from the table above on the same grounds —
 it reported 484–492 KB transfer and a 9,672 ms FCP, both outside every other
 pass's range, under the same contention.
 
+## After the hero fix — 2026-09-23, production (`www.dreamcreatestudio.com`)
+
+Same script, same profile, same base URL, same box. `.mkt-rise` deployed at
+06:05Z (DREAMCRM-108, #698, `66d087dc`); measured 07:47–07:57Z. Median of 5
+runs over **4 clean passes** (20 samples per surface); the bracket is the
+spread across pass medians.
+
+**Nine passes were taken and five are excluded**, on the criterion this file
+already used once: a pass whose transfer bytes fall short of every other pass
+was still pulling resources when the quiet window closed, so every number in
+it is about the rig rather than about the page. The tell is unambiguous —
+excluded passes read 463–523 KB on surfaces the clean passes read 571–573 KB
+on, and carry 552–3,267 ms of scroll blocking against 0 ms.
+
+| surface | transfer | script | FCP | LCP | CLS | load blocking |
+|---|---|---|---|---|---|---|
+| **home** | **572 KB** [571–573] | **212 KB** | 2,540ms [2,516–2,728] | **2,540ms** [2,516–2,728] | 0.000 | 171ms [151–196] |
+| home, reduced motion | 571 KB [571–573] | 212 KB | 2,478ms [2,388–2,560] | **2,546ms** [2,424–2,844] | 0.000 / 0.013 | 114ms [66–164] |
+| pricing (control) | 500 KB | 198 KB | 2,190ms [2,084–2,244] | 2,190ms [2,084–2,536] | **0.116** | 140ms [130–265] |
+
+Against the before table, surface by surface:
+
+| | before | after | |
+|---|---|---|---|
+| home LCP | 3,424ms | **2,540ms** | **−884ms, −26%** |
+| home load blocking | 315ms | **171ms** | −144ms |
+| home, reduced-motion LCP | 2,472ms | 2,546ms | +74ms (noise) |
+| pricing LCP | 2,944ms | 2,190ms | −754ms |
+| home transfer / script | 565 / 211 KB | 572 / 212 KB | +7 / +1 KB |
+
+### The one number, answered
+
+**The ~950 ms the homepage charged a phone for motion it cannot see is gone.**
+Home LCP now reads 2,540 ms against 2,546 ms on the identical page under
+`prefers-reduced-motion: reduce` — a 6 ms gap where the before table had
+952 ms, which is to say the two paths are the same page now. Load blocking
+closed the same way: 171 ms against the control's 140 ms, where it was 315 ms
+against 190 ms.
+
+**And the LCP element no longer flips.** This is the half that mattered more
+than the number, and it is now clean on every one of 20 runs:
+
+| path | LCP element, before | LCP element, after (20/20 runs) |
+|---|---|---|
+| home, motion | `div.absolute.inset-0` (the film grain) *or* the sentence | `p.mkt-rise.mkt-d2` :: *"DreamCRM is the patient-relationship platform…"* |
+| home, reduced motion | the sentence, every run | `p.mkt-rise.mkt-d2` :: the same sentence |
+| pricing (control) | `h1.mkt-enter.mkt-d1` or its sibling `<p>` | `h1.mkt-rise.mkt-d1` :: *"One plan. The whole platform."* |
+
+The metric Google ranks the homepage on is now measuring the sentence a
+visitor reads, on every run, on both paths. The mechanism and the measurement
+agree in the same direction they did going in — `.mkt-rise` removed the
+opacity ramp and the ~0.81 s of unpaintable text went with it.
+
+**`/pricing` moved too, and it is no longer a pure control.** Say it plainly
+rather than quoting a −754 ms improvement on a page nothing was supposed to
+change: #698 applied `.mkt-rise` to `PageHero`, which is fifteen call sites
+across eight subpages, so the control got the same fix. It remains a useful
+control for BYTES and for ordinary per-request cost — it is still the
+marketing page with no unusual work — and it is no longer a control for
+entrance-motion LCP, because it now has the same entrance the homepage does.
+A future entrance-motion question needs a surface `PageHero` does not touch.
+
+**Bytes were never the story and still are not.** +7 KB transfer and +1 KB
+script across a fix worth 884 ms. This is the finding from the before table
+surviving its own fix: the living stage is not heavy, it was late, and four
+lines of CSS were the whole of it.
+
+**The stage is still off on a phone**, read off the DOM on all 20 runs:
+`.is-cinematic` absent, the particle `<canvas>` at `display: none`,
+`(hover: hover) and (pointer: fine)` false, document 19,068 px. `legal()`
+holds.
+
+### What the re-measure FOUND, which is a different thing from what it confirmed
+
+**`/pricing` carries a 0.116 CLS that the before table recorded as 0.000, and
+it is not a regression from #698.** Measured on production 2026-09-23,
+because "the fix I shipped this morning broke layout stability" is exactly the
+claim that needs to be wrong carefully rather than assumed wrong.
+
+*What shifts.* One layout shift, at ~2.6 s, value **0.1157**, on a 412×823
+viewport. The hero `<section>` grows from **293.25 px to 320.53 px** — a
+**+27.28 px** step, which is one line of the sub paragraph at `1.05rem` on
+`leading-relaxed` (16.8 × 1.625 = 27.3 px). The `<h1>` measures 76.69 px
+before and after, so the headline is not what moved. Everything below the
+hero — the first pricing panel,
+`div.relative.overflow-hidden.rounded-[14px].border.bg-white` — drops 27.28 px
+with it.
+
+*Why it shifts.* It lands within ~30 ms of `document.fonts.ready` on every
+run. Self-hosted Inter replaces the fallback face, the sub paragraph rewraps
+from two lines to three, and the page below it moves down. Nothing to do with
+motion: it reproduces identically under `prefers-reduced-motion: reduce`,
+where `.mkt-rise` and `.mkt-enter` are both `animation: none`.
+
+*Why it is not #698's.* Re-created the pre-#698 condition on the live page —
+injected, before first paint, a stylesheet holding `.mkt-rise` at `opacity: 0`
+through the same delay and duration `.mkt-enter` used — and ran the arms
+interleaved, 8 single runs each:
+
+| arm | hero reflows | CLS reported |
+|---|---|---|
+| as it ships now (`.mkt-rise`) | **8 / 8** | 0.1157 in 5 / 8 |
+| forced back to an opacity ramp (pre-#698) | **8 / 8** | 0.1157 in 6 / 8 |
+| sub paragraph given a 3-line `min-height` | **0 / 8** | 0.0073 in 4 / 8, 0.000 in 4 |
+
+Holding the text transparent does not suppress the shift or its CLS. The
+reflow predates the hero fix; #698 neither caused it nor hid it.
+
+*So why did the before table read 0.000 across 25 samples?* Because **this
+metric is timing-sensitive on this rig, and the before run was contended.** A
+shift is only counted against content that has already painted — in the 8-run
+control above, the three runs that reported 0.000 are exactly the three whose
+FCP was ≥ 3,156 ms, where the font arrived before the text did and there was
+nothing left to move. The before run's own notes record a contended machine
+and a discarded pass with a 9,672 ms FCP. **"CLS 0.000" in the before table
+was a property of the measurement, not of the page** — which is worth more
+than this defect is, because it is the second time this rig's contention has
+produced a number rather than a finding.
+
+*The homepage has the same defect, rarely.* Home reads 0.000 on the motion
+path across all 20 samples and 0.013 on two of four reduced-motion passes.
+Probed: the same +28.08 px step, the hero CTA row (`div.mkt-enter.mkt-d3`)
+dropping at `fonts.ready`, on a run where the font did not arrive until
+6,999 ms. One defect, one mechanism, two surfaces — `/pricing` reliably
+because eight `PageHero` subpages share the geometry, home rarely because its
+hero usually paints late enough not to care.
+
+**Not fixed here, and the reason is this file's own recommendation 1 rather
+than a deferral.** The fix is typographic — reserve the sub paragraph's line
+box so the swap cannot rewrap it, or give the fallback face metric overrides
+so it wraps the way Inter does — and that is `BRAND.md` Part 4, on eight
+subpages, wanting its own issue and its own before/after. Recorded in
+`docs/RELEASE.md` Part 5 with this reproduction.
+
+## After the font-swap fix — 2026-09-23 (DREAMCRM-127)
+
+The `/pricing` 0.116 the section above FOUND is fixed. Measured differently
+from both tables above, and the difference is the point: this defect is a
+comparison between the page **before** the font swap and the page **after**
+it, so the honest instrument is a local before/after on ONE box rather than a
+production run against a build that has only one of the two states.
+
+Both states were built from this repo and served with `next start` on the same
+machine, `--runs 5`, interleaved with the passes below. Contended passes are
+discarded on this file's own recommendation-4 criterion — transfer-byte
+shortfall — which mattered again: the contended passes read 453–486 KB on a
+surface the clean ones read 486–487 KB, and they carry 1,160–1,209 ms of
+scroll blocking against 0 ms.
+
+**`/pricing`, clean passes only, five runs each:**
+
+| | transfer | CLS | worst layout shift | runs that saw it |
+|---|---|---|---|---|
+| before | 486 KB | 0.116 | 0.1157 — `div.relative.overflow-hidden.rounded-[14px].border` moved **27.28px** | 5/5 |
+| before | 487 KB | 0.116 | same shift, same element, same pixels | 3/5 |
+| before | 487 KB | 0.000 | same shift, same element, same pixels | 2/5 |
+| **after** | 486 KB | **0.000** | **none reported** | **0/5** |
+| **after** | 486 KB | **0.000** | **none reported** | **0/5** |
+| **after** | 486 KB | **0.000** | **none reported** | **0/5** |
+
+The run-count column is why this reads as a fix rather than as three lucky
+passes: before, the shift appears in 10 of 15 runs and is IDENTICAL every time
+— same element, same 27.28px; after, the script's shift reporter prints
+nothing at all across 15 runs. One contended after-pass (458 KB) reported
+`0.0005` — a mono numeral moving 1px — which is a different, trivial event and
+not the font swap.
+
+### What the fix was, and what it says about the defect's real size
+
+Two things, and the first was not in the ledger entry because nobody had
+looked at what the fallback actually WAS:
+
+1. **`--font-inter` shipped as `"Inter", "sans-serif"`.** A quoted generic is
+   a family NAME, not the generic keyword — no family is called "sans-serif",
+   so Chrome fell through to its default standard font, **Times New Roman**.
+   Every pre-swap frame on the marketing site was set in a serif. Times is
+   8.2% narrower than a grotesk, which is most of why so much text rewrapped.
+2. **`'Inter Fallback'`** — `local()` faces carrying Inter's measured metrics
+   (`size-adjust` + the three overrides) in three weight bands, because the
+   local face has two real weights where Inter has a continuous axis. One band
+   was tried first and is WRONG: tuned on body copy it fixed all eleven sub
+   paragraphs and made the 800-weight display headline rewrap 38px on two of
+   six titles, a bigger shift than the one being removed.
+
+**The defect was wider than `/pricing` on mobile.** Graded as line counts —
+Inter versus the fallback, every shipping `PageHero` `sub` string and every
+subpage title, at the three widths `e2e/marketing-viewport.spec.ts` grades:
+
+| width | before | after | worst height delta, before |
+|---|---|---|---|
+| 390 | **9 / 19** disagree | **0 / 19** | −38.35px |
+| 834 | **5 / 19** disagree | **0 / 19** | −48.96px |
+| 1440 | **4 / 19** disagree | **0 / 19** | −58.74px |
+
+So the entry's "one line of the sub paragraph, 27px" was the mobile case of a
+defect that also moved HEADLINES, and whose worst single jump was 58.74px on a
+desktop viewport. The CLS number found it; the line-count grading is what
+sized it.
+
+**The direct before/after, on the hero itself.** With Inter blocked so the
+fallback is what paints, `/pricing`'s hero `<section>` at 412px measures
+**293.25px before and 320.53px after** — and 320.53px is exactly the height
+the ledger entry recorded the hero growing INTO. The fallback frame now starts
+at the final height, so there is nothing left to move.
+
+### Verified on production — 2026-09-23 16:31–16:40Z
+
+Merged as `589891e6` (PR #718), deployed ~13:53Z. Re-measured against
+`www.dreamcreatestudio.com`, and deliberately NOT on the CLS number alone,
+because this file has now twice recorded WHY that number lies both ways: a
+shift is only counted against content that already painted, so a slow pass
+reports a clean page. The production pass did read `/pricing` **CLS 0.000**
+(495 KB, worst shift 0.0005 — a mono numeral moving 1px) against the 0.1157
+recorded above, but its FCP was 4,352 ms, which is exactly the regime where
+this metric goes quiet on its own.
+
+**So the verification is structural, and it cannot be fooled by timing.**
+Load each surface with Inter BLOCKED (the fallback paints) and again with
+Inter allowed; compare the hero `<section>`, the `<h1>` and the sub
+paragraph. If the boxes match, the swap has nothing to move no matter how
+fast the box or the network is:
+
+| width | surfaces | identical | worst delta |
+|---|---|---|---|
+| 390 | 11 | **11 / 11** | 0px |
+| 834 | 11 | **11 / 11** | 0px |
+| 1440 | 11 | **11 / 11** | 0px |
+
+**33 of 33, 0px everywhere** — `/pricing`, `/product`, `/why`, `/compare`,
+`/resources`, `/docs`, `/blog`, `/changelog`, `/roi`, `/grade` and
+`/partner-program`. `/pricing` at 390 reads **320.53px both ways**, which is
+the exact height the Part 5 entry recorded the hero growing INTO; the first
+frame now starts there.
+
+Worth keeping as the reusable part: **when a metric's variance is dominated by
+the environment rather than the subject, verify the SUBJECT instead.** The CLS
+number found this defect and could not have confirmed the fix on its own — a
+green reading from a contended pass is indistinguishable from a green reading
+from a fixed page. Asking "are the two boxes the same size" has no such
+failure mode. That is the same argument `dreamcrm-conventions` §2d makes
+about thresholds, arriving here from the measurement side.
+
 ## Recommendations
 
-1. **Do not fix this from here.** The entrance animation is brand motion, and
-   `BRAND.md` Part 6 owns it. The change worth considering is narrow — let the
-   hero's LCP element paint at full opacity and animate only its transform, or
-   drop `.mkt-enter` from the single largest above-the-fold element — and it is
-   a *brand-motion* decision on the marketing site's most-looked-at surface,
-   not a performance patch to slip into an unrelated PR. It is Neon's lane and
-   wants its own issue.
-2. **Get a real-device number before the push.** Everything above is emulated
-   CPU and emulated network on a developer machine. `--base` at production
-   from a real mid-range Android is one afternoon and replaces every "should
-   be comparable" caveat in this file. This is the mobile twin of
-   `LOAD-SANITY.md`'s recommendation 3.
+Recommendation 1 below is **DONE** — it is kept rather than deleted because
+the shape of it is the reusable part, and because the after table above only
+means something next to the argument it was taken from.
+
+1. ~~**Do not fix this from here.**~~ **DONE (DREAMCRM-108, #698,
+   `66d087dc`, deployed 2026-09-23 06:05Z).** It went exactly the way this
+   line asked: its own issue, in Neon's lane, as a brand-motion decision under
+   `BRAND.md` Part 6 rather than a performance patch in an unrelated PR — and
+   it took the narrower of the two options named here, animating only the
+   transform on the two LCP candidates and leaving the rest of the hero
+   stagger alone. Worth **−884 ms of home LCP**; see "After the hero fix".
+2. **Get a real-device number before the push.** Unchanged and still open.
+   Everything in both tables is emulated CPU and emulated network on a
+   developer machine. `--base` at production from a real mid-range Android is
+   one afternoon and replaces every "should be comparable" caveat in this
+   file. This is the mobile twin of `LOAD-SANITY.md`'s recommendation 3, and
+   the fix landing does not weaken it: what a real device would settle is the
+   SIZE of a win whose direction is now measured twice.
 3. **Re-run after any change to the marketing hero, the entrance classes, the
    spine, or `next build`'s chunking, and compare the table.** The script
    prints the LCP element, so a regression that changes *what* the metric is
    about shows up as a different row rather than as a slightly worse number.
-4. **If a budget is ever wanted, route the intake first.** See the note at the
-   top. The candidate today is LCP rather than bytes, and the honest form of it
-   would be *"the homepage's LCP element is text a visitor reads"* — a
-   statement about the page, which this script can already check, rather than a
-   millisecond threshold that would measure the runner.
+   This one has now paid for itself once: the LCP-element row is how the fix
+   was verified as a fix rather than as 884 fewer milliseconds of something
+   else.
+
+   **It now prints the worst layout shift the same way**, added on
+   DREAMCRM-118 for the same reason and after a throwaway probe had to be
+   written to learn what a 0.116 was about. Per surface it reports the moved
+   element, the pixels, the millisecond and **how many runs saw it** — that
+   last one because a shift is only counted against content that already
+   painted, so the run count is what separates "the page is fine" from "the
+   rig was slow". It reproduces the font-swap reflow below unprompted:
+
+   ```
+   pricing (control): worst layout shift 0.1157 at 5,817ms (3/3 runs)
+     div.relative.overflow-hidden.rounded-[14px].border moved 27.28px
+   home (reduced motion): worst layout shift 0.0131 at 8,307ms (3/3 runs)
+     div.mkt-enter.mkt-d3.mt-9.flex moved 28.08px
+   ```
+4. **Run it on an otherwise idle box, and discard passes by transfer bytes.**
+   New, and it is the lesson of this file's second run rather than a tidiness
+   note. Five of nine passes here were contended, and contention does not just
+   add noise — it silently *removes* a finding: a slow first paint means the
+   font lands before the text does, which is why the before table reported
+   CLS 0.000 on a page that reliably shifts 0.116. The discard criterion is
+   transfer bytes falling short of every other pass, because that one is
+   unambiguous and does not require deciding in advance which metric you
+   distrust.
+5. **The budget, now that there are after-numbers to argue it from.** The note
+   at the top still holds — a budget is a new blocking assertion and routes to
+   Forge intake before implementation, which it now has (DREAMCRM-118 →
+   DREAMCRM-114, 2026-09-23). The proposal's shape follows this file's own
+   recommendation: the load-bearing assertion is *"the homepage's LCP element
+   is text a visitor reads"*, a statement about the page that this script
+   already checks, with millisecond and kilobyte ceilings as the weaker
+   companions rather than the headline — a threshold in milliseconds measures
+   the runner, and the runner is not the thing under test.
 
 ## Related
 
 - `docs/LOAD-SANITY.md` — the server half: which surface saturates first.
 - `docs/RELEASE.md` Part 1 — performance/load, logged as "Never run".
-- `BRAND.md` Part 6 — the motion rules and the cinematic spine's laws.
+- `BRAND.md` Part 6 — the motion rules and the cinematic spine's laws;
+  Part 4 owns the type metrics behind the font-swap reflow above.
+- `docs/RELEASE.md` Part 5 — "Deliverable 3b", reconciled against this run,
+  and the `PageHero` font-swap reflow entry this run found.
 - `components/marketing/cinematic-spine.tsx` — `legal()`, the gate that keeps
   the stage off a phone.

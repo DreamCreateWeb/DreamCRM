@@ -65,11 +65,37 @@ export function MarketingMotionStyles() {
   return (
     <style>{`
       @keyframes mkt-fade-up { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+      @keyframes mkt-rise { from { transform: translateY(14px); } to { transform: none; } }
       @keyframes mkt-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
       @keyframes mkt-marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
       @keyframes mkt-bloom { 0%, 100% { transform: translate3d(0, 0, 0) scale(1); } 50% { transform: translate3d(-1.5%, 1.2%, 0) scale(1.04); } }
       @keyframes mkt-live { 0%, 100% { opacity: 0.35; transform: scale(1); } 50% { opacity: 0.9; transform: scale(2.1); } }
       .mkt-enter { opacity: 0; animation: mkt-fade-up 0.65s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+      /* THE HERO'S LCP TEXT RISES, IT DOES NOT FADE IN. Same 0.65s, same
+         curve, same delay ladder — the only thing removed is the opacity
+         ramp, because \`.mkt-enter\`'s \`opacity: 0\` is what was holding the
+         homepage's Largest Contentful Paint unpaintable for ~0.81s on a
+         phone (0.16s delay + 0.65s fade). Measured on production at
+         412x823 / Slow 4G / CPU 4x: 3,424ms against 2,472ms on the
+         identical page under \`prefers-reduced-motion: reduce\`.
+         \`docs/MOBILE-WEIGHT.md\` has the run; \`BRAND.md\` Part 6 owns the
+         rule; the ledger entry is \`docs/RELEASE.md\` Part 5, Deliverable 3b.
+
+         \`both\` rather than \`forwards\` is load-bearing. \`.mkt-enter\` can use
+         \`forwards\` because its base rule declares \`opacity: 0\`, so the
+         element is invisible through the delay and nobody sees where it is
+         sitting. This one is VISIBLE through the delay by design — that is
+         the entire point — so it needs the \`from\` state to apply BACKWARDS
+         into the delay too, or the text would paint at rest and then jump
+         14px down the instant the animation starts.
+
+         It is a second class rather than a change to \`.mkt-enter\` because
+         the fade is still right for everything the reader is not reading
+         first: the eyebrow pill, the buttons, the trust row, the mock. A
+         decorative \`background-image\` is an LCP candidate and the hero
+         copy was not, which is how \`DaylightSky\`'s film-grain layer kept
+         winning the metric Google ranks this page on. */
+      .mkt-rise { animation: mkt-rise 0.65s cubic-bezier(0.16, 1, 0.3, 1) both; }
       .mkt-d1 { animation-delay: 0.08s; } .mkt-d2 { animation-delay: 0.16s; }
       .mkt-d3 { animation-delay: 0.24s; } .mkt-d4 { animation-delay: 0.34s; }
       .mkt-float { animation: mkt-float 7s ease-in-out infinite; }
@@ -104,6 +130,7 @@ export function MarketingMotionStyles() {
       }
       @media (prefers-reduced-motion: reduce) {
         .mkt-enter { opacity: 1; animation: none; }
+        .mkt-rise { animation: none; }
         .mkt-float, .mkt-float-slow { animation: none; }
         .mkt-marquee-track { animation: none; }
         .mkt-bloom, .mkt-live { animation: none; }
@@ -1031,11 +1058,11 @@ export function PageHero({
           />
           {eyebrow}
         </div>
-        <h1 className="mkt-enter mkt-d1 max-w-4xl text-[2.35rem] font-extrabold leading-[1.02] tracking-[-0.035em] text-gray-950 sm:text-[3rem] lg:text-[3.6rem]">
+        <h1 className="mkt-rise mkt-d1 max-w-4xl text-[2.35rem] font-extrabold leading-[1.02] tracking-[-0.035em] text-gray-950 sm:text-[3rem] lg:text-[3.6rem]">
           {title}
         </h1>
         {sub && (
-          <p className="mkt-enter mkt-d2 mt-5 max-w-2xl text-[1.05rem] leading-relaxed text-gray-600">
+          <p className="mkt-rise mkt-d2 mt-5 max-w-2xl text-[1.05rem] leading-relaxed text-gray-600">
             {sub}
           </p>
         )}

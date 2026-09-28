@@ -39,16 +39,19 @@ vi.mock('@/lib/db', () => {
     db: {
       select: () => chain(),
       insert: () => ({
-        values: async (v: Record<string, unknown>) => {
+        values: (v: Record<string, unknown>) => {
           state.inserts.push(v)
+          // `notify()` reads the inserted id back (DREAMCRM-106).
+          return { returning: async () => [{ id: state.inserts.length }] }
         },
       }),
+      update: () => ({ set: () => ({ where: async () => undefined }) }),
     },
     schema: {
       member: { userId: 'm.userId', organizationId: 'm.orgId', role: 'm.role' },
       organization: { id: 'o.id', isDemo: 'o.isDemo' },
       user: { id: 'u.id', email: 'u.email', name: 'u.name', platformAdmin: 'u.platformAdmin' },
-      notifications: {},
+      notifications: { id: 'n.id', emailSentAt: 'n.emailSentAt' },
       notificationPrefs: {
         userId: 'np.userId',
         comments: 'np.comments',

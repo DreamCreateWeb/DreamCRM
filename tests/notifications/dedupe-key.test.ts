@@ -40,18 +40,23 @@ vi.mock('@/lib/db', () => {
       insert: () => ({
         values: (values: Record<string, unknown>) => {
           state.inserts.push(values)
-          // The plain path is awaited directly; the deduped path chains
-          // .onConflictDoNothing().returning(). One object serves both.
-          const result: any = Promise.resolve(undefined)
+          // Both paths read the inserted id back: the deduped one through
+          // .onConflictDoNothing().returning(), the plain one directly, since
+          // the email stamp is keyed on it (DREAMCRM-106). One object serves
+          // both.
+          const result: any = {
+            returning: async () => state.insertReturns.shift() ?? [{ id: 1 }],
+          }
           result.onConflictDoNothing = () => ({
             returning: async () => state.insertReturns.shift() ?? [{ id: 1 }],
           })
           return result
         },
       }),
+      update: () => ({ set: () => ({ where: async () => undefined }) }),
     },
     schema: {
-      notifications: { id: 'id', userId: 'user_id', dedupeKey: 'dedupe_key' },
+      notifications: { id: 'id', userId: 'user_id', dedupeKey: 'dedupe_key', emailSentAt: 'email_sent_at' },
       notificationPrefs: {
         userId: 'user_id',
         comments: 'comments',

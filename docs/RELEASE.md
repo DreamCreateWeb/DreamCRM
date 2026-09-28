@@ -249,6 +249,22 @@ bar: last week of R2 accepts only S0/S1 changes — churn is risk.
 
 ### R5 — Release candidate + go/no-go + launch watch
 - RC tagged; 72h change freeze except S0.
+- **RELEASE-BLOCKING — the published rulebook matches the RC.** Run
+  `node scripts/rulebook-publish.mjs` on the RC commit and paste its output
+  into the go/no-go. A red verify stops the release: `dreamcrm-conventions`
+  is authored in `docs/rulebook/` and published to the Multica skill store,
+  every check this repo owns grades the authored copy, and the copy every
+  agent actually reads is the published one. That hop has failed both ways
+  already — nine `STATE:` lines describing `main` wrongly for six days, and a
+  cp1252 round trip that replaced ninety characters while leaving the length
+  unchanged at 9,018 on both sides. The command compares BYTES, not lengths,
+  plus the stored description, the C1/mojibake range and the leading-`#`
+  lines. It cannot be a required status check — verifying needs a credentialed
+  `multica` CLI and `test` has none, so a version of it living in CI would
+  report green without reaching its subject. This line is the enforcement, and
+  `tests/guards/rulebook-publish.test.ts` asserts the line still exists.
+  The command refuses to publish anything that is not merged `main`, so
+  "run it on the RC commit" is a precondition rather than a request.
 - Go/no-go review against the R0 criteria — written, honest, kept.
 - Launch = the marketing pivot. Heightened watch: the Guardian + alarms
   + a daily digest to the owner for the first two weeks.
@@ -716,6 +732,20 @@ binding are all correct. The payment-plan charger was the exception.
   reads "Paid order" at face value. It is an identifier in a result list
   rather than a record of money, and changing it is a search-UX call — named
   here rather than left unwritten.
+  **Re-verified 2026-09-23 (DREAMCRM-108).** `lib/services/global-search.ts` still builds a shop-order result as
+  `` `${who} — $${(o.totalCents / 100).toFixed(2)}` `` with
+  `o.status === 'paid' ? 'Paid order' : o.status` as its sublabel, so a
+  PARTLY refunded order still reads "Paid order" at face value. Unchanged,
+  and still a search-UX call rather than a money-record one.
+  **FIXED 2026-09-23 (DREAMCRM-122).** The search-UX call was made the way the
+  two narrative surfaces were: the LABEL keeps the face value — the patient
+  really did pay $89 — and the sublabel carries what changed since, through the
+  same `refundNote` the timeline and the thread markers use. The join is
+  single-homed too now: `appendRefund` moved out of `patient-timeline.ts`'s
+  privates into `lib/net-collected.ts` beside `refundNote`, so the three
+  surfaces cannot drift on the separator either. A partly refunded order reads
+  "Paid order · $20.00 refunded"; a fully refunded one still lets `status`
+  carry it alone rather than reading "refunded · Refunded".
 - S3 · a refunded online payment still earned its patient loyalty points.
   The balance-payment row keeps `status = 'paid'` after a refund on purpose,
   so the daily accrual sweep read it as money the patient had paid, and
@@ -787,6 +817,10 @@ binding are all correct. The payment-plan charger was the exception.
   and again after `disconnectShopStripe` clears it, so a plain unique index
   would be satisfied by those nulls and say nothing). It is deliberately
   OUTSIDE `meta/_journal.json`, so no deploy can run it.
+  **Re-verified 2026-09-23 (DREAMCRM-108).** `lib/db/migrations/parked/one-stripe-account-per-clinic.sql` is
+  still present and still absent from `meta/_journal.json`, so the index
+  remains drafted and unrunnable exactly as described. The one production
+  read it waits on has not happened.
   WHY IT IS NOT SHIPPED: `CREATE UNIQUE INDEX` fails on existing duplicates,
   and on this deploy path a failed migration is skipped in silence and takes
   every later migration with it (the S2 entry directly below). So the order has
@@ -1036,6 +1070,12 @@ binding are all correct. The payment-plan charger was the exception.
   all now that there is one plan, and if not, what do the four non-premium
   tracks say instead? That needs the owner. Repro: open any prospect's demo
   prep page → the track cards, then run a non-full track to the wrap-up. · OPEN.
+  **Re-verified 2026-09-23 (DREAMCRM-108).** `lib/types/demo-script.ts` still carries `$150` at `:195` and
+  `:232` and `$250` at `:244`, `:279`, `:291`, `:335`, `:347` and `:364`,
+  with `recommendedPlan` still `'basic'` or `'pro'` on four of the five
+  tracks. Untouched, and still owner-gated for the reason above: the open
+  question is what a track closes on now that there is one plan, not
+  which number to print.
 - S3 · `app/opengraph-image.tsx:69` — the social share card for the whole
   marketing site still reads `$150–500/mo`, the pre-collapse three-tier
   range. It is the price that appears when anyone links dreamcreatestudio.com
@@ -1075,6 +1115,25 @@ binding are all correct. The payment-plan charger was the exception.
   `/partner-program` tells real partners "At the $200/mo plan that's $20 per
   practice per month". Money the demo displays, not money that moves. Repro:
   view the demo clinic → the partner portal's commission rows. · OPEN.
+  **Re-verified 2026-09-23 (DREAMCRM-108).** `lib/services/demo-clinic/seed-partners.ts:110` still seeds
+  `invoiceCents = 50000`, with the comment above it still naming the
+  $500/mo Premium plan, so the demo partner portal still shows $50 per
+  practice per month against `/partner-program`'s $20.
+  **FIXED 2026-09-23 (DREAMCRM-122).** `invoiceCents` resolves
+  `getQuotedPlan().price * 100`, so the demo invoices the plan a referred
+  clinic actually pays and 10% of it is the $20 `/partner-program` publishes
+  from the same source. A self-heal re-points an ALREADY-seeded demo — the
+  rows upsert by deterministic `demo_inv_` ids under `onConflictDoNothing`, so
+  without it every existing demo org would have kept quoting $50 — and the
+  payout row moves with the commission it covers. That self-heal's three-way
+  `WHERE` — the whole reason an `UPDATE` against two money tables is safe — is
+  GRADED rather than argued: the test renders the predicate through the real
+  `PgDialect` and fails naming any clause that goes missing. Found by Sentinel
+  in review, and worth the line because of what it measured: before it, the
+  mock took no `where` argument, so deleting the tenant scope, the invoice-id
+  scope and the `ne` together left all five assertions green. The escape route
+  is closed as well: the plan-price rule grew a CENTS spelling (§2c), and
+  reverting this line now fails `test` naming it.
 - S3 · `lib/services/marketing-blog.ts:50` — the launch announcement post,
   published on the marketing blog, still says the platform costs "$150–500 a
   month": the pre-collapse three-tier range, on a page a prospect can read
@@ -1127,6 +1186,19 @@ binding are all correct. The payment-plan charger was the exception.
   comment, so nothing renders it, but it is the file the next person reads to
   learn what a tier costs and it teaches them the list price. Repro: read the
   header. · OPEN.
+  **Re-verified 2026-09-23 (DREAMCRM-108).** `lib/types/social-entitlements.ts:12-14` still prices the tiers
+  `Basic ($150) | Pro ($250) | Premium ($500)` in its docblock table.
+  **FIXED 2026-09-23 (DREAMCRM-122).** The tier prices are out of the table
+  entirely rather than corrected — this module publishes the ADD-ON prices
+  ($30/$20, `SOCIAL_ADDON_PRICE_CENTS` is their one home) and has no business
+  publishing the plan's, which lives in `lib/stripe-config.ts`. Its sibling in
+  `tests/billing/social-entitlements.test.ts` carried a THIRD set of numbers
+  (`Basic ($99) | Pro ($149) | Premium ($199)`) — two files, three prices, one
+  plan — and is fixed in the same PR. Pinned there rather than guarded
+  tree-wide, and that is a measured choice with its number written down: a
+  comment-scanning version of the plan-price rule returns 39 hits over the
+  three roots, 38 of them sentences explaining that very rule. §2c carries the
+  argument and the trigger for revisiting it.
 - S3 · the MARKETING half of the struck-price naming defect —
   `app/(marketing)/pricing/price-card.tsx` named its struck list price with an
   `aria-label` on a bare `<span>`. ARIA prohibits an accessible name on
@@ -1214,8 +1286,46 @@ collections header) and two remain open below.
   below turns a merely SLOW provider into a throwing one at 10s, so the two
   land together and the window is more reachable than either entry describes
   alone. Taken knowingly: the bell row still lands, so these alerts degrade
-  rather than disappear. Per-channel delivery state is the real answer and it
-  is a `docs/POST-1.0.md` item, not a rider.
+  rather than disappear.
+  **THE TRADE IS CLOSED, NOT DEFERRED (DREAMCRM-106).** This entry said
+  per-channel delivery state was "a `docs/POST-1.0.md` item, not a rider", and
+  `lib/services/notifications.ts` carried the same sentence — while
+  `docs/POST-1.0.md` had no such item, so the deferral pointed at nothing and
+  nobody owned it. It is done instead: migration 0165 adds a nullable
+  `notifications.email_sent_at`, `notify()` stamps it the moment
+  `sendNotificationEmail` RESOLVES, and the ON CONFLICT branch reads it — a
+  replay that finds a row whose email never went out re-attempts the EMAIL
+  only, writes no second bell row and fires no second live push. NULL now means
+  exactly two things and never "probably went": no email was owed (the
+  recipient's mode, or `suppressEmail`), or one was owed and did not land.
+  Stamped for EVERY dispatch that emails, keyed or not, so the column means
+  what its name says rather than being true only of the handful of rows
+  carrying a dedupe key.
+  The residual, named rather than left to be found: if the send lands and the
+  stamping UPDATE fails, a replay re-emails. That needs the database to fail
+  between two statements, and a duplicate is the opposite direction of failure
+  from the silence it replaces.
+  The cross-user half is what the SQL-rendering test is for — the replay read
+  keys on (user_id, dedupe_key), and dropping the `user_id` half would decide
+  one owner's email from another owner's delivery state, in the one module that
+  fans a single event out to every owner and admin. A mocked `db` cannot see
+  that; `tests/notifications/email-durability-sql.test.ts` renders the
+  statement through drizzle's own dialect and fails when the predicate is
+  reverted by hand.
+  WHAT IS STILL OWED, so the fix is not read as wider than it is (Sentinel's
+  review note on #683): the state is recorded and nothing re-drives a send
+  from it. `notifyOrgMembers` is the LAST statement of each of the three
+  branches in `app/api/webhooks/stripe/route.ts` that use it, and `notify()`
+  swallows the email failure into its own `console.warn` — so the ordinary
+  shape, the provider timing out while everything else in the handler
+  succeeds, returns 200, Stripe does not retry, and that email is still gone.
+  The replay path is reached when the idempotency claim fails OPEN, or when
+  the process dies before the claim is released. The accurate sentence is
+  therefore *if Stripe retries, the email that failed now goes out* — a strict
+  restoration of the pre-#651 recovery without the duplicate, not a guarantee
+  of delivery. The sweep over `email_sent_at is null` that would close the
+  rest is new machinery and is queued in `docs/POST-1.0.md`. · **FIXED**
+  (#683, `fe597112`) (DREAMCRM-106).
   The index is `(user_id, dedupe_key)` and NOT org-scoped — per user is right
   for a fan-out — so the org has to live in the KEY for any tenant-scoped
   caller, the way `campaigns_org_automation_key_idx`'s values do. Written into
@@ -1321,6 +1431,15 @@ patient) and a handful of S3 polish items.
   hiding the out-links while the site is unpublished is another — a product
   call for whoever owns the portal, not a mechanical widening of the regex.
   · OPEN.
+  **Re-verified 2026-09-23 (DREAMCRM-108).** All three halves still hold: `app/(portal)/patient/shop/page.tsx:16`
+  redirects to `/site/{slug}/shop`,
+  `app/(portal)/patient/invoices/page.tsx:342` links to
+  `/site/{slug}/dental-plans`, and `middleware.ts:255` still matches only
+  `(portal|intake-start)`. Worth adding, because it is the obvious place
+  an accidental fix would have come from: `requirePortalFeature(pc,
+  'shopLink')` gates the Shop door on the clinic's STOREFRONT toggle, not
+  on `site_live_at`, so it does not hide the out-link while the site is
+  unpublished. Still the product call this entry describes.
 - S3 · portal visit-card offers no change affordance inside the notice window
   when the clinic has no phone on file (fall back to a "message us" link);
   family "Book for {name}" doesn't pre-select the dependent (`?for=` param);
@@ -1329,7 +1448,40 @@ patient) and a handful of S3 polish items.
   the top-level eyebrow instead of the `‹ Growth` back-link; dead `?upgrade`
   param on the `/settings/plans` redirect; partner payout button reads
   "Withdraw $0.00" at zero balance; unreachable `isManage` branch in
-  `website/seo/page.tsx`. · OPEN (polish).
+  `website/seo/page.tsx`. · **FIXED** — all seven, reconciled on
+  DREAMCRM-108 (2026-09-23). This is the shape §1 warns about, in its
+  slowest form: a BUNDLE whose items were each closed by a PR aimed at
+  something else, so no single merge ever made the verdict false and
+  nobody was ever handed a reason to re-read the line. Named per item,
+  with the commit rather than the batch:
+
+  - the visit-card fallback with no phone on file — `ActionPill` to
+    `/patient/messages`, "Need to change it? Message us"
+    (`components/patient-portal/visit-card.tsx:261`) · `ed53e388`
+  - the family "Book for {name}" pre-select — `?for=<dependentId>` is
+    honoured as `initialForPatientId`, and only for ids the guardian can
+    actually book for (`app/(portal)/patient/book/page.tsx`) · `ed53e388`
+  - the `‹ Growth` back-link on `/growth/audiences`
+    (`growth/audiences/audiences-client.tsx:92`) · `ed53e388`
+  - the partner payout button at zero balance — now "Nothing to withdraw
+    yet" (`app/(partner)/partner/partner-payout.tsx`) · `ed53e388`
+  - the unreachable `isManage` branch in `website/seo/page.tsx`
+    · `ed53e388`
+  - the hardcoded "SMS replies — coming soon" Overview tile, deleted
+    rather than hand-removed later (`dashboard/clinic-overview.tsx:599`
+    carries the note) · `51bbd8d4`
+  - the dead `?upgrade` param — gone with `requirePlan` itself when
+    `/settings/plans` became a redirect (`6aab041d`; the note explaining
+    it re-worded in `ed53e388`)
+
+  **The `isManage` one is the one to read if you are auditing this.** The
+  entry named a file and a symptom but never WHICH branch, so once the
+  dead ternary was deleted there was nothing left in the tree to check
+  the claim against. It was re-verifiable only because the fix left a
+  comment at `website/seo/page.tsx:216` saying the block renders under
+  `!isManage` and needs no tenant branch. A polish item whose evidence is
+  an ABSENCE has to name the thing that was absent, or the next reader
+  cannot close it and cannot confirm it either.
 
 **S3 sweep CLOSED (2026-08-17):** of 2 S2 found, 1 fixed (review dead-end)
 and 1 (portal coming-soon gate) scoped to R2; 2 S3 fixed (plan defaults,
@@ -1737,6 +1889,10 @@ clinic, none breaking at the current one-beta-clinic scale.
 - S2 · `campaign_events` frequency-cap query filters by `patientId`/`recipientEmail`
   but every index is `campaignId`-leading — a partial index
   `(patientId, occurredAt) where type='sent'` if it shows in slow logs. · OPEN.
+  **Re-verified 2026-09-23 (DREAMCRM-108).** Every `campaign_events` index is still `campaign_id`-leading
+  (`0010`, `0021`, `0098`, plus `0145`'s provider-message lookup); no
+  `(patient_id, occurred_at) where type='sent'` partial index exists. The
+  entry's own trigger — "if it shows in slow logs" — has not fired.
 - S2 · the public-site + marketing body font (Inter) loads via a
   render-blocking third-party `@import` in `app/css/style.css:1` — violates
   the self-hosted-woff2 font doctrine (Nunito is already self-hosted correctly).
@@ -1823,7 +1979,121 @@ add `<label sr-only>`/`aria-label` to the public booking visit-type select +
 placeholder-only inputs; a `role="alert"`/`role="status"` sweep over the ~7
 unannounced error/success nodes (public booking, portal visit-card + booking,
 auth sign-in/up/reset, approval-inbox validation); + S3 (drawer `DialogTitle`,
-portal desktop-nav `aria-current`, phase-change announcements). · OPEN.
+portal desktop-nav `aria-current`, phase-change announcements).
+
+· **FIXED** — reconciled on DREAMCRM-108 (2026-09-23), and it had been
+true for months in two halves that closed months apart.
+
+The S2 cluster is **R2 Slice 6 (`64ffd7fa`)**, which has its own DONE
+entry below: `aria-pressed` + labels + `focus-visible` on the portal slot
+picker and the booking choice-chips, the `sr-only` "— taken"
+(`components/patient-portal/slot-picker.tsx:265`), the public booking
+visit-type label (`app/site/[slug]/book/book-form.tsx:843`), and the live
+regions — public booking, portal booking, the VisitCard's
+`role={message.kind === 'ok' ? 'status' : 'alert'}`
+(`components/patient-portal/visit-card.tsx:348`), sign-in, sign-up,
+**reset-password** (`app/(auth)/reset-password/reset-form.tsx:59,84`) and
+the **approval-inbox validation** (`approval-inbox.tsx:1052,1213`). Those
+last two are in THIS entry's list and absent from Slice 6's write-up, so
+they are verified and named here rather than assumed closed with it.
+
+All three S3 items are closed too, and by an EARLIER commit than the
+slice — **`f9585545`** (#488, DREAMCRM-6, "portal a11y cluster"): the
+drawer's `DialogTitle` (`components/ui/drawer.tsx:86`), the portal
+desktop-nav `aria-current`
+(`components/patient-portal/portal-chrome.tsx:122`), and the
+phase-change announcement — one polite live region
+narrating checking → what landed on the portal slot picker
+(`components/patient-portal/slot-picker.tsx:132`).
+
+**Why that last one took a reconciliation sweep to close: the entry named
+no file for it.** "Phase-change announcements" is a BEHAVIOUR, and the
+only reason it was identifiable at all is that the fix left a comment
+using the same word ("One polite live region narrates the phase"). A
+reader checking this list could not otherwise tell whether it was done,
+which is how a closed item goes on reading OPEN for a year. A ledger item
+whose subject is a behaviour rather than a place owes a call site, or
+nobody but its author can ever close it.
+
+One instance of that same class is still live. It is the entry below,
+rather than a caveat hedging this verdict.
+
+- S3 · the portal's post-visit SURVEY card changes phase silently. Split
+  out of the cluster above on DREAMCRM-108 (2026-09-23): the slot-picker
+  half of "phase-change announcements" is fixed, and this is the same
+  class, unfixed. `components/patient-portal/survey-card.tsx:24` drives
+  the card through `'ask' → 'comment' → 'done'`, and the file contains
+  ZERO live regions — no `role="status"`, no `role="alert"`, no
+  `aria-live` (grep-verified at zero, not inferred from reading). A
+  screen-reader user taps a 0–10 score, the card silently swaps the
+  rating row for a comment textarea, and then silently swaps that for a
+  thank-you; nothing is announced at either step, so the only evidence
+  the tap registered is focus landing somewhere unexpected. Repro: open a
+  patient portal dashboard with a recent completed visit so the survey
+  card renders, then tap any score with a screen reader running. Fix
+  shape is already in the tree one file away — the slot picker's
+  `<p className="sr-only" role="status">` narrating the new phase.
+  **Vesper's lane** (portal accessibility), handed over rather than
+  absorbed: DREAMCRM-108 is a marketing-site issue and the portal is
+  outside its scope. · **FIXED** — DREAMCRM-116, 2026-09-23.
+  `survey-card.tsx` carries one always-mounted `<p className="sr-only"
+  role="status">` summarising the new phase, and so does the public
+  survey page's identical `stage` machine
+  (`app/n/[token]/survey-form.tsx`) — which this entry called the
+  “working reference” and which announced its phase no better. See
+  the re-derivation below.
+
+**THE RE-DERIVATION THIS ENTRY FORCED, AND THE TWO THINGS IT FOUND THAT
+THE HAND-NAMED LIST GOT WRONG** (DREAMCRM-116, 2026-09-23). The entry
+above names one file. The CLASS it describes — *a component swaps what
+is on screen under its own state machine and speaks nothing* — was
+measured across the whole patient-facing tree rather than taken at the
+entry's word, by deriving every client component whose `useState` is
+annotated with a union of two or more string literals. That population is
+**19 machines across 18 files** — re-derived by running the rule's own
+`scanForSilentPhases()` against a clean checkout, and pinned by an assertion
+in the guard so this paragraph cannot drift from it again. **Five of the
+nineteen, across four files, carried no announcement instrument at all** at
+`66d087dc`, the commit this work started from.
+
+(The first draft of this paragraph said *15 files*, which is exactly the
+pre-alias count the guard's own docblock identifies as wrong. A ledger entry
+written to correct a hand-carried count carried the count it was correcting;
+Sentinel caught it by re-running the derivation. It is an assertion now for
+that reason and not a tidier one.)
+
+The measurement corrected the hand-named list in BOTH directions:
+
+- **`visit-card.tsx` was on the list and does not belong on it.** It has
+  carried a live region since R2 Slice 6 — `role={message.kind === 'ok'
+  ? 'status' : 'alert'}` at line 348, which this ledger's own entry above
+  names. Its `panel` machine is a DISCLOSURE: the patient presses
+  Reschedule and a panel opens directly beneath the button they pressed,
+  so a live region is the wrong instrument outright. What was missing is
+  `aria-expanded`/`aria-controls` on the two pills, which is what it now
+  has.
+- **Four more files are the same defect and were not on the list**, each
+  announcing its `error` phase through `role="alert"` and its TERMINAL
+  phase through nothing at all: the portal's own book and request forms
+  (`app/(portal)/patient/book/`), the public survey page, and the clinic
+  site's chat widget. A fifth, the shop cart
+  (`app/site/[slug]/shop/cart-view.tsx`), is the adjacent shape — its
+  fulfillment chips carried the selection in a brand fill with no
+  `aria-pressed` and no named group, the exact parity defect R2 Slice 6
+  fixed on the booking chips.
+
+**AND THE BLIND SPOT THAT MAKES A GREP-LEVEL READING OF THIS CLASS
+UNSAFE**, named because the next person will reach for the same grep. The
+entry above says `survey-card.tsx` contains ZERO live regions,
+grep-verified, and that was true OF THE FILE. Its error text was already
+announced — by `PortalErrorText`, the shared primitive, which carries
+`role="alert"` itself (`components/patient-portal/ui.tsx:307`). A live
+region reached through a shared component is invisible to a grep over the
+call site, so *“zero live regions in this file”* and *“nothing here is
+announced”* are different claims and the first does not imply the second.
+`tests/a11y/announced-phase-changes.test.tsx` resolves the announcing
+primitives by name for exactly this reason, and asserts that resolution
+against the primitives' own source rather than trusting the list.
 
 ### Fixed — /compare/[vendor] scrolls sideways 212px at 390 (found 2026-09-15)
 
@@ -2423,7 +2693,7 @@ re-deriving the entry above; pre-existing, and NOT the fix that entry made.
 
 Two halves, and the first is the one that generalises:
 
-- **The instrument.** `findA11yViolations` in `e2e/axe.ts:271` destructures
+- **The instrument.** `findA11yViolations` in `e2e/axe.ts` destructures
   `const { violations } = await builder.analyze()` and discards the rest. For
   text over a gradient, axe-core cannot resolve a single background colour and
   reports the node under **`incomplete`**, not `violations` — so every stop in
@@ -2444,7 +2714,70 @@ and report it as its own class — not as a violation (it is genuinely
 undecidable, and a gate people have to interpret is one they learn to ignore),
 but not as silence either. `e2e/axe.ts` is on the `check-definitions` REVIEW
 gate, so that is a reviewed change and a separate PR; it is written here rather
-than beside the code for that reason. · OPEN.
+than beside the code for that reason.
+
+· **FIXED** on DREAMCRM-107, on that shape exactly. `findA11yResults` reads
+both verdicts; `expectNoA11yViolations` prints the undecidables with their
+elements and axe's own reason, raises one `::warning` per stop, and folds them
+into a second end-of-run table in `e2e/axe-headroom.ts`. It FAILS NOTHING, and
+that half is deliberate rather than a shortfall — see the fix shape above.
+
+**WHAT THE FIX BUYS, STATED NARROWLY, because "the gate reads incomplete now"
+is a wider sentence than what shipped.** The category reaches a human instead
+of the floor. It does not reach `rulesOverBaseline`, so a gradient-ground
+contrast defect still merges green — what changes is that it merges green with
+its selector printed on the run summary rather than with nothing anywhere. Two
+consequences worth having written down: the ceilings are unaffected in both
+directions (nothing newly fails, nothing newly passes), and a ZERO in the
+end-of-run needs-review table is a measured state only because the emitter
+reports at every stop whether or not it found anything — an emit that fired
+only on a finding would make "axe decided everything" and "the emitter came
+unhooked" the same silence, which is §2a's rule about alarms that stop.
+
+**Watched to fail, against the real defect and against both of its shapes.**
+Restoring `const { violations } = await builder.analyze()` reddens four tests
+in `e2e/axe-selftest.spec.ts` plus `tests/guards/axe-headroom-table.test.ts`;
+moving the emit inside the finding branch reddens the §2a test by name. The
+self-test's document is the reachable case above with the labels moved into the
+glow's reach, and it is measured rather than asserted: **0 violations, 1
+`color-contrast` incomplete over 4 nodes**, axe's summary reading "Element's
+background color could not be determined due to a background gradient".
+
+**THE REACHABLE CASE IS UNCHANGED AND STILL DOES NOT BITE** — nothing on
+`app/g/[token]/report-view.tsx` moved, the geometry above still holds, and the
+stop still measures ZERO violations. What is different is the repro's ending:
+move a `.dg-mono` label into the hero's right half above y=444 today and
+`token: practice grade report` is still GREEN, but the run now names the
+element.
+
+**AND THE POPULATION IS MEASURED — the first CI `e2e` run was the
+measurement, as promised** (PR #682, run 35804987254, `669a51df`, green).
+Across the whole suite: **848 nodes over 44 (stop, rule) pairs** at 39 stops,
+41 pairs `color-contrast` and 3 `aria-prohibited-attr` — of which one pair, 4
+nodes at `selftest: over the glow`, is the harness's own planted document, so
+**844 over 43 pairs at 38 real stops**. The
+worst are `token: book a demo, slots offered` (72),
+`clinic site: published home` (45) and `staff: dream team` (41); the staff app
+contributes a recurring ~30 at every stop, which is one shared component in its
+chrome rather than thirty defects.
+
+**THAT NUMBER RETROSPECTIVELY SETTLES THE DESIGN.** A zero-tolerance ceiling
+over this class — the obvious "proper" gate, and the one this PR was asked
+twice not to ship — would have turned `e2e` red on arrival at 39 stops, on a
+population nobody had looked at, for a verdict that is a question rather than a
+defect. It could not have been shipped at all. **Reporting was not the weaker
+option; it was the only one available before the number existed.** With the
+number in hand, a ceiling is now a decidable follow-up rather than a guess.
+
+**ONE ROW IS WORTH READING FIRST, and it is this entry's own page:**
+`token: practice grade report` reports **33 undecidable `color-contrast`
+nodes**. The geometry argument above is about `INK_3` nodes and the `.dg-glow`
+ellipse specifically, and it still holds; what the 33 say is that the page has
+far more composited ground than that argument covers (`.dg-card`, `.dg-cell`,
+`.dg-ring-wrap::before`, `.dg-cta`). None of them is known to fail — axe
+declined to answer, which is not a no — but before this change that whole
+question was invisible at a stop holding ZERO. Hand-measuring those 33 is the
+natural next piece of work on this page.
 
 ### R1 · S8 sweep — Compliance & data (2026-08-17)
 
@@ -2797,6 +3130,12 @@ reason is the one already written above: closing this needs a RESOLUTION PATH
 before it needs a query, and that is a product decision. An item whose next
 step is a decision cannot be scheduled as work, so putting it in a release
 would have bought a query nobody could act on.
+
+**Re-verified 2026-09-23 (DREAMCRM-108).** The premise behind the ranking is unchanged: all four doors still
+park rows that never self-clear, `getIntegrationsDashboard` is still the
+only place they are counted, and no resolution surface exists for a human
+to dismiss one. Still correctly OPEN and still correctly not scheduled —
+an item whose next step is a product decision cannot be worked.
 
 Note what the ranking is NOT: it is not `STRUCK BY DECISION`. §1 allows a
 strike only where the item is genuinely not a check, and this one names real
@@ -3289,7 +3628,11 @@ against it, and what is the true RTO.
 is an owner action; a result table at the bottom of the runbook is waiting for
 the RTO/RPO numbers. · OPEN (owner).
 
-### Deliverable 3 — load sanity · BASELINE MEASURED
+**Re-verified 2026-09-23 (DREAMCRM-108).** The result table at `docs/RESTORE-DRILL.md:117` still reads
+`_not yet run_`. Unchanged, and unchangeable from a development session —
+it needs AWS credentials for account `952078552817`.
+
+### Deliverable 3 — load sanity · MEASURED BEFORE AND AFTER
 
 `scripts/load-sanity.mjs` (no dependencies, read-only paths only — a load
 script must never be able to fabricate bookings or send email) +
@@ -3316,14 +3659,82 @@ own `clinic_profile` select for eleven chrome columns on every page. Which
 reads deliberately stay uncached (the template-frame preview, the draft
 overlay, the trial verdict) is written down in `docs/LOAD-SANITY.md`.
 
-**The table in that doc is still the PRE-CACHE one.** Nothing has re-run the
-script since the change, so there is no measured "after" — recommendation 4
-("re-run after any change to public-site rendering") is owed a run.
+**THE AFTER-TABLE LANDED 2026-09-23 (DREAMCRM-117).** `bash
+scripts/e2e-harness.sh --load-sanity` is the new mode that made honouring
+recommendation 4 a command rather than a session: the harness already stands up
+Postgres, the migrations, the seeded live clinic and a production server on the
+exact port and slug `load-sanity.mjs` asks for, and now runs the measurement
+against them instead of the browser suite.
 
-Caveat written into the doc: these numbers are from the dev container and
-characterise the APPLICATION, not the prod t4g.micro's ceiling. A real ceiling
-needs a staging run on prod-shaped hardware before the marketing pivot. · OPEN
-(prod-shaped re-run).
+**What it says, and it is not what recommendation 1 promised.** The clinic site
+**stopped being the slowest public surface** — in both baseline tables it was
+the worst p50 and the lowest throughput; at concurrency 8 it is now faster than
+the marketing homepage and carries more throughput, and the slowest tail is the
+homepage (which agrees with `docs/MOBILE-WEIGHT.md` about the same page).
+**But the SATURATION is unchanged**, which was the finding the cache was picked
+to fix: 8 → 25 concurrency still buys the clinic site ~16% more throughput
+while p50 triples, against +19% and 2.7× in the baseline.
+
+**And the reason is not the one the doc had been guessing.** Latency on a
+shared desktop is noisy, so the structural half was measured on an instrument
+the host cannot move: the throwaway cluster started with `log_statement=all`
+and the statements counted for one request. A warm request to
+`/site/e2e-dental` runs **eight** statements; the first one the server ever
+serves runs **eleven**; `/pricing`, the control, runs **zero**. The three the
+cache removes are exactly the three `lib/services/clinic-site-cache.ts` owns
+(the chrome join #654 added, the published `clinic_profile` row,
+`clinic_location`) — so #654's "zero uncached profile queries" holds exactly as
+written. The other eight are the slug→`organization` lookup, which sits in
+FRONT of the cache, plus six content-section reads (`blog_post`,
+`platform_review` twice, `clinic_review_config`, `membership_plan`,
+`job_posting`) whose churn is as low as the profile's. Recommendation 1 said
+"cache the public clinic site"; what landed cached the chrome of it, and the
+warm page is a full dynamic render with eight queries still under it.
+Recommendation 5 in that doc now carries the rest — six more reads through the
+same tag and the same invalidation points, which is more of the change that
+landed rather than a new design — and leaves full-route caching, which is a
+design change, in front of the owner.
+
+Measured on a different machine from the baseline (WSL2 Ubuntu on a Windows
+desktop, ~2× the dev container on the control rows), so every LATENCY claim is
+made against `/pricing` in its own table rather than against a raw millisecond
+in the other. Three passes per level, median with the spread, and the control
+rows act as an admissibility gate — passes taken while the host was at 100% CPU
+on unrelated work were discarded rather than averaged in. The statement counts
+need none of that care, which is why they carry the structural claim.
+· FIXED (the after-table).
+
+The prod-shaped-hardware run that used to share this verdict is **split out
+below on contact** (§1: one defect, one entry). It had to be: the weekly
+direction meeting (DREAMCRM-120, 2026-09-23) ranked the after-table as 1.0 work
+and the prod-shaped ceiling as not-1.0, and one entry cannot carry both.
+
+### The load numbers are the APPLICATION's, not the prod t4g.micro's (found 2026-08-18)
+
+Split from Deliverable 3 above on 2026-09-23 (DREAMCRM-117), which closed the
+other half of it.
+
+Every table in `docs/LOAD-SANITY.md` — the 2026-08-18 baseline and the
+2026-09-23 after-table alike — was taken on development hardware. They
+characterise the application (render cost, query shape, queueing); they do not
+predict the ceiling of the production t4g.micro, which has different CPU and
+memory and a network hop to RDS. Expect production to be WORSE, not better. A
+real ceiling needs `--base` pointed at a staging deploy on prod-shaped
+hardware, and it is worth having before the marketing pivot drives real traffic
+at `/site/[slug]`.
+
+· OPEN — **RANKED NOT 1.0 by the DREAMCRM-120 weekly direction meeting,
+2026-09-23.** The ranking is recorded rather than the item re-argued: standing
+up a staging deploy on prod-shaped hardware is a SPEND decision, not a
+development task, and it is in the DREAMCRM-120 owner brief as one. An item
+whose next step is the owner agreeing to pay for an instance cannot be
+scheduled as work.
+
+Note what the ranking is NOT: it is not `STRUCK BY DECISION`. §1 allows a
+strike only where the item is not genuinely a check, and this one names a
+number nobody has — the ceiling the product actually runs against. Its reopen
+condition is a real event (staging hardware exists), not "somebody decides it
+matters".
 
 ### Deliverable 3b — mobile weight, the CLIENT half · BASELINE MEASURED
 
@@ -3366,8 +3777,204 @@ deferral: this is a BRAND-MOTION decision on the site's most-looked-at surface
 was scoped to measurement. One open item is recorded as NOT REPRODUCED rather
 than reported — scroll blocking ranged 0ms to 1,894ms across passes with
 machine contention as the only variable, so it is written down with what would
-settle it and no conclusion drawn. · OPEN (the hero's LCP element, Neon's lane;
-and a real-device run).
+settle it and no conclusion drawn.
+
+**SPLIT ON RECONCILIATION (DREAMCRM-108, 2026-09-23).** This carried two
+verdicts under one word — a motion decision somebody owned, and a
+measurement nobody had taken — so it could not be closed honestly by the
+PR that fixed the first. Per §1, on contact:
+
+- **The hero's LCP element** — `.mkt-enter { opacity: 0 }` holding the
+  headline and the hero sentence unpaintable for ~0.81s, and the LCP
+  element flipping to the film-grain layer because a decorative
+  `background-image` is a candidate and transparent text is not. ·
+  **FIXED (#698, `66d087dc`, merged + deployed 2026-09-23 06:05Z)**
+  (DREAMCRM-108). Reconciled on DREAMCRM-118 against a production
+  re-measurement rather than against the merge: home LCP **3,424ms →
+  2,540ms** (−884ms, −26%) with the reduced-motion path at 2,546ms, so the
+  952ms gap this entry is about is now 6ms; and the LCP element is
+  `p.mkt-rise.mkt-d2` — the hero sentence — on **20 of 20 runs** on the
+  motion path, where the flip to the film-grain layer was the worse half of
+  the defect. `docs/MOBILE-WEIGHT.md`, "After the hero fix". `.mkt-rise` is the
+  same 0.65s, the same `cubic-bezier(.16,1,.3,1)` and the same delay
+  ladder with the opacity ramp removed, on the two LCP candidates only —
+  the rest of the hero stagger is untouched, and
+  `prefers-reduced-motion` switches it off. Held by
+  `tests/marketing/hero-lcp-paint.test.tsx`, which derives the banned
+  class set from the stylesheet rather than grepping for `mkt-enter`, so
+  a third entrance class that also starts at zero is covered the day it
+  is written.
+- **The real-device run** — every number in `docs/MOBILE-WEIGHT.md` comes
+  from headless Chrome under Lighthouse-profile emulation, and CPU
+  throttling is a multiplier rather than a phone. · **OPEN.** **Nothing here
+  is invalidated by the fix above**: the mechanism and the measurement
+  agreed, which is why it read as a cause. What a real device would
+  settle is the SIZE of the win.
+  **The re-run half of this line is done and the real-device half is not**,
+  and they are kept apart on purpose because they are two different claims.
+  The re-run landed on DREAMCRM-118, 2026-09-23, against production after
+  #698 deployed — 20 samples per surface over 4 clean passes, with the
+  before/after tables beside each other in `docs/MOBILE-WEIGHT.md`. It
+  confirmed the win and sized it. It did **not** make any of it
+  unemulated, which is the whole of what this entry asks for, so this reads
+  OPEN until somebody points `--base` at production from a real mid-range
+  Android.
+- **The scroll-blocking outlier** — 0ms to 1,894ms across passes with
+  machine contention the only variable. · Still recorded as NOT
+  REPRODUCED rather than as a defect, and the 2026-09-23 re-run is a
+  second independent observation of the same pattern rather than a new
+  one: 0ms on every clean pass, 552–3,267ms on the five contended ones,
+  and the contended passes are identifiable without reference to this
+  metric at all (their transfer bytes fall short). Two runs on two days,
+  agreeing that the number tracks the machine. Still not a defect; what
+  would settle it is unchanged.
+
+### Fixed — the Inter swap rewraps every subpage hero's sub paragraph and drops the page 27px (found 2026-09-23, fixed 2026-09-23)
+
+Found by DREAMCRM-118's post-#698 re-measurement of
+`docs/MOBILE-WEIGHT.md`, on the mobile profile (412×823 at DPR 1.75, CPU 4×,
+Slow 4G, cold cache) against production `www.dreamcreatestudio.com`.
+
+**Measured, on the live page, 2026-09-23 07:47–08:40Z:**
+
+- **Surface:** `https://www.dreamcreatestudio.com/pricing`, the `PageHero`
+  section at the top of the page. Reproduces on the homepage hero too, rarely
+  (below).
+- **The shift:** one layout shift at **~2.6 s**, value **0.1157**, no recent
+  input. Selector of the largest moved box:
+  `div.relative.overflow-hidden.rounded-[14px].border.bg-white` — the first
+  pricing panel — moving `y 305.25 → 332.53`.
+- **What resizes:** the hero `<section>` grows **293.25 px → 320.53 px**
+  (+27.28 px). The `<h1>` measures **76.69 px before and after**, so the
+  headline is not it. +27.28 px is one line of the sub paragraph at `1.05rem`
+  on `leading-relaxed` (16.8 × 1.625 = 27.3 px): `PageHero`'s
+  `<p className="mkt-rise mkt-d2 …">` rewraps from two lines to three.
+- **When:** within ~30 ms of `document.fonts.ready` on every run — self-hosted
+  Inter (`public/fonts/inter-latin-var.woff2`) replacing the fallback face.
+- **Frequency:** the reflow happens on **8 of 8** runs. Whether it is *counted*
+  as CLS depends on whether the text painted first — the runs that report
+  0.000 are exactly those with FCP ≥ 3,156 ms, where the font beat the paint.
+  At a 412 px width 0.1157 is past the 0.1 "good" threshold on its own.
+
+**Not motion, and not #698.** Both worth stating because both are the obvious
+suspects and both are wrong:
+
+- It reproduces identically under `prefers-reduced-motion: reduce`, where
+  `.mkt-rise` and `.mkt-enter` are both `animation: none`. `@keyframes
+  mkt-rise` animates `transform` only, which cannot move layout.
+- Re-created the pre-#698 condition on the live page — a stylesheet injected
+  before first paint holding `.mkt-rise` at `opacity: 0` through the same
+  delay and duration `.mkt-enter` used — and ran the arms interleaved, 8
+  single runs each. The opacity-ramp arm reflowed **8/8** and reported
+  0.1157 in **6/8**, against the shipping arm's 8/8 and 5/8. Holding the text
+  transparent suppresses neither the reflow nor its CLS. **The reflow predates
+  the hero fix.**
+
+**Why the before table said 0.000 across 25 samples**, since that is the part
+that misleads the next reader: the 2026-09-22 run was contended — its own
+notes record a discarded pass with a 9,672 ms FCP — and a contended pass paints
+late enough that the font arrives before the text and there is nothing left to
+shift. The metric was measuring the rig. `docs/MOBILE-WEIGHT.md` recommendation
+4 now carries the discard criterion that would have caught it.
+
+**The homepage, rarely.** 0.000 on the motion path across all 20 samples;
+0.013 on two of four reduced-motion passes. Probed: the same mechanism, a
++28.08 px step with the hero CTA row (`div.mkt-enter.mkt-d3`) dropping at
+`fonts.ready`, on a run where the font did not land until 6,999 ms. One
+defect, one mechanism, two surfaces — `/pricing` reliably because the eight
+`PageHero` subpages share the geometry, home rarely because its hero usually
+paints late enough not to care.
+
+**Reproducing it needs no probe any more.** `scripts/mobile-weight.mjs` now
+prints the worst layout shift per surface — the moved element, the pixels, the
+millisecond and how many runs saw it — so `node scripts/mobile-weight.mjs
+--runs 3` reports this defect by name. Verified: it names
+`div.relative.overflow-hidden.rounded-[14px].border moved 27.28px` on
+`/pricing` (3/3) and `div.mkt-enter.mkt-d3.mt-9.flex moved 28.08px` on the
+homepage under reduced motion (3/3).
+
+**The fix is typographic, not motion** — `BRAND.md` Part 4, `PageHero` in
+`components/marketing/ui.tsx`. Two candidates, and the second is the better
+one because it fixes the cause rather than the symptom:
+
+1. Reserve the sub paragraph's line box (`min-height` at three lines), which
+   measured **0 reflows in 8/8** runs and dropped CLS to 0.0073. Cheap, but it
+   hard-codes a line count per breakpoint and per string.
+2. Give the fallback face `size-adjust` / `ascent-override` metric overrides so
+   it wraps where Inter wraps. One declaration, no per-string constant, and it
+   covers every surface the swap touches rather than the one that was measured.
+
+**Deliberately not fixed on DREAMCRM-118**, whose scope was the measurement:
+it is a type-metrics change across eight subpages and wants its own issue and
+its own before/after, which is the same call `docs/MOBILE-WEIGHT.md`
+recommendation 1 made about the hero and which turned out right.
+
+**FIXED on DREAMCRM-127** (PR #718, `589891e6`, merged 2026-09-23 13:41Z,
+deployed ~13:53Z and VERIFIED ON PRODUCTION below) — candidate 2, plus a cause this
+entry had not found. Both halves are in `app/css/style.css`:
+
+1. **`--font-inter` shipped as `"Inter", "sans-serif"`, and a QUOTED generic
+   is a family name rather than the generic keyword.** Nothing is named
+   "sans-serif", so the stack fell through to the browser's default standard
+   font — **Times New Roman**. The face this entry calls "the fallback face"
+   was a SERIF, which is both a brand failure on every first paint and most of
+   the reflow's size, Times being 8.2% narrower than a grotesk. Unquoting it
+   alone took the PageHero `sub` strings from 7 of 11 rewrapping to 1 of 11.
+2. **`'Inter Fallback'`** — `local()` faces carrying Inter's measured metrics
+   (`size-adjust` + ascent/descent/line-gap overrides) in **three weight
+   bands**. One band is wrong and was measured to be: tuned on body copy it
+   fixed all eleven sub paragraphs and then made the 800-weight display
+   headline rewrap **38px** on two of six subpage titles — a bigger shift than
+   the 27px being removed. The local face has two real weights where Inter has
+   a continuous axis, so the bands are the regimes those faces actually cover.
+
+**The entry's own numbers, re-measured.** With Inter blocked so the fallback
+is what paints, the `/pricing` hero `<section>` at 412px measures **293.25px
+before and 320.53px after the fix** — 320.53px being exactly the height this
+entry recorded the hero growing INTO, so the first frame now starts at the
+final height and nothing moves at `fonts.ready`. `node
+scripts/mobile-weight.mjs --runs 5` on a local build, clean passes only
+(contended ones discarded by transfer-byte shortfall): **before, the 27.28px
+shift in 10 of 15 runs, identical every time; after, no shift reported in 15
+of 15.** Full table in `docs/MOBILE-WEIGHT.md`.
+
+**The defect was bigger than this entry sized it**, which is worth recording
+because the entry was written from a single surface at a single width. Graded
+as line counts — Inter versus the fallback, every shipping `PageHero` `sub`
+string and every subpage title, at the three widths
+`e2e/marketing-viewport.spec.ts` grades — it was **9/19 at 390, 5/19 at 834
+and 4/19 at 1440**, now **0/19 at all three**. It moved HEADLINES too, and its
+worst single jump was **58.74px at 1440**, not 27px on mobile. The CLS number
+found it; grading line counts is what sized it.
+
+**Guarded** by two cases added to `tests/design-system/tokens.test.ts`, which
+already owned this region of the sheet: no quoted generic in `--font-inter`,
+and the fallback bands tile 100–900 with no gap, each carrying all four
+descriptors and a `local()` (not `url()`) source, with the stack actually
+naming the family. Watched to fail on five separate mutations, including the
+wiring seam — deleting the family from the stack while leaving the faces
+declared, which the first draft of the guard passed. The guard deliberately
+does NOT grade the CONSTANTS: re-deriving them needs a browser with the local
+faces installed and CI has neither, so per §2d the sentence says so rather
+than implying coverage it does not have.
+
+**Verified on production 2026-09-23 16:31–16:40Z**, and deliberately NOT by
+the CLS number, because this entry is the reason not to trust that number
+alone: a late first paint means the font lands before the text and there is
+nothing left to shift, so a green CLS can mean a fixed page OR a slow one.
+The structural check cannot be fooled that way — load each surface with
+Inter BLOCKED (the fallback is what paints) and again with Inter allowed, and
+compare the boxes:
+
+**33 of 33 identical, 0px on every one** — all eleven `PageHero` pages
+(`/pricing`, `/product`, `/why`, `/compare`, `/resources`, `/docs`, `/blog`,
+`/changelog`, `/roi`, `/grade`, `/partner-program`) × the three graded widths
+(390 / 834 / 1440), measured on hero `<section>`, `<h1>` and the sub
+paragraph. `/pricing` at 390 reads **320.53px both ways** — the exact height
+this entry recorded the hero growing INTO, now present from the first frame.
+The production run also reports `/pricing` CLS **0.000** with the only shift
+a 1px mono numeral (0.0005), against the 0.1157 recorded here. · **FIXED**
+(Neon).
 
 ### Deliverable 4 — error aggregation · NOT BUILT (owner decision)
 
@@ -3376,6 +3983,9 @@ decision, and it is a real one: a third-party error tracker means a new vendor,
 a new data-processor relationship, and — per `docs/COMPLIANCE.md` — a new place
 PHI-adjacent stack traces can land. Deliberately not chosen unilaterally. · OPEN
 (owner).
+
+**Re-verified 2026-09-23 (DREAMCRM-108).** Unchanged. `docs/COMPLIANCE.md` still records the HIPAA subprocessor
+posture as the whole of the real risk, and no tracker has been chosen.
 
 **Scars worth keeping:**
 - `@playwright/test` will not always match the pre-installed browser build, so
@@ -4678,6 +5288,46 @@ all tracked source and docs — Forge intake on the day, and the
 `needs-forge-intake` label fires by path (`tests/guards/**` is on
 `INTAKE_RULES`). Sentinel review classified by running `gateFindings()` on the
 real file list rather than by guessing; see the PR.
+
+### The e2e harness measured a server it had not started (2026-09-23) · FIXED
+
+Found by DREAMCRM-117 while taking the post-cache load measurement, which is
+the only reason it was ever visible: two harness runs of the SAME build should
+not disagree, and they did.
+
+**The mechanism.** `scripts/e2e-harness.sh` starts the app with
+`pnpm start --port "$PORT" &` and keeps `$!`. That PID is `pnpm`, which spawns
+`next start`, which spawns the `next-server` that actually owns the socket.
+Teardown killed the first of those three. So a **completed** run left a server
+listening on :3100 — observed directly: `ss -lnt` showing `next-server` pid 771
+on :3100, 169 seconds old, while the following run's `next build` was already
+running.
+
+**Why nothing caught it.** The next run's `pnpm start` cannot bind, and the
+harness never reads that failure: its readiness probe is
+`curl -sf http://127.0.0.1:$PORT/api/health`, and **the stale server answers
+it**. The run walks past its own health check and drives playwright — or, here,
+a load measurement — against a build it did not make, with a Next in-memory
+cache the previous run had warmed, and a fresh throwaway database the stale
+server's pool silently reconnects to because it is on the same port with the
+same name. Every line of output looks like a clean run.
+
+The cost on CI is nil (the runner is discarded after one run) which is exactly
+why it survived; the cost locally is any back-to-back run, and the cost to this
+issue was an A/B comparison whose two arms were the same process.
+
+**Fixed, both halves.** Teardown walks the process tree (`kill_tree`, children
+first, via `pgrep -P`), and the run REFUSES to start when the port it needs is
+already serving something — bash's own `/dev/tcp`, so the check cannot pass by
+virtue of `lsof` not being installed. The refusal is the load-bearing half: a
+tree-kill that misses now ends the next run with a sentence instead of a wrong
+answer wearing a green exit code.
+
+**Red runs, on the real defect.** `tests/guards/e2e-harness-args.test.ts` binds
+an ephemeral port, points `E2E_PORT` at it and requires exit 2 — watched red
+with the refusal disabled. The teardown half is graded on the source, because
+the defect is a process-tree fact no argument can reach, and watched red with
+the bare `kill` restored.
 
 ## Part 6 — The post-1.0 backlog
 Moved to `docs/POST-1.0.md` (2026-08-17) — the full seeded inventory:

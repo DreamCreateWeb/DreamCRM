@@ -2,13 +2,18 @@ import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import {
+  CENSUS_FLOORS,
   CLAIMS,
+  INTAKE_ORDINAL_FLOOR,
+  ORDINAL_WORDS,
   CLAIMED_GATE_AREAS,
   CLAIMED_REQUIRED_CHECKS,
   WORKFLOW_CENSUS,
   drift,
   effectiveContexts,
+  namedInRulebook,
   readLocalReality,
+  readRulebook,
   runsOnPullRequest,
 } from '../../scripts/rulebook-drift.mjs'
 
@@ -47,12 +52,18 @@ type Census = Record<string, { gates: string; publishes: string[]; note: string 
 type Live = {
   workflows: Record<string, string>
   gateAreas: string[]
+  guards: string[]
+  guardDir: string[]
+  rulebook: { files: string[]; text: string }
   protection: Record<string, any> | null
   repo: Record<string, any> | null
 }
 
 const CENSUS = WORKFLOW_CENSUS as Census
-const localReality = () => readLocalReality(process.cwd()) as Pick<Live, 'workflows' | 'gateAreas'>
+/** Built in an IIFE in plain JS, so it infers as {} at the import — same treatment as WORKFLOW_CENSUS. */
+const ORDINALS = ORDINAL_WORDS as Record<string, number>
+const localReality = () =>
+  readLocalReality(process.cwd()) as Pick<Live, 'workflows' | 'gateAreas' | 'guards' | 'guardDir' | 'rulebook'>
 
 /** The live protection/repo shape, as `gh api` returns it today, claims holding. */
 const HEALTHY = {
@@ -96,6 +107,17 @@ describe('the rulebook drift check', () => {
   // exactly the fact its claim describes, in the shape it would really arrive
   // in, and asserts that claim — and only that claim — objects.
   const PERTURBATIONS: Record<string, (live: Live) => void> = {
+    'intake-ordinals': (live) => {
+      // THE 2026-09-23 SHAPE, and it is a duplicate rather than a gap because
+      // that is the one that actually happened: #712, #713 and #714 each took
+      // FIFTY-SEVENTH off the same base and git called all three mergeable.
+      // Appending a second marker for a number already present is exactly what
+      // the second of those PRs would have merged.
+      live.rulebook.text += String.raw`
+
+  **THE FIFTY-SEVENTH: #999, a second entry nobody noticed.**
+`
+    },
     'required-checks': (live) => {
       // The DREAMCRM-19 shape: somebody makes review-gate required, or drops e2e.
       live.protection!.required_status_checks.contexts = ['test']
@@ -146,13 +168,23 @@ describe('the rulebook drift check', () => {
       // needing a review and no PR goes red.
       live.gateAreas = live.gateAreas.filter((a) => a !== 'money')
     },
+    'guards-census': (live) => {
+      // THE SHAPE THIS ACTUALLY ARRIVES IN: a new guard lands in
+      // `tests/guards/` and its PR says nothing to the rulebook. #534 took
+      // three days that way, #598 was found only by an unscoped sweep pass.
+      // Deliberately a plausible NAME rather than `zzz.test.ts` — the failure
+      // message quotes it, and a reader who sees a realistic name learns what
+      // the check is about.
+      live.guards = [...live.guards, 'new-alarm-wiring.test.ts']
+      live.guardDir = [...live.guardDir, 'new-alarm-wiring.test.ts']
+    },
   }
 
   it('has a perturbation for every claim, so none of them ships ungraded', () => {
     expect(Object.keys(PERTURBATIONS).sort()).toEqual(CLAIMS.map((c: { id: string }) => c.id).sort())
   })
 
-  it('still makes all eight claims, spelled out', () => {
+  it('still makes all ten claims, spelled out', () => {
     // SPELLED OUT RATHER THAN COUNTED. The test above compares two lists that
     // MOVE TOGETHER: delete a claim and its perturbation and it stays green,
     // which makes the one edit that weakens this check the one edit nothing
@@ -164,6 +196,8 @@ describe('the rulebook drift check', () => {
       'every-required-check-has-a-producer',
       'force-push-and-deletion-bars',
       'gate-areas',
+      'guards-census',
+      'intake-ordinals',
       'required-checks',
       'strict-and-allow-update-branch',
       'who-can-publish-a-required-check',
@@ -238,6 +272,208 @@ describe('the rulebook drift check', () => {
       expect(claim.section, `${claim.id} must name where the skill states it`).toMatch(/^§\d/)
       expect(claim.states.length, `${claim.id} must quote what the skill says`).toBeGreaterThan(10)
     }
+  })
+})
+
+describe('the guards census, and its own eyes', () => {
+  // §2d: a guard's READER is a guard, and nothing downstream can grade it.
+  // Every assertion in this claim is an ABSENCE assertion — "no guard file is
+  // unnamed" — so a reader that silently narrows makes the census GREENER.
+  // The floors are the only thing standing between that and a check that
+  // reports a clean census about a directory it never opened.
+
+  it('reads the real directories, not an empty pair', () => {
+    const live = liveNow()
+    expect(
+      live.guards.length,
+      'the guard directory came back nearly empty. Every assertion in `guards-census` is an ' +
+        'absence assertion, so an empty read reports a clean census forever.',
+    ).toBeGreaterThanOrEqual(CENSUS_FLOORS.guardFiles)
+    expect(live.rulebook.files.length).toBeGreaterThanOrEqual(CENSUS_FLOORS.rulebookFiles)
+    expect(live.rulebook.text.length).toBeGreaterThanOrEqual(CENSUS_FLOORS.rulebookBytes)
+    // The walk is RECURSIVE, and that is load-bearing rather than incidental:
+    // eight of the nine rulebook files live under `references/`, so a
+    // non-recursive walk would read SKILL.md alone and report 30-odd guards
+    // unregistered — a red `test` run naming thirty innocent files.
+    expect(live.rulebook.files.filter((f) => f.includes('/')).length).toBeGreaterThan(0)
+  })
+
+  it('goes red when its own reader is blinded, in either half', () => {
+    // BLINDING THE GUARD SIDE. Not merely "does it find nothing to report" —
+    // it must OBJECT, naming the reader rather than the tree. Since #701's
+    // review this is caught by the exact comparison against the unfiltered
+    // listing rather than by the floor, so the finding NAMES the guards that
+    // fell out instead of reporting a count — strictly more than the floor
+    // said, and the floor below is no longer the thing standing here.
+    const blindGuards = liveNow()
+    blindGuards.guards = []
+    const a = drift(blindGuards).findings.find((f) => f.id === 'guards-census')
+    expect(a, 'an empty guard list must be a finding, not a clean census').toBeTruthy()
+    expect(a!.actual).toContain('the census grades 0')
+    expect(a!.actual).toContain('control-bytes.ts')
+
+    // BLINDING THE RULEBOOK SIDE is the more dangerous direction and the one
+    // an absence assertion cannot feel: with no rulebook text every guard
+    // reads unregistered, which is loud. With a TRUNCATED rulebook the census
+    // is quietly wrong in whichever direction the truncation lands. The floor
+    // catches both because it is about bytes read, not about matches found.
+    const blindBook = liveNow()
+    blindBook.rulebook = { files: ['SKILL.md'], text: '# tiny' }
+    // guardDir stays in step here on purpose: this case is about the RULEBOOK
+    // side, and letting the guard-side comparison fire first would prove
+    // nothing about the floors.
+    const b = drift(blindBook).findings.find((f) => f.id === 'guards-census')
+    expect(b, 'a truncated rulebook read must be a finding about the READER').toBeTruthy()
+    expect(b!.actual).toContain('rulebook files')
+  })
+
+  it('needs a FILE NAME, not a stem — the `migration-check` trap', () => {
+    // MEASURED, not hypothetical. `scripts/migration-check.mjs` and
+    // `migration-check.yml` are both written up at length in §2a and §3, so a
+    // stem matcher reported `tests/guards/migration-check.test.ts` registered
+    // when what was registered was a script and a workflow. Three of the
+    // eleven guards backfilled on DREAMCRM-114 were hidden exactly this way.
+    const text = 'we run `scripts/migration-check.mjs` from `migration-check.yml`.'
+    expect(namedInRulebook(text, 'migration-check.test.ts')).toBe(false)
+    expect(namedInRulebook(`and ${'migration-check.test.ts'} holds it in place.`, 'migration-check.test.ts')).toBe(true)
+  })
+
+  it('accepts a citation with or without its directory, and nothing looser', () => {
+    expect(namedInRulebook('see `tests/guards/control-bytes.ts`', 'control-bytes.ts')).toBe(true)
+    expect(namedInRulebook('see `control-bytes.ts`', 'control-bytes.ts')).toBe(true)
+    // TRAILING BOUNDARY. `x.ts` is a prefix of `x.tsx`, so a rulebook naming
+    // only the `.tsx` sibling would otherwise report the `.ts` one registered
+    // — §2d's a-prefix-is-not-a-name trap, in the one place it would be
+    // silent. Both directions, because a matcher is only pinned by the case
+    // it must REFUSE plus the case it must accept.
+    expect(namedInRulebook('see `widget.test.tsx`', 'widget.test.ts')).toBe(false)
+    expect(namedInRulebook('see `widget.test.tsx`', 'widget.test.tsx')).toBe(true)
+    // LEADING BOUNDARY: a longer name must not satisfy a shorter one that
+    // happens to end it.
+    expect(namedInRulebook('see `portal-brand.test.ts`', 'brand.test.ts')).toBe(false)
+  })
+
+  it('names every unregistered guard in the finding, not just the count', () => {
+    const live = liveNow()
+    live.guards = [...live.guards, 'alpha-guard.test.ts', 'beta-guard.test.ts']
+    const f = drift(live).findings.find((c) => c.id === 'guards-census')
+    expect(f, 'two unregistered guards must be a finding').toBeTruthy()
+    // The whole value of this check is the follow-up being mechanical: a
+    // report saying "2 guards unregistered" sends the reader back to diff two
+    // directories by hand, which is the work the check exists to remove.
+    expect(f!.actual).toContain('alpha-guard.test.ts')
+    expect(f!.actual).toContain('beta-guard.test.ts')
+  })
+
+  it('goes red when the reader narrows PARTIALLY — the mutation a floor cannot catch', () => {
+    // SENTINEL'S MUTATION, reviewing #701, reproduced as a test rather than
+    // remembered as a note. A floor only catches a reader that lands on ZERO.
+    // Skipping `e2e-*` and `axe-*` — the shape a plausible refactor actually
+    // takes — dropped TWELVE of thirty-four guards, landed at 22, cleared a
+    // floor of 20, and left the claim green with every test passing.
+    const live = liveNow()
+    live.guards = live.guards.filter((f) => !/^(e2e|axe)-/.test(f))
+
+    expect(
+      live.guards.length,
+      'this mutation has to land ABOVE the floor or it is just the empty-reader case again',
+    ).toBeGreaterThan(CENSUS_FLOORS.guardFiles)
+    expect(live.guardDir.length - live.guards.length).toBeGreaterThan(10)
+
+    const f = drift(live).findings.find((c) => c.id === 'guards-census')
+    expect(
+      f,
+      'a reader that silently drops a third of the census must object. A floor cannot see this ' +
+        'and that is the whole reason the unfiltered listing is compared.',
+    ).toBeTruthy()
+    // And it must NAME them, so the next reader is not left diffing two
+    // directory listings by hand.
+    expect(f!.actual).toContain('e2e-flaky-digest.test.ts')
+    expect(f!.actual).toContain('axe-headroom-table.test.ts')
+  })
+
+  it('sees a guard in a subdirectory, which the listing is not recursive enough to grade', () => {
+    // The non-recursive/recursive mismatch: `readdirSync` on the guard
+    // directory does not descend, while `readRulebook`'s walk does. Before
+    // the unfiltered comparison a guard at `tests/guards/<subdir>/x.test.ts`
+    // was invisible to the census AND silent about it.
+    const live = liveNow()
+    live.guardDir = [...live.guardDir, 'nested']
+    const f = drift(live).findings.find((c) => c.id === 'guards-census')
+    expect(f, 'a directory entry the census does not grade must object').toBeTruthy()
+    expect(f!.actual).toContain('nested')
+  })
+
+  it('refuses a name that is only a PREFIX of the text, on both sides alike', () => {
+    // The two boundaries are the same class now. Every case below reported
+    // the real file REGISTERED before that fix — the false-green direction,
+    // which for an absence assertion is the one that matters.
+    expect(namedInRulebook('see `widget.test.ts-old`', 'widget.test.ts')).toBe(false)
+    expect(namedInRulebook('see `widget.test.ts_bak`', 'widget.test.ts')).toBe(false)
+    expect(namedInRulebook('see `widget.test.ts.snap`', 'widget.test.ts')).toBe(false)
+    expect(namedInRulebook('see `snap.control-bytes.ts`', 'control-bytes.ts')).toBe(false)
+    expect(namedInRulebook('see `_control-bytes.ts`', 'control-bytes.ts')).toBe(false)
+  })
+
+  it('still accepts a citation that ends a sentence, which is why `.` is not in the class', () => {
+    // The dot points both ways, so it is refused only when something
+    // name-shaped follows it. Putting `.` in the boundary class outright
+    // would refuse every citation at the end of a sentence — a false
+    // NEGATIVE, i.e. a red `test` naming a correctly-registered guard.
+    expect(namedInRulebook('graded by control-bytes.ts.', 'control-bytes.ts')).toBe(true)
+    expect(namedInRulebook('graded by control-bytes.ts, and others', 'control-bytes.ts')).toBe(true)
+    expect(namedInRulebook('graded by `control-bytes.ts`)', 'control-bytes.ts')).toBe(true)
+  })
+
+  it('files the census as UNGRADEABLE when its directory listing is missing, never as a pass', () => {
+    // THE DEFECT SENTINEL FOUND REVIEWING #707, frozen as a test.
+    //
+    // `ungraded` used to read `(live.guardDir ?? live.guards).filter(f =>
+    // !live.guards.includes(f))`. With `guardDir` absent that is
+    // `guards.filter(f => !guards.includes(f))` — EMPTY BY CONSTRUCTION, for
+    // any input at all. The comparison did not fail, it disappeared; and
+    // because `guardDir` was not in `needs`, the runner did not file the
+    // claim as ungradeable either. A narrowed reader went green through a
+    // second door after the first one was closed.
+    //
+    // Both halves are asserted, because either alone leaves the hole open: a
+    // `needs` entry with a defaulted read still passes vacuously, and an
+    // undefaulted read with no `needs` entry throws instead of reporting.
+    const live = { ...liveNow(), guardDir: null } as unknown as Live
+    const { findings, unchecked } = drift(live)
+
+    expect(
+      unchecked.map((u) => u.id),
+      'a census that could not read its own directory listing must be UNGRADEABLE. Reporting it ' +
+        'as held is this file’s own stated failure, aimed at itself.',
+    ).toContain('guards-census')
+    expect(
+      findings.map((f) => f.id),
+      'an ungradeable claim is not a finding either — blurring the two is how a check starts ' +
+        'reporting on a fact it never read',
+    ).not.toContain('guards-census')
+  })
+
+  it('still reddens on a narrowed reader when the listing IS present', () => {
+    // The companion to the case above: the mutation that Sentinel used to
+    // demonstrate the hole must still produce a finding once the listing is
+    // read. Without this, deleting the comparison entirely would satisfy the
+    // ungradeable test and nothing else would notice.
+    const live = liveNow()
+    live.guards = live.guards.filter((f) => !/^(e2e|axe)-/.test(f))
+    const f = drift(live).findings.find((c) => c.id === 'guards-census')
+    expect(f, 'a narrowed reader with a readable listing must still be a FINDING').toBeTruthy()
+    expect(f!.actual).toContain('e2e-flaky-digest.test.ts')
+  })
+
+  it('reads the rulebook off disk the same way the claim does', () => {
+    // The claim is graded against `readLocalReality`; this asserts the
+    // exported reader and the wired one are the same thing, so a future
+    // refactor cannot leave the claim reading one corpus and the tests above
+    // proving properties of another.
+    const direct = readRulebook(process.cwd()) as { files: string[]; text: string }
+    expect(direct.files).toEqual(localReality().rulebook.files)
+    expect(direct.text.length).toBe(localReality().rulebook.text.length)
   })
 })
 
@@ -426,5 +662,126 @@ describe('the gate areas', () => {
         'update CLAIMED_GATE_AREAS and dreamcrm-conventions §3 together — the enumeration is ' +
         'allowed to run ahead of the prose, but not to leave it behind indefinitely.',
     ).toEqual([...CLAIMED_GATE_AREAS].sort())
+  })
+})
+
+/**
+ * THE INTAKE ORDINAL, BRANCH BY BRANCH.
+ *
+ * The `PERTURBATIONS` table above exercises exactly one path — the duplicate,
+ * which is the case that actually happened. The claim has four, and three of
+ * them are the ones that make it trustworthy rather than merely present: an
+ * ordinal it cannot resolve, a hole in the middle, and a reader that stopped
+ * reading. §2d's rule is that a predicate counts once you have watched it fail,
+ * and "it failed on the case I already knew about" is not the whole of that.
+ */
+describe('the intake ordinal counter', () => {
+  const ordinals = CLAIMS.find((c: { id: string }) => c.id === 'intake-ordinals')!
+  /** A rulebook whose only content is the entry markers for `numbers`. */
+  const rulebookOf = (words: string[]) => ({
+    rulebook: { files: ['SKILL.md'], text: words.map((w) => `**THE ${w}: #1, an entry.**`).join('\n\n') },
+  })
+  const NINE = ['FORTY-NINTH', 'FIFTIETH', 'FIFTY-FIRST', 'FIFTY-SECOND', 'FIFTY-THIRD',
+    'FIFTY-FOURTH', 'FIFTY-FIFTH', 'FIFTY-SIXTH', 'FIFTY-SEVENTH']
+
+  /**
+   * Asserts a finding came back AND narrows it, so each branch below reads as
+   * the claim it is making rather than as a null check. Without the narrowing
+   * the assertions type-check against `null` and `pnpm typecheck` reddens.
+   */
+  const mustFind = (f: { actual: string; fix: string } | null) => {
+    expect(f, 'the claim returned nothing, so the branch under test is vacuous').not.toBeNull()
+    return f!
+  }
+
+  it('is silent on a clean run of ordinals', () => {
+    expect(ordinals.check(rulebookOf(NINE))).toBeNull()
+  })
+
+  /**
+   * THE 2026-09-23 CASE. Three PRs, one number, all three mergeable because
+   * they insert at different offsets in one file.
+   */
+  it('catches a duplicate, which is what three concurrent PRs produce', () => {
+    const finding = mustFind(ordinals.check(rulebookOf([...NINE, 'FIFTY-SEVENTH'])))
+    expect(finding.actual).toContain('duplicate')
+    expect(finding.actual).toContain('57')
+    // It must tell the reader which PR renumbers, not merely that something is wrong.
+    expect(finding.fix).toContain('lands SECOND renumbers')
+  })
+
+  it('catches a hole in the middle, which is a renumber that skipped one', () => {
+    const finding = mustFind(ordinals.check(rulebookOf(NINE.filter((w) => w !== 'FIFTY-THIRD'))))
+    expect(finding.actual).toContain('53')
+  })
+
+  /**
+   * A TYPO'D ORDINAL IS LOUD AND A NON-ORDINAL IS QUIET, and the pair is the
+   * design. `**THE FIX:` is a real heading in this rulebook; keying on the map
+   * alone would skip it AND skip `FIFTY-EIGTH`, which is the one a counter's
+   * guard must never wave through.
+   */
+  it('reports an ordinal it cannot resolve rather than skipping it', () => {
+    const finding = mustFind(ordinals.check(rulebookOf([...NINE, 'FIFTY-EIGTH'])))
+    expect(finding.actual).toContain('cannot resolve')
+    expect(finding.actual).toContain('FIFTY-EIGTH')
+  })
+
+  /**
+   * THE FALSE-POSITIVE CLASS THE SUFFIX TEST ALONE LET THROUGH (Sentinel,
+   * reviewing #721). `**THE <CAPS>:` is live house style, so keying on the
+   * suffix made a candidate of every heading ending in one. `COST` and `LAST`
+   * would have been unresolvable — loud, wrong, and with remedy text telling
+   * the author to fix a typo. `FIRST` and `SECOND` are worse: they RESOLVE,
+   * poison the set, and produce a gap finding naming forty-seven innocent
+   * numbers. Anchoring on the entry form (` #<digits>`) closes all four.
+   */
+  it('ignores prose headings that merely end in an ordinal suffix', () => {
+    for (const word of ['COST', 'FIRST', 'SECOND', 'LAST']) {
+      const text = rulebookOf(NINE).rulebook.text + `\n\n**THE ${word}: a sentence about something else.**`
+      expect(ordinals.check({ rulebook: { files: ['SKILL.md'], text } }), word).toBeNull()
+    }
+  })
+
+  it('still catches a typo INSIDE a real entry, which is what the anchor must not cost', () => {
+    const text = rulebookOf(NINE).rulebook.text + '\n\n**THE FIFTY-EIGTH: #722, a real entry with a typo.**'
+    const finding = mustFind(ordinals.check({ rulebook: { files: ['SKILL.md'], text } }))
+    expect(finding.actual).toContain('FIFTY-EIGTH')
+  })
+
+  it('ignores a heading that is not shaped like an ordinal at all', () => {
+    const text = rulebookOf(NINE).rulebook.text + '\n\n**THE FIX: reword it.**'
+    expect(ordinals.check({ rulebook: { files: ['SKILL.md'], text } })).toBeNull()
+  })
+
+  /**
+   * THE EYES. Every branch above is about a set this reader built, so a regex
+   * that stopped matching reports a perfectly unique, perfectly contiguous
+   * EMPTY list. There is no second census to compare against here — unlike the
+   * guards, whose directory is an independent reading — so the floor is the
+   * honest instrument rather than a weaker version of an exact one.
+   */
+  it('refuses a reader that found almost nothing', () => {
+    const finding = mustFind(ordinals.check(rulebookOf(NINE.slice(0, INTAKE_ORDINAL_FLOOR - 1))))
+    expect(finding.actual).toContain('ordinal entry markers')
+    expect(finding.fix).toContain('Do NOT lower the floor')
+  })
+
+  /**
+   * The map is DERIVED from units and tens rather than typed out — a
+   * hand-kept table guarding a hand-kept list would be the joke §2d makes at
+   * its own expense. These are the joints where a derivation goes wrong.
+   */
+  it('spells the tens and the compounds the way English does', () => {
+    expect(ORDINALS.FIRST).toBe(1)
+    expect(ORDINALS.NINETEENTH).toBe(19)
+    expect(ORDINALS.TWENTIETH).toBe(20)
+    expect(ORDINALS['TWENTY-FIRST']).toBe(21)
+    expect(ORDINALS.FIFTIETH).toBe(50)
+    expect(ORDINALS['FIFTY-SEVENTH']).toBe(57)
+    expect(ORDINALS['NINETY-NINTH']).toBe(99)
+    // The shapes English does NOT use, so a compound cannot resolve two ways.
+    expect(ORDINALS['TWENTY-TENTH']).toBeUndefined()
+    expect(ORDINALS.TWENTIETH_FIRST).toBeUndefined()
   })
 })

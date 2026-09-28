@@ -395,6 +395,50 @@ test.describe('the marketing site (the storefront)', () => {
     await expect(page.locator('body')).toContainText('4-minute read')
     await expectNoA11yViolations(page, 'marketing: doc article')
   })
+
+  /**
+   * THE 404 IS A MARKETING PAGE TOO, and it is the only one no link points at.
+   *
+   * It lives here rather than in `e2e/marketing-viewport.spec.ts` for a
+   * mechanical reason: that spec asserts `status === 200` on every stop, which
+   * is the one way a width guard can go green while measuring an error shell,
+   * and a 404 route cannot satisfy it. So this stop carries BOTH halves — the
+   * axe scan and Part 10's `scrollWidth` probe at 390 — for the one page that
+   * spec structurally cannot reach.
+   *
+   * The path is deliberately a `/docs/` MISS rather than a made-up top-level
+   * segment: `/docs/[slug]` is one of the six real routes that fall through
+   * here, so this exercises the group's `not-found.tsx` by the route that
+   * produced the defect, not by a synthetic URL. The slug is obviously fake,
+   * so it can never collide with a doc somebody adds.
+   */
+  test('a missing marketing page keeps the chrome instead of dead-ending', async ({ page }) => {
+    const res = await page.goto('/docs/this-doc-does-not-exist-404-probe')
+    expect(res?.status(), 'the miss did not produce a 404').toBe(404)
+
+    // The chrome is the whole point — the root 404 has none of it, so these
+    // three are what tell the two answers apart from the outside.
+    await expect(page.locator('#main-content')).toBeVisible()
+    await expect(page.getByRole('link', { name: 'Skip to content' })).toBeAttached()
+    await expect(page.locator('footer')).toBeVisible()
+    await expect(page.locator('h1').first()).toBeVisible()
+
+    // The recovery links actually resolve. One hop, on the real server: a 404
+    // page whose exits 404 is the defect wearing a nicer hat.
+    const pricing = await page.request.get('/pricing')
+    expect(pricing.status(), '/pricing did not answer from the 404 page').toBe(200)
+
+    await expectNoA11yViolations(page, 'marketing: not found')
+
+    // BRAND.md Part 10 at the width that finds it — the document's own number,
+    // never an element walk (see `e2e/marketing-viewport.spec.ts` for why).
+    await page.setViewportSize({ width: 390, height: 900 })
+    const overflow = await page.evaluate(() => {
+      const de = document.documentElement
+      return de.scrollWidth - de.clientWidth
+    })
+    expect(overflow, `the 404 scrolls sideways by ${overflow}px at 390`).toBeLessThanOrEqual(0)
+  })
 })
 
 test.describe('the auth gate (middleware, invisible to happy-dom)', () => {

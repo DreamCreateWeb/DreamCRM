@@ -53,9 +53,90 @@ const BASELINE_EXPORT_RE = /export const A11Y_BASELINE(?![\w$])/
  * once, here, and pinned into the workflows by the test: an emitter and a
  * reader that disagree about a string is how the headroom table nearly shipped
  * mute (`tests/guards/axe-headroom-table.test.ts`).
+ *
+ * THE `--depth=1` CAME OFF ON DREAMCRM-109, and the census below now matches on
+ * the REFSPEC rather than on the whole command line. A CASE on this rule, not a
+ * new one: nothing about what it asserts moved. The reason is that this guard's
+ * subject is "main is in this checkout", and the DEPTH was never part of that
+ * — it was one consumer's minimum. A second consumer
+ * (`tests/guards/rulebook-state.test.ts`) reads main's HISTORY, so the depth had
+ * to grow, and a census keyed on the exact string would have failed three
+ * correct workflows for a flag it does not care about. §2d's "a guard's SENTENCE
+ * is a claim about a MACHINE" — the sentence said depth and meant presence.
  */
 export const FETCH_MAIN_COMMAND =
-  'git fetch --no-tags --depth=1 origin +refs/heads/main:refs/remotes/origin/main'
+  'git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main'
+
+/**
+ * What the workflow census actually matches.
+ *
+ * The refspec is the part that makes a line a fetch OF MAIN INTO `origin/main`;
+ * the flags around it are the caller's business. Narrow enough that a fetch of
+ * some other ref does not count, wide enough that changing a flag is not a
+ * four-file edit.
+ */
+export const FETCH_MAIN_REFSPEC = '+refs/heads/main:refs/remotes/origin/main'
+
+/**
+ * The `actions/checkout` input that makes the fetch step below it WORK.
+ *
+ * THIS CONSTANT EXISTS BECAUSE ITS ABSENCE BLOCKED TWO PRODUCTION DEPLOYS.
+ * `FETCH_MAIN_REFSPEC` pinned that a fetch-of-main STEP was present, and it
+ * was present, in all four jobs, correctly spelled — and on a `push` event it
+ * transferred nothing, because `actions/checkout` had already left main at
+ * depth 1 with its tip equal to the remote tip. `origin/main` resolved with
+ * ONE commit. The census asserted the step existed; the property it stood for
+ * was that main's HISTORY is present, and those came apart exactly where
+ * nobody was looking. §2d calls this assert-the-answer-not-the-proxy, and
+ * this is the fifth member of that family in this repo.
+ *
+ * `fetch-depth: 0` makes the shallow state impossible rather than handled, so
+ * there is no clone state left to branch on. The alternative — `--unshallow`
+ * in the fetch step — is FATAL on a complete repository ("--unshallow on a
+ * complete repository does not make sense", measured), so it would have to be
+ * guarded by a conditional whose other branch never runs on a given event.
+ */
+export const CHECKOUT_FULL_HISTORY = 'fetch-depth: 0'
+
+/**
+ * Split a workflow file into its jobs, by indentation.
+ *
+ * A line scanner rather than a YAML parser, following the convention
+ * `scripts/rulebook-drift.mjs` and `scripts/schedule-heartbeat.mjs` already
+ * set — this repo has no YAML dependency and adding one to read four files is
+ * not a trade worth making.
+ *
+ * Per JOB rather than per FILE, which is the imprecision the fetch census
+ * below documents and never closed: it counted occurrences across a whole
+ * file, so a job with a fetch and no suite run donated a spare count to a
+ * later job with a suite run and no fetch. `deploy.yml` has exactly that
+ * shape — two jobs, one of which runs the suite.
+ */
+export interface WorkflowJob {
+  name: string
+  lines: string[]
+}
+
+export function splitJobs(source: string): WorkflowJob[] {
+  const lines = source.split('\n')
+  const start = lines.findIndex((l) => /^jobs:\s*$/.test(l))
+  if (start === -1) return []
+
+  const jobs: WorkflowJob[] = []
+  let current: WorkflowJob | null = null
+  for (const line of lines.slice(start + 1)) {
+    const header = /^ {2}([A-Za-z0-9_-]+):\s*$/.exec(line)
+    if (header) {
+      current = { name: header[1], lines: [] }
+      jobs.push(current)
+      continue
+    }
+    // A non-indented, non-blank line ends the `jobs:` block entirely.
+    if (line.trim() !== '' && !/^\s/.test(line)) break
+    current?.lines.push(line)
+  }
+  return jobs
+}
 
 /** A `why` shorter than this is a shrug, and a shrug is not an argument. */
 export const MIN_WHY_LENGTH = 120

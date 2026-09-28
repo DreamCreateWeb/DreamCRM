@@ -1,8 +1,16 @@
 # CI — what gates what
 
-Ten workflows, and three of them can stop something: `ci.yml` holds a merge,
-`deploy.yml` holds a deploy, and `migration-check.yml` can fail a deploy run
-without publishing a check of its own. The other seven are alarms and advisories.
+Fourteen workflows, and three of them can stop something: `ci.yml` holds a
+merge, `deploy.yml` holds a deploy, and `migration-check.yml` can fail a deploy
+run without publishing a check of its own. The other eleven are alarms,
+advisories and instruments.
+
+(It said "ten" and listed ten until 2026-09-22. `schedule-heartbeat.yml` shipped
+on DREAMCRM-99 and never reached this table — which is the drift this file's own
+alarm exists to catch, arriving in the file that documents the alarm. The count
+is now derived nowhere and restated here, so it will go stale again; the thing
+that notices is `scripts/rulebook-drift.mjs`'s `WORKFLOW_CENSUS`, which grades
+the census against the real directory every morning.)
 
 This file covers what runs *before* a merge and on the way to production. What
 gets checked *after* the deploy lands — the URLs the production watch sweep
@@ -20,6 +28,10 @@ loads, including the one real clinic site — is `docs/OPS.md`.
 | `.github/workflows/migration-check.yml` | `workflow_call` from `deploy.yml` + `schedule` 08:20 UTC + dispatch | `migration-check` | that a deploy's migrations actually applied | no required context — but it CAN fail the deploy run |
 | `.github/workflows/rulebook-drift.yml` | `schedule` 06:17 UTC + dispatch | `rulebook-drift` | the rulebook still describing this repo | no — never runs on a PR |
 | `.github/workflows/review-sweep.yml` | `schedule` 06:47 UTC + dispatch | `review-sweep` | that a PR owing Sentinel a review, or Forge an intake, did not merge without one | no — post-merge alarm, never runs on a PR |
+| `.github/workflows/schedule-heartbeat.yml` | `schedule` 07:07 UTC + dispatch | `schedule-heartbeat` | that every OTHER scheduled workflow is still firing | no — never runs on a PR |
+| `.github/workflows/e2e-flake-hunt.yml` | `workflow_dispatch` only | `e2e-flake-hunt` | nothing — it is an instrument, not an alarm: one spec N times, reporting a rate | no — no PR, push or schedule trigger at all |
+| `.github/workflows/e2e-flaky-digest.yml` | `schedule` Monday 09:23 UTC + dispatch | `e2e-flaky-digest` | noticing a spec that flaked in more than one run this week | no — never runs on a PR |
+| `.github/workflows/push-alarm.yml` | `workflow_run` on `deploy.yml` + `post-merge-e2e.yml`, `types: [completed]` | `push-alarm` | that a red push-triggered workflow on `main` reaches somebody | no — runs entirely after its upstream, cannot hold a merge |
 
 ## A green deploy must mean the new version is SERVING
 
@@ -205,6 +217,79 @@ names — that is why the nightly and post-merge jobs are called `nightly-test`,
 `nightly-e2e` and `e2e-post-merge`. A second producer of a required context can
 report a green check onto a commit the real gate never ran against.
 
+## Where the eight-minute gate actually goes (measured 2026-09-22, DREAMCRM-105)
+
+Every doc in the repo said the unit gate took **~4 minutes**. It has not for
+some time, and nobody had measured *what* the time is. Numbers below are medians
+over **30 successful `ci.yml` runs**, from the Actions jobs API
+(`gh api repos/<repo>/actions/runs/<id>/jobs`, then the per-step
+`started_at`/`completed_at`). Re-derive rather than trusting these once they are
+a month old.
+
+### The `test` job — median **8m 10s** (min 4m 49s, max 8m 39s)
+
+| Step | Median | Share |
+| --- | ---: | ---: |
+| `pnpm test` | **6m 48s** | **83.3%** |
+| `pnpm typecheck` | 56s | 11.4% |
+| `pnpm lint` (the a11y gate) | 8s | 1.6% |
+| checkout + node + pnpm + `install --frozen-lockfile` | ~12s | 2.5% |
+| unattributed (job setup/teardown) | 6s | 1.1% |
+
+`pnpm install --frozen-lockfile` is **3 seconds** — the pnpm cache is working
+and is not worth another look. The gate is the suite, and nothing else is close.
+
+### Inside the suite: it is not the assertions
+
+Vitest's own end-of-run line, read off six CI logs. A representative run —
+411.76s wall, **804 files, 8,633 tests**:
+
+| | Worker-seconds | Share of worker time |
+| --- | ---: | ---: |
+| `environment` (creating a happy-dom window per file) | 365.20s | **33%** |
+| `import` (loading each file's module graph) | 295.58s | 27% |
+| `setup` (`tests/setup.ts`, once per file) | 233.60s | 21% |
+| `tests` (actually running assertions) | 172.57s | **16%** |
+| `transform` | 27.21s | 2.5% |
+
+Those overlap across ~3 workers, which is why they sum past the 411.76s wall
+clock. **Six-sevenths of the suite's cost is per-FILE overhead, not per-test
+work** — it scales with the 804 files, not with the 8,633 tests.
+
+Two facts follow, and both matter to a sharding decision:
+
+- **Time is concentrated.** The 10 slowest files are 35% of assertion time, the
+  top 25 are 51%, the top 50 are 66%. A shard split by file *count* would be
+  badly unbalanced; splitting has to be time-aware, and the slowest ten files
+  (`tests/clinic-site/modern-template`, `tests/a11y/token-contrast`,
+  `tests/guards/review-sweep`, `tests/a11y/one-string-pairs`,
+  `tests/guards/error-scan` lead it) are also where a targeted fix would pay.
+- **`environment: 'happy-dom'` is global, and most files do not need a DOM.**
+  804 files: 212 `.test.tsx`, and of the 592 `.test.ts` only 18 mention
+  `@testing-library`, `document.`, `window.`, `HTMLElement` or
+  `getComputedStyle`. So on a grep-level reading **574 files (71%) pay ~0.45s of
+  happy-dom window creation they never use** — roughly 258 of those 365
+  environment-seconds. That is a heuristic and not a verdict: a `.test.ts` can
+  reach a DOM transitively through a component import, so the real number is
+  found by moving files and re-measuring, not by trusting this paragraph.
+
+### The `e2e` job — median **5m 43s** (min 3m 59s, max 6m 53s)
+
+`bash scripts/e2e-harness.sh` is 4m 58s of it; Chromium install 23s; the rest
+~22s. Inside the harness (medians over 10 runs): `pnpm build` **1m 59s** (46%),
+`npx playwright test` **2m 14s** (52%), and Postgres + migrations + fixture +
+both `next start`s together **~7 seconds**. The throwaway database everybody
+assumes is the expensive part is 1.4% of it. The post-merge twin
+(`e2e-post-merge`) runs 5m 44s median over 15 runs — the same job, as expected.
+
+### What is NOT decided here
+
+This section is **measurement only**. Whether to shard `test` across runners,
+add a wall-clock budget guard, cut the per-file environment cost, or leave it
+alone is a planning-meeting decision — it trades runner cost, gate latency and
+one more thing that can go wrong against each other, and none of that is
+settled by a table. The numbers exist so the argument can be about the numbers.
+
 ## The two blocking gates
 
 The unit gate is deliberately duplicated rather than shared. `deploy` needs its
@@ -271,6 +356,86 @@ should not be able to hold up a deploy that already passed the check on the PR.
 Postgres from the runner image's binaries, applies every migration from zero — a
 deploy-path rehearsal — then builds, serves, and runs Playwright). See
 `docs/E2E.md`.
+
+## A red push-triggered workflow has to reach somebody (added 2026-09-23, DREAMCRM-115)
+
+`main` auto-deploys to production, so `deploy.yml` failing is the loudest thing
+that can happen here — and until 2026-09-23 it was also one of the quietest.
+**A red `deploy.yml` went unnoticed for 21 minutes that morning and production
+shipped nothing for 77.** Three consecutive runs failed on `test` between
+03:40Z and 04:03Z (`35815260160`, `35815939172`, `35816757446`) and the only
+surfaces carrying that fact were the Actions tab and GitHub's default
+failed-run email to one account.
+
+The gap was structural rather than bad luck, and all three halves are worth
+knowing because each one looks like coverage until you check:
+
+- **Nothing in `.github/workflows/**` used a `workflow_run` trigger.**
+  `push-alarm.yml` is the first. A failed push-triggered workflow had nowhere
+  to route to because nothing was listening for one.
+- **`schedule-heartbeat.yml` cannot see either of them by construction.** It
+  derives its list from `cron:` entries and grades the AGE of each schedule's
+  newest run. Both fire when somebody merges; there is no window to be late
+  against. Not a hole in that check — outside its subject.
+- **A red post-merge run is not a red PR.** The merge that caused it is already on
+  `main` and still green on its own PR page. Nothing on the board moves.
+
+**TWO PRODUCERS, ONE ALARM.** Two workflows fire on every push to `main`, and
+both had the same hole. `deploy.yml` red means production is serving an older
+commit than `main`. `post-merge-e2e.yml` red means a patient-facing journey
+broke on a commit that is **already live** — it holds nothing back, and its own
+header says "nothing in `.github/` routes a workflow failure anywhere".
+
+One alarm rather than two because the question and the machinery are identical.
+What differs is the CONSEQUENCE, and that is one sentence chosen by the
+upstream's own file name (`PRODUCER_DETAIL`), in the first line a woken reader
+sees. What is also per-producer is the red STREAK: a broken deploy and a broken
+browser journey are independent facts, so the history lookup derives its
+`--workflow` from `workflow_run.path` rather than naming one.
+
+**What it does.** `push-alarm.yml` runs on every completion of either,
+goes red when its upstream did, and POSTs to a Multica autopilot webhook
+(`PUSH_ALARM_WAKE_URL`) that opens an issue assigned to Quinn. Same two
+artefacts as the intake wake on `review-sweep.yml`: GitHub cannot dispatch
+anybody, so the RECORD is the red run and the WAKE is the POST.
+
+Three things in `scripts/push-alarm.mjs` are worth reading before changing it:
+
+- **`cancelled` is not a deploy failure, and that is mechanical.**
+  `deploy.yml`'s `deploy` job carries
+  `concurrency: { group: deploy-main, cancel-in-progress: false }`. That flag
+  protects the RUNNING rollout; GitHub still keeps one PENDING run per group
+  and cancels the rest. Three merges inside one rollout produce a cancellation
+  as routine behaviour, on the busiest hour of the day — the hour this alarm
+  most needs to be believed. `failure`, `timed_out` and `startup_failure` are
+  red, and **any conclusion the script does not recognise is red too**.
+- **The wake fires on the EDGE of a red streak.** A broken `main` produces one
+  red deploy per merge; 2026-09-23 was three in 23 minutes over one defect, and
+  three issues would have been two pieces of noise. Every run still goes red —
+  the colour is free, the agent run is not.
+- **But a failed history lookup wakes anyway**, which is the OPPOSITE default
+  from `review-sweep.yml`'s `undated` suppression. The costs are not the same
+  size: a duplicate issue costs one run and a sentence saying "already
+  handled"; a missed one costs the thing the alarm exists for. There, the
+  expensive mistake is the dispatch; here it is the silence.
+
+**What notices if this alarm stops** — §2a's standing convention, obligation 3.
+`schedule-heartbeat.yml` was widened for it and now watches two kinds of alarm:
+those with a `cron:`, and those triggered by another workflow's completion. The
+question for the second kind is not age — such an alarm is exactly as punctual
+as its upstream — it is **pairing**: is there a run of the alarm at or after the
+newest settled run of the workflow it watches? A quiet week of merges grades
+`no-upstream-activity` and is not a finding, which is the same "never report
+GitHub's queue as a defect" rule that sizes the schedule window.
+
+**The sharpest edge, stated because it is invisible at review time.**
+`workflow_run.workflows:` matches the upstream's **display name**, not its
+filename. Editing the first line of `deploy.yml` disconnects this alarm and
+GitHub reports nothing at all — a trigger that matches nothing is not an error,
+it is a workflow that never runs. Two things hold it: the heartbeat's
+`unknown-upstream` verdict catches it the next morning, and
+`tests/guards/push-alarm.test.ts` reads both files off disk and fails `test`
+on the rename in the diff that causes it.
 
 ## The two suite alarms
 
@@ -427,6 +592,90 @@ half and the reporter finds no file, says so in a log nobody opens, and every
 run keeps looking clean forever. The fourth matters because `nightly-e2e` and
 `e2e-post-merge` are the unattended runs — the ones this is most for, and the
 ones a workflow edit could revert with nobody watching.
+
+### …and a week of traces has a rate (added 2026-09-22, DREAMCRM-105)
+
+The reporter above names a flake **on the run it happened in**. It has never
+been able to count, because each report lands in one job summary and one
+artifact and nothing read two of them together. So the strongest sentence
+available about the portal-billing flake was "it happened twice that I know
+of", and the strongest anybody offered was "about once a day" — which was a
+guess. A flake in one run is weather; the same spec in four runs in a week is a
+defect with a rate, and that difference is the whole of whether anybody works on
+it.
+
+`e2e-flaky-digest.yml` runs Monday 09:23 UTC, pulls every Playwright report the
+week's `e2e` / `e2e-post-merge` / `nightly-e2e` runs left behind, folds them
+through the same `flakyTests` parser, and goes **red on a repeat offender** — a
+spec that flaked in **two or more separate runs**, on separate runners against
+separate throwaway databases.
+
+Four things about it are deliberate:
+
+- **Runs, not occurrences.** Forty flaky records from one run is one runner
+  having a bad afternoon. Two records from two runs is a property of the spec.
+- **It leads with the census.** This alarm's healthy state is genuinely quiet,
+  so "nothing flaked" and "I read nothing" are the same headline without the
+  denominators. It prints how many runs it saw and how many reports it read.
+- **The retention moved to 14 days, and the window is 8.** Seven-day artifacts
+  were sized for a person opening *one* report; a weekly digest with a
+  seven-day window over seven-day evidence loses that race every time the
+  scheduler slips — measured at five and a half hours on an ordinary day — and
+  would report a gap every single week. A permanently red alarm is a disabled
+  alarm. Raising the retention was the fix; shrinking the window would have been
+  the bug. The extra day of window is slip allowance, so consecutive digests
+  overlap instead of leaving a hole.
+- **It does not read `e2e-flake-hunt.yml`.** A hunt runs one spec fifty times at
+  `--retries=0`; its failures are the deliverable, not an accident, and pooling
+  them would put a number nobody should act on in the same column as the routine
+  runs.
+
+**What watches it**: it has a `cron:`, so `schedule-heartbeat.yml` picks it up
+from the tree with no edit anywhere — a check that cannot fail is not a check,
+and every new alarm here ships with the thing that notices it stopped.
+
+#### It has to be able to say "I could not see that"
+
+Both of Sentinel's blocking findings on #684 were the same defect wearing two
+hats: **the instrument reported a number it had not measured.** For a file whose
+entire argument is "a number instead of a hunch", that is the one class it
+cannot carry. Two properties close it, and both are graded:
+
+- **The denominator is checked against the limit it was fetched with.** The
+  first draft asked for `--limit 200`. Measured against the real 8-day window on
+  2026-09-23: **423** `ci.yml` runs, 127 `post-merge-e2e`, 9 `nightly`. `gh run
+  list` is most-recent-first, so 200 kept the last ~4 days under a headline
+  saying 8 — and because the artifact filter is built from that list, every
+  report belonging to a discarded run was dropped *before* the download step, so
+  nothing reached `unreadable`, `blind` stayed empty and the run exited 0 over
+  the half it never looked at. The limit is 1000 now **and** the script is told
+  the number, because a limit chosen today is one the repo's merge rate outgrows
+  quietly. Note this is deliberately *not* `windowGap`'s shape: `--created`
+  filters server-side, so everything returned is inside the window by
+  construction and the oldest row proves nothing. Hitting the limit is the only
+  signal there is.
+- **A dead lookup writes a reason, not an empty list.** `gh api … || echo '[]'`
+  wrote *valid JSON*, so the reader reported no problem and the digest printed
+  "No test needed a retry in any of the 0 reports this week" and exited 0 — a
+  quiet clean week over evidence it never read. Every `gh` call now appends a
+  sentence to `lookup-failures.txt`, and an **absent** file is itself a finding:
+  the workflow truncates it in its first step, so its absence means that step
+  did not run.
+
+And one distinction that goes the other way, so the alarm stays readable: an
+artifact that downloads with **no `e2e-results.json` inside** is named and
+counted but does **not** redden. The producers upload on `failure()`, which
+includes a run that died before playwright wrote its reporter output — there
+were no test results, so nothing was lost and nothing could have been learned.
+Filing that as "could not be read" would redden this most weeks, which is how an
+alarm becomes wallpaper.
+
+**The next step from a finding is the hunt**, and the summary prints the command
+rather than leaving the reader with the same problem in a bigger font:
+
+```bash
+gh workflow run e2e-flake-hunt.yml -f spec=e2e/portal-billing.spec.ts -f repeat=50
+```
 
 Deliberately not done: `retries: 0`. It trades a quiet flake for a loud false
 red on every PR, and a required check that goes red for reasons nobody caused
@@ -676,6 +925,53 @@ being believed. They are counted and named as *not judged*, never as passes.
 `SWEPT_SINCE` must stay the EARLIER of the two, because the truncation check
 below grades the `gh pr list` window against it alone.
 
+### The third obligation: the PR title carries its issue key (added 2026-09-22, DREAMCRM-105)
+
+§3's first bullet — `DREAMCRM-<n>: <what changed>` — and it is not decoration.
+The key is the only link from a merged commit back to somebody who can answer
+for it, and **everything else on this page is downstream of it**: the review
+gate reads a diff, this sweep reads merged PRs, the planning meeting reads the
+board. Work that reaches none of them is not lightly tracked, it is untracked,
+and it still ships to production.
+
+The rule's review half has had a machine since #593. Its key half had memory,
+and memory lost three times in one day — **#636 (01:24Z), #659 (17:54Z) and
+#674 (22:19Z)**, all from `claude/*` branches, the last of them hours after §3's
+rule landed. #659 is the one that shows the cost: it merged carrying
+`needs-forge-intake` and nobody recorded the intake, for a reason no amount of
+labelling could fix — **no issue owned the work, so there was nobody the label
+could be about.**
+
+It is one predicate and a third bucket. The sweep already fetched every merged
+PR in the window *with its title*, so the whole check is "does the title carry a
+key". Three things about it differ from the other two halves, and each is
+deliberate:
+
+- **There is no label.** Every merged PR in the window is in scope. A version
+  that waited for a label would be permanently silent, because a label is
+  exactly what untracked work has nobody to receive.
+- **The record is the subject.** A key in the body or in a comment does not
+  satisfy it. That makes this the one half that is genuinely self-clearing —
+  `gh pr edit <n> --title "DREAMCRM-<n>: …"` on a merged PR fixes the finding at
+  its source rather than mirroring a fact from elsewhere — and the one half that
+  cannot be satisfied by skipping the work and typing the record anyway.
+- **It never wakes Forge.** The wake is scoped to the intake half and enqueues a
+  paid run; an unkeyed PR is not an intake question.
+
+**Its cut-off is `2026-09-22T00:00:00Z`, the day the rule landed** — and here
+the reasoning runs the *opposite* way from the intake half's. That one was
+pushed late because judging thirty labelled PRs would have opened it with thirty
+mostly-wrong findings against a record nobody had been keeping. Here the record
+is the title, it has always been there, and every merge before that day already
+carries a key with three exceptions. There is no archaeology and nothing to be
+wrong about. Earlier would be the mistake: #483–#485 (2026-09-09) and the whole
+pre-program June tail are unkeyed because the convention did not exist, and a
+first morning reporting ninety findings against a rule that post-dates them is
+the note-in-a-drawer failure wearing an alarm's uniform.
+
+Measured against the real history on the day it shipped: **43 in-window merges,
+3 findings, 0 false positives.**
+
 ### The exit status is keyed on the last green run (added 2026-09-22, DREAMCRM-92)
 
 The first version stayed red while any unremediated entry existed. Right for the
@@ -695,6 +991,57 @@ So the two halves are split:
   standing);
 - **the exit status** is keyed on the entries that merged after this sweep last
   went green.
+
+### The wake could not fire until the queue was clean (fixed 2026-09-23, DREAMCRM-115)
+
+Both anchors on this sweep had the same bootstrap problem, and it is circular
+enough to read past.
+
+A run becomes the WAKE's anchor by concluding its `Wake Forge` step `success`.
+On a morning with unsatisfied intake entries and no anchor, that step SUPPRESSES
+and exits non-zero — so the run does not become the anchor, and tomorrow is
+identical. The only escape was the intake queue going clean, which is the thing
+the wake exists to cause. **The wake could not fire until the queue was clean,
+and the queue got cleaned because the wake fired.**
+
+It was live, not theoretical. On 2026-09-23 the sweep held four unsatisfied
+entries (#673, #677, #694, #697) and **no run in its history had a `Wake Forge`
+step at all** — the step merged with #671 at 22:06:23Z, after the newest run.
+Forge would never have been woken for any of the four. The COLOUR half had the
+same shape and escaped by accident: a hand-dispatched ping on `main`
+(`35776664807`, 19:53:16Z) happened to be green and became the last-green
+anchor. An instrument that needs an accident to start working will need another
+one.
+
+**The closure, and the part that is not "assume green".** The `undated`
+suppression is right when the lookup FAILED — with no anchor every entry reads
+as fresh, and one throttled API call would dispatch Forge over a queue he has
+already seen. It is wrong when the lookup SUCCEEDED and honestly found nothing,
+because that state has a knowable date: `INTAKE_SWEPT_SINCE`, the obligation's
+own cut-off. No wake can be owed for a PR that merged before the label this half
+grades was being read.
+
+Two things make that safe rather than merely convenient:
+
+- **The two states are not distinguishable from the file, so the shell has to
+  claim it.** An empty `last-run.json` means "no candidate woke", "the list
+  lookup failed", or "a candidate was SKIPPED because its jobs lookup failed" —
+  and a skipped candidate might have been the anchor. The workflow now writes
+  `wake-anchor-search.json` (`{"complete":…,"searched":…}`), every failure path
+  sets `complete` false, and the script refuses to bootstrap without it.
+  `previousRunAt` reports the neutral fact `empty`; only `readPreviousRun` may
+  promote that to `bootstrap`, after reading the claim.
+- **The blast radius is bounded by the check above it.** The `standing-only`
+  branch has already dropped every entry older than the last GREEN run, so a
+  bootstrap arriving later in life — GitHub ages run history out after 90 days —
+  can only reach entries inside the last-green window. It cannot re-wake for a
+  year of them.
+
+Verified against the real 2026-09-23 inputs before merging: the comparator run
+offline against that morning's `gh pr list` output wakes for all four entries
+(`intake-bootstrap`) instead of suppressing, and all three degraded-lookup paths
+— incomplete search, missing claim file, unparseable claim file — still
+suppress.
 
 ### What that buys, and what it does not (Sentinel, reviewing #643)
 

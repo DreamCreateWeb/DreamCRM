@@ -1,9 +1,17 @@
 import AxeBuilder from '@axe-core/playwright'
 import { expect, test, type Page } from '@playwright/test'
 import { A11Y_BASELINE } from './axe-baseline'
-import { A11Y_HEADROOM_ANNOTATION } from './axe-headroom'
+import {
+  A11Y_HEADROOM_ANNOTATION,
+  A11Y_NEEDS_REVIEW_ANNOTATION,
+  NEEDS_REVIEW_TARGET_CAP,
+  type NeedsReviewRule,
+} from './axe-headroom'
 
-type Violation = Awaited<ReturnType<AxeBuilder['analyze']>>['violations'][number]
+type AxeResults = Awaited<ReturnType<AxeBuilder['analyze']>>
+type Violation = AxeResults['violations'][number]
+/** A result axe returned under `incomplete` — see `findA11yResults`. */
+export type NeedsReview = AxeResults['incomplete'][number]
 
 /**
  * Runtime accessibility checks at the stops the E2E suite already makes
@@ -30,6 +38,13 @@ type Violation = Awaited<ReturnType<AxeBuilder['analyze']>>['violations'][number
  * half of real accessibility defects. A green run here is not a claim that a
  * page is accessible; it is a claim that it has not regressed on the machine-
  * checkable part. `docs/UI-BEST-VERSION.md` stays the program of record.
+ *
+ * AND ONE PART OF THE MACHINE-CHECKABLE PART IS STILL NOT GATED, NAMED RATHER
+ * THAN LEFT TO BE DISCOVERED: what axe answers `incomplete` to. Those are
+ * reported as their own class since DREAMCRM-107 and fail nothing — see
+ * `findA11yResults` for why the gate never used to receive them at all, and
+ * `expectNoA11yViolations` for why reporting rather than failing is the
+ * decision.
  */
 
 /**
@@ -249,7 +264,8 @@ async function settleAnimations(page: Page, budgetMs = ANIMATION_BUDGET_MS): Pro
 }
 
 /**
- * Scan the current page state and return whatever axe found.
+ * Scan the current page state and return BOTH of axe's verdicts — what it
+ * failed, and what it could not decide.
  *
  * Split out from the assertion below so the detection path — injection, the
  * tag selection, the include/exclude plumbing, and the animation settle — is
@@ -257,19 +273,76 @@ async function settleAnimations(page: Page, budgetMs = ANIMATION_BUDGET_MS): Pro
  * check that has never been seen to fail has not been tested, and this one
  * would otherwise report clean forever if somebody narrowed `WCAG_TAGS` to
  * nothing.
+ *
+ * WHY `incomplete` IS READ AT ALL (DREAMCRM-107, raised by Sentinel reviewing
+ * #669; ledger entry S3 in `docs/RELEASE.md`). This function used to be
+ * `const { violations } = await builder.analyze()` and the rest of the result
+ * went on the floor. axe reports a node under `incomplete` when it cannot
+ * resolve the question rather than when the answer is "fine" — and for
+ * `color-contrast` the commonest reason is exactly the one this whole harness
+ * exists for: **there is no single background colour to measure against**,
+ * because the ground is a gradient or an image. So every stop in the suite,
+ * at a ceiling of zero or not, was silent about text over a gradient BY
+ * CONSTRUCTION. Not a ceiling that needed shrinking — a category the gate
+ * never received.
+ *
+ * The reachable case on `main` the day this landed: `app/g/[token]/
+ * report-view.tsx`. `.dg-glow` is two radial gradients over the canvas, and at
+ * the teal peak it composites to about `#0d2d32`, where that page's quiet ink
+ * `#78849c` grades **3.87:1**. It does not bite today only because of where
+ * the ellipse lands — move any `.dg-mono` label into the hero's right half
+ * above y=444 and `token: practice grade report` stays GREEN.
+ *
+ * WHAT IS DONE WITH IT IS DELIBERATELY NOT "FAIL". See
+ * `expectNoA11yViolations` — an undecidable result is not a violation, and a
+ * required check that goes red on one is a gate people have to interpret,
+ * which is a gate people learn to ignore. It is reported as its own class.
  */
-export async function findA11yViolations(
+export async function findA11yResults(
   page: Page,
   options: A11yOptions = {},
-): Promise<Violation[]> {
+): Promise<{ violations: Violation[]; incomplete: NeedsReview[] }> {
   await settleAnimations(page)
 
   let builder = new AxeBuilder({ page }).withTags(WCAG_TAGS)
   if (options.include) builder = builder.include(options.include)
   for (const selector of options.exclude ?? []) builder = builder.exclude(selector)
 
-  const { violations } = await builder.analyze()
-  return violations
+  const { violations, incomplete } = await builder.analyze()
+  return { violations, incomplete }
+}
+
+/**
+ * Just the failures, for the callers that only ever wanted those.
+ *
+ * `exclusionsHidingReadableText` is one: it measures what an exclusion buys in
+ * `color-contrast` VIOLATIONS, and an undecidable node is not something the
+ * WCAG 1.4.3 picture argument is pardoning. The self-test is the other.
+ */
+export async function findA11yViolations(
+  page: Page,
+  options: A11yOptions = {},
+): Promise<Violation[]> {
+  return (await findA11yResults(page, options)).violations
+}
+
+/**
+ * Fold axe's `incomplete` results into the per-rule shape the annotation and
+ * the end-of-run table take.
+ *
+ * Pure and exported so the self-test can pin it without a browser, and so the
+ * emitter and the reporter cannot drift into two ideas of what a row is.
+ * `targets` is capped at `NEEDS_REVIEW_TARGET_CAP`; `nodes` is the true count,
+ * so a capped row still says how much it is standing for.
+ */
+export function summariseNeedsReview(incomplete: NeedsReview[]): NeedsReviewRule[] {
+  return incomplete
+    .map((r) => ({
+      rule: r.id,
+      nodes: r.nodes.length,
+      targets: r.nodes.slice(0, NEEDS_REVIEW_TARGET_CAP).map((n) => n.target.join(' ')),
+    }))
+    .sort((a, b) => b.nodes - a.nodes || a.rule.localeCompare(b.rule))
 }
 
 /**
@@ -468,6 +541,59 @@ function recordHeadroomSample(sample: {
 }
 
 /**
+ * Hand one stop's needs-review status to `e2e/axe-headroom.ts`.
+ *
+ * CALLED AT EVERY STOP, INCLUDING THE ONES WITH AN EMPTY `rules` — that is
+ * what makes the reporter able to tell "axe decided everything" from "this
+ * emitter has come unhooked", which is §2a's standing rule that an alarm ships
+ * with the thing that notices it stopped. An alarm only ever heard from when
+ * it fires is one whose silence means nothing.
+ *
+ * Swallows everything, for the same reason `recordHeadroomSample` does: this
+ * is REPORTING attached to a required check, and it must never be the reason
+ * one fails.
+ */
+function recordNeedsReviewSample(sample: { stop: string; rules: NeedsReviewRule[] }): void {
+  try {
+    test.info().annotations.push({
+      type: A11Y_NEEDS_REVIEW_ANNOTATION,
+      description: JSON.stringify(sample),
+    })
+  } catch {
+    // No test context. The table simply has one fewer stop in it.
+  }
+}
+
+/**
+ * Print what axe declined to grade at a stop, as lines a reader of a red — or
+ * green — CI log can act on.
+ *
+ * Returned rather than printed from inside the assertion for the same reason
+ * `deadExclusions` and `exclusionsHidingReadableText` are returned: an
+ * absence is only evidence if something has watched it become a presence, and
+ * the self-test can only watch a value it is handed.
+ */
+export function describeNeedsReview(stop: string, incomplete: NeedsReview[]): string[] {
+  const out: string[] = []
+  for (const r of incomplete) {
+    out.push(`${stop} — ${r.id} ×${r.nodes.length}: ${r.help}`)
+    for (const node of r.nodes) {
+      // Axe's summary is a heading line ("Fix any of the following:") and then
+      // indented reasons. Drop the heading and flatten the rest — the reason
+      // is the part that tells a reader this is undecidable rather than red.
+      const why = (node.failureSummary ?? '')
+        .split('\n')
+        .map((l) => l.trim())
+        .filter(Boolean)
+        .slice(1)
+        .join(' ')
+      out.push(`    at: ${node.target.join(' ')}${why ? ` — ${why}` : ''}`)
+    }
+  }
+  return out
+}
+
+/**
  * Scan the current page state and fail the test on anything the baseline in
  * `e2e/axe-baseline.ts` does not already account for.
  *
@@ -483,6 +609,13 @@ function recordHeadroomSample(sample: {
  * version is that the first run over real pages found 214 pre-existing
  * violations in UI code that QA does not change. Anything above a ceiling,
  * any rule not listed, and any stop not listed fails.
+ *
+ * IT ALSO REPORTS A SECOND CLASS AND GATES NOTHING ON IT: what axe could not
+ * DECIDE (DREAMCRM-107). `incomplete` results — text over a gradient, most
+ * often — are printed, annotated, and folded into the end-of-run needs-review
+ * table by `e2e/axe-headroom.ts`. They never fail a stop. Read the block
+ * beside `summariseNeedsReview` below for why both halves of that are
+ * deliberate.
  *
  * Uses a SOFT assertion on purpose. A run that stops at the first bad stop
  * tells you about one problem and hides the other twenty-odd; every stop
@@ -524,8 +657,73 @@ export async function expectNoA11yViolations(
     )
     .toEqual([])
 
-  const violations = await findA11yViolations(page, options)
+  const { violations, incomplete } = await findA11yResults(page, options)
   const allowed = A11Y_BASELINE[stop] ?? {}
+
+  // ── WHAT AXE COULD NOT DECIDE (DREAMCRM-107) ────────────────────────────
+  //
+  // Its own class, reported and never asserted. `findA11yResults` carries the
+  // argument for reading `incomplete` at all; this is what is done with it.
+  //
+  // NOT A VIOLATION, ON PURPOSE. `incomplete` means axe declined to answer —
+  // overwhelmingly, for `color-contrast`, because the ground is a gradient or
+  // an image and there is no single background colour to compute a ratio
+  // against. Some of those are fine and some are not, and only a person at the
+  // stop can tell which. Failing a required check on every one would make
+  // `e2e` red for a question rather than for a defect, and this file's own
+  // rule is that a gate people have to interpret is a gate people learn to
+  // ignore. Reporting it is the other half of that rule: a category the gate
+  // silently drops is not neutral either.
+  //
+  // THE SAMPLE GOES OUT EVEN WHEN THERE IS NOTHING TO SAY — see
+  // `recordNeedsReviewSample`. That is what lets the end-of-run table tell an
+  // all-decidable run from an unhooked emitter.
+  //
+  // IT READS THE FILTERED SCAN, so a subtree an exclusion removed is out of
+  // this too. That is consistent — an excluded subtree is out of the gate by
+  // argument — and it is a residue worth naming: the WCAG 1.4.3 picture
+  // argument those exclusions rest on is about text a person is not meant to
+  // read, and `exclusionsHidingReadableText` polices it over VIOLATIONS only.
+  // A readable panel inside a mock, on a gradient, is pardoned by both halves.
+  // No instance exists today (no stop that passes `exclude` has a gradient
+  // ground); written here rather than fixed speculatively.
+  //
+  // THE WHOLE BLOCK IS WRAPPED, not just the annotation push (Sentinel's
+  // review of #682). `recordNeedsReviewSample` has its own `try` and says why
+  // — reporting attached to a required check must never be the reason one
+  // fails — and leaving the larger half of the same block bare made the file
+  // state a rule it then did not apply. The risk was small (every field read
+  // here is guaranteed or defaulted); the asymmetry was the defect.
+  //
+  // IT CANNOT SWALLOW A GATE FAILURE, which is the thing to check before
+  // wrapping anything in this file: nothing inside computes `counts`,
+  // `overIds` or `over`, and the soft assertions are all below it. A throw in
+  // here loses one stop's needs-review line and changes no verdict.
+  try {
+    const needsReview = summariseNeedsReview(incomplete)
+    recordNeedsReviewSample({ stop, rules: needsReview })
+    if (needsReview.length > 0) {
+      const nodes = needsReview.reduce((n, r) => n + r.nodes, 0)
+      console.log(`[a11y] NEEDS REVIEW — ${stop}`)
+      for (const line of describeNeedsReview(stop, incomplete)) console.log(`  ${line}`)
+      // ONE `::warning` PER STOP, AND GITHUB PRINTS TEN PER LEVEL PER JOB.
+      // So this is a log artefact rather than the delivery channel — the
+      // end-of-run table in `e2e/axe-headroom.ts` carries every row and goes
+      // to the job summary, which is where a reader should be sent. Named
+      // here so nobody later reads "a warning per stop" as "a person sees
+      // every stop". (Sentinel, reviewing #682.)
+      console.log(
+        `::warning title=axe could not decide::"${stop}" — ${nodes} node${nodes === 1 ? '' : 's'} came ` +
+          `back incomplete (${needsReview.map((r) => `${r.rule} ×${r.nodes}`).join(', ')}). ` +
+          `These are NOT counted by any ceiling and this run is not red for them. Text over a ` +
+          `gradient or an image is the usual cause — the full list is in the needs-review table at ` +
+          `the end of the run; measure it by hand at this stop and either fix it or leave it, but ` +
+          `do not read the green tick as covering it.`,
+      )
+    }
+  } catch (err) {
+    console.log(`[a11y] could not report what axe left undecided at "${stop}": ${String(err)}`)
+  }
 
   const counts = Object.fromEntries(violations.map((v) => [v.id, v.nodes.length]))
   const overIds = new Set(rulesOverBaseline(allowed, counts))

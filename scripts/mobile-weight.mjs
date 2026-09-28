@@ -201,7 +201,7 @@ const sleep = (waitMs) => new Promise((r) => setTimeout(r, waitMs))
 /* ── The observers we inject before anything on the page runs ────────────── */
 
 const OBSERVER_SOURCE = `(() => {
-  const w = { fcp: null, lcp: null, lcpEl: null, cls: 0, long: [], scrollAt: null };
+  const w = { fcp: null, lcp: null, lcpEl: null, cls: 0, shifts: [], long: [], scrollAt: null };
   window.__weight = w;
   const obs = (type, cb) => {
     try { new PerformanceObserver(cb).observe({ type: type, buffered: true }); } catch (e) {}
@@ -229,7 +229,34 @@ const OBSERVER_SOURCE = `(() => {
       : '(none)';
   });
   obs('layout-shift', (l) => {
-    for (const e of l.getEntries()) if (!e.hadRecentInput) w.cls += e.value;
+    for (const e of l.getEntries()) {
+      if (e.hadRecentInput) continue;
+      w.cls += e.value;
+      // WHICH element moved, and from where to where. Same argument as the
+      // LCP element above: a CLS of 0.116 is a riddle, and "the pricing panel
+      // dropped 27px at 2.6s" is a defect with a mechanism. DREAMCRM-118
+      // needed a throwaway probe to learn this and the probe is the thing
+      // worth keeping -- the doc's own recommendation 3 is to re-run and
+      // COMPARE, which wants the subject of the metric and not only its size.
+      const src = (e.sources || []).find((x) => x.node && x.node.nodeType === 1);
+      const n = src && src.node;
+      w.shifts.push({
+        t: Math.round(e.startTime),
+        value: e.value,
+        afterScroll: w.scrollAt != null,
+        el: n
+          ? (n.tagName.toLowerCase() +
+             (n.id ? '#' + n.id : '') +
+             (typeof n.className === 'string' && n.className
+               ? '.' + n.className.trim().split(/[ ]+/).slice(0, 4).join('.')
+               : ''))
+          : '(no element)',
+        movedY:
+          src && src.previousRect && src.currentRect
+            ? Math.round((src.currentRect.y - src.previousRect.y) * 100) / 100
+            : null,
+      });
+    }
   });
   obs('longtask', (l) => {
     for (const e of l.getEntries()) w.long.push({ start: e.startTime, dur: e.duration });
@@ -439,6 +466,7 @@ async function measure(cdp, targetId, page) {
     lcp: after.lcp ?? atLoad.lcp ?? null,
     lcpEl: after.lcpEl ?? atLoad.lcpEl ?? null,
     cls: after.cls ?? 0,
+    shifts: after.shifts ?? [],
     load: { tasks: loadTasks.length, blockingMs: blocking(loadTasks), longestMs: longest(loadTasks) },
     scroll: {
       tasks: scrollTasks.length,
@@ -478,6 +506,16 @@ function fold(samples) {
     fcp: pick((s) => s.fcp),
     lcp: pick((s) => s.lcp),
     cls: pick((s) => s.cls),
+    // The worst single shift seen across the runs, not a median: a shift that
+    // only lands on some runs is still the page's defect, and it is exactly
+    // the shape this metric hides -- a shift is only counted against content
+    // that already painted, so a slow run reports 0.000 for a page that moves
+    // every time. Report the subject whenever ANY run saw one.
+    worstShift: samples
+      .flatMap((s) => s.shifts ?? [])
+      .sort((a, b) => b.value - a.value)[0] ?? null,
+    shiftRuns: samples.filter((s) => (s.shifts ?? []).length > 0).length,
+    runs: samples.length,
     lcpEl: samples[samples.length - 1].lcpEl,
     loadBlockingMs: pick((s) => s.load.blockingMs),
     loadLongestMs: pick((s) => s.load.longestMs),
@@ -602,6 +640,15 @@ async function main() {
         `, fine pointer ${r.state.finePointer}, ${r.state.innerWidth}x${r.state.innerHeight}` +
         `, document ${r.state.docHeight}px`,
     )
+    if (r.worstShift) {
+      console.log(
+        `  worst layout shift ${r.worstShift.value.toFixed(4)} at ${r.worstShift.t}ms` +
+          ` (${r.shiftRuns}/${r.runs} runs)` +
+          `: ${r.worstShift.el}` +
+          (r.worstShift.movedY != null ? ` moved ${r.worstShift.movedY}px` : '') +
+          (r.worstShift.afterScroll ? ' [during scroll]' : ''),
+      )
+    }
   }
   console.log('')
 }

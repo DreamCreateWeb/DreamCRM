@@ -53,8 +53,29 @@ export default function SurveyCard({ token, brand }: { token: string; brand: str
     })
   }
 
+  // The card swaps its ENTIRE body at each phase — rating row → comment box →
+  // thank-you — while the card itself stays mounted, so nothing remounts and
+  // nothing is spoken. A screen-reader user tapped a score and the only
+  // evidence it registered was focus landing somewhere unexpected. One polite
+  // live region narrates the phase, the same shape as the slot picker's
+  // (`slot-picker.tsx` — checking → what landed) one file away.
+  //
+  // It SUMMARISES the new phase rather than repeating the copy word for word:
+  // the announcement fires, and then the reader arrives at the visible text and
+  // reads it again. Two different sentences is one fact told twice; two
+  // identical ones is a stutter.
+  const liveStatus =
+    phase === 'comment'
+      ? `Saved — you rated ${score} out of 10. A note is optional.`
+      : phase === 'done'
+        ? 'Thanks — your rating is in.'
+        : ''
+
   return (
     <PortalCard>
+      <p className="sr-only" role="status">
+        {liveStatus}
+      </p>
       {phase === 'ask' && (
         <>
           <p className="text-[1.05rem] font-semibold" style={{ color: INK }}>
