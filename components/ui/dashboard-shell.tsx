@@ -69,7 +69,7 @@ export default async function DashboardShell({
   // bundle-gated modules, so they skip the (clinic-scoped) lookup entirely.
   const activeBundles =
     ctx.tenantType === 'clinic' ? await getActiveBundlesForSidebar(ctx.organizationId) : new Set<BundleId>()
-  const modules = applyBundleGate(getVisibleModules(ctx.tenantType, ctx.role), activeBundles)
+  const modules = applyBundleGate(getVisibleModules(ctx.tenantType, ctx.role, { platformAdmin: ctx.platformAdmin }), activeBundles)
   // Quick-create gating ids: module ids PLUS plan-derived capability ids for
   // areas folded into the Website/Growth workspaces (their hub modules are
   // ungated, so the hub id alone can't carry the plan gate — 'blog' is Pro+,

@@ -1,5 +1,5 @@
 import { SPECIALISTS, CAPABILITY_ICON } from '@/lib/types/dream-team'
-import { getCapability } from '@/lib/autonomy'
+import { getCapability, isPreviewCapability } from '@/lib/autonomy'
 import { StatusPill } from '@/components/ui/status-pill'
 import SectionHeading from './section-heading'
 
@@ -20,6 +20,8 @@ export interface RosterInput {
   weeklyCounts: ReadonlyMap<string, number>
   /** Capabilities with a card waiting on a yes right now. */
   waitingCapabilities: ReadonlySet<string>
+  /** Platform admins see PREVIEW lanes (unreleased features); clinics never do. */
+  showPreview?: boolean
 }
 
 function laneMode(capability: string, granted: ReadonlySet<string>): 'auto' | 'ask' {
@@ -28,7 +30,7 @@ function laneMode(capability: string, granted: ReadonlySet<string>): 'auto' | 'a
   return def?.defaultTrust === 'auto' ? 'auto' : 'ask'
 }
 
-export default function TeamRoster({ grantedCapabilities, weeklyCounts, waitingCapabilities }: RosterInput) {
+export default function TeamRoster({ grantedCapabilities, weeklyCounts, waitingCapabilities, showPreview = false }: RosterInput) {
   return (
     <section id="the-team" className="mt-10 scroll-mt-24">
       <SectionHeading
@@ -38,6 +40,7 @@ export default function TeamRoster({ grantedCapabilities, weeklyCounts, waitingC
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
         {SPECIALISTS.map((s) => {
           const lanes = s.capabilities
+            .filter((c) => showPreview || !isPreviewCapability(c))
             .map((c) => ({ capability: c, def: getCapability(c) }))
             .filter((l) => l.def !== null)
           if (lanes.length === 0) return null

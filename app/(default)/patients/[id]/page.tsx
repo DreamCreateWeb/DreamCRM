@@ -14,7 +14,7 @@ import { getLoyaltySettings, getPointsBalance, listLoyaltyEvents } from '@/lib/s
 import { listFormTemplates } from '@/lib/services/forms'
 import { getLatestInsuranceCheckForPatient } from '@/lib/services/insurance-eligibility'
 import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
-import { requestFromOnFile } from '@/lib/insurance-eligibility'
+import { canUseInsuranceTool, requestFromOnFile } from '@/lib/insurance-eligibility'
 import PatientDetail from './patient-detail'
 
 interface PageProps {
@@ -73,11 +73,15 @@ export default async function PatientDetailPage({ params }: PageProps) {
 
   // Insurance-check rail card: the latest stored verdict + what a re-check
   // would send when no check exists yet (the on-file card as self-subscriber).
-  const insurance = {
-    latest: latestInsuranceCheck,
-    hasOnFile: !!header.insuranceProvider,
-    onFileRequest: requestFromOnFile(header),
-  }
+  // PREVIEW: null hides the rail card AND the needs-attention nudge for
+  // everyone but platform admins.
+  const insurance = canUseInsuranceTool(ctx)
+    ? {
+        latest: latestInsuranceCheck,
+        hasOnFile: !!header.insuranceProvider,
+        onFileRequest: requestFromOnFile(header),
+      }
+    : null
 
   const counts = countTimeline(timeline)
   const intakeForms = forms.map((f) => ({ id: f.id, title: f.title }))

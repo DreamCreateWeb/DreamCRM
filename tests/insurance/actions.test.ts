@@ -11,6 +11,8 @@ const tenantCtx = {
   organizationId: 'org_1',
   userId: 'user_staff',
   role: 'member',
+  // PREVIEW: the tool is platform-admin only until released.
+  platformAdmin: true,
 }
 vi.mock('@/lib/auth/context', () => ({ requireTenant: vi.fn(async () => tenantCtx) }))
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
@@ -46,6 +48,7 @@ const request = {
 
 beforeEach(() => {
   tenantCtx.tenantType = 'clinic'
+  tenantCtx.platformAdmin = true
   runEligibilityCheck.mockReset()
   createPatient.mockReset()
   updatePatient.mockClear()
@@ -65,6 +68,16 @@ describe('checkInsuranceAction', () => {
     const r = await checkInsuranceAction(request, null)
     expect(r.ok).toBe(false)
     expect(runEligibilityCheck).not.toHaveBeenCalled()
+  })
+
+  it('PREVIEW: refuses clinic staff who are not platform admins — every action', async () => {
+    tenantCtx.platformAdmin = false
+    expect((await checkInsuranceAction(request, null)).ok).toBe(false)
+    expect((await saveInsuranceToPatientAction('pat_1', { carrierName: 'X', memberId: 'Y', groupNumber: null })).ok).toBe(false)
+    expect((await createPatientFromCheckAction({ checkId: 'ins_1', request })).ok).toBe(false)
+    expect(runEligibilityCheck).not.toHaveBeenCalled()
+    expect(updatePatient).not.toHaveBeenCalled()
+    expect(createPatient).not.toHaveBeenCalled()
   })
 })
 

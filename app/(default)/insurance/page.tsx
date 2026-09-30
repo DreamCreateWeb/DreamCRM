@@ -5,9 +5,9 @@ export const metadata = {
 
 export const dynamic = 'force-dynamic'
 
-import { redirect } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 import { requireTenant } from '@/lib/auth/context'
-import { resolveInsuranceDriverId, requestFromOnFile } from '@/lib/insurance-eligibility'
+import { canUseInsuranceTool, resolveInsuranceDriverId, requestFromOnFile } from '@/lib/insurance-eligibility'
 import {
   getLatestInsuranceCheckForPatient,
   listCarrierSuggestions,
@@ -26,6 +26,9 @@ export default async function InsurancePage({ searchParams }: PageProps) {
   const ctx = await requireTenant()
   if (ctx.tenantType === 'patient') redirect('/patient/dashboard')
   if (ctx.tenantType === 'platform') redirect('/')
+  // PREVIEW: unreleased — a 404 for everyone but platform admins, exactly
+  // what a clinic would see if the route did not exist.
+  if (!canUseInsuranceTool(ctx)) notFound()
 
   const params = await searchParams
   const patientParam = typeof params.patient === 'string' ? params.patient.trim() : ''

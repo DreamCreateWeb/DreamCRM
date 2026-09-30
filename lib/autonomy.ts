@@ -160,6 +160,20 @@ export const BOOKING_BUTTON_CAPABILITIES: readonly string[] = [
   'schedule_gap',
 ]
 
+/**
+ * PREVIEW capabilities (2026-09-30): registered so the ledger can narrate
+ * them, but the feature behind each is not released to clinics yet — it is
+ * reachable only by platform admins (the owner's "View as clinic" tour). The
+ * Dream Team roster hides these lanes for everyone else, so a real practice
+ * never reads about a job it cannot ask for. Remove a key from this list to
+ * release the feature; nothing else needs to change on the roster.
+ */
+export const PREVIEW_CAPABILITIES: readonly string[] = ['insurance_check']
+
+export function isPreviewCapability(key: string): boolean {
+  return PREVIEW_CAPABILITIES.includes(key)
+}
+
 const BY_KEY: ReadonlyMap<string, CapabilityDef> = new Map(CAPABILITIES.map((c) => [c.key, c]))
 
 export function getCapability(key: string): CapabilityDef | null {

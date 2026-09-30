@@ -37,7 +37,7 @@ export function likePattern(q: string): string {
  *  bundle gated, so ⌘K mirrors the sidebar) plus the settings subpages the
  *  sidebar doesn't list. */
 function pageIndex(ctx: TenantContext, activeBundles: ReadonlySet<BundleId>): SearchResult[] {
-  const modules = applyBundleGate(getVisibleModules(ctx.tenantType, ctx.role), activeBundles).map((m) => ({
+  const modules = applyBundleGate(getVisibleModules(ctx.tenantType, ctx.role, { platformAdmin: ctx.platformAdmin }), activeBundles).map((m) => ({
     id: `page-${m.id}`,
     label: m.label,
     sublabel: m.section ?? null,
@@ -157,7 +157,7 @@ function quickActions(ctx: TenantContext, activeBundles: ReadonlySet<BundleId>):
   ]
   // Quick actions follow the same plan + bundle gates as their pages.
   const visible = new Set(
-    applyBundleGate(getVisibleModules(ctx.tenantType, ctx.role), activeBundles).map((m) => m.path),
+    applyBundleGate(getVisibleModules(ctx.tenantType, ctx.role, { platformAdmin: ctx.platformAdmin }), activeBundles).map((m) => m.path),
   )
   return actions.filter((a) => {
     if (a.href.startsWith('/patients')) return visible.has('/patients')

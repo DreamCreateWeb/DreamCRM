@@ -37,6 +37,14 @@ export interface ModuleDef {
   /** Roles that can see this module. If omitted, all members can see it. */
   roles?: Role[]
 
+  /**
+   * UNRELEASED-FEATURE gate: the module is visible only to platform admins
+   * (the user-row flag, so it follows the owner into View-as-clinic). This is
+   * NOT plan gating — it is "does this feature exist yet for customers".
+   * Drop the flag to release the module to every clinic.
+   */
+  platformAdminOnly?: boolean
+
   /** Whether this module is currently implemented or coming soon. */
   status?: 'live' | 'soon'
 

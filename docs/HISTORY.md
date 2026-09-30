@@ -5475,3 +5475,16 @@ proposal; `?lead=` prefill from `insurance_verifier` leads; storing the
 OCR's planName/subscriberName somewhere; a per-payer directory once a
 clearinghouse supplies one (deliberately not hand-coded — phone numbers and
 payer ids we cannot verify are the wrong kind of content).
+
+**Same day, the release gate.** Owner: "hide it for now — accessible only
+from my admin portal until we decide to release it; I have real clients
+now." One predicate, `canUseInsuranceTool` (= `ctx.platformAdmin`, the
+USER-row flag, so the owner keeps it in View-as-clinic), asked by every
+surface: the page 404s, the actions refuse, `ModuleDef.platformAdminOnly`
+(new, threaded through `getVisibleModules(…, { platformAdmin })`) hides the
+sidebar entry and the ⌘K page + quick action, the patient page hands the
+rail card `null` (which also drops the nudge), and `PREVIEW_CAPABILITIES`
+in lib/autonomy.ts hides the roster lane so a practice never reads about a
+job it cannot ask for. Deliberately NOT plan gating — it is "does this
+feature exist yet for customers". Release = flip the gate, drop the module
+flag, remove the key from the preview list.
