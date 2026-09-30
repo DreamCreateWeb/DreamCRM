@@ -126,7 +126,22 @@ system, don't replace it.
   refuse, `platformAdminOnly` hides the module from the sidebar + ⌘K, the
   patient rail card + nudge get null, the roster hides the lane via
   `PREVIEW_CAPABILITIES`). To release: flip the gate, drop the module flag,
-  remove the key from PREVIEW_CAPABILITIES.** `lib/insurance-eligibility.ts` (client-safe types,
+  remove the key from PREVIEW_CAPABILITIES.** STEDI DRIVER (2026-09-30, the
+  first real clearinghouse): `INSURANCE_DRIVER=stedi` + `STEDI_API_KEY`,
+  with `STEDI_MODE=test` (default — a Stedi TEST key answers only their
+  predefined mock requests, sample benefits, free, labelled "Test payer
+  answer") or `STEDI_MODE=live` (a LIVE key, the real payer, billed per
+  check, BAA first). `lib/stedi-eligibility.ts` is the PURE half (request
+  builder, the `plans[].benefits` → EligibilityResult normalizer, AAA
+  code mapping: member-not-found codes → not_found, 76 → needs_review,
+  42/79/80 → a retryable throw) and `lib/services/insurance-eligibility/
+  stedi.ts` the network half (payer search typeahead, NPI from
+  clinic_profile.npi → STEDI_DEFAULT_NPI → the mock NPI in test mode). A
+  carrier NAME is not a payer — "Delta Dental" is forty state plans — so
+  the form carries a payer PICKER and the driver refuses ambiguous names.
+  The demo org may run practice drivers (sandbox, Stedi test) but a live
+  driver is swapped for the sandbox there (`effectiveDriverForOrg`).
+  `lib/insurance-eligibility.ts` (client-safe types,
   validation, the status→tone contract, the honesty labels) +
   `lib/services/insurance-eligibility/` (provider interface, the
   DETERMINISTIC sandbox driver with documented steering suffixes, the
@@ -1172,6 +1187,9 @@ sitemap/robots/OG.
      **…OJGLOI** (rotate). All three are on the `dreamcrm` IAM user.
    - Resend key `re_BZDw…` — mint fresh, swap in Secrets Manager, delete the
      dead `re_T8fyc…`.
+   - Stedi API key ending **…AYEV9** (shared in chat 2026-09-30; it is a LIVE
+     key — two real checks were billed proving it) — rotate in the Stedi
+     portal; mint a separate TEST key for mock development.
 2. **The finishing pass is CLEAR** (2026-07-02) — every item in
    `docs/FINISHING.md` is fixed, decided, or accepted. That doc is now
    FROZEN history: during the release program, new defects go to

@@ -16,10 +16,17 @@ vi.mock('@/components/ui/toast', () => ({ useToast: () => toast }))
 const checkInsuranceAction = vi.fn()
 const createPatientFromCheckAction = vi.fn()
 const saveInsuranceToPatientAction = vi.fn()
+const searchPayersAction = vi.fn(async () => ({
+  ok: true,
+  payers: [
+    { stediId: 'QNJCP', displayName: 'Delta Dental of California', primaryPayerId: '77777', aliases: [], coverageTypes: ['dental'], operatingStates: ['CA'], eligibilitySupported: true, score: 2 },
+  ],
+}))
 vi.mock('@/app/(default)/insurance/actions', () => ({
   checkInsuranceAction: (...a: unknown[]) => checkInsuranceAction(...(a as [])),
   createPatientFromCheckAction: (...a: unknown[]) => createPatientFromCheckAction(...(a as [])),
   saveInsuranceToPatientAction: (...a: unknown[]) => saveInsuranceToPatientAction(...(a as [])),
+  searchPayersAction: (...a: unknown[]) => searchPayersAction(...(a as [])),
 }))
 
 import InsuranceTool from '@/app/(default)/insurance/insurance-tool'
@@ -142,6 +149,23 @@ describe('InsuranceTool — form + add-as-patient', () => {
     })
     expect(screen.getByText('Save to their record')).toBeTruthy()
     expect(screen.queryByText(/as a patient/)).toBeNull()
+  })
+
+  it('under a Stedi driver the carrier box becomes a payer picker, the test pill shows, and the steering tips do not', async () => {
+    renderTool({ driver: 'stedi_test' })
+    expect(screen.getByText('Test payer answer').getAttribute('data-tone')).toBe('neutral')
+    expect(screen.queryByText('Practice-mode tips')).toBeNull()
+    fireEvent.change(screen.getByLabelText('Payer'), { target: { value: 'Delta' } })
+    await waitFor(() => expect(screen.getByText('Delta Dental of California')).toBeTruthy())
+    fireEvent.click(screen.getByText('Delta Dental of California'))
+    expect(screen.getByText('77777')).toBeTruthy()
+    expect(searchPayersAction).toHaveBeenCalledWith('Delta')
+  })
+
+  it('a tier the payer never stated renders as a dash, never a number', () => {
+    renderTool({ initialCheck: check({ driver: 'stedi', result: { ...check().result!, coveragePct: { preventive: 100, basic: null, major: null, ortho: null } } }) })
+    expect(screen.getByText('Payer answer')).toBeTruthy()
+    expect(screen.getAllByText('—').length).toBeGreaterThanOrEqual(2)
   })
 
   it('picking an existing patient navigates to the server prefill', () => {

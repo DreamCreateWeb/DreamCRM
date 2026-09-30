@@ -5488,3 +5488,31 @@ in lib/autonomy.ts hides the roster lane so a practice never reads about a
 job it cannot ask for. Deliberately NOT plan gating — it is "does this
 feature exist yet for customers". Release = flip the gate, drop the module
 flag, remove the key from the preview list.
+
+**Same day, the first real driver — Stedi.** Vendor pick: Stedi (API-first
+X12 270/271 clearinghouse; self-serve, pay-as-you-go, 3,390+ payers, a test
+mode with predefined mock requests) over the dental-native contract vendors
+(Zuub, Onederful/Vyne) — the latter are the upgrade path if raw
+clearinghouse answers prove too thin. The driver splits pure from network:
+`lib/stedi-eligibility.ts` builds the `2026-06-01/eligibility-check` body
+(subscriber vs dependent by relationship; STC 35 Dental Care) and normalizes
+the `plans[].benefits` categories (statuses → active/inactive, deductible and
+outOfPocket by CALENDAR_YEAR/REMAINING time periods, coInsurance percent =
+the PATIENT's share so plan-pays = 100 − share, mapped to tiers by STC,
+limitations with VISITS quantities → frequency rows by CDT code), and maps
+AAA rejections (member-not-found family → not_found, 76 duplicate →
+needs_review, 42/79/80 payer-down → a RETRYABLE throw the service stores as
+an error row). `lib/services/insurance-eligibility/stedi.ts` owns the key,
+the payer-search typeahead, the NPI resolution and the timeouts. Two driver
+ids on one implementation — `stedi_test` (practice answers, free) and
+`stedi` (live, billed, BAA first) — chosen by an EXPLICIT `STEDI_MODE`
+rather than sniffed from the key, because the two keys look alike: the
+owner's first key turned out to be LIVE (two mock requests reached
+Ameritas and UnitedHealthcare for real and came back AAA 72/76 — the
+proof), so the wrong guess either bills the owner or labels a real answer
+as practice. Lessons: a carrier NAME is not a payer ("Delta Dental" is
+forty state plans with close search scores) — the form gained a payer
+PICKER and the driver refuses ambiguous names; coverage tiers became
+nullable per tier so the UI shows a dash where the payer said nothing
+rather than a number nobody said. Rotate the chat-shared key (CLAUDE.md
+open item 1).

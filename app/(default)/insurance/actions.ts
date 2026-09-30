@@ -6,8 +6,10 @@ import { canUseInsuranceTool, type EligibilityRequest } from '@/lib/insurance-el
 import {
   attachInsuranceCheckToPatient,
   runEligibilityCheck,
+  searchPayers,
   type RunEligibilityCheckResult,
 } from '@/lib/services/insurance-eligibility'
+import type { StediPayerMatch } from '@/lib/stedi-eligibility'
 import { createPatient, updatePatient } from '@/lib/services/patients'
 
 /**
@@ -40,6 +42,14 @@ export async function checkInsuranceAction(
     if (r.check.patientId) revalidatePath(`/patients/${r.check.patientId}`)
   }
   return r
+}
+
+/** Payer typeahead for the Stedi drivers — the exact payer, not a carrier name. */
+export async function searchPayersAction(query: string): Promise<{ ok: true; payers: StediPayerMatch[] } | { ok: false; error: string }> {
+  const ctx = await clinicCtx()
+  if (!ctx) return { ok: false, error: 'Insurance checks are a clinic feature.' }
+  const payers = await searchPayers(String(query ?? '').slice(0, 80))
+  return { ok: true, payers }
 }
 
 /** Write the checked card details onto an existing patient's on-file columns. */
