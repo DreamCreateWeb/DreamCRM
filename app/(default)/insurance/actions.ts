@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { requireTenant } from '@/lib/auth/context'
-import type { EligibilityRequest } from '@/lib/insurance-eligibility'
+import { canUseInsuranceTool, type EligibilityRequest } from '@/lib/insurance-eligibility'
 import {
   attachInsuranceCheckToPatient,
   runEligibilityCheck,
@@ -19,6 +19,8 @@ import { createPatient, updatePatient } from '@/lib/services/patients'
 async function clinicCtx() {
   const ctx = await requireTenant()
   if (ctx.tenantType !== 'clinic') return null
+  // PREVIEW: the actions refuse for anyone the page would 404 for.
+  if (!canUseInsuranceTool(ctx)) return null
   return ctx
 }
 

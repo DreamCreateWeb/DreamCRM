@@ -80,9 +80,15 @@ const FOLDED_AREAS: Record<string, string> = {
  * - Plan gating only applies to clinic tenants.
  * - Patient role only sees modules with patient in roles array.
  */
-export function getVisibleModules(tenantType: TenantType, role: Role = 'member') {
+export function getVisibleModules(
+  tenantType: TenantType,
+  role: Role = 'member',
+  opts: { platformAdmin?: boolean } = {},
+) {
   return getRegistry(tenantType).modules.filter((m) => {
     if (m.roles && !m.roles.includes(role)) return false
+    // Unreleased modules stay invisible to everyone but platform admins.
+    if (m.platformAdminOnly && !opts.platformAdmin) return false
     return true
   })
 }

@@ -100,3 +100,17 @@ describe('the roster cards', () => {
     expect(screen.getByText('2 waiting on you')).toBeInTheDocument()
   })
 })
+
+describe('PREVIEW lanes', () => {
+  it('hides an unreleased capability from clinics and shows it to platform admins', () => {
+    const { unmount } = render(
+      <TeamRoster grantedCapabilities={new Set()} weeklyCounts={new Map()} waitingCapabilities={new Set()} />,
+    )
+    expect(screen.queryByText(/insurance benefits/)).toBeNull()
+    unmount()
+    render(
+      <TeamRoster grantedCapabilities={new Set()} weeklyCounts={new Map()} waitingCapabilities={new Set()} showPreview />,
+    )
+    expect(screen.getByText(/insurance benefits/)).toBeInTheDocument()
+  })
+})

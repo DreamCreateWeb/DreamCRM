@@ -148,6 +148,7 @@ export default async function DreamTeamView({ ctx }: { ctx: TenantContext }) {
         grantedCapabilities={grantedCapabilities}
         weeklyCounts={weeklyCounts}
         waitingCapabilities={waitingCapabilities}
+        showPreview={ctx.platformAdmin}
       />
     </div>
   )

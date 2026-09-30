@@ -23,6 +23,21 @@ import type { Tone } from '@/lib/ui/encodings'
 
 export type InsuranceDriverId = 'sandbox'
 
+/**
+ * THE RELEASE GATE (owner ruling 2026-09-30: "hide it for now — accessible
+ * only from my admin portal until we decide to release it; I have real
+ * clients now"). Every surface of the tool — the page, its actions, the
+ * sidebar entry, the ⌘K action, the patient-record rail card + nudge, the
+ * roster lane — asks this one question. `platformAdmin` rides the USER row,
+ * so the owner keeps the tool wherever they are (their own org, the demo,
+ * View-as-clinic) and no clinic staff member can ever reach it. Flip this to
+ * `true` (and drop `platformAdminOnly` on the module + the capability from
+ * PREVIEW_CAPABILITIES) to release.
+ */
+export function canUseInsuranceTool(ctx: { platformAdmin?: boolean | null }): boolean {
+  return ctx.platformAdmin === true
+}
+
 export type InsuranceRelationship = 'self' | 'spouse' | 'child' | 'other'
 
 export const INSURANCE_RELATIONSHIPS: ReadonlyArray<{ id: InsuranceRelationship; label: string }> = [

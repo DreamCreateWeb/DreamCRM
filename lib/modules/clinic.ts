@@ -70,7 +70,8 @@ export const clinicModules: ModuleRegistry = {
     // Insurance eligibility lookups (2026-09-30) — type what's on the card,
     // get a benefits snapshot; sandbox-driven practice answers until a payer
     // connection is live (lib/insurance-eligibility.ts).
-    { id: 'insurance',         path: '/insurance',         label: 'Insurance',        section: 'Daily',    icon: 'shield',   status: 'live' },
+    // PREVIEW (owner ruling 2026-09-30): platform admins only until released.
+    { id: 'insurance',         path: '/insurance',         label: 'Insurance',        section: 'Daily',    icon: 'shield',   status: 'live', platformAdminOnly: true },
 
     // ── Growth ─────────────────────────────────────────────────────────
     // ONE workspace entry — the /growth hub is the marketing home (outreach,
