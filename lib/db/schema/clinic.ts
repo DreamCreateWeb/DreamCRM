@@ -178,6 +178,45 @@ export const patientDocument = pgTable(
   (t) => [index('patient_document_patient_created_idx').on(t.patientId, t.createdAt)],
 )
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Insurance eligibility checks — one row per lookup a staff member ran
+// (lib/services/insurance-eligibility/). The patient's insurance columns stay
+// the "on file" truth; this table is the HISTORY of what a payer (or, today,
+// the sandbox driver) said about it. `patient_id` is nullable because the
+// /insurance page checks NEW patients before a record exists, and set-null so
+// the history survives a merge. `driver` is real data: the UI reads it to
+// label a sandbox answer as a practice answer (DESIGN.md — never an
+// eligibility promise we can't keep). Error rows are stored too — "we asked
+// and couldn't get an answer" is part of the story.
+// ─────────────────────────────────────────────────────────────────────────────
+export const insuranceVerification = pgTable(
+  'insurance_verification',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id, { onDelete: 'cascade' }),
+    patientId: text('patient_id').references(() => patient.id, { onDelete: 'set null' }),
+    requestedByUserId: text('requested_by_user_id').references(() => user.id, { onDelete: 'set null' }),
+    // 'sandbox' today; a clearinghouse driver id later.
+    driver: text('driver').notNull(),
+    // 'active' | 'inactive' | 'not_found' | 'needs_review' | 'error'
+    status: text('status').notNull(),
+    // The EligibilityRequest as typed (names, DOB, carrier, member id, …).
+    input: jsonb('input').notNull(),
+    // The EligibilityResult; null on an error row.
+    result: jsonb('result'),
+    error: text('error'),
+    checkedAt: timestamp('checked_at').notNull().defaultNow(),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (t) => [
+    index('insurance_verification_org_checked_idx').on(t.organizationId, t.checkedAt),
+    index('insurance_verification_org_patient_idx').on(t.organizationId, t.patientId, t.checkedAt),
+  ],
+)
+export type InsuranceVerificationRow = typeof insuranceVerification.$inferSelect
+
 // Staff follow-up tasks attached to a patient ("call about treatment plan",
 // "rebook after no-show"). The dental-research pattern is patient-attached
 // followups, not a generic kanban — these surface on the Overview morning

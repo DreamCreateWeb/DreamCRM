@@ -74,6 +74,7 @@ insurance-card OCR are live, so **the product collects PHI by design.**
 | NexHealth | full patient sync | Healthcare-purpose; signs BAAs. **Likely covered — confirm/execute.** |
 | Stripe | payment/balance context | PCI; payment data alone usually not PHI. Lower risk. |
 | Zernio | GBP/social (reviews may contain PHI) | Business data mostly; lower risk. Confirm. |
+| Insurance eligibility (`INSURANCE_DRIVER=sandbox`) | member IDs + DOB typed into the /insurance tool stay in RDS; the sandbox driver sends NOTHING externally | n/a today. A clearinghouse driver (X12 270/271 vendor) is a PHI subprocessor and needs an executed BAA BEFORE the env flips. |
 
 ### What PHI actually flows to the AI (verified in code)
 - `intake-summary.ts` sends the patient's real intake transcript (the prompt

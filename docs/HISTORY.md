@@ -5412,3 +5412,66 @@ release point where I can pivot to marketing instead of building."
   template changelog moved to docs/, docs/POST-1.0.md was created, and
   the runbooks (custom-domains, zernio, sms-evaluation, intake,
   finishing, competitive-gaps, structure-audit) were corrected per audit.
+
+## 2026-09-30 — The insurance verification tool (sandbox driver first)
+
+Owner request: "an insurance verification tool that dental clinics can use
+to type in a new patient's information and quickly find information about
+that patient's insurance." Built in its own lane through the release freeze
+(the post-1.0 rule was overridden by the owner asking for it directly;
+docs/COMPETITIVE-GAPS.md item 3 moves from "Roadmap" to "in progress").
+
+**Decisions.** (1) MOCK FIRST: a provider abstraction in the repo's driver
+idiom (`INSURANCE_DRIVER`, like EMAIL/SMS/AI), with a deterministic
+`sandbox` driver as the only implementation — the same card always gets the
+same answer, and member-id suffixes `0000/9999/5555/0001` steer to coverage
+ended / not found / needs a look / payer timeout so every state is
+demoable. A real clearinghouse (X12 270/271) plugs in later behind
+`EligibilityProvider`. (2) BOTH SURFACES: a Daily page `/insurance` (form ·
+answer · recent checks; existing-patient picker prefills through the server;
+"Add as a patient" rides createPatient's dedupe with the inline Add-anyway
+prompt; "Save to their record" writes the three on-file columns) AND a rail
+card on the patient record (latest verdict + "Check now" that re-sends the
+last stored request or the on-file card; a needs-attention nudge ONLY for
+"on file but never checked" — restating a sandbox verdict as an attention
+item would break the honesty law). (3) HISTORY: migration 0166
+`insurance_verification` (org-scoped, patient set-null so a NEW patient can
+be checked before a record exists and history survives merges, error rows
+stored — "we asked and couldn't get an answer" is part of the story). No
+new patient columns: plan/subscriber/payer are properties of a check result
+and live in `result` jsonb; copying them onto `patient` would make two
+sources of truth and drag in CSV import/export, the edit modal and the PMS
+mapper for no new information.
+
+**The honesty law in code.** `driver` is a real column; the UI reads it and
+every sandbox result carries a "Practice answer" pill with the explanation
+as its title — on the page header before any result, on every result card,
+on the rail card, and in the timeline subtitle. The demo org is FORCED onto
+the sandbox in the service regardless of env (the switch is prod-global and
+the demo lives in prod). `error` renders warn, never urgent: rose on a
+failed lookup reads as "no coverage", a claim the check did not make.
+
+**Wiring.** `insurance_check` registered in lib/autonomy.ts at 'ask' and NOT
+grantable (no cadence to hand over yet; the future ask-first "verify this
+week's visits" automation owns the same key); every check narrates in the
+Action Ledger. Timeline kind `insurance_check` (+ KIND_ICON). Sidebar Daily
+entry with a new `shield` nav icon; `lib/known-routes.ts` gained
+`insurance`; ModuleHint copy; ⌘K quick action "Check insurance". Demo seed
+`seed-insurance.ts` (Mia active ×2, Marcus new coverage with waiting
+periods, Sophia ended, Emma not found, Aiden a failed check; Noah + the rest
+never checked so the empty state shows), tail-placed in both seeder paths,
+cleanup step (9a1) on `ins_demo%` strays. `.env.example` documents the
+driver; docs/COMPLIANCE.md gains the subprocessor row.
+
+**Tests** (tests/insurance/* + tenant-scoping + extensions): validation,
+driver resolution, status→tone, sandbox determinism + steering + every
+scenario well-formed, the service's never-throw/error-row/foreign-patient/
+demo-gate/ledger contract, ORG_A/ORG_B scoping on all four queries, action
+gating + dedupe + attach, the DOM honesty contract, the rail card states,
+the timeline event, the seeder's idempotency, the capability registration.
+
+**Follow-ups.** A real eligibility driver (vendor + BAA); the pre-visit
+proposal; `?lead=` prefill from `insurance_verifier` leads; storing the
+OCR's planName/subscriberName somewhere; a per-payer directory once a
+clearinghouse supplies one (deliberately not hand-coded — phone numbers and
+payer ids we cannot verify are the wrong kind of content).

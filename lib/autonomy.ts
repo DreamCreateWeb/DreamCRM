@@ -119,6 +119,13 @@ export const CAPABILITIES: readonly CapabilityDef[] = [
   // at the practice — and the approve hands the whole registration machine
   // its keys. Asked once; the /integrations/sms form answers it elsewhere.
   { key: 'setup_texting', label: 'Set up texting for your practice', defaultTrust: 'ask' },
+  // INSURANCE CHECKS (2026-09-30). Today every check is staff-initiated from
+  // /insurance or a patient's record and recorded here so the lookup is part
+  // of the patient's story. Registered 'ask' (the rule for new capabilities)
+  // and deliberately NOT grantable — there is no cadence to hand over yet.
+  // The ask-first "verify benefits before this week's visits" automation is
+  // the future holder of this same key.
+  { key: 'insurance_check', label: 'Look up a patient’s insurance benefits', defaultTrust: 'ask' },
 ] as const
 
 /**

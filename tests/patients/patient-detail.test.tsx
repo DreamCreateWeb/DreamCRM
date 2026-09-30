@@ -281,3 +281,61 @@ describe('PatientDetail v2 skin', () => {
     expect(pill.className).toMatch(/violet/)
   })
 })
+
+describe('PatientDetail insurance rail card', () => {
+  const onFileRequest = { patient: { firstName: 'Mia', lastName: 'Hayes', dateOfBirth: '1990-04-15' }, carrierName: 'Delta Dental', memberId: 'POL-12345', groupNumber: 'GRP-1', relationship: 'self' as const, subscriber: null }
+
+  it('shows Never checked + the needs-attention nudge when insurance is on file but unchecked', () => {
+    render(
+      <PatientDetail
+        header={header()}
+        timeline={[]}
+        counts={emptyCounts}
+        notes={[]}
+        insurance={{ latest: null, hasOnFile: true, onFileRequest }}
+        timeZone="America/Chicago"
+      />,
+    )
+    expect(screen.getByText('Never checked').getAttribute('data-tone')).toBe('neutral')
+    expect(screen.getByText('Insurance on file but never checked.')).toBeTruthy()
+    expect(screen.getByText('Check benefits →').closest('a')?.getAttribute('href')).toBe('/insurance?patient=pat_1')
+    expect(screen.getByText('Check now')).toBeTruthy()
+  })
+
+  it('shows the latest verdict with its tone and the practice pill, and drops the nudge', () => {
+    render(
+      <PatientDetail
+        header={header()}
+        timeline={[]}
+        counts={emptyCounts}
+        notes={[]}
+        insurance={{
+          hasOnFile: true,
+          onFileRequest,
+          latest: {
+            id: 'ins_1',
+            patientId: 'pat_1',
+            patientName: 'Mia Hayes',
+            driver: 'sandbox',
+            status: 'inactive',
+            input: onFileRequest,
+            result: null,
+            error: null,
+            checkedAtIso: '2026-09-20T15:00:00.000Z',
+            requestedByUserId: null,
+          },
+        }}
+        timeZone="America/Chicago"
+      />,
+    )
+    expect(screen.getByText('Not active').getAttribute('data-tone')).toBe('urgent')
+    expect(screen.getByText('Practice answer').getAttribute('title')).toMatch(/not a real payer check/i)
+    expect(screen.queryByText('Insurance on file but never checked.')).toBeNull()
+    expect(screen.getByText('Check again')).toBeTruthy()
+  })
+
+  it('renders nothing insurance-related when the prop is absent (legacy callers)', () => {
+    render(<PatientDetail header={header()} timeline={[]} counts={emptyCounts} notes={[]} />)
+    expect(screen.queryByTestId('insurance-panel')).toBeNull()
+  })
+})

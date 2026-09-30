@@ -35,6 +35,7 @@ vi.mock('@/lib/db', async () => {
     if (t === schema.campaignEvents) return 'campaign_events'
     if (t === schema.membership) return 'membership'
     if (t === schema.clinicProfile) return 'clinic_profile'
+    if (t === schema.insuranceVerification) return 'insurance_verification'
     return 'unknown'
   }
   const chain = () => {
@@ -138,6 +139,7 @@ describe('cleanupMisattributedDemoArtifacts', () => {
     expect(deleted).toContain('scheduled_message')
     expect(deleted).toContain('campaign_events')
     expect(deleted).toContain('membership')
+    expect(deleted).toContain('insurance_verification')
     // Exactly ONE thread (+ its messages) deleted — the real conversation survives.
     expect(deleted.filter((t) => t === 'patient_thread')).toHaveLength(1)
     expect(deleted.filter((t) => t === 'patient_message')).toHaveLength(1)

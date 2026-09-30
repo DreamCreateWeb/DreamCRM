@@ -12,6 +12,9 @@ import { findMergeCandidates } from '@/lib/services/patient-merge'
 import { getReferralContext } from '@/lib/services/patient-referrals'
 import { getLoyaltySettings, getPointsBalance, listLoyaltyEvents } from '@/lib/services/loyalty'
 import { listFormTemplates } from '@/lib/services/forms'
+import { getLatestInsuranceCheckForPatient } from '@/lib/services/insurance-eligibility'
+import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
+import { requestFromOnFile } from '@/lib/insurance-eligibility'
 import PatientDetail from './patient-detail'
 
 interface PageProps {
@@ -29,7 +32,7 @@ export default async function PatientDetailPage({ params }: PageProps) {
   if (ctx.tenantType === 'platform') redirect('/ecommerce/customers')
 
   const { id } = await params
-  const [header, timeline, notes, forms, patientOptions, tags, tagCatalog, documents, followups, staff, family, referral] =
+  const [header, timeline, notes, forms, patientOptions, tags, tagCatalog, documents, followups, staff, family, referral, latestInsuranceCheck, timeZone] =
     await Promise.all([
       getPatientHeader(ctx.organizationId, id),
       getPatientTimeline(ctx.organizationId, id),
@@ -43,6 +46,8 @@ export default async function PatientDetailPage({ params }: PageProps) {
       listAssignableStaff(ctx.organizationId),
       getFamilyForPatient(ctx.organizationId, id),
       getReferralContext(ctx.organizationId, id),
+      getLatestInsuranceCheckForPatient(ctx.organizationId, id),
+      getClinicTimeZone(ctx.organizationId),
     ])
   if (!header) notFound()
   // A merged tombstone isn't a real record anymore — send old links to the survivor.
@@ -65,6 +70,14 @@ export default async function PatientDetailPage({ params }: PageProps) {
         })),
       }
     : null
+
+  // Insurance-check rail card: the latest stored verdict + what a re-check
+  // would send when no check exists yet (the on-file card as self-subscriber).
+  const insurance = {
+    latest: latestInsuranceCheck,
+    hasOnFile: !!header.insuranceProvider,
+    onFileRequest: requestFromOnFile(header),
+  }
 
   const counts = countTimeline(timeline)
   const intakeForms = forms.map((f) => ({ id: f.id, title: f.title }))
@@ -89,6 +102,8 @@ export default async function PatientDetailPage({ params }: PageProps) {
       referral={referral}
       loyalty={loyalty}
       canAdjustLoyalty={canMerge}
+      insurance={insurance}
+      timeZone={timeZone}
     />
   )
 }

@@ -20,6 +20,7 @@ export const CAPABILITY_ICON: Record<string, string> = {
   setup_texting: '💬',
   content_plan: '🗂️',
   schedule_gap: '🌤️',
+  insurance_check: '🛡️',
 }
 
 /** A card about to retire itself deserves a quiet tone mark (never the
@@ -155,7 +156,7 @@ export const SPECIALISTS: readonly SpecialistDef[] = [
     id: 'back_office',
     name: 'Back office',
     icon: '🗂️',
-    blurb: 'Chases balances, charges plans on time, and keeps your systems in step.',
-    capabilities: ['balance_nudge', 'payment_autocharge', 'pms_sync', 'domain_autorenew'],
+    blurb: 'Chases balances, charges plans on time, looks up benefits, and keeps your systems in step.',
+    capabilities: ['balance_nudge', 'payment_autocharge', 'pms_sync', 'domain_autorenew', 'insurance_check'],
   },
 ]
