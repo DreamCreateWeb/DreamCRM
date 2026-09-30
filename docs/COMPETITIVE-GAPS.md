@@ -58,7 +58,13 @@ work):**
    here fast. Phase C candidate.
 3. **Insurance eligibility verification** — Weave, NexHealth, RevenueWell,
    Solutionreach, Adit all verify benefits pre-appointment (via payer portals /
-   clearinghouses). Needs a partner (Vyne/Onederful/pVerify class). Roadmap.
+   clearinghouses). **IN PROGRESS 2026-09-30:** the lookup tool (`/insurance`
+   + the patient-record rail card + `insurance_verification` history) shipped
+   behind a provider abstraction with a LABELLED sandbox driver
+   (`INSURANCE_DRIVER=sandbox`, "Practice answer" on every result). Payer
+   connectivity (Vyne/Onederful/pVerify/Stedi class, X12 270/271; needs an
+   executed BAA) is the remaining gap, and the pre-visit "verify this week's
+   patients" proposal is the North-Star follow-up.
 4. **Direct mail** (RevenueWell, Lighthouse postcards/letters) — print channel
    for recall non-responders. Ops-heavy; defer indefinitely.
 

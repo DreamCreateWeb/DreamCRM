@@ -67,6 +67,10 @@ export const clinicModules: ModuleRegistry = {
     { id: 'followups',         path: '/followups',         label: 'Follow-ups',       section: 'Daily',    icon: 'check',    status: 'live' },
     { id: 'leads',             path: '/leads',             label: 'Inquiries',            section: 'Daily',    icon: 'megaphone',status: 'live' },
     { id: 'intake_forms',      path: '/intake-forms',      label: 'Intake Forms',     section: 'Daily',    icon: 'pen',      status: 'live' },
+    // Insurance eligibility lookups (2026-09-30) — type what's on the card,
+    // get a benefits snapshot; sandbox-driven practice answers until a payer
+    // connection is live (lib/insurance-eligibility.ts).
+    { id: 'insurance',         path: '/insurance',         label: 'Insurance',        section: 'Daily',    icon: 'shield',   status: 'live' },
 
     // ── Growth ─────────────────────────────────────────────────────────
     // ONE workspace entry — the /growth hub is the marketing home (outreach,

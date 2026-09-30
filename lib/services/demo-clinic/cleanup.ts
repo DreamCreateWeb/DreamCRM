@@ -262,6 +262,18 @@ export async function cleanupMisattributedDemoArtifacts(
       ),
     )
 
+  // (9a1) Seeded insurance checks (ins_demo ids) on a non-persona patient —
+  // a fabricated benefits answer must never sit on a real person's record.
+  await db
+    .delete(schema.insuranceVerification)
+    .where(
+      and(
+        eq(schema.insuranceVerification.organizationId, orgId),
+        inArray(schema.insuranceVerification.patientId, strays),
+        like(schema.insuranceVerification.id, 'ins_demo%'),
+      ),
+    )
+
   // (9a) Seeded NPS survey responses (demonps tokens) on a non-persona
   // patient — a fabricated survey answer must never sit on a real person.
   await db

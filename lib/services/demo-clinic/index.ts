@@ -87,6 +87,7 @@ import {
   seedDemoReferral,
   seedDemoWaitlist,
 } from './seed-money'
+import { seedDemoInsuranceChecks } from './seed-insurance'
 import { seedRecallOutreachForOrg } from './seed-outreach'
 import { seedDemoMoneyCoherence, seedDemoReferralPartner } from './seed-partners'
 import { seedReviewsForOrg } from './seed-reviews'
@@ -1063,6 +1064,7 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
 
     // Loyalty self-heal: program on + Mia/Noah's persona-anchored ledger.
     await seedDemoLoyalty(existing.id, new Date(), existingPatientIds)
+    await seedDemoInsuranceChecks(existing.id, new Date(), existingPatientIds)
 
     return {
       organizationId: existing.id,
@@ -1781,6 +1783,7 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
 
   // Loyalty showcase: program on + Mia/Noah's persona-anchored ledger.
   await seedDemoLoyalty(orgId, now, patientIds)
+  await seedDemoInsuranceChecks(orgId, now, patientIds)
 
   return {
     organizationId: orgId,

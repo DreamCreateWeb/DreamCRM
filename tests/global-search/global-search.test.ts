@@ -114,6 +114,7 @@ describe('globalSearch — launcher view (empty query)', () => {
     const actions = groups.find((g) => g.label === 'Quick actions')!
     const ids = actions.results.map((r) => r.id)
     expect(ids).toContain('act-add-patient')
+    expect(ids).toContain('act-check-insurance')
     expect(ids).toContain('act-agenda-today')
     expect(ids).toContain('act-edit-site')
   })

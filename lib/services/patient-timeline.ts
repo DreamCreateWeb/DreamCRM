@@ -5,6 +5,7 @@ import { appendRefund, refundNote } from '@/lib/net-collected'
 import { cancelActorLabel } from '@/lib/cancel-actor'
 import { formatClinicDayTime } from '@/lib/format-datetime'
 import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
+import { summarizeCheckForTimeline, type EligibilityRequest, type EligibilityResult, type EligibilityStatus, type InsuranceDriverId } from '@/lib/insurance-eligibility'
 
 export type TimelineKind =
   | 'appointment'
@@ -26,6 +27,8 @@ export type TimelineKind =
   | 'followup'
   | 'campaign'
   | 'tag'
+  // An insurance eligibility lookup staff ran (insurance_verification rows).
+  | 'insurance_check'
 
 export type MessageChannel = 'in_app' | 'email' | 'sms'
 
@@ -218,7 +221,7 @@ export async function getPatientTimeline(
   // UTC clock (a 1 PM Central visit is 6 PM UTC).
   const timeZone = await getClinicTimeZone(organizationId)
 
-  const [appts, msgs, subs, invs, notes, pMessages, emailMessages, shopOrders, memberships, balancePayments, reviews, documents, followups, campaignsReceived, tagEvents] = await Promise.all([
+  const [appts, msgs, subs, invs, notes, pMessages, emailMessages, shopOrders, memberships, balancePayments, reviews, documents, followups, campaignsReceived, tagEvents, insuranceChecks] = await Promise.all([
     db
       .select({
         id: schema.appointment.id,
@@ -500,6 +503,23 @@ export async function getPatientTimeline(
         ),
       )
       .orderBy(desc(schema.patientTagAssignment.assignedAt)) as Promise<RawTagEvent[]>,
+    db
+      .select({
+        id: schema.insuranceVerification.id,
+        status: schema.insuranceVerification.status,
+        driver: schema.insuranceVerification.driver,
+        input: schema.insuranceVerification.input,
+        result: schema.insuranceVerification.result,
+        checkedAt: schema.insuranceVerification.checkedAt,
+      })
+      .from(schema.insuranceVerification)
+      .where(
+        and(
+          eq(schema.insuranceVerification.organizationId, organizationId),
+          eq(schema.insuranceVerification.patientId, patientId),
+        ),
+      )
+      .orderBy(desc(schema.insuranceVerification.checkedAt)),
   ])
 
   // Items summary for shop orders ("2× Whitening Kit"), fetched once.
@@ -787,6 +807,30 @@ export async function getPatientTimeline(
       direction: null,
       href: '/growth/reviews/received',
       body: r.reviewText,
+      agingDays: null,
+    })
+  }
+
+  // Insurance checks — "Insurance check — Active · Delta Dental PPO ·
+  // practice answer". Links to the tool with this patient loaded.
+  for (const c of insuranceChecks) {
+    const view = {
+      status: c.status as EligibilityStatus,
+      driver: c.driver as InsuranceDriverId,
+      input: c.input as EligibilityRequest,
+      result: (c.result as EligibilityResult | null) ?? null,
+    }
+    const { title, subtitle } = summarizeCheckForTimeline(view)
+    events.push({
+      id: `ins_${c.id}`,
+      kind: 'insurance_check',
+      occurredAt: c.checkedAt,
+      title,
+      subtitle,
+      status: c.status,
+      direction: null,
+      href: `/insurance?patient=${patientId}`,
+      body: null,
       agingDays: null,
     })
   }

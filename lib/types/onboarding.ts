@@ -136,6 +136,10 @@ export const MODULE_HINTS: Record<string, ModuleHintDef> = {
     title: 'Every website inquiry, tracked until it becomes a patient',
     body: 'Contact and insurance-check requests land here. Fresh inquiries are green, neglected ones turn red — call them, mark them contacted, and convert them with one click.',
   },
+  insurance: {
+    title: 'Know the benefits before they sit down',
+    body: 'Type what’s on the card — carrier, member ID, date of birth — and get a benefits snapshot to talk from: what’s covered, what’s left this year, what’s still waiting. Until a payer connection is live, answers are practice samples, so always confirm with the carrier before quoting a patient.',
+  },
   'intake-forms': {
     title: 'Paperwork that fills itself out at home',
     body: 'Build forms once; patients complete them from the booking email or their portal before they arrive. Every submission lands on the patient’s record.',

@@ -24,6 +24,7 @@ const state = {
   patientFollowup: [] as Array<Record<string, unknown>>,
   campaignEvents: [] as Array<Record<string, unknown>>,
   patientTagAssignment: [] as Array<Record<string, unknown>>,
+  insuranceVerification: [] as Array<Record<string, unknown>>,
 }
 
 vi.mock('@/lib/db', async () => {
@@ -47,6 +48,7 @@ vi.mock('@/lib/db', async () => {
     if (table === schema.patientFollowup) return state.patientFollowup
     if (table === schema.campaignEvents) return state.campaignEvents
     if (table === schema.patientTagAssignment) return state.patientTagAssignment
+    if (table === schema.insuranceVerification) return state.insuranceVerification
     return []
   }
 
@@ -211,6 +213,29 @@ describe('getPatientTimeline — unified relationship events', () => {
     const events = await getPatientTimeline('org_1', 'pat_1')
     const tag = events.find((e) => e.kind === 'tag')!
     expect(tag.title).toBe('Tagged “VIP”')
+  })
+})
+
+describe('getPatientTimeline — insurance checks', () => {
+  it('includes an insurance check with its verdict, the practice note, and a link to the tool', async () => {
+    state.insuranceVerification = [
+      {
+        id: 'ins_1',
+        status: 'active',
+        driver: 'sandbox',
+        input: { patient: { firstName: 'Mia', lastName: 'Hayes', dateOfBirth: '1988-03-12' }, carrierName: 'Delta Dental', memberId: 'X', groupNumber: null, relationship: 'self', subscriber: null },
+        result: { planName: 'Delta Dental PPO' },
+        checkedAt: new Date('2026-09-20T15:00:00Z'),
+      },
+    ]
+    const events = await getPatientTimeline('org_1', 'pat_1')
+    const ins = events.find((e) => e.kind === 'insurance_check')!
+    expect(ins).toBeDefined()
+    expect(ins.title).toBe('Insurance check — Active')
+    expect(ins.subtitle).toBe('Delta Dental PPO · practice answer')
+    expect(ins.status).toBe('active')
+    expect(ins.href).toBe('/insurance?patient=pat_1')
+    expect(ins.occurredAt.toISOString()).toBe('2026-09-20T15:00:00.000Z')
   })
 })
 

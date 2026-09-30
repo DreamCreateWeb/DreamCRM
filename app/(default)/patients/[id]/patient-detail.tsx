@@ -26,6 +26,8 @@ import DocumentsPanel from './documents-panel'
 import FollowupsPanel from './followups-panel'
 import MergeDuplicate from './merge-duplicate'
 import LoyaltyPanel, { type LoyaltyPanelData } from './loyalty-panel'
+import InsurancePanel, { type InsurancePanelData } from './insurance-panel'
+import { STATUS_LABEL as INSURANCE_STATUS_LABEL, STATUS_TONE as INSURANCE_STATUS_TONE, type EligibilityStatus } from '@/lib/insurance-eligibility'
 import type { PatientTagView } from '@/lib/types/patient-tags'
 import type { PatientDocumentRow } from '@/lib/types/patient-documents'
 import type { PatientFollowupView } from '@/lib/types/followups'
@@ -149,6 +151,8 @@ export default function PatientDetail({
   referral = null,
   loyalty = null,
   canAdjustLoyalty = false,
+  insurance = null,
+  timeZone = 'America/New_York',
 }: {
   header: PatientHeader
   timeline: TimelineEvent[]
@@ -170,6 +174,10 @@ export default function PatientDetail({
   /** Rewards data when the loyalty program is on; null hides the card. */
   loyalty?: LoyaltyPanelData | null
   canAdjustLoyalty?: boolean
+  /** The insurance-check rail card's data; null hides the card (tests, legacy callers). */
+  insurance?: InsurancePanelData | null
+  /** Clinic tz for the check timestamps (server-resolved). */
+  timeZone?: string
 }) {
   // Timeline filter lives in the URL (?tab=) so a refresh, a shared link, or
   // a back-button return lands on the same slice. Chip clicks update via
@@ -380,10 +388,11 @@ export default function PatientDetail({
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* ── Identity rail ──────────────────────────────────────────── */}
         <aside className="lg:col-span-3 space-y-4">
-          <NeedsAttention header={header} forms={intakeForms} />
+          <NeedsAttention header={header} forms={intakeForms} insurance={insurance} />
           <FollowupsPanel patientId={header.id} initial={followups} staff={staff} />
           <TagsPanel patientId={header.id} initialTags={tags} catalog={tagCatalog} />
           <IdentityCard header={header} />
+          {insurance && <InsurancePanel patientId={header.id} data={insurance} timeZone={timeZone} />}
           {family.length > 0 && <FamilyCard family={family} />}
           {referral && (referral.referredBy || referral.referred.length > 0) && (
             <ReferralCard referral={referral} />
@@ -684,7 +693,15 @@ function SendPortalInviteButton({ patientId }: { patientId: string }) {
   )
 }
 
-function NeedsAttention({ header, forms = [] }: { header: PatientHeader; forms?: IntakeFormOption[] }) {
+function NeedsAttention({
+  header,
+  forms = [],
+  insurance = null,
+}: {
+  header: PatientHeader
+  forms?: IntakeFormOption[]
+  insurance?: InsurancePanelData | null
+}) {
   const items: Array<{ severity: 'warn' | 'info'; copy: string; cta?: { label: string; href: string }; sendIntake?: boolean; sendPayLink?: boolean }> = []
   if (header.flags.unconfirmedNext48h) {
     items.push({
@@ -715,6 +732,16 @@ function NeedsAttention({ header, forms = [] }: { header: PatientHeader; forms?:
     items.push({
       severity: 'info',
       copy: 'No visit in 9+ months. Send a recall.',
+    })
+  }
+  // Insurance on file that nobody has looked up yet. Deliberately NOT a
+  // "came back inactive" nudge: restating a sandbox verdict as an attention
+  // item would break the honesty law — the panel's pills carry that state.
+  if (insurance?.hasOnFile && !insurance.latest) {
+    items.push({
+      severity: 'info',
+      copy: 'Insurance on file but never checked.',
+      cta: { label: 'Check benefits', href: `/insurance?patient=${header.id}` },
     })
   }
   if (items.length === 0) {
@@ -948,6 +975,7 @@ const KIND_ICON: Record<TimelineKind, string> = {
   followup: '☑️',
   campaign: '📣',
   tag: '🏷️',
+  insurance_check: '🛡️',
 }
 
 // Commerce/payment status → tone (ball-in-court: pending = info, paid = ok,
@@ -992,6 +1020,10 @@ function TimelineRow({ event }: { event: TimelineEvent }) {
     ) {
       const s = COMMERCE_STATUS[event.status]
       if (s) return <StatusPill tone={s.tone} label={s.label} />
+    }
+    if (event.kind === 'insurance_check' && event.status && event.status in INSURANCE_STATUS_TONE) {
+      const st = event.status as EligibilityStatus
+      return <StatusPill tone={INSURANCE_STATUS_TONE[st]} label={INSURANCE_STATUS_LABEL[st]} />
     }
     if (event.kind === 'message' && event.direction) {
       return (

@@ -151,6 +151,7 @@ function quickActions(ctx: TenantContext, activeBundles: ReadonlySet<BundleId>):
   const actions: SearchResult[] = [
     { id: 'act-add-patient', label: 'Add a patient', sublabel: 'Quick action', href: '/patients?new=1', kind: 'action' },
     { id: 'act-agenda-today', label: 'Open today’s agenda', sublabel: 'Quick action', href: '/appointments?window=today', kind: 'action' },
+    { id: 'act-check-insurance', label: 'Check insurance', sublabel: 'Quick action', href: '/insurance', kind: 'action' },
     { id: 'act-edit-site', label: 'Edit my website', sublabel: 'Quick action', href: '/website/editor', kind: 'action' },
     { id: 'act-preview-portal', label: 'Preview the patient portal', sublabel: 'Quick action', href: '/settings/portal/preview', kind: 'action' },
   ]
@@ -161,6 +162,7 @@ function quickActions(ctx: TenantContext, activeBundles: ReadonlySet<BundleId>):
   return actions.filter((a) => {
     if (a.href.startsWith('/patients')) return visible.has('/patients')
     if (a.href.startsWith('/appointments')) return visible.has('/appointments')
+    if (a.href.startsWith('/insurance')) return visible.has('/insurance')
     // Editing the site is owner/admin-only (the editor page redirects members).
     if (a.id === 'act-edit-site') return ctx.role === 'owner' || ctx.role === 'admin'
     return true
