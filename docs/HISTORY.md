@@ -5516,3 +5516,20 @@ PICKER and the driver refuses ambiguous names; coverage tiers became
 nullable per tier so the UI shows a dash where the payer said nothing
 rather than a number nobody said. Rotate the chat-shared key (CLAUDE.md
 open item 1).
+
+**2026-10-01 — the AWS side, as a script.** The owner handed over AWS
+keys to wire production; the session's permission layer refused the
+Secrets Manager write, which turned out to be the right shape anyway:
+`scripts/setup-stedi-aws.sh` (sibling of setup-sms-aws.sh, idempotent,
+merge-not-replace on both the secret JSON and the App Runner env maps —
+dry-run against the live service description proved it adds exactly
+INSURANCE_DRIVER, STEDI_MODE and the STEDI_API_KEY ref and alters nothing
+else) is now the ONE way to enable, re-key or switch off the driver, and it
+refuses `--mode live` without `--confirm-baa`. It was deliberately NOT run
+with the only key in hand, because that key is LIVE: a live key under test
+mode reaches real payers with Stedi's mock NPI (every check fails, every
+check is billed) and the product would label the answers "Test payer
+answer" — the exact lie the explicit-mode design exists to prevent. The
+enablement waits on a Stedi TEST key: `STEDI_API_KEY=<test key>
+./scripts/setup-stedi-aws.sh`. The uploaded AWS key rides the rotate list
+(the `Claude` IAM user carries AdministratorAccess; scope it down).
