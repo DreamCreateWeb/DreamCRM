@@ -127,11 +127,13 @@ describe('runEligibilityCheck', () => {
     expect(state.inserts[0].values.patientId).toBeNull()
   })
 
-  it('a demo org always gets the sandbox driver', async () => {
+  it('a demo org swaps a LIVE driver for the sandbox', async () => {
     state.org = [{ isDemo: true }]
-    process.env.INSURANCE_DRIVER = 'clearinghouse'
+    process.env.INSURANCE_DRIVER = 'stedi'
+    process.env.STEDI_MODE = 'live'
     const r = await runEligibilityCheck('org_demo', { input: input(), now: NOW })
     delete process.env.INSURANCE_DRIVER
+    delete process.env.STEDI_MODE
     expect(r.ok && r.check.driver).toBe('sandbox')
   })
 

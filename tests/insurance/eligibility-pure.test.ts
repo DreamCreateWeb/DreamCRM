@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   INSURANCE_DRIVER_LABEL,
+  effectiveDriverForOrg,
   SANDBOX_STEERING,
   STATUS_LABEL,
   STATUS_TONE,
@@ -94,10 +95,34 @@ describe('resolveInsuranceDriverId', () => {
     expect(resolveInsuranceDriverId({ INSURANCE_DRIVER: 'clearinghouse-typo' })).toBe('sandbox')
   })
 
-  it('the sandbox is a practice driver with an honest label', () => {
+  it('stedi is test mode unless STEDI_MODE is literally live — never sniffed from the key', () => {
+    expect(resolveInsuranceDriverId({ INSURANCE_DRIVER: 'stedi' })).toBe('stedi_test')
+    expect(resolveInsuranceDriverId({ INSURANCE_DRIVER: 'stedi', STEDI_MODE: 'test' })).toBe('stedi_test')
+    expect(resolveInsuranceDriverId({ INSURANCE_DRIVER: 'Stedi', STEDI_MODE: 'LIVE' })).toBe('stedi')
+  })
+
+  it('the sandbox and Stedi test mode are practice drivers with honest labels; live Stedi is not', () => {
     expect(isPracticeDriver('sandbox')).toBe(true)
+    expect(isPracticeDriver('stedi_test')).toBe(true)
+    expect(isPracticeDriver('stedi')).toBe(false)
     expect(INSURANCE_DRIVER_LABEL.sandbox.pill).toBe('Practice answer')
     expect(INSURANCE_DRIVER_LABEL.sandbox.title).toMatch(/not a real payer check/i)
+    expect(INSURANCE_DRIVER_LABEL.stedi_test.title).toMatch(/not this patient/i)
+    expect(INSURANCE_DRIVER_LABEL.stedi.title).toMatch(/estimate/i)
+  })
+
+  it('the demo org swaps a live driver for the sandbox but keeps practice drivers', () => {
+    expect(effectiveDriverForOrg(true, 'stedi')).toBe('sandbox')
+    expect(effectiveDriverForOrg(true, 'stedi_test')).toBe('stedi_test')
+    expect(effectiveDriverForOrg(true, 'sandbox')).toBe('sandbox')
+    expect(effectiveDriverForOrg(false, 'stedi')).toBe('stedi')
+  })
+
+  it('a picked payer rides through validation; blanks become null', () => {
+    const r = validateEligibilityRequest({ ...good(), payerId: ' 77777 ', payerName: 'Delta Dental of California' }, NOW)
+    expect(r.ok && r.value.payerId).toBe('77777')
+    const none = validateEligibilityRequest({ ...good(), payerId: '' }, NOW)
+    expect(none.ok && none.value.payerId).toBeNull()
   })
 })
 

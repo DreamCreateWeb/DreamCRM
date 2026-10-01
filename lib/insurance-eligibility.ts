@@ -21,7 +21,14 @@ import type { Tone } from '@/lib/ui/encodings'
  * can share the same validation + labels.
  */
 
-export type InsuranceDriverId = 'sandbox'
+/**
+ * sandbox     the built-in deterministic driver (practice answers)
+ * stedi_test  Stedi with a TEST key: their predefined mock requests answer
+ *             with sample benefits (practice answers, free)
+ * stedi       Stedi with a LIVE key: the real payer, billed per check —
+ *             needs an executed BAA (docs/COMPLIANCE.md)
+ */
+export type InsuranceDriverId = 'sandbox' | 'stedi_test' | 'stedi'
 
 /**
  * THE RELEASE GATE (owner ruling 2026-09-30: "hide it for now — accessible
@@ -62,13 +69,19 @@ export interface EligibilityRequest {
   relationship: InsuranceRelationship
   /** Required when the patient is not the subscriber. */
   subscriber: EligibilityPerson | null
+  /** The clearinghouse's payer id when staff picked the exact payer (Stedi
+   *  drivers); null lets the driver resolve the carrier name, which refuses
+   *  ambiguous names like "Delta Dental" (forty state plans). */
+  payerId?: string | null
+  /** The picked payer's display name, for the record. */
+  payerName?: string | null
 }
 
 export type EligibilityStatus = 'active' | 'inactive' | 'not_found' | 'needs_review' | 'error'
 
 export type NetworkStatus = 'in_network' | 'out_of_network' | 'unknown'
 
-export type FrequencyCode = 'exam' | 'prophy' | 'bitewings' | 'fmx' | 'fluoride'
+export type FrequencyCode = 'exam' | 'prophy' | 'bitewings' | 'fmx' | 'fluoride' | 'other'
 
 export interface EligibilityResult {
   status: Exclude<EligibilityStatus, 'error'>
@@ -78,7 +91,8 @@ export interface EligibilityResult {
   network: NetworkStatus
   annualMax: { totalCents: number; usedCents: number; remainingCents: number } | null
   deductible: { individualCents: number; metCents: number; remainingCents: number } | null
-  coveragePct: { preventive: number; basic: number; major: number; ortho: number | null } | null
+  /** Plan-pays percent per tier; null per tier when the payer didn't say (the UI shows —, never a guess). */
+  coveragePct: { preventive: number | null; basic: number | null; major: number | null; ortho: number | null } | null
   waitingPeriods: Array<{ category: 'basic' | 'major' | 'ortho'; endsOn: string }>
   /** Code-owned copy for the allowance ("2 per year", "1 every 3 years") + the last date the plan saw one. */
   frequencies: Array<{ code: FrequencyCode; label: string; limit: string; lastOn: string | null }>
@@ -110,7 +124,11 @@ export interface InsuranceCheckView {
  */
 export function resolveInsuranceDriverId(env: Record<string, string | undefined> = process.env): InsuranceDriverId {
   const raw = (env.INSURANCE_DRIVER ?? '').trim().toLowerCase()
-  if (raw === 'sandbox' || raw === '') return 'sandbox'
+  if (raw === 'stedi') {
+    // The mode is an explicit second switch, never sniffed from the key: the
+    // wrong guess either bills the owner or labels a real answer as practice.
+    return (env.STEDI_MODE ?? '').trim().toLowerCase() === 'live' ? 'stedi' : 'stedi_test'
+  }
   return 'sandbox'
 }
 
@@ -120,11 +138,30 @@ export const INSURANCE_DRIVER_LABEL: Record<InsuranceDriverId, { pill: string; t
     title:
       'A sample answer from the built-in sandbox — not a real payer check. Confirm with the carrier before quoting a patient.',
   },
+  stedi_test: {
+    pill: 'Test payer answer',
+    title:
+      'Stedi test mode: the payer’s sample benefits for a mock member, not this patient’s real coverage. Confirm with the carrier before quoting a patient.',
+  },
+  stedi: {
+    pill: 'Payer answer',
+    title:
+      'Checked with the payer through Stedi. Benefits are the payer’s estimate; eligibility on the day of service governs.',
+  },
 }
 
 /** Which drivers give practice answers rather than real ones. */
 export function isPracticeDriver(driver: InsuranceDriverId): boolean {
-  return driver === 'sandbox'
+  return driver !== 'stedi'
+}
+
+/**
+ * The demo org never reaches a real payer: a LIVE driver is swapped for the
+ * sandbox there, while practice drivers (sandbox, Stedi test mode) are
+ * allowed so the owner can try them on the demo clinic.
+ */
+export function effectiveDriverForOrg(isDemo: boolean, driver: InsuranceDriverId): InsuranceDriverId {
+  return isDemo && !isPracticeDriver(driver) ? 'sandbox' : driver
 }
 
 /**
@@ -208,11 +245,13 @@ export function validateEligibilityRequest(
   if (relationship !== 'self') {
     subscriber = validatePerson(o.subscriber, 'subscriber', errors, todayIso)
   }
+  const payerId = str(o.payerId) || null
+  const payerName = str(o.payerName) || null
 
   if (Object.keys(errors).length > 0 || !patient) return { ok: false, errors }
   return {
     ok: true,
-    value: { patient, carrierName, memberId, groupNumber, relationship, subscriber },
+    value: { patient, carrierName, memberId, groupNumber, relationship, subscriber, payerId, payerName },
   }
 }
 

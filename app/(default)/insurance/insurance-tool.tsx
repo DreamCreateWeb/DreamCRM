@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useState, useTransition, type ReactNode } from 'react'
+import { useEffect, useRef, useState, useTransition, type ReactNode } from 'react'
 import { PageHeader } from '@/components/ui/page-header'
 import { ActionButton } from '@/components/ui/action-button'
 import { StatusPill } from '@/components/ui/status-pill'
@@ -24,7 +24,8 @@ import {
   type InsuranceDriverId,
   type InsuranceRelationship,
 } from '@/lib/insurance-eligibility'
-import { checkInsuranceAction, createPatientFromCheckAction, saveInsuranceToPatientAction } from './actions'
+import { checkInsuranceAction, createPatientFromCheckAction, saveInsuranceToPatientAction, searchPayersAction } from './actions'
+import type { StediPayerMatch } from '@/lib/stedi-eligibility'
 
 /**
  * The Insurance tool — form on the left, the answer on the right, the org's
@@ -44,6 +45,8 @@ interface FormState {
   subFirstName: string
   subLastName: string
   subDateOfBirth: string
+  payerId: string
+  payerName: string
 }
 
 const EMPTY_FORM: FormState = {
@@ -57,6 +60,8 @@ const EMPTY_FORM: FormState = {
   subFirstName: '',
   subLastName: '',
   subDateOfBirth: '',
+  payerId: '',
+  payerName: '',
 }
 
 function formFromRequest(r: Partial<EligibilityRequest> | null | undefined): FormState {
@@ -72,6 +77,8 @@ function formFromRequest(r: Partial<EligibilityRequest> | null | undefined): For
     subFirstName: r.subscriber?.firstName ?? '',
     subLastName: r.subscriber?.lastName ?? '',
     subDateOfBirth: r.subscriber?.dateOfBirth ?? '',
+    payerId: r.payerId ?? '',
+    payerName: r.payerName ?? '',
   }
 }
 
@@ -86,6 +93,8 @@ function requestFromForm(f: FormState): unknown {
       f.relationship === 'self'
         ? null
         : { firstName: f.subFirstName, lastName: f.subLastName, dateOfBirth: f.subDateOfBirth },
+    payerId: f.payerId || null,
+    payerName: f.payerName || null,
   }
 }
 
@@ -252,14 +261,25 @@ export default function InsuranceTool({
               <input id="ins-dob" type="date" className="form-input w-full text-sm" value={form.dateOfBirth} onChange={(e) => set('dateOfBirth', e.target.value)} />
             </Field>
 
-            <Field id="ins-carrier" label="Carrier" error={errors.carrierName}>
-              <input id="ins-carrier" list="ins-carrier-list" className="form-input w-full text-sm" value={form.carrierName} onChange={(e) => set('carrierName', e.target.value)} placeholder="Delta Dental" autoComplete="off" />
-              <datalist id="ins-carrier-list">
-                {carriers.map((c) => (
-                  <option key={c} value={c} />
-                ))}
-              </datalist>
-            </Field>
+            {driver === 'sandbox' ? (
+              <Field id="ins-carrier" label="Carrier" error={errors.carrierName}>
+                <input id="ins-carrier" list="ins-carrier-list" className="form-input w-full text-sm" value={form.carrierName} onChange={(e) => set('carrierName', e.target.value)} placeholder="Delta Dental" autoComplete="off" />
+                <datalist id="ins-carrier-list">
+                  {carriers.map((c) => (
+                    <option key={c} value={c} />
+                  ))}
+                </datalist>
+              </Field>
+            ) : (
+              <PayerPicker
+                value={form.payerId ? { payerId: form.payerId, name: form.payerName || form.carrierName } : null}
+                query={form.carrierName}
+                error={errors.carrierName}
+                onQuery={(q) => setForm((f) => ({ ...f, carrierName: q, payerId: '', payerName: '' }))}
+                onPick={(p) => setForm((f) => ({ ...f, carrierName: p.displayName, payerId: p.primaryPayerId, payerName: p.displayName }))}
+                onClear={() => setForm((f) => ({ ...f, payerId: '', payerName: '' }))}
+              />
+            )}
             <div className="grid grid-cols-2 gap-3">
               <Field id="ins-member" label="Member ID" error={errors.memberId}>
                 <input id="ins-member" className="form-input w-full text-sm font-mono-num" value={form.memberId} onChange={(e) => set('memberId', e.target.value)} autoComplete="off" />
@@ -319,7 +339,7 @@ export default function InsuranceTool({
               )}
             </div>
 
-            {practice && (
+            {driver === 'sandbox' && (
               <details className="text-xs text-gray-600 dark:text-gray-300">
                 <summary className="cursor-pointer font-medium">Practice-mode tips</summary>
                 <p className="mt-1">
@@ -424,6 +444,115 @@ export default function InsuranceTool({
   )
 }
 
+/**
+ * The payer typeahead for the Stedi drivers. A carrier NAME is not enough for
+ * a clearinghouse — "Delta Dental" is forty state plans — so staff pick the
+ * exact payer; the pick pins `payerId` and the driver never has to guess.
+ */
+function PayerPicker({
+  value,
+  query,
+  error,
+  onQuery,
+  onPick,
+  onClear,
+}: {
+  value: { payerId: string; name: string } | null
+  query: string
+  error?: string
+  onQuery: (q: string) => void
+  onPick: (p: StediPayerMatch) => void
+  onClear: () => void
+}) {
+  const [results, setResults] = useState<StediPayerMatch[]>([])
+  const [searching, setSearching] = useState(false)
+  const [open, setOpen] = useState(false)
+  const seq = useRef(0)
+
+  useEffect(() => {
+    if (value || query.trim().length < 2) {
+      setResults([])
+      return
+    }
+    const mine = ++seq.current
+    setSearching(true)
+    const t = setTimeout(async () => {
+      const r = await searchPayersAction(query)
+      if (mine !== seq.current) return
+      setSearching(false)
+      setResults(r.ok ? r.payers : [])
+      setOpen(true)
+    }, 300)
+    return () => clearTimeout(t)
+  }, [query, value])
+
+  if (value) {
+    return (
+      <div>
+        <p className="text-xs font-medium text-gray-700 dark:text-gray-200">Payer</p>
+        <div className="mt-1 flex items-center gap-2">
+          <StatusPill tone="info" label={value.name} title={`Payer id ${value.payerId}`} />
+          <span className="text-xs text-gray-500 dark:text-gray-400 font-mono-num">{value.payerId}</span>
+          <button type="button" onClick={onClear} className="text-xs font-medium text-teal-700 dark:text-teal-400 hover:underline">
+            Change
+          </button>
+        </div>
+      </div>
+    )
+  }
+  return (
+    <div className="relative">
+      <Field id="ins-payer" label="Payer" error={error}>
+        <input
+          id="ins-payer"
+          className="form-input w-full text-sm"
+          value={query}
+          onChange={(e) => onQuery(e.target.value)}
+          onFocus={() => results.length > 0 && setOpen(true)}
+          onBlur={() => setTimeout(() => setOpen(false), 150)}
+          placeholder="Start typing — Delta Dental of California, Cigna, MetLife…"
+          autoComplete="off"
+          role="combobox"
+          aria-autocomplete="list"
+          aria-controls="ins-payer-list"
+          aria-expanded={open && results.length > 0}
+        />
+      </Field>
+      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+        {searching ? 'Searching payers…' : 'Pick the exact payer from the list — the one printed on the card.'}
+      </p>
+      {open && results.length > 0 && (
+        <ul
+          id="ins-payer-list"
+          role="listbox"
+          aria-label="Matching payers"
+          className="absolute z-20 mt-1 w-full max-h-64 overflow-auto rounded-[var(--r-md)] border border-[color:var(--color-hairline)] bg-white dark:bg-gray-900 shadow-lg text-sm"
+        >
+          {results.map((p) => (
+            <li key={p.stediId} role="option" aria-selected={false}>
+              <button
+                type="button"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => {
+                  onPick(p)
+                  setOpen(false)
+                }}
+                className="w-full text-left px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-800 flex items-baseline justify-between gap-3"
+              >
+                <span className="text-gray-800 dark:text-gray-100">{p.displayName}</span>
+                <span className="text-xs text-gray-500 dark:text-gray-400 font-mono-num shrink-0">
+                  {p.primaryPayerId}
+                  {p.operatingStates.length > 0 && ` · ${p.operatingStates.slice(0, 3).join(', ')}`}
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+}
+
 function Field({ id, label, error, children }: { id: string; label: string; error?: string; children: ReactNode }) {
   return (
     <div>
@@ -434,6 +563,11 @@ function Field({ id, label, error, children }: { id: string; label: string; erro
       <FieldError id={`${id}-error`} message={error} />
     </div>
   )
+}
+
+/** A tier the payer didn't state renders as a dash — never a guessed number. */
+function pct(v: number | null): ReactNode {
+  return v == null ? <span className="text-gray-500">—</span> : `${v}%`
 }
 
 function Stat({ label, value, sub }: { label: string; value: string; sub?: string }) {
@@ -472,7 +606,9 @@ export function ResultCard({
     <div className="v2-card px-4 py-4">
       <div className="flex flex-wrap items-center gap-2">
         <StatusPill tone={STATUS_TONE[check.status]} label={STATUS_LABEL[check.status]} />
-        {practice && <StatusPill tone="neutral" label={label.pill} title={label.title} />}
+        {/* Every answer names what answered it; a live payer answer's title
+            carries the "estimate" caveat, the practice ones their warning. */}
+        <StatusPill tone="neutral" label={label.pill} title={label.title} />
         <span className="text-xs text-gray-500 dark:text-gray-400 ml-auto tabular-nums" suppressHydrationWarning>
           Checked {formatClinicDayTime(new Date(check.checkedAtIso), timeZone)}
         </span>
@@ -514,7 +650,7 @@ export function ResultCard({
                 sub={r.deductible.remainingCents === 0 ? 'Met for the year' : `of ${benefitDollars(r.deductible.individualCents)}`}
               />
             )}
-            {r.coveragePct && <Stat label="Preventive" value={`${r.coveragePct.preventive}%`} sub="Exams, cleanings, X-rays" />}
+            {r.coveragePct && r.coveragePct.preventive != null && <Stat label="Preventive" value={`${r.coveragePct.preventive}%`} sub="Exams, cleanings, X-rays" />}
           </div>
 
           {r.coveragePct && (
@@ -527,9 +663,9 @@ export function ResultCard({
                 </tr>
               </thead>
               <tbody className="divide-y divide-[color:var(--color-hairline)]">
-                <tr><td className="py-1.5 text-gray-700 dark:text-gray-200">Preventive</td><td className="py-1.5 text-right tabular-nums">{r.coveragePct.preventive}%</td></tr>
-                <tr><td className="py-1.5 text-gray-700 dark:text-gray-200">Basic — fillings, extractions</td><td className="py-1.5 text-right tabular-nums">{r.coveragePct.basic}%</td></tr>
-                <tr><td className="py-1.5 text-gray-700 dark:text-gray-200">Major — crowns, bridges</td><td className="py-1.5 text-right tabular-nums">{r.coveragePct.major}%</td></tr>
+                <tr><td className="py-1.5 text-gray-700 dark:text-gray-200">Preventive</td><td className="py-1.5 text-right tabular-nums">{pct(r.coveragePct.preventive)}</td></tr>
+                <tr><td className="py-1.5 text-gray-700 dark:text-gray-200">Basic — fillings, extractions</td><td className="py-1.5 text-right tabular-nums">{pct(r.coveragePct.basic)}</td></tr>
+                <tr><td className="py-1.5 text-gray-700 dark:text-gray-200">Major — crowns, bridges</td><td className="py-1.5 text-right tabular-nums">{pct(r.coveragePct.major)}</td></tr>
                 <tr>
                   <td className="py-1.5 text-gray-700 dark:text-gray-200">Orthodontics</td>
                   <td className="py-1.5 text-right tabular-nums">{r.coveragePct.ortho == null ? <span className="text-gray-500">Not covered</span> : `${r.coveragePct.ortho}%`}</td>

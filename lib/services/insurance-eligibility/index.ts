@@ -2,6 +2,7 @@ import 'server-only'
 import { and, desc, eq, isNull } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import {
+  effectiveDriverForOrg,
   ledgerSummaryForCheck,
   resolveInsuranceDriverId,
   validateEligibilityRequest,
@@ -14,6 +15,9 @@ import {
 import { recordAction } from '@/lib/services/action-ledger'
 import type { EligibilityProvider } from './provider'
 import { sandboxProvider } from './sandbox'
+import { makeStediProvider, searchStediPayers } from './stedi'
+
+export { searchStediPayers as searchPayers }
 
 /**
  * Insurance eligibility — the service.
@@ -26,6 +30,9 @@ import { sandboxProvider } from './sandbox'
 
 export function resolveEligibilityProvider(driver: InsuranceDriverId = resolveInsuranceDriverId()): EligibilityProvider {
   switch (driver) {
+    case 'stedi':
+    case 'stedi_test':
+      return makeStediProvider(driver)
     case 'sandbox':
     default:
       return sandboxProvider
@@ -92,15 +99,16 @@ export async function runEligibilityCheck(
       }
     }
 
-    // The demo org binds the sandbox no matter what the env says — the
-    // switch is prod-global and the demo lives in prod, so this is the only
-    // thing that keeps "the demo never touches a payer" true after the flip.
+    // The demo org never reaches a real payer no matter what the env says —
+    // the switch is prod-global and the demo lives in prod, so this is the
+    // only thing that keeps "the demo never touches a payer" true after the
+    // flip. Practice drivers (sandbox, Stedi test mode) are allowed there.
     const [org] = await db
       .select({ isDemo: schema.organization.isDemo })
       .from(schema.organization)
       .where(eq(schema.organization.id, organizationId))
       .limit(1)
-    const provider = org?.isDemo ? sandboxProvider : resolveEligibilityProvider()
+    const provider = resolveEligibilityProvider(effectiveDriverForOrg(!!org?.isDemo, resolveInsuranceDriverId()))
 
     let result: EligibilityResult | null = null
     let error: string | null = null

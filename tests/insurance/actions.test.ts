@@ -19,9 +19,11 @@ vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
 
 const runEligibilityCheck = vi.fn()
 const attachInsuranceCheckToPatient = vi.fn(async () => true)
+const searchPayers = vi.fn(async () => [{ primaryPayerId: '77777', displayName: 'Delta Dental of California' }])
 vi.mock('@/lib/services/insurance-eligibility', () => ({
   runEligibilityCheck: (...a: unknown[]) => runEligibilityCheck(...(a as [])),
   attachInsuranceCheckToPatient: (...a: unknown[]) => attachInsuranceCheckToPatient(...(a as [])),
+  searchPayers: (...a: unknown[]) => searchPayers(...(a as [])),
 }))
 
 const createPatient = vi.fn()
@@ -35,6 +37,7 @@ import {
   checkInsuranceAction,
   createPatientFromCheckAction,
   saveInsuranceToPatientAction,
+  searchPayersAction,
 } from '@/app/(default)/insurance/actions'
 
 const request = {
@@ -68,6 +71,14 @@ describe('checkInsuranceAction', () => {
     const r = await checkInsuranceAction(request, null)
     expect(r.ok).toBe(false)
     expect(runEligibilityCheck).not.toHaveBeenCalled()
+  })
+
+  it('searchPayersAction passes the query through, capped, and is gated like the rest', async () => {
+    const r = await searchPayersAction('Delta Dental')
+    expect(r.ok && r.payers[0].primaryPayerId).toBe('77777')
+    expect(searchPayers).toHaveBeenCalledWith('Delta Dental')
+    tenantCtx.platformAdmin = false
+    expect((await searchPayersAction('Delta')).ok).toBe(false)
   })
 
   it('PREVIEW: refuses clinic staff who are not platform admins — every action', async () => {
