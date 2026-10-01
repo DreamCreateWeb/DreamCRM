@@ -141,6 +141,12 @@ system, don't replace it.
   the form carries a payer PICKER and the driver refuses ambiguous names.
   The demo org may run practice drivers (sandbox, Stedi test) but a live
   driver is swapped for the sandbox there (`effectiveDriverForOrg`).
+  AWS-side enablement is ONE idempotent script, `scripts/setup-stedi-aws.sh`
+  (sibling of setup-sms-aws.sh): stores STEDI_API_KEY in dreamcrm/app-secrets,
+  merges INSURANCE_DRIVER/STEDI_MODE (+ STEDI_DEFAULT_NPI) and the secret ref
+  into the App Runner service, and REFUSES `--mode live` without
+  `--confirm-baa`. Match the key to the mode — a live key under test mode is
+  billed and mislabelled.
   `lib/insurance-eligibility.ts` (client-safe types,
   validation, the status→tone contract, the honesty labels) +
   `lib/services/insurance-eligibility/` (provider interface, the
@@ -1190,6 +1196,10 @@ sitemap/robots/OG.
    - Stedi API key ending **…AYEV9** (shared in chat 2026-09-30; it is a LIVE
      key — two real checks were billed proving it) — rotate in the Stedi
      portal; mint a separate TEST key for mock development.
+   - AWS access key ending **…JBXN** on the `Claude` IAM user (uploaded into
+     chat 2026-10-01 for the Stedi AWS setup; the user carries
+     AdministratorAccess) — scope it down to Secrets Manager + App Runner, or
+     rotate it once the setup script has run.
 2. **The finishing pass is CLEAR** (2026-07-02) — every item in
    `docs/FINISHING.md` is fixed, decided, or accepted. That doc is now
    FROZEN history: during the release program, new defects go to
