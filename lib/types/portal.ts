@@ -89,6 +89,24 @@ export interface PortalAutoReplySettings {
   message: string | null
 }
 
+/**
+ * Where the public site's "Patient login" leads. Many practices already run
+ * a portal through their PMS vendor (Modento, Weave, NexHealth…) and keep it;
+ * this lets them point the front door there instead of at the DreamCRM
+ * portal, without a dead link anywhere: an 'external' choice with no valid
+ * URL resolves back to 'dreamcrm'.
+ */
+export type PortalLoginDestination = 'dreamcrm' | 'external'
+
+export interface PortalLoginSettings {
+  destination: PortalLoginDestination
+  /**
+   * The other portal's full address (https://…). Only read when destination
+   * is 'external'; must be an absolute http(s) URL or it is dropped.
+   */
+  externalUrl: string | null
+}
+
 export interface PortalSettings {
   features: PortalFeatureFlags
   booking: PortalBookingSettings
@@ -96,6 +114,45 @@ export interface PortalSettings {
   copy: PortalCopySettings
   display: PortalDisplaySettings
   autoReply: PortalAutoReplySettings
+  login: PortalLoginSettings
+}
+
+/** Longest external portal URL we store. */
+export const EXTERNAL_PORTAL_URL_MAX_LEN = 2048
+
+/**
+ * Normalize a clinic-typed portal address: trimmed, absolute, http(s) only,
+ * within length. Anything else → null (the resolver then falls back to the
+ * DreamCRM portal rather than publishing a broken button).
+ */
+export function sanitizeExternalPortalUrl(value: unknown): string | null {
+  if (typeof value !== 'string') return null
+  const trimmed = value.trim()
+  if (trimmed === '' || trimmed.length > EXTERNAL_PORTAL_URL_MAX_LEN) return null
+  let url: URL
+  try {
+    url = new URL(trimmed)
+  } catch {
+    return null
+  }
+  if (url.protocol !== 'https:' && url.protocol !== 'http:') return null
+  if (!url.hostname || !url.hostname.includes('.')) return null
+  return url.toString()
+}
+
+/**
+ * The external portal URL a clinic has chosen as its front door, or null
+ * when the DreamCRM portal is the door. Reads the raw stored jsonb (or a
+ * resolved PortalSettings) so the public-site helper can call it without
+ * resolving the whole blob.
+ */
+export function externalPortalUrl(stored: unknown): string | null {
+  if (!stored || typeof stored !== 'object') return null
+  const login = (stored as { login?: unknown }).login
+  if (!login || typeof login !== 'object') return null
+  const l = login as Record<string, unknown>
+  if (l.destination !== 'external') return null
+  return sanitizeExternalPortalUrl(l.externalUrl)
 }
 
 /** Built-in after-hours message when the clinic hasn't customized one.
@@ -141,6 +198,11 @@ export const DEFAULT_PORTAL_SETTINGS: PortalSettings = {
   autoReply: {
     enabled: false,
     message: null,
+  },
+  // The DreamCRM portal is the front door until a clinic points it elsewhere.
+  login: {
+    destination: 'dreamcrm',
+    externalUrl: null,
   },
 }
 
@@ -280,5 +342,15 @@ export function resolvePortalSettings(stored: unknown): PortalSettings {
     else if (a.message === null) autoReply.message = null
   }
 
-  return { features, booking, reschedule, copy, display, autoReply }
+  const login = { ...d.login }
+  if (s.login && typeof s.login === 'object') {
+    const l = s.login as Record<string, unknown>
+    // Keep whatever the clinic typed (sanitized) even while the destination
+    // is 'dreamcrm', so flipping the switch later doesn't lose the address.
+    login.externalUrl = sanitizeExternalPortalUrl(l.externalUrl)
+    // 'external' only sticks when there is a usable URL to go to.
+    login.destination = l.destination === 'external' && login.externalUrl ? 'external' : 'dreamcrm'
+  }
+
+  return { features, booking, reschedule, copy, display, autoReply, login }
 }

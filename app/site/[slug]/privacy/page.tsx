@@ -79,7 +79,7 @@ export default async function PrivacyPage({ params }: Props) {
   const brand = profile.brandColor ?? '#9CAF9F'
   const headingInk = readableInk(brand)
   const bookHref = isSelfBookingEnabled(profile) ? `${basePath}/book` : `${basePath || '/'}#contact`
-  const signIn = clinicPortalSignInUrl(slug)
+  const signIn = clinicPortalSignInUrl(slug, data.profile.portalSettings)
   const contactBits = [profile.email, profile.phone].filter(Boolean).join(' or ')
 
   const navLinks = buildClinicNavLinks({

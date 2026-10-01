@@ -3,6 +3,9 @@ import {
   resolvePortalSettings,
   DEFAULT_PORTAL_SETTINGS,
   PORTAL_BOOKABLE_TYPES,
+  externalPortalUrl,
+  sanitizeExternalPortalUrl,
+  EXTERNAL_PORTAL_URL_MAX_LEN,
 } from '@/lib/types/portal'
 
 /**
@@ -112,5 +115,61 @@ describe('resolvePortalSettings', () => {
     s.features.payments = true
     expect(DEFAULT_PORTAL_SETTINGS.booking.allowedTypes).toEqual(['cleaning', 'checkup', 'consultation'])
     expect(DEFAULT_PORTAL_SETTINGS.features.payments).toBe(false)
+  })
+})
+
+/**
+ * The sign-in destination — a clinic that keeps its PMS vendor's portal
+ * (Modento, Weave…) points the public "Patient login" there. The law is
+ * "never a dead link": 'external' only resolves when a usable URL exists.
+ */
+describe('resolvePortalSettings — login destination', () => {
+  it('defaults to the DreamCRM portal with no external address', () => {
+    const s = resolvePortalSettings(null)
+    expect(s.login).toEqual({ destination: 'dreamcrm', externalUrl: null })
+  })
+
+  it('keeps an external destination when the URL is a real https address', () => {
+    const s = resolvePortalSettings({
+      login: { destination: 'external', externalUrl: ' https://portal.modento.io/acme-dental ' },
+    })
+    expect(s.login.destination).toBe('external')
+    expect(s.login.externalUrl).toBe('https://portal.modento.io/acme-dental')
+  })
+
+  it('falls back to the DreamCRM portal when the external choice has no usable URL', () => {
+    for (const bad of [null, '', 'portal.modento.io', 'javascript:alert(1)', 'mailto:x@y.com', 'https://localhost', 42]) {
+      const s = resolvePortalSettings({ login: { destination: 'external', externalUrl: bad } })
+      expect(s.login.destination, String(bad)).toBe('dreamcrm')
+      expect(s.login.externalUrl, String(bad)).toBeNull()
+    }
+  })
+
+  it('remembers a typed address while the DreamCRM portal is the door', () => {
+    const s = resolvePortalSettings({ login: { destination: 'dreamcrm', externalUrl: 'https://portal.example.com' } })
+    expect(s.login.destination).toBe('dreamcrm')
+    expect(s.login.externalUrl).toBe('https://portal.example.com/')
+  })
+
+  it('drops an unknown destination', () => {
+    const s = resolvePortalSettings({ login: { destination: 'somewhere', externalUrl: 'https://portal.example.com' } })
+    expect(s.login.destination).toBe('dreamcrm')
+  })
+})
+
+describe('externalPortalUrl (the raw-blob read the public site uses)', () => {
+  it('returns the address only for a usable external choice', () => {
+    expect(externalPortalUrl(null)).toBeNull()
+    expect(externalPortalUrl({})).toBeNull()
+    expect(externalPortalUrl({ login: { destination: 'dreamcrm', externalUrl: 'https://portal.example.com' } })).toBeNull()
+    expect(externalPortalUrl({ login: { destination: 'external', externalUrl: 'not a url' } })).toBeNull()
+    expect(externalPortalUrl({ login: { destination: 'external', externalUrl: 'https://portal.example.com/login' } })).toBe(
+      'https://portal.example.com/login',
+    )
+  })
+
+  it('caps the address length', () => {
+    const long = 'https://portal.example.com/' + 'a'.repeat(EXTERNAL_PORTAL_URL_MAX_LEN)
+    expect(sanitizeExternalPortalUrl(long)).toBeNull()
   })
 })

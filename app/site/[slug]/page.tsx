@@ -141,7 +141,7 @@ export default async function ClinicSitePage({ params }: Props) {
       <Home
         data={data}
         basePath={basePath}
-        signInUrl={clinicPortalSignInUrl(slug)}
+        signInUrl={clinicPortalSignInUrl(slug, data.profile.portalSettings)}
         gates={gates}
         bookHref={isSelfBookingEnabled(data.profile) ? `${basePath}/book` : `${basePath}#contact`}
         bookLabel={def.bookLabel}
