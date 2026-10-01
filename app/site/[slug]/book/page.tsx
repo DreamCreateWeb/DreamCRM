@@ -199,7 +199,7 @@ export default async function BookPage({ params, searchParams }: Props) {
   const hasDentalPlans = membershipPlans.length > 0
   const hasCareers = openJobs.length > 0
   const hasTeam = ((data.profile.staff as ClinicStaff[] | null) ?? []).length > 0
-  const signIn = clinicPortalSignInUrl(slug)
+  const signIn = clinicPortalSignInUrl(slug, data.profile.portalSettings)
   // On the /book page itself, the Book CTA in the nav links should also
   // route to /book (we're already here, but the nav should remain consistent
   // across the rest of the site).

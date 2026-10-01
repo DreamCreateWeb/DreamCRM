@@ -112,7 +112,7 @@ export default async function ServiceDetailPage({ params }: Props) {
   const { def: siteTemplate } = await resolveActiveSiteTemplate(slug)
   const bookLabel = siteTemplate.bookLabel
   const { Header: SiteHeader, Footer: SiteFooter, MobileActions: SiteMobileActions } = siteTemplate.chrome
-  const signIn = clinicPortalSignInUrl(slug)
+  const signIn = clinicPortalSignInUrl(slug, data.profile.portalSettings)
 
   const navLinks = buildClinicNavLinks({
     // Template-declared marketing pages (e.g. Pediatric's /coloring), gated

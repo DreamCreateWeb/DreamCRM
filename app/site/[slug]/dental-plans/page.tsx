@@ -121,7 +121,7 @@ export default async function DentalPlansPage({ params }: Props) {
   const { def: siteTemplate } = await resolveActiveSiteTemplate(slug)
   const bookLabel = siteTemplate.bookLabel
   const { Header: SiteHeader, Footer: SiteFooter, MobileActions: SiteMobileActions } = siteTemplate.chrome
-  const signIn = clinicPortalSignInUrl(slug)
+  const signIn = clinicPortalSignInUrl(slug, data.profile.portalSettings)
 
   // Offer JSON-LD — each active membership plan as a recurring Offer.
   const plansLd = dentalPlansJsonLd({

@@ -186,7 +186,7 @@ export default async function NewPatientsPage({ params }: Props) {
   const { def: siteTemplate } = await resolveActiveSiteTemplate(slug)
   const bookLabel = siteTemplate.bookLabel
   const { Header: SiteHeader, Footer: SiteFooter, MobileActions: SiteMobileActions } = siteTemplate.chrome
-  const signIn = clinicPortalSignInUrl(slug)
+  const signIn = clinicPortalSignInUrl(slug, data.profile.portalSettings)
   // Same absolute-URL rule as the homepage hero's intake link: the auth +
   // portal half of the flow only exists on the apex www host.
   const intakeHref = `${appBaseUrl()}/site/${data.slug}/intake-start`

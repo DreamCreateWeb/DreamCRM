@@ -206,7 +206,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
   const bookLabel = 'Book a Visit'
   // Patient "Login" → THIS clinic's patient portal, never the platform staff
   // sign-in (the page passes signInUrl; this is just a safe fallback).
-  const signIn = signInUrl ?? clinicPortalSignInUrl(data.slug)
+  const signIn = signInUrl ?? clinicPortalSignInUrl(data.slug, data.profile.portalSettings)
   const navLinks = buildClinicNavLinks({
     basePath,
     hasBlog,
