@@ -5533,3 +5533,29 @@ answer" — the exact lie the explicit-mode design exists to prevent. The
 enablement waits on a Stedi TEST key: `STEDI_API_KEY=<test key>
 ./scripts/setup-stedi-aws.sh`. The uploaded AWS key rides the rotate list
 (the `Claude` IAM user carries AdministratorAccess; scope it down).
+
+**Same day, the owner's first real checks — and what they taught.** The
+owner flipped the session's permission mode and the script ran with the
+LIVE key (test mode); then looked up his wife (Blue Advantage, Arkansas).
+Arkansas BCBS (00520) answered AAA 75 "subscriber not found"; Stedi's
+directory showed BLUE ADVANTAGE IS ITS OWN PAYER (72128); at that door the
+answer was AAA 51 "provider not on file" — the demo clinic's placeholder
+NPI, which Arkansas BCBS had waved through and Blue Advantage checks. Our
+card called that "couldn't reach the payer, try again", which is wrong on
+both counts. A Stedi TEST key then replaced the live one — and the script's
+"already configured" path skipped the redeploy, leaving instances on the
+old key until a manual `start-deployment` (fixed: a key swap forces one).
+Stedi's mock member (Ameritas 007007007) finally produced a full 271,
+which the normalizer had never seen: payer "name" `47009` (an id),
+frequencies under `serviceLimits[].delivery` (we read `quantity` — zero
+rows parsed), `dates.service.start` as the NEXT eligible day, a $250
+carry-over sharing the limitation rows with the $2,500 maximum, and
+`percent` as a DECIMAL SHARE (already handled). Shipped in one PR: the
+normalizer fixes + `nextOn`, AAA 41/43/50/51 as a setup error naming the
+NPI (the card now shows the stored reason verbatim instead of a blanket
+"try again"), `BLUE_PLAN_HINT` on a Blue-plan not-found, a dental-first
+payer picker with a Dental / No-dental mark per row, the demo-org sandbox
+swap REMOVED (only a platform admin can act there; a silent swap turned
+the owner's test into a fake answer), and the practice NPI on the Business
+profile. Lesson for the next driver: get the vendor's test-mode mock
+answer BEFORE writing the normalizer, not after.

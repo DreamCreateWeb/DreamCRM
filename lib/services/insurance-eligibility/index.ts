@@ -2,7 +2,6 @@ import 'server-only'
 import { and, desc, eq, isNull } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import {
-  effectiveDriverForOrg,
   ledgerSummaryForCheck,
   resolveInsuranceDriverId,
   validateEligibilityRequest,
@@ -99,16 +98,11 @@ export async function runEligibilityCheck(
       }
     }
 
-    // The demo org never reaches a real payer no matter what the env says —
-    // the switch is prod-global and the demo lives in prod, so this is the
-    // only thing that keeps "the demo never touches a payer" true after the
-    // flip. Practice drivers (sandbox, Stedi test mode) are allowed there.
-    const [org] = await db
-      .select({ isDemo: schema.organization.isDemo })
-      .from(schema.organization)
-      .where(eq(schema.organization.id, organizationId))
-      .limit(1)
-    const provider = resolveEligibilityProvider(effectiveDriverForOrg(!!org?.isDemo, resolveInsuranceDriverId()))
+    // The demo org gets the SAME driver as everyone else. Only a platform
+    // admin can act inside it, and a check is a deliberate click — so a swap
+    // to the sandbox there (the first draft) protected nobody and turned the
+    // owner's own test into a fake answer.
+    const provider = resolveEligibilityProvider(resolveInsuranceDriverId())
 
     let result: EligibilityResult | null = null
     let error: string | null = null

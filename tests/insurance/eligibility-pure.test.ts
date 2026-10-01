@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
   INSURANCE_DRIVER_LABEL,
-  effectiveDriverForOrg,
   SANDBOX_STEERING,
   STATUS_LABEL,
   STATUS_TONE,
@@ -109,13 +108,6 @@ describe('resolveInsuranceDriverId', () => {
     expect(INSURANCE_DRIVER_LABEL.sandbox.title).toMatch(/not a real payer check/i)
     expect(INSURANCE_DRIVER_LABEL.stedi_test.title).toMatch(/not this patient/i)
     expect(INSURANCE_DRIVER_LABEL.stedi.title).toMatch(/estimate/i)
-  })
-
-  it('the demo org swaps a live driver for the sandbox but keeps practice drivers', () => {
-    expect(effectiveDriverForOrg(true, 'stedi')).toBe('sandbox')
-    expect(effectiveDriverForOrg(true, 'stedi_test')).toBe('stedi_test')
-    expect(effectiveDriverForOrg(true, 'sandbox')).toBe('sandbox')
-    expect(effectiveDriverForOrg(false, 'stedi')).toBe('stedi')
   })
 
   it('a picked payer rides through validation; blanks become null', () => {

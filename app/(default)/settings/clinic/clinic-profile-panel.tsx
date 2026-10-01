@@ -128,6 +128,21 @@ export default function ClinicProfilePanel({ profile, orgName, gmailAccounts }: 
                   <input id="email" name="email" className="form-input w-full" type="email" defaultValue={profile?.email ?? ''} />
                 </div>
               </div>
+              <div className="sm:w-1/2 sm:pr-2">
+                <label className="block text-sm font-medium mb-1" htmlFor="npi">Practice NPI</label>
+                <input
+                  id="npi"
+                  name="npi"
+                  className="form-input w-full"
+                  inputMode="numeric"
+                  maxLength={12}
+                  placeholder="10 digits"
+                  defaultValue={profile?.npi ?? ''}
+                />
+                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  The practice’s 10-digit NPI. Insurance checks go out under it — payers won’t answer without one they recognize.
+                </p>
+              </div>
               <div>
                 <label className="block text-sm font-medium mb-1" htmlFor="emailSenderName">Email sender name</label>
                 <input

@@ -26,6 +26,15 @@ export async function updateClinicProfile(formData: FormData) {
   const legalName = clean('legalName', formData)
   const phone = clean('phone', formData)
   const email = clean('email', formData)
+  // The practice's NPI — what a payer needs on an eligibility check before it
+  // will answer about any member. Ten digits or nothing; a malformed value
+  // keeps what was stored rather than writing junk a payer would reject.
+  const npi = (() => {
+    const raw = clean('npi', formData)
+    if (raw === null) return null
+    const digits = raw.replace(/\D/g, '')
+    return digits.length === 10 ? digits : undefined
+  })()
   // Display name patients see in the "From" of clinic→patient email. Null falls
   // back to the clinic display name in getClinicSenderIdentity.
   const emailSenderName = clean('emailSenderName', formData)
@@ -94,6 +103,7 @@ export async function updateClinicProfile(formData: FormData) {
     legalName,
     phone,
     email,
+    npi,
     emailSenderName,
     emailSendingAccountId,
     addressLine1,

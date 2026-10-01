@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
+  BLUE_PLAN_HINT,
   StediRetryableError,
   buildStediRequest,
   normalizeStediResponse,
@@ -175,8 +176,8 @@ describe('normalizeStediResponse — benefits', () => {
 
   it('maps CDT frequency limits to the named rows', () => {
     expect(r.frequencies).toEqual([
-      { code: 'exam', label: 'Exams', limit: '2 visits per calendar year', lastOn: null },
-      { code: 'bitewings', label: 'Bitewing X-rays', limit: '1 visit per calendar year', lastOn: null },
+      { code: 'exam', label: 'Exams', limit: '2 visits per calendar year', lastOn: null, nextOn: null },
+      { code: 'bitewings', label: 'Bitewing X-rays', limit: '1 visit per calendar year', lastOn: null, nextOn: null },
     ])
   })
 
@@ -225,5 +226,123 @@ describe('payer search', () => {
     const clear = { items: [SEARCH.items[1], { ...SEARCH.items[0], score: 100 }] }
     expect(pickUnambiguousPayer(parsePayerSearch(clear))?.primaryPayerId).toBe('CDKS1')
     expect(pickUnambiguousPayer([])).toBeNull()
+  })
+})
+
+/**
+ * Stedi's test-mode answer for their mock dental member (Ameritas,
+ * 007007007), trimmed to the rows that matter. Three things it taught us:
+ * the payer "name" can be an id, frequencies ride `serviceLimits`, and a
+ * carry-over maximum shares the limitation rows with the real one.
+ */
+const STEDI_MOCK_271 = {
+  payerId: 'AMTAS00425',
+  payer: { name: { organization: '47009' }, type: 'PAYER', identification: 'AMTAS00425' },
+  subscriber: {
+    memberId: '007007007',
+    name: { person: { firstName: 'FALCON', lastName: 'DENT' } },
+    dateOfBirth: '1985-06-07',
+    dates: { plan: { start: '2024-01-01', end: '2025-01-01' }, eligibility: { start: '2023-06-01' } },
+  },
+  plans: [
+    {
+      benefits: {
+        statuses: [{ coverageLevel: 'INDIVIDUAL', insuranceType: 'GROUP_POLICY', service: { value: '35', definition: 'Dental Care', system: 'STC' }, status: 'ACTIVE_COVERAGE' }],
+        deductible: [
+          { coverageLevel: 'INDIVIDUAL', network: { indicator: 'IN_AND_OUT_OF_NETWORK' }, messages: ['BASIC/MAJOR/SELECT'], timePeriod: 'CALENDAR_YEAR', amount: '50' },
+          { coverageLevel: 'INDIVIDUAL', network: { indicator: 'IN_AND_OUT_OF_NETWORK' }, messages: ['BASIC/MAJOR/SELECT'], timePeriod: 'REMAINING', amount: '50' },
+        ],
+        coInsurance: [
+          { coverageLevel: 'INDIVIDUAL', network: { indicator: 'IN_AND_OUT_OF_NETWORK' }, service: { value: '35', system: 'STC' }, messages: ['TYPE 1 PROCEDURES COVERED AT 100% OF AMOUNT LISTED IN THE CERTIFICATE BOOKLET.'], percent: '0' },
+          { coverageLevel: 'INDIVIDUAL', network: { indicator: 'IN_AND_OUT_OF_NETWORK' }, service: { value: '41', system: 'STC' }, percent: '0' },
+          { coverageLevel: 'INDIVIDUAL', network: { indicator: 'IN_AND_OUT_OF_NETWORK' }, service: { value: '25', system: 'STC' }, percent: '0' },
+          { coverageLevel: 'INDIVIDUAL', network: { indicator: 'IN_AND_OUT_OF_NETWORK' }, service: { value: '36', system: 'STC' }, percent: '0' },
+          { coverageLevel: 'INDIVIDUAL', network: { indicator: 'IN_AND_OUT_OF_NETWORK' }, service: { value: '38', system: 'STC' }, percent: '1' },
+        ],
+        limitations: [
+          { coverageLevel: 'INDIVIDUAL', network: { indicator: 'IN_AND_OUT_OF_NETWORK' }, timePeriod: 'CALENDAR_YEAR', amount: '2500' },
+          { coverageLevel: 'INDIVIDUAL', network: { indicator: 'IN_AND_OUT_OF_NETWORK' }, timePeriod: 'REMAINING', amount: '2500' },
+          { coverageLevel: 'INDIVIDUAL', network: { indicator: 'IN_AND_OUT_OF_NETWORK' }, messages: ['ANNUAL CARRY OVER MAXIMUM.'], timePeriod: 'CALENDAR_YEAR', amount: '250' },
+          { coverageLevel: 'INDIVIDUAL', network: { indicator: 'IN_AND_OUT_OF_NETWORK' }, messages: ['ANNUAL REMAINING CARRY OVER MAXIMUM.'], timePeriod: 'REMAINING', amount: '250' },
+          { coverageLevel: 'INDIVIDUAL', messages: ['MISSING TOOTH EXCLUSION APPLIES.'] },
+          { coverageLevel: 'INDIVIDUAL', network: { indicator: 'IN_AND_OUT_OF_NETWORK' }, service: { value: 'D0120', system: 'CDT' }, messages: ['SIMILAR PROCEDURES PERFORMED MAY IMPACT LIMITATION.'], serviceLimits: [{ delivery: { quantity: { value: '2', qualifier: 'UNITS' }, period: { value: 1, qualifier: 'CONTRACT' } } }], dates: { service: { start: '2024-06-13' } } },
+          { coverageLevel: 'INDIVIDUAL', network: { indicator: 'IN_AND_OUT_OF_NETWORK' }, service: { value: 'D0210', system: 'CDT' }, serviceLimits: [{ delivery: { quantity: { value: '1', qualifier: 'UNITS' }, period: { value: 60, qualifier: 'MONTH' } } }], dates: { service: { start: '2028-12-08' } } },
+          { coverageLevel: 'INDIVIDUAL', network: { indicator: 'IN_AND_OUT_OF_NETWORK' }, service: { value: 'D0272', system: 'CDT' }, serviceLimits: [{ delivery: { quantity: { value: '1', qualifier: 'UNITS' }, period: { value: 1, qualifier: 'CONTRACT' } } }], dates: { service: { start: '2024-06-13' } } },
+          { coverageLevel: 'INDIVIDUAL', network: { indicator: 'IN_AND_OUT_OF_NETWORK' }, service: { value: 'D2710', system: 'CDT' }, messages: ['PAID ON PREP DATE'], serviceLimits: [{ delivery: { quantity: { value: '1', qualifier: 'UNITS' }, period: { value: 120, qualifier: 'MONTH' } } }] },
+          { coverageLevel: 'INDIVIDUAL', network: { indicator: 'IN_AND_OUT_OF_NETWORK' }, service: { value: 'D4910', system: 'CDT' }, serviceLimits: [{ delivery: { quantity: { value: '2', qualifier: 'UNITS' }, period: { value: 1, qualifier: 'CONTRACT' } } }] },
+          { coverageLevel: 'INDIVIDUAL', network: { indicator: 'IN_AND_OUT_OF_NETWORK' }, messages: ['NOT ALL PERIODONTAL PROCEDURE FREQUENCIES ARE INCLUDED IN THIS 271 RESPONSE.'] },
+        ],
+        exclusions: [{ coverageLevel: 'INDIVIDUAL', messages: ['THERE ARE NO WAITING PERIODS ON THIS PLAN.'] }],
+      },
+    },
+  ],
+}
+
+describe('Stedi test-mode 271 (the mock dental member)', () => {
+  const out = normalizeStediResponse(STEDI_MOCK_271, req(), new Date('2026-10-01T19:00:00Z'))
+
+  it('is active with the maximum and deductible read from the limitation and deductible rows', () => {
+    expect(out.status).toBe('active')
+    expect(out.annualMax).toEqual({ totalCents: 250_000, usedCents: 0, remainingCents: 250_000 })
+    expect(out.deductible).toEqual({ individualCents: 5_000, metCents: 0, remainingCents: 5_000 })
+  })
+
+  it('a carry-over maximum never masquerades as the annual maximum', () => {
+    // Without the filter the 250 rows could win the "remaining" pick.
+    expect(out.annualMax?.remainingCents).toBe(250_000)
+  })
+
+  it('falls back to the picked payer name when the payer sends an id where its name goes', () => {
+    expect(out.payerName).toBe('Ameritas')
+    const named = normalizeStediResponse({ ...STEDI_MOCK_271, payer: { name: { organization: 'AMERITAS LIFE' } } }, req(), NOW)
+    expect(named.payerName).toBe('AMERITAS LIFE')
+  })
+
+  it('reads coinsurance as a decimal share: 0 → plan pays 100, 1 → plan pays nothing', () => {
+    expect(out.coveragePct).toEqual({ preventive: 100, basic: 100, major: 100, ortho: 0 })
+  })
+
+  it('turns serviceLimits into frequency rows with the next eligible date', () => {
+    const byCode = Object.fromEntries(out.frequencies.map((f) => [f.code === 'other' ? f.label : f.code, f]))
+    expect(byCode.exam).toMatchObject({ label: 'Exams', limit: '2 per plan year', nextOn: '2024-06-13' })
+    expect(byCode.fmx).toMatchObject({ label: 'Full-mouth X-rays', limit: '1 every 60 months', nextOn: '2028-12-08' })
+    expect(byCode.bitewings).toMatchObject({ limit: '1 per plan year' })
+    expect(byCode['Crowns']).toMatchObject({ code: 'other', limit: '1 every 120 months', nextOn: null })
+    expect(byCode['Perio maintenance']).toMatchObject({ code: 'other', limit: '2 per plan year' })
+    // Rows that are only a sentence never become a frequency line.
+    expect(out.frequencies.some((f) => /NOT ALL PERIODONTAL/i.test(f.label))).toBe(false)
+  })
+
+  it('reads the missing-tooth clause and keeps the plan-ended caveat', () => {
+    expect(out.missingToothClause).toBe(true)
+    expect(out.notes.join(' ')).toMatch(/end date \(2025-01-01\) has passed/)
+  })
+})
+
+describe('provider rejections and Blue-plan hints', () => {
+  const aaa = (code: string, description: string, org = 'BLUE ADVANTAGE') => ({
+    ...AAA_72,
+    payer: { name: { organization: org }, type: 'PAYER' },
+    errors: [{ code, description, location: 'PROVIDER' }],
+  })
+
+  it('AAA 51 (provider not on file) is a setup error that names the NPI, never a retry', () => {
+    const run = () => normalizeStediResponse(aaa('51', 'Provider Not on File'), req({ carrierName: 'Blue Advantage' }), NOW)
+    expect(run).toThrow(/NPI/)
+    expect(run).toThrow(/Business profile/)
+    expect(run).not.toThrow(StediRetryableError)
+    for (const code of ['41', '43', '50']) expect(() => normalizeStediResponse(aaa(code, 'Provider'), req(), NOW)).toThrow(/NPI/)
+  })
+
+  it('a Blue-plan "not found" carries the prefix / Blue Advantage hint; other payers do not', () => {
+    const blue = normalizeStediResponse(
+      { ...AAA_72, payer: { name: { organization: 'ARKANSAS BLUE CROSS AND BLUE SHIELD' } }, errors: [{ code: '75', description: 'Subscriber/Insured Not Found' }] },
+      req({ carrierName: 'Arkansas Blue Cross and Blue Shield', payerName: 'Arkansas Blue Cross and Blue Shield' }),
+      NOW,
+    )
+    expect(blue.status).toBe('not_found')
+    expect(blue.notes).toContain(BLUE_PLAN_HINT)
+    const other = normalizeStediResponse(AAA_72, req(), NOW)
+    expect(other.notes).not.toContain(BLUE_PLAN_HINT)
   })
 })

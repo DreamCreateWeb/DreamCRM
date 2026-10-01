@@ -164,6 +164,17 @@ export class StediRetryableError extends Error {
 const NOT_FOUND_CODES = new Set(['58', '64', '65', '67', '71', '72', '73', '75'])
 const NEEDS_REVIEW_CODES = new Set(['76'])
 const RETRY_CODES = new Set(['42', '79', '80'])
+/** The payer doesn't know the PROVIDER — a practice-setup problem, never a retry. */
+const PROVIDER_CODES = new Set(['41', '43', '50', '51'])
+
+const BLUE_PLAN = /blue\s*cross|blue\s*shield|bcbs|anthem|blue\s*advantage/i
+/**
+ * Two things a front desk learns the hard way with Blue plans, offered on a
+ * "not found": the alpha prefix is part of the member ID, and Blue Advantage
+ * answers at its own door, not the state Blue Cross plan's.
+ */
+export const BLUE_PLAN_HINT =
+  'Blue plans: enter the member ID with the letter prefix printed on the card, and a card that says Blue Advantage is its own payer — pick “Blue Advantage” in the list rather than the state Blue Cross plan.'
 
 interface AaaError {
   code: string | null
@@ -312,33 +323,105 @@ const PERIOD_LABEL: Record<string, string> = {
   DAY: 'per day',
 }
 
+/** Common CDT procedures the tool can name when the payer sends a bare code. */
+const CDT_LABEL: Record<string, string> = {
+  D0330: 'Panoramic X-ray',
+  D1351: 'Sealants',
+  D2140: 'Fillings',
+  D2150: 'Fillings',
+  D2391: 'Fillings',
+  D2710: 'Crowns',
+  D2740: 'Crowns',
+  D2750: 'Crowns',
+  D4341: 'Scaling & root planing',
+  D4342: 'Scaling & root planing',
+  D4381: 'Perio antibiotic',
+  D4910: 'Perio maintenance',
+  D5110: 'Dentures',
+  D5120: 'Dentures',
+  D6010: 'Implants',
+  D6792: 'Bridges',
+  D7140: 'Extractions',
+}
+
+/** "2 per plan year", "1 every 60 months" — a service-limit period in desk words. */
+function periodWords(value: number | null, qualifier: string | null): string {
+  const q = (qualifier ?? '').toUpperCase()
+  const n = value ?? 1
+  switch (q) {
+    case 'CONTRACT':
+    case 'SERVICE_YEAR':
+      return n <= 1 ? 'per plan year' : `every ${n} plan years`
+    case 'CALENDAR_YEAR':
+      return n <= 1 ? 'per calendar year' : `every ${n} calendar years`
+    case 'YEAR':
+    case 'YEARS':
+      return n <= 1 ? 'per year' : `every ${n} years`
+    case 'MONTH':
+    case 'MONTHS':
+      return n <= 1 ? 'per month' : `every ${n} months`
+    case 'DAY':
+    case 'DAYS':
+      return n <= 1 ? 'per day' : `every ${n} days`
+    case 'LIFETIME':
+      return 'per lifetime'
+    case 'VISIT':
+      return 'per visit'
+    default:
+      return q ? q.toLowerCase().replace(/_/g, ' ') : ''
+  }
+}
+
 function frequencyRows(limits: Entry[]): EligibilityResult['frequencies'] {
   const rows: EligibilityResult['frequencies'] = []
   const seen = new Set<string>()
   for (const e of limits) {
-    const q = asRecord(e.quantity)
-    const qual = asString(q.qualifier)
-    const value = asString(q.value)
-    if (!value || !qual || !['VISITS', 'NUMBER_OF_SERVICES_OR_PROCEDURES', 'MAXIMUM', 'DAYS', 'MONTH', 'YEARS'].includes(qual)) continue
+    // Two shapes: the current `serviceLimits[].delivery` (quantity + period),
+    // and the older flat `quantity` + `timePeriod`.
+    let count: string | null = null
+    let limitText = ''
+    const delivery = asArray(e.serviceLimits).map((l) => asRecord(asRecord(l).delivery)).find((d) => asString(asRecord(d.quantity).value))
+    if (delivery) {
+      count = asString(asRecord(delivery.quantity).value)
+      const per = asRecord(delivery.period)
+      const perValue = per.value == null ? null : Number(per.value)
+      limitText = `${count} ${periodWords(Number.isFinite(perValue as number) ? (perValue as number) : null, asString(per.qualifier))}`.trim()
+    } else {
+      const q = asRecord(e.quantity)
+      const qual = asString(q.qualifier)
+      const value = asString(q.value)
+      if (!value || !qual || !['VISITS', 'NUMBER_OF_SERVICES_OR_PROCEDURES', 'MAXIMUM', 'DAYS', 'MONTH', 'YEARS'].includes(qual)) continue
+      count = value
+      const per = period(e)
+      const unit = qual === 'VISITS' ? 'visit' : qual === 'DAYS' ? 'day' : qual === 'MONTH' ? 'month' : qual === 'YEARS' ? 'year' : ''
+      limitText = per && PERIOD_LABEL[per] ? `${value}${unit ? ` ${unit}${value === '1' ? '' : 's'}` : ''} ${PERIOD_LABEL[per]}` : `${value}${unit ? ` ${unit}${value === '1' ? '' : 's'}` : ''}`
+    }
+    if (!count) continue
     const sys = serviceSystem(e)
     const svc = serviceValue(e)
     let code: FrequencyCode = 'other'
-    let label = asString(asRecord(e.service).definition) ?? messages(e)[0] ?? 'Limit'
+    let label = asString(asRecord(e.service).definition) ?? (svc ? CDT_LABEL[svc] ?? `CDT ${svc}` : null) ?? messages(e)[0] ?? 'Limit'
     if (sys === 'CDT' && svc) {
       const hit = FREQ_BY_CDT.find((f) => f.re.test(svc))
       if (hit) {
         code = hit.code
         label = hit.label
-      }
+      } else if (CDT_LABEL[svc]) label = CDT_LABEL[svc]
     }
     if (code === 'other' && !svc) continue
     const key = `${code}:${label}`
     if (seen.has(key)) continue
     seen.add(key)
-    const per = period(e)
-    const unit = qual === 'VISITS' ? 'visit' : qual === 'DAYS' ? 'day' : qual === 'MONTH' ? 'month' : qual === 'YEARS' ? 'year' : ''
-    const limit = per && PERIOD_LABEL[per] ? `${value}${unit ? ` ${unit}${value === '1' ? '' : 's'}` : ''} ${PERIOD_LABEL[per]}` : `${value}${unit ? ` ${unit}${value === '1' ? '' : 's'}` : ''}`
-    rows.push({ code, label, limit: limit.trim(), lastOn: asString(asRecord(asRecord(e.dates).latestVisit).start) ?? asString(asRecord(e.dates).latestVisit) })
+    const dates = asRecord(e.dates)
+    rows.push({
+      code,
+      label,
+      limit: limitText.trim(),
+      lastOn: asString(asRecord(dates.latestVisit).start) ?? asString(dates.latestVisit),
+      // Payers answer "when is the next one covered" as a service date range
+      // whose start is the next eligible day.
+      nextOn: asString(asRecord(dates.service).start),
+    })
   }
   return rows
 }
@@ -367,7 +450,10 @@ function pickPlan(plans: Entry[]): Entry | null {
 
 export function normalizeStediResponse(json: unknown, req: EligibilityRequest, now: Date): EligibilityResult {
   const root = asRecord(json)
-  const payerName = asString(asRecord(asRecord(root.payer).name).organization) ?? req.carrierName.trim()
+  // Some payers put an ID where their name goes ("47009") — a name with no
+  // letters is not a name, so fall back to what the desk picked.
+  const rawPayerName = asString(asRecord(asRecord(root.payer).name).organization)
+  const payerName = rawPayerName && /[a-z]/i.test(rawPayerName) ? rawPayerName : req.payerName?.trim() || req.carrierName.trim()
   const asOf = now.toISOString()
   const base: Omit<EligibilityResult, 'status'> = {
     payerName,
@@ -392,15 +478,20 @@ export function normalizeStediResponse(json: unknown, req: EligibilityRequest, n
     if (codes.some((c) => RETRY_CODES.has(c))) {
       throw new StediRetryableError(`The payer couldn’t answer right now — try again in a few minutes. ${describe.join('; ')}`)
     }
+    if (codes.some((c) => PROVIDER_CODES.has(c))) {
+      // Not retryable and not about the member: the payer won't answer for a
+      // provider it doesn't know, whatever is typed in the form.
+      throw new Error(
+        `${payerName} doesn’t recognize the practice’s NPI, so it won’t answer about any member. Add the practice’s NPI under Settings → Business profile. ${describe.join('; ')}`,
+      )
+    }
     if (codes.every((c) => NOT_FOUND_CODES.has(c))) {
-      return {
-        ...base,
-        status: 'not_found',
-        notes: [
-          `${payerName} found no member matching these details. Check the member ID, name and date of birth against the card.`,
-          ...describe,
-        ],
-      }
+      const notes = [
+        `${payerName} found no member matching these details. Check the member ID, name and date of birth against the card.`,
+        ...describe,
+      ]
+      if (BLUE_PLAN.test(`${payerName} ${req.carrierName} ${req.payerName ?? ''}`)) notes.push(BLUE_PLAN_HINT)
+      return { ...base, status: 'not_found', notes }
     }
     if (codes.some((c) => NEEDS_REVIEW_CODES.has(c))) {
       return {
@@ -436,8 +527,11 @@ export function normalizeStediResponse(json: unknown, req: EligibilityRequest, n
   const dedRemaining = pickAmount(deductible, 'remaining')
   // Dental annual maximums arrive as Out-of-Pocket (G) with most payers, and
   // as a dollar Limitation (F) with the rest — read both, prefer the first.
-  const maxTotal = pickAmount(oop, 'year') ?? pickAmount(limits.filter((e) => !asRecord(e.quantity).value), 'year')
-  const maxRemaining = pickAmount(oop, 'remaining') ?? pickAmount(limits.filter((e) => !asRecord(e.quantity).value), 'remaining')
+  // A carry-over (rollover) maximum rides the same limitation rows with a
+  // smaller amount — it is a bonus on top of the maximum, not the maximum.
+  const dollarLimits = limits.filter((e) => !asRecord(e.quantity).value && !/carry\s*over|rollover/i.test(messages(e).join(' ')))
+  const maxTotal = pickAmount(oop, 'year') ?? pickAmount(dollarLimits, 'year')
+  const maxRemaining = pickAmount(oop, 'remaining') ?? pickAmount(dollarLimits, 'remaining')
 
   const notes: string[] = []
   const allMessages = [...limits, ...entries(benefits, 'benefitDescription'), ...entries(benefits, 'exclusions')].flatMap(messages)

@@ -528,7 +528,7 @@ function PayerPicker({
           aria-label="Matching payers"
           className="absolute z-20 mt-1 w-full max-h-64 overflow-auto rounded-[var(--r-md)] border border-[color:var(--color-hairline)] bg-white dark:bg-gray-900 shadow-lg text-sm"
         >
-          {results.map((p) => (
+          {[...results].sort(dentalFirst).map((p) => (
             <li key={p.stediId} role="option" aria-selected={false}>
               <button
                 type="button"
@@ -540,9 +540,14 @@ function PayerPicker({
                 className="w-full text-left px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-800 flex items-baseline justify-between gap-3"
               >
                 <span className="text-gray-800 dark:text-gray-100">{p.displayName}</span>
-                <span className="text-xs text-gray-500 dark:text-gray-400 font-mono-num shrink-0">
-                  {p.primaryPayerId}
-                  {p.operatingStates.length > 0 && ` · ${p.operatingStates.slice(0, 3).join(', ')}`}
+                <span className="flex items-center gap-2 shrink-0">
+                  {/* A dental platform picking a medical-only payer is the
+                      wrong door every time — say so in the list, not after. */}
+                  <StatusPill tone={hasDental(p) ? 'ok' : 'warn'} label={hasDental(p) ? 'Dental' : 'No dental listed'} />
+                  <span className="text-xs text-gray-500 dark:text-gray-400 font-mono-num">
+                    {p.primaryPayerId}
+                    {p.operatingStates.length > 0 && ` · ${p.operatingStates.slice(0, 3).join(', ')}`}
+                  </span>
                 </span>
               </button>
             </li>
@@ -551,6 +556,13 @@ function PayerPicker({
       )}
     </div>
   )
+}
+
+function hasDental(p: StediPayerMatch): boolean {
+  return p.coverageTypes.some((c) => /dental/i.test(c))
+}
+function dentalFirst(a: StediPayerMatch, b: StediPayerMatch): number {
+  return Number(hasDental(b)) - Number(hasDental(a))
 }
 
 function Field({ id, label, error, children }: { id: string; label: string; error?: string; children: ReactNode }) {
@@ -629,7 +641,10 @@ export function ResultCard({
 
       {check.status === 'error' && (
         <p className="mt-3 text-sm text-gray-800 dark:text-gray-100">
-          We couldn’t reach the payer{check.error ? ` — ${check.error}` : ''}. Nothing about their coverage changed; try again in a moment.
+          {/* The stored message already says what kind of failure it was —
+              a retry-worthy one says so itself; a setup problem (an NPI the
+              payer doesn't know) must not be dressed up as "try again". */}
+          {check.error ?? 'We couldn’t reach the payer. Nothing about their coverage changed; try again in a moment.'}
         </p>
       )}
 
@@ -694,7 +709,9 @@ export function ResultCard({
                 {r.frequencies.map((f) => (
                   <li key={f.code} className="flex justify-between gap-3 text-gray-700 dark:text-gray-200">
                     <span>{f.label} · {f.limit}</span>
-                    <span className="text-xs text-gray-500 dark:text-gray-400 tabular-nums">{f.lastOn ? `last ${f.lastOn}` : 'none on record'}</span>
+                    <span className="text-xs text-gray-500 dark:text-gray-400 tabular-nums">
+                      {f.nextOn ? `next from ${f.nextOn}` : f.lastOn ? `last ${f.lastOn}` : 'none on record'}
+                    </span>
                   </li>
                 ))}
               </ul>

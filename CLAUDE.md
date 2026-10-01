@@ -137,16 +137,33 @@ system, don't replace it.
   42/79/80 → a retryable throw) and `lib/services/insurance-eligibility/
   stedi.ts` the network half (payer search typeahead, NPI from
   clinic_profile.npi → STEDI_DEFAULT_NPI → the mock NPI in test mode). A
-  carrier NAME is not a payer — "Delta Dental" is forty state plans — so
-  the form carries a payer PICKER and the driver refuses ambiguous names.
-  The demo org may run practice drivers (sandbox, Stedi test) but a live
-  driver is swapped for the sandbox there (`effectiveDriverForOrg`).
+  carrier NAME is not a payer — "Delta Dental" is forty state plans, and
+  "Blue Advantage" (72128) is NOT the state Blue Cross plan (00520) — so the
+  form carries a payer PICKER (dental-first, payer id + a Dental / No-dental
+  mark per row) and the driver refuses ambiguous names; a Blue-plan "not
+  found" carries `BLUE_PLAN_HINT` (alpha prefix, Blue Advantage's own door).
+  The demo org gets the SAME driver as every org (2026-10-01 — only a
+  platform admin can act there, and a check is a deliberate click; the
+  first draft's silent sandbox swap turned the owner's own test into a fake
+  answer). The 271 normalizer was tuned against Stedi's own test-mode mock
+  (Ameritas 007007007 / Falcon Dent 1985-06-07): coinsurance `percent` is a
+  DECIMAL SHARE (0 → plan pays 100), frequencies ride `serviceLimits[].
+  delivery` with `dates.service.start` as the NEXT eligible day (`nextOn`),
+  a payer "name" can be a bare id (falls back to the picked payer), and a
+  carry-over maximum shares the limitation rows with the real one. AAA
+  41/43/50/51 (provider unknown) is a SETUP error naming the NPI, never a
+  retry — the practice's NPI lives on the Business profile
+  (`clinic_profile.npi`, Settings → Business profile).
   AWS-side enablement is ONE idempotent script, `scripts/setup-stedi-aws.sh`
   (sibling of setup-sms-aws.sh): stores STEDI_API_KEY in dreamcrm/app-secrets,
   merges INSURANCE_DRIVER/STEDI_MODE (+ STEDI_DEFAULT_NPI) and the secret ref
-  into the App Runner service, and REFUSES `--mode live` without
-  `--confirm-baa`. Match the key to the mode — a live key under test mode is
-  billed and mislabelled.
+  into the App Runner service (a key swap alone FORCES a deployment — App
+  Runner reads a secret once, at instance start), and REFUSES `--mode live`
+  without `--confirm-baa`. Match the key to the mode — a live key under test
+  mode is billed and mislabelled. **PROD STATE 2026-10-01: INSURANCE_DRIVER=
+  stedi, STEDI_MODE=test, a Stedi TEST key** — the mock member answers; a real
+  card does not. Going live = the client's NPI on their Business profile +
+  the live key + `--mode live --confirm-baa`.
   `lib/insurance-eligibility.ts` (client-safe types,
   validation, the status→tone contract, the honesty labels) +
   `lib/services/insurance-eligibility/` (provider interface, the

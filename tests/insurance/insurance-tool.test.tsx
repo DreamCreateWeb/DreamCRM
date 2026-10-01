@@ -157,9 +157,21 @@ describe('InsuranceTool — form + add-as-patient', () => {
     expect(screen.queryByText('Practice-mode tips')).toBeNull()
     fireEvent.change(screen.getByLabelText('Payer'), { target: { value: 'Delta' } })
     await waitFor(() => expect(screen.getByText('Delta Dental of California')).toBeTruthy())
+    expect(screen.getByText('Dental')).toBeTruthy()
     fireEvent.click(screen.getByText('Delta Dental of California'))
     expect(screen.getByText('77777')).toBeTruthy()
     expect(searchPayersAction).toHaveBeenCalledWith('Delta')
+  })
+
+  it('a failed check shows the stored reason as-is — a setup problem is never dressed up as "try again"', () => {
+    renderTool({ initialCheck: check({ status: 'error', result: null, error: 'Blue Advantage doesn’t recognize the practice’s NPI, so it won’t answer about any member.' }) })
+    expect(screen.getByText(/doesn’t recognize the practice’s NPI/)).toBeTruthy()
+    expect(screen.queryByText(/try again in a moment/)).toBeNull()
+  })
+
+  it('a frequency row prefers the payer’s next eligible date over the last visit', () => {
+    renderTool({ initialCheck: check({ result: { ...check().result!, frequencies: [{ code: 'fmx', label: 'Full-mouth X-rays', limit: '1 every 60 months', lastOn: null, nextOn: '2028-12-08' }] } }) })
+    expect(screen.getByText('next from 2028-12-08')).toBeTruthy()
   })
 
   it('a tier the payer never stated renders as a dash, never a number', () => {
