@@ -38,7 +38,7 @@ export default async function BlogChrome({
   const { profile } = data
   const bookHref = isSelfBookingEnabled(profile) ? `${basePath}/book` : `${basePath || '/'}#contact`
   const bookLabel = 'Book a Visit'
-  const signIn = clinicPortalSignInUrl(data.slug)
+  const signIn = clinicPortalSignInUrl(data.slug, data.profile.portalSettings)
 
   const [publishedPosts, membershipPlans, openJobs] = await Promise.all([
     listPublishedPosts(data.orgId, { limit: 1 }),

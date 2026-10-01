@@ -31,11 +31,43 @@ beforeEach(() => {
 })
 
 describe('PortalSettingsForm — top-level tabs', () => {
-  it('keeps the three tab ids/labels (features / booking / voice)', () => {
+  it('keeps the four tab ids/labels (features / booking / voice / signin)', () => {
     render(<PortalSettingsForm initial={clone()} connectReady storefrontEnabled />)
     expect(screen.getByRole('tab', { name: 'Features' })).toBeTruthy()
     expect(screen.getByRole('tab', { name: 'Booking' })).toBeTruthy()
     expect(screen.getByRole('tab', { name: 'Voice & display' })).toBeTruthy()
+    expect(screen.getByRole('tab', { name: 'Sign-in' })).toBeTruthy()
+  })
+})
+
+describe('PortalSettingsForm — sign-in destination', () => {
+  it('defaults to the DreamCRM portal with the address field hidden', () => {
+    render(<PortalSettingsForm initial={clone()} connectReady storefrontEnabled />)
+    fireEvent.click(screen.getByRole('tab', { name: 'Sign-in' }))
+    expect((screen.getByRole('radio', { name: /DreamCRM patient portal/ }) as HTMLInputElement).checked).toBe(true)
+    expect(screen.queryByLabelText(/other portal’s address/i)).toBeNull()
+  })
+
+  it('choosing another portal reveals the address field and saves both', async () => {
+    render(<PortalSettingsForm initial={clone()} connectReady storefrontEnabled />)
+    fireEvent.click(screen.getByRole('tab', { name: 'Sign-in' }))
+    fireEvent.click(screen.getByRole('radio', { name: /Another portal/ }))
+    const input = screen.getByLabelText(/other portal’s address/i) as HTMLInputElement
+    fireEvent.change(input, { target: { value: 'https://portal.modento.io/acme' } })
+
+    fireEvent.click(screen.getByRole('button', { name: /Save portal settings/i }))
+    await waitFor(() => expect(savePortalSettingsAction).toHaveBeenCalledTimes(1))
+    const saved = savePortalSettingsAction.mock.calls[0]![0]
+    expect(saved.login).toEqual({ destination: 'external', externalUrl: 'https://portal.modento.io/acme' })
+  })
+
+  it('surfaces the server\'s refusal when the address is missing', async () => {
+    savePortalSettingsAction.mockResolvedValueOnce({ ok: false, error: 'Enter the full address of the other portal.' })
+    render(<PortalSettingsForm initial={clone()} connectReady storefrontEnabled />)
+    fireEvent.click(screen.getByRole('tab', { name: 'Sign-in' }))
+    fireEvent.click(screen.getByRole('radio', { name: /Another portal/ }))
+    fireEvent.click(screen.getByRole('button', { name: /Save portal settings/i }))
+    expect(await screen.findByText(/Enter the full address/)).toBeTruthy()
   })
 })
 

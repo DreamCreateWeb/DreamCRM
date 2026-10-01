@@ -68,7 +68,7 @@ export default async function ShareCardsPage() {
     siteUrl,
     selfBooking: profile.selfBookingEnabled !== false,
     googleReviewUrl,
-    portalUrl: clinicPortalSignInUrl(slug),
+    portalUrl: clinicPortalSignInUrl(slug, profile.portalSettings),
   })
 
   // One QR per card, rendered server-side as SVG. `margin: 0` — the card's own

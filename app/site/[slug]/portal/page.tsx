@@ -3,6 +3,7 @@ import { headers } from 'next/headers'
 import { appBaseUrl, getClinicSiteBySlug, resolveSiteBasePath } from '@/lib/services/clinic-site'
 import { auth } from '@/lib/auth/server'
 import { readableInk } from '@/lib/clinic-site-theme'
+import { externalPortalUrl } from '@/lib/types/portal'
 import MinimalSiteChrome from '@/components/clinic-site/minimal-site-chrome'
 import IntakeStartForm from '../intake-start/intake-start-form'
 import { SITE_INK_MUTED as INK_MUTED, SITE_SURFACE as SURFACE, SITE_BORDER as BORDER } from '@/components/clinic-site/tokens'
@@ -31,6 +32,12 @@ export default async function PortalSignInPage({ params }: Props) {
   const { slug } = await params
   const data = await getClinicSiteBySlug(slug)
   if (!data) notFound()
+
+  // The clinic keeps another vendor's portal as its front door (Settings →
+  // Patient portal → Sign-in): this door, which printed QR cards and old
+  // links still point at, forwards there too.
+  const externalDoor = externalPortalUrl(data.profile.portalSettings)
+  if (externalDoor) redirect(externalDoor)
 
   // Defensive subdomain → apex redirect so better-auth's relative POST to
   // `/api/auth/*` hits the real handler on www (a subdomain `/portal` rewrites

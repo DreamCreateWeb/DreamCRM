@@ -30,6 +30,23 @@ describe('clinicPortalSignInUrl', () => {
   it('url-encodes the slug', () => {
     expect(clinicPortalSignInUrl('a b')).toContain('/site/a%20b/portal')
   })
+
+  // Settings → Patient portal → Sign-in: a clinic that keeps its PMS vendor's
+  // portal points every "Patient login" there. The stored blob is passed raw.
+  it('goes to the clinic\'s external portal when they chose one', () => {
+    const stored = { login: { destination: 'external', externalUrl: 'https://portal.modento.io/acme' } }
+    expect(clinicPortalSignInUrl('acme-dental', stored)).toBe('https://portal.modento.io/acme')
+  })
+
+  it('stays on our portal when the external choice is unusable or absent', () => {
+    expect(clinicPortalSignInUrl('acme-dental', null)).toMatch(/\/site\/acme-dental\/portal$/)
+    expect(clinicPortalSignInUrl('acme-dental', { login: { destination: 'external', externalUrl: '' } })).toMatch(
+      /\/site\/acme-dental\/portal$/,
+    )
+    expect(
+      clinicPortalSignInUrl('acme-dental', { login: { destination: 'dreamcrm', externalUrl: 'https://portal.modento.io/acme' } }),
+    ).toMatch(/\/site\/acme-dental\/portal$/)
+  })
 })
 
 describe('IntakeStartForm — purpose="portal"', () => {

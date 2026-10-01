@@ -130,7 +130,7 @@ export default async function StaffDetailPage({ params }: Props) {
   const bookHref = staff.bookHref?.trim() || defaultBookHref
   const bookLabel = `Book with ${firstName(staff.name)}`
   const pageBookLabel = 'Book a Visit'
-  const signIn = clinicPortalSignInUrl(slug)
+  const signIn = clinicPortalSignInUrl(slug, data.profile.portalSettings)
 
   const staffArr = (profile.staff as ClinicStaff[] | null) ?? []
   const hasTeam = staffArr.length > 0

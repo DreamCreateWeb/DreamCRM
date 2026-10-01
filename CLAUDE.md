@@ -456,6 +456,15 @@ rows/escalation as the email engine), records, messages (unread badge in the
 chrome), family access + link requests via the message thread, magic-link
 sign-in, per-clinic feature toggles (incl. waitlist + referrals) + preview.
 Portal color tokens live in `components/patient-portal/ui.tsx` (PORTAL_*).
+**THE FRONT DOOR IS A SETTING (2026-10-01):** `portal_settings.login`
+(`destination: 'dreamcrm' | 'external'` + `externalUrl`) — a clinic that
+keeps its PMS vendor's portal (Modento, Weave, NexHealth…) points every
+public-site "Patient login", the share-card portal QR AND the
+`/site/[slug]/portal` door at it (Settings → Patient portal → Sign-in).
+One read path: `clinicPortalSignInUrl(slug, profile.portalSettings)` via
+`externalPortalUrl` in lib/types/portal.ts; 'external' never resolves
+without a valid http(s) URL (the dead-link law), and the save action
+refuses rather than silently falling back.
 
 **Public clinic sites** (`app/site/[slug]/`): Tend-style template — home,
 services (+AI-customized detail pages), new-patients (first-visit guide),

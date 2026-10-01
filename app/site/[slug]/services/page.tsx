@@ -96,7 +96,7 @@ export default async function ServicesPage({ params }: Props) {
   const { def: siteTemplate } = await resolveActiveSiteTemplate(slug)
   const bookLabel = siteTemplate.bookLabel
   const { Header: SiteHeader, Footer: SiteFooter, MobileActions: SiteMobileActions } = siteTemplate.chrome
-  const signIn = clinicPortalSignInUrl(slug)
+  const signIn = clinicPortalSignInUrl(slug, data.profile.portalSettings)
 
   // Resolve the clinic's services into library-enriched rows, then split by
   // category. Show ALL configured services on the index — no 6-cap (the

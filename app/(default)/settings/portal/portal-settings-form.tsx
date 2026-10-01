@@ -5,6 +5,7 @@ import {
   PORTAL_FEATURE_LABELS,
   PORTAL_BOOKABLE_TYPES,
   DEFAULT_AUTO_REPLY_MESSAGE,
+  EXTERNAL_PORTAL_URL_MAX_LEN,
   type PortalSettings,
   type PortalFeatureFlags,
 } from '@/lib/types/portal'
@@ -160,6 +161,9 @@ export default function PortalSettingsForm({
 
   const setAutoReply = (patch: Partial<PortalSettings['autoReply']>) =>
     setSettings((s) => ({ ...s, autoReply: { ...s.autoReply, ...patch } }))
+
+  const setLogin = (patch: Partial<PortalSettings['login']>) =>
+    setSettings((s) => ({ ...s, login: { ...s.login, ...patch } }))
 
   const save = () => {
     setFeedback(null)
@@ -447,6 +451,87 @@ export default function PortalSettingsForm({
     </>
   )
 
+  // Sign-in: which portal the public site's "Patient login" opens. A
+  // practice that already runs its PMS vendor's portal keeps it; the choice
+  // moves every login link, the share-card QR and the site's /portal door
+  // together, so there is never a page that still points at the old one.
+  const external = settings.login.destination === 'external'
+  const loginOptions: Array<{ value: PortalSettings['login']['destination']; label: string; description: string }> = [
+    {
+      value: 'dreamcrm',
+      label: 'DreamCRM patient portal',
+      description: 'Visits, forms, bills and messages in the portal you shape on the other tabs.',
+    },
+    {
+      value: 'external',
+      label: 'Another portal (Modento, Weave, NexHealth…)',
+      description: 'Keep the portal your practice already uses. Patients go straight there.',
+    },
+  ]
+  const signInTab = (
+    <SettingsSection
+      title="Where “Patient login” goes"
+      description="Every Patient login link on your public site, the portal QR on your share cards, and your site’s /portal address lead to the portal you pick here."
+    >
+      <fieldset className="border-t border-gray-100 dark:border-gray-700/50 py-3.5 first:border-t-0 first:pt-0">
+        <legend className="sr-only">Patient login destination</legend>
+        <div className="grid gap-2.5 sm:grid-cols-2">
+          {loginOptions.map((opt) => {
+            const active = settings.login.destination === opt.value
+            return (
+              <label
+                key={opt.value}
+                className={`flex cursor-pointer items-start gap-3 rounded-xl border px-3.5 py-3 transition-colors ${
+                  active
+                    ? 'border-teal-500 bg-teal-50/60 dark:border-teal-400 dark:bg-teal-400/10'
+                    : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="portal-login-destination"
+                  value={opt.value}
+                  checked={active}
+                  onChange={() => setLogin({ destination: opt.value })}
+                  className="form-radio mt-0.5 shrink-0"
+                />
+                <span className="min-w-0">
+                  <span className="block text-sm font-medium text-gray-800 dark:text-gray-100">{opt.label}</span>
+                  <span className="block text-xs leading-relaxed text-gray-500 dark:text-gray-400">{opt.description}</span>
+                </span>
+              </label>
+            )
+          })}
+        </div>
+      </fieldset>
+      {external && (
+        <SettingsRow
+          label="The other portal’s address"
+          htmlFor="portal-external-url"
+          description="The full link, starting with https:// — the same one you’d read a patient over the phone."
+          control={
+            <input
+              id="portal-external-url"
+              type="url"
+              inputMode="url"
+              autoComplete="url"
+              value={settings.login.externalUrl ?? ''}
+              onChange={(e) => setLogin({ externalUrl: e.target.value.trim() === '' ? null : e.target.value })}
+              placeholder="https://portal.example.com/login"
+              maxLength={EXTERNAL_PORTAL_URL_MAX_LEN}
+              className="form-input w-full sm:w-80 text-sm"
+            />
+          }
+        />
+      )}
+      <p className="pt-3 text-xs leading-relaxed text-gray-500 dark:text-gray-400 max-w-prose">
+        {external
+          ? 'Your DreamCRM portal isn’t deleted — switch back any time and everything is still here. While another portal is the front door, your site won’t offer patients a DreamCRM sign-in.'
+          : 'Running a portal through your practice software already? Point the login there and your site stops sending patients to two places.'}
+      </p>
+    </SettingsSection>
+  )
+
   return (
     <div className="space-y-5">
       <SettingsTabs
@@ -454,6 +539,7 @@ export default function PortalSettingsForm({
           { id: 'features', label: 'Features', content: featuresTab },
           { id: 'booking', label: 'Booking', content: bookingTab },
           { id: 'voice', label: 'Voice & display', content: voiceTab },
+          { id: 'signin', label: 'Sign-in', content: signInTab },
         ]}
       />
 

@@ -2,6 +2,7 @@
 // /services, /faq). Pure formatting / string utilities — no DB calls, safe to
 // import from both server components and client-renderable demos.
 
+import { externalPortalUrl } from '@/lib/types/portal'
 import type { ClinicService } from '@/lib/types/clinic-content'
 import type { TemplateMarketingPage, SiteGates } from '@/lib/site-templates/types'
 import { SERVICE_LIBRARY_SEED } from '@/lib/services/service-library-seed'
@@ -27,8 +28,11 @@ export function appBaseUrl(): string {
  * same-origin: a subdomain `/portal` would rewrite to `/site/<slug>/portal` and
  * break the relative `/api/auth/*` call.
  */
-export function clinicPortalSignInUrl(slug: string): string {
-  return `${appBaseUrl()}/site/${encodeURIComponent(slug)}/portal`
+export function clinicPortalSignInUrl(slug: string, portalSettings?: unknown): string {
+  // A clinic that keeps its PMS vendor's portal (Modento, Weave…) points the
+  // front door there — Settings → Patient portal → Sign-in. The stored blob
+  // is passed raw; a missing or invalid choice always resolves to our door.
+  return externalPortalUrl(portalSettings) ?? `${appBaseUrl()}/site/${encodeURIComponent(slug)}/portal`
 }
 
 export const DAYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const
