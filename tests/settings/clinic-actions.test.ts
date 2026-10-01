@@ -202,9 +202,23 @@ describe('updateClinicProfile', () => {
       expect(col in set, `website column '${col}' must not be in the identity payload`).toBe(false)
     }
     // The identity fields it DOES own are present.
-    for (const col of ['displayName', 'phone', 'email', 'logoUrl', 'hours', 'timezone']) {
+    for (const col of ['displayName', 'phone', 'email', 'npi', 'logoUrl', 'hours', 'timezone']) {
       expect(col in set, `identity column '${col}' missing from the payload`).toBe(true)
     }
+  })
+
+  it('stores a 10-digit NPI stripped of punctuation, blanks it when cleared, and refuses junk', async () => {
+    await updateClinicProfile(form({ displayName: 'X', npi: '123-456-7893' }))
+    let set = (ops.find((o) => o.kind === 'insert' && o.table === 'clinic_profile')!.values as { set: Record<string, unknown> }).set
+    expect(set.npi).toBe('1234567893')
+    ops.length = 0
+    await updateClinicProfile(form({ displayName: 'X', npi: '' }))
+    set = (ops.find((o) => o.kind === 'insert' && o.table === 'clinic_profile')!.values as { set: Record<string, unknown> }).set
+    expect(set.npi).toBeNull()
+    ops.length = 0
+    await updateClinicProfile(form({ displayName: 'X', npi: '12' }))
+    set = (ops.find((o) => o.kind === 'insert' && o.table === 'clinic_profile')!.values as { set: Record<string, unknown> }).set
+    expect(set.npi).toBeUndefined() // keeps what was stored
   })
 
   /**

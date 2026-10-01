@@ -84,6 +84,7 @@ echo "    account $ACCOUNT confirmed · driver=$DRIVER mode=$MODE"
 echo "==> Secrets Manager: STEDI_API_KEY in $SECRET_ID"
 CURRENT=$(aws secretsmanager get-secret-value --secret-id "$SECRET_ID" --query SecretString --output text)
 HAS_KEY="no"
+KEY_CHANGED="no"
 if echo "$CURRENT" | python3 -c "import json,sys; d=json.load(sys.stdin); sys.exit(0 if (d.get('STEDI_API_KEY') or '').strip() else 1)"; then
   HAS_KEY="yes"
 fi
@@ -97,6 +98,7 @@ print(json.dumps(d))
   aws secretsmanager put-secret-value --secret-id "$SECRET_ID" --secret-string "$UPDATED" >/dev/null
   if [[ "$HAS_KEY" == "yes" ]]; then echo "    replaced the stored key (not printed)"; else echo "    stored (not printed)"; fi
   HAS_KEY="yes"
+  KEY_CHANGED="yes"
 elif [[ "$HAS_KEY" == "yes" ]]; then
   echo "    already present — leaving it alone (set STEDI_API_KEY in the environment to replace it)"
 elif [[ "$DRIVER" == "stedi" ]]; then
@@ -163,7 +165,13 @@ with open(f'{work}/changed', 'w') as f:
     f.write('yes' if changed else 'no')
 PY
 
-if [[ "$(cat "$WORK/changed")" == "no" ]]; then
+if [[ "$(cat "$WORK/changed")" == "no" && "$KEY_CHANGED" == "yes" ]]; then
+  # App Runner reads a secret ONCE, at instance start — a new value is
+  # invisible to running instances until they are replaced. (The first run
+  # of this script missed this and left production on the old key.)
+  aws apprunner start-deployment --region "$REGION" --service-arn "$SERVICE_ARN" >/dev/null
+  echo "    key changed — redeploying so instances pick it up (~3-5 min)"
+elif [[ "$(cat "$WORK/changed")" == "no" ]]; then
   echo "    already configured — no service update needed"
 else
   aws apprunner update-service --region "$REGION" \

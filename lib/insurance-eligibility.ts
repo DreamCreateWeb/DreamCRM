@@ -95,7 +95,7 @@ export interface EligibilityResult {
   coveragePct: { preventive: number | null; basic: number | null; major: number | null; ortho: number | null } | null
   waitingPeriods: Array<{ category: 'basic' | 'major' | 'ortho'; endsOn: string }>
   /** Code-owned copy for the allowance ("2 per year", "1 every 3 years") + the last date the plan saw one. */
-  frequencies: Array<{ code: FrequencyCode; label: string; limit: string; lastOn: string | null }>
+  frequencies: Array<{ code: FrequencyCode; label: string; limit: string; lastOn: string | null; nextOn?: string | null }>
   missingToothClause: boolean | null
   notes: string[]
   /** When the payer (or the sandbox) answered — ISO instant. */
@@ -153,15 +153,6 @@ export const INSURANCE_DRIVER_LABEL: Record<InsuranceDriverId, { pill: string; t
 /** Which drivers give practice answers rather than real ones. */
 export function isPracticeDriver(driver: InsuranceDriverId): boolean {
   return driver !== 'stedi'
-}
-
-/**
- * The demo org never reaches a real payer: a LIVE driver is swapped for the
- * sandbox there, while practice drivers (sandbox, Stedi test mode) are
- * allowed so the owner can try them on the demo clinic.
- */
-export function effectiveDriverForOrg(isDemo: boolean, driver: InsuranceDriverId): InsuranceDriverId {
-  return isDemo && !isPracticeDriver(driver) ? 'sandbox' : driver
 }
 
 /**

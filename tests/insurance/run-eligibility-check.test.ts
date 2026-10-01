@@ -48,6 +48,30 @@ vi.mock('@/lib/db', async () => {
   }
 })
 
+// The Stedi driver's network half is replaced so the resolver can be exercised
+// under INSURANCE_DRIVER=stedi without a key or a payer.
+vi.mock('@/lib/services/insurance-eligibility/stedi', () => ({
+  makeStediProvider: (id: string) => ({
+    id,
+    check: async () => ({
+      status: 'active',
+      payerName: 'Ameritas',
+      planName: null,
+      coverage: { effective: '2026-01-01', termination: null },
+      network: 'unknown',
+      annualMax: null,
+      deductible: null,
+      coveragePct: null,
+      waitingPeriods: [],
+      frequencies: [],
+      missingToothClause: null,
+      notes: [],
+      asOf: '2026-09-30T15:00:00.000Z',
+    }),
+  }),
+  searchStediPayers: async () => [],
+}))
+
 const recordAction = vi.fn(async (_input: Record<string, unknown>) => true)
 vi.mock('@/lib/services/action-ledger', () => ({ recordAction: (input: Record<string, unknown>) => recordAction(input) }))
 
@@ -127,14 +151,18 @@ describe('runEligibilityCheck', () => {
     expect(state.inserts[0].values.patientId).toBeNull()
   })
 
-  it('a demo org swaps a LIVE driver for the sandbox', async () => {
+  it('the demo org gets the configured driver like any other org — no silent sandbox swap', async () => {
+    // Only a platform admin can act in the demo org, and a check is a
+    // deliberate click; swapping their test to the sandbox (the first draft)
+    // turned a real answer into a fake one without saying so.
     state.org = [{ isDemo: true }]
     process.env.INSURANCE_DRIVER = 'stedi'
     process.env.STEDI_MODE = 'live'
     const r = await runEligibilityCheck('org_demo', { input: input(), now: NOW })
     delete process.env.INSURANCE_DRIVER
     delete process.env.STEDI_MODE
-    expect(r.ok && r.check.driver).toBe('sandbox')
+    expect(r.ok && r.check.driver).toBe('stedi')
+    expect(r.ok && r.check.status).toBe('active')
   })
 
   it('a database failure returns a typed refusal instead of throwing', async () => {
