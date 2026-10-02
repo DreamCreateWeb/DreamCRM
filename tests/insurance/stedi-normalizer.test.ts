@@ -186,6 +186,44 @@ describe('normalizeStediResponse — benefits', () => {
     expect(r.notes).toContain('12 MONTH WAITING PERIOD ON MAJOR SERVICES')
   })
 
+  it('reads the FAMILY deductible into its own field instead of dropping it', () => {
+    expect(r.familyDeductible).toEqual({ individualCents: 15_000, metCents: null, remainingCents: null })
+    expect(r.familyMax).toBeNull()
+  })
+
+  it('a total-only maximum stays total-only — used and remaining are NOT invented', () => {
+    const totalOnly = JSON.parse(JSON.stringify(DENTAL_ACTIVE))
+    totalOnly.plans[0].benefits.outOfPocket = totalOnly.plans[0].benefits.outOfPocket.filter((e: { timePeriod: string }) => e.timePeriod !== 'REMAINING')
+    totalOnly.plans[0].benefits.deductible = totalOnly.plans[0].benefits.deductible.filter((e: { timePeriod: string }) => e.timePeriod !== 'REMAINING')
+    const out = normalizeStediResponse(totalOnly, req(), NOW)
+    expect(out.annualMax).toEqual({ totalCents: 150_000, usedCents: null, remainingCents: null })
+    expect(out.deductible).toEqual({ individualCents: 5_000, metCents: null, remainingCents: null })
+  })
+
+  it('a remaining-only maximum is kept rather than thrown away', () => {
+    const remainingOnly = JSON.parse(JSON.stringify(DENTAL_ACTIVE))
+    remainingOnly.plans[0].benefits.outOfPocket = remainingOnly.plans[0].benefits.outOfPocket.filter((e: { timePeriod: string }) => e.timePeriod === 'REMAINING')
+    const out = normalizeStediResponse(remainingOnly, req(), NOW)
+    expect(out.annualMax).toEqual({ totalCents: null, usedCents: null, remainingCents: 88_000 })
+  })
+
+  it('an ortho LIFETIME maximum (STC 38) lands in orthoLifetimeMax and never in the yearly maximum', () => {
+    const withOrtho = JSON.parse(JSON.stringify(DENTAL_ACTIVE))
+    withOrtho.plans[0].benefits.outOfPocket.push(
+      { amount: '1500', coverageLevel: 'INDIVIDUAL', service: { system: 'STC', value: '38' }, timePeriod: 'LIFETIME' },
+      { amount: '900', coverageLevel: 'INDIVIDUAL', service: { system: 'STC', value: '38' }, timePeriod: 'LIFETIME_REMAINING' },
+    )
+    withOrtho.plans[0].benefits.outOfPocket.push({ amount: '3000', coverageLevel: 'FAMILY', service: { system: 'STC', value: '35' }, timePeriod: 'CALENDAR_YEAR' })
+    const out = normalizeStediResponse(withOrtho, req(), NOW)
+    expect(out.orthoLifetimeMax).toEqual({ totalCents: 150_000, usedCents: 60_000, remainingCents: 90_000 })
+    expect(out.annualMax).toEqual({ totalCents: 150_000, usedCents: 62_000, remainingCents: 88_000 })
+    expect(out.familyMax).toEqual({ totalCents: 300_000, usedCents: null, remainingCents: null })
+    // An ortho row stated only as a yearly figure for STC 38 is not this year's plan maximum either.
+    const orthoYear = JSON.parse(JSON.stringify(DENTAL_ACTIVE))
+    orthoYear.plans[0].benefits.outOfPocket = [{ amount: '1000', coverageLevel: 'INDIVIDUAL', service: { system: 'STC', value: '38' }, timePeriod: 'CALENDAR_YEAR' }]
+    expect(normalizeStediResponse(orthoYear, req(), NOW).annualMax).toBeNull()
+  })
+
   it('an all-inactive status set is inactive; no plans at all needs a look', () => {
     const inactive = JSON.parse(JSON.stringify(DENTAL_ACTIVE))
     inactive.plans[0].benefits.statuses[0].status = 'INACTIVE'

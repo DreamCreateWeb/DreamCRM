@@ -55,11 +55,12 @@ describe('steering suffixes', () => {
     expect(pickSandboxScenario(req('DD-100-9999'))).toBe('not_found')
     expect(pickSandboxScenario(req('DD-100-5555'))).toBe('needs_review')
     expect(pickSandboxScenario(req('DD-100-0001'))).toBe('timeout')
+    expect(pickSandboxScenario(req('DD-100-7777'))).toBe('active_total_only')
   })
 
   it('the documented list and the driver agree on which suffixes exist', () => {
     const suffixes = SANDBOX_STEERING.map((s) => s.suffix).sort()
-    expect(suffixes).toEqual(['0000', '0001', '5555', '9999'])
+    expect(suffixes).toEqual(['0000', '0001', '5555', '7777', '9999'])
   })
 
   it('the timeout suffix makes the provider THROW (the service stores an error row)', async () => {
@@ -75,11 +76,13 @@ describe('renderSandboxScenario', () => {
       const r = renderSandboxScenario(key, req(), NOW)
       expect(r.asOf).toBe(NOW.toISOString())
       expect(r.payerName).toBe('Delta Dental')
-      if (r.annualMax) {
+      if (r.annualMax && r.annualMax.totalCents != null && r.annualMax.usedCents != null) {
         expect(r.annualMax.remainingCents).toBe(r.annualMax.totalCents - r.annualMax.usedCents)
         expect(Number.isInteger(r.annualMax.usedCents)).toBe(true)
       }
-      if (r.deductible) expect(r.deductible.remainingCents).toBe(r.deductible.individualCents - r.deductible.metCents)
+      if (r.deductible && r.deductible.individualCents != null && r.deductible.metCents != null) {
+        expect(r.deductible.remainingCents).toBe(r.deductible.individualCents - r.deductible.metCents)
+      }
       expect(Array.isArray(r.notes)).toBe(true)
     }
   })
@@ -99,6 +102,21 @@ describe('renderSandboxScenario', () => {
       { category: 'basic', endsOn: '2027-01-01' },
       { category: 'major', endsOn: '2027-07-01' },
     ])
+  })
+
+  it('the total-only scenario states the maximum and deductible with NO used or remaining figure', () => {
+    const r = renderSandboxScenario('active_total_only', req(), NOW)
+    expect(r.status).toBe('active')
+    expect(r.annualMax).toEqual({ totalCents: 150_000, usedCents: null, remainingCents: null })
+    expect(r.deductible).toEqual({ individualCents: 5_000, metCents: null, remainingCents: null })
+    expect(r.notes.join(' ')).toMatch(/not how much has been used/)
+  })
+
+  it('the rich plan carries family and ortho-lifetime amounts so the plan-rules block is demoable', () => {
+    const r = renderSandboxScenario('active_rich', req(), NOW)
+    expect(r.familyMax?.totalCents).toBe(400_000)
+    expect(r.familyDeductible?.individualCents).toBe(15_000)
+    expect(r.orthoLifetimeMax).toEqual({ totalCents: 150_000, usedCents: 0, remainingCents: 150_000 })
   })
 
   it('plan names are carrier-flavoured and fall back honestly', () => {

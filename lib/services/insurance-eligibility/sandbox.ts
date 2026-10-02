@@ -25,6 +25,7 @@ export type SandboxScenarioKey =
   | 'active_rich'
   | 'active_exhausted'
   | 'active_waiting'
+  | 'active_total_only'
   | 'inactive'
   | 'not_found'
   | 'needs_review'
@@ -34,6 +35,7 @@ export const SANDBOX_SCENARIO_KEYS: readonly SandboxScenarioKey[] = [
   'active_rich',
   'active_exhausted',
   'active_waiting',
+  'active_total_only',
   'inactive',
   'not_found',
   'needs_review',
@@ -69,6 +71,7 @@ export function pickSandboxScenario(req: EligibilityRequest): SandboxScenarioKey
   if (digits.endsWith('9999')) return 'not_found'
   if (digits.endsWith('5555')) return 'needs_review'
   if (digits.endsWith('0001')) return 'timeout'
+  if (digits.endsWith('7777')) return 'active_total_only'
   return ACTIVE_SCENARIOS[hashRequest(req) % ACTIVE_SCENARIOS.length]
 }
 
@@ -125,6 +128,9 @@ export function renderSandboxScenario(key: SandboxScenarioKey, req: EligibilityR
     network: 'unknown',
     annualMax: null,
     deductible: null,
+    familyMax: null,
+    familyDeductible: null,
+    orthoLifetimeMax: null,
     coveragePct: null,
     waitingPeriods: [],
     frequencies: [],
@@ -157,10 +163,26 @@ export function renderSandboxScenario(key: SandboxScenarioKey, req: EligibilityR
         status: 'active',
         annualMax: { totalCents: 200_000, usedCents: 30_000, remainingCents: 170_000 },
         deductible: { individualCents: 5_000, metCents: 5_000, remainingCents: 0 },
+        familyMax: { totalCents: 400_000, usedCents: 90_000, remainingCents: 310_000 },
+        familyDeductible: { individualCents: 15_000, metCents: 10_000, remainingCents: 5_000 },
+        orthoLifetimeMax: { totalCents: 150_000, usedCents: 0, remainingCents: 150_000 },
         coveragePct: { preventive: 100, basic: 80, major: 50, ortho: 50 },
         frequencies: freq(4, 4, 4, 30),
         missingToothClause: false,
-        notes: ['Orthodontics covered at 50% for dependents under 19, lifetime maximum $1,500.'],
+        notes: ['Orthodontics covered at 50% for dependents under 19.'],
+      }
+    case 'active_total_only':
+      // The honesty scenario: a payer that answers "the maximum is $1,500"
+      // and nothing about what is used. The card must say so, not show $0.
+      return {
+        ...base,
+        status: 'active',
+        annualMax: { totalCents: 150_000, usedCents: null, remainingCents: null },
+        deductible: { individualCents: 5_000, metCents: null, remainingCents: null },
+        coveragePct: { preventive: 100, basic: 80, major: 50, ortho: null },
+        frequencies: freq(null, null, null, null),
+        missingToothClause: null,
+        notes: ['This payer states the yearly maximum and deductible but not how much has been used — call them before quoting major work.'],
       }
     case 'active_exhausted':
       return {

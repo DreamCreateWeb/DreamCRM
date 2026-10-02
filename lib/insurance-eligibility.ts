@@ -83,14 +83,40 @@ export type NetworkStatus = 'in_network' | 'out_of_network' | 'unknown'
 
 export type FrequencyCode = 'exam' | 'prophy' | 'bitewings' | 'fmx' | 'fluoride' | 'other'
 
+/**
+ * A dollar benefit as the payer stated it. Every part is nullable BY LAW: a
+ * payer that answers "your maximum is $2,500" and nothing else has NOT said
+ * how much is used, and showing "$2,500 left · $0 used" would be a guess
+ * dressed up as a fact. At least one part is non-null when the object exists
+ * (an all-null amount is `null`). When total and remaining are both stated,
+ * used is their difference — arithmetic, not a guess.
+ */
+export interface BenefitAmount {
+  totalCents: number | null
+  usedCents: number | null
+  remainingCents: number | null
+}
+
+/** The deductible, in the payer's own words (`individual` / `met`). Same nullability law. */
+export interface DeductibleAmount {
+  individualCents: number | null
+  metCents: number | null
+  remainingCents: number | null
+}
+
 export interface EligibilityResult {
   status: Exclude<EligibilityStatus, 'error'>
   payerName: string
   planName: string | null
   coverage: { effective: string | null; termination: string | null }
   network: NetworkStatus
-  annualMax: { totalCents: number; usedCents: number; remainingCents: number } | null
-  deductible: { individualCents: number; metCents: number; remainingCents: number } | null
+  annualMax: BenefitAmount | null
+  deductible: DeductibleAmount | null
+  /** Family-level maximum / deductible, when the payer stated them (older rows: absent). */
+  familyMax?: BenefitAmount | null
+  familyDeductible?: DeductibleAmount | null
+  /** The orthodontic lifetime maximum (STC 38, LIFETIME), when stated. */
+  orthoLifetimeMax?: BenefitAmount | null
   /** Plan-pays percent per tier; null per tier when the payer didn't say (the UI shows —, never a guess). */
   coveragePct: { preventive: number | null; basic: number | null; major: number | null; ortho: number | null } | null
   waitingPeriods: Array<{ category: 'basic' | 'major' | 'ortho'; endsOn: string }>
@@ -115,6 +141,8 @@ export interface InsuranceCheckView {
   error: string | null
   checkedAtIso: string
   requestedByUserId: string | null
+  /** The staff member who ran it, for "Checked today by Dana"; null for seeded or system rows. */
+  requestedByName: string | null
 }
 
 /**
@@ -270,6 +298,104 @@ export function benefitDollars(cents: number): string {
   return `$${Math.round(cents / 100).toLocaleString('en-US')}`
 }
 
+/** The deductible in the shared total/used/remaining shape. */
+export function deductibleAsAmount(d: DeductibleAmount | null | undefined): BenefitAmount | null {
+  if (!d) return null
+  return { totalCents: d.individualCents, usedCents: d.metCents, remainingCents: d.remainingCents }
+}
+
+/** A benefit amount with nothing stated is no amount at all. */
+export function hasAnyAmount(a: BenefitAmount | null | undefined): a is BenefitAmount {
+  return !!a && (a.totalCents != null || a.usedCents != null || a.remainingCents != null)
+}
+
+export interface BenefitAmountCopy {
+  /** The big number ("$1,240 left", "Up to $2,500", "Met"). */
+  headline: string
+  /** The honest sub-line ("of $2,500 · $1,260 used", "the payer didn’t say how much is used"). */
+  sub: string
+  /** used ÷ total when BOTH are stated (the heartbeat's fuel); null otherwise — never drawn from a guess. */
+  fractionUsed: number | null
+  /** Whether the sub-line is a "didn't say" caveat rather than a fact. */
+  caveat: boolean
+}
+
+/**
+ * THE ONE HOME for how a dollar benefit is worded — the result card, the rail
+ * card, the printable sheet and the copied summary all read it. The law: say
+ * what the payer stated, derive only what arithmetic allows, and say out loud
+ * what the payer left out.
+ */
+export function describeBenefitAmount(a: BenefitAmount | null | undefined, kind: 'max' | 'deductible'): BenefitAmountCopy | null {
+  if (!hasAnyAmount(a)) return null
+  const total = a.totalCents
+  const remaining = a.remainingCents
+  // Used is the payer's figure, else the difference when both ends are known.
+  const used = a.usedCents ?? (total != null && remaining != null ? Math.max(0, total - remaining) : null)
+  const fractionUsed = total != null && total > 0 && used != null ? Math.min(1, used / total) : null
+  const left = remaining ?? (total != null && used != null ? Math.max(0, total - used) : null)
+
+  if (kind === 'deductible') {
+    if (left != null) {
+      if (left === 0) {
+        return { headline: 'Met', sub: total != null ? `the ${benefitDollars(total)} deductible is met for the year` : 'met for the year', fractionUsed, caveat: false }
+      }
+      if (total != null) return { headline: `${benefitDollars(left)} left`, sub: `of ${benefitDollars(total)}${used != null ? ` · ${benefitDollars(used)} met` : ''}`, fractionUsed, caveat: false }
+      return { headline: `${benefitDollars(left)} left`, sub: 'the payer didn’t say the full deductible', fractionUsed, caveat: true }
+    }
+    if (total != null) return { headline: benefitDollars(total), sub: 'the payer didn’t say how much is met', fractionUsed: null, caveat: true }
+    // Only "met" is known.
+    return { headline: `${benefitDollars(used!)} met`, sub: 'the payer didn’t say the full deductible', fractionUsed: null, caveat: true }
+  }
+
+  if (left != null) {
+    if (total != null) {
+      const usedText = used != null ? (left === 0 ? 'all used this year' : `${benefitDollars(used)} used`) : null
+      return { headline: `${benefitDollars(left)} left`, sub: `of ${benefitDollars(total)}${usedText ? ` · ${usedText}` : ''}`, fractionUsed, caveat: false }
+    }
+    return { headline: `${benefitDollars(left)} left`, sub: 'the payer didn’t say the yearly maximum', fractionUsed, caveat: true }
+  }
+  if (total != null) {
+    return { headline: `Up to ${benefitDollars(total)}`, sub: 'the payer didn’t say how much is used', fractionUsed: null, caveat: true }
+  }
+  // Only "used" is known — rare, but a real payer sentence.
+  return { headline: `${benefitDollars(used!)} used`, sub: 'the payer didn’t say the yearly maximum', fractionUsed: null, caveat: true }
+}
+
+/**
+ * How long a verdict stays worth trusting. Benefits move with every claim the
+ * office across town files, and a plan can end on the last day of any month —
+ * a month-old check is a lead, not an answer.
+ */
+export const VERIFICATION_FRESH_DAYS = 30
+
+const DAY_MS = 24 * 60 * 60 * 1000
+
+export function isStaleCheck(checkedAtIso: string, now: Date = new Date()): boolean {
+  const at = new Date(checkedAtIso).getTime()
+  if (!Number.isFinite(at)) return true
+  return now.getTime() - at > VERIFICATION_FRESH_DAYS * DAY_MS
+}
+
+/** "today", "yesterday", "6 days ago", "3 weeks ago", "4 months ago", "over a year ago". */
+export function checkAgeLabel(checkedAtIso: string, now: Date = new Date()): string {
+  const at = new Date(checkedAtIso).getTime()
+  if (!Number.isFinite(at)) return 'some time ago'
+  const days = Math.floor((now.getTime() - at) / DAY_MS)
+  if (days <= 0) return 'today'
+  if (days === 1) return 'yesterday'
+  if (days < 7) return `${days} days ago`
+  if (days < 30) {
+    const w = Math.floor(days / 7)
+    return w === 1 ? 'a week ago' : `${w} weeks ago`
+  }
+  if (days < 365) {
+    const m = Math.floor(days / 30)
+    return m === 1 ? 'a month ago' : `${m} months ago`
+  }
+  return 'over a year ago'
+}
+
 export function summarizeCheckForTimeline(view: Pick<InsuranceCheckView, 'status' | 'driver' | 'result' | 'input'>): {
   title: string
   subtitle: string
@@ -302,4 +428,5 @@ export const SANDBOX_STEERING: ReadonlyArray<{ suffix: string; outcome: string }
   { suffix: '9999', outcome: 'Member not found' },
   { suffix: '5555', outcome: 'Needs a look (subscriber mismatch)' },
   { suffix: '0001', outcome: 'The payer times out (a failed check)' },
+  { suffix: '7777', outcome: 'Active, but the payer only states the yearly maximum (no "used" figure)' },
 ]

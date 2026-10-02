@@ -1,4 +1,4 @@
-import type { EligibilityRequest, EligibilityResult, EligibilityStatus, FrequencyCode } from '@/lib/insurance-eligibility'
+import type { BenefitAmount, DeductibleAmount, EligibilityRequest, EligibilityResult, EligibilityStatus, FrequencyCode } from '@/lib/insurance-eligibility'
 
 /**
  * Stedi eligibility — the PURE half of the driver (no network, no server-only
@@ -231,6 +231,11 @@ function isIndividual(e: Entry): boolean {
   const lvl = asString(e.coverageLevel)
   return !lvl || lvl === 'INDIVIDUAL' || lvl === 'EMPLOYEE_ONLY'
 }
+/** Family-level rows: FAMILY, EMPLOYEE_AND_SPOUSE, EMPLOYEE_AND_CHILDREN, … — anything stated for more than one person. */
+function isFamily(e: Entry): boolean {
+  const lvl = asString(e.coverageLevel)
+  return !!lvl && !isIndividual(e)
+}
 function networkRank(e: Entry): number {
   const ind = asString(asRecord(e.network).indicator)
   if (ind === 'IN_NETWORK') return 0
@@ -242,17 +247,50 @@ function period(e: Entry): string | null {
 }
 const YEAR_PERIODS = new Set(['CALENDAR_YEAR', 'SERVICE_YEAR', 'YEARS', 'YEAR_TO_DATE', 'CONTRACT'])
 
-/** The best-scoped amount for a category: individual, in-network first. */
-function pickAmount(list: Entry[], want: 'year' | 'remaining'): number | null {
+type AmountWant = 'year' | 'remaining' | 'lifetime' | 'lifetime_remaining'
+
+function wantsPeriod(want: AmountWant, p: string | null): boolean {
+  switch (want) {
+    case 'remaining':
+      return p === 'REMAINING'
+    case 'lifetime':
+      return p === 'LIFETIME'
+    case 'lifetime_remaining':
+      return p === 'LIFETIME_REMAINING'
+    default:
+      return !p || YEAR_PERIODS.has(p)
+  }
+}
+
+/** The best-scoped amount for a category: the asked coverage level, in-network first. */
+function pickAmount(list: Entry[], want: AmountWant, level: 'individual' | 'family' = 'individual'): number | null {
   const candidates = list
-    .filter((e) => isDentalish(e) && isIndividual(e))
-    .filter((e) => {
-      const p = period(e)
-      return want === 'remaining' ? p === 'REMAINING' : !p || YEAR_PERIODS.has(p)
-    })
+    .filter((e) => isDentalish(e) && (level === 'family' ? isFamily(e) : isIndividual(e)))
+    .filter((e) => wantsPeriod(want, period(e)))
     .filter((e) => cents(e.amount) != null)
     .sort((a, b) => networkRank(a) - networkRank(b) || (serviceValue(b) === DENTAL_STC ? 1 : 0) - (serviceValue(a) === DENTAL_STC ? 1 : 0))
   return candidates.length ? cents(candidates[0].amount) : null
+}
+
+/**
+ * Assemble what the payer STATED into a benefit amount. Used is derived only
+ * when both ends are known — otherwise it stays null and the UI says so.
+ */
+function amountOf(total: number | null, remaining: number | null): BenefitAmount | null {
+  if (total == null && remaining == null) return null
+  return {
+    totalCents: total,
+    usedCents: total != null && remaining != null ? Math.max(0, total - remaining) : null,
+    remainingCents: remaining,
+  }
+}
+function deductibleOf(total: number | null, remaining: number | null): DeductibleAmount | null {
+  if (total == null && remaining == null) return null
+  return {
+    individualCents: total,
+    metCents: total != null && remaining != null ? Math.max(0, total - remaining) : null,
+    remainingCents: remaining,
+  }
 }
 
 /** STC → the tier the front desk talks in. */
@@ -462,6 +500,9 @@ export function normalizeStediResponse(json: unknown, req: EligibilityRequest, n
     network: 'unknown',
     annualMax: null,
     deductible: null,
+    familyMax: null,
+    familyDeductible: null,
+    orthoLifetimeMax: null,
     coveragePct: null,
     waitingPeriods: [],
     frequencies: [],
@@ -530,8 +571,19 @@ export function normalizeStediResponse(json: unknown, req: EligibilityRequest, n
   // A carry-over (rollover) maximum rides the same limitation rows with a
   // smaller amount — it is a bonus on top of the maximum, not the maximum.
   const dollarLimits = limits.filter((e) => !asRecord(e.quantity).value && !/carry\s*over|rollover/i.test(messages(e).join(' ')))
-  const maxTotal = pickAmount(oop, 'year') ?? pickAmount(dollarLimits, 'year')
-  const maxRemaining = pickAmount(oop, 'remaining') ?? pickAmount(dollarLimits, 'remaining')
+  // The yearly maximum is a plan-wide figure; an ortho LIFETIME row is a
+  // different pot and must never be read as this year's.
+  const notOrtho = (e: Entry) => serviceValue(e) !== '38'
+  const yearly = [...oop.filter(notOrtho), ...dollarLimits.filter(notOrtho)]
+  const maxTotal = pickAmount(yearly, 'year')
+  const maxRemaining = pickAmount(yearly, 'remaining')
+  const familyMaxTotal = pickAmount(yearly, 'year', 'family')
+  const familyMaxRemaining = pickAmount(yearly, 'remaining', 'family')
+  const familyDedTotal = pickAmount(deductible, 'year', 'family')
+  const familyDedRemaining = pickAmount(deductible, 'remaining', 'family')
+  const ortho = [...oop, ...dollarLimits].filter((e) => serviceValue(e) === '38')
+  const orthoTotal = pickAmount(ortho, 'lifetime')
+  const orthoRemaining = pickAmount(ortho, 'lifetime_remaining')
 
   const notes: string[] = []
   const allMessages = [...limits, ...entries(benefits, 'benefitDescription'), ...entries(benefits, 'exclusions')].flatMap(messages)
@@ -550,22 +602,11 @@ export function normalizeStediResponse(json: unknown, req: EligibilityRequest, n
     status,
     planName: asString(plan.name),
     coverage,
-    deductible:
-      dedTotal != null
-        ? {
-            individualCents: dedTotal,
-            metCents: dedRemaining != null ? Math.max(0, dedTotal - dedRemaining) : 0,
-            remainingCents: dedRemaining ?? dedTotal,
-          }
-        : null,
-    annualMax:
-      maxTotal != null
-        ? {
-            totalCents: maxTotal,
-            usedCents: maxRemaining != null ? Math.max(0, maxTotal - maxRemaining) : 0,
-            remainingCents: maxRemaining ?? maxTotal,
-          }
-        : null,
+    deductible: deductibleOf(dedTotal, dedRemaining),
+    annualMax: amountOf(maxTotal, maxRemaining),
+    familyMax: amountOf(familyMaxTotal, familyMaxRemaining),
+    familyDeductible: deductibleOf(familyDedTotal, familyDedRemaining),
+    orthoLifetimeMax: amountOf(orthoTotal, orthoRemaining),
     coveragePct: coverageTiers(coIns),
     frequencies: frequencyRows(limits),
     missingToothClause: missingTooth ? true : null,

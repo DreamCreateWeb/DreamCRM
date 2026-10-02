@@ -40,7 +40,7 @@ export function resolveEligibilityProvider(driver: InsuranceDriverId = resolveIn
 
 type CheckRow = typeof schema.insuranceVerification.$inferSelect
 
-function toView(row: CheckRow, patientName: string | null): InsuranceCheckView {
+function toView(row: CheckRow, patientName: string | null, requestedByName: string | null = null): InsuranceCheckView {
   return {
     id: row.id,
     patientId: row.patientId,
@@ -52,6 +52,18 @@ function toView(row: CheckRow, patientName: string | null): InsuranceCheckView {
     error: row.error,
     checkedAtIso: row.checkedAt.toISOString(),
     requestedByUserId: row.requestedByUserId,
+    requestedByName,
+  }
+}
+
+/** The name behind "Checked today by Dana" — best-effort, null when unknown. */
+async function userDisplayName(userId: string | null | undefined): Promise<string | null> {
+  if (!userId) return null
+  try {
+    const [u] = await db.select({ name: schema.user.name }).from(schema.user).where(eq(schema.user.id, userId)).limit(1)
+    return u?.name?.trim() || null
+  } catch {
+    return null
   }
 }
 
@@ -127,7 +139,7 @@ export async function runEligibilityCheck(
       createdAt: now,
     }
     await db.insert(schema.insuranceVerification).values(row)
-    const view = toView(row, patientName)
+    const view = toView(row, patientName, await userDisplayName(opts.userId))
 
     await recordAction({
       organizationId,
@@ -158,15 +170,16 @@ const viewSelect = {
   createdAt: schema.insuranceVerification.createdAt,
   patientFirstName: schema.patient.firstName,
   patientLastName: schema.patient.lastName,
+  requestedByName: schema.user.name,
 }
 
-type JoinedRow = CheckRow & { patientFirstName: string | null; patientLastName: string | null }
+type JoinedRow = CheckRow & { patientFirstName: string | null; patientLastName: string | null; requestedByName?: string | null }
 
 function joinedToView(r: JoinedRow): InsuranceCheckView {
   const name = r.patientId && (r.patientFirstName || r.patientLastName)
     ? `${r.patientFirstName ?? ''} ${r.patientLastName ?? ''}`.trim()
     : null
-  return toView(r, name)
+  return toView(r, name, r.requestedByName?.trim() || null)
 }
 
 /** The org's latest checks, newest first — the page's "Recent checks" list. */
@@ -175,6 +188,7 @@ export async function listRecentInsuranceChecks(organizationId: string, limit = 
     .select(viewSelect)
     .from(schema.insuranceVerification)
     .leftJoin(schema.patient, eq(schema.insuranceVerification.patientId, schema.patient.id))
+    .leftJoin(schema.user, eq(schema.insuranceVerification.requestedByUserId, schema.user.id))
     .where(eq(schema.insuranceVerification.organizationId, organizationId))
     .orderBy(desc(schema.insuranceVerification.checkedAt))
     .limit(limit)
@@ -189,6 +203,7 @@ export async function getLatestInsuranceCheckForPatient(
     .select(viewSelect)
     .from(schema.insuranceVerification)
     .leftJoin(schema.patient, eq(schema.insuranceVerification.patientId, schema.patient.id))
+    .leftJoin(schema.user, eq(schema.insuranceVerification.requestedByUserId, schema.user.id))
     .where(
       and(
         eq(schema.insuranceVerification.organizationId, organizationId),
@@ -210,6 +225,7 @@ export async function listInsuranceChecksForPatient(
     .select(viewSelect)
     .from(schema.insuranceVerification)
     .leftJoin(schema.patient, eq(schema.insuranceVerification.patientId, schema.patient.id))
+    .leftJoin(schema.user, eq(schema.insuranceVerification.requestedByUserId, schema.user.id))
     .where(
       and(
         eq(schema.insuranceVerification.organizationId, organizationId),
