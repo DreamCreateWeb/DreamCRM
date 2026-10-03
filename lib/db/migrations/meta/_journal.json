@@ -1170,6 +1170,13 @@
       "when": 1790791686229,
       "tag": "0166_insurance_verification",
       "breakpoints": true
+    },
+    {
+      "idx": 167,
+      "version": "7",
+      "when": 1791053390234,
+      "tag": "0167_patient_insurance_detail",
+      "breakpoints": true
     }
   ]
 }

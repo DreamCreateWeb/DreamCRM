@@ -74,6 +74,8 @@ import {
   getLatestInsuranceCheckForPatient,
   listInsuranceChecksForPatient,
   listRecentInsuranceChecks,
+  getRememberedCard,
+  rememberCheckedCard,
 } from '@/lib/services/insurance-eligibility'
 
 const ORG_A = 'org_a_acme_dental'
@@ -160,5 +162,21 @@ describe('insurance check queries are org-scoped', () => {
     expect(out[0].checkedAtIso).toBe('2026-09-20T15:00:00.000Z')
     expect(out[1].patientName).toBeNull()
     expect(out[1].patientId).toBeNull()
+  })
+
+  it('rememberCheckedCard and getRememberedCard both carry the org id — a detail can never land on another clinic’s patient', async () => {
+    state.wheres = []
+    state.rows = [{ id: 'pat_1' }]
+    const detail = { memberId: 'DD-1', payerId: null, payerName: 'Delta Dental', planName: null, relationship: 'self' as const, subscriber: null, source: 'check' as const, updatedAt: '2026-10-03T00:00:00.000Z' }
+    expect(await rememberCheckedCard(ORG_A, 'pat_1', detail)).toBe(true)
+    expect(state.wheres[0]).toContain(ORG_A)
+    expect(state.wheres[0]).toContain('pat_1')
+    state.wheres = []
+    state.rows = [{ detail, policy: 'DD-1' }]
+    expect(await getRememberedCard(ORG_A, 'pat_1')).toMatchObject({ memberId: 'DD-1' })
+    expect(state.wheres[0]).toContain(ORG_A)
+    // A changed on-file card retires the detail at read time.
+    state.rows = [{ detail, policy: 'CHANGED' }]
+    expect(await getRememberedCard(ORG_A, 'pat_1')).toBeNull()
   })
 })

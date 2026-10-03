@@ -2,7 +2,11 @@ import 'server-only'
 import { and, desc, eq, isNull } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import {
+  checkRecognisedCard,
+  detailFromRequest,
+  detailMatchesOnFile,
   ledgerSummaryForCheck,
+  parseInsuranceDetail,
   resolveInsuranceDriverId,
   validateEligibilityRequest,
   type EligibilityRequest,
@@ -10,6 +14,7 @@ import {
   type EligibilityStatus,
   type InsuranceCheckView,
   type InsuranceDriverId,
+  type PatientInsuranceDetail,
 } from '@/lib/insurance-eligibility'
 import { recordAction } from '@/lib/services/action-ledger'
 import type { EligibilityProvider } from './provider'
@@ -98,15 +103,22 @@ export async function runEligibilityCheck(
     // Never trust a client-supplied patient id: it must be this org's.
     let patientId: string | null = null
     let patientName: string | null = null
+    let onFilePolicyNumber: string | null = null
     if (opts.patientId) {
       const [p] = await db
-        .select({ id: schema.patient.id, firstName: schema.patient.firstName, lastName: schema.patient.lastName })
+        .select({
+          id: schema.patient.id,
+          firstName: schema.patient.firstName,
+          lastName: schema.patient.lastName,
+          insurancePolicyNumber: schema.patient.insurancePolicyNumber,
+        })
         .from(schema.patient)
         .where(and(eq(schema.patient.organizationId, organizationId), eq(schema.patient.id, opts.patientId)))
         .limit(1)
       if (p) {
         patientId = p.id
         patientName = `${p.firstName} ${p.lastName}`.trim()
+        onFilePolicyNumber = p.insurancePolicyNumber
       }
     }
 
@@ -141,6 +153,16 @@ export async function runEligibilityCheck(
     await db.insert(schema.insuranceVerification).values(row)
     const view = toView(row, patientName, await userDisplayName(opts.userId))
 
+    // The record remembers the card — but only a card the payer RECOGNISED
+    // (a not-found or a failed check says nothing about the card), and only
+    // when it is the card on file (an empty policy number, or the same one):
+    // the tool promises that edits don't change the record until you save.
+    const onFile = (onFilePolicyNumber ?? '').trim()
+    const isCardOnFile = !onFile || onFile === input.memberId.trim()
+    if (patientId && result && checkRecognisedCard(status) && isCardOnFile) {
+      await rememberCheckedCard(organizationId, patientId, detailFromRequest(input, result, 'check', now))
+    }
+
     await recordAction({
       organizationId,
       capability: 'insurance_check',
@@ -154,6 +176,42 @@ export async function runEligibilityCheck(
     console.error('[insurance-eligibility] check failed:', e)
     return { ok: false, errors: { _form: 'Could not save this check. Try again in a moment.' } }
   }
+}
+
+/**
+ * Stamp the remembered card on a patient. Writes ONLY `insurance_detail` —
+ * never the three flat columns, which belong to their own writers. Best
+ * effort: a failed stamp must not turn a stored, narrated check into an
+ * error for the person at the desk.
+ */
+export async function rememberCheckedCard(
+  organizationId: string,
+  patientId: string,
+  detail: PatientInsuranceDetail,
+): Promise<boolean> {
+  try {
+    const updated = await db
+      .update(schema.patient)
+      .set({ insuranceDetail: detail, updatedAt: new Date() })
+      .where(and(eq(schema.patient.organizationId, organizationId), eq(schema.patient.id, patientId)))
+      .returning({ id: schema.patient.id })
+    return updated.length > 0
+  } catch (e) {
+    console.error('[insurance-eligibility] remember card failed:', e)
+    return false
+  }
+}
+
+/** The remembered card on a patient, parsed; null when none or when it no longer matches the on-file policy number. */
+export async function getRememberedCard(organizationId: string, patientId: string): Promise<PatientInsuranceDetail | null> {
+  const [p] = await db
+    .select({ detail: schema.patient.insuranceDetail, policy: schema.patient.insurancePolicyNumber })
+    .from(schema.patient)
+    .where(and(eq(schema.patient.organizationId, organizationId), eq(schema.patient.id, patientId)))
+    .limit(1)
+  if (!p) return null
+  const detail = parseInsuranceDetail(p.detail)
+  return detailMatchesOnFile(detail, p.policy) ? detail : null
 }
 
 const viewSelect = {

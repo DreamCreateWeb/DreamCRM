@@ -93,14 +93,39 @@ describe('checkInsuranceAction', () => {
 })
 
 describe('saveInsuranceToPatientAction', () => {
-  it('patches ONLY the three on-file insurance columns', async () => {
-    const r = await saveInsuranceToPatientAction('pat_1', { carrierName: ' Delta Dental ', memberId: 'DD-1', groupNumber: '' })
-    expect(r.ok).toBe(true)
-    expect(updatePatient).toHaveBeenCalledWith({
-      organizationId: 'org_1',
-      patientId: 'pat_1',
-      patch: { insuranceProvider: 'Delta Dental', insurancePolicyNumber: 'DD-1', insuranceGroupNumber: null },
+  it('patches the three on-file columns AND the remembered card (source staff) — nothing else', async () => {
+    const r = await saveInsuranceToPatientAction('pat_1', {
+      carrierName: ' Delta Dental ',
+      memberId: 'DD-1',
+      groupNumber: '',
+      payerId: '77777',
+      payerName: 'Delta Dental of California',
+      planName: 'Delta Dental PPO',
+      relationship: 'child',
+      subscriber: { firstName: 'Ana', lastName: 'Hayes', dateOfBirth: '1960-01-02' },
     })
+    expect(r.ok).toBe(true)
+    const call = (updatePatient.mock.calls[0] as unknown[])[0] as { organizationId: string; patientId: string; patch: Record<string, unknown> }
+    expect(call.organizationId).toBe('org_1')
+    expect(call.patientId).toBe('pat_1')
+    expect(Object.keys(call.patch).sort()).toEqual(['insuranceDetail', 'insuranceGroupNumber', 'insurancePolicyNumber', 'insuranceProvider'])
+    expect(call.patch).toMatchObject({ insuranceProvider: 'Delta Dental', insurancePolicyNumber: 'DD-1', insuranceGroupNumber: null })
+    expect(call.patch.insuranceDetail).toMatchObject({
+      memberId: 'DD-1',
+      payerId: '77777',
+      payerName: 'Delta Dental of California',
+      planName: 'Delta Dental PPO',
+      relationship: 'child',
+      subscriber: { firstName: 'Ana', lastName: 'Hayes', dateOfBirth: '1960-01-02' },
+      source: 'staff',
+    })
+  })
+
+  it('a bad relationship from the wire floors at self and drops the policyholder', async () => {
+    await saveInsuranceToPatientAction('pat_1', { carrierName: 'Cigna', memberId: 'C-1', groupNumber: null, relationship: 'dog' as never, subscriber: { firstName: 'X', lastName: 'Y', dateOfBirth: '1990-01-01' } })
+    const call = (updatePatient.mock.calls[0] as unknown[])[0] as { patch: { insuranceDetail: { relationship: string; subscriber: unknown } } }
+    expect(call.patch.insuranceDetail.relationship).toBe('self')
+    expect(call.patch.insuranceDetail.subscriber).toBeNull()
   })
 
   it('needs a carrier and member id', async () => {
@@ -124,6 +149,7 @@ describe('createPatientFromCheckAction', () => {
         insuranceProvider: 'Delta Dental',
         insurancePolicyNumber: 'DD-100-2231',
         insuranceGroupNumber: 'G1',
+        insuranceDetail: expect.objectContaining({ memberId: 'DD-100-2231', source: 'staff' }),
         source: 'manual',
         lifecycle: 'new',
         forceNew: false,

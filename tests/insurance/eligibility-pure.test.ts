@@ -6,6 +6,10 @@ import {
   STATUS_TONE,
   VERIFICATION_FRESH_DAYS,
   benefitDollars,
+  checkRecognisedCard,
+  detailFromRequest,
+  detailMatchesOnFile,
+  parseInsuranceDetail,
   checkAgeLabel,
   deductibleAsAmount,
   describeBenefitAmount,
@@ -251,5 +255,81 @@ describe('staleness', () => {
     expect(checkAgeLabel(daysAgo(200), now)).toBe('6 months ago')
     expect(checkAgeLabel(daysAgo(400), now)).toBe('over a year ago')
     expect(checkAgeLabel('junk', now)).toBe('some time ago')
+  })
+})
+
+describe('the remembered card (patient.insurance_detail)', () => {
+  const detail = {
+    memberId: 'DD-100-2231',
+    payerId: '77777',
+    payerName: 'Delta Dental of California',
+    planName: 'Delta Dental PPO',
+    relationship: 'child',
+    subscriber: { firstName: 'Ana', lastName: 'Hayes', dateOfBirth: '1960-01-02' },
+    source: 'check',
+    updatedAt: '2026-10-03T00:00:00.000Z',
+  }
+
+  it('parseInsuranceDetail accepts a well-formed detail and rejects junk', () => {
+    expect(parseInsuranceDetail(detail)).toMatchObject({ memberId: 'DD-100-2231', payerId: '77777', relationship: 'child', source: 'check' })
+    expect(parseInsuranceDetail(null)).toBeNull()
+    expect(parseInsuranceDetail('nope')).toBeNull()
+    expect(parseInsuranceDetail([])).toBeNull()
+    expect(parseInsuranceDetail({ payerId: '1' })).toBeNull() // no member id → nothing to key on
+  })
+
+  it('floors a bad relationship at self, drops a half policyholder, and floors an unknown source', () => {
+    const d = parseInsuranceDetail({ ...detail, relationship: 'cousin', source: 'martian', updatedAt: 'junk' })!
+    expect(d.relationship).toBe('self')
+    expect(d.subscriber).toBeNull()
+    expect(d.source).toBe('staff')
+    expect(d.updatedAt).toBe(new Date(0).toISOString())
+    const half = parseInsuranceDetail({ ...detail, subscriber: { firstName: 'Ana' } })!
+    expect(half.relationship).toBe('child')
+    expect(half.subscriber).toBeNull()
+  })
+
+  it('requestFromOnFile merges the detail ONLY while its member id matches the on-file policy number', () => {
+    const row = { firstName: 'Mia', lastName: 'Hayes', dateOfBirth: '1988-03-12', insuranceProvider: 'Delta Dental', insurancePolicyNumber: 'DD-100-2231', insuranceGroupNumber: null, insuranceDetail: detail }
+    const merged = requestFromOnFile(row)
+    expect(merged.payerId).toBe('77777')
+    expect(merged.relationship).toBe('child')
+    expect(merged.subscriber?.firstName).toBe('Ana')
+    expect(merged.carrierName).toBe('Delta Dental')
+    // The PMS (or anyone) changed the card: the detail is silently retired.
+    const changed = requestFromOnFile({ ...row, insurancePolicyNumber: 'NEW-1' })
+    expect(changed.payerId).toBeUndefined()
+    expect(changed.relationship).toBe('self')
+    expect(changed.memberId).toBe('NEW-1')
+    // An empty policy number lets the detail speak for the card.
+    const empty = requestFromOnFile({ ...row, insurancePolicyNumber: null, insuranceProvider: null })
+    expect(empty.memberId).toBe('DD-100-2231')
+    expect(empty.carrierName).toBe('Delta Dental of California')
+  })
+
+  it('detailFromRequest keeps the payer, the plan the answer named and the policyholder; self drops the subscriber', () => {
+    const d = detailFromRequest(
+      { ...good(), groupNumber: null, relationship: 'spouse', subscriber: { firstName: 'Sam', lastName: 'Hayes', dateOfBirth: '1986-05-05' }, patient: { firstName: 'Mia', lastName: 'Hayes', dateOfBirth: '1988-03-12' }, payerId: '77777', payerName: 'Delta Dental of California' },
+      { payerName: 'DELTA DENTAL OF CALIFORNIA', planName: 'Delta Dental PPO', coverage: { effective: '2026-01-01', termination: null } },
+      'check',
+      new Date('2026-10-03T12:00:00Z'),
+    )
+    expect(d).toMatchObject({ memberId: 'DD-100-2231', payerId: '77777', payerName: 'Delta Dental of California', planName: 'Delta Dental PPO', relationship: 'spouse', effectiveOn: '2026-01-01', source: 'check', updatedAt: '2026-10-03T12:00:00.000Z' })
+    expect(d.subscriber?.firstName).toBe('Sam')
+    const self = detailFromRequest({ ...good(), groupNumber: null, relationship: 'self', subscriber: { firstName: 'X', lastName: 'Y', dateOfBirth: '1990-01-01' }, patient: { firstName: 'Mia', lastName: 'Hayes', dateOfBirth: '1988-03-12' } }, null, 'staff')
+    expect(self.subscriber).toBeNull()
+    expect(self.payerName).toBe('Delta Dental') // the carrier name, when no payer was picked and no answer named one
+    expect(self.planName).toBeNull()
+  })
+
+  it('only a recognised card is remembered; a not-found or failed check says nothing about it', () => {
+    expect(checkRecognisedCard('active')).toBe(true)
+    expect(checkRecognisedCard('inactive')).toBe(true)
+    expect(checkRecognisedCard('needs_review')).toBe(true)
+    expect(checkRecognisedCard('not_found')).toBe(false)
+    expect(checkRecognisedCard('error')).toBe(false)
+    expect(detailMatchesOnFile(parseInsuranceDetail(detail), 'DD-100-2231')).toBe(true)
+    expect(detailMatchesOnFile(parseInsuranceDetail(detail), 'OTHER')).toBe(false)
+    expect(detailMatchesOnFile(null, 'DD-100-2231')).toBe(false)
   })
 })
