@@ -9,9 +9,10 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
  */
 
 const state = {
-  patients: [] as Array<{ id: string; firstName: string; lastName: string }>,
+  patients: [] as Array<{ id: string; firstName: string; lastName: string; insurancePolicyNumber?: string | null }>,
   org: [{ isDemo: false }] as Array<{ isDemo: boolean }>,
   inserts: [] as Array<{ table: string; values: Record<string, unknown> }>,
+  updates: [] as Array<{ table: string; values: Record<string, unknown> }>,
   failInsert: false,
 }
 
@@ -42,6 +43,16 @@ vi.mock('@/lib/db', async () => {
           if (state.failInsert) throw new Error('db down')
           state.inserts.push({ table: t === schema.insuranceVerification ? 'insurance_verification' : 'other', values: vals })
         },
+      }),
+      update: (t: unknown) => ({
+        set: (vals: Record<string, unknown>) => ({
+          where: () => ({
+            returning: async () => {
+              state.updates.push({ table: t === schema.patient ? 'patient' : 'other', values: vals })
+              return [{ id: 'pat_1' }]
+            },
+          }),
+        }),
       }),
     },
     schema,
@@ -94,6 +105,7 @@ beforeEach(() => {
   state.patients = []
   state.org = [{ isDemo: false }]
   state.inserts = []
+  state.updates = []
   state.failInsert = false
   recordAction.mockClear()
   vi.spyOn(console, 'error').mockImplementation(() => {})
@@ -172,5 +184,41 @@ describe('runEligibilityCheck', () => {
     if (r.ok) return
     expect(r.errors._form).toMatch(/could not save/i)
     expect(recordAction).not.toHaveBeenCalled()
+  })
+
+  it('a recognised answer for the card on file is REMEMBERED on the patient — detail only, never the flat columns', async () => {
+    state.patients = [{ id: 'pat_1', firstName: 'Mia', lastName: 'Hayes', insurancePolicyNumber: 'DD-100-2231' }]
+    const r = await runEligibilityCheck('org_1', { input: { ...input(), payerId: '77777', payerName: 'Delta Dental of California' }, patientId: 'pat_1', now: NOW })
+    expect(r.ok).toBe(true)
+    expect(state.updates).toHaveLength(1)
+    const vals = state.updates[0].values
+    expect(state.updates[0].table).toBe('patient')
+    expect(Object.keys(vals).sort()).toEqual(['insuranceDetail', 'updatedAt'])
+    expect(vals.insuranceDetail).toMatchObject({ memberId: 'DD-100-2231', payerId: '77777', source: 'check', relationship: 'self' })
+  })
+
+  it('a card that is NOT the one on file is not remembered (edits don’t change the record until saved)', async () => {
+    state.patients = [{ id: 'pat_1', firstName: 'Mia', lastName: 'Hayes', insurancePolicyNumber: 'OTHER-999' }]
+    await runEligibilityCheck('org_1', { input: input('DD-100-2231'), patientId: 'pat_1', now: NOW })
+    expect(state.updates).toHaveLength(0)
+  })
+
+  it('an empty policy number on file lets the first recognised check fill the card', async () => {
+    state.patients = [{ id: 'pat_1', firstName: 'Mia', lastName: 'Hayes', insurancePolicyNumber: null }]
+    await runEligibilityCheck('org_1', { input: input('DD-100-2231'), patientId: 'pat_1', now: NOW })
+    expect(state.updates).toHaveLength(1)
+  })
+
+  it('a not-found or failed answer remembers nothing — the payer said nothing about the card', async () => {
+    state.patients = [{ id: 'pat_1', firstName: 'Mia', lastName: 'Hayes', insurancePolicyNumber: 'DD-100-9999' }]
+    await runEligibilityCheck('org_1', { input: input('DD-100-9999'), patientId: 'pat_1', now: NOW })
+    state.patients = [{ id: 'pat_1', firstName: 'Mia', lastName: 'Hayes', insurancePolicyNumber: 'DD-100-0001' }]
+    await runEligibilityCheck('org_1', { input: input('DD-100-0001'), patientId: 'pat_1', now: NOW })
+    expect(state.updates).toHaveLength(0)
+  })
+
+  it('an unattached check (no patient) remembers nothing', async () => {
+    await runEligibilityCheck('org_1', { input: input(), patientId: null, now: NOW })
+    expect(state.updates).toHaveLength(0)
   })
 })

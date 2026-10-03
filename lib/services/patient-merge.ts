@@ -42,7 +42,7 @@ const SIMPLE_REPOINTS: Array<{ table: keyof typeof schema; col: 'patientId' }> =
 /** Scalar fields filled on the survivor only when the survivor's is empty. */
 const FILLABLE_FIELDS = [
   'email', 'phone', 'dateOfBirth', 'addressLine1', 'city', 'state', 'postalCode',
-  'insuranceProvider', 'insurancePolicyNumber', 'insuranceGroupNumber',
+  'insuranceProvider', 'insurancePolicyNumber', 'insuranceGroupNumber', 'insuranceDetail',
   'pmsBalanceCents', 'pmsRecallDueAt', 'pmsRecallInterval', 'recallIntervalMonths',
 ] as const
 

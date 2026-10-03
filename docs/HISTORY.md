@@ -5615,3 +5615,29 @@ meter bar and a hero-amount-with-ring, both built locally in
 `app/(default)/insurance/benefit-visuals.tsx`. The quiet-ink guard caught
 the first draft's bullet (`gray-400` light / `gray-500` dark — the two
 lightest inks in the wrong order), which is exactly what it is for.
+
+**2026-10-03 — polish phase 3: the record remembers the card (migration
+0167).** The three flat patient columns hold a carrier NAME, a member id and
+a group — enough to display, not enough to re-check: a clearinghouse needs
+the exact payer, and a dependent's check needs whose name the policy is in.
+`patient.insurance_detail` (jsonb, `PatientInsuranceDetail`) is stamped by
+every RECOGNISED check (active / inactive / needs-a-look — a not-found or
+a failed check says nothing about the card) when the checked card IS the
+card on file (an empty policy number, or the same one — the tool promises
+edits don't change the record until saved), and by the tool's Save and
+Add-as-patient (`source: 'staff'`). It is TRUSTED ONLY while its memberId
+equals `insurance_policy_number`: the PMS sync, the portal profile form and
+the staff editor keep writing the flat columns as before, and a changed
+card silently retires the detail without any of them knowing it exists —
+`requestFromOnFile` merges it only on that match, so "Check now" on the
+record works first time for a dependent and never sends a stale payer.
+One column, not seven: the fields co-vary and `validateEligibilityRequest`
+is already their schema. `rememberCheckedCard` writes ONLY the detail
+column, best-effort (a failed stamp never turns a stored, narrated check
+into an error); the merge tool fills it like any other scalar; the
+insurance page prefers the latest check's input only while it is still the
+card on file. The rail card grew a door for the one state a check would be
+refused in — a clearinghouse driver with only a carrier name and no
+remembered payer — "Pick the payer in Insurance →" instead of a Check-now
+that fails. The demo seeder keys Mia's checks on HER on-file policy number
+and stamps her detail once (self-heal for demos seeded before the column).

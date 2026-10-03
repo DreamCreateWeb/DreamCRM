@@ -49,9 +49,14 @@ export default async function InsurancePage({ searchParams }: PageProps) {
       ? {
           patientId: header.id,
           patientName: header.fullName,
-          // A stored check knows the subscriber; the on-file columns only know
-          // the card. Prefer the richer one.
-          request: latest?.input ?? requestFromOnFile(header),
+          // The latest check's input is the richest source — but only while it
+          // is still the card on file; a card changed since (PMS, portal,
+          // staff) wins, with the remembered detail riding along when it
+          // still matches (requestFromOnFile).
+          request:
+            latest && (!header.insurancePolicyNumber || header.insurancePolicyNumber.trim() === latest.input.memberId.trim())
+              ? latest.input
+              : requestFromOnFile(header),
         }
       : null
 

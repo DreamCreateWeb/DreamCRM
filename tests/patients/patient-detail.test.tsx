@@ -43,6 +43,7 @@ function header(overrides: Partial<PatientHeader> = {}): PatientHeader {
     insuranceProvider: 'Delta Dental',
     insurancePolicyNumber: 'POL-12345',
     insuranceGroupNumber: 'GRP-1',
+    insuranceDetail: null,
     notes: null,
     source: 'booking',
     lifecycle: 'active',
@@ -333,6 +334,22 @@ describe('PatientDetail insurance rail card', () => {
     expect(screen.getByText('Practice answer').getAttribute('title')).toMatch(/not a real payer check/i)
     expect(screen.queryByText('Insurance on file but never checked.')).toBeNull()
     expect(screen.getByText('Check again')).toBeTruthy()
+  })
+
+  it('under a clearinghouse driver with only a carrier name on file, the card sends staff to pick the payer instead of a check that would be refused', () => {
+    render(
+      <PatientDetail
+        header={header()}
+        timeline={[]}
+        counts={emptyCounts}
+        notes={[]}
+        insurance={{ latest: null, hasOnFile: true, onFileRequest, needsPayerPick: true }}
+        timeZone="America/Chicago"
+      />,
+    )
+    const door = screen.getByText('Pick the payer in Insurance →')
+    expect(door.closest('a')?.getAttribute('href')).toBe('/insurance?patient=pat_1')
+    expect(screen.queryByText('Check now')).toBeNull()
   })
 
   it('renders nothing insurance-related when the prop is absent (legacy callers)', () => {

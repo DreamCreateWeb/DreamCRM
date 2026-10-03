@@ -183,7 +183,16 @@ system, don't replace it.
   sections; the recent list has a surface-sunk header, inset-ring selected
   row and a one-word driver pill. Local visuals live in
   `app/(default)/insurance/benefit-visuals.tsx` (two kit gaps noted: a
-  labelled meter bar, a hero amount with ring).
+  labelled meter bar, a hero amount with ring). Phase 3 SHIPPED (2026-10-03,
+  THE RECORD REMEMBERS THE CARD, migration 0167 `patient.insurance_detail`
+  jsonb = `PatientInsuranceDetail`): stamped by every RECOGNISED check of
+  the card on file and by Save / Add-as-patient (`source`), TRUSTED ONLY
+  while its memberId equals `insurance_policy_number` (`detailMatchesOnFile`
+  — PMS/portal/staff writers of the flat columns retire it without knowing
+  it exists); `requestFromOnFile` merges it on that match so a dependent's
+  re-check carries the payer + policyholder; `rememberCheckedCard` writes
+  only the detail column; the rail card offers "Pick the payer in
+  Insurance →" where a name-only card would be refused.
   `lib/insurance-eligibility.ts` (client-safe types,
   validation, the status→tone contract, the honesty labels) +
   `lib/services/insurance-eligibility/` (provider interface, the
@@ -286,7 +295,7 @@ app/
 lib/
   db/schema/         auth.ts, platform.ts, clinic.ts (bulk), domain.ts, email.ts,
                      referrals.ts, index.ts
-  db/migrations/     drizzle; 0000–0166 applied to prod (auto-apply on deploy)
+  db/migrations/     drizzle; 0000–0167 applied to prod (auto-apply on deploy)
   auth/              server.ts, client.ts, context.ts (getTenantContext,
                      requireTenant/requireRole/requirePartner)
   services/          ~190 server-only modules (import 'server-only') — one per
@@ -766,9 +775,11 @@ sitemap/robots/OG.
   end-to-end; watch the Actions tab. `NEXT_PUBLIC_*` bake at build time.
 - **Migrations auto-apply on boot** (`scripts/db-migrate.mjs` → POST
   `/api/admin/migrate`; failure keeps the previous version serving). Latest
-  migration: **0166** (`insurance_verification` — the eligibility-check
-  history table, org-scoped, patient set-null, error rows stored). Before
-  it: 0160–0165 (notification dedupe/email stamps and the connect refund
+  migration: **0167** (`patient.insurance_detail` jsonb — the remembered
+  card, nullable, no index; trusted only while its memberId matches the
+  flat policy number). Before it: **0166** (`insurance_verification` — the
+  eligibility-check history table, org-scoped, patient set-null, error rows
+  stored). Before it: 0160–0165 (notification dedupe/email stamps and the connect refund
   ledger — see docs/HISTORY.md). Before those: **0159** (marketing-engine Part 10.8 M1·1: `marketing_event` +
   `event_capture` — the conference headshot kit, platform-global; the
   release timestamp is NOT NULL by law). Before it: **0158**

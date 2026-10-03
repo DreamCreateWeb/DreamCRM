@@ -27,8 +27,11 @@ export interface InsurancePanelData {
   latest: InsuranceCheckView | null
   /** Whether the on-file columns hold a carrier (the check needs one). */
   hasOnFile: boolean
-  /** A self-subscriber request built from the on-file columns. */
+  /** The request a re-check sends, built from the on-file columns + the remembered card. */
   onFileRequest: Partial<EligibilityRequest>
+  /** Under a clearinghouse driver with only a carrier NAME on file, a check
+   *  would be refused — send them to pick the exact payer instead. */
+  needsPayerPick?: boolean
 }
 
 /**
@@ -138,14 +141,22 @@ export default function InsurancePanel({
       {error && <p className={`mt-2 text-xs ${TONE_TEXT.urgent}`}>{error}</p>}
 
       <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1">
-        {(latest || data.hasOnFile) && (
-          <ActionButton variant="secondary" size="sm" pending={pending} onClick={checkNow}>
-            {latest ? 'Check again' : 'Check now'}
+        {data.needsPayerPick ? (
+          <ActionButton variant="secondary" size="sm" href={toolHref}>
+            Pick the payer in Insurance →
           </ActionButton>
+        ) : (
+          (latest || data.hasOnFile) && (
+            <ActionButton variant="secondary" size="sm" pending={pending} onClick={checkNow}>
+              {latest ? 'Check again' : 'Check now'}
+            </ActionButton>
+          )
         )}
-        <Link href={toolHref} className="text-xs font-medium text-teal-700 dark:text-teal-400 hover:underline">
-          Open in Insurance →
-        </Link>
+        {!data.needsPayerPick && (
+          <Link href={toolHref} className="text-xs font-medium text-teal-700 dark:text-teal-400 hover:underline">
+            Open in Insurance →
+          </Link>
+        )}
       </div>
     </div>
   )

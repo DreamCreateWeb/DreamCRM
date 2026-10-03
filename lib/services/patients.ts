@@ -1,4 +1,5 @@
 import 'server-only'
+import { parseInsuranceDetail, type PatientInsuranceDetail } from '@/lib/insurance-eligibility'
 import { and, asc, count, desc, eq, gte, inArray, isNotNull, isNull, lte, ne, notInArray, or, sql, type SQL } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import { sumNetCollectedSql } from '@/lib/net-collected'
@@ -108,6 +109,9 @@ export interface PatientHeader {
   insuranceProvider: string | null
   insurancePolicyNumber: string | null
   insuranceGroupNumber: string | null
+  /** The remembered card (polish phase 3) — parsed; null when none. Trust it
+   *  only through `detailMatchesOnFile` (lib/insurance-eligibility.ts). */
+  insuranceDetail: PatientInsuranceDetail | null
   notes: string | null
   source: string | null
   lifecycle: PatientLifecycle
@@ -1007,6 +1011,7 @@ export async function getPatientHeader(
     insuranceProvider: p.insuranceProvider,
     insurancePolicyNumber: p.insurancePolicyNumber,
     insuranceGroupNumber: p.insuranceGroupNumber,
+    insuranceDetail: parseInsuranceDetail(p.insuranceDetail),
     notes: p.notes,
     source: p.source,
     lifecycle: (p.lifecycle ?? 'active') as PatientLifecycle,
@@ -1052,6 +1057,8 @@ export interface CreatePatientInput {
   insuranceProvider?: string | null
   insurancePolicyNumber?: string | null
   insuranceGroupNumber?: string | null
+  /** The remembered card (jsonb). Null clears it; undefined leaves it alone. */
+  insuranceDetail?: PatientInsuranceDetail | null
   source?: PatientSource | null
   lifecycle?: PatientLifecycle
   notes?: string | null
@@ -1121,6 +1128,7 @@ export async function createPatient(input: CreatePatientInput): Promise<CreatePa
     insuranceProvider: input.insuranceProvider ?? null,
     insurancePolicyNumber: input.insurancePolicyNumber ?? null,
     insuranceGroupNumber: input.insuranceGroupNumber ?? null,
+    insuranceDetail: input.insuranceDetail ?? null,
     source: input.source ?? null,
     lifecycle: input.lifecycle ?? 'new',
     firstSeenAt: now,

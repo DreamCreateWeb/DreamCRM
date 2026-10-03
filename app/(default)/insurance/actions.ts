@@ -2,7 +2,14 @@
 
 import { revalidatePath } from 'next/cache'
 import { requireTenant } from '@/lib/auth/context'
-import { canUseInsuranceTool, type EligibilityRequest } from '@/lib/insurance-eligibility'
+import {
+  INSURANCE_RELATIONSHIPS,
+  canUseInsuranceTool,
+  detailFromRequest,
+  type EligibilityPerson,
+  type EligibilityRequest,
+  type InsuranceRelationship,
+} from '@/lib/insurance-eligibility'
 import {
   attachInsuranceCheckToPatient,
   runEligibilityCheck,
@@ -52,16 +59,48 @@ export async function searchPayersAction(query: string): Promise<{ ok: true; pay
   return { ok: true, payers }
 }
 
-/** Write the checked card details onto an existing patient's on-file columns. */
+export interface SaveInsuranceFields {
+  carrierName: string
+  memberId: string
+  groupNumber: string | null
+  /** The exact payer + policyholder, when the form knows them — the remembered card. */
+  payerId?: string | null
+  payerName?: string | null
+  planName?: string | null
+  relationship?: InsuranceRelationship
+  subscriber?: EligibilityPerson | null
+}
+
+/** A relationship from the wire, floored at 'self'. */
+function relationshipOf(v: unknown): InsuranceRelationship {
+  return INSURANCE_RELATIONSHIPS.some((r) => r.id === v) ? (v as InsuranceRelationship) : 'self'
+}
+
+function personOf(v: unknown): EligibilityPerson | null {
+  if (!v || typeof v !== 'object') return null
+  const o = v as Record<string, unknown>
+  const firstName = typeof o.firstName === 'string' ? o.firstName.trim() : ''
+  const lastName = typeof o.lastName === 'string' ? o.lastName.trim() : ''
+  const dateOfBirth = typeof o.dateOfBirth === 'string' ? o.dateOfBirth.trim() : ''
+  return firstName && lastName && dateOfBirth ? { firstName, lastName, dateOfBirth } : null
+}
+
+/**
+ * Write the checked card onto an existing patient: the three on-file columns
+ * (the display truth) AND the remembered detail (the exact payer + whose name
+ * the policy is in), stamped `source: 'staff'`.
+ */
 export async function saveInsuranceToPatientAction(
   patientId: string,
-  fields: { carrierName: string; memberId: string; groupNumber: string | null },
+  fields: SaveInsuranceFields,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const ctx = await clinicCtx()
   if (!ctx) return { ok: false, error: 'Insurance checks are a clinic feature.' }
   const carrier = fields.carrierName.trim()
   const memberId = fields.memberId.trim()
   if (!carrier || !memberId) return { ok: false, error: 'Carrier and member ID are required.' }
+  const relationship = relationshipOf(fields.relationship)
+  const subscriber = relationship === 'self' ? null : personOf(fields.subscriber)
   try {
     await updatePatient({
       organizationId: ctx.organizationId,
@@ -70,6 +109,20 @@ export async function saveInsuranceToPatientAction(
         insuranceProvider: carrier,
         insurancePolicyNumber: memberId,
         insuranceGroupNumber: fields.groupNumber?.trim() || null,
+        insuranceDetail: detailFromRequest(
+          {
+            patient: { firstName: '', lastName: '', dateOfBirth: '' },
+            carrierName: carrier,
+            memberId,
+            groupNumber: fields.groupNumber?.trim() || null,
+            relationship,
+            subscriber,
+            payerId: fields.payerId?.trim() || null,
+            payerName: fields.payerName?.trim() || null,
+          },
+          fields.planName ? { payerName: fields.payerName?.trim() || carrier, planName: fields.planName, coverage: { effective: null, termination: null } } : null,
+          'staff',
+        ),
       },
     })
     revalidatePath(`/patients/${patientId}`)
@@ -89,6 +142,8 @@ export async function saveInsuranceToPatientAction(
 export async function createPatientFromCheckAction(args: {
   checkId: string
   request: EligibilityRequest
+  /** The plan the check named, so the remembered card carries it. */
+  planName?: string | null
   forceNew?: boolean
 }): Promise<
   | { ok: true; id: string }
@@ -110,6 +165,13 @@ export async function createPatientFromCheckAction(args: {
       insuranceProvider: req.carrierName.trim() || null,
       insurancePolicyNumber: req.memberId.trim() || null,
       insuranceGroupNumber: req.groupNumber?.trim() || null,
+      insuranceDetail: req.memberId.trim()
+        ? detailFromRequest(
+            req,
+            args.planName ? { payerName: req.payerName ?? req.carrierName, planName: args.planName, coverage: { effective: null, termination: null } } : null,
+            'staff',
+          )
+        : null,
       source: 'manual',
       lifecycle: 'new',
       forceNew: !!args.forceNew,

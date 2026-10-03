@@ -191,10 +191,20 @@ export default function InsuranceTool({
     if (!prefill) return
     setBusy('save')
     startTransition(async () => {
+      // The flat columns AND the remembered card: the exact payer, the plan
+      // the last answer named, and whose name the policy is in.
       const r = await saveInsuranceToPatientAction(prefill.patientId, {
         carrierName: form.carrierName,
         memberId: form.memberId,
         groupNumber: form.groupNumber || null,
+        payerId: form.payerId || null,
+        payerName: form.payerName || null,
+        planName: current?.input.memberId === form.memberId ? current.result?.planName ?? null : null,
+        relationship: form.relationship,
+        subscriber:
+          form.relationship === 'self'
+            ? null
+            : { firstName: form.subFirstName, lastName: form.subLastName, dateOfBirth: form.subDateOfBirth },
       })
       setBusy(null)
       if (r.ok) toast(`Saved to ${prefill.patientName}’s record.`)
@@ -206,7 +216,7 @@ export default function InsuranceTool({
     if (!current) return
     setBusy(forceNew ? 'anyway' : 'add')
     startTransition(async () => {
-      const r = await createPatientFromCheckAction({ checkId: current.id, request: current.input, forceNew })
+      const r = await createPatientFromCheckAction({ checkId: current.id, request: current.input, planName: current.result?.planName ?? null, forceNew })
       setBusy(null)
       if ('duplicateOf' in r && r.duplicateOf) {
         setDuplicate(r.duplicateOf)

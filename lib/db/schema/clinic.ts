@@ -28,6 +28,15 @@ export const patient = pgTable(
     insuranceProvider: text('insurance_provider'),
     insurancePolicyNumber: text('insurance_policy_number'),
     insuranceGroupNumber: text('insurance_group_number'),
+    // The exact card as last verified (2026-10-03, polish phase 3): payer id
+    // + name, plan, relationship and policyholder — the fields the three flat
+    // columns above cannot hold and a re-check needs. ONE jsonb column, not
+    // seven: the fields co-vary and `validateEligibilityRequest` is already
+    // their schema (`PatientInsuranceDetail` in lib/insurance-eligibility.ts).
+    // The three flat columns stay the DISPLAY truth; this is only trusted
+    // while its memberId still equals insurance_policy_number — a card
+    // changed by the PMS, the portal or staff silently retires it.
+    insuranceDetail: jsonb('insurance_detail'),
 
     // Family access (patient portal): when set, the named patient (parent /
     // guardian — must have portal access themselves) can see and manage this

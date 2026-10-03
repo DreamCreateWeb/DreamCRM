@@ -277,7 +277,113 @@ export function validateEligibilityRequest(
   }
 }
 
-/** Build a self-subscriber request from what a patient row already holds. */
+// ── The remembered card ────────────────────────────────────────────────
+
+export type InsuranceDetailSource = 'check' | 'staff' | 'pms' | 'intake'
+
+/**
+ * THE RECORD REMEMBERS THE CARD (polish phase 3). What the three flat patient
+ * columns cannot hold and a re-check needs: the exact payer, the plan, whose
+ * name the policy is in. Stored in `patient.insurance_detail` (jsonb) and
+ * TRUSTED ONLY while `memberId` still equals the on-file policy number —
+ * every other writer of the flat columns (PMS sync, the portal profile form,
+ * the staff editor) keeps working as before, and a changed card silently
+ * retires the detail. `source` says who last stamped it.
+ */
+export interface PatientInsuranceDetail {
+  memberId: string
+  payerId: string | null
+  payerName: string | null
+  planName: string | null
+  relationship: InsuranceRelationship
+  subscriber: EligibilityPerson | null
+  effectiveOn?: string | null
+  expiresOn?: string | null
+  source: InsuranceDetailSource
+  /** ISO instant. */
+  updatedAt: string
+}
+
+const DETAIL_SOURCES: ReadonlySet<string> = new Set(['check', 'staff', 'pms', 'intake'])
+
+function optionalDate(v: unknown): string | null {
+  const s = str(v)
+  return s && isRealCalendarDate(s) ? s : null
+}
+
+/** Untrusted jsonb → a typed detail, or null for anything that isn't one. */
+export function parseInsuranceDetail(raw: unknown): PatientInsuranceDetail | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null
+  const o = raw as Record<string, unknown>
+  const memberId = str(o.memberId)
+  if (!memberId) return null
+  const relationshipRaw = str(o.relationship) as InsuranceRelationship
+  const relationship: InsuranceRelationship = INSURANCE_RELATIONSHIPS.some((r) => r.id === relationshipRaw)
+    ? relationshipRaw
+    : 'self'
+  let subscriber: EligibilityPerson | null = null
+  if (relationship !== 'self' && o.subscriber && typeof o.subscriber === 'object') {
+    const sub = o.subscriber as Record<string, unknown>
+    const firstName = str(sub.firstName)
+    const lastName = str(sub.lastName)
+    const dateOfBirth = str(sub.dateOfBirth)
+    if (firstName && lastName && isRealCalendarDate(dateOfBirth)) subscriber = { firstName, lastName, dateOfBirth }
+  }
+  const sourceRaw = str(o.source)
+  const updatedAtRaw = str(o.updatedAt)
+  return {
+    memberId,
+    payerId: str(o.payerId) || null,
+    payerName: str(o.payerName) || null,
+    planName: str(o.planName) || null,
+    relationship,
+    subscriber,
+    effectiveOn: optionalDate(o.effectiveOn),
+    expiresOn: optionalDate(o.expiresOn),
+    source: (DETAIL_SOURCES.has(sourceRaw) ? sourceRaw : 'staff') as InsuranceDetailSource,
+    updatedAt: updatedAtRaw && Number.isFinite(new Date(updatedAtRaw).getTime()) ? updatedAtRaw : new Date(0).toISOString(),
+  }
+}
+
+/** The detail a recognised check (or a Save) leaves on the record. */
+export function detailFromRequest(
+  input: EligibilityRequest,
+  result: Pick<EligibilityResult, 'payerName' | 'planName' | 'coverage'> | null,
+  source: InsuranceDetailSource,
+  now: Date = new Date(),
+): PatientInsuranceDetail {
+  return {
+    memberId: input.memberId.trim(),
+    payerId: input.payerId?.trim() || null,
+    payerName: input.payerName?.trim() || result?.payerName?.trim() || input.carrierName.trim() || null,
+    planName: result?.planName?.trim() || null,
+    relationship: input.relationship,
+    subscriber: input.relationship === 'self' ? null : input.subscriber,
+    effectiveOn: result?.coverage.effective ?? null,
+    expiresOn: result?.coverage.termination ?? null,
+    source,
+    updatedAt: now.toISOString(),
+  }
+}
+
+/** Which statuses mean the payer RECOGNISED the card (worth remembering). */
+export function checkRecognisedCard(status: EligibilityStatus): boolean {
+  return status === 'active' || status === 'inactive' || status === 'needs_review'
+}
+
+/** The detail applies to the on-file card only while the member ids agree. */
+export function detailMatchesOnFile(detail: PatientInsuranceDetail | null, insurancePolicyNumber: string | null): detail is PatientInsuranceDetail {
+  if (!detail) return false
+  const onFile = (insurancePolicyNumber ?? '').trim()
+  return !onFile || onFile === detail.memberId.trim()
+}
+
+/**
+ * Build the request a re-check sends from what a patient row already holds.
+ * The flat columns give the card; the remembered detail — ONLY when its
+ * member id still matches — gives the exact payer and the policyholder, so
+ * "Check now" on the record works first time for a dependent too.
+ */
 export function requestFromOnFile(row: {
   firstName: string
   lastName: string
@@ -285,14 +391,26 @@ export function requestFromOnFile(row: {
   insuranceProvider: string | null
   insurancePolicyNumber: string | null
   insuranceGroupNumber: string | null
+  insuranceDetail?: unknown
 }): Partial<EligibilityRequest> {
-  return {
+  const detail = parseInsuranceDetail(row.insuranceDetail)
+  const base: Partial<EligibilityRequest> = {
     patient: { firstName: row.firstName, lastName: row.lastName, dateOfBirth: row.dateOfBirth ?? '' },
     carrierName: row.insuranceProvider ?? '',
     memberId: row.insurancePolicyNumber ?? '',
     groupNumber: row.insuranceGroupNumber,
     relationship: 'self',
     subscriber: null,
+  }
+  if (!detailMatchesOnFile(detail, row.insurancePolicyNumber)) return base
+  return {
+    ...base,
+    carrierName: row.insuranceProvider || detail.payerName || '',
+    memberId: row.insurancePolicyNumber || detail.memberId,
+    relationship: detail.relationship,
+    subscriber: detail.relationship === 'self' ? null : detail.subscriber,
+    payerId: detail.payerId,
+    payerName: detail.payerName,
   }
 }
 

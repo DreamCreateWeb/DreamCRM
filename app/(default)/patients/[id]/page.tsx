@@ -14,7 +14,7 @@ import { getLoyaltySettings, getPointsBalance, listLoyaltyEvents } from '@/lib/s
 import { listFormTemplates } from '@/lib/services/forms'
 import { getLatestInsuranceCheckForPatient } from '@/lib/services/insurance-eligibility'
 import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
-import { canUseInsuranceTool, requestFromOnFile } from '@/lib/insurance-eligibility'
+import { canUseInsuranceTool, requestFromOnFile, resolveInsuranceDriverId } from '@/lib/insurance-eligibility'
 import PatientDetail from './patient-detail'
 
 interface PageProps {
@@ -75,11 +75,21 @@ export default async function PatientDetailPage({ params }: PageProps) {
   // would send when no check exists yet (the on-file card as self-subscriber).
   // PREVIEW: null hides the rail card AND the needs-attention nudge for
   // everyone but platform admins.
+  const onFileRequest = requestFromOnFile(header)
   const insurance = canUseInsuranceTool(ctx)
     ? {
         latest: latestInsuranceCheck,
         hasOnFile: !!header.insuranceProvider,
-        onFileRequest: requestFromOnFile(header),
+        onFileRequest,
+        // A clearinghouse driver needs the exact payer, and a carrier NAME on
+        // file is not one — without a remembered payer id (or a stored check
+        // that carries one) a Check-now here would only be refused, so the
+        // card offers the picker instead.
+        needsPayerPick:
+          resolveInsuranceDriverId() !== 'sandbox' &&
+          !!header.insuranceProvider &&
+          !onFileRequest.payerId &&
+          !latestInsuranceCheck?.input.payerId,
       }
     : null
 

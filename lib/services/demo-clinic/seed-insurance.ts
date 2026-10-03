@@ -1,7 +1,7 @@
 import 'server-only'
 import { and, eq, inArray } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
-import type { EligibilityRequest } from '@/lib/insurance-eligibility'
+import { detailFromRequest, type EligibilityRequest } from '@/lib/insurance-eligibility'
 import { SANDBOX_TIMEOUT_MESSAGE, renderSandboxScenario, type SandboxScenarioKey } from '@/lib/services/insurance-eligibility/sandbox'
 import { buildPatientPersonas } from './personas'
 
@@ -30,11 +30,14 @@ export async function seedDemoInsuranceChecks(
 
   // Positive anchor: Mia's row must exist (exhausted seeder-test queue → skip).
   const [mia] = await db
-    .select({ id: schema.patient.id })
+    .select({ id: schema.patient.id, policy: schema.patient.insurancePolicyNumber, detail: schema.patient.insuranceDetail })
     .from(schema.patient)
     .where(and(eq(schema.patient.organizationId, orgId), eq(schema.patient.id, miaId)))
     .limit(1)
   if (!mia) return
+  // Mia's checks carry HER on-file policy number, so the remembered card the
+  // rows imply still matches the record (the merge rule drops a mismatch).
+  const miaMemberId = (mia.policy ?? '').trim() || 'DD-100-2231'
 
   const personas = buildPatientPersonas(now)
   const person = (i: number) => {
@@ -57,8 +60,8 @@ export async function seedDemoInsuranceChecks(
     scenario: SandboxScenarioKey | 'timeout'
     daysAgo: number
   }> = [
-    { id: 'ins_demo_mia_2', personaIndex: 0, memberId: 'DD-100-2231', scenario: 'active_ppo', daysAgo: 12 },
-    { id: 'ins_demo_mia_1', personaIndex: 0, memberId: 'DD-100-2231', scenario: 'active_exhausted', daysAgo: 300 },
+    { id: 'ins_demo_mia_2', personaIndex: 0, memberId: miaMemberId, scenario: 'active_ppo', daysAgo: 12 },
+    { id: 'ins_demo_mia_1', personaIndex: 0, memberId: miaMemberId, scenario: 'active_exhausted', daysAgo: 300 },
     { id: 'ins_demo_marcus_1', personaIndex: 3, memberId: 'DD-100-7718', scenario: 'active_waiting', daysAgo: 3 },
     { id: 'ins_demo_sophia_1', personaIndex: 4, memberId: 'DD-100-0000', scenario: 'inactive', daysAgo: 20 },
     { id: 'ins_demo_emma_1', personaIndex: 6, memberId: 'DD-100-9999', scenario: 'not_found', daysAgo: 40 },
@@ -90,5 +93,17 @@ export async function seedDemoInsuranceChecks(
       checkedAt,
       createdAt: checkedAt,
     })
+  }
+
+  // The record remembers the card (polish phase 3): stamp Mia's detail the
+  // way her latest seeded check would have, once — a self-heal for demos
+  // seeded before the column existed. Never touches the flat columns.
+  if (!mia.detail) {
+    const input = request(0, miaMemberId)
+    const latest = new Date(now.getTime() - 12 * dayMs)
+    await db
+      .update(schema.patient)
+      .set({ insuranceDetail: detailFromRequest(input, renderSandboxScenario('active_ppo', input, latest), 'check', latest) })
+      .where(and(eq(schema.patient.organizationId, orgId), eq(schema.patient.id, miaId)))
   }
 }

@@ -1,0 +1,26 @@
+-- Insurance tool, polish phase 3 (2026-10-03) — `patient.insurance_detail`.
+--
+-- The record remembers the card. The three flat insurance columns hold a
+-- carrier NAME, a member id and a group number — enough to display, not
+-- enough to re-check: a clearinghouse needs the exact PAYER (Delta Dental is
+-- forty state plans), and a dependent's check needs whose name the policy is
+-- in. This one jsonb column (`PatientInsuranceDetail`, lib/insurance-
+-- eligibility.ts: memberId, payerId, payerName, planName, relationship,
+-- subscriber, effectiveOn, expiresOn, source, updatedAt) is stamped by every
+-- recognised check and by the tool's Save, and is TRUSTED ONLY while its
+-- memberId equals insurance_policy_number — the PMS sync, the portal profile
+-- form and the staff editor keep writing the flat columns as before, and a
+-- changed card silently retires the detail without any of them knowing it
+-- exists. One column, not seven: the fields co-vary and
+-- `validateEligibilityRequest` is already their schema.
+--
+-- NO PRODUCTION PRECONDITION and NO INDEX. Nullable, no default, so every
+-- existing patient gets NULL — correct on its own terms (no card has been
+-- verified for them yet); the demo resync stamps Mia's. Nothing queries by
+-- this column: it is read one row at a time with the patient.
+--
+-- LOCK NOTE (deploy path): a nullable `ADD COLUMN` with no default is a
+-- catalog-only change in Postgres 11+ — no table rewrite, no scan, an ACCESS
+-- EXCLUSIVE lock held for the duration of the catalog write.
+
+ALTER TABLE "patient" ADD COLUMN "insurance_detail" jsonb;
