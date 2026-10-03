@@ -475,6 +475,35 @@ export async function submitForm(input: SubmitFormInput): Promise<FormSubmission
     console.warn('[forms.submitForm] notification failed', err)
   }
 
+  // The template, read once for both of the patient-side effects below.
+  let tpl: { title: string; schema: unknown } | undefined
+  if (patientId) {
+    try {
+      ;[tpl] = await db
+        .select({ title: formTemplate.title, schema: formTemplate.schema })
+        .from(formTemplate)
+        .where(and(eq(formTemplate.organizationId, input.organizationId), eq(formTemplate.id, input.formTemplateId)))
+        .limit(1)
+    } catch (err) {
+      console.warn('[forms.submitForm] template read failed', err)
+    }
+  }
+
+  // THE INSURANCE WRITE-BACK (polish phase 5): a card the patient typed in on
+  // an intake form stops being a dead attachment. The three insurance system
+  // fields — the patient's CONFIRMED text, never raw OCR hints — land on the
+  // record ONLY WHERE NOTHING IS THERE YET: PMS and staff truth is never
+  // overwritten by a form. When the member id is new to the record, the
+  // remembered card is stamped `source: 'intake'` so the tool knows where it
+  // came from. Best-effort: the submission row above is the source of truth.
+  if (patientId && tpl) {
+    try {
+      await writeBackIntakeInsurance(input.organizationId, patientId, tpl.schema as FormTemplateSchema, input.data)
+    } catch (err) {
+      console.warn('[forms.submitForm] insurance write-back failed', err)
+    }
+  }
+
   // Mirror the completed form into the patient's Open Dental chart as a CommLog
   // note — the REAL answers as text, framed honestly as "a copy in your chart"
   // (NOT a fabricated structured field sync; uploads/signature live in DreamCRM).
@@ -482,11 +511,6 @@ export async function submitForm(input: SubmitFormInput): Promise<FormSubmission
   // guard lives inside queueCommLogWriteBack).
   if (patientId) {
     try {
-      const [tpl] = await db
-        .select({ title: formTemplate.title, schema: formTemplate.schema })
-        .from(formTemplate)
-        .where(and(eq(formTemplate.organizationId, input.organizationId), eq(formTemplate.id, input.formTemplateId)))
-        .limit(1)
       if (tpl) {
         const transcript = buildIntakeTranscript(tpl.schema as FormTemplateSchema, input.data)
         const header = `Patient completed the "${tpl.title}" intake form via DreamCRM.`
@@ -500,6 +524,73 @@ export async function submitForm(input: SubmitFormInput): Promise<FormSubmission
   }
 
   return row
+}
+
+const INTAKE_INSURANCE_KEYS = ['insurance_provider', 'insurance_policy_number', 'insurance_group_number'] as const
+type IntakeInsuranceKey = (typeof INTAKE_INSURANCE_KEYS)[number]
+
+/** The three insurance answers a submission carries, by system key — trimmed strings only. */
+export function intakeInsuranceAnswers(schema: FormTemplateSchema, data: FormSubmissionData): Partial<Record<IntakeInsuranceKey, string>> {
+  const out: Partial<Record<IntakeInsuranceKey, string>> = {}
+  for (const section of schema?.sections ?? []) {
+    for (const field of section.fields ?? []) {
+      const key = field.systemKey as IntakeInsuranceKey | null | undefined
+      if (!key || !INTAKE_INSURANCE_KEYS.includes(key)) continue
+      const v = (data as Record<string, unknown>)[field.id]
+      if (typeof v === 'string' && v.trim()) out[key] = v.trim().slice(0, 120)
+    }
+  }
+  return out
+}
+
+/**
+ * Fill the patient's EMPTY insurance columns from a submission — never
+ * overwrite — and stamp the remembered card when the member id is new.
+ * Exported for the tests; called from submitForm.
+ */
+export async function writeBackIntakeInsurance(
+  organizationId: string,
+  patientId: string,
+  schema: FormTemplateSchema,
+  data: FormSubmissionData,
+): Promise<boolean> {
+  const answers = intakeInsuranceAnswers(schema, data)
+  if (Object.keys(answers).length === 0) return false
+  const [p] = await db
+    .select({
+      insuranceProvider: patient.insuranceProvider,
+      insurancePolicyNumber: patient.insurancePolicyNumber,
+      insuranceGroupNumber: patient.insuranceGroupNumber,
+    })
+    .from(patient)
+    .where(and(eq(patient.organizationId, organizationId), eq(patient.id, patientId)))
+    .limit(1)
+  if (!p) return false
+  const patch: Record<string, unknown> = {}
+  if (!p.insuranceProvider?.trim() && answers.insurance_provider) patch.insuranceProvider = answers.insurance_provider
+  if (!p.insurancePolicyNumber?.trim() && answers.insurance_policy_number) patch.insurancePolicyNumber = answers.insurance_policy_number
+  if (!p.insuranceGroupNumber?.trim() && answers.insurance_group_number) patch.insuranceGroupNumber = answers.insurance_group_number
+  if (Object.keys(patch).length === 0) return false
+  if (typeof patch.insurancePolicyNumber === 'string') {
+    const { detailFromRequest } = await import('@/lib/insurance-eligibility')
+    patch.insuranceDetail = detailFromRequest(
+      {
+        patient: { firstName: '', lastName: '', dateOfBirth: '' },
+        carrierName: (patch.insuranceProvider as string | undefined) ?? p.insuranceProvider ?? '',
+        memberId: patch.insurancePolicyNumber,
+        groupNumber: (patch.insuranceGroupNumber as string | undefined) ?? p.insuranceGroupNumber ?? null,
+        relationship: 'self',
+        subscriber: null,
+      },
+      null,
+      'intake',
+    )
+  }
+  await db
+    .update(patient)
+    .set({ ...patch, updatedAt: new Date() })
+    .where(and(eq(patient.organizationId, organizationId), eq(patient.id, patientId)))
+  return true
 }
 
 export async function listSubmissionsForPatient(

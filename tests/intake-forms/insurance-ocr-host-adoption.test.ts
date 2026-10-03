@@ -84,6 +84,7 @@ describe('shared attachment-host allowlist adoption', () => {
       .filter(([path, src]) => /readInsuranceCard\s*\(/.test(code(src)) && path !== 'lib/services/insurance-ocr.ts')
     // The action call sites exist (the scan is not matching nothing).
     expect(callers.map(([p]) => p).sort()).toEqual([
+      'app/(default)/insurance/actions.ts',
       'app/(portal)/patient/intake/actions.ts',
       'app/site/[slug]/intake/[formSlug]/actions.ts',
     ])

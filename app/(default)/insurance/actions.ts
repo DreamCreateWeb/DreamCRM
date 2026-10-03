@@ -18,6 +18,9 @@ import {
 } from '@/lib/services/insurance-eligibility'
 import type { StediPayerMatch } from '@/lib/stedi-eligibility'
 import { createPatient, updatePatient } from '@/lib/services/patients'
+import { readInsuranceCard, type InsuranceCardFields } from '@/lib/services/insurance-ocr'
+import { addPatientDocument, patientBelongsToOrg } from '@/lib/services/patient-documents'
+import { isAllowedAttachmentUrl } from '@/lib/attachment-hosts'
 
 /**
  * Server actions for the Insurance tool. Every action takes the org from the
@@ -184,4 +187,71 @@ export async function createPatientFromCheckAction(args: {
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : 'Could not create the patient.' }
   }
+}
+
+export interface ScannedCardImage {
+  url: string
+  name: string
+  contentType: string
+  sizeBytes: number
+}
+
+const SCAN_REFUSALS: Record<'not_configured' | 'no_allowance' | 'no_images' | 'failed', string> = {
+  not_configured: 'Card reading isn’t set up for this clinic yet — type it in from the card.',
+  no_allowance: 'This month’s card-reading allowance is used up — type it in from the card.',
+  no_images: 'The photo didn’t land on our storage. Try again, or type it in from the card.',
+  failed: 'We couldn’t read that card. Type it in from the card instead.',
+}
+
+/**
+ * SCAN A CARD (polish phase 5): read a photographed insurance card with the
+ * same OCR the intake forms use (`readInsuranceCard` — host-allowlisted,
+ * metered per clinic per month), and when a patient is selected keep the
+ * photo on their record as a document labelled "Insurance card". The fields
+ * come back as a PREFILL, never as a check: a card's carrier name is a search
+ * query for the payer picker, not a payer, and staff confirm every box.
+ */
+export async function scanCardAction(args: {
+  images: ScannedCardImage[]
+  patientId: string | null
+}): Promise<{ ok: true; fields: InsuranceCardFields; attached: number } | { ok: false; error: string }> {
+  const ctx = await clinicCtx()
+  if (!ctx) return { ok: false, error: 'Insurance checks are a clinic feature.' }
+  // Only photos on OUR storage: the OCR service drops anything else too, but
+  // the gate has to sit here as well — a foreign URL would otherwise be kept
+  // on the patient's record as a document.
+  const images = (Array.isArray(args.images) ? args.images : [])
+    .filter((i) => i && typeof i.url === 'string' && isAllowedAttachmentUrl(i.url) && /^image\//.test(String(i.contentType ?? '')))
+    .slice(0, 2)
+  if (images.length === 0) return { ok: false, error: SCAN_REFUSALS.no_images }
+
+  const read = await readInsuranceCard({ organizationId: ctx.organizationId, imageUrls: images.map((i) => i.url) })
+  if (!read.ok) return { ok: false, error: SCAN_REFUSALS[read.reason] }
+
+  // Keep the photo on the record — best effort, and only on a patient this
+  // org owns (the check runs before any row is written, as the documents
+  // panel's own upload does).
+  let attached = 0
+  if (args.patientId && (await patientBelongsToOrg(ctx.organizationId, args.patientId))) {
+    for (let i = 0; i < images.length; i++) {
+      const img = images[i]
+      try {
+        await addPatientDocument({
+          organizationId: ctx.organizationId,
+          patientId: args.patientId,
+          uploadedBy: ctx.userId,
+          fileName: img.name || `insurance-card-${i + 1}.jpg`,
+          fileUrl: img.url,
+          contentType: img.contentType,
+          sizeBytes: Math.max(0, Math.floor(Number(img.sizeBytes) || 0)),
+          label: images.length > 1 ? `Insurance card (${i === 0 ? 'front' : 'back'})` : 'Insurance card',
+        })
+        attached += 1
+      } catch (e) {
+        console.warn('[insurance] card photo not attached:', e)
+      }
+    }
+    if (attached > 0) revalidatePath(`/patients/${args.patientId}`)
+  }
+  return { ok: true, fields: read.fields, attached }
 }

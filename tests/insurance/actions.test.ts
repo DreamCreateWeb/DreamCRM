@@ -32,10 +32,24 @@ vi.mock('@/lib/services/patients', () => ({
   createPatient: (...a: unknown[]) => createPatient(...(a as [])),
   updatePatient: (...a: unknown[]) => updatePatient(...(a as [])),
 }))
+const readInsuranceCard = vi.fn()
+vi.mock('@/lib/services/insurance-ocr', () => ({
+  readInsuranceCard: (...a: unknown[]) => readInsuranceCard(...(a as [])),
+}))
+vi.mock('@/lib/attachment-hosts', () => ({
+  isAllowedAttachmentUrl: (u: string) => u.startsWith('https://dreamcrm-uploads-prod.s3.amazonaws.com/'),
+}))
+const addPatientDocument = vi.fn(async () => ({ id: 'doc_1' }))
+const patientBelongsToOrg = vi.fn(async () => true)
+vi.mock('@/lib/services/patient-documents', () => ({
+  addPatientDocument: (...a: unknown[]) => addPatientDocument(...(a as [])),
+  patientBelongsToOrg: (...a: unknown[]) => patientBelongsToOrg(...(a as [])),
+}))
 
 import {
   checkInsuranceAction,
   createPatientFromCheckAction,
+  scanCardAction,
   saveInsuranceToPatientAction,
   searchPayersAction,
 } from '@/app/(default)/insurance/actions'
@@ -173,5 +187,59 @@ describe('createPatientFromCheckAction', () => {
     createPatient.mockRejectedValueOnce(new Error('boom'))
     const r = await createPatientFromCheckAction({ checkId: 'ins_1', request })
     expect(r).toEqual({ ok: false, error: 'boom' })
+  })
+})
+
+describe('scanCardAction', () => {
+  const img = { url: 'https://dreamcrm-uploads-prod.s3.amazonaws.com/insurance-cards/u/1-front.jpg', name: 'front.jpg', contentType: 'image/jpeg', sizeBytes: 123_456 }
+
+  beforeEach(() => {
+    readInsuranceCard.mockReset()
+    addPatientDocument.mockClear()
+    patientBelongsToOrg.mockClear()
+    patientBelongsToOrg.mockResolvedValue(true)
+  })
+
+  it('reads the card through the metered OCR, returns the fields, and keeps the photo on the selected patient’s record', async () => {
+    readInsuranceCard.mockResolvedValue({ ok: true, fields: { provider: 'Delta Dental', memberId: 'DD-1', groupNumber: 'G1', planName: 'PPO', subscriberName: 'Ana Hayes' } })
+    const r = await scanCardAction({ images: [img, { ...img, url: `${img.url}?back`, name: 'back.jpg' }], patientId: 'pat_1' })
+    expect(r).toMatchObject({ ok: true, attached: 2 })
+    expect(readInsuranceCard).toHaveBeenCalledWith({ organizationId: 'org_1', imageUrls: [img.url, `${img.url}?back`] })
+    expect(addPatientDocument).toHaveBeenCalledTimes(2)
+    expect((addPatientDocument.mock.calls[0] as unknown[])[0]).toMatchObject({ organizationId: 'org_1', patientId: 'pat_1', uploadedBy: 'user_staff', fileUrl: img.url, contentType: 'image/jpeg', sizeBytes: 123_456, label: 'Insurance card (front)' })
+  })
+
+  it('attaches nothing without a patient, or when the patient is not this org’s — and the scan still answers', async () => {
+    readInsuranceCard.mockResolvedValue({ ok: true, fields: { provider: 'Cigna', memberId: null, groupNumber: null, planName: null, subscriberName: null } })
+    const none = await scanCardAction({ images: [img], patientId: null })
+    expect(none).toMatchObject({ ok: true, attached: 0 })
+    patientBelongsToOrg.mockResolvedValue(false)
+    const foreign = await scanCardAction({ images: [img], patientId: 'pat_other' })
+    expect(foreign).toMatchObject({ ok: true, attached: 0 })
+    expect(addPatientDocument).not.toHaveBeenCalled()
+  })
+
+  it('refuses non-image uploads and photos off our storage before any read, and words every OCR refusal for the desk', async () => {
+    const pdf = await scanCardAction({ images: [{ ...img, contentType: 'application/pdf' }], patientId: null })
+    expect(pdf.ok).toBe(false)
+    // A foreign URL is dropped BEFORE the read — and so can never be kept on a record as a document.
+    const foreign = await scanCardAction({ images: [{ ...img, url: 'https://attacker.example/card.jpg' }], patientId: 'pat_1' })
+    expect(foreign.ok).toBe(false)
+    expect(addPatientDocument).not.toHaveBeenCalled()
+    expect(readInsuranceCard).not.toHaveBeenCalled()
+    for (const reason of ['not_configured', 'no_allowance', 'no_images', 'failed'] as const) {
+      readInsuranceCard.mockResolvedValueOnce({ ok: false, reason })
+      const r = await scanCardAction({ images: [img], patientId: null })
+      expect(r.ok).toBe(false)
+      expect((r as { error: string }).error).toMatch(/type it in from the card/i)
+    }
+  })
+
+  it('PREVIEW: refuses clinic staff who are not platform admins', async () => {
+    tenantCtx.platformAdmin = false
+    const r = await scanCardAction({ images: [img], patientId: null })
+    expect(r.ok).toBe(false)
+    expect(readInsuranceCard).not.toHaveBeenCalled()
+    tenantCtx.platformAdmin = true
   })
 })
