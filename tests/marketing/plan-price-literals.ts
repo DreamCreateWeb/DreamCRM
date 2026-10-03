@@ -487,6 +487,16 @@ export const ALLOWED_QUOTES: AllowedQuote[] = [
       '`MONTHLY_CAP` above — the unit is segments, and the number moves with carrier ' +
       'economics rather than with the plan.',
   },
+  {
+    file: 'lib/insurance-eligibility.ts',
+    value: 200,
+    near: 'INCLUDED_MONTHLY_INSURANCE_CHECKS',
+    why:
+      'A COUNT, not money: 200 included insurance eligibility checks per clinic per month ' +
+      '(the SMS segment budget’s sibling). The unit is checks, and the number moves with the ' +
+      'clearinghouse’s per-check price rather than with the plan — landing on the plan’s ' +
+      'monthly price is a coincidence.',
+  },
 ]
 
 const allows = (entry: AllowedQuote, hit: PriceHit): boolean =>

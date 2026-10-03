@@ -11,6 +11,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 const state = {
   patients: [] as Array<{ id: string; firstName: string; lastName: string; insurancePolicyNumber?: string | null }>,
   org: [{ isDemo: false }] as Array<{ isDemo: boolean }>,
+  profile: [] as Array<{ npi: string | null }>,
+  usage: { used: 0, included: 200, unreadable: false },
   inserts: [] as Array<{ table: string; values: Record<string, unknown> }>,
   updates: [] as Array<{ table: string; values: Record<string, unknown> }>,
   failInsert: false,
@@ -31,6 +33,7 @@ vi.mock('@/lib/db', async () => {
     obj.limit = async () => {
       if (table === schema.patient) return state.patients
       if (table === schema.organization) return state.org
+      if (table === schema.clinicProfile) return state.profile
       return []
     }
     return obj
@@ -59,6 +62,10 @@ vi.mock('@/lib/db', async () => {
   }
 })
 
+// The allowance counter is its own module (one query, fail-open) with its own test.
+const getInsuranceUsage = vi.fn(async () => state.usage)
+vi.mock('@/lib/services/insurance-eligibility/allowance', () => ({ getInsuranceUsage: (...a: unknown[]) => getInsuranceUsage(...(a as [])) }))
+
 // The Stedi driver's network half is replaced so the resolver can be exercised
 // under INSURANCE_DRIVER=stedi without a key or a payer.
 vi.mock('@/lib/services/insurance-eligibility/stedi', () => ({
@@ -86,7 +93,7 @@ vi.mock('@/lib/services/insurance-eligibility/stedi', () => ({
 const recordAction = vi.fn(async (_input: Record<string, unknown>) => true)
 vi.mock('@/lib/services/action-ledger', () => ({ recordAction: (input: Record<string, unknown>) => recordAction(input) }))
 
-import { runEligibilityCheck } from '@/lib/services/insurance-eligibility'
+import { getInsuranceSetup, runEligibilityCheck } from '@/lib/services/insurance-eligibility'
 
 const NOW = new Date('2026-09-30T15:00:00Z')
 
@@ -104,6 +111,12 @@ function input(memberId = 'DD-100-2231') {
 beforeEach(() => {
   state.patients = []
   state.org = [{ isDemo: false }]
+  state.profile = []
+  state.usage = { used: 0, included: 200, unreadable: false }
+  getInsuranceUsage.mockClear()
+  delete process.env.INSURANCE_DRIVER
+  delete process.env.STEDI_MODE
+  delete process.env.STEDI_DEFAULT_NPI
   state.inserts = []
   state.updates = []
   state.failInsert = false
@@ -163,18 +176,97 @@ describe('runEligibilityCheck', () => {
     expect(state.inserts[0].values.patientId).toBeNull()
   })
 
-  it('the demo org gets the configured driver like any other org — no silent sandbox swap', async () => {
+  it('the demo org gets the configured driver like any other org once it can reach a payer — no silent sandbox swap', async () => {
     // Only a platform admin can act in the demo org, and a check is a
     // deliberate click; swapping their test to the sandbox (the first draft)
     // turned a real answer into a fake one without saying so.
     state.org = [{ isDemo: true }]
+    state.profile = [{ npi: '1234567893' }]
     process.env.INSURANCE_DRIVER = 'stedi'
     process.env.STEDI_MODE = 'live'
     const r = await runEligibilityCheck('org_demo', { input: input(), now: NOW })
-    delete process.env.INSURANCE_DRIVER
-    delete process.env.STEDI_MODE
     expect(r.ok && r.check.driver).toBe('stedi')
     expect(r.ok && r.check.status).toBe('active')
+  })
+
+  it('the demo org with NO NPI under the live driver falls back to the LABELLED sandbox — the one honest swap', async () => {
+    state.org = [{ isDemo: true }]
+    process.env.INSURANCE_DRIVER = 'stedi'
+    process.env.STEDI_MODE = 'live'
+    const r = await runEligibilityCheck('org_demo', { input: input(), now: NOW })
+    expect(r.ok && r.check.driver).toBe('sandbox')
+    expect(state.inserts[0].values.driver).toBe('sandbox')
+    // A free answer is never counted against the allowance.
+    expect(getInsuranceUsage).not.toHaveBeenCalled()
+  })
+
+  it('READINESS: a real clinic with no NPI under the live driver is refused BEFORE any row or any network call', async () => {
+    process.env.INSURANCE_DRIVER = 'stedi'
+    process.env.STEDI_MODE = 'live'
+    const r = await runEligibilityCheck('org_a', { input: input(), patientId: 'pat_1', now: NOW })
+    expect(r.ok).toBe(false)
+    if (r.ok) return
+    expect(r.reason).toBe('npi')
+    expect(r.errors._form).toMatch(/NPI/)
+    expect(state.inserts).toHaveLength(0)
+    expect(recordAction).not.toHaveBeenCalled()
+    expect(getInsuranceUsage).not.toHaveBeenCalled()
+  })
+
+  it('READINESS: the platform fallback NPI or test mode never refuses', async () => {
+    process.env.INSURANCE_DRIVER = 'stedi'
+    process.env.STEDI_MODE = 'live'
+    process.env.STEDI_DEFAULT_NPI = '1999999984'
+    expect((await runEligibilityCheck('org_a', { input: input(), now: NOW })).ok).toBe(true)
+    // A live check under the fallback NPI is still a BILLED check — counted.
+    expect(getInsuranceUsage).toHaveBeenCalledTimes(1)
+    getInsuranceUsage.mockClear()
+    delete process.env.STEDI_DEFAULT_NPI
+    process.env.STEDI_MODE = 'test'
+    const r = await runEligibilityCheck('org_a', { input: input(), now: NOW })
+    expect(r.ok && r.check.driver).toBe('stedi_test')
+    expect(getInsuranceUsage).not.toHaveBeenCalled()
+  })
+
+  it('THE ALLOWANCE: a live check past the included count is refused before the payer is asked; under it, it runs', async () => {
+    process.env.INSURANCE_DRIVER = 'stedi'
+    process.env.STEDI_MODE = 'live'
+    state.profile = [{ npi: '1234567893' }]
+    state.usage = { used: 200, included: 200, unreadable: false }
+    const refused = await runEligibilityCheck('org_a', { input: input(), now: NOW })
+    expect(refused.ok).toBe(false)
+    if (refused.ok) return
+    expect(refused.reason).toBe('over_allowance')
+    expect(refused.errors._form).toMatch(/All 200 included checks used this month/)
+    expect(state.inserts).toHaveLength(0)
+    expect(recordAction).not.toHaveBeenCalled()
+
+    state.usage = { used: 199, included: 200, unreadable: false }
+    const ran = await runEligibilityCheck('org_a', { input: input(), now: NOW })
+    expect(ran.ok && ran.check.driver).toBe('stedi')
+    expect(state.inserts).toHaveLength(1)
+  })
+
+  it('THE ALLOWANCE fails OPEN: an unreadable count never refuses a check at the desk', async () => {
+    process.env.INSURANCE_DRIVER = 'stedi'
+    process.env.STEDI_MODE = 'live'
+    state.profile = [{ npi: '1234567893' }]
+    state.usage = { used: 0, included: 200, unreadable: true }
+    const r = await runEligibilityCheck('org_a', { input: input(), now: NOW })
+    expect(r.ok).toBe(true)
+  })
+
+  it('getInsuranceSetup: the one read the page, the rail card and the check share', async () => {
+    expect(await getInsuranceSetup('org_a')).toEqual({ driver: 'sandbox', needsNpi: false, usage: null })
+    process.env.INSURANCE_DRIVER = 'stedi'
+    process.env.STEDI_MODE = 'live'
+    expect(await getInsuranceSetup('org_a')).toEqual({ driver: 'stedi', needsNpi: true, usage: null })
+    state.profile = [{ npi: '1234567893' }]
+    state.usage = { used: 7, included: 200, unreadable: false }
+    expect(await getInsuranceSetup('org_a')).toEqual({ driver: 'stedi', needsNpi: false, usage: { used: 7, included: 200, unreadable: false } })
+    state.profile = []
+    state.org = [{ isDemo: true }]
+    expect(await getInsuranceSetup('org_demo')).toEqual({ driver: 'sandbox', needsNpi: false, usage: null })
   })
 
   it('a database failure returns a typed refusal instead of throwing', async () => {

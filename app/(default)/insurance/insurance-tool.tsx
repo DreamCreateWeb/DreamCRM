@@ -13,6 +13,8 @@ import { formatClinicDayTime } from '@/lib/format-datetime'
 import { TONE_TEXT } from '@/lib/ui/encodings'
 import {
   INSURANCE_DRIVER_LABEL,
+  NPI_READINESS_COPY,
+  usageLine,
   INSURANCE_RELATIONSHIPS,
   SANDBOX_STEERING,
   STATUS_LABEL,
@@ -30,6 +32,7 @@ import {
   type EligibilityRequest,
   type InsuranceCheckView,
   type InsuranceDriverId,
+  type InsuranceUsage,
   type InsuranceRelationship,
 } from '@/lib/insurance-eligibility'
 import { checkInsuranceAction, createPatientFromCheckAction, saveInsuranceToPatientAction, searchPayersAction } from './actions'
@@ -125,6 +128,10 @@ export interface InsuranceToolProps {
   prefill: { patientId: string; patientName: string; request: Partial<EligibilityRequest> } | null
   initialCheck: InsuranceCheckView | null
   driver: InsuranceDriverId
+  /** Live driver, no practice NPI: the form is parked behind the readiness notice. */
+  needsNpi?: boolean
+  /** The month's included allowance under a billed driver; null when checks are free. */
+  usage?: InsuranceUsage | null
 }
 
 export default function InsuranceTool({
@@ -136,6 +143,8 @@ export default function InsuranceTool({
   prefill,
   initialCheck,
   driver,
+  needsNpi = false,
+  usage = null,
 }: InsuranceToolProps) {
   const router = useRouter()
   const toast = useToast()
@@ -267,8 +276,35 @@ export default function InsuranceTool({
         eyebrow={`Daily · ${orgName}`}
         title="Insurance"
         subtitle="Look up a patient’s benefits before they sit down. We always confirm with the carrier before quoting."
-        actions={practice ? <StatusPill tone="neutral" label={label.pill} title={label.title} /> : undefined}
+        actions={
+          practice || usage ? (
+            <div className="flex flex-wrap items-center gap-2">
+              {usage && !usage.unreadable && (
+                <span
+                  className={`text-xs font-mono-num tabular-nums ${usage.used >= usage.included ? TONE_TEXT.warn : 'text-gray-500 dark:text-gray-400'}`}
+                  title="Live payer checks are billed per check; this many are included every month."
+                  data-testid="insurance-usage"
+                >
+                  {usageLine(usage)}
+                </span>
+              )}
+              {practice && <StatusPill tone="neutral" label={label.pill} title={label.title} />}
+            </div>
+          ) : undefined
+        }
       />
+
+      {needsNpi && (
+        <div className="v2-card px-4 sm:px-5 py-4 mb-6 flex flex-wrap items-center justify-between gap-3" role="status" data-testid="insurance-readiness">
+          <div className="min-w-0">
+            <p className={`text-sm font-semibold ${TONE_TEXT.warn}`}>{NPI_READINESS_COPY.title}</p>
+            <p className="text-xs text-gray-600 dark:text-gray-300 mt-0.5">{NPI_READINESS_COPY.body}</p>
+          </div>
+          <ActionButton variant="primary" size="sm" href={NPI_READINESS_COPY.href}>
+            {NPI_READINESS_COPY.cta}
+          </ActionButton>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* ── The card, typed in ──────────────────────────────────────── */}
@@ -417,7 +453,7 @@ export default function InsuranceTool({
             <FieldError id="ins-form-error" message={errors._form} />
 
             <div className="flex flex-wrap items-center gap-2">
-              <ActionButton type="submit" variant="primary" pending={pending && busy === 'check'} breath>
+              <ActionButton type="submit" variant="primary" pending={pending && busy === 'check'} disabled={needsNpi} breath={!needsNpi}>
                 Check benefits
               </ActionButton>
               {prefill && (

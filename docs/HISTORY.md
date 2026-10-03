@@ -5685,3 +5685,39 @@ staff truth is never overwritten by a form), and stamps the remembered card
 carried into Phase 6's checklist: card images go to Anthropic's API, which
 has no BAA (docs/COMPLIANCE.md) — the same posture as the existing intake
 OCR.
+
+**2026-10-03 — polish phase 6: released to every clinic.** The preview
+gate (owner ruling 2026-09-30, platform admins only) comes off: Daily →
+Insurance shows for every clinic role, ⌘K offers "Check insurance", the
+Dream Team roster shows the lane (`PREVIEW_CAPABILITIES` is empty — the
+mechanism stays for the next preview), and `canUseInsuranceTool` now asks
+the one question that still matters, "is this a clinic tenant". Two rules
+make the release safe under the live driver. READINESS: a payer answers a
+PROVIDER, so a live check needs the practice's NPI (or the platform
+fallback `STEDI_DEFAULT_NPI`); without one the page parks the form behind
+"Add your practice NPI to start checking" with one button to the Business
+profile, the rail card offers the same door, and `runEligibilityCheck`
+refuses (`reason: 'npi'`) BEFORE any row or any network call — the old
+behaviour was a stored error row and a network-shaped message.
+`needsPracticeNpi` is the one rule, shared by the page, the card and the
+service through `getInsuranceSetup`. THE ALLOWANCE: every live check is
+billed to the Dream Create account, so each clinic gets
+`INCLUDED_MONTHLY_INSURANCE_CHECKS = 200` a clinic-local month (the SMS
+budget's shape: platform-env-overridable, never per clinic — that would be
+a plan tier by another name); `getInsuranceUsage` counts the live driver's
+rows only (error rows included — Stedi bills the request), the header says
+"12 of 200 checks used this month" in mono, and at the cap the service
+refuses (`reason: 'over_allowance'`) before the payer is asked. Fail-open
+by law: an unreadable count is zero used and a hidden counter, never a
+refusal at the desk. THE DEMO RULE got its one honest exception: the demo
+org still gets the configured driver like every org (the 2026-10-01
+ruling), EXCEPT where the live driver would only refuse it for a missing
+NPI — then the labelled sandbox answers (`effectiveInsuranceDriver`). The
+go-live checklist — BAA, the card-image posture, the client's NPI, the live
+key through `setup-stedi-aws.sh --mode live --confirm-baa`, one real card
+with the owner present — is `docs/insurance-go-live.md`. The owner's two
+asks for the reveal (the printable sheet, card scanning) and the four
+polish phases before this one are the entries above; the plan's "later"
+items (auto-verify before visits, PMS payer-id import, secondary
+insurance) stay on record in docs/COMPETITIVE-GAPS.md item 3.
+

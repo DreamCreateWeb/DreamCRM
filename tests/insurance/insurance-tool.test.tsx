@@ -452,3 +452,40 @@ describe('InsuranceTool — scan a card', () => {
     expect(scanCardAction).not.toHaveBeenCalled()
   })
 })
+
+describe('the release (polish phase 6): readiness and the allowance', () => {
+  it('with no practice NPI under the live driver, the form is parked behind a readiness notice that links to the Business profile', () => {
+    renderTool({ driver: 'stedi', needsNpi: true })
+    const notice = screen.getByTestId('insurance-readiness')
+    expect(notice).toHaveTextContent('Add your practice NPI to start checking')
+    const cta = screen.getByText('Add the NPI in Settings →')
+    expect(cta.closest('a')?.getAttribute('href')).toBe('/settings/clinic')
+    expect(screen.getByRole('button', { name: 'Check benefits' })).toBeDisabled()
+  })
+
+  it('ready: no notice, the check button live', () => {
+    renderTool({ driver: 'stedi', needsNpi: false })
+    expect(screen.queryByTestId('insurance-readiness')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Check benefits' })).not.toBeDisabled()
+  })
+
+  it('under the live driver the header says where the month stands, in mono; spent reads in the warn tone', () => {
+    const { unmount } = renderTool({ driver: 'stedi', usage: { used: 12, included: 200, unreadable: false } })
+    const line = screen.getByTestId('insurance-usage')
+    expect(line).toHaveTextContent('12 of 200 checks used this month')
+    expect(line.className).toContain('font-mono-num')
+    expect(line.className).not.toContain('amber')
+    unmount()
+    renderTool({ driver: 'stedi', usage: { used: 200, included: 200, unreadable: false } })
+    expect(screen.getByTestId('insurance-usage')).toHaveTextContent('All 200 included checks used this month')
+    expect(screen.getByTestId('insurance-usage').className).toContain('amber')
+  })
+
+  it('free drivers show no counter, and an unreadable count hides it rather than lying', () => {
+    const { unmount } = renderTool({ driver: 'sandbox', usage: null })
+    expect(screen.queryByTestId('insurance-usage')).toBeNull()
+    unmount()
+    renderTool({ driver: 'stedi', usage: { used: 0, included: 200, unreadable: true } })
+    expect(screen.queryByTestId('insurance-usage')).toBeNull()
+  })
+})

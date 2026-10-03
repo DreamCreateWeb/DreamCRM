@@ -31,18 +31,97 @@ import type { Tone } from '@/lib/ui/encodings'
 export type InsuranceDriverId = 'sandbox' | 'stedi_test' | 'stedi'
 
 /**
- * THE RELEASE GATE (owner ruling 2026-09-30: "hide it for now — accessible
- * only from my admin portal until we decide to release it; I have real
- * clients now"). Every surface of the tool — the page, its actions, the
- * sidebar entry, the ⌘K action, the patient-record rail card + nudge, the
- * roster lane — asks this one question. `platformAdmin` rides the USER row,
- * so the owner keeps the tool wherever they are (their own org, the demo,
- * View-as-clinic) and no clinic staff member can ever reach it. Flip this to
- * `true` (and drop `platformAdminOnly` on the module + the capability from
- * PREVIEW_CAPABILITIES) to release.
+ * THE RELEASE GATE — OPEN (polish phase 6, 2026-10-03). The tool previewed
+ * to platform admins only from 2026-09-30 (owner ruling: "hide it for now —
+ * I have real clients now") and was released to every clinic once the six
+ * polish phases landed. Every surface of the tool — the page, its actions,
+ * the patient-record rail card + nudge — still asks this ONE question, so a
+ * future preview (a new driver, say) is one predicate away rather than a
+ * sweep: the tool is a CLINIC feature, and a patient or the platform tenant
+ * never sees it. The sidebar + ⌘K ride the module registry (no
+ * `platformAdminOnly` flag any more) and the roster lane rides
+ * PREVIEW_CAPABILITIES (now empty).
  */
-export function canUseInsuranceTool(ctx: { platformAdmin?: boolean | null }): boolean {
-  return ctx.platformAdmin === true
+export function canUseInsuranceTool(ctx: { tenantType?: string | null }): boolean {
+  return ctx.tenantType === 'clinic'
+}
+
+/**
+ * THE INCLUDED ALLOWANCE (polish phase 6). A LIVE check reaches a real payer
+ * and is billed per check to the Dream Create account, so every clinic gets
+ * an included number a month and the tool says so plainly — "12 of 200
+ * checks used this month" — rather than silently billing past it. Only the
+ * `stedi` (live) driver counts: sandbox and test-mode answers are free. The
+ * month is the CLINIC-LOCAL calendar month (lib/clinic-timezone.ts), the same
+ * window the rest of the dashboard reports in. Env-overridable per platform
+ * (`INSURANCE_INCLUDED_MONTHLY_CHECKS`) in the service, never per clinic —
+ * a per-clinic knob would be a plan tier by another name (the no-plan-gating
+ * convention).
+ */
+export const INCLUDED_MONTHLY_INSURANCE_CHECKS = 200
+
+/** Whether a driver's checks are billed per call (and so count against the allowance). */
+export function isBilledDriver(driver: InsuranceDriverId): boolean {
+  return driver === 'stedi'
+}
+
+export interface InsuranceUsage {
+  /** Billed checks so far this clinic-local month. */
+  used: number
+  included: number
+  /** The count could not be read — the allowance fails OPEN and the counter hides. */
+  unreadable: boolean
+}
+
+/** "12 of 200 checks used this month" / "All 200 included checks used this month". */
+export function usageLine(usage: InsuranceUsage): string {
+  if (usage.used >= usage.included) return `All ${usage.included} included checks used this month`
+  return `${usage.used} of ${usage.included} checks used this month`
+}
+
+/**
+ * THE READINESS RULE. A live payer answers a PROVIDER, so a live check needs
+ * the practice's own NPI (`clinic_profile.npi`, Settings → Business profile)
+ * or the platform fallback `STEDI_DEFAULT_NPI`. Test mode rides Stedi's mock
+ * NPI and the sandbox needs none, so only the live driver can be "not ready".
+ * Pure so the page, the rail card and the service agree on one answer.
+ */
+export function needsPracticeNpi(
+  driver: InsuranceDriverId,
+  storedNpi: string | null | undefined,
+  env: Record<string, string | undefined> = process.env,
+): boolean {
+  if (driver !== 'stedi') return false
+  const stored = (storedNpi ?? '').replace(/\D/g, '')
+  if (stored.length === 10) return false
+  const fallback = (env.STEDI_DEFAULT_NPI ?? '').replace(/\D/g, '')
+  return fallback.length !== 10
+}
+
+/** The one copy for the not-ready state, shared by the page, the rail card and the refusal. */
+export const NPI_READINESS_COPY = {
+  title: 'Add your practice NPI to start checking',
+  body: 'Payers answer a provider, so a live check needs the practice’s NPI. It lives on the Business profile — one box, once.',
+  cta: 'Add the NPI in Settings →',
+  href: '/settings/clinic',
+  refusal: 'Add the practice’s NPI on the Business profile before checking — payers need it to answer.',
+} as const
+
+/** The pure half of the demo rule: WHICH driver a check actually runs under. */
+export function effectiveInsuranceDriver(opts: {
+  driver: InsuranceDriverId
+  storedNpi: string | null | undefined
+  isDemo: boolean
+  env?: Record<string, string | undefined>
+}): { driver: InsuranceDriverId; needsNpi: boolean } {
+  const missing = needsPracticeNpi(opts.driver, opts.storedNpi, opts.env)
+  // The demo clinic gets the SAME driver as every org (owner ruling
+  // 2026-10-01: a silent sandbox swap turned the owner's own test into a fake
+  // answer) — EXCEPT where the live driver would only refuse it. A demo with
+  // no NPI cannot reach a payer, so the sandbox, labelled "Practice answer"
+  // on every result, is the one honest fallback there.
+  if (missing && opts.isDemo) return { driver: 'sandbox', needsNpi: false }
+  return { driver: opts.driver, needsNpi: missing }
 }
 
 export type InsuranceRelationship = 'self' | 'spouse' | 'child' | 'other'

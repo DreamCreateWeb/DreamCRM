@@ -102,15 +102,8 @@ describe('the roster cards', () => {
 })
 
 describe('PREVIEW lanes', () => {
-  it('hides an unreleased capability from clinics and shows it to platform admins', () => {
-    const { unmount } = render(
-      <TeamRoster grantedCapabilities={new Set()} weeklyCounts={new Map()} waitingCapabilities={new Set()} />,
-    )
-    expect(screen.queryByText(/insurance benefits/)).toBeNull()
-    unmount()
-    render(
-      <TeamRoster grantedCapabilities={new Set()} weeklyCounts={new Map()} waitingCapabilities={new Set()} showPreview />,
-    )
+  it('nothing is in preview today — the insurance lane (the first preview, released 2026-10-03) shows to every clinic', () => {
+    render(<TeamRoster grantedCapabilities={new Set()} weeklyCounts={new Map()} waitingCapabilities={new Set()} />)
     expect(screen.getByText(/insurance benefits/)).toBeInTheDocument()
   })
 })

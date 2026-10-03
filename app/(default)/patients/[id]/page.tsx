@@ -12,9 +12,9 @@ import { findMergeCandidates } from '@/lib/services/patient-merge'
 import { getReferralContext } from '@/lib/services/patient-referrals'
 import { getLoyaltySettings, getPointsBalance, listLoyaltyEvents } from '@/lib/services/loyalty'
 import { listFormTemplates } from '@/lib/services/forms'
-import { getLatestInsuranceCheckForPatient, listInsuranceChecksForPatient } from '@/lib/services/insurance-eligibility'
+import { getInsuranceSetup, getLatestInsuranceCheckForPatient, listInsuranceChecksForPatient } from '@/lib/services/insurance-eligibility'
 import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
-import { canUseInsuranceTool, requestFromOnFile, resolveInsuranceDriverId } from '@/lib/insurance-eligibility'
+import { canUseInsuranceTool, requestFromOnFile } from '@/lib/insurance-eligibility'
 import PatientDetail from './patient-detail'
 
 interface PageProps {
@@ -32,7 +32,7 @@ export default async function PatientDetailPage({ params }: PageProps) {
   if (ctx.tenantType === 'platform') redirect('/ecommerce/customers')
 
   const { id } = await params
-  const [header, timeline, notes, forms, patientOptions, tags, tagCatalog, documents, followups, staff, family, referral, latestInsuranceCheck, timeZone, insuranceHistory] =
+  const [header, timeline, notes, forms, patientOptions, tags, tagCatalog, documents, followups, staff, family, referral, latestInsuranceCheck, timeZone, insuranceHistory, insuranceSetup] =
     await Promise.all([
       getPatientHeader(ctx.organizationId, id),
       getPatientTimeline(ctx.organizationId, id),
@@ -49,6 +49,7 @@ export default async function PatientDetailPage({ params }: PageProps) {
       getLatestInsuranceCheckForPatient(ctx.organizationId, id),
       getClinicTimeZone(ctx.organizationId),
       listInsuranceChecksForPatient(ctx.organizationId, id, 10),
+      canUseInsuranceTool(ctx) ? getInsuranceSetup(ctx.organizationId) : Promise.resolve(null),
     ])
   if (!header) notFound()
   // A merged tombstone isn't a real record anymore — send old links to the survivor.
@@ -74,10 +75,10 @@ export default async function PatientDetailPage({ params }: PageProps) {
 
   // Insurance-check rail card: the latest stored verdict + what a re-check
   // would send when no check exists yet (the on-file card as self-subscriber).
-  // PREVIEW: null hides the rail card AND the needs-attention nudge for
-  // everyone but platform admins.
+  // null hides the rail card AND the needs-attention nudge outside a clinic
+  // tenant (the tool is a clinic feature).
   const onFileRequest = requestFromOnFile(header)
-  const insurance = canUseInsuranceTool(ctx)
+  const insurance = insuranceSetup
     ? {
         latest: latestInsuranceCheck,
         history: insuranceHistory,
@@ -88,10 +89,13 @@ export default async function PatientDetailPage({ params }: PageProps) {
         // that carries one) a Check-now here would only be refused, so the
         // card offers the picker instead.
         needsPayerPick:
-          resolveInsuranceDriverId() !== 'sandbox' &&
+          insuranceSetup.driver !== 'sandbox' &&
           !!header.insuranceProvider &&
           !onFileRequest.payerId &&
           !latestInsuranceCheck?.input.payerId,
+        // Under the live driver with no practice NPI a check would only be
+        // refused — the card sends them to the one box that fixes it.
+        needsNpi: insuranceSetup.needsNpi,
       }
     : null
 
