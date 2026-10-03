@@ -160,19 +160,22 @@ export function resolveInsuranceDriverId(env: Record<string, string | undefined>
   return 'sandbox'
 }
 
-export const INSURANCE_DRIVER_LABEL: Record<InsuranceDriverId, { pill: string; title: string }> = {
+export const INSURANCE_DRIVER_LABEL: Record<InsuranceDriverId, { pill: string; short: string; title: string }> = {
   sandbox: {
     pill: 'Practice answer',
+    short: 'Practice',
     title:
       'A sample answer from the built-in sandbox — not a real payer check. Confirm with the carrier before quoting a patient.',
   },
   stedi_test: {
     pill: 'Test payer answer',
+    short: 'Test',
     title:
       'Stedi test mode: the payer’s sample benefits for a mock member, not this patient’s real coverage. Confirm with the carrier before quoting a patient.',
   },
   stedi: {
     pill: 'Payer answer',
+    short: 'Payer',
     title:
       'Checked with the payer through Stedi. Benefits are the payer’s estimate; eligibility on the day of service governs.',
   },
@@ -291,6 +294,14 @@ export function requestFromOnFile(row: {
     relationship: 'self',
     subscriber: null,
   }
+}
+
+/** "Dec 8, 2028" from an ISO calendar date; junk is returned as typed. */
+export function niceDate(iso: string | null | undefined): string {
+  if (!iso || !ISO_DATE.test(iso)) return iso ?? ''
+  const d = new Date(`${iso}T00:00:00Z`)
+  if (!Number.isFinite(d.getTime())) return iso
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })
 }
 
 /** Dollar string from cents for benefit figures ("$1,240"). */

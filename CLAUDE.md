@@ -173,6 +173,17 @@ system, don't replace it.
   source of a ring's `fractionUsed`); cards carry `requestedByName`, a
   "Worth a re-check" pill past `VERIFICATION_FRESH_DAYS` (30), plan rules,
   and "Check again" on every answer; sandbox suffix `7777` = total-only.
+  Phase 2 SHIPPED (2026-10-03, the design pass): the card is a SCOREBOARD —
+  crown strip on surface-sunk, a `text-4xl` mono hero beside the kit's
+  `ProgressRing` (drawn ONLY from `fractionUsed`, i.e. only when the payer
+  stated both ends — the honesty law beats law 7), tier TILES with a local
+  div fill bar, a real frequencies `<table>` whose Next cell is toned by
+  date, warn chips for waiting periods / the missing-tooth clause, mono
+  fact chips for family + ortho amounts; the form is three stepped
+  sections; the recent list has a surface-sunk header, inset-ring selected
+  row and a one-word driver pill. Local visuals live in
+  `app/(default)/insurance/benefit-visuals.tsx` (two kit gaps noted: a
+  labelled meter bar, a hero amount with ring).
   `lib/insurance-eligibility.ts` (client-safe types,
   validation, the status→tone contract, the honesty labels) +
   `lib/services/insurance-eligibility/` (provider interface, the
