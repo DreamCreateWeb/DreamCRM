@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useEffect, useRef, useState, useTransition, type ReactNode } from 'react'
+import { useCallback, useEffect, useRef, useState, useTransition, type ReactNode } from 'react'
 import { PageHeader } from '@/components/ui/page-header'
 import { ActionButton } from '@/components/ui/action-button'
 import { StatusPill } from '@/components/ui/status-pill'
@@ -23,6 +23,7 @@ import {
   hasAnyAmount,
   isPracticeDriver,
   isStaleCheck,
+  niceDate,
   validateEligibilityRequest,
   type BenefitAmount,
   type EligibilityRequest,
@@ -31,13 +32,20 @@ import {
   type InsuranceRelationship,
 } from '@/lib/insurance-eligibility'
 import { checkInsuranceAction, createPatientFromCheckAction, saveInsuranceToPatientAction, searchPayersAction } from './actions'
+import { FactChip, HeroAmount, TierTile } from './benefit-visuals'
 import type { StediPayerMatch } from '@/lib/stedi-eligibility'
 
 /**
- * The Insurance tool — form on the left, the answer on the right, the org's
- * recent checks below. Every result carries the driver's honesty pill
- * (`INSURANCE_DRIVER_LABEL`): a sandbox answer is a PRACTICE answer, and the
- * page says so on the header too, not only when a result is showing.
+ * The Insurance tool — the card typed in on the left, the BENEFITS CARD on
+ * the right (a scoreboard, not a spreadsheet: one big number you can read
+ * from across the desk, a ring that says how much of the year is gone, the
+ * four tiers as tiles, the frequencies as a real table that says in colour
+ * whether the next exam is covered now), the org's recent checks below.
+ *
+ * Every result carries the driver's honesty pill (`INSURANCE_DRIVER_LABEL`):
+ * a sandbox answer is a PRACTICE answer, and the page says so on the header
+ * too, not only when a result is showing. Every dollar figure is worded by
+ * `describeBenefitAmount` — the card never does its own arithmetic.
  */
 
 interface FormState {
@@ -134,12 +142,28 @@ export default function InsuranceTool({
   const [pending, startTransition] = useTransition()
   const [duplicate, setDuplicate] = useState<{ id: string; name: string } | null>(null)
   const [busy, setBusy] = useState<'check' | 'save' | 'add' | 'anyway' | null>(null)
+  const formRef = useRef<HTMLFormElement>(null)
   const practice = isPracticeDriver(driver)
   const label = INSURANCE_DRIVER_LABEL[driver]
 
   function set<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((f) => ({ ...f, [key]: value }))
   }
+
+  /** The empty states' one CTA: put the cursor in the first empty box. */
+  const focusFirstEmpty = useCallback(() => {
+    const root = formRef.current
+    if (!root) return
+    const inputs = Array.from(root.querySelectorAll<HTMLInputElement>('input:not([type=radio])'))
+    const target = inputs.find((i) => !i.value) ?? inputs[0]
+    target?.focus()
+  }, [])
+
+  // A fresh page with nothing to look at starts with the cursor in the
+  // first box — the tool's whole job is typing a card in.
+  useEffect(() => {
+    if (!prefill && !initialCheck) focusFirstEmpty()
+  }, [prefill, initialCheck, focusFirstEmpty])
 
   function runCheck() {
     const raw = requestFromForm(form)
@@ -220,86 +244,99 @@ export default function InsuranceTool({
         {/* ── The card, typed in ──────────────────────────────────────── */}
         <section className="lg:col-span-5">
           <form
-            className="v2-card px-4 py-4 space-y-4"
+            ref={formRef}
+            className="v2-card px-4 sm:px-5 py-5 space-y-6"
             onSubmit={(e) => {
               e.preventDefault()
               runCheck()
             }}
             noValidate
           >
-            <div>
-              <label htmlFor="ins-patient-pick" className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold">
-                Who
-              </label>
-              <select
-                id="ins-patient-pick"
-                className="form-select w-full mt-1 text-sm"
-                value={prefill?.patientId ?? ''}
-                onChange={(e) => router.push(e.target.value ? `/insurance?patient=${e.target.value}` : '/insurance')}
-              >
-                <option value="">Someone new — type their details</option>
-                {patientOptions.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
-                  </option>
-                ))}
-              </select>
-              {prefill && (
-                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                  Checking for{' '}
-                  <Link href={`/patients/${prefill.patientId}`} className="font-medium text-teal-700 dark:text-teal-400 hover:underline">
-                    {prefill.patientName}
-                  </Link>
-                  . Edits here don’t change their record until you save them.
-                </p>
-              )}
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <Field id="ins-first" label="First name" error={errors['patient.firstName']}>
-                <input id="ins-first" className="form-input w-full text-sm" value={form.firstName} onChange={(e) => set('firstName', e.target.value)} autoComplete="off" />
-              </Field>
-              <Field id="ins-last" label="Last name" error={errors['patient.lastName']}>
-                <input id="ins-last" className="form-input w-full text-sm" value={form.lastName} onChange={(e) => set('lastName', e.target.value)} autoComplete="off" />
-              </Field>
-            </div>
-            <Field id="ins-dob" label="Date of birth" error={errors['patient.dateOfBirth']}>
-              <input id="ins-dob" type="date" className="form-input w-full text-sm" value={form.dateOfBirth} onChange={(e) => set('dateOfBirth', e.target.value)} />
-            </Field>
-
-            {driver === 'sandbox' ? (
-              <Field id="ins-carrier" label="Carrier" error={errors.carrierName}>
-                <input id="ins-carrier" list="ins-carrier-list" className="form-input w-full text-sm" value={form.carrierName} onChange={(e) => set('carrierName', e.target.value)} placeholder="Delta Dental" autoComplete="off" />
-                <datalist id="ins-carrier-list">
-                  {carriers.map((c) => (
-                    <option key={c} value={c} />
+            {/* Step 1 — who */}
+            <div className="space-y-3">
+              <div>
+                <label htmlFor="ins-patient-pick" className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold">
+                  Who
+                </label>
+                <p className="text-xs text-gray-500 dark:text-gray-400">Pick someone on the books, or type a new name.</p>
+                <select
+                  id="ins-patient-pick"
+                  className="form-select w-full mt-1.5 text-sm"
+                  value={prefill?.patientId ?? ''}
+                  onChange={(e) => router.push(e.target.value ? `/insurance?patient=${e.target.value}` : '/insurance')}
+                >
+                  <option value="">Someone new — type their details</option>
+                  {patientOptions.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
                   ))}
-                </datalist>
-              </Field>
-            ) : (
-              <PayerPicker
-                value={form.payerId ? { payerId: form.payerId, name: form.payerName || form.carrierName } : null}
-                query={form.carrierName}
-                error={errors.carrierName}
-                onQuery={(q) => setForm((f) => ({ ...f, carrierName: q, payerId: '', payerName: '' }))}
-                onPick={(p) => setForm((f) => ({ ...f, carrierName: p.displayName, payerId: p.primaryPayerId, payerName: p.displayName }))}
-                onClear={() => setForm((f) => ({ ...f, payerId: '', payerName: '' }))}
-              />
-            )}
-            <div className="grid grid-cols-2 gap-3">
-              <Field id="ins-member" label="Member ID" error={errors.memberId}>
-                <input id="ins-member" className="form-input w-full text-sm font-mono-num" value={form.memberId} onChange={(e) => set('memberId', e.target.value)} autoComplete="off" />
-              </Field>
-              <Field id="ins-group" label="Group # (optional)">
-                <input id="ins-group" className="form-input w-full text-sm font-mono-num" value={form.groupNumber} onChange={(e) => set('groupNumber', e.target.value)} autoComplete="off" />
+                </select>
+                {prefill && (
+                  <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+                    Checking for{' '}
+                    <Link href={`/patients/${prefill.patientId}`} className="font-medium text-teal-700 dark:text-teal-400 hover:underline">
+                      {prefill.patientName}
+                    </Link>
+                    . Edits here don’t change their record until you save them.
+                  </p>
+                )}
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <Field id="ins-first" label="First name" error={errors['patient.firstName']}>
+                  <input id="ins-first" className="form-input w-full text-sm" value={form.firstName} onChange={(e) => set('firstName', e.target.value)} autoComplete="off" />
+                </Field>
+                <Field id="ins-last" label="Last name" error={errors['patient.lastName']}>
+                  <input id="ins-last" className="form-input w-full text-sm" value={form.lastName} onChange={(e) => set('lastName', e.target.value)} autoComplete="off" />
+                </Field>
+              </div>
+              <Field id="ins-dob" label="Date of birth" error={errors['patient.dateOfBirth']}>
+                <input id="ins-dob" type="date" className="form-input w-full text-sm font-mono-num" value={form.dateOfBirth} onChange={(e) => set('dateOfBirth', e.target.value)} />
               </Field>
             </div>
 
-            <fieldset>
-              <legend className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold">
-                Whose name is the policy in?
+            {/* Step 2 — their card */}
+            <div className="space-y-3 border-t border-[color:var(--color-hairline)] pt-5">
+              <div>
+                <p className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold">Their card</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">Exactly as printed — the payer, the member ID, the group.</p>
+              </div>
+              {driver === 'sandbox' ? (
+                <Field id="ins-carrier" label="Carrier" error={errors.carrierName}>
+                  <input id="ins-carrier" list="ins-carrier-list" className="form-input w-full text-sm" value={form.carrierName} onChange={(e) => set('carrierName', e.target.value)} placeholder="Delta Dental" autoComplete="off" />
+                  <datalist id="ins-carrier-list">
+                    {carriers.map((c) => (
+                      <option key={c} value={c} />
+                    ))}
+                  </datalist>
+                </Field>
+              ) : (
+                <PayerPicker
+                  value={form.payerId ? { payerId: form.payerId, name: form.payerName || form.carrierName } : null}
+                  query={form.carrierName}
+                  error={errors.carrierName}
+                  onQuery={(q) => setForm((f) => ({ ...f, carrierName: q, payerId: '', payerName: '' }))}
+                  onPick={(p) => setForm((f) => ({ ...f, carrierName: p.displayName, payerId: p.primaryPayerId, payerName: p.displayName }))}
+                  onClear={() => setForm((f) => ({ ...f, payerId: '', payerName: '' }))}
+                />
+              )}
+              <div className="grid grid-cols-2 gap-3">
+                <Field id="ins-member" label="Member ID" error={errors.memberId}>
+                  <input id="ins-member" className="form-input w-full text-sm font-mono-num" value={form.memberId} onChange={(e) => set('memberId', e.target.value)} autoComplete="off" />
+                </Field>
+                <Field id="ins-group" label="Group # (optional)">
+                  <input id="ins-group" className="form-input w-full text-sm font-mono-num" value={form.groupNumber} onChange={(e) => set('groupNumber', e.target.value)} autoComplete="off" />
+                </Field>
+              </div>
+            </div>
+
+            {/* Step 3 — whose name the policy is in */}
+            <fieldset className="space-y-3 border-t border-[color:var(--color-hairline)] pt-5">
+              <legend className="float-left w-full">
+                <span className="block text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold">Whose name is the policy in?</span>
+                <span className="block text-xs text-gray-500 dark:text-gray-400">A child or a spouse rides the policyholder’s plan.</span>
               </legend>
-              <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1">
+              <div className="clear-both flex flex-wrap gap-x-4 gap-y-1.5">
                 {INSURANCE_RELATIONSHIPS.map((r) => (
                   <label key={r.id} className="inline-flex items-center gap-1.5 text-sm text-gray-700 dark:text-gray-200">
                     <input
@@ -313,28 +350,27 @@ export default function InsuranceTool({
                   </label>
                 ))}
               </div>
-            </fieldset>
-
-            {subscriberNeeded && (
-              <div className="rounded-[var(--r-md)] border border-[color:var(--color-hairline)] px-3 py-3 space-y-3">
-                <p className="text-xs font-semibold text-gray-700 dark:text-gray-200">The policyholder</p>
-                <div className="grid grid-cols-2 gap-3">
-                  <Field id="ins-sub-first" label="First name" error={errors['subscriber.firstName']}>
-                    <input id="ins-sub-first" className="form-input w-full text-sm" value={form.subFirstName} onChange={(e) => set('subFirstName', e.target.value)} autoComplete="off" />
-                  </Field>
-                  <Field id="ins-sub-last" label="Last name" error={errors['subscriber.lastName']}>
-                    <input id="ins-sub-last" className="form-input w-full text-sm" value={form.subLastName} onChange={(e) => set('subLastName', e.target.value)} autoComplete="off" />
+              {subscriberNeeded && (
+                <div className="v2-well px-3 py-3 space-y-3">
+                  <p className="text-xs font-semibold text-gray-700 dark:text-gray-200">The policyholder</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <Field id="ins-sub-first" label="First name" error={errors['subscriber.firstName']}>
+                      <input id="ins-sub-first" className="form-input w-full text-sm" value={form.subFirstName} onChange={(e) => set('subFirstName', e.target.value)} autoComplete="off" />
+                    </Field>
+                    <Field id="ins-sub-last" label="Last name" error={errors['subscriber.lastName']}>
+                      <input id="ins-sub-last" className="form-input w-full text-sm" value={form.subLastName} onChange={(e) => set('subLastName', e.target.value)} autoComplete="off" />
+                    </Field>
+                  </div>
+                  <Field id="ins-sub-dob" label="Date of birth" error={errors['subscriber.dateOfBirth']}>
+                    <input id="ins-sub-dob" type="date" className="form-input w-full text-sm font-mono-num" value={form.subDateOfBirth} onChange={(e) => set('subDateOfBirth', e.target.value)} />
                   </Field>
                 </div>
-                <Field id="ins-sub-dob" label="Date of birth" error={errors['subscriber.dateOfBirth']}>
-                  <input id="ins-sub-dob" type="date" className="form-input w-full text-sm" value={form.subDateOfBirth} onChange={(e) => set('subDateOfBirth', e.target.value)} />
-                </Field>
-              </div>
-            )}
+              )}
+            </fieldset>
 
             <FieldError id="ins-form-error" message={errors._form} />
 
-            <div className="flex flex-wrap items-center gap-2 pt-1">
+            <div className="flex flex-wrap items-center gap-2">
               <ActionButton type="submit" variant="primary" pending={pending && busy === 'check'} breath>
                 Check benefits
               </ActionButton>
@@ -367,42 +403,46 @@ export default function InsuranceTool({
         <section className="lg:col-span-7">
           {current ? (
             <ResultCard check={current} timeZone={timeZone}>
-              {!current.patientId && current.status !== 'error' && (
-                <div className="mt-4 border-t border-[color:var(--color-hairline)] pt-3 space-y-2">
-                  {duplicate ? (
-                    <div className="v2-well px-3 py-3 text-sm">
-                      <p className="text-gray-800 dark:text-gray-100">
-                        Looks like <strong>{duplicate.name}</strong> is already here.
-                      </p>
-                      <div className="mt-2 flex flex-wrap gap-2">
-                        <ActionButton variant="secondary" size="sm" href={`/patients/${duplicate.id}`}>
-                          Open their record
-                        </ActionButton>
-                        <ActionButton variant="ghost" size="sm" pending={pending && busy === 'anyway'} onClick={() => addAsPatient(true)}>
-                          Add anyway
-                        </ActionButton>
-                      </div>
-                    </div>
-                  ) : (
-                    <ActionButton variant="secondary" size="sm" pending={pending && busy === 'add'} onClick={() => addAsPatient(false)}>
+              {duplicate ? (
+                <div className="v2-well px-3 py-3 text-sm w-full">
+                  <p className="text-gray-800 dark:text-gray-100">
+                    Looks like <strong>{duplicate.name}</strong> is already here.
+                  </p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <ActionButton variant="secondary" size="sm" href={`/patients/${duplicate.id}`}>
+                      Open their record
+                    </ActionButton>
+                    <ActionButton variant="ghost" size="sm" pending={pending && busy === 'anyway'} onClick={() => addAsPatient(true)}>
+                      Add anyway
+                    </ActionButton>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  {!current.patientId && current.status !== 'error' && (
+                    <ActionButton variant="primary" size="sm" pending={pending && busy === 'add'} onClick={() => addAsPatient(false)}>
                       Add {current.input.patient.firstName} as a patient
                     </ActionButton>
                   )}
-                </div>
+                  {/* Every card can be re-asked — a verdict is a snapshot, and
+                      the form already holds this check's own card details. */}
+                  <ActionButton variant="secondary" size="sm" pending={pending && busy === 'check'} onClick={runCheck}>
+                    {current.status === 'error' ? 'Try again' : 'Check again'}
+                  </ActionButton>
+                </>
               )}
-              <div className="mt-4">
-                {/* Every card can be re-asked — a verdict is a snapshot, and
-                    the form already holds this check's own card details. */}
-                <ActionButton variant="secondary" size="sm" pending={pending && busy === 'check'} onClick={runCheck}>
-                  {current.status === 'error' ? 'Try again' : 'Check again'}
-                </ActionButton>
-              </div>
             </ResultCard>
           ) : (
             <EmptyState
               icon="🛡️"
               title="Nothing checked yet"
               body="Type what’s on the card and we’ll pull up their benefits: what’s covered, what’s left this year, what’s still waiting."
+              action={
+                <ActionButton variant="secondary" size="sm" onClick={focusFirstEmpty}>
+                  Start with a name
+                </ActionButton>
+              }
+              className="h-full"
             />
           )}
         </section>
@@ -411,40 +451,66 @@ export default function InsuranceTool({
       {/* ── Recent checks ────────────────────────────────────────────── */}
       <section className="mt-6">
         <h2 className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold mb-2">Recent checks</h2>
-        <div className="v2-card">
-          {recent.length === 0 ? (
-            <p className="px-4 py-6 text-sm text-gray-500 dark:text-gray-400 text-center">
-              No checks yet. The first one lands here.
-            </p>
-          ) : (
+        {recent.length === 0 ? (
+          <EmptyState
+            title="No checks yet"
+            body="The first one lands here, with its verdict and who ran it."
+            action={
+              <ActionButton variant="secondary" size="sm" onClick={focusFirstEmpty}>
+                Start with a name
+              </ActionButton>
+            }
+          />
+        ) : (
+          <div className="v2-card overflow-hidden">
+            {/* Header row on surface-sunk — a table's head without a table,
+                since each row is one button that loads the check. */}
+            <div
+              className="hidden sm:grid grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_auto_auto] gap-x-4 px-4 py-2 text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold bg-[color:var(--color-surface-sunk)] border-b border-[color:var(--color-hairline)]"
+              aria-hidden="true"
+            >
+              <span>Patient</span>
+              <span>Payer</span>
+              <span className="text-right">Result</span>
+              <span className="text-right w-28">When</span>
+            </div>
             <ul className="divide-y divide-[color:var(--color-hairline)]">
-              {recent.map((c) => (
-                <li key={c.id}>
-                  <button
-                    type="button"
-                    onClick={() => loadRecent(c)}
-                    className={`w-full text-left px-4 py-2.5 flex flex-wrap items-center gap-x-3 gap-y-1 hover:bg-gray-50 dark:hover:bg-gray-900/30 ${
-                      current?.id === c.id ? 'bg-teal-50/60 dark:bg-teal-900/10' : ''
-                    }`}
-                    aria-current={current?.id === c.id ? 'true' : undefined}
-                  >
-                    <span className="text-sm font-medium text-gray-800 dark:text-gray-100 min-w-0 truncate">
-                      {c.patientName ?? `${c.input.patient.firstName} ${c.input.patient.lastName}`}
-                      {!c.patientId && <span className="ml-1 text-xs font-normal text-gray-500 dark:text-gray-400">(not a patient yet)</span>}
-                    </span>
-                    <span className="text-xs text-gray-500 dark:text-gray-400 min-w-0 truncate">{c.input.carrierName}</span>
-                    <span className="ml-auto flex items-center gap-2">
-                      <StatusPill tone={STATUS_TONE[c.status]} label={STATUS_LABEL[c.status]} />
-                      <span className="text-xs text-gray-500 dark:text-gray-400 tabular-nums" suppressHydrationWarning>
+              {recent.map((c) => {
+                const selected = current?.id === c.id
+                const d = INSURANCE_DRIVER_LABEL[c.driver]
+                return (
+                  <li key={c.id}>
+                    <button
+                      type="button"
+                      onClick={() => loadRecent(c)}
+                      className={`w-full text-left px-4 py-2.5 grid grid-cols-1 sm:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_auto_auto] gap-x-4 gap-y-1 items-center hover:bg-teal-500/5 transition-colors ${
+                        selected ? 'bg-teal-500/5 ring-1 ring-inset ring-teal-500/40' : ''
+                      }`}
+                      aria-current={selected ? 'true' : undefined}
+                      data-selected={selected ? 'true' : undefined}
+                    >
+                      <span className="text-sm font-medium text-gray-800 dark:text-gray-100 min-w-0 truncate">
+                        {c.patientName ?? `${c.input.patient.firstName} ${c.input.patient.lastName}`}
+                        {!c.patientId && <span className="ml-1 text-xs font-normal text-gray-500 dark:text-gray-400">(not a patient yet)</span>}
+                      </span>
+                      <span className="text-xs text-gray-500 dark:text-gray-400 min-w-0 truncate">
+                        {c.result?.payerName ?? c.input.carrierName}
+                        {c.result?.planName ? ` · ${c.result.planName}` : ''}
+                      </span>
+                      <span className="flex items-center gap-1.5 sm:justify-end">
+                        <StatusPill tone={STATUS_TONE[c.status]} label={STATUS_LABEL[c.status]} />
+                        <StatusPill tone="neutral" label={d.short} title={d.title} />
+                      </span>
+                      <span className="text-xs text-gray-500 dark:text-gray-400 font-mono-num tabular-nums sm:text-right sm:w-28" suppressHydrationWarning>
                         {formatClinicDayTime(new Date(c.checkedAtIso), timeZone)}
                       </span>
-                    </span>
-                  </button>
-                </li>
-              ))}
+                    </button>
+                  </li>
+                )
+              })}
             </ul>
-          )}
-        </div>
+          </div>
+        )}
       </section>
     </div>
   )
@@ -496,7 +562,7 @@ function PayerPicker({
     return (
       <div>
         <p className="text-xs font-medium text-gray-700 dark:text-gray-200">Payer</p>
-        <div className="mt-1 flex items-center gap-2">
+        <div className="mt-1.5 flex flex-wrap items-center gap-2">
           <StatusPill tone="info" label={value.name} title={`Payer id ${value.payerId}`} />
           <span className="text-xs text-gray-500 dark:text-gray-400 font-mono-num">{value.payerId}</span>
           <button type="button" onClick={onClear} className="text-xs font-medium text-teal-700 dark:text-teal-400 hover:underline">
@@ -528,11 +594,12 @@ function PayerPicker({
         {searching ? 'Searching payers…' : 'Pick the exact payer from the list — the one printed on the card.'}
       </p>
       {open && results.length > 0 && (
+        // The popover recipe (DESIGN-SYSTEM Part 5): surface-1, shadow-pop, --r-lg.
         <ul
           id="ins-payer-list"
           role="listbox"
           aria-label="Matching payers"
-          className="absolute z-20 mt-1 w-full max-h-64 overflow-auto rounded-[var(--r-md)] border border-[color:var(--color-hairline)] bg-white dark:bg-gray-900 shadow-lg text-sm"
+          className="pop-in absolute z-20 mt-1 w-full max-h-64 overflow-auto rounded-[var(--r-lg)] bg-[color:var(--color-surface-1)] p-1 shadow-[var(--shadow-pop)] text-sm"
         >
           {[...results].sort(dentalFirst).map((p) => (
             <li key={p.stediId} role="option" aria-selected={false}>
@@ -543,7 +610,7 @@ function PayerPicker({
                   onPick(p)
                   setOpen(false)
                 }}
-                className="w-full text-left px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-800 flex items-baseline justify-between gap-3"
+                className="w-full text-left px-3 py-2 rounded-[var(--r-sm)] hover:bg-teal-500/5 flex items-baseline justify-between gap-3"
               >
                 <span className="text-gray-800 dark:text-gray-100">{p.displayName}</span>
                 <span className="flex items-center gap-2 shrink-0">
@@ -583,31 +650,7 @@ function Field({ id, label, error, children }: { id: string; label: string; erro
   )
 }
 
-/** A tier the payer didn't state renders as a dash — never a guessed number. */
-function pct(v: number | null): ReactNode {
-  return v == null ? <span className="text-gray-500">—</span> : `${v}%`
-}
-
-function Stat({ label, value, sub, caveat }: { label: string; value: string; sub?: string; caveat?: boolean }) {
-  return (
-    <div className="v2-well px-3 py-2">
-      <p className="text-xs font-bold uppercase tracking-wider text-gray-600 dark:text-gray-300">{label}</p>
-      <p className="text-xl font-bold tabular-nums font-mono-num text-gray-900 dark:text-gray-100">{value}</p>
-      {/* A "didn't say" sub-line is a caveat, so it reads in the warn ink
-          rather than the quiet grey a fact gets. */}
-      {sub && <p className={`text-xs ${caveat ? TONE_TEXT.warn : 'text-gray-500 dark:text-gray-400'}`}>{sub}</p>}
-    </div>
-  )
-}
-
-/** A dollar benefit tile worded by the one copy helper; renders nothing when the payer stated nothing. */
-function AmountStat({ label, amount, kind }: { label: string; amount: BenefitAmount | null | undefined; kind: 'max' | 'deductible' }) {
-  const copy = describeBenefitAmount(amount, kind)
-  if (!copy) return null
-  return <Stat label={label} value={copy.headline} sub={copy.sub} caveat={copy.caveat} />
-}
-
-/** "$1,500 lifetime, $1,500 left" — a plan-rules fact in one line. */
+/** "Ortho lifetime maximum: $1,500 left (of $1,500 · $0 used)" — a plan-rules fact in one line. */
 function amountFact(amount: BenefitAmount | null | undefined, noun: string): string | null {
   const copy = describeBenefitAmount(amount, 'max')
   if (!copy) return null
@@ -620,7 +663,41 @@ const WAITING_LABEL: Record<'basic' | 'major' | 'ortho', string> = {
   ortho: 'Orthodontics',
 }
 
-/** One check, rendered. Exported so the patient-detail panel can reuse it. */
+const TIER_HINT = {
+  preventive: 'Exams, cleanings, X-rays',
+  basic: 'Fillings, extractions',
+  major: 'Crowns, bridges, dentures',
+  ortho: 'Braces, aligners',
+} as const
+
+/** Today as an ISO calendar date, for "covered now" vs "not until". */
+function todayIso(): string {
+  return new Date().toISOString().slice(0, 10)
+}
+
+/**
+ * The frequencies table's Next cell: the payer's next-eligible date decides
+ * the tone — ok when it has arrived, warn when it is still ahead, neutral
+ * when the payer only said when the last one was (or nothing at all).
+ */
+function NextCell({ nextOn, lastOn }: { nextOn?: string | null; lastOn: string | null }) {
+  if (nextOn) {
+    const now = nextOn <= todayIso()
+    return (
+      <span className={`font-semibold ${now ? TONE_TEXT.ok : TONE_TEXT.warn}`} suppressHydrationWarning>
+        {now ? 'Covered now' : `Not until ${niceDate(nextOn)}`}
+      </span>
+    )
+  }
+  if (lastOn) return <span className={TONE_TEXT.neutral}>Last {niceDate(lastOn)}</span>
+  return <span className={TONE_TEXT.neutral}>None on record</span>
+}
+
+/**
+ * One check, rendered as THE BENEFITS CARD. Exported so the patient-detail
+ * panel can reuse it. `children` are the footer actions (re-check, save,
+ * add as a patient, and Phase 4's print / copy).
+ */
 export function ResultCard({
   check,
   timeZone,
@@ -639,140 +716,211 @@ export function ResultCard({
   // A verdict ages: past VERIFICATION_FRESH_DAYS it is a lead, not an answer.
   // (A failed check has no verdict to go stale.)
   const stale = check.status !== 'error' && isStaleCheck(check.checkedAtIso)
-  const planRules = r
+  const maxLabel = hasAnyAmount(r?.annualMax) && r?.annualMax?.remainingCents == null ? 'Yearly maximum' : 'Left this year'
+  const dedAmount = deductibleAsAmount(r?.deductible)
+  const dedLabel = hasAnyAmount(dedAmount) && dedAmount.remainingCents == null ? 'Deductible' : 'Deductible left'
+  const facts = r
     ? [
-        r.missingToothClause === true ? 'Missing-tooth clause applies — teeth lost before coverage began aren’t covered for replacement.' : null,
         amountFact(r.orthoLifetimeMax, 'Ortho lifetime maximum'),
         amountFact(r.familyMax, 'Family maximum'),
         amountFact(deductibleAsAmount(r.familyDeductible), 'Family deductible'),
       ].filter((x): x is string => !!x)
     : []
+  const hasRules = !!r && (r.missingToothClause === true || facts.length > 0)
+  const coverageLine = r?.coverage.effective
+    ? r.coverage.termination
+      ? `${niceDate(r.coverage.effective)} → ${niceDate(r.coverage.termination)}`
+      : `since ${niceDate(r.coverage.effective)}`
+    : null
+
   return (
-    <div className="v2-card px-4 py-4">
-      <div className="flex flex-wrap items-center gap-2">
-        <StatusPill tone={STATUS_TONE[check.status]} label={STATUS_LABEL[check.status]} />
-        {/* Every answer names what answered it; a live payer answer's title
-            carries the "estimate" caveat, the practice ones their warning. */}
-        <StatusPill tone="neutral" label={label.pill} title={label.title} />
-        {stale && (
-          <StatusPill
-            tone="warn"
-            label="Worth a re-check"
-            title="Benefits move with every claim and plans can end any month — this answer is over a month old."
-          />
-        )}
-        <span className="text-xs text-gray-500 dark:text-gray-400 ml-auto tabular-nums" suppressHydrationWarning>
+    <div className="v2-card overflow-hidden" data-testid="benefits-card">
+      {/* ── The crown: who, which plan, the verdict ───────────────── */}
+      <div className="px-4 sm:px-5 py-4 bg-[color:var(--color-surface-sunk)] border-b border-[color:var(--color-hairline)]">
+        <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
+          <div className="min-w-0">
+            <h2 className="text-2xl font-extrabold text-gray-900 dark:text-gray-100 leading-tight truncate" tabIndex={-1} data-testid="benefits-heading">
+              {who}
+            </h2>
+            <p className="text-xs text-gray-500 dark:text-gray-400 font-mono-num tabular-nums">
+              DOB {niceDate(check.input.patient.dateOfBirth)} · Member {check.input.memberId}
+              {check.input.groupNumber ? ` · Group ${check.input.groupNumber}` : ''}
+            </p>
+            <p className="mt-1 text-sm font-semibold text-gray-800 dark:text-gray-100">
+              {r?.payerName ?? check.input.carrierName}
+              {r?.planName && (
+                <>
+                  <span className="font-normal text-gray-500 dark:text-gray-400" aria-hidden="true">
+                    {' · '}
+                  </span>
+                  <span className="font-normal text-gray-600 dark:text-gray-300">{r.planName}</span>
+                </>
+              )}
+            </p>
+            {coverageLine && <p className="text-xs text-gray-500 dark:text-gray-400 font-mono-num tabular-nums">Coverage {coverageLine}</p>}
+          </div>
+          <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+            <StatusPill tone={STATUS_TONE[check.status]} label={STATUS_LABEL[check.status]} />
+            {/* Every answer names what answered it; a live payer answer's title
+                carries the "estimate" caveat, the practice ones their warning. */}
+            <StatusPill tone="neutral" label={label.pill} title={label.title} />
+            {stale && (
+              <StatusPill
+                tone="warn"
+                label="Worth a re-check"
+                title="Benefits move with every claim and plans can end any month — this answer is over a month old."
+              />
+            )}
+          </div>
+        </div>
+        <p className="mt-2 text-xs text-gray-500 dark:text-gray-400" suppressHydrationWarning>
           Checked {checkAgeLabel(check.checkedAtIso)}
           {check.requestedByName ? ` by ${check.requestedByName}` : ''}
           <span className="sr-only">, {formatClinicDayTime(new Date(check.checkedAtIso), timeZone)}</span>
-        </span>
+        </p>
+        {practice && <p className="mt-1 text-xs text-gray-600 dark:text-gray-300">{label.title}</p>}
       </div>
-      <h2 className="mt-2 text-lg font-bold text-gray-900 dark:text-gray-100">
-        {who}
-        <span className="font-normal text-gray-500 dark:text-gray-400"> · {r?.payerName ?? check.input.carrierName}</span>
-      </h2>
-      {r?.planName && <p className="text-sm text-gray-700 dark:text-gray-200">{r.planName}</p>}
-      {r?.coverage.effective && (
-        <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-          Coverage {r.coverage.termination ? `${r.coverage.effective} → ${r.coverage.termination}` : `since ${r.coverage.effective}`}
-        </p>
-      )}
-      {practice && (
-        <p className="mt-2 text-xs text-gray-600 dark:text-gray-300">{label.title}</p>
-      )}
 
-      {check.status === 'error' && (
-        <p className="mt-3 text-sm text-gray-800 dark:text-gray-100">
-          {/* The stored message already says what kind of failure it was —
-              a retry-worthy one says so itself; a setup problem (an NPI the
-              payer doesn't know) must not be dressed up as "try again". */}
-          {check.error ?? 'We couldn’t reach the payer. Nothing about their coverage changed; try again in a moment.'}
-        </p>
-      )}
-
-      {r && r.status === 'active' && (
-        <>
-          <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <AmountStat label={hasAnyAmount(r.annualMax) && r.annualMax.remainingCents == null ? 'Yearly maximum' : 'Left this year'} amount={r.annualMax} kind="max" />
-            <AmountStat label={hasAnyAmount(deductibleAsAmount(r.deductible)) && r.deductible?.remainingCents == null ? 'Deductible' : 'Deductible left'} amount={deductibleAsAmount(r.deductible)} kind="deductible" />
-            {r.coveragePct && r.coveragePct.preventive != null && <Stat label="Preventive" value={`${r.coveragePct.preventive}%`} sub="Exams, cleanings, X-rays" />}
+      <div className="px-4 sm:px-5 py-4 space-y-5">
+        {check.status === 'error' && (
+          <div className="v2-well px-4 py-3">
+            <p className={`text-xs font-bold uppercase tracking-wider ${TONE_TEXT.warn}`}>What happened</p>
+            <p className="mt-1 text-sm text-gray-800 dark:text-gray-100">
+              {/* The stored message already says what kind of failure it was —
+                  a retry-worthy one says so itself; a setup problem (an NPI the
+                  payer doesn't know) must not be dressed up as "try again". */}
+              {check.error ?? 'We couldn’t reach the payer. Nothing about their coverage changed; try again in a moment.'}
+            </p>
           </div>
+        )}
 
-          {r.coveragePct && (
-            <table className="mt-4 w-full text-sm">
-              <caption className="sr-only">Coverage by category</caption>
-              <thead>
-                <tr className="text-left text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                  <th scope="col" className="py-1 font-semibold">Category</th>
-                  <th scope="col" className="py-1 font-semibold text-right">Plan pays</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[color:var(--color-hairline)]">
-                <tr><td className="py-1.5 text-gray-700 dark:text-gray-200">Preventive</td><td className="py-1.5 text-right tabular-nums">{pct(r.coveragePct.preventive)}</td></tr>
-                <tr><td className="py-1.5 text-gray-700 dark:text-gray-200">Basic — fillings, extractions</td><td className="py-1.5 text-right tabular-nums">{pct(r.coveragePct.basic)}</td></tr>
-                <tr><td className="py-1.5 text-gray-700 dark:text-gray-200">Major — crowns, bridges</td><td className="py-1.5 text-right tabular-nums">{pct(r.coveragePct.major)}</td></tr>
-                <tr>
-                  <td className="py-1.5 text-gray-700 dark:text-gray-200">Orthodontics</td>
-                  <td className="py-1.5 text-right tabular-nums">{r.coveragePct.ortho == null ? <span className="text-gray-500">Not covered</span> : `${r.coveragePct.ortho}%`}</td>
-                </tr>
-              </tbody>
-            </table>
-          )}
+        {r && r.status === 'active' && (
+          <>
+            {/* ── The hero band: the one number, then the deductible and preventive beside it ── */}
+            {(hasAnyAmount(r.annualMax) || hasAnyAmount(dedAmount) || r.coveragePct?.preventive != null) && (
+              <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_minmax(0,17rem)] gap-5 items-start">
+                <div className="min-h-[4rem]">
+                  {hasAnyAmount(r.annualMax) ? (
+                    <HeroAmount eyebrow={maxLabel} amount={r.annualMax} kind="max" ringSize={64} />
+                  ) : (
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-wider text-gray-600 dark:text-gray-300">Yearly maximum</p>
+                      <p className={`mt-1 text-sm ${TONE_TEXT.neutral}`}>The payer didn’t state one.</p>
+                    </div>
+                  )}
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-1 gap-3">
+                  {hasAnyAmount(dedAmount) && (
+                    <div className="v2-well px-3 py-2.5">
+                      <HeroAmount eyebrow={dedLabel} amount={dedAmount} kind="deductible" ringSize={40} size="tile" />
+                    </div>
+                  )}
+                  {r.coveragePct?.preventive != null && (
+                    <div className="v2-well px-3 py-2.5">
+                      <p className="text-xs font-bold uppercase tracking-wider text-gray-600 dark:text-gray-300">Preventive</p>
+                      <p className="mt-1 text-2xl font-bold tabular-nums font-mono-num text-gray-900 dark:text-gray-100 leading-none">{r.coveragePct.preventive}%</p>
+                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{TIER_HINT.preventive}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
 
-          {r.waitingPeriods.length > 0 && (
-            <div className="mt-4">
-              <p className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold">Still waiting</p>
-              <ul className="mt-1 space-y-0.5 text-sm text-gray-700 dark:text-gray-200">
-                {r.waitingPeriods.map((w) => (
-                  <li key={w.category}>
-                    {WAITING_LABEL[w.category]} — covered from {w.endsOn}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
+            {/* ── Coverage tiers ───────────────────────────────────────── */}
+            {r.coveragePct && (
+              <div>
+                <p className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold mb-2">Plan pays</p>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3" data-testid="tier-tiles">
+                  <TierTile label="Preventive" hint={TIER_HINT.preventive} pct={r.coveragePct.preventive} />
+                  <TierTile label="Basic" hint={TIER_HINT.basic} pct={r.coveragePct.basic} />
+                  <TierTile label="Major" hint={TIER_HINT.major} pct={r.coveragePct.major} />
+                  <TierTile label="Ortho" hint={TIER_HINT.ortho} pct={r.coveragePct.ortho} />
+                </div>
+              </div>
+            )}
 
-          {planRules.length > 0 && (
-            <div className="mt-4">
-              <p className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold">Plan rules</p>
-              <ul className="mt-1 space-y-0.5 text-sm text-gray-700 dark:text-gray-200">
-                {planRules.map((rule) => (
-                  <li key={rule}>{rule}</li>
-                ))}
-              </ul>
-            </div>
-          )}
+            {/* ── Waiting periods ──────────────────────────────────────── */}
+            {r.waitingPeriods.length > 0 && (
+              <div>
+                <p className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold mb-2">Still waiting</p>
+                <div className="flex flex-wrap gap-2">
+                  {r.waitingPeriods.map((w) => (
+                    <StatusPill
+                      key={w.category}
+                      tone="warn"
+                      label={`${WAITING_LABEL[w.category]} — covered from ${niceDate(w.endsOn)}`}
+                      title="New coverage waits out this period before the plan pays for it."
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
 
-          {r.frequencies.length > 0 && (
-            <div className="mt-4">
-              <p className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold">Frequencies</p>
-              <ul className="mt-1 space-y-0.5 text-sm">
-                {r.frequencies.map((f) => (
-                  <li key={f.code} className="flex justify-between gap-3 text-gray-700 dark:text-gray-200">
-                    <span>{f.label} · {f.limit}</span>
-                    <span className="text-xs text-gray-500 dark:text-gray-400 tabular-nums">
-                      {f.nextOn ? `next from ${f.nextOn}` : f.lastOn ? `last ${f.lastOn}` : 'none on record'}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </>
-      )}
+            {/* ── Plan rules ───────────────────────────────────────────── */}
+            {hasRules && (
+              <div>
+                <p className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold mb-2">Plan rules</p>
+                <div className="flex flex-wrap gap-2">
+                  {r.missingToothClause === true && (
+                    <StatusPill
+                      tone="warn"
+                      label="Missing-tooth clause applies"
+                      title="Teeth lost before coverage began aren’t covered for replacement."
+                    />
+                  )}
+                  {facts.map((f) => (
+                    <FactChip key={f}>{f}</FactChip>
+                  ))}
+                </div>
+              </div>
+            )}
 
-      {r && r.notes.length > 0 && (
-        <ul className="mt-4 space-y-1 text-sm text-gray-700 dark:text-gray-200">
-          {r.notes.map((n, i) => (
-            <li key={i} className="flex gap-2">
-              <span aria-hidden="true">•</span>
-              <span>{n}</span>
-            </li>
-          ))}
-        </ul>
-      )}
+            {/* ── Frequencies ──────────────────────────────────────────── */}
+            {r.frequencies.length > 0 && (
+              <div className="rounded-[var(--r-md)] border border-[color:var(--color-hairline)] overflow-hidden">
+                <table className="w-full text-sm">
+                  <caption className="sr-only">How often each service is covered, and when the next one is</caption>
+                  <thead className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 bg-[color:var(--color-surface-sunk)] border-b border-[color:var(--color-hairline)]">
+                    <tr>
+                      <th scope="col" className="px-3 py-2 text-left font-semibold">Service</th>
+                      <th scope="col" className="px-3 py-2 text-left font-semibold">Allowed</th>
+                      <th scope="col" className="px-3 py-2 text-right font-semibold">Next</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[color:var(--color-hairline)]">
+                    {r.frequencies.map((f) => (
+                      <tr key={`${f.code}:${f.label}`} className="hover:bg-teal-500/5 transition-colors">
+                        <td className="px-3 py-2 text-gray-800 dark:text-gray-100 font-medium">{f.label}</td>
+                        <td className="px-3 py-2 text-gray-700 dark:text-gray-200 font-mono-num tabular-nums">{f.limit}</td>
+                        <td className="px-3 py-2 text-right text-xs font-mono-num tabular-nums">
+                          <NextCell nextOn={f.nextOn} lastOn={f.lastOn} />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </>
+        )}
 
-      {children}
+        {r && r.notes.length > 0 && (
+          <ul className="space-y-1 text-sm text-gray-700 dark:text-gray-200">
+            {r.notes.map((n, i) => (
+              <li key={i} className="flex gap-2">
+                <span aria-hidden="true" className="text-gray-500 dark:text-gray-400">•</span>
+                <span>{n}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {children && (
+          <div className="flex flex-wrap items-center gap-2 border-t border-[color:var(--color-hairline)] pt-4" data-testid="benefits-actions">
+            {children}
+          </div>
+        )}
+      </div>
     </div>
   )
 }

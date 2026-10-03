@@ -172,7 +172,7 @@ describe('InsuranceTool — form + add-as-patient', () => {
 
   it('a frequency row prefers the payer’s next eligible date over the last visit', () => {
     renderTool({ initialCheck: check({ result: { ...check().result!, frequencies: [{ code: 'fmx', label: 'Full-mouth X-rays', limit: '1 every 60 months', lastOn: null, nextOn: '2028-12-08' }] } }) })
-    expect(screen.getByText('next from 2028-12-08')).toBeTruthy()
+    expect(screen.getByText('Not until Dec 8, 2028')).toBeTruthy()
   })
 
   it('a tier the payer never stated renders as a dash, never a number', () => {
@@ -239,3 +239,84 @@ describe('InsuranceTool — form + add-as-patient', () => {
     expect(push).toHaveBeenCalledWith('/insurance?patient=pat_1')
   })
 })
+
+describe('InsuranceTool — the benefits card (design pass)', () => {
+  it('draws the hero number with its ring when the payer stated both ends', () => {
+    renderTool({ initialCheck: check() })
+    expect(screen.getByTestId('hero-max').textContent).toBe('$880 left')
+    // used ÷ total = 62000 / 150000 → 41% — the ring's label says so.
+    expect(screen.getByRole('img', { name: '41% of the yearly maximum used' })).toBeTruthy()
+    expect(screen.getByRole('img', { name: '50% of the deductible met' })).toBeTruthy()
+  })
+
+  it('a total-only answer gets copy and NO ring — the honesty rule beats the heartbeat rule', () => {
+    renderTool({ initialCheck: check({ result: { ...check().result!, annualMax: { totalCents: 150_000, usedCents: null, remainingCents: null }, deductible: null } }) })
+    expect(screen.getByTestId('hero-max').textContent).toBe('Up to $1,500')
+    expect(screen.queryByRole('img', { name: /yearly maximum used/ })).toBeNull()
+  })
+
+  it('renders four tier tiles with a fill bar each; an unstated tier draws an empty track', () => {
+    renderTool({ initialCheck: check() })
+    const tiles = screen.getByTestId('tier-tiles')
+    expect(tiles.querySelectorAll('[data-testid="fill-bar"]').length).toBe(4)
+    expect(tiles.querySelector('[data-pct="100"]')).toBeTruthy()
+    expect(tiles.querySelector('[data-pct=""]')).toBeTruthy() // ortho unstated
+    expect(screen.queryByText('Not covered')).toBeNull()
+  })
+
+  it('a stated-zero tier reads "Not covered"', () => {
+    renderTool({ initialCheck: check({ result: { ...check().result!, coveragePct: { preventive: 100, basic: 80, major: 50, ortho: 0 } } }) })
+    expect(screen.getByText('Not covered')).toBeTruthy()
+  })
+
+  it('the frequencies table tones the Next cell by date: past is ok, future is warn, last-only is neutral', () => {
+    renderTool({
+      initialCheck: check({
+        result: {
+          ...check().result!,
+          frequencies: [
+            { code: 'exam', label: 'Exams', limit: '2 per plan year', lastOn: null, nextOn: '2024-06-13' },
+            { code: 'fmx', label: 'Full-mouth X-rays', limit: '1 every 60 months', lastOn: null, nextOn: '2099-12-08' },
+            { code: 'prophy', label: 'Cleanings', limit: '2 per year', lastOn: '2026-04-30', nextOn: null },
+          ],
+        },
+      }),
+    })
+    expect(screen.getByText('Covered now').className).toMatch(/emerald/)
+    expect(screen.getByText('Not until Dec 8, 2099').className).toMatch(/amber/)
+    expect(screen.getByText('Last Apr 30, 2026').className).toMatch(/gray/)
+    expect(screen.getByRole('columnheader', { name: 'Service' })).toBeTruthy()
+  })
+
+  it('waiting periods are warn chips with the end date', () => {
+    renderTool({ initialCheck: check({ result: { ...check().result!, waitingPeriods: [{ category: 'major', endsOn: '2027-07-01' }] } }) })
+    const chip = screen.getByText('Major (crowns, bridges) — covered from Jul 1, 2027')
+    expect(chip.getAttribute('data-tone')).toBe('warn')
+  })
+
+  it('the empty state offers one CTA that puts the cursor in the first empty field', () => {
+    renderTool()
+    const cta = screen.getAllByText('Start with a name')[0]
+    fireEvent.click(cta)
+    expect(document.activeElement?.id).toBe('ins-first')
+  })
+
+  it('the recent list marks the loaded row with the inset ring and names the driver in a word', () => {
+    renderTool({ initialCheck: check(), recent: [check(), check({ id: 'ins_2', driver: 'stedi' })] })
+    // The notes list is a list too — only the recent rows are buttons inside list items.
+    const rows = Array.from(document.querySelectorAll<HTMLButtonElement>('li > button'))
+    expect(rows[0].getAttribute('data-selected')).toBe('true')
+    expect(rows[0].className).toMatch(/ring-inset/)
+    expect(rows[1].getAttribute('data-selected')).toBeNull()
+    // "Payer" is also the header row's column label — look for the pill.
+    expect(screen.getAllByText('Practice').some((el) => el.getAttribute('data-tone') === 'neutral')).toBe(true)
+    expect(screen.getAllByText('Payer').some((el) => el.getAttribute('data-tone') === 'neutral')).toBe(true)
+  })
+
+  it('a failed check is framed as what happened, with the stored reason verbatim', () => {
+    renderTool({ initialCheck: check({ status: 'error', result: null, error: 'Sandbox: simulated payer timeout' }) })
+    expect(screen.getByText('What happened')).toBeTruthy()
+    expect(screen.getByText('Sandbox: simulated payer timeout')).toBeTruthy()
+  })
+})
+

@@ -5582,3 +5582,36 @@ when true, ortho lifetime, family amounts) and offers "Check again" on every
 answer, not only failed ones. Sandbox suffix `7777` renders the total-only
 scenario so the honesty copy is demoable. Old stored rows keep their
 `usedCents: 0` — they are mock-member answers.
+
+**2026-10-03 — polish phase 2: the design pass (the card as a scoreboard).**
+The benefits card stopped being a spreadsheet. It opens with a CROWN on
+surface-sunk (the patient in `text-2xl` extrabold, DOB · member · group in
+mono, the payer · plan, the status / honesty / staleness pills, "Checked
+today by Dana"), then a HERO BAND: "$1,240 left" as a `text-4xl` mono number
+beside the kit's `ProgressRing` showing how much of the year's maximum is
+gone, the deductible with its own ring and Preventive as tiles beside it.
+Law 7 met THE HONESTY LAW head-on: a ring is drawn ONLY from
+`describeBenefitAmount`'s `fractionUsed`, which exists only when the payer
+stated both ends — a total-only answer gets the "Up to $2,500 · the payer
+didn't say" copy and no heartbeat. The four tiers are TILES with a
+div-based fill bar each (no SVG; the chart-kit guard has nothing to say),
+"—" for unstated and "Not covered" for zero in the neutral ink; the
+frequencies are a real `<table>` with a surface-sunk head whose Next cell
+carries tone — ok "Covered now" when the payer's next-eligible date has
+arrived, warn "Not until Dec 8, 2028" when it hasn't, neutral for a
+last-visit-only answer; waiting periods and the missing-tooth clause are
+warn chips; family and ortho amounts are quiet mono fact chips. The form
+became three steps with eyebrows (Who · Their card · Whose name the policy
+is in — the policyholder box is a `v2-well`); the payer dropdown rides the
+popover recipe (surface-1, `--shadow-pop`, `--r-lg`, `pop-in`); the recent
+list gained a surface-sunk header row, the teal-5% hover, the inset-ring
+selected row, a one-word driver pill per row (`INSURANCE_DRIVER_LABEL.
+short`) and an `EmptyState` whose one CTA puts the cursor in the first
+empty field (the main empty state got the same CTA). The rail card leads
+with the small ring + "$1,240 left" in mono; its error ink is
+`TONE_TEXT.urgent`. The loading skeleton mirrors the new shape. Two kit
+gaps noted rather than filled in `components/ui` (module law): a labelled
+meter bar and a hero-amount-with-ring, both built locally in
+`app/(default)/insurance/benefit-visuals.tsx`. The quiet-ink guard caught
+the first draft's bullet (`gray-400` light / `gray-500` dark — the two
+lightest inks in the wrong order), which is exactly what it is for.
