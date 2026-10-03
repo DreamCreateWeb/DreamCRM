@@ -70,8 +70,10 @@ export const clinicModules: ModuleRegistry = {
     // Insurance eligibility lookups (2026-09-30) — type what's on the card,
     // get a benefits snapshot; sandbox-driven practice answers until a payer
     // connection is live (lib/insurance-eligibility.ts).
-    // PREVIEW (owner ruling 2026-09-30): platform admins only until released.
-    { id: 'insurance',         path: '/insurance',         label: 'Insurance',        section: 'Daily',    icon: 'shield',   status: 'live', platformAdminOnly: true },
+    // RELEASED to every clinic 2026-10-03 (polish phase 6) after a
+    // platform-admin-only preview; `platformAdminOnly` stays on ModuleDef
+    // for the next preview.
+    { id: 'insurance',         path: '/insurance',         label: 'Insurance',        section: 'Daily',    icon: 'shield',   status: 'live' },
 
     // ── Growth ─────────────────────────────────────────────────────────
     // ONE workspace entry — the /growth hub is the marketing home (outreach,

@@ -56,15 +56,21 @@ work):**
 2. **Phones/VoIP + AI receptionist** — Weave (TrueLark), Adit, RevenueWell,
    and DI all ship 24/7 AI call answering + call-pop. The market is converging
    here fast. Phase C candidate.
-3. **Insurance eligibility verification** — Weave, NexHealth, RevenueWell,
+3. ✅ **Insurance eligibility verification** — Weave, NexHealth, RevenueWell,
    Solutionreach, Adit all verify benefits pre-appointment (via payer portals /
-   clearinghouses). **IN PROGRESS 2026-09-30:** the lookup tool (`/insurance`
-   + the patient-record rail card + `insurance_verification` history) shipped
-   behind a provider abstraction with a LABELLED sandbox driver
-   (`INSURANCE_DRIVER=sandbox`, "Practice answer" on every result). Payer
-   connectivity (Vyne/Onederful/pVerify/Stedi class, X12 270/271; needs an
-   executed BAA) is the remaining gap, and the pre-visit "verify this week's
-   patients" proposal is the North-Star follow-up.
+   clearinghouses). **SHIPPED 2026-10-03** (six polish phases after the
+   2026-09-30 prototype; released to every clinic): the lookup tool
+   (`/insurance` + the patient-record rail card + `insurance_verification`
+   history) behind a provider abstraction — the labelled sandbox, and the
+   STEDI clearinghouse driver (X12 270/271, test mode in prod today, live
+   mode behind the BAA + `--confirm-baa`; docs/insurance-go-live.md).
+   Honest numbers by law (nullable amounts, "the payer didn't say"), the
+   scoreboard card, the remembered card on the record (0167), the printable
+   sheet + copy summary + history drawer, card scanning + intake write-back,
+   per-practice NPI readiness and a 200-check monthly allowance. Remaining,
+   deliberately: the pre-visit "verify this week's patients" proposal (the
+   North-Star follow-up; the owner chose manual checks for now), PMS payer-id
+   import depth, and a secondary-insurance slot.
 4. **Direct mail** (RevenueWell, Lighthouse postcards/letters) — print channel
    for recall non-responders. Ops-heavy; defer indefinitely.
 

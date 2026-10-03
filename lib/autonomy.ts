@@ -168,7 +168,9 @@ export const BOOKING_BUTTON_CAPABILITIES: readonly string[] = [
  * never reads about a job it cannot ask for. Remove a key from this list to
  * release the feature; nothing else needs to change on the roster.
  */
-export const PREVIEW_CAPABILITIES: readonly string[] = ['insurance_check']
+// Empty since 2026-10-03: `insurance_check` was the first (and so far only)
+// preview lane and was released with polish phase 6. The mechanism stays.
+export const PREVIEW_CAPABILITIES: readonly string[] = []
 
 export function isPreviewCapability(key: string): boolean {
   return PREVIEW_CAPABILITIES.includes(key)

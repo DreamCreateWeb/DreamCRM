@@ -12,6 +12,7 @@ import { formatClinicDayTime } from '@/lib/format-datetime'
 import { TONE_TEXT } from '@/lib/ui/encodings'
 import {
   INSURANCE_DRIVER_LABEL,
+  NPI_READINESS_COPY,
   STATUS_LABEL,
   STATUS_TONE,
   checkAgeLabel,
@@ -35,6 +36,9 @@ export interface InsurancePanelData {
   /** Under a clearinghouse driver with only a carrier NAME on file, a check
    *  would be refused — send them to pick the exact payer instead. */
   needsPayerPick?: boolean
+  /** Under the live driver with no practice NPI a check would only be
+   *  refused — the card sends them to the Business profile instead. */
+  needsNpi?: boolean
 }
 
 /**
@@ -146,7 +150,11 @@ export default function InsurancePanel({
       {error && <p className={`mt-2 text-xs ${TONE_TEXT.urgent}`}>{error}</p>}
 
       <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1">
-        {data.needsPayerPick ? (
+        {data.needsNpi ? (
+          <ActionButton variant="secondary" size="sm" href={NPI_READINESS_COPY.href} title={NPI_READINESS_COPY.body}>
+            {NPI_READINESS_COPY.cta}
+          </ActionButton>
+        ) : data.needsPayerPick ? (
           <ActionButton variant="secondary" size="sm" href={toolHref}>
             Pick the payer in Insurance →
           </ActionButton>
@@ -157,7 +165,7 @@ export default function InsurancePanel({
             </ActionButton>
           )
         )}
-        {!data.needsPayerPick && (
+        {(!data.needsPayerPick || data.needsNpi) && (
           <Link href={toolHref} className="text-xs font-medium text-teal-700 dark:text-teal-400 hover:underline">
             Open in Insurance →
           </Link>

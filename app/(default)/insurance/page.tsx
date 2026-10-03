@@ -5,11 +5,12 @@ export const metadata = {
 
 export const dynamic = 'force-dynamic'
 
-import { notFound, redirect } from 'next/navigation'
+import { redirect } from 'next/navigation'
 import { requireTenant } from '@/lib/auth/context'
-import { canUseInsuranceTool, resolveInsuranceDriverId, requestFromOnFile } from '@/lib/insurance-eligibility'
+import { canUseInsuranceTool, requestFromOnFile } from '@/lib/insurance-eligibility'
 import {
   getInsuranceCheckById,
+  getInsuranceSetup,
   getLatestInsuranceCheckForPatient,
   listCarrierSuggestions,
   listRecentInsuranceChecks,
@@ -26,16 +27,15 @@ interface PageProps {
 export default async function InsurancePage({ searchParams }: PageProps) {
   const ctx = await requireTenant()
   if (ctx.tenantType === 'patient') redirect('/patient/dashboard')
-  if (ctx.tenantType === 'platform') redirect('/')
-  // PREVIEW: unreleased — a 404 for everyone but platform admins, exactly
-  // what a clinic would see if the route did not exist.
-  if (!canUseInsuranceTool(ctx)) notFound()
+  // A clinic feature: the platform tenant (and anything else) goes home.
+  if (!canUseInsuranceTool(ctx)) redirect('/')
 
   const params = await searchParams
   const patientParam = typeof params.patient === 'string' ? params.patient.trim() : ''
   const checkParam = typeof params.check === 'string' ? params.check.trim() : ''
 
-  const [recent, carriers, patientOptions, timeZone, header, latestForPatient, linked] = await Promise.all([
+  const [setup, recent, carriers, patientOptions, timeZone, header, latestForPatient, linked] = await Promise.all([
+    getInsuranceSetup(ctx.organizationId),
     listRecentInsuranceChecks(ctx.organizationId, 50),
     listCarrierSuggestions(ctx.organizationId),
     listPatientOptions(ctx.organizationId),
@@ -80,7 +80,9 @@ export default async function InsurancePage({ searchParams }: PageProps) {
         timeZone={timeZone}
         prefill={prefill}
         initialCheck={prefill ? latest : null}
-        driver={resolveInsuranceDriverId()}
+        driver={setup.driver}
+        needsNpi={setup.needsNpi}
+        usage={setup.usage}
       />
     </>
   )

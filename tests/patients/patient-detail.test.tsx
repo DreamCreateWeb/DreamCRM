@@ -352,6 +352,24 @@ describe('PatientDetail insurance rail card', () => {
     expect(screen.queryByText('Check now')).toBeNull()
   })
 
+  it('under the live driver with no practice NPI, the card sends staff to the Business profile instead of a check that would be refused', () => {
+    render(
+      <PatientDetail
+        header={header()}
+        timeline={[]}
+        counts={emptyCounts}
+        notes={[]}
+        insurance={{ latest: null, hasOnFile: true, onFileRequest, needsPayerPick: true, needsNpi: true }}
+        timeZone="America/Chicago"
+      />,
+    )
+    const door = screen.getByText('Add the NPI in Settings →')
+    expect(door.closest('a')?.getAttribute('href')).toBe('/settings/clinic')
+    expect(screen.queryByText('Check now')).toBeNull()
+    expect(screen.queryByText('Pick the payer in Insurance →')).toBeNull()
+    expect(screen.getByText('Open in Insurance →').closest('a')?.getAttribute('href')).toBe('/insurance?patient=pat_1')
+  })
+
   it('History opens a drawer whose rows deep-link to the stored check', async () => {
     const latest = {
       id: 'ins_1',

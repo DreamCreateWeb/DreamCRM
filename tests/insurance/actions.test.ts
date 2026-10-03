@@ -11,8 +11,7 @@ const tenantCtx = {
   organizationId: 'org_1',
   userId: 'user_staff',
   role: 'member',
-  // PREVIEW: the tool is platform-admin only until released.
-  platformAdmin: true,
+  platformAdmin: false,
 }
 vi.mock('@/lib/auth/context', () => ({ requireTenant: vi.fn(async () => tenantCtx) }))
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
@@ -65,7 +64,7 @@ const request = {
 
 beforeEach(() => {
   tenantCtx.tenantType = 'clinic'
-  tenantCtx.platformAdmin = true
+  tenantCtx.tenantType = 'clinic'
   runEligibilityCheck.mockReset()
   createPatient.mockReset()
   updatePatient.mockClear()
@@ -91,18 +90,20 @@ describe('checkInsuranceAction', () => {
     const r = await searchPayersAction('Delta Dental')
     expect(r.ok && r.payers[0].primaryPayerId).toBe('77777')
     expect(searchPayers).toHaveBeenCalledWith('Delta Dental')
-    tenantCtx.platformAdmin = false
+    tenantCtx.tenantType = 'platform'
     expect((await searchPayersAction('Delta')).ok).toBe(false)
+    tenantCtx.tenantType = 'clinic'
   })
 
-  it('PREVIEW: refuses clinic staff who are not platform admins — every action', async () => {
-    tenantCtx.platformAdmin = false
+  it('a clinic feature: refuses the platform tenant — every action (released to every clinic 2026-10-03)', async () => {
+    tenantCtx.tenantType = 'platform'
     expect((await checkInsuranceAction(request, null)).ok).toBe(false)
     expect((await saveInsuranceToPatientAction('pat_1', { carrierName: 'X', memberId: 'Y', groupNumber: null })).ok).toBe(false)
     expect((await createPatientFromCheckAction({ checkId: 'ins_1', request })).ok).toBe(false)
     expect(runEligibilityCheck).not.toHaveBeenCalled()
     expect(updatePatient).not.toHaveBeenCalled()
     expect(createPatient).not.toHaveBeenCalled()
+    tenantCtx.tenantType = 'clinic'
   })
 })
 
@@ -235,11 +236,11 @@ describe('scanCardAction', () => {
     }
   })
 
-  it('PREVIEW: refuses clinic staff who are not platform admins', async () => {
-    tenantCtx.platformAdmin = false
+  it('a clinic feature: refuses a patient tenant', async () => {
+    tenantCtx.tenantType = 'patient'
     const r = await scanCardAction({ images: [img], patientId: null })
     expect(r.ok).toBe(false)
     expect(readInsuranceCard).not.toHaveBeenCalled()
-    tenantCtx.platformAdmin = true
+    tenantCtx.tenantType = 'clinic'
   })
 })

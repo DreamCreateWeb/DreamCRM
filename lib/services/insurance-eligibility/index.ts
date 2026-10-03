@@ -5,7 +5,11 @@ import {
   checkRecognisedCard,
   detailFromRequest,
   detailMatchesOnFile,
+  effectiveInsuranceDriver,
+  isBilledDriver,
   ledgerSummaryForCheck,
+  NPI_READINESS_COPY,
+  usageLine,
   parseInsuranceDetail,
   resolveInsuranceDriverId,
   validateEligibilityRequest,
@@ -14,14 +18,17 @@ import {
   type EligibilityStatus,
   type InsuranceCheckView,
   type InsuranceDriverId,
+  type InsuranceUsage,
   type PatientInsuranceDetail,
 } from '@/lib/insurance-eligibility'
 import { recordAction } from '@/lib/services/action-ledger'
 import type { EligibilityProvider } from './provider'
 import { sandboxProvider } from './sandbox'
 import { makeStediProvider, searchStediPayers } from './stedi'
+import { getInsuranceUsage } from './allowance'
 
 export { searchStediPayers as searchPayers }
+export { getInsuranceUsage }
 
 /**
  * Insurance eligibility — the service.
@@ -44,6 +51,51 @@ export function resolveEligibilityProvider(driver: InsuranceDriverId = resolveIn
 }
 
 type CheckRow = typeof schema.insuranceVerification.$inferSelect
+
+export interface InsuranceSetup {
+  /** The driver a check from this org actually runs under (the demo rule applied). */
+  driver: InsuranceDriverId
+  /** Under the live driver with no practice NPI (and no platform fallback): not ready. */
+  needsNpi: boolean
+  /** The included monthly allowance, read only under a billed driver; null otherwise. */
+  usage: InsuranceUsage | null
+}
+
+/**
+ * What the tool is for THIS clinic right now (polish phase 6): which driver
+ * answers, whether a live check would be refused for a missing NPI, and how
+ * much of the month's included allowance is used. One read shared by the
+ * page, the patient-record rail card and the check itself, so the state the
+ * desk sees is the state the service enforces. Best-effort reads: an
+ * unreadable profile reads as "no NPI" (the refusal names the fix) and an
+ * unreadable org as a real clinic (never a demo by accident).
+ */
+export async function getInsuranceSetup(organizationId: string, now: Date = new Date()): Promise<InsuranceSetup> {
+  const configured = resolveInsuranceDriverId()
+  let storedNpi: string | null = null
+  let isDemo = false
+  if (configured === 'stedi') {
+    try {
+      const [profile] = await db
+        .select({ npi: schema.clinicProfile.npi })
+        .from(schema.clinicProfile)
+        .where(eq(schema.clinicProfile.organizationId, organizationId))
+        .limit(1)
+      storedNpi = profile?.npi ?? null
+      const [org] = await db
+        .select({ isDemo: schema.organization.isDemo })
+        .from(schema.organization)
+        .where(eq(schema.organization.id, organizationId))
+        .limit(1)
+      isDemo = org?.isDemo === true
+    } catch (e) {
+      console.error('[insurance-eligibility] setup read failed:', e)
+    }
+  }
+  const { driver, needsNpi } = effectiveInsuranceDriver({ driver: configured, storedNpi, isDemo })
+  const usage = isBilledDriver(driver) && !needsNpi ? await getInsuranceUsage(organizationId, now) : null
+  return { driver, needsNpi, usage }
+}
 
 function toView(row: CheckRow, patientName: string | null, requestedByName: string | null = null): InsuranceCheckView {
   return {
@@ -83,7 +135,12 @@ function plainMessage(e: unknown): string {
 
 export type RunEligibilityCheckResult =
   | { ok: true; check: InsuranceCheckView }
-  | { ok: false; errors: Record<string, string> }
+  | {
+      ok: false
+      errors: Record<string, string>
+      /** A refusal BEFORE any row or network call: the practice isn't set up, or the month's allowance is spent. */
+      reason?: 'npi' | 'over_allowance'
+    }
 
 export async function runEligibilityCheck(
   organizationId: string,
@@ -122,11 +179,21 @@ export async function runEligibilityCheck(
       }
     }
 
-    // The demo org gets the SAME driver as everyone else. Only a platform
-    // admin can act inside it, and a check is a deliberate click — so a swap
-    // to the sandbox there (the first draft) protected nobody and turned the
-    // owner's own test into a fake answer.
-    const provider = resolveEligibilityProvider(resolveInsuranceDriverId())
+    // READINESS + THE ALLOWANCE, before any row or any network (polish
+    // phase 6). The demo rule lives in effectiveInsuranceDriver: the demo
+    // org gets the SAME driver as everyone else (a check there is a platform
+    // admin's deliberate click) unless the live driver would only refuse it
+    // for a missing NPI — then, and only then, the labelled sandbox answers.
+    const setup = await getInsuranceSetup(organizationId, now)
+    if (setup.needsNpi) return { ok: false, reason: 'npi', errors: { _form: NPI_READINESS_COPY.refusal } }
+    if (setup.usage && !setup.usage.unreadable && setup.usage.used >= setup.usage.included) {
+      return {
+        ok: false,
+        reason: 'over_allowance',
+        errors: { _form: `${usageLine(setup.usage)} — the allowance resets on the 1st. Dream Create can raise it; ask on the Support thread.` },
+      }
+    }
+    const provider = resolveEligibilityProvider(setup.driver)
 
     let result: EligibilityResult | null = null
     let error: string | null = null

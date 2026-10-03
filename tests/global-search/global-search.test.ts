@@ -118,17 +118,12 @@ describe('globalSearch — launcher view (empty query)', () => {
     expect(ids).toContain('act-edit-site')
   })
 
-  it('PREVIEW: the insurance quick action + page show only to platform admins', async () => {
+  it('the insurance quick action + page show to every clinic staff member (released 2026-10-03, after a platform-admin preview)', async () => {
     // The empty-query Go-to list is capped, so the page is checked by text.
     const staffLaunch = await globalSearch(ctx({ platformAdmin: false }), '')
-    expect(staffLaunch.flatMap((g) => g.results.map((r) => r.id))).not.toContain('act-check-insurance')
+    expect(staffLaunch.flatMap((g) => g.results.map((r) => r.id))).toContain('act-check-insurance')
     const staffQuery = await globalSearch(ctx({ platformAdmin: false }), 'insurance')
-    expect(staffQuery.flatMap((g) => g.results.map((r) => r.href))).not.toContain('/insurance')
-
-    const adminLaunch = await globalSearch(ctx({ platformAdmin: true }), '')
-    expect(adminLaunch.flatMap((g) => g.results.map((r) => r.id))).toContain('act-check-insurance')
-    const adminQuery = await globalSearch(ctx({ platformAdmin: true }), 'insurance')
-    expect(adminQuery.flatMap((g) => g.results.map((r) => r.href))).toContain('/insurance')
+    expect(staffQuery.flatMap((g) => g.results.map((r) => r.href))).toContain('/insurance')
   })
 
   it('surfaces saved views as one-click launches', async () => {
