@@ -9,6 +9,7 @@ import { notFound, redirect } from 'next/navigation'
 import { requireTenant } from '@/lib/auth/context'
 import { canUseInsuranceTool, resolveInsuranceDriverId, requestFromOnFile } from '@/lib/insurance-eligibility'
 import {
+  getInsuranceCheckById,
   getLatestInsuranceCheckForPatient,
   listCarrierSuggestions,
   listRecentInsuranceChecks,
@@ -32,15 +33,21 @@ export default async function InsurancePage({ searchParams }: PageProps) {
 
   const params = await searchParams
   const patientParam = typeof params.patient === 'string' ? params.patient.trim() : ''
+  const checkParam = typeof params.check === 'string' ? params.check.trim() : ''
 
-  const [recent, carriers, patientOptions, timeZone, header, latest] = await Promise.all([
-    listRecentInsuranceChecks(ctx.organizationId, 20),
+  const [recent, carriers, patientOptions, timeZone, header, latestForPatient, linked] = await Promise.all([
+    listRecentInsuranceChecks(ctx.organizationId, 50),
     listCarrierSuggestions(ctx.organizationId),
     listPatientOptions(ctx.organizationId),
     getClinicTimeZone(ctx.organizationId),
     patientParam ? getPatientHeader(ctx.organizationId, patientParam) : Promise.resolve(null),
     patientParam ? getLatestInsuranceCheckForPatient(ctx.organizationId, patientParam) : Promise.resolve(null),
+    // A history-drawer deep link: one specific stored check, org-scoped — a
+    // foreign or unknown id simply yields nothing and the page opens as usual.
+    checkParam ? getInsuranceCheckById(ctx.organizationId, checkParam) : Promise.resolve(null),
   ])
+  // The linked check wins over "latest" only when it belongs to the same patient the page is about.
+  const latest = linked && (!patientParam || linked.patientId === patientParam) ? linked : latestForPatient
 
   // A ?patient= that isn't this org's (or was merged away) simply yields no
   // prefill — the tool still works for a fresh lookup.

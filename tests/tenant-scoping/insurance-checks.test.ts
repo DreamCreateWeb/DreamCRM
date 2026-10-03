@@ -74,6 +74,7 @@ import {
   getLatestInsuranceCheckForPatient,
   listInsuranceChecksForPatient,
   listRecentInsuranceChecks,
+  getInsuranceCheckById,
   getRememberedCard,
   rememberCheckedCard,
 } from '@/lib/services/insurance-eligibility'
@@ -178,5 +179,14 @@ describe('insurance check queries are org-scoped', () => {
     // A changed on-file card retires the detail at read time.
     state.rows = [{ detail, policy: 'CHANGED' }]
     expect(await getRememberedCard(ORG_A, 'pat_1')).toBeNull()
+  })
+
+  it('getInsuranceCheckById carries the org id — a ?check= deep link can never open another clinic’s row', async () => {
+    state.wheres = []
+    state.rows = []
+    expect(await getInsuranceCheckById(ORG_A, 'ins_foreign')).toBeNull()
+    expect(state.wheres[0]).toContain(ORG_A)
+    expect(state.wheres[0]).toContain('ins_foreign')
+    expect(state.wheres[0]).not.toContain(ORG_B)
   })
 })

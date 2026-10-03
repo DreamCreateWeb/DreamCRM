@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 
 /**
  * The Insurance tool's honesty contract in the DOM: a sandbox driver shows
@@ -318,5 +318,84 @@ describe('InsuranceTool — the benefits card (design pass)', () => {
     expect(screen.getByText('What happened')).toBeTruthy()
     expect(screen.getByText('Sandbox: simulated payer timeout')).toBeTruthy()
   })
+
+  it('picking an existing patient navigates to the server prefill', () => {
+    renderTool()
+    fireEvent.change(screen.getByLabelText('Who'), { target: { value: 'pat_1' } })
+    expect(push).toHaveBeenCalledWith('/insurance?patient=pat_1')
+  })
 })
 
+describe('InsuranceTool — the desk’s paper (print, copy, filters)', () => {
+  it('a good answer offers Print and Copy; a failed check offers neither', () => {
+    const { unmount } = renderTool({ initialCheck: check() })
+    expect(screen.getByText('🖨 Print sheet')).toBeTruthy()
+    expect(screen.getByText('Copy summary')).toBeTruthy()
+    // The print sheet exists ONLY while printing: nothing at rest, mounted on
+    // beforeprint (the button and Ctrl+P both fire it), gone on afterprint.
+    expect(screen.queryByTestId('benefits-sheet')).toBeNull()
+    act(() => {
+      window.dispatchEvent(new Event('beforeprint'))
+    })
+    const sheet = screen.getByTestId('benefits-sheet')
+    expect(sheet.textContent).toContain('not a real payer check')
+    expect(sheet.textContent).toContain('Mia Hayes')
+    act(() => {
+      window.dispatchEvent(new Event('afterprint'))
+    })
+    expect(screen.queryByTestId('benefits-sheet')).toBeNull()
+    unmount()
+    renderTool({ initialCheck: check({ status: 'error', result: null, error: 'Sandbox: simulated payer timeout' }) })
+    expect(screen.queryByText('🖨 Print sheet')).toBeNull()
+    expect(screen.queryByText('Copy summary')).toBeNull()
+    act(() => {
+      window.dispatchEvent(new Event('beforeprint'))
+    })
+    expect(screen.queryByTestId('benefits-sheet')).toBeNull()
+  })
+
+  it('Copy summary writes the text summary — honesty line last — to the clipboard and confirms', async () => {
+    const writeText = vi.fn(async () => undefined)
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
+    renderTool({ initialCheck: check() })
+    fireEvent.click(screen.getByText('Copy summary'))
+    await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1))
+    const text = (writeText.mock.calls[0] as unknown as [string])[0]
+    expect(text).toContain('Insurance benefits — Mia Hayes')
+    expect(text).toContain('Left this year: $880 left (of $1,500 · $620 used)')
+    expect(text.trim().split('\n').pop()).toMatch(/not a real payer check/i)
+    await waitFor(() => expect(screen.getByText('Copied ✓')).toBeTruthy())
+  })
+
+  it('Print sheet hands the page to the printer', () => {
+    const print = vi.fn()
+    Object.defineProperty(window, 'print', { value: print, configurable: true })
+    renderTool({ initialCheck: check() })
+    fireEvent.click(screen.getByText('🖨 Print sheet'))
+    expect(print).toHaveBeenCalledTimes(1)
+  })
+
+  it('the recent list filters by status chip and narrows by a patient or payer search', () => {
+    const rows = [
+      check({ id: 'a', patientName: 'Mia Hayes' }),
+      check({ id: 'b', patientName: 'Noah Park', status: 'inactive', input: { ...check().input, carrierName: 'Cigna' }, result: { ...check().result!, status: 'inactive', payerName: 'Cigna' } }),
+      check({ id: 'c', patientName: 'Emma Li', status: 'not_found', result: null }),
+    ]
+    renderTool({ recent: rows })
+    expect(screen.getByText(/last 3/)).toBeTruthy()
+    const rowButtons = () => Array.from(document.querySelectorAll<HTMLButtonElement>('li > button'))
+    expect(rowButtons()).toHaveLength(3)
+    // The chip, not the row's status pill: a FilterChip is the button carrying aria-pressed.
+    const chip = screen.getAllByText('Not active').map((el) => el.closest('button')).find((b) => b?.hasAttribute('aria-pressed'))!
+    fireEvent.click(chip)
+    expect(rowButtons()).toHaveLength(1)
+    expect(rowButtons()[0].textContent).toContain('Noah Park')
+    fireEvent.click(screen.getByText('All'))
+    expect(rowButtons()).toHaveLength(3)
+    fireEvent.change(screen.getByLabelText('Search recent checks'), { target: { value: 'cigna' } })
+    expect(rowButtons()).toHaveLength(1)
+    fireEvent.change(screen.getByLabelText('Search recent checks'), { target: { value: 'zzz' } })
+    expect(rowButtons()).toHaveLength(0)
+    expect(screen.getByText('Nothing matches that filter.')).toBeTruthy()
+  })
+})

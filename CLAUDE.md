@@ -192,7 +192,15 @@ system, don't replace it.
   it exists); `requestFromOnFile` merges it on that match so a dependent's
   re-check carries the payer + policyholder; `rememberCheckedCard` writes
   only the detail column; the rail card offers "Pick the payer in
-  Insurance →" where a name-only card would be refused.
+  Insurance →" where a name-only card would be refused. Phase 4 SHIPPED
+  (2026-10-03, THE DESK'S PAPER): `lib/insurance-summary.ts`
+  `benefitsSummaryText` (pure; the honesty title is the LAST line by law),
+  Copy summary + Print sheet on every good answer (`benefits-sheet.tsx`,
+  print-isolated to `#benefits-sheet`, black and white, ≥12px), the rail
+  card's History drawer over the last 10 checks deep-linking to
+  `/insurance?patient=X&check=ID` (`getInsuranceCheckById`, org-scoped),
+  the recent list at 50 with status FilterChips + search, focus moves to
+  the card heading after a check.
   `lib/insurance-eligibility.ts` (client-safe types,
   validation, the status→tone contract, the honesty labels) +
   `lib/services/insurance-eligibility/` (provider interface, the

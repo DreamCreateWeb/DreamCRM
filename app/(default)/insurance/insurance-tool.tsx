@@ -17,6 +17,7 @@ import {
   SANDBOX_STEERING,
   STATUS_LABEL,
   STATUS_TONE,
+  type EligibilityStatus,
   checkAgeLabel,
   deductibleAsAmount,
   describeBenefitAmount,
@@ -33,6 +34,8 @@ import {
 } from '@/lib/insurance-eligibility'
 import { checkInsuranceAction, createPatientFromCheckAction, saveInsuranceToPatientAction, searchPayersAction } from './actions'
 import { FactChip, HeroAmount, TierTile } from './benefit-visuals'
+import { CopySummaryButton, PrintBenefitsButton, PrintableBenefits } from './benefits-sheet'
+import { FilterChip } from '@/components/ui/filter-chip'
 import type { StediPayerMatch } from '@/lib/stedi-eligibility'
 
 /**
@@ -142,7 +145,10 @@ export default function InsuranceTool({
   const [pending, startTransition] = useTransition()
   const [duplicate, setDuplicate] = useState<{ id: string; name: string } | null>(null)
   const [busy, setBusy] = useState<'check' | 'save' | 'add' | 'anyway' | null>(null)
+  const [statusFilter, setStatusFilter] = useState<EligibilityStatus | null>(null)
+  const [query, setQuery] = useState('')
   const formRef = useRef<HTMLFormElement>(null)
+  const resultRef = useRef<HTMLDivElement>(null)
   const practice = isPracticeDriver(driver)
   const label = INSURANCE_DRIVER_LABEL[driver]
 
@@ -183,7 +189,10 @@ export default function InsuranceTool({
         return
       }
       setCurrent(r.check)
-      setRecent((list) => [r.check, ...list.filter((c) => c.id !== r.check.id)].slice(0, 20))
+      setRecent((list) => [r.check, ...list.filter((c) => c.id !== r.check.id)].slice(0, 50))
+      // The answer is the next thing to read: move focus to its heading so a
+      // keyboard user lands on the verdict, not back at the top of the form.
+      requestAnimationFrame(() => resultRef.current?.querySelector<HTMLElement>('[data-testid="benefits-heading"]')?.focus())
     })
   }
 
@@ -240,6 +249,16 @@ export default function InsuranceTool({
   }
 
   const subscriberNeeded = form.relationship !== 'self'
+  const q = query.trim().toLowerCase()
+  const visibleRecent = recent.filter((c) => {
+    if (statusFilter && c.status !== statusFilter) return false
+    if (!q) return true
+    const hay = [c.patientName, c.input.patient.firstName, c.input.patient.lastName, c.input.carrierName, c.result?.payerName, c.result?.planName]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase()
+    return hay.includes(q)
+  })
 
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
@@ -410,7 +429,7 @@ export default function InsuranceTool({
         </section>
 
         {/* ── The answer ─────────────────────────────────────────────── */}
-        <section className="lg:col-span-7">
+        <section className="lg:col-span-7" ref={resultRef}>
           {current ? (
             <ResultCard check={current} timeZone={timeZone}>
               {duplicate ? (
@@ -439,6 +458,12 @@ export default function InsuranceTool({
                   <ActionButton variant="secondary" size="sm" pending={pending && busy === 'check'} onClick={runCheck}>
                     {current.status === 'error' ? 'Try again' : 'Check again'}
                   </ActionButton>
+                  {current.status !== 'error' && (
+                    <>
+                      <PrintBenefitsButton />
+                      <CopySummaryButton check={current} clinicName={orgName} timeZone={timeZone} />
+                    </>
+                  )}
                 </>
               )}
             </ResultCard>
@@ -455,12 +480,44 @@ export default function InsuranceTool({
               className="h-full"
             />
           )}
+          {current && current.status !== 'error' && <PrintableBenefits check={current} clinicName={orgName} timeZone={timeZone} />}
         </section>
       </div>
 
       {/* ── Recent checks ────────────────────────────────────────────── */}
       <section className="mt-6">
-        <h2 className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold mb-2">Recent checks</h2>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 mb-2">
+          <h2 className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold">
+            Recent checks{recent.length > 0 && <span className="font-mono-num tabular-nums"> · last {recent.length}</span>}
+          </h2>
+          {recent.length > 0 && (
+            <div className="flex flex-wrap items-center gap-1.5 ml-auto">
+              <FilterChip active={statusFilter === null} onClick={() => setStatusFilter(null)}>
+                All
+              </FilterChip>
+              {(['active', 'inactive', 'not_found', 'needs_review', 'error'] as EligibilityStatus[]).map((st) => {
+                const n = recent.filter((c) => c.status === st).length
+                if (n === 0) return null
+                return (
+                  <FilterChip key={st} active={statusFilter === st} onClick={() => setStatusFilter(statusFilter === st ? null : st)} count={n}>
+                    {STATUS_LABEL[st]}
+                  </FilterChip>
+                )
+              })}
+              <label className="sr-only" htmlFor="ins-recent-search">
+                Search recent checks
+              </label>
+              <input
+                id="ins-recent-search"
+                type="search"
+                className="form-input text-sm w-44"
+                placeholder="Patient or payer…"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+              />
+            </div>
+          )}
+        </div>
         {recent.length === 0 ? (
           <EmptyState
             title="No checks yet"
@@ -485,7 +542,10 @@ export default function InsuranceTool({
               <span className="text-right w-28">When</span>
             </div>
             <ul className="divide-y divide-[color:var(--color-hairline)]">
-              {recent.map((c) => {
+              {visibleRecent.length === 0 && (
+                <li className="px-4 py-6 text-sm text-gray-500 dark:text-gray-400 text-center">Nothing matches that filter.</li>
+              )}
+              {visibleRecent.map((c) => {
                 const selected = current?.id === c.id
                 const d = INSURANCE_DRIVER_LABEL[c.driver]
                 return (

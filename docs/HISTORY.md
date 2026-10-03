@@ -5641,3 +5641,23 @@ refused in — a clearinghouse driver with only a carrier name and no
 remembered payer — "Pick the payer in Insurance →" instead of a Check-now
 that fails. The demo seeder keys Mia's checks on HER on-file policy number
 and stamps her detail once (self-heal for demos seeded before the column).
+
+**2026-10-03 — polish phase 4: the desk's paper (print, copy, history,
+filters).** The client's first ask. `lib/insurance-summary.ts` is the pure
+text rendering of a check — the same facts as the card, every dollar line
+worded by `describeBenefitAmount`, and the driver's honesty title as the
+LAST line by law, so a practice answer pasted into a PMS note still says it
+is one. "Copy summary" puts it on the clipboard (the CopyChip fallback
+recipe, not CopyChip itself — that is a one-line chip); "Print sheet" hands
+the page to the printer with the receipt page's isolation rule (only
+`#benefits-sheet` is visible on paper), and the sheet is the card in black
+and white — no tone fills, no rings, nothing under 12px, the honesty title
+in full. The patient record preloads the last 10 checks and the rail card
+opens them in a `Drawer` ("History (3)") whose rows deep-link to
+`/insurance?patient=X&check=ID`; `getInsuranceCheckById` is org-scoped so a
+foreign id simply yields nothing, and the page prefers the linked row only
+when it belongs to the patient the page is about. The recent list grew to
+the last 50 with `FilterChip`s per status and a search box over patient and
+payer (no new SQL — client-side over what the page already loads), and a
+new answer moves focus to the card's heading so a keyboard user lands on
+the verdict rather than back at the top of the form.
