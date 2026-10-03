@@ -5559,3 +5559,26 @@ swap REMOVED (only a platform admin can act there; a silent swap turned
 the owner's test into a fake answer), and the practice NPI on the Business
 profile. Lesson for the next driver: get the vendor's test-mode mock
 answer BEFORE writing the normalizer, not after.
+
+**2026-10-02 — the polish program begins: honest numbers (Phase 1 of six).**
+The owner's plan for the reveal: six phases, one PR each — honest
+numbers, the design pass, the record remembering the card, the printable
+sheet, card scanning, release to every clinic. Phase 1 fixes the one
+unrecoverable mistake first: a payer that states only the yearly maximum
+used to render as "$2,500 left · $0 used", a guess dressed as a fact. Every
+part of a `BenefitAmount` / `DeductibleAmount` is now NULLABLE BY LAW; the
+Stedi normalizer derives "used" only when both ends are stated, keeps a
+remaining-only answer instead of discarding it, reads FAMILY rows into
+`familyMax` / `familyDeductible` and STC 38 LIFETIME rows into
+`orthoLifetimeMax` (an ortho row is never this year's maximum).
+`describeBenefitAmount` is THE ONE HOME for the wording ("$1,240 left / of
+$2,500 · $1,260 used"; "Up to $2,500 / the payer didn't say how much is
+used"; "Met") and returns `fractionUsed` only when both ends are known —
+the design pass's ring will have nothing to draw from a guess. Every card
+now says who ran it and how long ago (`requestedByName` via a user
+left-join, `checkAgeLabel`), wears a warn "Worth a re-check" pill past
+`VERIFICATION_FRESH_DAYS = 30`, lists plan rules (missing-tooth clause only
+when true, ortho lifetime, family amounts) and offers "Check again" on every
+answer, not only failed ones. Sandbox suffix `7777` renders the total-only
+scenario so the honesty copy is demoable. Old stored rows keep their
+`usedCents: 0` — they are mock-member answers.

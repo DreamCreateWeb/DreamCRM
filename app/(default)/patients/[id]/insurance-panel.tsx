@@ -7,12 +7,15 @@ import { ActionButton } from '@/components/ui/action-button'
 import { StatusPill } from '@/components/ui/status-pill'
 import { useToast } from '@/components/ui/toast'
 import { formatClinicDayTime } from '@/lib/format-datetime'
+import { TONE_TEXT } from '@/lib/ui/encodings'
 import {
   INSURANCE_DRIVER_LABEL,
   STATUS_LABEL,
   STATUS_TONE,
-  benefitDollars,
+  checkAgeLabel,
+  describeBenefitAmount,
   isPracticeDriver,
+  isStaleCheck,
   type EligibilityRequest,
   type InsuranceCheckView,
 } from '@/lib/insurance-eligibility'
@@ -48,6 +51,9 @@ export default function InsurancePanel({
   const latest = data.latest
   const label = latest ? INSURANCE_DRIVER_LABEL[latest.driver] : null
   const practice = latest ? isPracticeDriver(latest.driver) : false
+  const stale = !!latest && latest.status !== 'error' && isStaleCheck(latest.checkedAtIso)
+  // The one copy helper words the amount — the rail never does its own arithmetic.
+  const maxCopy = latest?.result?.status === 'active' ? describeBenefitAmount(latest.result.annualMax, 'max') : null
   const toolHref = `/insurance?patient=${patientId}`
 
   function checkNow() {
@@ -79,14 +85,21 @@ export default function InsurancePanel({
         <div className="mt-2 space-y-1">
           {practice && label && <StatusPill tone="neutral" label={label.pill} title={label.title} />}
           <p className="text-xs text-gray-500 dark:text-gray-400 tabular-nums" suppressHydrationWarning>
-            Checked {formatClinicDayTime(new Date(latest.checkedAtIso), timeZone)}
+            Checked {checkAgeLabel(latest.checkedAtIso)}
+            {latest.requestedByName ? ` by ${latest.requestedByName}` : ''}
+            <span className="sr-only">, {formatClinicDayTime(new Date(latest.checkedAtIso), timeZone)}</span>
           </p>
+          {stale && (
+            <p className={`text-xs ${TONE_TEXT.warn}`}>Over a month old — worth a re-check before their visit.</p>
+          )}
           {latest.result?.planName && (
             <p className="text-sm text-gray-700 dark:text-gray-200">{latest.result.planName}</p>
           )}
-          {latest.result?.status === 'active' && latest.result.annualMax && (
+          {maxCopy && (
             <p className="text-xs text-gray-600 dark:text-gray-300">
-              <span className="font-mono-num tabular-nums">{benefitDollars(latest.result.annualMax.remainingCents)}</span> left this year
+              <span className="font-mono-num tabular-nums">{maxCopy.headline}</span>
+              {maxCopy.caveat ? '' : ' this year'}
+              <span className={`block ${maxCopy.caveat ? TONE_TEXT.warn : 'text-gray-500 dark:text-gray-400'}`}>{maxCopy.sub}</span>
             </p>
           )}
           {latest.status === 'error' && (

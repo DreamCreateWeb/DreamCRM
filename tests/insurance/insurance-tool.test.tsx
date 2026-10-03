@@ -63,8 +63,9 @@ function check(overrides: Partial<InsuranceCheckView> = {}): InsuranceCheckView 
       asOf: '2026-09-30T15:00:00.000Z',
     },
     error: null,
-    checkedAtIso: '2026-09-30T15:00:00.000Z',
+    checkedAtIso: new Date(Date.now() - 3 * 86_400_000).toISOString(),
     requestedByUserId: 'u_1',
+    requestedByName: 'Dana Whitfield',
     ...overrides,
   }
 }
@@ -109,7 +110,7 @@ describe('InsuranceTool — honesty', () => {
     expect(active[0].getAttribute('data-tone')).toBe('ok')
     expect(screen.getAllByText('Practice answer').length).toBeGreaterThanOrEqual(2)
     expect(screen.getByText('Delta Dental PPO')).toBeTruthy()
-    expect(screen.getByText('$880')).toBeTruthy()
+    expect(screen.getByText('$880 left')).toBeTruthy()
   })
 
   it('a coverage-ended answer is urgent; a failed check is warn and offers a retry', () => {
@@ -178,6 +179,58 @@ describe('InsuranceTool — form + add-as-patient', () => {
     renderTool({ initialCheck: check({ driver: 'stedi', result: { ...check().result!, coveragePct: { preventive: 100, basic: null, major: null, ortho: null } } }) })
     expect(screen.getByText('Payer answer')).toBeTruthy()
     expect(screen.getAllByText('—').length).toBeGreaterThanOrEqual(2)
+  })
+
+  it('a payer that only states the maximum gets honest copy — never "$0 used" — and the amber caveat', () => {
+    renderTool({ initialCheck: check({ result: { ...check().result!, annualMax: { totalCents: 150_000, usedCents: null, remainingCents: null }, deductible: { individualCents: 5_000, metCents: null, remainingCents: null } } }) })
+    expect(screen.getByText('Up to $1,500')).toBeTruthy()
+    expect(screen.getByText('the payer didn’t say how much is used')).toBeTruthy()
+    expect(screen.getByText('Yearly maximum')).toBeTruthy()
+    expect(screen.getByText('the payer didn’t say how much is met')).toBeTruthy()
+    expect(screen.queryByText(/\$0 used/)).toBeNull()
+  })
+
+  it('a remaining-only answer is shown as what is left, with the missing total named', () => {
+    renderTool({ initialCheck: check({ result: { ...check().result!, annualMax: { totalCents: null, usedCents: null, remainingCents: 42_000 } } }) })
+    expect(screen.getByText('$420 left')).toBeTruthy()
+    expect(screen.getByText('the payer didn’t say the yearly maximum')).toBeTruthy()
+  })
+
+  it('says who ran the check and how long ago, and offers Check again on a good answer', () => {
+    renderTool({ initialCheck: check() })
+    expect(screen.getByText(/Checked 3 days ago by Dana Whitfield/)).toBeTruthy()
+    expect(screen.getByText('Check again')).toBeTruthy()
+    expect(screen.queryByText('Worth a re-check')).toBeNull()
+  })
+
+  it('a month-old verdict wears the warn re-check pill; a failed check does not (nothing to go stale)', () => {
+    const old = new Date(Date.now() - 45 * 86_400_000).toISOString()
+    const { unmount } = renderTool({ initialCheck: check({ checkedAtIso: old }) })
+    expect(screen.getByText('Worth a re-check').getAttribute('data-tone')).toBe('warn')
+    expect(screen.getByText(/Checked a month ago/)).toBeTruthy()
+    unmount()
+    renderTool({ initialCheck: check({ checkedAtIso: old, status: 'error', result: null, error: 'Sandbox: simulated payer timeout' }) })
+    expect(screen.queryByText('Worth a re-check')).toBeNull()
+  })
+
+  it('plan rules show the missing-tooth clause only when true, plus ortho lifetime and family amounts', () => {
+    const { unmount } = renderTool({
+      initialCheck: check({
+        result: {
+          ...check().result!,
+          missingToothClause: true,
+          orthoLifetimeMax: { totalCents: 150_000, usedCents: 0, remainingCents: 150_000 },
+          familyMax: { totalCents: 400_000, usedCents: null, remainingCents: null },
+        },
+      }),
+    })
+    expect(screen.getByText('Plan rules')).toBeTruthy()
+    expect(screen.getByText(/Missing-tooth clause applies/)).toBeTruthy()
+    expect(screen.getByText(/Ortho lifetime maximum: \$1,500 left/)).toBeTruthy()
+    expect(screen.getByText(/Family maximum: Up to \$4,000/)).toBeTruthy()
+    unmount()
+    renderTool({ initialCheck: check() })
+    expect(screen.queryByText('Plan rules')).toBeNull()
   })
 
   it('picking an existing patient navigates to the server prefill', () => {

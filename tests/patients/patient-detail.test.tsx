@@ -323,6 +323,7 @@ describe('PatientDetail insurance rail card', () => {
             error: null,
             checkedAtIso: '2026-09-20T15:00:00.000Z',
             requestedByUserId: null,
+            requestedByName: null,
           },
         }}
         timeZone="America/Chicago"

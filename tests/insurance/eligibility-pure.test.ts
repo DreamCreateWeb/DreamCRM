@@ -4,8 +4,14 @@ import {
   SANDBOX_STEERING,
   STATUS_LABEL,
   STATUS_TONE,
+  VERIFICATION_FRESH_DAYS,
   benefitDollars,
+  checkAgeLabel,
+  deductibleAsAmount,
+  describeBenefitAmount,
+  hasAnyAmount,
   isPracticeDriver,
+  isStaleCheck,
   ledgerSummaryForCheck,
   requestFromOnFile,
   resolveInsuranceDriverId,
@@ -165,5 +171,85 @@ describe('copy helpers', () => {
 
   it('every steering suffix is four digits (the sandbox reads the trailing digits)', () => {
     for (const s of SANDBOX_STEERING) expect(s.suffix).toMatch(/^\d{4}$/)
+  })
+})
+
+describe('describeBenefitAmount — the one home for dollar wording', () => {
+  it('both ends stated: left, of total, used derived by arithmetic', () => {
+    expect(describeBenefitAmount({ totalCents: 250_000, usedCents: null, remainingCents: 124_000 }, 'max')).toEqual({
+      headline: '$1,240 left',
+      sub: 'of $2,500 · $1,260 used',
+      fractionUsed: 126_000 / 250_000,
+      caveat: false,
+    })
+  })
+
+  it('only the total stated: "Up to", a caveat, and NO ring fuel', () => {
+    const c = describeBenefitAmount({ totalCents: 250_000, usedCents: null, remainingCents: null }, 'max')
+    expect(c).toEqual({ headline: 'Up to $2,500', sub: 'the payer didn’t say how much is used', fractionUsed: null, caveat: true })
+  })
+
+  it('only remaining stated: left, with the missing total named', () => {
+    const c = describeBenefitAmount({ totalCents: null, usedCents: null, remainingCents: 42_000 }, 'max')
+    expect(c).toEqual({ headline: '$420 left', sub: 'the payer didn’t say the yearly maximum', fractionUsed: null, caveat: true })
+  })
+
+  it('nothing left reads as all used; nothing stated at all is null', () => {
+    expect(describeBenefitAmount({ totalCents: 150_000, usedCents: 150_000, remainingCents: 0 }, 'max')?.sub).toBe('of $1,500 · all used this year')
+    expect(describeBenefitAmount({ totalCents: null, usedCents: null, remainingCents: null }, 'max')).toBeNull()
+    expect(describeBenefitAmount(null, 'max')).toBeNull()
+    expect(hasAnyAmount({ totalCents: null, usedCents: null, remainingCents: null })).toBe(false)
+  })
+
+  it('the deductible speaks in "met": met for the year, left of total, or the honest caveats', () => {
+    expect(describeBenefitAmount(deductibleAsAmount({ individualCents: 5_000, metCents: 5_000, remainingCents: 0 }), 'deductible')).toMatchObject({
+      headline: 'Met',
+      sub: 'the $50 deductible is met for the year',
+      caveat: false,
+    })
+    expect(describeBenefitAmount(deductibleAsAmount({ individualCents: 5_000, metCents: null, remainingCents: 2_500 }), 'deductible')).toMatchObject({
+      headline: '$25 left',
+      sub: 'of $50 · $25 met',
+      fractionUsed: 0.5,
+    })
+    expect(describeBenefitAmount(deductibleAsAmount({ individualCents: 5_000, metCents: null, remainingCents: null }), 'deductible')).toEqual({
+      headline: '$50',
+      sub: 'the payer didn’t say how much is met',
+      fractionUsed: null,
+      caveat: true,
+    })
+    expect(describeBenefitAmount(deductibleAsAmount({ individualCents: null, metCents: null, remainingCents: 2_500 }), 'deductible')?.sub).toBe('the payer didn’t say the full deductible')
+    expect(describeBenefitAmount(deductibleAsAmount({ individualCents: null, metCents: 2_500, remainingCents: null }), 'deductible')).toMatchObject({ headline: '$25 met', caveat: true })
+    expect(deductibleAsAmount(null)).toBeNull()
+  })
+
+  it('the fraction is capped at 1 and never drawn from a zero total', () => {
+    expect(describeBenefitAmount({ totalCents: 100, usedCents: 500, remainingCents: null }, 'max')?.fractionUsed).toBe(1)
+    expect(describeBenefitAmount({ totalCents: 0, usedCents: 0, remainingCents: 0 }, 'max')?.fractionUsed).toBeNull()
+  })
+})
+
+describe('staleness', () => {
+  const now = new Date('2026-10-02T12:00:00Z')
+  const daysAgo = (d: number) => new Date(now.getTime() - d * 86_400_000).toISOString()
+
+  it(`a check is stale strictly after ${VERIFICATION_FRESH_DAYS} days`, () => {
+    expect(isStaleCheck(daysAgo(VERIFICATION_FRESH_DAYS), now)).toBe(false)
+    expect(isStaleCheck(daysAgo(VERIFICATION_FRESH_DAYS + 1), now)).toBe(true)
+    expect(isStaleCheck(daysAgo(0), now)).toBe(false)
+    expect(isStaleCheck('not a date', now)).toBe(true)
+  })
+
+  it('checkAgeLabel reads like a person', () => {
+    expect(checkAgeLabel(daysAgo(0), now)).toBe('today')
+    expect(checkAgeLabel(daysAgo(0.5), now)).toBe('today')
+    expect(checkAgeLabel(daysAgo(1), now)).toBe('yesterday')
+    expect(checkAgeLabel(daysAgo(6), now)).toBe('6 days ago')
+    expect(checkAgeLabel(daysAgo(7), now)).toBe('a week ago')
+    expect(checkAgeLabel(daysAgo(20), now)).toBe('2 weeks ago')
+    expect(checkAgeLabel(daysAgo(45), now)).toBe('a month ago')
+    expect(checkAgeLabel(daysAgo(200), now)).toBe('6 months ago')
+    expect(checkAgeLabel(daysAgo(400), now)).toBe('over a year ago')
+    expect(checkAgeLabel('junk', now)).toBe('some time ago')
   })
 })

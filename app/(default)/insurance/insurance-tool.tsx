@@ -10,15 +10,21 @@ import { EmptyState } from '@/components/ui/empty-state'
 import { FieldError } from '@/components/ui/field-error'
 import { useToast } from '@/components/ui/toast'
 import { formatClinicDayTime } from '@/lib/format-datetime'
+import { TONE_TEXT } from '@/lib/ui/encodings'
 import {
   INSURANCE_DRIVER_LABEL,
   INSURANCE_RELATIONSHIPS,
   SANDBOX_STEERING,
   STATUS_LABEL,
   STATUS_TONE,
-  benefitDollars,
+  checkAgeLabel,
+  deductibleAsAmount,
+  describeBenefitAmount,
+  hasAnyAmount,
   isPracticeDriver,
+  isStaleCheck,
   validateEligibilityRequest,
+  type BenefitAmount,
   type EligibilityRequest,
   type InsuranceCheckView,
   type InsuranceDriverId,
@@ -384,13 +390,13 @@ export default function InsuranceTool({
                   )}
                 </div>
               )}
-              {current.status === 'error' && (
-                <div className="mt-4">
-                  <ActionButton variant="secondary" size="sm" pending={pending && busy === 'check'} onClick={runCheck}>
-                    Try again
-                  </ActionButton>
-                </div>
-              )}
+              <div className="mt-4">
+                {/* Every card can be re-asked — a verdict is a snapshot, and
+                    the form already holds this check's own card details. */}
+                <ActionButton variant="secondary" size="sm" pending={pending && busy === 'check'} onClick={runCheck}>
+                  {current.status === 'error' ? 'Try again' : 'Check again'}
+                </ActionButton>
+              </div>
             </ResultCard>
           ) : (
             <EmptyState
@@ -582,14 +588,30 @@ function pct(v: number | null): ReactNode {
   return v == null ? <span className="text-gray-500">—</span> : `${v}%`
 }
 
-function Stat({ label, value, sub }: { label: string; value: string; sub?: string }) {
+function Stat({ label, value, sub, caveat }: { label: string; value: string; sub?: string; caveat?: boolean }) {
   return (
     <div className="v2-well px-3 py-2">
       <p className="text-xs font-bold uppercase tracking-wider text-gray-600 dark:text-gray-300">{label}</p>
       <p className="text-xl font-bold tabular-nums font-mono-num text-gray-900 dark:text-gray-100">{value}</p>
-      {sub && <p className="text-xs text-gray-500 dark:text-gray-400">{sub}</p>}
+      {/* A "didn't say" sub-line is a caveat, so it reads in the warn ink
+          rather than the quiet grey a fact gets. */}
+      {sub && <p className={`text-xs ${caveat ? TONE_TEXT.warn : 'text-gray-500 dark:text-gray-400'}`}>{sub}</p>}
     </div>
   )
+}
+
+/** A dollar benefit tile worded by the one copy helper; renders nothing when the payer stated nothing. */
+function AmountStat({ label, amount, kind }: { label: string; amount: BenefitAmount | null | undefined; kind: 'max' | 'deductible' }) {
+  const copy = describeBenefitAmount(amount, kind)
+  if (!copy) return null
+  return <Stat label={label} value={copy.headline} sub={copy.sub} caveat={copy.caveat} />
+}
+
+/** "$1,500 lifetime, $1,500 left" — a plan-rules fact in one line. */
+function amountFact(amount: BenefitAmount | null | undefined, noun: string): string | null {
+  const copy = describeBenefitAmount(amount, 'max')
+  if (!copy) return null
+  return `${noun}: ${copy.headline}${copy.sub ? ` (${copy.sub})` : ''}`
 }
 
 const WAITING_LABEL: Record<'basic' | 'major' | 'ortho', string> = {
@@ -614,6 +636,17 @@ export function ResultCard({
   const practice = isPracticeDriver(check.driver)
   const label = INSURANCE_DRIVER_LABEL[check.driver]
   const who = `${check.input.patient.firstName} ${check.input.patient.lastName}`.trim()
+  // A verdict ages: past VERIFICATION_FRESH_DAYS it is a lead, not an answer.
+  // (A failed check has no verdict to go stale.)
+  const stale = check.status !== 'error' && isStaleCheck(check.checkedAtIso)
+  const planRules = r
+    ? [
+        r.missingToothClause === true ? 'Missing-tooth clause applies — teeth lost before coverage began aren’t covered for replacement.' : null,
+        amountFact(r.orthoLifetimeMax, 'Ortho lifetime maximum'),
+        amountFact(r.familyMax, 'Family maximum'),
+        amountFact(deductibleAsAmount(r.familyDeductible), 'Family deductible'),
+      ].filter((x): x is string => !!x)
+    : []
   return (
     <div className="v2-card px-4 py-4">
       <div className="flex flex-wrap items-center gap-2">
@@ -621,8 +654,17 @@ export function ResultCard({
         {/* Every answer names what answered it; a live payer answer's title
             carries the "estimate" caveat, the practice ones their warning. */}
         <StatusPill tone="neutral" label={label.pill} title={label.title} />
+        {stale && (
+          <StatusPill
+            tone="warn"
+            label="Worth a re-check"
+            title="Benefits move with every claim and plans can end any month — this answer is over a month old."
+          />
+        )}
         <span className="text-xs text-gray-500 dark:text-gray-400 ml-auto tabular-nums" suppressHydrationWarning>
-          Checked {formatClinicDayTime(new Date(check.checkedAtIso), timeZone)}
+          Checked {checkAgeLabel(check.checkedAtIso)}
+          {check.requestedByName ? ` by ${check.requestedByName}` : ''}
+          <span className="sr-only">, {formatClinicDayTime(new Date(check.checkedAtIso), timeZone)}</span>
         </span>
       </div>
       <h2 className="mt-2 text-lg font-bold text-gray-900 dark:text-gray-100">
@@ -651,20 +693,8 @@ export function ResultCard({
       {r && r.status === 'active' && (
         <>
           <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
-            {r.annualMax && (
-              <Stat
-                label="Left this year"
-                value={benefitDollars(r.annualMax.remainingCents)}
-                sub={`of ${benefitDollars(r.annualMax.totalCents)} · ${benefitDollars(r.annualMax.usedCents)} used`}
-              />
-            )}
-            {r.deductible && (
-              <Stat
-                label="Deductible left"
-                value={benefitDollars(r.deductible.remainingCents)}
-                sub={r.deductible.remainingCents === 0 ? 'Met for the year' : `of ${benefitDollars(r.deductible.individualCents)}`}
-              />
-            )}
+            <AmountStat label={hasAnyAmount(r.annualMax) && r.annualMax.remainingCents == null ? 'Yearly maximum' : 'Left this year'} amount={r.annualMax} kind="max" />
+            <AmountStat label={hasAnyAmount(deductibleAsAmount(r.deductible)) && r.deductible?.remainingCents == null ? 'Deductible' : 'Deductible left'} amount={deductibleAsAmount(r.deductible)} kind="deductible" />
             {r.coveragePct && r.coveragePct.preventive != null && <Stat label="Preventive" value={`${r.coveragePct.preventive}%`} sub="Exams, cleanings, X-rays" />}
           </div>
 
@@ -697,6 +727,17 @@ export function ResultCard({
                   <li key={w.category}>
                     {WAITING_LABEL[w.category]} — covered from {w.endsOn}
                   </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {planRules.length > 0 && (
+            <div className="mt-4">
+              <p className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold">Plan rules</p>
+              <ul className="mt-1 space-y-0.5 text-sm text-gray-700 dark:text-gray-200">
+                {planRules.map((rule) => (
+                  <li key={rule}>{rule}</li>
                 ))}
               </ul>
             </div>

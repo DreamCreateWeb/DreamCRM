@@ -164,6 +164,15 @@ system, don't replace it.
   stedi, STEDI_MODE=test, a Stedi TEST key** — the mock member answers; a real
   card does not. Going live = the client's NPI on their Business profile +
   the live key + `--mode live --confirm-baa`.
+  POLISH PROGRAM (2026-10-02, six phases toward the client reveal; Phase 1
+  SHIPPED): every dollar part of `BenefitAmount`/`DeductibleAmount` is
+  NULLABLE BY LAW — the normalizer derives "used" only when the payer stated
+  both ends, keeps remaining-only answers, reads FAMILY rows and STC 38
+  LIFETIME into `familyMax`/`familyDeductible`/`orthoLifetimeMax`;
+  `describeBenefitAmount` is THE ONE HOME for the wording (and the only
+  source of a ring's `fractionUsed`); cards carry `requestedByName`, a
+  "Worth a re-check" pill past `VERIFICATION_FRESH_DAYS` (30), plan rules,
+  and "Check again" on every answer; sandbox suffix `7777` = total-only.
   `lib/insurance-eligibility.ts` (client-safe types,
   validation, the status→tone contract, the honesty labels) +
   `lib/services/insurance-eligibility/` (provider interface, the
