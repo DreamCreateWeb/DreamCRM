@@ -22,11 +22,18 @@ const searchPayersAction = vi.fn(async () => ({
     { stediId: 'QNJCP', displayName: 'Delta Dental of California', primaryPayerId: '77777', aliases: [], coverageTypes: ['dental'], operatingStates: ['CA'], eligibilitySupported: true, score: 2 },
   ],
 }))
+const scanCardAction = vi.fn()
 vi.mock('@/app/(default)/insurance/actions', () => ({
   checkInsuranceAction: (...a: unknown[]) => checkInsuranceAction(...(a as [])),
   createPatientFromCheckAction: (...a: unknown[]) => createPatientFromCheckAction(...(a as [])),
   saveInsuranceToPatientAction: (...a: unknown[]) => saveInsuranceToPatientAction(...(a as [])),
   searchPayersAction: (...a: unknown[]) => searchPayersAction(...(a as [])),
+  scanCardAction: (...a: unknown[]) => scanCardAction(...(a as [])),
+}))
+const uploadFileWithProgress = vi.fn((file: File) => ({ promise: Promise.resolve(`https://storage.test/insurance-cards/${file.name}`), cancel: () => {} }))
+vi.mock('@/lib/upload-with-progress', () => ({
+  uploadFileWithProgress: (...a: unknown[]) => uploadFileWithProgress(...(a as [File])),
+  UploadCancelledError: class extends Error {},
 }))
 
 import InsuranceTool from '@/app/(default)/insurance/insurance-tool'
@@ -397,5 +404,51 @@ describe('InsuranceTool — the desk’s paper (print, copy, filters)', () => {
     fireEvent.change(screen.getByLabelText('Search recent checks'), { target: { value: 'zzz' } })
     expect(rowButtons()).toHaveLength(0)
     expect(screen.getByText('Nothing matches that filter.')).toBeTruthy()
+  })
+})
+
+describe('InsuranceTool — scan a card', () => {
+  beforeEach(() => {
+    scanCardAction.mockReset()
+    uploadFileWithProgress.mockClear()
+  })
+
+  it('uploads the photo, reads it, fills carrier / member id / group as a PREFILL, shows the hints, and never runs a check', async () => {
+    scanCardAction.mockResolvedValue({ ok: true, fields: { provider: 'Delta Dental of California', memberId: 'DD-77', groupNumber: 'G-9', planName: 'Delta PPO', subscriberName: 'Ana Hayes' }, attached: 0 })
+    renderTool()
+    const input = screen.getByLabelText('Photo of the insurance card') as HTMLInputElement
+    const file = new File(['x'], 'front.jpg', { type: 'image/jpeg' })
+    fireEvent.change(input, { target: { files: [file] } })
+    await waitFor(() => expect(scanCardAction).toHaveBeenCalledTimes(1))
+    expect(uploadFileWithProgress).toHaveBeenCalledWith(file, 'insurance-cards', expect.any(Function))
+    expect(scanCardAction).toHaveBeenCalledWith({ images: [{ url: 'https://storage.test/insurance-cards/front.jpg', name: 'front.jpg', contentType: 'image/jpeg', sizeBytes: 1 }], patientId: null })
+    await waitFor(() => expect(screen.getByText(/We read what we could/)).toBeTruthy())
+    expect((screen.getByLabelText('Carrier') as HTMLInputElement).value).toBe('Delta Dental of California')
+    expect((screen.getByLabelText('Member ID') as HTMLInputElement).value).toBe('DD-77')
+    expect((screen.getByLabelText('Group # (optional)') as HTMLInputElement).value).toBe('G-9')
+    expect(screen.getByTestId('card-hints').textContent).toContain('plan: Delta PPO')
+    expect(screen.getByTestId('card-hints').textContent).toContain('subscriber: Ana Hayes')
+    expect(checkInsuranceAction).not.toHaveBeenCalled()
+  })
+
+  it('a field the card did not show is left alone; a refusal is shown in the desk’s words', async () => {
+    renderTool({ prefill: { patientId: 'pat_1', patientName: 'Mia Hayes', request: check().input } })
+    scanCardAction.mockResolvedValueOnce({ ok: true, fields: { provider: null, memberId: 'NEW-1', groupNumber: null, planName: null, subscriberName: null }, attached: 1 })
+    fireEvent.change(screen.getByLabelText('Photo of the insurance card'), { target: { files: [new File(['x'], 'a.png', { type: 'image/png' })] } })
+    await waitFor(() => expect(screen.getByText(/The photo is on their record/)).toBeTruthy())
+    expect((screen.getByLabelText('Carrier') as HTMLInputElement).value).toBe('Delta Dental')
+    expect((screen.getByLabelText('Member ID') as HTMLInputElement).value).toBe('NEW-1')
+    expect(scanCardAction).toHaveBeenLastCalledWith(expect.objectContaining({ patientId: 'pat_1' }))
+    scanCardAction.mockResolvedValueOnce({ ok: false, error: 'We couldn’t read that card. Type it in from the card instead.' })
+    fireEvent.change(screen.getByLabelText('Photo of the insurance card'), { target: { files: [new File(['x'], 'b.png', { type: 'image/png' })] } })
+    await waitFor(() => expect(screen.getByRole('alert').textContent).toMatch(/couldn’t read that card/))
+  })
+
+  it('refuses a non-image before uploading anything', async () => {
+    renderTool()
+    fireEvent.change(screen.getByLabelText('Photo of the insurance card'), { target: { files: [new File(['x'], 'card.pdf', { type: 'application/pdf' })] } })
+    await waitFor(() => expect(screen.getByRole('alert').textContent).toMatch(/Pick a photo/))
+    expect(uploadFileWithProgress).not.toHaveBeenCalled()
+    expect(scanCardAction).not.toHaveBeenCalled()
   })
 })

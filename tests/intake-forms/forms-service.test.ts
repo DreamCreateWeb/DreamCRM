@@ -17,6 +17,7 @@ vi.mock('@/lib/db', async () => {
   const tableName = (t: unknown) => {
     if (t === schema.formTemplate) return 'form_template'
     if (t === schema.formSubmission) return 'form_submission'
+    if (t === schema.patient) return 'patient'
     return 'unknown'
   }
   const chain = () => {
@@ -75,6 +76,8 @@ import {
   getFormTemplateBySlug,
   getDefaultFormTemplate,
   getSubmissionStatsForTemplates,
+  intakeInsuranceAnswers,
+  writeBackIntakeInsurance,
 } from '@/lib/services/forms'
 
 beforeEach(() => {
@@ -334,5 +337,56 @@ describe('seedDefaultIntakeForm', () => {
     expect(
       state.ops.find((o) => o.kind === 'insert' && o.table === 'form_template'),
     ).toBeUndefined()
+  })
+})
+
+describe('the intake insurance write-back (polish phase 5)', () => {
+  const insuranceSchema = {
+    sections: [
+      {
+        id: 's',
+        title: 'Insurance',
+        fields: [
+          { id: 'f_carrier', type: 'text', label: 'Carrier', required: false, systemKey: 'insurance_provider' },
+          { id: 'f_member', type: 'text', label: 'Member ID', required: false, systemKey: 'insurance_policy_number' },
+          { id: 'f_group', type: 'text', label: 'Group', required: false, systemKey: 'insurance_group_number' },
+          { id: 'f_card', type: 'insurance_card', label: 'Card photos', required: false },
+        ],
+      },
+    ],
+  } as never
+
+  it('reads the three answers by system key — the patient’s CONFIRMED text, never the card photos', () => {
+    const answers = intakeInsuranceAnswers(insuranceSchema, { f_carrier: ' Delta Dental ', f_member: 'DD-9', f_group: '', f_card: [{ url: 'x', name: 'x', contentType: 'image/jpeg' }] } as never)
+    expect(answers).toEqual({ insurance_provider: 'Delta Dental', insurance_policy_number: 'DD-9' })
+  })
+
+  it('fills ONLY the empty columns and stamps the remembered card with source intake when the member id is new', async () => {
+    state.selectQueue.push([{ insuranceProvider: 'Cigna', insurancePolicyNumber: null, insuranceGroupNumber: null }])
+    const wrote = await writeBackIntakeInsurance('org_1', 'pat_1', insuranceSchema, { f_carrier: 'Delta Dental', f_member: 'DD-9', f_group: 'G-1' } as never)
+    expect(wrote).toBe(true)
+    const up = state.ops.find((o) => o.kind === 'update' && o.table === 'patient')!
+    const set = up.set as Record<string, unknown>
+    expect(set.insuranceProvider).toBeUndefined() // Cigna stays — a form never overwrites what is on file
+    expect(set.insurancePolicyNumber).toBe('DD-9')
+    expect(set.insuranceGroupNumber).toBe('G-1')
+    expect(set.insuranceDetail).toMatchObject({ memberId: 'DD-9', payerName: 'Cigna', source: 'intake', relationship: 'self' })
+  })
+
+  it('writes nothing when every column is already filled, when the form carries no insurance answers, or when the patient is not this org’s', async () => {
+    state.selectQueue.push([{ insuranceProvider: 'Cigna', insurancePolicyNumber: 'C-1', insuranceGroupNumber: 'G' }])
+    expect(await writeBackIntakeInsurance('org_1', 'pat_1', insuranceSchema, { f_carrier: 'Delta', f_member: 'DD-9' } as never)).toBe(false)
+    expect(await writeBackIntakeInsurance('org_1', 'pat_1', insuranceSchema, { other: 'x' } as never)).toBe(false)
+    state.selectQueue.push([])
+    expect(await writeBackIntakeInsurance('org_1', 'pat_foreign', insuranceSchema, { f_member: 'DD-9' } as never)).toBe(false)
+    expect(state.ops.filter((o) => o.kind === 'update' && o.table === 'patient')).toHaveLength(0)
+  })
+
+  it('a group number alone fills the group column and stamps no remembered card (there is no member id to key it on)', async () => {
+    state.selectQueue.push([{ insuranceProvider: null, insurancePolicyNumber: 'C-1', insuranceGroupNumber: null }])
+    await writeBackIntakeInsurance('org_1', 'pat_1', insuranceSchema, { f_group: 'G-2' } as never)
+    const set = state.ops.find((o) => o.kind === 'update' && o.table === 'patient')!.set as Record<string, unknown>
+    expect(set.insuranceGroupNumber).toBe('G-2')
+    expect(set.insuranceDetail).toBeUndefined()
   })
 })

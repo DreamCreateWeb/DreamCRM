@@ -35,6 +35,7 @@ import {
 import { checkInsuranceAction, createPatientFromCheckAction, saveInsuranceToPatientAction, searchPayersAction } from './actions'
 import { FactChip, HeroAmount, TierTile } from './benefit-visuals'
 import { CopySummaryButton, PrintBenefitsButton, PrintableBenefits } from './benefits-sheet'
+import { CardScanner } from './card-scanner'
 import { FilterChip } from '@/components/ui/filter-chip'
 import type { StediPayerMatch } from '@/lib/stedi-eligibility'
 
@@ -330,6 +331,22 @@ export default function InsuranceTool({
                 <p className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold">Their card</p>
                 <p className="text-xs text-gray-500 dark:text-gray-400">Exactly as printed — the payer, the member ID, the group.</p>
               </div>
+              {/* A photographed card fills what it can; the carrier it reads
+                  is a search for the payer picker, never a payer, and nothing
+                  runs a check until someone presses the button. */}
+              <CardScanner
+                patientId={prefill?.patientId ?? null}
+                onFields={(f) =>
+                  setForm((prev) => ({
+                    ...prev,
+                    carrierName: f.provider ?? prev.carrierName,
+                    payerId: f.provider ? '' : prev.payerId,
+                    payerName: f.provider ? '' : prev.payerName,
+                    memberId: f.memberId ?? prev.memberId,
+                    groupNumber: f.groupNumber ?? prev.groupNumber,
+                  }))
+                }
+              />
               {driver === 'sandbox' ? (
                 <Field id="ins-carrier" label="Carrier" error={errors.carrierName}>
                   <input id="ins-carrier" list="ins-carrier-list" className="form-input w-full text-sm" value={form.carrierName} onChange={(e) => set('carrierName', e.target.value)} placeholder="Delta Dental" autoComplete="off" />

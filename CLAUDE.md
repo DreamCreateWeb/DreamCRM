@@ -200,7 +200,15 @@ system, don't replace it.
   card's History drawer over the last 10 checks deep-linking to
   `/insurance?patient=X&check=ID` (`getInsuranceCheckById`, org-scoped),
   the recent list at 50 with status FilterChips + search, focus moves to
-  the card heading after a check.
+  the card heading after a check. Phase 5 SHIPPED (2026-10-03, SCAN THE
+  CARD): `card-scanner.tsx` + `scanCardAction` — photo → our storage →
+  `readInsuranceCard` (the intake forms' metered OCR) → a PREFILL, never a
+  check (the read carrier is the payer picker's QUERY; plan + subscriber
+  are hints), photo kept on the record as an "Insurance card" document;
+  and the INTAKE WRITE-BACK `writeBackIntakeInsurance` in
+  lib/services/forms.ts — the three insurance `systemKey` answers fill the
+  patient's EMPTY columns only (never overwrite PMS/staff truth) and stamp
+  the remembered card `source: 'intake'`.
   `lib/insurance-eligibility.ts` (client-safe types,
   validation, the status→tone contract, the honesty labels) +
   `lib/services/insurance-eligibility/` (provider interface, the

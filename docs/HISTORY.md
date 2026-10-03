@@ -5661,3 +5661,27 @@ the last 50 with `FilterChip`s per status and a search box over patient and
 payer (no new SQL — client-side over what the page already loads), and a
 new answer moves focus to the card's heading so a keyboard user lands on
 the verdict rather than back at the top of the form.
+
+**2026-10-03 — polish phase 5: scan the card + the intake write-back.** The
+client's second ask. "Scan a card" on the tool's card section photographs
+the front (and back), uploads to our storage (`insurance-cards`, the OCR's
+host allowlist demands it), and reads it through the SAME `readInsuranceCard`
+the intake forms use (Haiku vision, 400 reads per clinic per month). What
+comes back is a PREFILL, never a check: the carrier it reads becomes the
+payer picker's QUERY (a card's name is not a payer), the member id and
+group fill their boxes, and the plan name and subscriber render as HINTS
+("Card says plan: … · subscriber: … — pick whose name the policy is in
+below"); the copy says "We read what we could — check it against the
+card." With a patient selected the photo is kept on their record as a
+document labelled "Insurance card" (front/back), gated by
+`patientBelongsToOrg` before any row — the documents panel's own order.
+Every OCR refusal is worded for the desk and ends the same way: type it
+in from the card. Separately, a card the PATIENT typed on an intake form
+stops being a dead attachment: `writeBackIntakeInsurance` maps the three
+insurance system fields (`systemKey` — the patient's CONFIRMED text, never
+raw OCR hints) onto the record ONLY WHERE NOTHING IS THERE YET (PMS and
+staff truth is never overwritten by a form), and stamps the remembered card
+`source: 'intake'` when the member id is new to the record. Honesty note
+carried into Phase 6's checklist: card images go to Anthropic's API, which
+has no BAA (docs/COMPLIANCE.md) — the same posture as the existing intake
+OCR.
