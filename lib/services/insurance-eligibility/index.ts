@@ -274,6 +274,19 @@ export async function getLatestInsuranceCheckForPatient(
   return r ? joinedToView(r) : null
 }
 
+/** One stored check by id — org-scoped, so a `?check=` deep link can never open another clinic's row. */
+export async function getInsuranceCheckById(organizationId: string, checkId: string): Promise<InsuranceCheckView | null> {
+  const rows = await db
+    .select(viewSelect)
+    .from(schema.insuranceVerification)
+    .leftJoin(schema.patient, eq(schema.insuranceVerification.patientId, schema.patient.id))
+    .leftJoin(schema.user, eq(schema.insuranceVerification.requestedByUserId, schema.user.id))
+    .where(and(eq(schema.insuranceVerification.organizationId, organizationId), eq(schema.insuranceVerification.id, checkId)))
+    .limit(1)
+  const r = (rows as JoinedRow[])[0]
+  return r ? joinedToView(r) : null
+}
+
 export async function listInsuranceChecksForPatient(
   organizationId: string,
   patientId: string,

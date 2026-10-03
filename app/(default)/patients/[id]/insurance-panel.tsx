@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { ActionButton } from '@/components/ui/action-button'
 import { StatusPill } from '@/components/ui/status-pill'
 import { ProgressRing } from '@/components/ui/progress-ring'
+import Drawer from '@/components/ui/drawer'
 import { useToast } from '@/components/ui/toast'
 import { formatClinicDayTime } from '@/lib/format-datetime'
 import { TONE_TEXT } from '@/lib/ui/encodings'
@@ -25,6 +26,8 @@ import { checkInsuranceAction } from '../../insurance/actions'
 export interface InsurancePanelData {
   /** The most recent stored check for this patient, or null if never checked. */
   latest: InsuranceCheckView | null
+  /** Up to the last 10 checks, newest first — the History drawer. */
+  history?: InsuranceCheckView[]
   /** Whether the on-file columns hold a carrier (the check needs one). */
   hasOnFile: boolean
   /** The request a re-check sends, built from the on-file columns + the remembered card. */
@@ -55,7 +58,9 @@ export default function InsurancePanel({
   const toast = useToast()
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
+  const [historyOpen, setHistoryOpen] = useState(false)
   const latest = data.latest
+  const history = data.history ?? []
   const label = latest ? INSURANCE_DRIVER_LABEL[latest.driver] : null
   const practice = latest ? isPracticeDriver(latest.driver) : false
   const stale = !!latest && latest.status !== 'error' && isStaleCheck(latest.checkedAtIso)
@@ -157,7 +162,45 @@ export default function InsurancePanel({
             Open in Insurance →
           </Link>
         )}
+        {history.length > 0 && (
+          <button
+            type="button"
+            onClick={() => setHistoryOpen(true)}
+            className="text-xs font-medium text-teal-700 dark:text-teal-400 hover:underline"
+          >
+            History (<span className="font-mono-num tabular-nums">{history.length}</span>)
+          </button>
+        )}
       </div>
+
+      <Drawer open={historyOpen} onClose={() => setHistoryOpen(false)} title="Insurance check history" size="sm">
+        <ul className="divide-y divide-[color:var(--color-hairline)]" data-testid="insurance-history">
+          {history.map((c) => (
+            <li key={c.id}>
+              <Link
+                href={`${toolHref}&check=${c.id}`}
+                className="block px-5 py-3 hover:bg-teal-500/5 transition-colors"
+                onClick={() => setHistoryOpen(false)}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <StatusPill tone={STATUS_TONE[c.status]} label={STATUS_LABEL[c.status]} />
+                  <span className="text-xs text-gray-500 dark:text-gray-400 font-mono-num tabular-nums" suppressHydrationWarning>
+                    {formatClinicDayTime(new Date(c.checkedAtIso), timeZone)}
+                  </span>
+                </div>
+                <p className="mt-1 text-sm text-gray-800 dark:text-gray-100 truncate">
+                  {c.result?.payerName ?? c.input.carrierName}
+                  {c.result?.planName ? ` · ${c.result.planName}` : ''}
+                </p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  {INSURANCE_DRIVER_LABEL[c.driver].short}
+                  {c.requestedByName ? ` · by ${c.requestedByName}` : ''}
+                </p>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </Drawer>
     </div>
   )
 }

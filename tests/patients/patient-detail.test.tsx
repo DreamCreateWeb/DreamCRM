@@ -352,6 +352,38 @@ describe('PatientDetail insurance rail card', () => {
     expect(screen.queryByText('Check now')).toBeNull()
   })
 
+  it('History opens a drawer whose rows deep-link to the stored check', async () => {
+    const latest = {
+      id: 'ins_1',
+      patientId: 'pat_1',
+      patientName: 'Mia Hayes',
+      driver: 'sandbox' as const,
+      status: 'active' as const,
+      input: onFileRequest,
+      result: null,
+      error: null,
+      checkedAtIso: '2026-09-20T15:00:00.000Z',
+      requestedByUserId: null,
+      requestedByName: 'Dana Whitfield',
+    }
+    const older = { ...latest, id: 'ins_0', status: 'inactive' as const, checkedAtIso: '2026-08-01T15:00:00.000Z', requestedByName: null }
+    render(
+      <PatientDetail
+        header={header()}
+        timeline={[]}
+        counts={emptyCounts}
+        notes={[]}
+        insurance={{ latest, history: [latest, older], hasOnFile: true, onFileRequest }}
+        timeZone="America/Chicago"
+      />,
+    )
+    fireEvent.click(screen.getByText(/History \(/))
+    const list = await screen.findByTestId('insurance-history')
+    const links = Array.from(list.querySelectorAll('a')).map((a) => a.getAttribute('href'))
+    expect(links).toEqual(['/insurance?patient=pat_1&check=ins_1', '/insurance?patient=pat_1&check=ins_0'])
+    expect(list.textContent).toContain('by Dana Whitfield')
+  })
+
   it('renders nothing insurance-related when the prop is absent (legacy callers)', () => {
     render(<PatientDetail header={header()} timeline={[]} counts={emptyCounts} notes={[]} />)
     expect(screen.queryByTestId('insurance-panel')).toBeNull()

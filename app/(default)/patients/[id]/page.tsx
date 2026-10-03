@@ -12,7 +12,7 @@ import { findMergeCandidates } from '@/lib/services/patient-merge'
 import { getReferralContext } from '@/lib/services/patient-referrals'
 import { getLoyaltySettings, getPointsBalance, listLoyaltyEvents } from '@/lib/services/loyalty'
 import { listFormTemplates } from '@/lib/services/forms'
-import { getLatestInsuranceCheckForPatient } from '@/lib/services/insurance-eligibility'
+import { getLatestInsuranceCheckForPatient, listInsuranceChecksForPatient } from '@/lib/services/insurance-eligibility'
 import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
 import { canUseInsuranceTool, requestFromOnFile, resolveInsuranceDriverId } from '@/lib/insurance-eligibility'
 import PatientDetail from './patient-detail'
@@ -32,7 +32,7 @@ export default async function PatientDetailPage({ params }: PageProps) {
   if (ctx.tenantType === 'platform') redirect('/ecommerce/customers')
 
   const { id } = await params
-  const [header, timeline, notes, forms, patientOptions, tags, tagCatalog, documents, followups, staff, family, referral, latestInsuranceCheck, timeZone] =
+  const [header, timeline, notes, forms, patientOptions, tags, tagCatalog, documents, followups, staff, family, referral, latestInsuranceCheck, timeZone, insuranceHistory] =
     await Promise.all([
       getPatientHeader(ctx.organizationId, id),
       getPatientTimeline(ctx.organizationId, id),
@@ -48,6 +48,7 @@ export default async function PatientDetailPage({ params }: PageProps) {
       getReferralContext(ctx.organizationId, id),
       getLatestInsuranceCheckForPatient(ctx.organizationId, id),
       getClinicTimeZone(ctx.organizationId),
+      listInsuranceChecksForPatient(ctx.organizationId, id, 10),
     ])
   if (!header) notFound()
   // A merged tombstone isn't a real record anymore — send old links to the survivor.
@@ -79,6 +80,7 @@ export default async function PatientDetailPage({ params }: PageProps) {
   const insurance = canUseInsuranceTool(ctx)
     ? {
         latest: latestInsuranceCheck,
+        history: insuranceHistory,
         hasOnFile: !!header.insuranceProvider,
         onFileRequest,
         // A clearinghouse driver needs the exact payer, and a carrier NAME on
