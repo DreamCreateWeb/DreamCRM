@@ -329,7 +329,7 @@ app/
 lib/
   db/schema/         auth.ts, platform.ts, clinic.ts (bulk), domain.ts, email.ts,
                      referrals.ts, index.ts
-  db/migrations/     drizzle; 0000–0167 applied to prod (auto-apply on deploy)
+  db/migrations/     drizzle; 0000–0168 applied to prod (auto-apply on deploy)
   auth/              server.ts, client.ts, context.ts (getTenantContext,
                      requireTenant/requireRole/requirePartner)
   services/          ~190 server-only modules (import 'server-only') — one per
@@ -809,7 +809,11 @@ sitemap/robots/OG.
   end-to-end; watch the Actions tab. `NEXT_PUBLIC_*` bake at build time.
 - **Migrations auto-apply on boot** (`scripts/db-migrate.mjs` → POST
   `/api/admin/migrate`; failure keeps the previous version serving). Latest
-  migration: **0167** (`patient.insurance_detail` jsonb — the remembered
+  migration: **0168** (`campaign_events` — two PARTIAL indexes on
+  `type = 'sent'`, `(patient_id, occurred_at)` + `(recipient_email,
+  occurred_at)`: the frequency cap's per-person read, which every prior index
+  left campaign_id-leading; both arms because the cap's predicate is an OR).
+  Before it: **0167** (`patient.insurance_detail` jsonb — the remembered
   card, nullable, no index; trusted only while its memberId matches the
   flat policy number). Before it: **0166** (`insurance_verification` — the
   eligibility-check history table, org-scoped, patient set-null, error rows

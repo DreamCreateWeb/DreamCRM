@@ -428,6 +428,19 @@ export const campaignEvents = pgTable(
     // Per-patient timeline lookup ("show me all marketing events for Sophia")
     // — used by patient-timeline.ts.
     uniqueIndex('campaign_events_campaign_patient_type_idx').on(t.campaignId, t.patientId, t.type, t.occurredAt),
+    // The frequency cap (lib/services/marketing-frequency.ts) asks "how many
+    // 'sent' rows does THIS PERSON have in the last N days" — keyed by
+    // patient_id OR recipient_email, never by campaign — and every index
+    // above is campaign_id-leading, so that read was a scan of the table.
+    // Two PARTIAL indexes on `type = 'sent'` (the only type the cap counts):
+    // the OR needs BOTH sides indexed or the planner cannot BitmapOr it and
+    // falls back to the scan the patient-only index was meant to end.
+    index('campaign_events_sent_patient_idx')
+      .on(t.patientId, t.occurredAt)
+      .where(sql`${t.type} = 'sent'`),
+    index('campaign_events_sent_email_idx')
+      .on(t.recipientEmail, t.occurredAt)
+      .where(sql`${t.type} = 'sent'`),
     // The recall/analytics funnels scan events by campaign set + occurredAt
     // window (inArray(campaignId) AND occurredAt >= since). The unique indexes
     // above lead with campaignId but bury occurredAt behind type; this one
