@@ -1184,6 +1184,13 @@
       "when": 1791176400709,
       "tag": "0168_campaign_events_sent_key_idx",
       "breakpoints": true
+    },
+    {
+      "idx": 169,
+      "version": "7",
+      "when": 1791186076183,
+      "tag": "0169_one_stripe_account_per_clinic",
+      "breakpoints": true
     }
   ]
 }
