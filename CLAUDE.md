@@ -347,7 +347,7 @@ app/
 lib/
   db/schema/         auth.ts, platform.ts, clinic.ts (bulk), domain.ts, email.ts,
                      referrals.ts, index.ts
-  db/migrations/     drizzle; 0000–0171 applied to prod (auto-apply on deploy)
+  db/migrations/     drizzle; 0000–0172 applied to prod (auto-apply on deploy)
   auth/              server.ts, client.ts, context.ts (getTenantContext,
                      requireTenant/requireRole/requirePartner)
   services/          ~190 server-only modules (import 'server-only') — one per
@@ -462,7 +462,13 @@ recognizable seed marker, and extend the cleanup sweep.
 
 Sidebar groups: **Daily** / **Growth** (workspace hub) / **Website** (workspace
 hub) / **Business** (Payments · Shop · Integrations) + a pinned
-**Settings** entry (card-grid home). All modules are **live** — there are no
+**Settings** entry (card-grid home). **Since S3 (2026-10-05) a clinic's
+sidebar shows the day-one six (Overview, Dream Team, Messages,
+Appointments, Patients, Settings; Website and Integrations always) plus
+what the practice has turned ON, and an "Add" group of the doors not yet
+opened — each a `*_enabled_at` switch on clinic_profile
+(lib/feature-switches.ts; `FeatureGate` in the module's layout renders
+the intro card while off).** All modules are **live** — there are no
 `status:'soon'` placeholders left. Deep implementation history per module:
 `docs/HISTORY.md`.
 
@@ -827,7 +833,13 @@ sitemap/robots/OG.
   end-to-end; watch the Actions tab. `NEXT_PUBLIC_*` bake at build time.
 - **Migrations auto-apply on boot** (`scripts/db-migrate.mjs` → POST
   `/api/admin/migrate`; failure keeps the previous version serving). Latest
-  migration: **0171** (`clinic_profile.activation` jsonb — THE FIRST WEEK's
+  migration: **0172** (THE FEATURE SWITCHES, docs/ACTIVATION.md S3 — seven
+  nullable `clinic_profile.*_enabled_at` columns: my_day, followups,
+  leads, intake_forms, growth, payments, shop; every existing clinic
+  grandfathered ON for the five day-to-day modules, Payments + Shop only
+  where the payments bundle's signal already showed them; new clinics
+  start null and meet the doors). Before it: **0171**
+  (`clinic_profile.activation` jsonb — THE FIRST WEEK's
   activation stamps, `{ a1: iso, … }`, each key written ONCE through
   `stampActivation`'s guarded jsonb merge; S2 stamps A1 from the day-one
   kick, the cockpit prefers a stamp over its derived read). Before it:
@@ -960,7 +972,16 @@ sitemap/robots/OG.
    `runOrgGeneratorPass`, the per-org pass extracted from the hourly
    driver; clinics only, 15-min heartbeat cooldown, never throws; stamps
    A1 in `clinic_profile.activation`, 0171) → S3 the generalised
-   switch + five-door sidebar → S4 the integrations hub's doors (SMS opens,
+   switch + the "Add" sidebar (SHIPPED: migration 0172, one
+   `*_enabled_at` column per feature; pure registry `lib/feature-switches.ts`
+   + service `lib/services/feature-switches.ts` (per-request `cache`,
+   FAIL-OPEN read, `coalesce` door-opening); `lib/services/tenant-nav.ts`
+   is THE ONE resolver of the sidebar's list and ⌘K reads it too; a
+   switched module is gated by its switch ALONE (beats the Stripe-derived
+   bundle gate); `FeatureGate` in each module's `layout.tsx` renders the
+   generic intro off / the page + a root-path "Turn off" line on; A1
+   opens My Day + Follow-ups, the go-live lever opens Inquiries; Dream
+   Team is day-one — the day-one SIX) → S4 the integrations hub's doors (SMS opens,
    PMS self-serve request, "coming soon" retired) → S5 intake / growth /
    payments intros → S6 every empty state's door → S7 the day-two digest →
    S8 activation stamped + measured. Adds no capability; adds the DOORS.

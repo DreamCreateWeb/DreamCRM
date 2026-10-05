@@ -4,6 +4,7 @@ import { db, schema } from '@/lib/db'
 import { A1_PATIENT_FLOOR } from '@/lib/first-week'
 import { isClinicShutDown } from '@/lib/services/billing-state'
 import { stampActivation } from '@/lib/services/activation'
+import { openDoorsAtA1 } from '@/lib/services/feature-switches'
 
 /**
  * THE DAY-ONE KICK (docs/ACTIVATION.md law 5, slice S2). "The machine fires
@@ -24,7 +25,8 @@ import { stampActivation } from '@/lib/services/activation'
  *    stamps at once; a CSV stamps once the roster clears A1_PATIENT_FLOOR.
  *    The stamp is write-once and the kick runs whether or not it was the
  *    first — a second data source connected on day 12 still earns its card
- *    now.
+ *    now. A1 also OPENS THE DOORS the data makes real (S3: My Day,
+ *    Follow-ups) through lib/services/feature-switches.ts.
  *
  * NEVER THROWS INTO ITS CALLER: a hook site is a sync, an import or an
  * OAuth return, and none of those may fail because the follow-up did.
@@ -66,6 +68,12 @@ export async function kickOffFirstWeek(organizationId: string, reason: KickReaso
       eligibleForA1 = Number(n) >= A1_PATIENT_FLOOR
     }
     const stampedA1 = eligibleForA1 ? await stampActivation(organizationId, 'a1', now) : false
+    // A1 opens the doors that only make sense with patients behind them
+    // (My Day, Follow-ups — lib/feature-switches.ts `autoOpen: 'a1'`).
+    // Idempotent and never throws; runs on every eligible kick, not only
+    // the first, so a door closed on purpose stays closed (coalesce) while
+    // a clinic whose stamp predates the switches still gets its doors.
+    if (eligibleForA1) await openDoorsAtA1(organizationId, now)
 
     const [profile] = await db
       .select({ cycleAt: schema.clinicProfile.dreamTeamCycleAt })

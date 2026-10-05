@@ -203,6 +203,13 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
         onboardingInterviewCompletedAt: schema.clinicProfile.onboardingInterviewCompletedAt,
         siteLiveAt: schema.clinicProfile.siteLiveAt,
         insuranceEnabledAt: schema.clinicProfile.insuranceEnabledAt,
+        myDayEnabledAt: schema.clinicProfile.myDayEnabledAt,
+        followupsEnabledAt: schema.clinicProfile.followupsEnabledAt,
+        leadsEnabledAt: schema.clinicProfile.leadsEnabledAt,
+        intakeFormsEnabledAt: schema.clinicProfile.intakeFormsEnabledAt,
+        growthEnabledAt: schema.clinicProfile.growthEnabledAt,
+        paymentsEnabledAt: schema.clinicProfile.paymentsEnabledAt,
+        shopEnabledAt: schema.clinicProfile.shopEnabledAt,
         leadForms: schema.clinicProfile.leadForms,
         copyOverrides: schema.clinicProfile.copyOverrides,
         websiteDraft: schema.clinicProfile.websiteDraft,
@@ -225,6 +232,16 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
     // The demo's insurance tool is always ON (migration 0169's switch): a
     // prospect mid-pitch must see the scoreboard, not the intro card.
     if (!profile?.insuranceEnabledAt) patch.insuranceEnabledAt = new Date()
+    // Every FEATURE SWITCH is ON in the demo (migration 0172, docs/
+    // ACTIVATION.md S3): a prospect mid-pitch sees the whole app, never an
+    // "Add" group of doors to open.
+    if (!profile?.myDayEnabledAt) patch.myDayEnabledAt = new Date()
+    if (!profile?.followupsEnabledAt) patch.followupsEnabledAt = new Date()
+    if (!profile?.leadsEnabledAt) patch.leadsEnabledAt = new Date()
+    if (!profile?.intakeFormsEnabledAt) patch.intakeFormsEnabledAt = new Date()
+    if (!profile?.growthEnabledAt) patch.growthEnabledAt = new Date()
+    if (!profile?.paymentsEnabledAt) patch.paymentsEnabledAt = new Date()
+    if (!profile?.shopEnabledAt) patch.shopEnabledAt = new Date()
     // Backfill the site announcement bar on legacy demos (migration 0134) so
     // the live demo site shows the strip. Only-when-unset — a clinic-authored
     // (or cleared) bar is never clobbered.

@@ -25,6 +25,8 @@ const runOrgGeneratorPass = vi.fn(async () => {
 const stampActivation = vi.fn(async () => state.stampResult)
 vi.mock('@/lib/services/proposal-generators', () => ({ runOrgGeneratorPass: (...a: unknown[]) => runOrgGeneratorPass(...(a as [])) }))
 vi.mock('@/lib/services/activation', () => ({ stampActivation: (...a: unknown[]) => stampActivation(...(a as [])) }))
+const openDoorsAtA1 = vi.fn(async () => ['my_day', 'followups'])
+vi.mock('@/lib/services/feature-switches', () => ({ openDoorsAtA1: (...a: unknown[]) => openDoorsAtA1(...(a as [])) }))
 vi.mock('@/lib/services/billing-state', () => ({ isClinicShutDown: async () => state.shutDown }))
 vi.mock('@/lib/db', async () => {
   const schema = await import('@/lib/db/schema')
@@ -58,6 +60,7 @@ beforeEach(() => {
   state.passThrows = false
   runOrgGeneratorPass.mockClear()
   stampActivation.mockClear()
+  openDoorsAtA1.mockClear()
   vi.spyOn(console, 'error').mockImplementation(() => {})
 })
 
@@ -80,10 +83,14 @@ describe('kickOffFirstWeek', () => {
     state.patients = [{ n: 3 }]
     const small = await kickOffFirstWeek('org_a', 'patients_imported', { now: NOW })
     expect(stampActivation).not.toHaveBeenCalled()
+    expect(openDoorsAtA1).not.toHaveBeenCalled()
     expect(small.ran).toBe(true)
     state.patients = [{ n: 25 }]
     await kickOffFirstWeek('org_a', 'patients_imported', { now: NOW })
     expect(stampActivation).toHaveBeenCalledTimes(1)
+    // A1 opens the doors the data makes real (S3) — on every eligible
+    // kick, not only the first stamp (the service's coalesce keeps it idempotent).
+    expect(openDoorsAtA1).toHaveBeenCalledWith('org_a', NOW)
   })
 
   it('clinics only: the platform org, the demo and a shut-down clinic get no pass', async () => {

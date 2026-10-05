@@ -1214,6 +1214,23 @@ export async function seed(names = Object.keys(SCOPES)) {
     for (const name of Object.keys(SCOPES)) {
       if (names.includes(name)) await SCOPES[name](pool)
     }
+    // Every e2e practice is an OPERATING practice: all of the feature
+    // switches (docs/ACTIVATION.md S3, migration 0172) are open, so a spec
+    // that walks to /leads or /growth meets the page, not the intro card a
+    // brand-new clinic meets. The stranger journey (a fresh signup) is the
+    // one place the doors are exercised closed. coalesce keeps a restore
+    // from moving a stamp.
+    await pool.query(
+      `update clinic_profile set
+         my_day_enabled_at = coalesce(my_day_enabled_at, now()),
+         followups_enabled_at = coalesce(followups_enabled_at, now()),
+         leads_enabled_at = coalesce(leads_enabled_at, now()),
+         intake_forms_enabled_at = coalesce(intake_forms_enabled_at, now()),
+         growth_enabled_at = coalesce(growth_enabled_at, now()),
+         payments_enabled_at = coalesce(payments_enabled_at, now()),
+         shop_enabled_at = coalesce(shop_enabled_at, now())
+       where organization_id like 'org_e2e%'`,
+    )
   } finally {
     await pool.end()
   }

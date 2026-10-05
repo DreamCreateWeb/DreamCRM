@@ -59,6 +59,15 @@ vi.mock('@/lib/db', async () => {
   return { db: { select: () => chain([]) }, schema }
 })
 
+// The feature switches (docs/ACTIVATION.md S3): the palette mirrors the
+// sidebar, so a switched-off module and its sub-pages leave ⌘K with it.
+// Default every door open; one test closes Growth.
+const switches = { state: null as null | Record<string, boolean> }
+vi.mock('@/lib/services/feature-switches', async () => {
+  const { ALL_ON } = await import('@/lib/feature-switches')
+  return { getFeatureSwitchState: async () => ({ ...ALL_ON, ...(switches.state ?? {}) }) }
+})
+
 import { globalSearch, likePattern } from '@/lib/services/global-search'
 
 function ctx(overrides: Partial<TenantContext> = {}): TenantContext {
@@ -80,6 +89,7 @@ function ctx(overrides: Partial<TenantContext> = {}): TenantContext {
 }
 
 beforeEach(() => {
+  switches.state = null
   state.patients = []
   state.leads = []
   state.visits = []
@@ -124,6 +134,19 @@ describe('globalSearch — launcher view (empty query)', () => {
     expect(staffLaunch.flatMap((g) => g.results.map((r) => r.id))).toContain('act-check-insurance')
     const staffQuery = await globalSearch(ctx({ platformAdmin: false }), 'insurance')
     expect(staffQuery.flatMap((g) => g.results.map((r) => r.href))).toContain('/insurance')
+  })
+
+  it('a switched-off module leaves ⌘K with its sub-pages (docs/ACTIVATION.md S3)', async () => {
+    switches.state = { growth: false, followups: false }
+    const launch = await globalSearch(ctx(), '')
+    const hrefs = launch.flatMap((g) => g.results.map((r) => r.href))
+    expect(hrefs).not.toContain('/growth')
+    expect(hrefs).not.toContain('/followups')
+    const query = await globalSearch(ctx(), 'reviews')
+    expect(query.flatMap((g) => g.results.map((r) => r.href))).not.toContain('/growth/reviews')
+    switches.state = null
+    const back = await globalSearch(ctx(), 'reviews')
+    expect(back.flatMap((g) => g.results.map((r) => r.href))).toContain('/growth/reviews')
   })
 
   it('surfaces saved views as one-click launches', async () => {
