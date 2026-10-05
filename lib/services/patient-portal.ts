@@ -455,6 +455,11 @@ export interface PortalClinicInfo {
    *  request-an-appointment form (→ inbox message) instead of the live slot
    *  picker, mirroring the public website. */
   selfBookingEnabled: boolean
+  /** The go-live lever (clinic_profile.site_live_at). While false the public
+   *  site shows "coming soon" to patients, so the portal hides its OUT-LINKS
+   *  to it (the Shop door, the dental-plans upsell) rather than hand a
+   *  patient a dead end (owner ruling 2026-10-05: hide, don't exempt). */
+  siteLive: boolean
 }
 
 /** Clinic identity + practical info for the portal chrome (header / footer / contact cards). */
@@ -476,17 +481,20 @@ export async function getPortalClinicInfo(organizationId: string): Promise<Porta
       timezone: clinicProfile.timezone,
       cancellationPolicy: clinicProfile.cancellationPolicy,
       selfBookingEnabled: clinicProfile.selfBookingEnabled,
+      siteLiveAt: clinicProfile.siteLiveAt,
     })
     .from(clinicProfile)
     .innerJoin(organization, eq(organization.id, clinicProfile.organizationId))
     .where(eq(clinicProfile.organizationId, organizationId))
     .limit(1)
   if (!row) return null
+  const { siteLiveAt, ...info } = row
   return {
-    ...row,
+    ...info,
     hours: (row.hours ?? null) as PortalClinicInfo['hours'],
     // null/undefined → enabled, matching the not-null default(true) column.
     selfBookingEnabled: row.selfBookingEnabled !== false,
+    siteLive: siteLiveAt != null,
   }
 }
 

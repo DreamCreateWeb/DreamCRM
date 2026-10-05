@@ -1453,6 +1453,17 @@ patient) and a handful of S3 polish items.
   'shopLink')` gates the Shop door on the clinic's STOREFRONT toggle, not
   on `site_live_at`, so it does not hide the out-link while the site is
   unpublished. Still the product call this entry describes.
+  **FIXED 2026-10-05 — the owner made the call: HIDE the out-links, don't
+  exempt the pages.** `getPortalClinicInfo` now carries `siteLive`
+  (`site_live_at != null`); `buildPortalNav` takes `siteLive` and the Shop
+  entry requires it beside the feature flag and the storefront, so the nav
+  hides the door while the site is unpublished (the settings-page preview
+  mirrors it); the `/patient/shop` door itself sends a typed or bookmarked
+  visit home under the same rule; and the invoices page's "See the plans"
+  membership upsell waits for the site too. Middleware is untouched — the
+  commerce and upsell pages stay behind the go-live lever like the rest of
+  the marketing site, which is the half of the question this entry left
+  open. `tests/patient-portal/portal-nav.test.ts` pins the hide.
 - S3 · portal visit-card offers no change affordance inside the notice window
   when the clinic has no phone on file (fall back to a "message us" link);
   family "Book for {name}" doesn't pre-select the dependent (`?for=` param);

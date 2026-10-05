@@ -324,8 +324,10 @@ export default async function PortalBillingPage({
 
       {/* Membership upsell — only for patients WITHOUT a plan, and only when
           the clinic actually sells one. Links into the public dental-plans
-          page, which carries the full pitch + checkout. */}
-      {!bills.membership && activePlans.length > 0 && (
+          page, which carries the full pitch + checkout — so it also waits for
+          that site to be PUBLISHED: an unpublished site answers with "coming
+          soon", and an upsell that dead-ends is worse than none. */}
+      {!bills.membership && activePlans.length > 0 && clinic?.siteLive && (
         <section className="mt-7">
           <PortalSectionLabel>Worth a look</PortalSectionLabel>
           <PortalCard>
