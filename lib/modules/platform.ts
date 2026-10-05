@@ -12,6 +12,9 @@ export const platformModules: ModuleRegistry = {
     // Client Messaging at nav level (the /inbox route stays alive).
     { id: 'overview',         path: '/dashboard',           label: 'Overview',         section: 'Daily',     icon: 'home',     status: 'live', pinned: true, shortcut: '⌘1' },
     { id: 'clinics',          path: '/ecommerce/customers',           label: 'Clinics',          section: 'Customers', icon: 'building', status: 'live', pinned: true, shortcut: '⌘2' },
+    // THE FIRST WEEK (docs/ACTIVATION.md, S1): where every clinic is in its
+    // first thirty days and who is stuck — the setup-call screen.
+    { id: 'first_week',       path: '/platform/first-week',           label: 'First week',       section: 'Customers', icon: 'check',    status: 'live' },
     { id: 'client_messaging', path: '/messages',            label: 'Client Messaging', section: 'Customers', icon: 'chat',     status: 'live', pinned: true, shortcut: '⌘3' },
     { id: 'subscriptions',    path: '/ecommerce/invoices',            label: 'Subscriptions',    section: 'Customers', icon: 'receipt',  status: 'live' },
     { id: 'partners',         path: '/partners',            label: 'Partners',         section: 'Customers', icon: 'users',    status: 'live' },
