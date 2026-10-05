@@ -14,6 +14,12 @@ export const clinicProfile = pgTable('clinic_profile', {
   tagline: text('tagline'),
   about: text('about'),
   npi: text('npi'),
+  // The insurance tool's ON switch (2026-10-05): null = the clinic has not
+  // turned insurance checks on yet, so /insurance shows the intro card
+  // ("Enable and set up") and the patient record hides the rail card. Set
+  // once by an owner/admin from the intro; clearable from the tool. The
+  // 0169 migration backfills every clinic that already ran a check.
+  insuranceEnabledAt: timestamp('insurance_enabled_at'),
 
   // Branding
   brandColor: text('brand_color'),

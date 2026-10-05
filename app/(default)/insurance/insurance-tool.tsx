@@ -9,10 +9,12 @@ import { StatusPill } from '@/components/ui/status-pill'
 import { EmptyState } from '@/components/ui/empty-state'
 import { FieldError } from '@/components/ui/field-error'
 import { useToast } from '@/components/ui/toast'
+import { useConfirm } from '@/components/ui/confirm-dialog'
 import { formatClinicDayTime } from '@/lib/format-datetime'
 import { TONE_TEXT } from '@/lib/ui/encodings'
 import {
   INSURANCE_DRIVER_LABEL,
+  INSURANCE_INTRO,
   NPI_READINESS_COPY,
   usageLine,
   INSURANCE_RELATIONSHIPS,
@@ -35,7 +37,7 @@ import {
   type InsuranceUsage,
   type InsuranceRelationship,
 } from '@/lib/insurance-eligibility'
-import { checkInsuranceAction, createPatientFromCheckAction, saveInsuranceToPatientAction, searchPayersAction } from './actions'
+import { checkInsuranceAction, createPatientFromCheckAction, disableInsuranceAction, saveInsuranceToPatientAction, searchPayersAction } from './actions'
 import { FactChip, HeroAmount, TierTile } from './benefit-visuals'
 import { CopySummaryButton, PrintBenefitsButton, PrintableBenefits } from './benefits-sheet'
 import { CardScanner } from './card-scanner'
@@ -132,6 +134,8 @@ export interface InsuranceToolProps {
   needsNpi?: boolean
   /** The month's included allowance under a billed driver; null when checks are free. */
   usage?: InsuranceUsage | null
+  /** Owners and admins can turn the tool off again (the intro card returns). */
+  canManage?: boolean
 }
 
 export default function InsuranceTool({
@@ -145,9 +149,11 @@ export default function InsuranceTool({
   driver,
   needsNpi = false,
   usage = null,
+  canManage = false,
 }: InsuranceToolProps) {
   const router = useRouter()
   const toast = useToast()
+  const confirm = useConfirm()
   const [form, setForm] = useState<FormState>(() => formFromRequest(prefill?.request))
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [current, setCurrent] = useState<InsuranceCheckView | null>(initialCheck)
@@ -635,6 +641,34 @@ export default function InsuranceTool({
           </div>
         )}
       </section>
+      {canManage && (
+        <p className="mt-8 text-xs text-gray-500 dark:text-gray-400">
+          <button
+            type="button"
+            className="hover:underline"
+            onClick={() => {
+              startTransition(async () => {
+                if (
+                  !(await confirm({
+                    title: 'Turn off insurance checks?',
+                    message: 'Nothing is deleted — the history stays, and an owner or admin can turn it back on from this page.',
+                    confirmLabel: 'Turn off',
+                  }))
+                )
+                  return
+                const r = await disableInsuranceAction()
+                if (!r.ok) {
+                  toast(r.error)
+                  return
+                }
+                router.refresh()
+              })
+            }}
+          >
+            {INSURANCE_INTRO.turnOff}
+          </button>
+        </p>
+      )}
     </div>
   )
 }

@@ -19,10 +19,14 @@ vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
 const runEligibilityCheck = vi.fn()
 const attachInsuranceCheckToPatient = vi.fn(async () => true)
 const searchPayers = vi.fn(async () => [{ primaryPayerId: '77777', displayName: 'Delta Dental of California' }])
+const enableInsuranceTool = vi.fn(async () => ({ ok: true as const, enabledAt: new Date(), npi: null }))
+const disableInsuranceTool = vi.fn(async () => true)
 vi.mock('@/lib/services/insurance-eligibility', () => ({
   runEligibilityCheck: (...a: unknown[]) => runEligibilityCheck(...(a as [])),
   attachInsuranceCheckToPatient: (...a: unknown[]) => attachInsuranceCheckToPatient(...(a as [])),
   searchPayers: (...a: unknown[]) => searchPayers(...(a as [])),
+  enableInsuranceTool: (...a: unknown[]) => enableInsuranceTool(...(a as [])),
+  disableInsuranceTool: (...a: unknown[]) => disableInsuranceTool(...(a as [])),
 }))
 
 const createPatient = vi.fn()
@@ -48,6 +52,8 @@ vi.mock('@/lib/services/patient-documents', () => ({
 import {
   checkInsuranceAction,
   createPatientFromCheckAction,
+  disableInsuranceAction,
+  enableInsuranceAction,
   scanCardAction,
   saveInsuranceToPatientAction,
   searchPayersAction,
@@ -242,5 +248,46 @@ describe('scanCardAction', () => {
     expect(r.ok).toBe(false)
     expect(readInsuranceCard).not.toHaveBeenCalled()
     tenantCtx.tenantType = 'clinic'
+  })
+})
+
+describe('the ON switch (self-serve setup, 2026-10-05)', () => {
+  beforeEach(() => {
+    enableInsuranceTool.mockClear()
+    disableInsuranceTool.mockClear()
+    tenantCtx.role = 'owner'
+    delete process.env.INSURANCE_DRIVER
+    delete process.env.STEDI_MODE
+  })
+
+  it('an owner or admin turns it on, with the typed NPI passed through; the live driver REQUIRES the NPI', async () => {
+    expect((await enableInsuranceAction({ npi: '123-456-7893' })).ok).toBe(true)
+    expect(enableInsuranceTool).toHaveBeenCalledWith('org_1', { npi: '123-456-7893', requireNpi: false })
+    tenantCtx.role = 'admin'
+    process.env.INSURANCE_DRIVER = 'stedi'
+    process.env.STEDI_MODE = 'live'
+    expect((await enableInsuranceAction({ npi: '' })).ok).toBe(true)
+    expect(enableInsuranceTool).toHaveBeenLastCalledWith('org_1', { npi: '', requireNpi: true })
+  })
+
+  it('a member cannot turn it on or off; neither can a non-clinic tenant', async () => {
+    tenantCtx.role = 'member'
+    expect((await enableInsuranceAction({ npi: '1234567893' })).ok).toBe(false)
+    expect((await disableInsuranceAction()).ok).toBe(false)
+    tenantCtx.role = 'owner'
+    tenantCtx.tenantType = 'platform'
+    expect((await enableInsuranceAction({ npi: '1234567893' })).ok).toBe(false)
+    tenantCtx.tenantType = 'clinic'
+    expect(enableInsuranceTool).not.toHaveBeenCalled()
+    expect(disableInsuranceTool).not.toHaveBeenCalled()
+  })
+
+  it('the service’s refusal (a bad NPI) comes back as the form error; turning off is an owner/admin one-liner', async () => {
+    enableInsuranceTool.mockResolvedValueOnce({ ok: false, error: 'An NPI is ten digits' } as never)
+    const r = await enableInsuranceAction({ npi: '12' })
+    expect(r.ok).toBe(false)
+    expect((r as { error: string }).error).toMatch(/ten digits/)
+    expect((await disableInsuranceAction()).ok).toBe(true)
+    expect(disableInsuranceTool).toHaveBeenCalledWith('org_1')
   })
 })

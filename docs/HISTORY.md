@@ -5721,3 +5721,31 @@ polish phases before this one are the entries above; the plan's "later"
 items (auto-verify before visits, PMS payer-id import, secondary
 insurance) stay on record in docs/COMPETITIVE-GAPS.md item 3.
 
+**2026-10-05 — insurance tool: self-serve setup (the ON switch, migration
+0169).** The owner's ask after the release: "a card hiding it at first
+explaining what the feature is, and a button to Enable and set up." So the
+tool released on the 3rd now waits behind an intro card until the clinic
+chooses it. `clinic_profile.insurance_enabled_at` is the switch (null =
+off); 0169 backfills every clinic that already ran a check, the demo's
+resync self-heal stamps it (a prospect mid-pitch must see the scoreboard,
+not the intro), and everyone else meets the card. The card
+(`app/(default)/insurance/intro.tsx`, copy single-homed in
+`INSURANCE_INTRO`) says what it does in three lines and what to know in
+three more — the 200-check allowance, that every answer says who gave it,
+that a scanned card is read by an AI service — and offers ONE button to an
+owner or admin; a member reads "An owner or admin turns this on for the
+practice." "Enable and set up" opens the setup beneath it: the practice
+NPI, prefilled from the Business profile, optional under the sandbox and
+test drivers and REQUIRED under the live one (a payer answers a provider,
+so the NPI is part of turning on rather than a surprise refusal afterwards);
+"Turn on insurance checks" flips the switch and the page refreshes into the
+tool. `enableInsuranceTool` is idempotent (stamps once, writes the
+normalised NPI only when it changed; a switch is a SETTING, so it is
+deliberately not narrated in the ledger) and refuses a bad NPI before any
+write; `disableInsuranceTool`
+is the owner/admin's one-line "Turn off" at the foot of the tool (confirm
+first; nothing is deleted). `getInsuranceSetup` now reads the switch and
+the NPI for every driver, `runEligibilityCheck` refuses `not_enabled`
+before any row, network or usage read, and the patient record hides the
+rail card and the needs-attention nudge until the practice turns it on.
+

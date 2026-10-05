@@ -107,6 +107,41 @@ export const NPI_READINESS_COPY = {
   refusal: 'Add the practice’s NPI on the Business profile before checking — payers need it to answer.',
 } as const
 
+/** Ten digits or nothing — the shape a payer accepts; punctuation is noise. */
+export function normalizeNpi(raw: string | null | undefined): string | null {
+  const digits = (raw ?? '').replace(/\D/g, '')
+  return digits.length === 10 ? digits : null
+}
+
+/**
+ * THE INTRO CARD (2026-10-05, self-serve setup). Until a clinic turns the
+ * tool on, /insurance shows what it is and one button — "Enable and set
+ * up" — and the record hides the rail card. One home for the copy so the
+ * intro, the tests and the runbook say the same thing.
+ */
+export const INSURANCE_INTRO = {
+  title: 'Insurance checks',
+  lede: 'Know a patient’s benefits before they sit down — typed from the card, answered in seconds, kept on their record.',
+  does: [
+    'Type what’s on the card, or scan a photo of it, and get a benefits snapshot: what’s left this year, the deductible, what the plan pays, waiting periods, and when the next exam or cleaning is covered.',
+    'The record remembers the card — a re-check from the patient’s page is one tap, and every answer stays in their history.',
+    'Print a one-page benefits sheet for the chart, or copy a plain summary into your PMS notes.',
+  ],
+  know: [
+    `${INCLUDED_MONTHLY_INSURANCE_CHECKS} checks a month are included once real payer answers are on; the page always says where the month stands.`,
+    'Every answer says who gave it — a practice or test answer is labelled, a payer answer is not. Confirm with the carrier before quoting a patient.',
+    'A scanned card photo is read by an AI service to fill the boxes; the photo itself is kept on the patient’s record.',
+  ],
+  npiLabel: 'Practice NPI',
+  npiHelp: 'Payers answer a provider, so real answers need the practice’s 10-digit NPI. It also lives on the Business profile.',
+  enable: 'Enable and set up',
+  turnOn: 'Turn on insurance checks',
+  turnOff: 'Turn off insurance checks',
+  askManager: 'An owner or admin turns this on for the practice.',
+  npiRefusal: 'An NPI is ten digits — check it against the practice’s paperwork.',
+  npiRequired: 'Add the practice’s NPI to turn on real payer answers.',
+} as const
+
 /** The pure half of the demo rule: WHICH driver a check actually runs under. */
 export function effectiveInsuranceDriver(opts: {
   driver: InsuranceDriverId

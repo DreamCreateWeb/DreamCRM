@@ -19,6 +19,7 @@ import { getPatientHeader, listPatientOptions } from '@/lib/services/patients'
 import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
 import ModuleHint from '@/components/onboarding/module-hint'
 import InsuranceTool from './insurance-tool'
+import InsuranceIntro from './intro'
 
 interface PageProps {
   searchParams: Promise<Record<string, string | string[] | undefined>>
@@ -30,12 +31,19 @@ export default async function InsurancePage({ searchParams }: PageProps) {
   // A clinic feature: the platform tenant (and anything else) goes home.
   if (!canUseInsuranceTool(ctx)) redirect('/')
 
+  const canManage = ctx.role === 'owner' || ctx.role === 'admin'
+  const setup = await getInsuranceSetup(ctx.organizationId)
+  // THE INTRO: until an owner/admin turns the tool on, the page is the card
+  // that says what it is and one button — nothing else loads.
+  if (!setup.enabled) {
+    return <InsuranceIntro orgName={ctx.organizationName ?? 'Your clinic'} canManage={canManage} driver={setup.driver} npi={setup.npi} />
+  }
+
   const params = await searchParams
   const patientParam = typeof params.patient === 'string' ? params.patient.trim() : ''
   const checkParam = typeof params.check === 'string' ? params.check.trim() : ''
 
-  const [setup, recent, carriers, patientOptions, timeZone, header, latestForPatient, linked] = await Promise.all([
-    getInsuranceSetup(ctx.organizationId),
+  const [recent, carriers, patientOptions, timeZone, header, latestForPatient, linked] = await Promise.all([
     listRecentInsuranceChecks(ctx.organizationId, 50),
     listCarrierSuggestions(ctx.organizationId),
     listPatientOptions(ctx.organizationId),
@@ -83,6 +91,7 @@ export default async function InsurancePage({ searchParams }: PageProps) {
         driver={setup.driver}
         needsNpi={setup.needsNpi}
         usage={setup.usage}
+        canManage={canManage}
       />
     </>
   )

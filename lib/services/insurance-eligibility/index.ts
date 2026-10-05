@@ -7,7 +7,9 @@ import {
   detailMatchesOnFile,
   effectiveInsuranceDriver,
   isBilledDriver,
+  INSURANCE_INTRO,
   ledgerSummaryForCheck,
+  normalizeNpi,
   NPI_READINESS_COPY,
   usageLine,
   parseInsuranceDetail,
@@ -26,9 +28,10 @@ import type { EligibilityProvider } from './provider'
 import { sandboxProvider } from './sandbox'
 import { makeStediProvider, searchStediPayers } from './stedi'
 import { getInsuranceUsage } from './allowance'
+import { disableInsuranceTool, enableInsuranceTool } from './setup'
 
 export { searchStediPayers as searchPayers }
-export { getInsuranceUsage }
+export { getInsuranceUsage, enableInsuranceTool, disableInsuranceTool }
 
 /**
  * Insurance eligibility — the service.
@@ -53,6 +56,10 @@ export function resolveEligibilityProvider(driver: InsuranceDriverId = resolveIn
 type CheckRow = typeof schema.insuranceVerification.$inferSelect
 
 export interface InsuranceSetup {
+  /** The clinic turned the tool on (clinic_profile.insurance_enabled_at). Off = the intro card. */
+  enabled: boolean
+  /** The practice NPI on file, normalised, or null. */
+  npi: string | null
   /** The driver a check from this org actually runs under (the demo rule applied). */
   driver: InsuranceDriverId
   /** Under the live driver with no practice NPI (and no platform fallback): not ready. */
@@ -73,28 +80,30 @@ export interface InsuranceSetup {
 export async function getInsuranceSetup(organizationId: string, now: Date = new Date()): Promise<InsuranceSetup> {
   const configured = resolveInsuranceDriverId()
   let storedNpi: string | null = null
+  let enabled = false
   let isDemo = false
-  if (configured === 'stedi') {
-    try {
-      const [profile] = await db
-        .select({ npi: schema.clinicProfile.npi })
-        .from(schema.clinicProfile)
-        .where(eq(schema.clinicProfile.organizationId, organizationId))
-        .limit(1)
-      storedNpi = profile?.npi ?? null
+  try {
+    const [profile] = await db
+      .select({ npi: schema.clinicProfile.npi, enabledAt: schema.clinicProfile.insuranceEnabledAt })
+      .from(schema.clinicProfile)
+      .where(eq(schema.clinicProfile.organizationId, organizationId))
+      .limit(1)
+    storedNpi = profile?.npi ?? null
+    enabled = profile?.enabledAt != null
+    if (configured === 'stedi') {
       const [org] = await db
         .select({ isDemo: schema.organization.isDemo })
         .from(schema.organization)
         .where(eq(schema.organization.id, organizationId))
         .limit(1)
       isDemo = org?.isDemo === true
-    } catch (e) {
-      console.error('[insurance-eligibility] setup read failed:', e)
     }
+  } catch (e) {
+    console.error('[insurance-eligibility] setup read failed:', e)
   }
   const { driver, needsNpi } = effectiveInsuranceDriver({ driver: configured, storedNpi, isDemo })
-  const usage = isBilledDriver(driver) && !needsNpi ? await getInsuranceUsage(organizationId, now) : null
-  return { driver, needsNpi, usage }
+  const usage = enabled && isBilledDriver(driver) && !needsNpi ? await getInsuranceUsage(organizationId, now) : null
+  return { enabled, npi: normalizeNpi(storedNpi), driver, needsNpi, usage }
 }
 
 function toView(row: CheckRow, patientName: string | null, requestedByName: string | null = null): InsuranceCheckView {
@@ -138,8 +147,8 @@ export type RunEligibilityCheckResult =
   | {
       ok: false
       errors: Record<string, string>
-      /** A refusal BEFORE any row or network call: the practice isn't set up, or the month's allowance is spent. */
-      reason?: 'npi' | 'over_allowance'
+      /** A refusal BEFORE any row or network call: the tool is off, the practice isn't set up, or the month's allowance is spent. */
+      reason?: 'not_enabled' | 'npi' | 'over_allowance'
     }
 
 export async function runEligibilityCheck(
@@ -185,6 +194,7 @@ export async function runEligibilityCheck(
     // admin's deliberate click) unless the live driver would only refuse it
     // for a missing NPI — then, and only then, the labelled sandbox answers.
     const setup = await getInsuranceSetup(organizationId, now)
+    if (!setup.enabled) return { ok: false, reason: 'not_enabled', errors: { _form: `Insurance checks aren’t turned on for this practice yet. ${INSURANCE_INTRO.askManager}` } }
     if (setup.needsNpi) return { ok: false, reason: 'npi', errors: { _form: NPI_READINESS_COPY.refusal } }
     if (setup.usage && !setup.usage.unreadable && setup.usage.used >= setup.usage.included) {
       return {

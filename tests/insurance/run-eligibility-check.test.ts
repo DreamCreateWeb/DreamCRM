@@ -11,7 +11,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 const state = {
   patients: [] as Array<{ id: string; firstName: string; lastName: string; insurancePolicyNumber?: string | null }>,
   org: [{ isDemo: false }] as Array<{ isDemo: boolean }>,
-  profile: [] as Array<{ npi: string | null }>,
+  profile: [] as Array<{ npi: string | null; enabledAt: Date | null }>,
   usage: { used: 0, included: 200, unreadable: false },
   inserts: [] as Array<{ table: string; values: Record<string, unknown> }>,
   updates: [] as Array<{ table: string; values: Record<string, unknown> }>,
@@ -96,6 +96,7 @@ vi.mock('@/lib/services/action-ledger', () => ({ recordAction: (input: Record<st
 import { getInsuranceSetup, runEligibilityCheck } from '@/lib/services/insurance-eligibility'
 
 const NOW = new Date('2026-09-30T15:00:00Z')
+const ENABLED = new Date('2026-09-29T15:00:00Z')
 
 function input(memberId = 'DD-100-2231') {
   return {
@@ -111,7 +112,7 @@ function input(memberId = 'DD-100-2231') {
 beforeEach(() => {
   state.patients = []
   state.org = [{ isDemo: false }]
-  state.profile = []
+  state.profile = [{ npi: null, enabledAt: ENABLED }]
   state.usage = { used: 0, included: 200, unreadable: false }
   getInsuranceUsage.mockClear()
   delete process.env.INSURANCE_DRIVER
@@ -181,7 +182,7 @@ describe('runEligibilityCheck', () => {
     // deliberate click; swapping their test to the sandbox (the first draft)
     // turned a real answer into a fake one without saying so.
     state.org = [{ isDemo: true }]
-    state.profile = [{ npi: '1234567893' }]
+    state.profile = [{ npi: '1234567893', enabledAt: ENABLED }]
     process.env.INSURANCE_DRIVER = 'stedi'
     process.env.STEDI_MODE = 'live'
     const r = await runEligibilityCheck('org_demo', { input: input(), now: NOW })
@@ -231,7 +232,7 @@ describe('runEligibilityCheck', () => {
   it('THE ALLOWANCE: a live check past the included count is refused before the payer is asked; under it, it runs', async () => {
     process.env.INSURANCE_DRIVER = 'stedi'
     process.env.STEDI_MODE = 'live'
-    state.profile = [{ npi: '1234567893' }]
+    state.profile = [{ npi: '1234567893', enabledAt: ENABLED }]
     state.usage = { used: 200, included: 200, unreadable: false }
     const refused = await runEligibilityCheck('org_a', { input: input(), now: NOW })
     expect(refused.ok).toBe(false)
@@ -250,23 +251,40 @@ describe('runEligibilityCheck', () => {
   it('THE ALLOWANCE fails OPEN: an unreadable count never refuses a check at the desk', async () => {
     process.env.INSURANCE_DRIVER = 'stedi'
     process.env.STEDI_MODE = 'live'
-    state.profile = [{ npi: '1234567893' }]
+    state.profile = [{ npi: '1234567893', enabledAt: ENABLED }]
     state.usage = { used: 0, included: 200, unreadable: true }
     const r = await runEligibilityCheck('org_a', { input: input(), now: NOW })
     expect(r.ok).toBe(true)
   })
 
   it('getInsuranceSetup: the one read the page, the rail card and the check share', async () => {
-    expect(await getInsuranceSetup('org_a')).toEqual({ driver: 'sandbox', needsNpi: false, usage: null })
+    expect(await getInsuranceSetup('org_a')).toEqual({ enabled: true, npi: null, driver: 'sandbox', needsNpi: false, usage: null })
     process.env.INSURANCE_DRIVER = 'stedi'
     process.env.STEDI_MODE = 'live'
-    expect(await getInsuranceSetup('org_a')).toEqual({ driver: 'stedi', needsNpi: true, usage: null })
-    state.profile = [{ npi: '1234567893' }]
+    expect(await getInsuranceSetup('org_a')).toEqual({ enabled: true, npi: null, driver: 'stedi', needsNpi: true, usage: null })
+    state.profile = [{ npi: '123-456-7893', enabledAt: ENABLED }]
     state.usage = { used: 7, included: 200, unreadable: false }
-    expect(await getInsuranceSetup('org_a')).toEqual({ driver: 'stedi', needsNpi: false, usage: { used: 7, included: 200, unreadable: false } })
-    state.profile = []
+    expect(await getInsuranceSetup('org_a')).toEqual({ enabled: true, npi: '1234567893', driver: 'stedi', needsNpi: false, usage: { used: 7, included: 200, unreadable: false } })
+    state.profile = [{ npi: null, enabledAt: ENABLED }]
     state.org = [{ isDemo: true }]
-    expect(await getInsuranceSetup('org_demo')).toEqual({ driver: 'sandbox', needsNpi: false, usage: null })
+    expect(await getInsuranceSetup('org_demo')).toEqual({ enabled: true, npi: null, driver: 'sandbox', needsNpi: false, usage: null })
+  })
+
+  it('THE SWITCH: a clinic that has not turned the tool on is refused before any row, network or usage read', async () => {
+    state.profile = [{ npi: '1234567893', enabledAt: null }]
+    process.env.INSURANCE_DRIVER = 'stedi'
+    process.env.STEDI_MODE = 'live'
+    expect(await getInsuranceSetup('org_a')).toEqual({ enabled: false, npi: '1234567893', driver: 'stedi', needsNpi: false, usage: null })
+    const r = await runEligibilityCheck('org_a', { input: input(), patientId: 'pat_1', now: NOW })
+    expect(r.ok).toBe(false)
+    if (r.ok) return
+    expect(r.reason).toBe('not_enabled')
+    expect(state.inserts).toHaveLength(0)
+    expect(recordAction).not.toHaveBeenCalled()
+    expect(getInsuranceUsage).not.toHaveBeenCalled()
+    // A missing profile row reads as OFF, never as on by accident.
+    state.profile = []
+    expect((await getInsuranceSetup('org_a')).enabled).toBe(false)
   })
 
   it('a database failure returns a typed refusal instead of throwing', async () => {

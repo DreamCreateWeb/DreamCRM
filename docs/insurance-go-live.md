@@ -43,6 +43,17 @@ per-clinic knob is a plan tier by another name).
   (`effectiveInsuranceDriver`). Set `STEDI_DEFAULT_NPI` or put an NPI on the
   demo's profile to make the demo hit a real payer.
 
+## The clinic's own switch (2026-10-05)
+
+The tool is OFF for a clinic until an owner or admin turns it on from
+`/insurance`: the page shows the intro card (what it does, what to know) and
+"Enable and set up", which opens the practice-NPI box and "Turn on insurance
+checks". Under the live driver the NPI is required to turn on; under the
+sandbox and test drivers it is optional. Nothing on the checklist below
+reaches a clinic that has not turned it on — the record hides the rail card
+and the service refuses `not_enabled` first. "Turn off insurance checks" at
+the foot of the tool returns the intro; history is kept.
+
 ## Going live — the checklist, in order
 
 1. **BAA.** Execute Stedi's BAA (docs/COMPLIANCE.md — a live check sends
@@ -52,8 +63,9 @@ per-clinic knob is a plan tier by another name).
    Anthropic's API, which has NO BAA (docs/COMPLIANCE.md, the sharpest gap).
    Decide: accept as today (the posture every intake form already carries),
    or flip `AI_DRIVER=bedrock` to ride the AWS BAA first.
-3. **The practice's NPI.** The client puts theirs on Settings → Business
-   profile (the "Practice NPI" box). Verify it is 10 digits. Optionally set
+3. **The practice's NPI.** The client types it when they turn the tool on
+   (or on Settings → Business profile, the "Practice NPI" box). Verify it
+   is 10 digits. Optionally set
    `STEDI_DEFAULT_NPI` as the platform fallback (`--npi` on the script).
 4. **The live key.** Mint a LIVE key in the Stedi portal (rotate the one
    shared in chat on 2026-09-30 — CLAUDE.md open item 1). Then, with AWS
