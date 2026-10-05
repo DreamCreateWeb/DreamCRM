@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { DEMO_TRACK_LIST, type DemoTrackId } from '@/lib/types/demo-script'
-import { getPlanById, type PlanId } from '@/lib/stripe-config'
+import { getQuotedPlan } from '@/lib/stripe-config'
 import { ActionButton } from '@/components/ui/action-button'
 import { startBrandedDemoAction } from '../../admin-actions'
 
@@ -14,15 +14,14 @@ import { startBrandedDemoAction } from '../../admin-actions'
  */
 
 /**
- * "closes on <plan>" — read from `lib/stripe-config.ts`, never copied
- * (DREAMCRM-38). The hardcoded labels here said Premium was $500/mo, the
- * struck-through LIST price, so the presenter's own panel disagreed with the
- * $200 founding rate on the pricing page and in checkout.
+ * There is ONE plan, so no story "closes on" a tier (owner ruling 2026-10-05).
+ * The cards say what the demo SHOWS; the one close line under them says what
+ * the prospect is asked to buy — read from `lib/stripe-config.ts`, never
+ * copied (DREAMCRM-38: a hardcoded label here once quoted the struck-through
+ * $500 list price against the $200 rate on the pricing page).
  */
-function planLabel(planId: PlanId): string {
-  const plan = getPlanById(planId)
-  return plan ? `${plan.name} · $${plan.price.toLocaleString('en-US')}/mo` : planId
-}
+const QUOTED = getQuotedPlan()
+const CLOSE_LINE = `Every story closes the same way: ${QUOTED.name} · $${QUOTED.price.toLocaleString('en-US')}/mo, everything included.`
 
 export default function TrackPicker({
   prospectId,
@@ -63,12 +62,13 @@ export default function TrackPicker({
               </div>
               <p className="mt-1 text-xs leading-snug text-gray-600 dark:text-gray-400">{t.story}</p>
               <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
-                {t.beats.length} beats · ~{t.targetMinutes} min · closes on {planLabel(t.recommendedPlan)}
+                {t.beats.length} beats · ~{t.targetMinutes} min
               </p>
             </button>
           )
         })}
       </div>
+      <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">{CLOSE_LINE}</p>
       <div className="mt-3 flex items-center gap-3">
         <ActionButton
           variant="primary"

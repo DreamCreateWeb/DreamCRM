@@ -1076,6 +1076,19 @@ binding are all correct. The payment-plan charger was the exception.
   tracks. Untouched, and still owner-gated for the reason above: the open
   question is what a track closes on now that there is one plan, not
   which number to print.
+  **FIXED 2026-10-05 — the owner answered the question: one plan, no tier
+  close.** `recommendedPlan` is gone from `DemoTrack`; every track's
+  `planPitch` and closing beat interpolate `getQuotedPlan()` (name and
+  price) and the social track's add-on reads `socialAddonPriceCents` for
+  that plan, so a reprice reaches all five stories and nothing in the file
+  spells a tier or a dollar figure. The picker's per-card "closes on <tier>"
+  is replaced by ONE line under the cards ("Every story closes the same
+  way: Premium · $200/mo, everything included") — the story decides what the
+  demo shows, never what the prospect is asked to buy.
+  `tests/demo-mode/demo-tracks.test.ts` now walks every track (not just the
+  full tour) for the plan name and spoken price and refuses any legacy tier
+  name or price; `tests/prospecting/track-picker-plan.test.tsx` pins the
+  single close line and the absence of "closes on".
 - S3 · `app/opengraph-image.tsx:69` — the social share card for the whole
   marketing site still reads `$150–500/mo`, the pre-collapse three-tier
   range. It is the price that appears when anyone links dreamcreatestudio.com
