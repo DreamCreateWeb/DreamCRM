@@ -347,7 +347,7 @@ app/
 lib/
   db/schema/         auth.ts, platform.ts, clinic.ts (bulk), domain.ts, email.ts,
                      referrals.ts, index.ts
-  db/migrations/     drizzle; 0000–0170 applied to prod (auto-apply on deploy)
+  db/migrations/     drizzle; 0000–0171 applied to prod (auto-apply on deploy)
   auth/              server.ts, client.ts, context.ts (getTenantContext,
                      requireTenant/requireRole/requirePartner)
   services/          ~190 server-only modules (import 'server-only') — one per
@@ -827,7 +827,11 @@ sitemap/robots/OG.
   end-to-end; watch the Actions tab. `NEXT_PUBLIC_*` bake at build time.
 - **Migrations auto-apply on boot** (`scripts/db-migrate.mjs` → POST
   `/api/admin/migrate`; failure keeps the previous version serving). Latest
-  migration: **0170** (clears `insurance_enabled_at` for EVERY clinic —
+  migration: **0171** (`clinic_profile.activation` jsonb — THE FIRST WEEK's
+  activation stamps, `{ a1: iso, … }`, each key written ONCE through
+  `stampActivation`'s guarded jsonb merge; S2 stamps A1 from the day-one
+  kick, the cockpit prefers a stamp over its derived read). Before it:
+  **0170** (clears `insurance_enabled_at` for EVERY clinic —
   the owner's same-day ruling that nobody was using the tool and every
   practice submits the setup once; a custom SQL migration, so
   `tests/migrations/insurance-switch-reset.test.ts` pins it). Before it:
@@ -950,7 +954,12 @@ sitemap/robots/OG.
    module's first-run, empty state, catalog card, the sidebar, the digest,
    or the platform's clinics surfaces. The insurance intro + switch
    (0169/0170) is THE pattern. Build order S1 the platform cockpit
-   (`/platform/first-week`) → S2 the day-one kick → S3 the generalised
+   (`/platform/first-week`, SHIPPED) → S2 the day-one kick (SHIPPED:
+   `lib/services/day-one-kick.ts` — a PMS import, a CSV import or a
+   Google connect runs that clinic's generators NOW through
+   `runOrgGeneratorPass`, the per-org pass extracted from the hourly
+   driver; clinics only, 15-min heartbeat cooldown, never throws; stamps
+   A1 in `clinic_profile.activation`, 0171) → S3 the generalised
    switch + five-door sidebar → S4 the integrations hub's doors (SMS opens,
    PMS self-serve request, "coming soon" retired) → S5 intake / growth /
    payments intros → S6 every empty state's door → S7 the day-two digest →

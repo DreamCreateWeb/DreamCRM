@@ -274,4 +274,24 @@ before S4–S6 because the doors need the switch to be one thing.
   board. Stuck-first ordering; three KPIs (in their first month, stuck,
   no data). A REPORT: the only doors are the clinic's detail page and the
   demo toggle.
+- **2026-10-05 — S2 SHIPPED: the day-one kick.** Law 5 is live: when a
+  clinic's data arrives, that clinic's generators run NOW. Three hooks —
+  the end of a successful PMS import (`runImport`, every trigger), a
+  patient CSV import that created rows (`importPatients`), and the Google
+  connect sync the moment the profile becomes `connected`
+  (`syncConnectedAccounts`) — each call `scheduleKick`, fire-and-forget,
+  and `kickOffFirstWeek` (lib/services/day-one-kick.ts) runs the SAME
+  per-org pass the hourly cron runs, extracted from the driver as
+  `runOrgGeneratorPass` (`makeOrgPass` is the one body behind both callers,
+  so generator order, per-step isolation, the one-strike bookkeeping and
+  the Cycles heartbeat cannot drift). Clinics only (never the platform org,
+  the demo, or a shut-down clinic); throttled on the Dream Team heartbeat
+  (`KICK_COOLDOWN_MS` = 15 min, so a two-hourly scheduled sync never
+  doubles the AI spend); never throws into the import that called it.
+  THE FIRST STAMP: migration 0171 `clinic_profile.activation` jsonb, and
+  `stampActivation` (lib/services/activation.ts) writes `a1` ONCE through a
+  guarded jsonb merge whose RETURNING row is the atomic "first time?" —
+  a connected PMS or Google profile stamps at once, a CSV stamps when the
+  roster clears `A1_PATIENT_FLOOR`. The cockpit prefers a stamp over its
+  derived read (`mergeActivation`). A2–A5 stay derived until S8.
 

@@ -5767,3 +5767,28 @@ mocks `useConfirm`. The confirm is now awaited before the transition starts
 `tests/insurance/turn-off-dialog.test.tsx` renders the REAL ConfirmProvider
 so the dialog's appearance is the assertion.
 
+**2026-10-05 — THE FIRST WEEK: the activation program (docs/ACTIVATION.md),
+S1 the platform cockpit, S2 the day-one kick.** The owner's directive —
+"every clinic I've signed up has been lost, and I've been lost with
+them" — became the third program of record: the diagnosis measured from
+the tree (65 empty states, one door; the SMS catalog card hard-coded
+coming-soon while the driver is live; PMS as request-access; intake's
+seeded template; only two true "set up, then on" moments in the product),
+the seven laws, the four-beat setup call that replaces the feature tour,
+the five activation events, the per-module door inventory, the cockpit
+spec and eight slices. S1 is `/platform/first-week`: one card per clinic
+with its day and stage, its goal, the readiness resolver's facts, the
+machine's week, the doors open, the last staff sign-in, A1–A5 read as
+firsts from the rails that already record them, and the STUCK sentences
+that name the next move (pure `lib/first-week.ts`, service
+`lib/services/first-week.ts`). S2 is the day-one kick: the end of a
+successful PMS import, a CSV import that created rows, and the Google
+connect sync each `scheduleKick`, and `kickOffFirstWeek` runs the SAME
+per-org generator pass the hourly cron runs — `makeOrgPass` is the one
+body behind the sweep and the kick, extracted from the driver rather than
+copied — clinics only, throttled on the Cycles heartbeat, never throwing
+into its caller. Migration 0171 adds `clinic_profile.activation`, the
+write-once stamps; A1 lands from the kick through a guarded jsonb merge
+whose RETURNING row answers "first time?" atomically, and the cockpit
+prefers a stamp over its derived read.
+

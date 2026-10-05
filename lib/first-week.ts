@@ -10,16 +10,9 @@
  * lives here so the page, the tests and the (later) weekly note agree.
  */
 
-export const ACTIVATION_EVENTS = [
-  { key: 'a1', label: 'Data connected', short: 'A1' },
-  { key: 'a2', label: 'First message sent', short: 'A2' },
-  { key: 'a3', label: 'First booking', short: 'A3' },
-  { key: 'a4', label: 'First review ask', short: 'A4' },
-  { key: 'a5', label: 'First form in', short: 'A5' },
-] as const
+import { ACTIVATION_EVENTS, type Activation, type ActivationKey } from '@/lib/activation'
 
-export type ActivationKey = (typeof ACTIVATION_EVENTS)[number]['key']
-export type Activation = Record<ActivationKey, Date | null>
+export { ACTIVATION_EVENTS, type Activation, type ActivationKey }
 
 /** A1's patient-import floor: a CSV of real patients, not a test record or two. */
 export const A1_PATIENT_FLOOR = 25

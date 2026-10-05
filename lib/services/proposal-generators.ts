@@ -232,15 +232,69 @@ async function recordEngineRun(result: Omit<GeneratorRunResult, 'sweep'>, now: D
   }
 }
 
+export function emptyGeneratorRun(): Omit<GeneratorRunResult, 'sweep'> {
+  return { orgsScanned: 0, filed: 0, expired: 0, autoExecuted: 0, errors: [], failuresRecorded: 0 }
+}
+
 export async function runProposalGenerators(now: Date = new Date()): Promise<GeneratorRunResult> {
-  const result: Omit<GeneratorRunResult, 'sweep'> = {
-    orgsScanned: 0,
-    filed: 0,
-    expired: 0,
-    autoExecuted: 0,
-    errors: [],
-    failuresRecorded: 0,
+  const result = emptyGeneratorRun()
+  const pass = makeOrgPass(result, now)
+  // TOP-LEVEL FAILURES (round-2 audit). These two statements run BEFORE any
+  // per-org try, so a broken staleness sweep or an unreadable org list threw
+  // straight out of the cron: no proposals filed for anybody, and not one
+  // failure recorded anywhere, for any clinic. The whole platform's engine
+  // could be down and the Guardian would report every practice healthy.
+  try {
+    result.expired += await expireStaleProposals()
+  } catch (e) {
+    result.errors.push({ organizationId: '-', error: `expireStale: ${(e as Error).message}` })
   }
+
+  let orgs: Array<{ id: string; name: string }>
+  try {
+    orgs = await db
+      .select({ id: schema.organization.id, name: schema.organization.name })
+      .from(schema.organization)
+      .where(and(eq(schema.organization.type, 'clinic'), eq(schema.organization.isDemo, false)))
+  } catch (e) {
+    // The org list is the other half of what the comment above promises.
+    // Unreadable means we cannot even name who to record against, so this
+    // is ours alone — but it must not vanish into a thrown cron.
+    result.errors.push({ organizationId: '-', error: `orgs: ${(e as Error).message}` })
+    await recordEngineRun(result, now)
+    // An unreadable org list is not a half-finished pass — there is nothing to
+    // resume from, so the cursor is left exactly where it was.
+    return { ...result, sweep: { swept: 0, remaining: 0, completed: false, resumeAt: null } }
+  }
+
+  // THE KILL (owner ruling): a shut-down clinic gets no generated work —
+  // cards would sit invisible behind the wall while the drafts spend AI
+  // money. The moment they pay, the next hourly tick resumes filing.
+  const shutDownOrgs = await listShutDownOrgIds(now)
+
+  // Filter BEFORE the walk, so a shut-down clinic never costs a turn or moves
+  // the cursor past clinics that DO have work.
+  const active = orgs.filter((org) => !shutDownOrgs.has(org.id))
+
+  // Budgeted + resumable (lib/cron-budget.ts): the walk stops before the
+  // route's maxDuration does and the next tick resumes after the last org
+  // swept. Unbounded, an overrun killed the request mid-loop and — because the
+  // list always started at the same end — the clinics past the cut-off got no
+  // proposals filed, ever, with nothing in any log to say so.
+  const sweep = await sweepClinics('generate-proposals', active, (org) => org.id, pass)
+  await recordEngineRun(result, now)
+  return { ...result, sweep }
+}
+
+/**
+ * THE PER-ORG PASS, as a factory over one run's result. The hourly sweep
+ * hands it every active clinic; the day-one kick (docs/ACTIVATION.md S2,
+ * lib/services/day-one-kick.ts) hands it ONE clinic the moment its data
+ * arrives. One body, two callers — the generator order, the per-step
+ * isolation, the one-strike-per-org bookkeeping and the Cycles heartbeat
+ * are the same in both, by construction.
+ */
+function makeOrgPass(result: Omit<GeneratorRunResult, 'sweep'>, now: Date): (org: { id: string; name: string }) => Promise<void> {
   /** Write a break into the clinic's ledger where the Guardian can see it.
    *  Best-effort by construction: recordFailure never throws, and a run that
    *  cannot do its bookkeeping must still finish its work. */
@@ -292,49 +346,7 @@ export async function runProposalGenerators(now: Date = new Date()): Promise<Gen
     })
     if (recorded) result.failuresRecorded++
   }
-  // TOP-LEVEL FAILURES (round-2 audit). These two statements run BEFORE any
-  // per-org try, so a broken staleness sweep or an unreadable org list threw
-  // straight out of the cron: no proposals filed for anybody, and not one
-  // failure recorded anywhere, for any clinic. The whole platform's engine
-  // could be down and the Guardian would report every practice healthy.
-  try {
-    result.expired += await expireStaleProposals()
-  } catch (e) {
-    result.errors.push({ organizationId: '-', error: `expireStale: ${(e as Error).message}` })
-  }
-
-  let orgs: Array<{ id: string; name: string }>
-  try {
-    orgs = await db
-      .select({ id: schema.organization.id, name: schema.organization.name })
-      .from(schema.organization)
-      .where(and(eq(schema.organization.type, 'clinic'), eq(schema.organization.isDemo, false)))
-  } catch (e) {
-    // The org list is the other half of what the comment above promises.
-    // Unreadable means we cannot even name who to record against, so this
-    // is ours alone — but it must not vanish into a thrown cron.
-    result.errors.push({ organizationId: '-', error: `orgs: ${(e as Error).message}` })
-    await recordEngineRun(result, now)
-    // An unreadable org list is not a half-finished pass — there is nothing to
-    // resume from, so the cursor is left exactly where it was.
-    return { ...result, sweep: { swept: 0, remaining: 0, completed: false, resumeAt: null } }
-  }
-
-  // THE KILL (owner ruling): a shut-down clinic gets no generated work —
-  // cards would sit invisible behind the wall while the drafts spend AI
-  // money. The moment they pay, the next hourly tick resumes filing.
-  const shutDownOrgs = await listShutDownOrgIds(now)
-
-  // Filter BEFORE the walk, so a shut-down clinic never costs a turn or moves
-  // the cursor past clinics that DO have work.
-  const active = orgs.filter((org) => !shutDownOrgs.has(org.id))
-
-  // Budgeted + resumable (lib/cron-budget.ts): the walk stops before the
-  // route's maxDuration does and the next tick resumes after the last org
-  // swept. Unbounded, an overrun killed the request mid-loop and — because the
-  // list always started at the same end — the clinics past the cut-off got no
-  // proposals filed, ever, with nothing in any log to say so.
-  const sweep = await sweepClinics('generate-proposals', active, (org) => org.id, async (org) => {
+  return async (org: { id: string; name: string }) => {
     result.orgsScanned++
     // Per-org, always: a step that set the flag and THEN threw leaves it
     // behind, and a stale flag would charge the next clinic with a break
@@ -435,9 +447,14 @@ export async function runProposalGenerators(now: Date = new Date()): Promise<Gen
     } catch {
       /* a report, not a rail */
     }
-  })
-  await recordEngineRun(result, now)
-  return { ...result, sweep }
+  }
+}
+
+/** Run the full generator pass for ONE clinic now (the day-one kick). Returns that pass's own tally. */
+export async function runOrgGeneratorPass(org: { id: string; name: string }, now: Date = new Date()): Promise<Omit<GeneratorRunResult, 'sweep'>> {
+  const result = emptyGeneratorRun()
+  await makeOrgPass(result, now)(org)
+  return result
 }
 
 /** Clinic-local hours inside which the machine may send to a patient's

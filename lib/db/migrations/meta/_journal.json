@@ -1198,6 +1198,13 @@
       "when": 1791219122456,
       "tag": "0170_insurance_switch_reset",
       "breakpoints": true
+    },
+    {
+      "idx": 171,
+      "version": "7",
+      "when": 1791222383085,
+      "tag": "0171_activation_stamps",
+      "breakpoints": true
     }
   ]
 }

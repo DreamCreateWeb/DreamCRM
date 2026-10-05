@@ -1,6 +1,7 @@
 import 'server-only'
 import { and, asc, eq } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
+import { scheduleKick } from '@/lib/services/day-one-kick'
 import {
   listProfiles,
   createProfile,
@@ -241,6 +242,10 @@ export async function syncConnectedAccounts(orgId: string): Promise<void> {
     status: hasGbp ? 'connected' : 'disconnected',
     lastError: null,
   })
+  // THE DAY-ONE KICK (docs/ACTIVATION.md S2): Google just became connected
+  // (it was not before this sync) — the listing check and the review reply
+  // generator can run now. Fire-and-forget.
+  if (hasGbp && conn?.status !== 'connected') scheduleKick(orgId, 'gbp_connected')
 }
 
 // ── Read for UI ─────────────────────────────────────────────────────────────

@@ -11,6 +11,7 @@ import {
   type ActivationKey,
   type FirstWeekRowInput,
 } from '@/lib/first-week'
+import { earliestOf, parseActivation } from '@/lib/activation'
 import { listClinics } from '@/lib/services/clinics'
 import { getReadinessReport } from '@/lib/services/readiness'
 import { listActiveGoals } from '@/lib/services/goals'
@@ -162,17 +163,18 @@ export async function readActivation(organizationId: string): Promise<Activation
       ),
     ),
   ])
-  const first = (...dates: Array<Date | null>) => {
-    const real = dates.filter((d): d is Date => d != null)
-    return real.length ? new Date(Math.min(...real.map((d) => d.getTime()))) : null
-  }
   return {
-    a1: first(pmsAt, gbpAt, patientFloorAt),
-    a2: first(reminderAt, campaignAt),
+    a1: earliestOf(pmsAt, gbpAt, patientFloorAt),
+    a2: earliestOf(reminderAt, campaignAt),
     a3: bookingAt,
     a4: reviewAt,
     a5: formAt,
   }
+}
+
+/** A stamp (written once when the event happened) beats the derived read; the derived read fills in before stamping existed. */
+function mergeActivation(stamps: Activation, derived: Activation): Activation {
+  return { a1: stamps.a1 ?? derived.a1, a2: stamps.a2 ?? derived.a2, a3: stamps.a3 ?? derived.a3, a4: stamps.a4 ?? derived.a4, a5: stamps.a5 ?? derived.a5 }
 }
 
 /** The newest session of any non-patient member — "when did a human last open it". */
@@ -205,6 +207,7 @@ async function buildRow(
           insurance: schema.clinicProfile.insuranceEnabledAt,
           digest: schema.clinicProfile.dailyDigestEnabled,
           siteLive: schema.clinicProfile.siteLiveAt,
+          activation: schema.clinicProfile.activation,
         })
         .from(schema.clinicProfile)
         .where(eq(schema.clinicProfile.organizationId, clinic.orgId))
@@ -247,7 +250,7 @@ async function buildRow(
     openCards: open.length,
     oldestOpenCardAt: oldestOpen,
     lastStaffSignInAt: signIn,
-    activation: activation ?? EMPTY_ACTIVATION,
+    activation: mergeActivation(parseActivation(profile?.activation), activation ?? EMPTY_ACTIVATION),
     pendingOnUs,
   }
   return {

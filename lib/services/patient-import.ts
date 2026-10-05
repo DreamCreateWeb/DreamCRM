@@ -1,6 +1,7 @@
 import 'server-only'
 import { and, eq } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
+import { scheduleKick } from '@/lib/services/day-one-kick'
 import { newPatientId } from '@/lib/services/patients'
 import { normalizeEmail, normalizePhone } from '@/lib/contact-normalize'
 
@@ -265,6 +266,10 @@ export async function importPatients({
     const chunk = toInsert.slice(i, i + CHUNK)
     if (chunk.length) await db.insert(schema.patient).values(chunk)
   }
+
+  // THE DAY-ONE KICK (docs/ACTIVATION.md S2): a roster just arrived — run
+  // the practice's generators now. Fire-and-forget; the import is done.
+  if (summary.created > 0) scheduleKick(organizationId, 'patients_imported')
 
   return summary
 }
