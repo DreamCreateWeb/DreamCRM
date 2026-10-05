@@ -3,13 +3,16 @@
 // + demo mode only). One prospect cares about the website, another about
 // their Google/social presence, another about front-desk chaos — the track
 // picks which story the demo tells, and every track closes on an "And so
-// much more" beat with the right plan-tier pitch. Talk tracks may reference
+// much more" beat that quotes THE ONE PLAN (owner ruling 2026-10-05: there is
+// one plan, so no track "closes on" a tier — the story changes, the close
+// does not). Talk tracks may reference
 // {clinicName}, {city}, and {firstName}; the panel substitutes them from
 // the demo skin so the pitch says THEIR practice's name. Editing the demo
 // = editing this registry (typed, reviewed, versioned).
 
 import type { ProspectAiVerdict, ProspectCrawlSignals } from '@/lib/types/prospecting'
 import { getQuotedPlan } from '@/lib/stripe-config'
+import { socialAddonPriceCents } from '@/lib/types/social-entitlements'
 
 export type DemoBeatGroup = 'open' | 'run' | 'grow' | 'close'
 
@@ -43,8 +46,9 @@ export interface DemoTrack {
   label: string
   /** When to pick this track — shown on the prep page's story picker. */
   story: string
-  recommendedPlan: 'basic' | 'pro' | 'premium'
-  /** The money line — shown on the wrap-up screen as the close reminder. */
+  /** The money line — shown on the wrap-up screen as the close reminder.
+   *  Every track quotes the same plan at the same price: the story decides
+   *  what the demo SHOWS, never what the prospect is asked to buy. */
   planPitch: string
   /** Honest pacing for the story picker ("~15 min"). */
   targetMinutes: number
@@ -158,6 +162,9 @@ function moreBeat(talkTrack: string): DemoBeat {
 const QUOTED = getQuotedPlan()
 const QUOTED_PLAN_NAME = QUOTED.name
 const QUOTED_MONTHLY = `$${QUOTED.price.toLocaleString('en-US')} a month`
+// The social add-on rides the same plan; its price has one home too.
+const ADDON_CENTS = socialAddonPriceCents(QUOTED.id)
+const QUOTED_ADDON = ADDON_CENTS !== null ? `a $${Math.round(ADDON_CENTS / 100)} add-on` : 'an add-on'
 
 // ---------- The tracks ----------
 
@@ -167,7 +174,6 @@ export const DEMO_TRACKS: Record<DemoTrackId, DemoTrack> = {
     emoji: '🏛️',
     label: 'The whole platform',
     story: 'They need everything — the full open-to-close tour.',
-    recommendedPlan: 'premium',
     planPitch: `Everything you just saw is the ${QUOTED_PLAN_NAME} plan — ${QUOTED_MONTHLY}, no contracts.`,
     targetMinutes: 25,
     beats: [
@@ -190,9 +196,7 @@ export const DEMO_TRACKS: Record<DemoTrackId, DemoTrack> = {
     emoji: '🖥️',
     label: 'The website story',
     story: 'No site, or a site that embarrasses them — lead with the rebuild.',
-    recommendedPlan: 'basic',
-    planPitch:
-      'The website story is the Basic plan — $150 a month for the site, booking, reviews, and SEO. Live in days, not months.',
+    planPitch: `The website story is the ${QUOTED_PLAN_NAME} plan — ${QUOTED_MONTHLY} for the site, booking, reviews, and SEO. Live in days, not months.`,
     targetMinutes: 15,
     beats: [
       { ...COMPARE, group: 'open' },
@@ -229,7 +233,7 @@ export const DEMO_TRACKS: Record<DemoTrackId, DemoTrack> = {
         moves: ['Show what patients searched to find them'],
       },
       moreBeat(
-        'That’s the website story — and the same $150 a month also includes the patient inbox, follow-ups, and intake forms. And so much more on top.',
+        `That’s the website story — and the same ${QUOTED_MONTHLY} also includes the patient inbox, follow-ups, and intake forms. One plan, no contracts. And so much more on top.`,
       ),
     ],
   },
@@ -239,9 +243,7 @@ export const DEMO_TRACKS: Record<DemoTrackId, DemoTrack> = {
     emoji: '📍',
     label: 'Found everywhere',
     story: 'Site’s fine, but Google, reviews, and social don’t tell one story.',
-    recommendedPlan: 'pro',
-    planPitch:
-      'Getting found everywhere is the Pro plan — $250 a month. Website, Google, reviews, and social in one engine.',
+    planPitch: `Getting found everywhere is the same ${QUOTED_PLAN_NAME} plan — ${QUOTED_MONTHLY}. Website, Google, reviews, and social in one engine.`,
     targetMinutes: 15,
     beats: [
       {
@@ -276,7 +278,7 @@ export const DEMO_TRACKS: Record<DemoTrackId, DemoTrack> = {
         group: 'close',
       },
       moreBeat(
-        'That’s the presence story — Pro is $250 a month, and it also includes the patient inbox, recall campaigns, and the website editor. And so much more.',
+        `That’s the presence story — ${QUOTED_PLAN_NAME} is ${QUOTED_MONTHLY}, and it also includes the patient inbox, recall campaigns, and the website editor. One plan, no contracts. And so much more.`,
       ),
     ],
   },
@@ -286,9 +288,7 @@ export const DEMO_TRACKS: Record<DemoTrackId, DemoTrack> = {
     emoji: '📣',
     label: 'The social suite',
     story: 'They know social matters and nobody at the office has time for it.',
-    recommendedPlan: 'pro',
-    planPitch:
-      'The social suite rides the Pro plan — $250 a month, and a $30 add-on unlocks every channel.',
+    planPitch: `The social suite is part of the ${QUOTED_PLAN_NAME} plan — ${QUOTED_MONTHLY}, and ${QUOTED_ADDON} unlocks every channel.`,
     targetMinutes: 12,
     beats: [
       {
@@ -332,7 +332,7 @@ export const DEMO_TRACKS: Record<DemoTrackId, DemoTrack> = {
         group: 'close',
       },
       moreBeat(
-        'The social suite rides Pro — $250 a month, plus a $30 add-on for every channel. And the whole platform comes underneath it.',
+        `The social suite is part of ${QUOTED_PLAN_NAME} — ${QUOTED_MONTHLY}, plus ${QUOTED_ADDON} for every channel. And the whole platform comes underneath it.`,
       ),
     ],
   },
@@ -342,9 +342,7 @@ export const DEMO_TRACKS: Record<DemoTrackId, DemoTrack> = {
     emoji: '🗓️',
     label: 'Run the day',
     story: 'Front-desk chaos — phone tag, no-shows, sticky notes everywhere.',
-    recommendedPlan: 'pro',
-    planPitch:
-      'Running the day is the Pro plan — $250 a month; most offices recover more than that in no-shows alone.',
+    planPitch: `Running the day is the ${QUOTED_PLAN_NAME} plan — ${QUOTED_MONTHLY}; most offices recover more than that in no-shows alone.`,
     targetMinutes: 15,
     beats: [
       HUDDLE,
@@ -361,7 +359,7 @@ export const DEMO_TRACKS: Record<DemoTrackId, DemoTrack> = {
         moves: ['Open a completed form → the AI pre-visit summary'],
       },
       moreBeat(
-        'That’s the front-desk story — Pro is $250 a month, and the reviews engine, website editor, and recall campaigns come with it. And so much more.',
+        `That’s the front-desk story — ${QUOTED_PLAN_NAME} is ${QUOTED_MONTHLY}, and the reviews engine, website editor, and recall campaigns come with it. One plan, no contracts. And so much more.`,
       ),
     ],
   },
