@@ -49,8 +49,10 @@ The tool is OFF for a clinic until an owner or admin turns it on from
 `/insurance`: the page shows the intro card (what it does, what to know) and
 "Enable and set up", which opens the practice-NPI box and "Turn on insurance
 checks". Under the live driver the NPI is required to turn on; under the
-sandbox and test drivers it is optional. Nothing on the checklist below
-reaches a clinic that has not turned it on — the record hides the rail card
+sandbox and test drivers it is optional. Every clinic starts OFF — 0170
+cleared the switch everywhere on the owner's ruling, so even a practice
+with test checks on file meets the intro first. Nothing on the checklist
+below reaches a clinic that has not turned it on — the record hides the rail card
 and the service refuses `not_enabled` first. "Turn off insurance checks" at
 the foot of the tool returns the intro; history is kept.
 

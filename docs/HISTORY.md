@@ -5749,3 +5749,21 @@ the NPI for every driver, `runEligibilityCheck` refuses `not_enabled`
 before any row, network or usage read, and the patient record hides the
 rail card and the needs-attention nudge until the practice turns it on.
 
+**2026-10-05 (later) — the switch reset (migration 0170) and the dead
+"Turn off" link.** The owner viewed as the client and met the form, not the
+intro: 0169's backfill had grandfathered every clinic with a check on file,
+and the client's "checks on file" were the owner's own tests from the
+admin-only weeks. Ruling: no client was using the tool, so EVERY practice
+meets the intro and submits the setup once — 0170 clears
+`insurance_enabled_at` everywhere (a custom SQL migration, pinned by
+`tests/migrations/insurance-switch-reset.test.ts`; the demo alone is
+re-stamped by its resync self-heal). The same visit found "Turn off
+insurance checks" doing nothing: the kit's confirm dialog was awaited
+INSIDE a React transition, and React 19 holds an async transition's screen
+updates until it settles, so the dialog never rendered and the promise
+never resolved — a deadlock the tool's own test could not see because it
+mocks `useConfirm`. The confirm is now awaited before the transition starts
+(the record page's archive flow has always had that shape), and
+`tests/insurance/turn-off-dialog.test.tsx` renders the REAL ConfirmProvider
+so the dialog's appearance is the assertion.
+

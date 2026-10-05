@@ -1191,6 +1191,13 @@
       "when": 1791214500698,
       "tag": "0169_insurance_enabled_at",
       "breakpoints": true
+    },
+    {
+      "idx": 170,
+      "version": "7",
+      "when": 1791219122456,
+      "tag": "0170_insurance_switch_reset",
+      "breakpoints": true
     }
   ]
 }

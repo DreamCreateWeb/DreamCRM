@@ -646,16 +646,20 @@ export default function InsuranceTool({
           <button
             type="button"
             className="hover:underline"
-            onClick={() => {
+            onClick={async () => {
+              // The dialog is awaited BEFORE the transition starts: React 19
+              // holds an async transition's screen updates until it settles,
+              // so a confirm awaited inside one never appears and the click
+              // does nothing (the record page's archive flow has the same shape).
+              if (
+                !(await confirm({
+                  title: 'Turn off insurance checks?',
+                  message: 'Nothing is deleted — the history stays, and an owner or admin can turn it back on from this page.',
+                  confirmLabel: 'Turn off',
+                }))
+              )
+                return
               startTransition(async () => {
-                if (
-                  !(await confirm({
-                    title: 'Turn off insurance checks?',
-                    message: 'Nothing is deleted — the history stays, and an owner or admin can turn it back on from this page.',
-                    confirmLabel: 'Turn off',
-                  }))
-                )
-                  return
                 const r = await disableInsuranceAction()
                 if (!r.ok) {
                   toast(r.error)
