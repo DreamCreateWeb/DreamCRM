@@ -18,7 +18,7 @@ export const clinicProfile = pgTable('clinic_profile', {
   // turned insurance checks on yet, so /insurance shows the intro card
   // ("Enable and set up") and the patient record hides the rail card. Set
   // once by an owner/admin from the intro; clearable from the tool. The
-  // 0168 migration backfills every clinic that already ran a check.
+  // 0169 migration backfills every clinic that already ran a check.
   insuranceEnabledAt: timestamp('insurance_enabled_at'),
 
   // Branding

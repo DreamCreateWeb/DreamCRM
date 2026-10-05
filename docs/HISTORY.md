@@ -5722,11 +5722,11 @@ items (auto-verify before visits, PMS payer-id import, secondary
 insurance) stay on record in docs/COMPETITIVE-GAPS.md item 3.
 
 **2026-10-05 — insurance tool: self-serve setup (the ON switch, migration
-0168).** The owner's ask after the release: "a card hiding it at first
+0169).** The owner's ask after the release: "a card hiding it at first
 explaining what the feature is, and a button to Enable and set up." So the
 tool released on the 3rd now waits behind an intro card until the clinic
 chooses it. `clinic_profile.insurance_enabled_at` is the switch (null =
-off); 0168 backfills every clinic that already ran a check, the demo's
+off); 0169 backfills every clinic that already ran a check, the demo's
 resync self-heal stamps it (a prospect mid-pitch must see the scoreboard,
 not the intro), and everyone else meets the card. The card
 (`app/(default)/insurance/intro.tsx`, copy single-homed in
