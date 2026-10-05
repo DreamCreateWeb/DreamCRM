@@ -20,6 +20,21 @@ export const clinicProfile = pgTable('clinic_profile', {
   // once by an owner/admin from the intro; clearable from the tool. The
   // 0169 migration backfills every clinic that already ran a check.
   insuranceEnabledAt: timestamp('insurance_enabled_at'),
+  // THE FEATURE SWITCHES (docs/ACTIVATION.md law 1, slice S3): one column
+  // per feature, the 0169 shape — null = not turned on, so the module sits
+  // in the sidebar's "Add" group and its page is the intro card; a
+  // timestamp = on, set once by an owner/admin from the intro or opened by
+  // the machine at an activation event (A1 opens My Day / Follow-ups /
+  // Dream Team's siblings; the site going live opens Inquiries). The
+  // registry that reads them is lib/feature-switches.ts; 0172 grandfathers
+  // every clinic that existed before the switches did.
+  myDayEnabledAt: timestamp('my_day_enabled_at'),
+  followupsEnabledAt: timestamp('followups_enabled_at'),
+  leadsEnabledAt: timestamp('leads_enabled_at'),
+  intakeFormsEnabledAt: timestamp('intake_forms_enabled_at'),
+  growthEnabledAt: timestamp('growth_enabled_at'),
+  paymentsEnabledAt: timestamp('payments_enabled_at'),
+  shopEnabledAt: timestamp('shop_enabled_at'),
   // THE FIRST WEEK's activation stamps (docs/ACTIVATION.md Part 3, S2/S8):
   // `{ a1?: iso, a2?: iso, … }`, each key written ONCE the first time the
   // event happens (a stamp is a fact about the past; it never moves). The

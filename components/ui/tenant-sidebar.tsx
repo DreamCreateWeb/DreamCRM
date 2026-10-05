@@ -14,6 +14,11 @@ import { TONE_FILL } from '@/lib/ui/encodings'
 
 interface TenantSidebarProps {
   modules: ModuleDef[]
+  /**
+   * Switched-off modules (docs/ACTIVATION.md law 1, S3) — rendered as the
+   * quiet "Add" group under the sections. Each links to its own intro.
+   */
+  addable?: ModuleDef[]
   /** Display name of the current organization — shown in the org switcher. */
   orgName?: string
   /**
@@ -110,6 +115,7 @@ function writeSeen(orgName: string | undefined, key: 'leads' | 'shop', at: numbe
  */
 export default function TenantSidebar({
   modules,
+  addable = [],
   orgName,
   badge,
   tenantType,
@@ -355,6 +361,19 @@ export default function TenantSidebar({
               onNavigate={() => setSidebarOpen(false)}
             />
           ))}
+          {/* The "Add" group — every door the practice has not opened yet.
+              Muted on purpose: it is an offer, not a backlog. */}
+          {addable.length > 0 && (
+            <NavGroup
+              section="Add"
+              items={addable}
+              rail={railCollapsed}
+              isActive={isActive}
+              badgeCountFor={() => 0}
+              onNavigate={() => setSidebarOpen(false)}
+              muted
+            />
+          )}
         </nav>
 
         {/* 5 — Bottom: Settings pinned slot + profile */}
@@ -457,6 +476,7 @@ function NavGroup({
   isActive,
   badgeCountFor,
   onNavigate,
+  muted = false,
 }: {
   section: string
   items: ModuleDef[]
@@ -464,6 +484,8 @@ function NavGroup({
   isActive: (path: string) => boolean
   badgeCountFor: (m: ModuleDef) => number
   onNavigate: () => void
+  /** The "Add" group: quieter ink, same rows. */
+  muted?: boolean
 }) {
   const storageKey = `${GROUP_STORAGE_PREFIX}${section}`
   const [collapsed, setCollapsed] = useState(false)
@@ -515,7 +537,7 @@ function NavGroup({
         )}
       </h3>
       {(rail || !collapsed) && (
-        <ul className="mt-1 space-y-0.5">
+        <ul className="mt-1 space-y-0.5" data-testid={muted ? 'nav-add-group' : undefined}>
           {items.map((m) => (
             <NavItem
               key={m.id}
@@ -524,6 +546,7 @@ function NavGroup({
               rail={rail}
               count={badgeCountFor(m)}
               onNavigate={onNavigate}
+              muted={muted}
             />
           ))}
         </ul>
@@ -541,6 +564,7 @@ function NavItem({
   count,
   onNavigate,
   showShortcut = false,
+  muted = false,
 }: {
   m: ModuleDef
   active: boolean
@@ -548,6 +572,8 @@ function NavItem({
   count: number
   onNavigate: () => void
   showShortcut?: boolean
+  /** An "Add" row: quieter ink until hovered; the flyout says "Add". */
+  muted?: boolean
 }) {
   const isSoon = m.status === 'soon'
   const countLabel = count > 99 ? '99+' : String(count)
@@ -595,14 +621,16 @@ function NavItem({
         onBlur={closeFlyout}
         aria-disabled={isSoon}
         aria-current={active ? 'page' : undefined}
-        aria-label={rail ? `${m.label}${ariaCount}` : undefined}
+        aria-label={rail ? `${muted ? 'Add ' : ''}${m.label}${ariaCount}` : undefined}
         title={rail ? undefined : isSoon ? `${m.label} — coming soon` : undefined}
         className={`relative flex items-center rounded-full py-2 pl-3 pr-2 transition-colors ${
           rail ? 'lg:justify-center lg:px-0' : ''
         } ${
           active
             ? 'breath bg-gradient-to-r from-teal-600 to-teal-800 text-white font-bold shadow-[0_8px_20px_rgb(76_125_240_/_0.35)]'
-            : 'text-ink-600 hover:bg-ink-900/[0.04] hover:text-ink-900'
+            : muted
+              ? 'text-ink-400 hover:bg-ink-900/[0.04] hover:text-ink-700'
+              : 'text-ink-600 hover:bg-ink-900/[0.04] hover:text-ink-900'
         } ${isSoon ? 'opacity-50 cursor-not-allowed' : ''}`}
       >
         <NavIcon
@@ -656,7 +684,7 @@ function NavItem({
             style={{ position: 'fixed', top: flyout.top, left: flyout.left, transform: 'translateY(-50%)', zIndex: 200 }}
             className="pointer-events-none flex items-center gap-2 whitespace-nowrap rounded-md bg-surface-2 px-2.5 py-1.5 text-sm font-medium text-ink-800 shadow-[var(--shadow-pop)]"
           >
-            <span>{m.label}</span>
+            <span>{muted ? `Add ${m.label}` : m.label}</span>
             {m.shortcut && showShortcut && (
               <kbd className="rounded border border-hairline px-1 py-px text-xs font-medium tabular-nums text-ink-400">
                 {m.shortcut}

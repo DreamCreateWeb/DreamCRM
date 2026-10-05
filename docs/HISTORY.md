@@ -5767,6 +5767,27 @@ mocks `useConfirm`. The confirm is now awaited before the transition starts
 `tests/insurance/turn-off-dialog.test.tsx` renders the REAL ConfirmProvider
 so the dialog's appearance is the assertion.
 
+**2026-10-05 (later) — THE FIRST WEEK S3: the switch, generalised.**
+Law 1 for every module. Migration 0172 puts seven `*_enabled_at` columns
+on `clinic_profile` (My Day, Follow-ups, Inquiries, Intake Forms, Growth,
+Payments, Shop; Insurance's 0169 column joins the same registry) and
+grandfathers every existing clinic ON for the day-to-day five, Payments
++ Shop only where the payments bundle's own signal already showed them.
+Pure `lib/feature-switches.ts` (registry, intro copy, `autoOpen`,
+`splitModulesBySwitch`) + `lib/services/feature-switches.ts` (one
+per-request read, FAIL-OPEN; `openDoors` through `coalesce`, so a repeat
+event never moves a stamp) + `lib/services/tenant-nav.ts`, THE ONE
+resolver of the sidebar's module list that ⌘K now shares. A switched
+module is gated by its switch alone — "Turn on Payments" beats "has
+Stripe engaged" (`applyBundleGate` grew an `exempt` set). The sidebar's
+"Add" group lists the unopened doors; each switched module's
+`layout.tsx` wraps its pages in `FeatureGate` (off → `FeatureIntro`, one
+button for owners/admins; on → the page + `FeatureFooter`'s root-path
+"Turn off", confirm awaited before the transition). A1 opens My Day +
+Follow-ups from the kick; the go-live lever opens Inquiries. Dream Team
+became day-one (the setup asks live on its stack). Demo self-heal and
+the e2e seed open every door; the stranger journey meets them closed.
+
 **2026-10-05 — THE FIRST WEEK: the activation program (docs/ACTIVATION.md),
 S1 the platform cockpit, S2 the day-one kick.** The owner's directive —
 "every clinic I've signed up has been lost, and I've been lost with

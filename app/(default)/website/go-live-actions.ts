@@ -6,6 +6,7 @@ import { db } from '@/lib/db'
 import { clinicProfile } from '@/lib/db/schema/platform'
 import { requireTenant } from '@/lib/auth/context'
 import { invalidateClinicSiteEverywhere } from '@/lib/services/clinic-site-cache'
+import { openDoorsAtSiteLive } from '@/lib/services/feature-switches'
 
 /**
  * THE GO-LIVE LEVER's two actions (onboarding overhaul, owner ruling: "one
@@ -53,6 +54,9 @@ export async function goLiveAction(): Promise<GoLiveResult> {
       .update(clinicProfile)
       .set({ siteLiveAt: new Date(), updatedAt: new Date() })
       .where(eq(clinicProfile.organizationId, g.organizationId))
+    // The site is live, so the door that fills FROM the site opens
+    // (Inquiries — docs/ACTIVATION.md S3). Idempotent; never throws.
+    await openDoorsAtSiteLive(g.organizationId)
     revalidateSite(g.organizationId, g.slug)
     return { ok: true }
   } catch {

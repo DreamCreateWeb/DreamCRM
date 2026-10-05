@@ -77,9 +77,12 @@ itself; a clinic handed all of it at once feels like it is ours.
 
 The seven laws:
 
-1. **OFF until chosen.** Every module except the day-one five (Overview,
-   Messages, Appointments, Patients, Settings) is behind a switch, with
-   the intro card as its first screen. The switch is one column per
+1. **OFF until chosen.** Every module except the day-one six (Overview,
+   Dream Team, Messages, Appointments, Patients, Settings) is behind a
+   switch, with the intro card as its first screen. (Dream Team joined
+   the day-one set in S3: its sign-here stack is where the day-0 setup
+   asks land, and a door behind a door is a hallway. Website's go-live
+   lever is its own switch; Integrations is the front door itself.) The switch is one column per
    feature on `clinic_profile` (`*_enabled_at`, the 0169 shape) — not a
    jsonb bag, so a backfill is one statement and a test can name it.
 2. **One button.** The intro has one primary. "Enable and set up" opens
@@ -182,16 +185,16 @@ bind, SMS carrier) for more than 5 days.
 | Appointments | always on; empty until data | day-one five | — | tomorrow's schedule from the PMS |
 | Patients | always on; empty until data | day-one five | — | A1 |
 | Settings | always on | day-one five | — | — |
-| Dream Team | always on, roster + empty stack | **switch** (on at A1 — the machine needs data) | a goal | the first proposal |
-| My Day | always on, empty | **switch** (on with a second staff member or at A1) | — | today's follow-ups |
-| Follow-ups | always on, empty | **switch** (on at A1) | — | the auto rules' first cards |
-| Inquiries | always on, empty | **switch** (on when the site goes live or a form is published) | — | the first inquiry |
-| Intake Forms | seeded template, no walkthrough | **switch + intro** | pick what to collect, preview, how patients get it, auto-send | A5 |
+| Dream Team | day-one six (S3 ruling: the setup asks live here) | — | a goal | the first proposal |
+| My Day | **switch (S3)** — generic intro; opens at A1 | done | — | today's follow-ups |
+| Follow-ups | **switch (S3)** — generic intro; opens at A1 | done | — | the auto rules' first cards |
+| Inquiries | **switch (S3)** — generic intro; opens when the site goes live | done | — | the first inquiry |
+| Intake Forms | **switch (S3)** — generic intro | **intro with setup (S5)**: pick what to collect, preview, how patients get it, auto-send | — | A5 |
 | Insurance | **intro + switch (shipped)** | done | NPI (live) | a benefits card |
-| Growth | hub with honest connect states | **switch + intro** (recall engine is the door) | GBP connected, patients loaded | "38 overdue and reachable" |
+| Growth | **switch (S3)** — generic intro | **intro with setup (S5)** (recall engine is the door) | GBP connected, patients loaded | "38 overdue and reachable" |
 | Website | go-live lever (shipped) | done (the lever IS the switch) | hours, brand | the site is live |
-| Payments | Stripe connect card | **intro** over the existing connect | Stripe Connect | first pay link |
-| Shop | catalog + Stripe status | **switch + intro** | Stripe Connect, one product | — (never day one) |
+| Payments | **switch (S3)** — generic intro; the switch beats the old Stripe-derived gate | **intro with setup (S5)** over the existing connect | Stripe Connect | first pay link |
+| Shop | **switch (S3)** — generic intro; same rule | **intro with setup (S5)** | Stripe Connect, one product | — (never day one) |
 | Integrations | catalog; SMS "coming soon", PMS "request access", roadmap tiles | **the hub itself is the front door** | — | A1 |
 
 The integrations catalog, specifically:
@@ -236,7 +239,7 @@ Guardian's audience lock).
 |---|---|---|
 | **S1** | The platform cockpit (Part 5) | the owner can run a setup call and a day-7 check-in from one screen; activation events A1–A5 derived read-time |
 | **S2** | Day-one kick | binding a PMS, importing a CSV, or connecting GBP runs that org's generators immediately; the first card appears within the call |
-| **S3** | The switch, generalised | one column per feature, one `FeatureSwitch` helper, the sidebar shows day-one five + what is on + "Add"; Dream Team / My Day / Follow-ups / Inquiries auto-open at A1 |
+| **S3** | The switch, generalised — **SHIPPED 2026-10-05** | one column per feature, one registry + one gate, the sidebar shows the day-one six + what is on + "Add"; My Day / Follow-ups open at A1, Inquiries when the site goes live |
 | **S4** | Front doors: the integrations hub | the SMS card opens the form; PMS becomes a self-serve connect request with an honest status; roadmap tiles fold under it; "coming soon" leaves the dashboard |
 | **S5** | Front doors: Intake Forms, Growth (recall), Payments | each gets the intro + setup + on, in the insurance shape |
 | **S6** | Every empty state carries a door | the 64 cards each have one sentence and one button |
@@ -294,4 +297,42 @@ before S4–S6 because the doors need the switch to be one thing.
   a connected PMS or Google profile stamps at once, a CSV stamps when the
   roster clears `A1_PATIENT_FLOOR`. The cockpit prefers a stamp over its
   derived read (`mergeActivation`). A2–A5 stay derived until S8.
-
+- **2026-10-05 — S3 SHIPPED: the switch, generalised.** Law 1 is live
+  for every module. Migration 0172 adds seven `*_enabled_at` columns to
+  `clinic_profile` (My Day, Follow-ups, Inquiries, Intake Forms, Growth,
+  Payments, Shop — Insurance's 0169 column joins the same registry) and
+  GRANDFATHERS every existing clinic ON for the five day-to-day modules,
+  with Payments + Shop opened only where the payments bundle's own signal
+  already showed them, so nobody sees a money page they did not see
+  yesterday; new clinics start null everywhere and meet the doors. The
+  registry is pure `lib/feature-switches.ts` (key → module → column,
+  the intro copy — three lines it does, three to know, never "coming
+  soon" — `autoOpen`, `splitModulesBySwitch`); the server half
+  `lib/services/feature-switches.ts` reads once per request (React
+  `cache`, FAIL-OPEN: a transient read error must not hide pages a
+  clinic chose) and opens doors through a `coalesce` so a repeat event
+  never moves a stamp and a door closed on purpose stays closed.
+  `lib/services/tenant-nav.ts` is THE ONE resolver of the sidebar's list
+  — role, then switches, then the bundle gate for un-switched modules —
+  and ⌘K reads the same list, so the palette can never offer a page the
+  sidebar hides (a switched-off Growth takes its sub-pages with it). THE
+  RULE: a module with a switch is gated by its switch alone; "Turn on
+  Payments" beats "has Stripe engaged", because the page a clinic just
+  asked for must not vanish for want of a Stripe account. The sidebar
+  gains the "Add" group — the doors not yet opened, muted, each linking
+  to its intro. Each switched module's `layout.tsx` wraps its pages in
+  `FeatureGate`: off → the generic intro card (`FeatureIntro`, one
+  button for owners/admins, a sentence for members; the section eyebrow
+  and the registry's copy); on → the page plus a quiet "Turn off" line
+  on the module's ROOT path only (`FeatureFooter`, confirm awaited before
+  the transition). Other tenants pass straight through (the platform
+  shares the campaign editor under /growth). A1 (the day-one kick) opens
+  My Day + Follow-ups; the go-live lever opens Inquiries. Dream Team
+  became day-one (law 1 amended): its stack carries the setup asks. The
+  demo self-heal opens every door; the e2e seed opens every door for its
+  operating practices, so only the stranger journey meets them closed.
+  Deliberately NOT done here: the switch never stops the engine — the
+  follow-up rules still write cards and the digest still counts for a
+  clinic whose Follow-ups door is closed; they are there when it opens.
+  S5 replaces the generic intro with a real setup for Intake Forms,
+  Growth and Payments by setting `ownIntro` on the registry row.

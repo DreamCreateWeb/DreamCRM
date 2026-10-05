@@ -109,9 +109,18 @@ export function getVisibleModules(
 export function applyBundleGate(
   modules: ModuleDef[],
   activeBundles: ReadonlySet<BundleId>,
+  opts: {
+    /**
+     * Module ids the bundle gate stands aside for (S3: the modules a FEATURE
+     * SWITCH governs — a deliberate "Turn on Payments" beats the derived
+     * "has Stripe engaged" signal; see lib/feature-switches.ts).
+     */
+    exempt?: ReadonlySet<string>
+  } = {},
 ): ModuleDef[] {
   return modules.filter((m) => {
     if (!m.requiresBundle || m.requiresBundle.length === 0) return true
+    if (opts.exempt?.has(m.id)) return true
     return m.requiresBundle.some((b) => activeBundles.has(b))
   })
 }

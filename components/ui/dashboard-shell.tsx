@@ -17,9 +17,7 @@ import DemoConductor from '@/components/demo/demo-conductor'
 import { getServerSession } from '@/lib/session'
 import { trialDaysLeft } from '@/lib/trial'
 import { findPendingInviteForEmail } from '@/lib/auth/pending-invite'
-import { applyBundleGate, getVisibleModules } from '@/lib/modules'
-import { getActiveBundlesForSidebar } from '@/lib/services/integration-bundles'
-import type { BundleId } from '@/lib/integrations/bundles'
+import { getTenantNav } from '@/lib/services/tenant-nav'
 
 /**
  * Shared dashboard chrome used by every authenticated route group
@@ -63,20 +61,21 @@ export default async function DashboardShell({
     redirect(pending ? `/accept-invite?token=${pending.id}` : '/onboarding-01')
   }
 
-  // Plan/role visibility, then the integration-bundle feature gate: a clinic's
-  // bundle-tagged modules (Social Posts, Shop) surface only once the bundle is
-  // active (auto-derived from what's connected). Other tenant types carry no
-  // bundle-gated modules, so they skip the (clinic-scoped) lookup entirely.
-  const activeBundles =
-    ctx.tenantType === 'clinic' ? await getActiveBundlesForSidebar(ctx.organizationId) : new Set<BundleId>()
-  const modules = applyBundleGate(getVisibleModules(ctx.tenantType, ctx.role, { platformAdmin: ctx.platformAdmin }), activeBundles)
+  // Role visibility, then the FEATURE SWITCHES (docs/ACTIVATION.md law 1:
+  // a switched-off module waits in the sidebar's "Add" group), then the
+  // integration-bundle gate for the modules no switch governs — resolved in
+  // ONE place (lib/services/tenant-nav.ts) that the ⌘K page index shares.
+  const { modules, addable } = await getTenantNav(ctx)
   // Quick-create gating ids: module ids PLUS plan-derived capability ids for
   // areas folded into the Website/Growth workspaces (their hub modules are
   // ungated, so the hub id alone can't carry the plan gate — 'blog' is Pro+,
   const isClinic = ctx.tenantType === 'clinic'
+  // 'campaigns' follows the Growth switch (S3): a quick-create into a door
+  // the practice has not opened would land on the intro card.
+  const growthOn = modules.some((m) => m.id === 'growth')
   const moduleIds = [
     ...modules.map((m) => m.id),
-    ...(isClinic ? ['blog', 'campaigns'] : []),
+    ...(isClinic ? ['blog', ...(growthOn ? ['campaigns'] : [])] : []),
   ]
   // Prospect-branded presenter overlay (platform admin + demo mode only —
   // readDemoSkin returns null for everyone else, stale cookies included).
@@ -115,6 +114,7 @@ export default async function DashboardShell({
       <SkipToContent />
       <TenantSidebar
         modules={modules}
+        addable={addable}
         orgName={demoSkin?.clinicName ?? ctx.organizationName}
         badge={badge}
         variant={sidebarVariant}
