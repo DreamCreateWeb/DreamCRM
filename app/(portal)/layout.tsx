@@ -131,6 +131,8 @@ export default async function PortalLayout({ children }: { children: React.React
   const nav = buildPortalNav({
     settings,
     hasShop: shopConfig.storefrontEnabled,
+    // Unknown clinic row → treat as unpublished: a hidden door beats a dead one.
+    siteLive: clinic?.siteLive ?? false,
     hasDependents: dependents.length > 0,
     unreadMessages,
   })
