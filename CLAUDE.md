@@ -19,6 +19,7 @@ system, don't replace it.
 | [`docs/FINISHING.md`](./docs/FINISHING.md) | The finishing-pass punch list — FROZEN history since the release program began (new defects go to docs/RELEASE.md Part 5). |
 | [`docs/COMPETITIVE-GAPS.md`](./docs/COMPETITIVE-GAPS.md) | The module-deepening roadmap: per-module feature gaps vs NexHealth/RevenueWell/Weave/etc. Every P1 shipped; remaining: the PMS-procedure-data-gated P2s (no procedure-code entity yet), the per-clinic-registration-gated SMS tail, and P3s. |
 | [`docs/STRUCTURE-AUDIT.md`](./docs/STRUCTURE-AUDIT.md) | The information-architecture reference: full feature inventory by purpose, competitor IA benchmarks (NexHealth/Weave/Birdeye/Kleer/Shopify/…), placement verdicts, and the redesign log (Payments split, rejected moves). Read before moving/renaming any surface. |
+| [`docs/ACTIVATION.md`](./docs/ACTIVATION.md) | **THE FIRST WEEK — every feature has a front door (2026-10-05, owner directive: "every clinic I've signed up has been lost, and I've been lost with them").** The third program of record, beside RELEASE and the Dream Team lane. The diagnosis (65 empty states / 1 door; the circular SMS gate; PMS "request access"; intake's seeded template), the seven laws (OFF until chosen · one button · honest while pending · every empty state carries a door · the machine fires on day one · the morning after is the product · activation is measured), the four-beat setup call, the five activation events A1–A5, the per-module door inventory, the platform cockpit spec, and the eight slices S1–S8. Read before adding ANY new page, empty state, catalog card or "coming soon". |
 | [`docs/RELEASE.md`](./docs/RELEASE.md) | **THE CURRENT PROGRAM OF RECORD (2026-08-16, owner directive).** The product is feature-complete; the work now is beta → 1.0: phases R0–R5, the eight audit sweeps, severity bars, the defect ledger. R1 (the great audit) CLOSED 2026-08-17. Read this before starting new feature work — new ideas go to the post-1.0 backlog, not the release. |
 | [`docs/COMPLIANCE.md`](./docs/COMPLIANCE.md) | The honest compliance & data posture (R1·S8): TCPA/CAN-SPAM (strong, verified), the HIPAA subprocessor decision (the Bedrock-flip path — PHI to AI has no BAA), data export/deletion, retention. Read before ANY compliance claim in copy or before signing a customer BAA/DPA. |
 | [`docs/AUDITS.md`](./docs/AUDITS.md) | The phase-audit certificates: per-phase round history, retrospectives, the standing self-sweep checklist, the owner's depth-backlog menu. |
@@ -943,6 +944,17 @@ sitemap/robots/OG.
   is tracked and pending in DREAM-238; delete this bullet once that lands.
 
 ## Open items (priority order)
+
+-3. **THE FIRST WEEK / ACTIVATION PROGRAM (2026-10-05, owner directive —
+   BUILDING NOW).** Read `docs/ACTIVATION.md` FIRST before touching any
+   module's first-run, empty state, catalog card, the sidebar, the digest,
+   or the platform's clinics surfaces. The insurance intro + switch
+   (0169/0170) is THE pattern. Build order S1 the platform cockpit
+   (`/platform/first-week`) → S2 the day-one kick → S3 the generalised
+   switch + five-door sidebar → S4 the integrations hub's doors (SMS opens,
+   PMS self-serve request, "coming soon" retired) → S5 intake / growth /
+   payments intros → S6 every empty state's door → S7 the day-two digest →
+   S8 activation stamped + measured. Adds no capability; adds the DOORS.
 
 -2. **THE DREAM TEAM / AI OPERATIONS PROGRAM (2026-08-23, owner directive —
    BUILDING NOW, in its own lane through the feature freeze).** Read
