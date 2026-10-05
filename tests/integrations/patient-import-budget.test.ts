@@ -146,6 +146,8 @@ function makeDb() {
   }
 }
 
+const scheduleKick = vi.fn()
+vi.mock('@/lib/services/day-one-kick', () => ({ scheduleKick: (...a: unknown[]) => scheduleKick(...(a as [])) }))
 vi.mock('@/lib/db', () => {
   // schema.<table> stringifies to "<table>"; schema.<table>.<col> stringifies
   // to "<table>.<col>" — so the mock can both name the table (`.from(...)`) and
@@ -259,6 +261,9 @@ describe('runImport — time-budgeted patient import', () => {
     expect(r.partial).toBe(true)
     expect(r.resumeAvailable).toBe(true)
     expect(r.progress).toEqual({ imported: 25, total: 60 })
+    // THE DAY-ONE KICK (docs/ACTIVATION.md S2): data landed, even partially —
+    // the practice's generators run now rather than at the next hourly tick.
+    expect(scheduleKick).toHaveBeenCalledWith('org1', 'pms_synced')
     // 25 patients created so far.
     expect(store.patients).toHaveLength(25)
     // Cursor parked at 25.

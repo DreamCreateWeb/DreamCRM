@@ -2,6 +2,7 @@ import 'server-only'
 import { createHash, randomUUID } from 'crypto'
 import { and, desc, eq, inArray, isNotNull, isNull } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
+import { scheduleKick } from '@/lib/services/day-one-kick'
 import { decryptSecret } from '@/lib/crypto'
 import type { PmsConnection } from '@/lib/db/schema/clinic'
 import { OpenDentalProvider } from './open-dental'
@@ -363,6 +364,11 @@ export async function runImport(
       updatedAt: now,
     })
     .where(eq(schema.pmsConnection.organizationId, organizationId))
+
+  // THE DAY-ONE KICK (docs/ACTIVATION.md S2): the practice's data just
+  // landed — run their generators now rather than at the next hourly tick.
+  // Fire-and-forget; the sync's own result is already written.
+  if (status !== 'error') scheduleKick(organizationId, 'pms_synced')
 
   return {
     runId,

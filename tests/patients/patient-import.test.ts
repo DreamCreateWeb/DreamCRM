@@ -4,6 +4,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 const existing = { rows: [] as Array<{ email: string | null; phone: string | null }> }
 const inserted: Array<Record<string, unknown>[]> = []
 
+const scheduleKick = vi.fn()
+vi.mock('@/lib/services/day-one-kick', () => ({ scheduleKick: (...a: unknown[]) => scheduleKick(...(a as [])) }))
 vi.mock('@/lib/db', () => {
   // `where()` returns a thenable (the import dedupe scan awaits it directly)
   // that ALSO exposes `.orderBy()` (the export query chains it). `.limit()` is
@@ -102,6 +104,20 @@ describe('importPatients', () => {
     expect(r.created).toBe(1)
     expect(r.duplicates).toBe(0)
     expect(inserted[0][0]).toMatchObject({ firstName: 'Jane', lastName: 'Doe', source: 'import', lifecycle: 'active' })
+    // THE DAY-ONE KICK (docs/ACTIVATION.md S2): a roster just arrived.
+    expect(scheduleKick).toHaveBeenCalledWith('org_1', 'patients_imported')
+  })
+
+  it('an import that created nothing does not kick the generators', async () => {
+    scheduleKick.mockClear()
+    existing.rows = [{ email: 'JANE@X.COM', phone: null }]
+    const r = await importPatients({
+      organizationId: 'org_1',
+      rows: [['Jane', 'Doe', 'jane@x.com', '5551112222']],
+      mapping,
+    })
+    expect(r.created).toBe(0)
+    expect(scheduleKick).not.toHaveBeenCalled()
   })
 
   it('skips a row whose email matches an existing patient (case-insensitive)', async () => {

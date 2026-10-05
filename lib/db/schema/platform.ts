@@ -20,6 +20,12 @@ export const clinicProfile = pgTable('clinic_profile', {
   // once by an owner/admin from the intro; clearable from the tool. The
   // 0169 migration backfills every clinic that already ran a check.
   insuranceEnabledAt: timestamp('insurance_enabled_at'),
+  // THE FIRST WEEK's activation stamps (docs/ACTIVATION.md Part 3, S2/S8):
+  // `{ a1?: iso, a2?: iso, … }`, each key written ONCE the first time the
+  // event happens (a stamp is a fact about the past; it never moves). The
+  // cockpit prefers a stamp over its derived read. Nullable; nothing else
+  // branches on it.
+  activation: jsonb('activation'),
 
   // Branding
   brandColor: text('brand_color'),

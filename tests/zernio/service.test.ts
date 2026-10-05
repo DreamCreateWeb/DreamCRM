@@ -14,6 +14,8 @@ const z = {
   listAccounts: vi.fn(),
   deleteAccount: vi.fn(),
 }
+const scheduleKick = vi.fn()
+vi.mock('@/lib/services/day-one-kick', () => ({ scheduleKick: (...a: unknown[]) => scheduleKick(...(a as [])) }))
 vi.mock('@/lib/zernio', () => ({
   listProfiles: (...a: unknown[]) => z.listProfiles(...a),
   createProfile: (...a: unknown[]) => z.createProfile(...a),
@@ -271,6 +273,20 @@ describe('syncConnectedAccounts', () => {
     expect(store.accounts).toHaveLength(1)
     expect(store.accounts[0]).toMatchObject({ id: 'a1', platform: 'googlebusiness', displayName: 'Acme Dental' })
     expect(store.connections['org_1'].status).toBe('connected')
+    // THE DAY-ONE KICK (docs/ACTIVATION.md S2): Google just became connected.
+    expect(scheduleKick).toHaveBeenCalledWith('org_1', 'gbp_connected')
+  })
+
+  it('a re-sync of an already-connected profile does not kick again', async () => {
+    scheduleKick.mockClear()
+    store.connections['org_1'] = { organizationId: 'org_1', zernioProfileId: 'prof_1', isDemo: 0, status: 'connected' }
+    z.listAccounts.mockResolvedValue({
+      accounts: [{ _id: 'a1', platform: 'googlebusiness', profileId: 'prof_1', username: 'acme', displayName: 'Acme Dental' }],
+      hasAnalyticsAccess: true,
+    })
+    await syncConnectedAccounts('org_1')
+    expect(store.connections['org_1'].status).toBe('connected')
+    expect(scheduleKick).not.toHaveBeenCalled()
   })
 
   it('normalizes an embedded profileId object', async () => {
@@ -286,9 +302,11 @@ describe('syncConnectedAccounts', () => {
 
   it('stays disconnected when no GBP account comes back', async () => {
     store.connections['org_1'] = { organizationId: 'org_1', zernioProfileId: 'prof_1', isDemo: 0 }
+    scheduleKick.mockClear()
     z.listAccounts.mockResolvedValue({ accounts: [], hasAnalyticsAccess: false })
     await syncConnectedAccounts('org_1')
     expect(store.connections['org_1'].status).toBe('disconnected')
+    expect(scheduleKick).not.toHaveBeenCalled()
   })
 
   it('removes local accounts no longer present at Zernio', async () => {
