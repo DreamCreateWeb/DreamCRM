@@ -76,9 +76,10 @@ export default async function PatientDetailPage({ params }: PageProps) {
   // Insurance-check rail card: the latest stored verdict + what a re-check
   // would send when no check exists yet (the on-file card as self-subscriber).
   // null hides the rail card AND the needs-attention nudge outside a clinic
-  // tenant (the tool is a clinic feature).
+  // tenant (the tool is a clinic feature) and until the clinic turns the
+  // tool on from /insurance (the intro card).
   const onFileRequest = requestFromOnFile(header)
-  const insurance = insuranceSetup
+  const insurance = insuranceSetup?.enabled
     ? {
         latest: latestInsuranceCheck,
         history: insuranceHistory,

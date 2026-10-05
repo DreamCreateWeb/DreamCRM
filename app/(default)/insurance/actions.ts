@@ -6,12 +6,15 @@ import {
   INSURANCE_RELATIONSHIPS,
   canUseInsuranceTool,
   detailFromRequest,
+  resolveInsuranceDriverId,
   type EligibilityPerson,
   type EligibilityRequest,
   type InsuranceRelationship,
 } from '@/lib/insurance-eligibility'
 import {
   attachInsuranceCheckToPatient,
+  disableInsuranceTool,
+  enableInsuranceTool,
   runEligibilityCheck,
   searchPayers,
   type RunEligibilityCheckResult,
@@ -34,6 +37,34 @@ async function clinicCtx() {
   // PREVIEW: the actions refuse for anyone the page would 404 for.
   if (!canUseInsuranceTool(ctx)) return null
   return ctx
+}
+
+/** The ON switch — owners and admins only (the SMS setup's `canManage` rule). */
+async function managerCtx() {
+  const ctx = await clinicCtx()
+  if (!ctx) return null
+  if (ctx.role !== 'owner' && ctx.role !== 'admin') return null
+  return ctx
+}
+
+export async function enableInsuranceAction(input: { npi?: string | null }): Promise<{ ok: true } | { ok: false; error: string }> {
+  const ctx = await managerCtx()
+  if (!ctx) return { ok: false, error: 'Only an owner or admin can turn on insurance checks.' }
+  // A live payer answers a provider: under the live driver the NPI is part
+  // of turning on, not a surprise refusal afterwards.
+  const requireNpi = resolveInsuranceDriverId() === 'stedi'
+  const r = await enableInsuranceTool(ctx.organizationId, { npi: String(input?.npi ?? '').slice(0, 20), requireNpi })
+  if (!r.ok) return r
+  revalidatePath('/insurance')
+  return { ok: true }
+}
+
+export async function disableInsuranceAction(): Promise<{ ok: true } | { ok: false; error: string }> {
+  const ctx = await managerCtx()
+  if (!ctx) return { ok: false, error: 'Only an owner or admin can turn off insurance checks.' }
+  await disableInsuranceTool(ctx.organizationId)
+  revalidatePath('/insurance')
+  return { ok: true }
 }
 
 export async function checkInsuranceAction(

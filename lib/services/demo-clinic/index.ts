@@ -202,6 +202,7 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
         recallDefaultMonths: schema.clinicProfile.recallDefaultMonths,
         onboardingInterviewCompletedAt: schema.clinicProfile.onboardingInterviewCompletedAt,
         siteLiveAt: schema.clinicProfile.siteLiveAt,
+        insuranceEnabledAt: schema.clinicProfile.insuranceEnabledAt,
         leadForms: schema.clinicProfile.leadForms,
         copyOverrides: schema.clinicProfile.copyOverrides,
         websiteDraft: schema.clinicProfile.websiteDraft,
@@ -221,6 +222,9 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
     // a from-scratch resync) must never sit behind the go-live lever showing
     // "Coming soon" to a prospect mid-pitch.
     if (!profile?.siteLiveAt) patch.siteLiveAt = new Date()
+    // The demo's insurance tool is always ON (migration 0168's switch): a
+    // prospect mid-pitch must see the scoreboard, not the intro card.
+    if (!profile?.insuranceEnabledAt) patch.insuranceEnabledAt = new Date()
     // Backfill the site announcement bar on legacy demos (migration 0134) so
     // the live demo site shows the strip. Only-when-unset — a clinic-authored
     // (or cleared) bar is never clobbered.

@@ -12,6 +12,8 @@ const push = vi.fn()
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push, refresh: vi.fn() }) }))
 const toast = vi.fn()
 vi.mock('@/components/ui/toast', () => ({ useToast: () => toast }))
+const confirmFn = vi.fn(async () => false)
+vi.mock('@/components/ui/confirm-dialog', () => ({ useConfirm: () => confirmFn }))
 
 const checkInsuranceAction = vi.fn()
 const createPatientFromCheckAction = vi.fn()
@@ -23,7 +25,9 @@ const searchPayersAction = vi.fn(async () => ({
   ],
 }))
 const scanCardAction = vi.fn()
+const disableInsuranceAction = vi.fn(async () => ({ ok: true as const }))
 vi.mock('@/app/(default)/insurance/actions', () => ({
+  disableInsuranceAction: (...a: unknown[]) => disableInsuranceAction(...(a as [])),
   checkInsuranceAction: (...a: unknown[]) => checkInsuranceAction(...(a as [])),
   createPatientFromCheckAction: (...a: unknown[]) => createPatientFromCheckAction(...(a as [])),
   saveInsuranceToPatientAction: (...a: unknown[]) => saveInsuranceToPatientAction(...(a as [])),
@@ -487,5 +491,21 @@ describe('the release (polish phase 6): readiness and the allowance', () => {
     unmount()
     renderTool({ driver: 'stedi', usage: { used: 0, included: 200, unreadable: true } })
     expect(screen.queryByTestId('insurance-usage')).toBeNull()
+  })
+})
+
+describe('the ON switch (self-serve setup)', () => {
+  it('only an owner/admin sees "Turn off insurance checks", and it asks before it acts', async () => {
+    const { unmount } = renderTool({ canManage: false })
+    expect(screen.queryByText('Turn off insurance checks')).toBeNull()
+    unmount()
+    renderTool({ canManage: true })
+    confirmFn.mockResolvedValueOnce(false)
+    fireEvent.click(screen.getByText('Turn off insurance checks'))
+    await waitFor(() => expect(confirmFn).toHaveBeenCalledTimes(1))
+    expect(disableInsuranceAction).not.toHaveBeenCalled()
+    confirmFn.mockResolvedValueOnce(true)
+    fireEvent.click(screen.getByText('Turn off insurance checks'))
+    await waitFor(() => expect(disableInsuranceAction).toHaveBeenCalledTimes(1))
   })
 })
