@@ -821,6 +821,22 @@ binding are all correct. The payment-plan charger was the exception.
   still present and still absent from `meta/_journal.json`, so the index
   remains drafted and unrunnable exactly as described. The one production
   read it waits on has not happened.
+  **PREPARED 2026-10-05, still waiting on the read.** The owner asked for
+  this closed; the index is journaled as migration
+  `0169_one_stripe_account_per_clinic` on a draft PR that stays in draft
+  until `duplicate-stripe-accounts` returns zero rows. What the attempt
+  found: that check has never once run against production. Both earlier
+  dispatches (2026-09-15 run 1, 2026-09-21 run 9) and every scheduled run
+  since, through 2026-10-04 run 22, skipped with "ADMIN_READ_SECRET is not
+  set yet" — the one-time setup in docs/PROD-READ-ACCESS.md (the read-only
+  role, the two App Runner values, the GitHub secret) was never completed,
+  so the agent-side read door is still closed. The branch carries the
+  schema declaration (`shopConfig`'s index callback), the generated
+  migration with the parked file's full header, and the parked file
+  deleted; `tests/payments/connected-account-uniqueness.test.ts` flips to
+  its "live" arm by construction. Rows from that read would mean a live
+  cross-tenant money defect, and a person identifies the clinics before
+  anything is touched.
   WHY IT IS NOT SHIPPED: `CREATE UNIQUE INDEX` fails on existing duplicates,
   and on this deploy path a failed migration is skipped in silence and takes
   every later migration with it (the S2 entry directly below). So the order has

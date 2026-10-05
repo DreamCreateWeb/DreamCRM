@@ -1,0 +1,44 @@
+-- DREAMCRM-32 — one connected Stripe account, one clinic. Un-parked 2026-10-05
+-- (it sat at lib/db/migrations/parked/one-stripe-account-per-clinic.sql from
+-- 2026-09-15; the DREAMCRM-45 planning decision split it out of 0162).
+--
+-- WHAT IT IS FOR
+--
+-- A Connect webhook names its tenant only through `event.account`, so
+-- `orgIdForConnectedAccount` (lib/services/shop-connect.ts) turns
+-- `shop_config.stripe_account_id` into a TENANT on a money write path, and it
+-- resolves with `.limit(1)`. Two rows sharing an account id would file one
+-- clinic's refund in another clinic's records — silently, and by whichever row
+-- the planner happened to return first. This index makes the isolation
+-- structural instead of assumed.
+--
+-- PARTIAL on purpose: `stripe_account_id` is null for every clinic that has
+-- not connected Stripe, and again after `disconnectShopStripe` clears it, so a
+-- plain unique index would be satisfied by all those nulls and say nothing.
+--
+-- THE PRECONDITION, and why it matters here
+--
+-- `CREATE UNIQUE INDEX` fails if the column already holds duplicates, and on
+-- this deploy path a failed migration is skipped (the server is already
+-- serving; `scripts/db-migrate.mjs` exits into `|| true`) and every later
+-- migration queues behind it. Since DREAMCRM-46 that state is DETECTED —
+-- `.github/workflows/migration-check.yml` compares the applied ledger to the
+-- journal after every deploy — but detected is not prevented, so the order
+-- stays: READ FIRST. The production read is the catalog check
+-- `duplicate-stripe-accounts` (lib/read-checks.ts, docs/PROD-READ-ACCESS.md):
+--
+--     select stripe_account_id, array_agg(organization_id)
+--       from shop_config where stripe_account_id is not null
+--      group by 1 having count(*) > 1;
+--
+-- It must return ZERO ROWS before this merges. Rows mean a live cross-tenant
+-- money defect, and the clinics involved have to be identified by a person
+-- before either row is touched — never "fixed" by nulling a connection or
+-- dropping this index to get a deploy through.
+--
+-- LOCK NOTE (deploy path): `CREATE UNIQUE INDEX` without CONCURRENTLY takes a
+-- SHARE lock and blocks WRITES to `shop_config` while it builds. Drizzle
+-- applies a boot's migrations in one transaction, which rules CONCURRENTLY
+-- out. One row per clinic; the build is instantaneous.
+
+CREATE UNIQUE INDEX "shop_config_stripe_account_idx" ON "shop_config" USING btree ("stripe_account_id") WHERE "shop_config"."stripe_account_id" is not null;
