@@ -1177,6 +1177,13 @@
       "when": 1791053390234,
       "tag": "0167_patient_insurance_detail",
       "breakpoints": true
+    },
+    {
+      "idx": 168,
+      "version": "7",
+      "when": 1791176400709,
+      "tag": "0168_campaign_events_sent_key_idx",
+      "breakpoints": true
     }
   ]
 }

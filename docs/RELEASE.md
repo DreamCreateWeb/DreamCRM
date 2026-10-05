@@ -1893,6 +1893,20 @@ clinic, none breaking at the current one-beta-clinic scale.
   (`0010`, `0021`, `0098`, plus `0145`'s provider-message lookup); no
   `(patient_id, occurred_at) where type='sent'` partial index exists. The
   entry's own trigger — "if it shows in slow logs" — has not fired.
+  **FIXED 2026-10-05** (migration `0168_campaign_events_sent_key_idx`). Done
+  ahead of the trigger rather than because of it: the cap runs on every
+  campaign send and every automation pass, and a scan that is cheap at the
+  beta's row counts is exactly the kind that shows up in slow logs only after
+  the marketing pivot drives the traffic. TWO partial indexes on
+  `type = 'sent'`, `(patient_id, occurred_at)` and
+  `(recipient_email, occurred_at)`, not the one the entry named: the cap's
+  predicate is an OR across the two keys, and Postgres can only BitmapOr it
+  when both arms are indexed — a patient-only index would have left the
+  planner on the same sequential scan. Plain non-unique indexes over
+  existing columns, so no production precondition; the lock note is in the
+  migration header. `tests/migrations/campaign-events-sent-index.test.ts`
+  renders the schema's own index definitions and pins the migration SQL to
+  them, so a future `db:generate` cannot silently drop the predicate.
 - S2 · the public-site + marketing body font (Inter) loads via a
   render-blocking third-party `@import` in `app/css/style.css:1` — violates
   the self-hosted-woff2 font doctrine (Nunito is already self-hosted correctly).
