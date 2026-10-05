@@ -130,9 +130,14 @@ system, don't replace it.
   `not_enabled` first. `enableInsuranceTool`/`disableInsuranceTool`
   (lib/services/insurance-eligibility/setup.ts) are idempotent and NOT
   narrated (a switch is a setting; the marker law keeps `report` to the
-  Guardian); the live driver REQUIRES the NPI to turn on; 0169
-  backfilled every clinic with a check on file and the demo self-heal
-  stamps the demo. It previewed to platform
+  Guardian); the live driver REQUIRES the NPI to turn on; EVERY clinic
+  starts OFF (0170 reversed 0169's backfill — owner ruling: the checks on
+  file were the owner's own admin-only tests, and a practice submits the
+  setup once before the tool shows); only the demo self-heal stamps the
+  demo. The "Turn off" link awaits the confirm dialog BEFORE its
+  transition — awaited inside one, React 19 holds the dialog's render and
+  the click dies (`tests/insurance/turn-off-dialog.test.tsx` renders the
+  real ConfirmProvider to pin it). It previewed to platform
   admins only from 2026-09-30 (owner ruling: real clients exist); the gate
   is now "is this a clinic tenant" — `canUseInsuranceTool` in
   lib/insurance-eligibility.ts stays the ONE predicate every surface asks
@@ -341,7 +346,7 @@ app/
 lib/
   db/schema/         auth.ts, platform.ts, clinic.ts (bulk), domain.ts, email.ts,
                      referrals.ts, index.ts
-  db/migrations/     drizzle; 0000–0169 applied to prod (auto-apply on deploy)
+  db/migrations/     drizzle; 0000–0170 applied to prod (auto-apply on deploy)
   auth/              server.ts, client.ts, context.ts (getTenantContext,
                      requireTenant/requireRole/requirePartner)
   services/          ~190 server-only modules (import 'server-only') — one per
@@ -821,10 +826,14 @@ sitemap/robots/OG.
   end-to-end; watch the Actions tab. `NEXT_PUBLIC_*` bake at build time.
 - **Migrations auto-apply on boot** (`scripts/db-migrate.mjs` → POST
   `/api/admin/migrate`; failure keeps the previous version serving). Latest
-  migration: **0169** (`clinic_profile.insurance_enabled_at` — the insurance
-  tool's self-serve ON switch, nullable; backfilled for every clinic that
-  already ran a check, the demo stamped by its resync). Before it:
-  **0168** (`campaign_events` — two PARTIAL indexes on
+  migration: **0170** (clears `insurance_enabled_at` for EVERY clinic —
+  the owner's same-day ruling that nobody was using the tool and every
+  practice submits the setup once; a custom SQL migration, so
+  `tests/migrations/insurance-switch-reset.test.ts` pins it). Before it:
+  **0169** (`clinic_profile.insurance_enabled_at` — the insurance
+  tool's self-serve ON switch, nullable; its backfill of clinics with a
+  check on file was reversed by 0170; the demo is stamped by its resync).
+  Before it: **0168** (`campaign_events` — two PARTIAL indexes on
   `type = 'sent'`, `(patient_id, occurred_at)` + `(recipient_email,
   occurred_at)`: the frequency cap's per-person read, which every prior index
   left campaign_id-leading; both arms because the cap's predicate is an OR).
