@@ -58,7 +58,14 @@ export default async function PortalPreviewPage() {
   const staff = (profileRow?.staff ?? []) as ClinicStaff[]
   const sampleProvider = staff[0] ?? null
 
-  const nav = buildPortalNav({ settings, hasShop: settings.features.shopLink, hasDependents: false })
+  // The preview mirrors the live portal: an unpublished site hides the Shop
+  // door there too, so it hides here.
+  const nav = buildPortalNav({
+    settings,
+    hasShop: settings.features.shopLink,
+    siteLive: clinic?.siteLive ?? false,
+    hasDependents: false,
+  })
   const sampleVisitTime = new Date(Date.now() + 26 * 3_600_000) // tomorrow-ish
 
   const headline = settings.copy.welcomeHeadline

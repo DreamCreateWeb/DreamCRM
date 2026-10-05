@@ -2,13 +2,14 @@ import { describe, it, expect, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 
 /**
- * THE DEMO TRACK PICKER'S "closes on" LABEL (DREAMCRM-38).
+ * THE DEMO TRACK PICKER'S CLOSE LINE.
  *
- * The same stale-copy defect as the deal room, one page over: this panel's
- * hardcoded labels said "Premium · $500/mo" — the struck-through LIST price —
- * so the presenter's own screen disagreed with the $200 founding rate the
- * prospect can read on the pricing page during the call. The labels are
- * derived from `lib/stripe-config.ts` now.
+ * DREAMCRM-38: this panel's hardcoded labels said "Premium · $500/mo" — the
+ * struck-through LIST price — so the presenter's own screen disagreed with
+ * the $200 founding rate the prospect can read on the pricing page during the
+ * call. Then the owner's 2026-10-05 ruling: there is ONE plan, so no story
+ * "closes on" a tier at all. The cards say what each demo shows; one line
+ * under them says what every demo closes on, read from stripe-config.
  */
 
 vi.mock('@/app/(default)/platform/prospecting/admin-actions', () => ({
@@ -17,29 +18,33 @@ vi.mock('@/app/(default)/platform/prospecting/admin-actions', () => ({
 
 import TrackPicker from '@/app/(default)/platform/prospecting/demo/[id]/track-picker'
 import { DEMO_TRACK_LIST } from '@/lib/types/demo-script'
-import { getPlanById } from '@/lib/stripe-config'
+import { getQuotedPlan } from '@/lib/stripe-config'
 
-describe('demo track picker plan labels', () => {
-  it('never quotes the list price for the plan a prospect can buy', () => {
-    const premiumTrack = DEMO_TRACK_LIST.find((t) => t.recommendedPlan === 'premium')
-    expect(premiumTrack, 'fixture assumption: a track closes on Premium').toBeTruthy()
+describe('demo track picker close line', () => {
+  it('quotes the one purchasable plan once, at its stripe-config price', () => {
+    const plan = getQuotedPlan()
+    render(<TrackPicker prospectId="p1" suggested={DEMO_TRACK_LIST[0].id} />)
 
-    render(<TrackPicker prospectId="p1" suggested={premiumTrack!.id} />)
-
-    expect(screen.getByText(/closes on Premium · \$200\/mo/)).toBeTruthy()
+    const expected = `${plan.name} · $${plan.price.toLocaleString('en-US')}/mo`
+    expect(screen.getAllByText(new RegExp(expected.replace(/[$.*+?^{}()|[\]\\]/g, '\\$&')))).toHaveLength(1)
     expect(screen.queryByText(/\$500\/mo/)).toBeNull()
   })
 
-  it('reads every label from stripe-config, so a reprice lands here too', () => {
+  it('no card closes on a tier', () => {
     render(<TrackPicker prospectId="p1" suggested={DEMO_TRACK_LIST[0].id} />)
-
+    expect(screen.queryByText(/closes on/)).toBeNull()
+    expect(screen.queryByText(/Basic|\bPro\b/)).toBeNull()
+    // Two stories can share a beat count and a running time, so "at least
+    // one" is the honest assertion here; the card count is pinned instead.
     for (const track of DEMO_TRACK_LIST) {
-      const plan = getPlanById(track.recommendedPlan)!
-      const expected = `closes on ${plan.name} · $${plan.price.toLocaleString('en-US')}/mo`
       expect(
-        screen.getAllByText(new RegExp(expected.replace(/[$.*+?^{}()|[\]\\]/g, '\\$&'))).length,
-        `${track.id} should quote ${plan.name} at its stripe-config price`,
+        screen.getAllByText(new RegExp(`^${track.beats.length} beats · ~${track.targetMinutes} min$`)).length,
       ).toBeGreaterThan(0)
     }
+    // The story cards are the only pressable buttons; the Start button carries
+    // no aria-pressed and so is not counted.
+    expect(
+      screen.getAllByRole('button', { pressed: false }).length + screen.getAllByRole('button', { pressed: true }).length,
+    ).toBe(DEMO_TRACK_LIST.length)
   })
 })

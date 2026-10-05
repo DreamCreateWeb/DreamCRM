@@ -1076,6 +1076,19 @@ binding are all correct. The payment-plan charger was the exception.
   tracks. Untouched, and still owner-gated for the reason above: the open
   question is what a track closes on now that there is one plan, not
   which number to print.
+  **FIXED 2026-10-05 — the owner answered the question: one plan, no tier
+  close.** `recommendedPlan` is gone from `DemoTrack`; every track's
+  `planPitch` and closing beat interpolate `getQuotedPlan()` (name and
+  price) and the social track's add-on reads `socialAddonPriceCents` for
+  that plan, so a reprice reaches all five stories and nothing in the file
+  spells a tier or a dollar figure. The picker's per-card "closes on <tier>"
+  is replaced by ONE line under the cards ("Every story closes the same
+  way: Premium · $200/mo, everything included") — the story decides what the
+  demo shows, never what the prospect is asked to buy.
+  `tests/demo-mode/demo-tracks.test.ts` now walks every track (not just the
+  full tour) for the plan name and spoken price and refuses any legacy tier
+  name or price; `tests/prospecting/track-picker-plan.test.tsx` pins the
+  single close line and the absence of "closes on".
 - S3 · `app/opengraph-image.tsx:69` — the social share card for the whole
   marketing site still reads `$150–500/mo`, the pre-collapse three-tier
   range. It is the price that appears when anyone links dreamcreatestudio.com
@@ -1440,6 +1453,17 @@ patient) and a handful of S3 polish items.
   'shopLink')` gates the Shop door on the clinic's STOREFRONT toggle, not
   on `site_live_at`, so it does not hide the out-link while the site is
   unpublished. Still the product call this entry describes.
+  **FIXED 2026-10-05 — the owner made the call: HIDE the out-links, don't
+  exempt the pages.** `getPortalClinicInfo` now carries `siteLive`
+  (`site_live_at != null`); `buildPortalNav` takes `siteLive` and the Shop
+  entry requires it beside the feature flag and the storefront, so the nav
+  hides the door while the site is unpublished (the settings-page preview
+  mirrors it); the `/patient/shop` door itself sends a typed or bookmarked
+  visit home under the same rule; and the invoices page's "See the plans"
+  membership upsell waits for the site too. Middleware is untouched — the
+  commerce and upsell pages stay behind the go-live lever like the rest of
+  the marketing site, which is the half of the question this entry left
+  open. `tests/patient-portal/portal-nav.test.ts` pins the hide.
 - S3 · portal visit-card offers no change affordance inside the notice window
   when the clinic has no phone on file (fall back to a "message us" link);
   family "Book for {name}" doesn't pre-select the dependent (`?for=` param);
@@ -1893,6 +1917,20 @@ clinic, none breaking at the current one-beta-clinic scale.
   (`0010`, `0021`, `0098`, plus `0145`'s provider-message lookup); no
   `(patient_id, occurred_at) where type='sent'` partial index exists. The
   entry's own trigger — "if it shows in slow logs" — has not fired.
+  **FIXED 2026-10-05** (migration `0168_campaign_events_sent_key_idx`). Done
+  ahead of the trigger rather than because of it: the cap runs on every
+  campaign send and every automation pass, and a scan that is cheap at the
+  beta's row counts is exactly the kind that shows up in slow logs only after
+  the marketing pivot drives the traffic. TWO partial indexes on
+  `type = 'sent'`, `(patient_id, occurred_at)` and
+  `(recipient_email, occurred_at)`, not the one the entry named: the cap's
+  predicate is an OR across the two keys, and Postgres can only BitmapOr it
+  when both arms are indexed — a patient-only index would have left the
+  planner on the same sequential scan. Plain non-unique indexes over
+  existing columns, so no production precondition; the lock note is in the
+  migration header. `tests/migrations/campaign-events-sent-index.test.ts`
+  renders the schema's own index definitions and pins the migration SQL to
+  them, so a future `db:generate` cannot silently drop the predicate.
 - S2 · the public-site + marketing body font (Inter) loads via a
   render-blocking third-party `@import` in `app/css/style.css:1` — violates
   the self-hosted-woff2 font doctrine (Nunito is already self-hosted correctly).

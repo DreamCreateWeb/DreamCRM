@@ -821,10 +821,14 @@ sitemap/robots/OG.
   end-to-end; watch the Actions tab. `NEXT_PUBLIC_*` bake at build time.
 - **Migrations auto-apply on boot** (`scripts/db-migrate.mjs` → POST
   `/api/admin/migrate`; failure keeps the previous version serving). Latest
-  migration: **0168** (`clinic_profile.insurance_enabled_at` — the insurance
+  migration: **0169** (`clinic_profile.insurance_enabled_at` — the insurance
   tool's self-serve ON switch, nullable; backfilled for every clinic that
   already ran a check, the demo stamped by its resync). Before it:
-  **0167** (`patient.insurance_detail` jsonb — the remembered
+  **0168** (`campaign_events` — two PARTIAL indexes on
+  `type = 'sent'`, `(patient_id, occurred_at)` + `(recipient_email,
+  occurred_at)`: the frequency cap's per-person read, which every prior index
+  left campaign_id-leading; both arms because the cap's predicate is an OR).
+  Before it: **0167** (`patient.insurance_detail` jsonb — the remembered
   card, nullable, no index; trusted only while its memberId matches the
   flat policy number). Before it: **0166** (`insurance_verification` — the
   eligibility-check history table, org-scoped, patient set-null, error rows

@@ -53,7 +53,6 @@ describe('track registry integrity', () => {
       // $200 (DREAMCRM-38). The value assertion is the separate test below.
       expect(track.planPitch).toMatch(/\$\d+/)
       expect(last.talkTrack).toMatch(/\$\d+/)
-      expect(['basic', 'pro', 'premium']).toContain(track.recommendedPlan)
       // Beats are unique within a track and every href is a dashboard path.
       const ids = track.beats.map((b) => b.id)
       expect(new Set(ids).size).toBe(ids.length)
@@ -127,10 +126,29 @@ describe('the demo close quotes the plan a prospect can buy', () => {
     const full = DEMO_TRACKS.full
     const spoken = `$${plan.price.toLocaleString('en-US')} a month`
 
-    expect(full.recommendedPlan).toBe('premium')
     expect(full.planPitch).toContain(plan.name)
     expect(full.planPitch).toContain(spoken)
     expect(full.beats[full.beats.length - 1].talkTrack).toContain(spoken)
+  })
+
+  // ONE PLAN, NO TIER CLOSE (owner ruling 2026-10-05). Four of the five
+  // tracks used to close on Basic ($150) or Pro ($250), tiers nothing has
+  // sold since the 2026-07-19 single-plan collapse. The story decides what
+  // the demo shows; every close quotes the same plan at the same price.
+  it('every track closes on the one plan, never a legacy tier', () => {
+    const plan = getQuotedPlan()
+    const spoken = `$${plan.price.toLocaleString('en-US')} a month`
+    for (const track of DEMO_TRACK_LIST) {
+      const close = track.beats[track.beats.length - 1].talkTrack
+      expect(track.planPitch, `${track.id} pitch names the plan`).toContain(plan.name)
+      expect(track.planPitch, `${track.id} pitch quotes the price`).toContain(spoken)
+      expect(close, `${track.id} close quotes the price`).toContain(spoken)
+      for (const text of [track.planPitch, close]) {
+        expect(text, `${track.id} names no legacy tier`).not.toMatch(/\b(Basic|Pro) plan\b|\bPro is\b|\brides Pro\b/)
+        expect(text, `${track.id} quotes no legacy price`).not.toMatch(/\$(150|250|500)\b/)
+      }
+    }
+    expect('recommendedPlan' in DEMO_TRACKS.full, 'no per-track tier field survives').toBe(false)
   })
 
   it('never quotes the list price as the price', () => {
