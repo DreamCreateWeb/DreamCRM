@@ -667,7 +667,10 @@ function IntegrationCard({ resolved, handlers }: { resolved: ResolvedIntegration
           <ConnectedActions def={def} runtime={runtime} handlers={handlers} />
         </>
       ) : (
-        <DisconnectedActions def={def} runtime={runtime} handlers={handlers} />
+        <>
+          {def.know && <p className="text-xs text-gray-500 dark:text-gray-400">{def.know}</p>}
+          <DisconnectedActions def={def} runtime={runtime} handlers={handlers} />
+        </>
       )}
     </AppCard>
   )

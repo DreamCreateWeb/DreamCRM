@@ -204,6 +204,11 @@ export interface IntegrationDef {
   countsTowardSocialCap?: boolean
   /** An honest "what's next / what it costs" note for the card footer. */
   note?: string
+  /**
+   * The intro shape's "what to know" (docs/ACTIVATION.md S5): one honest
+   * line where money or data moves, shown on the card while NOT connected.
+   */
+  know?: string
 }
 
 // ── THE CATALOG ──────────────────────────────────────────────────────────────
@@ -254,6 +259,7 @@ export const INTEGRATIONS_CATALOG: IntegrationDef[] = [
     keywords: ['google', 'gbp', 'business profile', 'reviews', 'maps', 'local search', 'hours'],
     availability: 'live',
     connectKind: 'zernio',
+    know: 'Free, and never counts toward your social connections. We read your listing and reviews; nothing posts without a yes.',
     detailHref: '/integrations/google-business',
     valueLinks: [
       { href: '/growth/reviews/received', label: 'Reviews' },
@@ -340,6 +346,7 @@ export const INTEGRATIONS_CATALOG: IntegrationDef[] = [
     keywords: ['communication', 'gmail', 'google', 'email', 'inbox', 'mailbox'],
     availability: 'live',
     connectKind: 'oauth',
+    know: 'Clinic-bound mail lands in your DreamCRM inbox and patient email sends from your own address. You can disconnect any time.',
     valueLinks: [{ href: '/inbox', label: 'Inbox' }],
   },
   {
@@ -373,6 +380,7 @@ export const INTEGRATIONS_CATALOG: IntegrationDef[] = [
     keywords: ['payments', 'stripe', 'connect', 'shop', 'checkout', 'memberships', 'payouts'],
     availability: 'live',
     connectKind: 'oauth',
+    know: 'Your own Stripe account: Stripe’s card fees apply and payouts land in your bank. DreamCRM never holds your money.',
     valueLinks: [{ href: '/shop', label: 'Shop' }],
   },
 ]

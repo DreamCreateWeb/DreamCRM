@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireTenant } from '@/lib/auth/context'
 import { exchangeConnectCode, saveConnectedAccount } from '@/lib/services/shop-connect'
+import { CONNECT_BACK_PATHS, resolveConnectBack } from '@/lib/types/shop-connect'
 
 function appBase(req: NextRequest): string {
   return process.env.NEXT_PUBLIC_APP_URL ?? new URL(req.url).origin
 }
 
-function backTo(req: NextRequest, params: Record<string, string>): NextResponse {
-  const url = new URL('/shop', appBase(req))
+function backTo(req: NextRequest, params: Record<string, string>, back: string = 'shop'): NextResponse {
+  const url = new URL(CONNECT_BACK_PATHS[resolveConnectBack(back)], appBase(req))
   for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v)
   const res = NextResponse.redirect(url)
   // EVERY exit path runs through here (error params, state mismatch, org change,
@@ -27,29 +28,30 @@ export async function GET(req: NextRequest) {
   if (errorParam) return backTo(req, { connectError: errorParam })
   if (!code || !stateB64) return backTo(req, { connectError: 'Missing OAuth response parameters' })
 
-  let decoded: { orgId: string; nonce: string }
+  let decoded: { orgId: string; nonce: string; back?: string }
   try {
     decoded = JSON.parse(Buffer.from(stateB64, 'base64url').toString('utf8'))
   } catch {
     return backTo(req, { connectError: 'Invalid OAuth state' })
   }
+  const back = resolveConnectBack(decoded.back)
 
   const cookieNonce = req.cookies.get('shop_connect_state')?.value
   if (!cookieNonce || cookieNonce !== decoded.nonce) {
-    return backTo(req, { connectError: 'OAuth state mismatch — please try connecting again' })
+    return backTo(req, { connectError: 'OAuth state mismatch — please try connecting again' }, back)
   }
 
   const ctx = await requireTenant()
   if (ctx.tenantType !== 'clinic' || ctx.organizationId !== decoded.orgId) {
-    return backTo(req, { connectError: 'Active organization changed during the connection' })
+    return backTo(req, { connectError: 'Active organization changed during the connection' }, back)
   }
 
   try {
     const accountId = await exchangeConnectCode(code)
     await saveConnectedAccount(ctx.organizationId, accountId)
   } catch (err) {
-    return backTo(req, { connectError: (err as Error).message })
+    return backTo(req, { connectError: (err as Error).message }, back)
   }
 
-  return backTo(req, { connected: '1' })
+  return backTo(req, { connected: '1' }, back)
 }

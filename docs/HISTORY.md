@@ -5767,6 +5767,20 @@ mocks `useConfirm`. The confirm is now awaited before the transition starts
 `tests/insurance/turn-off-dialog.test.tsx` renders the REAL ConfirmProvider
 so the dialog's appearance is the assertion.
 
+**2026-10-06 (later) — THE FIRST WEEK S5: the doors with real setup.**
+`FeatureGate` gained an `intro` slot; `feature-intro.tsx` split into
+`IntroShell` / `TurnOnButton` / `AskManager`. Three doors replace the
+generic card: Intake Forms (pick what to collect from the standard
+template with the basics locked on — `intakeSectionChoices` /
+`pickIntakeSections` — see the questions, the true how-patients-get-it
+sentence, `turnOnIntakeFormsAction` builds the first form + flips the
+switch; forms on file are kept), Growth (the facts the first win needs
+with a door each + the live due-and-reachable count; an unreadable count
+says so), Payments (over Stripe Connect: connected / finish / not
+connected with the real link; the OAuth flow returns to the sending door
+via `?back=` + `resolveConnectBack`). `IntegrationDef.know` lines on the
+Google / Gmail / Stripe cards close the S4 carry. No new columns.
+
 **2026-10-06 — THE FIRST WEEK S4: the integrations hub's front doors.**
 Law 3 enforced (`tests/activation/no-coming-soon.test.ts` holds the phrase
 at zero across the dashboard trees). Catalog: texting `live` ("Set up
