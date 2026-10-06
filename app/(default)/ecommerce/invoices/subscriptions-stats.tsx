@@ -1,5 +1,6 @@
 import type { SubscriptionStats } from '@/lib/services/stripe-admin'
 import { EmptyState } from '@/components/ui/empty-state'
+import { ActionButton } from '@/components/ui/action-button'
 import { formatMoneyShort, formatNumberShort } from '@/lib/utils/format'
 import { KpiStat } from '@/components/ui/kpi-stat'
 
@@ -45,6 +46,11 @@ export function PlanMixCard({ stats }: { stats: SubscriptionStats }) {
         <EmptyState
           title="No paying subscribers yet"
           body="Plan distribution will show up here once the first subscription starts."
+          action={
+            <ActionButton variant="secondary" size="sm" href="/ecommerce/customers">
+              Add a clinic
+            </ActionButton>
+          }
         />
       </div>
     )

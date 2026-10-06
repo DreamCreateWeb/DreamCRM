@@ -181,6 +181,11 @@ export default function CouponsClient({ coupons, orgName = 'Your clinic' }: { co
           icon="🏷️"
           title="No coupons yet"
           body="Add a promo code above, or generate this month's birthday codes — they apply automatically at checkout."
+          action={
+            <ActionButton variant="secondary" size="sm" onClick={() => codeRef.current?.focus()}>
+              Add a code
+            </ActionButton>
+          }
         />
       ) : (
         <div className="space-y-2">

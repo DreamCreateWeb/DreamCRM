@@ -41,7 +41,8 @@ export default function MessagesSidebar({
             <EmptyState
               icon="💬"
               title="No conversations yet"
-              body="Start a new one with the + button above."
+              body="Pick a teammate or two and start the first thread."
+              action={<NewConversationButton users={users} label="New conversation" />}
             />
           ) : (
             <ul className="space-y-1">

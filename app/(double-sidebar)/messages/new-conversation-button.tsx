@@ -6,7 +6,14 @@ import { Dialog, DialogPanel, Transition, TransitionChild } from '@headlessui/re
 import { ActionButton } from '@/components/ui/action-button'
 import { newConversation } from './actions'
 
-export default function NewConversationButton({ users }: { users: { id: string; name: string }[] }) {
+export default function NewConversationButton({
+  users,
+  label,
+}: {
+  users: { id: string; name: string }[]
+  /** Render a labelled secondary button (an empty state's door) instead of the header's round "+" icon. */
+  label?: string
+}) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const [title, setTitle] = useState('')
@@ -36,17 +43,23 @@ export default function NewConversationButton({ users }: { users: { id: string; 
 
   return (
     <>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="inline-flex h-10 w-10 items-center justify-center rounded-full text-teal-600 hover:text-teal-700 hover:bg-teal-500/10 dark:text-teal-400 dark:hover:text-teal-300"
-        aria-label="New conversation"
-        title="New conversation"
-      >
-        <svg className="fill-current" width="20" height="20" viewBox="0 0 16 16">
-          <path d="M15 7H9V1c0-.6-.4-1-1-1S7 .4 7 1v6H1c-.6 0-1 .4-1 1s.4 1 1 1h6v6c0 .6.4 1 1 1s1-.4 1-1V9h6c.6 0 1-.4 1-1s-.4-1-1-1z" />
-        </svg>
-      </button>
+      {label ? (
+        <ActionButton variant="secondary" size="sm" onClick={() => setOpen(true)}>
+          {label}
+        </ActionButton>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className="inline-flex h-10 w-10 items-center justify-center rounded-full text-teal-600 hover:text-teal-700 hover:bg-teal-500/10 dark:text-teal-400 dark:hover:text-teal-300"
+          aria-label="New conversation"
+          title="New conversation"
+        >
+          <svg className="fill-current" width="20" height="20" viewBox="0 0 16 16">
+            <path d="M15 7H9V1c0-.6-.4-1-1-1S7 .4 7 1v6H1c-.6 0-1 .4-1 1s.4 1 1 1h6v6c0 .6.4 1 1 1s1-.4 1-1V9h6c.6 0 1-.4 1-1s-.4-1-1-1z" />
+          </svg>
+        </button>
+      )}
       <Transition show={open} as={Fragment}>
         <Dialog onClose={() => setOpen(false)} className="relative z-50">
           <TransitionChild as={Fragment} enter="ease-out duration-200" enterFrom="opacity-0" enterTo="opacity-100" leave="ease-in duration-150" leaveFrom="opacity-100" leaveTo="opacity-0">

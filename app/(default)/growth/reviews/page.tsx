@@ -175,7 +175,9 @@ export default async function ReviewsPage() {
             <Link href="/integrations" className="underline">Integrations</Link> and we&apos;ll
             try to fill this in for you.
           </p>
-          <ReviewConfigPanel config={config} />
+          <div id="review-setup">
+            <ReviewConfigPanel config={config} />
+          </div>
         </div>
       )}
 
@@ -330,7 +332,7 @@ export default async function ReviewsPage() {
       )}
 
       {/* ── Ready to ask ──────────────────────────────────────────── */}
-      <section className="mb-8">
+      <section className="mb-8" id="ready-to-ask">
         <div className="flex items-center justify-between gap-3 mb-3">
           <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100">
             Ready to ask · {eligible.length} {eligible.length === 1 ? 'patient' : 'patients'}
@@ -346,6 +348,11 @@ export default async function ReviewsPage() {
             icon="🔌"
             title="Connect a review platform to start."
             body="Add your Google Place ID, Healthgrades URL, or Facebook Page above, then patients ready for a request show up here."
+            action={
+              <ActionButton variant="secondary" size="sm" href="#review-setup">
+                Add a review link
+              </ActionButton>
+            }
           />
         ) : eligible.length === 0 ? (
           <EmptyState
@@ -376,6 +383,11 @@ export default async function ReviewsPage() {
             icon="📮"
             title="No review requests sent yet."
             body="Send your first one from the Ready-to-ask list above, and it'll track here."
+            action={
+              <ActionButton variant="secondary" size="sm" href="#ready-to-ask">
+                Who's ready to ask
+              </ActionButton>
+            }
           />
         ) : (
           <div className="v2-card overflow-hidden">

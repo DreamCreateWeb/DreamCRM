@@ -5767,6 +5767,19 @@ mocks `useConfirm`. The confirm is now awaited before the transition starts
 `tests/insurance/turn-off-dialog.test.tsx` renders the REAL ConfirmProvider
 so the dialog's appearance is the assertion.
 
+**2026-10-06 (later still) — THE FIRST WEEK S6: every empty state carries
+a door.** 50 of the dashboard's 61 door-less `<EmptyState>` cards gained an
+`action`: the feature's own first action (Book a visit, Start a campaign,
+the real `SyncNowButton`, Compose a post, Add a code, New plan / New
+project modals as the door) or the door to the feature that fills the room
+(Send a form, Send a review request, Invite patients to the portal, Open
+the pipeline, Add a clinic); every filter-made emptiness got Clear filters;
+`NewConversationButton` grew a `label` form for the team chat's door.
+Eleven stand without one by name (all-clear, pane placeholder,
+composer-adjacent, fills-from-outside, dead branch) in
+`tests/activation/empty-state-doors.test.ts`, a TypeScript-parser scan
+registered in the review gate. No new columns, no new pages.
+
 **2026-10-06 (later) — THE FIRST WEEK S5: the doors with real setup.**
 `FeatureGate` gained an `intro` slot; `feature-intro.tsx` split into
 `IntroShell` / `TurnOnButton` / `AskManager`. Three doors replace the

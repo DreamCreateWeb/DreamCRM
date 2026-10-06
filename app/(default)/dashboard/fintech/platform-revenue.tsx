@@ -145,6 +145,11 @@ export default async function PlatformRevenue() {
             <EmptyState
               title="No revenue recorded yet"
               body="Once Stripe invoices start coming in or projects start completing, your top clinics will show up here."
+              action={
+                <ActionButton variant="secondary" size="sm" href="/ecommerce/customers">
+                  Add a clinic
+                </ActionButton>
+              }
             />
           ) : (
             <ul className="space-y-3">
@@ -257,6 +262,11 @@ export default async function PlatformRevenue() {
           <EmptyState
             title="No transactions yet"
             body="Paid invoices and completed project budgets will appear here."
+            action={
+              <ActionButton variant="secondary" size="sm" href="/ecommerce/invoices">
+                Open billing
+              </ActionButton>
+            }
           />
         ) : (
           <ul className="divide-y divide-gray-100 dark:divide-gray-700/60">

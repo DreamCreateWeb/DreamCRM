@@ -327,6 +327,11 @@ export default async function PlatformOverview() {
           <EmptyState
             title="No activity yet"
             body="Once clinics sign up and projects start moving, you'll see them here."
+            action={
+              <ActionButton variant="secondary" size="sm" href="/ecommerce/customers">
+                Add a clinic
+              </ActionButton>
+            }
           />
         ) : (
           <ul className="divide-y divide-[color:var(--color-hairline)]">

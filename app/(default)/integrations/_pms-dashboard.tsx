@@ -13,7 +13,8 @@ import {
 import type { PmsSyncRun } from '@/lib/db/schema/clinic'
 import type { getIntegrationsDashboard } from '@/lib/services/pms'
 import type { getIntegrationsHealth } from '@/lib/services/pms/health'
-import SyncControls from './sync-controls'
+import SyncControls, { SyncNowButton } from './sync-controls'
+import { ActionButton } from '@/components/ui/action-button'
 import { BrandLogo } from '@/components/integrations/brand-logos'
 import { StatusPill } from '@/components/ui/status-pill'
 import { EncodingLegend } from '@/components/ui/encoding-legend'
@@ -269,7 +270,7 @@ export function PmsConnectedDashboard({
       <section className="mb-8">
         <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100 mb-3">Sync history (PMS → DreamCRM)</h2>
         {recentRuns.length === 0 ? (
-          <EmptyState icon="🔄" title="No syncs yet" body="Hit “Sync now” to pull your patients and schedule into DreamCRM." />
+          <EmptyState icon="🔄" title="No syncs yet" body="Pull your patients and schedule into DreamCRM — the first run takes a minute." action={<SyncNowButton />} />
         ) : (
           <div className="v2-card overflow-hidden">
             <table className="w-full text-sm">
@@ -311,6 +312,11 @@ export function PmsConnectedDashboard({
             icon="📤"
             title="No write-backs yet"
             body="New bookings from your website, portal, or front desk will appear here once they’re pushed to the PMS."
+            action={
+              <ActionButton variant="secondary" size="sm" href="/appointments?new=1">
+                Book a visit
+              </ActionButton>
+            }
           />
         ) : (
           <div className="v2-card overflow-hidden">

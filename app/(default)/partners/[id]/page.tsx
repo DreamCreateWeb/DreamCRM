@@ -18,6 +18,7 @@ import { PageHeader } from '@/components/ui/page-header'
 import { KpiStat } from '@/components/ui/kpi-stat'
 import { StatusPill } from '@/components/ui/status-pill'
 import { EncodingLegend } from '@/components/ui/encoding-legend'
+import { ActionButton } from '@/components/ui/action-button'
 import { EmptyState } from '@/components/ui/empty-state'
 import {
   PARTNER_STATUS_LABELS,
@@ -160,6 +161,11 @@ export default async function PartnerDetailPage({ params }: { params: Promise<{ 
           <EmptyState
             title="No clinics attributed yet"
             body="Attribute clinics to this partner when you create them (the “+ Add clinic” form), or from a clinic’s detail page → Referral card."
+            action={
+              <ActionButton variant="secondary" size="sm" href="/ecommerce/customers">
+                Add a clinic
+              </ActionButton>
+            }
           />
         ) : (
           <ReferredClinicsTable

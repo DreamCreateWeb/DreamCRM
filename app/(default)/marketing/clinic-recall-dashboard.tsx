@@ -226,7 +226,12 @@ export default async function ClinicRecallDashboard({
             <EmptyState
               icon="🗓️"
               title="Nothing scheduled."
-              body='Use "+ New campaign" above to queue your next recall or newsletter send.'
+              body="Queue your next recall or newsletter send — pick a starting point and who it goes to."
+              action={
+                <ActionButton variant="secondary" size="sm" href="/growth/outreach?new=1">
+                  Start a campaign
+                </ActionButton>
+              }
             />
           ) : (
             <ul className="divide-y divide-[color:var(--color-hairline)]">
@@ -275,6 +280,11 @@ export default async function ClinicRecallDashboard({
               icon="📊"
               title="No sends in the last 30 days."
               body="Performance numbers populate once you send your first campaign."
+              action={
+                <ActionButton variant="secondary" size="sm" href="/growth/outreach?new=1">
+                  Start a campaign
+                </ActionButton>
+              }
             />
           ) : (
             <ul className="space-y-2">
@@ -315,7 +325,12 @@ export default async function ClinicRecallDashboard({
             <EmptyState
               icon="✉️"
               title="No campaigns yet."
-              body={'Use "+ New campaign" above — pick a starting point and who it goes to, and you’re most of the way there.'}
+              body="Pick a starting point and who it goes to, and you’re most of the way there."
+              action={
+                <ActionButton variant="secondary" size="sm" href="/growth/outreach?new=1">
+                  Start a campaign
+                </ActionButton>
+              }
             />
           ) : (
             <ul className="divide-y divide-[color:var(--color-hairline)]">
@@ -439,6 +454,11 @@ export default async function ClinicRecallDashboard({
               icon="📨"
               title="No activity yet."
               body="Opens, clicks, and booked appointments from sent campaigns show up here."
+              action={
+                <ActionButton variant="secondary" size="sm" href="/growth/outreach?new=1">
+                  Start a campaign
+                </ActionButton>
+              }
             />
           ) : (
             <ul className="divide-y divide-[color:var(--color-hairline)]">

@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { EmptyState } from '@/components/ui/empty-state'
+import { ActionButton } from '@/components/ui/action-button'
 import type { SocialPostView, ComposerChannel } from '@/lib/types/zernio'
 import PostHistory from './post-history'
 import CalendarView from './calendar-view'
@@ -52,6 +53,11 @@ export default function PostsView({
           icon="✍️"
           title="Write your first post"
           body="Share a same-week opening, a new-patient offer, or an upcoming event — to Google and your social channels at once."
+          action={
+            <ActionButton variant="secondary" size="sm" href="#compose-post">
+              Compose a post
+            </ActionButton>
+          }
         />
       ) : view === 'showcase' ? (
         <PostFeed posts={posts} channels={channels} clinicName={clinicName} />

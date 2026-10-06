@@ -12,6 +12,7 @@ import { CAPTURE_ROLE_LABELS } from '@/lib/event-capture'
 import { PageHeader } from '@/components/ui/page-header'
 import { EmptyState } from '@/components/ui/empty-state'
 import { StatusPill } from '@/components/ui/status-pill'
+import { ActionButton } from '@/components/ui/action-button'
 import AttachPhoto from './attach-photo'
 import { setEventActiveAction } from '../admin-actions'
 
@@ -55,7 +56,15 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
       </p>
 
       {captures.length === 0 ? (
-        <EmptyState title="Nobody captured yet" body="Open the capture link on your phone and hand it to the first person who wants a headshot." />
+        <EmptyState
+          title="Nobody captured yet"
+          body="Open the capture link on your phone and hand it to the first person who wants a headshot."
+          action={
+            <ActionButton variant="secondary" size="sm" href={`${base}/e/${event.captureToken}`} target="_blank">
+              Open the capture link ↗
+            </ActionButton>
+          }
+        />
       ) : (
         <div className="overflow-x-auto rounded-[var(--r-md)] shadow-[inset_0_0_0_1px_var(--color-hairline)]">
           <table className="w-full text-sm">

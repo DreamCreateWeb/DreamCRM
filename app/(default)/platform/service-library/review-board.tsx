@@ -113,11 +113,21 @@ export default function ReviewBoard({ entries, orgNames }: Props) {
           <EmptyState
             title="No archived entries"
             body="Entries you archive will be kept here for the audit trail."
+            action={
+              <ActionButton variant="secondary" size="sm" onClick={() => setTab('active')}>
+                See active entries
+              </ActionButton>
+            }
           />
         ) : (
           <EmptyState
             title="No active entries yet"
             body="Approved services will appear here, available to every clinic."
+            action={
+              <ActionButton variant="secondary" size="sm" onClick={() => setTab('pending')}>
+                Review submissions
+              </ActionButton>
+            }
           />
         )
       ) : (

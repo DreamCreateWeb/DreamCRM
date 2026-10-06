@@ -229,6 +229,11 @@ export default function MembershipsClient({ plans, members, stats, publicBase, o
               icon="🦷"
               title="No members yet"
               body="Members appear here once they enroll from your site. Publish a plan and share the link to get started."
+              action={
+                <ActionButton variant="secondary" size="sm" onClick={() => setTab('plans')}>
+                  Set up a plan
+                </ActionButton>
+              }
             />
           ) : (
             members.map((m) => (

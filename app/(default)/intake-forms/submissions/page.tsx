@@ -9,6 +9,7 @@ import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
 import { formatClinicDayTime } from '@/lib/format-datetime'
 import { PageHeader } from '@/components/ui/page-header'
 import { EmptyState } from '@/components/ui/empty-state'
+import { ActionButton } from '@/components/ui/action-button'
 
 /**
  * Cross-template submissions index — the destination the intake list's
@@ -43,6 +44,11 @@ export default async function RecentSubmissionsPage() {
           icon="📝"
           title="No submissions yet"
           body="When a patient completes any of your intake forms, it lands here — newest first."
+          action={
+            <ActionButton variant="secondary" size="sm" href="/intake-forms">
+              Send a form
+            </ActionButton>
+          }
         />
       ) : (
         <div className="v2-card overflow-hidden">

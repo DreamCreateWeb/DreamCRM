@@ -182,11 +182,29 @@ export default function SubscriptionsPanel({ subscriptions, products }: Props) {
                       icon="💳"
                       title="No subscriptions yet"
                       body="Once a clinic completes Stripe Checkout, it'll show up here."
+                      action={
+                        <ActionButton variant="secondary" size="sm" href="/ecommerce/customers">
+                          Add a clinic
+                        </ActionButton>
+                      }
                     />
                   ) : (
                     <EmptyState
                       title="No subscriptions match these filters"
                       body="Try a different status, plan, or search term."
+                      action={
+                        <ActionButton
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => {
+                            setStatusFilter('all')
+                            setProductFilter('all')
+                            setSearch('')
+                          }}
+                        >
+                          Clear filters
+                        </ActionButton>
+                      }
                     />
                   )}
                 </td>

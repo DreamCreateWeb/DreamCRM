@@ -31,6 +31,7 @@ export default function PlansPanel({ products }: { products: AdminProduct[] }) {
             icon="📦"
             title="No active products in Stripe yet"
             body="Create a plan to start charging clinics."
+            action={<NewPlanButton />}
           />
         ) : (
           products.map((p) => <ProductRow key={p.id} product={p} />)

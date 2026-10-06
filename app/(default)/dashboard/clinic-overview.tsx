@@ -474,7 +474,12 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
             <EmptyState
               icon="☕"
               title="Nothing booked today."
-              body="Go enjoy a quiet morning."
+              body="Go enjoy a quiet morning — or put the first visit on the book."
+              action={
+                <ActionButton variant="secondary" size="sm" href="/appointments?new=1">
+                  Book a visit
+                </ActionButton>
+              }
             />
           ) : (
             <ul className="divide-y divide-[color:var(--color-hairline)]">
@@ -554,6 +559,11 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
             <EmptyState
               title="No activity yet."
               body="Bookings, intake submissions, and paid invoices will appear here."
+              action={
+                <ActionButton variant="secondary" size="sm" href="/appointments?new=1">
+                  Book the first visit
+                </ActionButton>
+              }
             />
           ) : (
             <ul className="divide-y divide-[color:var(--color-hairline)]">
