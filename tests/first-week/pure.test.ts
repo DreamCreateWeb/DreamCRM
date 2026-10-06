@@ -22,6 +22,7 @@ function row(overrides: Partial<FirstWeekRowInput> = {}): FirstWeekRowInput {
     lastStaffSignInAt: daysAgo(0),
     activation: { a1: null, a2: null, a3: null, a4: null, a5: null },
     pendingOnUs: [],
+    digestOn: true,
     ...overrides,
   }
 }
@@ -79,6 +80,15 @@ describe('stuck flags', () => {
     expect(stuckFlags(quietMachine, NOW)).toEqual([expect.stringMatching(/machine did nothing this week — check the Guardian/)])
     expect(stuckFlags(row({ createdAt: daysAgo(10), workLast7: 0 }), NOW)).toEqual([expect.stringMatching(/No data by day 10/)])
     expect(stuckFlags({ ...quietMachine, workLast7: 1 }, NOW)).toEqual([])
+  })
+
+  it('the morning email still off on day 1 is a reason to call (S7) — and it comes last', () => {
+    expect(stuckFlags(row({ createdAt: daysAgo(0), digestOn: false }), NOW)).toEqual([])
+    const flags = stuckFlags(row({ createdAt: daysAgo(STUCK.digestOffByDay), digestOn: false }), NOW)
+    expect(flags).toEqual([expect.stringMatching(/The morning email is off — nothing arrives on day two/)])
+    const both = stuckFlags(row({ createdAt: daysAgo(STUCK.noDataByDay), digestOn: false }), NOW)
+    expect(both.map((f) => f.slice(0, 12))).toEqual(['No data by d', 'The morning '])
+    expect(stuckFlags(row({ createdAt: daysAgo(STUCK.digestOffByDay), digestOn: true }), NOW)).toEqual([])
   })
 
   it('cards waiting 3+ days, and doors pending on us 5+ days, each name the move; the order is fixed', () => {

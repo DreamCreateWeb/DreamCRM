@@ -5767,6 +5767,22 @@ mocks `useConfirm`. The confirm is now awaited before the transition starts
 `tests/insurance/turn-off-dialog.test.tsx` renders the REAL ConfirmProvider
 so the dialog's appearance is the assertion.
 
+**2026-10-06 (night) — THE FIRST WEEK S7: the morning after.** Law 6 on the
+digest: pure `lib/morning-after.ts` adds WHAT HAPPENED (the ledger's night in
+the standup's nouns — `STANDUP_NOUNS` moved to pure `lib/standup-nouns.ts`,
+re-exported — plus the engine-failure count), ONE THING (a card on a human
+via the new `listOpenProposalsOnYou`, which shares `countOpenProposals`'
+grant rule through the extracted `grantedForCount`; then a broken readiness
+fact; then the next activation door from `ACTIVATION_DOORS` inside 30 days)
+and WHAT IT WAITS ON (`listPendingOnUs` / `readPendingOnUs`, extracted from
+the cockpit's row builder; `readMergedActivation` likewise). The digest
+sends through the first 7 days even when every list is empty (a quiet-night
+line, different before and after A1); the button lands on the one thing's
+door when My Day has nothing; the named card replaces the generic "N pieces
+waiting" line. Cockpit stuck flag #7: the morning email still off on day 1.
+Tests: `tests/activation/morning-after.test.ts` (every activation door is a
+real route), the digest and first-week suites. No new columns.
+
 **2026-10-06 (later still) — THE FIRST WEEK S6: every empty state carries
 a door.** 50 of the dashboard's 61 door-less `<EmptyState>` cards gained an
 `action`: the feature's own first action (Book a visit, Start a campaign,

@@ -476,7 +476,7 @@ the intro card while off).** All modules are **live** — there are no
 |---|---|---|---|
 | Daily | Overview | `/` → `/dashboard` | Morning-huddle: today's chair, attention cards, trends, activity feed, integrations-health banner, follow-up summary. Clinic-tz day windows. |
 | Daily | Dream Team | `/dream-team` | **THE AI STAFF (2026-08-23, docs/ai-operations.md).** The sign-here stack of finished work waiting on a yes (moved here from the Overview, which keeps only a calm summons strip), the take-it-back grants strip, the status band ("Cycles" heartbeat + waiting / going out soon / handled last week), the veto RUNWAY with per-row Stop, GOALS ("more implant patients" — flavors every generator's prompt; service focus DERIVED from the practice's own service list), SANDMAN (the chief of staff in conversation — aggregates-only snapshot, a closed navigation registry, and a closed REQUEST registry that can only ask an existing generator to run now, so everything it starts still lands as a draft needing a yes), and the ROSTER of six specialists with last week's real numbers. |
-| Daily | My Day | `/my-day` | Per-staff cockpit: my/unclaimed follow-ups, my conversations, today's schedule, collections nudge. Mirrored by the opt-in morning digest email (per-staff opt-out). |
+| Daily | My Day | `/my-day` | Per-staff cockpit: my/unclaimed follow-ups, my conversations, today's schedule, collections nudge. Mirrored by the opt-in morning digest email (per-staff opt-out) — which since S7 (2026-10-06) also says what the machine did overnight, names one thing to do and what is still on the platform (`lib/morning-after.ts`), and goes out through a clinic's first week even when the to-do list is empty. |
 | Daily | Messages | `/messages` (double-sidebar) | Front-style unified patient inbox (in_app + email + inbound SMS — replies thread as channel 'sms' once a clinic's texting is live; the outbound SMS composer option waits on the honesty flip). Receipts (in-app read + email Delivered/Opened/bounce via tagged Resend webhooks, 2026-07-14), attachments, AI draft, quick-book, scheduled send, star/unread, auto-reply after hours. ACTIVITY MARKERS (2026-07-23): every automated touch (reminders, campaigns+opened, bookings/cancels w/ actor, review asks, balance nudges, surveys, forms) interleaves the thread as thin gray context lines — read-time merge (`lib/services/thread-activity.ts`, no new write paths, history backfills free); LAW: markers never bump unread/reopen/reorder and never render in the patient portal; runs of 4+ collapse; open/click signals attribute per-send; pre-history older than 14d before the first message trims (the patient timeline keeps it all). Gmail mailbox at `/inbox`. SUPPORT tab (2026-08-26): `/messages/support` — the clinic's one thread to Dream Create, anchored on `conversations.organization_id` (set = support marker; generic chats store NULL). Platform-authored messages render as "Support" 🎧 BY CONTRACT (never a person's name — pinned by tests/messaging/support-view.test.tsx); the platform works the same thread from Client Messaging under the clinic's name, and its New-conversation composer routes into the org thread rather than minting a parallel one. Both directions alert via the notification registry (support_message / support_reply, urgent). |
 | Daily | Appointments | `/appointments` | Agenda grouped by clinic-local day; window chips; aging borders; drawer (confirm/reschedule/cancel/no-show + review request); bulk actions; saved views; CSV call-sheet export. |
 | Daily | Patients | `/patients` + `/patients/[id]` | Relationship record: glyphs, filters, saved views (promote-to-audience), tags, documents, merge, CSV import/export, bulk email/portal-invite. Detail: timeline (clinic-tz), needs-attention, notes, follow-ups. |
@@ -1011,8 +1011,17 @@ sitemap/robots/OG.
    for a named reason (all-clear, pane placeholder, composer-adjacent,
    fills-from-outside, a dead defensive branch) and
    `tests/activation/empty-state-doors.test.ts` holds the tree there with
-   the TypeScript parser, registered in the review gate) → S7 the day-two digest →
-   S8 activation stamped + measured. Adds no capability; adds the DOORS.
+   the TypeScript parser, registered in the review gate) → S7 the day-two
+   digest (SHIPPED 2026-10-06: pure `lib/morning-after.ts` adds WHAT
+   HAPPENED (the ledger's night in the standup's nouns, now in the pure
+   `lib/standup-nouns.ts`, plus engine failures), ONE THING (a card on a
+   human via `listOpenProposalsOnYou` → a broken readiness fact → the next
+   activation door from `ACTIVATION_DOORS` inside 30 days) and WHAT IT
+   WAITS ON (`listPendingOnUs`, shared with the cockpit) to the morning
+   digest; inside the first 7 days the digest sends even when every list
+   is empty; the button lands on the one thing's door when My Day has
+   nothing; the cockpit flags a clinic whose digest is still off on day 1)
+   → S8 activation stamped + measured. Adds no capability; adds the DOORS.
 
 -2. **THE DREAM TEAM / AI OPERATIONS PROGRAM (2026-08-23, owner directive —
    BUILDING NOW, in its own lane through the feature freeze).** Read

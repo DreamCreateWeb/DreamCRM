@@ -11,6 +11,12 @@ import { sendNotificationEmail } from '@/lib/email'
 import { formatDueLabel, todayYmd } from '@/lib/types/followups'
 import { sweepClinics } from '@/lib/services/cron-sweep'
 import type { SweepProgress } from '@/lib/cron-budget'
+import { countActionsSince, countFailuresSince } from '@/lib/services/action-ledger'
+import { listOpenProposalsOnYou } from '@/lib/services/proposals'
+import { getReadinessReport } from '@/lib/services/readiness'
+import { listPendingOnUs, readMergedActivation } from '@/lib/services/first-week'
+import { dayNumber } from '@/lib/first-week'
+import { buildMorningAfter, type MorningAfter } from '@/lib/morning-after'
 
 /**
  * Morning digest — the cockpit, delivered. A daily cron emails each staff member
@@ -18,6 +24,14 @@ import type { SweepProgress } from '@/lib/cron-budget'
  * linking back into /my-day. Opt-in per clinic (default off); demo clinics
  * skipped; idempotent per user per day via daily_digest_log. Reuses getMyDay for
  * the content + the staff-facing sendNotificationEmail for delivery.
+ *
+ * THE MORNING AFTER (docs/ACTIVATION.md law 6, S7): the email also says what
+ * the machine did since yesterday, names ONE thing to do, and says what is
+ * still on the platform — read once per clinic (lib/morning-after.ts is the
+ * pure half). A clinic in its first week gets the email even when its to-do
+ * list is empty; before this, "nothing to do" meant no email, and the thin
+ * day-two clinic the setup call had just promised a morning email heard
+ * nothing.
  */
 
 function newId(): string {
@@ -45,6 +59,9 @@ export interface DigestContent {
   body: string
   /** False when there's nothing worth emailing about (so we stay quiet). */
   hasContent: boolean
+  /** Where the email's button goes: My Day, or the one thing's own door when
+   *  there is no routine to-do to land on. */
+  linkPath: string
 }
 
 /**
@@ -89,6 +106,8 @@ export function buildDigestContent(
   /** Monday-only weekly website block (buildWebsiteWeekSection) — appended
    *  after the to-dos and counted as content on its own. */
   websiteSection?: string | null,
+  /** The morning after (S7): what happened, one thing, what it waits on. */
+  morning?: MorningAfter | null,
 ): DigestContent {
   const followupsDue = data.followups.overdue + data.followups.today
   const unconfirmed = data.unconfirmedTodayCount
@@ -97,14 +116,23 @@ export function buildDigestContent(
   const balanceCount = data.balances.count
   const proposals = data.openProposalsCount ?? 0
   const auditItems = data.tomorrow?.items ?? []
-  const hasContent =
+  const routine =
     followupsDue > 0 || unconfirmed > 0 || conversations > 0 || leads > 0 || balanceCount > 0 || proposals > 0 ||
-    auditItems.length > 0 ||
-    !!websiteSection
+    auditItems.length > 0
+  const hasContent = routine || !!websiteSection || !!morning?.sendsAlone
 
   const parts: string[] = []
-  parts.push(`Here's what's waiting on you at ${clinicName} today.`)
+  parts.push(routine ? `Here's what's waiting on you at ${clinicName} today.` : `Good morning from ${clinicName}'s Dream Team.`)
   parts.push('')
+  // What happened first — the law says "what it did overnight" before the asks.
+  if (morning?.happened) {
+    parts.push(morning.happened)
+    parts.push('')
+  }
+  if (morning?.oneThing) {
+    parts.push(`⭐ One thing today: ${morning.oneThing.text}`)
+    parts.push('')
+  }
 
   if (followupsDue > 0) {
     const overduePart = data.followups.overdue > 0 ? ` (${data.followups.overdue} overdue)` : ''
@@ -118,9 +146,11 @@ export function buildDigestContent(
   if (unconfirmed > 0) {
     parts.push(`📅 ${unconfirmed} visit${unconfirmed === 1 ? '' : 's'} today still need${unconfirmed === 1 ? 's' : ''} a confirmation.`)
   }
-  if (proposals > 0) {
+  if (proposals > 0 && morning?.oneThing?.kind !== 'card') {
     // Phase 2 (round-1 audit): the Approval Inbox must reach the morning
     // email — drafted work expires quietly if nobody is told it exists.
+    // (When the one thing above already NAMES the first card, this generic
+    // count would say the same thing twice.)
     parts.push(`✨ ${proposals} piece${proposals === 1 ? '' : 's'} of finished work ${proposals === 1 ? 'is' : 'are'} waiting on your yes (on your Dream Team page).`)
   }
   if (conversations > 0) {
@@ -143,11 +173,17 @@ export function buildDigestContent(
     }
     if (auditItems.length > 6) parts.push(`   …and ${auditItems.length - 6} more on My Day`)
   }
+  if (morning?.waitingOn) {
+    parts.push('')
+    parts.push(morning.waitingOn)
+  }
   if (websiteSection) {
     parts.push('')
     parts.push(websiteSection)
   }
-  if (!hasContent) {
+  if (morning?.quietLine) {
+    parts.push(morning.quietLine)
+  } else if (!hasContent) {
     parts.push("You're all caught up — nothing needs you this morning. Have a great day.")
   }
 
@@ -155,9 +191,59 @@ export function buildDigestContent(
   if (followupsDue > 0) subjBits.push(`${followupsDue} follow-up${followupsDue === 1 ? '' : 's'}`)
   if (unconfirmed > 0) subjBits.push(`${unconfirmed} to confirm`)
   if (leads > 0) subjBits.push(`${leads} new lead${leads === 1 ? '' : 's'}`)
-  const subject = subjBits.length > 0 ? `Your day: ${subjBits.join(', ')}` : `Your day at ${clinicName}`
+  const subject =
+    subjBits.length > 0
+      ? `Your day: ${subjBits.join(', ')}`
+      : morning?.happened
+        ? `Your day at ${clinicName}: what I did overnight`
+        : morning?.oneThing
+          ? `Your day at ${clinicName}: one thing`
+          : `Your day at ${clinicName}`
 
-  return { subject, body: parts.join('\n'), hasContent }
+  // The button lands on the one thing's own door only when there is no
+  // routine to-do for My Day to show — otherwise My Day holds the list.
+  const linkPath = !routine && morning?.oneThing ? morning.oneThing.href : '/my-day'
+
+  return { subject, body: parts.join('\n'), hasContent, linkPath }
+}
+
+/**
+ * The morning-after inputs for one clinic, read once per clinic (not per
+ * staff member), every read best-effort: a failed read says less, never
+ * blocks the morning to-dos. Returns null only when the whole thing fails.
+ */
+export async function readMorningAfter(organizationId: string, createdAt: Date, now: Date): Promise<MorningAfter | null> {
+  const since = new Date(now.getTime() - 24 * 60 * 60 * 1000)
+  const quiet = async <T,>(fallback: T, read: () => Promise<T>): Promise<T> => {
+    try {
+      return await read()
+    } catch (e) {
+      console.error('[daily-digest] morning-after read failed:', e)
+      return fallback
+    }
+  }
+  try {
+    const [work, failures, cards, report, pendingOnUs, activation] = await Promise.all([
+      quiet({} as Record<string, number>, () => countActionsSince(organizationId, since, { until: now })),
+      quiet(0, () => countFailuresSince(organizationId, since, { until: now, kind: 'engine' })),
+      quiet([], () => listOpenProposalsOnYou(organizationId, 5)),
+      quiet(null, () => getReadinessReport(organizationId)),
+      quiet([], () => listPendingOnUs(organizationId)),
+      readMergedActivation(organizationId),
+    ])
+    return buildMorningAfter({
+      day: dayNumber(createdAt, now),
+      activation,
+      work,
+      failures,
+      openCards: cards.map((c) => ({ title: c.title })),
+      pendingOnUs: pendingOnUs.map((p) => ({ label: p.label })),
+      attention: (report?.attention ?? []).map((f) => ({ label: f.label, summary: f.summary, href: f.href })),
+    })
+  } catch (e) {
+    console.error('[daily-digest] morning-after failed:', e)
+    return null
+  }
 }
 
 export interface DigestRunResult {
@@ -190,6 +276,7 @@ export async function runDailyDigest(opts?: { now?: Date }): Promise<DigestRunRe
       enabled: schema.clinicProfile.dailyDigestEnabled,
       isDemo: schema.organization.isDemo,
       clinicName: schema.organization.name,
+      createdAt: schema.organization.createdAt,
     })
     .from(schema.clinicProfile)
     .innerJoin(schema.organization, eq(schema.organization.id, schema.clinicProfile.organizationId))
@@ -230,6 +317,9 @@ export async function runDailyDigest(opts?: { now?: Date }): Promise<DigestRunRe
       websiteSection = null
     }
 
+    // The morning after (S7): once per clinic, best-effort.
+    const morning = await readMorningAfter(clinic.organizationId, clinic.createdAt ?? now, now)
+
     // Staff with an email (exclude patients) + the per-staff opt-out set.
     const [staff, optedOut] = await Promise.all([
       db
@@ -253,7 +343,7 @@ export async function runDailyDigest(opts?: { now?: Date }): Promise<DigestRunRe
         if (already) { result.skippedAlready++; continue }
 
         const data = await getMyDay(clinic.organizationId, s.userId)
-        const content = buildDigestContent(data, clinic.clinicName ?? 'your clinic', websiteSection)
+        const content = buildDigestContent(data, clinic.clinicName ?? 'your clinic', websiteSection, morning)
         if (!content.hasContent) { result.skippedEmpty++; continue }
 
         // Claim the day first (unique index makes a concurrent run skip), then send.
@@ -274,7 +364,7 @@ export async function runDailyDigest(opts?: { now?: Date }): Promise<DigestRunRe
           name: s.name ?? undefined,
           title: content.subject,
           body: content.body,
-          linkPath: '/my-day',
+          linkPath: content.linkPath,
         })
         result.sent++
       } catch (err) {
