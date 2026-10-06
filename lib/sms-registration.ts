@@ -320,6 +320,22 @@ export function isRegistrationStalled(
  * minutes over a review the carriers say takes weeks is a lie the clinic
  * discovers on its own schedule.
  */
+/**
+ * The one-word-ish label per state — the panel's pill AND the integrations
+ * card's "in progress" pill read the same words (S4: honest while pending).
+ */
+export const REGISTRATION_STATE_LABEL: Record<SmsRegistrationState, string> = {
+  none: 'Not set up',
+  collecting: 'Saving details',
+  brand_pending: 'Verifying your business',
+  brand_action_needed: 'One thing needed from you',
+  campaign_pending: 'Carriers reviewing',
+  number_pending: 'Connecting your number',
+  approved: 'Live',
+  rejected: 'Needs corrected details',
+  suspended: 'Paused on our side',
+}
+
 export function describeRegistrationState(state: SmsRegistrationState): string {
   switch (state) {
     case 'none':

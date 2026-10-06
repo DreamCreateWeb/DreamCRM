@@ -139,3 +139,19 @@ describe('getFirstWeekBoard', () => {
     expect(board.rows[0].facts).toEqual([])
   })
 })
+
+describe('getFirstWeekBoard — the PMS connect request (S4)', () => {
+  it('an open request is pending on US, named by the system, and reaches the row', async () => {
+    state.clinics = [{ orgId: 'org_r', name: 'Request Dental', slug: 'request-dental', isDemo: false, createdAt: daysAgo(9), patientCount: 0, subscriptionStatus: 'trialing' }]
+    state.rows.set(schema.pmsConnectRequest, [
+      { id: 'pmsreq_1', organizationId: 'org_r', vendor: 'eaglesoft', vendorName: null, practiceNameInPms: null, contactName: 'Ada', contactEmail: 'ada@example.com', contactPhone: null, bestTime: null, notes: null, status: 'requested', requestedByUserId: null, createdAt: daysAgo(6), updatedAt: daysAgo(6) },
+    ])
+    const board = await getFirstWeekBoard({ now: NOW })
+    const row = board.rows.find((r) => r.orgId === 'org_r')!
+    expect(row.pmsRequest).toEqual({ vendor: 'Eaglesoft', status: 'requested', at: daysAgo(6) })
+    expect(row.pendingOnUs.map((p) => p.label)).toContain('Connecting Eaglesoft')
+    // Six days on us clears the STUCK threshold (5): the owner is told.
+    expect(row.stuck.some((s) => s.startsWith('Connecting Eaglesoft has been on us'))).toBe(true)
+    state.rows.delete(schema.pmsConnectRequest)
+  })
+})

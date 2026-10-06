@@ -101,10 +101,6 @@ describe('catalog — category taxonomy', () => {
 describe('catalog — the REAL integrations are present (honest, no fake bulk)', () => {
   const expectIds = [
     'nexhealth',
-    'dentrix_ascend',
-    'dentrix_desktop',
-    'eaglesoft',
-    'curve',
     'googlebusiness',
     'instagram',
     'facebook',
@@ -120,15 +116,23 @@ describe('catalog — the REAL integrations are present (honest, no fake bulk)',
     expect(integrationById(id), id).toBeTruthy()
   })
 
-  it('the PMS bridge is THE one PMS door — request-access, detail page, OD named', () => {
+  it('the PMS bridge is THE one PMS door — live, pms-kind (a connect REQUEST), detail page, the systems named', () => {
     // Owner ruling 2026-08-19: one connector path. The old self-serve
-    // open_dental card must not come back.
+    // open_dental card must not come back. S4 (docs/ACTIVATION.md): the
+    // former roadmap tiles fold under this card — the bridge already
+    // reaches those systems, so a "coming soon" tile for them was false.
     expect(integrationById('open_dental')).toBeUndefined()
+    for (const id of ['dentrix_ascend', 'dentrix_desktop', 'eaglesoft', 'curve']) {
+      expect(integrationById(id), `${id} folds under the bridge`).toBeUndefined()
+    }
     const bridge = integrationById('nexhealth')!
-    expect(bridge.availability).toBe('request_access')
-    expect(bridge.connectKind).toBe('none')
+    expect(bridge.availability).toBe('live')
+    expect(bridge.connectKind).toBe('pms')
     expect(bridge.detailHref).toBe('/integrations/pms')
-    expect(bridge.name).toContain('Open Dental')
+    expect(bridge.tagline).toContain('Open Dental')
+    expect(bridge.tagline).toContain('Dentrix')
+    expect(searchableText(bridge)).toContain('eaglesoft')
+    expect(searchableText(bridge)).toContain('curve')
   })
 
   it('Google Business is live + free (no minPlan) + zernio-kind, never counts toward the cap', () => {
@@ -155,11 +159,20 @@ describe('catalog — the REAL integrations are present (honest, no fake bulk)',
     expect(integrationById('stripe_connect')!.availability).toBe('live')
   })
 
-  it('SMS + the non-Open-Dental PMSs are honest roadmap/request-access (not faked live)', () => {
-    expect(integrationById('sms')!.availability).toBe('coming_soon')
-    expect(integrationById('dentrix_ascend')!.availability).toBe('request_access')
-    for (const id of ['dentrix_desktop', 'eaglesoft', 'curve']) {
-      expect(integrationById(id)!.availability, id).toBe('coming_soon')
+  it('texting is LIVE in the catalog — the door opens the day a clinic can START (S4, law 3)', () => {
+    const sms = integrationById('sms')!
+    expect(sms.availability).toBe('live')
+    expect(sms.connectKind).toBe('external_link')
+    expect(sms.detailHref).toBe('/integrations/sms')
+  })
+
+  it('no catalog def says "coming soon" any more (docs/ACTIVATION.md law 3)', () => {
+    for (const def of INTEGRATIONS_CATALOG) {
+      expect(def.availability, def.id).not.toBe('coming_soon')
+      for (const text of [def.tagline, def.description, def.note ?? '']) {
+        expect(text.toLowerCase(), `${def.id}: ${text}`).not.toContain('coming soon')
+        expect(text.toLowerCase(), `${def.id}: ${text}`).not.toContain('on the roadmap')
+      }
     }
   })
 

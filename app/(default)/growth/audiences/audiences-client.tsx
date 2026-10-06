@@ -785,7 +785,7 @@ function PatientAudienceEditor({
             />
             <ToggleField
               label="Require SMS opt-in"
-              help="For text sends (coming soon). Leaves out patients who haven't agreed to texts"
+              help="For text sends. Leaves out patients who haven't agreed to texts"
               checked={filter.requireSmsOptIn === true}
               onChange={(v) => setFilter((f) => ({ ...f, requireSmsOptIn: v }))}
             />

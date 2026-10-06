@@ -65,10 +65,10 @@ describe('SocialConnectionsCard (Billing summary)', () => {
     expect(screen.getByText(/start on the Pro plan/i)).toBeTruthy()
   })
 
-  it('shows "coming soon" copy when the Stripe prices are not configured', () => {
+  it('says "not for sale yet" when the Stripe prices are not configured (never "coming soon")', () => {
     render(<SocialConnectionsCard {...props({ addonConfigured: false })} />)
-    // "Coming soon" now shows on both the status pill and the nudge line.
-    expect(screen.getAllByText(/coming soon/i).length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/not for sale yet/i).length).toBeGreaterThan(0)
+    expect(screen.queryByText(/coming soon/i)).toBeNull()
   })
 
   it('shows the managed-billing message for a comped clinic', () => {

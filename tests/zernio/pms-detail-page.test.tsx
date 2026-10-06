@@ -150,7 +150,7 @@ describe('PMS detail page — connected dashboard', () => {
     expect(screen.queryByText(/Open Dental's official API/i)).toBeNull()
   })
 
-  it('unconnected → explains the guided install; NO Customer-Key form', async () => {
+  it('unconnected → THE FRONT DOOR: the intro + the one connect-request form; NO Customer-Key form (S4)', async () => {
     svc.getIntegrationsDashboard.mockResolvedValue({
       connection: null,
       counts: { patients: 0, appointments: 0, providers: 0 },
@@ -161,7 +161,9 @@ describe('PMS detail page — connected dashboard', () => {
     })
     const ui = await PmsDetailPage()
     render(ui)
-    expect(screen.getByText(/One bridge reaches nearly every PMS/i)).toBeTruthy()
+    expect(screen.getByText('Connect your practice software')).toBeTruthy()
+    expect(screen.getByTestId('pms-connect-form')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Request the connection' })).toBeTruthy()
     expect(screen.getByText('What we sync')).toBeTruthy()
     // The old self-serve key entry must not come back.
     expect(screen.queryByLabelText(/Customer Key/i)).toBeNull()
@@ -180,6 +182,7 @@ describe('PMS detail page — connected dashboard', () => {
     })
     const ui = await PmsDetailPage()
     render(ui)
-    expect(screen.getByText(/needs an owner or admin/i)).toBeTruthy()
+    expect(screen.getByText(/An owner or admin can request the connection/i)).toBeTruthy()
+    expect(screen.queryByTestId('pms-connect-form')).toBeNull()
   })
 })

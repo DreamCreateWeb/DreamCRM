@@ -10,7 +10,6 @@ import type { Tone } from '@/lib/ui/encodings'
 import { BrandLogo, BrandLogoWell, BRAND_ACCENTS, type BrandLogoId } from '@/components/integrations/brand-logos'
 import { searchableText, type IntegrationDef } from '@/lib/integrations/catalog'
 import type { ResolvedIntegration } from '@/lib/integrations/resolve'
-import PmsRequestButton from './pms-request-button'
 import {
   bundleLogos,
   type BundleDef,
@@ -89,9 +88,6 @@ export interface IntegrationsLibraryProps {
   /** Owner/admin — connect/disconnect/add-on actions render only when true
    *  (the server actions reject members; don't show buttons that can only fail). */
   canManage: boolean
-  /** Roadmap PMS provider ids this clinic has already requested early access
-   *  to — so the tile shows "you're on the list" instead of the button. */
-  requestedPms?: string[]
 }
 
 export default function IntegrationsLibrary({
@@ -106,10 +102,8 @@ export default function IntegrationsLibrary({
   routeError,
   isDemo,
   canManage,
-  requestedPms = [],
 }: IntegrationsLibraryProps) {
   const router = useRouter()
-  const requestedPmsSet = new Set(requestedPms)
   const [pending, start] = useTransition()
   // Which integration the running action belongs to. Every card in the
   // marketplace reads the same `pending`, so without this, acting on one of
@@ -205,7 +199,6 @@ export default function IntegrationsLibrary({
     capAllowed: cap.allowed,
     addonAvailable: entitlement.addonAvailable,
     addonActive: entitlement.addonActive,
-    requestedPms: requestedPmsSet,
   }
 
   // The connected accounts across every bundle (for the overview logo stack).
@@ -389,6 +382,7 @@ function SearchBox({ query, onQuery }: { query: string; onQuery: (v: string) => 
 
 const BUNDLE_STATUS_PILL: Record<BundleStatus, { tone: Tone; label: string }> = {
   active: { tone: 'ok', label: 'Active' },
+  pending: { tone: 'info', label: 'In progress' },
   available: { tone: 'neutral', label: 'Available' },
   request_access: { tone: 'info', label: 'Request access' },
   coming_soon: { tone: 'neutral', label: 'On the roadmap' },
@@ -626,16 +620,18 @@ interface CardHandlers {
   addonAvailable: boolean
   addonActive: boolean
   /** Roadmap PMS ids this clinic already requested early access to. */
-  requestedPms: Set<string>
 }
 
 const STATUS_PILL: Record<string, { tone: Tone; label: string }> = {
   connected: { tone: 'ok', label: 'Connected' },
   needs_attention: { tone: 'urgent', label: 'Needs attention' },
+  // `pending` reads its label from the runtime (the feature's own words —
+  // "Carriers reviewing", "We’re connecting it"); see IntegrationCard.
+  pending: { tone: 'info', label: 'In progress' },
   available: { tone: 'neutral', label: 'Not connected' },
   at_cap: { tone: 'neutral', label: 'Not connected' },
   request_access: { tone: 'info', label: 'Request access' },
-  coming_soon: { tone: 'neutral', label: 'Coming soon' },
+  coming_soon: { tone: 'neutral', label: 'On the roadmap' },
   unavailable: { tone: 'neutral', label: 'Not connected' },
 }
 
@@ -647,7 +643,10 @@ const STATUS_PILL: Record<string, { tone: Tone; label: string }> = {
 function IntegrationCard({ resolved, handlers }: { resolved: ResolvedIntegration; handlers: CardHandlers }) {
   const { def, runtime } = resolved
   const accent = BRAND_ACCENTS[def.logo]
-  const pillMeta = STATUS_PILL[runtime.status] ?? STATUS_PILL.available
+  const pillMeta =
+    runtime.status === 'pending' && runtime.pendingLabel
+      ? { tone: 'info' as Tone, label: runtime.pendingLabel }
+      : (STATUS_PILL[runtime.status] ?? STATUS_PILL.available)
 
   return (
     <AppCard
@@ -777,26 +776,29 @@ function DisconnectedActions({
   runtime: ResolvedIntegration['runtime']
   handlers: CardHandlers
 }) {
-  // Roadmap / partner tiles — an honest note + (for the roadmap PMSs) a
-  // "notify me when it's ready" demand-capture button. No fake connect.
+  // IN PROGRESS (S4, law 3): started, and waiting on someone outside the
+  // clinic — the pill already says who. The door is the detail page, where
+  // the status sentence names the next step. Members see it too.
+  if (runtime.status === 'pending') {
+    return def.detailHref ? (
+      <ActionButton variant="secondary" size="sm" href={def.detailHref}>
+        See progress
+      </ActionButton>
+    ) : null
+  }
+
+  // Roadmap / partner tiles — an honest note, and a door to the detail page
+  // when one exists. No fake connect. (No such tile ships today; the kept
+  // branch is what keeps the catalog contract honest if one returns.)
   if (runtime.status === 'coming_soon' || runtime.status === 'request_access') {
     return (
       <div className="space-y-2">
         {def.note && <p className="text-xs text-gray-500 dark:text-gray-400">{def.note}</p>}
-        {def.detailHref ? (
-          // The LIVE bridge (request-access because connecting is a guided
-          // install, not because it doesn't exist) — door to the detail page.
+        {def.detailHref && (
           <ActionButton variant="secondary" size="sm" href={def.detailHref}>
             How connecting works
           </ActionButton>
-        ) : def.category === 'pms' ? (
-          // Roadmap PMS tiles — honest demand capture, never a fake connect.
-          <PmsRequestButton
-            provider={def.id}
-            alreadyRequested={handlers.requestedPms.has(def.id)}
-            canManage={handlers.canManage}
-          />
-        ) : null}
+        )}
       </div>
     )
   }
@@ -811,13 +813,36 @@ function DisconnectedActions({
     )
   }
 
-  // PMS (available) — the detail page hosts the connect form.
+  // PMS (available) — the detail page hosts the connect REQUEST (S4: the
+  // bridge is installed by the platform; the clinic asks in one form).
   if (def.connectKind === 'pms') {
-    return def.detailHref ? (
-      <ActionButton variant="primary" size="sm" href={def.detailHref}>
-        Connect
-      </ActionButton>
-    ) : null
+    return (
+      <div className="space-y-2">
+        {def.note && <p className="text-xs text-gray-500 dark:text-gray-400">{def.note}</p>}
+        {def.detailHref && (
+          <ActionButton variant="primary" size="sm" href={def.detailHref}>
+            Connect
+          </ActionButton>
+        )}
+      </div>
+    )
+  }
+
+  // External-link kind (texting): the detail page hosts the one form.
+  if (def.connectKind === 'external_link') {
+    if (runtime.status === 'unavailable') {
+      return <p className="text-xs text-gray-500 dark:text-gray-400 italic">Not enabled on this installation.</p>
+    }
+    return (
+      <div className="space-y-2">
+        {def.note && <p className="text-xs text-gray-500 dark:text-gray-400">{def.note}</p>}
+        {def.detailHref && (
+          <ActionButton variant="primary" size="sm" href={def.detailHref}>
+            Set up texting
+          </ActionButton>
+        )}
+      </div>
+    )
   }
 
   // Zernio (GBP + social).
@@ -940,7 +965,7 @@ function SocialAddonCard({
           </ActionButton>
         ) : !entitlement.addonConfigured ? (
           <ActionButton variant="secondary" size="sm" disabled>
-            Add-on coming soon
+            Add-on not for sale yet
           </ActionButton>
         ) : (
           <ActionButton variant="primary" size="sm" onClick={onBuy} pending={pending}>

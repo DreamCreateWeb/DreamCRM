@@ -27,7 +27,6 @@ const GBP = integrationById('googlebusiness')!
 const IG = integrationById('instagram')!
 const GMAIL = integrationById('gmail')!
 const SMS = integrationById('sms')!
-const ASCEND = integrationById('dentrix_ascend')!
 
 describe('resolveIntegration — connected states win', () => {
   it('connected → status connected + carries handle/title', () => {
@@ -75,18 +74,42 @@ describe('resolveIntegration — connected states win', () => {
 })
 
 describe('resolveIntegration — lifecycle (not connectable)', () => {
-  it('coming_soon def → coming_soon status', () => {
-    expect(resolveIntegration(SMS, state()).runtime.status).toBe('coming_soon')
+  it('coming_soon def → coming_soon status (no such def ships today; the contract stays)', () => {
+    const fake: IntegrationDef = { ...SMS, id: 'fake_soon', availability: 'coming_soon', connectKind: 'none' }
+    expect(resolveIntegration(fake, state()).runtime.status).toBe('coming_soon')
   })
 
   it('request_access def → request_access status', () => {
-    expect(resolveIntegration(ASCEND, state()).runtime.status).toBe('request_access')
+    const fake: IntegrationDef = { ...SMS, id: 'fake_req', availability: 'request_access', connectKind: 'none' }
+    expect(resolveIntegration(fake, state()).runtime.status).toBe('request_access')
+  })
+})
+
+describe('resolveIntegration — texting + the pending state (S4)', () => {
+  it('SMS is available when the instance has a driver, unavailable when it does not', () => {
+    expect(resolveIntegration(SMS, state()).runtime.status).toBe('available')
+    expect(resolveIntegration(SMS, state({ smsConfigured: true })).runtime.status).toBe('available')
+    expect(resolveIntegration(SMS, state({ smsConfigured: false })).runtime.status).toBe('unavailable')
+  })
+
+  it('a pending fact → status pending with the label, beating availability and the driver check', () => {
+    const r = resolveIntegration(SMS, state({ smsConfigured: false, connections: { sms: { connected: false, pending: 'Carriers reviewing' } } }))
+    expect(r.runtime.status).toBe('pending')
+    expect(r.runtime.pendingLabel).toBe('Carriers reviewing')
+    expect(r.runtime.connected).toBe(false)
+    const pms = resolveIntegration(OD, state({ connections: { nexhealth: { connected: false, pending: 'We’re connecting it' } } }))
+    expect(pms.runtime.status).toBe('pending')
+  })
+
+  it('connected beats pending; errored beats pending', () => {
+    expect(resolveIntegration(SMS, state({ connections: { sms: { connected: true, pending: 'x' } } })).runtime.status).toBe('connected')
+    expect(resolveIntegration(SMS, state({ connections: { sms: { connected: false, errored: true, pending: 'x' } } })).runtime.status).toBe('needs_attention')
   })
 })
 
 describe('resolveIntegration — no plan gating (single-plan reality)', () => {
-  it('the PMS bridge + not connected → request_access (a guided install, never tier-locked)', () => {
-    expect(resolveIntegration(OD, state()).runtime.status).toBe('request_access')
+  it('the PMS bridge + not connected → available (a connect REQUEST, never tier-locked)', () => {
+    expect(resolveIntegration(OD, state()).runtime.status).toBe('available')
   })
 
   it('an oauth def + not connected → available', () => {
@@ -129,7 +152,7 @@ describe('resolveIntegration — connectability', () => {
 describe('resolveCatalog + connectedCount', () => {
   it('resolves every def in the catalog', () => {
     const all = resolveCatalog(state())
-    expect(all.length).toBeGreaterThanOrEqual(14)
+    expect(all.length).toBeGreaterThanOrEqual(10)
     for (const r of all) expect(r.runtime.status).toBeTruthy()
   })
 
@@ -150,7 +173,7 @@ describe('resolveCatalog + connectedCount', () => {
   it('every clinic sees the PMS bridge, GBP + Gmail reachable (no tiers)', () => {
     const all = resolveCatalog(state({}))
     const byId = Object.fromEntries(all.map((r) => [r.def.id, r.runtime.status]))
-    expect(byId.nexhealth).toBe('request_access')
+    expect(byId.nexhealth).toBe('available')
     expect(byId.googlebusiness).toBe('available')
     expect(byId.gmail).toBe('available')
   })

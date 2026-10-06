@@ -7,6 +7,8 @@ import { PageHeader } from '@/components/ui/page-header'
 import { PROVIDER_LABELS, type PmsProviderId } from '@/lib/types/pms'
 import { SyncNowButton } from '../sync-controls'
 import { PmsConnectedDashboard, ScopeSection } from '../_pms-dashboard'
+import { getPmsConnectRequest } from '@/lib/services/pms-connect'
+import PmsConnectRequest from './connect-request'
 
 export const metadata = {
   title: 'PMS sync - Integrations - DreamCRM',
@@ -46,9 +48,11 @@ export default async function PmsDetailPage() {
     </Link>
   )
 
-  const [dashboard, health] = await Promise.all([
+  const [dashboard, health, request] = await Promise.all([
     getIntegrationsDashboard(ctx.organizationId),
     getIntegrationsHealth(ctx.organizationId),
+    // The clinic's connect request (S4) — the door's own state. Best-effort.
+    getPmsConnectRequest(ctx.organizationId).catch(() => null),
   ])
 
   const connection = dashboard?.connection ?? null
@@ -63,7 +67,7 @@ export default async function PmsDetailPage() {
 
       <PageHeader
         eyebrow={`Business · ${ctx.organizationName}`}
-        title={connected ? `${providerLabel} sync` : 'PMS sync'}
+        title={connected ? `${providerLabel} sync` : 'Your practice software'}
         subtitle="The relationship layer over your practice-management system — synced through its official, sanctioned path, never by writing into your database behind its back."
         actions={connected && canManage ? <SyncNowButton /> : null}
       />
@@ -71,25 +75,32 @@ export default async function PmsDetailPage() {
       {connected && dashboard ? (
         <PmsConnectedDashboard dashboard={dashboard} health={health} canManage={canManage} />
       ) : (
-        /* Unconnected — the honest we-set-it-up-with-you story (no key form:
-           the bridge install is a short guided session, not a paste box). */
+        /* Unconnected — THE FRONT DOOR (docs/ACTIVATION.md S4): the intro
+           and one form that asks us to connect it, then an honest status
+           until the install runs. No key form: the bridge install is a
+           short guided session, not a paste box. */
         <section className="space-y-8">
-          <div className="v2-panel p-5 space-y-3">
-            <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100">
-              One bridge reaches nearly every PMS
-            </h2>
-            <p className="text-sm text-gray-600 dark:text-gray-400">
-              Open Dental, Dentrix, Eaglesoft, and most other practice-management systems connect
-              through one short server install — we handle it with you (your machine, your IT&apos;s,
-              or a remote session), at no cost to your practice. Once connected, your patients and
-              appointments sync in automatically and online booking offers your real open times.
-            </p>
-            <p className="text-sm text-gray-600 dark:text-gray-400">
-              {canManage
-                ? 'Ready when you are — reach Support from Settings → Feedback and we’ll schedule it.'
-                : 'Connecting needs an owner or admin — ask them to schedule the short install with Support.'}
-            </p>
-          </div>
+          <PmsConnectRequest
+            request={
+              request
+                ? {
+                    vendor: request.vendor,
+                    vendorName: request.vendorName,
+                    practiceNameInPms: request.practiceNameInPms,
+                    contactName: request.contactName,
+                    contactEmail: request.contactEmail,
+                    contactPhone: request.contactPhone,
+                    bestTime: request.bestTime,
+                    notes: request.notes,
+                    status: request.status,
+                    updatedAtIso: request.updatedAt.toISOString(),
+                  }
+                : null
+            }
+            canManage={canManage && !ctx.isDemo}
+            defaultContactName={ctx.userName ?? null}
+            defaultContactEmail={ctx.userEmail ?? null}
+          />
           <ScopeSection />
         </section>
       )}

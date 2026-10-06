@@ -216,81 +216,30 @@ export const INTEGRATIONS_CATALOG: IntegrationDef[] = [
   // ── Practice management ────────────────────────────────────────────────────
   {
     // THE one PMS door (owner ruling 2026-08-19: one connector path, not
-    // two). The old self-serve Open Dental Customer-Key card is GONE — Open
-    // Dental practices connect through the same NexHealth Synchronizer as
-    // everyone else, which was already the live universal bridge and never
-    // needed OD's vendor-portal approval. Clinics can't self-serve this one —
-    // a small Synchronizer service gets installed on the practice's server
-    // (we handle it), so the card is request-access and the copy says so
-    // plainly. Once bound (platform-ops side) the connected state takes over.
+    // two; S4 2026-10-06: a FRONT DOOR, not a "request access" tile). The
+    // NexHealth Synchronizer reaches Open Dental, Dentrix, Dentrix Ascend,
+    // Eaglesoft, Curve and most others, so the former roadmap tiles for
+    // those systems are FOLDED under this card — they were "coming soon"
+    // for systems the bridge already served. A clinic can't install the
+    // bridge itself (platform-side), so the card's connect is a REQUEST in
+    // one form (lib/pms-connect.ts) and an honest status until the install
+    // runs. Once bound the connected state takes over.
     id: 'nexhealth',
-    name: 'Open Dental, Dentrix + more',
+    name: 'Your practice software',
     category: 'pms',
     logo: 'open_dental',
-    tagline: 'Your practice-management system, through one bridge — we set it up with you.',
+    tagline: 'Open Dental, Dentrix, Eaglesoft, Curve and more — one bridge, set up with you.',
     description:
-      'One connection that reaches Open Dental, Dentrix, Eaglesoft, and most other practice-management systems. A short install on your server (we handle it — yours, your IT’s, or our remote session), then your patients and appointments sync in automatically, with online booking offering your real open times.',
-    keywords: ['pms', 'practice management', 'open dental', 'dentrix', 'eaglesoft', 'nexhealth', 'synchronizer', 'bridge', 'sync', 'patients', 'appointments', 'two-way'],
-    availability: 'request_access',
-    connectKind: 'none',
+      'One connection that reaches Open Dental, Dentrix, Dentrix Ascend, Eaglesoft, Curve and most other practice-management systems. Tell us which one you run; a short install on your server (ours to do, with you or your IT) connects it, and your patients and appointments sync in automatically, with online booking offering your real open times.',
+    keywords: ['pms', 'practice management', 'open dental', 'dentrix', 'dentrix ascend', 'eaglesoft', 'curve', 'nexhealth', 'synchronizer', 'bridge', 'sync', 'patients', 'appointments', 'two-way'],
+    availability: 'live',
+    connectKind: 'pms',
     detailHref: '/integrations/pms',
-    note: 'We set this up with you — Reach Support and we’ll schedule the short server install. No cost to your practice.',
+    note: 'A short install we do with you — no cost to your practice. Request it and you’ll hear from us within a day.',
     valueLinks: [
       { href: '/patients', label: 'Patients' },
       { href: '/appointments', label: 'Appointments' },
     ],
-  },
-  {
-    id: 'dentrix_ascend',
-    name: 'Dentrix Ascend',
-    category: 'pms',
-    logo: 'dentrix_ascend',
-    tagline: 'Cloud Dentrix via the Henry Schein One API Exchange.',
-    description:
-      'Cloud Dentrix, through the Henry Schein One API Exchange. Requires Henry Schein One partner approval — request access and we’ll enable it for your practice.',
-    keywords: ['pms', 'practice management', 'dentrix', 'ascend', 'henry schein', 'cloud'],
-    availability: 'request_access',
-    connectKind: 'none',
-    note: 'Through the Henry Schein One API Exchange (official API only). Needs partner approval — the more practices waiting, the sooner we pursue it.',
-  },
-  {
-    id: 'dentrix_desktop',
-    name: 'Dentrix (desktop)',
-    category: 'pms',
-    logo: 'dentrix_desktop',
-    tagline: 'On-prem Dentrix G-series via the Developer Program.',
-    description:
-      'On-premise Dentrix G-series through the Dentrix Developer Program. Needs a signed local connector installed at each location. On the roadmap after Open Dental.',
-    keywords: ['pms', 'practice management', 'dentrix', 'desktop', 'g-series', 'on-prem'],
-    availability: 'coming_soon',
-    connectKind: 'none',
-    note: 'On-prem G-series via the Dentrix Developer Program (signed connector per location). On the roadmap — raise your hand to help us prioritize it.',
-  },
-  {
-    id: 'eaglesoft',
-    name: 'Eaglesoft',
-    category: 'pms',
-    logo: 'eaglesoft',
-    tagline: 'Patterson’s PMS via Patterson Innovation Connection.',
-    description:
-      'Patterson’s PMS — integrations run through Patterson Innovation Connection with a local agent. The most closed of the majors. On the roadmap.',
-    keywords: ['pms', 'practice management', 'eaglesoft', 'patterson'],
-    availability: 'coming_soon',
-    connectKind: 'none',
-    note: 'Via Patterson Innovation Connection (local agent). The most closed of the majors — demand tells us whether it’s worth the lift.',
-  },
-  {
-    id: 'curve',
-    name: 'Curve Dental',
-    category: 'pms',
-    logo: 'curve',
-    tagline: 'Cloud-native PMS with an open-architecture partner network.',
-    description:
-      'Cloud-native PMS with an open-architecture partner network. On the roadmap after Open Dental and Dentrix.',
-    keywords: ['pms', 'practice management', 'curve', 'cloud'],
-    availability: 'coming_soon',
-    connectKind: 'none',
-    note: 'Cloud-native, open partner network — the most integration-friendly after Open Dental. Raise your hand and we’ll pursue it.',
   },
 
   // ── Google ─────────────────────────────────────────────────────────────────
@@ -398,18 +347,17 @@ export const INTEGRATIONS_CATALOG: IntegrationDef[] = [
     name: 'Text messaging (SMS)',
     category: 'communication',
     logo: 'sms',
-    tagline: 'Reminders, recall, and review requests by text.',
+    tagline: 'Reminders, recall, and review requests by text — from your own number.',
     description:
-      'Two-way SMS for appointment reminders, recall nudges, review requests, and patient replies — through AWS End User Messaging with A2P 10DLC registration. Genuinely on the roadmap.',
+      'Two-way texting for appointment reminders, recall nudges, review requests and patient replies, from your practice’s own number. The carriers verify every business that texts (A2P 10DLC) — one form starts it, and the status here tells the truth about where their review stands.',
     keywords: ['communication', 'sms', 'text', 'messaging', 'reminders', 'a2p', '10dlc'],
-    availability: 'coming_soon',
-    connectKind: 'none',
-    note: 'In the works — carrier registration (A2P 10DLC) takes a few weeks once it kicks off.',
-    // The registration surface (Phase 5 limb 3). Renders the coming-soon
-    // posture until SMS_DRIVER is live, so linking it early is honest; the
-    // resolver puts a connected FACT above `availability`, so a clinic whose
-    // registration reaches 'approved' reads connected before the global
-    // honesty flip.
+    // S4 (docs/ACTIVATION.md law 3): the catalog flips the day a clinic can
+    // START, not the day one finishes — the registration form is live, the
+    // carriers' review is the honest pending state. The resolver marks the
+    // card `unavailable` on an installation with no SMS driver.
+    availability: 'live',
+    connectKind: 'external_link',
+    note: 'One form, once. The carriers’ review takes a few weeks; you’ll see honest progress here.',
     detailHref: '/integrations/sms',
   },
 

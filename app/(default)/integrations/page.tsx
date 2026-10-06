@@ -3,8 +3,10 @@ import { and, eq } from 'drizzle-orm'
 import { requireTenant } from '@/lib/auth/context'
 import { db, schema } from '@/lib/db'
 import { getIntegrationsDashboard } from '@/lib/services/pms'
-import { getRequestedPms } from '@/lib/services/pms-interest'
-import { getSmsRegistration } from '@/lib/services/sms-registration'
+import { getPmsConnectRequest } from '@/lib/services/pms-connect'
+import { describePmsConnectStatus, pmsVendorLabel } from '@/lib/pms-connect'
+import { getSmsRegistration, smsDriver } from '@/lib/services/sms-registration'
+import { REGISTRATION_STATE_LABEL } from '@/lib/sms-registration'
 import { formatPhone } from '@/lib/phone'
 import { getZernioConnection } from '@/lib/services/zernio'
 import { getShopConfig } from '@/lib/services/shop'
@@ -66,7 +68,7 @@ export default async function IntegrationsPage({
   // Load the live state for the integrations we actually wire. GBP + social +
   // Gmail + Stripe load for everyone; the PMS dashboard only for Premium (the
   // full PMS dashboard lives on the detail route).
-  const [dashboard, zernio, cap, profileRow, shopConfig, gmailRows, requestedPmsSet, smsReg] = await Promise.all([
+  const [dashboard, zernio, cap, profileRow, shopConfig, gmailRows, pmsRequest, smsReg] = await Promise.all([
     getIntegrationsDashboard(ctx.organizationId),
     getZernioConnection(ctx.organizationId),
     canConnectSocialPlatform(ctx.organizationId),
@@ -86,9 +88,9 @@ export default async function IntegrationsPage({
       .from(schema.emailAccount)
       .where(and(eq(schema.emailAccount.organizationId, ctx.organizationId), eq(schema.emailAccount.disabled, false)))
       .limit(5),
-    // Roadmap PMSs this clinic has already requested early access to (Premium
-    // only — the catalog + request flow are Premium-gated).
-    getRequestedPms(ctx.organizationId),
+    // The clinic's PMS connect request (S4) — the honest "we're connecting
+    // it" state between asking and the bridge being bound. Best-effort.
+    getPmsConnectRequest(ctx.organizationId).catch(() => null),
     // SMS registration state (Phase 5 limb 3) — dark ('none') until
     // SMS_DRIVER is set; best-effort so a hiccup never breaks the grid.
     getSmsRegistration(ctx.organizationId).catch(() => null),
@@ -110,6 +112,13 @@ export default async function IntegrationsPage({
       isDemo: connection.provider === 'demo',
       title:
         PROVIDER_LABELS[connection.provider as keyof typeof PROVIDER_LABELS] ?? connection.provider ?? 'Your PMS',
+    }
+  } else if (pmsRequest && (pmsRequest.status === 'requested' || pmsRequest.status === 'scheduled')) {
+    // Asked, not yet bound — in progress on OUR side (S4, law 3).
+    connections.nexhealth = {
+      connected: false,
+      pending: describePmsConnectStatus(pmsRequest.status, pmsVendorLabel(pmsRequest.vendor, pmsRequest.vendorName)).pill,
+      title: pmsVendorLabel(pmsRequest.vendor, pmsRequest.vendorName),
     }
   }
 
@@ -153,9 +162,13 @@ export default async function IntegrationsPage({
   // page (their fix, or our honest "we're on it") — the badge is the door,
   // the page is the sentence.
   if (smsReg && smsReg.state !== 'none') {
+    const errored = ['brand_action_needed', 'rejected', 'suspended'].includes(smsReg.state)
     connections.sms = {
       connected: smsReg.state === 'approved',
-      errored: ['brand_action_needed', 'rejected', 'suspended'].includes(smsReg.state),
+      errored,
+      // Started and waiting on the carriers (S4, law 3): the card says so in
+      // the registration's own words rather than "Not connected".
+      pending: smsReg.state !== 'approved' && !errored ? REGISTRATION_STATE_LABEL[smsReg.state] : null,
       title: smsReg.phoneNumber ? formatPhone(smsReg.phoneNumber) : 'Registration in progress',
     }
   }
@@ -174,6 +187,7 @@ export default async function IntegrationsPage({
 
   const liveState: LiveIntegrationState = {
     zernioConfigured: zernioConfigured(),
+    smsConfigured: smsDriver() !== 'none',
     connections,
     socialCap: { allowed: cap.allowed, limit: cap.limit, current: cap.current },
   }
@@ -232,7 +246,6 @@ export default async function IntegrationsPage({
         routeError={one(sp.zernioError)}
         isDemo={ctx.isDemo}
         canManage={ctx.role === 'owner' || ctx.role === 'admin'}
-        requestedPms={Array.from(requestedPmsSet)}
       />
     </div>
   )

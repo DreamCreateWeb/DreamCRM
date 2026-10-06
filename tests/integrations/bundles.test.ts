@@ -66,9 +66,8 @@ describe('bundle ↔ catalog mapping', () => {
     const social = BUNDLE_BY_ID.social
     const ids = bundleMembers(social).map((d) => d.id).sort()
     expect(ids).toEqual(['facebook', 'instagram', 'linkedin', 'tiktok', 'youtube'])
-    // PMS bundle includes the live OD + the roadmap PMSs.
-    expect(bundleMembers(BUNDLE_BY_ID.pms).map((d) => d.id)).toContain('nexhealth')
-    expect(bundleMembers(BUNDLE_BY_ID.pms).map((d) => d.id)).toContain('dentrix_ascend')
+    // PMS bundle is the ONE bridge card (S4 folded the roadmap tiles under it).
+    expect(bundleMembers(BUNDLE_BY_ID.pms).map((d) => d.id)).toEqual(['nexhealth'])
   })
 
   it('every bundle has at least one catalog member (no empty bundle)', () => {

@@ -622,7 +622,7 @@ function NavItem({
         aria-disabled={isSoon}
         aria-current={active ? 'page' : undefined}
         aria-label={rail ? `${muted ? 'Add ' : ''}${m.label}${ariaCount}` : undefined}
-        title={rail ? undefined : isSoon ? `${m.label} — coming soon` : undefined}
+        title={rail ? undefined : isSoon ? `${m.label} — not available yet` : undefined}
         className={`relative flex items-center rounded-full py-2 pl-3 pr-2 transition-colors ${
           rail ? 'lg:justify-center lg:px-0' : ''
         } ${

@@ -48,5 +48,5 @@ export function channelMeta(channel: MessageChannel | null): ChannelMeta {
 export const CHANNEL_LEGEND: Array<{ icon: string; label: string; meaning: string }> = [
   { icon: META.in_app.icon, label: 'In-app', meaning: 'Message sent through the patient portal' },
   { icon: META.email.icon, label: 'Email', meaning: 'Message sent by email' },
-  { icon: META.sms.icon, label: 'SMS', meaning: 'Message sent by text (coming soon)' },
+  { icon: META.sms.icon, label: 'SMS', meaning: 'Message sent by text' },
 ]

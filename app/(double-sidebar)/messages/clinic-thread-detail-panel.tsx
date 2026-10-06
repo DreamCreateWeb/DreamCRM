@@ -128,6 +128,8 @@ interface Props {
   /** Automation/lifecycle context markers interleaved between bubbles
    *  (reminders, campaigns, bookings…). Read-only — never affects unread. */
   activity?: ActivityMarkerLite[]
+  /** This clinic's texting is live (carriers approved, number provisioned). */
+  smsLive?: boolean
 }
 
 const SNOOZE_OPTIONS = [
@@ -387,6 +389,7 @@ export default function ThreadDetailPanel({
   aiEnabled = false,
   scheduledMessages = [],
   activity = [],
+  smsLive = false,
 }: Props) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
@@ -545,7 +548,7 @@ export default function ThreadDetailPanel({
       return
     }
     if (channel === 'sms') {
-      setToast('SMS is not available yet — schedule an email or in-app message.')
+      setToast('Texting from the composer isn’t wired yet — schedule an email or in-app message.')
       return
     }
     setScheduling(true)
@@ -1427,7 +1430,13 @@ export default function ThreadDetailPanel({
                   <option value="email" disabled={!hasEmail}>
                     {hasEmail ? 'Email' : 'Email (no address on file)'}
                   </option>
-                  <option value="sms" disabled>SMS (coming soon)</option>
+                  {/* Outbound texting from the composer is not wired yet
+                      (reminders + campaigns text; this box does not). The
+                      option says the clinic's true state, never "coming
+                      soon" (docs/ACTIVATION.md law 3). */}
+                  <option value="sms" disabled>
+                    {smsLive ? 'SMS (reminders only, for now)' : 'SMS (set up texting first)'}
+                  </option>
                 </select>
 
                 {/* Schedule (send later) — a quiet clock toggle beside Send; opens

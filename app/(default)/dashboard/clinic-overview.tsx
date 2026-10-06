@@ -596,11 +596,10 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
         </div>
       </section>
 
-      {/* ── Bottom — reviews (live). The old SMS "coming soon" card was
-          permanent dead chrome holding half the row; the promise demotes to a
-          one-line footnote inside the Reviews tile and still retires itself
-          the moment this clinic's texting goes live (the honesty flip owns
-          any live SMS surface). */}
+      {/* ── Bottom — reviews (live). The old SMS card was permanent dead
+          chrome holding half the row; it is a one-line DOOR inside the
+          Reviews tile now ("Set up texting →", S4) that retires itself the
+          moment this clinic's texting goes live. */}
       <section>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <ReviewsReceivedCard
@@ -740,8 +739,8 @@ function ReviewsReceivedCard({
 }: {
   completed: number
   sent: number
-  /** True until this clinic's texting goes live — a one-line footnote, not a
-   *  card of permanent dead chrome. */
+  /** True until this clinic's texting goes live — a one-line DOOR to the
+   *  texting setup (docs/ACTIVATION.md law 4), not a promise. */
   smsComingSoon?: boolean
 }) {
   return (
@@ -763,7 +762,10 @@ function ReviewsReceivedCard({
       </Link>
       {smsComingSoon && (
         <p className="mt-3 border-t border-[color:var(--color-hairline)] pt-2 text-xs text-gray-500 dark:text-gray-400">
-          Two-way patient texting is coming — replies will land in your inbox.
+          Review asks go by email until texting is set up.{' '}
+          <Link href="/integrations/sms" className="font-medium text-teal-700 dark:text-teal-400 hover:underline">
+            Set up texting →
+          </Link>
         </p>
       )}
     </div>

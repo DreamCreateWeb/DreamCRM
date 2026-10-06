@@ -50,7 +50,7 @@ export default function SocialConnectionsCard({
       : managedBilling
         ? { tone: 'info', label: 'Managed billing' }
         : !addonConfigured
-          ? { tone: 'neutral', label: 'Coming soon' }
+          ? { tone: 'neutral', label: 'Not for sale yet' }
           : { tone: 'info', label: 'Add-on available' }
 
   // A one-line nudge that matches the clinic's current state.
@@ -62,7 +62,7 @@ export default function SocialConnectionsCard({
   } else if (managedBilling) {
     nudge = 'Your plan is on managed billing — contact us to add social connections.'
   } else if (!addonConfigured) {
-    nudge = 'More social connections are coming soon.'
+    nudge = 'More social connections aren’t for sale yet — write to Support if you need them now.'
   } else {
     nudge = `Add more for $${addonPriceDollars}/mo — raises your limit to ${addonRaisesTo}.`
   }

@@ -74,7 +74,7 @@ const LABEL_TERNARY = /\{\s*([^{}?]{1,80}?)\s*\?\s*'([^']*(?:…|\.\.\.)[^']*)'\
  * template literal. Comparing 90 against 71 compares two different questions.
  * The ratchet continues from 90 and only ever falls.
  */
-const RAW_BUTTON_CEILING = 90
+const RAW_BUTTON_CEILING = 89
 
 /** The branded primitives that now carry `pending`, held at zero like
  *  ActionButton. `ActionPill` is file-local to visit-card.tsx — it is a

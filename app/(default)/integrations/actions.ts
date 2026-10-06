@@ -23,42 +23,54 @@ function ensureClinicAdmin(ctx: { tenantType: string; role: string; planTier: Pl
   // the demo org's tier (premium), so they pass.
 }
 
-export interface RequestPmsResult {
-  ok: boolean
-  error?: string
-  /** Total clinics now waiting on this PMS (incl. this one). */
-  waiting?: number
-}
+export type PmsConnectRequestResult =
+  | { ok: true }
+  | { ok: false; error?: string; issues?: Array<{ field: string; message: string }> }
 
 /**
- * Register the clinic's interest in a roadmap PMS (Dentrix Ascend/desktop,
- * Eaglesoft, Curve). Low-friction on purpose — any clinic staffer can raise a
- * hand (no owner/admin gate; it's demand capture, not a privileged mutation),
- * and it's Premium-gated only because that's where the catalog lives. The
- * founder uses the aggregate to prioritize which vendor partnership to pursue.
+ * THE PMS CONNECT REQUEST (docs/ACTIVATION.md S4). The clinic's one form:
+ * which system, the practice name as it knows it, who to talk to, when.
+ * Owner/admin only (a PMS bind is the most privileged integration there
+ * is); the demo never asks (its sandbox is already bound). The service
+ * stores one row per clinic and posts the request into the support thread,
+ * which is how the platform hears it.
  */
-export async function requestPmsAccessAction(provider: string): Promise<RequestPmsResult> {
+export async function submitPmsConnectRequestAction(formData: FormData): Promise<PmsConnectRequestResult> {
   const ctx = await requireTenant()
-  if (ctx.tenantType !== 'clinic') {
-    return { ok: false, error: 'Only a clinic can request a PMS integration.' }
-  }
-  const { isRequestablePms, recordPmsInterest } = await import('@/lib/services/pms-interest')
-  if (!isRequestablePms(provider)) {
-    return { ok: false, error: 'That PMS is already available — connect it directly.' }
-  }
   try {
-    const res = await recordPmsInterest({
-      organizationId: ctx.organizationId,
-      provider,
-      requestedByUserId: ctx.userId,
-      notifyEmail: ctx.userEmail ?? null,
-    })
-    revalidatePath('/integrations')
-    return { ok: true, waiting: res.waiting }
-  } catch (err) {
-    console.warn('[integrations] requestPmsAccess failed', err)
-    return { ok: false, error: 'Could not record your request — please try again.' }
+    ensureClinicAdmin(ctx)
+  } catch (e) {
+    return { ok: false, error: (e as Error).message }
   }
+  if (ctx.isDemo) return { ok: false, error: 'The demo clinic is already connected to the sandbox.' }
+  const { validatePmsConnectRequest } = await import('@/lib/pms-connect')
+  const get = (k: string) => formData.get(k)?.toString() ?? ''
+  const checked = validatePmsConnectRequest({
+    vendor: get('vendor'),
+    vendorName: get('vendorName'),
+    practiceNameInPms: get('practiceNameInPms'),
+    contactName: get('contactName'),
+    contactEmail: get('contactEmail'),
+    contactPhone: get('contactPhone'),
+    bestTime: get('bestTime'),
+    notes: get('notes'),
+  })
+  if (!checked.ok) return { ok: false, issues: checked.issues }
+  try {
+    const { submitPmsConnectRequest } = await import('@/lib/services/pms-connect')
+    await submitPmsConnectRequest({
+      organizationId: ctx.organizationId,
+      userId: ctx.userId,
+      clinicName: ctx.organizationName,
+      input: checked.value,
+    })
+  } catch (err) {
+    console.warn('[integrations] pms connect request failed', err)
+    return { ok: false, error: 'Could not send your request — please try again.' }
+  }
+  revalidatePath('/integrations/pms')
+  revalidatePath('/integrations')
+  return { ok: true }
 }
 
 // connectOpenDentalAction (the self-serve Customer-Key connect) was removed
@@ -234,7 +246,7 @@ export async function disconnectChannelAction(platform: string): Promise<ZernioS
 // These mirror the Settings → Billing actions (which stay live for the slim
 // summary card there) — owner/admin + clinic, `{ ok | error }` so the UI can
 // surface the underlying guard message (Basic → "Upgrade to Pro", comped →
-// "managed billing", env-unset → "coming soon").
+// "managed billing", env-unset → "not for sale yet").
 
 export interface AddonActionResult {
   ok: boolean

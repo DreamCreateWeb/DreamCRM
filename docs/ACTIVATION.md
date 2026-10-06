@@ -201,10 +201,10 @@ The integrations catalog, specifically:
 
 | Card | Today | Target |
 |---|---|---|
-| Text messaging | `coming_soon`, notify-me, no link | **Set up texting** → the existing `/integrations/sms` form; status "Carriers reviewing — usually 3–7 days" after; the catalog flips the day a clinic can START, not the day one finishes |
-| NexHealth (Open Dental, Dentrix + more) | `request_access` | **Connect your practice software** → a self-serve request that collects what the platform needs to bind (PMS vendor, practice name as the PMS knows it, an admin contact, best time) and shows "We're connecting it — you'll hear from Dustin within a day"; the bind stays platform-side |
-| Dentrix desktop / Eaglesoft / Curve | roadmap tiles | fold under the NexHealth card as supported systems (they ARE, through the bridge) |
-| Google Business Profile, socials, Gmail, Stripe | live connect | wrap each in the intro shape (what it does, what to know, one button) |
+| Text messaging | **DONE (S4)** — `live`, "Set up texting" → `/integrations/sms`; the card carries the registration state in its own words ("Carriers reviewing") while pending | the catalog flipped the day a clinic can START, not the day one finishes; an installation with no driver says "not enabled" |
+| NexHealth (Open Dental, Dentrix + more) | **DONE (S4)** — `live`, "Connect" → `/integrations/pms`, the intro + ONE form (system, practice name as it knows it, contact, best time, notes) → "We're connecting it — you'll hear from Dustin within a day"; the request posts into the clinic's support thread and the cockpit shows it as pending on us | the bind stays platform-side; `pms_connect_request` (0173) is the receipt, the connection row the truth |
+| Dentrix desktop / Eaglesoft / Curve | **DONE (S4)** — folded under the bridge card (they ARE reached, through the bridge); `pms_interest` stays as history for the platform's demand panel | — |
+| Google Business Profile, socials, Gmail, Stripe | live connect — each card already carries one sentence, one honest note and ONE button; the bundle header carries the "what it does" | **S5**: a "what to know" line per card where money or data moves (Stripe fees, where Gmail lands) |
 
 ---
 
@@ -240,7 +240,7 @@ Guardian's audience lock).
 | **S1** | The platform cockpit (Part 5) | the owner can run a setup call and a day-7 check-in from one screen; activation events A1–A5 derived read-time |
 | **S2** | Day-one kick | binding a PMS, importing a CSV, or connecting GBP runs that org's generators immediately; the first card appears within the call |
 | **S3** | The switch, generalised — **SHIPPED 2026-10-05** | one column per feature, one registry + one gate, the sidebar shows the day-one six + what is on + "Add"; My Day / Follow-ups open at A1, Inquiries when the site goes live |
-| **S4** | Front doors: the integrations hub | the SMS card opens the form; PMS becomes a self-serve connect request with an honest status; roadmap tiles fold under it; "coming soon" leaves the dashboard |
+| **S4** | Front doors: the integrations hub — **SHIPPED 2026-10-06** | the SMS card opens the form; PMS is a self-serve connect request with an honest status; roadmap tiles fold under it; "coming soon" leaves the dashboard (and a test holds it at zero) |
 | **S5** | Front doors: Intake Forms, Growth (recall), Payments | each gets the intro + setup + on, in the insurance shape |
 | **S6** | Every empty state carries a door | the 64 cards each have one sentence and one button |
 | **S7** | The morning after | the day-two digest for a thin clinic says what happened and names one thing, or says what it waits on |
@@ -336,3 +336,41 @@ before S4–S6 because the doors need the switch to be one thing.
   clinic whose Follow-ups door is closed; they are there when it opens.
   S5 replaces the generic intro with a real setup for Intake Forms,
   Growth and Payments by setting `ownIntro` on the registry row.
+- **2026-10-06 — S4 SHIPPED: the integrations hub's front doors.** Law 3
+  is enforced: `tests/activation/no-coming-soon.test.ts` scans every
+  dashboard tree for the phrase in rendered text and holds it at zero
+  (the one allowed mention NAMES the public site's pre-live page). The
+  catalog changed shape: texting is `live` (the card says "Set up
+  texting" and opens the one form; an installation with no SMS driver
+  reads "not enabled", never a form that cannot submit), and the PMS
+  bridge is `live` with `connectKind: 'pms'` — the four roadmap tiles
+  (Dentrix Ascend / desktop, Eaglesoft, Curve) are FOLDED under it,
+  because the bridge already reached those systems and a "coming soon"
+  tile for them was false. The resolver gained a `pending` state ("started,
+  waiting on someone outside the clinic") that beats availability: the
+  texting card carries the registration's own words ("Carriers
+  reviewing") and the PMS card "We're connecting it", each with a
+  See-progress door; bundles say "In progress". THE PMS FRONT DOOR:
+  `/integrations/pms` unconnected is the intro (pure `lib/pms-connect.ts`
+  — vendors, copy, validator, status sentences) plus ONE form — which
+  system, the practice name as it knows it, who to call, when, notes —
+  and `submitPmsConnectRequest` (lib/services/pms-connect.ts) stores ONE
+  row per clinic (migration 0173 `pms_connect_request`, upsert on the
+  org; a re-submit re-opens, a connected one stays connected) and POSTS
+  THE REQUEST INTO THE CLINIC'S SUPPORT THREAD as the requester — the
+  support rail already alerts every platform admin and lists the clinic
+  in Client Messaging, so "you'll hear from Dustin within a day" rides a
+  channel he reads rather than a new inbox. A failed post never loses the
+  row. The first-week cockpit reads the open request as PENDING ON US
+  ("Connecting Eaglesoft", the STUCK clock running from the ask) and
+  names it on the row. The other two live switches that said "coming
+  soon" changed: the Overview's reviews footnote is a DOOR ("Set up
+  texting →", law 4), and the composer's SMS option says the clinic's
+  true state ("set up texting first" / "reminders only, for now" — the
+  composer's own outbound text is not wired; reminders and campaigns
+  text). Channel legend, the audiences toggle, the social add-on card
+  ("not for sale yet"), the inbox's Outlook note and the sidebar's dead
+  `soon` title lost the phrase too. Carried to S5: a "what to know" line
+  on the Gmail / Stripe / Google cards. `pms_interest` (the old notify-me
+  demand table) stays as history for the platform Overview's demand
+  panel; nothing writes it any more.
