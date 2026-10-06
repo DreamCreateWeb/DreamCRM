@@ -226,6 +226,11 @@ export default async function ClinicDetailPage({
             <EmptyState
               title="No clinic profile data yet"
               body="The owner hasn't filled in their website details."
+              action={
+                <ActionButton variant="secondary" size="sm" href="/platform/first-week">
+                  Open the first-week board
+                </ActionButton>
+              }
             />
           ) : (
             <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3 text-sm">
@@ -275,7 +280,15 @@ export default async function ClinicDetailPage({
             Staff logins for this practice. Patients are counted above, not listed here.
           </p>
           {clinic.members.length === 0 ? (
-            <EmptyState title="No team yet" body="Invite-accepted staff will appear here." />
+            <EmptyState
+              title="No team yet"
+              body="Invite-accepted staff will appear here."
+              action={
+                <ActionButton variant="secondary" size="sm" href="/messages">
+                  Message the clinic
+                </ActionButton>
+              }
+            />
           ) : (
             <ul className="space-y-3">
               {clinic.members.map((m) => (
@@ -353,7 +366,15 @@ export default async function ClinicDetailPage({
           </span>
         </div>
         {clinic.projects.length === 0 ? (
-          <EmptyState title="No projects logged yet" body="Agency projects for this clinic will appear here." />
+          <EmptyState
+            title="No projects logged yet"
+            body="Agency projects for this clinic will appear here."
+            action={
+              <ActionButton variant="secondary" size="sm" href="/ecommerce/orders">
+                Add a project
+              </ActionButton>
+            }
+          />
         ) : (
           <ul className="divide-y divide-gray-100 dark:divide-gray-700/60">
             {clinic.projects.slice(0, 12).map((p) => (
@@ -405,6 +426,11 @@ export default async function ClinicDetailPage({
               clinic.profile?.stripeCustomerId
                 ? 'Paid subscription invoices will appear here.'
                 : 'This clinic has no Stripe customer linked yet.'
+            }
+            action={
+              <ActionButton variant="secondary" size="sm" href="/ecommerce/invoices">
+                {clinic.profile?.stripeCustomerId ? 'Open billing' : 'Set up billing'}
+              </ActionButton>
             }
           />
         ) : (

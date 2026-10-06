@@ -107,6 +107,11 @@ export default async function ShopPaymentsPage() {
           icon="💳"
           title="No online payments yet"
           body="When a patient pays a balance from their portal, it lands here so you can post it to your PMS ledger."
+          action={
+            <ActionButton variant="secondary" size="sm" href="/patients">
+              Invite patients to the portal
+            </ActionButton>
+          }
         />
       ) : (
         <div className="v2-card overflow-hidden">

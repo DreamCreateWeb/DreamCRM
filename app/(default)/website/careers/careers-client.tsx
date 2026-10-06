@@ -284,6 +284,17 @@ export default function CareersClient({ jobs, applications, counts, stats, publi
                       ? 'When someone applies through your site, they land here for review.'
                       : 'No applicants match this filter right now.'
                   }
+                  action={
+                    statusFilter === 'all' ? (
+                      <ActionButton variant="secondary" size="sm" href="/website/share">
+                        Share your careers page
+                      </ActionButton>
+                    ) : (
+                      <ActionButton variant="secondary" size="sm" onClick={() => setStatusFilter('all')}>
+                        Show all applicants
+                      </ActionButton>
+                    )
+                  }
                 />
               ) : (
                 filtered.map((a) => (

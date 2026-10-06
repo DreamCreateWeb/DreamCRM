@@ -13,6 +13,7 @@ import { prospectInitials } from '@/lib/prospect-when'
 import { PageHeader } from '@/components/ui/page-header'
 import { StatusPill } from '@/components/ui/status-pill'
 import { EmptyState } from '@/components/ui/empty-state'
+import { ActionButton } from '@/components/ui/action-button'
 
 const STATUS_META: Record<string, { tone: 'ok' | 'warn' | 'urgent' | 'info' | 'neutral'; label: string }> = {
   booked: { tone: 'info', label: 'Booked' },
@@ -102,7 +103,15 @@ export default async function DemosPage() {
           </span>
         </h2>
         {upcoming.length === 0 ? (
-          <EmptyState title="No upcoming demos" body="Book one from a call (＋ Add a clinic) or a prospect's deal room." />
+          <EmptyState
+            title="No upcoming demos"
+            body="Book one from a call (＋ Add a clinic) or a prospect's deal room."
+            action={
+              <ActionButton variant="secondary" size="sm" href="/platform/prospecting">
+                Open the pipeline
+              </ActionButton>
+            }
+          />
         ) : (
           <div className="space-y-2">
             {upcoming.map((d) => {
@@ -135,7 +144,15 @@ export default async function DemosPage() {
           </span>
         </h2>
         {completed.length === 0 ? (
-          <EmptyState title="No demos have happened yet" body="Past demos land here automatically once their time passes." />
+          <EmptyState
+            title="No demos have happened yet"
+            body="Past demos land here automatically once their time passes."
+            action={
+              <ActionButton variant="secondary" size="sm" href="/platform/prospecting">
+                Open the pipeline
+              </ActionButton>
+            }
+          />
         ) : (
           <div className="space-y-2">
             {completed.map((d) => (

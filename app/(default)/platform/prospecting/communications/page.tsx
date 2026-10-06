@@ -12,6 +12,7 @@ import { listCommunications, type CommItem } from '@/lib/services/prospecting'
 import { prospectInitials } from '@/lib/prospect-when'
 import { PageHeader } from '@/components/ui/page-header'
 import { EmptyState } from '@/components/ui/empty-state'
+import { ActionButton } from '@/components/ui/action-button'
 
 const KIND_ICON: Record<CommItem['kind'], string> = { email: '✉️', call: '📞', reply: '💬' }
 // Avatar tint by kind — replies (a human reaching back) are the warm signal.
@@ -58,6 +59,11 @@ export default async function CommunicationsPage() {
         <EmptyState
           title="No communications yet"
           body="Once the hunter emails a prospect, you log a call, or a reply lands, it shows up here."
+          action={
+            <ActionButton variant="secondary" size="sm" href="/platform/prospecting">
+              Open the pipeline
+            </ActionButton>
+          }
         />
       ) : (
         <>

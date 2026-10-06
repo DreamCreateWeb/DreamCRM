@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { MARKETING_CHANNEL_LABELS } from '@/lib/marketing-attribution'
 import { getAcquisitionReport, type AcquisitionReport } from '@/lib/services/acquisition'
 import { EmptyState } from '@/components/ui/empty-state'
+import { ActionButton } from '@/components/ui/action-button'
 import { TrendChart } from '@/components/ui/charts'
 import { formatNumberShort } from '@/lib/utils/format'
 
@@ -59,6 +60,11 @@ export default async function AcquisitionPanel({ days = 30 }: { days?: number })
           icon="📡"
           title="The sensors are live."
           body={`Marketing-site visits and signups will land here by channel — nothing recorded in the last ${report.windowDays} days yet.`}
+          action={
+            <ActionButton variant="secondary" size="sm" href="/" target="_blank">
+              Open the site ↗
+            </ActionButton>
+          }
         />
       ) : (
         <AcquisitionBody report={report} />

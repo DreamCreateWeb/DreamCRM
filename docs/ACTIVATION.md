@@ -197,6 +197,20 @@ bind, SMS carrier) for more than 5 days.
 | Shop | **switch (S3)** — generic intro; same rule | **intro with setup (S5)** | Stripe Connect, one product | — (never day one) |
 | Integrations | catalog; SMS "coming soon", PMS "request access", roadmap tiles | **the hub itself is the front door** | — | A1 |
 
+Every empty room inside those modules (S6, 2026-10-06): the `<EmptyState>`
+cards that used to end in a sentence now end in a BUTTON — the feature's own
+first action (Book a visit, Start a campaign, Sync now, Compose a post, Add
+a code, New plan) or the door to the feature that fills the room (Send a
+form, Send a review request, Invite patients to the portal, Open the
+pipeline, Add a clinic). The filter variants ("Nothing in this view") get a
+Clear-filters button, which is the honest door for an emptiness the viewer
+made. Eleven stand without a button on purpose — all-clear states ("Every
+patient is square", "No subscriptions need attention"), the right-hand pane
+of a two-pane surface before a row is picked, the "No messages yet" that
+sits directly above the composer, the feedback inbox that fills from
+clinics' own submissions, and one defensive branch the static catalog can
+never reach — each named with its reason in the guard.
+
 The integrations catalog, specifically:
 
 | Card | Today | Target |
@@ -242,7 +256,7 @@ Guardian's audience lock).
 | **S3** | The switch, generalised — **SHIPPED 2026-10-05** | one column per feature, one registry + one gate, the sidebar shows the day-one six + what is on + "Add"; My Day / Follow-ups open at A1, Inquiries when the site goes live |
 | **S4** | Front doors: the integrations hub — **SHIPPED 2026-10-06** | the SMS card opens the form; PMS is a self-serve connect request with an honest status; roadmap tiles fold under it; "coming soon" leaves the dashboard (and a test holds it at zero) |
 | **S5** | Front doors: Intake Forms, Growth (recall), Payments — **SHIPPED 2026-10-06** | each gets the intro + setup + on, in the insurance shape, through `FeatureGate`'s `intro` slot |
-| **S6** | Every empty state carries a door | the 64 cards each have one sentence and one button |
+| **S6** | Every empty state carries a door — **SHIPPED 2026-10-06** | the 50 door-less rooms each have one sentence and one button; the eleven that stand without one are named with a reason, and `tests/activation/empty-state-doors.test.ts` holds the tree there |
 | **S7** | The morning after | the day-two digest for a thin clinic says what happened and names one thing, or says what it waits on |
 | **S8** | Activation stamped + measured | `clinic_profile.activation` (A1–A5 timestamps, written once) and time-to-A1 on the platform Overview |
 
@@ -406,3 +420,36 @@ before S4–S6 because the doors need the switch to be one thing.
   and Stripe cards while not connected. Not done on purpose: no new
   switches, no new columns — the three doors ride S3's columns and S3's
   generic action; Insurance keeps its own page-level intro as before.
+- **2026-10-06 — S6 SHIPPED: every empty state carries a door.** The
+  inventory re-run found 108 `<EmptyState>` elements across `app/(default)`,
+  `app/(double-sidebar)` and `components`, 61 without an `action`. Fifty
+  got one: the feature's own first action where the room has one (Book a
+  visit → `/appointments?new=1` on the Overview, My Day and the PMS
+  write-back table; Start a campaign → `/growth/outreach?new=1` on all four
+  recall rooms; the PMS dashboard's "No syncs yet" renders the real
+  `SyncNowButton`; "Write your first post" anchors to the composer; the
+  coupons room focuses the code box; memberships' "No members yet" switches
+  to the Plans tab; the platform's plan panel and project board render
+  their own New-plan / New-project modals as the door), or the door to the
+  feature that fills it (Send a form → `/intake-forms` under submissions;
+  Send a review request under private feedback; Invite patients to the
+  portal under online payments; Open the pipeline under communications and
+  demos; Add a clinic → `/ecommerce/customers` under every platform room
+  that fills with customers). Every "Nothing in this view" / "No X match
+  these filters" variant got a Clear-filters button that resets the state
+  that emptied it (orders, applicants, subscriptions, feedback, client
+  messaging). The team chat's "+ New conversation" grew a labelled form
+  (`NewConversationButton label=`) so the empty list's door is a button
+  with words, not an icon. Copy that said "use the button above" was
+  rewritten to say what the button does — a sentence that points at
+  another control is not a door. ELEVEN stand without one, each named
+  with its reason in `tests/activation/empty-state-doors.test.ts`: six
+  all-clear states, two pane placeholders, one composer-adjacent, one
+  room that fills from clinics' own submissions, one defensive branch. The
+  guard reads the tree with the TypeScript parser (not the design-system
+  tag reader — an apostrophe in a button label inside the `action` braces
+  opens a quote that reader never closes), holds every door-less
+  `<EmptyState>` to the named list, and fails on a stale entry; it is
+  registered in `scripts/review-gate.mjs` as a blocking-assertion class.
+  Nothing new is stored and no page is added — the doors ride the routes,
+  deep-link params and modals that already exist.

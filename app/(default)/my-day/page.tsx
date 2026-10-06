@@ -137,7 +137,16 @@ export default async function MyDayPage() {
               </Link>
             </div>
             {data.conversations.length === 0 ? (
-              <EmptyState icon="💬" title="No conversations assigned to you" body="Threads you take ownership of in Messages land here." />
+              <EmptyState
+                icon="💬"
+                title="No conversations assigned to you"
+                body="Threads you take ownership of in Messages land here."
+                action={
+                  <ActionButton variant="secondary" size="sm" href="/messages">
+                    Open Messages
+                  </ActionButton>
+                }
+              />
             ) : (
               <ul className="divide-y divide-[color:var(--color-hairline)]">
                 {data.conversations.map((t) => (
@@ -177,7 +186,16 @@ export default async function MyDayPage() {
               </Link>
             </div>
             {data.todaysAppointments.length === 0 ? (
-              <EmptyState icon="🗓️" title="No visits today" body="A quiet one — or nothing's booked yet." />
+              <EmptyState
+                icon="🗓️"
+                title="No visits today"
+                body="A quiet one — or nothing's booked yet."
+                action={
+                  <ActionButton variant="secondary" size="sm" href="/appointments?new=1">
+                    Book a visit
+                  </ActionButton>
+                }
+              />
             ) : (
               <ul className="divide-y divide-[color:var(--color-hairline)]">
                 {data.todaysAppointments.slice(0, 8).map((a) => (
@@ -235,7 +253,16 @@ export default async function MyDayPage() {
           </Link>
         </div>
         {data.tomorrow.visitCount === 0 ? (
-          <EmptyState icon="🌤️" title="Nothing on tomorrow's schedule yet" body="When visits are booked, each patient gets checked here the day before." />
+          <EmptyState
+            icon="🌤️"
+            title="Nothing on tomorrow's schedule yet"
+            body="When visits are booked, each patient gets checked here the day before."
+            action={
+              <ActionButton variant="secondary" size="sm" href="/appointments?new=1">
+                Book a visit
+              </ActionButton>
+            }
+          />
         ) : data.tomorrow.items.length === 0 ? (
           <EmptyState icon="✅" title={`All ${data.tomorrow.visitCount} of tomorrow's visits are prepped`} body="Confirmed, forms in, nothing owed — a clean morning ahead." />
         ) : (

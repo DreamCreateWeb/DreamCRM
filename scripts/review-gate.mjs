@@ -540,6 +540,9 @@ export const INTAKE_RULES = [
       // docs/ACTIVATION.md law 3 — the "no coming soon in the dashboard"
       // scan grades every dashboard tree for the phrase in rendered text.
       'tests/activation/no-coming-soon.test.ts',
+      // docs/ACTIVATION.md law 4 — the "every empty state carries a door"
+      // scan grades every <EmptyState> in the dashboard trees for an action.
+      'tests/activation/empty-state-doors.test.ts',
       // The shared-pending guard (#559) and the source walker it shares with
       // the pending-feedback rule.
       'tests/design-system/shared-pending.ts',

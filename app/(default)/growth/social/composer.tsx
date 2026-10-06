@@ -310,7 +310,7 @@ export default function Composer({
   const gbpCustomized = postType !== 'standard' || ctaType !== ''
 
   return (
-    <div className="v2-panel p-5">
+    <div className="v2-panel p-5" id="compose-post">
       <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100 mb-3">Compose a post</h2>
 
       <div className="grid lg:grid-cols-[minmax(0,1fr)_minmax(0,360px)] gap-6 lg:gap-8 items-start">

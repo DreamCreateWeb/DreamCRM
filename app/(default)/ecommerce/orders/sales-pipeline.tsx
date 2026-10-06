@@ -20,7 +20,7 @@ export default async function SalesPipeline() {
       />
 
       <PipelineStats metrics={metrics} />
-      <PipelineBoard projects={projects} />
+      <PipelineBoard projects={projects} clinics={clinicOptions} />
     </div>
   )
 }

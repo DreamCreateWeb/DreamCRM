@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import NewProjectModal from './new-project-modal'
 import { useMemo, useState, useTransition } from 'react'
 import {
   AGENCY_PROJECT_STATUSES,
@@ -44,9 +45,11 @@ const COLUMN_TONES: Record<AgencyProjectStatus, string> = {
 
 interface Props {
   projects: PipelineProject[]
+  /** The clinics the New-project modal can attach to — the empty board's door. */
+  clinics?: { id: string; name: string }[]
 }
 
-export default function PipelineBoard({ projects }: Props) {
+export default function PipelineBoard({ projects, clinics = [] }: Props) {
   const [typeFilter, setTypeFilter] = useState<'all' | AgencyProjectType>('all')
   const [clinicFilter, setClinicFilter] = useState<string>('all')
   const [showSide, setShowSide] = useState(false)
@@ -108,6 +111,7 @@ export default function PipelineBoard({ projects }: Props) {
           icon="🗂"
           title="No projects in the pipeline yet"
           body="Add your first agency project — a website build, intake form, photo or video shoot, etc. — to see it appear in the kanban below."
+          action={<NewProjectModal clinics={clinics} />}
         />
       </div>
     )

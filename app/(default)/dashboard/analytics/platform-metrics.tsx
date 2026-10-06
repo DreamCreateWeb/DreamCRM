@@ -114,6 +114,11 @@ export default async function PlatformMetrics() {
           <EmptyState
             title="No active subscriptions yet"
             body="Plan distribution will appear once clinics start paying."
+            action={
+              <ActionButton variant="secondary" size="sm" href="/ecommerce/customers">
+                Add a clinic
+              </ActionButton>
+            }
           />
         ) : (
           <div className="flex h-3 rounded-full overflow-hidden bg-gray-100 dark:bg-gray-700/60 mb-4">
@@ -300,6 +305,11 @@ export default async function PlatformMetrics() {
             <EmptyState
               title="No projects logged yet"
               body="The discovery → completed funnel fills in as projects move."
+              action={
+                <ActionButton variant="secondary" size="sm" href="/ecommerce/orders">
+                  Add a project
+                </ActionButton>
+              }
             />
           ) : (
             <>

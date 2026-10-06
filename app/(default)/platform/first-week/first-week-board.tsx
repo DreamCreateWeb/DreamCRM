@@ -3,6 +3,7 @@ import { PageHeader } from '@/components/ui/page-header'
 import { StatusPill } from '@/components/ui/status-pill'
 import { KpiStat } from '@/components/ui/kpi-stat'
 import { EmptyState } from '@/components/ui/empty-state'
+import { ActionButton } from '@/components/ui/action-button'
 import { TONE_TEXT, type Tone } from '@/lib/ui/encodings'
 import { ACTIVATION_EVENTS } from '@/lib/first-week'
 import type { FirstWeekBoard as Board, FirstWeekRow } from '@/lib/services/first-week'
@@ -137,7 +138,15 @@ export default function FirstWeekBoard({ board, includeDemo }: { board: Board; i
       </div>
 
       {board.rows.length === 0 ? (
-        <EmptyState title="No clinics yet" body="The first signup will show up here with its day count, its goal and what it still needs." />
+        <EmptyState
+          title="No clinics yet"
+          body="The first signup will show up here with its day count, its goal and what it still needs."
+          action={
+            <ActionButton variant="secondary" size="sm" href="/ecommerce/customers">
+              Add a clinic
+            </ActionButton>
+          }
+        />
       ) : (
         <div className="space-y-4">
           {board.rows.map((row) => (

@@ -102,6 +102,11 @@ export default function MyDayFollowups({
           icon="✅"
           title="Nothing on your plate"
           body="Follow-ups assigned to you (or left unclaimed) show up here. Add one from any patient."
+          action={
+            <ActionButton variant="secondary" size="sm" href="/patients">
+              Open a patient
+            </ActionButton>
+          }
         />
         {toastNode}
       </>

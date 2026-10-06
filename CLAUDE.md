@@ -1004,7 +1004,14 @@ sitemap/robots/OG.
    live due-and-reachable count; Payments sits over Stripe Connect, whose
    OAuth flow now returns to the door that sent it via `?back=` /
    `resolveConnectBack`; `IntegrationDef.know` lines on the Google /
-   Gmail / Stripe cards) → S6 every empty state's door → S7 the day-two digest →
+   Gmail / Stripe cards) → S6 every empty state's door (SHIPPED
+   2026-10-06: 50 `<EmptyState>` cards gained an `action` — the feature's
+   own first action or the door to the feature that fills the room, and
+   Clear-filters on every filter-made emptiness; eleven stand without one
+   for a named reason (all-clear, pane placeholder, composer-adjacent,
+   fills-from-outside, a dead defensive branch) and
+   `tests/activation/empty-state-doors.test.ts` holds the tree there with
+   the TypeScript parser, registered in the review gate) → S7 the day-two digest →
    S8 activation stamped + measured. Adds no capability; adds the DOORS.
 
 -2. **THE DREAM TEAM / AI OPERATIONS PROGRAM (2026-08-23, owner directive —

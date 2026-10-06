@@ -229,6 +229,11 @@ export default function ClientMessagingSidebar({
                   icon="💬"
                   title="No client conversations yet"
                   body="Start one with a clinic admin to begin."
+                  action={
+                    <ActionButton variant="secondary" size="sm" href="/ecommerce/customers">
+                      Open a clinic
+                    </ActionButton>
+                  }
                 />
               )
             ) : (
@@ -236,6 +241,18 @@ export default function ClientMessagingSidebar({
                 icon="🔍"
                 title="Nothing matches these filters"
                 body="Try a different tab, clear the search, or switch back to All."
+                action={
+                  <ActionButton
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => {
+                      setFilter('all')
+                      setSearch('')
+                    }}
+                  >
+                    Clear filters
+                  </ActionButton>
+                }
               />
             )
           ) : (

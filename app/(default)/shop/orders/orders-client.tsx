@@ -220,6 +220,17 @@ export default function OrdersClient({
               ? 'When a patient checks out on your storefront, the order lands here so you can fulfill it.'
               : 'No orders match this filter right now.'
           }
+          action={
+            filter === 'all' ? (
+              <ActionButton variant="secondary" size="sm" href="/shop">
+                Set up your storefront
+              </ActionButton>
+            ) : (
+              <ActionButton variant="secondary" size="sm" onClick={() => setFilter('all')}>
+                Show all orders
+              </ActionButton>
+            )
+          }
         />
       ) : (
         <div className="space-y-2.5">

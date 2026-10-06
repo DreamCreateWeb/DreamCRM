@@ -6,6 +6,7 @@ import { type Tone } from '@/lib/ui/encodings'
 import { FilterChip } from '@/components/ui/filter-chip'
 import { StatusPill } from '@/components/ui/status-pill'
 import { EmptyState } from '@/components/ui/empty-state'
+import { ActionButton } from '@/components/ui/action-button'
 import { FEEDBACK_CATEGORIES, feedbackCategoryLabel } from './feedback-categories'
 
 export interface FeedbackEntry {
@@ -129,6 +130,18 @@ export default function FeedbackAdmin({ entries }: { entries: FeedbackEntry[] })
           <EmptyState
             title="No entries match this filter"
             body="Try a different filter."
+            action={
+              <ActionButton
+                variant="secondary"
+                size="sm"
+                onClick={() => {
+                  setSource('all')
+                  setCategory('all')
+                }}
+              >
+                Clear filters
+              </ActionButton>
+            }
           />
         )
       ) : (

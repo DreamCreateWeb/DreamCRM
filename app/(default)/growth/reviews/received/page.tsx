@@ -170,6 +170,11 @@ export default async function ReviewsReceivedPage() {
             icon="🔒"
             title="No private feedback yet"
             body="When a patient chooses “rather tell us privately?” on their review link, their note lands here — just for your team, never on your website."
+            action={
+              <ActionButton variant="secondary" size="sm" href="/growth/reviews">
+                Send a review request
+              </ActionButton>
+            }
           />
         ) : (
           <ul className="space-y-3">

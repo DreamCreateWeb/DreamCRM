@@ -11,6 +11,7 @@ import { requireTenant } from '@/lib/auth/context'
 import { getEventStats, listEvents } from '@/lib/services/event-capture'
 import { PageHeader } from '@/components/ui/page-header'
 import { EmptyState } from '@/components/ui/empty-state'
+import { ActionButton } from '@/components/ui/action-button'
 import { StatusPill } from '@/components/ui/status-pill'
 import EventForm from './event-form'
 
@@ -40,13 +41,21 @@ export default async function EventsPage() {
         }
       />
 
-      <section className="mb-8 rounded-[var(--r-md)] bg-[color:var(--color-surface-2)] p-5 shadow-[inset_0_0_0_1px_var(--color-hairline)]">
+      <section id="new-event" className="mb-8 rounded-[var(--r-md)] bg-[color:var(--color-surface-2)] p-5 shadow-[inset_0_0_0_1px_var(--color-hairline)]">
         <h2 className="mb-3 text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">New event</h2>
         <EventForm />
       </section>
 
       {events.length === 0 ? (
-        <EmptyState title="No events yet" body="Create one for the next conference — the capture link is minted with it." />
+        <EmptyState
+          title="No events yet"
+          body="Create one for the next conference — the capture link is minted with it."
+          action={
+            <ActionButton variant="secondary" size="sm" href="#new-event">
+              Create an event
+            </ActionButton>
+          }
+        />
       ) : (
         <div className="space-y-3">
           {events.map((e, i) => {
