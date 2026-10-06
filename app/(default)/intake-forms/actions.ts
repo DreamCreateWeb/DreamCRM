@@ -14,7 +14,7 @@ import {
 } from '@/lib/services/forms'
 import { summarizeSubmission, type IntakeSummary } from '@/lib/services/intake-summary'
 import { generateFormTranslation } from '@/lib/services/form-translate'
-import { DEFAULT_INTAKE_TEMPLATE } from '@/lib/types/forms'
+import { DEFAULT_INTAKE_TEMPLATE, pickIntakeSections } from '@/lib/types/forms'
 
 async function requireClinicAdmin() {
   const ctx = await requireTenant()
@@ -40,6 +40,40 @@ export async function createBlankFormAction() {
   })
   revalidatePath('/intake-forms')
   redirect(`/intake-forms/${created.id}`)
+}
+
+/**
+ * THE DOOR's one button (docs/ACTIVATION.md S5): build the practice's first
+ * form from the sections they kept (the basics always) and turn the switch
+ * on. A clinic with forms already on file only gets the switch — their
+ * forms are theirs. Owners/admins only; returns the shape TurnOnButton reads.
+ */
+export async function turnOnIntakeFormsAction(input: { sections?: unknown }): Promise<{ ok: true } | { ok: false; error: string }> {
+  let ctx
+  try {
+    ctx = await requireClinicAdmin()
+  } catch (e) {
+    return { ok: false, error: (e as Error).message }
+  }
+  const keep = Array.isArray(input?.sections) ? input.sections.filter((x): x is string => typeof x === 'string').slice(0, 20) : []
+  try {
+    const existing = await listFormTemplates(ctx.organizationId)
+    if (existing.filter((t) => t.archivedAt == null).length === 0) {
+      await createFormTemplate(ctx.organizationId, {
+        title: 'New Patient Intake',
+        description: 'Standard dental intake — edit anything you like.',
+        schema: pickIntakeSections(keep),
+        isDefault: true,
+      })
+    }
+    const { enableFeature } = await import('@/lib/services/feature-switches')
+    await enableFeature(ctx.organizationId, 'intake_forms')
+  } catch (err) {
+    console.warn('[intake-forms] turn on failed', err)
+    return { ok: false, error: 'Could not turn on intake forms — try again.' }
+  }
+  revalidatePath('/', 'layout')
+  return { ok: true }
 }
 
 export async function saveFormAction(id: string, input: unknown) {

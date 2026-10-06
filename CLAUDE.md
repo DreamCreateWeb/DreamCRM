@@ -994,8 +994,17 @@ sitemap/robots/OG.
    as "pending on us" in the cockpit; the resolver's new `pending` state
    carries each door's own words while it waits; "coming soon" is gone
    from the dashboard and `tests/activation/no-coming-soon.test.ts` holds
-   it at zero) → S5 intake / growth /
-   payments intros → S6 every empty state's door → S7 the day-two digest →
+   it at zero) → S5 intake / growth / payments intros (SHIPPED
+   2026-10-06: `FeatureGate` has an `intro` slot and the three layouts
+   hand it the module's OWN door — `IntroShell` + `TurnOnButton` from
+   `components/feature-switch/feature-intro.tsx`; Intake picks what to
+   collect from the standard template (`pickIntakeSections`) and
+   `turnOnIntakeFormsAction` builds the first form + flips the switch;
+   Growth shows the facts the first win needs with a door each and the
+   live due-and-reachable count; Payments sits over Stripe Connect, whose
+   OAuth flow now returns to the door that sent it via `?back=` /
+   `resolveConnectBack`; `IntegrationDef.know` lines on the Google /
+   Gmail / Stripe cards) → S6 every empty state's door → S7 the day-two digest →
    S8 activation stamped + measured. Adds no capability; adds the DOORS.
 
 -2. **THE DREAM TEAM / AI OPERATIONS PROGRAM (2026-08-23, owner directive —

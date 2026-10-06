@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { randomBytes } from 'crypto'
 import { requireTenant } from '@/lib/auth/context'
 import { shopConnectConfigured, getConnectAuthorizeUrl } from '@/lib/services/shop-connect'
+import { resolveConnectBack } from '@/lib/types/shop-connect'
 
 function redirectUri(req: NextRequest): string {
   const base = process.env.NEXT_PUBLIC_APP_URL ?? new URL(req.url).origin
@@ -20,7 +21,10 @@ export async function GET(req: NextRequest) {
   }
 
   const nonce = randomBytes(16).toString('hex')
-  const state = Buffer.from(JSON.stringify({ orgId: ctx.organizationId, nonce })).toString('base64url')
+  // Which door sent them (S5: the Payments intro connects from its own
+  // page) — rides the state so the callback can return there.
+  const back = resolveConnectBack(req.nextUrl.searchParams.get('back'))
+  const state = Buffer.from(JSON.stringify({ orgId: ctx.organizationId, nonce, back })).toString('base64url')
 
   const res = NextResponse.redirect(getConnectAuthorizeUrl(state, redirectUri(req)))
   res.cookies.set('shop_connect_state', nonce, {

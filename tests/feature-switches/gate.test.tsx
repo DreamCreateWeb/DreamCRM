@@ -122,3 +122,18 @@ describe('FeatureGate', () => {
     expect(screen.queryByTestId('feature-footer')).toBeNull()
   })
 })
+
+describe('FeatureGate — the intro slot (S5)', () => {
+  it('off + a door of its own → renders that door instead of the generic card; on → the page', async () => {
+    const el = await FeatureGate({ feature: 'growth', intro: <p data-testid="own-door">the growth door</p>, children: <p data-testid="page">page</p> })
+    render(el)
+    expect(screen.getByTestId('own-door')).toBeInTheDocument()
+    expect(screen.queryByTestId('feature-intro')).toBeNull()
+    expect(screen.queryByTestId('page')).toBeNull()
+    cleanup()
+    switches.state = { growth: true }
+    render(await FeatureGate({ feature: 'growth', intro: <p data-testid="own-door">x</p>, children: <p data-testid="page">page</p> }))
+    expect(screen.getByTestId('page')).toBeInTheDocument()
+    expect(screen.queryByTestId('own-door')).toBeNull()
+  })
+})

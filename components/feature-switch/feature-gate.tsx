@@ -17,7 +17,21 @@ import FeatureFooter from './feature-footer'
  * Members see the intro without the button and a line naming who can turn
  * it on; owners and admins get the button.
  */
-export default async function FeatureGate({ feature, children }: { feature: FeatureKey; children: React.ReactNode }) {
+export default async function FeatureGate({
+  feature,
+  children,
+  intro,
+}: {
+  feature: FeatureKey
+  children: React.ReactNode
+  /**
+   * A door's OWN intro (S5: Intake Forms, Growth, Payments) — the intro
+   * shell filled with the feature's real facts and setup, rendered in
+   * place of the generic card while the switch is off. A server component
+   * is fine here: it is only rendered when the gate decides to show it.
+   */
+  intro?: React.ReactNode
+}) {
   const ctx = await getTenantContext()
   if (!ctx || ctx.tenantType !== 'clinic') return <>{children}</>
   const def = FEATURE_BY_KEY[feature]
@@ -31,6 +45,7 @@ export default async function FeatureGate({ feature, children }: { feature: Feat
       </>
     )
   }
+  if (intro) return <>{intro}</>
   const section = getRegistry('clinic').modules.find((m) => m.id === def.moduleId)?.section ?? 'Daily'
   const label = getModuleLabel('clinic', def.moduleId) ?? def.label
   return <FeatureIntro feature={feature} label={label} eyebrow={`${section} · ${ctx.organizationName}`} canManage={canManage} />

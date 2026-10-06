@@ -166,6 +166,15 @@ describe('catalog — the REAL integrations are present (honest, no fake bulk)',
     expect(sms.detailHref).toBe('/integrations/sms')
   })
 
+  it('the live-connect cards carry a "what to know" line where money or data moves (S5)', () => {
+    for (const id of ['googlebusiness', 'gmail', 'stripe_connect']) {
+      const know = integrationById(id)!.know
+      expect(know, id).toBeTruthy()
+      expect(know!.length, id).toBeGreaterThan(40)
+    }
+    expect(integrationById('stripe_connect')!.know).toMatch(/fees/i)
+  })
+
   it('no catalog def says "coming soon" any more (docs/ACTIVATION.md law 3)', () => {
     for (const def of INTEGRATIONS_CATALOG) {
       expect(def.availability, def.id).not.toBe('coming_soon')

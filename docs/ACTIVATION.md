@@ -189,11 +189,11 @@ bind, SMS carrier) for more than 5 days.
 | My Day | **switch (S3)** — generic intro; opens at A1 | done | — | today's follow-ups |
 | Follow-ups | **switch (S3)** — generic intro; opens at A1 | done | — | the auto rules' first cards |
 | Inquiries | **switch (S3)** — generic intro; opens when the site goes live | done | — | the first inquiry |
-| Intake Forms | **switch (S3)** — generic intro | **intro with setup (S5)**: pick what to collect, preview, how patients get it, auto-send | — | A5 |
+| Intake Forms | **DONE (S5)** — its own door: pick what to collect (the standard template's sections, the basics always), see the questions, how patients get it (the true sentence), one button that builds the form + turns on | done | — | A5 |
 | Insurance | **intro + switch (shipped)** | done | NPI (live) | a benefits card |
-| Growth | **switch (S3)** — generic intro | **intro with setup (S5)** (recall engine is the door) | GBP connected, patients loaded | "38 overdue and reachable" |
+| Growth | **DONE (S5)** — its own door: the facts the first win needs with a door each (patients loaded → PMS / CSV, Google → Integrations) and the live "N due and reachable" | done | nothing to turn on; the facts say what the win needs | "38 overdue and reachable" |
 | Website | go-live lever (shipped) | done (the lever IS the switch) | hours, brand | the site is live |
-| Payments | **switch (S3)** — generic intro; the switch beats the old Stripe-derived gate | **intro with setup (S5)** over the existing connect | Stripe Connect | first pay link |
+| Payments | **DONE (S5)** — its own door over the existing connect: where Stripe stands (connected / finish in Stripe / not connected with the real link, which now returns to Payments) and one button | done | Stripe Connect (allowed to turn on first) | first pay link |
 | Shop | **switch (S3)** — generic intro; same rule | **intro with setup (S5)** | Stripe Connect, one product | — (never day one) |
 | Integrations | catalog; SMS "coming soon", PMS "request access", roadmap tiles | **the hub itself is the front door** | — | A1 |
 
@@ -204,7 +204,7 @@ The integrations catalog, specifically:
 | Text messaging | **DONE (S4)** — `live`, "Set up texting" → `/integrations/sms`; the card carries the registration state in its own words ("Carriers reviewing") while pending | the catalog flipped the day a clinic can START, not the day one finishes; an installation with no driver says "not enabled" |
 | NexHealth (Open Dental, Dentrix + more) | **DONE (S4)** — `live`, "Connect" → `/integrations/pms`, the intro + ONE form (system, practice name as it knows it, contact, best time, notes) → "We're connecting it — you'll hear from Dustin within a day"; the request posts into the clinic's support thread and the cockpit shows it as pending on us | the bind stays platform-side; `pms_connect_request` (0173) is the receipt, the connection row the truth |
 | Dentrix desktop / Eaglesoft / Curve | **DONE (S4)** — folded under the bridge card (they ARE reached, through the bridge); `pms_interest` stays as history for the platform's demand panel | — |
-| Google Business Profile, socials, Gmail, Stripe | live connect — each card already carries one sentence, one honest note and ONE button; the bundle header carries the "what it does" | **S5**: a "what to know" line per card where money or data moves (Stripe fees, where Gmail lands) |
+| Google Business Profile, socials, Gmail, Stripe | **DONE (S5)** — each card carries a "what to know" line while not connected (`IntegrationDef.know`: Stripe's fees and payouts, where Gmail lands, Google reads-only) beside its sentence, note and ONE button | — |
 
 ---
 
@@ -241,7 +241,7 @@ Guardian's audience lock).
 | **S2** | Day-one kick | binding a PMS, importing a CSV, or connecting GBP runs that org's generators immediately; the first card appears within the call |
 | **S3** | The switch, generalised — **SHIPPED 2026-10-05** | one column per feature, one registry + one gate, the sidebar shows the day-one six + what is on + "Add"; My Day / Follow-ups open at A1, Inquiries when the site goes live |
 | **S4** | Front doors: the integrations hub — **SHIPPED 2026-10-06** | the SMS card opens the form; PMS is a self-serve connect request with an honest status; roadmap tiles fold under it; "coming soon" leaves the dashboard (and a test holds it at zero) |
-| **S5** | Front doors: Intake Forms, Growth (recall), Payments | each gets the intro + setup + on, in the insurance shape |
+| **S5** | Front doors: Intake Forms, Growth (recall), Payments — **SHIPPED 2026-10-06** | each gets the intro + setup + on, in the insurance shape, through `FeatureGate`'s `intro` slot |
 | **S6** | Every empty state carries a door | the 64 cards each have one sentence and one button |
 | **S7** | The morning after | the day-two digest for a thin clinic says what happened and names one thing, or says what it waits on |
 | **S8** | Activation stamped + measured | `clinic_profile.activation` (A1–A5 timestamps, written once) and time-to-A1 on the platform Overview |
@@ -374,3 +374,35 @@ before S4–S6 because the doors need the switch to be one thing.
   on the Gmail / Stripe / Google cards. `pms_interest` (the old notify-me
   demand table) stays as history for the platform Overview's demand
   panel; nothing writes it any more.
+- **2026-10-06 — S5 SHIPPED: the doors with real setup.** `FeatureGate`
+  grew an `intro` slot: a module's layout hands it the module's OWN door
+  and the gate renders that in place of the generic card while the
+  switch is off. `components/feature-switch/feature-intro.tsx` split into
+  the presentational `IntroShell` (eyebrow, title, lede, does, know, the
+  pill, a children slot), `TurnOnButton` (the generic switch, or a door's
+  own action returning the same shape) and `AskManager`; the generic
+  `FeatureIntro` composes them. THREE DOORS: Intake Forms
+  (`app/(default)/intake-forms/intro.tsx` + `intake-intro-card.tsx`) —
+  what to collect as the standard template's sections with the basics
+  locked on (`intakeSectionChoices` / `pickIntakeSections` in
+  lib/types/forms.ts), "See the questions" per section, the TRUE sentence
+  about how patients get it (every booking confirmation, new patients the
+  full form, the pre-visit reminder chases), and `turnOnIntakeFormsAction`
+  builds the first form from the kept sections and flips the switch — a
+  clinic with forms on file keeps them and only gets the switch. Growth
+  (`app/(default)/growth/intro.tsx` + `growth-intro-card.tsx`) — the
+  facts the first win needs with a door each (no patients → the PMS door
+  or a CSV; Google not connected → Integrations) and the live "N due and
+  reachable" from `getRecallStats`; an unreadable count says so rather
+  than showing a zero; nothing is required to turn on. Payments
+  (`app/(default)/payments/intro.tsx` + `payments-intro-card.tsx`) — the
+  intro over the existing Stripe Connect: connected / finish in Stripe /
+  not connected with the real connect link, and the button turns on
+  regardless (the hub's own connect card is the next step). The Connect
+  OAuth flow learned `?back=` (an allowlist riding the state —
+  `resolveConnectBack` in lib/types/shop-connect.ts), so a clinic that connects from the Payments door
+  lands back on Payments instead of the Shop. The S4 carry closed:
+  `IntegrationDef.know` puts a "what to know" line on the Google, Gmail
+  and Stripe cards while not connected. Not done on purpose: no new
+  switches, no new columns — the three doors ride S3's columns and S3's
+  generic action; Insurance keeps its own page-level intro as before.

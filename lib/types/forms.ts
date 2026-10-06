@@ -489,3 +489,36 @@ export const DEFAULT_INTAKE_TEMPLATE: FormTemplateSchema = {
     },
   ],
 }
+
+/**
+ * THE INTAKE DOOR's "what to collect" (docs/ACTIVATION.md S5). The
+ * standard template's sections, each a choice except the one the chart
+ * cannot start without. `pickIntakeSections` builds the schema a clinic
+ * turns on with: the kept sections in template order, `patient_info`
+ * always. Unknown ids are ignored; an empty pick keeps the basics only.
+ */
+export const INTAKE_REQUIRED_SECTION = 'patient_info'
+
+export interface IntakeSectionChoice {
+  id: string
+  title: string
+  description: string | null
+  fieldCount: number
+  required: boolean
+}
+
+export function intakeSectionChoices(template: FormTemplateSchema = DEFAULT_INTAKE_TEMPLATE): IntakeSectionChoice[] {
+  return (template.sections ?? []).map((s) => ({
+    id: s.id,
+    title: s.title,
+    description: s.description ?? null,
+    fieldCount: (s.fields ?? []).length,
+    required: s.id === INTAKE_REQUIRED_SECTION,
+  }))
+}
+
+export function pickIntakeSections(keep: readonly string[], template: FormTemplateSchema = DEFAULT_INTAKE_TEMPLATE): FormTemplateSchema {
+  const wanted = new Set(keep)
+  wanted.add(INTAKE_REQUIRED_SECTION)
+  return { ...template, sections: (template.sections ?? []).filter((s) => wanted.has(s.id)) }
+}
