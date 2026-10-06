@@ -46,7 +46,7 @@ describe('PmsConnectRequest', () => {
     fireEvent.change(screen.getByLabelText('Practice software'), { target: { value: 'open_dental' } })
     fireEvent.submit(form)
     await waitFor(() => expect(submit).toHaveBeenCalledTimes(1))
-    const fd = submit.mock.calls[0][0] as unknown as FormData
+    const fd = (submit.mock.calls as unknown as Array<[FormData]>)[0][0]
     expect(fd.get('vendor')).toBe('open_dental')
     expect(fd.get('contactEmail')).toBe('dana@clinic.com')
     await waitFor(() => expect(refresh).toHaveBeenCalled())

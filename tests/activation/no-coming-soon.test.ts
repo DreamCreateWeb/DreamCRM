@@ -52,7 +52,7 @@ describe('law 3 — no "coming soon" in the dashboard', () => {
   })
 
   it('the allowed file only NAMES the public pre-live page', () => {
-    for (const rel of NAMES_THE_PUBLIC_PAGE) {
+    for (const rel of Array.from(NAMES_THE_PUBLIC_PAGE)) {
       const code = stripComments(readFileSync(join(process.cwd(), rel), 'utf8'))
       const hits = code.match(/.{0,40}coming soon.{0,40}/gi) ?? []
       expect(hits.length, rel).toBeGreaterThan(0)
