@@ -72,6 +72,12 @@ function ClinicCard({ row }: { row: FirstWeekRow }) {
             <span className="font-mono-num tabular-nums">{row.patientCount}</span> patients
             {row.smsState ? ` · texting: ${row.smsState.replace(/_/g, ' ')}` : ''}
           </p>
+          {row.pmsRequest && (
+            <p className={`mt-1 text-xs ${TONE_TEXT.info}`} data-testid="pms-request">
+              Asked us to connect {row.pmsRequest.vendor} on {shortDate(row.pmsRequest.at)}
+              {row.pmsRequest.status === 'scheduled' ? ' · install scheduled' : ' · waiting on us'}
+            </p>
+          )}
         </div>
         <div>
           <p className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold">The machine, last 7 days</p>

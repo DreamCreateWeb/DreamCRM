@@ -18,6 +18,8 @@ import { listActiveGoals } from '@/lib/services/goals'
 import { listOpenProposals } from '@/lib/services/proposals'
 import { countActionsSince } from '@/lib/services/action-ledger'
 import { getSmsRegistration, smsDriver } from '@/lib/services/sms-registration'
+import { getPmsConnectRequest } from '@/lib/services/pms-connect'
+import { pmsVendorLabel } from '@/lib/pms-connect'
 import type { ReadinessFact } from '@/lib/readiness'
 
 /**
@@ -56,6 +58,8 @@ export interface FirstWeekRow extends FirstWeekRowInput {
   facts: Array<{ id: string; label: string; grade: string; summary: string; href: string }>
   doors: { insurance: boolean; digest: boolean; siteLive: boolean }
   smsState: string | null
+  /** The clinic asked us to connect their PMS (S4) and the bridge is not bound yet. */
+  pmsRequest: { vendor: string; status: string; at: Date } | null
   progress: { done: ActivationKey[]; next: ActivationKey | null }
   stuck: string[]
 }
@@ -196,7 +200,7 @@ async function buildRow(
   now: Date,
 ): Promise<FirstWeekRow> {
   const since7 = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
-  const [report, goals, open, work, profile, sms, pms, signIn, activation] = await Promise.all([
+  const [report, goals, open, work, profile, sms, pms, signIn, activation, pmsRequest] = await Promise.all([
     safe('readiness', null, () => getReadinessReport(clinic.orgId)),
     safe('goals', [], () => listActiveGoals(clinic.orgId)),
     safe('proposals', [], () => listOpenProposals(clinic.orgId, 50)),
@@ -234,12 +238,17 @@ async function buildRow(
     }),
     lastStaffSignIn(clinic.orgId),
     readActivation(clinic.orgId),
+    safe('pmsRequest', null, () => getPmsConnectRequest(clinic.orgId)),
   ])
 
   const facts = SHOWN_FACTS.map((id) => report?.facts.find((f) => f.id === id)).filter((f): f is ReadinessFact => !!f)
   const oldestOpen = open.reduce<Date | null>((acc, p) => (acc == null || p.createdAt < acc ? p.createdAt : acc), null)
   const pendingOnUs: FirstWeekRowInput['pendingOnUs'] = []
   if (pms && pms.status !== 'connected' && pms.status !== 'not_connected') pendingOnUs.push({ label: 'The PMS connection', since: pms.since })
+  // The clinic asked (S4's front door) and nothing is bound yet: ours.
+  const openRequest =
+    pmsRequest && pms?.status !== 'connected' && (pmsRequest.status === 'requested' || pmsRequest.status === 'scheduled') ? pmsRequest : null
+  if (openRequest) pendingOnUs.push({ label: `Connecting ${pmsVendorLabel(openRequest.vendor, openRequest.vendorName)}`, since: openRequest.updatedAt })
   if (sms && SMS_PENDING_ON_US.has(sms.state) && sms.since) pendingOnUs.push({ label: 'Texting (carriers)', since: sms.since })
 
   const input: FirstWeekRowInput = {
@@ -267,6 +276,7 @@ async function buildRow(
     facts: facts.map((f) => ({ id: f.id, label: f.label, grade: f.grade, summary: f.summary, href: f.href })),
     doors: { insurance: profile?.insurance != null, digest: profile?.digest === 1, siteLive: profile?.siteLive != null },
     smsState: sms?.state ?? null,
+    pmsRequest: openRequest ? { vendor: pmsVendorLabel(openRequest.vendor, openRequest.vendorName), status: openRequest.status, at: openRequest.updatedAt } : null,
     progress: activationProgress(input.activation),
     stuck: stuckFlags(input, now),
   }

@@ -35,6 +35,7 @@ import NavBadgeSync from './nav-badge-sync'
 import InboxAutoRefresh from './inbox-auto-refresh'
 import ThreadSearchInput from './thread-search-input'
 import { aiConfigured } from '@/lib/ai'
+import { getClinicSmsIdentity } from '@/lib/sms'
 
 /**
  * Front-style unified Patient Communications inbox for clinic tenants.
@@ -101,13 +102,17 @@ export default async function ClinicMessagesView({
     limit: threadLimit,
   }
 
-  const [threadPage, stats, messageTemplates, members, perDay14] = await Promise.all([
+  const [threadPage, stats, messageTemplates, members, perDay14, smsIdentity] = await Promise.all([
     listPatientThreadsPage(ctx.organizationId, ctx.userId, filters),
     getInboxStats(ctx.organizationId, ctx.userId),
     listMessageTemplates(ctx.organizationId),
     listAssignableStaff(ctx.organizationId),
     getMessagesPerDay14(ctx.organizationId),
+    // Whether this clinic's texting is live — the composer's SMS option
+    // says the true state (S4, law 3). Best-effort: unknown reads as off.
+    getClinicSmsIdentity(ctx.organizationId).catch(() => ({ ok: false as const, reason: 'driver_off' as const })),
   ])
+  const smsLive = smsIdentity.ok
 
   // The page's ONE heartbeat (law 7): the 14-day conversation pulse —
   // patient messages sent + received per clinic-local day. Decorative —
@@ -380,6 +385,7 @@ export default async function ClinicMessagesView({
               }))}
               currentUserName={ctx.userName ?? null}
               aiEnabled={aiConfigured()}
+              smsLive={smsLive}
               scheduledMessages={scheduledMessages}
               activity={trimPreConversationMarkers(
                 activity.map((a) => ({

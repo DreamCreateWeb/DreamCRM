@@ -145,9 +145,10 @@ describe('IntegrationsLibrary — REAL brand logos', () => {
     expect(container.querySelector('svg[data-brand-logo="stripe"]')).toBeTruthy()
   })
 
-  it('renders monogram tiles for the roadmap PMSs (no generic plug)', () => {
+  it('renders real brand marks, never a generic plug (the roadmap monograms folded under the bridge in S4)', () => {
     const { container } = render(<IntegrationsLibrary {...props()} />)
-    expect(container.querySelectorAll('svg[data-brand-logo="monogram"]').length).toBeGreaterThanOrEqual(4)
+    expect(container.querySelectorAll('svg[data-brand-logo]').length).toBeGreaterThan(0)
+    expect(container.querySelector('svg[data-brand-logo="plug"]')).toBeNull()
   })
 })
 
@@ -210,11 +211,12 @@ describe('IntegrationsLibrary — search across member cards', () => {
 })
 
 describe('IntegrationsLibrary — Practice Management bundle', () => {
-  it('not connected → the bridge card doors to the detail page (guided install, no key form)', () => {
+  it('not connected → the bridge card doors to the detail page, where the connect REQUEST lives (S4)', () => {
     render(<IntegrationsLibrary {...props()} />)
     const section = screen.getByRole('heading', { name: 'Practice Management' }).closest('section')!
-    const door = within(section).getByRole('link', { name: /How connecting works/i }) as HTMLAnchorElement
+    const door = within(section).getByRole('link', { name: /^Connect$/i }) as HTMLAnchorElement
     expect(door.getAttribute('href')).toBe('/integrations/pms')
+    expect(within(section).getByText(/hear from us within a day/)).toBeTruthy()
   })
 
   it('connected → the bundle is Active; the bridge card shows Manage + Connected', () => {
@@ -241,15 +243,27 @@ describe('IntegrationsLibrary — Practice Management bundle', () => {
   })
 
 
-  it('Premium → the roadmap PMSs render as request-access / coming-soon tiles', () => {
+  it('the ONE bridge card names the systems it reaches and offers Connect → the request page (S4)', () => {
     render(<IntegrationsLibrary {...props()} />)
     const section = screen.getByRole('heading', { name: 'Practice Management' }).closest('section')!
-    expect(within(section).getByText('Dentrix (desktop)')).toBeTruthy()
-    expect(within(section).getByText('Eaglesoft')).toBeTruthy()
-    expect(within(section).getByText('Curve Dental')).toBeTruthy()
-    expect(within(section).getAllByText(/Coming soon/i).length).toBeGreaterThan(0)
-    expect(within(section).getByText('Dentrix Ascend')).toBeTruthy()
-    expect(within(section).getAllByText(/Request access/i).length).toBeGreaterThan(0)
+    expect(within(section).queryByText('Dentrix (desktop)')).toBeNull()
+    expect(within(section).queryByText('Eaglesoft')).toBeNull()
+    expect(within(section).queryByText(/Coming soon/i)).toBeNull()
+    expect(within(section).queryByText(/Request access/i)).toBeNull()
+    expect(within(section).getByText(/Open Dental, Dentrix, Eaglesoft, Curve/)).toBeTruthy()
+    const connect = within(section).getByRole('link', { name: /^Connect$/i }) as HTMLAnchorElement
+    expect(connect.getAttribute('href')).toBe('/integrations/pms')
+  })
+
+  it('a pending PMS request → the card says so in its own words, with a See-progress door', () => {
+    const state = liveState({ connections: { nexhealth: fact(false, { pending: 'We’re connecting it', title: 'Open Dental' }) } })
+    render(<IntegrationsLibrary {...props({}, state)} />)
+    const section = screen.getByRole('heading', { name: 'Practice Management' }).closest('section')!
+    expect(within(section).getAllByText('We’re connecting it').length).toBeGreaterThan(0)
+    expect(within(section).getByText('In progress')).toBeTruthy()
+    const door = within(section).getByRole('link', { name: /See progress/i }) as HTMLAnchorElement
+    expect(door.getAttribute('href')).toBe('/integrations/pms')
+    expect(within(section).queryByRole('link', { name: /^Connect$/i })).toBeNull()
   })
 })
 
@@ -316,13 +330,31 @@ describe('IntegrationsLibrary — Gmail + Stripe (first-party OAuth link-out)', 
   })
 })
 
-describe('IntegrationsLibrary — SMS coming-soon', () => {
-  it('SMS renders a coming-soon tile (no connect affordance)', () => {
+describe('IntegrationsLibrary — texting is a door (S4, law 3)', () => {
+  it('SMS renders "Set up texting" → the registration page, never "coming soon"', () => {
     render(<IntegrationsLibrary {...props()} />)
     const section = screen.getByRole('heading', { name: 'Patient Communications' }).closest('section')!
     const smsCard = within(section).getByText('Text messaging (SMS)').closest('.v2-card-interactive')!
-    expect(within(smsCard as HTMLElement).getByText(/Coming soon/i)).toBeTruthy()
-    expect(within(smsCard as HTMLElement).queryByRole('link', { name: /^Connect$/i })).toBeNull()
+    expect(within(smsCard as HTMLElement).queryByText(/Coming soon/i)).toBeNull()
+    const door = within(smsCard as HTMLElement).getByRole('link', { name: /Set up texting/i }) as HTMLAnchorElement
+    expect(door.getAttribute('href')).toBe('/integrations/sms')
+  })
+
+  it('an installation with no SMS driver says "not enabled" (no form that cannot submit)', () => {
+    render(<IntegrationsLibrary {...props({}, liveState({ smsConfigured: false }))} />)
+    const section = screen.getByRole('heading', { name: 'Patient Communications' }).closest('section')!
+    const smsCard = within(section).getByText('Text messaging (SMS)').closest('.v2-card-interactive')!
+    expect(within(smsCard as HTMLElement).getByText(/Not enabled on this installation/i)).toBeTruthy()
+    expect(within(smsCard as HTMLElement).queryByRole('link', { name: /Set up texting/i })).toBeNull()
+  })
+
+  it('carriers reviewing → the card carries the registration state and a See-progress door', () => {
+    const state = liveState({ connections: { sms: fact(false, { pending: 'Carriers reviewing', title: 'Registration in progress' }) } })
+    render(<IntegrationsLibrary {...props({}, state)} />)
+    const section = screen.getByRole('heading', { name: 'Patient Communications' }).closest('section')!
+    expect(within(section).getAllByText('Carriers reviewing').length).toBeGreaterThan(0)
+    expect(within(section).getByText('In progress')).toBeTruthy()
+    expect((within(section).getByRole('link', { name: /See progress/i }) as HTMLAnchorElement).getAttribute('href')).toBe('/integrations/sms')
   })
 })
 
@@ -405,7 +437,7 @@ describe('IntegrationsLibrary — consolidated add-on management', () => {
     expect(within(section).queryByRole('button', { name: /Add more/i })).toBeNull()
   })
 
-  it('add-on not configured (env unset) → a disabled "coming soon" button in the Social bundle', () => {
+  it('add-on not configured (env unset) → a disabled "not for sale yet" button in the Social bundle', () => {
     const state = liveState({ socialCap: { allowed: true, limit: 1, current: 0 } })
     render(
       <IntegrationsLibrary
@@ -420,7 +452,7 @@ describe('IntegrationsLibrary — consolidated add-on management', () => {
       />,
     )
     const section = screen.getByRole('heading', { name: 'Social Media' }).closest('section')!
-    const btn = within(section).getByRole('button', { name: /Add-on coming soon/i }) as HTMLButtonElement
+    const btn = within(section).getByRole('button', { name: /Add-on not for sale yet/i }) as HTMLButtonElement
     expect(btn.disabled).toBe(true)
   })
 

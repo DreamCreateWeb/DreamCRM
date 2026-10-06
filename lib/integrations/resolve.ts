@@ -27,6 +27,9 @@ export interface LiveIntegrationState {
   /** Whether the clinic's plan includes the Premium PMS integration. */
   /** Whether Zernio is enabled on this DreamCRM instance. */
   zernioConfigured: boolean
+  /** Whether an SMS driver is set on this instance (`SMS_DRIVER`). Absent =
+   *  treated as configured, so older callers and tests keep their meaning. */
+  smsConfigured?: boolean
   /** Per-integration-id live connection facts. Absent id = not connected. */
   connections: Record<string, IntegrationConnectionFact | undefined>
   /** Social-connection cap (from `canConnectSocialPlatform`). */
@@ -46,12 +49,22 @@ export interface IntegrationConnectionFact {
   title?: string | null
   /** True when this is the demo/sandbox connection (no-network). */
   isDemo?: boolean
+  /**
+   * IN PROGRESS (S4, law 3 — honest while pending): the clinic has started
+   * and something outside it is working — the carriers reviewing a texting
+   * registration, the platform scheduling a PMS install. The label is the
+   * state in the feature's own words ("Carriers reviewing"); the card shows
+   * it as an info pill with a door to the detail page, never "Not connected".
+   */
+  pending?: string | null
 }
 
 /**
  * The runtime status of an integration for the current clinic:
  *   - `connected`      — actively connected (card shows handle + manage/disconnect).
  *   - `needs_attention`— connected but errored (card shows the urgent pill).
+ *   - `pending`        — started; waiting on someone outside the clinic (the
+ *                        carriers, the platform) — an info pill + a door.
  *   - `available`      — connectable now (card shows the connect affordance).
  *   - `at_cap`         — connectable but the social cap is full (card shows the
  *                        upgrade/add-on CTA instead of connect).
@@ -63,6 +76,7 @@ export interface IntegrationConnectionFact {
 export type IntegrationRuntimeStatus =
   | 'connected'
   | 'needs_attention'
+  | 'pending'
   | 'available'
   | 'at_cap'
   | 'request_access'
@@ -79,6 +93,8 @@ export interface IntegrationRuntime {
   title: string | null
   /** True when the connection is the demo/sandbox one. */
   isDemo: boolean
+  /** The in-progress label, when `status` is 'pending'. */
+  pendingLabel: string | null
 }
 
 export interface ResolvedIntegration {
@@ -104,7 +120,7 @@ export function resolveIntegration(
   const title = fact?.title ?? null
   const isDemo = !!fact?.isDemo
 
-  const base = { handle, title, isDemo }
+  const base = { handle, title, isDemo, pendingLabel: null as string | null }
 
   // 1. A live connection always wins.
   if (connected) {
@@ -122,6 +138,12 @@ export function resolveIntegration(
     return { def, runtime: { status: 'needs_attention', connected: false, ...base } }
   }
 
+  // 1c. Started, and now waiting on someone outside the clinic — the honest
+  //     middle state. Beats the lifecycle + connectability checks below.
+  if (fact?.pending) {
+    return { def, runtime: { status: 'pending', connected: false, ...base, pendingLabel: fact.pending } }
+  }
+
   // 2. Lifecycle states that aren't connectable.
   if (def.availability === 'coming_soon') {
     return { def, runtime: { status: 'coming_soon', connected: false, ...base } }
@@ -133,6 +155,12 @@ export function resolveIntegration(
   // 4. Connectability.
   //    Zernio-kind integrations need the instance configured.
   if (def.connectKind === 'zernio' && !state.zernioConfigured) {
+    return { def, runtime: { status: 'unavailable', connected: false, ...base } }
+  }
+  //    Texting needs an SMS driver on the instance (S4 — the catalog says
+  //    live; an installation without the driver says "not enabled" rather
+  //    than offering a form that cannot submit).
+  if (def.id === 'sms' && state.smsConfigured === false) {
     return { def, runtime: { status: 'unavailable', connected: false, ...base } }
   }
   //    A social-cap integration is blocked when the cap is full.

@@ -1561,6 +1561,45 @@ export const pmsInterest = pgTable(
 export type PmsInterest = typeof pmsInterest.$inferSelect
 export type NewPmsInterest = typeof pmsInterest.$inferInsert
 
+/**
+ * THE PMS CONNECT REQUEST (docs/ACTIVATION.md S4, the integrations hub's
+ * front door). A clinic cannot bind the NexHealth bridge itself — the
+ * install is platform-side — but it CAN ask, in one form: which system
+ * they run, the practice name as that system knows it, who to talk to and
+ * when. ONE row per clinic (the unique index): a re-submit updates it.
+ * `status` is the platform's answer — 'requested' until a person picks it
+ * up, 'scheduled' when the install has a time, 'connected' once the
+ * bridge is bound (the connection row is the truth; this is the receipt),
+ * 'closed' when it will not happen. The request also lands in the clinic's
+ * support thread, so the owner hears it where they already listen.
+ */
+export const pmsConnectRequest = pgTable(
+  'pms_connect_request',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id, { onDelete: 'cascade' }),
+    // One of lib/pms-connect.ts PMS_VENDORS, or 'other' with `vendorName`.
+    vendor: text('vendor').notNull(),
+    vendorName: text('vendor_name'),
+    // The practice's name as the PMS knows it (often not the public name).
+    practiceNameInPms: text('practice_name_in_pms'),
+    contactName: text('contact_name').notNull(),
+    contactEmail: text('contact_email').notNull(),
+    contactPhone: text('contact_phone'),
+    bestTime: text('best_time'),
+    notes: text('notes'),
+    status: text('status').notNull().default('requested'),
+    requestedByUserId: text('requested_by_user_id').references(() => user.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('pms_connect_request_org_uq').on(t.organizationId)],
+)
+export type PmsConnectRequestRow = typeof pmsConnectRequest.$inferSelect
+export type NewPmsConnectRequest = typeof pmsConnectRequest.$inferInsert
+
 // Durable 1:1 link between a PMS-side record and our row. Lets re-syncs be
 // idempotent (upsert on external id) and lets write-back record the external
 // id the PMS assigned to a DreamCRM-originated booking. internalId is a soft

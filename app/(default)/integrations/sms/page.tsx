@@ -24,9 +24,9 @@ export const dynamic = 'force-dynamic'
  * register the campaign, buy the number, poll the carriers, report. No
  * wizard, no checklist, no console.
  *
- * DARK BUILD: with SMS_DRIVER unset this page renders the honest
- * coming-soon posture (the same sentence the marketing site makes), so the
- * route can ship before the driver goes live.
+ * DARK BUILD: with SMS_DRIVER unset this page says the installation has no
+ * texting rather than offering a form that cannot submit (law 3: never
+ * "coming soon" — production has the driver).
  */
 export default async function SmsDetailPage() {
   const ctx = await requireTenant()
@@ -70,11 +70,11 @@ export default async function SmsDetailPage() {
 
       {!live ? (
         <div className="rounded-2xl border border-[color:var(--color-hairline)] bg-white dark:bg-gray-800 p-6">
-          <StatusPill tone="neutral" label="Coming soon" />
+          <StatusPill tone="neutral" label="Not enabled here" />
           <p className="mt-3 text-sm text-gray-600 dark:text-gray-300 leading-relaxed">
-            Two-way texting is in the works. It needs a regulated carrier-registration process
-            (A2P 10DLC) that takes a few weeks per practice once it kicks off — we won’t sell it
-            before it works.
+            Texting isn’t switched on for this installation. Where it is, one form starts the
+            carriers’ registration (A2P 10DLC) — a review that takes a few weeks per practice — and
+            this page reports honestly where it stands.
           </p>
         </div>
       ) : registration ? (

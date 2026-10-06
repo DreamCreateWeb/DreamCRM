@@ -33,7 +33,7 @@ export default function ConnectPrompt({ configured }: Props) {
           </div>
         )}
         <p className="text-xs text-gray-500 dark:text-gray-400 mt-6 text-center">
-          Microsoft 365 / Outlook support coming soon.
+          Gmail only for now — Microsoft 365 / Outlook isn’t supported.
         </p>
       </div>
     </div>

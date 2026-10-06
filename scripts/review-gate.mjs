@@ -537,6 +537,9 @@ export const INTAKE_RULES = [
       'tests/a11y/dark-mode-parity.test.ts',
       'tests/a11y/token-contrast.test.ts',
       'tests/a11y/css-var-definitions.test.ts',
+      // docs/ACTIVATION.md law 3 — the "no coming soon in the dashboard"
+      // scan grades every dashboard tree for the phrase in rendered text.
+      'tests/activation/no-coming-soon.test.ts',
       // The shared-pending guard (#559) and the source walker it shares with
       // the pending-feedback rule.
       'tests/design-system/shared-pending.ts',

@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { startSmsRegistrationAction } from '../actions'
 import { StatusPill } from '@/components/ui/status-pill'
 import { ActionButton } from '@/components/ui/action-button'
-import { SMS_ENTITY_TYPES, type SmsRegistrationState } from '@/lib/sms-registration'
+import { REGISTRATION_STATE_LABEL, SMS_ENTITY_TYPES, type SmsRegistrationState } from '@/lib/sms-registration'
 import type { Tone } from '@/lib/ui/encodings'
 
 /**
@@ -52,25 +52,13 @@ const STATE_TONE: Record<SmsRegistrationState, Tone> = {
   suspended: 'neutral',
 }
 
-const STATE_LABEL: Record<SmsRegistrationState, string> = {
-  none: 'Not set up',
-  collecting: 'Saving details',
-  brand_pending: 'Verifying your business',
-  brand_action_needed: 'One thing needed from you',
-  campaign_pending: 'Carriers reviewing',
-  number_pending: 'Connecting your number',
-  approved: 'Live',
-  rejected: 'Needs corrected details',
-  suspended: 'Paused on our side',
-}
-
 export default function RegistrationPanel(props: Props) {
   const showForm = props.state === 'none' || props.state === 'collecting' || props.state === 'rejected'
   return (
     <div className="space-y-5">
       <div className="rounded-2xl border border-[color:var(--color-hairline)] bg-white dark:bg-gray-800 p-6">
         <div className="flex items-center justify-between gap-3">
-          <StatusPill tone={STATE_TONE[props.state]} label={STATE_LABEL[props.state]} />
+          <StatusPill tone={STATE_TONE[props.state]} label={REGISTRATION_STATE_LABEL[props.state]} />
           {props.phoneNumber && (
             <span className="text-sm font-semibold tabular-nums text-gray-800 dark:text-gray-100">
               {props.phoneNumber}

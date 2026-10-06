@@ -91,12 +91,12 @@ export const BUNDLES: BundleDef[] = [
       "Two-way sync with your practice-management system through its official API, so DreamCRM rides your real schedule and balances — and every record we create lands in your PMS's audit trail. We wrap what you already run; we never replace it.",
     categories: ['pms'],
     availability: 'live',
-    detailHref: '/integrations/open-dental',
+    detailHref: '/integrations/pms',
     valueLinks: [
       { href: '/patients', label: 'Patients' },
       { href: '/appointments', label: 'Appointments' },
     ],
-    note: 'Included with Premium. Two-way, audit-clean — official APIs only.',
+    note: 'Included. One bridge to Open Dental, Dentrix, Eaglesoft, Curve and more — set up with you, at no cost.',
   },
   {
     id: 'google',
@@ -132,16 +132,16 @@ export const BUNDLES: BundleDef[] = [
   {
     id: 'communication',
     name: 'Patient Communications',
-    tagline: 'Bring your practice email into one inbox. Texting on the way.',
+    tagline: 'Bring your practice email into one inbox, and text from your own number.',
     description:
-      'Connect your practice Gmail so clinic-bound email lands in DreamCRM, you can reply in-thread, and patient email sends from your own address. Two-way SMS for reminders, recall, and review requests is genuinely on the roadmap.',
+      'Connect your practice Gmail so clinic-bound email lands in DreamCRM, you can reply in-thread, and patient email sends from your own address. Two-way texting for reminders, recall and review requests runs from your practice’s own number after a one-time carrier registration.',
     categories: ['communication'],
     availability: 'live',
     valueLinks: [
       { href: '/inbox', label: 'Inbox' },
       { href: '/messages', label: 'Messages' },
     ],
-    note: 'Gmail is live on every plan; SMS is on the roadmap.',
+    note: 'Gmail is live on every plan; texting needs a one-time carrier registration.',
   },
   {
     id: 'payments',
@@ -248,12 +248,14 @@ export function activeBundleIds(s: BundleSignals): Set<BundleId> {
  * A bundle's status for the `/integrations` cards — richer than the sidebar's
  * boolean active flag:
  *   - `active`        — at least one member integration is connected.
+ *   - `pending`       — a member is started and waiting on someone outside
+ *                       the clinic (carriers, the platform).
  *   - `available`     — connectable now (a member can be connected).
  *   - `request_access`— only reachable via vendor/partner approval today.
  *   - `coming_soon`   — genuinely roadmap (all members are coming-soon).
  *   - `unavailable`   — connectable kind but the instance isn't configured.
  */
-export type BundleStatus = 'active' | 'available' | 'request_access' | 'coming_soon' | 'unavailable'
+export type BundleStatus = 'active' | 'pending' | 'available' | 'request_access' | 'coming_soon' | 'unavailable'
 
 export interface BundleView {
   def: BundleDef
@@ -281,6 +283,10 @@ export function resolveBundleView(
   let status: BundleStatus
   if (connectedMembers.length > 0) {
     status = 'active'
+  } else if (members.some((r) => r.runtime.status === 'pending')) {
+    // Started, waiting on someone outside the clinic (S4) — the bundle says
+    // so before it says "available", because something is already moving.
+    status = 'pending'
   } else if (members.some((r) => r.runtime.status === 'available' || r.runtime.status === 'at_cap')) {
     status = 'available'
   } else if (members.some((r) => r.runtime.status === 'request_access')) {

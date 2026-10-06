@@ -5767,6 +5767,23 @@ mocks `useConfirm`. The confirm is now awaited before the transition starts
 `tests/insurance/turn-off-dialog.test.tsx` renders the REAL ConfirmProvider
 so the dialog's appearance is the assertion.
 
+**2026-10-06 — THE FIRST WEEK S4: the integrations hub's front doors.**
+Law 3 enforced (`tests/activation/no-coming-soon.test.ts` holds the phrase
+at zero across the dashboard trees). Catalog: texting `live` ("Set up
+texting" → `/integrations/sms`; no driver → "not enabled"); the PMS bridge
+`live` / `connectKind: 'pms'` with the four roadmap tiles folded under it.
+Resolver: a `pending` state that beats availability, carrying each door's
+own words ("Carriers reviewing", "We're connecting it") with a See-progress
+door; bundles say "In progress". THE PMS FRONT DOOR: `/integrations/pms`
+unconnected = the intro + ONE form (pure `lib/pms-connect.ts`; service
+`lib/services/pms-connect.ts`; migration 0173 `pms_connect_request`, one
+row per clinic) whose submit POSTS INTO THE CLINIC'S SUPPORT THREAD — the
+platform's existing alert and list — and reads as "pending on us" in the
+first-week cockpit. The Overview's texting footnote became a door; the
+composer's SMS option says the clinic's true state; five more surfaces
+lost "coming soon". `pms_interest` stays as history for the platform's
+demand panel.
+
 **2026-10-05 (later) — THE FIRST WEEK S3: the switch, generalised.**
 Law 1 for every module. Migration 0172 puts seven `*_enabled_at` columns
 on `clinic_profile` (My Day, Follow-ups, Inquiries, Intake Forms, Growth,

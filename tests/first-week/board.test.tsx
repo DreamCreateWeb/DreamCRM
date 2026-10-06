@@ -35,6 +35,7 @@ function row(overrides: Partial<FirstWeekRow> = {}): FirstWeekRow {
     pendingOnUs: [],
     doors: { insurance: false, digest: false, siteLive: true },
     smsState: null,
+    pmsRequest: null,
     progress: { done: [], next: 'a1' },
     stuck: ['No data by day 4 — call about the PMS, or send the patient CSV.'],
     ...overrides,
@@ -78,5 +79,18 @@ describe('FirstWeekBoard', () => {
   it('no clinics → an honest empty state', () => {
     render(<FirstWeekBoard board={board([])} includeDemo={false} />)
     expect(screen.getByText('No clinics yet')).toBeInTheDocument()
+  })
+})
+
+describe('FirstWeekBoard — the PMS connect request (S4)', () => {
+  it('names the system the clinic asked us to connect, and that it is waiting on us', () => {
+    const board: Board = {
+      rows: [row({ pmsRequest: { vendor: 'Open Dental', status: 'requested', at: daysAgo(1) }, stuck: [] })],
+      generatedAt: NOW,
+      counts: { inFirstMonth: 1, stuck: 0, noData: 1 },
+    }
+    render(<FirstWeekBoard board={board} includeDemo={false} />)
+    expect(screen.getByTestId('pms-request')).toHaveTextContent('Asked us to connect Open Dental')
+    expect(screen.getByTestId('pms-request')).toHaveTextContent('waiting on us')
   })
 })
