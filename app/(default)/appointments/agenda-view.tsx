@@ -174,12 +174,15 @@ export default function AgendaView({
   filters,
   orgName,
   savedViews = [],
+  intakeOpen = true,
 }: {
   groups: AppointmentDayGroup[]
   meta: AppointmentFilterMeta
   filters: AppointmentListFilters
   orgName: string
   savedViews?: SavedViewChip[]
+  /** The Intake Forms door (law 1): closed = no 'Needs intake' chip. */
+  intakeOpen?: boolean
 }) {
   const router = useRouter()
   const params = useSearchParams()
@@ -442,7 +445,7 @@ export default function AgendaView({
             undifferentiated strip. */}
         <div className="flex flex-wrap gap-2 items-center">
           <span className="text-xs font-medium text-gray-500 dark:text-gray-400 mr-0.5">Show:</span>
-          {ATTENTION_LABELS.map((a) => (
+          {ATTENTION_LABELS.filter((c) => intakeOpen || c.key !== 'needs_intake').map((a) => (
             <FilterChip
               key={a.key}
               active={(filters.attention ?? []).includes(a.key)}

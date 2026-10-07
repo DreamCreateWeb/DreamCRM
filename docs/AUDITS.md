@@ -2512,3 +2512,39 @@ automations keep their own switches), so the generic sentence is true
 for them.
 
 ONE more verification round follows the merge.
+
+### Verification round 2 (2026-10-07) — the correction layer, and the close
+
+Verification round 2 over `af5d2f0^..715a291` returned 12 confirmed
+defects in FOUR distinct clusters, no in-phase gap, one rejection upheld
+(the morning-after's best-effort reads falling back to empty — a failed
+read says less by design). Every cluster is a sibling INSIDE a class
+verification round 1 named:
+
+| Cluster | The siblings the class sweep still missed | Fixed |
+|---|---|---|
+| The staff-facing intake nag (round-1 class) | The Overview's own chair row builds its glyph from `hasIntakeOnFile`; the "Intake forms" KPI tile; the patients "Missing intake" chip and its SQL filter; the agenda's "Needs intake" chip; the appointment drawer's "No intake on file… Send the form"; the record's "Send intake" menu item and the Forms tab's empty-state door | Each consults the door: the chair row gets `intakeOpen`, the tile hides, the chips hide (and the SQL filter is a no-op) while closed, the drawer's block hides unless a form is on file, the record passes no forms while closed so both doors vanish |
+| The Overview's other door-backed cards (round-1 class) | "Orders to fulfill" for a Shop nobody opened | Hidden unless the door is open or paid orders exist — then its CTA is the door itself |
+| The digest vs the Overview (round-1 class) | The email listed follow-ups (and put them in its subject) for a closed Follow-ups door the Overview card had just been hidden for; the leads line had the same shape | `buildDigestContent` takes the doors: a closed Follow-ups / Inquiries door keeps its list and subject word out, and the day is not "routine" for them |
+| The cockpit's unread A1 rail (round-1 class) | The trial-ending flag on the line above the fix, and the "No data connected" KPI | Both honour `unreadable: ['activation']` |
+| Test gap | The four service gates and the digest's `doorsClosed` read were pinned only at the pure layer | `readMorningAfter` has a service test; the digest's doors, the cockpit's trial flag and KPI, and the Overview's chair/tile/shop are pinned |
+
+**THE CLOSE — on the stated criterion, not on a zero-finding round.** The
+depth chamber returned ZERO in-phase gaps in rounds 3, V1 and V2. Every
+V2 defect was a sibling inside a class V1 had already named, i.e.
+confined to the correction layer. That is exactly the stopping shape the
+Phase-4 amendment to the gate names ("a phase is done when the depth
+chamber stops returning in-phase gaps AND the remaining defects are
+confined to the correction layer… at that point one more round buys
+churn, not safety. Write the certificate, name the open items, and move
+on"). The program CLOSES here, with V2's siblings fixed and the sweep's
+final lesson recorded below. A further verification round is available
+on request; it is not the default.
+
+**The final lesson, for the standing checklist:** when a class is named,
+the sweep is a GREP OVER THE CLASS'S VOCABULARY, not a walk of the files
+the fix touched. "Staff-facing intake readers" is every reader of
+`hasIntakeOnFile`, `intakeAttached`, `missingIntake*`, `no_intake`,
+`needs_intake`, `activeIntakeForms` and every "Send intake" affordance —
+listed in one grep, each gated, each pinned — before the class is called
+closed. V1 walked the files; V2 found the rest with the grep.

@@ -142,6 +142,11 @@ describe('unreadable ≠ a stuck flag (verification round)', () => {
     expect(unread.some((f) => /machine did nothing/.test(f))).toBe(false)
     expect(unread.some((f) => /No active staff session/.test(f))).toBe(false)
   })
+  it('an unread A1 rail is not "no data yet" for the trial-ending flag either', () => {
+    const soon = row({ createdAt: daysAgo(5), trial: { onTrial: true, expired: false, daysLeft: 2 } })
+    expect(stuckFlags(soon, NOW).some((f) => /Trial ends in 2 days and there is no data yet/.test(f))).toBe(true)
+    expect(stuckFlags({ ...soon, unreadable: ['activation'] }, NOW).some((f) => /Trial ends/.test(f))).toBe(false)
+  })
   it('an unread A1 rail is not "no data"; unread cards are not "cards waiting"', () => {
     expect(stuckFlags(row({ createdAt: daysAgo(5), unreadable: ['activation'] }), NOW).some((f) => /No data by day/.test(f))).toBe(false)
     expect(stuckFlags(row({ createdAt: daysAgo(5), openCards: 3, oldestOpenCardAt: daysAgo(4), unreadable: ['proposals', 'activation'] }), NOW).some((f) => /cards? waiting/.test(f))).toBe(false)

@@ -1032,9 +1032,16 @@ sitemap/robots/OG.
    (`intakeDoorOpen(profile)`, the dead-link law). The daily reconcile
    also opens the A1 doors it still OWES: any clinic with A1 on file whose
    A1 doors are null and not closed. The program's phase audit CLOSED
-   2026-10-07 at the hard cap with a self-sweep — certificate, the
-   four-cause retrospective and three standing self-sweep additions in
-   docs/AUDITS.md) → S4 the integrations hub's doors
+   2026-10-07 — three discovery rounds at the hard cap, the retrospective,
+   the self-sweep and two verification rounds, closed on the Phase-4
+   criterion (zero in-phase gaps three rounds running, the rest confined
+   to the correction layer); certificate, the four-cause retrospective,
+   three standing self-sweep additions and the final lesson ("sweep a
+   named class by grepping its vocabulary, not by walking the files a fix
+   touched") in docs/AUDITS.md. Every STAFF-facing intake reader consults
+   the switch too — the Overview chair glyph and tile, the patients and
+   agenda intake chips, the drawer's intake block, the record's send doors
+   — and the digest's follow-ups and leads lines follow their doors) → S4 the integrations hub's doors
    (SHIPPED 2026-10-06: the catalog's texting card is `live` → "Set up
    texting"; the PMS bridge is `live`/`connectKind: 'pms'` with the four
    roadmap tiles folded under it; `/integrations/pms` is the intro + ONE

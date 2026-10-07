@@ -5962,3 +5962,12 @@ staff-facing intake nag (audit flags, patient/agenda flags, the Overview's
 intake and follow-ups cards) and the digest's one thing all honour a
 closed door; intake's turn-off confirm says what patients stop getting.
 Classes recorded in docs/AUDITS.md.
+
+**2026-10-07 — THE FIRST WEEK: verification round 2 fixed; the audit
+CLOSED.** The last siblings of the staff-facing intake class (the
+Overview's chair glyph and tile, the intake chips and filter, the
+drawer's send block, the record's send doors), the Overview's Shop card,
+the digest's closed-door follow-ups and leads, the cockpit's trial flag
+and no-data count on an unread rail — fixed and pinned. Closed on the
+Phase-4 criterion (zero in-phase gaps three rounds running; remaining
+defects confined to the correction layer). Certificate in docs/AUDITS.md.

@@ -28,7 +28,7 @@ const { mockGetOverview } = vi.hoisted(() => ({
 }))
 
 // The doors (docs/ACTIVATION.md law 1, verification round): a closed module's card never nags.
-const doors = { intake_forms: true, followups: true }
+const doors = { intake_forms: true, followups: true, shop: true }
 vi.mock('@/lib/services/feature-switches', () => ({ getFeatureSwitchState: async () => ({ ...doors }) }))
 vi.mock('@/lib/services/clinic-overview', () => ({
   getClinicOverview: mockGetOverview,
@@ -540,6 +540,45 @@ describe("Today's chair", () => {
     // "Unconfirmed" appears in both the attention-card title + the row status
     // pill — use getAllByText and assert ≥ 2 occurrences.
     expect(screen.getAllByText('Unconfirmed').length).toBeGreaterThanOrEqual(2)
+  })
+
+  it('the chair row’s missing-intake glyph, the Intake forms tile and the Shop card follow their doors (verification round 2)', async () => {
+    const liam = {
+      id: 'a2',
+      patientId: 'p2',
+      patientName: 'Liam Brooks',
+      startTime: new Date('2026-05-20T10:00:00Z'),
+      endTime: new Date('2026-05-20T10:30:00Z'),
+      type: 'root_canal',
+      status: 'scheduled',
+      flags: { newPatient: true, birthdayThisWeek: false, hasOutstandingBalance: false, hasIntakeOnFile: false },
+      tags: [],
+    } as never
+    // Open: the glyph, the tile and the shop card are there.
+    mockGetOverview.mockResolvedValueOnce(makeData({ todaysAppointments: [liam], trends: { ...makeData().trends, activeIntakeForms: 1 } }))
+    const open = render(await ClinicOverview({ ctx: makeCtx() }))
+    expect(open.container.querySelector('[title*="intake" i], [aria-label*="intake" i]')).not.toBeNull()
+    expect(screen.getByText('Intake forms')).toBeInTheDocument()
+    expect(screen.getByText('Orders to fulfill')).toBeInTheDocument()
+    open.unmount()
+    doors.intake_forms = false
+    doors.shop = false
+    try {
+      mockGetOverview.mockResolvedValueOnce(makeData({ todaysAppointments: [liam], trends: { ...makeData().trends, activeIntakeForms: 1 } }))
+      const closed = render(await ClinicOverview({ ctx: makeCtx() }))
+      expect(closed.container.querySelector('[title*="intake" i], [aria-label*="intake" i]')).toBeNull()
+      expect(screen.queryByText('Intake forms')).toBeNull()
+      expect(screen.queryByText('Orders to fulfill')).toBeNull()
+      closed.unmount()
+      // Paid orders behind a closed Shop door: the card shows and leads to the door itself.
+      mockGetOverview.mockResolvedValueOnce(makeData({ paidOrdersUnfulfilled: 2 }))
+      render(await ClinicOverview({ ctx: makeCtx() }))
+      expect(screen.getByText('Orders to fulfill')).toBeInTheDocument()
+      expect(screen.getByRole('link', { name: /Turn on Shop to fulfill/ })).toHaveAttribute('href', '/shop')
+    } finally {
+      doors.intake_forms = true
+      doors.shop = true
+    }
   })
 
   it('renders the new-patient ★ glyph for first-visit patients', async () => {

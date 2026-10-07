@@ -6,6 +6,8 @@ export const metadata = {
 export const dynamic = 'force-dynamic'
 
 import { redirect } from 'next/navigation'
+import { getFeatureSwitchState } from '@/lib/services/feature-switches'
+import { ALL_ON } from '@/lib/feature-switches'
 import { requireTenant } from '@/lib/auth/context'
 import {
   listPatientsPage,
@@ -67,11 +69,12 @@ export default async function PatientsPage({ searchParams }: PageProps) {
   const sort = parseSort(params.sort)
   const limit = parseLimit(params.show)
 
-  const [page, meta, views, perWeek12] = await Promise.all([
+  const [page, meta, views, perWeek12, switches] = await Promise.all([
     listPatientsPage(ctx.organizationId, filters, sort, { limit }),
     getPatientListMeta(ctx.organizationId),
     listPatientViews(ctx.organizationId),
     getNewPatientsPerWeek12(ctx.organizationId),
+    getFeatureSwitchState(ctx.organizationId).catch(() => ALL_ON),
   ])
 
     return (
@@ -90,6 +93,7 @@ export default async function PatientsPage({ searchParams }: PageProps) {
       sort={sort}
       orgName={ctx.organizationName}
       canManage={ctx.role === 'owner' || ctx.role === 'admin'}
+      intakeOpen={switches.intake_forms}
       views={views}
       canMarket
     />

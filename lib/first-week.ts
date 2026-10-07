@@ -101,10 +101,10 @@ export function stuckFlags(row: FirstWeekRowInput, now: Date): string[] {
     out.push('Trial ended and no card — they are behind the wall. The next move is billing, not the PMS.')
     return out
   }
-  if (row.trial.onTrial && row.trial.daysLeft != null && row.trial.daysLeft <= STUCK.trialEndingDays && !hasData) {
+  const unread = new Set(row.unreadable)
+  if (row.trial.onTrial && row.trial.daysLeft != null && row.trial.daysLeft <= STUCK.trialEndingDays && !hasData && !unread.has('activation')) {
     out.push(`Trial ends in ${row.trial.daysLeft} ${row.trial.daysLeft === 1 ? 'day' : 'days'} and there is no data yet — the week is over before it started; call today.`)
   }
-  const unread = new Set(row.unreadable)
   if (!hasData && !unread.has('activation') && day >= STUCK.noDataByDay) {
     out.push(`No data by day ${day} — call about the PMS, or send the patient CSV.`)
   }

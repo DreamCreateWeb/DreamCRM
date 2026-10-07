@@ -273,7 +273,7 @@ export async function listPatientsPage(
     const month = String(now.getMonth() + 1).padStart(2, '0')
     where.push(sql`substring(${schema.patient.dateOfBirth} from 6 for 2) = ${month}`)
   }
-  if (filters.missingIntake) {
+  if (filters.missingIntake && intakeOpen) {
     // `!!next && next.startTime <= in7d && !intakeSet.has(id)` — the earliest
     // live future visit landing inside 7 days is the same question as "any
     // live visit in [now, in7d]", with no form submission on file.

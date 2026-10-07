@@ -291,7 +291,8 @@ export async function getFirstWeekBoard(opts: { now?: Date; includeDemo?: boolea
     counts: {
       inFirstMonth: rows.filter((r) => r.day < 30).length,
       stuck: rows.filter((r) => r.stuck.length > 0).length,
-      noData: rows.filter((r) => r.activation.a1 == null).length,
+      // An unread A1 rail is unknown, not 'no data' (verification round 2).
+      noData: rows.filter((r) => r.activation.a1 == null && !r.unreadable.includes('activation')).length,
       medianHoursToA1: median(rows.flatMap((r) => (r.activation.a1 ? [hoursTo(r.createdAt, r.activation.a1)] : []))),
     },
   }

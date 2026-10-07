@@ -716,3 +716,19 @@ before S4–S6 because the doors need the switch to be one thing.
   digest's one thing never sends staff through a door a person closed
   (`ACTIVATION_DOORS[*].feature` + `doorsClosed`). One more verification
   round follows.
+- **2026-10-07 — VERIFICATION ROUND 2 and THE CLOSE.** 12 confirmed in
+  four clusters, no gap, every one a sibling inside a class verification
+  round 1 had named: the staff-facing intake readers the file-walk missed
+  (the Overview's own chair glyph and "Intake forms" tile, the patients
+  and agenda intake chips + the SQL filter, the appointment drawer's
+  "send the form" block, the record's Send-intake menu item and Forms-tab
+  door); the Overview's Shop card for a shop nobody opened; the digest
+  listing follow-ups and leads behind closed doors (and in its subject)
+  while the Overview card hid; the cockpit's trial-ending flag and
+  "No data connected" KPI on an unread A1 rail; and the test gap on the
+  service gates. All fixed and pinned (`readMorningAfter` gained a service
+  test). THE PROGRAM'S AUDIT CLOSES HERE on the gate's stated criterion —
+  three consecutive rounds with zero in-phase gaps and the remaining
+  defects confined to the correction layer — with the final lesson in
+  docs/AUDITS.md: a named class is swept by grepping its vocabulary, not
+  by walking the files a fix touched.

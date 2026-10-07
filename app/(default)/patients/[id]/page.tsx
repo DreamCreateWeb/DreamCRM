@@ -1,6 +1,7 @@
 export const dynamic = 'force-dynamic'
 
 import { notFound, redirect } from 'next/navigation'
+import { getFeatureSwitchState } from '@/lib/services/feature-switches'
 import { requireTenant } from '@/lib/auth/context'
 import { getPatientHeader, listPatientOptions, getFamilyForPatient } from '@/lib/services/patients'
 import { getPatientTimeline, countTimeline } from '@/lib/services/patient-timeline'
@@ -101,7 +102,9 @@ export default async function PatientDetailPage({ params }: PageProps) {
     : null
 
   const counts = countTimeline(timeline)
-  const intakeForms = forms.map((f) => ({ id: f.id, title: f.title }))
+  // The Intake Forms door (law 1): closed = no 'Send intake' anywhere on the record (the send would be refused).
+  const intakeOpen = await getFeatureSwitchState(ctx.organizationId).then((s) => s.intake_forms).catch(() => true)
+  const intakeForms = intakeOpen ? forms.map((f) => ({ id: f.id, title: f.title })) : []
 
   return (
     <PatientDetail

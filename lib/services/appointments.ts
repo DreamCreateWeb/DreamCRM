@@ -120,6 +120,8 @@ export interface AppointmentDetail extends AppointmentRow {
     replyBody: string | null
   }>
   intakeAttached: { id: string; formTitle: string; submittedAt: Date } | null
+  /** The Intake Forms door (law 1): closed = the drawer shows no 'send the form' nag. */
+  intakeOpen: boolean
   /** Booking deposit collected (or awaited) for this visit. Null = none.
    *  The row STAYS 'paid' after a Stripe refund by design, so the pill has to
    *  read `refundedAmountCents` — telling the front desk to post money that
@@ -808,6 +810,7 @@ export async function getAppointmentDetail(
     intakeAttached: intakeRow[0]
       ? { id: intakeRow[0].id, formTitle: intakeRow[0].formTitle, submittedAt: intakeRow[0].submittedAt }
       : null,
+    intakeOpen,
     deposit: depositRow[0]
       ? { ...depositRow[0], refundedAmountCents: depositRow[0].refundedAmountCents ?? 0 }
       : null,

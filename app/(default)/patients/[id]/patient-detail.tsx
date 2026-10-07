@@ -586,6 +586,7 @@ function MoreActionsMenu({
               </select>
             </div>
           )}
+          {forms.length > 0 && (
           <button
             type="button"
             role="menuitem"
@@ -601,6 +602,7 @@ function MoreActionsMenu({
           >
             {active === 'intake' ? 'Sending intake…' : 'Send intake'}
           </button>
+          )}
           <button
             type="button"
             role="menuitem"

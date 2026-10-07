@@ -74,9 +74,10 @@ function row(i: number): PatientListRow {
 
 const rows = (n: number) => Array.from({ length: n }, (_, i) => row(i))
 
-function renderList(over: { rows?: PatientListRow[]; total: number; hasMore?: boolean; limit?: number }) {
+function renderList(over: { rows?: PatientListRow[]; total: number; hasMore?: boolean; limit?: number; intakeOpen?: boolean }) {
   return render(
     <PatientsList
+      intakeOpen={over.intakeOpen}
       rows={over.rows ?? rows(Math.min(over.total, over.limit ?? DEFAULT_PATIENT_LIMIT))}
       total={over.total}
       hasMore={over.hasMore ?? false}
@@ -92,6 +93,14 @@ function renderList(over: { rows?: PatientListRow[]; total: number; hasMore?: bo
 beforeEach(() => pushMock.mockClear())
 
 describe('PatientsList — the page bound', () => {
+  it('the "Missing intake" chip hides while the Intake Forms door is closed (law 1, verification round 2)', () => {
+    const { unmount } = renderList({ total: 3, intakeOpen: false })
+    expect(screen.queryByText('📝 Missing intake')).toBeNull()
+    unmount()
+    renderList({ total: 3 })
+    expect(screen.getByText('📝 Missing intake')).toBeInTheDocument()
+  })
+
   it('counts the whole filtered set in the header, not the page', () => {
     renderList({ total: 4213, hasMore: true })
     expect(screen.getByText('4213 patients')).toBeInTheDocument()

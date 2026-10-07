@@ -6,6 +6,7 @@ export const metadata = {
 export const dynamic = 'force-dynamic'
 
 import { redirect } from 'next/navigation'
+import { getFeatureSwitchState } from '@/lib/services/feature-switches'
 import { requireTenant } from '@/lib/auth/context'
 import {
   listAppointments,
@@ -70,6 +71,7 @@ export default async function AppointmentsPage({ searchParams }: PageProps) {
   ])
   const groups = groupByDay(rows, timeZone)
   // Map each stored view to the chip the bar needs (name + reopen query).
+  const intakeOpen = await getFeatureSwitchState(ctx.organizationId).then((s) => s.intake_forms).catch(() => true)
   const savedViews = viewRows.map((v) => {
     const f = normalizeAppointmentViewFilters(v.filters)
     return { id: v.id, name: v.name, query: appointmentViewFiltersToQuery(f) }
@@ -97,6 +99,7 @@ export default async function AppointmentsPage({ searchParams }: PageProps) {
       filters={filters}
       orgName={ctx.organizationName}
       savedViews={savedViews}
+      intakeOpen={intakeOpen}
     />
     </>
   )
