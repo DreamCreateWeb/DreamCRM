@@ -55,6 +55,7 @@ function makeData(overrides: Partial<ClinicSiteData['profile']> = {}): ClinicSit
       cancellationPolicy: null,
       createdAt: new Date(),
       updatedAt: new Date(),
+      intakeFormsEnabledAt: new Date('2026-10-01T00:00:00Z'),
       ...overrides,
     } as ClinicSiteData['profile'],
   }
@@ -128,6 +129,12 @@ describe('NewPatientsPage', () => {
     for (const href of intakeLinks) {
       expect(href).toBe('https://app.example.com/site/acme-dental/intake-start')
     }
+  })
+
+  it('no intake CTA at all while the Intake Forms door is closed — the page it points at serves nothing (law 1, audit round 3)', async () => {
+    await renderPage(makeData({ intakeFormsEnabledAt: null }))
+    expect(screen.queryAllByRole('link', { name: /Start your intake online/i })).toHaveLength(0)
+    expect(screen.queryByText('Skip the clipboard')).toBeNull()
   })
 
   it('insurance money card reads real carriers when set', async () => {

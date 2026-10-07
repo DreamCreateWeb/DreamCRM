@@ -136,7 +136,7 @@ describe('reconcileActivation', () => {
 describe('reconcileActivationStamps', () => {
   it('walks only the clinics with something unstamped and counts what it wrote', async () => {
     state.rows.set(schema.organization, [
-      { orgId: 'org_done', activation: { a1: '2026-10-01T00:00:00.000Z', a2: '2026-10-01T00:00:00.000Z', a3: '2026-10-01T00:00:00.000Z', a4: '2026-10-01T00:00:00.000Z', a5: '2026-10-01T00:00:00.000Z' } },
+      { orgId: 'org_done', activation: { a1: '2026-10-01T00:00:00.000Z', a2: '2026-10-01T00:00:00.000Z', a3: '2026-10-01T00:00:00.000Z', a4: '2026-10-01T00:00:00.000Z', a5: '2026-10-01T00:00:00.000Z' }, myDayEnabledAt: NOW, followupsEnabledAt: NOW, doorsClosed: null },
       { orgId: 'org_a', activation: null },
     ])
     state.rows.set(schema.clinicProfile, [{ activation: null }])
@@ -146,6 +146,19 @@ describe('reconcileActivationStamps', () => {
     expect(r.stamped).toEqual({ a1: 0, a2: 0, a3: 0, a4: 1, a5: 0 })
     expect(r.errors).toBe(0)
     expect(openDoorsAtA1).not.toHaveBeenCalled()
+  })
+
+  it('an A1 already on file whose doors were never opened (and never closed) is still owed them — a closed one is not (round-3 sweep)', async () => {
+    const all = { a1: '2026-10-01T00:00:00.000Z', a2: '2026-10-01T00:00:00.000Z', a3: '2026-10-01T00:00:00.000Z', a4: '2026-10-01T00:00:00.000Z', a5: '2026-10-01T00:00:00.000Z' }
+    state.rows.set(schema.organization, [
+      { orgId: 'org_owed', activation: all, myDayEnabledAt: null, followupsEnabledAt: null, doorsClosed: null },
+      { orgId: 'org_closed', activation: all, myDayEnabledAt: null, followupsEnabledAt: null, doorsClosed: { my_day: '2026-10-05T00:00:00.000Z', followups: '2026-10-05T00:00:00.000Z' } },
+    ])
+    state.rows.set(schema.clinicProfile, [{ activation: all }])
+    const r = await reconcileActivationStamps({ now: NOW })
+    expect(r.scanned).toBe(1)
+    expect(openDoorsAtA1).toHaveBeenCalledTimes(1)
+    expect(openDoorsAtA1).toHaveBeenCalledWith('org_owed', NOW)
   })
 
   it('an A1 the daily pass stamps opens the A1 doors too (audit round 2)', async () => {

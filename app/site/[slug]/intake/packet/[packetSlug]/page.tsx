@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation'
 import { getClinicSiteBySlug, publicSiteUrl, resolveSiteBasePath } from '@/lib/services/clinic-site'
-import { getPacketWithForms } from '@/lib/services/forms'
+import { getPacketWithForms, patientFacingIntakeOpen } from '@/lib/services/forms'
 import type { FormTemplateSchema, FormTranslations } from '@/lib/types/forms'
 import { readableInk, brandFill } from '@/lib/clinic-site-theme'
 import { submitIntakeForm, readInsuranceCardAction } from '../../[formSlug]/actions'
@@ -31,6 +31,8 @@ export default async function IntakePacketPage({ params }: Props) {
   const { slug, packetSlug } = await params
   const data = await getClinicSiteBySlug(slug)
   if (!data) notFound()
+  // OFF UNTIL CHOSEN (law 1): a packet is intake too — nothing serves while the door is closed.
+  if (!(await patientFacingIntakeOpen(data.orgId))) notFound()
   const result = await getPacketWithForms(data.orgId, packetSlug)
   if (!result) notFound()
 

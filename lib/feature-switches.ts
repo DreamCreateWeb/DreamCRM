@@ -238,6 +238,17 @@ export const ALL_ON: FeatureSwitchState = Object.fromEntries(FEATURE_SWITCHES.ma
 export const ALL_OFF: FeatureSwitchState = Object.fromEntries(FEATURE_SWITCHES.map((f) => [f.key, false])) as FeatureSwitchState
 
 /**
+ * OFF UNTIL CHOSEN on the PUBLIC SITE (law 1, the dead-link law — audit
+ * round 3's self-sweep): every template's "New patient forms" / "Start
+ * your intake" link points at /intake-start, which serves nothing while
+ * the Intake Forms door is closed. The link hides with the door. Reads the
+ * raw profile row the site shell already carries.
+ */
+export function intakeDoorOpen(profile: { intakeFormsEnabledAt: Date | string | null | undefined }): boolean {
+  return profile.intakeFormsEnabledAt != null
+}
+
+/**
  * The doors a PERSON closed (`clinic_profile.doors_closed`, audit round 2):
  * key → the ISO instant of the close. Untrusted jsonb in, only known keys
  * with string values out; anything else is an empty memory.

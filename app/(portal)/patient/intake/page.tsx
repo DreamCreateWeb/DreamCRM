@@ -5,7 +5,7 @@ export const metadata = {
 export const dynamic = 'force-dynamic'
 
 import { getMyPendingForms, getMyRecords } from '@/lib/services/patient-portal'
-import { getFormTemplate, getReturnVisitPrefill } from '@/lib/services/forms'
+import { getFormTemplate, getReturnVisitPrefill, patientFacingIntakeOpen } from '@/lib/services/forms'
 import { getPortalPageContext, requirePortalFeature } from '../portal-data'
 import type { FormTemplateSchema, FormTranslations } from '@/lib/types/forms'
 import IntakeFormRunner from '@/app/site/[slug]/intake/[formSlug]/intake-form-runner'
@@ -31,8 +31,9 @@ export default async function PortalFormsPage({
   const { ctx, clinic, brand, timeZone } = pc
   const { form: selectedId } = await searchParams
 
-  // Fill view — one specific template.
-  if (selectedId) {
+  // Fill view — one specific template. OFF UNTIL CHOSEN (law 1): an old
+  // link to a form id serves nothing while the Intake Forms door is closed.
+  if (selectedId && (await patientFacingIntakeOpen(ctx.organizationId))) {
     const template = await getFormTemplate(ctx.organizationId, selectedId)
     if (template && !template.archivedAt) {
       // Return-visit pre-fill: seed the form with the patient's prior answers

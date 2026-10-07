@@ -1021,8 +1021,15 @@ sitemap/robots/OG.
    dialect. And OFF UNTIL CHOSEN for intake is ONE gate,
    `patientFacingIntakeOpen` in lib/services/forms.ts, that every
    patient-facing intake surface asks — the booking confirmation, the
-   site booking action, the forms-reminder cron, the portal task, the
-   public intake pages, the staff send) → S4 the integrations hub's doors
+   site booking action, the forms-reminder cron, the portal task and its
+   form-by-id view, the public intake and packet pages, the staff send —
+   and the public site's "New patient forms" links hide with the door
+   (`intakeDoorOpen(profile)`, the dead-link law). The daily reconcile
+   also opens the A1 doors it still OWES: any clinic with A1 on file whose
+   A1 doors are null and not closed. The program's phase audit CLOSED
+   2026-10-07 at the hard cap with a self-sweep — certificate, the
+   four-cause retrospective and three standing self-sweep additions in
+   docs/AUDITS.md) → S4 the integrations hub's doors
    (SHIPPED 2026-10-06: the catalog's texting card is `live` → "Set up
    texting"; the PMS bridge is `live`/`connectKind: 'pms'` with the four
    roadmap tiles folded under it; `/integrations/pms` is the intro + ONE

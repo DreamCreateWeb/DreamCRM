@@ -242,6 +242,10 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
     if (!profile?.growthEnabledAt) patch.growthEnabledAt = new Date()
     if (!profile?.paymentsEnabledAt) patch.paymentsEnabledAt = new Date()
     if (!profile?.shopEnabledAt) patch.shopEnabledAt = new Date()
+    // …and the self-heal is a person's "open everything", not the machine
+    // answering an event: a close an admin made in demo mode is forgotten
+    // with it (migration 0175 `doors_closed`, audit round 3's self-sweep).
+    if (Object.keys(patch).some((k) => k.endsWith('EnabledAt'))) patch.doorsClosed = null
     // Backfill the site announcement bar on legacy demos (migration 0134) so
     // the live demo site shows the strip. Only-when-unset — a clinic-authored
     // (or cleared) bar is never clobbered.
