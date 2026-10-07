@@ -97,11 +97,16 @@ export async function submitPmsConnectRequest(args: {
     })
     .onConflictDoUpdate({
       target: schema.pmsConnectRequest.organizationId,
-      // A re-submit refreshes the details and re-opens the request; a
-      // connected one stays connected (the connection row is the truth).
+      // A re-submit refreshes the details. An EDIT of an open request keeps
+      // its status ('scheduled' stays scheduled — the platform's answer
+      // survives a phone-number fix) and its ask date; a re-ask after
+      // 'closed' is a NEW ask (requested, dated now — the cockpit's clock
+      // and the door's "Asked" read createdAt); a connected one stays
+      // connected (the connection row is the truth). Audit round 3.
       set: {
         ...values,
         status: sql_reopen(),
+        createdAt: sql_redate(now),
         requestedByUserId: args.userId,
         updatedAt: now,
       },
@@ -118,9 +123,14 @@ export async function submitPmsConnectRequest(args: {
   return toView(row)
 }
 
-/** `status` on re-submit: a connected request stays connected; anything else re-opens. */
+/** `status` on re-submit: connected and scheduled keep their answer; closed re-opens; requested stays requested. */
 function sql_reopen() {
-  return sql`case when ${schema.pmsConnectRequest.status} = 'connected' then 'connected' else 'requested' end`
+  return sql`case when ${schema.pmsConnectRequest.status} in ('connected', 'scheduled') then ${schema.pmsConnectRequest.status} else 'requested' end`
+}
+
+/** `created_at` on re-submit: a re-ask after 'closed' is a new ask dated now; an edit keeps the original ask date. */
+function sql_redate(now: Date) {
+  return sql`case when ${schema.pmsConnectRequest.status} = 'closed' then ${now.toISOString()}::timestamp else ${schema.pmsConnectRequest.createdAt} end`
 }
 
 /**

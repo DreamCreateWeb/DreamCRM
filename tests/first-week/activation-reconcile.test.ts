@@ -168,7 +168,7 @@ describe('getActivationMetrics', () => {
     expect(m.unreadable).toBe(false)
     expect(m.clinics).toBe(2)
     expect(m.events[0]).toMatchObject({ key: 'a1', reached: 1, medianHours: 24 })
-    expect(m.a1Within).toEqual({ reached: 1, share: 0.5 })
+    expect(m.a1Within).toEqual({ reached: 1, decided: 2, share: 0.5 })
     expect(m.noDataPastDue).toBe(1)
   })
 

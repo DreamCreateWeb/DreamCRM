@@ -6,16 +6,16 @@ import { requireTenant } from '@/lib/auth/context'
 import {
   FormTemplateInput,
   archiveFormTemplate,
-  countSubmissionsForTemplate,
   createFormTemplate,
   createPacket,
   deletePacket,
   listFormTemplates,
+  splitIntakeFormsForDoor,
   updateFormTemplate,
 } from '@/lib/services/forms'
 import { summarizeSubmission, type IntakeSummary } from '@/lib/services/intake-summary'
 import { generateFormTranslation } from '@/lib/services/form-translate'
-import { DEFAULT_INTAKE_TEMPLATE, isUntouchedSeedTemplate, pickIntakeSections } from '@/lib/types/forms'
+import { DEFAULT_INTAKE_TEMPLATE, pickIntakeSections } from '@/lib/types/forms'
 
 async function requireClinicAdmin() {
   const ctx = await requireTenant()
@@ -58,16 +58,10 @@ export async function turnOnIntakeFormsAction(input: { sections?: unknown }): Pr
   }
   const keep = Array.isArray(input?.sections) ? input.sections.filter((x): x is string => typeof x === 'string').slice(0, 20) : []
   try {
-    const existing = await listFormTemplates(ctx.organizationId)
-    const live = existing.filter((t) => t.archivedAt == null)
-    // A seeded form that patients have already answered is THEIRS too (audit
-    // round 2): rebuilding it with fewer sections would hide answers on file.
-    const answered = new Set<string>()
-    for (const t of live.filter((t) => isUntouchedSeedTemplate(t))) {
-      if ((await countSubmissionsForTemplate(ctx.organizationId, t.id)) > 0) answered.add(t.id)
-    }
-    const own = live.filter((t) => !isUntouchedSeedTemplate(t) || answered.has(t.id))
-    const seeded = live.filter((t) => isUntouchedSeedTemplate(t) && !answered.has(t.id))
+    // The ONE split the intro card reads too (lib/services/forms.ts): a
+    // seeded form patients have already answered is THEIRS (rebuilding it
+    // would hide their sections), the unanswered seed is the picker's.
+    const { own, seeded } = await splitIntakeFormsForDoor(ctx.organizationId)
     if (own.length === 0) {
       const schema = pickIntakeSections(keep)
       if (seeded.length > 0) {

@@ -165,6 +165,21 @@ export async function getFormTemplate(
   return row ?? null
 }
 
+/**
+ * OFF UNTIL CHOSEN (docs/ACTIVATION.md law 1, audit rounds 2–3): the ONE
+ * question every patient-facing intake surface asks — the booking
+ * confirmation's link, the public site's booking success screen and
+ * "Start your intake" page, the form page by slug, the portal's pre-visit
+ * task, the forms-reminder cron and the staff "send intake" action. While
+ * the Intake Forms door is closed, the seeded standard form reaches nobody.
+ * Fail-open: a transient read error keeps a practice that chose intake
+ * sending (the switch read itself fails open).
+ */
+export async function patientFacingIntakeOpen(organizationId: string): Promise<boolean> {
+  const { getFeatureSwitchState } = await import('@/lib/services/feature-switches')
+  return (await getFeatureSwitchState(organizationId)).intake_forms
+}
+
 /** Public-site fetch by slug. Skips archived templates so a deleted form
  * doesn't keep accepting submissions. */
 export async function getFormTemplateBySlug(
@@ -183,6 +198,18 @@ export async function getFormTemplateBySlug(
     )
     .limit(1)
   return row ?? null
+}
+
+/** The default form AS A PATIENT MAY SEE IT: null while the Intake Forms door is closed (law 1, audit round 3). */
+export async function getPatientFacingDefaultForm(organizationId: string): Promise<FormTemplate | null> {
+  if (!(await patientFacingIntakeOpen(organizationId))) return null
+  return getDefaultFormTemplate(organizationId)
+}
+
+/** A form by slug AS A PATIENT MAY SEE IT: null while the door is closed (the public page 404s). */
+export async function getPatientFacingFormBySlug(organizationId: string, slug: string): Promise<FormTemplate | null> {
+  if (!(await patientFacingIntakeOpen(organizationId))) return null
+  return getFormTemplateBySlug(organizationId, slug)
 }
 
 /** First non-archived template marked default. Used to attach an intake
@@ -283,13 +310,10 @@ export async function getBookingIntakeForm(
   organizationId: string,
   isNewPatient: boolean,
 ): Promise<FormTemplate | null> {
-  // OFF UNTIL CHOSEN (docs/ACTIVATION.md law 1, audit round 2): the seeded
-  // standard form rode every booking confirmation while the Intake Forms
-  // door was still closed, so patients filled in a module the practice had
-  // never opened. A closed door sends nothing. (Fail-open read: a transient
-  // error keeps a practice that chose intake sending.)
-  const { getFeatureSwitchState } = await import('@/lib/services/feature-switches')
-  if (!(await getFeatureSwitchState(organizationId)).intake_forms) return null
+  // OFF UNTIL CHOSEN (docs/ACTIVATION.md law 1, audit round 2): a closed
+  // door sends nothing — the seeded standard form rode every confirmation
+  // while the practice had never opened the module.
+  if (!(await patientFacingIntakeOpen(organizationId))) return null
   const forms = await db
     .select()
     .from(formTemplate)
@@ -675,6 +699,28 @@ export async function listSubmissionsForTemplate(
     )
     .orderBy(desc(formSubmission.submittedAt))
     .limit(limit)
+}
+
+/**
+ * THE INTAKE DOOR's split of a clinic's live forms (docs/ACTIVATION.md S5,
+ * audit rounds 1–3): `own` are forms the practice made or edited — PLUS an
+ * untouched seed patients have already answered (rebuilding it would hide
+ * their sections from the record); `seeded` is the untouched, unanswered
+ * standard template the picker may rebuild in place. The intro and the
+ * turn-on action both read THIS, so the card never shows a picker whose
+ * choices the action would ignore.
+ */
+export async function splitIntakeFormsForDoor(organizationId: string): Promise<{ own: FormTemplate[]; seeded: FormTemplate[] }> {
+  const { isUntouchedSeedTemplate } = await import('@/lib/types/forms')
+  const live = (await listFormTemplates(organizationId)).filter((t) => t.archivedAt == null)
+  const own: FormTemplate[] = []
+  const seeded: FormTemplate[] = []
+  for (const t of live) {
+    if (!isUntouchedSeedTemplate(t)) own.push(t)
+    else if ((await countSubmissionsForTemplate(organizationId, t.id)) > 0) own.push(t)
+    else seeded.push(t)
+  }
+  return { own, seeded }
 }
 
 /** True total submission count for a template (the list above is capped, so its

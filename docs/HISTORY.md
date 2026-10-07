@@ -5929,3 +5929,16 @@ rides no confirmation while the door is closed; the digest stops asking
 for a bind that is ours; the 48h share judges only clinics old enough; and
 the cockpit carries the TRIAL — behind the wall is the first flag. Ledger
 in docs/ACTIVATION.md Part 7.
+
+**2026-10-07 — THE FIRST WEEK: phase audit, round 3 (the cap) fixed.** A
+CRITICAL live for ~40 minutes — the round-2 `doors_closed` clear bound a
+JS array as `($1, $2)::text[]`, so every person's "Turn on" failed in
+Postgres — hotfixed as #759 with a real-dialect boundary test. Then: ONE
+patient-facing intake gate (`patientFacingIntakeOpen`) across the site
+booking action, the forms-reminder cron, the portal task and the public
+intake pages; the intro and the turn-on action sharing one split of a
+clinic's forms; a PMS re-ask after 'closed' dated as a new ask and a
+'scheduled' answer surviving a contact edit; the 48h tile's fraction
+matching its percentage; migration 0176 backfilling closes for
+grandfathered clinics. Ledger in docs/ACTIVATION.md Part 7; certificate
+to follow in docs/AUDITS.md.

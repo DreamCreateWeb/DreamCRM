@@ -63,7 +63,7 @@ vi.mock('@/lib/email', () => ({
 }))
 vi.mock('@/lib/services/clinic-sender', () => ({ getClinicSenderIdentity: vi.fn() }))
 vi.mock('@/lib/services/booking', () => ({ isSlotAvailable: vi.fn(async () => true), SLOT_MINUTES: 30 }))
-vi.mock('@/lib/services/forms', () => ({ getDefaultFormTemplate: vi.fn(async () => null) }))
+vi.mock('@/lib/services/forms', () => ({ getDefaultFormTemplate: vi.fn(async () => null), getPatientFacingDefaultForm: vi.fn(async () => null) }))
 
 interface InboundArg {
   organizationId: string

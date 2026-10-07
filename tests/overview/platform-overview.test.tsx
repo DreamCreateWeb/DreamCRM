@@ -77,7 +77,7 @@ vi.mock('@/lib/services/pms-interest', () => ({
   getPmsDemand: async () => stubPmsDemand,
 }))
 
-const emptyActivation = () => ({ unreadable: false, cohortDays: 90, clinics: 0, events: [], a1Within: { reached: 0, share: null }, noDataPastDue: 0 })
+const emptyActivation = () => ({ unreadable: false, cohortDays: 90, clinics: 0, events: [], a1Within: { reached: 0, decided: 0, share: null }, noDataPastDue: 0 })
 let stubActivation: import('@/lib/services/activation').ActivationMetricsRead = emptyActivation()
 vi.mock('@/lib/services/activation', () => ({
   getActivationMetrics: async () => stubActivation,
@@ -320,7 +320,7 @@ describe('PlatformOverview', () => {
         { key: 'a4', label: 'First review ask', short: 'A4', reached: 0, medianHours: null },
         { key: 'a5', label: 'First form in', short: 'A5', reached: 0, medianHours: null },
       ],
-      a1Within: { reached: 2, share: 0.5 },
+      a1Within: { reached: 2, decided: 4, share: 0.5 },
       noDataPastDue: 1,
     }
     render(await PlatformOverview())

@@ -87,6 +87,15 @@ describe('submitPmsConnectRequest', () => {
     expect(author).toBe('user_1')
   })
 
+  it('on re-submit: scheduled and connected keep their answer, closed re-opens as a NEW ask dated now, an edit keeps its date (audit round 3)', async () => {
+    await submitPmsConnectRequest({ organizationId: 'org_a', userId: 'user_1', clinicName: 'Smiles', input, now: NOW })
+    const text = (k: string) => (state.upsertSet![k] as { queryChunks: Array<{ value?: string[] }> }).queryChunks.flatMap((c) => c.value ?? []).join('')
+    expect(text('status')).toMatch(/in \('connected', 'scheduled'\) then/)
+    expect(text('status')).toMatch(/else 'requested'/)
+    expect(text('createdAt')).toMatch(/= 'closed' then/)
+    expect(text('createdAt')).toMatch(/::timestamp else/)
+  })
+
   it('a failed support post never loses the request', async () => {
     state.supportThrows = true
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {})

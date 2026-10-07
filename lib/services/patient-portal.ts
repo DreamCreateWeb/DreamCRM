@@ -727,6 +727,10 @@ export async function getMyPendingForms(
   patientId: string,
   organizationId: string,
 ): Promise<PortalPendingForm[]> {
+  // OFF UNTIL CHOSEN (law 1, audit round 3): no pre-visit task for a module
+  // the practice never opened.
+  const { patientFacingIntakeOpen } = await import('@/lib/services/forms')
+  if (!(await patientFacingIntakeOpen(organizationId))) return []
   const templates = await db
     .select({
       templateId: formTemplate.id,

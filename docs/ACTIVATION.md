@@ -633,3 +633,48 @@ before S4–S6 because the doors need the switch to be one thing.
   (owner's menu): "install scheduled" with no date or message; door opens
   and closes leave no who/why record; a member meeting a closed door gets
   no name and no button. Round 3 runs over this fix range.
+- **2026-10-07 — PHASE AUDIT, round 3 (the cap) — fixes.** Round 3 over
+  the program plus both fix commits returned 13 confirmed defects (7
+  distinct, FIVE of them in round 2's own corrections), no in-phase gap,
+  and one CRITICAL that was live in production for the ~40 minutes between
+  the round-2 deploy and the hotfix (DreamCreateWeb/DreamCRM#759):
+  `enableFeature` cleared the new `doors_closed` memory with
+  `${toOpen}::text[]`, and drizzle renders a JS array inside a sql
+  template as a parenthesised scalar list — `($1, $2)::text[]` — which
+  Postgres rejects as a malformed array literal; that single UPDATE is also
+  the one that opens the door, so every person's "Turn on" failed. The
+  keys go in as ONE array literal now, and the boundary test CLAUDE.md
+  requires for raw SQL (`tests/feature-switches/doors-closed-sql.test.ts`)
+  renders both doors_closed statements through drizzle's real dialect.
+  THE REST, by root: (1) OFF UNTIL CHOSEN had four more intake paths than
+  round 2 gated — the public site's booking action, the forms-reminder
+  cron (which also stamped A2 from a send nobody chose), the portal's
+  pre-visit task, and the public "Start your intake" / form-by-slug pages.
+  There is ONE gate now, `patientFacingIntakeOpen` (lib/services/forms.ts),
+  with two wrappers (`getPatientFacingDefaultForm`,
+  `getPatientFacingFormBySlug`) that every patient-facing surface reads;
+  the staff send refuses with a sentence naming the door. (2) The intro
+  showed the section picker for an answered seeded form while the action
+  (round 2) silently ignored the picks — both read ONE split now,
+  `splitIntakeFormsForDoor`. (3) A re-ask after a closed PMS request kept
+  the original `createdAt` (the cockpit flagged it stuck on arrival and
+  both "Asked" labels showed a weeks-old date), and a clinic's contact
+  edit flipped a 'scheduled' answer back to 'requested': the upsert keeps
+  scheduled/connected, re-opens closed as a NEW ask dated now, and keeps
+  the date on an edit. (4) The 48h tile's fraction said "N of all clinics"
+  under a percentage computed over the clinics old enough to judge —
+  `a1Within.decided` is exposed and the label says so. (5) Migration 0176
+  backfills `doors_closed` for GRANDFATHERED clinics only — 0172 set all
+  five day-to-day modules ON for them, so a null column can only be a
+  human close; a clinic created after the switches with a stamped A1 and a
+  null column is deliberately NOT marked (it could be a door the daily pass
+  never opened, round 2's own defect, and a never-opened door costs the
+  feature while a reopened one costs one more "Turn off"). Backlog (owner's
+  menu): the morning email as a setup card on the Dream Team page rather
+  than only a settings switch; telling the clinic its own milestones.
+  Upheld rejections: the close memory checked in JS not SQL; review asks
+  continuing while Growth is closed (auto-by-default automations keep
+  their own switches by the Phase-3 law); the one thing repeating a
+  stalled step; one thing for every staff member regardless of role.
+  Round 3 was the cap: the certificate, the retrospective and the
+  self-sweep follow in docs/AUDITS.md, then ONE verification round.

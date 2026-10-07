@@ -5,7 +5,7 @@ import {
   getClinicSiteBySlug,
   resolveSiteBasePath,
 } from '@/lib/services/clinic-site'
-import { getDefaultFormTemplate } from '@/lib/services/forms'
+import { getPatientFacingDefaultForm } from '@/lib/services/forms'
 import { auth } from '@/lib/auth/server'
 import { readableInk } from '@/lib/clinic-site-theme'
 import MinimalSiteChrome from '@/components/clinic-site/minimal-site-chrome'
@@ -36,9 +36,10 @@ export default async function IntakeStartPage({ params }: Props) {
   const data = await getClinicSiteBySlug(slug)
   if (!data) notFound()
 
-  // The intake form is only useful when the clinic actually has one set up;
-  // otherwise this gate would deposit the patient on a dead page.
-  const template = await getDefaultFormTemplate(data.orgId)
+  // The intake form is only useful when the clinic actually has one set up
+  // AND has opened the Intake Forms door (law 1, audit round 3); otherwise
+  // this gate would deposit the patient on a dead page.
+  const template = await getPatientFacingDefaultForm(data.orgId)
   if (!template) notFound()
 
   // Defensive subdomain redirect. If someone lands on

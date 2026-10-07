@@ -354,7 +354,7 @@ app/
 lib/
   db/schema/         auth.ts, platform.ts, clinic.ts (bulk), domain.ts, email.ts,
                      referrals.ts, index.ts
-  db/migrations/     drizzle; 0000–0175 applied to prod (auto-apply on deploy)
+  db/migrations/     drizzle; 0000–0176 applied to prod (auto-apply on deploy)
   auth/              server.ts, client.ts, context.ts (getTenantContext,
                      requireTenant/requireRole/requirePartner)
   services/          ~190 server-only modules (import 'server-only') — one per
@@ -841,7 +841,12 @@ sitemap/robots/OG.
   end-to-end; watch the Actions tab. `NEXT_PUBLIC_*` bake at build time.
 - **Migrations auto-apply on boot** (`scripts/db-migrate.mjs` → POST
   `/api/admin/migrate`; failure keeps the previous version serving). Latest
-  migration: **0175** (`clinic_profile.doors_closed` jsonb — THE DOORS A
+  migration: **0176** (the `doors_closed` BACKFILL for grandfathered
+  clinics — 0172 set their five day-to-day modules ON, so a null column
+  today can only be a human close; clinics created after the switches
+  are deliberately not touched; a custom SQL migration pinned by
+  `tests/migrations/doors-closed-backfill.test.ts`; phase-audit round 3).
+  Before it: **0175** (`clinic_profile.doors_closed` jsonb — THE DOORS A
   PERSON CLOSED: `{ my_day?: iso, … }`, written by "Turn off", cleared by
   "Turn on"; the machine's openers (`openDoorsAtA1`, `openDoorsAtSiteLive`)
   skip every key in it, so a repeat of the opening event — a PMS sync, the
@@ -1008,7 +1013,16 @@ sitemap/robots/OG.
    they are called on every occurrence (every eligible kick, the daily
    reconcile's A1, every go-live pull) and a door a clinic shut stays
    shut; `openDoors`' coalesce alone could not tell a closed door from a
-   never-opened one) → S4 the integrations hub's doors
+   never-opened one. The clear of that memory goes in as ONE Postgres
+   array literal — a JS array in a drizzle sql template renders as
+   `($1, $2)::text[]`, which Postgres rejects, and round 3's critical was
+   exactly that: every "Turn on" failing; `tests/feature-switches/
+   doors-closed-sql.test.ts` renders the statements through the real
+   dialect. And OFF UNTIL CHOSEN for intake is ONE gate,
+   `patientFacingIntakeOpen` in lib/services/forms.ts, that every
+   patient-facing intake surface asks — the booking confirmation, the
+   site booking action, the forms-reminder cron, the portal task, the
+   public intake pages, the staff send) → S4 the integrations hub's doors
    (SHIPPED 2026-10-06: the catalog's texting card is `live` → "Set up
    texting"; the PMS bridge is `live`/`connectKind: 'pms'` with the four
    roadmap tiles folded under it; `/integrations/pms` is the intro + ONE
