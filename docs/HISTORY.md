@@ -5773,10 +5773,12 @@ Stedi TEST mode with a test key since 2026-10-01, which answers only the mock
 member. The owner confirmed the executed BAA and the switch ran
 `scripts/setup-stedi-aws.sh --mode live --confirm-baa` with the live key
 (rollout SUCCEEDED; the service reads INSURANCE_DRIVER=stedi, STEDI_MODE=live).
-Two surfaces the report exposed, not yet fixed: once the tool is ON the
-Insurance page never shows which NPI it checks under or links to the Business
-profile box, and under test mode a real card's failure read as a payer
-rejection rather than "test mode". The script's stale "stays PREVIEW" note,
+Two surfaces the report exposed: once the tool is ON the Insurance page
+never showed which NPI it checks under or linked to the Business profile box
+— FIXED the same day (the header's "Checking under NPI ···7890 · Change" line,
+`npi` on `InsuranceToolProps`, the link landing on `/settings/clinic#npi`);
+and under test mode a real card's failure read as a payer rejection rather
+than "test mode" — moot now that prod is live, left as is. The script's stale "stays PREVIEW" note,
 CLAUDE.md's prod state and the runbook's table were corrected.
 
 **2026-10-06 (night) — THE FIRST WEEK S7: the morning after.** Law 6 on the

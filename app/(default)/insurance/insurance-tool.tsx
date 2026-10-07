@@ -136,7 +136,12 @@ export interface InsuranceToolProps {
   usage?: InsuranceUsage | null
   /** Owners and admins can turn the tool off again (the intro card returns). */
   canManage?: boolean
+  /** The practice NPI the checks go out under (normalized, 10 digits), or null. */
+  npi?: string | null
 }
+
+/** Where the NPI is edited — the Business profile's own box (its input id is `npi`). */
+export const NPI_SETTINGS_HREF = '/settings/clinic#npi'
 
 export default function InsuranceTool({
   orgName,
@@ -150,6 +155,7 @@ export default function InsuranceTool({
   needsNpi = false,
   usage = null,
   canManage = false,
+  npi = null,
 }: InsuranceToolProps) {
   const router = useRouter()
   const toast = useToast()
@@ -167,6 +173,11 @@ export default function InsuranceTool({
   const resultRef = useRef<HTMLDivElement>(null)
   const practice = isPracticeDriver(driver)
   const label = INSURANCE_DRIVER_LABEL[driver]
+  // The NPI the payer is asked under, with the door to change it. The first
+  // client checked two cards, got errors, and could not find where the NPI
+  // lived — the intro names it once, then nothing on this page did. Only
+  // the Stedi drivers ask a payer; the sandbox never sees an NPI.
+  const npiLine = driver !== 'sandbox' && npi ? { tail: npi.slice(-4) } : null
 
   function set<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((f) => ({ ...f, [key]: value }))
@@ -283,8 +294,17 @@ export default function InsuranceTool({
         title="Insurance"
         subtitle="Look up a patient’s benefits before they sit down. We always confirm with the carrier before quoting."
         actions={
-          practice || usage ? (
+          practice || usage || npiLine ? (
             <div className="flex flex-wrap items-center gap-2">
+              {npiLine && (
+                <span className="text-xs text-gray-500 dark:text-gray-400" data-testid="insurance-npi">
+                  Checking under NPI <span className="font-mono-num tabular-nums">···{npiLine.tail}</span>
+                  {' · '}
+                  <Link href={NPI_SETTINGS_HREF} className="font-medium text-teal-700 hover:text-teal-800 dark:text-teal-400 dark:hover:text-teal-300">
+                    Change
+                  </Link>
+                </span>
+              )}
               {usage && !usage.unreadable && (
                 <span
                   className={`text-xs font-mono-num tabular-nums ${usage.used >= usage.included ? TONE_TEXT.warn : 'text-gray-500 dark:text-gray-400'}`}

@@ -473,6 +473,24 @@ describe('the release (polish phase 6): readiness and the allowance', () => {
     expect(screen.getByRole('button', { name: 'Check benefits' })).not.toBeDisabled()
   })
 
+  it('the header says which NPI the checks go out under, with the door to change it (the first client could not find it)', () => {
+    const { unmount } = renderTool({ driver: 'stedi', npi: '1234567890' })
+    const line = screen.getByTestId('insurance-npi')
+    expect(line).toHaveTextContent('Checking under NPI ···7890')
+    expect(line.textContent).not.toContain('123456')
+    expect(screen.getByText('Change').closest('a')?.getAttribute('href')).toBe('/settings/clinic#npi')
+    unmount()
+    // Test mode asks a payer too; the sandbox never sees an NPI; no NPI means the readiness notice speaks instead.
+    const t = renderTool({ driver: 'stedi_test', npi: '1234567890' })
+    expect(screen.getByTestId('insurance-npi')).toBeInTheDocument()
+    t.unmount()
+    const s = renderTool({ driver: 'sandbox', npi: '1234567890' })
+    expect(screen.queryByTestId('insurance-npi')).toBeNull()
+    s.unmount()
+    renderTool({ driver: 'stedi', npi: null, needsNpi: true })
+    expect(screen.queryByTestId('insurance-npi')).toBeNull()
+  })
+
   it('under the live driver the header says where the month stands, in mono; spent reads in the warn tone', () => {
     const { unmount } = renderTool({ driver: 'stedi', usage: { used: 12, included: 200, unreadable: false } })
     const line = screen.getByTestId('insurance-usage')
