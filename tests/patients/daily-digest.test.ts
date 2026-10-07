@@ -86,6 +86,21 @@ describe('buildDigestContent', () => {
   })
 })
 
+describe('a closed door keeps its list out of the email (verification round 2)', () => {
+  it('follow-ups and leads behind closed doors are not to-dos, not in the subject, and do not make the day "routine"', () => {
+    const d = data({ followups: { overdue: 1, today: 1, items: [fu('Call Mia', '2026-06-15')] }, newLeadsCount: 2 })
+    const open = buildDigestContent(d, 'Dream Dental', null, null, { followups: true, leads: true })
+    expect(open.subject).toBe('Your day: 2 follow-ups, 2 new leads')
+    const closed = buildDigestContent(d, 'Dream Dental', null, null, { followups: false, leads: false })
+    expect(closed.hasContent).toBe(false)
+    expect(closed.body).not.toContain('follow-up')
+    expect(closed.body).not.toContain('lead')
+    expect(closed.subject).toBe('Your day at Dream Dental')
+    // No doors given = open (the pure function's default).
+    expect(buildDigestContent(d, 'Dream Dental').subject).toBe('Your day: 2 follow-ups, 2 new leads')
+  })
+})
+
 describe('the morning after (docs/ACTIVATION.md law 6)', () => {
   const NONE = { a1: null, a2: null, a3: null, a4: null, a5: null }
   const ALL = { a1: new Date(), a2: new Date(), a3: new Date(), a4: new Date(), a5: new Date() }

@@ -1,5 +1,5 @@
 import 'server-only'
-import { parseDoorsClosed, type FeatureKey } from '@/lib/feature-switches'
+import { ALL_ON, parseDoorsClosed, type FeatureKey } from '@/lib/feature-switches'
 import { randomBytes } from 'crypto'
 import { and, eq, ne } from 'drizzle-orm'
 import { listShutDownOrgIds } from './billing-state'
@@ -110,11 +110,15 @@ export function buildDigestContent(
   websiteSection?: string | null,
   /** The morning after (S7): what happened, one thing, what it waits on. */
   morning?: MorningAfter | null,
+  /** The clinic's doors (law 1): a closed Follow-ups / Inquiries door keeps its list and its subject word out of the email. Defaults open. */
+  doors?: { followups?: boolean; leads?: boolean } | null,
 ): DigestContent {
-  const followupsDue = data.followups.overdue + data.followups.today
+  // A closed door's list is not a to-do (verification round 2: the Overview
+  // hides the follow-ups card with its door; the email must agree).
+  const followupsDue = doors?.followups === false ? 0 : data.followups.overdue + data.followups.today
   const unconfirmed = data.unconfirmedTodayCount
   const conversations = data.conversations.length
-  const leads = data.newLeadsCount
+  const leads = doors?.leads === false ? 0 : data.newLeadsCount
   const balanceCount = data.balances.count
   const proposals = data.openProposalsCount ?? 0
   const auditItems = data.tomorrow?.items ?? []
@@ -337,7 +341,8 @@ export async function runDailyDigest(opts?: { now?: Date }): Promise<DigestRunRe
     // The button must land on a page the clinic HAS: My Day is a switch, and
     // a closed one shows its intro card, not the list the email promised
     // (audit round 1). The Overview carries the same summons strip.
-    const myDayOn = await getFeatureSwitchState(clinic.organizationId).then((s) => s.my_day).catch(() => true)
+    const switches = await getFeatureSwitchState(clinic.organizationId).catch(() => ALL_ON)
+    const myDayOn = switches.my_day
 
     // Staff with an email (exclude patients) + the per-staff opt-out set.
     const [staff, optedOut] = await Promise.all([
@@ -362,7 +367,7 @@ export async function runDailyDigest(opts?: { now?: Date }): Promise<DigestRunRe
         if (already) { result.skippedAlready++; continue }
 
         const data = await getMyDay(clinic.organizationId, s.userId)
-        const content = buildDigestContent(data, clinic.clinicName ?? 'your clinic', websiteSection, morning)
+        const content = buildDigestContent(data, clinic.clinicName ?? 'your clinic', websiteSection, morning, { followups: switches.followups, leads: switches.leads })
         if (!content.hasContent) { result.skippedEmpty++; continue }
 
         // Claim the day first (unique index makes a concurrent run skip), then send.

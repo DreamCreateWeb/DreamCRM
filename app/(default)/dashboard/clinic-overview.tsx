@@ -423,13 +423,15 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
             </AttentionCard>
           )}
 
-          {/* Paid shop orders still to fulfill — your move . */}
-          {(
+          {/* Paid shop orders still to fulfill — your move. Hidden while the
+              Shop door is closed (law 1) unless paid orders exist behind it,
+              in which case the card leads to the door itself. */}
+          {(switches.shop || data.paidOrdersUnfulfilled > 0) && (
             <AttentionCard
               title="Orders to fulfill"
               count={data.paidOrdersUnfulfilled}
               countSuffix={data.paidOrdersUnfulfilled === 1 ? 'paid order awaiting fulfillment' : 'paid orders awaiting fulfillment'}
-              cta={data.paidOrdersUnfulfilled > 0 ? { label: 'Fulfill orders', href: '/shop/orders?status=paid' } : null}
+              cta={data.paidOrdersUnfulfilled > 0 ? { label: switches.shop ? 'Fulfill orders' : 'Turn on Shop to fulfill', href: switches.shop ? '/shop/orders?status=paid' : '/shop' } : null}
               emptyCopy="No paid orders waiting to ship or be picked up."
             />
           )}
@@ -491,7 +493,7 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
           ) : (
             <ul className="divide-y divide-[color:var(--color-hairline)]">
               {data.todaysAppointments.map((a) => (
-                <TodayChairRow key={a.id} appt={a} timeZone={data.timeZone} />
+                <TodayChairRow key={a.id} appt={a} timeZone={data.timeZone} intakeOpen={switches.intake_forms} />
               ))}
             </ul>
           )}
@@ -530,13 +532,15 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
             href="/appointments?window=this_week"
             countUp
           />
-          <KpiStat
-            label="Intake forms"
-            value={data.trends.activeIntakeForms}
-            sub={data.trends.activeIntakeForms === 1 ? 'active template' : 'active templates'}
-            href="/intake-forms"
-            countUp
-          />
+          {switches.intake_forms && (
+            <KpiStat
+              label="Intake forms"
+              value={data.trends.activeIntakeForms}
+              sub={data.trends.activeIntakeForms === 1 ? 'active template' : 'active templates'}
+              href="/intake-forms"
+              countUp
+            />
+          )}
           {site && (
             <KpiStat
               label="Website visits"
@@ -695,7 +699,7 @@ function AttentionCard({
   )
 }
 
-function TodayChairRow({ appt, timeZone }: { appt: TodayAppointmentRow; timeZone: string }) {
+function TodayChairRow({ appt, timeZone, intakeOpen }: { appt: TodayAppointmentRow; timeZone: string; intakeOpen: boolean }) {
   const statusKey = appt.status
   const tone = STATUS_TONE[statusKey] ?? STATUS_TONE.scheduled
   const statusLabel = STATUS_LABELS[statusKey] ?? statusKey
@@ -703,12 +707,13 @@ function TodayChairRow({ appt, timeZone }: { appt: TodayAppointmentRow; timeZone
   const typeLabel = appt.type.replace('_', ' ')
 
   // Map the overview's row flags onto the shared glyph registry. Missing-intake
-  // only fires for new patients with no form on file (the original gating).
+  // only fires for new patients with no form on file — and never while the
+  // Intake Forms door is closed (law 1: no nag about a module nobody opened).
   const glyphs = patientFlagGlyphs({
     newPatient: appt.flags.newPatient,
     birthdayThisWeek: appt.flags.birthdayThisWeek,
     hasOutstandingBalance: appt.flags.hasOutstandingBalance,
-    missingIntakeBeforeAppt: appt.flags.newPatient && !appt.flags.hasIntakeOnFile,
+    missingIntakeBeforeAppt: intakeOpen && appt.flags.newPatient && !appt.flags.hasIntakeOnFile,
   })
 
   return (

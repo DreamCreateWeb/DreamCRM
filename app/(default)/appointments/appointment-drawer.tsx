@@ -532,7 +532,9 @@ export default function AppointmentDrawer({
                 )}
               </div>
 
-              {/* Intake attached */}
+              {/* Intake attached — hidden while the Intake Forms door is closed and
+                  nothing is on file (law 1: the send would only be refused). */}
+              {(detail.intakeOpen || detail.intakeAttached) && (
               <div className="pt-3 border-t border-[color:var(--color-hairline)]">
                 <p className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold mb-2">Intake</p>
                 {detail.intakeAttached ? (
@@ -553,6 +555,7 @@ export default function AppointmentDrawer({
                   </p>
                 )}
               </div>
+              )}
 
               {/* Source / created */}
               <div className="pt-3 border-t border-[color:var(--color-hairline)]">

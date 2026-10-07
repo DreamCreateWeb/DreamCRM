@@ -85,7 +85,7 @@ describe('PatientDetail header', () => {
   })
 
   it('renders the primary CTA buttons in the header', () => {
-    render(<PatientDetail header={header()} timeline={[]} counts={emptyCounts} notes={[]} />)
+    render(<PatientDetail header={header()} timeline={[]} counts={emptyCounts} notes={[]} intakeForms={[{ id: 'f1', title: 'New patient' }]} />)
     // "Send message" is a form-submit button (server action resolves the
     // patient's thread + redirects to /messages?thread=<id>), not a bare link.
     expect(screen.getByRole('button', { name: /Send message/i })).toBeInTheDocument()
@@ -97,6 +97,13 @@ describe('PatientDetail header', () => {
     expect(screen.queryByRole('button', { name: /Send intake/i })).not.toBeInTheDocument()
     fireEvent.click(more)
     expect(screen.getByRole('menuitem', { name: /Send intake/i })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: /Request review/i })).toBeInTheDocument()
+  })
+
+  it('hides "Send intake" when the page hands it no forms — the Intake Forms door is closed (law 1, verification round 2)', () => {
+    render(<PatientDetail header={header()} timeline={[]} counts={emptyCounts} notes={[]} intakeForms={[]} />)
+    fireEvent.click(screen.getByRole('button', { name: /More/i }))
+    expect(screen.queryByRole('menuitem', { name: /Send intake/i })).not.toBeInTheDocument()
     expect(screen.getByRole('menuitem', { name: /Request review/i })).toBeInTheDocument()
   })
 

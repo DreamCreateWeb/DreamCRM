@@ -186,6 +186,14 @@ describe('getFirstWeekBoard', () => {
     expect(row.stuck.some((f) => /machine did nothing|No active staff session/.test(f))).toBe(false)
   })
 
+  it('an unread A1 rail is unknown: not counted in the "No data connected" KPI (verification round 2)', async () => {
+    state.clinics = [clinic('org_a', { createdAt: daysAgo(2) })]
+    state.throwTables.add(schema.pmsConnection)
+    const board = await getFirstWeekBoard({ now: NOW })
+    expect(board.rows[0].unreadable).toContain('activation')
+    expect(board.counts.noData).toBe(0)
+  })
+
   it('best-effort: a clinic whose readiness read throws still renders, with no facts', async () => {
     state.clinics = [clinic('org_a')]
     state.readinessThrows.add('org_a')

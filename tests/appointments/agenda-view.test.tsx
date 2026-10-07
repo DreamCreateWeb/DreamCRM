@@ -92,6 +92,14 @@ describe('AgendaView', () => {
     expect(screen.getByText(/No appointments in this window/)).toBeInTheDocument()
   })
 
+  it('the "Needs intake" chip hides while the Intake Forms door is closed (law 1, verification round 2)', () => {
+    const { unmount } = render(<AgendaView groups={[]} meta={baseMeta} filters={baseFilters} orgName="Acme Dental" intakeOpen={false} />)
+    expect(screen.queryByText('📝 Needs intake')).toBeNull()
+    unmount()
+    render(<AgendaView groups={[]} meta={baseMeta} filters={baseFilters} orgName="Acme Dental" />)
+    expect(screen.getByText('📝 Needs intake')).toBeInTheDocument()
+  })
+
   it('renders contextual empty-state copy for the "Unconfirmed" filter', () => {
     render(
       <AgendaView

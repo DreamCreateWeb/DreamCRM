@@ -120,6 +120,7 @@ export default function PatientsList({
   sort,
   orgName,
   canManage = false,
+  intakeOpen = true,
   views = [],
   canMarket = false,
 }: {
@@ -138,6 +139,8 @@ export default function PatientsList({
   orgName: string
   /** Owner/admin: shows Import/Export + the bulk portal-invite action. */
   canManage?: boolean
+  /** The Intake Forms door (law 1): closed = no 'Missing intake' chip. */
+  intakeOpen?: boolean
   views?: PatientViewRow[]
   canMarket?: boolean
 }) {
@@ -415,13 +418,15 @@ export default function PatientsList({
           >
             $ Has balance
           </FilterChip>
-          <FilterChip
-            active={!!filters.missingIntake}
-            onClick={() => setFlag('intake', !filters.missingIntake)}
-            title="No intake form on file before their next visit"
-          >
-            📝 Missing intake
-          </FilterChip>
+          {intakeOpen && (
+            <FilterChip
+              active={!!filters.missingIntake}
+              onClick={() => setFlag('intake', !filters.missingIntake)}
+              title="No intake form on file before their next visit"
+            >
+              📝 Missing intake
+            </FilterChip>
+          )}
           <FilterChip
             active={!!filters.birthdayThisMonth}
             onClick={() => setFlag('birthday', !filters.birthdayThisMonth)}
