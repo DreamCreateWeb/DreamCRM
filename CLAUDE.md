@@ -200,8 +200,11 @@ system, don't replace it.
   after the first client's two real cards failed under the test key, which
   answers only the mock member). Every clinic's checks now reach real
   payers and bill the Dream Create account against the 200/month
-  allowance; a practice needs its own NPI on the Business profile. From
-  2026-10-01 to 2026-10-07 prod ran STEDI_MODE=test with a TEST key.
+  allowance; a practice needs its own NPI on the Business profile, and the
+  Insurance page header names the one in use with a Change link to that box
+  (`npi` on `InsuranceToolProps`, 2026-10-07 — the first client could not
+  find it). From 2026-10-01 to 2026-10-07 prod ran STEDI_MODE=test with a
+  TEST key.
   POLISH PROGRAM (2026-10-02, six phases toward the client reveal; Phase 1
   SHIPPED): every dollar part of `BenefitAmount`/`DeductibleAmount` is
   NULLABLE BY LAW — the normalizer derives "used" only when the payer stated

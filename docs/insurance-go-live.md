@@ -27,6 +27,10 @@ per-clinic knob is a plan tier by another name).
   profile), the rail card offers the same door, and `runEligibilityCheck`
   refuses with `reason: 'npi'` BEFORE any row or any network call
   (`needsPracticeNpi` in lib/insurance-eligibility.ts is the one rule).
+  With an NPI on file, the page header says which one the checks go out
+  under ("Checking under NPI ···7890 · Change", the link landing on the
+  Business profile's own box) — added 2026-10-07 after the first client
+  could not find where to switch from the group NPI to the dentist's.
 - **The included allowance.** `INCLUDED_MONTHLY_INSURANCE_CHECKS = 200`
   billed checks per clinic per clinic-local calendar month
   (env-overridable platform-wide with `INSURANCE_INCLUDED_MONTHLY_CHECKS`).

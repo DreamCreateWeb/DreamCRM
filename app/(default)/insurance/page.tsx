@@ -92,6 +92,7 @@ export default async function InsurancePage({ searchParams }: PageProps) {
         needsNpi={setup.needsNpi}
         usage={setup.usage}
         canManage={canManage}
+        npi={setup.npi}
       />
     </>
   )
