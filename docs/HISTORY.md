@@ -5953,3 +5953,12 @@ closes. Certificate + the retrospective (a guard where a memory was
 needed, twice; raw SQL without its dialect test; "sent to patients" is a
 set, not a path; the corrections were the next round's material) in
 docs/AUDITS.md.
+
+**2026-10-07 — THE FIRST WEEK: verification round 1 fixed, the sweep
+extended by class.** Migration 0177 undoes 0176's fabricated closes for
+clinics born between 0172's apply and 0176's date cutoff; the cockpit
+names a failed read instead of flagging it; the portal's Forms tab, the
+staff-facing intake nag (audit flags, patient/agenda flags, the Overview's
+intake and follow-ups cards) and the digest's one thing all honour a
+closed door; intake's turn-off confirm says what patients stop getting.
+Classes recorded in docs/AUDITS.md.

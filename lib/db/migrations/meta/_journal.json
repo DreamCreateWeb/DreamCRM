@@ -1240,6 +1240,13 @@
       "when": 1791402258428,
       "tag": "0176_doors_closed_backfill",
       "breakpoints": true
+    },
+    {
+      "idx": 177,
+      "version": "7",
+      "when": 1791402259428,
+      "tag": "0177_doors_closed_window_fix",
+      "breakpoints": true
     }
   ]
 }

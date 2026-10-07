@@ -39,6 +39,7 @@ function row(overrides: Partial<FirstWeekRow> = {}): FirstWeekRow {
     digestOn: false,
     doors: { insurance: false, digest: false, siteLive: true, switches: [] },
     doorsUnreadable: false,
+    unreadable: [],
     trial: { onTrial: true, expired: false, daysLeft: 3 },
     timeZone: 'America/New_York',
     smsState: null,
@@ -78,6 +79,12 @@ describe('FirstWeekBoard', () => {
     render(<FirstWeekBoard board={board([row({ trial: { onTrial: false, expired: false, daysLeft: null }, subscriptionStatus: 'active' })])} includeDemo={false} />)
     expect(screen.getByText('active')).toBeInTheDocument()
     expect(screen.queryByText(/Trial/)).toBeNull()
+  })
+
+  it('a failed read is named on the row and the session line says unknown (verification round)', () => {
+    render(<FirstWeekBoard board={board([row({ unreadable: ['ledger', 'signIn'], stuck: [] })])} includeDemo={false} />)
+    expect(screen.getByTestId('row-unreadable')).toHaveTextContent('Couldn’t read just now: the machine’s week · staff sessions — not flagged.')
+    expect(screen.getByText(/Last active staff session: unknown/)).toBeInTheDocument()
   })
 
   it('an unreadable profile says the doors could not be read, not "none yet"', () => {

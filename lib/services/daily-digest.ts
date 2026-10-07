@@ -1,4 +1,5 @@
 import 'server-only'
+import { parseDoorsClosed, type FeatureKey } from '@/lib/feature-switches'
 import { randomBytes } from 'crypto'
 import { and, eq, ne } from 'drizzle-orm'
 import { listShutDownOrgIds } from './billing-state'
@@ -233,8 +234,12 @@ export async function readMorningAfter(organizationId: string, createdAt: Date, 
       quiet(null, () => getReadinessReport(organizationId)),
       quiet([], () => listPendingOnUs(organizationId)),
       readMergedActivation(organizationId),
-      quiet(null as { siteLiveAt: Date | null } | null, async () => {
-        const [row] = await db.select({ siteLiveAt: schema.clinicProfile.siteLiveAt }).from(schema.clinicProfile).where(eq(schema.clinicProfile.organizationId, organizationId)).limit(1)
+      quiet(null as { siteLiveAt: Date | null; doorsClosed: unknown } | null, async () => {
+        const [row] = await db
+          .select({ siteLiveAt: schema.clinicProfile.siteLiveAt, doorsClosed: schema.clinicProfile.doorsClosed })
+          .from(schema.clinicProfile)
+          .where(eq(schema.clinicProfile.organizationId, organizationId))
+          .limit(1)
         return row ?? null
       }),
     ])
@@ -246,6 +251,7 @@ export async function readMorningAfter(organizationId: string, createdAt: Date, 
       openCards: cards.map((c) => ({ title: c.title })),
       openCardsTotal: cardsTotal ?? undefined,
       siteLive: site ? site.siteLiveAt != null : undefined,
+      doorsClosed: site ? (Object.keys(parseDoorsClosed(site.doorsClosed)) as FeatureKey[]) : undefined,
       pendingOnUs: pendingOnUs.map((p) => ({ label: p.label, kind: p.kind })),
       attention: (report?.attention ?? []).map((f) => ({ label: f.label, summary: f.summary, href: f.href })),
     })

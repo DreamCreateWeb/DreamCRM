@@ -12,7 +12,7 @@ import {
   type FirstWeekRowInput,
 } from '@/lib/first-week'
 import { earliestOf, parseActivation } from '@/lib/activation'
-import { getActivationStamps, readActivation } from '@/lib/services/activation'
+import { getActivationStamps, readActivation, readActivationDetailed } from '@/lib/services/activation'
 
 /** The derived read lives beside the stamps now (S8); re-exported so nothing that imported it from here moves. */
 export { readActivation }
@@ -166,17 +166,15 @@ export async function readPendingOnUs(
   return { pendingOnUs, openRequest }
 }
 
-/** The newest session of any non-patient member — "when did a human last open it". */
-async function lastStaffSignIn(organizationId: string): Promise<Date | null> {
-  return safe('sign-in', null, () =>
-    earliest(() =>
-      db
-        .select({ at: max(schema.session.updatedAt) })
-        .from(schema.session)
-        .innerJoin(schema.member, eq(schema.member.userId, schema.session.userId))
-        .where(and(eq(schema.member.organizationId, organizationId), ne(schema.member.role, 'patient')))
-        .limit(1),
-    ),
+/** The newest session of any non-patient member — "when did a human last open it". Throws on a failed read (the row marks it unreadable). */
+async function lastStaffSignInUnsafe(organizationId: string): Promise<Date | null> {
+  return earliest(() =>
+    db
+      .select({ at: max(schema.session.updatedAt) })
+      .from(schema.session)
+      .innerJoin(schema.member, eq(schema.member.userId, schema.session.userId))
+      .where(and(eq(schema.member.organizationId, organizationId), ne(schema.member.role, 'patient')))
+      .limit(1),
   )
 }
 
@@ -199,8 +197,8 @@ async function buildRow(
   const [report, goals, open, work, profile, pending, signIn, activation, sms, switches, timeZone] = await Promise.all([
     safe('readiness', null, () => getReadinessReport(clinic.orgId)),
     safe('goals', [], () => listActiveGoals(clinic.orgId)),
-    safe('proposals', [], () => listOpenProposals(clinic.orgId, 50)),
-    safe('ledger', {} as Record<string, number>, () => countActionsSince(clinic.orgId, since7, { until: now })),
+    safe('proposals', null, () => listOpenProposals(clinic.orgId, 50)),
+    safe('ledger', null, () => countActionsSince(clinic.orgId, since7, { until: now })),
     safe('profile', null, async () => {
       const [p] = await db
         .select({
@@ -215,8 +213,8 @@ async function buildRow(
       return p ?? null
     }),
     readPendingOnUs(clinic.orgId),
-    lastStaffSignIn(clinic.orgId),
-    readActivation(clinic.orgId),
+    safe<Date | null | 'unreadable'>('sign-in', 'unreadable', () => lastStaffSignInUnsafe(clinic.orgId)),
+    safe('activation', null, () => readActivationDetailed(clinic.orgId)),
     safe('sms', null, async () => (smsDriver() === 'none' ? null : { state: (await getSmsRegistration(clinic.orgId)).state })),
     safe('switches', null, () => getFeatureSwitchState(clinic.orgId)),
     safe('tz', 'America/New_York', () => getClinicTimeZone(clinic.orgId)),
@@ -224,7 +222,16 @@ async function buildRow(
   const { pendingOnUs, openRequest } = pending
 
   const facts = SHOWN_FACTS.map((id) => report?.facts.find((f) => f.id === id)).filter((f): f is ReadinessFact => !!f)
-  const oldestOpen = open.reduce<Date | null>((acc, p) => (acc == null || p.createdAt < acc ? p.createdAt : acc), null)
+  const openList = open ?? []
+  const oldestOpen = openList.reduce<Date | null>((acc, p) => (acc == null || p.createdAt < acc ? p.createdAt : acc), null)
+  // Unreadable ≠ empty (verification round): a read that failed is named,
+  // and the flags that would have read it stand down.
+  const unreadable: FirstWeekRowInput['unreadable'] = [
+    ...(work == null ? (['ledger'] as const) : []),
+    ...(signIn === 'unreadable' ? (['signIn'] as const) : []),
+    ...(activation == null || activation.incomplete.includes('a1') ? (['activation'] as const) : []),
+    ...(open == null ? (['proposals'] as const) : []),
+  ]
 
   const trial = resolveTrialState(
     { trialEndsAt: clinic.trialEndsAt ?? null, subscriptionStatus: clinic.subscriptionStatus, stripeSubscriptionId: clinic.stripeSubscriptionId ?? null },
@@ -235,11 +242,12 @@ async function buildRow(
     facts: facts.map((f) => ({ id: f.id, grade: f.grade })),
     patientCount: clinic.patientCount,
     // The MACHINE's work: a staff member's own insurance checks are not "the machine did 3 things" (audit round 2).
-    workLast7: Object.values(machineWork(work)).reduce((a, b) => a + b, 0),
-    openCards: open.length,
+    workLast7: Object.values(machineWork(work ?? {})).reduce((a, b) => a + b, 0),
+    openCards: openList.length,
     oldestOpenCardAt: oldestOpen,
-    lastStaffSignInAt: signIn,
-    activation: mergeActivation(parseActivation(profile?.activation), activation ?? EMPTY_ACTIVATION),
+    lastStaffSignInAt: signIn === 'unreadable' ? null : signIn,
+    activation: mergeActivation(parseActivation(profile?.activation), activation?.activation ?? EMPTY_ACTIVATION),
+    unreadable,
     pendingOnUs,
     digestOn: profile ? profile.digest === 1 : null,
     trial: { onTrial: trial.onTrial, expired: trial.expired, daysLeft: trial.daysLeft },

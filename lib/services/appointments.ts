@@ -1,4 +1,5 @@
 import 'server-only'
+import { getFeatureSwitchState } from '@/lib/services/feature-switches'
 import { and, asc, desc, eq, gte, inArray, isNull, lte, ne, or, sql } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import { sumNetCollectedSql } from '@/lib/net-collected'
@@ -226,6 +227,8 @@ export async function listAppointments(
   const win = resolveWindow(filters.window, now, timeZone)
   const in48h = new Date(now.getTime() + 48 * 60 * 60 * 1000)
   const in7d = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000)
+  // No intake nag while the Intake Forms door is closed (law 1, verification round).
+  const intakeOpen = (await getFeatureSwitchState(organizationId)).intake_forms
 
   // Base where: org + window. Status filter is applied post-query only for
   // attention chips that map to specific statuses; otherwise SQL handles it.
@@ -436,7 +439,7 @@ export async function listAppointments(
         newPatient,
         birthdayThisWeek: isBirthdayThisWeek(r.dateOfBirth, now),
         hasOutstandingBalance: balance > 0,
-        missingIntakeBeforeAppt: isFuture && !hasIntake,
+        missingIntakeBeforeAppt: intakeOpen && isFuture && !hasIntake,
         unconfirmedNext48h: status === 'scheduled' && r.startTime >= now && r.startTime <= in48h,
         // Celebrate lapsed-returning: future appointment for a patient who
         // was lapsed (last visit > 9mo ago).
@@ -732,6 +735,7 @@ export async function getAppointmentDetail(
   const isFuture = base.startTime > now
   const newPatient = !lastVisit && isFuture
   const hasIntake = !!intakeRow[0]
+  const intakeOpen = (await getFeatureSwitchState(organizationId)).intake_forms
   const reminderLastSentAt = reminderRows[0]?.sentAt ?? null
   const needsRebooking = isRebookingCandidate({
     status,
@@ -767,7 +771,7 @@ export async function getAppointmentDetail(
       newPatient,
       birthdayThisWeek: isBirthdayThisWeek(base.dateOfBirth, now),
       hasOutstandingBalance: outstanding > 0,
-      missingIntakeBeforeAppt: isFuture && !hasIntake,
+      missingIntakeBeforeAppt: intakeOpen && isFuture && !hasIntake,
       unconfirmedNext48h: status === 'scheduled' && base.startTime >= now && base.startTime <= in48h,
       lapsedReturning: isFuture && lapsed,
       optedOut: false,

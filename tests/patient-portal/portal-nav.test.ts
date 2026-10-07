@@ -25,6 +25,13 @@ describe('buildPortalNav', () => {
     expect(nav.primary.map((i) => i.label)).toEqual(['Home', 'Visits', 'Records', 'Forms'])
   })
 
+  it('Forms hides with the clinic’s Intake Forms door, whatever the portal toggle says (law 1, verification round)', () => {
+    const closed = buildPortalNav({ settings: DEFAULT_PORTAL_SETTINGS, hasShop: false, siteLive: true, hasDependents: false, intakeOpen: false })
+    expect([...closed.primary, ...closed.more].some((i) => i.href === '/patient/intake')).toBe(false)
+    const open = buildPortalNav({ settings: DEFAULT_PORTAL_SETTINGS, hasShop: false, siteLive: true, hasDependents: false, intakeOpen: true })
+    expect([...open.primary, ...open.more].some((i) => i.href === '/patient/intake')).toBe(true)
+  })
+
   it('Family gates on the feature ONLY — day-0 patients need the nav path to request their first link', () => {
     const on = buildPortalNav({ settings: DEFAULT_PORTAL_SETTINGS, hasShop: false, siteLive: true, hasDependents: true })
     expect([...on.primary, ...on.more].map((i) => i.label)).toContain('Family')

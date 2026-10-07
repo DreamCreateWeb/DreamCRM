@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation'
+import { getFeatureSwitchState } from '@/lib/services/feature-switches'
 import { headers } from 'next/headers'
 import Link from 'next/link'
 import { and, eq } from 'drizzle-orm'
@@ -118,7 +119,7 @@ export default async function PortalLayout({ children }: { children: React.React
     )
   }
 
-  const [settings, me, dependents, shopConfig, unreadMessages] = await Promise.all([
+  const [settings, me, dependents, shopConfig, unreadMessages, intakeOpen] = await Promise.all([
     getPortalSettings(ctx.organizationId),
     getMyPatientRecord(ctx.patientId, ctx.organizationId),
     getMyDependents(ctx.patientId, ctx.organizationId),
@@ -126,6 +127,8 @@ export default async function PortalLayout({ children }: { children: React.React
     // Unread clinic replies → the Messages badge. Best-effort (returns 0 on
     // failure inside the service) so the chrome never blocks on it.
     getMyUnreadMessageCount(ctx.organizationId, ctx.patientId),
+    // The clinic's Intake Forms door (law 1): closed = no Forms tab. Fail-open.
+    getFeatureSwitchState(ctx.organizationId).then((s) => s.intake_forms).catch(() => true),
   ])
 
   const nav = buildPortalNav({
@@ -135,6 +138,7 @@ export default async function PortalLayout({ children }: { children: React.React
     siteLive: clinic?.siteLive ?? false,
     hasDependents: dependents.length > 0,
     unreadMessages,
+    intakeOpen,
   })
 
   // Master self-scheduling switch (Settings → Practice): off → the booking CTA

@@ -27,6 +27,9 @@ const { mockGetOverview } = vi.hoisted(() => ({
   mockGetOverview: vi.fn(),
 }))
 
+// The doors (docs/ACTIVATION.md law 1, verification round): a closed module's card never nags.
+const doors = { intake_forms: true, followups: true }
+vi.mock('@/lib/services/feature-switches', () => ({ getFeatureSwitchState: async () => ({ ...doors }) }))
 vi.mock('@/lib/services/clinic-overview', () => ({
   getClinicOverview: mockGetOverview,
 }))
@@ -420,6 +423,22 @@ describe('Needs your attention cards', () => {
     expect(screen.getByText(/Every booking in the next 48h is confirmed/)).toBeInTheDocument()
     expect(screen.getByText(/No intake submissions this week/)).toBeInTheDocument()
     expect(screen.getByText(/No balances on file from your PMS/)).toBeInTheDocument()
+  })
+
+  it('the intake and follow-ups cards hide while their doors are closed — no nag about a module nobody opened (law 1)', async () => {
+    doors.intake_forms = false
+    doors.followups = false
+    try {
+      mockGetOverview.mockResolvedValueOnce(makeData())
+      const ui = await ClinicOverview({ ctx: makeCtx() })
+      render(ui)
+      expect(screen.queryByText(/No intake submissions this week/)).toBeNull()
+      expect(screen.queryByText('Follow-ups due')).toBeNull()
+      expect(screen.getByText(/Every booking in the next 48h is confirmed/)).toBeInTheDocument()
+    } finally {
+      doors.intake_forms = true
+      doors.followups = true
+    }
   })
 
   it('shows counts + preview when items exist', async () => {

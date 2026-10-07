@@ -24,6 +24,7 @@ const state = {
   switches: new Map<string, Record<string, boolean>>(),
   switchesThrow: new Set<string>(),
   throwTables: new Set<unknown>(),
+  ledgerThrows: false,
 }
 
 vi.mock('@/lib/services/clinics', () => ({ listClinics: async () => state.clinics }))
@@ -35,7 +36,12 @@ vi.mock('@/lib/services/readiness', () => ({
 }))
 vi.mock('@/lib/services/goals', () => ({ listActiveGoals: async (org: string) => state.goals.get(org) ?? [] }))
 vi.mock('@/lib/services/proposals', () => ({ listOpenProposals: async (org: string) => state.proposals.get(org) ?? [] }))
-vi.mock('@/lib/services/action-ledger', () => ({ countActionsSince: async (org: string) => state.work.get(org) ?? {} }))
+vi.mock('@/lib/services/action-ledger', () => ({
+  countActionsSince: async (org: string) => {
+    if (state.ledgerThrows) throw new Error('ledger down')
+    return state.work.get(org) ?? {}
+  },
+}))
 vi.mock('@/lib/services/feature-switches', () => ({
   getFeatureSwitchState: async (org: string) => {
     if (state.switchesThrow.has(org)) throw new Error('switches down')
@@ -90,6 +96,7 @@ beforeEach(() => {
   state.switches.clear()
   state.switchesThrow.clear()
   state.throwTables.clear()
+  state.ledgerThrows = false
   vi.spyOn(console, 'error').mockImplementation(() => {})
 })
 
@@ -167,6 +174,16 @@ describe('getFirstWeekBoard', () => {
     state.clinics = [clinic('org_b', { createdAt: daysAgo(1), trialEndsAt: daysAgo(-6), stripeSubscriptionId: null })]
     const [b] = (await getFirstWeekBoard({ now: NOW })).rows
     expect(b.trial).toEqual({ onTrial: true, expired: false, daysLeft: 6 })
+  })
+
+  it('a failed ledger / session read is named unreadable and raises no stuck flag (verification round)', async () => {
+    state.clinics = [clinic('org_a', { createdAt: daysAgo(9) })]
+    state.rows.set(schema.pmsConnection, [{ at: daysAgo(8), status: 'connected', since: daysAgo(8) }])
+    state.ledgerThrows = true
+    state.throwTables.add(schema.session)
+    const [row] = (await getFirstWeekBoard({ now: NOW })).rows
+    expect(row.unreadable).toEqual(['ledger', 'signIn'])
+    expect(row.stuck.some((f) => /machine did nothing|No active staff session/.test(f))).toBe(false)
   })
 
   it('best-effort: a clinic whose readiness read throws still renders, with no facts', async () => {

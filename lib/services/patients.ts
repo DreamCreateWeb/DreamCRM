@@ -1,4 +1,5 @@
 import 'server-only'
+import { getFeatureSwitchState } from '@/lib/services/feature-switches'
 import { parseInsuranceDetail, type PatientInsuranceDetail } from '@/lib/insurance-eligibility'
 import { and, asc, count, desc, eq, gte, inArray, isNotNull, isNull, lte, ne, notInArray, or, sql, type SQL } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
@@ -212,6 +213,8 @@ export async function listPatientsPage(
   const now = new Date()
   const in48h = new Date(now.getTime() + 48 * 60 * 60 * 1000)
   const in7d = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000)
+  // No intake nag while the Intake Forms door is closed (law 1, verification round).
+  const intakeOpen = (await getFeatureSwitchState(organizationId)).intake_forms
 
   const where = [eq(schema.patient.organizationId, organizationId)]
   // Merged tombstones are no longer real patients — never list them.
@@ -528,7 +531,7 @@ export async function listPatientsPage(
     const shopSpend = shopSpendByPatient.get(p.id) ?? 0
     const newPatient = p.lifecycle === 'new' || !lastVisitAt
     const lapsed = !!lastVisitAt && lastVisitAt < lapsedCutoff && !next
-    const missingIntakeBeforeAppt = !!next && next.startTime <= in7d && !intakeSet.has(p.id)
+    const missingIntakeBeforeAppt = intakeOpen && !!next && next.startTime <= in7d && !intakeSet.has(p.id)
     // Prefer the PMS recall date when present (Integrations); otherwise fall
     // back to the appointment-derived heuristic so unconnected clinics behave
     // exactly as before.
@@ -894,6 +897,8 @@ export async function getPatientHeader(
   const now = new Date()
   const in48h = new Date(now.getTime() + 48 * 60 * 60 * 1000)
   const in7d = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000)
+  // No intake nag while the Intake Forms door is closed (law 1, verification round).
+  const intakeOpen = (await getFeatureSwitchState(organizationId)).intake_forms
 
   const [lastVisit, nextVisit, bookingCount, shopSpendRow, intakeRows, unconfirmedRow, cadence] =
     await Promise.all([
@@ -993,7 +998,7 @@ export async function getPatientHeader(
   const hasIntake = intakeRows.length > 0
   const newPatient = (p.lifecycle ?? 'active') === 'new' || !lastVisitAt
   const lapsed = !!lastVisitAt && lastVisitAt < lapsedCutoff && !next
-  const missingIntakeBeforeAppt = !!next && next.startTime <= in7d && !hasIntake
+  const missingIntakeBeforeAppt = intakeOpen && !!next && next.startTime <= in7d && !hasIntake
 
   return {
     id: p.id,

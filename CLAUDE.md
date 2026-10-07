@@ -354,7 +354,7 @@ app/
 lib/
   db/schema/         auth.ts, platform.ts, clinic.ts (bulk), domain.ts, email.ts,
                      referrals.ts, index.ts
-  db/migrations/     drizzle; 0000–0176 applied to prod (auto-apply on deploy)
+  db/migrations/     drizzle; 0000–0177 applied to prod (auto-apply on deploy)
   auth/              server.ts, client.ts, context.ts (getTenantContext,
                      requireTenant/requireRole/requirePartner)
   services/          ~190 server-only modules (import 'server-only') — one per
@@ -841,7 +841,12 @@ sitemap/robots/OG.
   end-to-end; watch the Actions tab. `NEXT_PUBLIC_*` bake at build time.
 - **Migrations auto-apply on boot** (`scripts/db-migrate.mjs` → POST
   `/api/admin/migrate`; failure keeps the previous version serving). Latest
-  migration: **0176** (the `doors_closed` BACKFILL for grandfathered
+  migration: **0177** (undoes 0176's fabricated closes for clinics created
+  between 0172's merge (2026-10-05T18:50Z) and 0176's date cutoff — those
+  clinics were born with every switch null by design; a data migration's
+  boundary comes from the record, never a calendar date; pinned by
+  `tests/migrations/doors-closed-window-fix.test.ts`). Before it:
+  **0176** (the `doors_closed` BACKFILL for grandfathered
   clinics — 0172 set their five day-to-day modules ON, so a null column
   today can only be a human close; clinics created after the switches
   are deliberately not touched; a custom SQL migration pinned by
