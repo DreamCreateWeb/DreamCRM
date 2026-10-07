@@ -12,7 +12,10 @@ import {
   type FirstWeekRowInput,
 } from '@/lib/first-week'
 import { earliestOf, parseActivation } from '@/lib/activation'
-import { getActivationStamps } from '@/lib/services/activation'
+import { getActivationStamps, readActivation } from '@/lib/services/activation'
+
+/** The derived read lives beside the stamps now (S8); re-exported so nothing that imported it from here moves. */
+export { readActivation }
 import { listClinics } from '@/lib/services/clinics'
 import { getReadinessReport } from '@/lib/services/readiness'
 import { listActiveGoals } from '@/lib/services/goals'
@@ -21,6 +24,7 @@ import { countActionsSince } from '@/lib/services/action-ledger'
 import { getSmsRegistration, smsDriver } from '@/lib/services/sms-registration'
 import { getPmsConnectRequest, type PmsConnectRequestView } from '@/lib/services/pms-connect'
 import { pmsVendorLabel } from '@/lib/pms-connect'
+import { hoursTo, median } from '@/lib/activation-metrics'
 import type { ReadinessFact } from '@/lib/readiness'
 
 /**
@@ -40,8 +44,6 @@ import type { ReadinessFact } from '@/lib/readiness'
 /** The readiness facts the cockpit shows, in this order. */
 export const SHOWN_FACTS: ReadonlyArray<ReadinessFact['id']> = ['pms', 'patients', 'gbp', 'inbox', 'payments', 'sms', 'hours', 'booking']
 
-/** Bookings that came THROUGH us (not typed in by staff, not mirrored from the PMS). */
-const OUR_BOOKING_SOURCES = ['booking_widget', 'recall_campaign', 'invite', 'portal']
 
 /** Carrier-side SMS states: the door is pending on us (and the carriers), not the clinic. */
 const SMS_PENDING_ON_US = new Set(['brand_pending', 'campaign_pending', 'number_pending', 'suspended'])
@@ -68,7 +70,13 @@ export interface FirstWeekRow extends FirstWeekRowInput {
 export interface FirstWeekBoard {
   rows: FirstWeekRow[]
   generatedAt: Date
-  counts: { inFirstMonth: number; stuck: number; noData: number }
+  counts: {
+    inFirstMonth: number
+    stuck: number
+    noData: number
+    /** Median hours from org creation to A1 over the clinics shown that reached it (S8) — null when none has. */
+    medianHoursToA1: number | null
+  }
 }
 
 async function safe<T>(label: string, fallback: T, read: () => Promise<T>): Promise<T> {
@@ -87,95 +95,6 @@ async function earliest(read: () => Promise<Array<{ at: Date | string | null }>>
 }
 
 const EMPTY_ACTIVATION: Activation = { a1: null, a2: null, a3: null, a4: null, a5: null }
-
-/** The five activation events, each the FIRST time it happened, read from the rails that already record it. */
-export async function readActivation(organizationId: string): Promise<Activation> {
-  const ev = schema.campaignEvents
-  const [pmsAt, gbpAt, patientFloorAt, reminderAt, campaignAt, bookingAt, reviewAt, formAt] = await Promise.all([
-    safe('a1.pms', null, () =>
-      earliest(() =>
-        db
-          .select({ at: min(schema.pmsConnection.createdAt) })
-          .from(schema.pmsConnection)
-          .where(and(eq(schema.pmsConnection.organizationId, organizationId), eq(schema.pmsConnection.status, 'connected')))
-          .limit(1),
-      ),
-    ),
-    safe('a1.gbp', null, () =>
-      earliest(() =>
-        db
-          .select({ at: min(schema.zernioConnection.createdAt) })
-          .from(schema.zernioConnection)
-          .where(and(eq(schema.zernioConnection.organizationId, organizationId), eq(schema.zernioConnection.status, 'connected')))
-          .limit(1),
-      ),
-    ),
-    safe('a1.patients', null, () =>
-      earliest(() =>
-        db
-          .select({ at: schema.patient.createdAt })
-          .from(schema.patient)
-          .where(eq(schema.patient.organizationId, organizationId))
-          .orderBy(asc(schema.patient.createdAt))
-          .offset(A1_PATIENT_FLOOR - 1)
-          .limit(1),
-      ),
-    ),
-    safe('a2.reminders', null, () =>
-      earliest(() =>
-        db
-          .select({ at: min(schema.appointmentReminderLog.sentAt) })
-          .from(schema.appointmentReminderLog)
-          .where(eq(schema.appointmentReminderLog.organizationId, organizationId))
-          .limit(1),
-      ),
-    ),
-    safe('a2.campaigns', null, () =>
-      earliest(() =>
-        db
-          .select({ at: min(ev.occurredAt) })
-          .from(ev)
-          .innerJoin(schema.campaigns, eq(schema.campaigns.id, ev.campaignId))
-          .where(and(eq(schema.campaigns.organizationId, organizationId), eq(ev.type, 'sent')))
-          .limit(1),
-      ),
-    ),
-    safe('a3', null, () =>
-      earliest(() =>
-        db
-          .select({ at: min(schema.appointment.createdAt) })
-          .from(schema.appointment)
-          .where(and(eq(schema.appointment.organizationId, organizationId), inArray(schema.appointment.source, OUR_BOOKING_SOURCES)))
-          .limit(1),
-      ),
-    ),
-    safe('a4', null, () =>
-      earliest(() =>
-        db
-          .select({ at: min(schema.reviewRequest.sentAt) })
-          .from(schema.reviewRequest)
-          .where(eq(schema.reviewRequest.organizationId, organizationId))
-          .limit(1),
-      ),
-    ),
-    safe('a5', null, () =>
-      earliest(() =>
-        db
-          .select({ at: min(schema.formSubmission.submittedAt) })
-          .from(schema.formSubmission)
-          .where(eq(schema.formSubmission.organizationId, organizationId))
-          .limit(1),
-      ),
-    ),
-  ])
-  return {
-    a1: earliestOf(pmsAt, gbpAt, patientFloorAt),
-    a2: earliestOf(reminderAt, campaignAt),
-    a3: bookingAt,
-    a4: reviewAt,
-    a5: formAt,
-  }
-}
 
 /** A stamp (written once when the event happened) beats the derived read; the derived read fills in before stamping existed. */
 function mergeActivation(stamps: Activation, derived: Activation): Activation {
@@ -325,6 +244,7 @@ export async function getFirstWeekBoard(opts: { now?: Date; includeDemo?: boolea
       inFirstMonth: rows.filter((r) => r.day < 30).length,
       stuck: rows.filter((r) => r.stuck.length > 0).length,
       noData: rows.filter((r) => r.activation.a1 == null).length,
+      medianHoursToA1: median(rows.flatMap((r) => (r.activation.a1 ? [hoursTo(r.createdAt, r.activation.a1)] : []))),
     },
   }
 }

@@ -3,7 +3,7 @@ import { count, eq } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import { A1_PATIENT_FLOOR } from '@/lib/first-week'
 import { isClinicShutDown } from '@/lib/services/billing-state'
-import { stampActivation } from '@/lib/services/activation'
+import { reconcileActivation, stampActivation } from '@/lib/services/activation'
 import { openDoorsAtA1 } from '@/lib/services/feature-switches'
 
 /**
@@ -74,6 +74,10 @@ export async function kickOffFirstWeek(organizationId: string, reason: KickReaso
     // the first, so a door closed on purpose stays closed (coalesce) while
     // a clinic whose stamp predates the switches still gets its doors.
     if (eligibleForA1) await openDoorsAtA1(organizationId, now)
+    // S8: anything the rails already recorded (a reminder sent before the
+    // PMS bind landed, a form in before the roster cleared the floor) is
+    // stamped now rather than on the next daily pass. Never throws.
+    await reconcileActivation(organizationId, now)
 
     const [profile] = await db
       .select({ cycleAt: schema.clinicProfile.dreamTeamCycleAt })

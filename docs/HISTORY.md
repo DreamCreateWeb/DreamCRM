@@ -5767,6 +5767,20 @@ mocks `useConfirm`. The confirm is now awaited before the transition starts
 `tests/insurance/turn-off-dialog.test.tsx` renders the REAL ConfirmProvider
 so the dialog's appearance is the assertion.
 
+**2026-10-07 — THE FIRST WEEK S8: activation stamped + measured (the
+program's last slice).** ONE stamping mechanism: `reconcileActivation`
+reads the rails' first-times (`readActivation`, moved from first-week.ts
+beside the stamps and re-exported) for every unset key and writes that
+instant through the write-once guard; it runs at the day-one kick and daily
+on the digest tick (`reconcileActivationStamps`, sweep job
+`activation-reconcile`), backfilling every clinic that predates stamping.
+Pure `lib/activation-metrics.ts` + `getActivationMetrics` (90-day cohort,
+demo excluded, unreadable ≠ zero); `ActivationCard` on the platform
+Overview (time to A1 median, the 48h share, no-data past day 3, signed up,
+the five-row event table; an empty cohort has a door); the cockpit's
+"Time to data, median" (`counts.medianHoursToA1`). All eight slices of
+docs/ACTIVATION.md are shipped.
+
 **2026-10-07 — INSURANCE WENT LIVE.** The first client (Complete Family
 Dentistry) checked two real cards and got errors: production had been in
 Stedi TEST mode with a test key since 2026-10-01, which answers only the mock

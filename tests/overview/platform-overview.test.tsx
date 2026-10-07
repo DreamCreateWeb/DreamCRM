@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 
 let stubSubs = {
   activeClinics: 0,
@@ -77,6 +77,12 @@ vi.mock('@/lib/services/pms-interest', () => ({
   getPmsDemand: async () => stubPmsDemand,
 }))
 
+const emptyActivation = () => ({ unreadable: false, cohortDays: 90, clinics: 0, events: [], a1Within: { reached: 0, share: null }, noDataPastDue: 0 })
+let stubActivation: import('@/lib/services/activation').ActivationMetricsRead = emptyActivation()
+vi.mock('@/lib/services/activation', () => ({
+  getActivationMetrics: async () => stubActivation,
+}))
+
 import PlatformOverview from '@/app/(default)/dashboard/platform-overview'
 
 beforeEach(() => {
@@ -100,6 +106,7 @@ beforeEach(() => {
   stubActivity = { rows: [], stripeUnavailable: false }
   stubPmsDemand = []
   stubGrowth = { buckets: [], total: 0, newThisWeek: 0, newPrevWeek: 0, pctChange: null }
+  stubActivation = emptyActivation()
 })
 
 describe('PlatformOverview', () => {
@@ -299,5 +306,49 @@ describe('PlatformOverview', () => {
     expect(screen.getAllByText(/^Platform Metrics/).length).toBeGreaterThan(0)
     expect(screen.getAllByText(/^Revenue/).length).toBeGreaterThan(0)
     expect(screen.getAllByText(/^Clinics/).length).toBeGreaterThan(0)
+  })
+
+  it('the first week, measured (S8): the median time to data, the 48h share, the stuck count and the five events', async () => {
+    stubActivation = {
+      unreadable: false,
+      cohortDays: 90,
+      clinics: 4,
+      events: [
+        { key: 'a1', label: 'Data connected', short: 'A1', reached: 3, medianHours: 30 },
+        { key: 'a2', label: 'First message sent', short: 'A2', reached: 2, medianHours: 50 },
+        { key: 'a3', label: 'First booking', short: 'A3', reached: 1, medianHours: 24 * 9 },
+        { key: 'a4', label: 'First review ask', short: 'A4', reached: 0, medianHours: null },
+        { key: 'a5', label: 'First form in', short: 'A5', reached: 0, medianHours: null },
+      ],
+      a1Within: { reached: 2, share: 0.5 },
+      noDataPastDue: 1,
+    }
+    render(await PlatformOverview())
+    const card = screen.getByTestId('activation-card')
+    expect(card).toHaveTextContent('Time to data (A1), median')
+    expect(card).toHaveTextContent('1.3 days')
+    expect(card).toHaveTextContent('3 of 4 connected')
+    expect(card).toHaveTextContent('50%')
+    expect(card).toHaveTextContent('the calls to make today')
+    const rows = screen.getByTestId('activation-events').querySelectorAll('tr')
+    expect(rows).toHaveLength(5)
+    expect(rows[2]).toHaveTextContent('A3 First booking')
+    expect(rows[2]).toHaveTextContent('9 days')
+    expect(rows[3]).toHaveTextContent('—')
+  })
+
+  it('an unreadable activation read says so instead of rendering zeros', async () => {
+    stubActivation = { ...emptyActivation(), unreadable: true }
+    render(await PlatformOverview())
+    expect(screen.queryByTestId('activation-card')).toBeNull()
+    expect(screen.getByText(/couldn’t read the activation stamps/)).toBeInTheDocument()
+  })
+
+  it('an empty cohort is a room with a door (law 4), not a table of zeros', async () => {
+    render(await PlatformOverview())
+    const card = screen.getByTestId('activation-card')
+    expect(card).toHaveTextContent('No clinics in the window yet')
+    // Scoped to the card: the activity feed's own empty state carries the same door (S6).
+    expect(within(card).getByText('Add a clinic').closest('a')?.getAttribute('href')).toBe('/ecommerce/customers')
   })
 })

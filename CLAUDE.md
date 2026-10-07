@@ -674,7 +674,8 @@ sitemap/robots/OG.
   `auto-send-reviews` (hourly) · `customize-services` (hourly) ·
   `sync-google-reviews` (hourly, Google + Facebook) · `sync-gbp` (hourly) ·
   `retention-automations` (daily) · `followup-rules` (hourly) · `daily-digest`
-  (daily) · `trial-reminders` (6h; per-milestone idempotent) · `prospect-discovery` (6h) ·
+  (daily — also the weekly standup on clinic-local Mondays, the platform's
+  hunt digest, and since S8 the activation stamps' reconcile) · `trial-reminders` (6h; per-milestone idempotent) · `prospect-discovery` (6h) ·
   `prospect-enrich` (30m) · `prospect-outreach` (30m) · `domain-renewals` (daily) ·
   `generate-proposals` (hourly — the Phase-2 proposal generators + staleness
   sweep; the weekly standup email rides `daily-digest` on clinic-local
@@ -1028,7 +1029,16 @@ sitemap/robots/OG.
    digest; inside the first 7 days the digest sends even when every list
    is empty; the button lands on the one thing's door when My Day has
    nothing; the cockpit flags a clinic whose digest is still off on day 1)
-   → S8 activation stamped + measured. Adds no capability; adds the DOORS.
+   → S8 activation stamped + measured (SHIPPED 2026-10-07: ONE stamping
+   mechanism, `reconcileActivation` — the rails' own first-times written
+   once through the stamp guard, at the day-one kick and daily on the
+   digest tick (`reconcileActivationStamps`, sweep job
+   `activation-reconcile`); pure `lib/activation-metrics.ts` +
+   `getActivationMetrics` (90-day cohort, demo excluded, unreadable ≠
+   zero); `ActivationCard` on the platform Overview — time to A1 median,
+   the 48h share, no-data past day 3, the five events — and the cockpit's
+   median time to data). ALL EIGHT SLICES SHIPPED. Adds no capability;
+   adds the DOORS.
 
 -2. **THE DREAM TEAM / AI OPERATIONS PROGRAM (2026-08-23, owner directive —
    BUILDING NOW, in its own lane through the feature freeze).** Read

@@ -6,6 +6,7 @@ import { EmptyState } from '@/components/ui/empty-state'
 import { ActionButton } from '@/components/ui/action-button'
 import { TONE_TEXT, type Tone } from '@/lib/ui/encodings'
 import { ACTIVATION_EVENTS } from '@/lib/first-week'
+import { A1_TARGET_HOURS, describeHours } from '@/lib/activation-metrics'
 import type { FirstWeekBoard as Board, FirstWeekRow } from '@/lib/services/first-week'
 
 /**
@@ -131,10 +132,17 @@ export default function FirstWeekBoard({ board, includeDemo }: { board: Board; i
         }
       />
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
         <KpiStat label="In their first month" value={board.counts.inFirstMonth} />
         <KpiStat label="Stuck right now" value={board.counts.stuck} tone={board.counts.stuck > 0 ? 'warn' : 'ok'} />
         <KpiStat label="No data connected" value={board.counts.noData} tone={board.counts.noData > 0 ? 'warn' : 'ok'} />
+        {/* S8: the number the program lives or dies on, over the clinics on this board. */}
+        <KpiStat
+          label="Time to data, median"
+          value={describeHours(board.counts.medianHoursToA1)}
+          sub={board.counts.medianHoursToA1 == null ? 'nobody has connected yet' : 'from signup to A1'}
+          tone={board.counts.medianHoursToA1 != null && board.counts.medianHoursToA1 > A1_TARGET_HOURS ? 'warn' : undefined}
+        />
       </div>
 
       {board.rows.length === 0 ? (

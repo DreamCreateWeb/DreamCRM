@@ -24,7 +24,11 @@ const runOrgGeneratorPass = vi.fn(async () => {
 })
 const stampActivation = vi.fn(async () => state.stampResult)
 vi.mock('@/lib/services/proposal-generators', () => ({ runOrgGeneratorPass: (...a: unknown[]) => runOrgGeneratorPass(...(a as [])) }))
-vi.mock('@/lib/services/activation', () => ({ stampActivation: (...a: unknown[]) => stampActivation(...(a as [])) }))
+vi.mock('@/lib/services/activation', () => ({
+  stampActivation: (...a: unknown[]) => stampActivation(...(a as [])),
+  // S8: the kick reconciles the other stamps after A1; the mechanism has its own test.
+  reconcileActivation: async () => [],
+}))
 const openDoorsAtA1 = vi.fn(async () => ['my_day', 'followups'])
 vi.mock('@/lib/services/feature-switches', () => ({ openDoorsAtA1: (...a: unknown[]) => openDoorsAtA1(...(a as [])) }))
 vi.mock('@/lib/services/billing-state', () => ({ isClinicShutDown: async () => state.shutDown }))

@@ -50,6 +50,8 @@ export const SWEEP_BUDGET_MS = {
   'daily-digest': 180_000,
   'generate-proposals': 240_000,
   'retention-automations': 60_000,
+  // S8: the activation stamps' daily reconcile (rides the daily-digest tick).
+  'activation-reconcile': 45_000,
 } as const
 
 export type SweepJob = keyof typeof SWEEP_BUDGET_MS
