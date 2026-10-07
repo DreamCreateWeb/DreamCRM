@@ -11,8 +11,8 @@ answers on, and the rules the product enforces either way.
 | `INSURANCE_DRIVER` / `STEDI_MODE` | Who answers | Label on every result | Billed? |
 |---|---|---|---|
 | `sandbox` | the built-in deterministic driver | "Practice answer" | no |
-| `stedi` / `test` (**prod today**) | Stedi's predefined mock members (Falcon Dent, 1985-06-07, 007007007 — Ameritas) | "Test payer answer" | no |
-| `stedi` / `live` | the real payer, X12 270/271 through Stedi | none (a real answer) | **yes, per check, to the Dream Create account** |
+| `stedi` / `test` (prod 2026-10-01 → 10-07) | Stedi's predefined mock members (Falcon Dent, 1985-06-07, 007007007 — Ameritas) | "Test payer answer" | no |
+| `stedi` / `live` (**prod since 2026-10-07**) | the real payer, X12 270/271 through Stedi | none (a real answer) | **yes, per check, to the Dream Create account** |
 
 `STEDI_MODE` is PLATFORM-WIDE. Live means every clinic's checks reach real
 payers and bill Dream Create — there is no per-clinic switch, by design (a

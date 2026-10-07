@@ -194,10 +194,14 @@ system, don't replace it.
   into the App Runner service (a key swap alone FORCES a deployment — App
   Runner reads a secret once, at instance start), and REFUSES `--mode live`
   without `--confirm-baa`. Match the key to the mode — a live key under test
-  mode is billed and mislabelled. **PROD STATE 2026-10-01: INSURANCE_DRIVER=
-  stedi, STEDI_MODE=test, a Stedi TEST key** — the mock member answers; a real
-  card does not. Going live = the client's NPI on their Business profile +
-  the live key + `--mode live --confirm-baa`.
+  mode is billed and mislabelled. **PROD STATE 2026-10-07: LIVE —
+  INSURANCE_DRIVER=stedi, STEDI_MODE=live, the Stedi LIVE key** (the owner
+  confirmed the executed BAA and the switch ran `--mode live --confirm-baa`
+  after the first client's two real cards failed under the test key, which
+  answers only the mock member). Every clinic's checks now reach real
+  payers and bill the Dream Create account against the 200/month
+  allowance; a practice needs its own NPI on the Business profile. From
+  2026-10-01 to 2026-10-07 prod ran STEDI_MODE=test with a TEST key.
   POLISH PROGRAM (2026-10-02, six phases toward the client reveal; Phase 1
   SHIPPED): every dollar part of `BenefitAmount`/`DeductibleAmount` is
   NULLABLE BY LAW — the normalizer derives "used" only when the payer stated
@@ -1392,8 +1396,11 @@ sitemap/robots/OG.
    - Resend key `re_BZDw…` — mint fresh, swap in Secrets Manager, delete the
      dead `re_T8fyc…`.
    - Stedi API key ending **…AYEV9** (shared in chat 2026-09-30; it is a LIVE
-     key — two real checks were billed proving it) — rotate in the Stedi
-     portal; mint a separate TEST key for mock development.
+     key — two real checks were billed proving it, and since 2026-10-07 it
+     is THE key in production) — rotate in the Stedi portal, then re-run
+     `STEDI_API_KEY=<new> ./scripts/setup-stedi-aws.sh --mode live
+     --confirm-baa` (the swap forces the redeploy); mint a separate TEST key
+     for mock development.
    - AWS access key ending **…JBXN** on the `Claude` IAM user (uploaded into
      chat 2026-10-01 for the Stedi AWS setup; the user carries
      AdministratorAccess) — scope it down to Secrets Manager + App Runner, or
