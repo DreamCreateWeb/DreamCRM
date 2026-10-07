@@ -3,6 +3,7 @@ import { requireCronAuth } from '@/lib/cron-auth'
 import { runDailyDigest } from '@/lib/services/daily-digest'
 import { runProspectingDigest } from '@/lib/services/prospecting-digest'
 import { sendWeeklyStandups } from '@/lib/services/standup'
+import { reconcileActivationStamps } from '@/lib/services/activation'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -40,7 +41,14 @@ async function run(request: Request) {
       console.warn('[daily-digest] weekly standup failed', err)
       return null
     })
-    return NextResponse.json({ ok: true, ...result, prospecting, standup })
+    // S8: the activation stamps' daily reconcile — every real clinic with an
+    // event still unstamped gets the rails' own first-time written in.
+    // Best-effort, same as its siblings.
+    const activation = await reconcileActivationStamps().catch((err) => {
+      console.warn('[daily-digest] activation reconcile failed', err)
+      return null
+    })
+    return NextResponse.json({ ok: true, ...result, prospecting, standup, activation })
   } catch (err) {
     return NextResponse.json({ error: err instanceof Error ? err.message : 'unknown' }, { status: 500 })
   }

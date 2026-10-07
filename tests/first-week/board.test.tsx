@@ -44,7 +44,7 @@ function row(overrides: Partial<FirstWeekRow> = {}): FirstWeekRow {
 }
 
 function board(rows: FirstWeekRow[]): Board {
-  return { rows, generatedAt: NOW, counts: { inFirstMonth: rows.length, stuck: rows.filter((r) => r.stuck.length).length, noData: rows.filter((r) => !r.activation.a1).length } }
+  return { rows, generatedAt: NOW, counts: { inFirstMonth: rows.length, stuck: rows.filter((r) => r.stuck.length).length, noData: rows.filter((r) => !r.activation.a1).length, medianHoursToA1: null } }
 }
 
 describe('FirstWeekBoard', () => {
@@ -88,7 +88,7 @@ describe('FirstWeekBoard — the PMS connect request (S4)', () => {
     const board: Board = {
       rows: [row({ pmsRequest: { vendor: 'Open Dental', status: 'requested', at: daysAgo(1) }, stuck: [] })],
       generatedAt: NOW,
-      counts: { inFirstMonth: 1, stuck: 0, noData: 1 },
+      counts: { inFirstMonth: 1, stuck: 0, noData: 1, medianHoursToA1: null },
     }
     render(<FirstWeekBoard board={board} includeDemo={false} />)
     expect(screen.getByTestId('pms-request')).toHaveTextContent('Asked us to connect Open Dental')

@@ -149,6 +149,8 @@ describe('sweepClinics', () => {
       'daily-digest': 'app/api/cron/daily-digest/route.ts',
       'generate-proposals': 'app/api/cron/generate-proposals/route.ts',
       'retention-automations': 'app/api/cron/retention-automations/route.ts',
+      // S8: rides the daily-digest tick (its own budget sits beside the digest's inside that route's maxDuration).
+      'activation-reconcile': 'app/api/cron/daily-digest/route.ts',
     }
     for (const [job, route] of Object.entries(routes)) {
       const src = readFileSync(join(process.cwd(), route), 'utf8')

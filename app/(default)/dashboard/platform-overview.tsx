@@ -9,6 +9,8 @@ import { resolveGuardianAudience, resolveGuardianHeartbeat } from '@/lib/guardia
 import { resolveBrainRun } from '@/lib/shared-brain'
 import { resolveSharedBrain } from '@/lib/shared-brain'
 import SharedBrainCard from './shared-brain-card'
+import ActivationCard from './activation-card'
+import { getActivationMetrics } from '@/lib/services/activation'
 import GuardianPanel from './guardian-panel'
 import { PROVIDER_LABELS } from '@/lib/types/pms'
 import { formatMoneyShort, formatNumberShort, formatRelativeDate } from '@/lib/utils/format'
@@ -54,6 +56,7 @@ export default async function PlatformOverview() {
     pmsDemand,
     engineHealth,
     platformConfig,
+    activation,
   ] = await Promise.all([
     getSubscriptionStats(),
     // New clinic signups per week, last 12 weeks — the Active Clinics tile's
@@ -99,6 +102,8 @@ export default async function PlatformOverview() {
         console.error('[platform-config] overview read failed', e)
         return { config: {} as Record<string, unknown>, unreadable: true }
       }),
+    // S8: the first week, measured — best-effort inside, says "unreadable" rather than zero.
+    getActivationMetrics(),
   ])
   // The audience still FLOORS at 'platform' on the failure path — the one
   // thing that must never be undefined is who the machine is allowed to talk
@@ -143,6 +148,9 @@ export default async function PlatformOverview() {
         unreadable={platformConfig.unreadable}
         run={brainRun}
       />
+
+      {/* ── The first week, measured (docs/ACTIVATION.md law 7, S8) ───── */}
+      <ActivationCard metrics={activation} />
 
       {/* ── Today's pulse — 4 status numbers, no trends ────────────────── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">

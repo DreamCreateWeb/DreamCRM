@@ -128,7 +128,7 @@ describe('getFirstWeekBoard', () => {
     expect(fine.doors).toEqual({ insurance: true, digest: true, siteLive: false })
     expect(fine.lastStaffSignInAt).toEqual(daysAgo(0))
     expect(fine.stuck).toEqual([])
-    expect(board.counts).toEqual({ inFirstMonth: 2, stuck: 1, noData: 2 })
+    expect(board.counts).toEqual({ inFirstMonth: 2, stuck: 1, noData: 2, medianHoursToA1: null })
   })
 
   it('best-effort: a clinic whose readiness read throws still renders, with no facts', async () => {

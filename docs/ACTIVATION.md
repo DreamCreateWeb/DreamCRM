@@ -260,7 +260,7 @@ Guardian's audience lock).
 | **S5** | Front doors: Intake Forms, Growth (recall), Payments — **SHIPPED 2026-10-06** | each gets the intro + setup + on, in the insurance shape, through `FeatureGate`'s `intro` slot |
 | **S6** | Every empty state carries a door — **SHIPPED 2026-10-06** | the 50 door-less rooms each have one sentence and one button; the eleven that stand without one are named with a reason, and `tests/activation/empty-state-doors.test.ts` holds the tree there |
 | **S7** | The morning after — **SHIPPED 2026-10-06** | the day-two digest for a thin clinic says what happened and names one thing, or says what it waits on; a quiet first week is narrated, never skipped; the cockpit flags a clinic whose morning email is still off |
-| **S8** | Activation stamped + measured | `clinic_profile.activation` (A1–A5 timestamps, written once) and time-to-A1 on the platform Overview |
+| **S8** | Activation stamped + measured — **SHIPPED 2026-10-07** | `clinic_profile.activation` carries all five stamps, written once from the rails' own first-times (`reconcileActivation`, at the day-one kick and on the daily tick); the platform Overview shows the cohort's time-to-A1, the 48h share, who is stuck and all five events; the cockpit shows the median time to data |
 
 S1 first because the owner has to be able to SEE before anything else is
 worth tuning; S2 because the setup call needs the win on the call; S3
@@ -312,7 +312,7 @@ before S4–S6 because the doors need the switch to be one thing.
   guarded jsonb merge whose RETURNING row is the atomic "first time?" —
   a connected PMS or Google profile stamps at once, a CSV stamps when the
   roster clears `A1_PATIENT_FLOOR`. The cockpit prefers a stamp over its
-  derived read (`mergeActivation`). A2–A5 stay derived until S8.
+  derived read (`mergeActivation`). A2–A5 stayed derived until S8.
 - **2026-10-05 — S3 SHIPPED: the switch, generalised.** Law 1 is live
   for every module. Migration 0172 adds seven `*_enabled_at` columns to
   `clinic_profile` (My Day, Follow-ups, Inquiries, Intake Forms, Growth,
@@ -490,3 +490,31 @@ before S4–S6 because the doors need the switch to be one thing.
   stays OPT-IN (law 1 — the call's fourth beat turns it on; the cockpit now
   says when it wasn't), and no new column — the night is read from the
   rails that already record it.
+- **2026-10-07 — S8 SHIPPED: activation stamped + measured.** Law 7 is
+  live. THE STAMPS: A2–A5 (and A1 wherever the kick never ran) are written
+  by ONE mechanism, `reconcileActivation` (lib/services/activation.ts) —
+  for every key still unset it reads the rails' own first-time (the
+  derived read, `readActivation`, moved beside the stamps and re-exported
+  from first-week.ts) and writes THAT instant through `stampActivation`'s
+  write-once guard, never "now", so a stamp made a day late still carries
+  the true time. It runs at the end of the day-one kick and, as
+  `reconcileActivationStamps`, on the daily-digest tick over every real
+  clinic with something unstamped (budgeted + resumable, job
+  `activation-reconcile`); clinics with all five stamped cost one row
+  read. Deliberately NOT a stamp call at every send/booking/submission
+  site: six-plus writers across reminders, campaigns, three booking paths,
+  review asks and forms, and a site missed is an event never counted — one
+  reconcile that reads the rails cannot miss one, and it backfills every
+  clinic that predates stamping for free. THE NUMBER: pure
+  `lib/activation-metrics.ts` (`computeActivationMetrics` over the cohort
+  of real clinics created inside `COHORT_DAYS` = 90: per event the count
+  reached and the median hours from org creation; the share with A1 inside
+  `A1_TARGET_HOURS` = 48, Part 3's line; the count still without data past
+  the stuck day) and `getActivationMetrics` (stamps only, demo excluded,
+  "unreadable" on a failed read — never a cohort of zeros). The platform
+  Overview gained `ActivationCard` ("The first week, measured"): time to
+  data (median), data within 48h, no data past day 3, signed up, and the
+  five-row event table, with a door to the cockpit; an empty cohort is a
+  room with a door (law 4). The cockpit's KPI row gained "Time to data,
+  median" over the clinics it shows (`counts.medianHoursToA1`). The
+  program's eight slices are all shipped.
