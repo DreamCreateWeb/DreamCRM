@@ -20,6 +20,7 @@
  */
 
 import { ACTIVATION_EVENTS, type Activation, type ActivationKey } from '@/lib/activation'
+import type { FeatureKey } from '@/lib/feature-switches'
 import { machineWork, standupNoun } from '@/lib/standup-nouns'
 
 /** Through this day the digest sends even when it has nothing to do — a
@@ -50,6 +51,8 @@ export interface MorningAfterInput {
   pendingOnUs: Array<{ label: string; kind?: 'pms' | 'sms' }>
   /** The readiness resolver's BROKEN facts — a thing to fix beats a thing to start. */
   attention: Array<{ label: string; summary: string; href: string }>
+  /** Doors a PERSON closed (`doors_closed` keys): the one thing never sends them through one (verification round). */
+  doorsClosed?: readonly FeatureKey[]
 }
 
 export type OneThingKind = 'card' | 'attention' | 'activation'
@@ -73,12 +76,12 @@ export interface MorningAfter {
 }
 
 /** The door for each activation event not yet reached — what to do and where. */
-export const ACTIVATION_DOORS: Record<ActivationKey, { text: string; href: string }> = {
+export const ACTIVATION_DOORS: Record<ActivationKey, { text: string; href: string; /** The switched module the door leads into — a person's close stands it down. */ feature?: FeatureKey }> = {
   a1: { text: 'Connect your patients — bind your practice software or import a CSV, and the machine can start.', href: '/integrations' },
-  a2: { text: 'Send your first message to patients — start a recall campaign; the audience is already counted.', href: '/growth/outreach?new=1' },
+  a2: { text: 'Send your first message to patients — start a recall campaign; the audience is already counted.', href: '/growth/outreach?new=1', feature: 'growth' },
   a3: { text: 'Get your first booking through the site — share your booking link with the next patient who calls.', href: '/website/share' },
-  a4: { text: 'Ask for your first review — mark a visit completed and the ask goes out on its own.', href: '/growth/reviews' },
-  a5: { text: 'Get your first form in — send an intake form to the next new patient.', href: '/intake-forms' },
+  a4: { text: 'Ask for your first review — mark a visit completed and the ask goes out on its own.', href: '/growth/reviews', feature: 'growth' },
+  a5: { text: 'Get your first form in — send an intake form to the next new patient.', href: '/intake-forms', feature: 'intake_forms' },
 }
 
 /** The A3 door while the site is still private: go live first (the lever is on the Website hub). */
@@ -137,7 +140,12 @@ export function pickOneThing(input: MorningAfterInput): OneThing | null {
     if (next === 'a1' && input.pendingOnUs.some((p) => p.kind === 'pms')) return null
     // A3 comes through the site; a site still private has no booking link to share.
     if (next === 'a3' && input.siteLive === false) return { kind: 'activation', ...SITE_NOT_LIVE_DOOR }
-    if (next) return { kind: 'activation', ...ACTIVATION_DOORS[next] }
+    if (next) {
+      const { feature, ...door } = ACTIVATION_DOORS[next]
+      // A door a person shut on purpose is not the thing to do today.
+      if (feature && input.doorsClosed?.includes(feature)) return null
+      return { kind: 'activation', ...door }
+    }
   }
   return null
 }

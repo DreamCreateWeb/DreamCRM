@@ -2478,3 +2478,37 @@ for every staff member.
 - **"Sent to patients" is a set, not a path.** Before gating one send
   site, grep every reader of the thing being sent (templates, crons,
   portal, public pages, staff actions) and gate the READ, once.
+
+### Verification round 1 (2026-10-07) — NOT clean; the class sweep
+
+The verification round over `af5d2f0^..6da203f` returned 9 confirmed
+defects in 5 distinct clusters, no in-phase gap, two rejections upheld
+(the no-default-form 404 predates the phase and is backlog; a transiently
+failed go-live open is speculative). Per the gate: fix, name the CLASS each
+belongs to that the sweep's checklist did not cover, extend the sweep to
+that class across the whole phase, then ONE more verification round.
+
+| Cluster | What | Class the sweep missed | Fixed |
+|---|---|---|---|
+| 0176's cutoff | The grandfather boundary was a calendar date (midnight UTC Oct 6), ~5h after 0172 applied (~19:05Z Oct 5); clinics born in the window got fabricated human closes that every opener honoured | **A data migration that infers INTENT from TIME must derive its boundary from the record** (the merge/apply instant, or a shared stamp), never a round date | Migration 0177 removes exactly 0176's five keys for exactly that window |
+| Cockpit flags on failed reads | A failed ledger read raised "the machine did nothing"; a failed session read raised "nobody signed in"; an unread A1 rail would raise "no data"; unread cards "cards waiting" | **Unreadable ≠ empty applies to every read that FEEDS A FLAG, not only the ones that render a value** — round 2 fixed the profile row and stopped | `FirstWeekRowInput.unreadable` names the failed reads; each flag that would have read one stands down; the row says "Couldn't read just now: … — not flagged" |
+| Portal Forms tab | `buildPortalNav` enabled Forms on the portal toggle alone | **"Sent to patients" is a set — and NAVIGATION to the thing is in the set** | `intakeOpen` on the nav; the portal layout reads the switch |
+| The staff-facing intake nag | `no_intake` / `missingIntakeBeforeAppt` on every visit (Overview, agenda, patients, the record's Send button that now refuses, the S7 digest's prep list, the AI reply context) with no door check; the Overview's intake and follow-ups cards nagging about closed modules | **OFF UNTIL CHOSEN has STAFF-facing readers too: a glyph, a card, a prep line about a module nobody opened is a nag to operate a closed door** | The four flag writers consult the switch; the Overview hides the intake and follow-ups cards with their doors |
+| The turn-off confirm | "it leaves the sidebar" for intake, whose close now 404s every form link | **Generic copy over a per-feature CONSEQUENCE** — a switch with patient-facing reach names what stops | `FeatureSwitchDef.offWarns`; intake's confirm says what patients stop getting |
+| The one thing vs a closed door | The digest's activation door could send staff through a module a person closed | **Every machine-driven POINTER consults the close memory, not only the openers** | `ACTIVATION_DOORS[*].feature` + `doorsClosed` on the digest's input |
+
+The class sweep across the phase (same session): the migration class —
+0172 (all rows at apply time, no date) and 0170 (a reset, no date) are
+clean, 0176 was the only date-bounded one. The flag class — every `safe()`
+fallback in the cockpit that feeds a flag is now named in `unreadable`
+(ledger, session, A1 rail, proposals); the readiness report and goals read
+to empty but feed no flag. The staff-nag class — follow-ups' Overview card
+joins intake's; Inquiries' card stays (its count is zero while the site is
+private, and real inquiries must never hide). The pointer class — the
+sidebar and ⌘K read the switches; the cockpit's own stuck sentences point
+at settings, not modules. The copy class — Payments/Shop/Growth/My Day/
+Follow-ups/Inquiries closes stop nothing patient-facing (Growth's
+automations keep their own switches), so the generic sentence is true
+for them.
+
+ONE more verification round follows the merge.

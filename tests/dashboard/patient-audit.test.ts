@@ -14,6 +14,8 @@ const state = {
   deposits: [] as Array<{ appointmentId: string; amountCents: number }>,
 }
 
+const intakeDoor = { open: true }
+vi.mock('@/lib/services/feature-switches', () => ({ getFeatureSwitchState: async () => ({ intake_forms: intakeDoor.open }) }))
 vi.mock('@/lib/db', () => {
   const makeThenable = (resolve: () => unknown) => {
     const chain: Record<string, unknown> = {
@@ -147,6 +149,20 @@ describe('auditUpcomingDay', () => {
     expect(keys).toContain('balance')
     expect(keys).toContain('no_intake')
     expect(r.items[0]!.flags.find((f) => f.key === 'balance')!.label).toContain('$350')
+  })
+
+  it('no intake nag while the Intake Forms door is closed — a module the practice never opened (law 1, verification round)', async () => {
+    state.appointments = [appt({ status: 'scheduled', balance: 35000 })]
+    state.lastVisits = [{ patientId: 'p1', last: MONTHS_AGO }]
+    intakeDoor.open = false
+    try {
+      const r = await auditUpcomingDay('org_1', { now: NOW })
+      const keys = r.items[0]!.flags.map((f) => f.key)
+      expect(keys).not.toContain('no_intake')
+      expect(keys).toContain('balance')
+    } finally {
+      intakeDoor.open = true
+    }
   })
 
   it('flags a brand-new patient and a lapsed-returning one differently', async () => {

@@ -117,8 +117,14 @@ function ClinicCard({ row }: { row: FirstWeekRow }) {
                   .filter(Boolean)
                   .join(' · ') || 'none yet'}
           </p>
+          {row.unreadable.length > 0 && (
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400" data-testid="row-unreadable">
+              Couldn’t read just now: {row.unreadable.map((k) => UNREADABLE_LABEL[k]).join(' · ')} — not flagged.
+            </p>
+          )}
           <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-            Last active staff session: {row.lastStaffSignInAt ? shortDate(row.lastStaffSignInAt, row.timeZone) : 'none'}
+            Last active staff session:{' '}
+            {row.unreadable.includes('signIn') ? 'unknown' : row.lastStaffSignInAt ? shortDate(row.lastStaffSignInAt, row.timeZone) : 'none'}
           </p>
         </div>
         <div>
@@ -143,6 +149,8 @@ function ClinicCard({ row }: { row: FirstWeekRow }) {
     </article>
   )
 }
+
+const UNREADABLE_LABEL: Record<FirstWeekRow['unreadable'][number], string> = { ledger: 'the machine’s week', signIn: 'staff sessions', activation: 'the data rails', proposals: 'the cards' }
 
 export default function FirstWeekBoard({ board, includeDemo }: { board: Board; includeDemo: boolean }) {
   return (

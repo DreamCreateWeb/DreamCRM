@@ -57,6 +57,13 @@ export interface FirstWeekRowInput {
    * next move is billing, not the PMS.
    */
   trial: { onTrial: boolean; expired: boolean; daysLeft: number | null }
+  /**
+   * The reads that FAILED for this row (verification round): a value the
+   * cockpit could not read is unknown, never a stuck flag — a failed
+   * ledger read is not "the machine did nothing", a failed session read is
+   * not "nobody signed in", an unread A1 rail is not "no data".
+   */
+  unreadable: ReadonlyArray<'ledger' | 'signIn' | 'activation' | 'proposals'>
 }
 
 const DAY = 24 * 60 * 60 * 1000
@@ -97,22 +104,25 @@ export function stuckFlags(row: FirstWeekRowInput, now: Date): string[] {
   if (row.trial.onTrial && row.trial.daysLeft != null && row.trial.daysLeft <= STUCK.trialEndingDays && !hasData) {
     out.push(`Trial ends in ${row.trial.daysLeft} ${row.trial.daysLeft === 1 ? 'day' : 'days'} and there is no data yet — the week is over before it started; call today.`)
   }
-  if (!hasData && day >= STUCK.noDataByDay) {
+  const unread = new Set(row.unreadable)
+  if (!hasData && !unread.has('activation') && day >= STUCK.noDataByDay) {
     out.push(`No data by day ${day} — call about the PMS, or send the patient CSV.`)
   }
   const quietStaff = daysSince(row.lastStaffSignInAt, now)
   // What the cockpit can see is the newest LIVE session (a sign-out deletes
   // it), so the sentence says that rather than "nobody has ever signed in".
-  if (row.lastStaffSignInAt == null && day >= STUCK.quietStaffDays) {
+  if (unread.has('signIn')) {
+    // unknown — say nothing
+  } else if (row.lastStaffSignInAt == null && day >= STUCK.quietStaffDays) {
     out.push('No active staff session yet — the invite may be sitting in a spam folder, or they sign out each time.')
   } else if (quietStaff != null && quietStaff >= STUCK.quietStaffDays) {
     out.push(`No active staff session for ${quietStaff} days — the morning email may be the only thing they see.`)
   }
-  if (hasData && row.workLast7 === 0 && day >= STUCK.quietMachineDays) {
+  if (hasData && !unread.has('ledger') && row.workLast7 === 0 && day >= STUCK.quietMachineDays) {
     out.push('Data is connected and the machine did nothing this week — check the Guardian for this clinic.')
   }
   const waiting = daysSince(row.oldestOpenCardAt, now)
-  if (row.openCards > 0 && waiting != null && waiting >= STUCK.cardWaitingDays) {
+  if (!unread.has('proposals') && row.openCards > 0 && waiting != null && waiting >= STUCK.cardWaitingDays) {
     out.push(`${row.openCards} card${row.openCards === 1 ? '' : 's'} waiting on them for ${waiting} days — a nudge, or take it off their plate.`)
   }
   for (const p of row.pendingOnUs) {

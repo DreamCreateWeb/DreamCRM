@@ -24,6 +24,7 @@ function row(overrides: Partial<FirstWeekRowInput> = {}): FirstWeekRowInput {
     pendingOnUs: [],
     digestOn: true,
     trial: { onTrial: true, expired: false, daysLeft: 3 },
+    unreadable: [],
     ...overrides,
   }
 }
@@ -128,5 +129,21 @@ describe('the trial IS the first week (audit round 2 gap)', () => {
   })
   it('an unread morning-email switch (null) is unknown, never a stuck flag', () => {
     expect(stuckFlags(row({ createdAt: daysAgo(2), activation: { a1: daysAgo(1), a2: null, a3: null, a4: null, a5: null }, digestOn: null }), NOW)).toEqual([])
+  })
+})
+
+describe('unreadable ≠ a stuck flag (verification round)', () => {
+  it('a failed ledger read is not "the machine did nothing"; a failed session read is not "nobody signed in"', () => {
+    const base = { createdAt: daysAgo(9), activation: { a1: daysAgo(8), a2: null, a3: null, a4: null, a5: null }, workLast7: 0, lastStaffSignInAt: null }
+    const flagged = stuckFlags(row(base), NOW)
+    expect(flagged.some((f) => /machine did nothing/.test(f))).toBe(true)
+    expect(flagged.some((f) => /No active staff session/.test(f))).toBe(true)
+    const unread = stuckFlags(row({ ...base, unreadable: ['ledger', 'signIn'] }), NOW)
+    expect(unread.some((f) => /machine did nothing/.test(f))).toBe(false)
+    expect(unread.some((f) => /No active staff session/.test(f))).toBe(false)
+  })
+  it('an unread A1 rail is not "no data"; unread cards are not "cards waiting"', () => {
+    expect(stuckFlags(row({ createdAt: daysAgo(5), unreadable: ['activation'] }), NOW).some((f) => /No data by day/.test(f))).toBe(false)
+    expect(stuckFlags(row({ createdAt: daysAgo(5), openCards: 3, oldestOpenCardAt: daysAgo(4), unreadable: ['proposals', 'activation'] }), NOW).some((f) => /cards? waiting/.test(f))).toBe(false)
   })
 })

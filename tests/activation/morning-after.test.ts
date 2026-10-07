@@ -74,19 +74,24 @@ describe('one thing', () => {
   })
   it('then the next activation door, only while the clinic is new', () => {
     expect(pickOneThing(input({ day: 1 }))).toEqual({ kind: 'activation', ...ACTIVATION_DOORS.a1 })
-    expect(pickOneThing(input({ day: 1, activation: { ...NONE, a1: new Date() } }))).toEqual({ kind: 'activation', ...ACTIVATION_DOORS.a2 })
+    expect(pickOneThing(input({ day: 1, activation: { ...NONE, a1: new Date() } }))).toEqual({ kind: 'activation', text: ACTIVATION_DOORS.a2.text, href: ACTIVATION_DOORS.a2.href })
     expect(pickOneThing(input({ day: ONE_THING_DAYS }))).toBeNull()
     // The A1 door asks them to bind the PMS; when that bind is ours, the ask
     // would contradict the same email's "still on us" line (audit round 2).
     expect(pickOneThing(input({ day: 2, pendingOnUs: [{ label: 'Connecting Eaglesoft', kind: 'pms' }] }))).toBeNull()
-    expect(pickOneThing(input({ day: 2, pendingOnUs: [{ label: 'Texting (carriers)', kind: 'sms' }] }))).toEqual({ kind: 'activation', ...ACTIVATION_DOORS.a1 })
+    expect(pickOneThing(input({ day: 2, pendingOnUs: [{ label: 'Texting (carriers)', kind: 'sms' }] }))).toEqual({ kind: 'activation', text: ACTIVATION_DOORS.a1.text, href: ACTIVATION_DOORS.a1.href })
     // The A3 door is the booking page, which only exists once the site is
     // live — a clinic whose site is still private is sent to put it live first.
     const a1a2 = { ...NONE, a1: new Date(), a2: new Date() }
     expect(pickOneThing(input({ day: 2, activation: a1a2, siteLive: false }))).toEqual({ kind: 'activation', ...SITE_NOT_LIVE_DOOR })
-    expect(pickOneThing(input({ day: 2, activation: a1a2, siteLive: true }))).toEqual({ kind: 'activation', ...ACTIVATION_DOORS.a3 })
-    expect(pickOneThing(input({ day: 2, activation: a1a2 }))).toEqual({ kind: 'activation', ...ACTIVATION_DOORS.a3 })
+    expect(pickOneThing(input({ day: 2, activation: a1a2, siteLive: true }))).toEqual({ kind: 'activation', text: ACTIVATION_DOORS.a3.text, href: ACTIVATION_DOORS.a3.href })
+    expect(pickOneThing(input({ day: 2, activation: a1a2 }))).toEqual({ kind: 'activation', text: ACTIVATION_DOORS.a3.text, href: ACTIVATION_DOORS.a3.href })
     expect(routeExists(SITE_NOT_LIVE_DOOR.href)).toBe(true)
+    // A door a person closed is never the one thing (verification round).
+    const toA5 = { a1: new Date(), a2: new Date(), a3: new Date(), a4: new Date(), a5: null }
+    expect(pickOneThing(input({ day: 2, activation: toA5 }))).toEqual({ kind: 'activation', text: ACTIVATION_DOORS.a5.text, href: ACTIVATION_DOORS.a5.href })
+    expect(pickOneThing(input({ day: 2, activation: toA5, doorsClosed: ['intake_forms'] }))).toBeNull()
+    expect(pickOneThing(input({ day: 2, activation: a1a2, doorsClosed: ['growth'] }))).toEqual({ kind: 'activation', text: ACTIVATION_DOORS.a3.text, href: ACTIVATION_DOORS.a3.href })
     const all = { a1: new Date(), a2: new Date(), a3: new Date(), a4: new Date(), a5: new Date() }
     expect(pickOneThing(input({ day: 1, activation: all }))).toBeNull()
   })

@@ -69,5 +69,10 @@ describe('feature-switch registry', () => {
     expect(FEATURE_BY_KEY.insurance.ownIntro).toBe(true)
     expect(FEATURE_INTRO.turnOn('My Day')).toBe('Turn on My Day')
     expect(FEATURE_INTRO.turnOffConfirm('Shop')).toMatch(/Nothing is deleted/)
+    // A switch with patient-facing reach says what stops (verification round): intake's close 404s every form link.
+    const intake = FEATURE_BY_KEY.intake_forms
+    expect(intake.offWarns).toMatch(/booking confirmations drop the link/)
+    expect(FEATURE_INTRO.turnOffConfirm(intake.label, intake.offWarns)).toMatch(/Patients stop getting forms/)
+    expect(FEATURE_INTRO.turnOffConfirm(intake.label, intake.offWarns)).not.toMatch(/leaves the sidebar/)
   })
 })

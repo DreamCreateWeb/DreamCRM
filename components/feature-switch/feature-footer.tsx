@@ -29,7 +29,7 @@ export default function FeatureFooter({ feature, canManage }: { feature: Feature
     setError(null)
     const ok = await confirm({
       title: FEATURE_INTRO.turnOff(def.label),
-      message: FEATURE_INTRO.turnOffConfirm(def.label),
+      message: FEATURE_INTRO.turnOffConfirm(def.label, def.offWarns),
       confirmLabel: FEATURE_INTRO.turnOff(def.label),
     })
     if (!ok) return

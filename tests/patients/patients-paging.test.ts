@@ -31,6 +31,8 @@ vi.mock('@/lib/db', async () => {
   )
   return { db, schema }
 })
+// The intake door read (law 1, verification round) is not one of the SQL statements under test here.
+vi.mock('@/lib/services/feature-switches', () => ({ getFeatureSwitchState: async () => ({ intake_forms: true }) }))
 vi.mock('@/lib/services/clinic-cadence', () => ({
   getClinicCadence: vi.fn(async () => ({ recallMonths: 6, lapsedMonths: 18 })),
 }))

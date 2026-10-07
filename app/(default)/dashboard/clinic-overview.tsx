@@ -1,4 +1,6 @@
 import Link from 'next/link'
+import { getFeatureSwitchState } from '@/lib/services/feature-switches'
+import { ALL_ON } from '@/lib/feature-switches'
 import { getClinicOverview, type TodayAppointmentRow, type ActivityKind } from '@/lib/services/clinic-overview'
 import { getStaffOnboarding, getActivationChecklist } from '@/lib/services/staff-onboarding'
 import { listOpenProposals } from '@/lib/services/proposals'
@@ -87,7 +89,7 @@ function money(cents: number): string {
 // formatClinicDayHeader from @/lib/format-datetime, tz from the snapshot).
 
 export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
-  const [data, onboarding, proposals, stagedCount, standup, guardianNote] = await Promise.all([
+  const [data, onboarding, proposals, stagedCount, standup, guardianNote, switches] = await Promise.all([
     getClinicOverview(ctx.organizationId),
     getStaffOnboarding(ctx.organizationId, ctx.userId),
     // The Dream Team's summons strip + the weekly standup are best-effort
@@ -104,6 +106,9 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
     // and the finding is one this practice can act on. Self-expiring and
     // re-verified against live switches inside the service.
     getActiveGuardianNote(ctx.organizationId).catch(() => null),
+    // The doors (docs/ACTIVATION.md law 1): no card nags about a module the
+    // practice never opened. Fail-open, like the sidebar.
+    getFeatureSwitchState(ctx.organizationId).catch(() => ALL_ON),
   ])
   // The checklist derives from live org data — only compute it while it's
   // still showing (not dismissed; auto-hides once everything is done).
@@ -303,6 +308,7 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
             </AttentionCard>
           )}
 
+          {switches.intake_forms && (
           <AttentionCard
             title="New intake submissions"
             count={data.intakeSubmissions.count}
@@ -330,6 +336,7 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
               </li>
             ))}
           </AttentionCard>
+          )}
 
           <AttentionCard
             title="Outstanding balances"
@@ -382,8 +389,8 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
             />
           )}
 
-          {/* Follow-ups your team owes a patient — overdue + due today . */}
-          {(
+          {/* Follow-ups your team owes a patient — overdue + due today. Hidden while the door is closed (law 1). */}
+          {switches.followups && (
             <AttentionCard
               title="Follow-ups due"
               count={data.followups.overdue + data.followups.dueToday}

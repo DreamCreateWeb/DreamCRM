@@ -697,3 +697,22 @@ before S4–S6 because the doors need the switch to be one thing.
   four-cause retrospective and the three standing additions to the
   self-sweep checklist are in docs/AUDITS.md. ONE verification round
   follows, as the gate requires after a documented sweep.
+- **2026-10-07 — VERIFICATION ROUND 1: not clean (9 confirmed / 5
+  clusters, no gap) — fixed, and the sweep extended by class.** The
+  classes the self-sweep's checklist had not covered, each now in
+  docs/AUDITS.md: a data migration whose boundary was a calendar date
+  (0176's cutoff sat ~5h after 0172 applied, so clinics born in the window
+  got fabricated closes — migration 0177 removes exactly those keys for
+  exactly that window); "unreadable ≠ empty" for every cockpit read that
+  FEEDS A FLAG (`unreadable` on the row: a failed ledger/session/A1-rail/
+  cards read is named and its flag stands down); navigation as part of the
+  "sent to patients" set (the portal's Forms tab hides with the door); the
+  STAFF-facing intake nag (`no_intake` and `missingIntakeBeforeAppt`
+  consult the switch, so the Overview, agenda, patients list, the record,
+  the S7 prep list and the AI reply context stop asking staff to operate a
+  closed module; the Overview's intake and follow-ups cards hide with their
+  doors); per-feature turn-off copy (`offWarns` — intake's confirm says
+  patients stop getting forms and sent links stop working); and the
+  digest's one thing never sends staff through a door a person closed
+  (`ACTIVATION_DOORS[*].feature` + `doorsClosed`). One more verification
+  round follows.

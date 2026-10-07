@@ -52,6 +52,12 @@ export interface FeatureSwitchDef {
   lede: string
   /** What it does — three lines. */
   does: readonly string[]
+  /**
+   * What TURNING OFF stops, beyond leaving the sidebar — only for a switch
+   * with patient-facing reach (verification round: the generic confirm said
+   * "it leaves the sidebar" for intake, whose close 404s every form link).
+   */
+  offWarns?: string
   /** What to know — honest: money, labels, where data goes. */
   know: readonly string[]
   /**
@@ -144,6 +150,8 @@ export const FEATURE_SWITCHES: readonly FeatureSwitchDef[] = [
       'The summary and the card reading use an AI service without a signed BAA — the same posture as the rest of the app.',
       'Nothing goes to patients until you turn this on — from then, every booking confirmation carries the link.',
     ],
+    offWarns:
+      'Patients stop getting forms: booking confirmations drop the link, the reminders stop, the portal’s Forms tab goes, and any form link already sent stops working until you turn it back on.',
     autoOpen: null,
   },
   {
@@ -294,6 +302,8 @@ export const FEATURE_INTRO = {
   turnOff: (label: string) => `Turn off ${label}`,
   askManager: 'An owner or admin can turn this on.',
   onlyManagers: 'Only an owner or admin can change what is turned on.',
-  turnOffConfirm: (label: string) =>
-    `Turn off ${label}? Nothing is deleted — it leaves the sidebar and comes back the moment you turn it on again.`,
+  turnOffConfirm: (label: string, offWarns?: string) =>
+    offWarns
+      ? `Turn off ${label}? ${offWarns} Nothing is deleted — it comes back the moment you turn it on again.`
+      : `Turn off ${label}? Nothing is deleted — it leaves the sidebar and comes back the moment you turn it on again.`,
 } as const

@@ -41,6 +41,8 @@ export function buildPortalNav(opts: {
   hasDependents: boolean
   /** Unread clinic replies — renders a badge on the Messages entry. */
   unreadMessages?: number
+  /** The clinic's Intake Forms door (law 1): closed = no Forms tab, whatever the portal toggle says. Defaults open. */
+  intakeOpen?: boolean
 }): { primary: PortalNavItem[]; more: PortalNavItem[] } {
   const f = opts.settings.features
 
@@ -50,7 +52,7 @@ export function buildPortalNav(opts: {
     { href: '/patient/messages', label: 'Messages', icon: 'chat', enabled: f.messages, badge: opts.unreadMessages && opts.unreadMessages > 0 ? opts.unreadMessages : undefined },
     { href: '/patient/invoices', label: 'Billing', icon: 'card', enabled: f.billing },
     { href: '/patient/records', label: 'Records', icon: 'folder', enabled: f.records },
-    { href: '/patient/intake', label: 'Forms', icon: 'doc', enabled: f.forms },
+    { href: '/patient/intake', label: 'Forms', icon: 'doc', enabled: f.forms && opts.intakeOpen !== false },
     // Feature-gated only (not && hasDependents): the page's day-0 value is
     // requesting your first family link — hiding it until a dependent exists
     // left no nav path to ever get one.

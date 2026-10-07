@@ -1,4 +1,5 @@
 import 'server-only'
+import { getFeatureSwitchState } from '@/lib/services/feature-switches'
 import { and, asc, eq, gte, inArray, lt, max, sql } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
@@ -138,6 +139,7 @@ export async function auditUpcomingDay(
       ),
     getClinicCadence(organizationId),
   ])
+  const intakeOpen = (await getFeatureSwitchState(organizationId)).intake_forms
   const submittedSet = new Set(submittedRows.map((r) => r.patientId).filter(Boolean))
   const lastVisitByPatient = new Map(
     lastVisitRows.map((r) => [r.patientId, r.last ?? null]),
@@ -153,7 +155,8 @@ export async function auditUpcomingDay(
     if (depositCents) {
       flags.push({ key: 'deposit_pending', label: `${dollars(depositCents)} booking deposit not completed` })
     }
-    if (!submittedSet.has(r.patientId)) flags.push({ key: 'no_intake', label: 'No intake form on file' })
+    // No nag about a module the practice never opened (law 1, verification round).
+    if (intakeOpen && !submittedSet.has(r.patientId)) flags.push({ key: 'no_intake', label: 'No intake form on file' })
     if ((r.balance ?? 0) > 0) {
       flags.push({ key: 'balance', label: `Owes ${dollars(r.balance!)} — worth settling at the visit` })
     }
