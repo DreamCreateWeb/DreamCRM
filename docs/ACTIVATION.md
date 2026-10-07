@@ -573,3 +573,63 @@ before S4–S6 because the doors need the switch to be one thing.
   says the one thing); overnight as counts, not stories; the cockpit
   clock starting at org creation for managed clinics with no invite
   state; the kick's result discarded. Round 2 runs over this fix range.
+- **2026-10-07 — PHASE AUDIT, round 2 (fixes).** Round 2 over the program
+  plus round 1's fix commit returned 27 confirmed defects (14 distinct), 1
+  in-phase gap and 3 backlog items; the main loop re-verified each against
+  the code. The round's lesson is the one the gate's own convention
+  predicts: HALF OF IT WAS IN ROUND 1's CORRECTIONS. (1) THE DOORS,
+  PROPERLY: round 1's "first occurrence only" guards were both defeated
+  by the event repeating from a null state — take the site offline and put
+  it back and `siteLiveAt` is null again, so the go-live guard was true on
+  every re-pull; and the daily reconcile stamped A1 without ever opening
+  the A1 doors, after which every later kick (gated on "first stamp") never
+  opened them either, so a roster that crossed the floor by bookings never
+  got My Day or Follow-ups. The fix is a MEMORY rather than a guard:
+  migration 0175 `clinic_profile.doors_closed` jsonb, written by a person's
+  "Turn off" and cleared by a person's "Turn on"; the MACHINE's openers
+  (`openDoorsAtA1`, `openDoorsAtSiteLive`) skip every key in it, so they
+  are safe to call on every occurrence — the kick on every eligible A1,
+  the daily pass when it stamps A1, the go-live lever on every pull — and a
+  door a clinic shut stays shut. (2) A1's GOOGLE INSTANT was the
+  `zernio_connection` row's createdAt, which is minted at the START of any
+  connect attempt (social included), days before the OAuth finishes; with
+  the kick now reconciling first, that early instant was written once and
+  forever. The rail is the GBP ACCOUNT's `connectedAt` now. (3)
+  UNREADABLE ≠ EMPTY, on the stamps too: one failed rail read (say the
+  reminder log) made `earliestOf` pick a later source and the write-once
+  guard froze it in. `readActivationDetailed` names each key whose source
+  could not be read, the reconcile skips those keys, and the kick never
+  stamps "now" over an unread A1 rail (the daily pass carries the true
+  instant). (4) THE PMS REQUEST'S OTHER HALF: round 1 made a bind write
+  'connected' and nothing mirrored a disconnect, so the door said "connected
+  and syncing" over a dead bridge with no way to ask again;
+  `disconnectPms` → `closeConnectedPmsRequest`, the closed copy and the
+  "Ask us to connect it again" button; the cockpit's "Asked" date and the
+  pending-on-us clock read `createdAt` (an answer re-dated the ask and
+  reset the 5-day clock); the answer action requires a platform
+  owner/admin. (5) OFF UNTIL CHOSEN, for intake: the seeded standard form
+  rode every booking confirmation while the Intake Forms door was closed
+  (law 1 broken on the S5 door whose copy said auto-send was off);
+  `getBookingIntakeForm` sends nothing while the switch is off, the know
+  line tells the truth, and the turn-on rebuild spares a seeded form
+  patients have already answered (rewriting it hid their sections from the
+  record). (6) The digest's one thing no longer asks a clinic to "bind your
+  practice software" beside "still on us: connecting it" (`pendingOnUs`
+  items carry a `kind`); its failure line owns the problem ("that's mine to
+  sort out") instead of sending staff to an Overview with no details. (7)
+  The 48h share's denominator is the clinics old enough to be JUDGED — a
+  signup from this morning is undecided, not a miss. (8) The cockpit: the
+  machine's week excludes staff-run checks (`machineWork`); an unread
+  profile row is `digestOn: null` + `doorsUnreadable` (no false "morning
+  email is off" flag); the Payments intro has an 'unreadable' state like
+  its two siblings; `resolveConnectBack` uses `Object.hasOwn`. THE GAP,
+  CLOSED: Part 5 asked for "Day N with the trial state" and S1 never
+  carried it — the first week IS the 7-day trial, and expiry shuts the
+  clinic down. `FirstWeekRowInput.trial` (from `resolveTrialState` over
+  `trialEndsAt`, now on `ClinicListRow`), a "Trial · N days left" / "Trial
+  ended · behind the wall" pill, and two flags: behind the wall comes FIRST
+  and alone (the next move is billing, not the PMS), and a trial ending
+  within `STUCK.trialEndingDays` = 2 with no data is a call today. Backlog
+  (owner's menu): "install scheduled" with no date or message; door opens
+  and closes leave no who/why record; a member meeting a closed door gets
+  no name and no button. Round 3 runs over this fix range.

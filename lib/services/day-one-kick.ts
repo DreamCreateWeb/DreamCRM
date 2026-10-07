@@ -3,7 +3,7 @@ import { count, eq } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import { A1_PATIENT_FLOOR } from '@/lib/first-week'
 import { isClinicShutDown } from '@/lib/services/billing-state'
-import { reconcileActivation, stampActivation } from '@/lib/services/activation'
+import { reconcileActivationDetailed, stampActivation } from '@/lib/services/activation'
 import { openDoorsAtA1 } from '@/lib/services/feature-switches'
 
 /**
@@ -72,15 +72,18 @@ export async function kickOffFirstWeek(organizationId: string, reason: KickReaso
     // patient — so A1 carries the real instant even on a clinic whose bind
     // predates stamping. Only an A1 the rails do not yet show (a connection
     // row written this same tick) is stamped as "now". Never throws.
-    const reconciled = await reconcileActivation(organizationId, now)
-    const stampedA1 = reconciled.includes('a1') || (eligibleForA1 ? await stampActivation(organizationId, 'a1', now) : false)
+    const { stamped: reconciled, incomplete } = await reconcileActivationDetailed(organizationId, now)
+    // A rail that could not be read is not "never happened" (audit round
+    // 2): stamping "now" over an unread PMS row would freeze the deploy
+    // date in as the bind — the daily pass stamps the true instant instead.
+    const canStampNow = eligibleForA1 && !incomplete.includes('a1')
+    const stampedA1 = reconciled.includes('a1') || (canStampNow ? await stampActivation(organizationId, 'a1', now) : false)
     // A1 opens the doors that only make sense with patients behind them
-    // (My Day, Follow-ups — lib/feature-switches.ts `autoOpen: 'a1'`) — on
-    // the FIRST stamp only. Every later kick (a two-hourly sync, a second
-    // CSV) leaves the switches alone: a door the clinic closed on purpose
-    // stays closed (audit round 1 — openDoors' coalesce reopens a NULLed
-    // column, so "idempotent" was only true while nobody had turned one off).
-    if (stampedA1) await openDoorsAtA1(organizationId, now)
+    // (My Day, Follow-ups — lib/feature-switches.ts `autoOpen: 'a1'`) on
+    // EVERY eligible kick: the opener itself skips a door a person closed
+    // (`doors_closed`, audit round 2), so a two-hourly sync can no longer
+    // reopen one, and an A1 the daily pass stamped still gets its doors.
+    if (stampedA1 || eligibleForA1) await openDoorsAtA1(organizationId, now)
 
     const [profile] = await db
       .select({ cycleAt: schema.clinicProfile.dreamTeamCycleAt })

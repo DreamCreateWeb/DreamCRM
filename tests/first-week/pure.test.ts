@@ -23,6 +23,7 @@ function row(overrides: Partial<FirstWeekRowInput> = {}): FirstWeekRowInput {
     activation: { a1: null, a2: null, a3: null, a4: null, a5: null },
     pendingOnUs: [],
     digestOn: true,
+    trial: { onTrial: true, expired: false, daysLeft: 3 },
     ...overrides,
   }
 }
@@ -100,8 +101,8 @@ describe('stuck flags', () => {
         openCards: 2,
         oldestOpenCardAt: daysAgo(4),
         pendingOnUs: [
-          { label: 'The PMS connection', since: daysAgo(6) },
-          { label: 'Texting (carriers)', since: daysAgo(1) },
+          { kind: 'pms' as const, label: 'The PMS connection', since: daysAgo(6) },
+          { kind: 'sms' as const, label: 'Texting (carriers)', since: daysAgo(1) },
         ],
       }),
       NOW,
@@ -111,5 +112,21 @@ describe('stuck flags', () => {
       '2 cards waiting on them for 4 days — a nudge, or take it off their plate.',
       'The PMS connection has been on us for 6 days.',
     ])
+  })
+})
+
+describe('the trial IS the first week (audit round 2 gap)', () => {
+  it('behind the wall comes first and stands alone — the next move is billing, not the PMS', () => {
+    const flags = stuckFlags(row({ createdAt: daysAgo(9), trial: { onTrial: false, expired: true, daysLeft: 0 } }), NOW)
+    expect(flags).toEqual([expect.stringMatching(/Trial ended and no card — they are behind the wall/)])
+  })
+  it('a trial ending within two days with no data yet is a call today; with data it is not a flag', () => {
+    const soon = stuckFlags(row({ createdAt: daysAgo(5), trial: { onTrial: true, expired: false, daysLeft: 2 } }), NOW)
+    expect(soon[0]).toMatch(/Trial ends in 2 days and there is no data yet/)
+    const withData = stuckFlags(row({ createdAt: daysAgo(5), activation: { a1: daysAgo(4), a2: null, a3: null, a4: null, a5: null }, workLast7: 1, trial: { onTrial: true, expired: false, daysLeft: 1 } }), NOW)
+    expect(withData.some((f) => /Trial ends/.test(f))).toBe(false)
+  })
+  it('an unread morning-email switch (null) is unknown, never a stuck flag', () => {
+    expect(stuckFlags(row({ createdAt: daysAgo(2), activation: { a1: daysAgo(1), a2: null, a3: null, a4: null, a5: null }, digestOn: null }), NOW)).toEqual([])
   })
 })

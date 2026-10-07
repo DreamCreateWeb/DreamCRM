@@ -46,8 +46,8 @@ export interface MorningAfterInput {
   openCardsTotal?: number
   /** Whether the public site is live — the A3 door is the site, so a private site is the first thing to fix. */
   siteLive?: boolean
-  /** Doors pending on the platform (the PMS bind, the SMS carriers). */
-  pendingOnUs: Array<{ label: string }>
+  /** Doors pending on the platform (the PMS bind, the SMS carriers). `kind` lets the one thing stand aside for a bind that is ours. */
+  pendingOnUs: Array<{ label: string; kind?: 'pms' | 'sms' }>
   /** The readiness resolver's BROKEN facts — a thing to fix beats a thing to start. */
   attention: Array<{ label: string; summary: string; href: string }>
 }
@@ -104,7 +104,7 @@ function happenedLine(work: Record<string, number>, failures: number): string | 
   const did = describeWork(work)
   const trouble =
     failures > 0
-      ? `${failures} of my own ${plural(failures, 'job', 'jobs')} hit trouble — the Overview has the details.`
+      ? `${failures} of my own ${plural(failures, 'job', 'jobs')} hit trouble — that's mine to sort out, and I'm on it.`
       : null
   if (did && trouble) return `⚙️ Since yesterday I handled: ${did}. ${trouble}`
   if (did) return `⚙️ Since yesterday I handled: ${did}.`
@@ -131,6 +131,10 @@ export function pickOneThing(input: MorningAfterInput): OneThing | null {
   }
   if (input.day < ONE_THING_DAYS) {
     const next = ACTIVATION_EVENTS.find((e) => input.activation[e.key] == null)?.key ?? null
+    // The A1 door says "bind your practice software"; when that bind is
+    // already ours (a pending connect request), the same email's "still on
+    // us" line is the truth and the ask would contradict it (audit round 2).
+    if (next === 'a1' && input.pendingOnUs.some((p) => p.kind === 'pms')) return null
     // A3 comes through the site; a site still private has no booking link to share.
     if (next === 'a3' && input.siteLive === false) return { kind: 'activation', ...SITE_NOT_LIVE_DOOR }
     if (next) return { kind: 'activation', ...ACTIVATION_DOORS[next] }

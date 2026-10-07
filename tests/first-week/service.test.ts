@@ -23,6 +23,7 @@ const state = {
   rows: new Map<unknown, Array<Record<string, unknown>>>(),
   switches: new Map<string, Record<string, boolean>>(),
   switchesThrow: new Set<string>(),
+  throwTables: new Set<unknown>(),
 }
 
 vi.mock('@/lib/services/clinics', () => ({ listClinics: async () => state.clinics }))
@@ -59,7 +60,10 @@ vi.mock('@/lib/db', async () => {
     obj.where = () => obj
     obj.orderBy = () => obj
     obj.offset = () => obj
-    obj.limit = async () => state.rows.get(table) ?? []
+    obj.limit = async () => {
+      if (state.throwTables.has(table)) throw new Error('db down')
+      return state.rows.get(table) ?? []
+    }
     return obj
   }
   return { schema, db: { select: () => chain() } }
@@ -85,6 +89,7 @@ beforeEach(() => {
   state.rows.clear()
   state.switches.clear()
   state.switchesThrow.clear()
+  state.throwTables.clear()
   vi.spyOn(console, 'error').mockImplementation(() => {})
 })
 
@@ -104,7 +109,7 @@ describe('getFirstWeekBoard', () => {
   it('reads the five activation events as FIRSTS — A1 is the earliest of its three arms', async () => {
     state.clinics = [clinic('org_a', { createdAt: daysAgo(10) })]
     state.rows.set(schema.pmsConnection, [{ at: daysAgo(4), status: 'connected', since: daysAgo(4) }])
-    state.rows.set(schema.zernioConnection, [{ at: daysAgo(8) }])
+    state.rows.set(schema.zernioAccount, [{ at: daysAgo(8) }])
     state.rows.set(schema.patient, [{ at: daysAgo(6) }])
     state.rows.set(schema.appointmentReminderLog, [{ at: daysAgo(3) }])
     state.rows.set(schema.campaignEvents, [{ at: daysAgo(5) }])
@@ -142,6 +147,26 @@ describe('getFirstWeekBoard', () => {
     expect(fine.lastStaffSignInAt).toEqual(daysAgo(0))
     expect(fine.stuck).toEqual([])
     expect(board.counts).toEqual({ inFirstMonth: 2, stuck: 1, noData: 2, medianHoursToA1: null })
+  })
+
+  it('an unreadable profile row is unknown: no false "morning email is off" flag, doors marked unreadable (audit round 2)', async () => {
+    state.clinics = [clinic('org_a', { createdAt: daysAgo(2) })]
+    state.rows.set(schema.pmsConnection, [{ at: daysAgo(1), status: 'connected', since: daysAgo(1) }])
+    state.throwTables.add(schema.clinicProfile)
+    const [row] = (await getFirstWeekBoard({ now: NOW })).rows
+    expect(row.digestOn).toBeNull()
+    expect(row.doorsUnreadable).toBe(true)
+    expect(row.stuck.some((f) => /morning email is off/.test(f))).toBe(false)
+  })
+
+  it('carries the trial state from the clinic row: an expired no-card trial is behind the wall, and that flag leads', async () => {
+    state.clinics = [clinic('org_a', { createdAt: daysAgo(9), trialEndsAt: daysAgo(2), stripeSubscriptionId: null })]
+    const [row] = (await getFirstWeekBoard({ now: NOW })).rows
+    expect(row.trial).toEqual({ onTrial: false, expired: true, daysLeft: 0 })
+    expect(row.stuck[0]).toMatch(/behind the wall/)
+    state.clinics = [clinic('org_b', { createdAt: daysAgo(1), trialEndsAt: daysAgo(-6), stripeSubscriptionId: null })]
+    const [b] = (await getFirstWeekBoard({ now: NOW })).rows
+    expect(b.trial).toEqual({ onTrial: true, expired: false, daysLeft: 6 })
   })
 
   it('best-effort: a clinic whose readiness read throws still renders, with no facts', async () => {

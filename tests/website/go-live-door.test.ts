@@ -1,13 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 /**
- * THE GO-LIVE LEVER OPENS THE INQUIRIES DOOR ONCE (docs/ACTIVATION.md S3,
- * audit round 1). The door opens the FIRST time the site goes live. A site
- * taken offline and put back must not reopen a door the clinic closed in
- * between — the lever is reversible on purpose, and `openDoors` coalesces
- * (it would reopen a NULLed switch), so the action itself has to know
- * whether this pull is the first. Pinned: the first pull opens, a re-pull
- * does not, a refused pull returns the typed error and opens nothing.
+ * THE GO-LIVE LEVER OFFERS THE INQUIRIES DOOR (docs/ACTIVATION.md S3). A
+ * site taken offline and put back must not reopen a door the clinic closed
+ * in between — and that is the OPENER's law now (`doors_closed`, audit
+ * round 2: round 1 guarded on `siteLiveAt`, which take-offline nulls, so
+ * the guard was true again on every re-pull). Pinned: every successful
+ * pull calls the opener, a refused pull returns the typed error and opens
+ * nothing; the closed-door rule is pinned in tests/feature-switches.
  */
 
 const state = { before: null as Date | null, role: 'owner', updates: 0, updateThrows: false }
@@ -49,11 +49,11 @@ describe('goLiveAction and the Inquiries door', () => {
     expect(openDoorsAtSiteLive).toHaveBeenCalledWith('org_a')
   })
 
-  it('a site that was live before (taken offline, put back) re-stamps but does NOT reopen the door', async () => {
+  it('a site that was live before (taken offline, put back) still offers the door — the opener honors a close', async () => {
     state.before = new Date('2026-09-01T00:00:00Z')
     expect(await goLiveAction()).toEqual({ ok: true })
     expect(state.updates).toBe(1)
-    expect(openDoorsAtSiteLive).not.toHaveBeenCalled()
+    expect(openDoorsAtSiteLive).toHaveBeenCalledWith('org_a')
   })
 
   it('a member cannot pull the lever, and a failed write opens nothing', async () => {

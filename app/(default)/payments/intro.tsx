@@ -16,16 +16,25 @@ import PaymentsIntroCard from './payments-intro-card'
 export default async function PaymentsIntro() {
   const ctx = await getTenantContext()
   if (!ctx || ctx.tenantType !== 'clinic') return null
+  // Unreadable ≠ not connected (audit round 2): a failed read must not tell a
+  // practice with a live Stripe account to connect it again.
   const [cfg, ready] = await Promise.all([
-    getShopConfig(ctx.organizationId).catch(() => null),
-    canTakeBalancePayments(ctx.organizationId).catch(() => false),
+    getShopConfig(ctx.organizationId).catch(() => 'unreadable' as const),
+    canTakeBalancePayments(ctx.organizationId).catch(() => 'unreadable' as const),
   ])
-  const status = cfg?.stripeAccountStatus ?? 'none'
+  const stripe =
+    cfg === 'unreadable' || ready === 'unreadable'
+      ? 'unreadable'
+      : ready
+        ? 'ready'
+        : (cfg?.stripeAccountStatus ?? 'none') === 'none'
+          ? 'none'
+          : 'pending'
   return (
     <PaymentsIntroCard
       orgName={ctx.organizationName}
       canManage={ctx.role === 'owner' || ctx.role === 'admin'}
-      stripe={ready ? 'ready' : status === 'none' ? 'none' : 'pending'}
+      stripe={stripe}
       connectConfigured={shopConnectConfigured()}
       isDemo={ctx.isDemo}
     />

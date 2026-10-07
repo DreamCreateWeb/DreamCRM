@@ -1,5 +1,5 @@
 import 'server-only'
-import { eq, sql } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import { newId } from '@/lib/utils'
 import { pmsConnectRequestMessage, type PmsConnectInput, type PmsConnectStatus } from '@/lib/pms-connect'
@@ -121,6 +121,22 @@ export async function submitPmsConnectRequest(args: {
 /** `status` on re-submit: a connected request stays connected; anything else re-opens. */
 function sql_reopen() {
   return sql`case when ${schema.pmsConnectRequest.status} = 'connected' then 'connected' else 'requested' end`
+}
+
+/**
+ * The bridge was DISCONNECTED (a person pressed it, or the platform unbound
+ * it): a request that read 'connected' goes back to 'closed', so the door
+ * tells the truth and offers to ask again (audit round 2 — round 1's bind
+ * writer had no mirror, so "connected and syncing" outlived the connection
+ * and the clinic had no way to re-ask). Only a connected request moves.
+ */
+export async function closeConnectedPmsRequest(organizationId: string, now: Date = new Date()): Promise<boolean> {
+  const rows = await db
+    .update(schema.pmsConnectRequest)
+    .set({ status: 'closed', updatedAt: now })
+    .where(and(eq(schema.pmsConnectRequest.organizationId, organizationId), eq(schema.pmsConnectRequest.status, 'connected')))
+    .returning({ id: schema.pmsConnectRequest.id })
+  return rows.length > 0
 }
 
 /** The platform's answer. */

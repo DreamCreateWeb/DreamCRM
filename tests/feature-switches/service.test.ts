@@ -91,12 +91,32 @@ describe('openDoors', () => {
     expect(state.updates).toEqual([])
   })
 
-  it('enableFeature opens one door; disableFeature clears exactly one column', async () => {
+  it('enableFeature opens one door and forgets its close; disableFeature clears the column AND remembers the close', async () => {
     state.rows = [{}]
     await enableFeature('org_a', 'shop', NOW)
-    expect(Object.keys(state.updates[0])).toEqual(['shopEnabledAt'])
-    await disableFeature('org_a', 'shop')
-    expect(state.updates[1]).toEqual({ shopEnabledAt: null })
+    expect(Object.keys(state.updates[0]).sort()).toEqual(['doorsClosed', 'shopEnabledAt'])
+    await disableFeature('org_a', 'shop', NOW)
+    expect(state.updates[1].shopEnabledAt).toBeNull()
+    const closed = (state.updates[1].doorsClosed as { queryChunks: Array<{ value?: string[] }> }).queryChunks
+    const text = closed.flatMap((c) => c.value ?? []).join('')
+    expect(text).toMatch(/jsonb_build_object/)
+  })
+
+  it('THE MACHINE never reopens a door a person closed; a person can (audit round 2)', async () => {
+    state.rows = [{ doorsClosed: { my_day: NOW.toISOString() } }]
+    // The A1 opener skips the closed door and opens the rest.
+    expect(await openDoorsAtA1('org_a', NOW)).toEqual(['followups'])
+    expect(Object.keys(state.updates[0])).toEqual(['followupsEnabledAt'])
+    // Every door the machine wants is closed → nothing written at all.
+    state.rows = [{ doorsClosed: { my_day: NOW.toISOString(), followups: NOW.toISOString() } }]
+    expect(await openDoorsAtA1('org_a', NOW)).toEqual([])
+    expect(state.updates).toHaveLength(1)
+    // A person's "Turn on" opens it regardless and clears the memory.
+    await enableFeature('org_a', 'my_day', NOW)
+    expect(Object.keys(state.updates[1]).sort()).toEqual(['doorsClosed', 'myDayEnabledAt'])
+    // Junk in the column reads as nothing closed.
+    state.rows = [{ doorsClosed: ['my_day'] }]
+    expect((await openDoorsAtA1('org_a', NOW)).sort()).toEqual(['followups', 'my_day'])
   })
 
   it('the A1 and site-live entry points open their own doors and never throw', async () => {

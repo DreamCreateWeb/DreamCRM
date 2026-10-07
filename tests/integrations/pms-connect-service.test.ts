@@ -53,7 +53,7 @@ vi.mock('@/lib/db', async () => {
   return { schema, db: { select, insert, update } }
 })
 
-import { getPmsConnectRequest, setPmsConnectRequestStatus, submitPmsConnectRequest } from '@/lib/services/pms-connect'
+import { closeConnectedPmsRequest, getPmsConnectRequest, setPmsConnectRequestStatus, submitPmsConnectRequest } from '@/lib/services/pms-connect'
 
 const input = { vendor: 'open_dental', vendorName: null, practiceNameInPms: 'Smiles PC', contactName: 'Ada', contactEmail: 'ada@example.com', contactPhone: null, bestTime: 'morning', notes: null }
 
@@ -109,5 +109,10 @@ describe('getPmsConnectRequest + setPmsConnectRequestStatus', () => {
   it('the platform’s answer updates the status', async () => {
     expect(await setPmsConnectRequestStatus('org_a', 'scheduled', NOW)).toBe(true)
     expect(state.updates[0]).toEqual({ status: 'scheduled', updatedAt: NOW })
+  })
+
+  it('a disconnect moves a connected request back to closed (audit round 2)', async () => {
+    expect(await closeConnectedPmsRequest('org_a', NOW)).toBe(true)
+    expect(state.updates[0]).toEqual({ status: 'closed', updatedAt: NOW })
   })
 })

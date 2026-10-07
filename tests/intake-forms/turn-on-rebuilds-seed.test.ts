@@ -10,7 +10,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
  * and is left alone. Then the switch flips. Members are refused.
  */
 
-const state = { role: 'owner', templates: [] as Array<Record<string, unknown>>, created: [] as unknown[], updated: [] as Array<[string, Record<string, unknown>]>, enabled: [] as string[] }
+const state = { role: 'owner', templates: [] as Array<Record<string, unknown>>, created: [] as unknown[], updated: [] as Array<[string, Record<string, unknown>]>, enabled: [] as string[], submissions: {} as Record<string, number> }
 vi.mock('next/navigation', () => ({ redirect: () => {} }))
 vi.mock('next/cache', () => ({ revalidatePath: () => {} }))
 vi.mock('@/lib/auth/context', () => ({ requireTenant: async () => ({ tenantType: 'clinic', role: state.role, organizationId: 'org_a' }) }))
@@ -20,6 +20,7 @@ vi.mock('@/lib/services/forms', () => ({
   createPacket: vi.fn(),
   deletePacket: vi.fn(),
   listFormTemplates: async () => state.templates,
+  countSubmissionsForTemplate: async (_org: string, id: string) => state.submissions[id] ?? 0,
   createFormTemplate: async (_org: string, input: unknown) => {
     state.created.push(input)
     return { id: 'new' }
@@ -44,6 +45,7 @@ beforeEach(() => {
   state.created = []
   state.updated = []
   state.enabled = []
+  state.submissions = {}
   vi.spyOn(console, 'warn').mockImplementation(() => {})
 })
 
@@ -71,6 +73,15 @@ describe('turnOnIntakeFormsAction', () => {
     const edited = { ...DEFAULT_INTAKE_TEMPLATE, sections: DEFAULT_INTAKE_TEMPLATE.sections.slice(0, 2) }
     state.templates = [seed({ id: 'theirs', schema: edited })]
     expect(await turnOnIntakeFormsAction({ sections: [] })).toEqual({ ok: true })
+    expect(state.created).toEqual([])
+    expect(state.updated).toEqual([])
+    expect(state.enabled).toEqual(['intake_forms'])
+  })
+
+  it('a seeded form patients have already answered is theirs too: never rebuilt, so no answer on file loses its section (audit round 2)', async () => {
+    state.templates = [seed()]
+    state.submissions = { seed: 3 }
+    expect(await turnOnIntakeFormsAction({ sections: ['medical'] })).toEqual({ ok: true })
     expect(state.created).toEqual([])
     expect(state.updated).toEqual([])
     expect(state.enabled).toEqual(['intake_forms'])

@@ -16,6 +16,9 @@ export type PmsRequestAnswer = 'scheduled' | 'closed'
 export async function answerPmsRequestAction(orgId: string, answer: PmsRequestAnswer): Promise<{ ok: true } | { ok: false; error: string }> {
   const ctx = await requireTenant()
   if (ctx.tenantType !== 'platform') return { ok: false, error: 'Platform only.' }
+  // Answering a customer's request is an owner/admin act, like every sibling
+  // platform admin action (audit round 2: a platform MEMBER could close one).
+  if (!ctx.platformAdmin && ctx.role !== 'owner' && ctx.role !== 'admin') return { ok: false, error: 'Platform owners and admins only.' }
   if (answer !== 'scheduled' && answer !== 'closed') return { ok: false, error: 'Unknown answer.' }
   if (typeof orgId !== 'string' || !orgId) return { ok: false, error: 'Which clinic?' }
   try {

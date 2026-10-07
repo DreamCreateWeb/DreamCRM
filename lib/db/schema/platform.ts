@@ -41,6 +41,14 @@ export const clinicProfile = pgTable('clinic_profile', {
   // cockpit prefers a stamp over its derived read. Nullable; nothing else
   // branches on it.
   activation: jsonb('activation'),
+  // THE DOORS A PERSON CLOSED (docs/ACTIVATION.md law 1, phase-audit round
+  // 2): `{ my_day?: iso, … }` — written when a human turns a feature off,
+  // cleared when a human turns it back on. A closed door is a null column,
+  // indistinguishable from a never-opened one, so without this memory every
+  // repeat of the opening event (a PMS sync, a second go-live) reopened a
+  // door the clinic shut on purpose. The machine's openers skip these keys;
+  // a person's "Turn on" clears them. Nullable.
+  doorsClosed: jsonb('doors_closed'),
 
   // Branding
   brandColor: text('brand_color'),

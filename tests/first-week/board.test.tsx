@@ -38,6 +38,8 @@ function row(overrides: Partial<FirstWeekRow> = {}): FirstWeekRow {
     pendingOnUs: [],
     digestOn: false,
     doors: { insurance: false, digest: false, siteLive: true, switches: [] },
+    doorsUnreadable: false,
+    trial: { onTrial: true, expired: false, daysLeft: 3 },
     timeZone: 'America/New_York',
     smsState: null,
     pmsRequest: null,
@@ -64,6 +66,23 @@ describe('FirstWeekBoard', () => {
     expect(within(card).getByText(/Last active staff session: none/)).toBeInTheDocument()
     expect(within(card).getByTestId('doors-open')).toHaveTextContent('Doors open: website')
     expect(screen.getByText('Show the demo clinic')).toBeInTheDocument()
+  })
+
+  it('the trial rides the row: days left while on it, "behind the wall" when it ended, the subscription word otherwise', () => {
+    const { unmount } = render(<FirstWeekBoard board={board([row({ trial: { onTrial: true, expired: false, daysLeft: 2 } })])} includeDemo={false} />)
+    expect(screen.getByText('Trial · 2 days left')).toBeInTheDocument()
+    unmount()
+    const r2 = render(<FirstWeekBoard board={board([row({ trial: { onTrial: false, expired: true, daysLeft: 0 } })])} includeDemo={false} />)
+    expect(screen.getByText('Trial ended · behind the wall')).toBeInTheDocument()
+    r2.unmount()
+    render(<FirstWeekBoard board={board([row({ trial: { onTrial: false, expired: false, daysLeft: null }, subscriptionStatus: 'active' })])} includeDemo={false} />)
+    expect(screen.getByText('active')).toBeInTheDocument()
+    expect(screen.queryByText(/Trial/)).toBeNull()
+  })
+
+  it('an unreadable profile says the doors could not be read, not "none yet"', () => {
+    render(<FirstWeekBoard board={board([row({ doorsUnreadable: true })])} includeDemo={false} />)
+    expect(screen.getByTestId('doors-open')).toHaveTextContent('couldn’t read them just now')
   })
 
   it('the doors list names every S3 switch that is on, in the switch registry’s words', () => {

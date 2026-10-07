@@ -52,7 +52,16 @@ function ClinicCard({ row }: { row: FirstWeekRow }) {
         </div>
         <div className="flex flex-wrap items-center gap-1.5">
           {stuck ? <StatusPill tone="warn" label={`Stuck · ${row.stuck.length}`} /> : <StatusPill tone="ok" label="On track" />}
-          {row.subscriptionStatus && <StatusPill tone="neutral" label={row.subscriptionStatus.replace('_', ' ')} />}
+          {row.trial.expired ? (
+            <StatusPill tone="urgent" label="Trial ended · behind the wall" />
+          ) : row.trial.onTrial ? (
+            <StatusPill
+              tone={row.trial.daysLeft != null && row.trial.daysLeft <= 2 ? 'warn' : 'info'}
+              label={`Trial · ${row.trial.daysLeft ?? 0} ${row.trial.daysLeft === 1 ? 'day' : 'days'} left`}
+            />
+          ) : (
+            row.subscriptionStatus && <StatusPill tone="neutral" label={row.subscriptionStatus.replace('_', ' ')} />
+          )}
         </div>
       </div>
 
@@ -97,14 +106,16 @@ function ClinicCard({ row }: { row: FirstWeekRow }) {
           </p>
           <p className="mt-1 text-xs text-gray-500 dark:text-gray-400" data-testid="doors-open">
             Doors open:{' '}
-            {[
+            {row.doorsUnreadable
+              ? 'couldn’t read them just now'
+              : [
               ...row.doors.switches.map((k) => FEATURE_BY_KEY[k].label.toLowerCase()),
               row.doors.siteLive && 'website',
               row.doors.digest && 'morning email',
               row.doors.insurance && 'insurance',
             ]
-              .filter(Boolean)
-              .join(' · ') || 'none yet'}
+                  .filter(Boolean)
+                  .join(' · ') || 'none yet'}
           </p>
           <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
             Last active staff session: {row.lastStaffSignInAt ? shortDate(row.lastStaffSignInAt, row.timeZone) : 'none'}

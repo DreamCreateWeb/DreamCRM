@@ -11,11 +11,16 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
  * fails the bind.
  */
 
-const state = { status: [] as Array<[string, string]>, statusThrows: false, writes: 0 }
+const state = { status: [] as Array<[string, string]>, statusThrows: false, writes: 0, closed: [] as string[] }
 vi.mock('@/lib/services/pms-connect', () => ({
   setPmsConnectRequestStatus: async (org: string, status: string) => {
     if (state.statusThrows) throw new Error('request table down')
     state.status.push([org, status])
+    return true
+  },
+  closeConnectedPmsRequest: async (org: string) => {
+    if (state.statusThrows) throw new Error('request table down')
+    state.closed.push(org)
     return true
   },
 }))
@@ -24,15 +29,17 @@ vi.mock('@/lib/crypto', () => ({ encryptSecret: (s: string) => s }))
 vi.mock('@/lib/db', async () => {
   const schema = await import('@/lib/db/schema')
   const insert = () => ({ values: () => ({ onConflictDoUpdate: async () => { state.writes++ } }) })
-  return { schema, db: { insert } }
+  const update = () => ({ set: () => ({ where: async () => { state.writes++ } }) })
+  return { schema, db: { insert, update } }
 })
 
-import { upsertPmsConnection } from '@/lib/services/pms/connection'
+import { disconnectPms, upsertPmsConnection } from '@/lib/services/pms/connection'
 
 beforeEach(() => {
   state.status = []
   state.statusThrows = false
   state.writes = 0
+  state.closed = []
   vi.spyOn(console, 'warn').mockImplementation(() => {})
 })
 
@@ -48,6 +55,14 @@ describe('upsertPmsConnection answers the connect request', () => {
     await upsertPmsConnection('org_a', { provider: 'nexhealth', status: 'error', lastError: 'boom' })
     expect(state.status).toEqual([['org_a', 'connected']])
     expect(state.writes).toBe(2)
+  })
+
+  it('a disconnect closes a request the bind had marked connected — the door stops saying "connected and syncing" (audit round 2)', async () => {
+    await disconnectPms('org_a')
+    expect(state.writes).toBe(1)
+    expect(state.closed).toEqual(['org_a'])
+    state.statusThrows = true
+    await expect(disconnectPms('org_a')).resolves.toBeUndefined()
   })
 
   it('a failed stamp never fails the bind', async () => {

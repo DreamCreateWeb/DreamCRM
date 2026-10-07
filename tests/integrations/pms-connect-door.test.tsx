@@ -27,7 +27,7 @@ const requested = {
   bestTime: 'morning',
   notes: null,
   status: 'requested' as const,
-  updatedAtIso: '2026-10-12T15:00:00.000Z',
+  requestedAtIso: '2026-10-12T15:00:00.000Z',
 }
 
 beforeEach(() => {
