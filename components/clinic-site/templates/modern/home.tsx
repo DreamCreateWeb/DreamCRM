@@ -1,4 +1,5 @@
 import type { ClinicSiteData } from '@/lib/services/clinic-site'
+import { intakeDoorOpen } from '@/lib/feature-switches'
 import type { BlogPost } from '@/lib/db/schema/clinic'
 import type {
   ClinicService,
@@ -513,14 +514,16 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
                   POST would 404 (issue we hit live). Absolute URL takes
                   the user to www, where auth + cookies + patient portal
                   all share one origin. */}
-              <a
-                href={`${appBaseUrl()}/site/${data.slug}/intake-start`}
-                className="dc-hr dc-hr-5 inline-flex items-center gap-1 text-sm font-semibold mb-12 transition hover:gap-2"
-                style={{ color: headingInk }}
-              >
-                New patient? Start your intake
-                <span aria-hidden="true">→</span>
-              </a>
+              {intakeDoorOpen(data.profile) && (
+                <a
+                  href={`${appBaseUrl()}/site/${data.slug}/intake-start`}
+                  className="dc-hr dc-hr-5 inline-flex items-center gap-1 text-sm font-semibold mb-12 transition hover:gap-2"
+                  style={{ color: headingInk }}
+                >
+                  New patient? Start your intake
+                  <span aria-hidden="true">→</span>
+                </a>
+              )}
               {/* Secondary H2 inside the same text column — Tend's verbatim
                   "A full range of care for all your needs" with bold (not
                   italic) emphasis on the last phrase. */}

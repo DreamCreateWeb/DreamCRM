@@ -678,3 +678,22 @@ before S4–S6 because the doors need the switch to be one thing.
   stalled step; one thing for every staff member regardless of role.
   Round 3 was the cap: the certificate, the retrospective and the
   self-sweep follow in docs/AUDITS.md, then ONE verification round.
+- **2026-10-07 — THE SELF-SWEEP (main loop, post-cap) + the certificate.**
+  Round 3 was the cap, so the remaining discovery was the main loop's own:
+  a sibling sweep of every fix from all three rounds, the component ×
+  failure-mode matrix, crash-consistency of every claim-then-act. Found
+  and fixed: the PUBLIC SITE'S DEAD LINKS — every template's footer, the
+  hometown header, the modern hero and the new-patients page linked
+  "New patient forms" / "Start your intake" to a page the round-3 gate
+  404s while the door is closed (`intakeDoorOpen(profile)` in
+  lib/feature-switches.ts hides each with the door; the new-patients page
+  hides its whole intake card); two more patient-facing intake surfaces
+  (the portal's form-by-id fill view, the public packet page) now ask
+  `patientFacingIntakeOpen`; the DAILY PASS OWES DOORS to a clinic whose
+  A1 it stamped before it opened doors (a bookings-only roster with no
+  later kick would have waited forever — it now walks any clinic with A1
+  on file whose A1 doors are null and not closed); the demo self-heal
+  forgets a close when it reopens every switch. The certificate, the
+  four-cause retrospective and the three standing additions to the
+  self-sweep checklist are in docs/AUDITS.md. ONE verification round
+  follows, as the gate requires after a documented sweep.

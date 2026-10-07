@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { intakeDoorOpen } from '@/lib/feature-switches'
 import type { SiteChromeProps } from '@/lib/site-templates/page-props'
 import { SITE_INK, SITE_INK_MUTED, SITE_SURFACE, SITE_BORDER, SITE_DEEP, SITE_DEEP_INK } from '@/components/clinic-site/tokens'
 import SiteImage from '../../site-image'
@@ -79,13 +80,15 @@ export default function HometownHeader({
         </a>
 
         <div className="flex items-center gap-3 shrink-0">
-          <a
-            href={`${basePath}/intake-start`}
-            className="hidden md:inline-flex items-center rounded-md px-4 py-2.5 text-sm font-semibold"
-            style={{ background: 'var(--c-brand-soft, #E4EAF2)', color: 'var(--c-brand-soft-ink, #1F4E79)' }}
-          >
-            New patient forms
-          </a>
+          {intakeDoorOpen(data.profile) && (
+            <a
+              href={`${basePath}/intake-start`}
+              className="hidden md:inline-flex items-center rounded-md px-4 py-2.5 text-sm font-semibold"
+              style={{ background: 'var(--c-brand-soft, #E4EAF2)', color: 'var(--c-brand-soft-ink, #1F4E79)' }}
+            >
+              New patient forms
+            </a>
+          )}
           <a
             href={bookHref}
             className="inline-flex items-center rounded-md px-5 py-2.5 text-sm font-bold shadow-sm"
@@ -150,9 +153,11 @@ export default function HometownHeader({
                 )}
               </div>
             ))}
-            <a href={`${basePath}/intake-start`} className="text-sm font-semibold mt-2" style={{ color: SITE_INK_MUTED }} onClick={() => setOpen(false)}>
-              New patient forms
-            </a>
+            {intakeDoorOpen(data.profile) && (
+              <a href={`${basePath}/intake-start`} className="text-sm font-semibold mt-2" style={{ color: SITE_INK_MUTED }} onClick={() => setOpen(false)}>
+                New patient forms
+              </a>
+            )}
             <a href={signInUrl} className="text-sm font-semibold mt-1" style={{ color: SITE_INK_MUTED }}>
               Patient login
             </a>

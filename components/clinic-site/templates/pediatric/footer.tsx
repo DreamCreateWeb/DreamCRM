@@ -1,4 +1,5 @@
 import type { SiteChromeProps } from '@/lib/site-templates/page-props'
+import { intakeDoorOpen } from '@/lib/feature-switches'
 import { EditText } from '@/components/clinic-site/editable'
 import { SITE_DEEP, SITE_DEEP_INK, SITE_DEEP_MUTED } from '@/components/clinic-site/tokens'
 import { DAYS, DAY_LABEL, hoursEntryDisplay, copyOverride, type HoursMap } from '@/lib/clinic-site-helpers'
@@ -138,11 +139,13 @@ export default function PediatricFooter({
               For families
             </h3>
             <ul className="space-y-1.5 text-sm">
-              <li>
-                <a href={`${basePath}/intake-start`} className="underline-offset-4 hover:underline">
-                  New patient forms
-                </a>
-              </li>
+              {intakeDoorOpen(data.profile) && (
+                <li>
+                  <a href={`${basePath}/intake-start`} className="underline-offset-4 hover:underline">
+                    New patient forms
+                  </a>
+                </li>
+              )}
               <li>
                 <a href={signInUrl} className="underline-offset-4 hover:underline">
                   Parent login

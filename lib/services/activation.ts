@@ -6,6 +6,7 @@ import { A1_PATIENT_FLOOR } from '@/lib/first-week'
 import { COHORT_DAYS, computeActivationMetrics, type ActivationMetrics } from '@/lib/activation-metrics'
 import { sweepClinics } from '@/lib/services/cron-sweep'
 import { openDoorsAtA1 } from '@/lib/services/feature-switches'
+import { FEATURE_BY_KEY, doorsOpenedBy, parseDoorsClosed } from '@/lib/feature-switches'
 import type { SweepProgress } from '@/lib/cron-budget'
 
 /**
@@ -260,11 +261,26 @@ export async function reconcileActivationStamps(opts: { now?: Date } = {}): Prom
   let scanned = 0
   let errors = 0
   const rows = await db
-    .select({ orgId: schema.organization.id, activation: schema.clinicProfile.activation })
+    .select({
+      orgId: schema.organization.id,
+      activation: schema.clinicProfile.activation,
+      myDayEnabledAt: schema.clinicProfile.myDayEnabledAt,
+      followupsEnabledAt: schema.clinicProfile.followupsEnabledAt,
+      doorsClosed: schema.clinicProfile.doorsClosed,
+    })
     .from(schema.organization)
     .innerJoin(schema.clinicProfile, eq(schema.clinicProfile.organizationId, schema.organization.id))
     .where(and(eq(schema.organization.type, 'clinic'), eq(schema.organization.isDemo, false)))
-  const due = rows.filter((r) => ACTIVATION_KEYS.some((k) => parseActivation(r.activation)[k] == null))
+  // Due: something unstamped — OR an A1 already on file whose doors never
+  // opened and were never closed (round 3's self-sweep: a clinic whose A1
+  // the daily pass stamped BEFORE the pass opened doors, with no later
+  // kick to offer them — a bookings-only roster — would wait forever).
+  const a1DoorsOwed = (r: (typeof rows)[number]) => {
+    if (parseActivation(r.activation).a1 == null) return false
+    const closed = parseDoorsClosed(r.doorsClosed)
+    return doorsOpenedBy('a1').some((k) => r[FEATURE_BY_KEY[k].column as 'myDayEnabledAt' | 'followupsEnabledAt'] == null && !closed[k])
+  }
+  const due = rows.filter((r) => ACTIVATION_KEYS.some((k) => parseActivation(r.activation)[k] == null) || a1DoorsOwed(r))
   const sweep = await sweepClinics(
     'activation-reconcile',
     due,
@@ -275,8 +291,9 @@ export async function reconcileActivationStamps(opts: { now?: Date } = {}): Prom
       for (const k of keys) stamped[k]++
       // A1 reached through the daily pass opens the A1 doors too (audit
       // round 2: the kick was the only caller, so a roster that crossed the
-      // floor by bookings never got My Day / Follow-ups). Honors a close.
-      if (keys.includes('a1')) await openDoorsAtA1(r.orgId, now)
+      // floor by bookings never got My Day / Follow-ups) — and so does an
+      // A1 already on file whose doors are still owed. Honors a close.
+      if (keys.includes('a1') || a1DoorsOwed(r)) await openDoorsAtA1(r.orgId, now)
     },
     { onError: () => { errors++ } },
   )

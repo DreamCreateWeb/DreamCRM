@@ -2305,3 +2305,176 @@ sweeping by class rather than by module: the classes travel.
    only two cases where a stale stamp is correct by design. Reported as
    `silent` with a new `no_cycle` cause, so it is distinguishable from
    ordinary silence in the alert memory and in the all-clear.
+
+## CERTIFICATE — THE FIRST WEEK / the activation program, S1–S8
+
+**CLOSED 2026-10-07 at the HARD CAP, on the amended gate: three discovery
+rounds, a root-cause retrospective, a main-loop self-sweep, and one
+verification round** (the verification round's result is appended below
+this certificate when it lands).
+
+**Range:** `af5d2f0^..` the self-sweep commit · the program's eight slices
+(S1–S8, 2026-10-05 → 2026-10-07) plus five fix PRs:
+[#757](https://github.com/DreamCreateWeb/DreamCRM/pull/757) (round 1),
+[#758](https://github.com/DreamCreateWeb/DreamCRM/pull/758) (round 2),
+[#759](https://github.com/DreamCreateWeb/DreamCRM/pull/759) (round 3's
+critical, hotfixed alone), [#760](https://github.com/DreamCreateWeb/DreamCRM/pull/760)
+(round 3), and the self-sweep. Migrations 0174 (an index), 0175
+(`doors_closed`), 0176 (its grandfather backfill).
+**Suite:** 8,633 → **9,545** tests (862 files), green; `pnpm build` clean on every gate.
+
+### The rounds, by the numbers
+
+| Round | Confirmed | Distinct | In-phase gaps | Backlog | Rejected (upheld) | Of which in the PREVIOUS round's corrections |
+|---|---|---|---|---|---|---|
+| 1 | 34 | 22 | 3 | 4 | 3 (one overruled → 0174) | — |
+| 2 | 27 | 14 | 1 | 3 | 4 | ~7 of 14 |
+| 3 | 13 (1 critical) | 7 | 0 | 2 | 4 | 5 of 7 |
+
+The depth chamber returned NO in-phase gap in round 3, and five of round
+3's seven distinct defects were in round 2's corrections. That is the
+stopping shape the Phase-4 amendment names: "a phase is done when the depth
+chamber stops returning in-phase gaps AND the remaining defects are
+confined to the correction layer." Round 3 was also the cap.
+
+### What shipped (the program, as the doctrine asked)
+
+Every feature has a front door. The platform cockpit (S1, with the trial
+state since round 2), the day-one kick (S2), the feature switches and the
+"Add" sidebar (S3, with the close memory since round 2), the integrations
+hub's doors (S4, with the request's full lifecycle since rounds 1–3),
+intros with real setup (S5), every empty state's door (S6), the morning
+after (S7), activation stamped and measured (S8). It adds no capability;
+it adds the doors. Full ledger per round: docs/ACTIVATION.md Part 7.
+
+### THE RETROSPECTIVE — why this program shipped with this many gaps
+
+**1. A guard where a memory was needed, twice.** Round 1 found the
+machine reopening doors a person closed and fixed it with "first
+occurrence only" guards. Round 2 found both guards defeated by the event
+repeating from a null state (take the site offline; stamp A1 from the
+daily pass), and fixed it with a memory — `doors_closed` — that the
+openers consult. The first fix reasoned about the CALLER ("call it once");
+the second about the STATE ("a closed door is a fact, record it"). The
+lesson generalises: when the machine and a person both write the same
+column, the column cannot carry both intents; give the person's intent its
+own home. Round 3's critical then lived in the memory's own SQL.
+
+**2. The DB is modelled in JavaScript, and a new raw-SQL fragment shipped
+without its boundary test.** CLAUDE.md's Phase-3 lesson says exactly this
+("any new raw SQL needs a boundary test that renders the real statement
+through drizzle's dialect"), and round 2's `doors_closed` clear shipped
+with a chunk-text test instead. Drizzle renders a JS array in a sql
+template as `($1, $2)::text[]`; Postgres rejects it; every person's "Turn
+on" failed for ~40 minutes in production. The rule was known and not
+applied because the fix was written under a round's time pressure. The
+standing self-sweep checklist now says: ANY `${…}` in a `sql` template
+gets a `PgDialect` render test in the same commit, no exceptions.
+
+**3. "OFF until chosen" had seven patient-facing paths and the fix found
+them one at a time.** Round 2 gated the booking confirmation; round 3
+found the site booking action, the forms-reminder cron, the portal task,
+the public intake pages; the self-sweep found the public site's own "New
+patient forms" links on every template, the portal's form-by-id page and
+the packet page. Each fix asked "where is THIS form sent" instead of
+"what is the ONE question every patient-facing surface should ask". The
+one question exists now (`patientFacingIntakeOpen`) and a dead-link law
+rides it (the links hide with the door).
+
+**4. The program's own corrections were the next round's material,
+exactly as Phase 4 predicted.** Half of round 2 and five-sevenths of
+round 3 were in the previous round's fixes. The fixes were written fast,
+between a round's result and the next PR, and each round's gate was green
+— tests pinned the behaviour the fix intended, not the sibling it broke.
+The sibling sweep below is the answer, and it found three more.
+
+### The self-sweep (main loop, post-cap)
+
+Sibling sweep of every fix from all three rounds, the component ×
+failure-mode matrix (each of the ten components × unreadable / partial /
+repeat / crash-between-steps / wrong actor), and crash-consistency of
+every claim-then-act. Found and fixed, in the self-sweep commit:
+
+- **Public-site dead links (law 1 + the dead-link law).** Every template's
+  footer, the hometown header (twice), the modern homepage hero and the
+  new-patients page carried "New patient forms" / "Start your intake"
+  pointing at `/intake-start`, which the round-3 gate turned into a 404
+  while the door is closed. `intakeDoorOpen(profile)` hides every one of
+  them with the door; the new-patients page hides its whole "Skip the
+  clipboard" card.
+- **Two more patient-facing intake surfaces** the round-3 inventory
+  missed: the portal's form-by-id fill view (an old link kept serving) and
+  the public packet page. Both ask the one question now.
+- **The daily pass owed doors to clinics already stamped.** It opened the
+  A1 doors only when IT stamped A1 that day; a clinic whose A1 the pass
+  had stamped before round 2 (when the pass opened nothing), with no later
+  kick to offer them — a bookings-only roster — would wait forever. The
+  pass now walks any clinic with A1 on file whose A1 doors are still null
+  and not closed.
+- **Demo coherence.** The demo self-heal opens every switch by column; it
+  now forgets any close an admin made in demo mode with them, so the
+  memory and the columns agree.
+
+Checked and sound: `turnOnIntakeFormsAction`'s rebuild-then-flip (a retry
+after a failed flip sees an edited form and only flips); the kick's
+reconcile → stamp → doors → pass (each step best-effort, none poisons the
+next); `enableFeature` on an already-open door (no write, memory untouched
+— consistent); the insurance switch's own off path (no machine opener, so
+no memory needed); the e2e seed (columns by `coalesce`, no memory
+involved); the reminder email bodies (no intake link outside the gated
+sender); the request upsert's `createdAt` case (a `timestamp` column
+parses the ISO bind).
+
+### What is TRUE at close
+
+- A person's "Turn on" works (the critical is fixed and pinned at the
+  dialect), and a person's "Turn off" is remembered: no activation event
+  reopens a door a clinic shut, and the machine still opens every door
+  nobody closed — from the kick, the daily pass and the go-live lever.
+- OFF until chosen holds for intake on every patient-facing surface, and
+  the public site shows no link to a page that would 404.
+- The stamps carry the rails' own instants (A1's Google rail is the GBP
+  account's connect), never "now" over an unread rail, and the 48h share
+  judges only clinics old enough.
+- The PMS request's lifecycle is whole: requested → scheduled/connected →
+  closed on disconnect → re-asked as a new ask dated now.
+- The cockpit carries the trial; behind the wall is the first flag.
+
+### What is OPEN, by name (the owner's menu)
+
+Backlog by owner decision across the rounds, none of it release work:
+1. The morning after exists only in the opt-in email — nothing in the app
+   says the one thing or "still on us" (round 1).
+2. "What happened overnight" is counts, not stories (round 1).
+3. The cockpit clock starts at org creation, wrong for managed clinics;
+   no invite state or resend door (round 1).
+4. The day-one kick's result is discarded (round 1).
+5. "Install scheduled" has no date and no message to the clinic (round 2).
+6. Door opens and closes leave no who/why record (round 2).
+7. A member who meets a closed door gets no name and no button (round 2).
+8. The morning email as a setup card on the Dream Team page, not only a
+   settings switch (round 3).
+9. Activation milestones are stamped but never told to the clinic (round 3).
+
+Upheld rejections (the main loop agreed with the skeptic): stuck
+thresholds vs the spec; activation SQL predicate coverage beyond the stamp
+fragment; the reconcile reading all rails every sync (it reads only for
+missing keys); the kick's cooldown overlap guard; `isUntouchedSeedTemplate`
+comparing to the current default; a Google-only A1 opening My Day; the
+close memory checked in JS not SQL; review asks continuing while Growth is
+closed (auto-by-default automations keep their own switches by the
+Phase-3 law); the one thing repeating a stalled step; the same one thing
+for every staff member.
+
+### Standing additions to the self-sweep checklist
+
+- **Any `${…}` inside a drizzle `sql` template gets a `PgDialect` render
+  test in the same commit.** A JS array renders as a scalar list, never an
+  array; a Date renders as a string; an object is not a bind. The test
+  asserts the SQL text AND the params.
+- **A guard on the caller is not a memory of the state.** When the machine
+  and a person write the same column, the person's intent gets its own
+  column (0175 is the pattern), and the machine's writers consult it.
+- **"Sent to patients" is a set, not a path.** Before gating one send
+  site, grep every reader of the thing being sent (templates, crons,
+  portal, public pages, staff actions) and gate the READ, once.

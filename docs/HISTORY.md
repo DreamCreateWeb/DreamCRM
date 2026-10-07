@@ -5942,3 +5942,14 @@ clinic's forms; a PMS re-ask after 'closed' dated as a new ask and a
 matching its percentage; migration 0176 backfilling closes for
 grandfathered clinics. Ledger in docs/ACTIVATION.md Part 7; certificate
 to follow in docs/AUDITS.md.
+
+**2026-10-07 — THE FIRST WEEK: the self-sweep and the certificate.** The
+main loop's own discovery after the three-round cap: the public site's
+intake links hide with the door (they pointed at a page that now 404s
+while it is closed), the portal's form-by-id view and the packet page
+join the one intake gate, the daily pass opens the A1 doors it still owes
+to clinics stamped before it opened any, and the demo self-heal forgets
+closes. Certificate + the retrospective (a guard where a memory was
+needed, twice; raw SQL without its dialect test; "sent to patients" is a
+set, not a path; the corrections were the next round's material) in
+docs/AUDITS.md.

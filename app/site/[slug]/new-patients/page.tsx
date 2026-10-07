@@ -1,4 +1,5 @@
 import { notFound } from 'next/navigation'
+import { intakeDoorOpen } from '@/lib/feature-switches'
 import {
   getClinicSiteBySlug,
   publicSiteUrl,
@@ -190,6 +191,8 @@ export default async function NewPatientsPage({ params }: Props) {
   // Same absolute-URL rule as the homepage hero's intake link: the auth +
   // portal half of the flow only exists on the apex www host.
   const intakeHref = `${appBaseUrl()}/site/${data.slug}/intake-start`
+  // OFF UNTIL CHOSEN: no intake CTA while the Intake Forms door is closed (the page would 404).
+  const intakeOpen = intakeDoorOpen(data.profile)
 
   const services = (profile.services as ClinicService[] | null) ?? []
 
@@ -313,14 +316,16 @@ export default async function NewPatientsPage({ params }: Props) {
               >
                 {bookLabel}
               </a>
-              <a
-                href={intakeHref}
-                className="inline-flex items-center gap-2 px-6 py-3.5 rounded-full text-base font-medium border bg-[var(--c-surface,#FFFFFF)] transition hover:shadow-sm"
-                style={{ color: INK, borderColor: BORDER }}
-              >
-                Start your intake online
-                <span aria-hidden="true">→</span>
-              </a>
+              {intakeOpen && (
+                <a
+                  href={intakeHref}
+                  className="inline-flex items-center gap-2 px-6 py-3.5 rounded-full text-base font-medium border bg-[var(--c-surface,#FFFFFF)] transition hover:shadow-sm"
+                  style={{ color: INK, borderColor: BORDER }}
+                >
+                  Start your intake online
+                  <span aria-hidden="true">→</span>
+                </a>
+              )}
             </div>
           </div>
         </section>
@@ -427,7 +432,8 @@ export default async function NewPatientsPage({ params }: Props) {
                 ))}
               </ul>
 
-              {/* Right: skip-the-clipboard intake card */}
+              {/* Right: skip-the-clipboard intake card — hidden with the door (law 1) */}
+              {intakeOpen && (
               <div
                 className="rounded-2xl sm:rounded-3xl p-7 sm:p-10"
                 style={{ backgroundColor: 'var(--c-surface, #FFFFFF)', color: INK }}
@@ -466,6 +472,7 @@ export default async function NewPatientsPage({ params }: Props) {
                   <span aria-hidden="true" className="ml-2">→</span>
                 </a>
               </div>
+              )}
             </div>
           </div>
         </DeepBand>
