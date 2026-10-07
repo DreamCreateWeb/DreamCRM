@@ -5767,6 +5767,18 @@ mocks `useConfirm`. The confirm is now awaited before the transition starts
 `tests/insurance/turn-off-dialog.test.tsx` renders the REAL ConfirmProvider
 so the dialog's appearance is the assertion.
 
+**2026-10-07 — INSURANCE WENT LIVE.** The first client (Complete Family
+Dentistry) checked two real cards and got errors: production had been in
+Stedi TEST mode with a test key since 2026-10-01, which answers only the mock
+member. The owner confirmed the executed BAA and the switch ran
+`scripts/setup-stedi-aws.sh --mode live --confirm-baa` with the live key
+(rollout SUCCEEDED; the service reads INSURANCE_DRIVER=stedi, STEDI_MODE=live).
+Two surfaces the report exposed, not yet fixed: once the tool is ON the
+Insurance page never shows which NPI it checks under or links to the Business
+profile box, and under test mode a real card's failure read as a payer
+rejection rather than "test mode". The script's stale "stays PREVIEW" note,
+CLAUDE.md's prod state and the runbook's table were corrected.
+
 **2026-10-06 (night) — THE FIRST WEEK S7: the morning after.** Law 6 on the
 digest: pure `lib/morning-after.ts` adds WHAT HAPPENED (the ledger's night in
 the standup's nouns — `STANDUP_NOUNS` moved to pure `lib/standup-nouns.ts`,

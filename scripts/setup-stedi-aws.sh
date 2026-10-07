@@ -183,8 +183,9 @@ fi
 cat <<NEXT
 
 ==> Done. INSURANCE_DRIVER=$DRIVER (STEDI_MODE=$MODE) goes live when the
-    service update finishes. The tool stays PREVIEW — platform admins only —
-    until canUseInsuranceTool is released (lib/insurance-eligibility.ts).
+    service update finishes. The tool is released to every clinic behind
+    its own ON switch (docs/insurance-go-live.md); a live check still needs
+    the practice's NPI on its Business profile.
 
     Watch the rollout:
       aws apprunner list-operations --service-arn $SERVICE_ARN --max-results 1
