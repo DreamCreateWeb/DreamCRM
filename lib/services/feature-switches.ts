@@ -110,11 +110,21 @@ export async function openDoors(
     patch[FEATURE_BY_KEY[k].column] = sql`coalesce(${col}, ${iso}::timestamp)`
   }
   if (!honorClosed) {
-    // A person opened it: the close is forgotten, so the machine may keep it open.
-    patch.doorsClosed = sql`coalesce(${schema.clinicProfile.doorsClosed}, '{}'::jsonb) - ${toOpen}::text[]`
+    // A person opened it: the close is forgotten, so the machine may keep it
+    // open. The keys go in as ONE Postgres array literal ('{a,b}'): a JS
+    // array in a sql template renders as a parenthesised scalar list —
+    // `($1, $2)::text[]` — which Postgres rejects as a malformed array
+    // literal, and that single statement is also the one that opens the
+    // door (audit round 3, critical: every person's "Turn on" failed).
+    patch.doorsClosed = sql`coalesce(${schema.clinicProfile.doorsClosed}, '{}'::jsonb) - ${doorsClosedKeysLiteral(toOpen)}::text[]`
   }
   await db.update(schema.clinicProfile).set(patch).where(eq(schema.clinicProfile.organizationId, organizationId))
   return toOpen
+}
+
+/** The keys as a Postgres text[] literal — feature keys are closed identifiers (no quotes, commas or braces). */
+export function doorsClosedKeysLiteral(keys: readonly FeatureKey[]): string {
+  return `{${keys.join(',')}}`
 }
 
 /** A person turning a feature on from its intro. Idempotent; forgets an earlier close. */
