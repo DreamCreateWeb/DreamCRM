@@ -24,6 +24,9 @@ import { countActionsSince } from '@/lib/services/action-ledger'
 import { getSmsRegistration, smsDriver } from '@/lib/services/sms-registration'
 import { getPmsConnectRequest, type PmsConnectRequestView } from '@/lib/services/pms-connect'
 import { pmsVendorLabel } from '@/lib/pms-connect'
+import { FEATURE_SWITCHES, type FeatureKey } from '@/lib/feature-switches'
+import { getFeatureSwitchState } from '@/lib/services/feature-switches'
+import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
 import { hoursTo, median } from '@/lib/activation-metrics'
 import type { ReadinessFact } from '@/lib/readiness'
 
@@ -59,7 +62,9 @@ export interface FirstWeekRow extends FirstWeekRowInput {
   billingMode: string | null
   goal: string | null
   facts: Array<{ id: string; label: string; grade: string; summary: string; href: string }>
-  doors: { insurance: boolean; digest: boolean; siteLive: boolean }
+  doors: { insurance: boolean; digest: boolean; siteLive: boolean; /** The S3 switches that are ON (audit round 1). */ switches: FeatureKey[] }
+  /** The clinic's own zone — the cockpit's dates are the clinic's days, not UTC's. */
+  timeZone: string
   smsState: string | null
   /** The clinic asked us to connect their PMS (S4) and the bridge is not bound yet. */
   pmsRequest: { vendor: string; status: string; at: Date } | null
@@ -125,12 +130,15 @@ export async function readPendingOnUs(
     safe('sms', null, async () => {
       if (smsDriver() === 'none') return null
       const view = await getSmsRegistration(organizationId)
+      // `updatedAt` moves on every poll of the carrier, which reset the
+      // stuck clock each run (audit round 1); the state's own stamp, or
+      // the row's birth, is when this door became ours.
       const [cfg] = await db
-        .select({ updatedAt: schema.clinicSmsConfig.updatedAt })
+        .select({ stateAt: schema.clinicSmsConfig.a2pStatusUpdatedAt, createdAt: schema.clinicSmsConfig.createdAt })
         .from(schema.clinicSmsConfig)
         .where(eq(schema.clinicSmsConfig.organizationId, organizationId))
         .limit(1)
-      return { state: view.state, since: cfg?.updatedAt ?? null }
+      return { state: view.state, since: cfg?.stateAt ?? cfg?.createdAt ?? null }
     }),
     safe('pms', null, async () => {
       const [c] = await db
@@ -171,7 +179,7 @@ async function buildRow(
   now: Date,
 ): Promise<FirstWeekRow> {
   const since7 = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
-  const [report, goals, open, work, profile, pending, signIn, activation, sms] = await Promise.all([
+  const [report, goals, open, work, profile, pending, signIn, activation, sms, switches, timeZone] = await Promise.all([
     safe('readiness', null, () => getReadinessReport(clinic.orgId)),
     safe('goals', [], () => listActiveGoals(clinic.orgId)),
     safe('proposals', [], () => listOpenProposals(clinic.orgId, 50)),
@@ -193,6 +201,8 @@ async function buildRow(
     lastStaffSignIn(clinic.orgId),
     readActivation(clinic.orgId),
     safe('sms', null, async () => (smsDriver() === 'none' ? null : { state: (await getSmsRegistration(clinic.orgId)).state })),
+    safe('switches', null, () => getFeatureSwitchState(clinic.orgId)),
+    safe('tz', 'America/New_York', () => getClinicTimeZone(clinic.orgId)),
   ])
   const { pendingOnUs, openRequest } = pending
 
@@ -223,7 +233,13 @@ async function buildRow(
     billingMode: clinic.billingMode ?? null,
     goal: goals[0]?.objective ?? null,
     facts: facts.map((f) => ({ id: f.id, label: f.label, grade: f.grade, summary: f.summary, href: f.href })),
-    doors: { insurance: profile?.insurance != null, digest: profile?.digest === 1, siteLive: profile?.siteLive != null },
+    doors: {
+      insurance: profile?.insurance != null,
+      digest: profile?.digest === 1,
+      siteLive: profile?.siteLive != null,
+      switches: switches ? FEATURE_SWITCHES.filter((f) => f.key !== 'insurance' && switches[f.key]).map((f) => f.key) : [],
+    },
+    timeZone,
     smsState: sms?.state ?? null,
     pmsRequest: openRequest ? { vendor: pmsVendorLabel(openRequest.vendor, openRequest.vendorName), status: openRequest.status, at: openRequest.updatedAt } : null,
     progress: activationProgress(input.activation),

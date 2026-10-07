@@ -22,22 +22,30 @@ export default function GrowthIntroCard({
 }: {
   orgName: string
   canManage: boolean
-  patientCount: number
-  google: { name: string } | null
+  /** null = the count could not be read just now (never shown as zero). */
+  patientCount: number | null
+  /** 'unreadable' = the connection could not be read just now (never shown as "not connected"). */
+  google: { name: string } | null | 'unreadable'
   dueReachable: number | null
   marketable: number | null
 }) {
-  const hasPatients = patientCount > 0
+  const hasPatients = patientCount != null && patientCount > 0
+  const patientsUnreadable = patientCount == null
+  const googleUnreadable = google === 'unreadable'
+  const gbp = googleUnreadable ? null : google
   return (
     <IntroShell eyebrow={`Growth · ${orgName}`} title={def.label} lede={def.lede} does={def.does} know={def.know} feature="growth" testId="growth-intro">
       <p className="mt-5 text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400">What the first win needs</p>
       <ul className="mt-2 space-y-2.5" data-testid="growth-facts">
         <li className="flex flex-wrap items-center gap-2 text-sm">
-          <StatusPill tone={hasPatients ? 'ok' : 'warn'} label={hasPatients ? 'Patients loaded' : 'No patients yet'} />
+          <StatusPill
+            tone={patientsUnreadable ? 'neutral' : hasPatients ? 'ok' : 'warn'}
+            label={patientsUnreadable ? 'Couldn’t count patients just now' : hasPatients ? 'Patients loaded' : 'No patients yet'}
+          />
           <span className="text-gray-700 dark:text-gray-200">
             {hasPatients ? (
               <>
-                <span className="font-mono-num tabular-nums font-semibold">{patientCount.toLocaleString()}</span> on file
+                <span className="font-mono-num tabular-nums font-semibold">{(patientCount ?? 0).toLocaleString()}</span> on file
                 {marketable != null && (
                   <>
                     , <span className="font-mono-num tabular-nums font-semibold">{marketable.toLocaleString()}</span> reachable by email
@@ -61,10 +69,13 @@ export default function GrowthIntroCard({
           </span>
         </li>
         <li className="flex flex-wrap items-center gap-2 text-sm">
-          <StatusPill tone={google ? 'ok' : 'warn'} label={google ? 'Google connected' : 'Google not connected'} />
+          <StatusPill
+            tone={googleUnreadable ? 'neutral' : gbp ? 'ok' : 'warn'}
+            label={googleUnreadable ? 'Couldn’t read Google just now' : gbp ? 'Google connected' : 'Google not connected'}
+          />
           <span className="text-gray-700 dark:text-gray-200">
-            {google ? (
-              <>Reviews and local search read from {google.name}.</>
+            {gbp ? (
+              <>Reviews and local search read from {gbp.name}.</>
             ) : (
               <>
                 Reviews and local search need your Google Business Profile.{' '}

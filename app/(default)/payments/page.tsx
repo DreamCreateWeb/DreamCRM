@@ -50,7 +50,7 @@ export default async function PaymentsHubPage() {
           connectReady ? (
             <StatusPill tone="ok" label="Stripe connected" title="Your connected Stripe account can take payments" />
           ) : (
-            <ActionButton variant="primary" size="sm" href="/api/connect/shop/start">
+            <ActionButton variant="primary" size="sm" href="/api/connect/shop/start?back=payments">
               Connect Stripe
             </ActionButton>
           )

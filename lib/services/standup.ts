@@ -16,7 +16,7 @@ import { countSeatedBetween } from '@/lib/services/patient-journey'
 import { getDigestOptOutUserIds } from '@/lib/services/staff-notification-pref'
 import { listShutDownOrgIds } from '@/lib/services/billing-state'
 import { sendNotificationEmail } from '@/lib/email'
-import { standupNoun } from '@/lib/standup-nouns'
+import { machineWork, standupNoun } from '@/lib/standup-nouns'
 
 /**
  * THE WEEKLY STANDUP (Transformation Phase 2 — DESIGN.md "The North Star",
@@ -132,7 +132,7 @@ export async function buildWeeklyStandup(
   const predatesAccount =
     orgCreatedAt != null && orgCreatedAt >= weekEnd && Object.keys(counts).length === 0
 
-  const lines: StandupLine[] = Object.entries(counts)
+  const lines: StandupLine[] = Object.entries(machineWork(counts))
     .map(([capability, count]) => ({ capability, noun: standupNoun(capability, count), count }))
     .sort((a, b) => b.count - a.count)
   const totalActions = lines.reduce((sum, l) => sum + l.count, 0)

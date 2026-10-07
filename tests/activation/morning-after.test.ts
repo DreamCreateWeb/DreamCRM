@@ -3,6 +3,7 @@ import {
   ACTIVATION_DOORS,
   MORNING_AFTER_DAYS,
   ONE_THING_DAYS,
+  SITE_NOT_LIVE_DOOR,
   buildMorningAfter,
   describeWork,
   pickOneThing,
@@ -61,6 +62,12 @@ describe('one thing', () => {
     expect(routeExists('/dream-team')).toBe(true)
     expect(pickOneThing(input({ openCards: [{ title: 'One' }] }))?.text).toBe('Say yes to “One” on your Dream Team page.')
   })
+  it('"and N more" counts the whole stack, not the short list the digest loaded (audit round 1)', () => {
+    const one = pickOneThing(input({ openCards: [{ title: 'One' }, { title: 'Two' }], openCardsTotal: 9 }))
+    expect(one?.text).toBe('Say yes to “One” on your Dream Team page (and 8 more waiting).')
+    // A total smaller than the list (a stale count) never shrinks the truth.
+    expect(pickOneThing(input({ openCards: [{ title: 'One' }, { title: 'Two' }], openCardsTotal: 0 }))?.text).toBe('Say yes to “One” on your Dream Team page (and 1 more waiting).')
+  })
   it('then something broken, in the readiness resolver’s own words and door', () => {
     const one = pickOneThing(input({ attention: [{ label: 'Google Business needs attention', summary: 'The listing points at the old site.', href: '/integrations' }] }))
     expect(one).toEqual({ kind: 'attention', text: 'Google Business needs attention — The listing points at the old site.', href: '/integrations' })
@@ -69,6 +76,13 @@ describe('one thing', () => {
     expect(pickOneThing(input({ day: 1 }))).toEqual({ kind: 'activation', ...ACTIVATION_DOORS.a1 })
     expect(pickOneThing(input({ day: 1, activation: { ...NONE, a1: new Date() } }))).toEqual({ kind: 'activation', ...ACTIVATION_DOORS.a2 })
     expect(pickOneThing(input({ day: ONE_THING_DAYS }))).toBeNull()
+    // The A3 door is the booking page, which only exists once the site is
+    // live — a clinic whose site is still private is sent to put it live first.
+    const a1a2 = { ...NONE, a1: new Date(), a2: new Date() }
+    expect(pickOneThing(input({ day: 2, activation: a1a2, siteLive: false }))).toEqual({ kind: 'activation', ...SITE_NOT_LIVE_DOOR })
+    expect(pickOneThing(input({ day: 2, activation: a1a2, siteLive: true }))).toEqual({ kind: 'activation', ...ACTIVATION_DOORS.a3 })
+    expect(pickOneThing(input({ day: 2, activation: a1a2 }))).toEqual({ kind: 'activation', ...ACTIVATION_DOORS.a3 })
+    expect(routeExists(SITE_NOT_LIVE_DOOR.href)).toBe(true)
     const all = { a1: new Date(), a2: new Date(), a3: new Date(), a4: new Date(), a5: new Date() }
     expect(pickOneThing(input({ day: 1, activation: all }))).toBeNull()
   })

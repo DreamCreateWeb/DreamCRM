@@ -44,3 +44,15 @@ export function standupNoun(capability: string, count = 2): string {
   return count === 1 ? pair.one : pair.many
 }
 
+/**
+ * Ledger capabilities whose entries are a PERSON's work narrated by the
+ * machine (an insurance check is a staff click; the ledger records it under
+ * the tool's capability). "I handled 3 insurance checks" would be a lie, so
+ * the digest's night and the standup's week leave them out (audit round 1).
+ */
+export const HUMAN_RUN_CAPABILITIES: ReadonlySet<string> = new Set(['insurance_check'])
+
+/** The counts the machine may claim as its own. */
+export function machineWork(counts: Record<string, number>): Record<string, number> {
+  return Object.fromEntries(Object.entries(counts).filter(([cap]) => !HUMAN_RUN_CAPABILITIES.has(cap)))
+}

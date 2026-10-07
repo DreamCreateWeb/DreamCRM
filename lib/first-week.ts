@@ -51,6 +51,8 @@ export interface FirstWeekRowInput {
 }
 
 const DAY = 24 * 60 * 60 * 1000
+/** Day 30: the first month is over and the stage word is 'settled'. */
+export const SETTLED_DAY = 30
 
 export function dayNumber(createdAt: Date, now: Date): number {
   return Math.max(0, Math.floor((now.getTime() - createdAt.getTime()) / DAY))
@@ -81,10 +83,12 @@ export function stuckFlags(row: FirstWeekRowInput, now: Date): string[] {
     out.push(`No data by day ${day} — call about the PMS, or send the patient CSV.`)
   }
   const quietStaff = daysSince(row.lastStaffSignInAt, now)
+  // What the cockpit can see is the newest LIVE session (a sign-out deletes
+  // it), so the sentence says that rather than "nobody has ever signed in".
   if (row.lastStaffSignInAt == null && day >= STUCK.quietStaffDays) {
-    out.push('Nobody has signed in yet — the invite may be sitting in a spam folder.')
+    out.push('No active staff session yet — the invite may be sitting in a spam folder, or they sign out each time.')
   } else if (quietStaff != null && quietStaff >= STUCK.quietStaffDays) {
-    out.push(`No staff sign-in for ${quietStaff} days — the morning email may be the only thing they see.`)
+    out.push(`No active staff session for ${quietStaff} days — the morning email may be the only thing they see.`)
   }
   if (hasData && row.workLast7 === 0 && day >= STUCK.quietMachineDays) {
     out.push('Data is connected and the machine did nothing this week — check the Guardian for this clinic.')
@@ -100,7 +104,9 @@ export function stuckFlags(row: FirstWeekRowInput, now: Date): string[] {
   // S7: the morning after is the product, and it rides the digest. A clinic
   // whose switch is still off after the call will not get the day-two email
   // the call promised — the setup call's fourth beat was skipped.
-  if (!row.digestOn && day >= STUCK.digestOffByDay) {
+  // Only while the clinic is in its first month: a settled practice that
+  // never wanted the email is a choice, not a reason to call (audit round 1).
+  if (!row.digestOn && day >= STUCK.digestOffByDay && day < SETTLED_DAY) {
     out.push('The morning email is off — nothing arrives on day two. Turn it on (Settings → Notifications) at the call.')
   }
   return out
@@ -111,6 +117,6 @@ export function stageOf(row: FirstWeekRowInput, now: Date): 'new' | 'first-week'
   const day = dayNumber(row.createdAt, now)
   if (day < 1) return 'new'
   if (day < 7) return 'first-week'
-  if (day < 30) return 'first-month'
+  if (day < SETTLED_DAY) return 'first-month'
   return 'settled'
 }

@@ -522,3 +522,24 @@ export function pickIntakeSections(keep: readonly string[], template: FormTempla
   wanted.add(INTAKE_REQUIRED_SECTION)
   return { ...template, sections: (template.sections ?? []).filter((s) => wanted.has(s.id)) }
 }
+
+/**
+ * The seeded default (lib/services/forms.ts seedDefaultIntakeForm, run at
+ * provisioning) is the standard template byte-for-byte. Until somebody
+ * edits it, it is not THEIR form — so the door's section picker still
+ * applies, and turning on rebuilds it in place from what they kept (audit
+ * round 1: every provisioned clinic had "1 form on file" and never saw the
+ * picker). Structural compare: jsonb round-trips do not keep key order.
+ */
+export function isUntouchedSeedTemplate(t: { schema: unknown; archivedAt?: Date | string | null }): boolean {
+  if (t.archivedAt) return false
+  return stableJson(t.schema) === stableJson(DEFAULT_INTAKE_TEMPLATE)
+}
+
+function stableJson(v: unknown): string {
+  if (Array.isArray(v)) return `[${v.map(stableJson).join(',')}]`
+  if (v && typeof v === 'object') {
+    return `{${Object.keys(v as Record<string, unknown>).sort().map((k) => `${JSON.stringify(k)}:${stableJson((v as Record<string, unknown>)[k])}`).join(',')}}`
+  }
+  return JSON.stringify(v)
+}

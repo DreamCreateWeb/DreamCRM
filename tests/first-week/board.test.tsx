@@ -1,5 +1,8 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { render, screen, within } from '@testing-library/react'
+vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: () => {} }) }))
+vi.mock('@/app/(default)/platform/first-week/admin-actions', () => ({ answerPmsRequestAction: async () => ({ ok: true }) }))
+
 import FirstWeekBoard from '@/app/(default)/platform/first-week/first-week-board'
 import type { FirstWeekBoard as Board, FirstWeekRow } from '@/lib/services/first-week'
 
@@ -34,7 +37,8 @@ function row(overrides: Partial<FirstWeekRow> = {}): FirstWeekRow {
     activation: { a1: null, a2: null, a3: null, a4: null, a5: null },
     pendingOnUs: [],
     digestOn: false,
-    doors: { insurance: false, digest: false, siteLive: true },
+    doors: { insurance: false, digest: false, siteLive: true, switches: [] },
+    timeZone: 'America/New_York',
     smsState: null,
     pmsRequest: null,
     progress: { done: [], next: 'a1' },
@@ -57,9 +61,14 @@ describe('FirstWeekBoard', () => {
     expect(within(card).getByText(/No goal set yet/)).toBeInTheDocument()
     expect(within(card).getByText('Practice software: pending')).toBeInTheDocument()
     expect(within(card).getByTestId('activation')).toHaveTextContent('A1 Data connected — next')
-    expect(within(card).getByText(/Last staff sign-in: never/)).toBeInTheDocument()
-    expect(within(card).getByText(/Doors open: website/)).toBeInTheDocument()
+    expect(within(card).getByText(/Last active staff session: none/)).toBeInTheDocument()
+    expect(within(card).getByTestId('doors-open')).toHaveTextContent('Doors open: website')
     expect(screen.getByText('Show the demo clinic')).toBeInTheDocument()
+  })
+
+  it('the doors list names every S3 switch that is on, in the switch registry’s words', () => {
+    render(<FirstWeekBoard board={board([row({ doors: { insurance: true, digest: false, siteLive: false, switches: ['my_day', 'growth'] } })])} includeDemo={false} />)
+    expect(screen.getByTestId('doors-open')).toHaveTextContent('Doors open: my day · growth · insurance')
   })
 
   it('a healthy clinic is “On track” with its goal and its dates', () => {
@@ -93,5 +102,19 @@ describe('FirstWeekBoard — the PMS connect request (S4)', () => {
     render(<FirstWeekBoard board={board} includeDemo={false} />)
     expect(screen.getByTestId('pms-request')).toHaveTextContent('Asked us to connect Open Dental')
     expect(screen.getByTestId('pms-request')).toHaveTextContent('waiting on us')
+    // The platform answers from the row (audit round 1): the two writes the cockpit can make.
+    expect(screen.getByRole('button', { name: 'Mark install scheduled' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Close request' })).toBeInTheDocument()
+  })
+
+  it('a scheduled install says so and no longer offers to schedule it', () => {
+    const board: Board = {
+      rows: [row({ pmsRequest: { vendor: 'Dentrix', status: 'scheduled', at: daysAgo(1) }, stuck: [] })],
+      generatedAt: NOW,
+      counts: { inFirstMonth: 1, stuck: 0, noData: 1, medianHoursToA1: null },
+    }
+    render(<FirstWeekBoard board={board} includeDemo={false} />)
+    expect(screen.getByTestId('pms-request')).toHaveTextContent('install scheduled')
+    expect(screen.queryByRole('button', { name: 'Mark install scheduled' })).toBeNull()
   })
 })

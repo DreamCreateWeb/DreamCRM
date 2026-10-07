@@ -77,7 +77,7 @@ async function earliest(read: () => Promise<Array<{ at: Date | string | null }>>
 /** The five activation events, each the FIRST time it happened, read from the rails that already record it. */
 export async function readActivation(organizationId: string): Promise<Activation> {
   const ev = schema.campaignEvents
-  const [pmsAt, gbpAt, patientFloorAt, reminderAt, campaignAt, bookingAt, reviewAt, formAt] = await Promise.all([
+  const [pmsAt, gbpAt, patientFloorAt, reminderAt, campaignAt, staffMessageAt, bookingAt, reviewAt, formAt] = await Promise.all([
     safe('a1.pms', null, () =>
       earliest(() =>
         db
@@ -126,6 +126,17 @@ export async function readActivation(organizationId: string): Promise<Activation
           .limit(1),
       ),
     ),
+    // Part 3: "any channel, any sender incl. the machine" — a staff reply
+    // from /messages is a first message too (audit round 1).
+    safe('a2.messages', null, () =>
+      earliest(() =>
+        db
+          .select({ at: min(schema.patientMessage.sentAt) })
+          .from(schema.patientMessage)
+          .where(and(eq(schema.patientMessage.organizationId, organizationId), eq(schema.patientMessage.direction, 'outbound')))
+          .limit(1),
+      ),
+    ),
     safe('a3', null, () =>
       earliest(() =>
         db
@@ -156,7 +167,7 @@ export async function readActivation(organizationId: string): Promise<Activation
   ])
   return {
     a1: earliestOf(pmsAt, gbpAt, patientFloorAt),
-    a2: earliestOf(reminderAt, campaignAt),
+    a2: earliestOf(reminderAt, campaignAt, staffMessageAt),
     a3: bookingAt,
     a4: reviewAt,
     a5: formAt,

@@ -260,3 +260,25 @@ export async function sendFeedback(input: unknown) {
   revalidatePath('/settings/feedback')
   return row
 }
+
+/**
+ * The CLINIC's morning-email switch (owners/admins), on the page the
+ * cockpit's stuck flag names. It used to live only on My Day and the
+ * Follow-ups rules card — both behind switches that open at A1, so a day-0
+ * clinic could not reach it (audit round 1). Same column as those surfaces.
+ */
+export async function setClinicDigestAction(enabled: boolean): Promise<{ ok: true } | { error: string }> {
+  const ctx = await requireTenant()
+  if (ctx.tenantType !== 'clinic') return { error: 'The morning email is a clinic setting.' }
+  if (ctx.role !== 'owner' && ctx.role !== 'admin') return { error: 'Only an owner or admin can change the morning email.' }
+  try {
+    const { setDigestEnabled } = await import('@/lib/services/daily-digest')
+    await setDigestEnabled(ctx.organizationId, enabled)
+    revalidatePath('/settings/notifications')
+    revalidatePath('/followups')
+    revalidatePath('/my-day')
+    return { ok: true }
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : 'Could not save the morning email setting.' }
+  }
+}

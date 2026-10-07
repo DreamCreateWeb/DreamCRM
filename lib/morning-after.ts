@@ -20,7 +20,7 @@
  */
 
 import { ACTIVATION_EVENTS, type Activation, type ActivationKey } from '@/lib/activation'
-import { standupNoun } from '@/lib/standup-nouns'
+import { machineWork, standupNoun } from '@/lib/standup-nouns'
 
 /** Through this day the digest sends even when it has nothing to do — a
  *  quiet first week is narrated, never skipped. */
@@ -40,8 +40,12 @@ export interface MorningAfterInput {
   work: Record<string, number>
   /** Engine failures in the same window (tried and couldn't). */
   failures: number
-  /** Open cards waiting on a HUMAN — soonest-to-expire first. */
+  /** Open cards waiting on a HUMAN — soonest-to-expire first (a short list; the count is `openCardsTotal`). */
   openCards: Array<{ title: string }>
+  /** How many cards wait on a human in all — the list above is capped, this is not (audit round 1). */
+  openCardsTotal?: number
+  /** Whether the public site is live — the A3 door is the site, so a private site is the first thing to fix. */
+  siteLive?: boolean
   /** Doors pending on the platform (the PMS bind, the SMS carriers). */
   pendingOnUs: Array<{ label: string }>
   /** The readiness resolver's BROKEN facts — a thing to fix beats a thing to start. */
@@ -77,13 +81,16 @@ export const ACTIVATION_DOORS: Record<ActivationKey, { text: string; href: strin
   a5: { text: 'Get your first form in — send an intake form to the next new patient.', href: '/intake-forms' },
 }
 
+/** The A3 door while the site is still private: go live first (the lever is on the Website hub). */
+export const SITE_NOT_LIVE_DOOR = { text: 'Put your website live — the first booking comes through it, and the booking link only exists once it is up.', href: '/website' }
+
 function plural(n: number, one: string, many: string): string {
   return n === 1 ? one : many
 }
 
 /** "12 appointment reminders · 2 review invitations · 1 campaign send" */
 export function describeWork(work: Record<string, number>): string | null {
-  const lines = Object.entries(work)
+  const lines = Object.entries(machineWork(work))
     .filter(([, n]) => n > 0)
     .sort((a, b) => b[1] - a[1])
   if (lines.length === 0) return null
@@ -114,7 +121,7 @@ function happenedLine(work: Record<string, number>, failures: number): string | 
 export function pickOneThing(input: MorningAfterInput): OneThing | null {
   const card = input.openCards[0]
   if (card) {
-    const more = input.openCards.length - 1
+    const more = Math.max(input.openCards.length, input.openCardsTotal ?? 0) - 1
     const tail = more > 0 ? ` (and ${more} more waiting)` : ''
     return { kind: 'card', text: `Say yes to “${card.title}” on your Dream Team page${tail}.`, href: '/dream-team' }
   }
@@ -124,6 +131,8 @@ export function pickOneThing(input: MorningAfterInput): OneThing | null {
   }
   if (input.day < ONE_THING_DAYS) {
     const next = ACTIVATION_EVENTS.find((e) => input.activation[e.key] == null)?.key ?? null
+    // A3 comes through the site; a site still private has no booking link to share.
+    if (next === 'a3' && input.siteLive === false) return { kind: 'activation', ...SITE_NOT_LIVE_DOOR }
     if (next) return { kind: 'activation', ...ACTIVATION_DOORS[next] }
   }
   return null

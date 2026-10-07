@@ -29,7 +29,12 @@ export async function enableFeatureAction(key: FeatureKey): Promise<FeatureSwitc
   if (!isKey(key)) return { ok: false, error: 'Unknown feature.' }
   const ctx = await managerCtx()
   if (!ctx) return { ok: false, error: FEATURE_INTRO.onlyManagers }
-  await enableFeature(ctx.organizationId, key)
+  try {
+    await enableFeature(ctx.organizationId, key)
+  } catch (e) {
+    console.error('[feature-switches] enable failed', e)
+    return { ok: false, error: 'Could not turn this on just now — try again.' }
+  }
   revalidatePath('/', 'layout')
   return { ok: true }
 }
@@ -38,7 +43,12 @@ export async function disableFeatureAction(key: FeatureKey): Promise<FeatureSwit
   if (!isKey(key)) return { ok: false, error: 'Unknown feature.' }
   const ctx = await managerCtx()
   if (!ctx) return { ok: false, error: FEATURE_INTRO.onlyManagers }
-  await disableFeature(ctx.organizationId, key)
+  try {
+    await disableFeature(ctx.organizationId, key)
+  } catch (e) {
+    console.error('[feature-switches] disable failed', e)
+    return { ok: false, error: 'Could not turn this off just now — try again.' }
+  }
   revalidatePath('/', 'layout')
   return { ok: true }
 }

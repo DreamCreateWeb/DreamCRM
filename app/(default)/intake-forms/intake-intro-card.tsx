@@ -19,8 +19,10 @@ export default function IntakeIntroCard({
   canManage: boolean
   sections: IntakeSectionChoice[]
   /** Forms already on file (a grandfathered or re-opened clinic keeps them). */
-  existingForms: number
-  patientCount: number
+  /** Forms the practice made or edited; null = could not be read just now. */
+  existingForms: number | null
+  /** null = could not be counted just now. */
+  patientCount: number | null
 }) {
   const [keep, setKeep] = useState<Set<string>>(() => new Set(sections.map((s) => s.id)))
   const [preview, setPreview] = useState<string | null>(null)
@@ -38,7 +40,11 @@ export default function IntakeIntroCard({
 
   return (
     <IntroShell eyebrow={`Daily · ${orgName}`} title={def.label} lede={def.lede} does={def.does} know={def.know} feature="intake_forms" testId="intake-intro">
-      {existingForms > 0 ? (
+      {existingForms == null ? (
+        <p className="mt-5 text-sm text-gray-600 dark:text-gray-300" data-testid="intake-unreadable">
+          Couldn’t read your forms just now — turning this on keeps whatever is there, and the standard form is built only if nothing is.
+        </p>
+      ) : existingForms > 0 ? (
         <p className="mt-5 text-sm text-gray-600 dark:text-gray-300" data-testid="intake-existing">
           You already have {existingForms} {existingForms === 1 ? 'form' : 'forms'} on file — turning this on brings {existingForms === 1 ? 'it' : 'them'} back as {existingForms === 1 ? 'it was' : 'they were'}.
         </p>
@@ -100,6 +106,7 @@ export default function IntakeIntroCard({
         <li>The reminder before the visit chases anyone who hasn’t finished it.</li>
         <li>Staff can send it by hand from a patient’s record, and the link lives on your website.</li>
         {patientCount === 0 && <li className="text-gray-500 dark:text-gray-400">No patients loaded yet — the first form goes out with the first booking.</li>}
+        {patientCount == null && <li className="text-gray-500 dark:text-gray-400">Couldn’t count your patients just now.</li>}
       </ul>
 
       {canManage ? (

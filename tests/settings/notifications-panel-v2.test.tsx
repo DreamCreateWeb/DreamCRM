@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent, within } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react'
 
 /**
  * Notifications panel behaviours (email-mode generation, 2026-08-25):
@@ -14,11 +14,12 @@ import { render, screen, fireEvent, within } from '@testing-library/react'
  *    emails but NOT transactional patient email — only when it's on.
  */
 
-const { saveNotificationPrefs, setMyEmailReportsOptOutAction } = vi.hoisted(() => ({
+const { saveNotificationPrefs, setMyEmailReportsOptOutAction, setClinicDigestAction } = vi.hoisted(() => ({
   saveNotificationPrefs: vi.fn(),
   setMyEmailReportsOptOutAction: vi.fn(async (..._a: unknown[]) => ({ ok: true as const })),
+  setClinicDigestAction: vi.fn(async (..._a: unknown[]) => ({ ok: true as const })),
 }))
-vi.mock('@/app/(default)/settings/actions', () => ({ saveNotificationPrefs, setMyEmailReportsOptOutAction }))
+vi.mock('@/app/(default)/settings/actions', () => ({ saveNotificationPrefs, setMyEmailReportsOptOutAction, setClinicDigestAction }))
 vi.mock('next/navigation', () => ({ useSearchParams: () => new URLSearchParams() }))
 
 import NotificationsPanel from '@/app/(default)/settings/notifications/notifications-panel'
@@ -34,6 +35,23 @@ const initial = {
 beforeEach(() => {
   saveNotificationPrefs.mockReset()
   setMyEmailReportsOptOutAction.mockClear()
+  setClinicDigestAction.mockClear()
+})
+
+describe('the clinic’s morning email (audit round 1: the digest had no switch anyone could reach)', () => {
+  it('an owner sees the clinic-wide row and flipping it calls the clinic action, not the per-person one', async () => {
+    render(<ToastProvider><NotificationsPanel initial={initial} tenantType="clinic" clinicDigestEnabled={false} /></ToastProvider>)
+    const sw = screen.getByRole('switch', { name: 'Morning email for the clinic' })
+    expect(sw).toHaveAttribute('aria-checked', 'false')
+    fireEvent.click(sw)
+    await waitFor(() => expect(setClinicDigestAction).toHaveBeenCalledWith(true))
+    expect(setMyEmailReportsOptOutAction).not.toHaveBeenCalled()
+  })
+
+  it('a member (null) does not see the clinic-wide row', () => {
+    render(<ToastProvider><NotificationsPanel initial={initial} tenantType="clinic" /></ToastProvider>)
+    expect(screen.queryByRole('switch', { name: 'Morning email for the clinic' })).toBeNull()
+  })
 })
 
 describe('NotificationsPanel', () => {

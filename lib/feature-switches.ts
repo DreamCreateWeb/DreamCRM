@@ -171,7 +171,7 @@ export const FEATURE_SWITCHES: readonly FeatureSwitchDef[] = [
       'Posts to your social accounts from one composer and reports what worked.',
     ],
     know: [
-      'Every send to a patient is drafted first and waits for a yes, unless you hand that over.',
+      'Recall nudges and review asks go out on their own once their switches are on; campaigns and review replies are drafted first and wait for your yes.',
       'It needs patients loaded and Google connected to have anything to say.',
       'Texting rides a per-clinic carrier registration; email is live today.',
     ],

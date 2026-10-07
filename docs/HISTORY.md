@@ -5901,3 +5901,17 @@ write-once stamps; A1 lands from the kick through a guarded jsonb merge
 whose RETURNING row answers "first time?" atomically, and the cockpit
 prefers a stamp over its derived read.
 
+**2026-10-07 — THE FIRST WEEK: phase audit, round 1 fixed.** The
+phase-audit workflow's first discovery round over S1–S8 (34 confirmed
+defects, 22 distinct; 3 in-phase gaps; 4 backlog). The load-bearing
+fixes: the doors no longer reopen themselves (the kick opens them on the
+FIRST A1 stamp only, the go-live lever only the first time the site goes
+live), the kick reconciles before it stamps so time-to-A1 is the real
+first bind rather than the deploy date, a connected PMS bind answers the
+connect request and the cockpit can schedule or close one, A2 counts
+staff messages, the digest counts the whole stack and sends a
+private-site clinic to put it live first, the morning email has an
+owner-reachable switch, the intake door rebuilds the untouched seeded
+form in place instead of skipping the picker, unreadable reads say so
+instead of reading as "none", and migration 0174 indexes the reminder
+log per clinic. Full ledger in docs/ACTIVATION.md Part 7.

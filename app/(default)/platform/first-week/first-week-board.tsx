@@ -6,6 +6,8 @@ import { EmptyState } from '@/components/ui/empty-state'
 import { ActionButton } from '@/components/ui/action-button'
 import { TONE_TEXT, type Tone } from '@/lib/ui/encodings'
 import { ACTIVATION_EVENTS } from '@/lib/first-week'
+import { FEATURE_BY_KEY } from '@/lib/feature-switches'
+import PmsRequestActions from './pms-request-actions'
 import { A1_TARGET_HOURS, describeHours } from '@/lib/activation-metrics'
 import type { FirstWeekBoard as Board, FirstWeekRow } from '@/lib/services/first-week'
 
@@ -18,8 +20,9 @@ const GRADE_TONE: Record<string, Tone> = { ready: 'ok', attention: 'warn', waiti
 const GRADE_WORD: Record<string, string> = { ready: 'on', attention: 'needs a look', waiting: 'pending', todo: 'not yet', na: 'n/a' }
 const STAGE_LABEL: Record<FirstWeekRow['stage'], string> = { new: 'Day 0', 'first-week': 'First week', 'first-month': 'First month', settled: 'Settled' }
 
-function shortDate(d: Date | null): string {
-  return d ? new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—'
+/** A date in the CLINIC's own day — the server runs in UTC (audit round 1). */
+function shortDate(d: Date | null, timeZone: string): string {
+  return d ? new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone }) : '—'
 }
 
 function ClinicCard({ row }: { row: FirstWeekRow }) {
@@ -75,10 +78,14 @@ function ClinicCard({ row }: { row: FirstWeekRow }) {
             {row.smsState ? ` · texting: ${row.smsState.replace(/_/g, ' ')}` : ''}
           </p>
           {row.pmsRequest && (
-            <p className={`mt-1 text-xs ${TONE_TEXT.info}`} data-testid="pms-request">
-              Asked us to connect {row.pmsRequest.vendor} on {shortDate(row.pmsRequest.at)}
-              {row.pmsRequest.status === 'scheduled' ? ' · install scheduled' : ' · waiting on us'}
-            </p>
+            <div className={`mt-1 text-xs ${TONE_TEXT.info}`} data-testid="pms-request">
+              <p>
+                Asked us to connect {row.pmsRequest.vendor} on {shortDate(row.pmsRequest.at, row.timeZone)}
+                {row.pmsRequest.status === 'scheduled' ? ' · install scheduled' : ' · waiting on us'}
+              </p>
+              {/* The platform's answer (S4's status column had no writer — audit round 1): a bind marks it connected on its own; these are the other two. */}
+              <PmsRequestActions orgId={row.orgId} status={row.pmsRequest.status} />
+            </div>
           )}
         </div>
         <div>
@@ -86,13 +93,21 @@ function ClinicCard({ row }: { row: FirstWeekRow }) {
           <p className="mt-1.5 text-gray-800 dark:text-gray-100">
             <span className="font-mono-num tabular-nums font-semibold">{row.workLast7}</span> things done ·{' '}
             <span className="font-mono-num tabular-nums font-semibold">{row.openCards}</span> card{row.openCards === 1 ? '' : 's'} waiting
-            {row.oldestOpenCardAt ? ` (oldest ${shortDate(row.oldestOpenCardAt)})` : ''}
+            {row.oldestOpenCardAt ? ` (oldest ${shortDate(row.oldestOpenCardAt, row.timeZone)})` : ''}
+          </p>
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400" data-testid="doors-open">
+            Doors open:{' '}
+            {[
+              ...row.doors.switches.map((k) => FEATURE_BY_KEY[k].label.toLowerCase()),
+              row.doors.siteLive && 'website',
+              row.doors.digest && 'morning email',
+              row.doors.insurance && 'insurance',
+            ]
+              .filter(Boolean)
+              .join(' · ') || 'none yet'}
           </p>
           <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-            Doors open: {[row.doors.siteLive && 'website', row.doors.digest && 'morning email', row.doors.insurance && 'insurance'].filter(Boolean).join(' · ') || 'none yet'}
-          </p>
-          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-            Last staff sign-in: {row.lastStaffSignInAt ? shortDate(row.lastStaffSignInAt) : 'never'}
+            Last active staff session: {row.lastStaffSignInAt ? shortDate(row.lastStaffSignInAt, row.timeZone) : 'none'}
           </p>
         </div>
         <div>
@@ -107,7 +122,7 @@ function ClinicCard({ row }: { row: FirstWeekRow }) {
                     <span className="font-mono-num tabular-nums">{e.short}</span> {e.label}
                     {isNext ? ' — next' : ''}
                   </span>
-                  <span className="font-mono-num tabular-nums text-xs">{shortDate(at)}</span>
+                  <span className="font-mono-num tabular-nums text-xs">{shortDate(at, row.timeZone)}</span>
                 </li>
               )
             })}

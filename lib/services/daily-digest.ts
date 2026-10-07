@@ -12,7 +12,8 @@ import { formatDueLabel, todayYmd } from '@/lib/types/followups'
 import { sweepClinics } from '@/lib/services/cron-sweep'
 import type { SweepProgress } from '@/lib/cron-budget'
 import { countActionsSince, countFailuresSince } from '@/lib/services/action-ledger'
-import { listOpenProposalsOnYou } from '@/lib/services/proposals'
+import { countOpenProposals, listOpenProposalsOnYou } from '@/lib/services/proposals'
+import { getFeatureSwitchState } from '@/lib/services/feature-switches'
 import { getReadinessReport } from '@/lib/services/readiness'
 import { listPendingOnUs, readMergedActivation } from '@/lib/services/first-week'
 import { dayNumber } from '@/lib/first-week'
@@ -223,13 +224,19 @@ export async function readMorningAfter(organizationId: string, createdAt: Date, 
     }
   }
   try {
-    const [work, failures, cards, report, pendingOnUs, activation] = await Promise.all([
+    const [work, failures, cards, cardsTotal, report, pendingOnUs, activation, site] = await Promise.all([
       quiet({} as Record<string, number>, () => countActionsSince(organizationId, since, { until: now })),
       quiet(0, () => countFailuresSince(organizationId, since, { until: now, kind: 'engine' })),
       quiet([], () => listOpenProposalsOnYou(organizationId, 5)),
+      // The list is capped; the COUNT is the number the email says (audit round 1).
+      quiet(null as number | null, () => countOpenProposals(organizationId)),
       quiet(null, () => getReadinessReport(organizationId)),
       quiet([], () => listPendingOnUs(organizationId)),
       readMergedActivation(organizationId),
+      quiet(null as { siteLiveAt: Date | null } | null, async () => {
+        const [row] = await db.select({ siteLiveAt: schema.clinicProfile.siteLiveAt }).from(schema.clinicProfile).where(eq(schema.clinicProfile.organizationId, organizationId)).limit(1)
+        return row ?? null
+      }),
     ])
     return buildMorningAfter({
       day: dayNumber(createdAt, now),
@@ -237,6 +244,8 @@ export async function readMorningAfter(organizationId: string, createdAt: Date, 
       work,
       failures,
       openCards: cards.map((c) => ({ title: c.title })),
+      openCardsTotal: cardsTotal ?? undefined,
+      siteLive: site ? site.siteLiveAt != null : undefined,
       pendingOnUs: pendingOnUs.map((p) => ({ label: p.label })),
       attention: (report?.attention ?? []).map((f) => ({ label: f.label, summary: f.summary, href: f.href })),
     })
@@ -319,6 +328,10 @@ export async function runDailyDigest(opts?: { now?: Date }): Promise<DigestRunRe
 
     // The morning after (S7): once per clinic, best-effort.
     const morning = await readMorningAfter(clinic.organizationId, clinic.createdAt ?? now, now)
+    // The button must land on a page the clinic HAS: My Day is a switch, and
+    // a closed one shows its intro card, not the list the email promised
+    // (audit round 1). The Overview carries the same summons strip.
+    const myDayOn = await getFeatureSwitchState(clinic.organizationId).then((s) => s.my_day).catch(() => true)
 
     // Staff with an email (exclude patients) + the per-staff opt-out set.
     const [staff, optedOut] = await Promise.all([
@@ -364,7 +377,7 @@ export async function runDailyDigest(opts?: { now?: Date }): Promise<DigestRunRe
           name: s.name ?? undefined,
           title: content.subject,
           body: content.body,
-          linkPath: content.linkPath,
+          linkPath: content.linkPath === '/my-day' && !myDayOn ? '/dashboard' : content.linkPath,
         })
         result.sent++
       } catch (err) {
