@@ -15,7 +15,7 @@ import { queueCommLogWriteBack } from '@/lib/services/pms/sync'
 import { getBookableSlotsForDay, isBookableSlot, insertAppointmentIfBookable, SLOT_MINUTES, type SlotsForDay } from '@/lib/services/booking'
 import { visitTypeDuration, visitTypeDepositCents } from '@/lib/types/visit-types'
 import { createBookingDepositSession } from '@/lib/services/booking-deposits'
-import { getDefaultFormTemplate } from '@/lib/services/forms'
+import { getPatientFacingDefaultForm } from '@/lib/services/forms'
 import { publicSiteUrl, resolveClinicOrgIdBySlug } from '@/lib/services/clinic-site'
 import { createLead } from '@/lib/services/leads'
 import { stampReferralAttribution } from '@/lib/services/patient-referrals'
@@ -707,12 +707,13 @@ async function runBookingRequest(formData: FormData): Promise<BookingConfirmatio
     .where(eq(clinicProfile.organizationId, orgId))
     .limit(1)
 
-  // Build the intake-form link when the clinic has a default form. Done once
-  // (independent of email) so the on-screen success CTA can surface it even for
+  // Build the intake-form link when the clinic has a default form AND the
+  // Intake Forms door is open (law 1, audit round 3). Done once (independent
+  // of email) so the on-screen success CTA can surface it even for
   // phone-only bookers — the on-screen artifact replaces the email they'll
   // never get.
   let intakeFormUrl: string | null = null
-  const defaultForm = await getDefaultFormTemplate(orgId)
+  const defaultForm = await getPatientFacingDefaultForm(orgId)
   if (defaultForm) {
     const [org] = await db
       .select({ slug: organization.slug })

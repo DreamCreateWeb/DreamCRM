@@ -43,8 +43,8 @@ export interface ActivationMetrics {
   /** Clinics in the cohort (created inside the window, demo excluded by the reader). */
   clinics: number
   events: EventMetric[]
-  /** A1 inside A1_TARGET_HOURS: how many, and the share of the cohort (null when the cohort is empty). */
-  a1Within: { reached: number; share: number | null }
+  /** A1 inside A1_TARGET_HOURS: how many, over the clinics old enough to be JUDGED (`decided`; null share when none). */
+  a1Within: { reached: number; decided: number; share: number | null }
   /** Cohort clinics past the no-data stuck day with no A1 — the ones to call. */
   noDataPastDue: number
 }
@@ -95,7 +95,7 @@ export function computeActivationMetrics(rows: ActivationCohortRow[], now: Date,
     cohortDays,
     clinics: cohort.length,
     events,
-    a1Within: { reached: within, share: decided > 0 ? within / decided : null },
+    a1Within: { reached: within, decided, share: decided > 0 ? within / decided : null },
     noDataPastDue,
   }
 }

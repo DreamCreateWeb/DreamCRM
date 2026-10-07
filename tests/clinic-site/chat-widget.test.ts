@@ -86,7 +86,7 @@ vi.mock('@/lib/services/booking', () => ({
   SLOT_MINUTES: 30,
 }))
 vi.mock('@/lib/services/booking-deposits', () => ({ createBookingDepositSession: vi.fn() }))
-vi.mock('@/lib/services/forms', () => ({ getDefaultFormTemplate: vi.fn() }))
+vi.mock('@/lib/services/forms', () => ({ getDefaultFormTemplate: vi.fn(), getPatientFacingDefaultForm: vi.fn() }))
 vi.mock('@/lib/services/leads', () => ({ createLead: vi.fn() }))
 vi.mock('@/lib/services/pms', () => ({ queueAppointmentWriteBack: vi.fn() }))
 vi.mock('@/lib/types/lead-forms', () => ({ resolveLeadForm: vi.fn(() => []) }))

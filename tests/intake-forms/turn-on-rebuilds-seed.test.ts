@@ -20,7 +20,14 @@ vi.mock('@/lib/services/forms', () => ({
   createPacket: vi.fn(),
   deletePacket: vi.fn(),
   listFormTemplates: async () => state.templates,
-  countSubmissionsForTemplate: async (_org: string, id: string) => state.submissions[id] ?? 0,
+  // The shared split (lib/services/forms.ts splitIntakeFormsForDoor) — its own rule is pinned in patient-facing-gate.test.ts.
+  splitIntakeFormsForDoor: async () => {
+    const { isUntouchedSeedTemplate } = await import('@/lib/types/forms')
+    const live = state.templates.filter((t) => t.archivedAt == null)
+    const own = live.filter((t) => !isUntouchedSeedTemplate(t as never) || (state.submissions[t.id as string] ?? 0) > 0)
+    const seeded = live.filter((t) => isUntouchedSeedTemplate(t as never) && (state.submissions[t.id as string] ?? 0) === 0)
+    return { own, seeded }
+  },
   createFormTemplate: async (_org: string, input: unknown) => {
     state.created.push(input)
     return { id: 'new' }

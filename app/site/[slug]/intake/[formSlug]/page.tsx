@@ -4,7 +4,7 @@ import {
   publicSiteUrl,
   resolveSiteBasePath,
 } from '@/lib/services/clinic-site'
-import { getFormTemplateBySlug } from '@/lib/services/forms'
+import { getPatientFacingFormBySlug } from '@/lib/services/forms'
 import type { FormTemplateSchema, FormTranslations } from '@/lib/types/forms'
 import ScrollReveal from '@/components/clinic-site/scroll-reveal'
 import { readableInk, brandFill } from '@/lib/clinic-site-theme'
@@ -22,7 +22,7 @@ export async function generateMetadata({ params }: Props) {
   const { slug, formSlug } = await params
   const data = await getClinicSiteBySlug(slug)
   if (!data) return {}
-  const template = await getFormTemplateBySlug(data.orgId, formSlug)
+  const template = await getPatientFacingFormBySlug(data.orgId, formSlug)
   if (!template) return {}
   const name = data.profile.displayName ?? data.orgName
   const url = `${publicSiteUrl(data)}/intake/${formSlug}`
@@ -40,7 +40,7 @@ export default async function IntakeFormPage({ params, searchParams }: Props) {
   const { slug, formSlug } = await params
   const data = await getClinicSiteBySlug(slug)
   if (!data) notFound()
-  const template = await getFormTemplateBySlug(data.orgId, formSlug)
+  const template = await getPatientFacingFormBySlug(data.orgId, formSlug)
   if (!template) notFound()
 
   // Kiosk mode (?kiosk=1) — fill-at-the-desk tablet. Locks the chrome (no

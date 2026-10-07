@@ -5,7 +5,7 @@ import { organization } from '@/lib/db/schema/auth'
 import { sendIntakeRequestEmail } from '@/lib/email'
 import { renderAutomatedEmail } from '@/lib/services/email-automations'
 import { queueCommLogWriteBack } from '@/lib/services/pms/sync'
-import { getDefaultFormTemplate, getFormTemplate } from '@/lib/services/forms'
+import { getDefaultFormTemplate, getFormTemplate, patientFacingIntakeOpen } from '@/lib/services/forms'
 import { publicSiteUrl } from '@/lib/services/clinic-site'
 import { getClinicSenderIdentity } from '@/lib/services/clinic-sender'
 
@@ -39,6 +39,11 @@ export async function sendIntakeRequestToPatient(
   if (!patient) throw new Error('Patient not found')
   if (!patient.email) throw new Error('Patient has no email on file. Add an email first.')
 
+  // OFF UNTIL CHOSEN (law 1, audit round 3): the forms-reminder cron and the
+  // staff send both land here, and a closed Intake Forms door sends nothing.
+  if (!(await patientFacingIntakeOpen(organizationId))) {
+    throw new Error('Intake Forms isn’t turned on yet — open it from the sidebar’s Add group first.')
+  }
   const form = formId
     ? await getFormTemplate(organizationId, formId)
     : await getDefaultFormTemplate(organizationId)

@@ -984,6 +984,7 @@ export async function runDueFormReminders(opts?: { now?: Date }): Promise<Remind
     .from(schema.clinicProfile)
 
   const { sendIntakeRequestToPatient } = await import('@/lib/services/patient-intake-send')
+  const { patientFacingIntakeOpen } = await import('@/lib/services/forms')
 
   // THE KILL: a shut-down practice nudges nobody about paperwork either.
   const shutDown = await listShutDownOrgIds(now)
@@ -991,6 +992,10 @@ export async function runDueFormReminders(opts?: { now?: Date }): Promise<Remind
     if (shutDown.has(profile.organizationId)) continue
     const settings = resolveReminderSettings(profile.reminderSettings)
     if (!settings.formsReminder) continue
+    // OFF UNTIL CHOSEN (docs/ACTIVATION.md law 1, audit round 3): a clinic
+    // that never opened Intake Forms chases nobody about paperwork — the
+    // seeded standard form is not theirs to send.
+    if (!(await patientFacingIntakeOpen(profile.organizationId))) continue
     result.orgsScanned++
 
     const windowEnd = new Date(now.getTime() + FORMS_REMINDER_WINDOW_HOURS * 60 * 60 * 1000)

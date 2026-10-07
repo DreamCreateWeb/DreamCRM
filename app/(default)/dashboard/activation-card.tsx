@@ -66,7 +66,11 @@ export default function ActivationCard({ metrics }: { metrics: ActivationMetrics
             <KpiStat
               label={`Data within ${A1_TARGET_HOURS}h`}
               value={metrics.a1Within.share == null ? '—' : `${Math.round(metrics.a1Within.share * 100)}%`}
-              sub={`${metrics.a1Within.reached} of ${metrics.clinics} — the Part-3 line`}
+              sub={
+                metrics.a1Within.decided < metrics.clinics
+                  ? `${metrics.a1Within.reached} of ${metrics.a1Within.decided} old enough to judge — the Part-3 line`
+                  : `${metrics.a1Within.reached} of ${metrics.clinics} — the Part-3 line`
+              }
               tone={metrics.a1Within.share != null && metrics.a1Within.share < 0.5 ? 'warn' : undefined}
               href="/platform/first-week"
             />

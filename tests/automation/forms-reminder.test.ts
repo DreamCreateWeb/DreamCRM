@@ -69,6 +69,9 @@ vi.mock('drizzle-orm', () => ({
 }))
 
 const sendIntakeRequestToPatient = vi.fn(async () => ({ sentTo: 'x@y.com', formTitle: 'Intake' }))
+// OFF UNTIL CHOSEN (audit round 3): the cron asks the ONE intake gate per clinic.
+const intakeOpen = { value: true }
+vi.mock('@/lib/services/forms', () => ({ patientFacingIntakeOpen: async () => intakeOpen.value }))
 vi.mock('@/lib/services/patient-intake-send', () => ({
   sendIntakeRequestToPatient: (...a: unknown[]) => sendIntakeRequestToPatient(...(a as [])),
 }))
@@ -89,6 +92,18 @@ beforeEach(() => {
 })
 
 describe('runDueFormReminders', () => {
+  it('skips a clinic whose Intake Forms door is closed — the seeded form is not theirs to send (audit round 3)', async () => {
+    intakeOpen.value = false
+    state.profiles = [{ organizationId: 'org_closed', reminderSettings: { formsReminder: true } }]
+    try {
+      const r = await runDueFormReminders()
+      expect(r.orgsScanned).toBe(0)
+      expect(sendIntakeRequestToPatient).not.toHaveBeenCalled()
+    } finally {
+      intakeOpen.value = true
+    }
+  })
+
   it('skips an org with formsReminder off', async () => {
     state.profiles = [{ organizationId: 'org_off', reminderSettings: { formsReminder: false } }]
     const r = await runDueFormReminders()

@@ -157,6 +157,7 @@ vi.mock('@/lib/services/clinic-sender', () => ({
 let defaultForm: { slug: string } | null = null
 vi.mock('@/lib/services/forms', () => ({
   getDefaultFormTemplate: vi.fn(async () => defaultForm),
+  getPatientFacingDefaultForm: vi.fn(async () => defaultForm),
 }))
 
 // The actions now resolve the org from the public slug server-side instead of

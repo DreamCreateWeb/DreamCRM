@@ -58,6 +58,7 @@ vi.mock('@/lib/services/clinic-sender', () => ({
 
 vi.mock('@/lib/services/forms', () => ({
   getDefaultFormTemplate: vi.fn(async () => state.defaultForm),
+  patientFacingIntakeOpen: vi.fn(async () => true),
   getFormTemplate: vi.fn(async () => state.formById),
 }))
 
