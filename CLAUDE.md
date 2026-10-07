@@ -354,7 +354,7 @@ app/
 lib/
   db/schema/         auth.ts, platform.ts, clinic.ts (bulk), domain.ts, email.ts,
                      referrals.ts, index.ts
-  db/migrations/     drizzle; 0000–0173 applied to prod (auto-apply on deploy)
+  db/migrations/     drizzle; 0000–0174 applied to prod (auto-apply on deploy)
   auth/              server.ts, client.ts, context.ts (getTenantContext,
                      requireTenant/requireRole/requirePartner)
   services/          ~190 server-only modules (import 'server-only') — one per
@@ -841,7 +841,11 @@ sitemap/robots/OG.
   end-to-end; watch the Actions tab. `NEXT_PUBLIC_*` bake at build time.
 - **Migrations auto-apply on boot** (`scripts/db-migrate.mjs` → POST
   `/api/admin/migrate`; failure keeps the previous version serving). Latest
-  migration: **0173** (`pms_connect_request` — docs/ACTIVATION.md S4, the
+  migration: **0174** (`appt_reminder_org_sent_idx` — an
+  `(organization_id, sent_at)` index on `appointment_reminder_log`; the
+  activation reconcile's A2 read scanned the table per clinic without one
+  — phase-audit round 1 of the activation program). Before it: **0173**
+  (`pms_connect_request` — docs/ACTIVATION.md S4, the
   self-serve PMS connect request: one row per clinic, the platform's
   status as its answer, a new empty table). Before it: **0172** (THE
   FEATURE SWITCHES, docs/ACTIVATION.md S3 — seven

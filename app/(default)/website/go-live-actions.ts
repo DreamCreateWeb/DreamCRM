@@ -50,13 +50,20 @@ export async function goLiveAction(): Promise<GoLiveResult> {
   const g = await gate()
   if (!g.ok) return g
   try {
+    const [before] = await db
+      .select({ siteLiveAt: clinicProfile.siteLiveAt })
+      .from(clinicProfile)
+      .where(eq(clinicProfile.organizationId, g.organizationId))
+      .limit(1)
     await db
       .update(clinicProfile)
       .set({ siteLiveAt: new Date(), updatedAt: new Date() })
       .where(eq(clinicProfile.organizationId, g.organizationId))
     // The site is live, so the door that fills FROM the site opens
-    // (Inquiries — docs/ACTIVATION.md S3). Idempotent; never throws.
-    await openDoorsAtSiteLive(g.organizationId)
+    // (Inquiries — docs/ACTIVATION.md S3) — the FIRST time only. A site
+    // taken offline and put back must not reopen a door the clinic closed
+    // in between (audit round 1). Never throws.
+    if (!before?.siteLiveAt) await openDoorsAtSiteLive(g.organizationId)
     revalidateSite(g.organizationId, g.slug)
     return { ok: true }
   } catch {

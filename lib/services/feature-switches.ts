@@ -63,12 +63,13 @@ export const getFeatureSwitchState = cache(async (organizationId: string): Promi
 })
 
 /**
- * Open doors, idempotently: every named column is set ONLY where it is
- * still null, in one statement (`coalesce`), so a second A1 or a re-pulled
- * go-live lever never moves a stamp — a switch records when the door first
- * opened, and a door a clinic closed on purpose is reopened only by the
- * next activation event, never by a repeat of the same one. Returns the
- * keys that were actually opened by this call.
+ * Open doors: every named column is set ONLY where it is still null, in one
+ * statement (`coalesce`), so an open door's stamp never moves. A CLOSED door
+ * is a null column too, so this WILL reopen one — which is why the callers
+ * that act on an activation event (the A1 kick, the go-live lever) call it
+ * on the FIRST occurrence of that event only (audit round 1): a door a
+ * clinic closed on purpose is never reopened by a repeat of the same event.
+ * Returns the keys that were actually opened by this call.
  */
 export async function openDoors(organizationId: string, keys: readonly FeatureKey[], now: Date = new Date()): Promise<FeatureKey[]> {
   if (keys.length === 0) return []

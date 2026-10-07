@@ -14,7 +14,7 @@ import {
 } from '@/lib/services/forms'
 import { summarizeSubmission, type IntakeSummary } from '@/lib/services/intake-summary'
 import { generateFormTranslation } from '@/lib/services/form-translate'
-import { DEFAULT_INTAKE_TEMPLATE, pickIntakeSections } from '@/lib/types/forms'
+import { DEFAULT_INTAKE_TEMPLATE, isUntouchedSeedTemplate, pickIntakeSections } from '@/lib/types/forms'
 
 async function requireClinicAdmin() {
   const ctx = await requireTenant()
@@ -58,13 +58,29 @@ export async function turnOnIntakeFormsAction(input: { sections?: unknown }): Pr
   const keep = Array.isArray(input?.sections) ? input.sections.filter((x): x is string => typeof x === 'string').slice(0, 20) : []
   try {
     const existing = await listFormTemplates(ctx.organizationId)
-    if (existing.filter((t) => t.archivedAt == null).length === 0) {
-      await createFormTemplate(ctx.organizationId, {
-        title: 'New Patient Intake',
-        description: 'Standard dental intake — edit anything you like.',
-        schema: pickIntakeSections(keep),
-        isDefault: true,
-      })
+    const live = existing.filter((t) => t.archivedAt == null)
+    const own = live.filter((t) => !isUntouchedSeedTemplate(t))
+    const seeded = live.filter((t) => isUntouchedSeedTemplate(t))
+    if (own.length === 0) {
+      const schema = pickIntakeSections(keep)
+      if (seeded.length > 0) {
+        // Provisioning seeded the standard form untouched (audit round 1):
+        // rebuild THAT one in place from what they kept, so its slug — the
+        // link already on their site and in their confirmations — survives.
+        await updateFormTemplate(ctx.organizationId, seeded[0].id, {
+          title: seeded[0].title,
+          description: seeded[0].description,
+          schema,
+          isDefault: true,
+        })
+      } else {
+        await createFormTemplate(ctx.organizationId, {
+          title: 'New Patient Intake',
+          description: 'Standard dental intake — edit anything you like.',
+          schema,
+          isDefault: true,
+        })
+      }
     }
     const { enableFeature } = await import('@/lib/services/feature-switches')
     await enableFeature(ctx.organizationId, 'intake_forms')

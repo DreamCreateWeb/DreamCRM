@@ -19,15 +19,23 @@ export default async function NotificationsSettings() {
   // per-staff mutable, and their footer points at THIS page — so this page
   // carries the mute (Phase-2 self-sweep). Clinic staff only.
   let emailReportsOptedOut: boolean | null = null
+  // The CLINIC's morning-email switch, for owners/admins (audit round 1 — it
+  // was only reachable behind doors that open at A1). null = not shown.
+  let clinicDigestEnabled: boolean | null = null
   if (ctx?.tenantType === 'clinic' && ctx.organizationId) {
     const { getDigestOptOut } = await import('@/lib/services/staff-notification-pref')
     emailReportsOptedOut = await getDigestOptOut(ctx.organizationId, user.id).catch(() => false)
+    if (ctx.role === 'owner' || ctx.role === 'admin') {
+      const { getDigestEnabled } = await import('@/lib/services/daily-digest')
+      clinicDigestEnabled = await getDigestEnabled(ctx.organizationId).catch(() => null)
+    }
   }
 
   return (
     <>
       <SettingsPage title="Notifications" subtitle="Email and push preferences.">
         <NotificationsPanel
+          clinicDigestEnabled={clinicDigestEnabled}
           tenantType={
             ctx?.tenantType === 'platform' || ctx?.tenantType === 'patient'
               ? ctx.tenantType

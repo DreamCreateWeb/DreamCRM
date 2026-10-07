@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { saveNotificationPrefs, setMyEmailReportsOptOutAction } from '../actions'
+import { saveNotificationPrefs, setClinicDigestAction, setMyEmailReportsOptOutAction } from '../actions'
 import { ActionButton } from '@/components/ui/action-button'
 import { SaveBar } from '@/components/ui/save-bar'
 import { useToast } from '@/components/ui/toast'
@@ -121,9 +121,12 @@ export default function NotificationsPanel({
   initial,
   tenantType,
   emailReportsOptedOut = null,
+  clinicDigestEnabled = null,
 }: {
   initial: Prefs
   tenantType: TenantType
+  /** Owners/admins of a clinic: whether the clinic's morning email is on. null hides the row. */
+  clinicDigestEnabled?: boolean | null
   /** Clinic staff only: whether this member muted the recurring report
    *  emails (morning digest + Monday week-in-review). null hides the
    *  section (platform/patient tenants don't get these emails). */
@@ -142,6 +145,23 @@ export default function NotificationsPanel({
   // Day's — one tap, no Save button), separate from the form's dirty flow.
   const [reportsOptedOut, setReportsOptedOut] = useState(emailReportsOptedOut ?? false)
   const [reportsPending, startReportsTransition] = useTransition()
+  // The CLINIC's morning email (owners/admins) — saves immediately, like the mute.
+  const [clinicDigest, setClinicDigest] = useState(clinicDigestEnabled ?? false)
+  const [clinicDigestPending, startClinicDigestTransition] = useTransition()
+
+  function toggleClinicDigest() {
+    const next = !clinicDigest
+    setClinicDigest(next)
+    startClinicDigestTransition(async () => {
+      const res = await setClinicDigestAction(next)
+      if ('error' in res) {
+        setClinicDigest(!next)
+        toast(res.error, { tone: 'urgent' })
+      } else {
+        toast(next ? 'Morning email on for the clinic.' : 'Morning email off for the clinic.')
+      }
+    })
+  }
 
   function toggleEmailReports() {
     const next = !reportsOptedOut
@@ -264,6 +284,28 @@ export default function NotificationsPanel({
                     so this page must actually be able to silence them
                     (Phase-2 self-sweep). Saves immediately; same per-staff
                     switch as My Day's. */}
+                {clinicDigestEnabled != null && (
+                  <SettingsRow
+                    label="Morning email for the clinic"
+                    description={
+                      <>
+                        Every morning, each staff member gets what the machine did overnight, one thing to do, and what is waiting on them.
+                        <span className="mt-1 block text-gray-500 dark:text-gray-400">
+                          For the whole clinic — each person can still mute their own copy below. Saves right away.
+                        </span>
+                      </>
+                    }
+                    control={
+                      <Toggle
+                        checked={clinicDigest}
+                        onChange={toggleClinicDigest}
+                        disabled={clinicDigestPending}
+                        srLabel="Morning email for the clinic"
+                      />
+                    }
+                  />
+                )}
+
                 {emailReportsOptedOut != null && (
                   <SettingsRow
                     label="My report emails"

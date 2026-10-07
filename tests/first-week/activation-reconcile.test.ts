@@ -84,6 +84,14 @@ describe('reconcileActivation', () => {
     expect(state.updates).toHaveLength(2)
   })
 
+  it('a staff reply from /messages is a first message too — A2 takes the earliest of reminders, campaigns and outbound messages (audit round 1)', async () => {
+    state.rows.set(schema.clinicProfile, [{ activation: { a1: daysAgo(5).toISOString() } }])
+    state.rows.set(schema.appointmentReminderLog, [{ at: daysAgo(2) }])
+    state.rows.set(schema.patientMessage, [{ at: daysAgo(4) }])
+    expect(await reconcileActivation('org_a', NOW)).toEqual(['a2'])
+    expect(state.updates).toHaveLength(1)
+  })
+
   it('does nothing when every key is stamped — no rail is read', async () => {
     state.rows.set(schema.clinicProfile, [{ activation: { a1: daysAgo(5).toISOString(), a2: daysAgo(4).toISOString(), a3: daysAgo(3).toISOString(), a4: daysAgo(2).toISOString(), a5: daysAgo(1).toISOString() } }])
     state.rows.set(schema.formSubmission, [{ at: daysAgo(9) }])

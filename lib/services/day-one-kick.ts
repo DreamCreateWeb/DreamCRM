@@ -67,17 +67,20 @@ export async function kickOffFirstWeek(organizationId: string, reason: KickReaso
         .limit(1)
       eligibleForA1 = Number(n) >= A1_PATIENT_FLOOR
     }
-    const stampedA1 = eligibleForA1 ? await stampActivation(organizationId, 'a1', now) : false
+    // THE RAILS FIRST (audit round 1): the reconcile writes each event's own
+    // first-time — the PMS row's createdAt, the Google connect, the 25th
+    // patient — so A1 carries the real instant even on a clinic whose bind
+    // predates stamping. Only an A1 the rails do not yet show (a connection
+    // row written this same tick) is stamped as "now". Never throws.
+    const reconciled = await reconcileActivation(organizationId, now)
+    const stampedA1 = reconciled.includes('a1') || (eligibleForA1 ? await stampActivation(organizationId, 'a1', now) : false)
     // A1 opens the doors that only make sense with patients behind them
-    // (My Day, Follow-ups — lib/feature-switches.ts `autoOpen: 'a1'`).
-    // Idempotent and never throws; runs on every eligible kick, not only
-    // the first, so a door closed on purpose stays closed (coalesce) while
-    // a clinic whose stamp predates the switches still gets its doors.
-    if (eligibleForA1) await openDoorsAtA1(organizationId, now)
-    // S8: anything the rails already recorded (a reminder sent before the
-    // PMS bind landed, a form in before the roster cleared the floor) is
-    // stamped now rather than on the next daily pass. Never throws.
-    await reconcileActivation(organizationId, now)
+    // (My Day, Follow-ups — lib/feature-switches.ts `autoOpen: 'a1'`) — on
+    // the FIRST stamp only. Every later kick (a two-hourly sync, a second
+    // CSV) leaves the switches alone: a door the clinic closed on purpose
+    // stays closed (audit round 1 — openDoors' coalesce reopens a NULLed
+    // column, so "idempotent" was only true while nobody had turned one off).
+    if (stampedA1) await openDoorsAtA1(organizationId, now)
 
     const [profile] = await db
       .select({ cycleAt: schema.clinicProfile.dreamTeamCycleAt })

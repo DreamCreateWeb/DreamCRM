@@ -453,6 +453,9 @@ export const appointmentReminderLog = pgTable('appointment_reminder_log', {
   providerMessageId: text('provider_message_id'),
 }, (t) => [
   index('appt_reminder_appt_sent_idx').on(t.appointmentId, t.sentAt),
+  // The activation reconcile's A2 read (min(sent_at) per org) — without this
+  // every unstamped clinic seq-scanned the whole log daily (audit round 1).
+  index('appt_reminder_org_sent_idx').on(t.organizationId, t.sentAt),
   // Every DLR is a lookup by provider message id — without this it's a
   // sequential scan of the busiest log table on every receipt.
   index('appt_reminder_provider_msg_idx').on(t.providerMessageId),

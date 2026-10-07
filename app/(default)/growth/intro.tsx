@@ -16,22 +16,26 @@ import GrowthIntroCard from './growth-intro-card'
 export default async function GrowthIntro() {
   const ctx = await getTenantContext()
   if (!ctx || ctx.tenantType !== 'clinic') return null
-  const [[{ n: patientCount } = { n: 0 }], zernio, recall] = await Promise.all([
+  // Unreadable ≠ zero (audit round 1): a failed count renders as "couldn't
+  // read", never as "No patients yet" — the pill a practice with 900
+  // patients would be told on a bad morning.
+  const [patients, zernio, recall] = await Promise.all([
     db
       .select({ n: count() })
       .from(schema.patient)
       .where(eq(schema.patient.organizationId, ctx.organizationId))
-      .catch(() => [{ n: 0 }]),
-    getZernioConnection(ctx.organizationId).catch(() => null),
+      .then((rows) => Number(rows[0]?.n ?? 0))
+      .catch(() => null),
+    getZernioConnection(ctx.organizationId).then((z) => ({ ok: true as const, z })).catch(() => ({ ok: false as const, z: null })),
     getRecallStats(ctx.organizationId).catch(() => null),
   ])
-  const gbp = zernio?.status === 'connected' ? (zernio.googleBusinessAccounts[0] ?? null) : null
+  const gbp = zernio.z?.status === 'connected' ? (zernio.z.googleBusinessAccounts[0] ?? null) : null
   return (
     <GrowthIntroCard
       orgName={ctx.organizationName}
       canManage={ctx.role === 'owner' || ctx.role === 'admin'}
-      patientCount={Number(patientCount)}
-      google={gbp ? { name: gbp.displayName || gbp.username || 'your listing' } : null}
+      patientCount={patients}
+      google={zernio.ok ? (gbp ? { name: gbp.displayName || gbp.username || 'your listing' } : null) : 'unreadable'}
       dueReachable={recall ? recall.recallDueReachableCount : null}
       marketable={recall ? recall.marketableCount : null}
     />

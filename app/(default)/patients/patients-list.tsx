@@ -502,11 +502,30 @@ export default function PatientsList({
             <EmptyState
               icon="🌿"
               title="No patients yet"
-              body="Your first patient will appear here when someone books on your site. Until then, you can add one manually."
+              body={
+                canManage
+                  ? 'Connect your practice software or import a CSV and the machine starts working from your real roster. You can also add one by hand.'
+                  : 'Your first patient will appear here when someone books on your site, or when an owner connects the practice software.'
+              }
               action={
-                <ActionButton variant="primary" size="sm" onClick={() => setAddOpen(true)}>
-                  + Add patient
-                </ActionButton>
+                // Day 0's most important room: the A1 door first (docs/ACTIVATION.md Part 3 — audit round 1), the manual add last.
+                canManage ? (
+                  <div className="flex flex-wrap items-center justify-center gap-2">
+                    <ActionButton variant="primary" size="sm" href="/integrations/pms">
+                      Connect practice software
+                    </ActionButton>
+                    <ActionButton variant="secondary" size="sm" onClick={() => setImportOpen(true)}>
+                      Import a CSV
+                    </ActionButton>
+                    <ActionButton variant="ghost" size="sm" onClick={() => setAddOpen(true)}>
+                      + Add patient
+                    </ActionButton>
+                  </div>
+                ) : (
+                  <ActionButton variant="primary" size="sm" onClick={() => setAddOpen(true)}>
+                    + Add patient
+                  </ActionButton>
+                )
               }
             />
           ) : (

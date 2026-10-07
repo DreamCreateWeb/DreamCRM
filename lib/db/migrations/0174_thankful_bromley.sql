@@ -1,0 +1,1 @@
+CREATE INDEX "appt_reminder_org_sent_idx" ON "appointment_reminder_log" USING btree ("organization_id","sent_at");

@@ -518,3 +518,58 @@ before S4–S6 because the doors need the switch to be one thing.
   room with a door (law 4). The cockpit's KPI row gained "Time to data,
   median" over the clinics it shows (`counts.medianHoursToA1`). The
   program's eight slices are all shipped.
+- **2026-10-07 — PHASE AUDIT, round 1 (fixes).** The phase-audit
+  workflow's first discovery round over S1–S8 returned 34 confirmed
+  defects (22 distinct once the four lenses' duplicates merged), 3
+  in-phase gaps and 4 backlog items; the main loop re-verified every
+  survivor against the cited code before touching it. What was wrong, and
+  what changed: (1) THE DOORS REOPENED THEMSELVES — `openDoorsAtA1` ran on
+  every eligible kick and `openDoors` coalesces, so every PMS sync turned
+  My Day and Follow-ups back on after a clinic turned them off, and a
+  second go-live reopened Inquiries; the kick opens doors on the FIRST
+  stamp only and the go-live action reads `siteLiveAt` before it writes.
+  (2) A1 WAS STAMPED "NOW" — the kick stamped before it reconciled, so an
+  existing clinic's time-to-A1 was the deploy date; the kick reconciles
+  FIRST and an A1 the rails already prove (through the kick or the daily
+  pass) opens the doors too. (3) NOTHING ANSWERED A PMS REQUEST —
+  `pms_connect_request.status` had no writer, so "we're connecting it"
+  lasted forever and came back as pending after a disconnect; a connected
+  bind (`upsertPmsConnection`) stamps it `connected`, and the cockpit row
+  carries "Mark install scheduled" / "Close request"
+  (`answerPmsRequestAction`). (4) A2 ignored staff messages — it is now
+  the earliest of reminders, campaigns and outbound `patient_message`
+  rows. (5) The digest's "and N more" counted the short list it loaded,
+  not the stack (`openCardsTotal`); the A3 door sends a clinic whose site
+  is still private to put it live first (`SITE_NOT_LIVE_DOOR`); staff's
+  own insurance checks are no longer narrated as "I handled"
+  (`HUMAN_RUN_CAPABILITIES` in `lib/standup-nouns.ts`, shared with the
+  standup); the digest's button lands on `/dashboard` when My Day is off.
+  (6) The cockpit: "Doors open" names the S3 switches that are on
+  (`doors.switches`), dates format in the clinic's zone, the SMS pending
+  clock reads `a2pStatusUpdatedAt` so a failed poll no longer resets it,
+  the sign-in line says what it reads ("active staff session"), and the
+  digest-off flag ages out at `SETTLED_DAY` = 30. (7) The morning email
+  has a switch an owner can reach: Settings → Notifications → "Morning
+  email for the clinic" (`setClinicDigestAction`), where the cockpit's
+  flag now points. (8) The Intake door never met a provisioned clinic —
+  creation seeds the standard form untouched, so every clinic had "1 form
+  on file"; `isUntouchedSeedTemplate` tells the seed from THEIR form and
+  turning on rebuilds the seed in place from what they kept (its slug —
+  the link already on their site — survives). (9) Growth's intro said
+  every send waits for a yes while review asks auto-send; the copy says
+  which. (10) Unreadable reads render as "couldn't read just now", never
+  as "No patients yet" / "Google not connected" / "no forms on file" (the
+  Growth and Intake intros carry nullable facts). (11) The Payments hub's
+  own Connect Stripe button returned to Shop; `?back=payments`. (12) ⌘K
+  tied the Payments pages to the Shop switch; each family follows its own
+  module. (13) Day 0's most important empty room, Patients, offers the A1
+  doors (connect the practice software, import a CSV) before a manual
+  add. (14) The feature-switch actions return a typed error instead of
+  crashing to the boundary. (15) Migration 0174: an
+  `(organization_id, sent_at)` index on `appointment_reminder_log`, which
+  the A2 read scanned without one per clinic (the one "rejected" finding
+  the main loop overruled). Backlog, on the owner's menu, not the
+  release: the morning after only in the opt-in email (nothing in the app
+  says the one thing); overnight as counts, not stories; the cockpit
+  clock starting at org creation for managed clinics with no invite
+  state; the kick's result discarded. Round 2 runs over this fix range.

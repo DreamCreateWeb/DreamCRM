@@ -149,6 +149,18 @@ describe('globalSearch — launcher view (empty query)', () => {
     expect(back.flatMap((g) => g.results.map((r) => r.href))).toContain('/growth/reviews')
   })
 
+  it('Payments and Shop are two switches: each family’s pages follow its OWN module (audit round 1)', async () => {
+    const hrefs = async (q: string) => (await globalSearch(ctx(), q)).flatMap((g) => g.results.map((r) => r.href))
+    switches.state = { shop: false }
+    expect(await hrefs('orders')).not.toContain('/shop/orders')
+    expect(await hrefs('collections')).toContain('/payments/collections')
+    switches.state = { payments: false }
+    expect(await hrefs('orders')).toContain('/shop/orders')
+    expect(await hrefs('collections')).not.toContain('/payments/collections')
+    switches.state = null
+    expect(await hrefs('orders')).toContain('/shop/orders')
+  })
+
   it('surfaces saved views as one-click launches', async () => {
     state.savedViews = [{ id: 'pview_1', name: 'No-shows', filters: { status: 'inactive' }, createdByName: null }]
     const groups = await globalSearch(ctx(), '')

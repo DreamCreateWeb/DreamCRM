@@ -72,6 +72,13 @@ describe('IntakeIntroCard', () => {
     expect(screen.queryByTestId('intake-sections')).toBeNull()
   })
 
+  it('an unreadable form count says so, and never counts as "forms on file" (audit round 1)', () => {
+    render(<IntakeIntroCard orgName="Dream Dental" canManage sections={sections} existingForms={null} patientCount={null} />)
+    expect(screen.getByTestId('intake-unreadable')).toBeInTheDocument()
+    expect(screen.queryByTestId('intake-existing')).toBeNull()
+    expect(screen.getByText(/Couldn’t count your patients just now/)).toBeInTheDocument()
+  })
+
   it('a member reads who can, with no button', () => {
     render(<IntakeIntroCard orgName="Dream Dental" canManage={false} sections={sections} existingForms={0} patientCount={0} />)
     expect(screen.queryByRole('button', { name: /Turn on/ })).toBeNull()
@@ -104,6 +111,15 @@ describe('GrowthIntroCard', () => {
   it('an unreadable count says so instead of showing a zero', () => {
     render(<GrowthIntroCard orgName="Dream Dental" canManage patientCount={50} google={null} dueReachable={null} marketable={null} />)
     expect(screen.getByTestId('growth-due')).toHaveTextContent('Couldn’t count them just now')
+  })
+
+  it('an unreadable patient count or Google read is a neutral "couldn’t read" — never "no patients" or "not connected" (audit round 1)', () => {
+    render(<GrowthIntroCard orgName="Dream Dental" canManage patientCount={null} google="unreadable" dueReachable={null} marketable={null} />)
+    const facts = screen.getByTestId('growth-facts')
+    expect(within(facts).getByText('Couldn’t count patients just now')).toBeInTheDocument()
+    expect(within(facts).queryByText('No patients yet')).toBeNull()
+    expect(within(facts).getByText('Couldn’t read Google just now')).toBeInTheDocument()
+    expect(within(facts).queryByText('Google not connected')).toBeNull()
   })
 })
 

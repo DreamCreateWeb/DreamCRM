@@ -63,6 +63,18 @@ export async function upsertPmsConnection(organizationId: string, fields: Upsert
         updatedAt: now,
       },
     })
+  // S4's front door asked, S1's cockpit counted the days: a bind IS the
+  // platform's answer. Nothing else ever wrote the request's status (audit
+  // round 1), so a request stayed "we're connecting it" after the bridge was
+  // bound and came back as pending on us after any later disconnect.
+  if ((fields.status ?? 'connected') === 'connected') {
+    try {
+      const { setPmsConnectRequestStatus } = await import('@/lib/services/pms-connect')
+      await setPmsConnectRequestStatus(organizationId, 'connected', now)
+    } catch (e) {
+      console.warn('[pms] connect request status not updated', e)
+    }
+  }
 }
 
 function metaFromTest(test: PmsTestResult): Record<string, unknown> {

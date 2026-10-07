@@ -16,6 +16,7 @@ const state = {
   patients: [{ n: 40 }],
   shutDown: false,
   stampResult: true,
+  reconciled: [] as string[],
   passThrows: false,
 }
 const runOrgGeneratorPass = vi.fn(async () => {
@@ -23,11 +24,13 @@ const runOrgGeneratorPass = vi.fn(async () => {
   return { orgsScanned: 1, filed: 2, expired: 0, autoExecuted: 0, errors: [], failuresRecorded: 0 }
 })
 const stampActivation = vi.fn(async () => state.stampResult)
+const reconcileActivation = vi.fn(async () => state.reconciled)
 vi.mock('@/lib/services/proposal-generators', () => ({ runOrgGeneratorPass: (...a: unknown[]) => runOrgGeneratorPass(...(a as [])) }))
 vi.mock('@/lib/services/activation', () => ({
   stampActivation: (...a: unknown[]) => stampActivation(...(a as [])),
-  // S8: the kick reconciles the other stamps after A1; the mechanism has its own test.
-  reconcileActivation: async () => [],
+  // S8: the kick reconciles FIRST (audit round 1), so a rail that already
+  // proves A1 stamps the rail's own instant; the mechanism has its own test.
+  reconcileActivation: (...a: unknown[]) => reconcileActivation(...(a as [])),
 }))
 const openDoorsAtA1 = vi.fn(async () => ['my_day', 'followups'])
 vi.mock('@/lib/services/feature-switches', () => ({ openDoorsAtA1: (...a: unknown[]) => openDoorsAtA1(...(a as [])) }))
@@ -61,9 +64,11 @@ beforeEach(() => {
   state.patients = [{ n: 40 }]
   state.shutDown = false
   state.stampResult = true
+  state.reconciled = []
   state.passThrows = false
   runOrgGeneratorPass.mockClear()
   stampActivation.mockClear()
+  reconcileActivation.mockClear()
   openDoorsAtA1.mockClear()
   vi.spyOn(console, 'error').mockImplementation(() => {})
 })
@@ -92,8 +97,23 @@ describe('kickOffFirstWeek', () => {
     state.patients = [{ n: 25 }]
     await kickOffFirstWeek('org_a', 'patients_imported', { now: NOW })
     expect(stampActivation).toHaveBeenCalledTimes(1)
-    // A1 opens the doors the data makes real (S3) — on every eligible
-    // kick, not only the first stamp (the service's coalesce keeps it idempotent).
+    // A1 opens the doors the data makes real (S3).
+    expect(openDoorsAtA1).toHaveBeenCalledWith('org_a', NOW)
+  })
+
+  it('the doors open on the FIRST stamp only — a later kick never reopens a door the clinic closed (audit round 1)', async () => {
+    state.stampResult = false
+    await kickOffFirstWeek('org_a', 'gbp_connected', { now: NOW })
+    expect(stampActivation).toHaveBeenCalledTimes(1)
+    expect(openDoorsAtA1).not.toHaveBeenCalled()
+  })
+
+  it('reconciles first: an A1 the rails already prove is stamped with the rail’s instant, not now, and still opens the doors', async () => {
+    state.reconciled = ['a1', 'a2']
+    const r = await kickOffFirstWeek('org_a', 'pms_synced', { now: NOW })
+    expect(reconcileActivation).toHaveBeenCalledWith('org_a', NOW)
+    expect(stampActivation).not.toHaveBeenCalled()
+    expect(r.stampedA1).toBe(true)
     expect(openDoorsAtA1).toHaveBeenCalledWith('org_a', NOW)
   })
 

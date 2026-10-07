@@ -21,6 +21,8 @@ const state = {
   work: new Map<string, Record<string, number>>(),
   /** Rows per (table, org) for the raw reads; keyed by the drizzle table object. */
   rows: new Map<unknown, Array<Record<string, unknown>>>(),
+  switches: new Map<string, Record<string, boolean>>(),
+  switchesThrow: new Set<string>(),
 }
 
 vi.mock('@/lib/services/clinics', () => ({ listClinics: async () => state.clinics }))
@@ -33,6 +35,13 @@ vi.mock('@/lib/services/readiness', () => ({
 vi.mock('@/lib/services/goals', () => ({ listActiveGoals: async (org: string) => state.goals.get(org) ?? [] }))
 vi.mock('@/lib/services/proposals', () => ({ listOpenProposals: async (org: string) => state.proposals.get(org) ?? [] }))
 vi.mock('@/lib/services/action-ledger', () => ({ countActionsSince: async (org: string) => state.work.get(org) ?? {} }))
+vi.mock('@/lib/services/feature-switches', () => ({
+  getFeatureSwitchState: async (org: string) => {
+    if (state.switchesThrow.has(org)) throw new Error('switches down')
+    return { my_day: false, followups: false, leads: false, intake_forms: false, growth: false, payments: false, shop: false, insurance: false, ...(state.switches.get(org) ?? {}) }
+  },
+}))
+vi.mock('@/lib/services/clinic-timezone', () => ({ getClinicTimeZone: async () => 'America/Chicago' }))
 vi.mock('@/lib/services/sms-registration', () => ({
   smsDriver: () => 'none',
   getSmsRegistration: async () => ({ state: 'none' }),
@@ -74,6 +83,8 @@ beforeEach(() => {
   state.proposals.clear()
   state.work.clear()
   state.rows.clear()
+  state.switches.clear()
+  state.switchesThrow.clear()
   vi.spyOn(console, 'error').mockImplementation(() => {})
 })
 
@@ -114,6 +125,7 @@ describe('getFirstWeekBoard', () => {
     state.goals.set('org_stuck', [{ objective: 'more implant patients' }])
     state.work.set('org_fine', { review_reply: 2, social_post: 1 })
     state.proposals.set('org_fine', [{ createdAt: daysAgo(1) }, { createdAt: daysAgo(2) }])
+    state.switches.set('org_fine', { my_day: true, growth: true, insurance: true })
     state.rows.set(schema.clinicProfile, [{ insurance: daysAgo(1), digest: 1, siteLive: null }])
     state.rows.set(schema.session, [{ at: daysAgo(0) }])
     const board = await getFirstWeekBoard({ now: NOW })
@@ -125,7 +137,8 @@ describe('getFirstWeekBoard', () => {
     expect(fine.workLast7).toBe(3)
     expect(fine.openCards).toBe(2)
     expect(fine.oldestOpenCardAt).toEqual(daysAgo(2))
-    expect(fine.doors).toEqual({ insurance: true, digest: true, siteLive: false })
+    expect(fine.doors).toEqual({ insurance: true, digest: true, siteLive: false, switches: ['my_day', 'growth'] })
+    expect(fine.timeZone).toBe('America/Chicago')
     expect(fine.lastStaffSignInAt).toEqual(daysAgo(0))
     expect(fine.stuck).toEqual([])
     expect(board.counts).toEqual({ inFirstMonth: 2, stuck: 1, noData: 2, medianHoursToA1: null })

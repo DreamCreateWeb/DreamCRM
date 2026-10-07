@@ -69,9 +69,9 @@ describe('stuck flags', () => {
 
   it('nobody signed in by day 7 vs. staff went quiet for 7 days are different sentences', () => {
     const never = stuckFlags(row({ createdAt: daysAgo(7), lastStaffSignInAt: null, activation: { a1: daysAgo(6), a2: null, a3: null, a4: null, a5: null }, workLast7: 3 }), NOW)
-    expect(never).toEqual([expect.stringMatching(/Nobody has signed in yet/)])
+    expect(never).toEqual([expect.stringMatching(/No active staff session yet/)])
     const quiet = stuckFlags(row({ createdAt: daysAgo(20), lastStaffSignInAt: daysAgo(9), activation: { a1: daysAgo(19), a2: null, a3: null, a4: null, a5: null }, workLast7: 3 }), NOW)
-    expect(quiet).toEqual([expect.stringMatching(/No staff sign-in for 9 days/)])
+    expect(quiet).toEqual([expect.stringMatching(/No active staff session for 9 days/)])
     expect(stuckFlags(row({ createdAt: daysAgo(2), lastStaffSignInAt: null }), NOW)).toEqual([])
   })
 

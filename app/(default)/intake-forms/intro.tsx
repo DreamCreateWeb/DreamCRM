@@ -2,7 +2,7 @@ import { count, eq } from 'drizzle-orm'
 import { getTenantContext } from '@/lib/auth/context'
 import { db, schema } from '@/lib/db'
 import { listFormTemplates } from '@/lib/services/forms'
-import { intakeSectionChoices } from '@/lib/types/forms'
+import { intakeSectionChoices, isUntouchedSeedTemplate } from '@/lib/types/forms'
 import IntakeIntroCard from './intake-intro-card'
 
 /**
@@ -18,21 +18,27 @@ import IntakeIntroCard from './intake-intro-card'
 export default async function IntakeIntro() {
   const ctx = await getTenantContext()
   if (!ctx || ctx.tenantType !== 'clinic') return null
-  const [templates, [{ n: patientCount } = { n: 0 }]] = await Promise.all([
-    listFormTemplates(ctx.organizationId).catch(() => []),
+  // Unreadable ≠ zero (audit round 1): a failed read says so on the card
+  // rather than claiming "no forms" / "no patients".
+  const [templates, patientCount] = await Promise.all([
+    listFormTemplates(ctx.organizationId).catch(() => null),
     db
       .select({ n: count() })
       .from(schema.patient)
       .where(eq(schema.patient.organizationId, ctx.organizationId))
-      .catch(() => [{ n: 0 }]),
+      .then((rows) => Number(rows[0]?.n ?? 0))
+      .catch(() => null),
   ])
+  // A form the practice actually made (or edited) counts; the untouched
+  // seeded default does not — the picker is for exactly that clinic.
+  const own = templates == null ? null : templates.filter((t) => t.archivedAt == null && !isUntouchedSeedTemplate(t)).length
   return (
     <IntakeIntroCard
       orgName={ctx.organizationName}
       canManage={ctx.role === 'owner' || ctx.role === 'admin'}
       sections={intakeSectionChoices()}
-      existingForms={templates.filter((t) => t.archivedAt == null).length}
-      patientCount={Number(patientCount)}
+      existingForms={own}
+      patientCount={patientCount}
     />
   )
 }
