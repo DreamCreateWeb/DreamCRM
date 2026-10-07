@@ -33,6 +33,7 @@ function row(overrides: Partial<FirstWeekRow> = {}): FirstWeekRow {
     lastStaffSignInAt: null,
     activation: { a1: null, a2: null, a3: null, a4: null, a5: null },
     pendingOnUs: [],
+    digestOn: false,
     doors: { insurance: false, digest: false, siteLive: true },
     smsState: null,
     pmsRequest: null,

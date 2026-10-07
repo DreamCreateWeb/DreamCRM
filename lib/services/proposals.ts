@@ -238,6 +238,66 @@ export async function listOpenProposals(organizationId: string, limit = 12): Pro
  * truncation math needs the list's OWN population, not the on-you one
  * (subtracting one from the other hid genuinely-waiting cards).
  */
+/**
+ * The cards ON A HUMAN, soonest-to-expire first — the morning digest's
+ * "say yes to …" line (S7) names the first one. Same exclusion as
+ * `countOpenProposals` (one law, one home): a card the machine will execute
+ * itself within the hour is not a thing to ask a person to do.
+ */
+export async function listOpenProposalsOnYou(organizationId: string, limit = 5): Promise<ProposalView[]> {
+  const now = new Date()
+  const mine = machineHandlesCard(await grantedForCount(organizationId, now))
+  const rows = await db
+    .select()
+    .from(schema.proposal)
+    .where(
+      and(
+        eq(schema.proposal.organizationId, organizationId),
+        eq(schema.proposal.status, 'open'),
+        or(isNull(schema.proposal.expiresAt), gt(schema.proposal.expiresAt, now)),
+        ...(mine ? [not(mine)] : []),
+      ),
+    )
+    .orderBy(asc(schema.proposal.expiresAt), asc(schema.proposal.createdAt))
+    .limit(limit)
+  return rows.map(toView)
+}
+
+/** The grants that make a card the MACHINE's — empty for a walled or demo org, or when trust is unreadable (never hide real work). */
+async function grantedForCount(organizationId: string, now: Date): Promise<GrantedCapability[]> {
+  try {
+    const [profile] = await db
+      .select({
+        autonomy: schema.clinicProfile.autonomy,
+        trialEndsAt: schema.clinicProfile.trialEndsAt,
+        subscriptionStatus: schema.clinicProfile.subscriptionStatus,
+        stripeSubscriptionId: schema.clinicProfile.stripeSubscriptionId,
+        isDemo: schema.organization.isDemo,
+      })
+      .from(schema.clinicProfile)
+      .innerJoin(schema.organization, eq(schema.organization.id, schema.clinicProfile.organizationId))
+      .where(eq(schema.clinicProfile.organizationId, organizationId))
+      .limit(1)
+    // THE COUNT AND THE DRIVER ANSWER "is this mine?" THE SAME WAY.
+    // Subtracting a granted card is only honest when something is
+    // actually going to execute it, so both ways the driver can decline
+    // apply here too: a WALLED clinic (it refuses to act while the
+    // take-back is behind the billing wall) and a DEMO org (structurally
+    // excluded from the generator loop, so its granted cards wait on a
+    // human forever). Verification round 1 re-opened this seam by
+    // seeding a demo grant; the law had one reader too few.
+    return profile && !profile.isDemo && !resolveTrialState(profile, now).expired
+      ? resolveGrantedCapabilities(profile.autonomy)
+      : []
+  } catch (e) {
+    // Unreadable trust → count everything (never hide real work). Logged
+    // per the round-8 lesson, extended in round 9 to every file the phase
+    // touched rather than the ones remembered.
+    console.error('[proposals] trust read failed while counting open cards', e)
+    return []
+  }
+}
+
 export async function countOpenProposals(
   organizationId: string,
   opts: {
@@ -259,41 +319,7 @@ export async function countOpenProposals(
   } = {},
 ): Promise<number> {
   const now = new Date()
-  let granted: GrantedCapability[] = []
-  if (!opts.includeGranted) {
-    try {
-      const [profile] = await db
-        .select({
-          autonomy: schema.clinicProfile.autonomy,
-          trialEndsAt: schema.clinicProfile.trialEndsAt,
-          subscriptionStatus: schema.clinicProfile.subscriptionStatus,
-          stripeSubscriptionId: schema.clinicProfile.stripeSubscriptionId,
-          isDemo: schema.organization.isDemo,
-        })
-        .from(schema.clinicProfile)
-        .innerJoin(schema.organization, eq(schema.organization.id, schema.clinicProfile.organizationId))
-        .where(eq(schema.clinicProfile.organizationId, organizationId))
-        .limit(1)
-      // THE COUNT AND THE DRIVER ANSWER "is this mine?" THE SAME WAY.
-      // Subtracting a granted card is only honest when something is
-      // actually going to execute it, so both ways the driver can decline
-      // apply here too: a WALLED clinic (it refuses to act while the
-      // take-back is behind the billing wall) and a DEMO org (structurally
-      // excluded from the generator loop, so its granted cards wait on a
-      // human forever). Verification round 1 re-opened this seam by
-      // seeding a demo grant; the law had one reader too few.
-      granted =
-        profile && !profile.isDemo && !resolveTrialState(profile, now).expired
-          ? resolveGrantedCapabilities(profile.autonomy)
-          : []
-    } catch (e) {
-      // Unreadable trust → count everything (never hide real work). Logged
-      // per the round-8 lesson, extended in round 9 to every file the phase
-      // touched rather than the ones remembered.
-      console.error('[proposals] trust read failed while counting open cards', e)
-      granted = []
-    }
-  }
+  const granted = opts.includeGranted ? [] : await grantedForCount(organizationId, now)
   const mine = machineHandlesCard(granted)
   const [row] = await db
     .select({ c: sql<number>`count(*)::int` })

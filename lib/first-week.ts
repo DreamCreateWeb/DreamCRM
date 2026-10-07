@@ -29,6 +29,8 @@ export const STUCK = {
   cardWaitingDays: 3,
   /** A door pending on US (PMS bind, SMS carrier) for this many days. */
   pendingOnUsDays: 5,
+  /** The morning email still off by this day — the day-two email (law 6) can't arrive. */
+  digestOffByDay: 1,
 } as const
 
 export interface FirstWeekRowInput {
@@ -44,6 +46,8 @@ export interface FirstWeekRowInput {
   activation: Activation
   /** Doors pending on the platform: the PMS bind request, the SMS carrier wait. */
   pendingOnUs: Array<{ label: string; since: Date }>
+  /** The morning email switch (S7): off means day two arrives silent. */
+  digestOn: boolean
 }
 
 const DAY = 24 * 60 * 60 * 1000
@@ -92,6 +96,12 @@ export function stuckFlags(row: FirstWeekRowInput, now: Date): string[] {
   for (const p of row.pendingOnUs) {
     const d = daysSince(p.since, now) ?? 0
     if (d >= STUCK.pendingOnUsDays) out.push(`${p.label} has been on us for ${d} days.`)
+  }
+  // S7: the morning after is the product, and it rides the digest. A clinic
+  // whose switch is still off after the call will not get the day-two email
+  // the call promised — the setup call's fourth beat was skipped.
+  if (!row.digestOn && day >= STUCK.digestOffByDay) {
+    out.push('The morning email is off — nothing arrives on day two. Turn it on (Settings → Notifications) at the call.')
   }
   return out
 }

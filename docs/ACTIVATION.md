@@ -172,7 +172,9 @@ clinic should experience them:
 Stuck flags (the cockpit's reasons to call): no A1 by day 2 · no staff
 sign-in for 7 days · machine did nothing for 7 days with data connected ·
 a sign-here card waiting more than 3 days · a door pending on US (PMS
-bind, SMS carrier) for more than 5 days.
+bind, SMS carrier) for more than 5 days · the morning email still OFF on
+day 1 (S7 — law 6 rides the digest, and the call's fourth beat was
+skipped).
 
 ---
 
@@ -257,7 +259,7 @@ Guardian's audience lock).
 | **S4** | Front doors: the integrations hub — **SHIPPED 2026-10-06** | the SMS card opens the form; PMS is a self-serve connect request with an honest status; roadmap tiles fold under it; "coming soon" leaves the dashboard (and a test holds it at zero) |
 | **S5** | Front doors: Intake Forms, Growth (recall), Payments — **SHIPPED 2026-10-06** | each gets the intro + setup + on, in the insurance shape, through `FeatureGate`'s `intro` slot |
 | **S6** | Every empty state carries a door — **SHIPPED 2026-10-06** | the 50 door-less rooms each have one sentence and one button; the eleven that stand without one are named with a reason, and `tests/activation/empty-state-doors.test.ts` holds the tree there |
-| **S7** | The morning after | the day-two digest for a thin clinic says what happened and names one thing, or says what it waits on |
+| **S7** | The morning after — **SHIPPED 2026-10-06** | the day-two digest for a thin clinic says what happened and names one thing, or says what it waits on; a quiet first week is narrated, never skipped; the cockpit flags a clinic whose morning email is still off |
 | **S8** | Activation stamped + measured | `clinic_profile.activation` (A1–A5 timestamps, written once) and time-to-A1 on the platform Overview |
 
 S1 first because the owner has to be able to SEE before anything else is
@@ -453,3 +455,38 @@ before S4–S6 because the doors need the switch to be one thing.
   registered in `scripts/review-gate.mjs` as a blocking-assertion class.
   Nothing new is stored and no page is added — the doors ride the routes,
   deep-link params and modals that already exist.
+- **2026-10-06 — S7 SHIPPED: the morning after.** The morning digest was a
+  to-do list — follow-ups due, visits to confirm, leads — and a clinic with
+  none of those got NO email, which is exactly the thin day-two clinic the
+  setup call had just promised "tomorrow morning this will email you what
+  it did overnight". Pure `lib/morning-after.ts` writes the three sentences
+  law 6 asks for: WHAT HAPPENED (the ledger's work since yesterday morning
+  in the standup's own nouns — `STANDUP_NOUNS` moved to the pure
+  `lib/standup-nouns.ts` so a night and a week use one vocabulary — plus
+  "N of my own jobs hit trouble" from the engine-failure count, so a night
+  of nothing but failures never reads as a quiet night), ONE THING (a card
+  on a human first, named — `listOpenProposalsOnYou` shares
+  `countOpenProposals`' grant rule, so a card the machine will execute
+  itself is never asked of a person; then something BROKEN from the
+  readiness resolver's own words and door; then the next activation
+  door — `ACTIVATION_DOORS`, one per event, each a real route — while the
+  clinic is inside `ONE_THING_DAYS` = 30, after which it would be a daily
+  nag), and WHAT IT WAITS ON (`listPendingOnUs`, extracted from the cockpit
+  so the "still on us" line and the stuck clock read one list). The
+  digest's rule changed: inside `MORNING_AFTER_DAYS` = 7 the email goes
+  out even when every list is empty, with a quiet-night line that differs
+  before and after the patients are connected; after the first week a
+  night with no work, no card and no broken thing stays quiet as before.
+  The email's button lands on the one thing's own door when there is no
+  routine to-do for My Day to show; when the one thing names a card, the
+  generic "N pieces waiting on your yes" line is not said twice; the subject
+  says "what I did overnight" / "one thing" when the routine subject would
+  be empty. Every read is once per clinic and best-effort — a failed read
+  says less, never blocks the morning to-dos, and a null morning leaves the
+  old digest exactly as it was. The cockpit gained its seventh stuck flag:
+  the morning email still off on day 1 ("nothing arrives on day two"),
+  last in the order, because a digest that is off is a law-6 failure the
+  owner can fix in one click on the call. Not done on purpose: the digest
+  stays OPT-IN (law 1 — the call's fourth beat turns it on; the cockpit now
+  says when it wasn't), and no new column — the night is read from the
+  rails that already record it.
