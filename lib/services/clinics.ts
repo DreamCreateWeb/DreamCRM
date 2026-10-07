@@ -43,6 +43,8 @@ export interface ClinicListRow {
   subscriptionStatus: string | null
   stripeCustomerId: string | null
   stripeSubscriptionId: string | null
+  /** The no-card trial's end instant (lib/trial.ts resolves it to a state). */
+  trialEndsAt?: Date | null
   /** 'self_serve' | 'managed' | 'comped' — platform-provisioned billing state. Absent = self_serve. */
   billingMode?: string | null
   /** Managed clinics: reserved plan awaiting owner checkout. */
@@ -84,6 +86,7 @@ export async function listClinics(): Promise<ClinicListRow[]> {
         subscriptionStatus: clinicProfile.subscriptionStatus,
         stripeCustomerId: clinicProfile.stripeCustomerId,
         stripeSubscriptionId: clinicProfile.stripeSubscriptionId,
+        trialEndsAt: clinicProfile.trialEndsAt,
         billingMode: clinicProfile.billingMode,
         pendingPlanId: clinicProfile.pendingPlanId,
       })

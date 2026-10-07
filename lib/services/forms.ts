@@ -283,6 +283,13 @@ export async function getBookingIntakeForm(
   organizationId: string,
   isNewPatient: boolean,
 ): Promise<FormTemplate | null> {
+  // OFF UNTIL CHOSEN (docs/ACTIVATION.md law 1, audit round 2): the seeded
+  // standard form rode every booking confirmation while the Intake Forms
+  // door was still closed, so patients filled in a module the practice had
+  // never opened. A closed door sends nothing. (Fail-open read: a transient
+  // error keeps a practice that chose intake sending.)
+  const { getFeatureSwitchState } = await import('@/lib/services/feature-switches')
+  if (!(await getFeatureSwitchState(organizationId)).intake_forms) return null
   const forms = await db
     .select()
     .from(formTemplate)

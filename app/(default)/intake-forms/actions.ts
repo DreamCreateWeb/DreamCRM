@@ -6,6 +6,7 @@ import { requireTenant } from '@/lib/auth/context'
 import {
   FormTemplateInput,
   archiveFormTemplate,
+  countSubmissionsForTemplate,
   createFormTemplate,
   createPacket,
   deletePacket,
@@ -59,8 +60,14 @@ export async function turnOnIntakeFormsAction(input: { sections?: unknown }): Pr
   try {
     const existing = await listFormTemplates(ctx.organizationId)
     const live = existing.filter((t) => t.archivedAt == null)
-    const own = live.filter((t) => !isUntouchedSeedTemplate(t))
-    const seeded = live.filter((t) => isUntouchedSeedTemplate(t))
+    // A seeded form that patients have already answered is THEIRS too (audit
+    // round 2): rebuilding it with fewer sections would hide answers on file.
+    const answered = new Set<string>()
+    for (const t of live.filter((t) => isUntouchedSeedTemplate(t))) {
+      if ((await countSubmissionsForTemplate(ctx.organizationId, t.id)) > 0) answered.add(t.id)
+    }
+    const own = live.filter((t) => !isUntouchedSeedTemplate(t) || answered.has(t.id))
+    const seeded = live.filter((t) => isUntouchedSeedTemplate(t) && !answered.has(t.id))
     if (own.length === 0) {
       const schema = pickIntakeSections(keep)
       if (seeded.length > 0) {

@@ -43,11 +43,11 @@ describe('describeWork', () => {
 describe('what happened', () => {
   it('says what went out, and that some jobs hit trouble, in one line', () => {
     const m = buildMorningAfter(input({ work: { appointment_reminder: 3 }, failures: 2 }))
-    expect(m.happened).toBe('⚙️ Since yesterday I handled: 3 appointment reminders. 2 of my own jobs hit trouble — the Overview has the details.')
+    expect(m.happened).toBe("⚙️ Since yesterday I handled: 3 appointment reminders. 2 of my own jobs hit trouble — that's mine to sort out, and I'm on it.")
   })
   it('a night of nothing but failures is not a quiet night', () => {
     const m = buildMorningAfter(input({ failures: 1 }))
-    expect(m.happened).toBe('⚙️ Nothing went out since yesterday — 1 of my own job hit trouble — the Overview has the details.')
+    expect(m.happened).toBe("⚙️ Nothing went out since yesterday — 1 of my own job hit trouble — that's mine to sort out, and I'm on it.")
     expect(m.quietLine).toBeNull()
   })
   it('is null when nothing happened and nothing failed', () => {
@@ -76,6 +76,10 @@ describe('one thing', () => {
     expect(pickOneThing(input({ day: 1 }))).toEqual({ kind: 'activation', ...ACTIVATION_DOORS.a1 })
     expect(pickOneThing(input({ day: 1, activation: { ...NONE, a1: new Date() } }))).toEqual({ kind: 'activation', ...ACTIVATION_DOORS.a2 })
     expect(pickOneThing(input({ day: ONE_THING_DAYS }))).toBeNull()
+    // The A1 door asks them to bind the PMS; when that bind is ours, the ask
+    // would contradict the same email's "still on us" line (audit round 2).
+    expect(pickOneThing(input({ day: 2, pendingOnUs: [{ label: 'Connecting Eaglesoft', kind: 'pms' }] }))).toBeNull()
+    expect(pickOneThing(input({ day: 2, pendingOnUs: [{ label: 'Texting (carriers)', kind: 'sms' }] }))).toEqual({ kind: 'activation', ...ACTIVATION_DOORS.a1 })
     // The A3 door is the booking page, which only exists once the site is
     // live — a clinic whose site is still private is sent to put it live first.
     const a1a2 = { ...NONE, a1: new Date(), a2: new Date() }

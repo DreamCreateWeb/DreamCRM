@@ -28,6 +28,8 @@ import { FEATURE_SWITCHES, type FeatureKey } from '@/lib/feature-switches'
 import { getFeatureSwitchState } from '@/lib/services/feature-switches'
 import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
 import { hoursTo, median } from '@/lib/activation-metrics'
+import { machineWork } from '@/lib/standup-nouns'
+import { resolveTrialState } from '@/lib/trial'
 import type { ReadinessFact } from '@/lib/readiness'
 
 /**
@@ -63,6 +65,8 @@ export interface FirstWeekRow extends FirstWeekRowInput {
   goal: string | null
   facts: Array<{ id: string; label: string; grade: string; summary: string; href: string }>
   doors: { insurance: boolean; digest: boolean; siteLive: boolean; /** The S3 switches that are ON (audit round 1). */ switches: FeatureKey[] }
+  /** The profile row could not be read: the doors above are unknown, not closed (audit round 2). */
+  doorsUnreadable: boolean
   /** The clinic's own zone — the cockpit's dates are the clinic's days, not UTC's. */
   timeZone: string
   smsState: string | null
@@ -151,12 +155,14 @@ export async function readPendingOnUs(
     safe('pmsRequest', null, () => getPmsConnectRequest(organizationId)),
   ])
   const pendingOnUs: FirstWeekRowInput['pendingOnUs'] = []
-  if (pms && pms.status !== 'connected' && pms.status !== 'not_connected') pendingOnUs.push({ label: 'The PMS connection', since: pms.since })
+  if (pms && pms.status !== 'connected' && pms.status !== 'not_connected') pendingOnUs.push({ kind: 'pms', label: 'The PMS connection', since: pms.since })
   // The clinic asked (S4's front door) and nothing is bound yet: ours.
   const openRequest =
     pmsRequest && pms?.status !== 'connected' && (pmsRequest.status === 'requested' || pmsRequest.status === 'scheduled') ? pmsRequest : null
-  if (openRequest) pendingOnUs.push({ label: `Connecting ${pmsVendorLabel(openRequest.vendor, openRequest.vendorName)}`, since: openRequest.updatedAt })
-  if (sms && SMS_PENDING_ON_US.has(sms.state) && sms.since) pendingOnUs.push({ label: 'Texting (carriers)', since: sms.since })
+  // `since` is when the clinic ASKED (createdAt): a 'scheduled' answer must
+  // not restart the pending-on-us clock (audit round 2).
+  if (openRequest) pendingOnUs.push({ kind: 'pms', label: `Connecting ${pmsVendorLabel(openRequest.vendor, openRequest.vendorName)}`, since: openRequest.createdAt })
+  if (sms && SMS_PENDING_ON_US.has(sms.state) && sms.since) pendingOnUs.push({ kind: 'sms', label: 'Texting (carriers)', since: sms.since })
   return { pendingOnUs, openRequest }
 }
 
@@ -175,7 +181,18 @@ async function lastStaffSignIn(organizationId: string): Promise<Date | null> {
 }
 
 async function buildRow(
-  clinic: { orgId: string; name: string; slug: string; isDemo: boolean; createdAt: Date; patientCount: number; subscriptionStatus: string | null; billingMode?: string | null },
+  clinic: {
+    orgId: string
+    name: string
+    slug: string
+    isDemo: boolean
+    createdAt: Date
+    patientCount: number
+    subscriptionStatus: string | null
+    billingMode?: string | null
+    stripeSubscriptionId?: string | null
+    trialEndsAt?: Date | null
+  },
   now: Date,
 ): Promise<FirstWeekRow> {
   const since7 = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
@@ -209,17 +226,23 @@ async function buildRow(
   const facts = SHOWN_FACTS.map((id) => report?.facts.find((f) => f.id === id)).filter((f): f is ReadinessFact => !!f)
   const oldestOpen = open.reduce<Date | null>((acc, p) => (acc == null || p.createdAt < acc ? p.createdAt : acc), null)
 
+  const trial = resolveTrialState(
+    { trialEndsAt: clinic.trialEndsAt ?? null, subscriptionStatus: clinic.subscriptionStatus, stripeSubscriptionId: clinic.stripeSubscriptionId ?? null },
+    now,
+  )
   const input: FirstWeekRowInput = {
     createdAt: clinic.createdAt,
     facts: facts.map((f) => ({ id: f.id, grade: f.grade })),
     patientCount: clinic.patientCount,
-    workLast7: Object.values(work).reduce((a, b) => a + b, 0),
+    // The MACHINE's work: a staff member's own insurance checks are not "the machine did 3 things" (audit round 2).
+    workLast7: Object.values(machineWork(work)).reduce((a, b) => a + b, 0),
     openCards: open.length,
     oldestOpenCardAt: oldestOpen,
     lastStaffSignInAt: signIn,
     activation: mergeActivation(parseActivation(profile?.activation), activation ?? EMPTY_ACTIVATION),
     pendingOnUs,
-    digestOn: profile?.digest === 1,
+    digestOn: profile ? profile.digest === 1 : null,
+    trial: { onTrial: trial.onTrial, expired: trial.expired, daysLeft: trial.daysLeft },
   }
   return {
     ...input,
@@ -239,9 +262,10 @@ async function buildRow(
       siteLive: profile?.siteLive != null,
       switches: switches ? FEATURE_SWITCHES.filter((f) => f.key !== 'insurance' && switches[f.key]).map((f) => f.key) : [],
     },
+    doorsUnreadable: profile == null,
     timeZone,
     smsState: sms?.state ?? null,
-    pmsRequest: openRequest ? { vendor: pmsVendorLabel(openRequest.vendor, openRequest.vendorName), status: openRequest.status, at: openRequest.updatedAt } : null,
+    pmsRequest: openRequest ? { vendor: pmsVendorLabel(openRequest.vendor, openRequest.vendorName), status: openRequest.status, at: openRequest.createdAt } : null,
     progress: activationProgress(input.activation),
     stuck: stuckFlags(input, now),
   }

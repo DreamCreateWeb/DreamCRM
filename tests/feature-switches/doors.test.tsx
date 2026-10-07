@@ -141,6 +141,14 @@ describe('PaymentsIntroCard', () => {
     expect(screen.getByText('Finish setup in Stripe')).toBeInTheDocument()
   })
 
+  it('an unreadable Stripe state says so — never "not connected" with a Connect button (audit round 2)', () => {
+    render(<PaymentsIntroCard orgName="D" canManage stripe="unreadable" connectConfigured isDemo={false} />)
+    expect(screen.getByText('Couldn’t read Stripe just now')).toBeInTheDocument()
+    expect(screen.queryByText('Stripe not connected')).toBeNull()
+    expect(screen.queryByRole('link', { name: 'Connect Stripe' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Turn on Payments' })).toBeInTheDocument()
+  })
+
   it('no connect link for a member, the demo, or an installation without Connect', () => {
     const { unmount } = render(<PaymentsIntroCard orgName="D" canManage={false} stripe="none" connectConfigured isDemo={false} />)
     expect(screen.queryByRole('link', { name: 'Connect Stripe' })).toBeNull()

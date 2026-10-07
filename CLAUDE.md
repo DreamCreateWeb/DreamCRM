@@ -354,7 +354,7 @@ app/
 lib/
   db/schema/         auth.ts, platform.ts, clinic.ts (bulk), domain.ts, email.ts,
                      referrals.ts, index.ts
-  db/migrations/     drizzle; 0000–0174 applied to prod (auto-apply on deploy)
+  db/migrations/     drizzle; 0000–0175 applied to prod (auto-apply on deploy)
   auth/              server.ts, client.ts, context.ts (getTenantContext,
                      requireTenant/requireRole/requirePartner)
   services/          ~190 server-only modules (import 'server-only') — one per
@@ -841,7 +841,13 @@ sitemap/robots/OG.
   end-to-end; watch the Actions tab. `NEXT_PUBLIC_*` bake at build time.
 - **Migrations auto-apply on boot** (`scripts/db-migrate.mjs` → POST
   `/api/admin/migrate`; failure keeps the previous version serving). Latest
-  migration: **0174** (`appt_reminder_org_sent_idx` — an
+  migration: **0175** (`clinic_profile.doors_closed` jsonb — THE DOORS A
+  PERSON CLOSED: `{ my_day?: iso, … }`, written by "Turn off", cleared by
+  "Turn on"; the machine's openers (`openDoorsAtA1`, `openDoorsAtSiteLive`)
+  skip every key in it, so a repeat of the opening event — a PMS sync, the
+  daily reconcile, a site put back live — never reopens a door a clinic
+  shut; phase-audit round 2 of the activation program). Before it:
+  **0174** (`appt_reminder_org_sent_idx` — an
   `(organization_id, sent_at)` index on `appointment_reminder_log`; the
   activation reconcile's A2 read scanned the table per clinic without one
   — phase-audit round 1 of the activation program). Before it: **0173**
@@ -996,7 +1002,13 @@ sitemap/robots/OG.
    bundle gate); `FeatureGate` in each module's `layout.tsx` renders the
    generic intro off / the page + a root-path "Turn off" line on; A1
    opens My Day + Follow-ups, the go-live lever opens Inquiries; Dream
-   Team is day-one — the day-one SIX) → S4 the integrations hub's doors
+   Team is day-one — the day-one SIX. THE DOORS REMEMBER A CLOSE (audit
+   round 2, migration 0175 `doors_closed`): `disableFeature` records the
+   key, `enableFeature` clears it, and the MACHINE's openers skip it — so
+   they are called on every occurrence (every eligible kick, the daily
+   reconcile's A1, every go-live pull) and a door a clinic shut stays
+   shut; `openDoors`' coalesce alone could not tell a closed door from a
+   never-opened one) → S4 the integrations hub's doors
    (SHIPPED 2026-10-06: the catalog's texting card is `live` → "Set up
    texting"; the PMS bridge is `live`/`connectKind: 'pms'` with the four
    roadmap tiles folded under it; `/integrations/pms` is the intro + ONE

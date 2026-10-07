@@ -15,6 +15,9 @@ vi.mock('@/lib/db/schema/clinic', () => ({
   patient: {},
 }))
 vi.mock('@/lib/utils', () => ({ newId: () => 'id', slugify: (s: string) => s }))
+// OFF UNTIL CHOSEN (audit round 2): the switch gates what rides a confirmation.
+const switches = { intake_forms: true }
+vi.mock('@/lib/services/feature-switches', () => ({ getFeatureSwitchState: async () => ({ ...switches }) }))
 
 import { getBookingIntakeForm } from '@/lib/services/forms'
 
@@ -24,11 +27,20 @@ function form(over: Record<string, unknown>) {
 
 beforeEach(() => {
   forms = []
+  switches.intake_forms = true
 })
 
 describe('getBookingIntakeForm', () => {
   it('returns null when there are no forms', async () => {
     expect(await getBookingIntakeForm('org_1', true)).toBeNull()
+  })
+
+  it('sends NOTHING while the Intake Forms door is closed — even the seeded default (docs/ACTIVATION.md law 1, audit round 2)', async () => {
+    forms = [form({ id: 'intake', autoSendAudience: 'all', isDefault: 1 })]
+    switches.intake_forms = false
+    expect(await getBookingIntakeForm('org_1', true)).toBeNull()
+    switches.intake_forms = true
+    expect((await getBookingIntakeForm('org_1', true))?.id).toBe('intake')
   })
 
   it('returning patient gets the returning-audience form over the all/default', async () => {

@@ -9,6 +9,9 @@ import { CONNECT_BACK_PATHS, resolveConnectBack } from '@/lib/types/shop-connect
 describe('resolveConnectBack', () => {
   it('accepts only the known doors and falls back to the shop', () => {
     expect(resolveConnectBack('payments')).toBe('payments')
+    // An inherited name is not an allowlisted key (audit round 2).
+    expect(resolveConnectBack('constructor')).toBe('shop')
+    expect(resolveConnectBack('toString')).toBe('shop')
     expect(resolveConnectBack('integrations')).toBe('integrations')
     expect(resolveConnectBack('shop')).toBe('shop')
     expect(resolveConnectBack('//evil.example')).toBe('shop')

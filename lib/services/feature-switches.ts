@@ -7,6 +7,7 @@ import {
   FEATURE_BY_KEY,
   FEATURE_SWITCHES,
   doorsOpenedBy,
+  parseDoorsClosed,
   type FeatureKey,
   type FeatureSwitchState,
 } from '@/lib/feature-switches'
@@ -62,19 +63,45 @@ export const getFeatureSwitchState = cache(async (organizationId: string): Promi
   }
 })
 
+/** The doors a person closed, read beside the switches. Never throws (an unreadable memory reads as none closed). */
+async function readDoorsClosed(organizationId: string): Promise<Partial<Record<FeatureKey, string>>> {
+  try {
+    const [row] = await db
+      .select({ doorsClosed: schema.clinicProfile.doorsClosed })
+      .from(schema.clinicProfile)
+      .where(eq(schema.clinicProfile.organizationId, organizationId))
+      .limit(1)
+    return parseDoorsClosed(row?.doorsClosed)
+  } catch (e) {
+    console.error('[feature-switches] doors_closed read failed:', e)
+    return {}
+  }
+}
+
 /**
  * Open doors: every named column is set ONLY where it is still null, in one
  * statement (`coalesce`), so an open door's stamp never moves. A CLOSED door
- * is a null column too, so this WILL reopen one — which is why the callers
- * that act on an activation event (the A1 kick, the go-live lever) call it
- * on the FIRST occurrence of that event only (audit round 1): a door a
- * clinic closed on purpose is never reopened by a repeat of the same event.
- * Returns the keys that were actually opened by this call.
+ * is a null column too — so THE MACHINE's openers (the A1 kick, the daily
+ * reconcile, the go-live lever) skip every key in `doors_closed`, the memory
+ * a person's "Turn off" writes (audit round 2: round 1's "first occurrence
+ * only" guards were defeated by the events repeating from a null state —
+ * take the site offline and put it back, or stamp A1 from the daily pass).
+ * A PERSON's open (`enableFeature`) passes `honorClosed: false` and clears
+ * the memory. Returns the keys that were actually opened by this call.
  */
-export async function openDoors(organizationId: string, keys: readonly FeatureKey[], now: Date = new Date()): Promise<FeatureKey[]> {
+export async function openDoors(
+  organizationId: string,
+  keys: readonly FeatureKey[],
+  now: Date = new Date(),
+  opts: { honorClosed?: boolean } = {},
+): Promise<FeatureKey[]> {
   if (keys.length === 0) return []
-  const before = await readFeatureSwitchState(organizationId)
-  const toOpen = keys.filter((k) => !before[k])
+  const honorClosed = opts.honorClosed ?? true
+  const [before, closed] = await Promise.all([
+    readFeatureSwitchState(organizationId),
+    honorClosed ? readDoorsClosed(organizationId) : Promise.resolve({} as Partial<Record<FeatureKey, string>>),
+  ])
+  const toOpen = keys.filter((k) => !before[k] && !(honorClosed && closed[k]))
   if (toOpen.length === 0) return []
   const iso = now.toISOString()
   const patch: Record<string, unknown> = {}
@@ -82,28 +109,40 @@ export async function openDoors(organizationId: string, keys: readonly FeatureKe
     const col = schema.clinicProfile[FEATURE_BY_KEY[k].column]
     patch[FEATURE_BY_KEY[k].column] = sql`coalesce(${col}, ${iso}::timestamp)`
   }
+  if (!honorClosed) {
+    // A person opened it: the close is forgotten, so the machine may keep it open.
+    patch.doorsClosed = sql`coalesce(${schema.clinicProfile.doorsClosed}, '{}'::jsonb) - ${toOpen}::text[]`
+  }
   await db.update(schema.clinicProfile).set(patch).where(eq(schema.clinicProfile.organizationId, organizationId))
   return toOpen
 }
 
-/** A person turning a feature on from its intro. Idempotent. */
+/** A person turning a feature on from its intro. Idempotent; forgets an earlier close. */
 export async function enableFeature(organizationId: string, key: FeatureKey, now: Date = new Date()): Promise<void> {
-  await openDoors(organizationId, [key], now)
+  await openDoors(organizationId, [key], now, { honorClosed: false })
 }
 
-/** A person turning a feature off. Nothing is deleted; the door closes. */
-export async function disableFeature(organizationId: string, key: FeatureKey): Promise<void> {
+/**
+ * A person turning a feature off. Nothing is deleted; the door closes, and
+ * the close is REMEMBERED in `doors_closed` so no activation event reopens
+ * it (audit round 2).
+ */
+export async function disableFeature(organizationId: string, key: FeatureKey, now: Date = new Date()): Promise<void> {
   const column = FEATURE_BY_KEY[key].column
   await db
     .update(schema.clinicProfile)
-    .set({ [column]: null })
+    .set({
+      [column]: null,
+      doorsClosed: sql`coalesce(${schema.clinicProfile.doorsClosed}, '{}'::jsonb) || jsonb_build_object(${key}::text, to_jsonb(${now.toISOString()}::text))`,
+    })
     .where(eq(schema.clinicProfile.organizationId, organizationId))
 }
 
 /**
- * A1 — data connected (the day-one kick's first stamp): the doors that
- * only make sense with patients behind them open on their own. Never
- * throws: the kick that calls it is itself behind an import.
+ * A1 — data connected: the doors that only make sense with patients behind
+ * them open on their own. Safe to call on EVERY A1 occurrence (a kick, the
+ * daily reconcile): a door a person closed stays closed. Never throws: the
+ * kick that calls it is itself behind an import.
  */
 export async function openDoorsAtA1(organizationId: string, now: Date = new Date()): Promise<FeatureKey[]> {
   try {
@@ -114,7 +153,7 @@ export async function openDoorsAtA1(organizationId: string, now: Date = new Date
   }
 }
 
-/** The site went live: the door that fills from the site opens. Never throws. */
+/** The site went live: the door that fills from the site opens (a person's close is honored). Never throws. */
 export async function openDoorsAtSiteLive(organizationId: string, now: Date = new Date()): Promise<FeatureKey[]> {
   try {
     return await openDoors(organizationId, doorsOpenedBy('site_live'), now)

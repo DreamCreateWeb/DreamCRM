@@ -93,7 +93,7 @@ export default async function PmsDetailPage() {
                     bestTime: request.bestTime,
                     notes: request.notes,
                     status: request.status,
-                    updatedAtIso: request.updatedAt.toISOString(),
+                    requestedAtIso: request.createdAt.toISOString(),
                   }
                 : null
             }

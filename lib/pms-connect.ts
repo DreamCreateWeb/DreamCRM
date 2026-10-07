@@ -120,7 +120,7 @@ export function describePmsConnectStatus(status: PmsConnectStatus, vendorLabel: 
     case 'closed':
       return {
         pill: 'Not connected',
-        sentence: `We couldn’t connect ${vendorLabel} this time. Write to Support if anything has changed and we’ll pick it back up.`,
+        sentence: `${vendorLabel} isn’t connected right now. Ask again below whenever you’re ready and we’ll pick it back up — or write to Support.`,
       }
   }
 }

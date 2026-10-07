@@ -142,7 +142,7 @@ export const FEATURE_SWITCHES: readonly FeatureSwitchDef[] = [
     know: [
       'A patient’s answers land on their record; the card photo stays as a document.',
       'The summary and the card reading use an AI service without a signed BAA — the same posture as the rest of the app.',
-      'Auto-send is off until you turn it on inside the module.',
+      'Nothing goes to patients until you turn this on — from then, every booking confirmation carries the link.',
     ],
     autoOpen: null,
   },
@@ -236,6 +236,21 @@ export const ALL_ON: FeatureSwitchState = Object.fromEntries(FEATURE_SWITCHES.ma
 
 /** Every door closed — what a new clinic meets. */
 export const ALL_OFF: FeatureSwitchState = Object.fromEntries(FEATURE_SWITCHES.map((f) => [f.key, false])) as FeatureSwitchState
+
+/**
+ * The doors a PERSON closed (`clinic_profile.doors_closed`, audit round 2):
+ * key → the ISO instant of the close. Untrusted jsonb in, only known keys
+ * with string values out; anything else is an empty memory.
+ */
+export function parseDoorsClosed(raw: unknown): Partial<Record<FeatureKey, string>> {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {}
+  const out: Partial<Record<FeatureKey, string>> = {}
+  for (const f of FEATURE_SWITCHES) {
+    const v = (raw as Record<string, unknown>)[f.key]
+    if (typeof v === 'string' && v) out[f.key] = v
+  }
+  return out
+}
 
 /**
  * Split a module list into the modules that show (day-one modules and

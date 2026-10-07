@@ -246,7 +246,7 @@ export async function readMorningAfter(organizationId: string, createdAt: Date, 
       openCards: cards.map((c) => ({ title: c.title })),
       openCardsTotal: cardsTotal ?? undefined,
       siteLive: site ? site.siteLiveAt != null : undefined,
-      pendingOnUs: pendingOnUs.map((p) => ({ label: p.label })),
+      pendingOnUs: pendingOnUs.map((p) => ({ label: p.label, kind: p.kind })),
       attention: (report?.attention ?? []).map((f) => ({ label: f.label, summary: f.summary, href: f.href })),
     })
   } catch (e) {

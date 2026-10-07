@@ -31,6 +31,8 @@ export const STUCK = {
   pendingOnUsDays: 5,
   /** The morning email still off by this day — the day-two email (law 6) can't arrive. */
   digestOffByDay: 1,
+  /** Trial ending within this many days with no data yet — the week is over before it started. */
+  trialEndingDays: 2,
 } as const
 
 export interface FirstWeekRowInput {
@@ -45,9 +47,16 @@ export interface FirstWeekRowInput {
   lastStaffSignInAt: Date | null
   activation: Activation
   /** Doors pending on the platform: the PMS bind request, the SMS carrier wait. */
-  pendingOnUs: Array<{ label: string; since: Date }>
-  /** The morning email switch (S7): off means day two arrives silent. */
-  digestOn: boolean
+  pendingOnUs: Array<{ kind: 'pms' | 'sms'; label: string; since: Date }>
+  /** The morning email switch (S7): off means day two arrives silent. null = the row could not be read (unknown, never a flag). */
+  digestOn: boolean | null
+  /**
+   * The trial IS the first week (lib/trial.ts TRIAL_DAYS = 7, and expiry
+   * shuts the clinic down — owner ruling 2026-08-10). Part 5 asks for it
+   * beside Day N (audit round 2 gap): `expired` = behind the wall, where the
+   * next move is billing, not the PMS.
+   */
+  trial: { onTrial: boolean; expired: boolean; daysLeft: number | null }
 }
 
 const DAY = 24 * 60 * 60 * 1000
@@ -79,6 +88,15 @@ export function stuckFlags(row: FirstWeekRowInput, now: Date): string[] {
   const out: string[] = []
   const day = dayNumber(row.createdAt, now)
   const hasData = row.activation.a1 != null
+  // Behind the wall: nothing below this line can happen until billing does,
+  // so it comes first and the PMS flag stands down.
+  if (row.trial.expired) {
+    out.push('Trial ended and no card — they are behind the wall. The next move is billing, not the PMS.')
+    return out
+  }
+  if (row.trial.onTrial && row.trial.daysLeft != null && row.trial.daysLeft <= STUCK.trialEndingDays && !hasData) {
+    out.push(`Trial ends in ${row.trial.daysLeft} ${row.trial.daysLeft === 1 ? 'day' : 'days'} and there is no data yet — the week is over before it started; call today.`)
+  }
   if (!hasData && day >= STUCK.noDataByDay) {
     out.push(`No data by day ${day} — call about the PMS, or send the patient CSV.`)
   }
@@ -106,7 +124,8 @@ export function stuckFlags(row: FirstWeekRowInput, now: Date): string[] {
   // the call promised — the setup call's fourth beat was skipped.
   // Only while the clinic is in its first month: a settled practice that
   // never wanted the email is a choice, not a reason to call (audit round 1).
-  if (!row.digestOn && day >= STUCK.digestOffByDay && day < SETTLED_DAY) {
+  // `null` is an unread row, not an off switch (audit round 2).
+  if (row.digestOn === false && day >= STUCK.digestOffByDay && day < SETTLED_DAY) {
     out.push('The morning email is off — nothing arrives on day two. Turn it on (Settings → Notifications) at the call.')
   }
   return out

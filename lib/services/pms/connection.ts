@@ -147,6 +147,14 @@ export async function disconnectPms(organizationId: string): Promise<void> {
     .update(schema.pmsConnection)
     .set({ status: 'not_connected', customerKeyEncrypted: null, lastError: null, updatedAt: new Date() })
     .where(eq(schema.pmsConnection.organizationId, organizationId))
+  // The connect request mirrors the bridge (audit round 2): a request the
+  // bind marked 'connected' must not keep saying so. Best-effort.
+  try {
+    const { closeConnectedPmsRequest } = await import('@/lib/services/pms-connect')
+    await closeConnectedPmsRequest(organizationId)
+  } catch (e) {
+    console.warn('[pms] connect request not closed on disconnect', e)
+  }
 }
 
 /**

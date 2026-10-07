@@ -17,7 +17,8 @@ export default function PaymentsIntroCard({
   orgName: string
   canManage: boolean
   /** ready = charges enabled; pending = connected but not finished in Stripe; none = not connected. */
-  stripe: 'ready' | 'pending' | 'none'
+  /** 'unreadable' = the Stripe state could not be read just now (never shown as "not connected"). */
+  stripe: 'ready' | 'pending' | 'none' | 'unreadable'
   /** Stripe Connect is configured on this installation (the connect link works). */
   connectConfigured: boolean
   isDemo: boolean
@@ -30,6 +31,11 @@ export default function PaymentsIntroCard({
           <>
             <StatusPill tone="ok" label="Stripe connected" />
             <span className="text-gray-700 dark:text-gray-200">Your account can take payments — payouts land in your bank.</span>
+          </>
+        ) : stripe === 'unreadable' ? (
+          <>
+            <StatusPill tone="neutral" label="Couldn’t read Stripe just now" />
+            <span className="text-gray-700 dark:text-gray-200">Your Stripe state didn’t load — try again in a moment. Turning on doesn’t change it.</span>
           </>
         ) : stripe === 'pending' ? (
           <>

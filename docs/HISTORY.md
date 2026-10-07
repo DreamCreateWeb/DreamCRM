@@ -5915,3 +5915,17 @@ owner-reachable switch, the intake door rebuilds the untouched seeded
 form in place instead of skipping the picker, unreadable reads say so
 instead of reading as "none", and migration 0174 indexes the reminder
 log per clinic. Full ledger in docs/ACTIVATION.md Part 7.
+
+**2026-10-07 — THE FIRST WEEK: phase audit, round 2 fixed.** 27 confirmed
+defects (14 distinct), half of them in round 1's own corrections, one gap.
+The doors now REMEMBER a human close (migration 0175 `doors_closed`) so the
+machine's openers are safe on every occurrence — the daily reconcile
+opens the A1 doors, the kick offers them on every eligible import, the
+go-live lever on every pull — and a door a clinic shut stays shut; A1's
+Google instant is the GBP account's connect, not the first attempt; one
+unread rail no longer freezes a wrong stamp; a PMS disconnect closes the
+connect request and the door offers to ask again; the seeded intake form
+rides no confirmation while the door is closed; the digest stops asking
+for a bind that is ours; the 48h share judges only clinics old enough; and
+the cockpit carries the TRIAL — behind the wall is the first flag. Ledger
+in docs/ACTIVATION.md Part 7.

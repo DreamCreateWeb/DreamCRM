@@ -18,6 +18,8 @@ const state = {
   /** Every stamp write: [set-fragment present, where present] — captured by table order. */
   updates: [] as Array<{ table: unknown }>,
   selectThrows: false,
+  /** Tables whose read throws — one unread rail, the rest fine. */
+  throwTables: new Set<unknown>(),
 }
 
 vi.mock('@/lib/db', async () => {
@@ -27,7 +29,7 @@ vi.mock('@/lib/db', async () => {
     let table: unknown = null
     obj.from = (t: unknown) => {
       table = t
-      if (state.selectThrows) throw new Error('db down')
+      if (state.selectThrows || state.throwTables.has(t)) throw new Error('db down')
       return obj
     }
     obj.innerJoin = () => obj
@@ -57,6 +59,8 @@ vi.mock('@/lib/db', async () => {
   }
   return { schema, db: { select: () => chain(), update } }
 })
+const openDoorsAtA1 = vi.fn(async () => ['my_day', 'followups'])
+vi.mock('@/lib/services/feature-switches', () => ({ openDoorsAtA1: (...a: unknown[]) => openDoorsAtA1(...(a as [])) }))
 vi.mock('@/lib/services/cron-sweep', () => ({
   sweepClinics: async (_job: string, items: unknown[], _id: unknown, each: (i: unknown) => Promise<void>) => {
     for (const i of items) await each(i)
@@ -64,13 +68,15 @@ vi.mock('@/lib/services/cron-sweep', () => ({
   },
 }))
 
-import { getActivationMetrics, reconcileActivation, reconcileActivationStamps } from '@/lib/services/activation'
+import { getActivationMetrics, reconcileActivation, reconcileActivationDetailed, reconcileActivationStamps } from '@/lib/services/activation'
 import { schema } from '@/lib/db'
 
 beforeEach(() => {
   state.rows.clear()
   state.updates = []
   state.selectThrows = false
+  state.throwTables.clear()
+  openDoorsAtA1.mockClear()
   vi.spyOn(console, 'error').mockImplementation(() => {})
 })
 
@@ -90,6 +96,24 @@ describe('reconcileActivation', () => {
     state.rows.set(schema.patientMessage, [{ at: daysAgo(4) }])
     expect(await reconcileActivation('org_a', NOW)).toEqual(['a2'])
     expect(state.updates).toHaveLength(1)
+  })
+
+  it('ONE unread rail leaves its key unstamped (the others still land) and names it incomplete — unreadable ≠ empty (audit round 2)', async () => {
+    state.rows.set(schema.clinicProfile, [{ activation: null }])
+    state.rows.set(schema.patientMessage, [{ at: daysAgo(2) }])
+    state.rows.set(schema.formSubmission, [{ at: daysAgo(1) }])
+    state.throwTables.add(schema.appointmentReminderLog)
+    const r = await reconcileActivationDetailed('org_a', NOW)
+    expect(r.stamped).toEqual(['a5'])
+    expect(r.incomplete).toEqual(['a2'])
+    expect(state.updates).toHaveLength(1)
+  })
+
+  it('A1 from Google is the GBP ACCOUNT’s connect instant, not the connection row minted at the first attempt', async () => {
+    state.rows.set(schema.clinicProfile, [{ activation: null }])
+    state.rows.set(schema.zernioConnection, [{ at: daysAgo(9) }])
+    state.rows.set(schema.zernioAccount, [{ at: daysAgo(3) }])
+    expect(await reconcileActivation('org_a', NOW)).toEqual(['a1'])
   })
 
   it('does nothing when every key is stamped — no rail is read', async () => {
@@ -121,6 +145,16 @@ describe('reconcileActivationStamps', () => {
     expect(r.scanned).toBe(1)
     expect(r.stamped).toEqual({ a1: 0, a2: 0, a3: 0, a4: 1, a5: 0 })
     expect(r.errors).toBe(0)
+    expect(openDoorsAtA1).not.toHaveBeenCalled()
+  })
+
+  it('an A1 the daily pass stamps opens the A1 doors too (audit round 2)', async () => {
+    state.rows.set(schema.organization, [{ orgId: 'org_a', activation: null }])
+    state.rows.set(schema.clinicProfile, [{ activation: null }])
+    state.rows.set(schema.pmsConnection, [{ at: daysAgo(3) }])
+    const r = await reconcileActivationStamps({ now: NOW })
+    expect(r.stamped.a1).toBe(1)
+    expect(openDoorsAtA1).toHaveBeenCalledWith('org_a', NOW)
   })
 })
 

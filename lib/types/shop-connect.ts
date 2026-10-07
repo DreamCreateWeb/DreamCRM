@@ -10,5 +10,6 @@ export const CONNECT_BACK_PATHS = { shop: '/shop', payments: '/payments', integr
 export type ConnectBack = keyof typeof CONNECT_BACK_PATHS
 
 export function resolveConnectBack(raw: unknown): ConnectBack {
-  return typeof raw === 'string' && raw in CONNECT_BACK_PATHS ? (raw as ConnectBack) : 'shop'
+  // `Object.hasOwn`, not `in`: an inherited name ('constructor') must not pass an allowlist.
+  return typeof raw === 'string' && Object.hasOwn(CONNECT_BACK_PATHS, raw) ? (raw as ConnectBack) : 'shop'
 }

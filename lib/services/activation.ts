@@ -5,6 +5,7 @@ import { ACTIVATION_KEYS, earliestOf, parseActivation, type Activation, type Act
 import { A1_PATIENT_FLOOR } from '@/lib/first-week'
 import { COHORT_DAYS, computeActivationMetrics, type ActivationMetrics } from '@/lib/activation-metrics'
 import { sweepClinics } from '@/lib/services/cron-sweep'
+import { openDoorsAtA1 } from '@/lib/services/feature-switches'
 import type { SweepProgress } from '@/lib/cron-budget'
 
 /**
@@ -59,12 +60,16 @@ export async function getActivationStamps(organizationId: string): Promise<Activ
 /** Bookings that came THROUGH us (not typed in by staff, not mirrored from the PMS). */
 const OUR_BOOKING_SOURCES = ['booking_widget', 'recall_campaign', 'invite', 'portal']
 
-async function safe<T>(label: string, fallback: T, read: () => Promise<T>): Promise<T> {
-  try {
-    return await read()
-  } catch (e) {
-    console.error(`[activation] ${label} failed:`, e)
-    return fallback
+/** A failed rail read is recorded by its KEY, so a key with any unread source is never stamped from the rest (audit round 2). */
+function safeFor(failed: Set<ActivationKey>) {
+  return async function safe<T>(key: ActivationKey, label: string, fallback: T, read: () => Promise<T>): Promise<T> {
+    try {
+      return await read()
+    } catch (e) {
+      console.error(`[activation] ${label} failed:`, e)
+      failed.add(key)
+      return fallback
+    }
   }
 }
 
@@ -76,9 +81,21 @@ async function earliest(read: () => Promise<Array<{ at: Date | string | null }>>
 
 /** The five activation events, each the FIRST time it happened, read from the rails that already record it. */
 export async function readActivation(organizationId: string): Promise<Activation> {
+  return (await readActivationDetailed(organizationId)).activation
+}
+
+/**
+ * The derived read plus WHICH KEYS had a source that could not be read:
+ * "unreadable ≠ empty" — a key with one unread rail is incomplete, and the
+ * reconcile skips it rather than freezing a later instant in through the
+ * write-once guard (audit round 2).
+ */
+export async function readActivationDetailed(organizationId: string): Promise<{ activation: Activation; incomplete: ActivationKey[] }> {
   const ev = schema.campaignEvents
+  const failed = new Set<ActivationKey>()
+  const safe = safeFor(failed)
   const [pmsAt, gbpAt, patientFloorAt, reminderAt, campaignAt, staffMessageAt, bookingAt, reviewAt, formAt] = await Promise.all([
-    safe('a1.pms', null, () =>
+    safe('a1', 'a1.pms', null, () =>
       earliest(() =>
         db
           .select({ at: min(schema.pmsConnection.createdAt) })
@@ -87,16 +104,19 @@ export async function readActivation(organizationId: string): Promise<Activation
           .limit(1),
       ),
     ),
-    safe('a1.gbp', null, () =>
+    // The Google connect's own instant is the GBP ACCOUNT row's connectedAt
+    // (audit round 2): the zernio_connection row is minted at the start of
+    // ANY connect attempt, social included, days before the OAuth finishes.
+    safe('a1', 'a1.gbp', null, () =>
       earliest(() =>
         db
-          .select({ at: min(schema.zernioConnection.createdAt) })
-          .from(schema.zernioConnection)
-          .where(and(eq(schema.zernioConnection.organizationId, organizationId), eq(schema.zernioConnection.status, 'connected')))
+          .select({ at: min(schema.zernioAccount.connectedAt) })
+          .from(schema.zernioAccount)
+          .where(and(eq(schema.zernioAccount.organizationId, organizationId), eq(schema.zernioAccount.platform, 'googlebusiness')))
           .limit(1),
       ),
     ),
-    safe('a1.patients', null, () =>
+    safe('a1', 'a1.patients', null, () =>
       earliest(() =>
         db
           .select({ at: schema.patient.createdAt })
@@ -107,7 +127,7 @@ export async function readActivation(organizationId: string): Promise<Activation
           .limit(1),
       ),
     ),
-    safe('a2.reminders', null, () =>
+    safe('a2', 'a2.reminders', null, () =>
       earliest(() =>
         db
           .select({ at: min(schema.appointmentReminderLog.sentAt) })
@@ -116,7 +136,7 @@ export async function readActivation(organizationId: string): Promise<Activation
           .limit(1),
       ),
     ),
-    safe('a2.campaigns', null, () =>
+    safe('a2', 'a2.campaigns', null, () =>
       earliest(() =>
         db
           .select({ at: min(ev.occurredAt) })
@@ -128,7 +148,7 @@ export async function readActivation(organizationId: string): Promise<Activation
     ),
     // Part 3: "any channel, any sender incl. the machine" — a staff reply
     // from /messages is a first message too (audit round 1).
-    safe('a2.messages', null, () =>
+    safe('a2', 'a2.messages', null, () =>
       earliest(() =>
         db
           .select({ at: min(schema.patientMessage.sentAt) })
@@ -137,7 +157,7 @@ export async function readActivation(organizationId: string): Promise<Activation
           .limit(1),
       ),
     ),
-    safe('a3', null, () =>
+    safe('a3', 'a3', null, () =>
       earliest(() =>
         db
           .select({ at: min(schema.appointment.createdAt) })
@@ -146,7 +166,7 @@ export async function readActivation(organizationId: string): Promise<Activation
           .limit(1),
       ),
     ),
-    safe('a4', null, () =>
+    safe('a4', 'a4', null, () =>
       earliest(() =>
         db
           .select({ at: min(schema.reviewRequest.sentAt) })
@@ -155,7 +175,7 @@ export async function readActivation(organizationId: string): Promise<Activation
           .limit(1),
       ),
     ),
-    safe('a5', null, () =>
+    safe('a5', 'a5', null, () =>
       earliest(() =>
         db
           .select({ at: min(schema.formSubmission.submittedAt) })
@@ -166,11 +186,14 @@ export async function readActivation(organizationId: string): Promise<Activation
     ),
   ])
   return {
-    a1: earliestOf(pmsAt, gbpAt, patientFloorAt),
-    a2: earliestOf(reminderAt, campaignAt, staffMessageAt),
-    a3: bookingAt,
-    a4: reviewAt,
-    a5: formAt,
+    activation: {
+      a1: earliestOf(pmsAt, gbpAt, patientFloorAt),
+      a2: earliestOf(reminderAt, campaignAt, staffMessageAt),
+      a3: bookingAt,
+      a4: reviewAt,
+      a5: formAt,
+    },
+    incomplete: ACTIVATION_KEYS.filter((k) => failed.has(k)),
   }
 }
 
@@ -192,21 +215,30 @@ export async function readActivation(organizationId: string): Promise<Activation
  * predates stamping for free.
  */
 export async function reconcileActivation(organizationId: string, now: Date = new Date()): Promise<ActivationKey[]> {
+  return (await reconcileActivationDetailed(organizationId, now)).stamped
+}
+
+/** The reconcile plus the keys it could NOT judge (a source unread) — the kick reads this so it never stamps "now" over an unread rail. */
+export async function reconcileActivationDetailed(
+  organizationId: string,
+  now: Date = new Date(),
+): Promise<{ stamped: ActivationKey[]; incomplete: ActivationKey[] }> {
   try {
     const stamps = await getActivationStamps(organizationId)
     const missing = ACTIVATION_KEYS.filter((k) => stamps[k] == null)
-    if (missing.length === 0) return []
-    const derived = await readActivation(organizationId)
+    if (missing.length === 0) return { stamped: [], incomplete: [] }
+    const { activation: derived, incomplete } = await readActivationDetailed(organizationId)
     const stamped: ActivationKey[] = []
     for (const key of missing) {
+      if (incomplete.includes(key)) continue
       const at = derived[key]
       if (!at || at.getTime() > now.getTime()) continue
       if (await stampActivation(organizationId, key, at)) stamped.push(key)
     }
-    return stamped
+    return { stamped, incomplete }
   } catch (e) {
     console.error('[activation] reconcile failed:', e)
-    return []
+    return { stamped: [], incomplete: [...ACTIVATION_KEYS] }
   }
 }
 
@@ -239,7 +271,12 @@ export async function reconcileActivationStamps(opts: { now?: Date } = {}): Prom
     (r) => r.orgId,
     async (r) => {
       scanned++
-      for (const k of await reconcileActivation(r.orgId, now)) stamped[k]++
+      const keys = await reconcileActivation(r.orgId, now)
+      for (const k of keys) stamped[k]++
+      // A1 reached through the daily pass opens the A1 doors too (audit
+      // round 2: the kick was the only caller, so a roster that crossed the
+      // floor by bookings never got My Day / Follow-ups). Honors a close.
+      if (keys.includes('a1')) await openDoorsAtA1(r.orgId, now)
     },
     { onError: () => { errors++ } },
   )

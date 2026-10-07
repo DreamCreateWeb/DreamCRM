@@ -33,7 +33,8 @@ export interface ConnectRequestView {
   bestTime: string | null
   notes: string | null
   status: PmsConnectStatus
-  updatedAtIso: string
+  /** When the clinic ASKED (the row's createdAt) — a status answer never re-dates the ask (audit round 2). */
+  requestedAtIso: string
 }
 
 export default function PmsConnectRequest({
@@ -105,7 +106,7 @@ function StatusCard({ request, canManage, onEdit }: { request: ConnectRequestVie
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <StatusPill tone={tone} label={pill} />
         <span className="text-xs text-gray-500 dark:text-gray-400">
-          Asked {new Date(request.updatedAtIso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+          Asked {new Date(request.requestedAtIso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
         </span>
       </div>
       <p className="mt-3 text-sm text-gray-800 dark:text-gray-100 leading-relaxed">{sentence}</p>
@@ -118,7 +119,7 @@ function StatusCard({ request, canManage, onEdit }: { request: ConnectRequestVie
       </dl>
       {canManage && request.status !== 'connected' && (
         <button type="button" onClick={onEdit} className="mt-4 text-xs text-gray-500 dark:text-gray-400 hover:underline">
-          Update what you told us
+          {request.status === 'closed' ? 'Ask us to connect it again' : 'Update what you told us'}
         </button>
       )}
     </div>

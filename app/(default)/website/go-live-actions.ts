@@ -50,20 +50,17 @@ export async function goLiveAction(): Promise<GoLiveResult> {
   const g = await gate()
   if (!g.ok) return g
   try {
-    const [before] = await db
-      .select({ siteLiveAt: clinicProfile.siteLiveAt })
-      .from(clinicProfile)
-      .where(eq(clinicProfile.organizationId, g.organizationId))
-      .limit(1)
     await db
       .update(clinicProfile)
       .set({ siteLiveAt: new Date(), updatedAt: new Date() })
       .where(eq(clinicProfile.organizationId, g.organizationId))
     // The site is live, so the door that fills FROM the site opens
-    // (Inquiries — docs/ACTIVATION.md S3) — the FIRST time only. A site
-    // taken offline and put back must not reopen a door the clinic closed
-    // in between (audit round 1). Never throws.
-    if (!before?.siteLiveAt) await openDoorsAtSiteLive(g.organizationId)
+    // (Inquiries — docs/ACTIVATION.md S3). A site taken offline and put
+    // back must not reopen a door the clinic closed in between: that is the
+    // opener's own law now (`doors_closed`, audit round 2 — round 1's
+    // "first time only" read `siteLiveAt`, which take-offline nulls, so the
+    // guard was true again on every re-pull). Never throws.
+    await openDoorsAtSiteLive(g.organizationId)
     revalidateSite(g.organizationId, g.slug)
     return { ok: true }
   } catch {

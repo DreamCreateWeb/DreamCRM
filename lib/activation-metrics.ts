@@ -86,12 +86,16 @@ export function computeActivationMetrics(rows: ActivationCohortRow[], now: Date,
     return { key: e.key, label: e.label, short: e.short, reached: hours.length, medianHours: median(hours) }
   })
   const within = cohort.filter((r) => r.activation.a1 != null && hoursTo(r.createdAt, r.activation.a1) <= A1_TARGET_HOURS).length
+  // The share's denominator is the clinics the line can JUDGE: those that
+  // reached A1, or have been around the full 48 hours without it. A signup
+  // from this morning is undecided, not a miss (audit round 2).
+  const decided = cohort.filter((r) => r.activation.a1 != null || (now.getTime() - r.createdAt.getTime()) / HOUR >= A1_TARGET_HOURS).length
   const noDataPastDue = cohort.filter((r) => r.activation.a1 == null && (now.getTime() - r.createdAt.getTime()) / (24 * HOUR) >= STUCK.noDataByDay).length
   return {
     cohortDays,
     clinics: cohort.length,
     events,
-    a1Within: { reached: within, share: cohort.length > 0 ? within / cohort.length : null },
+    a1Within: { reached: within, share: decided > 0 ? within / decided : null },
     noDataPastDue,
   }
 }

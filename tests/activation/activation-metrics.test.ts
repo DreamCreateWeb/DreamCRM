@@ -56,10 +56,16 @@ describe('computeActivationMetrics', () => {
     const a2 = m.events.find((e) => e.key === 'a2')!
     expect(a2).toMatchObject({ reached: 1, medianHours: 24 })
     expect(m.events.find((e) => e.key === 'a5')).toMatchObject({ reached: 0, medianHours: null })
-    expect(m.a1Within).toEqual({ reached: 1, share: 0.25 })
+    // The day-1 clinic without A1 is undecided, not a miss: 1 of 3 judged (audit round 2).
+    expect(m.a1Within).toEqual({ reached: 1, share: 1 / 3 })
     expect(m.noDataPastDue).toBe(1)
     expect(STUCK.noDataByDay).toBe(3)
     expect(A1_TARGET_HOURS).toBe(48)
+  })
+  it('a cohort of fresh signups alone has no 48h share yet — null, not 0%', () => {
+    const m = computeActivationMetrics([row(2), row(20)], NOW)
+    expect(m.a1Within).toEqual({ reached: 0, share: null })
+    expect(computeActivationMetrics([row(2, { a1: ago(1) }), row(20)], NOW).a1Within).toEqual({ reached: 1, share: 1 })
   })
   it('an empty cohort has null shares and medians, never zeros dressed as facts', () => {
     const m = computeActivationMetrics([], NOW)
