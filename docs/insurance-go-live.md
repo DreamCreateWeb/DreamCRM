@@ -114,6 +114,20 @@ The raw 271 is kept on every live check (`raw_response`). If a client's
 form needs a field the sheet still lacks, read it out of stored rows first
 — it is almost certainly there — before paying for another check.
 
+**What the first real answer taught (Aetna PPO, 2026-10-08).** The sheet
+printed blank for a child on a parent's plan while the misc box held 32
+raw sentences. Aetna stamps every plan RULE (percent, frequency, tooth
+scope) `FAMILY`, writes "1 every 60 months" in a field the normalizer had
+never read, answers "2 remaining · last Apr 1" as a second row on the same
+line, and joins several facts in one comma-separated string. All four are
+read now; the payer's sentences are sorted into the lines they answer
+(scope, shared codes, deductible waivers, networks, self-funding, the
+dependent age), and the sheet gains a BY CATEGORY table for the pots a
+payer counts as one ("Diagnostic: 3 per calendar year · 2 left · last
+Apr 1") beside the code lines. The redacted answer is a test fixture, so
+the next payer that writes differently costs a code change, not a guess.
+When a client's sheet looks wrong, capture their 271 the same way first.
+
 ## The Full breakdown (2026-10-08)
 
 "Full breakdown" on an active answer asks the payer about every code on

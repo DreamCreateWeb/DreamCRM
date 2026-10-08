@@ -18,6 +18,10 @@ import {
   type EligibilityResult,
   replacementWords,
   planPaysWord,
+  FREQ_TO_KEY,
+  fundingWords,
+  lineFacts,
+  networkWords,
   insuranceTypeLabel,
   INSURANCE_INTRO,
   NPI_READINESS_COPY,
@@ -1036,7 +1040,16 @@ function todayIso(): string {
  * the tone — ok when it has arrived, warn when it is still ahead, neutral
  * when the payer only said when the last one was (or nothing at all).
  */
-function NextCell({ nextOn, lastOn }: { nextOn?: string | null; lastOn: string | null }) {
+function NextCell({ nextOn, lastOn, remaining }: { nextOn?: string | null; lastOn: string | null; remaining?: number | null }) {
+  // A count of what's left this period is the payer's own "next": zero
+  // left means not until the period turns; any left means covered now.
+  if (!nextOn && remaining != null) {
+    return remaining > 0 ? (
+      <span className={`font-semibold ${TONE_TEXT.ok}`}>{lastOn ? `Covered now · last ${niceDate(lastOn)}` : 'Covered now'}</span>
+    ) : (
+      <span className={`font-semibold ${TONE_TEXT.warn}`}>{lastOn ? `None left · last ${niceDate(lastOn)}` : 'None left this period'}</span>
+    )
+  }
   if (nextOn) {
     const now = nextOn <= todayIso()
     return (
@@ -1087,12 +1100,18 @@ export function ResultCard({
         r.plan.groupName,
         insuranceTypeLabel(r.plan.insuranceType),
         r.plan.benefitYear ? (r.plan.benefitYear === 'calendar' ? 'Calendar-year benefits' : 'Plan-year benefits') : null,
+        networkWords(r.plan.networks),
+        fundingWords(r.plan.funding),
       ]
         .filter(Boolean)
         .join(' · ') || null
     : null
   const phones = r?.payerContacts?.contacts.flatMap((c) => c.phones) ?? []
-  const procedures = (r?.procedures ?? []).filter((p) => p.limit || p.lastOn || p.nextOn || p.pctSource === 'code' || p.notes.length)
+  const procedures = (r?.procedures ?? []).filter((p) => p.limit || p.lastOn || p.nextOn || p.pctSource === 'code' || p.notes.length || p.remaining != null || p.sharesWith?.length || p.scope)
+  // What the payer counts by CATEGORY (Aetna counts "diagnostic" and
+  // "preventive" as one pot each): every frequency line no answered
+  // procedure line already carries — shown BESIDE the code lines.
+  const categoryRows = (r?.frequencies ?? []).filter((f) => !procedures.some((p) => FREQ_TO_KEY[f.code] === p.key))
   const extraTiers = r?.coveragePct
     ? (
         [
@@ -1309,7 +1328,7 @@ export function ResultCard({
                         <td className="px-3 py-2 text-gray-800 dark:text-gray-100">
                           <span className="font-medium">{p.label}</span>
                           <span className="ml-1.5 text-xs text-gray-500 dark:text-gray-400 font-mono-num">{p.code}</span>
-                          {p.notes.length > 0 && <p className="text-xs text-gray-500 dark:text-gray-400">{p.notes.join(' · ')}</p>}
+                          {(lineFacts(p).length > 0 || p.notes.length > 0) && <p className="text-xs text-gray-500 dark:text-gray-400">{[...lineFacts(p), ...p.notes].join(' · ')}</p>}
                         </td>
                         <td className="px-3 py-2 text-gray-700 dark:text-gray-200 font-mono-num tabular-nums">{p.limit ?? <span className={TONE_TEXT.neutral}>—</span>}</td>
                         <td className="px-3 py-2 text-right text-xs font-mono-num tabular-nums">
@@ -1328,25 +1347,28 @@ export function ResultCard({
               </div>
             )}
 
-            {/* ── Frequencies (older rows without procedure lines) ──────── */}
-            {procedures.length === 0 && r.frequencies.length > 0 && (
-              <div className="rounded-[var(--r-md)] border border-[color:var(--color-hairline)] overflow-hidden">
+            {/* ── By category: what the payer counts as one pot (beside the code lines, never instead) ── */}
+            {categoryRows.length > 0 && (
+              <div className="rounded-[var(--r-md)] border border-[color:var(--color-hairline)] overflow-hidden" data-testid="category-table">
                 <table className="w-full text-sm">
-                  <caption className="sr-only">How often each service is covered, and when the next one is</caption>
+                  <caption className="sr-only">How often each category of service is covered, what is left, and when the last one was</caption>
                   <thead className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 bg-[color:var(--color-surface-sunk)] border-b border-[color:var(--color-hairline)]">
                     <tr>
-                      <th scope="col" className="px-3 py-2 text-left font-semibold">Service</th>
+                      <th scope="col" className="px-3 py-2 text-left font-semibold">{procedures.length ? 'By category' : 'Service'}</th>
                       <th scope="col" className="px-3 py-2 text-left font-semibold">Allowed</th>
                       <th scope="col" className="px-3 py-2 text-right font-semibold">Next</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[color:var(--color-hairline)]">
-                    {r.frequencies.map((f) => (
-                      <tr key={`${f.code}:${f.label}`} className="hover:bg-teal-500/5 transition-colors">
-                        <td className="px-3 py-2 text-gray-800 dark:text-gray-100 font-medium">{f.label}</td>
-                        <td className="px-3 py-2 text-gray-700 dark:text-gray-200 font-mono-num tabular-nums">{f.limit}</td>
+                    {categoryRows.map((f) => (
+                      <tr key={`${f.code}:${f.label}`} className="hover:bg-teal-500/5 transition-colors align-top">
+                        <td className="px-3 py-2 text-gray-800 dark:text-gray-100">
+                          <span className="font-medium">{f.label}</span>
+                          {lineFacts(f).length > 0 && <p className="text-xs text-gray-500 dark:text-gray-400">{lineFacts(f).join(' · ')}</p>}
+                        </td>
+                        <td className="px-3 py-2 text-gray-700 dark:text-gray-200 font-mono-num tabular-nums">{f.limit || <span className={TONE_TEXT.neutral}>—</span>}</td>
                         <td className="px-3 py-2 text-right text-xs font-mono-num tabular-nums">
-                          <NextCell nextOn={f.nextOn} lastOn={f.lastOn} />
+                          <NextCell nextOn={f.nextOn} lastOn={f.lastOn} remaining={f.remaining} />
                         </td>
                       </tr>
                     ))}

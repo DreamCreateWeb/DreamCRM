@@ -364,9 +364,10 @@ describe('Stedi test-mode 271 (the mock dental member)', () => {
   it('turns serviceLimits into frequency rows with the next eligible date', () => {
     const byCode = Object.fromEntries(out.frequencies.map((f) => [f.code === 'other' ? f.label : f.code, f]))
     expect(byCode.exam).toMatchObject({ label: 'Exams', limit: '2 per plan year', nextOn: '2024-06-13' })
-    expect(byCode.fmx).toMatchObject({ label: 'Full-mouth X-rays', limit: '1 every 60 months', nextOn: '2028-12-08' })
+    expect(byCode.fmx).toMatchObject({ label: 'Full-mouth X-rays', limit: '1 every 5 years', nextOn: '2028-12-08' })
     expect(byCode.bitewings).toMatchObject({ limit: '1 per plan year' })
-    expect(byCode['Crowns']).toMatchObject({ code: 'other', limit: '1 every 120 months', nextOn: null })
+    // A code the sheet names reads under the sheet's own label.
+    expect(byCode['Crown']).toMatchObject({ code: 'other', limit: '1 every 10 years', nextOn: null })
     expect(byCode['Perio maintenance']).toMatchObject({ code: 'other', limit: '2 per plan year' })
     // Rows that are only a sentence never become a frequency line.
     expect(out.frequencies.some((f) => /NOT ALL PERIODONTAL/i.test(f.label))).toBe(false)

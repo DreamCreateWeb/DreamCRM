@@ -16,6 +16,10 @@ import {
   niceDate,
   planPaysWord,
   replacementWords,
+  FREQ_TO_KEY,
+  fundingWords,
+  lineFacts,
+  networkWords,
   type BenefitAmount,
   type FormProcedureKey,
   type InsuranceCheckView,
@@ -161,10 +165,19 @@ export function BenefitsSheet({
   const orthoMax = describeBenefitAmount(r?.orthoLifetimeMax, 'max')
   // The downgrade line on the form is specific — pano + bitewings paid as a
   // full-mouth series — so it is answered only by a note that says so.
-  const panoDowngrade = r?.payerNotes?.some((n) => /(PANO|PANORAMIC|BITEWING|BWX).*(FMX|FULL.?MOUTH)|(FMX|FULL.?MOUTH).*(PANO|PANORAMIC|BITEWING|BWX)/i.test(n)) ? true : null
+  const panoDowngrade = [...(r?.downgrades ?? []), ...(r?.payerNotes ?? [])].some((n) => /(PANO|PANORAMIC|BITEWING|BWX).*(FMX|FULL.?MOUTH)|(FMX|FULL.?MOUTH).*(PANO|PANORAMIC|BITEWING|BWX)/i.test(n)) ? true : null
+  // The MISC box: the payer's downgrade sentences, the sentences that answer
+  // no line on this sheet, and the tool's own caveats. Scope, shared codes,
+  // deductible waivers, networks, funding and ages are read into their lines.
   const misc = Array.from(
     new Set([...(r?.downgrades ?? []), ...(r?.payerNotes ?? []).filter((n) => !(r?.downgrades ?? []).includes(n)), ...(r?.notes ?? [])]),
   )
+  // What the payer counts by CATEGORY — every frequency line no answered
+  // procedure line below already carries.
+  const categoryRows = (r?.frequencies ?? []).filter((f) => {
+    const key = FREQ_TO_KEY[f.code]
+    return !key || !procs.has(key)
+  })
   const historyRows: Array<{ key: FormProcedureKey; label: string }> = [
     { key: 'er_exam', label: 'ER exam' },
     { key: 'exam', label: 'Exam' },
@@ -218,6 +231,13 @@ export function BenefitsSheet({
           <Field label="Runs" value={yearSpan} />
           <Field label="Eff date" value={r?.coverage.effective ? niceDate(r.coverage.effective) : null} />
         </Strip>
+        {(plan?.networks?.length || plan?.funding || ages?.dependent != null) && (
+          <Strip>
+            {plan?.networks?.length ? <Field label="Plan networks" value={networkWords(plan.networks)} /> : null}
+            {plan?.funding ? <Field label="Funding" value={fundingWords(plan.funding)} /> : null}
+            {ages?.dependent != null ? <Field label="Dependents to age" value={String(ages.dependent)} /> : null}
+          </Strip>
+        )}
 
         {!active && (
           <p className="mt-3 text-[14px] font-semibold">
@@ -308,6 +328,32 @@ export function BenefitsSheet({
           )}
         </div>
 
+        {/* ── By category: the pots the payer counts (beside the code lines, never instead) ── */}
+        {categoryRows.length > 0 && (
+          <table className="mt-2 w-full border-collapse text-[13px]" data-testid="sheet-categories">
+            <thead>
+              <tr className="border-b border-black text-left text-[12px] uppercase tracking-wider">
+                <th scope="col" className="py-1 pr-3">By category</th>
+                <th scope="col" className="py-1 pr-3">Freq</th>
+                <th scope="col" className="py-1 pr-3">Left</th>
+                <th scope="col" className="py-1 pr-3">Last</th>
+                <th scope="col" className="py-1">Payer says</th>
+              </tr>
+            </thead>
+            <tbody>
+              {categoryRows.map((f) => (
+                <tr key={`${f.code}:${f.label}`} className="border-b border-gray-300 align-top">
+                  <td className="py-1 pr-3 font-medium">{f.label}</td>
+                  <td className="py-1 pr-3 whitespace-nowrap">{f.limit || <span className="tracking-widest text-gray-500">______</span>}</td>
+                  <td className="py-1 pr-3 tabular-nums">{f.remaining != null ? f.remaining : <span className="tracking-widest text-gray-500">____</span>}</td>
+                  <td className="py-1 pr-3 whitespace-nowrap">{f.lastOn ? niceDate(f.lastOn) : f.nextOn ? `next ${niceDate(f.nextOn)}` : <span className="tracking-widest text-gray-500">______</span>}</td>
+                  <td className="py-1">{lineFacts({ ...f, remaining: null }).join(' · ') || <span className="text-gray-500">—</span>}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+
         {/* ── History ───────────────────────────────────────────────── */}
         <div className="mt-2 flex flex-wrap items-baseline gap-x-6">
           <span className="text-[12px] font-semibold uppercase tracking-wider">History</span>
@@ -331,7 +377,16 @@ export function BenefitsSheet({
                   <td className="py-1 pr-3 font-medium whitespace-nowrap">{row.label}</td>
                   <td className="py-1 pr-3">{p?.lastOn ? niceDate(p.lastOn) : <span className="tracking-widest text-gray-500">______</span>}</td>
                   <td className="py-1 pr-3">{p?.nextOn ? niceDate(p.nextOn) : <span className="tracking-widest text-gray-500">______</span>}</td>
-                  <td className="py-1 pr-3">{p?.limit ?? <span className="tracking-widest text-gray-500">__________</span>}</td>
+                  <td className="py-1 pr-3">
+                    {p?.limit || p?.remaining != null || p?.sharesWith?.length || p?.scope ? (
+                      <>
+                        {p.limit ?? ''}
+                        {lineFacts(p).length > 0 && <span className="text-[12px] text-gray-700">{p.limit ? ' · ' : ''}{lineFacts(p).join(' · ')}</span>}
+                      </>
+                    ) : (
+                      <span className="tracking-widest text-gray-500">__________</span>
+                    )}
+                  </td>
                   <td className="py-1 text-right tabular-nums">{p?.planPays != null ? `${p.planPays}%${p.pctSource === 'tier' ? '*' : ''}` : <span className="tracking-widest text-gray-500">____</span>}</td>
                 </tr>
               )

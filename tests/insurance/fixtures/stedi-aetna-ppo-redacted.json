@@ -1,0 +1,815 @@
+{
+  "meta": {
+    "traceId": "redacted",
+    "outboundTraceId": "redacted",
+    "subscriberTraceNumbers": []
+  },
+  "payerId": "60054",
+  "payer": {
+    "name": {
+      "organization": "AETNA INC"
+    },
+    "type": "PAYER",
+    "identification": "953402799"
+  },
+  "provider": {
+    "name": {
+      "person": {
+        "firstName": "TEST",
+        "lastName": "PROVIDER"
+      }
+    },
+    "type": "PROVIDER",
+    "npi": "1999999984"
+  },
+  "subscriber": {
+    "name": {
+      "person": {
+        "firstName": "JANE",
+        "lastName": "SAMPLE"
+      }
+    },
+    "additionalInformation": {
+      "group": {
+        "number": "000000000000000",
+        "name": "SAMPLE EMPLOYER"
+      }
+    },
+    "memberId": "W000000000"
+  },
+  "dependent": {
+    "address": {
+      "addressLine1": "1 SAMPLE ST",
+      "city": "SAMPLEVILLE",
+      "state": "AR",
+      "postalCode": "72000"
+    },
+    "dates": {
+      "plan": {
+        "start": "2025-09-01"
+      },
+      "eligibility": {
+        "start": "2025-09-01"
+      },
+      "service": {
+        "start": "2026-10-08"
+      }
+    },
+    "dateOfBirth": "2020-01-01",
+    "gender": "FEMALE",
+    "maintenance": {
+      "indicator": "NONE"
+    },
+    "name": {
+      "person": {
+        "firstName": "SAM",
+        "lastName": "SAMPLE"
+      }
+    },
+    "relationToSubscriber": "CHILD",
+    "additionalInformation": {
+      "plan": {
+        "number": "0000000"
+      },
+      "identificationCardSerialNumber": "000000000"
+    }
+  },
+  "plans": [
+    {
+      "benefits": {
+        "statuses": [
+          {
+            "coverageLevel": "FAMILY",
+            "insuranceType": "PREFERRED_PROVIDER_ORGANIZATION_PPO",
+            "service": {
+              "value": "30",
+              "definition": "Health Benefit Plan Coverage",
+              "system": "STC"
+            },
+            "planCoverageDescription": "PPO Dental 2000",
+            "status": "ACTIVE_COVERAGE"
+          }
+        ],
+        "coInsurance": [
+          {
+            "coverageLevel": "FAMILY",
+            "network": {
+              "indicator": "IN_AND_OUT_OF_NETWORK"
+            },
+            "service": {
+              "value": "30",
+              "definition": "Health Benefit Plan Coverage",
+              "system": "STC"
+            },
+            "messages": [
+              "Preventative"
+            ],
+            "percent": "0"
+          },
+          {
+            "coverageLevel": "FAMILY",
+            "network": {
+              "indicator": "IN_AND_OUT_OF_NETWORK"
+            },
+            "service": {
+              "value": "30",
+              "definition": "Health Benefit Plan Coverage",
+              "system": "STC"
+            },
+            "messages": [
+              "Basic"
+            ],
+            "percent": "0.2"
+          },
+          {
+            "coverageLevel": "FAMILY",
+            "network": {
+              "indicator": "IN_AND_OUT_OF_NETWORK"
+            },
+            "service": {
+              "value": "30",
+              "definition": "Health Benefit Plan Coverage",
+              "system": "STC"
+            },
+            "messages": [
+              "Major,Ortho"
+            ],
+            "percent": "0.5"
+          },
+          {
+            "coverageLevel": "FAMILY",
+            "network": {
+              "indicator": "IN_AND_OUT_OF_NETWORK"
+            },
+            "service": {
+              "value": "23",
+              "definition": "Diagnostic Dental",
+              "system": "STC"
+            },
+            "percent": "0"
+          },
+          {
+            "coverageLevel": "FAMILY",
+            "network": {
+              "indicator": "IN_AND_OUT_OF_NETWORK"
+            },
+            "service": {
+              "value": "28",
+              "definition": "Adjunctive Dental Services",
+              "system": "STC"
+            },
+            "percent": "0"
+          },
+          {
+            "coverageLevel": "FAMILY",
+            "network": {
+              "indicator": "IN_AND_OUT_OF_NETWORK"
+            },
+            "service": {
+              "value": "41",
+              "definition": "Routine (Preventive) Dental",
+              "system": "STC"
+            },
+            "percent": "0"
+          },
+          {
+            "coverageLevel": "FAMILY",
+            "network": {
+              "indicator": "IN_AND_OUT_OF_NETWORK"
+            },
+            "service": {
+              "value": "24",
+              "definition": "Periodontics",
+              "system": "STC"
+            },
+            "percent": "0.2"
+          },
+          {
+            "coverageLevel": "FAMILY",
+            "network": {
+              "indicator": "IN_AND_OUT_OF_NETWORK"
+            },
+            "service": {
+              "value": "25",
+              "definition": "Restorative",
+              "system": "STC"
+            },
+            "percent": "0.2"
+          },
+          {
+            "coverageLevel": "FAMILY",
+            "network": {
+              "indicator": "IN_AND_OUT_OF_NETWORK"
+            },
+            "service": {
+              "value": "26",
+              "definition": "Endodontics",
+              "system": "STC"
+            },
+            "percent": "0.2"
+          },
+          {
+            "coverageLevel": "FAMILY",
+            "network": {
+              "indicator": "IN_AND_OUT_OF_NETWORK"
+            },
+            "service": {
+              "value": "36",
+              "definition": "Dental Crowns",
+              "system": "STC"
+            },
+            "percent": "0.5"
+          },
+          {
+            "coverageLevel": "FAMILY",
+            "network": {
+              "indicator": "IN_AND_OUT_OF_NETWORK"
+            },
+            "service": {
+              "value": "38",
+              "definition": "Orthodontics",
+              "system": "STC"
+            },
+            "percent": "0.5"
+          },
+          {
+            "coverageLevel": "FAMILY",
+            "network": {
+              "indicator": "IN_AND_OUT_OF_NETWORK"
+            },
+            "service": {
+              "value": "39",
+              "definition": "Prosthodontics",
+              "system": "STC"
+            },
+            "percent": "0.5"
+          }
+        ],
+        "deductible": [
+          {
+            "coverageLevel": "INDIVIDUAL",
+            "network": {
+              "indicator": "IN_AND_OUT_OF_NETWORK"
+            },
+            "service": {
+              "value": "30",
+              "definition": "Health Benefit Plan Coverage",
+              "system": "STC"
+            },
+            "messages": [
+              "Dental"
+            ],
+            "timePeriod": "CALENDAR_YEAR",
+            "amount": "50"
+          },
+          {
+            "coverageLevel": "INDIVIDUAL",
+            "network": {
+              "indicator": "IN_AND_OUT_OF_NETWORK"
+            },
+            "service": {
+              "value": "30",
+              "definition": "Health Benefit Plan Coverage",
+              "system": "STC"
+            },
+            "messages": [
+              "Dental"
+            ],
+            "timePeriod": "REMAINING",
+            "amount": "50"
+          }
+        ],
+        "limitations": [
+          {
+            "coverageLevel": "INDIVIDUAL",
+            "network": {
+              "indicator": "IN_AND_OUT_OF_NETWORK"
+            },
+            "service": {
+              "value": "30",
+              "definition": "Health Benefit Plan Coverage",
+              "system": "STC"
+            },
+            "messages": [
+              "DENTAL"
+            ],
+            "timePeriod": "CALENDAR_YEAR",
+            "amount": "1500"
+          },
+          {
+            "coverageLevel": "INDIVIDUAL",
+            "network": {
+              "indicator": "IN_AND_OUT_OF_NETWORK"
+            },
+            "service": {
+              "value": "30",
+              "definition": "Health Benefit Plan Coverage",
+              "system": "STC"
+            },
+            "messages": [
+              "DENTAL"
+            ],
+            "timePeriod": "REMAINING",
+            "amount": "1343"
+          },
+          {
+            "coverageLevel": "INDIVIDUAL",
+            "network": {
+              "indicator": "IN_AND_OUT_OF_NETWORK"
+            },
+            "service": {
+              "value": "30",
+              "definition": "Health Benefit Plan Coverage",
+              "system": "STC"
+            },
+            "messages": [
+              "Orthodontics"
+            ],
+            "timePeriod": "LIFETIME",
+            "amount": "1500"
+          },
+          {
+            "coverageLevel": "INDIVIDUAL",
+            "network": {
+              "indicator": "IN_AND_OUT_OF_NETWORK"
+            },
+            "service": {
+              "value": "30",
+              "definition": "Health Benefit Plan Coverage",
+              "system": "STC"
+            },
+            "messages": [
+              "Orthodontics"
+            ],
+            "timePeriod": "LIFETIME_REMAINING",
+            "amount": "1500"
+          },
+          {
+            "coverageLevel": "FAMILY",
+            "service": {
+              "value": "30",
+              "definition": "Health Benefit Plan Coverage",
+              "system": "STC"
+            },
+            "messages": [
+              "MISSING TOOTH CLAUSE APPLIES"
+            ]
+          },
+          {
+            "coverageLevel": "FAMILY",
+            "service": {
+              "value": "30",
+              "definition": "Health Benefit Plan Coverage",
+              "system": "STC"
+            },
+            "messages": [
+              "Self Funded,CHLD TO 26 OR 26 IF FT STUDENT"
+            ]
+          },
+          {
+            "coverageLevel": "FAMILY",
+            "network": {
+              "indicator": "IN_AND_OUT_OF_NETWORK"
+            },
+            "service": {
+              "value": "23",
+              "definition": "Diagnostic Dental",
+              "system": "STC"
+            },
+            "messages": [
+              "PER FULL MOUTH"
+            ],
+            "serviceLimits": [
+              {
+                "delivery": {
+                  "quantity": {
+                    "value": "3",
+                    "qualifier": "UNITS"
+                  },
+                  "period": {
+                    "value": 1,
+                    "qualifier": "CALENDAR_YEAR"
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "coverageLevel": "FAMILY",
+            "network": {
+              "indicator": "IN_AND_OUT_OF_NETWORK"
+            },
+            "service": {
+              "value": "23",
+              "definition": "Diagnostic Dental",
+              "system": "STC"
+            },
+            "serviceLimits": [
+              {
+                "delivery": {
+                  "quantity": {
+                    "value": "2",
+                    "qualifier": "UNITS"
+                  },
+                  "period": {
+                    "qualifier": "REMAINING"
+                  }
+                }
+              }
+            ],
+            "dates": {
+              "latestVisit": {
+                "start": "2026-04-01"
+              }
+            }
+          },
+          {
+            "coverageLevel": "FAMILY",
+            "network": {
+              "indicator": "IN_AND_OUT_OF_NETWORK"
+            },
+            "service": {
+              "value": "36",
+              "definition": "Dental Crowns",
+              "system": "STC"
+            },
+            "messages": [
+              "TOOTH NUMBER 01 TO 32"
+            ],
+            "serviceLimits": [
+              {
+                "delivery": {
+                  "quantity": {
+                    "value": "1",
+                    "qualifier": "UNITS"
+                  },
+                  "frequency": {
+                    "value": "60",
+                    "qualifier": "MONTHS"
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "coverageLevel": "FAMILY",
+            "network": {
+              "indicator": "IN_AND_OUT_OF_NETWORK"
+            },
+            "service": {
+              "value": "39",
+              "definition": "Prosthodontics",
+              "system": "STC"
+            },
+            "messages": [
+              "TOOTH NUMBER 01 TO 16"
+            ],
+            "serviceLimits": [
+              {
+                "delivery": {
+                  "quantity": {
+                    "value": "1",
+                    "qualifier": "UNITS"
+                  },
+                  "frequency": {
+                    "value": "60",
+                    "qualifier": "MONTHS"
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "coverageLevel": "FAMILY",
+            "network": {
+              "indicator": "IN_AND_OUT_OF_NETWORK"
+            },
+            "service": {
+              "value": "41",
+              "definition": "Routine (Preventive) Dental",
+              "system": "STC"
+            },
+            "messages": [
+              "DENTAL PROPHYLAXIS COUNTER"
+            ],
+            "serviceLimits": [
+              {
+                "delivery": {
+                  "quantity": {
+                    "value": "3",
+                    "qualifier": "VISITS"
+                  },
+                  "period": {
+                    "value": 1,
+                    "qualifier": "CALENDAR_YEAR"
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "coverageLevel": "FAMILY",
+            "network": {
+              "indicator": "IN_AND_OUT_OF_NETWORK"
+            },
+            "service": {
+              "value": "41",
+              "definition": "Routine (Preventive) Dental",
+              "system": "STC"
+            },
+            "serviceLimits": [
+              {
+                "delivery": {
+                  "quantity": {
+                    "value": "2",
+                    "qualifier": "VISITS"
+                  },
+                  "period": {
+                    "qualifier": "REMAINING"
+                  }
+                }
+              }
+            ],
+            "dates": {
+              "latestVisit": {
+                "start": "2026-04-01"
+              }
+            }
+          },
+          {
+            "coverageLevel": "FAMILY",
+            "network": {
+              "indicator": "IN_AND_OUT_OF_NETWORK"
+            },
+            "service": {
+              "value": "23",
+              "definition": "Diagnostic Dental",
+              "system": "STC"
+            },
+            "serviceLimits": [
+              {
+                "ageMaximum": 99
+              }
+            ]
+          },
+          {
+            "coverageLevel": "FAMILY",
+            "network": {
+              "indicator": "IN_AND_OUT_OF_NETWORK"
+            },
+            "service": {
+              "value": "24",
+              "definition": "Periodontics",
+              "system": "STC"
+            },
+            "serviceLimits": [
+              {
+                "ageMaximum": 99
+              }
+            ]
+          },
+          {
+            "coverageLevel": "FAMILY",
+            "network": {
+              "indicator": "IN_AND_OUT_OF_NETWORK"
+            },
+            "service": {
+              "value": "25",
+              "definition": "Restorative",
+              "system": "STC"
+            },
+            "serviceLimits": [
+              {
+                "ageMaximum": 99
+              }
+            ]
+          },
+          {
+            "coverageLevel": "FAMILY",
+            "network": {
+              "indicator": "IN_AND_OUT_OF_NETWORK"
+            },
+            "service": {
+              "value": "26",
+              "definition": "Endodontics",
+              "system": "STC"
+            },
+            "serviceLimits": [
+              {
+                "ageMaximum": 99
+              }
+            ]
+          },
+          {
+            "coverageLevel": "FAMILY",
+            "network": {
+              "indicator": "IN_AND_OUT_OF_NETWORK"
+            },
+            "service": {
+              "value": "28",
+              "definition": "Adjunctive Dental Services",
+              "system": "STC"
+            },
+            "serviceLimits": [
+              {
+                "ageMaximum": 99
+              }
+            ]
+          },
+          {
+            "coverageLevel": "FAMILY",
+            "network": {
+              "indicator": "IN_AND_OUT_OF_NETWORK"
+            },
+            "service": {
+              "value": "36",
+              "definition": "Dental Crowns",
+              "system": "STC"
+            },
+            "serviceLimits": [
+              {
+                "ageMaximum": 99
+              }
+            ]
+          },
+          {
+            "coverageLevel": "FAMILY",
+            "network": {
+              "indicator": "IN_AND_OUT_OF_NETWORK"
+            },
+            "service": {
+              "value": "38",
+              "definition": "Orthodontics",
+              "system": "STC"
+            },
+            "serviceLimits": [
+              {
+                "ageMaximum": 99
+              }
+            ]
+          },
+          {
+            "coverageLevel": "FAMILY",
+            "network": {
+              "indicator": "IN_AND_OUT_OF_NETWORK"
+            },
+            "service": {
+              "value": "39",
+              "definition": "Prosthodontics",
+              "system": "STC"
+            },
+            "serviceLimits": [
+              {
+                "ageMaximum": 99
+              }
+            ]
+          },
+          {
+            "coverageLevel": "FAMILY",
+            "network": {
+              "indicator": "IN_AND_OUT_OF_NETWORK"
+            },
+            "service": {
+              "value": "41",
+              "definition": "Routine (Preventive) Dental",
+              "system": "STC"
+            },
+            "serviceLimits": [
+              {
+                "ageMaximum": 99
+              }
+            ]
+          },
+          {
+            "coverageLevel": "FAMILY",
+            "network": {
+              "indicator": "IN_AND_OUT_OF_NETWORK"
+            },
+            "service": {
+              "value": "23",
+              "definition": "Diagnostic Dental",
+              "system": "STC"
+            },
+            "messages": [
+              "Shares frequency with D0145,D0150,D0180,DEDUCTIBLE DOES NOT APPLY"
+            ]
+          },
+          {
+            "coverageLevel": "FAMILY",
+            "network": {
+              "indicator": "IN_AND_OUT_OF_NETWORK"
+            },
+            "service": {
+              "value": "28",
+              "definition": "Adjunctive Dental Services",
+              "system": "STC"
+            },
+            "messages": [
+              "DEDUCTIBLE DOES NOT APPLY"
+            ]
+          },
+          {
+            "coverageLevel": "FAMILY",
+            "network": {
+              "indicator": "IN_AND_OUT_OF_NETWORK"
+            },
+            "service": {
+              "value": "38",
+              "definition": "Orthodontics",
+              "system": "STC"
+            },
+            "messages": [
+              "DEDUCTIBLE DOES NOT APPLY"
+            ]
+          },
+          {
+            "coverageLevel": "FAMILY",
+            "network": {
+              "indicator": "IN_AND_OUT_OF_NETWORK"
+            },
+            "service": {
+              "value": "36",
+              "definition": "Dental Crowns",
+              "system": "STC"
+            },
+            "messages": [
+              "Shares frequency with D2960,D2961,D2962,D2975,D2510-D2794,ALTERNATE BENEFITS MAY APPLY"
+            ]
+          },
+          {
+            "coverageLevel": "FAMILY",
+            "network": {
+              "indicator": "IN_AND_OUT_OF_NETWORK"
+            },
+            "service": {
+              "value": "39",
+              "definition": "Prosthodontics",
+              "system": "STC"
+            },
+            "messages": [
+              "Shares frequency with D5130,D5877,D6110,D6112,D6114,D6116,D6119,D5284-D5286,D5863-D5864"
+            ]
+          },
+          {
+            "coverageLevel": "FAMILY",
+            "network": {
+              "indicator": "IN_AND_OUT_OF_NETWORK"
+            },
+            "service": {
+              "value": "41",
+              "definition": "Routine (Preventive) Dental",
+              "system": "STC"
+            },
+            "messages": [
+              "Shares frequency with D1120,D4346,DEDUCTIBLE DOES NOT APPLY"
+            ]
+          }
+        ],
+        "benefitDescription": [
+          {
+            "coverageLevel": "FAMILY",
+            "service": {
+              "value": "30",
+              "definition": "Health Benefit Plan Coverage",
+              "system": "STC"
+            },
+            "messages": [
+              "STANDARD DENTAL NETWORK,PPO II NETWORK,DENTAL EXTEND NETWORK"
+            ]
+          }
+        ],
+        "nonCovered": [
+          {
+            "coverageLevel": "FAMILY",
+            "service": {
+              "value": "27",
+              "definition": "Maxillofacial Prosthetics",
+              "system": "STC"
+            }
+          }
+        ],
+        "otherSourceOfData": [
+          {
+            "coverageLevel": "INDIVIDUAL",
+            "relatedEntities": [
+              {
+                "name": {
+                  "organization": "Aetna Dental"
+                },
+                "type": "PAYER",
+                "address": {
+                  "addressLine1": "PO Box 14094",
+                  "city": "Lexington",
+                  "state": "KY",
+                  "postalCode": "40512"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "id": "redacted",
+  "eligibilitySearchId": "redacted"
+}

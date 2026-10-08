@@ -45,6 +45,8 @@ describe('normalizeStediResponse — the verification sheet’s fields, from the
       benefitYear: 'calendar',
       benefitYearStart: '2026-01-01',
       benefitYearEnd: '2026-12-31',
+      networks: [],
+      funding: null,
     })
     expect(insuranceTypeLabel(r.plan!.insuranceType)).toBe('Group plan')
   })
@@ -70,14 +72,14 @@ describe('normalizeStediResponse — the verification sheet’s fields, from the
     const by = new Map(r.procedures!.map((p) => [p.key, p]))
     expect(r.procedures!.map((p) => p.key)).toEqual(FORM_PROCEDURES.map((p) => p.key))
     expect(by.get('exam')).toMatchObject({ code: 'D0120', planPays: 100, pctSource: 'tier', limit: '2 per plan year', nextOn: '2024-06-13' })
-    expect(by.get('fmx')).toMatchObject({ code: 'D0210', limit: '1 every 60 months', nextOn: '2028-12-08' })
+    expect(by.get('fmx')).toMatchObject({ code: 'D0210', limit: '1 every 5 years', nextOn: '2028-12-08' })
     expect(by.get('bitewings')).toMatchObject({ code: 'D0272', limit: '1 per plan year' })
     expect(by.get('srp')).toMatchObject({ code: 'D4341', limit: '1 every 2 years' })
     expect(by.get('perio_maint')).toMatchObject({ limit: '2 per plan year', notes: ['CHARTING MAY BE REQUIRED FOR PERIODONTAL PROCEDURES.'] })
     // The occlusal guard is priced ON THE CODE at the patient's full share: not covered, and the sheet's YES/NO reads NO.
     expect(by.get('occlusal_guard')).toMatchObject({ code: 'D9944', planPays: 0, pctSource: 'code' })
     // The crown's "paid on prep date" rides the code's own notes; the boilerplate every row carries is stripped.
-    expect(by.get('crown')).toMatchObject({ code: 'D2710', limit: '1 every 120 months', notes: ['PAID ON PREP DATE'] })
+    expect(by.get('crown')).toMatchObject({ code: 'D2710', limit: '1 every 10 years', notes: ['PAID ON PREP DATE'] })
     for (const p of r.procedures!) expect(p.notes.join(' ')).not.toMatch(/SIMILAR PROCEDURES PERFORMED/)
   })
 
@@ -94,13 +96,15 @@ describe('normalizeStediResponse — the verification sheet’s fields, from the
     expect(r.ageLimits).toBeNull()
   })
 
-  it('every note the payer sent, once each, boilerplate stripped — the sheet’s MISC box', () => {
+  it('the MISC box holds only the sentences that answer no line: once each, boilerplate stripped, the placed clauses gone', () => {
     const notes = r.payerNotes!
-    expect(notes.length).toBeGreaterThan(10)
+    expect(notes.length).toBeGreaterThan(5)
     expect(new Set(notes.map((n) => n.toUpperCase())).size).toBe(notes.length)
     expect(notes).not.toContain('SIMILAR PROCEDURES PERFORMED MAY IMPACT LIMITATION.')
-    expect(notes).toContain('MISSING TOOTH EXCLUSION APPLIES.')
-    expect(notes).toContain('THERE ARE NO WAITING PERIODS ON THIS PLAN.')
+    // Read into their own lines (missingToothClause, noWaitingPeriods, downgrades) — not repeated in the box.
+    expect(notes).not.toContain('MISSING TOOTH EXCLUSION APPLIES.')
+    expect(notes).not.toContain('THERE ARE NO WAITING PERIODS ON THIS PLAN.')
+    for (const d of r.downgrades!) expect(notes).not.toContain(d)
     expect(notes.some((n) => /FINAL BENEFIT CALCULATION/.test(n))).toBe(true)
   })
 

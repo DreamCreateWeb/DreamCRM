@@ -197,6 +197,15 @@ export type NetworkStatus = 'in_network' | 'out_of_network' | 'unknown'
 
 export type FrequencyCode = 'exam' | 'prophy' | 'bitewings' | 'fmx' | 'fluoride' | 'other'
 
+/** A named frequency line → the sheet's procedure line it answers ('other' answers a category, not a line). */
+export const FREQ_TO_KEY: Partial<Record<FrequencyCode, FormProcedureKey>> = {
+  exam: 'exam',
+  prophy: 'prophy',
+  bitewings: 'bitewings',
+  fmx: 'fmx',
+  fluoride: 'fluoride',
+}
+
 /**
  * A dollar benefit as the payer stated it. Every part is nullable BY LAW: a
  * payer that answers "your maximum is $2,500" and nothing else has NOT said
@@ -241,6 +250,10 @@ export interface PlanFacts {
   benefitYear: 'calendar' | 'plan' | null
   benefitYearStart: string | null
   benefitYearEnd: string | null
+  /** The networks the plan names ("STANDARD DENTAL NETWORK, PPO II NETWORK"). */
+  networks?: string[]
+  /** Self-funded (the employer pays claims; ERISA, not state mandates) or fully insured, when the payer said. */
+  funding?: 'self' | 'fully' | null
 }
 
 export interface PayerContact {
@@ -330,8 +343,16 @@ export interface ProcedureBenefit {
   limit: string | null
   lastOn: string | null
   nextOn: string | null
-  /** The payer's own notes on this line (boilerplate stripped). */
+  /** The payer's own notes on this line (boilerplate stripped; scope, shared-frequency and deductible facts are read into their own fields). */
   notes: string[]
+  /** How many are left this period, when the payer counted. */
+  remaining?: number | null
+  /** Codes that draw on the same allowance. */
+  sharesWith?: string[]
+  /** Teeth / arches / "per full mouth", in desk words. */
+  scope?: string | null
+  /** Whether the deductible applies to this line, when the payer said. */
+  deductibleApplies?: boolean | null
 }
 
 export interface ReplacementRules {
@@ -407,7 +428,21 @@ export interface EligibilityResult {
   /** The payer said in words that the plan has no waiting periods. */
   noWaitingPeriods?: boolean
   /** Code-owned copy for the allowance ("2 per year", "1 every 3 years") + the last date the plan saw one. */
-  frequencies: Array<{ code: FrequencyCode; label: string; limit: string; lastOn: string | null; nextOn?: string | null }>
+  frequencies: Array<{
+    code: FrequencyCode
+    label: string
+    limit: string
+    lastOn: string | null
+    nextOn?: string | null
+    /** How many are left this period, when the payer counted ("2 remaining"). */
+    remaining?: number | null
+    /** Codes that draw on the same allowance ("Shares frequency with D0145, D0150"). */
+    sharesWith?: string[]
+    /** The payer's scope words for the line — teeth, arches, "per full mouth" — in desk words. */
+    scope?: string | null
+    /** The payer said the deductible is waived on this line. */
+    noDeductible?: boolean | null
+  }>
   missingToothClause: boolean | null
   notes: string[]
   /** When the payer (or the sandbox) answered — ISO instant. */
@@ -464,6 +499,64 @@ export function replacementWords(months: number | null | undefined): string | nu
 }
 
 /** Plan-pays in words; the sheet and the summary share it. */
+/**
+ * A payer's scope words in desk words: "TOOTH NUMBER 01 TO 05 12 TO 16,TOOTH
+ * NUMBER 17 TO 21 28 TO 32" → "teeth 1–5, 12–16, 17–21, 28–32"; "PER FULL
+ * MOUTH" → "per full mouth". Anything unrecognised is lower-cased as is.
+ */
+export function scopeWords(raw: string): string {
+  const t = raw.trim()
+  if (/TOOTH (NUMBER|NUMBERS|NO\.?|#)/i.test(t)) {
+    const ranges: string[] = []
+    const re = /(\d{1,2})\s*(?:TO|-|THRU|THROUGH)\s*(\d{1,2})/gi
+    let m: RegExpExecArray | null
+    while ((m = re.exec(t))) ranges.push(`${Number(m[1])}–${Number(m[2])}`)
+    if (ranges.length) return `teeth ${ranges.join(', ')}`
+  }
+  return t.toLowerCase().replace(/\s+/g, ' ')
+}
+
+/** "Standard Dental, PPO II, Dental Extend networks" — the plan's network names, without the shouting. */
+export function networkWords(list: string[] | null | undefined): string | null {
+  if (!list?.length) return null
+  const names = list.map((n) =>
+    n
+      .trim()
+      .replace(/\s+NETWORK$/i, '')
+      .toLowerCase()
+      .replace(/\b([a-z])/g, (c) => c.toUpperCase())
+      .replace(/\b(Ppo|Hmo|Epo|Dhmo|Dppo|Ii|Iii|Iv)\b/g, (c) => c.toUpperCase()),
+  )
+  return `${names.join(', ')} ${names.length === 1 ? 'network' : 'networks'}`
+}
+
+/** "Self-funded plan" / "Fully insured plan" — how the plan pays claims, when the payer said. */
+export function fundingWords(v: 'self' | 'fully' | null | undefined): string | null {
+  return v === 'self' ? 'Self-funded plan' : v === 'fully' ? 'Fully insured plan' : null
+}
+
+/** "counts with D0145, D0150, D0180" — the codes that share one allowance. */
+export function sharesWords(codes: string[] | null | undefined): string | null {
+  if (!codes?.length) return null
+  return `counts with ${codes.join(', ')}`
+}
+
+/**
+ * THE ONE HOME for a line's small facts, in order: scope, shared codes, the
+ * deductible, what's left — read by the card's sub-line, the sheet's
+ * history table and the copied summary, so the three never word it apart.
+ */
+export function lineFacts(p: { scope?: string | null; sharesWith?: string[]; deductibleApplies?: boolean | null; noDeductible?: boolean | null; remaining?: number | null }): string[] {
+  const out: string[] = []
+  if (p.scope) out.push(p.scope)
+  const shares = sharesWords(p.sharesWith)
+  if (shares) out.push(shares)
+  if (p.deductibleApplies === false || p.noDeductible === true) out.push('no deductible')
+  else if (p.deductibleApplies === true) out.push('deductible applies')
+  if (p.remaining != null) out.push(`${p.remaining} left this period`)
+  return out
+}
+
 export function planPaysWord(v: number | null | undefined): string {
   if (v == null) return 'not stated'
   if (v === 0) return 'not covered'
