@@ -30,7 +30,11 @@ const disableInsuranceAction = vi.fn(async () => ({ ok: true as const }))
 const getPayerNoteAction = vi.fn(async (..._a: unknown[]) => null as unknown)
 const fullBreakdownAction = vi.fn(async (..._a: unknown[]) => ({ ok: false, errors: { _form: 'not set' } }) as unknown)
 const savePayerNoteAction = vi.fn()
+const discoverCoverageAction = vi.fn(async (..._a: unknown[]) => ({ ok: false, errors: { _form: 'not set' } }) as unknown)
+const resumeDiscoveryAction = vi.fn(async (..._a: unknown[]) => ({ ok: false, errors: { _form: 'not set' } }) as unknown)
 vi.mock('@/app/(default)/insurance/actions', () => ({
+  discoverCoverageAction: (...a: unknown[]) => discoverCoverageAction(...a),
+  resumeDiscoveryAction: (...a: unknown[]) => resumeDiscoveryAction(...a),
   disableInsuranceAction: (...a: unknown[]) => disableInsuranceAction(...(a as [])),
   getPayerNoteAction: (...a: unknown[]) => getPayerNoteAction(...(a as [])),
   fullBreakdownAction: (...a: unknown[]) => fullBreakdownAction(...(a as [])),
@@ -725,3 +729,68 @@ describe('InsuranceTool — the Full breakdown (2026-10-08)', () => {
   })
 })
 
+describe('InsuranceTool — insurance discovery (the no-card door)', () => {
+  const found = {
+    id: 'disc_1',
+    patientId: 'pat_1',
+    driver: 'sandbox' as const,
+    status: 'found' as const,
+    input: { firstName: 'Mia', lastName: 'Hayes', dateOfBirth: '1988-03-12', state: 'AR', postalCode: '72554', hasSsn: false },
+    candidates: [
+      {
+        payerName: 'Cigna Dental',
+        payerId: '62308',
+        payorIdentification: '62308',
+        memberId: 'CG-9',
+        groupNumber: 'G-2',
+        planName: 'Cigna DPPO',
+        planBegin: '2026-01-01',
+        planEnd: null,
+        status: 'active' as const,
+        dental: true,
+        relationship: 'dependent' as const,
+        subscriber: { firstName: 'John', lastName: 'Hayes', dateOfBirth: '1985-01-01' },
+        matchedName: 'MIA HAYES',
+        matchedDateOfBirth: '1988-03-12',
+        confidence: 'REVIEW_NEEDED',
+      },
+    ],
+    coveragesFound: 1,
+    discoveryId: null,
+    error: null,
+    requestedByName: null,
+    createdAtIso: '2026-10-08T15:00:00.000Z',
+  }
+
+  it('the door opens the panel inside "Their card"; the ?discover=1 deep link opens it on arrival', () => {
+    renderTool()
+    expect(screen.queryByTestId('discovery-panel')).toBeNull()
+    fireEvent.click(screen.getByTestId('discovery-door'))
+    expect(screen.getByTestId('discovery-panel')).toBeTruthy()
+    expect(screen.queryByTestId('discovery-door')).toBeNull()
+    cleanup()
+    renderTool({ discoverOpen: true, prefill: { patientId: 'pat_1', patientName: 'Mia Hayes', request: { patient: { firstName: 'Mia', lastName: 'Hayes', dateOfBirth: '1988-03-12' } }, state: 'AR', postalCode: '72554' } })
+    expect(screen.getByTestId('discovery-panel')).toBeTruthy()
+    expect((screen.getByLabelText('ZIP') as HTMLInputElement).value).toBe('72554')
+  })
+
+  it('a pending search for the patient reopens the panel on its own', () => {
+    renderTool({ latestDiscovery: { ...found, status: 'pending', candidates: [], coveragesFound: 0, discoveryId: 'disc-p' } })
+    expect(screen.getByTestId('discovery-panel')).toBeTruthy()
+    expect(screen.getByText('Check for results')).toBeTruthy()
+  })
+
+  it('"Use this card" fills the check form — payer, member id, group, and the policyholder for a dependent — and closes the panel', async () => {
+    renderTool({ latestDiscovery: found, discoverOpen: true })
+    fireEvent.click(screen.getByText('Use this card'))
+    await waitFor(() => expect(screen.queryByTestId('discovery-panel')).toBeNull())
+    expect((screen.getByLabelText('Carrier') as HTMLInputElement).value).toBe('Cigna Dental')
+    expect((screen.getByLabelText('Member ID') as HTMLInputElement).value).toBe('CG-9')
+    expect((screen.getByLabelText('Group # (optional)') as HTMLInputElement).value).toBe('G-2')
+    expect((document.getElementById('ins-first') as HTMLInputElement).value).toBe('Mia')
+    expect((document.getElementById('ins-sub-first') as HTMLInputElement).value).toBe('John')
+    expect(toast).toHaveBeenCalledWith('Card filled in — check it against the patient, then check benefits.')
+    // The door is back for the next patient.
+    expect(screen.getByTestId('discovery-door')).toBeTruthy()
+  })
+})

@@ -75,7 +75,7 @@ insurance-card OCR are live, so **the product collects PHI by design.**
 | Stripe | payment/balance context | PCI; payment data alone usually not PHI. Lower risk. |
 | Zernio | GBP/social (reviews may contain PHI) | Business data mostly; lower risk. Confirm. |
 | Insurance eligibility (`INSURANCE_DRIVER=sandbox`) | member IDs + DOB typed into the /insurance tool stay in RDS; the sandbox driver sends NOTHING externally | n/a today. A clearinghouse driver (X12 270/271 vendor) is a PHI subprocessor and needs an executed BAA BEFORE the env flips. |
-| **Stedi** (`INSURANCE_DRIVER=stedi`) | patient name, DOB, member id + the practice NPI, sent per eligibility check | Stedi offers a BAA. **Execute it BEFORE `STEDI_MODE=live`**; test mode sends only Stedi's own mock members, never a real patient. |
+| **Stedi** (`INSURANCE_DRIVER=stedi`) | patient name, DOB, member id + the practice NPI, sent per eligibility check; and, for Insurance Discovery (2026-10-08, live mode only), name, DOB, state, ZIP and an OPTIONAL Social Security number sent per search | Stedi offers a BAA. **Execute it BEFORE `STEDI_MODE=live`**; test mode sends only Stedi's own mock members, never a real patient. The SSN is never written to RDS, logs or the ledger — the `insurance_discovery` row keeps only `hasSsn` (pinned by tests/insurance/discovery-service.test.ts); it exists in memory for one request. |
 
 ### What PHI actually flows to the AI (verified in code)
 - `intake-summary.ts` sends the patient's real intake transcript (the prompt

@@ -23,6 +23,7 @@ import {
 import type { StediPayerMatch } from '@/lib/stedi-eligibility'
 import { validatePayerNote, type PayerNoteView } from '@/lib/payer-notebook'
 import { getPayerNote, savePayerNote } from '@/lib/services/insurance-eligibility/payer-notebook'
+import { resumeInsuranceDiscovery, runInsuranceDiscovery, type RunDiscoveryResult } from '@/lib/services/insurance-eligibility/discovery'
 import { createPatient, updatePatient } from '@/lib/services/patients'
 import { readInsuranceCard, type InsuranceCardFields } from '@/lib/services/insurance-ocr'
 import { addPatientDocument, patientBelongsToOrg } from '@/lib/services/patient-documents'
@@ -342,4 +343,39 @@ export async function savePayerNoteAction(args: {
     console.error('[insurance] payer note save failed:', e)
     return { ok: false, error: 'Could not save. Try again in a moment.' }
   }
+}
+
+// ── Insurance Discovery (2026-10-08) — the no-card fallback ───────────────
+
+/**
+ * Search the payers for a plan in this name. The same clinic gate as a
+ * check; the SSN in `input` goes to the service and is never stored (the
+ * service keeps `hasSsn` only). The result is a list of CARDS for a human
+ * to pick from — picking one runs a normal check.
+ */
+export async function discoverCoverageAction(input: unknown, patientId: string | null): Promise<RunDiscoveryResult> {
+  const ctx = await clinicCtx()
+  if (!ctx) return { ok: false, errors: { _form: 'Insurance checks are a clinic feature.' } }
+  const r = await runInsuranceDiscovery(ctx.organizationId, {
+    input,
+    patientId: typeof patientId === 'string' ? patientId : null,
+    userId: ctx.userId,
+  })
+  if (r.ok) {
+    revalidatePath('/insurance')
+    if (r.discovery.patientId) revalidatePath(`/patients/${r.discovery.patientId}`)
+  }
+  return r
+}
+
+/** Ask again about a search the payers hadn't finished answering. Never a new billed search. */
+export async function resumeDiscoveryAction(id: string): Promise<RunDiscoveryResult> {
+  const ctx = await clinicCtx()
+  if (!ctx) return { ok: false, errors: { _form: 'Insurance checks are a clinic feature.' } }
+  const r = await resumeInsuranceDiscovery(ctx.organizationId, String(id ?? '').slice(0, 64))
+  if (r.ok && r.discovery.status !== 'pending') {
+    revalidatePath('/insurance')
+    if (r.discovery.patientId) revalidatePath(`/patients/${r.discovery.patientId}`)
+  }
+  return r
 }

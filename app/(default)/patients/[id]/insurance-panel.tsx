@@ -23,6 +23,7 @@ import {
   type InsuranceCheckView,
 } from '@/lib/insurance-eligibility'
 import { checkInsuranceAction } from '../../insurance/actions'
+import { DISCOVERY_COPY } from '@/lib/insurance-discovery'
 
 export interface InsurancePanelData {
   /** The most recent stored check for this patient, or null if never checked. */
@@ -39,6 +40,12 @@ export interface InsurancePanelData {
   /** Under the live driver with no practice NPI a check would only be
    *  refused — the card sends them to the Business profile instead. */
   needsNpi?: boolean
+  /** INSURANCE DISCOVERY (2026-10-08): the no-card door is offered when
+   *  the record holds no carrier; false under test mode, where a search
+   *  would only be refused. */
+  canDiscover?: boolean
+  /** The patient's latest search, for the one line under the door. */
+  discovery?: { status: 'found' | 'none' | 'pending' | 'error'; coveragesFound: number; createdAtIso: string } | null
 }
 
 /**
@@ -146,6 +153,17 @@ export default function InsurancePanel({
           Add their carrier and member ID first, or check them from the full form.
         </p>
       )}
+      {data.discovery && !data.hasOnFile && (
+        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400" data-testid="insurance-discovery-line" suppressHydrationWarning>
+          {data.discovery.status === 'pending'
+            ? 'Still searching the payers for their coverage'
+            : data.discovery.status === 'found'
+              ? `Searched the payers ${checkAgeLabel(data.discovery.createdAtIso)} — ${data.discovery.coveragesFound} possible ${data.discovery.coveragesFound === 1 ? 'plan' : 'plans'}`
+              : data.discovery.status === 'none'
+                ? `Searched the payers ${checkAgeLabel(data.discovery.createdAtIso)} — nothing found`
+                : `The last search ${checkAgeLabel(data.discovery.createdAtIso)} couldn’t reach the payers`}
+        </p>
+      )}
 
       {error && <p className={`mt-2 text-xs ${TONE_TEXT.urgent}`}>{error}</p>}
 
@@ -164,6 +182,11 @@ export default function InsurancePanel({
               {latest ? 'Check again' : 'Check now'}
             </ActionButton>
           )
+        )}
+        {!data.hasOnFile && !data.needsNpi && data.canDiscover && (
+          <Link href={`${toolHref}&discover=1`} className="text-xs font-medium text-teal-700 dark:text-teal-400 hover:underline" data-testid="insurance-discover-door">
+            {DISCOVERY_COPY.door} →
+          </Link>
         )}
         {(!data.needsPayerPick || data.needsNpi) && (
           <Link href={toolHref} className="text-xs font-medium text-teal-700 dark:text-teal-400 hover:underline">

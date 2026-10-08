@@ -14,6 +14,7 @@ import { getReferralContext } from '@/lib/services/patient-referrals'
 import { getLoyaltySettings, getPointsBalance, listLoyaltyEvents } from '@/lib/services/loyalty'
 import { listFormTemplates } from '@/lib/services/forms'
 import { getInsuranceSetup, getLatestInsuranceCheckForPatient, listInsuranceChecksForPatient } from '@/lib/services/insurance-eligibility'
+import { getLatestDiscoveryForPatient } from '@/lib/services/insurance-eligibility/discovery'
 import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
 import { canUseInsuranceTool, requestFromOnFile } from '@/lib/insurance-eligibility'
 import PatientDetail from './patient-detail'
@@ -33,7 +34,7 @@ export default async function PatientDetailPage({ params }: PageProps) {
   if (ctx.tenantType === 'platform') redirect('/ecommerce/customers')
 
   const { id } = await params
-  const [header, timeline, notes, forms, patientOptions, tags, tagCatalog, documents, followups, staff, family, referral, latestInsuranceCheck, timeZone, insuranceHistory, insuranceSetup] =
+  const [header, timeline, notes, forms, patientOptions, tags, tagCatalog, documents, followups, staff, family, referral, latestInsuranceCheck, timeZone, insuranceHistory, insuranceSetup, latestDiscovery] =
     await Promise.all([
       getPatientHeader(ctx.organizationId, id),
       getPatientTimeline(ctx.organizationId, id),
@@ -51,6 +52,7 @@ export default async function PatientDetailPage({ params }: PageProps) {
       getClinicTimeZone(ctx.organizationId),
       listInsuranceChecksForPatient(ctx.organizationId, id, 10),
       canUseInsuranceTool(ctx) ? getInsuranceSetup(ctx.organizationId) : Promise.resolve(null),
+      canUseInsuranceTool(ctx) ? getLatestDiscoveryForPatient(ctx.organizationId, id).catch(() => null) : Promise.resolve(null),
     ])
   if (!header) notFound()
   // A merged tombstone isn't a real record anymore — send old links to the survivor.
@@ -98,6 +100,10 @@ export default async function PatientDetailPage({ params }: PageProps) {
         // Under the live driver with no practice NPI a check would only be
         // refused — the card sends them to the one box that fixes it.
         needsNpi: insuranceSetup.needsNpi,
+        // The no-card door: test mode can't search (Stedi refuses it), so the
+        // card doesn't offer what the tool would only refuse.
+        canDiscover: insuranceSetup.driver !== 'stedi_test',
+        discovery: latestDiscovery ? { status: latestDiscovery.status, coveragesFound: latestDiscovery.coveragesFound, createdAtIso: latestDiscovery.createdAtIso } : null,
       }
     : null
 
