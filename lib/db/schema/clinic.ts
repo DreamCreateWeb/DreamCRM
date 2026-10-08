@@ -215,6 +215,12 @@ export const insuranceVerification = pgTable(
     input: jsonb('input').notNull(),
     // The EligibilityResult; null on an error row.
     result: jsonb('result'),
+    // The payer's response AS RECEIVED (Stedi's 271 as JSON; null for the
+    // sandbox and for error rows). The verification sheet (2026-10-08)
+    // reads a dozen fields the first normalizer dropped; keeping the raw
+    // answer means the next dropped field is a code change, not a second
+    // billed check. Never selected into a view — it is PHI-dense and large.
+    rawResponse: jsonb('raw_response'),
     error: text('error'),
     checkedAt: timestamp('checked_at').notNull().defaultNow(),
     createdAt: timestamp('created_at').notNull().defaultNow(),
@@ -225,6 +231,44 @@ export const insuranceVerification = pgTable(
   ],
 )
 export type InsuranceVerificationRow = typeof insuranceVerification.$inferSelect
+
+// ─────────────────────────────────────────────────────────────────────────────
+// THE PAYER NOTEBOOK (2026-10-08). Half of a desk's verification phone call
+// re-learns things about the PAYER that never change per patient: which fee
+// schedule the practice is on with them, whether the practice is in their
+// network, whether they pay crowns on the seat or the prep date, the claims
+// address and the number that actually answers. None of it is in a 271 —
+// it is a fact about the practice's contract with the payer — so it is
+// written once per clinic per payer and fills those lines on every
+// patient's sheet. Keyed on the clearinghouse payer id when the desk picked
+// one, else a normalised payer name (lib/payer-notebook.ts payerNoteKey).
+// ─────────────────────────────────────────────────────────────────────────────
+export const clinicPayerNote = pgTable(
+  'clinic_payer_note',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id, { onDelete: 'cascade' }),
+    // payerNoteKey(payerId, payerName) — one row per clinic per payer.
+    payerKey: text('payer_key').notNull(),
+    payerId: text('payer_id'),
+    payerName: text('payer_name').notNull(),
+    feeSchedule: text('fee_schedule'),
+    // 'in' | 'out' | null — the practice's own network status with this payer.
+    network: text('network'),
+    // 'seat' | 'prep' | null — when the payer pays major work, as the practice knows it.
+    paysOn: text('pays_on'),
+    claimsAddress: text('claims_address'),
+    phone: text('phone'),
+    notes: text('notes'),
+    updatedByUserId: text('updated_by_user_id').references(() => user.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('clinic_payer_note_org_payer_uq').on(t.organizationId, t.payerKey)],
+)
+export type ClinicPayerNoteRow = typeof clinicPayerNote.$inferSelect
 
 // Staff follow-up tasks attached to a patient ("call about treatment plan",
 // "rebook after no-show"). The dental-research pattern is patient-attached

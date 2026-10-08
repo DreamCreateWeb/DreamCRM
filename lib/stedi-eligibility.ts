@@ -1,4 +1,19 @@
-import type { BenefitAmount, DeductibleAmount, EligibilityRequest, EligibilityResult, EligibilityStatus, FrequencyCode } from '@/lib/insurance-eligibility'
+import {
+  FORM_PROCEDURES,
+  type AgeLimits,
+  type BenefitAmount,
+  type CoverageTier,
+  type DeductibleAmount,
+  type DeductibleApplies,
+  type EligibilityRequest,
+  type EligibilityResult,
+  type EligibilityStatus,
+  type FrequencyCode,
+  type PayerContacts,
+  type PlanFacts,
+  type ProcedureBenefit,
+  type ReplacementRules,
+} from '@/lib/insurance-eligibility'
 
 /**
  * Stedi eligibility — the PURE half of the driver (no network, no server-only
@@ -294,13 +309,13 @@ function deductibleOf(total: number | null, remaining: number | null): Deductibl
 }
 
 /** STC → the tier the front desk talks in. */
-const TIER_BY_STC: Record<string, 'preventive' | 'basic' | 'major' | 'ortho'> = {
+const TIER_BY_STC: Record<string, CoverageTier> = {
   '41': 'preventive', // Routine (Preventive) Dental
-  '23': 'preventive', // Diagnostic Dental
+  '23': 'diagnostic', // Diagnostic Dental
   '25': 'basic', // Restorative
-  '24': 'basic', // Periodontics
-  '26': 'basic', // Endodontics
-  '40': 'basic', // Oral Surgery
+  '24': 'perio', // Periodontics
+  '26': 'endo', // Endodontics
+  '40': 'oralSurgery', // Oral Surgery
   '28': 'basic', // Adjunctive Dental Services
   '36': 'major', // Dental Crowns
   '39': 'major', // Prosthodontics
@@ -308,33 +323,67 @@ const TIER_BY_STC: Record<string, 'preventive' | 'basic' | 'major' | 'ortho'> = 
   '38': 'ortho', // Orthodontics
 }
 
-function coverageTiers(coIns: Entry[]): EligibilityResult['coveragePct'] {
-  const planPays: Record<'preventive' | 'basic' | 'major' | 'ortho', number | null> = {
-    preventive: null,
-    basic: null,
-    major: null,
-    ortho: null,
-  }
+type TierPct = Record<CoverageTier, number | null>
+
+function emptyTiers(): TierPct {
+  return { diagnostic: null, preventive: null, basic: null, perio: null, endo: null, oralSurgery: null, major: null, ortho: null }
+}
+
+/**
+ * Plan-pays per tier on one side of the network. The payer prices STCs;
+ * the first stated row per tier wins (in-network first on the IN side).
+ * Fallbacks are the desk's own: a plan that prices Restorative but not
+ * Periodontics still has a "basic" number, and a plan that priced only
+ * "Dental Care" has one number for everything but ortho.
+ */
+function tierPercents(coIns: Entry[], side: 'in' | 'out'): TierPct | null {
+  const raw = emptyTiers()
   let generic: number | null = null
-  const sorted = [...coIns].filter(isIndividual).sort((a, b) => networkRank(a) - networkRank(b))
-  for (const e of sorted) {
+  const rows = [...coIns]
+    .filter(isIndividual)
+    .filter((e) => {
+      const ind = asString(asRecord(e.network).indicator)
+      return side === 'out' ? ind === 'OUT_OF_NETWORK' : ind !== 'OUT_OF_NETWORK'
+    })
+    .sort((a, b) => networkRank(a) - networkRank(b))
+  for (const e of rows) {
     const share = patientSharePct(e.percent)
     if (share == null) continue
     const stc = serviceSystem(e) === 'STC' ? serviceValue(e) : null
     if (stc && TIER_BY_STC[stc]) {
       const tier = TIER_BY_STC[stc]
-      if (planPays[tier] == null) planPays[tier] = 100 - share
+      if (raw[tier] == null) raw[tier] = 100 - share
     } else if ((stc === DENTAL_STC || stc === '30' || !stc) && generic == null) {
       generic = 100 - share
     }
   }
-  const any = Object.values(planPays).some((v) => v != null) || generic != null
+  const any = Object.values(raw).some((v) => v != null) || generic != null
   if (!any) return null
+  const basic = raw.basic ?? raw.perio ?? raw.endo ?? raw.oralSurgery ?? generic
   return {
-    preventive: planPays.preventive ?? generic,
-    basic: planPays.basic ?? generic,
-    major: planPays.major ?? generic,
-    ortho: planPays.ortho,
+    diagnostic: raw.diagnostic ?? raw.preventive ?? generic,
+    preventive: raw.preventive ?? raw.diagnostic ?? generic,
+    basic,
+    perio: raw.perio,
+    endo: raw.endo,
+    oralSurgery: raw.oralSurgery,
+    major: raw.major ?? generic,
+    ortho: raw.ortho,
+  }
+}
+
+function coverageTiers(coIns: Entry[], side: 'in' | 'out' = 'in'): EligibilityResult['coveragePct'] {
+  const t = tierPercents(coIns, side)
+  if (!t) return null
+  return {
+    preventive: t.preventive,
+    basic: t.basic,
+    major: t.major,
+    ortho: t.ortho,
+    diagnostic: t.diagnostic,
+    perio: t.perio,
+    endo: t.endo,
+    oralSurgery: t.oralSurgery,
   }
 }
 
@@ -410,31 +459,65 @@ function periodWords(value: number | null, qualifier: string | null): string {
   }
 }
 
+/** The allowance on a limitation row in desk words, or null when the row carries no quantity. */
+function limitTextOf(e: Entry): string | null {
+  // Two shapes: the current `serviceLimits[].delivery` (quantity + period),
+  // and the older flat `quantity` + `timePeriod`.
+  const delivery = asArray(e.serviceLimits).map((l) => asRecord(asRecord(l).delivery)).find((d) => asString(asRecord(d.quantity).value))
+  if (delivery) {
+    const count = asString(asRecord(delivery.quantity).value)
+    const per = asRecord(delivery.period)
+    const perValue = per.value == null ? null : Number(per.value)
+    return `${count} ${periodWords(Number.isFinite(perValue as number) ? (perValue as number) : null, asString(per.qualifier))}`.trim()
+  }
+  const q = asRecord(e.quantity)
+  const qual = asString(q.qualifier)
+  const value = asString(q.value)
+  if (!value || !qual || !['VISITS', 'NUMBER_OF_SERVICES_OR_PROCEDURES', 'MAXIMUM', 'DAYS', 'MONTH', 'YEARS'].includes(qual)) return null
+  const per = period(e)
+  const unit = qual === 'VISITS' ? 'visit' : qual === 'DAYS' ? 'day' : qual === 'MONTH' ? 'month' : qual === 'YEARS' ? 'year' : ''
+  const head = `${value}${unit ? ` ${unit}${value === '1' ? '' : 's'}` : ''}`
+  return per && PERIOD_LABEL[per] ? `${head} ${PERIOD_LABEL[per]}` : head
+}
+
+/** The replacement window on a limitation row, in months, when its period is a span of time. */
+function limitMonthsOf(e: Entry): number | null {
+  const delivery = asArray(e.serviceLimits).map((l) => asRecord(asRecord(l).delivery)).find((d) => asString(asRecord(d.quantity).value))
+  if (!delivery) return null
+  const per = asRecord(delivery.period)
+  const n = per.value == null ? 1 : Number(per.value)
+  if (!Number.isFinite(n) || n <= 0) return null
+  switch ((asString(per.qualifier) ?? '').toUpperCase()) {
+    case 'MONTH':
+    case 'MONTHS':
+      return n
+    case 'YEAR':
+    case 'YEARS':
+    case 'CONTRACT':
+    case 'SERVICE_YEAR':
+    case 'CALENDAR_YEAR':
+      return n * 12
+    default:
+      return null
+  }
+}
+
+function lastOnOf(e: Entry): string | null {
+  const dates = asRecord(e.dates)
+  return asString(asRecord(dates.latestVisit).start) ?? asString(dates.latestVisit)
+}
+function nextOnOf(e: Entry): string | null {
+  // Payers answer "when is the next one covered" as a service date range
+  // whose start is the next eligible day.
+  return asString(asRecord(asRecord(e.dates).service).start)
+}
+
 function frequencyRows(limits: Entry[]): EligibilityResult['frequencies'] {
   const rows: EligibilityResult['frequencies'] = []
   const seen = new Set<string>()
   for (const e of limits) {
-    // Two shapes: the current `serviceLimits[].delivery` (quantity + period),
-    // and the older flat `quantity` + `timePeriod`.
-    let count: string | null = null
-    let limitText = ''
-    const delivery = asArray(e.serviceLimits).map((l) => asRecord(asRecord(l).delivery)).find((d) => asString(asRecord(d.quantity).value))
-    if (delivery) {
-      count = asString(asRecord(delivery.quantity).value)
-      const per = asRecord(delivery.period)
-      const perValue = per.value == null ? null : Number(per.value)
-      limitText = `${count} ${periodWords(Number.isFinite(perValue as number) ? (perValue as number) : null, asString(per.qualifier))}`.trim()
-    } else {
-      const q = asRecord(e.quantity)
-      const qual = asString(q.qualifier)
-      const value = asString(q.value)
-      if (!value || !qual || !['VISITS', 'NUMBER_OF_SERVICES_OR_PROCEDURES', 'MAXIMUM', 'DAYS', 'MONTH', 'YEARS'].includes(qual)) continue
-      count = value
-      const per = period(e)
-      const unit = qual === 'VISITS' ? 'visit' : qual === 'DAYS' ? 'day' : qual === 'MONTH' ? 'month' : qual === 'YEARS' ? 'year' : ''
-      limitText = per && PERIOD_LABEL[per] ? `${value}${unit ? ` ${unit}${value === '1' ? '' : 's'}` : ''} ${PERIOD_LABEL[per]}` : `${value}${unit ? ` ${unit}${value === '1' ? '' : 's'}` : ''}`
-    }
-    if (!count) continue
+    const limitText = limitTextOf(e)
+    if (!limitText) continue
     const sys = serviceSystem(e)
     const svc = serviceValue(e)
     let code: FrequencyCode = 'other'
@@ -450,19 +533,256 @@ function frequencyRows(limits: Entry[]): EligibilityResult['frequencies'] {
     const key = `${code}:${label}`
     if (seen.has(key)) continue
     seen.add(key)
-    const dates = asRecord(e.dates)
-    rows.push({
-      code,
-      label,
-      limit: limitText.trim(),
-      lastOn: asString(asRecord(dates.latestVisit).start) ?? asString(dates.latestVisit),
-      // Payers answer "when is the next one covered" as a service date range
-      // whose start is the next eligible day.
-      nextOn: asString(asRecord(dates.service).start),
-    })
+    rows.push({ code, label, limit: limitText.trim(), lastOn: lastOnOf(e), nextOn: nextOnOf(e) })
   }
   return rows
 }
+
+// ── The verification sheet's fields ────────────────────────────────────
+
+/** A sentence most payers stamp on every limitation row; it says nothing a desk can use. */
+const BOILERPLATE = /^SIMILAR PROCEDURES PERFORMED MAY IMPACT LIMITATION\.?$/i
+
+/** Every message across every benefit category, deduped, in the payer's order. */
+function everyMessage(benefits: Record<string, unknown>): string[] {
+  const out: string[] = []
+  const seen = new Set<string>()
+  for (const v of Object.values(benefits)) {
+    for (const e of asArray(v)) {
+      for (const m of messages(e)) {
+        const t = m.trim()
+        const k = t.toUpperCase()
+        if (!t || seen.has(k) || BOILERPLATE.test(t)) continue
+        seen.add(k)
+        out.push(t)
+      }
+    }
+  }
+  return out
+}
+
+function planFacts(root: Record<string, unknown>, statuses: Entry[], yearly: Entry[], coverage: { effective: string | null; termination: string | null }, now: Date): PlanFacts | null {
+  const subInfo = asRecord(asRecord(root.subscriber).additionalInformation)
+  const depInfo = asRecord(asRecord(root.dependent).additionalInformation)
+  const group = { ...asRecord(subInfo.group), ...asRecord(depInfo.group) }
+  const plan = { ...asRecord(subInfo.plan), ...asRecord(depInfo.plan) }
+  const insuranceType = statuses.filter(isDentalish).map((s) => asString(s.insuranceType)).find((x) => !!x) ?? null
+  const periods = yearly.map(period).filter((p): p is string => !!p)
+  const benefitYear: PlanFacts['benefitYear'] = periods.some((p) => p === 'CALENDAR_YEAR')
+    ? 'calendar'
+    : periods.some((p) => p === 'CONTRACT' || p === 'SERVICE_YEAR')
+      ? 'plan'
+      : null
+  let start: string | null = null
+  let end: string | null = null
+  if (benefitYear === 'calendar') {
+    const y = now.getUTCFullYear()
+    start = `${y}-01-01`
+    end = `${y}-12-31`
+  } else if (benefitYear === 'plan') {
+    start = coverage.effective
+    end = coverage.termination
+  }
+  const facts: PlanFacts = {
+    groupNumber: asString(group.number) ?? asString(group.id),
+    groupName: asString(group.name) ?? asString(group.description),
+    planNumber: asString(plan.number) ?? asString(plan.id),
+    insuranceType,
+    benefitYear,
+    benefitYearStart: start,
+    benefitYearEnd: end,
+  }
+  return Object.values(facts).some((v) => v != null) ? facts : null
+}
+
+function formatAddress(a: Record<string, unknown>): string | null {
+  const line1 = asString(a.addressLine1) ?? asString(a.address1)
+  if (!line1) return null
+  const line2 = asString(a.addressLine2) ?? asString(a.address2)
+  const city = asString(a.city)
+  const state = asString(a.state)
+  const zip = asString(a.postalCode) ?? asString(a.zip)
+  const tail = [city, [state, zip].filter(Boolean).join(' ')].filter(Boolean).join(', ')
+  return [line1, line2, tail].filter(Boolean).join(', ')
+}
+
+function payerContacts(root: Record<string, unknown>, benefits: Record<string, unknown>): PayerContacts | null {
+  const contacts = asArray(asRecord(root.payer).contacts)
+    .map((c) => ({
+      name: asString(c.name),
+      phones: asStringArray(c.phoneNumbers),
+      faxes: asStringArray(c.faxNumbers),
+      emails: asStringArray(c.emails),
+      urls: asStringArray(c.urls),
+    }))
+    .filter((c) => c.name || c.phones.length || c.faxes.length || c.emails.length || c.urls.length)
+  // A claims address rides a related entity (a carve-out administrator, a
+  // claims office) on some benefit row — the first with an address wins.
+  let claimsAddress: string | null = formatAddress(asRecord(asRecord(root.payer).address))
+  if (!claimsAddress) {
+    outer: for (const v of Object.values(benefits)) {
+      for (const e of asArray(v)) {
+        for (const rel of asArray(e.relatedEntities)) {
+          const addr = formatAddress(asRecord(rel.address))
+          if (addr) {
+            claimsAddress = addr
+            break outer
+          }
+        }
+      }
+    }
+  }
+  if (!contacts.length && !claimsAddress) return null
+  return { contacts, claimsAddress }
+}
+
+/**
+ * What the deductible applies to. Payers say it two ways: a note on the
+ * deductible row ("BASIC/MAJOR/SELECT", "DOES NOT APPLY TO PREVENTIVE") or
+ * a row scoped to the tier's own STC. A tier named applies; preventive is
+ * read as excluded when others are named and it is not — "basic and major"
+ * means what it says at a desk — and left null when nothing was said.
+ */
+function deductibleApplies(deductible: Entry[]): DeductibleApplies | null {
+  const rows = deductible.filter(isIndividual).filter((e) => cents(e.amount) != null)
+  if (!rows.length) return null
+  let preventive: boolean | null = null
+  let basic: boolean | null = null
+  let major: boolean | null = null
+  const notes: string[] = []
+  for (const e of rows) {
+    const amount = cents(e.amount) ?? 0
+    const text = messages(e).join(' ')
+    const stc = serviceSystem(e) === 'STC' ? serviceValue(e) : null
+    // A COVERAGE category (the benefit's STC), never a plan tier — the
+    // plan-gate guard reads a variable named tier compared to a word it forbids.
+    const category = stc ? TIER_BY_STC[stc] : null
+    const applies = amount > 0
+    if (category === 'preventive' || category === 'diagnostic') preventive = applies
+    else if (category === 'basic' || category === 'perio' || category === 'endo' || category === 'oralSurgery') basic = applies
+    else if (category === 'major') major = applies
+    if (!text) continue
+    if (amount > 0 && !/ALL OTHER/i.test(text)) notes.push(text)
+    const upper = text.toUpperCase()
+    const negated = /DOES NOT APPLY|NOT APPLY|WAIVED|EXCLUD/i.test(upper)
+    if (/PREVENT|DIAGNOSTIC|TYPE ?1|TYPE ?I\b/.test(upper)) preventive = negated ? false : applies
+    if (/BASIC|TYPE ?2|TYPE ?II\b/.test(upper)) basic = negated ? false : applies
+    if (/MAJOR|TYPE ?3|TYPE ?III\b/.test(upper)) major = negated ? false : applies
+  }
+  if (preventive == null && (basic === true || major === true)) preventive = false
+  if (preventive == null && basic == null && major == null && !notes.length) return null
+  return { preventive, basic, major, note: notes.length ? Array.from(new Set(notes)).join(' · ') : null }
+}
+
+function cdtRowsFor(list: Entry[], codes: string[]): Entry[] {
+  return list.filter((e) => serviceSystem(e) === 'CDT' && !!serviceValue(e) && codes.includes(serviceValue(e)!))
+}
+
+/**
+ * The form's procedure lines. A payer prices a procedure two ways: a
+ * coinsurance row on the code itself (rare for covered work, common for
+ * EXCLUDED work — "D9944 patient pays 100%"), or its tier's rate. The line
+ * says which (`pctSource`), so the sheet can be honest about a derived
+ * percent. Limits, dates and notes come from the code's limitation rows.
+ */
+function procedureLines(coIns: Entry[], limits: Entry[], tiers: TierPct | null): ProcedureBenefit[] {
+  const out: ProcedureBenefit[] = []
+  for (const def of FORM_PROCEDURES) {
+    const priced = cdtRowsFor(coIns, def.codes)
+      .filter(isIndividual)
+      .sort((a, b) => networkRank(a) - networkRank(b))
+      .find((e) => patientSharePct(e.percent) != null)
+    const limitRows = cdtRowsFor(limits, def.codes).filter(isIndividual)
+    const limitRow = limitRows.find((e) => limitTextOf(e)) ?? limitRows[0]
+    const notes = Array.from(new Set(limitRows.flatMap(messages).map((m) => m.trim()).filter((m) => m && !BOILERPLATE.test(m))))
+    let planPays: number | null = null
+    let pctSource: ProcedureBenefit['pctSource'] = null
+    if (priced) {
+      planPays = 100 - (patientSharePct(priced.percent) as number)
+      pctSource = 'code'
+    } else if (tiers && tiers[def.tier] != null) {
+      planPays = tiers[def.tier]
+      pctSource = 'tier'
+    }
+    const limit = limitRow ? limitTextOf(limitRow) : null
+    const lastOn = limitRows.map(lastOnOf).find((d) => !!d) ?? null
+    const nextOn = limitRows.map(nextOnOf).find((d) => !!d) ?? null
+    if (planPays == null && !limit && !lastOn && !nextOn && !notes.length) continue
+    out.push({
+      key: def.key,
+      code: serviceValue(priced ?? limitRow ?? {}) ?? def.codes[0],
+      label: def.label,
+      planPays,
+      pctSource,
+      limit,
+      lastOn,
+      nextOn,
+      notes,
+    })
+  }
+  return out
+}
+
+const CROWN_BRIDGE = /^D(27\d\d|6[0-9]{3})$/
+const DENTURE = /^D5[0-9]{3}$/
+
+function replacementRules(limits: Entry[], allText: string[]): ReplacementRules | null {
+  const months = (re: RegExp) =>
+    limits
+      .filter((e) => serviceSystem(e) === 'CDT' && re.test(serviceValue(e) ?? ''))
+      .map(limitMonthsOf)
+      .find((m): m is number => m != null && m >= 12) ?? null
+  const crownBridgeMonths = months(CROWN_BRIDGE)
+  const dentureMonths = months(DENTURE)
+  const joined = allText.join(' \n ')
+  const paysOn: ReplacementRules['paysOn'] = /PAID ON (THE )?PREP|PREP(ARATION)? DATE/i.test(joined)
+    ? 'prep'
+    : /PAID ON (THE )?(SEAT|INSERT|COMPLETION|CEMENT|DELIVERY)|(SEAT|INSERTION|COMPLETION|CEMENTATION|DELIVERY) DATE/i.test(joined)
+      ? 'seat'
+      : null
+  if (crownBridgeMonths == null && dentureMonths == null && !paysOn) return null
+  return { crownBridgeMonths, dentureMonths, paysOn }
+}
+
+/**
+ * "through age 14", "under age 19", "to age 16", "age 26 and under", "under
+ * 19 years of age" → the number. The word AGE (or "n and under / younger")
+ * has to be there: "limited to 1 per tooth" and "up to 2 per year" are
+ * allowances, not ages, and a sealant row says both.
+ */
+function ageFrom(texts: string[]): number | null {
+  const patterns = [
+    /\bAGE\s*(?:OF\s*)?(\d{1,2})\b/i,
+    /\b(\d{1,2})\s*(?:YEARS?\s*)?(?:OF AGE|AND (?:UNDER|YOUNGER))\b/i,
+    /\bUNDER\s*(\d{1,2})\s*YEARS?\b/i,
+  ]
+  for (const t of texts) {
+    for (const re of patterns) {
+      const m = re.exec(t)
+      if (m) {
+        const n = Number(m[1])
+        if (n >= 1 && n <= 99) return n
+      }
+    }
+  }
+  return null
+}
+
+function ageLimits(coIns: Entry[], limits: Entry[], allText: string[]): AgeLimits | null {
+  const rowsText = (re: RegExp, codes: string[]) =>
+    [...cdtRowsFor(coIns, codes), ...cdtRowsFor(limits, codes)].flatMap(messages).concat(allText.filter((t) => re.test(t)))
+  const fluoride = ageFrom(rowsText(/FLUORIDE/i, ['D1206', 'D1208']))
+  const sealants = ageFrom(rowsText(/SEALANT/i, ['D1351']))
+  const orthoRows = [...coIns, ...limits].filter((e) => serviceValue(e) === '38' || /^D8/.test(serviceValue(e) ?? '')).flatMap(messages)
+  const ortho = ageFrom(orthoRows.concat(allText.filter((t) => /ORTHO/i.test(t))))
+  // A dependent age limit is about coverage itself — a sentence about ortho,
+  // fluoride or sealants for children is that benefit's own limit, read above.
+  const dependent = ageFrom(allText.filter((t) => /DEPENDENT|CHILD(REN)?\b|STUDENT/i.test(t) && /AGE/i.test(t) && !/ORTHO|FLUORIDE|SEALANT/i.test(t)))
+  if (fluoride == null && sealants == null && ortho == null && dependent == null) return null
+  return { fluoride, sealants, ortho, dependent }
+}
+
+const DOWNGRADE = /DOWNGRAD|ALTERNATE BENEFIT|ALTERNATIVE BENEFIT|ANTERIOR AND BICUSPID|AMALGAM|POSTERIOR (COMPOSITE|TEETH)|LEAST EXPENSIVE|LOWEST COST/i
 
 function planDates(json: Record<string, unknown>, statuses: Entry[]): { effective: string | null; termination: string | null } {
   const fromSub = asRecord(asRecord(asRecord(json.subscriber).dates).plan)
@@ -587,7 +907,8 @@ export function normalizeStediResponse(json: unknown, req: EligibilityRequest, n
 
   const notes: string[] = []
   const allMessages = [...limits, ...entries(benefits, 'benefitDescription'), ...entries(benefits, 'exclusions')].flatMap(messages)
-  const waiting = allMessages.filter((m) => /waiting period/i.test(m)).slice(0, 2)
+  const noWaiting = allMessages.some((m) => /no waiting period/i.test(m))
+  const waiting = allMessages.filter((m) => /waiting period/i.test(m) && !/no waiting period/i.test(m)).slice(0, 2)
   const missingTooth = allMessages.some((m) => /missing tooth/i.test(m))
   notes.push(...waiting)
   if (status === 'needs_review' && statusValues.length === 0) {
@@ -597,10 +918,15 @@ export function normalizeStediResponse(json: unknown, req: EligibilityRequest, n
     notes.push(`The plan’s end date (${coverage.termination}) has passed — treat this coverage as ended.`)
   }
 
+  const tiersIn = tierPercents(coIns, 'in')
+  const allText = everyMessage(benefits)
+  const subPlanName = asString(asRecord(asRecord(asRecord(root.subscriber).additionalInformation).plan).name)
+  const depPlanName = asString(asRecord(asRecord(asRecord(root.dependent).additionalInformation).plan).name)
+
   return {
     ...base,
     status,
-    planName: asString(plan.name),
+    planName: asString(plan.name) ?? depPlanName ?? subPlanName,
     coverage,
     deductible: deductibleOf(dedTotal, dedRemaining),
     annualMax: amountOf(maxTotal, maxRemaining),
@@ -608,8 +934,18 @@ export function normalizeStediResponse(json: unknown, req: EligibilityRequest, n
     familyDeductible: deductibleOf(familyDedTotal, familyDedRemaining),
     orthoLifetimeMax: amountOf(orthoTotal, orthoRemaining),
     coveragePct: coverageTiers(coIns),
+    coveragePctOut: coverageTiers(coIns, 'out'),
+    noWaitingPeriods: noWaiting || undefined,
     frequencies: frequencyRows(limits),
     missingToothClause: missingTooth ? true : null,
     notes,
+    plan: planFacts(root, statuses, yearly, coverage, now),
+    payerContacts: payerContacts(root, benefits),
+    deductibleApplies: deductibleApplies(deductible),
+    procedures: procedureLines(coIns, limits, tiersIn),
+    replacement: replacementRules(limits, allText),
+    ageLimits: ageLimits(coIns, limits, allText),
+    downgrades: allText.filter((t) => DOWNGRADE.test(t)),
+    payerNotes: allText,
   }
 }

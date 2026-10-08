@@ -7,7 +7,15 @@ import type { EligibilityRequest, EligibilityResult, InsuranceDriverId } from '@
  * the database itself: persistence, the ledger line and the demo gate are the
  * service's job so every driver inherits them.
  */
+export interface EligibilityAnswer {
+  result: EligibilityResult
+  /** The payer's response as received (the 271 as JSON), kept on the row so
+   *  a field the normalizer doesn't read yet can be mined later without a
+   *  second billed check. Null for drivers with nothing behind them. */
+  raw: unknown | null
+}
+
 export interface EligibilityProvider {
   id: InsuranceDriverId
-  check(req: EligibilityRequest, ctx: { now: Date; organizationId: string }): Promise<EligibilityResult>
+  check(req: EligibilityRequest, ctx: { now: Date; organizationId: string }): Promise<EligibilityAnswer>
 }

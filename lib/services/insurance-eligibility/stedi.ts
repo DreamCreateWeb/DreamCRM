@@ -13,7 +13,7 @@ import {
   pickUnambiguousPayer,
   type StediPayerMatch,
 } from '@/lib/stedi-eligibility'
-import type { EligibilityProvider } from './provider'
+import type { EligibilityAnswer, EligibilityProvider } from './provider'
 
 /**
  * The STEDI driver — the network half. Reads STEDI_API_KEY, resolves the
@@ -120,7 +120,7 @@ async function readError(res: Response): Promise<string> {
 export function makeStediProvider(id: Extract<InsuranceDriverId, 'stedi' | 'stedi_test'>): EligibilityProvider {
   return {
     id,
-    async check(req, ctx): Promise<EligibilityResult> {
+    async check(req, ctx): Promise<EligibilityAnswer> {
       const mode = id === 'stedi' ? 'live' : 'test'
       const [payerId, provider] = await Promise.all([resolvePayerId(req), resolveProvider(ctx.organizationId, mode)])
       const body = buildStediRequest(req, { payerId, npi: provider.npi, organizationName: provider.organizationName })
@@ -128,7 +128,8 @@ export function makeStediProvider(id: Extract<InsuranceDriverId, 'stedi' | 'sted
       if (res.status === 401 || res.status === 403) throw new Error('Stedi rejected the API key — check STEDI_API_KEY.')
       if (res.status === 429 || res.status >= 500) throw new StediRetryableError(`Stedi is busy (HTTP ${res.status}) — try again in a moment.`)
       if (!res.ok) throw new Error(`Stedi rejected the request: ${await readError(res)}`)
-      return normalizeStediResponse(await res.json(), req, ctx.now)
+      const json: unknown = await res.json()
+      return { result: normalizeStediResponse(json, req, ctx.now), raw: json }
     },
   }
 }

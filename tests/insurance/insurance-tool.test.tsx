@@ -26,8 +26,12 @@ const searchPayersAction = vi.fn(async () => ({
 }))
 const scanCardAction = vi.fn()
 const disableInsuranceAction = vi.fn(async () => ({ ok: true as const }))
+const getPayerNoteAction = vi.fn(async (..._a: unknown[]) => null as unknown)
+const savePayerNoteAction = vi.fn()
 vi.mock('@/app/(default)/insurance/actions', () => ({
   disableInsuranceAction: (...a: unknown[]) => disableInsuranceAction(...(a as [])),
+  getPayerNoteAction: (...a: unknown[]) => getPayerNoteAction(...(a as [])),
+  savePayerNoteAction: (...a: unknown[]) => savePayerNoteAction(...(a as [])),
   checkInsuranceAction: (...a: unknown[]) => checkInsuranceAction(...(a as [])),
   createPatientFromCheckAction: (...a: unknown[]) => createPatientFromCheckAction(...(a as [])),
   saveInsuranceToPatientAction: (...a: unknown[]) => saveInsuranceToPatientAction(...(a as [])),
@@ -102,6 +106,9 @@ beforeEach(() => {
   toast.mockClear()
   checkInsuranceAction.mockReset()
   createPatientFromCheckAction.mockReset()
+  savePayerNoteAction.mockReset()
+  getPayerNoteAction.mockReset()
+  getPayerNoteAction.mockResolvedValue(null)
 })
 
 describe('InsuranceTool — honesty', () => {
@@ -525,5 +532,149 @@ describe('the ON switch (self-serve setup)', () => {
     confirmFn.mockResolvedValueOnce(true)
     fireEvent.click(screen.getByText('Turn off insurance checks'))
     await waitFor(() => expect(disableInsuranceAction).toHaveBeenCalledTimes(1))
+  })
+
+})
+
+describe('InsuranceTool — the verification sheet and the payer notebook (2026-10-08)', () => {
+  const sheetResult = () => ({
+    ...check().result!,
+    plan: { groupNumber: 'G-100', groupName: 'Harbor Logistics', planNumber: null, insuranceType: 'PREFERRED_PROVIDER_ORGANIZATION', benefitYear: 'calendar' as const, benefitYearStart: '2026-01-01', benefitYearEnd: '2026-12-31' },
+    payerContacts: { contacts: [{ name: 'Provider services', phones: ['800-555-0147'], faxes: [], emails: [], urls: [] }], claimsAddress: null },
+    deductibleApplies: { preventive: false, basic: true, major: true, note: null },
+    coveragePct: { preventive: 100, basic: 80, major: 50, ortho: null, diagnostic: 100, perio: 80, endo: 80, oralSurgery: 80 },
+    noWaitingPeriods: true,
+    procedures: [
+      { key: 'exam' as const, code: 'D0120', label: 'Exam', planPays: 100, pctSource: 'tier' as const, limit: '2 per year', lastOn: '2026-04-30', nextOn: '2026-10-30', notes: [] },
+      { key: 'pa' as const, code: 'D0220', label: 'Periapical X-ray', planPays: 100, pctSource: 'tier' as const, limit: null, lastOn: null, nextOn: null, notes: [] },
+      { key: 'occlusal_guard' as const, code: 'D9944', label: 'Occlusal guard', planPays: 0, pctSource: 'code' as const, limit: null, lastOn: null, nextOn: null, notes: [] },
+      { key: 'crown' as const, code: 'D2740', label: 'Crown', planPays: 50, pctSource: 'tier' as const, limit: '1 every 5 years', lastOn: null, nextOn: null, notes: ['Paid on the seat date.'] },
+    ],
+    replacement: { crownBridgeMonths: 60, dentureMonths: 84, paysOn: 'seat' as const },
+    ageLimits: { fluoride: 14, sealants: 16, ortho: null, dependent: 26 },
+    downgrades: ['Posterior composite fillings are paid at the amalgam rate.'],
+    payerNotes: ['Posterior composite fillings are paid at the amalgam rate.', 'Pretreatment estimates recommended over $300.'],
+  })
+  const note = {
+    id: 'pnote_1',
+    payerKey: 'name:deltadental',
+    payerId: null,
+    payerName: 'Delta Dental',
+    feeSchedule: 'Premier',
+    network: 'in' as const,
+    paysOn: null,
+    claimsAddress: 'PO Box 1, Anytown, OH 43000',
+    phone: null,
+    notes: 'Ask for the dental desk.',
+    updatedAtIso: '2026-10-08T15:00:00.000Z',
+    updatedByName: 'Mary',
+  }
+
+  it('the card shows the plan facts, the extra tiers, the procedure table (lines the payer said something about, category rates starred), the rules and every payer note', () => {
+    renderTool({ initialCheck: check({ result: sheetResult() }) })
+    expect(screen.getByTestId('plan-facts').textContent).toBe('Group G-100 · Harbor Logistics · PPO · Calendar-year benefits')
+    expect(screen.getByTestId('extra-tiers').textContent).toContain('Perio 80%')
+    const table = screen.getByTestId('procedure-table')
+    expect(table.textContent).toContain('Exam')
+    expect(table.textContent).toContain('2 per year')
+    expect(table.textContent).toContain('100%*')
+    expect(table.textContent).toContain('not covered')
+    // A line with only a category rate and nothing specific stays off the card (the sheet still prints it).
+    expect(table.textContent).not.toContain('Periapical')
+    expect(table.textContent).toContain('the category’s rate')
+    expect(screen.getByText('No waiting periods').getAttribute('data-tone')).toBe('ok')
+    expect(screen.getByText('Posterior composites downgraded').getAttribute('data-tone')).toBe('warn')
+    expect(screen.getByText('Deductible applies to basic and major, not preventive')).toBeTruthy()
+    expect(screen.getByText('Replacement: crowns every 5 years, dentures every 7 years, paid on the seat date')).toBeTruthy()
+    expect(screen.getByText('Ages: fluoride through 14, sealants through 16, dependents through 26')).toBeTruthy()
+    expect(screen.getByText('Payer 800-555-0147')).toBeTruthy()
+    const notes = screen.getByTestId('payer-notes')
+    expect(notes.textContent).toContain('Everything the payer said · 2')
+    expect(notes.textContent).toContain('Pretreatment estimates recommended over $300.')
+    // Older rows with no procedure lines keep the frequencies table.
+    expect(screen.queryByText('Exams')).toBeNull()
+  })
+
+  it('the printed sheet is the verification form line for line: the payer’s answer, the practice’s notebook, and honest blanks', () => {
+    renderTool({ initialCheck: check({ result: sheetResult() }), initialPayerNote: note })
+    act(() => {
+      window.dispatchEvent(new Event('beforeprint'))
+    })
+    const sheet = screen.getByTestId('benefits-sheet')
+    const t = sheet.textContent ?? ''
+    expect(t).toContain('Insurance verification')
+    expect(t).toContain('Patient name:Mia Hayes')
+    expect(t).toContain('Subscriber ID:DD-100-2231')
+    expect(t).toContain('Group #:G-100')
+    expect(t).toContain('Employer:Harbor Logistics')
+    expect(t).toContain('Fee schedule:Premier')
+    expect(t).toContain('Claims mailing address:PO Box 1, Anytown, OH 43000')
+    expect(t).toContain('Phone #:800-555-0147')
+    // SSN and the payer id (none picked) stay blank — a blank is a question still to ask.
+    expect(t).toContain('SSN:________________')
+    expect(t).toContain('E-claim payer ID:________________')
+    expect(t).toContain('Diagnostic:100%')
+    expect(t).toContain('Perio:80%')
+    expect(t).toContain('Fluoride · age:through 14')
+    expect(t).toContain('Replacement · crown/bridge:5 YR / 7 YR / 10 YR')
+    expect(t).toContain('Denture/partial:5 YR / 7 YR / 10 YR')
+    expect(t).toContain('Ask for the dental desk.')
+    const history = screen.getByTestId('sheet-history').textContent ?? ''
+    expect(history).toContain('Exam')
+    expect(history).toContain('Apr 30, 2026')
+    expect(history).toContain('100%*')
+    expect(history).toContain('SRP (4341)')
+    expect(t).toContain('check ins_1')
+    expect(t).toContain('not a real payer check')
+    // The chosen options are marked, the rest left for the pen.
+    const marked = Array.from(sheet.querySelectorAll('.underline')).map((el) => el.textContent)
+    expect(marked).toContain('IN')
+    expect(marked).toContain('CAL YEAR')
+    expect(marked).toContain('SEAT')
+    expect(marked).toContain('NO') // occlusal guard
+    expect(marked).toContain('5 YR')
+    expect(marked).toContain('7 YR')
+    expect(marked).not.toContain('YES')
+    act(() => {
+      window.dispatchEvent(new Event('afterprint'))
+    })
+  })
+
+  it('the notebook card reads the practice’s facts at rest, edits inline, saves through the action and hands the stored note back', async () => {
+    const saved = { ...note, feeSchedule: 'PPO', paysOn: 'prep' as const }
+    savePayerNoteAction.mockResolvedValueOnce({ ok: true, note: saved })
+    renderTool({ initialCheck: check({ result: sheetResult() }), initialPayerNote: note })
+    const card = screen.getByTestId('payer-notebook')
+    expect(card.textContent).toContain('Your practice and this payer')
+    expect(card.textContent).toContain('Delta Dental')
+    expect(card.textContent).toContain('Premier')
+    expect(card.textContent).toContain('In network')
+    fireEvent.click(screen.getByText('Edit'))
+    fireEvent.change(screen.getByLabelText('Fee schedule'), { target: { value: 'PPO' } })
+    fireEvent.change(screen.getByLabelText(/Pays major work on/), { target: { value: 'prep' } })
+    fireEvent.click(screen.getByText('Save for this payer'))
+    await waitFor(() => expect(savePayerNoteAction).toHaveBeenCalledTimes(1))
+    expect(savePayerNoteAction).toHaveBeenCalledWith({ payerId: null, payerName: 'Delta Dental', fields: expect.objectContaining({ feeSchedule: 'PPO', paysOn: 'prep', network: 'in' }) })
+    await waitFor(() => expect(screen.getByTestId('payer-notebook').textContent).toContain('PPO'))
+    expect(screen.getByTestId('payer-notebook').textContent).toContain('Prep date')
+    expect(screen.queryByText('Save for this payer')).toBeNull()
+  })
+
+  it('an empty notebook says so and the editor shows a refusal from the action', async () => {
+    savePayerNoteAction.mockResolvedValueOnce({ ok: false, error: 'Network is in or out.' })
+    renderTool({ initialCheck: check() })
+    expect(screen.getByTestId('payer-notebook').textContent).toContain('Nothing on file for this payer yet.')
+    fireEvent.click(screen.getByText('Edit'))
+    fireEvent.click(screen.getByText('Save for this payer'))
+    await waitFor(() => expect(screen.getByText('Network is in or out.')).toBeTruthy())
+  })
+
+  it('loading a recent check under another payer fetches that payer’s notebook', async () => {
+    getPayerNoteAction.mockResolvedValueOnce({ ...note, payerName: 'Cigna', feeSchedule: 'DPPO' })
+    renderTool({ initialCheck: check(), recent: [check(), check({ id: 'ins_2', input: { ...check().input, carrierName: 'Cigna', payerId: '62308' }, result: { ...check().result!, payerName: 'Cigna' } })] })
+    const rows = Array.from(document.querySelectorAll<HTMLButtonElement>('li > button'))
+    fireEvent.click(rows[1])
+    await waitFor(() => expect(getPayerNoteAction).toHaveBeenCalledWith('62308', 'Cigna'))
+    await waitFor(() => expect(screen.getByTestId('payer-notebook').textContent).toContain('DPPO'))
   })
 })

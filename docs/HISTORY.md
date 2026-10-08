@@ -5971,3 +5971,38 @@ the digest's closed-door follow-ups and leads, the cockpit's trial flag
 and no-data count on an unread rail — fixed and pinned. Closed on the
 Phase-4 criterion (zero in-phase gaps three rounds running; remaining
 defects confined to the correction layer). Certificate in docs/AUDITS.md.
+
+**2026-10-08 — INSURANCE: THE VERIFICATION SHEET (the Ted Pinney form).**
+The first client's front desk showed the owner the breakdown form they
+fill by phone and said our card was missing most of it. Mapped line for
+line, the form split three ways: what the 271 already sends and the
+normalizer dropped (group and employer, payer phone and claims address,
+calendar-vs-plan year, what the deductible applies to, diagnostic/perio/
+endo/oral-surgery rates, per-procedure allowances and dates, replacement
+windows, "paid on prep date", age limits, downgrades, every note); what
+only a per-procedure ask returns; and what no 271 carries because it is
+about the PRACTICE'S CONTRACT with the payer (fee schedule, in/out of
+network, pays on seat or prep) — re-asked on every call though it never
+changes per patient. Shipped the first and third: `EligibilityResult`
+grew the sheet's vocabulary, the provider contract returns `{ result,
+raw }` and the raw 271 is kept on the row (migration 0178 `raw_response`),
+the normalizer reads it all — pinned against Stedi's own Ameritas mock,
+captured through the live endpoint, which also showed the plan name
+lives at `subscriber.additionalInformation.plan.name` while the first
+normalizer read `plans[].name` and stored null — the sandbox scenarios
+carry the same fields so the demo prints a full sheet (older seeded
+answers self-heal on resync; the demo's Delta Dental notebook is seeded),
+the printable sheet IS the form (honest blanks where the payer said
+nothing; SSN always blank), and THE PAYER NOTEBOOK (`clinic_payer_note`,
+0178; pure + service + a card under the result) holds the contract facts
+once per clinic per payer and fills them on every patient's sheet. The
+card gained the plan facts line, the extra tiers, a by-procedure table
+and "Everything the payer said"; the copied summary carries all of it.
+Two honesty rules inside: a procedure's percent says whether the payer
+priced the CODE or its CATEGORY (most price categories and list codes
+only to exclude them — the mock's D9944 at the patient's full share is
+"occlusal guard: NO"), and a blank on paper is a question still to ask,
+never a line that vanished. Not built yet: the per-procedure "Full
+breakdown" button (several billed checks; test the client's real payers
+first) and Insurance Discovery as the no-card fallback (price unknown).
+

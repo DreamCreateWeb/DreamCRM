@@ -101,6 +101,13 @@ const BENIGN: Array<{ table: string; column: string; why: string }> = [
       'it rather than the string. Judged deliberately because it is the one allowlist entry on a ' +
       'money table.',
   },
+  {
+    table: 'clinic_payer_note',
+    column: 'payer_key',
+    why:
+      'the payer notebook\'s dedupe key ("id:AMTAS00425" or "name:deltadentalofca"), the same shape as ' +
+      'campaigns.automation_key: one row per clinic per payer. Names a payer, authenticates nobody.',
+  },
 ]
 
 /**

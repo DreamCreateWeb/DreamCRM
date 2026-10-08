@@ -218,6 +218,138 @@ export interface DeductibleAmount {
   remainingCents: number | null
 }
 
+/**
+ * THE VERIFICATION SHEET'S VOCABULARY (2026-10-08). A desk's breakdown form
+ * (the one Ted Pinney's office fills by phone) asks for more than the card
+ * showed: the group and employer, the payer's phone and claims address,
+ * whether the benefit year is calendar or plan, what the deductible applies
+ * to, seven tiers rather than four, the per-procedure lines (last date,
+ * frequency, percent), replacement windows, age limits, downgrades, and
+ * every note the payer sent. Most of it was already in the 271 and being
+ * dropped. Every field below is OPTIONAL on the result (older stored rows
+ * lack them) and NULLABLE inside (the payer may not have said) — the sheet
+ * prints a blank, never a guess.
+ */
+export interface PlanFacts {
+  groupNumber: string | null
+  /** The group's description — usually the employer. */
+  groupName: string | null
+  planNumber: string | null
+  /** The payer's insurance type word ("GROUP_POLICY", "PPO", …), in desk words via insuranceTypeLabel. */
+  insuranceType: string | null
+  /** Whether the maximum and deductible run on the calendar year or the plan's own year. */
+  benefitYear: 'calendar' | 'plan' | null
+  benefitYearStart: string | null
+  benefitYearEnd: string | null
+}
+
+export interface PayerContact {
+  name: string | null
+  phones: string[]
+  faxes: string[]
+  emails: string[]
+  urls: string[]
+}
+
+export interface PayerContacts {
+  contacts: PayerContact[]
+  /** A claims mailing address the payer sent on a related entity, formatted on one line. */
+  claimsAddress: string | null
+}
+
+/** What the deductible applies to; null per tier when the payer didn't say. */
+export interface DeductibleApplies {
+  preventive: boolean | null
+  basic: boolean | null
+  major: boolean | null
+  /** The payer's own words ("BASIC/MAJOR/SELECT"). */
+  note: string | null
+}
+
+export type CoverageTier = 'diagnostic' | 'preventive' | 'basic' | 'perio' | 'endo' | 'oralSurgery' | 'major' | 'ortho'
+
+/** The procedure lines a verification sheet names. Keys are stable; codes list the siblings a payer may answer under (first = canonical). */
+export type FormProcedureKey =
+  | 'er_exam'
+  | 'exam'
+  | 'bitewings'
+  | 'pa'
+  | 'pano'
+  | 'fmx'
+  | 'srp'
+  | 'perio_maint'
+  | 'prophy'
+  | 'fluoride'
+  | 'sealants'
+  | 'occlusal_guard'
+  | 'crown'
+  | 'bridge'
+  | 'denture'
+
+export interface FormProcedureDef {
+  key: FormProcedureKey
+  label: string
+  codes: string[]
+  /** Which tier's percent applies when the payer priced the tier and not the code. */
+  tier: CoverageTier
+}
+
+export const FORM_PROCEDURES: readonly FormProcedureDef[] = [
+  { key: 'er_exam', label: 'Emergency exam', codes: ['D0140'], tier: 'diagnostic' },
+  { key: 'exam', label: 'Exam', codes: ['D0120', 'D0150'], tier: 'diagnostic' },
+  { key: 'bitewings', label: 'Bitewings', codes: ['D0274', 'D0272', 'D0273', 'D0277'], tier: 'diagnostic' },
+  { key: 'pa', label: 'Periapical X-ray', codes: ['D0220', 'D0230'], tier: 'diagnostic' },
+  { key: 'pano', label: 'Panoramic X-ray', codes: ['D0330'], tier: 'diagnostic' },
+  { key: 'fmx', label: 'Full-mouth X-rays', codes: ['D0210'], tier: 'diagnostic' },
+  { key: 'srp', label: 'Scaling & root planing', codes: ['D4341', 'D4342'], tier: 'perio' },
+  { key: 'perio_maint', label: 'Perio maintenance', codes: ['D4910'], tier: 'perio' },
+  { key: 'prophy', label: 'Cleaning', codes: ['D1110', 'D1120'], tier: 'preventive' },
+  { key: 'fluoride', label: 'Fluoride', codes: ['D1206', 'D1208'], tier: 'preventive' },
+  { key: 'sealants', label: 'Sealants', codes: ['D1351'], tier: 'preventive' },
+  { key: 'occlusal_guard', label: 'Occlusal guard', codes: ['D9944', 'D9945', 'D9946', 'D9940'], tier: 'major' },
+  { key: 'crown', label: 'Crown', codes: ['D2740', 'D2750', 'D2710', 'D2752'], tier: 'major' },
+  { key: 'bridge', label: 'Bridge', codes: ['D6240', 'D6750', 'D6792', 'D6245'], tier: 'major' },
+  { key: 'denture', label: 'Denture / partial', codes: ['D5110', 'D5120', 'D5213', 'D5214'], tier: 'major' },
+]
+
+export function formProcedure(key: FormProcedureKey): FormProcedureDef {
+  return FORM_PROCEDURES.find((p) => p.key === key)!
+}
+
+/** One procedure line as the payer answered it. */
+export interface ProcedureBenefit {
+  key: FormProcedureKey
+  /** The code the payer actually answered under. */
+  code: string
+  label: string
+  /** Plan-pays percent, or null when neither the code nor its tier was priced. */
+  planPays: number | null
+  /** 'code' = the payer priced this procedure itself; 'tier' = its category's rate (the code's range decides the category). */
+  pctSource: 'code' | 'tier' | null
+  /** Code-owned allowance words ("2 per plan year", "1 every 60 months"); null when the payer set no limit. */
+  limit: string | null
+  lastOn: string | null
+  nextOn: string | null
+  /** The payer's own notes on this line (boilerplate stripped). */
+  notes: string[]
+}
+
+export interface ReplacementRules {
+  /** Months between covered crown / bridge replacements, when stated. */
+  crownBridgeMonths: number | null
+  dentureMonths: number | null
+  /** Whether the payer pays major work on the seat (insertion) date or the prep date. */
+  paysOn: 'seat' | 'prep' | null
+}
+
+export interface AgeLimits {
+  fluoride: number | null
+  sealants: number | null
+  ortho: number | null
+  /** Dependent children covered through this age. */
+  dependent: number | null
+}
+
 export interface EligibilityResult {
   status: Exclude<EligibilityStatus, 'error'>
   payerName: string
@@ -232,14 +364,99 @@ export interface EligibilityResult {
   /** The orthodontic lifetime maximum (STC 38, LIFETIME), when stated. */
   orthoLifetimeMax?: BenefitAmount | null
   /** Plan-pays percent per tier; null per tier when the payer didn't say (the UI shows —, never a guess). */
-  coveragePct: { preventive: number | null; basic: number | null; major: number | null; ortho: number | null } | null
+  coveragePct: {
+    preventive: number | null
+    basic: number | null
+    major: number | null
+    ortho: number | null
+    /** The three extra tiers a breakdown form names (older rows: absent = not stated). */
+    diagnostic?: number | null
+    perio?: number | null
+    endo?: number | null
+    oralSurgery?: number | null
+  } | null
+  /** The same tiers on the out-of-network side, when the payer priced them. */
+  coveragePctOut?: EligibilityResult['coveragePct']
   waitingPeriods: Array<{ category: 'basic' | 'major' | 'ortho'; endsOn: string }>
+  /** The payer said in words that the plan has no waiting periods. */
+  noWaitingPeriods?: boolean
   /** Code-owned copy for the allowance ("2 per year", "1 every 3 years") + the last date the plan saw one. */
   frequencies: Array<{ code: FrequencyCode; label: string; limit: string; lastOn: string | null; nextOn?: string | null }>
   missingToothClause: boolean | null
   notes: string[]
   /** When the payer (or the sandbox) answered — ISO instant. */
   asOf: string
+  // ── The verification sheet's fields (2026-10-08) ─────────────────────
+  plan?: PlanFacts | null
+  payerContacts?: PayerContacts | null
+  deductibleApplies?: DeductibleApplies | null
+  /** The form's named procedure lines, only those the payer said anything about. */
+  procedures?: ProcedureBenefit[]
+  replacement?: ReplacementRules | null
+  ageLimits?: AgeLimits | null
+  /** Downgrade / alternate-benefit sentences, verbatim. */
+  downgrades?: string[]
+  /** EVERY note the payer sent, deduped, in the payer's order (the sheet's MISC box). */
+  payerNotes?: string[]
+}
+
+/** The payer's insurance-type word in desk words. */
+export function insuranceTypeLabel(v: string | null | undefined): string | null {
+  if (!v) return null
+  const map: Record<string, string> = {
+    GROUP_POLICY: 'Group plan',
+    PREFERRED_PROVIDER_ORGANIZATION: 'PPO',
+    PPO: 'PPO',
+    HEALTH_MAINTENANCE_ORGANIZATION: 'HMO',
+    HMO: 'HMO',
+    INDEMNITY: 'Indemnity',
+    EXCLUSIVE_PROVIDER_ORGANIZATION: 'EPO',
+    POINT_OF_SERVICE: 'POS',
+    MEDICAID: 'Medicaid',
+    MEDICARE_PART_A: 'Medicare',
+    MEDICARE_PART_B: 'Medicare',
+    COMMERCIAL: 'Commercial',
+    DENTAL: 'Dental',
+    INDIVIDUAL_POLICY: 'Individual plan',
+    OTHER: 'Other',
+  }
+  if (map[v]) return map[v]
+  const words = v.toLowerCase().replace(/_/g, ' ')
+  return words.charAt(0).toUpperCase() + words.slice(1)
+}
+
+/** "10 years", "18 months", "5 years" — a replacement window in desk words. */
+export function replacementWords(months: number | null | undefined): string | null {
+  if (months == null || !Number.isFinite(months) || months <= 0) return null
+  if (months % 12 === 0) {
+    const y = months / 12
+    return `${y} ${y === 1 ? 'year' : 'years'}`
+  }
+  return `${months} months`
+}
+
+/** Plan-pays in words; the sheet and the summary share it. */
+export function planPaysWord(v: number | null | undefined): string {
+  if (v == null) return 'not stated'
+  if (v === 0) return 'not covered'
+  return `${v}%`
+}
+
+/** The tier a CDT code belongs to by its range — the ADA's own categories. */
+export function tierForCdt(code: string): CoverageTier | null {
+  const n = Number(code.replace(/^D/i, ''))
+  if (!Number.isFinite(n)) return null
+  if (n >= 100 && n <= 999) return 'diagnostic'
+  if (n >= 1000 && n <= 1999) return 'preventive'
+  if (n >= 2000 && n <= 2699) return 'basic'
+  if (n >= 2700 && n <= 2999) return 'major'
+  if (n >= 3000 && n <= 3999) return 'endo'
+  if (n >= 4000 && n <= 4999) return 'perio'
+  if (n >= 5000 && n <= 6999) return 'major'
+  if (n >= 7000 && n <= 7999) return 'oralSurgery'
+  if (n >= 8000 && n <= 8999) return 'ortho'
+  if (n >= 9000 && n <= 9999) return 'basic'
+  return null
 }
 
 /** The serialisable shape of one stored check — what services return and

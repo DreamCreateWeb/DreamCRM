@@ -119,6 +119,37 @@ describe('renderSandboxScenario', () => {
     expect(r.orthoLifetimeMax).toEqual({ totalCents: 150_000, usedCents: 0, remainingCents: 150_000 })
   })
 
+  it('every active scenario carries the verification sheet’s fields (2026-10-08) — the demo prints a full sheet, labelled a practice answer', () => {
+    for (const key of ['active_ppo', 'active_rich', 'active_exhausted', 'active_waiting', 'active_total_only'] as const) {
+      const r = renderSandboxScenario(key, req(), NOW)
+      expect(r.plan?.groupNumber, key).toMatch(/^G\d{6}$/)
+      expect(r.plan?.groupName, key).toBeTruthy()
+      expect(r.payerContacts?.contacts[0].phones, key).toEqual(['800-555-0147'])
+      expect(r.deductibleApplies, key).toEqual({ preventive: false, basic: true, major: true, note: null })
+      expect(r.coveragePct?.diagnostic, key).toBe(100)
+      expect(r.procedures?.map((p) => p.key), key).toContain('occlusal_guard')
+      expect(r.replacement?.crownBridgeMonths, key).toBe(60)
+      expect(r.ageLimits?.fluoride, key).toBe(14)
+      expect(r.payerNotes?.length, key).toBeGreaterThan(2)
+      for (const p of r.procedures ?? []) expect(p.pctSource === null ? p.planPays : true, `${key} ${p.key}`).toBeTruthy()
+    }
+    // The rich plan covers the guard and pays on prep; the plain PPO excludes the guard, pays on seat and downgrades posterior composites.
+    const rich = renderSandboxScenario('active_rich', req(), NOW)
+    expect(rich.procedures!.find((p) => p.key === 'occlusal_guard')).toMatchObject({ planPays: 50, pctSource: 'code' })
+    expect(rich.replacement?.paysOn).toBe('prep')
+    expect(rich.ageLimits?.ortho).toBe(19)
+    const ppo = renderSandboxScenario('active_ppo', req(), NOW)
+    expect(ppo.procedures!.find((p) => p.key === 'occlusal_guard')).toMatchObject({ planPays: 0, pctSource: 'code' })
+    expect(ppo.downgrades).toEqual(['Posterior composite fillings are paid at the amalgam rate.'])
+    // The non-active scenarios carry none of it.
+    expect(renderSandboxScenario('inactive', req(), NOW).procedures).toBeUndefined()
+    // The provider answers in the {result, raw} shape with no raw behind it.
+    return sandboxProvider.check(req(), { now: NOW, organizationId: 'org_1' }).then((a) => {
+      expect(a.raw).toBeNull()
+      expect(a.result.status).toBe('active')
+    })
+  })
+
   it('plan names are carrier-flavoured and fall back honestly', () => {
     expect(sandboxPlanName('Delta Dental')).toBe('Delta Dental PPO')
     expect(sandboxPlanName('Cigna')).toBe('Cigna DPPO Advantage')

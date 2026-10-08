@@ -1,0 +1,4529 @@
+{
+ "payerId": "AMTAS00425",
+ "payer": {
+  "name": {
+   "organization": "47009"
+  },
+  "type": "PAYER",
+  "contacts": [
+   {
+    "name": "CUSTOMER RELATIONS",
+    "phoneNumbers": [
+     "8004875553"
+    ],
+    "emails": [
+     "GROUP@AMERITAS.COM"
+    ],
+    "faxNumbers": [
+     "4023092580"
+    ]
+   }
+  ],
+  "identification": "AMTAS00425"
+ },
+ "provider": {
+  "name": {
+   "person": {
+    "firstName": "PLAQUE",
+    "lastName": "PENGUIN"
+   }
+  },
+  "type": "PROVIDER",
+  "npi": "1999999984"
+ },
+ "subscriber": {
+  "address": {
+   "addressLine1": "987 SOARING EAGLE LANE",
+   "city": "WING CITY",
+   "state": "CA",
+   "postalCode": "11111"
+  },
+  "dates": {
+   "plan": {
+    "start": "2024-01-01",
+    "end": "2025-01-01"
+   },
+   "eligibility": {
+    "start": "2023-06-01"
+   }
+  },
+  "dateOfBirth": "1985-06-07",
+  "gender": "FEMALE",
+  "name": {
+   "person": {
+    "firstName": "FALCON",
+    "lastName": "DENT"
+   }
+  },
+  "additionalInformation": {
+   "plan": {
+    "number": "1248163264",
+    "name": "DENTAL PLAN PLUS"
+   },
+   "group": {
+    "number": "5121024"
+   }
+  },
+  "memberId": "007007007"
+ },
+ "plans": [
+  {
+   "benefits": {
+    "statuses": [
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "insuranceType": "GROUP_POLICY",
+      "service": {
+       "value": "35",
+       "definition": "Dental Care",
+       "system": "STC"
+      },
+      "status": "ACTIVE_COVERAGE"
+     }
+    ],
+    "coInsurance": [
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "35",
+       "definition": "Dental Care",
+       "system": "STC"
+      },
+      "messages": [
+       "TYPE 1 PROCEDURES COVERED AT 100% OF AMOUNT LISTED IN THE CERTIFICATE BOOKLET.",
+       "THE MEMBER WILL RECEIVE A DISCOUNTED FEE FOR COVERED SERVICES BY UTILIZING A NETWORK PROVIDER."
+      ],
+      "percent": "0"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "35",
+       "definition": "Dental Care",
+       "system": "STC"
+      },
+      "messages": [
+       "TYPE 2 PROCEDURES COVERED AT 100% OF AMOUNT LISTED IN THE CERTIFICATE BOOKLET.",
+       "THE MEMBER WILL RECEIVE A DISCOUNTED FEE FOR COVERED SERVICES BY UTILIZING A NETWORK PROVIDER."
+      ],
+      "percent": "0"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "35",
+       "definition": "Dental Care",
+       "system": "STC"
+      },
+      "messages": [
+       "TYPE 3 PROCEDURES COVERED AT 100% OF AMOUNT LISTED IN THE CERTIFICATE BOOKLET.",
+       "THE MEMBER WILL RECEIVE A DISCOUNTED FEE FOR COVERED SERVICES BY UTILIZING A NETWORK PROVIDER."
+      ],
+      "percent": "0"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "35",
+       "definition": "Dental Care",
+       "system": "STC"
+      },
+      "messages": [
+       "TYPE 4 PROCEDURES COVERED AT 100% OF AMOUNT LISTED IN THE CERTIFICATE BOOKLET.",
+       "THE MEMBER WILL RECEIVE A DISCOUNTED FEE FOR COVERED SERVICES BY UTILIZING A NETWORK PROVIDER."
+      ],
+      "percent": "0"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "23",
+       "definition": "Diagnostic Dental",
+       "system": "STC"
+      },
+      "percent": "0"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D0160",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D0171",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D0190",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D0191",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D0310",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D0320",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D0321",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D0322",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D0340",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D0350",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D0364",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D0365",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D0366",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D0367",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D0368",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D0369",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D0370",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D0371",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D0372",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D0373",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D0374",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D0380",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D0381",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D0382",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D0383",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D0384",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D0385",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D0386",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D0387",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D0388",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D0389",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D0391",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D0393",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D0394",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D0395",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D0396",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D0411",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D0412",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D0414",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D0415",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D0416",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D0417",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D0418",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D0419",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D0422",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D0423",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D0425",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D0431",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D0460",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D0470",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D0475",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D0476",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D0477",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D0478",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D0479",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D0480",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D0481",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D0482",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D0483",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D0484",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D0485",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D0502",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D0600",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D0601",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D0602",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D0603",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D0604",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D0605",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D0606",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D0701",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D0702",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D0703",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D0705",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D0706",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D0707",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D0708",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D0709",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D0801",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D0802",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D0803",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D0804",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D0999",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "41",
+       "definition": "Routine (Preventive) Dental",
+       "system": "STC"
+      },
+      "percent": "0"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D1301",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D1310",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D1320",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D1321",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D1330",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D1701",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D1702",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D1703",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D1704",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D1705",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D1706",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D1707",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D1708",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D1709",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D1710",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D1711",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D1712",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D1713",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D1714",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D1781",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D1782",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D1783",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D1999",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "25",
+       "definition": "Restorative",
+       "system": "STC"
+      },
+      "percent": "0"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D2799",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D2949",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D2953",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D2955",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D2957",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D2960",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D2961",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D2962",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D2971",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D2975",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D2976",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D2989",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D2999",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "26",
+       "definition": "Endodontics",
+       "system": "STC"
+      },
+      "percent": "0"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D3110",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D3120",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D3331",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D3428",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D3429",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D3431",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D3432",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D3460",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D3470",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D3910",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D3911",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D3950",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D3999",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "24",
+       "definition": "Periodontics",
+       "system": "STC"
+      },
+      "percent": "0"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D4212",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D4230",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D4231",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D4245",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D4266",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D4267",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D4268",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D4286",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D4322",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D4323",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D4920",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D4921",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D4999",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "39",
+       "definition": "Prosthodontics",
+       "system": "STC"
+      },
+      "percent": "0"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D5862",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D5867",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D5875",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D5899",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D5911",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D5912",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D5913",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D5914",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D5915",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D5916",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D5919",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D5922",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D5923",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D5924",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D5925",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D5926",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D5927",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D5928",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D5929",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D5931",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D5932",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D5933",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D5934",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D5935",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D5936",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D5937",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D5951",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D5952",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D5953",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D5954",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D5955",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D5958",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D5959",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D5960",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D5982",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D5983",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D5984",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D5985",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D5986",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D5987",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D5988",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D5991",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D5992",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D5993",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D5995",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D5996",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D5999",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D6011",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D6012",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D6013",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D6085",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D6101",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D6102",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D6103",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D6104",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D6106",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D6107",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D6199",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D6253",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D6793",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D6920",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D6950",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D6985",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D6999",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "40",
+       "definition": "Oral Surgery",
+       "system": "STC"
+      },
+      "percent": "0"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D7284",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D7290",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D7291",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D7292",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D7293",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D7294",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D7295",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D7296",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D7297",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D7298",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D7299",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D7300",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D7511",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D7521",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D7610",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D7620",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D7630",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D7640",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D7650",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D7660",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D7670",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D7671",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D7680",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D7710",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D7720",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D7730",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D7740",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D7750",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D7760",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D7770",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D7771",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D7780",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D7810",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D7820",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D7830",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D7840",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D7850",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D7852",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D7854",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D7856",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D7858",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D7860",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D7865",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D7870",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D7871",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D7872",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D7873",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D7874",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D7875",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D7876",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D7877",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D7880",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D7881",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D7899",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D7920",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D7921",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D7922",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D7939",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D7940",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D7941",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D7943",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D7944",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D7945",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D7946",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D7947",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D7948",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D7949",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D7950",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D7951",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D7952",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D7953",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D7955",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D7956",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D7957",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D7971",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D7981",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D7982",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D7990",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D7991",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D7993",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D7994",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D7995",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D7996",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D7997",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D7998",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D7999",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "38",
+       "definition": "Orthodontics",
+       "system": "STC"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D8210",
+       "system": "CDT"
+      },
+      "percent": "0"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D8220",
+       "system": "CDT"
+      },
+      "percent": "0"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "28",
+       "definition": "Adjunctive Dental Services",
+       "system": "STC"
+      },
+      "percent": "0"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D9130",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D9210",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D9211",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D9212",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D9215",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D9230",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D9248",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D9311",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D9410",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D9420",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D9450",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D9610",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D9612",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D9613",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D9630",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D9910",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D9912",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D9920",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D9938",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D9939",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D9941",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D9942",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D9943",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D9944",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D9945",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D9946",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D9947",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D9948",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D9949",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D9950",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D9953",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D9954",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D9955",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D9956",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D9957",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D9961",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D9970",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D9971",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D9986",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D9987",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D9990",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D9991",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D9992",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D9993",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D9994",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D9995",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D9996",
+       "system": "CDT"
+      },
+      "percent": "1"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D9997",
+       "system": "CDT"
+      },
+      "percent": "1"
+     }
+    ],
+    "deductible": [
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "messages": [
+       "BASIC/MAJOR/SELECT"
+      ],
+      "timePeriod": "CALENDAR_YEAR",
+      "amount": "50"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "messages": [
+       "BASIC/MAJOR/SELECT"
+      ],
+      "timePeriod": "REMAINING",
+      "amount": "50"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "messages": [
+       "ALL OTHER DEDUCTIBLES ARE ZERO."
+      ],
+      "timePeriod": "CALENDAR_YEAR",
+      "amount": "0"
+     }
+    ],
+    "limitations": [
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "timePeriod": "CALENDAR_YEAR",
+      "amount": "2500"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "timePeriod": "REMAINING",
+      "amount": "2500"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "messages": [
+       "ANNUAL CARRY OVER MAXIMUM. THE CLAIMANT MAY QUALIFY FOR AN ACCUMULATED CARRY OVER ANNUAL MAXIMUM BY FILING A DENTAL CLAIM DURING EACH BENEFIT PERIOD AND NOT EXCEEDING THE BENEFIT THRESHOLD AMOUNT."
+      ],
+      "timePeriod": "CALENDAR_YEAR",
+      "amount": "250"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "messages": [
+       "ANNUAL REMAINING CARRY OVER MAXIMUM."
+      ],
+      "timePeriod": "REMAINING",
+      "amount": "250"
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "messages": [
+       "PRETREATMENTS ARE RECOMMENDED, BUT NOT REQUIRED, ANY TIME TOTAL DENTAL EXPENSES EXCEED $200."
+      ]
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "messages": [
+       "MISSING TOOTH EXCLUSION APPLIES."
+      ]
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D0120",
+       "system": "CDT"
+      },
+      "messages": [
+       "SIMILAR PROCEDURES PERFORMED MAY IMPACT LIMITATION."
+      ],
+      "serviceLimits": [
+       {
+        "delivery": {
+         "quantity": {
+          "value": "2",
+          "qualifier": "UNITS"
+         },
+         "period": {
+          "value": 1,
+          "qualifier": "CONTRACT"
+         }
+        }
+       }
+      ],
+      "dates": {
+       "service": {
+        "start": "2024-06-13"
+       }
+      }
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D0210",
+       "system": "CDT"
+      },
+      "messages": [
+       "SIMILAR PROCEDURES PERFORMED MAY IMPACT LIMITATION."
+      ],
+      "serviceLimits": [
+       {
+        "delivery": {
+         "quantity": {
+          "value": "1",
+          "qualifier": "UNITS"
+         },
+         "period": {
+          "value": 60,
+          "qualifier": "MONTH"
+         }
+        }
+       }
+      ],
+      "dates": {
+       "service": {
+        "start": "2028-12-08"
+       }
+      }
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D0272",
+       "system": "CDT"
+      },
+      "messages": [
+       "SIMILAR PROCEDURES PERFORMED MAY IMPACT LIMITATION."
+      ],
+      "serviceLimits": [
+       {
+        "delivery": {
+         "quantity": {
+          "value": "1",
+          "qualifier": "UNITS"
+         },
+         "period": {
+          "value": 1,
+          "qualifier": "CONTRACT"
+         }
+        }
+       }
+      ],
+      "dates": {
+       "service": {
+        "start": "2024-06-13"
+       }
+      }
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D1110",
+       "system": "CDT"
+      },
+      "messages": [
+       "SIMILAR PROCEDURES PERFORMED MAY IMPACT LIMITATION."
+      ],
+      "serviceLimits": [
+       {
+        "delivery": {
+         "quantity": {
+          "value": "2",
+          "qualifier": "UNITS"
+         },
+         "period": {
+          "value": 1,
+          "qualifier": "CONTRACT"
+         }
+        }
+       }
+      ],
+      "dates": {
+       "service": {
+        "start": "2024-06-13"
+       }
+      }
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D2140",
+       "system": "CDT"
+      },
+      "messages": [
+       "SIMILAR PROCEDURES PERFORMED MAY IMPACT LIMITATION."
+      ],
+      "serviceLimits": [
+       {
+        "delivery": {
+         "quantity": {
+          "value": "1",
+          "qualifier": "UNITS"
+         },
+         "period": {
+          "value": 6,
+          "qualifier": "MONTH"
+         }
+        }
+       }
+      ]
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D2710",
+       "system": "CDT"
+      },
+      "messages": [
+       "PAID ON PREP DATE",
+       "SIMILAR PROCEDURES PERFORMED MAY IMPACT LIMITATION."
+      ],
+      "serviceLimits": [
+       {
+        "delivery": {
+         "quantity": {
+          "value": "1",
+          "qualifier": "UNITS"
+         },
+         "period": {
+          "value": 120,
+          "qualifier": "MONTH"
+         }
+        }
+       }
+      ]
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D4341",
+       "system": "CDT"
+      },
+      "messages": [
+       "SIMILAR PROCEDURES PERFORMED MAY IMPACT LIMITATION."
+      ],
+      "serviceLimits": [
+       {
+        "delivery": {
+         "quantity": {
+          "value": "1",
+          "qualifier": "UNITS"
+         },
+         "period": {
+          "value": 2,
+          "qualifier": "YEARS"
+         }
+        }
+       }
+      ]
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D4342",
+       "system": "CDT"
+      },
+      "messages": [
+       "SIMILAR PROCEDURES PERFORMED MAY IMPACT LIMITATION."
+      ],
+      "serviceLimits": [
+       {
+        "delivery": {
+         "quantity": {
+          "value": "1",
+          "qualifier": "UNITS"
+         },
+         "period": {
+          "value": 2,
+          "qualifier": "YEARS"
+         }
+        }
+       }
+      ]
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D4381",
+       "system": "CDT"
+      },
+      "messages": [
+       "SIMILAR PROCEDURES PERFORMED MAY IMPACT LIMITATION."
+      ],
+      "serviceLimits": [
+       {
+        "delivery": {
+         "quantity": {
+          "value": "2",
+          "qualifier": "UNITS"
+         },
+         "period": {
+          "value": 2,
+          "qualifier": "YEARS"
+         }
+        }
+       }
+      ]
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D4910",
+       "system": "CDT"
+      },
+      "messages": [
+       "CHARTING MAY BE REQUIRED FOR PERIODONTAL PROCEDURES.",
+       "SIMILAR PROCEDURES PERFORMED MAY IMPACT LIMITATION."
+      ],
+      "serviceLimits": [
+       {
+        "delivery": {
+         "quantity": {
+          "value": "2",
+          "qualifier": "UNITS"
+         },
+         "period": {
+          "value": 1,
+          "qualifier": "CONTRACT"
+         }
+        }
+       }
+      ],
+      "dates": {
+       "service": {
+        "start": "2024-06-13"
+       }
+      }
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D5110",
+       "system": "CDT"
+      },
+      "messages": [
+       "SIMILAR PROCEDURES PERFORMED MAY IMPACT LIMITATION."
+      ],
+      "serviceLimits": [
+       {
+        "delivery": {
+         "quantity": {
+          "value": "1",
+          "qualifier": "UNITS"
+         },
+         "period": {
+          "value": 120,
+          "qualifier": "MONTH"
+         }
+        }
+       }
+      ]
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "service": {
+       "value": "D6792",
+       "system": "CDT"
+      },
+      "messages": [
+       "SIMILAR PROCEDURES PERFORMED MAY IMPACT LIMITATION."
+      ],
+      "serviceLimits": [
+       {
+        "delivery": {
+         "quantity": {
+          "value": "1",
+          "qualifier": "UNITS"
+         },
+         "period": {
+          "value": 120,
+          "qualifier": "MONTH"
+         }
+        }
+       }
+      ]
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "messages": [
+       "NOT ALL PERIODONTAL PROCEDURE FREQUENCIES ARE INCLUDED IN THIS 271 RESPONSE."
+      ]
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "messages": [
+       "CROWN - PORCELAIN AND RESIN BENEFITS ARE CONSIDERED FOR ANTERIOR AND BICUSPID TEETH ONLY."
+      ]
+     },
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "messages": [
+       "COMPOSITE - PORCELAIN AND RESIN BENEFITS ARE CONSIDERED FOR ANTERIOR AND BICUSPID TEETH ONLY."
+      ]
+     }
+    ],
+    "exclusions": [
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "network": {
+       "indicator": "IN_AND_OUT_OF_NETWORK"
+      },
+      "messages": [
+       "THERE ARE NO WAITING PERIODS ON THIS PLAN."
+      ]
+     }
+    ],
+    "benefitDisclaimer": [
+     {
+      "coverageLevel": "INDIVIDUAL",
+      "messages": [
+       "FINAL BENEFIT CALCULATION WILL BE DETERMINED UPON RECEIPT OF THE CLAIM. THIS IS NOT A GUARANTEE OF PAYMENT OR ELIGIBILITY. PENDING CLAIMS COULD AFFECT THE NEXT DATE AVAILABLE. CHILD ELIGIBILITY IS DEPENDANT UPON AGE AND STUDENT STATUS AT THE TIME OF SERVICE."
+      ]
+     }
+    ]
+   }
+  }
+ ]
+}

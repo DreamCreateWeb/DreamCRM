@@ -206,9 +206,12 @@ export async function runEligibilityCheck(
     const provider = resolveEligibilityProvider(setup.driver)
 
     let result: EligibilityResult | null = null
+    let raw: unknown | null = null
     let error: string | null = null
     try {
-      result = await provider.check(input, { now, organizationId })
+      const answer = await provider.check(input, { now, organizationId })
+      result = answer.result
+      raw = answer.raw ?? null
     } catch (e) {
       error = plainMessage(e)
     }
@@ -223,6 +226,9 @@ export async function runEligibilityCheck(
       status,
       input,
       result,
+      // The payer's answer as received: what the normalizer doesn't read
+      // today can be read tomorrow without asking (and paying) again.
+      rawResponse: raw,
       error,
       checkedAt: now,
       createdAt: now,

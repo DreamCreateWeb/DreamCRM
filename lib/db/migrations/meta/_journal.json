@@ -1247,6 +1247,13 @@
       "when": 1791402259428,
       "tag": "0177_doors_closed_window_fix",
       "breakpoints": true
+    },
+    {
+      "idx": 178,
+      "version": "7",
+      "when": 1791470713039,
+      "tag": "0178_verification_sheet",
+      "breakpoints": true
     }
   ]
 }

@@ -16,6 +16,7 @@ import {
   listRecentInsuranceChecks,
 } from '@/lib/services/insurance-eligibility'
 import { getPatientHeader, listPatientOptions } from '@/lib/services/patients'
+import { getPayerNote } from '@/lib/services/insurance-eligibility/payer-notebook'
 import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
 import ModuleHint from '@/components/onboarding/module-hint'
 import InsuranceTool from './insurance-tool'
@@ -75,6 +76,13 @@ export default async function InsurancePage({ searchParams }: PageProps) {
         }
       : null
 
+  // THE PAYER NOTEBOOK (2026-10-08): the practice's own facts about the
+  // opening check's payer, so the sheet is complete on first paint.
+  const initialCheck = prefill ? latest : null
+  const initialPayerNote = initialCheck
+    ? await getPayerNote(ctx.organizationId, initialCheck.input.payerId ?? null, initialCheck.result?.payerName ?? initialCheck.input.payerName ?? initialCheck.input.carrierName).catch(() => null)
+    : null
+
   return (
     <>
       <div className="px-4 sm:px-6 lg:px-8 pt-6 w-full max-w-[96rem] mx-auto -mb-2">
@@ -87,7 +95,8 @@ export default async function InsurancePage({ searchParams }: PageProps) {
         patientOptions={patientOptions}
         timeZone={timeZone}
         prefill={prefill}
-        initialCheck={prefill ? latest : null}
+        initialCheck={initialCheck}
+        initialPayerNote={initialPayerNote}
         driver={setup.driver}
         needsNpi={setup.needsNpi}
         usage={setup.usage}
