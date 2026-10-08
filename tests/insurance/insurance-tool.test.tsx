@@ -580,6 +580,8 @@ describe('InsuranceTool — the verification sheet and the payer notebook (2026-
   it('the card shows the plan facts, the extra tiers, the procedure table (lines the payer said something about, category rates starred), the rules and every payer note', () => {
     renderTool({ initialCheck: check({ result: sheetResult() }) })
     expect(screen.getByTestId('plan-facts').textContent).toBe('Group G-100 · Harbor Logistics · PPO · Calendar-year benefits')
+    // Nothing by category here: every frequency line has an answered procedure line.
+    expect(screen.queryByTestId('category-table')).toBeNull()
     expect(screen.getByTestId('extra-tiers').textContent).toContain('Perio 80%')
     const table = screen.getByTestId('procedure-table')
     expect(table.textContent).toContain('Exam')
@@ -600,6 +602,66 @@ describe('InsuranceTool — the verification sheet and the payer notebook (2026-
     expect(notes.textContent).toContain('Pretreatment estimates recommended over $300.')
     // Older rows with no procedure lines keep the frequencies table.
     expect(screen.queryByText('Exams')).toBeNull()
+  })
+
+  it('the refinement (2026-10-08): networks and funding on the plan line, the line facts under a procedure, and what the payer counts BY CATEGORY beside the code lines', () => {
+    const r = sheetResult()
+    renderTool({
+      initialCheck: check({
+        result: {
+          ...r,
+          plan: { ...r.plan, networks: ['STANDARD DENTAL NETWORK', 'PPO II NETWORK'], funding: 'self' as const },
+          procedures: [{ ...r.procedures[0], sharesWith: ['D0145', 'D0150'], deductibleApplies: false, remaining: 1 }, r.procedures[3]],
+          frequencies: [
+            { code: 'exam' as const, label: 'Exams', limit: '2 per year', lastOn: null },
+            { code: 'other' as const, label: 'Diagnostic (exams & x-rays)', limit: '3 per calendar year', lastOn: '2026-04-01', nextOn: null, remaining: 2, scope: 'per full mouth', noDeductible: true },
+            { code: 'other' as const, label: 'Crowns', limit: '1 every 5 years', lastOn: null, nextOn: null, remaining: 0, scope: 'teeth 1–32' },
+          ],
+          payerNotes: ['Not covered: Maxillofacial prosthetics'],
+        },
+      }),
+    })
+    expect(screen.getByTestId('plan-facts').textContent).toBe('Group G-100 · Harbor Logistics · PPO · Calendar-year benefits · Standard Dental, PPO II networks · Self-funded plan')
+    const table = screen.getByTestId('procedure-table')
+    expect(table.textContent).toContain('counts with D0145, D0150 · no deductible · 1 left this period')
+    // The exam frequency is carried by its procedure line; the category pots show beside the code lines.
+    const cats = screen.getByTestId('category-table')
+    expect(cats.textContent).not.toContain('Exams')
+    expect(cats.textContent).toContain('By category')
+    expect(cats.textContent).toContain('Diagnostic (exams & x-rays)')
+    expect(cats.textContent).toContain('per full mouth · no deductible · 2 left this period')
+    // Tones ride the registry's classes (TONE_TEXT.ok is the emerald pair; warn is amber).
+    expect(screen.getByText('Covered now · last Apr 1, 2026').getAttribute('class')).toContain('emerald')
+    expect(screen.getByText('None left this period').getAttribute('class')).toContain('amber')
+    expect(screen.getByTestId('payer-notes').textContent).toContain('Everything the payer said · 1')
+  })
+
+  it('the printed sheet carries the category pots, the networks and the line facts', () => {
+    const r = sheetResult()
+    renderTool({
+      initialCheck: check({
+        result: {
+          ...r,
+          plan: { ...r.plan, networks: ['STANDARD DENTAL NETWORK'], funding: 'self' as const },
+          procedures: [{ ...r.procedures[0], sharesWith: ['D0145'], remaining: 1 }],
+          frequencies: [{ code: 'other' as const, label: 'Preventive (cleanings & fluoride)', limit: '3 per calendar year', lastOn: '2026-04-01', nextOn: null, remaining: 2, sharesWith: ['D1120', 'D4346'], noDeductible: true }],
+        },
+      }),
+    })
+    act(() => {
+      window.dispatchEvent(new Event('beforeprint'))
+    })
+    const t = screen.getByTestId('benefits-sheet').textContent ?? ''
+    expect(t).toContain('Plan networks:Standard Dental network')
+    expect(t).toContain('Funding:Self-funded plan')
+    expect(t).toContain('Dependents to age:26')
+    const cats = screen.getByTestId('sheet-categories').textContent ?? ''
+    expect(cats).toContain('Preventive (cleanings & fluoride)')
+    expect(cats).toContain('3 per calendar year')
+    expect(cats).toContain('Apr 1, 2026')
+    expect(cats).toContain('counts with D1120, D4346 · no deductible')
+    const history = screen.getByTestId('sheet-history').textContent ?? ''
+    expect(history).toContain('2 per year · counts with D0145 · 1 left this period')
   })
 
   it('the printed sheet is the verification form line for line: the payer’s answer, the practice’s notebook, and honest blanks', () => {

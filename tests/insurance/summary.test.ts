@@ -136,6 +136,7 @@ describe('benefitsSummaryText', () => {
           ageLimits: { fluoride: 14, sealants: null, ortho: 19, dependent: 26 },
           downgrades: ['Posterior composite fillings are paid at the amalgam rate.'],
           payerNotes: ['Posterior composite fillings are paid at the amalgam rate.', 'Pretreatment estimates recommended over $300.'],
+          frequencies: [{ code: 'exam', label: 'Exams', limit: '2 per year', lastOn: null }],
         },
       }),
       { ...OPTS, practice: { id: 'p', payerKey: 'id:77777', payerId: '77777', payerName: 'Delta Dental', feeSchedule: 'Premier', network: 'in', paysOn: 'seat', claimsAddress: null, phone: '800-555-0199', notes: 'Ask for the dental desk.', updatedAtIso: '2026-10-08T15:00:00.000Z', updatedByName: 'Mary' } },
@@ -155,8 +156,8 @@ describe('benefitsSummaryText', () => {
     expect(text).toContain('- Exam (D0120): covered now · 2 per year · 100% (category rate)')
     expect(text).toContain('- Occlusal guard (D9944): not covered')
     expect(text).toContain('- Crown (D2740): last Feb 1, 2023 · 1 every 5 years · 50% (category rate) · Paid on the prep date.')
-    // The frequencies block yields to the procedure lines when they exist.
-    expect(text).not.toContain('Frequencies:')
+    // Every frequency line here has an answered procedure line — nothing to list by category.
+    expect(text).not.toContain('By category')
     expect(text).toContain('Payer notes:')
     expect(text).toContain('- Pretreatment estimates recommended over $300.')
     // A downgrade is not repeated under the payer notes.
@@ -170,5 +171,32 @@ describe('benefitsSummaryText', () => {
       OPTS,
     )
     expect(text).toContain('Status: Active\nFull breakdown: The payer answers one code at a time — 1 of 2 lines answered in 3 checks.')
+  })
+})
+
+describe('benefitsSummaryText — the refinement (2026-10-08)', () => {
+  it('networks and funding on the plan line, the line facts on a procedure, and the pots the payer counts by category', () => {
+    const base = view().result!
+    const text = benefitsSummaryText(
+      view({
+        result: {
+          ...base,
+          plan: { groupNumber: null, groupName: null, planNumber: null, insuranceType: null, benefitYear: 'calendar', benefitYearStart: '2026-01-01', benefitYearEnd: '2026-12-31', networks: ['STANDARD DENTAL NETWORK', 'PPO II NETWORK'], funding: 'self' },
+          procedures: [{ key: 'exam', code: 'D0120', label: 'Exam', planPays: 100, pctSource: 'tier', limit: '2 per year', lastOn: null, nextOn: null, notes: [], sharesWith: ['D0145', 'D0150'], deductibleApplies: false, remaining: 1 }],
+          frequencies: [
+            { code: 'exam', label: 'Exams', limit: '2 per year', lastOn: null },
+            { code: 'other', label: 'Crowns', limit: '1 every 5 years', lastOn: null, nextOn: null, scope: 'teeth 1–32', sharesWith: ['D2510-D2794'] },
+          ],
+          payerNotes: ['Not covered: Maxillofacial prosthetics'],
+        },
+      }),
+      OPTS,
+    )
+    expect(text).toContain('Plan: Calendar year Jan 1, 2026 to Dec 31, 2026 · Standard Dental, PPO II networks · Self-funded plan')
+    expect(text).toContain('- Exam (D0120): 2 per year · 100% (category rate) · counts with D0145, D0150 · no deductible · 1 left this period')
+    expect(text).toContain('By category (allowed · next · what the payer said):')
+    expect(text).toContain('- Crowns: 1 every 5 years · none on record · teeth 1–32 · counts with D2510-D2794')
+    expect(text).not.toContain('- Exams:')
+    expect(text).toContain('- Not covered: Maxillofacial prosthetics')
   })
 })

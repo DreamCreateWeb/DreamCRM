@@ -6056,3 +6056,34 @@ characters before checking it, so "Ark" passed as "AR" — a silent
 truncation is not a validation. And the ranking needed an explicit rule
 that an ENDED plan sorts below an unknown one whatever its line, or a
 dead dental card outranked a live medical match.
+
+## 2026-10-08 — The sheet reads the whole 271 (the Aetna lesson)
+
+The owner printed the sheet for the first client's real patient — a
+child on a parent's Aetna PPO — and it came out as a blank history table
+under thirty-two raw payer sentences. Guessing at the cause from the
+screenshot was tempting; instead the check was re-run once ($0.30)
+through the same request the product sends, and the raw 271 was kept as
+a redacted fixture. It showed four things no mock had: Aetna stamps
+`coverageLevel: FAMILY` on every plan RULE (so the normalizer, which
+admitted only INDIVIDUAL rows for percents and procedure lines, threw
+away the whole plan — and the Full breakdown then spent sixteen checks
+on lines it discarded the same way); "1 every 60 months" rides a
+`frequency` field beside the `period` field the code read; "2 remaining"
+with the last visit's date is a second row on the same line, which a
+dedupe by label silently dropped; and every sentence the payer sent was
+poured into one misc box, several facts to a string.
+
+The fix is structural rather than a bigger regex: the coverage level is
+read only on dollar amounts; a line's rows are merged (allowance, what is
+left, the last visit, the scope, the shared codes, the deductible
+waiver); and each sentence is sorted into the field it answers, with a
+comma-joined string split only when every piece is a known kind. The
+misc box on that answer went from thirty-two lines to one ("Not covered:
+Maxillofacial Prosthetics"). The card and the sheet gained a BY CATEGORY
+table for the pots a payer counts as one, shown beside the code lines
+and never instead of them, and one helper (`lineFacts`) words the small
+facts for the card, the sheet and the copied summary alike. Two rules
+from it: capture the real answer before redesigning around a screenshot,
+and never let a row-level filter written for money decide what counts
+as a rule.

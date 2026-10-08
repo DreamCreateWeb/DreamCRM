@@ -9,11 +9,15 @@ import {
   niceDate,
   planPaysWord,
   replacementWords,
+  FREQ_TO_KEY,
+  fundingWords,
+  lineFacts,
+  networkWords,
   type BenefitAmount,
   type InsuranceCheckView,
 } from '@/lib/insurance-eligibility'
 import { PAYER_NETWORK_OPTIONS, PAYER_PAYS_ON_OPTIONS, type PayerNoteView } from '@/lib/payer-notebook'
-import { BREAKDOWN_COPY } from '@/lib/insurance-breakdown'
+import { BREAKDOWN_COPY, procedureAnswered } from '@/lib/insurance-breakdown'
 
 /**
  * The benefits sheet as TEXT — what "Copy summary" puts on the clipboard and
@@ -69,6 +73,8 @@ export function benefitsSummaryText(view: InsuranceCheckView, opts: SummaryOptio
       plan.planNumber ? `Plan # ${plan.planNumber}` : null,
       insuranceTypeLabel(plan.insuranceType),
       plan.benefitYear ? `${plan.benefitYear === 'calendar' ? 'Calendar year' : 'Plan year'}${plan.benefitYearStart && plan.benefitYearEnd ? ` ${niceDate(plan.benefitYearStart)} to ${niceDate(plan.benefitYearEnd)}` : ''}` : null,
+      networkWords(plan.networks),
+      fundingWords(plan.funding),
     ].filter(Boolean)
     if (bits.length) lines.push(`Plan: ${bits.join(' · ')}`)
   }
@@ -179,16 +185,21 @@ export function benefitsSummaryText(view: InsuranceCheckView, opts: SummaryOptio
           next,
           p.limit,
           p.planPays != null ? `${pctWord(p.planPays)}${p.pctSource === 'tier' ? ' (category rate)' : ''}` : null,
+          ...lineFacts(p),
           ...p.notes,
         ].filter(Boolean)
         lines.push(`- ${p.label} (${p.code}): ${bits.join(' · ')}`)
       }
-    } else if (r.frequencies.length) {
+    }
+    // What the payer counts by CATEGORY (Aetna counts diagnostic and
+    // preventive as one pot each) — beside the code lines, never instead.
+    const categoryRows = r.frequencies.filter((f) => !procs.some((p) => procedureAnswered(p) && FREQ_TO_KEY[f.code] === p.key))
+    if (categoryRows.length) {
       lines.push('')
-      lines.push('Frequencies:')
-      for (const f of r.frequencies) {
+      lines.push('By category (allowed · next · what the payer said):')
+      for (const f of categoryRows) {
         const next = f.nextOn ? (f.nextOn <= today ? 'covered now' : `not until ${niceDate(f.nextOn)}`) : f.lastOn ? `last ${niceDate(f.lastOn)}` : 'none on record'
-        lines.push(`- ${f.label}: ${f.limit} · ${next}`)
+        lines.push(`- ${f.label}: ${[f.limit, next, ...lineFacts(f)].filter(Boolean).join(' · ')}`)
       }
     }
   }

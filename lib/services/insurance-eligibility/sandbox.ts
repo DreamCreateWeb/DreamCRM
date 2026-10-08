@@ -143,7 +143,7 @@ function sheetFacts(
   const back = (months: number | null) => (months == null ? null : isoDate(addMonthsUtc(now, -months)))
   const ahead = (months: number | null, every: number) => (months == null ? null : isoDate(addMonthsUtc(now, every - months)))
   const tier = (t: FormProcedureKey) => o.tiers[FORM_PROCEDURES.find((p) => p.key === t)!.tier] ?? null
-  const line = (key: FormProcedureKey, extra: Partial<Pick<ProcedureBenefit, 'planPays' | 'pctSource' | 'limit' | 'lastOn' | 'nextOn' | 'notes'>> = {}): ProcedureBenefit => {
+  const line = (key: FormProcedureKey, extra: Partial<Pick<ProcedureBenefit, 'planPays' | 'pctSource' | 'limit' | 'lastOn' | 'nextOn' | 'notes' | 'remaining' | 'sharesWith' | 'scope' | 'deductibleApplies'>> = {}): ProcedureBenefit => {
     const def = FORM_PROCEDURES.find((p) => p.key === key)!
     return {
       key,
@@ -168,6 +168,8 @@ function sheetFacts(
       benefitYear: o.benefitYear,
       benefitYearStart: o.benefitYear === 'calendar' ? `${year}-01-01` : o.effective,
       benefitYearEnd: o.benefitYear === 'calendar' ? `${year}-12-31` : isoDate(addMonthsUtc(new Date(`${o.effective}T00:00:00Z`), 12)),
+      networks: h % 2 === 0 ? ['STANDARD DENTAL NETWORK', 'PPO II NETWORK'] : ['PREMIER NETWORK'],
+      funding: h % 3 === 0 ? 'self' : 'fully',
     },
     payerContacts: {
       contacts: [{ name: 'Provider services', phones: ['800-555-0147'], faxes: [], emails: [], urls: [] }],
@@ -176,8 +178,8 @@ function sheetFacts(
     deductibleApplies: { preventive: false, basic: true, major: true, note: null },
     procedures: [
       line('er_exam'),
-      line('exam', { limit: '2 per year', lastOn: back(o.last.exam), nextOn: ahead(o.last.exam, 6) }),
-      line('bitewings', { limit: '1 per year', lastOn: back(o.last.bw), nextOn: ahead(o.last.bw, 12) }),
+      line('exam', { limit: '2 per year', lastOn: back(o.last.exam), nextOn: ahead(o.last.exam, 6), sharesWith: ['D0145', 'D0150', 'D0180'], deductibleApplies: false }),
+      line('bitewings', { limit: '1 per year', lastOn: back(o.last.bw), nextOn: ahead(o.last.bw, 12), scope: 'per full mouth', deductibleApplies: false }),
       line('pa'),
       line('pano', { limit: '1 every 3 years', lastOn: back(o.last.fmx), nextOn: ahead(o.last.fmx, 36) }),
       line('fmx', { limit: '1 every 3 years', lastOn: back(o.last.fmx), nextOn: ahead(o.last.fmx, 36) }),
@@ -185,9 +187,9 @@ function sheetFacts(
       line('perio_maint', { limit: '2 per year', notes: ['Perio charting may be requested.'] }),
       line('prophy', { limit: '2 per year', lastOn: back(o.last.prophy), nextOn: ahead(o.last.prophy, 6) }),
       line('fluoride', { limit: '2 per year' }),
-      line('sealants', { limit: '1 per tooth every 3 years', notes: ['Permanent molars only.'] }),
+      line('sealants', { limit: '1 per tooth every 3 years', scope: 'permanent molars', notes: [] }),
       guardLine,
-      line('crown', { limit: '1 every 5 years', notes: [o.paysOn === 'prep' ? 'Paid on the prep date.' : 'Paid on the seat date.'] }),
+      line('crown', { limit: '1 every 5 years', scope: 'teeth 1–32', sharesWith: ['D2510-D2794', 'D2960'], notes: [o.paysOn === 'prep' ? 'Paid on the prep date.' : 'Paid on the seat date.'] }),
       line('bridge', { limit: '1 every 5 years' }),
       line('denture', { limit: '1 every 5 years' }),
     ],
@@ -229,11 +231,15 @@ export function renderSandboxScenario(key: SandboxScenarioKey, req: EligibilityR
     notes: [],
     asOf,
   }
+  // The lines carry what a real payer puts on them (2026-10-08, from the
+  // Aetna 271): what's left this period, the codes that share the
+  // allowance, the scope, the deductible waiver — so the demo shows every
+  // field the card and the sheet can render.
   const freq = (lastExam: number | null, lastProphy: number | null, lastBw: number | null, lastFmx: number | null) => [
-    { code: 'exam' as const, label: 'Exams', limit: '2 per year', lastOn: lastExam == null ? null : isoDate(addMonthsUtc(now, -lastExam)) },
-    { code: 'prophy' as const, label: 'Cleanings', limit: '2 per year', lastOn: lastProphy == null ? null : isoDate(addMonthsUtc(now, -lastProphy)) },
-    { code: 'bitewings' as const, label: 'Bitewing X-rays', limit: '1 per year', lastOn: lastBw == null ? null : isoDate(addMonthsUtc(now, -lastBw)) },
-    { code: 'fmx' as const, label: 'Full-mouth X-rays', limit: '1 every 3 years', lastOn: lastFmx == null ? null : isoDate(addMonthsUtc(now, -lastFmx)) },
+    { code: 'exam' as const, label: 'Exams', limit: '2 per year', lastOn: lastExam == null ? null : isoDate(addMonthsUtc(now, -lastExam)), remaining: lastExam == null ? null : lastExam < 6 ? 1 : 2, sharesWith: ['D0145', 'D0150', 'D0180'], noDeductible: true },
+    { code: 'prophy' as const, label: 'Cleanings', limit: '2 per year', lastOn: lastProphy == null ? null : isoDate(addMonthsUtc(now, -lastProphy)), remaining: lastProphy == null ? null : lastProphy < 6 ? 1 : 2, sharesWith: ['D1120', 'D4346'], noDeductible: true },
+    { code: 'bitewings' as const, label: 'Bitewing X-rays', limit: '1 per year', lastOn: lastBw == null ? null : isoDate(addMonthsUtc(now, -lastBw)), scope: 'per full mouth', noDeductible: true },
+    { code: 'fmx' as const, label: 'Full-mouth X-rays', limit: '1 every 3 years', lastOn: lastFmx == null ? null : isoDate(addMonthsUtc(now, -lastFmx)), sharesWith: ['D0330'] },
   ]
 
   switch (key) {

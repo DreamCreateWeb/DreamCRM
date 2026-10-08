@@ -39,7 +39,7 @@ export const BREAKDOWN_MAX_CHECKS = 1 + BREAKDOWN_CODES.length
 
 /** A line counts as answered when the payer said something SPECIFIC to the code — a category rate alone is the plan talking. */
 export function procedureAnswered(p: ProcedureBenefit): boolean {
-  return p.pctSource === 'code' || !!p.limit || !!p.lastOn || !!p.nextOn || p.notes.length > 0
+  return p.pctSource === 'code' || !!p.limit || !!p.lastOn || !!p.nextOn || p.notes.length > 0 || p.remaining != null || !!p.sharesWith?.length || !!p.scope
 }
 
 /** The form keys a result answers specifically. */
