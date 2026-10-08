@@ -22,6 +22,7 @@ import {
 } from '@/lib/insurance-eligibility'
 import { benefitsSummaryText } from '@/lib/insurance-summary'
 import type { PayerNoteView } from '@/lib/payer-notebook'
+import { BREAKDOWN_COPY } from '@/lib/insurance-breakdown'
 
 /**
  * The desk's paper (polish phase 4; reshaped 2026-10-08 into the
@@ -342,6 +343,7 @@ export function BenefitsSheet({
         <p className="mt-4 border-t border-black pt-2 text-[12px]">
           Checked {formatClinicDayTime(new Date(check.checkedAtIso), timeZone)} ({checkAgeLabel(check.checkedAtIso)})
           {check.requestedByName ? ` by ${check.requestedByName}` : ''} · {STATUS_LABEL[check.status]} · check {check.id}
+          {r?.breakdown ? ` · ${BREAKDOWN_COPY.pill(r.breakdown.checks).toLowerCase()}${r.breakdown.mode === 'capped' ? ' (stopped at the allowance)' : ''}` : ''}
           {practice?.updatedAtIso ? ` · practice notes updated ${niceDate(practice.updatedAtIso.slice(0, 10))}` : ''}
         </p>
         <p className="mt-1 text-[12px]">{label.title}</p>

@@ -68,28 +68,31 @@ vi.mock('@/lib/services/insurance-eligibility/allowance', () => ({ getInsuranceU
 
 // The Stedi driver's network half is replaced so the resolver can be exercised
 // under INSURANCE_DRIVER=stedi without a key or a payer.
+const STEDI_ANSWER = {
+  result: {
+    status: 'active',
+    payerName: 'Ameritas',
+    planName: null,
+    coverage: { effective: '2026-01-01', termination: null },
+    network: 'unknown',
+    annualMax: null,
+    deductible: null,
+    coveragePct: null,
+    waitingPeriods: [],
+    frequencies: [],
+    missingToothClause: null,
+    notes: [],
+    asOf: '2026-09-30T15:00:00.000Z',
+  },
+  // The payer's answer as received rides the row (raw_response).
+  raw: { plans: [{ benefits: {} }], payer: { name: { organization: 'Ameritas' } } },
+}
+// Configurable per test (the Full breakdown asks several times); the default answers the plain check.
+const stediCheck = vi.fn(async (..._a: unknown[]): Promise<unknown> => STEDI_ANSWER)
 vi.mock('@/lib/services/insurance-eligibility/stedi', () => ({
   makeStediProvider: (id: string) => ({
     id,
-    check: async () => ({
-      result: {
-        status: 'active',
-        payerName: 'Ameritas',
-        planName: null,
-        coverage: { effective: '2026-01-01', termination: null },
-        network: 'unknown',
-        annualMax: null,
-        deductible: null,
-        coveragePct: null,
-        waitingPeriods: [],
-        frequencies: [],
-        missingToothClause: null,
-        notes: [],
-        asOf: '2026-09-30T15:00:00.000Z',
-      },
-      // The payer's answer as received rides the row (raw_response).
-      raw: { plans: [{ benefits: {} }], payer: { name: { organization: 'Ameritas' } } },
-    }),
+    check: (...a: unknown[]) => stediCheck(...a),
   }),
   searchStediPayers: async () => [],
 }))
@@ -97,7 +100,9 @@ vi.mock('@/lib/services/insurance-eligibility/stedi', () => ({
 const recordAction = vi.fn(async (_input: Record<string, unknown>) => true)
 vi.mock('@/lib/services/action-ledger', () => ({ recordAction: (input: Record<string, unknown>) => recordAction(input) }))
 
-import { getInsuranceSetup, runEligibilityCheck } from '@/lib/services/insurance-eligibility'
+import { getInsuranceSetup, runEligibilityCheck, runFullBreakdown } from '@/lib/services/insurance-eligibility'
+import { BREAKDOWN_CODES } from '@/lib/insurance-breakdown'
+import { FORM_PROCEDURES, type EligibilityResult, type EligibilityService } from '@/lib/insurance-eligibility'
 
 const NOW = new Date('2026-09-30T15:00:00Z')
 const ENABLED = new Date('2026-09-29T15:00:00Z')
@@ -114,6 +119,8 @@ function input(memberId = 'DD-100-2231') {
 }
 
 beforeEach(() => {
+  stediCheck.mockReset()
+  stediCheck.mockImplementation(async () => STEDI_ANSWER)
   state.patients = []
   state.org = [{ isDemo: false }]
   state.profile = [{ npi: null, enabledAt: ENABLED }]
@@ -353,3 +360,121 @@ describe('runEligibilityCheck', () => {
     expect(state.updates).toHaveLength(0)
   })
 })
+
+/** A payer answer whose procedure lines are specific for exactly the codes named. */
+function answerFor(codes: string[], over: Partial<EligibilityResult> = {}) {
+  const procedures = FORM_PROCEDURES.filter((p) => p.codes.some((c) => codes.includes(c))).map((p) => ({
+    key: p.key,
+    code: p.codes[0],
+    label: p.label,
+    planPays: 80,
+    pctSource: 'code' as const,
+    limit: '1 per year',
+    lastOn: null,
+    nextOn: null,
+    notes: [],
+  }))
+  return { result: { ...STEDI_ANSWER.result, procedures, payerNotes: [`NOTE FOR ${codes.join(',')}`], ...over }, raw: { asked: codes } }
+}
+const servicesOf = (call: unknown[]) => ((call[2] as { services?: EligibilityService[] } | undefined)?.services ?? []).map((x) => x.value)
+
+describe('runFullBreakdown (2026-10-08)', () => {
+  beforeEach(() => {
+    process.env.INSURANCE_DRIVER = 'stedi'
+    process.env.STEDI_MODE = 'live'
+    state.profile = [{ npi: '1234567893', enabledAt: new Date('2026-10-01T00:00:00Z') }]
+    state.usage = { used: 10, included: 200, unreadable: false }
+  })
+
+  it('asks every sheet code in ONE request (with the dental question) and, when the payer answers them all, stores one row billed as one check', async () => {
+    stediCheck.mockImplementation(async (...a: unknown[]) => answerFor(servicesOf(a)))
+    const r = await runFullBreakdown('org_1', { input: input(), patientId: null, userId: 'u_1', now: NOW })
+    expect(r.ok).toBe(true)
+    if (!r.ok) return
+    expect(stediCheck).toHaveBeenCalledTimes(1)
+    expect(servicesOf(stediCheck.mock.calls[0])).toEqual(['35', ...BREAKDOWN_CODES])
+    expect(r.check.result?.breakdown).toMatchObject({ mode: 'single', checks: 1, requestedCodes: BREAKDOWN_CODES, silentCodes: [], failedCodes: [] })
+    expect(r.check.result?.breakdown?.answeredKeys).toHaveLength(FORM_PROCEDURES.length)
+    expect(r.check.billedChecks).toBe(1)
+    const row = state.inserts.find((i) => i.table === 'insurance_verification')!.values
+    expect(row.billedChecks).toBe(1)
+    expect(row.rawResponse).toEqual({ breakdown: true, responses: [{ asked: ['35', ...BREAKDOWN_CODES] }] })
+    expect(String((recordAction.mock.calls.at(-1)![0] as Record<string, unknown>).summary)).toMatch(/Pulled .* full Delta Dental breakdown — 1 payer check/)
+  })
+
+  it('a payer that reads one code at a time is asked per code for the silent ones; the merged row bills every ask', async () => {
+    // The first (multi-code) request answers only the first CDT code; a single-code request answers that code.
+    stediCheck.mockImplementation(async (...a: unknown[]) => {
+      const codes = servicesOf(a).filter((c) => c.startsWith('D'))
+      return answerFor([codes[0]])
+    })
+    const r = await runFullBreakdown('org_1', { input: input(), patientId: null, userId: 'u_1', now: NOW })
+    expect(r.ok).toBe(true)
+    if (!r.ok) return
+    // 1 + (every code but the first, which the first request answered)
+    expect(stediCheck).toHaveBeenCalledTimes(1 + BREAKDOWN_CODES.length - 1)
+    expect(servicesOf(stediCheck.mock.calls[1])).toEqual([BREAKDOWN_CODES[1]])
+    const b = r.check.result!.breakdown!
+    expect(b.mode).toBe('mixed')
+    expect(b.checks).toBe(BREAKDOWN_CODES.length)
+    expect(b.answeredKeys).toHaveLength(FORM_PROCEDURES.length)
+    expect(r.check.billedChecks).toBe(BREAKDOWN_CODES.length)
+    // Notes from every ask are unioned onto the one row.
+    expect(r.check.result!.payerNotes!.length).toBe(BREAKDOWN_CODES.length)
+  })
+
+  it('stops at the month’s allowance and says so; a per-code failure is recorded, never an answer', async () => {
+    state.usage = { used: 196, included: 200, unreadable: false }
+    stediCheck.mockImplementation(async (...a: unknown[]) => {
+      const codes = servicesOf(a).filter((c) => c.startsWith('D'))
+      if (codes.length === 1 && codes[0] === BREAKDOWN_CODES[2]) throw new Error('payer timeout')
+      return answerFor(codes.length > 1 ? [] : codes)
+    })
+    const r = await runFullBreakdown('org_1', { input: input(), patientId: null, userId: 'u_1', now: NOW })
+    expect(r.ok).toBe(true)
+    if (!r.ok) return
+    // 1 base check used one of the 4 left; 3 per-code asks fit.
+    expect(stediCheck).toHaveBeenCalledTimes(4)
+    const b = r.check.result!.breakdown!
+    expect(b.mode).toBe('capped')
+    expect(b.checks).toBe(4)
+    expect(b.failedCodes).toEqual([BREAKDOWN_CODES[2]])
+    expect(b.answeredKeys).toEqual([FORM_PROCEDURES[0].key, FORM_PROCEDURES[1].key])
+    expect(r.check.billedChecks).toBe(4)
+    expect(r.check.status).toBe('active')
+  })
+
+  it('a not-found plan is never re-asked per code, and a failed first request is one stored error row', async () => {
+    stediCheck.mockImplementation(async () => ({ result: { ...STEDI_ANSWER.result, status: 'not_found' }, raw: {} }))
+    const nf = await runFullBreakdown('org_1', { input: input(), patientId: null, userId: 'u_1', now: NOW })
+    expect(nf.ok && nf.check.result?.breakdown?.checks).toBe(1)
+    expect(stediCheck).toHaveBeenCalledTimes(1)
+    stediCheck.mockReset()
+    stediCheck.mockImplementation(async () => {
+      throw new Error('payer down')
+    })
+    state.inserts = []
+    const err = await runFullBreakdown('org_1', { input: input(), patientId: null, userId: 'u_1', now: NOW })
+    expect(err.ok && err.check.status).toBe('error')
+    expect(err.ok && err.check.billedChecks).toBe(1)
+    expect(state.inserts).toHaveLength(1)
+    expect(String((recordAction.mock.calls.at(-1)![0] as Record<string, unknown>).summary)).toMatch(/couldn’t/)
+  })
+
+  it('the sandbox answers everything in one and bills nothing extra; the gates refuse before any ask', async () => {
+    delete process.env.INSURANCE_DRIVER
+    delete process.env.STEDI_MODE
+    const r = await runFullBreakdown('org_1', { input: input(), patientId: null, userId: 'u_1', now: NOW })
+    expect(r.ok).toBe(true)
+    if (!r.ok) return
+    expect(r.check.driver).toBe('sandbox')
+    expect(r.check.result?.breakdown).toMatchObject({ mode: 'single', checks: 1 })
+    expect(r.check.billedChecks).toBe(1)
+    expect(stediCheck).not.toHaveBeenCalled()
+    expect(state.inserts.find((i) => i.table === 'insurance_verification')!.values.rawResponse).toBeNull()
+    state.profile = [{ npi: null, enabledAt: null }]
+    const off = await runFullBreakdown('org_1', { input: input(), patientId: null, userId: 'u_1', now: NOW })
+    expect(off).toMatchObject({ ok: false, reason: 'not_enabled' })
+  })
+})
+

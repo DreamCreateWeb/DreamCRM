@@ -21,8 +21,10 @@ const attachInsuranceCheckToPatient = vi.fn(async () => true)
 const searchPayers = vi.fn(async () => [{ primaryPayerId: '77777', displayName: 'Delta Dental of California' }])
 const enableInsuranceTool = vi.fn(async () => ({ ok: true as const, enabledAt: new Date(), npi: null }))
 const disableInsuranceTool = vi.fn(async () => true)
+const runFullBreakdown = vi.fn(async () => ({ ok: true as const, check: { id: 'ins_bd', patientId: 'pat_1' } }))
 vi.mock('@/lib/services/insurance-eligibility', () => ({
   runEligibilityCheck: (...a: unknown[]) => runEligibilityCheck(...(a as [])),
+  runFullBreakdown: (...a: unknown[]) => runFullBreakdown(...(a as [])),
   attachInsuranceCheckToPatient: (...a: unknown[]) => attachInsuranceCheckToPatient(...(a as [])),
   searchPayers: (...a: unknown[]) => searchPayers(...(a as [])),
   enableInsuranceTool: (...a: unknown[]) => enableInsuranceTool(...(a as [])),
@@ -65,6 +67,7 @@ import {
   searchPayersAction,
   getPayerNoteAction,
   savePayerNoteAction,
+  fullBreakdownAction,
 } from '@/app/(default)/insurance/actions'
 
 const request = {
@@ -327,3 +330,17 @@ describe('the payer notebook actions (2026-10-08)', () => {
     tenantCtx.tenantType = 'clinic'
   })
 })
+
+describe('fullBreakdownAction (2026-10-08)', () => {
+  it('runs the breakdown under the session org and user, revalidates the page and the record, and is gated like a check', async () => {
+    const r = await fullBreakdownAction(request, 'pat_1')
+    expect(r.ok).toBe(true)
+    expect(runFullBreakdown).toHaveBeenCalledWith('org_1', { input: request, patientId: 'pat_1', userId: 'user_staff' })
+    tenantCtx.tenantType = 'platform'
+    runFullBreakdown.mockClear()
+    expect((await fullBreakdownAction(request, null)).ok).toBe(false)
+    expect(runFullBreakdown).not.toHaveBeenCalled()
+    tenantCtx.tenantType = 'clinic'
+  })
+})
+

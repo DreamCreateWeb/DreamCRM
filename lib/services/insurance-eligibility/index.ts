@@ -25,6 +25,7 @@ import {
 } from '@/lib/insurance-eligibility'
 import { recordAction } from '@/lib/services/action-ledger'
 import type { EligibilityProvider } from './provider'
+import { BREAKDOWN_BASE_SERVICE, BREAKDOWN_CODES, breakdownBudget, mergeBreakdown, summarizeBreakdown, unansweredCodes } from '@/lib/insurance-breakdown'
 import { sandboxProvider } from './sandbox'
 import { makeStediProvider, searchStediPayers } from './stedi'
 import { getInsuranceUsage } from './allowance'
@@ -119,6 +120,7 @@ function toView(row: CheckRow, patientName: string | null, requestedByName: stri
     checkedAtIso: row.checkedAt.toISOString(),
     requestedByUserId: row.requestedByUserId,
     requestedByName,
+    billedChecks: row.billedChecks ?? 1,
   }
 }
 
@@ -151,6 +153,122 @@ export type RunEligibilityCheckResult =
       reason?: 'not_enabled' | 'npi' | 'over_allowance'
     }
 
+type Prepared = {
+  input: EligibilityRequest
+  patientId: string | null
+  patientName: string | null
+  onFilePolicyNumber: string | null
+  setup: InsuranceSetup
+  provider: EligibilityProvider
+}
+
+/**
+ * Everything a check does BEFORE asking anyone: validate the typed card,
+ * resolve the patient (never trusting a client-supplied id), and the
+ * readiness + allowance gates. Shared by the plain check and the Full
+ * breakdown so the two can never drift on who may ask.
+ */
+async function prepareCheck(
+  organizationId: string,
+  opts: { input: unknown; patientId?: string | null; now: Date },
+): Promise<{ ok: true; prepared: Prepared } | Exclude<RunEligibilityCheckResult, { ok: true }>> {
+  const validated = validateEligibilityRequest(opts.input, opts.now)
+  if (!validated.ok) return validated
+  const input = validated.value
+
+  // Never trust a client-supplied patient id: it must be this org's.
+  let patientId: string | null = null
+  let patientName: string | null = null
+  let onFilePolicyNumber: string | null = null
+  if (opts.patientId) {
+    const [p] = await db
+      .select({
+        id: schema.patient.id,
+        firstName: schema.patient.firstName,
+        lastName: schema.patient.lastName,
+        insurancePolicyNumber: schema.patient.insurancePolicyNumber,
+      })
+      .from(schema.patient)
+      .where(and(eq(schema.patient.organizationId, organizationId), eq(schema.patient.id, opts.patientId)))
+      .limit(1)
+    if (p) {
+      patientId = p.id
+      patientName = `${p.firstName} ${p.lastName}`.trim()
+      onFilePolicyNumber = p.insurancePolicyNumber
+    }
+  }
+
+  // READINESS + THE ALLOWANCE, before any row or any network (polish
+  // phase 6). The demo rule lives in effectiveInsuranceDriver: the demo
+  // org gets the SAME driver as everyone else (a check there is a platform
+  // admin's deliberate click) unless the live driver would only refuse it
+  // for a missing NPI — then, and only then, the labelled sandbox answers.
+  const setup = await getInsuranceSetup(organizationId, opts.now)
+  if (!setup.enabled) return { ok: false, reason: 'not_enabled', errors: { _form: `Insurance checks aren’t turned on for this practice yet. ${INSURANCE_INTRO.askManager}` } }
+  if (setup.needsNpi) return { ok: false, reason: 'npi', errors: { _form: NPI_READINESS_COPY.refusal } }
+  if (setup.usage && !setup.usage.unreadable && setup.usage.used >= setup.usage.included) {
+    return {
+      ok: false,
+      reason: 'over_allowance',
+      errors: { _form: `${usageLine(setup.usage)} — the allowance resets on the 1st. Dream Create can raise it; ask on the Support thread.` },
+    }
+  }
+  return { ok: true, prepared: { input, patientId, patientName, onFilePolicyNumber, setup, provider: resolveEligibilityProvider(setup.driver) } }
+}
+
+/**
+ * Store the answer (good or bad), remember the card, narrate it, return the
+ * view. The one write path for both kinds of check.
+ */
+async function storeCheck(
+  organizationId: string,
+  prepared: Prepared,
+  answer: { result: EligibilityResult | null; raw: unknown | null; error: string | null; billedChecks: number },
+  opts: { userId?: string | null; now: Date; ledgerSummary?: (view: InsuranceCheckView, patientName: string) => string },
+): Promise<InsuranceCheckView> {
+  const { input, patientId, patientName, onFilePolicyNumber, provider } = prepared
+  const status: EligibilityStatus = answer.result ? answer.result.status : 'error'
+  const row: CheckRow = {
+    id: newCheckId(),
+    organizationId,
+    patientId,
+    requestedByUserId: opts.userId ?? null,
+    driver: provider.id,
+    status,
+    input,
+    result: answer.result,
+    // The payer's answer as received: what the normalizer doesn't read
+    // today can be read tomorrow without asking (and paying) again.
+    rawResponse: answer.raw,
+    billedChecks: answer.billedChecks,
+    error: answer.error,
+    checkedAt: opts.now,
+    createdAt: opts.now,
+  }
+  await db.insert(schema.insuranceVerification).values(row)
+  const view = toView(row, patientName, await userDisplayName(opts.userId))
+
+  // The record remembers the card — but only a card the payer RECOGNISED
+  // (a not-found or a failed check says nothing about the card), and only
+  // when it is the card on file (an empty policy number, or the same one):
+  // the tool promises that edits don't change the record until you save.
+  const onFile = (onFilePolicyNumber ?? '').trim()
+  const isCardOnFile = !onFile || onFile === input.memberId.trim()
+  if (patientId && answer.result && checkRecognisedCard(status) && isCardOnFile) {
+    await rememberCheckedCard(organizationId, patientId, detailFromRequest(input, answer.result, 'check', opts.now))
+  }
+
+  await recordAction({
+    organizationId,
+    capability: 'insurance_check',
+    patientId,
+    summary: (opts.ledgerSummary ?? ledgerSummaryForCheck)(view, patientName ?? ''),
+    detail: { checkId: view.id, driver: view.driver, status, initiatedBy: 'staff', userId: opts.userId ?? null, billedChecks: answer.billedChecks },
+    occurredAt: opts.now,
+  })
+  return view
+}
+
 export async function runEligibilityCheck(
   organizationId: string,
   opts: {
@@ -161,104 +279,130 @@ export async function runEligibilityCheck(
   },
 ): Promise<RunEligibilityCheckResult> {
   const now = opts.now ?? new Date()
-  const validated = validateEligibilityRequest(opts.input, now)
-  if (!validated.ok) return validated
-  const input = validated.value
-
   try {
-    // Never trust a client-supplied patient id: it must be this org's.
-    let patientId: string | null = null
-    let patientName: string | null = null
-    let onFilePolicyNumber: string | null = null
-    if (opts.patientId) {
-      const [p] = await db
-        .select({
-          id: schema.patient.id,
-          firstName: schema.patient.firstName,
-          lastName: schema.patient.lastName,
-          insurancePolicyNumber: schema.patient.insurancePolicyNumber,
-        })
-        .from(schema.patient)
-        .where(and(eq(schema.patient.organizationId, organizationId), eq(schema.patient.id, opts.patientId)))
-        .limit(1)
-      if (p) {
-        patientId = p.id
-        patientName = `${p.firstName} ${p.lastName}`.trim()
-        onFilePolicyNumber = p.insurancePolicyNumber
-      }
-    }
-
-    // READINESS + THE ALLOWANCE, before any row or any network (polish
-    // phase 6). The demo rule lives in effectiveInsuranceDriver: the demo
-    // org gets the SAME driver as everyone else (a check there is a platform
-    // admin's deliberate click) unless the live driver would only refuse it
-    // for a missing NPI — then, and only then, the labelled sandbox answers.
-    const setup = await getInsuranceSetup(organizationId, now)
-    if (!setup.enabled) return { ok: false, reason: 'not_enabled', errors: { _form: `Insurance checks aren’t turned on for this practice yet. ${INSURANCE_INTRO.askManager}` } }
-    if (setup.needsNpi) return { ok: false, reason: 'npi', errors: { _form: NPI_READINESS_COPY.refusal } }
-    if (setup.usage && !setup.usage.unreadable && setup.usage.used >= setup.usage.included) {
-      return {
-        ok: false,
-        reason: 'over_allowance',
-        errors: { _form: `${usageLine(setup.usage)} — the allowance resets on the 1st. Dream Create can raise it; ask on the Support thread.` },
-      }
-    }
-    const provider = resolveEligibilityProvider(setup.driver)
+    const prep = await prepareCheck(organizationId, { input: opts.input, patientId: opts.patientId, now })
+    if (!prep.ok) return prep
+    const { prepared } = prep
 
     let result: EligibilityResult | null = null
     let raw: unknown | null = null
     let error: string | null = null
     try {
-      const answer = await provider.check(input, { now, organizationId })
+      const answer = await prepared.provider.check(prepared.input, { now, organizationId })
       result = answer.result
       raw = answer.raw ?? null
     } catch (e) {
       error = plainMessage(e)
     }
-    const status: EligibilityStatus = result ? result.status : 'error'
-
-    const row: CheckRow = {
-      id: newCheckId(),
-      organizationId,
-      patientId,
-      requestedByUserId: opts.userId ?? null,
-      driver: provider.id,
-      status,
-      input,
-      result,
-      // The payer's answer as received: what the normalizer doesn't read
-      // today can be read tomorrow without asking (and paying) again.
-      rawResponse: raw,
-      error,
-      checkedAt: now,
-      createdAt: now,
-    }
-    await db.insert(schema.insuranceVerification).values(row)
-    const view = toView(row, patientName, await userDisplayName(opts.userId))
-
-    // The record remembers the card — but only a card the payer RECOGNISED
-    // (a not-found or a failed check says nothing about the card), and only
-    // when it is the card on file (an empty policy number, or the same one):
-    // the tool promises that edits don't change the record until you save.
-    const onFile = (onFilePolicyNumber ?? '').trim()
-    const isCardOnFile = !onFile || onFile === input.memberId.trim()
-    if (patientId && result && checkRecognisedCard(status) && isCardOnFile) {
-      await rememberCheckedCard(organizationId, patientId, detailFromRequest(input, result, 'check', now))
-    }
-
-    await recordAction({
-      organizationId,
-      capability: 'insurance_check',
-      patientId,
-      summary: ledgerSummaryForCheck(view, patientName ?? ''),
-      detail: { checkId: view.id, driver: view.driver, status, initiatedBy: 'staff', userId: opts.userId ?? null },
-      occurredAt: now,
-    })
+    const view = await storeCheck(organizationId, prepared, { result, raw, error, billedChecks: 1 }, { userId: opts.userId, now })
     return { ok: true, check: view }
   } catch (e) {
     console.error('[insurance-eligibility] check failed:', e)
     return { ok: false, errors: { _form: 'Could not save this check. Try again in a moment.' } }
   }
+}
+
+/**
+ * THE FULL BREAKDOWN (2026-10-08, lib/insurance-breakdown.ts has the why).
+ * One request naming every code on the sheet; then one request per code
+ * that came back without anything specific, stopping at the month's
+ * allowance; ONE stored row with the merged answer, its receipt, and the
+ * number of checks it cost. The sandbox answers everything in one and
+ * never asks twice; a non-billed driver (test mode) is not re-asked per
+ * code either, since the mock repeats itself and a free re-ask would still
+ * make the receipt lie about how the real payer answers.
+ */
+export async function runFullBreakdown(
+  organizationId: string,
+  opts: {
+    input: unknown
+    patientId?: string | null
+    userId?: string | null
+    now?: Date
+  },
+): Promise<RunEligibilityCheckResult> {
+  const now = opts.now ?? new Date()
+  try {
+    const prep = await prepareCheck(organizationId, { input: opts.input, patientId: opts.patientId, now })
+    if (!prep.ok) return prep
+    const { prepared } = prep
+    const { provider, setup } = prepared
+    const billed = isBilledDriver(provider.id)
+    const requestedCodes = [...BREAKDOWN_CODES]
+    const raws: unknown[] = []
+    let checks = 0
+
+    // 1. Everything in one request.
+    let base: EligibilityResult
+    try {
+      const answer = await provider.check(prepared.input, { now, organizationId }, {
+        services: [BREAKDOWN_BASE_SERVICE, ...requestedCodes.map((value) => ({ system: 'CDT' as const, value }))],
+      })
+      checks += 1
+      base = answer.result
+      raws.push(answer.raw ?? null)
+    } catch (e) {
+      checks += 1
+      const view = await storeCheck(
+        organizationId,
+        prepared,
+        { result: null, raw: null, error: plainMessage(e), billedChecks: billed ? checks : 1 },
+        { userId: opts.userId, now, ledgerSummary: ledgerSummaryForBreakdown },
+      )
+      return { ok: true, check: view }
+    }
+
+    // 2. One request per code the payer said nothing specific about —
+    //    only when the answer is a real payer's (and so worth a billed ask),
+    //    only while the plan is active (a not-found repeats itself), and
+    //    only inside the allowance.
+    const perCodeAsked: string[] = []
+    const failedCodes: string[] = []
+    let capped = false
+    if (billed && base.status === 'active') {
+      const missing = unansweredCodes(base)
+      const budget = breakdownBudget(setup.usage ? { ...setup.usage, used: setup.usage.used + checks } : null, missing.length)
+      capped = budget < missing.length
+      for (const code of missing.slice(0, budget)) {
+        perCodeAsked.push(code)
+        try {
+          const answer = await provider.check(prepared.input, { now, organizationId }, { services: [{ system: 'CDT', value: code }] })
+          checks += 1
+          raws.push(answer.raw ?? null)
+          base = mergeBreakdown(base, code, answer.result)
+        } catch (e) {
+          checks += 1
+          failedCodes.push(code)
+          console.error(`[insurance-eligibility] breakdown ask for ${code} failed:`, e)
+        }
+      }
+    }
+
+    const result: EligibilityResult = {
+      ...base,
+      breakdown: summarizeBreakdown({ requestedCodes, result: base, perCodeAsked, failedCodes, checks, capped }),
+    }
+    const view = await storeCheck(
+      organizationId,
+      prepared,
+      // Every payer answer as received, in ask order; a driver with nothing behind it (the sandbox) stores null.
+      { result, raw: raws.some((x) => x != null) ? { breakdown: true, responses: raws } : null, error: null, billedChecks: billed ? checks : 1 },
+      { userId: opts.userId, now, ledgerSummary: ledgerSummaryForBreakdown },
+    )
+    return { ok: true, check: view }
+  } catch (e) {
+    console.error('[insurance-eligibility] breakdown failed:', e)
+    return { ok: false, errors: { _form: 'Could not save this breakdown. Try again in a moment.' } }
+  }
+}
+
+function ledgerSummaryForBreakdown(view: InsuranceCheckView, patientName: string): string {
+  const who = patientName.trim() || `${view.input.patient.firstName} ${view.input.patient.lastName}`.trim()
+  const possessive = who.endsWith('s') ? `${who}’` : `${who}’s`
+  const b = view.result?.breakdown
+  const cost = b ? ` — ${b.checks} payer ${b.checks === 1 ? 'check' : 'checks'}` : ''
+  if (view.status === 'error') return `Tried to pull ${possessive} full ${view.input.carrierName} breakdown and couldn’t`
+  return `Pulled ${possessive} full ${view.input.carrierName} breakdown${cost}`
 }
 
 /**
@@ -307,6 +451,7 @@ const viewSelect = {
   input: schema.insuranceVerification.input,
   result: schema.insuranceVerification.result,
   error: schema.insuranceVerification.error,
+  billedChecks: schema.insuranceVerification.billedChecks,
   checkedAt: schema.insuranceVerification.checkedAt,
   createdAt: schema.insuranceVerification.createdAt,
   patientFirstName: schema.patient.firstName,

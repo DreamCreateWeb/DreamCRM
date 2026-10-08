@@ -114,3 +114,15 @@ The raw 271 is kept on every live check (`raw_response`). If a client's
 form needs a field the sheet still lacks, read it out of stored rows first
 — it is almost certainly there — before paying for another check.
 
+## The Full breakdown (2026-10-08)
+
+"Full breakdown" on an active answer asks the payer about every code on
+the sheet. It tries ONE request with all the codes first; a payer that
+honours them all costs one check. A payer that reads only the first code
+gets asked one code at a time for the rest — up to 16 checks — and the
+breakdown stops at the month's allowance rather than crossing it. The row
+bills what it took (`billed_checks`; the allowance sums the column). The
+card's receipt says which way the payer answered; if the client's payers
+turn out to answer per code, the included allowance is the dial to raise
+(`INSURANCE_INCLUDED_MONTHLY_CHECKS`), not the button to hide.
+

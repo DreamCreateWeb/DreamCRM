@@ -14,6 +14,7 @@ import { formatClinicDayTime } from '@/lib/format-datetime'
 import { TONE_TEXT } from '@/lib/ui/encodings'
 import {
   INSURANCE_DRIVER_LABEL,
+  isBilledDriver,
   type EligibilityResult,
   replacementWords,
   planPaysWord,
@@ -45,7 +46,8 @@ import { checkInsuranceAction, createPatientFromCheckAction, disableInsuranceAct
 import { FactChip, HeroAmount, TierTile } from './benefit-visuals'
 import { CopySummaryButton, PrintBenefitsButton, PrintableBenefits } from './benefits-sheet'
 import { PayerNotebookCard } from './payer-notebook-card'
-import { getPayerNoteAction } from './actions'
+import { fullBreakdownAction, getPayerNoteAction } from './actions'
+import { BREAKDOWN_COPY } from '@/lib/insurance-breakdown'
 import type { PayerNoteView } from '@/lib/payer-notebook'
 import { CardScanner } from './card-scanner'
 import { FilterChip } from '@/components/ui/filter-chip'
@@ -176,7 +178,7 @@ export default function InsuranceTool({
   const [recent, setRecent] = useState<InsuranceCheckView[]>(initialRecent)
   const [pending, startTransition] = useTransition()
   const [duplicate, setDuplicate] = useState<{ id: string; name: string } | null>(null)
-  const [busy, setBusy] = useState<'check' | 'save' | 'add' | 'anyway' | null>(null)
+  const [busy, setBusy] = useState<'check' | 'save' | 'add' | 'anyway' | 'breakdown' | null>(null)
   const [statusFilter, setStatusFilter] = useState<EligibilityStatus | null>(null)
   const [query, setQuery] = useState('')
   // THE PAYER NOTEBOOK (2026-10-08): the practice's own facts about the
@@ -248,6 +250,42 @@ export default function InsuranceTool({
       setRecent((list) => [r.check, ...list.filter((c) => c.id !== r.check.id)].slice(0, 50))
       // The answer is the next thing to read: move focus to its heading so a
       // keyboard user lands on the verdict, not back at the top of the form.
+      requestAnimationFrame(() => resultRef.current?.querySelector<HTMLElement>('[data-testid="benefits-heading"]')?.focus())
+    })
+  }
+
+  /**
+   * THE FULL BREAKDOWN (2026-10-08): the per-procedure asks behind one
+   * button. The confirm says what it asks and what it can cost BEFORE the
+   * transition starts (the dialog law — awaited inside one, React 19 holds
+   * its render). The merged answer lands as the current card like any
+   * check, and the header's allowance refreshes from the server.
+   */
+  async function runBreakdown() {
+    if (!current) return
+    const billed = isBilledDriver(current.driver)
+    if (
+      !(await confirm({
+        title: BREAKDOWN_COPY.confirmTitle,
+        message: BREAKDOWN_COPY.confirmBody(usage, billed),
+        confirmLabel: BREAKDOWN_COPY.confirmLabel,
+      }))
+    )
+      return
+    setErrors({})
+    setDuplicate(null)
+    setBusy('breakdown')
+    startTransition(async () => {
+      const r = await fullBreakdownAction(current.input, current.patientId ?? prefill?.patientId ?? null)
+      setBusy(null)
+      if (!r.ok) {
+        setErrors(r.errors)
+        toast(r.errors._form ?? 'The breakdown failed.', { tone: 'urgent' })
+        return
+      }
+      setCurrent(r.check)
+      setRecent((list) => [r.check, ...list.filter((c) => c.id !== r.check.id)].slice(0, 50))
+      router.refresh()
       requestAnimationFrame(() => resultRef.current?.querySelector<HTMLElement>('[data-testid="benefits-heading"]')?.focus())
     })
   }
@@ -566,6 +604,17 @@ export default function InsuranceTool({
                   <ActionButton variant="secondary" size="sm" pending={pending && busy === 'check'} onClick={runCheck}>
                     {current.status === 'error' ? 'Try again' : 'Check again'}
                   </ActionButton>
+                  {current.status === 'active' && (
+                    <ActionButton
+                      variant="secondary"
+                      size="sm"
+                      pending={pending && busy === 'breakdown'}
+                      onClick={runBreakdown}
+                      title="Ask the payer about every procedure on the sheet — rate, frequency, last and next date per code."
+                    >
+                      {current.result?.breakdown ? BREAKDOWN_COPY.again : BREAKDOWN_COPY.button}
+                    </ActionButton>
+                  )}
                   {current.status !== 'error' && (
                     <>
                       <PrintBenefitsButton />
@@ -1062,8 +1111,21 @@ export function ResultCard({
                 title="Benefits move with every claim and plans can end any month — this answer is over a month old."
               />
             )}
+            {r?.breakdown && (
+              <StatusPill
+                tone={r.breakdown.mode === 'capped' ? 'warn' : 'info'}
+                label={BREAKDOWN_COPY.pill(r.breakdown.checks)}
+                title={BREAKDOWN_COPY.receipt(r.breakdown)}
+              />
+            )}
           </div>
         </div>
+        {r?.breakdown && (
+          <p className="mt-2 text-xs text-gray-600 dark:text-gray-300" data-testid="breakdown-receipt">
+            {BREAKDOWN_COPY.receipt(r.breakdown)}
+            {r.breakdown.failedCodes.length > 0 ? ` Couldn’t ask about ${r.breakdown.failedCodes.join(', ')}.` : ''}
+          </p>
+        )}
         <p className="mt-2 text-xs text-gray-500 dark:text-gray-400" suppressHydrationWarning>
           Checked {checkAgeLabel(check.checkedAtIso)}
           {check.requestedByName ? ` by ${check.requestedByName}` : ''}
