@@ -50,7 +50,7 @@ function apiKey(): string {
   return key
 }
 
-async function stediFetch(path: string, init: RequestInit & { timeoutMs?: number } = {}): Promise<Response> {
+export async function stediFetch(path: string, init: RequestInit & { timeoutMs?: number } = {}): Promise<Response> {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), init.timeoutMs ?? TIMEOUT_MS)
   try {
@@ -93,7 +93,7 @@ async function resolvePayerId(req: EligibilityRequest): Promise<string> {
   throw new Error(`“${req.carrierName}” matches ${matches.length} payers — pick the exact one from the list before checking.`)
 }
 
-async function resolveProvider(organizationId: string, mode: 'test' | 'live'): Promise<{ npi: string; organizationName: string }> {
+export async function resolveProvider(organizationId: string, mode: 'test' | 'live'): Promise<{ npi: string; organizationName: string }> {
   const [row] = await db
     .select({ npi: schema.clinicProfile.npi, name: schema.organization.name })
     .from(schema.clinicProfile)

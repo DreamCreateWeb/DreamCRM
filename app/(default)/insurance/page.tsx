@@ -17,6 +17,7 @@ import {
 } from '@/lib/services/insurance-eligibility'
 import { getPatientHeader, listPatientOptions } from '@/lib/services/patients'
 import { getPayerNote } from '@/lib/services/insurance-eligibility/payer-notebook'
+import { getDiscoveryUsage, getLatestDiscoveryForPatient } from '@/lib/services/insurance-eligibility/discovery'
 import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
 import ModuleHint from '@/components/onboarding/module-hint'
 import InsuranceTool from './insurance-tool'
@@ -43,8 +44,9 @@ export default async function InsurancePage({ searchParams }: PageProps) {
   const params = await searchParams
   const patientParam = typeof params.patient === 'string' ? params.patient.trim() : ''
   const checkParam = typeof params.check === 'string' ? params.check.trim() : ''
+  const discoverParam = params.discover === '1'
 
-  const [recent, carriers, patientOptions, timeZone, header, latestForPatient, linked] = await Promise.all([
+  const [recent, carriers, patientOptions, timeZone, header, latestForPatient, linked, discoveryUsage, latestDiscovery] = await Promise.all([
     listRecentInsuranceChecks(ctx.organizationId, 50),
     listCarrierSuggestions(ctx.organizationId),
     listPatientOptions(ctx.organizationId),
@@ -54,6 +56,11 @@ export default async function InsurancePage({ searchParams }: PageProps) {
     // A history-drawer deep link: one specific stored check, org-scoped — a
     // foreign or unknown id simply yields nothing and the page opens as usual.
     checkParam ? getInsuranceCheckById(ctx.organizationId, checkParam) : Promise.resolve(null),
+    // INSURANCE DISCOVERY: its own allowance under the live driver only (a
+    // search is a dearer line than a check), and the patient's last search
+    // so a pending one can be picked back up.
+    setup.driver === 'stedi' ? getDiscoveryUsage(ctx.organizationId) : Promise.resolve(null),
+    patientParam ? getLatestDiscoveryForPatient(ctx.organizationId, patientParam).catch(() => null) : Promise.resolve(null),
   ])
   // The linked check wins over "latest" only when it belongs to the same patient the page is about.
   const latest = linked && (!patientParam || linked.patientId === patientParam) ? linked : latestForPatient
@@ -73,6 +80,8 @@ export default async function InsurancePage({ searchParams }: PageProps) {
             latest && (!header.insurancePolicyNumber || header.insurancePolicyNumber.trim() === latest.input.memberId.trim())
               ? latest.input
               : requestFromOnFile(header),
+          state: header.state,
+          postalCode: header.postalCode,
         }
       : null
 
@@ -102,6 +111,9 @@ export default async function InsurancePage({ searchParams }: PageProps) {
         usage={setup.usage}
         canManage={canManage}
         npi={setup.npi}
+        discoveryUsage={discoveryUsage}
+        latestDiscovery={prefill ? latestDiscovery : null}
+        discoverOpen={discoverParam}
       />
     </>
   )

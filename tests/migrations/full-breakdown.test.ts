@@ -17,9 +17,8 @@ describe('0179_full_breakdown', () => {
     expect(sql).not.toMatch(/DROP|CREATE TABLE/)
   })
 
-  it('is registered in the journal under its name, last', () => {
+  it('is registered in the journal under its name', () => {
     const journal = JSON.parse(readFileSync(join(DIR, 'meta/_journal.json'), 'utf8')) as { entries: Array<{ idx: number; tag: string }> }
     expect(journal.entries.find((e) => e.idx === 179)?.tag).toBe('0179_full_breakdown')
-    expect(journal.entries.at(-1)?.tag).toBe('0179_full_breakdown')
   })
 })

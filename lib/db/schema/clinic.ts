@@ -273,6 +273,43 @@ export const clinicPayerNote = pgTable(
 )
 export type ClinicPayerNoteRow = typeof clinicPayerNote.$inferSelect
 
+// ─────────────────────────────────────────────────────────────────────────────
+// INSURANCE DISCOVERY (2026-10-08) — the no-card fallback. One row per
+// search: who was asked about (NO SSN, ever — only `hasSsn` inside `input`),
+// what the payers answered (`candidates`, cards not benefits), the
+// clearinghouse's id for a still-pending search, and an error row when the
+// search itself failed. Its own monthly allowance counts these rows under
+// the live driver. A chosen card becomes a normal eligibility check; this
+// table never holds benefits.
+// ─────────────────────────────────────────────────────────────────────────────
+export const insuranceDiscovery = pgTable(
+  'insurance_discovery',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id, { onDelete: 'cascade' }),
+    patientId: text('patient_id').references(() => patient.id, { onDelete: 'set null' }),
+    requestedByUserId: text('requested_by_user_id').references(() => user.id, { onDelete: 'set null' }),
+    // 'sandbox' | 'stedi' — test mode cannot search.
+    driver: text('driver').notNull(),
+    // 'found' | 'none' | 'pending' | 'error'
+    status: text('status').notNull(),
+    // DiscoveryInput — names, DOB, state, ZIP, hasSsn. Never the SSN.
+    input: jsonb('input').notNull(),
+    // DiscoveryCandidate[] — the cards found, ranked.
+    candidates: jsonb('candidates').notNull().default([]),
+    coveragesFound: integer('coverages_found').notNull().default(0),
+    // Stedi's discoveryId while a search is still pending (results live 24h).
+    discoveryId: text('discovery_id'),
+    error: text('error'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (t) => [index('insurance_discovery_org_created_idx').on(t.organizationId, t.createdAt)],
+)
+export type InsuranceDiscoveryRow = typeof insuranceDiscovery.$inferSelect
+
 // Staff follow-up tasks attached to a patient ("call about treatment plan",
 // "rebook after no-show"). The dental-research pattern is patient-attached
 // followups, not a generic kanban — these surface on the Overview morning

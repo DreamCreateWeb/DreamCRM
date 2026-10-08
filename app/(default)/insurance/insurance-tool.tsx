@@ -50,6 +50,8 @@ import { fullBreakdownAction, getPayerNoteAction } from './actions'
 import { BREAKDOWN_COPY } from '@/lib/insurance-breakdown'
 import type { PayerNoteView } from '@/lib/payer-notebook'
 import { CardScanner } from './card-scanner'
+import { DiscoveryPanel } from './discovery-panel'
+import { DISCOVERY_COPY, candidateToRequest, type InsuranceDiscoveryView } from '@/lib/insurance-discovery'
 import { FilterChip } from '@/components/ui/filter-chip'
 import type { StediPayerMatch } from '@/lib/stedi-eligibility'
 
@@ -136,7 +138,7 @@ export interface InsuranceToolProps {
   carriers: string[]
   patientOptions: Array<{ id: string; name: string }>
   timeZone: string
-  prefill: { patientId: string; patientName: string; request: Partial<EligibilityRequest> } | null
+  prefill: { patientId: string; patientName: string; request: Partial<EligibilityRequest>; state?: string | null; postalCode?: string | null } | null
   initialCheck: InsuranceCheckView | null
   driver: InsuranceDriverId
   /** Live driver, no practice NPI: the form is parked behind the readiness notice. */
@@ -149,6 +151,12 @@ export interface InsuranceToolProps {
   npi?: string | null
   /** The practice's payer notebook for the initial check's payer, when written. */
   initialPayerNote?: PayerNoteView | null
+  /** INSURANCE DISCOVERY (2026-10-08): this feature's own allowance under the live driver; null when free. */
+  discoveryUsage?: InsuranceUsage | null
+  /** The patient's latest stored search — a pending one reopens the panel on its own. */
+  latestDiscovery?: InsuranceDiscoveryView | null
+  /** `?discover=1` — the record's "No card?" door lands with the panel open. */
+  discoverOpen?: boolean
 }
 
 /** Where the NPI is edited — the Business profile's own box (its input id is `npi`). */
@@ -168,6 +176,9 @@ export default function InsuranceTool({
   canManage = false,
   npi = null,
   initialPayerNote = null,
+  discoveryUsage = null,
+  latestDiscovery = null,
+  discoverOpen = false,
 }: InsuranceToolProps) {
   const router = useRouter()
   const toast = useToast()
@@ -202,6 +213,9 @@ export default function InsuranceTool({
   }, [current])
   const formRef = useRef<HTMLFormElement>(null)
   const resultRef = useRef<HTMLDivElement>(null)
+  // INSURANCE DISCOVERY: the no-card panel, open from the record's door or
+  // when the payers were still answering the last time someone looked.
+  const [discovering, setDiscovering] = useState<boolean>(discoverOpen || latestDiscovery?.status === 'pending')
   const practice = isPracticeDriver(driver)
   const label = INSURANCE_DRIVER_LABEL[driver]
   // The NPI the payer is asked under, with the door to change it. The first
@@ -476,6 +490,41 @@ export default function InsuranceTool({
                   }))
                 }
               />
+              {/* No card at all: search the payers from the name and date
+                  of birth above. The panel hands back a CARD — picking one
+                  fills these boxes, and the check below reads its benefits. */}
+              {!discovering ? (
+                <button
+                  type="button"
+                  onClick={() => setDiscovering(true)}
+                  className="text-xs font-medium text-teal-700 dark:text-teal-400 hover:underline"
+                  data-testid="discovery-door"
+                >
+                  {DISCOVERY_COPY.door}
+                </button>
+              ) : (
+                <DiscoveryPanel
+                  driver={driver}
+                  usage={discoveryUsage}
+                  patientId={prefill?.patientId ?? null}
+                  seed={{
+                    firstName: form.firstName,
+                    lastName: form.lastName,
+                    dateOfBirth: form.dateOfBirth,
+                    state: prefill?.state ?? null,
+                    postalCode: prefill?.postalCode ?? null,
+                  }}
+                  initial={latestDiscovery}
+                  disabled={needsNpi}
+                  onUse={(c, input) => {
+                    setForm(formFromRequest(candidateToRequest(c, input)))
+                    setErrors({})
+                    setDiscovering(false)
+                    toast('Card filled in — check it against the patient, then check benefits.')
+                  }}
+                  onClose={() => setDiscovering(false)}
+                />
+              )}
               {driver === 'sandbox' ? (
                 <Field id="ins-carrier" label="Carrier" error={errors.carrierName}>
                   <input id="ins-carrier" list="ins-carrier-list" className="form-input w-full text-sm" value={form.carrierName} onChange={(e) => set('carrierName', e.target.value)} placeholder="Delta Dental" autoComplete="off" />

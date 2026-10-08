@@ -6021,3 +6021,38 @@ one store path, so the gates can never drift. How a real payer answers a
 multi-code 270 is the one thing a mock cannot show: the first live
 breakdown on the client's payers is the test, and the receipt will say.
 
+## 2026-10-08 — Insurance Discovery: the no-card fallback (migration 0180)
+
+The fourth insurance slice of the day, and the one Mary's form could not
+fill: a patient with no card. The desk's habit is phoning payers one by
+one; Stedi's Insurance Discovery does that search from demographics, and
+the first probe showed two facts that shaped the build — it is refused
+outright in test mode (a 403, "not available in Test Mode"), and it costs
+five times a check. So it is a LIVE-ONLY feature with its OWN small
+allowance (20 a month, env-overridable) and its own confirm that names
+the cost first, and the sandbox answers with deterministic practice
+candidates so the demo can show every state the panel has.
+
+The design is two steps on purpose. Discovery finds candidate CARDS —
+payer, member id, group, plan, dates, a status word, a Dental mark, the
+matched name and birthday, and whose name a dependent's policy is in —
+every one "review needed" by Stedi's own rule, since a match can be
+another person, an ended plan, or medical rather than dental. A human
+picks one, "Use this card" fills the check form, and the benefits come
+through the one normalizer every other answer uses. Discovery never
+writes benefits. The Social Security number is the thing most dental
+payers match on, so the panel asks for it, optionally, and NEVER STORES
+IT: the row keeps `hasSsn`, the validator strips it before the stored
+copy exists, the box clears the moment the answer lands, and the service
+test asserts the digits appear nowhere in the inserted row. A pending
+answer is polled three times then stored as pending with Stedi's id;
+"Check for results" resumes it without a new billed search, and a
+day-old pending row expires into a plain sentence. Gated in order —
+switch, live-only, NPI, allowance — before any row or network call, and
+narrated under `insurance_check` like everything else on this page.
+
+One pure-module lesson: the first validator sliced the state to two
+characters before checking it, so "Ark" passed as "AR" — a silent
+truncation is not a validation. And the ranking needed an explicit rule
+that an ENDED plan sorts below an unknown one whatever its line, or a
+dead dental card outranked a live medical match.

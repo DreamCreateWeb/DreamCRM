@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, cleanup } from '@testing-library/react'
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
@@ -407,6 +407,30 @@ describe('PatientDetail insurance rail card', () => {
     const links = Array.from(list.querySelectorAll('a')).map((a) => a.getAttribute('href'))
     expect(links).toEqual(['/insurance?patient=pat_1&check=ins_1', '/insurance?patient=pat_1&check=ins_0'])
     expect(list.textContent).toContain('by Dana Whitfield')
+  })
+
+  it('offers the no-card door only when nothing is on file and a search could run, with the last search in one line', () => {
+    const { unmount } = render(
+      <PatientDetail
+        header={header({ insuranceProvider: null, insurancePolicyNumber: null, insuranceGroupNumber: null })}
+        timeline={[]}
+        counts={emptyCounts}
+        notes={[]}
+        insurance={{ latest: null, hasOnFile: false, onFileRequest, canDiscover: true, discovery: { status: 'found', coveragesFound: 2, createdAtIso: new Date().toISOString() } }}
+        timeZone="America/Chicago"
+      />,
+    )
+    expect(screen.getByTestId('insurance-discover-door').getAttribute('href')).toBe('/insurance?patient=pat_1&discover=1')
+    expect(screen.getByTestId('insurance-discovery-line').textContent).toBe('Searched the payers today — 2 possible plans')
+    unmount()
+    // Test mode can't search; a card on file doesn't need one.
+    render(
+      <PatientDetail header={header({ insuranceProvider: null })} timeline={[]} counts={emptyCounts} notes={[]} insurance={{ latest: null, hasOnFile: false, onFileRequest, canDiscover: false }} timeZone="America/Chicago" />,
+    )
+    expect(screen.queryByTestId('insurance-discover-door')).toBeNull()
+    cleanup()
+    render(<PatientDetail header={header()} timeline={[]} counts={emptyCounts} notes={[]} insurance={{ latest: null, hasOnFile: true, onFileRequest, canDiscover: true }} timeZone="America/Chicago" />)
+    expect(screen.queryByTestId('insurance-discover-door')).toBeNull()
   })
 
   it('renders nothing insurance-related when the prop is absent (legacy callers)', () => {

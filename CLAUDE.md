@@ -313,8 +313,41 @@ system, don't replace it.
   drift on who may ask. Pure half `lib/insurance-breakdown.ts`. How a
   REAL payer answers a multi-code 270 is still unverified — the first
   live breakdown on the client's payers is the test, and the receipt says
-  which way it went. NEXT (not built): Insurance Discovery as the no-card
-  fallback once its price is known.
+  which way it went. INSURANCE DISCOVERY (2026-10-08, migration 0180
+  `insurance_discovery`): the no-card fallback. A patient with no card,
+  or a dead one, used to mean phoning payers one by one; "No card? Find
+  their coverage" (inside the form's "Their card" step, and the record's
+  rail card when nothing is on file) asks Stedi's Insurance Discovery
+  from demographics — name + DOB from the form, state + ZIP from the
+  record, an OPTIONAL Social Security number that is sent for the search
+  and NEVER STORED (the row keeps `hasSsn`, the box clears the moment the
+  answer lands; many dental payers answer to nothing else). TWO STEPS BY
+  DESIGN: discovery finds candidate CARDS (payer, member id, group, plan,
+  dates, status word, a Dental mark, the matched name/DOB, whose name a
+  dependent's policy is in — every one REVIEW_NEEDED by Stedi's own rule),
+  a human picks one by comparing the name and birthday, and "Use this
+  card" fills the check form so the benefits come through the one
+  normalizer. Discovery never writes benefits. Its OWN allowance
+  (`INCLUDED_MONTHLY_INSURANCE_DISCOVERIES = 20`, env
+  `INSURANCE_INCLUDED_MONTHLY_DISCOVERIES`, fail-open) because a search is
+  a dearer line than a check (Stedi lists $1.50 vs $0.30); its own confirm
+  names the cost first (the dialog law). Gated like a check and in order:
+  the switch, then LIVE ONLY (Stedi refuses discovery in test mode with a
+  403, so `stedi_test` is refused in words and the rail card hides the
+  door), then the NPI, then the allowance; the sandbox answers with
+  deterministic labelled practice candidates (one card / two with an
+  ended one / nothing, by name). A PENDING answer is polled three times
+  (4s apart) then stored as pending with Stedi's id; "Check for results"
+  resumes it (one poll, never a new billed search) and a day-old pending
+  row expires into a plain error. Narrated under `insurance_check`.
+  Pure `lib/insurance-discovery.ts` (validator, request body,
+  response parser, ranking — active dental > active > unknown > a
+  matching birthday, an ended plan last — `candidateToRequest`, the
+  sandbox, the copy) · service `lib/services/insurance-eligibility/
+  discovery.ts` · `discovery-panel.tsx` + `discoverCoverageAction` /
+  `resumeDiscoveryAction`. How a real payer population answers a
+  discovery, and whether the SSN is truly needed for dental, is the next
+  thing the first live search on the client's patients will show.
   `lib/insurance-eligibility.ts` (client-safe types,
   validation, the status→tone contract, the honesty labels) +
   `lib/services/insurance-eligibility/` (provider interface, the
@@ -417,7 +450,7 @@ app/
 lib/
   db/schema/         auth.ts, platform.ts, clinic.ts (bulk), domain.ts, email.ts,
                      referrals.ts, index.ts
-  db/migrations/     drizzle; 0000–0177 applied to prod (auto-apply on deploy)
+  db/migrations/     drizzle; 0000–0180 applied to prod (auto-apply on deploy)
   auth/              server.ts, client.ts, context.ts (getTenantContext,
                      requireTenant/requireRole/requirePartner)
   services/          ~190 server-only modules (import 'server-only') — one per
@@ -464,7 +497,7 @@ components/ui/       dashboard-shell.tsx (all authed layouts go through it),
                      new hand-rolled polylines
 middleware.ts        Auth gate + public-path allowlist + {slug} subdomain rewrite
                      + custom-domain host→slug routing + app./apex → www redirect
-tests/               Vitest (happy-dom), 804 files / 8,633 tests; pnpm test
+tests/               Vitest (happy-dom), 878 files / 9,690 tests; pnpm test
 scripts/             db-migrate.mjs + resync-demo.mjs (run on container boot),
                      migrate.mjs (direct), setup-cron-schedules.sh (EventBridge)
 ```
@@ -553,7 +586,7 @@ the intro card while off).** All modules are **live** — there are no
 | Daily | Follow-ups | `/followups` | Assignable patient reminders board + smart rules (balance/recall/unconfirmed; hourly cron) + auto-rebook on no-show; sidebar due badge; ⌘K quick-add. |
 | Daily | Leads | `/leads` | Contact-form triage: status chips, rot borders, convert-to-patient (dedupe), UTM attribution, CSV export. |
 | Daily | Intake Forms | `/intake-forms` | v2: photo/insurance-card/conditional fields, OCR autofill, AI pre-visit summary, return-visit pre-fill, smart auto-send, completion reminders, Spanish, OD chart mirror, packets. |
-| Daily | Insurance | `/insurance` | **RELEASED to every clinic 2026-10-03, behind a self-serve ON switch since 2026-10-05** (the intro card + "Enable and set up" → the NPI box → on; `clinic_profile.insurance_enabled_at`, 0169; `canUseInsuranceTool` = clinic tenant; NPI readiness + the 200-check monthly allowance under the live driver — docs/insurance-go-live.md). The eligibility lookup tool (2026-09-30, polished in six phases 2026-10-02/03: honest numbers, the scoreboard card, the remembered card, print/copy/history, card scanning, the release): type what's on the card (new or existing patient), get a benefits snapshot (max left, deductible, tiers, waiting periods, frequencies), save to the record or add as a patient (dedupe-aware). History in `insurance_verification` (0166); the patient record's rail card shows the latest + "Check now"; timeline kind `insurance_check`; ⌘K "Check insurance". Sandbox-driven practice answers until a payer connection is live. THE VERIFICATION SHEET (2026-10-08): the print sheet is the desk's breakdown form line for line, fed by the 271's dropped fields (plan/group/employer, payer contacts, deductible applies-to, seven tiers, per-procedure lines, replacement + pays-on, age limits, downgrades, every payer note) and by the PAYER NOTEBOOK (`clinic_payer_note`, 0178 — the practice's own contract facts per payer, written once); the FULL BREAKDOWN button asks the payer per code, budget-aware, one stored row billed as the checks it took (0179). |
+| Daily | Insurance | `/insurance` | **RELEASED to every clinic 2026-10-03, behind a self-serve ON switch since 2026-10-05** (the intro card + "Enable and set up" → the NPI box → on; `clinic_profile.insurance_enabled_at`, 0169; `canUseInsuranceTool` = clinic tenant; NPI readiness + the 200-check monthly allowance under the live driver — docs/insurance-go-live.md). The eligibility lookup tool (2026-09-30, polished in six phases 2026-10-02/03: honest numbers, the scoreboard card, the remembered card, print/copy/history, card scanning, the release): type what's on the card (new or existing patient), get a benefits snapshot (max left, deductible, tiers, waiting periods, frequencies), save to the record or add as a patient (dedupe-aware). History in `insurance_verification` (0166); the patient record's rail card shows the latest + "Check now"; timeline kind `insurance_check`; ⌘K "Check insurance". Sandbox-driven practice answers until a payer connection is live. THE VERIFICATION SHEET (2026-10-08): the print sheet is the desk's breakdown form line for line, fed by the 271's dropped fields (plan/group/employer, payer contacts, deductible applies-to, seven tiers, per-procedure lines, replacement + pays-on, age limits, downgrades, every payer note) and by the PAYER NOTEBOOK (`clinic_payer_note`, 0178 — the practice's own contract facts per payer, written once); the FULL BREAKDOWN button asks the payer per code, budget-aware, one stored row billed as the checks it took (0179). INSURANCE DISCOVERY (2026-10-08, 0180): "No card? Find their coverage" searches the payers from name + DOB (+ state/ZIP, + an optional SSN that is never stored) and hands back candidate CARDS to pick from; picking one fills the check form — live driver only, its own 20/month allowance. |
 | Growth | Growth (workspace) | `/growth` | ONE sidebar entry. Hub REDESIGNED 2026-07-26 (v3, "acquisition leads, two engines"): hero = New-patients scoreboard (trailing-4-week total + 12-week heartbeat via the once-unused `getNewPatientsPerWeek12` + per-channel "what's pulling them in" rows w/ honest connect states), band 2 = the reactivation funnel from `getRecallStats` (due&reachable → sent → opened → booked back + next-send/quiet-engine status line), number-first news cards w/ attention tones (leads to triage; reviews waiting on a reply — urgent when any 1–2★ via `lowStarNeedsReply`; social), utility footer (Audiences · queue · Analytics); New campaign = header primary → `/growth/outreach?new=1`. Sub-pages: `/growth/outreach` (the clinic recall dashboard — audiences/campaign funnels/auto-sends; component stays in `app/(default)/marketing/`, shared with the platform tenant), `/growth/outreach/queue` (tiered outreach queue), `/growth/campaigns/[id]` (the campaign editor; serves BOTH tenants — the clinic's campaign LIST folded into the `/growth/outreach` hub 2026-07-21, campaigns phase 3: history + funnels + the New-campaign modal live there, `/growth/campaigns` redirects clinic→hub w/ prefill params forwarded while the platform tenant keeps the standalone list), `/growth/audiences`, `/growth/reviews` + `/received` (**Google-first auto-loop**: completed visit → auto review request → Google; synced reviews auto-feature at `feature_min_stars`; private feedback; Facebook read-only; the ONLY testimonial manager; 1–2★ escalation), `/growth/social` (multi-platform composer, gated by connected channels not plan; hub door shows a connect prompt), `/growth/analytics` (scorecard + funnels + proof panels + GSC/GBP + social performance). Old paths (`/marketing/*` clinic surfaces, `/reviews(+/received)`, `/social-posts`, `/analytics`) are 308 stubs — notification-email deep links keep working. `/marketing` + `/marketing/pipeline` remain the PLATFORM tenant's marketing home (clinic hits 308 to `/growth/outreach`). Folded-area labels ride `FOLDED_AREAS` in `lib/modules/index.ts`; quick-create capability ids ('campaigns', 'blog') come from dashboard-shell. |
 | Website | Website (workspace) | `/website` | ONE sidebar entry → the Shopify-style hub (v3 redesign 2026-07-24: the clinic's OWN homepage as a live scaled browser-frame hero via the beacon-free `/site/[slug]/tf/` route, setup ProgressRing + open checklist beside it — collapses to quiet quick-facts when done, SVG gradient area sparkline on the 30-day band; bottom half = three zones shaped like their contents: "What's happening" number-first news cards (Forms/Blog/SEO/Careers, no brochure copy) + a "Quick edits" dock (Hours/Services/Team/Photos — MODALS on the hub reusing the Content page's editors + scoped actions, hours live-instant / rest draft-staged) + a quiet utility footer (Design · Pages · Domain · Share links; Domain pill only off-neutral)), go-live checklist (real states only). Quick-edits UX law: the hub surfaces what a front desk changes weekly (hours, services, team, photos, ANNOUNCEMENT) as modals; day-one/rare surfaces (design, pages) demote to text links, editor stays the header primary. Announcement bar (2026-07-24, migration 0134 `clinic_profile.announcement` jsonb): a thin brand-deep strip above the header on every public page + template (rendered once in `app/site/[slug]/layout.tsx` via `components/clinic-site/announcement-bar.tsx`); LIVE-INSTANT (not a draft column) + self-expiring (inclusive clinic-local `endsAt`, resolved by pure `activeAnnouncement` in lib/types/clinic-content.ts); optional link sanitized (`sanitizeAnnouncementHref`, site-relative or http(s) only) at BOTH save and render. Sub-pages: `/website/editor` (the full-screen Studio — EditBridge, section modals, AI bar, page navigator, 🎨 Design picker; honors `?previewTemplate=`/`?page=` deep links), `/website/content` (THE plain-form home for site content — per-section forms riding the Studio's scoped actions; `CONTENT_SECTIONS` registry in `lib/website-content-sections.ts`), `/website/design` (template cards + brand color + hero media + intro video), `/website/pages` (unified page manager — `buildSitePagesIndex` live/needs-content rows, per-page copy-override editing via `saveInlineField`, Search-appearance meta editor), `/website/forms` (both LeadFormBuilders + chat-widget toggle + submissions glance), `/website/blog` (was `/posts`; platform org authors the marketing blog through it too), `/website/seo` (was `/seo`), `/website/careers` (was `/careers`; ATS + JSON-LD), `/website/domain` (auto-polling custom-domain card), `/website/share` (QR cards). Old paths 308 via route-level stubs (NEVER next.config — it would hijack public clinic-site paths pre-middleware). `/settings/clinic` is now the identity-only **Business profile** (names, contact/email sender, address, hours, timezone, logo + GBP sync/calendar feed) — `updateClinicProfile` is identity-only BY CONTRACT: a website column in its payload would be nulled on every identity save (tests/settings/clinic-actions.test.ts pins the exclusion). **Draft→Publish (2026-07-12)**: every website save STAGES to `clinic_profile.website_draft` jsonb (identity columns stay live-immediate) — pure core `lib/website-draft.ts` (WEBSITE_DRAFT_COLUMNS/merge/split/changes), server plumbing `lib/services/website-draft.ts` (`stageWebsiteValues` routes ALL writers: writeSection, AI edit, services picker, seoMeta); a verified editor sees the merged view via the overlay in `loadSite` + `getClinicThemeBySlug` (visitors never do; owner-facing DraftPreviewBanner pill on the site); Publish/Discard live on the hub (PublishCard) + Studio top bar; publish records ONE `__publish` history entry so undo-after-publish reverts live, while normal undo walks draftable columns back INSIDE the draft. Editing surfaces read `getEffectiveWebsiteProfile`; Pages/hub live-pills read the raw row on purpose. **Template gallery (2026-07-12)**: `/website/templates` — practice-type categories + style-tag filters + sort, one card per design with a LIVE scaled iframe of the clinic's own homepage in that template via the side-effect-free frame route `/site/[slug]/tf/[template]` (middleware stamps the `x-dc-template-frame` request header for that path; `resolveActiveSiteTemplate` honors it per-request for a verified editor, beating the preview cookie — six cards render six templates without clobbering; `isFrame` makes the layout suppress beacon/chat/banners/EditBridge). Catalog metadata lives on `SITE_TEMPLATE_CATALOG` (practiceTypes/styleTags/bestFor); the Design page slims to a current-design summary + gallery door; Apply stages `template` to the draft. |
 | Business | Payments | `/payments` | Payments bundle. The money workspace (split out of Shop 2026-07-14; Weave/Pearly pattern): hub w/ KPI story (Outstanding → To reconcile → Payment plans → Recurring MRR) + Stripe status + doors → Online payments (`/payments/online`, reconciliation + deposits), Collections (`/payments/collections`, dunning + payment plans), Memberships (`/payments/memberships`; powers the site's /dental-plans page). Old `/shop/*` money paths 308. |
@@ -904,7 +937,13 @@ sitemap/robots/OG.
   end-to-end; watch the Actions tab. `NEXT_PUBLIC_*` bake at build time.
 - **Migrations auto-apply on boot** (`scripts/db-migrate.mjs` → POST
   `/api/admin/migrate`; failure keeps the previous version serving). Latest
-  migration: **0179** (THE FULL BREAKDOWN, 2026-10-08 —
+  migration: **0180** (INSURANCE DISCOVERY, 2026-10-08 —
+  `insurance_discovery`, one row per no-card search: the ask as jsonb
+  (names, DOB, state, ZIP, `hasSsn` — never the SSN), the candidate cards,
+  status + Stedi's id for a pending search, org cascade, patient set-null,
+  an (organization_id, created_at) index for the allowance count; a new
+  empty table pinned by `tests/migrations/insurance-discovery.test.ts`).
+  Before it: **0179** (THE FULL BREAKDOWN, 2026-10-08 —
   `insurance_verification.billed_checks` integer NOT NULL DEFAULT 1, the
   payer checks a row cost; the monthly allowance sums it; pinned by
   `tests/migrations/full-breakdown.test.ts`). Before it: **0178** (THE VERIFICATION SHEET, 2026-10-08 —
@@ -1653,7 +1692,7 @@ pnpm lint                 # the accessibility gate (jsx-a11y over app/ +
                           # CI runs it on every PR.
 pnpm lint:prune           # after fixing suppressed hits: shrink
                           # eslint-suppressions.json to what is still true
-pnpm test                 # vitest run (8,633 tests over 804 files; ~7 min
+pnpm test                 # vitest run (9,690 tests over 878 files; ~7 min
                           # on CI - see docs/CI.md for where it goes)
 pnpm test:watch
 ```

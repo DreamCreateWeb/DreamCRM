@@ -126,3 +126,36 @@ card's receipt says which way the payer answered; if the client's payers
 turn out to answer per code, the included allowance is the dial to raise
 (`INSURANCE_INCLUDED_MONTHLY_CHECKS`), not the button to hide.
 
+## Insurance Discovery — the no-card fallback (2026-10-08)
+
+"No card? Find their coverage" (the check form's "Their card" step; the
+record's rail card when nothing is on file) asks Stedi's Insurance
+Discovery for any plan in the patient's name. It needs the live driver:
+Stedi refuses discovery in test mode outright, so under `STEDI_MODE=test`
+the panel says so and the rail card does not offer the door. It runs
+under the same NPI as a check and bills the Dream Create account per
+SEARCH — Stedi lists $1.50 at low volume against $0.30 for a check — so it
+has its own allowance, `INSURANCE_INCLUDED_MONTHLY_DISCOVERIES` (default
+20 per clinic per clinic-local month), separate from the check allowance.
+
+What goes to Stedi: first and last name, date of birth, state and ZIP
+when the record has them, and an optional Social Security number. The
+SSN is the thing most dental payers actually match on; it is sent for
+the one request and NEVER stored — the row keeps only that one was
+given, and the box clears when the answer lands. Discovery is covered by
+the same executed BAA as a check (docs/COMPLIANCE.md).
+
+What comes back is a list of candidate CARDS, every one flagged
+"review needed" by Stedi's own rule: a match can be another person, an
+ended plan, or medical rather than dental. The desk compares the matched
+name and birthday to the patient and presses "Use this card", which fills
+the check form; the benefits still come from a normal check. A search
+the payers have not finished answering is stored as pending with Stedi's
+id and "Check for results" asks again (results are kept for 24 hours;
+after that the row expires into a plain error and a new search is a new
+search).
+
+Watch on the first live searches: how many cards a real payer population
+returns for a plain name + DOB without an SSN (if the answer is usually
+"nothing found", the SSN hint moves from optional to recommended), and
+whether the dental mark lands (it reads status rows on service type 35).
