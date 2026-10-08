@@ -6006,3 +6006,18 @@ never a line that vanished. Not built yet: the per-procedure "Full
 breakdown" button (several billed checks; test the client's real payers
 first) and Insurance Discovery as the no-card fallback (price unknown).
 
+**2026-10-08 — INSURANCE: THE FULL BREAKDOWN (migration 0179).** The
+second of the three things the breakdown form needed: the per-procedure
+asks. One button on an active answer asks the payer for every code on the
+sheet — all in one request first (Stedi's mock honours several codes; a
+payer that honours every EQ answers in one billed check), then one request
+per code that came back with nothing specific, stopping at the month's
+allowance. One stored row carries the merged answer and a receipt that
+says how the payer answered (single / per code / mixed / capped) and what
+it cost; `billed_checks` on the row, and the allowance sums it instead of
+counting rows. The confirm names the asks and the cost before anything
+goes out. The plain check and the breakdown now share one preamble and
+one store path, so the gates can never drift. How a real payer answers a
+multi-code 270 is the one thing a mock cannot show: the first live
+breakdown on the client's payers is the test, and the receipt will say.
+

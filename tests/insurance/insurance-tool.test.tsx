@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, act, cleanup } from '@testing-library/react'
 
 /**
  * The Insurance tool's honesty contract in the DOM: a sandbox driver shows
@@ -9,7 +9,8 @@ import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
  */
 
 const push = vi.fn()
-vi.mock('next/navigation', () => ({ useRouter: () => ({ push, refresh: vi.fn() }) }))
+const refresh = vi.fn()
+vi.mock('next/navigation', () => ({ useRouter: () => ({ push, refresh }) }))
 const toast = vi.fn()
 vi.mock('@/components/ui/toast', () => ({ useToast: () => toast }))
 const confirmFn = vi.fn(async () => false)
@@ -27,10 +28,12 @@ const searchPayersAction = vi.fn(async () => ({
 const scanCardAction = vi.fn()
 const disableInsuranceAction = vi.fn(async () => ({ ok: true as const }))
 const getPayerNoteAction = vi.fn(async (..._a: unknown[]) => null as unknown)
+const fullBreakdownAction = vi.fn(async (..._a: unknown[]) => ({ ok: false, errors: { _form: 'not set' } }) as unknown)
 const savePayerNoteAction = vi.fn()
 vi.mock('@/app/(default)/insurance/actions', () => ({
   disableInsuranceAction: (...a: unknown[]) => disableInsuranceAction(...(a as [])),
   getPayerNoteAction: (...a: unknown[]) => getPayerNoteAction(...(a as [])),
+  fullBreakdownAction: (...a: unknown[]) => fullBreakdownAction(...(a as [])),
   savePayerNoteAction: (...a: unknown[]) => savePayerNoteAction(...(a as [])),
   checkInsuranceAction: (...a: unknown[]) => checkInsuranceAction(...(a as [])),
   createPatientFromCheckAction: (...a: unknown[]) => createPatientFromCheckAction(...(a as [])),
@@ -677,4 +680,48 @@ describe('InsuranceTool — the verification sheet and the payer notebook (2026-
     await waitFor(() => expect(getPayerNoteAction).toHaveBeenCalledWith('62308', 'Cigna'))
     await waitFor(() => expect(screen.getByTestId('payer-notebook').textContent).toContain('DPPO'))
   })
+
 })
+
+describe('InsuranceTool — the Full breakdown (2026-10-08)', () => {
+  it('an active answer offers the button; the confirm names the asks and the month’s standing; the merged answer lands with its receipt', async () => {
+    confirmFn.mockResolvedValueOnce(true)
+    const merged = check({
+      id: 'ins_bd',
+      driver: 'stedi',
+      billedChecks: 3,
+      result: {
+        ...check().result!,
+        procedures: [{ key: 'exam', code: 'D0120', label: 'Exam', planPays: 100, pctSource: 'code', limit: '2 per year', lastOn: '2026-04-30', nextOn: '2026-10-30', notes: [] }],
+        breakdown: { requestedCodes: ['D0120', 'D1110'], answeredKeys: ['exam'], silentCodes: ['D1110'], failedCodes: [], checks: 3, mode: 'per_code' },
+      },
+    })
+    fullBreakdownAction.mockResolvedValueOnce({ ok: true, check: merged })
+    renderTool({ initialCheck: check({ driver: 'stedi' }), driver: 'stedi', usage: { used: 12, included: 200, unreadable: false } })
+    fireEvent.click(screen.getByText('Full breakdown'))
+    await waitFor(() => expect(confirmFn).toHaveBeenCalledTimes(1))
+    const opts = (confirmFn.mock.calls[0] as unknown as [{ title: string; message: string }])[0]
+    expect(opts.title).toBe('Pull the full breakdown?')
+    expect(opts.message).toContain('12 of 200')
+    expect(opts.message).toContain('up to 16')
+    await waitFor(() => expect(fullBreakdownAction).toHaveBeenCalledWith(check().input, null))
+    await waitFor(() => expect(screen.getByText('Full breakdown · 3 checks')).toBeTruthy())
+    expect(screen.getByTestId('breakdown-receipt').textContent).toContain('one code at a time — 1 of 2 lines answered in 3 checks')
+    // The button now offers to run it again.
+    expect(screen.getByText('Breakdown again')).toBeTruthy()
+    expect(refresh).toHaveBeenCalled()
+  })
+
+  it('declining the confirm asks nothing; a practice answer’s confirm says nothing goes to a payer; a failed check offers no button', async () => {
+    confirmFn.mockResolvedValueOnce(false)
+    renderTool({ initialCheck: check() })
+    fireEvent.click(screen.getByText('Full breakdown'))
+    await waitFor(() => expect(confirmFn).toHaveBeenCalledTimes(1))
+    expect((confirmFn.mock.calls[0] as unknown as [{ message: string }])[0].message).toContain('nothing goes to a payer')
+    expect(fullBreakdownAction).not.toHaveBeenCalled()
+    cleanup()
+    renderTool({ initialCheck: check({ status: 'error', result: null, error: 'x' }) })
+    expect(screen.queryByText('Full breakdown')).toBeNull()
+  })
+})
+

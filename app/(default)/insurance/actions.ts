@@ -16,6 +16,7 @@ import {
   disableInsuranceTool,
   enableInsuranceTool,
   runEligibilityCheck,
+  runFullBreakdown,
   searchPayers,
   type RunEligibilityCheckResult,
 } from '@/lib/services/insurance-eligibility'
@@ -88,6 +89,18 @@ export async function checkInsuranceAction(
 }
 
 /** Payer typeahead for the Stedi drivers — the exact payer, not a carrier name. */
+/** THE FULL BREAKDOWN (2026-10-08): the per-procedure asks, same gate as a check. */
+export async function fullBreakdownAction(input: unknown, patientId: string | null): Promise<RunEligibilityCheckResult> {
+  const ctx = await clinicCtx()
+  if (!ctx) return { ok: false, errors: { _form: 'Insurance checks are a clinic feature.' } }
+  const r = await runFullBreakdown(ctx.organizationId, { input, patientId, userId: ctx.userId })
+  if (r.ok) {
+    revalidatePath('/insurance')
+    if (r.check.patientId) revalidatePath(`/patients/${r.check.patientId}`)
+  }
+  return r
+}
+
 export async function searchPayersAction(query: string): Promise<{ ok: true; payers: StediPayerMatch[] } | { ok: false; error: string }> {
   const ctx = await clinicCtx()
   if (!ctx) return { ok: false, error: 'Insurance checks are a clinic feature.' }

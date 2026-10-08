@@ -38,6 +38,5 @@ describe('0178_verification_sheet', () => {
   it('is registered in the journal under its name', () => {
     const journal = JSON.parse(readFileSync(join(DIR, 'meta/_journal.json'), 'utf8')) as { entries: Array<{ idx: number; tag: string }> }
     expect(journal.entries.find((e) => e.idx === 178)?.tag).toBe('0178_verification_sheet')
-    expect(journal.entries.at(-1)?.tag).toBe('0178_verification_sheet')
   })
 })

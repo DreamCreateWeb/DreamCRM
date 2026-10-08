@@ -163,4 +163,12 @@ describe('benefitsSummaryText', () => {
     expect(text.split('Posterior composite fillings').length).toBe(2)
     expect(text.split('\n').pop()).toBe(INSURANCE_DRIVER_LABEL.sandbox.title)
   })
+
+  it('a Full breakdown says how the payer answered, right under the status', () => {
+    const text = benefitsSummaryText(
+      view({ result: { ...view().result!, breakdown: { requestedCodes: ['D0120', 'D1110'], answeredKeys: ['exam'], silentCodes: ['D1110'], failedCodes: [], checks: 3, mode: 'per_code' } } }),
+      OPTS,
+    )
+    expect(text).toContain('Status: Active\nFull breakdown: The payer answers one code at a time — 1 of 2 lines answered in 3 checks.')
+  })
 })

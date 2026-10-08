@@ -221,6 +221,9 @@ export const insuranceVerification = pgTable(
     // answer means the next dropped field is a code change, not a second
     // billed check. Never selected into a view — it is PHI-dense and large.
     rawResponse: jsonb('raw_response'),
+    // Payer checks this row cost (the Full breakdown, 2026-10-08: one row,
+    // several billed asks). The monthly allowance SUMS this, not rows.
+    billedChecks: integer('billed_checks').notNull().default(1),
     error: text('error'),
     checkedAt: timestamp('checked_at').notNull().defaultNow(),
     createdAt: timestamp('created_at').notNull().defaultNow(),

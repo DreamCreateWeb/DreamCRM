@@ -1,5 +1,5 @@
 import 'server-only'
-import { and, count, eq, gte } from 'drizzle-orm'
+import { and, eq, gte, sum } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import { clinicMonthStart } from '@/lib/clinic-timezone'
 import { INCLUDED_MONTHLY_INSURANCE_CHECKS, type InsuranceUsage } from '@/lib/insurance-eligibility'
@@ -8,8 +8,9 @@ import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
 /**
  * The included monthly allowance of BILLED checks (polish phase 6) — the
  * sibling of the SMS segment budget in lib/sms.ts. Counts `insurance_
- * verification` rows the live driver wrote since the clinic-local month
- * start; sandbox and test-mode rows are free and never counted. An error
+ * verification` rows' `billed_checks` the live driver wrote since the
+ * clinic-local month start (a Full breakdown is one row, several checks);
+ * sandbox and test-mode rows are free and never counted. An error
  * row counts too: a check that reached the payer and failed was still
  * billed (Stedi bills the 270, not the answer).
  *
@@ -29,7 +30,9 @@ export async function getInsuranceUsage(organizationId: string, now: Date = new 
     const timeZone = await getClinicTimeZone(organizationId)
     const since = clinicMonthStart(now, timeZone)
     const [row] = await db
-      .select({ n: count() })
+      // SUM of billed_checks, not a row count: a Full breakdown is one row
+      // that cost several checks (2026-10-08). Null when no rows → 0.
+      .select({ n: sum(schema.insuranceVerification.billedChecks) })
       .from(schema.insuranceVerification)
       .where(
         and(

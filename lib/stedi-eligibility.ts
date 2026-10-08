@@ -7,6 +7,7 @@ import {
   type DeductibleApplies,
   type EligibilityRequest,
   type EligibilityResult,
+  type EligibilityService,
   type EligibilityStatus,
   type FrequencyCode,
   type PayerContacts,
@@ -125,7 +126,7 @@ export interface StediRequestBody {
     dateOfBirth: string
     relationToSubscriber: 'SPOUSE' | 'CHILD' | 'OTHER_ADULT'
   }
-  encounter: { services: Array<{ system: 'STC'; value: string }> }
+  encounter: { services: EligibilityService[] }
   externalPatientId?: string
 }
 
@@ -137,7 +138,7 @@ const RELATION: Record<'spouse' | 'child' | 'other', 'SPOUSE' | 'CHILD' | 'OTHER
 
 export function buildStediRequest(
   req: EligibilityRequest,
-  opts: { payerId: string; npi: string; organizationName: string; externalPatientId?: string | null },
+  opts: { payerId: string; npi: string; organizationName: string; externalPatientId?: string | null; services?: EligibilityService[] | null },
 ): StediRequestBody {
   const person = (p: { firstName: string; lastName: string }) => ({
     person: { firstName: p.firstName.trim(), lastName: p.lastName.trim() },
@@ -150,7 +151,8 @@ export function buildStediRequest(
       name: person(req.relationship === 'self' || !req.subscriber ? req.patient : req.subscriber),
       dateOfBirth: req.relationship === 'self' || !req.subscriber ? req.patient.dateOfBirth : req.subscriber.dateOfBirth,
     },
-    encounter: { services: [{ system: 'STC', value: DENTAL_STC }] },
+    // The dental question by default; the Full breakdown names the codes.
+    encounter: { services: opts.services?.length ? opts.services : [{ system: 'STC', value: DENTAL_STC }] },
   }
   if (req.relationship !== 'self' && req.subscriber) {
     body.dependent = {

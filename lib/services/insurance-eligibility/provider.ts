@@ -1,5 +1,5 @@
 import 'server-only'
-import type { EligibilityRequest, EligibilityResult, InsuranceDriverId } from '@/lib/insurance-eligibility'
+import type { EligibilityRequest, EligibilityResult, EligibilityService, InsuranceDriverId } from '@/lib/insurance-eligibility'
 
 /**
  * The one door every eligibility source walks through. `check` may THROW —
@@ -15,7 +15,12 @@ export interface EligibilityAnswer {
   raw: unknown | null
 }
 
+export interface EligibilityCheckOptions {
+  /** The services to ask about (the Full breakdown's codes). Default: the dental STC alone. */
+  services?: EligibilityService[] | null
+}
+
 export interface EligibilityProvider {
   id: InsuranceDriverId
-  check(req: EligibilityRequest, ctx: { now: Date; organizationId: string }): Promise<EligibilityAnswer>
+  check(req: EligibilityRequest, ctx: { now: Date; organizationId: string }, opts?: EligibilityCheckOptions): Promise<EligibilityAnswer>
 }

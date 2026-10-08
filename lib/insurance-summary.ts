@@ -13,6 +13,7 @@ import {
   type InsuranceCheckView,
 } from '@/lib/insurance-eligibility'
 import { PAYER_NETWORK_OPTIONS, PAYER_PAYS_ON_OPTIONS, type PayerNoteView } from '@/lib/payer-notebook'
+import { BREAKDOWN_COPY } from '@/lib/insurance-breakdown'
 
 /**
  * The benefits sheet as TEXT — what "Copy summary" puts on the clipboard and
@@ -90,6 +91,7 @@ export function benefitsSummaryText(view: InsuranceCheckView, opts: SummaryOptio
     if (bits.length) lines.push(`Our practice with this payer: ${bits.join(' · ')}`)
   }
   lines.push(`Status: ${STATUS_LABEL[view.status]}`)
+  if (r?.breakdown) lines.push(`Full breakdown: ${BREAKDOWN_COPY.receipt(r.breakdown)}`)
   if (r?.coverage.effective) {
     lines.push(`Coverage: ${r.coverage.termination ? `${niceDate(r.coverage.effective)} to ${niceDate(r.coverage.termination)}` : `since ${niceDate(r.coverage.effective)}`}`)
   }

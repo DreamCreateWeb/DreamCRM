@@ -111,6 +111,25 @@ describe('buildStediRequest', () => {
     })
   })
 
+  it('names the services the caller asks for — the Full breakdown’s codes — and the dental STC alone by default', () => {
+    const body = buildStediRequest(req(), {
+      payerId: 'AMTAS00425',
+      npi: '1999999984',
+      organizationName: 'Dream Dental',
+      services: [
+        { system: 'STC', value: '35' },
+        { system: 'CDT', value: 'D0120' },
+        { system: 'CDT', value: 'D2740' },
+      ],
+    })
+    expect(body.encounter.services).toEqual([
+      { system: 'STC', value: '35' },
+      { system: 'CDT', value: 'D0120' },
+      { system: 'CDT', value: 'D2740' },
+    ])
+    expect(buildStediRequest(req(), { payerId: 'X', npi: '1999999984', organizationName: 'D', services: [] }).encounter.services).toEqual([{ system: 'STC', value: '35' }])
+  })
+
   it('puts the policyholder as subscriber and the patient as dependent when they differ', () => {
     const body = buildStediRequest(
       req({ relationship: 'child', subscriber: { firstName: 'Ana', lastName: 'Dent', dateOfBirth: '1960-01-02' } }),

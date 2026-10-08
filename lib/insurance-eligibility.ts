@@ -350,6 +350,32 @@ export interface AgeLimits {
   dependent: number | null
 }
 
+/** One service the request names: the dental STC, or a CDT procedure code (the Full breakdown's asks). */
+export interface EligibilityService {
+  system: 'STC' | 'CDT'
+  value: string
+}
+
+/**
+ * THE FULL BREAKDOWN'S RECEIPT (2026-10-08): what was asked, what came
+ * back with something specific, how many payer checks it took and why it
+ * stopped. `mode` is how the payer answered: 'single' = every code in one
+ * request; 'per_code' = the payer ignores extra codes and each was asked
+ * on its own; 'mixed' = some of each; 'capped' = the month's allowance
+ * stopped it before every code was asked (the sheet still prints what it
+ * has, with blanks).
+ */
+export interface BreakdownSummary {
+  requestedCodes: string[]
+  answeredKeys: FormProcedureKey[]
+  /** Codes asked on their own and still unanswered (the payer had nothing specific). */
+  silentCodes: string[]
+  /** Codes whose own request failed (stored as a note, never as an answer). */
+  failedCodes: string[]
+  checks: number
+  mode: 'single' | 'per_code' | 'mixed' | 'capped'
+}
+
 export interface EligibilityResult {
   status: Exclude<EligibilityStatus, 'error'>
   payerName: string
@@ -398,6 +424,8 @@ export interface EligibilityResult {
   downgrades?: string[]
   /** EVERY note the payer sent, deduped, in the payer's order (the sheet's MISC box). */
   payerNotes?: string[]
+  /** Present when this answer is a Full breakdown — the per-procedure asks and their receipt. */
+  breakdown?: BreakdownSummary | null
 }
 
 /** The payer's insurance-type word in desk words. */
@@ -474,6 +502,8 @@ export interface InsuranceCheckView {
   requestedByUserId: string | null
   /** The staff member who ran it, for "Checked today by Dana"; null for seeded or system rows. */
   requestedByName: string | null
+  /** Payer checks this row cost against the month's allowance (a Full breakdown can be several). Older rows: 1. */
+  billedChecks?: number
 }
 
 /**

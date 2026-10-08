@@ -3,7 +3,8 @@ import { clinicMonthStart } from '@/lib/clinic-timezone'
 
 /**
  * getInsuranceUsage — the billed-check counter behind the monthly allowance.
- * Pins: it counts THIS org's rows, the live driver only, since the
+ * Pins: it SUMS billed_checks over THIS org's rows (a Full breakdown is one
+ * row that cost several — 2026-10-08), the live driver only, since the
  * clinic-local month start; the env override; and the fail-open law (an
  * unreadable count is zero used + `unreadable`, never a refusal).
  */
@@ -48,7 +49,7 @@ vi.mock('@/lib/db', async () => {
           where: async (clause: unknown) => {
             if (state.fail) throw new Error('db down')
             state.wheres.push(clause)
-            return [{ n: state.count }]
+            return [{ n: state.count === 0 ? null : String(state.count) }]
           },
         }),
       }),
