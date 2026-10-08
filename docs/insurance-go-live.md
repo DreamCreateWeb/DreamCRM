@@ -128,6 +128,15 @@ Apr 1") beside the code lines. The redacted answer is a test fixture, so
 the next payer that writes differently costs a code change, not a guess.
 When a client's sheet looks wrong, capture their 271 the same way first.
 
+Two things the same afternoon's prints taught. A check's benefits are
+normalized once, when it runs, and saved on the row — a reading
+improvement reaches NEW checks; an old row prints as it was read (press
+"Check again", or build the re-normalize-from-raw read). And the sheet is
+longer than a page: it is portaled to `<body>` and printed in flow
+(every sibling `display: none`), because the one-page receipt's recipe
+(`visibility: hidden` + `position: absolute`) left a tall sheet
+overflowing the top of page 1 with the patient's own block cut off.
+
 ## The Full breakdown (2026-10-08)
 
 "Full breakdown" on an active answer asks the payer about every code on

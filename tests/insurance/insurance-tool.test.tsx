@@ -636,6 +636,25 @@ describe('InsuranceTool — the verification sheet and the payer notebook (2026-
     expect(screen.getByTestId('payer-notes').textContent).toContain('Everything the payer said · 1')
   })
 
+  it('the sheet prints IN FLOW: a direct child of <body>, every sibling hidden, so a sheet longer than a page paginates instead of losing its top', () => {
+    renderTool({ initialCheck: check({ result: sheetResult() }) })
+    act(() => {
+      window.dispatchEvent(new Event('beforeprint'))
+    })
+    const sheet = screen.getByTestId('benefits-sheet')
+    expect(sheet.parentElement).toBe(document.body)
+    const css = Array.from(document.querySelectorAll('style')).map((s) => s.textContent ?? '').join('\n')
+    expect(css).toContain('body > *:not(#benefits-sheet) { display: none !important; }')
+    expect(css).toContain('#benefits-sheet { display: block !important; position: static;')
+    expect(css).not.toContain('position: absolute')
+    // The patient's own block is the first thing on the paper.
+    expect((sheet.textContent ?? '').indexOf('Patient name:')).toBeLessThan((sheet.textContent ?? '').indexOf('Max:'))
+    act(() => {
+      window.dispatchEvent(new Event('afterprint'))
+    })
+    expect(screen.queryByTestId('benefits-sheet')).toBeNull()
+  })
+
   it('the printed sheet carries the category pots, the networks and the line facts', () => {
     const r = sheetResult()
     renderTool({
