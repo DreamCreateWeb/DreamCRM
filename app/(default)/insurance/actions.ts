@@ -20,6 +20,8 @@ import {
   type RunEligibilityCheckResult,
 } from '@/lib/services/insurance-eligibility'
 import type { StediPayerMatch } from '@/lib/stedi-eligibility'
+import { validatePayerNote, type PayerNoteView } from '@/lib/payer-notebook'
+import { getPayerNote, savePayerNote } from '@/lib/services/insurance-eligibility/payer-notebook'
 import { createPatient, updatePatient } from '@/lib/services/patients'
 import { readInsuranceCard, type InsuranceCardFields } from '@/lib/services/insurance-ocr'
 import { addPatientDocument, patientBelongsToOrg } from '@/lib/services/patient-documents'
@@ -285,4 +287,46 @@ export async function scanCardAction(args: {
     if (attached > 0) revalidatePath(`/patients/${args.patientId}`)
   }
   return { ok: true, fields: read.fields, attached }
+}
+
+// ── The payer notebook (2026-10-08) ──────────────────────────────────────
+
+/** The practice's own facts about a payer — read for the card and the sheet. */
+export async function getPayerNoteAction(payerId: string | null, payerName: string | null): Promise<PayerNoteView | null> {
+  const ctx = await clinicCtx()
+  if (!ctx) return null
+  try {
+    return await getPayerNote(ctx.organizationId, payerId, payerName)
+  } catch (e) {
+    console.error('[insurance] payer note read failed:', e)
+    return null
+  }
+}
+
+/** Write the practice's facts about a payer. Any staff member — it is desk knowledge, not a setting. */
+export async function savePayerNoteAction(args: {
+  payerId: string | null
+  payerName: string
+  fields: unknown
+}): Promise<{ ok: true; note: PayerNoteView } | { ok: false; error: string }> {
+  const ctx = await clinicCtx()
+  if (!ctx) return { ok: false, error: 'Insurance checks are a clinic feature.' }
+  const payerName = String(args?.payerName ?? '').trim().slice(0, 160)
+  if (!payerName) return { ok: false, error: 'Name the payer first.' }
+  const v = validatePayerNote(args?.fields)
+  if (!v.ok) return v
+  try {
+    const note = await savePayerNote({
+      organizationId: ctx.organizationId,
+      payerId: typeof args.payerId === 'string' ? args.payerId.slice(0, 40) : null,
+      payerName,
+      fields: v.fields,
+      userId: ctx.userId,
+    })
+    if (!note) return { ok: false, error: 'Name the payer first.' }
+    return { ok: true, note }
+  } catch (e) {
+    console.error('[insurance] payer note save failed:', e)
+    return { ok: false, error: 'Could not save. Try again in a moment.' }
+  }
 }

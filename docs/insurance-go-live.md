@@ -95,3 +95,22 @@ the foot of the tool returns the intro; history is kept.
 `./scripts/setup-stedi-aws.sh` with no mode flag returns to test mode on the
 stored key; `--driver sandbox` turns payer connectivity off entirely. Stored
 rows keep the driver they were answered under, so history stays honest.
+
+## The verification sheet and the payer notebook (2026-10-08)
+
+The print sheet is the breakdown form a desk fills by phone, line for line.
+Three sources feed it, in this order of trust on each line: the practice's
+own PAYER NOTEBOOK (the card under the result — fee schedule, in/out of
+network, pays on seat or prep, claims address, the phone that answers;
+written once per payer, used on every patient under it), then the payer's
+271 (now read in full: group/employer, contacts, benefit year, deductible
+applies-to, seven tiers, per-procedure lines, replacement windows, age
+limits, downgrades, every note), then a printed BLANK. A blank means the
+payer did not say and the notebook has nothing: it is still a question to
+ask. A starred percent on a procedure line is the category's rate — the
+payer priced the category, not that code.
+
+The raw 271 is kept on every live check (`raw_response`). If a client's
+form needs a field the sheet still lacks, read it out of stored rows first
+— it is almost certainly there — before paying for another check.
+

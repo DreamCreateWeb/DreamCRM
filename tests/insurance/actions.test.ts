@@ -44,6 +44,12 @@ vi.mock('@/lib/attachment-hosts', () => ({
 }))
 const addPatientDocument = vi.fn(async () => ({ id: 'doc_1' }))
 const patientBelongsToOrg = vi.fn(async () => true)
+const getPayerNote = vi.fn(async () => null as unknown)
+const savePayerNote = vi.fn(async () => ({ id: 'pnote_1', payerKey: 'id:77777', payerId: '77777', payerName: 'Delta Dental of California', feeSchedule: 'PPO', network: 'in', paysOn: null, claimsAddress: null, phone: null, notes: null, updatedAtIso: '2026-10-08T15:00:00.000Z', updatedByName: 'Mary' }))
+vi.mock('@/lib/services/insurance-eligibility/payer-notebook', () => ({
+  getPayerNote: (...a: unknown[]) => getPayerNote(...(a as [])),
+  savePayerNote: (...a: unknown[]) => savePayerNote(...(a as [])),
+}))
 vi.mock('@/lib/services/patient-documents', () => ({
   addPatientDocument: (...a: unknown[]) => addPatientDocument(...(a as [])),
   patientBelongsToOrg: (...a: unknown[]) => patientBelongsToOrg(...(a as [])),
@@ -57,6 +63,8 @@ import {
   scanCardAction,
   saveInsuranceToPatientAction,
   searchPayersAction,
+  getPayerNoteAction,
+  savePayerNoteAction,
 } from '@/app/(default)/insurance/actions'
 
 const request = {
@@ -289,5 +297,33 @@ describe('the ON switch (self-serve setup, 2026-10-05)', () => {
     expect((r as { error: string }).error).toMatch(/ten digits/)
     expect((await disableInsuranceAction()).ok).toBe(true)
     expect(disableInsuranceTool).toHaveBeenCalledWith('org_1')
+  })
+})
+
+describe('the payer notebook actions (2026-10-08)', () => {
+  it('getPayerNoteAction reads under the session org and never throws to the card', async () => {
+    getPayerNote.mockResolvedValueOnce({ id: 'pnote_1' })
+    expect(await getPayerNoteAction('77777', 'Delta Dental of California')).toEqual({ id: 'pnote_1' })
+    expect(getPayerNote).toHaveBeenCalledWith('org_1', '77777', 'Delta Dental of California')
+    getPayerNote.mockRejectedValueOnce(new Error('db down'))
+    expect(await getPayerNoteAction('77777', 'Delta')).toBeNull()
+  })
+
+  it('savePayerNoteAction validates, caps the payer id, writes under the session org with the writer, and returns the stored note', async () => {
+    const r = await savePayerNoteAction({ payerId: '77777', payerName: ' Delta Dental of California ', fields: { feeSchedule: ' PPO ', network: 'in', paysOn: '', claimsAddress: '', phone: '', notes: '' } })
+    expect(r.ok).toBe(true)
+    expect(savePayerNote).toHaveBeenCalledWith(expect.objectContaining({ organizationId: 'org_1', payerId: '77777', payerName: 'Delta Dental of California', userId: 'user_staff', fields: { feeSchedule: 'PPO', network: 'in', paysOn: null, claimsAddress: null, phone: null, notes: null } }))
+    expect(r.ok && r.note.feeSchedule).toBe('PPO')
+  })
+
+  it('refuses a bad value, an unnamed payer, and every other tenant', async () => {
+    expect(await savePayerNoteAction({ payerId: null, payerName: 'Delta', fields: { network: 'sideways' } })).toMatchObject({ ok: false })
+    expect(await savePayerNoteAction({ payerId: null, payerName: '  ', fields: {} })).toMatchObject({ ok: false, error: 'Name the payer first.' })
+    savePayerNote.mockClear()
+    tenantCtx.tenantType = 'platform'
+    expect(await getPayerNoteAction('77777', 'Delta')).toBeNull()
+    expect(await savePayerNoteAction({ payerId: '77777', payerName: 'Delta', fields: {} })).toMatchObject({ ok: false })
+    expect(savePayerNote).not.toHaveBeenCalled()
+    tenantCtx.tenantType = 'clinic'
   })
 })

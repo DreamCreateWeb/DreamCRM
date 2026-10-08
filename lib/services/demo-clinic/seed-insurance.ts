@@ -3,6 +3,7 @@ import { and, eq, inArray } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import { detailFromRequest, type EligibilityRequest } from '@/lib/insurance-eligibility'
 import { SANDBOX_TIMEOUT_MESSAGE, renderSandboxScenario, type SandboxScenarioKey } from '@/lib/services/insurance-eligibility/sandbox'
+import { savePayerNote } from '@/lib/services/insurance-eligibility/payer-notebook'
 import { buildPatientPersonas } from './personas'
 
 /**
@@ -69,10 +70,24 @@ export async function seedDemoInsuranceChecks(
   ]
 
   const existing = await db
-    .select({ id: schema.insuranceVerification.id })
+    .select({ id: schema.insuranceVerification.id, result: schema.insuranceVerification.result, checkedAt: schema.insuranceVerification.checkedAt })
     .from(schema.insuranceVerification)
     .where(inArray(schema.insuranceVerification.id, seeds.map((s) => s.id)))
   const have = new Set(existing.map((r) => r.id))
+
+  // Self-heal (the verification sheet, 2026-10-08): a seeded answer stored
+  // before the sheet's fields existed is re-rendered at its own instant, so
+  // the demo prints a full sheet. Only the result moves — ids, dates and the
+  // patient stay — and only where the stored answer lacks the new lines.
+  for (const row of existing) {
+    const seed = seeds.find((x) => x.id === row.id)
+    const stored = row.result as Record<string, unknown> | null
+    if (!seed || seed.scenario === 'timeout' || !stored || 'procedures' in stored) continue
+    await db
+      .update(schema.insuranceVerification)
+      .set({ result: renderSandboxScenario(seed.scenario, request(seed.personaIndex, seed.memberId), row.checkedAt) })
+      .where(and(eq(schema.insuranceVerification.organizationId, orgId), eq(schema.insuranceVerification.id, row.id)))
+  }
 
   for (const s of seeds) {
     const patientId = patientIds[s.personaIndex]
@@ -94,6 +109,27 @@ export async function seedDemoInsuranceChecks(
       createdAt: checkedAt,
     })
   }
+
+  // THE PAYER NOTEBOOK (2026-10-08): the demo practice's own facts about the
+  // one payer its seeded checks name, so the printed sheet's practice-level
+  // lines (fee schedule, network, pays-on, claims address, phone) read as
+  // filled rather than blank. An upsert keyed on the payer — idempotent,
+  // org-scoped, and a staff edit in the demo simply overwrites it.
+  await savePayerNote({
+    organizationId: orgId,
+    payerId: null,
+    payerName: 'Delta Dental',
+    fields: {
+      feeSchedule: 'PPO',
+      network: 'in',
+      paysOn: 'seat',
+      claimsAddress: 'P.O. Box 7100, Dental Claims, Anytown, OH 43000',
+      phone: '800-555-0147',
+      notes: 'Ask for the dental desk; pre-estimates over $300 go by fax.',
+    },
+    userId: null,
+    now,
+  })
 
   // The record remembers the card (polish phase 3): stamp Mia's detail the
   // way her latest seeded check would have, once — a self-heal for demos

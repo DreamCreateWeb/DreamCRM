@@ -171,7 +171,9 @@ describe('normalizeStediResponse — benefits', () => {
   })
 
   it('turns the patient’s coinsurance share into plan-pays per tier, in-network first, and leaves unstated tiers null', () => {
-    expect(r.coveragePct).toEqual({ preventive: 100, basic: 80, major: 50, ortho: null })
+    expect(r.coveragePct).toEqual({ preventive: 100, basic: 80, major: 50, ortho: null, diagnostic: 100, perio: null, endo: null, oralSurgery: null })
+    // The out-of-network side is read on its own — the 50% OON preventive row never leaks into the in-network tiers.
+    expect(r.coveragePctOut).toEqual({ preventive: 50, basic: null, major: null, ortho: null, diagnostic: 50, perio: null, endo: null, oralSurgery: null })
   })
 
   it('maps CDT frequency limits to the named rows', () => {
@@ -337,7 +339,7 @@ describe('Stedi test-mode 271 (the mock dental member)', () => {
   })
 
   it('reads coinsurance as a decimal share: 0 → plan pays 100, 1 → plan pays nothing', () => {
-    expect(out.coveragePct).toEqual({ preventive: 100, basic: 100, major: 100, ortho: 0 })
+    expect(out.coveragePct).toMatchObject({ preventive: 100, basic: 100, major: 100, ortho: 0 })
   })
 
   it('turns serviceLimits into frequency rows with the next eligible date', () => {

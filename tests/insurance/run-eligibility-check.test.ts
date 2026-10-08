@@ -72,19 +72,23 @@ vi.mock('@/lib/services/insurance-eligibility/stedi', () => ({
   makeStediProvider: (id: string) => ({
     id,
     check: async () => ({
-      status: 'active',
-      payerName: 'Ameritas',
-      planName: null,
-      coverage: { effective: '2026-01-01', termination: null },
-      network: 'unknown',
-      annualMax: null,
-      deductible: null,
-      coveragePct: null,
-      waitingPeriods: [],
-      frequencies: [],
-      missingToothClause: null,
-      notes: [],
-      asOf: '2026-09-30T15:00:00.000Z',
+      result: {
+        status: 'active',
+        payerName: 'Ameritas',
+        planName: null,
+        coverage: { effective: '2026-01-01', termination: null },
+        network: 'unknown',
+        annualMax: null,
+        deductible: null,
+        coveragePct: null,
+        waitingPeriods: [],
+        frequencies: [],
+        missingToothClause: null,
+        notes: [],
+        asOf: '2026-09-30T15:00:00.000Z',
+      },
+      // The payer's answer as received rides the row (raw_response).
+      raw: { plans: [{ benefits: {} }], payer: { name: { organization: 'Ameritas' } } },
     }),
   }),
   searchStediPayers: async () => [],
@@ -188,6 +192,23 @@ describe('runEligibilityCheck', () => {
     const r = await runEligibilityCheck('org_demo', { input: input(), now: NOW })
     expect(r.ok && r.check.driver).toBe('stedi')
     expect(r.ok && r.check.status).toBe('active')
+  })
+
+  it('the payer’s answer AS RECEIVED is kept on the row (raw_response); the sandbox stores null', async () => {
+    process.env.INSURANCE_DRIVER = 'stedi'
+    process.env.STEDI_MODE = 'test'
+    const r = await runEligibilityCheck('org_1', { input: input(), patientId: null, userId: 'u_1' })
+    expect(r.ok).toBe(true)
+    const stored = state.inserts.find((i) => i.table === 'insurance_verification')!.values
+    expect(stored.rawResponse).toEqual({ plans: [{ benefits: {} }], payer: { name: { organization: 'Ameritas' } } })
+    // The view handed back carries the normalized result only — never the raw answer.
+    expect(r.ok && 'rawResponse' in (r.check as object)).toBe(false)
+    delete process.env.INSURANCE_DRIVER
+    delete process.env.STEDI_MODE
+    state.inserts = []
+    const s = await runEligibilityCheck('org_1', { input: input(), patientId: null, userId: 'u_1' })
+    expect(s.ok).toBe(true)
+    expect(state.inserts.find((i) => i.table === 'insurance_verification')!.values.rawResponse).toBeNull()
   })
 
   it('the demo org with NO NPI under the live driver falls back to the LABELLED sandbox — the one honest swap', async () => {

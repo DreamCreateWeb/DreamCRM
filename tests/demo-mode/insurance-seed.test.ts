@@ -42,6 +42,11 @@ vi.mock('@/lib/db', async () => {
   }
 })
 
+const savePayerNote = vi.fn(async () => null)
+vi.mock('@/lib/services/insurance-eligibility/payer-notebook', () => ({
+  savePayerNote: (...a: unknown[]) => savePayerNote(...(a as [])),
+}))
+
 import { seedDemoInsuranceChecks } from '@/lib/services/demo-clinic/seed-insurance'
 
 const NOW = new Date('2026-09-30T15:00:00Z')
@@ -51,6 +56,7 @@ beforeEach(() => {
   state.selectQueue.length = 0
   state.inserts.length = 0
   state.updates.length = 0
+  savePayerNote.mockClear()
 })
 
 describe('seedDemoInsuranceChecks', () => {
@@ -88,6 +94,28 @@ describe('seedDemoInsuranceChecks', () => {
     state.selectQueue.push(state.inserts.length === 0 ? Object.keys(byId).map((id) => ({ id })) : [])
     await seedDemoInsuranceChecks('org_demo', NOW, IDS)
     expect(state.inserts).toHaveLength(0)
+  })
+
+  it('the verification sheet (2026-10-08): the demo’s payer notebook is written every run, org-scoped, and older seeded answers self-heal in place', async () => {
+    state.selectQueue.push([{ id: 'pat_0' }])
+    // Two rows already stored: one from before the sheet (no procedure lines) and one with them.
+    state.selectQueue.push([
+      { id: 'ins_demo_mia_2', result: { status: 'active', notes: [] }, checkedAt: new Date('2026-09-18T15:00:00Z') },
+      { id: 'ins_demo_marcus_1', result: { status: 'active', procedures: [] }, checkedAt: new Date('2026-09-27T15:00:00Z') },
+      { id: 'ins_demo_aiden_1', result: null, checkedAt: new Date('2026-08-01T15:00:00Z') },
+    ])
+    await seedDemoInsuranceChecks('org_demo', NOW, IDS)
+    const healed = state.updates.filter((u) => u.table === 'other')
+    expect(healed).toHaveLength(1)
+    const result = healed[0].values.result as { asOf: string; procedures: unknown[]; plan: { groupName: string } }
+    expect(result.procedures.length).toBeGreaterThan(5)
+    expect(result.plan.groupName).toBeTruthy()
+    // Re-rendered at the ROW's own instant, not now.
+    expect(result.asOf).toBe('2026-09-18T15:00:00.000Z')
+    expect(savePayerNote).toHaveBeenCalledTimes(1)
+    expect(savePayerNote).toHaveBeenCalledWith(expect.objectContaining({ organizationId: 'org_demo', payerName: 'Delta Dental', fields: expect.objectContaining({ feeSchedule: 'PPO', network: 'in', paysOn: 'seat' }) }))
+    // The three missing rows are inserted as before.
+    expect(state.inserts.map((i) => i.values.id)).toEqual(['ins_demo_mia_1', 'ins_demo_sophia_1', 'ins_demo_emma_1'])
   })
 
   it('Mia’s seeded checks carry HER on-file policy number, and an existing detail is left alone', async () => {

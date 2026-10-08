@@ -114,4 +114,53 @@ describe('benefitsSummaryText', () => {
     expect(nf).not.toContain('Plan pays')
     expect(nf).toContain('- No member matched.')
   })
+
+  it('the verification sheet’s lines (2026-10-08): plan facts, payer contact, the practice notebook, applies-to, seven tiers, by-procedure lines, replacement, ages, downgrades, every payer note — caveat still last', () => {
+    const text = benefitsSummaryText(
+      view({
+        input: { ...view().input, payerId: '77777' },
+        result: {
+          ...view().result!,
+          plan: { groupNumber: 'G-100', groupName: 'Harbor Logistics', planNumber: null, insuranceType: 'PREFERRED_PROVIDER_ORGANIZATION', benefitYear: 'plan', benefitYearStart: '2026-07-01', benefitYearEnd: '2027-06-30' },
+          payerContacts: { contacts: [{ name: 'Provider services', phones: ['800-555-0147'], faxes: [], emails: [], urls: [] }], claimsAddress: 'PO Box 1, Anytown, OH 43000' },
+          deductibleApplies: { preventive: false, basic: true, major: true, note: 'BASIC/MAJOR' },
+          coveragePct: { preventive: 100, basic: 80, major: 50, ortho: null, diagnostic: 100, perio: 80, endo: null, oralSurgery: null },
+          coveragePctOut: { preventive: 80, basic: 60, major: 40, ortho: null },
+          noWaitingPeriods: true,
+          procedures: [
+            { key: 'exam', code: 'D0120', label: 'Exam', planPays: 100, pctSource: 'tier', limit: '2 per year', lastOn: null, nextOn: '2024-06-13', notes: [] },
+            { key: 'occlusal_guard', code: 'D9944', label: 'Occlusal guard', planPays: 0, pctSource: 'code', limit: null, lastOn: null, nextOn: null, notes: [] },
+            { key: 'crown', code: 'D2740', label: 'Crown', planPays: 50, pctSource: 'tier', limit: '1 every 5 years', lastOn: '2023-02-01', nextOn: null, notes: ['Paid on the prep date.'] },
+          ],
+          replacement: { crownBridgeMonths: 60, dentureMonths: 84, paysOn: 'prep' },
+          ageLimits: { fluoride: 14, sealants: null, ortho: 19, dependent: 26 },
+          downgrades: ['Posterior composite fillings are paid at the amalgam rate.'],
+          payerNotes: ['Posterior composite fillings are paid at the amalgam rate.', 'Pretreatment estimates recommended over $300.'],
+        },
+      }),
+      { ...OPTS, practice: { id: 'p', payerKey: 'id:77777', payerId: '77777', payerName: 'Delta Dental', feeSchedule: 'Premier', network: 'in', paysOn: 'seat', claimsAddress: null, phone: '800-555-0199', notes: 'Ask for the dental desk.', updatedAtIso: '2026-10-08T15:00:00.000Z', updatedByName: 'Mary' } },
+    )
+    expect(text).toContain('Payer: Delta Dental · Delta Dental PPO · payer ID 77777')
+    expect(text).toContain('Plan: Group G-100 · Employer Harbor Logistics · PPO · Plan year Jul 1, 2026 to Jun 30, 2027')
+    expect(text).toContain('Payer contact: Phone 800-555-0147 · Claims: PO Box 1, Anytown, OH 43000')
+    expect(text).toContain('Our practice with this payer: Fee schedule Premier · In network · Pays on the seat date · Phone 800-555-0199 · Ask for the dental desk.')
+    expect(text).toContain('Deductible applies to basic, major; not to preventive (BASIC/MAJOR)')
+    expect(text).toContain('Also — Diagnostic 100% · Perio 80%')
+    expect(text).toContain('Out of network — Preventive 80% · Basic 60% · Major 40%')
+    expect(text).toContain('- No waiting periods')
+    expect(text).toContain('- Replacement: crowns and bridges every 5 years · dentures every 7 years · paid on the prep date')
+    expect(text).toContain('- Age limits: fluoride through 14 · ortho through 19 · dependents through 26')
+    expect(text).toContain('- Downgrade: Posterior composite fillings are paid at the amalgam rate.')
+    expect(text).toContain('By procedure (last · next · frequency · plan pays):')
+    expect(text).toContain('- Exam (D0120): covered now · 2 per year · 100% (category rate)')
+    expect(text).toContain('- Occlusal guard (D9944): not covered')
+    expect(text).toContain('- Crown (D2740): last Feb 1, 2023 · 1 every 5 years · 50% (category rate) · Paid on the prep date.')
+    // The frequencies block yields to the procedure lines when they exist.
+    expect(text).not.toContain('Frequencies:')
+    expect(text).toContain('Payer notes:')
+    expect(text).toContain('- Pretreatment estimates recommended over $300.')
+    // A downgrade is not repeated under the payer notes.
+    expect(text.split('Posterior composite fillings').length).toBe(2)
+    expect(text.split('\n').pop()).toBe(INSURANCE_DRIVER_LABEL.sandbox.title)
+  })
 })

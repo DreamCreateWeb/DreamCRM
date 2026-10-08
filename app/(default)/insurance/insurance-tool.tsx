@@ -14,6 +14,10 @@ import { formatClinicDayTime } from '@/lib/format-datetime'
 import { TONE_TEXT } from '@/lib/ui/encodings'
 import {
   INSURANCE_DRIVER_LABEL,
+  type EligibilityResult,
+  replacementWords,
+  planPaysWord,
+  insuranceTypeLabel,
   INSURANCE_INTRO,
   NPI_READINESS_COPY,
   usageLine,
@@ -40,6 +44,9 @@ import {
 import { checkInsuranceAction, createPatientFromCheckAction, disableInsuranceAction, saveInsuranceToPatientAction, searchPayersAction } from './actions'
 import { FactChip, HeroAmount, TierTile } from './benefit-visuals'
 import { CopySummaryButton, PrintBenefitsButton, PrintableBenefits } from './benefits-sheet'
+import { PayerNotebookCard } from './payer-notebook-card'
+import { getPayerNoteAction } from './actions'
+import type { PayerNoteView } from '@/lib/payer-notebook'
 import { CardScanner } from './card-scanner'
 import { FilterChip } from '@/components/ui/filter-chip'
 import type { StediPayerMatch } from '@/lib/stedi-eligibility'
@@ -138,6 +145,8 @@ export interface InsuranceToolProps {
   canManage?: boolean
   /** The practice NPI the checks go out under (normalized, 10 digits), or null. */
   npi?: string | null
+  /** The practice's payer notebook for the initial check's payer, when written. */
+  initialPayerNote?: PayerNoteView | null
 }
 
 /** Where the NPI is edited — the Business profile's own box (its input id is `npi`). */
@@ -156,6 +165,7 @@ export default function InsuranceTool({
   usage = null,
   canManage = false,
   npi = null,
+  initialPayerNote = null,
 }: InsuranceToolProps) {
   const router = useRouter()
   const toast = useToast()
@@ -169,6 +179,25 @@ export default function InsuranceTool({
   const [busy, setBusy] = useState<'check' | 'save' | 'add' | 'anyway' | null>(null)
   const [statusFilter, setStatusFilter] = useState<EligibilityStatus | null>(null)
   const [query, setQuery] = useState('')
+  // THE PAYER NOTEBOOK (2026-10-08): the practice's own facts about the
+  // current card's payer, loaded when the payer changes, written from the
+  // card. The sheet and the copied summary read it beside the payer's answer.
+  const [payerNote, setPayerNote] = useState<PayerNoteView | null>(initialPayerNote)
+  const payerKeyOf = (c: InsuranceCheckView | null) => (c ? `${c.input.payerId ?? ''}|${c.result?.payerName ?? c.input.payerName ?? c.input.carrierName}` : '')
+  const [notedFor, setNotedFor] = useState(payerKeyOf(initialCheck))
+  useEffect(() => {
+    const key = payerKeyOf(current)
+    if (!current || key === notedFor) return
+    let live = true
+    setNotedFor(key)
+    getPayerNoteAction(current.input.payerId ?? null, current.result?.payerName ?? current.input.payerName ?? current.input.carrierName).then((n) => {
+      if (live) setPayerNote(n)
+    })
+    return () => {
+      live = false
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [current])
   const formRef = useRef<HTMLFormElement>(null)
   const resultRef = useRef<HTMLDivElement>(null)
   const practice = isPracticeDriver(driver)
@@ -540,7 +569,7 @@ export default function InsuranceTool({
                   {current.status !== 'error' && (
                     <>
                       <PrintBenefitsButton />
-                      <CopySummaryButton check={current} clinicName={orgName} timeZone={timeZone} />
+                      <CopySummaryButton check={current} clinicName={orgName} timeZone={timeZone} practice={payerNote} />
                     </>
                   )}
                 </>
@@ -559,7 +588,17 @@ export default function InsuranceTool({
               className="h-full"
             />
           )}
-          {current && current.status !== 'error' && <PrintableBenefits check={current} clinicName={orgName} timeZone={timeZone} />}
+          {current && (
+            <div className="mt-4">
+              <PayerNotebookCard
+                payerId={current.input.payerId ?? null}
+                payerName={current.result?.payerName ?? current.input.payerName ?? current.input.carrierName}
+                note={payerNote}
+                onSaved={setPayerNote}
+              />
+            </div>
+          )}
+          {current && current.status !== 'error' && <PrintableBenefits check={current} clinicName={orgName} timeZone={timeZone} practice={payerNote} />}
         </section>
       </div>
 
@@ -852,6 +891,44 @@ const TIER_HINT = {
 } as const
 
 /** Today as an ISO calendar date, for "covered now" vs "not until". */
+/** "Deductible applies to basic and major" — the sheet's applies-to line as one chip. */
+function deductibleAppliesFact(d: EligibilityResult['deductibleApplies']): string | null {
+  if (!d) return null
+  const applies = [d.preventive === true ? 'preventive' : null, d.basic === true ? 'basic' : null, d.major === true ? 'major' : null].filter(Boolean)
+  const waived = [d.preventive === false ? 'preventive' : null, d.basic === false ? 'basic' : null, d.major === false ? 'major' : null].filter(Boolean)
+  if (!applies.length && !waived.length) return null
+  return `Deductible ${applies.length ? `applies to ${applies.join(' and ')}` : ''}${applies.length && waived.length ? ', ' : ''}${waived.length ? `not ${waived.join(' or ')}` : ''}`
+}
+
+function replacementFact(rp: EligibilityResult['replacement']): string | null {
+  if (!rp) return null
+  const bits = [
+    rp.crownBridgeMonths != null ? `crowns every ${replacementWords(rp.crownBridgeMonths)}` : null,
+    rp.dentureMonths != null ? `dentures every ${replacementWords(rp.dentureMonths)}` : null,
+    rp.paysOn ? `paid on the ${rp.paysOn} date` : null,
+  ].filter(Boolean)
+  return bits.length ? `Replacement: ${bits.join(', ')}` : null
+}
+
+function ageLimitsFact(a: EligibilityResult['ageLimits']): string | null {
+  if (!a) return null
+  const bits = [
+    a.fluoride != null ? `fluoride through ${a.fluoride}` : null,
+    a.sealants != null ? `sealants through ${a.sealants}` : null,
+    a.ortho != null ? `ortho through ${a.ortho}` : null,
+    a.dependent != null ? `dependents through ${a.dependent}` : null,
+  ].filter(Boolean)
+  return bits.length ? `Ages: ${bits.join(', ')}` : null
+}
+
+/** A downgrade sentence as a short pill label; the full sentence rides the title. */
+function downgradeLabel(d: string): string {
+  if (/ANTERIOR AND BICUSPID|POSTERIOR/i.test(d) && /CROWN/i.test(d)) return 'Posterior crowns downgraded'
+  if (/ANTERIOR AND BICUSPID|POSTERIOR|AMALGAM/i.test(d) && /COMPOSITE|FILLING|RESIN/i.test(d)) return 'Posterior composites downgraded'
+  if (/ALTERNATE|ALTERNATIVE/i.test(d)) return 'Alternate benefit applies'
+  return 'Downgrade applies'
+}
+
 function todayIso(): string {
   return new Date().toISOString().slice(0, 10)
 }
@@ -900,19 +977,47 @@ export function ResultCard({
   const maxLabel = hasAnyAmount(r?.annualMax) && r?.annualMax?.remainingCents == null ? 'Yearly maximum' : 'Left this year'
   const dedAmount = deductibleAsAmount(r?.deductible)
   const dedLabel = hasAnyAmount(dedAmount) && dedAmount.remainingCents == null ? 'Deductible' : 'Deductible left'
-  const facts = r
-    ? [
-        amountFact(r.orthoLifetimeMax, 'Ortho lifetime maximum'),
-        amountFact(r.familyMax, 'Family maximum'),
-        amountFact(deductibleAsAmount(r.familyDeductible), 'Family deductible'),
-      ].filter((x): x is string => !!x)
-    : []
-  const hasRules = !!r && (r.missingToothClause === true || facts.length > 0)
   const coverageLine = r?.coverage.effective
     ? r.coverage.termination
       ? `${niceDate(r.coverage.effective)} → ${niceDate(r.coverage.termination)}`
       : `since ${niceDate(r.coverage.effective)}`
     : null
+  // The plan facts the sheet asks for (2026-10-08): group, employer, plan type, benefit year.
+  const planLine = r?.plan
+    ? [
+        r.plan.groupNumber && !check.input.groupNumber ? `Group ${r.plan.groupNumber}` : null,
+        r.plan.groupName,
+        insuranceTypeLabel(r.plan.insuranceType),
+        r.plan.benefitYear ? (r.plan.benefitYear === 'calendar' ? 'Calendar-year benefits' : 'Plan-year benefits') : null,
+      ]
+        .filter(Boolean)
+        .join(' · ') || null
+    : null
+  const phones = r?.payerContacts?.contacts.flatMap((c) => c.phones) ?? []
+  const procedures = (r?.procedures ?? []).filter((p) => p.limit || p.lastOn || p.nextOn || p.pctSource === 'code' || p.notes.length)
+  const extraTiers = r?.coveragePct
+    ? (
+        [
+          ['Diagnostic', r.coveragePct.diagnostic],
+          ['Perio', r.coveragePct.perio],
+          ['Endo', r.coveragePct.endo],
+          ['Oral surgery', r.coveragePct.oralSurgery],
+        ] as Array<[string, number | null | undefined]>
+      ).filter((t): t is [string, number] => t[1] != null)
+    : []
+  const payerNotes = (r?.payerNotes ?? []).filter((n) => !r?.notes.includes(n))
+  const facts = r
+    ? [
+        amountFact(r.orthoLifetimeMax, 'Ortho lifetime maximum'),
+        amountFact(r.familyMax, 'Family maximum'),
+        amountFact(deductibleAsAmount(r.familyDeductible), 'Family deductible'),
+        deductibleAppliesFact(r.deductibleApplies),
+        replacementFact(r.replacement),
+        ageLimitsFact(r.ageLimits),
+        phones.length ? `Payer ${phones.join(' / ')}` : null,
+      ].filter((x): x is string => !!x)
+    : []
+  const hasRules = !!r && (r.missingToothClause === true || r.noWaitingPeriods === true || facts.length > 0 || (r.downgrades?.length ?? 0) > 0)
 
   return (
     <div className="v2-card overflow-hidden" data-testid="benefits-card">
@@ -939,6 +1044,11 @@ export function ResultCard({
               )}
             </p>
             {coverageLine && <p className="text-xs text-gray-500 dark:text-gray-400 font-mono-num tabular-nums">Coverage {coverageLine}</p>}
+            {planLine && (
+              <p className="text-xs text-gray-500 dark:text-gray-400" data-testid="plan-facts">
+                {planLine}
+              </p>
+            )}
           </div>
           <div className="flex flex-wrap items-center gap-2 sm:justify-end">
             <StatusPill tone={STATUS_TONE[check.status]} label={STATUS_LABEL[check.status]} />
@@ -1017,6 +1127,15 @@ export function ResultCard({
                   <TierTile label="Major" hint={TIER_HINT.major} pct={r.coveragePct.major} />
                   <TierTile label="Ortho" hint={TIER_HINT.ortho} pct={r.coveragePct.ortho} />
                 </div>
+                {extraTiers.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-2" data-testid="extra-tiers">
+                    {extraTiers.map(([label, v]) => (
+                      <FactChip key={label}>
+                        {label} {planPaysWord(v)}
+                      </FactChip>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 
@@ -1049,6 +1168,10 @@ export function ResultCard({
                       title="Teeth lost before coverage began aren’t covered for replacement."
                     />
                   )}
+                  {r.noWaitingPeriods === true && <StatusPill tone="ok" label="No waiting periods" title="The payer said so in words." />}
+                  {(r.downgrades ?? []).map((d) => (
+                    <StatusPill key={d} tone="warn" label={downgradeLabel(d)} title={d} />
+                  ))}
                   {facts.map((f) => (
                     <FactChip key={f}>{f}</FactChip>
                   ))}
@@ -1056,8 +1179,46 @@ export function ResultCard({
               </div>
             )}
 
-            {/* ── Frequencies ──────────────────────────────────────────── */}
-            {r.frequencies.length > 0 && (
+            {/* ── By procedure (2026-10-08): the sheet's lines, with last / next / allowed / plan pays ── */}
+            {procedures.length > 0 && (
+              <div className="rounded-[var(--r-md)] border border-[color:var(--color-hairline)] overflow-hidden" data-testid="procedure-table">
+                <table className="w-full text-sm">
+                  <caption className="sr-only">What the payer said about each procedure: how often, when next, and what it pays</caption>
+                  <thead className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 bg-[color:var(--color-surface-sunk)] border-b border-[color:var(--color-hairline)]">
+                    <tr>
+                      <th scope="col" className="px-3 py-2 text-left font-semibold">Procedure</th>
+                      <th scope="col" className="px-3 py-2 text-left font-semibold">Allowed</th>
+                      <th scope="col" className="px-3 py-2 text-right font-semibold">Next</th>
+                      <th scope="col" className="px-3 py-2 text-right font-semibold">Pays</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[color:var(--color-hairline)]">
+                    {procedures.map((p) => (
+                      <tr key={p.key} className="hover:bg-teal-500/5 transition-colors align-top">
+                        <td className="px-3 py-2 text-gray-800 dark:text-gray-100">
+                          <span className="font-medium">{p.label}</span>
+                          <span className="ml-1.5 text-xs text-gray-500 dark:text-gray-400 font-mono-num">{p.code}</span>
+                          {p.notes.length > 0 && <p className="text-xs text-gray-500 dark:text-gray-400">{p.notes.join(' · ')}</p>}
+                        </td>
+                        <td className="px-3 py-2 text-gray-700 dark:text-gray-200 font-mono-num tabular-nums">{p.limit ?? <span className={TONE_TEXT.neutral}>—</span>}</td>
+                        <td className="px-3 py-2 text-right text-xs font-mono-num tabular-nums">
+                          {p.limit || p.nextOn || p.lastOn ? <NextCell nextOn={p.nextOn} lastOn={p.lastOn} /> : <span className={TONE_TEXT.neutral}>—</span>}
+                        </td>
+                        <td className="px-3 py-2 text-right font-mono-num tabular-nums text-gray-800 dark:text-gray-100" title={p.pctSource === 'tier' ? 'The category’s rate — the payer priced the category, not this code.' : undefined}>
+                          {p.planPays == null ? <span className={TONE_TEXT.neutral}>—</span> : p.planPays === 0 ? <span className={TONE_TEXT.neutral}>not covered</span> : `${p.planPays}%${p.pctSource === 'tier' ? '*' : ''}`}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {procedures.some((p) => p.pctSource === 'tier') && (
+                  <p className="px-3 py-1.5 text-xs text-gray-500 dark:text-gray-400 border-t border-[color:var(--color-hairline)]">* the category’s rate — the payer priced the category, not this code.</p>
+                )}
+              </div>
+            )}
+
+            {/* ── Frequencies (older rows without procedure lines) ──────── */}
+            {procedures.length === 0 && r.frequencies.length > 0 && (
               <div className="rounded-[var(--r-md)] border border-[color:var(--color-hairline)] overflow-hidden">
                 <table className="w-full text-sm">
                   <caption className="sr-only">How often each service is covered, and when the next one is</caption>
@@ -1094,6 +1255,22 @@ export function ResultCard({
               </li>
             ))}
           </ul>
+        )}
+
+        {payerNotes.length > 0 && (
+          <details className="text-sm" data-testid="payer-notes">
+            <summary className="cursor-pointer text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 select-none">
+              Everything the payer said · {payerNotes.length}
+            </summary>
+            <ul className="mt-2 space-y-1 text-gray-700 dark:text-gray-200">
+              {payerNotes.map((n, i) => (
+                <li key={i} className="flex gap-2">
+                  <span aria-hidden="true" className="text-gray-500 dark:text-gray-400">•</span>
+                  <span>{n}</span>
+                </li>
+              ))}
+            </ul>
+          </details>
         )}
 
         {children && (

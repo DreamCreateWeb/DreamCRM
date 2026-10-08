@@ -102,7 +102,7 @@ describe('configuration', () => {
 describe('check', () => {
   it('sends the key as the Authorization header, the dental STC, and the mock NPI in test mode', async () => {
     const r = await makeStediProvider('stedi_test').check(req({ payerId: 'AMTAS00425' }), CTX)
-    expect(r.status).toBe('active')
+    expect(r.result.status).toBe('active')
     const post = calls.find((c) => c.url.endsWith('/2026-06-01/eligibility-check'))!
     expect(post).toBeDefined()
     expect((post.init.headers as Record<string, string>).Authorization).toBe('test.key')
@@ -130,7 +130,7 @@ describe('check', () => {
 
   it('resolves a clear payer name by search, and refuses an ambiguous one', async () => {
     const r = await makeStediProvider('stedi_test').check(req(), CTX)
-    expect(r.status).toBe('active')
+    expect(r.result.status).toBe('active')
     expect(JSON.parse(String(calls.at(-1)!.init.body)).payerId).toBe('AMTAS00425')
 
     responder = (url) => (url.includes('/payers/search') ? { status: 200, body: PAYERS_MANY } : { status: 200, body: ACTIVE })
