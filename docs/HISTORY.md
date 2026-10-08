@@ -6087,3 +6087,18 @@ facts for the card, the sheet and the copied summary alike. Two rules
 from it: capture the real answer before redesigning around a screenshot,
 and never let a row-level filter written for money decide what counts
 as a rule.
+
+## 2026-10-08 — The sheet paginates (the patient block was being cut off)
+
+The owner's next print, after the reading fix, still began at MAX with
+page "1/1": the patient's own block — name, subscriber, ID, group, payer,
+claims address, phone — was above the top of the page. The print
+isolation had been borrowed from the one-page receipt (hide everything
+with `visibility: hidden`, pin the sheet `position: absolute; top: 0`),
+and that recipe takes the sheet out of flow: the document keeps the
+dashboard's height, the sheet is taller than a page, and the browser
+prints what lands on page one. The sheet is now portaled to `<body>` and
+printed in normal flow with every sibling `display: none`, strips and
+table rows `break-inside: avoid`, table heads repeated per page. The
+test pins the mount as a direct child of `<body>` and the patient block
+ahead of the money.

@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { flushSync } from 'react-dom'
+import { createPortal, flushSync } from 'react-dom'
 import { ActionButton } from '@/components/ui/action-button'
 import { formatClinicDayTime } from '@/lib/format-datetime'
 import { TONE_TEXT } from '@/lib/ui/encodings'
@@ -44,10 +44,20 @@ import { BREAKDOWN_COPY } from '@/lib/insurance-breakdown'
  * is printed IN FULL: a practice answer on paper must say it is one.
  */
 
+/**
+ * The sheet is PORTALED to <body> and printed IN FLOW: everything else on
+ * the page is display:none, so the document's height is the sheet's own
+ * and the browser paginates it. The first recipe (visibility:hidden +
+ * position:absolute, borrowed from the one-page receipt) left the sheet
+ * out of flow inside the card: a sheet taller than a page overflowed the
+ * top, and the desk got page "1/1" starting at MAX with the patient's own
+ * block cut off (2026-10-08, the first client's print).
+ */
 const PRINT_CSS = `@media print {
-  body * { visibility: hidden !important; }
-  #benefits-sheet, #benefits-sheet * { visibility: visible !important; }
-  #benefits-sheet { display: block !important; position: absolute; left: 0; top: 0; width: 100%; padding: 0; }
+  body > *:not(#benefits-sheet) { display: none !important; }
+  #benefits-sheet { display: block !important; position: static; width: 100%; padding: 0; }
+  #benefits-sheet .sheet-strip, #benefits-sheet tr { break-inside: avoid; }
+  #benefits-sheet thead { display: table-header-group; }
   @page { margin: 16mm; }
 }`
 
@@ -97,7 +107,7 @@ function Choice({ label, options, picked }: { label: string; options: string[]; 
 }
 
 function Strip({ children }: { children: ReactNode }) {
-  return <div className="flex flex-wrap gap-x-6 gap-y-1.5 py-1.5 border-b border-gray-300">{children}</div>
+  return <div className="sheet-strip flex flex-wrap gap-x-6 gap-y-1.5 py-1.5 border-b border-gray-300">{children}</div>
 }
 
 function pct(v: number | null | undefined): string | null {
@@ -426,7 +436,9 @@ export function PrintableBenefits(props: { check: InsuranceCheckView; clinicName
       window.removeEventListener('afterprint', after)
     }
   }, [])
-  return printing ? <BenefitsSheet {...props} /> : null
+  // A direct child of <body>, so the print rule can hide every sibling and
+  // the sheet paginates in normal flow.
+  return printing ? createPortal(<BenefitsSheet {...props} />, document.body) : null
 }
 
 export function PrintBenefitsButton() {
