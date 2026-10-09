@@ -41,12 +41,15 @@ export const DEMO_PAYMENT_METHODS: string[] = [
 ]
 
 // Two demo financing partners — the two most common in US dental
-// (CareCredit + Sunbit). applyUrl points at each company's homepage (NOT
-// a hotlink-protected affiliate URL we don't control) so the demo render
-// stays stable.
+// (CareCredit + Sunbit), tagged with their catalog provider so the demo
+// shows the provider's button wording. applyUrl points at each company's
+// homepage (NOT a per-practice link or slug the demo doesn't own — a real
+// Sunbit slug would frame a stranger's pre-qualify page) so the demo
+// render stays stable; no widget, no floating button, by the same rule.
 export const DEMO_FINANCING_PARTNERS = [
   {
     id: 'fp-carecredit',
+    provider: 'carecredit',
     name: 'CareCredit',
     description:
       'Health & wellness credit card with promotional 0% APR financing for qualifying purchases over $200.',
@@ -55,6 +58,7 @@ export const DEMO_FINANCING_PARTNERS = [
   },
   {
     id: 'fp-sunbit',
+    provider: 'sunbit',
     name: 'Sunbit',
     description:
       'Soft credit check, fast pre-approval, flexible monthly payments for treatment plans of any size.',

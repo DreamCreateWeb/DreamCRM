@@ -122,6 +122,8 @@ describe('the public clinic-site layout reads through the cache', () => {
       'chatWidgetEnabled',
       'hidePoweredBy',
       'announcement',
+      // The Cherry floating button rides the chrome (published column only).
+      'financingPartners',
     ]) {
       expect(
         cache,

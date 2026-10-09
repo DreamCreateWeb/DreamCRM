@@ -16,6 +16,7 @@ import PoweredBy from '@/components/clinic-site/powered-by'
 import AnnouncementBar from '@/components/clinic-site/announcement-bar'
 import { activeAnnouncement } from '@/lib/types/clinic-content'
 import { clinicDayKey } from '@/lib/format-datetime'
+import { CherryWidget } from '@/components/clinic-site/financing-widgets'
 
 /**
  * Site-wide layout for clinic public pages (/site/[slug]/...). The active
@@ -64,6 +65,10 @@ export default async function ClinicSiteLayout({
   // Default ON; Settings → Practice is the off switch. Never in a gallery
   // frame — a scaled preview card gets no interactive chrome.
   let chatWidget: { enabled: boolean; clinicName: string } | null = null
+  // FINANCING WIDGETS (2026-10-09): Cherry's floating "Pay over time" button,
+  // on every page once the clinic turns it on — bottom-right, beside the
+  // chat bubble's bottom-left. Never in gallery frames.
+  let financingFloating: { slug: string; name: string } | null = null
   // The announcement strip is live-immediate + self-expiring; never in a
   // scaled gallery frame (a preview card gets no chrome). Resolved with the
   // clinic-local day so a timed bar ("closed through Fri") doesn't drop a day
@@ -97,6 +102,9 @@ export default async function ClinicSiteLayout({
     }
     if (chrome.chatWidgetEnabled && !isFrame) {
       chatWidget = { enabled: true, clinicName: chrome.displayName ?? 'our office' }
+    }
+    if (chrome.financingFloating && !isFrame) {
+      financingFloating = { slug: chrome.financingFloating.slug, name: chrome.displayName ?? chrome.financingFloating.name }
     }
     if (!chrome.hidePoweredBy && !isFrame) {
       showPoweredBy = true
@@ -179,6 +187,7 @@ export default async function ClinicSiteLayout({
           clinicName={chatWidget.clinicName}
         />
       )}
+      {financingFloating && <CherryWidget slug={financingFloating.slug} name={financingFloating.name} brand={brand ? palette.brand : '#9CAF9F'} mode="floating" />}
       {isPreview && (
         <TemplatePreviewBanner
           slug={slug}

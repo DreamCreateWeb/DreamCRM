@@ -37,6 +37,8 @@ import { SITE_BG as BG, SITE_INK as INK, SITE_INK_MUTED as INK_MUTED, SITE_SURFA
 import { resolveActiveSiteTemplate } from '@/lib/site-templates/resolve'
 import SiteImage from '@/components/clinic-site/site-image'
 import JsonLdScript from '@/components/json-ld'
+import { resolveFinancingPartners } from '@/lib/financing-providers'
+import { CherryWidget, SunbitPrequalify } from '@/components/clinic-site/financing-widgets'
 
 
 interface Props {
@@ -191,11 +193,12 @@ export default async function PaymentFinancingPage({ params }: Props) {
 
   // Financing partners — section hides entirely when null/empty. We don't
   // push patients to financing if the clinic has no partner relationship.
-  const financingPartners = Array.isArray(profile.financingPartners)
-    ? (profile.financingPartners as ClinicFinancingPartner[]).filter(
-        (p) => p && typeof p.name === 'string' && p.name.trim().length > 0,
-      )
-    : []
+  // FINANCING WIDGETS (2026-10-09): the registry fills in each provider's
+  // facts (apply link from a slug, the standard line, the button wording);
+  // the FIRST partner is the primary and leads the page — with the
+  // provider's own widget when the clinic turned it on.
+  const financingPartners = resolveFinancingPartners(profile.financingPartners as ClinicFinancingPartner[] | null)
+  const primaryWidget = financingPartners[0]?.widget ? financingPartners[0] : null
 
   // Cancellation policy — section hides when null. No fake dollar fees.
   const cancellationPolicy =
@@ -458,6 +461,17 @@ export default async function PaymentFinancingPage({ params }: Props) {
                   budget.
                 </p>
               </ScrollReveal>
+              {primaryWidget && primaryWidget.slug && (
+                <div className="mb-10 rounded-2xl overflow-hidden" style={{ backgroundColor: SURFACE, border: `1px solid ${BORDER}` }} data-testid="financing-primary-widget">
+                  {primaryWidget.widget === 'cherry' ? (
+                    <div className="p-4 sm:p-6">
+                      <CherryWidget slug={primaryWidget.slug} name={name} brand={brand} mode="page" />
+                    </div>
+                  ) : (
+                    <SunbitPrequalify slug={primaryWidget.slug} name={name} />
+                  )}
+                </div>
+              )}
               <div className="grid gap-5 sm:gap-6 sm:grid-cols-2">
                 {financingPartners.map((p, i) => (
                   <ScrollReveal
@@ -513,8 +527,9 @@ export default async function PaymentFinancingPage({ params }: Props) {
                         rel="noopener noreferrer"
                         className="inline-flex items-center gap-1 text-sm font-semibold mt-auto self-start transition-all duration-300 hover:gap-2"
                         style={{ color: headingInk }}
+                        data-testid={p.provider ? `financing-apply-${p.provider}` : undefined}
                       >
-                        Learn more
+                        {p.cta}
                         <span aria-hidden="true">→</span>
                       </a>
                     )}

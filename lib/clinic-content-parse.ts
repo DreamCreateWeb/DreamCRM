@@ -10,6 +10,7 @@
 // These run server-side (inside server actions) but carry no DB / server-only
 // dependency, so they're trivially unit-testable.
 
+import { financingProvider, isFinancingProviderId, parseConnectValue, type FinancingProviderId } from '@/lib/financing-providers'
 import type {
   ClinicService,
   ClinicStaff,
@@ -248,12 +249,36 @@ export function parseFinancingPartners(
       const obj = item as Record<string, unknown>
       const name = typeof obj.name === 'string' ? obj.name.trim() : ''
       if (!name) continue
+      // A catalog provider: the ONE value it hands out, re-validated here —
+      // the editor already did, but a form post is a wire. A slug provider
+      // keeps its slug (the apply link is derived); a link provider keeps a
+      // host-checked https link. Anything that fails stays off the row.
+      const provider: FinancingProviderId | null = isFinancingProviderId(obj.provider) ? obj.provider : null
+      let slug: string | null = null
+      let applyUrl = typeof obj.applyUrl === 'string' ? obj.applyUrl.trim() || null : null
+      if (provider) {
+        const def = financingProvider(provider)!
+        const parsed = parseConnectValue(provider, typeof obj.slug === 'string' && obj.slug ? obj.slug : (applyUrl ?? ''))
+        if (parsed.ok && 'slug' in parsed) slug = parsed.slug
+        else if (parsed.ok && 'url' in parsed) applyUrl = parsed.url
+        else if (def.connect.kind === 'slug') slug = null
+        else applyUrl = null
+        if (def.connect.kind === 'slug') applyUrl = null
+      }
       out.push({
         id: typeof obj.id === 'string' ? obj.id : uid(),
         name,
         description: typeof obj.description === 'string' ? obj.description.trim() || null : null,
-        applyUrl: typeof obj.applyUrl === 'string' ? obj.applyUrl.trim() || null : null,
+        applyUrl,
         logoUrl: typeof obj.logoUrl === 'string' ? obj.logoUrl.trim() || null : null,
+        ...(provider
+          ? {
+              provider,
+              slug,
+              showWidget: obj.showWidget === true && !!slug,
+              floatingButton: provider === 'cherry' && obj.floatingButton === true && !!slug,
+            }
+          : {}),
       })
     }
     return out.length ? out : null
