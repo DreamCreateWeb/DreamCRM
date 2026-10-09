@@ -6102,3 +6102,30 @@ printed in normal flow with every sibling `display: none`, strips and
 table rows `break-inside: avoid`, table heads repeated per page. The
 test pins the mount as a direct child of `<body>` and the patient block
 ahead of the money.
+
+## 2026-10-09 — Patient financing widgets (the provider catalog)
+
+The first client's office manager forwarded Cherry's onboarding thread:
+a widget generator, a PDF guide and the practice's application link,
+addressed to a web designer, with two asks — Cherry first on the
+financing page, and a reply once live so Cherry could verify it. Nearly
+every practice offers financing through the same handful of companies
+and each hands the practice something different, so the Financing
+section of Website → Content became a provider catalog
+(`lib/financing-providers.ts`): pick the provider, paste the one thing it
+gave you, and the site builds the embed. Two connection kinds cover all
+seven — a per-practice SLUG (Cherry, Sunbit; builds the apply link and
+drives the widget) and a per-practice LINK (CareCredit's custom link,
+Proceed, Alphaeon, LendingClub, Scratchpay; host-checked). The primary
+partner's widget leads `/payment-financing` (Cherry's full-page widget
+through their `_hw` queueing loader, coloured from the clinic's brand;
+Sunbit's pre-qualify frame), every card buttons to the apply link, and
+Cherry's floating "Pay over time" button rides the published chrome onto
+every public page (bottom-right; the chat bubble keeps bottom-left). No
+raw HTML or script is ever accepted — the server re-validates every row
+and the only third-party script that can load is named once in code.
+Same jsonb column, draft → publish as before, no migration; the demo
+keeps links only (a real slug would frame a stranger's practice). The
+research record, Cherry's contract verbatim and the client's setup steps
+are in docs/financing-providers.md.
+

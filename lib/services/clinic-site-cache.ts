@@ -1,4 +1,5 @@
 import 'server-only'
+import { cherryFloatingFrom } from '@/lib/financing-providers'
 import { unstable_cache, revalidateTag } from 'next/cache'
 import { getTableColumns, eq, desc } from 'drizzle-orm'
 import { db } from '@/lib/db'
@@ -352,6 +353,11 @@ export interface PublishedSiteChrome {
   announcement: unknown
   chatWidgetEnabled: boolean
   hidePoweredBy: boolean
+  /** FINANCING WIDGETS (2026-10-09): Cherry's floating "Pay over time" button
+   *  on every page, when a partner carries it. Derived from the PUBLISHED
+   *  financing_partners column — visitors see published, and an editor's
+   *  staged toggle shows up here on Publish, like every other chrome fact. */
+  financingFloating: { slug: string; name: string } | null
   siteLiveAt: Date | null
   trialEndsAt: Date | null
   subscriptionStatus: string | null
@@ -428,6 +434,7 @@ async function readPublishedTheme(slug: string): Promise<PublishedTheme | null> 
       announcement: clinicProfile.announcement,
       chatWidgetEnabled: clinicProfile.chatWidgetEnabled,
       hidePoweredBy: clinicProfile.hidePoweredBy,
+      financingPartners: clinicProfile.financingPartners,
       siteLiveAt: clinicProfile.siteLiveAt,
       trialEndsAt: clinicProfile.trialEndsAt,
       subscriptionStatus: clinicProfile.subscriptionStatus,
@@ -459,6 +466,7 @@ async function readPublishedTheme(slug: string): Promise<PublishedTheme | null> 
           // credit shown unless explicitly hidden.
           chatWidgetEnabled: row.chatWidgetEnabled !== false,
           hidePoweredBy: row.hidePoweredBy === true,
+          financingFloating: cherryFloatingFrom(row.financingPartners),
           siteLiveAt: row.siteLiveAt ?? null,
           trialEndsAt: row.trialEndsAt ?? null,
           subscriptionStatus: row.subscriptionStatus ?? null,

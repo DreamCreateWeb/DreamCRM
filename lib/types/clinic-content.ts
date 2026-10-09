@@ -349,6 +349,14 @@ export interface ClinicFinancingPartner {
   description?: string | null
   applyUrl?: string | null
   logoUrl?: string | null
+  /** FINANCING WIDGETS (2026-10-09): the provider from lib/financing-providers.ts, when picked from the catalog. */
+  provider?: string | null
+  /** The provider's per-practice slug (Cherry, Sunbit) — builds the apply link and drives the widget. */
+  slug?: string | null
+  /** Embed the provider's widget on the financing page (Cherry's estimator / Sunbit's pre-qualify form). */
+  showWidget?: boolean
+  /** Cherry only: the floating "Pay over time" button on every page. */
+  floatingButton?: boolean
 }
 
 /**

@@ -163,6 +163,61 @@ describe('PaymentFinancingPage', () => {
     expect(careCreditApply).toBeDefined()
   })
 
+  /**
+   * FINANCING WIDGETS (2026-10-09). The first partner is the primary; when it
+   * carries a provider slug and its widget is on, the page leads with the
+   * provider's own embed — Cherry's full-page widget, Sunbit's pre-qualify
+   * frame — and every provider-tagged card's button goes to the apply link
+   * the site builds from the slug.
+   */
+  it('leads with Cherry’s widget and builds the apply link from the slug', async () => {
+    const partners: ClinicFinancingPartner[] = [
+      { id: 'p1', name: 'Cherry', description: null, applyUrl: null, logoUrl: null, provider: 'cherry', slug: 'ted-pinney-dds-pa', showWidget: true, floatingButton: true },
+      { id: 'p2', name: 'CareCredit', description: null, applyUrl: 'https://www.carecredit.com/go/ABC123/', logoUrl: null, provider: 'carecredit' },
+    ]
+    await renderPage(makeData({ financingPartners: partners as never }))
+    expect(screen.getByTestId('financing-primary-widget')).toBeInTheDocument()
+    expect(screen.getByTestId('cherry-widget')).toBeInTheDocument()
+    expect(screen.queryByTestId('sunbit-widget')).not.toBeInTheDocument()
+    expect(screen.getByTestId('financing-apply-cherry').getAttribute('href')).toBe(
+      'https://pay.withcherry.com/ted-pinney-dds-pa?utm_source=merchant&utm_medium=website',
+    )
+    expect(screen.getByTestId('financing-apply-carecredit').getAttribute('href')).toBe('https://www.carecredit.com/go/ABC123/')
+  })
+
+  it('leads with Sunbit’s pre-qualify frame when Sunbit is first with its widget on', async () => {
+    const partners: ClinicFinancingPartner[] = [
+      { id: 'p1', name: 'Sunbit', description: null, applyUrl: null, logoUrl: null, provider: 'sunbit', slug: 'acme-dental', showWidget: true },
+    ]
+    await renderPage(makeData({ financingPartners: partners as never }))
+    expect(screen.getByTestId('financing-primary-widget')).toBeInTheDocument()
+    expect(screen.getByTestId('sunbit-widget').getAttribute('src')).toBe('https://apply.sunbit.com/acme-dental')
+    expect(screen.queryByTestId('cherry-widget')).not.toBeInTheDocument()
+  })
+
+  it('shows no widget block when the primary has its widget off or is a second partner', async () => {
+    const partners: ClinicFinancingPartner[] = [
+      { id: 'p1', name: 'CareCredit', description: null, applyUrl: 'https://www.carecredit.com/go/ABC123/', logoUrl: null, provider: 'carecredit' },
+      { id: 'p2', name: 'Cherry', description: null, applyUrl: null, logoUrl: null, provider: 'cherry', slug: 'ted-pinney-dds-pa', showWidget: true },
+    ]
+    await renderPage(makeData({ financingPartners: partners as never }))
+    expect(screen.queryByTestId('financing-primary-widget')).not.toBeInTheDocument()
+    // The Cherry card still links to its apply page.
+    expect(screen.getByTestId('financing-apply-cherry')).toBeInTheDocument()
+  })
+
+  it('a legacy free-form partner row renders exactly as before', async () => {
+    const partners: ClinicFinancingPartner[] = [
+      { id: 'p1', name: 'Local Credit Union', description: 'Low-rate loans.', applyUrl: 'https://example.org/apply', logoUrl: null },
+    ]
+    await renderPage(makeData({ financingPartners: partners as never }))
+    expect(screen.getAllByText('Local Credit Union').length).toBeGreaterThan(0)
+    expect(screen.getByText('Low-rate loans.')).toBeInTheDocument()
+    expect(screen.queryByTestId('financing-primary-widget')).not.toBeInTheDocument()
+    const link = screen.getAllByRole('link').find((a) => a.getAttribute('href') === 'https://example.org/apply')
+    expect(link).toBeDefined()
+  })
+
   it('hides the cancellation policy section when null', async () => {
     await renderPage()
     expect(screen.queryByText(/Our cancellation policy/i)).not.toBeInTheDocument()

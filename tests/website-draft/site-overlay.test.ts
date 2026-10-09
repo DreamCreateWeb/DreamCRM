@@ -124,7 +124,7 @@ describe('getClinicThemeBySlug — brand/template overlay + banner flag', () => 
       brand: '#22C55E',
       template: 'pediatric',
       hasEditorDraft: true,
-      chrome: CHROME,
+      chrome: { ...CHROME, financingFloating: null },
     })
   })
 
@@ -140,7 +140,7 @@ describe('getClinicThemeBySlug — brand/template overlay + banner flag', () => 
       hasEditorDraft: false,
       // Byte-identical to the editor's above — the chrome is a clinic fact,
       // which is the entire reason it may live in a shared cache.
-      chrome: CHROME,
+      chrome: { ...CHROME, financingFloating: null },
     })
   })
 

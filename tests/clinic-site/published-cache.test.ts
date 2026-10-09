@@ -337,6 +337,39 @@ describe('the layout chrome survives the round trip', () => {
     state.org = { ...THEME_ROW }
   })
 
+  /**
+   * THE FLOATING FINANCING BUTTON RIDES THE CHROME (2026-10-09). Cherry's
+   * "Pay over time" button paints on every public page, so the layout reads
+   * it from the cached chrome — derived from the PUBLISHED partners column,
+   * never the draft — and the derivation is a plain object that survives the
+   * JSON round trip unchanged.
+   */
+  it('derives the Cherry floating button from the published partners, and a hit agrees', async () => {
+    state.org = {
+      ...THEME_ROW,
+      financingPartners: [
+        { id: 'f1', name: 'Cherry', description: null, applyUrl: null, logoUrl: null, provider: 'cherry', slug: 'ted-pinney-dds-pa', showWidget: true, floatingButton: true },
+      ],
+    }
+    const { loadPublishedTheme } = await import('@/lib/services/clinic-site-cache')
+    const miss = await loadPublishedTheme('smilebright')
+    const hit = await loadPublishedTheme('smilebright')
+    expect(miss?.chrome?.financingFloating).toEqual({ slug: 'ted-pinney-dds-pa', name: 'Cherry' })
+    expect(hit?.chrome?.financingFloating).toEqual(miss?.chrome?.financingFloating)
+  })
+
+  it('a partner without the floating toggle leaves the chrome at null', async () => {
+    state.org = {
+      ...THEME_ROW,
+      financingPartners: [
+        { id: 'f1', name: 'Cherry', description: null, applyUrl: null, logoUrl: null, provider: 'cherry', slug: 'ted-pinney-dds-pa', showWidget: true, floatingButton: false },
+      ],
+    }
+    const { loadPublishedTheme } = await import('@/lib/services/clinic-site-cache')
+    const miss = await loadPublishedTheme('smilebright')
+    expect(miss?.chrome?.financingFloating).toBeNull()
+  })
+
   it('a hit and a miss agree on the whole theme payload', async () => {
     const { loadPublishedTheme } = await import('@/lib/services/clinic-site-cache')
     const miss = await loadPublishedTheme('smilebright')
