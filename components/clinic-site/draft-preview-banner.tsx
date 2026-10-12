@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { bottomBarOffset } from '@/lib/site-bottom-bar'
 
 /**
  * The "you're seeing your draft" pill — mounted by the site layout ONLY when
@@ -20,7 +21,10 @@ export default function DraftPreviewBanner({ appUrl }: { appUrl: string }) {
   }, [])
   if (!show) return null
   return (
-    <div className="fixed bottom-4 left-4 z-[60] max-w-xs rounded-full bg-gray-900/90 text-white shadow-lg backdrop-blur px-4 py-2.5 text-xs leading-snug">
+    <div
+      className="fixed left-4 z-[60] max-w-xs rounded-full bg-gray-900/90 text-white shadow-lg backdrop-blur px-4 py-2.5 text-xs leading-snug"
+      style={{ bottom: bottomBarOffset(16) }}
+    >
       <span className="font-semibold">Unpublished changes</span>
       <span className="text-gray-300"> — you’re seeing your draft. Patients see the published site. </span>
       <a

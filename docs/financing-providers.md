@@ -68,11 +68,13 @@ only the default. Four things the first cut got wrong, each now pinned:
    corner (bottom 32px, left 16–32px) — on top of the chat bubble, and on a
    phone on top of the full-width bars — so it is lifted: `offset.y` =
    `CHERRY_FLOATING_OFFSET_ABOVE_CHAT` when the chat is on (the layout knows),
-   and under the `sm` breakpoint `CHERRY_FLOATING_MOBILE_CSS` forces the
-   offset to `CHERRY_FLOATING_OFFSET_MOBILE` with an author `!important`
-   rule (the widget sets the variable inline on `<html>`; important beats
-   inline), which clears every bar (≤63px tall). `CHERRY_FLOATING_POSITION`
-   is the one home for the corner.
+   and under the `sm` breakpoint `CHERRY_FLOATING_CSS` forces the offset to
+   `CHERRY_FLOATING_OFFSET_MOBILE` plus the measured bottom bar
+   (`--site-bottom-bar`, lib/site-bottom-bar.ts — the chat bubble rides
+   the same inset, so the button stays above the bubble and the bubble
+   above the bar) with an author `!important` rule (the widget sets the
+   variable inline on `<html>`; important beats inline).
+   `CHERRY_FLOATING_POSITION` is the one home for the corner.
 4. **A pinned z-index.** Cherry's bottom-left mode hardcodes `z-index: 9999`
    in its own stylesheet, which would float the button over an open mobile
    menu and over the open chat panel. `CherryWidget` ships an author

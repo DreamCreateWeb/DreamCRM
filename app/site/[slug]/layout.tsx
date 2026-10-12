@@ -17,6 +17,7 @@ import AnnouncementBar from '@/components/clinic-site/announcement-bar'
 import { activeAnnouncement } from '@/lib/types/clinic-content'
 import { clinicDayKey } from '@/lib/format-datetime'
 import { CherryWidget } from '@/components/clinic-site/financing-widgets'
+import BottomBarInset from '@/components/clinic-site/bottom-bar-inset'
 import { widgetFontsFromTemplate } from '@/lib/financing-providers'
 
 /**
@@ -178,6 +179,7 @@ export default async function ClinicSiteLayout({
       {showPoweredBy && <PoweredBy slug={slug} />}
       {/* Never count gallery-frame renders as site traffic. */}
       {orgId && !isFrame && <SiteViewBeacon orgId={orgId} slug={slug} />}
+      {!isFrame && <BottomBarInset />}
       {chatWidget && (
         // Brand through the template's recipe when set (so e.g. a luxury
         // template's accent harmonizes); the historical sage default when the

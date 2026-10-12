@@ -17,6 +17,7 @@ export default function CosmeticMobileActions({
   return (
     <div
       className="sm:hidden fixed inset-x-0 bottom-0 z-40 flex items-stretch gap-2 px-3 py-2.5"
+      data-site-bottom-bar=""
       style={{ background: SITE_BG, borderTop: `1px solid ${SITE_BORDER}` }}
     >
       {phone && (

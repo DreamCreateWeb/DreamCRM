@@ -11,6 +11,7 @@ import {
   sunbitApplyUrl,
   type WidgetFonts,
 } from '@/lib/financing-providers'
+import { bottomBarOffset } from '@/lib/site-bottom-bar'
 
 /**
  * The financing providers' embeds, built by the site from a validated slug
@@ -72,10 +73,12 @@ export const CHERRY_SHELL_CSS = `[data-cherry-shell]:has(#${CHERRY_FULL_PAGE_SEC
 
 export const CHERRY_FLOATING_CSS =
   `[class*="floatingEstimator-floatingContainer"]{z-index:${CHERRY_FLOATING_Z_INDEX} !important}` +
-  // Under `sm` every template's Call / Book bar sits on the bottom edge; the
-  // widget reads its offset from a variable it sets inline on <html>, and an
-  // author !important rule outranks an inline normal declaration.
-  `@media (max-width:639px){:root{--custom-floating-estimator-offset-y:${CHERRY_FLOATING_OFFSET_MOBILE} !important}}` +
+  // Under `sm` the button lifts over the phone's bottom bar (the chat bubble
+  // sits on the bar via the same `--site-bottom-bar` inset, and the button
+  // sits above the bubble); the widget reads its offset from a variable it
+  // sets inline on <html>, and an author !important rule outranks an inline
+  // normal declaration.
+  `@media (max-width:639px){:root{--custom-floating-estimator-offset-y:${bottomBarOffset(parseInt(CHERRY_FLOATING_OFFSET_MOBILE, 10))} !important}}` +
   `@media print{#${CHERRY_FLOATING_SECTION}{display:none !important}}`
 
 export function CherryWidget({
