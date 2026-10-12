@@ -6,6 +6,10 @@ import {
   cherryApplyUrl,
   cherryFloatingFrom,
   cherryWidgetConfig,
+  CHERRY_FLOATING_OFFSET_ABOVE_CHAT,
+  CHERRY_FLOATING_Z_INDEX,
+  SITE_BODY_FONT_FAMILY,
+  widgetFontsFromTemplate,
   financingProvider,
   parseConnectValue,
   resolveFinancingPartner,
@@ -108,15 +112,23 @@ describe('resolving a stored partner', () => {
 
 describe('Cherry’s init object', () => {
   it('is the generator’s shape with the clinic’s brand: primary + the 10-alpha secondary, dental imagery, the floating estimator bottom-right only when asked', () => {
-    const page = cherryWidgetConfig({ slug: 'ted-pinney-dds-pa', name: 'Ted Pinney DDS', brandHex: '#1F6F8B', fontFamily: 'inherit' })
+    const page = cherryWidgetConfig({ slug: 'ted-pinney-dds-pa', name: 'Ted Pinney DDS', brandHex: '#1F6F8B', fontFamily: 'Inter', headerFontFamily: 'Fraunces' })
     expect(page).toEqual({
       debug: false,
       variables: { slug: 'ted-pinney-dds-pa', name: 'Ted Pinney DDS', images: [21], customLogo: '', defaultPurchaseAmount: 2000, customImage: '', imageCategory: 'dental', language: 'en' },
-      styles: { primaryColor: '#1F6F8B', secondaryColor: '#1F6F8B10', fontFamily: 'inherit', headerFontFamily: 'inherit' },
+      styles: { primaryColor: '#1F6F8B', secondaryColor: '#1F6F8B10', fontFamily: 'Inter', headerFontFamily: 'Fraunces' },
     })
     const floating = cherryWidgetConfig({ slug: 'x', name: 'X', brandHex: 'not-a-hex', fontFamily: '', floating: true })
     expect(floating.styles.primaryColor).toBe('#596FD4')
-    expect(floating.styles.floatingEstimator).toMatchObject({ position: 'bottom-right', zIndex: 9999, ctaColor: '#596FD4', ctaTextColor: '#FFFFFF' })
+    // Bottom-LEFT, above the chat bubble — bottom-right is where every
+    // template's own Call / Book stack lives. A missing font falls back to
+    // the site's body face, never to a keyword the widget would quote.
+    expect(floating.styles.floatingEstimator).toMatchObject({ position: 'bottom-left', zIndex: CHERRY_FLOATING_Z_INDEX, offset: { x: '0px', y: '0px' }, ctaColor: '#596FD4', ctaTextColor: '#FFFFFF' })
+    // With the chat bubble on, the button lifts above it.
+    const lifted = cherryWidgetConfig({ slug: 'x', name: 'X', brandHex: '#1F6F8B', fontFamily: 'Inter', floating: true, aboveChat: true })
+    expect(lifted.styles.floatingEstimator?.offset).toEqual({ x: '0px', y: CHERRY_FLOATING_OFFSET_ABOVE_CHAT })
+    expect(floating.styles.fontFamily).toBe(SITE_BODY_FONT_FAMILY)
+    expect(floating.styles.headerFontFamily).toBe(SITE_BODY_FONT_FAMILY)
     expect(CHERRY_WIDGET_SRC).toBe('https://files.withcherry.com/widgets/widget.js')
     expect([...CHERRY_FULL_PAGE_SECTIONS]).toEqual(['hero', 'calculator', 'howitworks', 'faq'])
   })
@@ -141,3 +153,26 @@ describe('parseFinancingPartners — the form post, re-validated', () => {
     expect(out[4]).not.toHaveProperty('provider')
   })
 })
+
+/**
+ * THE WIDGET NEEDS REAL FONT NAMES (2026-10-12). Cherry writes
+ * `'<fontFamily>'` into a CSS variable, so `inherit` becomes a font called
+ * "inherit" and the widget renders in the browser default. Every registered
+ * template's fontCss must resolve to a named display face, and the body face
+ * is the site-wide one.
+ */
+describe('widgetFontsFromTemplate', () => {
+  it('reads the display face out of a template fontCss and never emits a keyword', async () => {
+    const { listSiteTemplates } = await import('@/lib/site-templates/registry')
+    for (const def of listSiteTemplates()) {
+      const fonts = widgetFontsFromTemplate(def.fontCss)
+      expect(fonts.body, def.id).toBe(SITE_BODY_FONT_FAMILY)
+      expect(fonts.display, def.id).toMatch(/^[A-Z][\w ]+$/)
+      expect(['inherit', 'initial', 'unset', 'serif', 'sans-serif']).not.toContain(fonts.display)
+    }
+    expect(widgetFontsFromTemplate("--font-display: 'Playfair Display', Georgia, serif;")).toEqual({ body: 'Inter', display: 'Playfair Display' })
+    expect(widgetFontsFromTemplate('')).toEqual({ body: 'Inter', display: 'Inter' })
+    expect(widgetFontsFromTemplate(null)).toEqual({ body: 'Inter', display: 'Inter' })
+  })
+})
+

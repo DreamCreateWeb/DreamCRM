@@ -37,7 +37,7 @@ import { SITE_BG as BG, SITE_INK as INK, SITE_INK_MUTED as INK_MUTED, SITE_SURFA
 import { resolveActiveSiteTemplate } from '@/lib/site-templates/resolve'
 import SiteImage from '@/components/clinic-site/site-image'
 import JsonLdScript from '@/components/json-ld'
-import { resolveFinancingPartners } from '@/lib/financing-providers'
+import { resolveFinancingPartners, widgetFontsFromTemplate } from '@/lib/financing-providers'
 import { CherryWidget, SunbitPrequalify } from '@/components/clinic-site/financing-widgets'
 
 
@@ -199,6 +199,11 @@ export default async function PaymentFinancingPage({ params }: Props) {
   // provider's own widget when the clinic turned it on.
   const financingPartners = resolveFinancingPartners(profile.financingPartners as ClinicFinancingPartner[] | null)
   const primaryWidget = financingPartners[0]?.widget ? financingPartners[0] : null
+  // Cherry paints white on its primary colour, so it gets the palette's
+  // AA-floored CTA fill rather than the raw brand (a pale sage would wash
+  // out), and the template's real font names (the widget cannot inherit).
+  const widgetBrand = siteTemplate.buildPalette(brand).brandStrong
+  const widgetFonts = widgetFontsFromTemplate(siteTemplate.fontCss)
 
   // Cancellation policy — section hides when null. No fake dollar fees.
   const cancellationPolicy =
@@ -462,10 +467,18 @@ export default async function PaymentFinancingPage({ params }: Props) {
                 </p>
               </ScrollReveal>
               {primaryWidget && primaryWidget.slug && (
-                <div className="mb-10 rounded-2xl overflow-hidden" style={{ backgroundColor: SURFACE, border: `1px solid ${BORDER}` }} data-testid="financing-primary-widget">
+                <div
+                  className="mb-10 rounded-2xl overflow-hidden"
+                  style={{ backgroundColor: SURFACE, border: `1px solid ${BORDER}`, color: INK }}
+                  data-testid="financing-primary-widget"
+                  // Cherry's shell collapses while its containers are empty —
+                  // a blocked or unreachable script leaves the cards, not a
+                  // blank bar (the rule rides with CherryWidget).
+                  data-cherry-shell={primaryWidget.widget === 'cherry' ? '' : undefined}
+                >
                   {primaryWidget.widget === 'cherry' ? (
                     <div className="p-4 sm:p-6">
-                      <CherryWidget slug={primaryWidget.slug} name={name} brand={brand} mode="page" />
+                      <CherryWidget slug={primaryWidget.slug} name={name} brand={widgetBrand} fonts={widgetFonts} mode="page" />
                     </div>
                   ) : (
                     <SunbitPrequalify slug={primaryWidget.slug} name={name} />
@@ -485,33 +498,38 @@ export default async function PaymentFinancingPage({ params }: Props) {
                     }}
                   >
                     {p.logoUrl ? (
-                      <SiteImage
-                        displayWidth={160}
-                        src={p.logoUrl}
-                        alt={p.name}
-                        className="h-10 w-auto object-contain mb-5 self-start"
-                        width={160}
-                        height={40}
-                        loading="lazy"
-                        decoding="async"
-                      />
+                      <>
+                        <SiteImage
+                          displayWidth={160}
+                          src={p.logoUrl}
+                          alt={p.name}
+                          className="h-10 w-auto object-contain mb-5 self-start"
+                          width={160}
+                          height={40}
+                          loading="lazy"
+                          decoding="async"
+                        />
+                        <h3
+                          className="text-lg font-semibold mb-2 leading-tight"
+                          style={{ color: INK }}
+                        >
+                          {p.name}
+                        </h3>
+                      </>
                     ) : (
-                      <span
-                        className="text-2xl font-bold mb-4 self-start"
+                      // No logo: the name IS the heading, once, in the display
+                      // face (the first cut printed it twice — a wordmark
+                      // stand-in and then the heading again).
+                      <h3
+                        className="text-2xl font-bold mb-3 self-start leading-tight"
                         style={{
                           color: headingInk,
                           fontFamily: 'var(--font-display, Georgia, serif)',
                         }}
                       >
                         {p.name}
-                      </span>
+                      </h3>
                     )}
-                    <h3
-                      className="text-lg font-semibold mb-2 leading-tight"
-                      style={{ color: INK }}
-                    >
-                      {p.name}
-                    </h3>
                     {p.description && (
                       <p
                         className="text-[15px] leading-[1.6] mb-5"

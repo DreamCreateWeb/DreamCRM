@@ -17,6 +17,7 @@ import AnnouncementBar from '@/components/clinic-site/announcement-bar'
 import { activeAnnouncement } from '@/lib/types/clinic-content'
 import { clinicDayKey } from '@/lib/format-datetime'
 import { CherryWidget } from '@/components/clinic-site/financing-widgets'
+import { widgetFontsFromTemplate } from '@/lib/financing-providers'
 
 /**
  * Site-wide layout for clinic public pages (/site/[slug]/...). The active
@@ -187,7 +188,16 @@ export default async function ClinicSiteLayout({
           clinicName={chatWidget.clinicName}
         />
       )}
-      {financingFloating && <CherryWidget slug={financingFloating.slug} name={financingFloating.name} brand={brand ? palette.brand : '#9CAF9F'} mode="floating" />}
+      {financingFloating && (
+        <CherryWidget
+          slug={financingFloating.slug}
+          name={financingFloating.name}
+          brand={palette.brandStrong}
+          fonts={widgetFontsFromTemplate(def.fontCss)}
+          mode="floating"
+          aboveChat={chatWidget != null}
+        />
+      )}
       {isPreview && (
         <TemplatePreviewBanner
           slug={slug}

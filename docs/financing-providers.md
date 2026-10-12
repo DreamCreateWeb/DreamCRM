@@ -42,6 +42,56 @@ widget) and a **link** the provider mints per practice (everyone else).
 Where a provider also offers a script or iframe snippet, it is a
 presentation of the same slug or link; we never need the snippet.
 
+## Across every template (2026-10-12)
+
+The financing page is one shared shell wearing the active template's chrome,
+palette and fonts, and the floating button is painted by the layout on every
+page — so the widgets have to come out right under all six templates, not
+only the default. Four things the first cut got wrong, each now pinned:
+
+1. **Font names, never keywords.** Cherry writes `'<fontFamily>'` into a CSS
+   variable, so `inherit` became a font called "inherit" and the widget
+   rendered in the browser default. `widgetFontsFromTemplate(def.fontCss)`
+   hands it the template's real display face (Fraunces, Fredoka, Playfair
+   Display, Roboto Slab) and the site's body face (Inter), both already loaded
+   by the page.
+2. **The AA-floored CTA fill, not the raw brand.** Cherry paints white text on
+   its primary colour; a pale brand (sage, powder blue) washes out. Both
+   embeds get `palette.brandStrong`, the fill the site already uses for its
+   own white-text buttons.
+3. **Bottom-LEFT, lifted above the chat bubble and the mobile bars.**
+   Cherry's default corner is bottom-right — where every template parks its
+   own Call / Book stack (the shared floating stack on modern, the
+   bottom-right pair on established and hometeam, the full-width bars on
+   cosmetic and hometown, the centred pair on pediatric). Measured in
+   Chromium on all six, Cherry's bottom-left mode parks the button IN the
+   corner (bottom 32px, left 16–32px) — on top of the chat bubble, and on a
+   phone on top of the full-width bars — so it is lifted: `offset.y` =
+   `CHERRY_FLOATING_OFFSET_ABOVE_CHAT` when the chat is on (the layout knows),
+   and under the `sm` breakpoint `CHERRY_FLOATING_MOBILE_CSS` forces the
+   offset to `CHERRY_FLOATING_OFFSET_MOBILE` with an author `!important`
+   rule (the widget sets the variable inline on `<html>`; important beats
+   inline), which clears every bar (≤63px tall). `CHERRY_FLOATING_POSITION`
+   is the one home for the corner.
+4. **A pinned z-index.** Cherry's bottom-left mode hardcodes `z-index: 9999`
+   in its own stylesheet, which would float the button over an open mobile
+   menu and over the open chat panel. `CherryWidget` ships an author
+   `!important` rule pinning it to `CHERRY_FLOATING_Z_INDEX` (35: above the
+   floating stack, UNDER the chat widget so an open conversation covers the
+   button rather than the reverse, under the header's menus and the editor's
+   draft banner), plus a print rule hiding the button.
+5. **It collapses when the script cannot load.** An ad blocker or a
+   locked-down network leaves the four containers empty; the shell carries
+   `[data-cherry-shell]:has(#hero:empty){display:none}` so the page shows the
+   apply cards, not a blank bar.
+
+Proof: `tests/site-templates/financing-page.test.tsx` renders the financing
+page under every REGISTERED template with Cherry as the primary and pins the
+containers, the chrome, the queued font names and the CTA fill;
+`e2e/financing-widgets.spec.ts` loads the seeded live clinic in Chromium at
+390 and 1440 and, when Cherry's script is reachable, measures the button's
+box against the site's own floating stack and the chat bubble.
+
 ## The laws
 
 1. **No raw HTML or script is ever accepted.** A clinic pastes a link or a
