@@ -318,6 +318,57 @@ export const CHERRY_WIDGET_SRC = 'https://files.withcherry.com/widgets/widget.js
 export const CHERRY_FULL_PAGE_SECTIONS = ['hero', 'calculator', 'howitworks', 'faq'] as const
 export const CHERRY_FLOATING_SECTION = 'floatingEstimator'
 
+/**
+ * WHERE THE FLOATING BUTTON LIVES (2026-10-12, the cross-template pass).
+ * Cherry's default corner is bottom-RIGHT — exactly where every template's
+ * own Call / Book stack sits (the shared floating stack on modern, the
+ * bottom-right pair on established and hometeam, the full-width bars on
+ * cosmetic and hometown, the centred pair on pediatric). Cherry's own
+ * bottom-LEFT mode parks the button 90px up the left edge: above the
+ * site's chat bubble (bottom 16px, 48px tall), above every mobile bar
+ * (≤60px), and away from the stacks on the right. Their widget hardcodes
+ * z-index 9999 on that mode, which would float the button over an open
+ * mobile menu (z-50); `CherryWidget` pins it to this value instead —
+ * above the floating stack (z-30) and the chat bubble (z-40), under the
+ * header's menus and the editor's draft banner (z-60).
+ */
+export const CHERRY_FLOATING_POSITION = 'bottom-left' as const
+export const CHERRY_FLOATING_Z_INDEX = 35
+/**
+ * How far up the left edge the button sits, measured in Chromium on every
+ * template (2026-10-12): Cherry's bottom-left mode parks it IN the corner
+ * (bottom 32px, left 16–32px), on top of the chat bubble (bottom 16px, ~48px
+ * tall) and, on a phone, on top of the full-width Call / Book bars (≤63px).
+ * The config's `offset.y` is honoured in that mode, so: above the bubble
+ * when the chat is on, and always above the bars under the `sm` breakpoint
+ * (`CHERRY_FLOATING_MOBILE_CSS` forces it there — the bars hide at `sm`).
+ */
+export const CHERRY_FLOATING_OFFSET_ABOVE_CHAT = '48px'
+export const CHERRY_FLOATING_OFFSET_MOBILE = '48px'
+
+/** The body face every public site sets globally (the root layout loads it). */
+export const SITE_BODY_FONT_FAMILY = 'Inter'
+
+export interface WidgetFonts {
+  body: string
+  display: string
+}
+
+/**
+ * The font NAMES Cherry's widget needs, from a template's `fontCss`
+ * (`--font-display: 'Fraunces', Georgia, serif;`). The widget wraps whatever
+ * it is given in quotes and writes it to a CSS variable, so a keyword such
+ * as `inherit` turns into a font called "inherit" and the widget falls back
+ * to the browser default — it has to be the real family name, which the
+ * page has already loaded. The body face is the site-wide one; the display
+ * face is the template's, or the body face when the template names none.
+ */
+export function widgetFontsFromTemplate(fontCss: string | null | undefined): WidgetFonts {
+  const m = /--font-display\s*:\s*(?:'([^']+)'|"([^"]+)"|([A-Za-z][\w-]*))/.exec(fontCss ?? '')
+  const display = (m?.[1] ?? m?.[2] ?? m?.[3] ?? '').trim()
+  return { body: SITE_BODY_FONT_FAMILY, display: display || SITE_BODY_FONT_FAMILY }
+}
+
 export interface CherryWidgetConfig {
   debug: boolean
   variables: {
@@ -353,9 +404,21 @@ export interface CherryWidgetConfig {
  * secondary colour is Cherry's convention: the primary at ~6% alpha (their
  * generator emits `#RRGGBB10`).
  */
-export function cherryWidgetConfig(args: { slug: string; name: string; brandHex: string; fontFamily: string; floating?: boolean }): CherryWidgetConfig {
+export function cherryWidgetConfig(args: {
+  slug: string
+  name: string
+  /** The clinic's CTA fill — `palette.brandStrong`, the brand darkened only
+   *  as far as white text needs (the widget paints white on it). */
+  brandHex: string
+  fontFamily: string
+  headerFontFamily?: string
+  floating?: boolean
+  /** Lift the floating button above the site's chat bubble. */
+  aboveChat?: boolean
+}): CherryWidgetConfig {
   const primary = /^#[0-9a-f]{6}$/i.test(args.brandHex) ? args.brandHex : '#596FD4'
-  const font = args.fontFamily || 'Montserrat'
+  const font = args.fontFamily || SITE_BODY_FONT_FAMILY
+  const headerFont = args.headerFontFamily || font
   const config: CherryWidgetConfig = {
     debug: false,
     variables: {
@@ -372,15 +435,14 @@ export function cherryWidgetConfig(args: { slug: string; name: string; brandHex:
       primaryColor: primary,
       secondaryColor: `${primary}10`,
       fontFamily: font,
-      headerFontFamily: font,
+      headerFontFamily: headerFont,
     },
   }
   if (args.floating) {
     config.styles.floatingEstimator = {
-      // Bottom-RIGHT: the site's own chat bubble lives bottom-left.
-      position: 'bottom-right',
-      offset: { x: '0px', y: '0px' },
-      zIndex: 9999,
+      position: CHERRY_FLOATING_POSITION,
+      offset: { x: '0px', y: args.aboveChat ? CHERRY_FLOATING_OFFSET_ABOVE_CHAT : '0px' },
+      zIndex: CHERRY_FLOATING_Z_INDEX,
       ctaFontFamily: font,
       bodyFontFamily: font,
       ctaColor: primary,

@@ -68,7 +68,7 @@ export default function SiteChatWidget({
   }
 
   return (
-    <div className="fixed bottom-4 left-4 z-40 print:hidden">
+    <div className="fixed bottom-4 left-4 z-40 print:hidden" data-testid="site-chat-widget">
       {open && (
         <div
           className="mb-3 w-[min(92vw,340px)] rounded-2xl shadow-xl overflow-hidden"

@@ -50,6 +50,25 @@ const HOURS = {
   sun: { closed: true },
 }
 
+// The live clinic offers Cherry financing with the widget AND the site-wide
+// floating button on, so e2e/financing-widgets.spec.ts can prove where the
+// button lands against the site's own floating Call / Book stack. The slug is
+// the one Cherry's own public widget generator demonstrates with; the browser
+// only ever loads Cherry's script, which the spec tolerates being unreachable.
+const FINANCING_PARTNERS = [
+  {
+    id: 'fp-cherry',
+    provider: 'cherry',
+    name: 'Cherry',
+    description: null,
+    applyUrl: null,
+    logoUrl: null,
+    slug: 'soult-swanson-family-dentistry-and-implant-center',
+    showWidget: true,
+    floatingButton: true,
+  },
+]
+
 const CLINICS = [
   { id: 'org_e2e_live', slug: 'e2e-dental', name: 'E2E Dental', display: 'E2E Dental Studio', live: true },
   { id: 'org_e2e_prelive', slug: 'e2e-prelive', name: 'E2E Prelive', display: 'E2E Prelive Dental', live: false },
@@ -82,15 +101,16 @@ async function seedBase(pool) {
       [c.id, c.name, c.slug],
     )
     await pool.query(
-      `insert into clinic_profile (organization_id, display_name, timezone, hours, chair_count, site_live_at)
-       values ($1, $2, 'America/New_York', $3, 2, $4)
+      `insert into clinic_profile (organization_id, display_name, timezone, hours, chair_count, site_live_at, financing_partners)
+       values ($1, $2, 'America/New_York', $3, 2, $4, $5)
        on conflict (organization_id) do update set
          display_name = excluded.display_name,
          timezone = excluded.timezone,
          hours = excluded.hours,
          chair_count = excluded.chair_count,
-         site_live_at = excluded.site_live_at`,
-      [c.id, c.display, JSON.stringify(HOURS), c.live ? new Date() : null],
+         site_live_at = excluded.site_live_at,
+         financing_partners = excluded.financing_partners`,
+      [c.id, c.display, JSON.stringify(HOURS), c.live ? new Date() : null, c.live ? JSON.stringify(FINANCING_PARTNERS) : null],
     )
     console.log(`seeded ${c.slug} (${c.live ? 'live' : 'pre-live'})`)
   }

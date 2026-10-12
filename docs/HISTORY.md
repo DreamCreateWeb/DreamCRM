@@ -6129,3 +6129,30 @@ keeps links only (a real slug would frame a stranger's practice). The
 research record, Cherry's contract verbatim and the client's setup steps
 are in docs/financing-providers.md.
 
+## 2026-10-12 — The financing widgets under every template
+
+The owner's follow-up: the widgets have to work exceptionally well across
+all six site templates. Reading Cherry's actual widget script (not its
+generator) turned up four things the first cut got wrong. The widget
+wraps whatever font it is given in quotes and writes it to a CSS
+variable, so the `inherit` we passed became a font called "inherit" and
+the widget rendered in the browser default — it now gets the template's
+real display face and the site's body face
+(`widgetFontsFromTemplate`). It paints white text on its primary colour,
+so a pale brand washed out — it now gets the palette's AA-floored
+`brandStrong`. Its default corner is bottom-right, which is where every
+template parks its own Call / Book stack — it now uses Cherry's own
+bottom-left mode — which, measured in Chromium on all six templates,
+parks the button IN the corner on top of the chat bubble and the phone
+bars, so it is lifted by Cherry's own `offset.y` when the chat is on and
+by an author `!important` rule on the offset variable under `sm`. That
+mode also hardcodes `z-index: 9999` in Cherry's stylesheet, so the same
+rule pins it under the chat widget and the header's menus and hides it in
+print; and the page shell collapses when the script cannot load, so a
+blocked widget leaves the apply cards rather than a blank bar. A new conformance-style test renders the
+financing page under every registered template and pins the containers,
+the chrome, the queued font names and the CTA fill; a Playwright spec
+loads the seeded live clinic (which now offers Cherry) at 390 and 1440
+and measures the button's box against the site's floating stack when
+Cherry's script is reachable.
+

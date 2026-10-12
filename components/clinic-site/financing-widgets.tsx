@@ -2,11 +2,14 @@
 
 import { useEffect } from 'react'
 import {
+  CHERRY_FLOATING_OFFSET_MOBILE,
   CHERRY_FLOATING_SECTION,
+  CHERRY_FLOATING_Z_INDEX,
   CHERRY_FULL_PAGE_SECTIONS,
   CHERRY_WIDGET_SRC,
   cherryWidgetConfig,
   sunbitApplyUrl,
+  type WidgetFonts,
 } from '@/lib/financing-providers'
 
 /**
@@ -50,27 +53,74 @@ function ensureCherryLoader(): HwFn {
   return window._hw
 }
 
+/**
+ * Cherry's bottom-left mode hardcodes `z-index: 9999` in the widget's own
+ * stylesheet and the config's zIndex only reaches the bottom-right mode, so
+ * the pin goes in as an author `!important` rule — which beats the widget's
+ * injected sheet. The class prefix is Cherry's own module name; the hash
+ * after it changes per build, the prefix does not. Print hides the button:
+ * a fixed "Pay over time" pill has no place on a printed page.
+ */
+/**
+ * A blocked or unreachable widget.js (an ad blocker, a locked-down network,
+ * Cherry down) would leave the page a padded white bar with nothing in it.
+ * Cherry's loader mounts into the containers the moment its script runs, so
+ * "every container still empty" is exactly "the script never ran" — and the
+ * shell hides until then. The apply card below still carries the link.
+ */
+export const CHERRY_SHELL_CSS = `[data-cherry-shell]:has(#${CHERRY_FULL_PAGE_SECTIONS[0]}:empty){display:none}`
+
+export const CHERRY_FLOATING_CSS =
+  `[class*="floatingEstimator-floatingContainer"]{z-index:${CHERRY_FLOATING_Z_INDEX} !important}` +
+  // Under `sm` every template's Call / Book bar sits on the bottom edge; the
+  // widget reads its offset from a variable it sets inline on <html>, and an
+  // author !important rule outranks an inline normal declaration.
+  `@media (max-width:639px){:root{--custom-floating-estimator-offset-y:${CHERRY_FLOATING_OFFSET_MOBILE} !important}}` +
+  `@media print{#${CHERRY_FLOATING_SECTION}{display:none !important}}`
+
 export function CherryWidget({
   slug,
   name,
   brand,
+  fonts,
   mode,
+  aboveChat = false,
 }: {
   slug: string
   name: string
-  /** The clinic's brand hex — Cherry's primary colour. */
+  /** The clinic's CTA fill (`palette.brandStrong`) — Cherry paints white on it. */
   brand: string
+  /** The template's real font names — the widget cannot take `inherit`. */
+  fonts: WidgetFonts
   mode: 'page' | 'floating'
+  /** Floating mode: the site's chat bubble is on, so sit above it. */
+  aboveChat?: boolean
 }) {
   useEffect(() => {
     const hw = ensureCherryLoader()
-    const config = cherryWidgetConfig({ slug, name, brandHex: brand, fontFamily: 'inherit', floating: mode === 'floating' })
+    const config = cherryWidgetConfig({
+      slug,
+      name,
+      brandHex: brand,
+      fontFamily: fonts.body,
+      headerFontFamily: fonts.display,
+      floating: mode === 'floating',
+      aboveChat,
+    })
     hw('init', config, mode === 'floating' ? [CHERRY_FLOATING_SECTION] : [...CHERRY_FULL_PAGE_SECTIONS])
-  }, [slug, name, brand, mode])
+  }, [slug, name, brand, fonts.body, fonts.display, mode, aboveChat])
 
-  if (mode === 'floating') return <div id={CHERRY_FLOATING_SECTION} data-testid="cherry-floating" />
+  if (mode === 'floating') {
+    return (
+      <>
+        <style>{CHERRY_FLOATING_CSS}</style>
+        <div id={CHERRY_FLOATING_SECTION} data-testid="cherry-floating" />
+      </>
+    )
+  }
   return (
     <div data-testid="cherry-widget" data-slug={slug}>
+      <style>{CHERRY_SHELL_CSS}</style>
       {CHERRY_FULL_PAGE_SECTIONS.map((id) => (
         <div key={id} id={id} />
       ))}
