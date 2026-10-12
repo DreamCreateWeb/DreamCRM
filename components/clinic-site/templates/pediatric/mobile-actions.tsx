@@ -13,7 +13,7 @@ export default function PediatricMobileActions({
 }: SiteChromeMobileProps) {
   const phone = data.profile.phone ?? null
   return (
-    <div className="sm:hidden fixed inset-x-0 bottom-3 z-40 flex justify-center gap-2 px-4 pointer-events-none">
+    <div className="sm:hidden fixed inset-x-0 bottom-3 z-40 flex justify-center gap-2 px-4 pointer-events-none" data-site-bottom-bar="">
       {phone && (
         <a
           href={`tel:${phone}`}

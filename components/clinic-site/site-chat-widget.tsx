@@ -5,6 +5,7 @@ import { submitChatMessage } from '@/app/site/[slug]/actions'
 import FormTrustFields from '@/components/clinic-site/form-trust-fields'
 import { SITE_INK as INK, SITE_BORDER as BORDER } from '@/components/clinic-site/tokens'
 import { brandFill } from '@/lib/clinic-site-theme'
+import { bottomBarOffset } from '@/lib/site-bottom-bar'
 
 /**
  * The "Message us" bubble on every public clinic page — the site's
@@ -68,7 +69,7 @@ export default function SiteChatWidget({
   }
 
   return (
-    <div className="fixed bottom-4 left-4 z-40 print:hidden" data-testid="site-chat-widget">
+    <div className="fixed left-4 z-40 print:hidden" style={{ bottom: bottomBarOffset(16) }} data-testid="site-chat-widget">
       {open && (
         <div
           className="mb-3 w-[min(92vw,340px)] rounded-2xl shadow-xl overflow-hidden"

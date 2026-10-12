@@ -13,7 +13,7 @@ export default function HometownMobileActions({
 }: SiteChromeMobileProps) {
   const phone = data.profile.phone ?? null
   return (
-    <div className="sm:hidden fixed inset-x-0 bottom-0 z-40 grid grid-cols-2 shadow-[0_-4px_16px_rgba(0,0,0,0.15)]">
+    <div className="sm:hidden fixed inset-x-0 bottom-0 z-40 grid grid-cols-2 shadow-[0_-4px_16px_rgba(0,0,0,0.15)]" data-site-bottom-bar="">
       {phone ? (
         <a
           href={`tel:${phone}`}

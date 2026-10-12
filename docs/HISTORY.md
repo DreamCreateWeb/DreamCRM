@@ -6156,3 +6156,19 @@ loads the seeded live clinic (which now offers Cherry) at 390 and 1440
 and measures the button's box against the site's floating stack when
 Cherry's script is reachable.
 
+## 2026-10-12 — The bottom bar inset (the chat bubble was sitting on the phone bars)
+
+The per-template screenshot pass that placed Cherry's button also showed
+the site's own chat bubble sitting ON the full-width Call / Book bar that
+cosmetic, hometown and pediatric pin to a phone's bottom edge (and the
+editor's draft banner with it). The bars are template-owned and the
+floaters are shared, so neither side hardcodes the other: every
+full-width bottom bar carries `data-site-bottom-bar`, `BottomBarInset`
+in the site layout measures how far up the viewport the tallest visible
+one reaches and writes it to `--site-bottom-bar` on `<html>`, and the
+chat bubble, the draft banner and Cherry's mobile offset each add it to
+their own bottom through `bottomBarOffset` (lib/site-bottom-bar.ts). A
+template with no bar, or a bar hidden above `sm`, measures 0 and nothing
+moves. The right-aligned pairs on established and hometeam are
+deliberately not tagged — the bottom-left floaters never meet them.
+

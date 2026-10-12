@@ -54,7 +54,7 @@ describe('CherryWidget', () => {
     // The z-index pin and the print rule ride along as an author rule.
     const css = Array.from(document.querySelectorAll('style')).map((el) => el.textContent).join('')
     expect(css).toContain(`z-index:${CHERRY_FLOATING_Z_INDEX} !important`)
-    expect(css).toContain('@media (max-width:639px){:root{--custom-floating-estimator-offset-y:48px !important}}')
+    expect(css).toContain('@media (max-width:639px){:root{--custom-floating-estimator-offset-y:calc(48px + var(--site-bottom-bar, 0px)) !important}}')
     expect(css).toContain('@media print{#floatingEstimator{display:none !important}}')
     expect(screen.getByTestId('cherry-floating').id).toBe('floatingEstimator')
   })
