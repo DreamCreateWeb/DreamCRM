@@ -184,6 +184,10 @@ describe('the v3 hero + area groups (2026-07-24 redesign)', () => {
     // Design + Pages demoted to quiet utility links (day-one / reference, not
     // daily edits) alongside Domain + Share.
     expect(container.querySelector('a[href="/website/design"]')).toBeTruthy()
+    // Content — the plain-form home for the sections the dock does not carry
+    // (financing partners among them); it was ⌘K-only until the first client
+    // could not find it (2026-10-15).
+    expect(container.querySelector('a[href="/website/content"]')).toBeTruthy()
     expect(container.querySelector('a[href="/website/pages"]')).toBeTruthy()
     expect(container.querySelector('a[href="/website/domain"]')).toBeTruthy()
     expect(container.querySelector('a[href="/website/share"]')).toBeTruthy()
@@ -196,6 +200,7 @@ describe('the v3 hero + area groups (2026-07-24 redesign)', () => {
     expect(screen.queryByText('Quick edits')).toBeNull()
     expect(screen.queryByText('Hours')).toBeNull()
     expect(container.querySelector('a[href="/website/design"]')).toBeNull()
+    expect(container.querySelector('a[href="/website/content"]')).toBeNull()
     expect(screen.getByText('What’s happening')).toBeTruthy()
     cleanup()
   })

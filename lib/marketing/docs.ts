@@ -694,6 +694,59 @@ export const DOCS: DocArticle[] = [
     ],
   },
   {
+    slug: 'patient-financing-widgets',
+    title: 'Patient financing on your site (Cherry, CareCredit, Sunbit)',
+    summary: 'Add the financing you offer, paste the one link your provider gave you, and the site builds the apply buttons and widgets.',
+    category: 'Money & integrations',
+    minutes: 4,
+    sections: [
+      {
+        paragraphs: [
+          'Most practices offer third-party financing, and every provider connects to a website a little differently — Cherry sends a widget generator, CareCredit a custom link, Sunbit a pre-qualification page. You never paste code into your site. You pick the provider, paste the one thing it gave you, and the site does the rest.',
+        ],
+      },
+      {
+        heading: 'What to have ready',
+        paragraphs: [
+          'Each provider hands your practice exactly one thing. Find it before you start:',
+        ],
+        steps: [
+          'Cherry — your application link, which looks like pay.withcherry.com/your-practice. It’s in your Cherry Practice Portal and in Cherry’s onboarding email. The part after the slash is all we need.',
+          'Sunbit — your pre-qualification link, apply.sunbit.com/your-practice, from the Sunbit merchant portal’s marketing kit.',
+          'CareCredit — your custom link from Provider Center (carecredit.com/customlink). It’s tied to your Merchant ID, so patients who apply through it are credited to your practice.',
+          'Proceed Finance, Alphaeon, LendingClub Patient Solutions, Scratchpay — the apply link from your provider portal.',
+          'Anything else — any https link the provider gave you.',
+        ],
+      },
+      {
+        heading: 'Set it up',
+        steps: [
+          'Open Website, then Content (the link in the row at the bottom of the page, next to Design and Pages) and find the Financing section.',
+          'Choose Add financing partner, then pick your provider from the list.',
+          'Paste the link (or, for Cherry and Sunbit, just the part after the slash). The note under the box tells you the moment it’s recognised — or what’s wrong with it.',
+          'Cherry: tick “Show Cherry’s payment estimator on the financing page” for the full widget, and “Floating ‘Pay over time’ button on every page” for the button that follows visitors around the site. Sunbit: tick “Show Sunbit’s pre-qualify form”.',
+          'If you offer more than one, use the arrows to put your main one first — the first partner leads the page and is the only one whose widget shows.',
+          'Save, then Publish from the Website hub. Nothing changes on your live site until you publish.',
+        ],
+      },
+      {
+        heading: 'What patients see',
+        paragraphs: [
+          'Your financing page (yoursite/payment-financing) opens with your first partner’s own widget — Cherry’s estimator lets a patient type a treatment amount and see what they’d pay per month, in your site’s colours and fonts. Every partner gets a card with an Apply button that goes straight to your link, so applications are credited to you.',
+          'With the floating button on, a small “Pay over time” pill sits in the bottom-left corner of every public page, above your chat bubble, and opens Cherry’s estimator without leaving the page.',
+        ],
+      },
+      {
+        heading: 'Good to know',
+        steps: [
+          'Links are checked. A CareCredit link has to be on carecredit.com, a Cherry link on withcherry.com — a typo or a link from somewhere else is refused rather than published broken.',
+          'Cherry usually asks to be told once your widget is live so they can verify the placement. Reply to your Cherry rep’s email after you publish.',
+          'Removing a partner, or turning the widget off, takes effect the next time you publish.',
+        ],
+      },
+    ],
+  },
+  {
     slug: 'custom-domains',
     title: 'Using your own domain',
     summary: 'Point your practice domain at your DreamCRM site with managed SSL.',
