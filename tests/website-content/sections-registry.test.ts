@@ -74,3 +74,52 @@ describe('CONTENT_SECTIONS', () => {
     expect(sections.methods).toBe(false)
   })
 })
+
+describe('the rail’s words (2026-10-15)', () => {
+  it('every section has a group, a public path and a summary that is null when empty', async () => {
+    const { CONTENT_SECTIONS, CONTENT_GROUPS } = await import('@/lib/website-content-sections')
+    const groups = new Set(CONTENT_GROUPS.map((g) => g.id))
+    const empty = {
+      tagline: null, about: null, services: null, staff: null, stats: null, officePhotos: null, faq: null,
+      differenceChips: null, coloringPages: null, acceptedInsuranceCarriers: null, paymentMethods: null,
+      financingPartners: null, cancellationPolicy: null, template: 'modern',
+    }
+    for (const s of CONTENT_SECTIONS) {
+      expect(groups.has(s.group), s.id).toBe(true)
+      expect(s.sitePath, s.id).toMatch(/^\//)
+      expect(s.summary(empty), s.id).toBeNull()
+    }
+  })
+
+  it('counts in plain words, and financing says when the widget is on', async () => {
+    const { CONTENT_SECTIONS } = await import('@/lib/website-content-sections')
+    const by = Object.fromEntries(CONTENT_SECTIONS.map((s) => [s.id, s]))
+    const p = {
+      tagline: 'Hi', about: '', services: [{}, {}, {}], staff: [{}], stats: null, officePhotos: [{}, {}], faq: [{}],
+      differenceChips: ['a'], coloringPages: null, acceptedInsuranceCarriers: ['Delta'], paymentMethods: ['Cash', 'Card'],
+      financingPartners: [{ id: 'f', name: 'Cherry', provider: 'cherry', slug: 'x', showWidget: true, applyUrl: null, description: null, logoUrl: null }],
+      cancellationPolicy: '48 hours', template: 'modern',
+    } as never
+    expect(by.story.summary(p)).toBe('Tagline only — no about yet')
+    expect(by.services.summary(p)).toBe('3 services')
+    expect(by.staff.summary(p)).toBe('1 on the team')
+    expect(by.photos.summary(p)).toBe('2 photos')
+    expect(by.faq.summary(p)).toBe('1 question')
+    expect(by.methods.summary(p)).toBe('2 ways to pay')
+    expect(by.financing.summary(p)).toBe('1 partner · widget on')
+    expect(by.cancellation.summary(p)).toBe('Written')
+  })
+})
+
+describe('the client view', () => {
+  it('toContentSectionView carries no functions — it crosses the server → client boundary', async () => {
+    const { toContentSectionView, CONTENT_SECTIONS } = await import('@/lib/website-content-sections')
+    for (const s of CONTENT_SECTIONS) {
+      const view = toContentSectionView(s)
+      expect(Object.values(view).some((v) => typeof v === 'function')).toBe(false)
+      expect(Object.keys(view).sort()).toEqual(['desc', 'group', 'id', 'label', 'sitePath'])
+      // JSON round-trip is the boundary's own test.
+      expect(JSON.parse(JSON.stringify(view))).toEqual(view)
+    }
+  })
+})

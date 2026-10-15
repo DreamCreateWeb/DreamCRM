@@ -628,8 +628,14 @@
 
 /* 2–3% noise overlay — kills banding, echoes the logo's liquid texture.
    Inline SVG feTurbulence data-URI; pointer-events:none so it never blocks. */
-.grain {
-  position: relative;
+/* The positioning context lives in the COMPONENTS layer so a positioning
+   utility on the same element still wins: Tailwind's utilities sit in a later
+   layer, and an unlayered `position: relative` here beat the sidebar's
+   `absolute`, leaving a 256px gutter on every phone (2026-10-15). */
+@layer components {
+  .grain {
+    position: relative;
+  }
 }
 .grain::after {
   content: "";

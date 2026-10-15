@@ -3,12 +3,12 @@ import { redirect } from 'next/navigation'
 import { requireTenant } from '@/lib/auth/context'
 import { getEffectiveWebsiteProfile, getWebsiteDraftStatus } from '@/lib/services/website-draft'
 import { listLibraryForPicker } from '@/lib/services/service-library'
-import { contentSectionsFor } from '@/lib/website-content-sections'
-import ClinicSettingsNav, { type NavGroup } from '../../settings/clinic/clinic-settings-nav'
+import { publicSiteUrl } from '@/lib/services/clinic-site'
+import { contentSectionsFor, toContentSectionView } from '@/lib/website-content-sections'
 import { PageHeader } from '@/components/ui/page-header'
 import { ActionButton } from '@/components/ui/action-button'
 import { EmptyState } from '@/components/ui/empty-state'
-import ContentPanel from './content-panel'
+import ContentWorkspace from './content-workspace'
 import PublishCard from '../publish-card'
 
 export const metadata = {
@@ -21,9 +21,11 @@ export const dynamic = 'force-dynamic'
 /**
  * Website → Content — the plain-form home for everything the site SAYS.
  * The Studio's section modals stay as the quick in-context door; this page is
- * the sit-down door: every section at once, per-section saves (each save
- * rides the same scoped actions + undo history the Studio uses, so nothing
- * here can null out a section it didn't touch).
+ * the sit-down door: a rail of every section with its honest state, one
+ * section's editor at a time, per-section saves (each save rides the same
+ * scoped actions + undo history the Studio uses, so nothing here can null
+ * out a section it didn't touch). Redesigned 2026-10-15 — see
+ * content-workspace.tsx for the shape and why.
  */
 export default async function WebsiteContentPage() {
   const ctx = await requireTenant()
@@ -57,23 +59,12 @@ export default async function WebsiteContentPage() {
   const draftStatus = await getWebsiteDraftStatus(ctx.organizationId).catch(() => ({ count: 0, changes: [] as { column: string; label: string }[] }))
 
   const sections = contentSectionsFor(profile.template)
-  const navGroups: NavGroup[] = [
-    {
-      label: 'Content',
-      items: sections
-        .filter((s) => !['insurance', 'methods', 'financing', 'cancellation'].includes(s.id))
-        .map((s) => ({ id: s.id, label: s.label })),
-    },
-    {
-      label: 'Insurance & payments',
-      items: sections
-        .filter((s) => ['insurance', 'methods', 'financing', 'cancellation'].includes(s.id))
-        .map((s) => ({ id: s.id, label: s.label })),
-    },
-  ]
+  const filledIds = sections.filter((s) => s.filled(profile)).map((s) => s.id)
+  const summaries = Object.fromEntries(sections.map((s) => [s.id, s.summary(profile)]))
+  const siteUrl = publicSiteUrl({ slug: ctx.organizationSlug ?? '', profile })
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-5xl mx-auto">
+    <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-6xl mx-auto">
       <PageHeader
         eyebrow={
           <Link href="/website" className="hover:underline underline-offset-4">
@@ -81,7 +72,7 @@ export default async function WebsiteContentPage() {
           </Link>
         }
         title="Content"
-        subtitle="Everything your site says, as plain forms. Prefer editing in place? The same sections open right on the page in the editor."
+        subtitle="Everything your site says, one section at a time. Pick a section, save it, and publish when you’re ready."
         actions={
           <ActionButton variant="secondary" size="sm" href="/website/editor">
             Open the editor
@@ -93,9 +84,16 @@ export default async function WebsiteContentPage() {
       {draftStatus.count > 0 && (
         <PublishCard count={draftStatus.count} labels={draftStatus.changes.map((c) => c.label)} />
       )}
-      <ClinicSettingsNav groups={navGroups} />
-      <div className="v2-panel mb-8">
-        <ContentPanel profile={profile} orgId={ctx.organizationId} library={library} />
+      <div className="mb-8">
+        <ContentWorkspace
+          profile={profile}
+          orgId={ctx.organizationId}
+          library={library}
+          sections={sections.map(toContentSectionView)}
+          filledIds={filledIds}
+          summaries={summaries}
+          siteUrl={siteUrl}
+        />
       </div>
     </div>
   )

@@ -6172,3 +6172,65 @@ template with no bar, or a bar hidden above `sm`, measures 0 and nothing
 moves. The right-aligned pairs on established and hometeam are
 deliberately not tagged — the bottom-left floaters never meet them.
 
+## 2026-10-15 — Website → Content redesigned: a rail and one editor (the monolith retired)
+
+The owner followed the new financing help article the way a clinic
+staffer would and could not find Content at all — the hub had never
+linked it (fixed the same day: the hub's utility row carries Content
+beside Design and Pages) — and then named the page itself: "an ugly
+monolith", every section's form stacked down one long page under a chip
+bar that clipped its last chips ("Financing" among them) off the right
+edge with no cue that more existed. The page is now a rail and an
+editor. The rail is the table of contents, grouped "Your site says" /
+"Insurance & payments", with each section's honest state in its own
+words from the registry's new `summary` ("9 services", "2 partners ·
+widget on", "Not set yet"), a filled dot per section, an "Unsaved" pill
+on any section holding edits, and the completeness count as the page's
+one heartbeat (`ProgressRing`, "8 of 12 sections filled"). The editor
+shows ONE section at a time — its title and blurb, a "See it on your
+site" door to the public page it appears on (`sitePath`, new on the
+registry) and an "Edit on the page" door into the Studio at that page —
+with its own save and its own feedback. Every section stays mounted
+while another is active (the settings-tabs law), so switching never
+loses an edit, and a successful save refreshes the server tree so the
+rail's counts and the Publish card's tally stay live; leaving with
+unsaved edits asks first. Below `lg` the rail is a scrolling strip whose
+active pill scrolls itself into view, with an edge fade. Payment
+methods, financing partners and the cancellation policy are three
+sections now, each with its own one-column action (`savePaymentMethods`,
+`saveFinancingPartners`, `saveCancellationPolicy`); the Studio's single
+modal keeps the combined one. The deep links every door already used —
+`?sub=` from the settings smart-search, `#id` from the hub, ⌘K and the
+help docs — still open the right section.
+
+Three things the first signed-in screenshots taught, the same day. (1)
+The page crashed to the error boundary at every width while the unit
+suite was green: the server page handed the client workspace the
+registry's section objects, whose `filled` / `summary` readers are
+FUNCTIONS, and React refuses a function across the server → client
+boundary at render — happy-dom renders the tree in one process and
+never sees the boundary. The registry now has a plain
+`ContentSectionView` (`toContentSectionView`) that is all the client
+receives; the page resolves the readers server-side into `filledIds` +
+`summaries`, and the registry test JSON-round-trips every view. (2)
+EVERY DASHBOARD PAGE ON A PHONE WAS RENDERING IN A 134PX STRIP. The
+tablet and phone captures showed the page starting 256px from the left
+on `/website/content` AND on the hub — measured, the sidebar's computed
+position was `relative` at every width though its class list said
+`absolute`. `.grain` (the chrome's noise overlay, added to the aside
+with the Hometown template) declared `position: relative` as an
+UNLAYERED rule, and an unlayered declaration beats every layered one
+whatever the order, so Tailwind's `absolute` lost on the one element
+carrying both classes: the drawer stayed in flow at 256px, slid off
+screen by its transform, and the page lived in what was left. The rule
+now sits in `@layer components` (a positioning utility on the same
+element wins again) and the aside is `lg:relative` rather than
+`lg:static` so the grain's `::after` keeps the aside as its containing
+block instead of spilling across the canvas. `tests/ui/sidebar-off-
+canvas.test.ts` pins both, and `e2e/dashboard-viewport.spec.ts`
+measures `<main>` at x = 0 with no horizontal scroll at 390 and 834 on
+three signed-in pages — the source-reading guards could never have
+seen a cascade-layer defeat. (3) The financing editor's floating-button
+hint still said "bottom-right … your chat bubble stays bottom-left",
+written before the 2026-10-12 move; it now says where the button is.
+

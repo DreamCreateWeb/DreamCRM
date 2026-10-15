@@ -266,7 +266,7 @@ export default function TenantSidebar({
         id="sidebar"
         ref={sidebar}
         aria-label="Primary navigation"
-        className={`aura-chrome grain flex lg:flex! flex-col absolute z-40 left-0 top-0 lg:static lg:left-auto lg:top-auto lg:translate-x-0 h-[100dvh] overflow-y-auto overflow-x-hidden no-scrollbar w-64 ${railClass} shrink-0 bg-surface-1 border-r border-hairline px-3 py-4 transition-[width,transform] duration-200 ease-in-out ${
+        className={`aura-chrome grain flex lg:flex! flex-col absolute z-40 left-0 top-0 lg:relative lg:left-auto lg:top-auto lg:translate-x-0 h-[100dvh] overflow-y-auto overflow-x-hidden no-scrollbar w-64 ${railClass} shrink-0 bg-surface-1 border-r border-hairline px-3 py-4 transition-[width,transform] duration-200 ease-in-out ${
           sidebarOpen ? 'translate-x-0' : '-translate-x-64 lg:translate-x-0'
         }`}
       >
