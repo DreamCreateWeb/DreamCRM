@@ -14,9 +14,13 @@ const redirectMock = vi.fn((to: string) => {
   throw new Error(`REDIRECT:${to}`)
 })
 
+let searchParams = new URLSearchParams()
+const refreshMock = vi.fn()
 vi.mock('next/navigation', async (orig) => ({
   ...(await orig()),
   redirect: (to: string) => redirectMock(to),
+  useSearchParams: () => searchParams,
+  useRouter: () => ({ refresh: refreshMock, push: vi.fn(), replace: vi.fn() }),
 }))
 vi.mock('@/lib/auth/context', () => ({
   requireTenant: vi.fn(async () => ctx),
@@ -45,6 +49,9 @@ const { actionMocks } = vi.hoisted(() => {
       saveColoringPages: mk(),
       saveInsurance: mk(),
       savePaymentFinancing: mk(),
+      savePaymentMethods: mk(),
+      saveFinancingPartners: mk(),
+      saveCancellationPolicy: mk(),
     },
   }
 })
@@ -81,6 +88,9 @@ function makeProfile(over: Record<string, unknown> = {}) {
 }
 
 beforeEach(() => {
+  searchParams = new URLSearchParams()
+  refreshMock.mockClear()
+  window.location.hash = ''
   redirectMock.mockClear()
   Object.values(actionMocks).forEach((m) => m.mockClear())
   ctx = {
@@ -94,36 +104,71 @@ beforeEach(() => {
 })
 
 describe('WebsiteContentPage', () => {
-  it('renders every applicable section against the real profile', async () => {
+  it('the rail lists every applicable section with its honest state; one section is open', async () => {
     render(await WebsiteContentPage())
-    for (const label of [
-      'Your story',
-      'Services',
-      'Team',
-      'Trust stats',
-      'Office photos',
-      'FAQ',
-      '“Why us” highlights',
-      'Insurance carriers',
-      'Payments & policies',
-    ]) {
-      expect(screen.getAllByText(label).length).toBeGreaterThan(0)
+    for (const id of ['story', 'services', 'staff', 'stats', 'photos', 'faq', 'why-us', 'insurance', 'methods', 'financing', 'cancellation']) {
+      expect(screen.getByTestId(`rail-${id}`)).toBeTruthy()
     }
-    // Real values pre-filled.
+    // Counts in the rail's own words — and "Not set yet" where there is nothing.
+    expect(screen.getByText('1 service')).toBeTruthy()
+    expect(screen.getByText('1 on the team')).toBeTruthy()
+    expect(screen.getByText('1 highlight')).toBeTruthy()
+    expect(screen.getByText('1 carrier')).toBeTruthy()
+    expect(screen.getByText('1 ways to pay'.replace('1 ways', '1 ways'))).toBeTruthy()
+    expect(screen.getAllByText('Not set yet').length).toBeGreaterThan(0)
+    expect(screen.getByTestId('rail-services').getAttribute('data-filled')).toBe('true')
+    expect(screen.getByTestId('rail-faq').getAttribute('data-filled')).toBe('false')
+    // The completeness heartbeat, paired with visible text.
+    expect(screen.getByText(/sections filled/)).toBeTruthy()
+    // The first section is open; the rest are mounted but hidden.
+    expect(screen.getByTestId('panel-story').hidden).toBe(false)
+    expect(screen.getByTestId('panel-financing').hidden).toBe(true)
     expect(screen.getByDisplayValue('Care that feels human')).toBeTruthy()
     // Coloring pages only for pediatric.
-    expect(screen.queryByText('Coloring pages')).toBeNull()
+    expect(screen.queryByTestId('rail-coloring')).toBeNull()
     cleanup()
   })
 
   it('pediatric template surfaces the coloring-pages section', async () => {
     profileRow = makeProfile({ template: 'pediatric' })
     render(await WebsiteContentPage())
-    expect(screen.getAllByText('Coloring pages').length).toBeGreaterThan(0)
+    expect(screen.getByTestId('rail-coloring')).toBeTruthy()
     cleanup()
   })
 
-  it('the story form posts to saveStory (its own scoped action)', async () => {
+  it('picking a section opens it and the doors point at where it shows', async () => {
+    render(await WebsiteContentPage())
+    fireEvent.click(screen.getByTestId('rail-financing'))
+    expect(screen.getByTestId('panel-financing').hidden).toBe(false)
+    expect(screen.getByTestId('panel-story').hidden).toBe(true)
+    expect(screen.getByTestId('rail-financing').getAttribute('aria-selected')).toBe('true')
+    const doors = screen.getByTestId('section-doors')
+    expect(doors.querySelector('a[href$="/payment-financing"]')).toBeTruthy()
+    expect(doors.querySelector('a[href="/website/editor?page=%2Fpayment-financing"]')).toBeTruthy()
+    cleanup()
+  })
+
+  it('the settings smart-search deep link (?sub=) opens that section', async () => {
+    searchParams = new URLSearchParams('sub=financing')
+    render(await WebsiteContentPage())
+    expect(screen.getByTestId('panel-financing').hidden).toBe(false)
+    expect(screen.getByTestId('panel-story').hidden).toBe(true)
+    cleanup()
+  })
+
+  it('edits survive switching sections, and the rail says which are unsaved', async () => {
+    render(await WebsiteContentPage())
+    const tagline = screen.getByDisplayValue('Care that feels human') as HTMLInputElement
+    fireEvent.input(tagline, { target: { value: 'A new tagline' } })
+    expect(screen.getByText('1 with unsaved changes')).toBeTruthy()
+    fireEvent.click(screen.getByTestId('rail-faq'))
+    fireEvent.click(screen.getByTestId('rail-story'))
+    expect((screen.getByDisplayValue('A new tagline') as HTMLInputElement).value).toBe('A new tagline')
+    expect(screen.getByTestId('rail-story').textContent).toContain('Unsaved')
+    cleanup()
+  })
+
+  it('the story form posts to saveStory (its own scoped action) and refreshes the server tree', async () => {
     render(await WebsiteContentPage())
     fireEvent.click(screen.getByText('Save your story'))
     await waitFor(() => expect(actionMocks.saveStory).toHaveBeenCalledTimes(1))
@@ -131,13 +176,25 @@ describe('WebsiteContentPage', () => {
     expect(fd.get('tagline')).toBe('Care that feels human')
     // No other section's action fired.
     expect(actionMocks.saveStaff).not.toHaveBeenCalled()
+    await waitFor(() => expect(refreshMock).toHaveBeenCalled())
     cleanup()
   })
 
-  it('the payments form posts all three columns through savePaymentFinancing', async () => {
+  it('the three money sections each post ONLY their own column', async () => {
     render(await WebsiteContentPage())
-    fireEvent.click(screen.getByText('Save payments & policies'))
-    await waitFor(() => expect(actionMocks.savePaymentFinancing).toHaveBeenCalledTimes(1))
+    fireEvent.click(screen.getByTestId('rail-methods'))
+    fireEvent.click(screen.getByText('Save payment methods'))
+    await waitFor(() => expect(actionMocks.savePaymentMethods).toHaveBeenCalledTimes(1))
+    fireEvent.click(screen.getByTestId('rail-financing'))
+    fireEvent.click(screen.getByText('Save financing'))
+    await waitFor(() => expect(actionMocks.saveFinancingPartners).toHaveBeenCalledTimes(1))
+    fireEvent.click(screen.getByTestId('rail-cancellation'))
+    fireEvent.click(screen.getByText('Save cancellation policy'))
+    await waitFor(() => expect(actionMocks.saveCancellationPolicy).toHaveBeenCalledTimes(1))
+    expect(actionMocks.savePaymentFinancing).not.toHaveBeenCalled()
+    const fin = actionMocks.saveFinancingPartners.mock.calls[0][0] as FormData
+    expect(fin.has('financingPartners')).toBe(true)
+    expect(fin.has('paymentMethods')).toBe(false)
     cleanup()
   })
 

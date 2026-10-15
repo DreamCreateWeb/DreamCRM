@@ -459,6 +459,6 @@ export const FINANCING_COPY = {
   widgetToggle: (name: string) => `Show ${name}’s payment estimator on the financing page`,
   sunbitToggle: 'Show Sunbit’s pre-qualify form on the financing page',
   floatingToggle: 'Floating “Pay over time” button on every page',
-  floatingHint: 'Cherry’s button, bottom-right, opening their estimator. Your chat bubble stays bottom-left.',
+  floatingHint: 'Cherry’s button, bottom-left, opening their estimator. It sits above your chat bubble when that is on.',
   orderHint: 'The first partner is your primary — it leads the page. Use the arrows to reorder.',
 } as const

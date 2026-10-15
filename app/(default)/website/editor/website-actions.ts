@@ -487,6 +487,35 @@ export async function saveDifferenceChips(formData: FormData): Promise<SectionRe
 }
 
 // ── Payment methods + financing + cancellation policy ───────────────────────
+/**
+ * The three halves of `savePaymentFinancing`, one column each (2026-10-15):
+ * Website → Content gives payment methods, financing partners and the
+ * cancellation policy a section apiece, and a section's save must never
+ * touch a column it did not show. The Studio's single modal keeps the
+ * combined action below.
+ */
+export async function savePaymentMethods(formData: FormData): Promise<SectionResult> {
+  return runSection(async (ctx) => {
+    await writeSection(ctx, {
+      paymentMethods: parseStringList(formData.get('paymentMethods')?.toString()),
+    })
+  })
+}
+
+export async function saveFinancingPartners(formData: FormData): Promise<SectionResult> {
+  return runSection(async (ctx) => {
+    await writeSection(ctx, {
+      financingPartners: parseFinancingPartners(formData.get('financingPartners')?.toString()),
+    })
+  })
+}
+
+export async function saveCancellationPolicy(formData: FormData): Promise<SectionResult> {
+  return runSection(async (ctx) => {
+    await writeSection(ctx, { cancellationPolicy: clean('cancellationPolicy', formData) })
+  })
+}
+
 export async function savePaymentFinancing(formData: FormData): Promise<SectionResult> {
   return runSection(async (ctx) => {
     await writeSection(ctx, {
