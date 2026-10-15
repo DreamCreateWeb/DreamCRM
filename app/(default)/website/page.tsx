@@ -566,6 +566,20 @@ export default async function WebsiteHubPage() {
           </Link>
         )}
         {canEdit && (
+          // The plain-form home for every section the Quick-edits dock does
+          // not carry (financing partners, FAQ, insurance, testimonials…) —
+          // it was reachable only through ⌘K until the first client went
+          // looking for "Content" and could not find it (2026-10-15).
+          <Link
+            href="/website/content"
+            className="group inline-flex items-center gap-2 py-2 text-sm text-gray-600 dark:text-gray-300 hover:text-teal-700 dark:hover:text-teal-300"
+          >
+            <span aria-hidden="true">📝</span>
+            <span className="font-semibold">Content</span>
+            <span className="text-gray-500 dark:text-gray-400">every section, as plain forms</span>
+          </Link>
+        )}
+        {canEdit && (
           <Link
             href="/website/pages"
             className="group inline-flex items-center gap-2 py-2 text-sm text-gray-600 dark:text-gray-300 hover:text-teal-700 dark:hover:text-teal-300"
