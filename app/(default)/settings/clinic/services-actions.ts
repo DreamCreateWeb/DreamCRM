@@ -19,6 +19,7 @@ import type {
 } from '@/lib/types/clinic-content'
 import { sanitizeServiceContent } from '@/lib/types/clinic-content'
 import { newId } from '@/lib/utils'
+import { isServiceIconValue } from '@/lib/service-icons'
 
 /**
  * Server actions for the Tend-clone services picker in /settings/clinic.
@@ -197,6 +198,30 @@ export async function updateServiceOverrides(
       : null
 
   const next = services.map((s, i) => (i === idx ? { ...s, photoUrl, offer } : s))
+  await writeServices(ctx, next)
+  return { ok: true }
+}
+
+/**
+ * Set (or clear) the picture on a service's card — a curated glyph
+ * (`icon:<id>`), an uploaded picture (https URL) or an emoji. `null` clears
+ * it, and the templates fall back to their own numbering or default. Writes
+ * the one `icon` field; name, copy and overrides are untouched.
+ */
+export async function updateServiceIcon(
+  serviceId: string,
+  icon: string | null,
+): Promise<ActionResult> {
+  const value = typeof icon === 'string' ? icon.trim() : ''
+  if (value && !isServiceIconValue(value)) {
+    return { ok: false, error: 'Pick an icon from the list, an emoji, or upload a picture.' }
+  }
+  const loaded = await loadOwnerCtxAndProfile()
+  if (!loaded.ok) return loaded
+  const { ctx, services } = loaded
+  const idx = services.findIndex((s) => s.id === serviceId)
+  if (idx < 0) return { ok: false, error: 'Service not found' }
+  const next = services.map((s, i) => (i === idx ? { ...s, icon: value || null } : s))
   await writeServices(ctx, next)
   return { ok: true }
 }

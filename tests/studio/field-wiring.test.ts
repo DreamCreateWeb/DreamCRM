@@ -201,6 +201,16 @@ describe.each(TEMPLATE_IDS)('Website Studio field wiring [%s] (template ↔ stud
     expect(actionsSrc).toMatch(/field\.startsWith\('copy:'\)/)
   })
 
+  it('every kind="icon" field is a serviceIcon:<id> the Studio routes to the icon drawer', () => {
+    const iconFields = Array.from(new Set(fieldsByKind('icon')))
+    const strays = iconFields.filter((f) => !f.startsWith('serviceIcon:'))
+    expect(strays, `icon tags outside the serviceIcon: grammar: ${strays.join(', ')}`).toEqual([])
+    // The Studio's openModal handler forks on this prefix (website-studio.tsx)
+    // and the bridge posts openModal for kind="icon" (edit-bridge.tsx).
+    expect(studioSrc).toMatch(/SERVICE_ICON_FIELD_PREFIX = 'serviceIcon:'/)
+    expect(studioSrc).toMatch(/d\.field\.startsWith\(SERVICE_ICON_FIELD_PREFIX\)/)
+  })
+
   it('every FORM_SECTION_SAVES key also has a SECTION_TITLES entry (modal opens with a title)', () => {
     const missing = Array.from(FORM_SECTION_SAVES).filter((k) => !SECTION_TITLES.has(k))
     expect(missing, `form-save sections with no title: ${missing.join(', ')}`).toEqual([])

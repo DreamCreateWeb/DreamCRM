@@ -32,6 +32,8 @@ import FinancingPartnersEditor from '../../settings/clinic/financing-partners-ed
 import FaqEditor from './faq-editor'
 import HoursEditor from './hours-editor'
 import ServicesLibraryPicker from '../../settings/clinic/services-library-picker'
+import { ServiceIconPickerPanel } from '@/components/website/service-icon-picker'
+import { updateServiceIcon } from '../../settings/clinic/services-actions'
 import ColoringPagesEditor from './coloring-pages-editor'
 import {
   saveInlineField,
@@ -88,6 +90,9 @@ type Status = 'idle' | 'saving' | 'saved' | 'error'
 // `stale` opens the refresh-to-edit fallback for an affordance this (older) tab
 // can't render — an image field a newer deploy added that isn't in IMAGE_FIELDS.
 type ModalState = { kind: 'image' | 'section' | 'stale'; field: string } | null
+
+/** EditBridge field prefix for a service's icon (`EditIcon` in editable.tsx). */
+const SERVICE_ICON_FIELD_PREFIX = 'serviceIcon:'
 
 const IMAGE_FIELDS: Record<
   string,
@@ -256,6 +261,14 @@ export default function WebsiteStudio({ slug, siteUrl, profile, orgId, library, 
   const [canvasPage, setCanvasPage] = useState('')
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [modal, setModal] = useState<ModalState>(null)
+  // The icon drawer: `serviceIcon:<id>` intents from the canvas open it over
+  // the Studio instead of a section modal (one picker, shared with the
+  // services list in Website → Content).
+  const [iconPick, setIconPick] = useState<{ serviceId: string } | null>(null)
+  const [iconBusy, setIconBusy] = useState(false)
+  // `profile` is the server render's snapshot; remember what this session
+  // picked so reopening the drawer shows the icon that is now on the card.
+  const [pickedIcons, setPickedIcons] = useState<Record<string, string | null>>({})
   // AI usage + the one-click undo target are LIFTED here so the floating AI bar
   // and the per-section "Rewrite with AI" buttons share one monthly counter,
   // and so the Undo survives a section modal opening on top of the bar.
@@ -584,7 +597,11 @@ export default function WebsiteStudio({ slug, siteUrl, profile, orgId, library, 
         // Unknown image field from a newer deploy → refresh-to-edit, not a blank modal.
         setModal({ kind: IMAGE_FIELDS[d.field] ? 'image' : 'stale', field: d.field })
       } else if (d.type === 'openModal' && d.field) {
-        setModal({ kind: 'section', field: d.field })
+        if (d.field.startsWith(SERVICE_ICON_FIELD_PREFIX)) {
+          setIconPick({ serviceId: d.field.slice(SERVICE_ICON_FIELD_PREFIX.length) })
+        } else {
+          setModal({ kind: 'section', field: d.field })
+        }
       }
     }
     window.addEventListener('message', onMessage)
@@ -932,6 +949,31 @@ export default function WebsiteStudio({ slug, siteUrl, profile, orgId, library, 
         hidden={!!modal}
       />
 
+      {iconPick && (
+        <StudioIconDrawer
+          serviceName={
+            ((profile.services as ClinicService[] | null) ?? []).find((x) => x.id === iconPick.serviceId)?.name ?? null
+          }
+          current={
+            iconPick.serviceId in pickedIcons
+              ? pickedIcons[iconPick.serviceId]
+              : (((profile.services as ClinicService[] | null) ?? []).find((x) => x.id === iconPick.serviceId)?.icon ?? null)
+          }
+          busy={iconBusy}
+          onClose={() => setIconPick(null)}
+          onPick={async (value) => {
+            setIconBusy(true)
+            // persist() reloads the canvas on success, so the new icon paints.
+            const res = await persist(() => updateServiceIcon(iconPick.serviceId, value))
+            setIconBusy(false)
+            if (res.ok) {
+              setPickedIcons((m) => ({ ...m, [iconPick.serviceId]: value }))
+              setIconPick(null)
+            }
+          }}
+        />
+      )}
+
       {modal && (
         <StudioModal
           modal={modal}
@@ -946,6 +988,70 @@ export default function WebsiteStudio({ slug, siteUrl, profile, orgId, library, 
           onImageSaved={postSetImage}
         />
       )}
+    </div>
+  )
+}
+
+/**
+ * The icon drawer on the Studio's own layer. The platform's shared `Drawer`
+ * portals to <body> at z-50, which is BELOW the Studio's z-[60] chrome — it
+ * opened, measured as visible, and painted behind the canvas. The Studio's
+ * modals live at z-[70]; this sits beside them.
+ */
+function StudioIconDrawer({
+  serviceName,
+  current,
+  busy,
+  onClose,
+  onPick,
+}: {
+  serviceName: string | null
+  current: string | null
+  busy: boolean
+  onClose: () => void
+  onPick: (value: string | null) => void
+}) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+  return (
+    <div
+      className="fixed inset-0 z-[70] flex justify-end bg-[color:var(--color-ink-900)]/50"
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget) onClose()
+      }}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={serviceName ? `Icon · ${serviceName}` : 'Choose an icon'}
+        className="flex h-full w-full max-w-[480px] flex-col bg-[color:var(--color-surface-2)] shadow-[var(--shadow-modal)]"
+        data-testid="studio-icon-drawer"
+      >
+        <div className="flex items-center gap-3 border-b border-[color:var(--color-hairline)] px-5 py-3">
+          <div className="min-w-0 grow truncate text-[14px] font-medium text-gray-900 dark:text-gray-100">
+            {serviceName ? `Icon · ${serviceName}` : 'Choose an icon'}
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-[var(--r-sm)] p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+            title="Close (Esc)"
+            aria-label="Close"
+          >
+            <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+              <path d="M6 6l12 12M6 18L18 6" strokeLinecap="round" />
+            </svg>
+          </button>
+        </div>
+        <div className="flex-1 overflow-y-auto p-5">
+          <ServiceIconPickerPanel current={current} busy={busy} onPick={onPick} />
+        </div>
+      </div>
     </div>
   )
 }

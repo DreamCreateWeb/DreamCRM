@@ -93,6 +93,24 @@ export function formatPhone(raw: string | null | undefined): string {
 }
 
 /**
+ * How a number reads on the clinic's PUBLIC site: `501-982-4447`. A number
+ * that arrives as bare digits (a PMS or NPPES import, or a front desk typing
+ * fast) is dashed for display; anything the practice spelled out on purpose —
+ * `(501) 982-4447`, `501.982.4447`, an extension — is shown exactly as they
+ * wrote it. Only the DISPLAY changes: `tel:` links and JSON-LD carry the
+ * same string and both accept dashes. Null in, null out.
+ */
+export function formatPhoneForSite(raw: string | null | undefined): string | null {
+  if (raw == null) return null
+  const t = raw.trim()
+  if (!t) return t
+  const bare = t.replace(/\s+/g, '')
+  const m = bare.match(/^(?:\+?1)?(\d{3})(\d{3})(\d{4})$/)
+  if (!m) return t
+  return `${m[1]}-${m[2]}-${m[3]}`
+}
+
+/**
  * The last four digits, for confirming a number without printing it in full
  * ("we'll text you at •••• 4567"). Empty when the number isn't parseable —
  * a partial echo of an unparseable string could show any four characters.

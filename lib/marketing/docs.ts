@@ -694,6 +694,42 @@ export const DOCS: DocArticle[] = [
     ],
   },
   {
+    slug: 'service-icons',
+    title: 'Change the icon on a service',
+    summary: 'Pick from the built-in icons, use an emoji, or upload your own picture — on the page itself or from the services list.',
+    category: 'Patient-facing',
+    minutes: 2,
+    sections: [
+      {
+        paragraphs: [
+          'Every service card on your site carries a small picture — a tooth, a sparkle, a family. Each one is yours to change, and you can do it right where you see it.',
+        ],
+      },
+      {
+        heading: 'On the page',
+        steps: [
+          'Open Website, then Open the editor, and go to the page that shows the card (the Services page, or the home page on designs that draw icons there).',
+          'Point at the icon. A “Change icon” tag appears; click the icon.',
+          'A drawer opens with three tabs: Icons (search by purpose — try “whitening” or “kids”), Emoji, and Upload your own. Pick one and it saves on the spot.',
+          'The card updates in the editor. Publish when you are ready for patients to see it.',
+        ],
+      },
+      {
+        heading: 'From the services list',
+        steps: [
+          'Open Website, then Content, then Services.',
+          'Click the icon at the left of any service to open the same drawer.',
+        ],
+      },
+      {
+        heading: 'Uploading your own',
+        paragraphs: [
+          'A square PNG or SVG with a transparent background looks best. The picture shows about the size of a coin, so simple shapes read better than photographs. Choose “No icon — show the number” to go back to the design’s own numbering.',
+        ],
+      },
+    ],
+  },
+  {
     slug: 'patient-financing-widgets',
     title: 'Patient financing on your site (Cherry, CareCredit, Sunbit)',
     summary: 'Add the financing you offer, paste the one link your provider gave you, and the site builds the apply buttons and widgets.',

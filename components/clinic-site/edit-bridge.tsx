@@ -11,7 +11,9 @@ import { useEffect } from 'react'
  *  - hover highlights any `[data-edit-field]` region;
  *  - click a `kind="text"` field → inline contentEditable, commit on blur/Enter;
  *  - click a `kind="image"` field → asks the parent to open an upload modal;
- *  - click a `kind="modal"` field → asks the parent to open that section's modal.
+ *  - click a `kind="modal"` field → asks the parent to open that section's modal;
+ *  - click a `kind="icon"` field → asks the parent to open the icon drawer
+ *    for that service (`serviceIcon:<id>`), the same openModal intent.
  *
  * It performs NO persistence itself — it only emits intents to the parent
  * studio (the authed app), which calls the server actions and echoes results
@@ -105,7 +107,7 @@ export default function EditBridge() {
         const field = editable.getAttribute('data-edit-field') ?? ''
         if (kind === 'text') startTextEdit(editable, field)
         else if (kind === 'image') post({ type: 'editImage', field })
-        else if (kind === 'modal') post({ type: 'openModal', field })
+        else if (kind === 'modal' || kind === 'icon') post({ type: 'openModal', field })
         return
       }
       // Navigate-the-canvas: keep edit mode across the clinic's OWN pages.
@@ -165,14 +167,14 @@ export default function EditBridge() {
     let touchObserver: MutationObserver | null = null
     function tagTouchAffordance(el: HTMLElement) {
       const kind = el.getAttribute('data-edit-kind')
-      if (kind !== 'modal' && kind !== 'image') return
+      if (kind !== 'modal' && kind !== 'image' && kind !== 'icon') return
       if (el.querySelector(':scope > .dc-edit-touch-tag')) return
       const field = el.getAttribute('data-edit-field') ?? ''
       const label = el.getAttribute('data-edit-label') ?? (kind === 'image' ? 'photo' : 'section')
       const btn = document.createElement('button')
       btn.type = 'button'
       btn.className = 'dc-edit-touch-tag'
-      btn.textContent = kind === 'image' ? `📷 ${label}` : `✎ ${label}`
+      btn.textContent = kind === 'image' ? `📷 ${label}` : kind === 'icon' ? `★ ${label}` : `✎ ${label}`
       btn.addEventListener('click', (ev) => {
         ev.preventDefault()
         ev.stopPropagation()
@@ -185,15 +187,15 @@ export default function EditBridge() {
     if (isCoarse) {
       document.body.classList.add('dc-edit-touch')
       document
-        .querySelectorAll<HTMLElement>('[data-edit-kind="modal"],[data-edit-kind="image"]')
+        .querySelectorAll<HTMLElement>('[data-edit-kind="modal"],[data-edit-kind="image"],[data-edit-kind="icon"]')
         .forEach(tagTouchAffordance)
       // Catch regions added after first paint (e.g. lazy sections).
       touchObserver = new MutationObserver((records) => {
         for (const rec of records) {
           rec.addedNodes.forEach((n) => {
             if (!(n instanceof HTMLElement)) return
-            if (n.matches?.('[data-edit-kind="modal"],[data-edit-kind="image"]')) tagTouchAffordance(n)
-            n.querySelectorAll?.<HTMLElement>('[data-edit-kind="modal"],[data-edit-kind="image"]').forEach(
+            if (n.matches?.('[data-edit-kind="modal"],[data-edit-kind="image"],[data-edit-kind="icon"]')) tagTouchAffordance(n)
+            n.querySelectorAll?.<HTMLElement>('[data-edit-kind="modal"],[data-edit-kind="image"],[data-edit-kind="icon"]').forEach(
               tagTouchAffordance,
             )
           })
@@ -255,7 +257,8 @@ export default function EditBridge() {
       editBtnField = el.getAttribute('data-edit-field') ?? ''
       editBtnKind = el.getAttribute('data-edit-kind') ?? ''
       const label = el.getAttribute('data-edit-label') ?? (editBtnKind === 'image' ? 'photo' : 'section')
-      editBtn.textContent = editBtnKind === 'image' ? `📷 Replace ${label}` : `✎ Edit ${label}`
+      editBtn.textContent =
+        editBtnKind === 'image' ? `📷 Replace ${label}` : editBtnKind === 'icon' ? `★ Change ${label}` : `✎ Edit ${label}`
       const r = el.getBoundingClientRect()
       editBtn.style.top = `${Math.max(8, r.top + 10)}px`
       editBtn.style.left = `${Math.min(window.innerWidth - 150, Math.max(8, r.right - 140))}px`
@@ -274,14 +277,14 @@ export default function EditBridge() {
       if (!el) return
       el.classList.add('dc-edit-hover')
       const k = el.getAttribute('data-edit-kind')
-      if (k === 'modal' || k === 'image') showEditBtn(el)
+      if (k === 'modal' || k === 'image' || k === 'icon') showEditBtn(el)
     }
     function onOut(e: MouseEvent) {
       const el = (e.target as HTMLElement).closest('[data-edit-field]') as HTMLElement | null
       if (!el) return
       el.classList.remove('dc-edit-hover')
       const k = el.getAttribute('data-edit-kind')
-      if (k === 'modal' || k === 'image') scheduleHideBtn()
+      if (k === 'modal' || k === 'image' || k === 'icon') scheduleHideBtn()
     }
 
     // Scroll a tagged element into view + flash it. Used by both the on-load
