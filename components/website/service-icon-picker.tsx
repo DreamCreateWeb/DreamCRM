@@ -1,7 +1,6 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import Drawer from '@/components/ui/drawer'
 import ImageUploader from '@/components/ui/image-uploader'
 import ServiceIcon from '@/components/clinic-site/service-icon'
 import {
@@ -12,9 +11,10 @@ import {
 } from '@/lib/service-icons'
 
 /**
- * The icon drawer — one picker for every place a service's picture can be
- * changed: the Website Studio (click the icon on the canvas) and the services
- * list in Website → Content. Three ways in, one value out:
+ * The icon picker — one panel for every place a service's picture can be
+ * changed: the Website Studio (click the icon on the canvas; the Studio hosts
+ * it on its own overlay layer) and the services list in Website → Content.
+ * Three ways in, one value out:
  *
  *   Icons    the curated line glyphs (searchable by name and purpose),
  *   Emoji    a short list that reads well on a card,
@@ -22,7 +22,9 @@ import {
  *
  * `onPick(value)` receives the stored string — `icon:<id>`, the uploaded
  * https URL, or the emoji — and `null` for "no icon" (the template shows its
- * own numbering instead). The host saves it; the panel never writes.
+ * own numbering instead). The host saves it; the panel never writes. There is
+ * deliberately no shared drawer wrapper here: the platform `Drawer` portals at
+ * z-50, which the Studio's z-[60] chrome covers, so each host owns its shell.
  */
 
 type Tab = 'icons' | 'emoji' | 'upload'
@@ -203,29 +205,5 @@ export function ServiceIconPickerPanel({ current, onPick, busy = false }: Servic
         </button>
       </div>
     </div>
-  )
-}
-
-export interface ServiceIconPickerDrawerProps extends ServiceIconPickerPanelProps {
-  open: boolean
-  onClose: () => void
-  /** The service's name, for the drawer's title. */
-  serviceName?: string | null
-}
-
-/** The panel in the platform's right-side drawer — what the Studio opens
- *  when the owner clicks an icon on the canvas. */
-export default function ServiceIconPickerDrawer({
-  open,
-  onClose,
-  serviceName,
-  ...panel
-}: ServiceIconPickerDrawerProps) {
-  return (
-    <Drawer open={open} onClose={onClose} title={serviceName ? `Icon · ${serviceName}` : 'Choose an icon'} size="md">
-      <div className="p-5">
-        <ServiceIconPickerPanel {...panel} />
-      </div>
-    </Drawer>
   )
 }
