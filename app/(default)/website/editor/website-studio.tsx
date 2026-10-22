@@ -32,6 +32,8 @@ import FinancingPartnersEditor from '../../settings/clinic/financing-partners-ed
 import FaqEditor from './faq-editor'
 import HoursEditor from './hours-editor'
 import ServicesLibraryPicker from '../../settings/clinic/services-library-picker'
+import ServiceIconPickerDrawer from '@/components/website/service-icon-picker'
+import { updateServiceIcon } from '../../settings/clinic/services-actions'
 import ColoringPagesEditor from './coloring-pages-editor'
 import {
   saveInlineField,
@@ -88,6 +90,9 @@ type Status = 'idle' | 'saving' | 'saved' | 'error'
 // `stale` opens the refresh-to-edit fallback for an affordance this (older) tab
 // can't render — an image field a newer deploy added that isn't in IMAGE_FIELDS.
 type ModalState = { kind: 'image' | 'section' | 'stale'; field: string } | null
+
+/** EditBridge field prefix for a service's icon (`EditIcon` in editable.tsx). */
+const SERVICE_ICON_FIELD_PREFIX = 'serviceIcon:'
 
 const IMAGE_FIELDS: Record<
   string,
@@ -256,6 +261,14 @@ export default function WebsiteStudio({ slug, siteUrl, profile, orgId, library, 
   const [canvasPage, setCanvasPage] = useState('')
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [modal, setModal] = useState<ModalState>(null)
+  // The icon drawer: `serviceIcon:<id>` intents from the canvas open it over
+  // the Studio instead of a section modal (one picker, shared with the
+  // services list in Website → Content).
+  const [iconPick, setIconPick] = useState<{ serviceId: string } | null>(null)
+  const [iconBusy, setIconBusy] = useState(false)
+  // `profile` is the server render's snapshot; remember what this session
+  // picked so reopening the drawer shows the icon that is now on the card.
+  const [pickedIcons, setPickedIcons] = useState<Record<string, string | null>>({})
   // AI usage + the one-click undo target are LIFTED here so the floating AI bar
   // and the per-section "Rewrite with AI" buttons share one monthly counter,
   // and so the Undo survives a section modal opening on top of the bar.
@@ -584,7 +597,11 @@ export default function WebsiteStudio({ slug, siteUrl, profile, orgId, library, 
         // Unknown image field from a newer deploy → refresh-to-edit, not a blank modal.
         setModal({ kind: IMAGE_FIELDS[d.field] ? 'image' : 'stale', field: d.field })
       } else if (d.type === 'openModal' && d.field) {
-        setModal({ kind: 'section', field: d.field })
+        if (d.field.startsWith(SERVICE_ICON_FIELD_PREFIX)) {
+          setIconPick({ serviceId: d.field.slice(SERVICE_ICON_FIELD_PREFIX.length) })
+        } else {
+          setModal({ kind: 'section', field: d.field })
+        }
       }
     }
     window.addEventListener('message', onMessage)
@@ -930,6 +947,35 @@ export default function WebsiteStudio({ slug, siteUrl, profile, orgId, library, 
         undoData={undoData}
         onUndoData={setUndoData}
         hidden={!!modal}
+      />
+
+      <ServiceIconPickerDrawer
+        open={!!iconPick}
+        onClose={() => setIconPick(null)}
+        serviceName={
+          iconPick
+            ? (((profile.services as ClinicService[] | null) ?? []).find((x) => x.id === iconPick.serviceId)?.name ?? null)
+            : null
+        }
+        current={
+          iconPick
+            ? iconPick.serviceId in pickedIcons
+              ? pickedIcons[iconPick.serviceId]
+              : (((profile.services as ClinicService[] | null) ?? []).find((x) => x.id === iconPick.serviceId)?.icon ?? null)
+            : null
+        }
+        busy={iconBusy}
+        onPick={async (value) => {
+          if (!iconPick) return
+          setIconBusy(true)
+          // persist() reloads the canvas on success, so the new icon paints.
+          const res = await persist(() => updateServiceIcon(iconPick.serviceId, value))
+          setIconBusy(false)
+          if (res.ok) {
+            setPickedIcons((m) => ({ ...m, [iconPick.serviceId]: value }))
+            setIconPick(null)
+          }
+        }}
       />
 
       {modal && (

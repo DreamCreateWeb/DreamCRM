@@ -69,6 +69,12 @@ const BASE_COPY_KEYS: CopyKey[] = [
   { key: 'faq.heroTitle', label: 'FAQ page hero headline', fallback: 'Frequently asked questions.', page: '/faq' },
   { key: 'faq.cta.heading', label: 'FAQ page closing CTA headline', fallback: 'Still have questions?', page: '/faq' },
   { key: 'faq.cta.subhead', label: 'FAQ page closing CTA subhead', fallback: '', page: '/faq' },
+  // ── Services page ───────────────────────────────────────────────────────────
+  { key: 'services.heroEyebrow', label: 'Services page hero eyebrow', fallback: 'What we do', page: '/services' },
+  { key: 'services.heading', label: 'Services page hero headline', fallback: '', page: '/services' },
+  { key: 'services.heroIntro', label: 'Services page hero intro', fallback: 'Comprehensive care, gently delivered — from routine cleanings to cosmetic work and same-day fixes.', page: '/services' },
+  { key: 'services.coreHeading', label: 'Services page "core services" headline', fallback: 'Core services.', page: '/services' },
+  { key: 'services.specialHeading', label: 'Services page "special services" headline', fallback: 'Special services.', page: '/services' },
   // ── Insurance page ──────────────────────────────────────────────────────────
   { key: 'insurance.heroEyebrow', label: 'Insurance page hero eyebrow', fallback: '', page: '/insurance' },
   { key: 'insurance.heading', label: 'Insurance page hero headline', fallback: '', page: '/insurance' },

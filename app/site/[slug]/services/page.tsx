@@ -19,7 +19,10 @@ import { readableInk, brandFill } from '@/lib/clinic-site-theme'
 import { servicesItemListJsonLd } from '@/lib/clinic-site-jsonld'
 import { buildClinicNavLinks, hasColoringPages,
   isSelfBookingEnabled,
+  copyOverride,
 } from '@/lib/clinic-site-helpers'
+import { EditIcon, EditText } from '@/components/clinic-site/editable'
+import ServiceIcon from '@/components/clinic-site/service-icon'
 import ScrollReveal from '@/components/clinic-site/scroll-reveal'
 import ClosingCTA from '@/components/clinic-site/closing-cta'
 import { resolveSeoMeta, applySeoOverride } from '@/lib/types/seo-meta'
@@ -38,9 +41,10 @@ export async function generateMetadata({ params }: Props) {
   if (!data) return {}
   const name = data.profile.displayName ?? data.orgName
   const url = `${publicSiteUrl(data)}/services`
+  const overrides = (data.profile.copyOverrides as Record<string, string> | null) ?? null
   const { title, description } = applySeoOverride(resolveSeoMeta(data.profile.seoMeta).services, {
     title: `Services — ${name}`,
-    description: `Dental services at ${name}.`,
+    description: copyOverride(overrides, 'services.heading', `Dental services at ${name}.`),
   })
   return {
     title,
@@ -86,6 +90,8 @@ export default async function ServicesPage({ params }: Props) {
 
   const { profile } = data
   const name = profile.displayName ?? data.orgName
+  const overrides = (data.profile.copyOverrides as Record<string, string> | null) ?? null
+  const copy = (key: string, fallback: string) => copyOverride(overrides, key, fallback)
   const brand = profile.brandColor ?? '#9CAF9F'
   // Contrast-safe text fill for brand-colored headings/links on the warm
   // ground (raw brand stays on backgrounds/borders/pills only).
@@ -177,25 +183,39 @@ export default async function ServicesPage({ params }: Props) {
         data-edit-label="services"
       >
         <div className="max-w-[800px] mx-auto px-5 sm:px-8 text-center">
-          <p
+          {/* The page's own words are copy keys (services.*): a practice that
+              wants "provided by" rather than "at" edits the headline on the
+              canvas, like any template heading. */}
+          <EditText
+            as="p"
+            field="copy:services.heroEyebrow"
+            label="eyebrow"
             className="text-xs font-semibold uppercase tracking-[0.22em] mb-5"
             style={{ color: INK_MUTED }}
           >
-            What we do
-          </p>
-          <h1
+            {copy('services.heroEyebrow', 'What we do')}
+          </EditText>
+          <EditText
+            as="h1"
+            field="copy:services.heading"
+            label="headline"
             className="text-[32px] sm:text-[48px] lg:text-[64px] font-semibold leading-[1.05] tracking-[-0.015em] mb-6"
             style={{ color: headingInk, fontFamily: 'var(--font-display, Georgia, serif)' }}
           >
-            Dental services at {name}.
-          </h1>
-          <p
+            {copy('services.heading', `Dental services at ${name}.`)}
+          </EditText>
+          <EditText
+            as="p"
+            field="copy:services.heroIntro"
+            label="intro"
             className="text-base sm:text-lg leading-[1.6] mb-9"
             style={{ color: INK }}
           >
-            Comprehensive care, gently delivered — from routine cleanings to
-            cosmetic work and same-day fixes.
-          </p>
+            {copy(
+              'services.heroIntro',
+              'Comprehensive care, gently delivered — from routine cleanings to cosmetic work and same-day fixes.',
+            )}
+          </EditText>
           <div className="flex flex-wrap items-center justify-center gap-3">
             <a
               href={bookHref}
@@ -250,12 +270,15 @@ export default async function ServicesPage({ params }: Props) {
         {core.length > 0 && (
           <div className="max-w-[1240px] mx-auto px-5 sm:px-8 pt-20 sm:pt-24">
             <ScrollReveal>
-              <h2
+              <EditText
+                as="h2"
+                field="copy:services.coreHeading"
+                label="headline"
                 className="text-3xl sm:text-4xl lg:text-[48px] font-semibold leading-[1.08] tracking-[-0.015em] mb-10 sm:mb-14"
                 style={{ color: headingInk, fontFamily: 'var(--font-display, Georgia, serif)' }}
               >
-                Core services.
-              </h2>
+                {copy('services.coreHeading', 'Core services.')}
+              </EditText>
             </ScrollReveal>
             <ServiceGrid
               services={core}
@@ -273,12 +296,15 @@ export default async function ServicesPage({ params }: Props) {
         {special.length > 0 && (
           <div className="max-w-[1240px] mx-auto px-5 sm:px-8 pt-16 sm:pt-20">
             <ScrollReveal>
-              <h2
+              <EditText
+                as="h2"
+                field="copy:services.specialHeading"
+                label="headline"
                 className="text-3xl sm:text-4xl lg:text-[48px] font-semibold leading-[1.08] tracking-[-0.015em] mb-10 sm:mb-14"
                 style={{ color: headingInk, fontFamily: 'var(--font-display, Georgia, serif)' }}
               >
-                Special services.
-              </h2>
+                {copy('services.specialHeading', 'Special services.')}
+              </EditText>
             </ScrollReveal>
             <ServiceGrid
               services={special}
@@ -361,11 +387,20 @@ function ServiceGrid({
               style={{ backgroundColor: BG, border: `1px solid ${BORDER}` }}
             >
               <div className="flex items-center gap-3 mb-4">
-                {s.icon && (
-                  <span aria-hidden="true" className="text-2xl leading-none">
-                    {s.icon}
-                  </span>
-                )}
+                {/* The icon slot is always here so the Studio can offer one
+                    on a card that has none; to a visitor an empty slot is
+                    nothing. */}
+                <EditIcon
+                  serviceId={s.id}
+                  className="inline-flex items-center justify-center leading-none text-2xl"
+                  style={{ color: headingInk }}
+                >
+                  <ServiceIcon
+                    icon={s.icon}
+                    size={28}
+                    fallback={<span className="dc-edit-only text-sm font-medium" style={{ color: INK_MUTED }}>+ icon</span>}
+                  />
+                </EditIcon>
                 <span
                   className="text-xs font-semibold tracking-[0.18em] uppercase"
                   style={{ color: INK_MUTED, fontFamily: 'var(--font-display, Georgia, serif)' }}

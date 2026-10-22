@@ -13,7 +13,8 @@ import {
   type SiteNavLink,
 } from '@/lib/clinic-site-helpers'
 import { resolveLeadForm, type LeadFormsConfig } from '@/lib/types/lead-forms'
-import { EditText, EditImage, EditModal } from '@/components/clinic-site/editable'
+import { EditText, EditImage, EditModal, EditIcon } from '@/components/clinic-site/editable'
+import ServiceIcon from '@/components/clinic-site/service-icon'
 import ContactForm from '@/app/site/[slug]/contact-form'
 import GoogleRatingBadge, { GOOGLE_RATING_MIN_COUNT } from '@/components/clinic-site/google-rating-badge'
 import ScrollReveal from '@/components/clinic-site/scroll-reveal'
@@ -250,13 +251,13 @@ export default function PediatricHome(props: HomePageProps) {
                         className={`block rounded-[2rem] p-7 h-full transition-transform duration-200 hover:-translate-y-1.5 ${i % 2 === 0 ? 'hover:-rotate-1' : 'hover:rotate-1'}`}
                         style={{ background: grounds[i % 3], color: SITE_INK }}
                       >
-                        <span
+                        <EditIcon
+                          serviceId={s.id}
                           className="inline-flex items-center justify-center w-16 h-16 rounded-full text-4xl mb-4"
                           style={{ background: SITE_SURFACE }}
-                          aria-hidden="true"
                         >
-                          {s.icon || SERVICE_EMOJI[i % SERVICE_EMOJI.length]}
-                        </span>
+                          <ServiceIcon icon={s.icon} size={36} fallback={SERVICE_EMOJI[i % SERVICE_EMOJI.length]} />
+                        </EditIcon>
                         <span className="block text-xl font-bold mb-1.5" style={{ fontFamily: DISPLAY }}>
                           {s.name}
                         </span>

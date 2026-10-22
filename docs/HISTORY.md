@@ -6172,6 +6172,40 @@ template with no bar, or a bar hidden above `sm`, measures 0 and nothing
 moves. The right-aligned pairs on established and hometeam are
 deliberately not tagged — the bottom-left floaters never meet them.
 
+## 2026-10-22 — Ted Pinney's first three asks: a dashed phone, "provided by", and icons of their own
+
+The practice went live on their own domain and the office manager sent
+three changes she could not make herself. (1) The phone printed as
+`5019824447` everywhere: `clinic_profile.phone` arrives as bare digits
+from a PMS/NPPES import and sixty render sites across six templates and
+every page shell print the column as-is. One fix at the boundary every
+public render reads through — `withSitePhones` in the site loader,
+`formatPhoneForSite` in lib/phone.ts — dashes bare digits and leaves a
+number the practice spelled out exactly as typed. (2) "Dental services
+at Ted M Pinney DDS." was typed into the services page shell, the one
+page whose headings were not copy keys; they are now
+(`services.heroEyebrow/heading/heroIntro/coreHeading/specialHeading` in
+`BASE_COPY_KEYS`, `EditText` on the canvas), so "provided by" is an edit
+on the page like any other heading. (3) "We'd like to change these
+icons to different images that I pick out" — the owner's ruling: build
+it for the app, not the one site, as an icon drawer in the Website
+editor with an upload option. `ClinicService.icon` stays one string in
+three shapes (`icon:<id>` for a curated glyph, an https URL for an
+upload, an emoji as before); `lib/service-icons.ts` is the registry
+(~36 line glyphs with search tags, the emoji list, the parser and the
+writer gate) and `components/clinic-site/service-icon.tsx` the ONE
+renderer — every template that drew `s.icon` as text, the services
+index and detail pages and the dashboard's services list now go through
+it. `EditIcon` tags each slot `serviceIcon:<id>` with a new EditBridge
+kind `icon` (hover reads "★ Change icon", touch gets a tag), the Studio
+forks `openModal` on that prefix into `ServiceIconPickerDrawer`
+(Icons / Emoji / Upload your own / No icon) and saves through
+`updateServiceIcon`; the services list in Website → Content opens the
+same panel from the row's icon button. An empty slot takes no room for
+a visitor (`[data-edit-kind="icon"]:not(:has([data-service-icon]))`)
+and stays a click target in edit mode. Ted Pinney's heading override is
+set and their icons are theirs to pick.
+
 ## 2026-10-15 — Website → Content redesigned: a rail and one editor (the monolith retired)
 
 The owner followed the new financing help article the way a clinic

@@ -21,6 +21,8 @@ import type {
   ClinicColoringPage,
 } from '@/lib/types/clinic-content'
 
+import { isServiceIconValue } from '@/lib/service-icons'
+
 function uid() {
   return Math.random().toString(36).slice(2, 10)
 }
@@ -55,7 +57,7 @@ export function parseServices(raw: string | undefined): ClinicService[] | null {
         id: typeof obj.id === 'string' ? obj.id : uid(),
         name,
         description: typeof obj.description === 'string' ? obj.description.trim() || null : null,
-        icon: typeof obj.icon === 'string' ? obj.icon.trim() || null : null,
+        icon: isServiceIconValue(obj.icon) ? obj.icon.trim() : null,
         librarySlug,
         category,
         photoUrl,

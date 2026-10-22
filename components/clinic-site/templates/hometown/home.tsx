@@ -17,7 +17,8 @@ import {
   hoursEntryDisplay,
 } from '@/lib/clinic-site-helpers'
 import { resolveLeadForm, type LeadFormsConfig } from '@/lib/types/lead-forms'
-import { EditText, EditImage, EditModal } from '@/components/clinic-site/editable'
+import { EditText, EditImage, EditModal, EditIcon } from '@/components/clinic-site/editable'
+import ServiceIcon from '@/components/clinic-site/service-icon'
 import ContactForm from '@/app/site/[slug]/contact-form'
 import GoogleRatingBadge, { GOOGLE_RATING_MIN_COUNT } from '@/components/clinic-site/google-rating-badge'
 import ScrollReveal from '@/components/clinic-site/scroll-reveal'
@@ -267,13 +268,13 @@ export default function HometownHome(props: HomePageProps) {
                       className="block rounded-lg p-6 h-full transition-shadow hover:shadow-md"
                       style={{ background: SITE_SURFACE, border: `1px solid ${SITE_BORDER}`, color: SITE_INK }}
                     >
-                      <span
+                      <EditIcon
+                        serviceId={s.id}
                         className="inline-flex items-center justify-center w-12 h-12 rounded-full text-2xl mb-4"
-                        style={{ background: 'var(--c-brand-soft, #E4EAF2)' }}
-                        aria-hidden="true"
+                        style={{ background: 'var(--c-brand-soft, #E4EAF2)', color: 'var(--c-brand-soft-ink, inherit)' }}
                       >
-                        {s.icon || SERVICE_ICONS[i % SERVICE_ICONS.length]}
-                      </span>
+                        <ServiceIcon icon={s.icon} size={26} fallback={SERVICE_ICONS[i % SERVICE_ICONS.length]} />
+                      </EditIcon>
                       <span className="block text-lg font-bold mb-1.5" style={{ fontFamily: DISPLAY }}>
                         {s.name}
                       </span>

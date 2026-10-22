@@ -163,6 +163,11 @@ export default async function ClinicSiteLayout({
            owner/admin, so relying on its copy of this rule leaked the
            prompts to real patients on day-0 sites. */
         .dc-edit-only { display: none; }
+        /* A service card's icon slot with nothing drawn in it takes no room
+           for a visitor (not even its flex gap); in the Studio it stays a
+           click target so an icon can be chosen. */
+        [data-edit-kind="icon"]:not(:has([data-service-icon])) { display: none; }
+        .dc-edit-mode [data-edit-kind="icon"] { display: inline-flex; cursor: pointer; }
         /* One focus language for every form field on the site: a visible
            2px brand-strong outline (AA-guaranteed color) with breathing
            room, replacing the browser-default / Tailwind-blue rings. */

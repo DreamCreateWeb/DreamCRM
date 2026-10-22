@@ -16,6 +16,7 @@ import type { CSSProperties, ElementType, ReactNode } from 'react'
  *   - a clinic_profile column name        → 'tagline', 'heroImageUrl'
  *   - a copy-override region              → 'copy:home.differenceHeadline'
  *   - a section modal                     → 'services', 'faq', 'hours', …
+ *   - a service's icon                    → 'serviceIcon:<service id>'
  */
 
 interface EditTextProps {
@@ -93,6 +94,35 @@ export function EditModal({ field, label, section, as, className, style, childre
       data-edit-kind="modal"
       {...(label ? { 'data-edit-label': label } : {})}
       {...(section ? { 'data-edit-section': section } : {})}
+      className={className}
+      style={style}
+    >
+      {children}
+    </Tag>
+  )
+}
+
+interface EditIconProps {
+  /** The `ClinicService.id` whose icon this region shows. */
+  serviceId: string
+  label?: string
+  as?: ElementType
+  className?: string
+  style?: CSSProperties
+  children: ReactNode
+}
+
+/** Click-to-choose icon region (EditBridge kind="icon"). Wrap the rendered
+ *  `<ServiceIcon>` — the Studio opens its icon drawer (curated glyphs, emoji,
+ *  or an upload) and saves through `updateServiceIcon`. */
+export function EditIcon({ serviceId, label, as, className, style, children }: EditIconProps) {
+  const Tag = (as ?? 'span') as ElementType
+  return (
+    <Tag
+      data-edit-field={`serviceIcon:${serviceId}`}
+      data-edit-kind="icon"
+      data-edit-label={label ?? 'icon'}
+      aria-hidden="true"
       className={className}
       style={style}
     >

@@ -1,4 +1,5 @@
 import 'server-only'
+import { formatPhoneForSite } from '@/lib/phone'
 import { cache } from 'react'
 import { headers } from 'next/headers'
 import { eq, and, asc, desc, isNotNull } from 'drizzle-orm'
@@ -410,17 +411,45 @@ async function loadSite(orgId: string, slug: string, orgName: string): Promise<C
   // `hasWebsiteDraft` is a clinic fact and rides in the cache; the draft
   // CONTENT does not. So the session is consulted first and the draft is read
   // only for someone already entitled to see it.
-  if (!published.hasWebsiteDraft || !(await canEditClinic(orgId))) return published
+  if (!published.hasWebsiteDraft || !(await canEditClinic(orgId))) return withSitePhones(published)
 
   const websiteDraft = await readWebsiteDraft(orgId)
-  if (websiteDraftKeys(websiteDraft).length === 0) return published
+  if (websiteDraftKeys(websiteDraft).length === 0) return withSitePhones(published)
 
   // `mergeWebsiteDraft` returns a NEW profile, so the frozen published one is
   // never written through — which matters now that it is shared across
   // requests rather than merely across two passes of one render.
-  return {
+  return withSitePhones({
     ...published,
     profile: mergeWebsiteDraft({ ...published.profile, websiteDraft }, websiteDraft),
+  })
+}
+
+/**
+ * The phone as the public site PRINTS it. `clinic_profile.phone` arrives as
+ * bare digits from a PMS or NPPES import ("5019824447"), and every template
+ * and page shell prints the column as-is — sixty call sites. Dashing it here,
+ * once, at the boundary every public render reads through, fixes all of them
+ * and keeps a number the practice spelled out on purpose exactly as typed
+ * (`formatPhoneForSite` only touches bare digits). New objects, never a write
+ * into the shared cached one.
+ */
+function withSitePhones<T extends ClinicSiteData>(data: T): T {
+  const phone = formatPhoneForSite(data.profile.phone)
+  const loc = (l: ClinicLocation): ClinicLocation =>
+    l.phone === formatPhoneForSite(l.phone) ? l : { ...l, phone: formatPhoneForSite(l.phone) }
+  if (
+    phone === data.profile.phone &&
+    data.locations.every((l) => l.phone === formatPhoneForSite(l.phone)) &&
+    (!data.primaryLocation || data.primaryLocation.phone === formatPhoneForSite(data.primaryLocation.phone))
+  ) {
+    return data
+  }
+  return {
+    ...data,
+    profile: { ...data.profile, phone },
+    primaryLocation: data.primaryLocation ? loc(data.primaryLocation) : data.primaryLocation,
+    locations: data.locations.map(loc),
   }
 }
 

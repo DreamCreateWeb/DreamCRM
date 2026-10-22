@@ -253,4 +253,60 @@ describe('ServicesPage', () => {
       .some((p) => p['@type'] === 'ItemList')
     expect(hasItemList).toBe(false)
   })
+
+  // ── The page's own words are copy keys (services.*) ───────────────────────
+  // Ted Pinney's office asked for "provided by" instead of "at" and could not
+  // find where to change it: the headline was typed into the shell. It is an
+  // editable region now, like every template heading.
+  it('the headline, eyebrow and section headings honour copy overrides', async () => {
+    await renderPage(
+      makeData({
+        copyOverrides: {
+          'services.heading': 'Dental services provided by Acme Dental.',
+          'services.heroEyebrow': 'Our care',
+          'services.coreHeading': 'Everyday care.',
+          'services.specialHeading': 'Specialty care.',
+        },
+      } as never),
+    )
+    expect(screen.getByRole('heading', { level: 1, name: 'Dental services provided by Acme Dental.' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { level: 1, name: /Dental services at/ })).toBeNull()
+    expect(screen.getByText('Our care')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Everyday care.' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Specialty care.' })).toBeInTheDocument()
+  })
+
+  it('the headline is a Studio text region keyed copy:services.heading', async () => {
+    const { container } = await renderPage()
+    const h1 = container.querySelector('h1')!
+    expect(h1.getAttribute('data-edit-field')).toBe('copy:services.heading')
+    expect(h1.getAttribute('data-edit-kind')).toBe('text')
+  })
+
+  // ── Icons go through the one renderer, inside an editable slot ────────────
+  it('a glyph icon draws as SVG and an upload as an image, each in an icon edit region', async () => {
+    const { container } = await renderPage(
+      makeData({}, [
+        { id: 's1', name: 'Hygiene & Cleaning', librarySlug: 'dental-hygiene', icon: 'icon:tooth' },
+        {
+          id: 's2',
+          name: 'Teeth Whitening',
+          librarySlug: 'teeth-whitening',
+          icon: 'https://dreamcrm-uploads-prod.s3.us-east-1.amazonaws.com/service-icons/u/1-w.png',
+        },
+        // A free-text service (no library entry to lend it an emoji).
+        { id: 's3', name: 'House Calls', category: 'core' },
+      ]),
+    )
+    const slot1 = container.querySelector('[data-edit-field="serviceIcon:s1"]')!
+    expect(slot1.getAttribute('data-edit-kind')).toBe('icon')
+    expect(slot1.querySelector('svg[data-service-icon="tooth"]')).toBeTruthy()
+    const slot2 = container.querySelector('[data-edit-field="serviceIcon:s2"]')!
+    expect(slot2.querySelector('img[data-service-icon="image"]')?.getAttribute('src')).toContain('/_next/image')
+    // No icon: the slot still exists for the Studio, with nothing drawn in it
+    // (the editor-only "+ icon" prompt is display:none to a visitor).
+    const slot3 = container.querySelector('[data-edit-field="serviceIcon:s3"]')!
+    expect(slot3.querySelector('[data-service-icon]')).toBeNull()
+    expect(slot3.querySelector('.dc-edit-only')?.textContent).toBe('+ icon')
+  })
 })

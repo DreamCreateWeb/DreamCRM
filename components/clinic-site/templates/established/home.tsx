@@ -19,7 +19,8 @@ import {
   hoursEntryDisplay,
 } from '@/lib/clinic-site-helpers'
 import { resolveLeadForm, type LeadFormsConfig } from '@/lib/types/lead-forms'
-import { EditText, EditImage, EditModal } from '@/components/clinic-site/editable'
+import { EditText, EditImage, EditModal, EditIcon } from '@/components/clinic-site/editable'
+import ServiceIcon from '@/components/clinic-site/service-icon'
 import ContactForm from '@/app/site/[slug]/contact-form'
 import GoogleRatingBadge, { GOOGLE_RATING_MIN_COUNT } from '@/components/clinic-site/google-rating-badge'
 import ScrollReveal from '@/components/clinic-site/scroll-reveal'
@@ -321,17 +322,21 @@ export default function EstablishedHome(props: HomePageProps) {
                       style={{ background: SITE_SURFACE, border: `1px solid ${SITE_BORDER}`, color: SITE_INK }}
                     >
                       <span className="flex items-center justify-between mb-6">
-                        <span
+                        <EditIcon
+                          serviceId={s.id}
                           className="inline-flex items-center justify-center w-11 h-11 rounded-xl text-xl"
                           style={{ background: ACCENT_SOFT, color: ACCENT_SOFT_INK }}
-                          aria-hidden="true"
                         >
-                          {s.icon || (
-                            <span className="text-base font-semibold" style={{ fontFamily: DISPLAY }}>
-                              {String(i + 1).padStart(2, '0')}
-                            </span>
-                          )}
-                        </span>
+                          <ServiceIcon
+                            icon={s.icon}
+                            size={24}
+                            fallback={
+                              <span className="text-base font-semibold" style={{ fontFamily: DISPLAY }}>
+                                {String(i + 1).padStart(2, '0')}
+                              </span>
+                            }
+                          />
+                        </EditIcon>
                         <span className="text-sm transition-transform group-hover:translate-x-0.5" style={{ color: GOLD }} aria-hidden="true">
                           →
                         </span>

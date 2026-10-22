@@ -1,4 +1,6 @@
 import { notFound } from 'next/navigation'
+import { EditIcon } from '@/components/clinic-site/editable'
+import ServiceIcon from '@/components/clinic-site/service-icon'
 import {
   getClinicSiteBySlug,
   publicSiteUrl,
@@ -303,12 +305,13 @@ export default async function ServiceDetailPage({ params }: Props) {
                   />
                 ) : (
                   service.icon && (
-                    <div
+                    <EditIcon
+                      serviceId={service.id}
+                      as="div"
                       className="w-full h-full flex items-center justify-center text-7xl"
-                      aria-hidden="true"
                     >
-                      {service.icon}
-                    </div>
+                      <ServiceIcon icon={service.icon} size={96} />
+                    </EditIcon>
                   )
                 )}
               </div>
@@ -449,9 +452,9 @@ export default async function ServiceDetailPage({ params }: Props) {
                     style={{ backgroundColor: BG, border: `1px solid ${BORDER}` }}
                   >
                     {r.icon && (
-                      <span aria-hidden="true" className="text-2xl leading-none mb-4">
-                        {r.icon}
-                      </span>
+                      <EditIcon serviceId={r.id} className="inline-flex text-2xl leading-none mb-4" style={{ color: INK }}>
+                        <ServiceIcon icon={r.icon} size={28} />
+                      </EditIcon>
                     )}
                     <h3 className="text-lg font-semibold mb-2 leading-tight" style={{ color: INK }}>
                       {r.name}

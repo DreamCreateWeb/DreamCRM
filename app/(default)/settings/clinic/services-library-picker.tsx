@@ -9,6 +9,7 @@ import {
   submitNewService,
   updateServiceContent,
   updateServiceOverrides,
+  updateServiceIcon,
 } from './services-actions'
 import type {
   ClinicService,
@@ -20,6 +21,9 @@ import type {
 import type { ServiceLibraryEntryWithStatus } from '@/lib/services/service-library'
 import { AddButton, EditorCard, EmptyHint, Field, inputCls, textareaCls } from '@/components/ui/editor-kit'
 import ImageUploader from '@/components/ui/image-uploader'
+import ServiceIcon from '@/components/clinic-site/service-icon'
+import { ServiceIconPickerPanel } from '@/components/website/service-icon-picker'
+import { SERVICE_ICON_FALLBACK } from '@/lib/service-icons'
 import { useConfirm } from '@/components/ui/confirm-dialog'
 import { TONE_FILL, TONE_FILL_HOVER } from '@/lib/ui/encodings'
 
@@ -73,6 +77,7 @@ type DrawerMode =
   | { kind: 'picker' }
   | { kind: 'overrides'; serviceId: string }
   | { kind: 'content'; serviceId: string }
+  | { kind: 'icon'; serviceId: string }
 
 export default function ServicesLibraryPicker({
   name,
@@ -169,6 +174,7 @@ export default function ServicesLibraryPicker({
             busy={busy === s.id}
             onOpenOverrides={() => setDrawer({ kind: 'overrides', serviceId: s.id })}
             onOpenContent={() => setDrawer({ kind: 'content', serviceId: s.id })}
+            onOpenIcon={() => setDrawer({ kind: 'icon', serviceId: s.id })}
             onMove={(dir) =>
               startTransition(() => {
                 moveLocal(s.id, dir)
@@ -266,6 +272,27 @@ export default function ServicesLibraryPicker({
                 busy={busy}
               />
             )}
+            {drawer.kind === 'icon' && (
+              <IconDrawer
+                key={drawer.serviceId}
+                service={services.find((s) => s.id === drawer.serviceId)}
+                busy={busy === drawer.serviceId}
+                onClose={() => setDrawer({ kind: 'closed' })}
+                onPick={(icon) =>
+                  startTransition(() => {
+                    patchServiceLocal(drawer.serviceId, { icon })
+                    void runAction(
+                      drawer.serviceId,
+                      () => updateServiceIcon(drawer.serviceId, icon),
+                      () => {
+                        showToast({ kind: 'success', msg: icon ? 'Icon saved' : 'Icon removed' })
+                        setDrawer({ kind: 'closed' })
+                      },
+                    )
+                  })
+                }
+              />
+            )}
             {drawer.kind === 'overrides' && (
               <OverridesDrawer
                 key={drawer.serviceId}
@@ -336,6 +363,7 @@ function SelectedServiceRow({
   busy,
   onOpenOverrides,
   onOpenContent,
+  onOpenIcon,
   onMove,
   onRemove,
 }: {
@@ -345,6 +373,7 @@ function SelectedServiceRow({
   busy: boolean
   onOpenOverrides: () => void
   onOpenContent: () => void
+  onOpenIcon: () => void
   onMove: (dir: 'up' | 'down') => void
   onRemove: () => void
 }) {
@@ -353,7 +382,17 @@ function SelectedServiceRow({
   return (
     <div className="rounded-xl border border-gray-200 dark:border-gray-700/70 bg-gray-50/70 dark:bg-gray-800/40 p-3.5">
       <div className="flex items-start gap-3">
-        <div className="text-2xl w-8 text-center shrink-0">{service.icon ?? '🦷'}</div>
+        <button
+          type="button"
+          onClick={onOpenIcon}
+          disabled={busy}
+          title="Change icon"
+          aria-label={`Change icon for ${service.name}`}
+          className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-transparent text-2xl text-gray-800 transition hover:border-gray-300 hover:bg-white disabled:opacity-40 dark:text-gray-100 dark:hover:border-gray-600 dark:hover:bg-gray-800"
+          data-testid="service-row-icon"
+        >
+          <ServiceIcon icon={service.icon} size={24} fallback={<span aria-hidden="true">{SERVICE_ICON_FALLBACK}</span>} />
+        </button>
         <div className="flex-1 min-w-0">
           <div className="flex flex-wrap items-center gap-1.5">
             <p className="font-semibold text-sm text-gray-800 dark:text-gray-100">{service.name}</p>
@@ -675,7 +714,7 @@ function ServiceGroup({
                   : 'border-gray-200 dark:border-gray-700/60'
               }`}
             >
-              <div className="text-xl w-7 text-center">{e.icon ?? '🦷'}</div>
+              <div className="text-xl w-7 text-center"><ServiceIcon icon={e.icon} size={20} fallback={SERVICE_ICON_FALLBACK} /></div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-gray-800 dark:text-gray-100">
                   {e.name}
@@ -780,6 +819,42 @@ function OverridesDrawer({
           Cancel
         </button>
       </div>
+    </div>
+  )
+}
+
+function IconDrawer({
+  service,
+  busy,
+  onClose,
+  onPick,
+}: {
+  service: ClinicService | undefined
+  busy: boolean
+  onClose: () => void
+  onPick: (icon: string | null) => void
+}) {
+  if (!service) {
+    return (
+      <div className="p-6">
+        <p className="text-sm text-gray-500 dark:text-gray-400">Service not found.</p>
+      </div>
+    )
+  }
+  return (
+    <div className="p-6 space-y-5">
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-semibold text-gray-800 dark:text-gray-100">Icon · {service.name}</h2>
+        <button
+          type="button"
+          onClick={onClose}
+          className="-mr-1.5 w-8 h-8 inline-flex items-center justify-center rounded-lg text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 transition"
+          aria-label="Close"
+        >
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 20 20" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round"><path d="M6 6l8 8M14 6l-8 8" /></svg>
+        </button>
+      </div>
+      <ServiceIconPickerPanel current={service.icon ?? null} busy={busy} onPick={onPick} />
     </div>
   )
 }
