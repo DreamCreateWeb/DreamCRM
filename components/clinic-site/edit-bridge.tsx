@@ -171,10 +171,12 @@ export default function EditBridge() {
       if (el.querySelector(':scope > .dc-edit-touch-tag')) return
       const field = el.getAttribute('data-edit-field') ?? ''
       const label = el.getAttribute('data-edit-label') ?? (kind === 'image' ? 'photo' : 'section')
+      const empty = el.getAttribute('data-edit-empty') === 'true'
       const btn = document.createElement('button')
       btn.type = 'button'
       btn.className = 'dc-edit-touch-tag'
-      btn.textContent = kind === 'image' ? `📷 ${label}` : kind === 'icon' ? `★ ${label}` : `✎ ${label}`
+      btn.textContent =
+        kind === 'image' ? `📷 ${empty ? 'Add ' : ''}${label}` : kind === 'icon' ? `★ ${label}` : `✎ ${label}`
       btn.addEventListener('click', (ev) => {
         ev.preventDefault()
         ev.stopPropagation()
@@ -257,8 +259,12 @@ export default function EditBridge() {
       editBtnField = el.getAttribute('data-edit-field') ?? ''
       editBtnKind = el.getAttribute('data-edit-kind') ?? ''
       const label = el.getAttribute('data-edit-label') ?? (editBtnKind === 'image' ? 'photo' : 'section')
+      // An empty slot (data-edit-empty) offers "Add", not "Replace" — there is
+      // nothing there to replace, and the word is the practice's cue that the
+      // grey square is theirs to fill.
+      const verb = editBtnKind === 'image' ? (el.getAttribute('data-edit-empty') === 'true' ? 'Add' : 'Replace') : ''
       editBtn.textContent =
-        editBtnKind === 'image' ? `📷 Replace ${label}` : editBtnKind === 'icon' ? `★ Change ${label}` : `✎ Edit ${label}`
+        editBtnKind === 'image' ? `📷 ${verb} ${label}` : editBtnKind === 'icon' ? `★ Change ${label}` : `✎ Edit ${label}`
       const r = el.getBoundingClientRect()
       editBtn.style.top = `${Math.max(8, r.top + 10)}px`
       editBtn.style.left = `${Math.min(window.innerWidth - 150, Math.max(8, r.right - 140))}px`

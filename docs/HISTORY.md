@@ -6172,6 +6172,35 @@ template with no bar, or a bar hidden above `sm`, measures 0 and nothing
 moves. The right-aligned pairs on established and hometeam are
 deliberately not tagged — the bottom-left floaters never meet them.
 
+## 2026-10-23 — The hero photo's empty door (every template)
+
+The owner, looking at Ted Pinney's hero: "they should be able to put an
+image in that grey square." They could not. Three templates — Home Team,
+Established and Hometown — rendered the `heroImageUrl` `EditImage` ONLY once
+a photo existed, so a practice starting without one saw the plate / the
+crest / plain talk and had nothing to click; the Studio's uploader was
+reachable from no surface on the canvas. Cosmetic and Pediatric had wrapped
+their empty state from the start, and Modern's oval carries its own
+"+ Add a photo" hint. The fix is the same shape as the icon slots the day
+before: the door exists in the empty state too.
+
+- `EditImage` gained `empty` → `data-edit-empty="true"`; the EditBridge
+  reads it and says "📷 Add Practice photo" (hover) / "📷 Add …" (touch)
+  instead of "Replace", so the empty wall announces what it is for.
+- Home Team: the WHOLE wall's inner area is the region, the plate still
+  inside it (it is public; nothing about the visitor's page changed).
+- Established: the lone crest is the region.
+- Hometown: the about band is text-only for visitors by design, so the
+  empty door is a `dc-edit-only` dashed tile ("+ Add a practice photo")
+  that only an editor in the Studio sees.
+- Modern's oval emits `data-edit-empty` when its `src` is null; Cosmetic
+  and Pediatric pass `empty` through.
+- `tests/site-templates/conformance.test.tsx` now asks EVERY registered
+  template for the door on the empty fixture (flagged empty) and on the
+  rich one (not flagged) — a seventh template cannot ship the dead state
+  again; `tests/clinic-site/hero-photo-door.test.tsx` pins the three
+  per-template shapes and the bridge's two verbs.
+
 ## 2026-10-22 — Ted Pinney's first three asks: a dashed phone, "provided by", and icons of their own
 
 The practice went live on their own domain and the office manager sent

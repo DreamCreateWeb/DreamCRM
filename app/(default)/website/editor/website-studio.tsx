@@ -1177,10 +1177,15 @@ function StudioModal({
 
   const imageCfg = modal.kind === 'image' ? IMAGE_FIELDS[modal.field] : null
   const isStale = modal.kind === 'stale'
+  // "Add" over an empty slot, "Replace" over a picture — decided from what
+  // was on the profile when the modal opened, so the title holds still while
+  // an upload lands inside it.
+  const hadImage =
+    modal.kind === 'image' && !!(profile[modal.field as keyof ClinicProfile] as string | null | undefined)
   const title = isStale
     ? 'Refresh to edit'
     : modal.kind === 'image'
-      ? `Replace ${imageCfg?.label ?? 'image'}`
+      ? `${hadImage ? 'Replace' : 'Add'} ${imageCfg?.label ?? 'image'}`
       : (SECTION_TITLES[modal.field] ?? 'Edit section')
   // Services embeds the autosaving library picker — it persists each change
   // itself, so the modal just shows a "Done" button that reloads the canvas.

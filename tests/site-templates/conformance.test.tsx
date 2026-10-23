@@ -102,6 +102,23 @@ describe.each(TEMPLATES.map((t) => [t.id, t] as const))('template conformance [%
     cleanup()
   })
 
+  it('the hero photo slot is a Studio door with or without a photo', () => {
+    // A practice with no photo yet must still have somewhere to click: the
+    // first client's hero wall rendered its crest alone, so the owner could
+    // not put a picture in the grey square. Empty → the region is there and
+    // says so (data-edit-empty); filled → the same region, not flagged empty.
+    const empty = render(<def.pages.Home {...homeProps(FIXTURES.empty(), def)} />)
+    const door = empty.container.querySelector('[data-edit-field="heroImageUrl"][data-edit-kind="image"]')
+    expect(door, 'empty clinic has no hero photo door').toBeTruthy()
+    expect(door!.getAttribute('data-edit-empty')).toBe('true')
+    cleanup()
+    const rich = render(<def.pages.Home {...homeProps(FIXTURES.rich(), def)} />)
+    const filled = rich.container.querySelectorAll('[data-edit-field="heroImageUrl"][data-edit-kind="image"]')
+    expect(filled.length, 'rich clinic lost its hero photo door').toBeGreaterThan(0)
+    for (const el of Array.from(filled)) expect(el.getAttribute('data-edit-empty')).toBeNull()
+    cleanup()
+  })
+
   it('the booking CTA carries the template voice (bookLabel)', () => {
     const { container } = render(<def.pages.Home {...homeProps(FIXTURES.rich(), def)} />)
     expect(container.textContent).toContain(def.bookLabel)
