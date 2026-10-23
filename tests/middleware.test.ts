@@ -84,6 +84,13 @@ describe('middleware subdomain rewrite', () => {
     expect(res.headers.get('location')).toBeNull()
   })
 
+  it('serves /api/version publicly, like the health check (a stale tab asks it before signing back in)', async () => {
+    const req = makeRequest('https://www.dreamcreatestudio.com/api/version', 'www.dreamcreatestudio.com')
+    const res = (await middleware(req)) as NextResponse
+    expect(res.headers.get('location')).toBeNull()
+    expect(res.status).toBe(200)
+  })
+
   it('does NOT rewrite apex domain', async () => {
     const req = makeRequest('https://www.dreamcreatestudio.com/', 'dreamcreatestudio.com')
     const res = (await middleware(req)) as NextResponse

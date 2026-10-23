@@ -20,7 +20,7 @@ import { useEffect } from 'react'
  * back (`setImage`, etc.). Same-origin `postMessage`, origin-checked both ways.
  * Navigation is suppressed while editing so the clinic stays on the canvas.
  */
-export default function EditBridge() {
+export default function EditBridge({ build }: { build?: string } = {}) {
   useEffect(() => {
     if (typeof window === 'undefined' || window.parent === window) return
     const origin = window.location.origin
@@ -375,7 +375,12 @@ export default function EditBridge() {
     document.addEventListener('mouseout', onOut)
     window.addEventListener('message', onMessage)
     document.body.classList.add('dc-edit-mode')
-    post({ type: 'ready' })
+    // `build` is the id of the build that RENDERED this page (handed down by
+    // the site layout, i.e. the running server's). The Studio compares it
+    // with its own bundle's id: the canvas reloads after every save, so a
+    // redeploy is noticed one save later at the latest — and prompted for,
+    // instead of the following save being refused.
+    post({ type: 'ready', build: build ?? null })
 
     // "Follow the AI": when the Studio navigates here with ?reveal=<field> after
     // an AI edit, scroll to the changed element and flash it. Deferred a beat so
@@ -414,6 +419,7 @@ export default function EditBridge() {
       touchObserver?.disconnect()
       document.querySelectorAll('.dc-edit-touch-tag').forEach((n) => n.remove())
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   return (

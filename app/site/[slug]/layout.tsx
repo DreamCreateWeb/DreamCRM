@@ -10,6 +10,7 @@ import TemplateFontLinks from '@/components/clinic-site/template-fonts'
 import TemplatePreviewBanner from '@/components/clinic-site/template-preview-banner'
 import DraftPreviewBanner from '@/components/clinic-site/draft-preview-banner'
 import EditBridgeGate from '@/components/clinic-site/edit-bridge-gate'
+import { BUILD_ID } from '@/lib/build-id'
 import SiteViewBeacon from '@/components/clinic-site/site-view-beacon'
 import SiteChatWidget from '@/components/clinic-site/site-chat-widget'
 import PoweredBy from '@/components/clinic-site/powered-by'
@@ -216,7 +217,7 @@ export default async function ClinicSiteLayout({
           gets the overlay, so only they ever see this. Hidden in the Studio
           canvas (its publish bar owns the state there) and in gallery frames. */}
       {hasEditorDraft && !isPreview && !isFrame && <DraftPreviewBanner appUrl={appBaseUrl()} />}
-      {!isFrame && <EditBridgeGate canEdit={canEdit} />}
+      {!isFrame && <EditBridgeGate canEdit={canEdit} build={BUILD_ID} />}
     </>
   )
 }

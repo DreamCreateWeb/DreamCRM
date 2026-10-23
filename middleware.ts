@@ -97,6 +97,7 @@ const PUBLIC_PATHS = [
   '/api/webhooks',
   '/api/cron',
   '/api/health',
+  '/api/version',
   // CRON_SECRET-guarded one-shot admin routes (run from inside the VPC).
   '/api/admin/migrate',
   '/api/admin/resync-demo',

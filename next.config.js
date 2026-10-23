@@ -1,5 +1,17 @@
+// One id per build, shared by the server bundle and every client bundle (see
+// lib/build-id.ts). A commit sha when the pipeline hands one in, otherwise a
+// timestamp — it only has to DIFFER from build to build. `env` values are
+// inlined at build time, which is exactly the property we need: a tab keeps
+// the id of the build it loaded, the server reports the one it runs.
+const BUILD_ID =
+  process.env.NEXT_PUBLIC_BUILD_ID ||
+  (process.env.CODEBUILD_RESOLVED_SOURCE_VERSION || process.env.GITHUB_SHA || '').slice(0, 12) ||
+  Date.now().toString(36)
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  env: { NEXT_PUBLIC_BUILD_ID: BUILD_ID },
+
   // Standalone server output so the container image (App Runner) ships a
   // minimal self-contained server.js.
   output: 'standalone',

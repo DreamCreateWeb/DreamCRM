@@ -85,6 +85,10 @@ interface Props {
 
 import type { StudioPage } from '@/lib/clinic-site-helpers'
 import { TONE_FILL, TONE_FILL_HOVER } from '@/lib/ui/encodings'
+import { BUILD_ID } from '@/lib/build-id'
+import { STALE_STUDIO_MESSAGE, buildsDiffer } from '@/lib/deployment-skew'
+import { BUILD_STALE_EVENT } from '@/components/ui/build-watch'
+import { runAction, type ActionFailure } from './run-action'
 
 type Status = 'idle' | 'saving' | 'saved' | 'error'
 // `stale` opens the refresh-to-edit fallback for an affordance this (older) tab
@@ -93,6 +97,8 @@ type ModalState = { kind: 'image' | 'section' | 'stale'; field: string } | null
 
 /** EditBridge field prefix for a service's icon (`EditIcon` in editable.tsx). */
 const SERVICE_ICON_FIELD_PREFIX = 'serviceIcon:'
+/** The stale modal's field when the cause is a redeploy (not an unknown field). */
+const STALE_DEPLOY_FIELD = '__deploy'
 
 const IMAGE_FIELDS: Record<
   string,
@@ -261,6 +267,22 @@ export default function WebsiteStudio({ slug, siteUrl, profile, orgId, library, 
   const [canvasPage, setCanvasPage] = useState('')
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [modal, setModal] = useState<ModalState>(null)
+  // The server has been rebuilt under this tab (the canvas's `ready` ping or
+  // the shell's BuildWatch said so, or a save was refused for it). The next
+  // server action from this bundle will be refused, so the top bar carries a
+  // Refresh and the stale prompt opens as soon as no editor is in the way.
+  const [staleBuild, setStaleBuild] = useState(false)
+  const markStale = () => {
+    setStaleBuild(true)
+    setModal((m) => (m ? m : { kind: 'stale', field: STALE_DEPLOY_FIELD }))
+  }
+  // One home for a failed action: the top-bar error line, and the refresh
+  // prompt when the failure was the redeploy case (runAction's `stale`).
+  const reportFailure = (res: ActionFailure) => {
+    setStatus('error')
+    setErrorMsg(res.error)
+    if (res.stale) markStale()
+  }
   // The icon drawer: `serviceIcon:<id>` intents from the canvas open it over
   // the Studio instead of a section modal (one picker, shared with the
   // services list in Website → Content).
@@ -368,7 +390,7 @@ export default function WebsiteStudio({ slug, siteUrl, profile, orgId, library, 
   const applyTemplatePreview = async () => {
     if (!previewingId || designBusy) return
     setDesignBusy(true)
-    const res = await saveTemplate(previewingId)
+    const res = await runAction(() => saveTemplate(previewingId))
     setDesignBusy(false)
     if (res.ok) {
       setPreviewingId(null)
@@ -376,8 +398,7 @@ export default function WebsiteStudio({ slug, siteUrl, profile, orgId, library, 
       void refreshDraftStatus()
       reloadFrame()
     } else {
-      setStatus('error')
-      setErrorMsg(res.error)
+      reportFailure(res)
     }
   }
 
@@ -545,7 +566,12 @@ export default function WebsiteStudio({ slug, siteUrl, profile, orgId, library, 
     }
     setStatus('saving')
     setErrorMsg(null)
-    const res = await fn()
+    // runAction turns a THROWN action (the network dropped, the server
+    // errored, or — the common one — the server was redeployed and no longer
+    // knows this bundle's action id) into an `{ ok: false }` result. Without
+    // it the throw escaped here, `status` stuck on "Saving…" for good, and the
+    // canvas never heard back: the Studio "froze until refreshed".
+    const res = await runAction(fn)
     if (res.ok) {
       setStatus('saved')
       // Every successful save pushes a new undo-history head server-side.
@@ -564,8 +590,7 @@ export default function WebsiteStudio({ slug, siteUrl, profile, orgId, library, 
       if (wasTouring && currentCanvasPath() !== ownerAt) reloadFrame(ownerAt)
       else reloadFrame()
     } else {
-      setStatus('error')
-      setErrorMsg(res.error)
+      reportFailure(res)
       // Don't reload on error — the canvas already holds the owner's in-progress
       // edits (e.g. other open inline fields); reloading would silently discard
       // them. Only a confirmed save refreshes the canvas.
@@ -577,13 +602,18 @@ export default function WebsiteStudio({ slug, siteUrl, profile, orgId, library, 
     const origin = window.location.origin
     async function onMessage(e: MessageEvent) {
       if (e.origin !== origin) return
-      const d = e.data as { source?: string; type?: string; field?: string; value?: string }
+      const d = e.data as { source?: string; type?: string; field?: string; value?: string; build?: string | null }
       if (!d || d.source !== 'dreamcrm-edit') return
       if (d.type === 'ready') {
         // Track the owner's current page + release any tour waiter.
         ownerPage.current = currentCanvasPath()
         setCanvasPage(ownerPage.current)
         readyResolve.current?.()
+        // The canvas was rendered by the running server and says which build
+        // that is; this bundle knows its own. They differ exactly when a
+        // deploy landed since this tab loaded — prompt now, rather than let
+        // the next save be refused.
+        if (buildsDiffer(BUILD_ID, d.build)) markStale()
       } else if (d.type === 'save' && d.field) {
         const field = d.field
         const res = await persist(
@@ -604,8 +634,13 @@ export default function WebsiteStudio({ slug, siteUrl, profile, orgId, library, 
         }
       }
     }
+    const onStaleBuild = () => markStale()
     window.addEventListener('message', onMessage)
-    return () => window.removeEventListener('message', onMessage)
+    window.addEventListener(BUILD_STALE_EVENT, onStaleBuild)
+    return () => {
+      window.removeEventListener('message', onMessage)
+      window.removeEventListener(BUILD_STALE_EVENT, onStaleBuild)
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -670,8 +705,21 @@ export default function WebsiteStudio({ slug, siteUrl, profile, orgId, library, 
         <div className="flex items-center gap-3 shrink-0">
           {status === 'saving' && <span className="text-xs text-gray-300">Saving…</span>}
           {status === 'saved' && <span className="text-xs text-emerald-400">Saved ✓</span>}
-          {status === 'error' && (
+          {/* Once stale, the amber button IS the message — the rose line would
+              only repeat it and crowd the bar. */}
+          {status === 'error' && !staleBuild && (
             <span className="text-xs text-rose-400 max-w-[16rem] truncate">{errorMsg ?? 'Could not save'}</span>
+          )}
+          {staleBuild && (
+            <button
+              type="button"
+              onClick={() => window.location.reload()}
+              title={STALE_STUDIO_MESSAGE}
+              data-testid="studio-stale-refresh"
+              className="rounded-md bg-amber-400/90 px-2.5 py-1 text-xs font-semibold text-gray-900 hover:bg-amber-300"
+            >
+              Updated — refresh to keep editing
+            </button>
           )}
           {/* Hero tagline rewrite — the tagline edits inline (no modal), so its
               AI affordance lives in the top bar, presenting the draft for review
@@ -698,15 +746,14 @@ export default function WebsiteStudio({ slug, siteUrl, profile, orgId, library, 
               })
               if (!ok) return
               setUndoBusy(true)
-              const res = await undoLastEditAction()
+              const res = await runAction(() => undoLastEditAction())
               setUndoBusy(false)
               if (res.ok) {
                 setUndoLabel(res.more ? (res.nextLabel ?? 'previous change') : null)
                 void refreshDraftStatus()
                 reloadFrame()
               } else {
-                setStatus('error')
-                setErrorMsg(res.error)
+                reportFailure(res)
               }
             }}
             disabled={!undoLabel || undoBusy}
@@ -826,15 +873,14 @@ export default function WebsiteStudio({ slug, siteUrl, profile, orgId, library, 
                 onClick={async () => {
                   if (publishBusy) return
                   setPublishBusy(true)
-                  const res = await publishWebsiteAction()
+                  const res = await runAction(() => publishWebsiteAction())
                   setPublishBusy(false)
                   if (res.ok) {
                     setDraftStatus({ count: 0, changes: [] })
                     setUndoLabel('Published site changes')
                     reloadFrame()
                   } else {
-                    setStatus('error')
-                    setErrorMsg(res.error)
+                    reportFailure(res)
                   }
                 }}
                 disabled={publishBusy}
@@ -857,14 +903,13 @@ export default function WebsiteStudio({ slug, siteUrl, profile, orgId, library, 
                   })
                   if (!ok) return
                   setPublishBusy(true)
-                  const res = await discardWebsiteAction()
+                  const res = await runAction(() => discardWebsiteAction())
                   setPublishBusy(false)
                   if (res.ok) {
                     setDraftStatus({ count: 0, changes: [] })
                     reloadFrame()
                   } else {
-                    setStatus('error')
-                    setErrorMsg(res.error)
+                    reportFailure(res)
                   }
                 }}
                 disabled={publishBusy}
@@ -1207,6 +1252,14 @@ function StudioModal({
 
   async function onSave() {
     setBusy(true)
+    try {
+      await save()
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function save() {
     let res: SectionResult
     if (modal.kind === 'image') {
       res = await persist(() => saveImageField(modal.field, imageUrl ?? '', position))
@@ -1217,7 +1270,6 @@ function StudioModal({
       // Client-side URL-shape guard before the round-trip (server re-validates).
       if (!isValidVideoUrl(videoUrl)) {
         setUploadError('Enter a valid video link (https://…) or upload a file.')
-        setBusy(false)
         return
       }
       // A Drive/YouTube/Dropbox PAGE link would save fine and render a silent
@@ -1225,7 +1277,6 @@ function StudioModal({
       const problem = videoUrlProblem(videoUrl)
       if (problem) {
         setUploadError(problem)
-        setBusy(false)
         return
       }
       res = await persist(() => saveDifferenceVideo(videoUrl))
@@ -1236,7 +1287,6 @@ function StudioModal({
     } else {
       res = { ok: false, error: 'This section isn’t editable yet' }
     }
-    setBusy(false)
     if (res.ok) {
       setDirty(false)
       onClose()
@@ -1291,8 +1341,9 @@ function StudioModal({
           {isStale && (
             <div className="space-y-3">
               <p className="text-sm text-gray-600 dark:text-gray-300">
-                This editor was added in a newer version of the Studio than this tab is running.
-                Refresh to pick it up — your saved edits are safe.
+                {modal.field === STALE_DEPLOY_FIELD
+                  ? STALE_STUDIO_MESSAGE
+                  : 'This editor was added in a newer version of the Studio than this tab is running. Refresh to pick it up — your saved edits are safe.'}
               </p>
               <ActionButton variant="primary" size="sm" onClick={() => window.location.reload()}>
                 Refresh to edit
@@ -1678,8 +1729,9 @@ function StudioModal({
           {modal.kind === 'section' && !SECTION_TITLES[modal.field] && (
             <div className="space-y-3">
               <p className="text-sm text-gray-600 dark:text-gray-300">
-                This editor was added in a newer version of the Studio than this tab is running.
-                Refresh to pick it up — your saved edits are safe.
+                {modal.field === STALE_DEPLOY_FIELD
+                  ? STALE_STUDIO_MESSAGE
+                  : 'This editor was added in a newer version of the Studio than this tab is running. Refresh to pick it up — your saved edits are safe.'}
               </p>
               <ActionButton variant="primary" size="sm" onClick={() => window.location.reload()}>
                 Refresh to edit

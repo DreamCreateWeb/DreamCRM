@@ -3,6 +3,7 @@ import Header from './header'
 import TenantSidebar from './tenant-sidebar'
 import BillingDunningBanner from './billing-dunning-banner'
 import TrialBanner from './trial-banner'
+import BuildWatch from './build-watch'
 import TrialReminderModal from './trial-reminder-modal'
 import TrialEndedWall from './trial-ended-wall'
 import KeyboardShortcuts from './keyboard-shortcuts'
@@ -149,6 +150,9 @@ export default async function DashboardShell({
           {/* Slim billing chip-row (compact skins of the same banners/logic). */}
           <BillingDunningBanner ctx={ctx} />
           <TrialBanner ctx={ctx} />
+          {/* A tab outlives the deploy that replaced its server: offer one
+              calm Refresh before its next server action is refused. */}
+          <BuildWatch />
           {trialNudgeDays != null && trialNudgeDays <= 3 && (
             <TrialReminderModal
               daysLeft={trialNudgeDays}

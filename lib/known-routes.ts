@@ -146,6 +146,7 @@ export const KNOWN_API_SEGMENTS: ReadonlySet<string> = new Set([
   'track',
   'unsub',
   'upload',
+  'version',
   'webhooks',
 ])
 

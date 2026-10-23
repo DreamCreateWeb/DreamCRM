@@ -85,7 +85,7 @@ describe('tour robustness', () => {
   it('gates tour steps on a bridge ready ack (not a blind sleep)', () => {
     expect(studio).toMatch(/waitForReady/)
     expect(studio).toMatch(/readyResolve/)
-    expect(read('components/clinic-site/edit-bridge.tsx')).toMatch(/post\(\{ type: 'ready' \}\)/)
+    expect(read('components/clinic-site/edit-bridge.tsx')).toMatch(/post\(\{ type: 'ready', build: build \?\? null \}\)/)
   })
   it('tracks the owner page so a tour-cancel reload lands where they were editing', () => {
     expect(studio).toMatch(/ownerPage/)
@@ -189,5 +189,46 @@ describe('collapsible AI bar', () => {
   })
   it('focuses the input on expand', () => {
     expect(aiBar).toMatch(/requestAnimationFrame\(\(\) => inputRef\.current\?\.focus\(\)\)/)
+  })
+})
+
+describe('every awaited server action in the Studio goes through runAction (the stale-deploy freeze)', () => {
+  // After a deploy, Next REFUSES a server action from the previous build by
+  // THROWING. A bare `await someAction()` let that escape: status stuck on
+  // "Saving…", busy flags never reset — the "freezes until refreshed" the
+  // first client reported (1,624 such refusals in the prod log in 14 days).
+  const studio = read('app/(default)/website/editor/website-studio.tsx')
+  it('persist() wraps the action', () => {
+    expect(studio).toMatch(/const res = await runAction\(fn\)/)
+  })
+  it('no bare await of a website action remains', () => {
+    const bare = studio.match(/await (saveTemplate|undoLastEditAction|publishWebsiteAction|discardWebsiteAction|saveInlineField|saveImageField|saveDifferenceVideo|updateServiceIcon)\(/g)
+    expect(bare, `bare awaits: ${bare?.join(', ')}`).toBeNull()
+  })
+  it('a stale failure opens the refresh prompt and the top bar carries a Refresh', () => {
+    expect(studio).toMatch(/if \(res\.stale\) markStale\(\)/)
+    expect(studio).toMatch(/data-testid="studio-stale-refresh"/)
+  })
+  it('the modal save resets busy in a finally', () => {
+    expect(studio).toMatch(/try \{\s*await save\(\)\s*\} finally \{\s*setBusy\(false\)/)
+  })
+})
+
+describe('the canvas reports the server build; the Studio compares it', () => {
+  it('the bridge ready ping carries `build`', () => {
+    const bridge = read('components/clinic-site/edit-bridge.tsx')
+    expect(bridge).toMatch(/post\(\{ type: 'ready', build: build \?\? null \}\)/)
+  })
+  it('the site layout hands the running server\'s BUILD_ID to the gate', () => {
+    const layout = read('app/site/[slug]/layout.tsx')
+    expect(layout).toMatch(/<EditBridgeGate canEdit=\{canEdit\} build=\{BUILD_ID\} \/>/)
+  })
+  it('the Studio marks itself stale on a differing build and on the shell\'s event', () => {
+    const studio = read('app/(default)/website/editor/website-studio.tsx')
+    expect(studio).toMatch(/if \(buildsDiffer\(BUILD_ID, d\.build\)\) markStale\(\)/)
+    expect(studio).toMatch(/window\.addEventListener\(BUILD_STALE_EVENT, onStaleBuild\)/)
+  })
+  it('the dashboard shell mounts BuildWatch', () => {
+    expect(read('components/ui/dashboard-shell.tsx')).toMatch(/<BuildWatch \/>/)
   })
 })
