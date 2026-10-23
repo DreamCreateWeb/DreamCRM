@@ -19,7 +19,7 @@ const EditBridge = dynamic(() => import('./edit-bridge'), { ssr: false })
  * The `?edit=1` check is client-side because Next.js layouts don't receive
  * searchParams; the auth half is server-side via `canEdit`.
  */
-export default function EditBridgeGate({ canEdit }: { canEdit: boolean }) {
+export default function EditBridgeGate({ canEdit, build }: { canEdit: boolean; build?: string }) {
   const [active, setActive] = useState(false)
 
   useEffect(() => {
@@ -31,5 +31,5 @@ export default function EditBridgeGate({ canEdit }: { canEdit: boolean }) {
     setActive(edit)
   }, [canEdit])
 
-  return active ? <EditBridge /> : null
+  return active ? <EditBridge build={build} /> : null
 }

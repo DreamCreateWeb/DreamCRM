@@ -6172,6 +6172,48 @@ template with no bar, or a bar hidden above `sm`, measures 0 and nothing
 moves. The right-aligned pairs on established and hometeam are
 deliberately not tagged — the bottom-left floaters never meet them.
 
+## 2026-10-23 — The Studio "freezes": a stale tab after a deploy
+
+The owner: "the website editor freezes often while making edits and has to
+be refreshed to continue." It was never a hang. Every save in the Studio
+awaited a server action with no error handling, and a server action is
+addressed by an id that changes per BUILD — so a tab opened before a merge
+to `main` (seven deploys in the fortnight, two of them mid-edit) has its next
+save REFUSED by Next.js with a thrown Error, "Failed to find Server Action …
+older or newer deployment". Unhandled, the throw left `status` on "Saving…"
+for good, busy flags never reset, the canvas never heard back, and every
+later save failed the same way. The App Runner application log carried
+1,624 of those refusals in 14 days, in bursts right after deploys and, on
+one night with no deploy at all, ~1,000 from a tab left open polling.
+
+- `lib/build-id.ts` + `env.NEXT_PUBLIC_BUILD_ID` in next.config.js: ONE id
+  per build (the commit sha when the pipeline hands one in, else a
+  timestamp), inlined into the server bundle and every client bundle.
+- `lib/deployment-skew.ts` (pure): `isDeploymentSkewError` recognises the
+  refusal's shapes; `buildsDiffer` never cries skew against an unknown id
+  or the dev placeholder.
+- `app/(default)/website/editor/run-action.ts`: the one wrapper around
+  every awaited action in the Studio — a throw becomes `{ ok: false }`,
+  marked `stale: true` for the redeploy case. `persist`, undo, publish,
+  discard, template apply and the icon drawer all ride it; the modal's Save
+  resets busy in a `finally`.
+- A stale failure opens the Studio's existing refresh prompt (new copy,
+  `STALE_STUDIO_MESSAGE`), and the top bar grows an amber "Updated — refresh
+  to keep editing" button that stays.
+- PROACTIVE: the site layout hands the running server's `BUILD_ID` to the
+  EditBridge, whose `ready` ping carries it; the canvas reloads after every
+  save, so the Studio notices a redeploy one save later at the latest and
+  prompts BEFORE the next save is refused. `/api/version` (public, no-store)
+  + `components/ui/build-watch.tsx` in the DashboardShell do the same for
+  every dashboard tab: a check on focus and every 5 minutes, one calm
+  Refresh banner, and a `dc:build-stale` event the Studio also listens for.
+  Nothing reloads on its own — an edit in progress is never thrown away by
+  the machine.
+- Tests: the classifier and `buildsDiffer`, `runAction`, BuildWatch (same
+  build → silent; different → banner + event; unreadable → silent), the
+  middleware's public path and route census, and source guards that fail
+  CI on any bare `await <websiteAction>(` in the Studio.
+
 ## 2026-10-23 — The hero photo's empty door (every template)
 
 The owner, looking at Ted Pinney's hero: "they should be able to put an
