@@ -54,8 +54,49 @@ same day (`9c96b0b7`) and is the same shape again — a pattern, not an area, so
 the count below is still nine. It decides which merged PRs get reported as
 having skipped a review, and the edit that breaks it is the quiet one: widen what
 counts as "satisfied" and the sweep goes on running green every morning while
-seeing nothing.) **An exclusion is the one edit to a gate that can only ever make it
-looser, and it leaves no trace under `.github/`.**
+seeing nothing.
+An eighth, `scripts/e2e-harness.sh`, arrived with DREAMCRM-129 — a pattern, not
+an area, so the count below is still nine — and it is the WIDEST entry on the
+list rather than another instance. Every pattern above names part of what a
+required check runs; every BLOCKING step of `ci.yml`'s `e2e` job is the single
+line `bash scripts/e2e-harness.sh`, so that file does not define the work inside
+the check, it IS the check, and `nightly.yml`, `post-merge-e2e.yml` and
+`e2e-flake-hunt.yml` run it too. (The job carries one further step,
+`node scripts/e2e-flaky-summary.mjs`, which by explicit design cannot exit
+non-zero, so it is not a second way for the job to fail.) It was the one file matching this area's own description that the
+area did not match, and it cost four routings by hand — #534 went three days
+unrouted, #598 was caught only by an unscoped sweep pass, #698 landed three at
+once, and #710 added a new blocking exit to the `e2e` job and was labelled
+`needs-forge-intake` alone until its author added the review himself. **An
+author's judgement is a good second path to a reviewer and a bad first one.**
+`scripts/load-sanity.mjs` was considered beside it and deliberately left off —
+and **not** because it is unreachable from a required check. It is reachable,
+and that distinction is the whole point of the area. Nothing in CI RUNS it: no
+workflow, no `package.json` script, and `scripts/e2e-harness.sh` reaches it only
+behind `--load-sanity`, which nothing in CI passes. It is a manual perf tool, so
+it cannot gate a merge — and "does it gate a merge" is the test this area
+applies. What it CAN do is redden `test`:
+`tests/guards/e2e-harness-args.test.ts` reads the script, derives its accepted
+flags from `flag('name', …)` in the source, and asserts the harness and the
+script still agree on `--base` / `--conc` / `--reqs`; it reads
+`docs/LOAD-SANITY.md` the same way, grading the harness's default levels against
+that document's `### Concurrency C, N requests/path` headings. Rename a flag on
+either side and the required check goes red, by name, in a guard that says what
+broke. **That is a guard working loudly, which is exactly why the file does not
+also need a reviewer standing over it. This area is about what gates a merge,
+not about everything reachable from a required check.**
+**The date is part of that answer**, recorded so the next reader does not
+re-derive a stale one: the load-sanity half of that guard arrived with #710,
+merged 2026-09-23 12:36:58Z. A review of #715 posted one minute later, against a
+checkout from just before it, found the reachability claim false — and was right
+about the tree it read. Both readings were correct at their moment; the base
+moved between them. **An inherited argument has to be verified before it is
+engraved, and RE-verified after a rebase** — the base is what decides whether it
+is true, and in a file that tells the next reader what is already safe, a
+sentence that has quietly changed sides is the expensive kind of wrong.)
+
+**An exclusion is the one edit to a gate that can only ever make it looser, and
+it leaves no trace under `.github/`.**
 
 **`GATE_RULES` is the source of truth for the gate's areas; prose follows it,
 never the reverse.** Chair's ruling on DREAMCRM-45, 2026-09-14, under
