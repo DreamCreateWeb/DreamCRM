@@ -268,7 +268,8 @@ export default function EstablishedHome(props: HomePageProps) {
             )}
           </div>
 
-          {/* The crest, alone — or over the practice photo when there is one. */}
+          {/* The crest, alone — or over the practice photo when there is one.
+              Alone, it is still the photo's door (an empty EditImage). */}
           <div className="relative">
             {p.heroImageUrl ? (
               <EditImage field="heroImageUrl" label="Practice photo" className="relative block">
@@ -284,7 +285,9 @@ export default function EstablishedHome(props: HomePageProps) {
                 </span>
               </EditImage>
             ) : (
-              <Crest name={name} place={place} logoUrl={p.logoUrl ?? null} size={380} />
+              <EditImage field="heroImageUrl" label="Practice photo" empty className="relative block">
+                <Crest name={name} place={place} logoUrl={p.logoUrl ?? null} size={380} />
+              </EditImage>
             )}
           </div>
         </div>

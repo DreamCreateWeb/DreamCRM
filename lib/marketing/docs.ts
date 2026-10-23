@@ -117,7 +117,7 @@ export const DOCS: DocArticle[] = [
           'Everything on this list lives on the Getting-started checklist on your Overview, and each item deep-links to the right screen.',
         ],
         steps: [
-          'Add your logo and a real photo (Website → hover the hero → Replace photo). Template sites convert badly; real practices convert.',
+          'Add your logo and a real photo (Website → Editor → hover the hero photo spot → Add photo, or Replace photo once one is there). Template sites convert badly; real practices convert.',
           'Set your office hours (Settings → Clinic profile). Hours drive your website, your booking slot grid, and the portal footer all at once.',
           'Introduce your team with photos and a sentence of bio — they appear on your site and on patient-facing visit cards.',
           'Invite your front desk (Settings → Team). Everyone gets their own login.',

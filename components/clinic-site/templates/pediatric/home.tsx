@@ -176,7 +176,7 @@ export default function PediatricHome(props: HomePageProps) {
             )}
           </div>
 
-          <EditImage field="heroImageUrl" label="Hero photo" className="relative">
+          <EditImage field="heroImageUrl" label="Hero photo" empty={!p.heroImageUrl} className="relative">
             {p.heroImageUrl ? (
               <span className="relative block rotate-2 transition-transform hover:rotate-0 duration-300">
                 <SiteImage

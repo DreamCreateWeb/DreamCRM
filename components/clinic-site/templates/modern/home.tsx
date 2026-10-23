@@ -1809,6 +1809,7 @@ function OvalPortrait({
             'data-edit-field': editField,
             'data-edit-kind': editKind,
             ...(editLabel ? { 'data-edit-label': editLabel } : {}),
+            ...(empty ? { 'data-edit-empty': 'true' } : {}),
           }
         : {})}
     >

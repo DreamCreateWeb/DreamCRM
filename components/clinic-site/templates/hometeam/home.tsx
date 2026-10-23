@@ -311,7 +311,9 @@ export default function HometeamHome(props: HomePageProps) {
 
           {/* The outfield wall: charcoal, the town ghosted across it, the plate
               in front. A photo, when there is one, hangs on the wall with the
-              plate at its corner. */}
+              plate at its corner. With no photo the WHOLE wall is still the
+              photo's door — the first client saw the plate alone and had no
+              way to put a picture in the grey square. */}
           <div className="relative overflow-hidden min-h-[22rem] lg:min-h-0" style={{ background: SITE_DEEP }}>
             <span className="absolute inset-y-0 left-0 w-1.5" style={{ background: TEAM }} aria-hidden="true" />
             <WallLettering text={(p.city ?? name).toUpperCase()} className="-bottom-[0.14em] -left-2 text-[9rem] sm:text-[12rem] lg:text-[13rem]" />
@@ -330,9 +332,16 @@ export default function HometeamHome(props: HomePageProps) {
                   </span>
                 </EditImage>
               ) : (
-                <div className="w-full max-w-[24rem] drop-shadow-[0_18px_28px_rgba(0,0,0,0.35)]">
-                  <HomePlate name={name} place={place} logoUrl={p.logoUrl ?? null} size={384} />
-                </div>
+                <EditImage
+                  field="heroImageUrl"
+                  label="Practice photo"
+                  empty
+                  className="relative w-full min-h-[18rem] h-full flex items-center justify-center"
+                >
+                  <div className="w-full max-w-[24rem] drop-shadow-[0_18px_28px_rgba(0,0,0,0.35)]">
+                    <HomePlate name={name} place={place} logoUrl={p.logoUrl ?? null} size={384} />
+                  </div>
+                </EditImage>
               )}
             </div>
           </div>

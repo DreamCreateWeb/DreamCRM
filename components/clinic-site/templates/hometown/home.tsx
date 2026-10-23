@@ -328,7 +328,7 @@ export default function HometownHome(props: HomePageProps) {
               </a>
             </div>
           </div>
-          {p.heroImageUrl && (
+          {p.heroImageUrl ? (
             <EditImage field="heroImageUrl" label="Practice photo">
               <SiteImage
                 displayWidth={HERO_IMAGE_DISPLAY_WIDTH}
@@ -337,6 +337,21 @@ export default function HometownHome(props: HomePageProps) {
                 className="w-full aspect-[4/3] object-cover rounded-xl"
                 style={{ border: `1px solid ${SITE_BORDER}` }}
               />
+            </EditImage>
+          ) : (
+            /* No photo: the band stays plain talk for every visitor (this is
+               the no-photos-needed template), but an editor in the Studio
+               sees a dashed tile they can click — the door to add one. */
+            <EditImage
+              field="heroImageUrl"
+              label="Practice photo"
+              empty
+              className="dc-edit-only w-full max-w-md mx-auto aspect-[4/3] rounded-xl border-2 border-dashed"
+              style={{ borderColor: SITE_BORDER }}
+            >
+              <span className="flex h-full items-center justify-center text-sm font-semibold" style={{ color: SITE_INK_MUTED }}>
+                + Add a practice photo
+              </span>
             </EditImage>
           )}
         </div>

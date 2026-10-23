@@ -173,7 +173,7 @@ export default function CosmeticHome(props: HomePageProps) {
               )}
             </div>
 
-            <EditImage field="heroImageUrl" label="Hero photo" className="relative">
+            <EditImage field="heroImageUrl" label="Hero photo" empty={!heroPhoto} className="relative">
               {heroPhoto ? (
                 <figure>
                   <span className="relative block">

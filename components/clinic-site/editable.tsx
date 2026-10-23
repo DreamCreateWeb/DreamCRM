@@ -51,6 +51,12 @@ interface EditImageProps {
   /** clinic_profile image column ('heroImageUrl', 'logoUrl', …). */
   field: string
   label?: string
+  /** True when the slot has no picture yet — the Studio's affordance then
+   *  reads "Add …" instead of "Replace …". A template MUST still render the
+   *  region in that state (around whatever stands in for the photo), or the
+   *  practice has no door to put one there: the first client's hero wall
+   *  showed the crest alone with nothing to click. */
+  empty?: boolean
   className?: string
   style?: CSSProperties
   children: ReactNode
@@ -58,12 +64,13 @@ interface EditImageProps {
 
 /** Click-to-swap image region (EditBridge kind="image"). Wrap the rendered
  *  <img>/<div> — the Studio opens its uploader + focal-point picker. */
-export function EditImage({ field, label, className, style, children }: EditImageProps) {
+export function EditImage({ field, label, empty, className, style, children }: EditImageProps) {
   return (
     <div
       data-edit-field={field}
       data-edit-kind="image"
       {...(label ? { 'data-edit-label': label } : {})}
+      {...(empty ? { 'data-edit-empty': 'true' } : {})}
       className={className}
       style={style}
     >
