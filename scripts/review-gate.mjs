@@ -632,6 +632,47 @@ export const INTAKE_RULES = [
       // class. After it lands, a bare await of a server action in a public
       // form fails `test` by name.
       'tests/marketing/marketing-forms-bare-await.test.ts',
+      // The dashboard-wide bare-await rule (2026-10-26, the deep dev cycle,
+      // ML-01). A NEW CLASS of assertion rather than a case on the marketing
+      // rule above, stated here rather than guessed as this entry's `why`
+      // asks — and the distinction is in what it GRADES, not where: the
+      // marketing rule is a brace tracker over small forms that reads any
+      // `await <x>Action(` by SPELLING; this one reads CONTROL FLOW with the
+      // TypeScript parser over every `.tsx` under `app` and `components`
+      // (1,400+ files): it resolves each import to its module, parses that
+      // module for a leading `'use server'` directive, and walks UP from
+      // every `await <binding>(…)` of such an import. A `try` guards the
+      // await only if no function boundary sits between them — an outer
+      // `try` around `startTransition(async () => { await x() })` catches
+      // nothing, and the first draft of the Studio fix had exactly that
+      // shape — and a `runAction(() => …)` callback guards it by name.
+      //
+      // WHAT IT MEANS FOR EVERY OTHER PR, which is the intake test: after it
+      // lands, writing `await saveThing()` in a client component without
+      // `runAction` or a `try` fails `test` by file, line and callee. Today's
+      // offenders sit in a DATED ALLOWLIST keyed by file with a site count,
+      // and the list may only SHRINK: a count that goes up fails, a count
+      // that goes down must be edited down (the ratchet), a file that
+      // reaches zero must be removed. The cluster slices that follow ML-01
+      // each shrink their own files.
+      //
+      // WHAT IT DOES NOT COVER, here rather than only in the test's docblock,
+      // because this comment is what the rulebook entry gets written from:
+      //
+      //   - `.ts` files. `tsxFiles` walks `.tsx` only; no `'use client'`
+      //     `.ts` file under either root awaits anything today, and the test
+      //     asserts that population is empty so the gap announces itself.
+      //   - An action reached WITHOUT a direct await: `.then()` chains,
+      //     `Promise.all([a(), b()])`, a form `action={fn}` prop, or a call
+      //     through a local alias (`const save = saveThing; await save()`).
+      //   - A SERVER component that awaits a `'use server'` export during
+      //     render. That is a direct call with no action id and cannot skew,
+      //     but the parser cannot tell the two apart, so such a site owes
+      //     either a `try` or an allowlist line with its reason.
+      //   - The `'use server'` directive is read from the module's parsed
+      //     directive prologue, so a module that declares it mid-file, or a
+      //     function-level directive, is not an action module to this rule.
+      'tests/ui/no-bare-await.test.ts',
       // The marketing-site copy scan (2026-10-26, the deep dev cycle). It
       // was a NAMED-file test; it now WALKS `app/(marketing)`, `lib/marketing`
       // and `components/marketing` for copy that describes the removed

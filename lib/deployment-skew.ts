@@ -4,6 +4,14 @@
  * redeployed under it. Next.js rejects such a call with a thrown Error (never
  * an `{ ok: false }` result), so every awaited action in a client component
  * needs a catch that can tell this case from an ordinary failure.
+ *
+ * THIS IS THE ONE HOME of that classifier (2026-10-26). It had two: this one
+ * and a copy in `lib/auth/submit-guard.ts` that the auth, onboarding and
+ * invite screens imported, each matching a slightly different set of shapes.
+ * Two classifiers for one failure drift the first time Next changes its
+ * wording, so `submit-guard` re-exports this one and the two pattern sets are
+ * merged below. The shared wrapper every client component should await an
+ * action through is `runAction` in `lib/run-action.ts`.
  */
 
 const SKEW_PATTERNS = [
@@ -13,7 +21,10 @@ const SKEW_PATTERNS = [
   /unrecognized\s*action/i,
 ]
 
-/** True when `err` is Next's "this action id is from another build" refusal. */
+/** True when `err` is Next's "this action id is from another build" refusal.
+ *  Reads the message AND the digest, because Next surfaces it differently
+ *  depending on whether the action rejected on the server (digest) or the
+ *  fetch itself failed (message); a bare string is read as a message. */
 export function isDeploymentSkewError(err: unknown): boolean {
   if (!err) return false
   const e = err as { name?: unknown; message?: unknown; digest?: unknown }
@@ -22,7 +33,12 @@ export function isDeploymentSkewError(err: unknown): boolean {
   const text = [typeof e.message === 'string' ? e.message : '', typeof e.digest === 'string' ? e.digest : '', typeof err === 'string' ? err : '']
     .filter(Boolean)
     .join('\n')
-  return SKEW_PATTERNS.some((re) => re.test(text))
+  if (!text) return false
+  if (SKEW_PATTERNS.some((re) => re.test(text))) return true
+  // Next sometimes serializes this as a generic action-id miss: the words
+  // "server action" and "deployment" present, in either order, with none of
+  // the canonical sentences. Carried over from the auth copy of this check.
+  return /server action/i.test(text) && /deployment/i.test(text)
 }
 
 /** What a stale Studio tab reads before it refreshes. */

@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect } from 'react'
+import { STALE_APP_MESSAGE, isDeploymentSkewError } from '@/lib/deployment-skew'
 
 /**
  * Shared route-group error boundary UI. Every authenticated + public surface
@@ -10,9 +11,16 @@ import { useEffect } from 'react'
  *
  * - `reset()` is React's in-place retry (re-runs the failed Server Component
  *   subtree / refetches its data) — the right first move for a transient load
- *   error. A secondary hard reload is offered for stubborn cases (and covers a
- *   deployment-skew chunk/action mismatch, the same reasoning as the auth
- *   boundary; the app-wide ChunkReloadGuard handles most of those upstream).
+ *   error. A secondary hard reload is offered for stubborn cases (the app-wide
+ *   ChunkReloadGuard handles stale CHUNK loads upstream; this card never sees
+ *   those).
+ * - A STALE BUILD is the one case `reset()` cannot fix (2026-10-26): the tab
+ *   was opened before a deploy and a server action it awaited was refused by
+ *   name, so re-running the subtree re-sends the same dead action id. When
+ *   `isDeploymentSkewError(error)` the card says so (`STALE_APP_MESSAGE`),
+ *   offers Refresh as the ONLY button, and ignores the caller's `message` —
+ *   "Trying again usually fixes it" is false here, and a retry button that
+ *   cannot work is how a person learns the page is broken.
  * - `inContent` renders centered within an existing layout's content area (the
  *   dashboard keeps its sidebar/header); the default fills the surface for
  *   pages that have no chrome (portal / public site / the root catch-all).
@@ -41,6 +49,10 @@ export function RouteError({
     console.error(`[route error boundary: ${scope}]`, error)
   }, [error, scope])
 
+  // The redeploy case: no in-place retry, because there is nothing a retry can
+  // reach — the action id this tab holds no longer exists on the server.
+  const stale = isDeploymentSkewError(error)
+
   return (
     <div
       className={`v2-app flex items-center justify-center px-4 ${inContent ? 'min-h-[60vh]' : 'min-h-[100dvh]'}`}
@@ -63,19 +75,30 @@ export function RouteError({
           </svg>
         </div>
         <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-2">{title}</h1>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">{message}</p>
-        <button
-          onClick={() => reset()}
-          className="w-full rounded-lg px-4 py-2.5 text-sm font-semibold bg-teal-600 text-white hover:bg-teal-700 dark:bg-teal-400 dark:text-gray-900 dark:hover:bg-teal-300 transition-colors"
-        >
-          {retryLabel}
-        </button>
-        <button
-          onClick={() => window.location.reload()}
-          className="mt-2 w-full rounded-lg px-4 py-2 text-xs font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
-        >
-          Reload the page
-        </button>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">{stale ? STALE_APP_MESSAGE : message}</p>
+        {stale ? (
+          <button
+            onClick={() => window.location.reload()}
+            className="w-full rounded-lg px-4 py-2.5 text-sm font-semibold bg-teal-600 text-white hover:bg-teal-700 dark:bg-teal-400 dark:text-gray-900 dark:hover:bg-teal-300 transition-colors"
+          >
+            Refresh
+          </button>
+        ) : (
+          <>
+            <button
+              onClick={() => reset()}
+              className="w-full rounded-lg px-4 py-2.5 text-sm font-semibold bg-teal-600 text-white hover:bg-teal-700 dark:bg-teal-400 dark:text-gray-900 dark:hover:bg-teal-300 transition-colors"
+            >
+              {retryLabel}
+            </button>
+            <button
+              onClick={() => window.location.reload()}
+              className="mt-2 w-full rounded-lg px-4 py-2 text-xs font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
+            >
+              Reload the page
+            </button>
+          </>
+        )}
         {/* gray-500/-400, not gray-400/-600: this reference is the one thing a
             person is meant to read off a broken page and quote back to us, and
             it was the least legible text on it — 2.62:1 light, 2.18:1 dark. */}

@@ -4,6 +4,34 @@
  */
 import { describe, it, expect } from 'vitest'
 import { buildsDiffer, isDeploymentSkewError } from '@/lib/deployment-skew'
+import { isDeploymentSkewError as authIsDeploymentSkewError } from '@/lib/auth/submit-guard'
+
+describe('isDeploymentSkewError has ONE home', () => {
+  it('the auth screens import the same function, not a copy', () => {
+    // submit-guard carried its own classifier until 2026-10-26; two of them
+    // drift the first time Next rewords the refusal. Identity, not behaviour.
+    expect(authIsDeploymentSkewError).toBe(isDeploymentSkewError)
+  })
+
+  it('recognises the shapes the auth copy recognised, so nothing was lost in the merge', () => {
+    // The digest-carried shape (the action rejected on the server).
+    expect(
+      isDeploymentSkewError(
+        Object.assign(new Error('An error occurred in the Server Components render.'), {
+          digest: 'Failed to find Server Action "x". This request might be from an older or newer deployment.',
+        }),
+      ),
+    ).toBe(true)
+    // The generic action-id miss: "server action" + "deployment", no canonical sentence.
+    expect(isDeploymentSkewError(new Error('Server Action mismatch — this deployment does not know it'))).toBe(true)
+    expect(isDeploymentSkewError('Failed to find Server Action "z".')).toBe(true)
+    // And the shapes it must NOT read as a redeploy.
+    expect(isDeploymentSkewError(new Error('Invalid password'))).toBe(false)
+    expect(isDeploymentSkewError(new Error('We could not reach the deployment service'))).toBe(false)
+    expect(isDeploymentSkewError('')).toBe(false)
+    expect(isDeploymentSkewError({})).toBe(false)
+  })
+})
 
 describe('isDeploymentSkewError', () => {
   it('recognises the shapes Next throws for an action id from another build', () => {

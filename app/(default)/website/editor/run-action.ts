@@ -1,29 +1,19 @@
-import { ACTION_FAILED_MESSAGE, STALE_STUDIO_MESSAGE, isDeploymentSkewError } from '@/lib/deployment-skew'
+import { STALE_STUDIO_MESSAGE } from '@/lib/deployment-skew'
+import { runAction as runActionShared, type ActionFailure } from '@/lib/run-action'
 
 /**
- * Every server action the Studio awaits goes through here. A server action
- * that REFUSES (a validation error) resolves to `{ ok: false, error }` and
- * needs nothing; one that THROWS — the network dropped, the server errored,
- * or the server was redeployed and no longer knows this build's action id —
- * used to escape every caller: the status stuck on "Saving…", busy flags
- * never reset, the canvas never heard back. That was the "editor freezes,
- * refresh to continue" the first client lived with.
+ * The Studio's door onto the shared wrapper. `runAction` was born here
+ * (2026-10-23) and was promoted to `lib/run-action.ts` on 2026-10-26 so every
+ * panel in the dashboard awaits its actions the same way; this module stays
+ * so the Studio's imports, its source guards and its tests are untouched.
  *
- * The result shape stays the action's own, with one addition: `stale: true`
- * when the throw was the redeploy case, so the host can offer a refresh
- * instead of a retry.
+ * The one thing it adds: the Studio's OWN stale copy. The dashboard-wide line
+ * says "anything you saved is safe"; the Studio's also warns that text still
+ * open in a field needs typing again, because a half-edited section is the
+ * thing a refresh loses here.
  */
-export type ActionFailure = { ok: false; error: string; stale?: true }
+export { isStaleFailure, type ActionFailure } from '@/lib/run-action'
 
-export async function runAction<T extends { ok: boolean }>(fn: () => Promise<T>): Promise<T | ActionFailure> {
-  try {
-    return await fn()
-  } catch (err) {
-    if (isDeploymentSkewError(err)) return { ok: false, error: STALE_STUDIO_MESSAGE, stale: true }
-    return { ok: false, error: ACTION_FAILED_MESSAGE }
-  }
-}
-
-export function isStaleFailure(res: { ok: boolean; stale?: true }): res is ActionFailure & { stale: true } {
-  return !res.ok && res.stale === true
+export function runAction<T extends { ok: boolean }>(fn: () => Promise<T>): Promise<T | ActionFailure> {
+  return runActionShared(fn, { staleMessage: STALE_STUDIO_MESSAGE })
 }

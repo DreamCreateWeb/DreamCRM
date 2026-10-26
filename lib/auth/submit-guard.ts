@@ -16,38 +16,17 @@
  * params), which re-fetches the fresh action ids — the user just sees a brief
  * "we shipped an update, refreshing…" instead of a raw error.
  *
- * This module is intentionally dependency-free and isomorphic-safe (the reload
- * only fires in the browser).
+ * This module is isomorphic-safe (the reload only fires in the browser). The
+ * classifier itself lives in `lib/deployment-skew.ts` — ONE home since
+ * 2026-10-26; this file carried its own copy for the auth screens before the
+ * dashboard-wide one existed, and two copies of "is this the redeploy throw"
+ * drift the first time Next rewords it. Re-exported here so the ten screens
+ * that import it from this path keep working unchanged.
  */
 
-/**
- * True when an unknown thrown value is the Next.js stale-server-action error
- * (or an adjacent action-not-found / deployment-mismatch error). Matches on
- * the message AND digest because Next surfaces it differently depending on
- * whether the action rejected on the server (digest) or the fetch failed.
- */
-export function isDeploymentSkewError(err: unknown): boolean {
-  if (!err) return false
-  const parts: string[] = []
-  if (typeof err === 'string') parts.push(err)
-  if (err instanceof Error) {
-    parts.push(err.message)
-    const digest = (err as { digest?: unknown }).digest
-    if (typeof digest === 'string') parts.push(digest)
-  } else if (typeof err === 'object') {
-    const o = err as { message?: unknown; digest?: unknown }
-    if (typeof o.message === 'string') parts.push(o.message)
-    if (typeof o.digest === 'string') parts.push(o.digest)
-  }
-  const haystack = parts.join(' ').toLowerCase()
-  if (!haystack) return false
-  return (
-    haystack.includes('failed to find server action') ||
-    haystack.includes('older or newer deployment') ||
-    // Next sometimes serializes this as a generic action-id miss.
-    (haystack.includes('server action') && haystack.includes('deployment'))
-  )
-}
+import { isDeploymentSkewError } from '@/lib/deployment-skew'
+
+export { isDeploymentSkewError }
 
 /** Reload the current page (URL + token params intact). Browser-only. */
 export function reloadPreservingUrl(): void {
