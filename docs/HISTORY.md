@@ -6172,7 +6172,7 @@ template with no bar, or a bar hidden above `sm`, measures 0 and nothing
 moves. The right-aligned pairs on established and hometeam are
 deliberately not tagged — the bottom-left floaters never meet them.
 
-## 2026-10-26 — The deep dev cycle, part 1: five slices of small fixes
+## 2026-10-26 — The deep dev cycle, part 1: six slices of small fixes
 
 The owner: "go into a deep dev cycle, looking for features that need to be
 added, areas that need refined, updating the design — generally just a
@@ -6182,8 +6182,8 @@ briefs and built in parallel in isolated worktrees, each finding verified
 against the cited code before a line changed, and the 153 medium/large
 findings went to five verifier agents (142 confirmed, 11 partial, 0
 refuted) whose verdicts feed the feature plan that follows this entry.
-This entry is the first five slices (51 findings, all implemented, none
-refuted); part 2 carries the other two.
+This entry is the first six slices (58 findings, all implemented, none
+refuted); part 2 carries the seventh (the dashboard's honesty).
 
 **The platform tenant (4).** `lib/platform-clinic-status.ts` is the ONE
 home for the platform's read of a clinic's standing — `clinicCountsAsActive`
@@ -6262,6 +6262,34 @@ guard against the newest migration's date, and "week by week" where
 "every week" could not be kept. The grader form no longer bare-awaits
 its action. Help docs follow the current nav (a test resolves every
 "A → B" phrase against the live settings nav + the hub registry).
+
+**Growth's data honesty (7).** Every Resend campaign email was counted
+as 'sent' TWICE — the send loop wrote the row when Resend accepted, and
+the webhook's `email.sent` event wrote it again — which halved the
+frequency cap and every open rate; the webhook now ignores `sent` for
+campaigns (delivered / bounce / complaint still land), a `test` tag keeps
+staff test sends out of the ledger, `partitionByFrequencyCap` counts
+distinct CAMPAIGNS per person so the doubled history reads right either
+way, and `scripts/repair-double-sent-campaign-events.sql` (SELECT first)
+cleans the rows. Open and click counts outside the editor were raw pixel
+hits (rates over 100%): every funnel stage counts distinct people
+(`funnelIdentity` = patient → email → phone; the SQL twin `FUNNEL_PERSON`).
+A failed social post promised a retry that did not exist —
+`retrySocialPostTargets` + "Try again on Instagram" (failed targets only,
+disconnected channel says so). The reviews page's "text-message requests
+are coming next" slipped past the no-coming-soon guard, whose phrase is
+now `coming soon / next / later / arriving soon` — and the widened guard
+caught FOUR more rendered "Coming next" boxes promising things already
+shipped, deleted. Month boundaries in recall stats, the birthday audience
+and the benefits season used the server's UTC month: `clinicLocalDate` +
+`clinicMonthStart`, and `BENEFITS_MONTHS` is 1-indexed. The Design page
+offered "Second hero image" and "Intro video" to every clinic when only
+Modern renders them — `SiteTemplateCatalogEntry.media` declares each
+template's slots and the page shows a quiet note instead. Office photos
+carry a description (`officePhotoAlt`: description → caption → "<Clinic>
+— the office" at every gallery; the SEO alt check counts them), and
+`parseOfficePhotos` keeps the focal `position` it had been DROPPING on
+every save.
 
 **The shell on phones + for screen readers (8).** The off-canvas drawer
 is `inert` when closed and traps focus when open; the notification tray

@@ -180,7 +180,9 @@ describe('bookMyVisitAction', () => {
     const r = await bookMyVisitAction(
       form({ startTime: future(), type: 'cleaning', notes: 'Sensitive teeth', comfort: 'Nervous about needles' }),
     )
-    expect(r).toEqual({ ok: true })
+    // The action hands back the visit's real END so the portal's .ics carries
+    // the clinic's own duration rather than a hardcoded 30 minutes (2026-10-26).
+    expect(r).toEqual({ ok: true, endIso: expect.any(String) })
     expect(inserts).toHaveLength(1)
     const vals = inserts[0] as {
       organizationId: string
@@ -211,7 +213,7 @@ describe('bookMyVisitAction', () => {
     const r = await bookMyVisitAction(
       form({ startTime: future(), type: 'cleaning', forPatientId: 'pat_kid' }),
     )
-    expect(r).toEqual({ ok: true })
+    expect(r).toEqual({ ok: true, endIso: expect.any(String) })
     const vals = inserts[0] as { patientId: string }
     expect(vals.patientId).toBe('pat_kid')
     expect(sendBookingConfirmation).toHaveBeenCalledWith(

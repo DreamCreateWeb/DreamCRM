@@ -100,13 +100,30 @@ test.describe('the dashboard shell is usable at phone width', () => {
 
     await expect(page.locator('#sidebar')).toHaveAttribute('inert', '')
 
-    // Tab 1 → the skip link; Tab 2 → the first focusable AFTER it. With the
+    // The fixture clinic is on its first visit, so the Overview opens the
+    // welcome dialog, which holds focus inside itself by design. Dismiss it
+    // and drop focus back to the document before walking the tab order —
+    // the question here is the SHELL's order, not the dialog's.
+    const letsGo = page.getByRole('button', { name: /let.s go/i })
+    if (await letsGo.isVisible().catch(() => false)) {
+      await letsGo.click()
+      await expect(page.getByRole('dialog', { name: /welcome/i })).toBeHidden()
+    }
+
+    // Start the walk AT the skip link (the shell's first tabbable, rendered
+    // before the drawer) rather than from wherever the dialog left the
+    // browser's sequential-focus starting point. Tab from it → the first
+    // focusable AFTER it. The drawer's nav is next in DOM order, so with the
     // drawer inert that is the header, never a nav link in the drawer.
-    await page.keyboard.press('Tab')
+    await page.getByRole('link', { name: 'Skip to content' }).focus()
     await expect(page.getByRole('link', { name: 'Skip to content' })).toBeFocused()
     await page.keyboard.press('Tab')
-    const inDrawer = await page.evaluate(() => !!document.activeElement?.closest('#sidebar'))
-    expect(inDrawer, 'Tab from the skip link must not land inside the closed drawer').toBe(false)
+    const landed = await page.evaluate(() => ({
+      inDrawer: !!document.activeElement?.closest('#sidebar'),
+      inHeader: !!document.activeElement?.closest('header'),
+    }))
+    expect(landed.inDrawer, 'Tab from the skip link must not land inside the closed drawer').toBe(false)
+    expect(landed.inHeader, 'Tab from the skip link lands in the header').toBe(true)
 
     for (const name of ['Open sidebar', 'Search', 'Notifications', 'Need help?', 'Dark mode']) {
       const box = await page.getByRole(name === 'Dark mode' ? 'switch' : 'button', { name }).boundingBox()
@@ -142,7 +159,11 @@ test.describe('the dashboard shell is usable at phone width', () => {
 
   test('at 390 the bulk bar and its primary action are reachable once a row is selected', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 900 })
-    await page.goto(`${BASE}/appointments`, { waitUntil: 'networkidle' })
+    // The agenda is never network-idle for long (badge polling, the live
+    // trail), so wait for its own content like staff-day.spec.ts does rather
+    // than for the network — the first run of this test timed out at 60s on
+    // `networkidle` with the page fully painted.
+    await page.goto(`${BASE}/appointments`)
     const boxes = page.getByRole('checkbox', { name: /^Select / })
     await expect(boxes.first()).toBeVisible({ timeout: 30_000 })
     const n = Math.min(await boxes.count(), 2)
