@@ -57,8 +57,7 @@ export const ALLOWLIST_DATED = '2026-10-26'
  */
 export const ALLOWED: Array<[file: string, sites: number]> = [
   ['app/(default)/appointments/agenda-view.tsx', 1],
-  ['app/(default)/appointments/appointment-drawer.tsx', 9],
-  ['app/(default)/appointments/book-from-patient-drawer.tsx', 1],
+  ['app/(default)/appointments/appointment-drawer.tsx', 7],
   ['app/(default)/appointments/waitlist-panel.tsx', 1],
   ['app/(default)/dashboard/guardian-audience-control.tsx', 1],
   ['app/(default)/ecommerce/customers/customers-table.tsx', 1],
@@ -89,7 +88,6 @@ export const ALLOWED: Array<[file: string, sites: number]> = [
   ['app/(default)/integrations/pms/connect-request.tsx', 1],
   ['app/(default)/integrations/sms/registration-panel.tsx', 1],
   ['app/(default)/integrations/sync-controls.tsx', 4],
-  ['app/(default)/leads/lead-drawer.tsx', 2],
   ['app/(default)/leads/leads-view.tsx', 1],
   ['app/(default)/marketing/retention-automations-card.tsx', 1],
   ['app/(default)/my-day/digest-toggle.tsx', 1],
@@ -191,7 +189,7 @@ export const ALLOWED: Array<[file: string, sites: number]> = [
 
 /** The sum of ALLOWED's counts the day it was taken. LOWER it as you sweep;
  *  never raise it — a raise is a new offender admitted by hand. */
-export const ALLOWLIST_CEILING = 247
+export const ALLOWLIST_CEILING = 242
 
 /* ───────────────────────── the detector ───────────────────────── */
 
