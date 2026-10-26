@@ -65,17 +65,12 @@ const BASE = process.env.E2E_BASE_URL ?? 'http://127.0.0.1:3100'
 /**
  * The seeded balance as the patient reads it — must match BILLING_BALANCE_CENTS.
  *
- * `$185` and not `$185.00`, because the product renders it BOTH ways and this
- * substring is the honest intersection. `fmtMoney` (components/patient-portal/
- * format.ts) sets `minimumFractionDigits` to 0 on a whole number of dollars, so
- * the billing page says "$185"; the dashboard's task strip builds its own
- * string with `.toFixed(2)` and says "$185.00". A spec pinned to either
- * spelling passes on one surface and fails on the other — which is how the
- * first run of this file went red.
- *
- * (That the two disagree is a real, if small, product inconsistency. It is a UI
- * copy question, not a test question, so this spec reports what is there rather
- * than asserting what it wishes were there.)
+ * `$185` and not `$185.00`: `fmtMoney` (components/patient-portal/format.ts)
+ * sets `minimumFractionDigits` to 0 on a whole number of dollars, and since
+ * 2026-10-26 the dashboard's balance strip renders through it too — it used
+ * to build its own `.toFixed(2)` string and say "$185.00", which is how the
+ * first run of this file went red (a spec pinned to either spelling passed
+ * on one surface and failed on the other). One formatter now, one spelling.
  */
 const BALANCE = '$185'
 
@@ -241,7 +236,7 @@ test.describe('paying a balance from the portal', () => {
     // Written down with its number so the next person starts where this one
     // finished rather than rediscovering it — §10, and the lesson of the
     // three notes above.
-    await page.getByRole('link', { name: /\$185\.00 balance/ }).click()
+    await page.getByRole('link', { name: /\$185 balance/ }).click()
     await expect(page).toHaveURL(/\/patient\/invoices/)
 
     await expectSole(page, portalMain(page).getByText('Your balance'), 10_000)

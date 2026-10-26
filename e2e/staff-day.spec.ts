@@ -120,7 +120,11 @@ test.describe('the staff day (appointments drawer)', () => {
     // The dialog's confirm button shares its accessible name with the drawer
     // button that opened it — scope to the dialog.
     const confirm = page.getByRole('dialog', { name: 'Cancel this appointment?' })
-    await expect(confirm.getByText('The patient will not be notified automatically.')).toBeVisible()
+    // The dialog says what WILL happen (2026-10-26, `cancelNoticeFor`): Riley
+    // has an email on file and the cancellation email is on by default, so
+    // the honest line is the email one — never the old "will not be notified"
+    // that was false for every clinic with the automation on.
+    await expect(confirm.getByText(/We’ll email Riley that it’s cancelled/)).toBeVisible()
 
     // Two stacked dialogs — the drawer plus the confirm on top of it. Nothing
     // read from source can tell you what a screen reader finds here.
