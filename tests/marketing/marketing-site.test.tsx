@@ -98,8 +98,10 @@ describe('pricing page', () => {
     // No tier names, no "beta" — the platform is one finished product.
     expect(screen.queryByText(/most popular/i)).toBeNull()
     expect(screen.queryByText(/beta/i)).toBeNull()
-    // Formerly premium-gated rows now sit in the everything-included list.
-    expect(screen.getByText('Open Dental two-way sync (official API)')).toBeInTheDocument()
+    // Formerly premium-gated rows now sit in the everything-included list —
+    // the PMS row names THE one door (the NexHealth bridge; the OD-direct
+    // "official API" connector was retired 2026-08-19).
+    expect(screen.getByText('PMS sync through the NexHealth bridge (Open Dental, Dentrix, Eaglesoft + more)')).toBeInTheDocument()
     expect(screen.getByText('Recall & outreach campaigns')).toBeInTheDocument()
     expect(screen.getByText('Careers page + applicant tracking')).toBeInTheDocument()
   })

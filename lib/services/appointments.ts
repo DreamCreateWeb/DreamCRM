@@ -1065,8 +1065,8 @@ export async function cancelAppointment(
 }
 
 /** Compose + send the patient-facing cancellation confirmation from the clinic
- *  identity, with a rebook link when the clinic's plan supports online booking.
- *  Best-effort — callers wrap in catch. */
+ *  identity, with the rebook link every clinic has (one plan, online booking
+ *  for all). Best-effort — callers wrap in catch. */
 async function sendCancellationEmailToPatient(
   organizationId: string,
   opts: { to: string; patientName: string; appointmentType: string; startTime: Date },
@@ -1084,18 +1084,15 @@ async function sendCancellationEmailToPatient(
     .from(schema.organization)
     .where(eq(schema.organization.id, organizationId))
     .limit(1)
+  // The one guard: no org row means no site to point at (and no clinic to
+  // speak for) — the only case with nothing honest to send.
+  if (!org) return
 
-  // Every clinic has online booking (no plan tiers) — offer the rebook link
-  // whenever we can build the site URL.
-  let rebookUrl: string | null = null
-  if (org) {
-    const { publicSiteUrl } = await import('@/lib/services/clinic-site')
-    const base = publicSiteUrl({
-      slug: org.slug,
-      profile: { websiteDomain: profile?.websiteDomain ?? null } as never,
-    })
-    rebookUrl = `${base}/book`
-  }
+  const { publicSiteUrl } = await import('@/lib/services/clinic-site')
+  const rebookUrl = `${publicSiteUrl({
+    slug: org.slug,
+    profile: { websiteDomain: profile?.websiteDomain ?? null } as never,
+  })}/book`
 
   const { getClinicSenderIdentity } = await import('@/lib/services/clinic-sender')
   const { sendCancellationConfirmation } = await import('@/lib/email')
@@ -1155,18 +1152,15 @@ async function sendNoShowRebookEmail(
     .from(schema.organization)
     .where(eq(schema.organization.id, organizationId))
     .limit(1)
+  // The one guard: no org row means no booking page to point at — nothing
+  // honest to send, and nothing went out.
+  if (!org) return false
 
-  // Every clinic has online booking (no plan tiers) — offer the rebook link
-  // whenever we can build the site URL.
-  let rebookUrl: string | null = null
-  if (org) {
-    const { publicSiteUrl } = await import('@/lib/services/clinic-site')
-    const base = publicSiteUrl({
-      slug: org.slug,
-      profile: { websiteDomain: profile?.websiteDomain ?? null } as never,
-    })
-    rebookUrl = `${base}/book`
-  }
+  const { publicSiteUrl } = await import('@/lib/services/clinic-site')
+  const rebookUrl = `${publicSiteUrl({
+    slug: org.slug,
+    profile: { websiteDomain: profile?.websiteDomain ?? null } as never,
+  })}/book`
 
   const { getClinicSenderIdentity } = await import('@/lib/services/clinic-sender')
   const { renderAutomatedEmail } = await import('@/lib/services/email-automations')
@@ -1179,40 +1173,26 @@ async function sendNoShowRebookEmail(
   })
   if (!rendered.enabled) return false
 
-  if (rebookUrl) {
-    const { authEmailShell, deliver } = await import('@/lib/email')
-    await deliver({
-      to: opts.to,
-      from: sender.from,
-      replyTo: sender.replyTo,
-      gmail: sender.gmail,
-      subject: rendered.full.subject,
-      html: authEmailShell({
-        heading: 'We missed you — no big deal',
-        introHtml: rendered.full.body
-          .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-          .replace(/\n/g, '<br>'),
-        buttonUrl: rebookUrl,
-        buttonLabel: 'Find a new time',
-        footnoteHtml: profile?.phone
-          ? `Prefer to talk it through? Call us at ${profile.phone}.`
-          : 'Prefer to talk it through? Just reply to this email.',
-      }),
-    })
-    return true
-  } else {
-    const { sendNotificationEmail } = await import('@/lib/email')
-    await sendNotificationEmail(
-      {
-        to: opts.to,
-        name: opts.patientName,
-        title: rendered.full.subject,
-        body: `${rendered.full.body}${profile?.phone ? `\n\nGive us a call at ${profile.phone} and we'll find a time together.` : ''}`,
-      },
-      sender,
-    )
-    return true
-  }
+  const { authEmailShell, deliver } = await import('@/lib/email')
+  await deliver({
+    to: opts.to,
+    from: sender.from,
+    replyTo: sender.replyTo,
+    gmail: sender.gmail,
+    subject: rendered.full.subject,
+    html: authEmailShell({
+      heading: 'We missed you — no big deal',
+      introHtml: rendered.full.body
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/\n/g, '<br>'),
+      buttonUrl: rebookUrl,
+      buttonLabel: 'Find a new time',
+      footnoteHtml: profile?.phone
+        ? `Prefer to talk it through? Call us at ${profile.phone.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}.`
+        : 'Prefer to talk it through? Just reply to this email.',
+    }),
+  })
+  return true
 }
 
 export async function markNoShow(organizationId: string, appointmentId: string) {

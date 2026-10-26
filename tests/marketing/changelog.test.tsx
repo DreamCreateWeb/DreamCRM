@@ -1,4 +1,6 @@
 import { describe, it, expect } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { join, resolve } from 'node:path'
 import { render, screen, within } from '@testing-library/react'
 import {
   CHANGELOG_ENTRIES,
@@ -125,5 +127,48 @@ describe('the changelog is wired into the site', () => {
     expect(navHrefs).toContain('/changelog')
     const footerHrefs = FOOTER_COLUMNS.flatMap((col) => col.links.map((l) => l.href))
     expect(footerHrefs).toContain('/changelog')
+  })
+
+  it('the nav promises what the registry can keep — week by week, not "every week"', () => {
+    // Six silent weeks once sat under "summarized every week". A changelog is
+    // the cheapest proof the product is alive, and a weekly promise the
+    // registry cannot hold on a quiet week is a dishonest status in the
+    // site's own words. The shape is weekly; the promise says so without
+    // vowing a cadence.
+    const child = MARKETING_NAV.flatMap((item) => item.children ?? []).find((c) => c.href === '/changelog')
+    expect(child?.description).toBe('What shipped, week by week')
+  })
+})
+
+describe('the changelog is fresh', () => {
+  /**
+   * A SHIPPED MIGRATION GETS ITS WEEK WRITTEN. The registry held two weeks
+   * while the product shipped its biggest customer-visible work (insurance
+   * to every clinic, the verification sheet, financing widgets, the
+   * activation doors) and nothing could fail: the cadence test pins the
+   * shape, not the freshness. This anchors freshness to the newest
+   * migration's own timestamp — the one dated artifact a shipped change
+   * cannot avoid — the way cron parity anchors a route to a schedule. A
+   * quiet week with no migration moves nothing, so it never fails on
+   * silence; a migration that lands and goes unwritten for three weeks
+   * fails CI naming the gap.
+   */
+  it('the latest written week ends within three weeks of the newest migration', () => {
+    const ROOT = resolve(__dirname, '../..')
+    const journal = JSON.parse(readFileSync(join(ROOT, 'lib/db/migrations/meta/_journal.json'), 'utf8')) as {
+      entries: Array<{ when: number; tag: string }>
+    }
+    expect(journal.entries.length).toBeGreaterThan(100)
+    const newest = journal.entries.reduce((a, b) => (b.when > a.when ? b : a))
+    const latest = latestChangelogEntry()
+    expect(latest).toBeDefined()
+    const DAY = 86_400_000
+    const weekEnds = new Date(`${latest!.weekOf}T00:00:00Z`).getTime() + 7 * DAY
+    const gapDays = (newest.when - weekEnds) / DAY
+    expect(
+      gapDays,
+      `migration ${newest.tag} shipped ${Math.round(gapDays)} days after the last written changelog week ` +
+        `(${latest!.weekOf}) — write the week it belongs to`,
+    ).toBeLessThanOrEqual(21)
   })
 })

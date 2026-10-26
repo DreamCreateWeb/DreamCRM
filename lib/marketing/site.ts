@@ -88,7 +88,7 @@ export const MARKETING_NAV: MarketingNavItem[] = [
       { label: 'Practice growth library', href: '/resources', description: 'Recall scripts, membership math, patient growth' },
       { label: 'Help docs', href: '/docs', description: 'Setup guides in front-desk language' },
       { label: 'Blog', href: '/blog', description: 'Announcements & essays from the team' },
-      { label: 'Changelog', href: '/changelog', description: 'What shipped, summarized every week' },
+      { label: 'Changelog', href: '/changelog', description: 'What shipped, week by week' },
       { label: 'Your first 30 minutes', href: '/docs/your-first-30-minutes', description: 'The setup order that works' },
       { label: 'Connect your PMS', href: '/docs/connecting-your-pms', description: 'One bridge, set up with you' },
       { label: 'Live demo practice', href: DEMO_URL, description: 'Browse a fully-populated clinic', external: true },

@@ -108,4 +108,23 @@ describe('no plan gating (single-plan reality)', () => {
     const cfg = readFileSync(join(ROOT, 'lib/stripe-config.ts'), 'utf8')
     expect(cfg).toContain("PLANS.filter((p) => p.id === 'premium')")
   })
+
+  // The gate scans found the branches; this one finds the WORDS. The Emails
+  // hub once told a practice its cancellation email carried "a 'call us' line
+  // on the Basic plan" — a tier that no longer exists, on the page that says
+  // the buttons are filled in for you. Copy a practice reads about its own
+  // emails may not name a plan or tier.
+  it('the patient-email copy and templates never name a plan or tier', () => {
+    const COPY_FILES = ['lib/types/email-automations.ts', 'lib/email.ts']
+    const hits: string[] = []
+    for (const f of COPY_FILES) {
+      const src = readFileSync(join(ROOT, f), 'utf8')
+      for (const [i, line] of Array.from(src.split('\n').entries())) {
+        if (/\b(basic|pro|premium)\s+(plan|tier)\b/i.test(line)) {
+          hits.push(`${f}:${i + 1}  ${line.trim()}`)
+        }
+      }
+    }
+    expect(hits).toEqual([])
+  })
 })

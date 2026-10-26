@@ -1,6 +1,6 @@
 import { Resend } from 'resend'
 import type { ClinicSender } from './email-identity'
-import type { EmailSlots } from './types/email-automations'
+import { bodyOpensWithGreeting, type EmailSlots } from './types/email-automations'
 
 // Sender identity for all transactional + marketing email. Override with the
 // EMAIL_FROM env var (e.g. "Dream Create <hello@dreamcreatestudio.com>") once
@@ -495,20 +495,29 @@ export interface ContactRequestData {
   message: string | null
 }
 
+/**
+ * The front desk's "a stranger filled the form" email. EVERY field here is
+ * public-form input — the one place on the platform anyone on the internet
+ * can type — and the reader trusts this email more than any other, so each
+ * value is escaped before it touches the HTML (the message keeps its line
+ * breaks via pre-wrap, since the site's custom-field answers arrive joined
+ * by blank lines) and the name is flattened to one line before it reaches
+ * the subject.
+ */
 export async function sendContactRequestEmail(to: string, data: ContactRequestData) {
   await deliver({
     to,
-    subject: `New appointment request from ${data.patientName}`,
+    subject: `New appointment request from ${singleLine(data.patientName)}`,
     html: `
       <div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:32px 24px">
         <h2 style="margin:0 0 8px;font-size:20px;color:#111">New appointment request</h2>
-        <p style="margin:0 0 24px;font-size:13px;color:#888">From ${data.clinicName}'s website</p>
+        <p style="margin:0 0 24px;font-size:13px;color:#888">From ${escapeHtml(data.clinicName)}'s website</p>
         <table style="width:100%;border-collapse:collapse;font-size:14px">
-          <tr><td style="padding:8px 0;color:#555;width:140px">Name</td><td style="padding:8px 0;color:#111;font-weight:600">${data.patientName}</td></tr>
-          <tr><td style="padding:8px 0;color:#555">Phone</td><td style="padding:8px 0;color:#111">${data.phone}</td></tr>
-          ${data.email ? `<tr><td style="padding:8px 0;color:#555">Email</td><td style="padding:8px 0;color:#111">${data.email}</td></tr>` : ''}
-          ${data.preferredDate ? `<tr><td style="padding:8px 0;color:#555">Preferred Date</td><td style="padding:8px 0;color:#111">${data.preferredDate}</td></tr>` : ''}
-          ${data.message ? `<tr><td style="padding:8px 0;color:#555;vertical-align:top">Message</td><td style="padding:8px 0;color:#111">${data.message}</td></tr>` : ''}
+          <tr><td style="padding:8px 0;color:#555;width:140px">Name</td><td style="padding:8px 0;color:#111;font-weight:600">${escapeHtml(data.patientName)}</td></tr>
+          <tr><td style="padding:8px 0;color:#555">Phone</td><td style="padding:8px 0;color:#111">${escapeHtml(data.phone)}</td></tr>
+          ${data.email ? `<tr><td style="padding:8px 0;color:#555">Email</td><td style="padding:8px 0;color:#111">${escapeHtml(data.email)}</td></tr>` : ''}
+          ${data.preferredDate ? `<tr><td style="padding:8px 0;color:#555">Preferred Date</td><td style="padding:8px 0;color:#111">${escapeHtml(data.preferredDate)}</td></tr>` : ''}
+          ${data.message ? `<tr><td style="padding:8px 0;color:#555;vertical-align:top">Message</td><td style="padding:8px 0;color:#111;white-space:pre-wrap">${escapeHtml(data.message)}</td></tr>` : ''}
         </table>
         <p style="margin:24px 0 0;font-size:12px;color:#888">
           Sent from your DreamCRM clinic website.
@@ -582,8 +591,8 @@ export async function sendBookingConfirmationEmail(to: string, data: BookingConf
   const bodyHtml =
     content?.body != null
       ? slotToHtml(content.body)
-      : `Hi ${data.patientName}, your <strong>${typeLabel}</strong> visit at
-          <strong>${data.clinicName}</strong> is booked.`
+      : `Hi ${escapeHtml(data.patientName)}, your <strong>${escapeHtml(typeLabel)}</strong> visit at
+          <strong>${escapeHtml(data.clinicName)}</strong> is booked.`
   const closingHtml =
     content?.closing != null
       ? slotToHtml(content.closing)
@@ -600,7 +609,7 @@ export async function sendBookingConfirmationEmail(to: string, data: BookingConf
         <p style="margin:0 0 24px;color:#444;line-height:1.5">${bodyHtml}</p>
         <div style="padding:16px 20px;background:#f9fafb;border-radius:8px;margin-bottom:24px">
           <p style="margin:0 0 4px;font-size:16px;font-weight:600;color:#111">${timeStr}</p>
-          <p style="margin:0 0 10px;font-size:14px;color:#555">${data.clinicName}${data.clinicPhone ? ` · ${data.clinicPhone}` : ''}</p>
+          <p style="margin:0 0 10px;font-size:14px;color:#555">${escapeHtml(data.clinicName)}${data.clinicPhone ? ` · ${escapeHtml(data.clinicPhone)}` : ''}</p>
           <a href="${googleCalendarUrl({
             title: `${typeLabel} at ${data.clinicName}`,
             start: data.startTime,
@@ -623,10 +632,10 @@ export interface CancellationConfirmationData {
   clinicPhone: string | null
   startTime: Date
   appointmentType: string
-  /** When the clinic's plan supports online booking, the absolute URL to the
-   *  public /book page so the patient can grab a new time in one tap. Null on
-   *  basic tier (no online booking) — we fall back to "call us" copy instead. */
-  rebookUrl?: string | null
+  /** The absolute URL to the clinic's public /book page so the patient can
+   *  grab a new time in one tap. Every clinic has online booking (there is one
+   *  plan), so the button is always there. */
+  rebookUrl: string
   /** Clinic IANA timezone so the cancelled time renders at the clinic's
    *  wall-clock (the server runs in UTC). */
   timeZone?: string
@@ -652,17 +661,12 @@ export async function sendCancellationConfirmation(
     year: 'numeric', hour: 'numeric', minute: '2-digit',
     ...(data.timeZone ? { timeZone: data.timeZone } : {}),
   })
-  const rebookBlock = data.rebookUrl
-    ? `
+  const rebookBlock = `
         <a href="${data.rebookUrl}" style="display:inline-block;padding:12px 24px;background:#1c1a17;color:#fff;text-decoration:none;border-radius:8px;font-size:14px;font-weight:600">
           Find a new time
         </a>
         <p style="margin:16px 0 0;font-size:13px;color:#6b635a;line-height:1.55">
           Whenever you're ready — no rush${data.clinicPhone ? `, or just call us at ${escapeHtml(data.clinicPhone)}` : ''}.
-        </p>`
-    : `
-        <p style="margin:0;font-size:13px;color:#6b635a;line-height:1.55">
-          Whenever you're ready to rebook, just ${data.clinicPhone ? `give us a call at ${escapeHtml(data.clinicPhone)}` : 'reach out'} — we'd love to see you.
         </p>`
   const subject = content?.subject ?? `Your appointment at ${data.clinicName} was cancelled`
   const headingHtml = content?.heading != null ? slotToHtml(content.heading) : 'Appointment cancelled'
@@ -814,24 +818,36 @@ export async function sendTrialReminderEmail(
  */
 export async function sendTrialWelcomeEmail(
   to: string,
-  data: { firstName: string | null; clinicName: string; dashboardUrl: string; siteUrl?: string | null },
+  data: {
+    firstName: string | null
+    clinicName: string
+    /** The Website hub — where the Publish card lives, so the one button in
+     *  the one email every owner reads lands where the site goes live. */
+    websiteHubUrl: string
+    siteUrl?: string | null
+  },
 ) {
   const hi = data.firstName ? `Hi ${escapeHtml(data.firstName)},` : 'Hi,'
+  // HONEST STATE (the go-live lever, migration 0147): a new clinic's site is
+  // DRAFTED and private — the world sees a coming-soon page until the owner
+  // publishes from the Website hub. This is the first email an owner ever
+  // gets from us, so "your site is live" on its subject line was the first
+  // status the product reported and it was false.
   const siteLine = data.siteUrl
-    ? `<br><br>Your website is already live at <a href="${data.siteUrl}" style="color:#2A7F8C;">${escapeHtml(
+    ? `<br><br>Your website is drafted and waiting at <a href="${data.siteUrl}" style="color:#2A7F8C;">${escapeHtml(
         data.siteUrl.replace('https://', ''),
-      )}</a> — it updates the moment you customize it.`
+      )}</a> — only you can see it until you publish it from Website, so take your time making it yours.`
     : ''
   await deliver({
     to,
-    subject: `Welcome to DreamCRM — ${data.clinicName} is live`,
+    subject: 'Welcome to DreamCRM — your trial is live',
     html: authEmailShell({
       heading: 'Your free trial is live',
       introHtml: `${hi}<br><br>Welcome! <strong>${escapeHtml(
         data.clinicName,
       )}</strong> is set up with full access for 7 days — website, bookings, patients, messaging, the lot. No card needed. Build your website, invite your team, and see how it fits your front desk.${siteLine}`,
-      buttonUrl: data.dashboardUrl,
-      buttonLabel: 'Open your dashboard',
+      buttonUrl: data.websiteHubUrl,
+      buttonLabel: 'Open your Website hub',
       accent: '#28B3AD',
       footnoteHtml:
         'You’re receiving this because you started a DreamCRM free trial. Not you? You can ignore this email.',
@@ -875,12 +891,23 @@ export interface NotificationEmailInput {
    * of the generic default. Falls back to "Open in DreamCRM" when absent.
    */
   linkLabel?: string | null
+  /**
+   * The "Hi {first}," line above the body. 'auto' (the default) adds it
+   * unless the body ALREADY opens with a greeting — the clinic-editable
+   * emails (confirmed-visit reminder, website auto-reply) ship bodies that
+   * start "Hi {{firstName}} — …", and "Hi Mary," over "Hi Mary — you're all
+   * set" reads as a mail-merge mistake. 'none' never adds one.
+   */
+  salutation?: 'auto' | 'none'
 }
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://dreamcreatestudio.com'
 
 export async function sendNotificationEmail(input: NotificationEmailInput, sender?: ClinicSender) {
-  const greeting = input.name ? `Hi ${input.name.split(' ')[0]},` : 'Hi,'
+  const greets = input.salutation !== 'none' && !bodyOpensWithGreeting(input.body)
+  const greeting = greets
+    ? `<p style="margin:0 0 12px;color:#57534e">${input.name ? `Hi ${escapeHtml(input.name.split(' ')[0])},` : 'Hi,'}</p>`
+    : ''
 
   // Clinic sender supplied → this is a PATIENT-facing message (e.g. an
   // appointment reminder). Drop the staff chrome (the "Open in DreamCRM" button
@@ -895,7 +922,7 @@ export async function sendNotificationEmail(input: NotificationEmailInput, sende
       subject: input.title,
       html: `
       <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;color:#1c1917">
-        <p style="margin:0 0 12px;color:#57534e">${greeting}</p>
+        ${greeting}
         ${input.body ? `<p style="margin:0 0 16px;color:#1c1917;line-height:1.55;white-space:pre-wrap">${escapeHtml(input.body)}</p>` : ''}
         <p style="margin:24px 0 0;color:#1c1917">— ${escapeHtml(sender.name)}</p>
       </div>
@@ -912,7 +939,7 @@ export async function sendNotificationEmail(input: NotificationEmailInput, sende
     subject: input.title,
     html: `
       <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;color:#1c1917">
-        <p style="margin:0 0 12px;color:#57534e">${greeting}</p>
+        ${greeting}
         <h2 style="margin:0 0 12px;font-size:18px;color:#0c0a09">${escapeHtml(input.title)}</h2>
         ${input.body ? `<p style="margin:0 0 16px;color:#1c1917;line-height:1.55;white-space:pre-wrap">${escapeHtml(input.body)}</p>` : ''}
         ${link ? `<a href="${link}" style="display:inline-block;padding:10px 20px;background:#0c0a09;color:#fff;text-decoration:none;border-radius:6px;font-size:13px;font-weight:600">${escapeHtml(linkLabel)}</a>` : ''}
@@ -1001,6 +1028,12 @@ function escapeHtml(s: string): string {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;')
+}
+
+/** Flatten a public-form value to ONE line for a subject header — a CR/LF
+ *  inside a header is how a stranger would add headers of their own. */
+function singleLine(s: string): string {
+  return s.replace(/[\r\n]+/g, ' ').replace(/\s{2,}/g, ' ').trim()
 }
 
 /**

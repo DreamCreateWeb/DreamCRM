@@ -1,4 +1,6 @@
 import { describe, it, expect } from 'vitest'
+import { readFileSync, readdirSync, statSync } from 'node:fs'
+import { join, relative, resolve } from 'node:path'
 import {
   SITE_URL,
   organizationLd,
@@ -93,5 +95,45 @@ describe('the comparison FAQ (slice 4a — derived, honest, schema-twinned)', ()
     const text = JSON.stringify(COMPARISONS)
     expect(text).not.toMatch(/official API|official-API|official-path/)
     expect(text).toContain('NexHealth bridge')
+  })
+
+  /**
+   * THE FIELD OF VIEW COMES FROM THE TREE. The guard above scanned
+   * `COMPARISONS` only, so the pricing page's "Open Dental two-way sync
+   * (official API)" row, its "$30/mo paid to Open Dental" FAQ, the
+   * manifesto's "Open Dental's API fee is theirs" and the hero's "syncs with
+   * Open Dental" all outlived the 2026-08-19 ruling that retired the
+   * OD-direct connector — two pages on one site giving an Open Dental
+   * practice two answers about what the connection costs. Same hole
+   * `pricing-price-source.test.tsx` closed for prices: walk the marketing
+   * sources, grade every one.
+   */
+  it('no marketing source describes the retired Open Dental-direct connector or its API fee', () => {
+    const ROOT = resolve(__dirname, '../..')
+    const roots = ['app/(marketing)', 'lib/marketing', 'components/marketing']
+    const files: string[] = []
+    const walk = (dir: string) => {
+      for (const entry of readdirSync(dir)) {
+        const full = join(dir, entry)
+        if (statSync(full).isDirectory()) walk(full)
+        else if (/\.(ts|tsx)$/.test(entry)) files.push(full)
+      }
+    }
+    for (const r of roots) walk(join(ROOT, r))
+    expect(files.length).toBeGreaterThan(20)
+
+    // "official APIs only" (plural) is the honesty tenet's true description of
+    // the bridge; "official API" (singular) was the OD-direct connector's claim.
+    const RETIRED = /official API(?!s)|official-API|Open Dental[^.\n]{0,80}(API fee|bills|API access|\$30)|API fee[^.\n]{0,40}Open Dental|syncs with Open Dental/i
+    const hits: string[] = []
+    for (const f of files) {
+      const src = readFileSync(f, 'utf8')
+      for (const [i, line] of Array.from(src.split('\n').entries())) {
+        const t = line.trimStart()
+        if (t.startsWith('//') || t.startsWith('*') || t.startsWith('/*')) continue
+        if (RETIRED.test(line)) hits.push(`${relative(ROOT, f)}:${i + 1}  ${line.trim()}`)
+      }
+    }
+    expect(hits).toEqual([])
   })
 })

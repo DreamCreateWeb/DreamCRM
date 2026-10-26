@@ -385,7 +385,7 @@ export async function submitOnboarding(input: z.infer<typeof SubmitInput>): Prom
     await sendTrialWelcomeEmail(session.user.email, {
       firstName: (session.user.name || '').split(' ')[0] || null,
       clinicName: displayName,
-      dashboardUrl: `${base}/dashboard`,
+      websiteHubUrl: `${base}/website`,
       siteUrl: org?.slug ? `https://${org.slug}.${siteDomain}` : null,
     })
   } catch (err) {
