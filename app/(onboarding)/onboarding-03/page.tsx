@@ -113,8 +113,8 @@ export default function Onboarding03() {
                   Pick your web address
                 </h1>
                 <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
-                  Your practice website goes live here the moment you finish — you can connect your
-                  own domain later.
+                  Your practice website is built here the moment you finish — publish it when
+                  it&apos;s yours, and connect your own domain later.
                 </p>
                 <form onSubmit={onSubmit}>
                   <div className="space-y-5 mb-8">

@@ -161,12 +161,18 @@ describe('sendCancellationConfirmation', () => {
     expect(msg.html.toLowerCase()).not.toContain('fee')
   })
 
-  it('falls back to call-us copy (no rebook link) when the plan has no online booking', async () => {
+  it('the phone number rides beside the button, never instead of it (one plan — every clinic has online booking)', async () => {
     mocks.resendSend.mockResolvedValue({ data: { id: 'm' }, error: null })
-    await sendCancellationConfirmation('mia@fixture-mail.com', { ...baseData, rebookUrl: null }, CLINIC_SENDER)
+    await sendCancellationConfirmation(
+      'mia@fixture-mail.com',
+      { ...baseData, rebookUrl: 'https://acme.dreamcreatestudio.com/book' },
+      CLINIC_SENDER,
+    )
     const msg = mocks.resendSend.mock.calls[0]![0] as { html: string }
-    expect(msg.html).not.toContain('/book')
-    expect(msg.html).toContain('555-1212') // "give us a call at …"
+    expect(msg.html).toContain('/book')
+    expect(msg.html).toContain('555-1212') // "…or just call us at …"
+    // The retired plan branch's copy is gone with the branch.
+    expect(msg.html).not.toMatch(/ready to rebook, just/i)
   })
 })
 

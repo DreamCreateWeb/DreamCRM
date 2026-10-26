@@ -198,7 +198,7 @@ export default async function MarketingHome() {
                 <span className="mkt-live absolute inset-0 rounded-full bg-teal-500" />
                 <span className="relative h-1.5 w-1.5 rounded-full bg-teal-600" />
               </span>
-              Built for dental practices · syncs with Open Dental
+              Built for dental practices · wraps the PMS you run
             </p>
             {/* 86px at 1440 (5.375rem), stepping down through 834 to a size
                 that still reads as DISPLAY at 390 — BRAND.md Parts 4 and 10.
@@ -418,8 +418,8 @@ export default async function MarketingHome() {
               },
               {
                 step: '3',
-                title: 'Your site + trial go live',
-                body: 'A finished practice site on your address, and 7 days of the full Premium platform to run for real.',
+                title: 'Your site is drafted + your trial starts',
+                body: 'A finished practice site on your address — private until you publish it — and 7 days of the whole platform to run for real.',
               },
               {
                 step: '4',

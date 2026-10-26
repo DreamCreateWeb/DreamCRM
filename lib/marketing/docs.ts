@@ -82,19 +82,20 @@ export const DOCS: DocArticle[] = [
   {
     slug: 'create-your-practice-account',
     title: 'Create your practice account',
-    summary: 'From signup to a live website and working dashboard in about ten minutes.',
+    summary: 'From signup to a drafted website and a working dashboard in about ten minutes — no card.',
     category: 'Getting started',
     minutes: 3,
     sections: [
       {
         paragraphs: [
-          'Signing up creates three things at once: your practice organization, your staff login, and your practice website at your-practice.dreamcreatestudio.com.',
+          'Signing up creates three things at once: your practice organization, your staff login, and a draft of your practice website at your-practice.dreamcreatestudio.com. Nothing is charged at signup — every new practice starts a 7-day trial of the whole platform with no card on file.',
         ],
         steps: [
           'Click Get started and create your login (you can switch to passwordless sign-in links later).',
-          'Answer the onboarding questions — practice name, services, hours, contact details. These seed your website copy, your booking rules, and your portal.',
-          `Add billing when you\u2019re ready. One plan with everything included \u2014 ${usd(PLAN.price)}/mo at the founding practice rate (regularly ${usd(PLAN.listPrice ?? 0)}), month-to-month, or annual with two months free.`,
-          'Finish checkout and you land on your dashboard. Your public site is already live on your subdomain.',
+          'Answer three short screens — practice name and address, your web address, your brand color. These seed your website, your booking rules, and your portal.',
+          'Answer the short interview and we draft the whole site — services, about, FAQ — in your voice. Only you can see it until you publish from the Website hub, so take your time making it yours.',
+          `Add billing whenever you\u2019re ready, under Settings → Plan & billing. One plan with everything included \u2014 ${usd(PLAN.price)}/mo at the founding practice rate (regularly ${usd(PLAN.listPrice ?? 0)}), month-to-month, or annual with two months free.`,
+          'You land on your dashboard with the whole platform open for 7 days. Your site stays private — visitors see a coming-soon page on your subdomain — until you pull Publish on the Website hub.',
         ],
       },
       {
@@ -118,7 +119,7 @@ export const DOCS: DocArticle[] = [
         ],
         steps: [
           'Add your logo and a real photo (Website → Editor → hover the hero photo spot → Add photo, or Replace photo once one is there). Template sites convert badly; real practices convert.',
-          'Set your office hours (Settings → Clinic profile). Hours drive your website, your booking slot grid, and the portal footer all at once.',
+          'Set your office hours (Settings → Business profile). Hours drive your website, your booking slot grid, and the portal footer all at once.',
           'Introduce your team with photos and a sentence of bio — they appear on your site and on patient-facing visit cards.',
           'Invite your front desk (Settings → Team). Everyone gets their own login.',
           'Skim Settings → Patient portal and click "Preview as a patient" to see what patients will see before you share anything.',
@@ -303,7 +304,7 @@ export const DOCS: DocArticle[] = [
           'The public booking page and the portal both offer real openings: your office hours minus what is already on the books, in your practice’s timezone. Two patients can’t take the same slot — the second one is asked to pick again.',
         ],
         steps: [
-          'Office hours (Settings → Clinic profile) define the grid; closed days say "we’re closed", sold-out days say so honestly.',
+          'Office hours (Settings → Business profile) define the grid; closed days say "we’re closed", sold-out days say so honestly.',
           'Portal settings restrict which visit types are self-bookable and how much notice a booking needs.',
           'Every confirmation email includes your intake form link when one is set as default.',
         ],
@@ -364,7 +365,7 @@ export const DOCS: DocArticle[] = [
           'DreamCRM connects to your practice-management system — Open Dental, Dentrix, Eaglesoft, and most others — through one bridge, always via official, sanctioned paths: we never write into your database behind your PMS’s back. Connecting is a short server install we do together, at no cost to your practice.',
         ],
         steps: [
-          'Reach Support (Settings → Feedback) and we’ll schedule the install — your machine, your IT’s, or a quick remote session.',
+          'Open Business → Integrations → Practice management and fill in the one form — which PMS you run and who to reach. That lands on our desk and we schedule the install: your machine, your IT’s, or a quick remote session. The card reads “we’re connecting it” while it waits.',
           'The bridge installs on the server that runs your PMS; the whole visit is usually under half an hour.',
           'The first sync runs on its own. Patients, appointments, providers, insurance, and family links come in; the sync page shows exactly what reads and writes.',
           'With write-back on: bookings made on your site or portal push into your PMS and cancellations clear the slot there too.',
@@ -392,7 +393,7 @@ export const DOCS: DocArticle[] = [
         steps: [
           'On Shop, click Connect Stripe and finish Stripe’s hosted onboarding.',
           'Add products with variants, prices, and stock; toggle pickup or flat-rate shipping.',
-          'Create membership plans (annual or monthly) with the benefits you include; patients join from your site and the member list tracks benefit usage.',
+          'Create membership plans under Payments → Memberships (annual or monthly) with the benefits you include; patients join from your site and the member list tracks benefit usage.',
           'Enable the storefront and it appears on your public site; orders land in Shop → Orders with a fulfillment pipeline.',
         ],
       },
@@ -401,14 +402,14 @@ export const DOCS: DocArticle[] = [
   {
     slug: 'plans-and-billing',
     title: 'Plans & billing',
-    summary: 'What each tier includes, switching plans, and how to cancel.',
+    summary: 'One plan, what it includes, how billing works, and how to cancel.',
     category: 'Money & integrations',
     minutes: 2,
     sections: [
       {
         paragraphs: [
           `One plan, everything included: the website and edit-in-place studio, AI copy help, lead capture, patients, agenda, leads queue, messages, intake forms, reviews, the patient portal, blog and SEO, recall campaigns, analytics, the shop and memberships, careers, and the PMS sync. ${usd(PLAN.price)}/mo at the founding practice rate (regularly ${usd(PLAN.listPrice ?? 0)}); annual billing gives you two months free.`,
-          'Switch tiers any time under Settings → Plan; changes prorate through Stripe. Cancelling stops the next renewal — there is no term contract, and your website content exports with you.',
+          'Manage billing any time under Settings → Plan & billing — add a card, switch between monthly and annual, or cancel; changes prorate through Stripe. Cancelling stops the next renewal — there is no term contract, and your website content exports with you.',
         ],
       },
     ],
@@ -603,7 +604,7 @@ export const DOCS: DocArticle[] = [
           'For visit types where a no-show is expensive, you can require a deposit at booking. Money down means the appointment is confirmed, and it’s credited toward the visit — this needs Stripe connected (your account, your payout).',
         ],
         steps: [
-          'Set a deposit amount per visit type (Settings → Practice).',
+          'Set a deposit amount per visit type (Settings → Practice setup).',
           'When a patient books that type online, they pay the deposit through Stripe Checkout; the appointment flips to confirmed automatically.',
           'The deposit shows in your payments reconciliation, credited toward that visit — post it to your PMS ledger when convenient.',
         ],
@@ -642,7 +643,7 @@ export const DOCS: DocArticle[] = [
           'In-house membership plans are the uninsured-patient answer: a monthly or annual subscription that bundles cleanings, exams, and a discount, billed through your own Stripe account. They sell from your website and the portal.',
         ],
         steps: [
-          'Build plans in the Shop (Business → Shop → Memberships) — price, billing interval, and included benefits.',
+          'Build plans under Business → Payments → Memberships — price, billing interval, and included benefits.',
           'Patients subscribe from your public site or the portal upsell; billing runs on Stripe Connect subscriptions.',
           'Benefit usage is tracked so the front desk knows what a member has left this period.',
         ],
@@ -658,7 +659,7 @@ export const DOCS: DocArticle[] = [
     sections: [
       {
         paragraphs: [
-          'Collections (Business → Shop → Collections) lists open PMS balances so the desk can work them in order, send a pay-by-email link, and see where each patient is in the follow-up — without inventing aging numbers the PMS didn’t give us.',
+          'Collections (Business → Payments → Collections) lists open PMS balances so the desk can work them in order, send a pay-by-email link, and see where each patient is in the follow-up — without inventing aging numbers the PMS didn’t give us.',
         ],
         steps: [
           'Sort by largest open balance; each row shows the latest pay-link status and last online payment.',
@@ -680,9 +681,9 @@ export const DOCS: DocArticle[] = [
           'Open Dental, Dentrix, Eaglesoft, and most other systems connect today through one bridge — a short server install we do with you. A few cloud PMSs are still on the roadmap; we won’t claim a sync works before it does.',
         ],
         steps: [
-          'Open Business → Integrations and find your PMS in the Practice Management group.',
-          'Click "Notify me when it’s ready." That records your practice’s interest against that PMS.',
-          'We prioritize the vendor partnerships with the most practices waiting — and email you the day yours goes live.',
+          'Open Business → Integrations → Practice management and fill in the one form — name your PMS and who to reach.',
+          'If the bridge reaches it, we schedule the install with you. If it is one we cannot bridge yet, the request records your practice’s interest against that PMS and the card says so honestly.',
+          'We prioritize the vendor partnerships with the most practices waiting — and email you the day yours is ready.',
         ],
       },
       {

@@ -82,6 +82,25 @@ export interface EmailAutomationSpec {
   includesNote: string[]
   /** For reminder/review: a one-liner + link to where timing/on-off lives. */
   timingHint?: { text: string; href: string; linkLabel: string }
+  /**
+   * True for the emails whose sender (sendNotificationEmail) adds its own
+   * "Hi {first}," line above the body — UNLESS the body already opens with a
+   * greeting (`bodyOpensWithGreeting`). The hub preview mirrors the same rule
+   * so staff see the email a patient gets, greeting included or not.
+   */
+  greets?: boolean
+}
+
+/**
+ * Does a message body already open with a salutation ("Hi Mary —", "Hello,",
+ * "Dear Mr Hayes", "Good morning")? The one rule the sender and the hub
+ * preview share, so a body that greets never gets greeted twice and a body
+ * that doesn't still gets its "Hi {first}," line. Tokens may stand in for the
+ * name ("Hi {{firstName}}"). Pure + client-safe.
+ */
+export function bodyOpensWithGreeting(body: string | null | undefined): boolean {
+  if (!body) return false
+  return /^\s*(hi|hello|hey|dear|good\s+(morning|afternoon|evening))\b/i.test(body)
 }
 
 export const EMAIL_SUBJECT_MAX = 200
@@ -177,9 +196,10 @@ export const EMAIL_AUTOMATION_SPECS: Record<EmailAutomationKey, EmailAutomationS
       subject: 'See you {{appointmentDate}} — {{appointmentType}} at {{clinicName}}',
       body: 'Hi {{firstName}} — you’re all set for your {{appointmentType}} at {{clinicName}} on {{appointmentTime}}. Nothing to do — this is just a friendly heads-up. If something’s come up, reply to this email and we’ll find a new time.',
     },
+    greets: true,
     includesNote: [
       'Any prep instructions you’ve set for the visit type (Settings → Practice → Visit types)',
-      'A short greeting and your clinic name signature',
+      'A greeting when your message doesn’t open with one, and your clinic name signature',
     ],
     timingHint: {
       text: 'Sends on the same reminder schedule as the appointment reminder.',
@@ -233,7 +253,7 @@ export const EMAIL_AUTOMATION_SPECS: Record<EmailAutomationKey, EmailAutomationS
     },
     includesNote: [
       'The cancelled date and time (crossed out)',
-      'A “Find a new time” button (or a “call us” line on the Basic plan)',
+      'A “Find a new time” button to your online booking page, plus your phone number when you have one on file',
     ],
   },
 
@@ -256,8 +276,8 @@ export const EMAIL_AUTOMATION_SPECS: Record<EmailAutomationKey, EmailAutomationS
       body: 'Hi {{firstName}} — we missed you for your {{appointmentType}} today. No worries at all, life happens. When you’re ready, grab a new time that works and we’ll pick up right where we left off.',
     },
     includesNote: [
-      'A “Find a new time” button when your plan has online booking (a “call us” line otherwise)',
-      'A short greeting and your clinic name signature',
+      'A “Find a new time” button to your online booking page',
+      'A “prefer to talk it through?” line with your phone number when you have one on file',
     ],
   },
 
@@ -365,7 +385,8 @@ export const EMAIL_AUTOMATION_SPECS: Record<EmailAutomationKey, EmailAutomationS
       subject: 'Thanks for reaching out to {{clinicName}}',
       body: "Hi {{firstName}}, we got your message and we'll reach out within one business day.{{urgentLine}} Otherwise, sit tight and we'll be in touch soon.",
     },
-    includesNote: ['A short greeting and your clinic name signature'],
+    greets: true,
+    includesNote: ['A greeting when your message doesn’t open with one, and your clinic name signature'],
   },
 }
 

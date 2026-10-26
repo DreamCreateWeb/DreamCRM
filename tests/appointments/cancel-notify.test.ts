@@ -233,8 +233,10 @@ describe('markNoShow notifications', () => {
     state.selectQueue.push([{ status: 'scheduled' }]) // mutable
     state.selectQueue.push([{ patientId: 'pat_1', type: 'cleaning', startTime: FUTURE }]) // appt
     state.selectQueue.push([{ firstName: 'Aiden', lastName: 'Brooks', email: 'aiden@example.com' }]) // patient
-    // sendNoShowRebookEmail: profile (basic tier → no /book button) + org, then
-    // renderAutomatedEmail's config read — all off the exhausted queue.
+    // sendNoShowRebookEmail: profile + org (every clinic has a /book page —
+    // one plan), then renderAutomatedEmail's config read.
+    state.selectQueue.push([{ phone: '555-1212', websiteDomain: null }])
+    state.selectQueue.push([{ slug: 'acme' }])
     await markNoShow('org_1', 'appt_2')
     expect(notifyOrgMembersMock).toHaveBeenCalledWith(
       'org_1',
@@ -248,15 +250,31 @@ describe('markNoShow notifications', () => {
     )
     // A no-show never sends the "your visit was cancelled" CONFIRMATION…
     expect(sendCancellationMock).not.toHaveBeenCalled()
-    // …but it DOES send the service-recovery rebook note (plain signed email
-    // on basic tier — no online booking, so no button shell).
-    expect(sendNotificationMock).toHaveBeenCalledWith(
+    // …but it DOES send the service-recovery rebook note, from the clinic,
+    // with the "Find a new time" button — the ONE shape it has (the retired
+    // plan branch's plain fallback is gone with the plan tiers).
+    expect(sendNotificationMock).not.toHaveBeenCalled()
+    expect(deliverMock).toHaveBeenCalledWith(
       expect.objectContaining({
         to: 'aiden@example.com',
-        title: expect.stringContaining('We missed you'),
+        from: 'Acme Dental <acme-dental@dreamcreatestudio.com>',
+        subject: expect.stringContaining('We missed you'),
       }),
-      expect.anything(),
     )
+  })
+
+  it('no org row → nothing honest to point at, so nothing is sent and nothing is claimed', async () => {
+    state.selectQueue.push([{ status: 'scheduled' }])
+    state.selectQueue.push([{ patientId: 'pat_1', type: 'cleaning', startTime: FUTURE }])
+    state.selectQueue.push([{ firstName: 'Aiden', lastName: 'Brooks', email: 'aiden@example.com' }])
+    state.selectQueue.push([{ phone: '555-1212', websiteDomain: null }])
+    // organization select comes back empty (the queue is exhausted).
+    await markNoShow('org_1', 'appt_2')
+    expect(notifyOrgMembersMock).toHaveBeenCalled()
+    expect(deliverMock).not.toHaveBeenCalled()
+    expect(sendNotificationMock).not.toHaveBeenCalled()
+    expect(recordActionMock).not.toHaveBeenCalled()
+    expect(queueCommLogMock).not.toHaveBeenCalled()
   })
 
   it('skips the rebook note when the patient has no email (staff ping still fires)', async () => {
@@ -276,8 +294,10 @@ describe('markNoShow notifications', () => {
     state.selectQueue.push([{ status: 'scheduled' }])
     state.selectQueue.push([{ patientId: 'pat_1', type: 'cleaning', startTime: FUTURE }])
     state.selectQueue.push([{ firstName: 'Aiden', lastName: 'Brooks', email: 'aiden@example.com' }])
+    state.selectQueue.push([{ phone: '555-1212', websiteDomain: null }])
+    state.selectQueue.push([{ slug: 'acme' }])
     await markNoShow('org_1', 'appt_2')
-    expect(sendNotificationMock).toHaveBeenCalled() // the note went out
+    expect(deliverMock).toHaveBeenCalled() // the note went out
     expect(recordActionMock).toHaveBeenCalledTimes(1)
     const entry = recordActionMock.mock.calls[0][0] as Record<string, unknown>
     expect(entry.capability).toBe('noshow_rebook')
