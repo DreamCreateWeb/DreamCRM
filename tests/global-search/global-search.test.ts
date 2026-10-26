@@ -1,4 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { existsSync } from 'node:fs'
+import { join } from 'node:path'
 import type { TenantContext } from '@/lib/auth/context'
 
 /**
@@ -159,6 +161,34 @@ describe('globalSearch — launcher view (empty query)', () => {
     expect(await hrefs('collections')).not.toContain('/payments/collections')
     switches.state = null
     expect(await hrefs('orders')).toContain('/shop/orders')
+  })
+
+  // The palette promises navigation; a static page result pointing at a path
+  // with no page.tsx delivers the in-dashboard 404 ("Products" → /shop/products
+  // shipped exactly so). Every static page result must resolve to a real
+  // route (hash and query stripped) so the next moved page cannot leave a
+  // dead entry behind.
+  it('every static ⌘K page result resolves to a real dashboard route', async () => {
+    const words = [
+      '', 'products', 'orders', 'coupons', 'online', 'collections', 'memberships', 'mailbox', 'settings',
+      'website', 'growth', 'reviews', 'social', 'analytics', 'audiences', 'outreach', 'queue', 'blog', 'seo',
+      'careers', 'domain', 'forms', 'pages', 'design', 'templates', 'editor', 'content', 'share', 'team',
+      'locations', 'portal', 'billing', 'connected', 'clinic', 'insurance', 'dream', 'day', 'inquiries',
+    ]
+    const hrefs = new Set<string>()
+    for (const w of words) {
+      const groups = await globalSearch(ctx({ platformAdmin: true }), w)
+      for (const g of groups) for (const r of g.results) if (r.kind === 'page') hrefs.add(r.href)
+    }
+    expect(hrefs.size).toBeGreaterThan(20)
+    const routeExists = (href: string) => {
+      const path = href.replace(/[#?].*$/, '').replace(/^\//, '')
+      return ['app/(default)', 'app/(double-sidebar)'].some((root) => existsSync(join(process.cwd(), root, path, 'page.tsx')))
+    }
+    const dead = Array.from(hrefs).filter((h) => !routeExists(h))
+    expect(dead, 'a ⌘K page result points at a path with no page.tsx — the palette would deliver a 404').toEqual([])
+    expect(hrefs.has('/shop#catalog')).toBe(true)
+    expect(hrefs.has('/shop/products')).toBe(false)
   })
 
   it('surfaces saved views as one-click launches', async () => {

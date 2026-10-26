@@ -101,14 +101,19 @@ export const ACTIVATION_TASK_DEFS: ActivationTaskDef[] = [
   },
   {
     id: 'connect_pms',
-    label: 'Connect Open Dental',
-    body: 'Patients, visits, and balances sync two-way through the official API.',
-    href: '/integrations',
+    // The one PMS door since 2026-08-19 is the NexHealth bridge, installed
+    // WITH the practice (S4's request form) — never a self-serve Open Dental
+    // key, which was removed.
+    label: 'Connect your practice software',
+    body: 'Open Dental, Dentrix, Eaglesoft and most others — we connect it with you, and patients, visits and balances sync on their own.',
+    href: '/integrations/pms',
   },
   {
     id: 'open_shop',
     label: 'Stock your shop',
-    body: 'Whitening kits and membership plans, sold from your site, paid out to your bank.',
+    // Memberships live under Payments → Memberships (2026-07-14); the shop
+    // is products only.
+    body: 'Whitening kits, brushes and branded products, sold from your site, paid out to your bank. Membership plans live under Payments.',
     href: '/shop',
   },
 ]
@@ -170,11 +175,15 @@ export const MODULE_HINTS: Record<string, ModuleHintDef> = {
   },
   shop: {
     title: 'Your storefront, your bank account',
-    body: 'Sell whitening kits, electric brushes, and membership plans from your website. Payments go through your own Stripe account — payouts land in your bank.',
+    // Memberships moved to Payments → Memberships (2026-07-14): the shop is
+    // products — the hint must not sell a thing this page no longer holds.
+    body: 'Sell whitening kits, electric brushes, and branded products from your website. Payments go through your own Stripe account — payouts land in your bank. Membership plans live under Payments.',
   },
   integrations: {
     title: 'Your app library — connect everything here',
-    body: 'Plug in the tools that power your practice: Open Dental (patients, visits, recall, and balances sync two-way through the official API), your Google Business Profile, and the social channels you post to — all from one place.',
+    // The self-serve Open Dental door was removed 2026-08-19; the one PMS
+    // door is the NexHealth bridge, installed with the practice (S4).
+    body: 'Plug in the tools that power your practice: your practice software through the NexHealth bridge (we connect it with you — Open Dental, Dentrix, Eaglesoft and most others), your Google Business Profile, texting, and the social channels you post to — all from one place.',
   },
   social_posts: {
     title: 'Post once, everywhere',

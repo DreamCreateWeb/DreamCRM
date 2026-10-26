@@ -477,3 +477,27 @@ describe('AgendaView', () => {
     })
   })
 })
+
+/**
+ * docs/ACTIVATION.md law 3 — with no practice software bound, today's agenda
+ * holds only website + staff bookings, so an empty "today" is not a quiet
+ * morning: the state names its source and opens the S4 door. Once a PMS
+ * feeds the day, the quiet-morning copy is earned. Same copy home as the
+ * Overview (lib/pms-link.ts), so the two pages cannot disagree.
+ */
+describe('AgendaView — the empty "today" tells the truth about its source', () => {
+  const today = { ...baseFilters, window: 'today' as const }
+
+  it('with no PMS, names the source and opens the connect door — never "quiet morning"', () => {
+    render(<AgendaView groups={[]} meta={baseMeta} filters={today} orgName="Acme" pmsLink={{ kind: 'none' }} />)
+    expect(screen.getByText('Only visits booked through your website show here.')).toBeInTheDocument()
+    expect(screen.queryByText(/quiet morning/i)).not.toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /Connect it/ })).toHaveAttribute('href', '/integrations/pms')
+  })
+
+  it('with a PMS, an empty today is a real quiet morning with the share-link door', () => {
+    render(<AgendaView groups={[]} meta={baseMeta} filters={today} orgName="Acme" pmsLink={{ kind: 'connected' }} />)
+    expect(screen.getByText('Nothing booked today.')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /Share your booking link/ })).toHaveAttribute('href', '/website/share')
+  })
+})

@@ -240,7 +240,9 @@ export default async function IntegrationsPage({
             profileRow?.billingMode !== 'managed' &&
             profileRow?.billingMode !== 'comped',
         }}
-        oauthConnectHrefs={{ gmail: '/inbox', stripe_connect: '/shop' }}
+        // Stripe's Connect is the OAuth start itself, returning here (S5's
+        // `back=`) — `/shop` is a hub behind its own switch with no button.
+        oauthConnectHrefs={{ gmail: '/inbox', stripe_connect: '/api/connect/shop/start?back=integrations' }}
         justConnected={justConnected}
         atLimit={atLimit}
         routeError={one(sp.zernioError)}

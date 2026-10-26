@@ -241,6 +241,8 @@ export async function listAppointments(
   const now = new Date()
   const timeZone = await getClinicTimeZone(organizationId)
   const win = resolveWindow(filters.window, now, timeZone)
+  // The 🎂 glyph compares against the CLINIC's calendar day (timezone rule 2).
+  const todayKey = clinicDayKey(now, timeZone)
   const in48h = new Date(now.getTime() + 48 * 60 * 60 * 1000)
   const in7d = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000)
   // No intake nag while the Intake Forms door is closed (law 1, verification round).
@@ -454,7 +456,7 @@ export async function listAppointments(
       createdAt: r.createdAt,
       flags: {
         newPatient,
-        birthdayThisWeek: isBirthdayThisWeek(r.dateOfBirth, now),
+        birthdayThisWeek: isBirthdayThisWeek(r.dateOfBirth, todayKey),
         hasOutstandingBalance: balance > 0,
         missingIntakeBeforeAppt: intakeOpen && isFuture && !hasIntake,
         unconfirmedNext48h: status === 'scheduled' && r.startTime >= now && r.startTime <= in48h,
@@ -616,6 +618,8 @@ export async function getAppointmentDetail(
   if (!base) return null
 
   const now = new Date()
+  // The 🎂 glyph compares against the CLINIC's calendar day (timezone rule 2).
+  const todayKey = clinicDayKey(now, await getClinicTimeZone(organizationId))
   // Tags fold into the parallel batch (was a separate serial round-trip on
   // every drawer open). Balance reads off the patient join (pms_balance_cents).
   const [reminderRows, intakeRow, ltvRows, lastVisitRow, bookingCountRow, futureApptRow, tags, cadence, depositRow, cancellerRow, emailAutomations] = await Promise.all([
@@ -799,7 +803,7 @@ export async function getAppointmentDetail(
     createdAt: base.createdAt,
     flags: {
       newPatient,
-      birthdayThisWeek: isBirthdayThisWeek(base.dateOfBirth, now),
+      birthdayThisWeek: isBirthdayThisWeek(base.dateOfBirth, todayKey),
       hasOutstandingBalance: outstanding > 0,
       missingIntakeBeforeAppt: intakeOpen && isFuture && !hasIntake,
       unconfirmedNext48h: status === 'scheduled' && base.startTime >= now && base.startTime <= in48h,

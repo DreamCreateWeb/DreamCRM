@@ -7,6 +7,7 @@ import type { PatientHeader } from '@/lib/services/patients'
 import type { TimelineEvent, TimelineCounts, TimelineKind } from '@/lib/services/patient-timeline'
 import type { PatientNoteRow } from '@/lib/services/patient-notes'
 import { agingBorderClass, patientFlagGlyphs, type AgingTierId, type Tone } from '@/lib/ui/encodings'
+import { LAPSED_DEFAULT_MONTHS } from '@/lib/dates'
 import { usePopoverDismiss } from '@/components/ui/use-popover-dismiss'
 import { MiniTrend } from '@/components/ui/charts'
 import { useTrailLabel } from '@/app/trail-context'
@@ -153,6 +154,7 @@ export default function PatientDetail({
   canAdjustLoyalty = false,
   insurance = null,
   timeZone = 'America/New_York',
+  lapsedMonths = LAPSED_DEFAULT_MONTHS,
 }: {
   header: PatientHeader
   timeline: TimelineEvent[]
@@ -178,6 +180,9 @@ export default function PatientDetail({
   insurance?: InsurancePanelData | null
   /** Clinic tz for the check timestamps (server-resolved). */
   timeZone?: string
+  /** The clinic's 💤 threshold in months (Settings → Practice) — the nudge and
+   *  the legend say THIS number, never a hard-coded one. */
+  lapsedMonths?: number
 }) {
   // Timeline filter lives in the URL (?tab=) so a refresh, a shared link, or
   // a back-button return lands on the same slice. Chip clicks update via
@@ -295,7 +300,7 @@ export default function PatientDetail({
                   { tone: 'info', label: 'New patient', meaning: 'Recently joined — getting established' },
                   { tone: 'ok', label: 'Active', meaning: 'Seen recently, in good standing' },
                   { tone: 'warn', label: 'At risk', meaning: 'Drifting — worth a recall nudge' },
-                  { tone: 'urgent', label: 'Lapsed', meaning: 'No visit in 9+ months' },
+                  { tone: 'urgent', label: 'Lapsed', meaning: `No visit in ${lapsedMonths}+ months` },
                   { tone: 'neutral', label: 'Archived', meaning: 'Moved out of the active list' },
                 ]}
               />
@@ -388,7 +393,7 @@ export default function PatientDetail({
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* ── Identity rail ──────────────────────────────────────────── */}
         <aside className="lg:col-span-3 space-y-4">
-          <NeedsAttention header={header} forms={intakeForms} insurance={insurance} />
+          <NeedsAttention header={header} forms={intakeForms} insurance={insurance} lapsedMonths={lapsedMonths} />
           <FollowupsPanel patientId={header.id} initial={followups} staff={staff} />
           <TagsPanel patientId={header.id} initialTags={tags} catalog={tagCatalog} />
           <IdentityCard header={header} />
@@ -699,12 +704,22 @@ function NeedsAttention({
   header,
   forms = [],
   insurance = null,
+  lapsedMonths = LAPSED_DEFAULT_MONTHS,
 }: {
   header: PatientHeader
   forms?: IntakeFormOption[]
   insurance?: InsurancePanelData | null
+  lapsedMonths?: number
 }) {
-  const items: Array<{ severity: 'warn' | 'info'; copy: string; cta?: { label: string; href: string }; sendIntake?: boolean; sendPayLink?: boolean }> = []
+  const items: Array<{
+    severity: 'warn' | 'info'
+    copy: string
+    cta?: { label: string; href: string }
+    sendIntake?: boolean
+    sendPayLink?: boolean
+    /** The door is the patient's own thread (openPatientThreadAction). */
+    message?: boolean
+  }> = []
   if (header.flags.unconfirmedNext48h) {
     items.push({
       severity: 'warn',
@@ -731,9 +746,14 @@ function NeedsAttention({
     })
   }
   if (header.flags.lapsed) {
+    // The flag fires at the clinic's OWN threshold (lapsedCutoff, default 18
+    // months) — the sentence says that number, and the nudge carries its door:
+    // one patient, one honest message in their own thread (every other item
+    // in this list hands over an action; a to-do dressed as help is not help).
     items.push({
       severity: 'info',
-      copy: 'No visit in 9+ months. Send a recall.',
+      copy: `No visit in ${lapsedMonths}+ months. A personal note brings more people back than a blast.`,
+      message: true,
     })
   }
   // Insurance on file that nobody has looked up yet. Deliberately NOT a
@@ -772,6 +792,17 @@ function NeedsAttention({
               />
             )}
             {it.sendPayLink && <SendPayLinkInline patientId={header.id} />}
+            {it.message && (
+              <form action={openPatientThreadAction} className="inline">
+                <input type="hidden" name="patientId" value={header.id} />
+                <button
+                  type="submit"
+                  className="text-xs font-medium text-teal-700 dark:text-teal-400 hover:underline"
+                >
+                  Message them →
+                </button>
+              </form>
+            )}
             {it.cta && (
               <Link
                 href={it.cta.href}

@@ -27,8 +27,8 @@ vi.mock('@/app/(default)/appointments/actions', () => ({
 }))
 vi.mock('@/app/(default)/appointments/appointment-drawer', () => ({ default: () => null }))
 vi.mock('@/app/(default)/appointments/new-booking-drawer', () => ({
-  default: ({ onClose }: { onClose: () => void }) => (
-    <div data-testid="new-booking-drawer">
+  default: ({ onClose, initialPatientId }: { onClose: () => void; initialPatientId?: string | null }) => (
+    <div data-testid="new-booking-drawer" data-patient={initialPatientId ?? ''}>
       <button onClick={onClose}>close-drawer</button>
     </div>
   ),
@@ -61,6 +61,23 @@ describe('AgendaView — ?new=1 deep link', () => {
     searchParams = new URLSearchParams('new=1&q=mia')
     render(<AgendaView groups={[]} meta={baseMeta} filters={baseFilters} orgName="Acme" />)
     expect(replace).toHaveBeenCalledWith('/appointments?q=mia')
+  })
+
+  // The Gmail inbox's patient card (and the record) send `?new=1&patient=<id>`:
+  // the drawer opens with that patient pre-picked and the URL drops both
+  // params together, so a refresh neither re-pops the drawer nor keeps a
+  // stale patient id around.
+  it('hands ?patient= to the drawer alongside ?new=1 and strips both', () => {
+    searchParams = new URLSearchParams('new=1&patient=pat_9&window=today')
+    render(<AgendaView groups={[]} meta={baseMeta} filters={baseFilters} orgName="Acme" />)
+    expect(screen.getByTestId('new-booking-drawer').getAttribute('data-patient')).toBe('pat_9')
+    expect(replace).toHaveBeenCalledWith('/appointments?window=today')
+  })
+
+  it('ignores a stray ?patient= without ?new=1', () => {
+    searchParams = new URLSearchParams('patient=pat_9')
+    render(<AgendaView groups={[]} meta={baseMeta} filters={baseFilters} orgName="Acme" />)
+    expect(screen.queryByTestId('new-booking-drawer')).not.toBeInTheDocument()
   })
 
   it('does NOT open the drawer (or strip anything) without ?new=1', () => {

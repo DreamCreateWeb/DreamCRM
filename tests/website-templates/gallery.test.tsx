@@ -117,4 +117,21 @@ describe('TemplatesGallery', () => {
     await waitFor(() => expect(saveTemplateMock).toHaveBeenCalledTimes(1))
     cleanup()
   })
+
+  // A filter-made emptiness carries the way back (docs/ACTIVATION.md law 4)
+  // and promises nothing about designs that are not scheduled (law 3): the
+  // old paragraph read "more designs are on the way" with no way out but
+  // hunting for the chips you tapped.
+  it('an impossible filter combination shows an EmptyState with a Show-all door that clears the filters', () => {
+    render(<TemplatesGallery {...props} />)
+    fireEvent.click(screen.getByRole('button', { name: 'warm' }))
+    fireEvent.click(screen.getByRole('button', { name: 'dark' }))
+    expect(screen.getByText('No designs match those filters')).toBeTruthy()
+    expect(screen.queryByText(/on the way/i)).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Show all designs' }))
+    for (const t of SITE_TEMPLATE_CATALOG) {
+      expect(screen.getByText(t.label)).toBeTruthy()
+    }
+    cleanup()
+  })
 })

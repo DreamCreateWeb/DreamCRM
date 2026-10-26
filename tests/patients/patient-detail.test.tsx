@@ -151,6 +151,58 @@ describe('PatientDetail header', () => {
     expect(screen.getByText(/Missing intake form before next visit/)).toBeInTheDocument()
     expect(screen.getByText(/balance on file/)).toBeInTheDocument()
   })
+
+  // The lapsed nudge says the CLINIC's threshold (the number the flag fires
+  // at — lapsedCutoff, configurable, default 18), and carries its door: every
+  // other item in the list hands over an action, and "Send a recall." with
+  // nothing to click was a to-do dressed as help.
+  it('the lapsed item names the clinic’s own threshold and opens the patient’s thread', () => {
+    render(
+      <PatientDetail
+        header={header({
+          flags: {
+            newPatient: false,
+            birthdayThisWeek: false,
+            hasOutstandingBalance: false,
+            missingIntakeBeforeAppt: false,
+            unconfirmedNext48h: false,
+            lapsed: true,
+            optedOut: false,
+          },
+        })}
+        timeline={[]}
+        counts={emptyCounts}
+        notes={[]}
+        lapsedMonths={12}
+      />,
+    )
+    expect(screen.getByText(/No visit in 12\+ months/)).toBeInTheDocument()
+    expect(screen.queryByText(/9\+ months/)).not.toBeInTheDocument()
+    const door = screen.getByRole('button', { name: /Message them/ })
+    expect(door.closest('form')?.querySelector('input[name="patientId"]')).toHaveAttribute('value', 'pat_1')
+  })
+
+  it('defaults the lapsed threshold to the registry default (18) when the page passes none', () => {
+    render(
+      <PatientDetail
+        header={header({
+          flags: {
+            newPatient: false,
+            birthdayThisWeek: false,
+            hasOutstandingBalance: false,
+            missingIntakeBeforeAppt: false,
+            unconfirmedNext48h: false,
+            lapsed: true,
+            optedOut: false,
+          },
+        })}
+        timeline={[]}
+        counts={emptyCounts}
+        notes={[]}
+      />,
+    )
+    expect(screen.getByText(/No visit in 18\+ months/)).toBeInTheDocument()
+  })
 })
 
 describe('PatientDetail timeline', () => {

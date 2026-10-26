@@ -17,14 +17,23 @@ import DeleteCustomersButton from './delete-customers-button'
 import { listCustomers, getCustomerOrderStats } from '@/lib/services/customers'
 import PlatformClinics from './platform-clinics'
 
-export default async function CustomersPage() {
+export default async function CustomersPage({
+  searchParams,
+}: {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>
+}) {
   const ctx = await requireTenant()
   if (ctx.tenantType === 'patient') redirect('/patient/dashboard')
 
   // Clinic tenants now use the dental-correct Patients module at /patients.
   // The generic customers table still serves the platform org as a
-  // leads/contacts list.
-  if (ctx.tenantType === 'clinic') redirect('/patients')
+  // leads/contacts list. A legacy `?email=` deep-link lands on the FILTERED
+  // list rather than being dropped on the way.
+  if (ctx.tenantType === 'clinic') {
+    const params = (await searchParams) ?? {}
+    const email = typeof params.email === 'string' ? params.email.trim() : ''
+    redirect(email ? `/patients?q=${encodeURIComponent(email)}` : '/patients')
+  }
 
   if (ctx.tenantType === 'platform') return <PlatformClinics />
 

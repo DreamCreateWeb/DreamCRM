@@ -11,6 +11,9 @@ import {
 import { saveTemplate } from '../editor/website-actions'
 import { useConfirm } from '@/components/ui/confirm-dialog'
 import { StatusPill } from '@/components/ui/status-pill'
+import { EmptyState } from '@/components/ui/empty-state'
+import { ActionButton } from '@/components/ui/action-button'
+import { ACTION_FAILED_MESSAGE, STALE_APP_MESSAGE, isDeploymentSkewError } from '@/lib/deployment-skew'
 
 /**
  * The template gallery grid — category chips (practice type), style-tag
@@ -83,10 +86,17 @@ export default function TemplatesGallery({
     if (!ok) return
     setApplying(entry.id)
     setError(null)
-    const res = await saveTemplate(entry.id)
-    setApplying(null)
-    if (res.ok) router.refresh()
-    else setError(res.error)
+    // Never a bare await on a server action: a redeploy makes Next THROW on
+    // the old action id, and an unhandled throw leaves "Applying…" forever.
+    try {
+      const res = await saveTemplate(entry.id)
+      if (res.ok) router.refresh()
+      else setError(res.error)
+    } catch (err) {
+      setError(isDeploymentSkewError(err) ? STALE_APP_MESSAGE : ACTION_FAILED_MESSAGE)
+    } finally {
+      setApplying(null)
+    }
   }
 
   return (
@@ -129,9 +139,25 @@ export default function TemplatesGallery({
       {error && <p className="mb-4 text-sm text-rose-600 dark:text-rose-400">{error}</p>}
 
       {shown.length === 0 ? (
-        <p className="text-sm text-gray-500 dark:text-gray-400 py-8 text-center">
-          No designs match those filters yet — more designs are on the way.
-        </p>
+        // A filter-made emptiness carries the way back (docs/ACTIVATION.md
+        // law 4) — and no promise about designs that are not scheduled (law 3).
+        <EmptyState
+          icon="🎨"
+          title="No designs match those filters"
+          body="Try fewer style tags, or browse every design."
+          action={
+            <ActionButton
+              variant="secondary"
+              size="sm"
+              onClick={() => {
+                setCategory('all')
+                setTags([])
+              }}
+            >
+              Show all designs
+            </ActionButton>
+          }
+        />
       ) : (
         <div className="grid gap-5 sm:grid-cols-2">
           {shown.map((entry) => (

@@ -60,7 +60,7 @@ vi.mock('@/lib/db', async () => {
   }
 })
 
-import { searchPatientOptions, listPatientOptions, PATIENT_SEARCH_LIMIT } from '@/lib/services/patients'
+import { searchPatientOptions, listPatientOptions, getPatientOption, PATIENT_SEARCH_LIMIT } from '@/lib/services/patients'
 
 const ORG_A = 'org_a_acme_dental'
 const ORG_B = 'org_b_bright_dental'
@@ -111,6 +111,21 @@ describe('searchPatientOptions is org-scoped like listPatientOptions', () => {
       { id: 'p2', name: 'Marcus Chen', hint: 'marcus@x.com' },
       { id: 'p3', name: 'Zoe Williams', hint: null },
     ])
+  })
+
+  it('getPatientOption (the pre-picked id behind ?new=1&patient=) carries the org AND the id, and maps the same shape', async () => {
+    state.rows = [{ id: 'p2', firstName: 'Marcus', lastName: 'Chen', email: 'marcus@x.com', phone: null }]
+    expect(await getPatientOption(ORG_A, 'p2')).toEqual({ id: 'p2', name: 'Marcus Chen', hint: 'marcus@x.com' })
+    expect(state.wheres[0]).toContain(ORG_A)
+    expect(state.wheres[0]).toContain('p2')
+    expect(state.wheres[0]).not.toContain(ORG_B)
+    expect(state.limits[0]).toBe(1)
+  })
+
+  it('getPatientOption answers null for an id the org does not own (the row set is empty)', async () => {
+    state.rows = []
+    expect(await getPatientOption(ORG_B, 'pat_from_another_org')).toBeNull()
+    expect(state.wheres[0]).toContain(ORG_B)
   })
 
   it('listPatientOptions (the guardian select) still carries the org', async () => {

@@ -45,8 +45,11 @@ export interface ModuleDef {
    */
   platformAdminOnly?: boolean
 
-  /** Whether this module is currently implemented or coming soon. */
-  status?: 'live' | 'soon'
+  /** Every registered module is live. There is no 'soon' — docs/ACTIVATION.md
+   *  law 3 retired "coming soon" from the dashboard, and the sidebar's greyed
+   *  `href="#"` branch went with it; a door that depends on something outside
+   *  the practice says its real state on the feature's own page. */
+  status?: 'live'
 
   /**
    * Integration FEATURE-GATE (clinic tenants). When set, this module surfaces in

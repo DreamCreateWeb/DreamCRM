@@ -36,6 +36,9 @@ vi.mock('@/lib/services/feature-switches', () => ({ getFeatureSwitchState: async
 vi.mock('@/lib/services/clinic-cadence', () => ({
   getClinicCadence: vi.fn(async () => ({ recallMonths: 6, lapsedMonths: 18 })),
 }))
+// The clinic-timezone read (the birthday glyph's calendar) is a settings
+// lookup, not one of the roster statements under test here either.
+vi.mock('@/lib/services/clinic-timezone', () => ({ getClinicTimeZone: vi.fn(async () => 'America/New_York') }))
 vi.mock('@/lib/services/patient-tags', () => ({
   getTagsForPatients: vi.fn(async () => new Map()),
   listPatientTags: vi.fn(async () => []),

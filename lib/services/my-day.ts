@@ -10,6 +10,8 @@ import { followupDueState } from '@/lib/types/followups'
 import { clinicDayKey } from '@/lib/format-datetime'
 import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
 import { countOpenProposals } from '@/lib/services/proposals'
+import { getPmsLink } from '@/lib/services/pms-link'
+import type { PmsLink } from '@/lib/pms-link'
 
 /**
  * "My day" — a per-staff-member cockpit. Pulls the things actually assignable to
@@ -36,6 +38,11 @@ export interface MyDayData {
   newLeadsCount: number
   /** Patients carrying an outstanding PMS balance (shared collections nudge). */
   balances: { count: number; totalCents: number }
+  /** Is a practice-management system feeding this clinic (lib/pms-link.ts)?
+   *  The Balances tile and the empty schedule ask it before an all-clear —
+   *  the same read the Overview and the agenda use, so the three never
+   *  disagree (docs/ACTIVATION.md law 3). */
+  pmsLink: PmsLink
   /** Open proposals waiting on a yes in the Approval Inbox (the Overview) —
    *  finished work the machine can't send without a human. Phase-2 round-1
    *  audit: the inbox must reach the person living in My Day, not just the
@@ -120,7 +127,7 @@ export async function getMyDay(organizationId: string, userId: string): Promise<
   // Clinic-local day for due-date bucketing (server clock is UTC).
   const today = clinicDayKey(now, await getClinicTimeZone(organizationId))
 
-  const [mine, unclaimed, conversations, todaysAppointments, leadCountRow, balanceRow, tomorrow, openProposalsCount] = await Promise.all([
+  const [mine, unclaimed, conversations, todaysAppointments, leadCountRow, balanceRow, tomorrow, openProposalsCount, pmsLink] = await Promise.all([
     listOpenFollowups(organizationId, { assignedTo: userId }),
     listOpenFollowups(organizationId, { assignedTo: 'unassigned' }),
     listPatientThreads(organizationId, userId, { status: 'open', assignedTo: 'me' }),
@@ -145,6 +152,8 @@ export async function getMyDay(organizationId: string, userId: string): Promise<
     auditUpcomingDay(organizationId, { now }),
     // Best-effort — the cockpit must render even if the inbox read hiccups.
     countOpenProposals(organizationId).catch(() => 0),
+    // The PMS link (never throws) — "all paid up" is only true with a PMS.
+    getPmsLink(organizationId),
   ])
 
   // Merge my + unclaimed follow-ups (disjoint sets), soonest-due first.
@@ -177,6 +186,7 @@ export async function getMyDay(organizationId: string, userId: string): Promise<
       count: Number(balanceRow[0]?.n ?? 0),
       totalCents: Number(balanceRow[0]?.total ?? 0),
     },
+    pmsLink,
     openProposalsCount,
     tomorrow,
   }

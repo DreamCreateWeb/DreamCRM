@@ -66,25 +66,57 @@ export function ageFromDob(dob: string | null, today: Date = new Date()): number
   return years
 }
 
-/** True when the patient's birthday falls within today..today+6 (handles the
- *  Dec→Jan year rollover). Drives the 🎂 glyph. */
-export function isBirthdayThisWeek(dob: string | null, today: Date): boolean {
-  if (!dob) return false
-  const m = DOB_RE.exec(dob)
-  if (!m) return false
-  const month = parseInt(m[2], 10) - 1
-  const day = parseInt(m[3], 10)
-  const candidate = new Date(today.getFullYear(), month, day)
-  if (candidate < startOfDay(today)) candidate.setFullYear(today.getFullYear() + 1)
-  const sixOut = new Date(today)
-  sixOut.setDate(sixOut.getDate() + 6)
-  return candidate >= startOfDay(today) && candidate <= sixOut
+/**
+ * Birthdays are compared against a CALENDAR DAY, never a server instant: the
+ * prod clock is UTC, so from ~7 PM Central the server's "today" is already
+ * tomorrow and at month end its "this month" is next month — a greeting a
+ * day early, a birthday call list wrong for the evening shift (CLAUDE.md
+ * timezone rule 2). Callers pass the clinic-local `YYYY-MM-DD` key
+ * (`clinicDayKey(now, tz)`); these helpers never touch the wall clock.
+ */
+const DAY_KEY_RE = /^(\d{4})-(\d{2})-(\d{2})$/
+
+/** `YYYY-MM-DD` + `days` as a UTC calendar date (timezone-free arithmetic). */
+function dayKeyToUtc(dayKey: string): Date | null {
+  const m = DAY_KEY_RE.exec(dayKey)
+  if (!m) return null
+  return new Date(Date.UTC(parseInt(m[1], 10), parseInt(m[2], 10) - 1, parseInt(m[3], 10)))
 }
 
-/** True when the patient's birthday month is the current month. */
-export function isBirthdayThisMonth(dob: string | null, today: Date): boolean {
+/** True when the patient's birthday falls within today..today+`days` on the
+ *  clinic's calendar (handles the Dec→Jan year rollover). */
+export function isBirthdayWithinDays(dob: string | null, todayKey: string, days: number): boolean {
   if (!dob) return false
   const m = DOB_RE.exec(dob)
   if (!m) return false
-  return parseInt(m[2], 10) - 1 === today.getMonth()
+  const today = dayKeyToUtc(todayKey)
+  if (!today) return false
+  const month = parseInt(m[2], 10) - 1
+  const day = parseInt(m[3], 10)
+  const candidate = new Date(Date.UTC(today.getUTCFullYear(), month, day))
+  if (candidate < today) candidate.setUTCFullYear(today.getUTCFullYear() + 1)
+  const last = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate() + days))
+  return candidate >= today && candidate <= last
+}
+
+/** True when the patient's birthday falls within today..today+6 on the
+ *  clinic's calendar. Drives the 🎂 glyph. */
+export function isBirthdayThisWeek(dob: string | null, todayKey: string): boolean {
+  return isBirthdayWithinDays(dob, todayKey, 6)
+}
+
+/** The clinic-local month as the two-digit `MM` a `YYYY-MM-DD` DOB column
+ *  carries — the SQL month predicate's operand. Empty for a malformed key. */
+export function birthdayMonthOf(todayKey: string): string {
+  const m = DAY_KEY_RE.exec(todayKey)
+  return m ? m[2] : ''
+}
+
+/** True when the patient's birthday month is the clinic's current month. */
+export function isBirthdayThisMonth(dob: string | null, todayKey: string): boolean {
+  if (!dob) return false
+  const m = DOB_RE.exec(dob)
+  if (!m) return false
+  const month = birthdayMonthOf(todayKey)
+  return month !== '' && m[2] === month
 }

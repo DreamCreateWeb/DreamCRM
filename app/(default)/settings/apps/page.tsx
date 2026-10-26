@@ -4,6 +4,9 @@ import { requireUser } from '@/lib/session'
 import { getTenantContext } from '@/lib/auth/context'
 import { listOrgEmailAccounts } from '@/lib/services/mailbox'
 import { gmailOAuthConfigured } from '@/lib/services/gmail'
+import { eq } from 'drizzle-orm'
+import { db, schema } from '@/lib/db'
+import { clinicStripeRowStatus } from '@/lib/billing-status'
 
 export const metadata = {
   title: 'Integrations - DreamCRM',
@@ -66,16 +69,36 @@ export default async function AppsSettings() {
   }
 
   // Stripe (clinic = paying customer / platform = SaaS owner)
-  if (tenantType === 'clinic') {
+  if (tenantType === 'clinic' && ctx) {
+    // The row's status is READ, never asserted: a no-card trial clinic has no
+    // subscription for 7 days and a managed/comped clinic never will, and both
+    // used to read a green "Connected · Subscription managed by Stripe".
+    const billing = await db
+      .select({
+        stripeSubscriptionId: schema.clinicProfile.stripeSubscriptionId,
+        subscriptionStatus: schema.clinicProfile.subscriptionStatus,
+        billingMode: schema.clinicProfile.billingMode,
+      })
+      .from(schema.clinicProfile)
+      .where(eq(schema.clinicProfile.organizationId, ctx.organizationId))
+      .limit(1)
+      .then((rows) => rows[0] ?? null)
+      .catch(() => null)
+    const row = clinicStripeRowStatus({
+      stripeSubscriptionId: billing?.stripeSubscriptionId ?? null,
+      subscriptionStatus: billing?.subscriptionStatus ?? null,
+      billingMode: billing?.billingMode ?? null,
+      onTrial: ctx.onTrial === true,
+    })
     integrations.push({
       key: 'stripe',
       name: 'Stripe',
       category: 'Billing',
-      description:
-        'Your subscription is managed through Stripe. Use the Stripe customer portal to change card, update billing address, or download invoices.',
+      description: row.description,
       icon: 'card',
       accent: 'violet',
-      status: { kind: 'connected', detail: 'Subscription managed by Stripe' },
+      status: row.status,
+      ...(row.connectHref ? { connectHref: row.connectHref } : {}),
       manageHref: '/settings/billing',
     })
   } else if (tenantType === 'platform') {
@@ -120,7 +143,7 @@ export default async function AppsSettings() {
       name: 'Anthropic',
       category: 'AI',
       description:
-        'Powers inbox triage (Haiku), AI-drafted replies (Sonnet with adaptive thinking), and the marketing module copy assist.',
+        'Powers inbox triage, AI-drafted replies, and the marketing module copy assist.',
       icon: 'sparkle',
       accent: 'violet',
       status: process.env.ANTHROPIC_API_KEY

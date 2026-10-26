@@ -11,11 +11,13 @@ import { getTagsForPatients } from '@/lib/services/patient-tags'
 import type { PatientTagView } from '@/lib/types/patient-tags'
 import { isBirthdayThisWeek } from '@/lib/dates'
 import { BACKFILL_PATIENT_SOURCES } from '@/lib/services/analytics'
-import { clinicDayStart, clinicMonthStart } from '@/lib/clinic-timezone'
+import { clinicDayStart, clinicMonthStart, clinicSamePointLastMonth } from '@/lib/clinic-timezone'
 import { getSiteTraffic, type SiteTraffic } from '@/lib/services/site-analytics'
 import { websiteHealthNotice, type WebsiteHealthNotice } from '@/lib/website-health'
-import { formatClinicDayTime } from '@/lib/format-datetime'
+import { clinicDayKey, formatClinicDayTime } from '@/lib/format-datetime'
 import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
+import { getPmsLink } from '@/lib/services/pms-link'
+import type { PmsLink } from '@/lib/pms-link'
 
 /**
  * Clinic-side daily dashboard service. Returns everything the Overview
@@ -89,10 +91,17 @@ export interface ClinicOverviewData {
    *  Drives the Overview's SMS tile: "coming soon" only while it's TRUE that
    *  it's coming — the tile self-retires the day texting turns on. */
   smsLive: boolean
+  /** Is a practice-management system feeding this clinic (lib/pms-link.ts)?
+   *  The balances card and Today's chair ask it before stating an all-clear:
+   *  with no bridge, a zero means "nothing could have filled this", not
+   *  "paid up" or "quiet morning" (docs/ACTIVATION.md law 3). */
+  pmsLink: PmsLink
   trends: {
     bookingsToday: number
     newPatientsMTD: number
-    newPatientsLastMTD: number
+    /** New patients over the SAME ELAPSED SPAN of last month (the 1st to this
+     *  day-and-hour), never the whole of it — see clinicSamePointLastMonth. */
+    newPatientsSamePointLastMonth: number
     upcomingNext7d: number
     activeIntakeForms: number
     /** Bookings CREATED per clinic-local day, last 14 days (oldest first) —
@@ -181,7 +190,13 @@ export async function getClinicOverview(organizationId: string): Promise<ClinicO
   const since7d = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
   const monthStart = clinicMonthStart(now, timeZone)
   const lastMonthStart = clinicMonthStart(now, timeZone, -1)
-  const lastMonthEnd = monthStart // exclusive upper bound
+  // The comparison window for MTD is the same elapsed span of last month
+  // (exclusive upper bound) — the 1st to this day-and-hour, never the whole
+  // month, or a practice ahead of pace reads a shortfall until the 25th.
+  const samePointLastMonth = clinicSamePointLastMonth(now, timeZone)
+  // Birthday glyphs compare a DOB's month/day against the CLINIC's calendar
+  // day, not the server's UTC one (a 7 PM Central evening is tomorrow in UTC).
+  const todayKey = clinicDayKey(now, timeZone)
 
   // ── Today's appointments ────────────────────────────────────────────
   const todaysAppts = await db
@@ -272,7 +287,7 @@ export async function getClinicOverview(organizationId: string): Promise<ClinicO
     status: a.status,
     flags: {
       newPatient: newPatientSet.has(a.patientId),
-      birthdayThisWeek: isBirthdayThisWeek(a.dateOfBirth, now),
+      birthdayThisWeek: isBirthdayThisWeek(a.dateOfBirth, todayKey),
       hasOutstandingBalance: balanceSet.has(a.patientId),
       hasIntakeOnFile: intakeSet.has(a.patientId),
     },
@@ -420,7 +435,7 @@ export async function getClinicOverview(organizationId: string): Promise<ClinicO
 
   // ── Trend tiles — five independent counts + the booking pulse, one batch ──
   const day14Start = clinicDayStart(now, timeZone, -13)
-  const [bookingsTodayRow, newPatientsMTDRow, newPatientsLastMTDRow, upcomingRow, activeFormsRow, bookingRows14] =
+  const [bookingsTodayRow, newPatientsMTDRow, newPatientsSamePointRow, upcomingRow, activeFormsRow, bookingRows14] =
     await Promise.all([
       db
         .select({ count: count() })
@@ -451,7 +466,7 @@ export async function getClinicOverview(organizationId: string): Promise<ClinicO
             eq(schema.patient.organizationId, organizationId),
             isNotNull(schema.patient.firstSeenAt),
             gte(schema.patient.firstSeenAt, lastMonthStart),
-            lte(schema.patient.firstSeenAt, lastMonthEnd),
+            lt(schema.patient.firstSeenAt, samePointLastMonth),
             ne(schema.patient.lifecycle, 'archived'),
           ),
         )
@@ -495,7 +510,7 @@ export async function getClinicOverview(organizationId: string): Promise<ClinicO
   const trends = {
     bookingsToday: Number(bookingsTodayRow?.count ?? 0),
     newPatientsMTD: Number(newPatientsMTDRow?.count ?? 0),
-    newPatientsLastMTD: Number(newPatientsLastMTDRow?.count ?? 0),
+    newPatientsSamePointLastMonth: Number(newPatientsSamePointRow?.count ?? 0),
     upcomingNext7d: Number(upcomingRow?.count ?? 0),
     activeIntakeForms: Number(activeFormsRow?.count ?? 0),
     bookingsPerDay14,
@@ -610,7 +625,7 @@ export async function getClinicOverview(organizationId: string): Promise<ClinicO
   const recentActivity = activity.slice(0, 10)
 
   // ── Extra attention signals (reuse existing services) ───────────────
-  const [readinessReport, paidUnfulfilledRow, reviewStats, inboxStats, followups, siteTraffic, leads14d, domainState, smsIdentity] = await Promise.all([
+  const [readinessReport, paidUnfulfilledRow, reviewStats, inboxStats, followups, siteTraffic, leads14d, domainState, smsIdentity, pmsLink] = await Promise.all([
     getReadinessReport(organizationId).catch(() => null),
     // Paid shop orders still awaiting fulfillment (our move).
     db
@@ -652,6 +667,9 @@ export async function getClinicOverview(organizationId: string): Promise<ClinicO
       .catch(() => null),
     // Texting-live gate for the SMS tile — best-effort, never fails the huddle.
     getClinicSmsIdentity(organizationId).catch(() => ({ ok: false as const, reason: 'driver_off' as const })),
+    // The PMS link (lib/pms-link.ts) — the balances card and Today's chair
+    // say where their facts come from when nothing is bound. Never throws.
+    getPmsLink(organizationId),
   ])
 
   return {
@@ -667,6 +685,7 @@ export async function getClinicOverview(organizationId: string): Promise<ClinicO
     unreadMessages: inboxStats.unread,
     reviewsReceived: { completed30d: reviewStats.completed30d, sent30d: reviewStats.sent30d },
     smsLive: smsIdentity.ok,
+    pmsLink,
     trends,
     recentActivity,
     readinessAttention: readinessReport?.attention ?? [],

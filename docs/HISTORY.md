@@ -6172,6 +6172,73 @@ template with no bar, or a bar hidden above `sm`, measures 0 and nothing
 moves. The right-aligned pairs on established and hometeam are
 deliberately not tagged — the bottom-left floaters never meet them.
 
+## 2026-10-26 — The deep dev cycle, part 2: the dashboard's honesty (17)
+
+The seventh small-fix slice of the cycle (part 1 below carries the other
+six): what the clinic dashboard SAYS, measured against what is true for a
+practice with no PMS — the first client's state.
+
+- **One read for the PMS link.** `lib/pms-link.ts` (pure: `connected` /
+  `pending { vendorLabel, pill, sentence }` / `none`, `PMS_DOOR`,
+  `balanceSourceCopy`, `scheduleSourceCopy`) + `lib/services/pms-link.ts`
+  (`getPmsLink`: a pms_connection row that is not `not_connected` →
+  connected; a requested/scheduled connect request → pending, in
+  `describePmsConnectStatus`'s own words; else none; an unreadable read is
+  none). The Overview's balances card and Today's chair, My Day's
+  Balances tile and schedule, the agenda's empty day, the Payments hub's
+  Outstanding tile and the Collections board all branch on it: "balances
+  come from your PMS — needs your practice software" with the door, "we're
+  connecting Open Dental" while it waits, and the filled state untouched.
+- **"vs last month" compared nine days against thirty.** The MTD trend
+  painted a practice ahead of pace red for three weeks of every four.
+  `clinicSamePointLastMonth` (lib/clinic-timezone.ts) is the window's
+  upper bound — last month's first midnight plus this month's elapsed
+  span, capped at this month's start; the sub reads "+N vs this point
+  last month" and a shortfall is warn, not urgent.
+- **Birthdays by the clinic's calendar, as a class.** `lib/dates.ts`
+  `isBirthdayWithinDays` / `isBirthdayThisWeek` / `isBirthdayThisMonth` /
+  `birthdayMonthOf` are keyed on a clinic day key, and every caller moved
+  (patients list + header, appointments, the Overview, the audit,
+  audiences, recall stats) — a Chicago practice at 10pm on Oct 31 no
+  longer greets November's birthdays.
+- **Lapsed means YOUR threshold.** The record's nudge, the list chip and
+  the glyph registry had said "9+ months" while the clinic's own setting
+  defaulted to 18; the surfaces that know the number say it
+  (`lapsedMonths` on `PatientDetail` / `PatientFilterMeta`), the registry
+  says "past your lapsed threshold", and the nudge carries a "Message
+  them →" door.
+- **Dead doors closed.** Stripe Connect from Collections, the balance
+  outreach card and Integrations goes through
+  `/api/connect/shop/start?back=…` (members read "ask an owner"); the
+  catalog's value links point at `/payments`; ⌘K Products lands on
+  `/shop#catalog`; the inbox's patient card View / Book open the record
+  and the booking drawer with the patient pre-picked
+  (`?new=1&patient=<id>` → `initialPatientId`, confirmed by an org-scoped
+  by-id read, `getPatientOption`); `/ecommerce/customers?email=` forwards
+  to the patients search.
+- **The chrome tells the truth.** `lib/tenant-chrome.ts`: the sidebar
+  badge is "Trial · N days left" / "Free trial" / the role — never a plan
+  tier (the no-plan-gating guard pins it); `DropdownProfile` shows an
+  initials tile when there is no photo and the Mosaic stock headshot is
+  gone; the Apps page's Stripe row is `clinicStripeRowStatus` (managed /
+  comped → "Billed by Dream Create"; a trial → "no card on file yet";
+  past due → partial) and the Anthropic row names capabilities, never a
+  model; `tests/design-system/no-model-names.test.ts` holds rendered copy
+  there.
+- **The Mosaic demo is gone.** `app/(double-sidebar)/community/**` (Lorem
+  ipsum behind `DashboardShell` auth, reachable by any signed-in user),
+  18 importer-free stock images, the dead `.dcrm-calendar` and
+  `.form-switch` CSS; `ModuleDef.status` is `'live'` only and the sidebar
+  has no `isSoon` branch; `tests/activation/no-fake-content.test.ts`
+  holds lorem / stock names / stock image paths at zero and checks every
+  page under the two authed groups resolves the tenant.
+- The templates gallery's no-match state is an `EmptyState` with "Show
+  all designs" (and its `saveTemplate` await is wrapped); the
+  no-coming-soon vocabulary grew "on the way" / "in the works" and caught
+  the blog editor's "Scheduling is coming later"; the Overview's primary
+  opens the booking drawer; My Day's unconfirmed tile is channel-neutral;
+  onboarding's module hints and checklist name the NexHealth bridge.
+
 ## 2026-10-26 — The deep dev cycle, part 1: six slices of small fixes
 
 The owner: "go into a deep dev cycle, looking for features that need to be

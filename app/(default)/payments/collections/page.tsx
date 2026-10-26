@@ -5,6 +5,8 @@ import { getCollectionsBoard } from '@/lib/services/collections'
 import { canTakeBalancePayments } from '@/lib/services/balance-payments'
 import { listPaymentPlans } from '@/lib/services/payment-plans'
 import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
+import { getPmsLink } from '@/lib/services/pms-link'
+import { balanceSourceCopy } from '@/lib/pms-link'
 import { formatClinicDateTime } from '@/lib/format-datetime'
 import { formatCents } from '@/lib/types/shop'
 import { PageHeader } from '@/components/ui/page-header'
@@ -30,13 +32,18 @@ export default async function CollectionsPage() {
   if (ctx.tenantType === 'patient') redirect('/patient/dashboard')
   if (ctx.tenantType !== 'clinic') redirect('/dashboard')
 
-  const [board, paymentsReady, tz, plans] = await Promise.all([
+  const [board, paymentsReady, tz, plans, pmsLink] = await Promise.all([
     getCollectionsBoard(ctx.organizationId),
     canTakeBalancePayments(ctx.organizationId),
     getClinicTimeZone(ctx.organizationId),
     listPaymentPlans(ctx.organizationId),
+    // Balances are PMS truth; with no bridge the all-clear is not earned.
+    getPmsLink(ctx.organizationId),
   ])
   const canManage = ctx.role === 'owner' || ctx.role === 'admin'
+  // Null once a PMS feeds the column — the "every patient is square" below is
+  // then a real all-clear rather than a sentence over an empty column (law 3).
+  const balanceSource = balanceSourceCopy(pmsLink)
 
   const fmtDay = (d: Date | null) =>
     d ? formatClinicDateTime(d, tz).split(',').slice(0, 2).join(',') : '—'
@@ -104,24 +111,47 @@ export default async function CollectionsPage() {
         <p className="text-sm text-violet-900 dark:text-violet-200">
           Balances come from your PMS as a single point-in-time number, so true 30/60/90 aging
           buckets aren&rsquo;t shown yet — we&rsquo;d rather wait for real aging data than guess.
-          {!paymentsReady && (
-            <>
-              {' '}Connect Stripe from{' '}
-              <Link href="/shop" className="font-medium underline">your Shop page</Link>{' '}
-              to send pay links from this board.
-            </>
-          )}
+          {!paymentsReady &&
+            // The real door is the Connect OAuth start, returning here (S5's
+            // `back=`) — `/shop` is a hub behind its own switch and has no
+            // Stripe button on it. Members cannot connect; say who can.
+            (canManage ? (
+              <>
+                {' '}
+                <Link href="/api/connect/shop/start?back=payments" className="font-medium underline">
+                  Connect Stripe
+                </Link>{' '}
+                to send pay links from this board.
+              </>
+            ) : (
+              <> Ask an owner to connect Stripe and pay links send from this board.</>
+            ))}
         </p>
       </div>
 
       {planRows.length > 0 && <PlansCard plans={planRows} canManage={canManage} />}
 
       {board.rows.length === 0 ? (
-        <EmptyState
-          icon="🎉"
-          title="No open balances"
-          body="Every patient is square. When the PMS sync brings in a balance, it lands here with its follow-up state."
-        />
+        balanceSource ? (
+          // No PMS: nothing could have filled this board. Say where balances
+          // come from and open that door — never "every patient is square".
+          <EmptyState
+            icon="🔌"
+            title="Balances arrive with your practice software"
+            body={balanceSource.body}
+            action={
+              <ActionButton variant="secondary" size="sm" href={balanceSource.href}>
+                {balanceSource.cta}
+              </ActionButton>
+            }
+          />
+        ) : (
+          <EmptyState
+            icon="🎉"
+            title="No open balances"
+            body="Every patient is square. When the PMS sync brings in a balance, it lands here with its follow-up state."
+          />
+        )
       ) : (
         <div className="v2-card overflow-hidden">
           <div className="overflow-x-auto">

@@ -24,10 +24,14 @@ interface TenantSidebarProps {
   /** Display name of the current organization — shown in the org switcher. */
   orgName?: string
   /**
-   * Short plan/role descriptor rendered as the pill under the org name
-   * (e.g. "Pro plan", "Platform admin", "Patient portal").
+   * Short descriptor rendered under the org name — state that VARIES
+   * (`sidebarBadgeFor` in lib/tenant-chrome.ts: a trial countdown, the
+   * viewer's role, "Platform admin", "Patient portal"). Never a plan tier:
+   * one plan is sold, so a tier label carries no information.
    */
   badge?: string
+  /** The viewer's role in words for the profile menu (lib/tenant-chrome.ts). */
+  roleLabel?: string
   variant?: 'default' | 'v2'
   /** Drives the live unread-count badges (clinic tenants only). */
   tenantType?: TenantType
@@ -120,6 +124,7 @@ export default function TenantSidebar({
   addable = [],
   orgName,
   badge,
+  roleLabel,
   tenantType,
   isDemo = false,
   logoUrl,
@@ -408,7 +413,7 @@ export default function TenantSidebar({
             </ul>
           )}
           <div className={`px-1 pt-1 min-w-0 ${railCollapsed ? 'lg:flex lg:justify-center' : ''}`}>
-            <DropdownProfile align="left" collapsed={railCollapsed} />
+            <DropdownProfile align="left" collapsed={railCollapsed} roleLabel={roleLabel} />
           </div>
         </div>
       </aside>
@@ -593,7 +598,6 @@ function NavItem({
   /** An "Add" row: quieter ink until hovered; the flyout says "Add". */
   muted?: boolean
 }) {
-  const isSoon = m.status === 'soon'
   const countLabel = count > 99 ? '99+' : String(count)
   const ariaCount = count > 0 ? `, ${count} ${count === 1 ? 'item needs' : 'items need'} attention` : ''
 
@@ -633,14 +637,12 @@ function NavItem({
       onMouseLeave={closeFlyout}
     >
       <Link
-        href={isSoon ? '#' : m.path}
+        href={m.path}
         onClick={onNavigate}
         onFocus={() => openFlyout(0)}
         onBlur={closeFlyout}
-        aria-disabled={isSoon}
         aria-current={active ? 'page' : undefined}
         aria-label={rail ? `${muted ? 'Add ' : ''}${m.label}${ariaCount}` : undefined}
-        title={rail ? undefined : isSoon ? `${m.label} — not available yet` : undefined}
         className={`relative flex items-center rounded-full py-2 pl-3 pr-2 transition-colors ${
           rail ? 'lg:justify-center lg:px-0' : ''
         } ${
@@ -649,7 +651,7 @@ function NavItem({
             : muted
               ? 'text-ink-500 hover:bg-ink-900/[0.04] hover:text-ink-800'
               : 'text-ink-600 hover:bg-ink-900/[0.04] hover:text-ink-900'
-        } ${isSoon ? 'opacity-50 cursor-not-allowed' : ''}`}
+        }`}
       >
         <NavIcon
           name={m.icon}
@@ -660,7 +662,6 @@ function NavItem({
           <>
             <span className="ml-3 grow truncate text-sm">
               {m.label}
-              {isSoon && <span className="ml-2 text-xs text-ink-500">soon</span>}
             </span>
             {showShortcut && m.shortcut && (
               <kbd

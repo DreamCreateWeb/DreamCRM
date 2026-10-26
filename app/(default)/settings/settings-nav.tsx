@@ -115,7 +115,7 @@ const CLINIC_GROUPS: SettingsNavGroup[] = [
     title: 'Team & access',
     items: [
       { href: '/settings/team', label: 'Team', desc: 'Invite teammates and manage access.', icon: teamIcon },
-      { href: '/settings/apps', label: 'Connected accounts', desc: 'Gmail, Stripe, and other connections.', icon: plugIcon },
+      { href: '/settings/apps', label: 'Connected accounts', desc: 'Gmail mailboxes and your subscription.', icon: plugIcon },
     ],
   },
   {

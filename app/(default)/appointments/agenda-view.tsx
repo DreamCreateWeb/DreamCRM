@@ -40,6 +40,7 @@ import {
 import SavedViewsBar, { type SavedViewChip } from '@/components/saved-views/saved-views-bar'
 import NewBookingDrawer from './new-booking-drawer'
 import AppointmentDrawer from './appointment-drawer'
+import { scheduleSourceCopy, type PmsLink } from '@/lib/pms-link'
 import { confirmAppointmentAction, markCompletedAction, bulkSendRemindersAction, bulkSetAppointmentStatusAction, bulkCreateFollowupsForPatientsAction, createAppointmentViewAction, deleteAppointmentViewAction } from './actions'
 
 // Status carries categorical state only (timing lives on the aging border,
@@ -121,7 +122,7 @@ function fmtTime(d: Date): string {
   return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
 }
 
-function emptyCopy(filters: AppointmentListFilters): {
+function emptyCopy(filters: AppointmentListFilters, pmsLink: PmsLink): {
   icon: string
   title: string
   body: string
@@ -150,6 +151,13 @@ function emptyCopy(filters: AppointmentListFilters): {
     return { icon: '🌿', title: 'Nobody waiting to be rebooked.', body: 'Every recent cancellation or no-show already has a next visit on the books.' }
   }
   if (filters.window === 'today') {
+    // With no PMS this list holds only website + staff bookings — an empty
+    // today is NOT a quiet morning; say what it is and open the door that
+    // fills it (docs/ACTIVATION.md law 3). Same copy home as the Overview.
+    const source = scheduleSourceCopy(pmsLink)
+    if (source) {
+      return { icon: '🗓️', title: source.title, body: source.body, action: { href: source.href, label: source.cta } }
+    }
     return {
       icon: '☕',
       title: 'Nothing booked today.',
@@ -175,6 +183,7 @@ export default function AgendaView({
   orgName,
   savedViews = [],
   intakeOpen = true,
+  pmsLink = { kind: 'connected' },
 }: {
   groups: AppointmentDayGroup[]
   meta: AppointmentFilterMeta
@@ -183,6 +192,9 @@ export default function AgendaView({
   savedViews?: SavedViewChip[]
   /** The Intake Forms door (law 1): closed = no 'Needs intake' chip. */
   intakeOpen?: boolean
+  /** Is a PMS feeding this clinic (lib/pms-link.ts)? Off, an empty "today"
+   *  names its source instead of calling the morning quiet (law 3). */
+  pmsLink?: PmsLink
 }) {
   const router = useRouter()
   const params = useSearchParams()
@@ -194,6 +206,10 @@ export default function AgendaView({
   // new-booking drawer on arrival, then we strip the param so closing it and
   // refreshing doesn't pop the drawer back open.
   const [newBookingOpen, setNewBookingOpen] = useState(() => params.get('new') === '1')
+  // ?new=1&patient=<id> (the Gmail inbox's patient card, the record) opens the
+  // drawer with that patient already picked — no second search for a person
+  // the caller just showed. Read once with the deep-link, stripped with it.
+  const [initialPatientId] = useState<string | null>(() => (params.get('new') === '1' ? params.get('patient') : null))
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [searchInput, setSearchInput] = useState(filters.search ?? '')
   // Optimistically mark a row confirmed the instant you click — the action +
@@ -227,6 +243,7 @@ export default function AgendaView({
     const next = new URLSearchParams(params.toString())
     next.delete('new')
     next.delete('appt')
+    next.delete('patient')
     const qs = next.toString()
     router.replace(qs ? `/appointments?${qs}` : '/appointments')
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -423,7 +440,7 @@ export default function AgendaView({
         }
       />
 
-      {newBookingOpen && <NewBookingDrawer onClose={() => setNewBookingOpen(false)} />}
+      {newBookingOpen && <NewBookingDrawer onClose={() => setNewBookingOpen(false)} initialPatientId={initialPatientId} />}
 
       {/* ── Filters ──────────────────────────────────────────────────── */}
       <div className="v2-panel p-4 mb-4 space-y-3">
@@ -514,7 +531,7 @@ export default function AgendaView({
 
       {/* ── Agenda ───────────────────────────────────────────────────── */}
       {groups.length === 0 ? (
-        <AgendaEmptyState filters={filters} onNewBooking={() => setNewBookingOpen(true)} />
+        <AgendaEmptyState filters={filters} onNewBooking={() => setNewBookingOpen(true)} pmsLink={pmsLink} />
       ) : (
         <div className="space-y-6">
           {groups.map((g) => (
@@ -804,11 +821,13 @@ function AppointmentRowCard({
 function AgendaEmptyState({
   filters,
   onNewBooking,
+  pmsLink = { kind: 'connected' },
 }: {
   filters: AppointmentListFilters
   onNewBooking: () => void
+  pmsLink?: PmsLink
 }) {
-  const copy = emptyCopy(filters)
+  const copy = emptyCopy(filters, pmsLink)
   return (
     <EmptyState
       icon={copy.icon}

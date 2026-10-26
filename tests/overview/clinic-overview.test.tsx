@@ -155,6 +155,7 @@ import DreamTeamView from '@/app/(default)/dream-team/dream-team-view'
 import { expiryTone } from '@/app/(default)/dashboard/approval-inbox'
 import type { TenantContext } from '@/lib/auth/context'
 import type { ClinicOverviewData } from '@/lib/services/clinic-overview'
+import { TONE_TEXT } from '@/lib/ui/encodings'
 
 function makeCtx(overrides: Partial<TenantContext> = {}): TenantContext {
   return {
@@ -190,10 +191,13 @@ function makeData(overrides: Partial<ClinicOverviewData> = {}): ClinicOverviewDa
     siteHealth: null,
     reviewsReceived: { completed30d: 0, sent30d: 0 },
   smsLive: false,
+    // A PMS feeds the clinic by default — the all-clear copy is then earned;
+    // the "no practice software" suite below flips it.
+    pmsLink: { kind: 'connected' },
     trends: {
       bookingsToday: 0,
       newPatientsMTD: 0,
-      newPatientsLastMTD: 0,
+      newPatientsSamePointLastMonth: 0,
       upcomingNext7d: 0,
       activeIntakeForms: 0,
           bookingsPerDay14: [],
@@ -297,7 +301,11 @@ describe('ClinicOverview hero', () => {
     render(ui)
     expect(screen.getByText(/Morning huddle/)).toBeInTheDocument()
     expect(screen.getByRole('heading', { level: 1, name: 'Acme Dental' })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /\+ New booking/i })).toBeInTheDocument()
+    // The primary OPENS THE BOOKING DRAWER (`?new=1`, the param the agenda
+    // consumes). It shipped pointing at `?window=today`, which only set the
+    // agenda's date chip — the loudest button on the huddle did nothing
+    // (dead-control-deeplinks: assert the destination, not just the label).
+    expect(screen.getByRole('link', { name: /\+ New booking/i })).toHaveAttribute('href', '/appointments?new=1')
   })
 })
 
@@ -324,7 +332,7 @@ describe('Design System v2 migration', () => {
         trends: {
           bookingsToday: 7,
           newPatientsMTD: 9,
-          newPatientsLastMTD: 4,
+          newPatientsSamePointLastMonth: 4,
           upcomingNext7d: 11,
           activeIntakeForms: 2,
           bookingsPerDay14: [],
@@ -488,6 +496,38 @@ describe("Today's chair", () => {
     render(ui)
     expect(screen.getByText(/Nothing booked today/)).toBeInTheDocument()
     expect(screen.getByText(/quiet morning/i)).toBeInTheDocument()
+  })
+
+  // docs/ACTIVATION.md law 3 — honest while pending. With no practice
+  // software bound, Today's chair holds only website + staff bookings, so an
+  // empty day is NOT a quiet morning: the state names its source and opens
+  // the S4 front door, and the count says what it can actually see.
+  it('with no PMS, an empty day names its source and opens the connect door — never "quiet morning"', async () => {
+    mockGetOverview.mockResolvedValueOnce(makeData({ pmsLink: { kind: 'none' } }))
+    const ui = await ClinicOverview({ ctx: makeCtx() })
+    render(ui)
+    expect(screen.getByText('Only visits booked through your website show here.')).toBeInTheDocument()
+    expect(screen.queryByText(/quiet morning/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/Nothing booked today/)).not.toBeInTheDocument()
+    // Both doors: the first action and the door to the thing that fills the room
+    // (the balances card opens the same door, so every "Connect it" is checked).
+    expect(screen.getByRole('link', { name: /Book a visit/ })).toHaveAttribute('href', '/appointments?new=1')
+    const doors = screen.getAllByRole('link', { name: /Connect it/ })
+    expect(doors.length).toBeGreaterThanOrEqual(1)
+    for (const d of doors) expect(d).toHaveAttribute('href', '/integrations/pms')
+    expect(screen.getByRole('link', { name: /0 booked online/ })).toBeInTheDocument()
+  })
+
+  it('a pending connect request says we are connecting it, in the request’s own words', async () => {
+    mockGetOverview.mockResolvedValueOnce(
+      makeData({ pmsLink: { kind: 'pending', vendorLabel: 'Dentrix', pill: 'We’re connecting it', sentence: 'We have your request for Dentrix.' } }),
+    )
+    const ui = await ClinicOverview({ ctx: makeCtx() })
+    render(ui)
+    expect(screen.getByText(/We’re connecting Dentrix/)).toBeInTheDocument()
+    const doors = screen.getAllByRole('link', { name: /See the request/ })
+    expect(doors.length).toBeGreaterThanOrEqual(1)
+    for (const d of doors) expect(d).toHaveAttribute('href', '/integrations/pms')
   })
 
   it('renders a row per appointment with name, type, status pill, and time', async () => {
@@ -675,7 +715,7 @@ describe('Trend tiles', () => {
         trends: {
           bookingsToday: 4,
           newPatientsMTD: 12,
-          newPatientsLastMTD: 8,
+          newPatientsSamePointLastMonth: 8,
           upcomingNext7d: 23,
           activeIntakeForms: 1,
           bookingsPerDay14: [],
@@ -686,8 +726,33 @@ describe('Trend tiles', () => {
     render(ui)
     expect(screen.getByText('4')).toBeInTheDocument() // bookings today
     expect(screen.getByText('12')).toBeInTheDocument() // MTD
-    expect(screen.getByText(/\+4 vs last month/)).toBeInTheDocument()
+    // The comparison is the SAME ELAPSED SPAN of last month (the 1st to this
+    // day-and-hour), and the label says so — a partial month against a whole
+    // one read red for three weeks of every four.
+    expect(screen.getByText(/\+4 vs this point last month/)).toBeInTheDocument()
     expect(screen.getByText('23')).toBeInTheDocument() // upcoming
+  })
+
+  it('a shortfall is WARN (worth a look), never URGENT (reserved for a problem now)', async () => {
+    mockGetOverview.mockResolvedValueOnce(
+      makeData({
+        trends: {
+          bookingsToday: 0,
+          newPatientsMTD: 5,
+          newPatientsSamePointLastMonth: 9,
+          upcomingNext7d: 0,
+          activeIntakeForms: 0,
+          bookingsPerDay14: [],
+        },
+      }),
+    )
+    const ui = await ClinicOverview({ ctx: makeCtx() })
+    render(ui)
+    const sub = screen.getByText(/-4 vs this point last month/)
+    // KpiStat paints the tone on the sub line (TONE_TEXT): warn = amber,
+    // urgent = rose. A shortfall is worth a look, not a problem now.
+    expect(sub.className).toBe(`mt-0.5 text-xs font-medium ${TONE_TEXT.warn}`)
+    expect(sub.className).not.toContain(TONE_TEXT.urgent)
   })
 
   it('shows "first month tracking" when last-month had 0 patients', async () => {
@@ -696,7 +761,7 @@ describe('Trend tiles', () => {
         trends: {
           bookingsToday: 0,
           newPatientsMTD: 3,
-          newPatientsLastMTD: 0,
+          newPatientsSamePointLastMonth: 0,
           upcomingNext7d: 0,
           activeIntakeForms: 0,
           bookingsPerDay14: [],
@@ -718,7 +783,7 @@ describe('Trend tiles', () => {
         trends: {
           bookingsToday: 0,
           newPatientsMTD: 0,
-          newPatientsLastMTD: 0,
+          newPatientsSamePointLastMonth: 0,
           upcomingNext7d: 5,
           activeIntakeForms: 0,
           bookingsPerDay14: [],
@@ -798,6 +863,30 @@ describe('New attention cards (money + messages)', () => {
     expect(screen.getByText('Outstanding balances')).toBeInTheDocument()
     expect(screen.getByText(/From your PMS/)).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /See who owes/i })).toBeInTheDocument()
+  })
+
+  it('with a PMS and nothing owed, the all-clear is earned: "Patients are paid up"', async () => {
+    mockGetOverview.mockResolvedValueOnce(makeData({ pmsLink: { kind: 'connected' } }))
+    const ui = await ClinicOverview({ ctx: makeCtx() })
+    render(ui)
+    expect(screen.getByText(/Patients are paid up/)).toBeInTheDocument()
+  })
+
+  // docs/ACTIVATION.md law 3 — balances are written by the PMS sync and nothing
+  // else, so with no practice software a zero means "nothing could have
+  // filled this", not "paid up" (a status that cannot be false). The empty
+  // card says where the number comes from and carries the door (law 4).
+  it('with no PMS, the balances card never says "paid up" — it names the source and opens the connect door', async () => {
+    mockGetOverview.mockResolvedValueOnce(makeData({ pmsLink: { kind: 'none' } }))
+    const ui = await ClinicOverview({ ctx: makeCtx() })
+    render(ui)
+    expect(screen.queryByText(/paid up/i)).not.toBeInTheDocument()
+    expect(screen.getByText(/Balances come from your practice software/)).toBeInTheDocument()
+    expect(screen.getByText('needs your practice software')).toBeInTheDocument()
+    // The card's own door (Today's chair opens the same one).
+    const doors = screen.getAllByRole('link', { name: /Connect it/ })
+    expect(doors.length).toBeGreaterThanOrEqual(1)
+    for (const d of doors) expect(d).toHaveAttribute('href', '/integrations/pms')
   })
 
   it('renders the Unanswered-messages + Orders cards for every clinic (no plan tiers)', async () => {

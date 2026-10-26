@@ -381,7 +381,10 @@ export const INTEGRATIONS_CATALOG: IntegrationDef[] = [
     availability: 'live',
     connectKind: 'oauth',
     know: 'Your own Stripe account: Stripe’s card fees apply and payouts land in your bank. DreamCRM never holds your money.',
-    valueLinks: [{ href: '/shop', label: 'Shop' }],
+    // The connected card's manage door is the money workspace (balances, pay
+    // links, plans, memberships), not the storefront — which is OFF for every
+    // new clinic and renders its intro card rather than anything Stripe.
+    valueLinks: [{ href: '/payments', label: 'Payments' }],
   },
 ]
 

@@ -407,7 +407,7 @@ export default function PatientsList({
           <FilterChip
             active={filters.status === 'inactive'}
             onClick={() => setParam('status', filters.status === 'inactive' ? null : 'inactive')}
-            title="No visit in 9+ months and nothing booked"
+            title={`No visit in ${meta.lapsedMonths}+ months and nothing booked`}
           >
             Lapsed
           </FilterChip>

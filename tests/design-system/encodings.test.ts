@@ -55,7 +55,11 @@ describe('glyph registry', () => {
     expect(GLYPHS.missingIntakeNext.label).toBe('Missing intake form before next visit')
     expect(GLYPHS.missingIntakeThis.label).toBe('Missing intake form before this visit')
     expect(GLYPHS.unconfirmed48h.label).toBe('Unconfirmed appointment in next 48h')
-    expect(GLYPHS.lapsed.label).toBe('Lapsed — no visit in 9+ months')
+    // No hard-coded month count: the flag fires at the clinic's own threshold
+    // (lapsedCutoff, default 18), so a registry number was wrong by half.
+    expect(GLYPHS.lapsed.label).toBe('Lapsed — past your lapsed threshold')
+    expect(GLYPHS.lapsed.label).not.toMatch(/\d+\+? months/)
+    expect(GLYPHS.lapsed.description).not.toMatch(/\d+\+? months/)
     expect(GLYPHS.lapsedReturning.label).toBe('Lapsed patient returning — celebrate')
     expect(GLYPHS.optedOut.label).toBe('Opted out of marketing')
     expect(GLYPHS.bookedJustNow.label).toBe('Booked in the last hour')
