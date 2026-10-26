@@ -4,8 +4,10 @@ import { createHmac } from 'node:crypto'
 /**
  * THE DASHBOARD TAKES THE WHOLE PHONE.
  *
- * A bounded journey over three signed-in pages at the three widths the brand
- * book names. Below `lg` the sidebar is an off-canvas drawer, so the page's
+ * A bounded journey over four signed-in pages at the three widths the brand
+ * book names (`/messages` joined 2026-10-26: its filter bar is the one chip
+ * STRIP in the dashboard — nine chips that scroll sideways below lg — so it
+ * is the page most likely to drag the document wider than the phone). Below `lg` the sidebar is an off-canvas drawer, so the page's
  * `<main>` must start at x = 0 and the document must not scroll sideways; at
  * 1440 the sidebar is in flow and `<main>` starts where it ends. This is the
  * measurement that found the 256px gutter `tests/ui/sidebar-off-canvas.
@@ -14,7 +16,7 @@ import { createHmac } from 'node:crypto'
  * it because the cause was cascade LAYERING, not a class.
  *
  * The path list is typed by hand on purpose (a bounded journey, not a
- * registry expansion): the shell is one component, so three pages prove it.
+ * registry expansion): the shell is one component, so a few pages prove it.
  */
 
 const SESSION_TOKEN = 'e2e-staff-session-token'
@@ -27,7 +29,7 @@ function signedSessionCookie(): string {
   return encodeURIComponent(`${SESSION_TOKEN}.${sig}`)
 }
 
-const PAGES = ['/dashboard', '/website', '/website/content']
+const PAGES = ['/dashboard', '/website', '/website/content', '/messages']
 
 test.describe('the dashboard shell at phone, tablet and desktop widths', () => {
   test.beforeEach(async ({ context }) => {

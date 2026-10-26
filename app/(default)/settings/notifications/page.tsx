@@ -6,7 +6,7 @@ import { SettingsPage } from '../settings-kit'
 
 export const metadata = {
   title: 'Notifications Settings - DreamCRM',
-  description: 'Email and push preferences',
+  description: 'Bell alerts and which ones reach your email',
 }
 
 export const dynamic = 'force-dynamic'
@@ -33,7 +33,7 @@ export default async function NotificationsSettings() {
 
   return (
     <>
-      <SettingsPage title="Notifications" subtitle="Email and push preferences.">
+      <SettingsPage title="Notifications" subtitle="Bell alerts and which ones reach your email.">
         <NotificationsPanel
           clinicDigestEnabled={clinicDigestEnabled}
           tenantType={
