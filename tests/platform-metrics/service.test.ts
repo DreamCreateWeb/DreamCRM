@@ -232,14 +232,35 @@ describe('getChurnStats', () => {
     state.selectQueue.push([{ count: 2 }])
     // past due
     state.selectQueue.push([{ count: 1 }])
-    // active
-    state.selectQueue.push([{ count: 8 }])
+    // live rows: eight recorded active/trialing clinics
+    state.selectQueue.push(
+      Array.from({ length: 8 }, () => ({
+        subscriptionStatus: 'active',
+        stripeSubscriptionId: 'sub_1',
+        trialEndsAt: null,
+      })),
+    )
 
     const c = await getChurnStats()
     expect(c.canceled30d).toBe(2)
     expect(c.pastDue).toBe(1)
     // 2 / (8 + 2) = 20%
     expect(c.approxChurnRate30d).toBeCloseTo(20)
+  })
+
+  it('an expired no-card trial is not an active clinic in the churn cohort', async () => {
+    // 'trialing' stays in the column after the trial runs out — the wall is
+    // derived from trial_ends_at. Two live, one expired → cohort = 2 + 1.
+    state.selectQueue.push([{ count: 1 }])
+    state.selectQueue.push([{ count: 0 }])
+    state.selectQueue.push([
+      { subscriptionStatus: 'active', stripeSubscriptionId: 'sub_1', trialEndsAt: null },
+      { subscriptionStatus: 'trialing', stripeSubscriptionId: null, trialEndsAt: new Date(Date.now() + 3 * 86_400_000) },
+      { subscriptionStatus: 'trialing', stripeSubscriptionId: null, trialEndsAt: new Date(Date.now() - 3 * 86_400_000) },
+    ])
+    const c = await getChurnStats()
+    // 1 / (2 + 1) — the expired trial is out of the denominator.
+    expect(c.approxChurnRate30d).toBeCloseTo(33.33, 1)
   })
 
   it('handles no clinics at all', async () => {

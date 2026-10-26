@@ -5,6 +5,8 @@ import { organization } from '@/lib/db/schema/auth'
 import { clinicProfile, agencyProject } from '@/lib/db/schema/platform'
 import { patient, appointment } from '@/lib/db/schema/clinic'
 import { getPlatformMrr } from './platform-mrr'
+import { clinicCountsAsActive } from '@/lib/platform-clinic-status'
+import { resolveTrialState } from '@/lib/trial'
 
 // "Already missing" Postgres error codes — return zero state instead of crashing
 // when migrations haven't run yet on a fresh environment.
@@ -191,13 +193,30 @@ export async function getChurnStats(): Promise<ChurnStats> {
       .innerJoin(organization, eq(clinicProfile.organizationId, organization.id))
       .where(and(sql`${clinicProfile.subscriptionStatus} in ('past_due','unpaid','incomplete_expired')`, eq(organization.isDemo, false)))
 
-    const [activeRow] = await db
-      .select({ count: sql<number>`count(${clinicProfile.organizationId})::int` })
+    // 'trialing' stays in the column after the 7 days run out (nothing writes
+    // it — the wall is derived from trial_ends_at), so the rows come back and
+    // the same pure rule the wall reads decides who is still a live clinic.
+    // One home for that answer: lib/platform-clinic-status.ts.
+    const liveRows = await db
+      .select({
+        subscriptionStatus: clinicProfile.subscriptionStatus,
+        stripeSubscriptionId: clinicProfile.stripeSubscriptionId,
+        trialEndsAt: clinicProfile.trialEndsAt,
+      })
       .from(clinicProfile)
       .innerJoin(organization, eq(clinicProfile.organizationId, organization.id))
       .where(and(sql`${clinicProfile.subscriptionStatus} in ('active','trialing')`, eq(organization.isDemo, false)))
 
-    const active = activeRow?.count ?? 0
+    const active = liveRows.filter((c) =>
+      clinicCountsAsActive({
+        subscriptionStatus: c.subscriptionStatus,
+        trial: resolveTrialState({
+          trialEndsAt: c.trialEndsAt ?? null,
+          subscriptionStatus: c.subscriptionStatus,
+          stripeSubscriptionId: c.stripeSubscriptionId,
+        }),
+      }),
+    ).length
     const cancel = canceled?.count ?? 0
     const cohortStart = active + cancel
     const approxChurnRate30d = cohortStart === 0 ? 0 : (cancel / cohortStart) * 100
