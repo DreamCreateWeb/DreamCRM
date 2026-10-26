@@ -66,9 +66,12 @@ export default function Header({
       <div className="px-4 sm:px-6 lg:px-8">
         <div className="flex h-14 items-center justify-between">
           {/* Left: hamburger (mobile) + page title */}
-          <div className="flex min-w-0 items-center gap-3">
+          <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+            {/* 40px box (DESIGN-SYSTEM §2.2's floor for a primary control) — this is
+                the ONLY door to navigation on a phone. */}
             <button
-              className="text-ink-500 hover:text-ink-600 lg:hidden"
+              type="button"
+              className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-ink-500 hover:bg-ink-900/[0.04] hover:text-ink-700 lg:hidden"
               aria-controls="sidebar"
               aria-expanded={sidebarOpen}
               onClick={() => setSidebarOpen(!sidebarOpen)}
@@ -98,12 +101,13 @@ export default function Header({
           </div>
 
           {/* Right: quick-create · search · bell · demo · help · theme */}
-          <div className="flex items-center gap-3">
+          <div className="flex shrink-0 items-center gap-1 sm:gap-2">
             <QuickCreateMenu moduleIds={moduleIds} />
 
             <div>
               <button
-                className={`flex h-8 items-center justify-center gap-1.5 rounded-full px-2.5 hover:bg-ink-900/[0.05] dark:hover:bg-white/[0.06] ${
+                type="button"
+                className={`flex h-10 min-w-10 items-center justify-center gap-1.5 rounded-full px-2.5 hover:bg-ink-900/[0.05] dark:hover:bg-white/[0.06] ${
                   searchModalOpen ? 'bg-ink-900/[0.06] dark:bg-white/[0.08]' : ''
                 }`}
                 onClick={() => setSearchModalOpen(true)}
@@ -120,7 +124,7 @@ export default function Header({
                   <path d="M7 14c-3.86 0-7-3.14-7-7s3.14-7 7-7 7 3.14 7 7-3.14 7-7 7ZM7 2C4.243 2 2 4.243 2 7s2.243 5 5 5 5-2.243 5-5-2.243-5-5-5Z" />
                   <path d="m13.314 11.9 2.393 2.393a.999.999 0 1 1-1.414 1.414L11.9 13.314a8.019 8.019 0 0 0 1.414-1.414Z" />
                 </svg>
-                <kbd className="hidden rounded border border-hairline px-1 py-px text-xs font-medium tabular-nums text-ink-400 lg:inline-block">
+                <kbd className="hidden rounded border border-hairline px-1 py-px text-xs font-medium tabular-nums text-ink-500 lg:inline-block">
                   ⌘K
                 </kbd>
               </button>

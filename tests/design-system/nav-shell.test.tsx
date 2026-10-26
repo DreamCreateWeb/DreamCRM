@@ -199,3 +199,129 @@ describe('TenantSidebar — active state', () => {
     expect(actives[0].className).toContain('teal')
   })
 })
+
+/* ── THE DRAWER BELOW lg (2026-10-26) ─────────────────────────────────────
+   Closed, the aside is slid off-screen but still in the DOM. Without `inert`
+   every nav link, the org tile and the profile menu stayed in the tab order
+   while invisible — a keyboard or screen-reader user on a phone tabbed through
+   ~20 hidden links before reaching the page — and opening the drawer left
+   focus on the hamburger. These pin the drawer contract: inert while closed
+   on a phone (never at lg+, where the same element is the in-flow sidebar),
+   focus into the Close button on open, back to the opener on close, Escape
+   closes. */
+
+function stubMatchMedia(matches: boolean): () => void {
+  const original = Object.getOwnPropertyDescriptor(window, 'matchMedia')
+  Object.defineProperty(window, 'matchMedia', {
+    configurable: true,
+    writable: true,
+    value: (query: string) => ({
+      matches,
+      media: query,
+      onchange: null,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      addListener: () => {},
+      removeListener: () => {},
+      dispatchEvent: () => false,
+    }),
+  })
+  return () => {
+    if (original) Object.defineProperty(window, 'matchMedia', original)
+    else delete (window as { matchMedia?: unknown }).matchMedia
+  }
+}
+
+describe('TenantSidebar — the off-canvas drawer below lg', () => {
+  let restore: (() => void) | undefined
+  afterEach(() => {
+    restore?.()
+    restore = undefined
+  })
+
+  it('is inert while closed on a phone, so its hidden links leave the tab order', () => {
+    restore = stubMatchMedia(true)
+    providerState.sidebarOpen = false
+    render(<TenantSidebar modules={MODULES} orgName="Acme" tenantType="clinic" />)
+    expect(document.getElementById('sidebar')).toHaveAttribute('inert')
+  })
+
+  it('is live again the moment it opens', () => {
+    restore = stubMatchMedia(true)
+    providerState.sidebarOpen = true
+    render(<TenantSidebar modules={MODULES} orgName="Acme" tenantType="clinic" />)
+    expect(document.getElementById('sidebar')).not.toHaveAttribute('inert')
+  })
+
+  it('is never inert at lg+, where it is the in-flow sidebar whatever the mobile flag says', () => {
+    restore = stubMatchMedia(false)
+    providerState.sidebarOpen = false
+    render(<TenantSidebar modules={MODULES} orgName="Acme" tenantType="clinic" />)
+    expect(document.getElementById('sidebar')).not.toHaveAttribute('inert')
+  })
+
+  it('opening moves focus to the Close button; closing returns it to the opener', () => {
+    restore = stubMatchMedia(true)
+    providerState.sidebarOpen = false
+    const tree = () => (
+      <>
+        <button type="button">opener</button>
+        <TenantSidebar modules={MODULES} orgName="Acme" tenantType="clinic" />
+      </>
+    )
+    const { rerender } = render(tree())
+    const opener = screen.getByRole('button', { name: 'opener' })
+    opener.focus()
+    expect(document.activeElement).toBe(opener)
+
+    providerState.sidebarOpen = true
+    rerender(tree())
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Close sidebar' }))
+
+    providerState.sidebarOpen = false
+    rerender(tree())
+    expect(document.activeElement).toBe(opener)
+  })
+
+  it('Escape closes the open drawer', () => {
+    restore = stubMatchMedia(true)
+    providerState.sidebarOpen = true
+    render(<TenantSidebar modules={MODULES} orgName="Acme" tenantType="clinic" />)
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(providerState.setSidebarOpen).toHaveBeenCalledWith(false)
+  })
+
+  it('the Close button is a 40px control (DESIGN-SYSTEM §2.2)', () => {
+    restore = stubMatchMedia(true)
+    providerState.sidebarOpen = true
+    render(<TenantSidebar modules={MODULES} orgName="Acme" tenantType="clinic" />)
+    const close = screen.getByRole('button', { name: 'Close sidebar' })
+    expect(close.className).toMatch(/\bh-10\b/)
+    expect(close.className).toMatch(/\bw-10\b/)
+  })
+})
+
+/* ── CHROME COPY READS ON ink-500, NEVER THE DISABLED STEP (2026-10-26) ──
+   `--color-ink-400` is "disabled only" (style.css); on surface-1 in the light
+   theme it measures ~2.5:1. The "Add" group is the activation program's one
+   door to every module a practice has not opened — at that ink the whole
+   offer read as disabled. Note the ink ramp INVERTS in `.dark` (ink-500 →
+   #8290b3), so the readable step needs no `dark:` half, unlike `gray-*`. */
+
+describe('TenantSidebar — readable chrome ink', () => {
+  const ADDABLE: ModuleDef[] = [
+    { id: 'payments', path: '/payments', label: 'Payments', section: 'Business', icon: 'bag', status: 'live' },
+  ]
+
+  it('renders Add rows, the Pinned eyebrow and the shortcut hints on ink-500', () => {
+    render(<TenantSidebar modules={MODULES} addable={ADDABLE} orgName="Acme" tenantType="clinic" />)
+    const addRow = within(screen.getByTestId('nav-add-group')).getByText('Payments').closest('a')!
+    expect(addRow.className).toMatch(/\btext-ink-500\b/)
+    expect(addRow.className).not.toMatch(/\btext-ink-400\b/)
+    expect(screen.getByText('Pinned').className).toMatch(/\btext-ink-500\b/)
+    // ⌘2, not ⌘1: pathname is '/' so Overview is the ACTIVE row and its hint
+    // rides white on the gradient by design.
+    expect(screen.getByText('⌘2').className).toMatch(/\btext-ink-500\b/)
+    expect(screen.getByText('⌘2').className).not.toMatch(/\btext-ink-400\b/)
+  })
+})

@@ -1,5 +1,5 @@
-import { render, screen } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { fireEvent, render, screen } from '@testing-library/react'
+import { describe, expect, it, vi } from 'vitest'
 import { GlyphCluster } from '@/components/ui/glyph-cluster'
 import { appointmentFlagGlyphs, patientFlagGlyphs } from '@/lib/ui/encodings'
 
@@ -62,5 +62,59 @@ describe('GlyphCluster (shared)', () => {
     render(<GlyphCluster glyphs={patientFlagGlyphs({ hasOutstandingBalance: true })} />)
     const glyph = screen.getByLabelText('Outstanding balance')
     expect(glyph.getAttribute('title')).toBe('Outstanding balance')
+  })
+})
+
+/**
+ * ANNOUNCED AND TOUCH-REACHABLE (2026-10-26). `aria-label` is prohibited on
+ * the generic role, so on a bare span most screen readers skipped it and read
+ * the raw emoji ("star", "memo exclamation mark"); `role="img"` (the
+ * ProgressRing's shape) makes the label the thing announced. And touch has no
+ * hover, so `title` never showed on a phone: a tap on the cluster now lists
+ * every label, without reaching the (clickable) row around it.
+ */
+describe('GlyphCluster — announced and touch-reachable', () => {
+  it('exposes each flag as a named image rather than a bare span', () => {
+    render(<GlyphCluster glyphs={patientFlagGlyphs({ newPatient: true, hasOutstandingBalance: true })} />)
+    expect(screen.getByRole('img', { name: 'New patient' })).toBeInTheDocument()
+    expect(screen.getByRole('img', { name: 'Outstanding balance' })).toBeInTheDocument()
+  })
+
+  it('the overflow badge is a named image too', () => {
+    render(
+      <GlyphCluster
+        glyphs={patientFlagGlyphs({ newPatient: true, birthdayThisWeek: true, hasOutstandingBalance: true })}
+        cap={1}
+      />,
+    )
+    expect(screen.getByRole('img', { name: '2 more flags' })).toHaveTextContent('+2')
+  })
+
+  it('a tap lists every label for touch without reaching the row; Escape closes it', () => {
+    const rowClick = vi.fn()
+    render(
+      <ul>
+        <li onClick={rowClick}>
+          <GlyphCluster
+            glyphs={patientFlagGlyphs({ newPatient: true, lapsed: true, optedOut: true, birthdayThisWeek: true, hasOutstandingBalance: true })}
+            cap={4}
+          />
+        </li>
+      </ul>,
+    )
+    const trigger = screen.getByRole('button')
+    expect(trigger).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByRole('tooltip')).toBeNull()
+    fireEvent.click(trigger)
+    expect(rowClick).not.toHaveBeenCalled()
+    expect(trigger).toHaveAttribute('aria-expanded', 'true')
+    const tip = screen.getByRole('tooltip')
+    // Every flag, including the ones folded into +1.
+    expect(tip).toHaveTextContent('New patient')
+    expect(tip).toHaveTextContent('Outstanding balance')
+    expect(tip).toHaveTextContent('Lapsed — no visit in 9+ months')
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(screen.queryByRole('tooltip')).toBeNull()
+    expect(trigger).toHaveAttribute('aria-expanded', 'false')
   })
 })

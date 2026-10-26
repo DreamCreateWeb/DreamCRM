@@ -135,3 +135,39 @@ describe('notification tray (popover contract)', () => {
     expect(link.getAttribute('href')).toBe('/settings/notifications')
   })
 })
+
+/**
+ * THE TRAY FITS A PHONE (2026-10-26). The panel was `absolute right-0 -mr-48
+ * sm:mr-0 min-w-[24rem] max-w-[24rem]` — the Mosaic template's positioning
+ * for a header that no longer exists. With the bell ~104px from the right
+ * edge, the 384px panel's right edge landed 88px past a 390px viewport and
+ * the shell's overflow-x-hidden clipped it: the per-row dismiss column, the
+ * unread dot and "Mark all read" were off-screen. Below `sm` the panel now
+ * resolves against the sticky header and pins `inset-x-3`; at sm+ it hangs
+ * off the bell as before. Positioning only — the Popover contract above is
+ * untouched.
+ */
+describe('notification tray (fits a phone)', () => {
+  it('positions the panel inside the viewport below sm, off the bell at sm+, with no -mr- hack', async () => {
+    await openTray()
+    const panel =
+      (document.querySelector('[id^="headlessui-popover-panel"]') as HTMLElement | null) ??
+      (screen.getByRole('button', { name: /mark all read/i }).closest('[class*="origin-top-right"]') as HTMLElement)
+    expect(panel).not.toBeNull()
+    expect(panel.className).not.toMatch(/-mr-/)
+    expect(panel.className).not.toMatch(/min-w-\[24rem\]/)
+    expect(panel.className).toMatch(/\binset-x-3\b/)
+    expect(panel.className).toMatch(/\bsm:inset-x-auto\b/)
+    expect(panel.className).toMatch(/\bsm:w-96\b/)
+    expect(panel.className).toMatch(/\bsm:right-0\b/)
+    // Never an unprefixed right-0: below sm the panel is pinned to BOTH edges.
+    expect(panel.className).not.toMatch(/(^|\s)right-0\b/)
+  })
+
+  it('the bell is a 40px control (DESIGN-SYSTEM §2.2)', () => {
+    render(<DropdownNotifications align="right" />)
+    const bell = screen.getByRole('button', { name: /notifications/i })
+    expect(bell.className).toMatch(/\bh-10\b/)
+    expect(bell.className).toMatch(/\bw-10\b/)
+  })
+})

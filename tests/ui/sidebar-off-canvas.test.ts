@@ -50,3 +50,19 @@ describe('the tenant sidebar is an off-canvas drawer below lg', () => {
     expect(asideClass).toContain('-translate-x-64 lg:translate-x-0')
   })
 })
+
+describe('the drawer leaves the TAB ORDER when it leaves the screen (2026-10-26)', () => {
+  const asideClass = sidebar.match(/<aside[\s\S]*?className=\{`([^`]*)`/)?.[1] ?? ''
+
+  it('marks the aside inert below lg while closed — gated on the WIDTH, never the open flag alone', () => {
+    // `inert={sidebarOpen ? … }` alone would make the in-flow desktop sidebar
+    // dead the moment the never-opened mobile flag reads false.
+    expect(sidebar).toMatch(/<aside[\s\S]*?inert=\{isDrawer && !sidebarOpen\}/)
+    expect(sidebar).toContain('useMediaQuery(BELOW_LG)')
+  })
+
+  it('traps focus inside the open drawer, closes on Escape, and snaps under reduced motion', () => {
+    expect(sidebar).toMatch(/useFocusTrap\(drawerOpen, sidebar, \{ onEscape: closeDrawer, initialFocus: false \}\)/)
+    expect(asideClass).toContain('motion-reduce:transition-none')
+  })
+})
