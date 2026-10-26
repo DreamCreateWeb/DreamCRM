@@ -99,6 +99,13 @@ describe('no plan gating (single-plan reality)', () => {
     expect(offenders(/\b(PLAN_ORDER|PLAN_RANK)\b/)).toEqual([])
   })
 
+  it('the chrome never labels a clinic by tier ("Premium plan"): one plan sold means the label carries no information', () => {
+    // The sidebar pill used to read `${planTier} plan` for every clinic —
+    // "Premium plan" beside a TrialBanner counting down the trial. The badge
+    // is now state that varies (lib/tenant-chrome.ts). Rendered copy only.
+    expect(offenders(/\$\{[^}]*planTier[^}]*\}\s*plan\b|['"`](Basic|Pro|Premium) plan['"`]/)).toEqual([])
+  })
+
   it('the plan column defaults to premium (not the old basic trapdoor)', () => {
     const schema = readFileSync(join(ROOT, 'lib/db/schema/platform.ts'), 'utf8')
     expect(schema).toContain("planTier: text('plan_tier').default('premium')")

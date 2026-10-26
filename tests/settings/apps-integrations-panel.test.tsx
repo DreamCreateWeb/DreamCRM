@@ -23,6 +23,7 @@ vi.mock('@/app/(default)/settings/apps/integration-actions', () => ({
 
 import IntegrationsPanel, { type Integration } from '@/app/(default)/settings/apps/integrations-panel'
 import { ConfirmProvider } from '@/components/ui/confirm-dialog'
+import { clinicStripeRowStatus } from '@/lib/billing-status'
 
 function renderPanel(integrations: Integration[], tenantType: 'clinic' | 'platform' = 'clinic') {
   return render(
@@ -152,5 +153,44 @@ describe('IntegrationsPanel — empty', () => {
   it('renders the no-integrations empty state', () => {
     renderPanel([])
     expect(screen.getByText(/No integrations available/i)).toBeTruthy()
+  })
+})
+
+/**
+ * The clinic's Stripe row is READ from the billing columns
+ * (lib/billing-status.ts `clinicStripeRowStatus`), never asserted — it used
+ * to print "Connected · Subscription managed by Stripe" for every clinic,
+ * including a no-card trial with no subscription and a comped clinic that
+ * never has one (a status that cannot be false is a dishonest status).
+ */
+describe('IntegrationsPanel — the clinic Stripe row tells the billing truth', () => {
+  const stripeRow = (input: Parameters<typeof clinicStripeRowStatus>[0]): Integration => {
+    const row = clinicStripeRowStatus(input)
+    return {
+      key: 'stripe',
+      name: 'Stripe',
+      category: 'Billing',
+      description: row.description,
+      icon: 'card',
+      accent: 'violet',
+      status: row.status,
+      ...(row.connectHref ? { connectHref: row.connectHref } : {}),
+      manageHref: '/settings/billing',
+    }
+  }
+
+  it('a no-card trial clinic reads "Not connected" with the trial named — never a green Connected pill', () => {
+    renderPanel([stripeRow({ stripeSubscriptionId: null, subscriptionStatus: null, billingMode: 'self_serve', onTrial: true })])
+    expect(screen.queryByText('Connected')).toBeNull()
+    expect(screen.getByText('Not connected').getAttribute('data-tone')).toBe('neutral')
+    expect(screen.getByText(/Free trial — no card on file yet/)).toBeTruthy()
+    expect((screen.getByRole('link', { name: 'Connect' }) as HTMLAnchorElement).getAttribute('href')).toBe('/settings/billing')
+  })
+
+  it('a past-due subscription reads warn, not Connected', () => {
+    renderPanel([stripeRow({ stripeSubscriptionId: 'sub_1', subscriptionStatus: 'past_due', billingMode: 'self_serve', onTrial: false })])
+    expect(screen.queryByText('Connected')).toBeNull()
+    expect(screen.getByText('Partial').getAttribute('data-tone')).toBe('warn')
+    expect(screen.getByText(/Past due/)).toBeTruthy()
   })
 })

@@ -78,7 +78,8 @@ export const SUBROUTE_LABELS: Record<string, string> = {
   '/shop/coupons': 'Coupons',
   '/payments/online': 'Online payments',
   '/payments/collections': 'Collections',
-  '/shop/products': 'Products',
+  // No '/shop/products' here: that path has no index page (the catalog lives
+  // on the hub), so a label for it only ever fired after a 404.
   '/website/editor': 'Editor',
   '/website/content': 'Content',
   '/website/design': 'Design',

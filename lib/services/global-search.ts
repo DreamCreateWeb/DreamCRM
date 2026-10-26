@@ -105,7 +105,9 @@ function pageIndex(ctx: TenantContext, nav: ModuleDef[]): SearchResult[] {
     ...(shopVisible
       ? [
           { id: 'page-shop-orders', label: 'Orders', sublabel: 'Shop', href: '/shop/orders', kind: 'page' as const },
-          { id: 'page-shop-products', label: 'Products', sublabel: 'Shop', href: '/shop/products', kind: 'page' as const },
+          // The catalog lives inline on the Shop hub (there is no /shop/products
+          // index — only /new and /[id]); the hash lands on the catalog section.
+          { id: 'page-shop-products', label: 'Products', sublabel: 'Shop', href: '/shop#catalog', kind: 'page' as const },
           { id: 'page-shop-coupons', label: 'Coupons', sublabel: 'Shop', href: '/shop/coupons', kind: 'page' as const },
         ]
       : []),

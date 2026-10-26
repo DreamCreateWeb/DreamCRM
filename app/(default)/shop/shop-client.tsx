@@ -425,8 +425,9 @@ export default function ShopClient({
         </div>
       </div>
 
-      {/* Product catalog — the main working list */}
-      <div className="mb-3 flex items-baseline justify-between gap-3">
+      {/* Product catalog — the main working list. `id="catalog"` is the ⌘K
+          "Products" landing (/shop#catalog): there is no /shop/products index. */}
+      <div id="catalog" className="mb-3 flex items-baseline justify-between gap-3 scroll-mt-24">
         <p className="text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400">
           Product catalog
         </p>

@@ -64,6 +64,8 @@ export async function auditUpcomingDay(
   const dayStart = clinicDayStart(now, tz, 1)
   const dayEnd = clinicDayStart(now, tz, 2)
   const dayKey = clinicDayKey(dayStart, tz)
+  // "Birthday this week" is relative to the clinic's TODAY (timezone rule 2).
+  const todayKey = clinicDayKey(now, tz)
 
   const rows = await db
     .select({
@@ -168,7 +170,7 @@ export async function auditUpcomingDay(
     else if (lastVisit < lapsedBefore) {
       flags.push({ key: 'lapsed_returning', label: 'First visit back in a long while — make it count' })
     }
-    if (isBirthdayThisWeek(r.dateOfBirth, now)) flags.push({ key: 'birthday', label: 'Birthday this week 🎂' })
+    if (isBirthdayThisWeek(r.dateOfBirth, todayKey)) flags.push({ key: 'birthday', label: 'Birthday this week 🎂' })
 
     if (flags.length > 0) {
       items.push({

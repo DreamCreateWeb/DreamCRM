@@ -63,9 +63,19 @@ export default function BalanceOutreachCard({
         <div className="mt-3 flex items-start gap-2 rounded-[var(--r-sm)] border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-relaxed text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
           <StatusPill tone="warn" label="Stripe needed" />
           <span>
-            Reminders only send while your connected Stripe account can take payments — connect it
-            under <a href="/shop" className="font-medium underline">Shop</a> first, or the emails will
-            quietly skip.
+            Reminders only send while your connected Stripe account can take payments —{' '}
+            {/* The Connect OAuth start, returning to Payments (S5's `back=`):
+                `/shop` is a hub behind its own switch with no Stripe button. */}
+            {canManage ? (
+              <>
+                <a href="/api/connect/shop/start?back=payments" className="font-medium underline">
+                  connect Stripe
+                </a>{' '}
+                first, or the emails will quietly skip.
+              </>
+            ) : (
+              <>ask an owner to connect Stripe first, or the emails will quietly skip.</>
+            )}
           </span>
         </div>
       )}

@@ -105,16 +105,18 @@ export async function getRecallStats(organizationId: string): Promise<RecallStat
   // AND prefer the PMS-synced recall date when present. Reading the cadence
   // once and routing every patient through derivePatientRecallStatus keeps the
   // "who's due?" number identical across /marketing, /patients, and /analytics.
-  const cadence = await getClinicCadence(organizationId)
+  const [cadence, timeZone] = await Promise.all([getClinicCadence(organizationId), getClinicTimeZone(organizationId)])
   const lapsedCutoff = lapsedCutoffDate(now, cadence.lapsedMonths)
+  // The clinic's calendar, not the UTC server's (timezone rule 2): "this
+  // month" for sends and the birthday-month count both read it.
+  const monthStart = clinicMonthStart(now, timeZone)
+  const todayKey = clinicDayKey(now, timeZone)
 
   // THE MONTH IS THE CLINIC'S (CLAUDE.md timezone rule 2). The server runs in
   // UTC, so a server-local month start flipped "sent this month" and the
   // birthday bucket to next month from ~7pm Central on the last day. Both
-  // windows below resolve against the clinic's own calendar.
-  const tz = await getClinicTimeZone(organizationId)
-  const monthStart = clinicMonthStart(now, tz)
-  const clinicMonth = parseInt(clinicDayKey(now, tz).slice(5, 7), 10)
+  // windows above resolve against the clinic's own calendar.
+  const clinicMonth = parseInt(todayKey.slice(5, 7), 10)
 
   // Pull patients with the fields we need to derive recall status. We
   // group + bucket in JS rather than as 5 separate SQL queries to keep

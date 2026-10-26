@@ -12,7 +12,7 @@ describe('GlyphCluster (shared)', () => {
   it('renders patient flags with their aria-labels', () => {
     render(<GlyphCluster glyphs={patientFlagGlyphs({ newPatient: true, lapsed: true, optedOut: true })} cap={Infinity} />)
     expect(screen.getByLabelText('New patient')).toBeInTheDocument()
-    expect(screen.getByLabelText('Lapsed — no visit in 9+ months')).toBeInTheDocument()
+    expect(screen.getByLabelText('Lapsed — past your lapsed threshold')).toBeInTheDocument()
     expect(screen.getByLabelText('Opted out of marketing')).toBeInTheDocument()
   })
 
@@ -50,12 +50,12 @@ describe('GlyphCluster (shared)', () => {
     )
     expect(screen.getByLabelText('New patient')).toBeInTheDocument()
     expect(screen.getByLabelText('Missing intake form before next visit')).toBeInTheDocument()
-    expect(screen.queryByLabelText('Lapsed — no visit in 9+ months')).toBeNull()
+    expect(screen.queryByLabelText('Lapsed — past your lapsed threshold')).toBeNull()
     const overflow = screen.getByLabelText('2 more flags')
     expect(overflow).toHaveTextContent('+2')
     // The hidden flags stay discoverable via the badge tooltip.
     expect(overflow.getAttribute('title')).toContain('Unconfirmed appointment in next 48h')
-    expect(overflow.getAttribute('title')).toContain('Lapsed — no visit in 9+ months')
+    expect(overflow.getAttribute('title')).toContain('Lapsed — past your lapsed threshold')
   })
 
   it('every visible glyph carries a hover title matching its label', () => {
@@ -112,7 +112,8 @@ describe('GlyphCluster — announced and touch-reachable', () => {
     // Every flag, including the ones folded into +1.
     expect(tip).toHaveTextContent('New patient')
     expect(tip).toHaveTextContent('Outstanding balance')
-    expect(tip).toHaveTextContent('Lapsed — no visit in 9+ months')
+    // The label carries no number: the threshold is the clinic's own setting.
+    expect(tip).toHaveTextContent(/^.*Lapsed/)
     fireEvent.keyDown(document, { key: 'Escape' })
     expect(screen.queryByRole('tooltip')).toBeNull()
     expect(trigger).toHaveAttribute('aria-expanded', 'false')

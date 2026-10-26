@@ -52,7 +52,11 @@ function walk(dir: string, out: string[]) {
 /** The promise in every coat it has worn: "coming soon", "coming next",
  *  "coming later", "arriving soon". The Reviews page's "Text-message requests
  *  are coming next" slipped past the first spelling for months. */
-const COMING_SOON = /coming[\s-](soon|next|later)|arriv(e|es|ing)[\s-](soon|next)/i
+// The CLASS, not the instance (docs/AUDITS.md: "sweep a named class by
+// grepping its vocabulary"): "coming next" slipped past the first regex on
+// the reviews page, "more designs are on the way" past the second on the
+// templates gallery — a coming-soon in other words each time.
+const COMING_SOON = /coming[\s-](soon|next|later)|arriv(e|es|ing)[\s-](soon|next)|\bon the way\b|\bin the works\b/i
 
 function stripComments(src: string): string {
   return src
@@ -80,7 +84,7 @@ describe('law 3 — no "coming soon" in the dashboard', () => {
       const code = stripComments(readFileSync(file, 'utf8'))
       if (COMING_SOON.test(code)) offenders.push(rel)
     }
-    expect(offenders, 'a surface says "coming soon" (or next / later / arriving soon) — say the real state and name the next step (docs/ACTIVATION.md law 3)').toEqual([])
+    expect(offenders, 'a surface promises something not scheduled ("coming soon", "coming next / later", "arriving soon", "on the way", "in the works") — say the real state and name the next step (docs/ACTIVATION.md law 3)').toEqual([])
   })
 
   it('the exempt public page is still the go-live gate (the exemption is not a hiding place)', () => {
@@ -88,6 +92,13 @@ describe('law 3 — no "coming soon" in the dashboard', () => {
       const code = stripComments(readFileSync(join(process.cwd(), rel), 'utf8'))
       expect(/coming[\s-]soon/i.test(code), `${rel} no longer says "coming soon" — drop its exemption`).toBe(true)
     }
+  })
+
+  it('the module registry cannot mark a module "soon", and the sidebar has no greyed href="#" branch for it', () => {
+    const types = stripComments(readFileSync(join(process.cwd(), 'lib/modules/types.ts'), 'utf8'))
+    expect(types).not.toMatch(/'soon'/)
+    const sidebar = stripComments(readFileSync(join(process.cwd(), 'components/ui/tenant-sidebar.tsx'), 'utf8'))
+    expect(sidebar).not.toMatch(/isSoon|status === 'soon'|not available yet/)
   })
 
   it('the allowed file only NAMES the public pre-live page', () => {

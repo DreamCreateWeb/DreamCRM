@@ -18,6 +18,10 @@ vi.mock('@/lib/services/appointments', () => ({ listAppointments: vi.fn(async ()
 vi.mock('@/lib/services/patient-audit', () => ({
   auditUpcomingDay: vi.fn(async () => ({ dayKey: '2026-06-16', visitCount: 0, items: [] })),
 }))
+// The PMS link (lib/pms-link.ts) — the same read the Overview and the agenda
+// use; My Day's Balances tile says "all paid up" only once a PMS feeds it.
+const pms = vi.hoisted(() => ({ link: { kind: 'connected' } as { kind: 'connected' } | { kind: 'none' } }))
+vi.mock('@/lib/services/pms-link', () => ({ getPmsLink: vi.fn(async () => pms.link) }))
 vi.mock('@/lib/db', () => {
   const chain = () => {
     const o: Record<string, unknown> = {}
@@ -79,6 +83,18 @@ describe('getMyDay', () => {
     // queried both my + unclaimed
     expect(h.listOpenFollowups).toHaveBeenCalledWith('org_1', { assignedTo: 'u1' })
     expect(h.listOpenFollowups).toHaveBeenCalledWith('org_1', { assignedTo: 'unassigned' })
+  })
+
+  it('carries the PMS link through so the page can be honest about where balances come from', async () => {
+    pms.link = { kind: 'none' }
+    try {
+      const d = await getMyDay('org_1', 'u1')
+      expect(d.pmsLink).toEqual({ kind: 'none' })
+    } finally {
+      pms.link = { kind: 'connected' }
+    }
+    const back = await getMyDay('org_1', 'u1')
+    expect(back.pmsLink).toEqual({ kind: 'connected' })
   })
 
   it('caps conversations at 8 and surfaces the lead count', async () => {

@@ -36,7 +36,7 @@ import { DEFAULT_PATIENT_LIMIT, MAX_PATIENT_LIMIT } from '@/lib/types/patient-vi
 
 const filters: PatientListFilters = { status: 'all' }
 const sort: PatientListSort = { field: 'name', direction: 'asc' }
-const meta: PatientFilterMeta = { sources: [], tags: [] }
+const meta: PatientFilterMeta = { sources: [], tags: [], lapsedMonths: 18 }
 
 function row(i: number): PatientListRow {
   return {

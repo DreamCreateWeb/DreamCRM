@@ -27,7 +27,7 @@ import type { PatientListFilters, PatientListSort, PatientFilterMeta } from '@/l
 
 const filters: PatientListFilters = { status: 'all' }
 const sort: PatientListSort = { field: 'name', direction: 'asc' }
-const meta: PatientFilterMeta = { sources: [], tags: [] }
+const meta: PatientFilterMeta = { sources: [], tags: [], lapsedMonths: 18 }
 
 // 12 buckets, oldest first — mirrors getNewPatientsPerWeek12's shape.
 const series = (values: number[]) =>

@@ -17,6 +17,7 @@ import {
 import { listSavedViews } from '@/lib/services/saved-views'
 import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
 import { listWaitlist } from '@/lib/services/appointment-waitlist'
+import { getPmsLink } from '@/lib/services/pms-link'
 import {
   normalizeAppointmentViewFilters,
   appointmentViewFiltersToQuery,
@@ -62,12 +63,15 @@ export default async function AppointmentsPage({ searchParams }: PageProps) {
     search: typeof params.q === 'string' ? params.q : undefined,
   }
 
-  const [rows, meta, viewRows, timeZone, waitlistRows] = await Promise.all([
+  const [rows, meta, viewRows, timeZone, waitlistRows, pmsLink] = await Promise.all([
     listAppointments(ctx.organizationId, filters),
     getAppointmentFilterMeta(ctx.organizationId),
     listSavedViews(ctx.organizationId, 'appointments'),
     getClinicTimeZone(ctx.organizationId),
     listWaitlist(ctx.organizationId),
+    // The PMS link (never throws): an empty "today" with no bridge is not a
+    // quiet morning — the agenda's empty state says so (law 3).
+    getPmsLink(ctx.organizationId),
   ])
   const groups = groupByDay(rows, timeZone)
   // Map each stored view to the chip the bar needs (name + reopen query).
@@ -100,6 +104,7 @@ export default async function AppointmentsPage({ searchParams }: PageProps) {
       orgName={ctx.organizationName}
       savedViews={savedViews}
       intakeOpen={intakeOpen}
+      pmsLink={pmsLink}
     />
     </>
   )

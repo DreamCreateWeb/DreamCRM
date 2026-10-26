@@ -17,6 +17,7 @@ import { readDemoSkin } from '@/lib/demo-skin'
 import DemoConductor from '@/components/demo/demo-conductor'
 import { getServerSession } from '@/lib/session'
 import { trialDaysLeft } from '@/lib/trial'
+import { roleLabelFor, sidebarBadgeFor } from '@/lib/tenant-chrome'
 import { findPendingInviteForEmail } from '@/lib/auth/pending-invite'
 import { getTenantNav } from '@/lib/services/tenant-nav'
 
@@ -83,12 +84,12 @@ export default async function DashboardShell({
   const demoSkin = await readDemoSkin(ctx)
   // ⌘1/⌘2/⌘3 targets — the resolved hrefs of the pinned cockpit modules.
   const cockpitPaths = modules.filter((m) => m.pinned).map((m) => m.path)
-  const badge =
-    ctx.tenantType === 'platform'
-      ? 'Platform admin'
-      : ctx.tenantType === 'patient'
-        ? 'Patient portal'
-        : `${ctx.planTier[0].toUpperCase()}${ctx.planTier.slice(1)} plan`
+  // The chrome's two words about who you are (lib/tenant-chrome.ts): the
+  // sidebar pill is a trial countdown or the viewer's role — never a plan
+  // tier, which with one plan sold could not be anything else — and the
+  // profile menu's line is the membership role, read, not asserted.
+  const badge = sidebarBadgeFor(ctx)
+  const roleLabel = roleLabelFor(ctx)
 
   // Owner/admin of a clinic in the last 3 days of its no-card trial → mount the
   // once-a-day escalating reminder popup (a nudge; the hard lock is the wall).
@@ -118,6 +119,7 @@ export default async function DashboardShell({
         addable={addable}
         orgName={demoSkin?.clinicName ?? ctx.organizationName}
         badge={badge}
+        roleLabel={roleLabel}
         variant={sidebarVariant}
         tenantType={ctx.tenantType}
         isDemo={ctx.viaViewAs ?? false}

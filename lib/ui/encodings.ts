@@ -251,8 +251,12 @@ export const GLYPHS: Record<GlyphId, GlyphDef> = {
   lapsed: {
     id: 'lapsed',
     symbol: '💤',
-    label: 'Lapsed — no visit in 9+ months',
-    description: 'No visit in 9+ months and nothing booked. A recall nudge can bring them back.',
+    // No number here: the flag fires at the clinic's OWN threshold
+    // (lapsedCutoff — Settings → Practice, default 18 months), and a registry
+    // that said "9+" was wrong by half on every surface that quoted it. The
+    // surfaces that know the threshold (the record, the list chip) say it.
+    label: 'Lapsed — past your lapsed threshold',
+    description: 'No visit past your lapsed threshold (Settings → Practice) and nothing booked. A personal note can bring them back.',
     className: 'text-gray-500 dark:text-gray-400',
   },
   lapsedReturning: {

@@ -70,3 +70,62 @@ export function subscriptionStatusMeta(status: string | null | undefined): Billi
       return { label: null, tone: 'neutral', severity: 'neutral', description: 'No active subscription.' }
   }
 }
+
+/** The Connected-accounts page's Stripe row for a CLINIC — the same union
+ *  `IntegrationsPanel` renders (a client-safe mirror; no import cycle). */
+export interface ClinicStripeRow {
+  status:
+    | { kind: 'connected'; detail?: string }
+    | { kind: 'available'; detail?: string }
+    | { kind: 'partial'; detail?: string; managed?: boolean }
+    | { kind: 'misconfigured'; detail?: string; managed?: boolean }
+  description: string
+  /** Where "Connect" goes when there is nothing to manage yet. */
+  connectHref?: string
+}
+
+/**
+ * Settings → Connected accounts, the clinic's Stripe row, READ from the
+ * billing columns rather than asserted. It used to print "Connected ·
+ * Subscription managed by Stripe" for every clinic — a no-card trial has no
+ * subscription for seven days and a managed/comped clinic never will, and
+ * both read a green pill about a subscription that did not exist (a status
+ * that cannot be false is a dishonest status).
+ */
+export function clinicStripeRowStatus(input: {
+  stripeSubscriptionId: string | null
+  subscriptionStatus: string | null
+  billingMode: string | null
+  onTrial: boolean
+}): ClinicStripeRow {
+  const managed = input.billingMode === 'managed' || input.billingMode === 'comped'
+  if (!input.stripeSubscriptionId) {
+    if (managed) {
+      return {
+        status: { kind: 'connected', detail: 'Billed by Dream Create' },
+        description: 'Your plan is billed by Dream Create directly — nothing to manage in Stripe.',
+      }
+    }
+    return {
+      status: {
+        kind: 'available',
+        detail: input.onTrial ? 'Free trial — no card on file yet' : 'No subscription on file yet',
+      },
+      description: 'Set up billing when you are ready — Stripe handles the card, the receipts and the invoices.',
+      connectHref: '/settings/billing',
+    }
+  }
+  const meta = subscriptionStatusMeta(input.subscriptionStatus)
+  const detail = meta.label ?? 'Subscription on file'
+  if (meta.severity === 'warn' || meta.severity === 'urgent') {
+    return {
+      status: { kind: 'partial', detail: `${detail} — ${meta.description}` },
+      description: 'Your subscription needs a look. Use the Stripe customer portal to update the card on file.',
+    }
+  }
+  return {
+    status: { kind: 'connected', detail },
+    description:
+      'Your subscription is managed through Stripe. Use the Stripe customer portal to change card, update billing address, or download invoices.',
+  }
+}

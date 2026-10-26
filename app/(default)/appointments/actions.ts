@@ -29,7 +29,7 @@ import { eq } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { clinicProfile } from '@/lib/db/schema/platform'
 import { listProviders, type ProviderRow } from '@/lib/services/providers'
-import { searchPatientOptions, type PatientOption } from '@/lib/services/patients'
+import { searchPatientOptions, getPatientOption, type PatientOption } from '@/lib/services/patients'
 import { resolveVisitTypes, visitTypeDuration, type VisitType } from '@/lib/types/visit-types'
 
 /** Read the clinic's raw visit-type settings jsonb (null = defaults). */
@@ -56,6 +56,12 @@ async function requireClinicTenant() {
 export async function searchPatientOptionsAction(query: string): Promise<PatientOption[]> {
   const ctx = await requireClinicTenant()
   return searchPatientOptions(ctx.organizationId, typeof query === 'string' ? query.slice(0, 80) : '')
+}
+
+export async function patientOptionByIdAction(patientId: string): Promise<PatientOption | null> {
+  const ctx = await requireClinicTenant()
+  if (typeof patientId !== 'string' || !patientId) return null
+  return getPatientOption(ctx.organizationId, patientId.slice(0, 80))
 }
 
 export async function confirmAppointmentAction(appointmentId: string): Promise<{ ok: true }> {

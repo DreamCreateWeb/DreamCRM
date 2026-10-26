@@ -16,6 +16,8 @@ import { listFormTemplates } from '@/lib/services/forms'
 import { getInsuranceSetup, getLatestInsuranceCheckForPatient, listInsuranceChecksForPatient } from '@/lib/services/insurance-eligibility'
 import { getLatestDiscoveryForPatient } from '@/lib/services/insurance-eligibility/discovery'
 import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
+import { getClinicCadence } from '@/lib/services/clinic-cadence'
+import { LAPSED_DEFAULT_MONTHS } from '@/lib/dates'
 import { canUseInsuranceTool, recheckRequest } from '@/lib/insurance-eligibility'
 import PatientDetail from './patient-detail'
 
@@ -117,6 +119,10 @@ export default async function PatientDetailPage({ params }: PageProps) {
   // The Intake Forms door (law 1): closed = no 'Send intake' anywhere on the record (the send would be refused).
   const intakeOpen = await getFeatureSwitchState(ctx.organizationId).then((s) => s.intake_forms).catch(() => true)
   const intakeForms = intakeOpen ? forms.map((f) => ({ id: f.id, title: f.title })) : []
+  // The clinic's 💤 threshold — the record's lapsed nudge and legend say the
+  // number the flag actually fires at (Settings → Practice), never a fixed one.
+  const cadence = await getClinicCadence(ctx.organizationId).catch(() => ({ recallMonths: null, lapsedMonths: null }))
+  const lapsedMonths = cadence.lapsedMonths && cadence.lapsedMonths > 0 ? cadence.lapsedMonths : LAPSED_DEFAULT_MONTHS
 
   return (
     <PatientDetail
@@ -140,6 +146,7 @@ export default async function PatientDetailPage({ params }: PageProps) {
       canAdjustLoyalty={canMerge}
       insurance={insurance}
       timeZone={timeZone}
+      lapsedMonths={lapsedMonths}
     />
   )
 }

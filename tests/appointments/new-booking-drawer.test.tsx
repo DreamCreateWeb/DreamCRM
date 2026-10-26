@@ -28,6 +28,9 @@ const search = vi.fn(async (q: string) => {
 })
 vi.mock('@/app/(default)/appointments/actions', () => ({
   searchPatientOptionsAction: (q: string) => search(q),
+  // The pre-picked id is confirmed by an org-scoped read, never by scanning
+  // the first page of search results (which a 3,000-chart roster outgrows).
+  patientOptionByIdAction: async (id: string) => ROSTER.find((p) => p.id === id) ?? null,
 }))
 
 // Stage 2 is the existing booking drawer — sentinel keeps this test on the picker.
@@ -116,5 +119,18 @@ describe('NewBookingDrawer', () => {
     await waitFor(() => expect(screen.getByText('Emma Lopez')).toBeTruthy())
     fireEvent.click(screen.getByText('Cancel'))
     expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  // `?new=1&patient=<id>` (the inbox's patient card): the picker is skipped
+  // once an org-scoped read confirms the id is one of ours.
+  it('skips the picker when initialPatientId is on the roster', async () => {
+    render(<NewBookingDrawer onClose={() => {}} initialPatientId="p2" />)
+    await waitFor(() => expect(screen.getByTestId('booking-form').textContent).toContain('booking:p2:Marcus Chen'))
+  })
+
+  it('stays on the picker when initialPatientId is not one of ours', async () => {
+    render(<NewBookingDrawer onClose={() => {}} initialPatientId="pat_from_another_org" />)
+    await waitFor(() => expect(screen.getByText('Emma Lopez')).toBeTruthy())
+    expect(screen.queryByTestId('booking-form')).toBeNull()
   })
 })

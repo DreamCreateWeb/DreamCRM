@@ -7,10 +7,13 @@ import {
   endOfMonth,
   ageFromDob,
   isBirthdayThisWeek,
+  isBirthdayWithinDays,
   isBirthdayThisMonth,
+  birthdayMonthOf,
   LAPSED_DEFAULT_MONTHS,
   lapsedCutoff,
 } from '@/lib/dates'
+import { clinicDayKey } from '@/lib/format-datetime'
 
 describe('date boundaries', () => {
   const d = new Date(2026, 5, 17, 14, 30, 15) // Wed Jun 17 2026 14:30:15 local
@@ -45,8 +48,12 @@ describe('ageFromDob', () => {
   })
 })
 
+// The birthday helpers take the CLINIC's calendar day (`YYYY-MM-DD`, from
+// clinicDayKey) rather than a server instant — the prod clock is UTC, so a
+// Date-based "today" was already tomorrow from ~7 PM Central (CLAUDE.md
+// timezone rule 2).
 describe('isBirthdayThisWeek', () => {
-  const today = new Date(2026, 5, 17) // Jun 17
+  const today = '2026-06-17' // Jun 17
   it('true within the next 6 days, false outside', () => {
     expect(isBirthdayThisWeek('1990-06-17', today)).toBe(true) // today
     expect(isBirthdayThisWeek('1990-06-23', today)).toBe(true) // +6
@@ -54,20 +61,47 @@ describe('isBirthdayThisWeek', () => {
     expect(isBirthdayThisWeek('1990-06-16', today)).toBe(false) // yesterday
   })
   it('handles the Dec→Jan rollover', () => {
-    const nye = new Date(2026, 11, 29) // Dec 29
-    expect(isBirthdayThisWeek('1990-01-02', nye)).toBe(true)
+    expect(isBirthdayThisWeek('1990-01-02', '2026-12-29')).toBe(true)
   })
   it('null/malformed → false', () => {
     expect(isBirthdayThisWeek(null, today)).toBe(false)
     expect(isBirthdayThisWeek('xx', today)).toBe(false)
+    expect(isBirthdayThisWeek('1990-06-17', 'not-a-day')).toBe(false)
+  })
+  it('isBirthdayWithinDays is the general form (the week is 6 days out)', () => {
+    expect(isBirthdayWithinDays('1990-06-30', today, 13)).toBe(true)
+    expect(isBirthdayWithinDays('1990-06-30', today, 12)).toBe(false)
   })
 })
 
-describe('isBirthdayThisMonth', () => {
+describe('isBirthdayThisMonth / birthdayMonthOf', () => {
   it('matches the current month only', () => {
-    const today = new Date(2026, 5, 1) // June
+    const today = '2026-06-01' // June
     expect(isBirthdayThisMonth('1990-06-30', today)).toBe(true)
     expect(isBirthdayThisMonth('1990-07-01', today)).toBe(false)
+    expect(birthdayMonthOf(today)).toBe('06')
+    expect(birthdayMonthOf('garbage')).toBe('')
+  })
+})
+
+describe('the clinic calendar, not the server clock', () => {
+  // 2026-10-31 at 23:30 UTC is still Oct 31 18:30 in Chicago: a Nov 1 birthday
+  // is NOT "this month" there (the UTC server's getMonth() said it was) and IS
+  // "this week" (6 days out, tomorrow).
+  const instant = new Date('2026-10-31T23:30:00Z')
+  const chicagoToday = clinicDayKey(instant, 'America/Chicago')
+  it('resolves the clinic day from the instant', () => {
+    expect(chicagoToday).toBe('2026-10-31')
+    expect(clinicDayKey(instant, 'UTC')).toBe('2026-10-31')
+    expect(clinicDayKey(new Date('2026-11-01T01:30:00Z'), 'America/Chicago')).toBe('2026-10-31')
+  })
+  it('a Nov 1 birthday at 6:30 PM Central on Oct 31 is this WEEK, not this MONTH', () => {
+    const lateEvening = clinicDayKey(new Date('2026-11-01T01:30:00Z'), 'America/Chicago') // still Oct 31 there
+    expect(isBirthdayThisMonth('1988-11-01', lateEvening)).toBe(false)
+    expect(isBirthdayThisWeek('1988-11-01', lateEvening)).toBe(true)
+    // The UTC server's own calendar had already flipped — the old bug.
+    const utcDay = clinicDayKey(new Date('2026-11-01T01:30:00Z'), 'UTC')
+    expect(isBirthdayThisMonth('1988-11-01', utcDay)).toBe(true)
   })
 })
 

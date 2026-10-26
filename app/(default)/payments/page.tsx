@@ -4,6 +4,8 @@ import { getCollectionsSnapshot } from '@/lib/services/collections'
 import { getMembershipStats } from '@/lib/services/membership'
 import { listRecentBalancePayments, canTakeBalancePayments, getCollectedPerWeek8 } from '@/lib/services/balance-payments'
 import { listPaymentPlans } from '@/lib/services/payment-plans'
+import { getPmsLink } from '@/lib/services/pms-link'
+import { balanceSourceCopy } from '@/lib/pms-link'
 import { formatCents } from '@/lib/types/shop'
 import { PageHeader } from '@/components/ui/page-header'
 import { ActionButton } from '@/components/ui/action-button'
@@ -29,7 +31,7 @@ export default async function PaymentsHubPage() {
   if (ctx.tenantType === 'patient') redirect('/patient/dashboard')
   if (ctx.tenantType !== 'clinic') redirect('/dashboard')
 
-  const [collections, membershipStats, recentPayments, connectReady, plans, collectedPerWeek8] = await Promise.all([
+  const [collections, membershipStats, recentPayments, connectReady, plans, collectedPerWeek8, pmsLink] = await Promise.all([
     // Best-effort — the hub renders even if a read hiccups.
     getCollectionsSnapshot(ctx.organizationId).catch(() => ({ patientCount: 0, totalOutstandingCents: 0 })),
     getMembershipStats(ctx.organizationId).catch(() => ({ activeMembers: 0, mrrCents: 0 })),
@@ -37,8 +39,12 @@ export default async function PaymentsHubPage() {
     canTakeBalancePayments(ctx.organizationId).catch(() => false),
     listPaymentPlans(ctx.organizationId).catch(() => []),
     getCollectedPerWeek8(ctx.organizationId).catch(() => []),
+    // Balances are PMS truth (never throws): "Nothing owed" is only earned
+    // once a practice-management system feeds the column (law 3).
+    getPmsLink(ctx.organizationId),
   ])
   const openPlans = plans.filter((p) => p.status === 'active' || p.status === 'proposed' || p.status === 'past_due')
+  const balanceSource = balanceSourceCopy(pmsLink)
 
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-6xl mx-auto">
@@ -67,17 +73,29 @@ export default async function PaymentsHubPage() {
       )}
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-8">
-        <KpiStat
-          label="Outstanding"
-          value={formatCents(collections.totalOutstandingCents)}
-          tone={collections.patientCount > 0 ? 'warn' : 'ok'}
-          href="/payments/collections"
-          sub={
-            collections.patientCount > 0
-              ? `${collections.patientCount} patient${collections.patientCount === 1 ? '' : 's'} with a balance`
-              : 'Nothing owed. Nice.'
-          }
-        />
+        {collections.patientCount === 0 && balanceSource ? (
+          // No PMS: the column cannot fill, so the tile says where balances
+          // come from and opens that door — "—", never a $0 all-clear.
+          <KpiStat
+            label="Outstanding"
+            value="—"
+            tone="neutral"
+            href={balanceSource.href}
+            sub={`balances come from your PMS — ${balanceSource.sub}`}
+          />
+        ) : (
+          <KpiStat
+            label="Outstanding"
+            value={formatCents(collections.totalOutstandingCents)}
+            tone={collections.patientCount > 0 ? 'warn' : 'ok'}
+            href="/payments/collections"
+            sub={
+              collections.patientCount > 0
+                ? `${collections.patientCount} patient${collections.patientCount === 1 ? '' : 's'} with a balance`
+                : 'Nothing owed. Nice.'
+            }
+          />
+        )}
         <KpiStat
           label="To reconcile"
           value={recentPayments.length}

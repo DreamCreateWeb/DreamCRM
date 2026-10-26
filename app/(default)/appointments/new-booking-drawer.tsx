@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import BookFromPatientDrawer from './book-from-patient-drawer'
 import { useFocusTrap } from '@/components/ui/use-focus-trap'
-import { searchPatientOptionsAction } from './actions'
+import { patientOptionByIdAction, searchPatientOptionsAction } from './actions'
 import type { PatientOption } from '@/lib/services/patients'
 
 /** Keystrokes settle for this long before a search round-trip. */
@@ -25,7 +25,16 @@ const SEARCH_DEBOUNCE_MS = 200
  * array in the browser: a PMS-connected office could not book anyone whose
  * name sorted past the cap, and nobody could search by phone.
  */
-export default function NewBookingDrawer({ onClose }: { onClose: () => void }) {
+export default function NewBookingDrawer({
+  onClose,
+  initialPatientId = null,
+}: {
+  onClose: () => void
+  /** A patient already chosen by the caller (`/appointments?new=1&patient=<id>`,
+   *  the inbox's patient card): the picker is skipped once an org-scoped read
+   *  confirms the id belongs to this clinic. An unknown id leaves the picker up. */
+  initialPatientId?: string | null
+}) {
   const [options, setOptions] = useState<PatientOption[] | null>(null)
   const [query, setQuery] = useState('')
   const [picked, setPicked] = useState<{ id: string; name: string } | null>(null)
@@ -60,6 +69,22 @@ export default function NewBookingDrawer({ onClose }: { onClose: () => void }) {
     }, delay)
     return () => clearTimeout(t)
   }, [query])
+
+  // A caller that already chose the patient skips the picker — after an
+  // org-scoped read says the id is ours. Promise chain + catch for the same
+  // redeploy reason as the search; a miss or a failure keeps the picker up.
+  useEffect(() => {
+    if (!initialPatientId) return
+    let alive = true
+    patientOptionByIdAction(initialPatientId)
+      .then((match) => {
+        if (alive && match) setPicked(match)
+      })
+      .catch(() => {})
+    return () => {
+      alive = false
+    }
+  }, [initialPatientId])
 
   // Esc closes the picker (parity with the shared Drawer primitive).
   useEffect(() => {

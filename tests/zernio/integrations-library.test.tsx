@@ -66,7 +66,9 @@ function props(
       addonConfigured: true,
       managedBilling: false, needsSubscription: false,
     },
-    oauthConnectHrefs: { gmail: '/inbox', stripe_connect: '/shop' },
+    // The real Stripe door is the Connect OAuth start (never the switched-off
+    // /shop hub) — the library passes it through untouched.
+    oauthConnectHrefs: { gmail: '/inbox', stripe_connect: '/api/connect/shop/start?back=integrations' },
     justConnected: null,
     atLimit: null,
     routeError: null,
@@ -326,7 +328,7 @@ describe('IntegrationsLibrary — Gmail + Stripe (first-party OAuth link-out)', 
     render(<IntegrationsLibrary {...props()} />)
     const section = screen.getByRole('heading', { name: 'Ecommerce & Payments' }).closest('section')!
     const connect = within(section).getByRole('link', { name: /^Connect$/i }) as HTMLAnchorElement
-    expect(connect.getAttribute('href')).toBe('/shop')
+    expect(connect.getAttribute('href')).toBe('/api/connect/shop/start?back=integrations')
   })
 })
 

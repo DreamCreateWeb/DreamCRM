@@ -11,14 +11,17 @@ import type { PatientTagView } from '@/lib/types/patient-tags'
 import { normalizeEmail, normalizePhone } from '@/lib/contact-normalize'
 import {
   ageFromDob,
+  birthdayMonthOf,
   isBirthdayThisWeek,
   lapsedCutoff as lapsedCutoffDate,
+  LAPSED_DEFAULT_MONTHS,
 } from '@/lib/dates'
 import { getClinicCadence } from '@/lib/services/clinic-cadence'
 import { clampRowLimit, escapeLikeTerm } from '@/lib/types/messaging'
 import { DEFAULT_PATIENT_LIMIT, MAX_PATIENT_LIMIT } from '@/lib/types/patient-views'
 import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
 import { clinicWeekStart } from '@/lib/clinic-timezone'
+import { clinicDayKey } from '@/lib/format-datetime'
 import { BACKFILL_PATIENT_SOURCES } from '@/lib/patient-acquisition'
 
 /**
@@ -144,6 +147,10 @@ export interface PatientFilterMeta {
   sources: string[]
   /** Org tag catalog — feeds the list's tag filter + the bulk "Add tag" menu. */
   tags: PatientTagView[]
+  /** The clinic's 💤 threshold in months (Settings → Practice; the default
+   *  when unset) — the Lapsed chip and legend say THIS number, never a
+   *  hard-coded one the practice may have changed. */
+  lapsedMonths: number
 }
 
 // ----- Helpers ----------------------------------------------------------
@@ -253,10 +260,13 @@ export async function listPatientsPage(
   // both fall through to RECALL_DEFAULT_MONTHS) + the lapsed threshold (the 💤
   // cutoff, clinic-configurable, default 18mo). Read BEFORE the roster query —
   // the recall-due predicate below is built from the recall default.
-  const cadence = await getClinicCadence(organizationId)
+  const [cadence, timeZone] = await Promise.all([getClinicCadence(organizationId), getClinicTimeZone(organizationId)])
   const lapsedCutoff = lapsedCutoffDate(now, cadence.lapsedMonths)
   const recallDefaultMonths =
     cadence.recallMonths && cadence.recallMonths > 0 ? cadence.recallMonths : RECALL_DEFAULT_MONTHS
+  // The clinic's calendar day — birthdays (the 🎂 glyph, the "this month"
+  // chip) compare against it, never the UTC server's (timezone rule 2).
+  const todayKey = clinicDayKey(now, timeZone)
 
   // ── The derived filters, in SQL ──────────────────────────────────────────
   // Each of these used to run over the fully-composed rows in JavaScript.
@@ -268,9 +278,9 @@ export async function listPatientsPage(
     where.push(sql`coalesce(${schema.patient.pmsBalanceCents}, 0) > 0`)
   }
   if (filters.birthdayThisMonth) {
-    // date_of_birth is ISO text 'YYYY-MM-DD'; the JS helper compares the month
-    // component the same way, against the SERVER's month (unchanged here).
-    const month = String(now.getMonth() + 1).padStart(2, '0')
+    // date_of_birth is ISO text 'YYYY-MM-DD'; the month component is matched
+    // against the CLINIC's month (the JS helper reads the same key).
+    const month = birthdayMonthOf(todayKey)
     where.push(sql`substring(${schema.patient.dateOfBirth} from 6 for 2) = ${month}`)
   }
   if (filters.missingIntake && intakeOpen) {
@@ -565,7 +575,7 @@ export async function listPatientsPage(
       lastContactAt: p.userId ? lastContactMap.get(p.userId) ?? null : null,
       flags: {
         newPatient,
-        birthdayThisWeek: isBirthdayThisWeek(p.dateOfBirth, now),
+        birthdayThisWeek: isBirthdayThisWeek(p.dateOfBirth, todayKey),
         hasOutstandingBalance: (balance ?? 0) > 0,
         missingIntakeBeforeAppt,
         unconfirmedNext48h: unconfirmedSet.has(p.id),
@@ -665,16 +675,18 @@ function patientListOrderBy(sort: PatientListSort, organizationId: string, now: 
 }
 
 export async function getPatientListMeta(organizationId: string): Promise<PatientFilterMeta> {
-  const [sources, tags] = await Promise.all([
+  const [sources, tags, cadence] = await Promise.all([
     db
       .selectDistinct({ source: schema.patient.source })
       .from(schema.patient)
       .where(and(eq(schema.patient.organizationId, organizationId), isNotNull(schema.patient.source))),
     listPatientTags(organizationId),
+    getClinicCadence(organizationId),
   ])
   return {
     sources: sources.map((r) => r.source!).filter(Boolean).sort(),
     tags,
+    lapsedMonths: cadence.lapsedMonths && cadence.lapsedMonths > 0 ? cadence.lapsedMonths : LAPSED_DEFAULT_MONTHS,
   }
 }
 
@@ -900,7 +912,7 @@ export async function getPatientHeader(
   // No intake nag while the Intake Forms door is closed (law 1, verification round).
   const intakeOpen = (await getFeatureSwitchState(organizationId)).intake_forms
 
-  const [lastVisit, nextVisit, bookingCount, shopSpendRow, intakeRows, unconfirmedRow, cadence] =
+  const [lastVisit, nextVisit, bookingCount, shopSpendRow, intakeRows, unconfirmedRow, cadence, timeZone] =
     await Promise.all([
       db
         .select({ startTime: schema.appointment.startTime })
@@ -982,9 +994,12 @@ export async function getPatientHeader(
         )
         .limit(1),
       getClinicCadence(organizationId),
+      getClinicTimeZone(organizationId),
     ])
 
   const lapsedCutoff = lapsedCutoffDate(now, cadence.lapsedMonths)
+  // The 🎂 glyph compares against the CLINIC's calendar day (timezone rule 2).
+  const todayKey = clinicDayKey(now, timeZone)
 
   // Outstanding balance = PMS sync truth (NULL when none on file → the UI
   // shows "No PMS balance on file", not a fabricated $0).
@@ -1029,7 +1044,7 @@ export async function getPatientHeader(
     preferredLanguage: p.preferredLanguage ?? null,
     flags: {
       newPatient,
-      birthdayThisWeek: isBirthdayThisWeek(p.dateOfBirth, now),
+      birthdayThisWeek: isBirthdayThisWeek(p.dateOfBirth, todayKey),
       hasOutstandingBalance: (outstanding ?? 0) > 0,
       missingIntakeBeforeAppt,
       unconfirmedNext48h: unconfirmedRow.length > 0,
@@ -1225,6 +1240,28 @@ export const PATIENT_SEARCH_LIMIT = 20
  * is how a caller actually identifies themself. Same predicate shape the
  * agenda's own search uses (name / email / phone digits).
  */
+/**
+ * ONE patient as a picker option, by id — for a drawer opened with the
+ * patient already chosen (`/appointments?new=1&patient=<id>`, the inbox's
+ * patient card). Org-scoped like the search, so a foreign or unknown id is
+ * null and the picker simply stays up.
+ */
+export async function getPatientOption(organizationId: string, patientId: string): Promise<PatientOption | null> {
+  const [r] = await db
+    .select({
+      id: schema.patient.id,
+      firstName: schema.patient.firstName,
+      lastName: schema.patient.lastName,
+      email: schema.patient.email,
+      phone: schema.patient.phone,
+    })
+    .from(schema.patient)
+    .where(and(eq(schema.patient.organizationId, organizationId), eq(schema.patient.id, patientId), eq(schema.patient.isActive, 1)))
+    .limit(1)
+  if (!r) return null
+  return { id: r.id, name: `${r.firstName} ${r.lastName}`, hint: r.phone?.trim() || r.email?.trim() || null }
+}
+
 export async function searchPatientOptions(
   organizationId: string,
   query: string,

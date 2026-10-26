@@ -94,10 +94,12 @@ async function buildSnapshot(organizationId: string, clinicName: string): Promis
   ])
 
   // New patients this month vs the same point last month — the overview
-  // already computes both against clinic-local month boundaries.
+  // computes both against clinic-local month boundaries, and the comparison
+  // window really is the same elapsed span (clinicSamePointLastMonth), so
+  // the snapshot's "same point last month" line is true to its name.
   const newPatients = {
     thisMonth: overview?.trends.newPatientsMTD ?? 0,
-    lastMonth: overview?.trends.newPatientsLastMTD ?? 0,
+    lastMonth: overview?.trends.newPatientsSamePointLastMonth ?? 0,
     perWeek12: perWeek.map((p) => p.value),
   }
 

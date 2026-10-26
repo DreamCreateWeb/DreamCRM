@@ -28,6 +28,7 @@ import { EmptyState } from '@/components/ui/empty-state'
 import { KpiStat } from '@/components/ui/kpi-stat'
 import { patientFlagGlyphs, type Tone, type GlyphId, type PillLegendRow } from '@/lib/ui/encodings'
 import { leadAgeLabel } from '@/lib/lead-age'
+import { balanceSourceCopy, scheduleSourceCopy, todayCountLabel } from '@/lib/pms-link'
 import { MorningReveal } from './morning-reveal'
 
 // Appointment status → semantic tone + plain-language label. The tone carries
@@ -120,7 +121,12 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
   // admin inside demo mode).
   const demoSkin = await readDemoSkin(ctx)
   const name = demoSkin?.clinicName ?? ctx.organizationName
-  const mtdDelta = data.trends.newPatientsMTD - data.trends.newPatientsLastMTD
+  const mtdDelta = data.trends.newPatientsMTD - data.trends.newPatientsSamePointLastMonth
+  // Where the PMS-only facts come from when nothing is bound (law 3): null
+  // once a practice-management system feeds the clinic, so the all-clears
+  // below are earned rather than printed over an empty column.
+  const balanceSource = balanceSourceCopy(data.pmsLink)
+  const scheduleSource = scheduleSourceCopy(data.pmsLink)
   // Website visits, last 7 days — null (fetch failed / feature dark) hides the
   // tile and keeps the classic 4-up trend row.
   const site = data.siteTraffic
@@ -145,8 +151,11 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
             <ActionButton href="/appointments" variant="secondary">
               Open agenda
             </ActionButton>
-            {/* The page's single primary — carries the ambient breath. */}
-            <ActionButton href="/appointments?window=today" variant="primary" breath>
+            {/* The page's single primary — carries the ambient breath. `?new=1`
+                opens the agenda's booking drawer on arrival (the same param
+                the empty chair and My Day use); `?window=today` only set the
+                date chip and left the front desk on a list with no form. */}
+            <ActionButton href="/appointments?new=1" variant="primary" breath>
               + New booking
             </ActionButton>
           </>
@@ -344,10 +353,18 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
             countSuffix={
               data.outstandingBalances.count > 0
                 ? `${data.outstandingBalances.count === 1 ? 'patient owes' : 'patients owe'} · ${money(data.outstandingBalances.totalCents)}`
-                : 'patients with a balance'
+                : (balanceSource?.sub ?? 'patients with a balance')
             }
-            cta={data.outstandingBalances.count > 0 ? { label: 'See who owes', href: '/patients?balance=1' } : null}
-            emptyCopy="No balances on file from your PMS. Patients are paid up."
+            cta={
+              data.outstandingBalances.count > 0
+                ? { label: 'See who owes', href: '/patients?balance=1' }
+                : // No PMS means this column CANNOT fill — the honest zero
+                  // carries the door to the thing that fills it (law 3 + 4).
+                  balanceSource
+                  ? { label: balanceSource.cta, href: balanceSource.href }
+                  : null
+            }
+            emptyCopy={balanceSource?.body ?? 'No balances on file from your PMS. Patients are paid up.'}
           >
             {/* Sourced from the PMS sync — totals tell the story. */}
             {data.outstandingBalances.count > 0 && (
@@ -464,7 +481,9 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
                     href="/appointments?window=today"
                     className="text-xs text-gray-500 dark:text-gray-400 tabular-nums font-mono-num hover:underline"
                   >
-                    {total} {total === 1 ? 'appointment' : 'appointments'}
+                    {/* "N booked online" until a PMS feeds the day — the count
+                        is honest about what it can see (law 3). */}
+                    {todayCountLabel(data.pmsLink, total)}
                     {total > 0 && ` · ${confirmed} confirmed`}
                   </Link>
                   {total > 0 && (
@@ -480,16 +499,37 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
             })()}
           </div>
           {data.todaysAppointments.length === 0 ? (
-            <EmptyState
-              icon="☕"
-              title="Nothing booked today."
-              body="Go enjoy a quiet morning — or put the first visit on the book."
-              action={
-                <ActionButton variant="secondary" size="sm" href="/appointments?new=1">
-                  Book a visit
-                </ActionButton>
-              }
-            />
+            scheduleSource ? (
+              // No PMS: this column holds only website + staff-drawer bookings,
+              // so an empty day is NOT a quiet morning — say what it is and
+              // open the door that fills it (law 3), beside the first action.
+              <EmptyState
+                icon="🗓️"
+                title={scheduleSource.title}
+                body={scheduleSource.body}
+                action={
+                  <span className="flex flex-wrap items-center justify-center gap-2">
+                    <ActionButton variant="secondary" size="sm" href="/appointments?new=1">
+                      Book a visit
+                    </ActionButton>
+                    <ActionButton variant="ghost" size="sm" href={scheduleSource.href}>
+                      {scheduleSource.cta} →
+                    </ActionButton>
+                  </span>
+                }
+              />
+            ) : (
+              <EmptyState
+                icon="☕"
+                title="Nothing booked today."
+                body="Go enjoy a quiet morning — or put the first visit on the book."
+                action={
+                  <ActionButton variant="secondary" size="sm" href="/appointments?new=1">
+                    Book a visit
+                  </ActionButton>
+                }
+              />
+            )
           ) : (
             <ul className="divide-y divide-[color:var(--color-hairline)]">
               {data.todaysAppointments.map((a) => (
@@ -517,11 +557,13 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
             label="New patients MTD"
             value={data.trends.newPatientsMTD}
             sub={
-              data.trends.newPatientsLastMTD === 0
+              data.trends.newPatientsSamePointLastMonth === 0
                 ? 'first month tracking'
-                : `${mtdDelta >= 0 ? '+' : ''}${mtdDelta} vs last month`
+                : `${mtdDelta >= 0 ? '+' : ''}${mtdDelta} vs this point last month`
             }
-            tone={data.trends.newPatientsLastMTD === 0 ? undefined : mtdDelta >= 0 ? 'ok' : 'urgent'}
+            // A shortfall is "worth a look" (warn), never "broken" (urgent —
+            // STATUS_TONE above reserves it for a problem now).
+            tone={data.trends.newPatientsSamePointLastMonth === 0 ? undefined : mtdDelta >= 0 ? 'ok' : 'warn'}
             href="/patients?status=new"
             countUp
           />
@@ -550,7 +592,7 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
                   ? 'last 7 days'
                   : `${siteDeltaPct >= 0 ? '+' : ''}${siteDeltaPct}% vs prior week`
               }
-              tone={siteDeltaPct == null ? undefined : siteDeltaPct >= 0 ? 'ok' : 'urgent'}
+              tone={siteDeltaPct == null ? undefined : siteDeltaPct >= 0 ? 'ok' : 'warn'}
               href="/growth/analytics"
               countUp
             />

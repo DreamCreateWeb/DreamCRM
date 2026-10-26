@@ -134,6 +134,24 @@ export function clinicLocalDate(
   return { year: w.y, month: w.mo, day: w.d }
 }
 
+/**
+ * THE SAME POINT LAST MONTH — the exclusive upper bound of the comparison
+ * window for a month-to-date number: last month's first midnight plus the
+ * span this month has run so far. On the 10th at 10 AM the window is the
+ * 1st–10th 10 AM of LAST month, never the whole of it — comparing nine days
+ * against thirty painted "New patients MTD" red for three weeks of every
+ * four (a practice ahead of pace read a shortfall). Capped at this month's
+ * start so a 31st against a 28-day month compares against all of it rather
+ * than spilling into this month's own count. Elapsed wall time, so a DST
+ * hour is the only wobble, which a month comparison can carry.
+ */
+export function clinicSamePointLastMonth(now: Date, timeZone: string | null | undefined): Date {
+  const monthStart = clinicMonthStart(now, timeZone)
+  const lastMonthStart = clinicMonthStart(now, timeZone, -1)
+  const elapsed = now.getTime() - monthStart.getTime()
+  return new Date(Math.min(lastMonthStart.getTime() + elapsed, monthStart.getTime()))
+}
+
 /** Day-of-week (0=Sun … 6=Sat) for a `YYYY-MM-DD` calendar date. Built as a UTC
  *  date so it's timezone-independent — a calendar date has one weekday. */
 export function dayOfWeekForDateKey(dateKey: string): number {

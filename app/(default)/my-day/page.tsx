@@ -21,6 +21,7 @@ import DigestToggle from './digest-toggle'
 import { formatClinicTime, formatClinicDayHeader } from '@/lib/format-datetime'
 import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
 import { StatusPill } from '@/components/ui/status-pill'
+import { balanceSourceCopy, scheduleSourceCopy } from '@/lib/pms-link'
 
 export default async function MyDayPage() {
   const ctx = await requireTenant()
@@ -38,6 +39,11 @@ export default async function MyDayPage() {
   ])
   const firstName = (ctx.userName ?? '').split(' ')[0] || 'there'
   const followupsDue = data.followups.overdue + data.followups.today
+  // Where the PMS-only facts come from when nothing is bound (law 3) — null
+  // once a practice-management system feeds the clinic. Same read as the
+  // Overview and the agenda, so the three pages never disagree.
+  const balanceSource = balanceSourceCopy(data.pmsLink)
+  const scheduleSource = scheduleSourceCopy(data.pmsLink)
 
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
@@ -64,10 +70,13 @@ export default async function MyDayPage() {
           tone={followupsDue > 0 ? 'warn' : 'neutral'}
           href="/followups?mine=1"
         />
+        {/* Confirmations go by email (texting waits on the carriers' approval),
+            so the tile names the state, not a channel the practice may not
+            have yet — the link lands on the asks, whichever channel sends. */}
         <KpiStat
-          label="Need a text"
+          label="Still unconfirmed"
           value={data.unconfirmedTodayCount}
-          sub="today, still unconfirmed"
+          sub="today — send a confirmation"
           tone={data.unconfirmedTodayCount > 0 ? 'warn' : 'neutral'}
           href="/appointments?window=today&attention=unconfirmed"
         />
@@ -81,17 +90,23 @@ export default async function MyDayPage() {
         <KpiStat
           label="Today's visits"
           value={data.todaysAppointments.length}
-          sub="on the schedule"
+          sub={scheduleSource ? 'booked online' : 'on the schedule'}
           href="/appointments?window=today"
         />
         <KpiStat
           label="Balances"
           value={data.balances.count}
-          sub={data.balances.count > 0 ? `$${Math.round(data.balances.totalCents / 100).toLocaleString('en-US')} owed` : 'all paid up'}
+          sub={
+            data.balances.count > 0
+              ? `$${Math.round(data.balances.totalCents / 100).toLocaleString('en-US')} owed`
+              : // "all paid up" is only true once a PMS feeds the column (law 3).
+                (balanceSource?.sub ?? 'all paid up')
+          }
           tone={data.balances.count > 0 ? 'warn' : 'neutral'}
           // The Collections board is the purpose-built landing for this stat —
-          // balances + dunning state + send-pay-link in one place.
-          href="/payments/collections"
+          // balances + dunning state + send-pay-link in one place. With no
+          // PMS the honest door is the one that fills it.
+          href={data.balances.count === 0 && balanceSource ? balanceSource.href : '/payments/collections'}
         />
         <KpiStat
           label="New inquiries"
@@ -188,12 +203,21 @@ export default async function MyDayPage() {
             {data.todaysAppointments.length === 0 ? (
               <EmptyState
                 icon="🗓️"
-                title="No visits today"
-                body="A quiet one — or nothing's booked yet."
+                // With no PMS this list holds only website + staff bookings —
+                // an empty day is not "a quiet one" (law 3); say what it is.
+                title={scheduleSource ? scheduleSource.title : 'No visits today'}
+                body={scheduleSource ? scheduleSource.body : "A quiet one — or nothing's booked yet."}
                 action={
-                  <ActionButton variant="secondary" size="sm" href="/appointments?new=1">
-                    Book a visit
-                  </ActionButton>
+                  <span className="flex flex-wrap items-center justify-center gap-2">
+                    <ActionButton variant="secondary" size="sm" href="/appointments?new=1">
+                      Book a visit
+                    </ActionButton>
+                    {scheduleSource && (
+                      <ActionButton variant="ghost" size="sm" href={scheduleSource.href}>
+                        {scheduleSource.cta} →
+                      </ActionButton>
+                    )}
+                  </span>
                 }
               />
             ) : (

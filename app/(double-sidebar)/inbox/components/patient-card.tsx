@@ -104,7 +104,15 @@ export default function PatientCard({ ctx, terminology }: Props) {
           ghost so it doesn't compete. */}
       <div className="mt-4 flex items-center gap-2">
         {isClinical ? (
-          <ActionButton variant="primary" size="sm" href="/appointments" className="flex-1 justify-center">
+          // Opens the agenda's booking drawer with THIS patient already
+          // picked (`?new=1&patient=`): the card has the record, so the
+          // front desk never searches again for the person it just read.
+          <ActionButton
+            variant="primary"
+            size="sm"
+            href={`/appointments?new=1&patient=${encodeURIComponent(patient.id)}`}
+            className="flex-1 justify-center"
+          >
             Book appointment
           </ActionButton>
         ) : (
@@ -118,11 +126,9 @@ export default function PatientCard({ ctx, terminology }: Props) {
           </ActionButton>
         )}
         {isClinical && (
-          <ActionButton
-            variant="secondary"
-            size="sm"
-            href={`/ecommerce/customers?email=${encodeURIComponent(patient.email ?? '')}`}
-          >
+          // The record itself — `/ecommerce/customers` 308s a clinic to the
+          // whole patient list and dropped the email, two clicks from here.
+          <ActionButton variant="secondary" size="sm" href={`/patients/${encodeURIComponent(patient.id)}`}>
             View
           </ActionButton>
         )}
