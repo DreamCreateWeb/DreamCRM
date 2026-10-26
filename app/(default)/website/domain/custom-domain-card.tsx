@@ -6,6 +6,7 @@ import { StatusPill } from '@/components/ui/status-pill'
 import type { Tone } from '@/lib/ui/encodings'
 import type { CustomDomainStatus, CustomDomainState } from '@/lib/services/custom-domain'
 import type { DnsProviderInfo } from '@/lib/services/dns-provider'
+import { formatClinicDayTime } from '@/lib/format-datetime'
 import {
   requestCustomDomainAction,
   checkCustomDomainStatusAction,
@@ -18,6 +19,10 @@ interface Props {
   initialStatus: CustomDomainStatus | null
   /** The clinic's subdomain fallback, shown as the current address. */
   subdomainUrl: string
+  /** The clinic's IANA timezone — "Checked <time>" is a wall-clock the whole
+   *  front desk reads the same way, so it is the practice's clock, not the
+   *  viewer's browser. */
+  timeZone: string
 }
 
 const STATE_META: Record<CustomDomainState, { tone: Tone; label: string; title: string }> = {
@@ -65,7 +70,7 @@ function CopyValue({ value }: { value: string }) {
   )
 }
 
-export default function CustomDomainCard({ initialStatus, subdomainUrl }: Props) {
+export default function CustomDomainCard({ initialStatus, subdomainUrl, timeZone }: Props) {
   const [status, setStatus] = useState<CustomDomainStatus | null>(initialStatus)
   const [domain, setDomain] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -321,7 +326,7 @@ export default function CustomDomainCard({ initialStatus, subdomainUrl }: Props)
             <p className="text-xs text-gray-500 dark:text-gray-400">
               {autoChecking
                 ? 'Checking…'
-                : 'We’re checking automatically every minute — you can leave this page; it’ll go live on its own once your records are in and the certificate is issued (usually within the hour).'}
+                : 'This page checks every minute while it’s open, and we keep checking every 15 minutes even when it’s closed — you can leave this page; it’ll go live on its own once your records are in and the certificate is issued (usually within the hour).'}
             </p>
           )}
 
@@ -334,7 +339,8 @@ export default function CustomDomainCard({ initialStatus, subdomainUrl }: Props)
             </ActionButton>
             {status.lastCheckedAt && (
               <span className="text-xs text-gray-500 dark:text-gray-400 tabular-nums">
-                Last checked {new Date(status.lastCheckedAt).toLocaleString()}
+                Checked {formatClinicDayTime(new Date(status.lastCheckedAt), timeZone)}
+                {isPending ? ' · we keep checking' : ''}
               </span>
             )}
           </div>

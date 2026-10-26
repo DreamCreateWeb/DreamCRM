@@ -39,12 +39,17 @@ at the connection group's routing endpoint. No ACM CNAMEs for anyone to add.
    (records not added), we persist the record set as pending and the status
    poll retries the create once they land — no operator needed.
 3. They add those records at their DNS provider. **Usually live within an hour.**
-4. Nothing else — the card **auto-polls every 45s** while pending
-   (`custom-domain-card.tsx`) and flips itself to a green **Active** pill.
-   The poll also attaches the managed cert once issued (issuance alone leaves
-   the tenant's `Customizations` null — observed live 2026-07-23) and nudges
-   activation via `VerifyDnsConfiguration`. A manual **Check now** button
-   remains for the impatient.
+4. Nothing else — they can close the tab. The `custom-domains` cron
+   (**every 15 minutes**, see "The sweep" below) runs the status check for
+   every pending domain; while the Domain page is open the card also
+   **auto-polls every 45s** (`custom-domain-card.tsx`) and flips itself to a
+   green **Active** pill. Either way the check is the same code: it attaches
+   the managed cert once issued (issuance alone leaves the tenant's
+   `Customizations` null — observed live 2026-07-23), nudges activation via
+   `VerifyDnsConfiguration`, and writes ONE ledger line in the clinic's own
+   story when the domain goes live ("Connected www.x.com — your website is
+   live there now"). The card reads "Checked <time> · we keep checking". A
+   manual **Check now** button remains for the impatient.
 5. **Remove** disables + deletes the tenant and clears the clinic's
    `websiteDomain` + status — the site falls back to its
    `{slug}.dreamcreatestudio.com` subdomain.
@@ -109,10 +114,15 @@ If the SDK call can't run (missing permission, missing env, or any error), the
 service **never throws at the clinic**. It persists
 `{ state: 'pending_dns', error: 'manual' }` + the routing records + a
 **placeholder** certificate record, and the card says we'll finish
-provisioning. On the CloudFront path the status poll usually self-heals
-(it retries the tenant create and rebuilds the record set from the live plan);
-an operator can also finish by hand — create the tenant in the CloudFront
-console (distribution `E176U1KOAVOGGO`), or for a legacy App Runner row:
+provisioning. On the CloudFront path the status check usually self-heals
+(it retries the tenant create and rebuilds the record set from the live plan)
+— and since 2026-10-26 the sweep runs that check every 15 minutes whether or
+not the clinic keeps the page open. A domain still pending **24 hours** after
+Connect pages platform owners/admins ONCE (`domain_attach_manual`, forced
+email; the body says whether it is the manual state or just records that
+never landed). An operator can also finish by hand — create the tenant in the
+CloudFront console (distribution `E176U1KOAVOGGO`), or for a legacy App
+Runner row:
 
 ```bash
 aws apprunner associate-custom-domain \
@@ -122,6 +132,44 @@ aws apprunner associate-custom-domain \
 ```
 
 Once the edge reports the domain active, the next poll flips the stored state.
+
+## The sweep (`/api/cron/custom-domains`, every 15 minutes — 2026-10-26)
+
+Until this cron existed, **nothing advanced a pending domain unless a browser
+tab was open**: the only drivers of `checkCustomDomainStatus` were the card's
+45s poll, the manual Check now, and the operator-only redrive. On the
+CloudFront path the managed cert issues by itself, but ATTACHING it to the
+tenant (and the `VerifyDnsConfiguration` nudge) happens only inside that
+check — so a clinic that added its records and closed the tab had a domain
+that never went live (repo task #41, tedpinneydds). The card's "you can leave
+this page — it'll go live on its own" is now true.
+
+`sweepPendingCustomDomains()` (`lib/services/custom-domain.ts`):
+
+- **Pending rows only** — `custom_domain_status ->> 'state' = 'pending_dns'`
+  on `organization.type = 'clinic'`, never the demo org, and never a
+  shut-down clinic (`listShutDownOrgIds` — trial expiry kills everything).
+- **Oldest `lastCheckedAt` first**, never-checked rows at the front, at most
+  **50 per tick** with **2s pacing** between rows (the CloudFront control
+  plane rate-limits per account) inside a **240s budget**; a bigger backlog
+  drains across ticks because a checked row goes to the back of the queue.
+- **Per-row isolation** — one tenant's AWS error is reported to the Guardian
+  under that clinic's own ledger (`reportAutomationFailure(…, 'custom_domain')`,
+  one strike per day) and the walk carries on.
+- **Stamps** in the same status jsonb (no migration): `lastSweptAt` on every
+  sweep check (so an operator can tell "nobody has the tab open" from "the
+  cron is dead" — `lastCheckedAt` moves on every check whoever asked), and
+  `notifiedAt` once the day-old alert has gone out.
+- **The ledger line** on the flip to active is written INSIDE the check
+  (`noteWentLive`), so it lands whoever triggered the flip — poll, Check now
+  or sweep — and never twice.
+
+The cron's JSON reports `pending / checked / activated / notified / shutDown /
+errors / completed`. The EventBridge rule is created by
+`scripts/setup-cron-schedules.sh` (JOBS entry `custom-domains`,
+`rate(15 minutes)`), which the deploy re-runs on every merge — nothing to do
+by hand. `tests/cron-schedule-parity.test.ts` fails CI if the route and the
+JOBS entry ever drift apart.
 
 ## Buy-a-domain (in-platform)
 
