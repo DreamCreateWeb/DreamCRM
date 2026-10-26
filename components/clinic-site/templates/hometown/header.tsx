@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { intakeDoorOpen } from '@/lib/feature-switches'
+import { intakeStartHref } from '@/lib/clinic-site-helpers'
 import type { SiteChromeProps } from '@/lib/site-templates/page-props'
 import { SITE_INK, SITE_INK_MUTED, SITE_SURFACE, SITE_BORDER, SITE_DEEP, SITE_DEEP_INK } from '@/components/clinic-site/tokens'
 import SiteImage from '../../site-image'
@@ -82,7 +83,7 @@ export default function HometownHeader({
         <div className="flex items-center gap-3 shrink-0">
           {intakeDoorOpen(data.profile) && (
             <a
-              href={`${basePath}/intake-start`}
+              href={intakeStartHref(data.slug)}
               className="hidden md:inline-flex items-center rounded-md px-4 py-2.5 text-sm font-semibold"
               style={{ background: 'var(--c-brand-soft, #E4EAF2)', color: 'var(--c-brand-soft-ink, #1F4E79)' }}
             >
@@ -154,7 +155,7 @@ export default function HometownHeader({
               </div>
             ))}
             {intakeDoorOpen(data.profile) && (
-              <a href={`${basePath}/intake-start`} className="text-sm font-semibold mt-2" style={{ color: SITE_INK_MUTED }} onClick={() => setOpen(false)}>
+              <a href={intakeStartHref(data.slug)} className="text-sm font-semibold mt-2" style={{ color: SITE_INK_MUTED }} onClick={() => setOpen(false)}>
                 New patient forms
               </a>
             )}

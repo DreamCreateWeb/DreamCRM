@@ -183,8 +183,10 @@ export default async function ClinicSiteLayout({
       {children}
       {/* Below the template's own footer, on every page — the growth loop. */}
       {showPoweredBy && <PoweredBy slug={slug} />}
-      {/* Never count gallery-frame renders as site traffic. */}
-      {orgId && !isFrame && <SiteViewBeacon orgId={orgId} slug={slug} />}
+      {/* Never count gallery-frame renders as site traffic — nor the
+          practice's own "View live" checks (the same canEdit that gates the
+          EditBridge below). */}
+      {orgId && !isFrame && <SiteViewBeacon orgId={orgId} slug={slug} skip={canEdit} />}
       {!isFrame && <BottomBarInset />}
       {chatWidget && (
         // Brand through the template's recipe when set (so e.g. a luxury

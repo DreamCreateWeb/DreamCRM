@@ -2,6 +2,13 @@ import { NextResponse } from 'next/server'
 import { getServerSession } from '@/lib/session'
 import { uploadBlob } from '@/lib/blob'
 import {
+  isHeicBytes,
+  isoBmffBrand,
+  HEIC_REJECTION,
+  folderIsImageOnly,
+  VIDEO_ON_IMAGE_FOLDER_REJECTION,
+} from '@/lib/upload-kinds'
+import {
   MAX_IMAGE_BYTES,
   MAX_VIDEO_BYTES,
   MAX_IMAGE_MB,
@@ -60,8 +67,12 @@ export function sniffUpload(bytes: Uint8Array): SniffResult {
   // ── Videos (ISO-BMFF / WebM) ────────────────────────────────────────────────
   // MP4 / MOV / M4V: bytes 4-7 are "ftyp" (ISO base media file format box).
   if (ascii('ftyp', 4)) {
+    // HEIC/HEIF rides the SAME container (brands heic/heix/mif1/…): an iPhone
+    // headshot used to pass here as video/mp4, get stored, and render as a
+    // broken square on the team card. The brand says what it really is.
+    if (isHeicBytes(b)) return { kind: 'rejected', reason: HEIC_REJECTION }
     // Distinguish QuickTime brand from MP4 brand — both ride the same container.
-    const brand = String.fromCharCode(b[8] ?? 0, b[9] ?? 0, b[10] ?? 0, b[11] ?? 0)
+    const brand = isoBmffBrand(b) ?? ''
     if (brand.startsWith('qt')) return { kind: 'video', type: 'video/quicktime' }
     return { kind: 'video', type: 'video/mp4' }
   }
@@ -137,6 +148,11 @@ async function handleUpload(request: Request) {
   const sniff = sniffUpload(head)
   if (sniff.kind === 'rejected') {
     return NextResponse.json({ error: sniff.reason }, { status: 415 })
+  }
+  // A photo slot never takes a video, however well-formed: the stored URL
+  // would become a photoUrl the templates hand to the image optimizer.
+  if (sniff.kind === 'video' && folderIsImageOnly(folder)) {
+    return NextResponse.json({ error: VIDEO_ON_IMAGE_FOLDER_REJECTION }, { status: 415 })
   }
   // Per-kind size cap: images must stay small (the XSS/abuse surface); videos
   // get the larger ceiling bounded above.

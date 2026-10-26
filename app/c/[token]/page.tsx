@@ -62,6 +62,8 @@ export default async function ConfirmVisitPage({
               patientFirstName={ctx.patientFirstName}
               whenLabel={formatClinicDayTime(ctx.startTime, ctx.timeZone)}
               startTimeIso={ctx.startTime.toISOString()}
+              endTimeIso={ctx.endTime ? ctx.endTime.toISOString() : null}
+              location={ctx.location}
               visitTypeLabel={ctx.visitTypeLabel}
               providerName={ctx.providerName}
               prepInstructions={ctx.prepInstructions}

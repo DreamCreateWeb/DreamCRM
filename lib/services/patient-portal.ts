@@ -460,6 +460,11 @@ export interface PortalClinicInfo {
    *  to it (the Shop door, the dental-plans upsell) rather than hand a
    *  patient a dead end (owner ruling 2026-10-05: hide, don't exempt). */
   siteLive: boolean
+  /** The site-credit switch (clinic_profile.hide_powered_by, Website →
+   *  Design). The portal wears the clinic's brand, not ours: a practice that
+   *  turned the credit off on its site does not want it on the screen its
+   *  patients log into either. */
+  hidePoweredBy: boolean
 }
 
 /** Clinic identity + practical info for the portal chrome (header / footer / contact cards). */
@@ -482,6 +487,7 @@ export async function getPortalClinicInfo(organizationId: string): Promise<Porta
       cancellationPolicy: clinicProfile.cancellationPolicy,
       selfBookingEnabled: clinicProfile.selfBookingEnabled,
       siteLiveAt: clinicProfile.siteLiveAt,
+      hidePoweredBy: clinicProfile.hidePoweredBy,
     })
     .from(clinicProfile)
     .innerJoin(organization, eq(organization.id, clinicProfile.organizationId))
@@ -495,6 +501,9 @@ export async function getPortalClinicInfo(organizationId: string): Promise<Porta
     // null/undefined → enabled, matching the not-null default(true) column.
     selfBookingEnabled: row.selfBookingEnabled !== false,
     siteLive: siteLiveAt != null,
+    // Credit shown unless explicitly hidden — the same rule the public site's
+    // layout applies to the same column.
+    hidePoweredBy: row.hidePoweredBy === true,
   }
 }
 

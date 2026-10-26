@@ -12,7 +12,7 @@ import {
   PORTAL_BORDER as BORDER,
   BrandButton,
 } from '@/components/patient-portal/ui'
-import { buildIcs, icsDataUrl } from '@/lib/ics'
+import { buildIcs, icsDataUrl, visitIcsEvent, type VisitIcsClinic } from '@/lib/ics'
 import { formatConfirmationWhen } from '@/app/site/[slug]/book/book-form'
 
 /**
@@ -37,6 +37,7 @@ export default function PortalBookForm({
   self,
   dependents,
   clinicPhone,
+  clinic,
   initialForPatientId,
 }: {
   brand: string
@@ -51,6 +52,10 @@ export default function PortalBookForm({
   self: PersonOpt
   dependents: PersonOpt[]
   clinicPhone: string | null
+  /** The practice's name + address + phone for the success screen's calendar
+   *  entry (LOCATION + DESCRIPTION), the same facts the portal's .ics route
+   *  writes. Optional so older callers keep working. */
+  clinic?: VisitIcsClinic | null
   /** Pre-selected person (the Family page's "Book for {name}" link). */
   initialForPatientId?: string
 }) {
@@ -60,6 +65,7 @@ export default function PortalBookForm({
   const [comfort, setComfort] = useState('')
   const [state, setState] = useState<'idle' | 'done'>('idle')
   const [bookedIso, setBookedIso] = useState<string | null>(null)
+  const [bookedEndIso, setBookedEndIso] = useState<string | null>(null)
   const [error, setError] = useState('')
   const [pending, startTransition] = useTransition()
 
@@ -87,6 +93,7 @@ export default function PortalBookForm({
       const res = await bookMyVisitAction(fd)
       if (res.ok) {
         setBookedIso(slotIso)
+        setBookedEndIso(res.endIso ?? null)
         setState('done')
       }
       else setError(res.error)
@@ -101,12 +108,15 @@ export default function PortalBookForm({
     const whenLabel = bookedIso ? formatConfirmationWhen(bookedIso, timeZone) : null
     const icsHref = bookedIso
       ? icsDataUrl(
-          buildIcs({
-            uid: `portal-booking-${new Date(bookedIso).getTime()}@dreamcreatestudio.com`,
-            start: new Date(bookedIso),
-            end: new Date(new Date(bookedIso).getTime() + 30 * 60 * 1000),
-            summary: typeLabel,
-          }),
+          buildIcs(
+            visitIcsEvent({
+              uid: `portal-booking-${new Date(bookedIso).getTime()}@dreamcreatestudio.com`,
+              start: new Date(bookedIso),
+              end: bookedEndIso ? new Date(bookedEndIso) : null,
+              summary: clinic?.name ? `${typeLabel} at ${clinic.name}` : typeLabel,
+              clinic: clinic ?? (clinicPhone ? { name: '', phone: clinicPhone } : null),
+            }),
+          ),
         )
       : null
     return (

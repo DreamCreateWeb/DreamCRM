@@ -313,3 +313,18 @@ export function PortalAnnouncement({ text, brand }: { text: string; brand: strin
     </div>
   )
 }
+
+/**
+ * The portal's "Powered by DreamCRM" line — the SAME credit the public site
+ * prints under its footer, under the SAME switch (clinic_profile.
+ * hide_powered_by, Website → Design). Renders nothing when the clinic turned
+ * the credit off: the portal wears the clinic's brand, not ours, and the one
+ * place an owner said they did not want the line is the screen their
+ * patients log into. One spelling on both surfaces (the product's name).
+ */
+export function PortalCredit({ hidden }: { hidden: boolean }) {
+  if (hidden) return null
+  // No `opacity-*` on portal ink: the muted tone IS the quiet step
+  // (tests/a11y/portal-ink-opacity).
+  return <p className="mt-3 text-[0.75rem]">Powered by DreamCRM</p>
+}

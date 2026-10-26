@@ -14,6 +14,8 @@ import {
   buildClinicNavLinks,
   navServicesFromClinicServices,
   copyOverride,
+  resolveCopyList,
+  nextOpeningLabel,
   isSelfBookingEnabled,
   hasColoringPages,
 } from '@/lib/clinic-site-helpers'
@@ -84,20 +86,28 @@ export async function generateMetadata({ params }: Props) {
   }
 }
 
+/** The calendar glyph for the LIVE availability card below. */
+const CALENDAR_ICON = (
+  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75} aria-hidden="true">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
+  </svg>
+)
+
+/**
+ * Reassurance cards — voice/quality claims every clinic can honestly make,
+ * each clinic-editable under `book.assure.<i>.title/body`. What is NOT here
+ * on purpose: "Same-week visits — most new patients are scheduled within
+ * 3–5 days". That was a constant on every practice's booking page, an
+ * availability guarantee a one-doctor office booked three weeks out cannot
+ * keep (the shared header dropped the same chip for the same reason). The
+ * availability line is now LIVE — `nextOpeningCard` below reads the real
+ * schedule the shell already scans.
+ */
 const RE_ASSURANCES: Array<{
   title: string
   body: string
   icon: React.ReactNode
 }> = [
-  {
-    title: 'Same-week visits',
-    body: 'Most new patients are scheduled within 3–5 days.',
-    icon: (
-      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75} aria-hidden="true">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
-      </svg>
-    ),
-  },
   {
     title: 'No judgment, ever',
     body: 'However long it’s been, you’re welcome. We meet you where you are.',
@@ -126,6 +136,34 @@ const RE_ASSURANCES: Array<{
     ),
   },
 ]
+
+/**
+ * The one assurance card that is DATA rather than copy. Self-booking on:
+ * "Next opening: Thursday" from the shell's own 14-day scan (clinic-local
+ * day keys, see `nextOpeningLabel`); no card when the window is closed — the
+ * form's rescue card already covers that honestly. Request-only booking:
+ * what actually happens next, with no day attached.
+ */
+function nextOpeningCard(
+  selfBooking: boolean,
+  firstAvailableDayKey: string | null,
+  todayKey: string,
+): { title: string; body: string; icon: React.ReactNode } | null {
+  if (!selfBooking) {
+    return {
+      title: 'We’ll reach out to find a time',
+      body: 'Send the request and a real person gets back to you — usually within one business day.',
+      icon: CALENDAR_ICON,
+    }
+  }
+  const label = nextOpeningLabel(firstAvailableDayKey, todayKey)
+  if (!label) return null
+  return {
+    title: `Next opening: ${label}`,
+    body: 'That’s the first day with an online opening right now — pick a time below.',
+    icon: CALENDAR_ICON,
+  }
+}
 
 export default async function BookPage({ params, searchParams }: Props) {
   const { slug } = await params
@@ -183,6 +221,12 @@ export default async function BookPage({ params, searchParams }: Props) {
       : Promise.resolve(null),
   ])
   const windowHasAvailability = selfBooking ? firstAvailableDayKey !== null : true
+  // The living availability card leads; the three editable voice cards follow.
+  const liveCard = nextOpeningCard(selfBooking, firstAvailableDayKey, todayKey)
+  const assuranceCards = [
+    ...(liveCard ? [liveCard] : []),
+    ...resolveCopyList(copyOverrides, 'book.assure', RE_ASSURANCES),
+  ]
   // Deposits only surface when the clinic can actually charge (Connect active)
   // — otherwise the widget shows no deposit copy and booking stays free-flow.
   const anyDepositConfigured = publicVisitTypes(data.profile.visitTypeSettings).some(
@@ -276,16 +320,12 @@ export default async function BookPage({ params, searchParams }: Props) {
                 className="text-lg sm:text-xl leading-[1.55] mx-auto max-w-[600px]"
                 style={{ color: INK_MUTED }}
               >
-                {selfBooking ? (
-                  <>
-                    Pick a time that works. Most patients are seen the same week — and
-                    it&rsquo;s a calm, welcoming visit from the moment you arrive.
-                  </>
-                ) : (
-                  <>
-                    Tell us a bit about what you need and we&rsquo;ll reach out — usually
-                    within one business day — to find a time that works for you.
-                  </>
+                {copyOverride(
+                  copyOverrides,
+                  'book.heroIntro',
+                  selfBooking
+                    ? 'Pick a time that works for you — it’s a calm, welcoming visit from the moment you arrive.'
+                    : 'Tell us a bit about what you need and we’ll reach out — usually within one business day — to find a time that works for you.',
                 )}
               </p>
             </ScrollReveal>
@@ -314,7 +354,7 @@ export default async function BookPage({ params, searchParams }: Props) {
                     A calm, welcoming visit.
                   </h2>
                   <ul className="space-y-5">
-                    {RE_ASSURANCES.map((r, i) => (
+                    {assuranceCards.map((r, i) => (
                       <ScrollReveal
                         as="li"
                         key={i}

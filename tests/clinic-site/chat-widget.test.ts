@@ -151,6 +151,9 @@ describe('submitChatMessage', () => {
       expect.objectContaining({
         organizationId: 'org_1',
         channel: 'email',
+        // The chat names its source so the after-hours ack can reach a
+        // visitor who has no portal — by email, unlike the contact form.
+        source: 'website_chat',
         body: expect.stringContaining('Do you take Delta Dental?'),
       }),
     )

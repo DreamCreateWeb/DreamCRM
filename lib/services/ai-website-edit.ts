@@ -176,6 +176,9 @@ const BASE_COPY_KEYS: CopyKey[] = [
   { key: 'careers.cta.subhead', label: 'Careers page closing CTA subhead', fallback: '', page: '/careers' },
   { key: 'book.heroEyebrow', label: 'Booking page hero eyebrow', fallback: '', page: '/book' },
   { key: 'book.heroTitle', label: 'Booking page hero headline', fallback: '', page: '/book' },
+  { key: 'book.heroIntro', label: 'Booking page hero intro', fallback: '', page: '/book' },
+  { key: 'book.assure.*.title', label: 'Booking page reassurance-card title', fallback: '', page: '/book' },
+  { key: 'book.assure.*.body', label: 'Booking page reassurance-card body', fallback: '', page: '/book' },
   { key: 'book.cta.heading', label: 'Booking page closing CTA headline', fallback: '', page: '/book' },
   { key: 'book.cta.subhead', label: 'Booking page closing CTA subhead', fallback: '', page: '/book' },
 ]

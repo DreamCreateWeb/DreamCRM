@@ -511,7 +511,7 @@ export default async function AboutPage({ params }: Props) {
 
       <ClosingCTA
         heading={copyOverride(copyOverrides, 'about.cta.heading', 'Ready to come see us?')}
-        subhead={copyOverride(copyOverrides, 'about.cta.subhead', 'Same-week visits are usually possible. We’d love to meet you.')}
+        subhead={copyOverride(copyOverrides, 'about.cta.subhead', 'We’d love to meet you — book online or give us a call.')}
         editKeyPrefix="about.cta"
         primary={{ label: bookLabel, href: bookHref }}
         secondary={

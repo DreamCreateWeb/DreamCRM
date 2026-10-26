@@ -26,6 +26,7 @@ const SCAN_DIRS = [
   'app/i/[token]',
   'app/n/[token]',
   'app/r/[token]',
+  'app/w/[token]',
 ]
 const TOKEN_HOME = 'components/patient-portal/ui.tsx'
 
@@ -192,6 +193,10 @@ describe('portal semantic tokens (single source of truth)', () => {
       'app/i/[token]/page.tsx',
       'app/n/[token]/survey-form.tsx',
       'app/r/[token]/page.tsx',
+      // The sixth: the fast-pass claim form re-declared the inks AND the
+      // error hex locally until 2026-10-26, unseen because neither guard
+      // listed its directory.
+      'app/w/[token]/claim-form.tsx',
     ]) {
       expect(swept, `${page} must be swept`).toContain(page)
     }

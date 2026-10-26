@@ -240,7 +240,11 @@ export async function rescheduleMyVisitAction(
   return { ok: true }
 }
 
-export async function bookMyVisitAction(formData: FormData): Promise<PortalActionResult> {
+/** A booked visit's result carries the block's real end so the success
+ *  screen's calendar entry matches the row (and the portal's own .ics). */
+export type BookMyVisitResult = { ok: true; endIso: string } | { ok: false; error: string }
+
+export async function bookMyVisitAction(formData: FormData): Promise<BookMyVisitResult> {
   const ctx = await requirePatient()
   const settings = await getPortalSettings(ctx.organizationId)
   if (!settings.features.booking) {
@@ -347,7 +351,9 @@ export async function bookMyVisitAction(formData: FormData): Promise<PortalActio
   )
 
   revalidateVisits()
-  return { ok: true }
+  // The success screen's Add-to-calendar needs the block's real length — the
+  // visit-type duration resolved above — or it hardcodes 30 minutes.
+  return { ok: true, endIso: endTime.toISOString() }
 }
 
 /**

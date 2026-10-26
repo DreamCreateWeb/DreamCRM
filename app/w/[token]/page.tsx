@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation'
 import { getOfferByToken } from '@/lib/services/appointment-waitlist'
 import { formatClinicDayTime } from '@/lib/format-datetime'
+import { portalBrand } from '@/lib/portal-brand'
 import MinimalSiteChrome from '@/components/clinic-site/minimal-site-chrome'
 import ClaimForm from './claim-form'
 
@@ -38,7 +39,11 @@ export default async function WaitlistClaimPage({
   const offer = await getOfferByToken(token)
   if (!offer) notFound()
 
-  const brand = offer.brandColor || '#9CAF9F'
+  // The derived, AA-safe brand — the same rule as every other token page. The
+  // one button on this page is a brand fill under white text; a pale brand
+  // (the demo's own sage lands at ~2.3:1) made "Claim this time" unreadable
+  // on the page that books the slot.
+  const brand = portalBrand(offer.brandColor)
   const bookUrl = offer.slug ? `https://${offer.slug}.${SITE_DOMAIN}/book` : null
 
   return (

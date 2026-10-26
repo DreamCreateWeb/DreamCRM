@@ -285,7 +285,8 @@ describe('bookMyVisitAction — visit-type duration threading (wave 2)', () => {
     const start = new Date(Date.now() + 48 * HOUR)
     start.setUTCMinutes(0, 0, 0)
     const r = await bookMyVisitAction(bookForm({ type: 'root_canal', startTime: start.toISOString() }))
-    expect(r).toEqual({ ok: true })
+    // The success screen's calendar entry reads the SAME end the row got.
+    expect(r).toEqual({ ok: true, endIso: new Date(start.getTime() + 60 * 60_000).toISOString() })
     const appt = insertedAppointments[0]
     expect(appt).toBeDefined()
     const durationMs = new Date(appt.endTime as Date).getTime() - new Date(appt.startTime as Date).getTime()
@@ -309,7 +310,7 @@ describe('bookMyVisitAction — visit-type duration threading (wave 2)', () => {
     const start = new Date(Date.now() + 48 * HOUR)
     start.setUTCMinutes(0, 0, 0)
     const r = await bookMyVisitAction(bookForm({ type: 'cleaning', startTime: start.toISOString() }))
-    expect(r).toEqual({ ok: true })
+    expect(r).toEqual({ ok: true, endIso: new Date(start.getTime() + 30 * 60_000).toISOString() })
     const appt = insertedAppointments[0]
     const durationMs = new Date(appt.endTime as Date).getTime() - new Date(appt.startTime as Date).getTime()
     expect(durationMs).toBe(30 * 60_000)

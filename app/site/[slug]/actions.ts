@@ -364,6 +364,10 @@ async function runChatMessage(formData: FormData): Promise<void> {
     patientId: resolution.patientId,
     body: chatLines.join('\n'),
     channel: 'email',
+    // Earns the after-hours ack by email (the chat has no in-app surface and
+    // the visitor is most often a stranger at 9 PM) — the contact form's own
+    // acknowledgement is not this one.
+    source: 'website_chat',
   })
 }
 

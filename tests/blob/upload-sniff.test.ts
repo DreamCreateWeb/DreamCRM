@@ -19,6 +19,7 @@ vi.mock('@/lib/blob', () => ({
 }))
 
 import { sniffUpload, POST } from '@/app/api/upload/route'
+import { HEIC_REJECTION, VIDEO_ON_IMAGE_FOLDER_REJECTION, isHeicBytes, heicRefusal } from '@/lib/upload-kinds'
 
 // Magic-byte prefixes for each format (padded to 32 bytes — the route reads 32).
 function bytes(...prefix: number[]): Uint8Array {
@@ -42,6 +43,13 @@ function mp4(): Uint8Array {
   return b
 }
 const WEBM = bytes(0x1a, 0x45, 0xdf, 0xa3)
+function isoBmff(brand: string): Uint8Array {
+  const b = new Uint8Array(32)
+  codes('ftyp').forEach((c, i) => (b[4 + i] = c))
+  codes(brand).forEach((c, i) => (b[8 + i] = c))
+  return b
+}
+const MOV = isoBmff('qt  ')
 function svg(): Uint8Array {
   return bytes(...codes('<svg xmlns'))
 }
@@ -56,7 +64,23 @@ describe('sniffUpload', () => {
 
   it('identifies videos', () => {
     expect(sniffUpload(mp4())).toEqual({ kind: 'video', type: 'video/mp4' })
+    expect(sniffUpload(MOV)).toEqual({ kind: 'video', type: 'video/quicktime' })
     expect(sniffUpload(WEBM)).toEqual({ kind: 'video', type: 'video/webm' })
+  })
+
+  it('refuses an iPhone HEIC/HEIF still (same ftyp box as MP4) and names the fix, not the format', () => {
+    // Every HEIF-family brand an iPhone or a converter writes.
+    for (const brand of ['heic', 'heix', 'hevc', 'hevx', 'mif1', 'msf1', 'heif']) {
+      const r = sniffUpload(isoBmff(brand))
+      expect(r.kind, brand).toBe('rejected')
+      if (r.kind === 'rejected') {
+        expect(r.reason).toBe(HEIC_REJECTION)
+        expect(r.reason).toMatch(/export it as a JPEG/i)
+      }
+    }
+    // …and a real MP4 brand is still a video.
+    expect(sniffUpload(isoBmff('isom')).kind).toBe('video')
+    expect(sniffUpload(isoBmff('mp42')).kind).toBe('video')
   })
 
   it('rejects SVG outright', () => {
@@ -139,6 +163,25 @@ describe('upload route gate', () => {
     expect(res.status).toBe(400)
   })
 
+  it('refuses a HEIC headshot with 415 on the staff folder, whatever the client claims', async () => {
+    const res = await post(fileFrom(isoBmff('heic'), 'IMG_0412.HEIC', 'image/heic'), 'clinic-staff')
+    expect(res.status).toBe(415)
+    expect((await res.json()).error).toBe(HEIC_REJECTION)
+    expect(uploaded).toHaveLength(0)
+  })
+
+  it('refuses a real VIDEO on a photo-only folder with 415 — a video can never become a photoUrl', async () => {
+    for (const folder of ['clinic-staff', 'clinic-office-photos', 'clinic-logos', 'clinic-hero', 'service-icons']) {
+      const res = await post(fileFrom(mp4(), 'clip.mp4', 'video/mp4'), folder)
+      expect(res.status, folder).toBe(415)
+      expect((await res.json()).error).toBe(VIDEO_ON_IMAGE_FOLDER_REJECTION)
+    }
+    expect(uploaded).toHaveLength(0)
+    // …while the folders that take video still do.
+    const ok = await post(fileFrom(mp4(), 'clip.mp4', 'video/mp4'), 'social-posts')
+    expect(ok.status).toBe(200)
+  })
+
   // ── The unwrapped throws ──────────────────────────────────────────────────
   //
   // Every refusal on this route answers with `{ error }` and every caller
@@ -171,5 +214,21 @@ describe('upload route gate', () => {
     const res = await POST(req)
     expect(res.status).toBe(500)
     expect(typeof (await res.json()).error).toBe('string')
+  })
+})
+
+describe('the browser-side HEIC pre-check (lib/upload-kinds)', () => {
+  it('reads the brand from the bytes', () => {
+    expect(isHeicBytes(isoBmff('heic'))).toBe(true)
+    expect(isHeicBytes(isoBmff('mif1'))).toBe(true)
+    expect(isHeicBytes(isoBmff('isom'))).toBe(false)
+    expect(isHeicBytes(PNG)).toBe(false)
+  })
+
+  it('refuses by declared type, by extension, and by bytes — and lets a JPEG through', async () => {
+    expect(await heicRefusal(new File([PNG], 'x.heic', { type: '' }))).toBe(HEIC_REJECTION)
+    expect(await heicRefusal(new File([PNG], 'x.jpg', { type: 'image/heif' }))).toBe(HEIC_REJECTION)
+    expect(await heicRefusal(new File([isoBmff('heix')], 'photo.jpg', { type: 'image/jpeg' }))).toBe(HEIC_REJECTION)
+    expect(await heicRefusal(new File([JPEG], 'photo.jpg', { type: 'image/jpeg' }))).toBeNull()
   })
 })

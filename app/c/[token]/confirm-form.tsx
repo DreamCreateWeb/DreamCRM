@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react'
 import { confirmVisitAction } from './actions'
 import { PORTAL_ERROR, PORTAL_MUTED } from '@/components/patient-portal/ui'
-import { buildIcs, icsDataUrl } from '@/lib/ics'
+import { buildIcs, icsDataUrl, visitIcsEvent } from '@/lib/ics'
 
 /**
  * The one-button confirm card. States: pending (Confirm my visit) → confirmed
@@ -30,6 +30,8 @@ export default function ConfirmForm({
   initialState,
   bookUrl,
   startTimeIso,
+  endTimeIso,
+  location,
 }: {
   token: string
   brand: string
@@ -43,6 +45,10 @@ export default function ConfirmForm({
   initialState: State
   /** ISO start — powers Add-to-calendar on the confirmed state. */
   startTimeIso?: string | null
+  /** ISO end — the real block length; null falls back to +30 min. */
+  endTimeIso?: string | null
+  /** The practice's address for the calendar entry ('' = none on file). */
+  location?: string | null
   bookUrl: string | null
 }) {
   const [state, setState] = useState<State>(initialState)
@@ -103,12 +109,16 @@ export default function ConfirmForm({
         {startTimeIso && (
           <a
             href={icsDataUrl(
-              buildIcs({
-                uid: `confirm-${new Date(startTimeIso).getTime()}@dreamcreatestudio.com`,
-                start: new Date(startTimeIso),
-                end: new Date(new Date(startTimeIso).getTime() + 30 * 60 * 1000),
-                summary: `${visitTypeLabel} at ${clinicName}`,
-              }),
+              buildIcs(
+                visitIcsEvent({
+                  uid: `confirm-${new Date(startTimeIso).getTime()}@dreamcreatestudio.com`,
+                  start: new Date(startTimeIso),
+                  end: endTimeIso ? new Date(endTimeIso) : null,
+                  summary: `${visitTypeLabel} at ${clinicName}`,
+                  clinic: { name: clinicName, addressLine1: location || null, phone: clinicPhone },
+                  providerName,
+                }),
+              ),
             )}
             download="appointment.ics"
             className="mt-4 inline-flex items-center justify-center rounded-full bg-white px-5 py-2.5 text-[0.9rem] font-semibold transition active:scale-[0.98]"

@@ -5,7 +5,7 @@
  * omission, and the data-URL encoding.
  */
 import { describe, it, expect } from 'vitest'
-import { icsEscape, icsUtcStamp, buildIcs, icsDataUrl, buildIcsFeed } from '@/lib/ics'
+import { icsEscape, icsUtcStamp, buildIcs, icsDataUrl, buildIcsFeed, visitIcsEvent, DEFAULT_VISIT_MINUTES } from '@/lib/ics'
 
 describe('icsEscape', () => {
   it('escapes backslash, semicolon, comma, and newlines per RFC 5545', () => {
@@ -127,5 +127,58 @@ describe('icsDataUrl', () => {
     const url = icsDataUrl('BEGIN:VCALENDAR\r\nEND:VCALENDAR')
     expect(url.startsWith('data:text/calendar;charset=utf-8,')).toBe(true)
     expect(decodeURIComponent(url.split(',').slice(1).join(','))).toContain('BEGIN:VCALENDAR')
+  })
+})
+
+/**
+ * visitIcsEvent — the ONE shape the one-click confirm page and the portal's
+ * booking success build inline. Both used to hardcode a 30-minute block with
+ * no address, so a 60-minute root canal downloaded from the reminder's
+ * confirm page disagreed with the same visit downloaded inside the portal
+ * (whose authenticated .ics route had the real end + LOCATION all along).
+ */
+describe('visitIcsEvent', () => {
+  const start = new Date('2026-01-15T14:00:00.000Z')
+  const clinic = {
+    name: 'Acme Dental',
+    addressLine1: '123 Main St',
+    city: 'Springfield',
+    state: 'IL',
+    postalCode: '62701',
+    phone: '(555) 555-0100',
+  }
+
+  it('uses the REAL end time when it is known (a 60-minute visit is a 60-minute block)', () => {
+    const ev = visitIcsEvent({
+      uid: 'u', start, end: new Date('2026-01-15T15:00:00.000Z'), summary: 'Root canal at Acme Dental',
+    })
+    expect(buildIcs(ev)).toContain('DTEND:20260115T150000Z')
+  })
+
+  it('falls back to +30 minutes ONLY when the end is unknown or nonsensical', () => {
+    expect(DEFAULT_VISIT_MINUTES).toBe(30)
+    for (const end of [null, undefined, start, new Date(start.getTime() - 60_000)]) {
+      const ev = visitIcsEvent({ uid: 'u', start, end, summary: 'Visit' })
+      expect(ev.end.getTime() - start.getTime()).toBe(30 * 60_000)
+    }
+  })
+
+  it('carries the clinic address as LOCATION and the provider + phone in DESCRIPTION — the same lines the portal route writes', () => {
+    const ics = buildIcs(visitIcsEvent({ uid: 'u', start, summary: 'Cleaning', clinic, providerName: 'Dr. Reyes' }))
+    expect(ics).toContain('LOCATION:123 Main St\\, Springfield\\, IL\\, 62701')
+    expect(ics).toContain('DESCRIPTION:With Dr. Reyes. Questions? Call Acme Dental at (555) 555-0100.')
+  })
+
+  it('omits LOCATION and the event DESCRIPTION when nothing is on file (no empty lines, no "Call  at")', () => {
+    // (The VALARM carries its own DESCRIPTION line by spec; the EVENT's is what
+    // must stay empty here.)
+    for (const clinic of [{ name: 'Acme Dental' }, null, undefined]) {
+      const ev = visitIcsEvent({ uid: 'u', start, summary: 'Cleaning', clinic })
+      expect(ev.location).toBeNull()
+      expect(ev.description).toBeNull()
+      const ics = buildIcs(ev)
+      expect(ics).not.toContain('LOCATION:')
+      expect(ics).not.toContain('Call ')
+    }
   })
 })

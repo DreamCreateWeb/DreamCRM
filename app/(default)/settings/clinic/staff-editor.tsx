@@ -5,6 +5,7 @@ import type { ClinicStaff } from '@/lib/types/clinic-content'
 import FocalPointPicker from '@/components/ui/focal-point-picker'
 import { uploadFileWithProgress, UploadCancelledError, type UploadHandle } from '@/lib/upload-with-progress'
 import { AddButton, EditorCard, EmptyHint, Field, inputCls, textareaCls } from '@/components/ui/editor-kit'
+import { heicRefusal } from '@/lib/upload-kinds'
 
 interface Props {
   name: string
@@ -131,6 +132,13 @@ function StaffRow({
     setUploadError(null)
     if (!file.type.startsWith('image/')) {
       setUploadError('Please pick an image file.')
+      return
+    }
+    // HEIC passes `image/*` and the server's video sniff alike — say so now,
+    // naming the fix, instead of after a progress bar and a broken card.
+    const heic = await heicRefusal(file)
+    if (heic) {
+      setUploadError(heic)
       return
     }
     // 8MB matches the server's IMAGE_MAX_BYTES (was a silent 5MB drop).
