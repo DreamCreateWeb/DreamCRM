@@ -642,6 +642,24 @@ export const INTAKE_RULES = [
       // marketing page that re-states the retired connector fails `test` by
       // name, where before only the named files did.
       'tests/marketing/seo.test.ts',
+      // The no-fake-content guard (2026-10-26, the deep dev cycle). A NEW
+      // CLASS of assertion rather than a case on an existing one, stated
+      // here rather than guessed as this entry's `why` asks: it walks the
+      // dashboard trees for CONTENT that is not the product's — lorem ipsum,
+      // the Mosaic template's stock names and stock image paths — and holds
+      // them at zero, after the template's community demo (Lorem ipsum
+      // behind the dashboard's auth, reachable by any signed-in user) was
+      // deleted. It also asks every page.tsx under the two authed groups to
+      // resolve the tenant or redirect. After it lands, pasting a placeholder
+      // page or a stock photo into the dashboard fails `test` by name.
+      'tests/activation/no-fake-content.test.ts',
+      // The no-model-names guard (2026-10-26, the deep dev cycle). A NEW
+      // CLASS: it walks `app/(default)`, `app/(double-sidebar)`,
+      // `app/(onboarding)` and `components` for RENDERED copy that names an
+      // AI model (comments stripped) — the Apps page's Anthropic row names
+      // capabilities, never a model, because a model name in the product is
+      // a promise about a vendor's roadmap the product does not control.
+      'tests/design-system/no-model-names.test.ts',
       // The check-mark veto (DREAMCRM-71, BRAND.md Part 3). A NEW CLASS of
       // assertion rather than a case on an existing one, stated here rather
       // than guessed as this entry's `why` asks: every rule above grades a

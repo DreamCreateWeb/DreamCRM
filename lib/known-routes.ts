@@ -58,7 +58,6 @@ export const KNOWN_TOP_LEVEL_SEGMENTS: ReadonlySet<string> = new Set([
   'campaigns',
   'careers',
   'channels',
-  'community',
   'dashboard',
   'developer',
   'dream-team',
