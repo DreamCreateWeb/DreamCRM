@@ -453,7 +453,7 @@ export default async function StaffDetailPage({ params }: Props) {
 
         <ClosingCTA
           heading="Ready to come see us?"
-          subhead={`Book with ${firstName(staff.name)} or another member of our team — same week if you need it.`}
+          subhead={`Book with ${firstName(staff.name)} or another member of our team — we’d love to meet you.`}
           primary={{ label: bookLabel, href: bookHref }}
           secondary={
             profile.phone

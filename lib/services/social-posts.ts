@@ -441,44 +441,14 @@ export async function createSocialPost(
     return { ok: false, postId, status: 'failed', error: msg }
   }
 
-  // Publish each target independently (one Zernio call per channel).
+  // Publish each target independently (one Zernio call per channel) —
+  // through the same helper `retrySocialPostTargets` uses, so a retry can
+  // never drift from the first attempt.
   const finalStatuses: GbpPostStatus[] = []
   for (const t of targets) {
     const targetRowId = `${postId}_t_${t.id}`
     try {
-      let result: GbpPostResult
-      if (t.platform === GOOGLE_BUSINESS_PLATFORM) {
-        result = await zernioCreateGbpPost({
-          profileId,
-          accountId: t.id,
-          summary: v.summary,
-          postType: v.postType,
-          imageUrl: v.imageUrl,
-          cta: v.ctaType ? { actionType: v.ctaType, url: v.ctaUrl } : null,
-          event:
-            v.postType === 'event' && v.eventStartAt
-              ? {
-                  title: v.eventTitle ?? '',
-                  startAt: v.eventStartAt.toISOString(),
-                  endAt: v.eventEndAt ? v.eventEndAt.toISOString() : null,
-                }
-              : null,
-          offer:
-            v.postType === 'offer'
-              ? { couponCode: v.offerCouponCode, redeemUrl: v.offerRedeemUrl, terms: v.offerTerms }
-              : null,
-          scheduledAt: v.scheduledAt ? v.scheduledAt.toISOString() : null,
-        })
-      } else {
-        result = await zernioCreateSocialPost({
-          profileId,
-          accountId: t.id,
-          platform: t.platform,
-          summary: v.summary,
-          imageUrl: v.imageUrl,
-          scheduledAt: v.scheduledAt ? v.scheduledAt.toISOString() : null,
-        })
-      }
+      const result = await publishToTarget(profileId, { platform: t.platform, accountId: t.id }, v)
       const status: GbpPostStatus = v.scheduledAt ? 'scheduled' : 'published'
       finalStatuses.push(status)
       await db
@@ -538,6 +508,187 @@ export async function createSocialPost(
   const ok = finalStatuses.some((s) => s !== 'failed')
   const firstError = ok ? undefined : 'Could not publish the post.'
   return { ok, postId, status: rollup, error: firstError }
+}
+
+/**
+ * What ONE Zernio publish call needs — the parent post's own columns, so a
+ * retry builds exactly the call createSocialPost built (GBP → the GBP
+ * wrapper with its options; a social → the generic wrapper).
+ */
+type PublishablePost = Omit<NormalizedCreate, 'accountIds'>
+
+async function publishToTarget(
+  profileId: string,
+  target: { platform: string; accountId: string },
+  post: PublishablePost,
+): Promise<GbpPostResult> {
+  if (target.platform === GOOGLE_BUSINESS_PLATFORM) {
+    return zernioCreateGbpPost({
+      profileId,
+      accountId: target.accountId,
+      summary: post.summary,
+      postType: post.postType,
+      imageUrl: post.imageUrl,
+      cta: post.ctaType ? { actionType: post.ctaType, url: post.ctaUrl } : null,
+      event:
+        post.postType === 'event' && post.eventStartAt
+          ? {
+              title: post.eventTitle ?? '',
+              startAt: post.eventStartAt.toISOString(),
+              endAt: post.eventEndAt ? post.eventEndAt.toISOString() : null,
+            }
+          : null,
+      offer:
+        post.postType === 'offer'
+          ? { couponCode: post.offerCouponCode, redeemUrl: post.offerRedeemUrl, terms: post.offerTerms }
+          : null,
+      scheduledAt: post.scheduledAt ? post.scheduledAt.toISOString() : null,
+    })
+  }
+  return zernioCreateSocialPost({
+    profileId,
+    accountId: target.accountId,
+    platform: target.platform,
+    summary: post.summary,
+    imageUrl: post.imageUrl,
+    scheduledAt: post.scheduledAt ? post.scheduledAt.toISOString() : null,
+  })
+}
+
+export interface RetrySocialPostResult {
+  ok: boolean
+  /** The parent's rollup status after the attempt. */
+  status?: GbpPostStatus
+  /** How many failed channels were tried again / came through. */
+  retried: number
+  recovered: number
+  error?: string
+}
+
+/**
+ * TRY AGAIN (2026-10-26). The Social page's legend promised "check the error
+ * and retry" while the only lever on a failed card was Delete — and the
+ * Dream Team's day-0 auto lane publishes unattended, so a transient Zernio
+ * error left a permanent red chip nobody could clear. This re-runs the SAME
+ * per-target publish createSocialPost ran, for the FAILED targets only:
+ * a published or scheduled channel is never touched (a second post on
+ * Facebook is worse than a red chip), a schedule still ahead re-queues, one
+ * that has passed publishes now, a channel that has since been disconnected
+ * stays failed with a sentence that names the fix. Best-effort like its
+ * sibling: never throws, the parent status is recomputed from every target
+ * with the one rollup rule. Demo posts flip locally, never network.
+ */
+export async function retrySocialPostTargets(orgId: string, postId: string): Promise<RetrySocialPostResult> {
+  const [post] = await db
+    .select()
+    .from(schema.socialPost)
+    .where(and(eq(schema.socialPost.organizationId, orgId), eq(schema.socialPost.id, postId)))
+    .limit(1)
+  if (!post) return { ok: false, retried: 0, recovered: 0, error: 'That post is no longer available.' }
+
+  const targets = await db
+    .select()
+    .from(schema.socialPostTarget)
+    .where(and(eq(schema.socialPostTarget.socialPostId, postId), eq(schema.socialPostTarget.organizationId, orgId)))
+  const failed = targets.filter((t) => t.status === 'failed')
+  if (failed.length === 0) return { ok: true, status: post.status as GbpPostStatus, retried: 0, recovered: 0 }
+
+  const now = new Date()
+  // A schedule still ahead re-queues for that moment; one that has passed
+  // goes out now — the practice asked for it, and a date in the past is not
+  // something the publisher accepts.
+  const scheduledAt = post.scheduledAt && post.scheduledAt > now ? post.scheduledAt : null
+  const publishable: PublishablePost = {
+    postType: (GBP_POST_TYPES as readonly string[]).includes(post.postType) ? (post.postType as GbpPostType) : 'standard',
+    summary: post.summary,
+    imageUrl: post.imageUrl,
+    ctaType: (GBP_CTA_TYPES as readonly string[]).includes(post.ctaType ?? '') ? (post.ctaType as GbpCtaType) : null,
+    ctaUrl: post.ctaUrl,
+    eventTitle: post.eventTitle,
+    eventStartAt: post.eventStartAt,
+    eventEndAt: post.eventEndAt,
+    offerCouponCode: post.offerCouponCode,
+    offerRedeemUrl: post.offerRedeemUrl,
+    offerTerms: post.offerTerms,
+    scheduledAt,
+  }
+  const statuses = new Map<string, GbpPostStatus>(targets.map((t) => [t.id, t.status as GbpPostStatus]))
+  const recoveredStatus: GbpPostStatus = scheduledAt ? 'scheduled' : 'published'
+  let recovered = 0
+
+  const setTarget = async (id: string, patch: Partial<typeof schema.socialPostTarget.$inferInsert>) => {
+    await db
+      .update(schema.socialPostTarget)
+      .set({ ...patch, updatedAt: new Date() })
+      .where(eq(schema.socialPostTarget.id, id))
+  }
+
+  if (post.isDemo === 1) {
+    for (const t of failed) {
+      await setTarget(t.id, {
+        status: recoveredStatus,
+        zernioPostId: `demo_zpost_${t.id}`,
+        googleUrl: scheduledAt ? null : demoPermalink(t.platform),
+        publishedAt: scheduledAt ? null : now,
+        lastError: null,
+      })
+      statuses.set(t.id, recoveredStatus)
+      recovered++
+    }
+  } else {
+    const conn = await getZernioConnection(orgId)
+    const profileId = conn.zernioProfileId
+    const connected = new Map(conn.accounts.map((a) => [a.id, a]))
+    for (const t of failed) {
+      const account = connected.get(t.accountId)
+      const stillConnected =
+        !!account && (account.platform !== GOOGLE_BUSINESS_PLATFORM || conn.status === 'connected')
+      const blocker = !profileId
+        ? 'No Zernio profile is linked.'
+        : !stillConnected
+          ? 'This channel is no longer connected — reconnect it on Integrations, then try again.'
+          : null
+      if (blocker) {
+        await setTarget(t.id, { status: 'failed', lastError: blocker })
+        continue
+      }
+      try {
+        const result = await publishToTarget(profileId!, { platform: t.platform, accountId: t.accountId }, publishable)
+        await setTarget(t.id, {
+          zernioPostId: result.zernioPostId,
+          status: recoveredStatus,
+          googleUrl: result.googleUrl,
+          publishedAt: scheduledAt ? null : new Date(),
+          lastError: null,
+        })
+        statuses.set(t.id, recoveredStatus)
+        recovered++
+      } catch (e) {
+        await setTarget(t.id, { status: 'failed', lastError: (e as Error).message })
+      }
+    }
+  }
+
+  const all = Array.from(statuses.values())
+  const rollup = rollupStatus(all)
+  const anyPublished = all.includes('published')
+  await db
+    .update(schema.socialPost)
+    .set({
+      status: rollup,
+      publishedAt: anyPublished ? (post.publishedAt ?? new Date()) : post.publishedAt,
+      updatedAt: new Date(),
+    })
+    .where(eq(schema.socialPost.id, postId))
+
+  const ok = recovered > 0
+  return {
+    ok,
+    status: rollup,
+    retried: failed.length,
+    recovered,
+    error: ok ? undefined : 'Still couldn’t post — the reason is on the card.',
+  }
 }
 
 /** A synthetic permalink for a demo target (platform-specific flavor). */

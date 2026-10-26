@@ -5,6 +5,7 @@ import type {
   ClinicTestimonial,
   ClinicOfficePhoto,
 } from '@/lib/types/clinic-content'
+import { officePhotoAlt } from '@/lib/types/clinic-content'
 import type { HomePageProps } from '@/lib/site-templates/page-props'
 import {
   firstSentence,
@@ -435,7 +436,7 @@ export default function CosmeticHome(props: HomePageProps) {
                   <SiteImage
                     displayWidth={384}
                     src={photo.url}
-                    alt={photo.caption ?? `${name} — the office`}
+                    alt={officePhotoAlt(photo, name)}
                     loading="lazy"
                     className={`w-full object-cover aspect-[3/4] ${i === 0 ? 'rounded-t-[999px]' : 'rounded-2xl'}`}
                     style={{ border: `1px solid ${SITE_BORDER}` }}

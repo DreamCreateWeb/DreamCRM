@@ -89,7 +89,7 @@ export default async function WebsiteContentPage() {
           profile={profile}
           orgId={ctx.organizationId}
           library={library}
-          sections={sections.map(toContentSectionView)}
+          sections={sections.map((s) => toContentSectionView(s, profile.template))}
           filledIds={filledIds}
           summaries={summaries}
           siteUrl={siteUrl}

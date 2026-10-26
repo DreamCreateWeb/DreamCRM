@@ -277,7 +277,7 @@ describe('runRetentionAutomations', () => {
     expect(res.errors[0].kind).toBe('birthday')
   })
 
-  it('welcome fires weekly — keyed to the UTC Monday of the current week', async () => {
+  it('welcome fires weekly — keyed to the clinic-local Monday of the current week', async () => {
     h.clinics = [{ organizationId: 'org_1', birthday: 0, reactivation: 0, welcome: 1, isDemo: false }]
     const res = await runRetentionAutomations({ now: NOW }) // Thu 2026-06-18 → Mon 2026-06-15
     expect(res.created).toBe(1)
@@ -376,5 +376,48 @@ describe('automationSendAt honours the learned hour', () => {
       }
     }
     throw new Error(`learned hour never reached the campaign row: ${scheduled.toISOString()}`)
+  })
+})
+
+/**
+ * EVERY KEY IS THE CLINIC'S CALENDAR (2026-10-26). 22:30 on Oct 31 in Los
+ * Angeles is 05:30 UTC on Nov 1: the UTC keys used to name tomorrow's
+ * birthday, roll the monthly keys early, and open the benefits season 5–8
+ * hours off. A clinic row with no timezone keeps the Eastern default.
+ */
+describe('retention automations — keys and season follow the clinic’s own calendar', () => {
+  const LATE_OCT_31_PACIFIC = new Date('2026-11-01T05:30:00.000Z') // 22:30 PDT Oct 31 / 01:30 EDT Nov 1
+
+  it('a Los Angeles clinic at 22:30 on Oct 31 still keys October — birthday, benefits and reactivation', async () => {
+    h.clinics = [{ organizationId: 'org_1', birthday: 1, reactivation: 1, benefits: 1, welcome: 0, isDemo: false, timezone: 'America/Los_Angeles' }]
+    const res = await runRetentionAutomations({ now: LATE_OCT_31_PACIFIC })
+    expect(res.created).toBe(3)
+    const keys = h.inserts.filter((i) => i.table === 'campaigns').map((i) => i.values.automationKey)
+    expect(keys).toEqual(['birthday:org_1:2026-10-31', 'reactivation:org_1:2026-10', 'benefits:org_1:2026-10'])
+    const names = h.inserts.filter((i) => i.table === 'campaigns').map((i) => i.values.name)
+    expect(names).toContain('Birthday greetings · October 31')
+    expect(names).toContain('Use your benefits · October 2026')
+    // The audience resolver is handed the clinic's zone, never left to guess.
+    expect(h.resolveMock).toHaveBeenCalledWith('org_1', expect.anything(), { timeZone: 'America/Los_Angeles' })
+  })
+
+  it('the same instant is already Nov 1 for an Eastern clinic (the default zone)', async () => {
+    h.clinics = [{ organizationId: 'org_1', birthday: 1, reactivation: 0, benefits: 1, welcome: 0, isDemo: false }]
+    const res = await runRetentionAutomations({ now: LATE_OCT_31_PACIFIC })
+    expect(res.created).toBe(2)
+    const keys = h.inserts.filter((i) => i.table === 'campaigns').map((i) => i.values.automationKey)
+    expect(keys).toEqual(['birthday:org_1:2026-11-01', 'benefits:org_1:2026-11'])
+  })
+
+  it('the benefits season opens on the clinic’s Oct 1, not the server’s', async () => {
+    const LATE_SEP_30_PACIFIC = new Date('2026-10-01T05:30:00.000Z') // 22:30 PDT Sep 30 / 01:30 EDT Oct 1
+    h.clinics = [{ organizationId: 'org_la', birthday: 0, reactivation: 0, benefits: 1, welcome: 0, isDemo: false, timezone: 'America/Los_Angeles' }]
+    const quiet = await runRetentionAutomations({ now: LATE_SEP_30_PACIFIC })
+    expect(quiet.scanned).toBe(0) // still September in Los Angeles
+    h.inserts.length = 0
+    h.clinics = [{ organizationId: 'org_ny', birthday: 0, reactivation: 0, benefits: 1, welcome: 0, isDemo: false, timezone: 'America/New_York' }]
+    const live = await runRetentionAutomations({ now: LATE_SEP_30_PACIFIC })
+    expect(live.created).toBe(1)
+    expect(h.inserts.find((i) => i.table === 'campaigns')!.values.automationKey).toBe('benefits:org_ny:2026-10')
   })
 })

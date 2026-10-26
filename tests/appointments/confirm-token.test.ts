@@ -35,11 +35,14 @@ vi.mock('@/lib/db', () => {
     schema: {
       appointment: {
         id: 'id', organizationId: 'org', patientId: 'pid', status: 'status',
-        startTime: 'startTime', type: 'type', providerId: 'providerId', confirmToken: 'confirmToken',
+        startTime: 'startTime', endTime: 'endTime', type: 'type', providerId: 'providerId', confirmToken: 'confirmToken',
       },
       patient: { id: 'id', firstName: 'firstName' },
       clinicProvider: { id: 'id', displayName: 'displayName' },
-      clinicProfile: { organizationId: 'org', displayName: 'displayName', brandColor: 'b', logoUrl: 'l', phone: 'p', timezone: 'tz', visitTypeSettings: 'vts' },
+      clinicProfile: {
+        organizationId: 'org', displayName: 'displayName', brandColor: 'b', logoUrl: 'l', phone: 'p', timezone: 'tz', visitTypeSettings: 'vts',
+        addressLine1: 'a1', city: 'city', state: 'state', postalCode: 'zip',
+      },
       organization: { id: 'id', slug: 'slug', name: 'name' },
     },
   }
@@ -57,6 +60,7 @@ vi.mock('@/lib/services/pms', () => ({ queueCommLogWriteBack: commLogMock }))
 import {
   getOrCreateConfirmToken,
   confirmVisitByToken,
+  getConfirmContextByToken,
 } from '@/lib/services/appointment-confirm'
 
 const FUTURE = new Date(Date.now() + 30 * 60 * 60 * 1000)
@@ -127,5 +131,42 @@ describe('confirmVisitByToken', () => {
   it('unknown token → not ok', async () => {
     state.selectQueue.push([])
     expect((await confirmVisitByToken('ct_nope')).ok).toBe(false)
+  })
+})
+
+/**
+ * The landing's Add-to-calendar used to hardcode a 30-minute block with no
+ * address while the portal's own .ics for the SAME visit carried the real end
+ * and the clinic's street address. The context now carries both.
+ */
+describe('getConfirmContextByToken — the calendar facts', () => {
+  const END = new Date(FUTURE.getTime() + 60 * 60 * 1000)
+  function queueRows(opts: { endTime: Date | null; address?: boolean }) {
+    state.selectQueue = [
+      [{ organizationId: 'org_1', status: 'scheduled', startTime: FUTURE, endTime: opts.endTime, type: 'root_canal', providerName: 'Dr. Reyes', firstName: 'Maria' }],
+      [{
+        displayName: 'Acme Dental', brandColor: null, logoUrl: null, phone: '(555) 555-0100', timezone: 'America/Chicago', visitTypeSettings: null,
+        ...(opts.address === false
+          ? { addressLine1: null, city: null, state: null, postalCode: null }
+          : { addressLine1: '123 Main St', city: 'Springfield', state: 'IL', postalCode: '62701' }),
+      }],
+      [{ slug: 'acme', name: 'Acme Dental' }],
+    ]
+  }
+
+  it('carries the visit\'s REAL end and the practice\'s address', async () => {
+    queueRows({ endTime: END })
+    const ctx = await getConfirmContextByToken('ct_x')
+    expect(ctx).not.toBeNull()
+    expect(ctx!.endTime?.toISOString()).toBe(END.toISOString())
+    expect(ctx!.location).toBe('123 Main St, Springfield, IL, 62701')
+    expect(ctx!.startTime.toISOString()).toBe(FUTURE.toISOString())
+  })
+
+  it('a row with no end and a practice with no address: honest nulls, not a fabricated block', async () => {
+    queueRows({ endTime: null, address: false })
+    const ctx = await getConfirmContextByToken('ct_x')
+    expect(ctx!.endTime).toBeNull()
+    expect(ctx!.location).toBe('')
   })
 })

@@ -79,6 +79,11 @@ export interface CampaignHistoryRow {
  * the phase-3 fold). Auto-send campaigns carry their automationKey so the
  * row can say "sent by the birthday automation".
  */
+/** The person behind a campaign_events row, in SQL — the twin of
+ *  `funnelIdentity` in lib/services/campaign-funnel.ts. The row id is the
+ *  last resort so a row naming nobody counts once instead of vanishing. */
+const FUNNEL_PERSON = sql`coalesce(${schema.campaignEvents.patientId}, lower(${schema.campaignEvents.recipientEmail}), ${schema.campaignEvents.recipientPhone}, ${schema.campaignEvents.id}::text)`
+
 export async function listCampaignsWithFunnels(
   organizationId: string,
   opts?: { limit?: number },
@@ -102,11 +107,16 @@ export async function listCampaignsWithFunnels(
 
   const funnels = new Map<number, CampaignFunnel>()
   if (rows.length > 0) {
+    // PEOPLE, not rows (the SQL twin of lib/services/campaign-funnel.ts):
+    // the pixel writes an 'open' row per load, so count(*) read "63 opened"
+    // where the editor read "31". One person per campaign per stage, keyed
+    // the way the frequency cap keys a person; a row naming nobody still
+    // counts as itself.
     const events = await db
       .select({
         campaignId: schema.campaignEvents.campaignId,
         type: schema.campaignEvents.type,
-        count: sql<number>`count(*)::int`,
+        count: sql<number>`count(distinct ${FUNNEL_PERSON})::int`,
       })
       .from(schema.campaignEvents)
       .where(inArray(schema.campaignEvents.campaignId, rows.map((r) => r.id)))
@@ -312,7 +322,9 @@ export async function getCampaignStats(organizationId: string, campaignId: numbe
     .select({
       type: schema.campaignEvents.type,
       count: sql<number>`count(*)::int`,
-      unique: sql<number>`count(distinct ${schema.campaignEvents.recipientEmail})::int`,
+      // People, keyed like the frequency cap — a phone-only patient's text
+      // has no address, and `distinct recipient_email` dropped them.
+      unique: sql<number>`count(distinct ${FUNNEL_PERSON})::int`,
     })
     .from(schema.campaignEvents)
     .innerJoin(schema.campaigns, eq(schema.campaigns.id, schema.campaignEvents.campaignId))
@@ -334,14 +346,18 @@ export async function getCampaignStats(organizationId: string, campaignId: numbe
     uniqueOpens: 0,
     uniqueClicks: 0,
   }
+  // Every stage but the raw open/click load counts is PEOPLE: one send per
+  // person per campaign (the webhook once doubled every 'sent' row), one
+  // delivery, one bounce. `open`/`click` keep the raw load counts for the
+  // editor's tooltip; the rates read uniqueOpens/uniqueClicks.
   for (const r of rows) {
     switch (r.type) {
-      case 'sent': stats.sent = r.count; break
-      case 'delivered': stats.delivered = r.count; break
+      case 'sent': stats.sent = r.unique; break
+      case 'delivered': stats.delivered = r.unique; break
       case 'open': stats.open = r.count; stats.uniqueOpens = r.unique; break
       case 'click': stats.click = r.count; stats.uniqueClicks = r.unique; break
-      case 'bounce': stats.bounce = r.count; break
-      case 'unsubscribe': stats.unsubscribe = r.count; break
+      case 'bounce': stats.bounce = r.unique; break
+      case 'unsubscribe': stats.unsubscribe = r.unique; break
     }
   }
   return stats

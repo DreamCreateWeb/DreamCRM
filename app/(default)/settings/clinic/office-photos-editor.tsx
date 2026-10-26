@@ -15,6 +15,15 @@ function uid() {
   return Math.random().toString(36).slice(2, 10)
 }
 
+/**
+ * The office-photo gallery editor: upload, focus point, caption — and since
+ * 2026-10-26 a DESCRIPTION (`alt`). The photo shape had carried `alt` from
+ * day one and nothing could fill it, so every gallery read "image" ×8 to a
+ * screen reader and the site-health "Image alt text" line never looked. The
+ * caption stays the visible line under the photo; the description is what a
+ * screen reader and Google read, and the site falls back to the caption
+ * when it is blank (`officePhotoAlt`).
+ */
 export default function OfficePhotosEditor({ name, defaultValue }: Props) {
   const [items, setItems] = useState<ClinicOfficePhoto[]>(defaultValue ?? [])
   const [uploading, setUploading] = useState(false)
@@ -61,31 +70,47 @@ export default function OfficePhotosEditor({ name, defaultValue }: Props) {
       ) : (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
           {items.map((p, i) => (
-            <div key={p.id} className="relative group">
-              <FocalPointPicker
-                compact
-                label={`Focus point for photo ${i + 1}`}
-                src={p.url}
-                aspectClass="aspect-[4/5]"
-                value={p.position ?? '50% 50%'}
-                onChange={(pos) => update(i, { position: pos })}
-              />
-              <button
-                type="button"
-                onClick={() => remove(i)}
-                className="absolute top-1.5 right-1.5 w-7 h-7 rounded-full bg-white/90 hover:bg-white text-gray-700 hover:text-red-600 text-sm font-semibold opacity-0 group-hover:opacity-100 transition shadow z-10"
-                aria-label="Remove photo"
-              >
-                ×
-              </button>
-              <input
-                type="text"
-                value={p.caption ?? ''}
-                onChange={(e) => update(i, { caption: e.target.value })}
-                placeholder="Caption (optional)"
-                className="absolute bottom-0 left-0 right-0 px-2 py-1 text-xs bg-white/95 border-t border-gray-200 focus:outline-none focus:bg-white z-10"
-                maxLength={120}
-              />
+            <div key={p.id} className="min-w-0">
+              <div className="relative group">
+                <FocalPointPicker
+                  compact
+                  label={`Focus point for photo ${i + 1}`}
+                  src={p.url}
+                  aspectClass="aspect-[4/5]"
+                  value={p.position ?? '50% 50%'}
+                  onChange={(pos) => update(i, { position: pos })}
+                />
+                <button
+                  type="button"
+                  onClick={() => remove(i)}
+                  className="absolute top-1.5 right-1.5 w-7 h-7 rounded-full bg-white/90 hover:bg-white text-gray-700 hover:text-red-600 text-sm font-semibold opacity-0 group-hover:opacity-100 transition shadow z-10"
+                  aria-label="Remove photo"
+                >
+                  ×
+                </button>
+                <input
+                  type="text"
+                  value={p.caption ?? ''}
+                  onChange={(e) => update(i, { caption: e.target.value })}
+                  placeholder="Caption (optional)"
+                  aria-label={`Caption for photo ${i + 1}`}
+                  className="absolute bottom-0 left-0 right-0 px-2 py-1 text-xs bg-white/95 border-t border-gray-200 focus:outline-none focus:bg-white z-10"
+                  maxLength={120}
+                />
+              </div>
+              <label className="block mt-1.5">
+                <span className="block text-[12px] text-gray-500 dark:text-gray-400">
+                  Describe this photo (for screen readers and Google)
+                </span>
+                <input
+                  type="text"
+                  value={p.alt ?? ''}
+                  onChange={(e) => update(i, { alt: e.target.value })}
+                  placeholder="e.g. Our front desk and waiting area"
+                  className="mt-0.5 w-full rounded-[var(--r-md)] border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 py-1 text-xs text-gray-800 dark:text-gray-100 focus:outline-none focus:border-gray-400"
+                  maxLength={160}
+                />
+              </label>
             </div>
           ))}
         </div>

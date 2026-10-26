@@ -40,8 +40,9 @@ The five v1 rules still bind:
    now the **dream-blue gradient bubble**. Destructive = `danger`, never
    adjacent to the primary.
 3. **Every encoding is explained** — `<EncodingLegend>` wherever glyphs,
-   aging, or coded pills appear; every mark carries `title` + `aria-label`;
-   color never carries meaning alone.
+   aging, or coded pills appear; every mark carries `title` + `aria-label` +
+   `role="img"` (2026-10-26 — a bare span with an `aria-label` is announced
+   by nothing); color never carries meaning alone.
 4. **Readability floor** — nothing under 12px (`text-xs`); primary content
    `text-sm`+; no decorative-gray meaningful text; `tabular-nums` everywhere
    numeric; zeros keep full contrast.
@@ -247,7 +248,17 @@ uppercase tracking-wider` ink-500; the page-title eyebrow may be teal-700.
   - **Text-size setting**: per-device Standard/Large/Extra-large scales the
     ROOT font-size (`html.dc-text-lg`/`.dc-text-xl`).
   - Every icon-only interactive has `aria-label`; truncations carry
-    `title`; hit targets ≥40px for primary controls.
+    `title`; hit targets ≥40px for primary controls. In the dashboard CHROME
+    (header, drawer, tray, toast) every icon-only control IS a 40px box —
+    padding, never icon size — held by
+    `tests/design-system/chrome-controls.test.ts` (2026-10-26).
+  - **The `ink-*` ramp INVERTS in `.dark`** (`style.css`: ink-500 →
+    `#8290b3`, ink-400 → `#66779e`), so a bare `text-ink-500` is the
+    readable quiet step in BOTH themes and needs no `dark:` half — unlike
+    `gray-*`, whose pair is `text-gray-500 dark:text-gray-400`. The chrome's
+    one-sided inks are graded by `tests/a11y/class-pairs.ts` rule 6b against
+    `surface-1` (`quiet-ink.test.ts`, zero exemptions); ink-400 is never
+    readable copy there (2026-10-26).
 - Public site keeps Fraunces/Inter; portal and marketing unchanged.
 
 ### 2.3 Radius scale (the bubble scale)
@@ -344,8 +355,11 @@ opacity/color fades. Hover motion gated `(hover:hover) and (pointer:fine)`.
 ## Part 4 — Shell & navigation v3
 
 **Sidebar (3 states, structure unchanged):** expanded 248px, icon rail
-64px (`[` toggle), overlay drawer (<`lg`). Rail mode keeps hover-flyout
-labels. Anatomy (logo → org label → cockpit ⌘1/2/3 → groups → Settings +
+64px (`[` toggle), overlay drawer (<`lg`). Closed, the drawer is `inert`
+(out of the tab order and the accessibility tree); open, it traps focus
+(the Close button first), closes on Escape and returns focus to the
+hamburger (2026-10-26, `useFocusTrap` + `useMediaQuery(BELOW_LG)`). Rail
+mode keeps hover-flyout labels. Anatomy (logo → org label → cockpit ⌘1/2/3 → groups → Settings +
 avatar) unchanged from v2 Part 4.
 
 **v3 states:** active = **full gradient pill** (`rounded-full`,
@@ -355,7 +369,12 @@ ink/4% bg, `rounded-full`. Badges: **amber** count pills (warn semantics,
 never brand); rail shows a dot, the flyout shows the number.
 
 **Header (56px):** unchanged structurally — hamburger + title left;
-`+ New ▾` quick-create, bell, demo chip, help, theme, avatar right.
+`+ New ▾` quick-create, bell, demo chip, help, theme, avatar right. The
+theme control is a `role="switch"` reading the RESOLVED theme (a
+device-dark user's first click goes light, never a dead click); Settings →
+Account carries the three-way Light / Dark / Match device choice
+(`components/ui/theme-choice.tsx`). The notification tray anchors inside
+the viewport below `sm` (`inset-x-3`), never off the right edge.
 
 **Keyboard (unchanged):** `⌘K` · `[` · `⌘1/2/3` · `C` · `G then P/A/L` ·
 `Esc`.
@@ -372,13 +391,13 @@ Import from `@/components/ui/...` — same inventory, re-skinned:
 | `ActionButton` | `action-button.tsx` | primary = dream gradient (`from-teal-600 to-teal-800`, white text BOTH themes, soft glow shadow, hover deepens), radius 12px via `.btn`, press scale(.97), breath on the page's single primary only (same span, mirrored: `from-teal-600 via-teal-800 to-teal-600`) · secondary = surface-2 + hairline · ghost = transparent teal-700 text · danger = rose. |
 | `StatusPill` | `status-pill.tsx` | pill radius; tone fills per Part 1 (info = violet, special = fuchsia); 12px floor; `title` explains. |
 | `FilterChip` | `filter-chip.tsx` | pill radius (`--r-xs` ≥8px or full pill); active = teal-500/10 bg + teal-700 text (selection ≠ status); count inside; `aria-pressed`. |
-| `GlyphCluster` | `glyph-cluster.tsx` | mechanics unchanged; registry ids only. |
+| `GlyphCluster` | `glyph-cluster.tsx` | registry ids only; each glyph is `role="img"` + `title` + `aria-label`; the cluster is a tap-to-list button for touch (`role="tooltip"` panel naming every flag, folded ones included) — never a row-level control. |
 | `EncodingLegend` | `encoding-legend.tsx` | popover = surface-1 + shadow-pop + `--r-lg`; violet info swatch, fuchsia special swatch. |
 | `EmptyState` | `empty-state.tsx` | surface-sunk well, `--r-md`; ink-600 copy; one primary CTA. The ONE sanctioned mascot home: the small SVG tooth may appear in empty states and the schedule-gap card — nowhere else. |
-| `BulkBar` | `bulk-bar.tsx` | floating surface-2 + shadow-pop + `--r-lg` (or pill); slides up fast; explicit verbs. |
+| `BulkBar` | `bulk-bar.tsx` | floating surface-2 + shadow-pop + `--r-lg` (or pill); slides up fast; explicit verbs. Viewport-bound: `inset-x-3` + wrapping below `sm`; centred and capped at `calc(100vw-1.5rem)` above. |
 | `KpiStat` | `kpi-stat.tsx` | Geist Mono numerals (text-3xl ink-900), ink-500 caps label, floating card, hover lift when drillable, count-up per Part 3, **heartbeat slot** (`spark` — law 7). |
 | `ProgressRing` | `progress-ring.tsx` | Share-of-whole heartbeat: brand ring fills once on mount (≤1.1s), % text inside, REQUIRED `label` aria + always paired with visible text; renders nothing at max ≤ 0; reduced-motion snaps. |
-| `FlashToast` | `flash-toast.tsx` | motion per Part 3; tone-tinted edge (info edge = violet). |
+| `FlashToast` | `flash-toast.tsx` | motion per Part 3; tone-tinted edge (info edge = violet). Dismiss ✕ on every toast; `urgent` persists until dismissed; the timer pauses on hover/focus; the provider is a QUEUE (3 visible, newest last, oldest non-urgent evicted first); clamped inside a phone's width; lifts above a mounted BulkBar by its measured height. |
 | **The chart kit** | `charts/` (`TrendChart`, `MiniTrend`; old `Sparkline` = compat wrapper) | THE single home for graphs (2026-07-26, Recharts). Series colors ride the validated `--color-chart-1..4` tokens ONLY — fixed order, dark-aware, never raw hex; TrendChart = axes + crosshair tooltip, MiniTrend = hover spark (law 7's heartbeat slot). LAW with CI teeth: no hand-rolled `<polyline>`/SVG charts — `tests/ui/chart-kit.test.tsx` fails the build. |
 
 Tables/agenda rows: header row surface-sunk + ink-500 caps labels; row

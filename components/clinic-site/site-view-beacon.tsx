@@ -14,6 +14,14 @@ import { usePathname } from 'next/navigation'
  *
  * - Runs client-side (useEffect) so SSR / prerender never count.
  * - Skips `?edit=1` Website Studio canvases (the clinic editing their own site).
+ * - Skips a verified EDITOR of this site altogether (`skip` — the layout's
+ *   own `canEdit`, the same read that gates the EditBridge). Every "View
+ *   live ↗" door on the hub, the Studio, Content and Pages opens the counted
+ *   route, and the dedupe is per browser session, so the owner's check after
+ *   each edit and the office manager's from her phone rolled into the hub's
+ *   "visits" and its ▲/▼ delta — a number that was largely the office
+ *   looking at itself. Platform admins in view-as demo mode are skipped by
+ *   the same read.
  * - Dedupes per browser session per public path, so refreshing or bouncing
  *   between two pages doesn't inflate — one count per page per session.
  *
@@ -21,7 +29,16 @@ import { usePathname } from 'next/navigation'
  * site is served under /site/<slug> internally, so we strip that prefix before
  * reporting (the rollup buckets the public shape patients actually visit).
  */
-export default function SiteViewBeacon({ orgId, slug }: { orgId: string; slug: string }) {
+export default function SiteViewBeacon({
+  orgId,
+  slug,
+  skip = false,
+}: {
+  orgId: string
+  slug: string
+  /** True for a verified editor of this clinic's site — never counted. */
+  skip?: boolean
+}) {
   // usePathname changes on client navigation, so the effect re-runs per page
   // without a full reload — exactly what we want. (We read edit-mode from
   // window.location in the effect rather than useSearchParams, which would
@@ -30,6 +47,8 @@ export default function SiteViewBeacon({ orgId, slug }: { orgId: string; slug: s
 
   useEffect(() => {
     if (!orgId) return
+    // The practice looking at its own site is not traffic.
+    if (skip) return
     // Don't count edit-mode canvases.
     try {
       if (new URLSearchParams(window.location.search).get('edit') === '1') return
@@ -70,7 +89,7 @@ export default function SiteViewBeacon({ orgId, slug }: { orgId: string; slug: s
       headers: { 'content-type': 'application/json' },
       body: payload,
     }).catch(() => {})
-  }, [orgId, slug, pathname])
+  }, [orgId, slug, pathname, skip])
 
   return null
 }

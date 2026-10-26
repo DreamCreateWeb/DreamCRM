@@ -18,6 +18,8 @@ import { getTagsForPatient } from '@/lib/services/patient-tags'
 import type { PatientTagView } from '@/lib/types/patient-tags'
 import { listAssignableStaff } from '@/lib/services/patient-followups'
 import { listScheduledForPatient, type ScheduledMessageView } from '@/lib/services/scheduled-messages'
+import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
+import { formatClinicDayTime } from '@/lib/format-datetime'
 import { listThreadActivity, type ActivityMarker } from '@/lib/services/thread-activity'
 import { EncodingLegend } from '@/components/ui/encoding-legend'
 import { MiniTrend } from '@/components/ui/charts'
@@ -102,7 +104,7 @@ export default async function ClinicMessagesView({
     limit: threadLimit,
   }
 
-  const [threadPage, stats, messageTemplates, members, perDay14, smsIdentity] = await Promise.all([
+  const [threadPage, stats, messageTemplates, members, perDay14, smsIdentity, timeZone] = await Promise.all([
     listPatientThreadsPage(ctx.organizationId, ctx.userId, filters),
     getInboxStats(ctx.organizationId, ctx.userId),
     listMessageTemplates(ctx.organizationId),
@@ -111,8 +113,13 @@ export default async function ClinicMessagesView({
     // Whether this clinic's texting is live — the composer's SMS option
     // says the true state (S4, law 3). Best-effort: unknown reads as off.
     getClinicSmsIdentity(ctx.organizationId).catch(() => ({ ok: false as const, reason: 'driver_off' as const })),
+    // A snooze's "until" is a server-side time string, so it is formatted
+    // here against the clinic's wall-clock (the timezone rule), never in
+    // the browser.
+    getClinicTimeZone(ctx.organizationId),
   ])
   const smsLive = smsIdentity.ok
+  const snoozeLabel = (until: Date | null) => (until ? formatClinicDayTime(until, timeZone) : null)
 
   // The page's ONE heartbeat (law 7): the 14-day conversation pulse —
   // patient messages sent + received per clinic-local day. Decorative —
@@ -136,6 +143,8 @@ export default async function ClinicMessagesView({
     lastMessageChannel: t.lastMessageChannel,
     lastMessageAt: t.lastMessageAt ? t.lastMessageAt.toISOString() : null,
     status: t.status,
+    snoozeResurfaced: t.snoozeResurfaced,
+    snoozedUntilLabel: t.status === 'snoozed' && !t.snoozeResurfaced ? snoozeLabel(t.snoozedUntil) : null,
     assignedUserName: t.assignedUserName,
     starred: t.starred,
     urgency: t.urgency,
@@ -202,14 +211,22 @@ export default async function ClinicMessagesView({
       <div className="border-b border-[color:var(--color-hairline)] bg-[color:var(--color-surface-2)] px-4 py-2 flex items-center gap-2 flex-wrap shrink-0">
         {STATUS_FILTERS.map((f) => {
           const active = (filters.status ?? 'open') === f.key
-          const count = f.key === 'open' ? stats.open : f.key === 'archived' ? stats.archived : null
+          // Snoozed carries the count that MATTERS on it: snoozes that have
+          // run out and are back in Open already (the Open count includes
+          // them). A sleeping thread needs no number.
+          const count =
+            f.key === 'open' ? stats.open : f.key === 'archived' ? stats.archived : f.key === 'snoozed' ? stats.snoozedAvailable : null
+          const title =
+            f.key === 'snoozed' && stats.snoozedAvailable > 0
+              ? `Snoozed for later — ${stats.snoozedAvailable === 1 ? '1 snooze has' : `${stats.snoozedAvailable} snoozes have`} run out and ${stats.snoozedAvailable === 1 ? 'is' : 'are'} back in Open`
+              : STATUS_FILTER_TITLES[f.key ?? 'all']
           return (
             <FilterChip
               key={f.key ?? 'all'}
               href={buildHref(searchParams, { status: f.key, thread: undefined })}
               active={active}
               count={count != null && count > 0 ? count : undefined}
-              title={STATUS_FILTER_TITLES[f.key ?? 'all']}
+              title={title}
             >
               {f.label}
             </FilterChip>
@@ -270,12 +287,7 @@ export default async function ClinicMessagesView({
         >
           {/* Fixed search header — the conversation list scrolls beneath it. */}
           <div className="shrink-0 border-b border-[color:var(--color-hairline)] px-2.5 py-2">
-            <ThreadSearchInput
-              defaultQuery={filters.search ?? ''}
-              status={searchParams.status}
-              assignedTo={searchParams.assignedTo}
-              unread={searchParams.unread}
-            />
+            <ThreadSearchInput defaultQuery={filters.search ?? ''} baseParams={{ ...searchParams }} />
             {showPulse && (
               <div
                 className="mt-1.5 px-0.5 flex items-center justify-between gap-2"
@@ -367,6 +379,9 @@ export default async function ClinicMessagesView({
                 assignedUserId: activeThread.assignedUserId,
                 assignedUserName: activeThread.assignedUserName,
                 snoozedUntil: activeThread.snoozedUntil ? activeThread.snoozedUntil.toISOString() : null,
+                snoozeResurfaced: activeThread.snoozeResurfaced,
+                snoozedUntilLabel:
+                  activeThread.status === 'snoozed' && !activeThread.snoozeResurfaced ? snoozeLabel(activeThread.snoozedUntil) : null,
                 lastMessageChannel: activeThread.lastMessageChannel,
                 starred: activeThread.starred,
                 urgency: activeThread.urgency,

@@ -138,7 +138,7 @@ const INCLUDED: Array<{ group: string; glyph: ToneTileGlyph; rows: string[] }> =
       'Practice analytics',
       'Online shop + membership plans',
       'Online balance payments (via Stripe Connect)',
-      'Open Dental two-way sync (official API)',
+      'PMS sync through the NexHealth bridge (Open Dental, Dentrix, Eaglesoft + more)',
     ],
   },
 ]
@@ -169,8 +169,8 @@ const PRICING_FAQS: Array<{ q: string; a: string }> = [
       'rate stays locked for as long as you’re a subscriber — new modules land on the same price.',
   },
   {
-    q: 'What does Open Dental access cost on their side?',
-    a: 'Open Dental bills API access for your office (around $30/mo, paid to Open Dental). That fee is theirs, not ours — we surface it up front because surprise line items are how trust dies.',
+    q: 'What does connecting my PMS cost?',
+    a: 'Nothing from us. One bridge reaches Open Dental, Dentrix, Eaglesoft and most other systems, and we set it up with you in a short install — it’s part of the plan, not a line item. If your PMS vendor charges for access on their side, we tell you before you connect, because surprise line items are how trust dies.',
   },
   {
     q: 'Do you take a cut of my shop or membership revenue?',

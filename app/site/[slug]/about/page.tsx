@@ -16,6 +16,7 @@ import type {
   ClinicTestimonial,
   ClinicOfficePhoto,
 } from '@/lib/types/clinic-content'
+import { officePhotoAlt } from '@/lib/types/clinic-content'
 import { readableInk, brandFill } from '@/lib/clinic-site-theme'
 import { aboutOrganizationJsonLd } from '@/lib/clinic-site-jsonld'
 import {
@@ -464,7 +465,7 @@ export default async function AboutPage({ params }: Props) {
                       <SiteImage
                         displayWidth={384}
                         src={p.url}
-                        alt={p.alt ?? ''}
+                        alt={officePhotoAlt(p, name)}
                         className="w-full aspect-[4/5] object-cover transition-transform duration-700 ease-out group-hover:scale-[1.04]"
                         style={p.position ? { objectPosition: p.position } : undefined}
                         loading="lazy"
@@ -511,7 +512,7 @@ export default async function AboutPage({ params }: Props) {
 
       <ClosingCTA
         heading={copyOverride(copyOverrides, 'about.cta.heading', 'Ready to come see us?')}
-        subhead={copyOverride(copyOverrides, 'about.cta.subhead', 'Same-week visits are usually possible. We’d love to meet you.')}
+        subhead={copyOverride(copyOverrides, 'about.cta.subhead', 'We’d love to meet you — book online or give us a call.')}
         editKeyPrefix="about.cta"
         primary={{ label: bookLabel, href: bookHref }}
         secondary={

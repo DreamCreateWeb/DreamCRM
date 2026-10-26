@@ -6,7 +6,7 @@ import { recordAction } from '@/lib/services/action-ledger'
 import { resolvePatientAudience, type PatientAudienceFilterT } from './marketing'
 import { getAutomationTemplate } from './marketing-templates'
 import { getClinicTimeZone } from './clinic-timezone'
-import { clinicDayStart } from '@/lib/clinic-timezone'
+import { clinicDayStart, clinicLocalDate, resolveClinicTimeZone } from '@/lib/clinic-timezone'
 import { getSharedBrain } from './shared-brain'
 import { DEFAULT_SEND_HOUR } from '@/lib/shared-brain'
 import type { RetentionKind } from '@/lib/types/retention'
@@ -101,29 +101,45 @@ const KIND_FILTERS: Record<RetentionKind, PatientAudienceFilterT> = {
   welcome: WELCOME_FILTER,
 }
 
-/** UTC months (0-indexed) the benefits automation is live: Oct, Nov, Dec. */
-const BENEFITS_MONTHS = new Set([9, 10, 11])
+/** Clinic-local months (1–12) the benefits automation is live: Oct, Nov, Dec. */
+const BENEFITS_MONTHS = new Set([10, 11, 12])
 
 const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December',
 ]
 
-/** UTC calendar-day key (YYYY-MM-DD) — stable across a cron's runs that day. */
-function ymd(now: Date): string {
-  return now.toISOString().slice(0, 10)
+// EVERY KEY IS THE CLINIC'S CALENDAR (CLAUDE.md timezone rule 2, 2026-10-26).
+// These were UTC: from ~7pm Central on the last day of a month the birthday
+// key named tomorrow, the monthly keys rolled over early, and the Oct–Dec
+// benefits season opened and closed 5–8 hours off for every US clinic.
+
+const pad = (n: number) => String(n).padStart(2, '0')
+
+/** Clinic-local calendar-day key (YYYY-MM-DD) — stable across a cron's runs
+ *  that day. */
+function ymd(now: Date, timeZone: string): string {
+  const d = clinicLocalDate(now, timeZone)
+  return `${d.year}-${pad(d.month)}-${pad(d.day)}`
 }
-/** UTC year-month key (YYYY-MM). */
-function yearMonth(now: Date): string {
-  return now.toISOString().slice(0, 7)
+/** Clinic-local year-month key (YYYY-MM). */
+function yearMonth(now: Date, timeZone: string): string {
+  const d = clinicLocalDate(now, timeZone)
+  return `${d.year}-${pad(d.month)}`
 }
-/** UTC week key — the Monday of the current week as YYYY-MM-DD. Paired with
- *  the 7-day welcome window so each new patient lands in exactly one run. */
-function weekKey(now: Date): string {
-  const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()))
+/** Clinic-local week key — the Monday of the current week as YYYY-MM-DD.
+ *  Paired with the 7-day welcome window so each new patient lands in exactly
+ *  one run. */
+function weekKey(now: Date, timeZone: string): string {
+  const l = clinicLocalDate(now, timeZone)
+  const d = new Date(Date.UTC(l.year, l.month - 1, l.day))
   const day = d.getUTCDay() // 0=Sun
   d.setUTCDate(d.getUTCDate() - ((day + 6) % 7)) // back to Monday
   return d.toISOString().slice(0, 10)
+}
+/** Is the benefits season open on the clinic's own calendar? */
+function benefitsInSeason(now: Date, timeZone: string): boolean {
+  return BENEFITS_MONTHS.has(clinicLocalDate(now, timeZone).month)
 }
 
 /**
@@ -190,6 +206,8 @@ export async function runRetentionAutomations(opts?: { now?: Date }): Promise<Re
       reactivation: schema.clinicProfile.lapsedReactivationEnabled,
       benefits: schema.clinicProfile.benefitsAutoSendEnabled,
       welcome: schema.clinicProfile.welcomeAutoSendEnabled,
+      // The clinic's own calendar decides its keys and its season.
+      timezone: schema.clinicProfile.timezone,
       isDemo: schema.organization.isDemo,
     })
     .from(schema.clinicProfile)
@@ -204,8 +222,9 @@ export async function runRetentionAutomations(opts?: { now?: Date }): Promise<Re
   const due = clinics.filter(
     (c): c is (typeof clinics)[number] & { organizationId: string } => {
       if (!c.organizationId || c.isDemo || shutDown.has(c.organizationId)) return false
-      // Benefits season is Oct–Dec — outside it the toggle stays armed but quiet.
-      const benefitsOn = c.benefits === 1 && BENEFITS_MONTHS.has(now.getUTCMonth())
+      // Benefits season is Oct–Dec on the CLINIC's calendar — outside it the
+      // toggle stays armed but quiet.
+      const benefitsOn = c.benefits === 1 && benefitsInSeason(now, resolveClinicTimeZone(c.timezone))
       return c.birthday === 1 || c.reactivation === 1 || benefitsOn || c.welcome === 1
     },
   )
@@ -216,23 +235,24 @@ export async function runRetentionAutomations(opts?: { now?: Date }): Promise<Re
   // silently never reaching it.
   const sweep = await sweepClinics('retention-automations', due, (c) => c.organizationId, async (clinic) => {
     const orgId = clinic.organizationId
+    const tz = resolveClinicTimeZone(clinic.timezone)
     const birthdayOn = clinic.birthday === 1
     const reactivationOn = clinic.reactivation === 1
-    const benefitsOn = clinic.benefits === 1 && BENEFITS_MONTHS.has(now.getUTCMonth())
+    const benefitsOn = clinic.benefits === 1 && benefitsInSeason(now, tz)
     const welcomeOn = clinic.welcome === 1
     result.scanned++
 
     if (birthdayOn) {
-      await runOne(result, orgId, 'birthday', `birthday:${orgId}:${ymd(now)}`, now)
+      await runOne(result, orgId, 'birthday', `birthday:${orgId}:${ymd(now, tz)}`, now, tz)
     }
     if (reactivationOn) {
-      await runOne(result, orgId, 'reactivation', `reactivation:${orgId}:${yearMonth(now)}`, now)
+      await runOne(result, orgId, 'reactivation', `reactivation:${orgId}:${yearMonth(now, tz)}`, now, tz)
     }
     if (benefitsOn) {
-      await runOne(result, orgId, 'benefits', `benefits:${orgId}:${yearMonth(now)}`, now)
+      await runOne(result, orgId, 'benefits', `benefits:${orgId}:${yearMonth(now, tz)}`, now, tz)
     }
     if (welcomeOn) {
-      await runOne(result, orgId, 'welcome', `welcome:${orgId}:${weekKey(now)}`, now)
+      await runOne(result, orgId, 'welcome', `welcome:${orgId}:${weekKey(now, tz)}`, now, tz)
     }
   })
 
@@ -245,6 +265,7 @@ async function runOne(
   kind: RetentionKind,
   automationKey: string,
   now: Date,
+  timeZone: string,
 ): Promise<void> {
   try {
     // Idempotent: bail if this window's campaign already exists.
@@ -266,7 +287,7 @@ async function runOne(
     const filter = KIND_FILTERS[kind]
     // Resolve once, only to skip an empty send (no birthdays / nobody newly
     // lapsed). The authoritative resolution happens again at send time.
-    const recipients = await resolvePatientAudience(organizationId, filter)
+    const recipients = await resolvePatientAudience(organizationId, filter, { timeZone })
     if (recipients.length === 0) {
       result.emptyAudience++
       return
@@ -276,23 +297,22 @@ async function runOne(
     // The org's edited message when one exists, else the system default —
     // the clinic owns the words that go out under their name.
     const template = await getAutomationTemplate(organizationId, kind)
+    const local = clinicLocalDate(now, timeZone)
     const name =
       kind === 'birthday'
-        ? `Birthday greetings · ${MONTH_NAMES[now.getUTCMonth()]} ${now.getUTCDate()}`
+        ? `Birthday greetings · ${MONTH_NAMES[local.month - 1]} ${local.day}`
         : kind === 'benefits'
-          ? `Use your benefits · ${MONTH_NAMES[now.getUTCMonth()]} ${now.getUTCFullYear()}`
+          ? `Use your benefits · ${MONTH_NAMES[local.month - 1]} ${local.year}`
           : kind === 'welcome'
             ? `New-patient welcome · week of ${automationKey.slice(-10)}`
-            : `Reactivation · ${MONTH_NAMES[now.getUTCMonth()]} ${now.getUTCFullYear()}`
+            : `Reactivation · ${MONTH_NAMES[local.month - 1]} ${local.year}`
 
     // Send window: aim for the learned hour clinic-local instead of whatever
     // UTC hour the cron happened to fire at — no more 3 AM birthday emails.
     // The hour comes from the shared brain (Phase 4); best-effort, because a
     // clinic's campaign must never fail to schedule over a config read.
-    const [timeZone, brain] = await Promise.all([
-      getClinicTimeZone(organizationId).catch(() => null),
-      getSharedBrain().catch(() => ({ sendHour: DEFAULT_SEND_HOUR })),
-    ])
+    // The zone already rode in from the clinic's own row.
+    const brain = await getSharedBrain().catch(() => ({ sendHour: DEFAULT_SEND_HOUR }))
     // THE EXPLORATION ARM (Phase 4 open item #2). Without a deliberate
     // holdout the brain can never learn: every automated send aims at the
     // hour in force, so one bucket fills and `learnBestSendHour` correctly
@@ -542,16 +562,21 @@ export async function getAutomationStats(
 export async function previewRetentionAudiences(
   organizationId: string,
 ): Promise<{ birthdaysThisMonth: number; newlyLapsed: number; benefitsEligible: number; newThisWeek: number }> {
+  const timeZone = await getClinicTimeZone(organizationId)
   const [birthdayRows, lapsedRows, benefitsRows, welcomeRows] = await Promise.all([
-    resolvePatientAudience(organizationId, {
-      birthdayThisMonth: true,
-      requireEmailOptIn: true,
-      requireSmsOptIn: false,
-      includeArchived: false,
-    }),
-    resolvePatientAudience(organizationId, REACTIVATION_FILTER),
-    resolvePatientAudience(organizationId, BENEFITS_FILTER),
-    resolvePatientAudience(organizationId, WELCOME_FILTER),
+    resolvePatientAudience(
+      organizationId,
+      {
+        birthdayThisMonth: true,
+        requireEmailOptIn: true,
+        requireSmsOptIn: false,
+        includeArchived: false,
+      },
+      { timeZone },
+    ),
+    resolvePatientAudience(organizationId, REACTIVATION_FILTER, { timeZone }),
+    resolvePatientAudience(organizationId, BENEFITS_FILTER, { timeZone }),
+    resolvePatientAudience(organizationId, WELCOME_FILTER, { timeZone }),
   ])
   return {
     birthdaysThisMonth: birthdayRows.length,

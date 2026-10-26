@@ -2,16 +2,19 @@
 
 import { useState, useTransition } from 'react'
 import { claimOfferAction } from './actions'
+import {
+  PORTAL_INK as INK,
+  PORTAL_MUTED as MUTED,
+  PORTAL_BORDER as BORDER,
+  PORTAL_ERROR,
+} from '@/components/patient-portal/ui'
 
 /**
  * The one-button claim card. States: pending (Claim this time) → claimed
  * (you're booked ✓) · taken/lost (someone beat you — book online / call) ·
- * expired (the time passed). Warm, anti-shame copy throughout.
+ * expired (the time passed). Warm, anti-shame copy throughout. Inks and the
+ * error tone come from the portal kit — one home, graded once.
  */
-
-const INK = '#1C1A17'
-const MUTED = '#6B635A'
-const BORDER = '#E8E2D9'
 
 type Status = 'pending' | 'claimed' | 'lost' | 'expired'
 
@@ -162,7 +165,7 @@ export default function ClaimForm({
         {pending ? 'Claiming…' : 'Claim this time'}
       </button>
       {error && (
-        <p className="mt-3 text-sm" style={{ color: '#B4231F' }} role="alert">
+        <p className="mt-3 text-sm" style={{ color: PORTAL_ERROR }} role="alert">
           {error}
         </p>
       )}

@@ -279,16 +279,16 @@ describe('assertion 2 — no plan price is spelled as a literal, anywhere (DREAM
         'the absence assertions above are worth nothing',
     ).toContain('lib/marketing/comparisons.ts')
 
-    // The pricing FAQ names Open Dental's ~$30/mo API fee and the $20/mo
-    // social add-on. Both must survive the rule — they are somebody else's
-    // price and an add-on, not the plan.
+    // The pricing FAQ names the $20/mo social add-on. It must survive the
+    // rule — an add-on, not the plan. (The FAQ's other probe literal, Open
+    // Dental's "~$30/mo API fee", left with the retired OD-direct connector;
+    // `tests/marketing/seo.test.ts` holds that claim at zero.)
     const pricing = 'app/(marketing)/pricing/page.tsx'
     const addOns = planPriceHits(
       pricing,
       readFileSync(join(process.cwd(), pricing), 'utf8'),
-      new Set([20, 30]),
+      new Set([20]),
     ).map((h) => h.value)
-    expect(addOns).toContain(30)
     expect(addOns).toContain(20)
   })
 

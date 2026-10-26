@@ -130,7 +130,7 @@ const BELIEFS: Array<{
   {
     glyph: 'flag',
     title: 'Our gaps are marked',
-    body: 'No VoIP phones. No SMS yet — it’s on the roadmap, not on the invoice. Open Dental’s API fee is theirs and we say so. Every comparison page on this site lists what the other vendor does better. We’d rather lose a deal honestly than win one that turns into a support ticket titled “this isn’t what I was told.”',
+    body: 'No VoIP phones. No SMS yet — it’s on the roadmap, not on the invoice. Every comparison page on this site lists what the other vendor does better. We’d rather lose a deal honestly than win one that turns into a support ticket titled “this isn’t what I was told.”',
     proof: { href: '/compare', label: 'Read the comparisons' },
   },
   {

@@ -39,7 +39,7 @@ import type { CursorStop } from '@/components/marketing/cinema-fx'
  * ── THE STORY, IN SIX BEATS ──────────────────────────────────────────────
  *
  *   01 the queue     `6 mo overdue`     · the recall panel naming why
- *   02 the text      `Confirmed · Thu`  · the SMS thread and the PMS write
+ *   02 the email     `Confirmed · Thu`  · the invitation, her one tap, the schedule
  *   03 the chair     `Confirmed · Thu`  · the Dream Team's card, one tap
  *   04 the balance   `Balance cleared`  · her portal and the ledger
  *   05 the review    `Review received`  · her words, live on the site
@@ -56,7 +56,7 @@ import type { CursorStop } from '@/components/marketing/cinema-fx'
  * ceiling of ZERO with every pair graded on its own ground (`BRAND.md` Part
  * 7):
  *
- *   `#7C4A05` on `#FDF0D8`  6.56   amber pill  (needs a text / overdue)
+ *   `#7C4A05` on `#FDF0D8`  6.56   amber pill  (needs a nudge / overdue)
  *   `#04543C` on `#D7F0E3`  7.47   green pill  (confirmed / paid / handled)
  *   `#4C2CB0` on `#EDE6FE`  7.56   violet pill (balance cleared / live)
  *   `#86206F` on `#FBE3F8`  7.12   pink pill   (review received)
@@ -218,8 +218,8 @@ function Avatar({ initials, anchor }: { initials: string; anchor?: boolean }) {
 /* ── The queue (every scene) ────────────────────────────────────────────── */
 
 const QUEUE: ReadonlyArray<{ t: string; name: string; visit: string; status: string; tone: StageTone; initials: string }> = [
-  { t: '09:30', name: 'Liam Brooks', visit: 'Checkup · 30 min', status: 'Needs a text', tone: 'warn', initials: 'LB' },
-  { t: '13:15', name: 'Priya Raman', visit: 'Whitening · 30 min', status: 'Needs a text', tone: 'warn', initials: 'PR' },
+  { t: '09:30', name: 'Liam Brooks', visit: 'Checkup · 30 min', status: 'Needs a nudge', tone: 'warn', initials: 'LB' },
+  { t: '13:15', name: 'Priya Raman', visit: 'Whitening · 30 min', status: 'Needs a nudge', tone: 'warn', initials: 'PR' },
   { t: '10:00', name: 'Ana Reyes', visit: 'Hygiene · 45 min', status: 'Confirmed', tone: 'ok', initials: 'AR' },
   { t: '11:30', name: 'Mara Kline', visit: 'Crown seat · 60 min', status: 'Confirmed', tone: 'ok', initials: 'MK' },
   { t: '14:15', name: 'Tom Okafor', visit: 'Filling · 45 min', status: 'Confirmed', tone: 'ok', initials: 'TO' },
@@ -394,7 +394,7 @@ function RecallPanel() {
       <p className={`flex items-center justify-between text-gray-600 ${MONO_LABEL}`}>
         Recall queue · found overnight
         <Beat as="span" b={0.62} d={0.08} kind="pop" data-anchor="queued">
-          <Pill tone="ok">4 texts queued</Pill>
+          <Pill tone="ok">4 reminders queued</Pill>
         </Beat>
       </p>
       <ul className="mt-3 grid gap-2">
@@ -420,8 +420,19 @@ function RecallPanel() {
   )
 }
 
-/* ── Scene 02 · the text that books ──────────────────────────────────────── */
+/* ── Scene 02 · the email that books ─────────────────────────────────────── */
 
+/**
+ * STAGED ON THE CHANNEL THAT IS LIVE. The product sends the recall invitation
+ * by EMAIL, from the practice's own name, with a one-tap "Book a time" button
+ * that lands on a real opening — that is the whole path a patient takes
+ * today. Two-way SMS is the gap the Honest-by-default tenet marks on this
+ * same page and the comparison matrix pins at "no", so the first draft's SMS
+ * thread ("Yes please") showed a reply-to-book the product does not have.
+ * The PMS line says "once it is connected": write-back exists and is off by
+ * default, flipped per practice by the platform — the schedule is the thing
+ * that is always true.
+ */
 function ThreadPanel() {
   return (
     <div className={`${PANEL} mkt-depth-2 p-4 lg:p-5`} style={{ borderColor: DAY_WIRE }}>
@@ -430,13 +441,14 @@ function ThreadPanel() {
           <Avatar initials={ROSA.initials} anchor />
           <span className="truncate text-[0.95rem] font-bold text-gray-950">{ROSA.name}</span>
         </span>
-        <span className={`shrink-0 text-gray-600 ${MONO_LABEL}`}>SMS · Today</span>
+        <span className={`shrink-0 text-gray-600 ${MONO_LABEL}`}>EMAIL · Today</span>
       </div>
 
       <div className="mt-4 grid gap-2.5">
         <Beat b={0.08} d={0.1} kind="slide">
           <Bubble at="Dream Dental · 4:09pm">
-            Hi Rosa — it has been a while since your last clean. We have 10:45 on Thursday. Want it?
+            Hi Rosa — it has been a while since your last clean. We have 10:45 on Thursday.
+            <span className="mt-2 inline-block rounded-lg bg-teal-700 px-3 py-1.5 text-[0.82rem] font-bold text-white">Book a time</span>
           </Bubble>
         </Beat>
         <Beat b={0.26} d={0.05} kind="rise" className="flex justify-end px-2">
@@ -449,12 +461,12 @@ function ThreadPanel() {
         <Beat b={0.4} d={0.08} kind="pop" className="flex justify-end">
           {/* White on `violet-700` (#5D47DE) is 6.14 — axe measures it on every run. */}
           <span className="max-w-[88%] rounded-2xl rounded-br-md bg-violet-700 px-3.5 py-2.5 text-white" data-anchor="reply">
-            <span className={`block text-white ${MONO_LABEL}`}>Rosa · 4:12pm</span>
-            <span className="mt-1 block text-[0.95rem] font-semibold leading-snug">Yes please — Thursday 10:45 works.</span>
+            <span className={`block text-white ${MONO_LABEL}`}>Rosa · 4:12pm · tapped Book a time</span>
+            <span className="mt-1 block text-[0.95rem] font-semibold leading-snug">Thursday 10:45 — booked.</span>
           </span>
         </Beat>
         <Beat b={0.56} d={0.08} kind="slide">
-          <Bubble at="Dream Dental · 4:12pm">Booked. You will get a reminder the night before.</Bubble>
+          <Bubble at="Dream Dental · 4:12pm">Confirmation sent. She gets a reminder the night before.</Bubble>
         </Beat>
       </div>
 
@@ -467,7 +479,7 @@ function ThreadPanel() {
       >
         <Dot tone="ok" />
         <span>
-          Written to your PMS at 4:12pm under its own audit trail — appointment <span className="font-bold">#48213</span>
+          On your schedule at 4:12pm — and in your PMS once it is connected, under its own audit trail
         </span>
       </Beat>
     </div>
@@ -639,7 +651,7 @@ function PhonePanel() {
 /* ── Scene 05 · the review that arrives ──────────────────────────────────── */
 
 const REVIEW =
-  '“They texted me instead of leaving a voicemail I would never listen to. Booked it in about nine seconds, and I paid on my phone in the car park.”'
+  '“They emailed me a real time instead of leaving a voicemail I would never listen to. Booked it in one tap, and I paid on my phone in the car park.”'
 
 function ReviewPanel() {
   return (
@@ -676,7 +688,7 @@ function ReviewPanel() {
           </span>
           <span className="block px-2.5 py-2.5">
             <Stars small />
-            <span className="mt-1 block text-[0.8rem] leading-snug text-gray-950">&ldquo;They texted me instead of leaving a voicemail…&rdquo;</span>
+            <span className="mt-1 block text-[0.8rem] leading-snug text-gray-950">&ldquo;They emailed me a real time instead of leaving a voicemail…&rdquo;</span>
             <span className="mt-1 block text-[0.78rem] text-gray-600">Rosa S. · verified patient</span>
           </span>
         </Beat>
@@ -764,7 +776,7 @@ function WeekPanel() {
             {[
               ['Google profile', 4],
               ['Your website', 3],
-              ['Recall texts', 2],
+              ['Recall emails', 2],
             ].map(([k, n], i) => (
               <Beat as="li" key={String(k)} b={0.46 + i * 0.05} d={0.08} kind="slide" className="flex items-center justify-between rounded-lg px-2.5 py-1.5" style={{ backgroundColor: STAGE_CANVAS }}>
                 <span className="text-gray-950">{k}</span>
@@ -816,11 +828,11 @@ function WeekPanel() {
 const LEDGER_ROWS: ReadonlyArray<ReadonlyArray<{ t: string; body: string; tone: StageTone; b: number }>> = [
   [
     { t: '6:02am', body: 'Recall queue found Rosa Silva — 14 months since her last visit.', tone: 'warn', b: 0.16 },
-    { t: '6:15am', body: '4 reminder texts queued for this morning. Nobody was asked.', tone: 'ok', b: 0.48 },
+    { t: '6:15am', body: '4 reminders queued for this morning. Nobody was asked.', tone: 'ok', b: 0.48 },
     { t: '7:40am', body: 'Overnight, 3 of 6 confirmed themselves.', tone: 'ok', b: 0.72 },
   ],
   [
-    { t: '4:09pm', body: 'Texted Rosa Silva — Thursday 10:45 offered.', tone: 'info', b: 0.14 },
+    { t: '4:09pm', body: 'Emailed Rosa Silva — Thursday 10:45 offered.', tone: 'info', b: 0.14 },
     { t: '4:12pm', body: 'She said yes. Appointment #48213 written to your PMS.', tone: 'ok', b: 0.58 },
     { t: '4:12pm', body: 'Reminder scheduled for Wednesday evening.', tone: 'ok', b: 0.78 },
   ],
@@ -876,7 +888,7 @@ function LedgerStrip({ scene }: { scene: number }) {
  */
 const TOASTS: ReadonlyArray<{ eyebrow: string; body: string; tone: StageTone; b: number; out: number } | null> = [
   { eyebrow: 'Recall queue', body: '4 patients found overnight', tone: 'warn', b: 0.5, out: 0.82 },
-  { eyebrow: 'New text · Rosa Silva', body: '“Yes please — Thursday 10:45 works.”', tone: 'info', b: 0.42, out: 0.74 },
+  { eyebrow: 'Booked · Rosa Silva', body: 'Thursday 10:45 — one tap on Book a time.', tone: 'info', b: 0.42, out: 0.74 },
   { eyebrow: 'Dream Team', body: 'Sent to 38 patients', tone: 'ok', b: 0.64, out: 0.9 },
   { eyebrow: 'Payment received', body: '$184.00 · Rosa Silva', tone: 'ok', b: 0.54, out: 0.84 },
   { eyebrow: 'New review · 5★', body: 'Rosa S. · unprompted', tone: 'praise', b: 0.46, out: 0.76 },

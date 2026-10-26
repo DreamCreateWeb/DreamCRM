@@ -88,6 +88,172 @@ export interface ChangelogEntry {
 
 export const CHANGELOG_ENTRIES: ChangelogEntry[] = [
   {
+    weekOf: '2026-10-19',
+    title: 'Your icons, your photo, and an editor that no longer freezes',
+    summary:
+      'A week shaped by one practice’s first asks after going live on their own domain: the service icons are theirs to choose now, the empty photo spot on every design is a door, phone numbers read like phone numbers, and the one thing everyone called “the editor freezing” turned out to be a tab left open across one of our updates — it tells you now, and offers a refresh.',
+    items: [
+      {
+        kind: 'new',
+        glyph: 'globe',
+        title: 'Pick your own service icons',
+        body:
+          'Every service on your website showed a small symbol we chose. The icon is yours now: in Website Studio, click the icon beside any service and pick from a library of line icons you can search by what they mean, keep a symbol, upload your own image, or show none at all. The same picker opens from the services list under Website → Content, and every design, the services pages and the dashboard’s own list draw the icon the same way.',
+      },
+      {
+        kind: 'fixed',
+        glyph: 'globe',
+        title: 'You can put a photo in the empty hero',
+        body:
+          'On three of the six website designs, the practice-photo spot only appeared once a photo already existed — a practice starting without one saw a grey square and nothing to click, and the uploader could not be reached from the page at all. The empty spot is a door now on every design: hover it in Website Studio and it says “Add practice photo”.',
+      },
+      {
+        kind: 'fixed',
+        glyph: 'globe',
+        title: 'Phone numbers read like phone numbers',
+        body:
+          'A number imported from your practice software as bare digits printed exactly that way across your whole site — ten digits run together on sixty different lines. The site now dashes a bare number everywhere it appears, and leaves a number you typed with your own spacing exactly as you typed it. The headings on the services page are editable on the page now too, so “provided by” is yours to change like any other line.',
+      },
+      {
+        kind: 'fixed',
+        glyph: 'bolt',
+        title: 'The website editor no longer freezes after we ship an update',
+        body:
+          'Each time we shipped an update, a Website Studio tab opened before it would have its next save refused — and the editor sat on “Saving…” until you refreshed. It read as a freeze and it was the most common bad minute in the editor. Every save now catches that refusal, tells you an update landed, and offers one refresh; the rest of the dashboard does the same quietly when a tab has been open across an update. Everything you had already saved was always safe.',
+      },
+    ],
+  },
+  {
+    weekOf: '2026-10-12',
+    title: 'Financing on every design, and a Content page you can find',
+    summary:
+      'The patient-financing widgets from the week before were made to behave on all six website designs — fonts, brand colour, where the floating button sits — and the Website → Content page, which the hub had never linked and which stacked every form down one long screen, became a table of contents with one editor.',
+    items: [
+      {
+        kind: 'improved',
+        glyph: 'money',
+        title: 'Patient financing works on all six designs',
+        body:
+          'The financing widgets now take each design’s own fonts and your brand colour (a pale brand no longer washes out to white-on-white), the floating “Pay over time” button sits bottom-left, clear of your Call and Book buttons, and lifts above the chat bubble and the phone bar, and the financing page falls back to plain apply cards when a provider’s script cannot load — never a blank bar.',
+      },
+      {
+        kind: 'fixed',
+        glyph: 'globe',
+        title: 'The chat bubble no longer sits on the phone’s bottom bar',
+        body:
+          'On the designs that pin a full-width Call / Book bar to the bottom of a phone screen, the chat bubble — and the editor’s draft banner — sat right on top of it. Every floating control now measures that bar and lifts itself above it on the designs that have one, and stays exactly where it was on the designs that do not.',
+      },
+      {
+        kind: 'improved',
+        glyph: 'globe',
+        title: 'Website → Content is a table of contents, not a wall',
+        body:
+          'The Content page stacked every section’s form down one long page under a row of chips that clipped its last entries off the right edge. It is a rail and one editor now: the rail lists every section with its honest state in its own words — “9 services”, “2 partners”, “Not set yet” — and a count of how many are filled; the editor shows one section at a time with a “See it on your site” link to the page it appears on and an “Edit on the page” door into the Studio. The Website hub now links to Content beside Design and Pages, which it had never done.',
+      },
+    ],
+  },
+  {
+    weekOf: '2026-10-05',
+    title: 'Insurance at the front desk, financing on your site, and a front door on every feature',
+    summary:
+      'The biggest week since launch. Insurance checks reach real payers now, behind a one-button setup, and the printed sheet is the breakdown form the desk fills by phone — line for line, with a search for coverage when there is no card. Patient financing joined the website from each provider’s own kit. And every feature in the dashboard gained a front door, so a new practice meets a product that explains itself instead of sixty-five empty screens.',
+    items: [
+      {
+        kind: 'new',
+        glyph: 'shield',
+        title: 'Insurance checks, on for the practices that want them',
+        body:
+          'Daily → Insurance explains the tool in a few lines, an owner or admin turns it on with one button, and the practice’s NPI goes in once. From then on a check reaches the real payer, with 200 checks a month included; every answer says who gave it. The patient record remembers the card that was checked, so a dependent’s re-check carries the payer and the policyholder without retyping.',
+      },
+      {
+        kind: 'new',
+        glyph: 'shield',
+        title: 'The verification sheet, line for line',
+        body:
+          'The printed sheet is the breakdown form the front desk fills by phone: plan, group and employer; the payer’s phone and claims address; the deductible and what it applies to; seven coverage tiers; a line per procedure with what the plan pays, the allowance, and the last and next dates; replacement windows, age limits and downgrades — the payer’s answer where it answered and an honest blank where it did not. Facts about your own contract with a payer, like the fee schedule or whether it pays on seat or prep, are kept once per payer and fill every sheet. A “Full breakdown” button asks the payer about every code on the sheet and says plainly how many checks it took.',
+      },
+      {
+        kind: 'new',
+        glyph: 'shield',
+        title: 'No card? Find their coverage',
+        body:
+          'A patient with no card, or an expired one, used to mean phoning payers one by one. The check form can now search for coverage from a name, a birthday, a state and a ZIP — and, optionally, a Social Security number that is sent for the search and never stored — and hands back candidate cards for a person to compare and pick. Picking one fills the form; the benefits come through the same check as everyone else’s. Twenty searches a month are included, and the confirm names the cost before anything goes out.',
+      },
+      {
+        kind: 'fixed',
+        glyph: 'shield',
+        title: 'A real payer’s answer no longer prints blank',
+        body:
+          'The first real sheet for a child on a parent’s plan came out empty under thirty-two raw payer sentences. The payer labelled every plan rule as family-level and the reader only trusted individual rows; it now reads rules at any level, merges a line’s several rows, and sorts each sentence into the field it answers — the miscellaneous box on that answer went from thirty-two lines to one. The sheet also prints in order now; the patient’s own block had been cut off above the first page.',
+      },
+      {
+        kind: 'new',
+        glyph: 'money',
+        title: 'Patient financing on your website, from the provider’s own kit',
+        body:
+          'Website → Content → Financing is a provider catalog: pick Cherry, CareCredit, Sunbit, Proceed, Alphaeon, LendingClub or Scratchpay, paste the one thing that provider gave your practice, and the site builds the rest — the lead provider’s own apply widget on your financing page, an apply button on every card, and a floating “Pay over time” button on every page where the provider offers one. Pasted code is never accepted, so nothing a provider hands you can reach your visitors except through our own checks.',
+      },
+      {
+        kind: 'improved',
+        glyph: 'door',
+        title: 'Every feature has a front door, and nothing says “coming soon”',
+        body:
+          'A new practice’s sidebar now starts with the six things a front desk uses on day one and an “Add” group of everything else; each feature explains itself and turns on with one button, intake lets you pick what to collect before the first form exists, and connecting your practice-management system is one form that lands with us instead of a request to ask support. Fifty empty screens gained a first action. The morning email now says what the machine did overnight, names one thing to do, and sends through the first week even on a quiet night.',
+      },
+    ],
+  },
+  {
+    weekOf: '2026-09-28',
+    title: 'The insurance tool, built on a real clearinghouse',
+    summary:
+      'A new tool for the front desk: type what is on a patient’s insurance card and get the benefits back — maximum left, deductible, coverage tiers, waiting periods, frequencies — from a real clearinghouse rather than a phone queue. The rest of the week was spent making its numbers honest, its card readable at a glance, and its paper printable.',
+    items: [
+      {
+        kind: 'new',
+        glyph: 'shield',
+        title: 'Type what’s on the card, get the benefits',
+        body:
+          'Daily → Insurance is new: type a patient’s card — a new patient or one on file — pick the payer from a dental-first list, and get a snapshot: maximum left, deductible, coverage tiers, waiting periods and frequencies, with “Check again” on every answer and a pill that says who gave it. Save it to the record or add the patient from it. A carrier name is forty different state plans, so the payer is picked from a list and never guessed from a name.',
+      },
+      {
+        kind: 'improved',
+        glyph: 'shield',
+        title: 'Honest numbers, a scoreboard, and the desk’s paper',
+        body:
+          'Every dollar on the card is shown only when the payer stated it — “used” appears only when both ends are known, never worked out from a guess. The card reads as a scoreboard: the headline amount beside a ring drawn only from stated numbers, tiles per coverage tier, and a real frequencies table whose Next column is toned by date. Every good answer gets Copy summary and Print sheet, the patient record gets a history drawer of recent checks, and the recent list is searchable by status.',
+      },
+      {
+        kind: 'new',
+        glyph: 'shield',
+        title: 'Scan the card',
+        body:
+          'Photograph the insurance card and the reader fills the form — the carrier becomes the payer search, the plan and subscriber are hints — and never runs a check on its own; the photo is kept on the record as a document. The three insurance answers on your intake forms now fill a patient’s empty insurance fields too, and never overwrite what your practice software or your staff already wrote.',
+      },
+    ],
+  },
+  {
+    weekOf: '2026-09-21',
+    title: 'Every price from one place, and a watch on our own deploys',
+    summary:
+      'A short week on the honesty of two things nobody should have to think about: the price quoted anywhere on our site now comes from one place, and an update that reports green while the site keeps serving the previous build is no longer invisible to us.',
+    items: [
+      {
+        kind: 'fixed',
+        glyph: 'tag',
+        title: 'One price, resolved everywhere it is quoted',
+        body:
+          'The help docs, the ROI calculator, the partner page and the demo practice’s own invoices each carried a typed price, and two of them had drifted from the plan a practice actually pays. Every price on the site now reads from the one plan configuration, the demo partner portal invoices the real plan, and a check grades every file on the site so a typed number cannot creep back in.',
+      },
+      {
+        kind: 'improved',
+        glyph: 'bolt',
+        title: 'An update that didn’t take is now visible',
+        body:
+          'One update reported green on every check we have while the site kept serving the previous build for nearly three hours, until the next update carried it in. The rollout now checks what is actually running after every deploy and prints the result — loudly when it cannot tell — rather than assuming green meant live.',
+      },
+    ],
+  },
+  {
     weekOf: '2026-09-14',
     title: 'Our website steps into daylight, and a long week of honest fixes',
     summary:
@@ -105,7 +271,7 @@ export const CHANGELOG_ENTRIES: ChangelogEntry[] = [
         glyph: 'globe',
         title: 'The homepage now follows one patient through the product',
         body:
-          'The middle of the homepage used to be one screenshot with four paragraphs beside it. It is a short scrolling sequence now that follows a single patient — she comes off the recall list, gets a text, pays her balance, leaves a review — and the screen behind the words changes with her as you scroll, so the recalls figure ticks up when she books and the week’s collected total moves by exactly what she paid. On a phone, or if you have asked your device to reduce motion, it lays out as four ordinary sections in reading order with nothing lost.',
+          'The middle of the homepage used to be one screenshot with four paragraphs beside it. It is a short scrolling sequence now that follows a single patient — she comes off the recall list, gets an invitation with a real opening, pays her balance, leaves a review — and the screen behind the words changes with her as you scroll, so the recalls figure ticks up when she books and the week’s collected total moves by exactly what she paid. On a phone, or if you have asked your device to reduce motion, it lays out as four ordinary sections in reading order with nothing lost.',
       },
       {
         kind: 'improved',
@@ -226,7 +392,7 @@ export const CHANGELOG_ENTRIES: ChangelogEntry[] = [
         glyph: 'bolt',
         title: 'A reminder can only go out once',
         body:
-          'Appointment reminders were written down as sent only after they had gone, so two reminder runs overlapping — or one that got retried — could each decide nothing had been sent yet and both send. The same patient got two texts about the same visit. A reminder is now claimed before it goes out, so only one run can take it, and a send that does not happen hands the claim back for the next run to pick up.',
+          'Appointment reminders were written down as sent only after they had gone, so two reminder runs overlapping — or one that got retried — could each decide nothing had been sent yet and both send. The same patient got two reminders about the same visit. A reminder is now claimed before it goes out, so only one run can take it, and a send that does not happen hands the claim back for the next run to pick up.',
       },
       {
         kind: 'fixed',

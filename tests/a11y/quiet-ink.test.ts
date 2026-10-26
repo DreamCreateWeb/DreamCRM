@@ -1,13 +1,21 @@
 import { describe, it, expect } from 'vitest'
 import {
   bestCaseSurface,
+  CHROME_FILES,
+  CHROME_GROUND,
+  chromeInkFindingsInSource,
+  chromeInkSites,
   describeFinding,
+  gradeChromeInkClasses,
   gradeQuietInkClasses,
   quietInkSites,
+  scanForUnreadableChromeInk,
   scanForUnreadableQuietInk,
   UI_ROOTS,
 } from './class-pairs'
-import { AA, contrast, DARK, LIGHT, SURFACES, token, utilityColor } from './palette'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { AA, contrast, DARK, LIGHT, ROOT, SURFACES, token, utilityColor } from './palette'
 
 /**
  * THE QUIET INK GUARD — rule 6's gate and its red run.
@@ -160,6 +168,74 @@ describe('quiet ink — the product', () => {
 
   it('has no neutral ink that misses AA on the best-case surface of its own theme', () => {
     const findings = scanForUnreadableQuietInk(UI_ROOTS)
+    expect(findings.map(describeFinding), findings.map(describeFinding).join('\n')).toEqual([])
+  })
+})
+
+/* ── rule 6b: the chrome ─────────────────────────────────────────────────── */
+
+/**
+ * The red run for rule 6b (`class-pairs.ts` carries the rule and why the
+ * tree-wide bail does not apply to the shell). Each planted case is a shape
+ * that was really in the chrome, or the mirror a blunter rule would get wrong.
+ */
+const PLANTED_6B: Array<{ why: string; classes: string }> = [
+  { why: 'the disabled step as copy — the Add group’s module names', classes: 'text-ink-400 hover:bg-ink-900/[0.04] hover:text-ink-700' },
+  { why: 'the same step on the gray ramp', classes: 'text-xs font-semibold uppercase tracking-wider text-gray-400' },
+  { why: 'a gray step that is readable in light and fails the dark surface (the gray ramp does not invert)', classes: 'text-sm text-gray-500' },
+]
+
+const INNOCENT_6B: Array<{ why: string; classes: string }> = [
+  { why: 'ink-500 — the readable step, in both themes, because the ink ramp inverts', classes: 'text-xs font-semibold text-ink-500' },
+  { why: 'a two-sided pair — rule 6’s', classes: 'text-gray-500 dark:text-gray-400' },
+  { why: 'a wash, whose real background this scanner cannot resolve', classes: 'fill-current text-gray-500/80' },
+  { why: 'an element with its own surface — rules 1 and 7', classes: 'bg-white text-gray-400' },
+  { why: 'a tone, which TONE_TEXT answers for', classes: 'text-amber-700 dark:text-amber-300' },
+  { why: 'strong ink', classes: 'text-sm font-semibold text-ink-900' },
+]
+
+describe('quiet ink — rule 6b, the chrome', () => {
+  it.each(PLANTED_6B)('reports $why', ({ classes }) => {
+    const graded = gradeChromeInkClasses(classes)
+    expect(graded, `"${classes}" should have been reported`).not.toBeNull()
+    for (const f of graded!.failures) expect(f.ratio).toBeLessThan(AA)
+  })
+
+  it.each(INNOCENT_6B)('leaves $why alone', ({ classes }) => {
+    expect(gradeChromeInkClasses(classes), `"${classes}" should not have been reported`).toBeNull()
+  })
+
+  it('derives the fact the fix relies on: ink-500 clears the chrome ground in BOTH themes, ink-400 in neither', () => {
+    expect(contrast(utilityColor(LIGHT, 'ink-500')!, token(LIGHT, CHROME_GROUND))).toBeGreaterThanOrEqual(AA)
+    expect(contrast(utilityColor(DARK, 'ink-500')!, token(DARK, CHROME_GROUND))).toBeGreaterThanOrEqual(AA)
+    expect(contrast(utilityColor(LIGHT, 'ink-400')!, token(LIGHT, CHROME_GROUND))).toBeLessThan(AA)
+    expect(contrast(utilityColor(DARK, 'ink-400')!, token(DARK, CHROME_GROUND))).toBeLessThan(AA)
+  })
+
+  it('skips ornaments (aria-hidden) and pictures (svg), grades everything else on the element', () => {
+    const src = [
+      '<span className="mr-1.5 text-ink-400" aria-hidden="true">·</span>',
+      '<svg className="h-3 w-3 fill-current text-ink-400"><path d="" /></svg>',
+      '<NavIcon className={`shrink-0 fill-current ${active ? "text-white" : "text-ink-400"}`} />',
+      '<kbd className="rounded border text-xs text-ink-400">⌘K</kbd>',
+    ].join('\n')
+    const found = chromeInkFindingsInSource(src, 'planted.tsx')
+    expect(found.map((f) => f.line)).toEqual([3, 4])
+  })
+
+  it('only lists shell files, each of which exists', () => {
+    for (const file of CHROME_FILES) {
+      expect(file.startsWith('components/'), file).toBe(true)
+      expect(() => readFileSync(join(ROOT, file), 'utf8'), `${file} is gone — drop it from CHROME_FILES`).not.toThrow()
+    }
+  })
+
+  it('still has one-sided neutral inks in the chrome to look at', () => {
+    expect(chromeInkSites().length).toBeGreaterThan(5)
+  })
+
+  it('has no one-sided neutral ink in the chrome that misses AA on its ground', () => {
+    const findings = scanForUnreadableChromeInk()
     expect(findings.map(describeFinding), findings.map(describeFinding).join('\n')).toEqual([])
   })
 })

@@ -111,6 +111,7 @@ import {
   type Theme,
 } from './palette'
 import { TONE_FILL } from '@/lib/ui/encodings'
+import { openingTag, ownAttrs } from '../design-system/jsx-attrs'
 
 /** Where product UI lives. `lib/` is in because `lib/ui/encodings.ts` and the
  *  portal-brand helpers hand out class strings that render as UI. */
@@ -1922,5 +1923,171 @@ export function sameStringPairSites(roots: string[] = UI_ROOTS): { file: string;
     if (isParitySubject(chunk)) return
     found.push({ file, line })
   })
+  return found
+}
+
+/* ── RULE 6b: a ONE-SIDED neutral ink in the dashboard CHROME, graded on the
+      chrome's own ground ─────────────────────────────────────────────────── */
+
+/**
+ * THE CHROME INK RULE (2026-10-26) — the residual rule 6 leaves to the punch
+ * list, closed for the one tree where the punch list's objection does not
+ * apply.
+ *
+ * Rule 6's header says why a BARE `text-gray-400` (no `dark:` half) is not
+ * graded tree-wide, and docs/UI-BEST-VERSION.md entry 2 measured the reason:
+ * "the thing that decides a bare ink is the ANCESTOR'S GROUND, which is
+ * exactly what no rule in this file can resolve" — 22 of the 52 sites left
+ * after batch 69 sit on a DARK panel inside a light page, where `gray-400`
+ * clears and the "fix" would fail. True everywhere a component can land
+ * anywhere.
+ *
+ * THE SHELL CANNOT LAND ANYWHERE. The sidebar is `bg-surface-1`, the header
+ * `bg-surface-1/90` over the canvas, the trail-back menu `bg-surface-1`, and
+ * none of them is ever rendered inside a dark panel, a picture or a mock. So
+ * for THESE files the ancestor's ground is a known constant, and a bare
+ * neutral ink can be graded against it honestly in both themes — which is
+ * what the tree-wide rule declines to guess at. The finding that motivated
+ * it: the sidebar's "Add" group rendered every switched-off module's NAME in
+ * `text-ink-400` (#93a0bc on #f8faff ≈ 2.5:1), so the activation program's
+ * one door to every unopened module read as disabled.
+ *
+ * TWO THINGS THE RULE DELIBERATELY SKIPS, so it does not reproduce the "208
+ * to catch 8" trade rule 1's header refuses:
+ *   - ORNAMENT: an element carrying `aria-hidden`, and the svg family. The
+ *     header's `·` between a back chip and a title, the group chevrons, the
+ *     trail-back arrow — DESIGN-SYSTEM §2.2's decorative neutral, exempt from
+ *     the readable-ink floor because it carries no information. (An svg
+ *     WITHOUT aria-hidden — `NavIcon`, the only visible affordance of a
+ *     rail-mode link — is a component tag, not an `svg` tag, and IS graded.)
+ *   - anything rule 6, rule 1 or rule 7 already has: a two-sided ink, a
+ *     wash, a chunk with its own `bg-`. One line, one rule.
+ *
+ * WHY `ink-500` IS THE ANSWER AND `ink-500 dark:ink-400` IS NOT, which is the
+ * fact a reader fixing a finding needs: the `ink-*` ramp INVERTS under
+ * `.dark` (style.css: ink-500 → #8290b3, ink-400 → #66779e), so a bare
+ * `text-ink-500` clears AA on surface-1 in BOTH themes (5.1 light, 5.1 dark)
+ * while `dark:text-ink-400` would land at ~3.5. The `gray-*` ramp does not
+ * invert, which is why ITS readable pair needs both halves. Both are derived
+ * below, never transcribed.
+ */
+
+/** The dashboard shell — every file whose elements only ever paint on the
+ *  chrome's own surfaces. A component that can be rendered inside a dark
+ *  panel does NOT belong here; that is the whole premise. */
+export const CHROME_FILES = [
+  'components/ui/header.tsx',
+  'components/ui/tenant-sidebar.tsx',
+  'components/ui/trail-back.tsx',
+  'components/ui/quick-create-menu.tsx',
+  'components/ui/skip-to-content.tsx',
+  'components/ui/demo-exit-chip.tsx',
+  'components/ui/presenting-chip.tsx',
+  'components/ui/build-watch.tsx',
+  'components/dropdown-notifications.tsx',
+  'components/dropdown-help.tsx',
+  'components/dropdown-profile.tsx',
+  'components/theme-toggle.tsx',
+]
+
+/** The ground the shell paints on, in both themes. */
+export const CHROME_GROUND = 'surface-1'
+
+/** Tags that are pictures, not text — never graded here. */
+const PICTURE_TAGS = new Set(['svg', 'path', 'rect', 'circle', 'ellipse', 'line', 'polyline', 'polygon', 'g', 'img', 'Image'])
+
+/**
+ * Grade one class string against rule 6b. Exported for the same reason every
+ * sibling `grade*` is: the red run must be able to call it on a planted case.
+ */
+export function gradeChromeInkClasses(classes: string): Omit<ParityFinding, 'file' | 'line'> | null {
+  const inks = utilities(classes, 'text')
+  const lightInk = inks.find((u) => !u.dark)
+  const darkInk = inks.find((u) => u.dark)
+  // Two-sided → rule 6's. A wash → unresolvable. Own surface → rules 1/7.
+  if (!lightInk || darkInk || lightInk.alpha) return null
+  if (!isNeutralInk(lightInk.word)) return null
+  if (utilities(classes, 'bg').length > 0) return null
+
+  const failures: Pairing[] = []
+  for (const [theme, mode] of [
+    [LIGHT, 'light'],
+    [DARK, 'dark'],
+  ] as const) {
+    const graded = grade(theme, mode, lightInk.word, CHROME_GROUND)
+    if (graded && graded.ratio < AA) failures.push(graded)
+  }
+  if (failures.length === 0) return null
+  return {
+    overridden: null,
+    classes: lightInk.raw,
+    failures,
+    note:
+      `a one-sided neutral ink in the dashboard chrome that misses AA on ${CHROME_GROUND} — ` +
+      'the shell always paints on its own surface, so this ground is a fact, not a guess; ' +
+      'ink-500 clears both themes (the ink ramp inverts in .dark), gray needs its dark: half',
+  }
+}
+
+/** The elements rule 6b looks at in one source file: every JSX opening tag
+ *  that is not a picture and not `aria-hidden`, with its className source. */
+function chromeElements(src: string): Array<{ line: number; tag: string; className: string }> {
+  const out: Array<{ line: number; tag: string; className: string }> = []
+  const re = /<([A-Za-z][\w.]*)\b/g
+  let m: RegExpExecArray | null
+  while ((m = re.exec(src)) !== null) {
+    const tag = openingTag(src, m.index)
+    if (!tag) continue
+    const name = m[1]
+    if (PICTURE_TAGS.has(name)) continue
+    const attrs = ownAttrs(tag)
+    if (attrs.has('aria-hidden')) continue
+    const className = attrs.get('className')
+    if (!className) continue
+    out.push({ line: src.slice(0, m.index).split('\n').length, tag: name, className })
+  }
+  return out
+}
+
+/** Rule 6b over one file's SOURCE — the unit the red run plants against. */
+export function chromeInkFindingsInSource(src: string, file: string): ParityFinding[] {
+  const found: ParityFinding[] = []
+  for (const el of chromeElements(src)) {
+    // A quoted attribute is one chunk; an expression yields its literals.
+    const chunks = /^[`'"]/.test(el.className) ? readChunks(el.className).chunks : [el.className]
+    for (const chunk of chunks) {
+      const graded = gradeChromeInkClasses(chunk)
+      if (graded) found.push({ file, line: el.line, ...graded })
+    }
+  }
+  return found
+}
+
+/** Every one-sided neutral ink in the chrome that misses AA on its ground. Holds at ZERO. */
+export function scanForUnreadableChromeInk(root: string = ROOT): ParityFinding[] {
+  const found: ParityFinding[] = []
+  for (const file of CHROME_FILES) {
+    found.push(...chromeInkFindingsInSource(readFileSync(join(root, file), 'utf8'), file))
+  }
+  return found
+}
+
+/** Every one-sided neutral ink the rule LOOKS at, passing or not — its field of view. */
+export function chromeInkSites(root: string = ROOT): { file: string; line: number }[] {
+  const found: { file: string; line: number }[] = []
+  for (const file of CHROME_FILES) {
+    const src = readFileSync(join(root, file), 'utf8')
+    for (const el of chromeElements(src)) {
+      const chunks = /^[`'"]/.test(el.className) ? readChunks(el.className).chunks : [el.className]
+      for (const chunk of chunks) {
+        const inks = utilities(chunk, 'text')
+        const lightInk = inks.find((u) => !u.dark)
+        if (!lightInk || inks.some((u) => u.dark) || lightInk.alpha) continue
+        if (!isNeutralInk(lightInk.word)) continue
+        if (utilities(chunk, 'bg').length > 0) continue
+        found.push({ file, line: el.line })
+      }
+    }
+  }
   return found
 }

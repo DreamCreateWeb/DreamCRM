@@ -18,6 +18,8 @@ import {
 import { z } from 'zod'
 import { db, schema } from '@/lib/db'
 import { derivePatientRecallStatus } from '@/lib/services/recall-status'
+import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
+import { clinicLocalDate } from '@/lib/clinic-timezone'
 import { getTagsForPatients } from '@/lib/services/patient-tags'
 
 /**
@@ -500,9 +502,21 @@ export function audienceUnconfirmedWhere(
 export async function resolvePatientAudience(
   organizationId: string,
   filter: PatientAudienceFilterT,
+  opts: {
+    /** The clinic's IANA zone when the caller already holds it; resolved
+     *  here otherwise — and only when a birthday filter needs it. */
+    timeZone?: string | null
+  } = {},
 ): Promise<ResolvedRecipient[]> {
   const parsed = PatientAudienceFilter.parse(filter)
   const now = new Date()
+  // Birthday filters bucket by the CLINIC's calendar (CLAUDE.md timezone
+  // rule 2): the server's UTC month turned next month's birthdays on from
+  // ~7pm Central on the last day of the month.
+  const local =
+    parsed.birthdayThisMonth || parsed.birthdayToday
+      ? clinicLocalDate(now, opts.timeZone ?? (await getClinicTimeZone(organizationId)))
+      : null
 
   const where = [eq(schema.patient.organizationId, organizationId)]
   if (!parsed.includeArchived) where.push(eq(schema.patient.isActive, 1))
@@ -641,15 +655,16 @@ export async function resolvePatientAudience(
       if (parsed.birthdayThisMonth) {
         const m = r.p.dateOfBirth?.match(/^(\d{4})-(\d{2})-(\d{2})$/)
         if (!m) return false
-        if (parseInt(m[2], 10) - 1 !== now.getMonth()) return false
+        if (parseInt(m[2], 10) !== local!.month) return false
       }
       if (parsed.birthdayToday) {
         const m = r.p.dateOfBirth?.match(/^(\d{4})-(\d{2})-(\d{2})$/)
         if (!m) return false
-        // Match month + day-of-month against "today". Feb-29 birthdays fall on
-        // Mar-1 in common years (no Feb-29 to match) — acceptable for a greeting.
-        if (parseInt(m[2], 10) - 1 !== now.getMonth()) return false
-        if (parseInt(m[3], 10) !== now.getDate()) return false
+        // Match month + day-of-month against the clinic's "today". Feb-29
+        // birthdays fall on Mar-1 in common years (no Feb-29 to match) —
+        // acceptable for a greeting.
+        if (parseInt(m[2], 10) !== local!.month) return false
+        if (parseInt(m[3], 10) !== local!.day) return false
       }
       if (parsed.hasUnconfirmedNextHours != null && !unconfirmedSet.has(r.p.id)) return false
       if (parsed.hasInsurance != null) {

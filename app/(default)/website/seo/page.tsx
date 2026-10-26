@@ -453,21 +453,6 @@ export default async function SeoPage({ searchParams }: Props) {
           </Link>
         </p>
       </section>
-
-
-      {/* ── Coming next ───────────────────────────────────────────────── */}
-      <section>
-        <div className="v2-well p-5">
-          <p className="text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400 mb-2">
-            Coming next
-          </p>
-          <ul className="text-xs text-gray-600 dark:text-gray-300 space-y-1">
-            <li>· Google Business posting (from your blog) + offers &amp; events straight to your listing</li>
-            <li>· Core Web Vitals (page speed) on your key pages</li>
-            <li>· Rank tracking for your top local terms</li>
-          </ul>
-        </div>
-      </section>
       </>
       )}
     </div>

@@ -87,6 +87,36 @@ describe('getSiteHealth', () => {
     const h = await getSiteHealth('org_1')
     expect(h.checks.find((c) => c.id === 'alt')?.status).toBe('warn')
   })
+
+  it('the alt check SEES the office photos (2026-10-26): undescribed gallery photos warn, by count', async () => {
+    state.selectQueue.push([{
+      displayName: 'A', addressLine1: '1', city: 'x', state: 'y', phone: '5', services: [], staff: [],
+      officePhotos: [
+        { id: 'a', url: 'u1', alt: null, caption: null },
+        { id: 'b', url: 'u2', alt: null, caption: null },
+        { id: 'c', url: 'u3', alt: 'Treatment room two', caption: null },
+        { id: 'd', url: 'u4', alt: null, caption: 'Reception' },
+      ],
+    }])
+    state.selectQueue.push([]) // no posts — the old check passed here
+    const h = await getSiteHealth('org_1')
+    const alt = h.checks.find((c) => c.id === 'alt')!
+    expect(alt.status).toBe('warn')
+    expect(alt.detail).toMatch(/2 office photos still need a description/)
+    expect(alt.detail).toMatch(/Office photos/)
+  })
+
+  it('a described gallery passes and says how many images it looked at', async () => {
+    state.selectQueue.push([{
+      displayName: 'A', addressLine1: '1', city: 'x', state: 'y', phone: '5', services: [], staff: [],
+      officePhotos: [{ id: 'a', url: 'u1', alt: 'Front desk', caption: null }, { id: 'b', url: 'u2', alt: null, caption: 'Lobby' }],
+    }])
+    state.selectQueue.push([{ coverImageUrl: 'u', coverImageAlt: 'alt', faq: null }])
+    const h = await getSiteHealth('org_1')
+    const alt = h.checks.find((c) => c.id === 'alt')!
+    expect(alt.status).toBe('pass')
+    expect(alt.detail).toBe('All 3 images described.')
+  })
 })
 
 describe('getOrganicAttribution', () => {

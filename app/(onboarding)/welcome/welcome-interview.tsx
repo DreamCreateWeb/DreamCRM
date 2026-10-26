@@ -185,9 +185,13 @@ export default function WelcomeInterview({
         <h2 className="text-2xl font-bold text-stone-800 dark:text-stone-100 mb-2">
           Your website is ready
         </h2>
+        {/* HONEST STATE (the go-live lever): the site is DRAFTED, not live —
+            only the owner can see it until they publish from the Website hub.
+            The old "It's live now" sent owners forwarding a link that showed
+            everyone else a coming-soon page. */}
         <p className="text-sm text-stone-500 dark:text-stone-400 max-w-sm mb-1">
-          We drafted your tagline, about, services, and FAQ from what you told us. It&apos;s live
-          now — and you can edit anything in seconds.
+          We drafted your tagline, about, services, and FAQ from what you told us. It&apos;s
+          ready — only you can see it until you publish, and you can edit anything in seconds.
         </p>
         {usedFloor && (
           <p className="text-[12px] text-stone-400 max-w-sm mb-1">
@@ -219,6 +223,13 @@ export default function WelcomeInterview({
           </button>
         </div>
         <p className="mt-5 text-xs text-stone-500 dark:text-stone-400">
+          When it reads like you, publish it from the{' '}
+          <a href="/website" className="underline underline-offset-2 hover:text-stone-700 dark:hover:text-stone-200">
+            Website hub
+          </a>
+          .
+        </p>
+        <p className="mt-2 text-xs text-stone-500 dark:text-stone-400">
           Own a domain like yourpractice.com? Connect it anytime under{' '}
           <a href="/website/domain" className="underline underline-offset-2 hover:text-stone-700 dark:hover:text-stone-200">
             Website &rarr; Domain

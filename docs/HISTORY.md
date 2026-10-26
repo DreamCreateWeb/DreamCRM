@@ -6172,6 +6172,140 @@ template with no bar, or a bar hidden above `sm`, measures 0 and nothing
 moves. The right-aligned pairs on established and hometeam are
 deliberately not tagged — the bottom-left floaters never meet them.
 
+## 2026-10-26 — The deep dev cycle, part 1: six slices of small fixes
+
+The owner: "go into a deep dev cycle, looking for features that need to be
+added, areas that need refined, updating the design — generally just a
+large update to the platform." A discovery sweep (19 lenses) produced 220
+raw findings; the 62 small bug/copy items were split into seven area
+briefs and built in parallel in isolated worktrees, each finding verified
+against the cited code before a line changed, and the 153 medium/large
+findings went to five verifier agents (142 confirmed, 11 partial, 0
+refuted) whose verdicts feed the feature plan that follows this entry.
+This entry is the first six slices (58 findings, all implemented, none
+refuted); part 2 carries the seventh (the dashboard's honesty).
+
+**The platform tenant (4).** `lib/platform-clinic-status.ts` is the ONE
+home for the platform's read of a clinic's standing — `clinicCountsAsActive`
+(active/trialing AND not behind the trial wall), `clinicStatusPill`
+(invite pending → trial ended → trial · N days → the Stripe status) — over
+`resolveTrialState`, never re-derived math. `subscription_status` keeps
+saying 'trialing' after the seven days run out (nothing writes the column;
+the wall is derived), so the Clinics list, its KPI row, the detail page,
+the MRR derivation AND the churn cohort all counted a clinic locked behind
+the wall as a live one. 'setup pending' keyed on the RESERVED plan, which
+stays reserved for the whole trial, so an accepted managed clinic read as
+waiting-on-them for a week; it now keys on a pending OWNER invitation.
+The detail page's Patients count excludes archived patients like every
+other surface. The Overview's "Open Projects" tile summed three rows of a
+10-row feed; it reads `getProjectStats()` and says "—" when unreadable.
+
+**The public site's doors (12).** `/contact` and `/intake-start` /
+`/portal` now resolve the host: the sign-in gates bounce to www on ANY
+root-served host (a subdomain OR a custom domain — the first cut matched
+only hosts ending in the platform domain, so `tedpinneydds.com/intake-start`
+rendered in place and its submit 404'd); `intakeStartHref(slug)` is the one
+absolute door in five footers, the hometown header, the modern hero and
+`/new-patients`. `/book` no longer promises "same-week, 3–5 days": a
+"Next opening: Thursday" card from the real slot scan (clinic-local day
+key), or "we'll reach out" in request mode, and the three CTAs that
+repeated the promise say "we'd love to meet you"; the hero intro and
+re-assurances are copy keys. `/new-patients` step 2 follows the intake
+door. `/w` fast-pass wears the portal brand tokens. The portal's balance
+strip says "pay online" only when Stripe can take the payment, else "call
+us or stop by". `.ics` downloads carry the visit's real end and the
+clinic's address (`visitIcsEvent`). An iPhone HEIC drag-in sniffed as a
+VIDEO (ISO-BMFF `ftyp`) and stored a broken square — `lib/upload-kinds.ts`
+reads the brand, refuses HEIC in words that name the fix, and a video on
+an image-only folder is a 415. The after-hours auto-reply answers
+website-chat messages BY EMAIL (`afterHoursReplyDelivery`; it acked only
+portal messages). "Coming soon" is gone from the public site and the
+portal, and `tests/activation/no-coming-soon.test.ts` now grades those
+trees too. The portal honours the hide-powered-by switch. A verified
+editor's own visits no longer count as site traffic.
+
+**Appointments + Messages (10).** A scheduled message that failed told
+nobody — now `scheduled_message_failed` (urgent) to the scheduler (or
+owners/admins when they left), a rose "Didn't send" strip with Retry /
+Dismiss, and `recordEngineFailure` under `scheduled_message`. An expired
+snooze kept its 💤: `resurfaceSnoozedThreads` (rides the hourly
+followup-rules cron) flips them open and notes `thread_resurfaced`; the
+list shows "Back from snooze". Search kept dropping Starred/show. The
+drawer's "Send reminder" on a confirmed visit was a guaranteed refusal —
+it is "Send a see-you-soon note" and allowed. The cancel dialog said an
+email would go out when the automation was off or the patient had no
+address: `cancelNoticeFor` names the truth. The 🔕 glyph read a
+hardcoded false. The 500-patient native picker is a debounced search
+(`searchPatientOptions`, name/email/phone). "Check again" on the record's
+insurance rail card re-sent a stale card — `recheckRequest` is the one
+rule, with a "Card changed since the last check" pill. A website booking
+now EMAILS the desk (`online_booking` is urgent; the registry's own test
+was "a stranger is waiting") with the clinic-local time, the visit type,
+phone, email and new/existing — a practice with no PMS re-keys it from
+the email alone.
+
+**Outbound email + the marketing site's honesty (9).** The website-enquiry
+alert interpolated every form field raw into HTML (a real injection
+risk, found in the sweep): every value is escaped, the subject's name is
+single-lined, and `sendNotificationEmail`'s greeting was the same class.
+Three patient emails greeted twice — `bodyOpensWithGreeting` in the sender
+is the one rule, mirrored by the Emails hub preview. The hub still said
+"the Basic plan" (no plan gating; the copy scan now guards the two
+files). Four signup surfaces told a new clinic its private site "is live"
+— it is drafted until Publish (`tests/onboarding/no-false-live.test.ts`).
+The homepage cinematic scene staged an SMS booking the product cannot
+send — the whole spine is re-staged on email (the comparison matrix pins
+SMS = no, and a test ties the two). Pricing / why / hero still described
+the removed Open Dental-direct connector and its fee. The changelog was
+six weeks silent: five weeks written in the customer voice, a freshness
+guard against the newest migration's date, and "week by week" where
+"every week" could not be kept. The grader form no longer bare-awaits
+its action. Help docs follow the current nav (a test resolves every
+"A → B" phrase against the live settings nav + the hub registry).
+
+**Growth's data honesty (7).** Every Resend campaign email was counted
+as 'sent' TWICE — the send loop wrote the row when Resend accepted, and
+the webhook's `email.sent` event wrote it again — which halved the
+frequency cap and every open rate; the webhook now ignores `sent` for
+campaigns (delivered / bounce / complaint still land), a `test` tag keeps
+staff test sends out of the ledger, `partitionByFrequencyCap` counts
+distinct CAMPAIGNS per person so the doubled history reads right either
+way, and `scripts/repair-double-sent-campaign-events.sql` (SELECT first)
+cleans the rows. Open and click counts outside the editor were raw pixel
+hits (rates over 100%): every funnel stage counts distinct people
+(`funnelIdentity` = patient → email → phone; the SQL twin `FUNNEL_PERSON`).
+A failed social post promised a retry that did not exist —
+`retrySocialPostTargets` + "Try again on Instagram" (failed targets only,
+disconnected channel says so). The reviews page's "text-message requests
+are coming next" slipped past the no-coming-soon guard, whose phrase is
+now `coming soon / next / later / arriving soon` — and the widened guard
+caught FOUR more rendered "Coming next" boxes promising things already
+shipped, deleted. Month boundaries in recall stats, the birthday audience
+and the benefits season used the server's UTC month: `clinicLocalDate` +
+`clinicMonthStart`, and `BENEFITS_MONTHS` is 1-indexed. The Design page
+offered "Second hero image" and "Intro video" to every clinic when only
+Modern renders them — `SiteTemplateCatalogEntry.media` declares each
+template's slots and the page shows a quiet note instead. Office photos
+carry a description (`officePhotoAlt`: description → caption → "<Clinic>
+— the office" at every gallery; the SEO alt check counts them), and
+`parseOfficePhotos` keeps the focal `position` it had been DROPPING on
+every save.
+
+**The shell on phones + for screen readers (8).** The off-canvas drawer
+is `inert` when closed and traps focus when open; the notification tray
+sat 90px off a phone's right edge (`-mr-48`); the BulkBar ran off both
+edges at 390 so every bulk action was unreachable; the theme toggle was a
+checkbox with a dead first click for device-dark users (now a
+`role="switch"` on the RESOLVED theme + a three-way choice in Settings →
+Account); glyph labels sat on bare spans (`role="img"` + a tap-to-list
+panel for touch); FlashToast gained Dismiss, persistent errors, pause on
+hover and a queue; every icon-only chrome control is a 40px box
+(`chrome-controls.test.ts`); and the chrome's readable copy came off
+ink-400 — with the finding that the `ink-*` ramp INVERTS in dark, so a
+bare `text-ink-500` is right in both themes (class-pairs rule 6b grades
+the shell's one-sided inks against surface-1). DESIGN-SYSTEM.md carries
+each change.
+
 ## 2026-10-23 — The Studio "freezes": a stale tab after a deploy
 
 The owner: "the website editor freezes often while making edits and has to

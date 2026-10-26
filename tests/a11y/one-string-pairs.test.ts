@@ -371,7 +371,7 @@ describe('the tree walk feeds the reader until the reader is done', () => {
   })
 
   it('grades THE named residual site, at the line its template opens on', () => {
-    // `welcome-interview.tsx:579` is the one the punch list named — rule 7's
+    // `welcome-interview.tsx:579` (now :590) is the one the punch list named — rule 7's
     // both-halves-overridden subject, the auth-button shape, sitting ungraded
     // for a purely syntactic reason. It is the whole point of this change, so
     // it is asserted by name rather than left to a tree-wide count.
@@ -392,7 +392,10 @@ describe('the tree walk feeds the reader until the reader is done', () => {
     expect(found, 'the named residual site must yield exactly one chunk').toHaveLength(1)
     // The line the TEMPLATE opens on — where a reader following a `file:line`
     // in a red CI log would look, and where the class string really starts.
-    expect(found[0].line).toBe(579)
+    // (579 when the punch list named it; 590 since the reveal copy above it
+    // grew the honest "only you can see it until you publish" paragraph on
+    // 2026-10-26 — the pin is the line, so it moves with the file.)
+    expect(found[0].line).toBe(590)
     expect(found[0].chunk).toContain('rounded-tr-sm')
     // And it reads: this residual was always predicted to be clean, and
     // grading it is a different fact from having predicted it.

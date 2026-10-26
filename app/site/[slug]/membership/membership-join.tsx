@@ -38,13 +38,11 @@ export default function MembershipJoin({ slug, brand, plans }: { slug: string; b
   const ink = readableInk(brand)
   const display = { fontFamily: 'var(--font-display, Georgia, serif)' }
 
-  if (plans.length === 0) {
-    return (
-      <p className="text-center text-[15px]" style={{ color: INK_MUTED }}>
-        Membership plans are coming soon — ask our front desk for details.
-      </p>
-    )
-  }
+  // No zero-plans branch on purpose: the only caller (/dental-plans) 404s
+  // before rendering this when the clinic has no active plan, so a "plans
+  // are coming soon" paragraph here was dead copy waiting to come back the
+  // first time someone reused the component (law 3: never promise what the
+  // page cannot do).
 
   function join() {
     setError(null)

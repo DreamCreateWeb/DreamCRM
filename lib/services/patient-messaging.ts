@@ -1,5 +1,5 @@
 import 'server-only'
-import { and, asc, count, desc, eq, gte, ilike, inArray, isNotNull, isNull, lte, or, sql } from 'drizzle-orm'
+import { and, asc, count, desc, eq, gte, ilike, inArray, isNotNull, isNull, lte, notInArray, or, sql } from 'drizzle-orm'
 import { randomBytes } from 'crypto'
 import { db, schema } from '@/lib/db'
 import { recordAction } from '@/lib/services/action-ledger'
@@ -80,6 +80,11 @@ export interface ThreadRow {
   assignedUserId: string | null
   assignedUserName: string | null
   snoozedUntil: Date | null
+  /** `status === 'snoozed'` whose timer has already run out: the thread is
+   *  back in Open (openThreadFilter includes it) but still wears the snoozed
+   *  status until the hourly sweep flips it. The list says "Back from
+   *  snooze" rather than 💤 "will resurface later" on a thread that HAS. */
+  snoozeResurfaced: boolean
   lastMessageAt: Date | null
   lastMessageDirection: MessageDirection | null
   lastMessageChannel: MessageChannel | null
@@ -91,6 +96,12 @@ export interface ThreadRow {
   urgency: 'urgent' | null
   urgencyReason: string | null
   createdAt: Date
+}
+
+/** The one definition of "this snooze has run out" — shared by the list,
+ *  the detail header and the hourly sweep, so they can never disagree. */
+export function isSnoozeResurfaced(status: string, snoozedUntil: Date | null, now: Date = new Date()): boolean {
+  return status === 'snoozed' && !!snoozedUntil && snoozedUntil.getTime() <= now.getTime()
 }
 
 export interface ThreadMessage {
@@ -254,6 +265,7 @@ export async function listPatientThreadsPage(
   currentUserId: string,
   filters: ThreadFilters = {},
 ): Promise<ThreadPage> {
+  const now = new Date()
   const where = [eq(schema.patientThread.organizationId, organizationId)]
 
   if (filters.status === 'archived') {
@@ -261,7 +273,7 @@ export async function listPatientThreadsPage(
   } else if (filters.status === 'snoozed') {
     where.push(eq(schema.patientThread.status, 'snoozed'))
   } else if (filters.status === 'open' || filters.status === undefined) {
-    where.push(openThreadFilter(new Date()))
+    where.push(openThreadFilter(now))
   }
   // 'all' = no status filter
 
@@ -374,6 +386,7 @@ export async function listPatientThreadsPage(
     urgency: r.urgency === 'urgent' ? 'urgent' : null,
     urgencyReason: r.urgencyReason,
     createdAt: r.createdAt,
+    snoozeResurfaced: isSnoozeResurfaced(r.status, r.snoozedUntil, now),
   }))
 
   return { rows: mapped, hasMore }
@@ -604,6 +617,7 @@ export async function getPatientThreadById(
     urgency: row.urgency === 'urgent' ? 'urgent' : null,
     urgencyReason: row.urgencyReason,
     createdAt: row.createdAt,
+    snoozeResurfaced: isSnoozeResurfaced(row.status, row.snoozedUntil),
   }
 }
 
@@ -1141,13 +1155,44 @@ const AUTO_REPLY_DEDUP_MS = 12 * 60 * 60 * 1000
  * counter (a human still needs to give a real answer); it just updates the
  * thread preview + appears in the patient's portal.
  */
+/** Where an inbound message's after-hours ack can be DELIVERED. */
+export type AutoReplyDelivery = 'in_app' | 'email'
+
+/**
+ * Which inbound messages earn the after-hours auto-reply, and on which rail.
+ *   • a portal (in_app) message → the ack lands in the portal thread;
+ *   • the WEBSITE CHAT bubble → the visitor has no portal, so the ack goes by
+ *     email to the address they typed (it is a reply to their own message —
+ *     transactional, no marketing consent involved);
+ *   • the contact form (plain channel 'email') has its own acknowledgement,
+ *     so it is NOT acked here — that would double-ack;
+ *   • SMS replies are a separate rail with their own confirmation.
+ * Pure, so the routing is pinned by a test rather than assumed: before this
+ * the chat — the one closed-office path a stranger is most likely to use, on
+ * by default on every public page — said "sent" and then nothing till morning.
+ */
+export function afterHoursReplyDelivery(input: {
+  channel: MessageChannel
+  source?: InboundSource
+}): AutoReplyDelivery | null {
+  if (input.channel === 'in_app') return 'in_app'
+  if (input.source === 'website_chat') return 'email'
+  return null
+}
+
+/** Where an inbound message came from, when the channel alone cannot say
+ *  (the website chat records as 'email' like the contact form does). */
+export type InboundSource = 'website_chat'
+
 // Exported for the executed writer test (tests/messaging/after-hours-auto-reply
 // .test.ts) — the auto_reply ledger entry must be pinned, not assumed.
 export async function maybeSendAfterHoursAutoReply(
   organizationId: string,
   patientId: string,
   threadId: string,
+  opts: { deliverBy?: AutoReplyDelivery } = {},
 ): Promise<void> {
+  const deliverBy: AutoReplyDelivery = opts.deliverBy ?? 'in_app'
   try {
     const [clinic] = await db
       .select({
@@ -1185,24 +1230,34 @@ export async function maybeSendAfterHoursAutoReply(
     const clinicName = clinic.displayName?.trim() || 'our office'
     const body = (settings.autoReply.message || DEFAULT_AUTO_REPLY_MESSAGE).replace(/\{clinic\}/g, clinicName)
     const now = new Date()
+    const messageId = newMessageId()
+    // The website-chat visitor has no portal to read an in_app row in: the ack
+    // goes to the inbox they typed, DELIVERED FIRST so a failed send (no
+    // address on the record, a provider error) throws here and nothing below
+    // claims an ack that never went out. The same editable copy either way.
+    if (deliverBy === 'email') {
+      await deliverPatientMessageEmail(organizationId, patientId, body, [], messageId)
+    }
     await db.insert(schema.patientMessage).values({
-      id: newMessageId(),
+      id: messageId,
       threadId,
       organizationId,
       patientId,
-      channel: 'in_app',
+      channel: deliverBy,
       direction: 'outbound',
       body,
       sentByUserId: null,
       sentAt: now,
-      deliveredAt: now,
+      // An in-app ack is read the moment it renders; an email's delivery is
+      // the provider's receipt to stamp.
+      deliveredAt: deliverBy === 'in_app' ? now : null,
       meta: { autoReply: true },
     })
     // Update the preview/ordering but DELIBERATELY leave unreadCountForClinic +
     // status alone — the front desk still owes a real reply.
     await db
       .update(schema.patientThread)
-      .set({ lastMessageAt: now, lastMessageDirection: 'outbound', lastMessageChannel: 'in_app', updatedAt: now })
+      .set({ lastMessageAt: now, lastMessageDirection: 'outbound', lastMessageChannel: deliverBy, updatedAt: now })
       .where(eq(schema.patientThread.id, threadId))
     // THE ACTION LEDGER — the machine held the fort after hours.
     const [who] = await db
@@ -1230,6 +1285,9 @@ export async function recordInboundMessage(input: {
   externalId?: string
   /** Optional image attachments (e.g. a patient photo from the portal). */
   attachments?: MessageAttachment[]
+  /** The website chat bubble records as 'email' like the contact form, but
+   *  earns the after-hours ack (by email) where the form does not. */
+  source?: InboundSource
 }): Promise<{ threadId: string; messageId: string }> {
   // Client-supplied list: shape AND host must both check out (lib/attachment-hosts.ts).
   const attachments = sanitizeUploadedAttachments(input.attachments)
@@ -1314,11 +1372,14 @@ export async function recordInboundMessage(input: {
     console.warn('[patient-messaging.recordInboundMessage] notification failed', err)
   }
 
-  // After-hours auto-reply for portal (in-app) messages only — the contact
-  // form (channel='email') has its own auto-acknowledgement, so this won't
-  // double-ack. Best-effort; never blocks the inbound record.
-  if (input.channel === 'in_app') {
-    await maybeSendAfterHoursAutoReply(input.organizationId, input.patientId, threadId)
+  // After-hours auto-reply — portal messages in the portal thread, website
+  // chat by email to the address the visitor typed; the contact form
+  // (channel='email', no source) has its own auto-acknowledgement, so this
+  // won't double-ack. Best-effort; never blocks the inbound record. The
+  // once-per-thread throttle inside applies to both rails.
+  const ackBy = afterHoursReplyDelivery(input)
+  if (ackBy) {
+    await maybeSendAfterHoursAutoReply(input.organizationId, input.patientId, threadId, { deliverBy: ackBy })
   }
 
   // Urgency triage — fire-and-forget so the sender's request never waits on
@@ -1372,6 +1433,84 @@ export async function snoozeThread(
         eq(schema.patientThread.organizationId, organizationId),
       ),
     )
+}
+
+export interface ResurfaceResult {
+  resurfaced: number
+  notified: number
+}
+
+/**
+ * THE SNOOZE TIMER'S OTHER HALF (hourly, from the followup-rules cron).
+ * `openThreadFilter` already shows a thread whose snooze ran out — but its
+ * status stayed 'snoozed', so the row kept wearing 💤 "will resurface later"
+ * on a thread that HAD, and nobody was told. This flips every run-out snooze
+ * to 'open' in ONE statement (the match on `status='snoozed'` is what makes
+ * it idempotent — a second tick finds nothing) and tells the assignee (else
+ * the owners/admins) once, in the bell only: they set the timer themselves.
+ *
+ * The filter stays as it is on purpose: a missed tick degrades to today's
+ * behaviour (the thread is still in Open), never to a hidden thread.
+ * Shut-down clinics are skipped like every other cron (THE KILL); demo orgs
+ * are skipped so the seeded snooze keeps demonstrating a snooze.
+ */
+export async function resurfaceSnoozedThreads(now: Date = new Date()): Promise<ResurfaceResult> {
+  const { listShutDownOrgIds } = await import('./billing-state')
+  const shutDown = await listShutDownOrgIds(now)
+  const demoOrgs = db.select({ id: schema.organization.id }).from(schema.organization).where(eq(schema.organization.isDemo, true))
+  const flipped = await db
+    .update(schema.patientThread)
+    .set({ status: 'open', snoozedUntil: null, updatedAt: now })
+    .where(
+      and(
+        eq(schema.patientThread.status, 'snoozed'),
+        isNotNull(schema.patientThread.snoozedUntil),
+        lte(schema.patientThread.snoozedUntil, now),
+        notInArray(schema.patientThread.organizationId, demoOrgs),
+        shutDown.size > 0 ? notInArray(schema.patientThread.organizationId, Array.from(shutDown)) : undefined,
+      ),
+    )
+    .returning({
+      id: schema.patientThread.id,
+      organizationId: schema.patientThread.organizationId,
+      patientId: schema.patientThread.patientId,
+      assignedUserId: schema.patientThread.assignedUserId,
+    })
+
+  let notified = 0
+  if (flipped.length === 0) return { resurfaced: 0, notified }
+  const { notify, notifyOrgMembers } = await import('@/lib/services/notifications')
+  for (const t of flipped) {
+    try {
+      const [pat] = await db
+        .select({ firstName: schema.patient.firstName })
+        .from(schema.patient)
+        .where(and(eq(schema.patient.organizationId, t.organizationId), eq(schema.patient.id, t.patientId)))
+        .limit(1)
+      const first = pat?.firstName?.trim() || 'A patient'
+      const alert = {
+        bucket: 'comments' as const,
+        type: 'thread_resurfaced',
+        title: `${first}’s conversation is back from snooze`,
+        body: 'The time you picked has come — it’s back in Open, waiting on you.',
+        linkPath: `/messages?thread=${t.id}`,
+        linkLabel: `Open ${first}’s conversation →`,
+        meta: { threadId: t.id, patientId: t.patientId },
+        // Belt and braces with the status flip: one bell row per resurfacing.
+        dedupeKey: `thread_resurfaced:${t.organizationId}:${t.id}:${now.toISOString()}`,
+      }
+      if (t.assignedUserId) {
+        await notify({ ...alert, userId: t.assignedUserId, organizationId: t.organizationId })
+      } else {
+        await notifyOrgMembers(t.organizationId, alert, { roles: ['owner', 'admin'] })
+      }
+      notified++
+    } catch (err) {
+      // The flip is the record; a missed bell is a bell, not a lost thread.
+      console.warn('[patient-messaging.resurfaceSnoozedThreads] notify failed', err)
+    }
+  }
+  return { resurfaced: flipped.length, notified }
 }
 
 export async function archiveThread(

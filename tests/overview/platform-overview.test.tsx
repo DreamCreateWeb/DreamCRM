@@ -60,8 +60,25 @@ let stubGrowth: {
   pctChange: number | null
 } = { buckets: [], total: 0, newThisWeek: 0, newPrevWeek: 0, pctChange: null }
 
+const emptyProjects = () => ({
+  totalProjects: 0,
+  openProjects: 0,
+  completedThisMonth: 0,
+  byStatus: {} as Record<string, number>,
+  byType: {} as Record<string, number>,
+  pipelineValueCents: 0,
+  completedValueCents: 0,
+  recentlyUpdated: [],
+})
+let stubProjects = emptyProjects()
+let stubProjectsThrow: Error | null = null
+
 vi.mock('@/lib/services/projects', () => ({
   getSubscriptionStats: async () => stubSubs,
+  getProjectStats: async () => {
+    if (stubProjectsThrow) throw stubProjectsThrow
+    return stubProjects
+  },
 }))
 
 vi.mock('@/lib/services/platform-metrics', () => ({
@@ -107,7 +124,16 @@ beforeEach(() => {
   stubPmsDemand = []
   stubGrowth = { buckets: [], total: 0, newThisWeek: 0, newPrevWeek: 0, pctChange: null }
   stubActivation = emptyActivation()
+  stubProjects = emptyProjects()
+  stubProjectsThrow = null
 })
+
+/** The KpiStat card that carries `label`. */
+function tile(label: string): HTMLElement {
+  const el = screen.getByText(label).closest('div.v2-card, div.v2-card-interactive')
+  expect(el).not.toBeNull()
+  return el as HTMLElement
+}
 
 describe('PlatformOverview', () => {
   it('the MRR tile renders an em dash, not $0, when Stripe is unreachable', async () => {
@@ -141,6 +167,44 @@ describe('PlatformOverview', () => {
     expect(screen.getByText('Needs Attention')).toBeInTheDocument()
     expect(screen.getByText(/You're caught up/i)).toBeInTheDocument()
     expect(screen.getByText(/All clear/i)).toBeInTheDocument()
+  })
+
+  it('the Open Projects tile is the REAL open count — not stalled + overdue + whatever sat in the feed', async () => {
+    // The old value: 1 stalled + 2 overdue + 1 'project_started' feed row = 4,
+    // a number that is not a count of anything and moved whenever an
+    // unrelated signup pushed a feed row out of the last ten.
+    stubProjects = { ...emptyProjects(), openProjects: 7 }
+    stubAttention = { ...stubAttention, stalledProjectCount: 1, overdueProjectCount: 2 }
+    stubActivity = {
+      rows: [{ id: 'ps1', kind: 'project_started', title: 'Intake form started', subtitle: 'Acme', ts: new Date() }],
+      stripeUnavailable: false,
+    }
+    render(await PlatformOverview())
+    const open = tile('Open Projects')
+    expect(within(open).getByText('7')).toBeInTheDocument()
+    expect(within(open).queryByText('4')).toBeNull()
+    expect(within(open).getByText('1 stalled · 2 overdue')).toBeInTheDocument()
+    expect(open.closest('a')?.getAttribute('href') ?? open.querySelector('a')?.getAttribute('href')).toBe('/dashboard/analytics')
+  })
+
+  it('says so when nothing is stalled or overdue', async () => {
+    stubProjects = { ...emptyProjects(), openProjects: 3 }
+    render(await PlatformOverview())
+    const open = tile('Open Projects')
+    expect(within(open).getByText('3')).toBeInTheDocument()
+    expect(within(open).getByText('None stalled or overdue')).toBeInTheDocument()
+  })
+
+  it('an unreadable project read renders UNKNOWN, never a derived number', async () => {
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {})
+    stubProjectsThrow = new Error('connection terminated unexpectedly')
+    stubAttention = { ...stubAttention, stalledProjectCount: 1, overdueProjectCount: 2 }
+    render(await PlatformOverview())
+    const open = tile('Open Projects')
+    expect(within(open).getByText('—')).toBeInTheDocument()
+    expect(within(open).getByText('Couldn’t read projects')).toBeInTheDocument()
+    expect(within(open).queryByText('3')).toBeNull()
+    err.mockRestore()
   })
 
   it('reflects subscription counts and 30d signups in the Active Clinics card', async () => {

@@ -16,7 +16,7 @@ import { listFormTemplates } from '@/lib/services/forms'
 import { getInsuranceSetup, getLatestInsuranceCheckForPatient, listInsuranceChecksForPatient } from '@/lib/services/insurance-eligibility'
 import { getLatestDiscoveryForPatient } from '@/lib/services/insurance-eligibility/discovery'
 import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
-import { canUseInsuranceTool, requestFromOnFile } from '@/lib/insurance-eligibility'
+import { canUseInsuranceTool, recheckRequest } from '@/lib/insurance-eligibility'
 import PatientDetail from './patient-detail'
 
 interface PageProps {
@@ -77,17 +77,23 @@ export default async function PatientDetailPage({ params }: PageProps) {
     : null
 
   // Insurance-check rail card: the latest stored verdict + what a re-check
-  // would send when no check exists yet (the on-file card as self-subscriber).
+  // would send — the SAME rule the tool page uses (`recheckRequest`): the
+  // stored check's input while its member id is still the card on file, the
+  // on-file card the moment staff change the policy number. The card used
+  // to send `latest.input` unconditionally, so correcting a typo and pressing
+  // "Check again" billed a live check against the OLD number.
   // null hides the rail card AND the needs-attention nudge outside a clinic
   // tenant (the tool is a clinic feature) and until the clinic turns the
   // tool on from /insurance (the intro card).
-  const onFileRequest = requestFromOnFile(header)
+  const recheck = recheckRequest(header, latestInsuranceCheck)
+  const onFileRequest = recheck.request
   const insurance = insuranceSetup?.enabled
     ? {
         latest: latestInsuranceCheck,
         history: insuranceHistory,
         hasOnFile: !!header.insuranceProvider,
         onFileRequest,
+        cardChanged: recheck.cardChanged,
         // A clearinghouse driver needs the exact payer, and a carrier NAME on
         // file is not one — without a remembered payer id (or a stored check
         // that carries one) a Check-now here would only be refused, so the

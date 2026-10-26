@@ -173,6 +173,16 @@ describe('parseOfficePhotos + parseFinancingPartners', () => {
     expect(out).toHaveLength(1)
     expect(out![0].caption).toBe('Lobby')
   })
+  it('office photos keep the description AND the focus point the editor set (2026-10-26)', () => {
+    const out = parseOfficePhotos(
+      JSON.stringify([{ id: 'p1', url: 'http://x/1.jpg', alt: '  Our front desk ', caption: 'Lobby', position: '50% 30%' }]),
+    )
+    expect(out![0]).toMatchObject({ id: 'p1', alt: 'Our front desk', caption: 'Lobby', position: '50% 30%' })
+    // Blank description + blank position read as null, never ''.
+    const blank = parseOfficePhotos(JSON.stringify([{ url: 'http://x/2.jpg', alt: '  ', position: '' }]))
+    expect(blank![0].alt).toBeNull()
+    expect(blank![0].position).toBeNull()
+  })
   it('financing partners require a name and null when empty', () => {
     expect(parseFinancingPartners(JSON.stringify([{ description: 'x' }]))).toBeNull()
     const out = parseFinancingPartners(JSON.stringify([{ name: 'CareCredit', applyUrl: ' http://cc ' }]))
@@ -221,5 +231,17 @@ describe('clean', () => {
     expect(clean('a', f)).toBe('hi')
     expect(clean('missing', f)).toBeNull()
     expect(clean('missing', f, 'US')).toBe('US')
+  })
+})
+
+describe('officePhotoAlt — the one rule every gallery paints (2026-10-26)', () => {
+  it('description → caption → the clinic, never an empty alt', async () => {
+    const { officePhotoAlt, officePhotoNeedsDescription } = await import('@/lib/types/clinic-content')
+    expect(officePhotoAlt({ alt: 'Our front desk', caption: 'Lobby' }, 'Acme Dental')).toBe('Our front desk')
+    expect(officePhotoAlt({ alt: '  ', caption: 'Lobby' }, 'Acme Dental')).toBe('Lobby')
+    expect(officePhotoAlt({ alt: null, caption: null }, 'Acme Dental')).toBe('Acme Dental — the office')
+    expect(officePhotoNeedsDescription({ alt: null, caption: null })).toBe(true)
+    expect(officePhotoNeedsDescription({ alt: null, caption: 'Lobby' })).toBe(false)
+    expect(officePhotoNeedsDescription({ alt: 'x', caption: null })).toBe(false)
   })
 })

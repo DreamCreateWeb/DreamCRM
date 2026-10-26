@@ -4,6 +4,7 @@ import AccountPanel from './account-panel'
 import { requireUser } from '@/lib/session'
 import { SettingsPage } from '../settings-kit'
 import TextSizeToggle from '@/components/ui/text-size-toggle'
+import ThemeChoice from '@/components/ui/theme-choice'
 
 export const metadata = {
   title: 'Account Settings - DreamCRM',
@@ -39,6 +40,12 @@ export default async function AccountSettings() {
         subtitle="Make everything bigger, everywhere in the app — no squinting. Saved on this device."
       >
         <TextSizeToggle />
+      </SettingsPage>
+      <SettingsPage
+        title="Theme"
+        subtitle="Light, dark, or follow your device. The header's sun/moon flips between light and dark; this is where you hand it back to the device. Saved on this device."
+      >
+        <ThemeChoice />
       </SettingsPage>
     </>
   )

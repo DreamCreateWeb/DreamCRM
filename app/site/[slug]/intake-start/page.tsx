@@ -7,6 +7,7 @@ import {
 } from '@/lib/services/clinic-site'
 import { getPatientFacingDefaultForm } from '@/lib/services/forms'
 import { auth } from '@/lib/auth/server'
+import { intakeStartHref } from '@/lib/clinic-site-helpers'
 import { readableInk } from '@/lib/clinic-site-theme'
 import MinimalSiteChrome from '@/components/clinic-site/minimal-site-chrome'
 import IntakeStartForm from './intake-start-form'
@@ -42,34 +43,32 @@ export default async function IntakeStartPage({ params }: Props) {
   const template = await getPatientFacingDefaultForm(data.orgId)
   if (!template) notFound()
 
-  // Defensive subdomain redirect. If someone lands on
-  // `<slug>.dreamcreatestudio.com/intake-start`, send them to the apex
-  // `www.` version so better-auth's POST to `/api/auth/sign-up/email`
-  // (relative URL on the same origin) hits the actual auth handler
-  // rather than getting rewritten to `/site/<slug>/api/auth/...` (which
-  // doesn't exist and 404s). The whole intake flow — auth, cookies,
-  // patient portal — must live on a single origin for the cookie to
-  // travel with the user.
-  const h = await headers()
-  const host = (h.get('x-forwarded-host') || h.get('host') || '')
-    .split(',')[0]
-    .split(':')[0]
-    .toLowerCase()
-  const apex = new URL(appBaseUrl()).hostname.toLowerCase()
-  if (host && host !== apex && host.endsWith(apex.replace(/^www\./, ''))) {
-    redirect(`${appBaseUrl()}/site/${slug}/intake-start`)
+  // Defensive host redirect. If someone lands on this gate on ANY host where
+  // the site is served at the root — `<slug>.dreamcreatestudio.com` OR a
+  // clinic's custom domain (tedpinneydds.com) — send them to the apex `www.`
+  // version so better-auth's POST to `/api/auth/sign-up/email` (relative
+  // URL on the same origin) hits the actual auth handler rather than
+  // getting rewritten to `/site/<slug>/api/auth/...` (which doesn't exist
+  // and 404s). The whole intake flow — auth, cookies, patient portal — must
+  // live on a single origin for the cookie to travel with the user. The
+  // first cut matched only hosts ENDING in the platform domain, so a custom
+  // domain rendered the gate in place and its submit 404'd.
+  const basePath = await resolveSiteBasePath(slug)
+  if (basePath === '') {
+    redirect(intakeStartHref(slug))
   }
 
   // If the user is ALREADY signed in, short-circuit straight to the
   // authenticated intake page. The patient page handles the case where
   // they're not yet a patient of THIS clinic (it redirects to "/" which
-  // then routes them to their actual dashboard).
+  // then routes them to their actual dashboard). Absolute, for the same
+  // one-origin reason: `/patient/*` only exists on www.
+  const h = await headers()
   const session = await auth.api.getSession({ headers: h })
   if (session?.user) {
-    redirect('/patient/intake')
+    redirect(`${appBaseUrl()}/patient/intake`)
   }
 
-  const basePath = await resolveSiteBasePath(slug)
   const profile = data.profile
   const name = profile.displayName ?? data.orgName
   const brand = profile.brandColor ?? '#9CAF9F'

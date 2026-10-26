@@ -3,13 +3,15 @@ import { and, desc, eq, ne, sql } from 'drizzle-orm'
 import { stripe } from '@/lib/stripe'
 import type Stripe from 'stripe'
 import { db } from '@/lib/db'
-import { organization, member, user } from '@/lib/db/schema/auth'
+import { organization, member, user, invitation } from '@/lib/db/schema/auth'
 import {
   clinicProfile,
   agencyProject,
   type ClinicProfile,
 } from '@/lib/db/schema/platform'
 import { patient, appointment } from '@/lib/db/schema/clinic'
+import { resolveTrialState, type TrialState } from '@/lib/trial'
+import { clinicCountsAsActive } from '@/lib/platform-clinic-status'
 import { getPlatformMrr, emptyPlatformMrr } from './platform-mrr'
 
 function isMissingSchema(err: unknown): boolean {
@@ -49,6 +51,16 @@ export interface ClinicListRow {
   billingMode?: string | null
   /** Managed clinics: reserved plan awaiting owner checkout. */
   pendingPlanId?: string | null
+  /** A managed clinic whose owner has NOT accepted the invite yet — the
+   *  only state in which "resend the invite" can succeed. The reserved plan
+   *  (`pendingPlanId`) is NOT this: it stays reserved for the whole trial,
+   *  after the owner accepted on day 0 and is using the app. */
+  ownerInvitePending: boolean
+  /** The no-card trial, resolved by THE rule the dashboard wall and the
+   *  engine kill use (lib/trial.ts). `subscriptionStatus` still says
+   *  'trialing' after the trial runs out — nothing writes the column — so a
+   *  surface that reads the column alone paints a shut-down clinic healthy. */
+  trial: TrialState
   createdAt: Date
   /** The demo clinic — shown in the list (it's the demo entry point) but
    *  excluded from every top-line aggregate (MRR, active, new-in-30d). */
@@ -148,6 +160,23 @@ export async function listClinics(): Promise<ClinicListRow[]> {
       if (!isMissingSchema(err)) throw err
     }
 
+    // Orgs whose OWNER invite is still unaccepted — a set, not a join on the
+    // org query, because an org can carry more than one pending owner row
+    // (a re-created invite) and a left join would duplicate the clinic.
+    // Expired-but-pending rows count: the owner has not accepted, and
+    // resending re-arms the expiry. Team invites (admin/member) are not the
+    // owner's acceptance and do not count.
+    let pendingOwnerInviteOrgs = new Set<string>()
+    try {
+      const inviteRows = await db
+        .select({ orgId: invitation.organizationId })
+        .from(invitation)
+        .where(and(eq(invitation.role, 'owner'), eq(invitation.status, 'pending')))
+      pendingOwnerInviteOrgs = new Set(inviteRows.map((r) => r.orgId))
+    } catch (err) {
+      if (!isMissingSchema(err)) throw err
+    }
+
     // What each clinic actually pays, from its live Stripe subscription —
     // the same derivation the platform MRR dashboards read, so this column
     // and those tiles can never tell two different stories. Three hardcoded
@@ -157,8 +186,14 @@ export async function listClinics(): Promise<ClinicListRow[]> {
 
     return rows.map<ClinicListRow>((r) => {
       const planTier = (r.planTier ?? 'premium') as ClinicListRow['planTier']
-      const isActive =
-        r.subscriptionStatus === 'active' || r.subscriptionStatus === 'trialing'
+      const trial = resolveTrialState({
+        trialEndsAt: r.trialEndsAt ?? null,
+        subscriptionStatus: r.subscriptionStatus,
+        stripeSubscriptionId: r.stripeSubscriptionId,
+      })
+      // An expired trial pays nothing and has no access — its contribution
+      // is a real 0, the same verdict getPlatformMrr reaches for it.
+      const isActive = clinicCountsAsActive({ subscriptionStatus: r.subscriptionStatus, trial })
       const monthlyContributionCents = !isActive
         ? 0
         : mrr.stripeUnavailable
@@ -182,8 +217,11 @@ export async function listClinics(): Promise<ClinicListRow[]> {
         subscriptionStatus: r.subscriptionStatus,
         stripeCustomerId: r.stripeCustomerId,
         stripeSubscriptionId: r.stripeSubscriptionId,
+        trialEndsAt: r.trialEndsAt ?? null,
         billingMode: r.billingMode ?? 'self_serve',
         pendingPlanId: r.pendingPlanId,
+        ownerInvitePending: pendingOwnerInviteOrgs.has(r.orgId),
+        trial,
         createdAt: r.createdAt,
         isDemo: r.isDemo === true,
         monthlyContributionCents,
@@ -290,14 +328,18 @@ export async function getClinicDetail(orgId: string): Promise<ClinicDetail | nul
     .where(and(eq(member.organizationId, orgId), ne(member.role, 'patient')))
     .orderBy(member.createdAt)
 
-  // Patient + appointment counts
+  // Patient + appointment counts. ACTIVE patients only (archived excluded),
+  // the same rule listClinics applies — the detail page's number must be the
+  // one on the list row the owner just clicked, and the one the clinic's own
+  // /patients page shows. Two numbers for the same fact two clicks apart is
+  // the wrong one quoted on a call with the practice.
   let patientCount = 0
   let upcomingAppointmentCount = 0
   try {
     const [pc] = await db
       .select({ count: sql<number>`count(${patient.id})::int` })
       .from(patient)
-      .where(eq(patient.organizationId, orgId))
+      .where(and(eq(patient.organizationId, orgId), ne(patient.lifecycle, 'archived')))
     patientCount = Number(pc?.count ?? 0)
 
     const [ac] = await db

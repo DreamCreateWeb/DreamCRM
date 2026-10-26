@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useTransition } from 'react'
 import {
   EMAIL_AUTOMATION_KEYS,
   EMAIL_AUTOMATION_SPECS,
+  bodyOpensWithGreeting,
   type EmailAutomationKey,
   type EmailAutomationOverride,
   type EmailCategory,
@@ -423,6 +424,14 @@ function EmailCard({
               <div className="space-y-2 bg-white px-4 py-3.5 text-sm leading-relaxed text-gray-700 dark:bg-gray-900/40 dark:text-gray-200">
                 {slots.heading != null && slots.heading.trim() !== '' && (
                   <p className="text-[15px] font-semibold text-gray-900 dark:text-gray-100">{fillTokens(slots.heading)}</p>
+                )}
+                {/* The sender's own "Hi {first}," — shown exactly when the
+                    email will carry it: this spec greets AND the message
+                    doesn't already open with a greeting. */}
+                {spec.greets && !bodyOpensWithGreeting(slots.body) && (
+                  <p className="text-gray-500 dark:text-gray-400" data-preview-greeting>
+                    Hi {SAMPLE_FIELDS.firstName},
+                  </p>
                 )}
                 <p className="whitespace-pre-wrap">{fillTokens(slots.body ?? '')}</p>
                 {slots.closing != null && slots.closing.trim() !== '' && (

@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { getSubscriptionStats } from '@/lib/services/projects'
+import { getProjectStats, getSubscriptionStats } from '@/lib/services/projects'
 import { getClinicGrowth } from '@/lib/services/platform-metrics'
 import { getAttentionItems, getRecentPlatformActivity } from '@/lib/services/operations'
 import { getPmsDemand } from '@/lib/services/pms-interest'
@@ -50,6 +50,7 @@ function moneyFull(cents: number): string {
 export default async function PlatformOverview() {
   const [
     subs,
+    projects,
     clinicGrowth,
     attention,
     activity,
@@ -59,6 +60,16 @@ export default async function PlatformOverview() {
     activation,
   ] = await Promise.all([
     getSubscriptionStats(),
+    // THE open-project count — the same `openProjects` Platform Metrics
+    // plots, so the tile and the page it links to say one number. The tile
+    // used to add stalled + overdue + however many 'project_started' rows
+    // sat in the 10-row activity feed, which is not a count of anything and
+    // moved whenever an unrelated signup pushed a row out of the feed.
+    // Best-effort: unreadable renders as unknown, never as a number.
+    getProjectStats().catch((e) => {
+      console.error('[projects] stats unavailable for the overview', e)
+      return null
+    }),
     // New clinic signups per week, last 12 weeks — the Active Clinics tile's
     // heartbeat (law 7). Same series the Platform Metrics dashboard plots;
     // demo org excluded at the service.
@@ -172,8 +183,14 @@ export default async function PlatformOverview() {
         />
         <KpiStat
           label="Open Projects"
-          value={formatNumberShort(attention.stalledProjectCount + attention.overdueProjectCount + (activity.rows.filter((a) => a.kind === 'project_started').length))}
-          sub="See Platform Metrics for trend"
+          value={projects ? formatNumberShort(projects.openProjects) : '—'}
+          sub={
+            !projects
+              ? 'Couldn’t read projects'
+              : attention.stalledProjectCount + attention.overdueProjectCount > 0
+                ? `${attention.stalledProjectCount} stalled · ${attention.overdueProjectCount} overdue`
+                : 'None stalled or overdue'
+          }
           href="/dashboard/analytics"
         />
         <KpiStat

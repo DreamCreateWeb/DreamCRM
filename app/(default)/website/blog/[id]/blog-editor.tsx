@@ -820,7 +820,7 @@ function SocialModal({
           ✨ Social caption
         </h2>
         <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
-          Copy this into Instagram, Facebook, or wherever you post. Scheduling is coming later.
+          Copy this into Instagram, Facebook, or wherever you post — or schedule it from Social Posts.
         </p>
         <div className="text-sm text-gray-700 dark:text-gray-200 v2-well p-3 min-h-[80px] whitespace-pre-wrap">
           {busy ? 'Writing…' : text}

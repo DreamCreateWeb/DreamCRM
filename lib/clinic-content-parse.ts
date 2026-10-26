@@ -178,6 +178,9 @@ export function parseOfficePhotos(raw: string | undefined): ClinicOfficePhoto[] 
         url,
         alt: typeof obj.alt === 'string' ? obj.alt.trim() || null : null,
         caption: typeof obj.caption === 'string' ? obj.caption.trim() || null : null,
+        // The focus point the editor's picker sets — dropped on every save
+        // until 2026-10-26, so no office photo ever kept its crop.
+        position: typeof obj.position === 'string' ? obj.position.trim() || null : null,
       })
     }
     return out.length ? out : null

@@ -3,9 +3,11 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }) }))
 const deleteAction = vi.fn(async () => ({ ok: true }))
+const retryAction = vi.fn(async (..._a: unknown[]) => ({ ok: true, recovered: 1, retried: 1 }))
 vi.mock('@/app/(default)/growth/social/actions', () => ({
   createSocialPostAction: vi.fn(async () => ({ ok: true })),
   deleteSocialPostAction: (...a: unknown[]) => deleteAction(...(a as [])),
+  retrySocialPostAction: (...a: unknown[]) => retryAction(...a),
 }))
 
 import PostHistory from '@/app/(default)/growth/social/post-history'
@@ -48,7 +50,11 @@ function post(over: Partial<SocialPostView> = {}): SocialPostView {
   }
 }
 
-beforeEach(() => deleteAction.mockClear())
+beforeEach(() => {
+  deleteAction.mockClear()
+  retryAction.mockClear()
+  retryAction.mockResolvedValue({ ok: true, recovered: 1, retried: 1 })
+})
 
 describe('PostHistory', () => {
   it('renders a published post with its status pill + multi-channel target chips', () => {
@@ -118,5 +124,42 @@ describe('PostHistory', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
     fireEvent.click(screen.getByRole('button', { name: 'Confirm delete' }))
     await waitFor(() => expect(deleteAction).toHaveBeenCalledWith('sp_1'))
+  })
+})
+
+/**
+ * TRY AGAIN (2026-10-26): a failed channel gets a lever that matches the
+ * legend, and the lever goes through the gated action — never bare-awaited.
+ */
+describe('PostHistory — Try again on a failed channel', () => {
+  const failedPost = () =>
+    post({
+      status: 'failed',
+      publishedAtIso: null,
+      targets: [
+        target(),
+        target({ id: 'ti', status: 'failed', url: null, lastError: 'image too small', label: 'Instagram', platform: 'instagram', icon: '📸' }),
+      ],
+    })
+
+  it('offers Try again named for the one failed channel and calls the action with the post id', async () => {
+    render(<PostHistory posts={[failedPost()]} />)
+    const btn = screen.getByRole('button', { name: 'Try again on Instagram' })
+    fireEvent.click(btn)
+    await waitFor(() => expect(retryAction).toHaveBeenCalledWith('sp_1'))
+    await waitFor(() => expect(screen.getByRole('status').textContent).toMatch(/went through/))
+  })
+
+  it('a post with nothing failed has no Try again lever', () => {
+    render(<PostHistory posts={[post()]} />)
+    expect(screen.queryByRole('button', { name: /Try again/ })).toBeNull()
+  })
+
+  it('a thrown action (a redeploy under the tab) becomes a sentence, not a stuck button', async () => {
+    retryAction.mockRejectedValueOnce(new Error('Failed to find Server Action "abc". This request might be from an older or newer deployment.'))
+    render(<PostHistory posts={[failedPost()]} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Try again on Instagram' }))
+    await waitFor(() => expect(screen.getByRole('alert').textContent).toMatch(/Refresh/))
+    expect((screen.getByRole('button', { name: 'Try again on Instagram' }) as HTMLButtonElement).disabled).toBe(false)
   })
 })

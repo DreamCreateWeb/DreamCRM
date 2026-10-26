@@ -1,11 +1,14 @@
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
+import type React from 'react'
 import { render, cleanup } from '@testing-library/react'
 import { listSiteTemplates } from '@/lib/site-templates/registry'
 import { SITE_TEMPLATE_MANIFEST } from '@/lib/site-templates/manifest'
+import { SITE_TEMPLATE_CATALOG } from '@/lib/site-templates/catalog'
 import { copyKeysForTemplate } from '@/lib/services/ai-website-edit'
 import { PALETTE_VARS, type ClinicPalette } from '@/lib/clinic-site-theme'
+import { intakeStartHref } from '@/lib/clinic-site-helpers'
 import { FIXTURES } from '../fixtures/clinic-site-fixtures'
 import type { HomePageProps } from '@/lib/site-templates/page-props'
 import type { ClinicSiteData } from '@/lib/services/clinic-site'
@@ -168,6 +171,44 @@ describe.each(TEMPLATES.map((t) => [t.id, t] as const))('template conformance [%
     cleanup()
   })
 
+  it('chrome: the "New patient forms" door is an ABSOLUTE www URL when intake is open', () => {
+    // The /intake-start gate signs the patient in (a relative better-auth POST
+    // to /api/auth/*) and lands them in /patient/* — both exist only on the
+    // www host. A relative `${basePath}/intake-start` on a subdomain or a
+    // custom domain renders the gate in place and its submit is rewritten to
+    // /site/<slug>/api/auth/… (a 404 on the practice's own domain). Every
+    // template's Header + Footer must route the door through intakeStartHref.
+    const data = FIXTURES.rich()
+    data.profile.intakeFormsEnabledAt = new Date('2026-10-01T00:00:00Z')
+    const chromeProps = {
+      data,
+      basePath: '',
+      navLinks: [{ label: 'Contact', href: '#site-footer-contact' }],
+      bookHref: '/book',
+      bookLabel: def.bookLabel,
+      signInUrl: 'https://www.example.com/site/fixture-dental/portal',
+    }
+    // Where the door sits is the template's call (five footers, the hometown
+    // header, the modern home hero); that it is offered SOMEWHERE when open,
+    // and absolute EVERYWHERE, is not.
+    let doors = 0
+    const surfaces: Array<() => React.ReactElement> = [
+      () => <def.chrome.Footer {...chromeProps} />,
+      () => <def.chrome.Header {...chromeProps} />,
+      () => <def.pages.Home {...homeProps(data, def)} basePath="" bookHref="/book" />,
+    ]
+    for (const make of surfaces) {
+      const { container } = render(make())
+      const intakeLinks = Array.from(container.querySelectorAll('a[href*="intake-start"]'))
+      doors += intakeLinks.length
+      for (const a of intakeLinks) {
+        expect(a.getAttribute('href')).toBe(intakeStartHref(data.slug))
+      }
+      cleanup()
+    }
+    expect(doors, 'the template offers no intake door at all while the door is open').toBeGreaterThan(0)
+  })
+
   it('declared extra marketing pages resolve to real routes and honor their gates', () => {
     for (const page of def.extraMarketingPages) {
       // The route must exist — a declared page that 404s would poison nav +
@@ -224,6 +265,53 @@ describe.each(TEMPLATES.map((t) => [t.id, t] as const))('template conformance [%
     }
   })
 
+  describe('the catalog’s media map tells the truth about this design (2026-10-26)', () => {
+    // The Design page offers the second hero photo and the intro video, and
+    // the Content rail points stats/photos at Home, ONLY where the catalog
+    // says the design draws them — so the catalog is held to the source.
+    const files = SITE_TEMPLATE_MANIFEST.byTemplate[tid] ?? []
+    const src = files.map((f) => read(f)).join('\n')
+    const media = SITE_TEMPLATE_CATALOG.find((t) => t.id === tid)!.media
+
+    it('is in the catalog', () => {
+      expect(media).toBeTruthy()
+    })
+
+    it('heroImage2 ⇔ the design’s files read heroImageUrl2', () => {
+      expect(/heroImageUrl2/.test(src)).toBe(media.heroImage2)
+    })
+
+    it('introVideo ⇔ the design’s files read differenceVideoUrl', () => {
+      expect(/differenceVideoUrl/.test(src)).toBe(media.introVideo)
+    })
+
+    it('homeStats ⇔ the design’s Home wires the stats section', () => {
+      expect(/(?:data-edit-field|field|editField)="stats"/.test(src)).toBe(media.homeStats)
+    })
+
+    it('homePhotos ⇔ the design’s Home reads officePhotos', () => {
+      expect(/officePhotos/.test(src)).toBe(media.homePhotos)
+    })
+
+    it('a Home that paints the gallery paints its alt through officePhotoAlt (never alt="")', () => {
+      if (!media.homePhotos) return
+      expect(src).toMatch(/officePhotoAlt\(/)
+      expect(src).not.toMatch(/alt=\{(?:p|photo)\.alt \?\? ''\}/)
+    })
+
+    it('a declared slot is a Studio door on the rich fixture, not a silent read', () => {
+      if (!media.heroImage2 && !media.introVideo) return
+      const { container } = render(<def.pages.Home {...homeProps(FIXTURES.rich(), def)} />)
+      if (media.heroImage2) {
+        expect(container.querySelector('[data-edit-field="heroImageUrl2"]'), 'second hero photo door').toBeTruthy()
+      }
+      if (media.introVideo) {
+        expect(container.querySelector('[data-edit-field="differenceVideoUrl"]'), 'intro video door').toBeTruthy()
+      }
+      cleanup()
+    })
+  })
+
   describe('source hygiene on the template’s own files', () => {
     const files = SITE_TEMPLATE_MANIFEST.byTemplate[tid] ?? []
 
@@ -248,5 +336,13 @@ describe.each(TEMPLATES.map((t) => [t.id, t] as const))('template conformance [%
       // Legibility floor (mirror of tests/a11y/legibility-floor.test.ts).
       expect(src).not.toMatch(/text-\[(?:[0-9]|1[01])px\]/)
     })
+  })
+})
+
+describe('the shared /about gallery (every design) paints alt through officePhotoAlt', () => {
+  it('never renders an office photo with an empty alt', () => {
+    const src = read('app/site/[slug]/about/page.tsx')
+    expect(src).toMatch(/officePhotoAlt\(/)
+    expect(src).not.toMatch(/alt=\{p\.alt \?\? ''\}/)
   })
 })

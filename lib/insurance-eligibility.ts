@@ -868,6 +868,31 @@ export function requestFromOnFile(row: {
   }
 }
 
+/**
+ * THE ONE RULE for what a re-check sends (the tool page and the record's
+ * rail card used to disagree). A stored check's input is the richest source
+ * — it knows the exact payer and the policyholder — but ONLY while its
+ * member id is still the card on file. A card changed since (PMS, portal,
+ * staff correcting a typo in the edit modal) wins, with the remembered
+ * detail riding along when it still matches (`requestFromOnFile`).
+ *
+ * This matters because every live re-check is a billed 270: the rail card
+ * sent `latest.input` unconditionally, so correcting a mistyped member id
+ * and pressing "Check again" re-checked the TYPO, spent one of the month's
+ * included checks, and showed a verdict for a number no longer on file.
+ */
+export function recheckRequest(
+  row: Parameters<typeof requestFromOnFile>[0],
+  latest: { input: Partial<EligibilityRequest> & Pick<EligibilityRequest, 'memberId'> } | null | undefined,
+): { request: Partial<EligibilityRequest>; cardChanged: boolean } {
+  const onFile = (row.insurancePolicyNumber ?? '').trim()
+  if (!latest) return { request: requestFromOnFile(row), cardChanged: false }
+  const stillOnFile = !onFile || onFile === latest.input.memberId.trim()
+  return stillOnFile
+    ? { request: latest.input, cardChanged: false }
+    : { request: requestFromOnFile(row), cardChanged: true }
+}
+
 /** "Dec 8, 2028" from an ISO calendar date; junk is returned as typed. */
 export function niceDate(iso: string | null | undefined): string {
   if (!iso || !ISO_DATE.test(iso)) return iso ?? ''

@@ -620,6 +620,28 @@ export const INTAKE_RULES = [
       // Nothing here is a new NUMBER: the floor is still AA out of
       // `palette.ts`, and rule 7 holds at zero with no exemption list.
       'tests/a11y/one-string-pairs.test.ts',
+      // The marketing-forms bare-await rule (2026-10-26, the deep dev cycle).
+      // A NEW CLASS of assertion rather than a case on an existing one,
+      // stated here rather than guessed as this entry's `why` asks: every
+      // rule above grades a COLOUR or a SHAPE; this one grades CONTROL FLOW.
+      // It walks `app/(marketing)` and `app/(auth)` with a comment-blanking
+      // brace tracker and fails any `await <x>Action(` that is not inside a
+      // `try` — the stale-tab freeze (a server action refused after a deploy
+      // throws, and an unhandled await leaves the form stuck) was fixed in
+      // the Studio on 2026-10-23 and the public grader form was the same
+      // class. After it lands, a bare await of a server action in a public
+      // form fails `test` by name.
+      'tests/marketing/marketing-forms-bare-await.test.ts',
+      // The marketing-site copy scan (2026-10-26, the deep dev cycle). It
+      // was a NAMED-file test; it now WALKS `app/(marketing)`, `lib/marketing`
+      // and `components/marketing` for copy that describes the removed
+      // Open Dental-direct connector and its fee ("official API", the $30
+      // line, "syncs with Open Dental"). A widened field of view rather than
+      // a new kind of assertion — said rather than guessed — but a tree walk
+      // over three product roots is exactly what intake is for: a future
+      // marketing page that re-states the retired connector fails `test` by
+      // name, where before only the named files did.
+      'tests/marketing/seo.test.ts',
       // The check-mark veto (DREAMCRM-71, BRAND.md Part 3). A NEW CLASS of
       // assertion rather than a case on an existing one, stated here rather
       // than guessed as this entry's `why` asks: every rule above grades a

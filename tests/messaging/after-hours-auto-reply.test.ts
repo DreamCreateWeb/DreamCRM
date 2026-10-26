@@ -14,6 +14,7 @@ const h = vi.hoisted(() => ({
   inserts: [] as Array<Record<string, unknown>>,
   updates: [] as Array<Record<string, unknown>>,
   recordAction: vi.fn(async (..._a: unknown[]) => true),
+  sendEmail: vi.fn(async (..._a: unknown[]) => undefined),
 }))
 
 vi.mock('@/lib/db', () => {
@@ -34,12 +35,12 @@ vi.mock('@/lib/db', () => {
       clinicProfile: { organizationId: 'org', displayName: 'displayName', hours: 'hours', timezone: 'timezone', portalSettings: 'portalSettings' },
       patientMessage: { id: 'id', threadId: 'threadId', direction: 'direction', sentAt: 'sentAt', meta: 'meta' },
       patientThread: { id: 'id' },
-      patient: { organizationId: 'org', id: 'id', firstName: 'firstName' },
+      patient: { organizationId: 'org', id: 'id', firstName: 'firstName', email: 'email' },
     },
   }
 })
 vi.mock('@/lib/services/action-ledger', () => ({ recordAction: h.recordAction }))
-vi.mock('@/lib/email', () => ({ sendPatientMessageEmail: vi.fn(async () => undefined) }))
+vi.mock('@/lib/email', () => ({ sendPatientMessageEmail: h.sendEmail }))
 vi.mock('@/lib/services/clinic-sender', () => ({ getClinicSenderIdentity: vi.fn(async () => ({ name: 'Acme', from: 'a@x.com', replyTo: null, gmail: null })) }))
 vi.mock('@/lib/services/clinic-timezone', () => ({ getClinicTimeZone: vi.fn(async () => 'America/New_York') }))
 vi.mock('drizzle-orm', () => ({
@@ -140,7 +141,7 @@ describe('resolvePortalSettings — autoReply', () => {
 })
 
 // ── The EXECUTED send path (round-2 audit: the auto_reply writer was unpinned) ─
-import { maybeSendAfterHoursAutoReply } from '@/lib/services/patient-messaging'
+import { maybeSendAfterHoursAutoReply, afterHoursReplyDelivery } from '@/lib/services/patient-messaging'
 
 // All-closed hours make "after hours" true at any wall-clock time.
 const CLOSED_WEEK = {
@@ -197,6 +198,91 @@ describe('maybeSendAfterHoursAutoReply — executed', () => {
     h.selectQueue.push([OPEN_CLINIC()])
     h.selectQueue.push([{ id: 'pm_recent' }]) // an auto-reply already went out
     await maybeSendAfterHoursAutoReply('org_1', 'pat_1', 'thr_1')
+    expect(h.inserts).toHaveLength(0)
+    expect(h.recordAction).not.toHaveBeenCalled()
+  })
+
+  it('an in-app ack sends no email (the portal thread IS the delivery)', async () => {
+    h.selectQueue.push([OPEN_CLINIC()])
+    h.selectQueue.push([])
+    h.selectQueue.push([{ firstName: 'Mia' }])
+    await maybeSendAfterHoursAutoReply('org_1', 'pat_1', 'thr_1')
+    expect(h.sendEmail).not.toHaveBeenCalled()
+    const msg = h.inserts.find((i) => (i.meta as { autoReply?: boolean })?.autoReply)!
+    expect(msg.channel).toBe('in_app')
+  })
+})
+
+// ── The WEBSITE CHAT rail: a 9 PM visitor with no portal gets the ack by email ─
+describe('afterHoursReplyDelivery — which inbound messages earn the ack, and where', () => {
+  it('portal → in the portal thread; website chat → by email; contact form + SMS → not here', () => {
+    expect(afterHoursReplyDelivery({ channel: 'in_app' })).toBe('in_app')
+    expect(afterHoursReplyDelivery({ channel: 'email', source: 'website_chat' })).toBe('email')
+    // The contact form (plain 'email', no source) has its own acknowledgement.
+    expect(afterHoursReplyDelivery({ channel: 'email' })).toBeNull()
+    expect(afterHoursReplyDelivery({ channel: 'sms' })).toBeNull()
+  })
+})
+
+describe('maybeSendAfterHoursAutoReply — the website chat, delivered by email', () => {
+  beforeEach(() => {
+    h.selectQueue = []
+    h.inserts = []
+    h.updates = []
+    h.recordAction.mockClear()
+    h.sendEmail.mockClear()
+  })
+
+  it('office closed: ONE email to the address the visitor typed, the same editable copy, one row, narrated once', async () => {
+    h.selectQueue.push([OPEN_CLINIC()]) // clinic profile
+    h.selectQueue.push([]) // no recent auto-reply on the thread
+    h.selectQueue.push([{ email: 'visitor@example.com', firstName: 'Sam' }]) // the email delivery's org-scoped lookup
+    h.selectQueue.push([{ firstName: 'Sam' }]) // the ledger's name lookup
+    await maybeSendAfterHoursAutoReply('org_1', 'pat_1', 'thr_1', { deliverBy: 'email' })
+
+    expect(h.sendEmail).toHaveBeenCalledTimes(1)
+    const mail = h.sendEmail.mock.calls[0][0] as Record<string, unknown>
+    expect(mail.to).toBe('visitor@example.com')
+    expect(String(mail.body)).toContain('Acme Dental') // {clinic} resolved in the shared copy
+    expect(String(mail.body)).toBe(DEFAULT_AUTO_REPLY_MESSAGE.replace(/\{clinic\}/g, 'Acme Dental'))
+
+    const msg = h.inserts.find((i) => (i.meta as { autoReply?: boolean })?.autoReply)!
+    expect(msg.channel).toBe('email')
+    expect(msg.direction).toBe('outbound')
+    expect(msg.deliveredAt).toBeNull() // the provider's receipt stamps delivery, not us
+    expect(h.updates.some((u) => 'unreadCountForClinic' in u)).toBe(false)
+    expect(h.recordAction).toHaveBeenCalledTimes(1)
+    expect((h.recordAction.mock.calls[0][0] as Record<string, unknown>).capability).toBe('auto_reply')
+  })
+
+  it('office OPEN: no email, no row, no claim', async () => {
+    h.selectQueue.push([OPEN_CLINIC({ hours: WEEK, timezone: 'Pacific/Kiritimati' })])
+    // Whatever the wall clock, force "open" by using an all-day window.
+    h.selectQueue[0] = [OPEN_CLINIC({ hours: {
+      mon: { open: '00:00', close: '23:59' }, tue: { open: '00:00', close: '23:59' }, wed: { open: '00:00', close: '23:59' },
+      thu: { open: '00:00', close: '23:59' }, fri: { open: '00:00', close: '23:59' }, sat: { open: '00:00', close: '23:59' }, sun: { open: '00:00', close: '23:59' },
+    } })]
+    await maybeSendAfterHoursAutoReply('org_1', 'pat_1', 'thr_1', { deliverBy: 'email' })
+    expect(h.sendEmail).not.toHaveBeenCalled()
+    expect(h.inserts).toHaveLength(0)
+    expect(h.recordAction).not.toHaveBeenCalled()
+  })
+
+  it('the once-per-thread throttle holds across rails: a recent ack means no email', async () => {
+    h.selectQueue.push([OPEN_CLINIC()])
+    h.selectQueue.push([{ id: 'pm_recent' }])
+    await maybeSendAfterHoursAutoReply('org_1', 'pat_1', 'thr_1', { deliverBy: 'email' })
+    expect(h.sendEmail).not.toHaveBeenCalled()
+    expect(h.inserts).toHaveLength(0)
+    expect(h.recordAction).not.toHaveBeenCalled()
+  })
+
+  it('no address on the record: nothing is recorded and nothing is claimed (never a "sent" that did not go out)', async () => {
+    h.selectQueue.push([OPEN_CLINIC()])
+    h.selectQueue.push([])
+    h.selectQueue.push([{ email: null, firstName: 'Sam' }]) // the delivery helper refuses
+    await maybeSendAfterHoursAutoReply('org_1', 'pat_1', 'thr_1', { deliverBy: 'email' })
+    expect(h.sendEmail).not.toHaveBeenCalled()
     expect(h.inserts).toHaveLength(0)
     expect(h.recordAction).not.toHaveBeenCalled()
   })

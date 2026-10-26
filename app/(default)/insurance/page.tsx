@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic'
 
 import { redirect } from 'next/navigation'
 import { requireTenant } from '@/lib/auth/context'
-import { canUseInsuranceTool, requestFromOnFile } from '@/lib/insurance-eligibility'
+import { canUseInsuranceTool, recheckRequest } from '@/lib/insurance-eligibility'
 import {
   getInsuranceCheckById,
   getInsuranceSetup,
@@ -75,11 +75,9 @@ export default async function InsurancePage({ searchParams }: PageProps) {
           // The latest check's input is the richest source — but only while it
           // is still the card on file; a card changed since (PMS, portal,
           // staff) wins, with the remembered detail riding along when it
-          // still matches (requestFromOnFile).
-          request:
-            latest && (!header.insurancePolicyNumber || header.insurancePolicyNumber.trim() === latest.input.memberId.trim())
-              ? latest.input
-              : requestFromOnFile(header),
+          // still matches. ONE rule, shared with the record's rail card
+          // (`recheckRequest`), so the two can never disagree again.
+          request: recheckRequest(header, latest).request,
           state: header.state,
           postalCode: header.postalCode,
         }

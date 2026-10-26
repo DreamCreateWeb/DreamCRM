@@ -4,7 +4,6 @@ import {
   getClinicSiteBySlug,
   publicSiteUrl,
   resolveSiteBasePath,
-  appBaseUrl,
   clinicPortalSignInUrl,
 } from '@/lib/services/clinic-site'
 import { listPublishedPosts } from '@/lib/services/blog'
@@ -20,6 +19,7 @@ import {
   resolveCopyList,
   hasColoringPages,
   isSelfBookingEnabled,
+  intakeStartHref,
 } from '@/lib/clinic-site-helpers'
 import ScrollReveal from '@/components/clinic-site/scroll-reveal'
 import { DeepBand } from '@/components/clinic-site/decor'
@@ -100,6 +100,19 @@ const EXPECT_STEPS: Array<{ title: string; body: string }> = [
       'You leave knowing where things stand, what (if anything) needs doing, and what it will cost — before anything gets scheduled.',
   },
 ]
+
+/**
+ * Step 2 while the Intake Forms door is CLOSED (law 1 — OFF until chosen,
+ * honest while pending). The default above promises forms sent ahead of the
+ * visit; with the door shut there is no form to send, and the first-visit
+ * guide's whole job is to say exactly what happens. A clinic's own edit of
+ * `newPatients.expect.1.*` still wins either way.
+ */
+const EXPECT_STEP_FORMS_IN_OFFICE: { title: string; body: string } = {
+  title: 'A few quick forms',
+  body:
+    'We keep the paperwork short — a few minutes when you arrive, and someone at the desk to help if anything is unclear.',
+}
 
 const BRING_ITEMS: Array<{ title: string; body: string }> = [
   {
@@ -190,13 +203,16 @@ export default async function NewPatientsPage({ params }: Props) {
   const signIn = clinicPortalSignInUrl(slug, data.profile.portalSettings)
   // Same absolute-URL rule as the homepage hero's intake link: the auth +
   // portal half of the flow only exists on the apex www host.
-  const intakeHref = `${appBaseUrl()}/site/${data.slug}/intake-start`
+  const intakeHref = intakeStartHref(data.slug)
   // OFF UNTIL CHOSEN: no intake CTA while the Intake Forms door is closed (the page would 404).
   const intakeOpen = intakeDoorOpen(data.profile)
 
   const services = (profile.services as ClinicService[] | null) ?? []
 
-  const expectSteps = resolveCopyList(copyOverrides, 'newPatients.expect', EXPECT_STEPS)
+  const expectDefaults = intakeOpen
+    ? EXPECT_STEPS
+    : EXPECT_STEPS.map((step, i) => (i === 1 ? EXPECT_STEP_FORMS_IN_OFFICE : step))
+  const expectSteps = resolveCopyList(copyOverrides, 'newPatients.expect', expectDefaults)
   const bringItems = resolveCopyList(copyOverrides, 'newPatients.bring', BRING_ITEMS)
 
   const navLinks = buildClinicNavLinks({

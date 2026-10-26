@@ -40,6 +40,12 @@ export interface ThreadListRow {
   /** ISO string or null. */
   lastMessageAt: string | null
   status: 'open' | 'snoozed' | 'archived'
+  /** A snooze whose timer already ran out — the thread is back in Open and
+   *  the row says so, instead of 💤 "will resurface later" on one that has. */
+  snoozeResurfaced?: boolean
+  /** "Tue, Jun 23, 9:00 AM" at the clinic's wall-clock (formatted server-
+   *  side) for a snooze still running — the 💤 names when it comes back. */
+  snoozedUntilLabel?: string | null
   assignedUserName: string | null
   starred?: boolean
   /** AI triage on the latest inbound message — urgent rows pin to the top
@@ -292,10 +298,16 @@ export default function ClinicThreadList({
                           {t.unreadCount}
                         </span>
                       )}
-                      {t.status === 'snoozed' ? (
+                      {t.status === 'snoozed' && t.snoozeResurfaced ? (
+                        // The timer ran out: it is back in Open, and the row
+                        // must not keep promising it will "resurface later".
+                        <StatusPill tone="warn" title="The snooze ended — this conversation is back in Open, waiting on you">
+                          Back from snooze
+                        </StatusPill>
+                      ) : t.status === 'snoozed' ? (
                         <span
                           className="text-xs text-amber-700 dark:text-amber-300"
-                          title="Snoozed — will resurface later"
+                          title={t.snoozedUntilLabel ? `Snoozed until ${t.snoozedUntilLabel}` : 'Snoozed — will resurface later'}
                         >
                           💤
                         </span>

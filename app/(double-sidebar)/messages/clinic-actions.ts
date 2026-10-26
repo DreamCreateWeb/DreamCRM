@@ -19,6 +19,7 @@ import { isBroadcastSegment, type BroadcastSegmentKey } from '@/lib/types/broadc
 import {
   scheduleMessage,
   cancelScheduledMessage,
+  retryScheduledMessage,
   type ScheduledChannel,
 } from '@/lib/services/scheduled-messages'
 import type { MessageAttachment } from '@/lib/types/messaging'
@@ -97,7 +98,7 @@ export async function scheduleMessageAction(input: {
   }
 }
 
-/** Cancel a pending scheduled send. */
+/** Cancel a pending scheduled send — or dismiss a failed one. */
 export async function cancelScheduledMessageAction(id: string): Promise<{ ok: true } | { ok: false; error: string }> {
   const ctx = await requireTenant()
   ensureClinic(ctx)
@@ -107,6 +108,22 @@ export async function cancelScheduledMessageAction(id: string): Promise<{ ok: tr
     return { ok: true }
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : 'Could not cancel.' }
+  }
+}
+
+/** Put a FAILED scheduled send back in the queue — a human's click. It goes
+ *  out on the next send pass through the normal path (every validation
+ *  intact), never silently and never twice. */
+export async function retryScheduledMessageAction(id: string): Promise<{ ok: true } | { ok: false; error: string }> {
+  const ctx = await requireTenant()
+  ensureClinic(ctx)
+  try {
+    const matched = await retryScheduledMessage(ctx.organizationId, id)
+    if (!matched) return { ok: false, error: 'That message isn’t waiting on a retry anymore — refresh to see where it stands.' }
+    revalidatePath('/messages')
+    return { ok: true }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Could not queue the retry.' }
   }
 }
 

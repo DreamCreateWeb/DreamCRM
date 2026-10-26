@@ -122,21 +122,29 @@ export const CHAPTERS: ReadonlyArray<{
     eyebrow: 'THE MORNING QUEUE',
     title: (
       <>
-        Four patients still need a text. <span className="text-violet-700">Nobody had to go looking.</span>
+        Four patients still need a nudge. <span className="text-violet-700">Nobody had to go looking.</span>
       </>
     ),
     body: '7:45am. One screen opens on who is in the chair, who has not confirmed, and which review landed overnight. Your front desk reads the morning in one breath.',
   },
   {
+    /* THE EMAIL, NOT THE TEXT. The channel the product sends on TODAY is
+       email from the practice's own name; two-way SMS is the gap the tenet
+       four screens down marks, and the comparison matrix pins at "no". A
+       scene that stages a reply-to-book text over that tenet is the one
+       contradiction the owner's rule forbids. `tests/marketing/
+       cinematic-spine.test.tsx` ties the spine's visible words to the
+       matrix's SMS row — when the carrier registration lands, that test is
+       the list of what to re-stage. */
     n: '02',
-    rail: 'THE TEXT',
-    eyebrow: 'THE TEXT THAT BOOKS',
+    rail: 'THE EMAIL',
+    eyebrow: 'THE EMAIL THAT BOOKS',
     title: (
       <>
-        She replies <span className="text-violet-700">&ldquo;yes&rdquo;</span> and the chair fills itself.
+        She taps <span className="text-violet-700">&ldquo;Book a time&rdquo;</span> and the chair fills itself.
       </>
     ),
-    body: '4:12pm. Nobody at the desk picked up a phone, opened a spreadsheet, or remembered anything. The confirmation went out, came back, and landed in your PMS under its own audit trail.',
+    body: '4:12pm. Nobody at the desk picked up a phone, opened a spreadsheet, or remembered anything. The invitation went out in your name, one tap came back, and the visit landed on your schedule — and in your PMS once it is connected.',
   },
   {
     n: '03',

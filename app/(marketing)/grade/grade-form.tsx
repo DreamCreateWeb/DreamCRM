@@ -3,7 +3,13 @@
 import { useEffect, useState, useTransition } from 'react'
 import { HONEYPOT_FIELD, TIMETRAP_FIELD } from '@/lib/form-trust'
 import { DAY_WIRE } from '@/components/marketing/ui'
+import { isDeploymentSkewError } from '@/lib/deployment-skew'
 import { runGradeAction } from './actions'
+
+/** What a visitor reads when the server was redeployed under their open tab. */
+export const GRADE_STALE_MESSAGE = 'We just shipped an update — refreshing the page so you can grade your practice.'
+/** The honest line for a submit that threw for some other reason. */
+export const GRADE_FAILED_MESSAGE = 'That didn’t go through — check your connection and try again.'
 
 /**
  * The grader form. The submit runs a LIVE check (their homepage + their
@@ -43,9 +49,25 @@ export default function GradeForm() {
   function onSubmit(formData: FormData) {
     setError(null)
     startTransition(async () => {
-      const res = await runGradeAction(formData)
-      // On success the action redirects — reaching here means it didn't.
-      if (res && !res.ok) setError(res.error)
+      // NEVER a bare await: a server action is addressed by a per-build id,
+      // and every merge to `main` is a new build. A tab opened before a
+      // deploy — this is the paid-ad landing page, exactly the tab that sits
+      // open — has its submit REFUSED by Next with a thrown Error, and an
+      // unhandled throw left the visitor on a form that silently did
+      // nothing. Classify the redeploy case and refresh; anything else gets
+      // the honest retry line.
+      try {
+        const res = await runGradeAction(formData)
+        // On success the action redirects — reaching here means it didn't.
+        if (res && !res.ok) setError(res.error)
+      } catch (err) {
+        if (isDeploymentSkewError(err)) {
+          setError(GRADE_STALE_MESSAGE)
+          window.location.reload()
+          return
+        }
+        setError(GRADE_FAILED_MESSAGE)
+      }
     })
   }
 

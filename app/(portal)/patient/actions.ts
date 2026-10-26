@@ -240,7 +240,11 @@ export async function rescheduleMyVisitAction(
   return { ok: true }
 }
 
-export async function bookMyVisitAction(formData: FormData): Promise<PortalActionResult> {
+/** A booked visit's result carries the block's real end so the success
+ *  screen's calendar entry matches the row (and the portal's own .ics). */
+export type BookMyVisitResult = { ok: true; endIso: string } | { ok: false; error: string }
+
+export async function bookMyVisitAction(formData: FormData): Promise<BookMyVisitResult> {
   const ctx = await requirePatient()
   const settings = await getPortalSettings(ctx.organizationId)
   if (!settings.features.booking) {
@@ -332,14 +336,17 @@ export async function bookMyVisitAction(formData: FormData): Promise<PortalActio
   })
 
   // Let the front desk know a portal booking landed so it doesn't surprise
-  // them on the schedule.
+  // them on the schedule. The title carries who and when (clinic wall-clock)
+  // — the same shape as the website booking alert — so the bell row reads
+  // whole without opening it.
+  const whenLabel = await fmtNotifyDate(ctx.organizationId, startTime)
   await notifyOrgMembers(
     ctx.organizationId,
     {
       bucket: 'comments',
       type: 'portal_booking',
-      title: 'Portal booking',
-      body: `${patientName} booked ${label.toLowerCase()} for ${await fmtNotifyDate(ctx.organizationId, startTime)}.`,
+      title: `New portal booking — ${patientName}, ${whenLabel}`,
+      body: `${patientName} booked ${label.toLowerCase()} for ${whenLabel}.`,
       linkPath: '/appointments',
     },
     // The acting patient never gets the staff alert about their own booking.
@@ -347,7 +354,9 @@ export async function bookMyVisitAction(formData: FormData): Promise<PortalActio
   )
 
   revalidateVisits()
-  return { ok: true }
+  // The success screen's Add-to-calendar needs the block's real length — the
+  // visit-type duration resolved above — or it hardcodes 30 minutes.
+  return { ok: true, endIso: endTime.toISOString() }
 }
 
 /**
