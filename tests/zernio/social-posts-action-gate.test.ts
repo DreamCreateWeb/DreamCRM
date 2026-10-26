@@ -25,17 +25,19 @@ vi.mock('@/lib/auth/context', () => ({
 }))
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
 
-const { createSocialPost, deleteSocialPost } = vi.hoisted(() => ({
+const { createSocialPost, deleteSocialPost, retrySocialPostTargets } = vi.hoisted(() => ({
   createSocialPost: vi.fn().mockResolvedValue({ ok: true, status: 'published', postId: 'sp_1' }),
   deleteSocialPost: vi.fn().mockResolvedValue({ ok: true }),
+  retrySocialPostTargets: vi.fn().mockResolvedValue({ ok: true, status: 'published', retried: 1, recovered: 1 }),
 }))
-vi.mock('@/lib/services/social-posts', () => ({ createSocialPost, deleteSocialPost }))
+vi.mock('@/lib/services/social-posts', () => ({ createSocialPost, deleteSocialPost, retrySocialPostTargets }))
 
-import { createSocialPostAction, deleteSocialPostAction } from '@/app/(default)/growth/social/actions'
+import { createSocialPostAction, deleteSocialPostAction, retrySocialPostAction } from '@/app/(default)/growth/social/actions'
 
 beforeEach(() => {
   createSocialPost.mockClear()
   deleteSocialPost.mockClear()
+  retrySocialPostTargets.mockClear()
   tenantCtx = {
     tenantType: 'clinic',
     role: 'owner',
@@ -117,5 +119,40 @@ describe('deleteSocialPostAction gate', () => {
     const r = await deleteSocialPostAction('sp_1')
     expect(r.ok).toBe(false)
     expect(deleteSocialPost).not.toHaveBeenCalled()
+  })
+})
+
+describe('retrySocialPostAction gate (2026-10-26)', () => {
+  it('passes for an owner and forwards the org + post id to the service', async () => {
+    const r = await retrySocialPostAction('sp_1')
+    expect(r).toMatchObject({ ok: true, recovered: 1, retried: 1 })
+    expect(retrySocialPostTargets).toHaveBeenCalledWith('org_1', 'sp_1')
+  })
+
+  it('passes for an admin', async () => {
+    tenantCtx!.role = 'admin'
+    const r = await retrySocialPostAction('sp_1')
+    expect(r.ok).toBe(true)
+  })
+
+  it('blocks a member role', async () => {
+    tenantCtx!.role = 'member'
+    const r = await retrySocialPostAction('sp_1')
+    expect(r.ok).toBe(false)
+    expect(retrySocialPostTargets).not.toHaveBeenCalled()
+  })
+
+  it('blocks a platform tenant', async () => {
+    tenantCtx!.tenantType = 'platform'
+    const r = await retrySocialPostAction('sp_1')
+    expect(r.ok).toBe(false)
+    expect(retrySocialPostTargets).not.toHaveBeenCalled()
+  })
+
+  it('surfaces the service’s own honest failure in the { ok | error } shape', async () => {
+    retrySocialPostTargets.mockResolvedValueOnce({ ok: false, status: 'failed', retried: 1, recovered: 0, error: 'Still couldn’t post — the reason is on the card.' })
+    const r = await retrySocialPostAction('sp_1')
+    expect(r.ok).toBe(false)
+    expect(r.error).toMatch(/on the card/)
   })
 })

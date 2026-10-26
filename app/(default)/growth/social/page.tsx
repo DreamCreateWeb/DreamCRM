@@ -104,7 +104,7 @@ export default async function SocialPostsPage() {
               { tone: 'ok', label: 'Published', meaning: 'Live on the channel' },
               { tone: 'info', label: 'Scheduled', meaning: 'Waiting to publish at the time you set' },
               { tone: 'neutral', label: 'Draft', meaning: 'Saved, not yet sent' },
-              { tone: 'urgent', label: 'Failed', meaning: "Didn't post — check the error and retry" },
+              { tone: 'urgent', label: 'Failed', meaning: "Didn't post — the error is on the card, and Try again re-sends it" },
             ]}
           />
         }

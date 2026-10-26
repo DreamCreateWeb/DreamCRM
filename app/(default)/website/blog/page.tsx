@@ -246,21 +246,6 @@ export default async function BlogPage() {
           </table>
         </div>
       )}
-
-      {/* ── Coming next ───────────────────────────────────────────────── */}
-      <section className="mt-8">
-        <div className="v2-well p-5">
-          <p className="text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400 mb-2">
-            Coming next
-          </p>
-          <ul className="text-sm text-gray-600 dark:text-gray-300 space-y-1">
-            <li>· Schedule a post to publish on a future date</li>
-            <li>· Cover-image generation + alt-text suggestions</li>
-            <li>· Rankings + page-health for each post (lands with the SEO dashboard)</li>
-            <li>· Email a new post to {isPlatform ? 'a Marketing' : 'a Recall & Outreach'} audience in one click</li>
-          </ul>
-        </div>
-      </section>
     </div>
   )
 }

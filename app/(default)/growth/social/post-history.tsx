@@ -8,7 +8,8 @@ import { TONE_DOT, type Tone } from '@/lib/ui/encodings'
 import { GBP_POST_TYPE_LABELS, type SocialPostView, type SocialPostTargetView, type GbpPostStatus } from '@/lib/types/zernio'
 import { isVideoUrl } from '@/lib/media'
 import { BrandLogo, type BrandLogoId } from '@/components/integrations/brand-logos'
-import { deleteSocialPostAction } from './actions'
+import { ACTION_FAILED_MESSAGE, STALE_APP_MESSAGE, isDeploymentSkewError } from '@/lib/deployment-skew'
+import { deleteSocialPostAction, retrySocialPostAction } from './actions'
 
 /** Platform slugs with a brand-accurate logo (mirrors the composer). */
 const BRAND_IDS: Record<string, BrandLogoId> = {
@@ -23,7 +24,9 @@ const BRAND_IDS: Record<string, BrandLogoId> = {
 /**
  * Social-post history. Each card shows the post type badge (for GBP posts), the
  * summary preview, image thumb, the per-channel target chips (platform icon +
- * StatusPill + permalink), the relevant date, and delete. NO per-post metrics —
+ * StatusPill + permalink), the relevant date, delete, and — on a failed
+ * channel — Try again (2026-10-26: the lever the legend had promised; the
+ * service re-sends ONLY the failed channels). NO per-post metrics —
  * deprecated on Google, not yet pulled for the socials; we show publish state
  * honestly (local GBP performance is on /seo).
  */
@@ -43,6 +46,20 @@ const STATUS_LABEL: Record<GbpPostStatus, string> = {
   failed: 'Failed',
 }
 
+/**
+ * A client component never bare-awaits a server action (CLAUDE.md): Next
+ * REFUSES an action id from another build by THROWING, and a merge to main
+ * is another build — so a long-lived tab's click would die in "pending"
+ * forever. Classify the redeploy case and say so.
+ */
+async function callAction<T extends { ok: boolean; error?: string }>(fn: () => Promise<T>): Promise<T | { ok: false; error: string }> {
+  try {
+    return await fn()
+  } catch (err) {
+    return { ok: false, error: isDeploymentSkewError(err) ? STALE_APP_MESSAGE : ACTION_FAILED_MESSAGE }
+  }
+}
+
 export default function PostHistory({ posts }: { posts: SocialPostView[] }) {
   return (
     <div className="space-y-3">
@@ -56,16 +73,38 @@ export default function PostHistory({ posts }: { posts: SocialPostView[] }) {
 function PostCard({ post }: { post: SocialPostView }) {
   const router = useRouter()
   const [pending, start] = useTransition()
+  const [retrying, setRetrying] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
   const [confirming, setConfirming] = useState(false)
 
   function remove() {
     setError(null)
+    setNotice(null)
     start(async () => {
-      const r = await deleteSocialPostAction(post.id)
+      const r = await callAction(() => deleteSocialPostAction(post.id))
       if (!r.ok) setError(r.error ?? 'Could not delete the post.')
       else router.refresh()
     })
+  }
+
+  const failedTargets = post.targets.filter((t) => t.status === 'failed')
+
+  async function retry() {
+    setError(null)
+    setNotice(null)
+    setRetrying(true)
+    try {
+      const r = await callAction(() => retrySocialPostAction(post.id))
+      if (!r.ok) {
+        setError(r.error ?? 'Still couldn’t post — the reason is on the card.')
+      } else if ((r.recovered ?? 0) > 0) {
+        setNotice(r.recovered === 1 ? 'That channel went through.' : `${r.recovered} channels went through.`)
+      }
+      router.refresh()
+    } finally {
+      setRetrying(false)
+    }
   }
 
   const dateLabel =
@@ -77,6 +116,11 @@ function PostCard({ post }: { post: SocialPostView }) {
 
   // Only show a post-type badge when GBP is among the targets (it's GBP-only).
   const targetsGbp = post.targets.some((t) => t.platform === 'googlebusiness')
+
+  const retryLabel =
+    failedTargets.length === 1
+      ? `Try again on ${failedTargets[0].label}`
+      : 'Try again on the failed channels'
 
   return (
     <div className="v2-card p-4">
@@ -135,9 +179,14 @@ function PostCard({ post }: { post: SocialPostView }) {
           )}
 
           <div className="mt-2.5 flex flex-wrap items-center gap-2">
+            {failedTargets.length > 0 && (
+              <ActionButton variant="primary" size="sm" onClick={retry} pending={retrying} disabled={pending}>
+                {retryLabel}
+              </ActionButton>
+            )}
             {confirming ? (
               <>
-                <ActionButton variant="danger" size="sm" onClick={remove} pending={pending}>
+                <ActionButton variant="danger" size="sm" onClick={remove} pending={pending} disabled={retrying}>
                   Confirm delete
                 </ActionButton>
                 <ActionButton variant="ghost" size="sm" onClick={() => setConfirming(false)} disabled={pending}>
@@ -145,15 +194,15 @@ function PostCard({ post }: { post: SocialPostView }) {
                 </ActionButton>
               </>
             ) : (
-              <ActionButton variant="ghost" size="sm" onClick={() => setConfirming(true)} disabled={pending}>
+              <ActionButton variant="ghost" size="sm" onClick={() => setConfirming(true)} disabled={pending || retrying}>
                 Delete
               </ActionButton>
             )}
           </div>
 
           {/* Per-target failure messages */}
-          {post.targets
-            .filter((t) => t.status === 'failed' && t.lastError)
+          {failedTargets
+            .filter((t) => t.lastError)
             .map((t) => (
               <p
                 key={`err-${t.id}`}
@@ -162,6 +211,11 @@ function PostCard({ post }: { post: SocialPostView }) {
                 {t.label}: {t.lastError}
               </p>
             ))}
+          {notice && (
+            <p className="mt-2 text-[12px] text-teal-700 dark:text-teal-300" role="status">
+              {notice}
+            </p>
+          )}
           {error && (
             <p className="mt-2 text-[12px] text-rose-600" role="alert">
               {error}

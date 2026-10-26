@@ -18,6 +18,8 @@ import ReviewConfigPanel from './review-config-panel'
 import EligibleList from './eligible-list'
 import ModuleHint from '@/components/onboarding/module-hint'
 import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
+import { getSmsRegistration, smsDriver } from '@/lib/services/sms-registration'
+import { POLLING_STATES } from '@/lib/sms-registration'
 import { PageHeader } from '@/components/ui/page-header'
 import { ActionButton } from '@/components/ui/action-button'
 import { StatusPill } from '@/components/ui/status-pill'
@@ -122,6 +124,18 @@ export default async function ReviewsPage() {
   const hasGoogleLink = !!config.googlePlaceId
   const now = new Date()
 
+  // THE TEXTING LINE SAYS THE REAL STATE (docs/ACTIVATION.md law 3). It used
+  // to promise text requests "next" — a promise that depends on the carriers,
+  // not the practice, and that a clinic could read in month one and still in
+  // month six. The state comes from the same registration
+  // record deliverSms gates on, so the sentence can never claim a text this
+  // practice cannot send. Best-effort: an unreadable state names the door.
+  const smsState = await getSmsRegistration(ctx.organizationId)
+    .then((r) => r.state)
+    .catch(() => 'none' as const)
+  const textingLive = smsDriver() === 'aws' && smsState === 'approved'
+  const textingInReview = smsState === 'collecting' || (POLLING_STATES as readonly string[]).includes(smsState)
+
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
       <ModuleHint id="reviews" />
@@ -132,7 +146,7 @@ export default async function ReviewsPage() {
           </Link>
         }
         title="Reviews & Reputation"
-        subtitle="Ask your real patients for a review after their visit — on Google, Healthgrades, and Facebook. Same results as Birdeye, Weave, or Podium, without the separate $300/mo bill or the review-gating the FTC just banned."
+        subtitle="After a visit, we ask the patient for a Google review — the same prompt to everyone, nothing hidden."
         legend={
           <EncodingLegend
             label="What the statuses mean"
@@ -472,9 +486,23 @@ export default async function ReviewsPage() {
               one you don&apos;t want on the “Reviews received” page.
             </li>
           </ol>
-          <p className="text-xs text-gray-500 dark:text-gray-400 mt-3">
-            Text-message requests are coming next — everything above runs on email today.
-          </p>
+          {!textingLive && (
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-3">
+              {textingInReview ? (
+                <>Texting is with the carriers for review — requests stay email-only until it clears.</>
+              ) : (
+                <>
+                  Requests go out by email. Texting turns on for this practice once your number is approved —{' '}
+                  <Link
+                    href="/integrations/sms"
+                    className="font-medium text-teal-700 dark:text-teal-300 hover:underline underline-offset-4"
+                  >
+                    Set up texting →
+                  </Link>
+                </>
+              )}
+            </p>
+          )}
         </div>
       </section>
     </div>

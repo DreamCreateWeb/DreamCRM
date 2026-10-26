@@ -155,6 +155,23 @@ export async function POST(req: NextRequest) {
 
   if (!campaignId) return NextResponse.json({ ok: true, ignored: 'no campaignId tag' })
 
+  // THE SEND-TIME ROW IS THE TRUTH (2026-10-26). The campaign send loop in
+  // lib/services/marketing-send.ts writes the 'sent' row the moment Resend
+  // accepts an email (and a 'failed' row when it refuses one). Mapping
+  // `email.sent` here as well minted a SECOND 'sent' row for every campaign
+  // email — the unique index includes occurred_at, so the two never collided
+  // — and every funnel that counts rows read 2× the real number, every open
+  // rate was halved, and the cross-campaign frequency cap (2 per 7 days)
+  // was reached after ONE email. Delivered / bounce / complaint / failed are
+  // receipts only the provider can give, so those still land. Prospect
+  // outreach (above) keeps its 'sent' from this webhook because nothing
+  // else writes it.
+  if (evtType === 'sent') return NextResponse.json({ ok: true, ignored: 'sent is recorded at send time' })
+  // A "Send test" deliberately records nothing at send time; its receipts
+  // must not become campaign rows either, or a bounce on a staff address
+  // opts out a patient who happens to share it.
+  if (tags.test === '1') return NextResponse.json({ ok: true, ignored: 'test send' })
+
   try {
     await db.insert(schema.campaignEvents).values({
       campaignId,

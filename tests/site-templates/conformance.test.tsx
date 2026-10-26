@@ -4,6 +4,7 @@ import { resolve } from 'node:path'
 import { render, cleanup } from '@testing-library/react'
 import { listSiteTemplates } from '@/lib/site-templates/registry'
 import { SITE_TEMPLATE_MANIFEST } from '@/lib/site-templates/manifest'
+import { SITE_TEMPLATE_CATALOG } from '@/lib/site-templates/catalog'
 import { copyKeysForTemplate } from '@/lib/services/ai-website-edit'
 import { PALETTE_VARS, type ClinicPalette } from '@/lib/clinic-site-theme'
 import { FIXTURES } from '../fixtures/clinic-site-fixtures'
@@ -224,6 +225,53 @@ describe.each(TEMPLATES.map((t) => [t.id, t] as const))('template conformance [%
     }
   })
 
+  describe('the catalog’s media map tells the truth about this design (2026-10-26)', () => {
+    // The Design page offers the second hero photo and the intro video, and
+    // the Content rail points stats/photos at Home, ONLY where the catalog
+    // says the design draws them — so the catalog is held to the source.
+    const files = SITE_TEMPLATE_MANIFEST.byTemplate[tid] ?? []
+    const src = files.map((f) => read(f)).join('\n')
+    const media = SITE_TEMPLATE_CATALOG.find((t) => t.id === tid)!.media
+
+    it('is in the catalog', () => {
+      expect(media).toBeTruthy()
+    })
+
+    it('heroImage2 ⇔ the design’s files read heroImageUrl2', () => {
+      expect(/heroImageUrl2/.test(src)).toBe(media.heroImage2)
+    })
+
+    it('introVideo ⇔ the design’s files read differenceVideoUrl', () => {
+      expect(/differenceVideoUrl/.test(src)).toBe(media.introVideo)
+    })
+
+    it('homeStats ⇔ the design’s Home wires the stats section', () => {
+      expect(/(?:data-edit-field|field|editField)="stats"/.test(src)).toBe(media.homeStats)
+    })
+
+    it('homePhotos ⇔ the design’s Home reads officePhotos', () => {
+      expect(/officePhotos/.test(src)).toBe(media.homePhotos)
+    })
+
+    it('a Home that paints the gallery paints its alt through officePhotoAlt (never alt="")', () => {
+      if (!media.homePhotos) return
+      expect(src).toMatch(/officePhotoAlt\(/)
+      expect(src).not.toMatch(/alt=\{(?:p|photo)\.alt \?\? ''\}/)
+    })
+
+    it('a declared slot is a Studio door on the rich fixture, not a silent read', () => {
+      if (!media.heroImage2 && !media.introVideo) return
+      const { container } = render(<def.pages.Home {...homeProps(FIXTURES.rich(), def)} />)
+      if (media.heroImage2) {
+        expect(container.querySelector('[data-edit-field="heroImageUrl2"]'), 'second hero photo door').toBeTruthy()
+      }
+      if (media.introVideo) {
+        expect(container.querySelector('[data-edit-field="differenceVideoUrl"]'), 'intro video door').toBeTruthy()
+      }
+      cleanup()
+    })
+  })
+
   describe('source hygiene on the template’s own files', () => {
     const files = SITE_TEMPLATE_MANIFEST.byTemplate[tid] ?? []
 
@@ -248,5 +296,13 @@ describe.each(TEMPLATES.map((t) => [t.id, t] as const))('template conformance [%
       // Legibility floor (mirror of tests/a11y/legibility-floor.test.ts).
       expect(src).not.toMatch(/text-\[(?:[0-9]|1[01])px\]/)
     })
+  })
+})
+
+describe('the shared /about gallery (every design) paints alt through officePhotoAlt', () => {
+  it('never renders an office photo with an empty alt', () => {
+    const src = read('app/site/[slug]/about/page.tsx')
+    expect(src).toMatch(/officePhotoAlt\(/)
+    expect(src).not.toMatch(/alt=\{p\.alt \?\? ''\}/)
   })
 })

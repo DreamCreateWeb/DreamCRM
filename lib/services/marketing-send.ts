@@ -643,6 +643,9 @@ async function sendViaResend(opts: InternalSendOpts): Promise<SendResult> {
     ]
     if (r.customerId != null) tags.push({ name: 'customerId', value: String(r.customerId) })
     if (r.patientId != null) tags.push({ name: 'patientId', value: r.patientId })
+    // A test send records nothing here; the tag tells the Resend webhook to
+    // record nothing for its receipts either (app/api/webhooks/resend).
+    if (opts.test) tags.push({ name: 'test', value: '1' })
 
     try {
       // Resend returns `{ data, error }` and does not throw — surface a send
@@ -663,6 +666,9 @@ async function sendViaResend(opts: InternalSendOpts): Promise<SendResult> {
         tags,
       })
       if (res?.error) throw new Error(res.error.message || 'Resend send failed')
+      // THE ONE 'sent' row per email. The Resend webhook deliberately does
+      // NOT record `email.sent` for campaigns (it used to, and every count
+      // doubled) — delivery/bounce receipts are its only contribution.
       if (!opts.test) {
         await db.insert(schema.campaignEvents).values({
           campaignId: opts.campaign.id,

@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { requireTenant } from '@/lib/auth/context'
-import { createSocialPost, deleteSocialPost } from '@/lib/services/social-posts'
+import { createSocialPost, deleteSocialPost, retrySocialPostTargets } from '@/lib/services/social-posts'
 import type { CreateSocialPostFormInput } from '@/lib/types/zernio'
 
 /**
@@ -53,6 +53,27 @@ export async function deleteSocialPostAction(postId: string): Promise<{ ok: bool
       return { ok: true }
     }
     return { ok: false, error: result.error }
+  } catch (e) {
+    return { ok: false, error: (e as Error).message }
+  }
+}
+
+/**
+ * Try again on the channels that failed (2026-10-26) — the lever the Social
+ * page's legend had promised. Same gate as delete; the service touches ONLY
+ * the failed targets, so a channel that already posted can never post twice.
+ */
+export async function retrySocialPostAction(
+  postId: string,
+): Promise<{ ok: boolean; recovered?: number; retried?: number; error?: string }> {
+  try {
+    const ctx = await requireTenant()
+    ensureSocialPostAdmin(ctx)
+    const result = await retrySocialPostTargets(ctx.organizationId, postId)
+    // The rows moved either way (an error sentence is a change too).
+    revalidatePath('/growth/social')
+    if (result.ok) return { ok: true, recovered: result.recovered, retried: result.retried }
+    return { ok: false, retried: result.retried, recovered: result.recovered, error: result.error }
   } catch (e) {
     return { ok: false, error: (e as Error).message }
   }

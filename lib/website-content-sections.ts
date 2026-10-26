@@ -1,4 +1,5 @@
 import type { ClinicProfile } from '@/lib/db/schema/platform'
+import { templateMedia } from '@/lib/site-templates/catalog'
 import type {
   ClinicService,
   ClinicStaff,
@@ -45,6 +46,12 @@ export interface ContentSectionView {
 }
 
 export interface ContentSectionDef extends ContentSectionView {
+  /** Where the section is seen when that depends on the DESIGN: the trust
+   *  stats and office photos sit on Home for the designs that draw them
+   *  there and on /about for the rest, so a fixed `sitePath` sent "See it
+   *  on your site" to a page without the section (2026-10-26). `sitePath`
+   *  stays as the default for every other reader. */
+  sitePathFor?: (template: string | null | undefined) => string
   /** Does this clinic have real content in the section? Drives the honest
    *  "N of M sections filled" stat — never a nag, just a count. */
   filled: (p: ContentProfilePick) => boolean
@@ -120,9 +127,10 @@ export const CONTENT_SECTIONS: ContentSectionDef[] = [
   {
     id: 'stats',
     label: 'Trust stats',
-    desc: 'Years of care, happy patients — the quick numbers on your homepage.',
+    desc: 'Years of care, happy patients — the quick numbers on your site.',
     group: 'site',
     sitePath: '/',
+    sitePathFor: (t) => (templateMedia(t).homeStats ? '/' : '/about'),
     filled: (p) => nonEmpty(p.stats as ClinicStat[] | null),
     summary: (p) => countOr(p.stats, 'number'),
   },
@@ -132,6 +140,7 @@ export const CONTENT_SECTIONS: ContentSectionDef[] = [
     desc: 'Real photos of your space — patients want to see where they’re going.',
     group: 'site',
     sitePath: '/about',
+    sitePathFor: (t) => (templateMedia(t).homePhotos ? '/' : '/about'),
     filled: (p) => nonEmpty(p.officePhotos as ClinicOfficePhoto[] | null),
     summary: (p) => countOr(p.officePhotos, 'photo'),
   },
@@ -213,9 +222,16 @@ export function contentSectionsFor(template: string | null | undefined): Content
   )
 }
 
-/** Strip a section down to what a client component may receive. */
-export function toContentSectionView(s: ContentSectionDef): ContentSectionView {
-  return { id: s.id, label: s.label, desc: s.desc, group: s.group, sitePath: s.sitePath }
+/** Strip a section down to what a client component may receive — with the
+ *  public path resolved for the clinic's design. */
+export function toContentSectionView(s: ContentSectionDef, template?: string | null): ContentSectionView {
+  return {
+    id: s.id,
+    label: s.label,
+    desc: s.desc,
+    group: s.group,
+    sitePath: s.sitePathFor ? s.sitePathFor(template) : s.sitePath,
+  }
 }
 
 /** The hub card's honest completeness stat. */

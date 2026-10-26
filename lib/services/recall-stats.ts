@@ -3,7 +3,10 @@ import { and, eq, gte, inArray, lte, ne } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import { derivePatientRecallStatus } from '@/lib/services/recall-status'
 import { getClinicCadence } from '@/lib/services/clinic-cadence'
-import { lapsedCutoff as lapsedCutoffDate, startOfMonth } from '@/lib/dates'
+import { lapsedCutoff as lapsedCutoffDate } from '@/lib/dates'
+import { clinicMonthStart } from '@/lib/clinic-timezone'
+import { clinicDayKey } from '@/lib/format-datetime'
+import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
 import { tallyCampaignFunnel, tallyCampaignFunnelByCampaign } from '@/lib/services/campaign-funnel'
 
 /**
@@ -94,7 +97,6 @@ const DAY_MS = 24 * 60 * 60 * 1000
 
 export async function getRecallStats(organizationId: string): Promise<RecallStats> {
   const now = new Date()
-  const monthStart = startOfMonth(now)
   const thirtyDaysAgo = new Date(now.getTime() - 30 * DAY_MS)
   const fourteenDaysAhead = new Date(now.getTime() + 14 * DAY_MS)
 
@@ -105,6 +107,14 @@ export async function getRecallStats(organizationId: string): Promise<RecallStat
   // "who's due?" number identical across /marketing, /patients, and /analytics.
   const cadence = await getClinicCadence(organizationId)
   const lapsedCutoff = lapsedCutoffDate(now, cadence.lapsedMonths)
+
+  // THE MONTH IS THE CLINIC'S (CLAUDE.md timezone rule 2). The server runs in
+  // UTC, so a server-local month start flipped "sent this month" and the
+  // birthday bucket to next month from ~7pm Central on the last day. Both
+  // windows below resolve against the clinic's own calendar.
+  const tz = await getClinicTimeZone(organizationId)
+  const monthStart = clinicMonthStart(now, tz)
+  const clinicMonth = parseInt(clinicDayKey(now, tz).slice(5, 7), 10)
 
   // Pull patients with the fields we need to derive recall status. We
   // group + bucket in JS rather than as 5 separate SQL queries to keep
@@ -161,8 +171,13 @@ export async function getRecallStats(organizationId: string): Promise<RecallStat
           // Joined to campaigns to scope by org.
           db
             .select({
+              id: schema.campaignEvents.id,
               type: schema.campaignEvents.type,
               patientId: schema.campaignEvents.patientId,
+              // The funnel reducer counts PEOPLE (patient ?? email ?? phone),
+              // so the row has to carry who it reached.
+              recipientEmail: schema.campaignEvents.recipientEmail,
+              recipientPhone: schema.campaignEvents.recipientPhone,
               campaignId: schema.campaignEvents.campaignId,
               campaignName: schema.campaigns.name,
               occurredAt: schema.campaignEvents.occurredAt,
@@ -269,21 +284,22 @@ export async function getRecallStats(organizationId: string): Promise<RecallStat
 
     if (p.dateOfBirth) {
       const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(p.dateOfBirth)
-      if (m && parseInt(m[2], 10) - 1 === now.getMonth()) {
+      if (m && parseInt(m[2], 10) === clinicMonth) {
         birthdayThisMonthCount++
       }
     }
   }
 
   // Roll up campaign event counts through the shared funnel reducer (the
-  // event-type→counter contract lives in one place now). sentThisMonthCount
-  // carries an extra time bound, so it stays a direct count.
+  // event-type→counter contract lives in one place now, and it counts
+  // people per campaign, never pixel loads). sentThisMonthCount carries an
+  // extra time bound, so it reduces its own slice.
   const funnel30d = tallyCampaignFunnel(campaignEventsLast30)
   const sentLast30 = funnel30d.sent
   const bookedFromRecallCount = funnel30d.booked
-  const sentThisMonthCount = campaignEventsLast30.filter(
-    (e) => e.type === 'sent' && e.occurredAt >= monthStart,
-  ).length
+  const sentThisMonthCount = tallyCampaignFunnel(
+    campaignEventsLast30.filter((e) => e.type === 'sent' && e.occurredAt >= monthStart),
+  ).sent
 
   const openRate30d = sentLast30 > 0 ? Math.round((funnel30d.opened / sentLast30) * 100) : null
   const clickRate30d = sentLast30 > 0 ? Math.round((funnel30d.clicked / sentLast30) * 100) : null

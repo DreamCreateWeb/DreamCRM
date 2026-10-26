@@ -2,7 +2,7 @@
 
 import { useRef, useState, useTransition, type FormEvent } from 'react'
 import Link from 'next/link'
-import { SITE_TEMPLATE_CATALOG } from '@/lib/site-templates/catalog'
+import { SITE_TEMPLATE_CATALOG, templateMedia } from '@/lib/site-templates/catalog'
 import BrandColorField from '../../settings/clinic/brand-color-field'
 import DifferenceVideoField from '../../settings/clinic/difference-video-field'
 import ImageUploader from '@/components/ui/image-uploader'
@@ -10,6 +10,7 @@ import { StatusPill } from '@/components/ui/status-pill'
 import { SaveBar } from '@/components/ui/save-bar'
 import { ActionButton } from '@/components/ui/action-button'
 import { isValidVideoUrl } from '@/lib/website-url'
+import { runAction } from '../editor/run-action'
 import {
   saveBrandColor,
   saveImageField,
@@ -27,6 +28,19 @@ import {
  * persists until the next edit instead of self-destructing on a timer, and
  * "publish makes it live" is said ONCE at panel level — it's a property of
  * the whole page, not of each card.
+ *
+ * THE CARDS FOLLOW THE DESIGN (2026-10-26). Only Modern renders a second
+ * hero photo and an intro video; every other design ignores both columns.
+ * A card that saves something the site cannot show is a surface that lies
+ * (a Home Team practice uploaded a "Second hero image", published, and
+ * nothing changed), so those two cards render only when the current
+ * design's media map says the slot is drawn — and say so in one quiet line
+ * otherwise. The columns stay universal: nothing is deleted, and whatever
+ * was saved shows again on a design that uses it.
+ *
+ * Every awaited action goes through `runAction`: a redeploy under this tab
+ * makes Next THROW on the next save, and a bare await left "Saving…" on
+ * forever (CLAUDE.md, 2026-10-23).
  */
 
 interface Props {
@@ -46,6 +60,8 @@ export default function DesignPanel({
   differenceVideoUrl,
   imagePositions,
 }: Props) {
+  const media = templateMedia(currentTemplate)
+  const designLabel = SITE_TEMPLATE_CATALOG.find((t) => t.id === currentTemplate)?.label ?? 'This design'
   return (
     <div className="space-y-6">
       <p className="text-xs text-gray-500 dark:text-gray-400">
@@ -60,14 +76,22 @@ export default function DesignPanel({
         initialUrl={heroImageUrl}
         position={imagePositions.heroImageUrl ?? null}
       />
-      <HeroImageCard
-        field="heroImageUrl2"
-        title="Second hero image"
-        hint="The right-hand hero photo — a portrait-orientation shot works best."
-        initialUrl={heroImageUrl2}
-        position={imagePositions.heroImageUrl2 ?? null}
-      />
-      <IntroVideoCard initialUrl={differenceVideoUrl} />
+      {media.heroImage2 ? (
+        <HeroImageCard
+          field="heroImageUrl2"
+          title="Second hero image"
+          hint="The right-hand hero photo — a portrait-orientation shot works best."
+          initialUrl={heroImageUrl2}
+          position={imagePositions.heroImageUrl2 ?? null}
+        />
+      ) : (
+        <UnusedSlotNote design={designLabel} slot="a second hero photo" kept={!!heroImageUrl2} />
+      )}
+      {media.introVideo ? (
+        <IntroVideoCard initialUrl={differenceVideoUrl} />
+      ) : (
+        <UnusedSlotNote design={designLabel} slot="an intro video" kept={!!differenceVideoUrl} />
+      )}
       <section className="v2-well p-4">
         <p className="text-sm text-gray-600 dark:text-gray-300">
           Your logo lives with your business identity —{' '}
@@ -80,6 +104,25 @@ export default function DesignPanel({
         </p>
       </section>
     </div>
+  )
+}
+
+/** The honest line where a card would otherwise offer a slot the current
+ *  design never draws. */
+function UnusedSlotNote({ design, slot, kept }: { design: string; slot: string; kept: boolean }) {
+  return (
+    <section className="v2-well p-4" data-unused-slot={slot}>
+      <p className="text-sm text-gray-600 dark:text-gray-300">
+        {design} doesn’t use {slot}
+        {kept ? ' — the one you saved is kept and shows again on a design that does. ' : ' — '}
+        <Link
+          href="/website/templates"
+          className="font-medium text-teal-700 dark:text-teal-300 hover:underline underline-offset-4"
+        >
+          {kept ? 'Browse designs →' : 'Switch designs to use one →'}
+        </Link>
+      </p>
+    </section>
   )
 }
 
@@ -129,7 +172,7 @@ function BrandColorCard({ brandColor }: { brandColor: string | null }) {
     const hex = fd.get('brandColor')?.toString() ?? ''
     setError(null)
     startTransition(async () => {
-      const res = await saveBrandColor(hex)
+      const res = await runAction(() => saveBrandColor(hex))
       if (res.ok) {
         setDirty(false)
         setSaved(true)
@@ -188,7 +231,7 @@ function HeroImageCard({
     startTransition(async () => {
       // Thread the CURRENT focal point through so a plain URL swap here never
       // silently clears a focus set in the editor.
-      const res = await saveImageField(field, url ?? '', position)
+      const res = await runAction(() => saveImageField(field, url ?? '', position))
       if (res.ok) {
         setDirty(false)
         setSaved(true)
@@ -245,7 +288,7 @@ function IntroVideoCard({ initialUrl }: { initialUrl: string | null }) {
     }
     setError(null)
     startTransition(async () => {
-      const res = await saveDifferenceVideo(next)
+      const res = await runAction(() => saveDifferenceVideo(next))
       if (res.ok) {
         setUrl(next)
         setDirty(false)

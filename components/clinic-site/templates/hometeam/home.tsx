@@ -5,6 +5,7 @@ import type {
   ClinicTestimonial,
   ClinicOfficePhoto,
 } from '@/lib/types/clinic-content'
+import { officePhotoAlt } from '@/lib/types/clinic-content'
 import type { HomePageProps } from '@/lib/site-templates/page-props'
 import {
   firstSentence,
@@ -587,7 +588,7 @@ export default function HometeamHome(props: HomePageProps) {
                     <SiteImage
                       displayWidth={420}
                       src={photo.url}
-                      alt={photo.alt ?? `${name} office`}
+                      alt={officePhotoAlt(photo, name)}
                       className="w-full aspect-[4/3] object-cover rounded-md"
                       style={{ objectPosition: photo.position ?? 'center', border: `3px solid ${SITE_DEEP}` }}
                     />
