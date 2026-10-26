@@ -9,6 +9,7 @@ import { describe, it, expect, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import React from 'react'
 import type { ClinicSiteData } from '@/lib/services/clinic-site'
+import { intakeStartHref } from '@/lib/clinic-site-helpers'
 
 function makeData(overrides: Partial<ClinicSiteData['profile']> = {}): ClinicSiteData {
   return {
@@ -120,15 +121,32 @@ describe('NewPatientsPage', () => {
     expect(screen.getByText('Past records, if you have them')).toBeInTheDocument()
   })
 
-  it('intake CTAs point at the apex host intake-start flow', async () => {
+  it('intake CTAs point at the apex host intake-start flow (one home: intakeStartHref)', async () => {
     await renderPage()
     const intakeLinks = screen
       .getAllByRole('link', { name: /Start your intake online/i })
       .map((a) => a.getAttribute('href'))
     expect(intakeLinks.length).toBeGreaterThan(0)
     for (const href of intakeLinks) {
-      expect(href).toBe('https://app.example.com/site/acme-dental/intake-start')
+      // Absolute www URL — the gate signs the patient in and lands them in
+      // /patient/*, which exist only on the main app host.
+      expect(href).toBe(intakeStartHref('acme-dental'))
+      expect(href).toMatch(/^https:\/\/.+\/site\/acme-dental\/intake-start$/)
     }
+  })
+
+  it('step 2 promises forms ahead of time ONLY while the Intake door is open (honest while pending)', async () => {
+    await renderPage(makeData({ intakeFormsEnabledAt: null }))
+    // Door closed: no form exists to send, so the guide must not say one is coming.
+    expect(screen.queryByText(/ahead of time/i)).toBeNull()
+    expect(screen.queryByText('Forms from your couch')).toBeNull()
+    expect(screen.getByText('A few quick forms')).toBeInTheDocument()
+  })
+
+  it('step 2 keeps the couch copy when the Intake door is open', async () => {
+    await renderPage()
+    expect(screen.getByText('Forms from your couch')).toBeInTheDocument()
+    expect(screen.getByText(/ahead of time/i)).toBeInTheDocument()
   })
 
   it('no intake CTA at all while the Intake Forms door is closed — the page it points at serves nothing (law 1, audit round 3)', async () => {

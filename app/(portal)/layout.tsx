@@ -21,6 +21,7 @@ import {
   PortalDesktopNav,
   PortalTabBar,
   PortalAnnouncement,
+  PortalCredit,
 } from '@/components/patient-portal/portal-chrome'
 import { PORTAL_MUTED } from '@/components/patient-portal/ui'
 import { todaysHoursLabel } from '@/lib/clinic-site-helpers'
@@ -274,12 +275,9 @@ export default async function PortalLayout({ children }: { children: React.React
                   {clinic.email}
                 </a>
               )}
-              {/* No `opacity-*` on portal ink: the muted tone IS the quiet
-                  step, and dimming it a second time took this 12px line to
-                  2.98:1 on every portal page (tests/a11y/portal-ink-opacity). */}
-              <p className="mt-3 text-[0.75rem]">
-                Powered by DreamCreate
-              </p>
+              {/* The site-credit switch (Website → Design) governs this line
+                  exactly as it governs the public site's. */}
+              <PortalCredit hidden={clinic?.hidePoweredBy === true} />
             </div>
           </div>
         </footer>

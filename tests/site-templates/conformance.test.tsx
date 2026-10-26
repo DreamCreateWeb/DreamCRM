@@ -1,11 +1,13 @@
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
+import type React from 'react'
 import { render, cleanup } from '@testing-library/react'
 import { listSiteTemplates } from '@/lib/site-templates/registry'
 import { SITE_TEMPLATE_MANIFEST } from '@/lib/site-templates/manifest'
 import { copyKeysForTemplate } from '@/lib/services/ai-website-edit'
 import { PALETTE_VARS, type ClinicPalette } from '@/lib/clinic-site-theme'
+import { intakeStartHref } from '@/lib/clinic-site-helpers'
 import { FIXTURES } from '../fixtures/clinic-site-fixtures'
 import type { HomePageProps } from '@/lib/site-templates/page-props'
 import type { ClinicSiteData } from '@/lib/services/clinic-site'
@@ -166,6 +168,44 @@ describe.each(TEMPLATES.map((t) => [t.id, t] as const))('template conformance [%
     )
     expect(mobile.container.textContent).toContain(def.bookLabel)
     cleanup()
+  })
+
+  it('chrome: the "New patient forms" door is an ABSOLUTE www URL when intake is open', () => {
+    // The /intake-start gate signs the patient in (a relative better-auth POST
+    // to /api/auth/*) and lands them in /patient/* — both exist only on the
+    // www host. A relative `${basePath}/intake-start` on a subdomain or a
+    // custom domain renders the gate in place and its submit is rewritten to
+    // /site/<slug>/api/auth/… (a 404 on the practice's own domain). Every
+    // template's Header + Footer must route the door through intakeStartHref.
+    const data = FIXTURES.rich()
+    data.profile.intakeFormsEnabledAt = new Date('2026-10-01T00:00:00Z')
+    const chromeProps = {
+      data,
+      basePath: '',
+      navLinks: [{ label: 'Contact', href: '#site-footer-contact' }],
+      bookHref: '/book',
+      bookLabel: def.bookLabel,
+      signInUrl: 'https://www.example.com/site/fixture-dental/portal',
+    }
+    // Where the door sits is the template's call (five footers, the hometown
+    // header, the modern home hero); that it is offered SOMEWHERE when open,
+    // and absolute EVERYWHERE, is not.
+    let doors = 0
+    const surfaces: Array<() => React.ReactElement> = [
+      () => <def.chrome.Footer {...chromeProps} />,
+      () => <def.chrome.Header {...chromeProps} />,
+      () => <def.pages.Home {...homeProps(data, def)} basePath="" bookHref="/book" />,
+    ]
+    for (const make of surfaces) {
+      const { container } = render(make())
+      const intakeLinks = Array.from(container.querySelectorAll('a[href*="intake-start"]'))
+      doors += intakeLinks.length
+      for (const a of intakeLinks) {
+        expect(a.getAttribute('href')).toBe(intakeStartHref(data.slug))
+      }
+      cleanup()
+    }
+    expect(doors, 'the template offers no intake door at all while the door is open').toBeGreaterThan(0)
   })
 
   it('declared extra marketing pages resolve to real routes and honor their gates', () => {

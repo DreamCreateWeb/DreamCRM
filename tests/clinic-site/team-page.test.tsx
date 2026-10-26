@@ -159,14 +159,20 @@ describe('TeamPage', () => {
     expect(hrefs).toContain('/site/acme-dental/team/maria-vega-rdh')
   })
 
-  it('renders the empty-state placeholder (NOT a 404) when staff is empty', async () => {
+  it('renders a DOORED empty state (NOT a 404, never "coming soon") when staff is empty', async () => {
     await renderPage(makeData({ staff: [] }))
-    expect(screen.getByText(/Our team page is coming soon/i)).toBeInTheDocument()
+    expect(screen.getByText('Meet us in person.')).toBeInTheDocument()
+    expect(document.body.textContent).not.toMatch(/coming[\s-]soon/i)
+    // The doors: the booking CTA and the phone.
+    const hrefs = screen.getAllByRole('link').map((a) => a.getAttribute('href'))
+    expect(hrefs).toContain('/site/acme-dental/book')
+    expect(hrefs).toContain('tel:(555) 555-0100')
   })
 
-  it('renders the empty-state placeholder when staff is null', async () => {
+  it('renders the doored empty state when staff is null', async () => {
     await renderPage(makeData({ staff: null }))
-    expect(screen.getByText(/Our team page is coming soon/i)).toBeInTheDocument()
+    expect(screen.getByText('Meet us in person.')).toBeInTheDocument()
+    expect(document.body.textContent).not.toMatch(/coming[\s-]soon/i)
   })
 
   it('renders the page in the standard Tend chrome (SiteHeader + footer)', async () => {

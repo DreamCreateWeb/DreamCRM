@@ -39,28 +39,27 @@ export default async function PortalSignInPage({ params }: Props) {
   const externalDoor = externalPortalUrl(data.profile.portalSettings)
   if (externalDoor) redirect(externalDoor)
 
-  // Defensive subdomain → apex redirect so better-auth's relative POST to
-  // `/api/auth/*` hits the real handler on www (a subdomain `/portal` rewrites
-  // to `/site/<slug>/portal`, and the auth call would 404). The whole auth flow
-  // — sign-in, cookie, portal — must share one origin.
-  const h = await headers()
-  const host = (h.get('x-forwarded-host') || h.get('host') || '')
-    .split(',')[0]
-    .split(':')[0]
-    .toLowerCase()
-  const apex = new URL(appBaseUrl()).hostname.toLowerCase()
-  if (host && host !== apex && host.endsWith(apex.replace(/^www\./, ''))) {
+  // Defensive host → apex redirect so better-auth's relative POST to
+  // `/api/auth/*` hits the real handler on www. On ANY host where the site is
+  // served at the root — a clinic subdomain OR a custom domain — `/portal`
+  // rewrites to `/site/<slug>/portal` and the auth call would 404. The whole
+  // auth flow — sign-in, cookie, portal — must share one origin. (The first
+  // cut matched only hosts ending in the platform domain, which left a
+  // custom domain rendering the form in place.)
+  const basePath = await resolveSiteBasePath(slug)
+  if (basePath === '') {
     redirect(`${appBaseUrl()}/site/${slug}/portal`)
   }
 
   // Already signed in → straight to the portal. (A signed-in non-patient lands
-  // on /patient/dashboard, which routes them to their real home.)
+  // on /patient/dashboard, which routes them to their real home.) Absolute
+  // for the same one-origin reason.
+  const h = await headers()
   const session = await auth.api.getSession({ headers: h })
   if (session?.user) {
-    redirect('/patient/dashboard')
+    redirect(`${appBaseUrl()}/patient/dashboard`)
   }
 
-  const basePath = await resolveSiteBasePath(slug)
   const profile = data.profile
   const name = profile.displayName ?? data.orgName
   const brand = profile.brandColor ?? '#9CAF9F'

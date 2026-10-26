@@ -2,6 +2,7 @@
 
 import { useRef, useState } from 'react'
 import { uploadFileWithProgress, UploadCancelledError, type UploadHandle } from '@/lib/upload-with-progress'
+import { heicRefusal } from '@/lib/upload-kinds'
 
 interface Props {
   /** Form field name — the resolved blob URL is set on a hidden input with this name. */
@@ -51,6 +52,11 @@ export default function ImageUploader({
     setError(null)
     if (!file.type.startsWith('image/')) {
       setError('Please pick an image file')
+      return
+    }
+    const heic = await heicRefusal(file)
+    if (heic) {
+      setError(heic)
       return
     }
     if (file.size > maxBytes) {

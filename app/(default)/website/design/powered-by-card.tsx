@@ -6,9 +6,9 @@ import { setPoweredByVisibilityAction } from './actions'
 
 /**
  * The site-credit switch card on Website → Design. The credit is a thin
- * "Powered by DreamCRM" line under the site's footer — on by default, and
- * this is the one off switch. Live-instant (no Publish step), and the copy
- * says so.
+ * "Powered by DreamCRM" line under the site's footer AND under the patient
+ * portal's — on by default, and this is the one off switch for both.
+ * Live-instant (no Publish step), and the copy says so.
  */
 export default function PoweredByCard({ initialHidden }: { initialHidden: boolean }) {
   const [hidden, setHidden] = useState(initialHidden)
@@ -34,8 +34,8 @@ export default function PoweredByCard({ initialHidden }: { initialHidden: boolea
         <div>
           <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100">Site credit</h2>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400 max-w-lg">
-            A small “Powered by DreamCRM” line at the very bottom of your site, under your footer.
-            Turning it off applies right away — no publish needed.
+            A small “Powered by DreamCRM” line at the very bottom of your site, under your footer,
+            and in your patient portal. Turning it off applies right away — no publish needed.
           </p>
           {error && <p className="mt-2 text-sm text-rose-600 dark:text-rose-400">{error}</p>}
         </div>

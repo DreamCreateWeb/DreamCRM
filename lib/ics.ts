@@ -24,6 +24,62 @@ export function icsUtcStamp(d: Date): string {
   return d.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z')
 }
 
+/** The length a visit's calendar block falls back to ONLY when the real end
+ *  is unknown — the same fallback the portal's authenticated .ics route uses. */
+export const DEFAULT_VISIT_MINUTES = 30
+
+/** The practical facts a calendar entry carries about where the visit is. */
+export interface VisitIcsClinic {
+  name: string
+  addressLine1?: string | null
+  city?: string | null
+  state?: string | null
+  postalCode?: string | null
+  phone?: string | null
+}
+
+/**
+ * The calendar entry for ONE VISIT — the shape the one-click confirm page and
+ * the portal's booking success both build inline, mirroring the portal's
+ * authenticated .ics route line for line: the REAL end time (a 60-minute root
+ * canal is a 60-minute block; +30 only when the end is unknown), the clinic's
+ * address as LOCATION so the entry carries directions, and the provider + the
+ * phone in DESCRIPTION. Before this each surface hardcoded 30 minutes with no
+ * address, so two calendar entries for one appointment disagreed.
+ */
+export function visitIcsEvent(input: {
+  uid: string
+  start: Date
+  /** The visit's real end; null/undefined → start + DEFAULT_VISIT_MINUTES. */
+  end?: Date | null
+  summary: string
+  clinic?: VisitIcsClinic | null
+  providerName?: string | null
+}): IcsEvent {
+  const end =
+    input.end && input.end.getTime() > input.start.getTime()
+      ? input.end
+      : new Date(input.start.getTime() + DEFAULT_VISIT_MINUTES * 60_000)
+  const c = input.clinic
+  const location = c
+    ? [c.addressLine1, c.city, c.state, c.postalCode].filter(Boolean).join(', ')
+    : ''
+  const description = [
+    input.providerName ? `With ${input.providerName}.` : '',
+    c?.phone ? `Questions? Call ${c.name} at ${c.phone}.` : '',
+  ]
+    .filter(Boolean)
+    .join(' ')
+  return {
+    uid: input.uid,
+    start: input.start,
+    end,
+    summary: input.summary,
+    location: location || null,
+    description: description || null,
+  }
+}
+
 export interface IcsEvent {
   /** Stable UID for the event (so re-imports update rather than duplicate). */
   uid: string

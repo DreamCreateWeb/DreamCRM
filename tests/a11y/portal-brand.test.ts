@@ -187,8 +187,12 @@ describe('portalBrand — the clinic brand made readable on patient surfaces', (
 /**
  * Source guard — the derivation only helps if it sits on every path the brand
  * takes to a patient. These are those surfaces: the portal itself, its
- * staff-facing preview, and the five token pages that arrive by text or email
- * (confirm a visit, pay a balance, set up a plan, a survey, a review request).
+ * staff-facing preview, and the six token pages that arrive by text or email
+ * (confirm a visit, pay a balance, set up a plan, a survey, a review request,
+ * claim an earlier opening). The fast-pass page (/w) was missing from this
+ * list for a year: it painted `offer.brandColor || sage` raw under white on
+ * the one button that books the slot, and the e2e axe stop never saw it
+ * because the fixture org happens to carry a dark brand.
  */
 const ROOT = resolve(__dirname, '../..')
 const PATIENT_SURFACES = [
@@ -199,6 +203,7 @@ const PATIENT_SURFACES = [
   'app/i/[token]',
   'app/n/[token]',
   'app/r/[token]',
+  'app/w/[token]',
   'components/patient-portal',
 ]
 
@@ -233,7 +238,7 @@ describe('every patient-facing surface reads the brand through the derivation', 
 
   it('and every one of them is actually wired to it', () => {
     // The mirror of the rule above: a surface that stopped reading the brand
-    // at all would pass the negative check silently. All eight entry points
+    // at all would pass the negative check silently. All nine entry points
     // must still be present and derived.
     const wired = PATIENT_SURFACES.flatMap((base) =>
       walk(join(ROOT, base)).filter((f) => readFileSync(f, 'utf8').includes('portalBrand(')),
@@ -247,6 +252,7 @@ describe('every patient-facing surface reads the brand through the derivation', 
       'app/i/[token]/page.tsx',
       'app/n/[token]/page.tsx',
       'app/r/[token]/page.tsx',
+      'app/w/[token]/page.tsx',
     ])
   })
 })

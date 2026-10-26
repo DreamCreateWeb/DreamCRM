@@ -13,7 +13,7 @@ import type {
   ClinicService,
   ClinicStaff,
 } from '@/lib/types/clinic-content'
-import { readableInk } from '@/lib/clinic-site-theme'
+import { readableInk, brandFill } from '@/lib/clinic-site-theme'
 import { teamItemListJsonLd } from '@/lib/clinic-site-jsonld'
 import {
   firstSentence,
@@ -290,17 +290,45 @@ export default async function TeamPage({ params }: Props) {
         ) : (
           /* Empty state — render gracefully rather than 404 so direct nav hits
              don't break. The nav gate hides /team from the dropdown until staff
-             exist; this catches the rare direct-link case. */
+             exist; this catches the rare direct-link case (an old link, a
+             Google result). It is the public-site twin of a doored empty state:
+             the real way to meet the team, with the doors — never "coming
+             soon", which reads to a patient as a practice that has not finished
+             its website (docs/ACTIVATION.md law 3). */
           <section className="pb-14 sm:pb-24">
             <div className="max-w-[640px] mx-auto px-5 sm:px-8">
               <div
-                className="rounded-2xl border border-dashed py-14 text-center"
+                className="rounded-2xl border border-dashed px-6 py-12 text-center"
                 style={{ borderColor: BORDER, color: INK_MUTED, backgroundColor: SURFACE }}
               >
-                <p className="text-base">
-                  Our team page is coming soon. In the meantime, give us a call —
-                  we&apos;d love to introduce ourselves.
+                <p
+                  className="text-xl sm:text-2xl font-semibold mb-2"
+                  style={{ color: INK, fontFamily: 'var(--font-display, Georgia, serif)' }}
+                >
+                  Meet us in person.
                 </p>
+                <p className="text-base mb-6">
+                  The best introduction is a visit — book a time, or give us a call and
+                  we&apos;ll say hello.
+                </p>
+                <div className="flex flex-wrap items-center justify-center gap-3">
+                  <a
+                    href={bookHref}
+                    className="inline-flex items-center px-6 py-3 rounded-full text-[15px] font-semibold text-white shadow-md transition hover:shadow-lg"
+                    style={{ backgroundColor: brandFill(brand) }}
+                  >
+                    {bookLabel}
+                  </a>
+                  {profile.phone && (
+                    <a
+                      href={`tel:${profile.phone}`}
+                      className="inline-flex items-center px-6 py-3 rounded-full text-[15px] font-semibold border"
+                      style={{ color: INK, borderColor: BORDER }}
+                    >
+                      Call {profile.phone}
+                    </a>
+                  )}
+                </div>
               </div>
             </div>
           </section>
@@ -308,7 +336,7 @@ export default async function TeamPage({ params }: Props) {
 
         <ClosingCTA
           heading={copyOverride(copyOverrides, 'team.cta.heading', 'It’s a pleasure to meet you.')}
-          subhead={copyOverride(copyOverrides, 'team.cta.subhead', 'Book with any member of the team — same week is usually possible.')}
+          subhead={copyOverride(copyOverrides, 'team.cta.subhead', 'Book with any member of the team — we’d love to meet you.')}
           editKeyPrefix="team.cta"
           primary={{ label: bookLabel, href: bookHref }}
           secondary={

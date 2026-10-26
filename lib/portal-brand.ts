@@ -2,8 +2,9 @@ import { parseHex, readableInk } from '@/lib/clinic-site-theme'
 
 /**
  * The clinic's brand colour, made safe to render on the patient-facing
- * surfaces — the portal, and the five token pages a patient reaches from a
- * text or an email (confirm, pay, payment plan, survey, review).
+ * surfaces — the portal, and the six token pages a patient reaches from a
+ * text or an email (confirm, pay, payment plan, survey, review, and the
+ * fast-pass claim of an earlier opening).
  *
  * WHY THIS EXISTS. The clinic public site derives a whole palette from the one
  * brand colour (`buildClinicPalette`), and every role it emits is contrast-

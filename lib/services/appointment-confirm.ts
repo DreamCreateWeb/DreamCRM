@@ -61,6 +61,12 @@ export interface ConfirmContext {
   slug: string | null
   patientFirstName: string
   startTime: Date
+  /** The visit's real end (null when the row has none) — the calendar entry's
+   *  DTEND; the form falls back to +30 min only then. */
+  endTime: Date | null
+  /** The practice's street address for the calendar entry's LOCATION
+   *  ('' when nothing is on file). */
+  location: string
   visitTypeLabel: string
   providerName: string | null
   timeZone: string
@@ -82,6 +88,7 @@ export async function getConfirmContextByToken(token: string): Promise<ConfirmCo
       organizationId: schema.appointment.organizationId,
       status: schema.appointment.status,
       startTime: schema.appointment.startTime,
+      endTime: schema.appointment.endTime,
       type: schema.appointment.type,
       providerName: schema.clinicProvider.displayName,
       firstName: schema.patient.firstName,
@@ -101,6 +108,10 @@ export async function getConfirmContextByToken(token: string): Promise<ConfirmCo
       phone: schema.clinicProfile.phone,
       timezone: schema.clinicProfile.timezone,
       visitTypeSettings: schema.clinicProfile.visitTypeSettings,
+      addressLine1: schema.clinicProfile.addressLine1,
+      city: schema.clinicProfile.city,
+      state: schema.clinicProfile.state,
+      postalCode: schema.clinicProfile.postalCode,
     })
     .from(schema.clinicProfile)
     .where(eq(schema.clinicProfile.organizationId, row.organizationId))
@@ -126,6 +137,10 @@ export async function getConfirmContextByToken(token: string): Promise<ConfirmCo
     slug: org?.slug ?? null,
     patientFirstName: row.firstName,
     startTime: row.startTime as Date,
+    endTime: (row.endTime as Date | null) ?? null,
+    location: [profile?.addressLine1, profile?.city, profile?.state, profile?.postalCode]
+      .filter(Boolean)
+      .join(', '),
     visitTypeLabel: label,
     providerName: row.providerName ?? null,
     timeZone: profile?.timezone?.trim() || 'America/New_York',

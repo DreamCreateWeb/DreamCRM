@@ -76,6 +76,18 @@ export default async function PortalBookPage({
             self={self}
             dependents={dependents}
             clinicPhone={clinic?.phone ?? null}
+            clinic={
+              clinic
+                ? {
+                    name: clinic.displayName ?? ctx.organizationName,
+                    addressLine1: clinic.addressLine1,
+                    city: clinic.city,
+                    state: clinic.state,
+                    postalCode: clinic.postalCode,
+                    phone: clinic.phone,
+                  }
+                : null
+            }
             initialForPatientId={initialForPatientId}
           />
         ) : (

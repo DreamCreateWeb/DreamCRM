@@ -14,8 +14,8 @@ import {
   copyOverride,
   buildClinicNavLinks,
   navServicesFromClinicServices,
-  appBaseUrl,
   clinicPortalSignInUrl,
+  intakeStartHref,
 } from '@/lib/clinic-site-helpers'
 import ContactForm from '@/app/site/[slug]/contact-form'
 import SiteHeader from '@/components/clinic-site/site-header'
@@ -516,7 +516,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
                   all share one origin. */}
               {intakeDoorOpen(data.profile) && (
                 <a
-                  href={`${appBaseUrl()}/site/${data.slug}/intake-start`}
+                  href={intakeStartHref(data.slug)}
                   className="dc-hr dc-hr-5 inline-flex items-center gap-1 text-sm font-semibold mb-12 transition hover:gap-2"
                   style={{ color: headingInk }}
                 >

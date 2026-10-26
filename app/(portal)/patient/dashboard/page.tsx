@@ -22,7 +22,8 @@ import SurveyCard from '@/components/patient-portal/survey-card'
 import { getOrCreatePortalSurvey } from '@/lib/services/nps'
 import { PortalIcon } from '@/components/patient-portal/portal-chrome'
 import { PortalCard, PortalHeading, PortalSectionLabel, PortalEmptyState, PortalNotice, PORTAL_INK, PORTAL_MUTED, PORTAL_BORDER } from '@/components/patient-portal/ui'
-import { greetingFor } from '@/components/patient-portal/format'
+import { greetingFor, fmtMoney } from '@/components/patient-portal/format'
+import { canTakeBalancePayments } from '@/lib/services/balance-payments'
 import { todaysHoursLabel } from '@/lib/clinic-site-helpers'
 import type { PortalIconName } from '@/components/patient-portal/nav'
 
@@ -81,6 +82,17 @@ export default async function PortalHome() {
   // Reads the balance off `me` (a full patient row) — zero extra queries.
   const balanceDueCents = settings.features.billing ? (me?.pmsBalanceCents ?? 0) : 0
   const showBalanceTask = balanceDueCents > 0
+  // The strip's verb has to be the one the Billing page will honour. Billing
+  // shows the pay form only when the clinic turned payments ON *and* its
+  // Stripe Connect account can charge; everywhere else it says "call us".
+  // Payments default OFF, so "take care of it online in about a minute" was a
+  // promise the very next tap retracted for most clinics with a PMS balance.
+  // Same gate, same read (best-effort false on a Stripe hiccup — the
+  // call-us line is never wrong).
+  const payOnline =
+    showBalanceTask && settings.features.payments
+      ? await canTakeBalancePayments(ctx.organizationId).catch(() => false)
+      : false
 
   const verbs: Array<{ href: string; label: string; sub: string; icon: PortalIconName; show: boolean }> = [
     { href: '/patient/book', label: bookLabel, sub: bookSub, icon: 'calendar', show: settings.features.booking },
@@ -104,8 +116,10 @@ export default async function PortalHome() {
           <PortalNotice tone="warn" className="flex items-center gap-3">
             <PortalIcon name="card" className="h-5 w-5 shrink-0" />
             <span className="flex-1">
-              <strong className="font-bold">{`$${(balanceDueCents / 100).toFixed(2)}`} balance</strong>{' '}
-              — you can take care of it online in about a minute.
+              <strong className="font-bold">{fmtMoney(balanceDueCents)} balance</strong>{' '}
+              {payOnline
+                ? '— pay online in about a minute.'
+                : '— call us or stop by, whatever’s easiest.'}
             </span>
             <span className="text-[0.85rem] font-bold">→</span>
           </PortalNotice>

@@ -35,6 +35,20 @@ export function clinicPortalSignInUrl(slug: string, portalSettings?: unknown): s
   return externalPortalUrl(portalSettings) ?? `${appBaseUrl()}/site/${encodeURIComponent(slug)}/portal`
 }
 
+/**
+ * The clinic's "New patient forms" / "Start your intake" door — the public
+ * /intake-start gate. SAME ORIGIN RULE as the portal sign-in above: the gate
+ * signs the patient in (better-auth's relative POST to `/api/auth/*`) and
+ * lands them in the portal at `/patient/*`, and both exist ONLY on the www
+ * host. A relative `${basePath}/intake-start` on a clinic subdomain or a
+ * custom domain renders the gate in place, and its submit is rewritten to
+ * `/site/<slug>/api/auth/…` — a 404 on the practice's own domain the day
+ * intake is turned on. One home for the URL so no template can drift back.
+ */
+export function intakeStartHref(slug: string): string {
+  return `${appBaseUrl()}/site/${encodeURIComponent(slug)}/intake-start`
+}
+
 export const DAYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const
 export const DAY_LABEL: Record<string, string> = {
   mon: 'Monday', tue: 'Tuesday', wed: 'Wednesday', thu: 'Thursday',
@@ -148,6 +162,35 @@ export function resolveCopyList<T extends { title: string; body: string }>(
     title: copyOverride(overrides, `${prefix}.${i}.title`, it.title),
     body: copyOverride(overrides, `${prefix}.${i}.body`, it.body),
   }))
+}
+
+/**
+ * The /book page's LIVING "next opening" line — the honest replacement for a
+ * "same-week visits, 3–5 days" promise no constant can keep. Both inputs are
+ * CLINIC-LOCAL calendar keys (`YYYY-MM-DD`): `todayKey` from
+ * `formatOdDate(now, tz)` and `dayKey` from `firstBookableDayInWindow`, which
+ * scans forward from it. A calendar date has exactly one weekday, so the
+ * label is formatted timezone-independently (noon UTC on that date) — the
+ * same rule the form's own "See Thursday's openings" button uses, so the
+ * card and the button can never name different days.
+ *
+ *   today → "today" · tomorrow → "tomorrow" · inside a week → "Thursday" ·
+ *   further out → "Thursday, November 5". Malformed keys → null (no card).
+ */
+export function nextOpeningLabel(dayKey: string | null | undefined, todayKey: string): string | null {
+  const RE = /^(\d{4})-(\d{2})-(\d{2})$/
+  const a = dayKey ? RE.exec(dayKey) : null
+  const b = RE.exec(todayKey)
+  if (!a || !b) return null
+  const day = Date.UTC(+a[1], +a[2] - 1, +a[3], 12)
+  const today = Date.UTC(+b[1], +b[2] - 1, +b[3], 12)
+  const diffDays = Math.round((day - today) / 86_400_000)
+  if (diffDays < 0) return null
+  if (diffDays === 0) return 'today'
+  if (diffDays === 1) return 'tomorrow'
+  const d = new Date(day)
+  if (diffDays < 7) return d.toLocaleDateString('en-US', { weekday: 'long', timeZone: 'UTC' })
+  return d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', timeZone: 'UTC' })
 }
 
 /** The clinic-local weekday key ('sun'…'sat'). Pass the clinic timezone so

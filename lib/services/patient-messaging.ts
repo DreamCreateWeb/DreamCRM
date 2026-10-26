@@ -1141,13 +1141,44 @@ const AUTO_REPLY_DEDUP_MS = 12 * 60 * 60 * 1000
  * counter (a human still needs to give a real answer); it just updates the
  * thread preview + appears in the patient's portal.
  */
+/** Where an inbound message's after-hours ack can be DELIVERED. */
+export type AutoReplyDelivery = 'in_app' | 'email'
+
+/**
+ * Which inbound messages earn the after-hours auto-reply, and on which rail.
+ *   • a portal (in_app) message → the ack lands in the portal thread;
+ *   • the WEBSITE CHAT bubble → the visitor has no portal, so the ack goes by
+ *     email to the address they typed (it is a reply to their own message —
+ *     transactional, no marketing consent involved);
+ *   • the contact form (plain channel 'email') has its own acknowledgement,
+ *     so it is NOT acked here — that would double-ack;
+ *   • SMS replies are a separate rail with their own confirmation.
+ * Pure, so the routing is pinned by a test rather than assumed: before this
+ * the chat — the one closed-office path a stranger is most likely to use, on
+ * by default on every public page — said "sent" and then nothing till morning.
+ */
+export function afterHoursReplyDelivery(input: {
+  channel: MessageChannel
+  source?: InboundSource
+}): AutoReplyDelivery | null {
+  if (input.channel === 'in_app') return 'in_app'
+  if (input.source === 'website_chat') return 'email'
+  return null
+}
+
+/** Where an inbound message came from, when the channel alone cannot say
+ *  (the website chat records as 'email' like the contact form does). */
+export type InboundSource = 'website_chat'
+
 // Exported for the executed writer test (tests/messaging/after-hours-auto-reply
 // .test.ts) — the auto_reply ledger entry must be pinned, not assumed.
 export async function maybeSendAfterHoursAutoReply(
   organizationId: string,
   patientId: string,
   threadId: string,
+  opts: { deliverBy?: AutoReplyDelivery } = {},
 ): Promise<void> {
+  const deliverBy: AutoReplyDelivery = opts.deliverBy ?? 'in_app'
   try {
     const [clinic] = await db
       .select({
@@ -1185,24 +1216,34 @@ export async function maybeSendAfterHoursAutoReply(
     const clinicName = clinic.displayName?.trim() || 'our office'
     const body = (settings.autoReply.message || DEFAULT_AUTO_REPLY_MESSAGE).replace(/\{clinic\}/g, clinicName)
     const now = new Date()
+    const messageId = newMessageId()
+    // The website-chat visitor has no portal to read an in_app row in: the ack
+    // goes to the inbox they typed, DELIVERED FIRST so a failed send (no
+    // address on the record, a provider error) throws here and nothing below
+    // claims an ack that never went out. The same editable copy either way.
+    if (deliverBy === 'email') {
+      await deliverPatientMessageEmail(organizationId, patientId, body, [], messageId)
+    }
     await db.insert(schema.patientMessage).values({
-      id: newMessageId(),
+      id: messageId,
       threadId,
       organizationId,
       patientId,
-      channel: 'in_app',
+      channel: deliverBy,
       direction: 'outbound',
       body,
       sentByUserId: null,
       sentAt: now,
-      deliveredAt: now,
+      // An in-app ack is read the moment it renders; an email's delivery is
+      // the provider's receipt to stamp.
+      deliveredAt: deliverBy === 'in_app' ? now : null,
       meta: { autoReply: true },
     })
     // Update the preview/ordering but DELIBERATELY leave unreadCountForClinic +
     // status alone — the front desk still owes a real reply.
     await db
       .update(schema.patientThread)
-      .set({ lastMessageAt: now, lastMessageDirection: 'outbound', lastMessageChannel: 'in_app', updatedAt: now })
+      .set({ lastMessageAt: now, lastMessageDirection: 'outbound', lastMessageChannel: deliverBy, updatedAt: now })
       .where(eq(schema.patientThread.id, threadId))
     // THE ACTION LEDGER — the machine held the fort after hours.
     const [who] = await db
@@ -1230,6 +1271,9 @@ export async function recordInboundMessage(input: {
   externalId?: string
   /** Optional image attachments (e.g. a patient photo from the portal). */
   attachments?: MessageAttachment[]
+  /** The website chat bubble records as 'email' like the contact form, but
+   *  earns the after-hours ack (by email) where the form does not. */
+  source?: InboundSource
 }): Promise<{ threadId: string; messageId: string }> {
   // Client-supplied list: shape AND host must both check out (lib/attachment-hosts.ts).
   const attachments = sanitizeUploadedAttachments(input.attachments)
@@ -1314,11 +1358,14 @@ export async function recordInboundMessage(input: {
     console.warn('[patient-messaging.recordInboundMessage] notification failed', err)
   }
 
-  // After-hours auto-reply for portal (in-app) messages only — the contact
-  // form (channel='email') has its own auto-acknowledgement, so this won't
-  // double-ack. Best-effort; never blocks the inbound record.
-  if (input.channel === 'in_app') {
-    await maybeSendAfterHoursAutoReply(input.organizationId, input.patientId, threadId)
+  // After-hours auto-reply — portal messages in the portal thread, website
+  // chat by email to the address the visitor typed; the contact form
+  // (channel='email', no source) has its own auto-acknowledgement, so this
+  // won't double-ack. Best-effort; never blocks the inbound record. The
+  // once-per-thread throttle inside applies to both rails.
+  const ackBy = afterHoursReplyDelivery(input)
+  if (ackBy) {
+    await maybeSendAfterHoursAutoReply(input.organizationId, input.patientId, threadId, { deliverBy: ackBy })
   }
 
   // Urgency triage — fire-and-forget so the sender's request never waits on
