@@ -20,14 +20,13 @@ import {
   appointmentViewFiltersToQuery,
   type AppointmentViewFilters,
 } from '@/lib/types/appointment-views'
-import { sendNotificationEmail } from '@/lib/email'
 import { getClinicSenderIdentity } from '@/lib/services/clinic-sender'
-import { queueCommLogWriteBack } from '@/lib/services/pms/sync'
-import { sendBookingConfirmation } from '@/lib/services/booking-confirmation'
+import { sendBookingConfirmation, sendRescheduleNotice } from '@/lib/services/booking-confirmation'
 import { sendReminderEmail, sendReminderSms } from '@/lib/services/reminder-automation'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { clinicProfile } from '@/lib/db/schema/platform'
+import { appointment } from '@/lib/db/schema/clinic'
 import { listProviders, type ProviderRow } from '@/lib/services/providers'
 import { searchPatientOptions, getPatientOption, type PatientOption } from '@/lib/services/patients'
 import { resolveVisitTypes, visitTypeDuration, type VisitType } from '@/lib/types/visit-types'
@@ -40,6 +39,31 @@ async function getClinicVisitTypeSettings(organizationId: string): Promise<unkno
     .where(eq(clinicProfile.organizationId, organizationId))
     .limit(1)
   return row?.visitTypeSettings ?? null
+}
+
+/**
+ * The length of an EXISTING visit, for the slot guard: its own end time when
+ * it has one, else the clinic's catalog duration for its type (the same
+ * resolver a new booking uses). Null when the row is not this clinic's. ONE
+ * home for both the reschedule guard and the reschedule drawer's slot grid,
+ * so the grid can never offer a time the guard then refuses.
+ */
+async function resolveAppointmentDuration(
+  organizationId: string,
+  appointmentId: string,
+): Promise<number | null> {
+  const [row] = await db
+    .select({ startTime: appointment.startTime, endTime: appointment.endTime, type: appointment.type })
+    .from(appointment)
+    .where(and(eq(appointment.organizationId, organizationId), eq(appointment.id, appointmentId)))
+    .limit(1)
+  if (!row) return null
+  const fromEnd =
+    row.endTime && row.startTime
+      ? Math.round((new Date(row.endTime).getTime() - new Date(row.startTime).getTime()) / 60000)
+      : 0
+  if (fromEnd > 0) return fromEnd
+  return visitTypeDuration(await getClinicVisitTypeSettings(organizationId), row.type)
 }
 
 async function requireClinicTenant() {
@@ -122,15 +146,32 @@ export async function removeFromWaitlistAction(waitlistId: string): Promise<{ ok
   return { ok: true }
 }
 
-export async function markCompletedAction(
-  appointmentId: string,
-): Promise<{ ok: true; reviewSent: boolean }> {
+export interface MarkCompletedActionResult {
+  ok: true
+  reviewSent: boolean
+  /** The next-visit facts (lib/services/appointments.ts MarkCompletedResult):
+   *  `nextVisitBooked === false` is the toast's "Book next visit" door, the
+   *  other three seed the booking drawer it opens. */
+  patientId: string | null
+  visitType: string | null
+  nextVisitBooked: boolean
+  nextVisitDateKey: string | null
+}
+
+export async function markCompletedAction(appointmentId: string): Promise<MarkCompletedActionResult> {
   const ctx = await requireClinicTenant()
-  const { reviewSent } = await markCompleted(ctx.organizationId, appointmentId)
+  const r = await markCompleted(ctx.organizationId, appointmentId)
   revalidatePath('/appointments')
   revalidatePath('/')
   revalidatePath('/my-day')
-  return { ok: true, reviewSent }
+  return {
+    ok: true,
+    reviewSent: r.reviewSent,
+    patientId: r.patientId,
+    visitType: r.visitType,
+    nextVisitBooked: r.nextVisitBooked,
+    nextVisitDateKey: r.nextVisitDateKey,
+  }
 }
 
 /**
@@ -174,11 +215,16 @@ export async function rescheduleAppointmentAction(input: {
   if (Number.isNaN(start.getTime()) || start < new Date()) {
     return { ok: false, error: 'New start time must be in the future' }
   }
+  // The moving visit's REAL length. The guard used to check the leading
+  // 30-minute slot only, so a 60-minute visit moved to 4:30 before a 5:00
+  // close passed, and a crown landed on top of the next chair's booking.
+  const duration = await resolveAppointmentDuration(ctx.organizationId, input.appointmentId)
+  if (duration == null) return { ok: false, error: 'Appointment not found' }
   // Same honest-error treatment as createInternalAppointmentAction;
   // exclude the appointment-being-rescheduled so its old slot doesn't
-  // count as "taken" against itself.
+  // count as "taken" against itself, and span the whole visit.
   const { slots: rSlots, closedReason: rClosedReason } = await getSlotsForDay(
-    ctx.organizationId, start, input.appointmentId,
+    ctx.organizationId, start, input.appointmentId, duration,
   )
   const rTargetIso = start.toISOString()
   const rSlot = rSlots.find((s) => s.startIso === rTargetIso)
@@ -191,7 +237,10 @@ export async function rescheduleAppointmentAction(input: {
       "That time isn't an available slot. Pick another."
     return { ok: false, error }
   }
-  const end = input.newEndTime ? new Date(input.newEndTime) : null
+  // The new row's end follows the SAME length the guard just checked, so the
+  // agenda shows what was reserved (a visit with no end time used to collapse
+  // to a 30-minute block even when its type's catalog length was longer).
+  const end = input.newEndTime ? new Date(input.newEndTime) : new Date(start.getTime() + duration * 60_000)
   const newId = await rescheduleAppointment({
     organizationId: ctx.organizationId,
     appointmentId: input.appointmentId,
@@ -201,22 +250,12 @@ export async function rescheduleAppointmentAction(input: {
 
   // Best-effort patient notification — we don't fail the reschedule if email
   // delivery fails. The reschedule is the source of truth; comms is async.
+  // The copy is the clinic-editable `rescheduled` email (Emails hub) with the
+  // one-click "Confirm my new time" button; the CommLog mirror rides inside.
   if (input.notifyPatient) {
     try {
-      const detail = await getAppointmentDetail(ctx.organizationId, newId)
-      if (detail?.patient.email) {
-        const sender = await getClinicSenderIdentity(ctx.organizationId)
-        await sendNotificationEmail({
-          to: detail.patient.email,
-          name: detail.patient.fullName,
-          title: 'Your appointment was rescheduled',
-          body: `Hi ${detail.patient.fullName.split(' ')[0]} — your ${detail.type.replace(/_/g, ' ')} at ${sender.name} has been moved to ${start.toLocaleString('en-US', { weekday: 'long', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: sender.timeZone })}. Reply or call if this doesn't work.`,
-        }, sender)
-        await queueCommLogWriteBack(ctx.organizationId, detail.patient.id, {
-          note: `Appointment rescheduled to ${start.toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: sender.timeZone })} — patient notified by email.`,
-          mode: 'Email',
-        })
-      }
+      const sender = await getClinicSenderIdentity(ctx.organizationId)
+      await sendRescheduleNotice(ctx.organizationId, newId, sender)
     } catch (err) {
       console.warn('[reschedule] notify failed', err)
     }
@@ -434,14 +473,27 @@ export async function getBookingConfigAction(): Promise<BookingConfig> {
  * `listBookingSlots` but is gated to the clinic tenant. Accepts a date-only
  * 'YYYY-MM-DD' key (clinic-zone) and an optional visit duration so the
  * availability check spans the whole appointment against the chair count.
+ *
+ * `excludeAppointmentId` is the RESCHEDULE case: the moving visit's own slot
+ * must not count as taken against itself, and when no duration is passed its
+ * length is resolved from that very row — the same resolver the reschedule
+ * guard uses, so the grid and the guard agree.
  */
 export async function getBookingSlotsAction(
   dateKey: string,
   durationMinutes?: number,
+  excludeAppointmentId?: string,
 ): Promise<BookingSlot[]> {
   const ctx = await requireClinicTenant()
   if (!dateKey) return []
-  const { slots } = await getSlotsForDay(ctx.organizationId, dateKey, undefined, durationMinutes)
+  const exclude = typeof excludeAppointmentId === 'string' && excludeAppointmentId ? excludeAppointmentId : undefined
+  const duration =
+    durationMinutes && durationMinutes > 0
+      ? durationMinutes
+      : exclude
+        ? (await resolveAppointmentDuration(ctx.organizationId, exclude)) ?? undefined
+        : undefined
+  const { slots } = await getSlotsForDay(ctx.organizationId, dateKey, exclude, duration)
   return slots
 }
 

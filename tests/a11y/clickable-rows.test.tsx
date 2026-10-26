@@ -90,6 +90,7 @@ function row(overrides: Partial<AppointmentRow> = {}): AppointmentRow {
     },
     agingLevel: 'none',
     needsRebooking: false,
+    nextVisitBooked: false,
     tags: [],
     ...overrides,
   }
