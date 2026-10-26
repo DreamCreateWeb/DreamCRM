@@ -7,6 +7,7 @@ import { ActionButton } from '@/components/ui/action-button'
 import { KpiStat } from '@/components/ui/kpi-stat'
 import { EncodingLegend } from '@/components/ui/encoding-legend'
 import { type PillLegendRow } from '@/lib/ui/encodings'
+import { clinicCountsAsActive, isPastDueStatus } from '@/lib/platform-clinic-status'
 import ClinicsList from './clinics-list'
 import AddClinicModal from './add-clinic-modal'
 
@@ -17,10 +18,12 @@ const PLAN_PILLS: PillLegendRow[] = [
 ]
 
 const STATUS_PILLS: PillLegendRow[] = [
-  { tone: 'ok', label: 'active', meaning: 'Paying or trialing — healthy' },
+  { tone: 'ok', label: 'active', meaning: 'Paying — healthy' },
+  { tone: 'info', label: 'trial · 5 days left', meaning: 'On the free trial — warns inside two days; a managed clinic’s reserved plan activates when the owner checks out' },
+  { tone: 'urgent', label: 'trial ended', meaning: 'The trial ran out with no plan chosen — behind the billing wall, site dark, engines stopped' },
   { tone: 'urgent', label: 'past due', meaning: 'Payment failed — needs intervention' },
   { tone: 'neutral', label: 'canceled', meaning: 'Inactive — no live subscription' },
-  { tone: 'info', label: 'setup pending', meaning: 'You created this clinic — owner hasn’t accepted the invite / added billing yet' },
+  { tone: 'info', label: 'invite pending', meaning: 'You created this clinic — the owner hasn’t accepted the invite yet (Resend is offered only here)' },
   { tone: 'neutral', label: 'comped', meaning: 'Platform-granted plan, no Stripe subscription (free account)' },
 ]
 
@@ -45,16 +48,11 @@ export default async function PlatformClinics() {
   const mrrCents = mrr.withTrialing.monthlyCents
   const thirtyDaysAgo = Date.now() - 30 * 86_400_000
   for (const r of realRows) {
-    if (r.subscriptionStatus === 'active' || r.subscriptionStatus === 'trialing') {
-      activeCount++
-    }
-    if (
-      r.subscriptionStatus === 'past_due' ||
-      r.subscriptionStatus === 'unpaid' ||
-      r.subscriptionStatus === 'incomplete_expired'
-    ) {
-      pastDueCount++
-    }
+    // The same "is it live" rule the row's pill, the Overview tile and the
+    // MRR derivation read — an expired trial still says 'trialing' in the
+    // column and is NOT an active subscriber.
+    if (clinicCountsAsActive(r)) activeCount++
+    if (isPastDueStatus(r.subscriptionStatus)) pastDueCount++
     if (r.createdAt.getTime() >= thirtyDaysAgo) newIn30d++
   }
 

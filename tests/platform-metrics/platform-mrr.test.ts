@@ -50,6 +50,7 @@ vi.mock('@/lib/db/schema/platform', () => ({
     planTier: 'planTier',
     subscriptionStatus: 'subscriptionStatus',
     stripeSubscriptionId: 'stripeSubscriptionId',
+    trialEndsAt: 'trialEndsAt',
   },
 }))
 vi.mock('@/lib/services/stripe-admin', async () => {
@@ -199,6 +200,34 @@ describe('getPlatformMrr', () => {
     const mrr = await getPlatformMrr()
     expect(mrr.recognized).toMatchObject({ clinics: 1, monthlyCents: 20_000 })
     expect(mrr.withTrialing).toMatchObject({ clinics: 2, monthlyCents: 40_000 })
+  })
+
+  it('an EXPIRED no-card trial is NOT in with-trialing — the column still says trialing, the wall says otherwise', async () => {
+    // `subscription_status` is written 'trialing' at signup and nothing flips
+    // it when the 7 days run out: the billing wall and the engine kill are
+    // derived from `trial_ends_at` (lib/trial.ts). Read alone, the column
+    // counted a clinic a month behind the wall as an active one on the
+    // Overview's Active Clinics tile and in Combined MRR.
+    const day = 86_400_000
+    state.clinics = [
+      clinic({ orgId: 'live', stripeSubscriptionId: null, subscriptionStatus: 'trialing', trialEndsAt: new Date(Date.now() + 3 * day) }),
+      clinic({ orgId: 'walled', stripeSubscriptionId: 'sub_walled', subscriptionStatus: 'trialing', trialEndsAt: new Date(Date.now() - 30 * day) }),
+    ]
+    state.subs = [sub({ id: 'sub_walled', unitAmountCents: 20_000, status: 'trialing' })]
+    const mrr = await getPlatformMrr()
+    expect(mrr.withTrialing).toMatchObject({ clinics: 1, monthlyCents: 0, byTier: { basic: 0, pro: 0, premium: 1 } })
+    expect(mrr.recognized.clinics).toBe(0)
+    // Nothing to bill behind the wall: the per-org map carries no amount for it.
+    expect(mrr.monthlyCentsByOrg.has('walled')).toBe(false)
+    expect(mrr.monthlyCentsByOrg.get('live')).toBe(0)
+  })
+
+  it('a PAID clinic with a stale trial_ends_at is never "expired" — recognized is untouched', async () => {
+    state.clinics = [clinic({ orgId: 'a', stripeSubscriptionId: 'sub_a', trialEndsAt: new Date(Date.now() - 60 * 86_400_000) })]
+    state.subs = [sub({ id: 'sub_a', unitAmountCents: 20_000 })]
+    const mrr = await getPlatformMrr()
+    expect(mrr.recognized).toMatchObject({ clinics: 1, monthlyCents: 20_000 })
+    expect(mrr.withTrialing).toMatchObject({ clinics: 1, monthlyCents: 20_000 })
   })
 
   it('a comped clinic with no subscription contributes a real 0 but still counts', async () => {

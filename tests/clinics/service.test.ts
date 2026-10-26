@@ -1,7 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { PgDialect } from 'drizzle-orm/pg-core'
+import type { SQL } from 'drizzle-orm'
 import { prewarm } from '../prewarm'
 
-const dbState: { selectQueue: unknown[][] } = { selectQueue: [] }
+// Every `.where(...)` argument in call order, so a test can render the
+// predicate a query actually carried through drizzle's own dialect — the
+// mock below answers from a queue and cannot see a filter otherwise.
+const dbState: { selectQueue: unknown[][]; whereArgs: unknown[] } = { selectQueue: [], whereArgs: [] }
+const dialect = new PgDialect()
+const renderWhere = (i: number) => dialect.sqlToQuery(dbState.whereArgs[i] as SQL)
 
 const stripeStubs: {
   invoices: Array<{
@@ -60,7 +67,10 @@ vi.mock('@/lib/db', () => {
     obj.from = () => obj
     obj.leftJoin = () => obj
     obj.innerJoin = () => obj
-    obj.where = () => obj
+    obj.where = (arg: unknown) => {
+      dbState.whereArgs.push(arg)
+      return obj
+    }
     obj.groupBy = () => obj
     obj.orderBy = () => obj
     obj.limit = async () => dbState.selectQueue.shift() ?? []
@@ -78,6 +88,7 @@ prewarm(() => import('@/lib/db'))
 
 beforeEach(() => {
   dbState.selectQueue.length = 0
+  dbState.whereArgs.length = 0
   stripeStubs.invoices = []
   stripeStubs.throwOn = null
   mrrState.byOrg = new Map()
@@ -140,6 +151,8 @@ describe('listClinics', () => {
     dbState.selectQueue.push([{ orgId: 'org_a', count: 42 }])
     // Active project counts
     dbState.selectQueue.push([{ orgId: 'org_a', count: 2 }])
+    // Pending OWNER invites — org_b's owner has not accepted yet
+    dbState.selectQueue.push([{ orgId: 'org_b' }])
 
     mrrState.byOrg = new Map([['org_a', 14_900]])
 
@@ -153,10 +166,61 @@ describe('listClinics', () => {
     expect(a.patientCount).toBe(42)
     expect(a.activeProjectCount).toBe(2)
     expect(a.hasWebsiteContent).toBe(true)
+    expect(a.ownerInvitePending).toBe(false)
     expect(b.monthlyContributionCents).toBe(0) // canceled doesn't contribute
     expect(b.memberCount).toBe(1)
     expect(b.patientCount).toBe(0)
     expect(b.hasWebsiteContent).toBe(false)
+    expect(b.ownerInvitePending).toBe(true)
+    // Neither was ever put on a trial (no trial_ends_at) — never trial-gated.
+    expect(a.trial).toEqual({ onTrial: false, expired: false, trialEndsAt: null, daysLeft: null })
+
+    // The invite read asks for OWNER invites still PENDING — a team invite
+    // (admin/member) is not the owner's acceptance, and an accepted row is
+    // exactly what must stop showing "Resend".
+    const invites = renderWhere(4)
+    expect(invites.sql).toMatch(/"invitation"\."role" = \$1/)
+    expect(invites.sql).toMatch(/"invitation"\."status" = \$2/)
+    expect(invites.params).toEqual(['owner', 'pending'])
+  })
+
+  it('an EXPIRED no-card trial contributes 0 and resolves expired — the column still says trialing', async () => {
+    // Nothing writes subscription_status when the 7 days run out; the wall
+    // is derived from trial_ends_at. The list resolves the same rule.
+    dbState.selectQueue.push([
+      {
+        orgId: 'org_e',
+        name: 'Ended Clinic',
+        slug: 'ended',
+        createdAt: new Date('2026-01-01'),
+        displayName: null,
+        logoUrl: null,
+        brandColor: null,
+        email: null,
+        phone: null,
+        city: null,
+        state: null,
+        tagline: null,
+        about: null,
+        planTier: 'premium',
+        subscriptionStatus: 'trialing',
+        stripeCustomerId: null,
+        stripeSubscriptionId: null,
+        trialEndsAt: new Date(Date.now() - 30 * 86_400_000),
+        billingMode: 'managed',
+        pendingPlanId: 'premium',
+      },
+    ])
+    dbState.selectQueue.push([])
+    dbState.selectQueue.push([])
+    dbState.selectQueue.push([])
+    dbState.selectQueue.push([])
+    mrrState.byOrg = new Map([['org_e', 19_900]])
+    const [e] = await listClinics()
+    expect(e.trial.expired).toBe(true)
+    expect(e.trial.onTrial).toBe(false)
+    expect(e.monthlyContributionCents).toBe(0)
+    expect(e.trialEndsAt).toBeInstanceOf(Date)
   })
 
   it('counts trialing subscriptions toward MRR', async () => {
@@ -179,6 +243,8 @@ describe('listClinics', () => {
         subscriptionStatus: 'trialing',
         stripeCustomerId: null,
         stripeSubscriptionId: null,
+        // Still INSIDE the trial — a live trial keeps contributing.
+        trialEndsAt: new Date(Date.now() + 5 * 86_400_000),
       },
     ])
     dbState.selectQueue.push([])
@@ -187,6 +253,8 @@ describe('listClinics', () => {
     mrrState.byOrg = new Map([['org_t', 19_900]])
     const out = await listClinics()
     expect(out[0].monthlyContributionCents).toBe(19_900)
+    expect(out[0].trial.onTrial).toBe(true)
+    expect(out[0].trial.daysLeft).toBe(5)
   })
 
   it('a clinic with no live Stripe subscription contributes a real 0, not a tier price', async () => {
@@ -399,6 +467,16 @@ describe('getClinicDetail', () => {
     expect(d).not.toBeNull()
     expect(d!.members).toHaveLength(2)
     expect(d!.patientCount).toBe(5)
+    // The patient count EXCLUDES archived rows — the same rule listClinics
+    // applies, so the detail page's number is the one on the list row the
+    // owner just clicked (a clinic once read 19 here and 17 everywhere else).
+    // The where args in order: org, profile, members, PATIENTS, appointments, projects.
+    const patients = renderWhere(3)
+    expect(patients.sql).toMatch(/"patient"\."organization_id" = \$1/)
+    expect(patients.sql).toMatch(/"patient"\."lifecycle" <> \$2/)
+    expect(patients.params).toEqual(['org_a', 'archived'])
+    // The upcoming-appointment count is unchanged — it carries no lifecycle rule.
+    expect(renderWhere(4).sql).not.toMatch(/lifecycle/)
     expect(d!.upcomingAppointmentCount).toBe(2)
     expect(d!.projects).toHaveLength(2)
     expect(d!.lifetimeProjectCents).toBe(250_000) // only completed counted

@@ -20,6 +20,8 @@ import {
 } from '@/lib/db/schema/platform'
 import { formatRelativeDate } from '@/lib/utils/format'
 import { type Tone } from '@/lib/ui/encodings'
+import { resolveTrialState } from '@/lib/trial'
+import { clinicStatusPill } from '@/lib/platform-clinic-status'
 import { ActionButton } from '@/components/ui/action-button'
 import { StatusPill } from '@/components/ui/status-pill'
 import { KpiStat } from '@/components/ui/kpi-stat'
@@ -65,14 +67,6 @@ const PROJECT_TYPE_CHANNELS = (Object.keys(TYPE_ICONS) as AgencyProjectType[]).m
   label: AGENCY_PROJECT_TYPE_LABELS[k],
   meaning: 'project type',
 }))
-
-// Subscription status → tone (active/trialing healthy, past-due family a
-// problem, everything else inert).
-function subStatusTone(status: string): Tone {
-  if (status === 'active' || status === 'trialing') return 'ok'
-  if (status === 'past_due' || status === 'unpaid' || status === 'incomplete_expired') return 'urgent'
-  return 'neutral'
-}
 
 function moneyFull(cents: number): string {
   return new Intl.NumberFormat('en-US', {
@@ -132,7 +126,18 @@ export default async function ClinicDetailPage({
 
   const siteUrl = `https://${clinic.slug}.${SITE_DOMAIN}`
   const planTier = (clinic.profile?.planTier ?? 'basic') as keyof typeof PLAN_LABEL
-  const status = clinic.profile?.subscriptionStatus ?? 'inactive'
+  // The same words the Clinics list row wears — 'trial ended' once the
+  // no-card trial runs out, not the 'trialing' the column keeps saying.
+  const status = clinicStatusPill({
+    subscriptionStatus: clinic.profile?.subscriptionStatus ?? null,
+    trial: resolveTrialState({
+      trialEndsAt: clinic.profile?.trialEndsAt ?? null,
+      subscriptionStatus: clinic.profile?.subscriptionStatus ?? null,
+      stripeSubscriptionId: clinic.profile?.stripeSubscriptionId ?? null,
+    }),
+    billingMode: clinic.profile?.billingMode,
+    pendingPlanId: clinic.profile?.pendingPlanId,
+  })
   const totalRevenue = clinic.lifetimeSubscriptionCents + clinic.lifetimeProjectCents
 
   const activeProjects = clinic.projects.filter((p) =>
@@ -198,7 +203,7 @@ export default async function ClinicDetailPage({
 
       {/* Top stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        <KpiStat label="Plan" value={PLAN_LABEL[planTier]} sub={`Status: ${status.replace('_', ' ')}`} />
+        <KpiStat label="Plan" value={PLAN_LABEL[planTier]} sub={`Status: ${status.label}`} />
         <KpiStat
           label="Lifetime Revenue"
           value={moneyFull(totalRevenue)}

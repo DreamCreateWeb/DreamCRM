@@ -3,6 +3,7 @@ import { and, eq, inArray } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { organization } from '@/lib/db/schema/auth'
 import { clinicProfile } from '@/lib/db/schema/platform'
+import { resolveTrialState } from '@/lib/trial'
 import { listAdminSubscriptions, monthlyContributionCents } from './stripe-admin'
 
 /**
@@ -39,7 +40,13 @@ export interface MrrSlice {
 export interface PlatformMrr {
   /** Recognized revenue: clinics we record as `active`. Paying customers. */
   recognized: MrrSlice
-  /** Recognized plus clinics still inside a trial — the pipeline view. */
+  /**
+   * Recognized plus clinics still INSIDE a trial — the pipeline view. A
+   * trial that has run out is not in it: `subscription_status` keeps saying
+   * 'trialing' after the 7 days (nothing writes the column — the wall and
+   * the engine kill are derived from `trial_ends_at`), so the column alone
+   * would count a clinic locked behind the billing wall as an active one.
+   */
   withTrialing: MrrSlice
   /**
    * True when Stripe could not be reached. The CLINIC COUNTS above are still
@@ -79,6 +86,7 @@ export async function getPlatformMrr(): Promise<PlatformMrr> {
     planTier: string | null
     subscriptionStatus: string | null
     stripeSubscriptionId: string | null
+    trialEndsAt?: Date | null
   }>
   try {
     clinics = await db
@@ -87,6 +95,7 @@ export async function getPlatformMrr(): Promise<PlatformMrr> {
         planTier: clinicProfile.planTier,
         subscriptionStatus: clinicProfile.subscriptionStatus,
         stripeSubscriptionId: clinicProfile.stripeSubscriptionId,
+        trialEndsAt: clinicProfile.trialEndsAt,
       })
       .from(clinicProfile)
       .innerJoin(organization, eq(clinicProfile.organizationId, organization.id))
@@ -120,6 +129,17 @@ export async function getPlatformMrr(): Promise<PlatformMrr> {
   const monthlyCentsByOrg = new Map<string, number>()
 
   for (const c of clinics) {
+    // An EXPIRED no-card trial is behind the wall: no access, no site, no
+    // engines, nothing to bill. The same pure rule the wall reads
+    // (lib/trial.ts), so this tile and the wall can never disagree. A
+    // clinic with a real paid subscription is never "expired" under it.
+    const trial = resolveTrialState({
+      trialEndsAt: c.trialEndsAt ?? null,
+      subscriptionStatus: c.subscriptionStatus,
+      stripeSubscriptionId: c.stripeSubscriptionId,
+    })
+    if (trial.expired) continue
+
     // A tier we do not recognise still counts as a clinic and still carries
     // its real Stripe amount — it just has no bucket to sit in.
     const tier =

@@ -8,6 +8,7 @@ import Link from 'next/link'
 import type { ClinicListRow } from '@/lib/services/clinics'
 import { enterDemoMode, seedAndEnterDemoClinic, deleteClinicAction, resendClinicInviteAction } from './admin-actions'
 import { type Tone } from '@/lib/ui/encodings'
+import { clinicCountsAsActive, clinicStatusPill, isPastDueStatus } from '@/lib/platform-clinic-status'
 import { FilterChip } from '@/components/ui/filter-chip'
 import { StatusPill } from '@/components/ui/status-pill'
 import { ActionButton } from '@/components/ui/action-button'
@@ -37,15 +38,18 @@ const PLAN_LABELS: Record<ClinicListRow['planTier'], string> = {
   premium: 'Premium',
 }
 
-// Subscription status → tone. active/trialing healthy; the past-due family is a
-// problem now; everything else is inert.
-function statusTone(status: string): Tone {
-  if (status === 'active' || status === 'trialing') return 'ok'
-  if (status === 'past_due' || status === 'unpaid' || status === 'incomplete_expired') return 'urgent'
-  return 'neutral'
-}
+// The status pill, "is this clinic live" and the past-due family all come
+// from lib/platform-clinic-status.ts — the one home shared with the KPI row,
+// the clinic detail page and the MRR derivation, so this list can never
+// count a clinic the Overview does not.
 
-type Filter = 'all' | 'basic' | 'pro' | 'premium' | 'past_due' | 'inactive'
+type Filter = 'all' | 'basic' | 'pro' | 'premium' | 'past_due' | 'trial_ended' | 'inactive'
+
+/** Inactive = no live subscription, which INCLUDES a trial that ran out —
+ *  the column still says 'trialing' for it, but the wall says otherwise. */
+function isInactive(r: ClinicListRow): boolean {
+  return !clinicCountsAsActive(r)
+}
 type SortKey = 'recent' | 'name' | 'revenue' | 'patients' | 'projects'
 
 function moneyShort(cents: number): string {
@@ -65,18 +69,11 @@ export default function ClinicsList({ rows }: Props) {
     if (filter === 'basic' || filter === 'pro' || filter === 'premium') {
       out = out.filter((r) => r.planTier === filter)
     } else if (filter === 'past_due') {
-      out = out.filter(
-        (r) =>
-          r.subscriptionStatus === 'past_due' ||
-          r.subscriptionStatus === 'unpaid' ||
-          r.subscriptionStatus === 'incomplete_expired',
-      )
+      out = out.filter((r) => isPastDueStatus(r.subscriptionStatus))
+    } else if (filter === 'trial_ended') {
+      out = out.filter((r) => r.trial.expired)
     } else if (filter === 'inactive') {
-      out = out.filter(
-        (r) =>
-          r.subscriptionStatus == null ||
-          (r.subscriptionStatus !== 'active' && r.subscriptionStatus !== 'trialing'),
-      )
+      out = out.filter(isInactive)
     }
     if (query.trim()) {
       const q = query.trim().toLowerCase()
@@ -107,24 +104,14 @@ export default function ClinicsList({ rows }: Props) {
   }, [rows, filter, query, sort])
 
   const counts = useMemo(() => {
-    const c = { all: rows.length, basic: 0, pro: 0, premium: 0, past_due: 0, inactive: 0 }
+    const c = { all: rows.length, basic: 0, pro: 0, premium: 0, past_due: 0, trial_ended: 0, inactive: 0 }
     for (const r of rows) {
       if (r.planTier === 'basic') c.basic++
       else if (r.planTier === 'pro') c.pro++
       else if (r.planTier === 'premium') c.premium++
-      if (
-        r.subscriptionStatus === 'past_due' ||
-        r.subscriptionStatus === 'unpaid' ||
-        r.subscriptionStatus === 'incomplete_expired'
-      ) {
-        c.past_due++
-      }
-      if (
-        r.subscriptionStatus == null ||
-        (r.subscriptionStatus !== 'active' && r.subscriptionStatus !== 'trialing')
-      ) {
-        c.inactive++
-      }
+      if (isPastDueStatus(r.subscriptionStatus)) c.past_due++
+      if (r.trial.expired) c.trial_ended++
+      if (isInactive(r)) c.inactive++
     }
     return c
   }, [rows])
@@ -148,6 +135,14 @@ export default function ClinicsList({ rows }: Props) {
           </FilterChip>
           <FilterChip active={filter === 'past_due'} onClick={() => setFilter('past_due')} count={counts.past_due}>
             Past due
+          </FilterChip>
+          <FilterChip
+            active={filter === 'trial_ended'}
+            onClick={() => setFilter('trial_ended')}
+            count={counts.trial_ended}
+            title="Trials that ran out with no plan chosen — behind the billing wall"
+          >
+            Trial ended
           </FilterChip>
           <FilterChip active={filter === 'inactive'} onClick={() => setFilter('inactive')} count={counts.inactive}>
             Inactive
@@ -243,7 +238,7 @@ export default function ClinicsList({ rows }: Props) {
 
 function ClinicRow({ clinic: c }: { clinic: ClinicListRow }) {
   const siteUrl = `https://${c.slug}.${SITE_DOMAIN}`
-  const statusKey = c.subscriptionStatus ?? 'inactive'
+  const status = clinicStatusPill(c)
   const name = c.displayName ?? c.name
   const initials = name.charAt(0).toUpperCase()
 
@@ -294,15 +289,10 @@ function ClinicRow({ clinic: c }: { clinic: ClinicListRow }) {
         </span>
       </td>
       <td className="px-3 py-3">
-        {c.billingMode === 'managed' && c.pendingPlanId ? (
-          <StatusPill
-            tone="info"
-            label="setup pending"
-            title="Owner invited — waiting on them to accept and add billing"
-          />
-        ) : (
-          <StatusPill tone={statusTone(statusKey)} label={statusKey.replace('_', ' ')} />
-        )}
+        {/* invite pending → trial ended → trial · N days left → the Stripe
+            status. The reserved plan is NOT "waiting on them to accept": it
+            stays reserved for the whole trial after the owner accepted. */}
+        <StatusPill tone={status.tone} label={status.label} title={status.title} />
       </td>
       <td className="px-3 py-3 text-right font-medium text-gray-800 dark:text-gray-100 tabular-nums">
         {c.monthlyContributionCents == null ? (
@@ -330,7 +320,10 @@ function ClinicRow({ clinic: c }: { clinic: ClinicListRow }) {
         <div className="flex items-center justify-end gap-2">
           {/* View as is the demo gateway — the row primary. */}
           <ViewAsButton orgId={c.orgId} />
-          {c.billingMode === 'managed' && c.pendingPlanId && <ResendInviteButton orgId={c.orgId} />}
+          {/* Only while an owner invite is actually pending — the action
+              throws "No pending invitation" otherwise, and a button that
+              fails on press is worse than no button. */}
+          {c.ownerInvitePending && <ResendInviteButton orgId={c.orgId} />}
           <ActionButton href={siteUrl} variant="ghost" size="sm" target="_blank">
             Site ↗
           </ActionButton>
@@ -402,8 +395,12 @@ function DeleteClinicModal({ clinic, onClose }: { clinic: ClinicListRow; onClose
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<{ name: string; subscriptionCanceled: boolean } | null>(null)
   const matches = typed.trim() === clinic.slug
+  // A Stripe subscription to cancel — which a no-card trial is not. The
+  // delete action cancels only when a subscription id is on file; the notice
+  // says the same thing.
   const hasActiveSub =
-    clinic.subscriptionStatus === 'active' || clinic.subscriptionStatus === 'trialing'
+    !!clinic.stripeSubscriptionId &&
+    (clinic.subscriptionStatus === 'active' || clinic.subscriptionStatus === 'trialing')
 
   function submit() {
     setError(null)
