@@ -29,7 +29,7 @@ import { eq } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { clinicProfile } from '@/lib/db/schema/platform'
 import { listProviders, type ProviderRow } from '@/lib/services/providers'
-import { listPatientOptions } from '@/lib/services/patients'
+import { searchPatientOptions, type PatientOption } from '@/lib/services/patients'
 import { resolveVisitTypes, visitTypeDuration, type VisitType } from '@/lib/types/visit-types'
 
 /** Read the clinic's raw visit-type settings jsonb (null = defaults). */
@@ -50,10 +50,12 @@ async function requireClinicTenant() {
   return ctx
 }
 
-/** Active patients as {id, name} for the "+ New booking" patient picker. */
-export async function listPatientOptionsAction(): Promise<Array<{ id: string; name: string }>> {
+/** The "+ New booking" patient picker's search: name / email / phone digits,
+ *  server-side, capped, most recently active first. Scoped to the caller's
+ *  org exactly like every other patient read (tests/tenant-scoping). */
+export async function searchPatientOptionsAction(query: string): Promise<PatientOption[]> {
   const ctx = await requireClinicTenant()
-  return listPatientOptions(ctx.organizationId)
+  return searchPatientOptions(ctx.organizationId, typeof query === 'string' ? query.slice(0, 80) : '')
 }
 
 export async function confirmAppointmentAction(appointmentId: string): Promise<{ ok: true }> {
@@ -232,17 +234,27 @@ async function sendReminderForOrg(
   ctx: { organizationId: string; organizationName: string; userId: string },
   appointmentId: string,
   channel: 'sms' | 'email',
+  opts: {
+    /** A deliberate single send may reach a CONFIRMED visit: the compose path
+     *  renders the gentler 'appointment_reminder_confirmed' copy for it (no
+     *  confirm ask; its own on/off in the Emails hub, whose refusal comes
+     *  back worded truthfully). Bulk never passes this — "select all → Send
+     *  reminders" keeps skipping confirmed rows. */
+    allowConfirmed?: boolean
+  } = {},
 ): Promise<ReminderResult> {
   const detail = await getAppointmentDetail(ctx.organizationId, appointmentId)
   if (!detail) return { ok: false, error: 'Appointment not found' }
   if (detail.status === 'cancelled' || detail.status === 'no_show') {
     return { ok: false, error: `Cannot send a reminder for a ${detail.status === 'no_show' ? 'no-show' : 'cancelled'} appointment` }
   }
-  // The reminder template asks the patient to confirm ("Reply CONFIRM…"), so
-  // sending it to an already-confirmed (or completed) visit is contradictory.
+  // A completed visit has nothing to be reminded of. A confirmed one is only
+  // refused on the BULK path — the unconfirmed template asks "Reply CONFIRM",
+  // so a bulk blast skips rows that already did; the drawer's single send
+  // passes allowConfirmed and gets the confirmed variant instead.
   // "Cannot send" is matched by the bulk handler → counted as skipped, not an
   // error, so a "select all → Send reminder" quietly skips confirmed rows.
-  if (detail.status === 'confirmed' || detail.status === 'completed') {
+  if (detail.status === 'completed' || (detail.status === 'confirmed' && !opts.allowConfirmed)) {
     return { ok: false, error: `Cannot send a reminder — this appointment is already ${detail.status}` }
   }
 
@@ -265,7 +277,9 @@ export async function sendReminderAction(
   channel: 'sms' | 'email' = 'email',
 ): Promise<ReminderResult> {
   const ctx = await requireClinicTenant()
-  const r = await sendReminderForOrg(ctx, appointmentId, channel)
+  // The drawer's one deliberate send: a confirmed visit gets the see-you-soon
+  // variant rather than a guaranteed refusal.
+  const r = await sendReminderForOrg(ctx, appointmentId, channel, { allowConfirmed: true })
   if (r.ok) revalidatePath('/appointments')
   return r
 }

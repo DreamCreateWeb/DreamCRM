@@ -1,44 +1,65 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import BookFromPatientDrawer from './book-from-patient-drawer'
 import { useFocusTrap } from '@/components/ui/use-focus-trap'
-import { listPatientOptionsAction } from './actions'
+import { searchPatientOptionsAction } from './actions'
+import type { PatientOption } from '@/lib/services/patients'
+
+/** Keystrokes settle for this long before a search round-trip. */
+const SEARCH_DEBOUNCE_MS = 200
 
 /**
  * "+ New booking" entry point on /appointments.
  *
  * The full booking form (BookFromPatientDrawer) needs a patient, so this
- * drawer runs in two stages: pick the patient (search over the org's active
- * patients), then hand off to the existing booking drawer unchanged. Staff
- * who can't find the patient jump to /patients?new=1 to add them first —
- * booking always hangs off a real patient record (no free-text bookings
- * that orphan the relationship history).
+ * drawer runs in two stages: pick the patient (a SERVER search over the org's
+ * active patients — name, email or phone digits, most recently active first),
+ * then hand off to the existing booking drawer unchanged. Staff who can't
+ * find the patient jump to /patients?new=1 to add them first — booking always
+ * hangs off a real patient record (no free-text bookings that orphan the
+ * relationship history).
+ *
+ * The first cut loaded the first 500 patients by FIRST NAME and filtered that
+ * array in the browser: a PMS-connected office could not book anyone whose
+ * name sorted past the cap, and nobody could search by phone.
  */
 export default function NewBookingDrawer({ onClose }: { onClose: () => void }) {
-  const [options, setOptions] = useState<Array<{ id: string; name: string }> | null>(null)
+  const [options, setOptions] = useState<PatientOption[] | null>(null)
   const [query, setQuery] = useState('')
   const [picked, setPicked] = useState<{ id: string; name: string } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const dialogRef = useRef<HTMLDivElement>(null)
+  // Only the LATEST search may land: a slow "ma" answer arriving after the
+  // fast "mar" one would put the wrong list under the cursor.
+  const searchSeq = useRef(0)
   // Active only on the picker stage; once `picked`, BookFromPatientDrawer (its
   // own trap) takes over and this returns early (ref is null → no-op).
   useFocusTrap(true, dialogRef, {}) // keeps the component's own Escape handler
 
   useEffect(() => {
-    let alive = true
-    listPatientOptionsAction()
-      .then((rows) => {
-        if (alive) setOptions(rows)
-      })
-      .catch(() => {
-        if (alive) setError('Could not load your patient list — refresh and try again.')
-      })
-    return () => {
-      alive = false
-    }
-  }, [])
+    const seq = ++searchSeq.current
+    // The empty query (mount) searches at once — recent patients fill the
+    // list before the first keystroke; typing waits for the keys to settle.
+    const delay = query.trim() ? SEARCH_DEBOUNCE_MS : 0
+    const t = setTimeout(() => {
+      // Never bare-await a server action in a client component: a redeploy
+      // under this tab makes Next THROW, and the list would sit on "Loading"
+      // forever. Promise chain + catch, exactly like the composer's sends.
+      searchPatientOptionsAction(query)
+        .then((rows) => {
+          if (searchSeq.current !== seq) return
+          setError(null)
+          setOptions(rows)
+        })
+        .catch(() => {
+          if (searchSeq.current !== seq) return
+          setError('Could not search your patients — refresh and try again.')
+        })
+    }, delay)
+    return () => clearTimeout(t)
+  }, [query])
 
   // Esc closes the picker (parity with the shared Drawer primitive).
   useEffect(() => {
@@ -49,12 +70,7 @@ export default function NewBookingDrawer({ onClose }: { onClose: () => void }) {
     return () => document.removeEventListener('keydown', onKey)
   }, [onClose])
 
-  const filtered = useMemo(() => {
-    if (!options) return []
-    const q = query.trim().toLowerCase()
-    if (!q) return options.slice(0, 30)
-    return options.filter((o) => o.name.toLowerCase().includes(q)).slice(0, 30)
-  }, [options, query])
+  const filtered = options ?? []
 
   if (picked) {
     return <BookFromPatientDrawer patientId={picked.id} patientName={picked.name} onClose={onClose} />
@@ -96,7 +112,7 @@ export default function NewBookingDrawer({ onClose }: { onClose: () => void }) {
             autoFocus
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search patients by name…"
+            placeholder="Type a name or phone…"
             aria-label="Search patients"
             className="form-input w-full"
           />
@@ -111,18 +127,28 @@ export default function NewBookingDrawer({ onClose }: { onClose: () => void }) {
               {query.trim() ? `No patients match “${query.trim()}”.` : 'No active patients yet.'}
             </p>
           ) : (
-            filtered.map((o) => (
-              <button
-                key={o.id}
-                type="button"
-                role="option"
-                aria-selected={false}
-                onClick={() => setPicked(o)}
-                className="w-full text-left px-3 py-2 rounded-[var(--r-sm)] text-sm text-gray-700 dark:text-gray-200 hover:bg-teal-500/10"
-              >
-                {o.name}
-              </button>
-            ))
+            <>
+              {!query.trim() && (
+                <p className="px-3 pt-1 pb-1.5 text-xs text-gray-500 dark:text-gray-400">
+                  Recently active — type a name or phone to find anyone else.
+                </p>
+              )}
+              {filtered.map((o) => (
+                <button
+                  key={o.id}
+                  type="button"
+                  role="option"
+                  aria-selected={false}
+                  onClick={() => setPicked({ id: o.id, name: o.name })}
+                  className="w-full text-left px-3 py-2 rounded-[var(--r-sm)] text-sm text-gray-700 dark:text-gray-200 hover:bg-teal-500/10 flex items-baseline justify-between gap-3"
+                >
+                  <span className="truncate">{o.name}</span>
+                  {o.hint && (
+                    <span className="shrink-0 text-xs text-gray-500 dark:text-gray-400 font-mono-num tabular-nums">{o.hint}</span>
+                  )}
+                </button>
+              ))}
+            </>
           )}
         </div>
         <div className="px-5 py-3 border-t border-[color:var(--color-hairline)] flex items-center justify-between">

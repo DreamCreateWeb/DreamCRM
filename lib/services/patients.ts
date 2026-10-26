@@ -15,7 +15,7 @@ import {
   lapsedCutoff as lapsedCutoffDate,
 } from '@/lib/dates'
 import { getClinicCadence } from '@/lib/services/clinic-cadence'
-import { clampRowLimit } from '@/lib/types/messaging'
+import { clampRowLimit, escapeLikeTerm } from '@/lib/types/messaging'
 import { DEFAULT_PATIENT_LIMIT, MAX_PATIENT_LIMIT } from '@/lib/types/patient-views'
 import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
 import { clinicWeekStart } from '@/lib/clinic-timezone'
@@ -1200,6 +1200,70 @@ export async function updatePatient({ organizationId, patientId, patch }: Update
     .where(
       and(eq(schema.patient.organizationId, organizationId), eq(schema.patient.id, patientId)),
     )
+}
+
+export interface PatientOption {
+  id: string
+  name: string
+  /** The tiebreak the front desk identifies a caller by — phone, else email.
+   *  Two "John Smith"s on a 3,000-chart roster are only tellable apart by it. */
+  hint: string | null
+}
+
+export const PATIENT_SEARCH_LIMIT = 20
+
+/**
+ * Server-side patient search for pickers ("+ New booking"): name, email or
+ * phone digits, capped at PATIENT_SEARCH_LIMIT, most recently active first.
+ * An empty query returns the most recently active patients — the ones most
+ * likely to be on the phone right now.
+ *
+ * WHY NOT `listPatientOptions`: it returns the first 500 active patients BY
+ * FIRST NAME and the picker filtered that array in the browser, so a
+ * PMS-connected practice (thousands of charts) could not book anyone whose
+ * first name sorted past the cap, and nobody could search by phone — which
+ * is how a caller actually identifies themself. Same predicate shape the
+ * agenda's own search uses (name / email / phone digits).
+ */
+export async function searchPatientOptions(
+  organizationId: string,
+  query: string,
+  limit: number = PATIENT_SEARCH_LIMIT,
+): Promise<PatientOption[]> {
+  const term = query.trim().toLowerCase()
+  const where: SQL[] = [eq(schema.patient.organizationId, organizationId), eq(schema.patient.isActive, 1)]
+  if (term.length > 0) {
+    // `%`/`_` are literal to the person typing and wildcards to LIKE.
+    const like = `%${escapeLikeTerm(term)}%`
+    const digits = term.replace(/\D/g, '')
+    const clauses: SQL[] = [
+      sql`lower(${schema.patient.firstName} || ' ' || ${schema.patient.lastName}) like ${like} escape '\\'`,
+      sql`lower(coalesce(${schema.patient.email}, '')) like ${like} escape '\\'`,
+    ]
+    // "(512) 555-9117" must match "5125559117" — compare digits on both sides.
+    if (digits.length >= 3) {
+      clauses.push(sql`regexp_replace(coalesce(${schema.patient.phone}, ''), '[^0-9]', '', 'g') like ${`%${digits}%`}`)
+    }
+    where.push(or(...clauses)!)
+  }
+  const rows = await db
+    .select({
+      id: schema.patient.id,
+      firstName: schema.patient.firstName,
+      lastName: schema.patient.lastName,
+      email: schema.patient.email,
+      phone: schema.patient.phone,
+    })
+    .from(schema.patient)
+    .where(and(...where))
+    // Nulls last: a never-active chart should not outrank last week's caller.
+    .orderBy(sql`${schema.patient.lastActivityAt} desc nulls last`, schema.patient.firstName, schema.patient.lastName)
+    .limit(Math.min(Math.max(1, limit), 50))
+  return rows.map((r) => ({
+    id: r.id,
+    name: `${r.firstName} ${r.lastName}`,
+    hint: r.phone?.trim() || r.email?.trim() || null,
+  }))
 }
 
 /** Lightweight id+name list for pickers (e.g. the guardian select). */

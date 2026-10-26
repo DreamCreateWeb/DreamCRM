@@ -15,8 +15,10 @@
  * per-user MODE ('all' | 'urgent' | 'none'), and `urgent: true` here is what
  * the 'urgent' mode means: something went wrong, or a stranger is waiting on
  * a human — the alerts worth interrupting an inbox for. Routine activity
- * (a booking, a paid order, a submitted form) stays in the bell, where the
- * morning digest already summarizes the day.
+ * (a portal booking, a paid order, a submitted form) stays in the bell, where
+ * the morning digest already summarizes the day. A WEBSITE booking is the
+ * exception among schedule events: an unvetted stranger put themselves on
+ * the book, and a desk with no PMS bridge has to enter it by hand.
  */
 
 export type NotificationTone = 'urgent' | 'warn' | 'ok' | 'info' | 'neutral'
@@ -40,9 +42,16 @@ export const NOTIFICATION_TYPES: Record<string, NotificationTypeDef> = {
   website_lead: { icon: '👋', tone: 'info', urgent: true },
   insurance_question: { icon: '🛡️', tone: 'info', urgent: true },
   platform_inbound_email: { icon: '📥', tone: 'info', urgent: true },
+  // A snooze that ran out: the thread is back in Open. The front desk's
+  // "remind me tomorrow" — a bell row, never an email (they set the timer).
+  thread_resurfaced: { icon: '💤', tone: 'warn' },
 
   // ---- Something went wrong (always urgent) ----
   patient_message_bounce: { icon: '↩️', tone: 'urgent', urgent: true },
+  // A "send later" message the cron could not deliver. The violet Scheduled
+  // strip simply vanishing is what a SUCCESSFUL send looks like too, so
+  // without this the front desk believes "see you tomorrow at 10" went out.
+  scheduled_message_failed: { icon: '⏰', tone: 'urgent', urgent: true },
   payment_failed: { icon: '💳', tone: 'urgent', urgent: true },
   pms_sync_failing: { icon: '🔌', tone: 'urgent', urgent: true },
   domain_attach_manual: { icon: '🌐', tone: 'warn', urgent: true },
@@ -57,7 +66,13 @@ export const NOTIFICATION_TYPES: Record<string, NotificationTypeDef> = {
   // ---- Schedule movement ----
   appointment_cancelled: { icon: '🗓️', tone: 'warn' },
   appointment_no_show: { icon: '🪑', tone: 'warn' },
-  online_booking: { icon: '🗓️', tone: 'ok' },
+  // A website booking is the one schedule event that IS "a stranger waiting
+  // on a human": nobody vetted it, and a practice without a PMS bridge has
+  // to key it into the real schedule by hand. Left in the bell alone, a
+  // Saturday-night booking is a double-booked chair on Monday or a patient
+  // at a desk that never heard of them. (A portal booking is a known,
+  // signed-in patient — it stays routine.)
+  online_booking: { icon: '🗓️', tone: 'ok', urgent: true },
   portal_booking: { icon: '🗓️', tone: 'ok' },
   portal_reschedule: { icon: '🗓️', tone: 'info' },
   waitlist_claimed: { icon: '⚡', tone: 'ok' },

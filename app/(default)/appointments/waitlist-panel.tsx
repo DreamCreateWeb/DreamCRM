@@ -29,10 +29,18 @@ export default function WaitlistPanel({ entries }: { entries: WaitlistPanelEntry
   const [toast, setToast] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
   const router = useRouter()
+  // EVERY hook before the early return (rules of hooks). This one used to sit
+  // below `if (entries.length === 0) return null`, and the panel stays mounted
+  // across router.refresh() — so its hook sequence changed whenever the list
+  // crossed zero. useConfirm is a bare useContext, which React 19 tolerates
+  // (a context read has no slot in the hook list, so it neither throws nor
+  // warns — measured), but the project's lint config does not run
+  // rules-of-hooks, and the day useConfirm grows a stateful hook this would
+  // become a real "rendered fewer hooks" crash on the page the desk lives in.
+  const confirm = useConfirm()
 
   if (entries.length === 0) return null
 
-  const confirm = useConfirm()
   async function remove(id: string, name: string) {
     // Removing discards the patient's standing "call me if something opens"
     // request — worth one confirm.

@@ -509,6 +509,41 @@ describe('submitBookingRequest', () => {
     )
   })
 
+  it('the booking alert names the TIME at the clinic’s wall-clock and carries what the desk needs to key it in', async () => {
+    selectStubs.profile = { email: 'clinic@x.com', displayName: 'X Dental', phone: '555-clinic' }
+    // A fixed instant so the clinic-tz render is checkable: 19:30 UTC is
+    // 3:30 PM in New York (the profile stub carries no timezone → default).
+    const start = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+    start.setUTCHours(19, 30, 0, 0)
+    await submitBookingRequest(form({ ...baseFields, startTime: start.toISOString() }))
+    const calls = notifyOrgMembersMock.mock.calls as unknown as Array<[string, { type: string; title: string; body: string }]>
+    const [, alert] = calls.find((c) => c[1].type === 'online_booking')!
+    const expectedWhen = start.toLocaleString('en-US', {
+      weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/New_York',
+    })
+    // 19:30Z is 3:30 PM EDT or 2:30 PM EST — either way an afternoon at the
+    // clinic, never the server's "7:30 PM".
+    expect(expectedWhen).toMatch(/(2|3):30 PM$/)
+    expect(alert.title).toBe(`New online booking — Jane Doe, ${expectedWhen}`)
+    expect(alert.title).not.toContain('7:30 PM')
+    // Visit type, new-vs-existing, phone, email — enough to enter the visit
+    // in the real schedule from the email alone.
+    expect(alert.body).toContain('cleaning requested via your website.')
+    expect(alert.body).toContain('New patient.')
+    expect(alert.body).toContain('Phone 555.')
+    expect(alert.body).toContain('Email jane@x.com.')
+  })
+
+  it('the booking alert says "Existing patient" when the booking matched a chart on file', async () => {
+    selectStubs.profile = { email: 'clinic@x.com', displayName: 'X Dental', phone: '555-clinic' }
+    selectStubs.patient = { id: 'pat_existing', firstName: 'Jane', lastName: 'Doe' }
+    await submitBookingRequest(form(baseFields))
+    const calls = notifyOrgMembersMock.mock.calls as unknown as Array<[string, { type: string; body: string }]>
+    const [, alert] = calls.find((c) => c[1].type === 'online_booking')!
+    expect(alert.body).toContain('Existing patient.')
+    expect(alert.body).not.toContain('New patient.')
+  })
+
   it('persists the appointment status as scheduled and the type as provided', async () => {
     await submitBookingRequest(form({ ...baseFields, type: 'root_canal' }))
     const appointmentInsert = insertedRows.find((r) => r.table === 'appointment')!

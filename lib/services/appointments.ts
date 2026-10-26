@@ -9,7 +9,8 @@ import { recordAction } from '@/lib/services/action-ledger'
 import { getTagsForPatients, getTagsForPatient } from '@/lib/services/patient-tags'
 import type { PatientTagView } from '@/lib/types/patient-tags'
 import { toCsv } from '@/lib/csv'
-import { cancelActorLabel } from '@/lib/cancel-actor'
+import { cancelActorLabel, cancelNoticeFor, type CancelNotice } from '@/lib/cancel-actor'
+import { getEmailAutomations } from '@/lib/services/email-automations'
 import { clinicDayStart, clinicWeekStart } from '@/lib/clinic-timezone'
 import { clinicDayKey, formatClinicDayTime } from '@/lib/format-datetime'
 import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
@@ -131,6 +132,19 @@ export interface AppointmentDetail extends AppointmentRow {
    *  "cancelled by Sarah Chen" / …). Null unless cancelled with a recorded
    *  actor (lib/cancel-actor.ts). */
   cancelledSummary: string | null
+  /** What cancelling this visit would TELL the patient, read from the same
+   *  two facts `cancelAppointment` branches on (an email on file + the
+   *  clinic's cancellation email switch) — so the drawer's confirm dialog can
+   *  say the true thing instead of "will not be notified" while the service
+   *  emails them a rebook link (lib/cancel-actor.ts `cancelNoticeFor`). */
+  cancelNotice: CancelNotice
+}
+
+/** 0 = unsubscribed from marketing email (one-click unsubscribe, hard
+ *  bounce, or the toggle on the record). Mirrors lib/services/patients.ts so
+ *  the 🔕 means the same thing on the agenda as on the Patients list. */
+export function isMarketingEmailOptedOut(marketingEmailOptIn: number | null | undefined): boolean {
+  return marketingEmailOptIn === 0
 }
 
 // ----- ID + helpers -----------------------------------------------------
@@ -272,6 +286,7 @@ export async function listAppointments(
       dateOfBirth: schema.patient.dateOfBirth,
       patientEmail: schema.patient.email,
       patientLifecycle: schema.patient.lifecycle,
+      marketingEmailOptIn: schema.patient.marketingEmailOptIn,
       startTime: schema.appointment.startTime,
       endTime: schema.appointment.endTime,
       type: schema.appointment.type,
@@ -446,7 +461,11 @@ export async function listAppointments(
         // Celebrate lapsed-returning: future appointment for a patient who
         // was lapsed (last visit > 9mo ago).
         lapsedReturning: isFuture && lapsed,
-        optedOut: false,
+        // The same derivation the Patients list uses (lib/services/patients.ts):
+        // 0 = unsubscribed from marketing email. This was a literal `false`
+        // for a long time, so the agenda legend explained a 🔕 that could
+        // never appear on it. Transactional reminders still send either way.
+        optedOut: isMarketingEmailOptedOut(r.marketingEmailOptIn),
         reminderSentRecently: !!lastReminder && now.getTime() - lastReminder.getTime() < REMINDER_RECENT_MS,
         bookedJustNow: now.getTime() - r.createdAt.getTime() < JUST_BOOKED_MS,
         rescheduled: !!r.rescheduledFromAppointmentId,
@@ -563,6 +582,7 @@ export async function getAppointmentDetail(
       patientPhone: schema.patient.phone,
       patientLifecycle: schema.patient.lifecycle,
       patientUserId: schema.patient.userId,
+      marketingEmailOptIn: schema.patient.marketingEmailOptIn,
       startTime: schema.appointment.startTime,
       endTime: schema.appointment.endTime,
       type: schema.appointment.type,
@@ -598,7 +618,7 @@ export async function getAppointmentDetail(
   const now = new Date()
   // Tags fold into the parallel batch (was a separate serial round-trip on
   // every drawer open). Balance reads off the patient join (pms_balance_cents).
-  const [reminderRows, intakeRow, ltvRows, lastVisitRow, bookingCountRow, futureApptRow, tags, cadence, depositRow, cancellerRow] = await Promise.all([
+  const [reminderRows, intakeRow, ltvRows, lastVisitRow, bookingCountRow, futureApptRow, tags, cadence, depositRow, cancellerRow, emailAutomations] = await Promise.all([
     db
       .select({
         id: schema.appointmentReminderLog.id,
@@ -722,6 +742,10 @@ export async function getAppointmentDetail(
           .where(eq(schema.user.id, base.cancelledByUserId))
           .limit(1)
       : Promise.resolve([] as Array<{ name: string }>),
+    // The cancellation email's on/off — the drawer's confirm dialog tells the
+    // truth about what a cancel sends. `getEmailAutomations` is best-effort by
+    // construction (a read failure resolves to the defaults, which is 'on').
+    getEmailAutomations(organizationId),
   ])
 
   const outstanding = base.pmsBalanceCents ?? 0
@@ -765,6 +789,10 @@ export async function getAppointmentDetail(
     cancelledAt: base.cancelledAt,
     cancelledSummary:
       status === 'cancelled' ? cancelActorLabel(base.cancelledVia, cancellerRow[0]?.name ?? null) : null,
+    cancelNotice: cancelNoticeFor({
+      patientEmail: base.patientEmail,
+      cancellationEmailOn: emailAutomations.cancellation.enabled,
+    }),
     arrivedAt: base.arrivedAt,
     seatedAt: base.seatedAt,
     reminderLastSentAt,
@@ -776,7 +804,7 @@ export async function getAppointmentDetail(
       missingIntakeBeforeAppt: intakeOpen && isFuture && !hasIntake,
       unconfirmedNext48h: status === 'scheduled' && base.startTime >= now && base.startTime <= in48h,
       lapsedReturning: isFuture && lapsed,
-      optedOut: false,
+      optedOut: isMarketingEmailOptedOut(base.marketingEmailOptIn),
       reminderSentRecently: !!reminderLastSentAt && now.getTime() - reminderLastSentAt.getTime() < REMINDER_RECENT_MS,
       bookedJustNow: now.getTime() - base.createdAt.getTime() < JUST_BOOKED_MS,
       rescheduled: !!base.rescheduledFromAppointmentId,

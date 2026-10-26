@@ -55,6 +55,7 @@ function detailFor(status: string) {
     },
     reminders: [],
     intakeAttached: null,
+    cancelNotice: 'email',
   }
 }
 
@@ -95,6 +96,10 @@ describe('AppointmentDrawer — Request review', () => {
     render(<ToastProvider><AppointmentDrawer appointmentId="a1" onClose={vi.fn()} /></ToastProvider>)
     await screen.findByText('Mia Hayes')
     expect(screen.queryByRole('button', { name: 'Request review' })).toBeNull()
-    expect(screen.getByRole('button', { name: 'Send reminder email' })).toBeTruthy()
+    // A confirmed visit's primary is the gentler see-you-soon note (the
+    // confirmed reminder variant), not the confirm-ask reminder the action
+    // used to refuse outright.
+    expect(screen.getByRole('button', { name: 'Send a see-you-soon note' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Send reminder email' })).toBeNull()
   })
 })
