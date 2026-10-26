@@ -2,6 +2,8 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { requireTenant } from '@/lib/auth/context'
 import { getCustomDomainStatus } from '@/lib/services/custom-domain'
+import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
+import { CLINIC_DEFAULT_TZ } from '@/lib/clinic-timezone'
 import { isDomainBuyingAvailable, listDomainPurchases } from '@/lib/services/domain-purchase'
 import { isLivePurchasesEnabled } from '@/lib/name-com'
 import { PageHeader } from '@/components/ui/page-header'
@@ -32,6 +34,9 @@ export default async function WebsiteDomainPage() {
   if (ctx.role !== 'owner' && ctx.role !== 'admin') redirect('/website')
 
   const status = await getCustomDomainStatus(ctx.organizationId).catch(() => null)
+  // "Checked <time>" renders at the practice's wall-clock (the server runs in
+  // UTC; the card is a client component, so the zone travels as a prop).
+  const timeZone = await getClinicTimeZone(ctx.organizationId).catch(() => CLINIC_DEFAULT_TZ)
   // The card always shows the subdomain as the free fallback address (not the
   // custom domain, which may not be live yet).
   const subdomainUrl = `https://${ctx.organizationSlug}.${SITE_DOMAIN}`
@@ -62,7 +67,7 @@ export default async function WebsiteDomainPage() {
         }
       />
       <div className="v2-panel">
-        <CustomDomainCard initialStatus={status} subdomainUrl={subdomainUrl} />
+        <CustomDomainCard initialStatus={status} subdomainUrl={subdomainUrl} timeZone={timeZone} />
       </div>
       {buyingAvailable && <BuyDomainCard purchases={purchases} dryRunMode={!isLivePurchasesEnabled()} />}
     </div>
