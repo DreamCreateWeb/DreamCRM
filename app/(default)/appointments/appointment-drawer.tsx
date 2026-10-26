@@ -27,9 +27,13 @@ import {
   setArrivalStateAction,
   rescheduleAppointmentAction,
   sendReminderAction,
+  getBookingSlotsAction,
 } from './actions'
 import { appointmentSourceLabel } from '@/lib/types/appointment-views'
 import { cancelNoticeMessage } from '@/lib/cancel-actor'
+import { MANUAL_TIME, SlotGrid, localDateKey, localTimeValue } from '@/components/appointments/slot-grid'
+import { ACTION_FAILED_MESSAGE, STALE_APP_MESSAGE, isDeploymentSkewError } from '@/lib/deployment-skew'
+import type { BookingSlot } from '@/lib/services/booking'
 
 function money(cents: number): string {
   if (cents === 0) return '$0'
@@ -232,9 +236,29 @@ export default function AppointmentDrawer({
 
   function onComplete() {
     act('complete', async () => {
-      await markCompletedAction(appointmentId)
-      flash('Marked completed.')
-      refresh()
+      // Never bare-await a server action: a redeploy under this tab makes
+      // Next THROW, and "Mark completed" would spin forever.
+      let r: Awaited<ReturnType<typeof markCompletedAction>>
+      try {
+        r = await markCompletedAction(appointmentId)
+      } catch (err) {
+        flash(isDeploymentSkewError(err) ? STALE_APP_MESSAGE : "Couldn't mark that visit done — please try again.", 'urgent')
+        return
+      }
+      const done = r.reviewSent ? 'Marked completed — review request sent.' : 'Marked completed.'
+      if (r.nextVisitBooked !== false) {
+        flash(done)
+        refresh()
+        return
+      }
+      // Nothing is on the books after this visit: STAY HERE. The drawer
+      // re-reads itself as completed and its footer now leads to "Book their
+      // next visit", seeded on the patient's recall — the desk marks the
+      // cleaning done and books the next one in the same breath, instead of
+      // the drawer closing and the door living on a row nobody reopens.
+      flash(`${done} Nothing is booked after this one yet.`)
+      router.refresh()
+      await loadDetail()
     })
   }
 
@@ -606,6 +630,22 @@ export default function AppointmentDrawer({
                     Send a see-you-soon note
                   </ActionButton>
                 )}
+                {/* The visit is done and NOTHING is on the books after it —
+                    the hygiene reappointment is the number every PMS reports
+                    and the door no screen offered. Seeded on the patient's
+                    recall interval (lib/next-visit.ts). Only a known-false
+                    reads as a door: an unreadable check stays quiet. */}
+                {detail.status === 'completed' && detail.nextVisitBooked === false && (
+                  <ActionButton
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => setRebookOpen(true)}
+                    disabled={pending}
+                    title="Nothing is booked after this visit — open the next one on their recall date."
+                  >
+                    Book their next visit
+                  </ActionButton>
+                )}
                 {/* When scheduled, "Send reminder" is a secondary verb (the
                     primary is "Mark confirmed"). */}
                 {isScheduled && (
@@ -649,6 +689,9 @@ export default function AppointmentDrawer({
             patientId={detail.patient.id}
             patientName={detail.patient.fullName}
             defaultType={detail.type}
+            // A completed visit's "next one" opens on the recall day; a
+            // cancelled / no-show rebook keeps the drawer's own default.
+            defaultDate={detail.status === 'completed' ? detail.nextVisitDateKey : null}
             onClose={() => { setRebookOpen(false); refresh() }}
           />
         )}
@@ -692,41 +735,90 @@ function RescheduleSubDrawer({
 }) {
   const subRef = useRef<HTMLDivElement>(null)
   useFocusTrap(true, subRef, { onEscape: onClose })
-  // Seed from the visit being MOVED (its own local date + time) — every
+  // Seed from the visit being MOVED (its own local day, its own time) — every
   // reschedule used to start at tomorrow-09:00 and make the user undo a
   // wrong default. A visit already in the past falls back to tomorrow.
+  const startsAhead = new Date(detail.startTime).getTime() > Date.now()
   const [dateStr, setDateStr] = useState(() => {
     const start = new Date(detail.startTime)
-    const base = start.getTime() > Date.now() ? start : (() => { const d = new Date(); d.setDate(d.getDate() + 1); return d })()
-    const y = base.getFullYear()
-    const m = String(base.getMonth() + 1).padStart(2, '0')
-    const day = String(base.getDate()).padStart(2, '0')
-    return `${y}-${m}-${day}`
+    const base = startsAhead ? start : (() => { const d = new Date(); d.setDate(d.getDate() + 1); return d })()
+    return localDateKey(base)
   })
-  const [timeStr, setTimeStr] = useState(() => {
-    const start = new Date(detail.startTime)
-    if (start.getTime() <= Date.now()) return '09:00'
-    return `${String(start.getHours()).padStart(2, '0')}:${String(start.getMinutes()).padStart(2, '0')}`
-  })
+  // The grid for the chosen day — the moving visit's OWN slot is excluded
+  // server-side (it must not count as taken against itself) and the length
+  // checked is the visit's real one, resolved from the row by the action.
+  const [slots, setSlots] = useState<BookingSlot[]>([])
+  const [slotsPending, setSlotsPending] = useState(true)
+  const [slotsError, setSlotsError] = useState<string | null>(null)
+  // The visit's current start, preselected when it still sits on the grid
+  // ("keep the time, change the day" is the common move).
+  const [selectedTime, setSelectedTime] = useState<string>(() =>
+    startsAhead ? new Date(detail.startTime).toISOString() : '',
+  )
+  const [manualTime, setManualTime] = useState(() =>
+    startsAhead ? localTimeValue(new Date(detail.startTime)) : '09:00',
+  )
   const [notify, setNotify] = useState(true)
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
 
+  useEffect(() => {
+    let alive = true
+    setSlotsPending(true)
+    setSlotsError(null)
+    // Promise chain + catch, never a bare await: a redeploy under this tab
+    // makes Next throw, and the grid would sit on its skeleton forever.
+    getBookingSlotsAction(dateStr, undefined, detail.id)
+      .then((next) => {
+        if (!alive) return
+        setSlots(next)
+        // Keep a chosen slot only while it is still open on this day.
+        setSelectedTime((cur) =>
+          cur === MANUAL_TIME || next.some((s) => s.startIso === cur && s.available) ? cur : '',
+        )
+      })
+      .catch((err) => {
+        if (!alive) return
+        setSlots([])
+        setSlotsError(isDeploymentSkewError(err) ? STALE_APP_MESSAGE : 'Could not load open times — pick a custom time or try again.')
+      })
+      .finally(() => {
+        if (alive) setSlotsPending(false)
+      })
+    return () => {
+      alive = false
+    }
+  }, [dateStr, detail.id])
+
   function submit() {
     setError(null)
-    const iso = `${dateStr}T${timeStr}:00`
-    const local = new Date(iso)
-    if (Number.isNaN(local.getTime())) { setError('Pick a valid date + time'); return }
+    let startIso: string
+    if (selectedTime === MANUAL_TIME) {
+      // Custom time: date + typed time in the browser's zone (staff sit in
+      // the clinic). The server's duration-aware guard still rules on it.
+      const local = new Date(`${dateStr}T${manualTime}:00`)
+      if (Number.isNaN(local.getTime())) { setError('Pick a valid date + time'); return }
+      startIso = local.toISOString()
+    } else if (selectedTime) {
+      startIso = selectedTime
+    } else {
+      setError('Pick an open time, or choose "Custom time".')
+      return
+    }
     startTransition(async () => {
-      const r = await rescheduleAppointmentAction({
-        appointmentId: detail.id,
-        newStartTime: local.toISOString(),
-        notifyPatient: notify,
-      })
-      if ('ok' in r && r.ok === true) {
-        onDone()
-      } else if ('error' in r) {
-        setError(r.error)
+      try {
+        const r = await rescheduleAppointmentAction({
+          appointmentId: detail.id,
+          newStartTime: startIso,
+          notifyPatient: notify,
+        })
+        if ('ok' in r && r.ok === true) {
+          onDone()
+        } else if ('error' in r) {
+          setError(r.error)
+        }
+      } catch (err) {
+        setError(isDeploymentSkewError(err) ? STALE_APP_MESSAGE : ACTION_FAILED_MESSAGE)
       }
     })
   }
@@ -752,15 +844,29 @@ function RescheduleSubDrawer({
           <span className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold">New date</span>
           <input type="date" value={dateStr} onChange={(e) => setDateStr(e.target.value)} className="form-input w-full mt-1 text-sm" />
         </label>
-        <label className="block">
-          <span className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold">New time</span>
-          <input type="time" value={timeStr} onChange={(e) => setTimeStr(e.target.value)} className="form-input w-full mt-1 text-sm" />
-        </label>
+        <div>
+          <span className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold">
+            New time
+            {detail.durationMinutes ? (
+              <span className="normal-case tracking-normal font-normal text-gray-400 dark:text-gray-500"> · open for {detail.durationMinutes} min</span>
+            ) : null}
+          </span>
+          <SlotGrid
+            slots={slots}
+            pending={slotsPending}
+            selected={selectedTime}
+            onSelect={setSelectedTime}
+            manualTime={manualTime}
+            onManualTimeChange={setManualTime}
+            emptyMessage="No open times for this day at this visit's length."
+          />
+          {slotsError && <p className="text-xs text-amber-700 dark:text-amber-300 mt-1">{slotsError}</p>}
+        </div>
         <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200">
           <input type="checkbox" checked={notify} onChange={(e) => setNotify(e.target.checked)} className="form-checkbox" />
           Notify patient via email
         </label>
-        {error && <p className="text-xs text-rose-600 dark:text-rose-400">{error}</p>}
+        {error && <p className="text-xs text-rose-600 dark:text-rose-400" role="alert">{error}</p>}
       </div>
       <div className="px-5 py-4 border-t border-[color:var(--color-hairline)] flex justify-end gap-2">
         <ActionButton variant="secondary" size="sm" onClick={onClose} disabled={pending}>

@@ -4,13 +4,16 @@ import { db } from '@/lib/db'
 import { patient, appointment } from '@/lib/db/schema/clinic'
 import { clinicProfile } from '@/lib/db/schema/platform'
 import { organization } from '@/lib/db/schema/auth'
-import { sendBookingConfirmationEmail } from '@/lib/email'
+import { authEmailShell, deliver, sendBookingConfirmationEmail, sendNotificationEmail } from '@/lib/email'
 import { formatClinicDateTime, formatClinicDayTime } from '@/lib/format-datetime'
 import { renderAutomatedEmail } from '@/lib/services/email-automations'
 import { queueCommLogWriteBack } from '@/lib/services/pms/sync'
 import { getBookingIntakeForm } from '@/lib/services/forms'
 import { publicSiteUrl } from '@/lib/services/clinic-site'
 import { getClinicSenderIdentity } from '@/lib/services/clinic-sender'
+import { getOrCreateConfirmToken } from '@/lib/services/appointment-confirm'
+import { appBaseUrl } from '@/lib/clinic-site-helpers'
+import type { ClinicSender } from '@/lib/email-identity'
 
 /**
  * Send a booking confirmation email + mirror it into the PMS CommLog.
@@ -111,5 +114,108 @@ export async function sendBookingConfirmation(opts: {
     }).catch(() => {})
   } catch (err) {
     console.warn('[booking-confirmation] failed', err)
+  }
+}
+
+export type RescheduleNoticeResult =
+  | { sent: true }
+  | { sent: false; reason: 'not_found' | 'no_email' | 'disabled' | 'failed' }
+
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+}
+
+/**
+ * Tell the patient their visit MOVED — the `rescheduled` email from the
+ * Emails hub (Settings → Automations → Emails), carrying the same one-click
+ * `/c/[token]` confirm the reminder does, so the moved visit can be confirmed
+ * from the inbox instead of sitting Unconfirmed until the next reminder.
+ *
+ * `newAppointmentId` is the row the reschedule MINTED (the original is now
+ * cancelled-via-reschedule); the token is minted on that row, so the button
+ * confirms the new time and nothing else. The clinic's switch is honoured
+ * (off → nothing goes out, no CommLog line claims it did). The shell path
+ * carries the button; when a token cannot be minted the plain signed note
+ * goes out instead, as the reminder does. Best-effort: never throws.
+ */
+export async function sendRescheduleNotice(
+  organizationId: string,
+  newAppointmentId: string,
+  sender: ClinicSender,
+): Promise<RescheduleNoticeResult> {
+  try {
+    const [row] = await db
+      .select({
+        patientId: appointment.patientId,
+        startTime: appointment.startTime,
+        type: appointment.type,
+        email: patient.email,
+        firstName: patient.firstName,
+        lastName: patient.lastName,
+      })
+      .from(appointment)
+      .innerJoin(patient, eq(appointment.patientId, patient.id))
+      .where(and(eq(appointment.organizationId, organizationId), eq(appointment.id, newAppointmentId)))
+      .limit(1)
+    if (!row) return { sent: false, reason: 'not_found' }
+    if (!row.email) return { sent: false, reason: 'no_email' }
+
+    const typeLabel = row.type.replace(/_/g, ' ')
+    const fullName = `${row.firstName} ${row.lastName}`.trim()
+    const rendered = await renderAutomatedEmail(organizationId, 'rescheduled', {
+      firstName: row.firstName,
+      patientName: fullName,
+      clinicName: sender.name,
+      appointmentType: typeLabel,
+      appointmentDate: row.startTime.toLocaleDateString('en-US', {
+        weekday: 'long', month: 'short', day: 'numeric', timeZone: sender.timeZone,
+      }),
+      appointmentTime: formatClinicDateTime(row.startTime, sender.timeZone),
+    })
+    if (!rendered.enabled) return { sent: false, reason: 'disabled' }
+
+    let confirmUrl: string | null = null
+    try {
+      const token = await getOrCreateConfirmToken(organizationId, newAppointmentId)
+      if (token) confirmUrl = `${appBaseUrl()}/c/${token}`
+    } catch {
+      /* fall back to the plain note below */
+    }
+
+    if (confirmUrl) {
+      await deliver({
+        to: row.email,
+        from: sender.from,
+        replyTo: sender.replyTo,
+        gmail: sender.gmail,
+        subject: rendered.full.subject,
+        html: authEmailShell({
+          heading: 'Your visit has a new time',
+          introHtml: escapeHtml(rendered.full.body).replace(/\n/g, '<br>'),
+          buttonUrl: confirmUrl,
+          buttonLabel: 'Confirm my new time',
+          footnoteHtml: 'Need a different time? Just reply to this email and we’ll find one together.',
+        }),
+      })
+    } else {
+      await sendNotificationEmail(
+        { to: row.email, name: fullName, title: rendered.full.subject, body: rendered.full.body },
+        sender,
+      )
+    }
+    // The CommLog mirror the inline body used to write — a PMS-connected
+    // practice still sees "patient notified" on the chart.
+    await queueCommLogWriteBack(organizationId, row.patientId, {
+      note: `Appointment rescheduled to ${formatClinicDayTime(row.startTime, sender.timeZone)} — patient notified by email.`,
+      mode: 'Email',
+    }).catch(() => {})
+    return { sent: true }
+  } catch (err) {
+    console.warn('[reschedule-notice] failed', err)
+    return { sent: false, reason: 'failed' }
   }
 }
