@@ -119,6 +119,21 @@ export function clinicMonthStart(now: Date, timeZone: string | null | undefined,
   return zonedMidnightToUtc(shifted.getUTCFullYear(), shifted.getUTCMonth() + 1, 1, tz)
 }
 
+/**
+ * The clinic-local CALENDAR DATE at `now` — `{ year, month (1–12), day }`.
+ * The replacement for `now.getMonth()` / `getUTCMonth()` in anything that
+ * buckets by the clinic's calendar (a birthday month, the Oct–Dec benefits
+ * season, a monthly automation key): on the server those read the UTC
+ * month, which from ~7pm Central on the last day is already next month.
+ */
+export function clinicLocalDate(
+  now: Date,
+  timeZone: string | null | undefined,
+): { year: number; month: number; day: number } {
+  const w = zonedParts(now, resolveClinicTimeZone(timeZone))
+  return { year: w.y, month: w.mo, day: w.d }
+}
+
 /** Day-of-week (0=Sun … 6=Sat) for a `YYYY-MM-DD` calendar date. Built as a UTC
  *  date so it's timezone-independent — a calendar date has one weekday. */
 export function dayOfWeekForDateKey(dateKey: string): number {

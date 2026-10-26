@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 /**
  * getRecallStats — the Recall & Outreach "who's due?" counts MUST agree with
@@ -112,5 +112,68 @@ describe('getRecallStats — recall-due honors clinic cadence', () => {
     ]
     const stats = await getRecallStats('org_1')
     expect(stats.recallDueCount).toBe(1)
+  })
+})
+
+/**
+ * The hub's "opened · 30d" is a PEOPLE rate (2026-10-26): one patient
+ * opening the pixel five times is one open, so the rate can never pass 100%.
+ */
+describe('getRecallStats — open rate counts people, not pixel loads', () => {
+  it('five pixel loads by one patient on one campaign read as one open', async () => {
+    const now = Date.now()
+    queues.patient = [[patient('A')]]
+    queues.appointment = [[], []]
+    const ev = (type: string, i: number) => ({
+      id: i, type, patientId: 'A', recipientEmail: 'a@x.com', recipientPhone: null,
+      campaignId: 1, campaignName: 'Recall', occurredAt: new Date(now - 1000),
+    })
+    queues.campaignEvents = [[ev('sent', 1), ev('open', 2), ev('open', 3), ev('open', 4), ev('open', 5), ev('open', 6)]]
+    const stats = await getRecallStats('org_1')
+    expect(stats.sentThisMonthCount).toBe(1)
+    expect(stats.openRate30d).toBe(100)
+  })
+})
+
+/**
+ * THE MONTH IS THE CLINIC'S (CLAUDE.md timezone rule 2). At 23:30 on Oct 31
+ * in Los Angeles the server's UTC clock already says Nov 1 — a server-month
+ * boundary flipped the birthday tier and reset "sent this month" at dinner
+ * time. The clinic-profile FIFO carries the cadence row first (getClinicCadence
+ * reads it first) and the timezone row second (getClinicTimeZone).
+ */
+describe('getRecallStats — month boundaries are clinic-local', () => {
+  afterEach(() => vi.useRealTimers())
+
+  it('23:30 on Oct 31 in Los Angeles is still October for birthdays and "sent this month"', async () => {
+    vi.useFakeTimers({ now: new Date('2026-11-01T06:30:00.000Z') }) // 23:30 PDT Oct 31
+    queues.clinicProfile = [[{ recallMonths: 6, lapsedMonths: 18 }], [{ tz: 'America/Los_Angeles' }]]
+    queues.patient = [[
+      patient('OCT', { dateOfBirth: '1980-10-05' }),
+      patient('NOV', { dateOfBirth: '1980-11-05' }),
+    ]]
+    queues.appointment = [[], []]
+    queues.campaignEvents = [[
+      // Sent at 22:00 PDT on Oct 31 — this month for the clinic.
+      { id: 1, type: 'sent', patientId: 'OCT', recipientEmail: 'oct@x.com', recipientPhone: null, campaignId: 1, campaignName: 'R', occurredAt: new Date('2026-11-01T05:00:00.000Z') },
+      // Sent at 22:00 PDT on Sep 30 — last month for the clinic.
+      { id: 2, type: 'sent', patientId: 'NOV', recipientEmail: 'nov@x.com', recipientPhone: null, campaignId: 1, campaignName: 'R', occurredAt: new Date('2026-10-01T05:00:00.000Z') },
+    ]]
+    const stats = await getRecallStats('org_1')
+    expect(stats.birthdayThisMonthCount).toBe(1) // OCT, not NOV
+    expect(stats.sentThisMonthCount).toBe(1)
+  })
+
+  it('the same instant is already November for a New York clinic', async () => {
+    vi.useFakeTimers({ now: new Date('2026-11-01T06:30:00.000Z') }) // 02:30 EDT Nov 1
+    queues.clinicProfile = [[{ recallMonths: 6, lapsedMonths: 18 }], [{ tz: 'America/New_York' }]]
+    queues.patient = [[patient('OCT', { dateOfBirth: '1980-10-05' }), patient('NOV', { dateOfBirth: '1980-11-05' })]]
+    queues.appointment = [[], []]
+    queues.campaignEvents = [[
+      { id: 1, type: 'sent', patientId: 'OCT', recipientEmail: 'oct@x.com', recipientPhone: null, campaignId: 1, campaignName: 'R', occurredAt: new Date('2026-11-01T05:00:00.000Z') },
+    ]]
+    const stats = await getRecallStats('org_1')
+    expect(stats.birthdayThisMonthCount).toBe(1) // NOV
+    expect(stats.sentThisMonthCount).toBe(1) // 01:00 EDT Nov 1 — this month
   })
 })

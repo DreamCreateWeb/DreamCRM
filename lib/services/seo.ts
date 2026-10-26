@@ -3,7 +3,7 @@ import { and, eq, gte } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { lead, appointment } from '@/lib/db/schema/clinic'
 import { clinicProfile } from '@/lib/db/schema/platform'
-import type { ClinicService, ClinicStaff } from '@/lib/types/clinic-content'
+import { officePhotoNeedsDescription, type ClinicOfficePhoto, type ClinicService, type ClinicStaff } from '@/lib/types/clinic-content'
 import { listPublishedPosts } from '@/lib/services/blog'
 
 /**
@@ -65,6 +65,7 @@ export async function getSiteHealth(organizationId: string): Promise<SiteHealth>
   const posts = await listPublishedPosts(organizationId)
   const services = (profile?.services as ClinicService[] | null) ?? []
   const staff = (profile?.staff as ClinicStaff[] | null) ?? []
+  const officePhotos = (profile?.officePhotos as ClinicOfficePhoto[] | null) ?? []
 
   const checks: SiteHealthCheck[] = []
   const add = (id: string, label: string, status: CheckStatus, detail: string) =>
@@ -114,18 +115,25 @@ export async function getSiteHealth(organizationId: string): Promise<SiteHealth>
     posts.length >= 1 ? 'pass' : 'warn',
     posts.length >= 1 ? `${posts.length} published post${posts.length === 1 ? '' : 's'}.` : 'Publish a post or two to build topical authority.',
   )
-  // Image alt coverage
+  // Image alt coverage — the GALLERY counts too (2026-10-26): this line used
+  // to grade blog covers only and passed a site with eight undescribed
+  // office photos. Headshots carry the person's name by construction.
   const withCover = posts.filter((p) => p.coverImageUrl)
   const missingAlt = withCover.filter((p) => !p.coverImageAlt?.trim()).length
+  const undescribedPhotos = officePhotos.filter(officePhotoNeedsDescription).length
+  const imageCount = withCover.length + officePhotos.length
+  const gaps: string[] = []
+  if (undescribedPhotos > 0) gaps.push(`${undescribedPhotos} office photo${undescribedPhotos === 1 ? '' : 's'} still need${undescribedPhotos === 1 ? 's' : ''} a description`)
+  if (missingAlt > 0) gaps.push(`${missingAlt} post${missingAlt === 1 ? '' : 's'} missing cover alt text`)
   add(
     'alt',
     'Image alt text',
-    withCover.length === 0 ? 'pass' : missingAlt === 0 ? 'pass' : 'warn',
-    withCover.length === 0
-      ? 'No cover images to describe yet.'
-      : missingAlt === 0
-        ? 'All cover images have alt text.'
-        : `${missingAlt} post${missingAlt === 1 ? '' : 's'} missing cover alt text.`,
+    gaps.length === 0 ? 'pass' : 'warn',
+    imageCount === 0
+      ? 'No photos or cover images to describe yet.'
+      : gaps.length === 0
+        ? `All ${imageCount} image${imageCount === 1 ? '' : 's'} described.`
+        : `${gaps.join(' · ')} — Website → Content → Office photos.`,
   )
   // Structured data (we emit it)
   const faqCount = posts.filter((p) => Array.isArray(p.faq) && (p.faq as unknown[]).length > 0).length

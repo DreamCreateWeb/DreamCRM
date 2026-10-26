@@ -101,6 +101,7 @@ export async function partitionByFrequencyCap<R extends CapKeyed>(
     .select({
       email: schema.campaignEvents.recipientEmail,
       patientId: schema.campaignEvents.patientId,
+      campaignId: schema.campaignEvents.campaignId,
     })
     .from(schema.campaignEvents)
     .innerJoin(schema.campaigns, eq(schema.campaigns.id, schema.campaignEvents.campaignId))
@@ -113,11 +114,26 @@ export async function partitionByFrequencyCap<R extends CapKeyed>(
       ),
     )
 
-  const counts = new Map<string, number>()
-  for (const r of rows) {
+  // A SEND IS A CAMPAIGN, NOT A ROW (2026-10-26). The Resend webhook used to
+  // mint a second 'sent' row per email beside the send loop's own, so a
+  // person who got ONE email read as two and the cap tripped a campaign
+  // early. Counting distinct campaigns per person is what "2 marketing
+  // messages in 7 days" means, and it reads the history right whether or
+  // not the one-off repair (scripts/repair-double-sent-campaign-events.sql)
+  // has run. A row with no campaign id (none should exist) counts as itself.
+  const seen = new Map<string, Set<string>>()
+  rows.forEach((r, i) => {
     const k = eventKey(r)
-    if (k) counts.set(k, (counts.get(k) ?? 0) + 1)
-  }
+    if (!k) return
+    let set = seen.get(k)
+    if (!set) {
+      set = new Set()
+      seen.set(k, set)
+    }
+    set.add(r.campaignId != null ? `c:${r.campaignId}` : `row:${i}`)
+  })
+  const counts = new Map<string, number>()
+  seen.forEach((set, k) => counts.set(k, set.size))
 
   const allowed: R[] = []
   const suppressed: R[] = []

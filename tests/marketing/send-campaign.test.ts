@@ -36,6 +36,7 @@ const h = vi.hoisted(() => ({
   notifyMock: vi.fn().mockResolvedValue(undefined),
   recordActionMock: vi.fn(async (..._a: unknown[]) => true),
   resendSendMock: vi.fn().mockResolvedValue({ data: { id: 'm_1' }, error: null }),
+  insertValuesMock: vi.fn(),
   // db op spies
   claimReturningMock: vi.fn(),
   profileRowsMock: vi.fn().mockResolvedValue([]),
@@ -57,7 +58,11 @@ vi.mock('@/lib/db', () => {
         },
       }),
     }),
-    insert: () => ({ values: async () => undefined }),
+    insert: () => ({
+      values: async (v: unknown) => {
+        h.insertValuesMock(v)
+      },
+    }),
     select: () => ({
       from: () => ({
         where: () => {
@@ -655,5 +660,37 @@ describe('dropAlreadySentRecipients — resume, never re-send', () => {
   it('an empty recipient list short-circuits without querying at all', async () => {
     h.priorSentMock.mockRejectedValueOnce(new Error('should not be called'))
     expect(await dropAlreadySentRecipients(1, [])).toHaveLength(0)
+  })
+})
+
+/**
+ * ONE 'sent' row per email (2026-10-26). The send loop is the single writer;
+ * the Resend webhook no longer records `email.sent` for campaigns (it used to,
+ * and every funnel read 2×). A test send writes nothing and tags the email so
+ * the webhook ignores its receipts too.
+ */
+describe('sendCampaign — the send-time row is the one sent row', () => {
+  it('writes exactly one sent row per accepted email, with the channel in its meta', async () => {
+    h.insertValuesMock.mockClear()
+    h.getCampaignMock.mockResolvedValue(clinicCampaign())
+    h.resolveRecipientsMock.mockResolvedValue([
+      recipient({ id: 'p1', patientId: 'p1', email: 'a@x.com' }),
+      recipient({ id: 'p2', patientId: 'p2', email: 'b@x.com' }),
+    ])
+    await sendCampaign({ organizationId: 'org_1', campaignId: 99 })
+    const sentRows = h.insertValuesMock.mock.calls
+      .map((c) => c[0] as { type?: string; meta?: { channel?: string } })
+      .filter((v) => v.type === 'sent')
+    expect(sentRows).toHaveLength(2)
+    for (const r of sentRows) expect(r.meta?.channel).toBe('resend')
+  })
+
+  it('a test send records nothing and tags the email `test` for the webhook', async () => {
+    h.insertValuesMock.mockClear()
+    h.getCampaignMock.mockResolvedValue(clinicCampaign())
+    await sendCampaign({ organizationId: 'org_1', campaignId: 99, test: true })
+    expect(h.insertValuesMock).not.toHaveBeenCalled()
+    const tags = (h.resendSendMock.mock.calls[0][0] as { tags: Array<{ name: string; value: string }> }).tags
+    expect(tags).toContainEqual({ name: 'test', value: '1' })
   })
 })

@@ -123,3 +123,22 @@ describe('the client view', () => {
     }
   })
 })
+
+describe('"See it on your site" follows the design (2026-10-26)', () => {
+  it('stats and photos point at Home only where that design draws them, else /about', async () => {
+    const { CONTENT_SECTIONS, toContentSectionView } = await import('@/lib/website-content-sections')
+    const by = Object.fromEntries(CONTENT_SECTIONS.map((s) => [s.id, s]))
+    expect(toContentSectionView(by.stats, 'modern').sitePath).toBe('/')
+    expect(toContentSectionView(by.stats, 'hometeam').sitePath).toBe('/')
+    expect(toContentSectionView(by.stats, 'hometown').sitePath).toBe('/about')
+    expect(toContentSectionView(by.stats, 'pediatric').sitePath).toBe('/about')
+    expect(toContentSectionView(by.photos, 'cosmetic').sitePath).toBe('/')
+    expect(toContentSectionView(by.photos, 'pediatric').sitePath).toBe('/about')
+    expect(toContentSectionView(by.photos, 'hometown').sitePath).toBe('/about')
+    // An unknown or missing design reads as the default (modern), like the registry.
+    expect(toContentSectionView(by.stats, null).sitePath).toBe('/')
+    expect(toContentSectionView(by.stats, 'nope').sitePath).toBe('/')
+    // Sections with a fixed path are untouched by the design.
+    expect(toContentSectionView(by.services, 'hometown').sitePath).toBe('/services')
+  })
+})

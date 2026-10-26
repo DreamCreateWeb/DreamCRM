@@ -310,8 +310,17 @@ export async function getClinicAnalytics(organizationId: string, windowDays = 30
 
   let outreach = emptyFunnel()
   if (campaignIds.length > 0) {
+    // The reducer counts people per campaign (patient ?? email ?? phone), so
+    // the rows carry who they reached — never a bare `type`.
     const eventRows = await db
-      .select({ type: schema.campaignEvents.type })
+      .select({
+        id: schema.campaignEvents.id,
+        type: schema.campaignEvents.type,
+        campaignId: schema.campaignEvents.campaignId,
+        patientId: schema.campaignEvents.patientId,
+        recipientEmail: schema.campaignEvents.recipientEmail,
+        recipientPhone: schema.campaignEvents.recipientPhone,
+      })
       .from(schema.campaignEvents)
       .where(and(inArray(schema.campaignEvents.campaignId, campaignIds), gte(schema.campaignEvents.occurredAt, since)))
     outreach = tallyCampaignFunnel(eventRows)

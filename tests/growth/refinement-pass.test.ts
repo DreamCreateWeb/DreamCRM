@@ -110,3 +110,51 @@ describe('the demo covers the escalation state', () => {
     expect(rob).toMatch(/replyComment: null/)
   })
 })
+
+describe('the Reviews page is a working surface, not a sales page (2026-10-26)', () => {
+  it('names no competitor, no rival price and no dated regulatory claim in its copy', () => {
+    const src = read('app/(default)/growth/reviews/page.tsx')
+    expect(src).not.toMatch(/Birdeye|Podium|Weave/)
+    expect(src).not.toMatch(/\$\d+\/mo/)
+    expect(src).not.toMatch(/FTC just banned/)
+  })
+
+  it('says the real texting state from the registration record instead of promising it', () => {
+    const src = read('app/(default)/growth/reviews/page.tsx')
+    expect(src).toContain('getSmsRegistration')
+    expect(src).toContain('/integrations/sms')
+    expect(src).not.toMatch(/coming next/i)
+  })
+})
+
+/**
+ * THE MONTH IS THE CLINIC'S (2026-10-26). Recall stats, the birthday
+ * audience and the benefits season all bucketed by the server's UTC month;
+ * from ~7pm Central on the last day of a month every one of them flipped
+ * early. The pure helper is pinned at the boundary, and the Growth services
+ * that bucket by month are held to it by a source scan.
+ */
+describe('clinic-local month boundaries in the Growth services', () => {
+  it('clinicLocalDate: 23:30 on Oct 31 in Los Angeles is Oct 31, and Nov 1 in New York', async () => {
+    const { clinicLocalDate } = await import('@/lib/clinic-timezone')
+    const at = new Date('2026-11-01T06:30:00.000Z')
+    expect(clinicLocalDate(at, 'America/Los_Angeles')).toEqual({ year: 2026, month: 10, day: 31 })
+    expect(clinicLocalDate(at, 'America/New_York')).toEqual({ year: 2026, month: 11, day: 1 })
+    // Null falls back to the clinic default (Eastern), never the server's zone.
+    expect(clinicLocalDate(at, null)).toEqual({ year: 2026, month: 11, day: 1 })
+  })
+
+  it('no Growth service buckets by a bare server month', () => {
+    for (const p of [
+      'lib/services/recall-stats.ts',
+      'lib/services/marketing.ts',
+      'lib/services/retention-automation.ts',
+    ]) {
+      const src = read(p)
+      // `now` is the server's clock; bucketing it by month/day/ISO-date is
+      // the UTC month in disguise. (A UTC-constructed CALENDAR date is fine.)
+      expect(src, p).not.toMatch(/\bnow\.(getMonth|getUTCMonth|getDate|getUTCDate|toISOString)\(/)
+    }
+    expect(read('lib/services/recall-stats.ts')).toContain('clinicMonthStart')
+  })
+})

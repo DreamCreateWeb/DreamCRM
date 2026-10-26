@@ -621,8 +621,8 @@ the intro card while off).** All modules are **live** — there are no
 | Daily | Overview | `/` → `/dashboard` | Morning-huddle: today's chair, attention cards, trends, activity feed, integrations-health banner, follow-up summary. Clinic-tz day windows. |
 | Daily | Dream Team | `/dream-team` | **THE AI STAFF (2026-08-23, docs/ai-operations.md).** The sign-here stack of finished work waiting on a yes (moved here from the Overview, which keeps only a calm summons strip), the take-it-back grants strip, the status band ("Cycles" heartbeat + waiting / going out soon / handled last week), the veto RUNWAY with per-row Stop, GOALS ("more implant patients" — flavors every generator's prompt; service focus DERIVED from the practice's own service list), SANDMAN (the chief of staff in conversation — aggregates-only snapshot, a closed navigation registry, and a closed REQUEST registry that can only ask an existing generator to run now, so everything it starts still lands as a draft needing a yes), and the ROSTER of six specialists with last week's real numbers. |
 | Daily | My Day | `/my-day` | Per-staff cockpit: my/unclaimed follow-ups, my conversations, today's schedule, collections nudge. Mirrored by the opt-in morning digest email (per-staff opt-out) — which since S7 (2026-10-06) also says what the machine did overnight, names one thing to do and what is still on the platform (`lib/morning-after.ts`), and goes out through a clinic's first week even when the to-do list is empty. |
-| Daily | Messages | `/messages` (double-sidebar) | Front-style unified patient inbox (in_app + email + inbound SMS — replies thread as channel 'sms' once a clinic's texting is live; the outbound SMS composer option waits on the honesty flip). Receipts (in-app read + email Delivered/Opened/bounce via tagged Resend webhooks, 2026-07-14), attachments, AI draft, quick-book, scheduled send, star/unread, auto-reply after hours. ACTIVITY MARKERS (2026-07-23): every automated touch (reminders, campaigns+opened, bookings/cancels w/ actor, review asks, balance nudges, surveys, forms) interleaves the thread as thin gray context lines — read-time merge (`lib/services/thread-activity.ts`, no new write paths, history backfills free); LAW: markers never bump unread/reopen/reorder and never render in the patient portal; runs of 4+ collapse; open/click signals attribute per-send; pre-history older than 14d before the first message trims (the patient timeline keeps it all). Gmail mailbox at `/inbox`. SUPPORT tab (2026-08-26): `/messages/support` — the clinic's one thread to Dream Create, anchored on `conversations.organization_id` (set = support marker; generic chats store NULL). Platform-authored messages render as "Support" 🎧 BY CONTRACT (never a person's name — pinned by tests/messaging/support-view.test.tsx); the platform works the same thread from Client Messaging under the clinic's name, and its New-conversation composer routes into the org thread rather than minting a parallel one. Both directions alert via the notification registry (support_message / support_reply, urgent). |
-| Daily | Appointments | `/appointments` | Agenda grouped by clinic-local day; window chips; aging borders; drawer (confirm/reschedule/cancel/no-show + review request); bulk actions; saved views; CSV call-sheet export. |
+| Daily | Messages | `/messages` (double-sidebar) | (2026-10-26: a failed scheduled message alerts its scheduler — `scheduled_message_failed`, Retry/Dismiss strip, `recordEngineFailure` under `scheduled_message`; an expired snooze is resurfaced by the followup-rules cron and wears "Back from snooze"; website-chat messages get the after-hours auto-reply BY EMAIL, `afterHoursReplyDelivery`.) Front-style unified patient inbox (in_app + email + inbound SMS — replies thread as channel 'sms' once a clinic's texting is live; the outbound SMS composer option waits on the honesty flip). Receipts (in-app read + email Delivered/Opened/bounce via tagged Resend webhooks, 2026-07-14), attachments, AI draft, quick-book, scheduled send, star/unread, auto-reply after hours. ACTIVITY MARKERS (2026-07-23): every automated touch (reminders, campaigns+opened, bookings/cancels w/ actor, review asks, balance nudges, surveys, forms) interleaves the thread as thin gray context lines — read-time merge (`lib/services/thread-activity.ts`, no new write paths, history backfills free); LAW: markers never bump unread/reopen/reorder and never render in the patient portal; runs of 4+ collapse; open/click signals attribute per-send; pre-history older than 14d before the first message trims (the patient timeline keeps it all). Gmail mailbox at `/inbox`. SUPPORT tab (2026-08-26): `/messages/support` — the clinic's one thread to Dream Create, anchored on `conversations.organization_id` (set = support marker; generic chats store NULL). Platform-authored messages render as "Support" 🎧 BY CONTRACT (never a person's name — pinned by tests/messaging/support-view.test.tsx); the platform works the same thread from Client Messaging under the clinic's name, and its New-conversation composer routes into the org thread rather than minting a parallel one. Both directions alert via the notification registry (support_message / support_reply, urgent). |
+| Daily | Appointments | `/appointments` | (2026-10-26: the New-booking drawer's patient picker is a debounced SEARCH, `searchPatientOptions`, never a 500-row select; the cancel dialog says the truth via `cancelNoticeFor`; "Send a see-you-soon note" on a confirmed visit; a website booking is an URGENT `online_booking` — it emails the desk with the clinic-local time + the facts to re-key it.) Agenda grouped by clinic-local day; window chips; aging borders; drawer (confirm/reschedule/cancel/no-show + review request); bulk actions; saved views; CSV call-sheet export. |
 | Daily | Patients | `/patients` + `/patients/[id]` | Relationship record: glyphs, filters, saved views (promote-to-audience), tags, documents, merge, CSV import/export, bulk email/portal-invite. Detail: timeline (clinic-tz), needs-attention, notes, follow-ups. |
 | Daily | Follow-ups | `/followups` | Assignable patient reminders board + smart rules (balance/recall/unconfirmed; hourly cron) + auto-rebook on no-show; sidebar due badge; ⌘K quick-add. |
 | Daily | Leads | `/leads` | Contact-form triage: status chips, rot borders, convert-to-patient (dedupe), UTM attribution, CSV export. |
@@ -810,7 +810,7 @@ sitemap/robots/OG.
   `send-scheduled-campaigns` (15m, also flushes scheduled messages) ·
   `auto-send-reviews` (hourly) · `customize-services` (hourly) ·
   `sync-google-reviews` (hourly, Google + Facebook) · `sync-gbp` (hourly) ·
-  `retention-automations` (daily) · `followup-rules` (hourly) · `daily-digest`
+  `retention-automations` (daily) · `followup-rules` (hourly — since 2026-10-26 also resurfaces expired snoozes, `resurfaceSnoozedThreads`) · `daily-digest`
   (daily — also the weekly standup on clinic-local Mondays, the platform's
   hunt digest, and since S8 the activation stamps' reconcile) · `trial-reminders` (6h; per-milestone idempotent) · `prospect-discovery` (6h) ·
   `prospect-enrich` (30m) · `prospect-outreach` (30m) · `domain-renewals` (daily) ·
@@ -875,6 +875,26 @@ sitemap/robots/OG.
   the `planTier` column itself (Stripe state + platform reporting).
   `tests/settings/no-plan-gating.test.ts` fails CI if a gate creeps back;
   add genuinely-exempt files to its ALLOWLIST with a reason.
+- **The platform's read of a clinic's standing has ONE home (2026-10-26).**
+  `lib/platform-clinic-status.ts` — `clinicCountsAsActive`,
+  `clinicStatusPill`, `subscriptionStatusTone` — over `resolveTrialState`.
+  `subscription_status` keeps 'trialing' after a no-card trial runs out
+  (nothing writes the column; the wall is derived from `trial_ends_at`), so
+  any platform surface that reads the column alone counts a walled clinic
+  as live. The Clinics list, its KPIs, the detail page, the MRR derivation
+  and the churn cohort all ask here; a new platform read of "is this clinic
+  active" must too.
+- **Every user-supplied value in an HTML email goes through `escapeHtml`
+  (2026-10-26).** The website-enquiry alert interpolated five form fields
+  raw for months. `sendNotificationEmail` adds its own "Hi {first}," only
+  when the body does not already open with a greeting
+  (`bodyOpensWithGreeting`, lib/types/email-automations.ts) — the rule
+  lives in the sender, not at the call sites.
+- **"Coming soon" is held at zero on the PUBLIC site and the portal too
+  (2026-10-26)** — `tests/activation/no-coming-soon.test.ts` walks
+  `app/site`, `app/(portal)`, `components/clinic-site` and
+  `components/patient-portal` beside the dashboard trees; the one
+  exemption is the coming-soon PAGE itself.
 - **Family-safe identity is a convention (2026-07-22, the Maria/John
   incident).** Any flow that attaches inbound activity to a patient by
   contact info must ALSO name-match (`namesLooselyMatch`,

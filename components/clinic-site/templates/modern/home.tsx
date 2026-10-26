@@ -8,6 +8,7 @@ import type {
   ClinicOfficePhoto,
   ClinicStaff,
 } from '@/lib/types/clinic-content'
+import { officePhotoAlt } from '@/lib/types/clinic-content'
 import { readableInk, brandFill } from '@/lib/clinic-site-theme'
 import {
   firstSentence,
@@ -577,7 +578,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
                     <SiteImage
                       displayWidth={384}
                       src={p.url}
-                      alt={p.alt ?? ''}
+                      alt={officePhotoAlt(p, name)}
                       className="w-full h-full object-cover"
                       style={p.position ? { objectPosition: p.position } : undefined}
                       loading="lazy"

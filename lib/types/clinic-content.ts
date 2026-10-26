@@ -250,11 +250,37 @@ export interface ClinicColoringPage {
 export interface ClinicOfficePhoto {
   id: string
   url: string
+  /** What a screen reader and Google read — set in the office-photo editor
+   *  ("Describe this photo"). Falls back to the caption, then the clinic. */
   alt?: string | null
   caption?: string | null
   /** CSS object-position focal point (e.g. "50% 30%") for the cropped frame.
    *  Null/absent = centred. */
   position?: string | null
+}
+
+/**
+ * The alt text every office-photo renderer paints (2026-10-26) — ONE rule
+ * instead of five: the description when the practice wrote one, else the
+ * visible caption (it already describes the photo), else the clinic's name
+ * so a screen reader hears "Acme Dental — the office" rather than "image".
+ * Pure; the dashboard's site-health check asks the same question.
+ */
+export function officePhotoAlt(
+  photo: Pick<ClinicOfficePhoto, 'alt' | 'caption'>,
+  clinicName: string,
+): string {
+  const alt = photo.alt?.trim()
+  if (alt) return alt
+  const caption = photo.caption?.trim()
+  if (caption) return caption
+  return `${clinicName} — the office`
+}
+
+/** True when a photo has nothing a screen reader could read but the clinic's
+ *  name — the site-health line counts these. */
+export function officePhotoNeedsDescription(photo: Pick<ClinicOfficePhoto, 'alt' | 'caption'>): boolean {
+  return !photo.alt?.trim() && !photo.caption?.trim()
 }
 
 /**

@@ -95,13 +95,22 @@ describe('WebsiteDesignPage', () => {
 
   it('a hero-image save threads the EXISTING focal point through', async () => {
     render(await WebsiteDesignPage())
-    // Two hero cards render; save buttons are disabled until dirty — flip
-    // dirty by clearing the first image via its Remove affordance if present,
-    // else drive the save directly through the component contract.
+    // The profile is on Cosmetic, which never draws a second hero photo, so
+    // ONE hero card renders (2026-10-26: the cards follow the design) and the
+    // unused slot says so; save buttons are disabled until dirty.
     const saveButtons = screen.getAllByText('Save image')
-    expect(saveButtons.length).toBe(2)
+    expect(saveButtons.length).toBe(1)
+    expect(document.querySelector('[data-unused-slot="a second hero photo"]')).toBeTruthy()
     // Buttons start disabled (not dirty) — the honest no-op state.
     expect((saveButtons[0] as HTMLButtonElement).disabled).toBe(true)
+    cleanup()
+  })
+
+  it('on Modern both hero cards render — the second slot is really drawn there', async () => {
+    profileRow = { ...profileRow, template: 'modern' }
+    render(await WebsiteDesignPage())
+    expect(screen.getAllByText('Save image').length).toBe(2)
+    expect(document.querySelector('[data-unused-slot]')).toBeNull()
     cleanup()
   })
 

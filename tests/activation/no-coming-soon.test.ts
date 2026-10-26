@@ -49,6 +49,11 @@ function walk(dir: string, out: string[]) {
   }
 }
 
+/** The promise in every coat it has worn: "coming soon", "coming next",
+ *  "coming later", "arriving soon". The Reviews page's "Text-message requests
+ *  are coming next" slipped past the first spelling for months. */
+const COMING_SOON = /coming[\s-](soon|next|later)|arriv(e|es|ing)[\s-](soon|next)/i
+
 function stripComments(src: string): string {
   return src
     .replace(/\/\*[\s\S]*?\*\//g, '')
@@ -73,9 +78,9 @@ describe('law 3 — no "coming soon" in the dashboard', () => {
       const rel = relative(process.cwd(), file)
       if (NAMES_THE_PUBLIC_PAGE.has(rel) || IS_THE_PUBLIC_PAGE.has(rel)) continue
       const code = stripComments(readFileSync(file, 'utf8'))
-      if (/coming[\s-]soon/i.test(code)) offenders.push(rel)
+      if (COMING_SOON.test(code)) offenders.push(rel)
     }
-    expect(offenders, 'a surface says "coming soon" — say the real state and name the next step (docs/ACTIVATION.md law 3)').toEqual([])
+    expect(offenders, 'a surface says "coming soon" (or next / later / arriving soon) — say the real state and name the next step (docs/ACTIVATION.md law 3)').toEqual([])
   })
 
   it('the exempt public page is still the go-live gate (the exemption is not a hiding place)', () => {

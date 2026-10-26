@@ -352,17 +352,6 @@ export function PmsConnectedDashboard({
           </div>
         )}
       </section>
-
-      {/* ── Coming next (PMS roadmap) ─────────────────────────── */}
-      <section className="mt-8">
-        <div className="v2-well p-5">
-          <p className="text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400 mb-2">Coming next</p>
-          <ul className="text-sm text-gray-600 dark:text-gray-300 space-y-1">
-            <li>· Near-real-time sync via PMS webhook subscriptions (today auto-sync runs on a schedule + you can “Sync now” any time)</li>
-            <li>· Configurable field mapping (today the mapping is fixed + shown in full above)</li>
-          </ul>
-        </div>
-      </section>
     </section>
   )
 }

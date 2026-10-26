@@ -12,7 +12,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
  * the cap twice over. The cases below pin the new rule and the old one.
  */
 
-const state = { eventRows: [] as Array<{ email: string | null; patientId?: string | null }> }
+const state = { eventRows: [] as Array<{ email: string | null; patientId?: string | null; campaignId?: number }> }
 
 vi.mock('@/lib/db', async () => {
   const schema = await import('@/lib/db/schema')
@@ -143,5 +143,32 @@ describe('partitionByPriorAutomationSend (the welcome one-shot guard)', () => {
     state.eventRows = [{ email: null, patientId: 'pat_1' }]
     const { suppressed } = await partitionByPriorAutomationSend('org_a', 'welcome:', [p('pat_1')])
     expect(suppressed).toHaveLength(1)
+  })
+})
+
+/**
+ * A SEND IS A CAMPAIGN, NOT A ROW (2026-10-26). The Resend webhook used to
+ * write a twin 'sent' row per email; one campaign must still count once
+ * against the cap, repaired history or not.
+ */
+describe('partitionByFrequencyCap counts campaigns per person, not rows', () => {
+  it('two rows from the SAME campaign (the old webhook twin) are one send', async () => {
+    state.eventRows = [
+      { email: 'a@x.com', patientId: 'pt_a', campaignId: 7 },
+      { email: 'a@x.com', patientId: 'pt_a', campaignId: 7 },
+    ]
+    const { allowed, suppressed } = await partitionByFrequencyCap('org_a', [p('pt_a', 'a@x.com')])
+    expect(suppressed).toHaveLength(0)
+    expect(allowed).toHaveLength(1)
+  })
+
+  it('two different campaigns still reach the cap', async () => {
+    state.eventRows = [
+      { email: 'a@x.com', patientId: 'pt_a', campaignId: 7 },
+      { email: 'a@x.com', patientId: 'pt_a', campaignId: 8 },
+    ]
+    const { suppressed } = await partitionByFrequencyCap('org_a', [p('pt_a', 'a@x.com')])
+    expect(suppressed).toHaveLength(1)
+    expect(FREQUENCY_MAX_SENDS).toBe(2)
   })
 })

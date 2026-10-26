@@ -175,6 +175,7 @@ import {
   createSocialPost,
   listSocialPosts,
   deleteSocialPost,
+  retrySocialPostTargets,
   validateSocialPostInput,
   seedDemoSocialPosts,
   getComposerChannels,
@@ -564,5 +565,102 @@ describe('seedDemoSocialPosts', () => {
     expect((event.eventStartAt as Date).getTime()).toBeGreaterThan(
       (event.scheduledAt as Date).getTime(),
     )
+  })
+})
+
+/**
+ * TRY AGAIN (2026-10-26). The legend promised "check the error and retry"
+ * while the only lever was Delete. The retry re-sends the FAILED channels
+ * only — a channel that already posted must never post twice — and
+ * recomputes the parent with the one rollup rule.
+ */
+describe('retrySocialPostTargets', () => {
+  const seedMixedPost = (over: Record<string, unknown> = {}) => {
+    store.posts.push({
+      id: 'sp_1', organizationId: 'org_1', postType: 'standard', summary: 'Same-week cleanings', imageUrl: null,
+      ctaType: null, ctaUrl: null, eventTitle: null, eventStartAt: null, eventEndAt: null,
+      offerCouponCode: null, offerRedeemUrl: null, offerTerms: null,
+      status: 'failed', scheduledAt: null, publishedAt: new Date('2026-06-01T00:00:00Z'), isDemo: 0,
+      createdAt: new Date('2026-06-01T00:00:00Z'), updatedAt: new Date('2026-06-01T00:00:00Z'), ...over,
+    })
+    store.targets.push(
+      { id: 'sp_1_t_acct_gbp', socialPostId: 'sp_1', organizationId: 'org_1', platform: 'googlebusiness', accountId: 'acct_gbp', zernioPostId: 'z_gbp', status: 'published', googleUrl: 'https://g/1', lastError: null, publishedAt: new Date('2026-06-01T00:00:00Z') },
+      { id: 'sp_1_t_acct_ig', socialPostId: 'sp_1', organizationId: 'org_1', platform: 'instagram', accountId: 'acct_ig', zernioPostId: null, status: 'failed', googleUrl: null, lastError: 'image too small', publishedAt: null },
+    )
+  }
+
+  beforeEach(() => {
+    conn.getZernioConnection.mockResolvedValue(connection())
+  })
+
+  it('re-sends ONLY the failed channel, leaves the published one alone, and the parent rolls up to published', async () => {
+    seedMixedPost()
+    zernio.createSocialPost.mockResolvedValue({ zernioPostId: 'z_ig_2', googleUrl: 'https://instagram.com/p/2' })
+    const r = await retrySocialPostTargets('org_1', 'sp_1')
+    expect(r).toMatchObject({ ok: true, status: 'published', retried: 1, recovered: 1 })
+    expect(zernio.createSocialPost).toHaveBeenCalledTimes(1)
+    expect(zernio.createGbpPost).not.toHaveBeenCalled()
+    const gbp = store.targets.find((t) => t.id === 'sp_1_t_acct_gbp')!
+    expect(gbp).toMatchObject({ status: 'published', zernioPostId: 'z_gbp', googleUrl: 'https://g/1' })
+    const ig = store.targets.find((t) => t.id === 'sp_1_t_acct_ig')!
+    expect(ig).toMatchObject({ status: 'published', zernioPostId: 'z_ig_2', googleUrl: 'https://instagram.com/p/2', lastError: null })
+    expect(store.posts[0].status).toBe('published')
+  })
+
+  it('a channel that fails again keeps its new reason and the parent stays failed — never throws', async () => {
+    seedMixedPost()
+    zernio.createSocialPost.mockRejectedValue(new Error('rate limited'))
+    const r = await retrySocialPostTargets('org_1', 'sp_1')
+    expect(r.ok).toBe(false)
+    expect(r.status).toBe('failed')
+    expect(r.error).toMatch(/on the card/)
+    const ig = store.targets.find((t) => t.id === 'sp_1_t_acct_ig')!
+    expect(ig).toMatchObject({ status: 'failed', lastError: 'rate limited' })
+    expect(store.posts[0].status).toBe('failed')
+  })
+
+  it('a channel that has since been disconnected stays failed with the reconnect sentence, no network', async () => {
+    seedMixedPost()
+    conn.getZernioConnection.mockResolvedValue(connection({ accounts: [gbpAccount()] }))
+    const r = await retrySocialPostTargets('org_1', 'sp_1')
+    expect(r.ok).toBe(false)
+    expect(zernio.createSocialPost).not.toHaveBeenCalled()
+    const ig = store.targets.find((t) => t.id === 'sp_1_t_acct_ig')!
+    expect(String(ig.lastError)).toMatch(/no longer connected/)
+  })
+
+  it('a schedule still ahead re-queues; one that has passed publishes now', async () => {
+    seedMixedPost({ status: 'failed', scheduledAt: new Date('2099-01-01T00:00:00Z'), publishedAt: null })
+    store.targets[0].status = 'scheduled'
+    zernio.createSocialPost.mockResolvedValue({ zernioPostId: 'z_ig_3', googleUrl: null })
+    const r = await retrySocialPostTargets('org_1', 'sp_1')
+    expect(r.status).toBe('scheduled')
+    expect(zernio.createSocialPost.mock.calls[0][0]).toMatchObject({ scheduledAt: '2099-01-01T00:00:00.000Z' })
+    expect(store.targets.find((t) => t.id === 'sp_1_t_acct_ig')!.publishedAt).toBeNull()
+
+    store.posts.length = 0
+    store.targets.length = 0
+    zernio.createSocialPost.mockClear()
+    seedMixedPost({ scheduledAt: new Date('2000-01-01T00:00:00Z') })
+    await retrySocialPostTargets('org_1', 'sp_1')
+    expect(zernio.createSocialPost.mock.calls[0][0]).toMatchObject({ scheduledAt: null })
+    expect(store.targets.find((t) => t.id === 'sp_1_t_acct_ig')!.status).toBe('published')
+  })
+
+  it('nothing failed → nothing to do, no network', async () => {
+    seedMixedPost({ status: 'published' })
+    store.targets[1].status = 'published'
+    const r = await retrySocialPostTargets('org_1', 'sp_1')
+    expect(r).toMatchObject({ ok: true, retried: 0, recovered: 0 })
+    expect(zernio.createSocialPost).not.toHaveBeenCalled()
+  })
+
+  it('is org-scoped: another org’s post id is "no longer available" and nothing is sent', async () => {
+    seedMixedPost()
+    const r = await retrySocialPostTargets('org_other', 'sp_1')
+    expect(r.ok).toBe(false)
+    expect(r.error).toMatch(/no longer available/)
+    expect(zernio.createSocialPost).not.toHaveBeenCalled()
+    expect(store.targets.find((t) => t.id === 'sp_1_t_acct_ig')!.status).toBe('failed')
   })
 })
