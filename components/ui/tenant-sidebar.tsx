@@ -9,6 +9,8 @@ import { useRealtime } from '@/components/realtime/realtime-provider'
 import { DreamCreateMark, DreamCrmLogo } from '@/components/brand/dream-create-logo'
 import DropdownProfile from '@/components/dropdown-profile'
 import { NavIcon } from './nav-icons'
+import { useFocusTrap } from './use-focus-trap'
+import { BELOW_LG, useMediaQuery } from './use-media-query'
 import type { ModuleDef, TenantType } from '@/lib/modules/types'
 import { TONE_FILL } from '@/lib/ui/encodings'
 
@@ -209,15 +211,29 @@ export default function TenantSidebar({
     return () => document.removeEventListener('click', handler)
   })
 
-  // Close the mobile drawer on Escape.
+  // Below lg the aside is an off-canvas DRAWER (DESIGN-SYSTEM Part 4). Closed,
+  // it is slid off-screen but still in the DOM — so without `inert` every nav
+  // link, the org tile and the profile menu stayed in the tab order while
+  // invisible, and a keyboard or screen-reader user on a phone tabbed through
+  // ~20 hidden links before reaching the page. `inert` is gated on the WIDTH,
+  // never on the open flag alone: at lg+ the same element is the in-flow
+  // sidebar and must stay live whatever the (never-opened) mobile flag says.
+  const isDrawer = useMediaQuery(BELOW_LG)
+  const drawerOpen = isDrawer && sidebarOpen
+  const closeDrawer = useCallback(() => setSidebarOpen(false), [setSidebarOpen])
+
+  // Open: trap Tab inside the drawer, close on Escape, and hand focus back to
+  // the hamburger (whatever was focused before) on close. Initial focus is
+  // placed by the effect below rather than by the trap, so it lands on the
+  // Close button — the drawer's own way out — instead of the logo link. The
+  // rail-mode flyout is portaled to <body>, but the rail only exists at lg+
+  // and the trap only below it, so the two never meet.
+  useFocusTrap(drawerOpen, sidebar, { onEscape: closeDrawer, initialFocus: false })
+  const closeButton = useRef<HTMLButtonElement>(null)
   useEffect(() => {
-    const handler = ({ keyCode }: { keyCode: number }) => {
-      if (!sidebarOpen || keyCode !== 27) return
-      setSidebarOpen(false)
-    }
-    document.addEventListener('keydown', handler)
-    return () => document.removeEventListener('keydown', handler)
-  })
+    if (!drawerOpen) return
+    closeButton.current?.focus()
+  }, [drawerOpen])
 
   // Split the registry: pinned → cockpit; everything else → groups; the
   // Settings module → the bottom pinned slot (not inside a group).
@@ -266,7 +282,8 @@ export default function TenantSidebar({
         id="sidebar"
         ref={sidebar}
         aria-label="Primary navigation"
-        className={`aura-chrome grain flex lg:flex! flex-col absolute z-40 left-0 top-0 lg:relative lg:left-auto lg:top-auto lg:translate-x-0 h-[100dvh] overflow-y-auto overflow-x-hidden no-scrollbar w-64 ${railClass} shrink-0 bg-surface-1 border-r border-hairline px-3 py-4 transition-[width,transform] duration-200 ease-in-out ${
+        inert={isDrawer && !sidebarOpen}
+        className={`aura-chrome grain flex lg:flex! flex-col absolute z-40 left-0 top-0 lg:relative lg:left-auto lg:top-auto lg:translate-x-0 h-[100dvh] overflow-y-auto overflow-x-hidden no-scrollbar w-64 ${railClass} shrink-0 bg-surface-1 border-r border-hairline px-3 py-4 transition-[width,transform] duration-200 ease-in-out motion-reduce:transition-none ${
           sidebarOpen ? 'translate-x-0' : '-translate-x-64 lg:translate-x-0'
         }`}
       >
@@ -288,7 +305,7 @@ export default function TenantSidebar({
           <button
             type="button"
             onClick={toggleRail}
-            className="hidden lg:inline-flex h-10 w-10 items-center justify-center rounded-md text-ink-400 hover:text-ink-600 hover:bg-ink-900/[0.04] transition"
+            className="hidden lg:inline-flex h-10 w-10 items-center justify-center rounded-md text-ink-500 hover:text-ink-700 hover:bg-ink-900/[0.04] transition"
             title={railCollapsed ? 'Expand sidebar ([)' : 'Collapse sidebar ([)'}
             aria-label={railCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
             aria-pressed={railCollapsed}
@@ -303,9 +320,10 @@ export default function TenantSidebar({
           </button>
           {/* Close button — mobile drawer only. */}
           <button
+            ref={closeButton}
             type="button"
-            className="lg:hidden text-ink-500 hover:text-ink-600"
-            onClick={() => setSidebarOpen(false)}
+            className="lg:hidden inline-flex h-10 w-10 items-center justify-center rounded-full text-ink-500 hover:bg-ink-900/[0.04] hover:text-ink-700"
+            onClick={closeDrawer}
             aria-controls="sidebar"
             aria-label="Close sidebar"
           >
@@ -328,7 +346,7 @@ export default function TenantSidebar({
         {pinned.length > 0 && (
           <div className="relative z-10 mb-4 rounded-lg bg-surface-sunk/70 p-1.5" data-testid="cockpit">
             {!railCollapsed && (
-              <p className="px-2 pb-1 pt-0.5 text-xs font-semibold uppercase tracking-wider text-ink-400">
+              <p className="px-2 pb-1 pt-0.5 text-xs font-semibold uppercase tracking-wider text-ink-500">
                 Pinned
               </p>
             )}
@@ -629,25 +647,25 @@ function NavItem({
           active
             ? 'breath bg-gradient-to-r from-teal-600 to-teal-800 text-white font-bold shadow-[0_8px_20px_rgb(76_125_240_/_0.35)]'
             : muted
-              ? 'text-ink-400 hover:bg-ink-900/[0.04] hover:text-ink-700'
+              ? 'text-ink-500 hover:bg-ink-900/[0.04] hover:text-ink-800'
               : 'text-ink-600 hover:bg-ink-900/[0.04] hover:text-ink-900'
         } ${isSoon ? 'opacity-50 cursor-not-allowed' : ''}`}
       >
         <NavIcon
           name={m.icon}
-          className={`shrink-0 fill-current ${active ? 'text-white' : 'text-ink-400'}`}
+          className={`shrink-0 fill-current ${active ? 'text-white' : 'text-ink-500'}`}
         />
         {/* Inline label — expanded mode only. */}
         {!rail && (
           <>
             <span className="ml-3 grow truncate text-sm">
               {m.label}
-              {isSoon && <span className="ml-2 text-xs text-ink-400">soon</span>}
+              {isSoon && <span className="ml-2 text-xs text-ink-500">soon</span>}
             </span>
             {showShortcut && m.shortcut && (
               <kbd
                 className={`ml-2 shrink-0 rounded border px-1 py-px text-xs font-medium tabular-nums ${
-                  active ? 'border-white/30 text-white/80' : 'border-hairline text-ink-400'
+                  active ? 'border-white/30 text-white/80' : 'border-hairline text-ink-500'
                 }`}
               >
                 {m.shortcut}
@@ -686,7 +704,7 @@ function NavItem({
           >
             <span>{muted ? `Add ${m.label}` : m.label}</span>
             {m.shortcut && showShortcut && (
-              <kbd className="rounded border border-hairline px-1 py-px text-xs font-medium tabular-nums text-ink-400">
+              <kbd className="rounded border border-hairline px-1 py-px text-xs font-medium tabular-nums text-ink-500">
                 {m.shortcut}
               </kbd>
             )}

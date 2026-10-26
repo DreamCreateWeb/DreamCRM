@@ -156,11 +156,15 @@ export default function DropdownNotifications({ align }: { align?: 'left' | 'rig
   }
 
   return (
-    <Popover as="div" className="relative inline-flex">
+    // Below `sm` the root is NOT a positioned box on purpose: the panel then
+    // resolves against the sticky <header> (the nearest positioned ancestor)
+    // and `inset-x-3` pins it inside the phone's edges. At sm+ the root is
+    // `relative` again and the panel hangs off the bell as before.
+    <Popover as="div" className="inline-flex sm:relative">
       {({ open, close }) => (
         <>
           <PopoverButton
-            className={`w-8 h-8 flex items-center justify-center hover:bg-gray-100 lg:hover:bg-gray-200 dark:hover:bg-gray-700/50 dark:lg:hover:bg-gray-800 rounded-full relative ${
+            className={`h-10 w-10 flex items-center justify-center hover:bg-gray-100 lg:hover:bg-gray-200 dark:hover:bg-gray-700/50 dark:lg:hover:bg-gray-800 rounded-full relative ${
               open && 'bg-gray-200 dark:bg-gray-800'
             }`}
           >
@@ -191,9 +195,14 @@ export default function DropdownNotifications({ align }: { align?: 'left' | 'rig
             leaveFrom="opacity-100"
             leaveTo="opacity-0"
           >
+            {/* Phone: `inset-x-3 w-auto` inside the viewport (the Mosaic
+                `-mr-48` hack put 88px of this panel past a 390px screen and the
+                shell's overflow-x-hidden clipped it — the dismiss column, the
+                unread dot and "Mark all read" were unreachable). sm+: the
+                384px panel hangs off the bell's right edge as before. */}
             <PopoverPanel
-              className={`origin-top-right z-10 absolute top-full -mr-48 sm:mr-0 min-w-[24rem] max-w-[24rem] bg-white dark:bg-gray-800 border border-[color:var(--color-hairline)] rounded-[var(--r-md)] shadow-[var(--shadow-pop)] overflow-hidden mt-1.5 ${
-                align === 'right' ? 'right-0' : 'left-0'
+              className={`origin-top-right z-10 absolute top-full mt-1.5 inset-x-3 w-auto sm:inset-x-auto sm:w-96 bg-white dark:bg-gray-800 border border-[color:var(--color-hairline)] rounded-[var(--r-md)] shadow-[var(--shadow-pop)] overflow-hidden ${
+                align === 'right' ? 'sm:right-0' : 'sm:left-0'
               }`}
             >
             <div className="flex items-baseline justify-between px-4 pb-2 pt-3">
@@ -238,7 +247,7 @@ export default function DropdownNotifications({ align }: { align?: 'left' | 'rig
                         <button
                           type="button"
                           onClick={() => handleItemClick(n, close)}
-                          className="block w-full py-3 pl-4 pr-9 text-left hover:bg-gray-50 focus-visible:bg-gray-50 dark:hover:bg-gray-700/20 dark:focus-visible:bg-gray-700/20"
+                          className="block w-full py-3 pl-4 pr-12 text-left hover:bg-gray-50 focus-visible:bg-gray-50 dark:hover:bg-gray-700/20 dark:focus-visible:bg-gray-700/20"
                         >
                           <div className="flex items-start gap-3">
                             <span
@@ -273,7 +282,7 @@ export default function DropdownNotifications({ align }: { align?: 'left' | 'rig
                           onClick={(e) => handleDismiss(n, e)}
                           aria-label="Dismiss notification"
                           title="Dismiss"
-                          className="absolute right-2 top-2.5 flex h-5 w-5 items-center justify-center rounded text-gray-500 opacity-0 transition-opacity hover:bg-gray-200/70 hover:text-gray-700 focus:opacity-100 group-hover:opacity-100 dark:text-gray-400 dark:hover:bg-gray-600/50 dark:hover:text-gray-200"
+                          className="absolute right-1 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full text-gray-500 hover:bg-gray-200/70 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-600/50 dark:hover:text-gray-200"
                         >
                           <svg width="9" height="9" viewBox="0 0 9 9" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
                             <path

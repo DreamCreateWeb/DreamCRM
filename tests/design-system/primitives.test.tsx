@@ -273,3 +273,91 @@ describe('ProgressRing', () => {
     expect(container.querySelector('svg')).not.toBeInTheDocument()
   })
 })
+
+describe('BulkBar — stays inside a phone (2026-10-26)', () => {
+  it('pins to the gutters below sm, centres and caps at sm+, and wraps its actions', () => {
+    render(
+      <BulkBar count={4} onClear={() => {}}>
+        <ActionButton variant="primary" size="sm">
+          Send 4 reminders
+        </ActionButton>
+      </BulkBar>,
+    )
+    const region = screen.getByRole('region', { name: 'Bulk actions' })
+    const c = region.className
+    expect(c).toMatch(/\binset-x-3\b/)
+    expect(c).toMatch(/\bflex-wrap\b/)
+    expect(c).toMatch(/\bsm:inset-x-auto\b/)
+    expect(c).toMatch(/\bsm:left-1\/2\b/)
+    expect(c).toMatch(/\bsm:-translate-x-1\/2\b/)
+    expect(c).toContain('sm:max-w-[calc(100vw-1.5rem)]')
+    // Never the unprefixed centring that put ~130px off EACH edge at 390.
+    expect(c).not.toMatch(/(^|\s)left-1\/2\b/)
+    expect(c).not.toMatch(/(^|\s)-translate-x-1\/2\b/)
+    // The action row wraps and takes its own line on a phone.
+    const actions = screen.getByRole('button', { name: 'Send 4 reminders' }).parentElement!
+    expect(actions.className).toMatch(/\bw-full\b/)
+    expect(actions.className).toMatch(/\bflex-wrap\b/)
+    expect(actions.className).toMatch(/\bsm:w-auto\b/)
+    // Count left, Clear right on the phone's first row; actions beneath.
+    expect(screen.getByText('4 selected').className).toMatch(/\border-1\b/)
+    const clear = screen.getByRole('button', { name: 'Clear' })
+    expect(clear.className).toMatch(/\border-2\b/)
+    expect(clear.className).toMatch(/\bml-auto\b/)
+    expect(actions.className).toMatch(/\border-3\b/)
+  })
+})
+
+describe('FlashToast — dismissible, persistent errors, pause on hover (2026-10-26)', () => {
+  it('an urgent toast never auto-dismisses; Dismiss calls onDone', () => {
+    vi.useFakeTimers()
+    const onDone = vi.fn()
+    render(<FlashToast message="Could not send" tone="urgent" onDone={onDone} />)
+    expect(screen.getByRole('alert')).toHaveTextContent('Could not send')
+    vi.advanceTimersByTime(60_000)
+    expect(onDone).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }))
+    expect(onDone).toHaveBeenCalledOnce()
+    vi.useRealTimers()
+  })
+
+  it('an ok toast carries Dismiss too, and stays inside a phone', () => {
+    render(<FlashToast message="Saved." onDone={() => {}} />)
+    const dismiss = screen.getByRole('button', { name: 'Dismiss' })
+    expect(dismiss.className).toMatch(/\bh-10\b/)
+    expect(dismiss.className).toMatch(/\bw-10\b/)
+    const c = screen.getByRole('status').className
+    expect(c).toMatch(/\bleft-4\b/)
+    expect(c).toMatch(/\bright-4\b/)
+    expect(c).toMatch(/\bsm:left-auto\b/)
+    expect(c).toMatch(/\bsm:max-w-md\b/)
+  })
+
+  it('pauses the timer while hovered and resumes on leave', () => {
+    vi.useFakeTimers()
+    const onDone = vi.fn()
+    render(<FlashToast message="Sent" onDone={onDone} duration={4000} />)
+    fireEvent.mouseEnter(screen.getByRole('status'))
+    vi.advanceTimersByTime(10_000)
+    expect(onDone).not.toHaveBeenCalled()
+    fireEvent.mouseLeave(screen.getByRole('status'))
+    vi.advanceTimersByTime(4100)
+    expect(onDone).toHaveBeenCalledOnce()
+    vi.useRealTimers()
+  })
+
+  it('lifts above a mounted BulkBar instead of painting on top of it', () => {
+    render(
+      <>
+        <div role="region" aria-label="Bulk actions" />
+        <FlashToast message="Sent 4 reminders" onDone={() => {}} />
+      </>,
+    )
+    expect(screen.getByRole('status').style.bottom).not.toBe('')
+  })
+
+  it('rests at bottom-4 when no BulkBar is mounted', () => {
+    render(<FlashToast message="Saved." onDone={() => {}} />)
+    expect(screen.getByRole('status').style.bottom).toBe('')
+  })
+})
