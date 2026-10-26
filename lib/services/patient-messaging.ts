@@ -356,10 +356,20 @@ export async function listPatientThreadsPage(
     .leftJoin(schema.user, eq(schema.patientThread.assignedUserId, schema.user.id))
     .where(and(...where))
     // Urgent threads pin to the top of every view — a patient in pain never
-    // scrolls below yesterday's routine question.
+    // scrolls below yesterday's routine question. Under that: newest first by
+    // default, or — 'oldest_unanswered' — the threads whose LAST word was the
+    // patient's, longest-waiting first, so the person who wrote on Monday is
+    // answered before the one who wrote at lunch. (The sort was declared on
+    // ThreadFilters for months and read by nothing; the "Longest waiting"
+    // chip is the first caller.)
     .orderBy(
       sql`case when ${schema.patientThread.urgency} = 'urgent' then 0 else 1 end`,
-      desc(schema.patientThread.lastMessageAt),
+      ...(filters.sort === 'oldest_unanswered'
+        ? [
+            sql`case when ${schema.patientThread.lastMessageDirection} = 'inbound' then 0 else 1 end`,
+            asc(schema.patientThread.lastMessageAt),
+          ]
+        : [desc(schema.patientThread.lastMessageAt)]),
     )
     .limit(limit + 1)
 
@@ -1315,6 +1325,22 @@ export async function recordInboundMessage(input: {
     ...(attachments.length > 0 ? { meta: { attachments } } : {}),
   })
 
+  // The thread's state BEFORE this message lands, read once: whether staff
+  // had already been told about an earlier unread message (the alert
+  // throttle below), and who the thread is assigned to (they hear directly).
+  // A missing row reads as "not unread, nobody assigned" — the failure mode
+  // is one extra alert, never a silent one.
+  const [before] = await db
+    .select({
+      unreadCountForClinic: schema.patientThread.unreadCountForClinic,
+      assignedUserId: schema.patientThread.assignedUserId,
+    })
+    .from(schema.patientThread)
+    .where(and(eq(schema.patientThread.id, threadId), eq(schema.patientThread.organizationId, input.organizationId)))
+    .limit(1)
+  const wasUnread = (before?.unreadCountForClinic ?? 0) > 0
+  const assignedUserId = before?.assignedUserId ?? null
+
   await db
     .update(schema.patientThread)
     .set({
@@ -1344,32 +1370,74 @@ export async function recordInboundMessage(input: {
 
   // Ping the front desk so an inbound patient message doesn't wait for someone
   // to refresh /messages. Best-effort — the message row above is the truth.
-  try {
-    const [p] = await db
-      .select({ firstName: schema.patient.firstName, lastName: schema.patient.lastName, email: schema.patient.email })
-      .from(schema.patient)
-      .where(and(eq(schema.patient.organizationId, input.organizationId), eq(schema.patient.id, input.patientId)))
-      .limit(1)
-    const who = p ? `${p.firstName} ${p.lastName}`.trim() : 'a patient'
-    const { notifyOrgMembers } = await import('@/lib/services/notifications')
-    await notifyOrgMembers(
-      input.organizationId,
-      {
-        bucket: 'comments',
+  //
+  // ONE ALERT PER UNREAD THREAD, NOT ONE PER MESSAGE. `patient_message` is an
+  // urgent type, so three "can I move my cleaning? / Tuesday? / or Wednesday"
+  // texts in a row used to be three emails to every owner and admin. When the
+  // thread was ALREADY unread the first alert is still live in the tray and
+  // the sidebar badge counts the thread, so nothing is dispatched; the
+  // realtime push above and the urgency triage below still fire. Reading the
+  // thread once after it has been opened resets the throttle.
+  if (!wasUnread) {
+    try {
+      const [p] = await db
+        .select({ firstName: schema.patient.firstName, lastName: schema.patient.lastName, email: schema.patient.email })
+        .from(schema.patient)
+        .where(and(eq(schema.patient.organizationId, input.organizationId), eq(schema.patient.id, input.patientId)))
+        .limit(1)
+      const who = p ? `${p.firstName} ${p.lastName}`.trim() : 'a patient'
+      // excludeEmail: the sender never gets a staff alert about their own
+      // message — without it, an owner who is also a patient of their own
+      // clinic (or a demoing admin booking a fake visit) sees internal staff
+      // mail land in the "patient's" inbox.
+      const senderEmail = p?.email?.trim().toLowerCase() || null
+      const alert = {
+        bucket: 'comments' as const,
         type: 'patient_message',
         title: `New message from ${who}`,
         body: input.body.trim().slice(0, 140),
         linkPath: `/messages?thread=${threadId}`,
         meta: { threadId, messageId, channel: input.channel },
-      },
-      // excludeEmail: the sender never gets a staff alert about their own
-      // message — without it, an owner who is also a patient of their own
-      // clinic (or a demoing admin booking a fake visit) sees internal staff
-      // mail land in the "patient's" inbox.
-      { roles: ['owner', 'admin'], excludeEmail: p?.email ?? null },
-    )
-  } catch (err) {
-    console.warn('[patient-messaging.recordInboundMessage] notification failed', err)
+        // One bell row per person per MESSAGE: the assignee is reached
+        // directly below AND sits inside the org fan-out, and notify()'s
+        // per-(recipient, key) dedupe is what keeps that from being two rows
+        // (the fan-out's copy conflicts and writes nothing; its email is
+        // re-attempted only if the direct one never landed).
+        dedupeKey: `patient_message:${input.organizationId}:${messageId}`,
+      }
+      const { notify, notifyOrgMembers } = await import('@/lib/services/notifications')
+
+      // The person the thread was handed to hears FIRST and BY NAME — whatever
+      // their role, and even when they are not a `member` row (a platform
+      // admin who took the thread in demo mode). Same self-exclusion as the
+      // fan-out: a staff account that IS the patient gets no alert about its
+      // own message.
+      if (assignedUserId) {
+        const [assignee] = await db
+          .select({ email: schema.user.email })
+          .from(schema.user)
+          .where(eq(schema.user.id, assignedUserId))
+          .limit(1)
+        const assigneeEmail = assignee?.email?.trim().toLowerCase() || null
+        if (!senderEmail || assigneeEmail !== senderEmail) {
+          await notify({ ...alert, userId: assignedUserId, organizationId: input.organizationId })
+        }
+      }
+
+      await notifyOrgMembers(
+        input.organizationId,
+        alert,
+        // DELIBERATELY WIDER than the owner/admin convention the other ~20
+        // notify sites follow: a front-desk 'member' is exactly who answers a
+        // patient's message (the team panel invites at 'member' by default,
+        // "day-to-day access"), and the bounce alert in this same file
+        // already reaches them. The tray row is the ONLY way a member hears
+        // that a patient wrote — an owner's inbox is not the front desk's.
+        { roles: ['owner', 'admin', 'member'], excludeEmail: p?.email ?? null },
+      )
+    } catch (err) {
+      console.warn('[patient-messaging.recordInboundMessage] notification failed', err)
+    }
   }
 
   // After-hours auto-reply — portal messages in the portal thread, website
@@ -1417,6 +1485,49 @@ export async function assignThread(
         eq(schema.patientThread.organizationId, organizationId),
       ),
     )
+
+  // THE PERSON IT WAS HANDED TO HEARS ABOUT IT. "Sam has it" is the moment
+  // everyone else stops watching the thread, so Sam not knowing is a patient
+  // waiting on nobody. Taking a thread yourself (or unassigning) says nothing
+  // — you were there. Best-effort: the assignment above is the record.
+  if (assigneeUserId && assigneeUserId !== actingUserId) {
+    try {
+      const [thread] = await db
+        .select({ patientId: schema.patientThread.patientId })
+        .from(schema.patientThread)
+        .where(and(eq(schema.patientThread.id, threadId), eq(schema.patientThread.organizationId, organizationId)))
+        .limit(1)
+      // No row = the thread is not this org's; the UPDATE matched nothing and
+      // there is nothing to announce.
+      if (!thread) return
+      const [pat] = thread.patientId
+        ? await db
+            .select({ firstName: schema.patient.firstName })
+            .from(schema.patient)
+            .where(and(eq(schema.patient.organizationId, organizationId), eq(schema.patient.id, thread.patientId)))
+            .limit(1)
+        : []
+      const [actor] = actingUserId
+        ? await db.select({ name: schema.user.name }).from(schema.user).where(eq(schema.user.id, actingUserId)).limit(1)
+        : []
+      const first = pat?.firstName?.trim() || 'a patient'
+      const by = actor?.name?.trim() || 'A teammate'
+      const { notify } = await import('@/lib/services/notifications')
+      await notify({
+        userId: assigneeUserId,
+        organizationId,
+        bucket: 'comments',
+        type: 'thread_assigned',
+        title: `${by} handed you ${first}’s conversation`,
+        body: 'It’s yours now — the reply is waiting on you.',
+        linkPath: `/messages?thread=${threadId}`,
+        linkLabel: `Open ${first}’s conversation →`,
+        meta: { threadId, patientId: thread.patientId, assignedByUserId: actingUserId ?? null },
+      })
+    } catch (err) {
+      console.warn('[patient-messaging.assignThread] notify failed', err)
+    }
+  }
 }
 
 export async function snoozeThread(
