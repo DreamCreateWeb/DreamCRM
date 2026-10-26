@@ -32,8 +32,14 @@ export interface InsurancePanelData {
   history?: InsuranceCheckView[]
   /** Whether the on-file columns hold a carrier (the check needs one). */
   hasOnFile: boolean
-  /** The request a re-check sends, built from the on-file columns + the remembered card. */
+  /** The request a re-check sends — resolved by the page with the tool's own
+   *  rule (`recheckRequest`): the stored check's input while it is still the
+   *  card on file, the on-file card once the policy number changed. The
+   *  panel sends THIS, never `latest.input` on its own. */
   onFileRequest: Partial<EligibilityRequest>
+  /** The policy number on file no longer matches the last check's — the
+   *  re-check goes to the new card, and the card says so. */
+  cardChanged?: boolean
   /** Under a clearinghouse driver with only a carrier NAME on file, a check
    *  would be refused — send them to pick the exact payer instead. */
   needsPayerPick?: boolean
@@ -82,14 +88,23 @@ export default function InsurancePanel({
   function checkNow() {
     setError(null)
     startTransition(async () => {
-      // A stored check knows the subscriber; the on-file columns only know the card.
-      const r = await checkInsuranceAction(latest?.input ?? data.onFileRequest, patientId)
-      if (!r.ok) {
-        setError(r.errors._form ?? 'Some details are missing — open the full form to fill them in.')
-        return
+      // ALWAYS the page-resolved request. It is the stored check's input
+      // (which knows the subscriber) only while that is still the card on
+      // file; after a policy-number correction it is the new card. Sending
+      // `latest.input` here used to bill a live check against the OLD number.
+      // Wrapped: a redeploy under this tab makes the action throw, and the
+      // button must come back with a word rather than spin forever.
+      try {
+        const r = await checkInsuranceAction(data.onFileRequest, patientId)
+        if (!r.ok) {
+          setError(r.errors._form ?? 'Some details are missing — open the full form to fill them in.')
+          return
+        }
+        toast(`Checked — ${STATUS_LABEL[r.check.status].toLowerCase()}.`)
+        router.refresh()
+      } catch {
+        setError('That check didn’t go through — refresh the page and try again.')
       }
-      toast(`Checked — ${STATUS_LABEL[r.check.status].toLowerCase()}.`)
-      router.refresh()
     })
   }
 
@@ -103,6 +118,15 @@ export default function InsurancePanel({
           <StatusPill tone="neutral" label="Never checked" />
         )}
       </div>
+      {latest && data.cardChanged && (
+        <div className="mt-2">
+          <StatusPill
+            tone="neutral"
+            label="Card changed since the last check"
+            title="The policy number on file is not the one this answer was for — Check again sends the card on file now"
+          />
+        </div>
+      )}
 
       {latest && (
         <div className="mt-2 space-y-1.5">

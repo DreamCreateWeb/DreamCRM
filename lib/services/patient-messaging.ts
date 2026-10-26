@@ -1,5 +1,5 @@
 import 'server-only'
-import { and, asc, count, desc, eq, gte, ilike, inArray, isNotNull, isNull, lte, or, sql } from 'drizzle-orm'
+import { and, asc, count, desc, eq, gte, ilike, inArray, isNotNull, isNull, lte, notInArray, or, sql } from 'drizzle-orm'
 import { randomBytes } from 'crypto'
 import { db, schema } from '@/lib/db'
 import { recordAction } from '@/lib/services/action-ledger'
@@ -80,6 +80,11 @@ export interface ThreadRow {
   assignedUserId: string | null
   assignedUserName: string | null
   snoozedUntil: Date | null
+  /** `status === 'snoozed'` whose timer has already run out: the thread is
+   *  back in Open (openThreadFilter includes it) but still wears the snoozed
+   *  status until the hourly sweep flips it. The list says "Back from
+   *  snooze" rather than 💤 "will resurface later" on a thread that HAS. */
+  snoozeResurfaced: boolean
   lastMessageAt: Date | null
   lastMessageDirection: MessageDirection | null
   lastMessageChannel: MessageChannel | null
@@ -91,6 +96,12 @@ export interface ThreadRow {
   urgency: 'urgent' | null
   urgencyReason: string | null
   createdAt: Date
+}
+
+/** The one definition of "this snooze has run out" — shared by the list,
+ *  the detail header and the hourly sweep, so they can never disagree. */
+export function isSnoozeResurfaced(status: string, snoozedUntil: Date | null, now: Date = new Date()): boolean {
+  return status === 'snoozed' && !!snoozedUntil && snoozedUntil.getTime() <= now.getTime()
 }
 
 export interface ThreadMessage {
@@ -254,6 +265,7 @@ export async function listPatientThreadsPage(
   currentUserId: string,
   filters: ThreadFilters = {},
 ): Promise<ThreadPage> {
+  const now = new Date()
   const where = [eq(schema.patientThread.organizationId, organizationId)]
 
   if (filters.status === 'archived') {
@@ -261,7 +273,7 @@ export async function listPatientThreadsPage(
   } else if (filters.status === 'snoozed') {
     where.push(eq(schema.patientThread.status, 'snoozed'))
   } else if (filters.status === 'open' || filters.status === undefined) {
-    where.push(openThreadFilter(new Date()))
+    where.push(openThreadFilter(now))
   }
   // 'all' = no status filter
 
@@ -374,6 +386,7 @@ export async function listPatientThreadsPage(
     urgency: r.urgency === 'urgent' ? 'urgent' : null,
     urgencyReason: r.urgencyReason,
     createdAt: r.createdAt,
+    snoozeResurfaced: isSnoozeResurfaced(r.status, r.snoozedUntil, now),
   }))
 
   return { rows: mapped, hasMore }
@@ -604,6 +617,7 @@ export async function getPatientThreadById(
     urgency: row.urgency === 'urgent' ? 'urgent' : null,
     urgencyReason: row.urgencyReason,
     createdAt: row.createdAt,
+    snoozeResurfaced: isSnoozeResurfaced(row.status, row.snoozedUntil),
   }
 }
 
@@ -1419,6 +1433,84 @@ export async function snoozeThread(
         eq(schema.patientThread.organizationId, organizationId),
       ),
     )
+}
+
+export interface ResurfaceResult {
+  resurfaced: number
+  notified: number
+}
+
+/**
+ * THE SNOOZE TIMER'S OTHER HALF (hourly, from the followup-rules cron).
+ * `openThreadFilter` already shows a thread whose snooze ran out — but its
+ * status stayed 'snoozed', so the row kept wearing 💤 "will resurface later"
+ * on a thread that HAD, and nobody was told. This flips every run-out snooze
+ * to 'open' in ONE statement (the match on `status='snoozed'` is what makes
+ * it idempotent — a second tick finds nothing) and tells the assignee (else
+ * the owners/admins) once, in the bell only: they set the timer themselves.
+ *
+ * The filter stays as it is on purpose: a missed tick degrades to today's
+ * behaviour (the thread is still in Open), never to a hidden thread.
+ * Shut-down clinics are skipped like every other cron (THE KILL); demo orgs
+ * are skipped so the seeded snooze keeps demonstrating a snooze.
+ */
+export async function resurfaceSnoozedThreads(now: Date = new Date()): Promise<ResurfaceResult> {
+  const { listShutDownOrgIds } = await import('./billing-state')
+  const shutDown = await listShutDownOrgIds(now)
+  const demoOrgs = db.select({ id: schema.organization.id }).from(schema.organization).where(eq(schema.organization.isDemo, true))
+  const flipped = await db
+    .update(schema.patientThread)
+    .set({ status: 'open', snoozedUntil: null, updatedAt: now })
+    .where(
+      and(
+        eq(schema.patientThread.status, 'snoozed'),
+        isNotNull(schema.patientThread.snoozedUntil),
+        lte(schema.patientThread.snoozedUntil, now),
+        notInArray(schema.patientThread.organizationId, demoOrgs),
+        shutDown.size > 0 ? notInArray(schema.patientThread.organizationId, Array.from(shutDown)) : undefined,
+      ),
+    )
+    .returning({
+      id: schema.patientThread.id,
+      organizationId: schema.patientThread.organizationId,
+      patientId: schema.patientThread.patientId,
+      assignedUserId: schema.patientThread.assignedUserId,
+    })
+
+  let notified = 0
+  if (flipped.length === 0) return { resurfaced: 0, notified }
+  const { notify, notifyOrgMembers } = await import('@/lib/services/notifications')
+  for (const t of flipped) {
+    try {
+      const [pat] = await db
+        .select({ firstName: schema.patient.firstName })
+        .from(schema.patient)
+        .where(and(eq(schema.patient.organizationId, t.organizationId), eq(schema.patient.id, t.patientId)))
+        .limit(1)
+      const first = pat?.firstName?.trim() || 'A patient'
+      const alert = {
+        bucket: 'comments' as const,
+        type: 'thread_resurfaced',
+        title: `${first}’s conversation is back from snooze`,
+        body: 'The time you picked has come — it’s back in Open, waiting on you.',
+        linkPath: `/messages?thread=${t.id}`,
+        linkLabel: `Open ${first}’s conversation →`,
+        meta: { threadId: t.id, patientId: t.patientId },
+        // Belt and braces with the status flip: one bell row per resurfacing.
+        dedupeKey: `thread_resurfaced:${t.organizationId}:${t.id}:${now.toISOString()}`,
+      }
+      if (t.assignedUserId) {
+        await notify({ ...alert, userId: t.assignedUserId, organizationId: t.organizationId })
+      } else {
+        await notifyOrgMembers(t.organizationId, alert, { roles: ['owner', 'admin'] })
+      }
+      notified++
+    } catch (err) {
+      // The flip is the record; a missed bell is a bell, not a lost thread.
+      console.warn('[patient-messaging.resurfaceSnoozedThreads] notify failed', err)
+    }
+  }
+  return { resurfaced: flipped.length, notified }
 }
 
 export async function archiveThread(

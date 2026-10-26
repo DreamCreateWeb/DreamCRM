@@ -29,6 +29,7 @@ import {
   sendReminderAction,
 } from './actions'
 import { appointmentSourceLabel } from '@/lib/types/appointment-views'
+import { cancelNoticeMessage } from '@/lib/cancel-actor'
 
 function money(cents: number): string {
   if (cents === 0) return '$0'
@@ -194,10 +195,15 @@ export default function AppointmentDrawer({
   }
 
   async function onCancel() {
+    // The dialog says what the cancel will actually SEND (an email with a
+    // rebook link / nothing, and why) — derived server-side from the same two
+    // facts the service branches on, never a fixed "will not be notified".
     if (
       !(await confirm({
         title: 'Cancel this appointment?',
-        message: 'The patient will not be notified automatically.',
+        message: detail
+          ? cancelNoticeMessage(detail.cancelNotice, detail.patient.fullName.split(' ')[0] ?? '')
+          : undefined,
         confirmLabel: 'Cancel appointment',
         danger: true,
       }))
@@ -592,8 +598,12 @@ export default function AppointmentDrawer({
                     Request review
                   </ActionButton>
                 ) : (
+                  // Confirmed: the gentler "see you soon" variant (its own
+                  // copy + switch in the Emails hub). The action used to refuse
+                  // every confirmed visit outright, so this primary could only
+                  // ever flash an error — sendReminderAction now allows it.
                   <ActionButton variant="primary" size="sm" onClick={onSendReminder} pending={activeAction === 'reminder'} disabled={pending}>
-                    Send reminder email
+                    Send a see-you-soon note
                   </ActionButton>
                 )}
                 {/* When scheduled, "Send reminder" is a secondary verb (the

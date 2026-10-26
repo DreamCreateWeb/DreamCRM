@@ -1,10 +1,10 @@
 import 'server-only'
-import { and, asc, eq, lte, notInArray } from 'drizzle-orm'
+import { and, asc, eq, gte, inArray, lte, notInArray, or } from 'drizzle-orm'
 import { listShutDownOrgIds } from './billing-state'
 import { db, schema } from '@/lib/db'
 import { randomBytes } from 'crypto'
 import { sendMessageToPatient } from '@/lib/services/patient-messaging'
-import { recordAction } from '@/lib/services/action-ledger'
+import { recordAction, recordEngineFailure } from '@/lib/services/action-ledger'
 import { sanitizeAttachments, type MessageAttachment } from '@/lib/types/messaging'
 import { sanitizeUploadedAttachments } from '@/lib/attachment-hosts'
 
@@ -32,7 +32,26 @@ export interface ScheduledMessageView {
   body: string
   attachments: MessageAttachment[]
   scheduledFor: string // ISO
+  /** 'pending' (queued) or 'failed' (the cron tried and could not send). */
   status: string
+  /** Why a failed row failed, in the words the send path threw — a human
+   *  sentence ("Patient has no email on file"), never a stack. */
+  lastError: string | null
+}
+
+/** A failed send stays visible in the composer this long; after that the
+ *  bell row + the ledger entry remain the record. */
+export const FAILED_VISIBLE_MS = 7 * 24 * 60 * 60 * 1000
+
+/** One failure per clinic per day in the clinic's own story — the cron
+ *  ticks every 15 minutes, and the Guardian counts DAYS of a broken thing. */
+const FAILURE_LEDGER_WINDOW_MS = 24 * 60 * 60 * 1000
+
+/** The body of the "didn't send" alert — the send path's own reason, then
+ *  where to go. Pure so the wording can be pinned. */
+export function scheduledFailureBody(reason: string | null): string {
+  const why = reason?.trim() ? reason.trim().replace(/\.?$/, '.') : 'Something went wrong on our side.'
+  return `${why} It’s waiting in the conversation — open it to retry or dismiss.`
 }
 
 /**
@@ -85,12 +104,18 @@ export async function scheduleMessage(input: {
   return { id }
 }
 
-/** Pending scheduled sends for a patient (newest schedule last), for the
- *  thread composer to show + offer cancel. */
+/**
+ * A patient's scheduled sends for the thread composer: every PENDING row,
+ * plus FAILED rows from the last week. A failure used to drop out of this
+ * list — and the violet "Scheduled" strip vanishing is exactly what a
+ * successful send looks like, so staff believed it went out. Oldest first.
+ */
 export async function listScheduledForPatient(
   organizationId: string,
   patientId: string,
+  now: Date = new Date(),
 ): Promise<ScheduledMessageView[]> {
+  const failedSince = new Date(now.getTime() - FAILED_VISIBLE_MS)
   const rows = await db
     .select({
       id: schema.scheduledMessage.id,
@@ -99,13 +124,17 @@ export async function listScheduledForPatient(
       attachments: schema.scheduledMessage.attachments,
       scheduledFor: schema.scheduledMessage.scheduledFor,
       status: schema.scheduledMessage.status,
+      lastError: schema.scheduledMessage.lastError,
     })
     .from(schema.scheduledMessage)
     .where(
       and(
         eq(schema.scheduledMessage.organizationId, organizationId),
         eq(schema.scheduledMessage.patientId, patientId),
-        eq(schema.scheduledMessage.status, 'pending'),
+        or(
+          eq(schema.scheduledMessage.status, 'pending'),
+          and(eq(schema.scheduledMessage.status, 'failed'), gte(schema.scheduledMessage.updatedAt, failedSince)),
+        ),
       ),
     )
     .orderBy(asc(schema.scheduledMessage.scheduledFor))
@@ -116,11 +145,13 @@ export async function listScheduledForPatient(
     attachments: sanitizeAttachments(r.attachments),
     scheduledFor: r.scheduledFor.toISOString(),
     status: r.status,
+    lastError: r.status === 'failed' ? (r.lastError ?? null) : null,
   }))
 }
 
-/** Cancel a pending scheduled send (org-scoped, idempotent — a non-pending or
- *  foreign row simply matches nothing). */
+/** Cancel a pending scheduled send — or DISMISS a failed one (same terminal
+ *  state: it will never go out). Org-scoped, idempotent — a sent, already-
+ *  canceled or foreign row simply matches nothing. */
 export async function cancelScheduledMessage(organizationId: string, id: string): Promise<void> {
   await db
     .update(schema.scheduledMessage)
@@ -129,9 +160,32 @@ export async function cancelScheduledMessage(organizationId: string, id: string)
       and(
         eq(schema.scheduledMessage.id, id),
         eq(schema.scheduledMessage.organizationId, organizationId),
-        eq(schema.scheduledMessage.status, 'pending'),
+        inArray(schema.scheduledMessage.status, ['pending', 'failed']),
       ),
     )
+}
+
+/**
+ * Put a FAILED send back in the queue — a human's click, never automatic.
+ * The row goes back to 'pending' due NOW, so the next flush (the 15-minute
+ * cron) sends it through the normal path with every validation intact: no
+ * email on file still refuses, and the atomic claim still rules out a double
+ * send. Only a 'failed' row matches, so a retry can never resurrect a sent or
+ * canceled message. Returns false when nothing matched.
+ */
+export async function retryScheduledMessage(organizationId: string, id: string, now: Date = new Date()): Promise<boolean> {
+  const rows = await db
+    .update(schema.scheduledMessage)
+    .set({ status: 'pending', scheduledFor: now, lastError: null, updatedAt: now })
+    .where(
+      and(
+        eq(schema.scheduledMessage.id, id),
+        eq(schema.scheduledMessage.organizationId, organizationId),
+        eq(schema.scheduledMessage.status, 'failed'),
+      ),
+    )
+    .returning({ id: schema.scheduledMessage.id })
+  return rows.length > 0
 }
 
 export interface FlushResult {
@@ -224,18 +278,83 @@ export async function sendDueScheduledMessages(now: Date = new Date()): Promise<
         console.warn('[scheduled-messages] ledger bookkeeping failed (message already delivered):', err)
       }
     } catch (err) {
+      const reason = err instanceof Error ? err.message.slice(0, 500) : 'unknown'
       await db
         .update(schema.scheduledMessage)
         .set({
           status: 'failed',
-          lastError: err instanceof Error ? err.message.slice(0, 500) : 'unknown',
+          lastError: reason,
           updatedAt: new Date(),
         })
         .where(eq(schema.scheduledMessage.id, row.id))
       failed++
+      // TELL SOMEBODY. The row is the record; this is the alarm — the
+      // person who scheduled it (else the owners/admins) gets an urgent bell
+      // + email, and the clinic's own story gets a failure entry so the
+      // Guardian can see a pattern. Best-effort in its own try/catch: the
+      // row is already 'failed', and a notify blip must not abort the loop.
+      await reportScheduledFailure(row, reason).catch((e) => {
+        console.warn('[scheduled-messages] failure alert did not go out (row is marked failed):', e)
+      })
     }
   }
   return { due: claimed.length, sent, failed }
+}
+
+/** The "didn't send" alert for one failed row. Exported for the flush only. */
+async function reportScheduledFailure(
+  row: { id: string; organizationId: string; patientId: string; channel: string; createdByUserId: string | null },
+  reason: string,
+): Promise<void> {
+  const [pat] = await db
+    .select({ firstName: schema.patient.firstName })
+    .from(schema.patient)
+    .where(and(eq(schema.patient.organizationId, row.organizationId), eq(schema.patient.id, row.patientId)))
+    .limit(1)
+  const first = pat?.firstName?.trim() || 'a patient'
+  const [thread] = await db
+    .select({ id: schema.patientThread.id })
+    .from(schema.patientThread)
+    .where(and(eq(schema.patientThread.organizationId, row.organizationId), eq(schema.patientThread.patientId, row.patientId)))
+    .limit(1)
+  const linkPath = thread?.id ? `/messages?thread=${thread.id}` : '/messages'
+  const alert = {
+    bucket: 'comments' as const,
+    type: 'scheduled_message_failed',
+    title: `The message you scheduled for ${first} didn’t send`,
+    body: scheduledFailureBody(reason),
+    linkPath,
+    linkLabel: `Open ${first}’s conversation →`,
+    meta: { scheduledMessageId: row.id, patientId: row.patientId, channel: row.channel },
+    // One alert per failed row, however many times a replayed tick looks at it.
+    dedupeKey: `scheduled_message_failed:${row.organizationId}:${row.id}`,
+  }
+  const { notify, notifyOrgMembers } = await import('@/lib/services/notifications')
+  // The scheduler hears it first — but only while they are still on this
+  // clinic's team (a departed staffer must not be emailed a patient's name).
+  // Otherwise the owners/admins do.
+  const scheduler = row.createdByUserId
+    ? await db
+        .select({ userId: schema.member.userId })
+        .from(schema.member)
+        .where(and(eq(schema.member.organizationId, row.organizationId), eq(schema.member.userId, row.createdByUserId)))
+        .limit(1)
+        .then((rows) => rows[0] ?? null)
+    : null
+  if (scheduler) {
+    await notify({ ...alert, userId: scheduler.userId, organizationId: row.organizationId })
+  } else {
+    await notifyOrgMembers(row.organizationId, alert, { roles: ['owner', 'admin'] })
+  }
+  await recordEngineFailure({
+    organizationId: row.organizationId,
+    capability: 'scheduled_message',
+    patientId: row.patientId,
+    summary: `Couldn’t send the message scheduled for ${first} — it’s waiting in Messages to retry or dismiss.`,
+    detail: { scheduledMessageId: row.id, reason },
+    onceWithin: FAILURE_LEDGER_WINDOW_MS,
+    kind: 'engine',
+  })
 }
 
 /**

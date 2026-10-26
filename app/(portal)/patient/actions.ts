@@ -336,14 +336,17 @@ export async function bookMyVisitAction(formData: FormData): Promise<BookMyVisit
   })
 
   // Let the front desk know a portal booking landed so it doesn't surprise
-  // them on the schedule.
+  // them on the schedule. The title carries who and when (clinic wall-clock)
+  // — the same shape as the website booking alert — so the bell row reads
+  // whole without opening it.
+  const whenLabel = await fmtNotifyDate(ctx.organizationId, startTime)
   await notifyOrgMembers(
     ctx.organizationId,
     {
       bucket: 'comments',
       type: 'portal_booking',
-      title: 'Portal booking',
-      body: `${patientName} booked ${label.toLowerCase()} for ${await fmtNotifyDate(ctx.organizationId, startTime)}.`,
+      title: `New portal booking — ${patientName}, ${whenLabel}`,
+      body: `${patientName} booked ${label.toLowerCase()} for ${whenLabel}.`,
       linkPath: '/appointments',
     },
     // The acting patient never gets the staff alert about their own booking.

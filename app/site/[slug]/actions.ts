@@ -7,7 +7,7 @@ import { db } from '@/lib/db'
 import { rateLimitPublicAction } from '@/lib/services/rate-limit'
 import { clinicProfile } from '@/lib/db/schema/platform'
 import { sendContactRequestEmail, sendBookingConfirmationEmail, sendNotificationEmail } from '@/lib/email'
-import { formatClinicDateTime } from '@/lib/format-datetime'
+import { formatClinicDateTime, formatClinicDayTime } from '@/lib/format-datetime'
 import { getPortalSettings } from '@/lib/services/portal-settings'
 import { getClinicSenderIdentity } from '@/lib/services/clinic-sender'
 import { renderAutomatedEmail } from '@/lib/services/email-automations'
@@ -664,22 +664,30 @@ async function runBookingRequest(formData: FormData): Promise<BookingConfirmatio
   // Ping the front desk so a new online booking doesn't sit unseen until
   // someone opens the agenda. Best-effort — never blocks the booking.
   try {
-    // Clinic-calendar day — this runs on the UTC server, where a bare
-    // toLocaleDateString labels an evening booking with tomorrow's date.
+    // Clinic wall-clock, DAY AND TIME — this runs on the UTC server, where a
+    // bare toLocaleDateString labels an evening booking with tomorrow's date,
+    // and a day without a time is not enough for a desk with no PMS bridge
+    // to key the visit into the real schedule from the email alone.
     const { getClinicTimeZone } = await import('@/lib/services/clinic-timezone')
-    const dateLabel = startTime.toLocaleDateString('en-US', {
-      weekday: 'short', month: 'short', day: 'numeric', timeZone: await getClinicTimeZone(orgId),
-    })
+    const whenLabel = formatClinicDayTime(startTime, await getClinicTimeZone(orgId))
     const { notifyOrgMembers } = await import('@/lib/services/notifications')
+    // Everything the desk needs to enter the visit by hand: the visit type,
+    // new-vs-existing, and how to reach them. Staff-only, same class of
+    // detail the name already was.
+    const facts = [
+      `${appointmentType.replace(/_/g, ' ')} requested via your website.`,
+      resolution.created ? 'New patient.' : 'Existing patient.',
+      phone ? `Phone ${phone}.` : null,
+      email ? `Email ${email}.` : null,
+      resolution.sharedContactWith ? sharedContactNote(firstName, resolution.sharedContactWith.name) : null,
+    ].filter((line): line is string => !!line)
     await notifyOrgMembers(
       orgId,
       {
         bucket: 'comments',
         type: 'online_booking',
-        title: `New online booking — ${firstName} ${lastName}, ${dateLabel}`,
-        body: resolution.sharedContactWith
-          ? `${appointmentType.replace(/_/g, ' ')} requested via your website. ${sharedContactNote(firstName, resolution.sharedContactWith.name)}`
-          : `${appointmentType.replace(/_/g, ' ')} requested via your website.`,
+        title: `New online booking — ${firstName} ${lastName}, ${whenLabel}`,
+        body: facts.join(' '),
         // Take them straight to the patient — their record shows this visit in
         // the timeline plus every way to follow up (message, confirm, rebook).
         linkPath: `/patients/${patientId}`,

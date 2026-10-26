@@ -42,6 +42,8 @@ vi.mock('@/lib/services/message-templates', () => ({ listMessageTemplates: async
 vi.mock('@/lib/services/patient-tags', () => ({ getTagsForPatient: async () => [] }))
 vi.mock('@/lib/services/patient-followups', () => ({ listAssignableStaff: async () => [] }))
 vi.mock('@/lib/services/scheduled-messages', () => ({ listScheduledForPatient: async () => [] }))
+// The snooze "until" is formatted server-side against the clinic's zone.
+vi.mock('@/lib/services/clinic-timezone', () => ({ getClinicTimeZone: async () => 'America/Chicago' }))
 vi.mock('next/navigation', () => ({
   redirect: vi.fn(),
   useRouter: () => ({ refresh: vi.fn(), push: vi.fn() }),
@@ -168,5 +170,48 @@ describe('Thread list rows (v2)', () => {
     listThreads.mockResolvedValue([])
     render(await ClinicMessagesView({ ctx, searchParams: { status: 'archived' } }))
     expect(screen.getByText('No conversations match')).toBeInTheDocument()
+  })
+})
+
+describe('Thread list rows — the three snooze states', () => {
+  it('a snooze still running wears 💤 with its clinic-local until-time', async () => {
+    listThreads.mockResolvedValue([
+      row({ status: 'snoozed', snoozedUntil: new Date('2026-10-27T15:00:00Z'), snoozeResurfaced: false }),
+    ])
+    render(await ClinicMessagesView({ ctx, searchParams: {} }))
+    // 15:00Z = 10:00 AM Chicago — the title names the clinic's clock, not UTC.
+    const glyph = screen.getByTitle(/^Snoozed until /)
+    expect(glyph.textContent).toBe('💤')
+    expect(glyph.getAttribute('title')).toContain('10:00 AM')
+    expect(screen.queryByText('Back from snooze')).toBeNull()
+  })
+
+  it('a snooze that ran out says "Back from snooze" instead of promising to resurface', async () => {
+    listThreads.mockResolvedValue([
+      row({ status: 'snoozed', snoozedUntil: new Date(Date.now() - 60_000), snoozeResurfaced: true }),
+    ])
+    render(await ClinicMessagesView({ ctx, searchParams: {} }))
+    const pill = screen.getByText('Back from snooze')
+    expect(pill.getAttribute('data-tone')).toBe('warn')
+    // No 💤 and no "will resurface later" promise on the row (the Snoozed
+    // filter chip's own title is a different element).
+    expect(screen.queryByTitle(/^Snoozed (until|— will)/)).toBeNull()
+    expect(screen.queryByText('💤')).toBeNull()
+  })
+
+  it('an open thread wears neither', async () => {
+    listThreads.mockResolvedValue([row({ status: 'open', snoozeResurfaced: false })])
+    render(await ClinicMessagesView({ ctx, searchParams: {} }))
+    expect(screen.queryByText('Back from snooze')).toBeNull()
+    expect(screen.queryByText('💤')).toBeNull()
+  })
+
+  it('the Snoozed chip counts the snoozes that have run out (they sit in Open too)', async () => {
+    listThreads.mockResolvedValue([row()])
+    inboxStats.mockResolvedValue({ open: 3, unread: 0, snoozedAvailable: 2, archived: 0 })
+    render(await ClinicMessagesView({ ctx, searchParams: {} }))
+    const chip = screen.getByText('Snoozed').closest('a')!
+    expect(chip.textContent).toContain('2')
+    expect(chip.getAttribute('title')).toMatch(/2 snoozes have run out and are back in Open/)
   })
 })

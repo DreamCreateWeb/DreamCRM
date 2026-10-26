@@ -154,11 +154,13 @@ describe('notify()', () => {
     await notify(baseInput)
     expect(state.emails).toHaveLength(1)
 
-    // online_booking is routine (the bell + morning digest cover it) → no email.
+    // shop_order_paid is routine (the bell + morning digest cover it) → no
+    // email. (online_booking used to be the example here; it became urgent
+    // on 2026-10-26 — a stranger on the book is a person waiting.)
     state.selectQueue.push([
       { comments: true, candidates: true, offers: true, emailMode: 'urgent', pushNothing: false },
     ])
-    await notify({ ...baseInput, type: 'online_booking' })
+    await notify({ ...baseInput, type: 'shop_order_paid' })
     expect(state.inserts).toHaveLength(2)
     expect(state.emails).toHaveLength(1)
   })
@@ -167,7 +169,7 @@ describe('notify()', () => {
     state.selectQueue.push([
       { comments: true, candidates: true, offers: true, emailMode: 'shouty', pushNothing: false },
     ])
-    await notify({ ...baseInput, type: 'online_booking' })
+    await notify({ ...baseInput, type: 'shop_order_paid' })
     expect(state.inserts).toHaveLength(1)
     expect(state.emails).toHaveLength(0)
   })

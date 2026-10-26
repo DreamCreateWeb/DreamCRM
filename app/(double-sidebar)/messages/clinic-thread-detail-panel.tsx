@@ -21,6 +21,7 @@ import {
   translateMessageAction,
   markUnreadAction,
   reopenThreadAction,
+  retryScheduledMessageAction,
   scheduleMessageAction,
   sendMessageAction,
   snoozeThreadAction,
@@ -52,6 +53,10 @@ interface ThreadHeader {
   assignedUserId: string | null
   assignedUserName: string | null
   snoozedUntil: string | null
+  /** The snooze already ran out — the header says "Back from snooze", not 💤. */
+  snoozeResurfaced?: boolean
+  /** Clinic wall-clock "until" (formatted server-side) while a snooze runs. */
+  snoozedUntilLabel?: string | null
   lastMessageChannel: Channel | null
   starred?: boolean
   /** AI triage: 'urgent' shows the header banner with its reason. */
@@ -434,6 +439,8 @@ export default function ThreadDetailPanel({
   usePopoverDismiss(showSchedule, schedulePopRef, () => setShowSchedule(false))
   const [scheduleAt, setScheduleAt] = useState('')
   const [scheduling, setScheduling] = useState(false)
+  // Which failed scheduled send is being re-queued (its Retry button waits).
+  const [retryingId, setRetryingId] = useState<string | null>(null)
   const [starred, setStarred] = useState(!!thread.starred)
   const streamRef = useRef<HTMLDivElement | null>(null)
 
@@ -576,17 +583,37 @@ export default function ThreadDetailPanel({
       .finally(() => setScheduling(false))
   }
 
-  function handleCancelScheduled(id: string) {
+  function handleCancelScheduled(id: string, kind: 'pending' | 'failed' = 'pending') {
     void cancelScheduledMessageAction(id)
       .then((res) => {
         if (res.ok) {
-          setToast('Scheduled message canceled')
+          setToast(kind === 'failed' ? 'Dismissed — it won’t be sent.' : 'Scheduled message canceled')
           router.refresh()
         } else {
           setToast(res.error)
         }
       })
       .catch(() => setToast("Couldn't cancel. Please try again."))
+  }
+
+  // A FAILED send goes back in the queue on a human's click — it rides the
+  // next send pass (within ~15 minutes) through the normal path, so a
+  // patient with no email on file is refused again rather than guessed at.
+  // Promise chain, never a bare await: a redeploy under this tab makes the
+  // action THROW, and the button must come back either way.
+  function handleRetryScheduled(id: string) {
+    setRetryingId(id)
+    void retryScheduledMessageAction(id)
+      .then((res) => {
+        if (res.ok) {
+          setToast('Queued again — it goes out on the next send pass, within about 15 minutes.')
+          router.refresh()
+        } else {
+          setToast(res.error)
+        }
+      })
+      .catch(() => setToast("Couldn't queue the retry. Please try again."))
+      .finally(() => setRetryingId(null))
   }
 
   function handleSnooze(hours: number) {
@@ -755,9 +782,17 @@ export default function ThreadDetailPanel({
               >
                 {patientName}
               </Link>
-              {thread.status === 'snoozed' && (
-                <span className="shrink-0 text-xs font-medium px-1.5 py-0.5 rounded-[var(--r-xs)] bg-amber-500/15 text-amber-700 dark:text-amber-300" title="Snoozed — will resurface later">
-                  💤 Snoozed
+              {thread.status === 'snoozed' && thread.snoozeResurfaced && (
+                <span className="shrink-0 text-xs font-medium px-1.5 py-0.5 rounded-[var(--r-xs)] bg-amber-500/15 text-amber-700 dark:text-amber-300" title="The snooze ended — this conversation is back in Open, waiting on you">
+                  Back from snooze
+                </span>
+              )}
+              {thread.status === 'snoozed' && !thread.snoozeResurfaced && (
+                <span
+                  className="shrink-0 text-xs font-medium px-1.5 py-0.5 rounded-[var(--r-xs)] bg-amber-500/15 text-amber-700 dark:text-amber-300"
+                  title={thread.snoozedUntilLabel ? `Snoozed until ${thread.snoozedUntilLabel}` : 'Snoozed — will resurface later'}
+                >
+                  💤 Snoozed{thread.snoozedUntilLabel ? ` until ${thread.snoozedUntilLabel}` : ''}
                 </span>
               )}
               {thread.status === 'archived' && (
@@ -1228,32 +1263,66 @@ export default function ThreadDetailPanel({
         )}
       </div>
 
-      {/* ── Scheduled sends (pending) ─────────────────────────────────
+      {/* ── Scheduled sends (pending + failed) ────────────────────────
           Shown above the composer so staff see what's queued + can cancel.
-          Renders even when archived so a queued send is never invisible. */}
+          Renders even when archived so a queued send is never invisible.
+          A FAILED send stays here too, in rose, with the reason and a Retry /
+          Dismiss — because the strip simply vanishing is exactly what a
+          successful send looks like, and staff believed it went out. */}
       {scheduledMessages.length > 0 && (
         <div className="border-t border-[color:var(--color-hairline)] bg-[color:var(--color-surface-1)] px-4 sm:px-6 pt-3 shrink-0">
           <div className="max-w-3xl mx-auto space-y-1.5">
-            {scheduledMessages.map((s) => (
-              <div
-                key={s.id}
-                className="flex items-center gap-2 rounded-[var(--r-sm)] bg-violet-500/[0.08] px-3 py-1.5 text-xs text-violet-800 dark:text-violet-200"
-              >
-                <span aria-hidden="true">⏰</span>
-                <span className="font-medium shrink-0">Scheduled · {fmtSchedule(s.scheduledFor)}</span>
-                <span className="text-violet-700/70 dark:text-violet-300/70 truncate">
-                  {s.body || (s.attachments.length > 0 ? `${s.attachments.length} photo${s.attachments.length === 1 ? '' : 's'}` : '')}
-                  {s.channel === 'email' ? ' · email' : ''}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => handleCancelScheduled(s.id)}
-                  className="ml-auto shrink-0 font-semibold text-violet-700 hover:text-violet-900 dark:text-violet-300 dark:hover:text-violet-100 hover:underline"
+            {scheduledMessages.map((s) =>
+              s.status === 'failed' ? (
+                <div
+                  key={s.id}
+                  data-testid="scheduled-failed"
+                  className="flex items-center gap-2 rounded-[var(--r-sm)] bg-rose-500/[0.08] px-3 py-1.5 text-xs text-rose-800 dark:text-rose-200"
                 >
-                  Cancel
-                </button>
-              </div>
-            ))}
+                  <span aria-hidden="true">⚠️</span>
+                  <span className="font-medium shrink-0">Didn’t send</span>
+                  <span className="text-rose-700/80 dark:text-rose-300/80 truncate">
+                    {s.lastError ? `— ${s.lastError}` : '— something went wrong on our side'}
+                    {' · '}
+                    {s.body || (s.attachments.length > 0 ? `${s.attachments.length} photo${s.attachments.length === 1 ? '' : 's'}` : '')}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => handleRetryScheduled(s.id)}
+                    disabled={retryingId === s.id}
+                    className="ml-auto shrink-0 font-semibold text-rose-700 hover:text-rose-900 dark:text-rose-300 dark:hover:text-rose-100 hover:underline disabled:opacity-50"
+                  >
+                    Retry
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleCancelScheduled(s.id, 'failed')}
+                    className="shrink-0 font-semibold text-rose-700/80 hover:text-rose-900 dark:text-rose-300/80 dark:hover:text-rose-100 hover:underline"
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              ) : (
+                <div
+                  key={s.id}
+                  className="flex items-center gap-2 rounded-[var(--r-sm)] bg-violet-500/[0.08] px-3 py-1.5 text-xs text-violet-800 dark:text-violet-200"
+                >
+                  <span aria-hidden="true">⏰</span>
+                  <span className="font-medium shrink-0">Scheduled · {fmtSchedule(s.scheduledFor)}</span>
+                  <span className="text-violet-700/70 dark:text-violet-300/70 truncate">
+                    {s.body || (s.attachments.length > 0 ? `${s.attachments.length} photo${s.attachments.length === 1 ? '' : 's'}` : '')}
+                    {s.channel === 'email' ? ' · email' : ''}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => handleCancelScheduled(s.id)}
+                    className="ml-auto shrink-0 font-semibold text-violet-700 hover:text-violet-900 dark:text-violet-300 dark:hover:text-violet-100 hover:underline"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              ),
+            )}
           </div>
         </div>
       )}
