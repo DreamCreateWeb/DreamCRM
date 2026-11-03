@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { confirmVisitAction } from './actions'
+import { cancelVisitByTokenAction, confirmVisitAction } from './actions'
+import { runAction } from '@/lib/run-action'
 import { PORTAL_ERROR, PORTAL_MUTED } from '@/components/patient-portal/ui'
 import { buildIcs, icsDataUrl, visitIcsEvent } from '@/lib/ics'
 
@@ -29,6 +30,8 @@ export default function ConfirmForm({
   prepInstructions,
   initialState,
   bookUrl,
+  rescheduleUrl,
+  cancelNoticeHours,
   startTimeIso,
   endTimeIso,
   location,
@@ -50,10 +53,60 @@ export default function ConfirmForm({
   /** The practice's address for the calendar entry ('' = none on file). */
   location?: string | null
   bookUrl: string | null
+  /** "Pick a different time" - the portal visit page (real slots) or /book. */
+  rescheduleUrl?: string | null
+  /** The clinic's notice window; inside it the cancel step says so. */
+  cancelNoticeHours?: number
 }) {
   const [state, setState] = useState<State>(initialState)
   const [error, setError] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
+  const [cancelStep, setCancelStep] = useState(false)
+  const [cancelling, setCancelling] = useState(false)
+
+  const directionsUrl = location?.trim()
+    ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(location.trim())}`
+    : null
+  const directions = directionsUrl ? (
+    <a
+      href={directionsUrl}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="mt-4 ml-2 inline-flex items-center justify-center rounded-full bg-white px-5 py-2.5 text-[0.9rem] font-semibold transition active:scale-[0.98]"
+      style={{ border: `1px solid ${BORDER}`, color: INK }}
+    >
+      Get directions
+    </a>
+  ) : null
+
+  // The dialog law: the inline confirm step is shown BEFORE the transition;
+  // the action goes through runAction and busy resets in a finally.
+  async function cancelVisit() {
+    setError(null)
+    setCancelling(true)
+    try {
+      const r = await runAction(() => cancelVisitByTokenAction(token))
+      if ('error' in r) {
+        setError(
+          r.stale
+            ? r.error
+            : 'We couldn’t cancel that just now — please give us a call and we’ll take care of it.',
+        )
+        return
+      }
+      setState(r.state)
+      setCancelStep(false)
+      if (!r.ok) setError('We couldn’t cancel that just now — please give us a call and we’ll take care of it.')
+    } finally {
+      setCancelling(false)
+    }
+  }
+
+  const insideNotice =
+    cancelStep &&
+    !!startTimeIso &&
+    !!cancelNoticeHours &&
+    new Date(startTimeIso).getTime() - Date.now() < cancelNoticeHours * 3_600_000
 
   function confirm() {
     setError(null)
@@ -91,6 +144,56 @@ export default function ConfirmForm({
     </div>
   ) : null
 
+  const cantMakeIt = cancelStep ? (
+    <div
+      className="mt-5 rounded-2xl p-4 text-left text-sm leading-relaxed"
+      style={{ backgroundColor: '#FAF7F2', border: `1px solid ${BORDER}`, color: MUTED }}
+      role="group"
+      aria-label="Cancel this visit"
+    >
+      <p className="font-semibold" style={{ color: INK }}>
+        Cancel this visit?
+      </p>
+      <p className="mt-1">
+        {insideNotice
+          ? `Less than ${cancelNoticeHours} hours’ notice — the office may ask about a fee. They’ll hear right away.`
+          : 'Plans change — just let us know. The office hears right away.'}
+      </p>
+      <div className="mt-3 flex gap-2">
+        <button
+          type="button"
+          onClick={cancelVisit}
+          disabled={cancelling}
+          className="rounded-xl px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+          style={{ backgroundColor: INK }}
+        >
+          {cancelling ? 'Cancelling…' : 'Yes, cancel it'}
+        </button>
+        <button
+          type="button"
+          onClick={() => setCancelStep(false)}
+          disabled={cancelling}
+          className="rounded-xl px-4 py-2 text-sm font-semibold"
+          style={{ color: INK, border: `1px solid ${BORDER}` }}
+        >
+          Keep my visit
+        </button>
+      </div>
+    </div>
+  ) : (
+    <button
+      type="button"
+      onClick={() => {
+        setError(null)
+        setCancelStep(true)
+      }}
+      className="mt-4 text-sm font-semibold underline"
+      style={{ color: MUTED }}
+    >
+      I can&rsquo;t make it
+    </button>
+  )
+
   if (state === 'confirmed') {
     return card(
       <>
@@ -127,7 +230,9 @@ export default function ConfirmForm({
             Add to calendar
           </a>
         )}
+        {directions}
         {prepBlock}
+        {cantMakeIt}
       </>,
     )
   }
@@ -139,8 +244,8 @@ export default function ConfirmForm({
           This visit was cancelled
         </h1>
         <p className="text-[0.95rem] leading-relaxed mb-5" style={{ color: MUTED }}>
-          It looks like this appointment isn&rsquo;t on the books anymore. If that&rsquo;s a
-          surprise, we&rsquo;re happy to get you back on the schedule.
+          Plans change &mdash; thanks for letting us know. The office has been told. Whenever
+          you&rsquo;re ready, we&rsquo;re happy to get you back on the schedule.
         </p>
         <div className="flex flex-col sm:flex-row gap-2 justify-center">
           {bookUrl && (
@@ -149,7 +254,7 @@ export default function ConfirmForm({
               className="inline-block rounded-xl px-5 py-3 text-sm font-semibold text-white"
               style={{ backgroundColor: brand }}
             >
-              Book a new time
+              Book another time
             </a>
           )}
           {clinicPhone && (
@@ -216,6 +321,29 @@ export default function ConfirmForm({
           {error}
         </p>
       )}
+      <div className="mt-4 flex flex-col sm:flex-row gap-2 justify-center">
+        {rescheduleUrl && (
+          <a
+            href={rescheduleUrl}
+            className="inline-flex items-center justify-center rounded-xl bg-white px-5 py-2.5 text-[0.9rem] font-semibold"
+            style={{ border: `1px solid ${BORDER}`, color: INK }}
+          >
+            Pick a different time
+          </a>
+        )}
+        {directionsUrl && (
+          <a
+            href={directionsUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center justify-center rounded-xl bg-white px-5 py-2.5 text-[0.9rem] font-semibold"
+            style={{ border: `1px solid ${BORDER}`, color: INK }}
+          >
+            Get directions
+          </a>
+        )}
+      </div>
+      {cantMakeIt}
       {prepBlock}
       <p className="mt-4 text-xs" style={{ color: MUTED }}>
         Time doesn&rsquo;t work anymore?{' '}

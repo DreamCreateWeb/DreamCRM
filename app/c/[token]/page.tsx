@@ -4,6 +4,7 @@ import { formatClinicDayTime } from '@/lib/format-datetime'
 import MinimalSiteChrome from '@/components/clinic-site/minimal-site-chrome'
 import ConfirmForm from './confirm-form'
 import { portalBrand } from '@/lib/portal-brand'
+import { appBaseUrl } from '@/lib/clinic-site-helpers'
 
 export const metadata = {
   title: 'Confirm your visit',
@@ -69,6 +70,17 @@ export default async function ConfirmVisitPage({
               prepInstructions={ctx.prepInstructions}
               initialState={ctx.state}
               bookUrl={siteUrl ? `${siteUrl}/book` : null}
+              // Reschedule target: the portal's own visit page (real slots +
+              // notice windows) when the practice has self-serve reschedule
+              // on; otherwise the public booking page.
+              rescheduleUrl={
+                ctx.rescheduleOpen
+                  ? `${appBaseUrl()}/patient/appointments/${encodeURIComponent(ctx.appointmentId)}`
+                  : siteUrl
+                    ? `${siteUrl}/book`
+                    : null
+              }
+              cancelNoticeHours={ctx.cancelNoticeHours}
             />
           </div>
         </div>

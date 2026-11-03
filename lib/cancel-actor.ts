@@ -5,7 +5,7 @@
  * drawer, and anywhere else a cancelled visit explains itself.
  *
  * `via` values match appointment.cancelled_via:
- * 'staff' | 'portal' | 'reschedule' | 'waitlist_claim' | 'pms'.
+ * 'staff' | 'portal' | 'confirm_link' | 'reschedule' | 'waitlist_claim' | 'pms'.
  * Returns null for unknown/legacy rows (pre-actor-trail) — render nothing
  * rather than guess.
  */
@@ -16,6 +16,8 @@ export function cancelActorLabel(
   switch (via) {
     case 'portal':
       return 'cancelled from the patient portal'
+    case 'confirm_link':
+      return 'cancelled from the reminder link'
     case 'staff':
       return staffName ? `cancelled by ${staffName}` : 'cancelled by the office'
     case 'reschedule':
