@@ -86,6 +86,21 @@ export function clinicDayStart(now: Date, timeZone: string | null | undefined, d
 }
 
 /**
+ * A clinic-local CALENDAR DATE (`YYYY-MM-DD`) at a wall-clock `hour` → the
+ * absolute instant. The write-side twin of `clinicDayKey`: a CSV roster's
+ * "last visit 2026-03-14" is a day on the practice's calendar, and stored at
+ * local noon it lands on that day under every read (`<= now`, the day
+ * grouping, the lapsed cutoff) rather than drifting to the 13th for a
+ * western clinic the way a bare UTC midnight would. Null for a malformed key.
+ */
+export function clinicDayInstant(dayKey: string, timeZone: string | null | undefined, hour = 12): Date | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dayKey)
+  if (!m) return null
+  const midnight = zonedMidnightToUtc(+m[1], +m[2], +m[3], resolveClinicTimeZone(timeZone))
+  return new Date(midnight.getTime() + hour * 3_600_000)
+}
+
+/**
  * The clinic's WALL-CLOCK hour (0–23) at `now`. Read from Intl, never
  * derived by subtracting local midnight: a DST day is 23 or 25 hours long,
  * so elapsed-hours-since-midnight is off by one for the rest of that day —

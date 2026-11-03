@@ -52,6 +52,17 @@ export function lapsedCutoff(now: Date, months: number | null | undefined): Date
 
 const DOB_RE = /^(\d{4})-(\d{2})-(\d{2})$/
 
+/** A `YYYY-MM-DD` day key as "Jun 7, 1985" — timezone-free, so a date of
+ *  birth never shifts a day on a UTC server. A malformed key comes back as
+ *  typed: the front desk needs to see what they wrote in order to fix it. */
+export function formatDayKey(dayKey: string | null | undefined): string {
+  if (!dayKey) return ''
+  const m = DOB_RE.exec(dayKey)
+  if (!m) return dayKey
+  const d = new Date(Date.UTC(parseInt(m[1], 10), parseInt(m[2], 10) - 1, parseInt(m[3], 10)))
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })
+}
+
 /** Whole years from a `YYYY-MM-DD` DOB (null when absent/malformed). */
 export function ageFromDob(dob: string | null, today: Date = new Date()): number | null {
   if (!dob) return null

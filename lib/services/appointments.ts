@@ -16,6 +16,7 @@ import { clinicDayKey, formatClinicDayTime } from '@/lib/format-datetime'
 import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
 import { isBirthdayThisWeek, lapsedCutoff as lapsedCutoffDate } from '@/lib/dates'
 import { getClinicCadence } from '@/lib/services/clinic-cadence'
+import { notCsvImportVisit } from '@/lib/services/visit-sources'
 import { suggestNextVisitDateKey } from '@/lib/next-visit'
 import { FORMS_REMINDER_TEMPLATE } from '@/lib/types/reminders'
 
@@ -261,10 +262,15 @@ export async function listAppointments(
 
   // Base where: org + window. Status filter is applied post-query only for
   // attention chips that map to specific statuses; otherwise SQL handles it.
+  // A CSV roster's placeholder visit (source 'csv_import', start = end, no
+  // chair, no provider) is history for the recall engine, never a row on
+  // the day's agenda — a "last visit: today" cell would otherwise sit in
+  // today's list as a completed visit nobody saw.
   const where = [
     eq(schema.appointment.organizationId, organizationId),
     gte(schema.appointment.startTime, win.from),
     lte(schema.appointment.startTime, win.to),
+    notCsvImportVisit(),
   ]
   if (filters.providerId) {
     where.push(eq(schema.appointment.providerId, filters.providerId))

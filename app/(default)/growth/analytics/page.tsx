@@ -30,6 +30,7 @@ export const dynamic = 'force-dynamic'
 function humanize(s: string): string {
   if (s === 'pms' || s === 'pms_live') return 'Practice system'
   if (s === 'pms_import') return 'Practice system (imported)'
+  if (s === 'csv_import') return 'Roster import (last visit)'
   return s.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
 }
 // 'YYYY-MM-DD' → compact 'M/D' for the daily-visits sparkline x-axis.
