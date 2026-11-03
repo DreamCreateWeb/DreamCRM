@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { dismissHintAction } from '@/app/(default)/dashboard/onboarding-actions'
+import { runAction } from '@/lib/run-action'
 
 /** Client half of ModuleHint — renders the banner + handles dismissal. */
 export default function ModuleHintBanner({
@@ -20,7 +21,11 @@ export default function ModuleHintBanner({
   const dismiss = () => {
     setHidden(true)
     startTransition(async () => {
-      await dismissHintAction(id)
+      // A throw just means the hint is back on the next visit.
+      await runAction(async () => {
+        await dismissHintAction(id)
+        return { ok: true as const }
+      })
     })
   }
 

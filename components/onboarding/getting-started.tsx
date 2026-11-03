@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useState, useTransition } from 'react'
 import { dismissChecklistAction } from '@/app/(default)/dashboard/onboarding-actions'
+import { runAction } from '@/lib/run-action'
 import type { ActivationChecklist } from '@/lib/types/onboarding'
 import { TONE_FILL, TONE_FILL_HOVER } from '@/lib/ui/encodings'
 
@@ -23,7 +24,11 @@ export default function GettingStarted({ checklist }: { checklist: ActivationChe
   const dismiss = () => {
     setHidden(true)
     startTransition(async () => {
-      await dismissChecklistAction()
+      // A throw just means the checklist is back on the next visit.
+      await runAction(async () => {
+        await dismissChecklistAction()
+        return { ok: true as const }
+      })
     })
   }
 
