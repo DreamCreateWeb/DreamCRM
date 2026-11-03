@@ -6172,6 +6172,76 @@ template with no bar, or a bar hidden above `sm`, measures 0 and nothing
 moves. The right-aligned pairs on established and hometeam are
 deliberately not tagged — the bottom-left floaters never meet them.
 
+## 2026-11-03 — The deep dev cycle, part 4: six feature slices (group 2)
+
+The second batch of the 63-slice plan, built under the agent economy
+(Sonnet implementers on briefs, Fable for the registry PR and the
+migration; the integrator gates). ML-03/07/09/10 were lost mid-build to
+the usage limit + a container reset and rebuilt from scratch.
+
+**ML-03 — the patient-facing token pages never strand a tap.** Every
+portal page, token landing (`/d /i /n /r`) and portal component that
+bare-awaited a server action now goes through `runAction`
+(`components/patient-portal/stale-reload.tsx`: `PORTAL_RUN`,
+`PortalActionError`, `PortalReloadWhenStale` — a portal `GhostButton`
+Reload, never a retry); `PortalBuildWatch` in the portal chrome mirrors the
+dashboard's BuildWatch with the portal's warn tones and never reloads on
+its own. `tests/portal/no-bare-await.test.ts` pins the portal + token
+trees at ZERO; 16 allowlist entries gone. Behaviour change worth knowing: a
+thrown survey-comment save stays on the comment step with an error instead
+of showing the thank-you.
+
+**ML-07 — intake links to the right person and every answer lands.**
+`submitForm` now requires `namesLooselyMatch` on an email match when a
+submitter name is present (family-safe identity law; a mismatch leaves
+`patientId` null and names the near match in the staff alert);
+`writeBackIntakeAnswers` fills EMPTY date-of-birth / email / phone (E.164,
+honest-null) / address columns, never names — the filled keys ride the
+notification; an unmatched submission gets a door
+(`submissions/[id]/link-panel.tsx`: "Link to <near match>", "Add <name> as
+a patient" with the duplicate prompt, `createPatientFromSubmissionAction`
++ `attachSubmissionToPatient` which fills NULL only); the form builder can
+see and set system fields (`SYSTEM_KEY_LABELS`, `systemKeysFor`,
+`dedupeSystemKeys`, "Saves to the record"); the runner keys the submitter
+on `systemKey` with the legacy ids as fallback.
+
+**ML-09 — insurance: find any patient by typing, book right after adding,
+answer "are we in network" on the website, and the doors never freeze.**
+`components/ui/patient-combobox.tsx` (the PayerPicker's aria recipe over
+`searchPatientOptions`; `searchPatientsAction` is org-scoped from the
+session) replaces the native select cut at 500 in the insurance tool, the
+guardian picker and the merge finder (`listPatientOptions` deleted). Add or
+save stays on the card with "Book their visit" (`/patients/<id>?book=1`
+opens BookFromPatientDrawer once). The public verifier matches the carrier
+to the practice's payer list (`matchCarrier`, `carrierFromLeadMessage`):
+"Good news — we're in network with X. We'll confirm your plan's details
+before your visit"; the lead carries "Check their insurance →" into
+`/insurance?payer=&name=` (shown only under `canUseInsuranceTool` + a
+configured setup). Every insurance/intake/feature-door client await is
+wrapped (7 allowlist entries gone).
+
+**ML-10 — My Day: the unclaimed conversations, the digest door, tomorrow's
+insured patients never checked.** `lib/waiting-threads.ts` is THE predicate
+for "open threads whose last word is the patient's" (the patient-reply
+generator, the Overview count and the digest adopt it later); My Day merges
+a second `listPatientThreads(... unassigned + unread)` after mine, newest
+first, cap 8, rows wear an "Unclaimed" pill (no Claim button). The digest
+stays OPT-IN (ACTIVATION.md ruling) — the toggle only grows the owner/admin
+door "Your clinic's morning digest is off · Turn it on" (members get the
+settings link). `patient-audit.ts` gains a ninth flag `insurance_stale`
+from ONE batched `getLatestInsuranceChecksForPatients` read: "never
+checked" / "not checked in 30+ days", linking to `/insurance?patient=`,
+never running a check (the manual-checks ruling stands).
+
+**ML-11 — the registry PR for the whole generator lane.** Fourteen
+capabilities registered ahead of their generators (parked in
+`PREVIEW_CAPABILITIES`; deleting the key is the release), each seated on
+one specialist, three artifact kinds (thread / precheck / listing) with
+renderers, and two new pins for every later slice: grantable ⊆ executable
+and auto ⇒ a ledger writer. G1-4: `SPECIALIST_NEEDS` + `specialistBlocker`
+— a quiet teammate says "Needs {fact} →" as a link to the readiness
+resolver's door. Record: docs/ai-operations.md build log.
+
 ## 2026-11-03 — CLAUDE.md trimmed to a lean manual (the agent economy)
 
 Every subagent start pays for the injected project manual, and it had grown
