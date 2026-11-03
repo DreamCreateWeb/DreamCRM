@@ -165,7 +165,7 @@ export const ALLOWED: Array<[file: string, sites: number]> = [
 
 /** The sum of ALLOWED's counts the day it was taken. LOWER it as you sweep;
  *  never raise it — a raise is a new offender admitted by hand. */
-export const ALLOWLIST_CEILING = 242
+export const ALLOWLIST_CEILING = 208
 
 /* ───────────────────────── the detector ───────────────────────── */
 

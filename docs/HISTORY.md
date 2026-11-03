@@ -6233,6 +6233,31 @@ from ONE batched `getLatestInsuranceChecksForPatients` read: "never
 checked" / "not checked in 30+ days", linking to `/insurance?patient=`,
 never running a check (the manual-checks ruling stands).
 
+**ML-06 — Patients: "New", "Lapsed" and "Last contact" become true, and a
+CSV roster brings its visit history.** Migration 0181 (ONE index,
+`patient_message_org_patient_sent_idx`). Lifecycle is DERIVED, never read
+from the stored column: `deriveLifecycle` + `lifecycleCaseSql` in
+`lib/services/recall-status.ts` (archived ← inactive; lead ← no live
+appointment and not a backfill source; new ← first seen within 30 CLINIC
+days; lapsed ← last live visit older than the clinic's own `lapsedMonths`
+with nothing booked; at_risk ← recall overdue; else active) — the list
+chips, the row, the header and the marketing `lifecycles` audience filter
+all run the same CASE. "Last contact" is a DISTINCT ON over
+`patient_message` with direction ("↩ replied 3d ago" / "→ we wrote 3d
+ago"); every paging subquery is tenant-scoped under all six sorts. CSV
+import accepts `lastVisitAt` / `recallDueAt` (+ synonyms) and writes one
+completed `csv_import` visit per patient at clinic-local noon
+(`clinicDayInstant`), deduped per day; `BACKFILL_APPOINTMENT_SOURCES`
+(`lib/patient-acquisition.ts`) + `notCsvImportVisit()` keep backfill rows
+out of the agenda, Today's chair, review auto-send, NPS and loyalty (a
+2,000-row import must never fire review asks at everyone "seen this
+month"). IdentityCard: tel:/mailto:, formatted phone, "Born Jun 7, 1985",
+language + recall pills; `SOURCE_LABEL` single-homed in
+`lib/types/patient-sources.ts`. OWNER FLAG: the "Lapsed" outreach tier and
+the Patients Lapsed chip now produce REAL candidates (before this, the
+`lapsed`/`at_risk` filter matched nobody) — a reactivation send on that
+tier reaches actual patients.
+
 **ML-11 — the registry PR for the whole generator lane.** Fourteen
 capabilities registered ahead of their generators (parked in
 `PREVIEW_CAPABILITIES`; deleting the key is the release), each seated on
