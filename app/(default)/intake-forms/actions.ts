@@ -6,6 +6,9 @@ import { requireTenant } from '@/lib/auth/context'
 import {
   FormTemplateInput,
   archiveFormTemplate,
+  attachSubmissionToPatient,
+  getSubmissionForReview,
+  intakeSystemAnswers,
   createFormTemplate,
   createPacket,
   deletePacket,
@@ -14,8 +17,11 @@ import {
   updateFormTemplate,
 } from '@/lib/services/forms'
 import { summarizeSubmission, type IntakeSummary } from '@/lib/services/intake-summary'
+import { createPatient } from '@/lib/services/patients'
+import { toE164 } from '@/lib/phone'
+import type { FormSubmissionData, FormTemplateSchema } from '@/lib/types/forms'
 import { generateFormTranslation } from '@/lib/services/form-translate'
-import { DEFAULT_INTAKE_TEMPLATE, pickIntakeSections } from '@/lib/types/forms'
+import { DEFAULT_INTAKE_TEMPLATE, dedupeSystemKeys, pickIntakeSections } from '@/lib/types/forms'
 
 async function requireClinicAdmin() {
   const ctx = await requireTenant()
@@ -96,6 +102,8 @@ export async function turnOnIntakeFormsAction(input: { sections?: unknown }): Pr
 export async function saveFormAction(id: string, input: unknown) {
   const ctx = await requireClinicAdmin()
   const data = FormTemplateInput.parse(input)
+  // One "Saves to the record" key per form - duplicates are dropped, not refused.
+  dedupeSystemKeys(data.schema as Parameters<typeof dedupeSystemKeys>[0])
   const result = await updateFormTemplate(ctx.organizationId, id, data)
   if (!result) throw new Error('Form not found')
   revalidatePath('/intake-forms')
@@ -178,5 +186,87 @@ export async function summarizeSubmissionAction(
           : res.reason === 'not_configured'
             ? 'AI summaries aren’t available yet.'
             : 'Could not summarize — please try again.',
+  }
+}
+
+type LinkResult = { ok: true; patientId: string } | { ok: false; error: string }
+
+/** Staff links an unlinked submission to a patient they picked. Org-scoped,
+ *  fills NULL only (never re-links), then writes the answers back to EMPTY columns. */
+export async function linkSubmissionAction(submissionId: string, patientId: string): Promise<LinkResult> {
+  let ctx
+  try {
+    ctx = await requireClinicAdmin()
+  } catch (e) {
+    return { ok: false, error: (e as Error).message }
+  }
+  try {
+    const ok = await attachSubmissionToPatient(ctx.organizationId, submissionId, patientId)
+    if (!ok) return { ok: false, error: 'That submission is already linked, or the patient was not found.' }
+    revalidatePath('/intake-forms')
+    revalidatePath(`/intake-forms/submissions/${submissionId}`)
+    revalidatePath(`/patients/${patientId}`)
+    return { ok: true, patientId }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : 'Could not link the submission.' }
+  }
+}
+
+/** "Add <name> as a patient" from an unlinked submission - the insurance
+ *  action's dedupe / forceNew shape. The submission's answers (by systemKey)
+ *  seed the new record; the submission is then attached to it. */
+export async function createPatientFromSubmissionAction(args: {
+  submissionId: string
+  forceNew?: boolean
+}): Promise<
+  | { ok: true; id: string }
+  | { ok: false; error: string }
+  | { ok: false; duplicateOf: { id: string; name: string } }
+> {
+  let ctx
+  try {
+    ctx = await requireClinicAdmin()
+  } catch (e) {
+    return { ok: false, error: (e as Error).message }
+  }
+  try {
+    const review = await getSubmissionForReview(ctx.organizationId, args.submissionId)
+    if (!review) return { ok: false, error: 'Submission not found.' }
+    if (review.patientId) return { ok: false, error: 'This submission is already linked to a patient.' }
+    const schema = review.template.schema as FormTemplateSchema
+    const data = (review.submission.data ?? {}) as FormSubmissionData
+    const answers = intakeSystemAnswers(schema, data)
+    const sub = review.submission
+    let firstName = answers.first_name ?? ''
+    let lastName = answers.last_name ?? ''
+    if ((!firstName || !lastName) && sub.submitterName) {
+      const parts = sub.submitterName.trim().split(/\s+/)
+      firstName = firstName || parts[0] || ''
+      lastName = lastName || parts.slice(1).join(' ')
+    }
+    if (!firstName.trim() || !lastName.trim()) return { ok: false, error: 'First and last name are required to add a patient.' }
+    const result = await createPatient({
+      organizationId: ctx.organizationId,
+      firstName,
+      lastName,
+      email: answers.email ?? sub.submitterEmail ?? null,
+      phone: toE164(answers.phone ?? sub.submitterPhone) ?? null,
+      dateOfBirth: answers.date_of_birth ?? null,
+      addressLine1: answers.address_line1 ?? null,
+      city: answers.city ?? null,
+      state: answers.state ?? null,
+      postalCode: answers.postal_code ?? null,
+      source: 'manual',
+      lifecycle: 'new',
+      forceNew: !!args.forceNew,
+    })
+    if ('duplicateOf' in result) return { ok: false, duplicateOf: result.duplicateOf }
+    await attachSubmissionToPatient(ctx.organizationId, args.submissionId, result.id)
+    revalidatePath('/patients')
+    revalidatePath('/intake-forms')
+    revalidatePath(`/intake-forms/submissions/${args.submissionId}`)
+    return { ok: true, id: result.id }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : 'Could not create the patient.' }
   }
 }

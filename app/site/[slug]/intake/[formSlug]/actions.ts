@@ -187,9 +187,10 @@ async function runIntakeSubmission(input: Input) {
     try {
       const { and, eq, isNull } = await import('drizzle-orm')
       const { db, schema } = await import('@/lib/db')
-      await db
-        .update(schema.patient)
-        .set({ preferredLanguage: 'es' })
+      const { namesLooselyMatch } = await import('@/lib/patient-identity')
+      const matches = await db
+        .select({ id: schema.patient.id, firstName: schema.patient.firstName, lastName: schema.patient.lastName })
+        .from(schema.patient)
         .where(
           and(
             eq(schema.patient.organizationId, input.orgId),
@@ -197,6 +198,17 @@ async function runIntakeSubmission(input: Input) {
             isNull(schema.patient.preferredLanguage),
           ),
         )
+      // Family-safe: a shared household email must not flip a relative's
+      // language. When the form carries a name it has to match the record.
+      const parts = (input.submitterName ?? '').trim().split(/\s+/).filter(Boolean)
+      const submitted = parts.length ? { firstName: parts[0], lastName: parts.slice(1).join(' ') } : null
+      for (const m of matches) {
+        if (submitted && !namesLooselyMatch(submitted, { firstName: m.firstName, lastName: m.lastName })) continue
+        await db
+          .update(schema.patient)
+          .set({ preferredLanguage: 'es' })
+          .where(and(eq(schema.patient.organizationId, input.orgId), eq(schema.patient.id, m.id), isNull(schema.patient.preferredLanguage)))
+      }
     } catch (err) {
       console.warn('[intake] preferred-language stamp failed', err)
     }
