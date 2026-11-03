@@ -137,6 +137,85 @@ export const SYSTEM_FIELD_KEYS = [
 ] as const
 export type SystemFieldKey = (typeof SYSTEM_FIELD_KEYS)[number]
 
+/** Plain-language names for the "Saves to the record" select + pill. */
+export const SYSTEM_KEY_LABELS: Record<SystemFieldKey, string> = {
+  first_name: 'First name',
+  last_name: 'Last name',
+  date_of_birth: 'Date of birth',
+  email: 'Email',
+  phone: 'Phone',
+  address_line1: 'Street address',
+  city: 'City',
+  state: 'State',
+  postal_code: 'ZIP code',
+  insurance_provider: 'Insurance provider',
+  insurance_policy_number: 'Insurance member number',
+  insurance_group_number: 'Insurance group number',
+}
+
+const SYSTEM_KEY_TEXT_ONLY: readonly SystemFieldKey[] = SYSTEM_FIELD_KEYS.filter(
+  (k) => k !== 'email' && k !== 'phone' && k !== 'date_of_birth',
+)
+
+/** Which keys a field of this type may map to (none for non-text types). */
+export function systemKeysFor(type: string): readonly SystemFieldKey[] {
+  switch (type) {
+    case 'text':
+      return SYSTEM_KEY_TEXT_ONLY
+    case 'email':
+      return ['email']
+    case 'tel':
+      return ['phone']
+    case 'date':
+      return ['date_of_birth']
+    default:
+      return []
+  }
+}
+
+/** One key per form, leniently: the FIRST field to carry a key keeps it, later
+ *  duplicates (and keys on a type that cannot carry them) are cleared rather
+ *  than refusing the save. */
+export function dedupeSystemKeys<T extends { sections: { fields: { type: string; systemKey?: SystemFieldKey | null }[] }[] }>(schema: T): T {
+  const seen = new Set<string>()
+  for (const sec of schema.sections ?? []) {
+    for (const f of sec.fields ?? []) {
+      if (!f.systemKey) continue
+      const allowed = systemKeysFor(f.type).includes(f.systemKey) || f.type === 'insurance_card'
+      if (!allowed || seen.has(f.systemKey)) f.systemKey = null
+      else seen.add(f.systemKey)
+    }
+  }
+  return schema
+}
+
+/** The submitter's name / email / phone, read by systemKey with the legacy
+ *  hardcoded ids as the fallback (a form built before the keys existed). */
+export function submitterFromValues(
+  schema: { sections: { fields: { id: string; systemKey?: SystemFieldKey | null }[] }[] } | null | undefined,
+  values: Record<string, unknown>,
+): { name: string | null; email: string | null; phone: string | null } {
+  const byKey = (key: SystemFieldKey, legacyId: string): string | null => {
+    for (const sec of schema?.sections ?? []) {
+      for (const f of sec.fields ?? []) {
+        if (f.systemKey === key) {
+          const v = values[f.id]
+          if (typeof v === 'string' && v.trim()) return v.trim()
+        }
+      }
+    }
+    const v = values[legacyId]
+    return typeof v === 'string' && v.trim() ? v.trim() : null
+  }
+  const first = byKey('first_name', 'first_name')
+  const last = byKey('last_name', 'last_name')
+  return {
+    name: [first, last].filter(Boolean).join(' ') || null,
+    email: byKey('email', 'email'),
+    phone: byKey('phone', 'phone'),
+  }
+}
+
 /** A locale → flat translation map ({ key → translated string }). Keys are
  *  produced by `extractTranslatableStrings`; missing keys fall back to English. */
 export type FormTranslationMap = Record<string, string>

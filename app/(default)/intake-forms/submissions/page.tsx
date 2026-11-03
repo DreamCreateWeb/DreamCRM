@@ -67,12 +67,13 @@ export default async function RecentSubmissionsPage() {
                       {s.patientName}
                     </Link>
                   ) : (
-                    <span
-                      className="text-sm font-medium text-gray-800 dark:text-gray-100 truncate"
-                      title="Not linked to a patient record"
+                    <Link
+                      href={`/intake-forms/submissions/${s.id}`}
+                      className="text-sm font-medium text-gray-800 dark:text-gray-100 hover:text-teal-700 dark:hover:text-teal-300 truncate"
+                      title="Not linked to a patient record - open it to link or add them"
                     >
                       {s.submitterName ?? s.submitterEmail ?? 'Anonymous'}
-                    </span>
+                    </Link>
                   )}
                   <Link
                     href={`/intake-forms/${s.templateId}`}

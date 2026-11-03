@@ -61,7 +61,7 @@ describe('submitForm notifications', () => {
     )
   })
 
-  it('falls back to the submitter name + /intake-forms when no patient matches', async () => {
+  it('falls back to the submitter name + the submission when no patient matches', async () => {
     state.selectQueue.push([]) // no patient match
     await submitForm({
       organizationId: 'org_1',
@@ -75,7 +75,7 @@ describe('submitForm notifications', () => {
       expect.objectContaining({
         type: 'intake_submitted',
         title: expect.stringContaining('Walk-in Guest'),
-        linkPath: '/intake-forms',
+        linkPath: '/intake-forms/submissions/sub_1',
       }),
       { roles: ['owner', 'admin'], excludeEmail: 'nobody@example.com' },
     )
