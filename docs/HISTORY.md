@@ -6172,6 +6172,101 @@ template with no bar, or a bar hidden above `sm`, measures 0 and nothing
 moves. The right-aligned pairs on established and hometeam are
 deliberately not tagged — the bottom-left floaters never meet them.
 
+## 2026-11-03 — The deep dev cycle, part 5: nine feature slices (groups 3 + 4)
+
+Built in parallel on briefs while part 4 gated; integrated as one PR
+because every branch dry-merged clean. ONE regenerated migration (0182)
+replaces the two the branches had generated against the 0180 snapshot —
+the integrator's rule from here on: parallel branches never ship their
+own migration files; the integration regenerates sequentially.
+
+**ML-08 — the one-click confirm page never dead-ends.** `/c/[token]` gains
+"I can't make it" (an inline confirm, awaited before the transition;
+`cancelVisitByToken` → the ONE cancel path with a new actor
+`via: 'confirm_link'`, the true notice inside the window, "Book another
+time" after), "Pick a different time" (the portal's appointment page with
+its real slots when the portal reschedule feature is on, else the public
+booking URL — no second slot picker) and "Get directions" (a plain Google
+Maps link when the practice has an address).
+
+**ML-13 — the Overview's attention band.** `components/ui/attention-band.tsx`
+(one section, one ring, amber only when a row is warn/urgent) replaces the
+stacked amber sections: readiness rows, then the site signal, then the
+morning-after row ("Overnight: 4 reminders · 2 follow-ups" with
+`pickOneThing`'s door, inside `MORNING_AFTER_DAYS`); the three first-run
+surfaces' dismisses go through `runAction`. Follow-up: the Guardian note
+card's amber ring still stacks below the band.
+
+**ML-14 — every trend tile carries a heartbeat.** Three new clinic-tz
+bucketed series (`newPatientsPerDay30` — SEATED new patients,
+`upcomingPerDay7`, `intakeSubmissionsPerDay14`) through one
+`bucketByClinicDay`; every KpiStat has a spark and a sentence sub; the grid
+never leaves an orphan cell; Today's chair rows show "Arrived" / "Seated"
+pills (read-only, the agenda's own tones) beside the glyph cluster.
+
+**ML-15 — a declined installment reaches the patient.** Migration 0182
+(`payment_plan.card_update_sent_at`). The decline (an off-session
+PaymentIntent throw in `chargePlanInstallment`) sends ONE branded "Update
+my card" email (`payment_plan_card_update`, toggleable) with the retry DAY
+in clinic tz or "we've paused the plan"; `createPlanSetupCheckout` accepts
+`past_due`; `finalizeCardUpdate` swaps the card only for the session the
+email minted, resets the attempts and charges the overdue installment at
+once; the idempotency key now carries the payment method so the post-update
+charge is not Stripe's 24-hour replay of the decline. The portal and the
+`/i` landing never say "we'll retry" with nothing scheduled.
+
+**ML-16 — quiet hours and the just-booked rule.** `lib/reminder-hours.ts`:
+nothing emails or texts a patient outside 8 AM–8 PM clinic-local (the
+engine holds an org before any read or write, so nothing is logged and the
+8 AM tick sends the same touch); `deliverSms` refuses marketing and
+transactional outside the window (`reason: 'quiet_hours'`; inbound keyword
+replies are exempt as `kind: 'reply'`); a visit booked inside a touch's
+window keeps the booking confirmation as that touch; the Emails hub says
+"Reminders go out between 8 AM and 8 PM, your time".
+
+**ML-17 — book a brand-new caller from the drawer; know when the visit
+will NOT reach the PMS.** The New-booking drawer's "New caller" mini-form
+(name, E.164 phone honest-null, optional email) creates through
+`resolvePublicPatient` (family-safe: an exact match reuses, a shared
+contact with a different name mints "likely family") and goes straight to
+the slot step; `bookingWriteBackCopy(link, writeBack)` in `lib/pms-link.ts`
+says "This visit lives here only — add it to <PMS> too" on both booking
+drawers and the agenda's toast whenever the PMS link is import-only.
+
+**ML-18 — follow-ups carry a kind, a door, a snooze and an outcome.**
+Migration 0182 (`patient_followup.kind` NOT NULL default 'generic',
+`snoozed_until`, `outcome`). `FOLLOWUP_KINDS` (glyph, label, door),
+`FOLLOWUP_OUTCOMES`, `SNOOZE_PRESETS`; the rules stamp a kind; the row's
+title is its door; Snooze moves the due day (clinic-local); Done asks "How
+did it go?"; one `notSnoozedSql` predicate hides snoozed rows from the
+board, the summary, the badge and My Day; the record's panel shares
+`components/followups/followup-row.tsx` with the board (no hand-rolled
+tick, no hover-only remove). Follow-up: `my-day-followups.tsx` (3) and
+`followup-quick-add.tsx` (1) still bare-await.
+
+**ML-19 — patient email wears the practice's name, logo and colour.**
+`patientEmailShell` in `lib/email.ts` (logo or the name in the display
+serif, the brand button with the WCAG fallback — white on brand only at
+≥ 4.5:1, else ink on a 16% tint; the footer "Name · address · phone"; no
+platform word); `ClinicSender` carries `logoUrl`, `brandColor`, `address`,
+`phone`; every patient send switched (magic link, portal invite, booking
+confirmation, cancellation, intake request, notifications with a sender,
+reschedule notice, reminders, no-show, balance link, plan proposal, survey,
+waitlist, lead reply, review request); `authEmailShell` stays for platform
+mail with its "Dream Create" footer. The six token landings share
+MinimalSiteChrome's one Fraunces `<link>`.
+
+**ML-12 — a patient who wrote overnight gets a drafted reply waiting for a
+yes.** The first generator under the lane convention (record:
+docs/ai-operations.md). `proposal-generators/patient-reply.ts` files a
+drafted reply for every open thread whose last word is the patient's and
+has sat 3+ hours (`lib/waiting-threads.ts`, urgent-first, ≤5/org/pass, AI
+off files nothing); dedupe before AI spend (one open card per thread;
+`sourceKey` = thread + the patient's last message); the executor sends once
+through `sendMessageToPatient` as the approver with live staleness at the
+tap; the card renders the thread artifact and "Open the conversation".
+`patient_reply` leaves PREVIEW — ask-first, not grantable.
+
 ## 2026-11-03 — The deep dev cycle, part 4: six feature slices (group 2)
 
 The second batch of the 63-slice plan, built under the agent economy

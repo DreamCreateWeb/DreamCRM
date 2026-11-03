@@ -206,7 +206,7 @@ Long-form rows: docs/SUBSYSTEMS.md. History per module: docs/HISTORY.md.
 | Daily | Messages | `/messages` | Unified patient inbox (in_app + email + inbound SMS); receipts; AI draft; scheduled send (a failed send alerts its scheduler); snooze (resurfaced by cron); `thread_assigned`; the `oldest_unanswered` sort; the SUPPORT thread to Dream Create (`/messages/support`, platform-authored messages render as "Support" BY CONTRACT); activity markers never bump unread. Gmail mailbox at `/inbox`. |
 | Daily | Appointments | `/appointments` | Agenda by clinic-local day; the drawer (confirm/reschedule from real slots with the visit's real duration/cancel with the honest notice/no-show/mark done → "Book their next visit"); the New-booking drawer is a patient SEARCH; a website booking emails the desk (`online_booking` urgent). |
 | Daily | Patients | `/patients` | Relationship record: glyphs, filters, saved views, tags, documents, merge, CSV import/export; "lapsed" means the clinic's own threshold. |
-| Daily | Follow-ups · Leads · Intake Forms | `/followups` `/leads` `/intake-forms` | Board + smart rules; contact-form triage with convert-then-book; intake v2 (OCR, AI summary, auto-send, Spanish, packets) — OFF until chosen (`patientFacingIntakeOpen` is the ONE gate). |
+| Daily | Follow-ups · Leads · Intake Forms | `/followups` `/leads` `/intake-forms` | Board + smart rules (every row has a `kind` + door, snooze, an outcome on Done; `notSnoozedSql` is the one "due" predicate); contact-form triage with convert-then-book; intake v2 (OCR, AI summary, auto-send, Spanish, packets) — OFF until chosen (`patientFacingIntakeOpen` is the ONE gate). |
 | Daily | Insurance | `/insurance` | The eligibility tool (see Stack). |
 | Growth | Growth workspace | `/growth` | Hub (new-patients scoreboard + the reactivation funnel) → outreach, campaigns, audiences, reviews (Google-first auto-loop), social, analytics. Funnels count distinct PEOPLE. |
 | Website | Website workspace | `/website` | Hub → Studio (`/website/editor`, EditBridge, every save via `runAction`), Content (rail + one editor), Design (template gallery with live frames; media slots per template), Pages, Forms, Blog, SEO, Careers, Domain (the sweep cron finishes it), Share. Draft→Publish (`website_draft`). Financing widgets (docs/financing-providers.md — NO raw HTML/script ever). Service icons (`lib/service-icons.ts`, one renderer). |
@@ -362,8 +362,10 @@ booking, intake, shop, the token landings. Brand-derived palette
   (GitHub Actions → CodeBuild → ECR → App Runner, ~5 min; then a few minutes
   of rollout — `/api/version` changes when the new build serves).
 - **Migrations auto-apply on boot** (`scripts/db-migrate.mjs`; a failure keeps
-  the previous version serving). Latest applied: **0180** (insurance
-  discovery). The next number is **0181**. Workflow: edit the schema,
+  the previous version serving). Latest applied: **0182** (card-update
+  stamp + follow-up kind/snooze/outcome). The next number is **0183**.
+  PARALLEL BRANCHES NEVER SHIP MIGRATION FILES: the integrator regenerates
+  ONE sequential migration per PR on the merged schema. Workflow: edit the schema,
   `pnpm db:generate`, pin with a `tests/migrations/*.test.ts`, commit. The
   per-migration history is in docs/SUBSYSTEMS.md.
 - **Demo auto-resync on boot**; **secrets** in Secrets Manager
