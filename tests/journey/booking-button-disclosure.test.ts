@@ -43,9 +43,15 @@ describe('the booking-button disclosure', () => {
       expect(src).toContain(`case '${c}':`)
       expect(BOOKING_BUTTON_CAPABILITIES, `'${c}' sends through the campaign protocol`).toContain(c)
     }
-    // ...and the inquiry reply, which appends its own button in the shell.
-    expect(src).toContain("buttonLabel: 'Book a time'")
+    // ...and the inquiry reply, which appends its own button in the shell
+    // (patientEmailShell's `cta`).
+    expect(src).toContain("label: 'Book a time'")
     expect(BOOKING_BUTTON_CAPABILITIES).toContain('inquiry_response')
+    // ML-22: the second touch rides the same shell and MUST append the
+    // button its card discloses (lib/services/proposal-executors/README.md).
+    const followup = read('lib/services/proposal-executors/inquiry-followup.ts')
+    expect(followup).toContain("label: 'Book a time'")
+    expect(BOOKING_BUTTON_CAPABILITIES).toContain('inquiry_followup')
   })
 
   it('is what the card actually reads — not a second hand-written list', () => {

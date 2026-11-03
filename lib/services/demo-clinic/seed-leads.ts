@@ -1,6 +1,10 @@
 import 'server-only'
+import { and, eq, isNull } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import { newId } from '@/lib/utils'
+import { clinicDayInstant, clinicDayStart } from '@/lib/clinic-timezone'
+import { clinicDayKey } from '@/lib/format-datetime'
+import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
 
 // ── Shared lead seeds (used by both new-clinic-seed + self-heal) ─────
 // Single source of truth so both code paths produce the same 6 curated
@@ -23,6 +27,12 @@ interface LeadSeed {
   status: 'new' | 'contacted' | 'converted' | 'archived'
   hoursAgo: number
   contactedHoursAgo?: number
+  /** ML-22: the machine's second touch went out this many hours ago. */
+  followedUpHoursAgo?: number
+  /** ML-22: a parked call-back this many clinic-local days ahead (0 = today). */
+  callBackDaysAhead?: number
+  /** ML-22: the desk's own note. */
+  notes?: string
   convertedHoursAgo?: number
   /** true → link to Emma Lopez patient when present in the org. */
   linkToEmmaPatient?: boolean
@@ -46,11 +56,15 @@ const DEMO_LEAD_SEEDS: LeadSeed[] = [
     message: 'Hi! Wisdom tooth pain on the upper right, getting worse. Can I come in this week?',
     sourcePage: '/', referrer: 'https://www.instagram.com/', utmSource: 'instagram', utmMedium: 'social', utmCampaign: 'fall_recall',
     status: 'new', hoursAgo: 72 },
-  // Contacted — staff called, waiting for follow-up
+  // Contacted — staff called, the machine checked back in two days ago
+  // (ML-22), and the desk parked a call-back for tomorrow with a note: the
+  // board's "Followed up 2d ago" + "Call back tomorrow" + the drawer's note
+  // all read real columns.
   { name: 'Marcus Johnson', phone: '(415) 555-0156', email: 'marcus.j@example.com', preferredDate: '2026-06-22',
     message: 'Need crown work, had a temporary fall out yesterday. Will need a same-week appointment if possible.',
     sourcePage: '/services', referrer: null, utmSource: null, utmMedium: null, utmCampaign: null,
-    status: 'contacted', hoursAgo: 36, contactedHoursAgo: 30 },
+    status: 'contacted', hoursAgo: 6 * 24, contactedHoursAgo: 5 * 24 + 6, followedUpHoursAgo: 2 * 24,
+    callBackDaysAhead: 1, notes: 'Left a voicemail about the temp crown — he asked us to try again after work.' },
   // Converted — became Emma Lopez (persona 6)
   { name: 'Emma Lopez', phone: '(415) 555-0234', email: 'emma.l@example.com', preferredDate: null,
     message: "Hi! New to the area, looking for a regular cleaning. Heard great things from a coworker.",
@@ -76,6 +90,37 @@ export async function seedLeadsForOrg(
   existingNames: Set<string>,
 ): Promise<number> {
   const hourMs = 60 * 60 * 1000
+  const tz = await getClinicTimeZone(orgId)
+  const callBackFor = (l: LeadSeed): Date | null =>
+    l.callBackDaysAhead === undefined
+      ? null
+      : clinicDayInstant(clinicDayKey(clinicDayStart(now, tz, l.callBackDaysAhead), tz), tz)
+  // Self-heal for demos seeded before ML-22: the contacted lead exists by
+  // name but has none of the new columns — fill them (and move its contact
+  // back so "Followed up 2d ago" never predates "Contacted"). Only rows with
+  // ALL of them empty are touched, so a resync never overwrites a live edit.
+  for (const l of DEMO_LEAD_SEEDS) {
+    if (l.followedUpHoursAgo === undefined || !existingNames.has(l.name)) continue
+    await db
+      .update(schema.lead)
+      .set({
+        contactedAt: l.contactedHoursAgo !== undefined ? new Date(now.getTime() - l.contactedHoursAgo * hourMs) : null,
+        followedUpAt: new Date(now.getTime() - l.followedUpHoursAgo * hourMs),
+        callBackAt: callBackFor(l),
+        notes: l.notes ?? null,
+        updatedAt: now,
+      })
+      .where(
+        and(
+          eq(schema.lead.organizationId, orgId),
+          eq(schema.lead.name, l.name),
+          eq(schema.lead.status, 'contacted'),
+          isNull(schema.lead.followedUpAt),
+          isNull(schema.lead.callBackAt),
+          isNull(schema.lead.notes),
+        ),
+      )
+  }
   const missing = DEMO_LEAD_SEEDS.filter((s) => !existingNames.has(s.name))
   if (missing.length === 0) return 0
   for (const l of missing) {
@@ -95,6 +140,9 @@ export async function seedLeadsForOrg(
       status: l.status,
       convertedToPatientId: l.linkToEmmaPatient ? emmaPatientId : null,
       contactedAt: l.contactedHoursAgo !== undefined ? new Date(now.getTime() - l.contactedHoursAgo * hourMs) : null,
+      followedUpAt: l.followedUpHoursAgo !== undefined ? new Date(now.getTime() - l.followedUpHoursAgo * hourMs) : null,
+      callBackAt: callBackFor(l),
+      notes: l.notes ?? null,
       convertedAt: l.convertedHoursAgo !== undefined ? new Date(now.getTime() - l.convertedHoursAgo * hourMs) : null,
       archivedAt: l.archivedHoursAgo !== undefined ? new Date(now.getTime() - l.archivedHoursAgo * hourMs) : null,
       archivedReason: l.archivedReason ?? null,

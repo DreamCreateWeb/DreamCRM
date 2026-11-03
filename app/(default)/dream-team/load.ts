@@ -36,7 +36,9 @@ function emailToLine(
   payload: Record<string, unknown>,
   author: string | null,
 ): string | null {
-  if (capability === 'inquiry_response') return author
+  // The inquiry's own name + the second touch on it (ML-22) both write to
+  // one person — the person the card quotes.
+  if (capability === 'inquiry_response' || capability === 'inquiry_followup') return author
   const n = typeof payload.recipientCount === 'number' ? payload.recipientCount : null
   return n != null ? `~${n} patients` : 'your recall list'
 }
@@ -220,6 +222,7 @@ export async function loadApprovalInbox(
       artifact = items.length > 0 ? { kind: 'plan', items, channel: firstChannelOf(payload) } : null
     } else if (
       p.capability === 'inquiry_response' ||
+      p.capability === 'inquiry_followup' ||
       p.capability === 'outreach_campaign' ||
       p.capability === 'schedule_gap'
     ) {
@@ -262,7 +265,11 @@ export async function loadApprovalInbox(
     const openHref: ProposalCardData['openHref'] =
       p.capability === 'patient_reply' && typeof payload.threadId === 'string'
         ? { href: `/messages?thread=${payload.threadId}`, label: 'Open the conversation' }
-        : null
+        : // ML-22: the check-in's door is the inquiry itself — what we sent
+          // the first time, the call-back day, the desk's notes.
+          p.capability === 'inquiry_followup' && typeof payload.leadId === 'string'
+          ? { href: `/leads?lead=${payload.leadId}`, label: 'Open the inquiry' }
+          : null
     return {
       openHref,
       id: p.id,

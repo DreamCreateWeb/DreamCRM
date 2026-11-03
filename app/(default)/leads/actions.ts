@@ -8,7 +8,10 @@ import {
   reopenLead,
   convertLeadToPatient,
   findConvertDedupeMatch,
+  setLeadCallBack,
+  setLeadNote,
 } from '@/lib/services/leads'
+import { clinicDayInstant } from '@/lib/clinic-timezone'
 
 async function requireClinicTenant() {
   const ctx = await requireTenant()
@@ -25,32 +28,89 @@ async function requireClinicTenant() {
  * own outbound is blind when the person calls back). The date renders
  * clinic-local per the timezone law.
  */
+export interface SentInquiryMailView {
+  subject: string | null
+  body: string
+  sentAtLabel: string | null
+  simulated: boolean
+}
+
 export async function getSentInquiryReplyAction(leadId: string): Promise<
-  | { ok: true; reply: { subject: string | null; body: string; sentAtLabel: string | null; simulated: boolean } | null }
+  | {
+      ok: true
+      reply: SentInquiryMailView | null
+      /** ML-22: the approved second touch, when there is one. */
+      followup: SentInquiryMailView | null
+    }
   | { ok: false }
 > {
   try {
     const ctx = await requireClinicTenant()
-    const [{ getSentInquiryReply }, { getClinicTimeZone }, { formatClinicDayTime }] = await Promise.all([
-      import('@/lib/services/proposals'),
-      import('@/lib/services/clinic-timezone'),
-      import('@/lib/format-datetime'),
+    const [{ getSentInquiryReply, getSentInquiryFollowup }, { getClinicTimeZone }, { formatClinicDayTime }] =
+      await Promise.all([
+        import('@/lib/services/proposals'),
+        import('@/lib/services/clinic-timezone'),
+        import('@/lib/format-datetime'),
+      ])
+    const [reply, followup] = await Promise.all([
+      getSentInquiryReply(ctx.organizationId, leadId),
+      getSentInquiryFollowup(ctx.organizationId, leadId),
     ])
-    const reply = await getSentInquiryReply(ctx.organizationId, leadId)
-    if (!reply) return { ok: true, reply: null }
+    if (!reply && !followup) return { ok: true, reply: null, followup: null }
     const tz = await getClinicTimeZone(ctx.organizationId)
-    return {
-      ok: true,
-      reply: {
-        subject: reply.subject,
-        body: reply.body,
-        sentAtLabel: reply.sentAt ? formatClinicDayTime(reply.sentAt, tz) : null,
-        simulated: reply.simulated,
-      },
-    }
+    const view = (m: NonNullable<typeof reply>): SentInquiryMailView => ({
+      subject: m.subject,
+      body: m.body,
+      sentAtLabel: m.sentAt ? formatClinicDayTime(m.sentAt, tz) : null,
+      simulated: m.simulated,
+    })
+    return { ok: true, reply: reply ? view(reply) : null, followup: followup ? view(followup) : null }
   } catch {
     return { ok: false }
   }
+}
+
+/**
+ * ML-22 — park a call-back DAY on an inquiry (a `YYYY-MM-DD` key on the
+ * clinic's calendar; `null` clears it). Resolved to clinic-local noon here
+ * (the tz law) so the day reads the same on the board, in the drawer and
+ * to the generator's "the desk has a plan" check.
+ */
+export async function setLeadCallBackAction(
+  id: string,
+  dayKey: string | null,
+): Promise<{ ok: true; callBackAt: string | null } | { ok: false; error: string }> {
+  const ctx = await requireClinicTenant()
+  let at: Date | null = null
+  if (dayKey) {
+    const { getClinicTimeZone } = await import('@/lib/services/clinic-timezone')
+    const tz = await getClinicTimeZone(ctx.organizationId)
+    at = clinicDayInstant(dayKey, tz)
+    if (!at) return { ok: false, error: 'Pick a day on the calendar.' }
+  }
+  try {
+    await setLeadCallBack(ctx.organizationId, id, at)
+  } catch (err) {
+    return { ok: false, error: (err as Error).message }
+  }
+  revalidatePath('/leads')
+  return { ok: true, callBackAt: at ? at.toISOString() : null }
+}
+
+/** ML-22 — the desk's own note on an inquiry (an empty note clears it). */
+export async function setLeadNoteAction(
+  id: string,
+  notes: string,
+): Promise<{ ok: true; notes: string | null } | { ok: false; error: string }> {
+  const ctx = await requireClinicTenant()
+  const trimmed = notes.trim().slice(0, 2000)
+  try {
+    await setLeadNote(ctx.organizationId, id, trimmed || null)
+  } catch (err) {
+    return { ok: false, error: (err as Error).message }
+  }
+  revalidatePath('/leads')
+  return { ok: true, notes: trimmed || null }
 }
 
 export async function markLeadContactedAction(id: string): Promise<{ ok: true }> {

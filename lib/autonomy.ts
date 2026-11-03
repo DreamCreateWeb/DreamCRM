@@ -242,10 +242,10 @@ export const BOOKING_BUTTON_CAPABILITIES: readonly string[] = [
 // registered ahead of its generator. Each slice that ships a generator +
 // executor deletes its own key here — that single deletion is the release.
 // `patient_reply` was the first key deleted here (ML-12, 2026-11-03 — its
-// generator + executor shipped together).
+// generator + executor shipped together); `inquiry_followup` the second
+// (ML-22, 2026-11-03 — the second touch on an inquiry that went quiet).
 export const PREVIEW_CAPABILITIES: readonly string[] = [
   'feedback_reply',
-  'inquiry_followup',
   'postop_checkin',
   'rebook_nudge',
   'referral_ask',
@@ -291,6 +291,9 @@ export const GRANTABLE_CAPABILITIES = [
   // capability it cannot carry out, so a grantable key without an executor
   // is a yes the machine would answer with a failure every tick.
   // tests/journey/capability-registry.test.ts pins grantable ⊆ executable.
+  // ML-22: the second touch on a quiet inquiry — its executor sends through
+  // the first touch's own path and waits for daylight like its siblings.
+  'inquiry_followup',
 ] as const
 
 export function isGrantable(key: string): boolean {

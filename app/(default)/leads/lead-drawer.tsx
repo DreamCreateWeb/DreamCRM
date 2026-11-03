@@ -10,9 +10,11 @@ import { StatusPill } from '@/components/ui/status-pill'
 import { FlashToast } from '@/components/ui/flash-toast'
 import type { Tone } from '@/lib/ui/encodings'
 import { carrierFromLeadMessage } from '@/lib/types/lead-forms'
-import { formatClinicDayTime } from '@/lib/format-datetime'
+import { formatClinicDate, formatClinicDayTime } from '@/lib/format-datetime'
 import { coercePreferredDateKey } from '@/lib/preferred-date'
 import { ACTION_FAILED_MESSAGE, STALE_APP_MESSAGE, isDeploymentSkewError } from '@/lib/deployment-skew'
+import { runAction } from '@/lib/run-action'
+import { callBackDayKey, callBackLabel, callBackSlipped } from '@/lib/lead-touch-labels'
 import BookFromPatientDrawer from '@/app/(default)/appointments/book-from-patient-drawer'
 import {
   markLeadContactedAction,
@@ -21,6 +23,9 @@ import {
   convertLeadAction,
   previewLeadConvertAction,
   getSentInquiryReplyAction,
+  setLeadCallBackAction,
+  setLeadNoteAction,
+  type SentInquiryMailView,
 } from './actions'
 
 // Same tone-contract mapping the list uses (see leads-view): new=special,
@@ -100,7 +105,7 @@ export default function LeadDrawer({
   // three hand the transition to the parent (`onStatusChange`), which closes
   // the drawer on the spot. They are `disabled` here, which is the honest
   // state: unavailable while a convert runs, never claiming to be it.
-  const [active, setActive] = useState<'convert' | 'link' | 'separate' | null>(null)
+  const [active, setActive] = useState<'convert' | 'link' | 'separate' | 'callback' | 'note' | null>(null)
   const [archiveOpen, setArchiveOpen] = useState(false)
   const [archiveReason, setArchiveReason] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -116,12 +121,16 @@ export default function LeadDrawer({
   // The approved machine-sent reply, when there is one — "What we sent"
   // (round-3 audit): the front desk must be able to read its own outbound
   // when the person calls back. Best-effort; absent = block hidden.
-  const [sentReply, setSentReply] = useState<{
-    subject: string | null
-    body: string
-    sentAtLabel: string | null
-    simulated: boolean
-  } | null>(null)
+  const [sentReply, setSentReply] = useState<SentInquiryMailView | null>(null)
+  // ML-22: the approved SECOND touch, same law — readable forever.
+  const [sentFollowup, setSentFollowup] = useState<SentInquiryMailView | null>(null)
+  // ML-22: the desk's own plan for a contacted inquiry — a call-back DAY on
+  // the clinic's calendar and a note. Local copies so the drawer reflects a
+  // save at once; the list re-reads behind it (router.refresh).
+  const [savedCallBack, setSavedCallBack] = useState<Date | null>(row.callBackAt)
+  const [callBackDay, setCallBackDay] = useState(() => callBackDayKey(row.callBackAt, timeZone))
+  const [savedNote, setSavedNote] = useState<string | null>(row.notes)
+  const [noteDraft, setNoteDraft] = useState(row.notes ?? '')
 
   // Esc closes the drawer (the ✕ button's title already promises it). Pairs
   // with backdrop-click below for the two standard "dismiss" gestures.
@@ -162,7 +171,9 @@ export default function LeadDrawer({
     async function loadSentReply() {
       try {
         const res = await getSentInquiryReplyAction(row.id)
-        if (!cancelled && res.ok && res.reply) setSentReply(res.reply)
+        if (cancelled || !res.ok) return
+        if (res.reply) setSentReply(res.reply)
+        if (res.followup) setSentFollowup(res.followup)
       } catch {
         // non-blocking — leave the block hidden
       }
@@ -186,6 +197,41 @@ export default function LeadDrawer({
 
   function onReopen() {
     onStatusChange(row.id, 'new', () => reopenLeadAction(row.id))
+  }
+
+  // ML-22: park (or clear) the call-back day. The action resolves the day
+  // to the clinic's own calendar; the drawer only ever handles the key.
+  function saveCallBack(day: string | null) {
+    setError(null)
+    setActive('callback')
+    startTransition(async () => {
+      const r = await runAction(() => setLeadCallBackAction(row.id, day))
+      if (!r.ok) {
+        setError(r.error)
+        return
+      }
+      const at = r.callBackAt ? new Date(r.callBackAt) : null
+      setSavedCallBack(at)
+      setCallBackDay(callBackDayKey(at, timeZone))
+      flash(at ? `${callBackLabel(at, new Date(), timeZone)}.` : 'Call-back cleared.')
+      router.refresh()
+    })
+  }
+
+  function saveNote() {
+    setError(null)
+    setActive('note')
+    startTransition(async () => {
+      const r = await runAction(() => setLeadNoteAction(row.id, noteDraft))
+      if (!r.ok) {
+        setError(r.error)
+        return
+      }
+      setSavedNote(r.notes)
+      setNoteDraft(r.notes ?? '')
+      flash(r.notes ? 'Note saved.' : 'Note cleared.')
+      router.refresh()
+    })
   }
 
   // Step 1: dry-run the dedupe check. If the lead's email/phone matches an
@@ -251,6 +297,12 @@ export default function LeadDrawer({
   // seed the booking form opens on. Free text that does not parse seeds
   // nothing (the form falls back to its own default).
   const preferredDateKey = coercePreferredDateKey(row.preferredDate)
+  // The call-back's own words, in the board's voice (one home: lib/lead-touch-labels).
+  const callBackNow = new Date()
+  const savedCallBackLabel = callBackLabel(savedCallBack, callBackNow, timeZone)
+  const savedCallBackSlipped = callBackSlipped(savedCallBack, callBackNow, timeZone)
+  const callBackDirty = callBackDay !== callBackDayKey(savedCallBack, timeZone)
+  const noteDirty = noteDraft.trim() !== (savedNote ?? '')
 
   return (
     <div
@@ -350,23 +402,85 @@ export default function LeadDrawer({
 
           {/* What we sent — the approved machine reply, readable forever
               (round-3 audit: staff must never be blind to their own
-              outbound when the person calls back). */}
-          {sentReply && (
+              outbound when the person calls back). ML-22: the second touch
+              sits under the same law, in its own block. */}
+          {sentReply && <SentMailBlock label="What we sent" mail={sentReply} />}
+          {sentFollowup && <SentMailBlock label="Follow-up we sent" mail={sentFollowup} />}
+
+          {/* ML-22 — "contacted" is no longer the end. The desk parks a
+              call-back DAY (a date on the clinic's calendar) and keeps its
+              own note; a phone-only inquiry gets exactly these two, the
+              machine's drafted second touch is for the ones with an email
+              and lands in the Approval Inbox, not here. */}
+          {row.status === 'contacted' && !converted && (
+            <div className="pt-3 border-t border-[color:var(--color-hairline)] space-y-3">
+              <div>
+                <label htmlFor="lead-callback-day" className={`${LABEL_CLASS} block mb-1`}>
+                  Call back on
+                </label>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <input
+                    id="lead-callback-day"
+                    type="date"
+                    value={callBackDay}
+                    onChange={(e) => setCallBackDay(e.target.value)}
+                    disabled={pending}
+                    className="form-input text-sm"
+                  />
+                  <ActionButton
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => saveCallBack(callBackDay || null)}
+                    pending={pending && active === 'callback'}
+                    disabled={pending || !callBackDirty}
+                  >
+                    Save
+                  </ActionButton>
+                  {savedCallBack && (
+                    <ActionButton variant="ghost" size="sm" onClick={() => saveCallBack(null)} disabled={pending}>
+                      Clear
+                    </ActionButton>
+                  )}
+                </div>
+                {savedCallBackLabel && (
+                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    {savedCallBackLabel}
+                    {savedCallBackSlipped ? ' — pick a new day, or convert them once you reach them.' : '.'}
+                  </p>
+                )}
+              </div>
+              <div>
+                <label htmlFor="lead-notes" className={`${LABEL_CLASS} block mb-1`}>
+                  Notes
+                </label>
+                <textarea
+                  id="lead-notes"
+                  value={noteDraft}
+                  onChange={(e) => setNoteDraft(e.target.value)}
+                  rows={3}
+                  maxLength={2000}
+                  disabled={pending}
+                  placeholder="What they said, what you tried, what’s next"
+                  className="form-textarea w-full text-sm"
+                />
+                <div className="mt-1 flex justify-end">
+                  <ActionButton
+                    variant="secondary"
+                    size="sm"
+                    onClick={saveNote}
+                    pending={pending && active === 'note'}
+                    disabled={pending || !noteDirty}
+                  >
+                    Save note
+                  </ActionButton>
+                </div>
+              </div>
+            </div>
+          )}
+          {row.status !== 'contacted' && savedNote && (
             <div className="pt-3 border-t border-[color:var(--color-hairline)]">
-              <p className={`${LABEL_CLASS} mb-1`}>
-                What we sent
-                {sentReply.sentAtLabel ? ` · ${sentReply.sentAtLabel}` : ''}
-                {sentReply.simulated ? ' · demo — nothing actually sent' : ''}
-              </p>
-              {sentReply.subject && (
-                <p className="text-sm text-gray-700 dark:text-gray-200">
-                  <span className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 mr-2">Subject</span>
-                  <span className="font-medium">{sentReply.subject}</span>
-                </p>
-              )}
-              <p className="mt-1 text-sm text-gray-700 dark:text-gray-200 whitespace-pre-wrap rounded-lg bg-gray-50 dark:bg-gray-900/40 p-3">
-                {sentReply.body}
-              </p>
+              <p className={`${LABEL_CLASS} mb-1`}>Notes</p>
+              <p className="text-sm text-gray-700 dark:text-gray-200 whitespace-pre-wrap">{savedNote}</p>
             </div>
           )}
 
@@ -488,6 +602,8 @@ export default function LeadDrawer({
             <ul className="space-y-0.5 text-xs text-gray-700 dark:text-gray-300">
               <li>Landed · {formatClinicDayTime(row.createdAt, timeZone)}</li>
               {row.contactedAt && <li>Contacted · {formatClinicDayTime(row.contactedAt, timeZone)}</li>}
+              {row.followedUpAt && <li>Followed up · {formatClinicDayTime(row.followedUpAt, timeZone)}</li>}
+              {savedCallBack && <li>Call back · {formatClinicDate(savedCallBack, timeZone)}</li>}
               {row.convertedAt && <li>Converted · {formatClinicDayTime(row.convertedAt, timeZone)}</li>}
               {row.archivedAt && (
                 <li>
@@ -547,6 +663,29 @@ export default function LeadDrawer({
 
         {toast && <FlashToast message={toast} onDone={() => setToast(null)} />}
       </div>
+    </div>
+  )
+}
+
+/** An approved machine email on this inquiry — the first reply or the
+ *  second touch — exactly as it went out, stamped in the clinic's clock. */
+function SentMailBlock({ label, mail }: { label: string; mail: SentInquiryMailView }) {
+  return (
+    <div className="pt-3 border-t border-[color:var(--color-hairline)]">
+      <p className={`${LABEL_CLASS} mb-1`}>
+        {label}
+        {mail.sentAtLabel ? ` · ${mail.sentAtLabel}` : ''}
+        {mail.simulated ? ' · demo — nothing actually sent' : ''}
+      </p>
+      {mail.subject && (
+        <p className="text-sm text-gray-700 dark:text-gray-200">
+          <span className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 mr-2">Subject</span>
+          <span className="font-medium">{mail.subject}</span>
+        </p>
+      )}
+      <p className="mt-1 text-sm text-gray-700 dark:text-gray-200 whitespace-pre-wrap rounded-lg bg-gray-50 dark:bg-gray-900/40 p-3">
+        {mail.body}
+      </p>
     </div>
   )
 }

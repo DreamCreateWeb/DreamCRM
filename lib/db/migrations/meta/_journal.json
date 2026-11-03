@@ -1282,6 +1282,13 @@
       "when": 1793746768938,
       "tag": "0182_card_update_followup_kind_snooze_outcome",
       "breakpoints": true
+    },
+    {
+      "idx": 198,
+      "version": "7",
+      "when": 1793748666180,
+      "tag": "0198_lead_callback_notes",
+      "breakpoints": true
     }
   ]
 }
