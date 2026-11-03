@@ -151,6 +151,19 @@ vi.mock('@/lib/services/sms-registration', () => ({
   startSmsRegistration: smsReg.start,
 }))
 
+// PATIENT REPLY (ML-12): the executor sends through the Messages page's one
+// send; the thread readers are modelled so the staleness seam is real.
+const patientMessaging = vi.hoisted(() => ({
+  thread: null as Record<string, unknown> | null,
+  messages: [] as Array<Record<string, unknown>>,
+  send: vi.fn(async (..._a: unknown[]) => ({ threadId: 'thr_1', messageId: 'm_sent' })),
+}))
+vi.mock('@/lib/services/patient-messaging', () => ({
+  getPatientThreadById: vi.fn(async () => patientMessaging.thread),
+  listMessagesInThread: vi.fn(async () => patientMessaging.messages),
+  sendMessageToPatient: vi.fn(async (input: Record<string, unknown>) => patientMessaging.send(input)),
+}))
+
 const blogErr = vi.hoisted(() => ({ Cls: class BlogPublishError extends Error {} }))
 const blog = vi.hoisted(() => ({
   posts: [] as Array<Record<string, unknown>>,
@@ -718,6 +731,61 @@ describe('approveProposal — review_reply', () => {
 })
 
 describe('approveProposal — the other executors', () => {
+  it('patient_reply (ML-12): sends ONCE through the Messages send AS THE APPROVER, narrates once under patient_reply, and a second Approve never sends again', async () => {
+    patientMessaging.thread = {
+      id: 'thr_1', patientId: 'pat_1', patientFirstName: 'Mia', patientLastName: 'Chen',
+      patientEmail: 'mia@example.com', status: 'open', lastMessageDirection: 'inbound',
+    }
+    patientMessaging.messages = [{ id: 'm_last', direction: 'inbound', channel: 'in_app', body: 'Can I move it to Thursday?' }]
+    patientMessaging.send.mockClear()
+    const p = seedProposal({
+      capability: 'patient_reply',
+      patientId: 'pat_1',
+      sourceKey: 'patient_reply:thr_1:m_last',
+      body: 'Hi Mia — Thursday at 2 works. See you then!',
+      payload: { threadId: 'thr_1', messageId: 'm_last', channel: 'in_app' },
+    })
+    const r = await approveProposal(ORG, p.id, 'user_1')
+    expect(r).toMatchObject({ ok: true, status: 'approved' })
+    expect(patientMessaging.send).toHaveBeenCalledTimes(1)
+    expect(patientMessaging.send).toHaveBeenCalledWith({
+      organizationId: ORG, patientId: 'pat_1', body: 'Hi Mia — Thursday at 2 works. See you then!', channel: 'in_app', sentByUserId: 'user_1',
+    })
+    expect(p.status).toBe('approved')
+    expect(p.executedAt).toBeInstanceOf(Date)
+    expect(recordActionMock).toHaveBeenCalledTimes(1)
+    const entry = recordActionMock.mock.calls[0][0] as Record<string, unknown>
+    expect(entry.capability).toBe('patient_reply')
+    expect(entry.patientId).toBe('pat_1')
+    expect(String(entry.summary)).toBe('Replied to Mia’s message in the portal — you approved it')
+    expect((entry.detail as Record<string, unknown>).approvedByUserId).toBe('user_1')
+    // The claim is atomic: a second tap loses cleanly and nothing goes out twice.
+    const again = await approveProposal(ORG, p.id, 'user_2')
+    expect(again.ok).toBe(false)
+    expect(patientMessaging.send).toHaveBeenCalledTimes(1)
+    expect(recordActionMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('patient_reply: answered at the counter since filing → EXPIRES at the tap, nothing sent, nothing narrated', async () => {
+    patientMessaging.thread = {
+      id: 'thr_1', patientId: 'pat_1', patientFirstName: 'Mia', patientLastName: 'Chen',
+      patientEmail: null, status: 'open', lastMessageDirection: 'outbound',
+    }
+    patientMessaging.messages = [{ id: 'm_hand', direction: 'outbound', channel: 'in_app', body: 'Dana here — sure.' }]
+    patientMessaging.send.mockClear()
+    const p = seedProposal({
+      capability: 'patient_reply',
+      sourceKey: 'patient_reply:thr_1:m_last',
+      payload: { threadId: 'thr_1', messageId: 'm_last', channel: 'in_app' },
+    })
+    const r = await approveProposal(ORG, p.id, 'user_1')
+    expect(r.ok).toBe(false)
+    if (!r.ok) expect(r.expired).toBe(true)
+    expect(p.status).toBe('expired')
+    expect(patientMessaging.send).not.toHaveBeenCalled()
+    expect(recordActionMock).not.toHaveBeenCalled()
+  })
+
   it('inquiry_response: emails the lead, marks contacted, ledgers once', async () => {
     const p = seedProposal({
       capability: 'inquiry_response',

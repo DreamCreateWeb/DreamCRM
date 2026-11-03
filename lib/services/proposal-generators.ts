@@ -17,6 +17,7 @@ import {
   resolveGrantedCapabilities,
 } from '@/lib/services/proposals'
 import { recordEngineFailure } from '@/lib/services/action-ledger'
+import { generatePatientReplyProposals } from '@/lib/services/proposal-generators/patient-reply'
 import { clinicLocalHour, clinicWeekStart } from '@/lib/clinic-timezone'
 import { resolveTrialState } from '@/lib/trial'
 import { sweepClinics } from '@/lib/services/cron-sweep'
@@ -153,6 +154,11 @@ export const STEP_FAILURE: Record<string, { capability: string; summary: string 
   inquiry_response: {
     capability: 'inquiry_response',
     summary: 'Couldn’t draft an answer to a website inquiry just now — I’ll keep trying.',
+  },
+  // ML-12: the first generator under the lane convention.
+  patient_reply: {
+    capability: 'patient_reply',
+    summary: 'Couldn’t draft a reply to a patient who’s waiting just now — I’ll keep trying.',
   },
   social_post: {
     capability: 'social_post',
@@ -387,6 +393,11 @@ function makeOrgPass(result: Omit<GeneratorRunResult, 'sweep'>, now: Date): (org
           'inquiry_response',
           () => generateInquiryResponseProposals(org.id, org.name, now, softFailed('inquiry_response')),
         ],
+        // ML-12: a patient who wrote in and has been waiting gets a drafted
+        // reply waiting for a yes. Answering people comes before the
+        // broadcast lanes below — the same "answer a person" family as the
+        // two above it.
+        ['patient_reply', () => generatePatientReplyProposals(org.id, now, tz, softFailed('patient_reply'))],
         // The MONTH plan runs before the one-off post: they answer the same
         // silence, and the bigger answer gets first refusal. Each also
         // stands down while the other's card is open, so the order is a
