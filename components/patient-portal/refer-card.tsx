@@ -2,6 +2,8 @@
 
 import { useState } from 'react'
 import { getMyReferralLinkAction } from '@/app/(portal)/patient/actions'
+import { runAction } from '@/lib/run-action'
+import { PORTAL_RUN, PortalReloadWhenStale } from '@/components/patient-portal/stale-reload'
 import { PortalCard, PORTAL_INK, PORTAL_MUTED, PORTAL_BORDER } from '@/components/patient-portal/ui'
 
 /**
@@ -24,7 +26,7 @@ export default function ReferCard({
   async function share() {
     setState('working')
     setError('')
-    const r = await getMyReferralLinkAction()
+    const r = await runAction(() => getMyReferralLinkAction(), PORTAL_RUN)
     if (!r.ok) {
       setError(r.error)
       setState('error')
@@ -121,6 +123,7 @@ export default function ReferCard({
           {error}
         </p>
       )}
+      {state === 'error' && <PortalReloadWhenStale error={error} />}
     </PortalCard>
   )
 }

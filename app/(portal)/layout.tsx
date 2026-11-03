@@ -22,6 +22,7 @@ import {
   PortalTabBar,
   PortalAnnouncement,
   PortalCredit,
+  PortalBuildWatch,
 } from '@/components/patient-portal/portal-chrome'
 import { PORTAL_MUTED } from '@/components/patient-portal/ui'
 import { todaysHoursLabel } from '@/lib/clinic-site-helpers'
@@ -283,6 +284,7 @@ export default async function PortalLayout({ children }: { children: React.React
         </footer>
 
         <PortalTabBar primary={nav.primary} more={nav.more} brand={brand} />
+        <PortalBuildWatch />
       </div>
     </RealtimeProvider>
   )

@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState, useTransition } from 'react'
 import Link from 'next/link'
 import { requestMyVisitAction } from '../actions'
+import { runAction } from '@/lib/run-action'
+import { PORTAL_RUN, PortalReloadWhenStale } from '@/components/patient-portal/stale-reload'
 import { PORTAL_VISIT_LABELS } from '@/lib/types/portal'
 import {
   PORTAL_DANGER_BG,
@@ -79,7 +81,7 @@ export default function PortalRequestForm({
       fd.set('reason', reason)
       fd.set('preferredTimes', preferred)
       fd.set('notes', notes)
-      const res = await requestMyVisitAction(fd)
+      const res = await runAction(() => requestMyVisitAction(fd), PORTAL_RUN)
       if (res.ok) setState('done')
       else setError(res.error)
     })
@@ -230,6 +232,7 @@ export default function PortalRequestForm({
           {error}
         </p>
       )}
+      <PortalReloadWhenStale error={error} />
 
       <BrandButton
         brand={brand}

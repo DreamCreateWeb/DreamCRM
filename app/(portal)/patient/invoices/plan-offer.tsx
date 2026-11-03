@@ -2,6 +2,8 @@
 
 import { useState, useTransition } from 'react'
 import { startMyPaymentPlanAction } from '../actions'
+import { runAction } from '@/lib/run-action'
+import { PORTAL_RUN, PortalReloadWhenStale } from '@/components/patient-portal/stale-reload'
 import {
   BrandButton,
   GhostButton,
@@ -48,7 +50,7 @@ export default function PlanOffer({
     if (!chosen || pending) return
     setError(null)
     startTransition(async () => {
-      const res = await startMyPaymentPlanAction(chosen.months)
+      const res = await runAction(() => startMyPaymentPlanAction(chosen.months), PORTAL_RUN)
       if (res.ok) {
         // The accept page lives outside the portal chrome — full navigation.
         window.location.assign(res.url)
@@ -105,6 +107,7 @@ export default function PlanOffer({
             </p>
           )}
           {error && <PortalErrorText>{error}</PortalErrorText>}
+          <PortalReloadWhenStale error={error} />
           <div className="mt-3 flex items-center gap-3">
             <BrandButton brand={brand} onClick={start} disabled={!chosen} pending={pending}>
               Review my plan

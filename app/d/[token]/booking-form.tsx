@@ -2,6 +2,8 @@
 
 import { useState, useTransition } from 'react'
 import { bookSlotAction, cancelBookingAction } from './actions'
+import { runAction } from '@/lib/run-action'
+import { PORTAL_RUN, PortalReloadWhenStale } from '@/components/patient-portal/stale-reload'
 
 interface DayGroup {
   dayKey: string
@@ -46,7 +48,7 @@ export default function BookingForm({
     startTransition(async () => {
       setError(null)
       if (!selected) return setError('Pick a time first.')
-      const res = await bookSlotAction({ token, slotIso: selected, name, email, note })
+      const res = await runAction(() => bookSlotAction({ token, slotIso: selected, name, email, note }), PORTAL_RUN)
       if (res.ok) {
         setDone(true)
         window.location.reload()
@@ -57,7 +59,11 @@ export default function BookingForm({
 
   const cancel = () =>
     startTransition(async () => {
-      await cancelBookingAction(token)
+      setError(null)
+      const res = await runAction(() => cancelBookingAction(token), PORTAL_RUN)
+      // The action's own { ok: false } has never blocked the reload (it only
+      // means there was nothing to cancel); only a THROW stays on the page.
+      if (!res.ok && 'error' in res) return setError(res.error)
       window.location.reload()
     })
 
@@ -88,6 +94,8 @@ export default function BookingForm({
             Cancel
           </button>
         </div>
+        {error && <p role="alert" className="mt-3 text-sm text-rose-600 dark:text-rose-400">{error}</p>}
+        <PortalReloadWhenStale error={error} />
       </div>
     )
   }
@@ -155,6 +163,7 @@ export default function BookingForm({
           onChange={(e) => setNote(e.target.value)}
         />
         {error && <p className="text-sm text-rose-600 dark:text-rose-400">{error}</p>}
+        <PortalReloadWhenStale error={error} />
         <button
           type="button"
           disabled={pending || done || !selected || !email.trim()}

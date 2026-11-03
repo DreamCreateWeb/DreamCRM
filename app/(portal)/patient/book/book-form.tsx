@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState, useTransition } from 'react'
 import { bookMyVisitAction, getPortalSlotsAction } from '../actions'
+import { runAction } from '@/lib/run-action'
+import { PORTAL_RUN, PortalReloadWhenStale } from '@/components/patient-portal/stale-reload'
 import SlotPicker from '@/components/patient-portal/slot-picker'
 import { PORTAL_VISIT_LABELS } from '@/lib/types/portal'
 import {
@@ -90,7 +92,7 @@ export default function PortalBookForm({
       fd.set('type', type)
       fd.set('startTime', slotIso)
       fd.set('comfort', comfort)
-      const res = await bookMyVisitAction(fd)
+      const res = await runAction(() => bookMyVisitAction(fd), PORTAL_RUN)
       if (res.ok) {
         setBookedIso(slotIso)
         setBookedEndIso(res.endIso ?? null)
@@ -274,6 +276,7 @@ export default function PortalBookForm({
           {error}
         </p>
       )}
+      <PortalReloadWhenStale error={error} />
 
       <BrandButton
         brand={brand}
