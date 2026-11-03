@@ -1,13 +1,13 @@
 'use client'
 
-import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useState, useTransition } from 'react'
 import { PageHeader } from '@/components/ui/page-header'
 import { FilterChip } from '@/components/ui/filter-chip'
 import { StatusPill } from '@/components/ui/status-pill'
 import { ActionButton } from '@/components/ui/action-button'
-import { TickButton } from '@/components/ui/tick-button'
+import { FollowupRow, DUE_TONE, type SnoozeChoice } from '@/components/followups/followup-row'
+import { runAction } from '@/lib/run-action'
 import { EmptyState } from '@/components/ui/empty-state'
 import { FlashToast } from '@/components/ui/flash-toast'
 import { PendingVeil } from '@/components/ui/pending-veil'
@@ -15,11 +15,11 @@ import { MiniTrend } from '@/components/ui/charts'
 import type { FollowupsCompletedPerWeekPoint } from '@/lib/services/patient-followups'
 import {
   followupDueState,
-  formatDueLabel,
   type FollowupDueState,
+  type FollowupOutcome,
   type PatientFollowupView,
 } from '@/lib/types/followups'
-import { completeFollowupAction, reopenFollowupAction, updateFollowupAction } from '../patients/actions'
+import { completeFollowupAction, reopenFollowupAction, snoozeFollowupAction, updateFollowupAction } from '../patients/actions'
 import FollowupRulesCard from './followup-rules-card'
 import type { FollowupRuleConfig } from '@/lib/types/followup-rules'
 
@@ -37,19 +37,13 @@ const GROUP_LABEL: Record<FollowupDueState, string> = {
   later: 'Later',
   none: 'No due date',
 }
-const DUE_TONE: Record<FollowupDueState, string> = {
-  overdue: 'text-rose-600 dark:text-rose-400',
-  today: 'text-amber-700 dark:text-amber-300',
-  soon: 'text-gray-500 dark:text-gray-400',
-  later: 'text-gray-500 dark:text-gray-400',
-  none: 'text-gray-500 dark:text-gray-400',
-}
 
 export default function FollowupsBoard({
   rows,
   orgName,
   dueNowCount = 0,
   completedPerWeek8 = [],
+  snoozedCount = 0,
   filters,
   staff,
   currentUserId,
@@ -65,9 +59,11 @@ export default function FollowupsBoard({
   /** Follow-ups completed per clinic-local week, last 8 weeks — the board's
    *  one heartbeat (law 7): it celebrates work done, not backlog. */
   completedPerWeek8?: FollowupsCompletedPerWeekPoint[]
+  /** How many open follow-ups are resting until a later day (the chip). */
+  snoozedCount?: number
   /** closedByMe = the ?closedBy=me view — done-only, completed BY the signed-in
    *  user (My Day's "You closed N this week" link lands here). */
-  filters: { mine: boolean; due?: 'overdue' | 'today' | 'upcoming'; includeDone: boolean; closedByMe?: boolean }
+  filters: { mine: boolean; due?: 'overdue' | 'today' | 'upcoming'; includeDone: boolean; closedByMe?: boolean; snoozed?: boolean }
   staff: Array<{ userId: string; name: string }>
   currentUserId: string
   ruleConfig: FollowupRuleConfig
@@ -95,24 +91,41 @@ export default function FollowupsBoard({
     startNavTransition(() => router.push(`/followups?${next.toString()}`))
   }
 
-  function complete(f: PatientFollowupView) {
+  function complete(f: PatientFollowupView, outcome: FollowupOutcome | null) {
     setItems((cur) =>
       filters.includeDone ? cur.map((x) => (x.id === f.id ? { ...x, status: 'done' } : x)) : cur.filter((x) => x.id !== f.id),
     )
     setActiveRow(f.id)
     startRowTransition(async () => {
-      const res = await completeFollowupAction(f.id, f.patientId)
-      if (!res.ok) { setItems(rows); setToast({ message: res.error, tone: 'urgent' }) }
-      else { setToast({ message: 'Nice — one less thing.', tone: 'ok' }); pingNavBadges() }
+      try {
+        const res = await runAction(() => completeFollowupAction(f.id, f.patientId, outcome))
+        if (!res.ok) { setItems(rows); setToast({ message: res.error, tone: 'urgent' }) }
+        else { setToast({ message: 'Nice — one less thing.', tone: 'ok' }); pingNavBadges() }
+      } finally { setActiveRow(null) }
     })
   }
   function reopen(f: PatientFollowupView) {
     setItems((cur) => cur.map((x) => (x.id === f.id ? { ...x, status: 'open' } : x)))
     setActiveRow(f.id)
     startRowTransition(async () => {
-      const res = await reopenFollowupAction(f.id, f.patientId)
-      if (!res.ok) { setItems(rows); setToast({ message: res.error, tone: 'urgent' }) }
-      else pingNavBadges()
+      try {
+        const res = await runAction(() => reopenFollowupAction(f.id, f.patientId))
+        if (!res.ok) { setItems(rows); setToast({ message: res.error, tone: 'urgent' }) }
+        else pingNavBadges()
+      } finally { setActiveRow(null) }
+    })
+  }
+  function snooze(f: PatientFollowupView, choice: SnoozeChoice) {
+    // Leaves the list (the default view hides snoozed rows); the server picks
+    // the clinic-local day, so no optimistic date is invented here.
+    setItems((cur) => (filters.snoozed ? cur : cur.filter((x) => x.id !== f.id)))
+    setActiveRow(f.id)
+    startRowTransition(async () => {
+      try {
+        const res = await runAction(() => snoozeFollowupAction(f.id, f.patientId, choice))
+        if (!res.ok) { setItems(rows); setToast({ message: res.error, tone: 'urgent' }) }
+        else { setToast({ message: 'Resting until then — it will be back.', tone: 'ok' }); pingNavBadges() }
+      } finally { setActiveRow(null) }
     })
   }
   function reassign(f: PatientFollowupView, userId: string | null) {
@@ -129,8 +142,10 @@ export default function FollowupsBoard({
     })
     setActiveRow(f.id)
     startRowTransition(async () => {
-      const res = await updateFollowupAction(f.id, f.patientId, { assignedUserId: userId })
-      if (!res.ok) { setItems(rows); setToast({ message: res.error, tone: 'urgent' }) }
+      try {
+        const res = await runAction(() => updateFollowupAction(f.id, f.patientId, { assignedUserId: userId }))
+        if (!res.ok) { setItems(rows); setToast({ message: res.error, tone: 'urgent' }) }
+      } finally { setActiveRow(null) }
     })
   }
 
@@ -181,6 +196,15 @@ export default function FollowupsBoard({
         <FilterChip active={filters.due === 'upcoming'} onClick={() => setParam('due', filters.due === 'upcoming' ? null : 'upcoming')}>Upcoming</FilterChip>
         <span className="mx-1 h-4 w-px bg-[color:var(--color-hairline)]" aria-hidden="true" />
         <FilterChip active={filters.includeDone} onClick={() => setParam('done', filters.includeDone ? null : '1')}>Show done</FilterChip>
+        {(snoozedCount > 0 || filters.snoozed) && (
+          <FilterChip
+            active={!!filters.snoozed}
+            onClick={() => setParam('snoozed', filters.snoozed ? null : '1')}
+            title="Follow-ups resting until a later day"
+          >
+            Snoozed ({snoozedCount})
+          </FilterChip>
+        )}
         <FilterChip
           active={!!filters.closedByMe}
           onClick={() => setParam('closedBy', filters.closedByMe ? null : 'me')}
@@ -250,10 +274,11 @@ export default function FollowupsBoard({
                 </h2>
                 <ul className="v2-card divide-y divide-[color:var(--color-hairline)]">
                   {list.map((f) => (
-                    <Row
+                    <FollowupRow
                       key={f.id}
                       f={f}
-                      onComplete={() => complete(f)}
+                      onComplete={(o) => complete(f, o)}
+                      onSnooze={(c) => snooze(f, c)}
                       onReassign={(u) => reassign(f, u)}
                       staff={staff}
                       currentUserId={currentUserId}
@@ -273,7 +298,7 @@ export default function FollowupsBoard({
               </h2>
               <ul className="v2-card divide-y divide-[color:var(--color-hairline)]">
                 {doneItems.map((f) => (
-                  <Row key={f.id} f={f} onReopen={() => reopen(f)} pending={rowPending && activeRow === f.id} disabled={rowPending} done />
+                  <FollowupRow key={f.id} f={f} onReopen={() => reopen(f)} pending={rowPending && activeRow === f.id} disabled={rowPending} done />
                 ))}
               </ul>
             </section>
@@ -283,70 +308,5 @@ export default function FollowupsBoard({
 
       {toast && <FlashToast message={toast.message} tone={toast.tone} onDone={() => setToast(null)} />}
     </div>
-  )
-}
-
-function Row({
-  f,
-  onComplete,
-  onReopen,
-  onReassign,
-  staff = [],
-  currentUserId = '',
-  pending,
-  disabled,
-  done = false,
-}: {
-  f: PatientFollowupView
-  onComplete?: () => void
-  onReopen?: () => void
-  onReassign?: (userId: string | null) => void
-  staff?: Array<{ userId: string; name: string }>
-  currentUserId?: string
-  /** THIS row's action is running — the only row that shows a spinner. */
-  pending: boolean
-  /** Some row's action is running; the whole board's controls are unavailable. */
-  disabled: boolean
-  done?: boolean
-}) {
-  const due = followupDueState(f.dueDate)
-  return (
-    <li className="flex items-center gap-3 px-4 py-2.5">
-      <TickButton done={done} pending={pending} disabled={disabled} onToggle={() => (done ? onReopen?.() : onComplete?.())} />
-      <div className="min-w-0 flex-1">
-        <p className={`text-sm ${done ? 'text-gray-500 line-through dark:text-gray-400' : 'text-gray-800 dark:text-gray-100'}`}>
-          {f.title}
-        </p>
-        <p className="text-xs text-gray-500 dark:text-gray-400">
-          <Link href={`/patients/${f.patientId}`} className="font-medium text-teal-700 hover:underline dark:text-teal-400">
-            {f.patientName}
-          </Link>
-          {!done && <span className={`ml-2 ${DUE_TONE[due]}`}>{formatDueLabel(f.dueDate)}</span>}
-          {(done || !onReassign) && f.assigneeName && (
-            <span className="ml-2 text-gray-500 dark:text-gray-400">· {f.assigneeName}</span>
-          )}
-        </p>
-      </div>
-      {onReassign && !done && (
-        <select
-          value={f.assignedUserId ?? ''}
-          onChange={(e) => onReassign(e.target.value || null)}
-          disabled={disabled}
-          aria-label="Assign follow-up"
-          title="Assign this follow-up"
-          // Quiet until you reach for it: the assignee reads as text in a list
-          // of many rows; hover/focus reveals the control chrome (a bordered
-          // select on every row shouted louder than the work itself).
-          className="shrink-0 cursor-pointer rounded-md border border-transparent bg-transparent px-2 py-1 text-xs text-gray-500 hover:border-gray-200 hover:bg-white hover:text-gray-700 focus:border-teal-400 focus:bg-white dark:text-gray-400 dark:hover:border-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-200 dark:focus:border-teal-500 dark:focus:bg-gray-800"
-        >
-          <option value="">Unassigned</option>
-          {staff.map((s) => (
-            <option key={s.userId} value={s.userId}>
-              {s.userId === currentUserId ? 'Me' : s.name}
-            </option>
-          ))}
-        </select>
-      )}
-    </li>
   )
 }

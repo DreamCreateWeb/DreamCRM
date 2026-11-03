@@ -340,6 +340,16 @@ export const patientFollowup = pgTable(
     // manual + no-show follow-ups. The smart-rules engine skips creating a
     // follow-up whose ruleKey already exists for the org.
     ruleKey: text('rule_key'),
+    // WHY it exists (drives the glyph + the row's door): 'generic' | 'rebook' |
+    // 'balance' | 'insurance' | 'message' | 'intake' | 'review' | 'recall'.
+    // See FOLLOWUP_KINDS in lib/types/followups.ts. Default 'generic'.
+    kind: text('kind').notNull().default('generic'),
+    // 'YYYY-MM-DD' clinic-local. While set and in the future the row is hidden
+    // from "due" counts and the default board (a snooze also moves dueDate).
+    snoozedUntil: text('snoozed_until'),
+    // How it ended ('reached' | 'booked' | 'no_answer' | 'declined' |
+    // 'not_needed'); null = closed without saying, or still open.
+    outcome: text('outcome'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },

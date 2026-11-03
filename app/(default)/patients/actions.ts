@@ -33,8 +33,11 @@ import {
   reopenFollowup,
   deleteFollowup,
   bulkCreateFollowups,
+  snoozeFollowup,
+  snoozeTargetYmd,
   type PatientFollowupView,
 } from '@/lib/services/patient-followups'
+import type { FollowupKind, FollowupOutcome, SnoozePreset } from '@/lib/types/followups'
 import { listPatients } from '@/lib/services/patients'
 import { mergePatients } from '@/lib/services/patient-merge'
 import {
@@ -409,6 +412,7 @@ export async function createFollowupAction(input: {
   title: string
   dueDate?: string | null
   assignedUserId?: string | null
+  kind?: FollowupKind
 }): Promise<{ ok: true; followup: PatientFollowupView } | { ok: false; error: string }> {
   const ctx = await requireTenant()
   if (ctx.tenantType !== 'clinic') return { ok: false, error: 'Only clinic tenants can add follow-ups' }
@@ -420,6 +424,7 @@ export async function createFollowupAction(input: {
         title: input.title,
         dueDate: input.dueDate ?? null,
         assignedUserId: input.assignedUserId ?? null,
+        kind: input.kind,
       },
       ctx.userId,
     )
@@ -452,14 +457,37 @@ export async function updateFollowupAction(
 export async function completeFollowupAction(
   id: string,
   patientId: string,
+  outcome?: FollowupOutcome | null,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const ctx = await requireTenant()
   if (ctx.tenantType !== 'clinic') return { ok: false, error: 'Only clinic tenants can complete follow-ups' }
-  await completeFollowup(ctx.organizationId, id, ctx.userId)
+  await completeFollowup(ctx.organizationId, id, ctx.userId, outcome ?? null)
   revalidatePath(`/patients/${patientId}`)
   revalidatePath('/followups')
   revalidatePath('/dashboard')
   return { ok: true }
+}
+
+/** Snooze an open follow-up: a preset (resolved to a clinic-local day on the
+ *  server) or an explicit YYYY-MM-DD the person picked. */
+export async function snoozeFollowupAction(
+  id: string,
+  patientId: string,
+  choice: { preset: SnoozePreset } | { date: string },
+): Promise<{ ok: true; until: string } | { ok: false; error: string }> {
+  const ctx = await requireTenant()
+  if (ctx.tenantType !== 'clinic') return { ok: false, error: 'Only clinic tenants can snooze follow-ups' }
+  try {
+    const until = 'preset' in choice ? await snoozeTargetYmd(ctx.organizationId, choice.preset) : choice.date
+    const changed = await snoozeFollowup(ctx.organizationId, id, until)
+    if (!changed) return { ok: false, error: 'That follow-up is already closed.' }
+    revalidatePath(`/patients/${patientId}`)
+    revalidatePath('/followups')
+    revalidatePath('/dashboard')
+    return { ok: true, until }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Could not snooze the follow-up' }
+  }
 }
 
 export async function reopenFollowupAction(

@@ -4,7 +4,14 @@ import { and, asc, desc, eq, gte, inArray, isNotNull, ne, sql } from 'drizzle-or
 import { db, schema } from '@/lib/db'
 import {
   MAX_FOLLOWUP_TITLE_LEN,
+  FOLLOWUP_OUTCOMES,
+  SNOOZE_PRESETS,
   addDaysYmd,
+  normalizeFollowupKind,
+  normalizeFollowupOutcome,
+  type FollowupKind,
+  type FollowupOutcome,
+  type SnoozePreset,
   todayYmd,
   type FollowupStatus,
   type PatientFollowupView,
@@ -55,6 +62,19 @@ const SELECT_SHAPE = {
   status: schema.patientFollowup.status,
   completedAt: schema.patientFollowup.completedAt,
   createdAt: schema.patientFollowup.createdAt,
+  kind: schema.patientFollowup.kind,
+  snoozedUntil: schema.patientFollowup.snoozedUntil,
+  outcome: schema.patientFollowup.outcome,
+}
+
+/** THE one "is this row snoozed right now" predicate (clinic-local `today`).
+ *  Every reader of "due" work (board, huddle summary, sidebar badge, My Day)
+ *  goes through these two so a snoozed row is not due until it wakes. */
+function notSnoozedSql(today: string) {
+  return sql`(${schema.patientFollowup.snoozedUntil} is null or ${schema.patientFollowup.snoozedUntil} <= ${today})`
+}
+function snoozedSql(today: string) {
+  return sql`(${schema.patientFollowup.snoozedUntil} is not null and ${schema.patientFollowup.snoozedUntil} > ${today})`
 }
 
 function toView(r: {
@@ -69,6 +89,9 @@ function toView(r: {
   status: string
   completedAt: Date | null
   createdAt: Date
+  kind?: string | null
+  snoozedUntil?: string | null
+  outcome?: string | null
   createdByName?: string | null
 }): PatientFollowupView {
   return {
@@ -83,6 +106,9 @@ function toView(r: {
     createdByName: r.createdByName ?? null,
     completedAt: r.completedAt,
     createdAt: r.createdAt,
+    kind: normalizeFollowupKind(r.kind),
+    snoozedUntil: r.snoozedUntil ?? null,
+    outcome: normalizeFollowupOutcome(r.outcome),
   }
 }
 
@@ -133,6 +159,9 @@ export interface OpenFollowupFilters {
    *  getMyClosedFollowupsPerWeek8 heartbeat — its "You closed N this week"
    *  label links here (?closedBy=me). Overrides includeDone/open-only. */
   completedBy?: string
+  /** Show ONLY the follow-ups snoozed past today (the "Snoozed (n)" chip).
+   *  Without it, snoozed rows are hidden until they wake. */
+  snoozed?: boolean
 }
 
 /** The /followups cockpit list — open follow-ups across the clinic, joined with
@@ -152,6 +181,10 @@ export async function listOpenFollowups(
     where.push(eq(schema.patientFollowup.completedBy, filters.completedBy))
   } else if (!filters.includeDone) {
     where.push(eq(schema.patientFollowup.status, 'open'))
+  }
+  if (!filters.completedBy) {
+    if (filters.snoozed) where.push(snoozedSql(today))
+    else where.push(notSnoozedSql(today))
   }
   if (filters.assignedTo === 'unassigned') {
     where.push(sql`${schema.patientFollowup.assignedUserId} is null`)
@@ -212,6 +245,7 @@ export async function getFollowupSummary(
       and(
         eq(schema.patientFollowup.organizationId, organizationId),
         eq(schema.patientFollowup.status, 'open'),
+        notSnoozedSql(today),
       ),
     )
   // Preview: the most-urgent open items (overdue + today first via the
@@ -225,6 +259,7 @@ export async function getFollowupSummary(
       and(
         eq(schema.patientFollowup.organizationId, organizationId),
         eq(schema.patientFollowup.status, 'open'),
+        notSnoozedSql(today),
       ),
     )
     .orderBy(asc(sql`coalesce(${schema.patientFollowup.dueDate}, '9999-12-31')`), desc(schema.patientFollowup.createdAt))
@@ -329,6 +364,23 @@ export async function countFollowupsDue(
         // dueDate <= today captures both overdue (< today) and due-today.
         // NULL due dates and future ones are excluded — they aren't "due now".
         sql`${schema.patientFollowup.dueDate} is not null and ${schema.patientFollowup.dueDate} <= ${today}`,
+        notSnoozedSql(today),
+      ),
+    )
+  return Number(row?.c ?? 0)
+}
+
+/** Open follow-ups resting until a later clinic-local day (the board chip). */
+export async function countSnoozedFollowups(organizationId: string, now: Date = new Date()): Promise<number> {
+  const today = await clinicTodayYmd(organizationId, now)
+  const [row] = await db
+    .select({ c: sql<number>`count(*)::int` })
+    .from(schema.patientFollowup)
+    .where(
+      and(
+        eq(schema.patientFollowup.organizationId, organizationId),
+        eq(schema.patientFollowup.status, 'open'),
+        snoozedSql(today),
       ),
     )
   return Number(row?.c ?? 0)
@@ -341,6 +393,8 @@ export interface CreateFollowupInput {
   dueDate?: string | null
   assignedUserId?: string | null
   sourceAppointmentId?: string | null
+  /** Why it exists (drives the glyph + door). Default 'generic'. */
+  kind?: FollowupKind
 }
 
 /** A follow-up can only be assigned to a member of the same org. The assignee
@@ -387,6 +441,7 @@ export async function createFollowup(
     status: 'open',
     createdBy: userId,
     sourceAppointmentId: input.sourceAppointmentId ?? null,
+    kind: normalizeFollowupKind(input.kind),
     createdAt,
   })
 
@@ -407,6 +462,9 @@ export async function createFollowup(
     createdByName: null,
     completedAt: null,
     createdAt,
+    kind: normalizeFollowupKind(input.kind),
+    snoozedUntil: null,
+    outcome: null,
   }
 }
 
@@ -474,18 +532,77 @@ export async function updateFollowup(
     .where(and(eq(schema.patientFollowup.id, id), eq(schema.patientFollowup.organizationId, organizationId)))
 }
 
-export async function completeFollowup(organizationId: string, id: string, userId: string | null): Promise<void> {
+export async function completeFollowup(
+  organizationId: string,
+  id: string,
+  userId: string | null,
+  outcome?: FollowupOutcome | null,
+): Promise<void> {
   await db
     .update(schema.patientFollowup)
-    .set({ status: 'done', completedAt: new Date(), completedBy: userId, updatedAt: new Date() })
+    .set({
+      status: 'done',
+      completedAt: new Date(),
+      completedBy: userId,
+      outcome: normalizeFollowupOutcome(outcome),
+      // A closed row is not snoozed any more.
+      snoozedUntil: null,
+      updatedAt: new Date(),
+    })
     .where(and(eq(schema.patientFollowup.id, id), eq(schema.patientFollowup.organizationId, organizationId)))
 }
 
 export async function reopenFollowup(organizationId: string, id: string): Promise<void> {
   await db
     .update(schema.patientFollowup)
-    .set({ status: 'open', completedAt: null, completedBy: null, updatedAt: new Date() })
+    .set({ status: 'open', completedAt: null, completedBy: null, outcome: null, updatedAt: new Date() })
     .where(and(eq(schema.patientFollowup.id, id), eq(schema.patientFollowup.organizationId, organizationId)))
+}
+
+/** The clinic-local day a snooze preset lands on (start of that clinic day). */
+export async function snoozeTargetYmd(
+  organizationId: string,
+  preset: SnoozePreset,
+  now: Date = new Date(),
+): Promise<string> {
+  const def = SNOOZE_PRESETS[preset]
+  if (!def) throw new Error('Unknown snooze choice.')
+  return addDaysYmd(await clinicTodayYmd(organizationId, now), def.days)
+}
+
+/**
+ * Snooze an OPEN follow-up until a clinic-local day: stamps `snoozedUntil`
+ * and moves the due date there, so it drops out of every "due" reader until
+ * it wakes. `until` must be a well-formed day strictly after the clinic's
+ * today. Org-scoped; returns false when no open row matched.
+ */
+export async function snoozeFollowup(
+  organizationId: string,
+  id: string,
+  until: string,
+  now: Date = new Date(),
+): Promise<boolean> {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(until)) throw new Error('Pick a day to snooze until.')
+  const today = await clinicTodayYmd(organizationId, now)
+  if (until <= today) throw new Error('Snooze until a day after today.')
+  const rows = await db
+    .update(schema.patientFollowup)
+    .set({ snoozedUntil: until, dueDate: until, updatedAt: new Date() })
+    .where(
+      and(
+        eq(schema.patientFollowup.id, id),
+        eq(schema.patientFollowup.organizationId, organizationId),
+        eq(schema.patientFollowup.status, 'open'),
+      ),
+    )
+    .returning({ id: schema.patientFollowup.id })
+  return rows.length > 0
+}
+
+/** The words the record's timeline shows for a closed follow-up's outcome. */
+export function describeOutcome(outcome: string | null | undefined): string | null {
+  const o = normalizeFollowupOutcome(outcome)
+  return o ? FOLLOWUP_OUTCOMES[o].phrase : null
 }
 
 export async function deleteFollowup(organizationId: string, id: string): Promise<void> {
@@ -529,6 +646,7 @@ export async function autoCreateRebookFollowup(
       status: 'open',
       createdBy: null,
       sourceAppointmentId: appointmentId,
+      kind: 'rebook',
     })
     await recordAction({
       organizationId,
