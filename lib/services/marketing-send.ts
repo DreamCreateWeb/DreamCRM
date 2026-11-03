@@ -779,10 +779,16 @@ async function sendViaSms(opts: InternalSendOpts): Promise<SendResult> {
     } else {
       errors.push({ email: label, error: res.error })
       await recordSmsEvent(opts, r, e164, 'failed', { error: res.error })
-      // An org-level refusal mid-run (approval revoked between sends, or the
-      // included segment budget ran out) fails the same way for everyone
-      // left \u2014 stop burning the loop.
-      if (res.reason === 'not_approved' || res.reason === 'driver_off' || res.reason === 'over_budget') {
+      // An org-level refusal mid-run (approval revoked between sends, the
+      // included segment budget ran out, or the clinic's clock crossed into
+      // quiet hours) fails the same way for everyone left \u2014 stop burning
+      // the loop.
+      if (
+        res.reason === 'not_approved' ||
+        res.reason === 'driver_off' ||
+        res.reason === 'over_budget' ||
+        res.reason === 'quiet_hours'
+      ) {
         for (let j = i + 1; j < cap; j++) {
           const rest = opts.recipients[j]
           errors.push({ email: rest.phone ?? rest.email ?? '(unknown)', error: res.error })

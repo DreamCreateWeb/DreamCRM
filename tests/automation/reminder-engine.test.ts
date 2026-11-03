@@ -28,12 +28,17 @@ const inHours = (h: number) => new Date(NOW.getTime() + h * HOUR)
 const hoursAgo = (h: number) => new Date(NOW.getTime() - h * HOUR)
 
 const state = {
-  profiles: [] as Array<{ organizationId: string; reminderSettings: unknown }>,
+  profiles: [] as Array<{ organizationId: string; reminderSettings: unknown; timezone?: string }>,
   candidates: [] as Array<{
     appointmentId: string
     patientId: string
     startTime: Date
     guardianPatientId?: string | null
+    // The just-booked rule's facts (lib/reminder-hours.ts). Absent on the
+    // older fixtures, where the rule must stand aside.
+    createdAt?: Date | null
+    source?: string | null
+    patientEmail?: string | null
   }>,
   details: new Map<string, ApptDetail>(),
   // from(patient) queries, shifted in call order. Two callers share it:
@@ -175,18 +180,31 @@ import { runDueReminders } from '@/lib/services/reminder-automation'
 function seedCandidate(
   id: string,
   startInHours: number,
-  opts: { email?: string | null; phone?: string | null; status?: string; guardianPatientId?: string } = {},
+  opts: {
+    email?: string | null
+    phone?: string | null
+    status?: string
+    guardianPatientId?: string
+    createdAt?: Date
+    source?: string
+  } = {},
 ) {
   const startTime = inHours(startInHours)
+  const email = opts.email === undefined ? 'sam@example.com' : opts.email
   state.candidates.push({
     appointmentId: id,
     patientId: `p_${id}`,
     startTime,
     guardianPatientId: opts.guardianPatientId ?? null,
+    createdAt: opts.createdAt ?? null,
+    source: opts.source ?? null,
+    // The candidate scan joins the patient's own address — the same value
+    // the detail carries.
+    patientEmail: email,
   })
   state.details.set(id, {
     id,
-    patientEmail: opts.email === undefined ? 'sam@example.com' : opts.email,
+    patientEmail: email,
     patientPhone: opts.phone ?? null,
     startTime,
     status: opts.status,
@@ -704,5 +722,172 @@ describe('runDueReminders — the reminder claim (no double-sends)', () => {
     expect(deliverSmsMock).not.toHaveBeenCalled()
     expect(releaseReminderClaimMock).toHaveBeenCalledTimes(1)
     expect(confirmReminderSentMock).not.toHaveBeenCalled()
+  })
+})
+
+describe('runDueReminders — quiet hours (lib/reminder-hours.ts, rule 1)', () => {
+  // NOW is 12:00Z: 8:00 AM in New York (the first allowed minute) and
+  // 5:00 AM in Los Angeles. Every earlier test rides the default (Eastern).
+
+  it('outside the window the org is held whole: nothing scanned, claimed or logged', async () => {
+    state.profiles = [{ organizationId: 'org_la', reminderSettings: null, timezone: 'America/Los_Angeles' }]
+    seedCandidate('a1', 20)
+    logQueue = [[]]
+
+    const r = await runDueReminders({ now: NOW })
+    expect(r.outsideWindow).toBe(1)
+    expect(r.orgsScanned).toBe(0)
+    expect(r.candidates).toBe(0)
+    expect(r.sent).toBe(0)
+    expect(claimAutomatedReminderMock).not.toHaveBeenCalled()
+    expect(logReminderSentMock).not.toHaveBeenCalled()
+    expect(deliverMock).not.toHaveBeenCalled()
+    // The prior-log read never ran either — a held candidate leaves no trace
+    // for the dedupe to swallow when the window opens.
+    expect(logQueue).toHaveLength(1)
+  })
+
+  it('the first tick inside the window sends it, exactly as if the hold never happened', async () => {
+    state.profiles = [{ organizationId: 'org_la', reminderSettings: null, timezone: 'America/Los_Angeles' }]
+    seedCandidate('a1', 20)
+    logQueue = [[]]
+
+    await runDueReminders({ now: NOW }) // 5:00 AM Pacific — held
+    const r = await runDueReminders({ now: inHours(3) }) // 8:00 AM Pacific
+    expect(r.outsideWindow).toBe(0)
+    expect(r.sent).toBe(1)
+    expect(claimAutomatedReminderMock).toHaveBeenCalledWith(
+      expect.objectContaining({ appointmentId: 'a1', template: 'auto_reminder_24h' }),
+    )
+  })
+
+  it('a 7 AM visit’s 24h touch opens at 7 AM — outside — and goes at the 8 AM tick, still as the 24h touch', async () => {
+    state.profiles = [{ organizationId: 'org_ny', reminderSettings: null, timezone: 'America/New_York' }]
+    const visit = new Date('2026-06-11T11:00:00Z') // 7:00 AM EDT, June 11
+    state.candidates.push({ appointmentId: 'a7', patientId: 'p_a7', startTime: visit, guardianPatientId: null })
+    state.details.set('a7', { id: 'a7', patientEmail: 'sam@example.com', startTime: visit })
+    logQueue = [[]]
+
+    const held = await runDueReminders({ now: new Date('2026-06-10T11:00:00Z') }) // 7:00 AM EDT, 24h out
+    expect(held.outsideWindow).toBe(1)
+    expect(held.sent).toBe(0)
+
+    const r = await runDueReminders({ now: new Date('2026-06-10T12:00:00Z') }) // 8:00 AM EDT, 23h out
+    expect(r.sent).toBe(1)
+    expect(claimAutomatedReminderMock).toHaveBeenCalledWith(
+      expect.objectContaining({ appointmentId: 'a7', template: 'auto_reminder_24h' }),
+    )
+  })
+
+  it('8 PM is outside and 7:59 PM is inside — on the clinic’s clock, not the server’s', async () => {
+    state.profiles = [{ organizationId: 'org_ny', reminderSettings: null, timezone: 'America/New_York' }]
+    seedCandidate('a1', 20)
+    logQueue = [[]]
+
+    const late = await runDueReminders({ now: new Date('2026-06-11T00:00:00Z') }) // 8:00 PM EDT, June 10
+    expect(late.outsideWindow).toBe(1)
+    expect(late.sent).toBe(0)
+
+    const r = await runDueReminders({ now: new Date('2026-06-10T23:59:00Z') }) // 7:59 PM EDT
+    expect(r.sent).toBe(1)
+  })
+})
+
+describe('runDueReminders — just booked (lib/reminder-hours.ts, rule 2)', () => {
+  it('a visit the platform confirmed 30 minutes ago is not reminded on the next tick — nothing claimed or logged', async () => {
+    state.profiles = [{ organizationId: 'org_1', reminderSettings: null }]
+    seedCandidate('a1', 20, { createdAt: hoursAgo(0.5), source: 'booking_widget' })
+    logQueue = [[]]
+
+    const r = await runDueReminders({ now: NOW })
+    expect(r.justBooked).toBe(1)
+    expect(r.sent).toBe(0)
+    expect(r.alreadyReminded).toBe(0)
+    expect(r.skipped).toBe(0)
+    expect(claimAutomatedReminderMock).not.toHaveBeenCalled()
+    expect(logReminderSentMock).not.toHaveBeenCalled()
+    expect(deliverMock).not.toHaveBeenCalled()
+    // Decided before the idempotency read — the dedupe never saw it.
+    expect(logQueue).toHaveLength(1)
+  })
+
+  it('the touch the visit was born inside stays the confirmation’s after the grace — no catch-up send', async () => {
+    // Booked 3h ago for a visit 20h from now: 23h out at booking, so the 24h
+    // window was already open — the confirmation WAS the 24h touch.
+    state.profiles = [{ organizationId: 'org_1', reminderSettings: null }]
+    seedCandidate('a1', 20, { createdAt: hoursAgo(3), source: 'manual' })
+    logQueue = [[]]
+
+    const r = await runDueReminders({ now: NOW })
+    expect(r.justBooked).toBe(1)
+    expect(r.sent).toBe(0)
+    expect(claimAutomatedReminderMock).not.toHaveBeenCalled()
+  })
+
+  it('a visit booked three days out still gets its 24h reminder — that touch opened after the booking', async () => {
+    // Booked 50h ago for a visit 20h from now: 70h out at booking; the 24h
+    // window opened 46 hours later and is the visit's own.
+    state.profiles = [{ organizationId: 'org_1', reminderSettings: null }]
+    seedCandidate('a1', 20, { createdAt: hoursAgo(50), source: 'booking_widget' })
+    logQueue = [[]]
+
+    const r = await runDueReminders({ now: NOW })
+    expect(r.justBooked).toBe(0)
+    expect(r.sent).toBe(1)
+    expect(claimAutomatedReminderMock).toHaveBeenCalledWith(
+      expect.objectContaining({ appointmentId: 'a1', template: 'auto_reminder_24h' }),
+    )
+  })
+
+  it('a later touch still fires: the 4h-before of a visit booked this morning', async () => {
+    // Journey [24, 4]; booked 3h ago for a visit 3h from now — 6h out at
+    // booking, inside the 24h window, NOT inside the 4h one.
+    state.profiles = [{ organizationId: 'org_1', reminderSettings: { touchOffsets: [24, 4] } }]
+    seedCandidate('a1', 3, { createdAt: hoursAgo(3), source: 'booking_widget' })
+    logQueue = [[]]
+
+    const r = await runDueReminders({ now: NOW })
+    expect(r.justBooked).toBe(0)
+    expect(r.sent).toBe(1)
+    expect(claimAutomatedReminderMock).toHaveBeenCalledWith(
+      expect.objectContaining({ template: 'auto_reminder_4h' }),
+    )
+  })
+
+  it('a PMS-synced visit booked moments ago IS reminded — we confirmed nothing', async () => {
+    state.profiles = [{ organizationId: 'org_1', reminderSettings: null }]
+    seedCandidate('a1', 20, { createdAt: hoursAgo(0.5), source: 'pms' })
+    logQueue = [[]]
+
+    const r = await runDueReminders({ now: NOW })
+    expect(r.justBooked).toBe(0)
+    expect(r.sent).toBe(1)
+  })
+
+  it('a patient with no address of their own got no confirmation — the rule stands aside and the text goes', async () => {
+    getClinicSmsIdentityMock.mockImplementation(async () => ({ ok: true, fromNumber: '+14155550100' }))
+    state.profiles = [{ organizationId: 'org_1', reminderSettings: null }]
+    seedCandidate('a1', 20, {
+      email: null,
+      phone: '(415) 555-0142',
+      createdAt: hoursAgo(0.5),
+      source: 'booking_widget',
+    })
+    logQueue = [[]]
+    state.guardianQueue = [[]] // the standing-STOP scan — nobody opted out
+
+    const r = await runDueReminders({ now: NOW })
+    expect(r.justBooked).toBe(0)
+    expect(r.sentSms).toBe(1)
+  })
+
+  it('an older fixture with no createdAt is never mistaken for a fresh booking', async () => {
+    state.profiles = [{ organizationId: 'org_1', reminderSettings: null }]
+    seedCandidate('a1', 20, { source: 'booking_widget' })
+    logQueue = [[]]
+
+    const r = await runDueReminders({ now: NOW })
+    expect(r.justBooked).toBe(0)
+    expect(r.sent).toBe(1)
   })
 })

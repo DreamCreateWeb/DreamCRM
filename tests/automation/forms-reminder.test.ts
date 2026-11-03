@@ -10,8 +10,14 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
  *   appointment_reminder_log -> appts already reminded (remindedAppointmentIds).
  */
 
+// 11:00 AM Eastern — inside the send window for the default timezone, so the
+// quiet-hours gate (lib/reminder-hours.ts) stands aside for every test that
+// is not about it. The engine used to be called on the real clock here,
+// which would have made the suite fail between 8 PM and 8 AM Eastern.
+const NOW = new Date('2026-06-10T15:00:00Z')
+
 const state = {
-  profiles: [] as Array<{ organizationId: string; reminderSettings: unknown }>,
+  profiles: [] as Array<{ organizationId: string; reminderSettings: unknown; timezone?: string }>,
   candidates: [] as Array<{ appointmentId: string; patientId: string }>,
   submittedPatientIds: [] as string[],
   remindedAppointmentIds: [] as string[],
@@ -96,7 +102,7 @@ describe('runDueFormReminders', () => {
     intakeOpen.value = false
     state.profiles = [{ organizationId: 'org_closed', reminderSettings: { formsReminder: true } }]
     try {
-      const r = await runDueFormReminders()
+      const r = await runDueFormReminders({ now: NOW })
       expect(r.orgsScanned).toBe(0)
       expect(sendIntakeRequestToPatient).not.toHaveBeenCalled()
     } finally {
@@ -106,14 +112,14 @@ describe('runDueFormReminders', () => {
 
   it('skips an org with formsReminder off', async () => {
     state.profiles = [{ organizationId: 'org_off', reminderSettings: { formsReminder: false } }]
-    const r = await runDueFormReminders()
+    const r = await runDueFormReminders({ now: NOW })
     expect(r.orgsScanned).toBe(0)
     expect(sendIntakeRequestToPatient).not.toHaveBeenCalled()
   })
 
   it('sends to a patient with no submission + logs a forms_intake row', async () => {
     state.candidates = [{ appointmentId: 'a1', patientId: 'p1' }]
-    const r = await runDueFormReminders()
+    const r = await runDueFormReminders({ now: NOW })
     expect(r.sent).toBe(1)
     expect(sendIntakeRequestToPatient).toHaveBeenCalledWith('org_1', 'p1')
     expect(logReminderSent).toHaveBeenCalledWith(expect.objectContaining({ template: 'forms_intake', appointmentId: 'a1' }))
@@ -122,7 +128,7 @@ describe('runDueFormReminders', () => {
   it('skips a patient who already submitted a form', async () => {
     state.candidates = [{ appointmentId: 'a1', patientId: 'p1' }]
     state.submittedPatientIds = ['p1'] // already submitted
-    const r = await runDueFormReminders()
+    const r = await runDueFormReminders({ now: NOW })
     expect(r.sent).toBe(0)
     expect(r.skipped).toBe(1)
     expect(sendIntakeRequestToPatient).not.toHaveBeenCalled()
@@ -131,7 +137,7 @@ describe('runDueFormReminders', () => {
   it('dedups via a recent forms_intake log', async () => {
     state.candidates = [{ appointmentId: 'a1', patientId: 'p1' }]
     state.remindedAppointmentIds = ['a1'] // already reminded within the window
-    const r = await runDueFormReminders()
+    const r = await runDueFormReminders({ now: NOW })
     expect(r.sent).toBe(0)
     expect(r.alreadyReminded).toBe(1)
     expect(sendIntakeRequestToPatient).not.toHaveBeenCalled()
@@ -142,8 +148,31 @@ describe('runDueFormReminders', () => {
       { appointmentId: 'a1', patientId: 'p1' },
       { appointmentId: 'a2', patientId: 'p1' },
     ]
-    const r = await runDueFormReminders()
+    const r = await runDueFormReminders({ now: NOW })
     expect(r.sent).toBe(1)
     expect(sendIntakeRequestToPatient).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('runDueFormReminders — quiet hours (lib/reminder-hours.ts, rule 1)', () => {
+  it('a clinic outside its own 8 AM–8 PM is held whole — nothing sent, nothing logged — and nudged at 8', async () => {
+    state.profiles = [
+      { organizationId: 'org_la', reminderSettings: { formsReminder: true }, timezone: 'America/Los_Angeles' },
+    ]
+    state.candidates = [{ appointmentId: 'a1', patientId: 'p1' }]
+
+    // 12:00Z is 5:00 AM in Los Angeles.
+    const held = await runDueFormReminders({ now: new Date('2026-06-10T12:00:00Z') })
+    expect(held.outsideWindow).toBe(1)
+    expect(held.orgsScanned).toBe(0)
+    expect(held.sent).toBe(0)
+    expect(sendIntakeRequestToPatient).not.toHaveBeenCalled()
+    expect(logReminderSent).not.toHaveBeenCalled()
+
+    // 15:00Z is 8:00 AM in Los Angeles — the nudge goes, nothing held it back.
+    const r = await runDueFormReminders({ now: new Date('2026-06-10T15:00:00Z') })
+    expect(r.outsideWindow).toBe(0)
+    expect(r.sent).toBe(1)
+    expect(logReminderSent).toHaveBeenCalledTimes(1)
   })
 })

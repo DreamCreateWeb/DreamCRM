@@ -29,6 +29,7 @@ import {
 import { toE164 } from '@/lib/phone'
 import { visitTypePrepInstructions } from '@/lib/types/visit-types'
 import { clinicDayKey } from '@/lib/format-datetime'
+import { bookedTooRecently, confirmationCoversBooking, isInsideSendWindow } from '@/lib/reminder-hours'
 import type { ClinicSender } from '@/lib/email-identity'
 import { reportAutomationFailure } from '@/lib/services/engine-failures'
 
@@ -73,6 +74,15 @@ export async function updateReminderSettings(
  * `appointment_reminder_log` row within the last `offsetHours`, so running the
  * job every 30 minutes never double-sends. Automated sends are logged with
  * `sentByUserId: null` (the column already anticipates this).
+ *
+ * Two more rules, both from lib/reminder-hours.ts and both SILENT (no log
+ * row, no claim — a held candidate is simply not due yet):
+ *   - QUIET HOURS: a clinic is walked only between 8 AM and 8 PM on its own
+ *     clock. Outside it the org is held whole; the first tick inside the
+ *     window finds every candidate exactly as it was.
+ *   - JUST BOOKED: a visit the platform confirmed minutes ago is not
+ *     reminded on the next tick, and the touch it was born inside is the
+ *     confirmation's for good. A later touch is still the visit's own.
  */
 
 // ── Shared send helper (reused by the manual drawer action) ──────────────────
@@ -609,6 +619,14 @@ export interface ReminderRunResult {
    *  "two ticks overlapped", and a batch-health surface reading a rising
    *  number here is looking at a scheduling problem, not a quiet clinic. */
   claimContended: number
+  /** Clinic orgs held this tick because their own clock was outside the
+   *  send window (lib/reminder-hours.ts). Nothing was scanned, claimed or
+   *  logged for them; the first tick inside the window picks them up. */
+  outsideWindow: number
+  /** Candidates skipped because the visit was booked moments ago and the
+   *  booking confirmation already said it all (the just-booked rule). Not
+   *  logged — a later touch is still that visit's. */
+  justBooked: number
   /** Skipped for an expected reason (no email, etc.). */
   skipped: number
   /** Sends that errored (worth alerting on). */
@@ -647,17 +665,21 @@ export async function runDueReminders(opts?: { now?: Date }): Promise<ReminderRu
     sentSms: 0,
     alreadyReminded: 0,
     claimContended: 0,
+    outsideWindow: 0,
+    justBooked: 0,
     skipped: 0,
     failed: 0,
     errors: [],
   }
 
   // One row per clinic (clinic_profile is 1:1 with a clinic org). reminderSettings
-  // null = REMINDER_DEFAULTS (enabled, 24h).
+  // null = REMINDER_DEFAULTS (enabled, 24h). The timezone rides the same read:
+  // the send window is the CLINIC's 8 AM–8 PM, never the server's.
   const profiles = await db
     .select({
       organizationId: schema.clinicProfile.organizationId,
       reminderSettings: schema.clinicProfile.reminderSettings,
+      timezone: schema.clinicProfile.timezone,
     })
     .from(schema.clinicProfile)
 
@@ -667,6 +689,13 @@ export async function runDueReminders(opts?: { now?: Date }): Promise<ReminderRu
     if (shutDown.has(profile.organizationId)) continue
     const settings = resolveReminderSettings(profile.reminderSettings)
     if (!settings.enabled) continue
+    // QUIET HOURS (lib/reminder-hours.ts): outside the window on the clinic's
+    // own clock nothing is due yet — not scanned, not claimed, not logged —
+    // so the next tick inside it finds every candidate exactly as it is.
+    if (!isInsideSendWindow(now, profile.timezone)) {
+      result.outsideWindow++
+      continue
+    }
     result.orgsScanned++
 
     // The journey: touch offsets descending (e.g. [72, 24]). The scan window
@@ -711,6 +740,12 @@ export async function runDueReminders(opts?: { now?: Date }): Promise<ReminderRu
       patientId: string
       startTime: Date
       guardianPatientId: string | null
+      /** The just-booked rule's three facts: when the visit was booked, who
+       *  booked it (a PMS row got no confirmation from us) and whether the
+       *  patient had an address for the confirmation to reach. */
+      createdAt: Date | null
+      source: string | null
+      patientEmail: string | null
     }>
     try {
       candidates = await db
@@ -719,6 +754,9 @@ export async function runDueReminders(opts?: { now?: Date }): Promise<ReminderRu
         patientId: schema.appointment.patientId,
         startTime: schema.appointment.startTime,
         guardianPatientId: schema.patient.guardianPatientId,
+        createdAt: schema.appointment.createdAt,
+        source: schema.appointment.source,
+        patientEmail: schema.patient.email,
       })
       .from(schema.appointment)
       .innerJoin(schema.patient, eq(schema.appointment.patientId, schema.patient.id))
@@ -768,6 +806,19 @@ export async function runDueReminders(opts?: { now?: Date }): Promise<ReminderRu
       }
       const touch = Math.min(...eligible)
       const template = reminderTouchTemplate(touch)
+
+      // THE JUST-BOOKED RULE (lib/reminder-hours.ts): a visit the platform
+      // confirmed moments ago already told the patient everything this touch
+      // would, and the touch it was born inside is the confirmation's for
+      // good. Decided BEFORE the idempotency read and the claim so nothing
+      // is written — a later touch is still this visit's own.
+      if (
+        confirmationCoversBooking({ source: c.source, patientEmail: c.patientEmail }) &&
+        bookedTooRecently({ createdAt: c.createdAt, startTime: c.startTime, now, offsetHours: touch })
+      ) {
+        result.justBooked++
+        continue
+      }
 
       // Idempotency, two rules in one query:
       //  (a) this touch already sent for this appointment (ever) — a touch
@@ -977,10 +1028,14 @@ export async function runDueReminders(opts?: { now?: Date }): Promise<ReminderRu
  */
 export async function runDueFormReminders(opts?: { now?: Date }): Promise<ReminderRunResult> {
   const now = opts?.now ?? new Date()
-  const result: ReminderRunResult = { orgsScanned: 0, candidates: 0, sent: 0, sentSms: 0, alreadyReminded: 0, claimContended: 0, skipped: 0, failed: 0, errors: [] }
+  const result: ReminderRunResult = { orgsScanned: 0, candidates: 0, sent: 0, sentSms: 0, alreadyReminded: 0, claimContended: 0, outsideWindow: 0, justBooked: 0, skipped: 0, failed: 0, errors: [] }
 
   const profiles = await db
-    .select({ organizationId: schema.clinicProfile.organizationId, reminderSettings: schema.clinicProfile.reminderSettings })
+    .select({
+      organizationId: schema.clinicProfile.organizationId,
+      reminderSettings: schema.clinicProfile.reminderSettings,
+      timezone: schema.clinicProfile.timezone,
+    })
     .from(schema.clinicProfile)
 
   const { sendIntakeRequestToPatient } = await import('@/lib/services/patient-intake-send')
@@ -992,6 +1047,12 @@ export async function runDueFormReminders(opts?: { now?: Date }): Promise<Remind
     if (shutDown.has(profile.organizationId)) continue
     const settings = resolveReminderSettings(profile.reminderSettings)
     if (!settings.formsReminder) continue
+    // QUIET HOURS: a paperwork nudge at 11 PM is still a message at 11 PM.
+    // Same gate as the visit reminders; nothing is logged for a held org.
+    if (!isInsideSendWindow(now, profile.timezone)) {
+      result.outsideWindow++
+      continue
+    }
     // OFF UNTIL CHOSEN (docs/ACTIVATION.md law 1, audit round 3): a clinic
     // that never opened Intake Forms chases nobody about paperwork — the
     // seeded standard form is not theirs to send.
