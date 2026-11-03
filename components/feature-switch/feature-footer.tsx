@@ -1,5 +1,6 @@
 'use client'
 
+import { runAction } from '@/lib/run-action'
 import { useState, useTransition } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { useConfirmSafe } from '@/components/ui/confirm-dialog'
@@ -34,7 +35,7 @@ export default function FeatureFooter({ feature, canManage }: { feature: Feature
     })
     if (!ok) return
     startTransition(async () => {
-      const r = await disableFeatureAction(feature)
+      const r = await runAction(() => disableFeatureAction(feature))
       if (!r.ok) {
         setError(r.error)
         return

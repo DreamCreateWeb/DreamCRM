@@ -1303,23 +1303,6 @@ export async function searchPatientOptions(
   }))
 }
 
-/** Lightweight id+name list for pickers (e.g. the guardian select). */
-export async function listPatientOptions(
-  organizationId: string,
-): Promise<Array<{ id: string; name: string }>> {
-  const rows = await db
-    .select({
-      id: schema.patient.id,
-      firstName: schema.patient.firstName,
-      lastName: schema.patient.lastName,
-    })
-    .from(schema.patient)
-    .where(and(eq(schema.patient.organizationId, organizationId), eq(schema.patient.isActive, 1)))
-    .orderBy(schema.patient.firstName, schema.patient.lastName)
-    .limit(500)
-  return rows.map((r) => ({ id: r.id, name: `${r.firstName} ${r.lastName}` }))
-}
-
 export async function archivePatient(organizationId: string, patientId: string) {
   await db
     .update(schema.patient)

@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { runAction } from '@/lib/run-action'
 import { submitInsuranceVerifyRequest } from '@/app/site/[slug]/insurance-verify-action'
 import { DEFAULT_LEAD_FORMS, type LeadFormField } from '@/lib/types/lead-forms'
 import FormTrustFields from '@/components/clinic-site/form-trust-fields'
@@ -38,6 +39,7 @@ interface Props {
  */
 export default function InsuranceVerifierForm({ slug, brand, carriers, services, fields }: Props) {
   const [status, setStatus] = useState<'idle' | 'pending' | 'success' | 'error'>('idle')
+  const [network, setNetwork] = useState<string | null>(null)
   const [errorMsg, setErrorMsg] = useState('')
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
 
@@ -86,7 +88,9 @@ export default function InsuranceVerifierForm({ slug, brand, carriers, services,
           Thanks!
         </p>
         <p className="text-sm text-[var(--c-deep-ink,#FFFFFF)]/80">
-          We&apos;ll be in touch within one business day.
+          {network
+            ? `Good news — we're in network with ${network}. We'll confirm your plan's details before your visit.`
+            : "We'll be in touch within one business day."}
         </p>
       </div>
     )
@@ -113,8 +117,9 @@ export default function InsuranceVerifierForm({ slug, brand, carriers, services,
       return
     }
     setStatus('pending')
-    const result = await submitInsuranceVerifyRequest(fd)
+    const result = await runAction(() => submitInsuranceVerifyRequest(fd))
     if (result.ok) {
+      setNetwork(result.inNetwork === true ? result.carrier ?? 'your carrier' : null)
       setStatus('success')
     } else {
       setErrorMsg(result.error)

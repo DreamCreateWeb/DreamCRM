@@ -1,10 +1,11 @@
 'use client'
 
-import { useState, useTransition, useMemo, useRef } from 'react'
+import { useState, useTransition, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { ActionButton } from '@/components/ui/action-button'
 import { FlashToast } from '@/components/ui/flash-toast'
 import { useFocusTrap } from '@/components/ui/use-focus-trap'
+import PatientCombobox from '@/components/ui/patient-combobox'
 import { mergePatientsAction } from '../actions'
 
 type Candidate = { id: string; name: string; email: string | null; phone: string | null; reason: string }
@@ -20,28 +21,18 @@ export default function MergeDuplicate({
   survivorId,
   survivorName,
   candidates,
-  allPatients,
 }: {
   survivorId: string
   survivorName: string
   candidates: Candidate[]
-  allPatients: Option[]
 }) {
   const router = useRouter()
   const dialogRef = useRef<HTMLDivElement | null>(null)
   const [open, setOpen] = useState(false)
   const [picked, setPicked] = useState<Option | null>(null)
-  const [search, setSearch] = useState('')
   const [toast, setToast] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
   useFocusTrap(open, dialogRef, { onEscape: () => { if (!pending) setOpen(false) } })
-
-  const others = useMemo(() => allPatients.filter((p) => p.id !== survivorId), [allPatients, survivorId])
-  const matches = useMemo(() => {
-    const q = search.trim().toLowerCase()
-    if (!q) return []
-    return others.filter((p) => p.name.toLowerCase().includes(q)).slice(0, 6)
-  }, [others, search])
 
   function doMerge(dupId: string) {
     startTransition(async () => {
@@ -124,27 +115,13 @@ export default function MergeDuplicate({
 
                 <div className="mt-4">
                   <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1">Or find another</p>
-                  <input
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    placeholder="Search patients by name…"
-                    className="form-input w-full text-sm"
+                  <PatientCombobox
+                    id="merge-find"
+                    value={null}
+                    excludeId={survivorId}
+                    onPick={(p) => p && setPicked(p)}
+                    placeholder="Search patients by name, phone or email…"
                   />
-                  {matches.length > 0 && (
-                    <ul className="mt-1 space-y-0.5">
-                      {matches.map((m) => (
-                        <li key={m.id}>
-                          <button
-                            type="button"
-                            onClick={() => setPicked(m)}
-                            className="w-full text-left text-sm px-3 py-1.5 rounded hover:bg-gray-50 dark:hover:bg-gray-700/40 text-gray-700 dark:text-gray-200"
-                          >
-                            {m.name}
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
                 </div>
 
                 <div className="mt-4 flex justify-end">

@@ -6172,23 +6172,6 @@ template with no bar, or a bar hidden above `sm`, measures 0 and nothing
 moves. The right-aligned pairs on established and hometeam are
 deliberately not tagged — the bottom-left floaters never meet them.
 
-## 2026-11-03 — CLAUDE.md trimmed to a lean manual (the agent economy)
-
-Every subagent start pays for the injected project manual, and it had grown
-to ~20,300 words (~40k tokens) — more than a third of what a typical
-implementer spent before reading a line of code, across ~35 agents in the
-dev cycle. The manual is now ~3,900 words (~8k tokens): the doc set, the
-stack as short bullets with pointers, the repo layout, tenancy, the timezone
-and demo laws, a one-to-three-line module table, every convention (the laws
-are kept whole, the phase-audit rule tightened), ops, the open items as
-pointers. NOTHING WAS DELETED: the long-form sections — the SMS / insurance
-/ PMS build records, the long module rows, the key-subsystem reference, the
-per-migration history, the whole Transformation narrative — moved verbatim
-to `docs/SUBSYSTEMS.md`, which the manual points at wherever a pointer
-replaced prose. `tests/journey/spine.test.ts`'s two content pins still hold.
-The manual also grew an "Agent economy" note: brief agents with paths, not
-pasted code; dot reporter + failures only; Sonnet for well-specified work.
-
 ## 2026-11-03 — The deep dev cycle, part 3: the first four feature slices
 
 The medium/large half of the cycle (153 findings, 142 confirmed + 11

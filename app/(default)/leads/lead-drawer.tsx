@@ -9,6 +9,7 @@ import { useDrawerExit } from '@/components/ui/use-drawer-exit'
 import { StatusPill } from '@/components/ui/status-pill'
 import { FlashToast } from '@/components/ui/flash-toast'
 import type { Tone } from '@/lib/ui/encodings'
+import { carrierFromLeadMessage } from '@/lib/types/lead-forms'
 import { formatClinicDayTime } from '@/lib/format-datetime'
 import { coercePreferredDateKey } from '@/lib/preferred-date'
 import { ACTION_FAILED_MESSAGE, STALE_APP_MESSAGE, isDeploymentSkewError } from '@/lib/deployment-skew'
@@ -48,13 +49,28 @@ const LABEL_CLASS = 'text-xs uppercase tracking-wider text-gray-500 dark:text-gr
 
 
 
+/** /insurance with what the visitor typed — the carrier is the payer picker's QUERY. */
+export function insuranceCheckHref(row: Pick<LeadRow, 'message' | 'name' | 'email'>): string {
+  const q = new URLSearchParams()
+  const payer = carrierFromLeadMessage(row.message)
+  if (payer) q.set('payer', payer)
+  // The default form has no name field; its sentinel is not a name.
+  if (row.name && row.name !== 'Insurance verification request') q.set('name', row.name)
+  if (row.email) q.set('email', row.email)
+  const qs = q.toString()
+  return qs ? `/insurance?${qs}` : '/insurance'
+}
+
 export default function LeadDrawer({
   row,
   timeZone,
   onClose,
   onStatusChange,
+  insuranceOpen = false,
 }: {
   row: LeadRow
+  /** The clinic's insurance switch is ON (`canUseInsuranceTool` + `setup.enabled`, resolved by the page). The "Check their insurance" door shows ONLY then. */
+  insuranceOpen?: boolean
   /** Clinic IANA tz — timeline stamps read clinic wall-clock, not the
    *  viewer's browser (a remote manager saw shifted times). */
   timeZone: string
@@ -318,6 +334,17 @@ export default function LeadDrawer({
               <p className="text-sm text-gray-700 dark:text-gray-200 whitespace-pre-wrap italic">
                 &ldquo;{row.message}&rdquo;
               </p>
+            </div>
+          )}
+
+          {/* THE DOOR TO THE TOOL: a website insurance question carries its
+              carrier on the first line of the message; the check stays MANUAL
+              (a click here opens the form prefilled — it never runs one). */}
+          {insuranceOpen && row.sourcePage === 'insurance_verifier' && (
+            <div className="pt-3 border-t border-[color:var(--color-hairline)]">
+              <ActionButton variant="secondary" size="sm" href={insuranceCheckHref(row)}>
+                Check their insurance →
+              </ActionButton>
             </div>
           )}
 
