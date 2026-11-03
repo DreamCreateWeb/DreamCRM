@@ -7,6 +7,7 @@ import { StatusPill } from '@/components/ui/status-pill'
 import type { DomainOffer } from '@/lib/services/domain-purchase'
 import type { DomainPurchaseView } from '@/lib/services/domain-purchase'
 import { searchDomainsAction, purchaseDomainAction } from './buy-domain-actions'
+import { runAction } from '@/lib/run-action'
 
 function dollars(cents: number): string {
   return `$${(cents / 100).toFixed(2)}`
@@ -61,7 +62,9 @@ export default function BuyDomainCard({
     setError(null)
     setSuccess(null)
     startTransition(async () => {
-      const res = await purchaseDomainAction(offer.domainName, offer.purchasePriceCents)
+      const res = await runAction(() =>
+        purchaseDomainAction(offer.domainName, offer.purchasePriceCents),
+      )
       if (res.ok) {
         setConfirming(null)
         setOffers(null)

@@ -6,6 +6,8 @@ import { lead } from '@/lib/db/schema/clinic'
 import { clinicProfile } from '@/lib/db/schema/platform'
 import { resolveSeoMeta, compactSeoMeta, type PageSeoMeta } from '@/lib/types/seo-meta'
 import { stageWebsiteValues } from '@/lib/services/website-draft'
+import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
+import { clinicDayStart } from '@/lib/clinic-timezone'
 
 /**
  * Public-site traffic — the clinic's first real "how many people visit my
@@ -92,6 +94,14 @@ export interface SiteTrafficPage {
   views: number
 }
 
+/** One page's window total + its zero-filled daily series (oldest → newest,
+ *  parallel to `SiteTraffic.daily`) — the Pages manager's visits column. */
+export interface SiteTrafficPageSeries {
+  path: string
+  views: number
+  daily: number[]
+}
+
 export interface SiteTraffic {
   windowDays: number
   /** Total views across the window. */
@@ -102,6 +112,8 @@ export interface SiteTraffic {
   daily: SiteTrafficDay[]
   /** Top pages by views in the window (capped). */
   topPages: SiteTrafficPage[]
+  /** EVERY page with views in the window (uncapped), each with its daily series. */
+  pages?: SiteTrafficPageSeries[]
 }
 
 const TOP_PAGES_LIMIT = 8
@@ -143,6 +155,7 @@ export async function getSiteTraffic(organizationId: string, days = 30): Promise
   }
 
   const pageMap = new Map<string, number>()
+  const pageDayMap = new Map<string, Map<string, number>>()
   let total = 0
   let totalPrev = 0
 
@@ -154,6 +167,9 @@ export async function getSiteTraffic(organizationId: string, days = 30): Promise
       total += v
       dailyMap.set(dk, (dailyMap.get(dk) ?? 0) + v)
       pageMap.set(r.path, (pageMap.get(r.path) ?? 0) + v)
+      const byDay = pageDayMap.get(r.path) ?? new Map<string, number>()
+      byDay.set(dk, (byDay.get(dk) ?? 0) + v)
+      pageDayMap.set(r.path, byDay)
     } else if (dk >= priorStartKey) {
       totalPrev += v
     }
@@ -168,7 +184,16 @@ export async function getSiteTraffic(organizationId: string, days = 30): Promise
     .sort((a, b) => b.views - a.views)
     .slice(0, TOP_PAGES_LIMIT)
 
-  return { windowDays, total, totalPrev, daily, topPages }
+  const dayKeys = daily.map((d) => d.day)
+  const pages: SiteTrafficPageSeries[] = Array.from(pageMap.entries())
+    .map(([path, views]) => ({
+      path,
+      views,
+      daily: dayKeys.map((k) => pageDayMap.get(path)?.get(k) ?? 0),
+    }))
+    .sort((a, b) => b.views - a.views)
+
+  return { windowDays, total, totalPrev, daily, topPages, pages }
 }
 
 // ── Per-page SEO meta (Settings → Search appearance) ──────────────────────────
@@ -210,6 +235,8 @@ export interface SitePerformance {
   traffic: SiteTraffic
   /** Website leads created in the same 30-day window (any status). */
   leads30d: number
+  /** Website leads in the PRIOR 30 clinic-local days (adjacent, equal length) — the delta's base. */
+  leadsPrev30d: number
   /** leads / visits as a whole-number percent; null until there's traffic. */
   conversionPct: number | null
 }
@@ -219,19 +246,30 @@ export interface SitePerformance {
  * produced + a visit→lead conversion rate. Powers the Studio performance
  * panel; the Overview tile uses getSiteTraffic(org, 7) directly.
  */
-export async function getSitePerformance(organizationId: string): Promise<SitePerformance> {
-  const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+export async function getSitePerformance(
+  organizationId: string,
+  now: Date = new Date(),
+): Promise<SitePerformance> {
+  // Clinic-local windows (timezone law): 30 local days ending today, and the
+  // 30 local days before them — adjacent and equal, the way visits are.
+  const tz = await getClinicTimeZone(organizationId).catch(() => 'America/New_York')
+  const windowStart = clinicDayStart(now, tz, -29)
+  const priorStart = clinicDayStart(now, tz, -59)
   const [traffic, leadRows] = await Promise.all([
     getSiteTraffic(organizationId, 30),
     db
-      .select({ n: sql<number>`count(*)::int` })
+      .select({
+        cur: sql<number>`count(*) filter (where ${lead.createdAt} >= ${windowStart})::int`,
+        prev: sql<number>`count(*) filter (where ${lead.createdAt} < ${windowStart})::int`,
+      })
       .from(lead)
-      .where(and(eq(lead.organizationId, organizationId), gte(lead.createdAt, since))),
+      .where(and(eq(lead.organizationId, organizationId), gte(lead.createdAt, priorStart))),
   ])
-  const leads30d = leadRows[0]?.n ?? 0
+  const leads30d = leadRows[0]?.cur ?? 0
+  const leadsPrev30d = leadRows[0]?.prev ?? 0
   const conversionPct =
     traffic.total > 0 ? Math.round((leads30d / traffic.total) * 1000) / 10 : null
-  return { traffic, leads30d, conversionPct }
+  return { traffic, leads30d, leadsPrev30d, conversionPct }
 }
 
 export interface WeeklySiteDigest {

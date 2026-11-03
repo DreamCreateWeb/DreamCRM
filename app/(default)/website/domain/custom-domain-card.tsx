@@ -13,6 +13,7 @@ import {
   removeCustomDomainAction,
   detectDnsProviderAction,
 } from './custom-domain-actions'
+import { runAction } from '@/lib/run-action'
 
 interface Props {
   /** Current saved status (null = no custom domain configured). */
@@ -108,7 +109,7 @@ export default function CustomDomainCard({ initialStatus, subdomainUrl, timeZone
     if (!isPending) return
     const id = setInterval(async () => {
       setAutoChecking(true)
-      const res = await checkCustomDomainStatusAction()
+      const res = await runAction(() => checkCustomDomainStatusAction())
       setAutoChecking(false)
       if (res.ok) {
         setStatus(res.status)
@@ -127,7 +128,7 @@ export default function CustomDomainCard({ initialStatus, subdomainUrl, timeZone
     setNote(null)
     setActive('connect')
     startTransition(async () => {
-      const res = await requestCustomDomainAction(domain)
+      const res = await runAction(() => requestCustomDomainAction(domain))
       if (res.ok) {
         setStatus(res.status)
         setDomain('')
@@ -142,7 +143,7 @@ export default function CustomDomainCard({ initialStatus, subdomainUrl, timeZone
     setNote(null)
     setActive('check')
     startTransition(async () => {
-      const res = await checkCustomDomainStatusAction()
+      const res = await runAction(() => checkCustomDomainStatusAction())
       if (res.ok) {
         setStatus(res.status)
         setNote(
@@ -161,7 +162,7 @@ export default function CustomDomainCard({ initialStatus, subdomainUrl, timeZone
     setNote(null)
     setActive('remove')
     startTransition(async () => {
-      const res = await removeCustomDomainAction()
+      const res = await runAction(() => removeCustomDomainAction())
       if (res.ok) {
         setStatus(null)
         setNote('Custom domain removed. Your site is back on its free address.')

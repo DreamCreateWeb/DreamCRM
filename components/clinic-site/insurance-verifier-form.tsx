@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { submitInsuranceVerifyRequest } from '@/app/site/[slug]/insurance-verify-action'
 import { DEFAULT_LEAD_FORMS, type LeadFormField } from '@/lib/types/lead-forms'
 import FormTrustFields from '@/components/clinic-site/form-trust-fields'
+import { runAction } from '@/lib/run-action'
 import { FieldError } from '@/components/ui/field-error'
 import { validateRequired, validateEmail, validatePhone } from '@/lib/validation'
 
@@ -113,7 +114,9 @@ export default function InsuranceVerifierForm({ slug, brand, carriers, services,
       return
     }
     setStatus('pending')
-    const result = await submitInsuranceVerifyRequest(fd)
+    const result = await runAction(() => submitInsuranceVerifyRequest(fd), {
+      staleMessage: 'This page was updated while it was open. Please refresh it and send your request again.',
+    })
     if (result.ok) {
       setStatus('success')
     } else {

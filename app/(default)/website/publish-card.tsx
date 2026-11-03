@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useConfirm } from '@/components/ui/confirm-dialog'
 import { publishWebsiteAction, discardWebsiteAction } from './editor/website-actions'
+import { runAction } from '@/lib/run-action'
 
 /**
  * The hub's Draft→Publish card — shows what's saved but not yet on the live
@@ -29,7 +30,7 @@ export default function PublishCard({
     if (busy) return
     setBusy('publish')
     setError(null)
-    const res = await publishWebsiteAction()
+    const res = await runAction(() => publishWebsiteAction())
     setBusy(null)
     if (res.ok) router.refresh()
     else setError(res.error)
@@ -45,7 +46,7 @@ export default function PublishCard({
     if (!ok) return
     setBusy('discard')
     setError(null)
-    const res = await discardWebsiteAction()
+    const res = await runAction(() => discardWebsiteAction())
     setBusy(null)
     if (res.ok) router.refresh()
     else setError(res.error)

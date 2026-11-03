@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { saveBrandColor } from './website-actions'
+import { runAction } from '@/lib/run-action'
 
 // A curated dental-friendly starting set — every swatch runs through the same
 // derived-palette + contrast machinery, so all of these land readable.
@@ -41,7 +42,7 @@ export default function BrandColorPopover({
     if (!normalized || busy) return
     setBusy(true)
     setError(null)
-    const res = await saveBrandColor(normalized)
+    const res = await runAction(() => saveBrandColor(normalized))
     setBusy(false)
     if (res.ok) {
       setCurrent(normalized)
