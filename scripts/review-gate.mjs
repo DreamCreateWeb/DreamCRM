@@ -673,6 +673,14 @@ export const INTAKE_RULES = [
       //     directive prologue, so a module that declares it mid-file, or a
       //     function-level directive, is not an action module to this rule.
       'tests/ui/no-bare-await.test.ts',
+      // The PORTAL half of the same guard (2026-11-03, ML-03). It reuses
+      // `scanTree` from tests/ui/no-bare-await.test.ts over `app/(portal)`,
+      // the token landings (`app/d app/i app/n app/r`) and
+      // `components/patient-portal`, and pins them at ZERO bare awaits — no
+      // allowlist, no ratchet: a new bare await on a patient-facing page
+      // fails CI outright. Class: a tree walk (the parser-based census),
+      // same blind spots as the dashboard guard above.
+      'tests/portal/no-bare-await.test.ts',
       // The marketing-site copy scan (2026-10-26, the deep dev cycle). It
       // was a NAMED-file test; it now WALKS `app/(marketing)`, `lib/marketing`
       // and `components/marketing` for copy that describes the removed
