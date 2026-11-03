@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useMemo, useRef, useState, useTransition } from 'react'
+import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import { useSearchParams } from 'next/navigation'
 import type { PatientHeader } from '@/lib/services/patients'
 import type { TimelineEvent, TimelineCounts, TimelineKind } from '@/lib/services/patient-timeline'
@@ -140,7 +140,7 @@ export default function PatientDetail({
   notes,
   intakeForms = [],
   isPlatformAdmin = false,
-  patientOptions = [],
+  guardian = null,
   tags = [],
   tagCatalog = [],
   documents = [],
@@ -162,8 +162,8 @@ export default function PatientDetail({
   notes: PatientNoteRow[]
   intakeForms?: IntakeFormOption[]
   isPlatformAdmin?: boolean
-  /** id+name list for the guardian (family-access) picker in the edit modal. */
-  patientOptions?: Array<{ id: string; name: string }>
+  /** The current guardian (id + name) for the family-access picker in the edit modal. */
+  guardian?: { id: string; name: string } | null
   tags?: PatientTagView[]
   tagCatalog?: PatientTagView[]
   documents?: PatientDocumentRow[]
@@ -195,7 +195,17 @@ export default function PatientDetail({
   const [visibleCount, setVisibleCount] = useState(TIMELINE_PAGE)
   const confirm = useConfirm()
   const [editOpen, setEditOpen] = useState(false)
-  const [bookOpen, setBookOpen] = useState(false)
+  // `?book=1` (the Insurance card's "Book their visit") opens the drawer ONCE
+  // on mount, like the agenda's ?new=1 — then the param is dropped so a
+  // refresh or back-navigation does not reopen it.
+  const [bookOpen, setBookOpen] = useState(() => searchParams.get('book') === '1')
+  useEffect(() => {
+    if (searchParams.get('book') !== '1') return
+    const url = new URL(window.location.href)
+    url.searchParams.delete('book')
+    window.history.replaceState(null, '', url.toString())
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   const [toast, setToast] = useState<string | null>(null)
   const [archivePending, startArchive] = useTransition()
 
@@ -495,7 +505,6 @@ export default function PatientDetail({
                 survivorId={header.id}
                 survivorName={header.fullName}
                 candidates={mergeCandidates}
-                allPatients={patientOptions}
               />
             )}
           </div>
@@ -503,7 +512,7 @@ export default function PatientDetail({
       </div>
 
       {editOpen && (
-        <EditPatientModal header={header} patientOptions={patientOptions} onClose={() => setEditOpen(false)} />
+        <EditPatientModal header={header} guardian={guardian} onClose={() => setEditOpen(false)} />
       )}
       {bookOpen && (
         <BookFromPatientDrawer

@@ -1,5 +1,6 @@
 'use client'
 
+import { runAction } from '@/lib/run-action'
 import { useState, useTransition } from 'react'
 import { sendIntakeRequestAction } from './actions'
 
@@ -39,11 +40,11 @@ export default function SendIntakeInline({
   function onClick() {
     setFeedback(null)
     startTransition(async () => {
-      const r = await sendIntakeRequestAction(patientId, formId || undefined)
+      const r = await runAction(() => sendIntakeRequestAction(patientId, formId || undefined))
       setFeedback(
-        r.ok
+        r.ok && 'formTitle' in r
           ? { kind: 'ok', msg: `"${r.formTitle}" sent to ${r.sentTo}` }
-          : { kind: 'err', msg: r.error },
+          : { kind: 'err', msg: 'error' in r ? r.error : 'Could not send.' },
       )
       setTimeout(() => setFeedback(null), 4000)
     })

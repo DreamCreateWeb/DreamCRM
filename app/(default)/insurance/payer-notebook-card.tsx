@@ -1,5 +1,6 @@
 'use client'
 
+import { runAction } from '@/lib/run-action'
 import { useEffect, useState, useTransition } from 'react'
 import { ActionButton } from '@/components/ui/action-button'
 import { TONE_TEXT } from '@/lib/ui/encodings'
@@ -63,7 +64,7 @@ export function PayerNotebookCard({
   function save() {
     setError(null)
     start(async () => {
-      const r = await savePayerNoteAction({ payerId, payerName, fields: draft })
+      const r = await runAction(() => savePayerNoteAction({ payerId, payerName, fields: draft }))
       if (!r.ok) {
         setError(r.error)
         return
