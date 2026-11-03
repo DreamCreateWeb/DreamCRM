@@ -12,6 +12,7 @@ import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
 import { countOpenProposals } from '@/lib/services/proposals'
 import { getPmsLink } from '@/lib/services/pms-link'
 import type { PmsLink } from '@/lib/pms-link'
+import { mergeMineAndUnclaimed } from '@/lib/waiting-threads'
 
 /**
  * "My day" — a per-staff-member cockpit. Pulls the things actually assignable to
@@ -27,8 +28,9 @@ export interface MyDayData {
     /** Open follow-ups assigned to me OR unassigned, soonest-due first. */
     items: PatientFollowupView[]
   }
-  /** Open conversations assigned to me, waiting. */
-  conversations: ThreadRow[]
+  /** Open conversations assigned to me, then unclaimed unread ones (each row
+   *  says which), capped at 8. */
+  conversations: Array<ThreadRow & { unclaimed: boolean }>
   /** Today's appointments (shared schedule context). */
   todaysAppointments: AppointmentRow[]
   /** Today's visits still on `scheduled` — a confirmation text still needs to
@@ -127,10 +129,11 @@ export async function getMyDay(organizationId: string, userId: string): Promise<
   // Clinic-local day for due-date bucketing (server clock is UTC).
   const today = clinicDayKey(now, await getClinicTimeZone(organizationId))
 
-  const [mine, unclaimed, conversations, todaysAppointments, leadCountRow, balanceRow, tomorrow, openProposalsCount, pmsLink] = await Promise.all([
+  const [mine, unclaimed, conversations, unclaimedThreads, todaysAppointments, leadCountRow, balanceRow, tomorrow, openProposalsCount, pmsLink] = await Promise.all([
     listOpenFollowups(organizationId, { assignedTo: userId }),
     listOpenFollowups(organizationId, { assignedTo: 'unassigned' }),
     listPatientThreads(organizationId, userId, { status: 'open', assignedTo: 'me' }),
+    listPatientThreads(organizationId, userId, { status: 'open', assignedTo: 'unassigned', hasUnread: true }),
     listAppointments(organizationId, { window: 'today' }),
     db
       .select({ n: count() })
@@ -178,7 +181,7 @@ export async function getMyDay(organizationId: string, userId: string): Promise<
 
   return {
     followups: { overdue, today: dueToday, items: items.slice(0, 30) },
-    conversations: conversations.slice(0, 8),
+    conversations: mergeMineAndUnclaimed(conversations, unclaimedThreads),
     todaysAppointments: todaysAppointments.slice(0, 30),
     unconfirmedTodayCount,
     newLeadsCount: Number(leadCountRow[0]?.n ?? 0),
