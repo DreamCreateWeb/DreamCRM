@@ -14,12 +14,14 @@ const DIR = join(process.cwd(), 'lib/db/migrations')
 describe('0182_card_update_followup_kind_snooze_outcome (card_update_sent_at)', () => {
   const sql = readFileSync(join(DIR, '0182_card_update_followup_kind_snooze_outcome.sql'), 'utf8')
 
-  it('adds the nullable stamp to payment_plan and nothing else', () => {
-    expect(sql).toMatch(/ALTER TABLE "payment_plan" ADD COLUMN "card_update_sent_at" timestamp;/)
+  it('adds the nullable stamp to payment_plan (the file also carries ML-18\'s patient_followup columns) and nothing else', () => {
+    const statements = sql.split('--> statement-breakpoint').map((s) => s.trim()).filter(Boolean)
+    const stamp = statements.filter((s) => s.includes('"payment_plan"'))
+    expect(stamp).toHaveLength(1)
+    expect(stamp[0]).toMatch(/^ALTER TABLE "payment_plan" ADD COLUMN "card_update_sent_at" timestamp;$/)
     // Nullable BY DESIGN: null = "not told yet". No default, no NOT NULL.
-    expect(sql).not.toMatch(/NOT NULL|DEFAULT/)
-    expect(sql).not.toMatch(/DROP|CREATE TABLE|ALTER TABLE "(?!payment_plan")/)
-    expect(sql.trim().split('\n').filter((l) => l.trim()).length).toBe(1)
+    expect(stamp[0]).not.toMatch(/NOT NULL|DEFAULT/)
+    expect(sql).not.toMatch(/DROP|CREATE TABLE|ALTER TABLE "(?!payment_plan"|patient_followup")/)
   })
 
   it('is registered in the journal as idx 182 under its name', () => {
