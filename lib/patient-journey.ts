@@ -36,12 +36,14 @@ export interface JourneyFacts {
   archived: boolean
   /** Arrived by bulk roster backfill (patient.source in
    *  BACKFILL_PATIENT_SOURCES). A practice's imported roster IS its patient
-   *  base even when the import carried no visit rows (CSV imports map
-   *  identity only — Dentrix/Eaglesoft clinics have no appointment history
-   *  to give us): without this fact a 1,200-person roster reads as 1,200
-   *  strangers who "asked a question" (round-3 audit). They resolve
-   *  'patient' — WHO they are; the funnel's transition metrics still
-   *  exclude them from WHEN-counting entirely. */
+   *  base even when the import carried no visit rows (a CSV with no
+   *  "last visit" column maps identity only; one WITH that column mints a
+   *  single 'csv_import' completed row per patient — see
+   *  lib/services/patient-import.ts — which anchors a last visit but, like
+   *  'pms_import', never mints a transition): without this fact a
+   *  1,200-person roster reads as 1,200 strangers who "asked a question"
+   *  (round-3 audit). They resolve 'patient' — WHO they are; the funnel's
+   *  transition metrics still exclude them from WHEN-counting entirely. */
   importedRoster?: boolean
 }
 

@@ -16,6 +16,7 @@ import { getSiteTraffic, type SiteTraffic } from '@/lib/services/site-analytics'
 import { websiteHealthNotice, type WebsiteHealthNotice } from '@/lib/website-health'
 import { clinicDayKey, formatClinicDayTime } from '@/lib/format-datetime'
 import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
+import { notCsvImportVisit } from '@/lib/services/visit-sources'
 import { getPmsLink } from '@/lib/services/pms-link'
 import type { PmsLink } from '@/lib/pms-link'
 
@@ -218,6 +219,8 @@ export async function getClinicOverview(organizationId: string): Promise<ClinicO
       and(
         eq(schema.appointment.organizationId, organizationId),
         between(schema.appointment.startTime, todayStart, todayEnd),
+        // A CSV roster's placeholder visit is never a chair (visit-sources.ts).
+        notCsvImportVisit(),
       ),
     )
     .orderBy(asc(schema.appointment.startTime))

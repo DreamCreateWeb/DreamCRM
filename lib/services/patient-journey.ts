@@ -46,10 +46,18 @@ import { BACKFILL_PATIENT_SOURCES } from '@/lib/patient-acquisition'
  * and it stays in the imported-booked suppression anchor (it proves the
  * person was on the book by import time).
  */
-const NOT_IMPORTED = sql`${schema.appointment.source} is distinct from 'pms_import'`
-const IMPORTED = sql`${schema.appointment.source} = 'pms_import'`
-const BOOKED_MINTABLE = sql`${schema.appointment.source} is distinct from 'pms_import' and ${schema.appointment.source} is distinct from 'pms_live'`
-const IMPORTED_OR_LIVE = sql`(${schema.appointment.source} = 'pms_import' or ${schema.appointment.source} = 'pms_live')`
+// 'csv_import' (the CSV roster's one completed row per "last visit" cell —
+// lib/services/patient-import.ts) is the second backfill source and rides the
+// SAME law as 'pms_import' on every line: an honest startTime that may anchor
+// the suppressions, a createdAt that is the import moment and may never mint.
+// The literals stay inline (tests/journey/journey-service.test.ts pins them at
+// the definition site); BACKFILL_APPOINTMENT_SOURCES in lib/patient-acquisition.ts
+// is the registry, and tests/patients/patient-import.test.ts holds the two
+// homes together.
+const NOT_IMPORTED = sql`${schema.appointment.source} is distinct from 'pms_import' and ${schema.appointment.source} is distinct from 'csv_import'`
+const IMPORTED = sql`(${schema.appointment.source} = 'pms_import' or ${schema.appointment.source} = 'csv_import')`
+const BOOKED_MINTABLE = sql`${schema.appointment.source} is distinct from 'pms_import' and ${schema.appointment.source} is distinct from 'csv_import' and ${schema.appointment.source} is distinct from 'pms_live'`
+const IMPORTED_OR_LIVE = sql`(${schema.appointment.source} = 'pms_import' or ${schema.appointment.source} = 'csv_import' or ${schema.appointment.source} = 'pms_live')`
 
 /**
  * WHY EVERY AGGREGATE BELOW ENDS IN `.mapWith(...)`.

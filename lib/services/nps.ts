@@ -1,6 +1,7 @@
 import 'server-only'
 import { randomBytes } from 'crypto'
 import { and, desc, eq, gte, inArray, isNotNull, isNull, lte, ne, sql } from 'drizzle-orm'
+import { notCsvImportVisit } from '@/lib/services/visit-sources'
 import { db, schema } from '@/lib/db'
 import { listShutDownOrgIds } from '@/lib/services/billing-state'
 import { authEmailShell, deliver } from '@/lib/email'
@@ -90,6 +91,8 @@ export async function runDueNpsSurveys(opts?: { now?: Date }): Promise<NpsSurvey
           isNotNull(schema.appointment.completedAt),
           gte(schema.appointment.completedAt, windowStart),
           lte(schema.appointment.completedAt, windowEnd),
+          // A CSV roster's placeholder visit is not a visit to survey (visit-sources.ts).
+          notCsvImportVisit(),
           eq(schema.patient.isActive, 1),
           isNotNull(schema.patient.email),
           ne(schema.patient.email, ''),
@@ -276,6 +279,7 @@ export async function getOrCreatePortalSurvey(
         eq(schema.appointment.status, 'completed'),
         isNotNull(schema.appointment.completedAt),
         gte(schema.appointment.completedAt, windowStart),
+        notCsvImportVisit(),
       ),
     )
     .orderBy(desc(schema.appointment.completedAt))

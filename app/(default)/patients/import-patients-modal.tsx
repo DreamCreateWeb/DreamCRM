@@ -9,6 +9,8 @@ import {
   type ImportPreview,
 } from './actions'
 import type { ColumnMapping, ImportField, ImportSummary } from '@/lib/services/patient-import'
+import { IMPORT_DATE_FIELDS, parseImportDate } from '@/lib/import-dates'
+import { formatDayKey } from '@/lib/dates'
 import { useFocusTrap } from '@/components/ui/use-focus-trap'
 
 /**
@@ -31,7 +33,25 @@ const FIELD_LABELS: Array<{ field: ImportField; label: string; required?: boolea
   { field: 'state', label: 'State' },
   { field: 'postalCode', label: 'Postal code' },
   { field: 'insuranceProvider', label: 'Insurance provider' },
+  // The two columns the recall engine runs on (lib/services/patient-import.ts):
+  // a last visit becomes ONE completed visit on the record, a recall due date
+  // fills the same column the practice system would.
+  { field: 'lastVisitAt', label: 'Last visit date' },
+  { field: 'recallDueAt', label: 'Recall due date' },
 ]
+
+/**
+ * What a mapped DATE column will become, from the first non-empty sample
+ * cell: "03/14/24 → Mar 14, 2024", or an honest "can't read" so a column of
+ * day-first dates is caught here rather than imported as the wrong month.
+ */
+function datePreview(field: ImportField, column: number | undefined, sample: string[][]): string | null {
+  if (!IMPORT_DATE_FIELDS.has(field) || column === undefined) return null
+  const raw = sample.map((row) => (row[column] ?? '').trim()).find((v) => v !== '')
+  if (!raw) return 'No dates in the first rows'
+  const key = parseImportDate(raw)
+  return key ? `${raw} → ${formatDayKey(key)}` : `Can't read "${raw}" — use MM/DD/YYYY or YYYY-MM-DD`
+}
 
 type Stage =
   | { type: 'upload' }
@@ -204,25 +224,40 @@ export default function ImportPatientsModal({ onClose }: { onClose: () => void }
                   &ldquo;— ignore —&rdquo; to skip it.
                 </p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {FIELD_LABELS.map(({ field, label }) => (
-                    <label key={field} className="flex items-center gap-2 text-sm">
-                      <span className="w-36 shrink-0 text-gray-600 dark:text-gray-300">{label}</span>
-                      <select
-                        value={mapping[field] ?? ''}
-                        onChange={(e) =>
-                          setFieldColumn(field, e.target.value === '' ? null : Number(e.target.value))
-                        }
-                        className="form-select text-xs py-1 flex-1 min-w-0"
-                      >
-                        <option value="">— ignore —</option>
-                        {stage.preview.header.map((h, i) => (
-                          <option key={i} value={i}>
-                            {h || `Column ${i + 1}`}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                  ))}
+                  {FIELD_LABELS.map(({ field, label }) => {
+                    const preview = datePreview(field, mapping[field], stage.preview.sample)
+                    return (
+                      <div key={field}>
+                        <label className="flex items-center gap-2 text-sm">
+                          <span className="w-36 shrink-0 text-gray-600 dark:text-gray-300">{label}</span>
+                          <select
+                            value={mapping[field] ?? ''}
+                            onChange={(e) =>
+                              setFieldColumn(field, e.target.value === '' ? null : Number(e.target.value))
+                            }
+                            className="form-select text-xs py-1 flex-1 min-w-0"
+                          >
+                            <option value="">— ignore —</option>
+                            {stage.preview.header.map((h, i) => (
+                              <option key={i} value={i}>
+                                {h || `Column ${i + 1}`}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        {preview && (
+                          <p
+                            className={`pl-[9.5rem] text-xs mt-0.5 tabular-nums ${
+                              preview.startsWith("Can't") ? 'text-amber-700 dark:text-amber-300' : 'text-gray-500 dark:text-gray-400'
+                            }`}
+                            data-testid={`date-preview-${field}`}
+                          >
+                            {preview}
+                          </p>
+                        )}
+                      </div>
+                    )
+                  })}
                 </div>
               </div>
 
@@ -274,6 +309,13 @@ export default function ImportPatientsModal({ onClose }: { onClose: () => void }
                 <ResultStat n={stage.summary.duplicates} label="Skipped (duplicates)" tone="amber" />
                 <ResultStat n={stage.summary.errors} label="Errors" tone="rose" />
               </div>
+              {(stage.summary.visits > 0 || stage.summary.recalls > 0) && (
+                <p className="text-xs text-gray-600 dark:text-gray-300" data-testid="import-history-line">
+                  Brought {stage.summary.visits.toLocaleString()} last-visit {stage.summary.visits === 1 ? 'date' : 'dates'} and{' '}
+                  {stage.summary.recalls.toLocaleString()} recall due {stage.summary.recalls === 1 ? 'date' : 'dates'} onto the records —
+                  the Recall due and Lapsed chips read from them now.
+                </p>
+              )}
               {(stage.summary.duplicates > 0 || stage.summary.errors > 0) && (
                 <div className="rounded-lg ring-1 ring-inset ring-[color:var(--color-hairline)] max-h-48 overflow-y-auto">
                   <table className="table-auto w-full text-xs">

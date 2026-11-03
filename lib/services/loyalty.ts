@@ -1,5 +1,6 @@
 import 'server-only'
 import { and, desc, eq, gte, isNotNull, sql } from 'drizzle-orm'
+import { notCsvImportVisit } from '@/lib/services/visit-sources'
 import { db, schema } from '@/lib/db'
 import { resolveLoyaltySettings, type LoyaltySettings } from '@/lib/types/loyalty'
 import { newId } from '@/lib/utils'
@@ -191,6 +192,8 @@ export async function runLoyaltyAccrual(opts?: { now?: Date }): Promise<LoyaltyA
             eq(schema.appointment.status, 'completed'),
             isNotNull(schema.appointment.completedAt),
             gte(schema.appointment.completedAt, since),
+            // A CSV roster's placeholder visit earns no points (visit-sources.ts).
+            notCsvImportVisit(),
           ),
         )
         .limit(1000)
@@ -220,6 +223,7 @@ export async function runLoyaltyAccrual(opts?: { now?: Date }): Promise<LoyaltyA
             eq(schema.appointment.status, 'completed'),
             isNotNull(schema.appointment.completedAt),
             gte(schema.appointment.completedAt, since),
+            notCsvImportVisit(),
           ),
         )
         .limit(1000)
