@@ -15,6 +15,7 @@ import ApprovalInbox from '../dashboard/approval-inbox'
 import TeamRoster from './team-roster'
 import TeamStatusBand from './team-status-band'
 import { loadApprovalInbox } from './load'
+import { getReadinessReport } from '@/lib/services/readiness'
 
 /**
  * THE DREAM TEAM (docs/ai-operations.md) — the clinic's AI staff, on one
@@ -27,20 +28,31 @@ import { loadApprovalInbox } from './load'
  * whole-DOM suite can render it directly with mocked services.
  */
 export default async function DreamTeamView({ ctx }: { ctx: TenantContext }) {
-  const [timeZone, demoSkin, standup, lastCycleAt] = await Promise.all([
-    getClinicTimeZone(ctx.organizationId).catch(() => 'America/New_York'),
-    readDemoSkin(ctx),
-    // The roster's last-week numbers ride the standup's per-capability
-    // counts — real ledger work, the same window the Monday email reports.
-    buildWeeklyStandup(ctx.organizationId).catch(() => null),
-    // CYCLES (D7d) — the heartbeat, so "on the clock" points at a real one.
-    getLastCycleAt(ctx.organizationId),
-  ])
-  // The veto runway (D4) — best-effort like every other read on this page.
-  const runway = await listRunway(ctx.organizationId).catch(() => [])
-  // GOALS (D6). Progress is computed per goal against ITS OWN baseline
-  // instant, so a goal set today never claims last month's patients.
-  const goalRows = await listGoals(ctx.organizationId).catch(() => [])
+  // ONE opening read (G1-4). The runway, the goals and the inbox used to be
+  // awaited one after another below this Promise.all for no ordering
+  // reason — three serial round trips on the page's first byte. The inbox
+  // needs the clinic tz, so it chains off that one promise; everything
+  // else is independent and goes out together.
+  const timeZoneRead = getClinicTimeZone(ctx.organizationId).catch(() => 'America/New_York')
+  const [timeZone, demoSkin, standup, lastCycleAt, runway, goalRows, inbox, readiness] =
+    await Promise.all([
+      timeZoneRead,
+      readDemoSkin(ctx),
+      // The roster's last-week numbers ride the standup's per-capability
+      // counts — real ledger work, the same window the Monday email reports.
+      buildWeeklyStandup(ctx.organizationId).catch(() => null),
+      // CYCLES (D7d) — the heartbeat, so "on the clock" points at a real one.
+      getLastCycleAt(ctx.organizationId),
+      // The veto runway (D4) — best-effort like every other read on this page.
+      listRunway(ctx.organizationId).catch(() => []),
+      // GOALS (D6). Progress is computed per goal against ITS OWN baseline
+      // instant, so a goal set today never claims last month's patients.
+      listGoals(ctx.organizationId).catch(() => []),
+      timeZoneRead.then((tz) => loadApprovalInbox(ctx.organizationId, tz)),
+      // READINESS (G1-4): what a quiet teammate is still waiting on. Null
+      // when unreadable — the roster then says a quiet week plainly.
+      getReadinessReport(ctx.organizationId).catch(() => null),
+    ])
   const goalCards: GoalCardData[] = await Promise.all(
     goalRows
       .filter((g) => g.status !== 'retired')
@@ -56,7 +68,6 @@ export default async function DreamTeamView({ ctx }: { ctx: TenantContext }) {
       })),
   )
   const name = demoSkin?.clinicName ?? ctx.organizationName
-  const inbox = await loadApprovalInbox(ctx.organizationId, timeZone)
   const waiting = inbox.proposalCards.length
   const weeklyCounts = new Map<string, number>(
     (standup?.lines ?? []).map((l) => [l.capability, l.count]),
@@ -149,6 +160,7 @@ export default async function DreamTeamView({ ctx }: { ctx: TenantContext }) {
         weeklyCounts={weeklyCounts}
         waitingCapabilities={waitingCapabilities}
         showPreview={ctx.platformAdmin}
+        readinessFacts={readiness?.facts ?? null}
       />
     </div>
   )

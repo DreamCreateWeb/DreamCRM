@@ -1160,6 +1160,13 @@ async function executeProposal(
     }
   }
   const payload = (p.payload ?? {}) as Record<string, unknown>
+  // THE GENERATOR LANE CONVENTION (ML-11): each NEW executor lives in its
+  // own file, lib/services/proposal-executors/<capability>.ts, and joins
+  // this switch as ONE import + ONE case (plus its demoLedgerSummary line).
+  // Nothing already here moves. A capability joins GRANTABLE_CAPABILITIES
+  // only once its case exists — a grant runs through this very switch, and
+  // the default branch below is the honest answer for anything it cannot
+  // carry out (tests/journey/capability-registry.test.ts pins that order).
   switch (p.capability) {
     case 'review_reply':
       return executeReviewReply(p, payload, saidYes)

@@ -38,8 +38,11 @@ describe('insurance tool — released to every clinic', () => {
     }
   })
 
-  it('no preview capability remains — the roster lane shows for every clinic', () => {
-    expect(PREVIEW_CAPABILITIES).toEqual([])
+  it('the insurance lane is not in preview — the roster lane shows for every clinic', () => {
+    // The list is no longer empty: since ML-11 it holds THE GENERATOR LANE's
+    // registered-ahead capabilities (lib/autonomy.ts). The pin that matters
+    // here is insurance's own.
+    expect(PREVIEW_CAPABILITIES).not.toContain('insurance_check')
     expect(isPreviewCapability('insurance_check')).toBe(false)
   })
 })

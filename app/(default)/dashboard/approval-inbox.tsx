@@ -21,6 +21,9 @@ import {
   ReviewReplyArtifact,
   PlanArtifact,
   GbpFixArtifact,
+  ThreadArtifact,
+  PrecheckArtifact,
+  ListingArtifact,
   type ProposalArtifact,
 } from './proposal-artifacts'
 
@@ -1064,6 +1067,14 @@ function ProposalCard({
           />
         ) : artifact?.kind === 'gbp' ? (
           <GbpFixArtifact targetUrl={artifact.targetUrl} previousUri={artifact.previousUri} />
+        ) : artifact?.kind === 'thread' ? (
+          // THE GENERATOR LANE (ML-11): the reply is the card's live body,
+          // nested under the conversation it answers.
+          <ThreadArtifact messages={artifact.messages} reply={body} clinicName={clinicName} toLine={artifact.toLine} />
+        ) : artifact?.kind === 'precheck' ? (
+          <PrecheckArtifact items={artifact.items} />
+        ) : artifact?.kind === 'listing' ? (
+          <ListingArtifact changes={artifact.changes} />
         ) : (
           <p className="text-sm text-gray-700 dark:text-gray-200 whitespace-pre-wrap rounded-lg bg-gray-50 dark:bg-gray-900/40 p-3 border border-transparent">
             {tokens ? renderTokenSample(body) : body}

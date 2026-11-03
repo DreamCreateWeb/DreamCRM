@@ -1,5 +1,7 @@
-import { SPECIALISTS, CAPABILITY_ICON } from '@/lib/types/dream-team'
+import Link from 'next/link'
+import { SPECIALISTS, specialistBlocker } from '@/lib/types/dream-team'
 import { getCapability, isPreviewCapability } from '@/lib/autonomy'
+import type { ReadinessFact } from '@/lib/readiness'
 import { StatusPill } from '@/components/ui/status-pill'
 import SectionHeading from './section-heading'
 
@@ -11,7 +13,10 @@ import SectionHeading from './section-heading'
  *
  * A REPORT, not a console (the North Star): nothing here is a switch. The
  * take-it-back controls stay on the grants strip above, where consent was
- * given; the roster only tells the truth about the arrangement.
+ * given; the roster only tells the truth about the arrangement — including
+ * (G1-4) WHAT A QUIET TEAMMATE IS WAITING ON: a specialist whose lanes read
+ * from a connection the practice hasn't made says so, as a link to that
+ * door, instead of reporting a quiet week forever.
  */
 export interface RosterInput {
   /** Capabilities the clinic has switched to automatic. */
@@ -22,6 +27,9 @@ export interface RosterInput {
   waitingCapabilities: ReadonlySet<string>
   /** Platform admins see PREVIEW lanes (unreleased features); clinics never do. */
   showPreview?: boolean
+  /** The readiness report's facts (lib/readiness.ts), or null when the
+   *  report was unreadable — a quiet lane then stays plainly quiet. */
+  readinessFacts?: readonly ReadinessFact[] | null
 }
 
 function laneMode(capability: string, granted: ReadonlySet<string>): 'auto' | 'ask' {
@@ -30,7 +38,13 @@ function laneMode(capability: string, granted: ReadonlySet<string>): 'auto' | 'a
   return def?.defaultTrust === 'auto' ? 'auto' : 'ask'
 }
 
-export default function TeamRoster({ grantedCapabilities, weeklyCounts, waitingCapabilities, showPreview = false }: RosterInput) {
+export default function TeamRoster({
+  grantedCapabilities,
+  weeklyCounts,
+  waitingCapabilities,
+  showPreview = false,
+  readinessFacts = null,
+}: RosterInput) {
   return (
     <section id="the-team" className="mt-10 scroll-mt-24">
       <SectionHeading
@@ -48,6 +62,10 @@ export default function TeamRoster({ grantedCapabilities, weeklyCounts, waitingC
           const askLanes = lanes.filter((l) => laneMode(l.capability, grantedCapabilities) === 'ask')
           const weekly = lanes.reduce((sum, l) => sum + (weeklyCounts.get(l.capability) ?? 0), 0)
           const waiting = lanes.filter((l) => waitingCapabilities.has(l.capability)).length
+          // BLOCKED vs QUIET (G1-4): only a lane that did nothing can be
+          // blocked — a teammate with real numbers is working, whatever the
+          // readiness report says about the rest of the setup.
+          const blocker = weekly === 0 ? specialistBlocker(s.id, readinessFacts) : null
 
           return (
             <article key={s.id} className="v2-card flex flex-col p-5">
@@ -81,7 +99,10 @@ export default function TeamRoster({ grantedCapabilities, weeklyCounts, waitingC
               </div>
 
               {/* Last week, in real numbers — the honest line. Zero is said
-                  plainly; a quiet lane must never look busy (Guardian law). */}
+                  plainly; a quiet lane must never look busy (Guardian law).
+                  A quiet lane that is WAITING ON A CONNECTION says which,
+                  as a link to its door — a report naming its cause, not a
+                  control (the roster still renders no button). */}
               <p className="mt-4 flex items-baseline gap-1.5 text-sm text-gray-700 dark:text-gray-200">
                 {weekly > 0 ? (
                   <>
@@ -92,6 +113,14 @@ export default function TeamRoster({ grantedCapabilities, weeklyCounts, waitingC
                       {weekly === 1 ? 'thing' : 'things'} handled last week
                     </span>
                   </>
+                ) : blocker ? (
+                  <Link
+                    href={blocker.href}
+                    className="text-xs font-semibold text-teal-700 hover:underline dark:text-teal-300"
+                    title={blocker.summary}
+                  >
+                    Needs {blocker.label} →
+                  </Link>
                 ) : (
                   <span className="text-xs text-gray-500 dark:text-gray-400">
                     A quiet week — nothing to report.

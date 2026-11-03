@@ -125,6 +125,10 @@ vi.mock('@/app/(default)/dashboard/actions', () => ({
   setAutonomyAction: mockSetAutonomyAction,
 }))
 vi.mock('@/lib/services/standup', () => ({ buildWeeklyStandup: mockBuildStandup }))
+// READINESS (G1-4): the roster's "Needs X →" line reads the resolver's
+// report; null here keeps every lane plainly quiet in this suite (the
+// roster suite covers the blocked case) and the render never reaches a DB.
+vi.mock('@/lib/services/readiness', () => ({ getReadinessReport: vi.fn(async () => null) }))
 // The Dream Team page (the inbox's home since D2) resolves the clinic tz
 // itself — pinned so waits-for-morning copy is deterministic here too.
 vi.mock('@/lib/services/clinic-timezone', () => ({
