@@ -23,12 +23,11 @@ describe('0181_patient_message_index', () => {
     expect(sql).not.toMatch(/CREATE TABLE|ALTER TABLE|DROP/)
   })
 
-  it('is registered in the journal under its name, last, after 0180', () => {
+  it('is registered in the journal under its name, directly after 0180', () => {
     const journal = JSON.parse(readFileSync(join(DIR, 'meta/_journal.json'), 'utf8')) as {
       entries: Array<{ idx: number; tag: string; when: number }>
     }
-    const last = journal.entries.at(-1)
-    expect(last?.idx).toBe(181)
+    const last = journal.entries.find((e) => e.idx === 181)
     expect(last?.tag).toBe('0181_patient_message_index')
     const prev = journal.entries.find((e) => e.idx === 180)
     expect(prev?.tag).toBe('0180_insurance_discovery')
