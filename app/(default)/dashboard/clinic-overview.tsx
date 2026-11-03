@@ -30,6 +30,28 @@ import { patientFlagGlyphs, type Tone, type GlyphId, type PillLegendRow } from '
 import { leadAgeLabel } from '@/lib/lead-age'
 import { balanceSourceCopy, scheduleSourceCopy, todayCountLabel } from '@/lib/pms-link'
 import { MorningReveal } from './morning-reveal'
+import { AttentionBand, type AttentionRow } from '@/components/ui/attention-band'
+import type { MorningAfter } from '@/lib/morning-after'
+
+/** Last night's work as a quiet band row — empty outside the first week and on
+ *  a night with nothing to say. The one thing's door is the row's link; an
+ *  'attention' one-thing is already a readiness row above, so it is dropped. */
+function morningAfterRows(m: MorningAfter | null | undefined): AttentionRow[] {
+  if (!m) return []
+  const one = m.oneThing && m.oneThing.kind !== 'attention' ? m.oneThing : null
+  if (!m.workLine && !one) return []
+  return [
+    {
+      id: 'morning-after',
+      tone: 'neutral',
+      glyph: '🌙',
+      title: m.workLine ? `Overnight: ${m.workLine}` : one!.text,
+      body: m.workLine && one ? one.text : null,
+      href: one?.href ?? null,
+      label: 'Open',
+    },
+  ]
+}
 
 // Appointment status → semantic tone + plain-language label. The tone carries
 // the meaning per the design-system contract (warn = needs our action,
@@ -135,6 +157,32 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
       ? Math.round(((site.total - site.totalPrev) / site.totalPrev) * 100)
       : null
 
+  const attentionRows: AttentionRow[] = [
+    ...data.readinessAttention.map((f): AttentionRow => ({
+      id: f.id,
+      tone: 'warn',
+      glyph: '!',
+      title: f.label,
+      body: f.summary,
+      href: f.href,
+      label: 'Open',
+    })),
+    ...(data.siteHealth
+      ? [
+          {
+            id: 'site-health',
+            tone: 'warn',
+            glyph: '🌐',
+            title: data.siteHealth.title,
+            body: data.siteHealth.body,
+            href: data.siteHealth.href,
+            label: data.siteHealth.linkLabel,
+          } satisfies AttentionRow,
+        ]
+      : []),
+    ...morningAfterRows(data.morningAfter),
+  ]
+
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
       {!onboarding.welcomeSeen && <WelcomeModal clinicName={name} />}
@@ -162,78 +210,12 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
         }
       />
 
-      {/* ── Setup/sync attention banner (renders only when something's broken).
-          Fed by the readiness resolver, so connected-but-broken reaches here
-          for EVERY subsystem — PMS sync, the Google listing's Website button,
+      {/* ── ONE attention band (G1-27). Order: broken things first (the
+          readiness resolver — PMS sync, the Google listing's Website button,
           a dropped inbox, Stripe restrictions, booking live on unconfirmed
-          hours — not just the PMS like the old banner. */}
-      {data.readinessAttention.length > 0 && (
-        <section className="mb-6">
-          <div className="rounded-[var(--r-lg)] bg-amber-500/10 ring-1 ring-inset ring-amber-500/20 p-4">
-            <div className="flex items-start gap-3">
-              <div
-                className="w-8 h-8 rounded-lg shrink-0 flex items-center justify-center text-base font-semibold bg-amber-500/15 text-amber-700 dark:text-amber-300"
-                aria-hidden="true"
-              >
-                !
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-amber-800 dark:text-amber-200">
-                  {data.readinessAttention.length === 1
-                    ? data.readinessAttention[0].label
-                    : `${data.readinessAttention.length} things need your attention`}
-                </p>
-                <ul className="mt-1 space-y-1.5">
-                  {data.readinessAttention.map((f) => (
-                    <li key={f.id} className="text-xs text-amber-800/90 dark:text-amber-300/90">
-                      {data.readinessAttention.length > 1 && (
-                        <span className="font-medium">{f.label} — </span>
-                      )}
-                      {f.summary}{' '}
-                      <Link
-                        href={f.href}
-                        className="font-medium underline underline-offset-2 hover:text-amber-950 dark:hover:text-amber-100"
-                      >
-                        Open
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            </div>
-          </div>
-        </section>
-      )}
-
-      {/* ── Website check-engine light (renders only when a signal fires) ──
-          Traffic drop / silent forms — problems that never announce
-          themselves. Same banner language as the sync-health notice above. */}
-      {data.siteHealth && (
-        <section className="mb-6">
-          <div className="rounded-[var(--r-lg)] bg-amber-500/10 ring-1 ring-inset ring-amber-500/20 p-4 flex items-start gap-3">
-            <div
-              className="w-8 h-8 rounded-lg shrink-0 flex items-center justify-center text-base bg-amber-500/15"
-              aria-hidden="true"
-            >
-              🌐
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-amber-800 dark:text-amber-200">
-                {data.siteHealth.title}
-              </p>
-              <p className="text-xs mt-0.5 text-amber-800/90 dark:text-amber-300/90">
-                {data.siteHealth.body}
-              </p>
-            </div>
-            <Link
-              href={data.siteHealth.href}
-              className="text-xs font-medium px-3 py-1.5 rounded-lg shrink-0 self-center bg-amber-500/15 text-amber-800 hover:bg-amber-500/25 dark:text-amber-200"
-            >
-              {data.siteHealth.linkLabel}
-            </Link>
-          </div>
-        </section>
-      )}
+          hours), then the website check-engine signal, then last night's
+          work in quiet ink (first week only). One section, one ring. */}
+      <AttentionBand rows={attentionRows} />
 
       {/* ── The Guardian's heads-up — the machine asking for a hand ────── */}
       <GuardianNoteCard note={guardianNote} />

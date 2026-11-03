@@ -19,6 +19,9 @@ import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
 import { notCsvImportVisit } from '@/lib/services/visit-sources'
 import { getPmsLink } from '@/lib/services/pms-link'
 import type { PmsLink } from '@/lib/pms-link'
+import { readMorningAfter } from '@/lib/services/daily-digest'
+import { MORNING_AFTER_DAYS, type MorningAfter } from '@/lib/morning-after'
+import { dayNumber } from '@/lib/first-week'
 
 /**
  * Clinic-side daily dashboard service. Returns everything the Overview
@@ -120,6 +123,9 @@ export interface ClinicOverviewData {
    *  site working" signal on the morning-huddle screen. Best-effort: a
    *  failure yields null and the card simply doesn't render. */
   siteTraffic: SiteTraffic | null
+  /** Last night's work + the one thing — only inside the practice's first
+   *  MORNING_AFTER_DAYS days; null after (the digest keeps its own copy). */
+  morningAfter: MorningAfter | null
   /** Open patient follow-ups + how many are overdue / due today (morning huddle). */
   followups: FollowupSummary
 }
@@ -628,7 +634,7 @@ export async function getClinicOverview(organizationId: string): Promise<ClinicO
   const recentActivity = activity.slice(0, 10)
 
   // ── Extra attention signals (reuse existing services) ───────────────
-  const [readinessReport, paidUnfulfilledRow, reviewStats, inboxStats, followups, siteTraffic, leads14d, domainState, smsIdentity, pmsLink] = await Promise.all([
+  const [readinessReport, paidUnfulfilledRow, reviewStats, inboxStats, followups, siteTraffic, leads14d, domainState, smsIdentity, pmsLink, morningAfter] = await Promise.all([
     getReadinessReport(organizationId).catch(() => null),
     // Paid shop orders still awaiting fulfillment (our move).
     db
@@ -673,6 +679,19 @@ export async function getClinicOverview(organizationId: string): Promise<ClinicO
     // The PMS link (lib/pms-link.ts) — the balances card and Today's chair
     // say where their facts come from when nothing is bound. Never throws.
     getPmsLink(organizationId),
+    // Last night's work, first week only (the band's quiet row). Best-effort:
+    // the huddle never fails because the narrator hiccupped.
+    db
+      .select({ createdAt: schema.organization.createdAt })
+      .from(schema.organization)
+      .where(eq(schema.organization.id, organizationId))
+      .limit(1)
+      .then(async ([org]) =>
+        org && dayNumber(org.createdAt, now) < MORNING_AFTER_DAYS
+          ? await readMorningAfter(organizationId, org.createdAt, now)
+          : null,
+      )
+      .catch(() => null as MorningAfter | null),
   ])
 
   return {
@@ -694,6 +713,7 @@ export async function getClinicOverview(organizationId: string): Promise<ClinicO
     readinessAttention: readinessReport?.attention ?? [],
     followups,
     siteTraffic,
+    morningAfter,
     siteHealth: siteTraffic
       ? websiteHealthNotice({ total: siteTraffic.total, totalPrev: siteTraffic.totalPrev, leads14d, domainState })
       : null,
