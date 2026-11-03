@@ -1,6 +1,7 @@
 import 'server-only'
-import { sql, gte, lte, eq, notInArray, type SQL } from 'drizzle-orm'
+import { sql, gte, lt, lte, eq, ne, notInArray, type SQL } from 'drizzle-orm'
 import { schema } from '@/lib/db'
+import { BACKFILL_PATIENT_SOURCES } from '@/lib/patient-acquisition'
 
 /**
  * Patient recall status derivation. Shared between the patients list and the
@@ -128,16 +129,46 @@ export function derivePatientRecallStatus(opts: DeriveOpts): RecallStatus {
  * No `--` comments inside the template: one flattening of the rendered
  * statement would comment out everything after them.
  */
-export function recallDueWhereSql(opts: {
+export interface RecallWhereOpts {
   organizationId: string
   now: Date
   /** The list's near window end (now + 7 days) — the `hasUpcomingAppt` input. */
   nearWindowEnd: Date
   /** Clinic cadence in months, already floored to a usable value by the caller. */
   defaultIntervalMonths: number
-}): SQL {
+}
+
+export function recallDueWhereSql(opts: RecallWhereOpts): SQL {
+  return recallWhereSql(opts, 'due')
+}
+
+/** The most recent past live visit, correlated on the outer patient row —
+ *  the ONE expression of "last visit" every twin below reads. */
+function lastVisitSql(organizationId: string, now: Date): SQL {
+  const p = schema.patient
+  const a = schema.appointment
+  return sql`(
+        select max(${a.startTime}) from ${a}
+        where ${eq(a.organizationId, organizationId)}
+          and ${eq(a.patientId, p.id)}
+          and ${lte(a.startTime, now)}
+          and ${notInArray(a.status, ['cancelled', 'no_show'])}
+      )`
+}
+
+/**
+ * `mode: 'due'` answers `recallStatus in ('due','overdue')` (the list's chip);
+ * `mode: 'overdue'` answers `recallStatus = 'overdue'` alone (the lifecycle
+ * twin's `at_risk` branch). Same branches, read against the derivation:
+ * overdue is the PMS date more than `RECALL_WINDOW_DAYS` back, or a last
+ * visit at least `interval + RECALL_OVERDUE_GRACE_MONTHS` months old — the
+ * grace rides the SAME interval case as the due bound, so a per-patient
+ * override moves both.
+ */
+function recallWhereSql(opts: RecallWhereOpts, mode: 'due' | 'overdue'): SQL {
   const { organizationId, now, nearWindowEnd, defaultIntervalMonths } = opts
-  const pmsCutoff = new Date(now.getTime() + RECALL_WINDOW_DAYS * DAY_MS)
+  const pmsDueCutoff = new Date(now.getTime() + RECALL_WINDOW_DAYS * DAY_MS)
+  const pmsOverdueCutoff = new Date(now.getTime() - RECALL_WINDOW_DAYS * DAY_MS)
   const monthDays = RECALL_MONTH_MS / DAY_MS
   const p = schema.patient
   const a = schema.appointment
@@ -147,6 +178,9 @@ export function recallDueWhereSql(opts: {
   // only because production runs in UTC. The write-side mirror of what
   // tests/guards/timestamp-aggregate-mapping.test.ts guards on reads.
   const live = notInArray(a.status, ['cancelled', 'no_show'])
+  const pmsBranch =
+    mode === 'due' ? lte(p.pmsRecallDueAt, pmsDueCutoff) : lt(p.pmsRecallDueAt, pmsOverdueCutoff)
+  const grace = mode === 'due' ? sql`` : sql` + ${RECALL_OVERDUE_GRACE_MONTHS}::int`
   return sql`
     not exists (
       select 1 from ${a}
@@ -163,20 +197,125 @@ export function recallDueWhereSql(opts: {
         and ${live}
     )
     and case
-      when ${p.pmsRecallDueAt} is not null then ${lte(p.pmsRecallDueAt, pmsCutoff)}
-      else (
-        select max(${a.startTime}) from ${a}
-        where ${eq(a.organizationId, organizationId)}
-          and ${eq(a.patientId, p.id)}
-          and ${lte(a.startTime, now)}
-          and ${live}
-      ) <= ${sql.param(now, a.startTime)}::timestamp - (
-        (case
+      when ${p.pmsRecallDueAt} is not null then ${pmsBranch}
+      else ${lastVisitSql(organizationId, now)} <= ${sql.param(now, a.startTime)}::timestamp - (
+        ((case
           when ${p.recallIntervalMonths} > 0 then ${p.recallIntervalMonths}
           when ${p.recallIntervalMonths} is not null then ${RECALL_DEFAULT_MONTHS}::int
           else ${defaultIntervalMonths}::int
-        end)::int * interval '${sql.raw(String(monthDays))} days'
+        end)::int${grace}) * interval '${sql.raw(String(monthDays))} days'
       )
     end
   `
+}
+
+// ── Lifecycle — derived, never stamped ───────────────────────────────────────
+
+export type PatientLifecycle = 'lead' | 'new' | 'active' | 'at_risk' | 'lapsed' | 'archived'
+
+/** "Joined in the last 30 days" — the New chip's window, in CLINIC days. */
+export const NEW_PATIENT_DAYS = 30
+
+/**
+ * The facts `deriveLifecycle` reads. Every one is something a roster read
+ * already has or a bounded per-page query can add — nothing here is a stored
+ * stage. `patient.lifecycle` the COLUMN is written at creation and never moved
+ * by reality (the booking flow mints 'new' before anyone is seen, an import
+ * stamps 'active' on a roster nobody has seen in years, and nothing ever
+ * writes 'lapsed' or 'at_risk'), so it is read for exactly one thing:
+ * 'archived', a human decision — and even that rides `is_active` here.
+ */
+export interface LifecycleFacts {
+  /** `patient.is_active = 0` — staff-archived. */
+  archived: boolean
+  /** `patient.source`; a bulk-backfill source (BACKFILL_PATIENT_SOURCES) can
+   *  never read 'lead' or 'new' — a 1,200-row roster is not 1,200 strangers
+   *  who asked a question, nor 1,200 people who joined on import day. */
+  source: string | null
+  firstSeenAt: Date | null
+  /** Any appointment ever whose status is not 'cancelled' (a no-show still
+   *  booked). The same fact the journey resolver calls `hasLiveAppointment`,
+   *  so 'lead' here and 'inquiry' there name the same people. */
+  hasAnyAppointment: boolean
+  /** Most recent past live visit (not cancelled / no-show, start <= now). */
+  lastVisitAt: Date | null
+  /** Any live future booking. */
+  hasFutureVisit: boolean
+  /** From `derivePatientRecallStatus` over the same row. */
+  recallStatus: RecallStatus
+  /** Clinic-local midnight NEW_PATIENT_DAYS days back (`clinicDayStart(now, tz, -NEW_PATIENT_DAYS)`). */
+  newCutoff: Date
+  /** `lapsedCutoff(now, cadence.lapsedMonths)` — the clinic's own 💤 line. */
+  lapsedCutoff: Date
+}
+
+/**
+ * The lifecycle, derived. Order is the whole rule: archived beats everything
+ * (a human said so); lead and new are gated on NOT being a backfill; lapsed
+ * is checked before at_risk because a lapsed patient is also overdue and the
+ * colder word wins; everything left is active.
+ *
+ * `lifecycleCaseSql` below is its SQL twin and moves with it —
+ * tests/patients/recall-sql-parity.test.ts walks a fixture roster through
+ * this function and pins the twin's branches against the same expectations.
+ */
+export function deriveLifecycle(f: LifecycleFacts): PatientLifecycle {
+  if (f.archived) return 'archived'
+  const backfill = BACKFILL_PATIENT_SOURCES.has(f.source ?? '')
+  if (!backfill && !f.hasAnyAppointment) return 'lead'
+  if (!backfill && f.firstSeenAt && f.firstSeenAt.getTime() >= f.newCutoff.getTime()) return 'new'
+  if (f.lastVisitAt && f.lastVisitAt.getTime() < f.lapsedCutoff.getTime() && !f.hasFutureVisit) return 'lapsed'
+  if (f.recallStatus === 'overdue') return 'at_risk'
+  return 'active'
+}
+
+export interface LifecycleSqlOpts extends RecallWhereOpts {
+  newCutoff: Date
+  lapsedCutoff: Date
+}
+
+/**
+ * `deriveLifecycle` as a `case … end` text expression over the outer
+ * `patient` row — so the list's New / Lapsed chips and the audience filter's
+ * `lifecycles` can run in Postgres, where the page bound lives (the same
+ * reason `recallDueWhereSql` exists). Branch for branch:
+ *   - archived  ← `is_active = 0`
+ *   - lead      ← not a backfill source, and no appointment with a status
+ *                 other than 'cancelled'
+ *   - new       ← not a backfill source, `first_seen_at` on or after the
+ *                 clinic-local cutoff (NULL first_seen falls through, as the
+ *                 `f.firstSeenAt &&` does)
+ *   - lapsed    ← last live visit before the lapsed cutoff (NULL max → NULL
+ *                 comparison → falls through, as `f.lastVisitAt &&` does) and
+ *                 no live future visit
+ *   - at_risk   ← `recallWhereSql(…, 'overdue')`, the derivation's own twin
+ *   - active    ← else
+ * No `--` comments inside the template (see recallDueWhereSql).
+ */
+export function lifecycleCaseSql(opts: LifecycleSqlOpts): SQL {
+  const { organizationId, now, newCutoff, lapsedCutoff } = opts
+  const p = schema.patient
+  const a = schema.appointment
+  const backfill = Array.from(BACKFILL_PATIENT_SOURCES)
+  const notBackfill = sql`(${p.source} is null or ${notInArray(p.source, backfill)})`
+  return sql`case
+    when ${eq(p.isActive, 0)} then 'archived'
+    when ${notBackfill} and not exists (
+      select 1 from ${a}
+      where ${eq(a.organizationId, organizationId)}
+        and ${eq(a.patientId, p.id)}
+        and ${ne(a.status, 'cancelled')}
+    ) then 'lead'
+    when ${notBackfill} and ${gte(p.firstSeenAt, newCutoff)} then 'new'
+    when ${lastVisitSql(organizationId, now)} < ${sql.param(lapsedCutoff, a.startTime)}::timestamp
+      and not exists (
+        select 1 from ${a}
+        where ${eq(a.organizationId, organizationId)}
+          and ${eq(a.patientId, p.id)}
+          and ${gte(a.startTime, now)}
+          and ${notInArray(a.status, ['cancelled', 'no_show'])}
+      ) then 'lapsed'
+    when ${recallWhereSql(opts, 'overdue')} then 'at_risk'
+    else 'active'
+  end`
 }

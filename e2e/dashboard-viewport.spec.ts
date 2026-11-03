@@ -29,7 +29,10 @@ function signedSessionCookie(): string {
   return encodeURIComponent(`${SESSION_TOKEN}.${sig}`)
 }
 
-const PAGES = ['/dashboard', '/website', '/website/content', '/messages']
+// The Daily list pages ride along: the roster, the follow-ups board and the
+// inquiries triage are the three tables a front desk opens on a phone, and a
+// table is the shape most likely to drag the shell sideways.
+const PAGES = ['/dashboard', '/website', '/website/content', '/messages', '/patients', '/followups', '/leads']
 
 test.describe('the dashboard shell at phone, tablet and desktop widths', () => {
   test.beforeEach(async ({ context }) => {

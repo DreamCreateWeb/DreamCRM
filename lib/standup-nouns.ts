@@ -36,6 +36,21 @@ export const STANDUP_NOUNS: Record<string, { one: string; many: string }> = {
   outreach_campaign: { one: 'campaign sent', many: 'campaigns sent' },
   content_plan: { one: 'content plan scheduled', many: 'content plans scheduled' },
   schedule_gap: { one: 'invitation out for an open day', many: 'invitations out for open days' },
+  custom_domain: { one: 'web address connected', many: 'web addresses connected' },
+  // THE GENERATOR LANE (ML-11) — the words are ready before the work is, so
+  // the first entry a new generator writes already reads right.
+  patient_reply: { one: 'patient message answered', many: 'patient messages answered' },
+  feedback_reply: { one: 'piece of private feedback answered', many: 'pieces of private feedback answered' },
+  inquiry_followup: { one: 'inquiry followed up', many: 'inquiries followed up' },
+  postop_checkin: { one: 'post-procedure check-in', many: 'post-procedure check-ins' },
+  post_visit_care: { one: 'after-visit care note', many: 'after-visit care notes' },
+  rebook_nudge: { one: 'rebook nudge', many: 'rebook nudges' },
+  membership_rescue: { one: 'membership payment rescued', many: 'membership payments rescued' },
+  listing_watch: { one: 'listing change spotted', many: 'listing changes spotted' },
+  newsletter: { one: 'newsletter sent', many: 'newsletters sent' },
+  referral_ask: { one: 'referral invitation', many: 'referral invitations' },
+  order_update: { one: 'order update', many: 'order updates' },
+  consent: { one: 'consent record updated', many: 'consent records updated' },
 }
 
 export function standupNoun(capability: string, count = 2): string {

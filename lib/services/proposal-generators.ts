@@ -369,6 +369,14 @@ function makeOrgPass(result: Omit<GeneratorRunResult, 'sweep'>, now: Date): (org
         // evidence), turning narrate-once into narrate-zero on a timer.
         ['reconcile', async () => (await reconcileStrandedApprovals(org.id, now), 0)],
         ['sweep', async () => ((result.expired += await sweepInvalidatedProposals(org.id)), 0)],
+        // THE GENERATOR LANE CONVENTION (ML-11): each NEW generator lives
+        // in its own file, lib/services/proposal-generators/<capability>.ts,
+        // and joins this list as ONE import + ONE line — still sequential,
+        // this same list, never a parallel driver. Its STEP_FAILURE entry,
+        // its executor (lib/services/proposal-executors/<capability>.ts,
+        // one case in executeProposal) and the deletion of its key from
+        // PREVIEW_CAPABILITIES land in the same slice. Nothing already here
+        // moves.
         // SETUP ASKS FIRST (onboarding overhaul): a brand-new org's first
         // hourly tick should put the employee's questions in the inbox —
         // the manufactured week-1 aha — before any work-shaped generators
@@ -475,6 +483,17 @@ export const PATIENT_INBOX_CAPABILITIES: string[] = [
   // that matters, and leaving it out would have let an autonomous send go at
   // 3 AM the day the ladder ever learns to grant it.
   'schedule_gap',
+  // THE GENERATOR LANE (ML-11), registered ahead of its generators: every
+  // one of these puts mail in a patient's inbox when it executes — the two
+  // replies answer a person the way inquiry_response does, the rest are
+  // machine-initiated — so each waits for daylight from the day it exists.
+  'patient_reply',
+  'feedback_reply',
+  'inquiry_followup',
+  'postop_checkin',
+  'rebook_nudge',
+  'referral_ask',
+  'newsletter',
 ]
 
 /** Whether the machine may send to patient inboxes right now, in the

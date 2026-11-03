@@ -5,7 +5,7 @@ import { createLead } from '@/lib/services/leads'
 import { db } from '@/lib/db'
 import { clinicProfile } from '@/lib/db/schema/platform'
 import { resolveClinicOrgIdBySlug } from '@/lib/services/clinic-site'
-import { resolveLeadForm, type LeadFormsConfig } from '@/lib/types/lead-forms'
+import { resolveLeadForm, matchCarrier, LEAD_CARRIER_PREFIX, type LeadFormsConfig } from '@/lib/types/lead-forms'
 import { looksLikeBot } from '@/lib/form-trust'
 import { rateLimitPublicAction } from '@/lib/services/rate-limit'
 
@@ -33,7 +33,13 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const PHONE_DIGITS_MIN = 7
 
 export type InsuranceVerifyResult =
-  | { ok: true }
+  | {
+      ok: true
+      /** true = the carrier is on the practice's accepted list; false = it is not; null = no carrier named / no list. A fact about the LIST, never a promise about the plan. */
+      inNetwork: boolean | null
+      /** The accepted entry's own name when inNetwork is true. */
+      carrier: string | null
+    }
   | { ok: false; error: string }
 
 export async function submitInsuranceVerifyRequest(
@@ -41,7 +47,7 @@ export async function submitInsuranceVerifyRequest(
 ): Promise<InsuranceVerifyResult> {
   // Silent spam drop — honeypot / instant-submit returns the normal success
   // shape without creating a lead, so bots get no signal to adapt.
-  if (looksLikeBot(formData)) return { ok: true }
+  if (looksLikeBot(formData)) return { ok: true, inNetwork: null, carrier: null }
   if (!(await rateLimitPublicAction('insurance')))
     return { ok: false, error: 'Too many requests. Please wait a moment and try again.' }
 
@@ -53,7 +59,7 @@ export async function submitInsuranceVerifyRequest(
   // map every submitted value by its real definition — system fields to lead
   // columns, the rest to labelled note lines. Config is trusted (clinic-owned).
   const [row] = await db
-    .select({ leadForms: clinicProfile.leadForms })
+    .select({ leadForms: clinicProfile.leadForms, accepted: clinicProfile.acceptedInsuranceCarriers })
     .from(clinicProfile)
     .where(eq(clinicProfile.organizationId, orgId))
     .limit(1)
@@ -62,6 +68,7 @@ export async function submitInsuranceVerifyRequest(
   let email = ''
   let phone = ''
   let name = ''
+  let submittedCarrier = ''
   const detailLines: string[] = []
   for (const f of fields) {
     const raw = formData.get(f.id)?.toString().trim() || ''
@@ -70,6 +77,7 @@ export async function submitInsuranceVerifyRequest(
     else if (f.systemKey === 'phone') phone = raw
     else if (f.systemKey === 'name') name = raw
     else if (raw && raw !== '__other__') detailLines.push(`${f.label}: ${raw}`)
+    if (f.dynamicOptions === 'carriers' && raw && raw !== '__other__') submittedCarrier = raw
   }
 
   if (!email && !phone) {
@@ -86,9 +94,16 @@ export async function submitInsuranceVerifyRequest(
   // field (low-friction 2-field ask), so fall back to a clear sentinel that
   // makes the /leads queue obvious.
   const leadName = name || 'Insurance verification request'
+  // The carrier rides as a parseable FIRST line ("Carrier: X", read back by
+  // carrierFromLeadMessage) — no column, so the lead drawer can offer the
+  // check with it prefilled.
   const notes =
+    (submittedCarrier ? `${LEAD_CARRIER_PREFIX}${submittedCarrier}\n` : '') +
     'Insurance verification request' +
     (detailLines.length > 0 ? ` — ${detailLines.join('. ')}.` : '.')
+  const acceptedList = Array.isArray(row?.accepted) ? (row.accepted as unknown[]).filter((c): c is string => typeof c === 'string') : []
+  const matched = submittedCarrier && acceptedList.length > 0 ? matchCarrier(submittedCarrier, acceptedList) : null
+  const inNetwork: boolean | null = !submittedCarrier || acceptedList.length === 0 ? null : matched !== null
 
   try {
     await createLead({
@@ -132,5 +147,5 @@ export async function submitInsuranceVerifyRequest(
     console.warn('[insurance-verify] notification failed', err)
   }
 
-  return { ok: true }
+  return { ok: true, inNetwork, carrier: matched }
 }

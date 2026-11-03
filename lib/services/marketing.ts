@@ -17,9 +17,16 @@ import {
 } from 'drizzle-orm'
 import { z } from 'zod'
 import { db, schema } from '@/lib/db'
-import { derivePatientRecallStatus } from '@/lib/services/recall-status'
+import {
+  derivePatientRecallStatus,
+  lifecycleCaseSql,
+  NEW_PATIENT_DAYS,
+  RECALL_DEFAULT_MONTHS,
+} from '@/lib/services/recall-status'
 import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
-import { clinicLocalDate } from '@/lib/clinic-timezone'
+import { getClinicCadence } from '@/lib/services/clinic-cadence'
+import { clinicDayStart, clinicLocalDate } from '@/lib/clinic-timezone'
+import { lapsedCutoff } from '@/lib/dates'
 import { getTagsForPatients } from '@/lib/services/patient-tags'
 
 /**
@@ -520,7 +527,33 @@ export async function resolvePatientAudience(
 
   const where = [eq(schema.patient.organizationId, organizationId)]
   if (!parsed.includeArchived) where.push(eq(schema.patient.isActive, 1))
-  if (parsed.lifecycles?.length) where.push(inArray(schema.patient.lifecycle, parsed.lifecycles))
+  if (parsed.lifecycles?.length) {
+    // The lifecycle is DERIVED (lib/services/recall-status.ts), in SQL, from
+    // the clinic's own cadence and calendar — the stored column was never
+    // moved by reality, so `lifecycles: ['lapsed']` matched nobody and the
+    // outreach queue's Lapsed tier had been empty for every clinic. The near
+    // window is the Patients list's (7 days) so there is ONE definition of
+    // every stage on the platform; the row-level recall status below keeps
+    // the resolver's own any-future-visit reading for its other filters.
+    const [cadence, timeZone] = await Promise.all([
+      getClinicCadence(organizationId),
+      opts.timeZone ? Promise.resolve(opts.timeZone) : getClinicTimeZone(organizationId),
+    ])
+    where.push(
+      inArray(
+        sql`(${lifecycleCaseSql({
+          organizationId,
+          now,
+          nearWindowEnd: new Date(now.getTime() + 7 * 86_400_000),
+          defaultIntervalMonths:
+            cadence.recallMonths && cadence.recallMonths > 0 ? cadence.recallMonths : RECALL_DEFAULT_MONTHS,
+          newCutoff: clinicDayStart(now, timeZone, -NEW_PATIENT_DAYS),
+          lapsedCutoff: lapsedCutoff(now, cadence.lapsedMonths),
+        })})`,
+        parsed.lifecycles,
+      ),
+    )
+  }
   if (parsed.sources?.length) where.push(inArray(schema.patient.source, parsed.sources))
   if (parsed.requireEmailOptIn) where.push(eq(schema.patient.marketingEmailOptIn, 1))
   if (parsed.requireSmsOptIn) where.push(eq(schema.patient.marketingSmsOptIn, 1))

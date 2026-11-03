@@ -7,6 +7,8 @@ import { clinicWeekStart } from '@/lib/clinic-timezone'
 import { formTemplate, formSubmission, formPacket, patient } from '@/lib/db/schema/clinic'
 import type { FormTemplate, FormSubmission } from '@/lib/db/schema/clinic'
 import { newId, slugify } from '@/lib/utils'
+import { namesLooselyMatch } from '@/lib/patient-identity'
+import { toE164 } from '@/lib/phone'
 import {
   type FormTemplateSchema,
   type FormSubmissionData,
@@ -459,14 +461,25 @@ export async function submitForm(input: SubmitFormInput): Promise<FormSubmission
   // patient's timeline + records instead of vanishing into an unattached row.
   let patientId = input.patientId ?? null
   let patientName: string | null = null
+  // A near match the guard refused: same email, a different name (the family
+  // case). Rides the staff notification so the desk can link it by hand.
+  let nearMatch: string | null = null
   if (!patientId && input.submitterEmail) {
     const [p] = await db
       .select({ id: patient.id, firstName: patient.firstName, lastName: patient.lastName })
       .from(patient)
       .where(and(eq(patient.organizationId, input.organizationId), eq(patient.email, input.submitterEmail)))
       .limit(1)
-    patientId = p?.id ?? null
-    if (p) patientName = `${p.firstName} ${p.lastName}`.trim()
+    // FAMILY-SAFE: an email is often shared by a household, so when the form
+    // carries a name it must loosely match the record's. No name -> the email
+    // rule stands.
+    const submitted = splitSubmitterName(input.submitterName)
+    if (p && submitted && !namesLooselyMatch(submitted, { firstName: p.firstName, lastName: p.lastName })) {
+      nearMatch = `${p.firstName} ${p.lastName}`.trim()
+    } else if (p) {
+      patientId = p.id
+      patientName = `${p.firstName} ${p.lastName}`.trim()
+    }
   }
   const [row] = await db
     .insert(formSubmission)
@@ -482,29 +495,6 @@ export async function submitForm(input: SubmitFormInput): Promise<FormSubmission
       submitterPhone: input.submitterPhone ?? null,
     })
     .returning()
-
-  // Ping the front desk so a fresh intake submission gets reviewed before the
-  // visit. Best-effort — the submission row above is the source of truth.
-  try {
-    const who = patientName || input.submitterName || input.submitterEmail || 'a patient'
-    const { notifyOrgMembers } = await import('@/lib/services/notifications')
-    await notifyOrgMembers(
-      input.organizationId,
-      {
-        bucket: 'comments',
-        type: 'intake_submitted',
-        title: `Intake form submitted — ${who}`,
-        body: 'A patient completed an intake form on your website.',
-        linkPath: patientId ? `/patients/${patientId}` : '/intake-forms',
-        meta: { submissionId: row.id, patientId },
-      },
-      // The submitter must never receive the staff alert about their own
-      // submission (owner-as-patient / platform-admin-demoing case).
-      { roles: ['owner', 'admin'], excludeEmail: input.submitterEmail ?? null },
-    )
-  } catch (err) {
-    console.warn('[forms.submitForm] notification failed', err)
-  }
 
   // The template, read once for both of the patient-side effects below.
   let tpl: { title: string; schema: unknown } | undefined
@@ -527,12 +517,38 @@ export async function submitForm(input: SubmitFormInput): Promise<FormSubmission
   // overwritten by a form. When the member id is new to the record, the
   // remembered card is stamped `source: 'intake'` so the tool knows where it
   // came from. Best-effort: the submission row above is the source of truth.
+  let filledKeys: string[] = []
   if (patientId && tpl) {
     try {
-      await writeBackIntakeInsurance(input.organizationId, patientId, tpl.schema as FormTemplateSchema, input.data)
+      filledKeys = await writeBackIntakeAnswers(input.organizationId, patientId, tpl.schema as FormTemplateSchema, input.data)
     } catch (err) {
-      console.warn('[forms.submitForm] insurance write-back failed', err)
+      console.warn('[forms.submitForm] write-back failed', err)
     }
+  }
+
+  // Ping the front desk so a fresh intake submission gets reviewed before the
+  // visit. Best-effort — the submission row above is the source of truth.
+  try {
+    const who = patientName || input.submitterName || input.submitterEmail || 'a patient'
+    const { notifyOrgMembers } = await import('@/lib/services/notifications')
+    await notifyOrgMembers(
+      input.organizationId,
+      {
+        bucket: 'comments',
+        type: 'intake_submitted',
+        title: `Intake form submitted — ${who}`,
+        body: nearMatch
+          ? `Filled from ${nearMatch}'s email, a different name - not linked.`
+          : `A patient completed an intake form on your website.${filledKeys.length ? ` Added to the record: ${filledKeys.join(', ')}.` : ''}`,
+        linkPath: patientId ? `/patients/${patientId}` : `/intake-forms/submissions/${row.id}`,
+        meta: { submissionId: row.id, patientId, ...(nearMatch ? { nearMatch } : {}), ...(filledKeys.length ? { filledKeys } : {}) },
+      },
+      // The submitter must never receive the staff alert about their own
+      // submission (owner-as-patient / platform-admin-demoing case).
+      { roles: ['owner', 'admin'], excludeEmail: input.submitterEmail ?? null },
+    )
+  } catch (err) {
+    console.warn('[forms.submitForm] notification failed', err)
   }
 
   // Mirror the completed form into the patient's Open Dental chart as a CommLog
@@ -555,6 +571,134 @@ export async function submitForm(input: SubmitFormInput): Promise<FormSubmission
   }
 
   return row
+}
+
+function splitSubmitterName(raw: string | null | undefined): { firstName: string; lastName: string } | null {
+  const parts = (raw ?? '').trim().split(/\s+/).filter(Boolean)
+  if (parts.length === 0) return null
+  return { firstName: parts[0], lastName: parts.slice(1).join(' ') }
+}
+
+const INTAKE_IDENTITY_KEYS = ['date_of_birth', 'email', 'phone', 'address_line1', 'city', 'state', 'postal_code', 'first_name', 'last_name'] as const
+type IntakeIdentityKey = (typeof INTAKE_IDENTITY_KEYS)[number]
+
+/** Every system-keyed text answer a submission carries (trimmed, capped). */
+export function intakeSystemAnswers(schema: FormTemplateSchema, data: FormSubmissionData): Partial<Record<IntakeIdentityKey, string>> {
+  const out: Partial<Record<IntakeIdentityKey, string>> = {}
+  for (const section of schema?.sections ?? []) {
+    for (const field of section.fields ?? []) {
+      const key = field.systemKey as IntakeIdentityKey | null | undefined
+      if (!key || !INTAKE_IDENTITY_KEYS.includes(key)) continue
+      const v = (data as Record<string, unknown>)[field.id]
+      if (typeof v === 'string' && v.trim() && !out[key]) out[key] = v.trim().slice(0, 200)
+    }
+  }
+  return out
+}
+
+/**
+ * THE GENERAL WRITE-BACK: date of birth, email, phone and address answers fill
+ * the patient's EMPTY columns only (names never - a name is identity, not a
+ * blank), then the insurance branch runs unchanged. Returns the plain names of
+ * what was filled (for the staff line), empty when nothing was written.
+ */
+export async function writeBackIntakeAnswers(
+  organizationId: string,
+  patientId: string,
+  schema: FormTemplateSchema,
+  data: FormSubmissionData,
+): Promise<string[]> {
+  const filled: string[] = []
+  const answers = intakeSystemAnswers(schema, data)
+  const [p] = await db
+    .select({
+      dateOfBirth: patient.dateOfBirth,
+      email: patient.email,
+      phone: patient.phone,
+      addressLine1: patient.addressLine1,
+      city: patient.city,
+      state: patient.state,
+      postalCode: patient.postalCode,
+    })
+    .from(patient)
+    .where(and(eq(patient.organizationId, organizationId), eq(patient.id, patientId)))
+    .limit(1)
+  if (!p) return filled
+  const patch: Record<string, unknown> = {}
+  const blank = (v: string | null | undefined) => !v?.trim()
+  if (blank(p.dateOfBirth) && answers.date_of_birth && /^\d{4}-\d{2}-\d{2}$/.test(answers.date_of_birth)) {
+    patch.dateOfBirth = answers.date_of_birth
+    filled.push('date of birth')
+  }
+  if (blank(p.email) && answers.email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(answers.email)) {
+    patch.email = answers.email.toLowerCase()
+    filled.push('email')
+  }
+  const phone = answers.phone ? toE164(answers.phone) : null
+  if (blank(p.phone) && phone) {
+    patch.phone = phone
+    filled.push('phone')
+  }
+  const addr: Array<[keyof typeof p, IntakeIdentityKey]> = [
+    ['addressLine1', 'address_line1'],
+    ['city', 'city'],
+    ['state', 'state'],
+    ['postalCode', 'postal_code'],
+  ]
+  for (const [col, key] of addr) {
+    const v = answers[key]
+    if (blank(p[col]) && v) {
+      patch[col] = v
+      if (!filled.includes('address')) filled.push('address')
+    }
+  }
+  if (Object.keys(patch).length > 0) {
+    await db
+      .update(patient)
+      .set({ ...patch, updatedAt: new Date() })
+      .where(and(eq(patient.organizationId, organizationId), eq(patient.id, patientId)))
+  }
+  if (await writeBackIntakeInsurance(organizationId, patientId, schema, data)) filled.push('insurance')
+  return filled
+}
+
+/** Attach a submission to a patient WHERE it has none (org-scoped both ways),
+ *  then write its answers back. False when already linked / not this org's. */
+export async function attachSubmissionToPatient(
+  organizationId: string,
+  submissionId: string,
+  patientId: string,
+): Promise<boolean> {
+  const [pat] = await db
+    .select({ id: patient.id })
+    .from(patient)
+    .where(and(eq(patient.organizationId, organizationId), eq(patient.id, patientId)))
+    .limit(1)
+  if (!pat) return false
+  const updated = await db
+    .update(formSubmission)
+    .set({ patientId })
+    .where(
+      and(
+        eq(formSubmission.organizationId, organizationId),
+        eq(formSubmission.id, submissionId),
+        isNull(formSubmission.patientId),
+      ),
+    )
+    .returning({ id: formSubmission.id, formTemplateId: formSubmission.formTemplateId, data: formSubmission.data })
+  const sub = updated[0]
+  if (!sub) return false
+  try {
+    const [tpl] = await db
+      .select({ schema: formTemplate.schema })
+      .from(formTemplate)
+      .where(and(eq(formTemplate.organizationId, organizationId), eq(formTemplate.id, sub.formTemplateId)))
+      .limit(1)
+    if (tpl) await writeBackIntakeAnswers(organizationId, patientId, tpl.schema as FormTemplateSchema, sub.data as FormSubmissionData)
+  } catch (err) {
+    console.warn('[forms.attachSubmissionToPatient] write-back failed', err)
+  }
+  return true
 }
 
 const INTAKE_INSURANCE_KEYS = ['insurance_provider', 'insurance_policy_number', 'insurance_group_number'] as const
@@ -862,4 +1006,19 @@ export async function seedDefaultIntakeForm(organizationId: string): Promise<voi
     schema: DEFAULT_INTAKE_TEMPLATE,
     isDefault: 1,
   })
+}
+
+/** The patient an UNLINKED submission's email points at (org-scoped) - the
+ *  near match the family-safe guard refused, offered as "Link to <patient>". */
+export async function getSubmissionEmailMatch(
+  organizationId: string,
+  email: string | null | undefined,
+): Promise<{ id: string; name: string } | null> {
+  if (!email?.trim()) return null
+  const [p] = await db
+    .select({ id: patient.id, firstName: patient.firstName, lastName: patient.lastName })
+    .from(patient)
+    .where(and(eq(patient.organizationId, organizationId), eq(patient.email, email.trim())))
+    .limit(1)
+  return p ? { id: p.id, name: `${p.firstName} ${p.lastName}`.trim() } : null
 }

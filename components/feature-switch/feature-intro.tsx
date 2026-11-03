@@ -1,5 +1,6 @@
 'use client'
 
+import { runAction } from '@/lib/run-action'
 import { useState, useTransition, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import { PageHeader } from '@/components/ui/page-header'
@@ -91,7 +92,7 @@ export function TurnOnButton({
   function turnOn() {
     setError(null)
     startTransition(async () => {
-      const r = await (onTurnOn ? onTurnOn() : enableFeatureAction(feature))
+      const r = await runAction(() => (onTurnOn ? onTurnOn() : enableFeatureAction(feature)))
       if (!r.ok) {
         setError(r.error)
         return

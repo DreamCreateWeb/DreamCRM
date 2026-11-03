@@ -11,6 +11,8 @@ import type {
   NewPatientsPerWeekPoint,
 } from '@/lib/services/patients'
 import { DEFAULT_PATIENT_LIMIT, MAX_PATIENT_LIMIT } from '@/lib/types/patient-views'
+import { SOURCE_LABEL } from '@/lib/types/patient-sources'
+import { formatPhone } from '@/lib/phone'
 import { MiniTrend } from '@/components/ui/charts'
 import { patientFlagGlyphs, type PillLegendRow } from '@/lib/ui/encodings'
 import { PageHeader } from '@/components/ui/page-header'
@@ -94,20 +96,6 @@ const RECALL_LEGEND: PillLegendRow[] = [
   { tone: 'urgent', label: 'Overdue', meaning: 'Past due — needs outreach' },
   { tone: 'neutral', label: '—', meaning: 'No recall due' },
 ]
-
-const SOURCE_LABEL: Record<string, string> = {
-  website: 'Website',
-  booking: 'Booking widget',
-  referral: 'Referral',
-  walk_in: 'Walk-in',
-  manual: 'Manual',
-  lead_form: 'Contact form',
-  invite: 'Invite',
-  website_request: 'Appointment request',
-  pms: 'Practice system',
-  pms_import: 'Practice system (imported)',
-  import: 'CSV import',
-}
 
 export default function PatientsList({
   rows,
@@ -746,8 +734,10 @@ function PatientRow({
             )}
             <GlyphCluster glyphs={patientFlagGlyphs(row.flags)} cap={4} />
           </div>
+          {/* Email AND phone: the front desk dials from this list, and the
+              phone was hidden whenever an email existed. */}
           <div className="text-xs text-gray-500 dark:text-gray-400 truncate max-w-[260px]">
-            {row.email ?? row.phone ?? ''}
+            {[row.email, row.phone ? formatPhone(row.phone) : null].filter(Boolean).join(' · ')}
           </div>
           {row.tags.length > 0 && (
             <div className="flex flex-wrap gap-1 mt-1">
@@ -792,8 +782,23 @@ function PatientRow({
       <td className="px-4 py-3 text-xs text-gray-600 dark:text-gray-300">
         {row.source ? SOURCE_LABEL[row.source] ?? row.source : '—'}
       </td>
-      <td className="px-4 py-3 text-xs text-gray-500 dark:text-gray-400 tabular-nums" suppressHydrationWarning>
-        {row.lastContactAt ? fmtRelative(row.lastContactAt) : '—'}
+      {/* Who spoke last, from the patient thread: "↩ replied 3d ago" is a
+          conversation waiting on us; "→ we wrote 3d ago" is one waiting on
+          them. A bare age said neither. */}
+      <td
+        className="px-4 py-3 text-xs text-gray-500 dark:text-gray-400 tabular-nums whitespace-nowrap"
+        title={
+          row.lastContactAt
+            ? row.lastContactDirection === 'inbound'
+              ? 'Their last message to you'
+              : 'Your last message to them'
+            : 'No messages on their thread yet'
+        }
+        suppressHydrationWarning
+      >
+        {row.lastContactAt
+          ? `${row.lastContactDirection === 'inbound' ? '↩ replied' : '→ we wrote'} ${fmtRelative(row.lastContactAt)}`
+          : '—'}
       </td>
     </tr>
   )

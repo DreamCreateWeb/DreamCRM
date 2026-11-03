@@ -1,0 +1,1 @@
+CREATE INDEX "patient_message_org_patient_sent_idx" ON "patient_message" USING btree ("organization_id","patient_id","sent_at");

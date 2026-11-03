@@ -59,6 +59,7 @@ function row(i: number): PatientListRow {
     balanceAsOf: null,
     shopSpendCents: 0,
     lastContactAt: null,
+    lastContactDirection: null,
     flags: {
       newPatient: false,
       birthdayThisWeek: false,

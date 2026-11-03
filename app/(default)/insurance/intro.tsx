@@ -1,5 +1,6 @@
 'use client'
 
+import { runAction } from '@/lib/run-action'
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { PageHeader } from '@/components/ui/page-header'
@@ -40,7 +41,7 @@ export default function InsuranceIntro({
   function turnOn() {
     setError(null)
     startTransition(async () => {
-      const r = await enableInsuranceAction({ npi: npiValue })
+      const r = await runAction(() => enableInsuranceAction({ npi: npiValue }))
       if (!r.ok) {
         setError(r.error)
         return

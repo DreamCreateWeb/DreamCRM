@@ -906,6 +906,11 @@ export const patientMessage = pgTable(
   (t) => [
     index('patient_message_thread_sent_idx').on(t.threadId, t.sentAt),
     index('patient_message_org_sent_idx').on(t.organizationId, t.sentAt),
+    // THE LAST-CONTACT READ (0181): the Patients list's "Last contact" cell is a
+    // DISTINCT ON per patient over this table and its sort is a correlated
+    // `max(sent_at)` per row — both key on (organization_id, patient_id) and
+    // walk sent_at from the top, so the index carries all three.
+    index('patient_message_org_patient_sent_idx').on(t.organizationId, t.patientId, t.sentAt),
   ],
 )
 

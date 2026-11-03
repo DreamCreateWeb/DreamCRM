@@ -2,6 +2,8 @@
 
 import { useState } from 'react'
 import { startPlanSetupAction } from './actions'
+import { runAction } from '@/lib/run-action'
+import { PORTAL_RUN, PortalReloadWhenStale } from '@/components/patient-portal/stale-reload'
 
 /**
  * The payment-plan acceptance card. 'proposed' shows the terms + the accept
@@ -52,7 +54,7 @@ export default function PlanForm({
   async function accept() {
     setStatus('redirecting')
     setError('')
-    const r = await startPlanSetupAction(token)
+    const r = await runAction(() => startPlanSetupAction(token), PORTAL_RUN)
     if (r.ok) {
       window.location.assign(r.url)
       return
@@ -160,6 +162,7 @@ export default function PlanForm({
       {status === 'error' && error && (
         <p className="mt-3 text-[0.88rem] text-rose-600" role="alert">{error}</p>
       )}
+      {status === 'error' && <PortalReloadWhenStale error={error} />}
       <p className="mt-4 text-[0.8rem] text-gray-500 dark:text-gray-400">
         Rather handle it differently? Reply to the email or call the office — no pressure.
       </p>

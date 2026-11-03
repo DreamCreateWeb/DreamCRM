@@ -1,5 +1,6 @@
 import 'server-only'
 import { and, count, desc, eq, gte, inArray, isNotNull, isNull, lte, ne, or, sql } from 'drizzle-orm'
+import { notCsvImportVisit } from '@/lib/services/visit-sources'
 import { randomBytes } from 'crypto'
 import { listShutDownOrgIds } from './billing-state'
 import { db, schema } from '@/lib/db'
@@ -336,6 +337,10 @@ export async function listEligiblePatients(
         eq(schema.appointment.status, 'completed'),
         isNotNull(schema.appointment.completedAt),
         gte(schema.appointment.completedAt, thirtyDaysAgo),
+        // A CSV roster's placeholder visit never asks for a review — a 2,000-row
+        // import would otherwise fire a request at everyone the roster said
+        // was seen this month (visit-sources.ts).
+        notCsvImportVisit(),
       ),
     )
     .orderBy(desc(schema.appointment.completedAt))

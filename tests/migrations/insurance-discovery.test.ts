@@ -28,9 +28,12 @@ describe('0180_insurance_discovery', () => {
     expect(sql).not.toMatch(/DROP|ALTER TABLE "(?!insurance_discovery")/)
   })
 
-  it('is registered in the journal under its name, last', () => {
+  it('is registered in the journal under its name, directly before 0181', () => {
     const journal = JSON.parse(readFileSync(join(DIR, 'meta/_journal.json'), 'utf8')) as { entries: Array<{ idx: number; tag: string }> }
-    expect(journal.entries.find((e) => e.idx === 180)?.tag).toBe('0180_insurance_discovery')
-    expect(journal.entries.at(-1)?.tag).toBe('0180_insurance_discovery')
+    const at = journal.entries.findIndex((e) => e.idx === 180)
+    expect(journal.entries[at]?.tag).toBe('0180_insurance_discovery')
+    // 0181 (the patient_message last-contact index) took the "last" seat on
+    // 2026-11-03; tests/migrations/patient-message-index.test.ts pins it.
+    expect(journal.entries[at + 1]?.tag).toBe('0181_patient_message_index')
   })
 })

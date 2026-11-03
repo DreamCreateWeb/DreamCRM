@@ -89,7 +89,7 @@ describe('RecentSubmissionsPage', () => {
 
     // Anonymous fill: submitter email as plain text (no patient link).
     const anon = screen.getByText('visitor@example.com')
-    expect(anon.closest('a')).toBeNull()
+    expect(anon.closest('a')?.getAttribute('href')).toBe('/intake-forms/submissions/sub_2')
 
     // Orientation: the eyebrow links back to the module home.
     expect(container.querySelector('a[href="/intake-forms"]')).toBeTruthy()

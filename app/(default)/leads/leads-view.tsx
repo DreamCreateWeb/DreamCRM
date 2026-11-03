@@ -92,8 +92,11 @@ export default function LeadsView({
   search,
   orgName = 'Your clinic',
   timeZone = 'America/New_York',
+  insuranceOpen = false,
 }: {
   rows: LeadRow[]
+  /** The insurance switch is on — the drawer offers "Check their insurance". */
+  insuranceOpen?: boolean
   counts: LeadCounts
   /** New leads per clinic-local day, last 14 days — the page's one heartbeat. */
   perDay14?: LeadsPerDayPoint[]
@@ -337,6 +340,7 @@ export default function LeadsView({
         <LeadDrawer
           row={openRow}
           timeZone={timeZone}
+          insuranceOpen={insuranceOpen}
           onClose={() => setOpenId(null)}
           onStatusChange={runLeadStatus}
         />

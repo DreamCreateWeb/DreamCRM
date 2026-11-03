@@ -15,7 +15,14 @@ const state = {
 }
 
 const intakeDoor = { open: true }
-vi.mock('@/lib/services/feature-switches', () => ({ getFeatureSwitchState: async () => ({ intake_forms: intakeDoor.open }) }))
+const insuranceDoor = { open: false }
+const latestChecks = new Map<string, { checkedAt: Date }>()
+vi.mock('@/lib/services/feature-switches', () => ({
+  getFeatureSwitchState: async () => ({ intake_forms: intakeDoor.open, insurance: insuranceDoor.open }),
+}))
+vi.mock('@/lib/services/insurance-eligibility', () => ({
+  getLatestInsuranceChecksForPatients: vi.fn(async () => latestChecks),
+}))
 vi.mock('@/lib/db', () => {
   const makeThenable = (resolve: () => unknown) => {
     const chain: Record<string, unknown> = {
@@ -120,6 +127,8 @@ beforeEach(() => {
   state.lastVisits = []
   state.deposits = []
   apptServed = false
+  insuranceDoor.open = false
+  latestChecks.clear()
   vi.clearAllMocks()
 })
 
@@ -189,5 +198,42 @@ describe('auditUpcomingDay', () => {
     expect(keys).toContain('unreachable')
     expect(keys).toContain('deposit_pending')
     expect(r.items[0]!.flags.find((f) => f.key === 'deposit_pending')!.label).toContain('$50')
+  })
+
+  describe('insurance_stale', () => {
+    const flagsFor = async (over: Record<string, unknown>) => {
+      state.appointments = [appt({ status: 'confirmed', ...over })]
+      state.submitted = [{ patientId: 'p1' }]
+      state.lastVisits = [{ patientId: 'p1', last: MONTHS_AGO }]
+      const r = await auditUpcomingDay('org_1', { now: NOW })
+      return r.items[0]?.flags.filter((f) => f.key === 'insurance_stale') ?? []
+    }
+
+    it('never checked: asks for a run, with the door', async () => {
+      insuranceDoor.open = true
+      const f = await flagsFor({ policyNumber: 'W123' })
+      expect(f).toHaveLength(1)
+      expect(f[0]!.label).toMatch(/never checked/)
+      expect(f[0]!.href).toBe('/insurance?patient=p1')
+    })
+
+    it('checked lately: no flag', async () => {
+      insuranceDoor.open = true
+      latestChecks.set('p1', { checkedAt: new Date('2026-06-01T15:00:00Z') })
+      expect(await flagsFor({ policyNumber: 'W123' })).toHaveLength(0)
+    })
+
+    it('checked 30+ days ago: stale flag', async () => {
+      insuranceDoor.open = true
+      latestChecks.set('p1', { checkedAt: new Date('2026-04-01T15:00:00Z') })
+      const f = await flagsFor({ policyNumber: 'W123' })
+      expect(f[0]!.label).toMatch(/30\+ days/)
+    })
+
+    it('omitted when the switch is off, or when no card is on file', async () => {
+      expect(await flagsFor({ policyNumber: 'W123' })).toHaveLength(0)
+      insuranceDoor.open = true
+      expect(await flagsFor({ policyNumber: null })).toHaveLength(0)
+    })
   })
 })

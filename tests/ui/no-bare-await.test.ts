@@ -77,10 +77,6 @@ export const ALLOWED: Array<[file: string, sites: number]> = [
   ['app/(default)/growth/reviews/review-config-panel.tsx', 1],
   ['app/(default)/growth/social/composer.tsx', 1],
   ['app/(default)/growth/social/connect-channels.tsx', 3],
-  ['app/(default)/insurance/discovery-panel.tsx', 2],
-  ['app/(default)/insurance/insurance-tool.tsx', 6],
-  ['app/(default)/insurance/intro.tsx', 1],
-  ['app/(default)/insurance/payer-notebook-card.tsx', 1],
   ['app/(default)/intake-forms/packets-manager.tsx', 1],
   ['app/(default)/integrations/google-business/gbp-detail-controls.tsx', 2],
   ['app/(default)/integrations/google-business/location-picker.tsx', 1],
@@ -90,7 +86,6 @@ export const ALLOWED: Array<[file: string, sites: number]> = [
   ['app/(default)/integrations/sync-controls.tsx', 4],
   ['app/(default)/leads/leads-view.tsx', 1],
   ['app/(default)/marketing/retention-automations-card.tsx', 1],
-  ['app/(default)/my-day/digest-toggle.tsx', 1],
   ['app/(default)/my-day/my-day-followups.tsx', 3],
   ['app/(default)/partners/[id]/partner-actions.tsx', 1],
   ['app/(default)/patients/[id]/documents-panel.tsx', 2],
@@ -106,7 +101,6 @@ export const ALLOWED: Array<[file: string, sites: number]> = [
   ['app/(default)/patients/import-patients-modal.tsx', 2],
   ['app/(default)/patients/patients-list.tsx', 3],
   ['app/(default)/patients/saved-views-bar.tsx', 5],
-  ['app/(default)/patients/send-intake-inline.tsx', 1],
   ['app/(default)/payments/collections/plans-card.tsx', 1],
   ['app/(default)/payments/collections/propose-plan-cell.tsx', 1],
   ['app/(default)/payments/collections/send-link-cell.tsx', 1],
@@ -158,30 +152,12 @@ export const ALLOWED: Array<[file: string, sites: number]> = [
   ['app/(double-sidebar)/messages/broadcast-button.tsx', 1],
   ['app/(double-sidebar)/messages/support/support-view.tsx', 1],
   ['app/(partner)/partner/partner-payout.tsx', 1],
-  ['app/(portal)/patient/book/book-form.tsx', 1],
-  ['app/(portal)/patient/book/request-form.tsx', 1],
-  ['app/(portal)/patient/invoices/pay-form.tsx', 1],
-  ['app/(portal)/patient/invoices/plan-offer.tsx', 1],
-  ['app/(portal)/patient/messages/messages-view.tsx', 1],
-  ['app/(portal)/patient/profile/profile-form.tsx', 2],
-  ['app/(portal)/patient/records/request-records.tsx', 1],
-  ['app/d/[token]/booking-form.tsx', 2],
   ['app/e/[token]/capture-form.tsx', 1],
-  ['app/i/[token]/plan-form.tsx', 1],
-  ['app/n/[token]/survey-form.tsx', 2],
-  ['app/r/[token]/review-form.tsx', 1],
   ['app/site/[slug]/shop/cart-view.tsx', 1],
-  ['components/clinic-site/insurance-verifier-form.tsx', 1],
-  ['components/feature-switch/feature-footer.tsx', 1],
   ['components/followups/followup-quick-add.tsx', 1],
   ['components/onboarding/getting-started.tsx', 1],
   ['components/onboarding/module-hint-banner.tsx', 1],
   ['components/onboarding/welcome-modal.tsx', 1],
-  ['components/patient-portal/family-link-request.tsx', 1],
-  ['components/patient-portal/loyalty-card.tsx', 1],
-  ['components/patient-portal/refer-card.tsx', 1],
-  ['components/patient-portal/survey-card.tsx', 2],
-  ['components/patient-portal/visit-card.tsx', 1],
   ['components/search-modal.tsx', 1],
   ['components/social-posts/post-comments-panel.tsx', 1],
   ['components/tags/patient-tag-control.tsx', 3],
@@ -189,7 +165,7 @@ export const ALLOWED: Array<[file: string, sites: number]> = [
 
 /** The sum of ALLOWED's counts the day it was taken. LOWER it as you sweep;
  *  never raise it — a raise is a new offender admitted by hand. */
-export const ALLOWLIST_CEILING = 242
+export const ALLOWLIST_CEILING = 208
 
 /* ───────────────────────── the detector ───────────────────────── */
 

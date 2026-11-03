@@ -103,3 +103,52 @@ export const LEAD_FORM_LABELS: Record<LeadFormKey, string> = {
   contact: 'Contact form',
   insurance_verifier: 'Insurance check form',
 }
+
+// ── Carrier matching (the public verifier's "are you in network?") ──────────
+
+/** Words that do not tell one carrier from another ("Delta Dental Insurance"). */
+const CARRIER_NOISE = new Set(['insurance', 'ins', 'dental', 'plan', 'plans', 'of', 'the', 'and', 'inc', 'co', 'company', 'health', 'ppo', 'hmo'])
+
+function carrierTokens(name: string): string[] {
+  const all = name.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().split(' ').filter(Boolean)
+  const meaningful = all.filter((t) => !CARRIER_NOISE.has(t))
+  // "Dental Health" would vanish entirely — fall back to what was typed.
+  return meaningful.length > 0 ? meaningful : all
+}
+
+/**
+ * Is the carrier a visitor picked/typed one the practice lists as accepted?
+ * Returns the ACCEPTED entry's own name (so the page says it the way the
+ * practice does), or null. Forgiving on case, punctuation and noise words
+ * ("Delta Dental Insurance" = "delta dental"), and one side's meaningful
+ * words must all appear in the other's. A FACT ABOUT THE LIST, never a
+ * promise about the visitor's plan: callers must say the plan is confirmed
+ * later.
+ */
+export function matchCarrier(submitted: string | null | undefined, accepted: readonly string[] | null | undefined): string | null {
+  const typed = (submitted ?? '').trim()
+  if (!typed || typed === '__other__' || !accepted || accepted.length === 0) return null
+  const a = carrierTokens(typed)
+  if (a.length === 0 || a.join('').length < 3) return null
+  for (const entry of accepted) {
+    if (typeof entry !== 'string' || !entry.trim()) continue
+    const b = carrierTokens(entry)
+    if (b.length === 0 || b.join('').length < 3) continue
+    const aInB = a.every((t) => b.includes(t))
+    const bInA = b.every((t) => a.includes(t))
+    if (aInB || bInA) return entry.trim()
+  }
+  return null
+}
+
+/** The parseable first line the verifier writes on a lead: "Carrier: X". */
+export const LEAD_CARRIER_PREFIX = 'Carrier: '
+
+/** Read the carrier back off a lead's message (first line only); null when absent. */
+export function carrierFromLeadMessage(message: string | null | undefined): string | null {
+  if (!message) return null
+  const first = message.split(/\r?\n/, 1)[0] ?? ''
+  if (!first.startsWith(LEAD_CARRIER_PREFIX)) return null
+  const v = first.slice(LEAD_CARRIER_PREFIX.length).trim()
+  return v || null
+}

@@ -3,13 +3,14 @@ export const dynamic = 'force-dynamic'
 import Link from 'next/link'
 import { notFound, redirect } from 'next/navigation'
 import { requireTenant } from '@/lib/auth/context'
-import { getSubmissionForReview } from '@/lib/services/forms'
+import { getSubmissionForReview, getSubmissionEmailMatch } from '@/lib/services/forms'
 import { getCachedSummary } from '@/lib/services/intake-summary'
 import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
 import { aiConfigured } from '@/lib/ai'
 import type { FormTemplateSchema, FormSubmissionData, FormFieldValue } from '@/lib/types/forms'
 import { isFileRefArray, sanitizeFileRefs } from '@/lib/types/forms'
 import PreVisitSummary from './previsit-summary'
+import LinkPanel from './link-panel'
 
 export const metadata = { title: 'Intake Submission - DreamCRM' }
 
@@ -63,6 +64,7 @@ export default async function SubmissionPage({ params }: Props) {
   const { submission, template, patientId, patientName } = result
   const schema = template.schema as FormTemplateSchema
   const data = (submission.data ?? {}) as FormSubmissionData
+  const nearMatch = patientId ? null : await getSubmissionEmailMatch(ctx.organizationId, submission.submitterEmail)
   const cachedSummary = await getCachedSummary(ctx.organizationId, submissionId)
   // Clinic wall-clock — this is a server component on a UTC server.
   const timeZone = await getClinicTimeZone(ctx.organizationId)
@@ -97,9 +99,11 @@ export default async function SubmissionPage({ params }: Props) {
           {submission.submitterEmail ? ` · ${submission.submitterEmail}` : ''} · {submittedAt}
         </p>
         {!patientId && (
-          <p className="text-xs text-amber-700 dark:text-amber-300 mt-2">
-            Not linked to a patient record (no matching email on file).
-          </p>
+          <LinkPanel
+            submissionId={submissionId}
+            displayName={submission.submitterName ?? submission.submitterEmail ?? 'this person'}
+            nearMatch={nearMatch}
+          />
         )}
       </div>
 

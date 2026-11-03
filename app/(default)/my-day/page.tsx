@@ -81,9 +81,9 @@ export default async function MyDayPage() {
           href="/appointments?window=today&attention=unconfirmed"
         />
         <KpiStat
-          label="My conversations"
+          label="Conversations waiting"
           value={data.conversations.length}
-          sub="assigned to you"
+          sub="yours + unclaimed"
           tone={data.conversations.length > 0 ? 'info' : 'neutral'}
           href="/messages"
         />
@@ -146,7 +146,7 @@ export default async function MyDayPage() {
           {/* My conversations */}
           <section className="v2-card p-5">
             <div className="flex items-center justify-between mb-2">
-              <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100">Your conversations</h2>
+              <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100">Conversations waiting</h2>
               <Link href="/messages" className="text-xs font-medium text-teal-700 hover:text-teal-800 dark:text-teal-400">
                 Inbox →
               </Link>
@@ -154,8 +154,8 @@ export default async function MyDayPage() {
             {data.conversations.length === 0 ? (
               <EmptyState
                 icon="💬"
-                title="No conversations assigned to you"
-                body="Threads you take ownership of in Messages land here."
+                title="No conversations waiting"
+                body="Threads assigned to you, and new unread ones nobody has claimed, land here."
                 action={
                   <ActionButton variant="secondary" size="sm" href="/messages">
                     Open Messages
@@ -173,6 +173,11 @@ export default async function MyDayPage() {
                       <span className="min-w-0">
                         <span className="block text-sm font-medium text-gray-800 dark:text-gray-100 truncate">
                           {t.patientFirstName} {t.patientLastName}
+                          {t.unclaimed && (
+                            <span className="ml-2 align-middle">
+                              <StatusPill tone="info" label="Unclaimed" title="Nobody has taken this conversation yet" />
+                            </span>
+                          )}
                         </span>
                         {t.lastMessagePreview && (
                           <span className="block text-xs text-gray-500 dark:text-gray-400 truncate">{t.lastMessagePreview}</span>
@@ -309,7 +314,13 @@ export default async function MyDayPage() {
                   <ul className="mt-1 flex flex-wrap gap-1.5">
                     {it.flags.map((f) => (
                       <li key={f.key}>
-                        <StatusPill tone="warn" label={f.label} />
+                        {f.href ? (
+                          <Link href={f.href} className="hover:underline">
+                            <StatusPill tone="warn" label={f.label} />
+                          </Link>
+                        ) : (
+                          <StatusPill tone="warn" label={f.label} />
+                        )}
                       </li>
                     ))}
                   </ul>
@@ -324,7 +335,11 @@ export default async function MyDayPage() {
           opt-out mutes both the morning digest AND the Monday week-in-review,
           and the weekly email goes to every clinic, so hiding the control
           behind the digest org-toggle left the weekly one unstoppable. */}
-      <DigestToggle initialOptedOut={digestOptOut} digestEnabled={digestEnabled} />
+      <DigestToggle
+        initialOptedOut={digestOptOut}
+        digestEnabled={digestEnabled}
+        canManageOrgDigest={ctx.role === 'owner' || ctx.role === 'admin'}
+      />
     </div>
   )
 }

@@ -4,7 +4,7 @@ const insertedRows: Array<{ table: string; values: unknown }> = []
 
 // The action resolves the clinic's (possibly customised) field config from the
 // DB; return an empty config so the built-in default fields are used.
-let leadFormsRow: { leadForms: unknown } = { leadForms: null }
+let leadFormsRow: { leadForms: unknown; accepted?: unknown } = { leadForms: null }
 
 vi.mock('@/lib/db', async () => {
   const { lead } = await import('@/lib/db/schema/clinic')
@@ -229,5 +229,23 @@ describe('submitInsuranceVerifyRequest', () => {
     const result = await submitInsuranceVerifyRequest(form({ slug: 'acme', phone: '5551234567' }))
     expect(result.ok).toBe(false)
     expect(notifyOrgMembersMock).not.toHaveBeenCalled()
+  })
+})
+
+describe('submitInsuranceVerifyRequest — are you in network?', () => {
+  const base = { slug: 'acme', email: 'a@b.co', phone: '5125550100' }
+  it('says in network (a fact about the list) and writes "Carrier: X" as the first line', async () => {
+    leadFormsRow = { leadForms: null, accepted: ['Delta Dental', 'Cigna'] }
+    const r = await submitInsuranceVerifyRequest(form({ ...base, carrier: 'delta dental insurance' }))
+    expect(r).toEqual({ ok: true, inNetwork: true, carrier: 'Delta Dental' })
+    const msg = (insertedRows[0].values as { message: string }).message
+    expect(msg.split('\n')[0]).toBe('Carrier: delta dental insurance')
+  })
+  it('false for a carrier not on the list; null with no carrier or no list', async () => {
+    leadFormsRow = { leadForms: null, accepted: ['Cigna'] }
+    expect(await submitInsuranceVerifyRequest(form({ ...base, carrier: 'Aetna' }))).toMatchObject({ ok: true, inNetwork: false })
+    expect(await submitInsuranceVerifyRequest(form({ ...base }))).toMatchObject({ ok: true, inNetwork: null })
+    leadFormsRow = { leadForms: null, accepted: [] }
+    expect(await submitInsuranceVerifyRequest(form({ ...base, carrier: 'Cigna' }))).toMatchObject({ ok: true, inNetwork: null })
   })
 })
