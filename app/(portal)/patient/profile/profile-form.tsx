@@ -3,6 +3,8 @@
 import { useState, useTransition } from 'react'
 import { updateMyProfileAction, setMarketingEmailOptInAction } from './actions'
 import { signOut } from '@/lib/auth-client'
+import { runAction } from '@/lib/run-action'
+import { PORTAL_RUN, PortalReloadWhenStale } from '@/components/patient-portal/stale-reload'
 import {
   PORTAL_SUCCESS_INK,
   PORTAL_DANGER_INK,
@@ -90,7 +92,7 @@ export default function ProfileForm({
     setError('')
     const fd = new FormData(e.currentTarget)
     startTransition(async () => {
-      const res = await updateMyProfileAction(fd)
+      const res = await runAction(() => updateMyProfileAction(fd), PORTAL_RUN)
       if (res.ok) {
         // Persists until the next edit/submit — a 4s vanish was gone before
         // a patient who glanced away ever saw it.
@@ -106,12 +108,12 @@ export default function ProfileForm({
     setOptIn(next)
     setPrefError('')
     startPrefTransition(async () => {
-      const res = await setMarketingEmailOptInAction(next)
+      const res = await runAction(() => setMarketingEmailOptInAction(next), PORTAL_RUN)
       if (!res.ok) {
         // Revert AND say so — a switch that silently snaps back reads as
         // "I already did that" to the patient.
         setOptIn(!next)
-        setPrefError('That didn’t save — try again in a moment.')
+        setPrefError('stale' in res && res.stale ? res.error : 'That didn’t save — try again in a moment.')
       }
     })
   }
@@ -169,6 +171,7 @@ export default function ProfileForm({
                 {error}
               </span>
             )}
+            <PortalReloadWhenStale error={error} />
           </div>
         </div>
       </form>
@@ -207,6 +210,7 @@ export default function ProfileForm({
             {prefError}
           </p>
         )}
+        <PortalReloadWhenStale error={prefError} />
       </div>
 
       <div className="text-center">

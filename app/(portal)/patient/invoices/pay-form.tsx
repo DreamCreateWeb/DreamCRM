@@ -2,6 +2,8 @@
 
 import { useState, useTransition } from 'react'
 import { startBalancePaymentAction } from './actions'
+import { runAction } from '@/lib/run-action'
+import { PORTAL_RUN, PortalReloadWhenStale } from '@/components/patient-portal/stale-reload'
 import {
   PORTAL_DANGER_INK,
   PORTAL_INK,
@@ -38,7 +40,7 @@ export default function PayBalanceForm({
       return
     }
     startTransition(async () => {
-      const res = await startBalancePaymentAction(cents)
+      const res = await runAction(() => startBalancePaymentAction(cents), PORTAL_RUN)
       if (res.ok) window.location.assign(res.url)
       else setError(res.error)
     })
@@ -75,6 +77,7 @@ export default function PayBalanceForm({
           {error}
         </p>
       )}
+      <PortalReloadWhenStale error={error} />
       <p className="mt-2 text-[0.78rem]" style={{ color: PORTAL_MUTED }}>
         Card payments are processed securely by Stripe. Want to pay a different way? Call us.
       </p>

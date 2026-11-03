@@ -2,6 +2,8 @@
 
 import { useState, useTransition } from 'react'
 import { requestMyRecordsAction } from '../actions'
+import { runAction } from '@/lib/run-action'
+import { PORTAL_RUN, PortalReloadWhenStale } from '@/components/patient-portal/stale-reload'
 import {
   PortalCard,
   PortalNotice,
@@ -25,7 +27,7 @@ export default function RequestRecordsCard({ brand, phone }: { brand: string; ph
   function submit() {
     setError(null)
     start(async () => {
-      const r = await requestMyRecordsAction()
+      const r = await runAction(() => requestMyRecordsAction(), PORTAL_RUN)
       if (r.ok) setDone(true)
       else setError(r.error)
     })
@@ -66,6 +68,7 @@ export default function RequestRecordsCard({ brand, phone }: { brand: string; ph
             )}
           </div>
           {error && <PortalErrorText>{error}</PortalErrorText>}
+          <PortalReloadWhenStale error={error} />
         </>
       )}
     </PortalCard>

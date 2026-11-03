@@ -2,6 +2,8 @@
 
 import { useState, useTransition } from 'react'
 import { answerMySurveyAction, commentMySurveyAction } from '@/app/(portal)/patient/actions'
+import { runAction } from '@/lib/run-action'
+import { PORTAL_RUN, PortalReloadWhenStale } from '@/components/patient-portal/stale-reload'
 import {
   PortalCard,
   BrandButton,
@@ -31,7 +33,7 @@ export default function SurveyCard({ token, brand }: { token: string; brand: str
     if (pending) return
     setError(null)
     startTransition(async () => {
-      const res = await answerMySurveyAction(token, n)
+      const res = await runAction(() => answerMySurveyAction(token, n), PORTAL_RUN)
       if (res.ok) {
         setScore(n)
         setPhase('comment')
@@ -48,7 +50,14 @@ export default function SurveyCard({ token, brand }: { token: string; brand: str
       return
     }
     startTransition(async () => {
-      await commentMySurveyAction(token, note)
+      setError(null)
+      const res = await runAction(() => commentMySurveyAction(token, note), PORTAL_RUN)
+      // The action's own { ok: false } has never held the thank-you back (the
+      // score is already in); only a THROW — the redeploy case — stays here.
+      if (!res.ok && 'error' in res && res.error) {
+        setError(res.error)
+        return
+      }
       setPhase('done')
     })
   }
@@ -100,6 +109,7 @@ export default function SurveyCard({ token, brand }: { token: string; brand: str
             ))}
           </div>
           {error && <PortalErrorText>{error}</PortalErrorText>}
+          <PortalReloadWhenStale error={error} />
         </>
       )}
       {phase === 'comment' && (
@@ -125,6 +135,8 @@ export default function SurveyCard({ token, brand }: { token: string; brand: str
               {note.trim() ? 'Send it' : 'Done'}
             </BrandButton>
           </div>
+          {error && <PortalErrorText>{error}</PortalErrorText>}
+          <PortalReloadWhenStale error={error} />
         </>
       )}
       {phase === 'done' && (

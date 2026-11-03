@@ -3,6 +3,8 @@
 import { useState } from 'react'
 import { submitNpsScoreAction, submitNpsCommentAction } from './actions'
 import { PORTAL_ERROR, PORTAL_MUTED } from '@/components/patient-portal/ui'
+import { runAction } from '@/lib/run-action'
+import { PORTAL_RUN, PortalReloadWhenStale } from '@/components/patient-portal/stale-reload'
 
 /**
  * The 10-second survey: a 0–10 tap row, then an optional "tell us more" box.
@@ -41,14 +43,18 @@ export default function SurveyForm({
     if (pending) return
     setPending(true)
     setScore(n)
-    const r = await submitNpsScoreAction(token, n)
-    setPending(false)
+    let r
+    try {
+      r = await runAction(() => submitNpsScoreAction(token, n), PORTAL_RUN)
+    } finally {
+      setPending(false)
+    }
     if (r.ok) {
       setError('')
       setStage('comment')
     } else {
       // Was a silent revert to the ask stage — the tap just seemed to vanish.
-      setError('That didn’t go through — mind tapping your number again?')
+      setError('stale' in r && r.stale ? r.error : 'That didn’t go through — mind tapping your number again?')
       setScore(null)
       setStage('ask')
     }
@@ -61,8 +67,19 @@ export default function SurveyForm({
       return
     }
     setPending(true)
-    await submitNpsCommentAction(token, comment)
-    setPending(false)
+    let r
+    try {
+      r = await runAction(() => submitNpsCommentAction(token, comment), PORTAL_RUN)
+    } finally {
+      setPending(false)
+    }
+    // The action's own { ok: false } has never held the thank-you back (the
+    // score is already in); only a THROW — the redeploy case — stays here.
+    if (!r.ok && 'error' in r) {
+      setError(r.error)
+      return
+    }
+    setError('')
     setStage('done')
   }
 
@@ -132,6 +149,12 @@ export default function SurveyForm({
         >
           {pending ? 'Sending…' : comment.trim() ? 'Send' : 'Skip — I’m done'}
         </button>
+        {error && (
+          <p role="alert" className="mt-3 text-[0.85rem] font-medium" style={{ color: ERROR }}>
+            {error}
+          </p>
+        )}
+        <PortalReloadWhenStale error={error} />
       </>,
     )
   }
@@ -149,6 +172,7 @@ export default function SurveyForm({
           {error}
         </p>
       )}
+      <PortalReloadWhenStale error={error} />
       <div className="mt-5 grid grid-cols-6 sm:grid-cols-11 gap-1.5" role="radiogroup" aria-label="0 to 10">
         {Array.from({ length: 11 }, (_, n) => (
           <button

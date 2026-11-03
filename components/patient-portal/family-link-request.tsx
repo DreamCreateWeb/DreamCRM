@@ -2,6 +2,8 @@
 
 import { useState, useTransition } from 'react'
 import { requestFamilyLinkAction } from '@/app/(portal)/patient/actions'
+import { runAction } from '@/lib/run-action'
+import { PORTAL_RUN, PortalReloadWhenStale } from '@/components/patient-portal/stale-reload'
 import {
   PortalCard,
   BrandButton,
@@ -32,7 +34,7 @@ export default function FamilyLinkRequest({ brand }: { brand: string }) {
     if (pending) return
     setError(null)
     startTransition(async () => {
-      const res = await requestFamilyLinkAction(name, dob, rel)
+      const res = await runAction(() => requestFamilyLinkAction(name, dob, rel), PORTAL_RUN)
       if (res.ok) setDone(true)
       else setError(res.error ?? 'Something went wrong.')
     })
@@ -117,6 +119,7 @@ export default function FamilyLinkRequest({ brand }: { brand: string }) {
             linking, to keep everyone’s records safe.
           </p>
           {error && <PortalErrorText>{error}</PortalErrorText>}
+          <PortalReloadWhenStale error={error} />
           <div className="mt-3 flex items-center gap-3">
             <BrandButton brand={brand} onClick={send} disabled={!name.trim()} pending={pending}>
               Send the request
