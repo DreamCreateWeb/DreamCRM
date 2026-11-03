@@ -86,12 +86,19 @@ export function ActionButton({
   const classes = `${SIZE_CLASSES[size]} ${variantClasses} disabled:opacity-60 disabled:pointer-events-none ${className}`
 
   if (href) {
+    // A link that opens a NEW TAB is never an in-app navigation, so Next must
+    // not prefetch it: the prefetch is a real GET of the target, and the
+    // CSV export routes (/patients/export, /leads/export) answered it by
+    // running a whole export on every visit to the list — and the request
+    // never settled, so the page never reached network-idle (found by
+    // e2e/dashboard-viewport.spec.ts the day the list pages joined it).
     return (
       <Link
         href={href}
         className={classes}
         title={rest.title}
         target={target}
+        prefetch={target === '_blank' ? false : undefined}
         rel={rel ?? (target === '_blank' ? 'noopener noreferrer' : undefined)}
       >
         {children}
