@@ -6172,6 +6172,75 @@ template with no bar, or a bar hidden above `sm`, measures 0 and nothing
 moves. The right-aligned pairs on established and hometeam are
 deliberately not tagged — the bottom-left floaters never meet them.
 
+## 2026-11-03 — The deep dev cycle, part 3: the first four feature slices
+
+The medium/large half of the cycle (153 findings, 142 confirmed + 11
+partial by five verifier agents, grouped by a planner into 63 slices)
+starts here with the four foundations every later slice stands on.
+
+- **One `runAction` for the whole dashboard (ML-01).** `lib/run-action.ts`
+  is THE home — the Studio's wrapper promoted, with an overridable stale
+  message; the Studio's own file is a door that pre-binds its copy.
+  `isDeploymentSkewError` has ONE home in `lib/deployment-skew.ts` (the
+  auth submit-guard's copy is gone, merged in). `RouteError` recognises a
+  stale build and offers Refresh ONLY — a retry cannot fix a build that
+  is gone. THE GUARD: `tests/ui/no-bare-await.test.ts` walks every `.tsx`
+  under `app/` and `components/` with the TypeScript parser, resolves
+  each import to its module and reads the `'use server'` prologue, and
+  fails any `await` of such an import that is not inside a `try` (no
+  function boundary crossed) or a `runAction(() => …)`. Today's offenders
+  sit in a DATED ALLOWLIST per file (247 sites in 131 files on
+  2026-10-26) that may only SHRINK: a count that rises fails, a count that
+  fell must be edited down, an entry with no site left must be removed,
+  and `ALLOWLIST_CEILING` caps the total. Registered on the review gate's
+  intake list as a new class (control flow, parser-read).
+- **A custom domain finishes going live on its own (ML-02).** The
+  CloudFront cert-attach and the DNS nudge lived only inside the status
+  check that the Domain card's 45-second poll drove — close the tab and a
+  domain sat pending forever (task #41, the first client's). Now
+  `sweepPendingCustomDomains` (clinic orgs, never shut-down or demo,
+  oldest `lastCheckedAt` first, ≤50 per tick with 2s pacing and a budget,
+  per-row try/catch reporting through the engine-failures registry under
+  the new `custom_domain` capability) runs from the 23rd cron route,
+  `/api/cron/custom-domains`, every 15 minutes; a domain still pending
+  after 24h alerts the platform ONCE (`notifiedAt` in the status jsonb,
+  stamped only after the alert landed); the flip to active writes the
+  ledger line from inside `checkCustomDomainStatus` so it is written
+  whoever triggered the flip and never twice. The card's copy is true now
+  ("you can leave this page"), and its "Checked …" time is clinic-local.
+- **Book the next visit, reschedule from real slots, the moved visit gets
+  a one-click confirm, convert-then-book in one hop (ML-04).** A completed
+  visit's footer offers "Book their next visit" when nothing follows it
+  (`nextVisitBooked` read off the existing future-visit set; the date
+  from `lib/next-visit.ts`: the patient's own recall interval → the
+  clinic cadence → 6 months, clinic-local, month-end clamped); "Mark
+  completed" stays open when nothing is booked after it; the agenda's
+  toast carries the same door. The reschedule guard passes the moving
+  visit's REAL duration (a 60-minute visit moved to 4:30 before a 5:00
+  close used to pass) and the new row keeps that length; the slot grid is
+  `components/appointments/slot-grid.tsx`, shared by the booking form and
+  the reschedule sub-drawer, with a "Custom time" hatch that still goes
+  through the guard. `rescheduled` joins the Emails hub (Appointments
+  group, clinic-editable) and `sendRescheduleNotice` renders it through
+  the shell with "Confirm my new time" → `/c/[token]`. After converting
+  an inquiry the lead drawer stays open with "Book them now" (the
+  preferred date parsed by `lib/preferred-date.ts`) and "Open patient".
+- **Messages: the assignee hears, one alert per thread, the waiting sort
+  works, the filters fit a phone, the tray pages (ML-05).**
+  `thread_assigned` (🙋, urgent) tells the person a thread was handed to;
+  an inbound message notifies the thread's assignee directly and the org
+  fan-out widens to members (a commented exception to the owner/admin
+  convention, matching the bounce site), sharing one dedupe key so the
+  assignee gets one bell row; a thread that was ALREADY unread raises no
+  second alert (the realtime push and the urgency triage still fire).
+  `oldest_unanswered` is honoured in SQL (urgency, then inbound-first,
+  then oldest) with a Newest / Longest-waiting chip pair that defaults to
+  longest-waiting under `?unread=1`. The filter chips are a scrollable
+  strip below `lg` (`filter-strip.tsx`, the content-workspace recipe) and
+  `/messages` joined the viewport spec. The tray shows older (10 → 25 →
+  50) and has an "Unread only" toggle; the settings copy no longer
+  promises push.
+
 ## 2026-10-26 — The deep dev cycle, part 2: the dashboard's honesty (17)
 
 The seventh small-fix slice of the cycle (part 1 below carries the other

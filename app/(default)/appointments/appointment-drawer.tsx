@@ -848,7 +848,7 @@ function RescheduleSubDrawer({
           <span className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold">
             New time
             {detail.durationMinutes ? (
-              <span className="normal-case tracking-normal font-normal text-gray-400 dark:text-gray-500"> · open for {detail.durationMinutes} min</span>
+              <span className="normal-case tracking-normal font-normal text-gray-500 dark:text-gray-400"> · open for {detail.durationMinutes} min</span>
             ) : null}
           </span>
           <SlotGrid

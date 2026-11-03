@@ -157,6 +157,6 @@ export const SPECIALISTS: readonly SpecialistDef[] = [
     name: 'Back office',
     icon: '🗂️',
     blurb: 'Chases balances, charges plans on time, looks up benefits, and keeps your systems in step.',
-    capabilities: ['balance_nudge', 'payment_autocharge', 'pms_sync', 'domain_autorenew', 'insurance_check'],
+    capabilities: ['balance_nudge', 'payment_autocharge', 'pms_sync', 'domain_autorenew', 'custom_domain', 'insurance_check'],
   },
 ]
