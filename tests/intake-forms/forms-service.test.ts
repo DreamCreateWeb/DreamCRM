@@ -239,6 +239,20 @@ describe('submitForm', () => {
     expect((insert.values as { patientId: string | null }).patientId).toBeNull()
   })
 
+  it('does NOT link when the form names a different person on a shared email (family-safe)', async () => {
+    state.selectQueue.push([{ id: 'pat_maria', firstName: 'Maria', lastName: 'Aguilera' }])
+    await submitForm({
+      organizationId: 'org_1',
+      formTemplateId: 'tmpl_1',
+      data: { x: 'y' },
+      submitterName: 'John Aguilera',
+      submitterEmail: 'family@example.com',
+    })
+    const insert = state.ops.find((o) => o.kind === 'insert' && o.table === 'form_submission')!
+    expect((insert.values as { patientId: string | null }).patientId).toBeNull()
+    expect(state.ops.filter((o) => o.kind === 'update' && o.table === 'patient')).toHaveLength(0)
+  })
+
   it('does NOT override an explicitly-supplied patientId with an email lookup', async () => {
     await submitForm({
       organizationId: 'org_1',

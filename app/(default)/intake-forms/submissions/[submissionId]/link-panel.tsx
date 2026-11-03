@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { runAction } from '@/lib/run-action'
 import { linkSubmissionAction, createPatientFromSubmissionAction } from '../../actions'
 
 /**
@@ -29,7 +30,7 @@ export default function LinkPanel({
     setBusy(true)
     setError(null)
     try {
-      const r = await linkSubmissionAction(submissionId, patientId)
+      const r = await runAction(() => linkSubmissionAction(submissionId, patientId))
       if (!r.ok) setError(r.error)
       else router.refresh()
     } catch {
@@ -43,7 +44,7 @@ export default function LinkPanel({
     setBusy(true)
     setError(null)
     try {
-      const r = await createPatientFromSubmissionAction({ submissionId, forceNew })
+      const r = await runAction(() => createPatientFromSubmissionAction({ submissionId, forceNew }))
       if ('duplicateOf' in r) setDuplicate(r.duplicateOf)
       else if (!r.ok) setError(r.error)
       else {
