@@ -210,6 +210,14 @@ export default function AgendaView({
   // drawer with that patient already picked — no second search for a person
   // the caller just showed. Read once with the deep-link, stripped with it.
   const [initialPatientId] = useState<string | null>(() => (params.get('new') === '1' ? params.get('patient') : null))
+  // The "Book next visit" door on the Marked-done toast: the patient whose
+  // visit was just completed with nothing booked after it, plus the recall
+  // day + visit type the booking form opens on. Cleared when the drawer closes.
+  const [nextVisitBook, setNextVisitBook] = useState<{
+    patientId: string
+    dateKey: string | null
+    type: string | null
+  } | null>(null)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [searchInput, setSearchInput] = useState(filters.search ?? '')
   // Optimistically mark a row confirmed the instant you click — the action +
@@ -233,7 +241,12 @@ export default function AgendaView({
   )
   const [navPending, startTransition] = useTransition()
   const [bulkPending, startBulk] = useTransition()
-  const [toast, setToast] = useState<{ message: string; tone: 'ok' | 'warn' | 'urgent' } | null>(null)
+  const [toast, setToast] = useState<{
+    message: string
+    tone: 'ok' | 'warn' | 'urgent'
+    /** One inline verb ("Book next visit") — the toast dismisses on click. */
+    action?: { label: string; onClick: () => void }
+  } | null>(null)
 
   // Consume the ?new=1 / ?appt= deep-links once: drop them from the URL
   // (replace, no history entry) so each drawer's open state is owned by React
@@ -306,8 +319,28 @@ export default function AgendaView({
       try {
         const r = await markCompletedAction(id)
         // Completing a visit auto-sends the review request (Google-first) — tell
-        // the front desk it went out so the loop feels real.
-        setToast({ message: r.reviewSent ? 'Marked done — review request sent.' : 'Marked done.', tone: 'ok' })
+        // the front desk it went out so the loop feels real. And when NOTHING
+        // is on the books after this visit, the toast carries the one verb
+        // that matters next: book it, with the form seeded on the patient's
+        // recall day and this visit's type. A known-false only — an
+        // unreadable check stays a plain "Marked done."
+        const message = r.reviewSent ? 'Marked done — review request sent.' : 'Marked done.'
+        const patientId = r.patientId
+        if (r.nextVisitBooked === false && patientId) {
+          setToast({
+            message: `${message} Nothing is booked after it yet.`,
+            tone: 'ok',
+            action: {
+              label: 'Book next visit',
+              onClick: () => {
+                setNextVisitBook({ patientId, dateKey: r.nextVisitDateKey ?? null, type: r.visitType ?? null })
+                setNewBookingOpen(true)
+              },
+            },
+          })
+        } else {
+          setToast({ message, tone: 'ok' })
+        }
       } catch {
         setToast({ message: "Couldn't mark that visit done — please try again.", tone: 'urgent' })
       }
@@ -440,7 +473,17 @@ export default function AgendaView({
         }
       />
 
-      {newBookingOpen && <NewBookingDrawer onClose={() => setNewBookingOpen(false)} initialPatientId={initialPatientId} />}
+      {newBookingOpen && (
+        <NewBookingDrawer
+          onClose={() => {
+            setNewBookingOpen(false)
+            setNextVisitBook(null)
+          }}
+          initialPatientId={nextVisitBook?.patientId ?? initialPatientId}
+          defaultDate={nextVisitBook?.dateKey ?? null}
+          defaultType={nextVisitBook?.type ?? null}
+        />
+      )}
 
       {/* ── Filters ──────────────────────────────────────────────────── */}
       <div className="v2-panel p-4 mb-4 space-y-3">
@@ -581,7 +624,7 @@ export default function AgendaView({
       {/* Same feedback Patients gives: the click registered, results are
           on their way (never a scrim; rows still snap). */}
       {navPending && <PendingVeil />}
-      {toast && <FlashToast message={toast.message} tone={toast.tone} onDone={() => setToast(null)} />}
+      {toast && <FlashToast message={toast.message} tone={toast.tone} action={toast.action} onDone={() => setToast(null)} />}
 
       {openDetail && (
         <AppointmentDrawer

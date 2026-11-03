@@ -49,6 +49,13 @@ export const CAPABILITIES: readonly CapabilityDef[] = [
   { key: 'blog_publish', label: 'Publish blog posts on schedule', defaultTrust: 'auto' },
   { key: 'scheduled_social', label: 'Queue social posts to publish later', defaultTrust: 'auto' },
   { key: 'domain_autorenew', label: 'Renew your web address each year', defaultTrust: 'auto' },
+  // CUSTOM DOMAINS (2026-10-26). The 15-minute sweep that finishes connecting
+  // a clinic's own web address after they close the tab: it writes ONE line
+  // when the domain goes live and reports a break to the Guardian. Auto
+  // because it only ever REPORTS a fact about the practice's own plumbing —
+  // the clinic asked for the domain; nothing here reaches a patient — and
+  // deliberately NOT grantable: there is no judgment to hand over.
+  { key: 'custom_domain', label: 'Finish connecting your own web address', defaultTrust: 'auto' },
   { key: 'listing_sync', label: 'Keep your site matching your Google listing', defaultTrust: 'auto' },
   { key: 'review_feature', label: 'Feature new reviews on your website', defaultTrust: 'auto' },
   // The PMS bridge. Registered so a sync that keeps failing has somewhere

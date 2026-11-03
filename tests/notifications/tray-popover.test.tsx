@@ -171,3 +171,79 @@ describe('notification tray (fits a phone)', () => {
     expect(bell.className).toMatch(/\bw-10\b/)
   })
 })
+
+/**
+ * THE TRAY REACHES PAST TEN (2026-10-26). It fetched `?limit=10` and the
+ * eleventh alert was unreachable until a dismissal happened to reveal it —
+ * while the API already took `limit` up to 50 and `unread=1`. "Show older"
+ * steps the page 10 → 25 → 50 and says so at the cap; "Unread only" narrows
+ * it to what still needs eyes. Both ride the existing querystring.
+ */
+describe('notification tray (older + unread only)', () => {
+  const lastFetchUrl = () => fetchCalls.filter((c) => c.url.includes('/api/notifications?')).at(-1)!.url
+  const many = (n: number) =>
+    Array.from({ length: n }, (_, i) => ({
+      id: 100 + i,
+      bucket: 'comments',
+      type: 'portal_booking',
+      title: `Booking ${i + 1}`,
+      body: null,
+      linkPath: '/appointments',
+      readAt: i % 2 ? new Date().toISOString() : null,
+      createdAt: new Date().toISOString(),
+    }))
+
+  async function openTrayWith(count: number) {
+    served = many(count) as typeof items
+    render(<DropdownNotifications align="right" />)
+    fireEvent.click(screen.getByRole('button', { name: /notifications/i }))
+    await screen.findByText('Booking 1')
+  }
+
+  it('opens on ten and steps the page 10 → 25 → 50, then says the list is capped', async () => {
+    await openTrayWith(10)
+    expect(lastFetchUrl()).toContain('limit=10')
+    expect(lastFetchUrl()).not.toContain('unread=1')
+
+    served = many(25) as typeof items
+    fireEvent.click(screen.getByRole('button', { name: /show older/i }))
+    await waitFor(() => expect(lastFetchUrl()).toContain('limit=25'))
+    await screen.findByText('Booking 25')
+
+    served = many(50) as typeof items
+    fireEvent.click(screen.getByRole('button', { name: /show older/i }))
+    await waitFor(() => expect(lastFetchUrl()).toContain('limit=50'))
+    await screen.findByText('Booking 50')
+    // At the API's ceiling the button gives way to the honest line.
+    expect(screen.queryByRole('button', { name: /show older/i })).toBeNull()
+    expect(screen.getByText(/Showing the 50 most recent/)).toBeInTheDocument()
+    // The panel survived all of it.
+    expect(screen.getByText(/preferences/i)).toBeInTheDocument()
+  })
+
+  it('offers no "Show older" when the page came back short', async () => {
+    await openTrayWith(3)
+    expect(screen.queryByRole('button', { name: /show older/i })).toBeNull()
+    expect(screen.queryByText(/most recent/)).toBeNull()
+  })
+
+  it('"Unread only" asks the API for unread=1 and toggles back off', async () => {
+    await openTrayWith(3)
+    const toggle = screen.getByRole('button', { name: /unread only/i })
+    expect(toggle.getAttribute('aria-pressed')).toBe('false')
+    fireEvent.click(toggle)
+    await waitFor(() => expect(lastFetchUrl()).toContain('unread=1'))
+    expect(toggle.getAttribute('aria-pressed')).toBe('true')
+    fireEvent.click(toggle)
+    await waitFor(() => expect(lastFetchUrl()).not.toContain('unread=1'))
+    expect(screen.getByText(/preferences/i)).toBeInTheDocument()
+  })
+
+  it('an empty unread-only page says "Nothing unread", not "All quiet"', async () => {
+    await openTrayWith(3)
+    served = []
+    fireEvent.click(screen.getByRole('button', { name: /unread only/i }))
+    await screen.findByText('Nothing unread')
+    expect(screen.queryByText('All quiet')).toBeNull()
+  })
+})

@@ -131,6 +131,8 @@ describe('every named producer calls it', () => {
       ['lib/services/google-reviews.ts', 'review_sync'],
       ['lib/services/gbp-sync.ts', 'gbp_sync'],
       ['app/api/cron/pms-sync/route.ts', 'pms_sync'],
+      // The custom-domain sweep (2026-10-26) — the seventh producer.
+      ['lib/services/custom-domain.ts', 'custom_domain'],
     ]
     for (const [file, key] of sites) {
       const src = readFileSync(file, 'utf8')

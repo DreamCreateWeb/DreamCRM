@@ -16,6 +16,7 @@ import { clinicDayKey, formatClinicDayTime } from '@/lib/format-datetime'
 import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
 import { isBirthdayThisWeek, lapsedCutoff as lapsedCutoffDate } from '@/lib/dates'
 import { getClinicCadence } from '@/lib/services/clinic-cadence'
+import { suggestNextVisitDateKey } from '@/lib/next-visit'
 import { FORMS_REMINDER_TEMPLATE } from '@/lib/types/reminders'
 
 /**
@@ -79,6 +80,11 @@ export interface AppointmentRow {
   /** Recovery queue: a cancelled / no-show visit (in the last 60 days) whose
    *  patient has NO future appointment booked — a candidate to chase + rebook. */
   needsRebooking: boolean
+  /** Does the patient have ANOTHER (non-cancelled / no-show) visit on the
+   *  books after now? Read off the same future-visit set `needsRebooking`
+   *  uses, this row excluded. False on a completed visit is the door the
+   *  front desk needs: nobody booked the next one yet. */
+  nextVisitBooked: boolean
   /** CRM tags on the patient — surfaced on the agenda row + drawer. */
   tags: PatientTagView[]
 }
@@ -138,6 +144,11 @@ export interface AppointmentDetail extends AppointmentRow {
    *  say the true thing instead of "will not be notified" while the service
    *  emails them a rebook link (lib/cancel-actor.ts `cancelNoticeFor`). */
   cancelNotice: CancelNotice
+  /** The clinic-local day to seed "Book their next visit" on: this visit's
+   *  date plus the patient's recall interval → the clinic's default → 6
+   *  months (lib/next-visit.ts). Always present; only meaningful when
+   *  `nextVisitBooked` is false. */
+  nextVisitDateKey: string
 }
 
 /** 0 = unsubscribed from marketing email (one-click unsubscribe, hard
@@ -371,7 +382,7 @@ export async function listAppointments(
     // Drives the "needs rebooking" recovery flag: a cancelled/no-show row only
     // counts when the patient hasn't already rebooked something later.
     db
-      .select({ patientId: schema.appointment.patientId })
+      .select({ id: schema.appointment.id, patientId: schema.appointment.patientId })
       .from(schema.appointment)
       .where(
         and(
@@ -408,8 +419,17 @@ export async function listAppointments(
   }
 
   // Patients with any future booking — used to suppress the rebooking flag.
+  // The ids ride along so a row can ask "is there a visit after this one
+  // OTHER than me" (a future-dated row marked done early must not count
+  // itself as its own next visit).
   const hasFutureByPatient = new Set<string>()
-  for (const r of futureAppts) hasFutureByPatient.add(r.patientId)
+  const futureIdsByPatient = new Map<string, string[]>()
+  for (const r of futureAppts) {
+    hasFutureByPatient.add(r.patientId)
+    const ids = futureIdsByPatient.get(r.patientId)
+    if (ids) ids.push(r.id)
+    else futureIdsByPatient.set(r.patientId, [r.id])
+  }
 
   // CRM tags per patient — so the schedule shows who's VIP / anxious at a glance.
   const tagsByPatient = await getTagsForPatients(organizationId, patientIds)
@@ -474,6 +494,7 @@ export async function listAppointments(
       },
       agingLevel: computeAging(r.startTime, status, now),
       needsRebooking,
+      nextVisitBooked: (futureIdsByPatient.get(r.patientId) ?? []).some((id) => id !== r.id),
       tags: tagsByPatient.get(r.patientId) ?? [],
     }
   })
@@ -585,6 +606,7 @@ export async function getAppointmentDetail(
       patientLifecycle: schema.patient.lifecycle,
       patientUserId: schema.patient.userId,
       marketingEmailOptIn: schema.patient.marketingEmailOptIn,
+      recallIntervalMonths: schema.patient.recallIntervalMonths,
       startTime: schema.appointment.startTime,
       endTime: schema.appointment.endTime,
       type: schema.appointment.type,
@@ -618,8 +640,10 @@ export async function getAppointmentDetail(
   if (!base) return null
 
   const now = new Date()
-  // The 🎂 glyph compares against the CLINIC's calendar day (timezone rule 2).
-  const todayKey = clinicDayKey(now, await getClinicTimeZone(organizationId))
+  // The 🎂 glyph compares against the CLINIC's calendar day (timezone rule 2);
+  // the next-visit seed below counts months on the same calendar.
+  const timeZone = await getClinicTimeZone(organizationId)
+  const todayKey = clinicDayKey(now, timeZone)
   // Tags fold into the parallel batch (was a separate serial round-trip on
   // every drawer open). Balance reads off the patient join (pms_balance_cents).
   const [reminderRows, intakeRow, ltvRows, lastVisitRow, bookingCountRow, futureApptRow, tags, cadence, depositRow, cancellerRow, emailAutomations] = await Promise.all([
@@ -705,8 +729,10 @@ export async function getAppointmentDetail(
           eq(schema.appointment.patientId, base.patientId),
         ),
       ),
-    // Any future (non-cancelled/no-show) appointment for this patient — drives
-    // the rebooking flag on a cancelled/no-show drawer row.
+    // Any future (non-cancelled/no-show) appointment for this patient OTHER
+    // than this one — drives the rebooking flag on a cancelled/no-show drawer
+    // row and `nextVisitBooked` on a completed one (a future-dated visit
+    // marked done early is not its own next visit).
     db
       .select({ id: schema.appointment.id })
       .from(schema.appointment)
@@ -714,6 +740,7 @@ export async function getAppointmentDetail(
         and(
           eq(schema.appointment.organizationId, organizationId),
           eq(schema.appointment.patientId, base.patientId),
+          ne(schema.appointment.id, appointmentId),
           gte(schema.appointment.startTime, now),
           ne(schema.appointment.status, 'cancelled'),
           ne(schema.appointment.status, 'no_show'),
@@ -767,10 +794,11 @@ export async function getAppointmentDetail(
   const hasIntake = !!intakeRow[0]
   const intakeOpen = (await getFeatureSwitchState(organizationId)).intake_forms
   const reminderLastSentAt = reminderRows[0]?.sentAt ?? null
+  const nextVisitBooked = futureApptRow.length > 0
   const needsRebooking = isRebookingCandidate({
     status,
     startTime: base.startTime,
-    hasFutureAppt: futureApptRow.length > 0,
+    hasFutureAppt: nextVisitBooked,
     now,
   })
 
@@ -815,6 +843,11 @@ export async function getAppointmentDetail(
     },
     agingLevel: computeAging(base.startTime, status, now),
     needsRebooking,
+    nextVisitBooked,
+    nextVisitDateKey: suggestNextVisitDateKey(base.startTime, timeZone, {
+      patientMonths: base.recallIntervalMonths,
+      clinicMonths: cadence.recallMonths,
+    }),
     tags,
     patient: {
       id: base.patientId,
@@ -1306,9 +1339,21 @@ export async function markNoShow(organizationId: string, appointmentId: string) 
 
 /** Result of completing a visit. `reviewSent` is true when the completion
  *  immediately fired a review request (auto-send on + delay 0 + it actually
- *  sent) so the UI can toast "review request sent". */
+ *  sent) so the UI can toast "review request sent". The next-visit facts let
+ *  the same toast offer "Book next visit" when nothing is on the books after
+ *  this one — the door the front desk had to go looking for. */
 export interface MarkCompletedResult {
   reviewSent: boolean
+  /** The patient the visit belonged to (null only when the row vanished mid-write). */
+  patientId: string | null
+  /** The visit's type — the natural default for the next one. */
+  visitType: string | null
+  /** Is ANOTHER visit (non-cancelled / no-show) on the books after now? An
+   *  unreadable check reads as true: silence beats a nag that may be wrong. */
+  nextVisitBooked: boolean
+  /** The clinic-local day to seed the next booking on (lib/next-visit.ts);
+   *  null when the next visit is already booked or the read failed. */
+  nextVisitDateKey: string | null
 }
 
 export async function markCompleted(
@@ -1319,6 +1364,7 @@ export async function markCompleted(
   const [appt] = await db
     .select({
       patientId: schema.appointment.patientId,
+      type: schema.appointment.type,
       source: schema.appointment.source,
       createdAt: schema.appointment.createdAt,
       startTime: schema.appointment.startTime,
@@ -1371,7 +1417,59 @@ export async function markCompleted(
       console.warn('[appointments.markCompleted] review auto-send failed', err)
     }
   }
-  return { reviewSent }
+
+  // THE NEXT VISIT. Is anything on the books after this one (this row
+  // excluded)? When not, the day to open the next booking on — the visit's
+  // clinic-local date plus the recall ladder (patient → clinic → 6 months).
+  // Best-effort and fail-SILENT: an unreadable check must not turn every
+  // completion into a "book the next one" nag that may be false.
+  let nextVisitBooked = true
+  let nextVisitDateKey: string | null = null
+  if (appt?.patientId) {
+    try {
+      const [future] = await db
+        .select({ id: schema.appointment.id })
+        .from(schema.appointment)
+        .where(
+          and(
+            eq(schema.appointment.organizationId, organizationId),
+            eq(schema.appointment.patientId, appt.patientId),
+            ne(schema.appointment.id, appointmentId),
+            gte(schema.appointment.startTime, new Date()),
+            ne(schema.appointment.status, 'cancelled'),
+            ne(schema.appointment.status, 'no_show'),
+          ),
+        )
+        .limit(1)
+      nextVisitBooked = !!future
+      if (!nextVisitBooked) {
+        const [patientRows, cadence, timeZone] = await Promise.all([
+          db
+            .select({ recallIntervalMonths: schema.patient.recallIntervalMonths })
+            .from(schema.patient)
+            .where(and(eq(schema.patient.organizationId, organizationId), eq(schema.patient.id, appt.patientId)))
+            .limit(1),
+          getClinicCadence(organizationId),
+          getClinicTimeZone(organizationId),
+        ])
+        nextVisitDateKey = suggestNextVisitDateKey(appt.startTime ?? new Date(), timeZone, {
+          patientMonths: patientRows[0]?.recallIntervalMonths,
+          clinicMonths: cadence.recallMonths,
+        })
+      }
+    } catch (err) {
+      console.warn('[appointments.markCompleted] next-visit read failed', err)
+      nextVisitBooked = true
+      nextVisitDateKey = null
+    }
+  }
+  return {
+    reviewSent,
+    patientId: appt?.patientId ?? null,
+    visitType: appt?.type ?? null,
+    nextVisitBooked,
+    nextVisitDateKey,
+  }
 }
 
 export interface RescheduleInput {

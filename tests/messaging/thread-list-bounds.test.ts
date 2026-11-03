@@ -148,10 +148,50 @@ describe('listPatientThreads — search runs in Postgres', () => {
       { assignedTo: 'me' },
       { hasUnread: true },
       { starredOnly: true },
+      { sort: 'oldest_unanswered' },
     ]) {
       const q = await threadSql(filters)
       expect(q.sql.length).toBeGreaterThan(0)
       expect(q.params.every((p) => p !== undefined), `undefined param in: ${q.sql}`).toBe(true)
     }
+  })
+})
+
+/**
+ * THE SORT IS HONOURED IN SQL (2026-10-26). `ThreadFilters.sort` was declared
+ * for months and read by nothing — the only ORDER BY was urgency then newest.
+ * 'oldest_unanswered' now orders: urgency first (a patient in pain still pins
+ * to the top), then the threads whose LAST word was the patient's, then the
+ * oldest of those first — so the person who wrote on Monday is answered
+ * before the one who wrote at lunch. The default is unchanged.
+ */
+describe('listPatientThreads — sort', () => {
+  /** Just the ORDER BY clause — the direction column is also in the SELECT list. */
+  const orderBy = (sql: string) => sql.slice(sql.toLowerCase().lastIndexOf('order by'))
+  const URGENCY = `case when "patient_thread"."urgency" = 'urgent' then 0 else 1 end`
+  const INBOUND_FIRST = `case when "patient_thread"."last_message_direction" = 'inbound' then 0 else 1 end`
+
+  it('defaults to newest first, with no inbound-first clause', async () => {
+    const ob = orderBy((await threadSql()).sql)
+    expect(ob).toContain(URGENCY)
+    expect(ob).toContain(`"patient_thread"."last_message_at" desc`)
+    expect(ob).not.toContain('last_message_direction')
+  })
+
+  it("'oldest_unanswered' orders urgency, then inbound-first, then last_message_at ASC", async () => {
+    const ob = orderBy((await threadSql({ sort: 'oldest_unanswered' })).sql)
+    const urgency = ob.indexOf(URGENCY)
+    const inboundFirst = ob.indexOf(INBOUND_FIRST)
+    const oldest = ob.indexOf(`"patient_thread"."last_message_at" asc`)
+    expect(urgency, 'the urgency pin stays first').toBeGreaterThan(-1)
+    expect(inboundFirst, 'then the threads waiting on a reply').toBeGreaterThan(urgency)
+    expect(oldest, 'then the longest-waiting on top').toBeGreaterThan(inboundFirst)
+    expect(ob).not.toContain('last_message_at" desc')
+  })
+
+  it("'recent' is the explicit spelling of the default", async () => {
+    const ob = orderBy((await threadSql({ sort: 'recent' })).sql)
+    expect(ob).toContain(`"patient_thread"."last_message_at" desc`)
+    expect(ob).not.toContain('last_message_direction')
   })
 })

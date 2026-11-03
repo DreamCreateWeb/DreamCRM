@@ -36,6 +36,7 @@ import BroadcastButton from './broadcast-button'
 import NavBadgeSync from './nav-badge-sync'
 import InboxAutoRefresh from './inbox-auto-refresh'
 import ThreadSearchInput from './thread-search-input'
+import FilterStrip from './filter-strip'
 import { aiConfigured } from '@/lib/ai'
 import { getClinicSmsIdentity } from '@/lib/sms'
 
@@ -60,6 +61,9 @@ interface SP {
   q?: string
   unread?: string
   starred?: string
+  /** `newest` | `waiting` — see SORT_FILTERS. Absent = newest, except under
+   *  ?unread=1 where the longest-waiting patient comes first. */
+  sort?: string
   /** How many threads to show. The list is capped so the query stays bounded;
    *  "Show more conversations" widens it a page at a time. */
   show?: string
@@ -77,6 +81,27 @@ const ASSIGN_FILTERS: { key: ThreadFilters['assignedTo']; label: string }[] = [
   { key: 'me', label: 'Mine' },
   { key: 'unassigned', label: 'Unassigned' },
 ]
+
+/** The two sorts, with the URL word each wears. `oldest_unanswered` puts the
+ *  threads whose last word was the patient's first, longest-waiting on top. */
+const SORT_FILTERS: { key: NonNullable<ThreadFilters['sort']>; param: string; label: string; title: string }[] = [
+  { key: 'recent', param: 'newest', label: 'Newest', title: 'Most recent message first' },
+  {
+    key: 'oldest_unanswered',
+    param: 'waiting',
+    label: 'Longest waiting',
+    title: 'Conversations waiting on a reply first, the patient who has waited longest on top',
+  },
+]
+
+/** Resolve the sort the page should use: an explicit ?sort= wins; otherwise
+ *  "Unread only" defaults to longest-waiting (that view exists to answer
+ *  people, so the one who wrote first comes first) and everything else to
+ *  newest. Pinned through the rendered chips in messages-responsive-collapse. */
+function resolveThreadSort(searchParams: Pick<SP, 'sort' | 'unread'>): NonNullable<ThreadFilters['sort']> {
+  const explicit = SORT_FILTERS.find((s) => s.param === searchParams.sort)?.key
+  return explicit ?? (searchParams.unread === '1' ? 'oldest_unanswered' : 'recent')
+}
 
 export default async function ClinicMessagesView({
   ctx,
@@ -101,6 +126,7 @@ export default async function ClinicMessagesView({
     search: searchParams.q,
     hasUnread: searchParams.unread === '1',
     starredOnly: searchParams.starred === '1',
+    sort: resolveThreadSort(searchParams),
     limit: threadLimit,
   }
 
@@ -208,62 +234,98 @@ export default async function ClinicMessagesView({
       <MessagesSurfaceTabs active="patients" />
 
       {/* ── Top filter bar (the two-pane PageHeader analogue) ────────── */}
-      <div className="border-b border-[color:var(--color-hairline)] bg-[color:var(--color-surface-2)] px-4 py-2 flex items-center gap-2 flex-wrap shrink-0">
-        {STATUS_FILTERS.map((f) => {
-          const active = (filters.status ?? 'open') === f.key
-          // Snoozed carries the count that MATTERS on it: snoozes that have
-          // run out and are back in Open already (the Open count includes
-          // them). A sleeping thread needs no number.
-          const count =
-            f.key === 'open' ? stats.open : f.key === 'archived' ? stats.archived : f.key === 'snoozed' ? stats.snoozedAvailable : null
-          const title =
-            f.key === 'snoozed' && stats.snoozedAvailable > 0
-              ? `Snoozed for later — ${stats.snoozedAvailable === 1 ? '1 snooze has' : `${stats.snoozedAvailable} snoozes have`} run out and ${stats.snoozedAvailable === 1 ? 'is' : 'are'} back in Open`
-              : STATUS_FILTER_TITLES[f.key ?? 'all']
-          return (
-            <FilterChip
-              key={f.key ?? 'all'}
-              href={buildHref(searchParams, { status: f.key, thread: undefined })}
-              active={active}
-              count={count != null && count > 0 ? count : undefined}
-              title={title}
-            >
-              {f.label}
-            </FilterChip>
-          )
-        })}
-        <span className="w-px h-4 bg-[color:var(--color-hairline-strong)] mx-1" aria-hidden="true" />
-        {ASSIGN_FILTERS.map((f) => {
-          const active = (filters.assignedTo ?? 'all') === f.key
-          return (
-            <FilterChip
-              key={f.key ?? 'all-assign'}
-              href={buildHref(searchParams, { assignedTo: f.key, thread: undefined })}
-              active={active}
-              title={ASSIGN_FILTER_TITLES[f.key ?? 'all']}
-            >
-              {f.label}
-            </FilterChip>
-          )
-        })}
-        <span className="w-px h-4 bg-[color:var(--color-hairline-strong)] mx-1" aria-hidden="true" />
-        <FilterChip
-          href={buildHref(searchParams, { unread: searchParams.unread === '1' ? undefined : '1', thread: undefined })}
-          active={searchParams.unread === '1'}
-          count={stats.unread > 0 ? stats.unread : undefined}
-          title="Show only threads with messages you haven't read yet"
-        >
-          Unread only
-        </FilterChip>
-        <FilterChip
-          href={buildHref(searchParams, { starred: searchParams.starred === '1' ? undefined : '1', thread: undefined })}
-          active={searchParams.starred === '1'}
-          title="Show only threads you've starred for priority"
-        >
-          ★ Starred
-        </FilterChip>
-        {/* Key affordance — explains the rot border + the channel chips. */}
-        <div className="ml-auto shrink-0 flex items-center gap-2">
+      {/* The chips are ONE STRIP: sideways-scrolling below lg (nine chips
+          at text-xs wrapped to four rows on a phone), wrapping above it.
+          Every chip is `shrink-0` so the strip scrolls instead of squeezing
+          labels into two lines; the chips the URL names carry `keepInView`
+          so the strip opens on the selection just made. */}
+      <div className="border-b border-[color:var(--color-hairline)] bg-[color:var(--color-surface-2)] px-4 py-2 flex items-center gap-2 shrink-0">
+        <FilterStrip label="Conversation filters">
+          {STATUS_FILTERS.map((f) => {
+            const active = (filters.status ?? 'open') === f.key
+            // Snoozed carries the count that MATTERS on it: snoozes that have
+            // run out and are back in Open already (the Open count includes
+            // them). A sleeping thread needs no number.
+            const count =
+              f.key === 'open' ? stats.open : f.key === 'archived' ? stats.archived : f.key === 'snoozed' ? stats.snoozedAvailable : null
+            const title =
+              f.key === 'snoozed' && stats.snoozedAvailable > 0
+                ? `Snoozed for later — ${stats.snoozedAvailable === 1 ? '1 snooze has' : `${stats.snoozedAvailable} snoozes have`} run out and ${stats.snoozedAvailable === 1 ? 'is' : 'are'} back in Open`
+                : STATUS_FILTER_TITLES[f.key ?? 'all']
+            return (
+              <FilterChip
+                key={f.key ?? 'all'}
+                href={buildHref(searchParams, { status: f.key, thread: undefined })}
+                active={active}
+                count={count != null && count > 0 ? count : undefined}
+                title={title}
+                keepInView={active && !!searchParams.status}
+                className={CHIP_IN_STRIP}
+              >
+                {f.label}
+              </FilterChip>
+            )
+          })}
+          <span className={STRIP_DIVIDER} aria-hidden="true" />
+          {ASSIGN_FILTERS.map((f) => {
+            const active = (filters.assignedTo ?? 'all') === f.key
+            return (
+              <FilterChip
+                key={f.key ?? 'all-assign'}
+                href={buildHref(searchParams, { assignedTo: f.key, thread: undefined })}
+                active={active}
+                title={ASSIGN_FILTER_TITLES[f.key ?? 'all']}
+                keepInView={active && !!searchParams.assignedTo}
+                className={CHIP_IN_STRIP}
+              >
+                {f.label}
+              </FilterChip>
+            )
+          })}
+          <span className={STRIP_DIVIDER} aria-hidden="true" />
+          <FilterChip
+            href={buildHref(searchParams, { unread: searchParams.unread === '1' ? undefined : '1', thread: undefined })}
+            active={searchParams.unread === '1'}
+            count={stats.unread > 0 ? stats.unread : undefined}
+            title="Show only threads with messages you haven't read yet"
+            keepInView={searchParams.unread === '1'}
+            className={CHIP_IN_STRIP}
+          >
+            Unread only
+          </FilterChip>
+          <FilterChip
+            href={buildHref(searchParams, { starred: searchParams.starred === '1' ? undefined : '1', thread: undefined })}
+            active={searchParams.starred === '1'}
+            title="Show only threads you've starred for priority"
+            keepInView={searchParams.starred === '1'}
+            className={CHIP_IN_STRIP}
+          >
+            ★ Starred
+          </FilterChip>
+          <span className={STRIP_DIVIDER} aria-hidden="true" />
+          {/* The sort: newest, or the patient who has waited longest on a
+              reply. Chips, not a select — same recipe as every other list
+              view, and the choice travels in the URL like the rest. */}
+          {SORT_FILTERS.map((s) => {
+            const active = filters.sort === s.key
+            return (
+              <FilterChip
+                key={s.key}
+                href={buildHref(searchParams, { sort: s.param, thread: undefined })}
+                active={active}
+                title={s.title}
+                keepInView={active && !!searchParams.sort}
+                className={CHIP_IN_STRIP}
+              >
+                {s.label}
+              </FilterChip>
+            )
+          })}
+        </FilterStrip>
+        {/* Key affordance — explains the rot border + the channel chips. At
+            lg+ it sits at the bar's right edge with the megaphone; below lg
+            both move to the list header (the bar is the chip strip alone). */}
+        <div className="ml-auto shrink-0 hidden lg:flex items-center gap-2">
           {/* The megaphone: "office closed today" to a quick segment. Owner/
               admin only — the action re-checks server-side. */}
           {(ctx.role === 'owner' || ctx.role === 'admin') && <BroadcastButton />}
@@ -287,7 +349,18 @@ export default async function ClinicMessagesView({
         >
           {/* Fixed search header — the conversation list scrolls beneath it. */}
           <div className="shrink-0 border-b border-[color:var(--color-hairline)] px-2.5 py-2">
-            <ThreadSearchInput defaultQuery={filters.search ?? ''} baseParams={{ ...searchParams }} />
+            <div className="flex items-center gap-2">
+              <div className="min-w-0 flex-1">
+                <ThreadSearchInput defaultQuery={filters.search ?? ''} baseParams={{ ...searchParams }} />
+              </div>
+              {/* Below lg the megaphone + the key live at the LIST header's
+                  right edge, not in the chip strip — a strip hides what it
+                  scrolls past, and these are doors, not filters. */}
+              <div className="flex items-center gap-1.5 shrink-0 lg:hidden" data-testid="list-header-tools">
+                {(ctx.role === 'owner' || ctx.role === 'admin') && <BroadcastButton />}
+                <EncodingLegend aging="messages" channels={CHANNEL_LEGEND} />
+              </div>
+            </div>
             {showPulse && (
               <div
                 className="mt-1.5 px-0.5 flex items-center justify-between gap-2"
@@ -449,6 +522,10 @@ export default async function ClinicMessagesView({
     </div>
   )
 }
+
+/** Chips inside the strip never shrink — the strip scrolls instead. */
+const CHIP_IN_STRIP = 'shrink-0 whitespace-nowrap'
+const STRIP_DIVIDER = 'w-px h-4 shrink-0 bg-[color:var(--color-hairline-strong)] mx-1'
 
 const STATUS_FILTER_TITLES: Record<string, string> = {
   open: 'Conversations that still need attention',

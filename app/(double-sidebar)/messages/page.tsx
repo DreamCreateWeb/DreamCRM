@@ -30,6 +30,9 @@ interface MessagesSearchParams {
   assignedTo?: string
   q?: string
   unread?: string
+  starred?: string
+  sort?: string
+  show?: string
 }
 
 export default async function Messages({ searchParams }: { searchParams: Promise<MessagesSearchParams> }) {

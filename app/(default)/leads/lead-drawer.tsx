@@ -10,6 +10,9 @@ import { StatusPill } from '@/components/ui/status-pill'
 import { FlashToast } from '@/components/ui/flash-toast'
 import type { Tone } from '@/lib/ui/encodings'
 import { formatClinicDayTime } from '@/lib/format-datetime'
+import { coercePreferredDateKey } from '@/lib/preferred-date'
+import { ACTION_FAILED_MESSAGE, STALE_APP_MESSAGE, isDeploymentSkewError } from '@/lib/deployment-skew'
+import BookFromPatientDrawer from '@/app/(default)/appointments/book-from-patient-drawer'
 import {
   markLeadContactedAction,
   archiveLeadAction,
@@ -62,7 +65,15 @@ export default function LeadDrawer({
 }) {
   const router = useRouter()
   const dialogRef = useRef<HTMLDivElement>(null)
-  useFocusTrap(true, dialogRef, {}) // keeps the component's own Escape handler
+  // After a convert the drawer STAYS OPEN in a success state: the two hops
+  // ("convert, then find them under Patients and book") become one — "Book
+  // them now" opens the booking form right here, seeded on the inquiry's
+  // preferred date when it parses, and "Open patient" is the other door.
+  const [converted, setConverted] = useState<{ patientId: string; patientName: string; deduped: boolean } | null>(null)
+  const [bookOpen, setBookOpen] = useState(false)
+  // The booking form owns its own trap + Esc while it is up (the appointment
+  // drawer's sub-drawer rule), so this trap steps aside for it.
+  useFocusTrap(!bookOpen, dialogRef, {}) // keeps the component's own Escape handler
   // Slide-in/out motion matched to the shared <Drawer>. requestClose plays the
   // exit before the parent unmounts; ✕ / backdrop / Esc route through it.
   const { closing, requestClose } = useDrawerExit(onClose)
@@ -100,11 +111,12 @@ export default function LeadDrawer({
   // with backdrop-click below for the two standard "dismiss" gestures.
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') requestClose()
+      // The booking form dismisses itself on Esc; this drawer waits its turn.
+      if (e.key === 'Escape' && !bookOpen) requestClose()
     }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
-  }, [requestClose])
+  }, [requestClose, bookOpen])
 
   // Run the dedupe dry-run when the drawer opens for an actionable lead
   // (new / contacted). Converted leads already link to their patient; the
@@ -167,7 +179,15 @@ export default function LeadDrawer({
     setDedupeMatch(null)
     setActive('convert')
     startTransition(async () => {
-      const preview = await previewLeadConvertAction(row.id)
+      // Never bare-await a server action in a client component: a redeploy
+      // under this tab makes Next THROW, and Convert would spin forever.
+      let preview: Awaited<ReturnType<typeof previewLeadConvertAction>>
+      try {
+        preview = await previewLeadConvertAction(row.id)
+      } catch (err) {
+        setError(isDeploymentSkewError(err) ? STALE_APP_MESSAGE : ACTION_FAILED_MESSAGE)
+        return
+      }
       if ('ok' in preview && preview.ok && preview.matchedPatientName) {
         setDedupeMatch(preview.matchedPatientName)
         return
@@ -178,21 +198,43 @@ export default function LeadDrawer({
   }
 
   // Step 2: commit the convert. forceNew=true skips the dedupe and creates
-  // a separate patient (the "not the same person" escape hatch).
+  // a separate patient (the "not the same person" escape hatch). On success
+  // the drawer stays put in its success state (see `converted`) — the list
+  // refreshes behind it, and the next click is "Book them now".
   function runConvert(forceNew: boolean, key: 'convert' | 'link' | 'separate' = forceNew ? 'separate' : 'link') {
     setActive(key)
     startTransition(async () => {
-      const r = await convertLeadAction(row.id, { forceNewPatient: forceNew })
+      let r: Awaited<ReturnType<typeof convertLeadAction>>
+      try {
+        r = await convertLeadAction(row.id, { forceNewPatient: forceNew })
+      } catch (err) {
+        setError(isDeploymentSkewError(err) ? STALE_APP_MESSAGE : ACTION_FAILED_MESSAGE)
+        setDedupeMatch(null)
+        return
+      }
       if ('ok' in r && r.ok === true) {
+        setDedupeMatch(null)
+        setConverted({ patientId: r.patientId, patientName: r.patientName, deduped: r.deduped })
         flash(r.deduped ? `Linked to existing patient ${r.patientName}.` : `Created patient ${r.patientName}.`)
         router.refresh()
-        router.push(`/patients/${r.patientId}`)
       } else if ('error' in r) {
         setError(r.error)
         setDedupeMatch(null)
       }
     })
   }
+
+  // Who "Book them now" / "Book a visit" is for: the patient this convert
+  // just made, or the one an already-converted inquiry points at.
+  const bookable =
+    converted ??
+    (row.status === 'converted' && row.convertedToPatientId
+      ? { patientId: row.convertedToPatientId, patientName: row.convertedPatientName ?? row.name, deduped: true }
+      : null)
+  // The inquiry's preferred date, when it reads as a real future day — the
+  // seed the booking form opens on. Free text that does not parse seeds
+  // nothing (the form falls back to its own default).
+  const preferredDateKey = coercePreferredDateKey(row.preferredDate)
 
   return (
     <div
@@ -301,9 +343,37 @@ export default function LeadDrawer({
             </div>
           )}
 
+          {/* Converted just now — the success state. ok (emerald): the work
+              is done; what is left is the next click, and it lives here. */}
+          {converted && (
+            <div
+              data-tone="ok"
+              className="rounded-[var(--r-lg)] border border-emerald-300 dark:border-emerald-500/40 bg-emerald-50 dark:bg-emerald-500/10 p-3 space-y-2"
+            >
+              <p className="text-xs text-emerald-800 dark:text-emerald-200 leading-relaxed">
+                {converted.deduped ? 'Linked to existing patient ' : 'Created patient '}
+                <span className="font-semibold">{converted.patientName}</span>.
+                {preferredDateKey
+                  ? ` They asked for ${row.preferredDate} — the booking opens on that day.`
+                  : ' Book their first visit while they are on the line.'}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <ActionButton variant="primary" size="sm" onClick={() => setBookOpen(true)}>
+                  Book them now
+                </ActionButton>
+                <ActionButton variant="secondary" size="sm" href={`/patients/${converted.patientId}`}>
+                  Open patient
+                </ActionButton>
+              </div>
+            </div>
+          )}
+
           {/* Action ladder — ONE primary, following the lifecycle:
               new → Mark contacted · contacted → Convert · converted → Open
-              patient. Archive/Reopen are secondary (not destructive). */}
+              patient. Archive/Reopen are secondary (not destructive). Gone
+              once a convert lands here — the success state above is the
+              ladder now, and nothing in this row holds state worth keeping. */}
+          {!converted && (
           <div className="flex flex-wrap gap-2 pt-3 border-t border-[color:var(--color-hairline)]">
             {row.status === 'new' && (
               <>
@@ -329,9 +399,14 @@ export default function LeadDrawer({
               </>
             )}
             {row.status === 'converted' && row.convertedToPatientId && (
-              <ActionButton variant="primary" size="sm" href={`/patients/${row.convertedToPatientId}`}>
-                Open patient
-              </ActionButton>
+              <>
+                <ActionButton variant="primary" size="sm" href={`/patients/${row.convertedToPatientId}`}>
+                  Open patient
+                </ActionButton>
+                <ActionButton variant="secondary" size="sm" onClick={() => setBookOpen(true)} disabled={pending}>
+                  Book a visit
+                </ActionButton>
+              </>
             )}
             {row.status === 'archived' && (
               <ActionButton variant="secondary" size="sm" onClick={onReopen} disabled={pending}>
@@ -339,6 +414,7 @@ export default function LeadDrawer({
               </ActionButton>
             )}
           </div>
+          )}
 
           {error && <p className="text-xs text-rose-600 dark:text-rose-400">{error}</p>}
 
@@ -431,6 +507,15 @@ export default function LeadDrawer({
               </ActionButton>
             </div>
           </div>
+        )}
+
+        {bookOpen && bookable && (
+          <BookFromPatientDrawer
+            patientId={bookable.patientId}
+            patientName={bookable.patientName}
+            defaultDate={preferredDateKey}
+            onClose={() => setBookOpen(false)}
+          />
         )}
 
         {toast && <FlashToast message={toast} onDone={() => setToast(null)} />}

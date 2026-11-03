@@ -26,6 +26,7 @@ export function FilterChip({
   href,
   count,
   title,
+  keepInView = false,
   className = '',
   children,
 }: {
@@ -37,6 +38,10 @@ export function FilterChip({
   count?: number
   /** Required when the label contains an emoji or non-obvious icon. */
   title?: string
+  /** Marks the chip for a scrollable chip STRIP to scroll into view on mount
+   *  (`data-keep-in-view`) — the one the person just picked, so a phone-width
+   *  strip never hides the selection it just made. Layout-free. */
+  keepInView?: boolean
   className?: string
   children: ReactNode
 }) {
@@ -46,6 +51,7 @@ export function FilterChip({
       {typeof count === 'number' && <span className="tabular-nums">{count}</span>}
     </>
   )
+  const marker = keepInView ? { 'data-keep-in-view': '' } : {}
 
   if (href) {
     return (
@@ -54,6 +60,7 @@ export function FilterChip({
         title={title}
         aria-current={active ? 'page' : undefined}
         className={chipClass(active, className)}
+        {...marker}
       >
         {inner}
       </Link>
@@ -67,6 +74,7 @@ export function FilterChip({
       aria-pressed={active}
       title={title}
       className={chipClass(active, className)}
+      {...marker}
     >
       {inner}
     </button>

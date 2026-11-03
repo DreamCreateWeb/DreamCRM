@@ -23,6 +23,7 @@ export type EmailAutomationKey =
   | 'appointment_reminder'
   | 'appointment_reminder_confirmed'
   | 'intake_request'
+  | 'rescheduled'
   | 'cancellation'
   | 'no_show_rebook'
   | 'portal_invite'
@@ -230,6 +231,30 @@ export const EMAIL_AUTOMATION_SPECS: Record<EmailAutomationKey, EmailAutomationS
       closing: 'Have questions? Just reply to this email — it goes straight to our front desk.',
     },
     includesNote: ['A “Fill out intake form” button linking to your form'],
+  },
+
+  rescheduled: {
+    key: 'rescheduled',
+    label: 'Appointment rescheduled',
+    description:
+      'Sent when you move a patient’s visit to a new time and tick “Notify patient” — with a one-click button to confirm the new time. (This was the one visit email that lived outside this page.)',
+    category: 'appointments',
+    enableSource: 'email_automations',
+    moduleHref: '/appointments',
+    moduleLabel: 'Appointments',
+    tokens: [T_FIRST, T_CLINIC, T_TYPE, T_DATE, T_TIME],
+    slotFields: [
+      { slot: 'subject', label: 'Subject line', rows: 1 },
+      { slot: 'body', label: 'Message', rows: 3 },
+    ],
+    slotDefaults: {
+      subject: 'Your {{appointmentType}} at {{clinicName}} has a new time',
+      body: 'Hi {{firstName}} — your {{appointmentType}} at {{clinicName}} has been moved to {{appointmentTime}}. Tap the button below to confirm the new time — or if it doesn’t work for you, just reply and we’ll find a better one.',
+    },
+    includesNote: [
+      'A one-click “Confirm my new time” button (patients confirm right from the email)',
+      'A “need a different time? just reply” line beneath the button',
+    ],
   },
 
   cancellation: {

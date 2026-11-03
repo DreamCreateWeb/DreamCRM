@@ -7,6 +7,7 @@ import { Popover, PopoverButton, PopoverPanel, Transition } from '@headlessui/re
 import { useRealtime } from '@/components/realtime/realtime-provider'
 import { notificationType, type NotificationTone } from '@/lib/types/notifications'
 import { TONE_FILL } from '@/lib/ui/encodings'
+import { FilterChip } from '@/components/ui/filter-chip'
 
 interface NotificationItem {
   id: number
@@ -44,6 +45,18 @@ interface NotificationItem {
  */
 const POLL_INTERVAL_MS = 60_000
 
+/** How many rows the tray asks for: ten on open, then "Show older" steps
+ *  through the API's own ceiling (`/api/notifications` caps `limit` at 50).
+ *  Beyond that the tray says so rather than implying the list is complete. */
+export const TRAY_PAGE_STEPS = [10, 25, 50] as const
+export type TrayPageSize = (typeof TRAY_PAGE_STEPS)[number]
+
+/** The tray's fetch URL for a page size and the unread filter. One home, so
+ *  the test and the component cannot disagree about the querystring. */
+export function trayFetchUrl(limit: number, unreadOnly: boolean): string {
+  return `/api/notifications?limit=${limit}${unreadOnly ? '&unread=1' : ''}`
+}
+
 /** Icon-tile tint per tone. Quiet on purpose — the tile is the only tinted
  *  surface in a row, so a glance finds the urgent one without the tray
  *  turning into a paint chart. */
@@ -60,10 +73,16 @@ export default function DropdownNotifications({ align }: { align?: 'left' | 'rig
   const [items, setItems] = useState<NotificationItem[]>([])
   const [unread, setUnread] = useState(0)
   const [loading, setLoading] = useState(false)
+  // "Show older" widens the page (10 → 25 → 50); "Unread only" narrows it to
+  // what still needs eyes. Both ride the API's existing params — the tray had
+  // simply never asked for either, so the eleventh alert was unreachable
+  // until a dismissal revealed it.
+  const [limit, setLimit] = useState<TrayPageSize>(TRAY_PAGE_STEPS[0])
+  const [unreadOnly, setUnreadOnly] = useState(false)
 
   const refresh = useCallback(async () => {
     try {
-      const res = await fetch('/api/notifications?limit=10', { cache: 'no-store' })
+      const res = await fetch(trayFetchUrl(limit, unreadOnly), { cache: 'no-store' })
       if (!res.ok) return
       const json = (await res.json()) as { items: NotificationItem[]; unread: number }
       setItems(json.items)
@@ -71,7 +90,12 @@ export default function DropdownNotifications({ align }: { align?: 'left' | 'rig
     } catch {
       // Swallow — bell silently retries on the next tick
     }
-  }, [])
+  }, [limit, unreadOnly])
+
+  const nextStep = TRAY_PAGE_STEPS.find((n) => n > limit) ?? null
+  // The page came back full, so there may be more beyond it; at the cap the
+  // honest line replaces the button.
+  const pageFull = items.length >= limit
 
   useEffect(() => {
     refresh()
@@ -132,7 +156,7 @@ export default function DropdownNotifications({ align }: { align?: 'left' | 'rig
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ids: [item.id] }),
       })
-      // A dismissal may reveal the next item beyond the shown 10 — resync.
+      // A dismissal may reveal the next item beyond the shown page — resync.
       refresh()
     } catch {
       /* ignore */
@@ -214,15 +238,26 @@ export default function DropdownNotifications({ align }: { align?: 'left' | 'rig
                   </span>
                 )}
               </div>
-              {unread > 0 && (
-                <button
-                  onClick={handleMarkAllRead}
-                  disabled={loading}
-                  className="text-xs font-medium text-teal-700 hover:text-teal-800 disabled:opacity-50 dark:text-teal-300 dark:hover:text-teal-200"
+              <div className="flex items-center gap-3">
+                {/* Narrows the page to what still needs eyes — the API's own
+                    `unread=1`, which the tray had never asked for. */}
+                <FilterChip
+                  active={unreadOnly}
+                  onClick={() => setUnreadOnly((v) => !v)}
+                  title="Show only the alerts you haven't read yet"
                 >
-                  Mark all read
-                </button>
-              )}
+                  Unread only
+                </FilterChip>
+                {unread > 0 && (
+                  <button
+                    onClick={handleMarkAllRead}
+                    disabled={loading}
+                    className="text-xs font-medium text-teal-700 hover:text-teal-800 disabled:opacity-50 dark:text-teal-300 dark:hover:text-teal-200"
+                  >
+                    Mark all read
+                  </button>
+                )}
+              </div>
             </div>
             <ul className="max-h-[60vh] overflow-y-auto">
               {items.length === 0 ? (
@@ -233,9 +268,13 @@ export default function DropdownNotifications({ align }: { align?: 'left' | 'rig
                   >
                     💤
                   </span>
-                  <p className="mt-3 text-sm font-medium text-gray-700 dark:text-gray-200">All quiet</p>
+                  <p className="mt-3 text-sm font-medium text-gray-700 dark:text-gray-200">
+                    {unreadOnly ? 'Nothing unread' : 'All quiet'}
+                  </p>
                   <p className="mt-0.5 text-xs leading-relaxed text-gray-500 dark:text-gray-400">
-                    When something needs your eyes — a message, a booking, a review — it lands here.
+                    {unreadOnly
+                      ? 'Everything here has been read. Switch off Unread only to see it again.'
+                      : 'When something needs your eyes — a message, a booking, a review — it lands here.'}
                   </p>
                 </li>
               ) : (
@@ -300,6 +339,25 @@ export default function DropdownNotifications({ align }: { align?: 'left' | 'rig
                 })
               )}
             </ul>
+            {/* The page came back full: there may be older alerts behind it.
+                Step the page out (10 → 25 → 50); at the API's cap say so,
+                because a list that just ends reads as complete. */}
+            {pageFull && nextStep && (
+              <div className="border-t border-[color:var(--color-hairline)] px-4 py-1.5 text-center">
+                <button
+                  type="button"
+                  onClick={() => setLimit(nextStep)}
+                  className="w-full py-1 text-xs font-medium text-teal-700 hover:text-teal-800 dark:text-teal-300 dark:hover:text-teal-200"
+                >
+                  Show older
+                </button>
+              </div>
+            )}
+            {pageFull && !nextStep && (
+              <p className="border-t border-[color:var(--color-hairline)] px-4 py-2 text-center text-xs text-gray-500 dark:text-gray-400">
+                Showing the {limit} most recent.
+              </p>
+            )}
             <div className="flex items-center justify-between border-t border-[color:var(--color-hairline)] bg-[color:var(--color-surface-sunk)] px-4 py-2">
               {items.length > 0 ? (
                 <button

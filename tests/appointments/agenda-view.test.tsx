@@ -5,13 +5,14 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
   useSearchParams: () => new URLSearchParams(),
 }))
-const { bulkStatusMock, bulkFollowupMock } = vi.hoisted(() => ({
+const { bulkStatusMock, bulkFollowupMock, markCompletedMock } = vi.hoisted(() => ({
   bulkStatusMock: vi.fn(async () => ({ ok: true, updated: 2, skipped: 0 })),
   bulkFollowupMock: vi.fn(),
+  markCompletedMock: vi.fn(async (_id: string) => ({ ok: true, reviewSent: true })),
 }))
 vi.mock('@/app/(default)/appointments/actions', () => ({
   confirmAppointmentAction: vi.fn(async () => ({ ok: true })),
-  markCompletedAction: vi.fn(async () => ({ ok: true, reviewSent: true })),
+  markCompletedAction: (id: string) => markCompletedMock(id),
   bulkSendRemindersAction: vi.fn(async () => ({ attempted: 0, sent: 0, skipped: 0, errors: [] })),
   bulkSetAppointmentStatusAction: bulkStatusMock,
   bulkCreateFollowupsForPatientsAction: bulkFollowupMock,
@@ -20,8 +21,19 @@ vi.mock('@/app/(default)/appointments/appointment-drawer', () => ({
   default: () => null,
 }))
 vi.mock('@/app/(default)/appointments/new-booking-drawer', () => ({
-  default: ({ onClose }: { onClose: () => void }) => (
+  default: ({
+    onClose,
+    initialPatientId,
+    defaultDate,
+    defaultType,
+  }: {
+    onClose: () => void
+    initialPatientId?: string | null
+    defaultDate?: string | null
+    defaultType?: string | null
+  }) => (
     <div data-testid="new-booking-drawer">
+      seed:{initialPatientId ?? '-'}:{defaultDate ?? '-'}:{defaultType ?? '-'}
       <button onClick={onClose}>close-drawer</button>
     </div>
   ),
@@ -74,6 +86,7 @@ function makeRow(overrides: Partial<AppointmentRow> = {}): AppointmentRow {
     },
     agingLevel: 'none',
     needsRebooking: false,
+    nextVisitBooked: false,
     tags: [],
     ...overrides,
   }
@@ -499,5 +512,56 @@ describe('AgendaView — the empty "today" tells the truth about its source', ()
     render(<AgendaView groups={[]} meta={baseMeta} filters={today} orgName="Acme" pmsLink={{ kind: 'connected' }} />)
     expect(screen.getByText('Nothing booked today.')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /Share your booking link/ })).toHaveAttribute('href', '/website/share')
+  })
+})
+
+/**
+ * MARK DONE → BOOK THE NEXT ONE. The row-level "Mark done" toast carries a
+ * "Book next visit" action when the completed visit's patient has nothing on
+ * the books after it; the action opens the New-booking drawer already on
+ * that patient, seeded on their recall day and the visit's type. A result
+ * that does not KNOW (no flag, or true) keeps the plain toast.
+ */
+describe('AgendaView — the Marked-done toast books the next visit', () => {
+  const pastOpen = (): AppointmentDayGroup => ({
+    date: new Date('2026-05-21T00:00:00Z'),
+    label: 'Wed May 21',
+    rows: [makeRow({ id: 'a1', patientId: 'p1', status: 'scheduled', type: 'cleaning', startTime: new Date('2026-05-21T09:00:00Z') })],
+    totals: { booked: 1, confirmed: 0, unconfirmed: 1 },
+  })
+
+  it('offers "Book next visit" and opens the booking drawer on the patient, seeded', async () => {
+    markCompletedMock.mockResolvedValueOnce({
+      ok: true, reviewSent: false, patientId: 'p1', visitType: 'cleaning', nextVisitBooked: false, nextVisitDateKey: '2026-11-21',
+    } as never)
+    render(<AgendaView groups={[pastOpen()]} meta={baseMeta} filters={baseFilters} orgName="Acme" />)
+    fireEvent.click(screen.getByRole('button', { name: /Mark done/ }))
+    const door = await screen.findByRole('button', { name: 'Book next visit' })
+    expect(screen.getByRole('status')).toHaveTextContent(/Nothing is booked after it yet/)
+    fireEvent.click(door)
+    expect(screen.getByTestId('new-booking-drawer').textContent).toContain('seed:p1:2026-11-21:cleaning')
+    // The toast dismissed with the click.
+    expect(screen.queryByRole('status')).toBeNull()
+    // Closing the drawer clears the seed, so "+ New booking" is a clean slate again.
+    fireEvent.click(screen.getByText('close-drawer'))
+    fireEvent.click(screen.getAllByText('+ New booking')[0])
+    expect(screen.getByTestId('new-booking-drawer').textContent).toContain('seed:-:-:-')
+  })
+
+  it('keeps the plain toast when the next visit is booked, or when the result does not say', async () => {
+    markCompletedMock.mockResolvedValueOnce({
+      ok: true, reviewSent: true, patientId: 'p1', visitType: 'cleaning', nextVisitBooked: true, nextVisitDateKey: null,
+    } as never)
+    const { unmount } = render(<AgendaView groups={[pastOpen()]} meta={baseMeta} filters={baseFilters} orgName="Acme" />)
+    fireEvent.click(screen.getByRole('button', { name: /Mark done/ }))
+    expect(await screen.findByRole('status')).toHaveTextContent('Marked done — review request sent.')
+    expect(screen.queryByRole('button', { name: 'Book next visit' })).toBeNull()
+    unmount()
+
+    markCompletedMock.mockResolvedValueOnce({ ok: true, reviewSent: false } as never)
+    render(<AgendaView groups={[pastOpen()]} meta={baseMeta} filters={baseFilters} orgName="Acme" />)
+    fireEvent.click(screen.getByRole('button', { name: /Mark done/ }))
+    expect(await screen.findByRole('status')).toHaveTextContent('Marked done.')
+    expect(screen.queryByRole('button', { name: 'Book next visit' })).toBeNull()
   })
 })

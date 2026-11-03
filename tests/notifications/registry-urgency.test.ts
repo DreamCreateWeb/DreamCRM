@@ -26,6 +26,11 @@ describe('notification registry — urgency', () => {
     expect(isUrgentType('thread_resurfaced')).toBe(false)
   })
 
+  it('a conversation handed to you is registered, info-toned, and urgent (a person is waiting on YOU by name)', () => {
+    expect(NOTIFICATION_TYPES.thread_assigned).toEqual({ icon: '🙋', tone: 'info', urgent: true })
+    expect(isUrgentType('thread_assigned')).toBe(true)
+  })
+
   it('an unregistered type still floors to the plain bell', () => {
     expect(notificationType('something_new')).toEqual({ icon: '🔔', tone: 'neutral' })
   })
@@ -58,6 +63,7 @@ describe('notification registry — urgency', () => {
         'subscription_cancelled',
         'support_message',
         'support_reply',
+        'thread_assigned',
         'website_lead',
       ].sort(),
     )

@@ -28,12 +28,18 @@ const SEARCH_DEBOUNCE_MS = 200
 export default function NewBookingDrawer({
   onClose,
   initialPatientId = null,
+  defaultDate = null,
+  defaultType = null,
 }: {
   onClose: () => void
   /** A patient already chosen by the caller (`/appointments?new=1&patient=<id>`,
    *  the inbox's patient card): the picker is skipped once an org-scoped read
    *  confirms the id belongs to this clinic. An unknown id leaves the picker up. */
   initialPatientId?: string | null
+  /** Seeds for the booking form once a patient is picked — the agenda's
+   *  "Book next visit" toast hands over the recall day + the visit's type. */
+  defaultDate?: string | null
+  defaultType?: string | null
 }) {
   const [options, setOptions] = useState<PatientOption[] | null>(null)
   const [query, setQuery] = useState('')
@@ -98,7 +104,15 @@ export default function NewBookingDrawer({
   const filtered = options ?? []
 
   if (picked) {
-    return <BookFromPatientDrawer patientId={picked.id} patientName={picked.name} onClose={onClose} />
+    return (
+      <BookFromPatientDrawer
+        patientId={picked.id}
+        patientName={picked.name}
+        defaultDate={defaultDate}
+        defaultType={defaultType}
+        onClose={onClose}
+      />
+    )
   }
 
   return (

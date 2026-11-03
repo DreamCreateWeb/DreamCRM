@@ -140,7 +140,7 @@ const ACCOUNT_GROUP: SettingsNavGroup = {
   title: 'Your account',
   items: [
     { href: '/settings/account', label: 'Profile', desc: 'Your name, photo, and sign-in email.', icon: userIcon },
-    { href: '/settings/notifications', label: 'Notifications', desc: 'Email and push preferences.', icon: bellIcon },
+    { href: '/settings/notifications', label: 'Notifications', desc: 'Bell alerts and which ones reach your email.', icon: bellIcon },
     { href: '/settings/security', label: 'Security', desc: 'Active sessions and your password.', icon: shieldIcon },
   ],
 }

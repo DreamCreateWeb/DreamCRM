@@ -33,6 +33,9 @@ describe('EmailsHub', () => {
     expect(screen.getByText('Patient portal invite')).toBeTruthy()
     expect(screen.getByText('Review request')).toBeTruthy()
     expect(screen.getByText('Website enquiry auto-reply')).toBeTruthy()
+    // The one visit email that used to live outside the hub (an inline body
+    // in the reschedule action) is a card like its siblings now.
+    expect(screen.getByText('Appointment rescheduled')).toBeTruthy()
   })
 
   it('expands the ?email= target card and leaves others collapsed', () => {

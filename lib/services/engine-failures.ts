@@ -54,6 +54,12 @@ export const AUTOMATION_FAILURE = {
     capability: 'pms_sync',
     summary: 'Couldn’t sync with your practice software just now — I’ll keep trying.',
   },
+  // The custom-domain sweep (2026-10-26): the 15-minute check that attaches
+  // the certificate and flips a pending domain live after the tab is closed.
+  custom_domain: {
+    capability: 'custom_domain',
+    summary: 'Couldn’t check on your web address just now — I’ll keep trying.',
+  },
 } as const satisfies Record<string, { capability: string; summary: string }>
 
 export type AutomationFailureKey = keyof typeof AUTOMATION_FAILURE

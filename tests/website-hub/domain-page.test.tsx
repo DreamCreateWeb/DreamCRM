@@ -23,11 +23,18 @@ vi.mock('@/lib/auth/context', () => ({
 vi.mock('@/lib/services/custom-domain', () => ({
   getCustomDomainStatus: vi.fn(async () => null),
 }))
+// "Checked <time>" renders at the PRACTICE's wall-clock — the page resolves
+// the zone server-side and hands it to the client card as a prop.
+vi.mock('@/lib/services/clinic-timezone', () => ({
+  getClinicTimeZone: vi.fn(async () => 'America/Chicago'),
+}))
 // The card itself is client-interactive; its own behavior is covered by the
 // service tests — here we only need the page to mount it with real props.
 vi.mock('@/app/(default)/website/domain/custom-domain-card', () => ({
-  default: ({ subdomainUrl }: { subdomainUrl: string }) => (
-    <div data-testid="domain-card">{subdomainUrl}</div>
+  default: ({ subdomainUrl, timeZone }: { subdomainUrl: string; timeZone: string }) => (
+    <div data-testid="domain-card" data-tz={timeZone}>
+      {subdomainUrl}
+    </div>
   ),
 }))
 
@@ -48,6 +55,7 @@ describe('WebsiteDomainPage', () => {
   it('renders the connect card with the free subdomain fallback', async () => {
     render(await WebsiteDomainPage())
     expect(screen.getByTestId('domain-card').textContent).toContain('https://acme.')
+    expect(screen.getByTestId('domain-card').getAttribute('data-tz')).toBe('America/Chicago')
     expect(screen.getByText('Domain')).toBeTruthy()
     cleanup()
   })

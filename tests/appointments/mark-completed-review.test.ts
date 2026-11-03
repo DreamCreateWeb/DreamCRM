@@ -112,6 +112,46 @@ describe('markCompleted → review auto-send', () => {
   })
 })
 
+/**
+ * THE NEXT VISIT. After the completion the service reads whether ANOTHER
+ * visit is on the books after now (this row excluded) and, when not, the
+ * clinic-local day to seed the next booking on — patient recall → clinic
+ * default → six months. Fail-SILENT: an unreadable check reads as booked.
+ */
+describe('markCompleted → the next-visit facts', () => {
+  const NOW = Date.now()
+
+  it('reports nextVisitBooked=false with a seeded day when nothing follows the visit', async () => {
+    queueContext('scheduled', { patientId: 'pat_1', type: 'cleaning', startTime: new Date('2026-06-15T14:00:00Z') })
+    state.selectQueue.push([]) // no future visit
+    state.selectQueue.push([{ recallIntervalMonths: 4 }]) // the patient's own interval
+    // cadence + timezone reads fall through to [] → clinic default null, default tz
+    const r = await markCompleted('org_1', 'appt_1')
+    expect(r.patientId).toBe('pat_1')
+    expect(r.visitType).toBe('cleaning')
+    expect(r.nextVisitBooked).toBe(false)
+    expect(r.nextVisitDateKey).toBe('2026-10-15')
+  })
+
+  it('reports nextVisitBooked=true with no seed when a later visit exists', async () => {
+    queueContext('scheduled', { patientId: 'pat_1', type: 'cleaning', startTime: new Date(NOW - 3_600_000) })
+    state.selectQueue.push([{ id: 'appt_later' }])
+    const r = await markCompleted('org_1', 'appt_1')
+    expect(r.nextVisitBooked).toBe(true)
+    expect(r.nextVisitDateKey).toBeNull()
+  })
+
+  it('reads as booked (no nag) when the check cannot be made', async () => {
+    queueContext('scheduled', { patientId: 'pat_1', type: 'cleaning', startTime: new Date(NOW - 3_600_000) })
+    state.selectQueue.push(Promise.reject(new Error('db down')) as unknown as unknown[])
+    const r = await markCompleted('org_1', 'appt_1')
+    expect(r.nextVisitBooked).toBe(true)
+    expect(r.nextVisitDateKey).toBeNull()
+    // The completion itself still landed.
+    expect(state.updates.some((u) => u.status === 'completed')).toBe(true)
+  })
+})
+
 describe("markCompleted → the 'pms_live' re-stamp (round-5 close-out)", () => {
   // Same rule as the PMS delta sync's goingLiveCompleted: a backfilled
   // UPCOMING row whose completion STAFF observe re-stamps 'pms_live' so the

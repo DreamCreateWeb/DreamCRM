@@ -42,6 +42,10 @@ export const NOTIFICATION_TYPES: Record<string, NotificationTypeDef> = {
   website_lead: { icon: '👋', tone: 'info', urgent: true },
   insurance_question: { icon: '🛡️', tone: 'info', urgent: true },
   platform_inbound_email: { icon: '📥', tone: 'info', urgent: true },
+  // A conversation was handed to YOU by name. Urgent because the hand-off is
+  // the one moment the whole desk stops watching a thread — "Sam has it" —
+  // so if Sam never hears, the patient waits on nobody.
+  thread_assigned: { icon: '🙋', tone: 'info', urgent: true },
   // A snooze that ran out: the thread is back in Open. The front desk's
   // "remind me tomorrow" — a bell row, never an email (they set the timer).
   thread_resurfaced: { icon: '💤', tone: 'warn' },

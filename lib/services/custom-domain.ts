@@ -1,7 +1,11 @@
 import 'server-only'
-import { and, eq, ne } from 'drizzle-orm'
+import { and, eq, ne, sql } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { clinicProfile } from '@/lib/db/schema/platform'
+import { organization } from '@/lib/db/schema/auth'
+import { recordAction } from '@/lib/services/action-ledger'
+import { reportAutomationFailure } from '@/lib/services/engine-failures'
+import { startBudget, budgetSpent } from '@/lib/cron-budget'
 
 /**
  * Custom domains v1.
@@ -15,7 +19,16 @@ import { clinicProfile } from '@/lib/db/schema/platform'
  *      and write the host onto `websiteDomain`.
  *   2. the clinic adds the CNAMEs at their registrar.
  *   3. `checkCustomDomainStatus` polls `DescribeCustomDomains` until App Runner
- *      reports ACTIVE → we flip the stored state to `active`.
+ *      reports ACTIVE → we flip the stored state to `active`. Whoever asks —
+ *      the card's 45s poll, Check now, or the sweep below — the flip writes
+ *      ONE ledger line ("Connected www.x.com — your website is live").
+ *   3b. `sweepPendingCustomDomains` (the `custom-domains` cron, every 15
+ *      minutes) runs that same check for every pending domain on a live
+ *      clinic, so the managed-cert ATTACH and the activation nudge inside
+ *      `checkViaCloudFront` happen whether or not anyone has the Domain page
+ *      open. Until 2026-10-26 the card's poll was the ONLY driver, and a
+ *      clinic that closed the tab after adding its records had a domain that
+ *      never finished (the cert issued; nothing attached it).
  *   4. `removeCustomDomain` calls `DisassociateCustomDomain` + clears the
  *      `websiteDomain` / status.
  *
@@ -62,7 +75,17 @@ export interface CustomDomainStatus {
   servedHosts?: string[]
   requestedAt: string
   dnsRecords: CustomDomainDnsRecord[]
+  /** When the edge was last asked about this domain — by the card's poll,
+   *  Check now, or the sweep. The card shows it as "Checked <time>". */
   lastCheckedAt?: string
+  /** When the 15-minute sweep last looked at this row. `lastCheckedAt` moves
+   *  on every check whoever asked; this one says the MACHINE did, so an
+   *  operator can tell "nobody has the tab open" from "the cron is dead". */
+  lastSweptAt?: string
+  /** When the platform was told this domain had sat pending a full day.
+   *  Written ONCE per request — a fresh Connect builds a new status and the
+   *  old stamp goes with it — so the alert fires once, not every tick. */
+  notifiedAt?: string
   /** 'manual' when AWS couldn't run and an operator must finish provisioning. */
   error?: string
   /** Which edge owns this domain: 'apprunner' (legacy associations, capped at
@@ -311,6 +334,24 @@ async function persist(orgId: string, status: CustomDomainStatus): Promise<void>
 }
 
 /**
+ * The ONE ledger line a custom domain earns: the moment it goes live. Called
+ * by every check path after its persist, with the status it read and the
+ * one it wrote, so the line is written whoever triggered the flip — the
+ * card's poll, Check now, or the sweep — and never twice (a poll that reads
+ * an already-active row has nothing to announce). Best-effort by
+ * construction: `recordAction` never throws.
+ */
+async function noteWentLive(orgId: string, before: CustomDomainStatus, after: CustomDomainStatus): Promise<void> {
+  if (before.state === 'active' || after.state !== 'active') return
+  await recordAction({
+    organizationId: orgId,
+    capability: 'custom_domain',
+    summary: `Connected ${after.domain} — your website is live there now.`,
+    detail: { domain: after.domain, servedHosts: after.servedHosts ?? [after.domain], driver: after.driver ?? 'apprunner' },
+  })
+}
+
+/**
  * Build the App Runner client. Returns null when the service ARN env is unset,
  * so callers fall into the manual path. Credentials come from the default
  * provider chain (the App Runner instance role in prod, env/SSO locally).
@@ -550,6 +591,7 @@ async function checkViaCloudFront(
       error: undefined,
     }
     await persist(orgId, status)
+    await noteWentLive(orgId, current, status)
     return { ok: true, status }
   } catch (err) {
     // Tenant not found: creation was deferred on the domain-ownership check
@@ -851,6 +893,7 @@ export async function checkCustomDomainStatus(orgId: string): Promise<CustomDoma
       error: state === 'failed' ? `App Runner reported ${awsStatus}` : undefined,
     }
     await persist(orgId, status)
+    await noteWentLive(orgId, current, status)
     return { ok: true, status }
   } catch (err) {
     console.warn('[custom-domain] describe failed:', (err as Error).message)
@@ -906,4 +949,274 @@ export async function removeCustomDomain(orgId: string): Promise<{ ok: true } | 
     .set({ websiteDomain: null, customDomainStatus: null })
     .where(eq(clinicProfile.organizationId, orgId))
   return { ok: true }
+}
+
+// ── The sweep (2026-10-26) ───────────────────────────────────────────────────
+// Until this shipped, `checkCustomDomainStatus` ran only while someone had the
+// Domain page open (the card's 45s poll) or pressed Check now. Everything that
+// FINISHES a domain lives inside that check — on the CloudFront path the
+// managed cert issues on its own but nothing attaches it to the tenant until
+// a check runs, and the `VerifyDnsConfiguration` nudge is what makes the edge
+// look at the records now rather than on its own leisurely cycle. So a clinic
+// that added its records and closed the tab had a domain that never went
+// live, and the card's "you can leave this page" was a promise the system
+// did not keep. This sweep is the `custom-domains` cron: every 15 minutes it
+// runs the same check for every pending domain on a live clinic.
+
+/** How many pending rows one tick asks the edge about. Oldest-checked first,
+ *  so a backlog bigger than this drains across ticks rather than starving
+ *  its tail — a checked row gets a fresh `lastCheckedAt` and goes to the
+ *  back of the queue. */
+export const CUSTOM_DOMAIN_SWEEP_MAX = 50
+/** Pause between rows. Each check is several CloudFront control-plane calls
+ *  and the control plane rate-limits per account, not per tenant. */
+export const CUSTOM_DOMAIN_SWEEP_PACING_MS = 2_000
+/** Wall-clock budget for one tick, chosen against the route's `maxDuration`
+ *  (300s) with room for the slowest row: 50 rows × (2s pace + a few edge
+ *  calls) fits; a slow edge stops the walk early instead of being killed. */
+export const CUSTOM_DOMAIN_SWEEP_BUDGET_MS = 240_000
+/** A domain still pending this long after Connect gets the platform's
+ *  attention ONCE — their records never landed, the cert never issued, or
+ *  the edge call degraded to the manual state and an operator owes them. */
+export const CUSTOM_DOMAIN_STILL_PENDING_AFTER_MS = 24 * 60 * 60 * 1000
+
+export interface CustomDomainSweepResult {
+  /** Pending rows on real, live clinics (after the demo + shut-down filters). */
+  pending: number
+  /** How many this tick actually asked the edge about. */
+  checked: number
+  /** Rows that flipped pending → active this tick. */
+  activated: number
+  /** Day-old-and-still-pending alerts sent to the platform this tick. */
+  notified: number
+  /** Pending rows on shut-down clinics, deliberately left alone. */
+  shutDown: number
+  /** Org ids whose check threw. Each is reported to the Guardian; the rest
+   *  of the walk carried on. */
+  errors: string[]
+  /** False when the per-tick cap or the time budget stopped the walk before
+   *  the list ran out — the next tick picks up the oldest-checked remainder. */
+  completed: boolean
+}
+
+export interface CustomDomainSweepOptions {
+  now?: Date
+  max?: number
+  pacingMs?: number
+  budgetMs?: number
+  /** Injectable so tests never sleep. */
+  sleep?: (ms: number) => Promise<void>
+  /** The budget's clock, injectable for the same reason. */
+  clock?: () => number
+  /** The per-row check — `checkCustomDomainStatus` by default. Injectable so
+   *  the sweep's ORCHESTRATION (filters, order, cap, isolation, the stamp,
+   *  the day-old alert) is testable apart from the edge. */
+  check?: (orgId: string) => Promise<CustomDomainResult>
+}
+
+interface PendingDomainRow {
+  organizationId: string
+  clinicName: string
+  status: CustomDomainStatus
+}
+
+/**
+ * Every pending custom domain on a real clinic. The demo org is excluded in
+ * the query (its domain is never real, and a sweep that reports on it would
+ * train the owner to ignore the list); shut-down clinics are excluded by the
+ * caller, because `listShutDownOrgIds` is derived from the trial clock, not
+ * a column this query could filter on.
+ */
+async function listPendingCustomDomains(): Promise<PendingDomainRow[]> {
+  const rows = await db
+    .select({
+      organizationId: clinicProfile.organizationId,
+      clinicName: organization.name,
+      customDomainStatus: clinicProfile.customDomainStatus,
+    })
+    .from(clinicProfile)
+    .innerJoin(organization, eq(organization.id, clinicProfile.organizationId))
+    .where(
+      and(
+        eq(organization.type, 'clinic'),
+        eq(organization.isDemo, false),
+        sql`${clinicProfile.customDomainStatus} ->> 'state' = 'pending_dns'`,
+      ),
+    )
+  return rows.flatMap((r) => {
+    const status = r.customDomainStatus as CustomDomainStatus | null
+    // The SQL filter already asked; the JS filter is the same law stated
+    // where a reader can see it, and the guard against a malformed row.
+    if (!status || typeof status !== 'object' || status.state !== 'pending_dns' || !status.domain) return []
+    return [{ organizationId: r.organizationId, clinicName: r.clinicName ?? '', status }]
+  })
+}
+
+/**
+ * Pure: the order one tick walks pending rows in. Oldest `lastCheckedAt`
+ * first; a row that has never been checked goes to the FRONT (it is the one
+ * nobody has looked at), then by `requestedAt` so two never-checked rows are
+ * served in the order their clinics asked.
+ */
+export function orderPendingForSweep<
+  T extends { status: Pick<CustomDomainStatus, 'lastCheckedAt' | 'requestedAt'> },
+>(rows: T[]): T[] {
+  const stamp = (s: string | undefined) => {
+    const t = s ? Date.parse(s) : NaN
+    return Number.isFinite(t) ? t : -Infinity
+  }
+  return [...rows].sort(
+    (a, b) =>
+      stamp(a.status.lastCheckedAt) - stamp(b.status.lastCheckedAt) ||
+      stamp(a.status.requestedAt) - stamp(b.status.requestedAt),
+  )
+}
+
+/**
+ * Pure: has this domain sat pending a full day with nobody told? Measured
+ * from `requestedAt` (the Connect click), never from the last check — a row
+ * nobody looked at for a week is exactly the row this alert exists for.
+ */
+export function stillPendingAlertDue(status: CustomDomainStatus, now: Date): boolean {
+  if (status.state !== 'pending_dns') return false
+  if (status.notifiedAt) return false
+  const since = Date.parse(status.requestedAt)
+  if (!Number.isFinite(since)) return false
+  return now.getTime() - since >= CUSTOM_DOMAIN_STILL_PENDING_AFTER_MS
+}
+
+/**
+ * Tell the platform a domain has been pending a day. The EXISTING
+ * `domain_attach_manual` key — the same alert the buy-a-domain path raises
+ * when an attach degrades — so it rides the registry's urgent + forced-email
+ * posture and lands with the people who can act on either cause: finish a
+ * manual attach by hand, or nudge the practice about its records. Never
+ * throws; a failed alert is a `false` and the stamp is NOT written, so the
+ * next tick tries again (the `dedupeKey` keeps that retry from minting a
+ * second bell row for anyone who already got one).
+ */
+async function tellPlatformStillPending(row: PendingDomainRow, status: CustomDomainStatus): Promise<boolean> {
+  try {
+    const { getPlatformOrgId } = await import('./gsc')
+    const { notifyOrgMembers } = await import('./notifications')
+    const platformOrgId = await getPlatformOrgId()
+    if (!platformOrgId) return false
+    const clinic = row.clinicName || row.organizationId
+    const manual = status.error === 'manual'
+    await notifyOrgMembers(
+      platformOrgId,
+      {
+        bucket: 'comments',
+        type: 'domain_attach_manual',
+        title: `Domain still pending after a day — ${status.domain}`,
+        body: manual
+          ? `${clinic} connected ${status.domain} a day ago and the edge call never ran — ` +
+            `an operator needs to finish it by hand. Runbook: docs/custom-domains.md.`
+          : `${clinic} connected ${status.domain} a day ago and it is still waiting — their DNS ` +
+            `records haven’t landed, or the certificate hasn’t issued. Worth a look, and a nudge ` +
+            `to the practice. Runbook: docs/custom-domains.md.`,
+        linkPath: `/ecommerce/customers/${row.organizationId}`,
+        forceEmail: true,
+        dedupeKey: `domain_pending:${row.organizationId}:${status.requestedAt}`,
+      },
+      { roles: ['owner', 'admin'] },
+    )
+    return true
+  } catch (err) {
+    console.warn('[custom-domain] still-pending alert failed', (err as Error)?.message)
+    return false
+  }
+}
+
+/** One row's leg of the sweep. Extracted so the caller wraps exactly one
+ *  tenant's work — one clinic's AWS error is one clinic's. */
+async function sweepOne(
+  row: PendingDomainRow,
+  check: (orgId: string) => Promise<CustomDomainResult>,
+  now: Date,
+  result: CustomDomainSweepResult,
+): Promise<void> {
+  const res = await check(row.organizationId)
+  // The row was removed between the read and the check — nothing to stamp.
+  if (!res.ok) return
+  result.checked += 1
+  const next: CustomDomainStatus = { ...res.status, lastSweptAt: now.toISOString() }
+  if (res.status.state === 'active') {
+    // The ledger line was written inside the check (noteWentLive) — the
+    // sweep only counts it.
+    result.activated += 1
+  } else if (stillPendingAlertDue(res.status, now)) {
+    if (await tellPlatformStillPending(row, res.status)) {
+      next.notifiedAt = now.toISOString()
+      result.notified += 1
+    }
+  }
+  await persist(row.organizationId, next)
+}
+
+/**
+ * Run the check for every pending custom domain on a live clinic. Per-row
+ * isolation is the load-bearing part: `checkCustomDomainStatus` swallows the
+ * edge's own errors, but a dynamic import, a credential refresh or the
+ * persist can still throw, and without the wrap one tenant's bad minute
+ * would skip every clinic behind it — silently, because the cron would
+ * report a 500 rather than a count. A throw is reported to the Guardian
+ * under the clinic's own ledger (one strike per day) and the walk carries on.
+ */
+export async function sweepPendingCustomDomains(
+  opts: CustomDomainSweepOptions = {},
+): Promise<CustomDomainSweepResult> {
+  const now = opts.now ?? new Date()
+  const clock = opts.clock ?? Date.now
+  const sleep = opts.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)))
+  const check = opts.check ?? checkCustomDomainStatus
+  const max = opts.max ?? CUSTOM_DOMAIN_SWEEP_MAX
+  const pacingMs = opts.pacingMs ?? CUSTOM_DOMAIN_SWEEP_PACING_MS
+  const result: CustomDomainSweepResult = {
+    pending: 0,
+    checked: 0,
+    activated: 0,
+    notified: 0,
+    shutDown: 0,
+    errors: [],
+    completed: true,
+  }
+
+  const rows = await listPendingCustomDomains()
+  if (rows.length === 0) return result
+
+  // TRIAL EXPIRY KILLS EVERYTHING (owner ruling, 2026-08-10): a shut-down
+  // clinic's domain stays exactly where it is until paying revives it.
+  const { listShutDownOrgIds } = await import('./billing-state')
+  const shutDown = await listShutDownOrgIds(now)
+  const live = rows.filter((r) => {
+    if (!shutDown.has(r.organizationId)) return true
+    result.shutDown += 1
+    return false
+  })
+  result.pending = live.length
+
+  const queue = orderPendingForSweep(live).slice(0, max)
+  if (queue.length < live.length) result.completed = false
+  const budget = startBudget(opts.budgetMs ?? CUSTOM_DOMAIN_SWEEP_BUDGET_MS, clock())
+
+  for (let i = 0; i < queue.length; i++) {
+    const row = queue[i]
+    if (i > 0) {
+      // Checked BETWEEN rows, never inside one: a row is the atomic unit.
+      if (budgetSpent(budget, clock())) {
+        result.completed = false
+        break
+      }
+      await sleep(pacingMs)
+    }
+    try {
+      await sweepOne(row, check, now, result)
+    } catch (err) {
+      result.errors.push(row.organizationId)
+      console.warn('[custom-domain] sweep: check failed for', row.organizationId, (err as Error)?.message)
+      await reportAutomationFailure(row.organizationId, 'custom_domain', now)
+    }
+  }
+  return result
 }

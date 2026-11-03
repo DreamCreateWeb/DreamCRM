@@ -95,6 +95,12 @@ JOBS=(
   # nudge + day-14 re-grade invite. Daily — wide windows, idempotent
   # stamps, suppression checked at send time.
   "grader-nurture|grader-nurture|rate(1 day)"
+  # Custom domains (2026-10-26): runs the status check for every PENDING
+  # custom domain so the managed cert attaches and the domain flips live
+  # whether or not anyone has the Domain page open. 15 minutes — the card's
+  # own poll is 45s while the tab is open; this is the floor when it isn't.
+  # Idempotent (a check re-reads the edge; the day-old alert is stamped).
+  "custom-domains|custom-domains|rate(15 minutes)"
 )
 
 echo "==> DreamCRM cron schedules (region ${REGION})"

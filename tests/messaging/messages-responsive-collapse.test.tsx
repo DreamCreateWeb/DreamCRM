@@ -153,3 +153,99 @@ describe('messages surface header — Mailbox (Gmail) tab', () => {
     expect(current.className).toContain('border-teal-500')
   })
 })
+
+/**
+ * THE FILTERS FIT A PHONE (2026-10-26). Nine chips at text-xs in a
+ * `flex-wrap` row stacked four deep at 390px, above a list that had not yet
+ * started. The chips are now ONE STRIP that scrolls sideways below lg and
+ * wraps above it (the content-workspace rail recipe), the strip is a named,
+ * focusable scroll region, and the two doors that are not filters — the
+ * megaphone and the Key — move to the list header's right edge below lg.
+ */
+describe('messages filter bar — a strip below lg', () => {
+  async function renderView(searchParams: Record<string, string> = {}) {
+    const ui = await ClinicMessagesView({ ctx, searchParams })
+    return render(ui)
+  }
+
+  it('wraps the chips in a sideways-scrolling, focusable, named strip that wraps at lg', async () => {
+    const { container } = await renderView()
+    const strip = container.querySelector('[aria-label="Conversation filters"]') as HTMLElement
+    expect(strip).not.toBeNull()
+    expect(strip.getAttribute('tabindex')).toBe('0')
+    for (const cls of ['overflow-x-auto', 'no-scrollbar', 'lg:flex-wrap', 'lg:overflow-visible', 'min-w-0']) {
+      expect(strip.className, cls).toContain(cls)
+    }
+    // The bar itself no longer wraps — the strip does the wrapping at lg.
+    expect(strip.parentElement!.className).not.toMatch(/(^|\s)flex-wrap(\s|$)/)
+    // Every chip refuses to shrink, so the strip scrolls instead of squeezing.
+    const chips = Array.from(strip.querySelectorAll('a'))
+    expect(chips.length).toBeGreaterThanOrEqual(9)
+    for (const chip of chips) expect(chip.className).toContain('shrink-0')
+  })
+
+  it('keeps the megaphone + Key at the bar’s right edge at lg and moves them to the list header below it', async () => {
+    const { container } = await renderView()
+    const strip = container.querySelector('[aria-label="Conversation filters"]') as HTMLElement
+    const barTools = strip.nextElementSibling as HTMLElement
+    expect(barTools.className).toContain('hidden')
+    expect(barTools.className).toContain('lg:flex')
+    expect(barTools.className).toContain('ml-auto')
+    const listTools = container.querySelector('[data-testid="list-header-tools"]') as HTMLElement
+    expect(listTools).not.toBeNull()
+    expect(listTools.className).toContain('lg:hidden')
+    expect(listTools.closest('aside')).not.toBeNull()
+    // Both groups carry the key and (for an owner) the megaphone.
+    for (const group of [barTools, listTools]) {
+      expect(group.textContent).toContain('Key')
+      expect(group.textContent).toContain('Broadcast')
+    }
+  })
+
+  it('marks the chips the URL names so the strip can scroll to the selection just made; nothing by default', async () => {
+    const plain = await renderView()
+    expect(plain.container.querySelectorAll('[data-keep-in-view]')).toHaveLength(0)
+    plain.unmount()
+    const { container } = await renderView({ unread: '1', assignedTo: 'me' })
+    const marked = Array.from(container.querySelectorAll('[data-keep-in-view]')).map((el) => el.textContent?.trim())
+    expect(marked).toEqual(['Mine', 'Unread only'])
+  })
+})
+
+/**
+ * THE LONGEST-WAITING SORT IS A CHIP (2026-10-26). `ThreadFilters.sort` had
+ * no caller; the pair at the strip's end is the first. "Newest" is the
+ * default everywhere except "Unread only", which exists to answer people and
+ * so opens on the patient who has waited longest. An explicit ?sort= wins.
+ */
+describe('messages sort chips', () => {
+  async function renderView(searchParams: Record<string, string> = {}) {
+    listThreads.mockClear()
+    const ui = await ClinicMessagesView({ ctx, searchParams })
+    return render(ui)
+  }
+  const current = (container: HTMLElement, label: string) =>
+    (Array.from(container.querySelectorAll('a')).find((a) => a.textContent?.trim() === label) as HTMLAnchorElement).getAttribute('aria-current')
+
+  it('defaults to Newest and asks the service for the recent sort', async () => {
+    const { container } = await renderView()
+    expect(current(container, 'Newest')).toBe('page')
+    expect(current(container, 'Longest waiting')).toBeNull()
+    expect(listThreads).toHaveBeenCalledWith('org_1', 'u1', expect.objectContaining({ sort: 'recent' }))
+  })
+
+  it('under Unread only defaults to Longest waiting', async () => {
+    const { container } = await renderView({ unread: '1' })
+    expect(current(container, 'Longest waiting')).toBe('page')
+    expect(listThreads).toHaveBeenCalledWith('org_1', 'u1', expect.objectContaining({ sort: 'oldest_unanswered', hasUnread: true }))
+  })
+
+  it('an explicit ?sort= beats the Unread-only default, and the chips carry the sort in their hrefs', async () => {
+    const { container } = await renderView({ unread: '1', sort: 'newest' })
+    expect(current(container, 'Newest')).toBe('page')
+    expect(listThreads).toHaveBeenCalledWith('org_1', 'u1', expect.objectContaining({ sort: 'recent' }))
+    const waiting = Array.from(container.querySelectorAll('a')).find((a) => a.textContent?.trim() === 'Longest waiting')!
+    expect(waiting.getAttribute('href')).toContain('sort=waiting')
+    expect(waiting.getAttribute('href')).toContain('unread=1')
+  })
+})

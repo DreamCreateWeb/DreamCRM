@@ -60,3 +60,28 @@ describe('NotificationsPanel — delivery controls are honest', () => {
     expect(screen.getByText('Campaign reports')).toBeTruthy()
   })
 })
+
+/**
+ * THE PAGE AROUND THE PANEL IS HONEST TOO (2026-10-26). The panel said "we
+ * don't ship push" while the page's subtitle, its metadata and the settings
+ * home's card all read "Email and push preferences". The copy is read from
+ * source: it is a server component and a nav registry, not a render.
+ */
+describe('Notifications settings — the page copy promises no push', () => {
+  const { readFileSync } = require('node:fs') as typeof import('node:fs')
+  const { join } = require('node:path') as typeof import('node:path')
+  const read = (p: string) => readFileSync(join(process.cwd(), p), 'utf8')
+
+  it('the page subtitle and metadata say what the bell and the email do, not "push"', () => {
+    const src = read('app/(default)/settings/notifications/page.tsx')
+    expect(src).not.toMatch(/Email and push/)
+    expect(src).toContain("description: 'Bell alerts and which ones reach your email'")
+    expect(src).toContain('subtitle="Bell alerts and which ones reach your email."')
+  })
+
+  it('the settings home card says the same', () => {
+    const src = read('app/(default)/settings/settings-nav.tsx')
+    expect(src).not.toMatch(/Email and push/)
+    expect(src).toContain("desc: 'Bell alerts and which ones reach your email.'")
+  })
+})
