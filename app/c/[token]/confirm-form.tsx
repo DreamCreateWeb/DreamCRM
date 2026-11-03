@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react'
 import { cancelVisitByTokenAction, confirmVisitAction } from './actions'
 import { runAction } from '@/lib/run-action'
-import { PORTAL_ERROR, PORTAL_MUTED } from '@/components/patient-portal/ui'
+import { BrandButton, PORTAL_ERROR, PORTAL_MUTED } from '@/components/patient-portal/ui'
 import { buildIcs, icsDataUrl, visitIcsEvent } from '@/lib/ics'
 
 /**
@@ -160,15 +160,9 @@ export default function ConfirmForm({
           : 'Plans change — just let us know. The office hears right away.'}
       </p>
       <div className="mt-3 flex gap-2">
-        <button
-          type="button"
-          onClick={cancelVisit}
-          disabled={cancelling}
-          className="rounded-xl px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
-          style={{ backgroundColor: INK }}
-        >
-          {cancelling ? 'Cancelling…' : 'Yes, cancel it'}
-        </button>
+        <BrandButton brand={INK} onClick={cancelVisit} pending={cancelling} small>
+          Yes, cancel it
+        </BrandButton>
         <button
           type="button"
           onClick={() => setCancelStep(false)}

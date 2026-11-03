@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import BookFromPatientDrawer from './book-from-patient-drawer'
 import { useFocusTrap } from '@/components/ui/use-focus-trap'
+import { ActionButton } from '@/components/ui/action-button'
 import { createPatientForBookingAction, patientOptionByIdAction, searchPatientOptionsAction } from './actions'
 import { runAction } from '@/lib/run-action'
 import type { PatientOption } from '@/lib/services/patients'
@@ -240,14 +241,14 @@ export default function NewBookingDrawer({
               >
                 Back to search
               </button>
-              <button
-                type="button"
+              <ActionButton
+                variant="primary"
+                size="sm"
                 onClick={callerFound ? () => setPicked({ id: callerFound.id, name: callerFound.name }) : saveCaller}
-                disabled={callerBusy}
-                className="btn-sm bg-teal-600 text-white hover:bg-teal-700 disabled:opacity-60"
+                pending={callerBusy}
               >
-                {callerBusy ? 'Saving…' : callerFound ? 'Continue and pick a time' : 'Add and pick a time'}
-              </button>
+                {callerFound ? 'Continue and pick a time' : 'Add and pick a time'}
+              </ActionButton>
             </div>
           </div>
         ) : (

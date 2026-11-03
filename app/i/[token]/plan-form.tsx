@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { startPlanSetupAction } from './actions'
 import { runAction, isStaleFailure } from '@/lib/run-action'
+import { PORTAL_RUN } from '@/components/patient-portal/stale-reload'
 import { planPastDueNotice } from '@/lib/payment-plan-copy'
 
 /**
@@ -69,7 +70,7 @@ export default function PlanForm({
     setStale(false)
     let redirected = false
     try {
-      const r = await runAction(() => startPlanSetupAction(token))
+      const r = await runAction(() => startPlanSetupAction(token), PORTAL_RUN)
       if (r.ok) {
         // Stay busy while the browser leaves — an idle button here is a
         // second tap and a second Checkout session.
