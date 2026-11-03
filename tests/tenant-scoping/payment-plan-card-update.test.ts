@@ -82,6 +82,7 @@ vi.mock('@/lib/email', () => ({
   deliver: vi.fn(async () => {}),
   sendNotificationEmail: vi.fn(async () => {}),
   authEmailShell: () => '<html></html>',
+  patientEmailShell: () => '<html></html>',
 }))
 vi.mock('@/lib/services/clinic-sender', () => ({
   getClinicSenderIdentity: async () => ({ name: 'Acme', from: 'a@x', replyTo: null, gmail: null, timeZone: 'America/Chicago' }),

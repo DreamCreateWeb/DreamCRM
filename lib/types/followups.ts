@@ -7,7 +7,16 @@ export type FollowupStatus = 'open' | 'done'
 
 /** WHY a follow-up exists. Each kind knows its glyph and its DOOR — where the
  *  person goes to actually do the thing. */
-export type FollowupKind = 'generic' | 'rebook' | 'recall' | 'balance' | 'insurance' | 'message' | 'intake' | 'review'
+export type FollowupKind =
+  | 'generic'
+  | 'rebook'
+  | 'recall'
+  | 'balance'
+  | 'insurance'
+  | 'message'
+  | 'intake'
+  | 'review'
+  | 'feedback'
 
 export interface FollowupKindDef {
   id: FollowupKind
@@ -29,6 +38,11 @@ export const FOLLOWUP_KINDS: Record<FollowupKind, FollowupKindDef> = {
   message: { id: 'message', label: 'Message', symbol: '✉', door: (id) => `/messages?patient=${q(id)}`, doorLabel: 'Open messages' },
   intake: { id: 'intake', label: 'Intake forms', symbol: '☰', door: (id) => `/intake-forms?patient=${q(id)}`, doorLabel: 'Open intake forms' },
   review: { id: 'review', label: 'Review', symbol: '★', door: () => '/growth/reviews', doorLabel: 'Open reviews' },
+  // ML-21: a 1–2★ private note or a detractor survey files "Call <first>
+  // about their visit". The door is the patient's record — the phone
+  // number, the visit, and the very follow-up the bell pointed at — never
+  // the public review lane.
+  feedback: { id: 'feedback', label: 'Feedback', symbol: '♡', door: (id) => `/patients/${id}`, doorLabel: 'Open record' },
 }
 
 export const FOLLOWUP_KIND_IDS = Object.keys(FOLLOWUP_KINDS) as FollowupKind[]

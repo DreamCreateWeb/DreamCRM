@@ -815,6 +815,7 @@ export async function submitReviewText(input: {
       organizationId: schema.reviewRequest.organizationId,
       patientId: schema.reviewRequest.patientId,
       status: schema.reviewRequest.status,
+      appointmentId: schema.reviewRequest.appointmentId,
     })
     .from(schema.reviewRequest)
     .where(eq(schema.reviewRequest.token, input.token))
@@ -861,6 +862,18 @@ export async function submitReviewText(input: {
     // stays the same for everyone (FTC-clean, no review gating).
     const lowRating = rating != null && rating <= 2
     const stars = rating != null ? `${rating}★ ` : ''
+    // ML-21: a 1–2★ moment gets a REAL follow-up beside the bell — "Call
+    // <first> about their visit", due tomorrow, one per note — and the bell
+    // lands on it (the patient's record) rather than somewhere generic.
+    // Best-effort: a missed filing still rings the bell, at the inbox.
+    const followup = lowRating
+      ? await fileFeedbackFollowup(row.organizationId, row.patientId, p?.firstName, {
+          kind: 'review',
+          reviewRequestId: row.id,
+          appointmentId: row.appointmentId,
+          rating,
+        })
+      : null
     const { notifyOrgMembers } = await import('@/lib/services/notifications')
     await notifyOrgMembers(
       row.organizationId,
@@ -870,9 +883,10 @@ export async function submitReviewText(input: {
             type: 'review_low_rating',
             title: `${rating}★ review from ${who} — reach out before it goes public`,
             body: `“${text.slice(0, 120)}” — a quick personal follow-up now is the best save.`,
-            linkPath: '/growth/reviews/received',
+            linkPath: followup ? `/patients/${row.patientId}#followups` : '/growth/reviews/received',
+            linkLabel: followup ? 'Open the follow-up →' : null,
             forceEmail: true,
-            meta: { reviewRequestId: row.id, patientId: row.patientId, rating },
+            meta: { reviewRequestId: row.id, patientId: row.patientId, rating, followupId: followup?.id ?? null },
           }
         : {
             bucket: 'comments',
@@ -893,6 +907,24 @@ export async function submitReviewText(input: {
   }
 
   return { ok: true, organizationId: row.organizationId, patientId: row.patientId }
+}
+
+/** ML-21 — the follow-up beside the bell. Lazy so the public /r route only
+ *  loads the follow-ups service when a 1–2★ moment actually needs it; the
+ *  helper itself never throws (a missed filing still rings the bell). */
+async function fileFeedbackFollowup(
+  organizationId: string,
+  patientId: string,
+  firstName: string | null | undefined,
+  source: import('@/lib/services/patient-followups').FeedbackFollowupSource,
+): Promise<{ id: string; created: boolean } | null> {
+  try {
+    const { autoCreateFeedbackFollowup } = await import('@/lib/services/patient-followups')
+    return await autoCreateFeedbackFollowup(organizationId, patientId, firstName, source)
+  } catch (err) {
+    console.warn('[reviews] feedback follow-up not filed', err)
+    return null
+  }
 }
 
 /**
@@ -921,6 +953,7 @@ export async function submitPrivateFeedback(input: {
       organizationId: schema.reviewRequest.organizationId,
       patientId: schema.reviewRequest.patientId,
       status: schema.reviewRequest.status,
+      appointmentId: schema.reviewRequest.appointmentId,
     })
     .from(schema.reviewRequest)
     .where(eq(schema.reviewRequest.token, input.token))
@@ -959,6 +992,17 @@ export async function submitPrivateFeedback(input: {
     const who = p ? `${p.firstName} ${p.lastName}`.trim() : 'a patient'
     const rating = input.rating ?? null
     const lowRating = rating != null && rating <= 2
+    // ML-21: the 1–2★ note files "Call <first> about their visit" beside
+    // the bell (one per note), and the bell lands on that follow-up. A 3★+
+    // note is a thank-you to read, not a call to make — the inbox link.
+    const followup = lowRating
+      ? await fileFeedbackFollowup(row.organizationId, row.patientId, p?.firstName, {
+          kind: 'review',
+          reviewRequestId: row.id,
+          appointmentId: row.appointmentId,
+          rating,
+        })
+      : null
     const { notifyOrgMembers } = await import('@/lib/services/notifications')
     await notifyOrgMembers(
       row.organizationId,
@@ -969,10 +1013,10 @@ export async function submitPrivateFeedback(input: {
           ? `⚠️ Private feedback from ${who} — worth a personal reach-out`
           : `Private feedback from ${who}`,
         body: text.slice(0, 140),
-        linkPath: '/growth/reviews',
-        linkLabel: 'Open the private feedback inbox →',
+        linkPath: followup ? `/patients/${row.patientId}#followups` : '/growth/reviews/received',
+        linkLabel: followup ? 'Open the follow-up →' : 'Open the private feedback inbox →',
         forceEmail: lowRating,
-        meta: { reviewRequestId: row.id, patientId: row.patientId, rating },
+        meta: { reviewRequestId: row.id, patientId: row.patientId, rating, followupId: followup?.id ?? null },
       },
       // Never notify the reviewer about their own review — when the acting
       // patient's email belongs to a staff-hat user (owner who is also a

@@ -9,6 +9,7 @@ import {
 } from '@/lib/autonomy'
 import { recordAction, recordEngineFailure } from '@/lib/services/action-ledger'
 import { executePatientReply } from '@/lib/services/proposal-executors/patient-reply'
+import { executeFeedbackReply } from '@/lib/services/proposal-executors/feedback-reply'
 import { resolveTrialState } from '@/lib/trial'
 import { stagesOnRunway } from '@/lib/dream-team-runway'
 
@@ -1177,6 +1178,8 @@ async function executeProposal(
       return executeInquiryResponse(p, payload, saidYes)
     case 'patient_reply':
       return executePatientReply(p, payload, saidYes)
+    case 'feedback_reply':
+      return executeFeedbackReply(p, payload, saidYes)
     case 'outreach_campaign':
       return executeOutreachCampaign(p, payload, saidYes)
     case 'content_plan':
@@ -1204,6 +1207,7 @@ function demoLedgerSummary(p: typeof schema.proposal.$inferSelect, saidYes: stri
     case 'social_post': return `Published a post ${saidYes}`
     case 'inquiry_response': return `Answered a website inquiry ${saidYes}`
     case 'patient_reply': return `Replied to a patient’s message ${saidYes}`
+    case 'feedback_reply': return `Wrote back to a patient about their private feedback ${saidYes}`
     case 'outreach_campaign': return `Sent the recall campaign ${saidYes}`
     case 'content_plan': return `Lined up a month of posts and articles ${saidYes}`
     case 'schedule_gap': return `Invited patients in for the week’s open times ${saidYes}`

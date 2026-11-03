@@ -353,6 +353,7 @@ export async function recordNpsScore(token: string, score: number): Promise<bool
       id: schema.npsResponse.id,
       organizationId: schema.npsResponse.organizationId,
       patientId: schema.npsResponse.patientId,
+      appointmentId: schema.npsResponse.appointmentId,
     })
   const row = updated[0]
   if (!row) return false
@@ -367,6 +368,21 @@ export async function recordNpsScore(token: string, score: number): Promise<bool
         .where(eq(schema.patient.id, row.patientId))
         .limit(1)
       const who = p ? `${p.firstName} ${p.lastName}`.trim() : 'A patient'
+      // ML-21: the detractor files "Call <first> about their visit" beside
+      // the bell (one per survey), and the bell lands on that follow-up.
+      // Best-effort — a missed filing still rings the bell at the record.
+      let followup: { id: string } | null = null
+      try {
+        const { autoCreateFeedbackFollowup } = await import('@/lib/services/patient-followups')
+        followup = await autoCreateFeedbackFollowup(row.organizationId, row.patientId, p?.firstName, {
+          kind: 'nps',
+          npsResponseId: row.id,
+          appointmentId: row.appointmentId ?? null,
+          score,
+        })
+      } catch (err) {
+        console.warn('[nps] detractor follow-up not filed', err)
+      }
       const { notifyOrgMembers } = await import('@/lib/services/notifications')
       await notifyOrgMembers(
         row.organizationId,
@@ -375,8 +391,9 @@ export async function recordNpsScore(token: string, score: number): Promise<bool
           type: 'nps_detractor',
           title: `Survey score ${score}/10 from ${who}`,
           body: 'A low post-visit score — worth a personal follow-up while it’s fresh.',
-          linkPath: `/patients/${row.patientId}`,
-          linkLabel: `Open ${who.split(' ')[0]}’s record →`,
+          linkPath: followup ? `/patients/${row.patientId}#followups` : `/patients/${row.patientId}`,
+          linkLabel: followup ? 'Open the follow-up →' : `Open ${who.split(' ')[0]}’s record →`,
+          meta: { npsResponseId: row.id, patientId: row.patientId, score, followupId: followup?.id ?? null },
         },
         // Never notify the scorer about their own score (owner-as-patient /
         // platform-admin-demoing case — same posture as reviews + messaging).

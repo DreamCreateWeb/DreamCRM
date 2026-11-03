@@ -230,10 +230,12 @@ export async function loadApprovalInbox(
         targetUrl: payload.targetUrl,
         previousUri: typeof payload.previousUri === 'string' ? payload.previousUri : null,
       }
-    } else if (p.capability === 'patient_reply') {
+    } else if (p.capability === 'patient_reply' || p.capability === 'feedback_reply') {
       // ML-12: the conversation the draft answers, quoted as the generator
       // stored it (already stamped in the clinic's wall clock), with the
       // reply nested beneath. Each turn is validated as untrusted input.
+      // ML-21 rides the same shape: the patient's private note or survey
+      // as the one turn, the personal note nested under it.
       const raw = payload.thread as Record<string, unknown> | undefined
       const messages = Array.isArray(raw?.messages)
         ? (raw!.messages as unknown[])
@@ -259,10 +261,15 @@ export async function loadApprovalInbox(
     // A card about a conversation carries a door to it — the whole thread,
     // the patient's record, the composer — for the times the draft is not
     // the answer (ML-12). The approve stays on the card.
+    // ML-21: a card about a patient's private feedback carries the door to
+    // their record — the phone number and the "Call <first>" follow-up the
+    // bell filed — for the times the note wants a call, not an email.
     const openHref: ProposalCardData['openHref'] =
       p.capability === 'patient_reply' && typeof payload.threadId === 'string'
         ? { href: `/messages?thread=${payload.threadId}`, label: 'Open the conversation' }
-        : null
+        : p.capability === 'feedback_reply' && typeof p.patientId === 'string'
+          ? { href: `/patients/${p.patientId}#followups`, label: 'Open their record' }
+          : null
     return {
       openHref,
       id: p.id,

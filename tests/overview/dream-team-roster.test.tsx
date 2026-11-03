@@ -108,15 +108,17 @@ describe('PREVIEW lanes', () => {
       <TeamRoster grantedCapabilities={new Set()} weeklyCounts={new Map()} waitingCapabilities={new Set()} />,
     )
     // A registration is not a promise: no clinic reads about a job nobody does yet.
-    // (patient_reply was the first key released — ML-12 — so it now shows to all.)
+    // (patient_reply was the first key released — ML-12 — and feedback_reply
+    // the second — ML-21 — so both now show to all.)
     expect(screen.getByText('Reply to patient messages')).toBeInTheDocument()
-    expect(screen.queryByText('Answer private feedback')).not.toBeInTheDocument()
+    expect(screen.getByText('Answer private feedback')).toBeInTheDocument()
+    expect(screen.queryByText('Follow up on unanswered inquiries')).not.toBeInTheDocument()
     expect(screen.queryByText('Watch your Google listing for changes')).not.toBeInTheDocument()
     unmount()
     render(
       <TeamRoster grantedCapabilities={new Set()} weeklyCounts={new Map()} waitingCapabilities={new Set()} showPreview />,
     )
-    expect(screen.getByText('Answer private feedback')).toBeInTheDocument()
+    expect(screen.getByText('Follow up on unanswered inquiries')).toBeInTheDocument()
     expect(screen.getByText('Watch your Google listing for changes')).toBeInTheDocument()
   })
 })

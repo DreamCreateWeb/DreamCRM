@@ -53,6 +53,13 @@ vi.mock('resend', () => ({ Resend: class { emails = { send: async () => ({ id: '
 const { notifyOrgMembersMock } = vi.hoisted(() => ({ notifyOrgMembersMock: vi.fn(async () => undefined) }))
 vi.mock('@/lib/services/notifications', () => ({ notifyOrgMembers: notifyOrgMembersMock }))
 
+// ML-21: the follow-up filed beside the bell (one per note) — the bell's
+// link lands on it. Mocked at the ONE seam the service calls.
+const { followupMock } = vi.hoisted(() => ({
+  followupMock: vi.fn(async (..._a: unknown[]): Promise<{ id: string; created: boolean } | null> => ({ id: 'fu_1', created: true })),
+}))
+vi.mock('@/lib/services/patient-followups', () => ({ autoCreateFeedbackFollowup: followupMock }))
+
 import { submitPrivateFeedback } from '@/lib/services/reviews'
 
 beforeEach(() => {
@@ -60,6 +67,8 @@ beforeEach(() => {
   state.updates = []
   notifyOrgMembersMock.mockClear()
   notifyOrgMembersMock.mockResolvedValue(undefined)
+  followupMock.mockClear()
+  followupMock.mockResolvedValue({ id: 'fu_1', created: true })
 })
 
 function reqWithStatus(status: string) {
@@ -104,23 +113,50 @@ describe('submitPrivateFeedback', () => {
     expect(state.updates).toHaveLength(0)
   })
 
-  it('force-emails an urgent alert on a 1–2★ note (service recovery)', async () => {
+  it('force-emails an urgent alert on a 1–2★ note (service recovery), files ONE follow-up, and the bell lands on it', async () => {
     reqWithStatus('sent')
     const res = await submitPrivateFeedback({ token: 'tok', text: 'Unhappy with the wait.', rating: 2 })
     expect(res.ok).toBe(true)
+    // ML-21: the follow-up is filed once, per note, before the bell rings.
+    expect(followupMock).toHaveBeenCalledTimes(1)
+    expect(followupMock).toHaveBeenCalledWith(
+      'org_1',
+      'pat_1',
+      undefined,
+      expect.objectContaining({ kind: 'review', reviewRequestId: 'rr_1', rating: 2 }),
+    )
     expect(notifyOrgMembersMock).toHaveBeenCalledWith(
       'org_1',
-      expect.objectContaining({ type: 'review_low_rating', forceEmail: true, linkPath: '/growth/reviews' }),
+      expect.objectContaining({
+        type: 'review_low_rating',
+        forceEmail: true,
+        linkPath: '/patients/pat_1#followups',
+        linkLabel: 'Open the follow-up →',
+        meta: expect.objectContaining({ followupId: 'fu_1' }),
+      }),
       { roles: ['owner', 'admin'], excludeEmail: null },
     )
   })
 
-  it('sends a normal (non-urgent) alert on a 3★+ note', async () => {
+  it('a missed filing still rings the bell — at the feedback inbox', async () => {
+    followupMock.mockResolvedValueOnce(null)
     reqWithStatus('sent')
-    await submitPrivateFeedback({ token: 'tok', text: 'It was fine.', rating: 4 })
+    const res = await submitPrivateFeedback({ token: 'tok', text: 'Unhappy with the wait.', rating: 1 })
+    expect(res.ok).toBe(true)
     expect(notifyOrgMembersMock).toHaveBeenCalledWith(
       'org_1',
-      expect.objectContaining({ type: 'private_feedback', forceEmail: false }),
+      expect.objectContaining({ type: 'review_low_rating', linkPath: '/growth/reviews/received' }),
+      { roles: ['owner', 'admin'], excludeEmail: null },
+    )
+  })
+
+  it('sends a normal (non-urgent) alert on a 3★+ note — no call to make, no follow-up', async () => {
+    reqWithStatus('sent')
+    await submitPrivateFeedback({ token: 'tok', text: 'It was fine.', rating: 4 })
+    expect(followupMock).not.toHaveBeenCalled()
+    expect(notifyOrgMembersMock).toHaveBeenCalledWith(
+      'org_1',
+      expect.objectContaining({ type: 'private_feedback', forceEmail: false, linkPath: '/growth/reviews/received' }),
       { roles: ['owner', 'admin'], excludeEmail: null },
     )
   })
