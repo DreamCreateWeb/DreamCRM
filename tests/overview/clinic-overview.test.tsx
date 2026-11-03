@@ -189,6 +189,7 @@ function makeData(overrides: Partial<ClinicOverviewData> = {}): ClinicOverviewDa
     unreadMessages: 0,
     siteTraffic: null,
     siteHealth: null,
+    morningAfter: null,
     reviewsReceived: { completed30d: 0, sent30d: 0 },
   smsLive: false,
     // A PMS feeds the clinic by default — the all-clear copy is then earned;
@@ -420,6 +421,45 @@ describe('Setup/sync attention banner (readiness resolver)', () => {
     expect(screen.getByText(/2 things need your attention/)).toBeInTheDocument()
     expect(screen.getByText(/Practice-software sync is broken/)).toBeInTheDocument()
     expect(screen.getByText(/Google sends patients to the wrong site/)).toBeInTheDocument()
+  })
+})
+
+describe('The attention band — last night\'s work (G1-1)', () => {
+  const morning = {
+    happened: null,
+    workLine: '4 appointment reminders · 2 follow-ups',
+    oneThing: { kind: 'activation' as const, text: 'Connect your patients.', href: '/integrations/pms' },
+    waitingOn: null,
+    quietLine: null,
+    sendsAlone: true,
+  }
+
+  it('shows the overnight row with the one thing\'s door inside the window', async () => {
+    mockGetOverview.mockResolvedValueOnce(makeData({ morningAfter: morning }))
+    render(await ClinicOverview({ ctx: makeCtx() }))
+    expect(screen.getByText(/Overnight: 4 appointment reminders/)).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Open' })).toHaveAttribute('href', '/integrations/pms')
+  })
+
+  it('renders no row after the window (morningAfter null)', async () => {
+    mockGetOverview.mockResolvedValueOnce(makeData({ morningAfter: null }))
+    render(await ClinicOverview({ ctx: makeCtx() }))
+    expect(screen.queryByText(/Overnight:/)).not.toBeInTheDocument()
+  })
+
+  it('broken things come first and share ONE band with the morning row', async () => {
+    mockGetOverview.mockResolvedValueOnce(
+      makeData({
+        morningAfter: morning,
+        readinessAttention: [
+          { id: 'pms', label: 'Practice-software sync is broken', grade: 'attention', summary: 'Last sync failed.', href: '/integrations', optional: false },
+        ],
+      }),
+    )
+    const { container } = render(await ClinicOverview({ ctx: makeCtx() }))
+    expect(container.querySelectorAll('[data-attention-band]')).toHaveLength(1)
+    const text = container.querySelector('[data-attention-band]')!.textContent ?? ''
+    expect(text.indexOf('Practice-software sync is broken')).toBeLessThan(text.indexOf('Overnight:'))
   })
 })
 

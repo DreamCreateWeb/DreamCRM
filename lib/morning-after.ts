@@ -66,6 +66,8 @@ export interface OneThing {
 export interface MorningAfter {
   /** "Since yesterday I handled: …" — null when the machine did nothing and nothing failed. */
   happened: string | null
+  /** The bare work counts ("4 appointment reminders · 2 follow-ups") — what the Overview's band row names. Null when the machine did nothing. */
+  workLine?: string | null
   oneThing: OneThing | null
   /** "Still on us: …" — null when nothing is pending on the platform. */
   waitingOn: string | null
@@ -175,6 +177,7 @@ export function buildMorningAfter(input: MorningAfterInput): MorningAfter {
   // not: a pending-on-us line alone after the first week — that is ours.
   return {
     happened,
+    workLine: describeWork(input.work),
     oneThing,
     waitingOn,
     quietLine,
