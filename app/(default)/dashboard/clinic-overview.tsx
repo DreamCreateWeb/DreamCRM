@@ -56,6 +56,14 @@ function morningAfterRows(m: MorningAfter | null | undefined): AttentionRow[] {
 // Appointment status → semantic tone + plain-language label. The tone carries
 // the meaning per the design-system contract (warn = needs our action,
 // ok = good, neutral = inert, urgent = problem now).
+// Static class names (Tailwind can't see a template-built one): the trend row's
+// lg column count equals its tile count, so the row always fills.
+const TREND_GRID_LG: Record<number, string> = {
+  3: 'lg:grid-cols-3',
+  4: 'lg:grid-cols-4',
+  5: 'lg:grid-cols-5',
+}
+
 const STATUS_TONE: Record<string, Tone> = {
   scheduled: 'warn',
   confirmed: 'ok',
@@ -156,6 +164,99 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
     site && site.totalPrev > 0
       ? Math.round(((site.total - site.totalPrev) / site.totalPrev) * 100)
       : null
+
+  const busiestUpcoming = data.trends.upcomingPerDay7.reduce<{ bucket: string; value: number } | null>(
+    (best, d) => (d.value > 0 && (!best || d.value > best.value) ? d : best),
+    null,
+  )
+  // The trend row's tiles, built once so the grid can be sized to the count.
+  const trendTiles: Array<{ key: string; node: React.ReactNode }> = [
+    {
+      key: 'bookings',
+      node: (
+        <KpiStat
+          label="Bookings today"
+          value={data.trends.bookingsToday}
+          sub={`across all channels · ${data.trends.bookingsPerDay14.reduce((n, d) => n + d.value, 0)} in 14 days`}
+          href="/appointments?window=today"
+          countUp
+          spark={data.trends.bookingsPerDay14}
+        />
+      ),
+    },
+    {
+      key: 'new-patients',
+      node: (
+        <KpiStat
+          label="New patients MTD"
+          value={data.trends.newPatientsMTD}
+          sub={
+            data.trends.newPatientsSamePointLastMonth === 0
+              ? 'first month tracking'
+              : `${data.trends.newPatientsMTD} so far · ${data.trends.newPatientsSamePointLastMonth} by this day last month`
+          }
+          // A shortfall is "worth a look" (warn), never "broken" (urgent —
+          // STATUS_TONE above reserves it for a problem now).
+          tone={data.trends.newPatientsSamePointLastMonth === 0 ? undefined : mtdDelta >= 0 ? 'ok' : 'warn'}
+          href="/patients?status=new"
+          countUp
+          spark={data.trends.newPatientsPerDay30}
+        />
+      ),
+    },
+    {
+      key: 'upcoming',
+      node: (
+        <KpiStat
+          label="Upcoming"
+          value={data.trends.upcomingNext7d}
+          sub={busiestUpcoming ? `next 7 days · busiest ${busiestUpcoming.bucket} (${busiestUpcoming.value})` : 'next 7 days'}
+          href="/appointments?window=this_week"
+          countUp
+          spark={data.trends.upcomingPerDay7}
+        />
+      ),
+    },
+    ...(switches.intake_forms
+      ? [
+          {
+            key: 'intake',
+            node: (
+              <KpiStat
+                label="Intake forms"
+                value={data.trends.activeIntakeForms}
+                sub={`${data.trends.activeIntakeForms === 1 ? 'active template' : 'active templates'} · ${data.trends.intakeSubmissionsPerDay14.reduce((n, d) => n + d.value, 0)} filled in 14 days`}
+                href="/intake-forms"
+                countUp
+                spark={data.trends.intakeSubmissionsPerDay14}
+              />
+            ),
+          },
+        ]
+      : []),
+    ...(site
+      ? [
+          {
+            key: 'site',
+            node: (
+              <KpiStat
+                label="Website visits"
+                value={site.total}
+                sub={
+                  siteDeltaPct == null
+                    ? 'last 7 days'
+                    : `${siteDeltaPct >= 0 ? '+' : ''}${siteDeltaPct}% vs prior week`
+                }
+                tone={siteDeltaPct == null ? undefined : siteDeltaPct >= 0 ? 'ok' : 'warn'}
+                href="/growth/analytics"
+                countUp
+                spark={site.daily.map((d) => ({ bucket: d.day, value: d.views }))}
+              />
+            ),
+          },
+        ]
+      : []),
+  ]
 
   const attentionRows: AttentionRow[] = [
     ...data.readinessAttention.map((f): AttentionRow => ({
@@ -526,59 +627,15 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
       {/* The Overview's hero KPIs count up once on first session entry, in the
           same beat as the attention-card cascade (Part 3). */}
       <section className="mb-8">
-        <div className={site ? 'grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3' : 'grid grid-cols-2 lg:grid-cols-4 gap-3'}>
-          <KpiStat
-            label="Bookings today"
-            value={data.trends.bookingsToday}
-            sub="across all channels"
-            href="/appointments?window=today"
-            countUp
-            spark={data.trends.bookingsPerDay14}
-          />
-          <KpiStat
-            label="New patients MTD"
-            value={data.trends.newPatientsMTD}
-            sub={
-              data.trends.newPatientsSamePointLastMonth === 0
-                ? 'first month tracking'
-                : `${mtdDelta >= 0 ? '+' : ''}${mtdDelta} vs this point last month`
-            }
-            // A shortfall is "worth a look" (warn), never "broken" (urgent —
-            // STATUS_TONE above reserves it for a problem now).
-            tone={data.trends.newPatientsSamePointLastMonth === 0 ? undefined : mtdDelta >= 0 ? 'ok' : 'warn'}
-            href="/patients?status=new"
-            countUp
-          />
-          <KpiStat
-            label="Upcoming"
-            value={data.trends.upcomingNext7d}
-            sub="next 7 days"
-            href="/appointments?window=this_week"
-            countUp
-          />
-          {switches.intake_forms && (
-            <KpiStat
-              label="Intake forms"
-              value={data.trends.activeIntakeForms}
-              sub={data.trends.activeIntakeForms === 1 ? 'active template' : 'active templates'}
-              href="/intake-forms"
-              countUp
-            />
-          )}
-          {site && (
-            <KpiStat
-              label="Website visits"
-              value={site.total}
-              sub={
-                siteDeltaPct == null
-                  ? 'last 7 days'
-                  : `${siteDeltaPct >= 0 ? '+' : ''}${siteDeltaPct}% vs prior week`
-              }
-              tone={siteDeltaPct == null ? undefined : siteDeltaPct >= 0 ? 'ok' : 'warn'}
-              href="/growth/analytics"
-              countUp
-            />
-          )}
+        {/* Every tile carries its heartbeat (DESIGN-SYSTEM law 7). The tile
+            count is 3–5; the grid is sized to it and an odd last tile spans
+            both columns below lg, so no cell is ever left empty. */}
+        <div className={`grid grid-cols-2 gap-3 ${TREND_GRID_LG[trendTiles.length] ?? 'lg:grid-cols-4'}`}>
+          {trendTiles.map((tile, i) => (
+            <div key={tile.key} className={trendTiles.length % 2 === 1 && i === trendTiles.length - 1 ? 'col-span-2 lg:col-span-1' : ''}>
+              {tile.node}
+            </div>
+          ))}
         </div>
       </section>
 
@@ -770,6 +827,14 @@ function TodayChairRow({ appt, timeZone, intakeOpen }: { appt: TodayAppointmentR
       <Link href={`/appointments?appt=${appt.id}`} className="shrink-0" aria-label="Open this visit">
         <StatusPill tone={tone} label={statusLabel} title={statusTitle} />
       </Link>
+      {/* In-office flow, read-only: the agenda's own pills (the control to
+          change it lives there — the row's link leads to the visit). */}
+      {(statusKey === 'scheduled' || statusKey === 'confirmed') &&
+        (appt.seatedAt ? (
+          <StatusPill tone="ok" title="In the chair">🪑 Seated</StatusPill>
+        ) : appt.arrivedAt ? (
+          <StatusPill tone="info" title="Checked in — in the waiting room">🚪 Arrived</StatusPill>
+        ) : null)}
     </li>
   )
 }
