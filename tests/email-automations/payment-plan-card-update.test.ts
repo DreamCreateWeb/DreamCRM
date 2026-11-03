@@ -79,3 +79,15 @@ describe('payment_plan_card_update resolve + render', () => {
     expect(r.override.body).toBe(r.full.body)
   })
 })
+
+describe("membership_card_update registry entry", () => {
+  const spec = EMAIL_AUTOMATION_SPECS["membership_card_update"]
+  it("sits in the Billing group with the plan token and the Memberships door", () => {
+    expect(EMAIL_AUTOMATION_KEYS).toContain("membership_card_update")
+    expect(spec.category).toBe("billing")
+    expect(spec.moduleHref).toBe("/payments/memberships")
+    expect(spec.tokens.map((t) => t.token)).toContain("{{planName}}")
+    expect(bodyOpensWithGreeting(spec.slotDefaults.body)).toBe(true)
+    expect(spec.includesNote.join(" ")).toMatch(/Update your card/)
+  })
+})

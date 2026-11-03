@@ -19,9 +19,24 @@ function Check({ color }: { color: string }) {
   )
 }
 
-export default function MembershipJoin({ slug, brand, plans }: { slug: string; brand: string; plans: PlanRow[] }) {
-  const [selected, setSelected] = useState<string | null>(plans.find((p) => p.featured)?.slug ?? plans[0]?.slug ?? null)
-  const [email, setEmail] = useState('')
+export default function MembershipJoin({
+  slug,
+  brand,
+  plans,
+  initialPlanSlug,
+  initialEmail = '',
+}: {
+  slug: string
+  brand: string
+  plans: PlanRow[]
+  /** From a clinic invite link — only honoured when it names a listed plan. */
+  initialPlanSlug?: string
+  initialEmail?: string
+}) {
+  const [selected, setSelected] = useState<string | null>(
+    plans.find((p) => p.slug === initialPlanSlug)?.slug ?? plans.find((p) => p.featured)?.slug ?? plans[0]?.slug ?? null,
+  )
+  const [email, setEmail] = useState(initialEmail)
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
   const [phone, setPhone] = useState('')

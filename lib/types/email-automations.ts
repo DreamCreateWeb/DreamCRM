@@ -31,6 +31,7 @@ export type EmailAutomationKey =
   | 'contact_ack'
   | 'balance_pay_link'
   | 'payment_plan_card_update'
+  | 'membership_card_update'
 
 export type EmailSlotKey = 'subject' | 'heading' | 'body' | 'closing'
 
@@ -425,6 +426,40 @@ export const EMAIL_AUTOMATION_SPECS: Record<EmailAutomationKey, EmailAutomationS
       text: 'Sent automatically on the first declined installment of a plan — never twice for the same decline streak.',
       href: '/payments/collections',
       linkLabel: 'Collections',
+    },
+  },
+
+  membership_card_update: {
+    key: 'membership_card_update',
+    label: 'Membership — renewal declined',
+    description:
+      'Sent once when a membership renewal is declined — tells the member their plan is paused on payment and carries a secure “Update your card” link.',
+    category: 'billing',
+    enableSource: 'email_automations',
+    moduleHref: '/payments/memberships',
+    moduleLabel: 'Memberships',
+    tokens: [
+      T_FIRST,
+      T_CLINIC,
+      T_PHONE,
+      { token: '{{planName}}', label: 'The membership plan (e.g. Smile Club)' },
+    ],
+    slotFields: [
+      { slot: 'subject', label: 'Subject line', rows: 1 },
+      { slot: 'body', label: 'Message', rows: 3 },
+    ],
+    slotDefaults: {
+      subject: 'Your {{planName}} renewal with {{clinicName}} didn’t go through',
+      body: 'Hi {{firstName}} — your {{planName}} renewal with {{clinicName}} didn’t go through. It happens (an expired card, a new number, a bank hiccup) — no judgment. Update your card below and your membership stays right on track. Questions? Just reply to this email.',
+    },
+    includesNote: [
+      'A secure “Update your card” button (Stripe’s own card page — we never see the number)',
+      'A short note on where to reach the practice if they would rather sort it out another way',
+    ],
+    timingHint: {
+      text: 'Sent automatically the first time a renewal is declined — never again while the membership stays past due.',
+      href: '/payments/memberships',
+      linkLabel: 'Memberships',
     },
   },
 

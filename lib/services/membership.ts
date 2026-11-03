@@ -5,7 +5,10 @@ import { db, schema } from '@/lib/db'
 import { stripe, subscriptionPeriodEnd } from '@/lib/stripe'
 import { slugify } from '@/lib/utils'
 import { notifyOrgMembers } from './notifications'
-import { sendNotificationEmail } from '@/lib/email'
+import { sendNotificationEmail, patientEmailShell, deliver } from '@/lib/email'
+import { getClinicSenderIdentity } from './clinic-sender'
+import { renderAutomatedEmail } from './email-automations'
+import { appBaseUrl } from '@/lib/clinic-site-helpers'
 import { normalizePhone, samePhone } from '@/lib/contact-normalize'
 import { CheckoutError } from './checkout-error'
 import type {
@@ -514,10 +517,178 @@ export async function handleSubscriptionEvent(
   }
   if (currentPeriodEnd) set.currentPeriodEnd = new Date(currentPeriodEnd * 1000)
   if (mapped === 'cancelled') set.cancelledAt = new Date()
+
+  // The persisted status IS the idempotency key for the rescue: read it before
+  // the write; only a genuine flip INTO past_due (from anything else) tells the
+  // member. Stripe retries / re-delivers `updated` events while it stays
+  // past_due — those find the row already past_due and stay quiet; a recovery
+  // to active and a later lapse is a new period and tells them again.
+  let prior: MembershipRescueTarget | null = null
+  if (mapped === 'past_due') {
+    prior = await loadRescueTarget(organizationId, subscriptionId).catch(() => null)
+  }
+
   await db
     .update(schema.membership)
     .set(set)
     .where(and(eq(schema.membership.organizationId, organizationId), eq(schema.membership.stripeSubscriptionId, subscriptionId)))
+
+  if (prior && prior.status !== 'past_due') {
+    await notifyMembershipPastDue(organizationId, prior, subscriptionId)
+  }
+}
+
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;')
+}
+
+// ── Past-due rescue (the member hears, with a door that works) ──────────────
+
+interface MembershipRescueTarget {
+  membershipId: string
+  patientId: string
+  status: string
+  planName: string
+  firstName: string | null
+  lastName: string | null
+  email: string | null
+}
+
+async function loadRescueTarget(organizationId: string, subscriptionId: string): Promise<MembershipRescueTarget | null> {
+  const [row] = await db
+    .select({
+      membershipId: schema.membership.id,
+      patientId: schema.membership.patientId,
+      status: schema.membership.status,
+      planName: schema.membershipPlan.name,
+      firstName: schema.patient.firstName,
+      lastName: schema.patient.lastName,
+      email: schema.patient.email,
+    })
+    .from(schema.membership)
+    .innerJoin(schema.membershipPlan, eq(schema.membership.planId, schema.membershipPlan.id))
+    .leftJoin(schema.patient, eq(schema.membership.patientId, schema.patient.id))
+    .where(and(eq(schema.membership.organizationId, organizationId), eq(schema.membership.stripeSubscriptionId, subscriptionId)))
+    .limit(1)
+  return row ?? null
+}
+
+/**
+ * A Stripe Billing-Portal session on the CLINIC'S connected account — the
+ * member updates the card on Stripe's own page (we never see the number). The
+ * customer comes off the membership's own subscription; the return lands in the
+ * clinic's patient portal. Returns null when the clinic has no active connected
+ * account, the membership has no subscription, or Stripe refuses (portal not
+ * configured on the account) — callers say so in words, never throw.
+ */
+export async function createMembershipCardUpdateUrl(
+  organizationId: string,
+  subscriptionId: string,
+): Promise<string | null> {
+  try {
+    const accountId = await connectedAccountId(organizationId)
+    if (!accountId) return null
+    const sub = await stripe.subscriptions.retrieve(subscriptionId, undefined, { stripeAccount: accountId })
+    const customer = typeof sub.customer === 'string' ? sub.customer : sub.customer?.id
+    if (!customer) return null
+    const session = await stripe.billingPortal.sessions.create(
+      { customer, return_url: `${appBaseUrl()}/patient/invoices` },
+      { stripeAccount: accountId },
+    )
+    return session.url || null
+  } catch (err) {
+    console.warn('[membership] billing portal session failed', err)
+    return null
+  }
+}
+
+/** The portal's own door: the signed-in patient's membership → a portal URL. */
+export async function getMyMembershipCardUpdateUrl(organizationId: string, patientId: string): Promise<string | null> {
+  const [m] = await db
+    .select({ sub: schema.membership.stripeSubscriptionId })
+    .from(schema.membership)
+    .where(
+      and(
+        eq(schema.membership.organizationId, organizationId),
+        eq(schema.membership.patientId, patientId),
+        eq(schema.membership.status, 'past_due'),
+      ),
+    )
+    .orderBy(desc(schema.membership.createdAt))
+    .limit(1)
+  if (!m?.sub) return null
+  return createMembershipCardUpdateUrl(organizationId, m.sub)
+}
+
+/**
+ * ONE "Update your card" email to the member (the clinic-editable
+ * `membership_card_update` automation, from the clinic's sender identity) and
+ * ONE staff line with the member's name. Best-effort; never throws. When the
+ * email cannot go (no address, automation off, no portal link) staff are told
+ * to reach out instead — the line never claims an email that did not leave.
+ */
+async function notifyMembershipPastDue(
+  organizationId: string,
+  m: MembershipRescueTarget,
+  subscriptionId: string,
+): Promise<void> {
+  let told = false
+  try {
+    if (m.email) {
+      const url = await createMembershipCardUpdateUrl(organizationId, subscriptionId)
+      if (url) {
+        const sender = await getClinicSenderIdentity(organizationId)
+        const [profile] = await db
+          .select({ phone: schema.clinicProfile.phone })
+          .from(schema.clinicProfile)
+          .where(eq(schema.clinicProfile.organizationId, organizationId))
+          .limit(1)
+        const rendered = await renderAutomatedEmail(organizationId, 'membership_card_update', {
+          firstName: m.firstName ?? '',
+          clinicName: sender.name,
+          clinicPhone: profile?.phone ?? '',
+          planName: m.planName,
+        })
+        if (rendered.enabled) {
+          await deliver({
+            to: m.email,
+            from: sender.from,
+            replyTo: sender.replyTo,
+            gmail: sender.gmail,
+            subject: rendered.full.subject,
+            html: patientEmailShell({
+              sender,
+              title: 'A quick fix for your membership',
+              body: escapeHtml(rendered.full.body).replace(/\n/g, '<br>'),
+              cta: { url, label: 'Update your card' },
+              footnoteHtml: `The card page is secure and takes about a minute — ${escapeHtml(sender.name)} never sees the number. Rather sort it out another way? Just reply to this email.`,
+            }),
+          })
+          told = true
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('[membership] card-update email failed', err)
+  }
+  try {
+    const name = [m.firstName, m.lastName].filter(Boolean).join(' ').trim() || m.email || 'A member'
+    await notifyOrgMembers(
+      organizationId,
+      {
+        bucket: 'comments',
+        type: 'membership',
+        title: `${name}’s ${m.planName} renewal didn’t go through`,
+        body: told
+          ? `We emailed ${m.firstName || 'them'} a link to update their card.`
+          : 'Reach out to them for a new card — we couldn’t send the update link.',
+        linkPath: '/payments/memberships',
+      },
+      { roles: ['owner', 'admin'], excludeEmail: m.email },
+    )
+  } catch {
+    /* best-effort */
+  }
 }
 
 // ── Stale pending sweep ─────────────────────────────────────────────────────
