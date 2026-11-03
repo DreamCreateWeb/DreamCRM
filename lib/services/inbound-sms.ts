@@ -222,7 +222,10 @@ async function resolveSender(
 async function replyBestEffort(organizationId: string, to: string, body: string): Promise<void> {
   try {
     const { deliverSms } = await import('@/lib/sms')
-    await deliverSms(organizationId, { to, body, kind: 'transactional' })
+    // 'reply': the patient texted seconds ago, so this is the one kind the
+    // quiet-hours gate in lib/sms.ts lets through at any hour — a STOP
+    // confirmation at 11 PM is owed, not a nag.
+    await deliverSms(organizationId, { to, body, kind: 'reply' })
   } catch (e) {
     console.error('[inbound-sms] keyword reply not sent', e)
   }

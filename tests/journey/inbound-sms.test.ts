@@ -169,11 +169,13 @@ describe('keywords — the legally load-bearing paths', () => {
     expect(store.patients[0].marketingSmsOptIn).toBe(0)
     expect(store.patients[1].marketingSmsOptIn).toBe(0)
     expect(store.patients[0].marketingSmsOptOutAt).toBeInstanceOf(Date)
-    // The confirmation, from the clinic, transactional.
+    // The confirmation, from the clinic — a REPLY: transactional on the wire,
+    // and the one kind the quiet-hours gate in lib/sms.ts lets through at
+    // any hour, because the patient texted seconds ago.
     const [org, input] = deliverMock.mock.calls[0] as unknown as [string, Record<string, unknown>]
     expect(org).toBe(ORG)
     expect(String(input.body)).toContain('unsubscribed')
-    expect(input.kind).toBe('transactional')
+    expect(input.kind).toBe('reply')
   })
 
   it('"stop please" means stop; "I need to stop by after work" threads as a message', async () => {

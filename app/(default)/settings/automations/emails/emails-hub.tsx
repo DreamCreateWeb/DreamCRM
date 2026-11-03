@@ -18,6 +18,7 @@ import {
   REMINDER_JOURNEY_PRESETS,
   type ReminderSettings,
 } from '@/lib/types/reminders'
+import { SEND_WINDOW_END_HOUR, SEND_WINDOW_START_HOUR, formatHour12 } from '@/lib/reminder-hours'
 import { saveEmailAutomationAction } from './actions'
 import { saveReminderSettingsAction } from './actions'
 import { ActionButton } from '@/components/ui/action-button'
@@ -627,8 +628,12 @@ function ReminderTiming({
         />
       </label>
       <p className="text-xs leading-relaxed text-gray-500 dark:text-gray-400">
-        Each reminder sends at most once per visit, never two within a day of each other. Patients
-        who’ve already confirmed get the gentler “already confirmed” email below instead. Offsets
+        Reminders go out between {formatHour12(SEND_WINDOW_START_HOUR)} and{' '}
+        {formatHour12(SEND_WINDOW_END_HOUR)}, your time — one that comes due overnight waits for
+        the morning. A visit booked in the last couple of hours isn’t reminded straight away; the
+        booking confirmation already said it all. Each reminder sends at most once per visit,
+        never two within a day of each other. Patients who’ve already confirmed get the gentler
+        “already confirmed” email below instead. Offsets
         between {REMINDER_OFFSET_MIN_HOURS} and {REMINDER_OFFSET_MAX_HOURS} hours (7 days). The
         forms reminder uses your “Intake form request” email. Families with several visits the
         same day get one combined email instead of a pile of near-identical ones.

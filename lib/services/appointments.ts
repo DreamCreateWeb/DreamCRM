@@ -10,6 +10,7 @@ import { getTagsForPatients, getTagsForPatient } from '@/lib/services/patient-ta
 import type { PatientTagView } from '@/lib/types/patient-tags'
 import { toCsv } from '@/lib/csv'
 import { cancelActorLabel, cancelNoticeFor, type CancelNotice } from '@/lib/cancel-actor'
+import { JUST_BOOKED_MS } from '@/lib/reminder-hours'
 import { getEmailAutomations } from '@/lib/services/email-automations'
 import { clinicDayStart, clinicWeekStart } from '@/lib/clinic-timezone'
 import { clinicDayKey, formatClinicDayTime } from '@/lib/format-datetime'
@@ -175,8 +176,9 @@ export function newProviderId(): string {
 
 // Treat reminders sent in last 24h as "recently" → triggers ⏱ glyph.
 const REMINDER_RECENT_MS = 24 * 60 * 60 * 1000
-// Booked-just-now glyph window: 1 hour.
-const JUST_BOOKED_MS = 60 * 60 * 1000
+// Booked-just-now glyph window (1 hour) — lives in lib/reminder-hours.ts
+// beside the reminder engine's just-booked grace, so the two stay in sight
+// of each other.
 // Rebooking recovery window: cancelled/no-show in the last 60 days with no
 // future booking → "needs rebooking".
 const REBOOK_WINDOW_MS = 60 * 24 * 60 * 60 * 1000
