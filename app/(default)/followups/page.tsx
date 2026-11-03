@@ -12,6 +12,7 @@ import {
   listAssignableStaff,
   getFollowupSummary,
   getFollowupsCompletedPerWeek8,
+  countSnoozedFollowups,
   type OpenFollowupFilters,
 } from '@/lib/services/patient-followups'
 import { getFollowupRuleConfig } from '@/lib/services/followup-rules'
@@ -39,21 +40,24 @@ export default async function FollowupsPage({ searchParams }: PageProps) {
   // completedBy) — the honest target for My Day's "You closed N this week"
   // link. Only 'me' is recognized; it resolves server-side to ctx.userId.
   const closedByMe = params.closedBy === 'me'
+  const snoozed = params.snoozed === '1'
 
   const filters: OpenFollowupFilters = {
     assignedTo: mine ? ctx.userId : undefined,
     due,
     includeDone,
     completedBy: closedByMe ? ctx.userId : undefined,
+    snoozed,
   }
 
-  const [rows, ruleConfig, digestEnabled, staff, summary, completedPerWeek8] = await Promise.all([
+  const [rows, ruleConfig, digestEnabled, staff, summary, completedPerWeek8, snoozedCount] = await Promise.all([
     listOpenFollowups(ctx.organizationId, filters),
     getFollowupRuleConfig(ctx.organizationId),
     getDigestEnabled(ctx.organizationId),
     listAssignableStaff(ctx.organizationId),
     getFollowupSummary(ctx.organizationId),
     getFollowupsCompletedPerWeek8(ctx.organizationId),
+    countSnoozedFollowups(ctx.organizationId),
   ])
 
   return (
@@ -66,7 +70,8 @@ export default async function FollowupsPage({ searchParams }: PageProps) {
         orgName={ctx.organizationName ?? 'Your clinic'}
         dueNowCount={summary.overdue + summary.dueToday}
         completedPerWeek8={completedPerWeek8}
-        filters={{ mine, due, includeDone, closedByMe }}
+        snoozedCount={snoozedCount}
+        filters={{ mine, due, includeDone, closedByMe, snoozed }}
         staff={staff}
         currentUserId={ctx.userId}
         ruleConfig={ruleConfig}
