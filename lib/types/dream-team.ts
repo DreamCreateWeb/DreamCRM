@@ -1,4 +1,5 @@
 import type { Tone } from '@/lib/ui/encodings'
+import type { ReadinessFact, ReadinessFactId } from '@/lib/readiness'
 
 /**
  * THE DREAM TEAM's client-safe registry (docs/ai-operations.md). Shared by
@@ -21,6 +22,21 @@ export const CAPABILITY_ICON: Record<string, string> = {
   content_plan: '🗂️',
   schedule_gap: '🌤️',
   insurance_check: '🛡️',
+  // THE GENERATOR LANE (ML-11) — registered ahead of their generators.
+  patient_reply: '💬',
+  feedback_reply: '📝',
+  inquiry_followup: '💬',
+  postop_checkin: '🩹',
+  post_visit_care: '🩹',
+  rebook_nudge: '📅',
+  membership_rescue: '💳',
+  listing_watch: '📍',
+  newsletter: '📰',
+  referral_ask: '🤝',
+  order_update: '📦',
+  consent: '✅',
+  setup_team_photo: '📷',
+  setup_closures: '🗓️',
 }
 
 /** A card about to retire itself deserves a quiet tone mark (never the
@@ -103,7 +119,18 @@ export const SPECIALISTS: readonly SpecialistDef[] = [
     name: 'Front desk',
     icon: '💬',
     blurb: 'Answers inquiries, covers after hours, and opens follow-ups so nothing drops.',
-    capabilities: ['inquiry_response', 'auto_reply', 'scheduled_message', 'followup_rule'],
+    capabilities: [
+      'inquiry_response',
+      'auto_reply',
+      'scheduled_message',
+      'followup_rule',
+      // THE GENERATOR LANE (ML-11): answering the people who wrote in, and
+      // the courtesy call after a procedure — the desk's own jobs.
+      'patient_reply',
+      'inquiry_followup',
+      'postop_checkin',
+      'post_visit_care',
+    ],
   },
   {
     id: 'scheduling',
@@ -113,6 +140,9 @@ export const SPECIALISTS: readonly SpecialistDef[] = [
     capabilities: [
       'appointment_reminder',
       'noshow_rebook',
+      // THE GENERATOR LANE (ML-11): the cancelled visit's sibling of the
+      // no-show rebook.
+      'rebook_nudge',
       'waitlist_offer',
       'schedule_gap',
       'forms_reminder',
@@ -130,6 +160,12 @@ export const SPECIALISTS: readonly SpecialistDef[] = [
       'nps_survey',
       'gbp_website_fix',
       'listing_sync',
+      // THE GENERATOR LANE (ML-11): the listing's watchdog, the private
+      // feedback that never reaches Google, and the referral ask — the
+      // review request's sibling, same happy patient.
+      'listing_watch',
+      'feedback_reply',
+      'referral_ask',
     ],
   },
   {
@@ -150,13 +186,73 @@ export const SPECIALISTS: readonly SpecialistDef[] = [
     name: 'Patient outreach',
     icon: '💌',
     blurb: 'Runs recall and win-back — the quiet engine that brings patients back.',
-    capabilities: ['outreach_campaign', 'retention_automation', 'campaign_send'],
+    capabilities: [
+      'outreach_campaign',
+      'retention_automation',
+      'campaign_send',
+      // THE GENERATOR LANE (ML-11): the monthly newsletter rides the same
+      // campaign rails as recall.
+      'newsletter',
+    ],
   },
   {
     id: 'back_office',
     name: 'Back office',
     icon: '🗂️',
     blurb: 'Chases balances, charges plans on time, looks up benefits, and keeps your systems in step.',
-    capabilities: ['balance_nudge', 'payment_autocharge', 'pms_sync', 'domain_autorenew', 'custom_domain', 'insurance_check'],
+    capabilities: [
+      'balance_nudge',
+      'payment_autocharge',
+      'pms_sync',
+      'domain_autorenew',
+      'custom_domain',
+      'insurance_check',
+      // THE GENERATOR LANE (ML-11): the money and the records — a failing
+      // membership payment, a shop order's status, and the consent spine.
+      'membership_rescue',
+      'order_update',
+      'consent',
+    ],
   },
 ]
+
+/**
+ * WHAT EACH TEAMMATE NEEDS TO START (G1-4). A specialist whose lanes all
+ * read from a connection the practice hasn't made yet will report a quiet
+ * week forever, and "A quiet week — nothing to report" is then the wrong
+ * sentence: the honest one names the missing fact and links to its door.
+ * Keyed on the readiness report's fact ids (lib/readiness.ts) so the label
+ * and the href are the resolver's own, never a second copy. The front desk
+ * needs nothing — the website's forms and the after-hours cover are live
+ * from day one.
+ */
+export const SPECIALIST_NEEDS: Record<string, readonly ReadinessFactId[]> = {
+  front_desk: [],
+  scheduling: ['patients'],
+  reputation: ['gbp'],
+  content: ['social'],
+  outreach: ['patients'],
+  back_office: ['pms'],
+}
+
+/**
+ * The first fact a specialist is waiting on, or null. A blocker is a fact
+ * graded 'todo' (the practice hasn't started it) or 'attention' (it broke).
+ * 'waiting' is an external queue the practice already did its part for,
+ * and 'ready' / 'na' block nothing. Pure; a null report (unreadable) never
+ * produces a blocker — the roster then says a quiet week plainly rather
+ * than guessing at a cause.
+ */
+export function specialistBlocker(
+  specialistId: string,
+  facts: readonly ReadinessFact[] | null | undefined,
+): ReadinessFact | null {
+  if (!facts) return null
+  const needs = SPECIALIST_NEEDS[specialistId]
+  if (!needs || needs.length === 0) return null
+  for (const id of needs) {
+    const fact = facts.find((f) => f.id === id)
+    if (fact && (fact.grade === 'todo' || fact.grade === 'attention')) return fact
+  }
+  return null
+}

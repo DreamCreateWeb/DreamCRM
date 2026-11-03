@@ -31,12 +31,49 @@ export interface PlanArtifactItem {
   body: string
 }
 
+/** One turn of a patient conversation, oldest first — the context a drafted
+ *  reply nests under (patient_reply, feedback_reply, inquiry_followup,
+ *  postop_checkin). */
+export interface ThreadArtifactMessage {
+  from: 'patient' | 'clinic'
+  author: string | null
+  text: string
+  /** Already formatted in the clinic's wall clock (the tz law) — the
+   *  artifact never formats a date itself. */
+  whenLabel: string | null
+}
+
+/** One visit on a pre-visit benefits check (the ask-first insurance_check
+ *  automation): who, when, and what is on their card. */
+export interface PrecheckArtifactItem {
+  patientName: string
+  visitLabel: string | null
+  payer: string | null
+  memberId: string | null
+}
+
+/** One field the Google listing changed (listing_watch): before → after,
+ *  null meaning "nothing was there". */
+export interface ListingArtifactChange {
+  field: string
+  before: string | null
+  after: string | null
+}
+
 /** The per-capability artifact payload the server attaches to a card. */
 export type ProposalArtifact =
   | { kind: 'social'; channel: ArtifactChannel | null }
   | { kind: 'email'; toLine: string | null }
   | { kind: 'plan'; items: PlanArtifactItem[]; channel: ArtifactChannel | null }
   | { kind: 'gbp'; targetUrl: string; previousUri: string | null }
+  // THE GENERATOR LANE (ML-11): three kinds registered ahead of the
+  // generators that will attach them — inert until one files. The union,
+  // the renderer below and the inbox's branch land together so a later
+  // slice only has to build the payload (tests/journey/capability-registry
+  // pins every kind to a renderer).
+  | { kind: 'thread'; messages: ThreadArtifactMessage[]; toLine: string | null }
+  | { kind: 'precheck'; items: PrecheckArtifactItem[] }
+  | { kind: 'listing'; changes: ListingArtifactChange[] }
 
 /**
  * The send's real button colour. `authEmailShell` takes an optional accent
@@ -353,6 +390,126 @@ export function GbpFixArtifact({ targetUrl, previousUri }: { targetUrl: string; 
         </span>
         <span className="font-medium text-gray-800 dark:text-gray-100 truncate">{targetUrl}</span>
       </div>
+    </div>
+  )
+}
+
+/* ── THE GENERATOR LANE's renderers (ML-11) ──────────────────────────────────
+ * Registered ahead of the generators that will attach them. Same law as the
+ * four above: presentational only, the reply is the card's LIVE edit state,
+ * nothing here formats a date or rewrites a word. */
+
+/**
+ * A patient conversation with the drafted reply nested beneath it, the way
+ * /messages will show the exchange — the context staff never answer blind.
+ */
+export function ThreadArtifact({
+  messages,
+  reply,
+  clinicName,
+  toLine,
+}: {
+  messages: ThreadArtifactMessage[]
+  /** The drafted reply — the card's live body. */
+  reply: string
+  clinicName: string
+  toLine: string | null
+}) {
+  return (
+    <div className="rounded-xl border border-[color:var(--color-hairline)] bg-white dark:bg-gray-900/60 p-3">
+      {toLine && (
+        <p className="mb-2 text-xs text-gray-500 dark:text-gray-400 truncate">
+          <span className="font-semibold text-gray-600 dark:text-gray-300">With</span> {toLine}
+        </p>
+      )}
+      <ol className="space-y-2">
+        {messages.map((m, i) => {
+          const name = m.from === 'clinic' ? clinicName : m.author?.trim() || 'Patient'
+          return (
+            <li key={i} className={m.from === 'clinic' ? 'pl-6' : 'pr-6'}>
+              <p className="text-xs font-semibold text-gray-600 dark:text-gray-300">
+                {name}
+                {m.whenLabel && (
+                  <span className="ml-1.5 font-normal text-gray-500 dark:text-gray-400">{m.whenLabel}</span>
+                )}
+              </p>
+              <p
+                className={`mt-0.5 rounded-lg px-3 py-2 text-sm whitespace-pre-wrap ${
+                  m.from === 'clinic'
+                    ? 'bg-teal-50 text-gray-800 dark:bg-teal-900/20 dark:text-gray-100'
+                    : `${TONE_FILL.neutral} text-gray-800 dark:text-gray-100`
+                }`}
+              >
+                {m.text}
+              </p>
+            </li>
+          )
+        })}
+      </ol>
+      <div className="mt-3 ml-4 pl-3 border-l-2 border-[color:var(--color-hairline)]">
+        <p className="text-xs font-semibold text-gray-600 dark:text-gray-300">
+          Reply from {clinicName}
+        </p>
+        <p className="mt-1 text-sm text-gray-800 dark:text-gray-100 whitespace-pre-wrap">{reply}</p>
+      </div>
+    </div>
+  )
+}
+
+/** The visits a pre-visit benefits check would ask the payers about — who,
+ *  when, and the card on file. A real table: the desk reads it as one. */
+export function PrecheckArtifact({ items }: { items: PrecheckArtifactItem[] }) {
+  return (
+    <div className="rounded-xl border border-[color:var(--color-hairline)] bg-white dark:bg-gray-900/60 overflow-hidden">
+      <table className="w-full text-sm">
+        <thead className="bg-[color:var(--color-surface-sunk)] text-xs text-gray-500 dark:text-gray-400">
+          <tr>
+            <th scope="col" className="px-3 py-2 text-left font-semibold">Patient</th>
+            <th scope="col" className="px-3 py-2 text-left font-semibold">Visit</th>
+            <th scope="col" className="px-3 py-2 text-left font-semibold">Insurance</th>
+          </tr>
+        </thead>
+        <tbody>
+          {items.map((it, i) => (
+            <tr key={i} className="border-t border-[color:var(--color-hairline)]">
+              <td className="px-3 py-2 font-medium text-gray-800 dark:text-gray-100">{it.patientName}</td>
+              <td className="px-3 py-2 text-gray-600 dark:text-gray-300">{it.visitLabel ?? '—'}</td>
+              <td className="px-3 py-2 text-gray-600 dark:text-gray-300">
+                {it.payer ?? 'No card on file'}
+                {it.memberId && (
+                  <span className="ml-1.5 font-mono-num text-xs text-gray-500 dark:text-gray-400">{it.memberId}</span>
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+/** What changed on the Google listing, field by field — before → after, in
+ *  the same before/after dress as the Website-button fix. */
+export function ListingArtifact({ changes }: { changes: ListingArtifactChange[] }) {
+  return (
+    <div className="rounded-xl border border-[color:var(--color-hairline)] bg-white dark:bg-gray-900/60 p-3 space-y-3">
+      {changes.map((c, i) => (
+        <div key={i} className="space-y-1">
+          <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">{c.field}</p>
+          <div className="flex items-center gap-2 text-sm">
+            <span className="shrink-0 rounded-full border border-rose-200 dark:border-rose-900/50 bg-rose-50 dark:bg-rose-900/20 px-2.5 py-1 text-xs font-medium text-rose-700 dark:text-rose-300">
+              Was
+            </span>
+            <span className="text-gray-500 dark:text-gray-400 truncate">{c.before ?? 'nothing'}</span>
+          </div>
+          <div className="flex items-center gap-2 text-sm">
+            <span className="shrink-0 rounded-full border border-emerald-200 dark:border-emerald-900/50 bg-emerald-50 dark:bg-emerald-900/20 px-2.5 py-1 text-xs font-medium text-emerald-700 dark:text-emerald-300">
+              Now
+            </span>
+            <span className="font-medium text-gray-800 dark:text-gray-100 truncate">{c.after ?? 'nothing'}</span>
+          </div>
+        </div>
+      ))}
     </div>
   )
 }
