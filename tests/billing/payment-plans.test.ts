@@ -11,6 +11,8 @@ const state = {
   inserts: [] as Array<{ table: string; values: Record<string, unknown> }>,
   updates: [] as Array<{ table: string; values: Record<string, unknown> }>,
   updateReturning: [] as unknown[][],
+  /** The clinic's email_automations jsonb (null = every email on, default copy). */
+  automations: null as unknown,
 }
 
 vi.mock('@/lib/db', () => {
@@ -59,11 +61,14 @@ vi.mock('@/lib/db', () => {
         _n: 'patient', id: 'id', organizationId: 'org', firstName: 'fn', lastName: 'ln',
         email: 'email', isActive: 'active', pmsBalanceCents: 'bal',
       },
-      paymentPlan: { _n: 'payment_plan', id: 'id', organizationId: 'org', patientId: 'pid', token: 'token', status: 'status', nextChargeAt: 'next' },
+      paymentPlan: {
+        _n: 'payment_plan', id: 'id', organizationId: 'org', patientId: 'pid', token: 'token', status: 'status',
+        nextChargeAt: 'next', installmentsPaid: 'paid', cardUpdateSentAt: 'card_update_sent_at',
+      },
       patientBalancePayment: { _n: 'patient_balance_payment', id: 'id' },
       shopConfig: { _n: 'shop_config', organizationId: 'org', stripeAccountId: 'acct', stripeAccountStatus: 'status', chargesEnabled: 'charges', currency: 'currency' },
       organization: { _n: 'organization', id: 'id', isDemo: 'isDemo' },
-      clinicProfile: { _n: 'clinic_profile', organizationId: 'org', email: 'email' },
+      clinicProfile: { _n: 'clinic_profile', organizationId: 'org', email: 'email', phone: 'phone' },
     },
   }
 })
@@ -102,7 +107,8 @@ const { deliverMock, canPayMock } = vi.hoisted(() => ({
 vi.mock('@/lib/email', () => ({
   deliver: deliverMock,
   sendNotificationEmail: vi.fn(async () => {}),
-  authEmailShell: vi.fn(() => '<html>plan</html>'),
+  // Captures its options so a test can read the rendered intro/button.
+  authEmailShell: vi.fn((o: { introHtml?: string }) => `<html>${o?.introHtml ?? 'plan'}</html>`),
 }))
 vi.mock('@/lib/services/balance-payments', () => ({ canTakeBalancePayments: canPayMock }))
 vi.mock('@/lib/services/clinic-sender', () => ({
@@ -110,6 +116,21 @@ vi.mock('@/lib/services/clinic-sender', () => ({
     name: 'Acme Dental', from: 'Acme <a@x.com>', replyTo: null, gmail: null, timeZone: 'America/Chicago',
   })),
 }))
+// The patient's decline email renders through the real registry + resolver
+// over the clinic's (mocked) stored config — so "off in the hub" is the
+// genuine `enabled:false` path, not a stub.
+vi.mock('@/lib/services/email-automations', async () => {
+  const types = await import('@/lib/types/email-automations')
+  const actual = await vi.importActual<typeof import('@/lib/services/email-automations')>('@/lib/services/email-automations')
+  return {
+    ...actual,
+    renderAutomatedEmail: async (
+      _org: string,
+      key: import('@/lib/types/email-automations').EmailAutomationKey,
+      fields: Record<string, string | null | undefined>,
+    ) => actual.renderFromResolved(key, types.resolveEmailAutomations(state.automations)[key], fields),
+  }
+})
 vi.mock('@/lib/services/pms/sync', () => ({ queueCommLogWriteBack: vi.fn(async () => {}) }))
 vi.mock('@/lib/services/notifications', () => ({ notifyOrgMembers: vi.fn(async () => {}) }))
 const { recordActionMock } = vi.hoisted(() => ({
@@ -123,7 +144,11 @@ import {
   proposePaymentPlan,
   runDuePlanCharges,
   cancelPaymentPlan,
+  createPlanSetupCheckout,
+  finalizePlanSetup,
 } from '@/lib/services/payment-plans'
+import { notifyOrgMembers } from '@/lib/services/notifications'
+import { authEmailShell } from '@/lib/email'
 
 const NOW = new Date('2026-07-02T15:00:00Z')
 
@@ -134,6 +159,8 @@ beforeEach(() => {
   state.updateReturning = []
   vi.clearAllMocks()
   canPayMock.mockResolvedValue(true)
+  state.automations = null
+  vi.useRealTimers()
 })
 
 describe('installment math', () => {
@@ -198,7 +225,7 @@ describe('runDuePlanCharges', () => {
     id: 'ppl_1', organizationId: 'org_1', patientId: 'pat_1', token: 'pl_x',
     totalCents: 60_000, installmentCents: 10_000, installments: 6, installmentsPaid: 2,
     status: 'active', stripeCustomerId: 'cus_1', stripePaymentMethodId: 'pm_1',
-    nextChargeAt: new Date('2026-07-01T00:00:00Z'), failedAttempts: 0, lastError: null,
+    nextChargeAt: new Date('2026-07-01T00:00:00Z'), failedAttempts: 0, lastError: null, cardUpdateSentAt: null,
   }
 
   it('charges a due installment: payment row + counter + next month', async () => {
@@ -227,7 +254,7 @@ describe('runDuePlanCharges', () => {
         application_fee_amount: 100,
       }),
       // Deterministic per (plan, installment) — a retry/race reuses the charge.
-      { stripeAccount: 'acct_1', idempotencyKey: 'ppl_ppl_1_2' },
+      { stripeAccount: 'acct_1', idempotencyKey: 'ppl_ppl_1_2_pm_1' },
     )
     const payment = state.inserts.find((i) => i.table === 'patient_balance_payment')
     expect(payment!.values).toMatchObject({
@@ -236,7 +263,8 @@ describe('runDuePlanCharges', () => {
       note: 'Payment plan installment 3 of 6',
     })
     const update = state.updates.find((u) => u.table === 'payment_plan')
-    expect(update!.values).toMatchObject({ installmentsPaid: 3, status: 'active', failedAttempts: 0 })
+    // A success ends any decline streak: strikes AND the card-update stamp clear.
+    expect(update!.values).toMatchObject({ installmentsPaid: 3, status: 'active', failedAttempts: 0, cardUpdateSentAt: null })
   })
 
   it('records no second payment row when the counter CAS loses (duplicate/racing charge)', async () => {
@@ -252,7 +280,7 @@ describe('runDuePlanCharges', () => {
     expect(paymentIntentCreateMock).toHaveBeenCalledTimes(1)
     expect(paymentIntentCreateMock).toHaveBeenCalledWith(
       expect.any(Object),
-      { stripeAccount: 'acct_1', idempotencyKey: 'ppl_ppl_1_2' },
+      { stripeAccount: 'acct_1', idempotencyKey: 'ppl_ppl_1_2_pm_1' },
     )
     // …and losing the CAS, it writes NO second balance-payment row.
     expect(state.inserts.find((i) => i.table === 'patient_balance_payment')).toBeUndefined()
@@ -277,7 +305,7 @@ describe('runDuePlanCharges', () => {
     expect(paymentIntentCreateMock).toHaveBeenCalledWith(
       expect.objectContaining({ amount: 16_668 }),
       // Deterministic per (plan, installment) — a retry/race reuses the charge.
-      { stripeAccount: 'acct_1', idempotencyKey: 'ppl_ppl_1_2' },
+      { stripeAccount: 'acct_1', idempotencyKey: 'ppl_ppl_1_2_pm_1' },
     )
     // …and the ledger reports THAT amount (the money statement must match the
     // charge), never the even-split installmentCents.
@@ -328,5 +356,205 @@ describe('cancelPaymentPlan', () => {
   it('refuses when nothing matched (already completed/canceled)', async () => {
     state.updateReturning.push([])
     expect(await cancelPaymentPlan('org_1', 'ppl_done')).toMatchObject({ ok: false })
+  })
+})
+
+// ── ML-15: the patient hears on the first decline; "Update my card" works ──
+
+const STREAK_PLAN = {
+  id: 'ppl_1', organizationId: 'org_1', patientId: 'pat_1', token: 'pl_x',
+  totalCents: 60_000, installmentCents: 10_000, installments: 6, installmentsPaid: 2,
+  status: 'active', stripeCustomerId: 'cus_1', stripePaymentMethodId: 'pm_1', stripeSetupSessionId: 'cs_old',
+  nextChargeAt: new Date('2026-07-01T00:00:00Z'), failedAttempts: 0, lastError: null, cardUpdateSentAt: null,
+}
+const CFG = { accountId: 'acct_1', status: 'active', charges: 1, currency: 'usd', platformFeeBps: 100 }
+
+/** The decline cron pass: due → org → cfg → (charge throws) → the patient
+ *  read + clinic phone for the email → the staff notify's two lookups. */
+function queueDecline(plan: Record<string, unknown>, patient: unknown[] = [{ firstName: 'Marcus', email: 'marcus@x.com' }]) {
+  state.selectQueue.push([plan])
+  state.selectQueue.push([{ isDemo: false }])
+  state.selectQueue.push([CFG])
+  state.selectQueue.push(patient) // notifyPatientCardUpdate: the patient
+  state.selectQueue.push([{ phone: '(555) 000-1111' }]) // notifyPatientCardUpdate: clinic phone
+  state.selectQueue.push([]) // notifyPlanEvent: patient email (exclude)
+  state.selectQueue.push([{ email: 'desk@acme.com' }]) // notifyPlanEvent: clinic inbox
+  paymentIntentCreateMock.mockRejectedValueOnce(new Error('card_declined'))
+}
+const staffBody = () => String((vi.mocked(notifyOrgMembers).mock.calls.at(-1)![1] as { body: string }).body)
+const shellOpts = () => vi.mocked(authEmailShell).mock.calls.at(-1)![0] as Record<string, string>
+const stampUpdates = () => state.updates.filter((u) => u.table === 'payment_plan' && 'cardUpdateSentAt' in u.values && u.values.cardUpdateSentAt instanceof Date)
+
+describe('a decline tells the patient — once per streak', () => {
+  it('the FIRST decline emails "Update my card" with the retry day in the clinic tz, stamps the plan, and tells staff', async () => {
+    vi.useFakeTimers({ toFake: ['Date'], now: NOW })
+    queueDecline(STREAK_PLAN)
+
+    const r = await runDuePlanCharges({ now: NOW })
+    expect(r).toMatchObject({ failed: 1 })
+
+    // past_due + the 3-day retry (attempt 1 of 3).
+    const first = state.updates.find((u) => u.table === 'payment_plan')!
+    expect(first.values).toMatchObject({ status: 'past_due', failedAttempts: 1 })
+    expect(first.values.nextChargeAt).toEqual(new Date('2026-07-05T15:00:00Z'))
+
+    // ONE patient email, from the clinic, to the plan's own page.
+    expect(deliverMock).toHaveBeenCalledTimes(1)
+    const sent = (deliverMock.mock.calls as unknown as Array<[Record<string, unknown>]>)[0][0]
+    expect(sent.to).toBe('marcus@x.com')
+    expect(sent.from).toBe('Acme <a@x.com>')
+    expect(sent.subject).toBe('Your $100.00 payment to Acme Dental didn’t go through')
+    const opts = shellOpts()
+    expect(opts.buttonLabel).toBe('Update my card')
+    expect(opts.buttonUrl).toMatch(/\/i\/pl_x$/)
+    expect(opts.introHtml).toMatch(/^Hi Marcus — the \$100\.00 payment on your plan with Acme Dental didn’t go through\./)
+    // 2026-07-05T15:00Z is Jul 5 in Chicago — the clinic's wall-clock, never the server's.
+    expect(opts.introHtml).toMatch(/We’ll try again on <strong>Jul 5, 2026<\/strong>/)
+    expect(opts.introHtml).not.toMatch(/paused/)
+
+    // The stamp — set only after the send, org-scoped (tests/tenant-scoping pins the clause).
+    expect(stampUpdates()).toHaveLength(1)
+
+    // Staff keep their title and learn the patient was told.
+    const staff = vi.mocked(notifyOrgMembers).mock.calls.at(-1)![1] as { title: string; body: string }
+    expect(staff.title).toBe('Payment plan charge failed (attempt 1 of 3)')
+    expect(staff.body).toBe('We’ll retry automatically in 3 days. We emailed Marcus a link to update their card.')
+  })
+
+  it('a LATER strike in the same streak sends nothing and says nothing about an email', async () => {
+    queueDecline({ ...STREAK_PLAN, failedAttempts: 1, cardUpdateSentAt: new Date('2026-06-29T15:00:00Z') })
+
+    await runDuePlanCharges({ now: NOW })
+    expect(deliverMock).not.toHaveBeenCalled()
+    expect(stampUpdates()).toHaveLength(0)
+    expect(staffBody()).toBe('We’ll retry automatically in 3 days.')
+  })
+
+  it('a parked first decline (no stamp yet) says the plan is paused — never "we’ll try again"', async () => {
+    queueDecline({ ...STREAK_PLAN, failedAttempts: 2 })
+
+    await runDuePlanCharges({ now: NOW })
+    const first = state.updates.find((u) => u.table === 'payment_plan')!
+    expect(first.values).toMatchObject({ status: 'past_due', failedAttempts: 3, nextChargeAt: null })
+    expect(deliverMock).toHaveBeenCalledTimes(1)
+    expect(shellOpts().introHtml).toMatch(/We’ve paused the plan for now/)
+    expect(shellOpts().introHtml).not.toMatch(/try again/)
+    expect(staffBody()).toBe('We’ve stopped retrying — reach out to the patient for a new card. We emailed Marcus a link to update their card.')
+  })
+
+  it('off in the Emails hub → no email, no stamp, no claim to staff', async () => {
+    state.automations = { payment_plan_card_update: { enabled: false } }
+    queueDecline(STREAK_PLAN)
+
+    await runDuePlanCharges({ now: NOW })
+    expect(deliverMock).not.toHaveBeenCalled()
+    expect(stampUpdates()).toHaveLength(0)
+    expect(staffBody()).toBe('We’ll retry automatically in 3 days.')
+  })
+
+  it('every person-typed value is escaped in the HTML', async () => {
+    queueDecline(STREAK_PLAN, [{ firstName: 'Mar<b>cus', email: 'marcus@x.com' }])
+
+    await runDuePlanCharges({ now: NOW })
+    expect(shellOpts().introHtml).toContain('Hi Mar&lt;b&gt;cus')
+    expect(shellOpts().introHtml).not.toContain('<b>')
+  })
+
+  it('a patient with no email is simply not told (staff still hear, without the claim)', async () => {
+    queueDecline(STREAK_PLAN, [{ firstName: 'Marcus', email: null }])
+
+    await runDuePlanCharges({ now: NOW })
+    expect(deliverMock).not.toHaveBeenCalled()
+    expect(stampUpdates()).toHaveLength(0)
+    expect(staffBody()).toBe('We’ll retry automatically in 3 days.')
+  })
+})
+
+describe('"Update my card" — createPlanSetupCheckout for a past_due plan', () => {
+  it('opens the same setup-mode Checkout on the saved customer and stores the new session', async () => {
+    state.selectQueue.push([{ ...STREAK_PLAN, status: 'past_due', failedAttempts: 1 }]) // by token
+    state.selectQueue.push([CFG])
+    state.selectQueue.push([{ firstName: 'Marcus', lastName: 'Lee', email: 'marcus@x.com' }])
+
+    const r = await createPlanSetupCheckout('pl_x')
+    expect(r).toEqual({ ok: true, url: 'https://stripe.test/setup' })
+    expect(customersCreateMock).not.toHaveBeenCalled()
+    expect(sessionsCreateMock).toHaveBeenCalledWith(
+      expect.objectContaining({ mode: 'setup', customer: 'cus_1' }),
+      { stripeAccount: 'acct_1' },
+    )
+    const update = state.updates.find((u) => u.table === 'payment_plan')!
+    expect(update.values).toMatchObject({ stripeCustomerId: 'cus_1', stripeSetupSessionId: 'cs_1' })
+  })
+
+  it('still refuses a plan that is active, completed or canceled', async () => {
+    for (const status of ['active', 'completed', 'canceled']) {
+      state.selectQueue.push([{ ...STREAK_PLAN, status }])
+      expect(await createPlanSetupCheckout('pl_x')).toEqual({ ok: false, error: 'This plan has already been set up.' })
+    }
+    expect(sessionsCreateMock).not.toHaveBeenCalled()
+  })
+})
+
+describe('"Update my card" — finalizePlanSetup for a past_due plan', () => {
+  const PAST_DUE = { ...STREAK_PLAN, status: 'past_due', failedAttempts: 2, lastError: 'card_declined', stripeSetupSessionId: 'cs_new', cardUpdateSentAt: new Date('2026-06-29T15:00:00Z') }
+
+  it('swaps the card, clears the strikes + the stamp, charges the overdue installment NOW under a new idempotency key', async () => {
+    state.selectQueue.push([PAST_DUE]) // by token
+    state.selectQueue.push([CFG])
+    state.selectQueue.push([{ ...PAST_DUE, status: 'active', stripePaymentMethodId: 'pm_new', failedAttempts: 0, cardUpdateSentAt: null }]) // fresh
+    state.selectQueue.push([]) // receipt: patient email lookup
+    state.selectQueue.push([]) // receipt: clinic email lookup
+    sessionsRetrieveMock.mockResolvedValueOnce({ setup_intent: { status: 'succeeded', payment_method: 'pm_new' } })
+
+    const r = await finalizePlanSetup('pl_x', 'cs_new')
+    expect(r).toEqual({ ok: true, firstChargeOk: true, resumed: true })
+
+    const cas = state.updates.find((u) => u.table === 'payment_plan')!
+    expect(cas.values).toMatchObject({
+      status: 'active', stripePaymentMethodId: 'pm_new', failedAttempts: 0, lastError: null, cardUpdateSentAt: null,
+    })
+    expect(cas.values.nextChargeAt).toBeInstanceOf(Date)
+
+    // The overdue installment (index 2) charges on the NEW card right away —
+    // and under a key the old decline cannot be replayed through.
+    expect(paymentIntentCreateMock).toHaveBeenCalledWith(
+      expect.objectContaining({ amount: 10_000, payment_method: 'pm_new', off_session: true, confirm: true }),
+      { stripeAccount: 'acct_1', idempotencyKey: 'ppl_ppl_1_2_pm_new' },
+    )
+    expect(state.inserts.find((i) => i.table === 'patient_balance_payment')!.values).toMatchObject({ amountCents: 10_000, status: 'paid' })
+  })
+
+  it('refuses a session that is not the one just started (a reload of the ORIGINAL acceptance URL)', async () => {
+    state.selectQueue.push([PAST_DUE])
+    const r = await finalizePlanSetup('pl_x', 'cs_old')
+    expect(r.ok).toBe(false)
+    expect(sessionsRetrieveMock).not.toHaveBeenCalled()
+    expect(state.updates).toHaveLength(0)
+    expect(paymentIntentCreateMock).not.toHaveBeenCalled()
+  })
+
+  it('a card that was not saved changes nothing', async () => {
+    state.selectQueue.push([PAST_DUE])
+    state.selectQueue.push([CFG])
+    sessionsRetrieveMock.mockResolvedValueOnce({ setup_intent: { status: 'requires_payment_method', payment_method: null } } as never)
+    const r = await finalizePlanSetup('pl_x', 'cs_new')
+    expect(r).toEqual({ ok: false, error: 'The card wasn’t saved — please try again.' })
+    expect(state.updates).toHaveLength(0)
+  })
+
+  it('the proposed acceptance path is untouched: any session id finalizes, status flips with acceptedAt', async () => {
+    state.selectQueue.push([{ ...STREAK_PLAN, status: 'proposed', stripePaymentMethodId: null, installmentsPaid: 0, stripeSetupSessionId: 'cs_1' }])
+    state.selectQueue.push([CFG])
+    state.selectQueue.push([{ ...STREAK_PLAN, status: 'active', installmentsPaid: 0 }]) // fresh
+    state.selectQueue.push([]) // receipt lookups
+    state.selectQueue.push([])
+
+    const r = await finalizePlanSetup('pl_x', 'cs_anything')
+    expect(r).toEqual({ ok: true, firstChargeOk: true })
+    const cas = state.updates.find((u) => u.table === 'payment_plan')!
+    expect(cas.values).toMatchObject({ status: 'active', stripePaymentMethodId: 'pm_1' })
+    expect(cas.values.acceptedAt).toBeInstanceOf(Date)
+    expect(cas.values).not.toHaveProperty('failedAttempts')
   })
 })

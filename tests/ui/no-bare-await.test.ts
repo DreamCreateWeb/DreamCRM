@@ -167,7 +167,6 @@ export const ALLOWED: Array<[file: string, sites: number]> = [
   ['app/(portal)/patient/records/request-records.tsx', 1],
   ['app/d/[token]/booking-form.tsx', 2],
   ['app/e/[token]/capture-form.tsx', 1],
-  ['app/i/[token]/plan-form.tsx', 1],
   ['app/n/[token]/survey-form.tsx', 2],
   ['app/r/[token]/review-form.tsx', 1],
   ['app/site/[slug]/shop/cart-view.tsx', 1],

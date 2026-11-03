@@ -1,0 +1,1 @@
+ALTER TABLE "payment_plan" ADD COLUMN "card_update_sent_at" timestamp;

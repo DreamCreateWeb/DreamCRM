@@ -5,6 +5,8 @@ import { db, schema } from '@/lib/db'
 import { stripe } from '@/lib/stripe'
 import { authEmailShell, deliver, sendNotificationEmail } from '@/lib/email'
 import { getClinicSenderIdentity } from '@/lib/services/clinic-sender'
+import { renderAutomatedEmail } from '@/lib/services/email-automations'
+import { formatClinicDate } from '@/lib/format-datetime'
 import { canTakeBalancePayments } from '@/lib/services/balance-payments'
 import { queueCommLogWriteBack } from '@/lib/services/pms/sync'
 import { notifyOrgMembers } from '@/lib/services/notifications'
@@ -25,7 +27,11 @@ import { platformFeeCents } from '@/lib/types/shop'
  * already read. The PMS ledger still rules; pms_balance_cents is never
  * touched here. Declines mark the plan past_due and retry every 3 days, up
  * to 3 attempts, then park it for staff follow-up (never infinite retries
- * against a dead card).
+ * against a dead card). The PATIENT hears on the first decline of a streak —
+ * ONE email (`payment_plan_card_update`, stamped in `card_update_sent_at`)
+ * that says what happened, what happens next and carries "Update my card";
+ * the same /i/[token] link re-enters setup to swap the card, which resets the
+ * strikes and charges the overdue installment right away.
  */
 
 export const PLAN_MIN_MONTHS = 2
@@ -280,7 +286,9 @@ export async function getPlanLandingByToken(token: string): Promise<PlanLandingC
   }
 }
 
-/** Start the card-saving Checkout (mode=setup — nothing charges here). */
+/** Start the card-saving Checkout (mode=setup — nothing charges here).
+ *  'proposed' saves the first card; 'past_due' REPLACES a declined one (the
+ *  "Update my card" door) through the same session and the same return trip. */
 export async function createPlanSetupCheckout(
   token: string,
 ): Promise<{ ok: true; url: string } | { ok: false; error: string }> {
@@ -290,7 +298,9 @@ export async function createPlanSetupCheckout(
     .where(eq(schema.paymentPlan.token, token))
     .limit(1)
   if (!plan) return { ok: false, error: 'This link isn’t valid anymore.' }
-  if (plan.status !== 'proposed') return { ok: false, error: 'This plan has already been set up.' }
+  if (plan.status !== 'proposed' && plan.status !== 'past_due') {
+    return { ok: false, error: 'This plan has already been set up.' }
+  }
 
   const cfg = await connectedAccount(plan.organizationId)
   if (!cfg?.accountId || cfg.status !== 'active' || cfg.charges !== 1) {
@@ -352,13 +362,16 @@ export async function createPlanSetupCheckout(
 export async function finalizePlanSetup(
   token: string,
   sessionId: string,
-): Promise<{ ok: true; firstChargeOk: boolean } | { ok: false; error: string }> {
+): Promise<{ ok: true; firstChargeOk: boolean; resumed?: true } | { ok: false; error: string }> {
   const [plan] = await db
     .select()
     .from(schema.paymentPlan)
     .where(eq(schema.paymentPlan.token, token))
     .limit(1)
   if (!plan) return { ok: false, error: 'This link isn’t valid anymore.' }
+  // A past_due plan returning from setup is the "Update my card" trip — its
+  // own path below; the 'proposed' acceptance path stays exactly as it was.
+  if (plan.status === 'past_due') return finalizeCardUpdate(plan, sessionId)
   if (plan.status !== 'proposed') return { ok: true, firstChargeOk: true }
 
   const cfg = await connectedAccount(plan.organizationId)
@@ -408,6 +421,78 @@ export async function finalizePlanSetup(
   }
 }
 
+/**
+ * The card-update return trip for a past_due plan. The session must be the
+ * one createPlanSetupCheckout just stored — a reload of the ORIGINAL
+ * acceptance URL (still in the browser history) would otherwise "swap" in the
+ * same declined card and reset the strikes against it. Then a CAS
+ * past_due → active with the new card, a clean strike count, the stamp
+ * cleared (a decline on the NEW card is a fresh streak and earns its own
+ * email) and the overdue installment charged right away — the same inline
+ * charge the acceptance path makes, so the patient sees the plan moving
+ * again on the confirmation screen. Idempotent: a double-load loses the CAS
+ * and returns ok.
+ */
+async function finalizeCardUpdate(
+  plan: typeof schema.paymentPlan.$inferSelect,
+  sessionId: string,
+): Promise<{ ok: true; firstChargeOk: boolean; resumed: true } | { ok: false; error: string }> {
+  if (!plan.stripeSetupSessionId || plan.stripeSetupSessionId !== sessionId) {
+    return { ok: false, error: 'That card-update link has expired — tap “Update my card” to start again.' }
+  }
+  const cfg = await connectedAccount(plan.organizationId)
+  if (!cfg?.accountId) return { ok: false, error: 'Payments aren’t configured.' }
+
+  try {
+    const session = await stripe.checkout.sessions.retrieve(
+      sessionId,
+      { expand: ['setup_intent'] } as never,
+      { stripeAccount: cfg.accountId },
+    )
+    const si = session.setup_intent as { status?: string; payment_method?: string | { id: string } } | null
+    const pm =
+      si && typeof si.payment_method === 'object' && si.payment_method
+        ? si.payment_method.id
+        : (si?.payment_method as string | undefined)
+    if (!si || si.status !== 'succeeded' || !pm) {
+      return { ok: false, error: 'The card wasn’t saved — please try again.' }
+    }
+
+    const now = new Date()
+    const claimed = await db
+      .update(schema.paymentPlan)
+      .set({
+        status: 'active',
+        stripePaymentMethodId: pm,
+        failedAttempts: 0,
+        lastError: null,
+        nextChargeAt: now,
+        cardUpdateSentAt: null,
+        updatedAt: now,
+      })
+      .where(
+        and(
+          eq(schema.paymentPlan.id, plan.id),
+          eq(schema.paymentPlan.organizationId, plan.organizationId),
+          eq(schema.paymentPlan.status, 'past_due'),
+        ),
+      )
+      .returning({ id: schema.paymentPlan.id })
+    if (claimed.length === 0) return { ok: true, firstChargeOk: true, resumed: true }
+
+    const [fresh] = await db
+      .select()
+      .from(schema.paymentPlan)
+      .where(eq(schema.paymentPlan.id, plan.id))
+      .limit(1)
+    const firstChargeOk = fresh ? await chargePlanInstallment(fresh, cfg) : false
+    return { ok: true, firstChargeOk, resumed: true }
+  } catch (err) {
+    console.warn('[payment-plans] card update failed', err)
+    return { ok: false, error: 'Something went wrong saving the new card — the office can check on it.' }
+  }
+}
+
 // ── Charging ─────────────────────────────────────────────────────────────────
 
 /**
@@ -442,11 +527,14 @@ async function chargePlanInstallment(
         description: `Payment plan installment ${index + 1} of ${plan.installments}`,
         metadata: { kind: 'payment_plan', planId: plan.id, organizationId: plan.organizationId },
       } as never,
-      // Deterministic per (plan, installment): a retry after a mid-write crash,
-      // or the finalize↔cron race, reuses the SAME PaymentIntent instead of
-      // creating a second real charge. This is the crash-consistency guarantee
-      // the daily cron assumes ("idempotent-by-state").
-      { stripeAccount: cfg.accountId, idempotencyKey: `ppl_${plan.id}_${index}` },
+      // Deterministic per (plan, installment, CARD): a retry after a mid-write
+      // crash, or the finalize↔cron race, reuses the SAME PaymentIntent instead
+      // of creating a second real charge. This is the crash-consistency
+      // guarantee the daily cron assumes ("idempotent-by-state"). The card is
+      // part of the key because Stripe replays a key's FIRST result — a
+      // decline included — for 24h: the charge made right after "Update my
+      // card" must be a new request, not the old decline served again.
+      { stripeAccount: cfg.accountId, idempotencyKey: `ppl_${plan.id}_${index}_${plan.stripePaymentMethodId}` },
     )
 
     const now = new Date()
@@ -464,6 +552,9 @@ async function chargePlanInstallment(
         status: done ? 'completed' : 'active',
         failedAttempts: 0,
         lastError: null,
+        // A success ends the decline streak — the next decline is a new one
+        // and earns its own "Update my card" email.
+        cardUpdateSentAt: null,
         nextChargeAt: done ? null : addOneMonth(plan.nextChargeAt ?? now),
         completedAt: done ? now : null,
         updatedAt: now,
@@ -498,24 +589,103 @@ async function chargePlanInstallment(
     const message = err instanceof Error ? err.message : 'charge failed'
     const attempts = plan.failedAttempts + 1
     const parked = attempts >= MAX_FAILED_ATTEMPTS
+    // Parked plans stop retrying — staff take it from here.
+    const retryAt = parked ? null : new Date(Date.now() + RETRY_DAYS * DAY_MS)
     await db
       .update(schema.paymentPlan)
       .set({
         status: 'past_due',
         failedAttempts: attempts,
         lastError: message.slice(0, 500),
-        // Parked plans stop retrying — staff take it from here.
-        nextChargeAt: parked ? null : new Date(Date.now() + RETRY_DAYS * DAY_MS),
+        nextChargeAt: retryAt,
         updatedAt: new Date(),
       })
       .where(eq(schema.paymentPlan.id, plan.id))
+    // The PATIENT hears once per decline streak: the first strike sends the
+    // email (what happened, the retry day or the pause, "Update my card") and
+    // stamps card_update_sent_at; later strikes stay quiet while it is set.
+    const told = plan.cardUpdateSentAt ? null : await notifyPatientCardUpdate(plan, { amount, retryAt })
     await notifyPlanEvent(plan.organizationId, plan.patientId, {
       title: `Payment plan charge failed (attempt ${attempts} of ${MAX_FAILED_ATTEMPTS})`,
-      body: parked
-        ? 'We’ve stopped retrying — reach out to the patient for a new card.'
-        : `We’ll retry automatically in ${RETRY_DAYS} days.`,
+      body:
+        (parked
+          ? 'We’ve stopped retrying — reach out to the patient for a new card.'
+          : `We’ll retry automatically in ${RETRY_DAYS} days.`) +
+        (told ? ` We emailed ${told.firstName} a link to update their card.` : ''),
     })
     return false
+  }
+}
+
+/**
+ * The patient's side of a decline — ONE email per streak, from the clinic's
+ * sender identity through the clinic-editable `payment_plan_card_update`
+ * automation (off in the hub → nothing goes out and no stamp is set). Plain
+ * words about what happened, then what happens next — the retry day at the
+ * clinic's wall-clock, or "we've paused the plan" once parked — and the
+ * "Update my card" button to the plan's own /i/[token] page. Every value a
+ * person typed goes through escapeHtml. Stamps card_update_sent_at only
+ * after the send. Never throws; returns who was told (for the staff line).
+ */
+async function notifyPatientCardUpdate(
+  plan: typeof schema.paymentPlan.$inferSelect,
+  input: { amount: number; retryAt: Date | null },
+): Promise<{ firstName: string } | null> {
+  try {
+    const [p] = await db
+      .select({ firstName: schema.patient.firstName, email: schema.patient.email })
+      .from(schema.patient)
+      .where(and(eq(schema.patient.organizationId, plan.organizationId), eq(schema.patient.id, plan.patientId)))
+      .limit(1)
+    if (!p?.email) return null
+    const [profile] = await db
+      .select({ phone: schema.clinicProfile.phone })
+      .from(schema.clinicProfile)
+      .where(eq(schema.clinicProfile.organizationId, plan.organizationId))
+      .limit(1)
+
+    const sender = await getClinicSenderIdentity(plan.organizationId)
+    const rendered = await renderAutomatedEmail(plan.organizationId, 'payment_plan_card_update', {
+      firstName: p.firstName,
+      clinicName: sender.name,
+      clinicPhone: profile?.phone ?? '',
+      amount: fmtDollars(input.amount),
+    })
+    if (!rendered.enabled) return null
+
+    // What happens next — the retry day is a server-built time string, so it
+    // formats at the clinic's wall-clock, never the server's UTC.
+    const nextHtml = input.retryAt
+      ? `We’ll try again on <strong>${escapeHtml(formatClinicDate(input.retryAt, sender.timeZone))}</strong> — or update your card now and we’ll charge it right away instead.`
+      : 'We’ve paused the plan for now — update your card and we’ll pick it right back up.'
+    await deliver({
+      to: p.email,
+      from: sender.from,
+      replyTo: sender.replyTo,
+      gmail: sender.gmail,
+      subject: rendered.full.subject,
+      html: authEmailShell({
+        heading: 'A quick fix for your payment plan',
+        introHtml: `${escapeHtml(rendered.full.body).replace(/\n/g, '<br>')}<br><br>${nextHtml}`,
+        buttonUrl: `${APP_BASE}/i/${plan.token}`,
+        buttonLabel: 'Update my card',
+        footnoteHtml: `The card page is secure and takes about a minute — ${escapeHtml(sender.name)} never sees the number. Rather sort it out another way? Just reply to this email.`,
+      }),
+    })
+
+    await db
+      .update(schema.paymentPlan)
+      .set({ cardUpdateSentAt: new Date(), updatedAt: new Date() })
+      .where(and(eq(schema.paymentPlan.id, plan.id), eq(schema.paymentPlan.organizationId, plan.organizationId)))
+
+    queueCommLogWriteBack(plan.organizationId, plan.patientId, {
+      note: `Payment plan: ${fmtDollars(input.amount)} charge declined — emailed a link to update their card.`,
+      mode: 'Email',
+    }).catch(() => {})
+    return { firstName: p.firstName }
+  } catch (err) {
+    console.warn('[payment-plans] card-update email failed', err)
+    return null
   }
 }
 
