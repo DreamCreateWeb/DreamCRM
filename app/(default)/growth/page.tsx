@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { ATTRIBUTION_WINDOW_COPY } from '@/lib/services/campaign-attribution'
 import { redirect } from 'next/navigation'
 import { requireTenant } from '@/lib/auth/context'
 import { getActiveBundlesForSidebar } from '@/lib/services/integration-bundles'
@@ -253,6 +254,7 @@ export default async function GrowthHubPage() {
               href="/growth/outreach"
               value={recall.bookedFromRecallCount}
               label="booked back · 30d"
+              hint={ATTRIBUTION_WINDOW_COPY}
               tone={recall.bookedFromRecallCount > 0 ? 'ok' : undefined}
               aria={`${recall.bookedFromRecallCount} patients booked back from outreach in the last 30 days`}
             />
@@ -492,12 +494,14 @@ function FunnelStat({
   href,
   value,
   label,
+  hint,
   tone,
   aria,
 }: {
   href: string
   value: number | string
   label: string
+  hint?: string
   tone?: Tone
   aria: string
 }) {
@@ -513,6 +517,7 @@ function FunnelStat({
       <div className="text-xs text-gray-500 dark:text-gray-400 mt-1.5 group-hover:text-teal-700 dark:group-hover:text-teal-300 transition-colors">
         {label}
       </div>
+      {hint && <div className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">{hint}</div>}
     </Link>
   )
 }

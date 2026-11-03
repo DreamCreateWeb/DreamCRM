@@ -1,4 +1,5 @@
 import 'server-only'
+import { attributeBookingToCampaign } from '@/lib/services/campaign-attribution'
 import { and, eq, gte, lte, ne, sql } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { appointment, clinicProvider, pmsConnection, pmsEntityMap } from '@/lib/db/schema/clinic'
@@ -627,13 +628,18 @@ export async function insertAppointmentIfBookable(
   excludeAppointmentId?: string,
 ): Promise<boolean> {
   const lockText = `appt:${organizationId}:${startTime.toISOString()}`
-  return db.transaction(async (tx) => {
+  const booked = await db.transaction(async (tx) => {
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${lockText}))`)
     const free = await isBookableSlot(organizationId, startTime, durationMinutes, excludeAppointmentId)
     if (!free) return false
     await tx.insert(appointment).values(values)
     return true
   })
+  // "Booked back": the public site + portal door (best-effort, post-commit).
+  if (booked && values.id && values.patientId) {
+    await attributeBookingToCampaign(organizationId, values.id, values.patientId, new Date())
+  }
+  return booked
 }
 
 export async function insertAppointmentIfSlotFree(

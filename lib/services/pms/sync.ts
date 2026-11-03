@@ -1,4 +1,5 @@
 import 'server-only'
+import { attributeBookingToCampaign } from '@/lib/services/campaign-attribution'
 import { createHash, randomUUID } from 'crypto'
 import { and, desc, eq, inArray, isNotNull, isNull } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
@@ -905,6 +906,15 @@ async function reconcileAppointments(
       })
       await insertMap(organizationId, 'appointment', na.externalId, id, 'pms', h)
       t.created++
+      // A NEW booking made in the practice system after a campaign send is the
+      // most common real "booked back". Rows stamped 'pms_import' (backfill /
+      // history arriving late) are never an outcome.
+      if (
+        !backfill &&
+        na.startTime.getTime() >= Math.min(since?.getTime() ?? Infinity, Date.now() - 7 * 24 * 60 * 60 * 1000)
+      ) {
+        await attributeBookingToCampaign(organizationId, id, patientInternalId, new Date())
+      }
     }
   }
 }
