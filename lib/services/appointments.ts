@@ -1238,20 +1238,20 @@ async function sendNoShowRebookEmail(
   })
   if (!rendered.enabled) return false
 
-  const { authEmailShell, deliver } = await import('@/lib/email')
+  const { patientEmailShell, deliver } = await import('@/lib/email')
   await deliver({
     to: opts.to,
     from: sender.from,
     replyTo: sender.replyTo,
     gmail: sender.gmail,
     subject: rendered.full.subject,
-    html: authEmailShell({
-      heading: 'We missed you — no big deal',
-      introHtml: rendered.full.body
+    html: patientEmailShell({
+      sender,
+      title: 'We missed you — no big deal',
+      body: rendered.full.body
         .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
         .replace(/\n/g, '<br>'),
-      buttonUrl: rebookUrl,
-      buttonLabel: 'Find a new time',
+      cta: { url: rebookUrl, label: 'Find a new time' },
       footnoteHtml: profile?.phone
         ? `Prefer to talk it through? Call us at ${profile.phone.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}.`
         : 'Prefer to talk it through? Just reply to this email.',

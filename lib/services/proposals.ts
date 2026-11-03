@@ -1895,7 +1895,7 @@ async function executeInquiryResponse(
   }
   if (!lead.email) return { ok: false, error: 'This inquiry has no email address to write to.', expired: true }
 
-  const [{ getClinicSenderIdentity }, { deliver, authEmailShell }, { markLeadContacted }, { resolveClinicBookingUrl }] =
+  const [{ getClinicSenderIdentity }, { deliver, patientEmailShell }, { markLeadContacted }, { resolveClinicBookingUrl }] =
     await Promise.all([
       import('@/lib/services/clinic-sender'),
       import('@/lib/email'),
@@ -1934,10 +1934,11 @@ async function executeInquiryResponse(
     await deliver({
       to: lead.email,
       subject,
-      html: authEmailShell({
-        heading: subject,
-        introHtml: paragraphs,
-        ...(bookingUrl ? { buttonUrl: bookingUrl, buttonLabel: 'Book a time' } : {}),
+      html: patientEmailShell({
+        sender,
+        title: subject,
+        body: paragraphs,
+        ...(bookingUrl ? { cta: { url: bookingUrl, label: 'Book a time' } } : {}),
         footnoteHtml: `You asked us a question through our website — this is our reply. Call or write back any time.`,
       }),
       from: sender.from,

@@ -5,7 +5,7 @@ import { db, schema } from '@/lib/db'
 import { listShutDownOrgIds } from '@/lib/services/billing-state'
 import { recordAction } from '@/lib/services/action-ledger'
 import { newId } from '@/lib/utils'
-import { authEmailShell, deliver } from '@/lib/email'
+import { patientEmailShell, deliver } from '@/lib/email'
 import { getClinicSenderIdentity } from '@/lib/services/clinic-sender'
 import { renderAutomatedEmail } from '@/lib/services/email-automations'
 import { canTakeBalancePayments, createBalancePaymentSession, finalizeBalancePaymentFromSession } from '@/lib/services/balance-payments'
@@ -135,13 +135,13 @@ export async function sendPayLinkEmail(
       replyTo: sender.replyTo,
       gmail: sender.gmail,
       subject: rendered.full.subject,
-      html: authEmailShell({
-        heading: 'Your balance, handled in a minute',
-        introHtml: rendered.full.body
+      html: patientEmailShell({
+        sender,
+        title: 'Your balance, handled in a minute',
+        body: rendered.full.body
           .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
           .replace(/\n/g, '<br>'),
-        buttonUrl: `${APP_BASE}/b/${token}`,
-        buttonLabel: 'Pay my balance',
+        cta: { url: `${APP_BASE}/b/${token}`, label: 'Pay my balance' },
         footnoteHtml:
           'The payment page is secure and takes about a minute — no account or sign-in needed. Question about the amount? Just reply to this email.',
       }),

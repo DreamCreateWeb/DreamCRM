@@ -1,5 +1,6 @@
 import { Resend } from 'resend'
 import type { ClinicSender } from './email-identity'
+import { CLINIC_THEME, contrastRatio, parseHex, readableInk } from './clinic-site-theme'
 import { bodyOpensWithGreeting, type EmailSlots } from './types/email-automations'
 
 // Sender identity for all transactional + marketing email. Override with the
@@ -92,6 +93,126 @@ ${opts.footnoteHtml ? `<p style="margin:18px 0 0;font-size:12px;line-height:1.5;
 </td></tr>
 </table>
 <p style="margin:14px 0 0;font-family:Arial,Helvetica,sans-serif;font-size:11px;color:#aaaaaa;">Dream Create</p>
+</td></tr>
+</table>
+</body>
+</html>`
+}
+
+/** A solid (email-safe) tint: `brand` mixed over white at `alpha`. Email clients
+ *  do not reliably read 8-digit hex, so the shell blends it itself. */
+function solidTint(brandHex: string, alpha: number): string {
+  const c = parseHex(brandHex)
+  if (!c) return '#f4f1ec'
+  const mix = (v: number) => Math.round(255 - (255 - v) * alpha).toString(16).padStart(2, '0')
+  return `#${mix(c.r)}${mix(c.g)}${mix(c.b)}`
+}
+
+/**
+ * The CTA colours for a clinic brand. White text on the brand only when that
+ * pairing clears WCAG AA (4.5:1); otherwise the portal's ink on a light tint of
+ * the brand with a brand border, so a pale or neon brand never ships an
+ * unreadable button. No (or an invalid) brand falls to white-on-ink.
+ * Exported for tests.
+ */
+export function patientButtonColors(brandColor: string | null | undefined): {
+  bg: string
+  fg: string
+  border: string
+} {
+  const brand = brandColor && /^#[0-9a-fA-F]{6}$/.test(brandColor) ? brandColor : null
+  const brandRgb = brand ? parseHex(brand) : null
+  if (brand && brandRgb) {
+    if (contrastRatio(brandRgb, { r: 255, g: 255, b: 255 }) >= 4.5) {
+      return { bg: brand, fg: '#ffffff', border: brand }
+    }
+    return { bg: solidTint(brand, 0.16), fg: CLINIC_THEME.INK, border: brand }
+  }
+  return { bg: CLINIC_THEME.INK, fg: '#ffffff', border: CLINIC_THEME.INK }
+}
+
+/**
+ * The shell for every PATIENT-facing send: the practice's name (or logo) is the
+ * header, its colour is the button, and the footer is the practice's own
+ * "Name · address · phone". The platform is invisible here: no "Dream Create"
+ * word, no platform logo (platform sends keep `authEmailShell`).
+ *
+ * Transactional only. It carries NO unsubscribe or consent line, by design:
+ * marketing sends go through `lib/marketing/render-email.ts`, which owns the
+ * CAN-SPAM footer (postal address + one-click unsubscribe), and transactional
+ * mail correctly carries none (docs/COMPLIANCE.md section 2).
+ *
+ * Same Outlook-safe construction as `authEmailShell` (fixed-width table, VML
+ * button, visible URL fallback). `body` and `footnoteHtml` are HTML the caller
+ * has already escaped; every other value is escaped here.
+ */
+export function patientEmailShell(opts: {
+  sender: ClinicSender
+  /** The heading; '' omits it (a plain note that needs only the header). */
+  title: string
+  body: string
+  cta?: { url: string; label: string }
+  preheader?: string
+  footnoteHtml?: string
+}): string {
+  const { sender } = opts
+  const name = escapeHtml(sender.name)
+  const colors = patientButtonColors(sender.brandColor)
+  const linkInk = readableInk(sender.brandColor, '#ffffff')
+  const logo = sender.logoUrl && /^https?:\/\//i.test(sender.logoUrl.trim()) ? sender.logoUrl.trim() : null
+  const header = logo
+    ? `<img src="${escapeHtml(logo)}" alt="${name}" height="40" style="display:block;max-height:40px;height:40px;width:auto;border:0;outline:none;">`
+    : `<div style="font-family:Georgia,'Times New Roman',serif;font-size:22px;font-weight:700;color:${CLINIC_THEME.INK};line-height:1.2;">${name}</div>`
+  const accent = sender.brandColor && /^#[0-9a-fA-F]{6}$/.test(sender.brandColor) ? sender.brandColor : null
+  const cta = opts.cta
+  const ctaUrl = cta ? escapeHtml(cta.url) : ''
+  const ctaLabel = cta ? escapeHtml(cta.label) : ''
+  const ctaBlock = cta
+    ? `<!--[if mso]>
+<v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="${ctaUrl}" style="height:46px;v-text-anchor:middle;width:260px;" arcsize="13%" strokecolor="${colors.border}" fillcolor="${colors.bg}">
+<w:anchorlock/>
+<center style="color:${colors.fg};font-family:Arial,Helvetica,sans-serif;font-size:15px;font-weight:bold;">${ctaLabel}</center>
+</v:roundrect>
+<![endif]-->
+<!--[if !mso]><!-->
+<a href="${ctaUrl}" style="background:${colors.bg};border:1px solid ${colors.border};border-radius:8px;color:${colors.fg};display:inline-block;font-family:Arial,Helvetica,sans-serif;font-size:15px;font-weight:bold;line-height:44px;height:44px;text-align:center;text-decoration:none;width:260px;">${ctaLabel}</a>
+<!--<![endif]-->
+<p style="margin:26px 0 0;font-size:13px;line-height:1.5;color:#666666;">
+Button not working? Copy and paste this link into your browser:<br>
+<a href="${ctaUrl}" style="color:${linkInk};word-break:break-all;">${ctaUrl}</a>
+</p>`
+    : ''
+  const footerLine = [sender.name, sender.address, sender.phone]
+    .map((v) => (v ? v.trim() : ''))
+    .filter(Boolean)
+    .map(escapeHtml)
+    .join(' · ')
+  const preheader = opts.preheader
+    ? `<div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">${escapeHtml(opts.preheader)}</div>`
+    : ''
+  return `<!DOCTYPE html>
+<html lang="en" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<!--[if mso]><style>body,table,td,a{font-family:Arial,Helvetica,sans-serif !important}</style><![endif]-->
+</head>
+<body style="margin:0;padding:0;background:#f7f4ef;">
+${preheader}
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f7f4ef;">
+<tr><td align="center" style="padding:24px 12px;">
+<table role="presentation" width="480" cellpadding="0" cellspacing="0" border="0" style="width:480px;max-width:480px;background:#ffffff;border:1px solid #e5e7eb;border-radius:12px;">
+${accent ? `<tr><td style="height:4px;line-height:4px;font-size:0;background:${accent};border-radius:12px 12px 0 0;">&nbsp;</td></tr>` : ''}
+<tr><td data-patient-header style="padding:24px 28px 0;">${header}</td></tr>
+<tr><td style="padding:20px 28px 32px;font-family:Arial,Helvetica,sans-serif;color:${CLINIC_THEME.INK};">
+${opts.title ? `<h1 style="margin:0 0 14px;font-size:20px;font-weight:700;color:#111111;">${escapeHtml(opts.title)}</h1>` : ''}
+<div style="margin:0 0 26px;font-size:15px;line-height:1.55;color:#444444;">${opts.body}</div>
+${ctaBlock}
+${opts.footnoteHtml ? `<p style="margin:18px 0 0;font-size:12px;line-height:1.5;color:#6b635a;">${opts.footnoteHtml}</p>` : ''}
+</td></tr>
+</table>
+<p data-patient-footer style="margin:14px 0 0;font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:1.5;color:#6b635a;">${footerLine}</p>
 </td></tr>
 </table>
 </body>
@@ -367,11 +488,11 @@ export async function sendMagicLinkEmail(to: string, url: string, sender?: Clini
       replyTo: sender.replyTo,
       gmail: sender.gmail,
       subject: `Sign in to ${sender.name}`,
-      html: authEmailShell({
-        heading: 'Your sign-in link',
-        introHtml: `Click below to sign in to your ${escapeHtml(sender.name)} patient portal — no password needed. It works once and expires in 15 minutes.`,
-        buttonUrl: url,
-        buttonLabel: 'Sign me in',
+      html: patientEmailShell({
+        sender,
+        title: 'Your sign-in link',
+        body: `Click below to sign in to your ${escapeHtml(sender.name)} patient portal — no password needed. It works once and expires in 15 minutes.`,
+        cta: { url, label: 'Sign me in' },
         footnoteHtml: "If you didn't ask for this, you can safely ignore it — nobody can sign in without this exact link.",
       }),
     })
@@ -476,13 +597,21 @@ export async function sendPatientPortalInviteEmail(
     replyTo: sender?.replyTo,
     gmail: sender?.gmail,
     subject,
-    html: authEmailShell({
-      heading: headingHtml.replace(/<[^>]+>/g, ''),
-      introHtml: bodyHtml,
-      buttonUrl: data.inviteUrl,
-      buttonLabel: 'Set up my portal',
-      footnoteHtml: closingHtml,
-    }),
+    html: sender
+      ? patientEmailShell({
+          sender,
+          title: headingHtml.replace(/<[^>]+>/g, ''),
+          body: bodyHtml,
+          cta: { url: data.inviteUrl, label: 'Set up my portal' },
+          footnoteHtml: closingHtml,
+        })
+      : authEmailShell({
+          heading: headingHtml.replace(/<[^>]+>/g, ''),
+          introHtml: bodyHtml,
+          buttonUrl: data.inviteUrl,
+          buttonLabel: 'Set up my portal',
+          footnoteHtml: closingHtml,
+        }),
   })
 }
 
@@ -597,28 +726,37 @@ export async function sendBookingConfirmationEmail(to: string, data: BookingConf
     content?.closing != null
       ? slotToHtml(content.closing)
       : "We'll be in touch to confirm. Need to change your time? Just give us a call."
+  const calendarUrl = googleCalendarUrl({
+    title: `${typeLabel} at ${data.clinicName}`,
+    start: data.startTime,
+    end: data.endTime ?? new Date(data.startTime.getTime() + 30 * 60 * 1000),
+    details: data.clinicPhone ? `Questions? Call ${data.clinicPhone}.` : undefined,
+  })
+  const detailsCard = `<div style="padding:16px 20px;background:#f9fafb;border-radius:8px;margin-bottom:24px">
+          <p style="margin:0 0 4px;font-size:16px;font-weight:600;color:#111">${timeStr}</p>
+          <p style="margin:0 0 10px;font-size:14px;color:#555">${escapeHtml(data.clinicName)}${data.clinicPhone ? ` · ${escapeHtml(data.clinicPhone)}` : ''}</p>
+          <a href="${calendarUrl}" style="font-size:13px;color:#0f766e;text-decoration:underline">
+            Add to calendar →
+          </a>
+        </div>`
   await deliver({
     to,
     from: sender?.from,
     replyTo: sender?.replyTo,
     gmail: sender?.gmail,
     subject,
-    html: `
+    html: sender
+      ? patientEmailShell({
+          sender,
+          title: headingHtml.replace(/<[^>]+>/g, ''),
+          body: `<p style="margin:0 0 24px">${bodyHtml}</p>${detailsCard}${intakeBlock}`,
+          footnoteHtml: closingHtml,
+        })
+      : `
       <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px">
         <h2 style="margin:0 0 16px;font-size:20px;color:#111">${headingHtml}</h2>
         <p style="margin:0 0 24px;color:#444;line-height:1.5">${bodyHtml}</p>
-        <div style="padding:16px 20px;background:#f9fafb;border-radius:8px;margin-bottom:24px">
-          <p style="margin:0 0 4px;font-size:16px;font-weight:600;color:#111">${timeStr}</p>
-          <p style="margin:0 0 10px;font-size:14px;color:#555">${escapeHtml(data.clinicName)}${data.clinicPhone ? ` · ${escapeHtml(data.clinicPhone)}` : ''}</p>
-          <a href="${googleCalendarUrl({
-            title: `${typeLabel} at ${data.clinicName}`,
-            start: data.startTime,
-            end: data.endTime ?? new Date(data.startTime.getTime() + 30 * 60 * 1000),
-            details: data.clinicPhone ? `Questions? Call ${data.clinicPhone}.` : undefined,
-          })}" style="font-size:13px;color:#0f766e;text-decoration:underline">
-            Add to calendar →
-          </a>
-        </div>
+        ${detailsCard}
         ${intakeBlock}
         <p style="margin:0;font-size:13px;color:#888">${closingHtml}</p>
       </div>
@@ -676,20 +814,30 @@ export async function sendCancellationConfirmation(
       : `Hi ${escapeHtml(data.patientName)}, this confirms your <strong>${escapeHtml(typeLabel)}</strong>
           at <strong>${escapeHtml(data.clinicName)}</strong> has been cancelled. No problem at all —
           life happens.`
+  const detailsCard = `<div style="padding:16px 20px;background:#f7f4ef;border-radius:8px;margin-bottom:24px">
+          <p style="margin:0 0 4px;font-size:15px;font-weight:600;color:#6b635a;text-decoration:line-through">${timeStr}</p>
+          <p style="margin:0;font-size:13px;color:#857c70">${escapeHtml(data.clinicName)}${data.clinicPhone ? ` · ${escapeHtml(data.clinicPhone)}` : ''}</p>
+        </div>`
+  const rebookNote = `Whenever you're ready — no rush${data.clinicPhone ? `, or just call us at ${escapeHtml(data.clinicPhone)}` : ''}.`
   await deliver({
     to,
     from: sender?.from,
     replyTo: sender?.replyTo,
     gmail: sender?.gmail,
     subject,
-    html: `
+    html: sender
+      ? patientEmailShell({
+          sender,
+          title: headingHtml.replace(/<[^>]+>/g, ''),
+          body: `<p style="margin:0 0 20px">${bodyHtml}</p>${detailsCard}`,
+          cta: { url: data.rebookUrl, label: 'Find a new time' },
+          footnoteHtml: rebookNote,
+        })
+      : `
       <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;color:#1c1a17">
         <h2 style="margin:0 0 16px;font-size:20px">${headingHtml}</h2>
         <p style="margin:0 0 20px;line-height:1.55">${bodyHtml}</p>
-        <div style="padding:16px 20px;background:#f7f4ef;border-radius:8px;margin-bottom:24px">
-          <p style="margin:0 0 4px;font-size:15px;font-weight:600;color:#6b635a;text-decoration:line-through">${timeStr}</p>
-          <p style="margin:0;font-size:13px;color:#857c70">${escapeHtml(data.clinicName)}${data.clinicPhone ? ` · ${escapeHtml(data.clinicPhone)}` : ''}</p>
-        </div>
+        ${detailsCard}
         ${rebookBlock}
       </div>
     `,
@@ -726,7 +874,15 @@ export async function sendIntakeRequestEmail(to: string, data: IntakeRequestEmai
     replyTo: sender?.replyTo,
     gmail: sender?.gmail,
     subject,
-    html: `
+    html: sender
+      ? patientEmailShell({
+          sender,
+          title: headingHtml.replace(/<[^>]+>/g, ''),
+          body: bodyHtml,
+          cta: { url: data.intakeFormUrl, label: 'Fill out intake form' },
+          footnoteHtml: closingHtml,
+        })
+      : `
       <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;color:#1c1a17">
         <h2 style="margin:0 0 16px;font-size:20px">${headingHtml}</h2>
         <p style="margin:0 0 16px;line-height:1.55">${bodyHtml}</p>
@@ -920,13 +1076,11 @@ export async function sendNotificationEmail(input: NotificationEmailInput, sende
       replyTo: sender.replyTo,
       gmail: sender.gmail,
       subject: input.title,
-      html: `
-      <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;color:#1c1917">
-        ${greeting}
-        ${input.body ? `<p style="margin:0 0 16px;color:#1c1917;line-height:1.55;white-space:pre-wrap">${escapeHtml(input.body)}</p>` : ''}
-        <p style="margin:24px 0 0;color:#1c1917">— ${escapeHtml(sender.name)}</p>
-      </div>
-    `,
+      html: patientEmailShell({
+        sender,
+        title: '',
+        body: `${greeting}${input.body ? `<p style="margin:0 0 16px;color:#1c1917;line-height:1.55;white-space:pre-wrap">${escapeHtml(input.body)}</p>` : ''}<p style="margin:24px 0 0;color:#1c1917">— ${escapeHtml(sender.name)}</p>`,
+      }),
     })
     return
   }

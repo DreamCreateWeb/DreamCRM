@@ -4,7 +4,8 @@ import { randomBytes } from 'crypto'
 import { listShutDownOrgIds } from './billing-state'
 import { db, schema } from '@/lib/db'
 import { recordAction } from '@/lib/services/action-ledger'
-import { deliver } from '@/lib/email'
+import { deliver, patientEmailShell } from '@/lib/email'
+import type { ClinicSender } from '@/lib/email-identity'
 import { renderAutomatedEmail } from '@/lib/services/email-automations'
 import type { EmailSlots } from '@/lib/types/email-automations'
 import { queueCommLogWriteBack } from '@/lib/services/pms/sync'
@@ -520,6 +521,7 @@ export async function createAndSendReviewRequest(input: {
       from: sender.from,
       replyTo: sender.replyTo,
       gmail: sender.gmail,
+      sender,
     })
     // Mirror into OD's CommLog so the front desk sees the ask in the chart.
     await queueCommLogWriteBack(input.organizationId, input.patientId, {
@@ -576,12 +578,23 @@ async function sendReviewRequestEmail(opts: {
   replyTo?: string | null
   /** Tier 2: send via the clinic's connected Gmail account AS their address. */
   gmail?: { accountId: string; from: string }
+  /** The clinic identity — when given, the ask wears the practice's name,
+   *  logo and colour (`patientEmailShell`). */
+  sender?: ClinicSender
 }): Promise<void> {
   const subject = opts.content.subject
   const headingHtml = opts.content.heading != null ? slotToHtml(opts.content.heading) : ''
   const bodyHtml = slotToHtml(opts.content.body)
   const closingHtml = opts.content.closing != null ? slotToHtml(opts.content.closing) : ''
-  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"/><title>${escapeHtml(subject)}</title></head>
+  const html = opts.sender
+    ? patientEmailShell({
+        sender: opts.sender,
+        title: headingHtml.replace(/<[^>]+>/g, ''),
+        body: bodyHtml,
+        cta: { url: opts.reviewUrl, label: 'Leave a review' },
+        footnoteHtml: closingHtml,
+      })
+    : `<!DOCTYPE html><html><head><meta charset="utf-8"/><title>${escapeHtml(subject)}</title></head>
 <body style="margin:0;background:#f5f5f4;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#1c1917">
   <div style="max-width:560px;margin:0 auto;background:#fff;padding:32px 40px">
     <p style="font-size:15px;line-height:1.55;margin:0 0 16px">${headingHtml}</p>

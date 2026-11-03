@@ -3,7 +3,7 @@ import { randomBytes } from 'crypto'
 import { and, desc, eq, inArray, isNotNull, lte, ne, sql } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import { stripe } from '@/lib/stripe'
-import { authEmailShell, deliver, sendNotificationEmail } from '@/lib/email'
+import { patientEmailShell, deliver, sendNotificationEmail } from '@/lib/email'
 import { getClinicSenderIdentity } from '@/lib/services/clinic-sender'
 import { canTakeBalancePayments } from '@/lib/services/balance-payments'
 import { queueCommLogWriteBack } from '@/lib/services/pms/sync'
@@ -186,11 +186,11 @@ export async function proposePaymentPlan(
       replyTo: sender.replyTo,
       gmail: sender.gmail,
       subject: `A payment plan for your balance — ${sender.name}`,
-      html: authEmailShell({
-        heading: 'Spread it out, no stress',
-        introHtml: `Hi ${escapeHtml(p.firstName)},<br><br>We set up a payment plan option for your ${fmtDollars(totalCents)} balance at ${escapeHtml(sender.name)}: <strong>${perLine}</strong>, charged automatically to a card you save. The first payment happens when you accept — nothing is charged until then.`,
-        buttonUrl: `${APP_BASE}/i/${token}`,
-        buttonLabel: 'Review my payment plan',
+      html: patientEmailShell({
+        sender,
+        title: 'Spread it out, no stress',
+        body: `Hi ${escapeHtml(p.firstName)},<br><br>We set up a payment plan option for your ${fmtDollars(totalCents)} balance at ${escapeHtml(sender.name)}: <strong>${perLine}</strong>, charged automatically to a card you save. The first payment happens when you accept — nothing is charged until then.`,
+        cta: { url: `${APP_BASE}/i/${token}`, label: 'Review my payment plan' },
         footnoteHtml:
           'The setup page is secure and takes about two minutes. Rather handle it differently? Just reply to this email — we’ll figure it out together.',
       }),

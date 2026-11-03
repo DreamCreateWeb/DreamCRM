@@ -4,6 +4,7 @@ import { db, schema } from '@/lib/db'
 import { clinicSenderFrom, deliverableReplyTo, formatFromHeader, type ClinicSender } from '@/lib/email-identity'
 import { inboundReplyAddress } from '@/lib/inbound-email'
 import { resolveClinicTimeZone } from '@/lib/clinic-timezone'
+import { resolveMarketingFooterAddress } from '@/lib/marketing/render-email'
 
 /**
  * Tier 1 sender identity: patient-facing clinic email goes out as
@@ -30,6 +31,14 @@ export async function getClinicSenderIdentity(organizationId: string): Promise<C
         email: schema.clinicProfile.email,
         sendingAccountId: schema.clinicProfile.emailSendingAccountId,
         timezone: schema.clinicProfile.timezone,
+        logoUrl: schema.clinicProfile.logoUrl,
+        brandColor: schema.clinicProfile.brandColor,
+        phone: schema.clinicProfile.phone,
+        addressLine1: schema.clinicProfile.addressLine1,
+        addressLine2: schema.clinicProfile.addressLine2,
+        city: schema.clinicProfile.city,
+        state: schema.clinicProfile.state,
+        postalCode: schema.clinicProfile.postalCode,
       })
       .from(schema.clinicProfile)
       .where(eq(schema.clinicProfile.organizationId, organizationId))
@@ -51,6 +60,12 @@ export async function getClinicSenderIdentity(organizationId: string): Promise<C
     // ignore replyTo entirely — replies loop back through the Gmail sync.
     replyTo: inboundReplyAddress(org?.slug) ?? deliverableReplyTo(profile?.email),
     timeZone: resolveClinicTimeZone(profile?.timezone),
+    logoUrl: profile?.logoUrl?.trim() || null,
+    brandColor: profile?.brandColor?.trim() || null,
+    // The same street-line-or-nothing rule the marketing footer uses: never a
+    // half address.
+    address: resolveMarketingFooterAddress(profile, null),
+    phone: profile?.phone?.trim() || null,
   }
 
   // Tier 2 — when the clinic designated a connected Google mailbox, send AS
