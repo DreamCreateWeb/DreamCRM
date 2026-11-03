@@ -90,7 +90,6 @@ export const ALLOWED: Array<[file: string, sites: number]> = [
   ['app/(default)/integrations/sync-controls.tsx', 4],
   ['app/(default)/leads/leads-view.tsx', 1],
   ['app/(default)/marketing/retention-automations-card.tsx', 1],
-  ['app/(default)/my-day/digest-toggle.tsx', 1],
   ['app/(default)/my-day/my-day-followups.tsx', 3],
   ['app/(default)/partners/[id]/partner-actions.tsx', 1],
   ['app/(default)/patients/[id]/documents-panel.tsx', 2],

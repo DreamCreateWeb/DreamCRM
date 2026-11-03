@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react'
 import Link from 'next/link'
 import { setMyDigestOptOutAction } from './actions'
 import { setDigestEnabledAction } from '@/app/(default)/followups/actions'
+import { runAction } from '@/lib/run-action'
 
 /**
  * The personal email switch on My Day: one opt-out covers BOTH recurring
@@ -32,13 +33,9 @@ export default function DigestToggle({
   function turnOnOrgDigest() {
     setOrgError(null)
     startOrg(async () => {
-      try {
-        const res = await setDigestEnabledAction(true)
-        if (res.ok) setOrgOn(true)
-        else setOrgError(res.error)
-      } catch {
-        setOrgError('Could not turn it on — refresh the page and try again.')
-      }
+      const res = await runAction(() => setDigestEnabledAction(true))
+      if (res.ok) setOrgOn(true)
+      else setOrgError(res.error)
     })
   }
 
@@ -51,8 +48,11 @@ export default function DigestToggle({
     setOptedOut(next)
     setError(null)
     startTransition(async () => {
-      const res = await setMyDigestOptOutAction(next)
-      if ('error' in res) { setOptedOut(!next); setError(res.error) }
+      const res = await runAction(async () => {
+        const r = await setMyDigestOptOutAction(next)
+        return 'error' in r ? { ok: false as const, error: r.error } : r
+      })
+      if (!res.ok) { setOptedOut(!next); setError(res.error) }
     })
   }
 
