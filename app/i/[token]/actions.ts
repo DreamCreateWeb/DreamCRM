@@ -4,7 +4,8 @@ import { createPlanSetupCheckout } from '@/lib/services/payment-plans'
 import { rateLimitPublicAction } from '@/lib/services/rate-limit'
 
 /** Token-is-auth (the /b pattern): start the card-saving Stripe Checkout for
- *  a proposed payment plan. */
+ *  a proposed payment plan — or, for a past_due one, the card UPDATE (same
+ *  session; the return trip swaps the card and charges the overdue payment). */
 export async function startPlanSetupAction(
   token: string,
 ): Promise<{ ok: true; url: string } | { ok: false; error: string }> {

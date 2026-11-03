@@ -32,12 +32,16 @@ export default async function PaymentPlanPage({
   const setupSession = typeof sp.setup_session === 'string' ? sp.setup_session : null
 
   // Return trip from Stripe setup — finalize (CAS) + first charge, then load
-  // the now-active context. Idempotent on reload.
+  // the now-active context. Idempotent on reload. A past_due plan's return
+  // trip is the card update ("resumed"): same session, new card, the overdue
+  // payment charged right away.
   let justAccepted = false
+  let justResumed = false
   if (setupSession && setupSession.length < 200) {
     try {
       const r = await finalizePlanSetup(token, setupSession)
-      justAccepted = r.ok
+      justResumed = r.ok && r.resumed === true
+      justAccepted = r.ok && !justResumed
     } catch (err) {
       console.warn('[plan-landing] finalize failed', err)
     }
@@ -73,6 +77,7 @@ export default async function PaymentPlanPage({
               nextChargeAtIso={ctx.nextChargeAt ? ctx.nextChargeAt.toISOString() : null}
               canPay={ctx.canPay}
               justAccepted={justAccepted}
+              justResumed={justResumed}
             />
           </div>
         </div>

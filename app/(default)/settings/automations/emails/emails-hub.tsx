@@ -30,7 +30,7 @@ const CATEGORY_ORDER: EmailCategory[] = ['appointments', 'forms', 'billing', 'po
 const CATEGORY_LABELS: Record<EmailCategory, { title: string; blurb: string }> = {
   appointments: { title: 'Appointments', blurb: 'Confirmations, reminders, and cancellations.' },
   forms: { title: 'Forms & intake', blurb: 'The paperwork you send before a visit.' },
-  billing: { title: 'Billing', blurb: 'Balance emails with a secure pay link.' },
+  billing: { title: 'Billing', blurb: 'Balance emails with a secure pay link, and the note a patient gets when a plan payment is declined.' },
   portal: { title: 'Patient portal', blurb: 'Invites to your online patient portal.' },
   reviews: { title: 'Reviews', blurb: 'Asking happy patients to leave a review.' },
   website: { title: 'Website', blurb: 'Replies to people who message you from your site.' },
@@ -46,6 +46,8 @@ const SAMPLE_FIELDS: Record<string, string> = {
   appointmentDate: 'Monday, Jan 12',
   appointmentTime: 'Monday, January 12 at 2:00 PM',
   urgentLine: ' you can call us at (555) 123-4567',
+  balance: '$135.00',
+  amount: '$100.00',
 }
 
 /** Client-safe token fill for the preview (mirrors applyMergeFields). */

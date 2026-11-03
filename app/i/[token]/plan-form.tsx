@@ -2,14 +2,18 @@
 
 import { useState } from 'react'
 import { startPlanSetupAction } from './actions'
-import { runAction } from '@/lib/run-action'
-import { PORTAL_RUN, PortalReloadWhenStale } from '@/components/patient-portal/stale-reload'
+import { runAction, isStaleFailure } from '@/lib/run-action'
+import { planPastDueNotice } from '@/lib/payment-plan-copy'
 
 /**
  * The payment-plan acceptance card. 'proposed' shows the terms + the accept
  * button (→ Stripe setup Checkout; nothing charges until they accept);
  * active/past_due/completed/canceled show a status view — the link keeps
- * working as a "where's my plan" page for the plan's whole life.
+ * working as a "where's my plan" page for the plan's whole life. A past_due
+ * plan carries the "Update my card" door: the same setup Checkout, which on
+ * return swaps the card and charges the overdue payment right away. The copy
+ * says "we'll try again on <day>" only while a retry is actually scheduled;
+ * a parked plan says so.
  */
 export default function PlanForm({
   token,
@@ -26,6 +30,7 @@ export default function PlanForm({
   nextChargeAtIso,
   canPay,
   justAccepted,
+  justResumed = false,
 }: {
   token: string
   brand: string
@@ -41,9 +46,12 @@ export default function PlanForm({
   nextChargeAtIso: string | null
   canPay: boolean
   justAccepted: boolean
+  /** The card-update return trip just landed (the plan is moving again). */
+  justResumed?: boolean
 }) {
   const [status, setStatus] = useState<'idle' | 'redirecting' | 'error'>('idle')
   const [error, setError] = useState('')
+  const [stale, setStale] = useState(false)
 
   const money = (c: number) => `$${(c / 100).toFixed(2)}`
   const perLine =
@@ -51,21 +59,72 @@ export default function PlanForm({
       ? `${installments} monthly payments of ${money(installmentCents)}`
       : `${installments} monthly payments — ${money(installmentCents)}/month, last one ${money(lastInstallmentCents)}`
 
-  async function accept() {
+  // Accept (proposed) and Update my card (past_due) share one trip: the
+  // setup-mode Checkout on the clinic's account. Never a bare await — a
+  // redeploy under this tab throws, and the person gets Refresh, not a
+  // dead button.
+  async function openSetup() {
     setStatus('redirecting')
     setError('')
-    const r = await runAction(() => startPlanSetupAction(token), PORTAL_RUN)
-    if (r.ok) {
-      window.location.assign(r.url)
-      return
+    setStale(false)
+    let redirected = false
+    try {
+      const r = await runAction(() => startPlanSetupAction(token))
+      if (r.ok) {
+        // Stay busy while the browser leaves — an idle button here is a
+        // second tap and a second Checkout session.
+        redirected = true
+        window.location.assign(r.url)
+        return
+      }
+      setError(r.error)
+      setStale(isStaleFailure(r))
+      setStatus('error')
+    } finally {
+      if (!redirected) setStatus((s) => (s === 'redirecting' ? 'idle' : s))
     }
-    setError(r.error)
-    setStatus('error')
   }
 
   const card = (children: React.ReactNode) => (
     <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 sm:p-8">{children}</div>
   )
+
+  // THE ONE setup button — Accept and Update my card are the same trip to
+  // Stripe's setup page, so they share one element. The only sign the tap
+  // took is this button's own label changing before Stripe loads; aria-busy
+  // is what makes the wait a state rather than a silent pause — the same
+  // contract BrandButton and the visit card's pills already carry.
+  const setupButton = (label: string, margin: 'mt-4' | 'mt-6') => (
+    <button
+      type="button"
+      onClick={openSetup}
+      disabled={status === 'redirecting'}
+      aria-busy={status === 'redirecting'}
+      className={`${margin} w-full rounded-full px-6 py-3.5 text-[0.95rem] font-semibold text-white disabled:opacity-60`}
+      style={{ backgroundColor: brand }}
+    >
+      {status === 'redirecting' ? 'Opening secure setup…' : label}
+    </button>
+  )
+
+  const errorLine =
+    status === 'error' && error ? (
+      <p className="mt-3 text-[0.88rem] text-rose-600" role="alert">
+        {error}
+        {stale && (
+          <>
+            {' '}
+            <button
+              type="button"
+              onClick={() => window.location.reload()}
+              className="underline font-semibold"
+            >
+              Refresh
+            </button>
+          </>
+        )}
+      </p>
+    ) : null
 
   if (state === 'canceled') {
     return card(
@@ -101,7 +160,11 @@ export default function PlanForm({
     return card(
       <>
         <h1 className="text-2xl font-semibold" style={{ fontFamily: 'var(--font-display)' }}>
-          {justAccepted ? `You’re all set, ${patientFirstName}` : 'Your payment plan'}
+          {justResumed
+            ? `Thanks, ${patientFirstName} — your card is updated`
+            : justAccepted
+              ? `You’re all set, ${patientFirstName}`
+              : 'Your payment plan'}
         </h1>
         <p className="mt-2 text-[0.95rem] text-gray-600">
           {money(totalCents)} with {clinicName} — {perLine}, charged automatically to your saved card.
@@ -113,10 +176,23 @@ export default function PlanForm({
           </p>
         </div>
         {state === 'past_due' && (
-          <p className="mt-4 text-[0.9rem] text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
-            The last charge didn’t go through — we’ll retry automatically. If your card changed,
-            call {clinicName}{clinicPhone ? ` at ${clinicPhone}` : ''} and they’ll update it.
-          </p>
+          <>
+            <p className="mt-4 text-[0.9rem] text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+              {planPastDueNotice(next)}
+            </p>
+            {canPay ? (
+              setupButton('Update my card', 'mt-4')
+            ) : (
+              <p className="mt-4 text-[0.9rem] text-gray-600">
+                Online card updates aren’t available right now — call {clinicName}
+                {clinicPhone ? ` at ${clinicPhone}` : ''} and they’ll update it with you.
+              </p>
+            )}
+            {errorLine}
+            <p className="mt-3 text-[0.8rem] text-gray-500 dark:text-gray-400">
+              You’ll save the new card on Stripe’s secure page — {clinicName} never sees the number.
+            </p>
+          </>
         )}
       </>,
     )
@@ -139,30 +215,14 @@ export default function PlanForm({
         </p>
       </div>
       {canPay ? (
-        <button
-          type="button"
-          onClick={accept}
-          disabled={status === 'redirecting'}
-          // The only sign the tap took is this button's own label changing to
-          // "Opening secure setup…" before Stripe loads. aria-busy is what
-          // makes the wait a state rather than a silent pause — the same
-          // contract BrandButton and the visit card's pills already carry.
-          aria-busy={status === 'redirecting'}
-          className="mt-6 w-full rounded-full px-6 py-3.5 text-[0.95rem] font-semibold text-white disabled:opacity-60"
-          style={{ backgroundColor: brand }}
-        >
-          {status === 'redirecting' ? 'Opening secure setup…' : `Accept — first ${money(installmentCents)} today`}
-        </button>
+        setupButton(`Accept — first ${money(installmentCents)} today`, 'mt-6')
       ) : (
         <p className="mt-6 text-[0.9rem] text-gray-600">
           Online setup isn’t available right now — give the office a call
           {clinicPhone ? ` at ${clinicPhone}` : ''} and they’ll arrange it.
         </p>
       )}
-      {status === 'error' && error && (
-        <p className="mt-3 text-[0.88rem] text-rose-600" role="alert">{error}</p>
-      )}
-      {status === 'error' && <PortalReloadWhenStale error={error} />}
+      {errorLine}
       <p className="mt-4 text-[0.8rem] text-gray-500 dark:text-gray-400">
         Rather handle it differently? Reply to the email or call the office — no pressure.
       </p>

@@ -30,6 +30,7 @@ export type EmailAutomationKey =
   | 'review_request'
   | 'contact_ack'
   | 'balance_pay_link'
+  | 'payment_plan_card_update'
 
 export type EmailSlotKey = 'subject' | 'heading' | 'body' | 'closing'
 
@@ -390,6 +391,40 @@ export const EMAIL_AUTOMATION_SPECS: Record<EmailAutomationKey, EmailAutomationS
       text: 'Sent on demand from a patient’s record or the patient list — and automatically on a schedule when you turn on Automatic balance reminders.',
       href: '/payments/online',
       linkLabel: 'Online payments',
+    },
+  },
+
+  payment_plan_card_update: {
+    key: 'payment_plan_card_update',
+    label: 'Payment plan — card declined',
+    description:
+      'Sent once when an automatic payment-plan charge is declined — tells the patient what happened and carries a secure “Update my card” link.',
+    category: 'billing',
+    enableSource: 'email_automations',
+    moduleHref: '/payments/collections',
+    moduleLabel: 'Collections',
+    tokens: [
+      T_FIRST,
+      T_CLINIC,
+      T_PHONE,
+      { token: '{{amount}}', label: 'The payment that was declined (e.g. $100.00)' },
+    ],
+    slotFields: [
+      { slot: 'subject', label: 'Subject line', rows: 1 },
+      { slot: 'body', label: 'Message', rows: 3 },
+    ],
+    slotDefaults: {
+      subject: 'Your {{amount}} payment to {{clinicName}} didn’t go through',
+      body: 'Hi {{firstName}} — the {{amount}} payment on your plan with {{clinicName}} didn’t go through. It happens (an expired card, a new number, a bank hiccup) — no judgment. Update your card below and we’ll pick the plan right back up. Questions? Just reply to this email.',
+    },
+    includesNote: [
+      'What happens next — “we’ll try again on <date>” while a retry is scheduled, or “we’ve paused the plan” once it is parked',
+      'A secure “Update my card” button (their plan page — no sign-in needed)',
+    ],
+    timingHint: {
+      text: 'Sent automatically on the first declined installment of a plan — never twice for the same decline streak.',
+      href: '/payments/collections',
+      linkLabel: 'Collections',
     },
   },
 

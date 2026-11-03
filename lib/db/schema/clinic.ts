@@ -2016,6 +2016,10 @@ export const paymentPlan = pgTable(
     nextChargeAt: timestamp('next_charge_at'),
     failedAttempts: integer('failed_attempts').notNull().default(0),
     lastError: text('last_error'),
+    // When the patient was emailed the "Update my card" link after a decline.
+    // Set on the FIRST decline of a streak, never re-sent while set, cleared
+    // by a successful charge (and by the card-update return trip).
+    cardUpdateSentAt: timestamp('card_update_sent_at'),
     proposedByUserId: text('proposed_by_user_id'),
     acceptedAt: timestamp('accepted_at'),
     completedAt: timestamp('completed_at'),
