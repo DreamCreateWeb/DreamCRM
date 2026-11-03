@@ -693,11 +693,29 @@ export const notifications = pgTable(
     // two things and never "we think it probably went": no email was owed
     // (the user's mode, `suppressEmail`), or one was owed and did not land.
     emailSentAt: timestamp('email_sent_at', { withTimezone: true }),
+    // THE RE-DRIVE (ML-32). `email_sent_at` could SAY an email never landed,
+    // and nothing ever acted on it unless a keyed dispatch happened to replay.
+    // `redriveFailedNotificationEmails` (notifications.ts) is the scheduled
+    // sweep that does: a row still owed an email is re-attempted up to
+    // MAX_NOTIFICATION_EMAIL_ATTEMPTS times inside 24h, backing off from
+    // `created_at` by 2^attempts × 5 minutes — so no "next attempt at"
+    // column, the schedule is a function of two values the row already has.
+    // `email_attempts` counts the SWEEP's re-attempts (the dispatch's own
+    // first try is not one); `email_last_error` is the provider's last word,
+    // kept so an exhausted row can say why rather than only that.
+    emailAttempts: integer('email_attempts').notNull().default(0),
+    emailLastError: text('email_last_error'),
     readAt: timestamp('read_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
     uniqueIndex('notifications_user_created_idx').on(t.userId, t.createdAt),
+    // The re-drive's window: "unsent, in the last 24h". Partial on the
+    // unsent half so the index stays the size of what the sweep can still
+    // act on, never the whole bell.
+    index('notifications_email_unsent_idx')
+      .on(t.createdAt)
+      .where(sql`${t.emailSentAt} is null`),
     // PARTIAL on purpose — the same shape as `campaigns_org_automation_key_idx`
     // above. Per USER rather than per org because `notifyOrgMembers` fans one
     // event out to every owner/admin: each of them earns exactly one row, and a

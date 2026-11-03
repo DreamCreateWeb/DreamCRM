@@ -34,6 +34,9 @@ describe('the roster ↔ capability registry parity', () => {
     const META = new Set([
       'guardian_note',
       'proposal_engine',
+      // ML-32: how a bell alert's email copy reaches the clinic — plumbing
+      // that only reports to staff, not a job on any specialist's desk.
+      'staff_alert',
       'setup_hours',
       'setup_chairs',
       'setup_booking_mode',

@@ -28,9 +28,11 @@ describe('0180_insurance_discovery', () => {
     expect(sql).not.toMatch(/DROP|ALTER TABLE "(?!insurance_discovery")/)
   })
 
-  it('is registered in the journal under its name, last', () => {
+  it('is registered in the journal under its name', () => {
+    // By TAG, never "last" (migration rule, 2026-11-03): parallel slices each
+    // add their own entry after this one, and the integrator re-sequences.
     const journal = JSON.parse(readFileSync(join(DIR, 'meta/_journal.json'), 'utf8')) as { entries: Array<{ idx: number; tag: string }> }
     expect(journal.entries.find((e) => e.idx === 180)?.tag).toBe('0180_insurance_discovery')
-    expect(journal.entries.at(-1)?.tag).toBe('0180_insurance_discovery')
+    expect(journal.entries.some((e) => e.tag === '0180_insurance_discovery')).toBe(true)
   })
 })

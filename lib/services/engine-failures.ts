@@ -60,6 +60,14 @@ export const AUTOMATION_FAILURE = {
     capability: 'custom_domain',
     summary: 'Couldn’t check on your web address just now — I’ll keep trying.',
   },
+  // The notification re-drive (ML-32): the 15-minute sweep that re-attempts
+  // a staff alert email the dispatch could not land. One strike per clinic
+  // per day when a re-attempt itself fails — the bell row is already there;
+  // what broke is the copy to their inbox.
+  staff_alert: {
+    capability: 'staff_alert',
+    summary: 'Couldn’t get an alert email to your inbox just now — I’ll keep trying.',
+  },
 } as const satisfies Record<string, { capability: string; summary: string }>
 
 export type AutomationFailureKey = keyof typeof AUTOMATION_FAILURE

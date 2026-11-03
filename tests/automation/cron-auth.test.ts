@@ -5,7 +5,10 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 vi.mock('@/lib/db', () => ({ db: {}, schema: {} }))
 vi.mock('@/lib/services/pms/sync', () => ({ runImport: vi.fn() }))
 vi.mock('@/lib/email', () => ({ sendNotificationEmail: vi.fn() }))
-vi.mock('@/lib/services/notifications', () => ({ notifyOrgMembers: vi.fn() }))
+vi.mock('@/lib/services/notifications', () => ({
+  notifyOrgMembers: vi.fn(),
+  redriveFailedNotificationEmails: vi.fn(async () => ({})),
+}))
 vi.mock('@/lib/services/reminder-automation', () => ({ runDueReminders: vi.fn(async () => ({})) }))
 vi.mock('@/lib/services/marketing-scheduled', () => ({ sendDueScheduledCampaigns: vi.fn(async () => ({})) }))
 const customizePendingServices = vi.fn(async () => ({ scanned: 0, customized: 0, orgsTouched: 0, errors: 0 }))
@@ -65,6 +68,7 @@ const ROUTES = [
   '@/app/api/cron/followup-rules/route',
   '@/app/api/cron/daily-digest/route',
   '@/app/api/cron/generate-proposals/route',
+  '@/app/api/cron/notification-redrive/route',
 ] as const
 
 beforeEach(() => {

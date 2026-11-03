@@ -133,6 +133,8 @@ describe('every named producer calls it', () => {
       ['app/api/cron/pms-sync/route.ts', 'pms_sync'],
       // The custom-domain sweep (2026-10-26) — the seventh producer.
       ['lib/services/custom-domain.ts', 'custom_domain'],
+      // The notification re-drive (ML-32) — the eighth.
+      ['lib/services/notifications.ts', 'staff_alert'],
     ]
     for (const [file, key] of sites) {
       const src = readFileSync(file, 'utf8')

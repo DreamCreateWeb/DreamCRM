@@ -1,9 +1,14 @@
 import 'server-only'
-import { and, desc, eq, inArray, isNotNull, isNull, ne, or, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gt, inArray, isNotNull, isNull, lt, ne, or, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import { db, schema } from '@/lib/db'
 import { sendNotificationEmail } from '@/lib/email'
-import { isUrgentType, type EmailMode } from '@/lib/types/notifications'
+import {
+  MAX_NOTIFICATION_EMAIL_ATTEMPTS,
+  isUrgentType,
+  urgentNotificationTypes,
+  type EmailMode,
+} from '@/lib/types/notifications'
 
 /**
  * Notifications dispatcher + reader.
@@ -388,6 +393,15 @@ export interface NotificationListItem {
   linkPath: string | null
   readAt: string | null
   createdAt: string
+  /**
+   * The email this row owed never went out, and the re-drive sweep has
+   * given up on it (ML-32). Derived from the two columns rather than the
+   * person's prefs: `email_attempts` only ever climbs on a row the sweep
+   * judged OWED, so "unsent after the last re-attempt" is exactly the set of
+   * rows the bell would otherwise lie about. The tray reads it as a quiet
+   * report, never a warning.
+   */
+  emailFailed: boolean
 }
 
 export async function listNotifications(
@@ -424,7 +438,222 @@ export async function listNotifications(
     linkPath: r.linkPath,
     readAt: r.readAt ? r.readAt.toISOString() : null,
     createdAt: r.createdAt.toISOString(),
+    emailFailed: r.emailSentAt === null && r.emailAttempts >= MAX_NOTIFICATION_EMAIL_ATTEMPTS,
   }))
+}
+
+// ---------- The re-drive (ML-32) ----------
+//
+// `email_sent_at` (DREAMCRM-106, above) made "the email never went out" a
+// state the row could SAY — and then nothing acted on it unless a keyed
+// dispatch happened to replay. Nearly every notification carries no key, so
+// for nearly every notification the state was recorded and ignored. This is
+// the scheduled sweep that reads it: bounded (MAX_NOTIFICATION_EMAIL_ATTEMPTS
+// re-attempts inside REDRIVE_WINDOW_MS), honest in the tray (`emailFailed`
+// above), and one strike per clinic per day in the engine-failure registry
+// when a re-attempt itself fails.
+
+/** A row older than this is left alone — a day-old "Sarah replied" is no
+ *  longer the alert it was, and the digest has said it since. */
+export const REDRIVE_WINDOW_MS = 24 * 60 * 60 * 1000
+/** The first re-attempt's wait; each one after doubles it. */
+export const REDRIVE_BASE_DELAY_MS = 5 * 60 * 1000
+
+/**
+ * THE ONE PREDICATE: does this row still owe an email under the recipient's
+ * CURRENT prefs? The same question `notify()` answers at dispatch, asked
+ * again now — a person who switched to 'none' or paused everything in the
+ * meantime is not owed the email their old setting would have sent.
+ *
+ * Two dispatch-time flags are deliberately NOT part of the answer, because
+ * the row does not carry them: `forceEmail` (a forced email whose mode would
+ * not owe it is not re-driven — an under-retry, never a wrong email) and
+ * `suppressEmail` (demo noise; the sweep keeps that promise by excluding demo
+ * orgs outright, since the demo fallback is its only producer).
+ */
+export function owesEmail(
+  row: { bucket: string; type: string },
+  prefs: Pick<PrefsRow, 'comments' | 'candidates' | 'offers' | 'emailMode' | 'pushNothing'>,
+): boolean {
+  if (prefs.pushNothing) return false
+  const bucketOn =
+    row.bucket === 'comments'
+      ? prefs.comments
+      : row.bucket === 'candidates'
+        ? prefs.candidates
+        : row.bucket === 'offers'
+          ? prefs.offers
+          : false
+  if (!bucketOn) return false
+  const mode = normalizeEmailMode(prefs.emailMode)
+  if (mode === 'none') return false
+  if (mode === 'all') return true
+  return isUrgentType(row.type)
+}
+
+/**
+ * When re-attempt number `attempts` (0-based: the count already made) may
+ * run: `created_at` + 2^attempts × 5 minutes — 5, 10, 20 minutes after the
+ * row, for the three the sweep makes. A function of two values the row
+ * already carries, so there is no "next attempt at" column to keep honest.
+ */
+export function redriveDueAt(createdAt: Date, attempts: number): Date {
+  return new Date(createdAt.getTime() + 2 ** Math.max(0, attempts) * REDRIVE_BASE_DELAY_MS)
+}
+
+export interface RedriveResult {
+  /** Rows the window query returned (unsent, under the cap, inside 24h). */
+  scanned: number
+  /** Rows re-attempted this tick. */
+  attempted: number
+  sent: number
+  failed: number
+  /** Rows that failed for the last time this tick — the tray now says so. */
+  exhausted: number
+  /** Owed but not due yet under the backoff. */
+  waiting: number
+  /** Not owed under the recipient's current prefs, or no address to send to. */
+  skipped: number
+  /** Rows of a shut-down (trial-expired) clinic — left alone until paying revives it. */
+  shutDown: number
+}
+
+/**
+ * Re-attempt every staff alert email that is still owed and never landed.
+ *
+ * Org-agnostic by design — it walks the platform's rows in one query — but
+ * every write is keyed by ROW ID, so no update can touch a row the query
+ * did not return. Each row is its own unit: a provider failure bumps that
+ * row's attempt count and remembers the error, reports one strike for that
+ * clinic (throttled to one per day by the registry), and the walk carries
+ * on. The same `sendNotificationEmail` path as the dispatch, so every value
+ * is escaped where it always was; `linkLabel` is email-only and never
+ * persisted, so a re-driven email carries the default button text.
+ *
+ * THE RESIDUAL, as in `notify()`: a send that lands followed by a stamp that
+ * fails is counted as a failure and re-sent next tick — a duplicate rather
+ * than a silence, and it needs the database to fail between two statements.
+ */
+export async function redriveFailedNotificationEmails(
+  opts: { now?: Date; limit?: number } = {},
+): Promise<RedriveResult> {
+  const now = opts.now ?? new Date()
+  const limit = Math.max(1, Math.min(opts.limit ?? 100, 500))
+  const result: RedriveResult = {
+    scanned: 0,
+    attempted: 0,
+    sent: 0,
+    failed: 0,
+    exhausted: 0,
+    waiting: 0,
+    skipped: 0,
+    shutDown: 0,
+  }
+  const n = schema.notifications
+  const p = schema.notificationPrefs
+  const rows = await db
+    .select({
+      id: n.id,
+      userId: n.userId,
+      organizationId: n.organizationId,
+      bucket: n.bucket,
+      type: n.type,
+      title: n.title,
+      body: n.body,
+      linkPath: n.linkPath,
+      createdAt: n.createdAt,
+      emailAttempts: n.emailAttempts,
+      email: schema.user.email,
+      name: schema.user.name,
+      prefComments: p.comments,
+      prefCandidates: p.candidates,
+      prefOffers: p.offers,
+      prefEmailMode: p.emailMode,
+      prefPushNothing: p.pushNothing,
+    })
+    .from(n)
+    .innerJoin(schema.user, eq(schema.user.id, n.userId))
+    .leftJoin(schema.organization, eq(schema.organization.id, n.organizationId))
+    .leftJoin(p, eq(p.userId, n.userId))
+    .where(
+      and(
+        isNull(n.emailSentAt),
+        lt(n.emailAttempts, MAX_NOTIFICATION_EMAIL_ATTEMPTS),
+        gt(n.createdAt, new Date(now.getTime() - REDRIVE_WINDOW_MS)),
+        // A SUPERSET of `owesEmail`, from the same registry, so the page the
+        // sweep reads is not crowded out by the bell rows that never owed an
+        // email (most of them). `owesEmail` is still the decision.
+        or(eq(p.emailMode, 'all'), inArray(n.type, urgentNotificationTypes())),
+        // Demo noise never emails (`suppressEmail` is louder than everything):
+        // the demo fallback's rows carry the demo org, so the org is the key.
+        or(isNull(n.organizationId), eq(schema.organization.isDemo, false)),
+      ),
+    )
+    .orderBy(asc(n.createdAt))
+    .limit(limit)
+  result.scanned = rows.length
+  if (rows.length === 0) return result
+
+  // TRIAL EXPIRY KILLS EVERYTHING (owner ruling): a shut-down clinic's staff
+  // alerts stay in the bell until paying revives it. Lazy, like every other
+  // sweep, so the dispatcher's own module graph stays small.
+  const { listShutDownOrgIds } = await import('./billing-state')
+  const shutDown = await listShutDownOrgIds(now)
+  const { reportAutomationFailure } = await import('./engine-failures')
+
+  for (const row of rows) {
+    if (row.organizationId && shutDown.has(row.organizationId)) {
+      result.shutDown += 1
+      continue
+    }
+    const prefs: PrefsRow =
+      row.prefEmailMode === null
+        ? DEFAULT_PREFS
+        : {
+            comments: row.prefComments ?? DEFAULT_PREFS.comments,
+            candidates: row.prefCandidates ?? DEFAULT_PREFS.candidates,
+            offers: row.prefOffers ?? DEFAULT_PREFS.offers,
+            emailMode: row.prefEmailMode,
+            pushNothing: row.prefPushNothing ?? DEFAULT_PREFS.pushNothing,
+          }
+    if (!owesEmail(row, prefs) || !row.email) {
+      result.skipped += 1
+      continue
+    }
+    if (redriveDueAt(row.createdAt, row.emailAttempts) > now) {
+      result.waiting += 1
+      continue
+    }
+    result.attempted += 1
+    try {
+      await sendNotificationEmail({
+        to: row.email,
+        name: row.name,
+        title: row.title,
+        body: row.body ?? '',
+        linkPath: row.linkPath,
+        linkLabel: null,
+      })
+      await db
+        .update(n)
+        .set({ emailSentAt: now, emailLastError: null })
+        .where(eq(n.id, row.id))
+      result.sent += 1
+    } catch (err) {
+      const message = (err instanceof Error ? err.message : String(err)).slice(0, 500)
+      // `email_attempts + 1` in SQL, not `row.emailAttempts + 1` from the
+      // read: two overlapping ticks then count two attempts, not one.
+      await db
+        .update(n)
+        .set({ emailAttempts: sql`${n.emailAttempts} + 1`, emailLastError: message })
+        .where(eq(n.id, row.id))
+      result.failed += 1
+      if (row.emailAttempts + 1 >= MAX_NOTIFICATION_EMAIL_ATTEMPTS) result.exhausted += 1
+      console.warn('[notifications.redrive] re-attempt failed for row', row.id, message)
+      if (row.organizationId) await reportAutomationFailure(row.organizationId, 'staff_alert', now)
+    }
+  }
+  return result
 }
 
 export async function countUnread(userId: string, organizationId?: string | null): Promise<number> {

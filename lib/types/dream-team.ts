@@ -86,7 +86,7 @@ export function cycleLabel(cycleAt: Date | null | undefined, now: Date = new Dat
  * lens over lib/autonomy's CAPABILITIES — membership here changes nothing
  * about behavior, and a capability absent from every specialist simply
  * doesn't appear on the roster (the meta lanes: guardian_note,
- * proposal_engine).
+ * proposal_engine, staff_alert).
  */
 export interface SpecialistDef {
   id: string
