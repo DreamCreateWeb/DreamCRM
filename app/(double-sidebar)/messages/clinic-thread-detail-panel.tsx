@@ -28,7 +28,7 @@ import {
   toggleStarAction,
 } from './clinic-actions'
 import type { ScheduledMessageView } from '@/lib/services/scheduled-messages'
-import { detectPreferredChannel, pickDefaultReplyChannel } from './pick-default-reply-channel'
+import { detectPreferredChannel, pickDefaultReplyChannel } from '@/lib/pick-default-reply-channel'
 import {
   avatarTint,
   groupThreadByDay,

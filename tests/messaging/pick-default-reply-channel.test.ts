@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   detectPreferredChannel,
   pickDefaultReplyChannel,
-} from '@/app/(double-sidebar)/messages/pick-default-reply-channel'
+} from '@/lib/pick-default-reply-channel'
 
 type M = { direction: 'inbound' | 'outbound'; channel: 'in_app' | 'email' | 'sms' }
 const inEmail: M = { direction: 'inbound', channel: 'email' }

@@ -178,6 +178,10 @@ export async function loadApprovalInbox(
           : null
     } else if (p.capability === 'inquiry_response') {
       meta = 'replies by email'
+    } else if (p.capability === 'patient_reply') {
+      // WHICH WAY it answers — the generator chose the composer's own
+      // default (ML-12), and the card must say so before the yes.
+      meta = payload.channel === 'email' ? 'replies by email' : 'replies in the patient portal'
     } else if (p.capability === 'review_reply') {
       meta = 'public reply on Google'
     }
@@ -226,8 +230,41 @@ export async function loadApprovalInbox(
         targetUrl: payload.targetUrl,
         previousUri: typeof payload.previousUri === 'string' ? payload.previousUri : null,
       }
+    } else if (p.capability === 'patient_reply') {
+      // ML-12: the conversation the draft answers, quoted as the generator
+      // stored it (already stamped in the clinic's wall clock), with the
+      // reply nested beneath. Each turn is validated as untrusted input.
+      const raw = payload.thread as Record<string, unknown> | undefined
+      const messages = Array.isArray(raw?.messages)
+        ? (raw!.messages as unknown[])
+            .map((m) => {
+              if (!m || typeof m !== 'object') return null
+              const o = m as Record<string, unknown>
+              const text = typeof o.text === 'string' ? o.text : ''
+              if (!text.trim()) return null
+              return {
+                from: o.from === 'clinic' ? ('clinic' as const) : ('patient' as const),
+                author: typeof o.author === 'string' ? o.author : null,
+                text,
+                whenLabel: typeof o.whenLabel === 'string' ? o.whenLabel : null,
+              }
+            })
+            .filter((x): x is NonNullable<typeof x> => x !== null)
+        : []
+      artifact =
+        messages.length > 0
+          ? { kind: 'thread', messages, toLine: typeof raw?.toLine === 'string' ? raw.toLine : null }
+          : null
     }
+    // A card about a conversation carries a door to it — the whole thread,
+    // the patient's record, the composer — for the times the draft is not
+    // the answer (ML-12). The approve stays on the card.
+    const openHref: ProposalCardData['openHref'] =
+      p.capability === 'patient_reply' && typeof payload.threadId === 'string'
+        ? { href: `/messages?thread=${payload.threadId}`, label: 'Open the conversation' }
+        : null
     return {
+      openHref,
       id: p.id,
       capability: p.capability,
       capabilityLabel: p.capabilityLabel,

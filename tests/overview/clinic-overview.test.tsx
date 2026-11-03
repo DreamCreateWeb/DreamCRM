@@ -1093,6 +1093,50 @@ describe('the Approval Inbox on the Dream Team page', () => {
     expect(screen.getAllByRole('button', { name: /no thanks/i })).toHaveLength(2)
   })
 
+  it('a patient_reply card (ML-12) renders the conversation it answers, the draft nested as the clinic’s reply, the channel it replies on, and a door to the thread', async () => {
+    mockGetOverview.mockResolvedValueOnce(makeData())
+    mockListOpenProposals.mockResolvedValueOnce([
+      {
+        id: 'prop_pr',
+        capability: 'patient_reply',
+        capabilityLabel: 'Reply to patient messages',
+        patientId: 'pat_1',
+        title: 'Reply to Mia — they wrote Sun, Jul 26, 10:00 PM and haven’t heard back',
+        body: 'Hi Mia — Thursday at 2 works. See you then!',
+        payload: {
+          threadId: 'thr_1',
+          messageId: 'm_last',
+          channel: 'email',
+          context: { kind: 'thread', author: 'Mia Chen' },
+          thread: {
+            toLine: 'Mia Chen · mia@example.com',
+            messages: [
+              { from: 'clinic', author: 'Dana', text: 'Your cleaning is booked for the 30th.', whenLabel: 'Sun, Jul 26, 8:00 PM' },
+              { from: 'patient', author: 'Mia Chen', text: 'Can I move it to Thursday afternoon?', whenLabel: 'Sun, Jul 26, 10:00 PM' },
+            ],
+          },
+        },
+        status: 'open',
+        createdAt: new Date('2026-07-27T15:00:00Z'),
+        expiresAt: null,
+      },
+    ])
+    const ui = await DreamTeamView({ ctx: makeCtx() })
+    render(ui)
+    // The conversation, quoted — staff never approve a reply blind.
+    expect(screen.getByText('Can I move it to Thursday afternoon?')).toBeInTheDocument()
+    expect(screen.getByText('Your cleaning is booked for the 30th.')).toBeInTheDocument()
+    expect(screen.getByText(/mia@example\.com/)).toBeInTheDocument()
+    // The draft is the card's live body, nested as the clinic's reply.
+    expect(screen.getByText(/Reply from Acme Dental/)).toBeInTheDocument()
+    expect(screen.getByText('Hi Mia — Thursday at 2 works. See you then!')).toBeInTheDocument()
+    // Which way it replies, before the yes.
+    expect(screen.getByText(/replies by email/)).toBeInTheDocument()
+    // A door to the thread — a link, never a second control.
+    expect(screen.getByRole('link', { name: /open the conversation/i })).toHaveAttribute('href', '/messages?thread=thr_1')
+    expect(screen.getByRole('button', { name: /edit first/i })).toBeInTheDocument()
+  })
+
   it('a BLANKED subject blocks Approve with an inline message — never a silent fallback to the original (round-3)', async () => {
     mockGetOverview.mockResolvedValueOnce(makeData())
     mockListOpenProposals.mockResolvedValueOnce([
