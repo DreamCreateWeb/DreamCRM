@@ -206,6 +206,9 @@ function makeData(overrides: Partial<ClinicOverviewData> = {}): ClinicOverviewDa
       upcomingNext7d: 0,
       activeIntakeForms: 0,
           bookingsPerDay14: [],
+          newPatientsPerDay30: [],
+          upcomingPerDay7: [],
+          intakeSubmissionsPerDay14: [],
     },
     recentActivity: [],
     readinessAttention: [],
@@ -341,6 +344,9 @@ describe('Design System v2 migration', () => {
           upcomingNext7d: 11,
           activeIntakeForms: 2,
           bookingsPerDay14: [],
+          newPatientsPerDay30: [],
+          upcomingPerDay7: [],
+          intakeSubmissionsPerDay14: [],
         },
       }),
     )
@@ -586,6 +592,8 @@ describe("Today's chair", () => {
             endTime: new Date('2026-05-20T09:30:00Z'),
             type: 'cleaning',
             status: 'confirmed',
+            arrivedAt: null,
+            seatedAt: null,
             flags: {
               newPatient: false,
               birthdayThisWeek: false,
@@ -602,6 +610,8 @@ describe("Today's chair", () => {
             endTime: new Date('2026-05-20T10:30:00Z'),
             type: 'root_canal',
             status: 'scheduled',
+            arrivedAt: null,
+            seatedAt: null,
             flags: {
               newPatient: true,
               birthdayThisWeek: false,
@@ -677,6 +687,8 @@ describe("Today's chair", () => {
             endTime: null,
             type: 'checkup',
             status: 'scheduled',
+            arrivedAt: null,
+            seatedAt: null,
             flags: {
               newPatient: true,
               birthdayThisWeek: false,
@@ -705,6 +717,8 @@ describe("Today's chair", () => {
             endTime: null,
             type: 'cleaning',
             status: 'confirmed',
+            arrivedAt: null,
+            seatedAt: null,
             flags: {
               newPatient: false,
               birthdayThisWeek: false,
@@ -733,6 +747,8 @@ describe("Today's chair", () => {
             endTime: null,
             type: 'cleaning',
             status: 'confirmed',
+            arrivedAt: null,
+            seatedAt: null,
             flags: {
               newPatient: true,
               birthdayThisWeek: false,
@@ -763,6 +779,9 @@ describe('Trend tiles', () => {
           upcomingNext7d: 23,
           activeIntakeForms: 1,
           bookingsPerDay14: [],
+          newPatientsPerDay30: [],
+          upcomingPerDay7: [],
+          intakeSubmissionsPerDay14: [],
         },
       }),
     )
@@ -773,7 +792,7 @@ describe('Trend tiles', () => {
     // The comparison is the SAME ELAPSED SPAN of last month (the 1st to this
     // day-and-hour), and the label says so — a partial month against a whole
     // one read red for three weeks of every four.
-    expect(screen.getByText(/\+4 vs this point last month/)).toBeInTheDocument()
+    expect(screen.getByText(/12 so far · 8 by this day last month/)).toBeInTheDocument()
     expect(screen.getByText('23')).toBeInTheDocument() // upcoming
   })
 
@@ -787,12 +806,15 @@ describe('Trend tiles', () => {
           upcomingNext7d: 0,
           activeIntakeForms: 0,
           bookingsPerDay14: [],
+          newPatientsPerDay30: [],
+          upcomingPerDay7: [],
+          intakeSubmissionsPerDay14: [],
         },
       }),
     )
     const ui = await ClinicOverview({ ctx: makeCtx() })
     render(ui)
-    const sub = screen.getByText(/-4 vs this point last month/)
+    const sub = screen.getByText(/5 so far · 9 by this day last month/)
     // KpiStat paints the tone on the sub line (TONE_TEXT): warn = amber,
     // urgent = rose. A shortfall is worth a look, not a problem now.
     expect(sub.className).toBe(`mt-0.5 text-xs font-medium ${TONE_TEXT.warn}`)
@@ -809,6 +831,9 @@ describe('Trend tiles', () => {
           upcomingNext7d: 0,
           activeIntakeForms: 0,
           bookingsPerDay14: [],
+          newPatientsPerDay30: [],
+          upcomingPerDay7: [],
+          intakeSubmissionsPerDay14: [],
         },
       }),
     )
@@ -831,6 +856,9 @@ describe('Trend tiles', () => {
           upcomingNext7d: 5,
           activeIntakeForms: 0,
           bookingsPerDay14: [],
+          newPatientsPerDay30: [],
+          upcomingPerDay7: [],
+          intakeSubmissionsPerDay14: [],
         },
       }),
     )
@@ -1874,5 +1902,89 @@ describe('the sign-here stack', () => {
     expect(expiryTone(new Date('2026-08-14T20:00:00Z'), now)).toBe('urgent') // 8h
     expect(expiryTone(new Date('2026-08-16T12:00:00Z'), now)).toBe('warn') // 48h
     expect(expiryTone(new Date('2026-08-24T12:00:00Z'), now)).toBeNull() // 10d
+  })
+})
+
+
+describe('ClinicOverview — heartbeats and arrivals (ML-14)', () => {
+  const series = (n: number) => Array.from({ length: n }, (_, i) => ({ bucket: `Day ${i}`, value: i % 3 }))
+  const sparkCount = (c: HTMLElement) => c.querySelectorAll('section.mb-8 svg').length
+
+  function trendsWith(over: Record<string, unknown> = {}) {
+    return {
+      ...makeData().trends,
+      bookingsPerDay14: series(14),
+      newPatientsPerDay30: series(30),
+      upcomingPerDay7: series(8),
+      intakeSubmissionsPerDay14: series(14),
+      ...over,
+    }
+  }
+
+  it('every trend tile carries a spark and the grid never leaves an empty cell', async () => {
+    mockGetOverview.mockResolvedValueOnce(
+      makeData({
+        trends: trendsWith({ newPatientsMTD: 12, newPatientsSamePointLastMonth: 9 }),
+        siteTraffic: {
+          windowDays: 7,
+          total: 70,
+          totalPrev: 50,
+          daily: Array.from({ length: 7 }, (_, i) => ({ day: `2026-05-${10 + i}`, views: i })),
+          topPages: [],
+        },
+      }),
+    )
+    const { container } = render(await ClinicOverview({ ctx: makeCtx() }))
+    expect(screen.getByText('12 so far · 9 by this day last month')).toBeInTheDocument()
+    // five tiles (intake door open + site) -> a 5-wide lg row, odd last tile spans both mobile columns
+    const grid = container.querySelector('.grid.grid-cols-2.lg\\:grid-cols-5') as HTMLElement
+    expect(grid).not.toBeNull()
+    expect(grid.children).toHaveLength(5)
+    expect(grid.children[4].className).toContain('col-span-2')
+    for (const label of ['Bookings today', 'New patients MTD', 'Upcoming', 'Intake forms', 'Website visits']) {
+      const tile = screen.getByText(label).closest('div.col-span-2, div:not([class*="col-span"])') as HTMLElement
+      expect(tile).not.toBeNull()
+    }
+    expect(sparkCount(container)).toBeGreaterThanOrEqual(5)
+  })
+
+  it('an even tile count spans nothing', async () => {
+    doors.intake_forms = false
+    try {
+      mockGetOverview.mockResolvedValueOnce(makeData({ trends: trendsWith() }))
+      const { container } = render(await ClinicOverview({ ctx: makeCtx() }))
+      const grid = container.querySelector('.grid.grid-cols-2.lg\\:grid-cols-3') as HTMLElement
+      expect(grid.children).toHaveLength(3)
+      expect(grid.children[2].className).toContain('col-span-2')
+    } finally {
+      doors.intake_forms = true
+    }
+  })
+
+  it('today’s chair shows the agenda’s arrival pills, read-only', async () => {
+    const base = {
+      patientId: 'p',
+      startTime: new Date('2026-05-20T10:00:00Z'),
+      endTime: null,
+      type: 'cleaning',
+      status: 'confirmed',
+      flags: { newPatient: true, birthdayThisWeek: false, hasOutstandingBalance: true, hasIntakeOnFile: true },
+      tags: [],
+    }
+    mockGetOverview.mockResolvedValueOnce(
+      makeData({
+        todaysAppointments: [
+          { ...base, id: 'a1', patientName: 'Ann Waiting', arrivedAt: new Date(), seatedAt: null },
+          { ...base, id: 'a2', patientName: 'Bo Seated', arrivedAt: new Date(), seatedAt: new Date() },
+          { ...base, id: 'a3', patientName: 'Cy Later', arrivedAt: null, seatedAt: null },
+        ] as never,
+      }),
+    )
+    const { container } = render(await ClinicOverview({ ctx: makeCtx() }))
+    expect(screen.getAllByText(/🚪 Arrived/)).toHaveLength(1)
+    expect(screen.getAllByText(/🪑 Seated/)).toHaveLength(1)
+    // glyph cluster still on the row (new patient / balance)
+    expect(container.querySelector('li [title*="balance" i], li [aria-label*="balance" i]')).not.toBeNull()
+    expect(screen.queryByRole('button', { name: /arrived|seat/i })).toBeNull()
   })
 })

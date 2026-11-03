@@ -112,6 +112,16 @@ export interface ClinicOverviewData {
      *  the Bookings tile's heartbeat (DESIGN-SYSTEM v3 law 7). Same
      *  `createdAt` semantics as `bookingsToday`. */
     bookingsPerDay14: Array<{ bucket: string; value: number }>
+    /** New patients per clinic-local day, last 30 days (oldest first) — the
+     *  New-patients tile's heartbeat. Same population as `newPatientsMTD`
+     *  (firstSeenAt, archived out, bulk backfills out). */
+    newPatientsPerDay30: Array<{ bucket: string; value: number }>
+    /** Upcoming visits per clinic-local day, today through day +7 (8 buckets:
+     *  the tile's window runs now → now+7d, so its tail spills into day 7).
+     *  Same filter as `upcomingNext7d`. */
+    upcomingPerDay7: Array<{ bucket: string; value: number }>
+    /** Intake forms submitted per clinic-local day, last 14 days. */
+    intakeSubmissionsPerDay14: Array<{ bucket: string; value: number }>
   }
   recentActivity: ActivityRow[]
   /** Broken/harmful setup facts from the readiness resolver (PMS sync down,
@@ -138,6 +148,9 @@ export interface TodayAppointmentRow {
   endTime: Date | null
   type: string
   status: string
+  /** In-office flow breadcrumbs (set from the agenda) — read-only here. */
+  arrivedAt: Date | null
+  seatedAt: Date | null
   flags: {
     newPatient: boolean
     birthdayThisWeek: boolean
@@ -217,6 +230,8 @@ export async function getClinicOverview(organizationId: string): Promise<ClinicO
       endTime: schema.appointment.endTime,
       type: schema.appointment.type,
       status: schema.appointment.status,
+      arrivedAt: schema.appointment.arrivedAt,
+      seatedAt: schema.appointment.seatedAt,
       pmsBalanceCents: schema.patient.pmsBalanceCents,
     })
     .from(schema.appointment)
@@ -294,6 +309,8 @@ export async function getClinicOverview(organizationId: string): Promise<ClinicO
     endTime: a.endTime,
     type: a.type,
     status: a.status,
+    arrivedAt: a.arrivedAt,
+    seatedAt: a.seatedAt,
     flags: {
       newPatient: newPatientSet.has(a.patientId),
       birthdayThisWeek: isBirthdayThisWeek(a.dateOfBirth, todayKey),
@@ -444,7 +461,18 @@ export async function getClinicOverview(organizationId: string): Promise<ClinicO
 
   // ── Trend tiles — five independent counts + the booking pulse, one batch ──
   const day14Start = clinicDayStart(now, timeZone, -13)
-  const [bookingsTodayRow, newPatientsMTDRow, newPatientsSamePointRow, upcomingRow, activeFormsRow, bookingRows14] =
+  const day30Start = clinicDayStart(now, timeZone, -29)
+  const [
+    bookingsTodayRow,
+    newPatientsMTDRow,
+    newPatientsSamePointRow,
+    upcomingRow,
+    activeFormsRow,
+    bookingRows14,
+    newPatientRows30,
+    upcomingRows,
+    intakeRows14,
+  ] =
     await Promise.all([
       db
         .select({ count: count() })
@@ -504,6 +532,41 @@ export async function getClinicOverview(organizationId: string): Promise<ClinicO
         .select({ createdAt: schema.appointment.createdAt })
         .from(schema.appointment)
         .where(and(eq(schema.appointment.organizationId, organizationId), gte(schema.appointment.createdAt, day14Start))),
+      // New-patient pulse: the MTD tile's population over 30 clinic days.
+      db
+        .select({ firstSeenAt: schema.patient.firstSeenAt, source: schema.patient.source })
+        .from(schema.patient)
+        .where(
+          and(
+            eq(schema.patient.organizationId, organizationId),
+            isNotNull(schema.patient.firstSeenAt),
+            gte(schema.patient.firstSeenAt, day30Start),
+            ne(schema.patient.lifecycle, 'archived'),
+          ),
+        ),
+      // Upcoming pulse: start times only, the tile's own window + filter.
+      db
+        .select({ startTime: schema.appointment.startTime })
+        .from(schema.appointment)
+        .where(
+          and(
+            eq(schema.appointment.organizationId, organizationId),
+            gte(schema.appointment.startTime, now),
+            lte(schema.appointment.startTime, in7d),
+            ne(schema.appointment.status, 'cancelled'),
+            ne(schema.appointment.status, 'no_show'),
+          ),
+        ),
+      // Intake pulse: submissions over 14 clinic days.
+      db
+        .select({ submittedAt: schema.formSubmission.submittedAt })
+        .from(schema.formSubmission)
+        .where(
+          and(
+            eq(schema.formSubmission.organizationId, organizationId),
+            gte(schema.formSubmission.submittedAt, day14Start),
+          ),
+        ),
     ])
 
   const dayFmt = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', timeZone })
@@ -516,6 +579,32 @@ export async function getClinicOverview(organizationId: string): Promise<ClinicO
     }
   })
 
+  // One bucketer for every series: clinic-day boundaries, never UTC days.
+  const bucketByClinicDay = (stamps: Date[], firstOffset: number, days: number) =>
+    Array.from({ length: days }, (_, i) => {
+      const dayStart = clinicDayStart(now, timeZone, firstOffset + i)
+      const dayEnd = clinicDayStart(now, timeZone, firstOffset + i + 1)
+      return {
+        bucket: dayFmt.format(dayStart),
+        value: stamps.filter((t) => t >= dayStart && t < dayEnd).length,
+      }
+    })
+  const newPatientsPerDay30 = bucketByClinicDay(
+    newPatientRows30.filter((r) => !BACKFILL_PATIENT_SOURCES.has(r.source ?? '')).map((r) => r.firstSeenAt!),
+    -29,
+    30,
+  )
+  const upcomingPerDay7 = bucketByClinicDay(
+    upcomingRows.map((r) => r.startTime),
+    0,
+    8,
+  )
+  const intakeSubmissionsPerDay14 = bucketByClinicDay(
+    intakeRows14.map((r) => r.submittedAt),
+    -13,
+    14,
+  )
+
   const trends = {
     bookingsToday: Number(bookingsTodayRow?.count ?? 0),
     newPatientsMTD: Number(newPatientsMTDRow?.count ?? 0),
@@ -523,6 +612,9 @@ export async function getClinicOverview(organizationId: string): Promise<ClinicO
     upcomingNext7d: Number(upcomingRow?.count ?? 0),
     activeIntakeForms: Number(activeFormsRow?.count ?? 0),
     bookingsPerDay14,
+    newPatientsPerDay30,
+    upcomingPerDay7,
+    intakeSubmissionsPerDay14,
   }
 
   // ── Recent activity (mixed feed, last 10) ───────────────────────────
