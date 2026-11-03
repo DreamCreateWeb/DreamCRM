@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import Link from 'next/link'
+import { ActionButton } from '@/components/ui/action-button'
 import { setMyDigestOptOutAction } from './actions'
 import { setDigestEnabledAction } from '@/app/(default)/followups/actions'
 import { runAction } from '@/lib/run-action'
@@ -67,27 +68,17 @@ export default function DigestToggle({
             ? ' — you get the morning digest and the Monday week-in-review by email.'
             : ' — you get the Monday week-in-review by email.'}
       </span>
-      <button
-        type="button"
-        onClick={toggle}
-        disabled={pending}
-        className="rounded-md px-2 py-0.5 text-xs font-medium text-teal-700 ring-1 ring-inset ring-teal-500/40 hover:bg-teal-500/10 disabled:opacity-50 dark:text-teal-300"
-      >
-        {pending ? '…' : optedOut ? 'Turn on' : 'Turn off'}
-      </button>
+      <ActionButton variant="secondary" size="sm" onClick={toggle} pending={pending}>
+        {optedOut ? 'Turn on' : 'Turn off'}
+      </ActionButton>
       {error && <span className="text-xs text-rose-600 dark:text-rose-400">{error}</span>}
       {!orgOn && (
         <div className="basis-full flex flex-wrap items-center gap-2">
           <span>Your clinic&rsquo;s morning digest is off.</span>
           {canManageOrgDigest ? (
-            <button
-              type="button"
-              onClick={turnOnOrgDigest}
-              disabled={orgPending}
-              className="rounded-md px-2 py-0.5 text-xs font-medium text-teal-700 ring-1 ring-inset ring-teal-500/40 hover:bg-teal-500/10 disabled:opacity-50 dark:text-teal-300"
-            >
-              {orgPending ? '…' : 'Turn it on'}
-            </button>
+            <ActionButton variant="secondary" size="sm" onClick={turnOnOrgDigest} pending={orgPending}>
+              Turn it on
+            </ActionButton>
           ) : (
             <Link href="/settings/notifications" className="text-xs font-medium text-teal-700 hover:underline dark:text-teal-300">
               Notification settings →
