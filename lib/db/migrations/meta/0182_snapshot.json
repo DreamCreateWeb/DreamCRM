@@ -1,6 +1,6 @@
 {
-  "id": "e19c7ac3-d727-4c8f-af41-2816da1be7a5",
-  "prevId": "641b5ae2-dfdc-42ad-9eb5-04c3f94d63fc",
+  "id": "120eee36-ea2b-442c-a5bb-73ea375dc72d",
+  "prevId": "6ab3cabb-1bb0-4a80-9f44-2f3620dc4806",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -6452,6 +6452,25 @@
           "primaryKey": false,
           "notNull": false
         },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'generic'"
+        },
+        "snoozed_until": {
+          "name": "snoozed_until",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "outcome": {
+          "name": "outcome",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp",
@@ -6715,6 +6734,33 @@
           "columns": [
             {
               "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "sent_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "patient_message_org_patient_sent_idx": {
+          "name": "patient_message_org_patient_sent_idx",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "patient_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"

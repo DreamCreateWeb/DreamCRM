@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 /**
- * Migration 0182 — `payment_plan.card_update_sent_at`: the nullable stamp
+ * Migration 0182 (ML-15 + ML-18, regenerated as ONE file at integration) — `payment_plan.card_update_sent_at`: the nullable stamp
  * that says the patient was emailed the "Update my card" link after a
  * declined installment. Set on the first decline of a streak, never re-sent
  * while set, cleared by a successful charge or the card-update return trip.
@@ -11,8 +11,8 @@ import { join } from 'node:path'
  */
 const DIR = join(process.cwd(), 'lib/db/migrations')
 
-describe('0182_card_update_sent_at', () => {
-  const sql = readFileSync(join(DIR, '0182_card_update_sent_at.sql'), 'utf8')
+describe('0182_card_update_followup_kind_snooze_outcome (card_update_sent_at)', () => {
+  const sql = readFileSync(join(DIR, '0182_card_update_followup_kind_snooze_outcome.sql'), 'utf8')
 
   it('adds the nullable stamp to payment_plan and nothing else', () => {
     expect(sql).toMatch(/ALTER TABLE "payment_plan" ADD COLUMN "card_update_sent_at" timestamp;/)
@@ -27,7 +27,7 @@ describe('0182_card_update_sent_at', () => {
       entries: Array<{ idx: number; tag: string; when: number }>
     }
     const entry = journal.entries.find((e) => e.idx === 182)
-    expect(entry?.tag).toBe('0182_card_update_sent_at')
+    expect(entry?.tag).toBe('0182_card_update_followup_kind_snooze_outcome')
     // Applied after the insurance-discovery table (0180); drizzle applies by `when`.
     const prior = journal.entries.find((e) => e.tag === '0180_insurance_discovery')
     expect(entry!.when).toBeGreaterThan(prior!.when)

@@ -1275,6 +1275,13 @@
       "when": 1793744289721,
       "tag": "0181_patient_message_index",
       "breakpoints": true
+    },
+    {
+      "idx": 182,
+      "version": "7",
+      "when": 1793746768938,
+      "tag": "0182_card_update_followup_kind_snooze_outcome",
+      "breakpoints": true
     }
   ]
 }
