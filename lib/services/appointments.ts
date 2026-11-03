@@ -1032,7 +1032,7 @@ function patientRecordLinkLabel(patientName: string): string {
  *  "who cancelled this?" is answerable in one glance (the 2026-07-22 mixup:
  *  staff and the patient each assumed the other side had done it). */
 export interface CancelActor {
-  via: 'staff' | 'portal'
+  via: 'staff' | 'portal' | 'confirm_link'
   /** Staff user id (via='staff' only). */
   userId?: string | null
   /** Staff display name for the notification copy (via='staff' only). */
@@ -1093,7 +1093,9 @@ export async function cancelAppointment(
       const body =
         actor?.via === 'portal'
           ? `Their ${visit} was cancelled from the patient portal (their account — heads-up if family share that email).`
-          : actor?.via === 'staff' && actor.name
+          : actor?.via === 'confirm_link'
+            ? `Their ${visit} was cancelled from the link in their reminder.`
+            : actor?.via === 'staff' && actor.name
             ? `${actor.name} cancelled their ${visit}.`
             : `Their ${visit} was cancelled.`
       const { notifyOrgMembers } = await import('./notifications')

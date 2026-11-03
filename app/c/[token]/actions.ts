@@ -1,6 +1,6 @@
 'use server'
 
-import { confirmVisitByToken, type ConfirmContext } from '@/lib/services/appointment-confirm'
+import { cancelVisitByToken, confirmVisitByToken, type ConfirmContext } from '@/lib/services/appointment-confirm'
 
 /** Token-is-auth confirm (the /c/[token] landing's one button). */
 export async function confirmVisitAction(
@@ -10,4 +10,14 @@ export async function confirmVisitAction(
     return { ok: false, state: 'past' }
   }
   return confirmVisitByToken(token)
+}
+
+/** "I can't make it" - cancels through the one cancel path (token is auth). */
+export async function cancelVisitByTokenAction(
+  token: string,
+): Promise<{ ok: boolean; state: ConfirmContext['state'] }> {
+  if (typeof token !== 'string' || token.length < 8 || token.length > 200) {
+    return { ok: false, state: 'past' }
+  }
+  return cancelVisitByToken(token)
 }
