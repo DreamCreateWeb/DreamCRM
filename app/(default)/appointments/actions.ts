@@ -29,6 +29,10 @@ import { clinicProfile } from '@/lib/db/schema/platform'
 import { appointment } from '@/lib/db/schema/clinic'
 import { listProviders, type ProviderRow } from '@/lib/services/providers'
 import { searchPatientOptions, getPatientOption, type PatientOption } from '@/lib/services/patients'
+import { resolvePublicPatient } from '@/lib/services/public-patient-match'
+import { toE164 } from '@/lib/phone'
+import { getPmsLink } from '@/lib/services/pms-link'
+import { bookingWriteBackCopy } from '@/lib/pms-link'
 import { resolveVisitTypes, visitTypeDuration, type VisitType } from '@/lib/types/visit-types'
 
 /** Read the clinic's raw visit-type settings jsonb (null = defaults). */
@@ -445,6 +449,9 @@ export async function createInternalAppointmentAction(input: {
 export interface BookingConfig {
   providers: Array<{ id: string; displayName: string; role: string }>
   visitTypes: Array<{ id: string; label: string; durationMinutes: number }>
+  /** Where this visit will NOT reach — null when the PMS gets it or there is
+   *  no PMS (`bookingWriteBackCopy`, the one sentence). */
+  pmsNote: string | null
 }
 
 /**
@@ -454,11 +461,13 @@ export interface BookingConfig {
  */
 export async function getBookingConfigAction(): Promise<BookingConfig> {
   const ctx = await requireClinicTenant()
-  const [providers, settings] = await Promise.all([
+  const [providers, settings, pmsLink] = await Promise.all([
     listProviders(ctx.organizationId, { activeOnly: true }),
     getClinicVisitTypeSettings(ctx.organizationId),
+    getPmsLink(ctx.organizationId),
   ])
   return {
+    pmsNote: bookingWriteBackCopy(pmsLink, pmsLink.kind === 'connected' && pmsLink.writeBack === true),
     providers: providers.map((p: ProviderRow) => ({ id: p.id, displayName: p.displayName, role: p.role })),
     visitTypes: resolveVisitTypes(settings).map((t: VisitType) => ({
       id: t.id,
@@ -563,5 +572,66 @@ export async function bulkCreateFollowupsForPatientsAction(
     return { ok: true, created }
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : 'Could not add follow-ups' }
+  }
+}
+
+export type CreatePatientForBookingResult =
+  | {
+      ok: true
+      option: PatientOption
+      /** True when the contact info already belonged to this same person —
+       *  we selected their existing record instead of minting a second one. */
+      existing: boolean
+      /** Set when a NEW record was minted because the phone/email is on file
+       *  for someone with a different name (likely family). */
+      sharedContactWith: { id: string; name: string } | null
+    }
+  | { ok: false; error: string }
+
+/**
+ * The New-booking drawer's "New caller" door: a caller on the line, three
+ * fields, no round trip to /patients. Goes through the SAME family-safe
+ * resolver as every inbound flow (`resolvePublicPatient`): a phone/email that
+ * already belongs to a patient with a different name mints a separate
+ * "likely family" record; the same name selects the existing patient. The
+ * record is minimal and honest — provenance `manual` (staff-entered, the
+ * vocabulary the long-form add uses), phone stored as E.164 or not at all.
+ */
+export async function createPatientForBookingAction(input: {
+  firstName: string
+  lastName: string
+  phone?: string | null
+  email?: string | null
+}): Promise<CreatePatientForBookingResult> {
+  const ctx = await requireClinicTenant()
+  const firstName = typeof input.firstName === 'string' ? input.firstName.trim().slice(0, 80) : ''
+  const lastName = typeof input.lastName === 'string' ? input.lastName.trim().slice(0, 80) : ''
+  if (!firstName || !lastName) return { ok: false, error: 'Add their first and last name.' }
+  const rawPhone = typeof input.phone === 'string' ? input.phone.trim() : ''
+  const phone = rawPhone ? toE164(rawPhone) : null
+  if (rawPhone && !phone) {
+    return { ok: false, error: 'That phone number doesn’t look right — check the digits, or leave it blank.' }
+  }
+  const rawEmail = typeof input.email === 'string' ? input.email.trim().slice(0, 200) : ''
+  if (rawEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(rawEmail)) {
+    return { ok: false, error: 'That email doesn’t look right — check it, or leave it blank.' }
+  }
+  const email = rawEmail ? rawEmail.toLowerCase() : null
+  if (!phone && !email) return { ok: false, error: 'Add a phone number or an email so the desk can reach them.' }
+  try {
+    const r = await resolvePublicPatient(ctx.organizationId, {
+      firstName,
+      lastName,
+      email,
+      phone,
+      source: 'manual',
+      lifecycle: 'new',
+    })
+    const option = await getPatientOption(ctx.organizationId, r.patientId)
+    if (!option) return { ok: false, error: 'We couldn’t save that patient — please try again.' }
+    revalidatePath('/patients')
+    return { ok: true, option, existing: !r.created, sharedContactWith: r.sharedContactWith }
+  } catch {
+    return { ok: false, error: 'We couldn’t save that patient — please try again.' }
   }
 }

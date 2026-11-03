@@ -482,6 +482,13 @@ export default function AgendaView({
           initialPatientId={nextVisitBook?.patientId ?? initialPatientId}
           defaultDate={nextVisitBook?.dateKey ?? null}
           defaultType={nextVisitBook?.type ?? null}
+          onBooked={(pmsNote) =>
+            setToast(
+              pmsNote
+                ? { message: `Booked. ${pmsNote}`, tone: 'warn' }
+                : { message: 'Booked.', tone: 'ok' },
+            )
+          }
         />
       )}
 

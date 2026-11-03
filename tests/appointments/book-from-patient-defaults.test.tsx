@@ -58,4 +58,19 @@ describe('BookFromPatientDrawer — seeds', () => {
     render(<BookFromPatientDrawer patientId="pat_1" patientName="Mia Hayes" onClose={() => {}} />)
     expect((screen.getByLabelText('Date') as HTMLInputElement).value).toBe(tomorrowKey())
   })
+
+  it('shows the "lives here only" sentence when the config carries one, and nothing otherwise', async () => {
+    configMock.mockResolvedValue({
+      providers: [],
+      visitTypes: [{ id: 'cleaning', label: 'Cleaning', durationMinutes: 30 }],
+      pmsNote: 'This visit lives here only — add it to your practice software too.',
+    })
+    const { unmount } = render(<BookFromPatientDrawer patientId="pat_1" patientName="Mia Hayes" onClose={() => {}} />)
+    expect((await screen.findByTestId('pms-write-back-note')).textContent).toMatch(/lives here only/)
+    unmount()
+    configMock.mockResolvedValue({ providers: [], visitTypes: [{ id: 'cleaning', label: 'Cleaning', durationMinutes: 30 }], pmsNote: null })
+    render(<BookFromPatientDrawer patientId="pat_1" patientName="Mia Hayes" onClose={() => {}} />)
+    await waitFor(() => expect(configMock).toHaveBeenCalledTimes(2))
+    expect(screen.queryByTestId('pms-write-back-note')).toBeNull()
+  })
 })

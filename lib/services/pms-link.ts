@@ -21,11 +21,22 @@ import type { PmsLink } from '@/lib/pms-link'
 export async function getPmsLink(organizationId: string): Promise<PmsLink> {
   try {
     const [conn] = await db
-      .select({ status: schema.pmsConnection.status })
+      .select({
+        status: schema.pmsConnection.status,
+        provider: schema.pmsConnection.provider,
+        syncDirection: schema.pmsConnection.syncDirection,
+      })
       .from(schema.pmsConnection)
       .where(eq(schema.pmsConnection.organizationId, organizationId))
       .limit(1)
-    if (conn && conn.status !== 'not_connected') return { kind: 'connected' }
+    if (conn && conn.status !== 'not_connected') {
+      return {
+        kind: 'connected',
+        ...(conn.provider === 'open_dental' ? { vendorLabel: 'Open Dental' } : {}),
+        // The same line queueAppointmentWriteBack draws: pushed only when live + two-way.
+        writeBack: conn.status === 'connected' && conn.syncDirection === 'two_way',
+      }
+    }
 
     const [req] = await db
       .select({
