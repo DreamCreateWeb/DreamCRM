@@ -1,5 +1,6 @@
 import 'server-only'
-import { and, eq, gte, inArray, isNotNull, lte, ne, or } from 'drizzle-orm'
+import { and, eq, gte, inArray, isNotNull, lte, max, ne, or } from 'drizzle-orm'
+import { isIntakeOnFile, pickAutoSendForm } from '@/lib/intake-on-file'
 import { listShutDownOrgIds } from './billing-state'
 import { db, schema } from '@/lib/db'
 import { patientEmailShell, deliver, sendNotificationEmail } from '@/lib/email'
@@ -1040,7 +1041,7 @@ export async function runDueFormReminders(opts?: { now?: Date }): Promise<Remind
     .from(schema.clinicProfile)
 
   const { sendIntakeRequestToPatient } = await import('@/lib/services/patient-intake-send')
-  const { patientFacingIntakeOpen } = await import('@/lib/services/forms')
+  const { patientFacingIntakeOpen, listFormTemplates } = await import('@/lib/services/forms')
 
   // THE KILL: a shut-down practice nudges nobody about paperwork either.
   const shutDown = await listShutDownOrgIds(now)
@@ -1060,6 +1061,12 @@ export async function runDueFormReminders(opts?: { now?: Date }): Promise<Remind
     if (!(await patientFacingIntakeOpen(profile.organizationId))) continue
     result.orgsScanned++
 
+    // THE RULES (ML-27): the org's live forms, each a rule — the visit types
+    // it rides with + its refresh window. A practice with no form has nothing
+    // to chase.
+    const forms = await listFormTemplates(profile.organizationId)
+    if (forms.length === 0) continue
+
     const windowEnd = new Date(now.getTime() + FORMS_REMINDER_WINDOW_HOURS * 60 * 60 * 1000)
     const remindedSince = new Date(now.getTime() - FORMS_REMINDER_WINDOW_HOURS * 60 * 60 * 1000)
 
@@ -1067,7 +1074,7 @@ export async function runDueFormReminders(opts?: { now?: Date }): Promise<Remind
     // 'confirmed' — a confirmed visit still needs its paperwork. Cancelled /
     // no-show / completed are excluded by construction.
     const candidates = await db
-      .select({ appointmentId: schema.appointment.id, patientId: schema.appointment.patientId })
+      .select({ appointmentId: schema.appointment.id, patientId: schema.appointment.patientId, type: schema.appointment.type })
       .from(schema.appointment)
       .innerJoin(schema.patient, eq(schema.appointment.patientId, schema.patient.id))
       .where(
@@ -1091,10 +1098,19 @@ export async function runDueFormReminders(opts?: { now?: Date }): Promise<Remind
     )
     const appointmentIds = candidates.map((c) => c.appointmentId)
 
-    // Patients who have ever submitted any form → nothing to chase.
-    const submittedRows = patientIds.length
+    // "ON FILE" (ML-27, lib/intake-on-file.ts): the newest submission per
+    // (patient, form). It used to be "any submission, ever"; now a rule's
+    // refresh window ages a submission out, and a visit-specific form (a
+    // consent) counts only when THAT form was filled. Still one grouped
+    // query per org. drizzle's max() keeps the column's driver mapper — a
+    // bare `sql` max would read the timestamp text in the host's zone.
+    const latestRows = patientIds.length
       ? await db
-          .selectDistinct({ patientId: schema.formSubmission.patientId })
+          .select({
+            patientId: schema.formSubmission.patientId,
+            formTemplateId: schema.formSubmission.formTemplateId,
+            last: max(schema.formSubmission.submittedAt),
+          })
           .from(schema.formSubmission)
           .where(
             and(
@@ -1102,10 +1118,18 @@ export async function runDueFormReminders(opts?: { now?: Date }): Promise<Remind
               inArray(schema.formSubmission.patientId, patientIds),
             ),
           )
+          .groupBy(schema.formSubmission.patientId, schema.formSubmission.formTemplateId)
       : []
-    const submittedSet = new Set(
-      submittedRows.map((r) => r.patientId).filter((id): id is string => !!id),
-    )
+    const latestAny = new Map<string, Date>()
+    const latestByForm = new Map<string, Date>()
+    for (const r of latestRows) {
+      if (!r.patientId) continue
+      const last = r.last instanceof Date ? r.last : r.last ? new Date(r.last as unknown as string) : null
+      if (!last || Number.isNaN(last.getTime())) continue
+      const prev = latestAny.get(r.patientId)
+      if (!prev || last > prev) latestAny.set(r.patientId, last)
+      if (r.formTemplateId) latestByForm.set(`${r.patientId}:${r.formTemplateId}`, last)
+    }
 
     // Appointments that already got a forms reminder within the window.
     const recentRows = appointmentIds.length
@@ -1135,8 +1159,32 @@ export async function runDueFormReminders(opts?: { now?: Date }): Promise<Remind
         continue
       }
 
-      // Already completed a form? Then nothing to chase.
-      if (submittedSet.has(c.patientId)) {
+      // THE RULE FOR THIS VISIT (ML-27): only forms covering the visit's type
+      // are in the running; a sedation visit gets the sedation consent, a
+      // cleaning never sees it. No rule covers the visit → nothing to chase.
+      // The cron does not know new-vs-returning (isNewPatient: null), so an
+      // audience-specific form does not outrank the general ones here — the
+      // booking confirmation, which does know, picks with the audience.
+      const form = pickAutoSendForm(forms, { isNewPatient: null, appointmentType: c.type })
+      if (!form) {
+        result.skipped++
+        continue
+      }
+
+      // On file — newer than the rule's refresh window (clinic-local month
+      // boundaries); for a visit-specific form, that form itself. Then
+      // nothing to chase.
+      if (
+        isIntakeOnFile(
+          form,
+          {
+            any: latestAny.get(c.patientId) ?? null,
+            ofForm: latestByForm.get(`${c.patientId}:${form.id}`) ?? null,
+          },
+          now,
+          profile.timezone,
+        )
+      ) {
         result.skipped++
         continue
       }
@@ -1149,9 +1197,9 @@ export async function runDueFormReminders(opts?: { now?: Date }): Promise<Remind
       }
 
       try {
-        // Throws on success-blockers (no email, no default form). Any return
+        // Throws on success-blockers (no email, archived form). Any return
         // means it sent.
-        await sendIntakeRequestToPatient(profile.organizationId, c.patientId)
+        await sendIntakeRequestToPatient(profile.organizationId, c.patientId, form.id)
         remindedPatients.add(c.patientId)
         await logReminderSent({
           organizationId: profile.organizationId,

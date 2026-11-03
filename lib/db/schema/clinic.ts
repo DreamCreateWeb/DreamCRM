@@ -667,6 +667,16 @@ export const formTemplate = pgTable(
     // rides a booking confirmation for a given patient (new patients get the
     // full intake; returning patients a short update). Default 'all'.
     autoSendAudience: text('auto_send_audience').notNull().default('all'),
+    // AUTO-SEND TARGETING (ML-27): the visit types this form rides along
+    // with — `appointment.type` ids (lib/types/visit-types.ts). Null = every
+    // visit. A sedation visit can ask for the sedation consent ONLY, and a
+    // cleaning never sees it. string[] in jsonb.
+    appointmentTypeIds: jsonb('appointment_type_ids'),
+    // THE REFRESH WINDOW (ML-27): "ask again every N months". A submission
+    // older than this counts as NOT on file, so a returning patient gets a
+    // fresh form (clinic-local month boundaries, lib/intake-on-file.ts).
+    // Null = never re-ask — one submission is on file forever (the old rule).
+    refreshMonths: integer('refresh_months'),
     // Cached per-locale translations of the form's display strings, keyed by
     // locale → a parallel FormTemplateSchema (same field ids, translated
     // labels/help/options/body/section titles). { es?: FormTemplateSchema }.

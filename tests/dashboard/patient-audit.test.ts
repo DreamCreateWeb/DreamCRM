@@ -23,6 +23,12 @@ vi.mock('@/lib/services/feature-switches', () => ({
 vi.mock('@/lib/services/insurance-eligibility', () => ({
   getLatestInsuranceChecksForPatients: vi.fn(async () => latestChecks),
 }))
+// The chair read (ML-27): the cached intake alerts, keyed by appointment. Its
+// own query is pinned in tests/intake-forms/intake-alerts-read.test.ts.
+const intakeAlerts = new Map<string, { submissionId: string; alerts: string[] }>()
+vi.mock('@/lib/services/intake-summary', () => ({
+  getIntakeAlertsForAppointments: vi.fn(async () => intakeAlerts),
+}))
 vi.mock('@/lib/db', () => {
   const makeThenable = (resolve: () => unknown) => {
     const chain: Record<string, unknown> = {
@@ -127,6 +133,7 @@ beforeEach(() => {
   state.lastVisits = []
   state.deposits = []
   apptServed = false
+  intakeAlerts.clear()
   insuranceDoor.open = false
   latestChecks.clear()
   vi.clearAllMocks()
@@ -235,5 +242,39 @@ describe('auditUpcomingDay', () => {
       insuranceDoor.open = true
       expect(await flagsFor({ policyNumber: null })).toHaveLength(0)
     })
+  })
+})
+
+describe('medical_alert — the chair read (ML-27)', () => {
+  it('leads the flags with the alert text and a door to the submission; no cached alerts → no flag', async () => {
+    state.appointments = [
+      appt({ appointmentId: 'a1', patientId: 'p1', status: 'scheduled' }),
+      appt({ appointmentId: 'a2', patientId: 'p2', firstName: 'Noah', lastName: 'Park', status: 'scheduled' }),
+    ]
+    state.submitted = [{ patientId: 'p1' }, { patientId: 'p2' }]
+    state.lastVisits = [{ patientId: 'p1', last: MONTHS_AGO }, { patientId: 'p2', last: MONTHS_AGO }]
+    intakeAlerts.set('a1', { submissionId: 'sub_1', alerts: ['Allergic to penicillin', 'Takes warfarin (blood thinner)'] })
+    const r = await auditUpcomingDay('org_1', { now: NOW })
+    const mia = r.items.find((i) => i.patientId === 'p1')!
+    expect(mia.flags[0]).toEqual({
+      key: 'medical_alert',
+      label: 'Heads-up from their intake: Allergic to penicillin · Takes warfarin (blood thinner)',
+      href: '/intake-forms/submissions/sub_1',
+    })
+    const noah = r.items.find((i) => i.patientId === 'p2')!
+    expect(noah.flags.map((f) => f.key)).not.toContain('medical_alert')
+  })
+
+  it('never reads alerts while the Intake Forms door is closed', async () => {
+    state.appointments = [appt({ status: 'scheduled' })]
+    state.lastVisits = [{ patientId: 'p1', last: MONTHS_AGO }]
+    intakeAlerts.set('a1', { submissionId: 'sub_1', alerts: ['Allergic to penicillin'] })
+    intakeDoor.open = false
+    try {
+      const r = await auditUpcomingDay('org_1', { now: NOW })
+      expect(r.items[0]!.flags.map((f) => f.key)).not.toContain('medical_alert')
+    } finally {
+      intakeDoor.open = true
+    }
   })
 })

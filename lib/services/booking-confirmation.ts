@@ -66,7 +66,9 @@ export async function sendBookingConfirmation(opts: {
     const isNewPatient = !priorVisit
 
     let intakeFormUrl: string | null = null
-    const defaultForm = await getBookingIntakeForm(opts.organizationId, isNewPatient)
+    // The visit's type rides along (ML-27): a sedation booking gets the
+    // sedation consent, a cleaning never sees it.
+    const defaultForm = await getBookingIntakeForm(opts.organizationId, isNewPatient, { appointmentType: opts.appointmentType })
     if (defaultForm) {
       const [org] = await db
         .select({ slug: organization.slug })

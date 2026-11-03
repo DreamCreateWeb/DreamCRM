@@ -290,6 +290,36 @@ export function coerceAutoSendAudience(v: unknown): FormAutoSendAudience {
   return v === 'new' || v === 'returning' ? v : 'all'
 }
 
+/** "Ask again every N months" — the default when a clinic turns the refresh
+ *  window on ("Returning patients get a fresh form every year"). */
+export const INTAKE_REFRESH_DEFAULT_MONTHS = 12
+export const INTAKE_REFRESH_MIN_MONTHS = 1
+export const INTAKE_REFRESH_MAX_MONTHS = 60
+/** Most visit types one rule may target. */
+export const INTAKE_RULE_MAX_TYPES = 50
+
+/**
+ * The visit types a form rides along with (`form_template.appointment_type_ids`,
+ * jsonb). Null = every visit. An empty list is not a rule, so it reads as null
+ * too — "no types ticked" must never mean "sends to nobody".
+ */
+export function coerceAppointmentTypeIds(v: unknown): string[] | null {
+  if (!Array.isArray(v)) return null
+  const ids = Array.from(
+    new Set(v.filter((x): x is string => typeof x === 'string' && x.trim() !== '').map((x) => x.trim())),
+  ).slice(0, INTAKE_RULE_MAX_TYPES)
+  return ids.length > 0 ? ids : null
+}
+
+/** The refresh window (`form_template.refresh_months`). Null = never re-ask. */
+export function coerceRefreshMonths(v: unknown): number | null {
+  const n = typeof v === 'number' ? v : typeof v === 'string' && v.trim() !== '' ? Number(v) : NaN
+  if (!Number.isFinite(n)) return null
+  const months = Math.round(n)
+  if (months < INTAKE_REFRESH_MIN_MONTHS || months > INTAKE_REFRESH_MAX_MONTHS) return null
+  return months
+}
+
 export type FormSubmissionData = Record<string, FormFieldValue>
 export type FormFieldValue = string | string[] | boolean | FormFileRef[] | null
 

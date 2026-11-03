@@ -81,3 +81,21 @@ describe('getBookingIntakeForm', () => {
     expect((await getBookingIntakeForm('org_1', true))?.id).toBe('newform')
   })
 })
+
+describe('getBookingIntakeForm — visit-type targeting (ML-27)', () => {
+  it('a sedation booking gets the sedation consent only; a cleaning gets the general intake', async () => {
+    forms = [
+      form({ id: 'intake', autoSendAudience: 'all', isDefault: 1 }),
+      form({ id: 'consent', autoSendAudience: 'all', appointmentTypeIds: ['sedation'] }),
+    ]
+    expect((await getBookingIntakeForm('org_1', true, { appointmentType: 'sedation' }))?.id).toBe('consent')
+    expect((await getBookingIntakeForm('org_1', true, { appointmentType: 'cleaning' }))?.id).toBe('intake')
+    // No visit type known (the old two-argument call) → the general forms, never a targeted one.
+    expect((await getBookingIntakeForm('org_1', true))?.id).toBe('intake')
+  })
+
+  it('a form targeted at other visit types is never sent for this one — even when it is the default', async () => {
+    forms = [form({ id: 'consent-only', autoSendAudience: 'all', isDefault: 1, appointmentTypeIds: ['sedation'] })]
+    expect(await getBookingIntakeForm('org_1', true, { appointmentType: 'cleaning' })).toBeNull()
+  })
+})

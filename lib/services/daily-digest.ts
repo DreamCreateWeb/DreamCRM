@@ -175,7 +175,12 @@ export function buildDigestContent(
       `🔍 Tomorrow: ${auditItems.length} of ${data.tomorrow.visitCount} visit${data.tomorrow.visitCount === 1 ? '' : 's'} need${auditItems.length === 1 ? 's' : ''} prep:`,
     )
     for (const it of auditItems.slice(0, 6)) {
-      parts.push(`   • ${it.patientName} — ${it.flags.map((f) => f.label).join(' · ')}`)
+      // NO PHI IN EMAIL beyond today's (ML-27): the intake's medical alerts
+      // are read on My Day and the agenda, never mailed. The flag stays on
+      // the audit; only the email line drops it.
+      const mailable = it.flags.filter((f) => f.key !== 'medical_alert')
+      if (mailable.length === 0) continue
+      parts.push(`   • ${it.patientName} — ${mailable.map((f) => f.label).join(' · ')}`)
     }
     if (auditItems.length > 6) parts.push(`   …and ${auditItems.length - 6} more on My Day`)
   }

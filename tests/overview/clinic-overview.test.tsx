@@ -2032,3 +2032,29 @@ describe('ClinicOverview — heartbeats and arrivals (ML-14)', () => {
     expect(screen.queryByRole('button', { name: /arrived|seat/i })).toBeNull()
   })
 })
+
+describe('the chair row’s medical-alert glyph (ML-27)', () => {
+  it('a visit whose intake carries cached alerts leads its cluster with the ⚕ glyph; one without carries none', async () => {
+    const withAlert = {
+      id: 'a1', patientId: 'p1', patientName: 'Mia Hayes',
+      startTime: new Date('2026-05-20T09:00:00Z'), endTime: new Date('2026-05-20T09:30:00Z'),
+      type: 'cleaning', status: 'confirmed', arrivedAt: null, seatedAt: null,
+      flags: { newPatient: false, birthdayThisWeek: false, hasOutstandingBalance: false, hasIntakeOnFile: true },
+      tags: [],
+      intakeAlerts: { submissionId: 'sub_1', alerts: ['Allergic to penicillin'] },
+    } as never
+    const without = {
+      id: 'a2', patientId: 'p2', patientName: 'Liam Brooks',
+      startTime: new Date('2026-05-20T10:00:00Z'), endTime: new Date('2026-05-20T10:30:00Z'),
+      type: 'checkup', status: 'confirmed', arrivedAt: null, seatedAt: null,
+      flags: { newPatient: false, birthdayThisWeek: false, hasOutstandingBalance: false, hasIntakeOnFile: true },
+      tags: [],
+      intakeAlerts: null,
+    } as never
+    mockGetOverview.mockResolvedValueOnce(makeData({ todaysAppointments: [withAlert, without] }))
+    render(await ClinicOverview({ ctx: makeCtx() }))
+    const glyphs = screen.getAllByLabelText('Medical alert on the intake form')
+    expect(glyphs).toHaveLength(1)
+    expect(glyphs[0]!.closest('li')).toHaveTextContent('Mia Hayes')
+  })
+})

@@ -182,3 +182,20 @@ describe('aging legend presets', () => {
     }
   })
 })
+
+describe('the medical-alert glyph (ML-27)', () => {
+  it('is in the registry with a stable label and an actions-first description', () => {
+    expect(GLYPHS.medicalAlert.label).toBe('Medical alert on the intake form')
+    expect(GLYPHS.medicalAlert.description).toMatch(/before they sit down/)
+  })
+
+  it('leads BOTH clusters — the provider must see it first', () => {
+    expect(patientFlagGlyphs({ medicalAlert: true, newPatient: true })).toEqual<GlyphId[]>(['medicalAlert', 'newPatient'])
+    expect(appointmentFlagGlyphs({ medicalAlert: true, newPatient: true, lapsedReturning: true })).toEqual<GlyphId[]>([
+      'medicalAlert',
+      'newPatient',
+      'lapsedReturning',
+    ])
+    expect(appointmentFlagGlyphs({ newPatient: true })).not.toContain('medicalAlert')
+  })
+})
