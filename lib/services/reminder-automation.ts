@@ -2,7 +2,7 @@ import 'server-only'
 import { and, eq, gte, inArray, isNotNull, lte, ne, or } from 'drizzle-orm'
 import { listShutDownOrgIds } from './billing-state'
 import { db, schema } from '@/lib/db'
-import { authEmailShell, deliver, sendNotificationEmail } from '@/lib/email'
+import { patientEmailShell, deliver, sendNotificationEmail } from '@/lib/email'
 import { renderAutomatedEmail } from '@/lib/services/email-automations'
 import { getClinicSenderIdentity } from '@/lib/services/clinic-sender'
 import { getOrCreateConfirmToken } from '@/lib/services/appointment-confirm'
@@ -194,11 +194,11 @@ export async function sendReminderEmail(
         replyTo: sender.replyTo,
         gmail: sender.gmail,
         subject: rendered.full.subject,
-        html: authEmailShell({
-          heading: 'Your visit is coming up',
-          introHtml: escapeReminderHtml(body).replace(/\n/g, '<br>'),
-          buttonUrl: confirmUrl,
-          buttonLabel: 'Confirm my visit',
+        html: patientEmailShell({
+          sender,
+          title: 'Your visit is coming up',
+          body: escapeReminderHtml(body).replace(/\n/g, '<br>'),
+          cta: { url: confirmUrl, label: 'Confirm my visit' },
           footnoteHtml:
             'Need a different time? Just reply to this email and we’ll find one together.',
         }),
@@ -574,9 +574,10 @@ async function sendFamilyReminderEmail(
       replyTo: sender.replyTo,
       gmail: sender.gmail,
       subject: `Your family’s visits on ${dayLabel} — ${sender.name}`,
-      html: authEmailShell({
-        heading: 'Your family’s visits are coming up',
-        introHtml,
+      html: patientEmailShell({
+        sender,
+        title: 'Your family’s visits are coming up',
+        body: introHtml,
         footnoteHtml:
           'Need a different time for anyone? Just reply to this email and we’ll find one together.',
       }),

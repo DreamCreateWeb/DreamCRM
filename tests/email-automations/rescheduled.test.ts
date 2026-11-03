@@ -81,7 +81,13 @@ const SENDER = {
 }
 
 function textOf(html: string): string {
-  return html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
+  return html
+    .replace(/<style[\s\S]*?<\/style>/gi, '')
+    .replace(/<td data-patient-header[\s\S]*?<\/td>/gi, '')
+    .replace(/<p data-patient-footer[\s\S]*?<\/p>/gi, '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
 }
 function salutations(text: string): number {
   return (text.match(/\bHi\b/g) ?? []).length

@@ -3,7 +3,7 @@ import { randomBytes } from 'crypto'
 import { and, asc, eq, gt, inArray, isNull, ne, or } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import { newId } from '@/lib/utils'
-import { authEmailShell, deliver } from '@/lib/email'
+import { patientEmailShell, deliver } from '@/lib/email'
 import { getClinicSenderIdentity } from '@/lib/services/clinic-sender'
 import { recordAction } from '@/lib/services/action-ledger'
 import { formatClinicDayTime } from '@/lib/format-datetime'
@@ -330,13 +330,13 @@ export async function offerFreedSlot(
         replyTo: sender.replyTo,
         gmail: sender.gmail,
         subject: `An earlier opening at ${sender.name} — ${when}`,
-        html: authEmailShell({
-          heading: 'An earlier time just opened up',
-          introHtml: `Hi ${e.firstName},<br><br>You asked us to keep an eye out — a <strong>${typeLabel.toLowerCase()}</strong> slot on <strong>${when}</strong> just opened at ${sender.name}. First come, first served: tap below and it's yours${
+        html: patientEmailShell({
+          sender,
+          title: 'An earlier time just opened up',
+          body: `Hi ${escapeHtml(e.firstName)},<br><br>You asked us to keep an eye out — a <strong>${typeLabel.toLowerCase()}</strong> slot on <strong>${when}</strong> just opened at ${escapeHtml(sender.name)}. First come, first served: tap below and it's yours${
             e.currentVisitAt ? ' (we’ll move your existing visit automatically)' : ''
           }.`,
-          buttonUrl: `${base}/w/${token}`,
-          buttonLabel: 'Claim this time',
+          cta: { url: `${base}/w/${token}`, label: 'Claim this time' },
           footnoteHtml:
             'If the time doesn’t work, just ignore this — your spot on the list is safe and we’ll keep looking.',
         }),
@@ -604,4 +604,8 @@ export async function claimOffer(
   }).catch(() => {})
 
   return { ok: true }
+}
+
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 }

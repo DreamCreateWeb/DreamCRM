@@ -86,12 +86,23 @@ const TOGGLEABLE_KEYS = EMAIL_AUTOMATION_KEYS.filter(
   (k) => EMAIL_AUTOMATION_SPECS[k].enableSource === 'email_automations',
 )
 
+export interface PreviewIdentity {
+  name: string
+  logoUrl: string | null
+  address: string | null
+  phone: string | null
+}
+
 export default function EmailsHub({
   config,
   reminder,
   canManage,
   focusKey,
+  identity,
 }: {
+  /** The practice's name / logo / address / phone, so the preview wears the
+   *  same header and footer the patient's email does (`patientEmailShell`). */
+  identity?: PreviewIdentity
   config: Record<EmailAutomationKey, ResolvedEmail>
   reminder: ReminderSettings
   canManage: boolean
@@ -152,6 +163,7 @@ export default function EmailsHub({
                   initial={config[key]}
                   canManage={canManage}
                   defaultOpen={focusKey === key}
+                  identity={identity}
                   onToast={setToast}
                   onEnabledChange={(v) => setEnabledMap((p) => ({ ...p, [key]: v }))}
                   reminderState={reminderState}
@@ -177,7 +189,9 @@ function EmailCard({
   onEnabledChange,
   reminderState,
   setReminderState,
+  identity,
 }: {
+  identity?: PreviewIdentity
   emailKey: EmailAutomationKey
   initial: ResolvedEmail
   canManage: boolean
@@ -423,6 +437,16 @@ function EmailCard({
               </div>
               {/* Body — mirrors the sent email's stacked heading / message / closing. */}
               <div className="space-y-2 bg-white px-4 py-3.5 text-sm leading-relaxed text-gray-700 dark:bg-gray-900/40 dark:text-gray-200">
+                {identity && (
+                  <div data-preview-header className="pb-1">
+                    {identity.logoUrl && /^https?:\/\//i.test(identity.logoUrl) ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={identity.logoUrl} alt={identity.name} className="h-10 w-auto" />
+                    ) : (
+                      <p className="font-serif text-lg font-bold text-gray-900 dark:text-gray-100">{identity.name}</p>
+                    )}
+                  </div>
+                )}
                 {slots.heading != null && slots.heading.trim() !== '' && (
                   <p className="text-[15px] font-semibold text-gray-900 dark:text-gray-100">{fillTokens(slots.heading)}</p>
                 )}
@@ -437,6 +461,11 @@ function EmailCard({
                 <p className="whitespace-pre-wrap">{fillTokens(slots.body ?? '')}</p>
                 {slots.closing != null && slots.closing.trim() !== '' && (
                   <p className="whitespace-pre-wrap text-gray-500 dark:text-gray-400">{fillTokens(slots.closing)}</p>
+                )}
+                {identity && (
+                  <p data-preview-footer className="pt-1 text-xs text-gray-500 dark:text-gray-400">
+                    {[identity.name, identity.address, identity.phone].filter(Boolean).join(' · ')}
+                  </p>
                 )}
                 {spec.includesNote.length > 0 && (
                   <p className="mt-3 border-t border-dashed border-gray-200 pt-2.5 text-xs leading-relaxed text-gray-500 dark:text-gray-400 dark:border-gray-700/60">

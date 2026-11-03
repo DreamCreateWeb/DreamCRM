@@ -13,9 +13,6 @@ export const metadata = {
 
 export const dynamic = 'force-dynamic'
 
-const FRAUNCES_HREF =
-  'https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&display=swap'
-
 /**
  * Public post-visit survey landing — `https://…/n/<token>` (the /r pattern:
  * the token IS the auth). 0–10 tap → optional comment → thanks; recorded via
@@ -34,11 +31,6 @@ export default async function NpsSurveyPage({
 
   return (
     <>
-      <link rel="preconnect" href="https://fonts.googleapis.com" />
-      <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-      {/* eslint-disable-next-line @next/next/no-page-custom-font */}
-      <link rel="stylesheet" href={FRAUNCES_HREF} />
-      <style>{`:root { --font-display: 'Fraunces', Georgia, serif; --site-header-h: 64px; }`}</style>
       <MinimalSiteChrome
         clinicName={ctx.clinicName}
         logoUrl={ctx.logoUrl}
