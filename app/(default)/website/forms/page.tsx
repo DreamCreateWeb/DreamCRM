@@ -5,7 +5,7 @@ import { requireTenant } from '@/lib/auth/context'
 import { db } from '@/lib/db'
 import { clinicProfile } from '@/lib/db/schema/platform'
 import { mergeWebsiteDraft } from '@/lib/website-draft'
-import { getWebsiteDraftStatus } from '@/lib/services/website-draft'
+import { getWebsiteDraftStatus, type WebsiteDraftStatus } from '@/lib/services/website-draft'
 import { listLeads, getNewLeadsSince } from '@/lib/services/leads'
 import { resolveLeadForm, LEAD_FORM_LABELS, type LeadFormsConfig, type LeadFormKey } from '@/lib/types/lead-forms'
 import { PageHeader } from '@/components/ui/page-header'
@@ -45,7 +45,7 @@ export default async function WebsiteFormsPage() {
     .where(eq(clinicProfile.organizationId, ctx.organizationId))
     .limit(1)
   const profile = row ? mergeWebsiteDraft(row, row.websiteDraft) : undefined
-  const draftStatus = await getWebsiteDraftStatus(ctx.organizationId).catch(() => ({ count: 0, changes: [] as { column: string; label: string }[] }))
+  const draftStatus = await getWebsiteDraftStatus(ctx.organizationId).catch(() => ({ count: 0, changes: [], sections: [] } as WebsiteDraftStatus))
 
   if (!profile) {
     return (
@@ -97,7 +97,7 @@ export default async function WebsiteFormsPage() {
       {/* Publish state travels with every editing surface — saved-but-
           unpublished changes are visible wherever they were made. */}
       {draftStatus.count > 0 && (
-        <PublishCard count={draftStatus.count} labels={draftStatus.changes.map((c) => c.label)} />
+        <PublishCard count={draftStatus.count} labels={draftStatus.changes.map((c) => c.label)} sections={draftStatus.sections} />
       )}
       <FormsPanel
         forms={forms}

@@ -10,6 +10,7 @@ import {
   type WebsiteDraftChange,
 } from '@/lib/website-draft'
 import { recordWebsiteEdit } from './website-history'
+import { websiteColumnsOfSections, websiteSectionsOf, type WebsiteSectionDef } from '@/lib/types/website'
 // The RENDER-TOLERANT invalidator. Nothing here is called during a render
 // TODAY — `app/(default)/website/templates/page.tsx` imports this module for
 // its two READ functions — but a Server Component importing the module is all
@@ -85,6 +86,26 @@ export interface WebsiteDraftStatus {
   /** Staged keys that actually differ from live (the honest count). */
   count: number
   changes: WebsiteDraftChange[]
+  /** The changed SECTIONS (display order) — what the publish card lists as
+   *  checkboxes. Derived from the staged keys via lib/types/website.ts. */
+  sections: WebsiteSectionDef[]
+}
+
+/**
+ * The draft blob with the given keys removed, SQL-side (a concurrent save of
+ * ANOTHER key can't be clobbered by a read-modify-write). An emptied blob
+ * becomes NULL, which is what the cache's `hasWebsiteDraft` reads.
+ */
+export function websiteDraftWithoutKeys(keys: string[]) {
+  const arr = sql.join(keys.map((k) => sql`${k}`), sql`, `)
+  return sql`NULLIF(COALESCE(${clinicProfile.websiteDraft}, '{}'::jsonb) - ARRAY[${arr}]::text[], '{}'::jsonb)`
+}
+
+/** Draft keys narrowed to the chosen sections (all keys when none chosen). */
+function keysForSections(draftKeys: string[], sections?: string[]): string[] {
+  if (!sections) return draftKeys
+  const allowed = new Set(websiteColumnsOfSections(sections))
+  return draftKeys.filter((k) => allowed.has(k))
 }
 
 /** What's staged and not yet live — drives the hub card + Studio publish bar. */
@@ -96,28 +117,38 @@ export async function getWebsiteDraftStatus(
     .from(clinicProfile)
     .where(eq(clinicProfile.organizationId, organizationId))
     .limit(1)
-  if (!raw) return { count: 0, changes: [] }
+  if (!raw) return { count: 0, changes: [], sections: [] }
   const changes = websiteDraftChanges(raw.websiteDraft, raw)
-  return { count: changes.length, changes }
+  return {
+    count: changes.length,
+    changes,
+    sections: websiteSectionsOf(changes.map((c) => c.column)),
+  }
 }
 
 /**
- * Publish: apply every staged column to the live site in one write and clear
- * the draft. Records ONE undo-history entry holding the prior LIVE values
- * (with a `__publish` marker) — so "Undo: Published site changes" genuinely
- * reverts the live site, not just the draft.
+ * Publish: apply staged columns to the live site and drop them from the
+ * draft. With no `sections` that is EVERYTHING staged (the draft clears);
+ * with `sections` only those sections' keys go live and the rest stay staged
+ * for someone else's read. Records ONE undo-history entry holding the prior
+ * LIVE values of exactly the published keys (with a `__publish` marker) —
+ * so "Undo: Published site changes" genuinely reverts the live site — and
+ * stamps the publisher on it.
  */
 export async function publishWebsiteDraft(
   organizationId: string,
-): Promise<{ published: number }> {
+  userId: string | null = null,
+  opts: { sections?: string[] } = {},
+): Promise<{ published: number; remaining: number }> {
   const [raw] = await db
     .select()
     .from(clinicProfile)
     .where(eq(clinicProfile.organizationId, organizationId))
     .limit(1)
-  if (!raw) return { published: 0 }
-  const keys = websiteDraftKeys(raw.websiteDraft)
-  if (keys.length === 0) {
+  if (!raw) return { published: 0, remaining: 0 }
+  const allKeys = websiteDraftKeys(raw.websiteDraft)
+  const partial = opts.sections !== undefined
+  if (allKeys.length === 0) {
     // Nothing draftable staged — clear any junk blob so status stays honest.
     if (raw.websiteDraft) {
       await db
@@ -126,11 +157,16 @@ export async function publishWebsiteDraft(
         .where(eq(clinicProfile.organizationId, organizationId))
       await invalidateClinicSiteForOrgUnlessRendering(organizationId)
     }
-    return { published: 0 }
+    return { published: 0, remaining: 0 }
   }
+  const keys = keysForSections(allKeys, opts.sections)
+  if (keys.length === 0) return { published: 0, remaining: allKeys.length }
 
-  const changes = websiteDraftChanges(raw.websiteDraft, raw)
   const blob = raw.websiteDraft as Record<string, unknown>
+  const changes = websiteDraftChanges(
+    Object.fromEntries(keys.map((k) => [k, blob[k]])),
+    raw,
+  )
 
   // History first (best-effort): the prior live value of every published
   // column, marked so undo restores LIVE columns instead of re-staging.
@@ -139,12 +175,15 @@ export async function publishWebsiteDraft(
     for (const key of keys) {
       previous[key] = (raw as Record<string, unknown>)[key] ?? null
     }
-    await recordWebsiteEdit(organizationId, 'Published site changes', previous)
+    await recordWebsiteEdit(organizationId, 'Published site changes', previous, userId)
   } catch {
     /* history is a safety net, not a gate */
   }
 
-  const apply: Record<string, unknown> = { websiteDraft: null, updatedAt: new Date() }
+  const apply: Record<string, unknown> = {
+    websiteDraft: partial && keys.length < allKeys.length ? websiteDraftWithoutKeys(keys) : null,
+    updatedAt: new Date(),
+  }
   for (const key of keys) apply[key] = blob[key] ?? null
   await db
     .update(clinicProfile)
@@ -153,24 +192,32 @@ export async function publishWebsiteDraft(
   // The whole point of Publish: the very next render of the live site shows
   // the new words. `updateTag` gives read-your-own-writes for exactly this.
   await invalidateClinicSiteForOrgUnlessRendering(organizationId)
-  return { published: changes.length }
+  return { published: changes.length, remaining: allKeys.length - keys.length }
 }
 
-/** Throw away everything staged — the live site was never touched. */
+/** Throw away what's staged (all of it, or just the chosen sections) — the
+ *  live site was never touched. */
 export async function discardWebsiteDraft(
   organizationId: string,
+  _userId: string | null = null,
+  opts: { sections?: string[] } = {},
 ): Promise<{ discarded: number }> {
   const [raw] = await db
     .select({ websiteDraft: clinicProfile.websiteDraft })
     .from(clinicProfile)
     .where(eq(clinicProfile.organizationId, organizationId))
     .limit(1)
-  const count = websiteDraftKeys(raw?.websiteDraft).length
-  if (raw?.websiteDraft) {
+  const all = websiteDraftKeys(raw?.websiteDraft)
+  const keys = keysForSections(all, opts.sections)
+  if (raw?.websiteDraft && (opts.sections === undefined || keys.length > 0)) {
     await db
       .update(clinicProfile)
-      .set({ websiteDraft: null, updatedAt: new Date() })
+      .set({
+        websiteDraft: opts.sections !== undefined && keys.length < all.length ? websiteDraftWithoutKeys(keys) : null,
+        updatedAt: new Date(),
+      })
       .where(eq(clinicProfile.organizationId, organizationId))
+    await invalidateClinicSiteForOrgUnlessRendering(organizationId)
   }
-  return { discarded: count }
+  return { discarded: keys.length }
 }

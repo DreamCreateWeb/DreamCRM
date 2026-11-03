@@ -152,7 +152,6 @@ export const ALLOWED: Array<[file: string, sites: number]> = [
   ['app/(default)/website/go-live-card.tsx', 1],
   ['app/(default)/website/pages/pages-manager.tsx', 1],
   ['app/(default)/website/pages/seo-meta-form.tsx', 1],
-  ['app/(default)/website/publish-card.tsx', 2],
   ['app/(double-sidebar)/inbox/components/thread-view.tsx', 4],
   ['app/(double-sidebar)/inbox/settings/settings-panel.tsx', 1],
   ['app/(double-sidebar)/messages/broadcast-button.tsx', 1],

@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { requireTenant } from '@/lib/auth/context'
-import { getEffectiveWebsiteProfile, getWebsiteDraftStatus } from '@/lib/services/website-draft'
+import { getEffectiveWebsiteProfile, getWebsiteDraftStatus, type WebsiteDraftStatus } from '@/lib/services/website-draft'
 import { listLibraryForPicker } from '@/lib/services/service-library'
 import { publicSiteUrl } from '@/lib/services/clinic-site'
 import { contentSectionsFor, toContentSectionView } from '@/lib/website-content-sections'
@@ -56,7 +56,7 @@ export default async function WebsiteContentPage() {
   }
 
   const library = await listLibraryForPicker(ctx.organizationId)
-  const draftStatus = await getWebsiteDraftStatus(ctx.organizationId).catch(() => ({ count: 0, changes: [] as { column: string; label: string }[] }))
+  const draftStatus = await getWebsiteDraftStatus(ctx.organizationId).catch(() => ({ count: 0, changes: [], sections: [] } as WebsiteDraftStatus))
 
   const sections = contentSectionsFor(profile.template)
   const filledIds = sections.filter((s) => s.filled(profile)).map((s) => s.id)
@@ -82,7 +82,7 @@ export default async function WebsiteContentPage() {
       {/* Publish state travels with every editing surface — saved-but-
           unpublished changes are visible wherever they were made. */}
       {draftStatus.count > 0 && (
-        <PublishCard count={draftStatus.count} labels={draftStatus.changes.map((c) => c.label)} />
+        <PublishCard count={draftStatus.count} labels={draftStatus.changes.map((c) => c.label)} sections={draftStatus.sections} />
       )}
       <div className="mb-8">
         <ContentWorkspace
