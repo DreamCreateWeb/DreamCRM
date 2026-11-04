@@ -21,6 +21,7 @@ import { ActionButton } from '@/components/ui/action-button'
 import { StatusPill } from '@/components/ui/status-pill'
 import { FilterChip } from '@/components/ui/filter-chip'
 import { GlyphCluster } from '@/components/ui/glyph-cluster'
+import { IntakeAlertPill } from '@/components/ui/intake-alert-pill'
 import { TagChip } from '@/components/ui/tag-chip'
 import { EncodingLegend } from '@/components/ui/encoding-legend'
 import { EmptyState } from '@/components/ui/empty-state'
@@ -71,6 +72,7 @@ const STATUS_TITLE: Record<AppointmentStatus, string> = {
 
 // Legend glyphs, in the order appointmentFlagGlyphs emits them.
 const LEGEND_GLYPHS = [
+  'medicalAlert',
   'newPatient',
   'lapsedReturning',
   'birthday',
@@ -811,7 +813,11 @@ function AppointmentRowCard({
             >
               {row.patientName}
             </Link>
-            <GlyphCluster glyphs={appointmentFlagGlyphs(row.flags)} cap={4} />
+            <GlyphCluster glyphs={appointmentFlagGlyphs({ ...row.flags, medicalAlert: !!row.intakeAlerts })} cap={4} />
+            {/* The chair read (ML-27): the hygienist sees "⚠ Allergic to
+                penicillin" before the patient sits down — the full list is
+                in the drawer's Intake section. */}
+            {row.intakeAlerts && <IntakeAlertPill alerts={row.intakeAlerts.alerts} />}
           </div>
           {row.tags.length > 0 && (
             <div className="flex flex-wrap gap-1 mt-1">

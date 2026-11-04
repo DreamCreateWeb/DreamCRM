@@ -322,6 +322,9 @@ export async function seedSecondDemoIntakeForm(orgId: string) {
       description: "A short check-in for returning patients — what's changed since their last visit.",
       slug: 'returning-patient-update',
       autoSendAudience: 'returning',
+      // The rules card's refresh window (ML-27): returning patients get a
+      // fresh update every year — the demo shows the knob in its ON state.
+      refreshMonths: 12,
       schema: {
         sections: [
           {

@@ -13,9 +13,14 @@ import {
   type FormTemplateSchema,
   type FormSubmissionData,
   DEFAULT_INTAKE_TEMPLATE,
+  INTAKE_REFRESH_MAX_MONTHS,
+  INTAKE_REFRESH_MIN_MONTHS,
+  INTAKE_RULE_MAX_TYPES,
+  coerceAppointmentTypeIds,
   prefillFromPriorData,
   buildIntakeTranscript,
 } from '@/lib/types/forms'
+import { pickAutoSendForm } from '@/lib/intake-on-file'
 
 /**
  * Intake form service. Templates are clinic-owned, the public site
@@ -38,6 +43,10 @@ export const FormTemplateInput = z.object({
   }),
   isDefault: z.boolean().optional(),
   autoSendAudience: z.enum(['all', 'new', 'returning']).optional(),
+  // THE RULE'S TARGETING (ML-27): visit types this form rides with (null /
+  // empty = every visit) + "ask again every N months" (null = never).
+  appointmentTypeIds: z.array(z.string().min(1).max(64)).max(INTAKE_RULE_MAX_TYPES).nullable().optional(),
+  refreshMonths: z.number().int().min(INTAKE_REFRESH_MIN_MONTHS).max(INTAKE_REFRESH_MAX_MONTHS).nullable().optional(),
 })
 
 export interface TemplateSubmissionStats {
@@ -269,6 +278,8 @@ export async function createFormTemplate(
       schema: data.schema as FormTemplateSchema,
       isDefault: data.isDefault ? 1 : 0,
       autoSendAudience: data.autoSendAudience ?? 'all',
+      appointmentTypeIds: coerceAppointmentTypeIds(data.appointmentTypeIds),
+      refreshMonths: data.refreshMonths ?? null,
     })
     .returning()
   return row
@@ -296,6 +307,10 @@ export async function updateFormTemplate(
       schema: data.schema as FormTemplateSchema,
       isDefault: data.isDefault ? 1 : 0,
       ...(data.autoSendAudience ? { autoSendAudience: data.autoSendAudience } : {}),
+      // `undefined` leaves the rule alone (a save that never mentioned it);
+      // null / [] clears it. Same for the window.
+      ...(data.appointmentTypeIds !== undefined ? { appointmentTypeIds: coerceAppointmentTypeIds(data.appointmentTypeIds) } : {}),
+      ...(data.refreshMonths !== undefined ? { refreshMonths: data.refreshMonths } : {}),
       updatedAt: new Date(),
     })
     .where(and(eq(formTemplate.id, id), eq(formTemplate.organizationId, organizationId)))
@@ -304,13 +319,17 @@ export async function updateFormTemplate(
 }
 
 /**
- * Pick the form to send with a booking confirmation for a given patient. An
- * audience-specific match ('new' / 'returning') wins over an 'all' form, which
- * wins over the org default. Returns null when there's nothing to send.
+ * Pick the form to send with a booking confirmation for a given patient. The
+ * ONE chooser is `pickAutoSendForm` (lib/intake-on-file.ts): only rules
+ * covering the visit's type are in the running, a visit-specific rule (the
+ * sedation consent) beats a general one, then an audience match ('new' /
+ * 'returning') wins over an 'all' form, which wins over the org default.
+ * Returns null when there's nothing to send.
  */
 export async function getBookingIntakeForm(
   organizationId: string,
   isNewPatient: boolean,
+  opts?: { appointmentType?: string | null },
 ): Promise<FormTemplate | null> {
   // OFF UNTIL CHOSEN (docs/ACTIVATION.md law 1, audit round 2): a closed
   // door sends nothing — the seeded standard form rode every confirmation
@@ -321,19 +340,7 @@ export async function getBookingIntakeForm(
     .from(formTemplate)
     .where(and(eq(formTemplate.organizationId, organizationId), isNull(formTemplate.archivedAt)))
   if (forms.length === 0) return null
-  const want = isNewPatient ? 'new' : 'returning'
-  const specific = forms.filter((f) => f.autoSendAudience === want)
-  if (specific.length > 0) return mostRecent(specific)
-  const all = forms.filter((f) => f.autoSendAudience === 'all')
-  if (all.length > 0) {
-    // Prefer the default among the 'all' forms.
-    return all.find((f) => f.isDefault === 1) ?? mostRecent(all)
-  }
-  return forms.find((f) => f.isDefault === 1) ?? null
-}
-
-function mostRecent(forms: FormTemplate[]): FormTemplate {
-  return [...forms].sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())[0]
+  return pickAutoSendForm(forms, { isNewPatient, appointmentType: opts?.appointmentType ?? null })
 }
 
 // ── Form packets (a bundle of forms completed in one sitting) ───────────────
@@ -568,6 +575,20 @@ export async function submitForm(input: SubmitFormInput): Promise<FormSubmission
     } catch (err) {
       console.warn('[forms.submitForm] OD chart mirror failed', err)
     }
+  }
+
+  // THE CHAIR READ (ML-27): the pre-visit summary used to wait for a staff
+  // click on the submission page, so its medical alerts reached nobody before
+  // the patient sat down. It now runs on submit — AI off → the service returns
+  // `not_configured` and nothing is written; over the allowance → the same.
+  // Best-effort and last: a slow or failed model call never fails the submit,
+  // and the cached alerts become the agenda / drawer / My Day read
+  // (`getIntakeAlertsForAppointments`).
+  try {
+    const { summarizeSubmission } = await import('@/lib/services/intake-summary')
+    await summarizeSubmission({ organizationId: input.organizationId, submissionId: row.id })
+  } catch (err) {
+    console.warn('[forms.submitForm] pre-visit summary failed', err)
   }
 
   return row

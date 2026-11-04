@@ -32,6 +32,8 @@ vi.mock('@/lib/db', () => {
 
 const { notifyOrgMembersMock } = vi.hoisted(() => ({ notifyOrgMembersMock: vi.fn(async () => undefined) }))
 vi.mock('@/lib/services/notifications', () => ({ notifyOrgMembers: notifyOrgMembersMock }))
+// The on-submit pre-visit summary (ML-27) has its own suite; here it is inert.
+vi.mock('@/lib/services/intake-summary', () => ({ summarizeSubmission: vi.fn(async () => ({ ok: false, reason: 'not_configured' })) }))
 
 import { submitForm } from '@/lib/services/forms'
 

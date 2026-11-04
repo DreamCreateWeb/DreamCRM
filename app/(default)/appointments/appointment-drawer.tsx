@@ -391,7 +391,7 @@ export default function AppointmentDrawer({
                   <StatusPill tone={STATUS_TONE[detail.status] ?? 'neutral'} title={STATUS_TITLE[detail.status]}>
                     {STATUS_LABEL[detail.status] ?? detail.status}
                   </StatusPill>
-                  <GlyphCluster glyphs={appointmentFlagGlyphs(detail.flags)} cap={Infinity} />
+                  <GlyphCluster glyphs={appointmentFlagGlyphs({ ...detail.flags, medicalAlert: !!detail.intakeAlerts })} cap={Infinity} />
                 </div>
                 {/* Tags are now editable in place — apply "VIP"/"anxious"/a
                     recare flag while you're looking at the visit; it flows into
@@ -564,9 +564,34 @@ export default function AppointmentDrawer({
 
               {/* Intake attached — hidden while the Intake Forms door is closed and
                   nothing is on file (law 1: the send would only be refused). */}
-              {(detail.intakeOpen || detail.intakeAttached) && (
+              {(detail.intakeOpen || detail.intakeAttached || detail.intakeAlerts) && (
               <div className="pt-3 border-t border-[color:var(--color-hairline)]">
                 <p className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold mb-2">Intake</p>
+                {/* The chair read (ML-27): what the provider must know before
+                    treating, from the cached pre-visit summary of the
+                    patient's newest intake. Verify against the form itself. */}
+                {detail.intakeAlerts && (
+                  <div className="mb-2">
+                    <p className="text-xs font-semibold text-amber-800 dark:text-amber-200">Heads-up from their intake form</p>
+                    <ul className="mt-1 space-y-1" aria-label="Medical alerts from the intake form">
+                      {detail.intakeAlerts.alerts.map((a, i) => (
+                        <li key={i} className="flex items-start gap-1.5 text-sm text-amber-800 dark:text-amber-200">
+                          <span aria-hidden="true" className="mt-0.5">⚠️</span>
+                          <span>{a}</span>
+                        </li>
+                      ))}
+                    </ul>
+                    {detail.intakeAlerts.submissionId !== detail.intakeAttached?.id && (
+                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                        AI-read from the form —{' '}
+                        <Link href={`/intake-forms/submissions/${detail.intakeAlerts.submissionId}`} className="text-teal-700 dark:text-teal-400 hover:underline">
+                          check the answers
+                        </Link>
+                        .
+                      </p>
+                    )}
+                  </div>
+                )}
                 {detail.intakeAttached ? (
                   <p className="text-sm text-gray-700 dark:text-gray-200">
                     {detail.intakeAttached.formTitle} · submitted {fmtRelative(detail.intakeAttached.submittedAt)}

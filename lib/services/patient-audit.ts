@@ -7,6 +7,7 @@ import { getClinicCadence } from '@/lib/services/clinic-cadence'
 import { clinicDayStart } from '@/lib/clinic-timezone'
 import { clinicDayKey } from '@/lib/format-datetime'
 import { getLatestInsuranceChecksForPatients } from '@/lib/services/insurance-eligibility'
+import { getIntakeAlertsForAppointments, type IntakeAlertView } from '@/lib/services/intake-summary'
 import { isStaleCheck } from '@/lib/insurance-eligibility'
 import { isBirthdayThisWeek, lapsedCutoff } from '@/lib/dates'
 
@@ -30,6 +31,9 @@ export interface AuditFlag {
     | 'deposit_pending'
     | 'birthday'
     | 'insurance_stale'
+    /** The intake form reported an allergy / medication / condition (ML-27).
+     *  Carries the alert text; its href is the submission. Never emailed. */
+    | 'medical_alert'
   label: string
   /** Optional door for the flag (site-relative). */
   href?: string
@@ -149,6 +153,11 @@ export async function auditUpcomingDay(
   ])
   const switches = await getFeatureSwitchState(organizationId)
   const intakeOpen = switches.intake_forms
+  // The chair read (ML-27): cached intake alerts, one batched query. A failed
+  // read is an audit without the heads-up, never a dead My Day.
+  const alertsByAppt = intakeOpen
+    ? await getIntakeAlertsForAppointments(organizationId, appointmentIds).catch(() => new Map<string, IntakeAlertView>())
+    : new Map<string, IntakeAlertView>()
   // Insurance on file, never (or not lately) checked — only while the switch
   // is on, and the audit only READS: it never runs a check.
   const insuranceOpen = switches.insurance === true
@@ -168,6 +177,15 @@ export async function auditUpcomingDay(
   const items: AuditItem[] = []
   for (const r of rows) {
     const flags: AuditFlag[] = []
+    // First, always: what the provider must know before they sit down.
+    const alert = alertsByAppt.get(r.appointmentId)
+    if (alert) {
+      flags.push({
+        key: 'medical_alert',
+        label: `Heads-up from their intake: ${alert.alerts.join(' · ')}`,
+        href: `/intake-forms/submissions/${alert.submissionId}`,
+      })
+    }
     if (r.status === 'scheduled') flags.push({ key: 'unconfirmed', label: 'Not confirmed yet' })
     const depositCents = pendingDepositByAppt.get(r.appointmentId)
     if (depositCents) {

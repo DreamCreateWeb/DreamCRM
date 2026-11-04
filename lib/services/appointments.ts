@@ -21,6 +21,7 @@ import { getClinicCadence } from '@/lib/services/clinic-cadence'
 import { notCsvImportVisit } from '@/lib/services/visit-sources'
 import { suggestNextVisitDateKey } from '@/lib/next-visit'
 import { FORMS_REMINDER_TEMPLATE } from '@/lib/types/reminders'
+import { getIntakeAlertsForAppointments, type IntakeAlertView } from '@/lib/services/intake-summary'
 
 /**
  * Appointments service — the relationship-view of the schedule.
@@ -90,6 +91,11 @@ export interface AppointmentRow {
   nextVisitBooked: boolean
   /** CRM tags on the patient — surfaced on the agenda row + drawer. */
   tags: PatientTagView[]
+  /** Medical alerts from the patient's cached intake summary (ML-27): the
+   *  "⚠ Allergic to penicillin" pill on the row, the list in the drawer's
+   *  Intake section. Absent / null = nothing cached. Read in one batched
+   *  query (`getIntakeAlertsForAppointments`), never generated here. */
+  intakeAlerts?: IntakeAlertView | null
 }
 
 export interface AppointmentListFilters {
@@ -443,6 +449,12 @@ export async function listAppointments(
   // CRM tags per patient — so the schedule shows who's VIP / anxious at a glance.
   const tagsByPatient = await getTagsForPatients(organizationId, patientIds)
 
+  // THE CHAIR READ (ML-27): the intake's medical alerts, one batched query,
+  // best-effort — a failed read is a row without the pill, never a dead agenda.
+  const alertsByAppt = intakeOpen
+    ? await getIntakeAlertsForAppointments(organizationId, apptIds).catch(() => new Map<string, IntakeAlertView>())
+    : new Map<string, IntakeAlertView>()
+
   const result: AppointmentRow[] = rows.map((r) => {
     const status = r.status as AppointmentStatus
     const lastVisit = latestPriorByPatient.get(r.patientId) ?? null
@@ -505,6 +517,7 @@ export async function listAppointments(
       needsRebooking,
       nextVisitBooked: (futureIdsByPatient.get(r.patientId) ?? []).some((id) => id !== r.id),
       tags: tagsByPatient.get(r.patientId) ?? [],
+      intakeAlerts: alertsByAppt.get(r.id) ?? null,
     }
   })
 
@@ -802,6 +815,10 @@ export async function getAppointmentDetail(
   const newPatient = !lastVisit && isFuture
   const hasIntake = !!intakeRow[0]
   const intakeOpen = (await getFeatureSwitchState(organizationId)).intake_forms
+  // The chair read (ML-27) — the drawer's Intake section lists the alerts.
+  const intakeAlerts = intakeOpen
+    ? (await getIntakeAlertsForAppointments(organizationId, [appointmentId]).catch(() => new Map<string, IntakeAlertView>())).get(appointmentId) ?? null
+    : null
   const reminderLastSentAt = reminderRows[0]?.sentAt ?? null
   const nextVisitBooked = futureApptRow.length > 0
   const needsRebooking = isRebookingCandidate({
@@ -884,6 +901,7 @@ export async function getAppointmentDetail(
     intakeAttached: intakeRow[0]
       ? { id: intakeRow[0].id, formTitle: intakeRow[0].formTitle, submittedAt: intakeRow[0].submittedAt }
       : null,
+    intakeAlerts,
     intakeOpen,
     deposit: depositRow[0]
       ? { ...depositRow[0], refundedAmountCents: depositRow[0].refundedAmountCents ?? 0 }
