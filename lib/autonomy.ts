@@ -252,10 +252,8 @@ export const BOOKING_BUTTON_CAPABILITIES: readonly string[] = [
 // generator + executor shipped together); `feedback_reply` the second
 // (ML-21, same day, same shape).
 export const PREVIEW_CAPABILITIES: readonly string[] = [
-  'inquiry_followup',
 // generator + executor shipped together); `inquiry_followup` the second
 // (ML-22, 2026-11-03 — the second touch on an inquiry that went quiet).
-  'feedback_reply',
   'postop_checkin',
   'rebook_nudge',
   'referral_ask',

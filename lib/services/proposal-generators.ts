@@ -166,6 +166,7 @@ export const STEP_FAILURE: Record<string, { capability: string; summary: string 
   feedback_reply: {
     capability: 'feedback_reply',
     summary: 'Couldn’t draft a note back to a patient whose visit fell short just now — I’ll keep trying.',
+  },
   // ML-22: the second touch on an inquiry that went quiet.
   inquiry_followup: {
     capability: 'inquiry_followup',

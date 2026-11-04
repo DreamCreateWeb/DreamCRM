@@ -34,7 +34,7 @@ const REGISTERED = new Set(CAPABILITIES.map((c) => c.key))
 /** The deliberate absences from the roster: how work reaches the clinic /
  *  the watcher's own voice, and the one-time setup asks (first-week
  *  questions, not standing jobs on anyone's desk — the roster suite's rule). */
-const META = new Set(['guardian_note', 'proposal_engine', ...SETUP_CAPABILITIES])
+const META = new Set(['guardian_note', 'proposal_engine', 'staff_alert', ...SETUP_CAPABILITIES])
 
 const keysOf = (list: readonly string[]) => Array.from(new Set(list))
 
