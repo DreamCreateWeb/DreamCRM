@@ -219,6 +219,79 @@ ${opts.footnoteHtml ? `<p style="margin:18px 0 0;font-size:12px;line-height:1.5;
 </html>`
 }
 
+/**
+ * The shell for STAFF mail that speaks for the practice (the morning digest):
+ * the clinic's name or logo is the header and its colour the button, like
+ * `patientEmailShell` — it IS that shell (one recipe: Outlook-safe table, VML
+ * button, visible URL fallback) with the sender reduced to the brand. The
+ * footer is the clinic's name only; the caller's `footnoteHtml` carries the
+ * "manage your preferences" line. `body` / `footnoteHtml` are caller-escaped
+ * HTML; every other value is escaped inside.
+ */
+export function staffEmailShell(opts: {
+  clinicName: string
+  brandColor?: string | null
+  logoUrl?: string | null
+  title: string
+  body: string
+  cta?: { url: string; label: string }
+  preheader?: string
+  footnoteHtml?: string
+}): string {
+  return patientEmailShell({
+    sender: {
+      from: '',
+      replyTo: null,
+      name: opts.clinicName,
+      timeZone: '',
+      brandColor: opts.brandColor ?? null,
+      logoUrl: opts.logoUrl ?? null,
+    },
+    title: opts.title,
+    body: opts.body,
+    cta: opts.cta,
+    preheader: opts.preheader,
+    footnoteHtml: opts.footnoteHtml,
+  })
+}
+
+export interface DigestEmailSection {
+  heading: string
+  lines: string[]
+}
+
+/** The morning digest's body as HTML: a greeting-led note, the One Thing set
+ *  apart, each section a real heading with a list. Pure; every value escaped. */
+export function buildDigestEmailBody(d: {
+  name?: string | null
+  intro: string
+  happened?: string | null
+  oneThing?: string | null
+  sections: DigestEmailSection[]
+  closing?: string | null
+}): string {
+  const p = (t: string) => `<p style="margin:0 0 14px;">${escapeHtml(t)}</p>`
+  const out: string[] = []
+  out.push(p(d.name ? `Hi ${d.name.split(' ')[0]},` : 'Hi,'))
+  out.push(p(d.intro))
+  if (d.happened) out.push(`<p style="margin:0 0 14px;white-space:pre-wrap;">${escapeHtml(d.happened)}</p>`)
+  if (d.oneThing) {
+    out.push(
+      `<div style="margin:0 0 18px;padding:12px 14px;background:#f7f4ef;border-radius:8px;"><div style="font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#6b635a;">One thing today</div><div style="margin-top:4px;font-size:15px;color:#111111;">${escapeHtml(d.oneThing)}</div></div>`,
+    )
+  }
+  for (const s of d.sections) {
+    out.push(`<h2 style="margin:18px 0 6px;font-size:16px;font-weight:700;color:#111111;">${escapeHtml(s.heading)}</h2>`)
+    if (s.lines.length > 0) {
+      out.push(
+        `<ul style="margin:0 0 8px;padding-left:20px;">${s.lines.map((l) => `<li style="margin:0 0 4px;">${escapeHtml(l)}</li>`).join('')}</ul>`,
+      )
+    }
+  }
+  if (d.closing) out.push(`<p style="margin:16px 0 0;">${escapeHtml(d.closing)}</p>`)
+  return out.join('')
+}
+
 // Single delivery path for all transactional email. Defaults to Resend;
 // set EMAIL_DRIVER=ses to route through Amazon SES (lazy-imported so the
 // AWS SDK never loads on the Resend path). `from` overrides the default
@@ -1103,6 +1176,42 @@ export async function sendNotificationEmail(input: NotificationEmailInput, sende
         </p>
       </div>
     `,
+  })
+}
+
+/** The morning digest, rendered through the staff shell: the clinic's name,
+ *  real headings and lists, the One Thing as a callout, the day's door as the
+ *  button. */
+export async function sendStaffDigestEmail(input: {
+  to: string
+  name: string | null
+  clinicName: string
+  brandColor?: string | null
+  logoUrl?: string | null
+  subject: string
+  intro: string
+  happened?: string | null
+  oneThing?: string | null
+  sections: DigestEmailSection[]
+  closing?: string | null
+  linkPath: string
+  linkLabel?: string
+  /** A quieter second door, shown in the footnote (e.g. "Your whole day"). */
+  secondary?: { path: string; label: string }
+}) {
+  await deliver({
+    to: input.to,
+    subject: input.subject,
+    html: staffEmailShell({
+      clinicName: input.clinicName,
+      brandColor: input.brandColor,
+      logoUrl: input.logoUrl,
+      title: '',
+      preheader: input.oneThing ?? input.intro,
+      body: buildDigestEmailBody(input),
+      cta: { url: `${APP_URL}${input.linkPath}`, label: input.linkLabel ?? 'Open your day' },
+      footnoteHtml: `${input.secondary ? `<a href="${APP_URL}${escapeHtml(input.secondary.path)}" style="color:#57534e">${escapeHtml(input.secondary.label)}</a><br>` : ''}You're getting this because of your notification preferences. Manage them at <a href="${APP_URL}/settings/notifications" style="color:#57534e">settings &rarr; notifications</a>.`,
+    }),
   })
 }
 
