@@ -89,7 +89,7 @@ describe('getWebsiteDraftStatus — the honest count', () => {
     }
     const s = await getWebsiteDraftStatus('org_1')
     expect(s.count).toBe(1)
-    expect(s.changes[0]).toEqual({ column: 'about', label: 'About your practice' })
+    expect(s.changes[0]).toEqual({ column: 'about', label: 'About your practice', section: 'about' })
   })
 
   it('no draft → zero', async () => {

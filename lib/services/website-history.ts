@@ -3,6 +3,7 @@ import { and, desc, eq, inArray, sql } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { clinicProfile } from '@/lib/db/schema/platform'
 import { websiteEditHistory } from '@/lib/db/schema/domain'
+import { user } from '@/lib/db/schema/auth'
 import { splitWebsiteValues } from '@/lib/website-draft'
 
 /**
@@ -23,15 +24,23 @@ import { splitWebsiteValues } from '@/lib/website-draft'
 /** Newest rows kept per org — deep-enough history without unbounded growth. */
 export const WEBSITE_HISTORY_CAP = 20
 
+/** What the history rail calls an edit the machine made (the AI website edit,
+ *  the customize-services cron) — and any row from before actors were kept. */
+export const WEBSITE_HISTORY_MACHINE_ACTOR = 'Dream Team'
+
 /** Record one save's overwritten values. Caller passes the PREVIOUS values of
- *  exactly the columns it is about to overwrite (TS property names). */
+ *  exactly the columns it is about to overwrite (TS property names), and the
+ *  signed-in user who made the change (omit/null for the machine). */
 export async function recordWebsiteEdit(
   organizationId: string,
   label: string,
   previous: Record<string, unknown>,
+  actorUserId?: string | null,
 ): Promise<void> {
   if (Object.keys(previous).length === 0) return
-  await db.insert(websiteEditHistory).values({ organizationId, label, previous })
+  await db
+    .insert(websiteEditHistory)
+    .values({ organizationId, label, previous, actorUserId: actorUserId ?? null })
   // Trim beyond the cap (newest first; anything past CAP goes).
   const stale = await db
     .select({ id: websiteEditHistory.id })
@@ -52,6 +61,40 @@ export async function recordWebsiteEdit(
 export interface WebsiteEditHead {
   label: string
   createdAt: Date
+}
+
+export interface WebsiteHistoryEntry {
+  id: number
+  label: string
+  createdAt: Date
+  /** "Dana", or "Dream Team" for the machine. */
+  actorName: string
+}
+
+/** Newest-first history for the Studio's rail — the actor's display name via
+ *  ONE left join (a deleted user / machine edit reads "Dream Team"). */
+export async function listWebsiteHistory(
+  organizationId: string,
+  limit = WEBSITE_HISTORY_CAP,
+): Promise<WebsiteHistoryEntry[]> {
+  const rows = await db
+    .select({
+      id: websiteEditHistory.id,
+      label: websiteEditHistory.label,
+      createdAt: websiteEditHistory.createdAt,
+      actorName: user.name,
+    })
+    .from(websiteEditHistory)
+    .leftJoin(user, eq(user.id, websiteEditHistory.actorUserId))
+    .where(eq(websiteEditHistory.organizationId, organizationId))
+    .orderBy(desc(websiteEditHistory.createdAt), desc(websiteEditHistory.id))
+    .limit(limit)
+  return rows.map((r) => ({
+    id: r.id,
+    label: r.label,
+    createdAt: r.createdAt,
+    actorName: r.actorName?.trim() || WEBSITE_HISTORY_MACHINE_ACTOR,
+  }))
 }
 
 /** The newest history entry (what "Undo" would restore), or null. */

@@ -5,7 +5,7 @@ import { requireTenant } from '@/lib/auth/context'
 import { db } from '@/lib/db'
 import { clinicProfile } from '@/lib/db/schema/platform'
 import { mergeWebsiteDraft } from '@/lib/website-draft'
-import { getWebsiteDraftStatus } from '@/lib/services/website-draft'
+import { getWebsiteDraftStatus, type WebsiteDraftStatus } from '@/lib/services/website-draft'
 import { PageHeader } from '@/components/ui/page-header'
 import { ActionButton } from '@/components/ui/action-button'
 import { EmptyState } from '@/components/ui/empty-state'
@@ -50,7 +50,7 @@ export default async function WebsiteDesignPage() {
     .where(eq(clinicProfile.organizationId, ctx.organizationId))
     .limit(1)
   const profile = row ? mergeWebsiteDraft(row, row.websiteDraft) : undefined
-  const draftStatus = await getWebsiteDraftStatus(ctx.organizationId).catch(() => ({ count: 0, changes: [] as { column: string; label: string }[] }))
+  const draftStatus = await getWebsiteDraftStatus(ctx.organizationId).catch(() => ({ count: 0, changes: [], sections: [] } as WebsiteDraftStatus))
 
   if (!profile) {
     return (
@@ -88,7 +88,7 @@ export default async function WebsiteDesignPage() {
       {/* Publish state travels with every editing surface — saved-but-
           unpublished changes are visible wherever they were made. */}
       {draftStatus.count > 0 && (
-        <PublishCard count={draftStatus.count} labels={draftStatus.changes.map((c) => c.label)} />
+        <PublishCard count={draftStatus.count} labels={draftStatus.changes.map((c) => c.label)} sections={draftStatus.sections} />
       )}
       <DesignPanel
         currentTemplate={profile.template ?? 'modern'}

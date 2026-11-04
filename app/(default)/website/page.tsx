@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { requireTenant } from '@/lib/auth/context'
-import { getEffectiveWebsiteProfile, getWebsiteDraftStatus } from '@/lib/services/website-draft'
+import { getEffectiveWebsiteProfile, getWebsiteDraftStatus, type WebsiteDraftStatus } from '@/lib/services/website-draft'
 import { publicSiteUrl } from '@/lib/services/clinic-site'
 import { getSitePerformance } from '@/lib/services/site-analytics'
 import { getBlogStats } from '@/lib/services/blog'
@@ -118,8 +118,8 @@ export default async function WebsiteHubPage() {
   const completeness = contentCompleteness(profile)
   // What's staged and not yet live — the publish card (owner/admin only).
   const draftStatus = canEdit
-    ? await getWebsiteDraftStatus(ctx.organizationId).catch(() => ({ count: 0, changes: [] }))
-    : { count: 0, changes: [] }
+    ? await getWebsiteDraftStatus(ctx.organizationId).catch(() => ({ count: 0, changes: [], sections: [] } as WebsiteDraftStatus))
+    : { count: 0, changes: [], sections: [] } as WebsiteDraftStatus
   // The real live-page count — same index the Pages manager renders; the RAW
   // row on purpose (a staged team list hasn't published /team yet).
   const pageGates = {
@@ -396,7 +396,7 @@ export default async function WebsiteHubPage() {
 
       {/* ── Unpublished changes — the Publish button's home on the hub ────── */}
       {canEdit && draftStatus.count > 0 && (
-        <PublishCard count={draftStatus.count} labels={draftStatus.changes.map((c) => c.label)} />
+        <PublishCard count={draftStatus.count} labels={draftStatus.changes.map((c) => c.label)} sections={draftStatus.sections} />
       )}
 
       {/* ── Last 30 days — KPIs + the area sparkline ──────────────────────── */}

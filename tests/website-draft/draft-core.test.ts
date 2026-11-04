@@ -98,7 +98,7 @@ describe('websiteDraftKeys + websiteDraftChanges', () => {
     }
     expect(websiteDraftKeys(draft)).toEqual(['tagline', 'about', 'stats'])
     const changes = websiteDraftChanges(draft, profile)
-    expect(changes).toEqual([{ column: 'about', label: 'About your practice' }])
+    expect(changes).toEqual([{ column: 'about', label: 'About your practice', section: 'about' }])
   })
 
   it('a staged null against a live value IS a change (and vice versa)', () => {

@@ -899,6 +899,11 @@ export const websiteEditHistory = pgTable(
     label: text('label').notNull(),
     /** The overwritten columns' previous values: { column: previousValue }. */
     previous: jsonb('previous').notNull(),
+    /** Who made the change. Null = the machine (AI website edit, the
+     *  customize-services cron) or a row from before this column existed;
+     *  the history rail names both "Dream Team". Set null when the user is
+     *  deleted — the entry stays. */
+    actorUserId: text('actor_user_id').references(() => user.id, { onDelete: 'set null' }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index('website_edit_history_org_created_idx').on(t.organizationId, t.createdAt)]

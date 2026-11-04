@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { requireTenant } from '@/lib/auth/context'
-import { getEffectiveWebsiteProfile, getWebsiteDraftStatus } from '@/lib/services/website-draft'
+import { getEffectiveWebsiteProfile, getWebsiteDraftStatus, type WebsiteDraftStatus } from '@/lib/services/website-draft'
 import { publicSiteUrl } from '@/lib/services/clinic-site'
 import { listPublishedPosts } from '@/lib/services/blog'
 import { listActivePlans } from '@/lib/services/membership'
@@ -112,7 +112,7 @@ export default async function WebsitePagesPage() {
     copyByPath.set(k.page, group)
   }
 
-  const draftStatus = await getWebsiteDraftStatus(ctx.organizationId).catch(() => ({ count: 0, changes: [] as { column: string; label: string }[] }))
+  const draftStatus = await getWebsiteDraftStatus(ctx.organizationId).catch(() => ({ count: 0, changes: [], sections: [] } as WebsiteDraftStatus))
   const siteUrl = publicSiteUrl({ slug: ctx.organizationSlug, profile })
   const domain = siteUrl.replace(/^https?:\/\//, '')
   // The meta editor only offers overrides for pages that actually serve.
@@ -148,7 +148,7 @@ export default async function WebsitePagesPage() {
       {/* Publish state travels with every editing surface — saved-but-
           unpublished changes are visible wherever they were made. */}
       {draftStatus.count > 0 && (
-        <PublishCard count={draftStatus.count} labels={draftStatus.changes.map((c) => c.label)} />
+        <PublishCard count={draftStatus.count} labels={draftStatus.changes.map((c) => c.label)} sections={draftStatus.sections} />
       )}
       <PagesManager
         pages={index}
