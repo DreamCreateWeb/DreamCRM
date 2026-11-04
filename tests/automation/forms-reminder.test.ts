@@ -31,6 +31,8 @@ const state = {
   candidates: [] as Array<{ appointmentId: string; patientId: string; type?: string }>,
   submissions: [] as Array<{ patientId: string; formTemplateId?: string; last?: Date }>,
   remindedAppointmentIds: [] as string[],
+  /** ML-30: forms nudges already sent to these PEOPLE in the 7-day window (log rows stamped with patient_id). */
+  remindedPatientIds: [] as string[],
   forms: [] as Array<typeof DEFAULT_FORM>,
 }
 
@@ -58,7 +60,10 @@ const from = (table: unknown) => {
       state.submissions.map((s) => ({ patientId: s.patientId, formTemplateId: s.formTemplateId ?? 'form_default', last: s.last ?? new Date('2026-06-01T12:00:00Z') })),
     )
   if (table === 'appointment_reminder_log')
-    return makeThenable(() => state.remindedAppointmentIds.map((appointmentId) => ({ appointmentId })))
+    return makeThenable(() => [
+      ...state.remindedAppointmentIds.map((appointmentId) => ({ appointmentId, patientId: null })),
+      ...state.remindedPatientIds.map((patientId) => ({ appointmentId: 'appt_earlier', patientId })),
+    ])
   return makeThenable(() => [])
 }
 
@@ -92,6 +97,7 @@ vi.mock('drizzle-orm', () => ({
   inArray: (...a: unknown[]) => ({ a }),
   isNotNull: (...a: unknown[]) => ({ a }),
   max: (...a: unknown[]) => ({ a }),
+  or: (...a: unknown[]) => ({ a }),
 }))
 
 const sendIntakeRequestToPatient = vi.fn(async () => ({ sentTo: 'x@y.com', formTitle: 'Intake' }))
@@ -117,6 +123,7 @@ beforeEach(() => {
   state.candidates = []
   state.submissions = []
   state.remindedAppointmentIds = []
+  state.remindedPatientIds = []
   state.forms = [{ ...DEFAULT_FORM }]
   vi.clearAllMocks()
 })
@@ -146,7 +153,7 @@ describe('runDueFormReminders', () => {
     const r = await runDueFormReminders({ now: NOW })
     expect(r.sent).toBe(1)
     expect(sendIntakeRequestToPatient).toHaveBeenCalledWith('org_1', 'p1', 'form_default')
-    expect(logReminderSent).toHaveBeenCalledWith(expect.objectContaining({ template: 'forms_intake', appointmentId: 'a1' }))
+    expect(logReminderSent).toHaveBeenCalledWith(expect.objectContaining({ template: 'forms_intake', appointmentId: 'a1', patientId: 'p1' }))
   })
 
   it('skips a patient who already submitted a form', async () => {
@@ -283,5 +290,45 @@ describe('runDueFormReminders — quiet hours (lib/reminder-hours.ts, rule 1)', 
     expect(r.outsideWindow).toBe(0)
     expect(r.sent).toBe(1)
     expect(logReminderSent).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('runDueFormReminders — one nudge per PERSON per 7 days (ML-30, G5-31)', () => {
+  it('three visits in a week → one nudge, logged with the patient', async () => {
+    state.candidates = [
+      { appointmentId: 'a1', patientId: 'p1' },
+      { appointmentId: 'a2', patientId: 'p1' },
+      { appointmentId: 'a3', patientId: 'p1' },
+    ]
+    const r = await runDueFormReminders({ now: NOW })
+    expect(r.sent).toBe(1)
+    expect(r.alreadyReminded).toBe(2)
+    expect(logReminderSent).toHaveBeenCalledTimes(1)
+    expect(logReminderSent).toHaveBeenCalledWith(expect.objectContaining({ patientId: 'p1', template: 'forms_intake' }))
+  })
+
+  it("a nudge to this person for ANOTHER appointment inside the window stops today's nudge", async () => {
+    state.candidates = [{ appointmentId: 'a_new', patientId: 'p1' }]
+    state.remindedPatientIds = ['p1'] // logged against appt_earlier
+    const r = await runDueFormReminders({ now: NOW })
+    expect(r.sent).toBe(0)
+    expect(r.alreadyReminded).toBe(1)
+    expect(sendIntakeRequestToPatient).not.toHaveBeenCalled()
+  })
+
+  it("another person is not capped by this one's nudge", async () => {
+    state.candidates = [
+      { appointmentId: 'a1', patientId: 'p1' },
+      { appointmentId: 'a2', patientId: 'p2' },
+    ]
+    state.remindedPatientIds = ['p1']
+    const r = await runDueFormReminders({ now: NOW })
+    expect(r.sent).toBe(1)
+    expect(sendIntakeRequestToPatient).toHaveBeenCalledWith('org_1', 'p2', expect.anything())
+  })
+
+  it('the cap window is 7 days', async () => {
+    const { FORMS_REMINDER_PATIENT_WINDOW_HOURS } = await import('@/lib/types/reminders')
+    expect(FORMS_REMINDER_PATIENT_WINDOW_HOURS).toBe(168)
   })
 })

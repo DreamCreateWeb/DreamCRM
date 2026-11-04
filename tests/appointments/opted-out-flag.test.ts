@@ -60,6 +60,7 @@ vi.mock('drizzle-orm', () => ({
   sql: Object.assign(vi.fn(() => ({ _: 'sql' })), { raw: vi.fn() }),
 }))
 
+vi.mock('@/lib/services/intake-on-file-read', () => ({ loadIntakeOnFile: vi.fn(async () => ({ has: () => false })) }))
 vi.mock('@/lib/services/clinic-timezone', () => ({ getClinicTimeZone: vi.fn(async () => 'America/Chicago') }))
 vi.mock('@/lib/services/feature-switches', () => ({ getFeatureSwitchState: vi.fn(async () => ({ intake_forms: true })) }))
 vi.mock('@/lib/services/clinic-cadence', () => ({ getClinicCadence: vi.fn(async () => ({ lapsedMonths: 9 })) }))

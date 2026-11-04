@@ -23,6 +23,7 @@ import type { PmsLink } from '@/lib/pms-link'
 import { readMorningAfter } from '@/lib/services/daily-digest'
 import { MORNING_AFTER_DAYS, type MorningAfter } from '@/lib/morning-after'
 import { dayNumber } from '@/lib/first-week'
+import { loadIntakeOnFile } from '@/lib/services/intake-on-file-read'
 
 /**
  * Clinic-side daily dashboard service. Returns everything the Overview
@@ -258,14 +259,14 @@ export async function getClinicOverview(organizationId: string): Promise<ClinicO
 
   const newPatientSet = new Set<string>()
   const balanceSet = new Set<string>()
-  const intakeSet = new Set<string>()
+  let intakeOnFile: Awaited<ReturnType<typeof loadIntakeOnFile>> = { has: () => false }
 
   for (const a of todaysAppts) {
     if ((a.pmsBalanceCents ?? 0) > 0) balanceSet.add(a.patientId)
   }
 
   if (patientIdsToday.length > 0) {
-    const [priors, submissions] = await Promise.all([
+    const [priors, onFileReader] = await Promise.all([
       // Patients with no REAL appointment before today → new patient.
       // Cancelled/no-show priors don't count as a visit — matches the agenda
       // + patients-list rule so the ★ glyph agrees across surfaces.
@@ -280,23 +281,13 @@ export async function getClinicOverview(organizationId: string): Promise<ClinicO
             notInArray(schema.appointment.status, ['cancelled', 'no_show']),
           ),
         ),
-      // Intake submissions on file.
-      db
-        .select({ patientId: schema.formSubmission.patientId })
-        .from(schema.formSubmission)
-        .where(
-          and(
-            eq(schema.formSubmission.organizationId, organizationId),
-            inArray(schema.formSubmission.patientId, patientIdsToday),
-          ),
-        ),
+      // Intake on file — the ONE rule (ML-27/30), not "any submission ever".
+      loadIntakeOnFile(organizationId, patientIdsToday, now, timeZone),
     ])
+    intakeOnFile = onFileReader
     const hasPrior = new Set(priors.map((p) => p.patientId))
     for (const id of patientIdsToday) {
       if (!hasPrior.has(id)) newPatientSet.add(id)
-    }
-    for (const s of submissions) {
-      if (s.patientId) intakeSet.add(s.patientId)
     }
   }
 
@@ -326,7 +317,7 @@ export async function getClinicOverview(organizationId: string): Promise<ClinicO
       newPatient: newPatientSet.has(a.patientId),
       birthdayThisWeek: isBirthdayThisWeek(a.dateOfBirth, todayKey),
       hasOutstandingBalance: balanceSet.has(a.patientId),
-      hasIntakeOnFile: intakeSet.has(a.patientId),
+      hasIntakeOnFile: intakeOnFile.has(a.patientId, a.type),
     },
     tags: todaysTagsByPatient.get(a.patientId) ?? [],
     intakeAlerts: alertsByAppt.get(a.id) ?? null,

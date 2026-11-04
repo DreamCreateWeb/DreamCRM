@@ -531,6 +531,13 @@ export const appointmentReminderLog = pgTable('appointment_reminder_log', {
   id: text('id').primaryKey(),
   organizationId: text('organization_id').notNull().references(() => organization.id, { onDelete: 'cascade' }),
   appointmentId: text('appointment_id').notNull().references(() => appointment.id, { onDelete: 'cascade' }),
+  // WHO the touch was for (ML-30). A reminder is about an appointment, but the
+  // forms nudge is capped per PERSON (a patient with three visits in a week
+  // gets one), so the per-patient cap is one indexed read of this column.
+  // Nullable: legacy rows are backfilled from the appointment in 0184; a row
+  // whose writer did not know the patient stays null and the cap falls back
+  // to its appointment.
+  patientId: text('patient_id').references(() => patient.id, { onDelete: 'cascade' }),
   // 'sms' | 'email'
   channel: text('channel').notNull(),
   // Template key (e.g. 'default_24h', 'recall_new_patient'). Nullable for
@@ -551,6 +558,9 @@ export const appointmentReminderLog = pgTable('appointment_reminder_log', {
   // The activation reconcile's A2 read (min(sent_at) per org) — without this
   // every unstamped clinic seq-scanned the whole log daily (audit round 1).
   index('appt_reminder_org_sent_idx').on(t.organizationId, t.sentAt),
+  // The forms nudge's per-patient cap (ML-30): "has this PERSON been nudged
+  // in the last 7 days?" is one read of this index.
+  index('appt_reminder_patient_tpl_sent_idx').on(t.organizationId, t.patientId, t.template, t.sentAt.desc()),
   // Every DLR is a lookup by provider message id — without this it's a
   // sequential scan of the busiest log table on every receipt.
   index('appt_reminder_provider_msg_idx').on(t.providerMessageId),
