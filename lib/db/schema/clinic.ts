@@ -341,7 +341,8 @@ export const patientFollowup = pgTable(
     // follow-up whose ruleKey already exists for the org.
     ruleKey: text('rule_key'),
     // WHY it exists (drives the glyph + the row's door): 'generic' | 'rebook' |
-    // 'balance' | 'insurance' | 'message' | 'intake' | 'review' | 'recall'.
+    // 'balance' | 'insurance' | 'message' | 'intake' | 'review' | 'recall' |
+    // 'feedback' (ML-21: a 1–2★ note or a detractor survey).
     // See FOLLOWUP_KINDS in lib/types/followups.ts. Default 'generic'.
     kind: text('kind').notNull().default('generic'),
     // 'YYYY-MM-DD' clinic-local. While set and in the future the row is hidden

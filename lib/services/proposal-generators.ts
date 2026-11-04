@@ -18,6 +18,7 @@ import {
 } from '@/lib/services/proposals'
 import { recordEngineFailure } from '@/lib/services/action-ledger'
 import { generatePatientReplyProposals } from '@/lib/services/proposal-generators/patient-reply'
+import { generateFeedbackReplyProposals } from '@/lib/services/proposal-generators/feedback-reply'
 import { clinicLocalHour, clinicWeekStart } from '@/lib/clinic-timezone'
 import { resolveTrialState } from '@/lib/trial'
 import { sweepClinics } from '@/lib/services/cron-sweep'
@@ -159,6 +160,11 @@ export const STEP_FAILURE: Record<string, { capability: string; summary: string 
   patient_reply: {
     capability: 'patient_reply',
     summary: 'Couldn’t draft a reply to a patient who’s waiting just now — I’ll keep trying.',
+  },
+  // ML-21: the second generator under the lane convention.
+  feedback_reply: {
+    capability: 'feedback_reply',
+    summary: 'Couldn’t draft a note back to a patient whose visit fell short just now — I’ll keep trying.',
   },
   social_post: {
     capability: 'social_post',
@@ -398,6 +404,10 @@ function makeOrgPass(result: Omit<GeneratorRunResult, 'sweep'>, now: Date): (org
         // broadcast lanes below — the same "answer a person" family as the
         // two above it.
         ['patient_reply', () => generatePatientReplyProposals(org.id, now, tz, softFailed('patient_reply'))],
+        // ML-21: a 1–2★ private note or a detractor survey gets a drafted
+        // personal note waiting for a yes — the same "answer a person"
+        // family, right behind the patient reply.
+        ['feedback_reply', () => generateFeedbackReplyProposals(org.id, now, tz, softFailed('feedback_reply'))],
         // The MONTH plan runs before the one-off post: they answer the same
         // silence, and the bigger answer gets first refusal. Each also
         // stands down while the other's card is open, so the order is a

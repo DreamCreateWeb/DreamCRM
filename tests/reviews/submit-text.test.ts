@@ -53,6 +53,12 @@ vi.mock('resend', () => ({ Resend: class { emails = { send: async () => ({ id: '
 const { notifyOrgMembersMock } = vi.hoisted(() => ({ notifyOrgMembersMock: vi.fn(async () => undefined) }))
 vi.mock('@/lib/services/notifications', () => ({ notifyOrgMembers: notifyOrgMembersMock }))
 
+// ML-21: the follow-up filed beside a 1–2★ bell (one per note).
+const { followupMock } = vi.hoisted(() => ({
+  followupMock: vi.fn(async (..._a: unknown[]): Promise<{ id: string; created: boolean } | null> => ({ id: 'fu_1', created: true })),
+}))
+vi.mock('@/lib/services/patient-followups', () => ({ autoCreateFeedbackFollowup: followupMock }))
+
 import { submitReviewText } from '@/lib/services/reviews'
 
 beforeEach(() => {
@@ -60,6 +66,8 @@ beforeEach(() => {
   state.updates = []
   notifyOrgMembersMock.mockClear()
   notifyOrgMembersMock.mockResolvedValue(undefined)
+  followupMock.mockClear()
+  followupMock.mockResolvedValue({ id: 'fu_1', created: true })
 })
 
 function reqWithStatus(status: string) {
@@ -118,20 +126,46 @@ describe('submitReviewText notifications', () => {
     )
   })
 
-  it('escalates a 1–2★ submission with an urgent, force-emailed service-recovery alert', async () => {
+  it('escalates a 1–2★ submission with an urgent, force-emailed service-recovery alert that lands on the ONE follow-up it filed', async () => {
     reqWithStatus('sent')
     const res = await submitReviewText({ token: 'tok', text: 'Long wait, felt rushed.', rating: 2 })
     expect(res.ok).toBe(true)
+    // ML-21: filed once, per note, keyed on the request row.
+    expect(followupMock).toHaveBeenCalledTimes(1)
+    expect(followupMock).toHaveBeenCalledWith(
+      'org_1',
+      'pat_1',
+      undefined,
+      expect.objectContaining({ kind: 'review', reviewRequestId: 'rr_1', rating: 2 }),
+    )
     expect(notifyOrgMembersMock).toHaveBeenCalledWith(
       'org_1',
       expect.objectContaining({
         type: 'review_low_rating',
         forceEmail: true,
         title: expect.stringContaining('before it goes public'),
-        linkPath: '/growth/reviews/received',
+        linkPath: '/patients/pat_1#followups',
+        linkLabel: 'Open the follow-up →',
       }),
       { roles: ['owner', 'admin'], excludeEmail: null },
     )
+  })
+
+  it('a 1–2★ bell whose follow-up could not be filed still rings — at the received page', async () => {
+    followupMock.mockResolvedValueOnce(null)
+    reqWithStatus('sent')
+    await submitReviewText({ token: 'tok', text: 'Long wait, felt rushed.', rating: 1 })
+    expect(notifyOrgMembersMock).toHaveBeenCalledWith(
+      'org_1',
+      expect.objectContaining({ type: 'review_low_rating', linkPath: '/growth/reviews/received' }),
+      { roles: ['owner', 'admin'], excludeEmail: null },
+    )
+  })
+
+  it('keeps a 3★+ submission on the normal (non-urgent) alert — and files no follow-up', async () => {
+    reqWithStatus('sent')
+    await submitReviewText({ token: 'tok', text: 'Nice people.', rating: 4 })
+    expect(followupMock).not.toHaveBeenCalled()
   })
 
   it('keeps a 3★+ submission on the normal (non-urgent) alert', async () => {

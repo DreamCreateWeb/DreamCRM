@@ -242,9 +242,9 @@ export const BOOKING_BUTTON_CAPABILITIES: readonly string[] = [
 // registered ahead of its generator. Each slice that ships a generator +
 // executor deletes its own key here — that single deletion is the release.
 // `patient_reply` was the first key deleted here (ML-12, 2026-11-03 — its
-// generator + executor shipped together).
+// generator + executor shipped together); `feedback_reply` the second
+// (ML-21, same day, same shape).
 export const PREVIEW_CAPABILITIES: readonly string[] = [
-  'feedback_reply',
   'inquiry_followup',
   'postop_checkin',
   'rebook_nudge',

@@ -78,6 +78,8 @@ vi.mock('@/lib/email', () => ({
   patientEmailShell: vi.fn((o: { title?: string; body?: string; cta?: { url: string; label: string }; footnoteHtml?: string }) => `<html>${o?.title ?? ''}${o?.body ?? ''}${o?.cta ? `<a href="${o.cta.url}">${o.cta.label}</a>` : ''}${o?.footnoteHtml ?? ''}</html>`),
   deliver: deliverMock,
   authEmailShell: vi.fn(() => '<html>survey</html>'),
+  // ML-19 moved the survey onto the branded patient shell.
+  patientEmailShell: vi.fn(() => '<html>survey</html>'),
 }))
 vi.mock('@/lib/services/clinic-sender', () => ({
   getClinicSenderIdentity: vi.fn(async () => ({
@@ -90,6 +92,13 @@ const { recordActionMock } = vi.hoisted(() => ({
   recordActionMock: vi.fn(async (..._a: unknown[]) => true),
 }))
 vi.mock('@/lib/services/action-ledger', () => ({ recordAction: recordActionMock }))
+
+// ML-21: the detractor bell files "Call <first> about their visit" (one per
+// survey) and lands on it. Mocked at the one seam the service calls.
+const { followupMock } = vi.hoisted(() => ({
+  followupMock: vi.fn(async (..._a: unknown[]): Promise<{ id: string; created: boolean } | null> => ({ id: 'fu_1', created: true })),
+}))
+vi.mock('@/lib/services/patient-followups', () => ({ autoCreateFeedbackFollowup: followupMock }))
 
 import { runDueNpsSurveys, recordNpsScore, recordNpsComment } from '@/lib/services/nps'
 
@@ -150,13 +159,42 @@ describe('recordNpsScore', () => {
     expect(notifyMock).not.toHaveBeenCalled()
   })
 
-  it('escalates a detractor to staff', async () => {
-    state.updateReturning.push([{ id: 'n1', organizationId: 'org_1', patientId: 'p1' }])
+  it('escalates a detractor to staff, files ONE follow-up, and the bell lands on it', async () => {
+    followupMock.mockResolvedValue({ id: 'fu_1', created: true })
+    state.updateReturning.push([{ id: 'n1', organizationId: 'org_1', patientId: 'p1', appointmentId: 'appt_1' }])
     state.selectQueue.push([{ firstName: 'Ethan', lastName: 'Ward' }])
     expect(await recordNpsScore('tok', 3)).toBe(true)
+    expect(followupMock).toHaveBeenCalledTimes(1)
+    expect(followupMock).toHaveBeenCalledWith(
+      'org_1',
+      'p1',
+      'Ethan',
+      expect.objectContaining({ kind: 'nps', npsResponseId: 'n1', appointmentId: 'appt_1', score: 3 }),
+    )
     expect(notifyMock).toHaveBeenCalledWith(
       'org_1',
-      expect.objectContaining({ title: expect.stringContaining('3/10') }),
+      expect.objectContaining({
+        title: expect.stringContaining('3/10'),
+        linkPath: '/patients/p1#followups',
+        linkLabel: 'Open the follow-up →',
+      }),
+      expect.anything(),
+    )
+  })
+
+  it('a promoter files no follow-up; a missed filing still rings the bell at the record', async () => {
+    followupMock.mockResolvedValue({ id: 'fu_1', created: true })
+    state.updateReturning.push([{ id: 'n1', organizationId: 'org_1', patientId: 'p1' }])
+    expect(await recordNpsScore('tok', 9)).toBe(true)
+    expect(followupMock).not.toHaveBeenCalled()
+
+    followupMock.mockResolvedValueOnce(null)
+    state.updateReturning.push([{ id: 'n2', organizationId: 'org_1', patientId: 'p1' }])
+    state.selectQueue.push([{ firstName: 'Ethan', lastName: 'Ward' }])
+    expect(await recordNpsScore('tok', 5)).toBe(true)
+    expect(notifyMock).toHaveBeenCalledWith(
+      'org_1',
+      expect.objectContaining({ linkPath: '/patients/p1', linkLabel: 'Open Ethan’s record →' }),
       expect.anything(),
     )
   })

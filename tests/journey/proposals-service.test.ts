@@ -117,6 +117,10 @@ vi.mock('@/lib/email', () => ({
   deliver: executors.deliver,
   authEmailShell: (o: { introHtml: string; buttonUrl?: string; buttonLabel?: string }) =>
     `<html>${o.introHtml}${o.buttonUrl ? `<a href="${o.buttonUrl}">${o.buttonLabel}</a>` : ''}</html>`,
+  // The branded patient shell (ML-19) the inquiry reply now sends through —
+  // the same body + button rendering, so the assertions read the same html.
+  patientEmailShell: (o: { body: string; cta?: { url: string; label: string } }) =>
+    `<html>${o.body}${o.cta ? `<a href="${o.cta.url}">${o.cta.label}</a>` : ''}</html>`,
 }))
 vi.mock('@/lib/services/marketing-campaigns', () => ({ createMarketingCampaign: executors.createMarketingCampaign }))
 vi.mock('@/lib/services/marketing-send', () => ({
