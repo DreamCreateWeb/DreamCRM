@@ -1,4 +1,5 @@
 import 'server-only'
+import { attributeBookingToCampaign } from '@/lib/services/campaign-attribution'
 import { getFeatureSwitchState } from '@/lib/services/feature-switches'
 import { and, asc, desc, eq, gte, inArray, isNull, lte, ne, or, sql } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
@@ -1875,6 +1876,8 @@ export async function createInternalAppointment(input: CreateInternalAppointment
   // Two-way PMS: queue this booking to be written into the clinic's PMS on the
   // next sync (best-effort, never blocks booking).
   await queueAppointmentWriteBack(input.organizationId, id)
+  // "Booked back": credit the campaign that brought them in (best-effort).
+  await attributeBookingToCampaign(input.organizationId, id, input.patientId, new Date())
   return id
 }
 
