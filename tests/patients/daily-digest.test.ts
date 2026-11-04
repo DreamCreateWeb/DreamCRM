@@ -3,7 +3,7 @@ import { describe, it, expect, vi } from 'vitest'
 // buildDigestContent is pure but lives in a server module that imports the email
 // layer + db at load; stub those so the import is side-effect-free.
 vi.mock('@/lib/db', () => ({ db: {}, schema: {} }))
-vi.mock('@/lib/email', () => ({ sendNotificationEmail: vi.fn() }))
+vi.mock('@/lib/email', () => ({ sendStaffDigestEmail: vi.fn(), sendNotificationEmail: vi.fn() }))
 vi.mock('@/lib/services/my-day', () => ({ getMyDay: vi.fn() }))
 vi.mock('@/lib/services/site-analytics', () => ({ getWeeklySiteDigest: vi.fn() }))
 vi.mock('@/lib/services/clinic-timezone', () => ({ getClinicTimeZone: vi.fn() }))

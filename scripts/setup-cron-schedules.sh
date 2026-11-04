@@ -71,7 +71,11 @@ JOBS=(
   "sync-gbp|sync-gbp|rate(1 hour)"
   "retention-automations|retention-automations|rate(1 day)"
   "followup-rules|followup-rules|rate(1 hour)"
-  "daily-digest|daily-digest|cron(0 13 * * ? *)"
+  # Hourly (ML-33): each clinic is mailed once per clinic-local day at or
+  # after 7 AM there (the day-keyed daily_digest_log); the Monday standup gates
+  # on its own local Monday + 7 AM; the prospecting digest + activation
+  # reconcile run only on the 13:00 UTC tick.
+  "daily-digest|daily-digest|rate(1 hour)"
   "trial-reminders|trial-reminders|rate(6 hours)"
   "prospect-discovery|prospect-discovery|rate(6 hours)"
   "prospect-enrich|prospect-enrich|rate(30 minutes)"
