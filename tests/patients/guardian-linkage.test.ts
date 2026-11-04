@@ -30,6 +30,7 @@ vi.mock('@/lib/db', () => {
 
 vi.mock('drizzle-orm', () => ({ and: vi.fn(() => ({})), eq: vi.fn(() => ({})) }))
 
+vi.mock('@/lib/services/intake-on-file-read', () => ({ loadIntakeOnFile: vi.fn(async () => ({ has: () => false })) }))
 import { updatePatient } from '@/lib/services/patients'
 
 const call = (patientId: string, guardianPatientId: string) =>

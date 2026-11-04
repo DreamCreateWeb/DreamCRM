@@ -68,7 +68,16 @@ export async function sendBookingConfirmation(opts: {
     let intakeFormUrl: string | null = null
     // The visit's type rides along (ML-27): a sedation booking gets the
     // sedation consent, a cleaning never sees it.
-    const defaultForm = await getBookingIntakeForm(opts.organizationId, isNewPatient, { appointmentType: opts.appointmentType })
+    let defaultForm = await getBookingIntakeForm(opts.organizationId, isNewPatient, { appointmentType: opts.appointmentType })
+    // ONE on-file read (ML-30, lib/intake-on-file.ts): a second visit inside
+    // the form's refresh window does not ask for the paperwork again — the
+    // confirmation goes out without the link, nothing else changes.
+    if (defaultForm) {
+      const { isIntakeOnFileForRule } = await import('@/lib/services/intake-on-file-read')
+      const tz = (await getClinicSenderIdentity(opts.organizationId)).timeZone
+      const onFile = await isIntakeOnFileForRule(opts.organizationId, opts.patientId, defaultForm, new Date(), tz).catch(() => false)
+      if (onFile) defaultForm = null
+    }
     if (defaultForm) {
       const [org] = await db
         .select({ slug: organization.slug })

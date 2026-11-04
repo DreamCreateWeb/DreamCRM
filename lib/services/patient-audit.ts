@@ -1,4 +1,5 @@
 import 'server-only'
+import { loadIntakeOnFile } from '@/lib/services/intake-on-file-read'
 import { getFeatureSwitchState } from '@/lib/services/feature-switches'
 import { and, asc, eq, gte, inArray, lt, max, sql } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
@@ -112,16 +113,9 @@ export async function auditUpcomingDay(
   const appointmentIds = rows.map((r) => r.appointmentId)
 
   // Three batched set queries — never per-patient N+1.
-  const [submittedRows, lastVisitRows, pendingDepositRows, cadence] = await Promise.all([
-    db
-      .selectDistinct({ patientId: schema.formSubmission.patientId })
-      .from(schema.formSubmission)
-      .where(
-        and(
-          eq(schema.formSubmission.organizationId, organizationId),
-          inArray(schema.formSubmission.patientId, patientIds),
-        ),
-      ),
+  const [intakeOnFile, lastVisitRows, pendingDepositRows, cadence] = await Promise.all([
+    // Intake on file — the ONE rule (ML-27/30), not "any submission ever".
+    loadIntakeOnFile(organizationId, patientIds, now, tz),
     db
       .select({
         patientId: schema.appointment.patientId,
@@ -167,7 +161,6 @@ export async function auditUpcomingDay(
   const latestChecks = withCard.length
     ? await getLatestInsuranceChecksForPatients(organizationId, withCard).catch(() => null)
     : null
-  const submittedSet = new Set(submittedRows.map((r) => r.patientId).filter(Boolean))
   const lastVisitByPatient = new Map(
     lastVisitRows.map((r) => [r.patientId, r.last ?? null]),
   )
@@ -192,7 +185,7 @@ export async function auditUpcomingDay(
       flags.push({ key: 'deposit_pending', label: `${dollars(depositCents)} booking deposit not completed` })
     }
     // No nag about a module the practice never opened (law 1, verification round).
-    if (intakeOpen && !submittedSet.has(r.patientId)) flags.push({ key: 'no_intake', label: 'No intake form on file' })
+    if (intakeOpen && !intakeOnFile.has(r.patientId, r.type)) flags.push({ key: 'no_intake', label: 'No intake form on file' })
     if ((r.balance ?? 0) > 0) {
       flags.push({ key: 'balance', label: `Owes ${dollars(r.balance!)} — worth settling at the visit` })
     }

@@ -23,6 +23,7 @@ import {
   reminderSmsBody,
   familyReminderSmsBody,
   FORMS_REMINDER_WINDOW_HOURS,
+  FORMS_REMINDER_PATIENT_WINDOW_HOURS,
   FORMS_REMINDER_TEMPLATE,
   REMINDER_MIN_GAP_HOURS,
   type ReminderSettings,
@@ -1068,7 +1069,8 @@ export async function runDueFormReminders(opts?: { now?: Date }): Promise<Remind
     if (forms.length === 0) continue
 
     const windowEnd = new Date(now.getTime() + FORMS_REMINDER_WINDOW_HOURS * 60 * 60 * 1000)
-    const remindedSince = new Date(now.getTime() - FORMS_REMINDER_WINDOW_HOURS * 60 * 60 * 1000)
+    // THE PERSON, NOT THE VISIT (ML-30): the cap is per patient per 7 days.
+    const remindedSince = new Date(now.getTime() - FORMS_REMINDER_PATIENT_WINDOW_HOURS * 60 * 60 * 1000)
 
     // Upcoming LIVE appointments with an email on file. 'scheduled' OR
     // 'confirmed' — a confirmed visit still needs its paperwork. Cancelled /
@@ -1131,20 +1133,30 @@ export async function runDueFormReminders(opts?: { now?: Date }): Promise<Remind
       if (r.formTemplateId) latestByForm.set(`${r.patientId}:${r.formTemplateId}`, last)
     }
 
-    // Appointments that already got a forms reminder within the window.
+    // Who already got a forms nudge within the window. Keyed on the PATIENT
+    // (appointment_reminder_log.patient_id, indexed with org/template/sent_at);
+    // the appointment arm catches a row whose writer did not know the patient.
     const recentRows = appointmentIds.length
       ? await db
-          .select({ appointmentId: schema.appointmentReminderLog.appointmentId })
+          .select({
+            appointmentId: schema.appointmentReminderLog.appointmentId,
+            patientId: schema.appointmentReminderLog.patientId,
+          })
           .from(schema.appointmentReminderLog)
           .where(
             and(
-              inArray(schema.appointmentReminderLog.appointmentId, appointmentIds),
+              eq(schema.appointmentReminderLog.organizationId, profile.organizationId),
+              or(
+                inArray(schema.appointmentReminderLog.patientId, patientIds),
+                inArray(schema.appointmentReminderLog.appointmentId, appointmentIds),
+              )!,
               eq(schema.appointmentReminderLog.template, FORMS_REMINDER_TEMPLATE),
               gte(schema.appointmentReminderLog.sentAt, remindedSince),
             ),
           )
       : []
     const recentSet = new Set(recentRows.map((r) => r.appointmentId))
+    const recentPatientSet = new Set(recentRows.map((r) => r.patientId).filter((id): id is string => !!id))
 
     const remindedPatients = new Set<string>()
 
@@ -1189,9 +1201,9 @@ export async function runDueFormReminders(opts?: { now?: Date }): Promise<Remind
         continue
       }
 
-      // Cross-run dedup: a forms reminder already went out for this appointment
-      // within the window.
-      if (recentSet.has(c.appointmentId)) {
+      // Cross-run dedup: this PERSON (any of their visits) was nudged within
+      // the 7-day window, or this appointment was (a row with no patient).
+      if (recentPatientSet.has(c.patientId) || recentSet.has(c.appointmentId)) {
         result.alreadyReminded++
         continue
       }
@@ -1204,6 +1216,7 @@ export async function runDueFormReminders(opts?: { now?: Date }): Promise<Remind
         await logReminderSent({
           organizationId: profile.organizationId,
           appointmentId: c.appointmentId,
+          patientId: c.patientId,
           channel: 'email',
           template: FORMS_REMINDER_TEMPLATE,
           sentByUserId: null,

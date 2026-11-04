@@ -41,6 +41,13 @@ export const REMINDER_DEFAULTS: ReminderSettings = {
 export const FORMS_REMINDER_WINDOW_HOURS = 48
 
 /**
+ * The per-PERSON cap on the intake nudge (ML-30): one "please fill your form"
+ * email per patient per 7 days, however many visits they have booked or
+ * form rules cover them. The patient-keyed twin of the SMS frequency cap.
+ */
+export const FORMS_REMINDER_PATIENT_WINDOW_HOURS = 24 * 7
+
+/**
  * The template key a forms nudge is logged under.
  *
  * Load-bearing in three places now, so it stops being a string literal: the

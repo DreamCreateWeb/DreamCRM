@@ -1,4 +1,5 @@
 import 'server-only'
+import { loadIntakeOnFile } from '@/lib/services/intake-on-file-read'
 import { getFeatureSwitchState } from '@/lib/services/feature-switches'
 import { parseInsuranceDetail, type PatientInsuranceDetail } from '@/lib/insurance-eligibility'
 import { and, asc, count, desc, eq, gte, inArray, isNotNull, isNull, lt, lte, ne, notInArray, or, sql, type SQL } from 'drizzle-orm'
@@ -319,6 +320,8 @@ export async function listPatientsPage(
     // `!!next && next.startTime <= in7d && !intakeSet.has(id)` — the earliest
     // live future visit landing inside 7 days is the same question as "any
     // live visit in [now, in7d]", with no form submission on file.
+    // NOTE (ML-30): this FILTER still reads "any submission ever" in SQL; the
+    // row flag + record use the refresh-window rule (loadIntakeOnFile).
     where.push(sql`exists (
       select 1 from ${schema.appointment}
       where ${eq(schema.appointment.organizationId, organizationId)}
@@ -404,7 +407,7 @@ export async function listPatientsPage(
   const ids = patients.map((p) => p.id)
 
   // Pull joined data in parallel.
-  const [lastVisits, nextVisits, unconfirmedNear, shopSpendRows, intakeRows, lastMessages, recallScheduledNear, tagsByPatient, everBooked] =
+  const [lastVisits, nextVisits, unconfirmedNear, shopSpendRows, intakeOnFile, lastMessages, recallScheduledNear, tagsByPatient, everBooked] =
     await Promise.all([
       // Last completed/confirmed appointment per patient (most recent past
       // startTime). DISTINCT ON collapses to ONE row per patient in Postgres —
@@ -483,16 +486,8 @@ export async function listPatientsPage(
           ),
         )
         .groupBy(schema.shopOrder.patientId),
-      // Intake submissions on file.
-      db
-        .select({ patientId: schema.formSubmission.patientId })
-        .from(schema.formSubmission)
-        .where(
-          and(
-            eq(schema.formSubmission.organizationId, organizationId),
-            inArray(schema.formSubmission.patientId, ids),
-          ),
-        ),
+      // Intake on file — the ONE rule (ML-27/30), not "any submission ever".
+      loadIntakeOnFile(organizationId, ids, now, timeZone),
       // Last contact — the newest `patient_message` on the patient's thread,
       // any channel, either direction. This is the /messages inbox, i.e. what
       // the practice and the patient actually said to each other. The old
@@ -558,8 +553,6 @@ export async function listPatientsPage(
   }
   const unconfirmedSet = new Set(unconfirmedNear.map((r) => r.patientId))
   const recallSet = new Set(recallScheduledNear.map((r) => r.patientId))
-  const intakeSet = new Set<string>()
-  for (const r of intakeRows) { if (r.patientId) intakeSet.add(r.patientId) }
   const lastContactMap = new Map<string, { at: Date; direction: 'inbound' | 'outbound' }>()
   for (const r of lastMessages) {
     if (!lastContactMap.has(r.patientId)) {
@@ -588,7 +581,7 @@ export async function listPatientsPage(
     const balance = p.pmsBalanceCents ?? null
     const balanceAsOf = p.pmsBalanceUpdatedAt ?? null
     const shopSpend = shopSpendByPatient.get(p.id) ?? 0
-    const missingIntakeBeforeAppt = intakeOpen && !!next && next.startTime <= in7d && !intakeSet.has(p.id)
+    const missingIntakeBeforeAppt = intakeOpen && !!next && next.startTime <= in7d && !intakeOnFile.has(p.id, next.type)
     // Prefer the PMS recall date when present (Integrations); otherwise fall
     // back to the appointment-derived heuristic so unconnected clinics behave
     // exactly as before.
@@ -986,7 +979,7 @@ export async function getPatientHeader(
   // No intake nag while the Intake Forms door is closed (law 1, verification round).
   const intakeOpen = (await getFeatureSwitchState(organizationId)).intake_forms
 
-  const [lastVisit, nextVisit, bookingCount, shopSpendRow, intakeRows, unconfirmedRow, cadence, timeZone, everBookedRow, nearRow] =
+  const [lastVisit, nextVisit, bookingCount, shopSpendRow, unconfirmedRow, cadence, timeZone, everBookedRow, nearRow] =
     await Promise.all([
       db
         .select({ startTime: schema.appointment.startTime })
@@ -1045,16 +1038,6 @@ export async function getPatientHeader(
           ),
         ),
       db
-        .select({ id: schema.formSubmission.id })
-        .from(schema.formSubmission)
-        .where(
-          and(
-            eq(schema.formSubmission.organizationId, organizationId),
-            eq(schema.formSubmission.patientId, patientId),
-          ),
-        )
-        .limit(1),
-      db
         .select({ id: schema.appointment.id })
         .from(schema.appointment)
         .where(
@@ -1110,7 +1093,10 @@ export async function getPatientHeader(
   const next = nextVisit[0]
     ? { startTime: nextVisit[0].startTime, type: nextVisit[0].type }
     : null
-  const hasIntake = intakeRows.length > 0
+  // The ONE on-file rule (ML-27/30), not "any submission ever".
+  const hasIntake = intakeOpen
+    ? (await loadIntakeOnFile(organizationId, [patientId], now, timeZone)).has(patientId, nextVisit[0]?.type)
+    : false
   const missingIntakeBeforeAppt = intakeOpen && !!next && next.startTime <= in7d && !hasIntake
   // The same derivation the list runs (lib/services/recall-status.ts), so the
   // record's pill agrees with the row that led here.
