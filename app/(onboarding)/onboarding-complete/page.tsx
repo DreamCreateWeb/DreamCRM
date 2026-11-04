@@ -28,7 +28,7 @@ export default async function OnboardingComplete() {
           <div className="min-h-[100dvh] h-full flex flex-col after:flex-1">
             <div className="flex-1">
               <OnboardingHeader />
-              <OnboardingProgress step={4} />
+              <OnboardingProgress step={3} />
             </div>
             <div className="px-4 py-8">
               <div className="max-w-md mx-auto">

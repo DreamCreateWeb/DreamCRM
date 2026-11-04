@@ -19,7 +19,7 @@ import { expectNoA11yViolations } from './axe'
 
 test.describe('the stranger journey', () => {
   test('sign up → onboard → an empty clinic of your own', async ({ page }) => {
-    test.setTimeout(180_000) // four server-action steps + org provisioning
+    test.setTimeout(180_000) // three setup screens + org provisioning
 
     await page.goto('/signup')
     await expectNoA11yViolations(page, 'auth: sign-up')
@@ -38,19 +38,17 @@ test.describe('the stranger journey', () => {
     await expectNoA11yViolations(page, 'onboarding: step 1, practice identity')
 
     await page.getByLabel(/Front-desk phone/).fill('5550100200')
-    await page.getByRole('button', { name: /Next step/ }).click()
-
-    // Step 2 — address.
-    await page.waitForURL('**/onboarding-02', { timeout: 30_000 })
     await page.getByLabel(/Street address/).fill('123 Main Street')
     await page.getByLabel(/City/).fill('Austin')
     await page.getByLabel(/State/).fill('TX')
     await page.getByLabel(/ZIP/).fill('78701')
     await page.getByRole('button', { name: /Next step/ }).click()
 
-    // Step 3 — the web address. Wait for the availability check to say yes
-    // (the submit stays disabled until it does).
-    await page.waitForURL('**/onboarding-03', { timeout: 30_000 })
+    // Step 2 — the software question, the web address, and the no-card trial.
+    // Wait for the availability check to say yes (the submit stays disabled
+    // until it does).
+    await page.waitForURL('**/onboarding-02', { timeout: 30_000 })
+    await page.getByLabel('Not sure').check()
     const slugInput = page.getByLabel(/Web address/)
     await slugInput.fill('stranger-dental')
     await expect(page.getByText(/stranger-dental\.[^ ]+ is yours/)).toBeVisible({ timeout: 15_000 })
@@ -59,11 +57,7 @@ test.describe('the stranger journey', () => {
     // a moment ago — a runtime-composed status if ever there was one.
     await expectNoA11yViolations(page, 'onboarding: step 3, web address confirmed available')
 
-    await page.getByRole('button', { name: /Next step/ }).click()
-
-    // Step 4 — the no-card trial.
-    await page.waitForURL('**/onboarding-04', { timeout: 30_000 })
-    await page.getByRole('button', { name: /Start my free trial/ }).click()
+    await page.getByRole('button', { name: /Start my 7-day free trial/ }).click()
 
     // The completion page tells the TRUTH about the go-live lever: the site
     // is READY (private until published), not "live".
