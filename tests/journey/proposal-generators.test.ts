@@ -226,6 +226,12 @@ vi.mock('@/lib/db', () => {
       preferredDate: col('preferredDate'),
       status: col('status'),
       createdAt: col('createdAt'),
+      // ML-22: the second-touch step reads these; no seeded lead here
+      // carries a contactedAt, so the step is a no-op in every driver
+      // scenario this file pins.
+      contactedAt: col('contactedAt'),
+      callBackAt: col('callBackAt'),
+      followedUpAt: col('followedUpAt'),
     },
     socialPostTarget: {
       __name: 'social_post_target',
@@ -289,6 +295,8 @@ vi.mock('drizzle-orm', () => ({
   isNull: (col: { __col: string }) => (r: Record<string, unknown>) => r[col.__col] == null,
   lte: (col: { __col: string }, val: Date) => (r: Record<string, unknown>) =>
     r[col.__col] instanceof Date && (r[col.__col] as Date) <= val,
+  lt: (col: { __col: string }, val: Date) => (r: Record<string, unknown>) =>
+    r[col.__col] instanceof Date && (r[col.__col] as Date) < val,
   desc: () => 'desc',
   asc: () => 'asc',
   sql: () => () => true,
@@ -1077,6 +1085,32 @@ describe('the GBP website fix (listing truth, onboarding Phase A)', () => {
 })
 
 describe('the invalidation sweep', () => {
+  it('ML-22: a check-in’s premise is a lead still in "contacted" — converted, archived, reopened or vanished retires it', async () => {
+    store.proposals = [
+      { id: 'f1', organizationId: ORG, capability: 'inquiry_followup', sourceKey: 'inquiry_followup:l1', status: 'open', payload: { leadId: 'l1' } },
+      { id: 'f2', organizationId: ORG, capability: 'inquiry_followup', sourceKey: 'inquiry_followup:l2', status: 'open', payload: { leadId: 'l2' } },
+      { id: 'f3', organizationId: ORG, capability: 'inquiry_followup', sourceKey: 'inquiry_followup:l3', status: 'open', payload: { leadId: 'l3' } },
+      { id: 'f4', organizationId: ORG, capability: 'inquiry_followup', sourceKey: 'inquiry_followup:l4', status: 'open', payload: { leadId: 'l4' } },
+      // The first touch's own rule is untouched: a 'new' lead keeps its card.
+      { id: 'p5', organizationId: ORG, capability: 'inquiry_response', sourceKey: 'inquiry_response:l5', status: 'open', payload: { leadId: 'l5' } },
+    ]
+    store.leads = [
+      { id: 'l1', organizationId: ORG, status: 'contacted' },
+      { id: 'l2', organizationId: ORG, status: 'converted' },
+      { id: 'l3', organizationId: ORG, status: 'new' },
+      // l4 vanished
+      { id: 'l5', organizationId: ORG, status: 'new' },
+    ]
+    const n = await sweepInvalidatedProposals(ORG)
+    expect(n).toBe(3)
+    const byId = new Map(store.proposals.map((p) => [p.id, p.status]))
+    expect(byId.get('f1')).toBe('open')
+    expect(byId.get('f2')).toBe('expired')
+    expect(byId.get('f3')).toBe('expired')
+    expect(byId.get('f4')).toBe('expired')
+    expect(byId.get('p5')).toBe('open')
+  })
+
   it('expires proposals whose review got replied / lead got handled; leaves live ones open', async () => {
     store.proposals = [
       { id: 'p1', organizationId: ORG, capability: 'review_reply', sourceKey: 'k1', status: 'open', payload: { externalReviewId: 'r1' } },

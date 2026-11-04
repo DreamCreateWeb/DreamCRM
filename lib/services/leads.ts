@@ -76,6 +76,15 @@ export interface LeadRow {
   convertedAt: Date | null
   archivedAt: Date | null
   archivedReason: string | null
+  /** ML-22: the day the desk parked a call-back for (clinic-local noon), if any. */
+  callBackAt: Date | null
+  /** ML-22: the desk's own free-text note on the inquiry. */
+  notes: string | null
+  /** ML-22: when the machine's drafted SECOND touch (inquiry_followup) went out. */
+  followedUpAt: Date | null
+  /** ML-22: the latest outbound touch — the max of contactedAt (the desk's
+   *  call, or the machine's first reply, which stamps it) and followedUpAt. */
+  lastTouchAt: Date | null
   createdAt: Date
   /** Hours since the lead landed — drives the aging tint on new rows. */
   ageHours: number
@@ -145,6 +154,9 @@ export async function listLeads(
       convertedAt: schema.lead.convertedAt,
       archivedAt: schema.lead.archivedAt,
       archivedReason: schema.lead.archivedReason,
+      callBackAt: schema.lead.callBackAt,
+      notes: schema.lead.notes,
+      followedUpAt: schema.lead.followedUpAt,
       createdAt: schema.lead.createdAt,
       convertedPatientFirstName: schema.patient.firstName,
       convertedPatientLastName: schema.patient.lastName,
@@ -178,9 +190,19 @@ export async function listLeads(
     convertedAt: r.convertedAt,
     archivedAt: r.archivedAt,
     archivedReason: r.archivedReason,
+    callBackAt: r.callBackAt ?? null,
+    notes: r.notes ?? null,
+    followedUpAt: r.followedUpAt ?? null,
+    lastTouchAt: latestOf(r.contactedAt, r.followedUpAt),
     createdAt: r.createdAt,
     ageHours: Math.round((now - r.createdAt.getTime()) / (60 * 60 * 1000)),
   }))
+}
+
+/** The later of two optional instants — null when neither is set. */
+function latestOf(a: Date | null | undefined, b: Date | null | undefined): Date | null {
+  if (a && b) return a.getTime() >= b.getTime() ? a : b
+  return a ?? b ?? null
 }
 
 export async function getLeadCounts(organizationId: string): Promise<LeadCounts> {
@@ -296,8 +318,49 @@ export async function reopenLead(organizationId: string, id: string) {
       archivedAt: null,
       archivedReason: null,
       contactedAt: null,
+      // A reopened inquiry starts its cycle over: the second touch belongs
+      // to the contact that was undone. The desk's call-back day and notes
+      // are theirs and stay.
+      followedUpAt: null,
       updatedAt: new Date(),
     })
+    .where(and(eq(schema.lead.organizationId, organizationId), eq(schema.lead.id, id)))
+}
+
+/**
+ * ML-22 — park a call-back DAY on an inquiry, or clear it (`null`). The
+ * caller resolves the clinic-local day to an instant (`clinicDayInstant`,
+ * local noon) so the board's "Call back Tue" reads the same day in every
+ * timezone the practice could be in. Any status: a call-back on a converted
+ * or archived inquiry is pointless but harmless, and the UI only offers it
+ * where it means something.
+ */
+export async function setLeadCallBack(organizationId: string, id: string, at: Date | null) {
+  await db
+    .update(schema.lead)
+    .set({ callBackAt: at, updatedAt: new Date() })
+    .where(and(eq(schema.lead.organizationId, organizationId), eq(schema.lead.id, id)))
+}
+
+/** ML-22 — the desk's own note on an inquiry; an empty string clears it. */
+export async function setLeadNote(organizationId: string, id: string, notes: string | null) {
+  const trimmed = notes?.trim() || null
+  await db
+    .update(schema.lead)
+    .set({ notes: trimmed, updatedAt: new Date() })
+    .where(and(eq(schema.lead.organizationId, organizationId), eq(schema.lead.id, id)))
+}
+
+/**
+ * ML-22 — the machine's drafted second touch went out. Stamped by the
+ * inquiry_followup executor AFTER the email is delivered (best-effort, like
+ * markLeadContacted after the first reply): the status stays 'contacted' —
+ * a second email is still us reaching out, the ball is still theirs.
+ */
+export async function markLeadFollowedUp(organizationId: string, id: string, at: Date = new Date()) {
+  await db
+    .update(schema.lead)
+    .set({ followedUpAt: at, updatedAt: new Date() })
     .where(and(eq(schema.lead.organizationId, organizationId), eq(schema.lead.id, id)))
 }
 

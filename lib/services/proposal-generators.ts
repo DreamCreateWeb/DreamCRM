@@ -19,6 +19,7 @@ import {
 import { recordEngineFailure } from '@/lib/services/action-ledger'
 import { generatePatientReplyProposals } from '@/lib/services/proposal-generators/patient-reply'
 import { generateFeedbackReplyProposals } from '@/lib/services/proposal-generators/feedback-reply'
+import { generateInquiryFollowupProposals } from '@/lib/services/proposal-generators/inquiry-followup'
 import { clinicLocalHour, clinicWeekStart } from '@/lib/clinic-timezone'
 import { resolveTrialState } from '@/lib/trial'
 import { sweepClinics } from '@/lib/services/cron-sweep'
@@ -165,6 +166,10 @@ export const STEP_FAILURE: Record<string, { capability: string; summary: string 
   feedback_reply: {
     capability: 'feedback_reply',
     summary: 'Couldn’t draft a note back to a patient whose visit fell short just now — I’ll keep trying.',
+  // ML-22: the second touch on an inquiry that went quiet.
+  inquiry_followup: {
+    capability: 'inquiry_followup',
+    summary: 'Couldn’t draft a check-in for an inquiry that went quiet just now — I’ll keep trying.',
   },
   social_post: {
     capability: 'social_post',
@@ -408,6 +413,14 @@ function makeOrgPass(result: Omit<GeneratorRunResult, 'sweep'>, now: Date): (org
         // personal note waiting for a yes — the same "answer a person"
         // family, right behind the patient reply.
         ['feedback_reply', () => generateFeedbackReplyProposals(org.id, now, tz, softFailed('feedback_reply'))],
+        // ML-22: an inquiry the desk answered that then went quiet gets its
+        // second touch drafted — the same "answer a person" family, after
+        // the first touch above so a fresh inquiry is never chased before
+        // it is answered.
+        [
+          'inquiry_followup',
+          () => generateInquiryFollowupProposals(org.id, org.name, now, tz, softFailed('inquiry_followup')),
+        ],
         // The MONTH plan runs before the one-off post: they answer the same
         // silence, and the bigger answer gets first refusal. Each also
         // stands down while the other's card is open, so the order is a
@@ -635,6 +648,8 @@ export async function sweepInvalidatedProposals(organizationId: string): Promise
   const toExpire: string[] = []
   const reviewIds = new Map<string, string>() // externalReviewId → proposalId
   const leadIds = new Map<string, string>()
+  // ML-22: a second touch's premise is a lead still waiting in 'contacted'.
+  const followupLeadIds = new Map<string, string>()
   const socialProposals: Array<{ id: string; createdAt: Date }> = []
   const campaignProposals: string[] = []
   const gbpProposals: string[] = []
@@ -645,6 +660,8 @@ export async function sweepInvalidatedProposals(organizationId: string): Promise
       reviewIds.set(payload.externalReviewId, p.id)
     } else if (p.capability === 'inquiry_response' && typeof payload.leadId === 'string') {
       leadIds.set(payload.leadId, p.id)
+    } else if (p.capability === 'inquiry_followup' && typeof payload.leadId === 'string') {
+      followupLeadIds.set(payload.leadId, p.id)
     } else if (p.capability === 'social_post') {
       socialProposals.push({ id: p.id, createdAt: p.createdAt })
     } else if (p.capability === 'outreach_campaign') {
@@ -731,17 +748,23 @@ export async function sweepInvalidatedProposals(organizationId: string): Promise
     // Review row gone entirely → the draft has nothing to attach to.
     for (const [rid, pid] of Array.from(reviewIds.entries())) if (!present.has(rid)) toExpire.push(pid)
   }
-  if (leadIds.size > 0) {
+  if (leadIds.size > 0 || followupLeadIds.size > 0) {
+    const wanted = Array.from(new Set(Array.from(leadIds.keys()).concat(Array.from(followupLeadIds.keys()))))
     const rows = await db
       .select({ id: schema.lead.id, status: schema.lead.status })
       .from(schema.lead)
-      .where(and(eq(schema.lead.organizationId, organizationId), inArray(schema.lead.id, Array.from(leadIds.keys()))))
+      .where(and(eq(schema.lead.organizationId, organizationId), inArray(schema.lead.id, wanted)))
     const present = new Set<string>()
     for (const r of rows) {
       present.add(r.id)
-      if (r.status !== 'new') toExpire.push(leadIds.get(r.id)!)
+      if (r.status !== 'new' && leadIds.has(r.id)) toExpire.push(leadIds.get(r.id)!)
+      // ML-22: converted (they booked), archived (the desk closed it) or
+      // reopened as new (the first reply comes first) — the check-in's
+      // premise is gone either way.
+      if (r.status !== 'contacted' && followupLeadIds.has(r.id)) toExpire.push(followupLeadIds.get(r.id)!)
     }
     for (const [lid, pid] of Array.from(leadIds.entries())) if (!present.has(lid)) toExpire.push(pid)
+    for (const [lid, pid] of Array.from(followupLeadIds.entries())) if (!present.has(lid)) toExpire.push(pid)
   }
   // The cadence types' premises can rot too (round-3 audit — the sweep
   // covered only half the capabilities):
@@ -944,11 +967,11 @@ const DraftSchema = z.object({ text: z.string().min(1).max(2000) })
  *  tell an ORG-GLOBAL refusal (AI off, over the monthly cap — stop the pass)
  *  from a PER-ITEM failure (model hiccup, schema miss — skip just this one).
  *  A bare null conflated them and one un-draftable inquiry froze the loop. */
-type DraftTextResult =
+export type DraftTextResult =
   | { ok: true; text: string }
   | { ok: false; reason: 'not_configured' | 'no_allowance' | 'failed' | 'unusable' }
 
-async function draftText(
+export async function draftText(
   organizationId: string,
   opts: { system: string; user: string; maxTokens?: number },
 ): Promise<DraftTextResult> {

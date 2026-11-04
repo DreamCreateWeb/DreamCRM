@@ -779,6 +779,17 @@ export const lead = pgTable('lead', {
   archivedAt: timestamp('archived_at'),
   archivedReason: text('archived_reason'),
 
+  // ML-22 — "contacted" is no longer the end. The desk can park a call-back
+  // DAY (stored at clinic-local noon, the write-side twin of clinicDayKey —
+  // never a bare UTC midnight) and a free-text note; the machine's drafted
+  // SECOND touch (inquiry_followup) stamps followed_up_at when its email
+  // goes out, so the board can say "Followed up 2d ago" and the generator
+  // never drafts a second second touch. All nullable: a lead with none of
+  // them reads exactly as it did before.
+  callBackAt: timestamp('call_back_at'),
+  notes: text('notes'),
+  followedUpAt: timestamp('followed_up_at'),
+
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 }, (t) => [

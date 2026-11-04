@@ -17,6 +17,7 @@ import { FlashToast } from '@/components/ui/flash-toast'
 import { BulkBar } from '@/components/ui/bulk-bar'
 import { agingBorderClass, leadAgingTier, type Tone } from '@/lib/ui/encodings'
 import { leadAgeLabel } from '@/lib/lead-age'
+import { callBackLabel, callBackSlipped, followedUpLabel } from '@/lib/lead-touch-labels'
 import LeadDrawer from './lead-drawer'
 import { bulkSetLeadStatusAction } from './actions'
 
@@ -196,6 +197,8 @@ export default function LeadsView({
   }
 
   const openRow = useMemo(() => rows.find((r) => r.id === openId) ?? null, [rows, openId])
+  // ML-22: one "now" for the touch labels, read once per render of the list.
+  const now = useMemo(() => new Date(), [rows])
 
   // The page's ONE heartbeat (law 7): the 14-day inquiry flow. Decorative —
   // hidden from AT (the chips carry the real numbers) and omitted entirely
@@ -317,6 +320,8 @@ export default function LeadsView({
               <LeadRowCard
                 key={r.id}
                 row={r}
+                timeZone={timeZone}
+                now={now}
                 selected={selected.has(r.id)}
                 onToggle={() => toggleRow(r.id)}
                 onOpen={() => setOpenId(r.id)}
@@ -352,16 +357,27 @@ export default function LeadsView({
 
 function LeadRowCard({
   row,
+  timeZone,
+  now,
   selected,
   onToggle,
   onOpen,
 }: {
   row: LeadRow
+  /** Clinic IANA tz — the call-back DAY is a day on the clinic's calendar. */
+  timeZone: string
+  now: Date
   selected: boolean
   onToggle: () => void
   onOpen: () => void
 }) {
   const tier = row.status === 'new' ? leadAgingTier(row.ageHours) : null
+  // ML-22: a contacted row says what happens next — the desk's parked
+  // call-back day (amber once it is today or slipped: ours to do; info
+  // while it is ahead) and the machine's second touch.
+  const callBack = row.status === 'contacted' ? callBackLabel(row.callBackAt, now, timeZone) : null
+  const callBackOurs = callBack != null && (callBack === 'Call back today' || callBackSlipped(row.callBackAt, now, timeZone))
+  const followedUp = row.status === 'contacted' ? followedUpLabel(row.followedUpAt, now) : null
   return (
     // A plain clickable list item, not an `li[role=button]` — same fix and same
     // reasons as the appointments agenda row (see the note there): a button may
@@ -411,6 +427,13 @@ function LeadRowCard({
                 title="Conversion is highest in the first hour — call now"
               />
             )}
+            {callBack && (
+              <StatusPill
+                tone={callBackOurs ? 'warn' : 'info'}
+                label={callBack}
+                title={callBackOurs ? 'Your call-back day is here — reach them, then convert or pick a new day' : 'The day you parked to call them back'}
+              />
+            )}
             {row.status === 'converted' && row.convertedPatientName && (
               <Link
                 href={`/patients/${row.convertedToPatientId}`}
@@ -425,6 +448,7 @@ function LeadRowCard({
             <span>{row.phone}</span>
             {row.email && <span>· {row.email}</span>}
             {row.preferredDate && <span>· prefers {row.preferredDate}</span>}
+            {followedUp && <span title="The drafted check-in you approved went out">· {followedUp}</span>}
           </div>
           {row.message && (
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 line-clamp-2 italic">

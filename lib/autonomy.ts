@@ -253,6 +253,9 @@ export const BOOKING_BUTTON_CAPABILITIES: readonly string[] = [
 // (ML-21, same day, same shape).
 export const PREVIEW_CAPABILITIES: readonly string[] = [
   'inquiry_followup',
+// generator + executor shipped together); `inquiry_followup` the second
+// (ML-22, 2026-11-03 — the second touch on an inquiry that went quiet).
+  'feedback_reply',
   'postop_checkin',
   'rebook_nudge',
   'referral_ask',
@@ -298,6 +301,9 @@ export const GRANTABLE_CAPABILITIES = [
   // capability it cannot carry out, so a grantable key without an executor
   // is a yes the machine would answer with a failure every tick.
   // tests/journey/capability-registry.test.ts pins grantable ⊆ executable.
+  // ML-22: the second touch on a quiet inquiry — its executor sends through
+  // the first touch's own path and waits for daylight like its siblings.
+  'inquiry_followup',
 ] as const
 
 export function isGrantable(key: string): boolean {
