@@ -6172,6 +6172,92 @@ template with no bar, or a bar hidden above `sm`, measures 0 and nothing
 moves. The right-aligned pairs on established and hometeam are
 deliberately not tagged — the bottom-left floaters never meet them.
 
+## 2026-11-04 — The deep dev cycle, part 6: eight feature slices (groups 5 + 6)
+
+Built in parallel while part 5 gated; the integrator's rules held: ONE
+regenerated migration (0183) for four slices' columns, the union of the
+three generator slices' registry edits resolved by hand (a merge that keeps
+both sides' lines drops a brace that both sides had — read the driver
+after every union), the two parity tests' meta sets aligned
+(`staff_alert`), and the released preview keys deleted again (a union
+merge restores what one side deleted).
+
+**ML-23 — "booked back" is a real number for every clinic.**
+`lib/services/campaign-attribution.ts`: ONE idempotent `INSERT … SELECT …
+WHERE NOT EXISTS` credits a booking to the patient's most recent `sent` /
+`click` campaign event within 30 days (`ATTRIBUTION_WINDOW_DAYS`), from all
+three doors — the desk (`createInternalAppointment`), the public site +
+portal (`insertAppointmentIfBookable`) and the PMS import's new-appointment
+branch (backfill rows never count). The hub says the window. Follow-up: the
+waitlist-offer booking is not attributed yet.
+
+**ML-24 — the website hub has a yesterday; every page shows its visits;
+fourteen website surfaces never bare-await again.** Every band KPI carries
+its delta with its subject (visits, online bookings, inquiries — the prior
+window bucketed by clinic day); the Pages manager gets a 30-day visits
+column with a MiniTrend and a sort; "See it as a patient" opens the live
+site; twelve allowlist entries gone (blog-editor 7, custom-domain-card 4,
+…). Follow-up: a draft-preview door for `website_draft` (no route exists).
+
+**ML-32 — a staff alert email that failed to send is retried; the bell says
+when one never went out.** Migration 0183 (`notifications.email_attempts`,
+`email_last_error`, the partial unsent index). `owesEmail(row, prefs)` is
+the ONE predicate; `redriveFailedNotificationEmails` (the new
+`notification-redrive` cron, every 15 min; a `JOBS` entry; producer
+`staff_alert`, one strike a day) re-attempts at 5 / 10 / 20 minutes, three
+times, inside 24 hours, every write keyed by row id, demo orgs excluded in
+SQL; the tray's row reads " · Email didn't go out" in the quiet tone.
+`staff_alert` is a meta capability off the roster.
+
+**ML-21 — a 1–2★ private note or a detractor survey files a real follow-up
+and gets a drafted personal note.** `autoCreateFeedbackFollowup` ("Call
+<first> about their visit", kind 'feedback', due tomorrow clinic-local, one
+per note) beside each of the three bells; the bell lands on it. The SECOND
+generator under the lane convention — `feedback_reply`: last 7 days, worst
+first, ≤3/org/pass, sourceKey = the note, one open card per patient; the
+yes sends once through the clinic sender; ask-first, not grantable. Record:
+docs/ai-operations.md.
+
+**ML-26 — a failed membership renewal reaches the member.** The webhook's
+flip into past_due sends ONE "Update your card" email
+(`membership_card_update`, idempotent on the status itself) carrying a
+Connect billing-portal session for the clinic's account; the portal's
+past-due card mints a fresh one; staff hear once, honestly ("we emailed
+them a link" only when it went). `/dental-plans?plan=&email=` pre-fills the
+join form (never auto-submits; an unknown plan is ignored); each plan has
+"Copy invite link" on the clinic's own site address.
+
+**ML-22 — "contacted" is no longer the end.** Migration 0183
+(`lead.call_back_at`, `notes`, `followed_up_at`). The THIRD generator —
+`inquiry_followup`: an emailed inquiry that sat in 'contacted' 3+
+clinic-local days (14-day window, not parked for a call-back today or
+later, never followed up; ≤5/org/pass; one second touch per lead ever;
+the draft reads what we actually replied); the yes rides the first touch's
+path and stamps `followed_up_at`; grantable with its executor. The desk
+side: a call-back day (clinic-local noon) + notes in the drawer, "Follow-up
+we sent", the board's "Call back Tue" / "Followed up 2d ago".
+
+**ML-25 — publish two of five changed sections; history names who changed
+what.** Migration 0183 (`website_edit_history.actor_user_id`, FK user, set
+null). `lib/types/website.ts` maps the 22 draftable columns to 12 sections;
+`publishWebsiteDraft` / `discardWebsiteDraft` take `{ sections }` and leave
+the rest staged (`websiteDraftWithoutKeys`); the publish card is per-section
+checkboxes ("Publish 1 of 5 · Keep the rest as a draft"); every write stamps
+the actor; `listWebsiteHistory` names them ("Dream Team" for the machine).
+Follow-ups: the Studio's own publish bar stays all-or-nothing; no history
+rail renders the list yet.
+
+**ML-27 — medical alerts reach the chair; returning patients get a yearly
+refresh; rules target a visit type.** Migration 0183
+(`form_template.appointment_type_ids`, `refresh_months`). The AI summary
+runs on submit (best-effort); `getIntakeAlertsForAppointments` is ONE
+batched read; the ⚕ `medicalAlert` glyph leads every cluster (agenda,
+drawer, Overview chair row) and My Day's audit gets the `medical_alert`
+flag (the digest drops it — no PHI in email); `lib/intake-on-file.ts`:
+"on file" = the newest submission inside the form's refresh window, and a
+visit-specific form counts only for its own type; the rules card on the
+builder; the nudge keeps the one template (the double-insert boundary test).
+
 ## 2026-11-03 — The deep dev cycle, part 5: nine feature slices (groups 3 + 4)
 
 Built in parallel on briefs while part 4 gated; integrated as one PR
