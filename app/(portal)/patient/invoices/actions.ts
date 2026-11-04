@@ -6,6 +6,7 @@ import { getMyPatientRecord } from '@/lib/services/patient-portal'
 import { createBalancePaymentSession } from '@/lib/services/balance-payments'
 import { appBaseUrl } from '@/lib/services/clinic-site'
 import { checkoutFailure } from '@/lib/services/checkout-error'
+import { getMyMembershipCardUpdateUrl } from '@/lib/services/membership'
 
 export type StartPaymentResult = { ok: true; url: string } | { ok: false; error: string }
 
@@ -44,4 +45,22 @@ export async function startBalancePaymentAction(amountCents: number): Promise<St
     // becomes one written sentence rather than the SDK's own text.
     return checkoutFailure('balance-payments', err)
   }
+}
+
+/**
+ * The portal's "Update your card" door for a past-due membership: mints a
+ * Stripe Billing-Portal session on the clinic's connected account for THIS
+ * patient's own membership (the patient comes from the session, never an
+ * argument) and hands back the URL.
+ */
+export async function startMembershipCardUpdateAction(): Promise<StartPaymentResult> {
+  const ctx = await requireTenant()
+  if (ctx.tenantType !== 'patient' || !ctx.patientId) {
+    return { ok: false, error: 'Only members can update a card here.' }
+  }
+  const url = await getMyMembershipCardUpdateUrl(ctx.organizationId, ctx.patientId)
+  if (!url) {
+    return { ok: false, error: 'We couldn’t open the card page just now — message us or call the front desk and we’ll sort it out.' }
+  }
+  return { ok: true, url }
 }

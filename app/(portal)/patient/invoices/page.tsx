@@ -14,6 +14,7 @@ import { PortalNotice, PortalCard, PortalHeading, PortalSectionLabel, PORTAL_INK
 import { fmtMoney, fmtVisitDayShort } from '@/components/patient-portal/format'
 import { planPastDueNotice } from '@/lib/payment-plan-copy'
 import PayBalanceForm from './pay-form'
+import MembershipCardButton from './membership-card-button'
 import PlanOffer, { type PlanOption } from './plan-offer'
 import BillingHistory, { type BillingHistoryRow } from './billing-history'
 import { listActivePlans } from '@/lib/services/membership'
@@ -306,6 +307,14 @@ export default async function PortalBillingPage({
               {bills.membership.currentPeriodEnd &&
                 ` · renews ${fmtVisitDayShort(bills.membership.currentPeriodEnd, timeZone)}`}
             </p>
+            {bills.membership.status === 'past_due' && (
+              <>
+                <p className="mt-2 text-[0.85rem]" style={{ color: PORTAL_MUTED }}>
+                  Your last renewal didn’t go through — a new card gets you right back on track.
+                </p>
+                <MembershipCardButton brand={brand} />
+              </>
+            )}
             {settings.features.messages && (
               <p className="mt-2 text-[0.82rem]" style={{ color: PORTAL_MUTED }}>
                 Need to change or pause it?{' '}

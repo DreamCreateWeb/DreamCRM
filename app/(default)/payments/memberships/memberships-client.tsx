@@ -59,15 +59,26 @@ const MEMBER_PILL_LEGEND: PillLegendRow[] = [
   { tone: 'neutral', label: 'Cancelled', meaning: 'No longer a member' },
 ]
 
+/** `/dental-plans?plan=<id>[&email=<encoded>]` - lands on the clinic's join
+ *  form with the plan chosen and the email filled in (nothing auto-submits). */
+export function inviteLink(base: string, planId: string, email: string): string {
+  const q = new URLSearchParams({ plan: planId })
+  const e = email.trim()
+  if (e) q.set('email', e)
+  return `${base}?${q.toString()}`
+}
+
 interface Props {
   plans: PlanRow[]
   members: MemberRow[]
   stats: { activeMembers: number; mrrCents: number }
   publicBase: string | null
+  /** Absolute `/dental-plans` URL on the clinic's own site - invite links start here. */
+  inviteBase?: string | null
   orgName?: string
 }
 
-export default function MembershipsClient({ plans, members, stats, publicBase, orgName = 'Your clinic' }: Props) {
+export default function MembershipsClient({ plans, members, stats, publicBase, inviteBase = null, orgName = 'Your clinic' }: Props) {
   const router = useRouter()
   const confirm = useConfirm()
   const [tab, setTab] = useState<'plans' | 'members'>('plans')
@@ -77,6 +88,7 @@ export default function MembershipsClient({ plans, members, stats, publicBase, o
   // `busy` asks about that one.
   const [active, setActive] = useState<string | null>(null)
   const [toast, setToast] = useState<string | null>(null)
+  const [inviteEmail, setInviteEmail] = useState('')
 
   const busy = (key: string) => isPending && active === key
 
@@ -87,6 +99,17 @@ export default function MembershipsClient({ plans, members, stats, publicBase, o
       if (done) setToast(done)
       router.refresh()
     })
+  }
+
+  async function copyInvite(planId: string) {
+    if (!inviteBase) return
+    const url = inviteLink(inviteBase, planId, inviteEmail)
+    try {
+      await navigator.clipboard.writeText(url)
+      setToast('Invite link copied - paste it into an email.')
+    } catch {
+      setToast(url)
+    }
   }
 
   return (
@@ -131,6 +154,20 @@ export default function MembershipsClient({ plans, members, stats, publicBase, o
 
       {tab === 'plans' ? (
         <div className="space-y-2.5">
+          {inviteBase && plans.some((p) => p.status === 'active') && (
+            <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+              <label htmlFor="invite-email">Inviting someone? Add their email so the join form is filled in:</label>
+              <input
+                id="invite-email"
+                type="email"
+                inputMode="email"
+                value={inviteEmail}
+                onChange={(e) => setInviteEmail(e.target.value)}
+                placeholder="patient@example.com"
+                className="form-input h-8 text-sm w-60"
+              />
+            </div>
+          )}
           {plans.length === 0 ? (
             <EmptyState
               icon="💳"
@@ -169,6 +206,11 @@ export default function MembershipsClient({ plans, members, stats, publicBase, o
                   </p>
                 </div>
                 <div className="flex items-center gap-1.5 shrink-0">
+                  {p.status === 'active' && inviteBase && (
+                    <ActionButton variant="ghost" size="sm" onClick={() => copyInvite(p.id)}>
+                      Copy invite link
+                    </ActionButton>
+                  )}
                   {p.status === 'active' && publicBase && (
                     <ActionButton variant="ghost" size="sm" href={publicBase} target="_blank">
                       View ↗

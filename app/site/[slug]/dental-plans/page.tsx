@@ -50,7 +50,15 @@ import JsonLdScript from '@/components/json-ld'
 
 interface Props {
   params: Promise<{ slug: string }>
+  /** The clinic's invite link: `?plan=<id>&email=<address>` pre-selects a plan
+   *  and pre-fills the join form. Never submits anything by itself. */
+  searchParams?: Promise<{ plan?: string | string[]; email?: string | string[] }>
 }
+
+const firstParam = (v: string | string[] | undefined): string => (Array.isArray(v) ? v[0] : v) ?? ''
+// A loose shape check only — the join action still validates; a junk value
+// just leaves the field empty (the dead-link law: never an error page).
+const PREFILL_EMAIL_RE = /^[^\s@<>"']+@[^\s@<>"']+\.[^\s@<>"']+$/
 
 export async function generateMetadata({ params }: Props) {
   const { slug } = await params
@@ -91,8 +99,9 @@ export async function generateMetadata({ params }: Props) {
   }
 }
 
-export default async function DentalPlansPage({ params }: Props) {
+export default async function DentalPlansPage({ params, searchParams }: Props) {
   const { slug } = await params
+  const query = (await searchParams) ?? {}
   const data = await getClinicSiteBySlug(slug)
   if (!data) notFound()
 
@@ -101,6 +110,13 @@ export default async function DentalPlansPage({ params }: Props) {
   if (!config.membershipEnabled) notFound()
   const plans = await listActivePlans(data.orgId)
   if (plans.length === 0) notFound()
+
+  // Invite-link prefill. A plan that is not in the ACTIVE list (unknown,
+  // draft, archived) selects nothing and the page renders normally.
+  const planParam = firstParam(query.plan).trim()
+  const invitedPlan = planParam ? plans.find((p) => p.id === planParam) ?? null : null
+  const emailParam = firstParam(query.email).trim().slice(0, 254)
+  const invitedEmail = PREFILL_EMAIL_RE.test(emailParam) ? emailParam : ''
 
   const basePath = await resolveSiteBasePath(slug)
   const [publishedPosts, openJobs] = await Promise.all([
@@ -223,7 +239,13 @@ export default async function DentalPlansPage({ params }: Props) {
         >
           <div className="max-w-[900px] mx-auto px-5 sm:px-8">
             <ScrollReveal>
-              <MembershipJoin slug={slug} brand={brand} plans={plans} />
+              <MembershipJoin
+                slug={slug}
+                brand={brand}
+                plans={plans}
+                initialPlanSlug={invitedPlan?.slug}
+                initialEmail={invitedEmail}
+              />
             </ScrollReveal>
           </div>
         </section>

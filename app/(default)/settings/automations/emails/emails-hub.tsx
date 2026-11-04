@@ -48,6 +48,7 @@ const SAMPLE_FIELDS: Record<string, string> = {
   urgentLine: ' you can call us at (555) 123-4567',
   balance: '$135.00',
   amount: '$100.00',
+  planName: 'Smile Club',
 }
 
 /** Client-safe token fill for the preview (mirrors applyMergeFields). */

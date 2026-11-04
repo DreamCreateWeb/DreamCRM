@@ -3,7 +3,7 @@
  * membership flow. Renders the same plan cards as /membership when
  * active plans exist; 404s when none / when membership not enabled.
  */
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import React from 'react'
 import type { ClinicSiteData } from '@/lib/services/clinic-site'
@@ -130,11 +130,15 @@ async function renderPage(
   data: ClinicSiteData | null = makeData(),
   plans: PlanRow[] = [planRow()],
   shopConfig: { membershipEnabled: boolean } = { membershipEnabled: true },
+  searchParams?: { plan?: string | string[]; email?: string | string[] },
 ) {
   ;(getClinicSiteBySlug as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(data)
   getShopConfigMock.mockResolvedValueOnce(shopConfig as never)
   listActivePlansMock.mockResolvedValueOnce(plans as never)
-  const ui = await DentalPlansPage({ params: Promise.resolve({ slug: 'acme-dental' }) })
+  const ui = await DentalPlansPage({
+    params: Promise.resolve({ slug: 'acme-dental' }),
+    ...(searchParams ? { searchParams: Promise.resolve(searchParams) } : {}),
+  })
   return render(ui as React.ReactElement)
 }
 
@@ -188,5 +192,56 @@ describe('DentalPlansPage generateMetadata', () => {
     const meta = await generateMetadata({ params: Promise.resolve({ slug: 'acme-dental' }) })
     expect(meta.title).toBe('Our Membership Plan')
     expect(String(meta.description)).toContain('Join the Acme Dental dental plan')
+  })
+})
+
+describe('DentalPlansPage invite-link prefill (?plan= / ?email=)', () => {
+  // An earlier 404 test leaves an unconsumed Once-value on the plans mock.
+  beforeEach(() => {
+    listActivePlansMock.mockReset()
+    listActivePlansMock.mockResolvedValue([])
+  })
+  const two = () => [
+    planRow({ id: 'plan-1', name: 'Smile Club', slug: 'smile-club' }),
+    planRow({ id: 'plan-2', name: 'Family Circle', slug: 'family-circle', featured: true }),
+  ]
+  const card = (name: string) =>
+    screen.getAllByRole('button').find((b) => b.querySelector('h3')?.textContent === name) as HTMLElement
+  const cardBorder = (name: string) => card(name).style.borderColor
+  const emailField = () => screen.getByPlaceholderText('Email *') as HTMLInputElement
+
+  it('no params: the featured plan is chosen and the email is empty', async () => {
+    await renderPage(makeData(), two())
+    expect(emailField().value).toBe('')
+    expect(cardBorder('Family Circle')).not.toBe(cardBorder('Smile Club'))
+  })
+
+  it('?plan=<id> selects that plan and ?email= fills the form', async () => {
+    await renderPage(makeData(), two(), { membershipEnabled: true }, { plan: 'plan-1', email: 'sam@example.com' })
+    expect(emailField().value).toBe('sam@example.com')
+    // Smile Club (not the featured plan) now carries the selected border.
+    const smile = cardBorder('Smile Club')
+    const family = cardBorder('Family Circle')
+    expect(smile).not.toBe(family)
+    expect(card('Smile Club').style.backgroundColor).not.toBe(card('Family Circle').style.backgroundColor)
+  })
+
+  it('an unknown or inactive plan id renders normally with the default plan (no error)', async () => {
+    await renderPage(makeData(), two(), { membershipEnabled: true }, { plan: 'plan-archived-9', email: 'sam@example.com' })
+    expect(screen.getByRole('heading', { level: 1, name: /Dental plans at Acme Dental/i })).toBeInTheDocument()
+    expect(emailField().value).toBe('sam@example.com')
+    // default (featured) plan stays chosen
+    const [first] = [cardBorder('Smile Club')]
+    expect(cardBorder('Family Circle')).not.toBe(first)
+  })
+
+  it('a malformed email is ignored, not echoed; array params use the first value', async () => {
+    await renderPage(makeData(), two(), { membershipEnabled: true }, { email: '"><script>alert(1)</script>' })
+    expect(emailField().value).toBe('')
+  })
+
+  it('never submits on its own', async () => {
+    await renderPage(makeData(), two(), { membershipEnabled: true }, { plan: 'plan-1', email: 'sam@example.com' })
+    expect(screen.getByRole('button', { name: /Join & set up payment/i })).toBeEnabled()
   })
 })
