@@ -517,7 +517,7 @@ function FunnelStat({
       <div className="text-xs text-gray-500 dark:text-gray-400 mt-1.5 group-hover:text-teal-700 dark:group-hover:text-teal-300 transition-colors">
         {label}
       </div>
-      {hint && <div className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">{hint}</div>}
+      {hint && <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{hint}</div>}
     </Link>
   )
 }
