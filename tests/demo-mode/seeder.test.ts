@@ -15,6 +15,9 @@ const state: {
   updates: UpdateCall[]
 } = { selectQueue: [], inserts: [], updates: [] }
 
+// ML-27's seeder reads the clinic tz for the refresh-window form; a real
+// read would shift the hand-rolled select sequence below and strand a 'stray'.
+vi.mock('@/lib/services/clinic-timezone', () => ({ getClinicTimeZone: vi.fn(async () => 'America/New_York'), clinicTodayYmd: vi.fn(() => '2026-11-04') }))
 vi.mock('@/lib/db', async () => {
   const schema = await import('@/lib/db/schema')
   const tableName = (t: unknown) => {
