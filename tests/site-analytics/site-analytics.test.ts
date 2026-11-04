@@ -134,6 +134,21 @@ describe('getSiteTraffic', () => {
     // Top pages sorted by views desc.
     expect(t.topPages[0]).toEqual({ path: '/', views: 16 })
     expect(t.topPages[1]).toEqual({ path: '/book', views: 4 })
+    // The full per-page list carries a zero-filled daily series parallel to `daily`.
+    const home = t.pages!.find((p) => p.path === '/')!
+    expect(home.views).toBe(16)
+    expect(home.daily).toHaveLength(30)
+    expect(home.daily[29]).toBe(10)
+    expect(home.daily[28]).toBe(6)
+    expect(t.pages!.find((p) => p.path === '/book')!.daily[29]).toBe(4)
+  })
+
+  it('pages is uncapped (topPages stays at 8)', async () => {
+    const today = new Date().toISOString().slice(0, 10)
+    state.selectQueue.push(Array.from({ length: 12 }, (_, i) => ({ day: today, path: `/p${i}`, views: i + 1 })))
+    const t = await getSiteTraffic('org1', 30)
+    expect(t.topPages).toHaveLength(8)
+    expect(t.pages).toHaveLength(12)
   })
 
   it('honors the 90-day window', async () => {

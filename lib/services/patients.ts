@@ -1,7 +1,7 @@
 import 'server-only'
 import { getFeatureSwitchState } from '@/lib/services/feature-switches'
 import { parseInsuranceDetail, type PatientInsuranceDetail } from '@/lib/insurance-eligibility'
-import { and, asc, count, desc, eq, gte, inArray, isNotNull, isNull, lte, ne, notInArray, or, sql, type SQL } from 'drizzle-orm'
+import { and, asc, count, desc, eq, gte, inArray, isNotNull, isNull, lt, lte, ne, notInArray, or, sql, type SQL } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import { sumNetCollectedSql } from '@/lib/net-collected'
 import { randomBytes } from 'crypto'
@@ -811,8 +811,14 @@ export async function getNewPatientCounts(
   organizationId: string,
   days = 30,
   now: Date = new Date(),
+  /** Shift the window back by this many days (a window of `days` ending
+   *  `offsetDays` ago) — `getNewPatientCounts(org, 30, now, 30)` is the PRIOR
+   *  30 days, adjacent to the current one, for a delta. */
+  offsetDays = 0,
 ): Promise<NewPatientWindowCounts> {
-  const since = new Date(now.getTime() - days * 24 * 60 * 60 * 1000)
+  const DAY = 24 * 60 * 60 * 1000
+  const until = new Date(now.getTime() - offsetDays * DAY)
+  const since = new Date(until.getTime() - days * DAY)
   const rows = await db
     .select({ source: schema.patient.source })
     .from(schema.patient)
@@ -821,6 +827,7 @@ export async function getNewPatientCounts(
         eq(schema.patient.organizationId, organizationId),
         isNotNull(schema.patient.firstSeenAt),
         gte(schema.patient.firstSeenAt, since),
+        ...(offsetDays > 0 ? [lt(schema.patient.firstSeenAt, until)] : []),
         ne(schema.patient.lifecycle, 'archived'),
       ),
     )

@@ -12,6 +12,7 @@ import { EmptyState } from '@/components/ui/empty-state'
 import { ActionButton } from '@/components/ui/action-button'
 import { Toggle } from '@/components/ui/toggle'
 import type { Tone } from '@/lib/ui/encodings'
+import { runAction } from '@/lib/run-action'
 
 // Same status→tone/label encoding the Leads list uses (leads-view.tsx).
 const STATUS_TONE: Record<string, Tone> = {
@@ -152,7 +153,7 @@ function FormBuilderCard({ form }: { form: FormCard }) {
     const fd = new FormData(e.currentTarget)
     setError(null)
     startTransition(async () => {
-      const res: SectionResult = await saveLeadForm(fd)
+      const res: SectionResult = await runAction(() => saveLeadForm(fd))
       if (res.ok) {
         setDirty(false)
         setSaved(true)
@@ -206,7 +207,7 @@ function ChatWidgetCard({ initialEnabled }: { initialEnabled: boolean }) {
     setOn(next)
     setError(null)
     startTransition(async () => {
-      const r = await saveChatWidgetAction(next)
+      const r = await runAction(() => saveChatWidgetAction(next))
       if (r.ok) {
         router.refresh()
       } else {

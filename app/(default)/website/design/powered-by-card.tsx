@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react'
 import { Toggle } from '@/components/ui/toggle'
 import { setPoweredByVisibilityAction } from './actions'
+import { runAction } from '@/lib/run-action'
 
 /**
  * The site-credit switch card on Website → Design. The credit is a thin
@@ -20,7 +21,7 @@ export default function PoweredByCard({ initialHidden }: { initialHidden: boolea
     setHidden(nextHidden)
     setError(null)
     startTransition(async () => {
-      const res = await setPoweredByVisibilityAction(nextHidden)
+      const res = await runAction(() => setPoweredByVisibilityAction(nextHidden))
       if (!res.ok) {
         setHidden(!nextHidden)
         setError(res.error)

@@ -6,7 +6,7 @@ import { publicSiteUrl } from '@/lib/services/clinic-site'
 import { listPublishedPosts } from '@/lib/services/blog'
 import { listActivePlans } from '@/lib/services/membership'
 import { getOpenJobs } from '@/lib/services/careers'
-import { getSeoMeta } from '@/lib/services/site-analytics'
+import { getSeoMeta, getSiteTraffic } from '@/lib/services/site-analytics'
 import { copyKeysForTemplate } from '@/lib/services/ai-website-edit'
 import { buildSitePagesIndex, hasColoringPages } from '@/lib/clinic-site-helpers'
 import { SEO_PAGE_KEYS, SEO_PAGE_PATHS } from '@/lib/types/seo-meta'
@@ -119,6 +119,16 @@ export default async function WebsitePagesPage() {
   const livePaths = new Set(index.filter((p) => p.live).map((p) => p.path))
   const applicablePages = SEO_PAGE_KEYS.filter((k) => livePaths.has(SEO_PAGE_PATHS[k]))
 
+  // Visits per page (30d) — best-effort; the manager just omits the column's
+  // numbers when the read fails. Beacon paths are public paths ('/' = home);
+  // the index uses '' for home.
+  const traffic = await getSiteTraffic(ctx.organizationId, 30).catch(() => null)
+  const visitsByPath: Record<string, { views: number; daily: number[] }> = {}
+  for (const pg of traffic?.pages ?? []) {
+    visitsByPath[pg.path === '/' ? '' : pg.path] = { views: pg.views, daily: pg.daily }
+  }
+  const visitDays = traffic?.daily.map((d) => d.day) ?? []
+
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-5xl mx-auto">
       <PageHeader
@@ -144,6 +154,8 @@ export default async function WebsitePagesPage() {
         pages={index}
         copyByPath={Object.fromEntries(copyByPath)}
         siteUrl={siteUrl}
+        visitsByPath={visitsByPath}
+        visitDays={visitDays}
       />
 
       {/* ── Search appearance — per-page titles + descriptions (was the SEO

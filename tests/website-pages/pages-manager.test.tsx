@@ -52,6 +52,38 @@ const copyByPath: Record<string, PageCopyGroup> = {
 
 beforeEach(() => saveInlineMock.mockClear())
 
+describe('PagesManager visits column', () => {
+  const visitsByPath = {
+    '': { views: 5, daily: [0, 2, 3] },
+    '/blog': { views: 40, daily: [10, 20, 10] },
+  }
+  const days = ['2026-10-01', '2026-10-02', '2026-10-03']
+
+  it('shows 30-day visits per live row, and 0 for a live page with none', () => {
+    render(<PagesManager pages={pages} copyByPath={copyByPath} siteUrl="https://acme.test" visitsByPath={visitsByPath} visitDays={days} />)
+    const cells = screen.getAllByTestId('page-visits').map((c) => c.textContent)
+    expect(cells[0]).toContain('5 visits')
+    expect(cells[1]).toContain('40 visits')
+    expect(cells).toHaveLength(2) // the not-live row has no visits cell
+    cleanup()
+  })
+
+  it('sorts by visits on demand', () => {
+    render(<PagesManager pages={pages} copyByPath={copyByPath} siteUrl="https://acme.test" visitsByPath={visitsByPath} visitDays={days} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Sort by visits' }))
+    const cells = screen.getAllByTestId('page-visits').map((c) => c.textContent)
+    expect(cells[0]).toContain('40 visits')
+    cleanup()
+  })
+
+  it('omits the column when the traffic read is absent', () => {
+    render(<PagesManager pages={pages} copyByPath={copyByPath} siteUrl="https://acme.test" />)
+    expect(screen.queryByTestId('page-visits')).toBeNull()
+    expect(screen.queryByRole('button', { name: /Sort by visits/ })).toBeNull()
+    cleanup()
+  })
+})
+
 describe('PagesManager', () => {
   it('renders live + needs-content rows with honest pills and reasons', () => {
     render(<PagesManager pages={pages} copyByPath={copyByPath} siteUrl="https://acme.test" />)

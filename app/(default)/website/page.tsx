@@ -93,7 +93,7 @@ export default async function WebsiteHubPage() {
   const siteHost = siteUrl.replace(/^https?:\/\//, '')
 
   // Every read is best-effort — the hub must render even when a stat hiccups.
-  const [performance, blogStats, siteHealth, careersStats, lastEdit, gscScope, leads7d, activePlans, newPatients30d] = await Promise.all([
+  const [performance, blogStats, siteHealth, careersStats, lastEdit, gscScope, leads7d, activePlans, newPatients30d, newPatientsPrev30d] = await Promise.all([
     getSitePerformance(ctx.organizationId).catch(() => null),
     getBlogStats(ctx.organizationId).catch(() => null),
     getSiteHealth(ctx.organizationId).catch(() => null),
@@ -104,6 +104,7 @@ export default async function WebsiteHubPage() {
     getNewLeadsSince(ctx.organizationId, new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)).catch(() => 0),
     listActivePlans(ctx.organizationId).catch(() => []),
     getNewPatientCounts(ctx.organizationId).catch(() => null),
+    getNewPatientCounts(ctx.organizationId, 30, new Date(), 30).catch(() => null),
   ])
   // The Quick-edits services modal needs the picker library (owner/admin only).
   const library = canEdit ? await listLibraryForPicker(ctx.organizationId).catch(() => []) : []
@@ -214,15 +215,23 @@ export default async function WebsiteHubPage() {
   const clinicTz = profile.timezone || 'America/New_York'
   const liveAnnouncement = activeAnnouncement(profile.announcement, clinicDayKey(new Date(), clinicTz))
 
-  // Traffic delta vs the prior 30 days, for the performance band.
-  const delta =
-    performance && performance.traffic.totalPrev > 0
-      ? Math.round(
-          ((performance.traffic.total - performance.traffic.totalPrev) /
-            performance.traffic.totalPrev) *
-            100,
-        )
-      : null
+  // Every band KPI carries its delta vs the prior 30 days, same recipe: a
+  // whole-number percent, null while the prior window was empty (no base to
+  // compare against — never a made-up "+100%").
+  const pctDelta = (cur: number, prev: number | null | undefined) =>
+    prev != null && prev > 0 ? Math.round(((cur - prev) / prev) * 100) : null
+  const delta = performance ? pctDelta(performance.traffic.total, performance.traffic.totalPrev) : null
+  const bookedDelta = newPatients30d ? pctDelta(newPatients30d.viaSite, newPatientsPrev30d?.viaSite) : null
+  const inquiryDelta = performance ? pctDelta(performance.leads30d, performance.leadsPrev30d) : null
+  const deltaChip = (d: number | null, subject: string) =>
+    d == null ? null : (
+      <span
+        className={`ml-1.5 tabular-nums font-semibold ${d >= 0 ? TONE_TEXT.ok : TONE_TEXT.warn}`}
+        title={`${subject} vs the prior 30 days`}
+      >
+        {d >= 0 ? '▲' : '▼'} {Math.abs(d)}%
+      </span>
+    )
 
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-6xl mx-auto">
@@ -279,6 +288,9 @@ export default async function WebsiteHubPage() {
                 {siteHost}
               </a>
               <StatusPill tone={domainPill.tone} label={domainPill.label} />
+              <ActionButton variant="secondary" size="sm" href={siteUrl} target="_blank">
+                See it as a patient ↗
+              </ActionButton>
             </div>
             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
               {/* Gated on the LEVER: this sentence used to claim "live" in the
@@ -407,14 +419,7 @@ export default async function WebsiteHubPage() {
               <div className="text-xs text-gray-500 dark:text-gray-400 mt-1.5">
                 visits
                 {/* The delta lives WITH its subject, not orphaned in the header. */}
-                {delta != null && (
-                  <span
-                    className={`ml-1.5 tabular-nums font-semibold ${delta >= 0 ? TONE_TEXT.ok : TONE_TEXT.warn}`}
-                    title="Site visits vs the prior 30 days"
-                  >
-                    {delta >= 0 ? '▲' : '▼'} {Math.abs(delta)}%
-                  </span>
-                )}
+                {deltaChip(delta, 'Site visits')}
               </div>
             </div>
             <div>
@@ -423,6 +428,7 @@ export default async function WebsiteHubPage() {
               </div>
               <div className="text-xs text-gray-500 dark:text-gray-400 mt-1.5">
                 new patients booked online
+                {deltaChip(bookedDelta, 'New patients booked online')}
               </div>
             </div>
             <div>
@@ -431,6 +437,7 @@ export default async function WebsiteHubPage() {
               </div>
               <div className="text-xs text-gray-500 dark:text-gray-400 mt-1.5">
                 inquir{performance.leads30d === 1 ? 'y' : 'ies'} to answer
+                {deltaChip(inquiryDelta, 'Inquiries')}
               </div>
             </div>
           </div>

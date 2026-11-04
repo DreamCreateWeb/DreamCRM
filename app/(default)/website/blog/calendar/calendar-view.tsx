@@ -13,6 +13,8 @@ import {
 import { PageHeader } from '@/components/ui/page-header'
 import { ActionButton } from '@/components/ui/action-button'
 import { StatusPill } from '@/components/ui/status-pill'
+import { useToast } from '@/components/ui/toast'
+import { runAction } from '@/lib/run-action'
 
 interface Idea {
   title: string
@@ -185,7 +187,9 @@ function ScheduleControl({ id, onDone }: { id: string; onDone: () => void }) {
   function schedule() {
     setError(null)
     startTransition(async () => {
-      const res = await scheduleBlogPostAction(id, new Date(value).toISOString())
+      const res = await runAction(() =>
+        scheduleBlogPostAction(id, new Date(value).toISOString()),
+      )
       if (!res.ok) {
         setError(res.error)
         return
@@ -212,6 +216,7 @@ function ScheduleControl({ id, onDone }: { id: string; onDone: () => void }) {
 
 function UnscheduleButton({ id, onDone }: { id: string; onDone: () => void }) {
   const [pending, startTransition] = useTransition()
+  const toast = useToast()
   return (
     <ActionButton
       variant="ghost"
@@ -219,7 +224,14 @@ function UnscheduleButton({ id, onDone }: { id: string; onDone: () => void }) {
       pending={pending}
       onClick={() =>
         startTransition(async () => {
-          await unscheduleBlogPostAction(id)
+          const res = await runAction(async () => {
+            await unscheduleBlogPostAction(id)
+            return { ok: true as const }
+          })
+          if (!res.ok) {
+            toast(res.error, { tone: 'urgent' })
+            return
+          }
           onDone()
         })
       }
@@ -235,6 +247,7 @@ function GenerateIdeasModal({ onClose, onAdded, isPlatform = false }: { onClose:
   const [ideas, setIdeas] = useState<Idea[] | null>(null)
   const [checked, setChecked] = useState<Record<number, boolean>>({})
   const [generated, setGenerated] = useState(false)
+  const toast = useToast()
 
   async function generate() {
     setBusy(true)
@@ -257,9 +270,16 @@ function GenerateIdeasModal({ onClose, onAdded, isPlatform = false }: { onClose:
     const selected = ideas.filter((_, i) => checked[i])
     if (selected.length === 0) return
     startTransition(async () => {
-      await createTopicStubsAction(
-        selected.map((i) => ({ title: i.title, angle: i.angle, category: i.category })),
-      )
+      const res = await runAction(async () => {
+        await createTopicStubsAction(
+          selected.map((i) => ({ title: i.title, angle: i.angle, category: i.category })),
+        )
+        return { ok: true as const }
+      })
+      if (!res.ok) {
+        toast(res.error, { tone: 'urgent' })
+        return
+      }
       onAdded()
       onClose()
     })

@@ -13,6 +13,7 @@ import ImageUploader from '@/components/ui/image-uploader'
 import { ActionButton } from '@/components/ui/action-button'
 import { useConfirm } from '@/components/ui/confirm-dialog'
 import { useToast } from '@/components/ui/toast'
+import { runAction } from '@/lib/run-action'
 import { useUnsavedChanges } from '@/components/ui/use-unsaved-changes'
 import { StatusPill } from '@/components/ui/status-pill'
 import { TONE_FILL, TONE_FILL_HOVER } from '@/lib/ui/encodings'
@@ -67,6 +68,15 @@ interface Props {
   /** Platform org authoring the marketing blog — swaps the patient-voiced copy. */
   isPlatform?: boolean
 }
+
+/** Await a void-returning server action through `runAction`: a thrown action
+ *  (network drop, redeploy skew) becomes `{ ok: false, error }` for a toast
+ *  instead of an unhandled rejection that freezes the busy state. */
+const runVoid = (fn: () => Promise<unknown>) =>
+  runAction(async () => {
+    await fn()
+    return { ok: true as const }
+  })
 
 export default function BlogEditor({ post, authors, categorySuggestions, baseUrl, openAi, isPlatform = false }: Props) {
   const router = useRouter()
@@ -195,7 +205,7 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
     setActive('publish')
     startTransition(async () => {
       if (dirty) await save()
-      const res = await publishBlogPostAction(post.id)
+      const res = await runAction(() => publishBlogPostAction(post.id))
       if (!res.ok) {
         setPublishError(res.error)
         return
@@ -211,7 +221,11 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
   function unpublish() {
     setActive('unpublish')
     startTransition(async () => {
-      await unpublishBlogPostAction(post.id)
+      const res = await runVoid(() => unpublishBlogPostAction(post.id))
+      if (!res.ok) {
+        toast(res.error, { tone: 'urgent' })
+        return
+      }
       setStatus('draft')
       router.refresh()
     })
@@ -228,7 +242,11 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
   function unschedule() {
     setActive('unschedule')
     startTransition(async () => {
-      await unscheduleBlogPostAction(post.id)
+      const res = await runVoid(() => unscheduleBlogPostAction(post.id))
+      if (!res.ok) {
+        toast(res.error, { tone: 'urgent' })
+        return
+      }
       setStatus('draft')
       router.refresh()
     })
@@ -246,7 +264,8 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
       return
     setActive('archive')
     startTransition(async () => {
-      await archiveBlogPostAction(post.id)
+      const res = await runVoid(() => archiveBlogPostAction(post.id))
+      if (!res.ok) toast(res.error, { tone: 'urgent' })
     })
   }
 
@@ -447,7 +466,8 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
                     onClick={() => {
                       setActive('email')
                       startTransition(async () => {
-                        await emailThisPostAction(post.id)
+                        const res = await runVoid(() => emailThisPostAction(post.id))
+                        if (!res.ok) toast(res.error, { tone: 'urgent' })
                       })
                     }}
                     pending={pending && active === 'email'}
@@ -646,7 +666,8 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
                 onClick={() => {
                   setActive('email')
                   startTransition(async () => {
-                    await emailThisPostAction(post.id)
+                    const res = await runVoid(() => emailThisPostAction(post.id))
+                    if (!res.ok) toast(res.error, { tone: 'urgent' })
                   })
                 }}
                 disabled={pending}
@@ -662,7 +683,11 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
               type="button"
               onClick={async () => {
                 setSocial({ open: true, busy: true, text: null })
-                const text = await draftSocialCaptionAction(draft.title, draft.excerpt)
+                const res = await runAction(async () => ({
+                  ok: true as const,
+                  text: await draftSocialCaptionAction(draft.title, draft.excerpt),
+                }))
+                const text = res.ok ? res.text : null
                 setSocial({ open: true, busy: false, text: text ?? 'AI is unavailable right now — try again in a moment.' })
               }}
               disabled={pending || !draft.title.trim()}

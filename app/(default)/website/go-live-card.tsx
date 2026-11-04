@@ -3,6 +3,7 @@
 import { useEffect, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { goLiveAction } from './go-live-actions'
+import { runAction } from '@/lib/run-action'
 
 /**
  * The GO-LIVE LEVER card (Website hub, owner/admin, only while the site is
@@ -31,7 +32,7 @@ export default function GoLiveCard({ siteHost, attention, openRequired, waiting 
   function pull() {
     setError(null)
     startTransition(async () => {
-      const res = await goLiveAction()
+      const res = await runAction(() => goLiveAction())
       if (!res.ok) {
         setError(res.error)
         setConfirming(false)
@@ -192,8 +193,10 @@ export function TakeOfflineLink() {
   function pull() {
     setError(null)
     startTransition(async () => {
-      const { takeSiteOfflineAction } = await import('./go-live-actions')
-      const res = await takeSiteOfflineAction()
+      const res = await runAction(async () => {
+        const { takeSiteOfflineAction } = await import('./go-live-actions')
+        return takeSiteOfflineAction()
+      })
       if (!res.ok) {
         // It used to throw this away: the result was never read, so a refused
         // or failed take-offline closed the confirm and left the link looking
