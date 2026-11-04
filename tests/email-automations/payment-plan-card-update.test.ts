@@ -1,9 +1,8 @@
 import { describe, it, expect, vi } from 'vitest'
-import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
 import {
   EMAIL_AUTOMATION_SPECS,
   EMAIL_AUTOMATION_KEYS,
+  EMAIL_SAMPLE_FIELDS,
   bodyOpensWithGreeting,
   normalizeEmailOverride,
   resolveEmailAutomations,
@@ -48,9 +47,9 @@ describe('payment_plan_card_update registry entry', () => {
   })
 
   it('the hub preview fills {{amount}} (and {{balance}}) with a sample', () => {
-    const hub = readFileSync(join(process.cwd(), 'app/(default)/settings/automations/emails/emails-hub.tsx'), 'utf8')
-    expect(hub).toMatch(/amount: '\$[\d.]+'/)
-    expect(hub).toMatch(/balance: '\$[\d.]+'/)
+    // The sample list moved server-side with the real preview (ML-34).
+    expect(EMAIL_SAMPLE_FIELDS.amount).toMatch(/^\$[\d.]+$/)
+    expect(EMAIL_SAMPLE_FIELDS.balance).toMatch(/^\$[\d.]+$/)
   })
 })
 

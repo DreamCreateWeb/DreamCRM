@@ -14,16 +14,53 @@ function emailDriver(): 'ses' | 'resend' {
   return process.env.EMAIL_DRIVER === 'ses' ? 'ses' : 'resend'
 }
 
-/** Plain-text fallback for the Gmail multipart/alternative text part. */
-function htmlToText(html: string): string {
-  return html
-    .replace(/<style[\s\S]*?<\/style>/gi, '')
-    .replace(/<\/(p|div|h\d|li|tr)>/gi, '\n')
-    .replace(/<br\s*\/?>/gi, '\n')
-    .replace(/<[^>]+>/g, '')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
+/** Decode the handful of entities our own `escapeHtml` + templates emit, plus
+ *  numeric references. `&amp;` goes LAST so `&amp;lt;` stays `&lt;`. */
+function decodeEntities(s: string): string {
+  return s
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&#x([0-9a-f]+);/gi, (_m, h: string) => safeCodePoint(parseInt(h, 16)))
+    .replace(/&#(\d+);/g, (_m, d: string) => safeCodePoint(parseInt(d, 10)))
+    .replace(/&quot;/gi, '"')
+    .replace(/&apos;/gi, "'")
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&amp;/gi, '&')
+}
+function safeCodePoint(n: number): string {
+  try {
+    return Number.isFinite(n) && n > 0 && n <= 0x10ffff ? String.fromCodePoint(n) : ''
+  } catch {
+    return ''
+  }
+}
+
+/**
+ * THE one HTML to plain-text derivation (every send's `text` part; the Emails
+ * hub's "Text version"). Strips head/style/script/comments (the Outlook VML
+ * button lives in a comment) and the hidden preheader, keeps links as
+ * "label (url)" (just the url when the label IS the url), turns block ends and
+ * `<br>` into line breaks, decodes entities, collapses whitespace.
+ */
+export function htmlToText(html: string): string {
+  return decodeEntities(
+    html
+      .replace(/<!--[\s\S]*?-->/g, '')
+      .replace(/<(head|style|script)\b[\s\S]*?<\/\1>/gi, '')
+      .replace(/<div[^>]*display:\s*none[^>]*>[\s\S]*?<\/div>/gi, '')
+      .replace(/<a\b[^>]*?href\s*=\s*(?:"([^"]*)"|'([^']*)')[^>]*>([\s\S]*?)<\/a>/gi, (_m, d: string | undefined, sq: string | undefined, inner: string) => {
+        const url = decodeEntities((d ?? sq ?? '').trim())
+        const label = decodeEntities(inner.replace(/<[^>]+>/g, '')).replace(/\s+/g, ' ').trim()
+        if (!url || /^(#|javascript:)/i.test(url)) return label
+        if (!label || label === url) return url
+        return `${label} (${url})`
+      })
+      .replace(/<\/(p|div|h\d|li|tr|table)>/gi, '\n')
+      .replace(/<br\s*\/?>/gi, '\n')
+      .replace(/<[^>]+>/g, ''),
+  )
     .replace(/[ \t]+/g, ' ')
+    .replace(/ *\n */g, '\n')
     .replace(/\n{3,}/g, '\n\n')
     .trim()
 }
@@ -402,7 +439,11 @@ export async function deliver(msg: {
    *  which is how per-message receipts map back to our rows. Ignored by the
    *  Gmail + SES transports. */
   tags?: Array<{ name: string; value: string }>
+  /** The plain-text twin. Absent: derived ONCE from `html` (`htmlToText`),
+   *  so every send is readable in a text-only client. */
+  text?: string
 }): Promise<void> {
+  const text = msg.text ?? htmlToText(msg.html)
   // RFC-reserved domains (example.com/.net/.org, .test, .invalid, .example)
   // are undeliverable BY DEFINITION — every attempt is a guaranteed provider
   // rejection (observed as Resend 422s in prod boot logs, 2026-08-07) that
@@ -449,7 +490,7 @@ export async function deliver(msg: {
             from: gmail.from,
             to: [msg.to],
             subject: msg.subject,
-            bodyText: htmlToText(msg.html),
+            bodyText: text,
             bodyHtml: msg.html,
           })
         })(),
@@ -469,7 +510,7 @@ export async function deliver(msg: {
     const { sendEmailViaSes } = await import('./ses')
     try {
       await withDeadline(
-        sendEmailViaSes({ from, to: msg.to, subject: msg.subject, html: msg.html, replyTo }),
+        sendEmailViaSes({ from, to: msg.to, subject: msg.subject, html: msg.html, text, replyTo }),
         remainingMs(),
         'SES',
       )
@@ -492,6 +533,7 @@ export async function deliver(msg: {
         to: msg.to,
         subject: msg.subject,
         html: msg.html,
+        text,
         ...(replyTo ? { replyTo } : {}),
         ...(msg.tags?.length ? { tags: msg.tags } : {}),
       }),
@@ -1284,7 +1326,7 @@ export async function sendPatientMessageEmail(data: PatientMessageEmailData) {
   })
 }
 
-function escapeHtml(s: string): string {
+export function escapeHtml(s: string): string {
   return s
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
