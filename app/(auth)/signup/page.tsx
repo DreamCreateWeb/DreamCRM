@@ -12,7 +12,7 @@ export const metadata = {
 export default function SignUp() {
   return (
     <AuthShell
-      eyebrow="Start your practice"
+      eyebrow="1 of 3 · Start your practice"
       title="Create your account"
       subtitle="A few details now, then a quick practice setup — most clinics are live the same day."
       footer={

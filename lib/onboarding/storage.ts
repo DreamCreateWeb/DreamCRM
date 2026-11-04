@@ -4,7 +4,7 @@ const KEY = 'dc:onboarding'
 
 /**
  * Client-side onboarding draft, persisted to sessionStorage between steps.
- * The real DB writes happen once, in submitOnboarding (step 4) — see
+ * The real DB writes happen once, in submitOnboarding (the last screen) — see
  * app/(onboarding)/actions.ts.
  */
 export interface OnboardingState {
@@ -20,9 +20,12 @@ export interface OnboardingState {
   state?: string
   postalCode?: string
   country?: string
-  // Step 3 — web address + brand
+  // Screen 3 — web address + brand + software
   slug?: string
   brandColor?: string
+  /** PMS_VENDORS id | 'none' | 'unsure'; absent = skipped. */
+  pmsAnswer?: string
+  pmsVendorName?: string
 }
 
 export function loadOnboardingState(): OnboardingState {
