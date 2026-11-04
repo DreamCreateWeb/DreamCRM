@@ -7,6 +7,11 @@ import {
   HEIC_REJECTION,
   folderIsImageOnly,
   VIDEO_ON_IMAGE_FOLDER_REJECTION,
+  MESSAGE_ATTACHMENT_FOLDER,
+  MESSAGE_ATTACHMENT_MAX_BYTES,
+  MESSAGE_ATTACHMENT_MAX_MB,
+  MESSAGE_ATTACHMENT_TYPE_REJECTION,
+  isPdfBytes,
 } from '@/lib/upload-kinds'
 import {
   MAX_IMAGE_BYTES,
@@ -145,7 +150,18 @@ async function handleUpload(request: Request) {
 
   // Sniff the real content from the leading bytes — never trust file.type.
   const head = new Uint8Array(await file.slice(0, 32).arrayBuffer())
-  const sniff = sniffUpload(head)
+  let sniff: SniffResult = sniffUpload(head)
+  // The one folder that also takes a PDF (a treatment plan, an EOB on a
+  // thread) — decided from the bytes, never the declared type, and only here.
+  const isMessageAttachment = folder === MESSAGE_ATTACHMENT_FOLDER
+  let isPdf = false
+  if (isMessageAttachment && sniff.kind === 'rejected' && isPdfBytes(head)) {
+    isPdf = true
+    sniff = { kind: 'image', type: 'application/pdf' }
+  }
+  if (sniff.kind === 'video' && isMessageAttachment) {
+    return NextResponse.json({ error: MESSAGE_ATTACHMENT_TYPE_REJECTION }, { status: 415 })
+  }
   if (sniff.kind === 'rejected') {
     return NextResponse.json({ error: sniff.reason }, { status: 415 })
   }
@@ -156,7 +172,10 @@ async function handleUpload(request: Request) {
   }
   // Per-kind size cap: images must stay small (the XSS/abuse surface); videos
   // get the larger ceiling bounded above.
-  if (sniff.kind === 'image' && file.size > IMAGE_MAX_BYTES) {
+  if (isMessageAttachment && sniff.kind === 'image' && file.size > MESSAGE_ATTACHMENT_MAX_BYTES) {
+    return NextResponse.json({ error: `File too large (max ${MESSAGE_ATTACHMENT_MAX_MB}MB).` }, { status: 413 })
+  }
+  if (!isPdf && sniff.kind === 'image' && file.size > IMAGE_MAX_BYTES) {
     return NextResponse.json({ error: `Image too large (max ${MAX_IMAGE_MB}MB).` }, { status: 413 })
   }
 

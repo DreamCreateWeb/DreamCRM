@@ -78,3 +78,55 @@ export async function heicRefusal(file: File): Promise<string | null> {
   }
   return null
 }
+
+// ── The `message_attachment` kind ────────────────────────────────────────────
+// What a thread can carry: a photo OR a PDF (a treatment plan, an EOB). One
+// definition for the staff panel, the portal composer and /api/upload, so the
+// words a person reads before the transfer are the ones the server would send.
+
+/** The upload folder (and so the S3 prefix) message attachments live under. */
+export const MESSAGE_ATTACHMENT_FOLDER = 'message-attachments'
+
+/** One cap for every message attachment, photo or PDF. */
+export const MESSAGE_ATTACHMENT_MAX_MB = 10
+export const MESSAGE_ATTACHMENT_MAX_BYTES = MESSAGE_ATTACHMENT_MAX_MB * 1024 * 1024
+
+/** The `accept` attribute for a message file input. */
+export const MESSAGE_ATTACHMENT_ACCEPT = 'image/*,application/pdf'
+
+/** True when the leading bytes are a PDF (`%PDF-`). */
+export function isPdfBytes(bytes: Uint8Array): boolean {
+  return [0x25, 0x50, 0x44, 0x46, 0x2d].every((v, i) => bytes[i] === v)
+}
+
+export const MESSAGE_ATTACHMENT_TYPE_REJECTION =
+  'Threads take a photo (JPEG, PNG, WebP) or a PDF — save it as one of those and try again.'
+
+export function messageAttachmentTooLarge(name: string): string {
+  return `"${name}" is over ${MESSAGE_ATTACHMENT_MAX_MB} MB — pick a smaller file or compress the PDF.`
+}
+
+/** True when a declared type/filename is a PDF. */
+export function looksLikePdf(file: { type?: string; name?: string }): boolean {
+  return (file.type || '').toLowerCase() === 'application/pdf' || /\.pdf$/i.test(file.name || '')
+}
+
+/**
+ * Browser-side pre-check for a message attachment, run BEFORE the transfer.
+ * Returns the refusal sentence (HEIC names the fix), or null when it may go up.
+ */
+export async function messageAttachmentRefusal(file: File): Promise<string | null> {
+  const heic = await heicRefusal(file)
+  if (heic) return heic
+  const isImage = (file.type || '').toLowerCase().startsWith('image/')
+  if (!isImage && !looksLikePdf(file)) return MESSAGE_ATTACHMENT_TYPE_REJECTION
+  if (file.size > MESSAGE_ATTACHMENT_MAX_BYTES) return messageAttachmentTooLarge(file.name)
+  return null
+}
+
+/** "412 KB" / "1.3 MB" — the size on a document chip. */
+export function formatAttachmentSize(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes <= 0) return ''
+  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}

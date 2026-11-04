@@ -352,6 +352,9 @@ export interface SendMessageInput {
   bodyHtml?: string
   inReplyTo?: string
   references?: string
+  /** Extra headers (e.g. Auto-Submitted on an auto-reply). Names/values are
+   *  flattened to one line so a value can never add a header of its own. */
+  extraHeaders?: Record<string, string>
 }
 
 function encodeBase64Body(body: string): string {
@@ -380,6 +383,9 @@ function buildRawMessage(input: SendMessageInput): string {
     // hurts deliverability.
     ...(input.inReplyTo ? [`In-Reply-To: ${input.inReplyTo}`] : []),
     ...(input.references ? [`References: ${input.references}`] : []),
+    ...Object.entries(input.extraHeaders ?? {}).map(
+      ([k, v]) => `${k.replace(/[^A-Za-z0-9-]/g, '')}: ${String(v).replace(/[\r\n]+/g, ' ').trim()}`,
+    ),
     `Content-Type: multipart/alternative; boundary="${boundary}"`,
   ]
   // base64 transfer encoding handles UTF-8 (emoji, accented characters)
