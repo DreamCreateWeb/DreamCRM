@@ -557,3 +557,23 @@ export function normalizeEmailOverride(
   }
   return Object.keys(out).length > 0 ? out : undefined
 }
+
+/**
+ * The sample `{{token}}` values the Emails hub's preview and the "Send me a
+ * test" email fill in: ONE list, read by the client's chip tooltips and the
+ * server's `renderAutomationPreview`. Made-up on purpose: a test never carries
+ * a real patient's details.
+ */
+export const EMAIL_SAMPLE_FIELDS: Record<string, string> = {
+  firstName: 'Jordan',
+  patientName: 'Jordan Lee',
+  clinicName: 'Bright Smiles Dental',
+  clinicPhone: '(555) 123-4567',
+  appointmentType: 'Cleaning',
+  appointmentDate: 'Monday, Jan 12',
+  appointmentTime: 'Monday, January 12 at 2:00 PM',
+  urgentLine: ' you can call us at (555) 123-4567',
+  balance: '$135.00',
+  amount: '$100.00',
+  planName: 'Smile Club',
+}

@@ -15,6 +15,8 @@ export interface SesSendInput {
   to: string | string[]
   subject: string
   html: string
+  /** Plain-text twin; absent means HTML only. */
+  text?: string
   replyTo?: string | string[]
   headers?: Record<string, string>
   tags?: Record<string, string>
@@ -39,7 +41,10 @@ export async function sendEmailViaSes(input: SesSendInput): Promise<{ messageId?
       Content: {
         Simple: {
           Subject: { Data: input.subject, Charset: 'UTF-8' },
-          Body: { Html: { Data: input.html, Charset: 'UTF-8' } },
+          Body: {
+            Html: { Data: input.html, Charset: 'UTF-8' },
+            ...(input.text ? { Text: { Data: input.text, Charset: 'UTF-8' } } : {}),
+          },
           Headers: input.headers
             ? Object.entries(input.headers).map(([Name, Value]) => ({ Name, Value }))
             : undefined,

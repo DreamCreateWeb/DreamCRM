@@ -14,6 +14,8 @@ const saveReminder = vi.fn(async () => ({ ok: true as const }))
 vi.mock('@/app/(default)/settings/automations/emails/actions', () => ({
   saveEmailAutomationAction: (...a: unknown[]) => saveEmail(...(a as [])),
   saveReminderSettingsAction: (...a: unknown[]) => saveReminder(...(a as [])),
+  previewEmailAutomationAction: async () => ({ ok: true as const, subject: 's', html: '<p>h</p>', text: 'h' }),
+  sendTestEmailAction: async () => ({ ok: true as const, to: 'me@x.test' }),
 }))
 
 const CONFIG = resolveEmailAutomations(null)
