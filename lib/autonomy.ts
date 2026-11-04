@@ -68,6 +68,13 @@ export const CAPABILITIES: readonly CapabilityDef[] = [
   // is no judgment to hand over, and the audience lock that governs whether
   // it speaks at all lives with the platform owner, not the clinic.
   { key: 'guardian_note', label: 'Tell you when something needs a look', defaultTrust: 'auto' },
+  // STAFF ALERTS BY EMAIL (ML-32). The copy of a bell alert that goes to a
+  // person's inbox, and the sweep that re-attempts it when the provider
+  // dropped it. Auto because it only ever REPORTS to the practice's own
+  // staff — nothing here reaches a patient — and deliberately NOT grantable
+  // and off the roster: it is how alerts reach the clinic, not a job on
+  // anyone's desk (a meta lane, like guardian_note).
+  { key: 'staff_alert', label: 'Keep your inbox posted when something needs you', defaultTrust: 'auto' },
   // THE PROPOSAL ENGINE itself (Phase 4 observability). Not a job the clinic
   // grants — it is how every ask-first job REACHES them. It earns a key so
   // that "I couldn't bring you any work at all today" has somewhere honest

@@ -18,6 +18,9 @@ interface NotificationItem {
   linkPath: string | null
   readAt: string | null
   createdAt: string
+  /** The email copy of this alert never went out and the re-drive has given
+   *  up (ML-32). Optional so an older payload still renders. */
+  emailFailed?: boolean
 }
 
 /**
@@ -312,6 +315,16 @@ export default function DropdownNotifications({ align }: { align?: 'left' | 'rig
                               )}
                               <p className="mt-1 text-xs font-medium tabular-nums text-gray-500 dark:text-gray-400">
                                 {formatRelative(n.createdAt)}
+                                {/* A REPORT, not a warning (ML-32): the bell row is
+                                    right here; what never arrived is its email copy.
+                                    Quiet ink on purpose — amber would say "act",
+                                    and there is nothing to act on but knowing. */}
+                                {n.emailFailed && (
+                                  <span className="font-normal">
+                                    <span aria-hidden="true"> · </span>
+                                    Email didn’t go out
+                                  </span>
+                                )}
                               </p>
                             </div>
                           </div>

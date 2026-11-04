@@ -101,6 +101,12 @@ JOBS=(
   # own poll is 45s while the tab is open; this is the floor when it isn't.
   # Idempotent (a check re-reads the edge; the day-old alert is stamped).
   "custom-domains|custom-domains|rate(15 minutes)"
+  # Notification re-drive (ML-32): re-attempts the staff alert emails the
+  # dispatch could not land — three tries inside 24h, backing off from the
+  # row's own created_at (5/10/20 min). 15 minutes is the floor of that
+  # schedule; every tick is idempotent (a landed send stamps email_sent_at,
+  # a failed one bumps email_attempts, and a row past the cap is left alone).
+  "notification-redrive|notification-redrive|rate(15 minutes)"
 )
 
 echo "==> DreamCRM cron schedules (region ${REGION})"

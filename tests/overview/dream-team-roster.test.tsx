@@ -35,6 +35,17 @@ describe('the roster ↔ capability registry parity', () => {
     // The setup list is the registry's own (ML-11): a new first-week ask
     // joins SETUP_CAPABILITIES and stays off the roster by construction.
     const META = new Set(['guardian_note', 'proposal_engine', ...SETUP_CAPABILITIES])
+    const META = new Set([
+      'guardian_note',
+      'proposal_engine',
+      // ML-32: how a bell alert's email copy reaches the clinic — plumbing
+      // that only reports to staff, not a job on any specialist's desk.
+      'staff_alert',
+      'setup_hours',
+      'setup_chairs',
+      'setup_booking_mode',
+      'setup_texting',
+    ])
     for (const c of CAPABILITIES) {
       if (META.has(c.key)) {
         expect(seen.has(c.key), `${c.key} is meta — keep it off the roster`).toBe(false)
