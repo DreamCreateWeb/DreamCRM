@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import type { SiteChromeProps } from '@/lib/site-templates/page-props'
 import { SITE_BG, SITE_INK, SITE_INK_MUTED, SITE_BORDER, SITE_DEEP, SITE_DEEP_INK } from '@/components/clinic-site/tokens'
+import HeaderCallButton from '@/components/clinic-site/header-call-button'
 import SiteImage from '../../site-image'
 
 /**
@@ -56,6 +57,7 @@ export default function CosmeticHeader({
         </nav>
 
         <div className="flex items-center gap-4 shrink-0">
+          {phone && <HeaderCallButton phone={phone} name={name} hideFrom="md" />}
           {phone && (
             <a href={`tel:${phone}`} className="hidden md:inline text-sm" style={{ color: SITE_INK_MUTED }}>
               {phone}

@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import type { SiteChromeProps } from '@/lib/site-templates/page-props'
 import { SITE_INK, SITE_INK_MUTED, SITE_SURFACE, SITE_BORDER, SITE_BG } from '@/components/clinic-site/tokens'
+import HeaderCallButton from '@/components/clinic-site/header-call-button'
 import SiteImage from '../../site-image'
 
 const DISPLAY = 'var(--font-display, serif)'
@@ -76,6 +77,7 @@ export default function EstablishedHeader({
         </nav>
 
         <div className="flex items-center gap-3 sm:gap-4 shrink-0">
+          {phone && <HeaderCallButton phone={phone} name={name} hideFrom="xl" />}
           {phone && (
             <a href={`tel:${phone}`} className="hidden xl:inline text-sm font-semibold" style={{ color: SITE_INK }}>
               {phone}

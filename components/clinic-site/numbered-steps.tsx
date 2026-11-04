@@ -1,6 +1,5 @@
 import ScrollReveal from './scroll-reveal'
-import { SITE_BG as BG, SITE_INK as INK, SITE_INK_MUTED as INK_MUTED, SITE_SURFACE as SURFACE, SITE_BORDER as BORDER } from '@/components/clinic-site/tokens'
-import { readableInk } from '@/lib/clinic-site-theme'
+import { SITE_BG as BG, SITE_INK as INK, SITE_INK_MUTED as INK_MUTED, SITE_SURFACE as SURFACE, SITE_BORDER as BORDER, SITE_HEADING } from '@/components/clinic-site/tokens'
 
 
 export interface NumberedStep {
@@ -60,7 +59,7 @@ export default function NumberedSteps({
           {eyebrow && (
             <p
               className="text-xs font-semibold uppercase tracking-[0.16em] mb-4"
-              style={{ color: readableInk(brand) }}
+              style={{ color: SITE_HEADING }}
               {...(editKeyPrefix
                 ? { 'data-edit-field': `copy:${editKeyPrefix}.eyebrow`, 'data-edit-kind': 'text', 'data-edit-label': 'eyebrow' }
                 : {})}
@@ -71,7 +70,7 @@ export default function NumberedSteps({
           {heading && (
             <h2
               className="text-3xl sm:text-4xl lg:text-[44px] font-semibold leading-[1.1] tracking-[-0.015em]"
-              style={{ color: readableInk(brand), fontFamily: 'var(--font-display, Georgia, serif)' }}
+              style={{ color: SITE_HEADING, fontFamily: 'var(--font-display, Georgia, serif)' }}
               {...(editKeyPrefix
                 ? { 'data-edit-field': `copy:${editKeyPrefix}.heading`, 'data-edit-kind': 'text', 'data-edit-label': 'headline' }
                 : {})}
@@ -92,7 +91,7 @@ export default function NumberedSteps({
           >
             <span
               className="shrink-0 text-3xl sm:text-4xl font-bold leading-none tracking-[-0.02em]"
-              style={{ color: readableInk(brand), fontFamily: 'var(--font-display, Georgia, serif)' }}
+              style={{ color: SITE_HEADING, fontFamily: 'var(--font-display, Georgia, serif)' }}
               aria-hidden="true"
             >
               {String(i + 1).padStart(2, '0')}

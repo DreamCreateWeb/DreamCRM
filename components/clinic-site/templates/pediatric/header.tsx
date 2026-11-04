@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import type { SiteChromeProps } from '@/lib/site-templates/page-props'
 import { SITE_BG, SITE_INK, SITE_INK_MUTED, SITE_SURFACE, SITE_BORDER } from '@/components/clinic-site/tokens'
+import HeaderCallButton from '@/components/clinic-site/header-call-button'
 import SiteImage from '../../site-image'
 
 /**
@@ -67,6 +68,7 @@ export default function PediatricHeader({
         </nav>
 
         <div className="flex items-center gap-3 shrink-0">
+          {phone && <HeaderCallButton phone={phone} name={name} />}
           <a href={signInUrl} className="hidden md:inline text-sm font-semibold" style={{ color: SITE_INK_MUTED }}>
             Login
           </a>

@@ -31,6 +31,9 @@ import type { ClinicSiteData } from '@/lib/services/clinic-site'
  *  6. Source hygiene on the template's own files: tokens only (no local
  *     --c-* re-declaration), no forbidden literals, and PURITY — a template
  *     never imports the DB or a service's runtime (import type is fine).
+ *  7. The header carries a tappable phone at EVERY width (never only behind
+ *     a wide-screen breakpoint), and headings read the template's own
+ *     `--c-heading` token — never a locally computed readableInk(brand).
  */
 
 const ROOT = resolve(__dirname, '../..')
@@ -168,6 +171,55 @@ describe.each(TEMPLATES.map((t) => [t.id, t] as const))('template conformance [%
       />,
     )
     expect(mobile.container.textContent).toContain(def.bookLabel)
+    cleanup()
+  })
+
+  it('chrome: the header offers a tappable phone at every width (no breakpoint-only number)', () => {
+    // A patient on a 390px phone wants the number. A tel: link that is only
+    // `hidden <bp>:inline` (Home Team: 2xl) leaves the phone bar with nothing
+    // to tap. Some tel: link in the header must have no `hidden` on itself or
+    // an ancestor (an icon-button counterpart with `<bp>:hidden` is fine) and
+    // must be named — aria-label or visible text.
+    const data = FIXTURES.rich()
+    const chromeProps = {
+      data,
+      basePath: '/site/fixture-dental',
+      navLinks: [{ label: 'Contact', href: '#site-footer-contact' }],
+      bookHref: '/site/fixture-dental#contact',
+      bookLabel: def.bookLabel,
+      signInUrl: 'https://www.example.com/site/fixture-dental/portal',
+    }
+    const { container } = render(<def.chrome.Header {...chromeProps} />)
+    const tels = Array.from(container.querySelectorAll('a[href^="tel:"]'))
+    const hiddenAtPhone = (el: Element | null): boolean => {
+      for (let n: Element | null = el; n && n !== container; n = n.parentElement) {
+        if (/(^|\s)hidden(\s|$)/.test(n.getAttribute('class') ?? '')) return true
+      }
+      return false
+    }
+    const visible = tels.filter((a) => !hiddenAtPhone(a))
+    expect(visible.length, `${tid}: no header tel: link is visible below the sm breakpoint`).toBeGreaterThan(0)
+    for (const a of visible) {
+      const named = (a.getAttribute('aria-label') ?? '').trim() || (a.textContent ?? '').trim()
+      expect(named, `${tid}: visible header phone has no accessible name`).not.toBe('')
+    }
+    cleanup()
+  })
+
+  it('chrome: the header omits the phone entirely when the clinic has none', () => {
+    const data = FIXTURES.empty()
+    data.profile.phone = null
+    const { container } = render(
+      <def.chrome.Header
+        data={data}
+        basePath="/site/fixture-dental"
+        navLinks={[]}
+        bookHref="/site/fixture-dental#contact"
+        bookLabel={def.bookLabel}
+        signInUrl="https://www.example.com/site/fixture-dental/portal"
+      />,
+    )
+    expect(container.querySelectorAll('a[href^="tel:"]').length).toBe(0)
     cleanup()
   })
 
@@ -335,7 +387,30 @@ describe.each(TEMPLATES.map((t) => [t.id, t] as const))('template conformance [%
       expect(src).not.toMatch(/import 'server-only'/)
       // Legibility floor (mirror of tests/a11y/legibility-floor.test.ts).
       expect(src).not.toMatch(/text-\[(?:[0-9]|1[01])px\]/)
+      // Headings wear the template's `--c-heading` (SITE_HEADING), never a
+      // locally computed readableInk(brand) that ignores the template recipe.
+      expect(src).not.toMatch(/readableInk\(/)
     })
+  })
+})
+
+describe('subpage shells + shared heading components read the template heading token', () => {
+  const HEADING_FILES = [
+    'app/site/[slug]/services/page.tsx',
+    'app/site/[slug]/services/[serviceSlug]/page.tsx',
+    'app/site/[slug]/team/page.tsx',
+    'app/site/[slug]/team/[staffSlug]/page.tsx',
+    'app/site/[slug]/dental-plans/page.tsx',
+    'app/site/[slug]/book/page.tsx',
+    'components/clinic-site/blog-article.tsx',
+    'components/clinic-site/service-pills.tsx',
+    'components/clinic-site/team-gallery.tsx',
+    'components/clinic-site/numbered-steps.tsx',
+  ]
+  it.each(HEADING_FILES)('%s: no readableInk(brand) heading fill', (rel) => {
+    const src = read(rel)
+    expect(src).not.toMatch(/readableInk\(/)
+    expect(src).toMatch(/SITE_HEADING/)
   })
 })
 

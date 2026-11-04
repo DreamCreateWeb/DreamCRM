@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { readableInk } from '@/lib/clinic-site-theme'
+import { SITE_HEADING } from '@/components/clinic-site/tokens'
 import { brandTint } from '@/lib/brand-tint'
 import SiteImage from './site-image'
 
@@ -40,7 +40,7 @@ export default function TeamGallery({ members, brand, ink, surface }: Props) {
   const [overflowing, setOverflowing] = useState(false)
   // Contrast-safe ink for the small member-title text + the arrow glyphs —
   // raw pale brands (the sage default) fail on white surfaces.
-  const accentInk = readableInk(brand)
+  const accentInk = SITE_HEADING
 
   useEffect(() => {
     const el = trackRef.current

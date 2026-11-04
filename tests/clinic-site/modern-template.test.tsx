@@ -420,9 +420,14 @@ describe('ModernTemplate', () => {
   it('renders the Tend-style centered hero composition with the H1 in the brand color', () => {
     render(<ModernTemplate data={makeData()} basePath="/site/test" />)
     const h1 = screen.getByRole('heading', { level: 1 })
-    // H1 uses the brand color (sage default in tests = #6d28d9 from makeData)
-    // via inline style.
-    expect(h1.getAttribute('style')).toMatch(/color: ?(rgb\(109, ?40, ?217\)|#6d28d9)/i)
+    // H1 wears the template's heading token (--c-heading: the brand as text,
+    // contrast-floored by the palette recipe) — never the raw brand hex.
+    // happy-dom drops a var()-with-fallback color from the serialized style,
+    // so the wiring is pinned at the source (and in the conformance harness).
+    expect(h1.getAttribute('style') ?? '').not.toMatch(/#6d28d9|rgb\(109, ?40, ?217\)/i)
+    expect(readFileSync(resolve(__dirname, '../../components/clinic-site/templates/modern/home.tsx'), 'utf8')).toMatch(
+      /const headingInk = SITE_HEADING/,
+    )
     // Display serif via the next/font CSS var (or Georgia fallback).
     expect(h1.getAttribute('style')).toMatch(/font-family/i)
   })

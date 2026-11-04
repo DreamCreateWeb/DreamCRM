@@ -17,3 +17,10 @@ export const SITE_BORDER = 'var(--c-border, #E8E2D9)'
 export const SITE_DEEP = 'var(--c-deep, #36514c)'
 export const SITE_DEEP_INK = 'var(--c-deep-ink, #FFFFFF)'
 export const SITE_DEEP_MUTED = 'var(--c-deep-muted, #C5CFCC)'
+
+/** The template's HEADING ink — brand-as-text on the ground, contrast-floored
+ *  by that template's palette recipe (`--c-heading`). Every heading / eyebrow
+ *  that wears the brand reads THIS, never `readableInk(brand)` computed
+ *  locally (which ignores the template's recipe). Pinned by the conformance
+ *  harness. */
+export const SITE_HEADING = 'var(--c-heading, #1C1A17)'
