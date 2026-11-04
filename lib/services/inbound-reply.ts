@@ -3,6 +3,7 @@ import { and, eq, isNull } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import {
   inboundReplyDomain,
+  isAutomatedInbound,
   normalizeInboundEmail,
   parseInboundRecipientSlug,
   platformSendingDomain,
@@ -106,6 +107,10 @@ export async function handleInboundReply(data: unknown): Promise<string> {
       body,
       channel: 'email',
       externalId: externalId ?? undefined,
+      // After hours, a patient's emailed reply earns the same honest
+      // auto-answer the portal and the chat get — unless the message is
+      // itself a robot's (the loop guard): then it is recorded, never answered.
+      ...(isAutomatedInbound(norm.headers, norm.fromEmail) ? {} : { source: 'inbound_email' as const }),
     })
     return 'recorded'
   }

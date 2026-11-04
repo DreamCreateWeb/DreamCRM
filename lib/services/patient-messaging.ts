@@ -843,6 +843,7 @@ async function deliverPatientMessageEmail(
   /** Pre-minted patient_message id — rides the Resend tags so webhook
    *  receipt events (delivered/opened/bounced) map back to the row. */
   messageId?: string,
+  opts: { autoReply?: boolean } = {},
 ): Promise<void> {
   const [p] = await db
     .select({ email: schema.patient.email, firstName: schema.patient.firstName })
@@ -860,6 +861,7 @@ async function deliverPatientMessageEmail(
     clinicName: sender.name,
     body,
     attachments,
+    ...(opts.autoReply ? { autoReply: { sender } } : {}),
     from: sender.from,
     gmail: sender.gmail,
     // deliverableReplyTo (inside getClinicSenderIdentity) skips a non-deliverable
@@ -1156,6 +1158,8 @@ export async function getMyUnreadMessageCount(
 /** How long an auto-reply silences further auto-replies on a thread, so a
  *  patient firing off several after-hours messages gets ONE ack, not a barrage. */
 const AUTO_REPLY_DEDUP_MS = 12 * 60 * 60 * 1000
+/** An emailed reply gets at most ONE auto-answer per thread per day. */
+export const INBOUND_EMAIL_AUTO_REPLY_DEDUP_MS = 24 * 60 * 60 * 1000
 
 /**
  * After-hours auto-reply: when the office is closed (per the clinic's hours +
@@ -1186,13 +1190,15 @@ export function afterHoursReplyDelivery(input: {
   source?: InboundSource
 }): AutoReplyDelivery | null {
   if (input.channel === 'in_app') return 'in_app'
-  if (input.source === 'website_chat') return 'email'
+  // A patient's emailed REPLY to a clinic email (lib/services/inbound-reply.ts;
+  // the loop guard there withholds this source from a robot's message).
+  if (input.source === 'website_chat' || input.source === 'inbound_email') return 'email'
   return null
 }
 
 /** Where an inbound message came from, when the channel alone cannot say
  *  (the website chat records as 'email' like the contact form does). */
-export type InboundSource = 'website_chat'
+export type InboundSource = 'website_chat' | 'inbound_email'
 
 // Exported for the executed writer test (tests/messaging/after-hours-auto-reply
 // .test.ts) — the auto_reply ledger entry must be pinned, not assumed.
@@ -1200,7 +1206,7 @@ export async function maybeSendAfterHoursAutoReply(
   organizationId: string,
   patientId: string,
   threadId: string,
-  opts: { deliverBy?: AutoReplyDelivery } = {},
+  opts: { deliverBy?: AutoReplyDelivery; dedupMs?: number } = {},
 ): Promise<void> {
   const deliverBy: AutoReplyDelivery = opts.deliverBy ?? 'in_app'
   try {
@@ -1222,7 +1228,7 @@ export async function maybeSendAfterHoursAutoReply(
     if (isWithinOfficeHours(clinic.hours as ClinicHours | null, clinic.timezone)) return
 
     // Dedup: skip if we already auto-replied on this thread recently.
-    const since = new Date(Date.now() - AUTO_REPLY_DEDUP_MS)
+    const since = new Date(Date.now() - (opts.dedupMs ?? AUTO_REPLY_DEDUP_MS))
     const [recent] = await db
       .select({ id: schema.patientMessage.id })
       .from(schema.patientMessage)
@@ -1246,7 +1252,8 @@ export async function maybeSendAfterHoursAutoReply(
     // address on the record, a provider error) throws here and nothing below
     // claims an ack that never went out. The same editable copy either way.
     if (deliverBy === 'email') {
-      await deliverPatientMessageEmail(organizationId, patientId, body, [], messageId)
+      // autoReply: the branded shell + `Auto-Submitted: auto-replied`.
+      await deliverPatientMessageEmail(organizationId, patientId, body, [], messageId, { autoReply: true })
     }
     await db.insert(schema.patientMessage).values({
       id: messageId,
@@ -1447,7 +1454,10 @@ export async function recordInboundMessage(input: {
   // once-per-thread throttle inside applies to both rails.
   const ackBy = afterHoursReplyDelivery(input)
   if (ackBy) {
-    await maybeSendAfterHoursAutoReply(input.organizationId, input.patientId, threadId, { deliverBy: ackBy })
+    await maybeSendAfterHoursAutoReply(input.organizationId, input.patientId, threadId, {
+      deliverBy: ackBy,
+      ...(input.source === 'inbound_email' ? { dedupMs: INBOUND_EMAIL_AUTO_REPLY_DEDUP_MS } : {}),
+    })
   }
 
   // Urgency triage — fire-and-forget so the sender's request never waits on

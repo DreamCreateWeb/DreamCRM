@@ -402,6 +402,9 @@ export async function deliver(msg: {
    *  which is how per-message receipts map back to our rows. Ignored by the
    *  Gmail + SES transports. */
   tags?: Array<{ name: string; value: string }>
+  /** Extra MIME headers on the message (e.g. `Auto-Submitted: auto-replied`
+   *  on an automatic answer, so other robots never answer it back). */
+  headers?: Record<string, string>
 }): Promise<void> {
   // RFC-reserved domains (example.com/.net/.org, .test, .invalid, .example)
   // are undeliverable BY DEFINITION — every attempt is a guaranteed provider
@@ -451,6 +454,7 @@ export async function deliver(msg: {
             subject: msg.subject,
             bodyText: htmlToText(msg.html),
             bodyHtml: msg.html,
+            ...(msg.headers ? { extraHeaders: msg.headers } : {}),
           })
         })(),
         gmailBudgetMs,
@@ -469,7 +473,7 @@ export async function deliver(msg: {
     const { sendEmailViaSes } = await import('./ses')
     try {
       await withDeadline(
-        sendEmailViaSes({ from, to: msg.to, subject: msg.subject, html: msg.html, replyTo }),
+        sendEmailViaSes({ from, to: msg.to, subject: msg.subject, html: msg.html, replyTo, headers: msg.headers }),
         remainingMs(),
         'SES',
       )
@@ -494,6 +498,7 @@ export async function deliver(msg: {
         html: msg.html,
         ...(replyTo ? { replyTo } : {}),
         ...(msg.tags?.length ? { tags: msg.tags } : {}),
+        ...(msg.headers && Object.keys(msg.headers).length ? { headers: msg.headers } : {}),
       }),
       remainingMs(),
       'Resend',
@@ -1236,6 +1241,16 @@ export interface PatientMessageEmailData {
   gmail?: { accountId: string; from: string }
   /** Image attachments — rendered inline (hosted on S3) under the body. */
   attachments?: Array<{ url: string; name: string; contentType: string }>
+  /** Set on an AUTOMATIC answer (the after-hours auto-reply): the message
+   *  goes out in the clinic's branded shell and carries `Auto-Submitted:
+   *  auto-replied`, so no other robot ever answers it (RFC 3834). */
+  autoReply?: { sender: ClinicSender }
+}
+
+/** The headers every automatic answer of ours carries. */
+export const AUTO_REPLY_HEADERS: Record<string, string> = {
+  'Auto-Submitted': 'auto-replied',
+  'X-Auto-Response-Suppress': 'All',
 }
 
 /**
@@ -1265,6 +1280,30 @@ export async function sendPatientMessageEmail(data: PatientMessageEmailData) {
   const bodyHtml = data.body.trim()
     ? `<p style="margin:0 0 20px;color:#1c1917;line-height:1.6;white-space:pre-wrap">${escapeHtml(data.body)}</p>`
     : ''
+  // Documents (PDFs) are never attached to the email — the thread holds them.
+  const documents = (data.attachments ?? []).filter(
+    (a) => !a.contentType.startsWith('image/') && /^https?:\/\//i.test(a.url),
+  )
+  const documentsHtml = documents.length
+    ? `<p style="margin:0 0 20px;color:#57534e;line-height:1.6">${documents.length === 1 ? 'A document was' : `${documents.length} documents were`} shared with you in your patient portal.</p>`
+    : ''
+  if (data.autoReply) {
+    await deliver({
+      to: data.to,
+      from: data.from,
+      replyTo: data.replyTo,
+      gmail: data.gmail,
+      tags: data.tags,
+      headers: AUTO_REPLY_HEADERS,
+      subject: `A message from ${data.clinicName}`,
+      html: patientEmailShell({
+        sender: data.autoReply.sender,
+        title: '',
+        body: `<p style="margin:0 0 14px">${greeting}</p>${bodyHtml}`,
+      }),
+    })
+    return
+  }
   await deliver({
     to: data.to,
     from: data.from,
@@ -1277,6 +1316,7 @@ export async function sendPatientMessageEmail(data: PatientMessageEmailData) {
         <p style="margin:0 0 16px;color:#57534e">${greeting}</p>
         ${bodyHtml}
         ${attachmentsHtml}
+        ${documentsHtml}
         <p style="margin:0;color:#1c1917">— ${escapeHtml(data.clinicName)}</p>
         ${data.replyTo ? `<p style="margin:20px 0 0;font-size:12px;color:#a8a29e">You can reply directly to this email to reach us.</p>` : ''}
       </div>

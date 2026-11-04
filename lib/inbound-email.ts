@@ -122,6 +122,60 @@ export function htmlToPlainText(html: string): string {
     .trim()
 }
 
+/**
+ * Lower-case header map from whatever shape the provider sends: a plain
+ * object, or an array of `{ name, value }`. Untrusted — only string values
+ * survive. Pure.
+ */
+export function normalizeInboundHeaders(raw: unknown): Record<string, string> {
+  const out: Record<string, string> = {}
+  if (Array.isArray(raw)) {
+    for (const h of raw) {
+      if (!h || typeof h !== 'object') continue
+      const r = h as Record<string, unknown>
+      if (typeof r.name === 'string' && typeof r.value === 'string') out[r.name.trim().toLowerCase()] = r.value
+    }
+  } else if (raw && typeof raw === 'object') {
+    for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+      if (typeof v === 'string') out[k.trim().toLowerCase()] = v
+      else if (Array.isArray(v) && typeof v[0] === 'string') out[k.trim().toLowerCase()] = v[0]
+    }
+  }
+  return out
+}
+
+/** Sender local parts that are machines by name (bounces, no-reply boxes). */
+const ROBOT_LOCAL_PART = /^(mailer-daemon|postmaster|no-?reply|do-?not-?reply|donotreply|bounces?)([+._-].*)?$/i
+
+/**
+ * THE LOOP GUARD. True when an inbound email is itself a machine's message —
+ * an out-of-office, a list blast, another auto-responder, a bounce — so we
+ * never auto-answer it (two robots answering each other is a mail loop).
+ *
+ *   • `Auto-Submitted` anything but `no` (RFC 3834)
+ *   • `Precedence: bulk | auto_reply | junk | list`
+ *   • any `X-Autoreply` / `X-Autorespond` header; `X-Auto-Response-Suppress`
+ *     (the Exchange flag — our own auto-replies carry it too)
+ *   • a robot-named sender (mailer-daemon@, no-reply@, …)
+ *
+ * Pure; `headers` is whatever `normalizeInboundHeaders` produced (any case).
+ */
+export function isAutomatedInbound(
+  headers: Record<string, string> | null | undefined,
+  fromEmail?: string | null,
+): boolean {
+  const h: Record<string, string> = {}
+  for (const [k, v] of Object.entries(headers ?? {})) h[k.toLowerCase()] = String(v)
+  const autoSubmitted = h['auto-submitted']?.trim().toLowerCase()
+  if (autoSubmitted && autoSubmitted !== 'no') return true
+  const precedence = h['precedence']?.trim().toLowerCase()
+  if (precedence && ['bulk', 'auto_reply', 'auto-reply', 'junk', 'list'].includes(precedence)) return true
+  if ('x-autoreply' in h || 'x-autorespond' in h || 'x-auto-response-suppress' in h) return true
+  const local = fromEmail ? fromEmail.split('@')[0] ?? '' : ''
+  if (local && ROBOT_LOCAL_PART.test(local)) return true
+  return false
+}
+
 export interface NormalizedInboundEmail {
   fromEmail: string
   fromName: string | null
@@ -129,6 +183,8 @@ export interface NormalizedInboundEmail {
   subject: string
   /** Quoted-history-stripped plain text (html-derived when no text part). */
   body: string
+  /** Lower-case header map (empty when the provider sent none). */
+  headers: Record<string, string>
 }
 
 /**
@@ -170,5 +226,5 @@ export function normalizeInboundEmail(data: unknown): NormalizedInboundEmail | n
   const plain = text.trim() || (html ? htmlToPlainText(html) : '')
   const body = stripQuotedReply(plain)
 
-  return { fromEmail, fromName, to, subject, body }
+  return { fromEmail, fromName, to, subject, body, headers: normalizeInboundHeaders(d.headers) }
 }
