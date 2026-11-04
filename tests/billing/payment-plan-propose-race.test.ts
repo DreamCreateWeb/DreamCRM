@@ -38,6 +38,7 @@ vi.mock('@/lib/stripe', () => ({ stripe: {} }))
 vi.mock('@/lib/services/balance-payments', () => ({ canTakeBalancePayments: vi.fn(async () => true) }))
 const deliver = vi.fn(async () => ({ ok: true }))
 vi.mock('@/lib/email', () => ({
+  patientEmailShell: vi.fn((o: { title?: string; body?: string; cta?: { url: string; label: string }; footnoteHtml?: string }) => `<html>${o?.title ?? ''}${o?.body ?? ''}${o?.cta ? `<a href="${o.cta.url}">${o.cta.label}</a>` : ''}${o?.footnoteHtml ?? ''}</html>`),
   deliver: (...args: unknown[]) => deliver(...(args as [])),
   authEmailShell: () => '<html></html>',
   sendNotificationEmail: vi.fn(),

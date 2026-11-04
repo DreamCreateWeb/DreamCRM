@@ -664,11 +664,11 @@ async function notifyPatientCardUpdate(
       replyTo: sender.replyTo,
       gmail: sender.gmail,
       subject: rendered.full.subject,
-      html: authEmailShell({
-        heading: 'A quick fix for your payment plan',
-        introHtml: `${escapeHtml(rendered.full.body).replace(/\n/g, '<br>')}<br><br>${nextHtml}`,
-        buttonUrl: `${APP_BASE}/i/${plan.token}`,
-        buttonLabel: 'Update my card',
+      html: patientEmailShell({
+        sender,
+        title: 'A quick fix for your payment plan',
+        body: `${escapeHtml(rendered.full.body).replace(/\n/g, '<br>')}<br><br>${nextHtml}`,
+        cta: { url: `${APP_BASE}/i/${plan.token}`, label: 'Update my card' },
         footnoteHtml: `The card page is secure and takes about a minute — ${escapeHtml(sender.name)} never sees the number. Rather sort it out another way? Just reply to this email.`,
       }),
     })

@@ -83,7 +83,7 @@ vi.mock('@/lib/services/patient-intake-send', () => ({
 }))
 const logReminderSent = vi.fn(async () => 'rem_1')
 vi.mock('@/lib/services/appointments', () => ({ logReminderSent: (...a: unknown[]) => logReminderSent(...(a as [])) }))
-vi.mock('@/lib/email', () => ({ sendNotificationEmail: vi.fn() }))
+vi.mock('@/lib/email', () => ({ patientEmailShell: vi.fn((o: { title?: string; body?: string; cta?: { url: string; label: string }; footnoteHtml?: string }) => `<html>${o?.title ?? ''}${o?.body ?? ''}${o?.cta ? `<a href="${o.cta.url}">${o.cta.label}</a>` : ''}${o?.footnoteHtml ?? ''}</html>`), sendNotificationEmail: vi.fn() }))
 vi.mock('@/lib/services/clinic-sender', () => ({ getClinicSenderIdentity: vi.fn() }))
 vi.mock('@/lib/services/pms/sync', () => ({ queueCommLogWriteBack: vi.fn() }))
 

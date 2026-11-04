@@ -49,7 +49,7 @@ vi.mock('@/lib/services/clinic-sender', () => ({
 // The rest of actions.ts's import graph — none of it runs here.
 vi.mock('@/lib/services/booking', () => ({ getSlotsForDay: vi.fn() }))
 vi.mock('@/lib/services/booking-confirmation', () => ({ sendBookingConfirmation: vi.fn() }))
-vi.mock('@/lib/email', () => ({ sendNotificationEmail: vi.fn() }))
+vi.mock('@/lib/email', () => ({ patientEmailShell: vi.fn((o: { title?: string; body?: string; cta?: { url: string; label: string }; footnoteHtml?: string }) => `<html>${o?.title ?? ''}${o?.body ?? ''}${o?.cta ? `<a href="${o.cta.url}">${o.cta.label}</a>` : ''}${o?.footnoteHtml ?? ''}</html>`), sendNotificationEmail: vi.fn() }))
 vi.mock('@/lib/services/pms/sync', () => ({ queueCommLogWriteBack: vi.fn() }))
 vi.mock('@/lib/db', () => ({ db: { select: () => ({ from: () => ({ where: () => ({ limit: async () => [] }) }) }) } }))
 vi.mock('@/lib/db/schema/platform', () => ({ clinicProfile: 'clinic_profile' }))

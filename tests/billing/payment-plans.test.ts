@@ -105,6 +105,7 @@ const { deliverMock, canPayMock } = vi.hoisted(() => ({
   canPayMock: vi.fn(async () => true),
 }))
 vi.mock('@/lib/email', () => ({
+  patientEmailShell: vi.fn((o: { title?: string; body?: string; cta?: { url: string; label: string }; footnoteHtml?: string }) => `<html>${o?.title ?? ''}${o?.body ?? ''}${o?.cta ? `<a href="${o.cta.url}">${o.cta.label}</a>` : ''}${o?.footnoteHtml ?? ''}</html>`),
   deliver: deliverMock,
   sendNotificationEmail: vi.fn(async () => {}),
   // Captures its options so a test can read the rendered intro/button.
@@ -148,7 +149,7 @@ import {
   finalizePlanSetup,
 } from '@/lib/services/payment-plans'
 import { notifyOrgMembers } from '@/lib/services/notifications'
-import { authEmailShell } from '@/lib/email'
+import { patientEmailShell } from '@/lib/email'
 
 const NOW = new Date('2026-07-02T15:00:00Z')
 
@@ -382,7 +383,7 @@ function queueDecline(plan: Record<string, unknown>, patient: unknown[] = [{ fir
   paymentIntentCreateMock.mockRejectedValueOnce(new Error('card_declined'))
 }
 const staffBody = () => String((vi.mocked(notifyOrgMembers).mock.calls.at(-1)![1] as { body: string }).body)
-const shellOpts = () => vi.mocked(authEmailShell).mock.calls.at(-1)![0] as Record<string, string>
+const shellOpts = () => vi.mocked(patientEmailShell).mock.calls.at(-1)![0] as unknown as { title: string; body: string; cta?: { url: string; label: string }; footnoteHtml?: string }
 const stampUpdates = () => state.updates.filter((u) => u.table === 'payment_plan' && 'cardUpdateSentAt' in u.values && u.values.cardUpdateSentAt instanceof Date)
 
 describe('a decline tells the patient — once per streak', () => {
@@ -405,12 +406,12 @@ describe('a decline tells the patient — once per streak', () => {
     expect(sent.from).toBe('Acme <a@x.com>')
     expect(sent.subject).toBe('Your $100.00 payment to Acme Dental didn’t go through')
     const opts = shellOpts()
-    expect(opts.buttonLabel).toBe('Update my card')
-    expect(opts.buttonUrl).toMatch(/\/i\/pl_x$/)
-    expect(opts.introHtml).toMatch(/^Hi Marcus — the \$100\.00 payment on your plan with Acme Dental didn’t go through\./)
+    expect(opts.cta?.label).toBe('Update my card')
+    expect(opts.cta?.url).toMatch(/\/i\/pl_x$/)
+    expect(opts.body).toMatch(/^Hi Marcus — the \$100\.00 payment on your plan with Acme Dental didn’t go through\./)
     // 2026-07-05T15:00Z is Jul 5 in Chicago — the clinic's wall-clock, never the server's.
-    expect(opts.introHtml).toMatch(/We’ll try again on <strong>Jul 5, 2026<\/strong>/)
-    expect(opts.introHtml).not.toMatch(/paused/)
+    expect(opts.body).toMatch(/We’ll try again on <strong>Jul 5, 2026<\/strong>/)
+    expect(opts.body).not.toMatch(/paused/)
 
     // The stamp — set only after the send, org-scoped (tests/tenant-scoping pins the clause).
     expect(stampUpdates()).toHaveLength(1)
@@ -437,8 +438,8 @@ describe('a decline tells the patient — once per streak', () => {
     const first = state.updates.find((u) => u.table === 'payment_plan')!
     expect(first.values).toMatchObject({ status: 'past_due', failedAttempts: 3, nextChargeAt: null })
     expect(deliverMock).toHaveBeenCalledTimes(1)
-    expect(shellOpts().introHtml).toMatch(/We’ve paused the plan for now/)
-    expect(shellOpts().introHtml).not.toMatch(/try again/)
+    expect(shellOpts().body).toMatch(/We’ve paused the plan for now/)
+    expect(shellOpts().body).not.toMatch(/try again/)
     expect(staffBody()).toBe('We’ve stopped retrying — reach out to the patient for a new card. We emailed Marcus a link to update their card.')
   })
 
@@ -456,8 +457,8 @@ describe('a decline tells the patient — once per streak', () => {
     queueDecline(STREAK_PLAN, [{ firstName: 'Mar<b>cus', email: 'marcus@x.com' }])
 
     await runDuePlanCharges({ now: NOW })
-    expect(shellOpts().introHtml).toContain('Hi Mar&lt;b&gt;cus')
-    expect(shellOpts().introHtml).not.toContain('<b>')
+    expect(shellOpts().body).toContain('Hi Mar&lt;b&gt;cus')
+    expect(shellOpts().body).not.toContain('<b>')
   })
 
   it('a patient with no email is simply not told (staff still hear, without the claim)', async () => {

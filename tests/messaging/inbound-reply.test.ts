@@ -22,6 +22,7 @@ vi.mock('@/lib/services/patient-messaging', () => ({
   recordInboundMessage: (...a: unknown[]) => recordMock(...(a as [])),
 }))
 vi.mock('@/lib/email', () => ({
+  patientEmailShell: vi.fn((o: { title?: string; body?: string; cta?: { url: string; label: string }; footnoteHtml?: string }) => `<html>${o?.title ?? ''}${o?.body ?? ''}${o?.cta ? `<a href="${o.cta.url}">${o.cta.label}</a>` : ''}${o?.footnoteHtml ?? ''}</html>`),
   sendNotificationEmail: (...a: unknown[]) => sendMock(...(a as [])),
 }))
 vi.mock('@/lib/services/gsc', () => ({

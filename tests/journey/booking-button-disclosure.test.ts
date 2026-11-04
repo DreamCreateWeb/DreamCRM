@@ -44,7 +44,7 @@ describe('the booking-button disclosure', () => {
       expect(BOOKING_BUTTON_CAPABILITIES, `'${c}' sends through the campaign protocol`).toContain(c)
     }
     // ...and the inquiry reply, which appends its own button in the shell.
-    expect(src).toContain("buttonLabel: 'Book a time'")
+    expect(src).toContain("label: 'Book a time'")
     expect(BOOKING_BUTTON_CAPABILITIES).toContain('inquiry_response')
   })
 

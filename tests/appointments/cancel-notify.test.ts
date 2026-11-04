@@ -71,6 +71,7 @@ const { sendCancellationMock, sendNotificationMock, deliverMock } = vi.hoisted((
   deliverMock: vi.fn(async () => undefined),
 }))
 vi.mock('@/lib/email', () => ({
+  patientEmailShell: vi.fn((o: { title?: string; body?: string; cta?: { url: string; label: string }; footnoteHtml?: string }) => `<html>${o?.title ?? ''}${o?.body ?? ''}${o?.cta ? `<a href="${o.cta.url}">${o.cta.label}</a>` : ''}${o?.footnoteHtml ?? ''}</html>`),
   sendCancellationConfirmation: sendCancellationMock,
   sendNotificationEmail: sendNotificationMock,
   deliver: deliverMock,

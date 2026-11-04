@@ -43,6 +43,7 @@ vi.mock('drizzle-orm', () => ({
 vi.mock('@/lib/db/schema/auth', () => ({ organization: { id: 'id', slug: 'slug' } }))
 
 vi.mock('@/lib/email', () => ({
+  patientEmailShell: vi.fn((o: { title?: string; body?: string; cta?: { url: string; label: string }; footnoteHtml?: string }) => `<html>${o?.title ?? ''}${o?.body ?? ''}${o?.cta ? `<a href="${o.cta.url}">${o.cta.label}</a>` : ''}${o?.footnoteHtml ?? ''}</html>`),
   sendIntakeRequestEmail: vi.fn(async (to: string, data: Record<string, unknown>) => {
     state.sentEmails.push({ to, data })
   }),
