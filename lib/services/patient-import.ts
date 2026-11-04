@@ -446,6 +446,12 @@ export const EXPORT_HEADERS = [
  * data out" lock-in question. Active (non-archived) patients only.
  */
 export async function exportPatientsCsv(organizationId: string): Promise<string> {
+  return (await exportPatientsCsvWithCount(organizationId)).csv
+}
+
+/** The same CSV plus the row count — the access log records how many
+ *  patients left the building (ML-31). */
+export async function exportPatientsCsvWithCount(organizationId: string): Promise<{ csv: string; rows: number }> {
   const rows = await db
     .select({
       firstName: schema.patient.firstName,
@@ -487,5 +493,5 @@ export async function exportPatientsCsv(organizationId: string): Promise<string>
     )
   }
   // Trailing newline so the file ends cleanly.
-  return lines.join('\r\n') + '\r\n'
+  return { csv: lines.join('\r\n') + '\r\n', rows: rows.length }
 }

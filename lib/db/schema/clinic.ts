@@ -163,6 +163,28 @@ export const patientNote = pgTable(
   (t) => [index('patient_note_patient_created_idx').on(t.patientId, t.createdAt)],
 )
 
+// Chart access log (ML-31): who opened which patient record, who exported,
+// merged or printed. The practice's OWN record of access — best-effort
+// writes, org-scoped reads. patient_id is null for an export (it covers the
+// whole list). Not a compliance claim; just the answer to "who looked?".
+export const patientAccessLog = pgTable(
+  'patient_access_log',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id').notNull().references(() => organization.id, { onDelete: 'cascade' }),
+    patientId: text('patient_id'),
+    userId: text('user_id').notNull(),
+    // 'view' | 'export' | 'merge' | 'print'
+    action: text('action').notNull(),
+    detail: jsonb('detail'),
+    at: timestamp('at').notNull().defaultNow(),
+  },
+  (t) => [
+    index('patient_access_log_patient_at_idx').on(t.organizationId, t.patientId, t.at.desc()),
+    index('patient_access_log_user_at_idx').on(t.organizationId, t.userId, t.at.desc()),
+  ],
+)
+
 // Files attached to a patient (referral letters, x-ray/photo exports, signed
 // PDFs, insurance cards). Stored in S3; the row keeps the public URL + metadata.
 // CRM-side document storage, NOT the clinical imaging system. Soft-deleted so a

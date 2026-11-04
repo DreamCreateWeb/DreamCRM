@@ -28,6 +28,8 @@ import TagsPanel from './tags-panel'
 import DocumentsPanel from './documents-panel'
 import FollowupsPanel from './followups-panel'
 import MergeDuplicate from './merge-duplicate'
+import ConsentCard from './consent-card'
+import type { PatientConsentView } from '@/lib/types/patient-consent'
 import LoyaltyPanel, { type LoyaltyPanelData } from './loyalty-panel'
 import InsurancePanel, { type InsurancePanelData } from './insurance-panel'
 import { STATUS_LABEL as INSURANCE_STATUS_LABEL, STATUS_TONE as INSURANCE_STATUS_TONE, type EligibilityStatus } from '@/lib/insurance-eligibility'
@@ -143,6 +145,8 @@ export default function PatientDetail({
   insurance = null,
   timeZone = 'America/New_York',
   lapsedMonths = LAPSED_DEFAULT_MONTHS,
+  consent = null,
+  whoLooked = '',
 }: {
   header: PatientHeader
   timeline: TimelineEvent[]
@@ -171,6 +175,10 @@ export default function PatientDetail({
   /** The clinic's 💤 threshold in months (Settings → Practice) — the nudge and
    *  the legend say THIS number, never a hard-coded one. */
   lapsedMonths?: number
+  /** The Consent card's read; null hides the card (tests, legacy callers). */
+  consent?: PatientConsentView | null
+  /** "Opened by Dana today, Priya yesterday" — owner/admin only; '' hides it. */
+  whoLooked?: string
 }) {
   // Timeline filter lives in the URL (?tab=) so a refresh, a shared link, or
   // a back-button return lands on the same slice. Chip clicks update via
@@ -395,6 +403,7 @@ export default function PatientDetail({
           <FollowupsPanel patientId={header.id} initial={followups} staff={staff} />
           <TagsPanel patientId={header.id} initialTags={tags} catalog={tagCatalog} />
           <IdentityCard header={header} />
+          {consent && <ConsentCard patientId={header.id} consent={consent} timeZone={timeZone} />}
           {insurance && <InsurancePanel patientId={header.id} data={insurance} timeZone={timeZone} />}
           {family.length > 0 && <FamilyCard family={family} />}
           {referral && (referral.referredBy || referral.referred.length > 0) && (
@@ -496,6 +505,9 @@ export default function PatientDetail({
               />
             )}
           </div>
+          {whoLooked && (
+            <p className="px-1 text-xs text-gray-500 dark:text-gray-400">{whoLooked}</p>
+          )}
         </aside>
       </div>
 

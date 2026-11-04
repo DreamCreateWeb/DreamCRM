@@ -19,6 +19,8 @@ import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
 import { getClinicCadence } from '@/lib/services/clinic-cadence'
 import { LAPSED_DEFAULT_MONTHS } from '@/lib/dates'
 import { canUseInsuranceTool, recheckRequest } from '@/lib/insurance-eligibility'
+import { getPatientConsent } from '@/lib/services/patient-consent'
+import { listPatientAccess, recordPatientAccess, whoLookedLine } from '@/lib/services/patient-access-log'
 import PatientDetail from './patient-detail'
 
 interface PageProps {
@@ -115,6 +117,15 @@ export default async function PatientDetailPage({ params }: PageProps) {
       }
     : null
 
+  // The chart access log: this load is one "view" (platform admins in demo
+  // mode included, under their own user id). Best-effort — never fails the page.
+  await recordPatientAccess(ctx.organizationId, ctx.userId, 'view', id)
+  const consent = await getPatientConsent(ctx.organizationId, id).catch(() => null)
+  // "Opened by Dana today, Priya yesterday" — owner/admin only.
+  const whoLooked = canMerge
+    ? whoLookedLine(await listPatientAccess(ctx.organizationId, id, 30), timeZone)
+    : ''
+
   const counts = countTimeline(timeline)
   // The Intake Forms door (law 1): closed = no 'Send intake' anywhere on the record (the send would be refused).
   const intakeOpen = await getFeatureSwitchState(ctx.organizationId).then((s) => s.intake_forms).catch(() => true)
@@ -147,6 +158,8 @@ export default async function PatientDetailPage({ params }: PageProps) {
       insurance={insurance}
       timeZone={timeZone}
       lapsedMonths={lapsedMonths}
+      consent={consent}
+      whoLooked={whoLooked}
     />
   )
 }

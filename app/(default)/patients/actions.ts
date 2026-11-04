@@ -40,6 +40,9 @@ import {
 import type { FollowupKind, FollowupOutcome, SnoozePreset } from '@/lib/types/followups'
 import { listPatients } from '@/lib/services/patients'
 import { mergePatients } from '@/lib/services/patient-merge'
+import { recordPatientAccess } from '@/lib/services/patient-access-log'
+import { recordStaffConsentChange, type ConsentChannel } from '@/lib/services/sms-consent'
+import { isConsentSource } from '@/lib/sms-consent'
 import {
   createPatientView,
   deletePatientView,
@@ -288,8 +291,55 @@ export async function mergePatientsAction(
   }
   const res = await mergePatients(ctx.organizationId, survivorId, duplicateId, ctx.userId)
   if (!res.ok) return { ok: false, error: res.error ?? 'Could not merge.' }
+  await recordPatientAccess(ctx.organizationId, ctx.userId, 'merge', survivorId, { survivorId, duplicateId })
   revalidatePath('/patients')
   revalidatePath(`/patients/${survivorId}`)
+  return { ok: true }
+}
+
+// ---------- Consent (the record's Consent card) ----------
+
+/**
+ * Record a marketing-consent change on a patient's chart — a staff member
+ * writing down what the patient told them. Every write goes through the
+ * consent spine's writers (lib/services/sms-consent.ts); this action only
+ * validates, scopes to the org and keeps the optional note on the chart.
+ * Any clinic staff may record it (the front desk takes the call).
+ */
+export async function recordMarketingConsentAction(
+  patientId: string,
+  input: { channel: ConsentChannel; on: boolean; source: string; note?: string },
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const ctx = await requireTenant()
+  if (ctx.tenantType !== 'clinic') return { ok: false, error: 'Only clinic tenants can record consent' }
+  if (input.channel !== 'email' && input.channel !== 'sms') return { ok: false, error: 'Pick email or texts.' }
+  if (!isConsentSource(input.source)) return { ok: false, error: 'Pick where the consent came from.' }
+  if (!(await patientBelongsToOrg(ctx.organizationId, patientId))) return { ok: false, error: 'Patient not found.' }
+
+  const res = await recordStaffConsentChange(ctx.organizationId, patientId, {
+    channel: input.channel,
+    on: !!input.on,
+    source: input.source,
+  })
+  if (!res.ok) {
+    const error =
+      res.reason === 'no_number'
+        ? 'Add a mobile number to the record first.'
+        : res.reason === 'no_email'
+          ? 'Add an email address to the record first.'
+          : 'Could not record that. Try again.'
+    return { ok: false, error }
+  }
+  const note = input.note?.trim()
+  if (note) {
+    const what = `${input.channel === 'email' ? 'Marketing email' : 'Text'} consent ${input.on ? 'on' : 'off'} (${input.source})`
+    try {
+      await addPatientNote({ organizationId: ctx.organizationId, patientId, authorId: ctx.userId, body: `${what}: ${note}` })
+    } catch {
+      // The consent is recorded; a note that did not save is not worth failing it.
+    }
+  }
+  revalidatePath(`/patients/${patientId}`)
   return { ok: true }
 }
 
