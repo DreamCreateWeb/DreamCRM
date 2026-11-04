@@ -3,10 +3,10 @@ import type { BlogPost } from '@/lib/db/schema/clinic'
 import type { ClinicStaff, BlogFaqItem } from '@/lib/types/clinic-content'
 import { sanitizeBlogHtml } from '@/lib/blog-sanitize'
 import { readingTimeMinutes } from '@/lib/utils'
-import { readableInk, brandFill } from '@/lib/clinic-site-theme'
+import { brandFill } from '@/lib/clinic-site-theme'
 import ScrollReveal from './scroll-reveal'
 import ClosingCTA from './closing-cta'
-import { SITE_INK as INK, SITE_INK_MUTED as INK_MUTED, SITE_BORDER as BORDER } from '@/components/clinic-site/tokens'
+import { SITE_INK as INK, SITE_INK_MUTED as INK_MUTED, SITE_BORDER as BORDER, SITE_HEADING } from '@/components/clinic-site/tokens'
 import { brandTint } from '@/lib/brand-tint'
 import SiteImage from './site-image'
 
@@ -62,7 +62,7 @@ export default function BlogArticle({ post, author, reviewer, related, brand, ba
   const bookHref = selfBooking ? `${basePath}/book` : `${basePath}#contact`
   // Contrast-safe text fill for brand-colored prose headings/links/eyebrows on
   // the warm ground (raw brand stays on backgrounds/avatar chips/icon strokes).
-  const headingInk = readableInk(brand)
+  const headingInk = SITE_HEADING
   const proseStyle = { ['--tw-prose-links' as keyof CSSProperties]: headingInk } as CSSProperties
   const readMin = readingTimeMinutes(clean)
 

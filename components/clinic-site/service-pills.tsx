@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useRef } from 'react'
-import { readableInk } from '@/lib/clinic-site-theme'
+import { SITE_HEADING } from '@/components/clinic-site/tokens'
 import { brandTint } from '@/lib/brand-tint'
 
 interface Pill {
@@ -30,7 +30,7 @@ interface Props {
 export default function ServicePills({ pills, brand, ink, href }: Props) {
   const trackRef = useRef<HTMLUListElement | null>(null)
   // Contrast-safe glyph ink for the arrow controls (raw pale brands fail on white).
-  const accentInk = readableInk(brand)
+  const accentInk = SITE_HEADING
 
   const scrollBy = useCallback((dir: 1 | -1) => {
     const el = trackRef.current
