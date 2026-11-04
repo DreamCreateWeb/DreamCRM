@@ -15,7 +15,7 @@ import { join } from 'node:path'
  * integrator re-sequences them on the merged schema.
  */
 const DIR = join(process.cwd(), 'lib/db/migrations')
-const TAG = '0183_notification_email_retry'
+const TAG = '0183_notification_retry_website_actor_intake_rules_lead_callback'
 
 describe(TAG, () => {
   const sql = readFileSync(join(DIR, `${TAG}.sql`), 'utf8')

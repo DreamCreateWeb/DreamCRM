@@ -5,8 +5,8 @@ import { join } from 'node:path'
 /** Migration 0184 — who made a website edit (2026-11-03). */
 const DIR = join(process.cwd(), 'lib/db/migrations')
 
-describe('0184_website_history_actor', () => {
-  const sql = readFileSync(join(DIR, '0184_website_history_actor.sql'), 'utf8')
+describe('0183_notification_retry_website_actor_intake_rules_lead_callback', () => {
+  const sql = readFileSync(join(DIR, '0183_notification_retry_website_actor_intake_rules_lead_callback.sql'), 'utf8')
 
   it('adds a nullable actor_user_id that set-nulls with the user', () => {
     expect(sql).toMatch(/ALTER TABLE "website_edit_history" ADD COLUMN "actor_user_id" text;/)
@@ -17,7 +17,7 @@ describe('0184_website_history_actor', () => {
 
   it('is registered in the journal under its tag, with a snapshot', () => {
     const journal = JSON.parse(readFileSync(join(DIR, 'meta/_journal.json'), 'utf8')) as { entries: Array<{ tag: string }> }
-    expect(journal.entries.some((e) => e.tag === '0184_website_history_actor')).toBe(true)
+    expect(journal.entries.some((e) => e.tag === '0183_notification_retry_website_actor_intake_rules_lead_callback')).toBe(true)
     expect(readFileSync(join(DIR, 'meta/0184_snapshot.json'), 'utf8')).toContain('actor_user_id')
   })
 })

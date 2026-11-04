@@ -1,6 +1,6 @@
 {
-  "id": "7253f2d4-adc4-4669-94bf-bd9b1e5f79de",
-  "prevId": "641b5ae2-dfdc-42ad-9eb5-04c3f94d63fc",
+  "id": "59f26fea-9879-4b02-b670-966ec96233a9",
+  "prevId": "120eee36-ea2b-442c-a5bb-73ea375dc72d",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -3478,6 +3478,18 @@
           "notNull": true,
           "default": "'all'"
         },
+        "appointment_type_ids": {
+          "name": "appointment_type_ids",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "refresh_months": {
+          "name": "refresh_months",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
         "translations": {
           "name": "translations",
           "type": "jsonb",
@@ -4848,6 +4860,24 @@
         "archived_reason": {
           "name": "archived_reason",
           "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "call_back_at": {
+          "name": "call_back_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "notes": {
+          "name": "notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "followed_up_at": {
+          "name": "followed_up_at",
+          "type": "timestamp",
           "primaryKey": false,
           "notNull": false
         },
@@ -6452,6 +6482,25 @@
           "primaryKey": false,
           "notNull": false
         },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'generic'"
+        },
+        "snoozed_until": {
+          "name": "snoozed_until",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "outcome": {
+          "name": "outcome",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp",
@@ -6715,6 +6764,33 @@
           "columns": [
             {
               "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "sent_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "patient_message_org_patient_sent_idx": {
+          "name": "patient_message_org_patient_sent_idx",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "patient_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -7700,6 +7776,12 @@
         "last_error": {
           "name": "last_error",
           "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "card_update_sent_at": {
+          "name": "card_update_sent_at",
+          "type": "timestamp",
           "primaryKey": false,
           "notNull": false
         },
@@ -15202,6 +15284,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "actor_user_id": {
+          "name": "actor_user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -15245,6 +15333,19 @@
             "id"
           ],
           "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "website_edit_history_actor_user_id_user_id_fk": {
+          "name": "website_edit_history_actor_user_id_user_id_fk",
+          "tableFrom": "website_edit_history",
+          "tableTo": "user",
+          "columnsFrom": [
+            "actor_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
           "onUpdate": "no action"
         }
       },

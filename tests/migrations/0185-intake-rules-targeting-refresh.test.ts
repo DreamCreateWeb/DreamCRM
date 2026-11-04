@@ -12,7 +12,7 @@ import { join } from 'node:path'
  * there is no "acknowledged" stamp by design.
  */
 const DIR = join(process.cwd(), 'lib/db/migrations')
-const TAG = '0185_intake_rules_targeting_refresh'
+const TAG = '0183_notification_retry_website_actor_intake_rules_lead_callback'
 
 describe(TAG, () => {
   const sql = readFileSync(join(DIR, `${TAG}.sql`), 'utf8')
@@ -31,7 +31,7 @@ describe(TAG, () => {
     const at = journal.entries.findIndex((e) => e.tag === TAG)
     expect(at).toBeGreaterThan(0)
     const entry = journal.entries[at]!
-    expect(entry.idx).toBe(185)
+    expect(entry.idx).toBe(183)
     const prev = journal.entries[at - 1]!
     expect(entry.when).toBeGreaterThan(prev.when)
     expect(entry.idx).toBeGreaterThan(prev.idx)
