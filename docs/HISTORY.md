@@ -6172,6 +6172,64 @@ template with no bar, or a bar hidden above `sm`, measures 0 and nothing
 moves. The right-aligned pairs on established and hometeam are
 deliberately not tagged — the bottom-left floaters never meet them.
 
+## 2026-11-09 — The deep dev cycle, part 8: four feature slices (group 9)
+
+The two slices whose implementers died mid-task (ML-28, ML-29) finished
+from their WIP by fresh implementers on the part-7 tree, plus the first
+two of the never-started list. No migration. Integrated by replaying each
+slice's own commits; ML-28 and ML-29 both extend the registry maps at the
+same spots (lib/autonomy.ts, proposals.ts, proposal-generators.ts, the
+Dream Team loader, two journey tests) — resolved by hand keeping both.
+
+**ML-28 — aftercare the evening of, and "how are you feeling?" the day
+after.** `post_visit_care` flips to AUTO with its ledger writer: after 6 PM
+clinic-local (inside quiet hours) it emails the practice's own aftercare
+text for each visit completed today whose type carries aftercare (defaults
+ship for cleaning, filling, extraction, root canal — the per-type text IS the
+switch; clear it to turn it off); once per visit. `postop_checkin` (ask,
+grantable): the day after a completed extraction / root canal / implant, one
+"How are you feeling?" card; the executor sends through the clinic sender
+with the Messages inbox as reply-to and waits for daylight when the yes is
+the machine's. Visit types gain `aftercareInstructions` + `checkInAfter`.
+
+**ML-29 — one note per household; cadences follow the practice's setting;
+the rebook nudge.** `lib/marketing/household.ts` groups recall / reactivation
+recipients by shared inbox and sends ONE email naming everyone (every
+member keeps their own 'sent' row for the cap); `lib/recall-cadence.ts` is
+the one source for recallMonths / lapsedMonths (the hardcoded 6 / 9 are
+gone; the demo seeder follows the setting). `rebook_nudge` (grantable):
+a completed cleaning / checkup 7–21 clinic-local days old with nothing
+booked since gets one card per visit, one per patient; the yes sends the
+"Book a time" button and narrates once; the sweep expires the card once
+they book. The hygiene reappointment % is a real number (completed hygiene
+visits with a next visit booked within 14 days ÷ completed hygiene visits).
+
+**ML-49 — the portal tells the truth; a timed-out patient lands on the
+clinic's door.** The middleware sets a one-year `portal_clinic` cookie at the
+clinic's portal door; an unauthenticated `/patient/*` goes to
+`/site/<slug>/portal?expired=1` (or a generic `/portal` with no sign-up
+door), never to `/signin`. `portalVisitLabel` names every visit from the
+clinic's own types; the insurance card says "Verified <date> · plan" only
+once a recognised check exists; Records and Billing empty states carry a
+door; "within a business day" is gone (replies come during office hours);
+the family link requires the Messages switch. `empty-state-doors` now walks
+`app/(portal)` too.
+
+**ML-40 — the platform names a stuck clinic.** `clinicIsStuck` in
+`lib/platform-clinic-status.ts` (walled, past due, a trial with ≤2 days and
+no A1, no staff sign-in in 7 days); the Overview's "Needs a hand" band (8
+rows + "+N more"; honest when the sign-in read fails); the Clinics list
+swaps the plan badge / column / filter for standing chips (Trial, Live,
+Past due, Walled, Churned, Invite pending — `planTier` stays a column only);
+the clinic page gets First week, Support thread (a read-only peek) and
+Guardian note cards; the Guardian's traffic signal (`detectTrafficDrop`
+over `websiteHealthNotice`, no second threshold) rides the owner digest and
+the alert email; the audience lock holds (pinned).
+
+Follow-ups: a dismiss state for walled clinics on the band; a Guardian-only
+digest when prospecting is off; the portal cookie is set at the door, not at
+sign-in.
+
 ## 2026-11-09 — The deep dev cycle, part 7: seven feature slices (groups 7 + 8)
 
 Built on the part-6 tree while parts 4–6 waited for GitHub to come back
