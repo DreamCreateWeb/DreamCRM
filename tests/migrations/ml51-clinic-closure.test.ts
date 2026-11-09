@@ -9,7 +9,7 @@ import { join } from 'node:path'
  * index — and the migration touches nothing else.
  */
 const DIR = join(process.cwd(), 'lib/db/migrations')
-const file = readdirSync(DIR).find((f) => f.endsWith('_ml51_clinic_closure.sql'))!
+const file = readdirSync(DIR).find((f) => f.endsWith('_metric_snapshot_clinic_closure_email_wanted_at.sql'))!
 
 describe('ml51_clinic_closure', () => {
   const sql = readFileSync(join(DIR, file), 'utf8')
@@ -27,13 +27,14 @@ describe('ml51_clinic_closure', () => {
     expect(sql).toMatch(/CREATE INDEX "clinic_closure_org_starts_idx" ON "clinic_closure" USING btree \("organization_id","starts_on"\)/)
   })
 
-  it('touches no other table', () => {
-    expect(sql).not.toMatch(/DROP |UPDATE "/)
-    for (const m of Array.from(sql.matchAll(/ALTER TABLE "([a-z_]+)"/g))) expect(m[1]).toBe('clinic_closure')
+  it('drops or updates nothing of its own (the file is shared with other slices — 0188 regenerated on the merged schema)', () => {
+    const own = sql.split('--> statement-breakpoint').filter((st) => st.includes('"clinic_closure"'))
+    expect(own.length).toBeGreaterThan(0)
+    expect(own.join('\n')).not.toMatch(/DROP |UPDATE "/)
   })
 
   it('is registered in the journal', () => {
     const journal = JSON.parse(readFileSync(join(DIR, 'meta/_journal.json'), 'utf8')) as { entries: Array<{ tag: string }> }
-    expect(journal.entries.some((e) => e.tag.endsWith('_ml51_clinic_closure'))).toBe(true)
+    expect(journal.entries.some((e) => e.tag.endsWith('_metric_snapshot_clinic_closure_email_wanted_at'))).toBe(true)
   })
 })

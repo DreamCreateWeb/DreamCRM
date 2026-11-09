@@ -1,6 +1,5 @@
 import { sql } from 'drizzle-orm'
-import { pgTable, text, timestamp, integer, boolean, jsonb, uniqueIndex, index, primaryKey, numeric, serial } from 'drizzle-orm/pg-core'
-import { pgTable, text, timestamp, integer, boolean, jsonb, date, uniqueIndex, index, primaryKey } from 'drizzle-orm/pg-core'
+import { pgTable, text, timestamp, integer, boolean, jsonb, uniqueIndex, index, primaryKey, numeric, serial, date } from 'drizzle-orm/pg-core'
 import { organization, user } from './auth'
 import { clinicLocation } from './platform'
 import { FORMS_REMINDER_TEMPLATE } from '@/lib/types/reminders'

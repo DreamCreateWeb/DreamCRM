@@ -7,7 +7,7 @@ import { join } from 'node:path'
  * renumbers) and asserting only its own statements.
  */
 const DIR = join(process.cwd(), 'lib/db/migrations')
-const file = readdirSync(DIR).find((f) => f.endsWith('_ml38_metric_snapshot.sql'))!
+const file = readdirSync(DIR).find((f) => f.endsWith('_metric_snapshot_clinic_closure_email_wanted_at.sql'))!
 
 describe('ml38_metric_snapshot', () => {
   const sql = readFileSync(join(DIR, file), 'utf8')
@@ -29,12 +29,14 @@ describe('ml38_metric_snapshot', () => {
     expect(sql).toMatch(/CREATE INDEX "metric_snapshot_org_metric_bucket_idx" ON "metric_snapshot" USING btree \("organization_id","metric","bucket" DESC/)
   })
 
-  it('touches nothing else', () => {
-    expect(sql).not.toMatch(/DROP |ALTER TABLE "(?!metric_snapshot)/)
+  it('drops nothing of its own (the file is shared with other slices — 0188 regenerated on the merged schema)', () => {
+    const own = sql.split('--> statement-breakpoint').filter((st) => st.includes('"metric_snapshot"'))
+    expect(own.length).toBeGreaterThan(0)
+    expect(own.join('\n')).not.toMatch(/DROP /)
   })
 
   it('is registered in the journal', () => {
     const journal = JSON.parse(readFileSync(join(DIR, 'meta/_journal.json'), 'utf8')) as { entries: Array<{ tag: string }> }
-    expect(journal.entries.some((e) => e.tag.endsWith('_ml38_metric_snapshot'))).toBe(true)
+    expect(journal.entries.some((e) => e.tag.endsWith('_metric_snapshot_clinic_closure_email_wanted_at'))).toBe(true)
   })
 })

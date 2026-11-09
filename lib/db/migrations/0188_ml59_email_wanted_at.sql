@@ -1,1 +1,0 @@
-ALTER TABLE "email_account" ADD COLUMN "wanted_at" timestamp with time zone;
