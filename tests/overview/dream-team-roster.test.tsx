@@ -127,13 +127,15 @@ describe('PREVIEW lanes', () => {
     expect(screen.getByText('Ask happy patients for referrals')).toBeInTheDocument()
     // ML-35: the listing watch is the sixth released lane — shown to all.
     expect(screen.getByText('Watch your Google listing for changes')).toBeInTheDocument()
-    expect(screen.queryByText('Send a monthly patient newsletter')).not.toBeInTheDocument()
+    // ML-36 released the newsletter too; the membership rescue is still preview.
+    expect(screen.getByText('Send a monthly patient newsletter')).toBeInTheDocument()
+    expect(screen.queryByText('Rescue a failing membership payment')).not.toBeInTheDocument()
     unmount()
     render(
       <TeamRoster grantedCapabilities={new Set()} weeklyCounts={new Map()} waitingCapabilities={new Set()} showPreview />,
     )
-    // Still-preview lanes (the newsletter) appear only for platform admins.
-    expect(screen.getByText('Send a monthly patient newsletter')).toBeInTheDocument()
+    // Still-preview lanes (the membership rescue) appear only for platform admins.
+    expect(screen.getByText('Rescue a failing membership payment')).toBeInTheDocument()
   })
 })
 
