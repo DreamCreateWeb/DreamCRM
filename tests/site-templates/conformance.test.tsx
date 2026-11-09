@@ -11,6 +11,7 @@ import { PALETTE_VARS, type ClinicPalette } from '@/lib/clinic-site-theme'
 import { intakeStartHref } from '@/lib/clinic-site-helpers'
 import { FIXTURES } from '../fixtures/clinic-site-fixtures'
 import type { HomePageProps } from '@/lib/site-templates/page-props'
+import { SUBPAGE_KEYS, type SubpageKey } from '@/lib/site-templates/subpage-props'
 import type { ClinicSiteData } from '@/lib/services/clinic-site'
 
 /**
@@ -494,8 +495,121 @@ describe('subpage shells + shared heading components read the template heading t
 
 describe('the shared /about gallery (every design) paints alt through officePhotoAlt', () => {
   it('never renders an office photo with an empty alt', () => {
-    const src = read('app/site/[slug]/about/page.tsx')
+    const src = read('components/clinic-site/templates/modern/about.tsx')
     expect(src).toMatch(/officePhotoAlt\(/)
     expect(src).not.toMatch(/alt=\{p\.alt \?\? ''\}/)
+  })
+})
+
+// ─── ML-52: every subpage below Home wears the practice's chosen template ───
+// The shells (app/site/[slug]/*) own every read / SEO / gate and dispatch to
+// `siteTemplate.pages.subpages.<key>`; a template either owns a body or shares
+// a sibling's BY REFERENCE (declared in `subpageSource`) — never a silent
+// fallback to Modern's.
+const SHELL_FOR_KEY: Record<SubpageKey, string> = {
+  services: 'services/page.tsx',
+  servicePage: 'services/[serviceSlug]/page.tsx',
+  newPatients: 'new-patients/page.tsx',
+  insurance: 'insurance/page.tsx',
+  financing: 'payment-financing/page.tsx',
+  plans: 'dental-plans/page.tsx',
+  about: 'about/page.tsx',
+  team: 'team/page.tsx',
+  careers: 'careers/page.tsx',
+  faq: 'faq/page.tsx',
+  blogIndex: 'blog/page.tsx',
+  blogPost: 'blog/[postSlug]/page.tsx',
+}
+
+describe('subpage shells dispatch through the registry (no per-page template branching)', () => {
+  it('the shell map covers every subpage key', () => {
+    expect(Object.keys(SHELL_FOR_KEY).sort()).toEqual([...SUBPAGE_KEYS].sort())
+  })
+  it.each(SUBPAGE_KEYS.map((k) => [k] as const))('%s: its shell renders the registry body', (key) => {
+    const src = read(`app/site/[slug]/${SHELL_FOR_KEY[key]}`)
+    expect(src).toContain(`siteTemplate.pages.subpages.${key}`)
+    expect(src, 'a shell must not import a template body directly').not.toMatch(/components\/clinic-site\/templates\//)
+    expect(src, 'a shell must not branch on the template id').not.toMatch(/template(?:Id)?\s*===\s*'/)
+  })
+  it('the shared blog/shop/membership chrome wears the active template, not Modern', () => {
+    const src = read('components/clinic-site/blog-chrome.tsx')
+    expect(src).toMatch(/resolveActiveSiteTemplate/)
+    expect(src).not.toMatch(/from '\.\/site-(header|footer|mobile-actions)'/)
+  })
+})
+
+describe.each(TEMPLATES.map((t) => [t.id, t] as const))('subpage renderers [%s]', (tid, def) => {
+  it('carries a renderer for every subpage key', () => {
+    for (const key of SUBPAGE_KEYS) {
+      expect(typeof def.pages.subpages[key], `${tid}.${key}`).toBe('function')
+    }
+  })
+
+  it('declares an explicit provenance for every key (own, or a registered sibling it shares by reference)', () => {
+    const ids = new Set(TEMPLATES.map((t) => t.id as string))
+    for (const key of SUBPAGE_KEYS) {
+      const src = def.subpageSource[key]
+      expect(src, `${tid}.${key} has no declared source`).toBeTruthy()
+      if (src === 'self') continue
+      expect(ids.has(src), `${tid}.${key} shares from unknown template ${src}`).toBe(true)
+      expect(src, `${tid}.${key} shares from itself`).not.toBe(tid)
+      const sibling = TEMPLATES.find((t) => t.id === src)!
+      // One hop only: the source must OWN the body (no chains, no cycles).
+      expect(sibling.subpageSource[key], `${tid}.${key} → ${src} is not an owner`).toBe('self')
+      expect(def.pages.subpages[key], `${tid}.${key} claims ${src}'s body but is a different renderer`).toBe(
+        sibling.pages.subpages[key],
+      )
+    }
+  })
+
+  it('a key declared "self" is not the same renderer another template owns', () => {
+    for (const key of SUBPAGE_KEYS) {
+      if (def.subpageSource[key] !== 'self') continue
+      for (const other of TEMPLATES) {
+        if (other.id === tid || other.subpageSource[key] !== 'self') continue
+        expect(def.pages.subpages[key], `${tid}.${key} is ${other.id}'s renderer but claims ownership`).not.toBe(
+          other.pages.subpages[key],
+        )
+      }
+    }
+  })
+
+  it('renders the Services body through its own renderer: one h1, the book CTA in its voice, a tappable phone', () => {
+    const data = FIXTURES.rich()
+    const Body = def.pages.subpages.services
+    const { container } = render(
+      <Body
+        copy={(_k: string, fallback: string) => fallback}
+        headingInk="var(--c-heading, #1C1A17)"
+        name={data.profile.displayName as string}
+        bookHref="/site/fixture-dental/book"
+        brand="#1D4ED8"
+        bookLabel={def.bookLabel}
+        profile={data.profile}
+        resolved={[]}
+        core={[]}
+        basePath="/site/fixture-dental"
+        special={[]}
+      />,
+    )
+    expect(container.querySelectorAll('h1').length).toBe(1)
+    expect(container.textContent).toContain(def.bookLabel)
+    if (data.profile.phone) expect(container.querySelector('a[href^="tel:"]')).toBeTruthy()
+    cleanup()
+  })
+})
+
+describe('every subpage body file honors the source rules', () => {
+  const BODIES = SITE_TEMPLATE_MANIFEST.base.filter((f) => f.includes('/templates/'))
+  it('the manifest lists a body file per subpage key', () => {
+    expect(BODIES.length).toBeGreaterThanOrEqual(SUBPAGE_KEYS.length - 1) // blogPost re-exports the shared article
+  })
+  it.each(BODIES)('%s: no readableInk heading fill, legibility floor, pure', (rel) => {
+    const src = read(rel)
+    expect(src).not.toMatch(/readableInk\(/)
+    expect(src).not.toMatch(/text-\[(?:[0-9]|1[01])px\]/)
+    expect(src).not.toMatch(/^import (?!type )[^\n]*from '@\/lib\/db/m)
+    expect(src).not.toMatch(/^import (?!type )[^\n]*from '@\/lib\/services\//m)
+    expect(src).not.toMatch(/import 'server-only'/)
   })
 })

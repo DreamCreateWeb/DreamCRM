@@ -224,7 +224,7 @@ function paintsRawBrand(line: string): boolean {
  * Each exemption names the reason, so the list cannot quietly grow.
  */
 const ALLOWED: Record<string, string> = {
-  'app/site/[slug]/careers/page.tsx':
+  'components/clinic-site/templates/modern/careers.tsx':
     'aria-hidden left accent bar on a job card — decorative, carries no text',
   'app/site/[slug]/careers/[jobSlug]/page.tsx':
     'aria-hidden left accent bar on a related-job card — decorative, carries no text',
