@@ -37,8 +37,8 @@ function emailToLine(
   author: string | null,
 ): string | null {
   // The inquiry's own name + the second touch on it (ML-22) both write to
-  // one person — the person the card quotes.
-  if (capability === 'inquiry_response' || capability === 'inquiry_followup') return author
+  // one person — the person the card quotes; so does the rebook nudge (ML-29).
+  if (capability === 'inquiry_response' || capability === 'inquiry_followup' || capability === 'rebook_nudge') return author
   const n = typeof payload.recipientCount === 'number' ? payload.recipientCount : null
   return n != null ? `~${n} patients` : 'your recall list'
 }
@@ -223,6 +223,7 @@ export async function loadApprovalInbox(
     } else if (
       p.capability === 'inquiry_response' ||
       p.capability === 'inquiry_followup' ||
+      p.capability === 'rebook_nudge' ||
       p.capability === 'outreach_campaign' ||
       p.capability === 'schedule_gap'
     ) {
@@ -276,7 +277,11 @@ export async function loadApprovalInbox(
           // the first time, the call-back day, the desk's notes.
           p.capability === 'inquiry_followup' && typeof payload.leadId === 'string'
           ? { href: `/leads?lead=${payload.leadId}`, label: 'Open the inquiry' }
-          : null
+          : // ML-29: the nudge's door is the patient's record — the phone
+            // number and the booking drawer, for the times a call beats a note.
+            p.capability === 'rebook_nudge' && typeof p.patientId === 'string'
+            ? { href: `/patients/${p.patientId}`, label: 'Open their record' }
+            : null
     return {
       openHref,
       id: p.id,

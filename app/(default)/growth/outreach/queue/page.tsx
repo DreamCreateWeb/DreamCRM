@@ -2,7 +2,8 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { requireTenant } from '@/lib/auth/context'
 import { resolvePatientAudience } from '@/lib/services/marketing'
-import { OUTREACH_TIERS, ensureOutreachTierAudiences } from '@/lib/services/outreach-tiers'
+import { outreachTiersFor, ensureOutreachTierAudiences } from '@/lib/services/outreach-tiers'
+import { getClinicCadence } from '@/lib/services/clinic-cadence'
 import { listTemplates } from '@/lib/services/marketing-templates'
 import { PageHeader } from '@/components/ui/page-header'
 import { ActionButton } from '@/components/ui/action-button'
@@ -52,6 +53,10 @@ export default async function OutreachQueuePage({ searchParams }: { searchParams
   if (ctx.tenantType === 'platform') redirect('/marketing/pipeline')
 
   const params = await searchParams
+  // The tiers' sentences carry THIS practice's recall + lapsed numbers
+  // (lib/recall-cadence.ts — one source; the queries already honoured them).
+  const cadence = await getClinicCadence(ctx.organizationId)
+  const OUTREACH_TIERS = outreachTiersFor(cadence)
   const selectedTier = params.tier && OUTREACH_TIERS.some((t) => t.key === params.tier) ? params.tier : null
   const tiersToShow = selectedTier ? OUTREACH_TIERS.filter((t) => t.key === selectedTier) : OUTREACH_TIERS
 
@@ -107,8 +112,8 @@ export default async function OutreachQueuePage({ searchParams }: { searchParams
           <EncodingLegend
             label="What the tiers mean"
             pills={[
-              { tone: 'warn', label: 'Recall due', meaning: 'Last cleaning over 6 months ago, no future booking' },
-              { tone: 'urgent', label: 'Lapsed', meaning: 'The cold ones — well past their recall window, no future booking' },
+              { tone: 'warn', label: 'Recall due', meaning: OUTREACH_TIERS[0].description },
+              { tone: 'urgent', label: 'Lapsed', meaning: OUTREACH_TIERS[1].description },
               { tone: 'ok', label: 'New patient', meaning: 'Joined in the past 60 days — first-visit follow-up' },
               { tone: 'special', label: 'Birthday', meaning: 'Celebrating a birthday this calendar month' },
               { tone: 'neutral', label: 'Opted out', meaning: 'Opted out of marketing email — appointment reminders and receipts still go out' },

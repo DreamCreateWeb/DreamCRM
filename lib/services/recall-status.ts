@@ -2,6 +2,7 @@ import 'server-only'
 import { sql, gte, lt, lte, eq, ne, notInArray, type SQL } from 'drizzle-orm'
 import { schema } from '@/lib/db'
 import { BACKFILL_PATIENT_SOURCES } from '@/lib/patient-acquisition'
+import { RECALL_DEFAULT_MONTHS, RECALL_OVERDUE_GRACE_MONTHS, RECALL_MONTH_DAYS } from '@/lib/recall-cadence'
 
 /**
  * Patient recall status derivation. Shared between the patients list and the
@@ -14,13 +15,12 @@ import { BACKFILL_PATIENT_SOURCES } from '@/lib/patient-acquisition'
 
 export type RecallStatus = 'due' | 'overdue' | 'scheduled' | 'na'
 
-/** Platform-wide fallback recall cadence (months) when neither the patient nor
- *  the clinic has set one and there's no PMS recall date. Matches the old
- *  6-month "due" heuristic. */
-export const RECALL_DEFAULT_MONTHS = 6
-/** A patient is "overdue" once they pass their recall interval + this grace. */
-export const RECALL_OVERDUE_GRACE_MONTHS = 3
-const MONTH_MS = 30 * 86_400_000
+/** The default cadence + the grace period live in the pure, client-safe
+ *  lib/recall-cadence.ts (ML-29 — ONE source for every number that follows
+ *  the practice's setting); re-exported here so existing importers keep
+ *  reading them from the derivation's home. */
+export { RECALL_DEFAULT_MONTHS, RECALL_OVERDUE_GRACE_MONTHS }
+const MONTH_MS = RECALL_MONTH_DAYS * 86_400_000
 
 interface DeriveOpts {
   /** PMS-synced next-due date (if any). When present, drives 'due'/'overdue'. */

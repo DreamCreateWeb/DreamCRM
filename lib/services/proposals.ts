@@ -11,6 +11,7 @@ import { recordAction, recordEngineFailure } from '@/lib/services/action-ledger'
 import { executePatientReply } from '@/lib/services/proposal-executors/patient-reply'
 import { executeFeedbackReply } from '@/lib/services/proposal-executors/feedback-reply'
 import { executeInquiryFollowup } from '@/lib/services/proposal-executors/inquiry-followup'
+import { executeRebookNudge } from '@/lib/services/proposal-executors/rebook-nudge'
 import { resolveTrialState } from '@/lib/trial'
 import { stagesOnRunway } from '@/lib/dream-team-runway'
 
@@ -1189,6 +1190,8 @@ async function executeProposal(
       return executeContentPlan(p, payload, saidYes)
     case 'schedule_gap':
       return executeScheduleGap(p, payload, saidYes)
+    case 'rebook_nudge':
+      return executeRebookNudge(p, payload, saidYes)
     case 'gbp_website_fix':
       return executeGbpWebsiteFix(p, payload, saidYes)
     case 'setup_hours':
@@ -1215,6 +1218,7 @@ function demoLedgerSummary(p: typeof schema.proposal.$inferSelect, saidYes: stri
     case 'outreach_campaign': return `Sent the recall campaign ${saidYes}`
     case 'content_plan': return `Lined up a month of posts and articles ${saidYes}`
     case 'schedule_gap': return `Invited patients in for the week’s open times ${saidYes}`
+    case 'rebook_nudge': return `Nudged a patient to book their next visit ${saidYes}`
     case 'gbp_website_fix': return `Pointed your Google listing at your website ${saidYes}`
     case 'setup_hours': return `Confirmed your office hours ${saidYes}`
     case 'setup_chairs': return `Noted how many chairs you run ${saidYes}`

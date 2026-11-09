@@ -161,7 +161,8 @@ export const CAPABILITIES: readonly CapabilityDef[] = [
   // it cannot carry out — grantable must stay a subset of executable).
   { key: 'inquiry_followup', label: 'Follow up on unanswered inquiries', defaultTrust: 'ask' },
   { key: 'postop_checkin', label: 'Check in after a procedure', defaultTrust: 'ask' },
-  { key: 'rebook_nudge', label: 'Nudge cancelled visits to rebook', defaultTrust: 'ask' },
+  // ML-29: the patient who left the chair without the next visit booked.
+  { key: 'rebook_nudge', label: 'Nudge patients to book their next visit', defaultTrust: 'ask' },
   { key: 'referral_ask', label: 'Ask happy patients for referrals', defaultTrust: 'ask' },
   // A newsletter is four weeks of the practice's voice in every inbox at
   // once — ask-first and not grantable for now (the deep-sleep ruling
@@ -255,7 +256,6 @@ export const PREVIEW_CAPABILITIES: readonly string[] = [
 // generator + executor shipped together); `inquiry_followup` the second
 // (ML-22, 2026-11-03 — the second touch on an inquiry that went quiet).
   'postop_checkin',
-  'rebook_nudge',
   'referral_ask',
   'newsletter',
   'post_visit_care',
@@ -302,6 +302,9 @@ export const GRANTABLE_CAPABILITIES = [
   // ML-22: the second touch on a quiet inquiry — its executor sends through
   // the first touch's own path and waits for daylight like its siblings.
   'inquiry_followup',
+  // ML-29: the rebook nudge — its executor sends through the inquiry shell
+  // with the disclosed booking button; same daylight rule.
+  'rebook_nudge',
 ] as const
 
 export function isGrantable(key: string): boolean {
