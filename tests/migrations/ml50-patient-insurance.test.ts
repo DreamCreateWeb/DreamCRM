@@ -8,7 +8,7 @@ import { join } from 'node:path'
  * backfill of every patient's flat primary columns into rank 'primary'.
  */
 const DIR = join(process.cwd(), 'lib/db/migrations')
-const file = readdirSync(DIR).find((f) => f.endsWith('_ml50_patient_insurance.sql'))!
+const file = readdirSync(DIR).find((f) => f.endsWith('_partner_share_code_patient_insurance.sql'))!
 
 describe('ml50_patient_insurance', () => {
   const sql = readFileSync(join(DIR, file), 'utf8')
@@ -39,6 +39,6 @@ describe('ml50_patient_insurance', () => {
 
   it('is registered in the journal', () => {
     const journal = JSON.parse(readFileSync(join(DIR, 'meta/_journal.json'), 'utf8')) as { entries: Array<{ tag: string }> }
-    expect(journal.entries.some((e) => e.tag.endsWith('_ml50_patient_insurance'))).toBe(true)
+    expect(journal.entries.some((e) => e.tag.endsWith('_partner_share_code_patient_insurance'))).toBe(true)
   })
 })
