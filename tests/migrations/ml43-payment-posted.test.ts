@@ -12,7 +12,7 @@ const journal = JSON.parse(readFileSync(join(DIR, 'meta/_journal.json'), 'utf8')
 }
 
 describe('ml43_payment_posted', () => {
-  const entry = journal.entries.find((e) => e.tag.endsWith('_ml43_payment_posted'))
+  const entry = journal.entries.find((e) => e.tag.endsWith('_shop_order_emails_payment_posted'))
 
   it('is registered in the journal by tag', () => {
     expect(entry).toBeDefined()

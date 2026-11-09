@@ -29,7 +29,7 @@ const state = { rows: [] as Record<string, unknown>[] }
 vi.mock('@/lib/db', () => {
   const chain = () => {
     const o: Record<string, unknown> = {}
-    for (const m of ['from', 'innerJoin', 'where', 'orderBy']) o[m] = () => o
+    for (const m of ['from', 'innerJoin', 'leftJoin', 'where', 'orderBy']) o[m] = () => o
     o.limit = async () => state.rows
     return o
   }
