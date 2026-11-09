@@ -1,5 +1,5 @@
 {
-  "id": "37d21b8b-e11e-411c-97b5-9d9dbc7ce98d",
+  "id": "8d5cc950-ebad-4fe7-a6f8-8a16fe488375",
   "prevId": "59f26fea-9879-4b02-b670-966ec96233a9",
   "version": "7",
   "dialect": "postgresql",
@@ -1093,6 +1093,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "patient_id": {
+          "name": "patient_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "channel": {
           "name": "channel",
           "type": "text",
@@ -1186,6 +1192,39 @@
           "method": "btree",
           "with": {}
         },
+        "appt_reminder_patient_tpl_sent_idx": {
+          "name": "appt_reminder_patient_tpl_sent_idx",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "patient_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "template",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "sent_at",
+              "isExpression": false,
+              "asc": false,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
         "appt_reminder_provider_msg_idx": {
           "name": "appt_reminder_provider_msg_idx",
           "columns": [
@@ -1244,6 +1283,19 @@
           "tableTo": "appointment",
           "columnsFrom": [
             "appointment_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "appointment_reminder_log_patient_id_patient_id_fk": {
+          "name": "appointment_reminder_log_patient_id_patient_id_fk",
+          "tableFrom": "appointment_reminder_log",
+          "tableTo": "patient",
+          "columnsFrom": [
+            "patient_id"
           ],
           "columnsTo": [
             "id"
@@ -16589,6 +16641,12 @@
         "insurance_enabled_at": {
           "name": "insurance_enabled_at",
           "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "pms_answer": {
+          "name": "pms_answer",
+          "type": "text",
           "primaryKey": false,
           "notNull": false
         },

@@ -1,1 +1,0 @@
-ALTER TABLE "clinic_profile" ADD COLUMN "pms_answer" text;

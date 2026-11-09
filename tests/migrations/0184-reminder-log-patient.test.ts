@@ -10,10 +10,10 @@ import { appointmentReminderLog } from '@/lib/db/schema/clinic'
  * Nullable, backfilled from the appointment, indexed for the one cap read.
  */
 const DIR = join(process.cwd(), 'lib/db/migrations')
-const sql = readFileSync(join(DIR, '0184_reminder_log_patient.sql'), 'utf8')
+const sql = readFileSync(join(DIR, '0184_access_log_reminder_patient_pms_answer.sql'), 'utf8')
 const statements = sql.split('--> statement-breakpoint').map((s) => s.trim()).filter(Boolean)
 
-describe('0184_reminder_log_patient', () => {
+describe('0184_access_log_reminder_patient_pms_answer', () => {
   it('adds a nullable patient_id with its FK and the cap index', () => {
     const add = statements.filter((s) => s.includes('ADD COLUMN "patient_id"'))
     expect(add).toHaveLength(1)
@@ -28,7 +28,7 @@ describe('0184_reminder_log_patient', () => {
     const journal = JSON.parse(readFileSync(join(DIR, 'meta/_journal.json'), 'utf8')) as {
       entries: Array<{ idx: number; tag: string; when: number }>
     }
-    const entry = journal.entries.find((e) => e.tag === '0184_reminder_log_patient')
+    const entry = journal.entries.find((e) => e.tag === '0184_access_log_reminder_patient_pms_answer')
     expect(entry).toBeDefined()
     const prior = journal.entries.find((e) => e.tag === '0180_insurance_discovery')
     expect(entry!.when).toBeGreaterThan(prior!.when)

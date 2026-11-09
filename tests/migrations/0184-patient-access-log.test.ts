@@ -9,8 +9,8 @@ import { join } from 'node:path'
  */
 const DIR = join(process.cwd(), 'lib/db/migrations')
 
-describe('0184_patient_access_log', () => {
-  const sql = readFileSync(join(DIR, '0184_patient_access_log.sql'), 'utf8')
+describe('0184_access_log_reminder_patient_pms_answer', () => {
+  const sql = readFileSync(join(DIR, '0184_access_log_reminder_patient_pms_answer.sql'), 'utf8')
 
   it('creates the table with its columns (patient_id nullable, user_id and action required)', () => {
     const create = sql.match(/CREATE TABLE "patient_access_log" \(([\s\S]*?)\);/)?.[1] ?? ''
@@ -38,7 +38,7 @@ describe('0184_patient_access_log', () => {
     const journal = JSON.parse(readFileSync(join(DIR, 'meta/_journal.json'), 'utf8')) as {
       entries: Array<{ idx: number; tag: string; when: number }>
     }
-    expect(journal.entries.filter((e) => e.tag === '0184_patient_access_log')).toHaveLength(1)
+    expect(journal.entries.filter((e) => e.tag === '0184_access_log_reminder_patient_pms_answer')).toHaveLength(1)
   })
 
   it('matches the drizzle schema', () => {
