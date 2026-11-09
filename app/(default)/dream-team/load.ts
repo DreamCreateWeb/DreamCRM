@@ -37,8 +37,9 @@ function emailToLine(
   author: string | null,
 ): string | null {
   // The inquiry's own name + the second touch on it (ML-22) both write to
-  // one person — the person the card quotes.
-  if (capability === 'inquiry_response' || capability === 'inquiry_followup') return author
+  // one person — the person the card quotes. So does the day-after check-in
+  // (ML-28): the patient whose visit the card names.
+  if (capability === 'inquiry_response' || capability === 'inquiry_followup' || capability === 'postop_checkin') return author
   const n = typeof payload.recipientCount === 'number' ? payload.recipientCount : null
   return n != null ? `~${n} patients` : 'your recall list'
 }
@@ -223,6 +224,7 @@ export async function loadApprovalInbox(
     } else if (
       p.capability === 'inquiry_response' ||
       p.capability === 'inquiry_followup' ||
+      p.capability === 'postop_checkin' ||
       p.capability === 'outreach_campaign' ||
       p.capability === 'schedule_gap'
     ) {
@@ -276,7 +278,11 @@ export async function loadApprovalInbox(
           // the first time, the call-back day, the desk's notes.
           p.capability === 'inquiry_followup' && typeof payload.leadId === 'string'
           ? { href: `/leads?lead=${payload.leadId}`, label: 'Open the inquiry' }
-          : null
+          : // ML-28: a check-in's door is the patient's record — the visit, the
+            // phone number, for the times the question wants a call.
+            p.capability === 'postop_checkin' && typeof p.patientId === 'string'
+            ? { href: `/patients/${p.patientId}`, label: 'Open their record' }
+            : null
     return {
       openHref,
       id: p.id,
