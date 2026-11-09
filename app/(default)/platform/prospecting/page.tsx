@@ -24,6 +24,7 @@ import MomentumStrip from './momentum-strip'
 import { getDailyBriefing } from '@/lib/services/prospecting-briefing'
 import ProspectDrawer from './prospect-drawer'
 import HuntPanel from './hunt-panel'
+import { getPlatformHeartbeat } from '@/lib/services/metric-series-read'
 import DailyBriefing from './daily-briefing'
 import CopilotBar from './copilot-bar'
 import PipelinePanel from './pipeline-panel'
@@ -127,6 +128,9 @@ export default async function ProspectingPage({
     getPipelineBoard(),
     getPipelineMomentum(),
   ])
+  // The hunt's hourly send series (ML-38) — platform-global, UTC hours.
+  // Best-effort: no spark on a failed read.
+  const huntSentByHour = await getPlatformHeartbeat('hunt_sent').catch(() => null)
   const totalPages = Math.max(1, Math.ceil(list.total / list.pageSize))
   const activeStates = config.enabledStates as UsState[]
   const huntEnv = {
@@ -210,7 +214,7 @@ export default async function ProspectingPage({
       {view === 'engine' && (
         <>
           {config.focus.state && <FocusBanner state={config.focus.state} />}
-          {!config.killSwitch && <HuntPanel stats={huntStats} config={config} env={huntEnv} />}
+          {!config.killSwitch && <HuntPanel stats={huntStats} config={config} env={huntEnv} sentByHour={huntSentByHour} />}
           <div className="mt-6 flex flex-wrap gap-2">
             <ActionButton href="/platform/prospecting/sequences" variant="secondary">
               ✉️ Sequences

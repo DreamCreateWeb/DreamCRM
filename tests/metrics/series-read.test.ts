@@ -25,7 +25,7 @@ vi.mock('@/lib/services/metric-readers', () => ({ ORG_READERS: {}, PLATFORM_READ
 vi.mock('@/lib/services/billing-state', () => ({ listShutDownOrgIds: vi.fn() }))
 vi.mock('@/lib/services/cron-sweep', () => ({ sweepClinics: vi.fn() }))
 
-import { readSeries, readOrgSeriesMany } from '@/lib/services/metric-snapshot'
+import { readSeries, readOrgSeriesMany } from '@/lib/services/metric-series-read'
 import { heartbeatFor, shiftDayKey, bucketLabel, type SeriesPoint } from '@/lib/metric-series'
 
 const NOW = new Date('2026-11-09T06:30:00Z') // 00:30 on Nov 9 in Chicago

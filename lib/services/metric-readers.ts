@@ -7,6 +7,7 @@ import { getRecallStats } from '@/lib/services/recall-stats'
 import { getPmsLink } from '@/lib/services/pms-link'
 import { pmsConnected } from '@/lib/pms-link'
 import { getMrrSnapshot } from '@/lib/services/platform-metrics'
+import { sumNetCollectedSql } from '@/lib/net-collected'
 
 /**
  * THE METRIC READERS (ML-38) — one per registry key, each computing ONE
@@ -134,12 +135,13 @@ export const ORG_READERS: Record<OrgKey, (ctx: OrgReadCtx) => Promise<number | n
           ),
         ),
     ),
-  // Online balance payments that landed (Stripe Connect). The PMS's own
+  // Online balance payments that landed (Stripe Connect), NET of refunds
+  // (sumNetCollectedSql — refunded money is not kept). The PMS's own
   // collections are not ours to state.
   revenue_collected: (ctx) =>
     countRows(
       db
-        .select({ n: sql<number>`coalesce(sum(${schema.patientBalancePayment.amountCents}), 0)::bigint` })
+        .select({ n: sumNetCollectedSql(schema.patientBalancePayment.amountCents, schema.patientBalancePayment.refundedAmountCents) })
         .from(schema.patientBalancePayment)
         .where(
           and(

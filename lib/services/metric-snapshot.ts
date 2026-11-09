@@ -1,10 +1,8 @@
 import 'server-only'
-import { and, asc, eq, gte, inArray, isNull, lt, sql } from 'drizzle-orm'
+import { and, eq, isNull, lt, sql } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
-import { clinicDayStart, resolveClinicTimeZone } from '@/lib/clinic-timezone'
-import { clinicDayKey } from '@/lib/format-datetime'
-import { METRICS, metricsFor, type MetricKey } from '@/lib/metrics-registry'
-import { bucketLabel, shiftDayKey, type SeriesPoint } from '@/lib/metric-series'
+import { metricsFor, type MetricKey } from '@/lib/metrics-registry'
+import { clinicYesterdayWindow, utcYesterdayWindow, utcPreviousHourWindow, type BucketWindow } from '@/lib/services/metric-series-read'
 import { ORG_READERS, PLATFORM_READERS } from '@/lib/services/metric-readers'
 import { listShutDownOrgIds } from '@/lib/services/billing-state'
 import { sweepClinics } from '@/lib/services/cron-sweep'
@@ -33,37 +31,9 @@ import type { SweepProgress } from '@/lib/cron-budget'
  */
 
 const HOUR_MS = 60 * 60 * 1000
+export { clinicYesterdayWindow, utcYesterdayWindow, utcPreviousHourWindow }
 /** Hourly rows are a rolling window, not a ledger. */
 export const HOURLY_RETENTION_DAYS = 14
-
-export interface BucketWindow {
-  /** The bucket key: clinic-local `YYYY-MM-DD` (org) / UTC `YYYY-MM-DD` or `YYYY-MM-DDTHH`. */
-  bucket: string
-  from: Date
-  to: Date
-}
-
-/** Yesterday on the clinic's own calendar: the window the daily pass records. Pure. */
-export function clinicYesterdayWindow(now: Date, timeZone: string | null | undefined): BucketWindow {
-  const tz = resolveClinicTimeZone(timeZone)
-  const from = clinicDayStart(now, tz, -1)
-  const to = clinicDayStart(now, tz, 0)
-  return { bucket: clinicDayKey(from, tz), from, to }
-}
-
-/** Yesterday in UTC — the platform's day bucket. Pure. */
-export function utcYesterdayWindow(now: Date): BucketWindow {
-  const today = now.toISOString().slice(0, 10)
-  const bucket = shiftDayKey(today, -1)
-  return { bucket, from: new Date(`${bucket}T00:00:00.000Z`), to: new Date(`${today}T00:00:00.000Z`) }
-}
-
-/** The last COMPLETED UTC hour — the platform's hour bucket. Pure. */
-export function utcPreviousHourWindow(now: Date): BucketWindow {
-  const to = new Date(Math.floor(now.getTime() / HOUR_MS) * HOUR_MS)
-  const from = new Date(to.getTime() - HOUR_MS)
-  return { bucket: from.toISOString().slice(0, 13), from, to }
-}
 
 type Write = { organizationId: string | null; metric: MetricKey; bucket: string; granularity: 'day' | 'hour'; value: number }
 
@@ -222,75 +192,4 @@ export async function pruneHourly(now: Date): Promise<number> {
     .where(and(eq(schema.metricSnapshot.granularity, 'hour'), lt(schema.metricSnapshot.capturedAt, cutoff)))
     .returning({ id: schema.metricSnapshot.id })
   return gone.length
-}
-
-/**
- * The trailing `days` of one metric for a tile, oldest first. Org series end
- * at the clinic-local yesterday; platform series (`organizationId` null) end
- * at the UTC yesterday (or the previous UTC hour for the hourly metric, where
- * `days` counts hours). NOT zero-filled: a bucket nothing recorded is absent,
- * and the series starts on its first captured bucket — so a tile can say
- * "since <date>" truthfully (lib/metric-series.ts decides the words).
- */
-export async function readSeries(
-  organizationId: string | null,
-  metric: MetricKey,
-  days: number,
-  opts?: { now?: Date; timeZone?: string | null },
-): Promise<SeriesPoint[]> {
-  const def = METRICS[metric]
-  const now = opts?.now ?? new Date()
-  let last: string
-  let first: string
-  if (def.granularity === 'hour') {
-    last = utcPreviousHourWindow(now).bucket
-    first = new Date(new Date(`${last}:00:00.000Z`).getTime() - (days - 1) * HOUR_MS).toISOString().slice(0, 13)
-  } else {
-    last = organizationId === null ? utcYesterdayWindow(now).bucket : clinicYesterdayWindow(now, opts?.timeZone).bucket
-    first = shiftDayKey(last, -(days - 1))
-  }
-  const rows = await db
-    .select({ bucket: schema.metricSnapshot.bucket, value: schema.metricSnapshot.value })
-    .from(schema.metricSnapshot)
-    .where(
-      and(
-        organizationId === null ? isNull(schema.metricSnapshot.organizationId) : eq(schema.metricSnapshot.organizationId, organizationId),
-        eq(schema.metricSnapshot.metric, metric),
-        eq(schema.metricSnapshot.granularity, def.granularity),
-        gte(schema.metricSnapshot.bucket, first),
-        sql`${schema.metricSnapshot.bucket} <= ${last}`,
-      ),
-    )
-    .orderBy(asc(schema.metricSnapshot.bucket))
-  return rows.map((r) => ({ key: r.bucket, bucket: bucketLabel(r.bucket), value: Number(r.value) }))
-}
-
-/** Several metrics for one org in ONE read — what a page with a row of tiles asks. */
-export async function readOrgSeriesMany<K extends MetricKey>(
-  organizationId: string,
-  metrics: K[],
-  days: number,
-  opts?: { now?: Date; timeZone?: string | null },
-): Promise<Record<K, SeriesPoint[]>> {
-  const out = {} as Record<K, SeriesPoint[]>
-  if (metrics.length === 0) return out
-  const now = opts?.now ?? new Date()
-  const last = clinicYesterdayWindow(now, opts?.timeZone).bucket
-  const first = shiftDayKey(last, -(days - 1))
-  const rows = await db
-    .select({ metric: schema.metricSnapshot.metric, bucket: schema.metricSnapshot.bucket, value: schema.metricSnapshot.value })
-    .from(schema.metricSnapshot)
-    .where(
-      and(
-        eq(schema.metricSnapshot.organizationId, organizationId),
-        inArray(schema.metricSnapshot.metric, metrics),
-        eq(schema.metricSnapshot.granularity, 'day'),
-        gte(schema.metricSnapshot.bucket, first),
-        sql`${schema.metricSnapshot.bucket} <= ${last}`,
-      ),
-    )
-    .orderBy(asc(schema.metricSnapshot.bucket))
-  for (const m of metrics) out[m] = []
-  for (const r of rows) out[r.metric as K].push({ key: r.bucket, bucket: bucketLabel(r.bucket), value: Number(r.value) })
-  return out
 }

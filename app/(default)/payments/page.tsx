@@ -10,6 +10,9 @@ import { formatCents } from '@/lib/types/shop'
 import { PageHeader } from '@/components/ui/page-header'
 import { ActionButton } from '@/components/ui/action-button'
 import { KpiStat } from '@/components/ui/kpi-stat'
+import { HeartbeatLine } from '@/components/ui/heartbeat-line'
+import { getOrgHeartbeats } from '@/lib/services/metric-series-read'
+import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
 import { StatusPill } from '@/components/ui/status-pill'
 import { toReconcileSub } from '@/lib/payments-reconcile'
 import PaymentsHubDoors from './hub-doors'
@@ -44,6 +47,11 @@ export default async function PaymentsHubPage() {
     // once a practice-management system feeds the column (law 3).
     getPmsLink(ctx.organizationId),
   ])
+  // The Outstanding tile's heartbeat (ML-38): the daily snapshot of PMS
+  // balances — only ever recorded for a practice with a connected PMS.
+  const beats = await getOrgHeartbeats(ctx.organizationId, await getClinicTimeZone(ctx.organizationId), ['outstanding_balance'], {
+    fmt: (n) => formatCents(n),
+  }).catch(() => null)
   const openPlans = plans.filter((p) => p.status === 'active' || p.status === 'proposed' || p.status === 'past_due')
   const balanceSource = balanceSourceCopy(pmsLink)
 
@@ -91,10 +99,14 @@ export default async function PaymentsHubPage() {
             tone={collections.patientCount > 0 ? 'warn' : 'ok'}
             href="/payments/collections"
             sub={
-              collections.patientCount > 0
-                ? `${collections.patientCount} patient${collections.patientCount === 1 ? '' : 's'} with a balance`
-                : 'Nothing owed. Nice.'
+              <>
+                {collections.patientCount > 0
+                  ? `${collections.patientCount} patient${collections.patientCount === 1 ? '' : 's'} with a balance`
+                  : 'Nothing owed. Nice.'}
+                <HeartbeatLine line={beats?.outstanding_balance.line} />
+              </>
             }
+            spark={beats?.outstanding_balance.spark ?? undefined}
           />
         )}
         <KpiStat

@@ -1,7 +1,7 @@
 import 'server-only'
 import { METRICS, type MetricKey } from '@/lib/metrics-registry'
 import { heartbeatFor, type Heartbeat } from '@/lib/metric-series'
-import { readOrgSeriesMany } from '@/lib/services/metric-snapshot'
+import { readOrgSeriesMany } from '@/lib/services/metric-series-read'
 
 /**
  * THE FUNNEL'S HEARTBEATS (ML-38). The Growth hub's reactivation funnel's four

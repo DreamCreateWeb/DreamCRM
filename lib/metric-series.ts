@@ -127,3 +127,17 @@ export function heartbeatFor(
   const vs = diff === 0 ? 'same as the week before' : `${diff > 0 ? 'up' : 'down'} ${fmt(Math.abs(diff))} on the week before`
   return { spark: s.spark, line: `${fmt(w.thisWeek)}${opts.noun ? ` ${opts.noun}` : ''} in the last 7 days, ${vs}` }
 }
+
+/**
+ * The HOURLY series' heartbeat (the platform's hunt panel): the spark at 2+
+ * points and, until a full day of hours exists, the honest "tracked since
+ * <hour>". No comparison is made on hourly data — the 24-hour spark IS the
+ * story — and hour keys never go through the day arithmetic above.
+ */
+export function hourlyHeartbeat(points: SeriesPoint[], windowHours = 24): Heartbeat {
+  if (points.length === 0) return { spark: null, line: null }
+  return {
+    spark: points.length >= 2 ? points.map((p) => ({ bucket: p.bucket, value: p.value })) : null,
+    line: points.length < windowHours ? `tracked since ${bucketLabel(points[0].key)}` : null,
+  }
+}
