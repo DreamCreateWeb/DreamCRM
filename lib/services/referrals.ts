@@ -1,9 +1,11 @@
 import 'server-only'
 
 import { randomBytes } from 'crypto'
-import { and, desc, eq, inArray, ne, sql } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNull, ne, sql } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import { newId } from '@/lib/utils'
+import { clinicStanding, type ClinicStanding } from '@/lib/platform-clinic-status'
+import { resolveTrialState } from '@/lib/trial'
 import { authEmailShell, deliver } from '@/lib/email'
 
 /**
@@ -555,6 +557,8 @@ export async function assignClinicReferral(
       referralPercentBps: persistedOverride(percentBps, partner.defaultPercentBps),
       referralTermMonths: persistedOverride(termMonths, partner.defaultTermMonths),
       referralStartedAt: startedAt,
+      // A hand assignment to a DIFFERENT partner is no longer 'via link'.
+      ...(reassigningSamePartner ? {} : { referralSource: null }),
       updatedAt: new Date(),
     })
     .where(eq(schema.clinicProfile.organizationId, organizationId))
@@ -614,6 +618,7 @@ export async function clearClinicReferral(organizationId: string): Promise<void>
       referralPercentBps: null,
       referralTermMonths: null,
       referralStartedAt: null,
+      referralSource: null,
       updatedAt: new Date(),
     })
     .where(eq(schema.clinicProfile.organizationId, organizationId))
@@ -881,6 +886,118 @@ export async function getClinicReferral(organizationId: string): Promise<ClinicR
   }
 }
 
+// ── The share link (ML-46) ───────────────────────────────────────────────────
+
+/** The query/cookie carry ONLY this code. Shape-checked before any read. */
+export const SHARE_CODE_PATTERN = /^[a-z0-9]{6,16}$/
+export const PARTNER_REF_COOKIE = 'partner_ref'
+export const PARTNER_REF_COOKIE_MAX_AGE_SECONDS = 30 * 24 * 60 * 60
+
+// No 0/o/1/l — a code read aloud or retyped must not be ambiguous.
+const SHARE_CODE_ALPHABET = 'abcdefghjkmnpqrstuvwxyz23456789'
+
+function newShareCode(): string {
+  const bytes = randomBytes(8)
+  return Array.from(bytes, (b) => SHARE_CODE_ALPHABET[b % SHARE_CODE_ALPHABET.length]).join('')
+}
+
+/** Normalize untrusted input (query/cookie) to a code, or null. */
+export function parseShareCode(raw: string | null | undefined): string | null {
+  const code = (raw ?? '').trim().toLowerCase()
+  return SHARE_CODE_PATTERN.test(code) ? code : null
+}
+
+/** The partner's share URL on the canonical marketing site. */
+export function partnerShareUrl(code: string, base?: string): string {
+  const root = (base || process.env.NEXT_PUBLIC_APP_URL || 'https://www.dreamcreatestudio.com').trim().replace(/\/+$/, '')
+  return `${root}/?ref=${code}`
+}
+
+/**
+ * The partner's share code — minted ONCE on first read (existing partners get
+ * theirs lazily) and stable afterwards. The conditional UPDATE (`share_code IS
+ * NULL`) makes two concurrent first reads converge on one code.
+ */
+export async function getOrMintShareCode(partnerId: string): Promise<string> {
+  const [row] = await db
+    .select({ shareCode: schema.referralPartner.shareCode })
+    .from(schema.referralPartner)
+    .where(eq(schema.referralPartner.id, partnerId))
+    .limit(1)
+  if (!row) throw new Error('Partner not found')
+  if (row.shareCode) return row.shareCode
+  for (let attempt = 0; attempt < 5; attempt++) {
+    try {
+      await db
+        .update(schema.referralPartner)
+        .set({ shareCode: newShareCode() })
+        .where(and(eq(schema.referralPartner.id, partnerId), isNull(schema.referralPartner.shareCode)))
+    } catch (err) {
+      // A unique collision with another partner's code — draw again.
+      if ((err as { code?: string })?.code === '23505') continue
+      throw err
+    }
+    const [after] = await db
+      .select({ shareCode: schema.referralPartner.shareCode })
+      .from(schema.referralPartner)
+      .where(eq(schema.referralPartner.id, partnerId))
+      .limit(1)
+    if (after?.shareCode) return after.shareCode
+  }
+  throw new Error('Could not mint a share code')
+}
+
+/**
+ * Resolve a code to its partner. Unknown, malformed and ARCHIVED (closed
+ * account) codes resolve to null — the dead-link law: a stale link never
+ * errors, it just credits no one.
+ */
+export async function resolvePartnerByShareCode(
+  raw: string | null | undefined,
+): Promise<{ id: string; status: string } | null> {
+  const code = parseShareCode(raw)
+  if (!code) return null
+  const [p] = await db
+    .select({ id: schema.referralPartner.id, status: schema.referralPartner.status })
+    .from(schema.referralPartner)
+    .where(eq(schema.referralPartner.shareCode, code))
+    .limit(1)
+  if (!p || p.status === 'archived') return null
+  return p
+}
+
+/**
+ * Credit a freshly created clinic to the partner whose link it came through.
+ * Written ONCE at org creation: the `referral_partner_id IS NULL` guard means
+ * a later visit/re-submit (or a hand attribution that already landed) is never
+ * overwritten. The rate/term stay NULL so the partner's current default
+ * live-resolves at accrual. Never throws on a bad code. Returns whether a
+ * credit was written.
+ */
+export async function attributeSignupToPartner(
+  organizationId: string,
+  rawCode: string | null | undefined,
+): Promise<boolean> {
+  const partner = await resolvePartnerByShareCode(rawCode)
+  if (!partner) return false
+  const updated = await db
+    .update(schema.clinicProfile)
+    .set({
+      referralPartnerId: partner.id,
+      referralSource: 'link',
+      referralStartedAt: new Date(),
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(schema.clinicProfile.organizationId, organizationId),
+        isNull(schema.clinicProfile.referralPartnerId),
+      ),
+    )
+    .returning({ organizationId: schema.clinicProfile.organizationId })
+  return updated.length > 0
+}
+
 export async function getPartner(partnerId: string) {
   const [p] = await db
     .select()
@@ -917,6 +1034,11 @@ export interface ReferredClinicRow {
   hasTermOverride: boolean
   startedAt: Date | null
   lifetimeCommissionCents: number
+  /** True when the clinic signed up through the partner's share link. */
+  viaLink: boolean
+  /** The clinic's standing — from THE read (lib/platform-clinic-status), never
+   *  the raw subscription_status column. */
+  standing: ClinicStanding
 }
 
 /**
@@ -946,6 +1068,9 @@ export async function getReferredClinics(partnerId: string): Promise<ReferredCli
       percentBps: schema.clinicProfile.referralPercentBps,
       termMonths: schema.clinicProfile.referralTermMonths,
       startedAt: schema.clinicProfile.referralStartedAt,
+      referralSource: schema.clinicProfile.referralSource,
+      trialEndsAt: schema.clinicProfile.trialEndsAt,
+      stripeSubscriptionId: schema.clinicProfile.stripeSubscriptionId,
     })
     .from(schema.clinicProfile)
     .innerJoin(schema.organization, eq(schema.organization.id, schema.clinicProfile.organizationId))
@@ -984,6 +1109,15 @@ export async function getReferredClinics(partnerId: string): Promise<ReferredCli
     hasTermOverride: c.termMonths !== null,
     startedAt: c.startedAt,
     lifetimeCommissionCents: totalBy.get(c.organizationId) ?? 0,
+    viaLink: c.referralSource === 'link',
+    standing: clinicStanding({
+      subscriptionStatus: c.subscriptionStatus,
+      trial: resolveTrialState({
+        trialEndsAt: c.trialEndsAt,
+        subscriptionStatus: c.subscriptionStatus,
+        stripeSubscriptionId: c.stripeSubscriptionId,
+      }),
+    }),
   }))
 }
 

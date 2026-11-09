@@ -36,6 +36,10 @@ export const referralPartner = pgTable('referral_partner', {
   termsNote: text('terms_note'),
   // Stripe Connect Express account id (acct_...). Null until they set up payouts.
   stripeConnectAccountId: text('stripe_connect_account_id'),
+  // The partner's shareable sign-up code (`/?ref=<code>`). Minted on first
+  // read (ML-46); null until then. Public by design — it names a partner, it
+  // grants nothing. Unique so a code resolves to exactly one partner.
+  shareCode: text('share_code').unique(),
   // Cached `payouts_enabled` from the Connect account (0/1). Refreshed on portal
   // load (the shop-connect pattern); the source of truth is always Stripe.
   payoutsEnabled: integer('payouts_enabled').notNull().default(0),

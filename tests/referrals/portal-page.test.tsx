@@ -36,6 +36,8 @@ vi.mock('@/lib/services/referrals', () => ({
   getReferredClinics: svc.getReferredClinics,
   getPartnerBalance: svc.getPartnerBalance,
   listPayouts: svc.listPayouts,
+  getOrMintShareCode: async () => 'abcd2345',
+  partnerShareUrl: (c: string) => `https://www.dreamcreatestudio.com/?ref=${c}`,
 }))
 vi.mock('@/lib/services/referral-payouts', () => ({
   refreshPayoutStatus: svc.refreshPayoutStatus,
@@ -79,7 +81,7 @@ async function renderPage() {
 describe('partner portal dashboard', () => {
   it('greets the partner by first name + shows the KPI band', async () => {
     svc.getReferredClinics.mockResolvedValue([
-      { organizationId: 'o1', name: 'Acme', slug: 'acme', planTier: 'premium', subscriptionStatus: 'active', percentBps: 1000, termMonths: null, startedAt: new Date(), lifetimeCommissionCents: 5970 },
+      { organizationId: 'o1', name: 'Acme', slug: 'acme', planTier: 'premium', subscriptionStatus: 'active', percentBps: 1000, termMonths: null, startedAt: new Date(), lifetimeCommissionCents: 5970, viaLink: true, standing: { kind: 'live', label: 'Live', tone: 'ok', daysLeft: null } },
     ])
     svc.getPartnerBalance.mockResolvedValue({ accruedCents: 3980, lifetimePaidCents: 1990 })
     await renderPage()

@@ -1303,6 +1303,13 @@
       "when": 1794260510923,
       "tag": "0185_shop_order_emails_payment_posted",
       "breakpoints": true
+    },
+    {
+      "idx": 186,
+      "version": "7",
+      "when": 1794261530145,
+      "tag": "0186_ml46_partner_share_code",
+      "breakpoints": true
     }
   ]
 }
