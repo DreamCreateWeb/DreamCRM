@@ -114,7 +114,7 @@ app/
 
 lib/
   db/schema/         auth.ts, platform.ts, clinic.ts (bulk), domain.ts, …
-  db/migrations/     drizzle; 0000–0184 applied to prod (auto-apply on deploy)
+  db/migrations/     drizzle; 0000–0185 applied to prod (auto-apply on deploy)
   auth/              server.ts, client.ts, context.ts (getTenantContext,
                      requireTenant/requireRole/requirePartner)
   services/          ~200 server-only modules — one per entity/subsystem
@@ -364,9 +364,9 @@ booking, intake, shop, the token landings. Brand-derived palette
   (GitHub Actions → CodeBuild → ECR → App Runner, ~5 min; then a few minutes
   of rollout — `/api/version` changes when the new build serves).
 - **Migrations auto-apply on boot** (`scripts/db-migrate.mjs`; a failure keeps
-  the previous version serving). Latest applied: **0184** (patient access log,
-  the reminder log's patient_id with its backfill, the sign-up's PMS
-  answer). The next number is **0185**.
+  the previous version serving). Latest applied: **0185** (the shop order
+  emails' claim stamps, the balance payment's posted_at / posted_by). The
+  next number is **0186**.
   PARALLEL BRANCHES NEVER SHIP MIGRATION FILES: the integrator regenerates
   ONE sequential migration per PR on the merged schema. Workflow: edit the schema,
   `pnpm db:generate`, pin with a `tests/migrations/*.test.ts`, commit. The

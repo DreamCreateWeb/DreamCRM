@@ -6172,6 +6172,64 @@ template with no bar, or a bar hidden above `sm`, measures 0 and nothing
 moves. The right-aligned pairs on established and hometeam are
 deliberately not tagged — the bottom-left floaters never meet them.
 
+## 2026-11-09 — The deep dev cycle, part 9: four feature slices (group 10)
+
+Built while part 8 gated; ONE regenerated migration (0185) for two slices'
+columns; ML-41 and ML-35 were built directly on the part-8 tree (their
+implementers started from main and re-based onto the integration branch
+first — the integrator's note from here on: a worktree is cut from main,
+so every brief opens with `git checkout -B ml/X int/<current>`).
+
+**ML-43 — "To reconcile" means "not yet posted to the ledger".** The hub
+KPI is an exact org-scoped count of paid payments with `posted_at IS NULL`
+("3 to post", "All posted"); `markPaymentsPosted` (bulk, idempotent, keeps
+the first stamp) / `unmarkPaymentPosted` stamp who and when; the online
+payments table (`online/posting-table.tsx`) gets "Mark posted" per row,
+Undo, select-all and a BulkBar that waits for its confirm; still-to-post
+rows sort first; "Posted <clinic-tz date> · by" on the row; no "posted to
+<PMS> automatically" claim anywhere (pinned — the NexHealth layer never
+touches payments). Follow-ups: the bulk confirm shows a count, not a dollar
+total; booking deposits are not on the checklist.
+
+**ML-42 — the Shop's own front door, and the order emails.** The Shop
+switch's intro names three steps (connect Stripe — with the live Connect
+state and the real `/api/connect/shop/start` link — add a product, share
+the link); `lib/services/shop-order-emails.ts` sends "Ready for pickup"
+(pickup orders) and "Shipped" (ship orders, with the tracking number),
+clinic-editable and toggleable under a new Shop group in the Emails hub,
+through `patientEmailShell`, once per order (the claim is an `UPDATE …
+WHERE ready_email_at IS NULL`; a failed send releases it); the orders toast
+says "We emailed the patient." only when one left; a "Tell them it's
+ready" button for pickup orders (already ready_for_pickup when paid).
+Follow-ups: a tracking URL (no column); the tracking number still enters
+through window.prompt.
+
+**ML-41 — add a clinic with everything the setup call learned.** The
+setup-call form (name, slug with a live check, time zone, phone, address,
+NPI, brand colour, the PMS answer from ML-44's choices, owner name + email;
+the plan select is gone — a fixed "Managed (founding rate)" line);
+`provisionManagedClinic` writes org + profile (NPI, pms_answer) + the
+review-config seed + the PMS connect request (the same row `/integrations/
+pms` files; vendor answers only) + the owner invite in ONE transaction, the
+invite sent after commit, once; idempotent on the slug (the same owner
+returns the existing clinic; another owner's slug is refused); the clinic
+page's "Setup call" card shows what was captured with per-field doors.
+Follow-ups: no activation stamp at provisioning (A1 means data connected —
+stamping it from a form would lie); the owner's name lives only on the PMS
+request.
+
+**ML-35 — the practice hears what Google changed on its listing.** The
+sync's `gbp_listing` snapshot widens in place (hours, phone, categories,
+address; a `watched` flag so an old-shape snapshot is a baseline, never an
+announcement); `lib/gbp-listing-diff.ts` is the pure diff (ignores
+fetchedAt, category order and phone punctuation; never reads null as a
+removal); `listing_watch` flips to AUTO with its writer
+(`proposal-generators/listing-watch.ts`): one ledger entry per sync with
+changes ("Google changed your listing's hours: Mon 8–5 → Mon 9–5"), the
+'listing' artifact rows (was → now), a quiet door, dedupe on `field|now`
+over 7 days, report-only (imports no Zernio client — pinned); runs right
+after the snapshot write, for staff-clicked syncs too.
+
 ## 2026-11-09 — The deep dev cycle, part 8: four feature slices (group 9)
 
 The two slices whose implementers died mid-task (ML-28, ML-29) finished
