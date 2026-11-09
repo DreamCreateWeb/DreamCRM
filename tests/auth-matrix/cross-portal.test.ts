@@ -76,7 +76,7 @@ beforeEach(() => {
 })
 
 const platformAdminSession = () => ({
-  user: { id: 'u1', email: 'founder@x.com', name: 'Founder', platformAdmin: true },
+  user: { id: 'u1', email: 'founder@x.com', name: 'Founder', platformAdmin: true, twoFactorEnabled: true },
   session: { id: 's1', activeOrganizationId: 'org_platform' },
 })
 

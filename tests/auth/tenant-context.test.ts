@@ -138,7 +138,7 @@ describe('getTenantContext — the view-as / demo split (2026-07-21)', () => {
   // (hid domain buying, suppressed Zernio networking) exactly when he was
   // setting them up.
   const adminSession = {
-    user: { id: 'admin1', email: 'dustin@x.com', name: 'Dustin', platformAdmin: true },
+    user: { id: 'admin1', email: 'dustin@x.com', name: 'Dustin', platformAdmin: true, twoFactorEnabled: true },
     session: { id: 'sess_a', activeOrganizationId: 'org_platform' },
   }
 
@@ -178,7 +178,7 @@ describe('getTenantContext — the view-as / demo split (2026-07-21)', () => {
 
   it('ignores a role-less (malformed/legacy) view-as cookie entirely — never guesses a role', async () => {
     state.session = {
-      user: { id: 'admin1', email: 'dustin@x.com', name: 'Dustin', platformAdmin: true },
+      user: { id: 'admin1', email: 'dustin@x.com', name: 'Dustin', platformAdmin: true, twoFactorEnabled: true },
       session: { id: 'sess_a', activeOrganizationId: 'org_platform' },
     }
     state.demoCookie = JSON.stringify({ orgId: 'org_real' }) // no role field

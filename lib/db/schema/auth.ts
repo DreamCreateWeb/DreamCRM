@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, boolean } from 'drizzle-orm/pg-core'
+import { pgTable, text, timestamp, boolean, integer } from 'drizzle-orm/pg-core'
 
 // Better Auth core tables — match the field names Better Auth expects.
 
@@ -13,6 +13,9 @@ export const user = pgTable('user', {
   // Custom field — true when the user is a Dream Create platform staff member
   // who can view across all organizations for support.
   platformAdmin: boolean('platform_admin').notNull().default(false),
+  // better-auth twoFactor plugin field (ML-58) — true once the person has
+  // verified their first authenticator code.
+  twoFactorEnabled: boolean('two_factor_enabled').default(false),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
@@ -97,3 +100,16 @@ export const invitation = pgTable('invitation', {
 export type User = typeof user.$inferSelect
 export type Organization = typeof organization.$inferSelect
 export type Member = typeof member.$inferSelect
+
+// better-auth twoFactor plugin table (ML-58). The TOTP secret and the backup
+// codes live ONLY here, encrypted by the plugin with BETTER_AUTH_SECRET.
+// Field names/types match the plugin's own schema exactly.
+export const twoFactor = pgTable('two_factor', {
+  id: text('id').primaryKey(),
+  secret: text('secret').notNull(),
+  backupCodes: text('backup_codes').notNull(),
+  userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  verified: boolean('verified').default(true),
+  failedVerificationCount: integer('failed_verification_count').default(0),
+  lockedUntil: timestamp('locked_until'),
+})

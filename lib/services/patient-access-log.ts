@@ -14,7 +14,7 @@ import { clinicDayKey } from '@/lib/format-datetime'
  *  - EVERY READ AND WRITE IS ORG-SCOPED.
  */
 
-export type PatientAccessAction = 'view' | 'export' | 'merge' | 'print'
+export type PatientAccessAction = 'view' | 'export' | 'merge' | 'print' | 'two_step_on' | 'two_step_off'
 
 export interface PatientAccessRow {
   id: string
