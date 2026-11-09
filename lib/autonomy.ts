@@ -263,10 +263,12 @@ export const BOOKING_BUTTON_CAPABILITIES: readonly string[] = [
 // and fifth (ML-28, 2026-11-04 — the evening aftercare note and the
 // day-after check-in, generator + executor/writer together); `listing_watch`
 // the sixth (ML-35, 2026-11-09 — what Google changed on the listing, an auto
-// report-only writer that runs inside the GBP sync).
+// report-only writer that runs inside the GBP sync); `newsletter` the seventh
+// (ML-36, 2026-11-09 — the month's first weekday files the drafted issue as an
+// ask-first card; the yes creates a DRAFT campaign and never sends);
+// `referral_ask` the eighth (ML-39, 2026-11-09 — a happy patient asked once
+// to refer a friend, generator + executor together).
 export const PREVIEW_CAPABILITIES: readonly string[] = [
-  'referral_ask',
-  'newsletter',
   'membership_rescue',
   'order_update',
   'consent',
@@ -316,6 +318,9 @@ export const GRANTABLE_CAPABILITIES = [
   // ML-29: the rebook nudge — its executor sends through the inquiry shell
   // with the disclosed booking button; same daylight rule.
   'rebook_nudge',
+  // ML-39: the referral ask — its executor sends through the clinic sender
+  // and waits for daylight when the yes is the machine's.
+  'referral_ask',
 ] as const
 
 export function isGrantable(key: string): boolean {

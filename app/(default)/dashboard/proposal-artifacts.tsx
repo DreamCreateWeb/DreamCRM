@@ -29,6 +29,21 @@ export interface PlanArtifactItem {
   kind: 'social' | 'blog'
   title: string | null
   body: string
+  /** ML-36 (G3-22): the clinic's own photo for this social piece, when one is
+   *  attached — never a stock image. */
+  photo?: { url: string; alt: string | null } | null
+}
+
+/** The card's live photo state for a plan's social pieces (ML-36). Optional:
+ *  a read-only render (tests, previews) simply shows no slots. */
+export interface PlanPhotoControl {
+  /** Piece index → attached photo URL (the card's edit state; wins over the filed `photo`). */
+  photos: Record<number, string | null>
+  uploadingIndex: number | null
+  pct: number
+  disabled: boolean
+  onPick: (index: number, file: File | null) => void
+  onClear: (index: number) => void
 }
 
 /** One turn of a patient conversation, oldest first — the context a drafted
@@ -290,10 +305,12 @@ export function PlanArtifact({
   items,
   clinicName,
   channel,
+  photoControl,
 }: {
   items: PlanArtifactItem[]
   clinicName: string
   channel: ArtifactChannel | null
+  photoControl?: PlanPhotoControl
 }) {
   const initial = clinicName.replace(/[^A-Za-z]/g, '').charAt(0).toUpperCase() || 'C'
   const dest = channel?.handle?.trim() || channel?.label || null
@@ -301,6 +318,48 @@ export function PlanArtifact({
     item.kind === 'blog'
       ? `📝 Blog article · piece ${i + 1} of ${items.length}`
       : `📣 Social post · piece ${i + 1} of ${items.length}${dest ? ` · ${dest}` : ''}`
+
+  // The photo slot (G3-22): each SOCIAL piece owns one. What the approver
+  // attaches is what the post publishes with — a piece without one goes out
+  // exactly as shown, never with a stock image.
+  const photoSlot = (item: PlanArtifactItem, i: number) => {
+    if (item.kind !== 'social' || !photoControl) return null
+    const url = i in photoControl.photos ? photoControl.photos[i] : (item.photo?.url ?? null)
+    const uploading = photoControl.uploadingIndex === i
+    return (
+      <div className="mt-2 flex flex-wrap items-center gap-3" data-testid={`plan-photo-slot-${i}`}>
+        {url && (
+          // eslint-disable-next-line @next/next/no-img-element -- the clinic's own upload, shown as filed
+          <img src={url} alt={item.photo?.alt ?? ''} className="h-14 w-20 rounded-md object-cover" />
+        )}
+        <label className="cursor-pointer text-xs font-medium text-teal-700 hover:underline dark:text-teal-300">
+          {uploading ? `Uploading… ${photoControl.pct}%` : url ? 'Change photo' : 'Add a photo'}
+          <input
+            type="file"
+            accept="image/*"
+            className="sr-only"
+            disabled={photoControl.disabled || photoControl.uploadingIndex !== null}
+            onChange={(e) => {
+              photoControl.onPick(i, e.target.files?.[0] ?? null)
+              e.target.value = ''
+            }}
+          />
+        </label>
+        {url && !uploading && (
+          <button
+            type="button"
+            onClick={() => photoControl.onClear(i)}
+            className="text-xs text-gray-500 dark:text-gray-400 hover:underline"
+          >
+            Remove photo
+          </button>
+        )}
+        {!url && !uploading && (
+          <span className="text-xs text-gray-500 dark:text-gray-400">Posts without one — exactly as shown.</span>
+        )}
+      </div>
+    )
+  }
 
   const fullPiece = (item: PlanArtifactItem, i: number) => (
     <div className="rounded-xl border border-[color:var(--color-hairline)] bg-white dark:bg-gray-900/60 p-3">
@@ -329,6 +388,7 @@ export function PlanArtifact({
           </p>
         </div>
       )}
+      {photoSlot(item, i)}
     </div>
   )
 
@@ -361,6 +421,7 @@ export function PlanArtifact({
                 <p className="text-sm font-semibold text-gray-800 dark:text-gray-100">{item.title}</p>
               )}
               <p className="mt-1 whitespace-pre-wrap text-sm text-gray-700 dark:text-gray-200">{item.body}</p>
+              {photoSlot(item, i)}
             </div>
           </details>
         )

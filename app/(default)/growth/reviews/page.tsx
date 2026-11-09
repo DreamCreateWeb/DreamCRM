@@ -22,12 +22,16 @@ import { getSmsRegistration, smsDriver } from '@/lib/services/sms-registration'
 import { POLLING_STATES } from '@/lib/sms-registration'
 import { PageHeader } from '@/components/ui/page-header'
 import { PagePulse } from '@/components/ui/page-pulse'
+import { TeamDidItBand } from '@/components/ui/team-did-it-band'
+import { teamDidIt, TEAM_DID_IT_QUIET } from '@/lib/services/team-did-it'
+import { REVIEWS_LANES } from '@/lib/team-did-it-lanes'
 import { ActionButton } from '@/components/ui/action-button'
 import { StatusPill } from '@/components/ui/status-pill'
 import { KpiStat } from '@/components/ui/kpi-stat'
 import { EncodingLegend } from '@/components/ui/encoding-legend'
 import { EmptyState } from '@/components/ui/empty-state'
 import type { Tone } from '@/lib/ui/encodings'
+import { TableFit, FoldedFacts } from '@/components/ui/data-table'
 
 export const metadata = {
   title: 'Reviews & Reputation - DreamCRM',
@@ -117,6 +121,8 @@ export default async function ReviewsPage() {
   ])
   // Server runs UTC — the relative-date fallback below renders clinic-local.
   const tz = await getClinicTimeZone(ctx.organizationId)
+  // What the Dream Team already did for reviews this week (ML-36).
+  const teamDid = await teamDidIt(ctx.organizationId, REVIEWS_LANES.capabilities, { timeZone: tz }).catch(() => TEAM_DID_IT_QUIET)
   const eligibleCount = eligibleAll.length
   const eligible = eligibleAll.slice(0, 25)
 
@@ -184,6 +190,8 @@ export default async function ReviewsPage() {
           ...(googleStats.needsReply > 0 ? [{ label: 'awaiting a reply', value: googleStats.needsReply, tone: 'warn' as const }] : []),
         ]}
       />
+
+      <TeamDidItBand data={teamDid} what={REVIEWS_LANES.what} />
 
       {/* ── Setup gate — the Google review link is the hero ─────────── */}
       {!hasGoogleLink && (
@@ -414,14 +422,14 @@ export default async function ReviewsPage() {
           />
         ) : (
           <div className="v2-card overflow-hidden">
-            <table className="w-full text-sm">
+            <TableFit label="Recent review requests"><table className="w-full text-sm">
               <thead className="v2-well border-b border-[color:var(--color-hairline)]">
                 <tr className="text-left text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400">
                   <th className="px-3 py-2">Patient</th>
                   <th className="px-3 py-2">Status</th>
                   <th className="px-3 py-2">Sent</th>
-                  <th className="px-3 py-2">Reviewed</th>
-                  <th className="px-3 py-2">Where</th>
+                  <th className="hidden sm:table-cell px-3 py-2">Reviewed</th>
+                  <th className="hidden sm:table-cell px-3 py-2">Where</th>
                 </tr>
               </thead>
               <tbody>
@@ -432,6 +440,9 @@ export default async function ReviewsPage() {
                         {r.patientName}
                       </Link>
                       <p className="text-xs text-gray-500 dark:text-gray-400">{r.patientEmail ?? 'no email'}</p>
+                      <FoldedFacts>
+                        Sent {fmtRelative(r.sentAt, tz)} · Reviewed {fmtRelative(r.completedAt, tz)} · {r.selectedSite ? PLATFORM_LABEL[r.selectedSite] : '—'}
+                      </FoldedFacts>
                     </td>
                     <td className="px-3 py-2.5">
                       <div className="flex items-center gap-1.5 flex-wrap">
@@ -454,16 +465,16 @@ export default async function ReviewsPage() {
                     <td className="px-3 py-2.5 text-xs text-gray-500 dark:text-gray-400 tabular-nums">
                       {fmtRelative(r.sentAt, tz)}
                     </td>
-                    <td className="px-3 py-2.5 text-xs text-gray-500 dark:text-gray-400 tabular-nums">
+                    <td className="hidden sm:table-cell px-3 py-2.5 text-xs text-gray-500 dark:text-gray-400 tabular-nums">
                       {fmtRelative(r.completedAt, tz)}
                     </td>
-                    <td className="px-3 py-2.5 text-xs text-gray-500 dark:text-gray-400">
+                    <td className="hidden sm:table-cell px-3 py-2.5 text-xs text-gray-500 dark:text-gray-400">
                       {r.selectedSite ? PLATFORM_LABEL[r.selectedSite] : '—'}
                     </td>
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </table></TableFit>
           </div>
         )}
       </section>

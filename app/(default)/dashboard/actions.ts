@@ -30,6 +30,9 @@ export async function approveProposalAction(input: {
   /** A staff-attached photo for a social card (uploaded through the
    *  composer's storage path; the preview showed it, the publish carries it). */
   imageUrl?: string
+  /** Photos the approver attached to a content plan's SOCIAL pieces (ML-36):
+   *  piece index → the clinic's own uploaded URL. */
+  planPhotos?: Array<{ index: number; url: string }>
 }): Promise<{ ok: true; message?: string } | { ok: false; error: string; expired?: boolean }> {
   const ctx = await requireTenant()
   const gate = ensureClinicStaff(ctx)
@@ -39,6 +42,7 @@ export async function approveProposalAction(input: {
     ...(input.subject !== undefined ? { subject: input.subject } : {}),
     ...(input.answer !== undefined ? { answer: input.answer } : {}),
     ...(input.imageUrl !== undefined ? { imageUrl: input.imageUrl } : {}),
+    ...(input.planPhotos?.length ? { planPhotos: input.planPhotos } : {}),
   })
   // The STRUCTURED dead-card signal rides through to the client — the card
   // clears on the flag, never on matching the error copy (verification

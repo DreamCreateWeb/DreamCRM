@@ -1,5 +1,5 @@
 import 'server-only'
-import { and, desc, eq, gte, lt, sql } from 'drizzle-orm'
+import { and, desc, eq, gte, inArray, lt, sql } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import * as schema from '@/lib/db/schema'
 import { getCapability } from '@/lib/autonomy'
@@ -233,7 +233,7 @@ export interface LedgerEntry {
  *  round-3 backlog item). */
 export async function listRecentActions(
   organizationId: string,
-  opts: { since?: Date; until?: Date; limit?: number; autonomousOnly?: boolean } = {},
+  opts: { since?: Date; until?: Date; limit?: number; autonomousOnly?: boolean; capabilities?: readonly string[] } = {},
 ): Promise<LedgerEntry[]> {
   const limit = Math.min(opts.limit ?? 100, 500)
   const rows = await db
@@ -258,6 +258,7 @@ export async function listRecentActions(
         // reminder, a whole week of autonomous work fell off the end and
         // the Overview strip said "nothing on my own yet".
         ...(opts.autonomousOnly ? [autonomousOnly()] : []),
+        ...(opts.capabilities ? [inArray(schema.actionLedger.capability, Array.from(opts.capabilities))] : []),
       ),
     )
     .orderBy(desc(schema.actionLedger.occurredAt))

@@ -330,6 +330,15 @@ export const clinicProfile = pgTable('clinic_profile', {
   // is the clinic's real address. Null = use the Tier 1 platform sender. No hard
   // FK (cross-schema-file); validated on read, falls back to Tier 1 if missing.
   emailSendingAccountId: text('email_sending_account_id'),
+  // Tier 3 (ML-63) — the practice's own sending domain, registered with Resend
+  // once the custom domain is active. Status 'pending' | 'verified' | 'failed'
+  // (null = never requested); records = the DNS rows to copy (never MX).
+  emailDomainId: text('email_domain_id'),
+  emailDomainName: text('email_domain_name'),
+  emailDomainStatus: text('email_domain_status'),
+  emailDomainRecords: jsonb('email_domain_records'),
+  emailDomainCheckedAt: timestamp('email_domain_checked_at'),
+  emailDomainVerifiedAt: timestamp('email_domain_verified_at'),
 
   // Opaque token for the subscribable read-only .ics calendar feed
   // (/api/calendar/<token>). The token IS the auth (calendar apps can't carry a
@@ -528,6 +537,10 @@ export const clinicProfile = pgTable('clinic_profile', {
   // referral_partner lives in its own schema file, so we keep this column
   // FK-less here to avoid an import cycle.
   referralPartnerId: text('referral_partner_id'),
+  // HOW the attribution happened (ML-46): 'link' = the clinic signed up
+  // through the partner's share link; null = attributed by hand (provisioning
+  // or the clinic-detail card). Only meaningful with referral_partner_id set.
+  referralSource: text('referral_source'),
   // Per-clinic commission rate in basis points. Null = use the partner's
   // current default at accrual time. Set explicitly to lock a negotiated rate.
   referralPercentBps: integer('referral_percent_bps'),

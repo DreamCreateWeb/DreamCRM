@@ -15,11 +15,13 @@ import {
   parseInsuranceDetail,
   resolveInsuranceDriverId,
   validateEligibilityRequest,
+  asInsuranceRank,
   type EligibilityRequest,
   type EligibilityResult,
   type EligibilityStatus,
   type InsuranceCheckView,
   type InsuranceDriverId,
+  type InsuranceRank,
   type InsuranceUsage,
   type PatientInsuranceDetail,
 } from '@/lib/insurance-eligibility'
@@ -30,9 +32,18 @@ import { sandboxProvider } from './sandbox'
 import { makeStediProvider, searchStediPayers } from './stedi'
 import { getInsuranceUsage } from './allowance'
 import { disableInsuranceTool, enableInsuranceTool } from './setup'
+import { listPatientInsurance, rememberSlotCard } from './plans'
 
 export { searchStediPayers as searchPayers }
 export { getInsuranceUsage, enableInsuranceTool, disableInsuranceTool }
+export {
+  listPatientInsurance,
+  upsertPatientInsurance,
+  removeSecondaryInsurance,
+  patientsWithSecondary,
+  type InsuranceCard,
+  type InsuranceCardInput,
+} from './plans'
 
 /**
  * Insurance eligibility — the service.
@@ -112,6 +123,7 @@ function toView(row: CheckRow, patientName: string | null, requestedByName: stri
     id: row.id,
     patientId: row.patientId,
     patientName,
+    rank: asInsuranceRank(row.rank),
     driver: row.driver as InsuranceDriverId,
     status: row.status as EligibilityStatus,
     input: row.input as EligibilityRequest,
@@ -158,6 +170,8 @@ type Prepared = {
   patientId: string | null
   patientName: string | null
   onFilePolicyNumber: string | null
+  /** The plan slot this check is for (ML-50). */
+  rank: InsuranceRank
   setup: InsuranceSetup
   provider: EligibilityProvider
 }
@@ -170,7 +184,7 @@ type Prepared = {
  */
 async function prepareCheck(
   organizationId: string,
-  opts: { input: unknown; patientId?: string | null; now: Date },
+  opts: { input: unknown; patientId?: string | null; rank?: InsuranceRank; now: Date },
 ): Promise<{ ok: true; prepared: Prepared } | Exclude<RunEligibilityCheckResult, { ok: true }>> {
   const validated = validateEligibilityRequest(opts.input, opts.now)
   if (!validated.ok) return validated
@@ -180,6 +194,7 @@ async function prepareCheck(
   let patientId: string | null = null
   let patientName: string | null = null
   let onFilePolicyNumber: string | null = null
+  const rank = asInsuranceRank(opts.rank)
   if (opts.patientId) {
     const [p] = await db
       .select({
@@ -195,6 +210,11 @@ async function prepareCheck(
       patientId = p.id
       patientName = `${p.firstName} ${p.lastName}`.trim()
       onFilePolicyNumber = p.insurancePolicyNumber
+      // The secondary slot has its own member id: "the card on file" is THAT one's.
+      if (rank === 'secondary') {
+        const second = (await listPatientInsurance(organizationId, p.id)).find((c) => c.rank === 'secondary')
+        onFilePolicyNumber = second?.policyNumber ?? null
+      }
     }
   }
 
@@ -213,7 +233,7 @@ async function prepareCheck(
       errors: { _form: `${usageLine(setup.usage)} — the allowance resets on the 1st. Dream Create can raise it; ask on the Support thread.` },
     }
   }
-  return { ok: true, prepared: { input, patientId, patientName, onFilePolicyNumber, setup, provider: resolveEligibilityProvider(setup.driver) } }
+  return { ok: true, prepared: { input, patientId, patientName, onFilePolicyNumber, rank, setup, provider: resolveEligibilityProvider(setup.driver) } }
 }
 
 /**
@@ -226,7 +246,7 @@ async function storeCheck(
   answer: { result: EligibilityResult | null; raw: unknown | null; error: string | null; billedChecks: number },
   opts: { userId?: string | null; now: Date; ledgerSummary?: (view: InsuranceCheckView, patientName: string) => string },
 ): Promise<InsuranceCheckView> {
-  const { input, patientId, patientName, onFilePolicyNumber, provider } = prepared
+  const { input, patientId, patientName, onFilePolicyNumber, rank, provider } = prepared
   const status: EligibilityStatus = answer.result ? answer.result.status : 'error'
   const row: CheckRow = {
     id: newCheckId(),
@@ -241,6 +261,7 @@ async function storeCheck(
     // today can be read tomorrow without asking (and paying) again.
     rawResponse: answer.raw,
     billedChecks: answer.billedChecks,
+    rank,
     error: answer.error,
     checkedAt: opts.now,
     createdAt: opts.now,
@@ -255,7 +276,7 @@ async function storeCheck(
   const onFile = (onFilePolicyNumber ?? '').trim()
   const isCardOnFile = !onFile || onFile === input.memberId.trim()
   if (patientId && answer.result && checkRecognisedCard(status) && isCardOnFile) {
-    await rememberCheckedCard(organizationId, patientId, detailFromRequest(input, answer.result, 'check', opts.now))
+    await rememberSlotCard(organizationId, patientId, rank, detailFromRequest(input, answer.result, 'check', opts.now)).catch((e) => console.error('[insurance-eligibility] remember card failed:', e))
   }
 
   await recordAction({
@@ -274,13 +295,15 @@ export async function runEligibilityCheck(
   opts: {
     input: unknown
     patientId?: string | null
+    /** Which plan this check verifies; default primary (ML-50). */
+    rank?: InsuranceRank
     userId?: string | null
     now?: Date
   },
 ): Promise<RunEligibilityCheckResult> {
   const now = opts.now ?? new Date()
   try {
-    const prep = await prepareCheck(organizationId, { input: opts.input, patientId: opts.patientId, now })
+    const prep = await prepareCheck(organizationId, { input: opts.input, patientId: opts.patientId, rank: opts.rank, now })
     if (!prep.ok) return prep
     const { prepared } = prep
 
@@ -317,13 +340,15 @@ export async function runFullBreakdown(
   opts: {
     input: unknown
     patientId?: string | null
+    /** Which plan this check verifies; default primary (ML-50). */
+    rank?: InsuranceRank
     userId?: string | null
     now?: Date
   },
 ): Promise<RunEligibilityCheckResult> {
   const now = opts.now ?? new Date()
   try {
-    const prep = await prepareCheck(organizationId, { input: opts.input, patientId: opts.patientId, now })
+    const prep = await prepareCheck(organizationId, { input: opts.input, patientId: opts.patientId, rank: opts.rank, now })
     if (!prep.ok) return prep
     const { prepared } = prep
     const { provider, setup } = prepared
@@ -430,7 +455,10 @@ export async function rememberCheckedCard(
 }
 
 /** The remembered card on a patient, parsed; null when none or when it no longer matches the on-file policy number. */
-export async function getRememberedCard(organizationId: string, patientId: string): Promise<PatientInsuranceDetail | null> {
+export async function getRememberedCard(organizationId: string, patientId: string, rank: InsuranceRank = 'primary'): Promise<PatientInsuranceDetail | null> {
+  if (rank === 'secondary') {
+    return (await listPatientInsurance(organizationId, patientId)).find((c) => c.rank === 'secondary')?.detail ?? null
+  }
   const [p] = await db
     .select({ detail: schema.patient.insuranceDetail, policy: schema.patient.insurancePolicyNumber })
     .from(schema.patient)
@@ -452,6 +480,7 @@ const viewSelect = {
   result: schema.insuranceVerification.result,
   error: schema.insuranceVerification.error,
   billedChecks: schema.insuranceVerification.billedChecks,
+  rank: schema.insuranceVerification.rank,
   checkedAt: schema.insuranceVerification.checkedAt,
   createdAt: schema.insuranceVerification.createdAt,
   patientFirstName: schema.patient.firstName,
@@ -484,6 +513,7 @@ export async function listRecentInsuranceChecks(organizationId: string, limit = 
 export async function getLatestInsuranceCheckForPatient(
   organizationId: string,
   patientId: string,
+  rank: InsuranceRank = 'primary',
 ): Promise<InsuranceCheckView | null> {
   const rows = await db
     .select(viewSelect)
@@ -494,6 +524,7 @@ export async function getLatestInsuranceCheckForPatient(
       and(
         eq(schema.insuranceVerification.organizationId, organizationId),
         eq(schema.insuranceVerification.patientId, patientId),
+        eq(schema.insuranceVerification.rank, rank),
       ),
     )
     .orderBy(desc(schema.insuranceVerification.checkedAt))
@@ -523,6 +554,8 @@ export async function getLatestInsuranceChecksForPatients(
       and(
         eq(schema.insuranceVerification.organizationId, organizationId),
         inArray(schema.insuranceVerification.patientId, patientIds),
+        // The pre-visit audit asks about the PRIMARY card; a secondary's check never stands in for it.
+        eq(schema.insuranceVerification.rank, 'primary'),
       ),
     )
     .orderBy(desc(schema.insuranceVerification.checkedAt))

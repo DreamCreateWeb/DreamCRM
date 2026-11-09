@@ -10,6 +10,9 @@ import { PageHeader } from '@/components/ui/page-header'
 import { ActionButton } from '@/components/ui/action-button'
 import CustomDomainCard from './custom-domain-card'
 import BuyDomainCard from './buy-domain-card'
+import EmailDomainCard from './email-domain-card'
+import { getEmailDomainState } from '@/lib/services/email-domain'
+import { emailDomainFor } from '@/lib/email-identity'
 
 export const metadata = {
   title: 'Domain - DreamCRM',
@@ -37,6 +40,9 @@ export default async function WebsiteDomainPage() {
   // "Checked <time>" renders at the practice's wall-clock (the server runs in
   // UTC; the card is a client component, so the zone travels as a prop).
   const timeZone = await getClinicTimeZone(ctx.organizationId).catch(() => CLINIC_DEFAULT_TZ)
+  // Tier 3 (ML-63): the email card only exists once the site is live on its own domain.
+  const emailSiteDomain = status?.state === 'active' ? emailDomainFor(status.domain) : null
+  const emailState = emailSiteDomain ? await getEmailDomainState(ctx.organizationId).catch(() => null) : null
   // The card always shows the subdomain as the free fallback address (not the
   // custom domain, which may not be live yet).
   const subdomainUrl = `https://${ctx.organizationSlug}.${SITE_DOMAIN}`
@@ -68,6 +74,7 @@ export default async function WebsiteDomainPage() {
       />
       <div className="v2-panel">
         <CustomDomainCard initialStatus={status} subdomainUrl={subdomainUrl} timeZone={timeZone} />
+        <EmailDomainCard initialState={emailState} siteDomain={emailSiteDomain} timeZone={timeZone} />
       </div>
       {buyingAvailable && <BuyDomainCard purchases={purchases} dryRunMode={!isLivePurchasesEnabled()} />}
     </div>

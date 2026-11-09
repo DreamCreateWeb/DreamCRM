@@ -134,6 +134,10 @@ export const SYSTEM_FIELD_KEYS = [
   'insurance_provider',
   'insurance_policy_number',
   'insurance_group_number',
+  // ML-50: the SECOND plan — fills the secondary slot, never the primary.
+  'insurance_secondary_provider',
+  'insurance_secondary_policy_number',
+  'insurance_secondary_group_number',
 ] as const
 export type SystemFieldKey = (typeof SYSTEM_FIELD_KEYS)[number]
 
@@ -151,6 +155,9 @@ export const SYSTEM_KEY_LABELS: Record<SystemFieldKey, string> = {
   insurance_provider: 'Insurance provider',
   insurance_policy_number: 'Insurance member number',
   insurance_group_number: 'Insurance group number',
+  insurance_secondary_provider: 'Secondary insurance provider',
+  insurance_secondary_policy_number: 'Secondary insurance member number',
+  insurance_secondary_group_number: 'Secondary insurance group number',
 }
 
 const SYSTEM_KEY_TEXT_ONLY: readonly SystemFieldKey[] = SYSTEM_FIELD_KEYS.filter(

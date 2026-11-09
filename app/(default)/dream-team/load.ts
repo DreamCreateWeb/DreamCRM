@@ -20,6 +20,7 @@ import {
 } from '@/lib/services/proposal-generators'
 import { listTrustGrants, listAutonomousWork } from '@/lib/services/autonomy'
 import { isGrantable } from '@/lib/autonomy'
+import { validatePlanPhoto } from '@/lib/content-calendar'
 import { describeDays } from '@/lib/empty-chair'
 import { expiryDayLabel } from '@/lib/types/dream-team'
 import { clinicDayKey } from '@/lib/format-datetime'
@@ -43,7 +44,8 @@ function emailToLine(
     capability === 'inquiry_response' ||
     capability === 'inquiry_followup' ||
     capability === 'postop_checkin' ||
-    capability === 'rebook_nudge'
+    capability === 'rebook_nudge' ||
+    capability === 'referral_ask'
   )
     return author
   const n = typeof payload.recipientCount === 'number' ? payload.recipientCount : null
@@ -191,6 +193,10 @@ export async function loadApprovalInbox(
       // WHICH WAY it answers — the generator chose the composer's own
       // default (ML-12), and the card must say so before the yes.
       meta = payload.channel === 'email' ? 'replies by email' : 'replies in the patient portal'
+    } else if (p.capability === 'newsletter') {
+      // The two facts a yes turns on: who it is FOR, and that nothing sends.
+      const n = typeof payload.recipientCount === 'number' ? payload.recipientCount : null
+      meta = `drafts in Campaigns${n != null ? ` for ~${n} patients` : ''} · nothing sends until you do`
     } else if (p.capability === 'review_reply') {
       meta = 'public reply on Google'
     }
@@ -222,7 +228,8 @@ export async function loadApprovalInbox(
               const kind = o.kind === 'blog' ? ('blog' as const) : ('social' as const)
               const body = typeof o.body === 'string' ? o.body : ''
               if (!body.trim()) return null
-              return { kind, title: typeof o.title === 'string' ? o.title : null, body }
+              const photo = kind === 'social' ? validatePlanPhoto(o.photo) : null
+              return { kind, title: typeof o.title === 'string' ? o.title : null, body, ...(photo ? { photo } : {}) }
             })
             .filter((x): x is NonNullable<typeof x> => x !== null)
         : []
@@ -232,6 +239,8 @@ export async function loadApprovalInbox(
       p.capability === 'inquiry_followup' ||
       p.capability === 'postop_checkin' ||
       p.capability === 'rebook_nudge' ||
+      p.capability === 'newsletter' ||
+      p.capability === 'referral_ask' ||
       p.capability === 'outreach_campaign' ||
       p.capability === 'schedule_gap'
     ) {
@@ -288,7 +297,8 @@ export async function loadApprovalInbox(
           : // ML-28 / ML-29: a check-in's and a nudge's door is the patient's
             // record — the visit, the phone number, the booking drawer, for the
             // times the question wants a call.
-            (p.capability === 'postop_checkin' || p.capability === 'rebook_nudge') && typeof p.patientId === 'string'
+            (p.capability === 'postop_checkin' || p.capability === 'rebook_nudge' || p.capability === 'referral_ask') &&
+            typeof p.patientId === 'string'
             ? { href: `/patients/${p.patientId}`, label: 'Open their record' }
             : null
     return {

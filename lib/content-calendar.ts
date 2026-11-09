@@ -58,6 +58,22 @@ export interface PlannedItem {
   title?: string
   /** What actually gets published. */
   body: string
+  /** Social only (ML-36, G3-22): the clinic's own photo the approver attached
+   *  before approving. Never a stock image — only an http(s) URL the clinic
+   *  uploaded survives validation. */
+  photo?: { url: string; alt: string | null }
+}
+
+export const PLAN_PHOTO_URL_MAX = 2000
+
+/** A plan piece's photo, or null when the value is not an http(s) URL we'd publish. */
+export function validatePlanPhoto(raw: unknown): { url: string; alt: string | null } | null {
+  if (!raw || typeof raw !== 'object') return null
+  const o = raw as Record<string, unknown>
+  const url = typeof o.url === 'string' ? o.url.trim() : ''
+  if (!url || url.length > PLAN_PHOTO_URL_MAX || !/^https?:\/\//i.test(url)) return null
+  const alt = typeof o.alt === 'string' && o.alt.trim() ? o.alt.trim().slice(0, 200) : null
+  return { url, alt }
 }
 
 /**
@@ -221,11 +237,13 @@ export function validatePlanItems(raw: unknown): PlannedItem[] {
     const title = typeof o.title === 'string' ? o.title.trim() : ''
     if (!body) continue
     if (kind === 'blog' && !title) continue
+    const photo = kind === 'social' ? validatePlanPhoto(o.photo) : null
     out.push({
       kind,
       dayOffset: 0,
       body,
       ...(kind === 'blog' ? { title } : {}),
+      ...(photo ? { photo } : {}),
     })
   }
   return out.slice(0, PLAN_SIZE)

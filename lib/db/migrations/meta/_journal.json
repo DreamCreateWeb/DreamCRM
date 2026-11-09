@@ -1303,6 +1303,20 @@
       "when": 1794260510923,
       "tag": "0185_shop_order_emails_payment_posted",
       "breakpoints": true
+    },
+    {
+      "idx": 186,
+      "version": "7",
+      "when": 1794262883708,
+      "tag": "0186_partner_share_code_patient_insurance",
+      "breakpoints": true
+    },
+    {
+      "idx": 187,
+      "version": "7",
+      "when": 1794263497947,
+      "tag": "0187_clinic_email_domain",
+      "breakpoints": true
     }
   ]
 }

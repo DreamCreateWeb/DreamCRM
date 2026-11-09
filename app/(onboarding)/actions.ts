@@ -378,6 +378,19 @@ export async function submitOnboarding(input: z.infer<typeof SubmitInput>): Prom
     console.warn('[onboarding] could not apply starter floor', err)
   }
 
+  // THE SHARE LINK (ML-46): a clinic that arrived through a partner's
+  // `/?ref=<code>` is credited ONCE, at creation. The cookie carries only the
+  // code; it is validated against referral_partner inside the service, an
+  // unknown/archived/malformed code is ignored silently, and an existing
+  // attribution is never overwritten. No Stripe here. Best-effort.
+  if (isNewOrg) try {
+    const { attributeSignupToPartner, PARTNER_REF_COOKIE } = await import('@/lib/services/referrals')
+    const code = (await cookies()).get(PARTNER_REF_COOKIE)?.value
+    if (code) await attributeSignupToPartner(orgId, code)
+  } catch (err) {
+    console.warn('[onboarding] partner attribution failed', err)
+  }
+
   // The win loop (marketing-engine slice 1c): if this signer was already a
   // Hunter prospect (matched by email, then practice domain — conservative,
   // never a guess), mark that prospect CONVERTED and link it to this org, so

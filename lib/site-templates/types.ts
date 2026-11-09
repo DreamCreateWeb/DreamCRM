@@ -1,5 +1,6 @@
 import type { ComponentType } from 'react'
 import type { ClinicPalette } from '@/lib/clinic-site-theme'
+import type { SubpageKey, SubpageRenderers } from './subpage-props'
 import type { HomePageProps, SiteChromeProps, SiteChromeMobileProps } from './page-props'
 
 /**
@@ -79,10 +80,16 @@ export interface SiteTemplateDef {
   }
   pages: {
     Home: ComponentType<HomePageProps>
-    // Optional per-page renderer overrides land as templates need them — an
-    // absent slot falls back to the shared base renderer restyled by this
-    // template's palette/fonts/chrome.
+    /** The body of EVERY editorial subpage below Home (ML-52). Every key is
+     *  required: a template either owns a body or SHARES a sibling's by
+     *  reference through the registry (declared in `subpageSource`) — never a
+     *  silent fallback to Modern's. The page shells dispatch
+     *  `siteTemplate.pages.subpages.<key>`; no per-page template branching. */
+    subpages: SubpageRenderers
   }
+  /** Provenance of each subpage body: the id of the template whose renderer
+   *  this one is ('self' = owns it). Pinned by the conformance harness. */
+  subpageSource: Record<SubpageKey, SiteTemplateId | 'self'>
   /** Extra template-declared marketing pages ([] for most templates). */
   extraMarketingPages: TemplateMarketingPage[]
   /** The template's palette recipe. MUST return all ClinicPalette roles — the

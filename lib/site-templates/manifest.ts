@@ -7,8 +7,7 @@ import type { SiteTemplateId } from './types'
  *
  * - `shared`: chrome/components every template's canvas can mount.
  * - `base`:   the shared page bodies (today still inline in their page.tsx
- *             shells; they migrate to components/clinic-site/base/ in the
- *             shell/renderer split).
+ *             shells + Modern's moved subpage bodies, ML-52).
  * - `byTemplate`: files exclusive to one template. Scans for template <id>
  *             cover `shared + base + byTemplate[<id>]`.
  */
@@ -42,29 +41,49 @@ export const SITE_TEMPLATE_MANIFEST: SiteTemplateManifest = {
     'app/site/[slug]/blog/page.tsx',
     'app/site/[slug]/blog/[postSlug]/page.tsx',
     'app/site/[slug]/book/page.tsx',
+    // ML-52: the subpage BODIES split out of the shells above. Modern's are
+    // the shared bodies every template inherits by reference until it skins
+    // its own (then the file moves to that template's byTemplate list).
+    'components/clinic-site/templates/modern/services.tsx',
+    'components/clinic-site/templates/modern/servicePage.tsx',
+    'components/clinic-site/templates/modern/newPatients.tsx',
+    'components/clinic-site/templates/modern/insurance.tsx',
+    'components/clinic-site/templates/modern/financing.tsx',
+    'components/clinic-site/templates/modern/plans.tsx',
+    'components/clinic-site/templates/modern/about.tsx',
+    'components/clinic-site/templates/modern/team.tsx',
+    'components/clinic-site/templates/modern/careers.tsx',
+    'components/clinic-site/templates/modern/faq.tsx',
+    'components/clinic-site/templates/modern/blogIndex.tsx',
+    // The skinned Services layout the non-Modern templates compose.
+    'components/clinic-site/templates/shared/services-layout.tsx',
   ],
   byTemplate: {
     modern: ['components/clinic-site/templates/modern/home.tsx'],
     cosmetic: [
       'components/clinic-site/templates/cosmetic/home.tsx',
+      'components/clinic-site/templates/cosmetic/services.tsx',
       'components/clinic-site/templates/cosmetic/header.tsx',
       'components/clinic-site/templates/cosmetic/footer.tsx',
       'components/clinic-site/templates/cosmetic/mobile-actions.tsx',
     ],
     pediatric: [
       'components/clinic-site/templates/pediatric/home.tsx',
+      'components/clinic-site/templates/pediatric/services.tsx',
       'components/clinic-site/templates/pediatric/header.tsx',
       'components/clinic-site/templates/pediatric/footer.tsx',
       'components/clinic-site/templates/pediatric/mobile-actions.tsx',
     ],
     hometown: [
       'components/clinic-site/templates/hometown/home.tsx',
+      'components/clinic-site/templates/hometown/services.tsx',
       'components/clinic-site/templates/hometown/header.tsx',
       'components/clinic-site/templates/hometown/footer.tsx',
       'components/clinic-site/templates/hometown/mobile-actions.tsx',
     ],
     established: [
       'components/clinic-site/templates/established/home.tsx',
+      'components/clinic-site/templates/established/services.tsx',
       'components/clinic-site/templates/established/header.tsx',
       'components/clinic-site/templates/established/footer.tsx',
       'components/clinic-site/templates/established/mobile-actions.tsx',
@@ -72,6 +91,7 @@ export const SITE_TEMPLATE_MANIFEST: SiteTemplateManifest = {
     ],
     hometeam: [
       'components/clinic-site/templates/hometeam/home.tsx',
+      'components/clinic-site/templates/hometeam/services.tsx',
       'components/clinic-site/templates/hometeam/header.tsx',
       'components/clinic-site/templates/hometeam/footer.tsx',
       'components/clinic-site/templates/hometeam/mobile-actions.tsx',

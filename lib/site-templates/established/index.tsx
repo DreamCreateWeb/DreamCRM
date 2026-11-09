@@ -3,6 +3,9 @@ import EstablishedHeader from '@/components/clinic-site/templates/established/he
 import EstablishedFooter from '@/components/clinic-site/templates/established/footer'
 import EstablishedMobileActions from '@/components/clinic-site/templates/established/mobile-actions'
 import { buildEstablishedPalette } from './palette'
+import EstablishedServices from '@/components/clinic-site/templates/established/services'
+import { MODERN_SUBPAGES } from '../modern/subpages'
+import { subpageSource } from '../subpage-source'
 import type { SiteTemplateDef } from '../types'
 
 /**
@@ -34,7 +37,10 @@ export const establishedTemplate: SiteTemplateDef = {
     Footer: EstablishedFooter,
     MobileActions: EstablishedMobileActions,
   },
-  pages: { Home: EstablishedHome },
+  // ML-52: owns its Services body; the other subpages are shared from Modern
+  // BY REFERENCE (declared in subpageSource) until this template skins them.
+  pages: { Home: EstablishedHome, subpages: { ...MODERN_SUBPAGES, services: EstablishedServices } },
+  subpageSource: subpageSource('modern', { services: 'self' }),
   extraMarketingPages: [],
   buildPalette: buildEstablishedPalette,
   fonts: [{ id: 'dc-fraunces-established', href: FRAUNCES_HREF }],

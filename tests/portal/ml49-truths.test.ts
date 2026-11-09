@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { portalVisitLabel } from '@/lib/portal-visit-label'
-import { portalInsuranceNote } from '@/lib/portal-insurance-note'
+import { portalInsuranceNote, portalInsurancePlans } from '@/lib/portal-insurance-note'
 import { resolveVisitTypes } from '@/lib/types/visit-types'
 
 const read = (p: string) => readFileSync(p, 'utf8')
@@ -70,5 +70,39 @@ describe('the portal makes no promise the practice did not state', () => {
     expect(src.split('<FamilyLinkRequest').length - 1).toBe(2)
     expect(src.split('settings.features.messages &&').length - 1).toBe(2)
     expect(read('app/(portal)/patient/profile/page.tsx')).toMatch(/features\.family && settings\.features\.messages/)
+  })
+})
+
+describe('portalInsurancePlans - both plans, each with its own last-verified line (ML-50)', () => {
+  const tz = 'America/Chicago'
+  const card = { carrier: 'Delta Dental', memberId: 'DD-1', groupNumber: null }
+  const second = { carrier: 'Cigna', memberId: 'CG-2', groupNumber: 'G' }
+  const active = { status: 'active' as const, checkedAtIso: '2026-11-03T02:30:00Z', planName: 'Delta PPO', payerName: 'Delta Dental' }
+  const activeSecond = { status: 'active' as const, checkedAtIso: '2026-11-05T18:00:00Z', planName: 'Cigna DPPO', payerName: 'Cigna' }
+
+  it('one plan: no Primary/Secondary words, the same note the single card always had', () => {
+    const [p, ...rest] = portalInsurancePlans({ toolOn: true, primary: card, primaryCheck: active, secondary: null, secondaryCheck: null, timeZone: tz })
+    expect(rest).toHaveLength(0)
+    expect(p.heading).toBeNull()
+    expect(p.note?.text).toBe('Verified Nov 2, 2026 · Delta PPO')
+  })
+
+  it('two plans: each is headed and dated from ITS OWN check', () => {
+    const plans = portalInsurancePlans({ toolOn: true, primary: card, primaryCheck: active, secondary: second, secondaryCheck: activeSecond, timeZone: tz })
+    expect(plans.map((x) => x.heading)).toEqual(['Primary plan', 'Secondary plan'])
+    expect(plans[0].note?.text).toBe('Verified Nov 2, 2026 · Delta PPO')
+    expect(plans[1].note?.text).toBe('Verified Nov 5, 2026 · Cigna DPPO')
+    expect(plans[1].carrier).toBe('Cigna')
+  })
+
+  it('a verified primary never makes an unchecked secondary look verified', () => {
+    const plans = portalInsurancePlans({ toolOn: true, primary: card, primaryCheck: active, secondary: second, secondaryCheck: null, timeZone: tz })
+    expect(plans[0].note?.tone).toBe('verified')
+    expect(plans[1].note?.tone).toBe('pending')
+  })
+
+  it('the practice switch off: no verifying copy on either plan', () => {
+    const plans = portalInsurancePlans({ toolOn: false, primary: card, primaryCheck: active, secondary: second, secondaryCheck: activeSecond, timeZone: tz })
+    expect(plans.every((x) => x.note === null)).toBe(true)
   })
 })

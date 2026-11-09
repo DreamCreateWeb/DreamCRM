@@ -118,20 +118,24 @@ describe('PREVIEW lanes', () => {
     // (patient_reply was the first key released — ML-12 — feedback_reply the
     // second — ML-21 — inquiry_followup the third — ML-22 — and the post-op
     // check-in + aftercare note the fourth and fifth — ML-28 — so all of
-    // those now show to all; the referral ask is still waiting on its slice.)
+    // those now show to all; the referral ask the seventh — ML-39 — so it shows to all too.)
     expect(screen.getByText('Reply to patient messages')).toBeInTheDocument()
     expect(screen.getByText('Answer private feedback')).toBeInTheDocument()
     expect(screen.getByText('Follow up on unanswered inquiries')).toBeInTheDocument()
     expect(screen.getByText('Check in after a procedure')).toBeInTheDocument()
     expect(screen.getByText('Send after-visit care instructions')).toBeInTheDocument()
-    expect(screen.queryByText('Ask happy patients for referrals')).not.toBeInTheDocument()
+    expect(screen.getByText('Ask happy patients for referrals')).toBeInTheDocument()
     // ML-35: the listing watch is the sixth released lane — shown to all.
     expect(screen.getByText('Watch your Google listing for changes')).toBeInTheDocument()
+    // ML-36 released the newsletter too; the membership rescue is still preview.
+    expect(screen.getByText('Send a monthly patient newsletter')).toBeInTheDocument()
+    expect(screen.queryByText('Rescue a failing membership payment')).not.toBeInTheDocument()
     unmount()
     render(
       <TeamRoster grantedCapabilities={new Set()} weeklyCounts={new Map()} waitingCapabilities={new Set()} showPreview />,
     )
-    expect(screen.getByText('Ask happy patients for referrals')).toBeInTheDocument()
+    // Still-preview lanes (the membership rescue) appear only for platform admins.
+    expect(screen.getByText('Rescue a failing membership payment')).toBeInTheDocument()
   })
 })
 

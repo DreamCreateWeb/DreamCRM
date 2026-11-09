@@ -400,6 +400,13 @@ Import from `@/components/ui/...` — same inventory, re-skinned:
 | `FlashToast` | `flash-toast.tsx` | motion per Part 3; tone-tinted edge (info edge = violet). Dismiss ✕ on every toast; `urgent` persists until dismissed; the timer pauses on hover/focus; the provider is a QUEUE (3 visible, newest last, oldest non-urgent evicted first); clamped inside a phone's width; lifts above a mounted BulkBar by its measured height. |
 | **The chart kit** | `charts/` (`TrendChart`, `MiniTrend`; old `Sparkline` = compat wrapper) | THE single home for graphs (2026-07-26, Recharts). Series colors ride the validated `--color-chart-1..4` tokens ONLY — fixed order, dark-aware, never raw hex; TrendChart = axes + crosshair tooltip, MiniTrend = hover spark (law 7's heartbeat slot). LAW with CI teeth: no hand-rolled `<polyline>`/SVG charts — `tests/ui/chart-kit.test.tsx` fails the build. |
 
+**Tables on a phone (ML-53).** A dashboard data table wraps in `<TableFit>`
+(`components/ui/data-table.tsx`): below `sm` it scrolls sideways inside its own
+focusable region with the first column pinned, never widening the page;
+secondary columns carry `hidden sm:table-cell` and their facts fold into the
+primary cell as a `<FoldedFacts>` line. Adopted by Payments (online,
+collections, plans), Reviews, Campaigns (+ recipients) and the PMS logs.
+
 Tables/agenda rows: header row surface-sunk + ink-500 caps labels; row
 hover bg tint (instant); selected row = brand inner ring
 (`inset 0 0 0 1px teal-500/40` + teal-500/5 bg); aging left-borders

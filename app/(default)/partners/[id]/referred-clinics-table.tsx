@@ -20,6 +20,8 @@ interface ClinicRow {
   hasTermOverride: boolean
   startedAt: string | null
   lifetimeCommissionCents: number
+  /** Signed up through the partner's share link (vs attributed by hand). */
+  viaLink?: boolean
 }
 
 const PLAN_LABEL: Record<string, string> = { basic: 'Basic', pro: 'Pro', premium: 'Premium' }
@@ -109,7 +111,11 @@ export default function ReferredClinicsTable({
                   </Link>
                 </td>
                 <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{PLAN_LABEL[c.planTier] ?? c.planTier}</td>
-                <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{fmtDate(c.startedAt)}</td>
+                <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{fmtDate(c.startedAt)}
+                  <div className="text-xs text-gray-500 dark:text-gray-400">
+                    {c.viaLink ? 'signed up via link' : 'attributed by hand'}
+                  </div>
+                </td>
                 <td className="px-4 py-3">
                   {editing ? (
                     <div>

@@ -246,6 +246,8 @@ export const insuranceVerification = pgTable(
     // Payer checks this row cost (the Full breakdown, 2026-10-08: one row,
     // several billed asks). The monthly allowance SUMS this, not rows.
     billedChecks: integer('billed_checks').notNull().default(1),
+    // Which plan slot this check verified (ML-50): 'primary' | 'secondary'.
+    rank: text('rank').notNull().default('primary'),
     error: text('error'),
     checkedAt: timestamp('checked_at').notNull().defaultNow(),
     createdAt: timestamp('created_at').notNull().defaultNow(),
@@ -256,6 +258,37 @@ export const insuranceVerification = pgTable(
   ],
 )
 export type InsuranceVerificationRow = typeof insuranceVerification.$inferSelect
+
+// ML-50: a patient's coverage SLOTS. 'secondary' is authoritative here; the
+// 'primary' row mirrors the flat patient.insurance_* columns for one release
+// (those stay the display truth and keep every existing reader working —
+// `upsertPatientInsurance` is the ONE place that writes the mirror).
+export const patientInsurance = pgTable(
+  'patient_insurance',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id, { onDelete: 'cascade' }),
+    patientId: text('patient_id')
+      .notNull()
+      .references(() => patient.id, { onDelete: 'cascade' }),
+    // 'primary' | 'secondary'
+    rank: text('rank').notNull(),
+    provider: text('provider'),
+    policyNumber: text('policy_number'),
+    groupNumber: text('group_number'),
+    // The remembered card for THIS slot (PatientInsuranceDetail), trusted only while its memberId matches policy_number.
+    detail: jsonb('detail'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('patient_insurance_org_patient_rank_uq').on(t.organizationId, t.patientId, t.rank),
+    index('patient_insurance_org_patient_idx').on(t.organizationId, t.patientId),
+  ],
+)
+export type PatientInsuranceRow = typeof patientInsurance.$inferSelect
 
 // ─────────────────────────────────────────────────────────────────────────────
 // THE PAYER NOTEBOOK (2026-10-08). Half of a desk's verification phone call

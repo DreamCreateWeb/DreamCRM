@@ -1,7 +1,14 @@
 import 'server-only'
 import { and, eq } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
-import { clinicSenderFrom, deliverableReplyTo, formatFromHeader, type ClinicSender } from '@/lib/email-identity'
+import {
+  clinicSenderFrom,
+  deliverableReplyTo,
+  formatFromHeader,
+  resolveSenderTier,
+  OWN_DOMAIN_LOCAL_PART,
+  type ClinicSender,
+} from '@/lib/email-identity'
 import { inboundReplyAddress } from '@/lib/inbound-email'
 import { resolveClinicTimeZone } from '@/lib/clinic-timezone'
 import { resolveMarketingFooterAddress } from '@/lib/marketing/render-email'
@@ -30,6 +37,10 @@ export async function getClinicSenderIdentity(organizationId: string): Promise<C
         displayName: schema.clinicProfile.displayName,
         email: schema.clinicProfile.email,
         sendingAccountId: schema.clinicProfile.emailSendingAccountId,
+        websiteDomain: schema.clinicProfile.websiteDomain,
+        customDomainStatus: schema.clinicProfile.customDomainStatus,
+        emailDomainName: schema.clinicProfile.emailDomainName,
+        emailDomainStatus: schema.clinicProfile.emailDomainStatus,
         timezone: schema.clinicProfile.timezone,
         logoUrl: schema.clinicProfile.logoUrl,
         brandColor: schema.clinicProfile.brandColor,
@@ -85,6 +96,21 @@ export async function getClinicSenderIdentity(organizationId: string): Promise<C
     if (acct && !acct.disabled) {
       sender.gmail = { accountId: acct.id, from: formatFromHeader(name, acct.address) }
     }
+  }
+
+  // Tier 3 — the practice's own domain, ONLY once the site is live there and
+  // Resend has VERIFIED its sending records (`resolveSenderTier`, the one pure
+  // decision). Reply-To is deliberately untouched: replies still route through
+  // the platform's inbound domain into /messages. Until then Tier 1 stands.
+  const tier = resolveSenderTier({
+    hasGmail: !!sender.gmail,
+    customDomainState: (profile?.customDomainStatus as { state?: string } | null)?.state,
+    websiteDomain: profile?.websiteDomain,
+    emailDomainName: profile?.emailDomainName,
+    emailDomainStatus: profile?.emailDomainStatus,
+  })
+  if (tier === 'own_domain' && profile?.emailDomainName) {
+    sender.from = clinicSenderFrom(name, OWN_DOMAIN_LOCAL_PART, profile.emailDomainName)
   }
 
   return sender

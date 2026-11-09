@@ -3,6 +3,8 @@ import SiteHeader from '@/components/clinic-site/site-header'
 import SiteFooter from '@/components/clinic-site/site-footer'
 import SiteMobileActions from '@/components/clinic-site/site-mobile-actions'
 import { buildClinicPalette } from '@/lib/clinic-site-theme'
+import { MODERN_SUBPAGES } from './subpages'
+import { subpageSource } from '../subpage-source'
 import type { SiteTemplateDef } from '../types'
 import type { HomePageProps } from '../page-props'
 
@@ -48,7 +50,8 @@ export const modernTemplate: SiteTemplateDef = {
   description:
     'Warm, welcoming, family-first — cream ground, brand-derived palette, lifestyle photography. The default every clinic starts on.',
   chrome: { Header: SiteHeader, Footer: SiteFooter, MobileActions: SiteMobileActions },
-  pages: { Home: ModernHome },
+  pages: { Home: ModernHome, subpages: MODERN_SUBPAGES },
+  subpageSource: subpageSource('self'),
   extraMarketingPages: [],
   buildPalette: buildClinicPalette,
   fonts: [{ id: 'dc-fraunces', href: FRAUNCES_HREF }],

@@ -1163,9 +1163,7 @@ async function sweepOne(
  * report a 500 rather than a count. A throw is reported to the Guardian
  * under the clinic's own ledger (one strike per day) and the walk carries on.
  */
-export async function sweepPendingCustomDomains(
-  opts: CustomDomainSweepOptions = {},
-): Promise<CustomDomainSweepResult> {
+async function sweepCustomDomainRows(opts: CustomDomainSweepOptions = {}): Promise<CustomDomainSweepResult> {
   const now = opts.now ?? new Date()
   const clock = opts.clock ?? Date.now
   const sleep = opts.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)))
@@ -1219,4 +1217,27 @@ export async function sweepPendingCustomDomains(
     }
   }
   return result
+}
+
+/**
+ * The `custom-domains` cron's one entry point: the pending site domains, then
+ * (ML-63) the pending Resend email domains — one scheduled finisher, no new
+ * cron. The email leg is isolated: it can never fail the site leg's result,
+ * and `sweepEmailDomains: false` skips it (tests of the site walk).
+ */
+export async function sweepPendingCustomDomains(
+  opts: CustomDomainSweepOptions & {
+    sweepEmailDomains?: false | (() => Promise<import('./email-domain').EmailDomainSweepResult>)
+  } = {},
+): Promise<CustomDomainSweepResult & { emailDomains?: import('./email-domain').EmailDomainSweepResult }> {
+  const { sweepEmailDomains, ...siteOpts } = opts
+  const result = await sweepCustomDomainRows(siteOpts)
+  if (sweepEmailDomains === false) return result
+  try {
+    const run = sweepEmailDomains ?? (await import('./email-domain')).sweepPendingEmailDomains
+    return { ...result, emailDomains: await run() }
+  } catch (err) {
+    console.warn('[custom-domain] email-domain sweep failed', (err as Error)?.message)
+    return result
+  }
 }

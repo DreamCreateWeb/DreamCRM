@@ -21,6 +21,7 @@ import { EncodingLegend } from '@/components/ui/encoding-legend'
 import { EmptyState } from '@/components/ui/empty-state'
 import { KpiStat } from '@/components/ui/kpi-stat'
 import type { PillLegendRow, Tone } from '@/lib/ui/encodings'
+import { TableFit, FoldedFacts } from '@/components/ui/data-table'
 
 /**
  * The PMS deep-management dashboard, extracted from the old inline
@@ -273,11 +274,11 @@ export function PmsConnectedDashboard({
           <EmptyState icon="🔄" title="No syncs yet" body="Pull your patients and schedule into DreamCRM — the first run takes a minute." action={<SyncNowButton />} />
         ) : (
           <div className="v2-card overflow-hidden">
-            <table className="w-full text-sm">
+            <TableFit label="Sync history"><table className="w-full text-sm">
               <thead className="bg-[color:var(--color-surface-sunk)] border-b border-[color:var(--color-hairline)]">
                 <tr className="text-left text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400">
                   <th className="px-3 py-2">When</th>
-                  <th className="px-3 py-2">Trigger</th>
+                  <th className="hidden sm:table-cell px-3 py-2">Trigger</th>
                   <th className="px-3 py-2">Result</th>
                   <th className="px-3 py-2">Changes</th>
                 </tr>
@@ -287,8 +288,9 @@ export function PmsConnectedDashboard({
                   <tr key={r.id} className="border-b border-[color:var(--color-hairline)] last:border-b-0">
                     <td className="px-3 py-2.5 text-sm text-gray-600 dark:text-gray-300 tabular-nums font-mono-num">
                       {fmtRelative(r.startedAt)}
+                      <FoldedFacts><span className="capitalize">{r.trigger}</span></FoldedFacts>
                     </td>
-                    <td className="px-3 py-2.5 text-sm text-gray-500 dark:text-gray-400 capitalize">{r.trigger}</td>
+                    <td className="hidden sm:table-cell px-3 py-2.5 text-sm text-gray-500 dark:text-gray-400 capitalize">{r.trigger}</td>
                     <td className="px-3 py-2.5">
                       <StatusPill tone={RUN_TONE[r.status as SyncRunStatus]} label={SYNC_STATUS_LABELS[r.status as SyncRunStatus]} />
                     </td>
@@ -296,7 +298,7 @@ export function PmsConnectedDashboard({
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </table></TableFit>
           </div>
         )}
       </section>
@@ -320,13 +322,13 @@ export function PmsConnectedDashboard({
           />
         ) : (
           <div className="v2-card overflow-hidden">
-            <table className="w-full text-sm">
+            <TableFit label="Write-back log"><table className="w-full text-sm">
               <thead className="bg-[color:var(--color-surface-sunk)] border-b border-[color:var(--color-hairline)]">
                 <tr className="text-left text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400">
                   <th className="px-3 py-2">Record</th>
-                  <th className="px-3 py-2">Type</th>
+                  <th className="hidden sm:table-cell px-3 py-2">Type</th>
                   <th className="px-3 py-2">Status</th>
-                  <th className="px-3 py-2">PMS id</th>
+                  <th className="hidden sm:table-cell px-3 py-2">PMS id</th>
                   <th className="px-3 py-2">When</th>
                 </tr>
               </thead>
@@ -336,19 +338,22 @@ export function PmsConnectedDashboard({
                     <td className="px-3 py-2.5">
                       <p className="text-sm font-medium text-gray-800 dark:text-gray-100">{w.label}</p>
                       {w.error && <p className="text-xs text-rose-600 dark:text-rose-400">{w.error}</p>}
+                      <FoldedFacts>
+                        {WRITE_OP_ENTITY_LABELS[w.entityType as keyof typeof WRITE_OP_ENTITY_LABELS] ?? w.entityType} · PMS id {w.externalId ?? '—'}
+                      </FoldedFacts>
                     </td>
-                    <td className="px-3 py-2.5 text-sm text-gray-500 dark:text-gray-400">
+                    <td className="hidden sm:table-cell px-3 py-2.5 text-sm text-gray-500 dark:text-gray-400">
                       {WRITE_OP_ENTITY_LABELS[w.entityType as keyof typeof WRITE_OP_ENTITY_LABELS] ?? w.entityType}
                     </td>
                     <td className="px-3 py-2.5">
                       <StatusPill tone={WRITE_TONE[w.status]} label={WRITE_OP_STATUS_LABELS[w.status]} />
                     </td>
-                    <td className="px-3 py-2.5 text-sm text-gray-500 dark:text-gray-400 font-mono-num">{w.externalId ?? '—'}</td>
+                    <td className="hidden sm:table-cell px-3 py-2.5 text-sm text-gray-500 dark:text-gray-400 font-mono-num">{w.externalId ?? '—'}</td>
                     <td className="px-3 py-2.5 text-sm text-gray-500 dark:text-gray-400 tabular-nums font-mono-num">{fmtRelative(w.createdAt)}</td>
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </table></TableFit>
           </div>
         )}
       </section>
