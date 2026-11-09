@@ -15,7 +15,7 @@ import {
   type TopProduct,
 } from '@/lib/types/shop'
 import { setProductStatusAction, deleteProductAction, updateShopConfigAction, disconnectStripeAction } from './actions'
-import { PageHeader } from '@/components/ui/page-header'
+import { PageFrame } from '@/components/ui/page-frame'
 import { ActionButton } from '@/components/ui/action-button'
 import { StatusPill } from '@/components/ui/status-pill'
 import { EncodingLegend } from '@/components/ui/encoding-legend'
@@ -152,14 +152,14 @@ export default function ShopClient({
   ]
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
-      <PageHeader
-        eyebrow={`Business · ${orgName}`}
+    <PageFrame
+        group="Business"
+        clinicName={orgName}
         title="Shop"
         subtitle="Sell whitening kits, brushes, and branded products on your own site. Payouts land in your bank — full margin to the practice."
         legend={<EncodingLegend pills={PRODUCT_PILL_LEGEND} />}
         actions={primaryAction}
-      />
+    >
 
       {connectBanner === 'connected' && (
         <div className="mb-4 text-sm px-4 py-2.5 rounded-lg bg-emerald-500/15 text-emerald-700 dark:text-emerald-300">
@@ -520,7 +520,7 @@ export default function ShopClient({
       </div>
 
       {toast && <FlashToast message={toast} onDone={() => setToast(null)} />}
-    </div>
+    </PageFrame>
   )
 }
 

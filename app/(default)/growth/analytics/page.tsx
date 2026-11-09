@@ -9,7 +9,7 @@ import { getPublishedPostCounts } from '@/lib/services/social-posts'
 import { getRetentionAttribution, type RetentionAttribution } from '@/lib/services/retention-attribution'
 import { getReviewsProof, type ReviewsProof } from '@/lib/services/reviews'
 import ModuleHint from '@/components/onboarding/module-hint'
-import { PageHeader } from '@/components/ui/page-header'
+import { PageFrame } from '@/components/ui/page-frame'
 import { KpiStat } from '@/components/ui/kpi-stat'
 import { FilterChip } from '@/components/ui/filter-chip'
 import { BrandLogo, type BrandLogoId } from '@/components/integrations/brand-logos'
@@ -89,15 +89,8 @@ export default async function AnalyticsPage({ searchParams }: Props) {
   const now = new Date()
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
-      <ModuleHint id="analytics" />
-      {/* ── Header + range toggle ───────────────────────────────────────── */}
-      <PageHeader
-        eyebrow={
-          <Link href="/growth" className="hover:underline underline-offset-4">
-            ‹ Growth
-          </Link>
-        }
+    <PageFrame
+        hub={{ href: '/growth', label: 'Growth' }}
         title="Analytics"
         subtitle="The numbers a CRM can honestly measure — acquisition, schedule health, recall and reputation. Clinical production stays in your PMS; we don't fake it."
         actions={
@@ -110,7 +103,8 @@ export default async function AnalyticsPage({ searchParams }: Props) {
             ))}
           </div>
         }
-      />
+      before={<ModuleHint id="analytics" />}
+    >
 
       {/* ── Scorecard — the headline numbers, at a glance ───────────────── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-8">
@@ -561,7 +555,7 @@ export default async function AnalyticsPage({ searchParams }: Props) {
           </div>
         </div>
       </section>
-    </div>
+    </PageFrame>
   )
 }
 

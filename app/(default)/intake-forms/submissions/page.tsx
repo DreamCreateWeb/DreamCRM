@@ -7,7 +7,7 @@ import { requireTenant } from '@/lib/auth/context'
 import { listRecentSubmissions } from '@/lib/services/forms'
 import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
 import { formatClinicDayTime } from '@/lib/format-datetime'
-import { PageHeader } from '@/components/ui/page-header'
+import { PageFrame } from '@/components/ui/page-frame'
 import { EmptyState } from '@/components/ui/empty-state'
 import { ActionButton } from '@/components/ui/action-button'
 
@@ -28,16 +28,11 @@ export default async function RecentSubmissionsPage() {
   ])
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-4xl mx-auto">
-      <PageHeader
-        eyebrow={
-          <Link href="/intake-forms" className="hover:underline underline-offset-4">
-            ‹ Intake forms
-          </Link>
-        }
+    <PageFrame width="4xl"
+        hub={{ href: '/intake-forms', label: 'Intake forms' }}
         title="Recent submissions"
         subtitle="The latest completed forms across every template, most recent first."
-      />
+    >
 
       {submissions.length === 0 ? (
         <EmptyState
@@ -100,6 +95,6 @@ export default async function RecentSubmissionsPage() {
           )}
         </div>
       )}
-    </div>
+    </PageFrame>
   )
 }

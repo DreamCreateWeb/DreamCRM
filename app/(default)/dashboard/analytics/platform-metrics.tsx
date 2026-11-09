@@ -14,7 +14,7 @@ import {
 } from '@/lib/db/schema/platform'
 import { formatMoneyShort, formatNumberShort } from '@/lib/utils/format'
 import { TrendChart, CHART_SERIES } from '@/components/ui/charts'
-import { PageHeader } from '@/components/ui/page-header'
+import { PageFrame } from '@/components/ui/page-frame'
 import { ActionButton } from '@/components/ui/action-button'
 import { KpiStat } from '@/components/ui/kpi-stat'
 import { EmptyState } from '@/components/ui/empty-state'
@@ -51,8 +51,7 @@ export default async function PlatformMetrics() {
   const bucketedClinics = mrr.byTier.basic + mrr.byTier.pro + mrr.byTier.premium
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
-      <PageHeader
+    <PageFrame
         eyebrow="Platform · Dream Create"
         title="Platform Metrics"
         subtitle="Health ratios, growth trends, and project performance across Dream Create."
@@ -66,7 +65,7 @@ export default async function PlatformMetrics() {
             </ActionButton>
           </>
         }
-      />
+    >
 
       {/* ── Health ratios ── focus is RATES, not absolute money values
             (those are owned by the Revenue module) ───────────────────── */}
@@ -361,7 +360,7 @@ export default async function PlatformMetrics() {
           sub="Booked in last 7 days"
         />
       </div>
-    </div>
+    </PageFrame>
   )
 }
 

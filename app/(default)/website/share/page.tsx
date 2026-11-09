@@ -7,7 +7,7 @@ import { clinicProfile } from '@/lib/db/schema/platform'
 import { publicSiteUrl, clinicPortalSignInUrl } from '@/lib/services/clinic-site'
 import { getReviewConfig, reviewPlatformUrl } from '@/lib/services/reviews'
 import { buildShareCards } from '@/lib/share-cards'
-import { PageHeader } from '@/components/ui/page-header'
+import { PageFrame } from '@/components/ui/page-frame'
 import { ActionButton } from '@/components/ui/action-button'
 import { EmptyState } from '@/components/ui/empty-state'
 import PrintCardsButton from './print-button'
@@ -86,31 +86,35 @@ export default async function ShareCardsPage() {
   )
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-5xl mx-auto">
-      {/* Print: keep ONLY the cards — the shell chrome, header, and helper
-          copy all step aside. Same selector approach as the demo-prep page. */}
-      <style>{`
-        @media print {
-          aside, header, nav, .no-print { display: none !important }
-          .dc-share-grid { display: grid !important; grid-template-columns: 1fr 1fr; gap: 16px }
-          .dc-share-card { break-inside: avoid; page-break-inside: avoid; border: 1px solid #d6d3d1 !important; box-shadow: none !important }
+    <PageFrame
+      width="5xl"
+      headerClassName="no-print"
+      before={
+        <>
+          {/* Print: keep ONLY the cards — the shell chrome, header, and helper
+              copy all step aside. Same selector approach as the demo-prep page. */}
+          <style>{`
+            @media print {
+              aside, header, nav, .no-print { display: none !important }
+              .dc-share-grid { display: grid !important; grid-template-columns: 1fr 1fr; gap: 16px }
+              .dc-share-card { break-inside: avoid; page-break-inside: avoid; border: 1px solid #d6d3d1 !important; box-shadow: none !important }
+            }
+          `}</style>
+        </>
+      }
+        group="Website"
+      clinicName={clinicName}
+        title="Put your website in patients’ hands"
+        subtitle="Print these QR cards for the front desk, checkout counter, and waiting room — each one links a physical moment to the right page."
+        actions={
+          <div className="flex items-center gap-2">
+            <ActionButton variant="secondary" size="sm" href="/website">
+              ← Back to the Studio
+            </ActionButton>
+            <PrintCardsButton />
+          </div>
         }
-      `}</style>
-      <div className="no-print">
-        <PageHeader
-          eyebrow={`Website · ${clinicName}`}
-          title="Put your website in patients’ hands"
-          subtitle="Print these QR cards for the front desk, checkout counter, and waiting room — each one links a physical moment to the right page."
-          actions={
-            <div className="flex items-center gap-2">
-              <ActionButton variant="secondary" size="sm" href="/website">
-                ← Back to the Studio
-              </ActionButton>
-              <PrintCardsButton />
-            </div>
-          }
-        />
-      </div>
+    >
 
       <div className="dc-share-grid grid sm:grid-cols-2 gap-5">
         {withQr.map((card) => (
@@ -149,6 +153,6 @@ export default async function ShareCardsPage() {
         Tip: print on cardstock and trim — each card is designed to stand on a counter or tape to
         a mirror. The links never expire; reprint any time your site changes.
       </p>
-    </div>
+    </PageFrame>
   )
 }

@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic'
 import { redirect } from 'next/navigation'
 import { requireTenant } from '@/lib/auth/context'
 import { listPartners } from '@/lib/services/referrals'
-import { PageHeader } from '@/components/ui/page-header'
+import { PageFrame } from '@/components/ui/page-frame'
 import { KpiStat } from '@/components/ui/kpi-stat'
 import { EncodingLegend } from '@/components/ui/encoding-legend'
 import { EmptyState } from '@/components/ui/empty-state'
@@ -31,8 +31,7 @@ export default async function PartnersPage() {
   const totalClinics = partners.reduce((s, p) => s + p.clinicCount, 0)
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
-      <PageHeader
+    <PageFrame
         eyebrow="Platform · Dream Create"
         title="Referral partners"
         subtitle="People who refer clinics earn a share of each paid subscription. Set their rate, attribute clinics, and pay them out."
@@ -48,7 +47,7 @@ export default async function PartnersPage() {
           />
         }
         actions={<AddPartnerModal />}
-      />
+    >
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         <KpiStat label="Partners" value={partners.length} sub={`${activeCount} active`} />
@@ -67,6 +66,6 @@ export default async function PartnersPage() {
       ) : (
         <PartnersTable partners={partners} />
       )}
-    </div>
+    </PageFrame>
   )
 }

@@ -1,12 +1,11 @@
 import { redirect } from 'next/navigation'
-import Link from 'next/link'
 import { requireTenant } from '@/lib/auth/context'
 import { getCustomDomainStatus } from '@/lib/services/custom-domain'
 import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
 import { CLINIC_DEFAULT_TZ } from '@/lib/clinic-timezone'
 import { isDomainBuyingAvailable, listDomainPurchases } from '@/lib/services/domain-purchase'
 import { isLivePurchasesEnabled } from '@/lib/name-com'
-import { PageHeader } from '@/components/ui/page-header'
+import { PageFrame } from '@/components/ui/page-frame'
 import { ActionButton } from '@/components/ui/action-button'
 import CustomDomainCard from './custom-domain-card'
 import BuyDomainCard from './buy-domain-card'
@@ -53,13 +52,8 @@ export default async function WebsiteDomainPage() {
   const purchases = buyingAvailable ? await listDomainPurchases(ctx.organizationId).catch(() => []) : []
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-4xl mx-auto">
-      <PageHeader
-        eyebrow={
-          <Link href="/website" className="hover:underline underline-offset-4">
-            ‹ Website
-          </Link>
-        }
+    <PageFrame width="4xl"
+        hub={{ href: '/website', label: 'Website' }}
         title="Domain"
         subtitle={
           buyingAvailable
@@ -71,12 +65,12 @@ export default async function WebsiteDomainPage() {
             View live ↗
           </ActionButton>
         }
-      />
+    >
       <div className="v2-panel">
         <CustomDomainCard initialStatus={status} subdomainUrl={subdomainUrl} timeZone={timeZone} />
         <EmailDomainCard initialState={emailState} siteDomain={emailSiteDomain} timeZone={timeZone} />
       </div>
       {buyingAvailable && <BuyDomainCard purchases={purchases} dryRunMode={!isLivePurchasesEnabled()} />}
-    </div>
+    </PageFrame>
   )
 }

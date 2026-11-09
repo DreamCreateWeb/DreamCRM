@@ -7,7 +7,7 @@ import { listPaymentPlans } from '@/lib/services/payment-plans'
 import { getPmsLink } from '@/lib/services/pms-link'
 import { balanceSourceCopy } from '@/lib/pms-link'
 import { formatCents } from '@/lib/types/shop'
-import { PageHeader } from '@/components/ui/page-header'
+import { PageFrame } from '@/components/ui/page-frame'
 import { ActionButton } from '@/components/ui/action-button'
 import { KpiStat } from '@/components/ui/kpi-stat'
 import { StatusPill } from '@/components/ui/status-pill'
@@ -48,9 +48,9 @@ export default async function PaymentsHubPage() {
   const balanceSource = balanceSourceCopy(pmsLink)
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-6xl mx-auto">
-      <PageHeader
-        eyebrow={`Business · ${ctx.organizationName}`}
+    <PageFrame width="6xl"
+        group="Business"
+        clinicName={ctx.organizationName}
         title="Payments"
         subtitle="Money in one place — what patients owe, what came in online, plans on autopay, and your membership revenue."
         actions={
@@ -62,7 +62,7 @@ export default async function PaymentsHubPage() {
             </ActionButton>
           )
         }
-      />
+    >
 
       {!connectReady && (
         <div className="mb-5 rounded-[var(--r-md)] bg-violet-500/10 ring-1 ring-inset ring-violet-500/30 px-4 py-3">
@@ -126,6 +126,6 @@ export default async function PaymentsHubPage() {
         connectReady={connectReady}
         membershipStats={membershipStats}
       />
-    </div>
+    </PageFrame>
   )
 }

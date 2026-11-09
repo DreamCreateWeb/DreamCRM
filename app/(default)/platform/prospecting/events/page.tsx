@@ -9,7 +9,7 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { requireTenant } from '@/lib/auth/context'
 import { getEventStats, listEvents } from '@/lib/services/event-capture'
-import { PageHeader } from '@/components/ui/page-header'
+import { PageFrame } from '@/components/ui/page-frame'
 import { EmptyState } from '@/components/ui/empty-state'
 import { ActionButton } from '@/components/ui/action-button'
 import { StatusPill } from '@/components/ui/status-pill'
@@ -29,8 +29,7 @@ export default async function EventsPage() {
   const base = (process.env.NEXT_PUBLIC_APP_URL ?? 'https://www.dreamcreatestudio.com').replace(/\/+$/, '')
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-4xl mx-auto">
-      <PageHeader
+    <PageFrame width="4xl"
         eyebrow="Platform · Sales Pipeline"
         title="Events"
         subtitle="The conference kit: open the capture link on your phone, and every headshot becomes a warm, attributed lead with a Practice Scan attached."
@@ -39,7 +38,7 @@ export default async function EventsPage() {
             ‹ Pipeline
           </Link>
         }
-      />
+    >
 
       <section id="new-event" className="mb-8 rounded-[var(--r-md)] bg-[color:var(--color-surface-2)] p-5 shadow-[inset_0_0_0_1px_var(--color-hairline)]">
         <h2 className="mb-3 text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">New event</h2>
@@ -102,6 +101,6 @@ export default async function EventsPage() {
           })}
         </div>
       )}
-    </div>
+    </PageFrame>
   )
 }

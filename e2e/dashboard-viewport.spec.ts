@@ -16,7 +16,9 @@ import { createHmac } from 'node:crypto'
  * it because the cause was cascade LAYERING, not a class.
  *
  * The path list is typed by hand on purpose (a bounded journey, not a
- * registry expansion): the shell is one component, so a few pages prove it.
+ * registry expansion — a derived list is an INTAKE_RULES class). ML-54 grew it
+ * from nine pages to every clinic module page that renders through
+ * `<PageFrame>`, so the next `.grain` cannot hide on a page nobody walked.
  */
 
 const SESSION_TOKEN = 'e2e-staff-session-token'
@@ -32,7 +34,12 @@ function signedSessionCookie(): string {
 // The Daily list pages ride along: the roster, the follow-ups board and the
 // inquiries triage are the three tables a front desk opens on a phone, and a
 // table is the shape most likely to drag the shell sideways.
-const PAGES = ['/dashboard', '/website', '/website/content', '/messages', '/patients', '/followups', '/leads', '/payments/online', '/growth/reviews']
+const PAGES = [
+  '/dashboard', '/my-day', '/dream-team', '/messages', '/appointments', '/patients', '/followups', '/leads', '/intake-forms', '/insurance',
+  '/growth', '/growth/campaigns', '/growth/outreach', '/growth/reviews', '/growth/social', '/growth/analytics',
+  '/website', '/website/content', '/website/design', '/website/pages', '/website/forms', '/website/blog', '/website/seo', '/website/domain', '/website/share',
+  '/payments', '/payments/online', '/payments/collections', '/payments/memberships', '/shop', '/integrations', '/integrations/pms',
+]
 
 test.describe('the dashboard shell at phone, tablet and desktop widths', () => {
   test.beforeEach(async ({ context }) => {

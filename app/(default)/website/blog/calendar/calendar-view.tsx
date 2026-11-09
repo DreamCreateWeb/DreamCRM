@@ -10,7 +10,7 @@ import {
   scheduleBlogPostAction,
   unscheduleBlogPostAction,
 } from '../actions'
-import { PageHeader } from '@/components/ui/page-header'
+import { PageFrame } from '@/components/ui/page-frame'
 import { ActionButton } from '@/components/ui/action-button'
 import { StatusPill } from '@/components/ui/status-pill'
 import { useToast } from '@/components/ui/toast'
@@ -55,8 +55,7 @@ export default function CalendarView({ items, orgName = 'Your clinic', isPlatfor
     .slice(0, 8)
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
-      <PageHeader
+    <PageFrame
         eyebrow={isPlatform ? `Platform · ${orgName}` : `Website · ${orgName}`}
         title="Plan your posts"
         subtitle={
@@ -74,7 +73,7 @@ export default function CalendarView({ items, orgName = 'Your clinic', isPlatfor
             </ActionButton>
           </>
         }
-      />
+    >
 
       <div className="space-y-8">
         <Section
@@ -126,7 +125,7 @@ export default function CalendarView({ items, orgName = 'Your clinic', isPlatfor
       </div>
 
       {showIdeas && <GenerateIdeasModal isPlatform={isPlatform} onClose={() => setShowIdeas(false)} onAdded={() => router.refresh()} />}
-    </div>
+    </PageFrame>
   )
 }
 

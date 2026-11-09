@@ -9,7 +9,7 @@ import PostingTable from './posting-table'
 import { toPostLabel } from '@/lib/payments-reconcile'
 import BalanceOutreachCard from './balance-outreach-card'
 import { formatCents } from '@/lib/types/shop'
-import { PageHeader } from '@/components/ui/page-header'
+import { PageFrame } from '@/components/ui/page-frame'
 import { ActionButton } from '@/components/ui/action-button'
 import { StatusPill } from '@/components/ui/status-pill'
 import { EmptyState } from '@/components/ui/empty-state'
@@ -75,9 +75,9 @@ export default async function ShopPaymentsPage() {
   const canManage = ctx.role === 'owner' || ctx.role === 'admin'
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[80rem] mx-auto">
-      <PageHeader
-        eyebrow={`Business · ${ctx.organizationName}`}
+    <PageFrame width="80rem"
+        group="Business"
+        clinicName={ctx.organizationName}
         title="Online payments"
         subtitle="Balance payments patients made online through the portal. Post each one to your PMS ledger to keep the books square — DreamCRM never edits the PMS balance for you."
         actions={
@@ -95,7 +95,7 @@ export default async function ShopPaymentsPage() {
             </ActionButton>
           </div>
         }
-      />
+    >
 
       {/* Honest framing: these are collected, but reconciliation is still manual. */}
       <div className="mb-5 rounded-[var(--r-md)] bg-violet-500/10 ring-1 ring-inset ring-violet-500/30 px-4 py-3">
@@ -259,6 +259,6 @@ export default async function ShopPaymentsPage() {
       )}
 
       <BalanceOutreachCard initial={outreach} canManage={canManage} paymentsReady={paymentsReady} />
-    </div>
+    </PageFrame>
   )
 }

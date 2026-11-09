@@ -16,7 +16,7 @@ import {
   appointmentFlagGlyphs,
   type Tone,
 } from '@/lib/ui/encodings'
-import { PageHeader } from '@/components/ui/page-header'
+import { PageFrame } from '@/components/ui/page-frame'
 import { PagePulse } from '@/components/ui/page-pulse'
 import { ActionButton } from '@/components/ui/action-button'
 import { StatusPill } from '@/components/ui/status-pill'
@@ -444,9 +444,9 @@ export default function AgendaView({
   const viewIsActiveSaved = !viewIsEmpty && savedViews.some((v) => v.query === currentViewQuery)
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
-      <PageHeader
-        eyebrow={`Daily · ${orgName}`}
+    <PageFrame
+        group="Daily"
+        clinicName={orgName}
         title="Appointments"
         subtitle={
           totalRows === 0
@@ -479,7 +479,7 @@ export default function AgendaView({
             </ActionButton>
           </>
         }
-      />
+    >
       <PagePulse
         facts={[
           { label: totalRows === 1 ? 'booking in view' : 'bookings in view', value: totalRows },
@@ -654,7 +654,7 @@ export default function AgendaView({
           onCancelled={addOptimisticCancelled}
         />
       )}
-    </div>
+    </PageFrame>
   )
 }
 

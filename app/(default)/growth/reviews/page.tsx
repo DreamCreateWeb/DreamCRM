@@ -20,7 +20,7 @@ import ModuleHint from '@/components/onboarding/module-hint'
 import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
 import { getSmsRegistration, smsDriver } from '@/lib/services/sms-registration'
 import { POLLING_STATES } from '@/lib/sms-registration'
-import { PageHeader } from '@/components/ui/page-header'
+import { PageFrame } from '@/components/ui/page-frame'
 import { PagePulse } from '@/components/ui/page-pulse'
 import { TeamDidItBand } from '@/components/ui/team-did-it-band'
 import { teamDidIt, TEAM_DID_IT_QUIET } from '@/lib/services/team-did-it'
@@ -144,14 +144,8 @@ export default async function ReviewsPage() {
   const textingInReview = smsState === 'collecting' || (POLLING_STATES as readonly string[]).includes(smsState)
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
-      <ModuleHint id="reviews" />
-      <PageHeader
-        eyebrow={
-          <Link href="/growth" className="hover:underline underline-offset-4">
-            ‹ Growth
-          </Link>
-        }
+    <PageFrame
+        hub={{ href: '/growth', label: 'Growth' }}
         title="Reviews & Reputation"
         subtitle="After a visit, we ask the patient for a Google review — the same prompt to everyone, nothing hidden."
         legend={
@@ -181,7 +175,8 @@ export default async function ReviewsPage() {
             )}
           </div>
         }
-      />
+      before={<ModuleHint id="reviews" />}
+    >
       <PagePulse
         facts={[
           { label: 'asked in the last 30 days', value: stats.sent30d },
@@ -525,6 +520,6 @@ export default async function ReviewsPage() {
           )}
         </div>
       </section>
-    </div>
+    </PageFrame>
   )
 }

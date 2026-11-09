@@ -47,6 +47,12 @@ vitest guards in `tests/guards/`, so they fail a required check like any other
 test — and they are the reason a workflow edit, or an edit to the harness
 config, that looks harmless can turn a PR red:
 
+- `page-frame-adoption.test.ts` — **every dashboard `page.tsx` under
+  `app/(default)` and `app/(double-sidebar)` renders through `<PageFrame>`**
+  (`components/ui/page-frame.tsx`: gutters, content width, the
+  `<Group> · <clinic name>` eyebrow, the hub way-back), directly or one relative
+  import away. A dated allowlist may only shrink; redirect stubs are exempt.
+  Registered in `INTAKE_RULES` as a tree-walk class (ML-54).
 - `review-gate.test.ts` — the gate list in `scripts/review-gate.mjs` must keep
   matching the tree. Four directions, and the two that bite are the ones that
   fail as the repo grows: `MUST_BE_GATED` (a curated list of files that must

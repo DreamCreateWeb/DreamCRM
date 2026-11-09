@@ -1,4 +1,3 @@
-import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { eq } from 'drizzle-orm'
 import { requireTenant } from '@/lib/auth/context'
@@ -11,7 +10,7 @@ import { socialAddonConfigured } from '@/lib/stripe-config'
 import { socialAddonAvailable, socialAddonPriceCents } from '@/lib/types/social-entitlements'
 import type { PlanTier } from '@/lib/modules/types'
 import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
-import { PageHeader } from '@/components/ui/page-header'
+import { PageFrame } from '@/components/ui/page-frame'
 import { TeamDidItBand } from '@/components/ui/team-did-it-band'
 import { teamDidIt, TEAM_DID_IT_QUIET } from '@/lib/services/team-did-it'
 import { SOCIAL_LANES } from '@/lib/team-did-it-lanes'
@@ -93,15 +92,8 @@ export default async function SocialPostsPage() {
   }
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-6xl mx-auto">
-      <ModuleHint id="social_posts" />
-
-      <PageHeader
-        eyebrow={
-          <Link href="/growth" className="hover:underline underline-offset-4">
-            ‹ Growth
-          </Link>
-        }
+    <PageFrame width="6xl"
+        hub={{ href: '/growth', label: 'Growth' }}
         title="Social Posts"
         subtitle="Compose once and publish — or schedule — to Google Business and your social channels at the same time. See everything on a content calendar."
         legend={
@@ -129,7 +121,8 @@ export default async function SocialPostsPage() {
             </ActionButton>
           </>
         }
-      />
+      before={<ModuleHint id="social_posts" />}
+    >
 
       <TeamDidItBand data={teamDid} what={SOCIAL_LANES.what} />
 
@@ -142,6 +135,6 @@ export default async function SocialPostsPage() {
           <PostsView posts={posts} channels={channels} clinicName={ctx.organizationName} />
         </div>
       )}
-    </div>
+    </PageFrame>
   )
 }

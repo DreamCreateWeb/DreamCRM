@@ -1,11 +1,10 @@
-import Link from 'next/link'
 import { notFound, redirect } from 'next/navigation'
 import { requireTenant } from '@/lib/auth/context'
 import { getAutomationTemplate } from '@/lib/services/marketing-templates'
 import { isRetentionKind, RETENTION_KIND_LABELS } from '@/lib/types/retention'
 import { getClinicCadence } from '@/lib/services/clinic-cadence'
 import { reactivationAudienceDescription, type RecallCadenceInput } from '@/lib/recall-cadence'
-import { PageHeader } from '@/components/ui/page-header'
+import { PageFrame } from '@/components/ui/page-frame'
 import AutomationMessageEditor from './message-editor'
 
 export const metadata = {
@@ -47,22 +46,17 @@ export default async function AutomationMessagePage({
   const facts = kindFacts(recall)[kind]
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-3xl mx-auto">
-      <PageHeader
-        eyebrow={
-          <Link href="/growth/outreach" className="hover:underline underline-offset-4">
-            ‹ Recall &amp; Outreach
-          </Link>
-        }
+    <PageFrame width="3xl"
+        hub={{ href: '/growth/outreach', label: 'Recall & Outreach' }}
         title={`${RETENTION_KIND_LABELS[kind]} — the message`}
         subtitle={`${facts.cadence} to ${facts.audience}. This is the exact email that goes out under your name — edit anything.`}
-      />
+    >
       <AutomationMessageEditor
         kind={kind}
         initial={{ subject: message.subject, previewText: message.previewText ?? '', bodyHtml: message.bodyHtml }}
         isCustom={message.isCustom}
         canManage={canManage}
       />
-    </div>
+    </PageFrame>
   )
 }

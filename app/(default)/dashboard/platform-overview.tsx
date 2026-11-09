@@ -16,7 +16,7 @@ import { AttentionBand, type AttentionRow } from '@/components/ui/attention-band
 import GuardianPanel from './guardian-panel'
 import { PROVIDER_LABELS } from '@/lib/types/pms'
 import { formatMoneyShort, formatNumberShort, formatRelativeDate } from '@/lib/utils/format'
-import { PageHeader } from '@/components/ui/page-header'
+import { PageFrame } from '@/components/ui/page-frame'
 import { ActionButton } from '@/components/ui/action-button'
 import { EmptyState } from '@/components/ui/empty-state'
 import { KpiStat } from '@/components/ui/kpi-stat'
@@ -148,8 +148,7 @@ export default async function PlatformOverview() {
   const stuckMore = needsAHand.rows.length - stuckRows.length
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
-      <PageHeader
+    <PageFrame
         eyebrow="Platform · Dream Create"
         title="Overview"
         subtitle="Today's pulse and what needs your attention."
@@ -164,7 +163,7 @@ export default async function PlatformOverview() {
             </ActionButton>
           </>
         }
-      />
+    >
 
       {/* ── Needs a hand — the clinics that are stuck (ML-40) ──────────── */}
       <AttentionBand rows={stuckRows} />
@@ -462,7 +461,7 @@ export default async function PlatformOverview() {
           subtitle="Manage clinic accounts"
         />
       </div>
-    </div>
+    </PageFrame>
   )
 }
 

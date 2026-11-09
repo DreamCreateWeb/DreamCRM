@@ -3,7 +3,7 @@
 import { runAction } from '@/lib/run-action'
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { PageHeader } from '@/components/ui/page-header'
+import { PageFrame } from '@/components/ui/page-frame'
 import { ActionButton } from '@/components/ui/action-button'
 import { StatusPill } from '@/components/ui/status-pill'
 import { TONE_TEXT } from '@/lib/ui/encodings'
@@ -51,13 +51,13 @@ export default function InsuranceIntro({
   }
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-3xl mx-auto">
-      <PageHeader
-        eyebrow={`Daily · ${orgName}`}
+    <PageFrame width="3xl"
+        group="Daily"
+        clinicName={orgName}
         title="Insurance"
         subtitle={INSURANCE_INTRO.lede}
         actions={<StatusPill tone="neutral" label="Not turned on" />}
-      />
+    >
 
       <section className="v2-card px-5 py-5 sm:px-6 sm:py-6" data-testid="insurance-intro">
         <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100">{INSURANCE_INTRO.title}</h2>
@@ -143,6 +143,6 @@ export default function InsuranceIntro({
           </form>
         )}
       </section>
-    </div>
+    </PageFrame>
   )
 }
