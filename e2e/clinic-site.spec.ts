@@ -39,6 +39,22 @@ test.describe('a published clinic site', () => {
     await expectNoA11yViolations(page, 'clinic site: booking page')
   })
 
+  test('a subpage wears the chosen template and never scrolls sideways at 390 (ML-52)', async ({ page }) => {
+    // The seeded clinic runs ONE template; the per-template renderer
+    // contract (every key, every template) is held by the conformance
+    // harness. This pins the live path: the shell dispatches to the active
+    // template's Services body, one h1, no sideways scroll at phone width.
+    await page.setViewportSize({ width: 390, height: 844 })
+    const res = await page.goto(`${LIVE}/services`)
+    expect(res?.status()).toBe(200)
+    await expect(page.locator('main h1')).toHaveCount(1)
+    const overflow = await page.evaluate(
+      () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    )
+    expect(overflow).toBeLessThanOrEqual(0)
+    await expectNoA11yViolations(page, 'clinic site: services at 390')
+  })
+
   test('the booking form fields are reachable by their names, not placeholders', async ({ page }) => {
     // Pins the R2 a11y fix: these inputs were placeholder-only, which vanishes
     // on input and is a weak accessible name.

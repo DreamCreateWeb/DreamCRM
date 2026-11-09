@@ -4,6 +4,7 @@ import PediatricFooter from '@/components/clinic-site/templates/pediatric/footer
 import PediatricMobileActions from '@/components/clinic-site/templates/pediatric/mobile-actions'
 import { buildPediatricPalette } from './palette'
 import { PEDIATRIC_EXTRA_PAGES } from './pages'
+import PediatricServices from '@/components/clinic-site/templates/pediatric/services'
 import { MODERN_SUBPAGES } from '../modern/subpages'
 import { subpageSource } from '../subpage-source'
 import type { SiteTemplateDef } from '../types'
@@ -32,9 +33,10 @@ export const pediatricTemplate: SiteTemplateDef = {
     Footer: PediatricFooter,
     MobileActions: PediatricMobileActions,
   },
-  // ML-52: shares Modern's subpage bodies by reference until it skins its own.
-  pages: { Home: PediatricHome, subpages: MODERN_SUBPAGES },
-  subpageSource: subpageSource('modern'),
+  // ML-52: owns its Services body; the other subpages are shared from Modern
+  // BY REFERENCE (declared in subpageSource) until this template skins them.
+  pages: { Home: PediatricHome, subpages: { ...MODERN_SUBPAGES, services: PediatricServices } },
+  subpageSource: subpageSource('modern', { services: 'self' }),
   extraMarketingPages: PEDIATRIC_EXTRA_PAGES,
   buildPalette: buildPediatricPalette,
   fonts: [{ id: 'dc-fredoka', href: FREDOKA_HREF }],
