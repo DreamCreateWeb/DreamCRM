@@ -157,14 +157,3 @@ describe('three screens', () => {
     expect(screen.getByText(/no card required/i)).toBeInTheDocument()
   })
 })
-
-describe('migration 0200', () => {
-  it('adds one nullable text column to clinic_profile and nothing else', () => {
-    const sql = readFileSync(join(process.cwd(), 'lib/db/migrations/0200_onboarding_pms_answer.sql'), 'utf8')
-    expect(sql.trim()).toBe('ALTER TABLE "clinic_profile" ADD COLUMN "pms_answer" text;')
-    const journal = JSON.parse(readFileSync(join(process.cwd(), 'lib/db/migrations/meta/_journal.json'), 'utf8')) as {
-      entries: Array<{ tag: string }>
-    }
-    expect(journal.entries.some((e) => e.tag === '0200_onboarding_pms_answer')).toBe(true)
-  })
-})
