@@ -45,6 +45,25 @@ export interface GbpListingSnapshot {
   title: string | null
   /** ISO instant the snapshot was pulled. */
   fetchedAt: string | null
+  /** ML-35 (the listing watch): the widened keys. `watched` is true only when
+   *  the snapshot carries them (the sync writes them together) — an older
+   *  snapshot has none, and the first widened one must read as "nothing to
+   *  compare against", never as "everything changed". */
+  watched: boolean
+  /** Weekly hours as Google states them, one entry per period. */
+  hours: GbpSnapshotPeriod[] | null
+  phone: string | null
+  primaryCategory: string | null
+  additionalCategories: string[] | null
+  /** One-line storefront address as Google shows it. */
+  storefrontAddress: string | null
+}
+
+/** One open/close period on the listing ('mon'…'sun', 24-hour "HH:MM"). */
+export interface GbpSnapshotPeriod {
+  day: string
+  open: string
+  close: string
 }
 
 /** Defensive jsonb → snapshot. Unknown shapes come back all-null (unknown),
@@ -53,6 +72,19 @@ export function parseGbpListingSnapshot(raw: unknown): GbpListingSnapshot | null
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null
   const o = raw as Record<string, unknown>
   const str = (v: unknown): string | null => (typeof v === 'string' && v.trim() ? v.trim() : null)
+  const periods = Array.isArray(o.hours)
+    ? (o.hours as unknown[]).flatMap((p): GbpSnapshotPeriod[] => {
+        if (!p || typeof p !== 'object') return []
+        const r = p as Record<string, unknown>
+        const day = str(r.day)
+        const open = str(r.open)
+        const close = str(r.close)
+        return day && open && close ? [{ day, open, close }] : []
+      })
+    : null
+  const additional = Array.isArray(o.additionalCategories)
+    ? (o.additionalCategories as unknown[]).flatMap((c) => (str(c) ? [str(c) as string] : []))
+    : null
   return {
     websiteUri: str(o.websiteUri),
     placeId: str(o.placeId),
@@ -61,6 +93,12 @@ export function parseGbpListingSnapshot(raw: unknown): GbpListingSnapshot | null
     isVerified: typeof o.isVerified === 'boolean' ? o.isVerified : null,
     title: str(o.title),
     fetchedAt: str(o.fetchedAt),
+    watched: 'hours' in o,
+    hours: periods,
+    phone: str(o.phone),
+    primaryCategory: str(o.primaryCategory),
+    additionalCategories: additional,
+    storefrontAddress: str(o.storefrontAddress),
   }
 }
 

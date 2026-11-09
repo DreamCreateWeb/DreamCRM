@@ -107,7 +107,35 @@ describe('parseGbpListingSnapshot', () => {
       title: 'Mammoth Spring Dental',
       fetchedAt: '2026-08-05T12:00:00.000Z',
     }
-    expect(parseGbpListingSnapshot(snap)).toEqual(snap)
+    // An OLDER snapshot (no widened keys) parses as un-watched, all-null.
+    expect(parseGbpListingSnapshot(snap)).toEqual({
+      ...snap,
+      watched: false,
+      hours: null,
+      phone: null,
+      primaryCategory: null,
+      additionalCategories: null,
+      storefrontAddress: null,
+    })
+  })
+  it('ML-35: the widened snapshot (hours / phone / categories / address) round-trips and reads as watched', () => {
+    const snap = {
+      websiteUri: null,
+      placeId: null,
+      reviewUrl: null,
+      mapsUri: null,
+      isVerified: true,
+      title: 'Mammoth Spring Dental',
+      fetchedAt: '2026-11-09T12:00:00.000Z',
+      hours: [{ day: 'mon', open: '08:00', close: '17:00' }],
+      phone: '(512) 555-0100',
+      primaryCategory: 'Dentist',
+      additionalCategories: ['Cosmetic dentist'],
+      storefrontAddress: '500 Main St, Austin, TX 78701',
+    }
+    expect(parseGbpListingSnapshot(snap)).toEqual({ ...snap, watched: true })
+    // Written-but-empty hours still count as widened (the sync always writes the key).
+    expect(parseGbpListingSnapshot({ ...snap, hours: [] })?.watched).toBe(true)
   })
   it('degrades junk to nulls / null — never throws', () => {
     expect(parseGbpListingSnapshot(null)).toBeNull()
@@ -121,6 +149,12 @@ describe('parseGbpListingSnapshot', () => {
       isVerified: null,
       title: null,
       fetchedAt: null,
+      watched: false,
+      hours: null,
+      phone: null,
+      primaryCategory: null,
+      additionalCategories: null,
+      storefrontAddress: null,
     })
   })
 })
@@ -134,6 +168,12 @@ describe('listingWebsiteState', () => {
     isVerified: true,
     title: null,
     fetchedAt: '2026-08-05T12:00:00.000Z',
+    watched: false,
+    hours: null,
+    phone: null,
+    primaryCategory: null,
+    additionalCategories: null,
+    storefrontAddress: null,
   }
   it('no snapshot / never fetched → unknown (say nothing)', () => {
     expect(listingWebsiteState(null, ACCEPTABLE)).toBe('unknown')

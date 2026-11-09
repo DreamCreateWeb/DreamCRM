@@ -308,6 +308,8 @@ export async function syncGoogleBusinessProfile(
       postalCode: schema.clinicProfile.postalCode,
       country: schema.clinicProfile.country,
       phone: schema.clinicProfile.phone,
+      // ML-35: the PRIOR listing snapshot — read before it is overwritten.
+      gbpListing: schema.clinicProfile.gbpListing,
     })
     .from(schema.clinicProfile)
     .where(eq(schema.clinicProfile.organizationId, orgId))
@@ -379,6 +381,23 @@ export async function syncGoogleBusinessProfile(
   // GOOGLE's state, not a clinic setting, so the manual-source safety
   // invariant above doesn't apply; the mismatch detector and the
   // gbp_website_fix proposal generator read it via parseGbpListingSnapshot.
+  // ML-35 (the listing watch): the snapshot is widened IN PLACE (jsonb, no
+  // migration) with what Google says about hours / phone / categories /
+  // address, so the NEXT sync can say what moved. Unreadable periods are
+  // dropped (honest-null), and `hours` is always written so the snapshot
+  // reads as "widened" even when Google stated no hours.
+  const snapshotHours = location.periods.flatMap((p) =>
+    p.day && p.open && p.close ? [{ day: p.day, open: p.open, close: p.close }] : [],
+  )
+  const storefrontAddress =
+    [
+      location.addressLines.join(' ').trim(),
+      location.city,
+      [location.state, location.postalCode].filter(Boolean).join(' '),
+    ]
+      .map((x) => (x ?? '').trim())
+      .filter(Boolean)
+      .join(', ') || null
   patch.gbpListing = {
     websiteUri: location.websiteUri,
     placeId: location.placeId,
@@ -387,6 +406,11 @@ export async function syncGoogleBusinessProfile(
     isVerified: location.isVerified,
     title: location.title,
     fetchedAt: new Date().toISOString(),
+    hours: snapshotHours,
+    phone: location.phone,
+    primaryCategory: location.categories[0] ?? null,
+    additionalCategories: location.categories.slice(1),
+    storefrontAddress,
   }
   patch.googleSyncedAt = new Date()
   patch.updatedAt = new Date()
@@ -395,6 +419,23 @@ export async function syncGoogleBusinessProfile(
     .update(schema.clinicProfile)
     .set(patch)
     .where(eq(schema.clinicProfile.organizationId, orgId))
+
+  // THE LISTING WATCH (ML-35): what did GOOGLE change since the last sync?
+  // Report-only, best-effort — it can never fail the sync it rides on, and it
+  // runs for every sync (a human-clicked one moves the snapshot first, so
+  // skipping it here would swallow the change for good).
+  try {
+    const { parseGbpListingSnapshot } = await import('@/lib/gbp-listing')
+    const { diffListing } = await import('@/lib/gbp-listing-diff')
+    const { generateListingWatch } = await import('@/lib/services/proposal-generators/listing-watch')
+    const next = parseGbpListingSnapshot(patch.gbpListing)
+    if (next) {
+      const changes = diffListing(parseGbpListingSnapshot(profile.gbpListing), next)
+      if (changes.length > 0) await generateListingWatch(orgId, changes, new Date())
+    }
+  } catch (e) {
+    console.warn('[gbp-sync] listing watch skipped', e)
+  }
 
   // THE ACTION LEDGER — these fields render on the clinic's PUBLIC site, so
   // the MACHINE changing them is employee work the standup must report

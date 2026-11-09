@@ -1224,6 +1224,9 @@ function demoLedgerSummary(p: typeof schema.proposal.$inferSelect, saidYes: stri
     case 'schedule_gap': return `Invited patients in for the week’s open times ${saidYes}`
     case 'rebook_nudge': return `Nudged a patient to book their next visit ${saidYes}`
     case 'gbp_website_fix': return `Pointed your Google listing at your website ${saidYes}`
+    // ML-35: listing_watch files no proposals (an auto, report-only lane) —
+    // the line exists so a stray demo-mode row still reads like the narrator.
+    case 'listing_watch': return `Noted a change on your Google listing ${saidYes}`
     case 'setup_hours': return `Confirmed your office hours ${saidYes}`
     case 'setup_chairs': return `Noted how many chairs you run ${saidYes}`
     case 'setup_booking_mode': return `Set how online booking works ${saidYes}`

@@ -125,13 +125,13 @@ describe('PREVIEW lanes', () => {
     expect(screen.getByText('Check in after a procedure')).toBeInTheDocument()
     expect(screen.getByText('Send after-visit care instructions')).toBeInTheDocument()
     expect(screen.queryByText('Ask happy patients for referrals')).not.toBeInTheDocument()
-    expect(screen.queryByText('Watch your Google listing for changes')).not.toBeInTheDocument()
+    // ML-35: the listing watch is the sixth released lane — shown to all.
+    expect(screen.getByText('Watch your Google listing for changes')).toBeInTheDocument()
     unmount()
     render(
       <TeamRoster grantedCapabilities={new Set()} weeklyCounts={new Map()} waitingCapabilities={new Set()} showPreview />,
     )
     expect(screen.getByText('Ask happy patients for referrals')).toBeInTheDocument()
-    expect(screen.getByText('Watch your Google listing for changes')).toBeInTheDocument()
   })
 })
 
