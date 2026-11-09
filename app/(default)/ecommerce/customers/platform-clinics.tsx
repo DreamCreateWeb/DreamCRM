@@ -2,7 +2,7 @@ import { listClinics } from '@/lib/services/clinics'
 import { listActivePartners } from '@/lib/services/referrals'
 import { getPlatformMrr, emptyPlatformMrr } from '@/lib/services/platform-mrr'
 import { formatMoneyShort, formatNumberShort } from '@/lib/utils/format'
-import { PageHeader } from '@/components/ui/page-header'
+import { PageFrame } from '@/components/ui/page-frame'
 import { ActionButton } from '@/components/ui/action-button'
 import { KpiStat } from '@/components/ui/kpi-stat'
 import { EncodingLegend } from '@/components/ui/encoding-legend'
@@ -51,8 +51,7 @@ export default async function PlatformClinics() {
   }
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
-      <PageHeader
+    <PageFrame
         eyebrow="Platform · Dream Create"
         title="Clinics"
         subtitle="All clinic tenants on Dream Create — drill in to see their first week, support thread, projects, and site."
@@ -68,7 +67,7 @@ export default async function PlatformClinics() {
             <AddClinicModal partners={partners} />
           </>
         }
-      />
+    >
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         <KpiStat label="Total Clinics" value={formatNumberShort(realRows.length)} sub={`${newIn30d} new in 30d`} />
@@ -87,6 +86,6 @@ export default async function PlatformClinics() {
       </div>
 
       <ClinicsList rows={rows} />
-    </div>
+    </PageFrame>
   )
 }

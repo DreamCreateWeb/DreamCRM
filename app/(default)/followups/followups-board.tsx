@@ -2,7 +2,7 @@
 
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useState, useTransition } from 'react'
-import { PageHeader } from '@/components/ui/page-header'
+import { PageFrame } from '@/components/ui/page-frame'
 import { PagePulse } from '@/components/ui/page-pulse'
 import { FilterChip } from '@/components/ui/filter-chip'
 import { StatusPill } from '@/components/ui/status-pill'
@@ -172,9 +172,9 @@ export default function FollowupsBoard({
   const showFlow = completedPerWeek8.filter((p) => p.value > 0).length >= 2
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
-      <PageHeader
-        eyebrow={`Daily · ${orgName}`}
+    <PageFrame
+        group="Daily"
+        clinicName={orgName}
         title="Follow-ups"
         subtitle="Reminders to call, rebook, or check in — attached to the patient and ticked off when done."
         legend={
@@ -185,7 +185,7 @@ export default function FollowupsBoard({
             <StatusPill tone="warn" label={`${dueNowCount} due now`} title="Overdue + due today — the sidebar badge's number" />
           ) : undefined
         }
-      />
+    >
       <PagePulse
         facts={[
           { label: 'open', value: openCount },
@@ -315,6 +315,6 @@ export default function FollowupsBoard({
       )}
 
       {toast && <FlashToast message={toast.message} tone={toast.tone} onDone={() => setToast(null)} />}
-    </div>
+    </PageFrame>
   )
 }

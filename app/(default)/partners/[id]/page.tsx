@@ -4,7 +4,6 @@ export const metadata = {
 
 export const dynamic = 'force-dynamic'
 
-import Link from 'next/link'
 import { notFound, redirect } from 'next/navigation'
 import { requireTenant } from '@/lib/auth/context'
 import {
@@ -14,7 +13,7 @@ import {
   listCommissions,
   listPayouts,
 } from '@/lib/services/referrals'
-import { PageHeader } from '@/components/ui/page-header'
+import { PageFrame } from '@/components/ui/page-frame'
 import { KpiStat } from '@/components/ui/kpi-stat'
 import { StatusPill } from '@/components/ui/status-pill'
 import { EncodingLegend } from '@/components/ui/encoding-legend'
@@ -68,12 +67,9 @@ export default async function PartnerDetailPage({ params }: { params: Promise<{ 
   })
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
-      <Link href="/partners" className="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 mb-3 inline-block">
-        ← All partners
-      </Link>
-      <PageHeader
-        eyebrow="Platform · Referral partner"
+    <PageFrame
+      back={{ href: '/partners', label: 'All partners' }}
+      eyebrow="Platform · Referral partner"
         title={partner.name}
         subtitle={[partner.company, partner.email].filter(Boolean).join(' · ')}
         legend={
@@ -96,7 +92,7 @@ export default async function PartnerDetailPage({ params }: { params: Promise<{ 
             payoutReady={method === 'active'}
           />
         }
-      />
+    >
 
       {status === 'archived' && (
         <div className="mb-6 rounded-[var(--r-lg)] border border-[color:var(--color-hairline)] bg-[color:var(--color-surface-sunk)] px-4 py-3 text-sm text-[color:var(--color-ink-600)]">
@@ -231,6 +227,6 @@ export default async function PartnerDetailPage({ params }: { params: Promise<{ 
           )}
         </div>
       </div>
-    </div>
+    </PageFrame>
   )
 }

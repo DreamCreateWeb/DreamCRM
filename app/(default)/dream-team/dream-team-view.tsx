@@ -10,7 +10,7 @@ import { goalProgressLine } from '@/lib/goals'
 import type { TenantContext } from '@/lib/auth/context'
 import { readDemoSkin } from '@/lib/demo-skin'
 import { cycleLabel } from '@/lib/types/dream-team'
-import { PageHeader } from '@/components/ui/page-header'
+import { PageFrame } from '@/components/ui/page-frame'
 import ApprovalInbox from '../dashboard/approval-inbox'
 import TeamRoster from './team-roster'
 import TeamStatusBand from './team-status-band'
@@ -76,16 +76,16 @@ export default async function DreamTeamView({ ctx }: { ctx: TenantContext }) {
   const waitingCapabilities = new Set(inbox.proposalCards.map((p) => p.capability))
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
-      <PageHeader
-        eyebrow={`Daily · ${name}`}
+    <PageFrame
+        group="Daily"
+        clinicName={name}
         title="Dream Team"
         subtitle={
           waiting > 0
             ? 'Your AI staff. Finished work is below, waiting on your yes — read it, tweak it if you like, and tap approve.'
             : 'Your AI staff. When they finish something that needs your yes, it lands here — and what they handle on their own is reported below.'
         }
-      />
+    >
 
       {/* The opening beat — is anything happening? — before the page asks
           anything of anyone (D7). */}
@@ -162,6 +162,6 @@ export default async function DreamTeamView({ ctx }: { ctx: TenantContext }) {
         showPreview={ctx.platformAdmin}
         readinessFacts={readiness?.facts ?? null}
       />
-    </div>
+    </PageFrame>
   )
 }

@@ -9,7 +9,7 @@ import { notFound, redirect } from 'next/navigation'
 import { requireTenant } from '@/lib/auth/context'
 import { getEvent, getEventStats, listCaptures } from '@/lib/services/event-capture'
 import { CAPTURE_ROLE_LABELS } from '@/lib/event-capture'
-import { PageHeader } from '@/components/ui/page-header'
+import { PageFrame } from '@/components/ui/page-frame'
 import { EmptyState } from '@/components/ui/empty-state'
 import { StatusPill } from '@/components/ui/status-pill'
 import { ActionButton } from '@/components/ui/action-button'
@@ -27,8 +27,7 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
   const toggle = setEventActiveAction.bind(null, id, !event.active)
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-5xl mx-auto">
-      <PageHeader
+    <PageFrame width="5xl"
         eyebrow="Platform · Sales Pipeline · Events"
         title={event.name}
         subtitle={
@@ -49,7 +48,7 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
             </Link>
           </div>
         }
-      />
+    >
 
       <p className="mb-6 rounded-[var(--r-md)] bg-[color:var(--color-surface-2)] px-4 py-3 text-sm text-gray-700 shadow-[inset_0_0_0_1px_var(--color-hairline)] dark:text-gray-200">
         Capture link (open on your phone): <code className="select-all break-all">{base}/e/{event.captureToken}</code>
@@ -127,6 +126,6 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
           </table>
         </div>
       )}
-    </div>
+    </PageFrame>
   )
 }

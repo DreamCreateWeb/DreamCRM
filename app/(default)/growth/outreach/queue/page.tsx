@@ -5,7 +5,7 @@ import { resolvePatientAudience } from '@/lib/services/marketing'
 import { outreachTiersFor, ensureOutreachTierAudiences } from '@/lib/services/outreach-tiers'
 import { getClinicCadence } from '@/lib/services/clinic-cadence'
 import { listTemplates } from '@/lib/services/marketing-templates'
-import { PageHeader } from '@/components/ui/page-header'
+import { PageFrame } from '@/components/ui/page-frame'
 import { ActionButton } from '@/components/ui/action-button'
 import { StatusPill } from '@/components/ui/status-pill'
 import { FilterChip } from '@/components/ui/filter-chip'
@@ -92,16 +92,8 @@ export default async function OutreachQueuePage({ searchParams }: { searchParams
   )
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
-      {/* ── Header — this page IS the queue; the per-tier "Send" buttons are
-          the actions, so no fabricated header primary. Back to the recall
-          dashboard sits as a ghost link. ──────────────────────────────── */}
-      <PageHeader
-        eyebrow={
-          <Link href="/growth/outreach" className="hover:underline underline-offset-4">
-            ‹ Recall &amp; Outreach
-          </Link>
-        }
+    <PageFrame
+        hub={{ href: '/growth/outreach', label: 'Recall & Outreach' }}
         title="Patients needing outreach"
         subtitle={
           totalCount === 0
@@ -126,7 +118,7 @@ export default async function OutreachQueuePage({ searchParams }: { searchParams
             ← Recall dashboard
           </ActionButton>
         }
-      />
+    >
 
       {/* ── Tier filter chips (server-rendered Links — navigation, not local
           toggle state — styled to the shared chip recipe) ──────────────── */}
@@ -224,7 +216,7 @@ export default async function OutreachQueuePage({ searchParams }: { searchParams
           </section>
         )
       })}
-    </div>
+    </PageFrame>
   )
 }
 

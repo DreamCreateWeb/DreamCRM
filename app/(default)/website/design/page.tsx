@@ -1,4 +1,3 @@
-import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { eq } from 'drizzle-orm'
 import { requireTenant } from '@/lib/auth/context'
@@ -6,7 +5,7 @@ import { db } from '@/lib/db'
 import { clinicProfile } from '@/lib/db/schema/platform'
 import { mergeWebsiteDraft } from '@/lib/website-draft'
 import { getWebsiteDraftStatus, type WebsiteDraftStatus } from '@/lib/services/website-draft'
-import { PageHeader } from '@/components/ui/page-header'
+import { PageFrame } from '@/components/ui/page-frame'
 import { ActionButton } from '@/components/ui/action-button'
 import { EmptyState } from '@/components/ui/empty-state'
 import DesignPanel from './design-panel'
@@ -70,13 +69,8 @@ export default async function WebsiteDesignPage() {
   }
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-5xl mx-auto">
-      <PageHeader
-        eyebrow={
-          <Link href="/website" className="hover:underline underline-offset-4">
-            ‹ Website
-          </Link>
-        }
+    <PageFrame width="5xl"
+        hub={{ href: '/website', label: 'Website' }}
         title="Design"
         subtitle="How your site looks. Your content never belongs to a design — switching is instant and reversible."
         actions={
@@ -84,7 +78,7 @@ export default async function WebsiteDesignPage() {
             Open the editor
           </ActionButton>
         }
-      />
+    >
       {/* Publish state travels with every editing surface — saved-but-
           unpublished changes are visible wherever they were made. */}
       {draftStatus.count > 0 && (
@@ -102,6 +96,6 @@ export default async function WebsiteDesignPage() {
           is live-instant, never draft-staged, so the merged draft view above
           must not shadow it. */}
       <PoweredByCard initialHidden={row?.hidePoweredBy === true} />
-    </div>
+    </PageFrame>
   )
 }

@@ -41,7 +41,7 @@ import { US_STATE_NAMES, type UsState } from '@/lib/types/us-geo'
 import { prospectInitials } from '@/lib/prospect-when'
 import { PROSPECT_STATUSES, PROSPECT_SCORE_BANDS } from '@/lib/db/schema/prospecting'
 import type { Tone } from '@/lib/ui/encodings'
-import { PageHeader } from '@/components/ui/page-header'
+import { PageFrame } from '@/components/ui/page-frame'
 import { ActionButton } from '@/components/ui/action-button'
 import AddClinicButton from './add-clinic-button'
 import { StatusPill } from '@/components/ui/status-pill'
@@ -146,8 +146,7 @@ export default async function ProspectingPage({
   ]
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
-      <PageHeader
+    <PageFrame
         eyebrow="Platform · Dream Create"
         title="Sales Pipeline"
         subtitle="Every clinic we're working — found by the hunter or added by hand — scored by how much they need us. Hot ones get outreach; intent + booked demos land them on your call list."
@@ -163,7 +162,7 @@ export default async function ProspectingPage({
             </ActionButton>
           </div>
         }
-      />
+    >
 
       {/* View switcher — chips, so it can't be mistaken for the workspace's
           underline sub-nav a row above. The board is the hero; everything
@@ -439,6 +438,6 @@ export default async function ProspectingPage({
 
       {/* Prospect drawer — opens over any view via ?prospect=. */}
       {detail && <ProspectDrawer detail={detail} closeHref={buildQuery(params, {})} />}
-    </div>
+    </PageFrame>
   )
 }

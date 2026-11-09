@@ -11,7 +11,7 @@ import { requireTenant } from '@/lib/auth/context'
 import { getMyDay, getMyClosedFollowupsPerWeek8 } from '@/lib/services/my-day'
 import { getDigestEnabled } from '@/lib/services/daily-digest'
 import { getDigestOptOut } from '@/lib/services/staff-notification-pref'
-import { PageHeader } from '@/components/ui/page-header'
+import { PageFrame } from '@/components/ui/page-frame'
 import { ActionButton } from '@/components/ui/action-button'
 import { KpiStat } from '@/components/ui/kpi-stat'
 import { EmptyState } from '@/components/ui/empty-state'
@@ -46,9 +46,9 @@ export default async function MyDayPage() {
   const scheduleSource = scheduleSourceCopy(data.pmsLink)
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
-      <PageHeader
-        eyebrow={`Daily · ${ctx.organizationName}`}
+    <PageFrame
+        group="Daily"
+        clinicName={ctx.organizationName}
         title={`Good day, ${firstName}`}
         subtitle="Your follow-ups and conversations, plus today's schedule — everything waiting on you in one place."
         actions={
@@ -58,7 +58,7 @@ export default async function MyDayPage() {
             All my follow-ups
           </ActionButton>
         }
-      />
+    >
 
       {/* KPI strip — 6 tiles rows cleanly at 3-up; when the conditional
           proposals tile joins (7 tiles), 4-up avoids the lone orphan. */}
@@ -340,6 +340,6 @@ export default async function MyDayPage() {
         digestEnabled={digestEnabled}
         canManageOrgDigest={ctx.role === 'owner' || ctx.role === 'admin'}
       />
-    </div>
+    </PageFrame>
   )
 }

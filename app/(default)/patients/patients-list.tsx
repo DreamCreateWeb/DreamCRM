@@ -15,7 +15,7 @@ import { SOURCE_LABEL } from '@/lib/types/patient-sources'
 import { formatPhone } from '@/lib/phone'
 import { MiniTrend } from '@/components/ui/charts'
 import { patientFlagGlyphs, type PillLegendRow } from '@/lib/ui/encodings'
-import { PageHeader } from '@/components/ui/page-header'
+import { PageFrame } from '@/components/ui/page-frame'
 import { PagePulse } from '@/components/ui/page-pulse'
 import { ActionButton } from '@/components/ui/action-button'
 import { StatusPill } from '@/components/ui/status-pill'
@@ -301,9 +301,9 @@ export default function PatientsList({
   const newIn12Weeks = perWeek12.reduce((n, p) => n + p.value, 0)
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
-      <PageHeader
-        eyebrow={`Daily · ${orgName}`}
+    <PageFrame
+        group="Daily"
+        clinicName={orgName}
         title={`${total} ${total === 1 ? 'patient' : 'patients'}`}
         subtitle="The people your clinic has a relationship with — who's due, who needs a nudge, and who to greet by name."
         legend={
@@ -340,7 +340,7 @@ export default function PatientsList({
             </ActionButton>
           </div>
         }
-      />
+    >
 
       <PagePulse
         facts={[
@@ -682,7 +682,7 @@ export default function PatientsList({
       {addOpen && <AddPatientModal onClose={() => setAddOpen(false)} />}
       {importOpen && <ImportPatientsModal onClose={() => setImportOpen(false)} />}
       {toast && <FlashToast message={toast.message} tone={toast.tone} onDone={() => setToast(null)} />}
-    </div>
+    </PageFrame>
   )
 }
 

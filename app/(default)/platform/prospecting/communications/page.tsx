@@ -10,7 +10,7 @@ import { redirect } from 'next/navigation'
 import { requireTenant } from '@/lib/auth/context'
 import { listCommunications, type CommItem } from '@/lib/services/prospecting'
 import { prospectInitials } from '@/lib/prospect-when'
-import { PageHeader } from '@/components/ui/page-header'
+import { PageFrame } from '@/components/ui/page-frame'
 import { EmptyState } from '@/components/ui/empty-state'
 import { ActionButton } from '@/components/ui/action-button'
 
@@ -43,8 +43,7 @@ export default async function CommunicationsPage() {
   const now = Date.now()
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-3xl mx-auto">
-      <PageHeader
+    <PageFrame width="3xl"
         eyebrow="Platform · Sales Pipeline"
         title="Communications"
         subtitle="Every outreach email the hunter sent, every call you logged, and every reply that came back."
@@ -53,7 +52,7 @@ export default async function CommunicationsPage() {
             ‹ Pipeline
           </Link>
         }
-      />
+    >
 
       {items.length === 0 ? (
         <EmptyState
@@ -111,6 +110,6 @@ export default async function CommunicationsPage() {
         </ol>
         </>
       )}
-    </div>
+    </PageFrame>
   )
 }

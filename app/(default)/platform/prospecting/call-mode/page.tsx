@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic'
 import { redirect } from 'next/navigation'
 import { requireTenant } from '@/lib/auth/context'
 import { getCallQueue } from '@/lib/services/prospecting'
-import { PageHeader } from '@/components/ui/page-header'
+import { PageFrame } from '@/components/ui/page-frame'
 import { ActionButton } from '@/components/ui/action-button'
 import { EmptyState } from '@/components/ui/empty-state'
 import CallSession from './call-session'
@@ -27,8 +27,7 @@ export default async function CallModePage() {
   const queue = await getCallQueue()
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-6xl mx-auto">
-      <PageHeader
+    <PageFrame width="6xl"
         eyebrow="Platform · Sales Pipeline"
         title="📞 Call Mode"
         subtitle="One call at a time. The script's on screen, the outcome is one key, and the next call loads itself."
@@ -37,7 +36,7 @@ export default async function CallModePage() {
             ✕ End session
           </ActionButton>
         }
-      />
+    >
 
       {queue.length === 0 ? (
         <EmptyState
@@ -53,6 +52,6 @@ export default async function CallModePage() {
       ) : (
         <CallSession items={queue} />
       )}
-    </div>
+    </PageFrame>
   )
 }

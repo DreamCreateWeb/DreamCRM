@@ -1,4 +1,3 @@
-import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { eq } from 'drizzle-orm'
 import { requireTenant } from '@/lib/auth/context'
@@ -8,7 +7,7 @@ import { mergeWebsiteDraft } from '@/lib/website-draft'
 import { getWebsiteDraftStatus, type WebsiteDraftStatus } from '@/lib/services/website-draft'
 import { listLeads, getNewLeadsSince } from '@/lib/services/leads'
 import { resolveLeadForm, LEAD_FORM_LABELS, type LeadFormsConfig, type LeadFormKey } from '@/lib/types/lead-forms'
-import { PageHeader } from '@/components/ui/page-header'
+import { PageFrame } from '@/components/ui/page-frame'
 import { ActionButton } from '@/components/ui/action-button'
 import { EmptyState } from '@/components/ui/empty-state'
 import FormsPanel from './forms-panel'
@@ -79,13 +78,8 @@ export default async function WebsiteFormsPage() {
   ])
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-5xl mx-auto">
-      <PageHeader
-        eyebrow={
-          <Link href="/website" className="hover:underline underline-offset-4">
-            ‹ Website
-          </Link>
-        }
+    <PageFrame width="5xl"
+        hub={{ href: '/website', label: 'Website' }}
         title="Forms"
         subtitle="What your site asks visitors, and where their answers land."
         actions={
@@ -93,7 +87,7 @@ export default async function WebsiteFormsPage() {
             All inquiries →
           </ActionButton>
         }
-      />
+    >
       {/* Publish state travels with every editing surface — saved-but-
           unpublished changes are visible wherever they were made. */}
       {draftStatus.count > 0 && (
@@ -111,6 +105,6 @@ export default async function WebsiteFormsPage() {
         }))}
         count7d={count7d}
       />
-    </div>
+    </PageFrame>
   )
 }

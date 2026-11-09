@@ -10,7 +10,7 @@ import { redirect } from 'next/navigation'
 import { requireTenant } from '@/lib/auth/context'
 import { listDemos, type DemoRow } from '@/lib/services/prospect-meetings'
 import { prospectInitials } from '@/lib/prospect-when'
-import { PageHeader } from '@/components/ui/page-header'
+import { PageFrame } from '@/components/ui/page-frame'
 import { StatusPill } from '@/components/ui/status-pill'
 import { EmptyState } from '@/components/ui/empty-state'
 import { ActionButton } from '@/components/ui/action-button'
@@ -81,8 +81,7 @@ export default async function DemosPage() {
     .sort((a, b) => b.scheduledAt.getTime() - a.scheduledAt.getTime())
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-4xl mx-auto">
-      <PageHeader
+    <PageFrame width="4xl"
         eyebrow="Platform · Sales Pipeline"
         title="Demos"
         subtitle="Every Dream Create demo — booked and done. Click any to open its deal room."
@@ -91,7 +90,7 @@ export default async function DemosPage() {
             ‹ Pipeline
           </Link>
         }
-      />
+    >
 
       <section className="mb-8">
         <h2 className="mb-3 flex items-center gap-2">
@@ -161,6 +160,6 @@ export default async function DemosPage() {
           </div>
         )}
       </section>
-    </div>
+    </PageFrame>
   )
 }

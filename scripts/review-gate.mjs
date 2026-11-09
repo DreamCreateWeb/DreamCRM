@@ -693,6 +693,15 @@ export const INTAKE_RULES = [
       // with neither `role="dialog"` nor a Headless `Dialog`, and a role
       // built through a spread or a variable.
       'tests/ui/no-hand-rolled-modal.test.ts',
+      // The page-frame adoption guard (2026-11-09, ML-54). A NEW CLASS of
+      // assertion, stated here as this entry's `why` asks: it WALKS every
+      // `page.tsx` under `app/(default)` and `app/(double-sidebar)` (settings
+      // excluded until ML-55) and requires `<PageFrame>` — directly or one
+      // relative import away — or a line on a dated allowlist that may only
+      // shrink. Class: a tree walk (the census), blind to a frame two hops
+      // away and to a conditionally rendered one. A new dashboard page that
+      // hand-rolls its gutters, width or eyebrow fails `test` by name.
+      'tests/guards/page-frame-adoption.test.ts',
       // The PORTAL half of the same guard (2026-11-03, ML-03). It reuses
       // `scanTree` from tests/ui/no-bare-await.test.ts over `app/(portal)`,
       // the token landings (`app/d app/i app/n app/r`) and

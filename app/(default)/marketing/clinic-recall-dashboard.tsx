@@ -13,7 +13,7 @@ import { NewsletterCard } from './newsletter-card'
 import { listPublishedPosts } from '@/lib/services/blog'
 import { getReferralProgramStats } from '@/lib/services/patient-referrals'
 import NewCampaignButton from '@/app/(default)/growth/campaigns/new-campaign-button'
-import { PageHeader } from '@/components/ui/page-header'
+import { PageFrame } from '@/components/ui/page-frame'
 import { ActionButton } from '@/components/ui/action-button'
 import { KpiStat } from '@/components/ui/kpi-stat'
 import { EmptyState } from '@/components/ui/empty-state'
@@ -129,16 +129,8 @@ export default async function ClinicRecallDashboard({
   const audienceOptions = patientAudiences.map((a) => ({ id: a.id, name: a.name }))
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
-      {/* ── Header — primary action is the outreach queue (the highest-
-          leverage next step: it's where the recall sends actually start).
-          Audiences + Campaigns are secondary. ──────────────────────────── */}
-      <PageHeader
-        eyebrow={
-          <Link href="/growth" className="hover:underline underline-offset-4">
-            ‹ Growth
-          </Link>
-        }
+    <PageFrame
+        hub={{ href: '/growth', label: 'Growth' }}
         title="Recall & Outreach"
         subtitle={`Patients who need a nudge, what's scheduled to send, and how recent sends performed — for ${formatClinicDayHeader(now, tz)}.`}
         actions={
@@ -158,7 +150,7 @@ export default async function ClinicRecallDashboard({
             />
           </>
         }
-      />
+    >
 
       {/* ── Row 1 — Needs your outreach ────────────────────────────────── */}
       <section className="mb-8">
@@ -481,7 +473,7 @@ export default async function ClinicRecallDashboard({
           )}
         </div>
       </section>
-    </div>
+    </PageFrame>
   )
 }
 

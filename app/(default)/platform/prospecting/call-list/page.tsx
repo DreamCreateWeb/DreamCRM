@@ -10,7 +10,7 @@ import { redirect } from 'next/navigation'
 import { requireTenant } from '@/lib/auth/context'
 import { getCallList, getPhoneQueue, getProspectDetail, type CallListRow } from '@/lib/services/prospecting'
 import { getUpcomingMeetings, formatMeetingTime } from '@/lib/services/prospect-meetings'
-import { PageHeader } from '@/components/ui/page-header'
+import { PageFrame } from '@/components/ui/page-frame'
 import { ActionButton } from '@/components/ui/action-button'
 import { EmptyState } from '@/components/ui/empty-state'
 import CallCard from './call-card'
@@ -61,8 +61,7 @@ export default async function CallListPage({
   }
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-4xl mx-auto">
-      <PageHeader
+    <PageFrame width="4xl"
         eyebrow="Platform · Prospecting"
         title="Call List"
         subtitle="Every practice here raised a hand — a reply, a click, a demo request. Freshest signal first. Call them while it's warm."
@@ -76,7 +75,7 @@ export default async function CallListPage({
             </ActionButton>
           </div>
         }
-      />
+    >
       {meetings.length > 0 && (
         <div className="mb-6 rounded-[var(--r-lg)] bg-[color:var(--color-surface-2)] p-4 ring-1 ring-[color:var(--color-hairline)]">
           <div className="mb-2.5 flex items-center gap-2">
@@ -166,6 +165,6 @@ export default async function CallListPage({
           <PhoneQueue rows={phoneQueue} />
         </>
       )}
-    </div>
+    </PageFrame>
   )
 }

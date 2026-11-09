@@ -1,9 +1,8 @@
-import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { requireTenant } from '@/lib/auth/context'
 import { getEffectiveWebsiteProfile, getWebsiteDraftStatus, type WebsiteDraftStatus } from '@/lib/services/website-draft'
 import { SITE_TEMPLATE_CATALOG } from '@/lib/site-templates/catalog'
-import { PageHeader } from '@/components/ui/page-header'
+import { PageFrame } from '@/components/ui/page-frame'
 import { ActionButton } from '@/components/ui/action-button'
 import { EmptyState } from '@/components/ui/empty-state'
 import TemplatesGallery from './templates-gallery'
@@ -52,13 +51,8 @@ export default async function WebsiteTemplatesPage() {
   const draftStatus = await getWebsiteDraftStatus(ctx.organizationId).catch(() => ({ count: 0, changes: [], sections: [] } as WebsiteDraftStatus))
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-6xl mx-auto">
-      <PageHeader
-        eyebrow={
-          <Link href="/website/design" className="hover:underline underline-offset-4">
-            ‹ Design
-          </Link>
-        }
+    <PageFrame width="6xl"
+        hub={{ href: '/website/design', label: 'Design' }}
         title="Templates"
         subtitle="Every design, previewed live on your own content. Your content never belongs to a design — switching is instant and reversible."
         actions={
@@ -66,7 +60,7 @@ export default async function WebsiteTemplatesPage() {
             Open the editor
           </ActionButton>
         }
-      />
+    >
       {/* Publish state travels with every editing surface — saved-but-
           unpublished changes are visible wherever they were made. */}
       {draftStatus.count > 0 && (
@@ -77,6 +71,6 @@ export default async function WebsiteTemplatesPage() {
         currentId={effective.profile.template ?? 'modern'}
         slug={ctx.organizationSlug}
       />
-    </div>
+    </PageFrame>
   )
 }

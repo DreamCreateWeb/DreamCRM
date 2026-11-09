@@ -15,7 +15,7 @@ import { listAudiences } from '@/lib/services/marketing'
 import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
 import { getWordOfMouthCounts, wordOfMouthLine } from '@/lib/services/growth-hub'
 import { formatClinicDayTime } from '@/lib/format-datetime'
-import { PageHeader } from '@/components/ui/page-header'
+import { PageFrame } from '@/components/ui/page-frame'
 import { TeamDidItBand } from '@/components/ui/team-did-it-band'
 import { teamDidIt, TEAM_DID_IT_QUIET } from '@/lib/services/team-did-it'
 import { GROWTH_HUB_LANES } from '@/lib/team-did-it-lanes'
@@ -119,9 +119,9 @@ export default async function GrowthHubPage() {
     !!recall && recall.recallDueReachableCount > 0 && (recall.upcomingSends?.length ?? 0) === 0
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-6xl mx-auto">
-      <PageHeader
-        eyebrow={`Growth · ${ctx.organizationName}`}
+    <PageFrame width="6xl"
+        group="Growth"
+        clinicName={ctx.organizationName}
         title="Growth"
         subtitle="How new patients find you, and how your own list fills the chairs."
         actions={
@@ -134,7 +134,7 @@ export default async function GrowthHubPage() {
             </ActionButton>
           </div>
         }
-      />
+    >
 
       <TeamDidItBand data={teamDid} what={GROWTH_HUB_LANES.what} />
 
@@ -458,7 +458,7 @@ export default async function GrowthHubPage() {
           <span className="text-gray-500 dark:text-gray-400">the whole picture</span>
         </Link>
       </div>
-    </div>
+    </PageFrame>
   )
 }
 

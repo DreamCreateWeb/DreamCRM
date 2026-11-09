@@ -9,7 +9,7 @@ import {
 import { getMrrSnapshot } from '@/lib/services/platform-metrics'
 import { formatMoneyShort, formatRelativeDate } from '@/lib/utils/format'
 import { MiniTrend, CHART_SERIES } from '@/components/ui/charts'
-import { PageHeader } from '@/components/ui/page-header'
+import { PageFrame } from '@/components/ui/page-frame'
 import { ActionButton } from '@/components/ui/action-button'
 import { KpiStat } from '@/components/ui/kpi-stat'
 import { EmptyState } from '@/components/ui/empty-state'
@@ -41,8 +41,7 @@ export default async function PlatformRevenue() {
   const outstandingTotal = outstanding.pastDueInvoiceCents + outstanding.openProjectCents
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
-      <PageHeader
+    <PageFrame
         eyebrow="Platform · Dream Create"
         title="Revenue"
         subtitle="Subscriptions, project work, and outstanding receivables."
@@ -56,7 +55,7 @@ export default async function PlatformRevenue() {
             </ActionButton>
           </>
         }
-      />
+    >
 
       {(stripeWindow.stripeUnavailable || outstanding.stripeUnavailable || recent.stripeUnavailable) && (
         <div role="status" className="mb-6 px-4 py-3 rounded-[var(--r-lg)] bg-amber-500/10 ring-1 ring-inset ring-amber-500/20 text-sm text-amber-700 dark:text-amber-300">
@@ -301,7 +300,7 @@ export default async function PlatformRevenue() {
           </ul>
         )}
       </div>
-    </div>
+    </PageFrame>
   )
 }
 

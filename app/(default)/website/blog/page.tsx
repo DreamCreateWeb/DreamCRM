@@ -6,7 +6,7 @@ import { createBlogPostAction, createAiBlogPostAction } from './actions'
 import ModuleHint from '@/components/onboarding/module-hint'
 import { postsAccessRedirect } from './access'
 import { blogPublicBaseUrl } from './public-base-url'
-import { PageHeader } from '@/components/ui/page-header'
+import { PageFrame } from '@/components/ui/page-frame'
 import { ActionButton } from '@/components/ui/action-button'
 import { StatusPill } from '@/components/ui/status-pill'
 import { EncodingLegend } from '@/components/ui/encoding-legend'
@@ -85,10 +85,7 @@ export default async function BlogPage() {
   const fresh = freshness(stats.lastPublishedAt)
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
-      <ModuleHint id="blog" />
-
-      <PageHeader
+    <PageFrame
         eyebrow={
           isPlatform ? (
             `Platform · ${ctx.organizationName}`
@@ -132,7 +129,8 @@ export default async function BlogPage() {
             </form>
           </>
         }
-      />
+      before={<ModuleHint id="blog" />}
+    >
 
       {/* ── Stat row ──────────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8">
@@ -246,6 +244,6 @@ export default async function BlogPage() {
           </table>
         </div>
       )}
-    </div>
+    </PageFrame>
   )
 }
