@@ -181,6 +181,12 @@ export const STEP_FAILURE: Record<string, { capability: string; summary: string 
     capability: 'post_visit_care',
     summary: 'Couldn’t send after-visit care instructions just now — I’ll keep trying.',
   },
+  // ML-35: the listing watch runs inside the GBP sync (not this pass); the
+  // entry exists so the registry of lanes stays complete.
+  listing_watch: {
+    capability: 'listing_watch',
+    summary: 'Couldn’t note a change on your Google listing just now — I’ll keep trying.',
+  },
   // ML-28: the day-after check-in.
   postop_checkin: {
     capability: 'postop_checkin',
@@ -447,6 +453,11 @@ function makeOrgPass(result: Omit<GeneratorRunResult, 'sweep'>, now: Date): (org
         // the day-after "how are you feeling?" files a card for a yes.
         ['post_visit_care', () => generatePostVisitCare(org.id, now, tz, softFailed('post_visit_care'))],
         ['postop_checkin', () => generatePostopCheckinProposals(org.id, now, tz)],
+        // ML-35: the listing watch is documented here and RUNS elsewhere —
+        // inside syncGoogleBusinessProfile's cadence, right after the snapshot
+        // write (it needs the prior snapshot, which only the sync holds).
+        // Report-only; a no-op in this pass.
+        ['listing_watch', async () => 0],
         // The MONTH plan runs before the one-off post: they answer the same
         // silence, and the bigger answer gets first refusal. Each also
         // stands down while the other's card is open, so the order is a

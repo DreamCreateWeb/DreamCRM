@@ -191,8 +191,10 @@ export const CAPABILITIES: readonly CapabilityDef[] = [
   // The listing watchdog: meant to be auto because it only ever REPORTS what
   // changed on the practice's Google listing (a 'listing' artifact, before →
   // after); the fix stays with gbp_website_fix's ask. Not grantable — no
-  // judgment. 'ask' until its writer lands, same rule as the four above.
-  { key: 'listing_watch', label: 'Watch your Google listing for changes', defaultTrust: 'ask' },
+  // judgment. 'auto' since ML-35 (2026-11-09), WITH its writer
+  // (lib/services/proposal-generators/listing-watch.ts narrates every change
+  // under this key, from inside the GBP sync's own cadence).
+  { key: 'listing_watch', label: 'Watch your Google listing for changes', defaultTrust: 'auto' },
   // Two more first-week questions (SETUP_CAPABILITIES below): asked once,
   // AI-free, never on the roster.
   { key: 'setup_team_photo', label: 'Add your team’s photos', defaultTrust: 'ask' },
@@ -259,14 +261,15 @@ export const BOOKING_BUTTON_CAPABILITIES: readonly string[] = [
 // `inquiry_followup` the third (ML-22, 2026-11-03 — the second touch on an
 // inquiry that went quiet); `postop_checkin` + `post_visit_care` the fourth
 // and fifth (ML-28, 2026-11-04 — the evening aftercare note and the
-// day-after check-in, generator + executor/writer together).
+// day-after check-in, generator + executor/writer together); `listing_watch`
+// the sixth (ML-35, 2026-11-09 — what Google changed on the listing, an auto
+// report-only writer that runs inside the GBP sync).
 export const PREVIEW_CAPABILITIES: readonly string[] = [
   'referral_ask',
   'newsletter',
   'membership_rescue',
   'order_update',
   'consent',
-  'listing_watch',
 ]
 
 export function isPreviewCapability(key: string): boolean {
