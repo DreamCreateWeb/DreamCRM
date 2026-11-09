@@ -7,6 +7,7 @@ import { getFormTemplate, listSubmissionsForTemplate, countSubmissionsForTemplat
 import FormBuilder from './form-builder'
 import { formatClinicDate } from '@/lib/format-datetime'
 import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
+import { getClinicVisitTypes } from '@/lib/services/visit-types'
 
 export const metadata = { title: 'Intake Form - DreamCRM' }
 
@@ -18,19 +19,21 @@ export default async function EditFormPage({ params }: Props) {
   const ctx = await requireTenant()
   if (ctx.tenantType !== 'clinic') redirect('/')
   const { id } = await params
-  const [template, submissions, totalSubmissions, timeZone] = await Promise.all([
+  const [template, submissions, totalSubmissions, timeZone, visitTypes] = await Promise.all([
     getFormTemplate(ctx.organizationId, id),
     listSubmissionsForTemplate(ctx.organizationId, id),
     countSubmissionsForTemplate(ctx.organizationId, id),
     // THE TZ LAW (D17): a submission that landed at 7:30 PM Central is
     // already tomorrow to a UTC server.
     getClinicTimeZone(ctx.organizationId),
+    // The rules card's visit-type picker (ML-27) — the clinic's own catalog.
+    getClinicVisitTypes(ctx.organizationId),
   ])
   if (!template) notFound()
 
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-6xl mx-auto">
-      <FormBuilder template={template} />
+      <FormBuilder template={template} visitTypes={visitTypes.map((t) => ({ id: t.id, label: t.label }))} />
 
       {/* #submissions — the template list's submission-count stat deep-links here. */}
       <div id="submissions" className="mt-10 max-w-4xl scroll-mt-16">

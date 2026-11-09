@@ -15,6 +15,7 @@ import { ActionButton } from '@/components/ui/action-button'
 import { StatusPill } from '@/components/ui/status-pill'
 import { TONE_TEXT, type Tone } from '@/lib/ui/encodings'
 import { SettingsTabs } from '../../settings/settings-tabs'
+import { runAction } from '@/lib/run-action'
 
 /**
  * Settings → Search appearance. Per-page title + description overrides for the
@@ -197,7 +198,7 @@ export default function SeoMetaForm({
     setToast(null)
     setError(null)
     startTransition(async () => {
-      const r = await saveSeoMetaAction(draft)
+      const r = await runAction(() => saveSeoMetaAction(draft))
       if (r.ok) setToast('Saved.')
       else setError(r.error)
     })

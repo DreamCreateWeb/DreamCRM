@@ -118,12 +118,6 @@ describe('the card’s copy tells the truth now', () => {
     expect(card).not.toContain('toLocaleString()')
     expect(card).not.toContain('Last checked')
   })
-
-  it('does NOT wrap its awaits here — ML-24 owns that sweep (no runAction yet)', () => {
-    // A guard against this slice drifting into the other one's file; the
-    // runAction wrap lands with ML-24 and this assertion is deleted then.
-    expect(card).not.toContain('runAction')
-  })
 })
 
 describe('the registry entries', () => {

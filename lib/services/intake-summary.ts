@@ -1,6 +1,6 @@
 import 'server-only'
 import { z } from 'zod'
-import { and, eq } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNotNull } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import { runClaudeJson, aiConfigured } from '@/lib/ai'
 import { isAiUsageOverCap, bumpAiUsage } from '@/lib/services/ai-usage'
@@ -37,6 +37,55 @@ const Schema = z.object({
 export type SummaryResult =
   | { ok: true; summary: IntakeSummary }
   | { ok: false; reason: 'not_configured' | 'no_allowance' | 'not_found' | 'empty' | 'failed' }
+
+/** The alerts a chair row carries: where they came from + the lines. */
+export interface IntakeAlertView {
+  submissionId: string
+  alerts: string[]
+}
+
+/**
+ * THE CHAIR READ (ML-27): the cached medical alerts for a batch of
+ * appointments — ONE query, keyed by appointment id. For each visit it is the
+ * patient's NEWEST submission that carries a non-empty alert list (a newer
+ * consent with nothing medical on it never erases the intake's allergies).
+ * Nothing is generated here — the summary is written on submit
+ * (`submitForm`) or on the staff click; this only reads what is cached.
+ * Tenant-scoped on BOTH tables.
+ */
+export async function getIntakeAlertsForAppointments(
+  organizationId: string,
+  appointmentIds: string[],
+): Promise<Map<string, IntakeAlertView>> {
+  const out = new Map<string, IntakeAlertView>()
+  const ids = Array.from(new Set(appointmentIds.filter(Boolean)))
+  if (ids.length === 0) return out
+  const rows = await db
+    .select({
+      appointmentId: schema.appointment.id,
+      submissionId: schema.formSubmission.id,
+      aiSummary: schema.formSubmission.aiSummary,
+    })
+    .from(schema.formSubmission)
+    .innerJoin(schema.appointment, eq(schema.appointment.patientId, schema.formSubmission.patientId))
+    .where(
+      and(
+        eq(schema.formSubmission.organizationId, organizationId),
+        eq(schema.appointment.organizationId, organizationId),
+        inArray(schema.appointment.id, ids),
+        isNotNull(schema.formSubmission.aiSummary),
+      ),
+    )
+    .orderBy(desc(schema.formSubmission.submittedAt))
+  if (!Array.isArray(rows)) return out
+  for (const r of rows) {
+    if (!r || typeof r.appointmentId !== 'string' || out.has(r.appointmentId)) continue
+    const parsed = Schema.safeParse(r.aiSummary)
+    if (!parsed.success || parsed.data.alerts.length === 0) continue
+    out.set(r.appointmentId, { submissionId: r.submissionId, alerts: parsed.data.alerts })
+  }
+  return out
+}
 
 /** Read the cached summary, if any. */
 export async function getCachedSummary(organizationId: string, submissionId: string): Promise<IntakeSummary | null> {

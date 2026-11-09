@@ -1,4 +1,5 @@
 import type { clinicProfile } from '@/lib/db/schema/platform'
+import { websiteSectionOf } from '@/lib/types/website'
 
 /**
  * The Draft→Publish layer for the clinic website — pure, client-safe core.
@@ -105,6 +106,8 @@ export function websiteColumnLabel(column: string): string {
 export interface WebsiteDraftChange {
   column: string
   label: string
+  /** The publishable section this column belongs to (lib/types/website.ts). */
+  section: string
 }
 
 /** Split a mixed set of column writes into what stages vs what writes live. */
@@ -164,7 +167,7 @@ export function websiteDraftChanges(
     const staged = blob[key] ?? null
     const current = live[key] ?? null
     if (JSON.stringify(staged) !== JSON.stringify(current)) {
-      changes.push({ column: key, label: websiteColumnLabel(key) })
+      changes.push({ column: key, label: websiteColumnLabel(key), section: websiteSectionOf(key) ?? key })
     }
   }
   return changes

@@ -9,6 +9,7 @@ import { getClinicSmsIdentity } from '@/lib/sms'
 import { getFollowupSummary, type FollowupSummary } from '@/lib/services/patient-followups'
 import { getTagsForPatients } from '@/lib/services/patient-tags'
 import type { PatientTagView } from '@/lib/types/patient-tags'
+import { getIntakeAlertsForAppointments, type IntakeAlertView } from '@/lib/services/intake-summary'
 import { isBirthdayThisWeek } from '@/lib/dates'
 import { BACKFILL_PATIENT_SOURCES } from '@/lib/services/analytics'
 import { clinicDayStart, clinicMonthStart, clinicSamePointLastMonth } from '@/lib/clinic-timezone'
@@ -159,6 +160,9 @@ export interface TodayAppointmentRow {
   }
   /** CRM tags on the patient — shown on the today's-chair row. */
   tags: PatientTagView[]
+  /** Medical alerts from the cached intake summary (ML-27) — the ⚕ glyph.
+   *  Absent / null = none cached. */
+  intakeAlerts?: IntakeAlertView | null
 }
 
 export interface LeadPreviewRow {
@@ -301,6 +305,13 @@ export async function getClinicOverview(organizationId: string): Promise<ClinicO
     organizationId,
     todaysAppts.map((a) => a.patientId),
   )
+  // The chair read (ML-27): the intake's medical alerts, one batched query,
+  // best-effort — the Overview never dies for a missing heads-up.
+  const alertsByAppt = todaysAppts.length
+    ? await getIntakeAlertsForAppointments(organizationId, todaysAppts.map((a) => a.id)).catch(
+        () => new Map<string, IntakeAlertView>(),
+      )
+    : new Map<string, IntakeAlertView>()
   const todaysAppointments: TodayAppointmentRow[] = todaysAppts.map((a) => ({
     id: a.id,
     patientId: a.patientId,
@@ -318,6 +329,7 @@ export async function getClinicOverview(organizationId: string): Promise<ClinicO
       hasIntakeOnFile: intakeSet.has(a.patientId),
     },
     tags: todaysTagsByPatient.get(a.patientId) ?? [],
+    intakeAlerts: alertsByAppt.get(a.id) ?? null,
   }))
 
   // ── Attention signals — unconfirmed / unmarked / intake / balances / leads ─

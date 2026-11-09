@@ -88,7 +88,11 @@ describe('a primitive that only greys out says nothing', () => {
    * Reviewed: the flag genuinely means "unavailable" rather than "working",
    * so there is nothing for this button to report.
    */
-  const NOT_BUSY: Record<string, string> = {}
+  const NOT_BUSY: Record<string, string> = {
+    // The lead drawer's call-back row: Save is the control that works; Clear
+    // is merely unavailable while its sibling's transition runs (ML-22).
+    'app/(default)/leads/lead-drawer.tsx:440': 'unavailable while the sibling Save works — the Save button carries the busy state',
+  }
 
   it('every branded primitive told work is running says so', () => {
     const offenders = silentlyDisabled()

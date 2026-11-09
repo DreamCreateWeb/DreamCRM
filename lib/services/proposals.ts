@@ -9,6 +9,8 @@ import {
 } from '@/lib/autonomy'
 import { recordAction, recordEngineFailure } from '@/lib/services/action-ledger'
 import { executePatientReply } from '@/lib/services/proposal-executors/patient-reply'
+import { executeFeedbackReply } from '@/lib/services/proposal-executors/feedback-reply'
+import { executeInquiryFollowup } from '@/lib/services/proposal-executors/inquiry-followup'
 import { resolveTrialState } from '@/lib/trial'
 import { stagesOnRunway } from '@/lib/dream-team-runway'
 
@@ -1177,6 +1179,10 @@ async function executeProposal(
       return executeInquiryResponse(p, payload, saidYes)
     case 'patient_reply':
       return executePatientReply(p, payload, saidYes)
+    case 'feedback_reply':
+      return executeFeedbackReply(p, payload, saidYes)
+    case 'inquiry_followup':
+      return executeInquiryFollowup(p, payload, saidYes)
     case 'outreach_campaign':
       return executeOutreachCampaign(p, payload, saidYes)
     case 'content_plan':
@@ -1204,6 +1210,8 @@ function demoLedgerSummary(p: typeof schema.proposal.$inferSelect, saidYes: stri
     case 'social_post': return `Published a post ${saidYes}`
     case 'inquiry_response': return `Answered a website inquiry ${saidYes}`
     case 'patient_reply': return `Replied to a patient’s message ${saidYes}`
+    case 'feedback_reply': return `Wrote back to a patient about their private feedback ${saidYes}`
+    case 'inquiry_followup': return `Checked back in on a website inquiry ${saidYes}`
     case 'outreach_campaign': return `Sent the recall campaign ${saidYes}`
     case 'content_plan': return `Lined up a month of posts and articles ${saidYes}`
     case 'schedule_gap': return `Invited patients in for the week’s open times ${saidYes}`
@@ -2281,7 +2289,27 @@ async function executeOutreachCampaign(
 export async function getSentInquiryReply(
   organizationId: string,
   leadId: string,
-): Promise<{ subject: string | null; body: string; sentAt: Date | null; simulated: boolean } | null> {
+): Promise<SentInquiryMail | null> {
+  return sentInquiryMail(organizationId, `inquiry_response:${leadId}`)
+}
+
+/** ML-22: the approved SECOND touch (inquiry_followup) for the same block —
+ *  the desk must be able to re-read its own check-in when the person calls. */
+export async function getSentInquiryFollowup(
+  organizationId: string,
+  leadId: string,
+): Promise<SentInquiryMail | null> {
+  return sentInquiryMail(organizationId, `inquiry_followup:${leadId}`)
+}
+
+export interface SentInquiryMail {
+  subject: string | null
+  body: string
+  sentAt: Date | null
+  simulated: boolean
+}
+
+async function sentInquiryMail(organizationId: string, sourceKey: string): Promise<SentInquiryMail | null> {
   const [row] = await db
     .select({
       body: schema.proposal.body,
@@ -2294,7 +2322,7 @@ export async function getSentInquiryReply(
     .where(
       and(
         eq(schema.proposal.organizationId, organizationId),
-        eq(schema.proposal.sourceKey, `inquiry_response:${leadId}`),
+        eq(schema.proposal.sourceKey, sourceKey),
         eq(schema.proposal.status, 'approved'),
       ),
     )

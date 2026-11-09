@@ -117,6 +117,21 @@ export function isUrgentType(type: string): boolean {
   return NOTIFICATION_TYPES[type]?.urgent === true
 }
 
+/** Every type that emails under the 'urgent' mode — derived from the registry
+ *  above so the re-drive sweep's SQL pre-filter and `isUrgentType` can never
+ *  disagree about which types those are. */
+export function urgentNotificationTypes(): string[] {
+  return Object.keys(NOTIFICATION_TYPES).filter((t) => NOTIFICATION_TYPES[t].urgent === true)
+}
+
+/**
+ * How many times the re-drive sweep re-attempts a staff alert email that the
+ * dispatch itself could not land (ML-32). Client-safe because the tray reads
+ * the same number: a row still unsent after this many re-attempts is the one
+ * that says "Email didn’t go out" — a report, never a warning.
+ */
+export const MAX_NOTIFICATION_EMAIL_ATTEMPTS = 3
+
 /** The three per-user email delivery modes (notification_prefs.email_mode).
  *  'all' = every bell alert also emails (the old behavior, now opt-in);
  *  'urgent' = only urgent types email (the default);

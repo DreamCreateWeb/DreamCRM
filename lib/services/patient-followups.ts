@@ -659,3 +659,100 @@ export async function autoCreateRebookFollowup(
     console.warn('[autoCreateRebookFollowup] failed', err)
   }
 }
+
+/** Where a piece of feedback came from — the private note on a review link
+ *  (`review_request.private_feedback` / a 1–2★ submitted text) or the
+ *  post-visit survey (`nps_response`). The id is the row the bell rang for. */
+export type FeedbackFollowupSource =
+  | { kind: 'review'; reviewRequestId: string; appointmentId?: string | null; rating: number | null }
+  | { kind: 'nps'; npsResponseId: string; appointmentId?: string | null; score: number }
+
+/**
+ * ML-21 — a bad visit is the one moment the practice most wants to reach
+ * out and most often doesn't. Beside the bell a 1–2★ note or a detractor
+ * survey rings, file a REAL follow-up with a door: "Call <first> about
+ * their visit", kind 'feedback', due tomorrow on the clinic's calendar,
+ * assigned to nobody (the desk decides who calls). Returns the follow-up
+ * the bell should point at — the one just filed, or the one already open.
+ *
+ * Idempotent per note (one follow-up per note, never one per bell):
+ *  - the visit the feedback is about, when the row knows it
+ *    (`sourceAppointmentId`, any status — a re-submitted note after the
+ *    call never re-opens the task);
+ *  - otherwise one OPEN 'feedback' follow-up per patient — a patient who
+ *    edits their note while the task waits joins it; a new note after the
+ *    desk closed the task is a new thing to look at.
+ * Best-effort like its rebook sibling: never throws into the bell.
+ */
+export async function autoCreateFeedbackFollowup(
+  organizationId: string,
+  patientId: string,
+  patientFirstName: string | null | undefined,
+  source: FeedbackFollowupSource,
+): Promise<{ id: string; created: boolean } | null> {
+  try {
+    const appointmentId = source.appointmentId ?? null
+    if (appointmentId) {
+      const [byVisit] = await db
+        .select({ id: schema.patientFollowup.id })
+        .from(schema.patientFollowup)
+        .where(
+          and(
+            eq(schema.patientFollowup.organizationId, organizationId),
+            eq(schema.patientFollowup.patientId, patientId),
+            eq(schema.patientFollowup.kind, 'feedback'),
+            eq(schema.patientFollowup.sourceAppointmentId, appointmentId),
+          ),
+        )
+        .limit(1)
+      if (byVisit) return { id: byVisit.id, created: false }
+    }
+    const [open] = await db
+      .select({ id: schema.patientFollowup.id })
+      .from(schema.patientFollowup)
+      .where(
+        and(
+          eq(schema.patientFollowup.organizationId, organizationId),
+          eq(schema.patientFollowup.patientId, patientId),
+          eq(schema.patientFollowup.kind, 'feedback'),
+          eq(schema.patientFollowup.status, 'open'),
+        ),
+      )
+      .limit(1)
+    if (open) return { id: open.id, created: false }
+
+    const first = patientFirstName?.trim() || 'this patient'
+    const id = newId()
+    await db.insert(schema.patientFollowup).values({
+      id,
+      organizationId,
+      patientId,
+      title: `Call ${first} about their visit`,
+      // Due tomorrow ON THE CLINIC'S CALENDAR (the tz law) — a day to reach
+      // out while the visit is still fresh, never "today" at 11 PM.
+      dueDate: addDaysYmd(await clinicTodayYmd(organizationId, new Date()), 1),
+      assignedUserId: null,
+      status: 'open',
+      createdBy: null,
+      sourceAppointmentId: appointmentId,
+      kind: 'feedback',
+    })
+    await recordAction({
+      organizationId,
+      capability: 'followup_rule',
+      patientId,
+      summary:
+        source.kind === 'nps'
+          ? `Opened a follow-up to call ${first} about their ${source.score}/10 survey`
+          : `Opened a follow-up to call ${first} about the feedback they sent privately`,
+      detail:
+        source.kind === 'nps'
+          ? { rule: 'feedback', npsResponseId: source.npsResponseId, score: source.score }
+          : { rule: 'feedback', reviewRequestId: source.reviewRequestId, rating: source.rating },
+    })
+    return { id, created: true }
+  } catch (err) {
+    console.warn('[autoCreateFeedbackFollowup] failed', err)
+    return null
+  }
+}

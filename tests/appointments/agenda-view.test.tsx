@@ -565,3 +565,25 @@ describe('AgendaView — the Marked-done toast books the next visit', () => {
     expect(screen.queryByRole('button', { name: 'Book next visit' })).toBeNull()
   })
 })
+
+describe('the agenda row’s medical-alert pill (ML-27)', () => {
+  it('renders "⚠ first alert +N" in the warn tone with the full list on the title, and leads the glyph cluster', () => {
+    const group: AppointmentDayGroup = {
+      date: new Date('2026-05-21T00:00:00Z'),
+      label: 'Wed May 21',
+      rows: [
+        makeRow({ id: 'a1', patientName: 'Mia Hayes', intakeAlerts: { submissionId: 'sub_1', alerts: ['Allergic to penicillin', 'Takes warfarin (blood thinner)'] } }),
+        makeRow({ id: 'a2', patientName: 'Liam Brooks', intakeAlerts: null }),
+      ],
+      totals: { booked: 2, confirmed: 0, unconfirmed: 2 },
+    }
+    render(<AgendaView groups={[group]} meta={baseMeta} filters={baseFilters} orgName="Acme Dental" />)
+    const pill = screen.getByTitle('From their intake form: Allergic to penicillin · Takes warfarin (blood thinner)')
+    expect(pill).toHaveAttribute('data-tone', 'warn')
+    expect(pill).toHaveTextContent('Allergic to penicillin')
+    expect(pill).toHaveTextContent('+1')
+    // One row carries the registry glyph; the other carries nothing.
+    expect(screen.getAllByLabelText('Medical alert on the intake form')).toHaveLength(1)
+    expect(screen.getAllByTitle(/From their intake form/)).toHaveLength(1)
+  })
+})

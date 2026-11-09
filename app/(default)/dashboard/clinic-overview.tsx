@@ -98,7 +98,7 @@ const PILL_LEGEND: PillLegendRow[] = [
 ]
 
 // The glyphs this page renders on Today's chair (in registry display order).
-const PAGE_GLYPHS: GlyphId[] = ['newPatient', 'birthday', 'balance', 'missingIntakeNext']
+const PAGE_GLYPHS: GlyphId[] = ['medicalAlert', 'newPatient', 'birthday', 'balance', 'missingIntakeNext']
 
 const ACTIVITY_ICON: Record<ActivityKind, string> = {
   appointment_booked: '📅',
@@ -791,6 +791,9 @@ function TodayChairRow({ appt, timeZone, intakeOpen }: { appt: TodayAppointmentR
   // only fires for new patients with no form on file — and never while the
   // Intake Forms door is closed (law 1: no nag about a module nobody opened).
   const glyphs = patientFlagGlyphs({
+    // The chair read (ML-27): the intake's medical alerts, first in the
+    // cluster — the full text is one click away on the visit.
+    medicalAlert: !!appt.intakeAlerts,
     newPatient: appt.flags.newPatient,
     birthdayThisWeek: appt.flags.birthdayThisWeek,
     hasOutstandingBalance: appt.flags.hasOutstandingBalance,

@@ -68,6 +68,13 @@ export const CAPABILITIES: readonly CapabilityDef[] = [
   // is no judgment to hand over, and the audience lock that governs whether
   // it speaks at all lives with the platform owner, not the clinic.
   { key: 'guardian_note', label: 'Tell you when something needs a look', defaultTrust: 'auto' },
+  // STAFF ALERTS BY EMAIL (ML-32). The copy of a bell alert that goes to a
+  // person's inbox, and the sweep that re-attempts it when the provider
+  // dropped it. Auto because it only ever REPORTS to the practice's own
+  // staff — nothing here reaches a patient — and deliberately NOT grantable
+  // and off the roster: it is how alerts reach the clinic, not a job on
+  // anyone's desk (a meta lane, like guardian_note).
+  { key: 'staff_alert', label: 'Keep your inbox posted when something needs you', defaultTrust: 'auto' },
   // THE PROPOSAL ENGINE itself (Phase 4 observability). Not a job the clinic
   // grants — it is how every ask-first job REACHES them. It earns a key so
   // that "I couldn't bring you any work at all today" has somewhere honest
@@ -242,10 +249,11 @@ export const BOOKING_BUTTON_CAPABILITIES: readonly string[] = [
 // registered ahead of its generator. Each slice that ships a generator +
 // executor deletes its own key here — that single deletion is the release.
 // `patient_reply` was the first key deleted here (ML-12, 2026-11-03 — its
-// generator + executor shipped together).
+// generator + executor shipped together); `feedback_reply` the second
+// (ML-21, same day, same shape).
 export const PREVIEW_CAPABILITIES: readonly string[] = [
-  'feedback_reply',
-  'inquiry_followup',
+// generator + executor shipped together); `inquiry_followup` the second
+// (ML-22, 2026-11-03 — the second touch on an inquiry that went quiet).
   'postop_checkin',
   'rebook_nudge',
   'referral_ask',
@@ -291,6 +299,9 @@ export const GRANTABLE_CAPABILITIES = [
   // capability it cannot carry out, so a grantable key without an executor
   // is a yes the machine would answer with a failure every tick.
   // tests/journey/capability-registry.test.ts pins grantable ⊆ executable.
+  // ML-22: the second touch on a quiet inquiry — its executor sends through
+  // the first touch's own path and waits for daylight like its siblings.
+  'inquiry_followup',
 ] as const
 
 export function isGrantable(key: string): boolean {

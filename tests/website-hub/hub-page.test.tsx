@@ -57,8 +57,15 @@ vi.mock('@/lib/services/site-analytics', () => ({
       topPages: [{ path: '/', views: 200 }],
     },
     leads30d: 9,
+    leadsPrev30d: 6,
     conversionPct: 2,
   })),
+}))
+vi.mock('@/lib/services/patients', () => ({
+  // (org, days, now, offsetDays) — offset 30 is the PRIOR window.
+  getNewPatientCounts: vi.fn(async (_o: string, _d?: number, _n?: Date, offset = 0) =>
+    offset > 0 ? { total: 8, viaSite: 4 } : { total: 12, viaSite: 3 },
+  ),
 }))
 vi.mock('@/lib/services/blog', () => ({
   getBlogStats: vi.fn(async () => ({ published: 3, drafts: 1, scheduled: 0, aiDraftsPending: 0, lastPublishedAt: null })),
@@ -125,6 +132,23 @@ describe('WebsiteHubPage', () => {
     expect(screen.getByText('Open the editor')).toBeTruthy()
     // The last edit shows in the hero line AND as the Editor dock state.
     expect(screen.getAllByText(/Last edit: Hero image/).length).toBeGreaterThan(0)
+    cleanup()
+  })
+
+  it('every band KPI carries its delta with its subject (visits, booked, inquiries)', async () => {
+    render(await WebsiteHubPage())
+    // visits 412 vs 300 → +37%; inquiries 9 vs 6 → +50%; booked 3 vs 4 → -25%
+    expect(screen.getByTitle('Site visits vs the prior 30 days').textContent).toContain('▲ 37%')
+    expect(screen.getByTitle('Inquiries vs the prior 30 days').textContent).toContain('▲ 50%')
+    expect(screen.getByTitle('New patients booked online vs the prior 30 days').textContent).toContain('▼ 25%')
+    cleanup()
+  })
+
+  it('offers "See it as a patient" → the live site in a new tab', async () => {
+    render(await WebsiteHubPage())
+    const link = screen.getByText(/See it as a patient/).closest('a')!
+    expect(link.getAttribute('href')).toBe('https://acme.dreamcreatestudio.com')
+    expect(link.getAttribute('target')).toBe('_blank')
     cleanup()
   })
 

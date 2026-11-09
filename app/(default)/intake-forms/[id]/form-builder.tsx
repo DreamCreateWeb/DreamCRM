@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState, useTransition } from 'react'
+import { useId, useMemo, useState, useTransition } from 'react'
 import Link from 'next/link'
 import type { FormTemplate } from '@/lib/db/schema/clinic'
 import type {
@@ -11,7 +11,15 @@ import type {
   FormSection,
   FormTemplateSchema,
 } from '@/lib/types/forms'
-import { AUTO_SEND_AUDIENCE_LABELS, coerceAutoSendAudience } from '@/lib/types/forms'
+import {
+  AUTO_SEND_AUDIENCE_LABELS,
+  INTAKE_REFRESH_DEFAULT_MONTHS,
+  INTAKE_REFRESH_MAX_MONTHS,
+  INTAKE_REFRESH_MIN_MONTHS,
+  coerceAppointmentTypeIds,
+  coerceAutoSendAudience,
+  coerceRefreshMonths,
+} from '@/lib/types/forms'
 
 /** A field that can drive another field's conditional visibility. */
 interface TriggerCandidate {
@@ -30,6 +38,9 @@ import FormPreview from './form-preview'
 
 interface Props {
   template: FormTemplate
+  /** The clinic's visit-type catalog for the rules card (ML-27). Empty = the
+   *  picker is hidden and the form rides with every visit. */
+  visitTypes?: Array<{ id: string; label: string }>
 }
 
 function uid() {
@@ -70,7 +81,7 @@ function newField(type: FormFieldType): FormField {
   return { ...base, type: type as 'text' | 'textarea' | 'email' | 'tel' | 'number' | 'date', placeholder: null }
 }
 
-export default function FormBuilder({ template }: Props) {
+export default function FormBuilder({ template, visitTypes = [] }: Props) {
   const initialSchema = template.schema as FormTemplateSchema
   const [title, setTitle] = useState(template.title)
   const [description, setDescription] = useState(template.description ?? '')
@@ -78,6 +89,18 @@ export default function FormBuilder({ template }: Props) {
   const [autoSendAudience, setAutoSendAudience] = useState<FormAutoSendAudience>(
     coerceAutoSendAudience(template.autoSendAudience),
   )
+  // THE RULE'S TARGETING (ML-27): which visit types this form rides with
+  // (none ticked = every visit) + "ask again every N months" (off = never).
+  const [typeIds, setTypeIds] = useState<string[]>(coerceAppointmentTypeIds(template.appointmentTypeIds) ?? [])
+  const initialRefresh = coerceRefreshMonths(template.refreshMonths)
+  const [refreshOn, setRefreshOn] = useState(initialRefresh !== null)
+  const [refreshMonths, setRefreshMonths] = useState<number>(initialRefresh ?? INTAKE_REFRESH_DEFAULT_MONTHS)
+  const refreshInputId = useId()
+  const appointmentTypeIds = typeIds.length > 0 ? typeIds : null
+  const refreshMonthsValue = refreshOn ? refreshMonths : null
+  function toggleType(id: string) {
+    setTypeIds((prev) => (prev.includes(id) ? prev.filter((t) => t !== id) : [...prev, id]))
+  }
   const [sections, setSections] = useState<FormSection[]>(
     initialSchema.sections ?? [],
   )
@@ -93,10 +116,10 @@ export default function FormBuilder({ template }: Props) {
   // mid-edit is a known risk instead of a silent one. Baseline resets on a
   // successful save.
   const [baseline, setBaseline] = useState(() =>
-    JSON.stringify({ title, description, isDefault, autoSendAudience, sections }),
+    JSON.stringify({ title, description, isDefault, autoSendAudience, appointmentTypeIds, refreshMonthsValue, sections }),
   )
   const dirty =
-    JSON.stringify({ title, description, isDefault, autoSendAudience, sections }) !== baseline
+    JSON.stringify({ title, description, isDefault, autoSendAudience, appointmentTypeIds, refreshMonthsValue, sections }) !== baseline
 
   function handleTranslate() {
     if (translating) return
@@ -192,8 +215,10 @@ export default function FormBuilder({ template }: Props) {
           schema: { sections },
           isDefault,
           autoSendAudience,
+          appointmentTypeIds,
+          refreshMonths: refreshMonthsValue,
         })
-        setBaseline(JSON.stringify({ title, description, isDefault, autoSendAudience, sections }))
+        setBaseline(JSON.stringify({ title, description, isDefault, autoSendAudience, appointmentTypeIds, refreshMonthsValue, sections }))
         setSaved(true)
         setTimeout(() => setSaved(false), 2000)
       } catch (err) {
@@ -304,6 +329,68 @@ export default function FormBuilder({ template }: Props) {
           </div>
           <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
             New patients get the full intake; returning patients can get a short update form instead.
+          </p>
+        </div>
+        {/* THE RULE'S TARGETING (ML-27): a sedation visit can ask for the
+            sedation consent only; nothing ticked = every visit. */}
+        {visitTypes.length > 0 && (
+          <fieldset>
+            <legend className="block text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1.5">
+              Visit types
+            </legend>
+            <div className="flex flex-wrap gap-3">
+              {visitTypes.map((t) => (
+                <label key={t.id} className="flex items-center gap-1.5 text-sm text-gray-700 dark:text-gray-200">
+                  <input
+                    type="checkbox"
+                    checked={typeIds.includes(t.id)}
+                    onChange={() => toggleType(t.id)}
+                    className="form-checkbox"
+                  />
+                  {t.label}
+                </label>
+              ))}
+            </div>
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              {typeIds.length === 0
+                ? 'Rides along with every visit. Tick visit types to send this form for those only — a sedation consent for sedation visits, say.'
+                : `Only ${typeIds.length === 1 ? 'this visit type gets' : `these ${typeIds.length} visit types get`} this form.`}
+            </p>
+          </fieldset>
+        )}
+        {/* THE REFRESH WINDOW (ML-27): "intake on file" used to mean any
+            submission, ever. */}
+        <div>
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={refreshOn}
+              onChange={(e) => setRefreshOn(e.target.checked)}
+              className="form-checkbox"
+            />
+            <span className="text-gray-700 dark:text-gray-200">Ask returning patients for a fresh form</span>
+          </label>
+          <div className="mt-1.5 flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200">
+            <label htmlFor={refreshInputId}>Ask again every</label>
+            <input
+              id={refreshInputId}
+              type="number"
+              inputMode="numeric"
+              min={INTAKE_REFRESH_MIN_MONTHS}
+              max={INTAKE_REFRESH_MAX_MONTHS}
+              value={refreshMonths}
+              disabled={!refreshOn}
+              onChange={(e) => setRefreshMonths(coerceRefreshMonths(e.target.value) ?? INTAKE_REFRESH_DEFAULT_MONTHS)}
+              className="form-input w-20 tabular-nums disabled:opacity-50"
+            />
+            <span>months</span>
+          </div>
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            {refreshOn
+              ? refreshMonths === 12
+                ? 'Returning patients get a fresh form every year — an older one no longer counts as on file.'
+                : `Returning patients get a fresh form every ${refreshMonths} months — an older one no longer counts as on file.`
+              : 'Off: one form on file is enough, forever. Turn it on and returning patients get a fresh form every year.'}
           </p>
         </div>
       </div>

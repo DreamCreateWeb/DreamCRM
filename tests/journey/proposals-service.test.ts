@@ -113,10 +113,15 @@ vi.mock('@/lib/services/clinic-sender', () => ({
   })),
 }))
 vi.mock('@/lib/email', () => ({
-  patientEmailShell: vi.fn((o: { title?: string; body?: string; cta?: { url: string; label: string }; footnoteHtml?: string }) => `<html>${o?.title ?? ''}${o?.body ?? ''}${o?.cta ? `<a href="${o.cta.url}">${o.cta.label}</a>` : ''}${o?.footnoteHtml ?? ''}</html>`),
   deliver: executors.deliver,
   authEmailShell: (o: { introHtml: string; buttonUrl?: string; buttonLabel?: string }) =>
     `<html>${o.introHtml}${o.buttonUrl ? `<a href="${o.buttonUrl}">${o.buttonLabel}</a>` : ''}</html>`,
+  // The branded patient shell (ML-19) the inquiry reply now sends through —
+  // the same body + button rendering, so the assertions read the same html.
+  // The inquiry reply's shell since it moved to the clinic-branded patient
+  // email: the body as given, the "Book a time" button when a site resolves.
+  patientEmailShell: (o: { body: string; cta?: { url: string; label: string } }) =>
+    `<html>${o.body}${o.cta ? `<a href="${o.cta.url}">${o.cta.label}</a>` : ''}</html>`,
 }))
 vi.mock('@/lib/services/marketing-campaigns', () => ({ createMarketingCampaign: executors.createMarketingCampaign }))
 vi.mock('@/lib/services/marketing-send', () => ({

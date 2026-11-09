@@ -706,3 +706,30 @@ commit → merge to main → verify deploy (same as the best-version program).
   recovery-narrate; patient wrote again → retire). Thread artifact + "Open
   the conversation" link on the card. patient_reply left
   PREVIEW_CAPABILITIES — ask-first, not grantable, as ruled.
+- **2026-11-03 — ML-21**: THE SECOND GENERATOR under the lane convention. A
+  1–2★ private note or a ≤6/10 survey now files a REAL follow-up beside its
+  bell ("Call <first> about their visit", kind 'feedback', due tomorrow
+  clinic-local, one per note — keyed on the visit, else one open per
+  patient; the bell lands on it) and feedback_reply drafts the personal note
+  back: last 7 days, worst first, ≤3/org/pass, AI off files nothing,
+  sourceKey = the note (one ask for good) + one open card per patient, the
+  patient's words as the thread artifact's one turn. The yes sends once
+  through sendNotificationEmail with the clinic sender (the branded shell),
+  retires on a vanished note, reopens when the email is gone; "answered" is
+  the executed proposal + ledger line (no column, no migration).
+  feedback_reply left PREVIEW_CAPABILITIES — ask-first, not grantable, as
+  ruled.
+- **2026-11-03 — ML-22**: THE SECOND TOUCH. inquiry_followup drafts one
+  short check-in for an emailed inquiry that sat in 'contacted' 3+
+  clinic-local days (14-day window, not parked for today or later, never
+  followed up; ≤5/org/pass; sourceKey per lead — one second touch ever; the
+  driver's own draftText fed what we actually replied). The yes rides the
+  first touch's path (clinic sender, the disclosed Book-a-time button, the
+  conditional sign-off) and stamps lead.followed_up_at; converted /
+  archived / reopened retire it; a stamped lead recovery-narrates once.
+  Grantable with its executor, PREVIEW key deleted, sweep premise-rot
+  branch, email artifact + "Open the inquiry" door. The desk side: the
+  call-back day (clinic-local noon) + notes in the drawer, "Follow-up we
+  sent", the board's "Call back Tue" / "Followed up 2d ago". Phone-only
+  inquiries get the call-back + notes only; their call card is a later
+  slice.

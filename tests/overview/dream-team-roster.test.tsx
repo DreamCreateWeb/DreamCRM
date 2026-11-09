@@ -34,7 +34,14 @@ describe('the roster ↔ capability registry parity', () => {
     // questions, not standing jobs on anyone's desk.
     // The setup list is the registry's own (ML-11): a new first-week ask
     // joins SETUP_CAPABILITIES and stays off the roster by construction.
-    const META = new Set(['guardian_note', 'proposal_engine', ...SETUP_CAPABILITIES])
+    const META = new Set([
+      'guardian_note',
+      'proposal_engine',
+      // ML-32: how a bell alert's email copy reaches the clinic — plumbing
+      // that only reports to staff, not a job on any specialist's desk.
+      'staff_alert',
+      ...SETUP_CAPABILITIES,
+    ])
     for (const c of CAPABILITIES) {
       if (META.has(c.key)) {
         expect(seen.has(c.key), `${c.key} is meta — keep it off the roster`).toBe(false)
@@ -108,15 +115,19 @@ describe('PREVIEW lanes', () => {
       <TeamRoster grantedCapabilities={new Set()} weeklyCounts={new Map()} waitingCapabilities={new Set()} />,
     )
     // A registration is not a promise: no clinic reads about a job nobody does yet.
-    // (patient_reply was the first key released — ML-12 — so it now shows to all.)
+    // (patient_reply was the first key released — ML-12 — feedback_reply the
+    // second — ML-21 — and inquiry_followup the third — ML-22 — so all three
+    // now show to all; the post-op check-in is still waiting on its slice.)
     expect(screen.getByText('Reply to patient messages')).toBeInTheDocument()
-    expect(screen.queryByText('Answer private feedback')).not.toBeInTheDocument()
+    expect(screen.getByText('Answer private feedback')).toBeInTheDocument()
+    expect(screen.getByText('Follow up on unanswered inquiries')).toBeInTheDocument()
+    expect(screen.queryByText('Check in after a procedure')).not.toBeInTheDocument()
     expect(screen.queryByText('Watch your Google listing for changes')).not.toBeInTheDocument()
     unmount()
     render(
       <TeamRoster grantedCapabilities={new Set()} weeklyCounts={new Map()} waitingCapabilities={new Set()} showPreview />,
     )
-    expect(screen.getByText('Answer private feedback')).toBeInTheDocument()
+    expect(screen.getByText('Check in after a procedure')).toBeInTheDocument()
     expect(screen.getByText('Watch your Google listing for changes')).toBeInTheDocument()
   })
 })

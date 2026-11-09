@@ -176,6 +176,7 @@ export const TONE_FILL_HOVER: Record<Tone, string> = {
 /* ------------------------------------------------------------------ */
 
 export type GlyphId =
+  | 'medicalAlert'
   | 'newPatient'
   | 'birthday'
   | 'balance'
@@ -206,6 +207,13 @@ export interface GlyphDef {
  * matching test updates everywhere a glyph renders.
  */
 export const GLYPHS: Record<GlyphId, GlyphDef> = {
+  medicalAlert: {
+    id: 'medicalAlert',
+    symbol: '⚕',
+    label: 'Medical alert on the intake form',
+    description: 'Their intake form reported an allergy, medication or condition the provider must know. Open the visit to read it before they sit down.',
+    className: 'text-amber-600 dark:text-amber-400 font-bold',
+  },
   newPatient: {
     id: 'newPatient',
     symbol: '★',
@@ -298,6 +306,8 @@ export const GLYPHS: Record<GlyphId, GlyphDef> = {
 
 /** Structural flag shapes (match the derived row flags from lib/services). */
 export interface PatientGlyphFlags {
+  /** A cached intake summary carries medical alerts (ML-27) — always first. */
+  medicalAlert?: boolean
   newPatient?: boolean
   birthdayThisWeek?: boolean
   hasOutstandingBalance?: boolean
@@ -317,6 +327,7 @@ export interface AppointmentGlyphFlags extends PatientGlyphFlags {
 /** Patients-module glyph order (cap trims from the end). */
 export function patientFlagGlyphs(flags: PatientGlyphFlags): GlyphId[] {
   const out: GlyphId[] = []
+  if (flags.medicalAlert) out.push('medicalAlert')
   if (flags.newPatient) out.push('newPatient')
   if (flags.birthdayThisWeek) out.push('birthday')
   if (flags.hasOutstandingBalance) out.push('balance')
@@ -330,6 +341,7 @@ export function patientFlagGlyphs(flags: PatientGlyphFlags): GlyphId[] {
 /** Appointments-module glyph order (cap trims from the end). */
 export function appointmentFlagGlyphs(flags: AppointmentGlyphFlags): GlyphId[] {
   const out: GlyphId[] = []
+  if (flags.medicalAlert) out.push('medicalAlert')
   if (flags.newPatient) out.push('newPatient')
   if (flags.lapsedReturning) out.push('lapsedReturning')
   if (flags.birthdayThisWeek) out.push('birthday')

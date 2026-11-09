@@ -5,6 +5,9 @@ import Link from 'next/link'
 import type { SitePageIndexEntry } from '@/lib/clinic-site-helpers'
 import { StatusPill } from '@/components/ui/status-pill'
 import { inputCls } from '@/components/ui/editor-kit'
+import { ActionButton } from '@/components/ui/action-button'
+import { MiniTrend } from '@/components/ui/charts'
+import { runAction, isStaleFailure } from '@/lib/run-action'
 import { saveInlineField, type SectionResult } from '../editor/website-actions'
 
 /**
@@ -24,28 +27,58 @@ export interface PageCopyGroup {
   wildcardFamilies: number
 }
 
+export interface PageVisits {
+  /** Views in the last 30 days. */
+  views: number
+  /** Zero-filled daily series, parallel to `visitDays`. */
+  daily: number[]
+}
+
 export default function PagesManager({
   pages,
   copyByPath,
   siteUrl,
+  visitsByPath,
+  visitDays = [],
 }: {
   pages: SitePageIndexEntry[]
   copyByPath: Record<string, PageCopyGroup>
   siteUrl: string
+  /** Per-page 30-day visits keyed by the index path ('' = home). Omitted when
+   *  the traffic read failed — the column then simply doesn't render. */
+  visitsByPath?: Record<string, PageVisits>
+  /** 'YYYY-MM-DD' per series point (calendar dates, labelled as-is). */
+  visitDays?: string[]
 }) {
   const [open, setOpen] = useState<string | null>(null)
+  const [sortByVisits, setSortByVisits] = useState(false)
   const liveCount = pages.filter((p) => p.live).length
+  const showVisits = !!visitsByPath
+  const rows =
+    showVisits && sortByVisits
+      ? [...pages].sort((a, b) => (visitsByPath[b.path]?.views ?? 0) - (visitsByPath[a.path]?.views ?? 0))
+      : pages
 
   return (
     <section className="v2-card p-4 sm:p-5">
       <div className="flex items-baseline justify-between gap-3 mb-3">
         <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100">Your pages</h2>
-        <span className="text-xs tabular-nums font-mono-num text-gray-500 dark:text-gray-400">
+        <span className="flex items-center gap-3 text-xs tabular-nums font-mono-num text-gray-500 dark:text-gray-400">
+          {showVisits && (
+            <button
+              type="button"
+              onClick={() => setSortByVisits((v) => !v)}
+              aria-pressed={sortByVisits}
+              className="font-sans font-medium text-teal-700 dark:text-teal-300 hover:underline underline-offset-4"
+            >
+              {sortByVisits ? 'Sorted by visits' : 'Sort by visits'}
+            </button>
+          )}
           {liveCount} live
         </span>
       </div>
       <ul className="divide-y divide-[color:var(--color-hairline)]">
-        {pages.map((p) => {
+        {rows.map((p) => {
           const copy = copyByPath[p.path]
           const editCount =
             (copy?.concrete.filter((c) => c.current !== null).length ?? 0) +
@@ -89,6 +122,26 @@ export default function PagesManager({
                   </span>
                 )}
                 <span className="ml-auto flex items-center gap-3 text-xs">
+                  {showVisits && p.live && (
+                    <span className="flex items-center gap-2" data-testid="page-visits">
+                      <span
+                        className="tabular-nums font-mono-num text-gray-700 dark:text-gray-200"
+                        title="Visits in the last 30 days"
+                      >
+                        {(visitsByPath[p.path]?.views ?? 0).toLocaleString()} visits
+                      </span>
+                      {visitsByPath[p.path] && visitsByPath[p.path].views > 0 && (
+                        <MiniTrend
+                          data={visitsByPath[p.path].daily.map((value, i) => ({
+                            bucket: visitDays[i] ?? String(i + 1),
+                            value,
+                          }))}
+                          width={64}
+                          height={20}
+                        />
+                      )}
+                    </span>
+                  )}
                   {p.live && (
                     <>
                       <Link
@@ -173,8 +226,12 @@ function CopyField({
   function onSave() {
     setError(null)
     startTransition(async () => {
-      const res: SectionResult = await saveInlineField(`copy:${copyKey}`, value)
-      if (res.ok) {
+      const res: SectionResult | { ok: false; error: string; stale?: true } = await runAction(() =>
+        saveInlineField(`copy:${copyKey}`, value),
+      )
+      if (isStaleFailure(res)) {
+        setError(res.error)
+      } else if (res.ok) {
         setSavedValue(value)
         setSaved(true)
         setTimeout(() => setSaved(false), 2500)
@@ -197,14 +254,16 @@ function CopyField({
           placeholder={fallback || 'Edited on the page'}
           className={`${inputCls} flex-1`}
         />
-        <button
-          type="button"
+        <ActionButton
+          variant="primary"
+          size="sm"
           onClick={onSave}
+          pending={pending}
           disabled={pending || !dirty}
-          className="shrink-0 text-xs font-semibold px-3 py-2 rounded-[var(--r-sm)] bg-teal-600 text-white hover:bg-teal-700 dark:bg-teal-400 dark:text-gray-900 dark:hover:bg-teal-300 disabled:opacity-50"
+          className="shrink-0"
         >
-          {pending ? 'Saving…' : 'Save'}
-        </button>
+          Save
+        </ActionButton>
       </div>
       {saved && !dirty && <p className="mt-1 text-xs text-emerald-600 dark:text-emerald-400">Saved ✓ — publish to go live</p>}
       {error && <p className="mt-1 text-xs text-rose-600 dark:text-rose-400">{error}</p>}

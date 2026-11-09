@@ -341,7 +341,8 @@ export const patientFollowup = pgTable(
     // follow-up whose ruleKey already exists for the org.
     ruleKey: text('rule_key'),
     // WHY it exists (drives the glyph + the row's door): 'generic' | 'rebook' |
-    // 'balance' | 'insurance' | 'message' | 'intake' | 'review' | 'recall'.
+    // 'balance' | 'insurance' | 'message' | 'intake' | 'review' | 'recall' |
+    // 'feedback' (ML-21: a 1–2★ note or a detractor survey).
     // See FOLLOWUP_KINDS in lib/types/followups.ts. Default 'generic'.
     kind: text('kind').notNull().default('generic'),
     // 'YYYY-MM-DD' clinic-local. While set and in the future the row is hidden
@@ -667,6 +668,16 @@ export const formTemplate = pgTable(
     // rides a booking confirmation for a given patient (new patients get the
     // full intake; returning patients a short update). Default 'all'.
     autoSendAudience: text('auto_send_audience').notNull().default('all'),
+    // AUTO-SEND TARGETING (ML-27): the visit types this form rides along
+    // with — `appointment.type` ids (lib/types/visit-types.ts). Null = every
+    // visit. A sedation visit can ask for the sedation consent ONLY, and a
+    // cleaning never sees it. string[] in jsonb.
+    appointmentTypeIds: jsonb('appointment_type_ids'),
+    // THE REFRESH WINDOW (ML-27): "ask again every N months". A submission
+    // older than this counts as NOT on file, so a returning patient gets a
+    // fresh form (clinic-local month boundaries, lib/intake-on-file.ts).
+    // Null = never re-ask — one submission is on file forever (the old rule).
+    refreshMonths: integer('refresh_months'),
     // Cached per-locale translations of the form's display strings, keyed by
     // locale → a parallel FormTemplateSchema (same field ids, translated
     // labels/help/options/body/section titles). { es?: FormTemplateSchema }.
@@ -767,6 +778,17 @@ export const lead = pgTable('lead', {
   convertedAt: timestamp('converted_at'),
   archivedAt: timestamp('archived_at'),
   archivedReason: text('archived_reason'),
+
+  // ML-22 — "contacted" is no longer the end. The desk can park a call-back
+  // DAY (stored at clinic-local noon, the write-side twin of clinicDayKey —
+  // never a bare UTC midnight) and a free-text note; the machine's drafted
+  // SECOND touch (inquiry_followup) stamps followed_up_at when its email
+  // goes out, so the board can say "Followed up 2d ago" and the generator
+  // never drafts a second second touch. All nullable: a lead with none of
+  // them reads exactly as it did before.
+  callBackAt: timestamp('call_back_at'),
+  notes: text('notes'),
+  followedUpAt: timestamp('followed_up_at'),
 
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),

@@ -108,7 +108,7 @@ app/
                      <link>, NOT next/font (build env can't reach Google)
   r/ w/ c/ b/ g/ e/ h/ n/ i/ d/   Token-IS-auth patient/prospect landings
   api/               auth · webhooks (stripe, stripe-connect, gmail, resend,
-                     sms) · 23 CRON_SECRET-gated /api/cron/* routes ·
+                     sms) · 24 CRON_SECRET-gated /api/cron/* routes ·
                      /api/admin/* (migrate, resync-demo, redrive, read-check)
                      · oauth/connect · token publics · /api/version
 
@@ -251,7 +251,7 @@ booking, intake, shop, the token landings. Brand-derived palette
   `lib/shared-brain.ts` learns the send hour under three floors, inert until
   the floors clear, with an exploration arm.
 - **Search**: ⌘K (`lib/services/global-search.ts`) searches and ACTS.
-- **Crons — 23 routes, `Authorization: Bearer $CRON_SECRET`**, every one a
+- **Crons — 24 routes, `Authorization: Bearer $CRON_SECRET`**, every one a
   `JOBS` entry in `scripts/setup-cron-schedules.sh` (the deploy re-runs it;
   `tests/cron-schedule-parity.test.ts` fails CI otherwise): pms-sync,
   send-reminders, send-scheduled-campaigns, auto-send-reviews,
@@ -259,7 +259,8 @@ booking, intake, shop, the token landings. Brand-derived palette
   followup-rules (+ snooze resurfacing), daily-digest (+ the Monday standup,
   the activation reconcile), trial-reminders, prospect-discovery/-enrich/
   -outreach, domain-renewals, generate-proposals, guardian, learn-defaults,
-  sms-registration, grader-nurture, custom-domains (15m).
+  sms-registration, grader-nurture, custom-domains (15m),
+  notification-redrive (15m — failed staff-alert emails, 3 tries in 24h).
 
 ## Conventions (the laws)
 
@@ -362,8 +363,9 @@ booking, intake, shop, the token landings. Brand-derived palette
   (GitHub Actions → CodeBuild → ECR → App Runner, ~5 min; then a few minutes
   of rollout — `/api/version` changes when the new build serves).
 - **Migrations auto-apply on boot** (`scripts/db-migrate.mjs`; a failure keeps
-  the previous version serving). Latest applied: **0182** (card-update
-  stamp + follow-up kind/snooze/outcome). The next number is **0183**.
+  the previous version serving). Latest applied: **0183** (notification
+  retry, website history actor, intake rule targeting/refresh, lead
+  call-back/notes). The next number is **0184**.
   PARALLEL BRANCHES NEVER SHIP MIGRATION FILES: the integrator regenerates
   ONE sequential migration per PR on the merged schema. Workflow: edit the schema,
   `pnpm db:generate`, pin with a `tests/migrations/*.test.ts`, commit. The

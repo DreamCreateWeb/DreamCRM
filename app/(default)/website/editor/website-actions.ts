@@ -93,7 +93,7 @@ async function writeSection(
       for (const key of Object.keys(set)) {
         previous[key] = effective[key] ?? null
       }
-      await recordWebsiteEdit(ctx.organizationId, editLabel(set), previous)
+      await recordWebsiteEdit(ctx.organizationId, editLabel(set), previous, ctx.userId)
     }
   } catch {
     /* history is a safety net, not a gate */
@@ -113,20 +113,31 @@ function revalidateWebsite(slug: string) {
   revalidatePath(`/site/${slug}`, 'layout')
 }
 
+/** Section keys off the wire: strings only; undefined = "everything". */
+function cleanSections(raw: unknown): string[] | undefined {
+  if (!Array.isArray(raw)) return undefined
+  return raw.filter((s): s is string => typeof s === 'string').slice(0, 50)
+}
+
 /**
- * Publish: apply everything staged in the website draft to the live site.
+ * Publish: apply the staged draft (or only the chosen `sections`) to the live
+ * site; whatever is not chosen stays staged. Applies everything staged in the website draft to the live site.
  * One undo-history entry ("Published site changes") restores the prior live
  * values, so even a publish is reversible.
  */
-export async function publishWebsiteAction(): Promise<
-  { ok: true; published: number } | { ok: false; error: string }
+export async function publishWebsiteAction(
+  input?: { sections?: string[] },
+): Promise<
+  { ok: true; published: number; remaining: number } | { ok: false; error: string }
 > {
   const gated = await gate()
   if (!gated.ok) return gated
   try {
-    const res = await publishWebsiteDraft(gated.ctx.organizationId)
+    const res = await publishWebsiteDraft(gated.ctx.organizationId, gated.ctx.userId, {
+      sections: cleanSections(input?.sections),
+    })
     revalidateWebsite(gated.ctx.organizationSlug)
-    return { ok: true, published: res.published }
+    return { ok: true, published: res.published, remaining: res.remaining }
   } catch {
     return { ok: false, error: 'Could not publish — try again' }
   }
@@ -134,27 +145,37 @@ export async function publishWebsiteAction(): Promise<
 
 /** Fresh draft state for the Studio's publish bar (refetched after saves). */
 export async function getWebsiteDraftStatusAction(): Promise<
-  | { ok: true; count: number; changes: { column: string; label: string }[] }
+  | {
+      ok: true
+      count: number
+      changes: { column: string; label: string; section: string }[]
+      sections: { key: string; label: string }[]
+    }
   | { ok: false; error: string }
 > {
   const gated = await gate()
   if (!gated.ok) return gated
   try {
     const s = await getWebsiteDraftStatus(gated.ctx.organizationId)
-    return { ok: true, count: s.count, changes: s.changes }
+    return { ok: true, count: s.count, changes: s.changes, sections: s.sections }
   } catch {
     return { ok: false, error: 'Could not load the draft state' }
   }
 }
 
-/** Throw away everything staged; the live site was never touched. */
-export async function discardWebsiteAction(): Promise<
+/** Throw away what's staged (or only the chosen `sections`); the live site
+ *  was never touched. */
+export async function discardWebsiteAction(
+  input?: { sections?: string[] },
+): Promise<
   { ok: true; discarded: number } | { ok: false; error: string }
 > {
   const gated = await gate()
   if (!gated.ok) return gated
   try {
-    const res = await discardWebsiteDraft(gated.ctx.organizationId)
+    const res = await discardWebsiteDraft(gated.ctx.organizationId, gated.ctx.userId, {
+      sections: cleanSections(input?.sections),
+    })
     revalidateWebsite(gated.ctx.organizationSlug)
     return { ok: true, discarded: res.discarded }
   } catch {

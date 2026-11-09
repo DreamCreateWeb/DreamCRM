@@ -68,6 +68,7 @@ describe('EmailsHub polish', () => {
       rescheduled: { enabled: false },
       contact_ack: { enabled: false },
       payment_plan_card_update: { enabled: false },
+      membership_card_update: { enabled: false },
     })
     render(
       <EmailsHub
@@ -93,6 +94,7 @@ describe('EmailsHub polish', () => {
       no_show_rebook: { enabled: false },
       rescheduled: { enabled: false },
       payment_plan_card_update: { enabled: false },
+      membership_card_update: { enabled: false },
     })
     // contact_ack still on + reminder off -> not all off yet
     render(<EmailsHub config={off} reminder={{ ...REMINDER_DEFAULTS, enabled: false }} canManage focusKey="contact_ack" />)

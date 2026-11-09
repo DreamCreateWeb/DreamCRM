@@ -12,6 +12,9 @@ const state: {
   ops: Op[]
 } = { selectQueue: [], ops: [] }
 
+// The on-submit pre-visit summary (ML-27) has its own suite; here it is inert.
+vi.mock('@/lib/services/intake-summary', () => ({ summarizeSubmission: vi.fn(async () => ({ ok: false, reason: 'not_configured' })) }))
+
 vi.mock('@/lib/db', async () => {
   const schema = await import('@/lib/db/schema/clinic')
   const tableName = (t: unknown) => {
@@ -402,5 +405,47 @@ describe('the intake insurance write-back (polish phase 5)', () => {
     const set = state.ops.find((o) => o.kind === 'update' && o.table === 'patient')!.set as Record<string, unknown>
     expect(set.insuranceGroupNumber).toBe('G-2')
     expect(set.insuranceDetail).toBeUndefined()
+  })
+})
+
+describe('the auto-send rule’s targeting + refresh window (ML-27)', () => {
+  it('create persists the ticked visit types (deduped) and the window; none ticked → null, off → null', async () => {
+    state.selectQueue.push([]) // slug free
+    await createFormTemplate('org_1', {
+      title: 'Sedation consent',
+      schema: sampleSchema,
+      appointmentTypeIds: ['sedation', 'sedation', 'extraction'],
+      refreshMonths: 12,
+    })
+    const insert = state.ops.find((o) => o.kind === 'insert' && o.table === 'form_template')!
+    expect(insert.values).toMatchObject({ appointmentTypeIds: ['sedation', 'extraction'], refreshMonths: 12 })
+
+    state.ops.length = 0
+    state.selectQueue.push([])
+    await createFormTemplate('org_1', { title: 'Plain intake', schema: sampleSchema, appointmentTypeIds: [], refreshMonths: null })
+    const plain = state.ops.find((o) => o.kind === 'insert' && o.table === 'form_template')!
+    expect(plain.values).toMatchObject({ appointmentTypeIds: null, refreshMonths: null })
+  })
+
+  it('update: an absent field leaves the rule alone; [] / null clear it', async () => {
+    await updateFormTemplate('org_1', 'form_x', { title: 'Renamed', schema: sampleSchema })
+    const untouched = state.ops.find((o) => o.kind === 'update' && o.table === 'form_template')!.set as Record<string, unknown>
+    expect('appointmentTypeIds' in untouched).toBe(false)
+    expect('refreshMonths' in untouched).toBe(false)
+
+    state.ops.length = 0
+    await updateFormTemplate('org_1', 'form_x', { title: 'Renamed', schema: sampleSchema, appointmentTypeIds: [], refreshMonths: null })
+    const cleared = state.ops.find((o) => o.kind === 'update' && o.table === 'form_template')!.set as Record<string, unknown>
+    expect(cleared.appointmentTypeIds).toBeNull()
+    expect(cleared.refreshMonths).toBeNull()
+  })
+
+  it('refuses a window outside 1..60 months', async () => {
+    await expect(
+      updateFormTemplate('org_1', 'form_x', { title: 'x', schema: sampleSchema, refreshMonths: 0 }),
+    ).rejects.toThrow()
+    await expect(
+      updateFormTemplate('org_1', 'form_x', { title: 'x', schema: sampleSchema, refreshMonths: 61 }),
+    ).rejects.toThrow()
   })
 })

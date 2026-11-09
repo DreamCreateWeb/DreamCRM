@@ -247,3 +247,23 @@ describe('notification tray (older + unread only)', () => {
     expect(screen.queryByText('All quiet')).toBeNull()
   })
 })
+
+describe('the tray is honest about the email copy (ML-32)', () => {
+  it('a row whose email never went out says so — quietly, on that row only, never amber', async () => {
+    served = [Object.assign({ ...items[0] }, { emailFailed: true }), { ...items[1] }]
+    render(<DropdownNotifications align="right" />)
+    fireEvent.click(screen.getByRole('button', { name: /notifications/i }))
+    const line = await screen.findByText(/Email didn’t go out/)
+    expect(screen.getAllByText(/Email didn’t go out/)).toHaveLength(1)
+    // A report, not a warning: the quiet ink of the timestamp it sits beside.
+    const paragraph = line.closest('p')!
+    expect(paragraph.className).toMatch(/text-gray-500/)
+    expect(paragraph.className).not.toMatch(/amber|rose/)
+    expect(line.className).not.toMatch(/amber|rose/)
+  })
+
+  it('a row whose email went out (or was never owed) carries no such line', async () => {
+    await openTray()
+    expect(screen.queryByText(/Email didn’t go out/)).toBeNull()
+  })
+})
