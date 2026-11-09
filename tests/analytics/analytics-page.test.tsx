@@ -444,3 +444,11 @@ describe('Social-performance band (Phase 3 PR 4)', () => {
     expect(screen.getByText(/Reach \+ engagement from your connected social channels · last 90 days/i)).toBeTruthy()
   })
 })
+
+describe("Charts ride the kit (G3-16)", () => {
+  it("draws the daily series with the kit — no hand-rolled bars or polylines", async () => {
+    await renderPage(undefined, baseAnalytics())
+    expect(document.querySelector("polyline")).toBeNull()
+    expect(document.querySelector(".recharts-wrapper, [role=img]")).not.toBeNull()
+  })
+})

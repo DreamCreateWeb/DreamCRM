@@ -13,6 +13,7 @@ import {
 } from '@/lib/types/shop'
 import { setOrderFulfillmentAction } from '../actions'
 import { PageHeader } from '@/components/ui/page-header'
+import { PagePulse } from '@/components/ui/page-pulse'
 import { ActionButton } from '@/components/ui/action-button'
 import { StatusPill } from '@/components/ui/status-pill'
 import { FilterChip } from '@/components/ui/filter-chip'
@@ -213,6 +214,13 @@ export default function OrdersClient({
             </ActionButton>
           </div>
         }
+      />
+      <PagePulse
+        facts={[
+          { label: counts.all === 1 ? 'order' : 'orders', value: counts.all },
+          ...(counts.unfulfilled > 0 ? [{ label: 'waiting on you', value: counts.unfulfilled, tone: 'warn' as const }] : []),
+          ...(counts.pending > 0 ? [{ label: 'payment pending', value: counts.pending, tone: 'info' as const }] : []),
+        ]}
       />
 
       <div className="flex flex-wrap items-center justify-between gap-2 mb-4">

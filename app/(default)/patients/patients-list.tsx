@@ -16,6 +16,7 @@ import { formatPhone } from '@/lib/phone'
 import { MiniTrend } from '@/components/ui/charts'
 import { patientFlagGlyphs, type PillLegendRow } from '@/lib/ui/encodings'
 import { PageHeader } from '@/components/ui/page-header'
+import { PagePulse } from '@/components/ui/page-pulse'
 import { ActionButton } from '@/components/ui/action-button'
 import { StatusPill } from '@/components/ui/status-pill'
 import { FilterChip } from '@/components/ui/filter-chip'
@@ -297,6 +298,7 @@ export default function PatientsList({
   // when fewer than 2 weeks carry any new patients (a flat or single-blip line
   // says nothing worth drawing). Mirrors the Leads page's 14-day spark.
   const showFlow = perWeek12.filter((p) => p.value > 0).length >= 2
+  const newIn12Weeks = perWeek12.reduce((n, p) => n + p.value, 0)
 
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
@@ -338,6 +340,13 @@ export default function PatientsList({
             </ActionButton>
           </div>
         }
+      />
+
+      <PagePulse
+        facts={[
+          { label: total === 1 ? 'patient' : 'patients', value: total },
+          ...(newIn12Weeks > 0 ? [{ label: 'new in the last 12 weeks', value: newIn12Weeks, tone: 'special' as const }] : []),
+        ]}
       />
 
       {/* ── Saved views ──────────────────────────────────────────────── */}

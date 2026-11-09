@@ -15,6 +15,7 @@ import {
 } from '@/lib/types/membership'
 import { setPlanStatusAction, deletePlanAction, markBenefitUsedAction } from './actions'
 import { PageHeader } from '@/components/ui/page-header'
+import { PagePulse } from '@/components/ui/page-pulse'
 import { ActionButton } from '@/components/ui/action-button'
 import { useConfirm } from '@/components/ui/confirm-dialog'
 import { StatusPill } from '@/components/ui/status-pill'
@@ -129,6 +130,13 @@ export default function MembershipsClient({ plans, members, stats, publicBase, i
             </ActionButton>
           </>
         }
+      />
+      <PagePulse
+        facts={[
+          { label: stats.activeMembers === 1 ? 'active member' : 'active members', value: stats.activeMembers, tone: stats.activeMembers > 0 ? 'ok' : undefined },
+          { label: plans.length === 1 ? 'plan' : 'plans', value: plans.length },
+          ...(stats.mrrCents > 0 ? [{ label: 'recurring a month', value: formatCents(stats.mrrCents) }] : []),
+        ]}
       />
 
       <div className="grid grid-cols-2 gap-3 mb-6 max-w-sm">
