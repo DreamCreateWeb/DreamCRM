@@ -429,12 +429,12 @@ export default function SubscriptionPanel({
                     <div className={`h-6 w-6 shrink-0 rounded-full bg-${p.color}-500`} aria-hidden="true" />
                     <h4 className="text-lg font-semibold text-gray-800 dark:text-gray-100">{p.name}</h4>
                     {isCurrent && (
-                      <span
-                        className="ml-auto inline-flex items-center gap-1 rounded-full bg-teal-500/10 px-2 py-0.5 text-xs font-semibold text-teal-700 ring-1 ring-inset ring-[color:var(--color-hairline-strong)] dark:text-teal-300"
+                      <StatusPill
+                        tone="ok"
+                        className="ml-auto"
                         title="The plan your subscription is on right now"
-                      >
-                        Current plan
-                      </span>
+                        label="Current plan"
+                      />
                     )}
                   </header>
                   <div className="mb-0.5 text-xs font-bold uppercase tracking-wider text-teal-700 dark:text-teal-300">
@@ -461,9 +461,7 @@ export default function SubscriptionPanel({
                     </div>
                   )}
                   {isCurrent ? (
-                    <div className="btn mt-3 w-full cursor-default bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300">
-                      Current plan
-                    </div>
+                    <StatusPill tone="neutral" className="mt-3 w-full justify-center py-2 text-sm" label="Current plan" />
                   ) : billingBroken ? (
                     <ActionButton variant="primary" onClick={handlePortal} pending={activeAction === 'portal'} disabled={pending} className="mt-3 w-full justify-center">
                       Fix billing to switch

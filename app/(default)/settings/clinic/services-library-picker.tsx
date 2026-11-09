@@ -26,6 +26,8 @@ import { ServiceIconPickerPanel } from '@/components/website/service-icon-picker
 import { SERVICE_ICON_FALLBACK } from '@/lib/service-icons'
 import { useConfirm } from '@/components/ui/confirm-dialog'
 import { TONE_FILL, TONE_FILL_HOVER } from '@/lib/ui/encodings'
+import { StatusPill } from '@/components/ui/status-pill'
+import { TONE_PILL } from '@/lib/ui/encodings'
 
 /**
  * The Checkpoint 1B services editor — the picker drawer + selected-services
@@ -344,10 +346,8 @@ export default function ServicesLibraryPicker({
       {toast && (
         <div
           className={`fixed bottom-6 right-6 z-[90] px-4 py-2 rounded-lg shadow-lg text-sm font-medium ${
-            toast.kind === 'success'
-              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-500/20 dark:text-emerald-200 dark:border-emerald-400/30'
-              : 'bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-500/20 dark:text-rose-200 dark:border-rose-400/30'
-          }`}
+            toast.kind === 'success' ? TONE_PILL.ok : TONE_PILL.urgent
+          } bg-white dark:bg-gray-800`}
         >
           {toast.msg}
         </div>
@@ -402,18 +402,12 @@ function SelectedServiceRow({
               </span>
             )}
             {service.customized ? (
-              <span className="text-xs font-semibold uppercase tracking-wide bg-violet-50 text-violet-700 dark:bg-violet-500/15 dark:text-violet-300 rounded px-1.5 py-0.5">
-                Customized ✨
-              </span>
+              <StatusPill tone="special" label="Customized ✨" />
             ) : service.librarySlug ? (
-              <span className="text-xs font-semibold uppercase tracking-wide bg-amber-50 text-amber-700 dark:bg-amber-500/15 dark:text-amber-200 rounded px-1.5 py-0.5">
-                Library default
-              </span>
+              <StatusPill tone="neutral" label="Library default" />
             ) : null}
             {service.offer && (
-              <span className="text-xs font-semibold uppercase tracking-wide bg-rose-50 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300 rounded px-1.5 py-0.5">
-                Offer
-              </span>
+              <StatusPill tone="special" label="Offer" />
             )}
           </div>
           {generatedAt && (
@@ -719,9 +713,7 @@ function ServiceGroup({
                 <p className="text-sm font-medium text-gray-800 dark:text-gray-100">
                   {e.name}
                   {ownPending && (
-                    <span className="ml-2 text-xs uppercase tracking-wide bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-200 rounded px-1.5 py-0.5 align-middle">
-                      Pending review
-                    </span>
+                    <StatusPill tone="warn" label="Pending review" className="ml-2 align-middle" />
                   )}
                 </p>
                 <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-2">

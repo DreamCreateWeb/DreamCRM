@@ -3,7 +3,7 @@ import type { AdminSubscription, SubscriptionAttention } from '@/lib/services/st
 import { formatMoney } from '@/lib/utils'
 import { formatRelativeDate } from '@/lib/utils/format'
 import { EmptyState } from '@/components/ui/empty-state'
-import { type Tone } from '@/lib/ui/encodings'
+import { TONE_PILL, type Tone } from '@/lib/ui/encodings'
 
 interface Props {
   attention: SubscriptionAttention
@@ -66,14 +66,9 @@ export default function SubscriptionsAttention({ attention }: Props) {
 }
 
 // Header accent per bucket — color paired with the title text, never alone.
-const HEADER_ACCENT: Record<Tone, string> = {
-  warn: 'border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300',
-  urgent: 'border-rose-500/40 bg-rose-500/10 text-rose-700 dark:text-rose-300',
-  special: 'border-fuchsia-500/40 bg-fuchsia-500/10 text-fuchsia-700 dark:text-fuchsia-300',
-  ok: 'border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
-  info: 'border-violet-500/40 bg-violet-500/10 text-violet-700 dark:text-violet-300',
-  neutral: 'border-gray-500/40 bg-gray-500/10 text-gray-600 dark:text-gray-300',
-}
+const HEADER_ACCENT: Record<Tone, string> = Object.fromEntries(
+  (Object.keys(TONE_PILL) as Tone[]).map((t) => [t, `border-current/30 ${TONE_PILL[t]}`]),
+) as Record<Tone, string>
 
 function AttentionBucket({
   title,
