@@ -30,6 +30,9 @@ export const emailAccount = pgTable(
     syncStatus: text('sync_status').notNull().default('pending'), // pending | syncing | ready | error
     syncError: text('sync_error'),
     lastSyncAt: timestamp('last_sync_at', { withTimezone: true }),
+    // Stamped (a cheap UPDATE, never a sync) when a person has /inbox open; the
+    // sync sweep serves recently-wanted mailboxes first. ML-59.
+    wantedAt: timestamp('wanted_at', { withTimezone: true }),
     disabled: boolean('disabled').notNull().default(false),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),

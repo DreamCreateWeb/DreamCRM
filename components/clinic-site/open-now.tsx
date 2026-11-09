@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react'
 import type { ClinicSiteData } from '@/lib/services/clinic-site'
 import { parseGbpListingSnapshot } from '@/lib/gbp-listing'
-import { openNowLabel, resolveSiteWeek, type SiteClosure, type SiteWeek } from '@/lib/site-hours'
+import { addDaysToKey, expandClosureDays, type ClosureRange } from '@/lib/closures'
+import { clinicLocalNow, openNowLabel, resolveSiteWeek, type SiteClosure, type SiteWeek } from '@/lib/site-hours'
 
 /**
  * "Open now · closes 5 PM" — the one shared answer to "will anyone pick up?".
@@ -16,22 +17,34 @@ export function OpenNow({
   week,
   timeZone,
   closures,
+  closureRanges,
   className,
   style,
 }: {
   week: SiteWeek | null
   timeZone: string | null | undefined
   closures?: SiteClosure[] | null
+  /** The stated closures as day ranges; expanded around the visitor's
+   *  clinic-local "today" in the browser (this component owns "now"). */
+  closureRanges?: ClosureRange[] | null
   className?: string
   style?: React.CSSProperties
 }) {
   const [label, setLabel] = useState<string | null>(null)
   useEffect(() => {
-    const tick = () => setLabel(openNowLabel(week, closures, new Date(), timeZone))
+    const tick = () => {
+      const now = new Date()
+      let days = closures ?? null
+      if (closureRanges?.length) {
+        const today = clinicLocalNow(now, timeZone).date
+        days = [...(days ?? []), ...expandClosureDays(closureRanges, addDaysToKey(today, -1), addDaysToKey(today, 60))]
+      }
+      setLabel(openNowLabel(week, days, now, timeZone))
+    }
     tick()
     const id = setInterval(tick, 60_000)
     return () => clearInterval(id)
-  }, [week, closures, timeZone])
+  }, [week, closures, closureRanges, timeZone])
   if (!label) return null
   return (
     <p data-open-now="" className={className ?? 'text-sm font-semibold'} style={style} aria-live="polite">
@@ -46,10 +59,10 @@ export default function SiteOpenNow({
   className,
   style,
 }: {
-  data: Pick<ClinicSiteData, 'profile'>
+  data: Pick<ClinicSiteData, 'profile'> & { closures?: ClinicSiteData['closures'] }
   className?: string
   style?: React.CSSProperties
 }) {
   const week = resolveSiteWeek(data.profile.hours, parseGbpListingSnapshot(data.profile.gbpListing)?.hours)
-  return <OpenNow week={week} timeZone={data.profile.timezone} className={className} style={style} />
+  return <OpenNow week={week} timeZone={data.profile.timezone} closureRanges={data.closures ?? null} className={className} style={style} />
 }

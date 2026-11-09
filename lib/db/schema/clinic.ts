@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm'
-import { pgTable, text, timestamp, integer, boolean, jsonb, uniqueIndex, index, primaryKey } from 'drizzle-orm/pg-core'
+import { pgTable, text, timestamp, integer, boolean, jsonb, uniqueIndex, index, primaryKey, numeric, serial, date } from 'drizzle-orm/pg-core'
 import { organization, user } from './auth'
 import { clinicLocation } from './platform'
 import { FORMS_REMINDER_TEMPLATE } from '@/lib/types/reminders'
@@ -174,7 +174,7 @@ export const patientAccessLog = pgTable(
     organizationId: text('organization_id').notNull().references(() => organization.id, { onDelete: 'cascade' }),
     patientId: text('patient_id'),
     userId: text('user_id').notNull(),
-    // 'view' | 'export' | 'merge' | 'print'
+    // 'view' | 'export' | 'merge' | 'print' | 'two_step_on' | 'two_step_off' (ML-58, patientId null)
     action: text('action').notNull(),
     detail: jsonb('detail'),
     at: timestamp('at').notNull().defaultNow(),
@@ -289,6 +289,29 @@ export const patientInsurance = pgTable(
   ],
 )
 export type PatientInsuranceRow = typeof patientInsurance.$inferSelect
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CLINIC CLOSURES (ML-51). A closure is stated ONCE — a clinic-local DAY range
+// (date columns, never instants) with a label — and every door reads it through
+// lib/services/closures.ts: booking slots, the public site, reminders, the
+// digest. The practice's own list; GBP special hours are a separate READ-ONLY
+// source shown beside it, never merged into these rows.
+// ─────────────────────────────────────────────────────────────────────────────
+export const clinicClosure = pgTable(
+  'clinic_closure',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id, { onDelete: 'cascade' }),
+    startsOn: date('starts_on', { mode: 'string' }).notNull(),
+    endsOn: date('ends_on', { mode: 'string' }).notNull(),
+    label: text('label').notNull(),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (t) => [index('clinic_closure_org_starts_idx').on(t.organizationId, t.startsOn)],
+)
+export type ClinicClosureRow = typeof clinicClosure.$inferSelect
 
 // ─────────────────────────────────────────────────────────────────────────────
 // THE PAYER NOTEBOOK (2026-10-08). Half of a desk's verification phone call
@@ -2655,3 +2678,38 @@ export const goal = pgTable(
   (t) => [index('goal_org_status_idx').on(t.organizationId, t.status, t.createdAt)],
 )
 export type GoalRow = typeof goal.$inferSelect
+
+/**
+ * THE DAILY METRICS SNAPSHOT (ML-38) — one heartbeat row per metric per
+ * bucket. `organization_id` is NULLABLE so platform-global series (MRR, the
+ * prospecting hunt) live in the same table; NULL is its own key (Postgres
+ * treats NULLs as distinct in a plain unique index, so the platform rows
+ * carry their own PARTIAL unique index). `bucket` is a clinic-local
+ * `YYYY-MM-DD` for org rows, a UTC `YYYY-MM-DD` / `YYYY-MM-DDTHH` for the
+ * platform rows. `value` is NOT NULL on purpose: a metric whose source has
+ * nothing honest to say writes NO row, so a gap reads as a gap, never a
+ * zero. Registry + writer: lib/metrics-registry.ts, lib/services/metric-snapshot.ts.
+ */
+export const metricSnapshot = pgTable(
+  'metric_snapshot',
+  {
+    id: serial('id').primaryKey(),
+    organizationId: text('organization_id').references(() => organization.id, { onDelete: 'cascade' }),
+    metric: text('metric').notNull(),
+    // 'YYYY-MM-DD' (granularity 'day') or 'YYYY-MM-DDTHH' ('hour').
+    bucket: text('bucket').notNull(),
+    // 'day' | 'hour'
+    granularity: text('granularity').notNull(),
+    value: numeric('value', { precision: 20, scale: 2, mode: 'number' }).notNull(),
+    detail: jsonb('detail'),
+    capturedAt: timestamp('captured_at').notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('metric_snapshot_org_uq').on(t.organizationId, t.metric, t.bucket, t.granularity),
+    uniqueIndex('metric_snapshot_platform_uq')
+      .on(t.metric, t.bucket, t.granularity)
+      .where(sql`${t.organizationId} IS NULL`),
+    index('metric_snapshot_org_metric_bucket_idx').on(t.organizationId, t.metric, t.bucket.desc()),
+  ],
+)
+export type MetricSnapshotRow = typeof metricSnapshot.$inferSelect

@@ -130,6 +130,12 @@ vi.mock('@/lib/services/clinic-timezone', () => ({
   getClinicTimeZone: vi.fn(async () => 'America/Chicago'),
 }))
 
+// ML-38: the funnel's heartbeats come from the metrics snapshot.
+const beatsMock = vi.fn(async (): Promise<unknown> => null)
+vi.mock('@/lib/services/growth-heartbeats', () => ({
+  getFunnelHeartbeats: (...a: unknown[]) => beatsMock(...(a as [])),
+}))
+
 import GrowthHubPage from '@/app/(default)/growth/page'
 
 beforeEach(() => {
@@ -251,6 +257,45 @@ describe('engine #2 — the reactivation funnel', () => {
     render(await GrowthHubPage())
     expect(screen.queryByText('Your own list — the reactivation engine')).toBeNull()
     expect(screen.getByText('New patients')).toBeTruthy()
+    cleanup()
+  })
+})
+
+describe('the funnel heartbeats (ML-38)', () => {
+  const none = { spark: null, line: null }
+  it('draws a kit spark per stage at 2+ points, with the honest line under it', async () => {
+    const spark = [
+      { bucket: 'Nov 7', value: 3 },
+      { bucket: 'Nov 8', value: 5 },
+    ]
+    beatsMock.mockResolvedValueOnce({
+      due: { spark, line: 'tracked since Nov 7' },
+      sent: none,
+      opened: none,
+      booked: none,
+    })
+    const { container } = render(await GrowthHubPage())
+    expect(container.querySelectorAll('[data-chart^="mini-"]').length).toBe(1)
+    expect(screen.getByText('tracked since Nov 7')).toBeTruthy()
+    cleanup()
+  })
+
+  it('under 2 points there is no spark, only the honest since-copy; with nothing recorded, nothing at all', async () => {
+    beatsMock.mockResolvedValueOnce({ due: { spark: null, line: 'tracked since Nov 8' }, sent: none, opened: none, booked: none })
+    const first = render(await GrowthHubPage())
+    expect(first.container.querySelectorAll('[data-chart^="mini-"]').length).toBe(0)
+    expect(screen.getByText('tracked since Nov 8')).toBeTruthy()
+    cleanup()
+    beatsMock.mockResolvedValueOnce({ due: none, sent: none, opened: none, booked: none })
+    const second = render(await GrowthHubPage())
+    expect(second.container.querySelectorAll('[data-heartbeat-line]').length).toBe(0)
+    cleanup()
+  })
+
+  it('a failed snapshot read costs the funnel its sparks, never the page', async () => {
+    beatsMock.mockRejectedValueOnce(new Error('db down'))
+    render(await GrowthHubPage())
+    expect(screen.getByText('Your own list — the reactivation engine')).toBeTruthy()
     cleanup()
   })
 })

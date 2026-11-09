@@ -31,6 +31,7 @@ import { SkipToContent } from '@/components/ui/skip-to-content'
 import { RealtimeProvider } from '@/components/realtime/realtime-provider'
 import PortalLiveRefresh from '@/components/patient-portal/portal-live-refresh'
 import { portalBrand } from '@/lib/portal-brand'
+import { closureToday } from '@/lib/services/closures'
 
 /**
  * Patient-portal chrome — the clinic-branded replacement for the Mosaic
@@ -147,10 +148,12 @@ export default async function PortalLayout({ children }: { children: React.React
   // becomes a request CTA (the /patient/book page renders the request form).
   const portalBookLabel = clinic?.selfBookingEnabled === false ? 'Request a visit' : 'Book a visit'
 
+  const todayClosure = clinic?.hours ? await closureToday(ctx.organizationId, clinic.timezone) : null
   const todayHours = clinic?.hours
     ? todaysHoursLabel(
         clinic.hours as Record<string, { open?: string; close?: string; closed?: boolean }>,
         clinic.timezone,
+        todayClosure,
       )
     : null
 

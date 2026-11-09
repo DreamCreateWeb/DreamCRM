@@ -22,7 +22,9 @@ import { GROWTH_HUB_LANES } from '@/lib/team-did-it-lanes'
 import { ActionButton } from '@/components/ui/action-button'
 import { NewsCard } from '@/components/ui/news-card'
 import { TONE_TEXT, type Tone } from '@/lib/ui/encodings'
-import { TrendChart } from '@/components/ui/charts'
+import { TrendChart, MiniTrend } from '@/components/ui/charts'
+import { getFunnelHeartbeats } from '@/lib/services/growth-heartbeats'
+import type { Heartbeat } from '@/lib/metric-series'
 
 export const metadata = {
   title: 'Growth - DreamCRM',
@@ -100,6 +102,9 @@ export default async function GrowthHubPage() {
   // Word of mouth counts distinct PEOPLE from the patient record's own
   // referral columns (ML-39) — best-effort like every other hub read.
   const wordOfMouth = await getWordOfMouthCounts(ctx.organizationId, tz).catch(() => null)
+  // The funnel's heartbeats (ML-38): each stage's own daily series from the
+  // metrics snapshot. Best-effort — a failed read just means no spark.
+  const funnelBeats = await getFunnelHeartbeats(ctx.organizationId, tz).catch(() => null)
 
   const hasSocialChannel = bundles.has('social') || bundles.has('google')
   const postsPublished30d = Object.values(postCounts).reduce((a, b) => a + b, 0)
@@ -254,18 +259,21 @@ export default async function GrowthHubPage() {
               value={recall.recallDueReachableCount}
               label="due & reachable"
               tone={recall.recallDueReachableCount > 0 ? 'warn' : undefined}
+              beat={funnelBeats?.due}
               aria={`${recall.recallDueReachableCount} patients due and reachable — open the outreach queue`}
             />
             <FunnelStat
               href="/growth/outreach"
               value={recall.sentThisMonthCount}
               label="sent this month"
+              beat={funnelBeats?.sent}
               aria={`${recall.sentThisMonthCount} campaign messages sent this month`}
             />
             <FunnelStat
               href="/growth/outreach"
               value={recall.openRate30d != null ? `${recall.openRate30d}%` : '—'}
               label="opened · 30d"
+              beat={funnelBeats?.opened}
               aria={`Open rate over the last 30 days: ${recall.openRate30d != null ? `${recall.openRate30d} percent` : 'no sends yet'}`}
             />
             <FunnelStat
@@ -273,6 +281,7 @@ export default async function GrowthHubPage() {
               value={recall.bookedFromRecallCount}
               label="booked back · 30d"
               hint={ATTRIBUTION_WINDOW_COPY}
+              beat={funnelBeats?.booked}
               tone={recall.bookedFromRecallCount > 0 ? 'ok' : undefined}
               aria={`${recall.bookedFromRecallCount} patients booked back from outreach in the last 30 days`}
             />
@@ -514,6 +523,7 @@ function FunnelStat({
   label,
   hint,
   tone,
+  beat,
   aria,
 }: {
   href: string
@@ -521,6 +531,8 @@ function FunnelStat({
   label: string
   hint?: string
   tone?: Tone
+  /** The stage's heartbeat from the metrics snapshot (spark + honest line). */
+  beat?: Heartbeat
   aria: string
 }) {
   return (
@@ -536,6 +548,18 @@ function FunnelStat({
         {label}
       </div>
       {hint && <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{hint}</div>}
+      {beat?.spark && (
+        // The stage's ONE heartbeat (law 7) — a kit MiniTrend on the snapshot's
+        // own series; the line under it says what the series can honestly say.
+        <div className="mt-2" aria-hidden="true">
+          <MiniTrend data={beat.spark} width={96} height={26} />
+        </div>
+      )}
+      {beat?.line && (
+        <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5" data-heartbeat-line>
+          {beat.line}
+        </div>
+      )}
     </Link>
   )
 }

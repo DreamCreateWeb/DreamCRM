@@ -73,6 +73,7 @@ const HREF_ICON: Record<string, ReactNode> = {
   '/settings/clinic': buildingIcon,
   '/settings/practice': calendarIcon,
   '/settings/locations': pinIcon,
+  '/settings/closures': calendarIcon,
   '/settings/portal': heartIcon,
   '/settings/automations/emails': mailIcon,
   '/settings/message-templates': chatIcon,
@@ -100,6 +101,7 @@ const CLINIC_GROUPS: SettingsNavGroup[] = [
     items: [
       { href: '/settings/clinic', label: 'Business profile', desc: 'Name, contact, hours, and logo.', icon: buildingIcon },
       { href: '/settings/practice', label: 'Practice setup', desc: 'Providers, visit types, chairs, and recall.', icon: calendarIcon },
+      { href: '/settings/closures', label: 'Holiday closures', desc: 'Days you are closed — booking, your site and reminders all follow.', icon: calendarIcon },
       { href: '/settings/locations', label: 'Locations', desc: 'Your physical practice locations.', icon: pinIcon },
     ],
   },

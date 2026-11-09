@@ -1254,6 +1254,8 @@ async function executeProposal(
       return executeSetupBookingMode(p, payload, saidYes)
     case 'setup_texting':
       return executeSetupTexting(p, payload, saidYes)
+    case 'setup_closures':
+      return executeSetupClosures(p, payload, saidYes)
     default:
       return { ok: false, error: 'I don’t know how to carry this one out yet.' }
   }
@@ -1282,6 +1284,7 @@ function demoLedgerSummary(p: typeof schema.proposal.$inferSelect, saidYes: stri
     case 'setup_chairs': return `Noted how many chairs you run ${saidYes}`
     case 'setup_booking_mode': return `Set how online booking works ${saidYes}`
     case 'setup_texting': return `Started your texting registration with the carriers ${saidYes}`
+    case 'setup_closures': return `Put your holiday closures on the calendar ${saidYes}`
     default: return `Did the work ${saidYes}`
   }
 }
@@ -1361,6 +1364,49 @@ async function executeSetupChairs(
     ok: true,
     ledgerSummary: `Set the schedule up for ${chairs} ${chairs === 1 ? 'chair' : 'chairs'} ${saidYes} — booking now fills up to ${chairs} ${chairs === 1 ? 'seat' : 'seats'} per time`,
     ledgerDetail: { setup: 'chairs', chairs },
+  }
+}
+
+/**
+ * setup_closures (ML-51): the yes writes the proposed holiday closures. The
+ * payload carries only preset KEYS — the dates are recomputed here from the
+ * clinic-local today, so a tampered payload can never write an arbitrary day.
+ * Stale (the clinic stated closures by hand since) → retire, never double up.
+ */
+async function executeSetupClosures(
+  p: typeof schema.proposal.$inferSelect,
+  payload: Record<string, unknown>,
+  saidYes: string,
+): Promise<ExecResult> {
+  const keys = Array.isArray(payload.proposed) ? payload.proposed.filter((k): k is string => typeof k === 'string') : []
+  if (keys.length === 0) return { ok: false, error: 'There is nothing proposed on this card.' }
+  const { addClosure, clinicDayKeyFor, listUpcomingClosures } = await import('@/lib/services/closures')
+  const { holidayPresets } = await import('@/lib/closures')
+  const [row] = await db
+    .select({ timezone: schema.clinicProfile.timezone })
+    .from(schema.clinicProfile)
+    .where(eq(schema.clinicProfile.organizationId, p.organizationId))
+    .limit(1)
+  try {
+    if ((await listUpcomingClosures(p.organizationId, row?.timezone)).length > 0) {
+      return { ok: false, error: 'Your closures are already on the calendar — nothing to do here.', expired: true }
+    }
+  } catch {
+    /* unreadable never vetoes the yes */
+  }
+  const wanted = new Set(keys)
+  const chosen = holidayPresets(clinicDayKeyFor(new Date(), row?.timezone)).filter((h) => wanted.has(h.key))
+  if (chosen.length === 0) {
+    return { ok: false, error: 'Those holidays have passed — add the next ones under Settings → Holiday closures.', expired: true }
+  }
+  for (const h of chosen) {
+    const res = await addClosure(p.organizationId, { startsOn: h.startsOn, endsOn: h.endsOn, label: h.label })
+    if (!res.ok) return { ok: false, error: res.error }
+  }
+  return {
+    ok: true,
+    ledgerSummary: `Put ${chosen.map((h) => h.label).join(', ')} on your closure calendar ${saidYes} — booking, your site and reminders follow it`,
+    ledgerDetail: { setup: 'closures', keys: chosen.map((h) => h.key) },
   }
 }
 

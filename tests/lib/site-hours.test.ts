@@ -28,6 +28,26 @@ describe('openNowLabel', () => {
       'Closed today · opens tomorrow 8 AM',
     )
   })
+  it('a labelled closure names itself and points at the next open day', () => {
+    expect(openNowLabel(week, [{ date: '2026-11-09', label: 'Thanksgiving' }], new Date('2026-11-09T18:00:00Z'), 'America/Chicago')).toBe(
+      'Closed for Thanksgiving · opens tomorrow 8 AM',
+    )
+  })
+  it('a multi-day closure skips every closed day when naming the next open one', () => {
+    // Fri Nov 13 closed through Mon Nov 16 (a long weekend) → Tuesday.
+    const days = ['2026-11-13', '2026-11-14', '2026-11-15', '2026-11-16'].map((date) => ({ date, label: 'Retreat' }))
+    expect(openNowLabel(week, days, new Date('2026-11-13T18:00:00Z'), 'America/Chicago')).toBe('Closed for Retreat · opens Tuesday 8 AM')
+  })
+  it('the closure date is the CLINIC day: 9:30 PM Central Nov 8 is not yet Nov 9', () => {
+    // 03:30Z on the 9th = 9:30 PM CST on the 8th (a Sunday: no hours).
+    const label = openNowLabel(week, [{ date: '2026-11-09', label: 'Retreat' }], new Date('2026-11-09T03:30:00Z'), 'America/Chicago')
+    expect(label).toMatch(/^Closed today · opens Tuesday 8 AM$/)
+  })
+  it('todayHoursLine says the closure', () => {
+    expect(todayHoursLine(week, new Date('2026-11-09T18:00:00Z'), 'America/Chicago', [{ date: '2026-11-09', label: 'Thanksgiving' }])).toBe(
+      'Today · Closed for Thanksgiving',
+    )
+  })
   it('is DST safe (spring forward 2026-03-08 in New York)', () => {
     expect(openNowLabel(week, null, new Date('2026-03-09T12:30:00Z'), 'America/New_York')).toBe('Open now · closes 5 PM')
     expect(openNowLabel(week, null, new Date('2026-03-09T11:30:00Z'), 'America/New_York')).toBe('Closed now · opens today at 8 AM')

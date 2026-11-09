@@ -14,6 +14,8 @@ import {
   type PmsConnectStatus,
 } from '@/lib/pms-connect'
 import { submitPmsConnectRequestAction } from '../actions'
+import { runAction } from '@/lib/run-action'
+import { StaleRefresh } from '@/components/ui/stale-refresh'
 
 /**
  * THE PMS FRONT DOOR (docs/ACTIVATION.md S4). Unconnected, the detail page
@@ -158,13 +160,14 @@ function RequestForm({
     setError(null)
     setIssues({})
     startTransition(async () => {
-      const r = await submitPmsConnectRequestAction(formData)
+      const r = await runAction(() => submitPmsConnectRequestAction(formData))
       if (r.ok) {
         onDone()
         router.refresh()
         return
       }
-      if (r.issues?.length) setIssues(Object.fromEntries(r.issues.map((i) => [i.field, i.message])))
+      const issueList = 'issues' in r ? r.issues : undefined
+      if (issueList?.length) setIssues(Object.fromEntries(issueList.map((i) => [i.field, i.message])))
       if (r.error) setError(r.error)
     })
   }
@@ -239,7 +242,7 @@ function RequestForm({
 
       {error && (
         <p className={`text-sm ${TONE_TEXT.warn}`} role="alert">
-          {error}
+          {error}<StaleRefresh error={error} />
         </p>
       )}
 

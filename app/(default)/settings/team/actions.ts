@@ -239,3 +239,21 @@ export async function changeTeamMemberRole(input: unknown) {
   revalidatePath('/settings/team')
   return { ok: true }
 }
+
+/**
+ * The owner's "Require two-step sign-in for the team" switch (ML-58). Owner of
+ * a CLINIC only; default off. Once on, a member without a second factor is
+ * sent to enrol on their next page load (the gate in lib/auth/context.ts).
+ */
+export async function setRequireTwoFactor(on: boolean): Promise<{ ok: true } | { ok: false; error: string }> {
+  const ctx = await requireTenant()
+  if (ctx.tenantType !== 'clinic' || ctx.role !== 'owner') {
+    return { ok: false, error: 'Only the practice owner can change this.' }
+  }
+  await db
+    .update(schema.clinicProfile)
+    .set({ requireTwoFactor: on ? 1 : 0 })
+    .where(eq(schema.clinicProfile.organizationId, ctx.organizationId))
+  revalidatePath('/settings/team')
+  return { ok: true }
+}

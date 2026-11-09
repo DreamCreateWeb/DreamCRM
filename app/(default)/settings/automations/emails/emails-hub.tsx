@@ -25,6 +25,7 @@ import { runAction } from '@/lib/run-action'
 import { ActionButton } from '@/components/ui/action-button'
 import { Toggle } from '@/components/ui/toggle'
 import { FlashToast } from '@/components/ui/flash-toast'
+import { StatusPill } from '@/components/ui/status-pill'
 
 // Order + copy for the category groups a clinic scans top-to-bottom.
 const CATEGORY_ORDER: EmailCategory[] = ['appointments', 'forms', 'billing', 'portal', 'reviews', 'website', 'shop']
@@ -547,9 +548,7 @@ function StatePill({
   }
   if (customized) {
     return (
-      <span className="rounded-full bg-teal-500/10 px-2 py-0.5 text-xs font-medium text-teal-700 dark:text-teal-300">
-        Customized
-      </span>
+      <StatusPill tone="special" label="Customized" />
     )
   }
   return (

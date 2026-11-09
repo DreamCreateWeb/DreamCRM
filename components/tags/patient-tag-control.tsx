@@ -10,6 +10,8 @@ import {
   unassignPatientTagAction,
   createPatientTagAction,
 } from '@/app/(default)/patients/actions'
+import { runAction } from '@/lib/run-action'
+import { StaleRefresh } from '@/components/ui/stale-refresh'
 
 /**
  * Drop-in "tags for this patient" control — the tag analogue of FollowupQuickAdd.
@@ -71,7 +73,7 @@ export default function PatientTagControl({
     const next = [...tags, tag].sort(byName)
     sync(next)
     startTransition(async () => {
-      const res = await assignPatientTagAction(patientId, tag.id)
+      const res = await runAction(() => assignPatientTagAction(patientId, tag.id))
       if (!res.ok) { sync(tags); setError(res.error) }
     })
   }
@@ -81,7 +83,7 @@ export default function PatientTagControl({
     const prev = tags
     sync(tags.filter((t) => t.id !== tagId))
     startTransition(async () => {
-      const res = await unassignPatientTagAction(patientId, tagId)
+      const res = await runAction(() => unassignPatientTagAction(patientId, tagId))
       if (!res.ok) { sync(prev); setError(res.error) }
     })
   }
@@ -89,7 +91,7 @@ export default function PatientTagControl({
   function createAndAdd(name: string, color: PatientTagColor) {
     setError(null)
     startTransition(async () => {
-      const res = await createPatientTagAction(name, color)
+      const res = await runAction(() => createPatientTagAction(name, color))
       if (!res.ok) { setError(res.error); return }
       setCatalog((cur) => {
         const list = cur ?? []
@@ -125,7 +127,7 @@ export default function PatientTagControl({
           />
         )}
       </div>
-      {error && <span className="text-xs text-rose-600 dark:text-rose-400">{error}</span>}
+      {error && <span className="text-xs text-rose-600 dark:text-rose-400">{error}<StaleRefresh error={error} /></span>}
     </div>
   )
 }

@@ -8,6 +8,8 @@ import { createFollowupAction } from '@/app/(default)/patients/actions'
 import { addDaysYmd, todayYmd, MAX_FOLLOWUP_TITLE_LEN } from '@/lib/types/followups'
 import PatientTagControl from '@/components/tags/patient-tag-control'
 import type { SearchGroup, SearchResult, SearchResultKind } from '@/lib/types/global-search'
+import { runAction } from '@/lib/run-action'
+import { StaleRefresh } from '@/components/ui/stale-refresh'
 
 /**
  * Global ⌘K command palette — replaces the Mosaic template's fake search
@@ -305,7 +307,7 @@ function FollowupComposer({
     if (!title.trim()) { setError('Add a short reminder.'); return }
     setError(null)
     startTransition(async () => {
-      const res = await createFollowupAction({ patientId, title, dueDate: dueDate || null })
+      const res = await runAction(() => createFollowupAction({ patientId, title, dueDate: dueDate || null }))
       if (res.ok) {
         // Keep the sidebar "Follow-ups due" badge honest if this one is due now.
         if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('nav-badges:refresh'))
@@ -351,7 +353,7 @@ function FollowupComposer({
           {pending ? 'Adding…' : 'Add follow-up'}
         </button>
       </div>
-      {error && <p className="mt-2 text-xs text-rose-600 dark:text-rose-400">{error}</p>}
+      {error && <p className="mt-2 text-xs text-rose-600 dark:text-rose-400">{error}<StaleRefresh error={error} /></p>}
     </div>
   )
 }

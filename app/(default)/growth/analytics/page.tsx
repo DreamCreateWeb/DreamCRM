@@ -14,6 +14,9 @@ import { KpiStat } from '@/components/ui/kpi-stat'
 import { FilterChip } from '@/components/ui/filter-chip'
 import { BrandLogo, type BrandLogoId } from '@/components/integrations/brand-logos'
 import { TrendChart } from '@/components/ui/charts'
+import { HeartbeatLine } from '@/components/ui/heartbeat-line'
+import { getOrgHeartbeats } from '@/lib/services/metric-series-read'
+import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
 import { TONE_TEXT } from '@/lib/ui/encodings'
 
 /** Social platform slug → brand-logo id (the rest of the app uses real marks). */
@@ -69,6 +72,12 @@ export default async function AnalyticsPage({ searchParams }: Props) {
     getPublishedPostCounts(ctx.organizationId, { days: windowDays }).catch((): Record<string, number> => ({})),
   ])
   const trafficDelta = traffic.total - traffic.totalPrev
+  // The scorecard's heartbeats (ML-38): the daily metrics snapshot's own
+  // series for new patients and reviews left. Best-effort — no spark on a
+  // failed read, never a broken page.
+  const beats = await getOrgHeartbeats(ctx.organizationId, await getClinicTimeZone(ctx.organizationId), ['new_patients', 'reviews_received'], {
+    nouns: { reviews_received: 'left' },
+  }).catch(() => null)
 
   const newPatientsDelta = a.acquisition.newPatients - a.acquisition.newPatientsPrev
   // Rates on a tiny sample are meaningless (a single no-show would read as
@@ -117,7 +126,13 @@ export default async function AnalyticsPage({ searchParams }: Props) {
         <KpiStat
           label="New patients"
           value={a.acquisition.newPatients}
-          sub={<DeltaBadge value={newPatientsDelta} />}
+          sub={
+            <>
+              <DeltaBadge value={newPatientsDelta} />
+              <HeartbeatLine line={beats?.new_patients.line} onlySince />
+            </>
+          }
+          spark={beats?.new_patients.spark ?? undefined}
           href="/patients?status=new"
         />
         <KpiStat
@@ -145,7 +160,13 @@ export default async function AnalyticsPage({ searchParams }: Props) {
         <KpiStat
           label="Reviews left"
           value={a.reputation.completed}
-          sub={`of ${a.reputation.sent} ${a.reputation.sent === 1 ? 'request' : 'requests'} sent`}
+          sub={
+            <>
+              {`of ${a.reputation.sent} ${a.reputation.sent === 1 ? 'request' : 'requests'} sent`}
+              <HeartbeatLine line={beats?.reviews_received.line} />
+            </>
+          }
+          spark={beats?.reviews_received.spark ?? undefined}
           href="/growth/reviews/received"
         />
       </div>

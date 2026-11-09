@@ -6,6 +6,8 @@ import type { LoyaltySettings } from '@/lib/types/loyalty'
 import { ActionButton } from '@/components/ui/action-button'
 import { Toggle } from '@/components/ui/toggle'
 import { saveLoyaltySettingsAction } from './actions'
+import { runAction } from '@/lib/run-action'
+import { StaleRefresh } from '@/components/ui/stale-refresh'
 
 /**
  * Loyalty program config (the Shop hub's points card). Opt-in, default OFF.
@@ -33,7 +35,7 @@ export default function LoyaltyConfigCard({
   function save() {
     setError('')
     startTransition(async () => {
-      const r = await saveLoyaltySettingsAction(draft)
+      const r = await runAction(() => saveLoyaltySettingsAction(draft))
       if (r.ok) {
         setSaved(true)
         router.refresh()
@@ -90,7 +92,7 @@ export default function LoyaltyConfigCard({
             Save rewards settings
           </ActionButton>
           {saved && <span className="text-xs text-emerald-600 dark:text-emerald-400">Saved ✓</span>}
-          {error && <span className="text-xs text-rose-600 dark:text-rose-400">{error}</span>}
+          {error && <span className="text-xs text-rose-600 dark:text-rose-400">{error}<StaleRefresh error={error} /></span>}
         </div>
       )}
     </div>

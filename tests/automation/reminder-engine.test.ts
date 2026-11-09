@@ -176,6 +176,13 @@ vi.mock('@/lib/sms', () => ({
   deliverSms: deliverSmsMock,
 }))
 
+// ML-51: the practice's stated closures — a collaborator here (its own tests
+// are tests/lib/closures.test.ts + tests/booking/booking-closures.test.ts).
+const closuresState = { list: [] as Array<{ id: string; startsOn: string; endsOn: string; label: string }> }
+vi.mock('@/lib/services/closures', () => ({
+  listClosuresAhead: vi.fn(async () => closuresState.list),
+}))
+
 import { runDueReminders } from '@/lib/services/reminder-automation'
 
 function seedCandidate(
@@ -221,6 +228,7 @@ beforeEach(() => {
   state.candidates = []
   state.details = new Map()
   state.guardianQueue = []
+  closuresState.list = []
   logQueue = []
   claimLosses = new Set()
   claimSeq = 0
@@ -889,6 +897,44 @@ describe('runDueReminders — just booked (lib/reminder-hours.ts, rule 2)', () =
 
     const r = await runDueReminders({ now: NOW })
     expect(r.justBooked).toBe(0)
+    expect(r.sent).toBe(1)
+  })
+})
+
+describe('runDueReminders — a closed day (ML-51)', () => {
+  it('a visit on a stated closure day is never reminded — nothing claimed, logged or sent, and the idempotency read never runs', async () => {
+    state.profiles = [{ organizationId: 'org_1', reminderSettings: null, timezone: 'America/New_York' }]
+    // 20h out = 2026-06-11 04:00 in New York — the closure's day.
+    closuresState.list = [{ id: 'c1', startsOn: '2026-06-11', endsOn: '2026-06-12', label: 'Staff retreat' }]
+    seedCandidate('a1', 20)
+    logQueue = [[]]
+
+    const r = await runDueReminders({ now: NOW })
+    expect(r.candidates).toBe(1)
+    expect(r.skipped).toBe(1)
+    expect(r.sent).toBe(0)
+    expect(claimAutomatedReminderMock).not.toHaveBeenCalled()
+    expect(deliverMock).not.toHaveBeenCalled()
+    expect(logQueue).toHaveLength(1)
+  })
+
+  it('judges the day by the CLINIC calendar: 10 PM Eastern on the 10th is still the 10th (02:00Z the 11th), so a closure on the 11th does not hold it', async () => {
+    state.profiles = [{ organizationId: 'org_1', reminderSettings: null, timezone: 'America/New_York' }]
+    // NOW + 14h = 2026-06-11T02:00Z = 10 PM EDT on the 10th: not closed.
+    closuresState.list = [{ id: 'c1', startsOn: '2026-06-11', endsOn: '2026-06-11', label: 'Retreat' }]
+    seedCandidate('a1', 14)
+    logQueue = [[]]
+    const r = await runDueReminders({ now: NOW })
+    expect(r.skipped).toBe(0)
+    expect(r.sent).toBe(1)
+  })
+
+  it('a closure on a different day leaves the reminder alone', async () => {
+    state.profiles = [{ organizationId: 'org_1', reminderSettings: null, timezone: 'America/New_York' }]
+    closuresState.list = [{ id: 'c1', startsOn: '2026-06-20', endsOn: '2026-06-21', label: 'Later' }]
+    seedCandidate('a1', 20)
+    logQueue = [[]]
+    const r = await runDueReminders({ now: NOW })
     expect(r.sent).toBe(1)
   })
 })

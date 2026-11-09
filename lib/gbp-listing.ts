@@ -217,3 +217,34 @@ export function listingWebsiteState(
   if (comparableUrl(snapshot.websiteUri) == null) return 'unknown'
   return listingPointsAtUs(snapshot.websiteUri, acceptable) ? 'ok' : 'mismatch'
 }
+
+/** One special-hours entry Google states on the listing (a day off). */
+export interface GbpSpecialClosure {
+  startsOn: string
+  endsOn: string
+  label: string | null
+}
+
+/**
+ * ML-51: GBP special hours, when the synced listing carries any
+ * (`specialHours: [{ startDate, endDate?, closed?, label? }]`), as READ-ONLY
+ * closed days shown beside the practice's own closures. Never merged into
+ * them: Google's list is Google's. Open-with-different-hours entries are not
+ * closures and are skipped. Unknown shape → [] (the sync writes best-effort).
+ */
+export function parseGbpSpecialClosures(raw: unknown): GbpSpecialClosure[] {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return []
+  const list = (raw as Record<string, unknown>).specialHours
+  if (!Array.isArray(list)) return []
+  const key = /^\d{4}-\d{2}-\d{2}$/
+  return list.flatMap((e): GbpSpecialClosure[] => {
+    if (!e || typeof e !== 'object') return []
+    const r = e as Record<string, unknown>
+    if (r.closed === false) return []
+    const startsOn = typeof r.startDate === 'string' ? r.startDate : typeof r.date === 'string' ? r.date : ''
+    const endsOn = typeof r.endDate === 'string' && r.endDate ? r.endDate : startsOn
+    if (!key.test(startsOn) || !key.test(endsOn) || endsOn < startsOn) return []
+    const label = typeof r.label === 'string' && r.label.trim() ? r.label.trim() : null
+    return [{ startsOn, endsOn, label }]
+  })
+}

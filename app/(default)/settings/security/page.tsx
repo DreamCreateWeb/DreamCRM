@@ -7,6 +7,8 @@ import { getTenantContext } from '@/lib/auth/context'
 import { listRecentExports } from '@/lib/services/patient-access-log'
 import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
 import { formatClinicDayTime } from '@/lib/format-datetime'
+import { TwoStepManage } from '@/components/auth/two-step'
+import { PLATFORM_ADMIN_REQUIRES_TWO_FACTOR } from '@/lib/auth/two-factor-policy'
 
 export const metadata = {
   title: 'Security - DreamCRM',
@@ -39,6 +41,26 @@ export default async function SecuritySettings() {
     ? await Promise.all([listRecentExports(ctx.organizationId, 10), getClinicTimeZone(ctx.organizationId)])
     : [[], 'America/New_York']
 
+  // Two-step sign-in (ML-58) is for STAFF; patients and partners never see it.
+  const isStaff = !!ctx && (ctx.tenantType === 'clinic' || ctx.tenantType === 'platform')
+  const [factor] = isStaff
+    ? await db
+        .select({ on: schema.user.twoFactorEnabled })
+        .from(schema.user)
+        .where(eq(schema.user.id, user.id))
+        .limit(1)
+    : []
+  const [profile] =
+    isStaff && ctx.tenantType === 'clinic'
+      ? await db
+          .select({ requires: schema.clinicProfile.requireTwoFactor })
+          .from(schema.clinicProfile)
+          .where(eq(schema.clinicProfile.organizationId, ctx.organizationId))
+          .limit(1)
+      : []
+  const twoStepRequired =
+    (PLATFORM_ADMIN_REQUIRES_TWO_FACTOR && ctx?.platformAdmin === true) || profile?.requires === 1
+
   const sessions: SessionRow[] = rows.map((r) => ({
     id: r.id,
     isCurrent: r.id === current?.session.id,
@@ -53,6 +75,15 @@ export default async function SecuritySettings() {
     <>
       <SettingsPage title="Security" subtitle="Active sessions and your password.">
         <SecurityPanel sessions={sessions} />
+        {isStaff && (
+          <SettingsSection
+            title="Two-step sign-in"
+            description="A code from an authenticator app on your phone, on top of your password."
+            className="mt-4"
+          >
+            <TwoStepManage enabled={factor?.on === true} required={twoStepRequired} />
+          </SettingsSection>
+        )}
         {showExports && (
           <SettingsSection
             title="Recent exports"

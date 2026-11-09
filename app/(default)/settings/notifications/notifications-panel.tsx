@@ -9,6 +9,7 @@ import { Toggle } from '@/components/ui/toggle'
 import { SettingsSection, SettingsRow } from '../settings-kit'
 import { SettingsTabs } from '../settings-tabs'
 import type { EmailMode } from '@/lib/types/notifications'
+import { runAction } from '@/lib/run-action'
 
 /**
  * Personal notification preferences.
@@ -117,6 +118,15 @@ const EMAIL_MODE_OPTIONS: Array<{
   },
 ]
 
+/** Await an action whose refusal is `{ error }` (no `ok` flag) through
+ *  `runAction`: a thrown action becomes `{ error }` too, so one `'error' in res`
+ *  branch covers refusal, network drop and a redeploy under the tab. */
+const runOkOrError = (fn: () => Promise<{ ok: true } | { error: string }>) =>
+  runAction(async () => {
+    const r = await fn()
+    return 'error' in r ? { ok: false as const, error: r.error } : r
+  })
+
 export default function NotificationsPanel({
   initial,
   tenantType,
@@ -153,7 +163,7 @@ export default function NotificationsPanel({
     const next = !clinicDigest
     setClinicDigest(next)
     startClinicDigestTransition(async () => {
-      const res = await setClinicDigestAction(next)
+      const res = await runOkOrError(() => setClinicDigestAction(next))
       if ('error' in res) {
         setClinicDigest(!next)
         toast(res.error, { tone: 'urgent' })
@@ -167,7 +177,7 @@ export default function NotificationsPanel({
     const next = !reportsOptedOut
     setReportsOptedOut(next)
     startReportsTransition(async () => {
-      const res = await setMyEmailReportsOptOutAction(next)
+      const res = await runOkOrError(() => setMyEmailReportsOptOutAction(next))
       if ('error' in res) {
         setReportsOptedOut(!next)
         toast(res.error, { tone: 'urgent' })

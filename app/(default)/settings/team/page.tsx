@@ -3,6 +3,9 @@ import { requireTenant } from '@/lib/auth/context'
 import TeamPanel from './team-panel'
 import { listPendingInvitations, listTeamMembers } from '@/lib/services/messages'
 import { SettingsPage } from '../settings-kit'
+import RequireTwoStep from './require-two-step'
+import { db, schema } from '@/lib/db'
+import { eq } from 'drizzle-orm'
 
 export const metadata = {
   title: 'Team - DreamCRM',
@@ -22,6 +25,15 @@ export default async function TeamSettings() {
     listPendingInvitations(ctx.organizationId),
   ])
 
+  const showRequire = ctx.tenantType === 'clinic' && ctx.role === 'owner'
+  const [req] = showRequire
+    ? await db
+        .select({ on: schema.clinicProfile.requireTwoFactor })
+        .from(schema.clinicProfile)
+        .where(eq(schema.clinicProfile.organizationId, ctx.organizationId))
+        .limit(1)
+    : []
+
   return (
     <>
       <SettingsPage
@@ -40,6 +52,7 @@ export default async function TeamSettings() {
           }))}
           invitations={invitations}
         />
+        {showRequire && <RequireTwoStep initial={req?.on === 1} />}
       </SettingsPage>
     </>
   )

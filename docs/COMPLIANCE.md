@@ -178,3 +178,14 @@ closing it: the **Bedrock flip** (AI under the AWS BAA), execute the AWS BAA,
 move patient email to SES, confirm NexHealth, and write the legal pages.
 Patient-level deletion and a retention policy are the secondary must-haves
 before a real clinic with real patients onboards.
+
+## Two-step sign-in (2026-11-09, ML-58)
+
+Staff can turn on two-step sign-in (an authenticator app — TOTP — plus
+one-time backup codes, through better-auth's own plugin; no SMS, no email
+code). It is REQUIRED for the platform admin and optional per clinic (an
+owner can require it for the team). Secrets and backup codes live only in
+better-auth's `two_factor` table, hashed as the plugin hashes them; a code
+is never logged. Turning it on or off writes a `two_step_on` /
+`two_step_off` row to the patient access log's actor trail. We say
+"two-step sign-in", never "bank-grade" and never a HIPAA word.

@@ -14,6 +14,8 @@ import { canEditClinic } from '@/lib/clinic-site-edit'
 import { mergeWebsiteDraft, websiteDraftKeys } from '@/lib/website-draft'
 import { loadPublishedSite, loadPublishedTheme } from '@/lib/services/clinic-site-cache'
 import type { PublishedSiteChrome } from '@/lib/services/clinic-site-cache'
+import { listUpcomingClosures } from '@/lib/services/closures'
+import type { ClosureRange } from '@/lib/closures'
 
 /**
  * Read a clinic's staged draft — the one thing the cached published payload
@@ -112,6 +114,9 @@ export interface ClinicSiteData {
   profile: ClinicProfile
   primaryLocation: ClinicLocation | null
   locations: ClinicLocation[]
+  /** The practice's stated closures that have not ended yet (ML-51), soonest
+   *  first — clinic-local day ranges. Absent = none stated (or an older fixture). */
+  closures?: ClosureRange[]
 }
 
 /**
@@ -407,6 +412,21 @@ export async function listActiveCustomDomains(): Promise<Record<string, string>>
  * quietly reordering somebody else's page.
  */
 async function loadSite(orgId: string, slug: string, orgName: string): Promise<ClinicSiteData | null> {
+  const site = await loadSiteBase(orgId, slug, orgName)
+  if (!site) return null
+  // The closures ride the per-request overlay, NOT the durable published cache:
+  // a closure the practice just stated must be on the public site the moment
+  // they save, and a closure that ended must stop printing without waiting out
+  // a TTL. One small indexed read; a failed read says "none stated".
+  try {
+    const closures = await listUpcomingClosures(orgId, site.profile.timezone)
+    return closures.length > 0 ? { ...site, closures } : site
+  } catch {
+    return site
+  }
+}
+
+async function loadSiteBase(orgId: string, slug: string, orgName: string): Promise<ClinicSiteData | null> {
   const published = await loadPublishedSite(orgId, slug, orgName)
   if (!published) return null
 
@@ -532,6 +552,15 @@ export function clinicJsonLd(
     })
   }
 
+  const specialOpeningHoursSpecification = (data.closures ?? []).map((c) => ({
+    '@type': 'OpeningHoursSpecification',
+    opens: '00:00:00',
+    closes: '00:00:00',
+    validFrom: c.startsOn,
+    validThrough: c.endsOn,
+    description: `Closed for ${c.label}`,
+  }))
+
   // AggregateRating is emitted ONLY from REAL synced Google Business reviews
   // (the Zernio GBP integration), passed in via `aggregateRating`. We require a
   // genuine count (>= 1 rated review) AND a non-null average; otherwise the key
@@ -574,6 +603,9 @@ export function clinicJsonLd(
         }
       : {}),
     ...(openingHoursSpecification.length ? { openingHoursSpecification } : {}),
+    // The practice's stated closures (ML-51): schema.org's own convention for
+    // "closed on these days" is a spec with opens = closes = 00:00.
+    ...(specialOpeningHoursSpecification.length ? { specialOpeningHoursSpecification } : {}),
     // Every OTHER office (the first is the address above): a schema.org Place
     // per extra clinic_location row, so a second office is findable too.
     ...(otherOffices.length

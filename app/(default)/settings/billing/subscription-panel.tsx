@@ -18,6 +18,8 @@ import { useConfirm } from '@/components/ui/confirm-dialog'
 import { PLANS, PURCHASABLE_PLANS, type BillingInterval, type PlanId } from '@/lib/stripe-config'
 import { subscriptionStatusMeta } from '@/lib/billing-status'
 import { trialDaysLeft, trialUrgency, type TrialUrgency } from '@/lib/trial'
+import { runAction } from '@/lib/run-action'
+import { StaleRefresh } from '@/components/ui/stale-refresh'
 
 /**
  * One subscription surface — the merge of the old Settings → Plan and
@@ -210,7 +212,7 @@ export default function SubscriptionPanel({
       if (!ok) return
       setActiveAction('cancel')
       startTransition(async () => {
-        const r = await cancelSubscriptionAction()
+        const r = await runAction(() => cancelSubscriptionAction())
         if (r.ok) {
           setSubFeedback({ ok: 'Your plan will end at the end of this billing period. You can resume anytime before then.' })
           router.refresh()
@@ -226,7 +228,7 @@ export default function SubscriptionPanel({
     setSubFeedback(null)
     setActiveAction('resume')
     startTransition(async () => {
-      const r = await reactivateSubscriptionAction()
+      const r = await runAction(() => reactivateSubscriptionAction())
       if (r.ok) {
         setSubFeedback({ ok: 'Your subscription will continue — no break in access.' })
         router.refresh()
@@ -374,7 +376,7 @@ export default function SubscriptionPanel({
           <p className="mt-2 text-sm text-emerald-700 dark:text-emerald-300">{subFeedback.ok}</p>
         )}
         {subFeedback?.error && (
-          <p className="mt-2 text-sm text-rose-700 dark:text-rose-300">{subFeedback.error}</p>
+          <p className="mt-2 text-sm text-rose-700 dark:text-rose-300">{subFeedback.error}<StaleRefresh error={subFeedback.error} /></p>
         )}
       </section>
 
@@ -427,12 +429,12 @@ export default function SubscriptionPanel({
                     <div className={`h-6 w-6 shrink-0 rounded-full bg-${p.color}-500`} aria-hidden="true" />
                     <h4 className="text-lg font-semibold text-gray-800 dark:text-gray-100">{p.name}</h4>
                     {isCurrent && (
-                      <span
-                        className="ml-auto inline-flex items-center gap-1 rounded-full bg-teal-500/10 px-2 py-0.5 text-xs font-semibold text-teal-700 ring-1 ring-inset ring-[color:var(--color-hairline-strong)] dark:text-teal-300"
+                      <StatusPill
+                        tone="ok"
+                        className="ml-auto"
                         title="The plan your subscription is on right now"
-                      >
-                        Current plan
-                      </span>
+                        label="Current plan"
+                      />
                     )}
                   </header>
                   <div className="mb-0.5 text-xs font-bold uppercase tracking-wider text-teal-700 dark:text-teal-300">
@@ -459,9 +461,7 @@ export default function SubscriptionPanel({
                     </div>
                   )}
                   {isCurrent ? (
-                    <div className="btn mt-3 w-full cursor-default bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300">
-                      Current plan
-                    </div>
+                    <StatusPill tone="neutral" className="mt-3 w-full justify-center py-2 text-sm" label="Current plan" />
                   ) : billingBroken ? (
                     <ActionButton variant="primary" onClick={handlePortal} pending={activeAction === 'portal'} disabled={pending} className="mt-3 w-full justify-center">
                       Fix billing to switch

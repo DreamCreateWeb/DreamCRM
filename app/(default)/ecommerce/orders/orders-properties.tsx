@@ -1,6 +1,7 @@
 'use client'
 
 import { ReactElement, useState } from 'react'
+import { TONE_PILL } from '@/lib/ui/encodings'
 
 export const OrdersProperties = () => {
   const [descriptionOpen, setDescriptionOpen] = useState<boolean>(false)
@@ -9,17 +10,17 @@ export const OrdersProperties = () => {
     switch (status) {
       case 'delivered':
       case 'shipped':
-        return 'bg-green-500/20 text-green-700'
+        return TONE_PILL.ok
       case 'processing':
-        return 'bg-blue-500/20 text-blue-700'
+        return TONE_PILL.info
       case 'pending':
-        return 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-300'
+        return TONE_PILL.neutral
       case 'refunded':
-        return 'bg-yellow-500/20 text-yellow-700'
+        return TONE_PILL.warn
       case 'cancelled':
-        return 'bg-red-500/20 text-red-700'
+        return TONE_PILL.urgent
       default:
-        return 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-300'
+        return TONE_PILL.neutral
     }
   }
 

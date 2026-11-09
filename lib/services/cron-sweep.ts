@@ -52,6 +52,10 @@ export const SWEEP_BUDGET_MS = {
   'retention-automations': 60_000,
   // S8: the activation stamps' daily reconcile (rides the daily-digest tick).
   'activation-reconcile': 45_000,
+  // ML-38: the metrics snapshot's per-clinic day pass (rides the daily-digest tick).
+  'metric-snapshot': 60_000,
+  // ML-59: the Gmail mailbox sync (every 5 minutes; route maxDuration 300).
+  'gmail-sync': 200_000,
 } as const
 
 export type SweepJob = keyof typeof SWEEP_BUDGET_MS

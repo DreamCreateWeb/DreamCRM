@@ -41,6 +41,7 @@ import { uploadFileWithProgress } from '@/lib/upload-with-progress'
 import { MAX_MESSAGE_ATTACHMENTS } from '@/lib/types/messaging'
 import BookFromPatientDrawer from '@/app/(default)/appointments/book-from-patient-drawer'
 import { usePopoverDismiss } from '@/components/ui/use-popover-dismiss'
+import { StatusPill } from '@/components/ui/status-pill'
 
 type Channel = 'in_app' | 'email' | 'sms'
 
@@ -788,17 +789,16 @@ export default function ThreadDetailPanel({
                 {patientName}
               </Link>
               {thread.status === 'snoozed' && thread.snoozeResurfaced && (
-                <span className="shrink-0 text-xs font-medium px-1.5 py-0.5 rounded-[var(--r-xs)] bg-amber-500/15 text-amber-700 dark:text-amber-300" title="The snooze ended — this conversation is back in Open, waiting on you">
-                  Back from snooze
-                </span>
+                <StatusPill tone="warn" className="shrink-0" title="The snooze ended — this conversation is back in Open, waiting on you" label="Back from snooze" />
               )}
               {thread.status === 'snoozed' && !thread.snoozeResurfaced && (
-                <span
-                  className="shrink-0 text-xs font-medium px-1.5 py-0.5 rounded-[var(--r-xs)] bg-amber-500/15 text-amber-700 dark:text-amber-300"
+                <StatusPill
+                  tone="neutral"
+                  className="shrink-0"
                   title={thread.snoozedUntilLabel ? `Snoozed until ${thread.snoozedUntilLabel}` : 'Snoozed — will resurface later'}
                 >
                   💤 Snoozed{thread.snoozedUntilLabel ? ` until ${thread.snoozedUntilLabel}` : ''}
-                </span>
+                </StatusPill>
               )}
               {thread.status === 'archived' && (
                 <span className="shrink-0 text-xs font-medium px-1.5 py-0.5 rounded-[var(--r-xs)] bg-gray-500/15 text-gray-600 dark:text-gray-300" title="Archived — closed and tucked away">
@@ -1037,23 +1037,17 @@ export default function ThreadDetailPanel({
             {patientContext.missingIntake && (
               <>
                 <StripDivider />
-                <span
-                  className="inline-flex items-center gap-1 rounded-[var(--r-xs)] bg-amber-500/15 px-1.5 py-0.5 font-medium text-amber-700 dark:text-amber-300"
-                  title="A visit is booked soon and no intake form is on file"
-                >
+                <StatusPill tone="warn" className="gap-1" title="A visit is booked soon and no intake form is on file">
                   <IconClipboard /> Intake missing
-                </span>
+                </StatusPill>
               </>
             )}
             {patientContext.preferredLanguage === 'es' && (
               <>
                 <StripDivider />
-                <span
-                  className="inline-flex items-center gap-1 rounded-[var(--r-xs)] bg-violet-500/15 px-1.5 py-0.5 font-medium text-violet-700 dark:text-violet-300"
-                  title="This patient prefers Spanish — the composer can translate your reply in one tap"
-                >
+                <StatusPill tone="info" className="gap-1" title="This patient prefers Spanish — the composer can translate your reply in one tap">
                   🌐 Prefers Spanish
-                </span>
+                </StatusPill>
               </>
             )}
           </Link>
