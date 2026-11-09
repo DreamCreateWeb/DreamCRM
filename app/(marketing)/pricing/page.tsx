@@ -14,6 +14,8 @@ import { JsonLd, faqPageLd, softwareApplicationLd } from '@/lib/marketing/seo'
 import { usd } from '@/lib/marketing/site'
 import { getQuotedPlan } from '@/lib/stripe-config'
 import { PriceCard } from './price-card'
+import { INCLUDED_MONTHLY_INSURANCE_CHECKS } from '@/lib/insurance-eligibility'
+import { INCLUDED_MONTHLY_INSURANCE_DISCOVERIES } from '@/lib/insurance-discovery'
 
 /**
  * THE PRICING PAGE — `BRAND.md` Part 8 move 6, page 1.
@@ -116,6 +118,7 @@ const INCLUDED: Array<{ group: string; glyph: ToneTileGlyph; rows: string[] }> =
       'Unified patient messages',
       'Connected Gmail inbox',
       'Digital intake forms',
+      `Insurance eligibility checks through Stedi (${INCLUDED_MONTHLY_INSURANCE_CHECKS} a month included)`,
     ],
   },
   {
@@ -177,6 +180,14 @@ const PRICING_FAQS: Array<{ q: string; a: string }> = [
     a: 'Shop and membership payments run through your own Stripe account and pay out to your bank. Stripe charges its standard processing fees; your subscription covers the platform.',
   },
   {
+    q: 'Do insurance checks cost extra?',
+    a:
+      `No. Eligibility checks are part of the plan, with ${INCLUDED_MONTHLY_INSURANCE_CHECKS} checks a month included. ` +
+      'They run through Stedi when your team starts one, and the page always shows where the month stands. ' +
+      `The full breakdown counts one check per payer request, and finding a plan with no card on hand has its own ${INCLUDED_MONTHLY_INSURANCE_DISCOVERIES} a month. ` +
+      'Every figure is the payer’s own answer, so confirm with the carrier before you quote a patient.',
+  },
+  {
     q: 'What about texting (SMS)?',
     a: 'Patient-facing email is live today (sent from your practice identity). Two-way SMS is on our roadmap but not available yet — it needs a regulated carrier-registration process we haven’t completed. We won’t sell it before it works.',
   },
@@ -196,7 +207,7 @@ export const metadata = {
   description:
     `One plan, everything included: ${usd(PRICE.rateMonthly)}/mo founding practice rate` +
     `${PRICE.listMonthly ? ` (regularly ${usd(PRICE.listMonthly)})` : ''}. ` +
-    'Website, booking, portal, messaging, reviews, recall, shop, PMS sync. ' +
+    'Website, booking, portal, messaging, reviews, recall, shop, insurance checks, PMS sync. ' +
     `Month-to-month, no contract — or annual with 2 months free (${usd(PRICE.rateAnnual)}/year).`,
 }
 
