@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation'
 import { requireTenant } from '@/lib/auth/context'
 import { getCollectionsSnapshot } from '@/lib/services/collections'
 import { getMembershipStats } from '@/lib/services/membership'
-import { listRecentBalancePayments, canTakeBalancePayments, getCollectedPerWeek8 } from '@/lib/services/balance-payments'
+import { countToReconcile, canTakeBalancePayments, getCollectedPerWeek8 } from '@/lib/services/balance-payments'
 import { listPaymentPlans } from '@/lib/services/payment-plans'
 import { getPmsLink } from '@/lib/services/pms-link'
 import { balanceSourceCopy } from '@/lib/pms-link'
@@ -11,6 +11,7 @@ import { PageHeader } from '@/components/ui/page-header'
 import { ActionButton } from '@/components/ui/action-button'
 import { KpiStat } from '@/components/ui/kpi-stat'
 import { StatusPill } from '@/components/ui/status-pill'
+import { toReconcileSub } from '@/lib/payments-reconcile'
 import PaymentsHubDoors from './hub-doors'
 
 export const metadata = {
@@ -31,11 +32,11 @@ export default async function PaymentsHubPage() {
   if (ctx.tenantType === 'patient') redirect('/patient/dashboard')
   if (ctx.tenantType !== 'clinic') redirect('/dashboard')
 
-  const [collections, membershipStats, recentPayments, connectReady, plans, collectedPerWeek8, pmsLink] = await Promise.all([
+  const [collections, membershipStats, toReconcileCount, connectReady, plans, collectedPerWeek8, pmsLink] = await Promise.all([
     // Best-effort — the hub renders even if a read hiccups.
     getCollectionsSnapshot(ctx.organizationId).catch(() => ({ patientCount: 0, totalOutstandingCents: 0 })),
     getMembershipStats(ctx.organizationId).catch(() => ({ activeMembers: 0, mrrCents: 0 })),
-    listRecentBalancePayments(ctx.organizationId).catch(() => []),
+    countToReconcile(ctx.organizationId).catch(() => 0),
     canTakeBalancePayments(ctx.organizationId).catch(() => false),
     listPaymentPlans(ctx.organizationId).catch(() => []),
     getCollectedPerWeek8(ctx.organizationId).catch(() => []),
@@ -98,10 +99,10 @@ export default async function PaymentsHubPage() {
         )}
         <KpiStat
           label="To reconcile"
-          value={recentPayments.length}
-          tone={recentPayments.length > 0 ? 'warn' : undefined}
+          value={toReconcileCount}
+          tone={toReconcileCount > 0 ? 'warn' : undefined}
           href="/payments/online"
-          sub={recentPayments.length > 0 ? 'online payments to post to your PMS' : 'all posted'}
+          sub={toReconcileSub(toReconcileCount)}
           spark={collectedPerWeek8}
         />
         <KpiStat
@@ -121,7 +122,7 @@ export default async function PaymentsHubPage() {
 
       <PaymentsHubDoors
         collections={collections}
-        toReconcile={recentPayments.length}
+        toReconcile={toReconcileCount}
         connectReady={connectReady}
         membershipStats={membershipStats}
       />
