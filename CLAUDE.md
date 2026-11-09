@@ -36,7 +36,10 @@ open those — do not guess.
 
 - **Next.js 16** (App Router, Turbopack), TypeScript, Tailwind 4, React 19.
 - **Drizzle ORM** on **AWS RDS Postgres** (`us-east-1`; node-postgres, VPC-only).
-- **better-auth** with Organizations (multi-tenant) + magic-link (patients).
+- **better-auth** with Organizations (multi-tenant) + magic-link (patients)
+  + the twoFactor plugin (TOTP + backup codes; REQUIRED for the platform
+  admin — `lib/auth/two-factor-policy.ts`; a clinic owner can require it for
+  the team, `clinic_profile.require_two_factor`).
 - **Stripe** — platform billing (Checkout + Portal + webhooks; ONE purchasable
   plan, Premium $200/mo "founding rate", Stripe Tax on), **Connect Standard**
   for clinic shop/membership/balance payments, **Connect Express** for partner
@@ -108,13 +111,13 @@ app/
                      <link>, NOT next/font (build env can't reach Google)
   r/ w/ c/ b/ g/ e/ h/ n/ i/ d/   Token-IS-auth patient/prospect landings
   api/               auth · webhooks (stripe, stripe-connect, gmail, resend,
-                     sms) · 24 CRON_SECRET-gated /api/cron/* routes ·
+                     sms) · 25 CRON_SECRET-gated /api/cron/* routes ·
                      /api/admin/* (migrate, resync-demo, redrive, read-check)
                      · oauth/connect · token publics · /api/version
 
 lib/
   db/schema/         auth.ts, platform.ts, clinic.ts (bulk), domain.ts, …
-  db/migrations/     drizzle; 0000–0187 applied to prod (auto-apply on deploy)
+  db/migrations/     drizzle; 0000–0189 applied to prod (auto-apply on deploy)
   auth/              server.ts, client.ts, context.ts (getTenantContext,
                      requireTenant/requireRole/requirePartner)
   services/          ~200 server-only modules — one per entity/subsystem
@@ -251,7 +254,7 @@ booking, intake, shop, the token landings. Brand-derived palette
   `lib/shared-brain.ts` learns the send hour under three floors, inert until
   the floors clear, with an exploration arm.
 - **Search**: ⌘K (`lib/services/global-search.ts`) searches and ACTS.
-- **Crons — 24 routes, `Authorization: Bearer $CRON_SECRET`**, every one a
+- **Crons — 25 routes, `Authorization: Bearer $CRON_SECRET`**, every one a
   `JOBS` entry in `scripts/setup-cron-schedules.sh` (the deploy re-runs it;
   `tests/cron-schedule-parity.test.ts` fails CI otherwise): pms-sync,
   send-reminders, send-scheduled-campaigns, auto-send-reviews,
@@ -261,7 +264,9 @@ booking, intake, shop, the token landings. Brand-derived palette
   reconcile), trial-reminders, prospect-discovery/-enrich/
   -outreach, domain-renewals, generate-proposals, guardian, learn-defaults,
   sms-registration, grader-nurture, custom-domains (15m),
-  notification-redrive (15m — failed staff-alert emails, 3 tries in 24h).
+  notification-redrive (15m — failed staff-alert emails, 3 tries in 24h),
+  gmail-sync (5m — the /inbox mailboxes, wanted first; the page never
+  awaits Gmail).
 
 ## Conventions (the laws)
 
@@ -364,9 +369,9 @@ booking, intake, shop, the token landings. Brand-derived palette
   (GitHub Actions → CodeBuild → ECR → App Runner, ~5 min; then a few minutes
   of rollout — `/api/version` changes when the new build serves).
 - **Migrations auto-apply on boot** (`scripts/db-migrate.mjs`; a failure keeps
-  the previous version serving). Latest applied: **0187** (the clinic's email
-  domain; 0186 = the partner share code + the second insurance plan). The
-  next number is **0188**.
+  the previous version serving). Latest applied: **0189** (two-step sign-in; 0188 =
+  the metrics snapshot, clinic closures, the inbox's wanted stamp). The
+  next number is **0190**.
   PARALLEL BRANCHES NEVER SHIP MIGRATION FILES: the integrator regenerates
   ONE sequential migration per PR on the merged schema. Workflow: edit the schema,
   `pnpm db:generate`, pin with a `tests/migrations/*.test.ts`, commit. The

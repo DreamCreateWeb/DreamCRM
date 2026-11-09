@@ -6172,6 +6172,89 @@ template with no bar, or a bar hidden above `sm`, measures 0 and nothing
 moves. The right-aligned pairs on established and hometeam are
 deliberately not tagged — the bottom-left floaters never meet them.
 
+## 2026-11-09 — The deep dev cycle, part 12: six feature slices (group 13)
+
+Six slices merged as true merges on the part-11 head; TWO regenerated
+migrations (0188 for the metrics snapshot + clinic closures + the inbox's
+wanted stamp; 0189 for two-step sign-in). ML-38 and ML-51 both appended a
+table to lib/db/schema/clinic.ts and both extended the cron-sweep budgets
+— resolved keeping both (the schema import merged by hand).
+
+**ML-57 — Payments, Shop, Integrations and Settings never freeze on a
+redeploy either.** 49 awaits wrapped in `runAction` across integrations
+(14), payments (4), shop (2), settings (23) and six shared components;
+`components/ui/stale-refresh.tsx` renders Refresh beside an error line
+when the error is the redeploy message; `ALLOWLIST_CEILING` 173 → 122
+(one server page stays listed: it awaits a read, not an action).
+
+**ML-38 — every KPI gets a heartbeat.** `metric_snapshot` (nullable org
+for the platform's rows; unique on org + metric + bucket + granularity; a
+partial unique for the NULL-org rows; `value` NOT NULL — a reader with
+nothing honest to say writes no row); 14 metrics in `lib/metrics-registry.ts`
+(the recall funnel's four stages, reviews requested / received, new
+patients, visits, bookings, revenue collected online net of refunds, the
+PMS-sourced outstanding balance — null without a PMS — platform MRR,
+active clinics, the hourly hunt sends); the writer rides the hourly
+daily-digest tick (each clinic's yesterday on the first tick after its
+local midnight; walled clinics skipped; idempotent upserts; its own
+budgeted cursor; hourly rows pruned after 14 days); sparks through the
+chart kit on the Growth funnel's stages, the Analytics scorecard, Reviews,
+the Payments Outstanding tile, platform MRR (marked UTC) and the Hunt
+panel — "tracked since <date>" under 14 days; nothing zero-filled or
+backfilled. Follow-ups: no engine-failure producer yet (console.warn);
+five recorded metrics have no tile yet.
+
+**ML-59 — the Gmail inbox opens instantly.** `/inbox` renders from the
+database only; the page stamps `email_account.wanted_at` and kicks an
+idempotent, rate-aware sync after the response (skips a mailbox synced
+under 2 minutes ago or mid-sync; a stuck status older than 10 minutes
+counts as stale; walled orgs skipped); a `SyncedLine` strip ("Synced 4 min
+ago · checking"); `InboxLiveUpdater` refreshes every 60s while visible;
+the new `gmail-sync` cron (every 5 minutes, `JOBS` entry, maxDuration 300)
+syncs wanted mailboxes first then walks the rest round-robin under the
+sweep budget; a throwing mailbox costs its clinic one `inbox_sync` strike
+a day. The webhook's history delta is unchanged.
+
+**ML-51 — a closure stated once, honoured everywhere.** `clinic_closure`
+(dated ranges in clinic-local days, a label); `getSlotsForDay` returns no
+slots + `closedReason: 'closure'` (public site, portal, the desk's
+reschedule, the walk-in guard, the 14-day scan, the PMS branch — checked
+before any PMS call; a failed read fails open); the public site's open-now
+line says "Closed for Thanksgiving · opens …", the hours block names a
+closure within 14 days, JSON-LD gains `specialOpeningHoursSpecification`,
+closures ride the per-request overlay (not the durable cache); a reminder
+for a visit on a closed day is skipped with nothing claimed or sent; the
+Monday digest names the week's closures once with the visits still booked
+on them; the first-week `setup_closures` ask files once offering the next
+usual holidays; `/settings/closures` (one-tap US holiday presets for the
+next 12 months, your-own dates, remove asks first; Google special hours
+read-only beside the list — empty until the sync writes `specialHours`).
+
+**ML-55 — the last Mosaic bones (part one).** ~16 hand-rolled tone pills
+moved onto `StatusPill` / `TONE_PILL` across Settings (billing, the
+services-library picker, the emails hub), the thread panel, the Gmail
+inbox, and the platform's ecommerce surfaces; the support-thread Send
+button is an ActionButton (`RAW_BUTTON_CEILING` 84 → 83); a new grader
+(`tests/design-system/tone-pills.test.ts`, registered in INTAKE_RULES)
+flags a same-line wash + ink pair and holds the 133 remaining files in a
+dated shrink-only allowlist. Follow-ups: the settings tabs and the platform
+inbox's re-skin; the legacy `form-*` field classes; the Gmail OAuth anchors
+(`btn-sm`, because an ActionButton href would prefetch the OAuth route).
+
+**ML-58 — two-step sign-in.** better-auth's twoFactor plugin (TOTP +
+backup codes; no SMS, no email code); a second screen after the password
+(`app/(auth)/signin/second-step.tsx`); enrol / disable / regenerate on
+Settings → Security (`components/auth/two-step.tsx` — QR, manual key, the
+codes shown once behind "I saved them", disable re-asks the password with
+the confirm awaited first); REQUIRED for the platform admin
+(`PLATFORM_ADMIN_REQUIRES_TWO_FACTOR`, a server gate in `getTenantContext`
++ `requireUser` sending an un-enrolled required person to `/two-step` —
+the one signed-in page reachable until enrolled); an owner-only "Two-step
+sign-in for the team" toggle (`clinic_profile.require_two_factor`); a real
+change writes `two_step_on` / `two_step_off` to the access log; patients
+and partners untouched. Follow-ups: no email fallback; direct
+`auth.api.getSession` callers outside `requireUser` are not gated.
+
 ## 2026-11-09 — The deep dev cycle, part 11: seven feature slices (group 12)
 
 Seven slices merged as true merges on the part-10 head; TWO regenerated
