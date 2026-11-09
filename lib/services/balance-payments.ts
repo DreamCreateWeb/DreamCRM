@@ -1,5 +1,5 @@
 import 'server-only'
-import { and, desc, eq, gte, ne } from 'drizzle-orm'
+import { and, desc, eq, gte, inArray, isNotNull, isNull, ne, sql } from 'drizzle-orm'
 import { randomBytes } from 'crypto'
 import { db, schema } from '@/lib/db'
 import { stripe } from '@/lib/stripe'
@@ -324,12 +324,17 @@ export interface PendingBalancePaymentRow {
    *  reversal HERE, not have the row vanish. */
   refundedAmountCents: number
   refundedAt: Date | null
+  /** When the desk marked it posted to the practice's ledger; null = still to post. */
+  postedAt: Date | null
+  postedByUserId: string | null
+  /** Display name of who posted it (null when unknown / user removed). */
+  postedByName: string | null
 }
 
 /**
  * Clinic-side reconciliation list: online payments the front desk still
- * needs to post to the PMS ledger. v1 surfaces PAID rows; "posted to PMS"
- * tracking can layer on later without schema change (note column exists).
+ * needs to post to the practice's ledger (still-to-post first), plus the ones
+ * already posted with who/when.
  * Most-recent first. Joined to patient so the surface can link + name rows.
  */
 export async function listRecentBalancePayments(
@@ -349,16 +354,21 @@ export async function listRecentBalancePayments(
       balanceCentsAtPayment: schema.patientBalancePayment.balanceCentsAtPayment,
       refundedAmountCents: schema.patientBalancePayment.refundedAmountCents,
       refundedAt: schema.patientBalancePayment.refundedAt,
+      postedAt: schema.patientBalancePayment.postedAt,
+      postedByUserId: schema.patientBalancePayment.postedByUserId,
+      postedByName: schema.user.name,
     })
     .from(schema.patientBalancePayment)
     .innerJoin(schema.patient, eq(schema.patient.id, schema.patientBalancePayment.patientId))
+    .leftJoin(schema.user, eq(schema.user.id, schema.patientBalancePayment.postedByUserId))
     .where(
       and(
         eq(schema.patientBalancePayment.organizationId, organizationId),
         eq(schema.patientBalancePayment.status, 'paid'),
       ),
     )
-    .orderBy(desc(schema.patientBalancePayment.createdAt))
+    // Still-to-post rows first, so the checklist never scrolls past the limit.
+    .orderBy(sql`(${schema.patientBalancePayment.postedAt} is not null)`, desc(schema.patientBalancePayment.createdAt))
     .limit(limit)
   return rows.map((r) => ({
     id: r.id,
@@ -371,7 +381,73 @@ export async function listRecentBalancePayments(
     balanceCentsAtPayment: r.balanceCentsAtPayment,
     refundedAmountCents: r.refundedAmountCents ?? 0,
     refundedAt: r.refundedAt,
+    postedAt: r.postedAt,
+    postedByUserId: r.postedByUserId,
+    postedByName: r.postedByName ?? null,
   }))
+}
+
+/**
+ * THE "to reconcile" predicate: paid online AND not yet posted to the
+ * practice's ledger. One definition for the hub KPI, the list and the
+ * counter, so the number means one thing the desk can act on.
+ */
+export function toReconcileWhere(organizationId: string) {
+  return and(
+    eq(schema.patientBalancePayment.organizationId, organizationId),
+    eq(schema.patientBalancePayment.status, 'paid'),
+    isNull(schema.patientBalancePayment.postedAt),
+  )
+}
+
+/** Exact count of paid online payments still to post (not capped like the list). */
+export async function countToReconcile(organizationId: string): Promise<number> {
+  const [row] = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(schema.patientBalancePayment)
+    .where(toReconcileWhere(organizationId))
+  return row?.n ?? 0
+}
+
+/**
+ * Mark paid payments as posted to the practice's ledger. Stamps who + when;
+ * only PAID, not-yet-posted rows in THIS org move (idempotent: re-marking
+ * keeps the first stamp). Returns how many rows changed.
+ */
+export async function markPaymentsPosted(
+  organizationId: string,
+  ids: string[],
+  userId: string,
+  now: Date = new Date(),
+): Promise<number> {
+  const unique = Array.from(new Set(ids)).filter(Boolean)
+  if (unique.length === 0) return 0
+  const rows = await db
+    .update(schema.patientBalancePayment)
+    .set({ postedAt: now, postedByUserId: userId })
+    .where(and(toReconcileWhere(organizationId), inArray(schema.patientBalancePayment.id, unique)))
+    .returning({ id: schema.patientBalancePayment.id })
+  return rows.length
+}
+
+export async function markPaymentPosted(organizationId: string, id: string, userId: string): Promise<boolean> {
+  return (await markPaymentsPosted(organizationId, [id], userId)) > 0
+}
+
+/** Take the stamp back (a mis-click): the payment returns to "to post". */
+export async function unmarkPaymentPosted(organizationId: string, id: string): Promise<boolean> {
+  const rows = await db
+    .update(schema.patientBalancePayment)
+    .set({ postedAt: null, postedByUserId: null })
+    .where(
+      and(
+        eq(schema.patientBalancePayment.id, id),
+        eq(schema.patientBalancePayment.organizationId, organizationId),
+        isNotNull(schema.patientBalancePayment.postedAt),
+      ),
+    )
+    .returning({ id: schema.patientBalancePayment.id })
+  return rows.length > 0
 }
 
 /**

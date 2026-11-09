@@ -1879,6 +1879,12 @@ export const patientBalancePayment = pgTable(
     refundSyncedAt: timestamp('refund_synced_at'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     paidAt: timestamp('paid_at'),
+    // "Posted" = a person at the desk entered this in the practice's ledger
+    // (their PMS or their books). NULL = still to post. Never auto-stamped;
+    // posted_by_user_id records who. No FK on purpose: a removed user must
+    // not un-post the books.
+    postedAt: timestamp('posted_at'),
+    postedByUserId: text('posted_by_user_id'),
   },
   (t) => [
     index('balance_payment_org_status_idx').on(t.organizationId, t.status),
