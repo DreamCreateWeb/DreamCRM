@@ -10,13 +10,15 @@ import { organization } from '@/lib/db/schema/auth'
 import { requireTenant } from '@/lib/auth/context'
 import { createDemoClinic, seedDemoNotificationsForUser } from '@/lib/services/demo-clinic'
 import {
-  createManagedClinic,
+  provisionManagedClinic,
   resendClinicOwnerInvite,
   type CreateManagedClinicResult,
 } from '@/lib/services/clinic-provisioning'
 import { cancelSubscriptionNow } from '@/lib/services/stripe-admin'
 import type { Role } from '@/lib/modules/types'
 import { DEMO_CLINIC_SLUG } from '@/lib/services/demo-constants'
+import { US_TIMEZONES } from '@/lib/clinic-timezone'
+import { isPmsVendor } from '@/lib/pms-connect'
 
 const DEMO_COOKIE = 'demo_context'
 const DEMO_COOKIE_MAX_AGE = 60 * 60 * 24 * 7 // 7 days
@@ -321,6 +323,31 @@ const CreateManagedClinicInput = z.object({
   planId: z.enum(['basic', 'pro', 'premium']),
   interval: z.enum(['monthly', 'annual']),
   pricing: ManagedPricingInput,
+  // The setup call (ML-41): everything the call learned, typed once.
+  timezone: z
+    .string()
+    .optional()
+    .refine((v) => !v || US_TIMEZONES.some((z) => z.id === v), 'Pick one of the listed time zones'),
+  phone: z.string().trim().max(40).optional(),
+  addressLine1: z.string().trim().max(200).optional(),
+  city: z.string().trim().max(100).optional(),
+  state: z.string().trim().max(40).optional(),
+  postalCode: z.string().trim().max(20).optional(),
+  npi: z
+    .string()
+    .trim()
+    .optional()
+    .refine((v) => !v || v.replace(/\D/g, '').length === 10, 'An NPI is ten digits'),
+  brandColor: z
+    .string()
+    .trim()
+    .optional()
+    .refine((v) => !v || /^#[0-9a-fA-F]{6}$/.test(v), 'Brand colour is a hex like #0d9488'),
+  pmsVendor: z
+    .string()
+    .optional()
+    .refine((v) => !v || v === 'none' || v === 'not_sure' || isPmsVendor(v), 'Pick a listed system'),
+  pmsVendorName: z.string().trim().max(80).optional(),
   note: z.string().trim().max(2000).optional(),
   // Optional referral attribution: which partner referred this clinic + an
   // optional per-clinic % override (basis points).
@@ -338,19 +365,43 @@ const CreateManagedClinicInput = z.object({
  * and emails the owner an invite. The owner activates billing from the
  * in-app banner → checkout with the discount pre-applied.
  */
-export async function createManagedClinicAction(input: unknown): Promise<CreateManagedClinicResult> {
+export type CreateManagedClinicActionResult =
+  | ({ ok: true } & CreateManagedClinicResult)
+  | { ok: false; error: string }
+
+export async function createManagedClinicAction(input: unknown): Promise<CreateManagedClinicActionResult> {
   const ctx = await requirePlatformAdmin()
   if (ctx.role !== 'owner' && ctx.role !== 'admin') {
-    throw new Error('Forbidden: platform owner or admin only')
+    return { ok: false, error: 'Forbidden: platform owner or admin only' }
   }
-  const data = CreateManagedClinicInput.parse(input)
-  const result = await createManagedClinic({
-    ...data,
-    inviterUserId: ctx.userId,
-    inviterName: ctx.userName,
-  })
-  revalidatePath('/ecommerce/customers')
-  return result
+  const parsed = CreateManagedClinicInput.safeParse(input)
+  if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? 'Check the form and try again.' }
+  const { timezone, phone, addressLine1, city, state, postalCode, npi, brandColor, pmsVendor, pmsVendorName, ...core } =
+    parsed.data
+  try {
+    const result = await provisionManagedClinic({
+      ...core,
+      brand: brandColor ? { color: brandColor } : undefined,
+      dossier: { timezone, phone, addressLine1, city, state, postalCode },
+      setup: { npi, pmsVendor, pmsVendorName },
+      inviterUserId: ctx.userId,
+      inviterName: ctx.userName,
+    })
+    revalidatePath('/ecommerce/customers')
+    return { ok: true, ...result }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Could not create the clinic.' }
+  }
+}
+
+/** The setup form's live web-address check — the onboarding's own slug rules. */
+export async function checkManagedClinicSlugAction(
+  raw: string,
+): Promise<{ ok: true; available: boolean; suggestion?: string } | { ok: false; error: string }> {
+  await requirePlatformAdmin()
+  const { checkClinicSlug } = await import('@/app/(onboarding)/actions')
+  const r = await checkClinicSlug(z.string().max(60).parse(raw))
+  return { ok: true, available: r.available, suggestion: r.suggestion }
 }
 
 /** Re-send the pending owner invite for a platform-created clinic. */

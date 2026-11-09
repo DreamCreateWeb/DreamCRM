@@ -11,6 +11,9 @@ import { PLANS, type BillingInterval, type PlanId } from '@/lib/stripe-config'
 import { RESERVED_SLUGS, SLUG_PATTERN, isValidClinicSlug } from '@/lib/onboarding/slug'
 import { slugify } from '@/lib/utils'
 import { hasPaidSubscription, trialEndDate } from '@/lib/trial'
+import { normalizeNpi } from '@/lib/insurance-eligibility'
+import { validatePmsConnectRequest } from '@/lib/pms-connect'
+import { newId } from '@/lib/utils'
 
 /**
  * Platform-side ("managed") clinic provisioning: the platform admin creates
@@ -66,6 +69,16 @@ export interface CreateManagedClinicInput {
     /** Seeds the review-request config's writereview deep link. */
     googlePlaceId?: string | null
   }
+  /** What the SETUP CALL learned beyond the dossier (ML-41). `npi` is ten
+   *  digits or dropped; `pmsVendor` is a PMS_VENDORS id (a connect request
+   *  is filed — the SAME row /integrations/pms's form files), or
+   *  'none' / 'not_sure' / absent (nothing filed: a PMS promise is never
+   *  made to a practice that has none). */
+  setup?: {
+    npi?: string | null
+    pmsVendor?: string | null
+    pmsVendorName?: string | null
+  }
 }
 
 /** A zone we'd trust in clinic_profile.timezone — Intl is the authority. */
@@ -85,6 +98,9 @@ export interface CreateManagedClinicResult {
   slug: string
   invitationId: string
   couponId: string | null
+  /** True when the slug already belonged to THIS owner's clinic: nothing was
+   *  created and no second invite was sent (provisionManagedClinic). */
+  alreadyProvisioned?: boolean
 }
 
 const INVITE_TTL_MS = 1000 * 60 * 60 * 24 * 14 // 14 days
@@ -157,61 +173,112 @@ export async function createManagedClinic(input: CreateManagedClinicInput): Prom
   const organizationId = crypto.randomUUID()
   const comped = input.pricing.kind === 'comped'
 
-  await db.insert(schema.organization).values({
-    id: organizationId,
-    name,
-    slug,
-    type: 'clinic',
-  })
-
   const couponId = await createPricingCoupon(name, organizationId, input.pricing)
 
-  await db.insert(schema.clinicProfile).values({
-    organizationId,
-    legalName: name,
-    displayName: name,
-    // Comped clinics get their tier immediately + NO trial (there's no webhook).
-    // Managed clinics start the no-card 7-day trial (full Premium) so the owner
-    // can use everything from the moment they accept the invite, then activate
-    // their RESERVED plan within the 7 days — the pending plan + coupon stay set
-    // for that activation checkout.
-    planTier: comped ? input.planId : 'premium',
-    billingMode: comped ? 'comped' : 'managed',
-    subscriptionStatus: comped ? null : 'trialing',
-    trialEndsAt: comped ? null : trialEndDate(),
-    pendingPlanId: comped ? null : input.planId,
-    pendingBillingInterval: comped ? null : input.interval,
-    stripeCouponId: couponId,
-    managedNote: input.note?.trim() || null,
-    // Brand carry-over from a converted prospect: the clinic boots in the
-    // brand we showed in the demo (owner can change it anytime in Settings).
-    ...(input.brand?.color ? { brandColor: input.brand.color } : {}),
-    ...(input.brand?.logoUrl ? { logoUrl: input.brand.logoUrl } : {}),
-    // Dossier carry-over: never re-ask the clinic for a fact we already
-    // hold. Everything is owner-editable in Settings afterwards.
-    ...(input.dossier?.phone ? { phone: input.dossier.phone } : {}),
-    ...(input.dossier?.addressLine1 ? { addressLine1: input.dossier.addressLine1 } : {}),
-    ...(input.dossier?.city ? { city: input.dossier.city } : {}),
-    ...(input.dossier?.state ? { state: input.dossier.state } : {}),
-    ...(input.dossier?.postalCode ? { postalCode: input.dossier.postalCode } : {}),
-    ...(usableTimeZone(input.dossier?.timezone)
-      ? { timezone: usableTimeZone(input.dossier?.timezone)! }
-      : {}),
-  })
+  const npi = normalizeNpi(input.setup?.npi)
+  const pmsRequest = (() => {
+    const vendor = input.setup?.pmsVendor?.trim()
+    if (!vendor || vendor === 'none' || vendor === 'not_sure') return null
+    const checked = validatePmsConnectRequest({
+      vendor,
+      vendorName: input.setup?.pmsVendorName,
+      practiceNameInPms: name,
+      contactName: input.ownerName.trim() || name,
+      contactEmail: ownerEmail,
+      contactPhone: input.dossier?.phone,
+      notes: 'Filed by Dream Create on the setup call.',
+    })
+    if (!checked.ok) throw new Error(checked.issues[0].message)
+    return checked.value
+  })()
 
-  // The prospect's Google place id seeds the review-request config — the
-  // "add your Google link once" step done before the owner ever logs in.
-  // Best-effort: reviews can be configured by hand later regardless.
-  if (input.dossier?.googlePlaceId) {
-    try {
-      await db
+  // ONE transaction: the org, its profile, the review seed, the PMS connect
+  // request and the owner's invitation land together or not at all — a failed
+  // half never leaves an org with no owner invite. Network sends (the invite
+  // email) and the best-effort seeders run AFTER the commit.
+  const invitationId = crypto.randomUUID()
+  await db.transaction(async (tx) => {
+    await tx.insert(schema.organization).values({
+      id: organizationId,
+      name,
+      slug,
+      type: 'clinic',
+    })
+
+    await tx.insert(schema.clinicProfile).values({
+      organizationId,
+      legalName: name,
+      displayName: name,
+      // Comped clinics get their tier immediately + NO trial (there's no webhook).
+      // Managed clinics start the no-card 7-day trial (full Premium) so the owner
+      // can use everything from the moment they accept the invite, then activate
+      // their RESERVED plan within the 7 days — the pending plan + coupon stay set
+      // for that activation checkout.
+      planTier: comped ? input.planId : 'premium',
+      billingMode: comped ? 'comped' : 'managed',
+      subscriptionStatus: comped ? null : 'trialing',
+      trialEndsAt: comped ? null : trialEndDate(),
+      pendingPlanId: comped ? null : input.planId,
+      pendingBillingInterval: comped ? null : input.interval,
+      stripeCouponId: couponId,
+      managedNote: input.note?.trim() || null,
+      // Brand carry-over from a converted prospect: the clinic boots in the
+      // brand we showed in the demo (owner can change it anytime in Settings).
+      ...(input.brand?.color ? { brandColor: input.brand.color } : {}),
+      ...(input.brand?.logoUrl ? { logoUrl: input.brand.logoUrl } : {}),
+      // Dossier carry-over: never re-ask the clinic for a fact we already
+      // hold. Everything is owner-editable in Settings afterwards.
+      ...(input.dossier?.phone ? { phone: input.dossier.phone } : {}),
+      ...(input.dossier?.addressLine1 ? { addressLine1: input.dossier.addressLine1 } : {}),
+      ...(input.dossier?.city ? { city: input.dossier.city } : {}),
+      ...(input.dossier?.state ? { state: input.dossier.state } : {}),
+      ...(input.dossier?.postalCode ? { postalCode: input.dossier.postalCode } : {}),
+      ...(usableTimeZone(input.dossier?.timezone)
+        ? { timezone: usableTimeZone(input.dossier?.timezone)! }
+        : {}),
+      ...(npi ? { npi } : {}),
+    })
+
+    // The prospect's Google place id seeds the review-request config — the
+    // "add your Google link once" step done before the owner ever logs in.
+    if (input.dossier?.googlePlaceId) {
+      await tx
         .insert(schema.clinicReviewConfig)
         .values({ organizationId, googlePlaceId: input.dossier.googlePlaceId })
         .onConflictDoNothing()
-    } catch (err) {
-      console.warn('[provisioning] could not seed review config from place id', err)
     }
-  }
+
+    // The PMS connect request: the same one-row-per-clinic table the clinic's
+    // own /integrations/pms form files, so the first-week cockpit and
+    // lib/pms-link.ts read it as "pending on us" with no new path.
+    if (pmsRequest) {
+      await tx.insert(schema.pmsConnectRequest).values({
+        id: newId('pmsreq'),
+        organizationId,
+        vendor: pmsRequest.vendor,
+        vendorName: pmsRequest.vendorName ?? null,
+        practiceNameInPms: pmsRequest.practiceNameInPms ?? null,
+        contactName: pmsRequest.contactName,
+        contactEmail: pmsRequest.contactEmail,
+        contactPhone: pmsRequest.contactPhone ?? null,
+        notes: pmsRequest.notes ?? null,
+        status: 'requested',
+        requestedByUserId: input.inviterUserId,
+      })
+    }
+
+    // Invitation row in the exact shape better-auth's acceptInvitation expects
+    // (the same table the org plugin writes via the team-invite flow).
+    await tx.insert(schema.invitation).values({
+      id: invitationId,
+      organizationId,
+      email: ownerEmail,
+      role: 'owner',
+      status: 'pending',
+      expiresAt: new Date(Date.now() + INVITE_TTL_MS),
+      inviterId: input.inviterUserId,
+    })
+  })
 
   // Referral attribution (optional): copy the partner's default rate/term and
   // stamp the term clock. Best-effort — a bad partner id must not block clinic
@@ -253,19 +320,6 @@ export async function createManagedClinic(input: CreateManagedClinicInput): Prom
     console.warn('[provisioning] could not apply starter floor', err)
   }
 
-  // Invitation row in the exact shape better-auth's acceptInvitation expects
-  // (the same table the org plugin writes via the team-invite flow).
-  const invitationId = crypto.randomUUID()
-  await db.insert(schema.invitation).values({
-    id: invitationId,
-    organizationId,
-    email: ownerEmail,
-    role: 'owner',
-    status: 'pending',
-    expiresAt: new Date(Date.now() + INVITE_TTL_MS),
-    inviterId: input.inviterUserId,
-  })
-
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://www.dreamcreatestudio.com'
   await sendInvitationEmail(ownerEmail, {
     inviterName: input.inviterName,
@@ -275,6 +329,40 @@ export async function createManagedClinic(input: CreateManagedClinicInput): Prom
   })
 
   return { organizationId, slug, invitationId, couponId }
+}
+
+/**
+ * THE SETUP-CALL DOOR (ML-41): `createManagedClinic` with the web address
+ * taken EXACTLY and a second submit made harmless. If the slug already
+ * belongs to a clinic whose owner invite is for this same email, that clinic
+ * is returned untouched — no second org, no second invite, no second coupon.
+ * A slug held by anyone else is refused in words (a silent "-1" would hand
+ * the call's practice a neighbour's address).
+ */
+export async function provisionManagedClinic(input: CreateManagedClinicInput): Promise<CreateManagedClinicResult> {
+  const slug = input.slug?.trim().toLowerCase()
+  if (slug) {
+    const [org] = await db
+      .select({ id: schema.organization.id })
+      .from(schema.organization)
+      .where(eq(schema.organization.slug, slug))
+      .limit(1)
+    if (org) {
+      const [invite] = await db
+        .select({ id: schema.invitation.id, email: schema.invitation.email })
+        .from(schema.invitation)
+        .where(and(eq(schema.invitation.organizationId, org.id), eq(schema.invitation.role, 'owner')))
+        .limit(1)
+      if (invite && invite.email.toLowerCase() === input.ownerEmail.trim().toLowerCase()) {
+        return { organizationId: org.id, slug, invitationId: invite.id, couponId: null, alreadyProvisioned: true }
+      }
+      throw new Error(`"${slug}" is already taken — pick another web address.`)
+    }
+    if (RESERVED_SLUGS.has(slug) || !isValidClinicSlug(slug)) {
+      throw new Error(`"${slug}" can't be used as a web address — pick another.`)
+    }
+  }
+  return createManagedClinic(input)
 }
 
 /** Re-send (and re-arm) the pending owner invite for a managed clinic. */
