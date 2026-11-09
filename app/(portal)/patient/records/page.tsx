@@ -10,12 +10,17 @@ import {
   PortalCard,
   PortalHeading,
   PortalSectionLabel,
+  PortalEmptyState,
   PORTAL_INK,
   PORTAL_MUTED,
   PORTAL_BORDER,
+  PORTAL_SUCCESS_INK,
 } from '@/components/patient-portal/ui'
 import { fmtVisitDayShort } from '@/components/patient-portal/format'
-import { PORTAL_VISIT_LABELS } from '@/lib/types/portal'
+import { portalVisitLabel } from '@/lib/portal-visit-label'
+import { getFeatureSwitchState } from '@/lib/services/feature-switches'
+import { getLatestInsuranceCheckForPatient } from '@/lib/services/insurance-eligibility'
+import { portalInsuranceNote } from '@/lib/portal-insurance-note'
 import RequestRecordsCard from './request-records'
 
 function InfoRow({ label, value }: { label: string; value: string | null }) {
@@ -36,9 +41,33 @@ export default async function PortalRecordsPage() {
   requirePortalFeature(pc, 'records')
   const { ctx, clinic, brand, timeZone } = pc
 
-  const records = await getMyRecords(ctx.patientId, ctx.organizationId)
+  const [records, switches, latestCheck] = await Promise.all([
+    getMyRecords(ctx.patientId, ctx.organizationId),
+    getFeatureSwitchState(ctx.organizationId),
+    // Org-scoped + keyed on THIS login's patient: never a family member's card.
+    getLatestInsuranceCheckForPatient(ctx.organizationId, ctx.patientId).catch(() => null),
+  ])
   if (!records) return null
   const p = records.patient
+  const insuranceNote = portalInsuranceNote({
+    toolOn: switches.insurance,
+    check: latestCheck?.result
+      ? {
+          status: latestCheck.status,
+          checkedAtIso: latestCheck.checkedAtIso,
+          planName: latestCheck.result.planName,
+          payerName: latestCheck.result.payerName,
+        }
+      : null,
+    timeZone,
+  })
+  // An empty room always has a way forward: book if the portal books, else
+  // the front desk by message, else back home.
+  const door = pc.settings.features.booking
+    ? { href: '/patient/book', label: pc.selfBookingEnabled ? 'Book a visit' : 'Request a visit' }
+    : pc.settings.features.messages
+      ? { href: '/patient/messages', label: 'Message the front desk' }
+      : { href: '/patient/dashboard', label: 'Back to your home page' }
 
   return (
     <div className="mx-auto max-w-2xl">
@@ -51,9 +80,13 @@ export default async function PortalRecordsPage() {
         <PortalSectionLabel>Visit history</PortalSectionLabel>
         {records.visits.length === 0 ? (
           <PortalCard>
-            <p className="py-3 text-center text-[0.9rem]" style={{ color: PORTAL_MUTED }}>
-              Your completed visits will live here.
-            </p>
+            <PortalEmptyState
+              title="No visits on record yet"
+              body="Once you’ve been in, your completed visits are listed here."
+              ctaHref={door.href}
+              ctaLabel={door.label}
+              brand={brand}
+            />
           </PortalCard>
         ) : (
           <div className="overflow-hidden rounded-2xl bg-white" style={{ border: `1px solid ${PORTAL_BORDER}` }}>
@@ -65,7 +98,7 @@ export default async function PortalRecordsPage() {
                   style={i > 0 ? { borderTop: `1px solid ${PORTAL_BORDER}` } : undefined}
                 >
                   <p className="text-[0.92rem] font-semibold" style={{ color: PORTAL_INK }}>
-                    {PORTAL_VISIT_LABELS[v.type] ?? 'Visit'}
+                    {portalVisitLabel(pc.visitTypes, v.type)}
                   </p>
                   <p className="text-[0.8rem]" style={{ color: PORTAL_MUTED }}>
                     {fmtVisitDayShort(v.startTime, timeZone)}
@@ -82,9 +115,13 @@ export default async function PortalRecordsPage() {
         <PortalSectionLabel>Forms on file</PortalSectionLabel>
         {records.forms.length === 0 ? (
           <PortalCard>
-            <p className="py-3 text-center text-[0.9rem]" style={{ color: PORTAL_MUTED }}>
-              Forms you fill out will be listed here.
-            </p>
+            <PortalEmptyState
+              title="No forms on file yet"
+              body="Forms you fill out will be listed here."
+              ctaHref={pc.settings.features.forms ? '/patient/intake' : door.href}
+              ctaLabel={pc.settings.features.forms ? 'See your forms' : door.label}
+              brand={brand}
+            />
           </PortalCard>
         ) : (
           <div className="overflow-hidden rounded-2xl bg-white" style={{ border: `1px solid ${PORTAL_BORDER}` }}>
@@ -139,10 +176,14 @@ export default async function PortalRecordsPage() {
           <InfoRow label="Carrier" value={p.insuranceProvider} />
           <InfoRow label="Member ID" value={p.insurancePolicyNumber} />
           <InfoRow label="Group number" value={p.insuranceGroupNumber} />
-          <p className="mt-2 text-[0.8rem] leading-relaxed" style={{ color: PORTAL_MUTED }}>
-            We&apos;ll verify your coverage before treatment — bring your card to your first visit
-            and we&apos;ll handle the rest.
-          </p>
+          {insuranceNote && (
+            <p
+              className="mt-2 text-[0.8rem] leading-relaxed"
+              style={{ color: insuranceNote.tone === 'verified' ? PORTAL_SUCCESS_INK : PORTAL_MUTED }}
+            >
+              {insuranceNote.text}
+            </p>
+          )}
         </PortalCard>
       </section>
 

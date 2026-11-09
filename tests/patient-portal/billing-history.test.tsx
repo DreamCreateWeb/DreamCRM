@@ -17,12 +17,13 @@ const rows: BillingHistoryRow[] = [
   { key: 'order-o2', kind: 'order', whenIso: '2026-04-20T10:00:00Z', label: 'Brush heads', detail: null, amountCents: 1800, badge: 'Processing' },
 ]
 
-const base = { brand: '#0a7d72', timeZone: 'America/New_York' }
+const base = { brand: '#0a7d72', timeZone: 'America/New_York', door: { href: '/patient/book', label: 'Book a visit' } }
 
 describe('BillingHistory', () => {
   it('shows the empty state when there are no rows', () => {
     render(<BillingHistory rows={[]} {...base} />)
     expect(screen.getByText(/No payments or purchases yet/i)).toBeTruthy()
+    expect(screen.getByRole('link', { name: 'Book a visit' }).getAttribute('href')).toBe('/patient/book')
   })
 
   it('links every row to its printable receipt (key doubles as the slug)', () => {

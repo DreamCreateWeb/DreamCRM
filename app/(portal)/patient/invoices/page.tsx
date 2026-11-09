@@ -86,6 +86,17 @@ export default async function PortalBillingPage({
   }
   const justPaid = Boolean(sessionId)
 
+  // The empty history's way forward: the plans when the clinic sells one (and
+  // its site is published), else booking, else the front desk, else home.
+  const historyDoor =
+    activePlans.length > 0 && clinic?.siteLive && !bills.membership
+      ? { href: `/site/${ctx.organizationSlug}/dental-plans`, label: 'See the plans' }
+      : settings.features.booking
+        ? { href: '/patient/book', label: pc.selfBookingEnabled ? 'Book a visit' : 'Request a visit' }
+        : settings.features.messages
+          ? { href: '/patient/messages', label: 'Message the front desk' }
+          : { href: '/patient/dashboard', label: 'Back to your home page' }
+
   // One chronological money trail: balance payments + shop orders. Each row
   // links to its printable receipt (key doubles as the receipt slug).
   const history: BillingHistoryRow[] = [
@@ -164,7 +175,7 @@ export default async function PortalBillingPage({
                 )}
               </div>
               <p className="mt-2 text-[0.88rem] leading-relaxed" style={{ color: PORTAL_MUTED }}>
-                This comes straight from our practice system. If something looks off, ask — we’ll
+                This comes straight from our practice management system. If something looks off, ask — we’ll
                 walk through it line by line, in plain language.
               </p>
               {settings.features.payments && paymentsAvailable ? (
@@ -199,7 +210,7 @@ export default async function PortalBillingPage({
                 Balance questions? Just ask.
               </p>
               <p className="mt-1 text-[0.88rem] leading-relaxed" style={{ color: PORTAL_MUTED }}>
-                Your balance lives in our practice system. Call{clinic?.phone ? ' ' : ' us'}
+                We don’t have a live balance to show here. Call{clinic?.phone ? ' ' : ' us'}
                 {clinic?.phone && (
                   <a href={`tel:${clinic.phone}`} className="font-semibold" style={{ color: brand }}>
                     {clinic.phone}
@@ -376,7 +387,7 @@ export default async function PortalBillingPage({
 
       <section className="mt-7">
         <PortalSectionLabel>History</PortalSectionLabel>
-        <BillingHistory rows={history} brand={brand} timeZone={timeZone} />
+        <BillingHistory rows={history} brand={brand} timeZone={timeZone} door={historyDoor} />
       </section>
     </div>
   )

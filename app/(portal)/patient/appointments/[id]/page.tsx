@@ -7,7 +7,7 @@ import { getPortalPageContext, toVisitCardData, mapsQueryFor } from '../../porta
 import VisitCard from '@/components/patient-portal/visit-card'
 import { PortalCard, PortalHeading, PortalSectionLabel, PortalNotice, PORTAL_INK, PORTAL_MUTED, PortalBackLink } from '@/components/patient-portal/ui'
 import { fmtVisitDayShort, fmtVisitTime } from '@/components/patient-portal/format'
-import { PORTAL_VISIT_LABELS } from '@/lib/types/portal'
+import { portalVisitLabel } from '@/lib/portal-visit-label'
 
 export const metadata = {
   title: 'Your visit — Patient portal',
@@ -43,7 +43,7 @@ export default async function VisitDetailPage({
     upcoming ? getVisitPrep(ctx.organizationId, visit.type) : Promise.resolve(''),
   ])
   const mapsQuery = mapsQueryFor(clinic)
-  const typeLabel = PORTAL_VISIT_LABELS[visit.type] ?? 'Visit'
+  const typeLabel = portalVisitLabel(pc.visitTypes, visit.type)
 
   return (
     <div className="mx-auto max-w-2xl">
@@ -63,7 +63,7 @@ export default async function VisitDetailPage({
       {/* The action hub — same card as everywhere, so muscle memory holds. */}
       <section className="mt-5">
         <VisitCard
-          visit={toVisitCardData(visit, ctx.patientId)}
+          visit={toVisitCardData(visit, ctx.patientId, pc.visitTypes)}
           brand={brand}
           timeZone={timeZone}
           clinicPhone={clinic?.phone ?? null}
