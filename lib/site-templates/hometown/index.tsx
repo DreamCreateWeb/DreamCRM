@@ -3,6 +3,8 @@ import HometownHeader from '@/components/clinic-site/templates/hometown/header'
 import HometownFooter from '@/components/clinic-site/templates/hometown/footer'
 import HometownMobileActions from '@/components/clinic-site/templates/hometown/mobile-actions'
 import { buildHometownPalette } from './palette'
+import { MODERN_SUBPAGES } from '../modern/subpages'
+import { subpageSource } from '../subpage-source'
 import type { SiteTemplateDef } from '../types'
 
 /**
@@ -31,7 +33,9 @@ export const hometownTemplate: SiteTemplateDef = {
     Footer: HometownFooter,
     MobileActions: HometownMobileActions,
   },
-  pages: { Home: HometownHome },
+  // ML-52: shares Modern's subpage bodies by reference until it skins its own.
+  pages: { Home: HometownHome, subpages: MODERN_SUBPAGES },
+  subpageSource: subpageSource('modern'),
   extraMarketingPages: [],
   buildPalette: buildHometownPalette,
   fonts: [{ id: 'dc-playfair', href: PLAYFAIR_HREF }],

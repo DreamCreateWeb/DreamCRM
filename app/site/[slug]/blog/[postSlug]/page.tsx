@@ -8,7 +8,7 @@ import { staffSlug,
 import { breadcrumbJsonLd } from '@/lib/clinic-site-jsonld'
 import type { BlogFaqItem } from '@/lib/types/clinic-content'
 import BlogChrome from '@/components/clinic-site/blog-chrome'
-import BlogArticle from '@/components/clinic-site/blog-article'
+import { resolveActiveSiteTemplate } from '@/lib/site-templates/resolve'
 import BlogViewBeacon from '@/components/clinic-site/blog-view-beacon'
 import JsonLdScript from '@/components/json-ld'
 
@@ -131,6 +131,9 @@ export default async function ClinicBlogPostPage({ params }: Props) {
         }
       : null
 
+  const { def: siteTemplate } = await resolveActiveSiteTemplate(slug)
+  const Body = siteTemplate.pages.subpages.blogPost
+
   return (
     <BlogChrome data={data} basePath={basePath}>
       <JsonLdScript data={jsonLd} />
@@ -140,7 +143,7 @@ export default async function ClinicBlogPostPage({ params }: Props) {
       )}
       <BlogViewBeacon postId={post.id} />
       <div data-edit-field="blog" data-edit-kind="modal" data-edit-label="blog posts">
-        <BlogArticle
+        <Body
           post={post}
           author={author}
           reviewer={reviewer}

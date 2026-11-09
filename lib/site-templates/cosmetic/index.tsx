@@ -3,6 +3,8 @@ import CosmeticHeader from '@/components/clinic-site/templates/cosmetic/header'
 import CosmeticFooter from '@/components/clinic-site/templates/cosmetic/footer'
 import CosmeticMobileActions from '@/components/clinic-site/templates/cosmetic/mobile-actions'
 import { buildCosmeticPalette } from './palette'
+import { MODERN_SUBPAGES } from '../modern/subpages'
+import { subpageSource } from '../subpage-source'
 import type { SiteTemplateDef } from '../types'
 
 /**
@@ -29,7 +31,9 @@ export const cosmeticTemplate: SiteTemplateDef = {
     Footer: CosmeticFooter,
     MobileActions: CosmeticMobileActions,
   },
-  pages: { Home: CosmeticHome },
+  // ML-52: shares Modern's subpage bodies by reference until it skins its own.
+  pages: { Home: CosmeticHome, subpages: MODERN_SUBPAGES },
+  subpageSource: subpageSource('modern'),
   extraMarketingPages: [],
   buildPalette: buildCosmeticPalette,
   fonts: [{ id: 'dc-fraunces-cosmetic', href: FRAUNCES_ITALIC_HREF }],

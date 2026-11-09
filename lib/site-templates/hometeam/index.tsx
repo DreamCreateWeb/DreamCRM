@@ -3,6 +3,8 @@ import HometeamHeader from '@/components/clinic-site/templates/hometeam/header'
 import HometeamFooter from '@/components/clinic-site/templates/hometeam/footer'
 import HometeamMobileActions from '@/components/clinic-site/templates/hometeam/mobile-actions'
 import { buildHometeamPalette } from './palette'
+import { MODERN_SUBPAGES } from '../modern/subpages'
+import { subpageSource } from '../subpage-source'
 import type { SiteTemplateDef } from '../types'
 
 /**
@@ -35,7 +37,9 @@ export const hometeamTemplate: SiteTemplateDef = {
     Footer: HometeamFooter,
     MobileActions: HometeamMobileActions,
   },
-  pages: { Home: HometeamHome },
+  // ML-52: shares Modern's subpage bodies by reference until it skins its own.
+  pages: { Home: HometeamHome, subpages: MODERN_SUBPAGES },
+  subpageSource: subpageSource('modern'),
   extraMarketingPages: [],
   buildPalette: buildHometeamPalette,
   fonts: [

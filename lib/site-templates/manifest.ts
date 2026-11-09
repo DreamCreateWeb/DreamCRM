@@ -7,8 +7,7 @@ import type { SiteTemplateId } from './types'
  *
  * - `shared`: chrome/components every template's canvas can mount.
  * - `base`:   the shared page bodies (today still inline in their page.tsx
- *             shells; they migrate to components/clinic-site/base/ in the
- *             shell/renderer split).
+ *             shells + Modern's moved subpage bodies, ML-52).
  * - `byTemplate`: files exclusive to one template. Scans for template <id>
  *             cover `shared + base + byTemplate[<id>]`.
  */
@@ -42,6 +41,20 @@ export const SITE_TEMPLATE_MANIFEST: SiteTemplateManifest = {
     'app/site/[slug]/blog/page.tsx',
     'app/site/[slug]/blog/[postSlug]/page.tsx',
     'app/site/[slug]/book/page.tsx',
+    // ML-52: the subpage BODIES split out of the shells above. Modern's are
+    // the shared bodies every template inherits by reference until it skins
+    // its own (then the file moves to that template's byTemplate list).
+    'components/clinic-site/templates/modern/services.tsx',
+    'components/clinic-site/templates/modern/servicePage.tsx',
+    'components/clinic-site/templates/modern/newPatients.tsx',
+    'components/clinic-site/templates/modern/insurance.tsx',
+    'components/clinic-site/templates/modern/financing.tsx',
+    'components/clinic-site/templates/modern/plans.tsx',
+    'components/clinic-site/templates/modern/about.tsx',
+    'components/clinic-site/templates/modern/team.tsx',
+    'components/clinic-site/templates/modern/careers.tsx',
+    'components/clinic-site/templates/modern/faq.tsx',
+    'components/clinic-site/templates/modern/blogIndex.tsx',
   ],
   byTemplate: {
     modern: ['components/clinic-site/templates/modern/home.tsx'],

@@ -6,12 +6,11 @@ import { getOpenJobs } from '@/lib/services/careers'
 import { type ClinicService, type ClinicStaff } from '@/lib/types/clinic-content'
 import {
   buildClinicNavLinks,
+  hasColoringPages,
   navServicesFromClinicServices,
   isSelfBookingEnabled,
 } from '@/lib/clinic-site-helpers'
-import SiteHeader from './site-header'
-import SiteFooter from './site-footer'
-import SiteMobileActions from './site-mobile-actions'
+import { resolveActiveSiteTemplate } from '@/lib/site-templates/resolve'
 import { SITE_BG as BG, SITE_INK as INK } from '@/components/clinic-site/tokens'
 
 
@@ -37,7 +36,11 @@ export default async function BlogChrome({
 }) {
   const { profile } = data
   const bookHref = isSelfBookingEnabled(profile) ? `${basePath}/book` : `${basePath || '/'}#contact`
-  const bookLabel = 'Book a Visit'
+  // The practice's chosen template wears the chrome AND the booking voice on
+  // every page this wraps (blog, shop, membership) — not Modern's (ML-52).
+  const { def: siteTemplate } = await resolveActiveSiteTemplate(data.slug)
+  const bookLabel = siteTemplate.bookLabel
+  const { Header: SiteHeader, Footer: SiteFooter, MobileActions: SiteMobileActions } = siteTemplate.chrome
   const signIn = clinicPortalSignInUrl(data.slug, data.profile.portalSettings)
 
   const [publishedPosts, membershipPlans, openJobs] = await Promise.all([
@@ -51,6 +54,8 @@ export default async function BlogChrome({
   const hasTeam = ((profile.staff as ClinicStaff[] | null) ?? []).length > 0
 
   const navLinks = buildClinicNavLinks({
+    extraPages: siteTemplate.extraMarketingPages,
+    extraGates: { hasColoringPages: hasColoringPages(data.profile) },
     basePath,
     hasBlog,
     hasDentalPlans,
