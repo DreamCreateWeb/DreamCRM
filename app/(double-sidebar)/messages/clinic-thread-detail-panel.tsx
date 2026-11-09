@@ -10,7 +10,9 @@ import { FlashToast } from '@/components/ui/flash-toast'
 import FollowupQuickAdd from '@/components/followups/followup-quick-add'
 import PatientTagControl from '@/components/tags/patient-tag-control'
 import type { PatientTagView } from '@/lib/types/patient-tags'
-import type { MessageAttachment } from '@/lib/types/messaging'
+import { isPdfAttachment, type MessageAttachment } from '@/lib/types/messaging'
+import { DocumentChip } from '@/components/messaging/document-chip'
+import { MESSAGE_ATTACHMENT_ACCEPT, MESSAGE_ATTACHMENT_FOLDER, messageAttachmentRefusal } from '@/lib/upload-kinds'
 import { MessageAttachments } from './message-attachments'
 import { channelMeta } from './channel-meta'
 import {
@@ -506,29 +508,32 @@ export default function ThreadDetailPanel({
     if (!files || files.length === 0) return
     const room = MAX_MESSAGE_ATTACHMENTS - attachments.length
     if (room <= 0) {
-      setToast(`Up to ${MAX_MESSAGE_ATTACHMENTS} photos per message.`)
+      setToast(`Up to ${MAX_MESSAGE_ATTACHMENTS} files per message.`)
       return
     }
     const picked = Array.from(files).slice(0, room)
     for (const file of picked) {
-      if (!file.type.startsWith('image/')) {
-        setToast('Only images can be attached.')
-        continue
-      }
-      if (file.size > 8 * 1024 * 1024) {
-        setToast(`"${file.name}" is over 8MB — pick a smaller image.`)
-        continue
-      }
+      // The refusal copy (HEIC → the fix, the 10 MB cap, photo-or-PDF) lives
+      // in lib/upload-kinds.ts — the same words the server would send back.
       setUploading((n) => n + 1)
-      uploadFileWithProgress(file, 'message-attachments')
-        .promise.then((url) => {
-          setAttachments((prev) =>
-            prev.length >= MAX_MESSAGE_ATTACHMENTS
-              ? prev
-              : [...prev, { url, name: file.name, contentType: file.type }],
-          )
+      messageAttachmentRefusal(file)
+        .then((refusal) => {
+          if (refusal) {
+            setToast(refusal)
+            return undefined
+          }
+          return uploadFileWithProgress(file, MESSAGE_ATTACHMENT_FOLDER).promise.then((url) => {
+            const contentType = file.type || (/\.pdf$/i.test(file.name) ? 'application/pdf' : '')
+            setAttachments((prev) =>
+              prev.length >= MAX_MESSAGE_ATTACHMENTS
+                ? prev
+                : [...prev, { url, name: file.name, contentType, size: file.size }],
+            )
+          })
         })
-        .catch(() => setToast(`Couldn't upload "${file.name}". Please try again.`))
+        .catch((err) =>
+          setToast(err instanceof Error && err.message ? err.message : `Couldn't upload "${file.name}". Please try again.`),
+        )
         .finally(() => setUploading((n) => Math.max(0, n - 1)))
     }
   }
@@ -1284,7 +1289,7 @@ export default function ThreadDetailPanel({
                   <span className="text-rose-700/80 dark:text-rose-300/80 truncate">
                     {s.lastError ? `— ${s.lastError}` : '— something went wrong on our side'}
                     {' · '}
-                    {s.body || (s.attachments.length > 0 ? `${s.attachments.length} photo${s.attachments.length === 1 ? '' : 's'}` : '')}
+                    {s.body || (s.attachments.length > 0 ? `${s.attachments.length} attachment${s.attachments.length === 1 ? '' : 's'}` : '')}
                   </span>
                   <button
                     type="button"
@@ -1310,7 +1315,7 @@ export default function ThreadDetailPanel({
                   <span aria-hidden="true">⏰</span>
                   <span className="font-medium shrink-0">Scheduled · {fmtSchedule(s.scheduledFor)}</span>
                   <span className="text-violet-700/70 dark:text-violet-300/70 truncate">
-                    {s.body || (s.attachments.length > 0 ? `${s.attachments.length} photo${s.attachments.length === 1 ? '' : 's'}` : '')}
+                    {s.body || (s.attachments.length > 0 ? `${s.attachments.length} attachment${s.attachments.length === 1 ? '' : 's'}` : '')}
                     {s.channel === 'email' ? ' · email' : ''}
                   </span>
                   <button
@@ -1364,10 +1369,14 @@ export default function ThreadDetailPanel({
                   {attachments.map((a) => (
                     <div
                       key={a.url}
-                      className="group relative h-16 w-16 overflow-hidden rounded-[var(--r-sm)] ring-1 ring-inset ring-[color:var(--color-hairline-strong)]"
+                      className={`group relative overflow-hidden rounded-[var(--r-sm)] ring-1 ring-inset ring-[color:var(--color-hairline-strong)] ${isPdfAttachment(a) ? 'flex h-16 max-w-[14rem] items-center pr-6' : 'h-16 w-16'}`}
                     >
-                      {/* eslint-disable-next-line @next/next/no-img-element -- user upload preview */}
-                      <img src={a.url} alt={a.name || 'attachment'} className="h-full w-full object-cover" />
+                      {isPdfAttachment(a) ? (
+                        <DocumentChip attachment={a} className="ring-0" />
+                      ) : (
+                        // eslint-disable-next-line @next/next/no-img-element -- user upload preview
+                        <img src={a.url} alt={a.name || 'attachment'} className="h-full w-full object-cover" />
+                      )}
                       <button
                         type="button"
                         onClick={() => removeAttachment(a.url)}
@@ -1383,7 +1392,7 @@ export default function ThreadDetailPanel({
                       <div
                         key={`up-${i}`}
                         className="skeleton h-16 w-16 rounded-[var(--r-sm)]"
-                        aria-label="Uploading photo"
+                        aria-label="Uploading file"
                       />
                     ))}
                 </div>
@@ -1397,11 +1406,11 @@ export default function ThreadDetailPanel({
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
                   disabled={attachments.length >= MAX_MESSAGE_ATTACHMENTS}
-                  aria-label="Attach a photo"
+                  aria-label="Attach a photo or PDF"
                   title={
                     attachments.length >= MAX_MESSAGE_ATTACHMENTS
-                      ? `Up to ${MAX_MESSAGE_ATTACHMENTS} photos`
-                      : 'Attach a photo'
+                      ? `Up to ${MAX_MESSAGE_ATTACHMENTS} files`
+                      : 'Attach a photo or PDF'
                   }
                   className="inline-flex h-8 w-8 items-center justify-center rounded-full text-gray-500 dark:text-gray-400 transition hover:bg-[color:var(--color-surface-sunk)] hover:text-gray-700 dark:hover:text-gray-200 disabled:opacity-50 disabled:pointer-events-none"
                 >
@@ -1575,7 +1584,7 @@ export default function ThreadDetailPanel({
               <input
                 ref={fileInputRef}
                 type="file"
-                accept="image/*"
+                accept={MESSAGE_ATTACHMENT_ACCEPT}
                 multiple
                 className="hidden"
                 onChange={(e) => {

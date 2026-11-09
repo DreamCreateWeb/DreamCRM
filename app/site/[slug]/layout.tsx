@@ -20,6 +20,7 @@ import { clinicDayKey } from '@/lib/format-datetime'
 import { CherryWidget } from '@/components/clinic-site/financing-widgets'
 import BottomBarInset from '@/components/clinic-site/bottom-bar-inset'
 import { widgetFontsFromTemplate } from '@/lib/financing-providers'
+import { ClinicNotFoundProvider, type ClinicNotFoundInfo } from '@/components/clinic-site/clinic-not-found-context'
 
 /**
  * Site-wide layout for clinic public pages (/site/[slug]/...). The active
@@ -117,6 +118,20 @@ export default async function ClinicSiteLayout({
       announcement = activeAnnouncement(chrome.announcement, clinicDayKey(new Date(), tz))
     }
   }
+  // The clinic's own 404 (app/site/[slug]/not-found.tsx): the clinic resolved,
+  // so a bad URL inside it gets the way home, the phone and the booking door.
+  let notFoundInfo: ClinicNotFoundInfo | null = null
+  if (orgId && chrome) {
+    const base = await resolveSiteBasePath(slug)
+    notFoundInfo = {
+      name: chrome.displayName ?? 'our practice',
+      brand: brand ?? null,
+      logoUrl: chrome.logoUrl,
+      phone: chrome.phone,
+      homeHref: base || '/',
+      bookHref: `${base}/book`,
+    }
+  }
   if (comingSoon) {
     // Pre-live visitor: the palette still paints (it's the clinic's brand)
     // but NO site chrome — no nav, no chat, no beacon, no announcement.
@@ -180,7 +195,7 @@ export default async function ClinicSiteLayout({
       {/* Site-wide announcement strip — above the header on every page +
           template, non-sticky so it scrolls away. */}
       <AnnouncementBar announcement={announcement} />
-      {children}
+      <ClinicNotFoundProvider value={notFoundInfo}>{children}</ClinicNotFoundProvider>
       {/* Below the template's own footer, on every page — the growth loop. */}
       {showPoweredBy && <PoweredBy slug={slug} />}
       {/* Never count gallery-frame renders as site traffic — nor the

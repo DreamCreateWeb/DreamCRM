@@ -13,7 +13,7 @@ import type {
   ClinicService,
   ClinicStaff,
 } from '@/lib/types/clinic-content'
-import { readableInk, brandFill } from '@/lib/clinic-site-theme'
+import { brandFill } from '@/lib/clinic-site-theme'
 import { teamItemListJsonLd } from '@/lib/clinic-site-jsonld'
 import {
   firstSentence,
@@ -28,7 +28,7 @@ import {
 import ScrollReveal from '@/components/clinic-site/scroll-reveal'
 import ClosingCTA from '@/components/clinic-site/closing-cta'
 import { resolveSeoMeta, applySeoOverride } from '@/lib/types/seo-meta'
-import { SITE_BG as BG, SITE_INK as INK, SITE_INK_MUTED as INK_MUTED, SITE_SURFACE as SURFACE, SITE_BORDER as BORDER } from '@/components/clinic-site/tokens'
+import { SITE_BG as BG, SITE_INK as INK, SITE_INK_MUTED as INK_MUTED, SITE_SURFACE as SURFACE, SITE_BORDER as BORDER, SITE_HEADING } from '@/components/clinic-site/tokens'
 import { resolveActiveSiteTemplate } from '@/lib/site-templates/resolve'
 import SiteImage from '@/components/clinic-site/site-image'
 import JsonLdScript from '@/components/json-ld'
@@ -94,7 +94,7 @@ export default async function TeamPage({ params }: Props) {
   const brand = profile.brandColor ?? '#9CAF9F'
   // Contrast-safe text fill for brand-colored headings/eyebrows on the warm
   // ground (raw brand stays on backgrounds/borders/pills only).
-  const headingInk = readableInk(brand)
+  const headingInk = SITE_HEADING
   const bookHref = isSelfBookingEnabled(profile) ? `${basePath}/book` : `${basePath || '/'}#contact`
   const { def: siteTemplate } = await resolveActiveSiteTemplate(slug)
   const bookLabel = siteTemplate.bookLabel

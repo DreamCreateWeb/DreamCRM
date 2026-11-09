@@ -1,7 +1,7 @@
 import 'server-only'
 import { and, eq, gte, isNull, lt, ne, or, sql } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
-import { clinicWeekStart } from '@/lib/clinic-timezone'
+import { clinicLocalHour, clinicWeekStart } from '@/lib/clinic-timezone'
 import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
 import {
   listRecentActions,
@@ -371,6 +371,8 @@ export interface StandupRunResult {
   scanned: number
   sent: number
   skippedNotMonday: number
+  /** Local Monday but before 7 AM there — the hourly tick comes back. */
+  skippedEarly?: number
   skippedAlready: number
   skippedQuiet: number
   errors: Array<{ organizationId: string; error: string }>
@@ -432,6 +434,11 @@ export async function sendWeeklyStandups(opts?: { now?: Date }): Promise<Standup
       const weekday = new Intl.DateTimeFormat('en-US', { timeZone: tz, weekday: 'short' }).format(now)
       if (weekday !== 'Mon') {
         result.skippedNotMonday++
+        continue
+      }
+      // The digest route ticks hourly: not before the clinic's own 7 AM.
+      if (clinicLocalHour(now, tz) < 7) {
+        result.skippedEarly = (result.skippedEarly ?? 0) + 1
         continue
       }
       const thisWeekStart = clinicWeekStart(now, tz)

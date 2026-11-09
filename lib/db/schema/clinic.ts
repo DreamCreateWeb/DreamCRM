@@ -163,6 +163,28 @@ export const patientNote = pgTable(
   (t) => [index('patient_note_patient_created_idx').on(t.patientId, t.createdAt)],
 )
 
+// Chart access log (ML-31): who opened which patient record, who exported,
+// merged or printed. The practice's OWN record of access — best-effort
+// writes, org-scoped reads. patient_id is null for an export (it covers the
+// whole list). Not a compliance claim; just the answer to "who looked?".
+export const patientAccessLog = pgTable(
+  'patient_access_log',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id').notNull().references(() => organization.id, { onDelete: 'cascade' }),
+    patientId: text('patient_id'),
+    userId: text('user_id').notNull(),
+    // 'view' | 'export' | 'merge' | 'print'
+    action: text('action').notNull(),
+    detail: jsonb('detail'),
+    at: timestamp('at').notNull().defaultNow(),
+  },
+  (t) => [
+    index('patient_access_log_patient_at_idx').on(t.organizationId, t.patientId, t.at.desc()),
+    index('patient_access_log_user_at_idx').on(t.organizationId, t.userId, t.at.desc()),
+  ],
+)
+
 // Files attached to a patient (referral letters, x-ray/photo exports, signed
 // PDFs, insurance cards). Stored in S3; the row keeps the public URL + metadata.
 // CRM-side document storage, NOT the clinical imaging system. Soft-deleted so a
@@ -531,6 +553,13 @@ export const appointmentReminderLog = pgTable('appointment_reminder_log', {
   id: text('id').primaryKey(),
   organizationId: text('organization_id').notNull().references(() => organization.id, { onDelete: 'cascade' }),
   appointmentId: text('appointment_id').notNull().references(() => appointment.id, { onDelete: 'cascade' }),
+  // WHO the touch was for (ML-30). A reminder is about an appointment, but the
+  // forms nudge is capped per PERSON (a patient with three visits in a week
+  // gets one), so the per-patient cap is one indexed read of this column.
+  // Nullable: legacy rows are backfilled from the appointment in 0184; a row
+  // whose writer did not know the patient stays null and the cap falls back
+  // to its appointment.
+  patientId: text('patient_id').references(() => patient.id, { onDelete: 'cascade' }),
   // 'sms' | 'email'
   channel: text('channel').notNull(),
   // Template key (e.g. 'default_24h', 'recall_new_patient'). Nullable for
@@ -551,6 +580,9 @@ export const appointmentReminderLog = pgTable('appointment_reminder_log', {
   // The activation reconcile's A2 read (min(sent_at) per org) — without this
   // every unstamped clinic seq-scanned the whole log daily (audit round 1).
   index('appt_reminder_org_sent_idx').on(t.organizationId, t.sentAt),
+  // The forms nudge's per-patient cap (ML-30): "has this PERSON been nudged
+  // in the last 7 days?" is one read of this index.
+  index('appt_reminder_patient_tpl_sent_idx').on(t.organizationId, t.patientId, t.template, t.sentAt.desc()),
   // Every DLR is a lookup by provider message id — without this it's a
   // sequential scan of the busiest log table on every receipt.
   index('appt_reminder_provider_msg_idx').on(t.providerMessageId),

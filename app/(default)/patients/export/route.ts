@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getTenantContext } from '@/lib/auth/context'
-import { exportPatientsCsv } from '@/lib/services/patient-import'
+import { exportPatientsCsvWithCount } from '@/lib/services/patient-import'
+import { recordPatientAccess } from '@/lib/services/patient-access-log'
 
 /**
  * Download the clinic's patients as a CSV attachment.
@@ -19,7 +20,9 @@ export async function GET() {
     return new NextResponse('Forbidden', { status: 403 })
   }
 
-  const csv = await exportPatientsCsv(ctx.organizationId)
+  const { csv, rows } = await exportPatientsCsvWithCount(ctx.organizationId)
+  // Who took the list out, and how many rows (best-effort — never fails the download).
+  await recordPatientAccess(ctx.organizationId, ctx.userId, 'export', null, { rows, what: 'patients' })
   const stamp = new Date().toISOString().slice(0, 10)
   const slug = (ctx.organizationSlug || 'clinic').replace(/[^a-z0-9-]/gi, '-')
   return new NextResponse(csv, {

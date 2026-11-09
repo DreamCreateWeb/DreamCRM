@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 /**
  * Smoke tests for the /services index page. Confirms the H1 carries the clinic
  * name, services group into Core vs Special sections, the Special grid is
@@ -209,14 +211,15 @@ describe('ServicesPage', () => {
     // readableInk darkens it. The H1 must NOT carry the raw pale value.
     await renderPage(makeData({ brandColor: '#CFE8D6' }))
     const h1 = screen.getByRole('heading', { level: 1, name: /Dental services at/i })
-    const color = (h1 as HTMLElement).style.color
-    // happy-dom serializes the inline color; it should be a darkened value, not
-    // the raw pale brand. Assert it's set and isn't the pale source.
-    expect(color).toBeTruthy()
-    expect(color.replace(/\s/g, '').toLowerCase()).not.toContain('#cfe8d6')
-    // The pale-mint string also shouldn't appear (rgb form) — a crude guard
-    // that we didn't fall through to the raw brand.
-    expect(color.toLowerCase()).not.toBe('rgb(207, 232, 214)')
+    // The H1 reads the template's --c-heading token (the palette recipe floors
+    // its contrast), never the raw pale brand. happy-dom drops a var()-with-
+    // fallback color from the serialized style, so assert the raw brand is
+    // absent and pin the wiring at the source.
+    const inline = (h1.getAttribute('style') ?? '').toLowerCase()
+    expect(inline).not.toContain('#cfe8d6')
+    expect(inline).not.toContain('rgb(207, 232, 214)')
+    const src = readFileSync(resolve(__dirname, '../../app/site/[slug]/services/page.tsx'), 'utf8')
+    expect(src).toMatch(/const headingInk = SITE_HEADING/)
   })
 
   // ── Wave 4: continuous Core→Special numbering ──────────────────────────

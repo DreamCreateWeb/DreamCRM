@@ -16,7 +16,8 @@ import {
 } from '@/components/patient-portal/ui'
 import { PortalIcon } from '@/components/patient-portal/portal-chrome'
 import { uploadFileWithProgress } from '@/lib/upload-with-progress'
-import { MAX_MESSAGE_ATTACHMENTS, isImageAttachment, type MessageAttachment } from '@/lib/types/messaging'
+import { MAX_MESSAGE_ATTACHMENTS, isImageAttachment, isPdfAttachment, type MessageAttachment } from '@/lib/types/messaging'
+import { DocumentChip } from '@/components/messaging/document-chip'
 
 /**
  * Patient ↔ front desk conversation, portal-side. One thread, plain
@@ -245,6 +246,9 @@ export default function PortalMessagesView({
                                     className="h-32 w-32 object-cover"
                                   />
                                 </a>
+                              ))}
+                              {m.attachments.filter(isPdfAttachment).map((a, i) => (
+                                <DocumentChip key={`doc-${a.url}-${i}`} attachment={a} />
                               ))}
                             </div>
                           )}

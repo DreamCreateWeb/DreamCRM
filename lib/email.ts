@@ -14,16 +14,53 @@ function emailDriver(): 'ses' | 'resend' {
   return process.env.EMAIL_DRIVER === 'ses' ? 'ses' : 'resend'
 }
 
-/** Plain-text fallback for the Gmail multipart/alternative text part. */
-function htmlToText(html: string): string {
-  return html
-    .replace(/<style[\s\S]*?<\/style>/gi, '')
-    .replace(/<\/(p|div|h\d|li|tr)>/gi, '\n')
-    .replace(/<br\s*\/?>/gi, '\n')
-    .replace(/<[^>]+>/g, '')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
+/** Decode the handful of entities our own `escapeHtml` + templates emit, plus
+ *  numeric references. `&amp;` goes LAST so `&amp;lt;` stays `&lt;`. */
+function decodeEntities(s: string): string {
+  return s
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&#x([0-9a-f]+);/gi, (_m, h: string) => safeCodePoint(parseInt(h, 16)))
+    .replace(/&#(\d+);/g, (_m, d: string) => safeCodePoint(parseInt(d, 10)))
+    .replace(/&quot;/gi, '"')
+    .replace(/&apos;/gi, "'")
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&amp;/gi, '&')
+}
+function safeCodePoint(n: number): string {
+  try {
+    return Number.isFinite(n) && n > 0 && n <= 0x10ffff ? String.fromCodePoint(n) : ''
+  } catch {
+    return ''
+  }
+}
+
+/**
+ * THE one HTML to plain-text derivation (every send's `text` part; the Emails
+ * hub's "Text version"). Strips head/style/script/comments (the Outlook VML
+ * button lives in a comment) and the hidden preheader, keeps links as
+ * "label (url)" (just the url when the label IS the url), turns block ends and
+ * `<br>` into line breaks, decodes entities, collapses whitespace.
+ */
+export function htmlToText(html: string): string {
+  return decodeEntities(
+    html
+      .replace(/<!--[\s\S]*?-->/g, '')
+      .replace(/<(head|style|script)\b[\s\S]*?<\/\1>/gi, '')
+      .replace(/<div[^>]*display:\s*none[^>]*>[\s\S]*?<\/div>/gi, '')
+      .replace(/<a\b[^>]*?href\s*=\s*(?:"([^"]*)"|'([^']*)')[^>]*>([\s\S]*?)<\/a>/gi, (_m, d: string | undefined, sq: string | undefined, inner: string) => {
+        const url = decodeEntities((d ?? sq ?? '').trim())
+        const label = decodeEntities(inner.replace(/<[^>]+>/g, '')).replace(/\s+/g, ' ').trim()
+        if (!url || /^(#|javascript:)/i.test(url)) return label
+        if (!label || label === url) return url
+        return `${label} (${url})`
+      })
+      .replace(/<\/(p|div|h\d|li|tr|table)>/gi, '\n')
+      .replace(/<br\s*\/?>/gi, '\n')
+      .replace(/<[^>]+>/g, ''),
+  )
     .replace(/[ \t]+/g, ' ')
+    .replace(/ *\n */g, '\n')
     .replace(/\n{3,}/g, '\n\n')
     .trim()
 }
@@ -219,6 +256,79 @@ ${opts.footnoteHtml ? `<p style="margin:18px 0 0;font-size:12px;line-height:1.5;
 </html>`
 }
 
+/**
+ * The shell for STAFF mail that speaks for the practice (the morning digest):
+ * the clinic's name or logo is the header and its colour the button, like
+ * `patientEmailShell` — it IS that shell (one recipe: Outlook-safe table, VML
+ * button, visible URL fallback) with the sender reduced to the brand. The
+ * footer is the clinic's name only; the caller's `footnoteHtml` carries the
+ * "manage your preferences" line. `body` / `footnoteHtml` are caller-escaped
+ * HTML; every other value is escaped inside.
+ */
+export function staffEmailShell(opts: {
+  clinicName: string
+  brandColor?: string | null
+  logoUrl?: string | null
+  title: string
+  body: string
+  cta?: { url: string; label: string }
+  preheader?: string
+  footnoteHtml?: string
+}): string {
+  return patientEmailShell({
+    sender: {
+      from: '',
+      replyTo: null,
+      name: opts.clinicName,
+      timeZone: '',
+      brandColor: opts.brandColor ?? null,
+      logoUrl: opts.logoUrl ?? null,
+    },
+    title: opts.title,
+    body: opts.body,
+    cta: opts.cta,
+    preheader: opts.preheader,
+    footnoteHtml: opts.footnoteHtml,
+  })
+}
+
+export interface DigestEmailSection {
+  heading: string
+  lines: string[]
+}
+
+/** The morning digest's body as HTML: a greeting-led note, the One Thing set
+ *  apart, each section a real heading with a list. Pure; every value escaped. */
+export function buildDigestEmailBody(d: {
+  name?: string | null
+  intro: string
+  happened?: string | null
+  oneThing?: string | null
+  sections: DigestEmailSection[]
+  closing?: string | null
+}): string {
+  const p = (t: string) => `<p style="margin:0 0 14px;">${escapeHtml(t)}</p>`
+  const out: string[] = []
+  out.push(p(d.name ? `Hi ${d.name.split(' ')[0]},` : 'Hi,'))
+  out.push(p(d.intro))
+  if (d.happened) out.push(`<p style="margin:0 0 14px;white-space:pre-wrap;">${escapeHtml(d.happened)}</p>`)
+  if (d.oneThing) {
+    out.push(
+      `<div style="margin:0 0 18px;padding:12px 14px;background:#f7f4ef;border-radius:8px;"><div style="font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#6b635a;">One thing today</div><div style="margin-top:4px;font-size:15px;color:#111111;">${escapeHtml(d.oneThing)}</div></div>`,
+    )
+  }
+  for (const s of d.sections) {
+    out.push(`<h2 style="margin:18px 0 6px;font-size:16px;font-weight:700;color:#111111;">${escapeHtml(s.heading)}</h2>`)
+    if (s.lines.length > 0) {
+      out.push(
+        `<ul style="margin:0 0 8px;padding-left:20px;">${s.lines.map((l) => `<li style="margin:0 0 4px;">${escapeHtml(l)}</li>`).join('')}</ul>`,
+      )
+    }
+  }
+  if (d.closing) out.push(`<p style="margin:16px 0 0;">${escapeHtml(d.closing)}</p>`)
+  return out.join('')
+}
+
 // Single delivery path for all transactional email. Defaults to Resend;
 // set EMAIL_DRIVER=ses to route through Amazon SES (lazy-imported so the
 // AWS SDK never loads on the Resend path). `from` overrides the default
@@ -329,7 +439,14 @@ export async function deliver(msg: {
    *  which is how per-message receipts map back to our rows. Ignored by the
    *  Gmail + SES transports. */
   tags?: Array<{ name: string; value: string }>
+  /** Extra MIME headers on the message (e.g. `Auto-Submitted: auto-replied`
+   *  on an automatic answer, so other robots never answer it back). */
+  headers?: Record<string, string>
+  /** The plain-text twin. Absent: derived ONCE from `html` (`htmlToText`),
+   *  so every send is readable in a text-only client. */
+  text?: string
 }): Promise<void> {
+  const text = msg.text ?? htmlToText(msg.html)
   // RFC-reserved domains (example.com/.net/.org, .test, .invalid, .example)
   // are undeliverable BY DEFINITION — every attempt is a guaranteed provider
   // rejection (observed as Resend 422s in prod boot logs, 2026-08-07) that
@@ -376,8 +493,9 @@ export async function deliver(msg: {
             from: gmail.from,
             to: [msg.to],
             subject: msg.subject,
-            bodyText: htmlToText(msg.html),
+            bodyText: text,
             bodyHtml: msg.html,
+            ...(msg.headers ? { extraHeaders: msg.headers } : {}),
           })
         })(),
         gmailBudgetMs,
@@ -396,7 +514,7 @@ export async function deliver(msg: {
     const { sendEmailViaSes } = await import('./ses')
     try {
       await withDeadline(
-        sendEmailViaSes({ from, to: msg.to, subject: msg.subject, html: msg.html, replyTo }),
+        sendEmailViaSes({ from, to: msg.to, subject: msg.subject, html: msg.html, text, replyTo, headers: msg.headers }),
         remainingMs(),
         'SES',
       )
@@ -419,8 +537,10 @@ export async function deliver(msg: {
         to: msg.to,
         subject: msg.subject,
         html: msg.html,
+        text,
         ...(replyTo ? { replyTo } : {}),
         ...(msg.tags?.length ? { tags: msg.tags } : {}),
+        ...(msg.headers && Object.keys(msg.headers).length ? { headers: msg.headers } : {}),
       }),
       remainingMs(),
       'Resend',
@@ -1106,6 +1226,42 @@ export async function sendNotificationEmail(input: NotificationEmailInput, sende
   })
 }
 
+/** The morning digest, rendered through the staff shell: the clinic's name,
+ *  real headings and lists, the One Thing as a callout, the day's door as the
+ *  button. */
+export async function sendStaffDigestEmail(input: {
+  to: string
+  name: string | null
+  clinicName: string
+  brandColor?: string | null
+  logoUrl?: string | null
+  subject: string
+  intro: string
+  happened?: string | null
+  oneThing?: string | null
+  sections: DigestEmailSection[]
+  closing?: string | null
+  linkPath: string
+  linkLabel?: string
+  /** A quieter second door, shown in the footnote (e.g. "Your whole day"). */
+  secondary?: { path: string; label: string }
+}) {
+  await deliver({
+    to: input.to,
+    subject: input.subject,
+    html: staffEmailShell({
+      clinicName: input.clinicName,
+      brandColor: input.brandColor,
+      logoUrl: input.logoUrl,
+      title: '',
+      preheader: input.oneThing ?? input.intro,
+      body: buildDigestEmailBody(input),
+      cta: { url: `${APP_URL}${input.linkPath}`, label: input.linkLabel ?? 'Open your day' },
+      footnoteHtml: `${input.secondary ? `<a href="${APP_URL}${escapeHtml(input.secondary.path)}" style="color:#57534e">${escapeHtml(input.secondary.label)}</a><br>` : ''}You're getting this because of your notification preferences. Manage them at <a href="${APP_URL}/settings/notifications" style="color:#57534e">settings &rarr; notifications</a>.`,
+    }),
+  })
+}
+
 export interface PatientMessageEmailData {
   to: string
   /** Patient first name for the greeting; null falls back to a generic "Hi,". */
@@ -1127,6 +1283,16 @@ export interface PatientMessageEmailData {
   gmail?: { accountId: string; from: string }
   /** Image attachments — rendered inline (hosted on S3) under the body. */
   attachments?: Array<{ url: string; name: string; contentType: string }>
+  /** Set on an AUTOMATIC answer (the after-hours auto-reply): the message
+   *  goes out in the clinic's branded shell and carries `Auto-Submitted:
+   *  auto-replied`, so no other robot ever answers it (RFC 3834). */
+  autoReply?: { sender: ClinicSender }
+}
+
+/** The headers every automatic answer of ours carries. */
+export const AUTO_REPLY_HEADERS: Record<string, string> = {
+  'Auto-Submitted': 'auto-replied',
+  'X-Auto-Response-Suppress': 'All',
 }
 
 /**
@@ -1156,6 +1322,30 @@ export async function sendPatientMessageEmail(data: PatientMessageEmailData) {
   const bodyHtml = data.body.trim()
     ? `<p style="margin:0 0 20px;color:#1c1917;line-height:1.6;white-space:pre-wrap">${escapeHtml(data.body)}</p>`
     : ''
+  // Documents (PDFs) are never attached to the email — the thread holds them.
+  const documents = (data.attachments ?? []).filter(
+    (a) => !a.contentType.startsWith('image/') && /^https?:\/\//i.test(a.url),
+  )
+  const documentsHtml = documents.length
+    ? `<p style="margin:0 0 20px;color:#57534e;line-height:1.6">${documents.length === 1 ? 'A document was' : `${documents.length} documents were`} shared with you in your patient portal.</p>`
+    : ''
+  if (data.autoReply) {
+    await deliver({
+      to: data.to,
+      from: data.from,
+      replyTo: data.replyTo,
+      gmail: data.gmail,
+      tags: data.tags,
+      headers: AUTO_REPLY_HEADERS,
+      subject: `A message from ${data.clinicName}`,
+      html: patientEmailShell({
+        sender: data.autoReply.sender,
+        title: '',
+        body: `<p style="margin:0 0 14px">${greeting}</p>${bodyHtml}`,
+      }),
+    })
+    return
+  }
   await deliver({
     to: data.to,
     from: data.from,
@@ -1168,6 +1358,7 @@ export async function sendPatientMessageEmail(data: PatientMessageEmailData) {
         <p style="margin:0 0 16px;color:#57534e">${greeting}</p>
         ${bodyHtml}
         ${attachmentsHtml}
+        ${documentsHtml}
         <p style="margin:0;color:#1c1917">— ${escapeHtml(data.clinicName)}</p>
         ${data.replyTo ? `<p style="margin:20px 0 0;font-size:12px;color:#a8a29e">You can reply directly to this email to reach us.</p>` : ''}
       </div>
@@ -1175,7 +1366,7 @@ export async function sendPatientMessageEmail(data: PatientMessageEmailData) {
   })
 }
 
-function escapeHtml(s: string): string {
+export function escapeHtml(s: string): string {
   return s
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')

@@ -20,7 +20,6 @@ import {
   hasColoringPages,
 } from '@/lib/clinic-site-helpers'
 import { publicVisitTypes } from '@/lib/types/visit-types'
-import { readableInk } from '@/lib/clinic-site-theme'
 import { SuccessWell } from '@/components/clinic-site/success-well'
 import { firstBookableDayInWindow } from '@/lib/services/booking'
 import { getPortalSettings } from '@/lib/services/portal-settings'
@@ -36,7 +35,7 @@ import ClosingCTA from '@/components/clinic-site/closing-cta'
 import { resolveSeoMeta, applySeoOverride } from '@/lib/types/seo-meta'
 import BookForm from './book-form'
 import RequestForm from './request-form'
-import { SITE_BG as BG, SITE_INK as INK, SITE_INK_MUTED as INK_MUTED, SITE_SURFACE as SURFACE, SITE_BORDER as BORDER } from '@/components/clinic-site/tokens'
+import { SITE_BG as BG, SITE_INK as INK, SITE_INK_MUTED as INK_MUTED, SITE_SURFACE as SURFACE, SITE_BORDER as BORDER, SITE_HEADING } from '@/components/clinic-site/tokens'
 import { resolveActiveSiteTemplate } from '@/lib/site-templates/resolve'
 
 
@@ -193,7 +192,7 @@ export default async function BookPage({ params, searchParams }: Props) {
   // Contrast-safe text fill for brand-colored headings/eyebrows on the warm
   // ground — same treatment every other site page uses. Raw `brand` still
   // paints backgrounds, pill tints, and decorative SVG strokes.
-  const headingInk = readableInk(brand)
+  const headingInk = SITE_HEADING
   const copyOverrides = (data.profile.copyOverrides as Record<string, string> | null) ?? null
   const basePath = await resolveSiteBasePath(slug)
   // Whether ANY day in the bookable window has an opening, so we can surface a

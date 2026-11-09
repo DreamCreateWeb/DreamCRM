@@ -9,7 +9,7 @@ import type {
   ClinicStaff,
 } from '@/lib/types/clinic-content'
 import { officePhotoAlt } from '@/lib/types/clinic-content'
-import { readableInk, brandFill } from '@/lib/clinic-site-theme'
+import { brandFill } from '@/lib/clinic-site-theme'
 import {
   firstSentence,
   copyOverride,
@@ -30,7 +30,7 @@ import GoogleRatingBadge, { GOOGLE_RATING_MIN_COUNT } from '@/components/clinic-
 import ScrollReveal from '@/components/clinic-site/scroll-reveal'
 import { RippleMotif, ArcDivider, GrainOverlay, SparkleGlyph } from '@/components/clinic-site/decor'
 import { resolveLeadForm, type LeadFormsConfig } from '@/lib/types/lead-forms'
-import { SITE_BG as BG, SITE_INK as INK, SITE_INK_MUTED as INK_MUTED, SITE_SURFACE as SURFACE, SITE_BORDER as BORDER } from '@/components/clinic-site/tokens'
+import { SITE_BG as BG, SITE_INK as INK, SITE_INK_MUTED as INK_MUTED, SITE_SURFACE as SURFACE, SITE_BORDER as BORDER, SITE_HEADING } from '@/components/clinic-site/tokens'
 import { brandTint } from '@/lib/brand-tint'
 import SiteImage from '../../site-image'
 import { HERO_IMAGE_DISPLAY_WIDTH } from '@/lib/site-image'
@@ -129,7 +129,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
   // Contrast-safe text fill for brand-colored headings/eyebrows/links/numerals
   // on the warm ground. Raw `brand` stays on backgrounds, borders, pills, and
   // SVG icon strokes (decorative accents); only text fills route through this.
-  const headingInk = readableInk(brand)
+  const headingInk = SITE_HEADING
   // Live Google rating for the hero trust badge — shown only when the synced
   // average exists AND there are enough real reviews to headline honestly.
   const showGoogleRating =

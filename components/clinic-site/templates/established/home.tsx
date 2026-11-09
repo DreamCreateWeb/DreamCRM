@@ -40,6 +40,7 @@ import {
   SITE_DEEP,
   SITE_DEEP_INK,
   SITE_DEEP_MUTED,
+  SITE_HEADING as HEADING,
 } from '@/components/clinic-site/tokens'
 import SiteImage from '../../site-image'
 import { HERO_IMAGE_DISPLAY_WIDTH } from '@/lib/site-image'
@@ -64,7 +65,6 @@ const ACCENT = 'var(--c-brand-strong, #B5121B)'
 const ACCENT_INK = 'var(--c-brand-ink, #FFFFFF)'
 const ACCENT_SOFT = 'var(--c-brand-soft, #F6E3E4)'
 const ACCENT_SOFT_INK = 'var(--c-brand-soft-ink, #8E0E15)'
-const HEADING = 'var(--c-heading, #152238)'
 
 /** The signature: the LAST word of a headline set in the accent italic with
  *  a gold underline. Pure text in → spans out; the wrapping EditText still

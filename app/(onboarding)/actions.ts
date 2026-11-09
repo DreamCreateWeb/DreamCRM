@@ -11,6 +11,8 @@ import { seedClinicDay0Defaults } from '@/lib/onboarding/defaults'
 import { applyStarterFloor } from '@/lib/services/starter-pack'
 import { RESERVED_SLUGS, SLUG_PATTERN } from '@/lib/onboarding/slug'
 import { slugify } from '@/lib/utils'
+import { isPmsAnswer, isVendorAnswer } from '@/lib/onboarding/pms-answer'
+import { validatePmsConnectRequest } from '@/lib/pms-connect'
 import { trialEndDate } from '@/lib/trial'
 import { ATTRIBUTION_COOKIE, parseAttributionCookie, type SignupAttribution } from '@/lib/marketing-attribution'
 
@@ -19,43 +21,24 @@ function isUniqueViolation(err: unknown): boolean {
   return typeof err === 'object' && err !== null && (err as { code?: string }).code === '23505'
 }
 
-const Step1 = z.object({
+// The practice step — identity + address (the address is required: the public
+// site's footer and the map read it).
+const PracticeStep = z.object({
   practiceName: z.string().trim().min(1, 'Tell us your practice name').max(200),
   phone: z.string().trim().max(40).optional(),
-})
-const Step2 = z.object({
-  street: z.string().trim().min(1).max(200),
-  city: z.string().trim().min(1).max(100),
+  street: z.string().trim().min(1, 'Add the street address').max(200),
+  city: z.string().trim().min(1, 'Add the city').max(100),
   state: z.string().trim().max(100).optional(),
-  postalCode: z.string().trim().min(1).max(20),
+  postalCode: z.string().trim().min(1, 'Add the ZIP / postal code').max(20),
   country: z.string().trim().min(1).max(100),
 })
 
-const Step3 = z.object({
-  slug: z
-    .string()
-    .trim()
-    .toLowerCase()
-    .min(3, 'At least 3 characters')
-    .max(40)
-    .regex(SLUG_PATTERN, 'Lowercase letters, numbers, and hyphens only'),
-  brandColor: z.string().regex(/^#[0-9a-fA-F]{6}$/, 'Pick a valid color').optional(),
-})
-
-// Steps 1-3 just validate input and route forward; the form components persist
-// drafts to sessionStorage via lib/onboarding/storage.ts. The real DB writes
-// happen in submitOnboarding when the user picks a plan in step 4.
-export async function saveOnboardingStep1(input: z.infer<typeof Step1>) {
-  Step1.parse(input)
+// Screen 2 of 3 just validates input and routes forward; the form persists its
+// draft to sessionStorage via lib/onboarding/storage.ts. The real DB writes
+// happen in submitOnboarding on the last screen (software + web address).
+export async function saveOnboardingPractice(input: z.infer<typeof PracticeStep>) {
+  PracticeStep.parse(input)
   redirect('/onboarding-02')
-}
-export async function saveOnboardingStep2(input: z.infer<typeof Step2>) {
-  Step2.parse(input)
-  redirect('/onboarding-03')
-}
-export async function saveOnboardingStep3(input: z.infer<typeof Step3>) {
-  Step3.parse(input)
-  redirect('/onboarding-04')
 }
 
 async function slugTaken(slug: string): Promise<boolean> {
@@ -77,7 +60,7 @@ export interface SlugCheckResult {
 
 /**
  * Live availability check for the clinic's web address
- * ({slug}.dreamcreatestudio.com) — used by onboarding step 3.
+ * ({slug}.dreamcreatestudio.com) — used by the onboarding web-address field.
  */
 export async function checkClinicSlug(raw: string): Promise<SlugCheckResult> {
   const session = await auth.api.getSession({ headers: await headers() })
@@ -120,6 +103,11 @@ const SubmitInput = z.object({
   country: z.string().trim().max(100).optional(),
   slug: z.string().trim().toLowerCase().max(40).optional(),
   brandColor: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
+  /** Which practice software they run: a PMS_VENDORS id, 'none' or 'unsure';
+   *  omitted = skipped (the first-week cockpit asks again). */
+  pmsAnswer: z.string().trim().max(40).optional(),
+  /** What a "Something else" software is called (the request needs a name). */
+  pmsVendorName: z.string().trim().max(80).optional(),
   /** The signer-upper's browser IANA timezone — the clinic's wall-clock
    *  default (validated server-side; falls back to the app default if bogus). */
   timeZone: z.string().trim().max(64).optional(),
@@ -270,6 +258,10 @@ export async function submitOnboarding(input: z.infer<typeof SubmitInput>): Prom
     }
   })()
 
+  // The software answer: a known id / 'none' / 'unsure'; anything else (or a
+  // skip) stores nothing — null is "not asked", never a guess.
+  const pmsAnswer = isPmsAnswer(data.pmsAnswer) ? data.pmsAnswer : null
+
   await db
     .insert(schema.clinicProfile)
     .values({
@@ -284,6 +276,7 @@ export async function submitOnboarding(input: z.infer<typeof SubmitInput>): Prom
       country: data.country?.trim() || 'US',
       brandColor: data.brandColor || null,
       timezone: timeZone,
+      pmsAnswer,
       // Start the no-card 7-day trial: full Premium access, no Stripe. The paid
       // tier + subscription are set later by the webhook on conversion, and a
       // real paid sub then overrides these (see lib/trial.ts). On CONFLICT we
@@ -301,7 +294,7 @@ export async function submitOnboarding(input: z.infer<typeof SubmitInput>): Prom
       target: schema.clinicProfile.organizationId,
       set: {
         // EVERY field is conditionally spread: a re-submit with an empty
-        // draft (browser Back to /onboarding-04 after completion cleared
+        // draft (browser Back to /onboarding-02 after completion cleared
         // sessionStorage) must be a no-op, never a wipe of the real clinic
         // name/address to nulls.
         ...(data.practiceName?.trim() ? { legalName: displayName, displayName } : {}),
@@ -313,12 +306,43 @@ export async function submitOnboarding(input: z.infer<typeof SubmitInput>): Prom
         ...(data.country?.trim() ? { country: data.country.trim() } : {}),
         ...(data.brandColor ? { brandColor: data.brandColor } : {}),
         ...(timeZone ? { timezone: timeZone } : {}),
+        ...(pmsAnswer ? { pmsAnswer } : {}),
         // planTier / billingMode / subscriptionStatus / trialEndsAt are
         // intentionally NOT updated on conflict — set once at creation, then
         // owned by the trial + the Stripe webhook.
         updatedAt: new Date(),
       },
     })
+
+  // A VENDOR answer files the connect request on day 0 so the first-week
+  // cockpit and the platform both see it (the same upsert + support-thread post
+  // as /integrations/pms). Filed ONCE: an existing request is never re-posted
+  // by a re-submit. 'none' / 'unsure' / skip file nothing. Best-effort.
+  if (pmsAnswer && isVendorAnswer(pmsAnswer)) {
+    try {
+      const { getPmsConnectRequest, submitPmsConnectRequest } = await import('@/lib/services/pms-connect')
+      if (!(await getPmsConnectRequest(orgId))) {
+        const checked = validatePmsConnectRequest({
+          vendor: pmsAnswer,
+          vendorName: data.pmsVendorName || 'Not named yet',
+          practiceNameInPms: displayName,
+          contactName: session.user.name || displayName,
+          contactEmail: session.user.email,
+          contactPhone: data.phone,
+        })
+        if (checked.ok) {
+          await submitPmsConnectRequest({
+            organizationId: orgId,
+            userId: session.user.id,
+            clinicName: displayName,
+            input: checked.value,
+          })
+        }
+      }
+    } catch (err) {
+      console.warn('[onboarding] could not file the PMS connect request', err)
+    }
+  }
 
   // Every clinic starts with the standard new-patient intake form (idempotent
   // — re-running onboarding never duplicates it). Best-effort: a hiccup here

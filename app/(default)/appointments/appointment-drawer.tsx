@@ -154,6 +154,9 @@ export default function AppointmentDrawer({
         intakeAttached: d.intakeAttached
           ? { ...d.intakeAttached, submittedAt: new Date(d.intakeAttached.submittedAt) }
           : null,
+        intakeStatus: d.intakeStatus
+          ? { ...d.intakeStatus, at: d.intakeStatus.at ? new Date(d.intakeStatus.at) : null }
+          : undefined,
       }
       setDetail(rehydrated as AppointmentDetail)
     } catch (e) {
@@ -592,7 +595,12 @@ export default function AppointmentDrawer({
                     )}
                   </div>
                 )}
-                {detail.intakeAttached ? (
+                {detail.intakeStatus?.kind === 'on_file' && detail.intakeStatus.at && (
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+                    On file since {detail.intakeStatus.at.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                  </p>
+                )}
+                {detail.intakeAttached && detail.intakeStatus?.kind !== 'requested' && detail.intakeStatus?.kind !== 'due' ? (
                   <p className="text-sm text-gray-700 dark:text-gray-200">
                     {detail.intakeAttached.formTitle} · submitted {fmtRelative(detail.intakeAttached.submittedAt)}
                     {' · '}
@@ -600,7 +608,11 @@ export default function AppointmentDrawer({
                   </p>
                 ) : (
                   <p className="text-xs text-amber-700 dark:text-amber-300">
-                    No intake on file for this patient yet.{' '}
+                    {detail.intakeStatus?.kind === 'requested' && detail.intakeStatus.at
+                      ? `Requested ${fmtRelative(detail.intakeStatus.at)} — nothing back yet.`
+                      : detail.intakeStatus?.kind === 'due'
+                        ? 'Due — not sent yet.'
+                        : 'No intake on file for this patient yet.'}{' '}
                     <SendIntakeInline
                       patientId={detail.patient.id}
                       label="Send the form"
