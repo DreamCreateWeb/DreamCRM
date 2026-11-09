@@ -1,3 +1,5 @@
+import { MapLink } from '@/components/clinic-site/map-block'
+import { siteOffices } from '@/lib/site-offices'
 import type {
   ClinicService,
   ClinicStaff,
@@ -227,9 +229,7 @@ export default function HometeamHome(props: HomePageProps) {
   const place = p.city ? `${p.city}${p.state ? `, ${p.state}` : ''}` : null
   const loc = data.primaryLocation
   const addressLine1 = loc?.addressLine1 ?? p.addressLine1
-  const mapsQuery = [addressLine1, loc?.city ?? p.city, loc?.state ?? p.state, loc?.postalCode ?? p.postalCode]
-    .filter(Boolean)
-    .join(', ')
+  const mainOffice = siteOffices(data)[0] ?? null
 
   // The scoreboard: the clinic's own stats, the review count resolved live
   // and dropped when it is zero. Three columns at most.
@@ -760,16 +760,8 @@ export default function HometeamHome(props: HomePageProps) {
                     </p>
                   )}
                   <div className="flex flex-wrap gap-5">
-                    {mapsQuery && (
-                      <a
-                        href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(mapsQuery)}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        {...linkCaps}
-                        className={`${linkCaps.className} !text-sm`}
-                      >
-                        Directions →
-                      </a>
+                    {mainOffice && (
+                      <MapLink office={mainOffice} label="Directions →" {...linkCaps} className={`${linkCaps.className} !text-sm`} />
                     )}
                     {p.phone && (
                       <a href={`tel:${p.phone}`} className="text-sm font-bold" style={{ color: SITE_INK }}>

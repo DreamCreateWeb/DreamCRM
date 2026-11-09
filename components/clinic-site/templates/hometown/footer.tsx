@@ -3,6 +3,7 @@ import { intakeDoorOpen } from '@/lib/feature-switches'
 import { EditText } from '@/components/clinic-site/editable'
 import { SITE_DEEP, SITE_DEEP_INK, SITE_DEEP_MUTED } from '@/components/clinic-site/tokens'
 import { DAYS, DAY_LABEL, hoursEntryDisplay, copyOverride, type HoursMap, intakeStartHref } from '@/lib/clinic-site-helpers'
+import VisitExtras from '@/components/clinic-site/visit-extras'
 
 /**
  * Hometown footer — the deep brand band, information-first: a plain-spoken
@@ -87,6 +88,7 @@ export default function HometownFooter({
                 {email}
               </a>
             )}
+            <VisitExtras data={data} />
           </div>
 
           <div>
