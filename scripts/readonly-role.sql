@@ -91,7 +91,8 @@ REVOKE SELECT ON
   prospect_meeting,             -- token: the /d demo self-booking landing
   practice_grade,               -- token: the practice-grader report
   marketing_event,              -- capture_token
-  event_capture                 -- token
+  event_capture,                -- token
+  two_factor                    -- TOTP secret + hashed backup codes (ML-58)
 FROM dreamcrm_readonly;
 
 -- 4b. The applied-migration ledger, which does NOT live in `public`.

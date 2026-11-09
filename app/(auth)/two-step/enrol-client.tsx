@@ -2,14 +2,16 @@
 
 import { TwoStepEnrol } from '@/components/auth/two-step'
 import { signOut } from '@/lib/auth/client'
-import { runAction } from '@/lib/run-action'
 
 export default function EnrolClient() {
   async function leave() {
-    await runAction(async () => {
+    // An auth screen's await sits inside a try (the public-forms guard): a
+    // failed sign-out still leaves the page — /signin re-reads the session.
+    try {
       await signOut()
-      return { ok: true as const }
-    })
+    } catch {
+      /* fall through to the redirect */
+    }
     window.location.assign('/signin')
   }
   return (
