@@ -6172,6 +6172,53 @@ template with no bar, or a bar hidden above `sm`, measures 0 and nothing
 moves. The right-aligned pairs on established and hometeam are
 deliberately not tagged — the bottom-left floaters never meet them.
 
+## 2026-11-09 — The deep dev cycle, part 13: the last three slices (group 14)
+
+The 63-slice plan closes: 61 built (ML-61 automatic pre-visit insurance
+verification and ML-62 the chair view stay owner-gated). Three slices
+merged as true merges on the part-12 head; ML-60's migration (0190, a
+DROP) was generated on a tree that already carried 0189, so it kept its
+number. ML-54 and ML-60 both flipped the same stale rulebook STATE line
+and both registered a grader — resolved keeping both entries.
+
+**ML-54 — one page frame for every module.** `components/ui/page-frame.tsx`
+(`PageFrame`, `frameEyebrow`, `PAGE_FRAME_WIDTHS`) owns the gutters (16px
+phone, 24px sm, 32px lg), a width token and the PageHeader with the eyebrow
+rule — a top-level page passes `group` + `clinicName` and gets `<Group> ·
+<clinic>`; a sub-page passes `hub` and gets the way back; slots for
+ModuleHint, the PagePulse, actions and the legend; no `<main>` of its own
+(DashboardShell owns it). 59 of 113 pages adopt it (settings excluded —
+ML-55's area); the 29 redirect stubs are exempt; 25 pages that hand-roll
+their frame inside a client workspace sit on a dated shrink-only
+allowlist (`tests/guards/page-frame-adoption.test.ts`, registered in
+INTAKE_RULES). The 390/834/1440 e2e walk grows from 9 to 32 pages.
+
+**ML-56 — one Modal primitive.** `components/ui/modal.tsx`: below `sm` a
+bottom sheet (grab handle, safe-area padding, an 85dvh scroll); from `sm`
+a centred dialog; `useFocusTrap` (with `focusSelector`), a nesting-safe
+body scroll lock; Escape / backdrop / X close it and `blocking` refuses all
+three; `confirm-dialog` is rebuilt on it with the same API (the dialog law
+in the file header). 29 modals across 27 files migrated (the patient and
+appointment modals, the audience editors, the clinics / partners / leads /
+prospecting modals, merge-duplicate — which keeps `backdropClose={false}`
+because it ends in an irreversible merge — the Studio and welcome modals,
+eleven Headless UI dialogs); the pending-save modals refuse close while
+busy. Side drawers, popovers, palettes and the lightbox stay what they are
+on a dated allowlist (20 sites) held by `tests/ui/no-hand-rolled-modal.test.ts`
+(registered in INTAKE_RULES). Follow-up: the modal-at-390 e2e check.
+
+**ML-60 — the dead bones.** `billing_profiles` and its `billing_plan` enum
+dropped (migration 0190; proof: no product reader or writer — only the
+schema, comments, one mock and the guard that held it at zero, all
+removed with it); `scripts/find-dead-bones.mjs` builds an import graph
+over app / components / lib / tests / e2e / scripts (`@/`, relative,
+`import()`, `require`, `vi.mock`) and finds zero unreferenced components
+(ML-55's leftovers were already gone); the ten pages nothing links to are
+deliberate permanent redirects for old bookmarks and emailed links, kept
+on a dated allowlist; two new guards (`tests/guards/dead-components.test.ts`,
+`tests/guards/reachable-routes.test.ts`, both in INTAKE_RULES) fail on a
+stale allowlist entry.
+
 ## 2026-11-09 — The deep dev cycle, part 12: six feature slices (group 13)
 
 Six slices merged as true merges on the part-11 head; TWO regenerated
