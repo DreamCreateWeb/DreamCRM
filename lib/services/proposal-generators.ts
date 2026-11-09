@@ -23,6 +23,7 @@ import { generateInquiryFollowupProposals } from '@/lib/services/proposal-genera
 import { generatePostVisitCare } from '@/lib/services/proposal-generators/post-visit-care'
 import { generatePostopCheckinProposals } from '@/lib/services/proposal-generators/postop-checkin'
 import { generateRebookNudgeProposals } from '@/lib/services/proposal-generators/rebook-nudge'
+import { generateNewsletterProposals } from '@/lib/services/proposal-generators/newsletter'
 import { clinicLocalHour, clinicWeekStart } from '@/lib/clinic-timezone'
 import { resolveTrialState } from '@/lib/trial'
 import { sweepClinics } from '@/lib/services/cron-sweep'
@@ -186,6 +187,11 @@ export const STEP_FAILURE: Record<string, { capability: string; summary: string 
   listing_watch: {
     capability: 'listing_watch',
     summary: 'Couldn’t note a change on your Google listing just now — I’ll keep trying.',
+  },
+  // ML-36: the monthly newsletter draft (AI-free; a failure is a card not filed).
+  newsletter: {
+    capability: 'newsletter',
+    summary: 'Couldn’t put together this month’s newsletter just now — I’ll keep trying.',
   },
   // ML-28: the day-after check-in.
   postop_checkin: {
@@ -472,6 +478,9 @@ function makeOrgPass(result: Omit<GeneratorRunResult, 'sweep'>, now: Date): (org
         // No AI, no patient mail — reads the hourly sync's snapshot and
         // files at most one card a month.
         ['gbp_website_fix', () => generateGbpWebsiteFixProposals(org.id, now, tz)],
+        // ML-36: the month's first weekday files the drafted newsletter for a
+        // yes (a DRAFT campaign — it never sends). Deterministic, AI-free.
+        ['newsletter', () => generateNewsletterProposals(org.id, now, tz)],
         // ML-29: the one patient who left the chair a week ago without the
         // next visit booked — before the week-ahead and recall cards below,
         // which reach the same inbox; it stands down for anyone a campaign

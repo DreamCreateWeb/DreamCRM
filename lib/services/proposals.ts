@@ -13,6 +13,7 @@ import { executeFeedbackReply } from '@/lib/services/proposal-executors/feedback
 import { executeInquiryFollowup } from '@/lib/services/proposal-executors/inquiry-followup'
 import { executePostopCheckin } from '@/lib/services/proposal-executors/postop-checkin'
 import { executeRebookNudge } from '@/lib/services/proposal-executors/rebook-nudge'
+import { executeNewsletter } from '@/lib/services/proposal-executors/newsletter'
 import { resolveTrialState } from '@/lib/trial'
 import { stagesOnRunway } from '@/lib/dream-team-runway'
 
@@ -321,6 +322,9 @@ export async function countOpenProposals(
      * sentence about that customer's staff, against the anti-shame law.
      */
     excludeHandedBack?: boolean
+    /** Count only these capabilities' cards (ML-36: a Growth page asks about
+     *  the lanes it fronts — same predicate, narrower question). */
+    capabilities?: readonly string[]
   } = {},
 ): Promise<number> {
   const now = new Date()
@@ -336,6 +340,7 @@ export async function countOpenProposals(
         or(isNull(schema.proposal.expiresAt), gt(schema.proposal.expiresAt, now)),
         ...(mine ? [not(mine)] : []),
         ...(opts.excludeHandedBack ? [notHandedBack()] : []),
+        ...(opts.capabilities ? [inArray(schema.proposal.capability, Array.from(opts.capabilities))] : []),
       ),
     )
   return Number(row?.c ?? 0)
@@ -732,7 +737,7 @@ export async function approveProposal(
   organizationId: string,
   proposalId: string,
   userId: string,
-  opts: { body?: string; subject?: string; answer?: string; imageUrl?: string } = {},
+  opts: { body?: string; subject?: string; answer?: string; imageUrl?: string; planPhotos?: PlanPhotoInput[] } = {},
 ): Promise<DecideResult> {
   return decideAndExecute(organizationId, proposalId, { kind: 'human', userId }, opts)
 }
@@ -755,7 +760,7 @@ async function decideAndExecute(
   organizationId: string,
   proposalId: string,
   actor: DecisionActor,
-  opts: { body?: string; subject?: string; answer?: string; imageUrl?: string } = {},
+  opts: { body?: string; subject?: string; answer?: string; imageUrl?: string; planPhotos?: PlanPhotoInput[] } = {},
 ): Promise<DecideResult> {
   // Structured ANSWER (setup asks — onboarding overhaul): a short typed value
   // the card collects ("3" chairs, "requests" vs "direct"). Rides the payload
@@ -810,6 +815,39 @@ async function decideAndExecute(
       await db
         .update(schema.proposal)
         .set({ payload: { ...payload, imageUrl }, updatedAt: new Date() })
+        .where(
+          and(
+            eq(schema.proposal.organizationId, organizationId),
+            eq(schema.proposal.id, proposalId),
+            eq(schema.proposal.status, 'open'),
+          ),
+        )
+    }
+  }
+  // ATTACHED PLAN PHOTOS (ML-36, G3-22): the approver's per-piece photos ride
+  // the payload pre-claim exactly like the single-post image above — onto the
+  // SOCIAL items only, validated like every plan photo, so the executor
+  // schedules each piece with the photo the card showed. Never a stock image:
+  // only the clinic's own uploaded http(s) URL survives.
+  if (opts.planPhotos && opts.planPhotos.length > 0) {
+    const { validatePlanPhoto } = await import('@/lib/content-calendar')
+    const [current] = await db
+      .select({ payload: schema.proposal.payload, capability: schema.proposal.capability })
+      .from(schema.proposal)
+      .where(and(eq(schema.proposal.organizationId, organizationId), eq(schema.proposal.id, proposalId)))
+      .limit(1)
+    if (current && current.capability === 'content_plan') {
+      const payload = (current.payload ?? {}) as Record<string, unknown>
+      const items = Array.isArray(payload.items) ? (payload.items as Array<Record<string, unknown>>).map((x) => ({ ...x })) : []
+      for (const ph of opts.planPhotos) {
+        const photo = validatePlanPhoto({ url: ph.url })
+        if (!photo) return { ok: false, error: 'That photo didn’t attach cleanly — try uploading it again.' }
+        const item = items[ph.index]
+        if (item && item.kind !== 'blog') item.photo = photo
+      }
+      await db
+        .update(schema.proposal)
+        .set({ payload: { ...payload, items }, updatedAt: new Date() })
         .where(
           and(
             eq(schema.proposal.organizationId, organizationId),
@@ -1125,6 +1163,12 @@ async function reopen(
 
 // ── Executors ─────────────────────────────────────────────────────────────────
 
+/** One attached photo for a content plan's social piece (ML-36). */
+export interface PlanPhotoInput {
+  index: number
+  url: string
+}
+
 export type ExecResult =
   | { ok: true; ledgerSummary: string; ledgerDetail?: Record<string, unknown> }
   | {
@@ -1195,6 +1239,8 @@ async function executeProposal(
       return executeScheduleGap(p, payload, saidYes)
     case 'rebook_nudge':
       return executeRebookNudge(p, payload, saidYes)
+    case 'newsletter':
+      return executeNewsletter(p, payload, saidYes)
     case 'gbp_website_fix':
       return executeGbpWebsiteFix(p, payload, saidYes)
     case 'setup_hours':
@@ -1223,6 +1269,7 @@ function demoLedgerSummary(p: typeof schema.proposal.$inferSelect, saidYes: stri
     case 'content_plan': return `Lined up a month of posts and articles ${saidYes}`
     case 'schedule_gap': return `Invited patients in for the week’s open times ${saidYes}`
     case 'rebook_nudge': return `Nudged a patient to book their next visit ${saidYes}`
+    case 'newsletter': return `Drafted the monthly newsletter in your campaigns ${saidYes}`
     case 'gbp_website_fix': return `Pointed your Google listing at your website ${saidYes}`
     // ML-35: listing_watch files no proposals (an auto, report-only lane) —
     // the line exists so a stray demo-mode row still reads like the narrator.
@@ -1883,7 +1930,14 @@ async function executeContentPlan(
     }
     const r = await createSocialPost(
       p.organizationId,
-      { postType: 'standard', summary: item.body, accountIds, scheduledAt: at.toISOString() },
+      {
+        postType: 'standard',
+        summary: item.body,
+        accountIds,
+        scheduledAt: at.toISOString(),
+        // G3-22: the photo the approver attached to THIS piece, if any.
+        ...(item.photo ? { imageUrl: item.photo.url } : {}),
+      },
       { onPersisted: async (postId) => stampDone(i, postId) },
     )
     if (!r.ok) {

@@ -22,6 +22,9 @@ import { getSmsRegistration, smsDriver } from '@/lib/services/sms-registration'
 import { POLLING_STATES } from '@/lib/sms-registration'
 import { PageHeader } from '@/components/ui/page-header'
 import { PagePulse } from '@/components/ui/page-pulse'
+import { TeamDidItBand } from '@/components/ui/team-did-it-band'
+import { teamDidIt, TEAM_DID_IT_QUIET } from '@/lib/services/team-did-it'
+import { REVIEWS_LANES } from '@/lib/team-did-it-lanes'
 import { ActionButton } from '@/components/ui/action-button'
 import { StatusPill } from '@/components/ui/status-pill'
 import { KpiStat } from '@/components/ui/kpi-stat'
@@ -117,6 +120,8 @@ export default async function ReviewsPage() {
   ])
   // Server runs UTC — the relative-date fallback below renders clinic-local.
   const tz = await getClinicTimeZone(ctx.organizationId)
+  // What the Dream Team already did for reviews this week (ML-36).
+  const teamDid = await teamDidIt(ctx.organizationId, REVIEWS_LANES.capabilities, { timeZone: tz }).catch(() => TEAM_DID_IT_QUIET)
   const eligibleCount = eligibleAll.length
   const eligible = eligibleAll.slice(0, 25)
 
@@ -184,6 +189,8 @@ export default async function ReviewsPage() {
           ...(googleStats.needsReply > 0 ? [{ label: 'awaiting a reply', value: googleStats.needsReply, tone: 'warn' as const }] : []),
         ]}
       />
+
+      <TeamDidItBand data={teamDid} what={REVIEWS_LANES.what} />
 
       {/* ── Setup gate — the Google review link is the hero ─────────── */}
       {!hasGoogleLink && (
