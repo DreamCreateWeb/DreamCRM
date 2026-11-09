@@ -330,6 +330,15 @@ export const clinicProfile = pgTable('clinic_profile', {
   // is the clinic's real address. Null = use the Tier 1 platform sender. No hard
   // FK (cross-schema-file); validated on read, falls back to Tier 1 if missing.
   emailSendingAccountId: text('email_sending_account_id'),
+  // Tier 3 (ML-63) — the practice's own sending domain, registered with Resend
+  // once the custom domain is active. Status 'pending' | 'verified' | 'failed'
+  // (null = never requested); records = the DNS rows to copy (never MX).
+  emailDomainId: text('email_domain_id'),
+  emailDomainName: text('email_domain_name'),
+  emailDomainStatus: text('email_domain_status'),
+  emailDomainRecords: jsonb('email_domain_records'),
+  emailDomainCheckedAt: timestamp('email_domain_checked_at'),
+  emailDomainVerifiedAt: timestamp('email_domain_verified_at'),
 
   // Opaque token for the subscribable read-only .ics calendar feed
   // (/api/calendar/<token>). The token IS the auth (calendar apps can't carry a
