@@ -335,7 +335,7 @@ describe('fullBreakdownAction (2026-10-08)', () => {
   it('runs the breakdown under the session org and user, revalidates the page and the record, and is gated like a check', async () => {
     const r = await fullBreakdownAction(request, 'pat_1')
     expect(r.ok).toBe(true)
-    expect(runFullBreakdown).toHaveBeenCalledWith('org_1', { input: request, patientId: 'pat_1', userId: 'user_staff' })
+    expect(runFullBreakdown).toHaveBeenCalledWith('org_1', { input: request, patientId: 'pat_1', rank: 'primary', userId: 'user_staff' })
     tenantCtx.tenantType = 'platform'
     runFullBreakdown.mockClear()
     expect((await fullBreakdownAction(request, null)).ok).toBe(false)

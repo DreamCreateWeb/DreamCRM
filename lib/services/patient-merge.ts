@@ -149,6 +149,14 @@ export async function mergePatients(
       .where(eq(schema.patient.id, duplicateId))
   })
 
+  // ML-50: the duplicate's second plan comes along when the survivor has none. Best-effort.
+  try {
+    const { carrySecondaryOnMerge } = await import('@/lib/services/insurance-eligibility/plans')
+    await carrySecondaryOnMerge(organizationId, survivorId, duplicateId)
+  } catch (e) {
+    console.error('[patient-merge] second plan carry failed:', e)
+  }
+
   return { ok: true, survivorId }
 }
 

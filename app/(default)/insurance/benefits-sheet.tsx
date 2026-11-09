@@ -137,17 +137,33 @@ function ReplacementChoice({ label, months }: { label: string; months: number | 
  * blanks — printed as blanks, because a question the payer didn't answer is
  * still a question. SSN is always blank: nothing here collects it.
  */
+/** One coverage slot on the sheet's "Coverage on file" strip (ML-50). */
+export interface SheetPlan {
+  carrier: string | null
+  memberId: string | null
+  groupNumber: string | null
+  /** "Verified Nov 3, 2026" (clinic-tz, from the latest RECOGNISED check of this rank) or null = not verified yet. */
+  verified: string | null
+}
+export interface SheetPlans {
+  primary: SheetPlan | null
+  secondary: SheetPlan | null
+}
+
 export function BenefitsSheet({
   check,
   clinicName,
   timeZone,
   practice = null,
+  plans = null,
 }: {
   check: InsuranceCheckView
   clinicName: string
   timeZone: string
   /** The practice's notebook for this payer (fee schedule, network, pays-on, claims address, phone). */
   practice?: PayerNoteView | null
+  /** Both plans on the record, when it carries a second one — the sheet shows both, this check is for one. */
+  plans?: SheetPlans | null
 }) {
   const r = check.result
   const inp = check.input
@@ -205,9 +221,27 @@ export function BenefitsSheet({
       <style>{PRINT_CSS}</style>
       <div id="benefits-sheet" className="hidden bg-white text-black" data-testid="benefits-sheet">
         <div className="flex items-baseline justify-between gap-4 border-b-2 border-black pb-2">
-          <h1 className="text-[22px] font-extrabold">Insurance verification</h1>
+          <h1 className="text-[22px] font-extrabold">
+            Insurance verification{plans?.secondary ? ` · ${check.rank === 'secondary' ? 'Secondary' : 'Primary'} plan` : ''}
+          </h1>
           <p className="text-[13px]">{clinicName}</p>
         </div>
+
+        {plans?.primary && plans.secondary && (
+          <div className="mt-2 border border-black p-2 text-[12px]" data-testid="sheet-both-plans">
+            <p className="font-bold">Coverage on file</p>
+            {(['primary', 'secondary'] as const).map((rank) => {
+              const pl = plans[rank]!
+              return (
+                <p key={rank}>
+                  <span className="font-semibold">{rank === 'primary' ? 'Primary' : 'Secondary'}:</span> {pl.carrier ?? BLANK}
+                  {pl.memberId ? ` · ID ${pl.memberId}` : ''}
+                  {pl.groupNumber ? ` · Group ${pl.groupNumber}` : ''} — {pl.verified ?? 'not verified yet'}
+                </p>
+              )
+            })}
+          </div>
+        )}
 
         {/* ── Who ───────────────────────────────────────────────────── */}
         <Strip>
@@ -424,7 +458,7 @@ export function BenefitsSheet({
  * commits the sheet synchronously (`flushSync`) before the browser snapshots
  * the page; `afterprint` unmounts it again.
  */
-export function PrintableBenefits(props: { check: InsuranceCheckView; clinicName: string; timeZone: string; practice?: PayerNoteView | null }) {
+export function PrintableBenefits(props: { check: InsuranceCheckView; clinicName: string; timeZone: string; practice?: PayerNoteView | null; plans?: SheetPlans | null }) {
   const [printing, setPrinting] = useState(false)
   useEffect(() => {
     const before = () => flushSync(() => setPrinting(true))

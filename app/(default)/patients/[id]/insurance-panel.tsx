@@ -24,6 +24,7 @@ import {
 } from '@/lib/insurance-eligibility'
 import { checkInsuranceAction } from '../../insurance/actions'
 import { DISCOVERY_COPY } from '@/lib/insurance-discovery'
+import SecondaryPlan, { type SecondaryPlanData } from './secondary-plan'
 
 export interface InsurancePanelData {
   /** The most recent stored check for this patient, or null if never checked. */
@@ -52,6 +53,8 @@ export interface InsurancePanelData {
   canDiscover?: boolean
   /** The patient's latest search, for the one line under the door. */
   discovery?: { status: 'found' | 'none' | 'pending' | 'error'; coveragesFound: number; createdAtIso: string } | null
+  /** ML-50: the second plan's slot (its own card + last check). Absent = the legacy single-plan card. */
+  secondary?: SecondaryPlanData
 }
 
 /**
@@ -111,7 +114,9 @@ export default function InsurancePanel({
   return (
     <div className="v2-card px-4 py-4" data-testid="insurance-panel">
       <div className="flex items-center justify-between gap-2">
-        <p className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold">Insurance check</p>
+        <p className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold">
+          {data.secondary?.card ? 'Primary plan check' : 'Insurance check'}
+        </p>
         {latest ? (
           <StatusPill tone={STATUS_TONE[latest.status]} label={STATUS_LABEL[latest.status]} />
         ) : (
@@ -228,6 +233,8 @@ export default function InsurancePanel({
         )}
       </div>
 
+      {data.secondary && <SecondaryPlan patientId={patientId} data={data.secondary} />}
+
       <Drawer open={historyOpen} onClose={() => setHistoryOpen(false)} title="Insurance check history" size="sm">
         <ul className="divide-y divide-[color:var(--color-hairline)]" data-testid="insurance-history">
           {history.map((c) => (
@@ -244,6 +251,7 @@ export default function InsurancePanel({
                   </span>
                 </div>
                 <p className="mt-1 text-sm text-gray-800 dark:text-gray-100 truncate">
+                  {c.rank === 'secondary' ? 'Secondary · ' : ''}
                   {c.result?.payerName ?? c.input.carrierName}
                   {c.result?.planName ? ` · ${c.result.planName}` : ''}
                 </p>

@@ -808,7 +808,7 @@ describe('InsuranceTool — the Full breakdown (2026-10-08)', () => {
     expect(opts.title).toBe('Pull the full breakdown?')
     expect(opts.message).toContain('12 of 200')
     expect(opts.message).toContain('up to 16')
-    await waitFor(() => expect(fullBreakdownAction).toHaveBeenCalledWith(check().input, null))
+    await waitFor(() => expect(fullBreakdownAction).toHaveBeenCalledWith(check().input, null, undefined))
     await waitFor(() => expect(screen.getByText('Full breakdown · 3 checks')).toBeTruthy())
     expect(screen.getByTestId('breakdown-receipt').textContent).toContain('one code at a time — 1 of 2 lines answered in 3 checks')
     // The button now offers to run it again.
