@@ -7,7 +7,7 @@ const DIR = join(process.cwd(), 'lib/db/migrations')
 const journal = JSON.parse(readFileSync(join(DIR, 'meta/_journal.json'), 'utf8')) as { entries: { tag: string }[] }
 
 describe('ml63_clinic_email_domain', () => {
-  const entry = journal.entries.find((e) => e.tag.endsWith('_ml63_clinic_email_domain'))
+  const entry = journal.entries.find((e) => e.tag.endsWith('_clinic_email_domain'))
   it('is registered in the journal', () => expect(entry).toBeTruthy())
   const sql = entry ? readFileSync(join(DIR, `${entry.tag}.sql`), 'utf8') : ''
   it('adds the six email-domain columns to clinic_profile, nothing else', () => {
