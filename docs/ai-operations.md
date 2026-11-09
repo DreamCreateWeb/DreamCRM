@@ -733,3 +733,20 @@ commit → merge to main → verify deploy (same as the best-version program).
   sent", the board's "Call back Tue" / "Followed up 2d ago". Phone-only
   inquiries get the call-back + notes only; their call card is a later
   slice.
+- **2026-11-09 — ML-28**: THE EVENING NOTE AND THE DAY-AFTER CHECK-IN.
+  post_visit_care flips to AUTO with its writer (lib/services/proposal-
+  generators/post-visit-care.ts): after 6 PM clinic-local, inside quiet
+  hours, the practice's own aftercare text for each visit completed today
+  whose type carries it (defaults for cleaning / filling / extraction / root
+  canal — the per-type text is the switch); once per visit; AI-free.
+  postop_checkin (ask, grantable): the day after an extraction / root canal
+  / implant, one "How are you feeling?" card; the executor sends through the
+  clinic sender with the Messages inbox as reply-to and waits for daylight
+  when the yes is the machine's.
+- **2026-11-09 — ML-29**: THE REBOOK NUDGE. rebook_nudge (ask, grantable):
+  a completed cleaning / checkup 7–21 clinic-local days old with nothing
+  booked since — one card per visit, one per patient, skipping opt-outs,
+  no-email and anyone in a campaign this month; the executor re-checks at
+  the tap, sends the disclosed "Book a time" button and narrates once; a
+  missing booking page reopens the card; the sweep expires it once they
+  book. Both keys leave PREVIEW_CAPABILITIES.

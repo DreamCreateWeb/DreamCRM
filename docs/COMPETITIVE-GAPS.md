@@ -216,8 +216,13 @@ birthday/reactivation autos, templates, promote-view-to-audience.
   the normal composer — review before send, compliant campaign rails,
   auto-managed all-patients opt-in audience. Lights up once a post is
   published. Later: auto-monthly cadence option, section curation.
-- ✗ **Post-op follow-up campaigns** cadenced by procedure type (RW via CDT
-  groupings) — needs PMS procedure codes (OD gives us this). **P2 (post-OD).**
+- ◐ **Post-op follow-up** — the day-after half SHIPPED 2026-11-04 (ML-28):
+  the evening aftercare note per visit type (`post_visit_care`, the
+  practice's own words, auto) and the day-after "How are you feeling?"
+  check-in card (`postop_checkin`, ask-first, grantable), keyed on the
+  visit-type ids the NexHealth mapper already produces. Per-procedure
+  campaigns cadenced by CDT groupings (RW) still need PMS procedure codes
+  (OD gives us this). **P2 (post-OD).**
 - ✗ Treatment-plan follow-up campaign (RW/Lighthouse/DI) — unscheduled
   diagnosed treatment nudges. **P2/P3 (needs PMS treatment plans).**
 - ✅ **Patient surveys / NPS** (SR/Lighthouse) — SHIPPED 2026-07-02: opt-in

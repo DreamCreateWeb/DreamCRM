@@ -12,7 +12,9 @@ import {
 } from '@/lib/services/patient-portal'
 import { CLINIC_DEFAULT_TZ } from '@/lib/clinic-timezone'
 import { portalBrand } from '@/lib/portal-brand'
-import { PORTAL_VISIT_LABELS, type PortalSettings } from '@/lib/types/portal'
+import type { PortalSettings } from '@/lib/types/portal'
+import { resolveVisitTypes, type VisitType } from '@/lib/types/visit-types'
+import { portalVisitLabel } from '@/lib/portal-visit-label'
 import type { VisitCardData } from '@/components/patient-portal/visit-card'
 
 /**
@@ -30,6 +32,8 @@ export interface PortalPageContext {
    *  switch (Settings → Practice), mirroring the public website. */
   selfBookingEnabled: boolean
   timeZone: string
+  /** The clinic's own visit types — the source of every visit's name. */
+  visitTypes: VisitType[]
   dependents: PortalDependent[]
   /** [self, ...dependents] when family access is on; [self] otherwise. */
   allowedPatientIds: string[]
@@ -61,17 +65,22 @@ export async function getPortalPageContext(): Promise<PortalPageContext> {
     // Default to enabled when clinic info is missing (matches the column default).
     selfBookingEnabled: clinic?.selfBookingEnabled ?? true,
     timeZone: clinic?.timezone?.trim() || CLINIC_DEFAULT_TZ,
+    visitTypes: resolveVisitTypes(clinic?.visitTypeSettings ?? null),
     dependents,
     allowedPatientIds,
   }
 }
 
 /** Serialize a PortalVisit for the client VisitCard. */
-export function toVisitCardData(visit: PortalVisit, selfPatientId: string): VisitCardData {
+export function toVisitCardData(
+  visit: PortalVisit,
+  selfPatientId: string,
+  visitTypes: VisitType[],
+): VisitCardData {
   return {
     id: visit.id,
     type: visit.type,
-    typeLabel: PORTAL_VISIT_LABELS[visit.type] ?? 'Visit',
+    typeLabel: portalVisitLabel(visitTypes, visit.type),
     status: visit.status,
     startIso: visit.startTime.toISOString(),
     providerName: visit.providerName,

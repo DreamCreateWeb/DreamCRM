@@ -19,9 +19,11 @@
  * click, not a due date.
  */
 import { clinicLocalDate } from '@/lib/clinic-timezone'
+import { RECALL_DEFAULT_MONTHS } from '@/lib/recall-cadence'
 
-/** Mirrors RECALL_DEFAULT_MONTHS (lib/services/recall-status.ts, server-only). */
-export const NEXT_VISIT_DEFAULT_MONTHS = 6
+/** THE default (lib/recall-cadence.ts — one source since ML-29; this used to
+ *  be a hand-kept mirror of the server-only recall-status constant). */
+export const NEXT_VISIT_DEFAULT_MONTHS = RECALL_DEFAULT_MONTHS
 
 /** The recall rung that applies: patient → clinic → the default. */
 export function resolveRecallMonths(

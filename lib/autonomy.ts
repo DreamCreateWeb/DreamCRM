@@ -160,8 +160,10 @@ export const CAPABILITIES: readonly CapabilityDef[] = [
   // runs through executeProposal, whose default branch refuses a capability
   // it cannot carry out — grantable must stay a subset of executable).
   { key: 'inquiry_followup', label: 'Follow up on unanswered inquiries', defaultTrust: 'ask' },
+  // ML-28: the day-after "how are you feeling?" — grantable with its executor.
   { key: 'postop_checkin', label: 'Check in after a procedure', defaultTrust: 'ask' },
-  { key: 'rebook_nudge', label: 'Nudge cancelled visits to rebook', defaultTrust: 'ask' },
+  // ML-29: the patient who left the chair without the next visit booked.
+  { key: 'rebook_nudge', label: 'Nudge patients to book their next visit', defaultTrust: 'ask' },
   { key: 'referral_ask', label: 'Ask happy patients for referrals', defaultTrust: 'ask' },
   // A newsletter is four weeks of the practice's voice in every inbox at
   // once — ask-first and not grantable for now (the deep-sleep ruling
@@ -175,11 +177,14 @@ export const CAPABILITIES: readonly CapabilityDef[] = [
   // blind spot the standup must never have — so each flips to 'auto' in the
   // slice that ships its writer, and a key in PREVIEW_CAPABILITIES is never
   // 'auto' (pinned). post_visit_care sends the clinic's own aftercare copy
-  // after a completed visit; membership_rescue retries and nudges a failed
+  // after a completed visit — 'auto' since ML-28 (2026-11-04), WITH its
+  // writer (lib/services/proposal-generators/post-visit-care.ts narrates
+  // every note under this key; the per-type aftercare text is its switch);
+  // membership_rescue retries and nudges a failed
   // membership payment; order_update keeps a shop customer posted; consent
   // records and renews contact consent (the consent spine stays the ONLY
   // writer of marketing_sms_opt_in).
-  { key: 'post_visit_care', label: 'Send after-visit care instructions', defaultTrust: 'ask' },
+  { key: 'post_visit_care', label: 'Send after-visit care instructions', defaultTrust: 'auto' },
   { key: 'membership_rescue', label: 'Rescue a failing membership payment', defaultTrust: 'ask' },
   { key: 'order_update', label: 'Keep shop customers posted on their orders', defaultTrust: 'ask' },
   { key: 'consent', label: 'Keep patient contact consent current', defaultTrust: 'ask' },
@@ -251,14 +256,13 @@ export const BOOKING_BUTTON_CAPABILITIES: readonly string[] = [
 // `patient_reply` was the first key deleted here (ML-12, 2026-11-03 — its
 // generator + executor shipped together); `feedback_reply` the second
 // (ML-21, same day, same shape).
+// `inquiry_followup` the third (ML-22, 2026-11-03 — the second touch on an
+// inquiry that went quiet); `postop_checkin` + `post_visit_care` the fourth
+// and fifth (ML-28, 2026-11-04 — the evening aftercare note and the
+// day-after check-in, generator + executor/writer together).
 export const PREVIEW_CAPABILITIES: readonly string[] = [
-// generator + executor shipped together); `inquiry_followup` the second
-// (ML-22, 2026-11-03 — the second touch on an inquiry that went quiet).
-  'postop_checkin',
-  'rebook_nudge',
   'referral_ask',
   'newsletter',
-  'post_visit_care',
   'membership_rescue',
   'order_update',
   'consent',
@@ -302,6 +306,13 @@ export const GRANTABLE_CAPABILITIES = [
   // ML-22: the second touch on a quiet inquiry — its executor sends through
   // the first touch's own path and waits for daylight like its siblings.
   'inquiry_followup',
+  // ML-28: the day-after "how are you feeling?" — its executor sends through
+  // the clinic sender with the Messages inbox as reply-to, and waits for
+  // daylight (PATIENT_INBOX_CAPABILITIES) when the yes is the machine's.
+  'postop_checkin',
+  // ML-29: the rebook nudge — its executor sends through the inquiry shell
+  // with the disclosed booking button; same daylight rule.
+  'rebook_nudge',
 ] as const
 
 export function isGrantable(key: string): boolean {

@@ -60,6 +60,15 @@ export const FORMS_REMINDER_PATIENT_WINDOW_HOURS = 24 * 7
  */
 export const FORMS_REMINDER_TEMPLATE = 'forms_intake'
 
+/**
+ * The template key an after-visit care note is logged under (ML-28). An
+ * automated VISIT touch like the journey's own: the `appt_reminder_auto_touch_uq`
+ * partial index covers it, so the post-visit-care lane claims the row before
+ * it sends and a second tick inside the evening loses on the index — once per
+ * visit, ever (a visit is completed once, so nothing excludes it).
+ */
+export const AFTERCARE_TEMPLATE = 'aftercare'
+
 /** Inclusive bounds for each touch offset, shared by resolver + settings UI. */
 export const REMINDER_OFFSET_MIN_HOURS = 4
 export const REMINDER_OFFSET_MAX_HOURS = 168 // 7 days

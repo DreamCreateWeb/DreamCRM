@@ -443,7 +443,7 @@ function VisitTypesSection({
     setSaved(false)
     setTypes((cur) => [
       ...cur,
-      { id: `visit_${cur.length + 1}`, label: 'New visit type', durationMinutes: 30, bookablePublic: true, bookablePortal: true, depositCents: 0, prepInstructions: '' },
+      { id: `visit_${cur.length + 1}`, label: 'New visit type', durationMinutes: 30, bookablePublic: true, bookablePortal: true, depositCents: 0, prepInstructions: '', aftercareInstructions: '', checkInAfter: false },
     ])
   }
   function save() {
@@ -530,6 +530,33 @@ function VisitTypesSection({
                   className="form-textarea mt-1 w-full resize-y text-sm"
                   aria-label={`Prep instructions for ${t.label}`}
                 />
+              </label>
+              {/* ML-28 — the two after-the-visit touches, per type. Aftercare is
+                  the practice's own words, sent on its own the evening of the
+                  visit (blank = nothing is sent); the check-in is a card the
+                  Dream Team files the next day for a yes. */}
+              <label className="block w-full">
+                <span className="text-xs text-gray-500 dark:text-gray-400">
+                  Aftercare <span className="text-gray-500 dark:text-gray-400">(optional — sent the evening of the visit, by email; leave blank to send nothing)</span>
+                </span>
+                <textarea
+                  value={t.aftercareInstructions ?? ''}
+                  onChange={(e) => update(i, { aftercareInstructions: e.target.value.slice(0, 800) })}
+                  rows={2}
+                  placeholder="e.g. Wait until the numbness wears off before eating. Some sensitivity for a day or two is normal."
+                  className="form-textarea mt-1 w-full resize-y text-sm"
+                  aria-label={`Aftercare for ${t.label}`}
+                />
+              </label>
+              <label className="flex items-center gap-1.5 pb-1 text-xs text-gray-600 dark:text-gray-300">
+                <input
+                  type="checkbox"
+                  checked={!!t.checkInAfter}
+                  onChange={(e) => update(i, { checkInAfter: e.target.checked })}
+                  className="form-checkbox"
+                  aria-label={`Check in the day after a ${t.label}`}
+                />
+                Check in the day after — the Dream Team drafts a “How are you feeling?” email for your yes
               </label>
             </li>
           )

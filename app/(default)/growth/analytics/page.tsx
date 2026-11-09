@@ -80,9 +80,11 @@ export default async function AnalyticsPage({ searchParams }: Props) {
   const lowVolAttended = a.schedule.attended < LOW_VOL // no-show rate
   const lowVolCancellation = a.schedule.total < LOW_VOL // cancellation rate (denom = total)
   const lowVolConfirmation = confirmableDenom < LOW_VOL // confirmation rate
+  const hygiene = a.schedule.hygiene
+  const lowVolHygiene = hygiene.completed > 0 && hygiene.completed < LOW_VOL // reappointment rate
   // The "building history" footnote shows whenever ANY headline rate is on a
   // thin sample — it explains every "x/y" fallback rendered above it.
-  const anyLowVol = lowVolAttended || lowVolCancellation || lowVolConfirmation
+  const anyLowVol = lowVolAttended || lowVolCancellation || lowVolConfirmation || lowVolHygiene
   const now = new Date()
 
   return (
@@ -358,7 +360,7 @@ export default async function AnalyticsPage({ searchParams }: Props) {
       {/* Every headline number drills into the filtered Appointments view that
           explains it (design doctrine: numbers are never dead ends). */}
       <Section title="Schedule health" subtitle={`Appointments with a visit time in the last ${windowDays} days`}>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-1.5">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-1.5">
           <KpiStat
             label="Appointments"
             value={a.schedule.total}
@@ -403,6 +405,20 @@ export default async function AnalyticsPage({ searchParams }: Props) {
               )
             }
             href="/appointments?window=past_30d&attention=cancelled"
+          />
+          {/* REAL, from our own rows (ML-29): the visit was marked done here
+              and the next one booked here, so this is no longer "a PMS
+              clinical metric". A visit still inside its 14 days isn't judged. */}
+          <KpiStat
+            label="Hygiene reappointment"
+            value={hygiene.completed === 0 ? '—' : lowVolHygiene ? `${hygiene.rebooked} of ${hygiene.completed}` : pct(hygiene.rate)}
+            tone={lowVolHygiene || hygiene.rate == null ? undefined : hygiene.rate >= 0.8 ? 'ok' : 'warn'}
+            sub={
+              hygiene.completed === 0
+                ? 'no cleanings 14+ days on in this window yet'
+                : 'left with the next visit booked'
+            }
+            href="/appointments?window=past_30d"
           />
         </div>
         {anyLowVol ? (

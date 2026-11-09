@@ -142,7 +142,7 @@ export default async function PortalHome() {
         <PortalSectionLabel>Your next visit</PortalSectionLabel>
         {nextVisit ? (
           <VisitCard
-            visit={toVisitCardData(nextVisit, ctx.patientId)}
+            visit={toVisitCardData(nextVisit, ctx.patientId, pc.visitTypes)}
             brand={brand}
             timeZone={timeZone}
             clinicPhone={clinic?.phone ?? null}
@@ -187,7 +187,7 @@ export default async function PortalHome() {
             {laterVisits.map((v) => (
               <VisitCard
                 key={v.id}
-                visit={toVisitCardData(v, ctx.patientId)}
+                visit={toVisitCardData(v, ctx.patientId, pc.visitTypes)}
                 brand={brand}
                 timeZone={timeZone}
                 clinicPhone={clinic?.phone ?? null}

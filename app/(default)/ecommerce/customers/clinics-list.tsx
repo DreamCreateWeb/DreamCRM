@@ -7,8 +7,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import type { ClinicListRow } from '@/lib/services/clinics'
 import { enterDemoMode, seedAndEnterDemoClinic, deleteClinicAction, resendClinicInviteAction } from './admin-actions'
-import { type Tone } from '@/lib/ui/encodings'
-import { clinicCountsAsActive, clinicStatusPill, isPastDueStatus } from '@/lib/platform-clinic-status'
+import { STANDING_ORDER, clinicStanding, clinicStatusPill, type ClinicStandingKind } from '@/lib/platform-clinic-status'
 import { FilterChip } from '@/components/ui/filter-chip'
 import { StatusPill } from '@/components/ui/status-pill'
 import { ActionButton } from '@/components/ui/action-button'
@@ -25,31 +24,14 @@ interface Props {
 
 const SITE_DOMAIN = process.env.NEXT_PUBLIC_SITE_DOMAIN ?? 'dreamcreatestudio.com'
 
-// Plan tier → tone (hue matches the prior gray/sky/violet, mapped to the contract).
-const PLAN_TONE: Record<ClinicListRow['planTier'], Tone> = {
-  basic: 'neutral',
-  pro: 'info',
-  premium: 'special',
-}
+// The status pill and the STANDING filter both come from
+// lib/platform-clinic-status.ts — the one home shared with the KPI row, the
+// clinic detail page and the MRR derivation, so this list can never count a
+// clinic the Overview does not. (ML-40: the plan badge and plan filter are
+// gone on purpose — a clinic is sorted by where it STANDS, not a tier.)
 
-const PLAN_LABELS: Record<ClinicListRow['planTier'], string> = {
-  basic: 'Basic',
-  pro: 'Pro',
-  premium: 'Premium',
-}
+type Filter = 'all' | ClinicStandingKind
 
-// The status pill, "is this clinic live" and the past-due family all come
-// from lib/platform-clinic-status.ts — the one home shared with the KPI row,
-// the clinic detail page and the MRR derivation, so this list can never
-// count a clinic the Overview does not.
-
-type Filter = 'all' | 'basic' | 'pro' | 'premium' | 'past_due' | 'trial_ended' | 'inactive'
-
-/** Inactive = no live subscription, which INCLUDES a trial that ran out —
- *  the column still says 'trialing' for it, but the wall says otherwise. */
-function isInactive(r: ClinicListRow): boolean {
-  return !clinicCountsAsActive(r)
-}
 type SortKey = 'recent' | 'name' | 'revenue' | 'patients' | 'projects'
 
 function moneyShort(cents: number): string {
@@ -66,14 +48,8 @@ export default function ClinicsList({ rows }: Props) {
 
   const filtered = useMemo(() => {
     let out = rows
-    if (filter === 'basic' || filter === 'pro' || filter === 'premium') {
-      out = out.filter((r) => r.planTier === filter)
-    } else if (filter === 'past_due') {
-      out = out.filter((r) => isPastDueStatus(r.subscriptionStatus))
-    } else if (filter === 'trial_ended') {
-      out = out.filter((r) => r.trial.expired)
-    } else if (filter === 'inactive') {
-      out = out.filter(isInactive)
+    if (filter !== 'all') {
+      out = out.filter((r) => clinicStanding(r).kind === filter)
     }
     if (query.trim()) {
       const q = query.trim().toLowerCase()
@@ -104,15 +80,8 @@ export default function ClinicsList({ rows }: Props) {
   }, [rows, filter, query, sort])
 
   const counts = useMemo(() => {
-    const c = { all: rows.length, basic: 0, pro: 0, premium: 0, past_due: 0, trial_ended: 0, inactive: 0 }
-    for (const r of rows) {
-      if (r.planTier === 'basic') c.basic++
-      else if (r.planTier === 'pro') c.pro++
-      else if (r.planTier === 'premium') c.premium++
-      if (isPastDueStatus(r.subscriptionStatus)) c.past_due++
-      if (r.trial.expired) c.trial_ended++
-      if (isInactive(r)) c.inactive++
-    }
+    const c: Record<Filter, number> = { all: rows.length, trial: 0, live: 0, past_due: 0, walled: 0, churned: 0, invite_pending: 0 }
+    for (const r of rows) c[clinicStanding(r).kind]++
     return c
   }, [rows])
 
@@ -124,29 +93,11 @@ export default function ClinicsList({ rows }: Props) {
           <FilterChip active={filter === 'all'} onClick={() => setFilter('all')} count={counts.all}>
             All
           </FilterChip>
-          <FilterChip active={filter === 'basic'} onClick={() => setFilter('basic')} count={counts.basic}>
-            Basic
-          </FilterChip>
-          <FilterChip active={filter === 'pro'} onClick={() => setFilter('pro')} count={counts.pro}>
-            Pro
-          </FilterChip>
-          <FilterChip active={filter === 'premium'} onClick={() => setFilter('premium')} count={counts.premium}>
-            Premium
-          </FilterChip>
-          <FilterChip active={filter === 'past_due'} onClick={() => setFilter('past_due')} count={counts.past_due}>
-            Past due
-          </FilterChip>
-          <FilterChip
-            active={filter === 'trial_ended'}
-            onClick={() => setFilter('trial_ended')}
-            count={counts.trial_ended}
-            title="Trials that ran out with no plan chosen — behind the billing wall"
-          >
-            Trial ended
-          </FilterChip>
-          <FilterChip active={filter === 'inactive'} onClick={() => setFilter('inactive')} count={counts.inactive}>
-            Inactive
-          </FilterChip>
+          {STANDING_ORDER.map((st) => (
+            <FilterChip key={st.kind} active={filter === st.kind} onClick={() => setFilter(st.kind)} count={counts[st.kind]} title={st.meaning}>
+              {st.label}
+            </FilterChip>
+          ))}
         </div>
         <div className="flex-1 flex gap-2 lg:justify-end">
           <div className="w-full lg:w-72">
@@ -180,7 +131,6 @@ export default function ClinicsList({ rows }: Props) {
             <thead className="bg-[color:var(--color-surface-sunk)] text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">
               <tr>
                 <th className="px-5 py-3 text-left font-semibold">Clinic</th>
-                <th className="px-3 py-3 text-left font-semibold">Plan</th>
                 <th className="px-3 py-3 text-left font-semibold">Status</th>
                 <th className="px-3 py-3 text-right font-semibold">MRR</th>
                 <th className="px-3 py-3 text-right font-semibold">Patients</th>
@@ -192,7 +142,7 @@ export default function ClinicsList({ rows }: Props) {
             <tbody className="divide-y divide-gray-100 dark:divide-gray-700/60">
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-0 py-0">
+                  <td colSpan={7} className="px-0 py-0">
                     {rows.length === 0 ? (
                       <EmptyState
                         icon="🏢"
@@ -203,7 +153,7 @@ export default function ClinicsList({ rows }: Props) {
                     ) : (
                       <EmptyState
                         title="No clinics match your filter"
-                        body="Try a different plan, status, or search term."
+                        body="Try a different standing or search term."
                         action={
                           <ActionButton
                             variant="secondary"
@@ -281,18 +231,15 @@ function ClinicRow({ clinic: c }: { clinic: ClinicListRow }) {
         </Link>
       </td>
       <td className="px-3 py-3">
-        <span className="inline-flex items-center gap-1.5">
-          <StatusPill tone={PLAN_TONE[c.planTier]} label={PLAN_LABELS[c.planTier]} />
-          {c.billingMode === 'comped' && (
-            <StatusPill tone="neutral" label="comped" title="Platform-granted plan — no Stripe subscription" />
-          )}
-        </span>
-      </td>
-      <td className="px-3 py-3">
         {/* invite pending → trial ended → trial · N days left → the Stripe
             status. The reserved plan is NOT "waiting on them to accept": it
             stays reserved for the whole trial after the owner accepted. */}
-        <StatusPill tone={status.tone} label={status.label} title={status.title} />
+        <span className="inline-flex items-center gap-1.5">
+          <StatusPill tone={status.tone} label={status.label} title={status.title} />
+          {c.billingMode === 'comped' && (
+            <StatusPill tone="neutral" label="comped" title="Platform-granted account — no Stripe subscription" />
+          )}
+        </span>
       </td>
       <td className="px-3 py-3 text-right font-medium text-gray-800 dark:text-gray-100 tabular-nums">
         {c.monthlyContributionCents == null ? (

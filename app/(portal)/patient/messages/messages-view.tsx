@@ -158,7 +158,7 @@ export default function PortalMessagesView({
       <header className="mb-4">
         <PortalHeading color={brand}>Messages</PortalHeading>
         <p className="mt-1.5 text-[0.95rem]" style={{ color: MUTED }}>
-          A direct line to the {clinicName} front desk — we usually reply within a business day.
+          A direct line to the {clinicName} front desk. Replies come during office hours.
           {clinicPhone && (
             <>
               {' '}

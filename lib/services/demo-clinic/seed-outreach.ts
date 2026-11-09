@@ -2,6 +2,7 @@ import 'server-only'
 import { and, eq } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import { seedSystemTemplates, SYSTEM_TEMPLATES } from '@/lib/services/marketing-templates'
+import { OUTREACH_TIERS } from '@/lib/services/outreach-tiers'
 
 // The recall/reactivation outreach history behind the Growth funnels.
 
@@ -51,8 +52,12 @@ export async function seedRecallOutreachForOrg(
   }
   const AUDIENCE_SEEDS: AudienceSeed[] = [
     {
-      name: 'Recall due (6+ months)',
-      description: 'Patients whose last cleaning was over 6 months ago without a future booking. Drives the Reactivation campaign.',
+      name: OUTREACH_TIERS[0].audienceName,
+      // The sentence comes from the tier definition on the default cadence —
+      // the demo clinic's own setting (DEMO_RECALL_DEFAULT_MONTHS) is that
+      // default, and ensureOutreachTierAudiences re-describes the row on
+      // every visit anyway (ML-29: the numbers follow the practice).
+      description: OUTREACH_TIERS[0].audienceDescription,
       patientFilter: {
         recallStatuses: ['due', 'overdue'],
         requireEmailOptIn: true,
@@ -61,8 +66,8 @@ export async function seedRecallOutreachForOrg(
       },
     },
     {
-      name: 'Lapsed (lifecycle = lapsed)',
-      description: 'Lifecycle stage flipped to lapsed — last visit >9 months ago. Tighter than "Recall due" — these are the cold ones.',
+      name: OUTREACH_TIERS[1].audienceName,
+      description: OUTREACH_TIERS[1].audienceDescription,
       patientFilter: {
         lifecycles: ['lapsed', 'at_risk'],
         requireEmailOptIn: true,

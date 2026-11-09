@@ -11,6 +11,10 @@ import { requireTenant } from '@/lib/auth/context'
 import { getClinicDetail } from '@/lib/services/clinics'
 import { getClinicReferral, listActivePartners } from '@/lib/services/referrals'
 import ReferralCard from './referral-card'
+import { FirstWeekCard, SupportThreadCard, GuardianNoteCard } from './clinic-standing-cards'
+import { getFirstWeekRowFor } from '@/lib/services/first-week'
+import { getSupportThreadPeek } from '@/lib/services/messages'
+import { cachedEngineHealth } from '@/lib/services/guardian'
 import NexHealthCard from './nexhealth-card'
 import {
   AGENCY_PROJECT_TYPE_LABELS,
@@ -21,7 +25,7 @@ import {
 import { formatRelativeDate } from '@/lib/utils/format'
 import { type Tone } from '@/lib/ui/encodings'
 import { resolveTrialState } from '@/lib/trial'
-import { clinicStatusPill } from '@/lib/platform-clinic-status'
+import { clinicStanding, clinicStatusPill } from '@/lib/platform-clinic-status'
 import { ActionButton } from '@/components/ui/action-button'
 import { StatusPill } from '@/components/ui/status-pill'
 import { KpiStat } from '@/components/ui/kpi-stat'
@@ -53,8 +57,6 @@ const STATUS_TONE: Record<AgencyProjectStatus, Tone> = {
   on_hold: 'warn',
   cancelled: 'urgent',
 }
-
-const PLAN_LABEL = { basic: 'Basic', pro: 'Pro', premium: 'Premium' } as const
 
 /** Legend rows generated from the same tables the rows render from. */
 const PROJECT_STATUS_LEGEND = (Object.keys(STATUS_TONE) as AgencyProjectStatus[]).map((k) => ({
@@ -125,19 +127,42 @@ export default async function ClinicDetailPage({
   }
 
   const siteUrl = `https://${clinic.slug}.${SITE_DOMAIN}`
-  const planTier = (clinic.profile?.planTier ?? 'basic') as keyof typeof PLAN_LABEL
   // The same words the Clinics list row wears — 'trial ended' once the
   // no-card trial runs out, not the 'trialing' the column keeps saying.
+  const trialState = resolveTrialState({
+    trialEndsAt: clinic.profile?.trialEndsAt ?? null,
+    subscriptionStatus: clinic.profile?.subscriptionStatus ?? null,
+    stripeSubscriptionId: clinic.profile?.stripeSubscriptionId ?? null,
+  })
+  const standing = clinicStanding({ subscriptionStatus: clinic.profile?.subscriptionStatus ?? null, trial: trialState })
   const status = clinicStatusPill({
     subscriptionStatus: clinic.profile?.subscriptionStatus ?? null,
-    trial: resolveTrialState({
-      trialEndsAt: clinic.profile?.trialEndsAt ?? null,
-      subscriptionStatus: clinic.profile?.subscriptionStatus ?? null,
-      stripeSubscriptionId: clinic.profile?.stripeSubscriptionId ?? null,
-    }),
+    trial: trialState,
     billingMode: clinic.profile?.billingMode,
     pendingPlanId: clinic.profile?.pendingPlanId,
   })
+  // The first week, the support thread and the Guardian's note — each read
+  // takes THIS clinic's org id explicitly and degrades to "unknown", never
+  // to a blank that looks healthy.
+  const [firstWeek, supportPeek, sweep] = await Promise.all([
+    getFirstWeekRowFor({
+      orgId: id,
+      name: clinic.name,
+      slug: clinic.slug,
+      isDemo: false,
+      createdAt: clinic.createdAt,
+      patientCount: clinic.patientCount,
+      subscriptionStatus: clinic.profile?.subscriptionStatus ?? null,
+      billingMode: clinic.profile?.billingMode ?? null,
+      stripeSubscriptionId: clinic.profile?.stripeSubscriptionId ?? null,
+      trialEndsAt: clinic.profile?.trialEndsAt ?? null,
+    }).catch(() => null),
+    getSupportThreadPeek(id)
+      .then((p) => ({ peek: p, unreadable: false }))
+      .catch(() => ({ peek: null, unreadable: true })),
+    cachedEngineHealth().catch(() => null),
+  ])
+  const guardianReport = sweep && !sweep.blind ? (sweep.reports.find((r) => r.organizationId === id) ?? null) : null
   const totalRevenue = clinic.lifetimeSubscriptionCents + clinic.lifetimeProjectCents
 
   const activeProjects = clinic.projects.filter((p) =>
@@ -203,7 +228,7 @@ export default async function ClinicDetailPage({
 
       {/* Top stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        <KpiStat label="Plan" value={PLAN_LABEL[planTier]} sub={`Status: ${status.label}`} />
+        <KpiStat label="Standing" value={standing.label} sub={status.label} />
         <KpiStat
           label="Lifetime Revenue"
           value={moneyFull(totalRevenue)}
@@ -219,6 +244,12 @@ export default async function ClinicDetailPage({
           value={String(activeProjects.length)}
           sub={`${completedProjects.length} delivered all-time`}
         />
+      </div>
+
+      <FirstWeekCard row={firstWeek} clinicName={clinic.profile?.displayName ?? clinic.name} />
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <SupportThreadCard peek={supportPeek.peek} unreadable={supportPeek.unreadable} />
+        <GuardianNoteCard report={guardianReport} unreadable={!sweep || sweep.blind} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">

@@ -53,9 +53,11 @@ export default async function PortalFamilyPage() {
         </PortalCard>
         {/* The self-serve ask — the exact flow this empty state describes was
             built and then hidden from the one person who needs it. */}
-        <section className="mt-6">
-          <FamilyLinkRequest brand={brand} />
-        </section>
+        {settings.features.messages && (
+          <section className="mt-6">
+            <FamilyLinkRequest brand={brand} />
+          </section>
+        )}
       </div>
     )
   }
@@ -99,7 +101,7 @@ export default async function PortalFamilyPage() {
                 {visits.map((v) => (
                   <VisitCard
                     key={v.id}
-                    visit={toVisitCardData(v, ctx.patientId)}
+                    visit={toVisitCardData(v, ctx.patientId, pc.visitTypes)}
                     brand={brand}
                     timeZone={timeZone}
                     clinicPhone={clinic?.phone ?? null}
@@ -118,9 +120,11 @@ export default async function PortalFamilyPage() {
 
       {/* Add another family member — rides the message thread; staff verify
           and link with their existing tools. */}
-      <section className="mt-7">
-        <FamilyLinkRequest brand={brand} />
-      </section>
+      {settings.features.messages && (
+        <section className="mt-7">
+          <FamilyLinkRequest brand={brand} />
+        </section>
+      )}
     </div>
   )
 }

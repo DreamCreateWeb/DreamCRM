@@ -48,7 +48,7 @@ export default function FamilyLinkRequest({ brand }: { brand: string }) {
         </p>
         <p className="mt-1 text-[0.88rem] leading-relaxed" style={{ color: MUTED }}>
           The front desk will verify a couple of details and link the account — you’ll get a
-          reply in Messages, usually within a business day.
+          reply in Messages during office hours.
         </p>
       </PortalCard>
     )
