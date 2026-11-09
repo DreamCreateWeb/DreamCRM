@@ -54,7 +54,6 @@ function literalFrom(clause: unknown): string | null {
 
 vi.mock('@/lib/db', async () => {
   const { clinicProfile } = await import('@/lib/db/schema/platform')
-  const { billingProfiles } = await import('@/lib/db/schema/domain')
 
   // Per-select dispatch by the column we filtered on.
   const chain = () => {
@@ -84,12 +83,7 @@ vi.mock('@/lib/db', async () => {
         set: (vals: Record<string, unknown>) => ({
           where: async (clause: unknown) => {
             updates.push({
-              table:
-                table === clinicProfile
-                  ? 'clinic_profile'
-                  : table === billingProfiles
-                    ? 'billing_profiles'
-                    : 'unknown',
+              table: table === clinicProfile ? 'clinic_profile' : 'unknown',
               set: vals,
               whereOrg: literalFrom(clause),
             })
@@ -99,18 +93,13 @@ vi.mock('@/lib/db', async () => {
       insert: (table: unknown) => ({
         values: async (vals: unknown) => {
           inserts.push({
-            table:
-              table === clinicProfile
-                ? 'clinic_profile'
-                : table === billingProfiles
-                  ? 'billing_profiles'
-                  : 'unknown',
+            table: table === clinicProfile ? 'clinic_profile' : 'unknown',
             values: vals,
           })
         },
       }),
     },
-    schema: { clinicProfile, billingProfiles },
+    schema: { clinicProfile },
   }
 })
 
@@ -278,13 +267,6 @@ describe('syncSubscriptionFromStripe', () => {
       fakeSub({ customer: null }),
     )
     await expect(syncSubscriptionFromStripe('sub_1')).rejects.toThrow(/customer/i)
-  })
-
-  it('never writes to billing_profiles', async () => {
-    vi.mocked(stripe.subscriptions.retrieve).mockResolvedValue(fakeSub())
-    await syncSubscriptionFromStripe('sub_1')
-    expect(updates.find((u) => u.table === 'billing_profiles')).toBeUndefined()
-    expect(inserts.find((i) => i.table === 'billing_profiles')).toBeUndefined()
   })
 })
 

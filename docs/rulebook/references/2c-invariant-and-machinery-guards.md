@@ -191,6 +191,15 @@ The defect, the byte offsets and the reproductions are in the module header of
 `FIXED (#603, 5322a489)`, reconciled by #605 — §1). Read those, not a retelling
 here.
 
+**Two dead-code walkers hold the product at zero for unreachable bones** (ML-60,
+2026-11-09). `tests/guards/dead-components.test.ts` fails on any `components/`
+module with no importer; `tests/guards/reachable-routes.test.ts` fails on any
+`app/**/page.tsx` whose URL no other file mentions. Both share the walker in
+`scripts/find-dead-bones.mjs` (run it to see the live list), both carry DATED
+allowlists that may only shrink, and both are registered in `INTAKE_RULES`.
+The `billing_profiles` guard below was retired by the same slice: the table was
+dropped by migration, so there is nothing left to hold at zero.
+
 **The `test` check also holds a DORMANT TABLE at zero — in BOTH directions**
 (#606, `71e2992a`, DREAMCRM-58, merged 2026-09-15).
 `tests/billing/no-billing-profiles-write.test.ts` walks `app`, `lib`, `scripts`
