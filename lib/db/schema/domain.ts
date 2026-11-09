@@ -587,39 +587,6 @@ export const inboxMessages = pgTable('inbox_messages', {
   receivedAt: timestamp('received_at', { withTimezone: true }).notNull().defaultNow(),
 })
 
-// ---------- Per-user billing profile ----------
-// DORMANT — no product code reads or writes this table (DREAMCRM-58), and
-// `tests/billing/no-billing-profiles-write.test.ts` keeps it that way in both
-// directions. The source of truth for a clinic's plan and subscription state is
-// the ORG-scoped `clinicProfile` (`planTier`, `subscriptionStatus`, see
-// lib/db/schema/platform.ts), written by the Stripe webhook and read through
-// `getTenantContext`.
-//
-// This per-user table came from the single-tenant Plans UI, which is gone. Its
-// last writer was `upsertBilling`, and nothing ever read it back for billing —
-// so the rows still in it are whatever that retired UI happened to leave, and
-// pointing a read at them would give them a meaning they never had. The
-// definition stays only because dropping the table is a migration on the deploy
-// path; that is queued in docs/POST-1.0.md.
-export const billingPlanEnum = pgEnum('billing_plan', ['free', 'pro', 'team', 'enterprise'])
-
-export const billingProfiles = pgTable('billing_profiles', {
-  userId: text('user_id').primaryKey().references(() => user.id, { onDelete: 'cascade' }),
-  plan: billingPlanEnum('plan').notNull().default('free'),
-  cardLast4: text('card_last4'),
-  cardBrand: text('card_brand'),
-  cardExpMonth: integer('card_exp_month'),
-  cardExpYear: integer('card_exp_year'),
-  billingEmail: text('billing_email'),
-  billingAddress: text('billing_address'),
-  renewsAt: timestamp('renews_at', { withTimezone: true }),
-  stripeCustomerId: text('stripe_customer_id').unique(),
-  stripeSubscriptionId: text('stripe_subscription_id').unique(),
-  stripePriceId: text('stripe_price_id'),
-  stripeStatus: text('stripe_status'),
-  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-})
-
 // ---------- Notification prefs / connected apps (per-user) ----------
 export const notificationPrefs = pgTable('notification_prefs', {
   userId: text('user_id').primaryKey().references(() => user.id, { onDelete: 'cascade' }),
