@@ -19,7 +19,7 @@ import {
   PORTAL_BORDER,
 } from '@/components/patient-portal/ui'
 import { fmtVisitDayShort, fmtVisitTime } from '@/components/patient-portal/format'
-import { PORTAL_VISIT_LABELS } from '@/lib/types/portal'
+import { portalVisitLabel } from '@/lib/portal-visit-label'
 
 /** History shows the latest 10 by default; ?all=1 shows everything. */
 const PAST_PAGE_SIZE = 10
@@ -66,7 +66,7 @@ export default async function PortalVisitsPage({
             {upcoming.map((v) => (
               <VisitCard
                 key={v.id}
-                visit={toVisitCardData(v, ctx.patientId)}
+                visit={toVisitCardData(v, ctx.patientId, pc.visitTypes)}
                 brand={brand}
                 timeZone={timeZone}
                 clinicPhone={clinic?.phone ?? null}
@@ -103,7 +103,7 @@ export default async function PortalVisitsPage({
                     >
                       <div className="min-w-0">
                         <p className="truncate text-[0.92rem] font-semibold" style={{ color: PORTAL_INK }}>
-                          {PORTAL_VISIT_LABELS[v.type] ?? 'Visit'}
+                          {portalVisitLabel(pc.visitTypes, v.type)}
                           {v.patientId !== ctx.patientId && (
                             <span className="ml-2 font-medium" style={{ color: brand }}>
                               {v.patientFirstName}

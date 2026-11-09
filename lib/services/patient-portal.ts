@@ -465,6 +465,8 @@ export interface PortalClinicInfo {
    *  turned the credit off on its site does not want it on the screen its
    *  patients log into either. */
   hidePoweredBy: boolean
+  /** The clinic's raw visit-type settings (resolve with resolveVisitTypes). */
+  visitTypeSettings: unknown
 }
 
 /** Clinic identity + practical info for the portal chrome (header / footer / contact cards). */
@@ -488,6 +490,7 @@ export async function getPortalClinicInfo(organizationId: string): Promise<Porta
       selfBookingEnabled: clinicProfile.selfBookingEnabled,
       siteLiveAt: clinicProfile.siteLiveAt,
       hidePoweredBy: clinicProfile.hidePoweredBy,
+      visitTypeSettings: clinicProfile.visitTypeSettings,
     })
     .from(clinicProfile)
     .innerJoin(organization, eq(organization.id, clinicProfile.organizationId))

@@ -316,7 +316,7 @@ describe('unknown routes get a real 404, not the sign-in page (DREAM-164)', () =
   })
 
   it('still sends an unauthenticated visitor to /signin for routes that DO exist', async () => {
-    for (const path of ['/dashboard', '/patients', '/settings/team', '/inbox', '/patient/appointments']) {
+    for (const path of ['/dashboard', '/patients', '/settings/team', '/inbox']) {
       const req = makeRequest(`https://www.dreamcreatestudio.com${path}`)
       const res = (await middleware(req)) as NextResponse
       expect(res.headers.get('x-middleware-rewrite'), path).toBeNull()
@@ -427,5 +427,53 @@ describe('the route census matches the app directory', () => {
       if (segment === 'api') continue
       expect(isKnownRoute(`/${segment}`), segment).toBe(true)
     }
+  })
+})
+
+describe('portal session expiry (ML-49) — a timed-out patient lands on their clinic’s door', () => {
+  const www = 'www.dreamcreatestudio.com'
+  const withCookie = (url: string, cookie: string) => {
+    const req = new NextRequest(new URL(url), { headers: { host: www } })
+    const [name, ...rest] = cookie.split('=')
+    req.cookies.set(name, decodeURIComponent(rest.join('=')))
+    return req
+  }
+
+  it('remembers the clinic when the patient reaches its portal door', async () => {
+    const res = (await middleware(makeRequest(`https://${www}/site/bright-smiles/portal`))) as NextResponse
+    expect(res.headers.get('set-cookie') ?? '').toMatch(/portal_clinic=bright-smiles/)
+  })
+
+  it('sets the memory on a clinic subdomain’s /portal (rewritten) too', async () => {
+    const res = (await middleware(
+      makeRequest('https://bright-smiles.dreamcreatestudio.com/portal', 'bright-smiles.dreamcreatestudio.com'),
+    )) as NextResponse
+    expect(res.headers.get('set-cookie') ?? '').toMatch(/portal_clinic=bright-smiles/)
+  })
+
+  it('sends an unauthenticated /patient/* to the remembered clinic door with ?expired=1', async () => {
+    const res = (await middleware(withCookie(`https://${www}/patient/records`, 'portal_clinic=bright-smiles'))) as NextResponse
+    const loc = res.headers.get('location') ?? ''
+    expect(loc).toMatch(/\/site\/bright-smiles\/portal\?expired=1$/)
+    expect(loc).not.toMatch(/signin/)
+  })
+
+  it('sends it to the generic /portal door with no cookie — never /signin', async () => {
+    const res = (await middleware(makeRequest(`https://${www}/patient/dashboard`))) as NextResponse
+    const loc = res.headers.get('location') ?? ''
+    expect(loc).toMatch(/\/portal\?expired=1$/)
+    expect(loc).not.toMatch(/signin|\/site\//)
+  })
+
+  it('ignores a tampered cookie (never steers the redirect)', async () => {
+    const res = (await middleware(withCookie(`https://${www}/patient/dashboard`, 'portal_clinic=..%2F..%2Fevil'))) as NextResponse
+    expect(res.headers.get('location') ?? '').toMatch(/\/portal\?expired=1$/)
+  })
+
+  it('leaves staff paths on /signin and serves /portal publicly', async () => {
+    const staff = (await middleware(withCookie(`https://${www}/dashboard`, 'portal_clinic=bright-smiles'))) as NextResponse
+    expect(staff.headers.get('location') ?? '').toMatch(/\/signin\?redirect=%2Fdashboard$/)
+    const door = (await middleware(makeRequest(`https://${www}/portal`))) as NextResponse
+    expect(door.headers.get('location')).toBeNull()
   })
 })

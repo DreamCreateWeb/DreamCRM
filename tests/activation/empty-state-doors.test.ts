@@ -21,7 +21,12 @@ import { read, tsxFiles } from '../design-system/jsx-attrs'
  *  - A DEFENSIVE BRANCH the static catalog can never reach.
  */
 
-const ROOTS = ['app/(default)', 'app/(double-sidebar)', 'components']
+// The patient portal is walked too (ML-49): its rooms are `PortalEmptyState`
+// (the door prop is `ctaHref`), and a patient's empty page owes a way forward
+// exactly as much as a clinic's does. `components` already covers
+// components/patient-portal.
+const ROOTS = ['app/(default)', 'app/(double-sidebar)', 'app/(portal)', 'components']
+const EMPTY_TAGS: Record<string, string> = { EmptyState: 'action', PortalEmptyState: 'ctaHref' }
 
 /** `file` + a substring of the `title` attribute's SOURCE → why no door. */
 const ALLOWED: Array<{ file: string; title: string; reason: string }> = [
@@ -55,13 +60,14 @@ function scan(): Site[] {
   for (const file of tsxFiles(ROOTS)) {
     const sf = ts.createSourceFile(file, read(file), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
     const visit = (node: ts.Node) => {
-      if ((ts.isJsxSelfClosingElement(node) || ts.isJsxOpeningElement(node)) && node.tagName.getText(sf) === 'EmptyState') {
+      if ((ts.isJsxSelfClosingElement(node) || ts.isJsxOpeningElement(node)) && node.tagName.getText(sf) in EMPTY_TAGS) {
+        const doorProp = EMPTY_TAGS[node.tagName.getText(sf)]
         let title = ''
         let hasAction = false
         for (const prop of node.attributes.properties) {
           if (!ts.isJsxAttribute(prop)) continue
           const name = prop.name.getText(sf)
-          if (name === 'action') hasAction = true
+          if (name === doorProp) hasAction = true
           if (name === 'title') title = prop.initializer?.getText(sf) ?? ''
         }
         out.push({ file, title, hasAction })
@@ -75,6 +81,10 @@ function scan(): Site[] {
 
 describe('law 4 — every empty state carries a door', () => {
   const sites = scan()
+
+  it('finds the portal’s empty states too', () => {
+    expect(sites.some((s) => s.file.startsWith('app/(portal)/'))).toBe(true)
+  })
 
   it('finds the dashboard’s empty states at all', () => {
     expect(sites.length).toBeGreaterThan(80)

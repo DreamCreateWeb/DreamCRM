@@ -29,7 +29,8 @@ import { formatClinicDayTime } from '@/lib/format-datetime'
 import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
 import { sendBookingConfirmation } from '@/lib/services/booking-confirmation'
 import { notifyOrgMembers } from '@/lib/services/notifications'
-import { PORTAL_VISIT_LABELS } from '@/lib/types/portal'
+import { portalVisitLabel } from '@/lib/portal-visit-label'
+import { resolveVisitTypes } from '@/lib/types/visit-types'
 import { type MessageAttachment } from '@/lib/types/messaging'
 import { sanitizeUploadedAttachments } from '@/lib/attachment-hosts'
 
@@ -301,7 +302,7 @@ export async function bookMyVisitAction(formData: FormData): Promise<BookMyVisit
 
   // Agenda title carries the visit-holder's name — matters when a guardian
   // books for a dependent (the booker isn't the patient in the chair).
-  const label = PORTAL_VISIT_LABELS[type] ?? 'Visit'
+  const label = portalVisitLabel(resolveVisitTypes(vtRow?.visitTypeSettings ?? null), type)
   const [forPatient] = await db
     .select({ firstName: patient.firstName, lastName: patient.lastName })
     .from(patient)
