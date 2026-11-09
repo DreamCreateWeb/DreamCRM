@@ -16,6 +16,7 @@ import {
   deleteMessageTemplateAction,
   reorderMessageTemplatesAction,
 } from './actions'
+import { runAction } from '@/lib/run-action'
 
 /**
  * Manage the clinic's canned-reply templates (backed by email_snippet). Add /
@@ -62,7 +63,7 @@ export default function TemplatesEditor({
     ;[next[index], next[target]] = [next[target], next[index]]
     setTemplates(next)
     startTransition(async () => {
-      const res = await reorderMessageTemplatesAction(next.map((t) => t.id))
+      const res = await runAction(() => reorderMessageTemplatesAction(next.map((t) => t.id)))
       if (!res.ok) {
         setTemplates(templates) // revert
         err(res.error)
@@ -90,7 +91,7 @@ export default function TemplatesEditor({
     })
     if (!ok) return
     startTransition(async () => {
-      const res = await deleteMessageTemplateAction(t.id)
+      const res = await runAction(() => deleteMessageTemplateAction(t.id))
       if (res.ok) {
         setTemplates((cur) => cur.filter((x) => x.id !== t.id))
         flash('Template deleted.')
@@ -274,11 +275,11 @@ function TemplateForm({
     }
     startTransition(async () => {
       if (initial) {
-        const res = await updateMessageTemplateAction(initial.id, { name, body })
+        const res = await runAction(() => updateMessageTemplateAction(initial.id, { name, body }))
         if (res.ok) onSaved({ name: name.trim(), body: body.trim() })
         else onError(res.error)
       } else {
-        const res = await createMessageTemplateAction({ name, body })
+        const res = await runAction(() => createMessageTemplateAction({ name, body }))
         if (res.ok) onCreated?.(res.template)
         else onError(res.error)
       }

@@ -5,6 +5,8 @@ import { ActionButton } from '@/components/ui/action-button'
 import { StatusPill } from '@/components/ui/status-pill'
 import { useConfirm } from '@/components/ui/confirm-dialog'
 import { generateCalendarFeedAction, disableCalendarFeedAction } from './calendar-feed-actions'
+import { runAction } from '@/lib/run-action'
+import { StaleRefresh } from '@/components/ui/stale-refresh'
 
 /**
  * Settings → Clinic "Calendar feed" card. Surfaces a tokenized, read-only .ics
@@ -36,7 +38,7 @@ export default function CalendarFeedCard({ initialToken, baseUrl, canManage }: P
     setError(null)
     setActive('generate')
     startTransition(async () => {
-      const r = await generateCalendarFeedAction()
+      const r = await runAction(() => generateCalendarFeedAction())
       if (r.ok) setToken(r.token)
       else setError(r.error)
     })
@@ -55,7 +57,7 @@ export default function CalendarFeedCard({ initialToken, baseUrl, canManage }: P
     setError(null)
     setActive('disable')
     startTransition(async () => {
-      const r = await disableCalendarFeedAction()
+      const r = await runAction(() => disableCalendarFeedAction())
       if (r.ok) setToken(null)
       else setError(r.error)
     })
@@ -92,7 +94,7 @@ export default function CalendarFeedCard({ initialToken, baseUrl, canManage }: P
         </div>
       </div>
 
-      {error && <p className="text-xs text-rose-600 dark:text-rose-400 mb-2">{error}</p>}
+      {error && <p className="text-xs text-rose-600 dark:text-rose-400 mb-2">{error}<StaleRefresh error={error} /></p>}
 
       {feedUrl ? (
         <div className="space-y-3 mt-3">

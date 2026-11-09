@@ -18,6 +18,8 @@ import { useConfirm } from '@/components/ui/confirm-dialog'
 import { PLANS, PURCHASABLE_PLANS, type BillingInterval, type PlanId } from '@/lib/stripe-config'
 import { subscriptionStatusMeta } from '@/lib/billing-status'
 import { trialDaysLeft, trialUrgency, type TrialUrgency } from '@/lib/trial'
+import { runAction } from '@/lib/run-action'
+import { StaleRefresh } from '@/components/ui/stale-refresh'
 
 /**
  * One subscription surface — the merge of the old Settings → Plan and
@@ -210,7 +212,7 @@ export default function SubscriptionPanel({
       if (!ok) return
       setActiveAction('cancel')
       startTransition(async () => {
-        const r = await cancelSubscriptionAction()
+        const r = await runAction(() => cancelSubscriptionAction())
         if (r.ok) {
           setSubFeedback({ ok: 'Your plan will end at the end of this billing period. You can resume anytime before then.' })
           router.refresh()
@@ -226,7 +228,7 @@ export default function SubscriptionPanel({
     setSubFeedback(null)
     setActiveAction('resume')
     startTransition(async () => {
-      const r = await reactivateSubscriptionAction()
+      const r = await runAction(() => reactivateSubscriptionAction())
       if (r.ok) {
         setSubFeedback({ ok: 'Your subscription will continue — no break in access.' })
         router.refresh()
@@ -374,7 +376,7 @@ export default function SubscriptionPanel({
           <p className="mt-2 text-sm text-emerald-700 dark:text-emerald-300">{subFeedback.ok}</p>
         )}
         {subFeedback?.error && (
-          <p className="mt-2 text-sm text-rose-700 dark:text-rose-300">{subFeedback.error}</p>
+          <p className="mt-2 text-sm text-rose-700 dark:text-rose-300">{subFeedback.error}<StaleRefresh error={subFeedback.error} /></p>
         )}
       </section>
 

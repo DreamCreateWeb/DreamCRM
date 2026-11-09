@@ -3,6 +3,8 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { setPreferredGbpAccountAction } from '../actions'
+import { runAction } from '@/lib/run-action'
+import { StaleRefresh } from '@/components/ui/stale-refresh'
 
 /**
  * Multi-location Google accounts: pick which location is THE clinic's.
@@ -30,7 +32,7 @@ export default function GbpLocationPicker({
     setSaved(false)
     setError('')
     startTransition(async () => {
-      const r = await setPreferredGbpAccountAction(next)
+      const r = await runAction(() => setPreferredGbpAccountAction(next))
       if (r.ok) {
         setSaved(true)
         router.refresh()
@@ -67,7 +69,7 @@ export default function GbpLocationPicker({
         {pending && <span className="text-xs text-gray-500 dark:text-gray-400">Saving…</span>}
         {saved && !pending && <span className="text-xs text-emerald-600 dark:text-emerald-400">Saved ✓</span>}
       </div>
-      {error && <p className="mt-1.5 text-xs text-rose-600 dark:text-rose-400">{error}</p>}
+      {error && <p className="mt-1.5 text-xs text-rose-600 dark:text-rose-400">{error}<StaleRefresh error={error} /></p>}
       {!canManage && (
         <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">Changing the location needs an owner or admin.</p>
       )}

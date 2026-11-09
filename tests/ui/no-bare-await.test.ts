@@ -77,12 +77,6 @@ export const ALLOWED: Array<[file: string, sites: number]> = [
   ['app/(default)/growth/social/composer.tsx', 1],
   ['app/(default)/growth/social/connect-channels.tsx', 3],
   ['app/(default)/intake-forms/packets-manager.tsx', 1],
-  ['app/(default)/integrations/google-business/gbp-detail-controls.tsx', 2],
-  ['app/(default)/integrations/google-business/location-picker.tsx', 1],
-  ['app/(default)/integrations/integrations-library.tsx', 5],
-  ['app/(default)/integrations/pms/connect-request.tsx', 1],
-  ['app/(default)/integrations/sms/registration-panel.tsx', 1],
-  ['app/(default)/integrations/sync-controls.tsx', 4],
   ['app/(default)/leads/leads-view.tsx', 1],
   ['app/(default)/marketing/retention-automations-card.tsx', 1],
   ['app/(default)/my-day/my-day-followups.tsx', 3],
@@ -99,10 +93,6 @@ export const ALLOWED: Array<[file: string, sites: number]> = [
   ['app/(default)/patients/import-patients-modal.tsx', 2],
   ['app/(default)/patients/patients-list.tsx', 3],
   ['app/(default)/patients/saved-views-bar.tsx', 5],
-  ['app/(default)/payments/collections/plans-card.tsx', 1],
-  ['app/(default)/payments/collections/propose-plan-cell.tsx', 1],
-  ['app/(default)/payments/collections/send-link-cell.tsx', 1],
-  ['app/(default)/payments/online/balance-outreach-card.tsx', 1],
   ['app/(default)/platform/first-week/pms-request-actions.tsx', 1],
   ['app/(default)/platform/prospecting/add-clinic-button.tsx', 1],
   ['app/(default)/platform/prospecting/call-list/call-card.tsx', 3],
@@ -120,18 +110,7 @@ export const ALLOWED: Array<[file: string, sites: number]> = [
   ['app/(default)/platform/prospecting/sequences/sequence-editor.tsx', 1],
   ['app/(default)/platform/prospecting/settings/settings-panel.tsx', 1],
   ['app/(default)/platform/prospecting/territory/territory-table.tsx', 1],
-  ['app/(default)/settings/apps/integrations-panel.tsx', 1],
-  ['app/(default)/settings/billing/subscription-panel.tsx', 2],
-  ['app/(default)/settings/clinic/calendar-feed-card.tsx', 2],
-  ['app/(default)/settings/clinic/gbp-sync-card.tsx', 3],
-  ['app/(default)/settings/message-templates/templates-editor.tsx', 4],
-  ['app/(default)/settings/notifications/notifications-panel.tsx', 2],
-  ['app/(default)/settings/portal/portal-settings-form.tsx', 1],
   ['app/(default)/settings/practice/page.tsx', 1],
-  ['app/(default)/settings/practice/practice-panel.tsx', 7],
-  ['app/(default)/settings/security/security-panel.tsx', 2],
-  ['app/(default)/shop/coupons/coupons-client.tsx', 1],
-  ['app/(default)/shop/loyalty-config-card.tsx', 1],
   ['app/(double-sidebar)/inbox/components/thread-view.tsx', 4],
   ['app/(double-sidebar)/inbox/settings/settings-panel.tsx', 1],
   ['app/(double-sidebar)/messages/broadcast-button.tsx', 1],
@@ -139,15 +118,11 @@ export const ALLOWED: Array<[file: string, sites: number]> = [
   ['app/(partner)/partner/partner-payout.tsx', 1],
   ['app/e/[token]/capture-form.tsx', 1],
   ['app/site/[slug]/shop/cart-view.tsx', 1],
-  ['components/followups/followup-quick-add.tsx', 1],
-  ['components/search-modal.tsx', 1],
-  ['components/social-posts/post-comments-panel.tsx', 1],
-  ['components/tags/patient-tag-control.tsx', 3],
 ]
 
 /** The sum of ALLOWED's counts the day it was taken. LOWER it as you sweep;
  *  never raise it — a raise is a new offender admitted by hand. */
-export const ALLOWLIST_CEILING = 173
+export const ALLOWLIST_CEILING = 122
 
 /* ───────────────────────── the detector ───────────────────────── */
 

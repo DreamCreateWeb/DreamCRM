@@ -7,6 +7,8 @@ import { StatusPill } from '@/components/ui/status-pill'
 import { ActionButton } from '@/components/ui/action-button'
 import { REGISTRATION_STATE_LABEL, SMS_ENTITY_TYPES, type SmsRegistrationState } from '@/lib/sms-registration'
 import type { Tone } from '@/lib/ui/encodings'
+import { runAction } from '@/lib/run-action'
+import { StaleRefresh } from '@/components/ui/stale-refresh'
 
 /**
  * The SMS registration surface: ONE form when nothing has started, a STATUS
@@ -103,13 +105,14 @@ function RegistrationForm({ details, clinicName, state }: Props) {
     setError(null)
     setIssues({})
     startTransition(async () => {
-      const r = await startSmsRegistrationAction(formData)
+      const r = await runAction(() => startSmsRegistrationAction(formData))
       if (r.ok) {
         router.refresh()
         return
       }
-      if (r.issues?.length) {
-        setIssues(Object.fromEntries(r.issues.map((i) => [i.field, i.message])))
+      const issueList = 'issues' in r ? r.issues : undefined
+      if (issueList?.length) {
+        setIssues(Object.fromEntries(issueList.map((i) => [i.field, i.message])))
       }
       if (r.error) setError(r.error)
     })
@@ -167,7 +170,7 @@ function RegistrationForm({ details, clinicName, state }: Props) {
         practice — not ours. A personal gmail works, though the carriers sometimes push back on it.
       </p>
 
-      {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+      {error && <p className="text-sm text-red-600 dark:text-red-400">{error}<StaleRefresh error={error} /></p>}
 
       <ActionButton type="submit" pending={pending}>
         {state === 'rejected' ? 'Re-apply' : 'Set up texting'}

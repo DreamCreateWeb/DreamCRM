@@ -11,6 +11,8 @@ import {
   setCommentHiddenAction,
   setCommentLikedAction,
 } from '@/app/(default)/growth/social/comment-actions'
+import { runAction } from '@/lib/run-action'
+import { StaleRefresh } from '@/components/ui/stale-refresh'
 
 /**
  * Post-detail comment + engagement manager — opens over the Social Posts tablet
@@ -59,10 +61,13 @@ export default function PostCommentsPanel({
   const load = useCallback(async () => {
     setLoading(true)
     setError(null)
-    const r = await loadPostEngagementAction(socialPostId, platform)
-    if (r.ok) setBundle(r.bundle)
-    else setError(r.error)
-    setLoading(false)
+    try {
+      const r = await runAction(() => loadPostEngagementAction(socialPostId, platform))
+      if (r.ok) setBundle(r.bundle)
+      else setError(r.error)
+    } finally {
+      setLoading(false)
+    }
   }, [socialPostId, platform])
 
   useEffect(() => {
@@ -114,7 +119,7 @@ export default function PostCommentsPanel({
             <div className="p-8 text-center text-sm text-gray-500">Loading…</div>
           ) : error ? (
             <div className="p-6 text-center">
-              <p className="text-sm text-rose-700 dark:text-rose-300">{error}</p>
+              <p className="text-sm text-rose-700 dark:text-rose-300">{error}<StaleRefresh error={error} /></p>
               <button type="button" onClick={load} className="mt-2 text-sm font-medium text-teal-700 dark:text-teal-400 underline">
                 Try again
               </button>

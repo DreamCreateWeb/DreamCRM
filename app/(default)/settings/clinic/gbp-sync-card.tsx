@@ -18,6 +18,7 @@ import {
   type GbpSyncResult,
   type SyncableField,
 } from '@/lib/types/zernio'
+import { runAction } from '@/lib/run-action'
 
 /**
  * Settings → "Sync from Google" card. Surfaces honest per-field provenance
@@ -39,7 +40,7 @@ function fieldLabels(fields: SyncableField[]): string {
   return fields.map((f) => SYNCABLE_FIELD_LABELS[f].toLowerCase()).join(', ')
 }
 
-function summarize(r: GbpSyncResult): string {
+function summarize(r: GbpSyncResult | { ok: false; error: string }): string {
   if (!r.ok) return r.error ?? 'Sync failed.'
   if (r.skipped === 'no_connection') return 'No Google Business Profile is connected.'
   const parts: string[] = []
@@ -228,7 +229,7 @@ export default function GbpSyncCard({ state }: { state: GbpSyncState }) {
 
   function runSync() {
     startTransition(async () => {
-      const r = await syncFromGoogleAction()
+      const r = await runAction(() => syncFromGoogleAction())
       setToast({ tone: r.ok ? 'ok' : 'urgent', message: summarize(r) })
       if (r.ok) router.refresh()
     })
@@ -236,7 +237,7 @@ export default function GbpSyncCard({ state }: { state: GbpSyncState }) {
 
   function keepMine(field: SyncableField) {
     startTransition(async () => {
-      const r = await revertFieldToManualAction(field)
+      const r = await runAction(() => revertFieldToManualAction(field))
       if (r.ok) {
         setToast({ tone: 'ok', message: `We'll keep your ${SYNCABLE_FIELD_LABELS[field].toLowerCase()} as-is.` })
         router.refresh()
@@ -248,7 +249,7 @@ export default function GbpSyncCard({ state }: { state: GbpSyncState }) {
 
   function importPhotos(urls: string[]) {
     startTransition(async () => {
-      const r = await importGooglePhotosAction(urls)
+      const r = await runAction(() => importGooglePhotosAction(urls))
       if (r.ok) {
         setToast({ tone: 'ok', message: r.added > 0 ? `Added ${r.added} ${r.added === 1 ? 'photo' : 'photos'} to your gallery.` : 'Those photos are already in your gallery.' })
         router.refresh()
