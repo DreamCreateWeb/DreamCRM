@@ -6,6 +6,8 @@ import { HONEYPOT_FIELD, TIMETRAP_FIELD } from '@/lib/form-trust'
 import FormTrustFields from '@/components/clinic-site/form-trust-fields'
 import { pickPlatformAction, recordGateRatingAction, submitPrivateFeedbackAction } from './actions'
 import { BusyLabel } from '@/components/ui/busy-label'
+import { runAction } from '@/lib/run-action'
+import { PORTAL_RUN, PortalReloadWhenStale } from '@/components/patient-portal/stale-reload'
 
 const INK = 'var(--c-ink, #1C1A17)'
 const INK_MUTED = 'var(--c-ink-muted, #6B635A)'
@@ -174,7 +176,7 @@ export default function ReviewForm({
       if (ts) fd.set(TIMETRAP_FIELD, ts.value)
     }
     startTransition(async () => {
-      const r = await submitPrivateFeedbackAction(token, fd)
+      const r = await runAction(() => submitPrivateFeedbackAction(token, fd), PORTAL_RUN)
       if (r.ok) setPrivateSent(true)
       else setError(r.error)
     })
@@ -305,6 +307,7 @@ export default function ReviewForm({
             required
           />
           {error && <p className="text-[13px] text-rose-600 mt-2">{error}</p>}
+          <PortalReloadWhenStale error={error} />
           <button
             type="submit"
             disabled={pending || !text.trim()}

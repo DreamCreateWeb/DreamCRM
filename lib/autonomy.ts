@@ -133,6 +133,58 @@ export const CAPABILITIES: readonly CapabilityDef[] = [
   // The ask-first "verify benefits before this week's visits" automation is
   // the future holder of this same key.
   { key: 'insurance_check', label: 'Look up a patient’s insurance benefits', defaultTrust: 'ask' },
+  // ── THE GENERATOR LANE (ML-11, 2026-11-03) ───────────────────────────────
+  // Registered AHEAD of their generators so every later slice is one import
+  // and one line (lib/services/proposal-generators/README.md). A
+  // registration without a generator FILES NOTHING — it is a vocabulary for
+  // the ledger, the trust resolver and the roster, not a promise — and every
+  // key below sits in PREVIEW_CAPABILITIES until its slice lands, so a real
+  // practice never reads about a job it cannot ask for. Trust per the lane
+  // matrix (docs/ai-operations.md): anything that lands in a REAL PERSON's
+  // inbox or answers one in public asks first; what only reports, or only
+  // keeps a fact in step, runs on its own like its auto siblings above.
+  //
+  // Answering a person. Ask-first and NOT grantable: a reply to someone who
+  // wrote in is a conversation, and the practice may know the person.
+  { key: 'patient_reply', label: 'Reply to patient messages', defaultTrust: 'ask' },
+  { key: 'feedback_reply', label: 'Answer private feedback', defaultTrust: 'ask' },
+  // Machine-initiated mail to a patient. Ask-first; each joins
+  // GRANTABLE_CAPABILITIES in the slice that ships its executor (a grant
+  // runs through executeProposal, whose default branch refuses a capability
+  // it cannot carry out — grantable must stay a subset of executable).
+  { key: 'inquiry_followup', label: 'Follow up on unanswered inquiries', defaultTrust: 'ask' },
+  { key: 'postop_checkin', label: 'Check in after a procedure', defaultTrust: 'ask' },
+  { key: 'rebook_nudge', label: 'Nudge cancelled visits to rebook', defaultTrust: 'ask' },
+  { key: 'referral_ask', label: 'Ask happy patients for referrals', defaultTrust: 'ask' },
+  // A newsletter is four weeks of the practice's voice in every inbox at
+  // once — ask-first and not grantable for now (the deep-sleep ruling
+  // covers PUBLIC broadcast, not patient inboxes).
+  { key: 'newsletter', label: 'Send a monthly patient newsletter', defaultTrust: 'ask' },
+  // Transactional care and bookkeeping — MEANT TO RUN ON THEIR OWN like the
+  // reminders they resemble, managed by their own switches and NOT
+  // grantable. Registered 'ask' for now, the ladder's rule for a new
+  // capability: tests/journey/spine.test.ts holds every 'auto' capability
+  // to a ledger writer, because a lane that acts unnarrated is exactly the
+  // blind spot the standup must never have — so each flips to 'auto' in the
+  // slice that ships its writer, and a key in PREVIEW_CAPABILITIES is never
+  // 'auto' (pinned). post_visit_care sends the clinic's own aftercare copy
+  // after a completed visit; membership_rescue retries and nudges a failed
+  // membership payment; order_update keeps a shop customer posted; consent
+  // records and renews contact consent (the consent spine stays the ONLY
+  // writer of marketing_sms_opt_in).
+  { key: 'post_visit_care', label: 'Send after-visit care instructions', defaultTrust: 'ask' },
+  { key: 'membership_rescue', label: 'Rescue a failing membership payment', defaultTrust: 'ask' },
+  { key: 'order_update', label: 'Keep shop customers posted on their orders', defaultTrust: 'ask' },
+  { key: 'consent', label: 'Keep patient contact consent current', defaultTrust: 'ask' },
+  // The listing watchdog: meant to be auto because it only ever REPORTS what
+  // changed on the practice's Google listing (a 'listing' artifact, before →
+  // after); the fix stays with gbp_website_fix's ask. Not grantable — no
+  // judgment. 'ask' until its writer lands, same rule as the four above.
+  { key: 'listing_watch', label: 'Watch your Google listing for changes', defaultTrust: 'ask' },
+  // Two more first-week questions (SETUP_CAPABILITIES below): asked once,
+  // AI-free, never on the roster.
+  { key: 'setup_team_photo', label: 'Add your team’s photos', defaultTrust: 'ask' },
+  { key: 'setup_closures', label: 'Tell me your holiday closures', defaultTrust: 'ask' },
 ] as const
 
 /**
@@ -145,6 +197,10 @@ export const SETUP_CAPABILITIES: readonly string[] = [
   'setup_chairs',
   'setup_booking_mode',
   'setup_texting',
+  // ML-11: registered ahead; generateSetupProposals files each ask by hand,
+  // so a key here files nothing until its slice writes the ask.
+  'setup_team_photo',
+  'setup_closures',
 ]
 
 /**
@@ -165,6 +221,12 @@ export const BOOKING_BUTTON_CAPABILITIES: readonly string[] = [
   'outreach_campaign',
   'inquiry_response',
   'schedule_gap',
+  // ML-11, registered ahead: a follow-up on an unanswered inquiry and a
+  // rebook nudge both exist to get a time booked, so their cards disclose
+  // the button from day one — and their executors MUST append it (route
+  // through the campaign protocol or the inquiry shell), or the card lies.
+  'inquiry_followup',
+  'rebook_nudge',
 ]
 
 /**
@@ -175,9 +237,24 @@ export const BOOKING_BUTTON_CAPABILITIES: readonly string[] = [
  * never reads about a job it cannot ask for. Remove a key from this list to
  * release the feature; nothing else needs to change on the roster.
  */
-// Empty since 2026-10-03: `insurance_check` was the first (and so far only)
-// preview lane and was released with polish phase 6. The mechanism stays.
-export const PREVIEW_CAPABILITIES: readonly string[] = []
+// `insurance_check` was the first preview lane (released 2026-10-03). Since
+// ML-11 (2026-11-03) the list holds THE GENERATOR LANE: every capability
+// registered ahead of its generator. Each slice that ships a generator +
+// executor deletes its own key here — that single deletion is the release.
+export const PREVIEW_CAPABILITIES: readonly string[] = [
+  'patient_reply',
+  'feedback_reply',
+  'inquiry_followup',
+  'postop_checkin',
+  'rebook_nudge',
+  'referral_ask',
+  'newsletter',
+  'post_visit_care',
+  'membership_rescue',
+  'order_update',
+  'consent',
+  'listing_watch',
+]
 
 export function isPreviewCapability(key: string): boolean {
   return PREVIEW_CAPABILITIES.includes(key)
@@ -206,6 +283,13 @@ export const GRANTABLE_CAPABILITIES = [
   // Deep-sleep lane (owner ruling 2026-08-23) — grantable so the ladder's
   // take-back machinery ("go back to asking") governs it like its siblings.
   'content_plan',
+  // THE GENERATOR LANE (ML-11): inquiry_followup, postop_checkin,
+  // rebook_nudge and referral_ask are MEANT to be grantable, and each joins
+  // this list in the slice that ships its executor — never before. A grant
+  // executes through executeProposal, whose default branch refuses a
+  // capability it cannot carry out, so a grantable key without an executor
+  // is a yes the machine would answer with a failure every tick.
+  // tests/journey/capability-registry.test.ts pins grantable ⊆ executable.
 ] as const
 
 export function isGrantable(key: string): boolean {

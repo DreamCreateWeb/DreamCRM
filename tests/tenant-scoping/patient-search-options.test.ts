@@ -1,6 +1,6 @@
 /**
  * searchPatientOptions (the "+ New booking" picker's search) carries the
- * calling org's id on every query, exactly like listPatientOptions — the
+ * calling org's id on every query, exactly like every other patient read — the
  * ORG_A/ORG_B pattern — and is capped at PATIENT_SEARCH_LIMIT.
  *
  * Uses REAL drizzle-orm + the real schema (only @/lib/db is mocked) so the
@@ -60,7 +60,7 @@ vi.mock('@/lib/db', async () => {
   }
 })
 
-import { searchPatientOptions, listPatientOptions, getPatientOption, PATIENT_SEARCH_LIMIT } from '@/lib/services/patients'
+import { searchPatientOptions, getPatientOption, PATIENT_SEARCH_LIMIT } from '@/lib/services/patients'
 
 const ORG_A = 'org_a_acme_dental'
 const ORG_B = 'org_b_bright_dental'
@@ -71,7 +71,7 @@ beforeEach(() => {
   state.rows = []
 })
 
-describe('searchPatientOptions is org-scoped like listPatientOptions', () => {
+describe('searchPatientOptions is org-scoped', () => {
   it('an empty query (the recent list) carries the org', async () => {
     await searchPatientOptions(ORG_A, '')
     await searchPatientOptions(ORG_B, '   ')
@@ -126,11 +126,5 @@ describe('searchPatientOptions is org-scoped like listPatientOptions', () => {
     state.rows = []
     expect(await getPatientOption(ORG_B, 'pat_from_another_org')).toBeNull()
     expect(state.wheres[0]).toContain(ORG_B)
-  })
-
-  it('listPatientOptions (the guardian select) still carries the org', async () => {
-    await listPatientOptions(ORG_B)
-    expect(state.wheres[0]).toContain(ORG_B)
-    expect(state.wheres[0]).not.toContain(ORG_A)
   })
 })

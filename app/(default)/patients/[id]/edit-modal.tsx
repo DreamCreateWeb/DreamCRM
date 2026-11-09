@@ -7,16 +7,17 @@ import { ActionButton } from '@/components/ui/action-button'
 import { useFocusTrap } from '@/components/ui/use-focus-trap'
 import { FieldError } from '@/components/ui/field-error'
 import { validateRequired, validateEmail, validatePhone, collectErrors } from '@/lib/validation'
+import PatientCombobox from '@/components/ui/patient-combobox'
 import { updatePatientAction } from '../actions'
 
 export default function EditPatientModal({
   header,
-  patientOptions = [],
+  guardian = null,
   onClose,
 }: {
   header: PatientHeader
-  /** id+name candidates for the guardian picker (family portal access). */
-  patientOptions?: Array<{ id: string; name: string }>
+  /** The current guardian (id + name), for the guardian picker (family portal access). */
+  guardian?: { id: string; name: string } | null
   onClose: () => void
 }) {
   const router = useRouter()
@@ -38,7 +39,7 @@ export default function EditPatientModal({
   const [insProvider, setInsProvider] = useState(header.insuranceProvider ?? '')
   const [insPolicy, setInsPolicy] = useState(header.insurancePolicyNumber ?? '')
   const [insGroup, setInsGroup] = useState(header.insuranceGroupNumber ?? '')
-  const [guardianId, setGuardianId] = useState(header.guardianPatientId ?? '')
+  const [guardianPick, setGuardianPick] = useState<{ id: string; name: string } | null>(guardian)
   // '' = use the clinic default recall cadence; otherwise a per-patient override.
   const [recallInterval, setRecallInterval] = useState(
     header.recallIntervalMonths != null ? String(header.recallIntervalMonths) : '',
@@ -70,7 +71,7 @@ export default function EditPatientModal({
         insuranceProvider: insProvider.trim() || null,
         insurancePolicyNumber: insPolicy.trim() || null,
         insuranceGroupNumber: insGroup.trim() || null,
-        guardianPatientId: guardianId || null,
+        guardianPatientId: guardianPick?.id ?? null,
         recallIntervalMonths: recallInterval ? parseInt(recallInterval, 10) : null,
         preferredLanguage: language || null,
       })
@@ -168,29 +169,23 @@ export default function EditPatientModal({
           </div>
           <SectionHeading>Family access</SectionHeading>
           <div className="grid grid-cols-1 gap-3">
-            <label className="block">
-              <span className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold">
+            <div className="block">
+              <label htmlFor="edit-guardian" className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold">
                 Family portal access (guardian)
-              </span>
-              <select
-                value={guardianId}
-                onChange={(e) => setGuardianId(e.target.value)}
-                className="form-select w-full text-sm mt-1"
-              >
-                <option value="">No guardian — manages their own portal</option>
-                {patientOptions
-                  .filter((p) => p.id !== header.id)
-                  .map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}
-                    </option>
-                  ))}
-              </select>
+              </label>
+              <PatientCombobox
+                id="edit-guardian"
+                value={guardianPick}
+                onPick={setGuardianPick}
+                excludeId={header.id}
+                placeholder="No guardian — search to add one"
+                clearLabel="Remove"
+              />
               <span className="block text-xs text-gray-500 dark:text-gray-400 mt-1">
                 The guardian sees and manages this patient&apos;s visits and forms from their own
                 portal login — for kids and family members who don&apos;t sign in themselves.
               </span>
-            </label>
+            </div>
           </div>
           {error && <p className="text-xs text-rose-700 dark:text-rose-300">{error}</p>}
         </div>

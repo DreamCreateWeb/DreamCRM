@@ -76,6 +76,7 @@ export function appointmentSourceLabel(s: string): string {
     case 'pms': return 'Practice system'
     case 'pms_live': return 'Practice system'
     case 'pms_import': return 'Practice system (imported)'
+    case 'csv_import': return 'Roster import (last visit)'
     default: return s.replace(/_/g, ' ')
   }
 }

@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { sendPortalMessageAction } from '../actions'
+import { runAction } from '@/lib/run-action'
+import { PORTAL_RUN, PortalReloadWhenStale } from '@/components/patient-portal/stale-reload'
 import {
   PortalHeading,
   PORTAL_SUCCESS_INK,
@@ -96,7 +98,7 @@ export default function PortalMessagesView({
     const body = draft
     const sent = attachments
     startTransition(async () => {
-      const r = await sendPortalMessageAction(body, sent)
+      const r = await runAction(() => sendPortalMessageAction(body, sent), PORTAL_RUN)
       if (r.ok) {
         setDraft('')
         setAttachments([])
@@ -349,6 +351,7 @@ export default function PortalMessagesView({
               {feedback.msg}
             </p>
           )}
+          <PortalReloadWhenStale error={feedback?.kind === 'err' ? feedback.msg : null} />
         </form>
       </div>
     </div>

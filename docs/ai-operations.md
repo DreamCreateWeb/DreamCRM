@@ -676,3 +676,20 @@ commit → merge to main → verify deploy (same as the best-version program).
   translucent stat tiles (`dark:bg-teal-400/[.05]`). The rig is the
   deliverable as much as the fixes: the next design pass starts from a
   screenshot, not a guess.
+- **2026-11-03 — ML-11**: THE REGISTRY PR for the generator lane. Fourteen
+  capabilities registered ahead of their generators in lib/autonomy.ts — a
+  registration files nothing — every one parked in PREVIEW_CAPABILITIES
+  (deleting the key is the release), seated on one specialist each, with
+  icons, standup nouns, send-window + booking-button memberships, and three
+  artifact kinds (thread/precheck/listing) with renderers. Two laws the
+  brief's trust marks ran into and now pin for every later slice: grantable
+  ⊆ executable (a grant runs through executeProposal's switch) and auto ⇒ a
+  ledger writer (the spine's blind-spot guard), so grants and auto defaults
+  land WITH the executor/writer. G1-4: SPECIALIST_NEEDS + specialistBlocker —
+  a quiet teammate waiting on a connection says "Needs {fact} →" as a link
+  to the readiness resolver's own door, still no control; the page's three
+  serial awaits folded into its opening Promise.all. Convention: one file
+  per capability under proposal-generators/ and proposal-executors/, one
+  import + one line, sequential. Each generator slice = generator file +
+  STEP_FAILURE entry + executor case + demoLedgerSummary line + delete the
+  PREVIEW key (+ the GRANTABLE / 'auto' flip where intended).

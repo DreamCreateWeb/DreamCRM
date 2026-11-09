@@ -2,11 +2,15 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { BUILD_ID } from '@/lib/build-id'
+import { buildsDiffer } from '@/lib/deployment-skew'
+import { BUILD_WATCH_INTERVAL_MS, fetchServerBuild } from '@/components/ui/build-watch'
+import { PORTAL_STALE_MESSAGE } from './stale-reload'
 import { useFocusTrap } from '@/components/ui/use-focus-trap'
 import type { PortalNavItem, PortalIconName } from './nav'
 import { brandTint } from '@/lib/brand-tint'
-import { PORTAL_MUTED } from './ui'
+import { PORTAL_MUTED, PORTAL_WARN_BG, PORTAL_WARN_INK } from './ui'
 
 /**
  * Client chrome for the patient portal: desktop header nav + mobile bottom
@@ -327,4 +331,50 @@ export function PortalCredit({ hidden }: { hidden: boolean }) {
   // No `opacity-*` on portal ink: the muted tone IS the quiet step
   // (tests/a11y/portal-ink-opacity).
   return <p className="mt-3 text-[0.75rem]">Powered by DreamCRM</p>
+}
+
+/**
+ * The portal's BuildWatch: the dashboard's own `/api/version` poll (same
+ * `fetchServerBuild`, same focus + 5-minute rhythm) in the portal's tones. A
+ * tab left open on the portal across a deploy is told ONCE, calmly, and given
+ * a Reload; nothing reloads on its own, so a half-typed message is never
+ * thrown away by the machine. Sits above the mobile tab bar.
+ */
+export function PortalBuildWatch() {
+  const [stale, setStale] = useState(false)
+
+  const check = useCallback(async () => {
+    const theirs = await fetchServerBuild()
+    if (theirs && buildsDiffer(BUILD_ID, theirs)) setStale(true)
+  }, [])
+
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') void check()
+    }
+    const t = window.setInterval(() => void check(), BUILD_WATCH_INTERVAL_MS)
+    document.addEventListener('visibilitychange', onVisible)
+    window.addEventListener('focus', onVisible)
+    return () => {
+      window.clearInterval(t)
+      document.removeEventListener('visibilitychange', onVisible)
+      window.removeEventListener('focus', onVisible)
+    }
+  }, [check])
+
+  if (!stale) return null
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      data-testid="portal-build-watch"
+      className="fixed inset-x-4 bottom-24 z-50 mx-auto flex max-w-sm items-center gap-3 rounded-2xl px-4 py-3 text-[0.88rem] font-medium shadow-lg md:bottom-4"
+      style={{ backgroundColor: PORTAL_WARN_BG, color: PORTAL_WARN_INK }}
+    >
+      <span>{PORTAL_STALE_MESSAGE}</span>
+      <button type="button" onClick={() => window.location.reload()} className="shrink-0 font-semibold underline underline-offset-2">
+        Reload
+      </button>
+    </div>
+  )
 }

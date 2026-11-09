@@ -3,6 +3,8 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { redeemMyPointsAction } from '@/app/(portal)/patient/actions'
+import { runAction } from '@/lib/run-action'
+import { PORTAL_RUN, PortalReloadWhenStale } from '@/components/patient-portal/stale-reload'
 import {
   PORTAL_DANGER_INK,
   PortalCard,
@@ -41,7 +43,7 @@ export default function LoyaltyCard({
   function redeem() {
     setError('')
     startTransition(async () => {
-      const r = await redeemMyPointsAction()
+      const r = await runAction(() => redeemMyPointsAction(), PORTAL_RUN)
       if (r.ok) setReward({ code: r.couponCode, valueCents: r.valueCents })
       else setError(r.error)
     })
@@ -97,6 +99,7 @@ export default function LoyaltyCard({
         </BrandButton>
       )}
       {error && <p role="alert" className="mt-2 text-[0.85rem] font-medium" style={{ color: PORTAL_DANGER_INK }}>{error}</p>}
+      <PortalReloadWhenStale error={error} />
     </PortalCard>
   )
 }

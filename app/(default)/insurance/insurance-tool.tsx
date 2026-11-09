@@ -2,6 +2,9 @@
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { runAction } from '@/lib/run-action'
+import { failureErrors } from './action-errors'
+import PatientCombobox from '@/components/ui/patient-combobox'
 import { useCallback, useEffect, useRef, useState, useTransition, type ReactNode } from 'react'
 import { PageHeader } from '@/components/ui/page-header'
 import { ActionButton } from '@/components/ui/action-button'
@@ -140,7 +143,6 @@ export interface InsuranceToolProps {
   orgName: string
   recent: InsuranceCheckView[]
   carriers: string[]
-  patientOptions: Array<{ id: string; name: string }>
   timeZone: string
   prefill: { patientId: string; patientName: string; request: Partial<EligibilityRequest>; state?: string | null; postalCode?: string | null } | null
   initialCheck: InsuranceCheckView | null
@@ -159,6 +161,8 @@ export interface InsuranceToolProps {
   discoveryUsage?: InsuranceUsage | null
   /** The patient's latest stored search — a pending one reopens the panel on its own. */
   latestDiscovery?: InsuranceDiscoveryView | null
+  /** `?payer=&name=` (the lead drawer's door): a carrier typed on the website becomes the payer picker's QUERY, a name the form's name fields. Never a check. */
+  startWith?: { carrier?: string; name?: string } | null
   /** `?discover=1` — the record's "No card?" door lands with the panel open. */
   discoverOpen?: boolean
 }
@@ -170,7 +174,7 @@ export default function InsuranceTool({
   orgName,
   recent: initialRecent,
   carriers,
-  patientOptions,
+  startWith = null,
   timeZone,
   prefill,
   initialCheck,
@@ -187,11 +191,18 @@ export default function InsuranceTool({
   const router = useRouter()
   const toast = useToast()
   const confirm = useConfirm()
-  const [form, setForm] = useState<FormState>(() => formFromRequest(prefill?.request))
+  const [form, setForm] = useState<FormState>(() => {
+    const base = formFromRequest(prefill?.request)
+    if (prefill || !startWith) return base
+    const [first = '', ...rest] = (startWith.name ?? '').trim().split(/\s+/)
+    return { ...base, carrierName: startWith.carrier ?? '', firstName: first, lastName: rest.join(' ') }
+  })
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [current, setCurrent] = useState<InsuranceCheckView | null>(initialCheck)
   const [recent, setRecent] = useState<InsuranceCheckView[]>(initialRecent)
   const [pending, startTransition] = useTransition()
+  // After a successful add/save the card stays and offers the next step.
+  const [added, setAdded] = useState<{ id: string; name: string; how: 'added' | 'saved' } | null>(null)
   const [duplicate, setDuplicate] = useState<{ id: string; name: string } | null>(null)
   const [busy, setBusy] = useState<'check' | 'save' | 'add' | 'anyway' | 'breakdown' | null>(null)
   const [statusFilter, setStatusFilter] = useState<EligibilityStatus | null>(null)
@@ -236,7 +247,7 @@ export default function InsuranceTool({
   const focusFirstEmpty = useCallback(() => {
     const root = formRef.current
     if (!root) return
-    const inputs = Array.from(root.querySelectorAll<HTMLInputElement>('input:not([type=radio])'))
+    const inputs = Array.from(root.querySelectorAll<HTMLInputElement>('input:not([type=radio]):not(#ins-patient-pick)'))
     const target = inputs.find((i) => !i.value) ?? inputs[0]
     target?.focus()
   }, [])
@@ -258,13 +269,14 @@ export default function InsuranceTool({
     setDuplicate(null)
     setBusy('check')
     startTransition(async () => {
-      const r = await checkInsuranceAction(raw, prefill?.patientId ?? null)
+      const r = await runAction(() => checkInsuranceAction(raw, prefill?.patientId ?? null))
       setBusy(null)
       if (!r.ok) {
-        setErrors(r.errors)
+        setErrors(failureErrors(r))
         return
       }
       setCurrent(r.check)
+      setAdded(null)
       setRecent((list) => [r.check, ...list.filter((c) => c.id !== r.check.id)].slice(0, 50))
       // The answer is the next thing to read: move focus to its heading so a
       // keyboard user lands on the verdict, not back at the top of the form.
@@ -294,14 +306,16 @@ export default function InsuranceTool({
     setDuplicate(null)
     setBusy('breakdown')
     startTransition(async () => {
-      const r = await fullBreakdownAction(current.input, current.patientId ?? prefill?.patientId ?? null)
+      const r = await runAction(() => fullBreakdownAction(current.input, current.patientId ?? prefill?.patientId ?? null))
       setBusy(null)
       if (!r.ok) {
-        setErrors(r.errors)
-        toast(r.errors._form ?? 'The breakdown failed.', { tone: 'urgent' })
+        const errs = failureErrors(r)
+        setErrors(errs)
+        toast(errs._form ?? 'The breakdown failed.', { tone: 'urgent' })
         return
       }
       setCurrent(r.check)
+      setAdded(null)
       setRecent((list) => [r.check, ...list.filter((c) => c.id !== r.check.id)].slice(0, 50))
       router.refresh()
       requestAnimationFrame(() => resultRef.current?.querySelector<HTMLElement>('[data-testid="benefits-heading"]')?.focus())
@@ -314,7 +328,7 @@ export default function InsuranceTool({
     startTransition(async () => {
       // The flat columns AND the remembered card: the exact payer, the plan
       // the last answer named, and whose name the policy is in.
-      const r = await saveInsuranceToPatientAction(prefill.patientId, {
+      const r = await runAction(() => saveInsuranceToPatientAction(prefill.patientId, {
         carrierName: form.carrierName,
         memberId: form.memberId,
         groupNumber: form.groupNumber || null,
@@ -326,10 +340,12 @@ export default function InsuranceTool({
           form.relationship === 'self'
             ? null
             : { firstName: form.subFirstName, lastName: form.subLastName, dateOfBirth: form.subDateOfBirth },
-      })
+      }))
       setBusy(null)
-      if (r.ok) toast(`Saved to ${prefill.patientName}’s record.`)
-      else toast(r.error, { tone: 'urgent' })
+      if (r.ok) {
+        toast(`Saved to ${prefill.patientName}’s record.`)
+        setAdded({ id: prefill.patientId, name: prefill.patientName, how: 'saved' })
+      } else toast(r.error, { tone: 'urgent' })
     })
   }
 
@@ -337,7 +353,7 @@ export default function InsuranceTool({
     if (!current) return
     setBusy(forceNew ? 'anyway' : 'add')
     startTransition(async () => {
-      const r = await createPatientFromCheckAction({ checkId: current.id, request: current.input, planName: current.result?.planName ?? null, forceNew })
+      const r = await runAction(() => createPatientFromCheckAction({ checkId: current.id, request: current.input, planName: current.result?.planName ?? null, forceNew }))
       setBusy(null)
       if ('duplicateOf' in r && r.duplicateOf) {
         setDuplicate(r.duplicateOf)
@@ -349,12 +365,14 @@ export default function InsuranceTool({
       }
       setDuplicate(null)
       toast('Added to Patients.')
-      router.push(`/patients/${r.id}`)
+      setAdded({ id: r.id, name: `${current.input.patient.firstName} ${current.input.patient.lastName}`.trim(), how: 'added' })
+      router.refresh()
     })
   }
 
   function loadRecent(c: InsuranceCheckView) {
     setCurrent(c)
+    setAdded(null)
     setForm(formFromRequest(c.input))
     setErrors({})
     setDuplicate(null)
@@ -436,19 +454,12 @@ export default function InsuranceTool({
                   Who
                 </label>
                 <p className="text-xs text-gray-500 dark:text-gray-400">Pick someone on the books, or type a new name.</p>
-                <select
+                <PatientCombobox
                   id="ins-patient-pick"
-                  className="form-select w-full mt-1.5 text-sm"
-                  value={prefill?.patientId ?? ''}
-                  onChange={(e) => router.push(e.target.value ? `/insurance?patient=${e.target.value}` : '/insurance')}
-                >
-                  <option value="">Someone new — type their details</option>
-                  {patientOptions.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}
-                    </option>
-                  ))}
-                </select>
+                  value={prefill ? { id: prefill.patientId, name: prefill.patientName } : null}
+                  onPick={(p) => router.push(p ? `/insurance?patient=${p.id}` : '/insurance')}
+                  clearLabel="Someone else"
+                />
                 {prefill && (
                   <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
                     Checking for{' '}
@@ -647,7 +658,22 @@ export default function InsuranceTool({
                 </div>
               ) : (
                 <>
-                  {!current.patientId && current.status !== 'error' && (
+                  {added && (
+                    <div className="v2-well px-3 py-3 text-sm w-full" data-testid="post-add">
+                      <p className="text-gray-800 dark:text-gray-100">
+                        {added.how === 'added' ? `${added.name} is on your patient list.` : `Saved to ${added.name}’s record.`}
+                      </p>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        <ActionButton variant="primary" size="sm" href={`/patients/${added.id}?book=1`}>
+                          Book their visit
+                        </ActionButton>
+                        <ActionButton variant="secondary" size="sm" href={`/patients/${added.id}`}>
+                          Open the record
+                        </ActionButton>
+                      </div>
+                    </div>
+                  )}
+                  {!current.patientId && !added && current.status !== 'error' && (
                     <ActionButton variant="primary" size="sm" pending={pending && busy === 'add'} onClick={() => addAsPatient(false)}>
                       Add {current.input.patient.firstName} as a patient
                     </ActionButton>
@@ -821,7 +847,7 @@ export default function InsuranceTool({
               )
                 return
               startTransition(async () => {
-                const r = await disableInsuranceAction()
+                const r = await runAction(() => disableInsuranceAction())
                 if (!r.ok) {
                   toast(r.error)
                   return
@@ -871,10 +897,10 @@ function PayerPicker({
     const mine = ++seq.current
     setSearching(true)
     const t = setTimeout(async () => {
-      const r = await searchPayersAction(query)
+      const r = await runAction(() => searchPayersAction(query))
       if (mine !== seq.current) return
       setSearching(false)
-      setResults(r.ok ? r.payers : [])
+      setResults(r.ok && 'payers' in r ? r.payers : [])
       setOpen(true)
     }, 300)
     return () => clearTimeout(t)

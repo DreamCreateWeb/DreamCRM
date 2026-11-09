@@ -8,7 +8,7 @@ import type {
   FormSubmissionData,
   FormTemplateSchema,
 } from '@/lib/types/forms'
-import { isDisplayOnlyField, isFieldVisible, localizeSchema, sanitizeFileRefs } from '@/lib/types/forms'
+import { submitterFromValues, isDisplayOnlyField, isFieldVisible, localizeSchema, sanitizeFileRefs } from '@/lib/types/forms'
 import type { FormTranslations } from '@/lib/types/forms'
 import { uploadFileWithProgress } from '@/lib/upload-with-progress'
 
@@ -229,10 +229,8 @@ export default function IntakeFormRunner({ orgId, templateId, schema, brand, cli
     // System fields → the submitter record (so the clinic sees who filled the
     // form even before a patientId is attached). Computed once at submit, not
     // memoized on every keystroke.
-    const first = values['first_name']
-    const last = values['last_name']
-    const submitterName =
-      [first, last].filter((x): x is string => typeof x === 'string' && !!x).join(' ') || null
+    const submitter = submitterFromValues(schema, values)
+    const submitterName = submitter.name
     try {
       // The action returns its outcome rather than throwing it: in production
       // Next.js replaces a server-action error message with an opaque digest,
@@ -244,8 +242,8 @@ export default function IntakeFormRunner({ orgId, templateId, schema, brand, cli
         templateId,
         data: values,
         submitterName,
-        submitterEmail: typeof values['email'] === 'string' ? (values['email'] as string) : null,
-        submitterPhone: typeof values['phone'] === 'string' ? (values['phone'] as string) : null,
+        submitterEmail: submitter.email,
+        submitterPhone: submitter.phone,
         // Filling in Spanish stamps the patient's preferred language (only
         // when not already set) — powers preferred-language messaging.
         submittedLanguage: lang,

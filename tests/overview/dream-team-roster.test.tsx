@@ -2,7 +2,8 @@ import { describe, it, expect } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import TeamRoster from '@/app/(default)/dream-team/team-roster'
 import { SPECIALISTS } from '@/lib/types/dream-team'
-import { CAPABILITIES } from '@/lib/autonomy'
+import { CAPABILITIES, SETUP_CAPABILITIES } from '@/lib/autonomy'
+import type { ReadinessFact } from '@/lib/readiness'
 
 /**
  * THE ROSTER (docs/ai-operations.md, D3). Contract: a report, not a
@@ -31,14 +32,9 @@ describe('the roster ↔ capability registry parity', () => {
     // The deliberate absences: the meta lanes (how work reaches the clinic /
     // the watcher's own voice) and the one-time setup asks — first-week
     // questions, not standing jobs on anyone's desk.
-    const META = new Set([
-      'guardian_note',
-      'proposal_engine',
-      'setup_hours',
-      'setup_chairs',
-      'setup_booking_mode',
-      'setup_texting',
-    ])
+    // The setup list is the registry's own (ML-11): a new first-week ask
+    // joins SETUP_CAPABILITIES and stays off the roster by construction.
+    const META = new Set(['guardian_note', 'proposal_engine', ...SETUP_CAPABILITIES])
     for (const c of CAPABILITIES) {
       if (META.has(c.key)) {
         expect(seen.has(c.key), `${c.key} is meta — keep it off the roster`).toBe(false)
@@ -102,8 +98,91 @@ describe('the roster cards', () => {
 })
 
 describe('PREVIEW lanes', () => {
-  it('nothing is in preview today — the insurance lane (the first preview, released 2026-10-03) shows to every clinic', () => {
+  it('the insurance lane (the first preview, released 2026-10-03) shows to every clinic', () => {
     render(<TeamRoster grantedCapabilities={new Set()} weeklyCounts={new Map()} waitingCapabilities={new Set()} />)
     expect(screen.getByText(/insurance benefits/)).toBeInTheDocument()
+  })
+
+  it('the generator lane (ML-11) stays off a clinic’s roster until its generator lands — platform admins see it coming', () => {
+    const { unmount } = render(
+      <TeamRoster grantedCapabilities={new Set()} weeklyCounts={new Map()} waitingCapabilities={new Set()} />,
+    )
+    // A registration is not a promise: no clinic reads about a job nobody does yet.
+    expect(screen.queryByText('Reply to patient messages')).not.toBeInTheDocument()
+    expect(screen.queryByText('Watch your Google listing for changes')).not.toBeInTheDocument()
+    unmount()
+    render(
+      <TeamRoster grantedCapabilities={new Set()} weeklyCounts={new Map()} waitingCapabilities={new Set()} showPreview />,
+    )
+    expect(screen.getByText('Reply to patient messages')).toBeInTheDocument()
+    expect(screen.getByText('Watch your Google listing for changes')).toBeInTheDocument()
+  })
+})
+
+/**
+ * BLOCKED vs QUIET (G1-4): a specialist whose lanes read from a connection
+ * the practice hasn't made says what it needs, as a LINK to that door —
+ * a report naming its cause, never a control.
+ */
+describe('what a quiet teammate is waiting on', () => {
+  const fact = (
+    id: ReadinessFact['id'],
+    label: string,
+    grade: ReadinessFact['grade'],
+    href: string,
+  ): ReadinessFact => ({ id, label, grade, summary: 'why it matters', href, optional: false })
+
+  it('a quiet lane with a missing connection renders "Needs {fact.label} →" as a link to the fact’s own door', () => {
+    render(
+      <TeamRoster
+        grantedCapabilities={new Set()}
+        weeklyCounts={new Map()}
+        waitingCapabilities={new Set()}
+        readinessFacts={[
+          fact('gbp', 'Connect Google Business', 'todo', '/integrations'),
+          fact('pms', 'Practice software connected', 'waiting', '/integrations'),
+          fact('social', 'Social connected', 'ready', '/growth/social'),
+          fact('patients', 'Add your first patients', 'todo', '/patients'),
+        ]}
+      />,
+    )
+    const gbp = screen.getByRole('link', { name: 'Needs Connect Google Business →' })
+    expect(gbp).toHaveAttribute('href', '/integrations')
+    // Scheduling AND Outreach both wait on patients — one link each.
+    expect(screen.getAllByRole('link', { name: 'Needs Add your first patients →' })).toHaveLength(2)
+    // Ready blocks nothing; waiting is the practice's part already done.
+    expect(screen.queryByText(/Needs Social connected/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/Needs Practice software connected/)).not.toBeInTheDocument()
+    // The lanes with no need, and the ones not blocked, still say the quiet week plainly.
+    expect(screen.getAllByText(/A quiet week — nothing to report\./).length).toBeGreaterThan(0)
+    // Still a report, not a console.
+    expect(screen.queryByRole('button')).not.toBeInTheDocument()
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
+  })
+
+  it('a teammate with real numbers is working, whatever the setup report says', () => {
+    render(
+      <TeamRoster
+        grantedCapabilities={new Set()}
+        weeklyCounts={new Map([['review_request', 3]])}
+        waitingCapabilities={new Set()}
+        readinessFacts={[fact('gbp', 'Connect Google Business', 'todo', '/integrations')]}
+      />,
+    )
+    expect(screen.getByText('3')).toBeInTheDocument()
+    expect(screen.queryByText(/Needs Connect Google Business/)).not.toBeInTheDocument()
+  })
+
+  it('an unreadable report blocks no one — the quiet week is said plainly, never a guessed cause', () => {
+    render(
+      <TeamRoster
+        grantedCapabilities={new Set()}
+        weeklyCounts={new Map()}
+        waitingCapabilities={new Set()}
+        readinessFacts={null}
+      />,
+    )
+    expect(screen.queryByText(/^Needs /)).not.toBeInTheDocument()
+    expect(screen.getAllByText(/A quiet week — nothing to report\./).length).toBe(6)
   })
 })

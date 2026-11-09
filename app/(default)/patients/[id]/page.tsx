@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic'
 import { notFound, redirect } from 'next/navigation'
 import { getFeatureSwitchState } from '@/lib/services/feature-switches'
 import { requireTenant } from '@/lib/auth/context'
-import { getPatientHeader, listPatientOptions, getFamilyForPatient } from '@/lib/services/patients'
+import { getPatientHeader, getPatientOption, getFamilyForPatient } from '@/lib/services/patients'
 import { getPatientTimeline, countTimeline } from '@/lib/services/patient-timeline'
 import { listPatientNotes } from '@/lib/services/patient-notes'
 import { getTagsForPatient, listPatientTags } from '@/lib/services/patient-tags'
@@ -36,13 +36,12 @@ export default async function PatientDetailPage({ params }: PageProps) {
   if (ctx.tenantType === 'platform') redirect('/ecommerce/customers')
 
   const { id } = await params
-  const [header, timeline, notes, forms, patientOptions, tags, tagCatalog, documents, followups, staff, family, referral, latestInsuranceCheck, timeZone, insuranceHistory, insuranceSetup, latestDiscovery] =
+  const [header, timeline, notes, forms, tags, tagCatalog, documents, followups, staff, family, referral, latestInsuranceCheck, timeZone, insuranceHistory, insuranceSetup, latestDiscovery] =
     await Promise.all([
       getPatientHeader(ctx.organizationId, id),
       getPatientTimeline(ctx.organizationId, id),
       listPatientNotes(ctx.organizationId, id),
       listFormTemplates(ctx.organizationId),
-      listPatientOptions(ctx.organizationId),
       getTagsForPatient(ctx.organizationId, id),
       listPatientTags(ctx.organizationId),
       listPatientDocuments(ctx.organizationId, id),
@@ -60,6 +59,7 @@ export default async function PatientDetailPage({ params }: PageProps) {
   // A merged tombstone isn't a real record anymore — send old links to the survivor.
   if (header.mergedIntoPatientId) redirect(`/patients/${header.mergedIntoPatientId}`)
 
+  const guardian = header.guardianPatientId ? await getPatientOption(ctx.organizationId, header.guardianPatientId).catch(() => null) : null
   const canMerge = ctx.role === 'owner' || ctx.role === 'admin'
   const mergeCandidates = canMerge ? await findMergeCandidates(ctx.organizationId, id) : []
 
@@ -132,7 +132,7 @@ export default async function PatientDetailPage({ params }: PageProps) {
       notes={notes}
       intakeForms={intakeForms}
       isPlatformAdmin={ctx.platformAdmin}
-      patientOptions={patientOptions}
+      guardian={guardian}
       tags={tags}
       tagCatalog={tagCatalog}
       documents={documents}

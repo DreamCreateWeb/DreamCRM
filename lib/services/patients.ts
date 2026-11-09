@@ -5,7 +5,16 @@ import { and, asc, count, desc, eq, gte, inArray, isNotNull, isNull, lte, ne, no
 import { db, schema } from '@/lib/db'
 import { sumNetCollectedSql } from '@/lib/net-collected'
 import { randomBytes } from 'crypto'
-import { derivePatientRecallStatus, recallDueWhereSql, RECALL_DEFAULT_MONTHS } from '@/lib/services/recall-status'
+import {
+  derivePatientRecallStatus,
+  deriveLifecycle,
+  lifecycleCaseSql,
+  recallDueWhereSql,
+  NEW_PATIENT_DAYS,
+  RECALL_DEFAULT_MONTHS,
+  type LifecycleSqlOpts,
+  type PatientLifecycle,
+} from '@/lib/services/recall-status'
 import { getTagsForPatients, listPatientTags } from '@/lib/services/patient-tags'
 import type { PatientTagView } from '@/lib/types/patient-tags'
 import { normalizeEmail, normalizePhone } from '@/lib/contact-normalize'
@@ -20,7 +29,7 @@ import { getClinicCadence } from '@/lib/services/clinic-cadence'
 import { clampRowLimit, escapeLikeTerm } from '@/lib/types/messaging'
 import { DEFAULT_PATIENT_LIMIT, MAX_PATIENT_LIMIT } from '@/lib/types/patient-views'
 import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
-import { clinicWeekStart } from '@/lib/clinic-timezone'
+import { clinicDayStart, clinicWeekStart } from '@/lib/clinic-timezone'
 import { clinicDayKey } from '@/lib/format-datetime'
 import { BACKFILL_PATIENT_SOURCES } from '@/lib/patient-acquisition'
 
@@ -36,7 +45,9 @@ import { BACKFILL_PATIENT_SOURCES } from '@/lib/patient-acquisition'
 
 // ----- Public types -----------------------------------------------------
 
-export type PatientLifecycle = 'lead' | 'new' | 'active' | 'at_risk' | 'lapsed' | 'archived'
+/** DERIVED on every read (lib/services/recall-status.ts `deriveLifecycle`);
+ *  the stored column is consulted for nothing but 'archived'. */
+export type { PatientLifecycle }
 export type PatientSource = 'website' | 'booking' | 'referral' | 'walk_in' | 'manual' | 'lead_form' | 'invite' | 'website_request'
 
 export interface PatientRowFlags {
@@ -74,7 +85,12 @@ export interface PatientListRow {
   balanceAsOf: Date | null
   /** Lifetime paid spend through the in-app Shop (real `shop_order` totals). */
   shopSpendCents: number
+  /** The newest `patient_message` on this patient's thread, any channel —
+   *  what the practice and the patient last said to each other. Not the
+   *  Gmail mailbox, not a reminder (those are activity markers, not contact). */
   lastContactAt: Date | null
+  /** Who spoke last: 'inbound' = they replied, 'outbound' = we wrote. */
+  lastContactDirection: 'inbound' | 'outbound' | null
   flags: PatientRowFlags
   /** CRM tags on this patient (org-scoped catalog). Empty when none. */
   tags: PatientTagView[]
@@ -229,11 +245,7 @@ export async function listPatientsPage(
   if (filters.status !== 'archived') {
     where.push(eq(schema.patient.isActive, 1))
   }
-  if (filters.status === 'new') {
-    where.push(eq(schema.patient.lifecycle, 'new'))
-  } else if (filters.status === 'inactive') {
-    where.push(eq(schema.patient.lifecycle, 'lapsed'))
-  } else if (filters.status === 'archived') {
+  if (filters.status === 'archived') {
     where.push(eq(schema.patient.isActive, 0))
   }
   if (filters.sources && filters.sources.length > 0) {
@@ -267,6 +279,26 @@ export async function listPatientsPage(
   // The clinic's calendar day — birthdays (the 🎂 glyph, the "this month"
   // chip) compare against it, never the UTC server's (timezone rule 2).
   const todayKey = clinicDayKey(now, timeZone)
+  // The lifecycle twin's inputs: "joined in the last 30 days" counts CLINIC
+  // days back from the clinic's own midnight (timezone rule 2), and the
+  // lapsed line is the practice's configured threshold.
+  const lifecycleSql: LifecycleSqlOpts = {
+    organizationId,
+    now,
+    nearWindowEnd: in7d,
+    defaultIntervalMonths: recallDefaultMonths,
+    newCutoff: clinicDayStart(now, timeZone, -NEW_PATIENT_DAYS),
+    lapsedCutoff,
+  }
+  // The New / Lapsed chips ask the DERIVATION, in SQL — the stored column
+  // said 'new' about the booking flow's unseated bookings and 'active' about
+  // an imported roster nobody had seen in years, and nothing ever wrote
+  // 'lapsed' at all, so the Lapsed chip was empty for every clinic.
+  if (filters.status === 'new') {
+    where.push(sql`${lifecycleCaseSql(lifecycleSql)} = 'new'`)
+  } else if (filters.status === 'inactive') {
+    where.push(sql`${lifecycleCaseSql(lifecycleSql)} = 'lapsed'`)
+  }
 
   // ── The derived filters, in SQL ──────────────────────────────────────────
   // Each of these used to run over the fully-composed rows in JavaScript.
@@ -354,9 +386,8 @@ export async function listPatientsPage(
       phone: schema.patient.phone,
       dateOfBirth: schema.patient.dateOfBirth,
       source: schema.patient.source,
-      lifecycle: schema.patient.lifecycle,
+      isActive: schema.patient.isActive,
       firstSeenAt: schema.patient.firstSeenAt,
-      userId: schema.patient.userId,
       marketingEmailOptIn: schema.patient.marketingEmailOptIn,
       pmsBalanceCents: schema.patient.pmsBalanceCents,
       pmsBalanceUpdatedAt: schema.patient.pmsBalanceUpdatedAt,
@@ -373,7 +404,7 @@ export async function listPatientsPage(
   const ids = patients.map((p) => p.id)
 
   // Pull joined data in parallel.
-  const [lastVisits, nextVisits, unconfirmedNear, shopSpendRows, intakeRows, lastMessages, recallScheduledNear, tagsByPatient] =
+  const [lastVisits, nextVisits, unconfirmedNear, shopSpendRows, intakeRows, lastMessages, recallScheduledNear, tagsByPatient, everBooked] =
     await Promise.all([
       // Last completed/confirmed appointment per patient (most recent past
       // startTime). DISTINCT ON collapses to ONE row per patient in Postgres —
@@ -462,32 +493,30 @@ export async function listPatientsPage(
             inArray(schema.formSubmission.patientId, ids),
           ),
         ),
-      // Last contact — most-recent message in any conversation the patient
-      // user is part of.
-      // DISTINCT ON the member user id: one row per patient-user instead of
-      // EVERY message row in the org (the composer only read the newest per
-      // user). Behaviour-identical, bounded by patient count.
+      // Last contact — the newest `patient_message` on the patient's thread,
+      // any channel, either direction. This is the /messages inbox, i.e. what
+      // the practice and the patient actually said to each other. The old
+      // read walked the generic `messages` table through `conversation_members`
+      // on the patient's USER id, which (a) was NULL for every patient without
+      // a portal login — the whole column read "—" for a roster that had been
+      // emailed for months — and (b) had no organization_id to filter on.
+      // DISTINCT ON the patient id: one row per patient, carrying the
+      // direction so the cell can say who spoke last. Rides 0181's
+      // (organization_id, patient_id, sent_at) index.
       db
-        .selectDistinctOn([schema.conversationMembers.userId], {
-          userId: schema.conversationMembers.userId,
-          createdAt: schema.messages.createdAt,
+        .selectDistinctOn([schema.patientMessage.patientId], {
+          patientId: schema.patientMessage.patientId,
+          sentAt: schema.patientMessage.sentAt,
+          direction: schema.patientMessage.direction,
         })
-        .from(schema.messages)
-        .innerJoin(
-          schema.conversationMembers,
-          eq(schema.messages.conversationId, schema.conversationMembers.conversationId),
-        )
-        .innerJoin(
-          schema.patient,
-          eq(schema.patient.userId, schema.conversationMembers.userId),
-        )
+        .from(schema.patientMessage)
         .where(
           and(
-            eq(schema.patient.organizationId, organizationId),
-            inArray(schema.patient.id, ids),
+            eq(schema.patientMessage.organizationId, organizationId),
+            inArray(schema.patientMessage.patientId, ids),
           ),
         )
-        .orderBy(schema.conversationMembers.userId, desc(schema.messages.createdAt)),
+        .orderBy(schema.patientMessage.patientId, desc(schema.patientMessage.sentAt)),
       // Next future booking with status='scheduled' (counts as "recall scheduled" if within recall window).
       db
         .select({ patientId: schema.appointment.patientId })
@@ -502,6 +531,20 @@ export async function listPatientsPage(
         ),
       // CRM tags per patient (org-scoped) — one query for the whole page.
       getTagsForPatients(organizationId, ids),
+      // Ever booked — any appointment whose status is not 'cancelled' (a
+      // no-show still booked). The lifecycle's 'lead' fact: the same one the
+      // journey resolver reads as `hasLiveAppointment`.
+      db
+        .select({ patientId: schema.appointment.patientId })
+        .from(schema.appointment)
+        .where(
+          and(
+            eq(schema.appointment.organizationId, organizationId),
+            inArray(schema.appointment.patientId, ids),
+            ne(schema.appointment.status, 'cancelled'),
+          ),
+        )
+        .groupBy(schema.appointment.patientId),
     ])
 
   // Reduce arrays to maps so the per-row loop is O(1) each.
@@ -517,10 +560,16 @@ export async function listPatientsPage(
   const recallSet = new Set(recallScheduledNear.map((r) => r.patientId))
   const intakeSet = new Set<string>()
   for (const r of intakeRows) { if (r.patientId) intakeSet.add(r.patientId) }
-  const lastContactMap = new Map<string, Date>()
+  const lastContactMap = new Map<string, { at: Date; direction: 'inbound' | 'outbound' }>()
   for (const r of lastMessages) {
-    if (r.userId && !lastContactMap.has(r.userId)) lastContactMap.set(r.userId, r.createdAt)
+    if (!lastContactMap.has(r.patientId)) {
+      lastContactMap.set(r.patientId, {
+        at: r.sentAt,
+        direction: r.direction === 'inbound' ? 'inbound' : 'outbound',
+      })
+    }
   }
+  const everBookedSet = new Set(everBooked.map((r) => r.patientId))
 
   // Paid shop spend per patient (the grouped sum query already collapses to
   // one row per patientId).
@@ -539,8 +588,6 @@ export async function listPatientsPage(
     const balance = p.pmsBalanceCents ?? null
     const balanceAsOf = p.pmsBalanceUpdatedAt ?? null
     const shopSpend = shopSpendByPatient.get(p.id) ?? 0
-    const newPatient = p.lifecycle === 'new' || !lastVisitAt
-    const lapsed = !!lastVisitAt && lastVisitAt < lapsedCutoff && !next
     const missingIntakeBeforeAppt = intakeOpen && !!next && next.startTime <= in7d && !intakeSet.has(p.id)
     // Prefer the PMS recall date when present (Integrations); otherwise fall
     // back to the appointment-derived heuristic so unconnected clinics behave
@@ -553,6 +600,25 @@ export async function listPatientsPage(
       now,
       intervalMonths: p.recallIntervalMonths ?? cadence.recallMonths,
     })
+    // The lifecycle is DERIVED from the same facts the chips filter on, so
+    // the pill on a row and the chip that found it can never disagree.
+    const lifecycle = deriveLifecycle({
+      archived: p.isActive === 0,
+      source: p.source,
+      firstSeenAt: p.firstSeenAt,
+      hasAnyAppointment: everBookedSet.has(p.id),
+      lastVisitAt,
+      hasFutureVisit: !!next,
+      recallStatus,
+      newCutoff: lifecycleSql.newCutoff,
+      lapsedCutoff,
+    })
+    // ★ fires on a genuinely new person or a first-ever visit — never on a
+    // backfilled roster row that merely carried no visit history (the import
+    // stamped 2,000 "new patients" the day a practice uploaded its CSV).
+    const newPatient = lifecycle === 'new' || (!lastVisitAt && !BACKFILL_PATIENT_SOURCES.has(p.source ?? ''))
+    const lapsed = lifecycle === 'lapsed'
+    const lastContact = lastContactMap.get(p.id) ?? null
     return {
       id: p.id,
       firstName: p.firstName,
@@ -563,7 +629,7 @@ export async function listPatientsPage(
       dateOfBirth: p.dateOfBirth,
       ageYears: ageFromDob(p.dateOfBirth),
       source: p.source,
-      lifecycle: (p.lifecycle ?? 'active') as PatientLifecycle,
+      lifecycle,
       firstSeenAt: p.firstSeenAt,
       lastVisitAt,
       nextVisitAt: next?.startTime ?? null,
@@ -572,7 +638,8 @@ export async function listPatientsPage(
       outstandingBalanceCents: balance,
       balanceAsOf,
       shopSpendCents: shopSpend,
-      lastContactAt: p.userId ? lastContactMap.get(p.userId) ?? null : null,
+      lastContactAt: lastContact?.at ?? null,
+      lastContactDirection: lastContact?.direction ?? null,
       flags: {
         newPatient,
         birthdayThisWeek: isBirthdayThisWeek(p.dateOfBirth, todayKey),
@@ -641,16 +708,16 @@ function patientListOrderBy(sort: PatientListSort, organizationId: string, now: 
       and ${eq(a.patientId, schema.patient.id)}
       and ${gte(a.startTime, now)} and ${liveVisit()}
   )`.mapWith(a.startTime)
-  // No organization_id filter here and there cannot be one: neither `messages`
-  // nor `conversation_members` carries that column. It correlates on the
-  // patient's own user id, which is exactly what the composer's last-contact
-  // read does — the tenant boundary is the outer `patient` filter in both.
+  // The same table the composer's last-contact cell reads (patient_message),
+  // keyed on the patient id and scoped to the org like every other subquery
+  // here — the old `messages`/`conversation_members` read had no org column
+  // to filter on and was the paging test's one standing exception.
+  const m = schema.patientMessage
   const lastContactAt = sql`(
-    select max(${schema.messages.createdAt}) from ${schema.messages}
-    inner join ${schema.conversationMembers}
-      on ${eq(schema.messages.conversationId, schema.conversationMembers.conversationId)}
-    where ${eq(schema.conversationMembers.userId, schema.patient.userId)}
-  )`.mapWith(schema.messages.createdAt)
+    select max(${m.sentAt}) from ${m}
+    where ${eq(m.organizationId, organizationId)}
+      and ${eq(m.patientId, schema.patient.id)}
+  )`.mapWith(m.sentAt)
   const tiebreak = sql`${schema.patient.id} asc`
 
   switch (sort.field) {
@@ -912,7 +979,7 @@ export async function getPatientHeader(
   // No intake nag while the Intake Forms door is closed (law 1, verification round).
   const intakeOpen = (await getFeatureSwitchState(organizationId)).intake_forms
 
-  const [lastVisit, nextVisit, bookingCount, shopSpendRow, intakeRows, unconfirmedRow, cadence, timeZone] =
+  const [lastVisit, nextVisit, bookingCount, shopSpendRow, intakeRows, unconfirmedRow, cadence, timeZone, everBookedRow, nearRow] =
     await Promise.all([
       db
         .select({ startTime: schema.appointment.startTime })
@@ -995,6 +1062,32 @@ export async function getPatientHeader(
         .limit(1),
       getClinicCadence(organizationId),
       getClinicTimeZone(organizationId),
+      // Ever booked (status not 'cancelled') — the lifecycle's 'lead' fact.
+      db
+        .select({ id: schema.appointment.id })
+        .from(schema.appointment)
+        .where(
+          and(
+            eq(schema.appointment.organizationId, organizationId),
+            eq(schema.appointment.patientId, patientId),
+            ne(schema.appointment.status, 'cancelled'),
+          ),
+        )
+        .limit(1),
+      // Anything inside the list's near window, any status — the recall
+      // derivation's `hasUpcomingAppt` input, read exactly as the list reads it.
+      db
+        .select({ id: schema.appointment.id })
+        .from(schema.appointment)
+        .where(
+          and(
+            eq(schema.appointment.organizationId, organizationId),
+            eq(schema.appointment.patientId, patientId),
+            gte(schema.appointment.startTime, now),
+            lte(schema.appointment.startTime, in7d),
+          ),
+        )
+        .limit(1),
     ])
 
   const lapsedCutoff = lapsedCutoffDate(now, cadence.lapsedMonths)
@@ -1011,9 +1104,30 @@ export async function getPatientHeader(
     ? { startTime: nextVisit[0].startTime, type: nextVisit[0].type }
     : null
   const hasIntake = intakeRows.length > 0
-  const newPatient = (p.lifecycle ?? 'active') === 'new' || !lastVisitAt
-  const lapsed = !!lastVisitAt && lastVisitAt < lapsedCutoff && !next
   const missingIntakeBeforeAppt = intakeOpen && !!next && next.startTime <= in7d && !hasIntake
+  // The same derivation the list runs (lib/services/recall-status.ts), so the
+  // record's pill agrees with the row that led here.
+  const recallStatus = derivePatientRecallStatus({
+    pmsRecallDueAt: p.pmsRecallDueAt,
+    hasUpcomingAppt: nearRow.length > 0,
+    hasAnyFutureAppt: !!next,
+    lastVisitAt,
+    now,
+    intervalMonths: p.recallIntervalMonths ?? cadence.recallMonths,
+  })
+  const lifecycle = deriveLifecycle({
+    archived: p.isActive === 0,
+    source: p.source,
+    firstSeenAt: p.firstSeenAt,
+    hasAnyAppointment: everBookedRow.length > 0,
+    lastVisitAt,
+    hasFutureVisit: !!next,
+    recallStatus,
+    newCutoff: clinicDayStart(now, timeZone, -NEW_PATIENT_DAYS),
+    lapsedCutoff,
+  })
+  const newPatient = lifecycle === 'new' || (!lastVisitAt && !BACKFILL_PATIENT_SOURCES.has(p.source ?? ''))
+  const lapsed = lifecycle === 'lapsed'
 
   return {
     id: p.id,
@@ -1034,7 +1148,7 @@ export async function getPatientHeader(
     insuranceDetail: parseInsuranceDetail(p.insuranceDetail),
     notes: p.notes,
     source: p.source,
-    lifecycle: (p.lifecycle ?? 'active') as PatientLifecycle,
+    lifecycle,
     firstSeenAt: p.firstSeenAt,
     lastActivityAt: p.lastActivityAt,
     hasPortalAccount: !!p.userId,
@@ -1301,23 +1415,6 @@ export async function searchPatientOptions(
     name: `${r.firstName} ${r.lastName}`,
     hint: r.phone?.trim() || r.email?.trim() || null,
   }))
-}
-
-/** Lightweight id+name list for pickers (e.g. the guardian select). */
-export async function listPatientOptions(
-  organizationId: string,
-): Promise<Array<{ id: string; name: string }>> {
-  const rows = await db
-    .select({
-      id: schema.patient.id,
-      firstName: schema.patient.firstName,
-      lastName: schema.patient.lastName,
-    })
-    .from(schema.patient)
-    .where(and(eq(schema.patient.organizationId, organizationId), eq(schema.patient.isActive, 1)))
-    .orderBy(schema.patient.firstName, schema.patient.lastName)
-    .limit(500)
-  return rows.map((r) => ({ id: r.id, name: `${r.firstName} ${r.lastName}` }))
 }
 
 export async function archivePatient(organizationId: string, patientId: string) {

@@ -1,5 +1,7 @@
 'use client'
 
+import { runAction } from '@/lib/run-action'
+import { failureErrors } from './action-errors'
 import { useEffect, useState, useTransition, type ReactNode } from 'react'
 import { ActionButton } from '@/components/ui/action-button'
 import { StatusPill } from '@/components/ui/status-pill'
@@ -129,13 +131,14 @@ export function DiscoveryPanel({
       return
     setBusy('find')
     startTransition(async () => {
-      const r = await discoverCoverageAction(form, patientId)
+      const r = await runAction(() => discoverCoverageAction(form, patientId))
       setBusy(null)
       // The SSN lived for one request: clear the box whatever came back.
       setForm((f) => ({ ...f, ssn: '' }))
       if (!r.ok) {
-        setErrors(r.errors)
-        toast(r.errors._form ?? 'The search failed.', { tone: 'urgent' })
+        const errs = failureErrors(r)
+        setErrors(errs)
+        toast(errs._form ?? 'The search failed.', { tone: 'urgent' })
         return
       }
       setResult(r.discovery)
@@ -146,10 +149,10 @@ export function DiscoveryPanel({
     if (!result) return
     setBusy('resume')
     startTransition(async () => {
-      const r = await resumeDiscoveryAction(result.id)
+      const r = await runAction(() => resumeDiscoveryAction(result.id))
       setBusy(null)
       if (!r.ok) {
-        toast(r.errors._form ?? 'Could not check on the search.', { tone: 'urgent' })
+        toast(failureErrors(r)._form ?? 'Could not check on the search.', { tone: 'urgent' })
         return
       }
       setResult(r.discovery)

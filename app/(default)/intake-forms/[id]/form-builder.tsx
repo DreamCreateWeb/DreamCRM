@@ -24,6 +24,8 @@ import { archiveFormAction, saveFormAction, translateFormAction } from '../actio
 import type { FormTranslations } from '@/lib/types/forms'
 import { ActionButton } from '@/components/ui/action-button'
 import { useConfirm } from '@/components/ui/confirm-dialog'
+import { StatusPill } from '@/components/ui/status-pill'
+import { SYSTEM_KEY_LABELS, systemKeysFor } from '@/lib/types/forms'
 import FormPreview from './form-preview'
 
 interface Props {
@@ -382,6 +384,7 @@ export default function FormBuilder({ template }: Props) {
                 key={field.id}
                 field={field}
                 candidates={triggerCandidates.filter((c) => c.id !== field.id)}
+                takenKeys={usedSystemKeys(sections, field.id)}
                 onChange={(patch) => updateField(si, fi, patch)}
                 onRemove={() => removeField(si, fi)}
                 onMoveUp={fi > 0 ? () => moveField(si, fi, -1) : undefined}
@@ -462,9 +465,17 @@ export default function FormBuilder({ template }: Props) {
   )
 }
 
+/** The system keys other fields on this form already carry — one key per form. */
+function usedSystemKeys(sections: FormSection[], exceptFieldId: string): Set<string> {
+  const out = new Set<string>()
+  for (const sec of sections) for (const f of sec.fields) if (f.id !== exceptFieldId && f.systemKey) out.add(f.systemKey)
+  return out
+}
+
 function FieldRow({
   field,
   candidates,
+  takenKeys,
   onChange,
   onRemove,
   onMoveUp,
@@ -472,11 +483,14 @@ function FieldRow({
 }: {
   field: FormField
   candidates: TriggerCandidate[]
+  takenKeys: Set<string>
   onChange: (patch: Partial<FormField>) => void
   onRemove: () => void
   onMoveUp?: () => void
   onMoveDown?: () => void
 }) {
+  const confirm = useConfirm()
+  const keyChoices = systemKeysFor(field.type)
   return (
     <div className="v2-well p-3">
       <div className="flex items-start gap-3">
@@ -526,6 +540,40 @@ function FieldRow({
             className="form-input w-full"
             placeholder={field.type === 'content' ? 'Heading' : 'Question text'}
           />
+          {keyChoices.length > 0 && (
+            <div className="flex flex-wrap items-center gap-2 text-xs text-gray-600 dark:text-gray-400">
+              <label className="flex items-center gap-1.5">
+                Saves to the record
+                <select
+                  value={field.systemKey ?? ''}
+                  onChange={async (e) => {
+                    const next = (e.target.value || null) as FormField['systemKey']
+                    // Un-mapping stops the answer reaching the chart — confirm
+                    // BEFORE anything changes (the dialog law).
+                    if (field.systemKey && next !== field.systemKey) {
+                      const ok = await confirm({
+                        title: 'Stop saving this answer to the record?',
+                        message: `“${field.label || 'This question'}” will no longer fill the patient's ${SYSTEM_KEY_LABELS[field.systemKey].toLowerCase()}.`,
+                        confirmLabel: 'Stop saving',
+                        danger: true,
+                      })
+                      if (!ok) return
+                    }
+                    onChange({ systemKey: next })
+                  }}
+                  className="form-select text-xs py-1"
+                >
+                  <option value="">Nowhere (just this form)</option>
+                  {keyChoices.map((k) => (
+                    <option key={k} value={k} disabled={takenKeys.has(k)}>
+                      {SYSTEM_KEY_LABELS[k]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {field.systemKey && <StatusPill tone="neutral" label={`Fills ${SYSTEM_KEY_LABELS[field.systemKey].toLowerCase()}`} />}
+            </div>
+          )}
           {field.type !== 'content' && (
             <input
               type="text"
@@ -639,7 +687,19 @@ function FieldRow({
         </div>
         <button
           type="button"
-          onClick={onRemove}
+          onClick={async () => {
+            if (
+              field.systemKey &&
+              !(await confirm({
+                title: `Remove “${field.label || 'this question'}”?`,
+                message: `It fills the patient's ${SYSTEM_KEY_LABELS[field.systemKey].toLowerCase()} on the record. Removing it stops that.`,
+                confirmLabel: 'Remove question',
+                danger: true,
+              }))
+            )
+              return
+            onRemove()
+          }}
           className="text-xs text-rose-600 hover:text-rose-700 dark:text-rose-400 mt-2"
         >
           Remove

@@ -51,14 +51,21 @@ export const OUTREACH_TIERS: OutreachTierDef[] = [
   {
     key: 'lapsed',
     label: 'Lapsed',
-    description: "Haven't been in for over 9 months — the cold ones",
+    description: 'Past your lapsed line or overdue for recall, nothing booked — the cold ones',
+    // The canonical NAME is the lookup key (it matches the demo seeder's row
+    // and every existing org's) — it stays even though the stage is derived
+    // now, not a column that "flipped".
     audienceName: 'Lapsed (lifecycle = lapsed)',
     audienceDescription:
-      'Lifecycle stage flipped to lapsed — last visit >9 months ago. Tighter than "Recall due" — these are the cold ones.',
+      'Patients past the practice’s lapsed line (Settings → Practice; 18 months by default) or overdue for recall, with nothing booked. Tighter than "Recall due" — these are the cold ones.',
     templateCategory: 'reactivation',
     accent: 'rose',
-    // noUpcomingVisit (phase-4 suppression): a lapsed patient who already
-    // rebooked doesn't need a win-back — nagging the returning reads badly.
+    // `lifecycles` is DERIVED on every resolve (lib/services/recall-status.ts
+    // lifecycleCaseSql): before that, nothing ever wrote 'lapsed' or 'at_risk'
+    // to the column, so this tier had produced zero candidates for every
+    // clinic since it shipped. noUpcomingVisit (phase-4 suppression): a lapsed
+    // patient who already rebooked doesn't need a win-back — nagging the
+    // returning reads badly.
     filter: { lifecycles: ['lapsed', 'at_risk'], noUpcomingVisit: true, ...baseFilter },
   },
   {

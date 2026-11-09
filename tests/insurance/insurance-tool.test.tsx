@@ -25,6 +25,8 @@ const searchPayersAction = vi.fn(async () => ({
     { stediId: 'QNJCP', displayName: 'Delta Dental of California', primaryPayerId: '77777', aliases: [], coverageTypes: ['dental'], operatingStates: ['CA'], eligibilitySupported: true, score: 2 },
   ],
 }))
+const searchPatientsAction = vi.fn(async (..._a: unknown[]) => [{ id: 'pat_1', name: 'Mia Hayes', hint: '(512) 555-0100' }])
+vi.mock('@/app/(default)/patients/search-actions', () => ({ searchPatientsAction: (...a: unknown[]) => searchPatientsAction(...a) }))
 const scanCardAction = vi.fn()
 const disableInsuranceAction = vi.fn(async () => ({ ok: true as const }))
 const getPayerNoteAction = vi.fn(async (..._a: unknown[]) => null as unknown)
@@ -98,7 +100,6 @@ function renderTool(props: Partial<React.ComponentProps<typeof InsuranceTool>> =
       orgName="Dream Dental"
       recent={[]}
       carriers={['Delta Dental', 'Cigna']}
-      patientOptions={[{ id: 'pat_1', name: 'Mia Hayes' }]}
       timeZone="America/Chicago"
       prefill={null}
       initialCheck={null}
@@ -164,7 +165,11 @@ describe('InsuranceTool — form + add-as-patient', () => {
     expect(screen.getByText('Open their record').closest('a')?.getAttribute('href')).toBe('/patients/pat_dup')
     createPatientFromCheckAction.mockResolvedValueOnce({ ok: true, id: 'pat_new' })
     fireEvent.click(screen.getByText('Add anyway'))
-    await waitFor(() => expect(push).toHaveBeenCalledWith('/patients/pat_new'))
+    // Stays on the card: the next step is offered, not forced.
+    await waitFor(() => expect(screen.getByTestId('post-add')).toBeTruthy())
+    expect(push).not.toHaveBeenCalled()
+    expect(screen.getByText('Book their visit').closest('a')?.getAttribute('href')).toBe('/patients/pat_new?book=1')
+    expect(screen.getByText('Open the record').closest('a')?.getAttribute('href')).toBe('/patients/pat_new')
     expect(createPatientFromCheckAction).toHaveBeenLastCalledWith(expect.objectContaining({ forceNew: true }))
   })
 
@@ -258,10 +263,28 @@ describe('InsuranceTool — form + add-as-patient', () => {
     expect(screen.queryByText('Plan rules')).toBeNull()
   })
 
-  it('picking an existing patient navigates to the server prefill', () => {
+  it('searching and picking an existing patient navigates to the server prefill (?patient= kept)', async () => {
     renderTool()
-    fireEvent.change(screen.getByLabelText('Who'), { target: { value: 'pat_1' } })
+    const box = screen.getByRole('combobox', { name: 'Who' })
+    fireEvent.focus(box)
+    fireEvent.change(box, { target: { value: 'mia' } })
+    await waitFor(() => expect(screen.getByText('Mia Hayes')).toBeTruthy())
+    expect(searchPatientsAction).toHaveBeenLastCalledWith('mia')
+    fireEvent.click(screen.getByText('Mia Hayes'))
     expect(push).toHaveBeenCalledWith('/insurance?patient=pat_1')
+  })
+
+  it('"Someone else" clears the picked patient back to a fresh lookup', () => {
+    cleanup()
+    renderTool({ prefill: { patientId: 'pat_1', patientName: 'Mia Hayes', request: check().input } })
+    fireEvent.click(screen.getByRole('button', { name: 'Someone else' }))
+    expect(push).toHaveBeenCalledWith('/insurance')
+  })
+
+  it('?payer= / ?name= start the form: the name fills the fields', () => {
+    renderTool({ startWith: { carrier: 'Aetna', name: 'Olivia Chen' } })
+    expect((screen.getByLabelText('First name') as HTMLInputElement).value).toBe('Olivia')
+    expect((screen.getByLabelText('Last name') as HTMLInputElement).value).toBe('Chen')
   })
 })
 
@@ -344,11 +367,7 @@ describe('InsuranceTool — the benefits card (design pass)', () => {
     expect(screen.getByText('Sandbox: simulated payer timeout')).toBeTruthy()
   })
 
-  it('picking an existing patient navigates to the server prefill', () => {
-    renderTool()
-    fireEvent.change(screen.getByLabelText('Who'), { target: { value: 'pat_1' } })
-    expect(push).toHaveBeenCalledWith('/insurance?patient=pat_1')
-  })
+
 })
 
 describe('InsuranceTool — the desk’s paper (print, copy, filters)', () => {

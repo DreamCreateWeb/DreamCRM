@@ -198,6 +198,26 @@ vi.mock('@/lib/services/standup', () => ({
 vi.mock('@/lib/services/clinic-timezone', () => ({
   getClinicTimeZone: vi.fn(async () => 'America/Chicago'),
 }))
+// READINESS (G1-4): one unmade connection, so the rig shows a quiet
+// teammate saying what it needs beside the ones with real numbers.
+vi.mock('@/lib/services/readiness', () => ({
+  getReadinessReport: vi.fn(async () => ({
+    facts: [
+      {
+        id: 'social',
+        label: 'Connect your social channels',
+        grade: 'todo',
+        summary: 'Link Instagram or Facebook and one post reaches them all.',
+        href: '/growth/social',
+        optional: true,
+      },
+    ],
+    attention: [],
+    waiting: [],
+    openRequired: [],
+    counts: { requiredTotal: 0, requiredReady: 0, attention: 0, waiting: 0 },
+  })),
+}))
 vi.mock('@/lib/services/dream-team', () => ({
   countRunway: vi.fn(async () => 2),
   listRunway: vi.fn(async () => [

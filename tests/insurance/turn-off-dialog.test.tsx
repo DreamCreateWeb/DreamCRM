@@ -35,7 +35,6 @@ describe('Turn off insurance checks — with the real confirm dialog', () => {
           orgName="Dream Dental"
           recent={[]}
           carriers={[]}
-          patientOptions={[]}
           timeZone="America/Chicago"
           prefill={null}
           initialCheck={null}

@@ -9,6 +9,8 @@ import {
   getPortalSlotsAction,
 } from '@/app/(portal)/patient/actions'
 import { BusyLabel } from '@/components/ui/busy-label'
+import { runAction } from '@/lib/run-action'
+import { PORTAL_RUN, PortalReloadWhenStale } from '@/components/patient-portal/stale-reload'
 import SlotPicker from './slot-picker'
 import { fmtVisitDayTime, visitProximityLabel } from './format'
 import {
@@ -191,7 +193,7 @@ export default function VisitCard({
     setMessage(null)
     setActive(key)
     startTransition(async () => {
-      const res = await fn()
+      const res = await runAction(fn, PORTAL_RUN)
       if (res.ok) {
         setMessage({ kind: 'ok', text: okText })
         setPanel('none')
@@ -315,7 +317,7 @@ export default function VisitCard({
               disabled={pending}
               onClick={() =>
                 run(async () => {
-                  const res = await joinMyWaitlistAction(visit.id)
+                  const res = await runAction(() => joinMyWaitlistAction(visit.id), PORTAL_RUN)
                   if (res.ok) setWaitlisted(true)
                   return res
                 }, 'You’re on the list — we’ll reach out the moment something opens up.')
@@ -387,6 +389,7 @@ export default function VisitCard({
           <PortalNotice tone={message.kind === 'ok' ? 'success' : 'danger'} className="mt-3 text-[0.85rem]">
             {message.text}
           </PortalNotice>
+          <PortalReloadWhenStale error={message.kind === 'error' ? message.text : null} />
         </div>
       )}
     </div>

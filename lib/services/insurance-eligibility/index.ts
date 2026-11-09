@@ -1,5 +1,5 @@
 import 'server-only'
-import { and, desc, eq, isNull } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNull } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import {
   checkRecognisedCard,
@@ -500,6 +500,38 @@ export async function getLatestInsuranceCheckForPatient(
     .limit(1)
   const r = (rows as JoinedRow[])[0]
   return r ? joinedToView(r) : null
+}
+
+/**
+ * ONE batched read: each patient's latest RECOGNISED check, for the pre-visit
+ * audit. Org-scoped; it only reads — it never runs a check.
+ */
+export async function getLatestInsuranceChecksForPatients(
+  organizationId: string,
+  patientIds: string[],
+): Promise<Map<string, { checkedAt: Date }>> {
+  const out = new Map<string, { checkedAt: Date }>()
+  if (patientIds.length === 0) return out
+  const rows = await db
+    .select({
+      patientId: schema.insuranceVerification.patientId,
+      status: schema.insuranceVerification.status,
+      checkedAt: schema.insuranceVerification.checkedAt,
+    })
+    .from(schema.insuranceVerification)
+    .where(
+      and(
+        eq(schema.insuranceVerification.organizationId, organizationId),
+        inArray(schema.insuranceVerification.patientId, patientIds),
+      ),
+    )
+    .orderBy(desc(schema.insuranceVerification.checkedAt))
+  for (const r of rows) {
+    if (!r.patientId || out.has(r.patientId)) continue
+    if (!checkRecognisedCard(r.status as EligibilityStatus)) continue
+    out.set(r.patientId, { checkedAt: r.checkedAt })
+  }
+  return out
 }
 
 /** One stored check by id — org-scoped, so a `?check=` deep link can never open another clinic's row. */

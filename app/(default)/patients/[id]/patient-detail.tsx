@@ -1,13 +1,15 @@
 'use client'
 
 import Link from 'next/link'
-import { useMemo, useRef, useState, useTransition } from 'react'
+import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import { useSearchParams } from 'next/navigation'
 import type { PatientHeader } from '@/lib/services/patients'
 import type { TimelineEvent, TimelineCounts, TimelineKind } from '@/lib/services/patient-timeline'
 import type { PatientNoteRow } from '@/lib/services/patient-notes'
 import { agingBorderClass, patientFlagGlyphs, type AgingTierId, type Tone } from '@/lib/ui/encodings'
-import { LAPSED_DEFAULT_MONTHS } from '@/lib/dates'
+import { LAPSED_DEFAULT_MONTHS, formatDayKey } from '@/lib/dates'
+import { formatPhone } from '@/lib/phone'
+import { SOURCE_LABEL } from '@/lib/types/patient-sources'
 import { usePopoverDismiss } from '@/components/ui/use-popover-dismiss'
 import { MiniTrend } from '@/components/ui/charts'
 import { useTrailLabel } from '@/app/trail-context'
@@ -91,20 +93,6 @@ const LIFECYCLE: Record<string, { tone: Tone; label: string }> = {
   archived: { tone: 'neutral', label: 'Archived' },
 }
 
-const SOURCE_LABEL: Record<string, string> = {
-  website: 'website',
-  booking: 'booking widget',
-  referral: 'referral',
-  walk_in: 'walk-in',
-  manual: 'manual entry',
-  lead_form: 'contact form',
-  invite: 'patient invite',
-  website_request: 'appointment request',
-  pms: 'the practice system',
-  pms_import: 'the practice system (imported)',
-  import: 'CSV import',
-}
-
 // Timeline filter tabs. "Billing" is a GROUP — it matches every money-shaped
 // kind (legacy invoices + the real commerce sources: shop orders, online
 // balance payments, memberships), mirroring BILLING_TIMELINE_KINDS in the
@@ -140,7 +128,7 @@ export default function PatientDetail({
   notes,
   intakeForms = [],
   isPlatformAdmin = false,
-  patientOptions = [],
+  guardian = null,
   tags = [],
   tagCatalog = [],
   documents = [],
@@ -162,8 +150,8 @@ export default function PatientDetail({
   notes: PatientNoteRow[]
   intakeForms?: IntakeFormOption[]
   isPlatformAdmin?: boolean
-  /** id+name list for the guardian (family-access) picker in the edit modal. */
-  patientOptions?: Array<{ id: string; name: string }>
+  /** The current guardian (id + name) for the family-access picker in the edit modal. */
+  guardian?: { id: string; name: string } | null
   tags?: PatientTagView[]
   tagCatalog?: PatientTagView[]
   documents?: PatientDocumentRow[]
@@ -195,7 +183,17 @@ export default function PatientDetail({
   const [visibleCount, setVisibleCount] = useState(TIMELINE_PAGE)
   const confirm = useConfirm()
   const [editOpen, setEditOpen] = useState(false)
-  const [bookOpen, setBookOpen] = useState(false)
+  // `?book=1` (the Insurance card's "Book their visit") opens the drawer ONCE
+  // on mount, like the agenda's ?new=1 — then the param is dropped so a
+  // refresh or back-navigation does not reopen it.
+  const [bookOpen, setBookOpen] = useState(() => searchParams.get('book') === '1')
+  useEffect(() => {
+    if (searchParams.get('book') !== '1') return
+    const url = new URL(window.location.href)
+    url.searchParams.delete('book')
+    window.history.replaceState(null, '', url.toString())
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   const [toast, setToast] = useState<string | null>(null)
   const [archivePending, startArchive] = useTransition()
 
@@ -495,7 +493,6 @@ export default function PatientDetail({
                 survivorId={header.id}
                 survivorName={header.fullName}
                 candidates={mergeCandidates}
-                allPatients={patientOptions}
               />
             )}
           </div>
@@ -503,7 +500,7 @@ export default function PatientDetail({
       </div>
 
       {editOpen && (
-        <EditPatientModal header={header} patientOptions={patientOptions} onClose={() => setEditOpen(false)} />
+        <EditPatientModal header={header} guardian={guardian} onClose={() => setEditOpen(false)} />
       )}
       {bookOpen && (
         <BookFromPatientDrawer
@@ -926,21 +923,62 @@ function ReferralCard({ referral }: { referral: ReferralContext }) {
   )
 }
 
-function IdentityCard({ header }: { header: PatientHeader }) {
+/** Reader-facing name for a preferred-language code (null = English). */
+const LANGUAGE_LABEL: Record<string, string> = { es: 'Spanish', en: 'English' }
+
+/**
+ * The record's contact card. The phone is DIALLED from here and the email is
+ * WRITTEN to from here — so they are links, not strings — and the number is
+ * formatted the way the rest of the app shows it (`(555) 123-4567`), the
+ * date of birth reads as a date ("Jun 7, 1985", never a bare ISO key), and
+ * the two settings a front desk needs at a glance — a preferred language and
+ * a per-patient recall interval — sit as neutral pills rather than hiding in
+ * the edit modal (G2-25).
+ */
+export function IdentityCard({ header }: { header: PatientHeader }) {
   const address = [header.addressLine1, [header.city, header.state].filter(Boolean).join(', '), header.postalCode]
     .filter(Boolean).join(' · ')
+  const language = header.preferredLanguage ? LANGUAGE_LABEL[header.preferredLanguage] ?? header.preferredLanguage : null
+  const recall = header.recallIntervalMonths && header.recallIntervalMonths > 0 ? header.recallIntervalMonths : null
   return (
     <div className="v2-card px-4 py-4 space-y-3">
       <div>
         <p className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold mb-1">Contact</p>
-        <p className="text-sm text-gray-800 dark:text-gray-100 break-all">{header.email ?? '—'}</p>
-        <p className="text-sm text-gray-700 dark:text-gray-200">{header.phone ?? '—'}</p>
+        <p className="text-sm text-gray-800 dark:text-gray-100 break-all">
+          {header.email ? (
+            <a href={`mailto:${header.email}`} className="hover:underline">{header.email}</a>
+          ) : (
+            <span className="text-gray-500 dark:text-gray-400 italic">No email on file</span>
+          )}
+        </p>
+        <p className="text-sm text-gray-700 dark:text-gray-200 tabular-nums">
+          {header.phone ? (
+            <a href={`tel:${header.phone.replace(/[^\d+]/g, '')}`} className="hover:underline">{formatPhone(header.phone)}</a>
+          ) : (
+            <span className="text-gray-500 dark:text-gray-400 italic">No phone on file</span>
+          )}
+        </p>
+        {(language || recall) && (
+          <div className="flex flex-wrap gap-1.5 mt-2">
+            {language && <StatusPill tone="neutral" label={`Prefers ${language}`} title="Preferred language for patient-facing messages" />}
+            {recall && (
+              <StatusPill
+                tone="neutral"
+                label={`Recall every ${recall} ${recall === 1 ? 'month' : 'months'}`}
+                title="This patient's own recall interval (overrides the practice default)"
+              />
+            )}
+          </div>
+        )}
       </div>
       {(header.dateOfBirth || address) && (
         <div>
           <p className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold mb-1">Personal</p>
           {header.dateOfBirth && (
-            <p className="text-sm text-gray-700 dark:text-gray-200">DOB {header.dateOfBirth}</p>
+            <p className="text-sm text-gray-700 dark:text-gray-200">
+              Born {formatDayKey(header.dateOfBirth)}
+              {header.ageYears !== null && <span className="text-gray-500 dark:text-gray-400"> · {header.ageYears} yrs</span>}
+            </p>
           )}
           {address && (
             <p className="text-xs text-gray-600 dark:text-gray-300 leading-snug mt-1">{address}</p>

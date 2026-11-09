@@ -6,6 +6,8 @@ import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
 import { getClinicCadence } from '@/lib/services/clinic-cadence'
 import { clinicDayStart } from '@/lib/clinic-timezone'
 import { clinicDayKey } from '@/lib/format-datetime'
+import { getLatestInsuranceChecksForPatients } from '@/lib/services/insurance-eligibility'
+import { isStaleCheck } from '@/lib/insurance-eligibility'
 import { isBirthdayThisWeek, lapsedCutoff } from '@/lib/dates'
 
 /**
@@ -27,7 +29,10 @@ export interface AuditFlag {
     | 'lapsed_returning'
     | 'deposit_pending'
     | 'birthday'
+    | 'insurance_stale'
   label: string
+  /** Optional door for the flag (site-relative). */
+  href?: string
 }
 
 export interface AuditItem {
@@ -81,6 +86,7 @@ export async function auditUpcomingDay(
       phone: schema.patient.phone,
       dateOfBirth: schema.patient.dateOfBirth,
       balance: schema.patient.pmsBalanceCents,
+      policyNumber: schema.patient.insurancePolicyNumber,
     })
     .from(schema.appointment)
     .innerJoin(schema.patient, eq(schema.patient.id, schema.appointment.patientId))
@@ -141,7 +147,17 @@ export async function auditUpcomingDay(
       ),
     getClinicCadence(organizationId),
   ])
-  const intakeOpen = (await getFeatureSwitchState(organizationId)).intake_forms
+  const switches = await getFeatureSwitchState(organizationId)
+  const intakeOpen = switches.intake_forms
+  // Insurance on file, never (or not lately) checked — only while the switch
+  // is on, and the audit only READS: it never runs a check.
+  const insuranceOpen = switches.insurance === true
+  const withCard = insuranceOpen
+    ? Array.from(new Set(rows.filter((r) => (r.policyNumber ?? '').trim() !== '').map((r) => r.patientId)))
+    : []
+  const latestChecks = withCard.length
+    ? await getLatestInsuranceChecksForPatients(organizationId, withCard).catch(() => null)
+    : null
   const submittedSet = new Set(submittedRows.map((r) => r.patientId).filter(Boolean))
   const lastVisitByPatient = new Map(
     lastVisitRows.map((r) => [r.patientId, r.last ?? null]),
@@ -169,6 +185,15 @@ export async function auditUpcomingDay(
     if (!lastVisit) flags.push({ key: 'new_patient', label: 'First visit — roll out the welcome' })
     else if (lastVisit < lapsedBefore) {
       flags.push({ key: 'lapsed_returning', label: 'First visit back in a long while — make it count' })
+    }
+    if (insuranceOpen && latestChecks && (r.policyNumber ?? '').trim() !== '') {
+      const latest = latestChecks.get(r.patientId)
+      const href = `/insurance?patient=${r.patientId}`
+      if (!latest) {
+        flags.push({ key: 'insurance_stale', label: 'Insurance on file, never checked — run it before they arrive', href })
+      } else if (isStaleCheck(latest.checkedAt.toISOString(), now)) {
+        flags.push({ key: 'insurance_stale', label: 'Insurance on file, not checked in 30+ days — run it before they arrive', href })
+      }
     }
     if (isBirthdayThisWeek(r.dateOfBirth, todayKey)) flags.push({ key: 'birthday', label: 'Birthday this week 🎂' })
 
