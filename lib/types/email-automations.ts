@@ -32,6 +32,8 @@ export type EmailAutomationKey =
   | 'balance_pay_link'
   | 'payment_plan_card_update'
   | 'membership_card_update'
+  | 'shop_ready_for_pickup'
+  | 'shop_shipped'
 
 export type EmailSlotKey = 'subject' | 'heading' | 'body' | 'closing'
 
@@ -44,7 +46,7 @@ export interface EmailSlots {
   closing?: string
 }
 
-export type EmailCategory = 'appointments' | 'forms' | 'portal' | 'reviews' | 'website' | 'billing'
+export type EmailCategory = 'appointments' | 'forms' | 'portal' | 'reviews' | 'website' | 'billing' | 'shop'
 
 /** A `{{token}}` a clinic can drop into this email's copy. */
 export interface TokenSpec {
@@ -460,6 +462,61 @@ export const EMAIL_AUTOMATION_SPECS: Record<EmailAutomationKey, EmailAutomationS
       text: 'Sent automatically the first time a renewal is declined — never again while the membership stays past due.',
       href: '/payments/memberships',
       linkLabel: 'Memberships',
+    },
+  },
+
+  shop_ready_for_pickup: {
+    key: 'shop_ready_for_pickup',
+    label: 'Shop order — ready for pickup',
+    description: 'Sent once when a pickup order is set aside for the patient at the front desk.',
+    category: 'shop',
+    enableSource: 'email_automations',
+    moduleHref: '/shop/orders',
+    moduleLabel: 'Shop orders',
+    tokens: [T_FIRST, T_CLINIC, T_PHONE],
+    slotFields: [
+      { slot: 'subject', label: 'Subject line', rows: 1 },
+      { slot: 'body', label: 'Message', rows: 3 },
+    ],
+    slotDefaults: {
+      subject: 'Your order at {{clinicName}} is ready for pickup',
+      body: 'Hi {{firstName}} — good news, your order is set aside and ready for you at {{clinicName}}. Stop by the front desk whenever it suits you, and bring this email if it helps. Questions? Just reply to this email.',
+    },
+    includesNote: ['The items in the order', 'A short note on where to reach the practice'],
+    timingHint: {
+      text: 'Sent when you mark a pickup order ready — never twice for the same order.',
+      href: '/shop/orders',
+      linkLabel: 'Shop orders',
+    },
+  },
+
+  shop_shipped: {
+    key: 'shop_shipped',
+    label: 'Shop order — shipped',
+    description: 'Sent once when a shipped order is marked on its way, with the tracking number when you add one.',
+    category: 'shop',
+    enableSource: 'email_automations',
+    moduleHref: '/shop/orders',
+    moduleLabel: 'Shop orders',
+    tokens: [
+      T_FIRST,
+      T_CLINIC,
+      T_PHONE,
+      { token: '{{trackingNumber}}', label: 'The tracking number (blank when there is none)' },
+    ],
+    slotFields: [
+      { slot: 'subject', label: 'Subject line', rows: 1 },
+      { slot: 'body', label: 'Message', rows: 3 },
+    ],
+    slotDefaults: {
+      subject: 'Your order from {{clinicName}} is on its way',
+      body: 'Hi {{firstName}} — your order from {{clinicName}} has shipped and is on its way to you. Questions? Just reply to this email.',
+    },
+    includesNote: ['The tracking number, when the order has one', 'The items in the order'],
+    timingHint: {
+      text: 'Sent when you mark an order shipped — never twice for the same order.',
+      href: '/shop/orders',
+      linkLabel: 'Shop orders',
     },
   },
 

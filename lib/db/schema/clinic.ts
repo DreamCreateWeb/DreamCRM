@@ -1519,6 +1519,12 @@ export const shopOrder = pgTable(
     paidAt: timestamp('paid_at'),
     fulfilledAt: timestamp('fulfilled_at'),
     cancelledAt: timestamp('cancelled_at'),
+    // ML-42: the patient emails' idempotency keys. Each is CLAIMED atomically
+    // (UPDATE … WHERE col IS NULL RETURNING) before the send, so an order
+    // hears "ready for pickup" once and "shipped" once, however often staff
+    // re-click. Released again if the send itself fails.
+    readyEmailAt: timestamp('ready_email_at'),
+    shippedEmailAt: timestamp('shipped_email_at'),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (t) => [

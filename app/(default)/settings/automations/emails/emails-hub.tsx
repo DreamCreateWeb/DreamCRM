@@ -26,7 +26,7 @@ import { Toggle } from '@/components/ui/toggle'
 import { FlashToast } from '@/components/ui/flash-toast'
 
 // Order + copy for the category groups a clinic scans top-to-bottom.
-const CATEGORY_ORDER: EmailCategory[] = ['appointments', 'forms', 'billing', 'portal', 'reviews', 'website']
+const CATEGORY_ORDER: EmailCategory[] = ['appointments', 'forms', 'billing', 'portal', 'reviews', 'website', 'shop']
 const CATEGORY_LABELS: Record<EmailCategory, { title: string; blurb: string }> = {
   appointments: { title: 'Appointments', blurb: 'Confirmations, reminders, and cancellations.' },
   forms: { title: 'Forms & intake', blurb: 'The paperwork you send before a visit.' },
@@ -34,6 +34,7 @@ const CATEGORY_LABELS: Record<EmailCategory, { title: string; blurb: string }> =
   portal: { title: 'Patient portal', blurb: 'Invites to your online patient portal.' },
   reviews: { title: 'Reviews', blurb: 'Asking happy patients to leave a review.' },
   website: { title: 'Website', blurb: 'Replies to people who message you from your site.' },
+  shop: { title: 'Shop', blurb: 'Telling a patient their order is ready or on its way.' },
 }
 
 // Sample values used ONLY for the live preview, so staff see how tokens fill in.
@@ -49,6 +50,7 @@ const SAMPLE_FIELDS: Record<string, string> = {
   balance: '$135.00',
   amount: '$100.00',
   planName: 'Smile Club',
+  trackingNumber: '9400 1102 0000 0000',
 }
 
 /** Client-safe token fill for the preview (mirrors applyMergeFields). */
