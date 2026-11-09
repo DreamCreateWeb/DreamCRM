@@ -42,7 +42,7 @@ function CopyValue({ value }: { value: string }) {
       className="group inline-flex items-start gap-1.5 text-left hover:text-teal-600 dark:hover:text-teal-400"
     >
       <span className="break-all">{value}</span>
-      <span className="shrink-0 text-xs uppercase tracking-wide opacity-70">{copied ? 'Copied' : 'Copy'}</span>
+      <span className="shrink-0 text-xs uppercase tracking-wide">{copied ? 'Copied' : 'Copy'}</span>
     </button>
   )
 }
