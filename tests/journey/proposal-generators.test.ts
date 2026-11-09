@@ -153,7 +153,8 @@ const store: {
   postTargets: Array<Record<string, unknown>>
   proposals: Array<Record<string, unknown>>
   profiles: Array<Record<string, unknown>>
-} = { orgs: [], reviews: [], leads: [], postTargets: [], proposals: [], profiles: [] }
+  appointments: Array<Record<string, unknown>>
+} = { orgs: [], reviews: [], leads: [], postTargets: [], proposals: [], profiles: [], appointments: [] }
 
 vi.mock('@/lib/db', () => {
   const tableRows = (name: string) => {
@@ -163,6 +164,9 @@ vi.mock('@/lib/db', () => {
     if (name === 'social_post_target') return store.postTargets
     if (name === 'proposal') return store.proposals
     if (name === 'clinic_profile') return store.profiles
+    // ML-28: the post-visit steps read appointment ⋈ patient — modelled as
+    // flat rows (the join is a no-op), empty in every driver scenario here.
+    if (name === 'appointment') return store.appointments
     return []
   }
   function select(cols?: Record<string, unknown>) {
@@ -170,6 +174,7 @@ vi.mock('@/lib/db', () => {
     const filters: Array<(r: Record<string, unknown>) => boolean> = []
     const api: Record<string, unknown> = {}
     api.from = (t: { __name: string }) => { table = t.__name; return api }
+    api.innerJoin = () => api
     api.where = (preds: unknown) => {
       if (Array.isArray(preds)) for (const p of preds) filters.push(p as never)
       else if (typeof preds === 'function') filters.push(preds as never)
@@ -262,6 +267,26 @@ vi.mock('@/lib/db', () => {
       createdAt: col('createdAt'),
       updatedAt: col('updatedAt'),
     },
+    // ML-28: the two post-visit steps read appointment ⋈ patient; empty
+    // (or flat rows for the sweep test), so the steps are no-ops here.
+    appointment: {
+      __name: 'appointment',
+      id: col('id'),
+      organizationId: col('organizationId'),
+      patientId: col('patientId'),
+      type: col('type'),
+      status: col('status'),
+      startTime: col('startTime'),
+    },
+    patient: {
+      __name: 'patient',
+      id: col('id'),
+      organizationId: col('organizationId'),
+      firstName: col('firstName'),
+      lastName: col('lastName'),
+      email: col('email'),
+      isActive: col('isActive'),
+    },
     // ML-12: the patient-reply step reads patient_thread; empty here, so the
     // step is a no-op in every driver scenario this file pins.
     patientThread: {
@@ -332,6 +357,7 @@ beforeEach(() => {
   ]
   recall.stats = { recallDueReachableCount: 41, recentSends: [], upcomingSends: [] }
   store.orgs = [{ id: ORG, name: 'Acme Dental', type: 'clinic', isDemo: false }]
+  store.appointments = []
   store.reviews = []
   store.leads = []
   store.postTargets = []
@@ -1109,6 +1135,25 @@ describe('the invalidation sweep', () => {
     expect(byId.get('f3')).toBe('expired')
     expect(byId.get('f4')).toBe('expired')
     expect(byId.get('p5')).toBe('open')
+  })
+
+  it('ML-28: a check-in’s premise is a completed visit — un-done or vanished retires it', async () => {
+    store.proposals = [
+      { id: 'c1', organizationId: ORG, capability: 'postop_checkin', sourceKey: 'postop_checkin:a1', status: 'open', payload: { appointmentId: 'a1' } },
+      { id: 'c2', organizationId: ORG, capability: 'postop_checkin', sourceKey: 'postop_checkin:a2', status: 'open', payload: { appointmentId: 'a2' } },
+      { id: 'c3', organizationId: ORG, capability: 'postop_checkin', sourceKey: 'postop_checkin:a3', status: 'open', payload: { appointmentId: 'a3' } },
+    ]
+    store.appointments = [
+      { id: 'a1', organizationId: ORG, status: 'completed' },
+      { id: 'a2', organizationId: ORG, status: 'no_show' },
+      // a3 vanished
+    ]
+    const n = await sweepInvalidatedProposals(ORG)
+    expect(n).toBe(2)
+    const byId = new Map(store.proposals.map((p) => [p.id, p.status]))
+    expect(byId.get('c1')).toBe('open')
+    expect(byId.get('c2')).toBe('expired')
+    expect(byId.get('c3')).toBe('expired')
   })
 
   it('expires proposals whose review got replied / lead got handled; leaves live ones open', async () => {
