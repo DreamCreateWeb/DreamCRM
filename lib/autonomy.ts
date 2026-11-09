@@ -75,6 +75,10 @@ export const CAPABILITIES: readonly CapabilityDef[] = [
   // and off the roster: it is how alerts reach the clinic, not a job on
   // anyone's desk (a meta lane, like guardian_note).
   { key: 'staff_alert', label: 'Keep your inbox posted when something needs you', defaultTrust: 'auto' },
+  // THE MAILBOX SYNC (ML-59). Plumbing that keeps the Gmail inbox in step
+  // behind the page; it only REPORTS (a ledger strike when a mailbox will not
+  // sync). Meta like staff_alert: not grantable, off the roster.
+  { key: 'inbox_sync', label: 'Keep your email inbox in step', defaultTrust: 'auto' },
   // THE PROPOSAL ENGINE itself (Phase 4 observability). Not a job the clinic
   // grants — it is how every ask-first job REACHES them. It earns a key so
   // that "I couldn't bring you any work at all today" has somewhere honest

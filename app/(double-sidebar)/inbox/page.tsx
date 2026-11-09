@@ -1,20 +1,18 @@
 import { redirect } from 'next/navigation'
+import { after } from 'next/server'
 import { FlyoutProvider } from '@/app/flyout-context'
 import { requireTenant } from '@/lib/auth/context'
 import { gmailOAuthConfigured } from '@/lib/services/gmail'
 import {
-  backfillRfcMessageIds,
-  classifyPendingIntents,
   countMessagesByCategory,
   countMessagesByIntent,
   getThreadDetail,
   getThreadIdForMessage,
   listOrgEmailAccounts,
   listThreadsForOrg,
-  resolvePendingInlineImages,
-  syncAccount,
   type ListMessagesOpts,
 } from '@/lib/services/mailbox'
+import { kickMailboxSync, markMailboxesWanted } from '@/lib/services/gmail-sync'
 import { getInboxPatientContext } from '@/lib/services/patient-context'
 import { sanitizeEmailHtml } from '@/lib/email-sanitize'
 import { inboxTerminology, type TenantType } from '@/lib/inbox-terminology'
@@ -24,6 +22,7 @@ import MailboxSidebar from './components/mailbox-sidebar'
 import ThreadView from './components/thread-view'
 import KeyboardHandler from './components/keyboard-handler'
 import InboxLiveUpdater from './components/inbox-live-updater'
+import SyncedLine from './components/synced-line'
 import { SelectionProvider } from './components/selection-context'
 
 export const metadata = {
@@ -32,8 +31,6 @@ export const metadata = {
 }
 
 export const dynamic = 'force-dynamic'
-
-const AUTO_SYNC_STALE_MS = 60 * 1000 // refetch if last sync was > 60s ago
 
 interface SP {
   account?: string
@@ -50,7 +47,7 @@ export default async function Inbox({ searchParams }: { searchParams: Promise<SP
   const ctx = await requireTenant()
   if (ctx.tenantType === 'patient') redirect('/patient/dashboard')
 
-  let accounts = await listOrgEmailAccounts(ctx.organizationId)
+  const accounts = await listOrgEmailAccounts(ctx.organizationId)
   const params = await searchParams
   const activeAccountId = params.account && accounts.some((a) => a.id === params.account) ? params.account : null
   const activeMessageId = params.m ?? null
@@ -80,48 +77,13 @@ export default async function Inbox({ searchParams }: { searchParams: Promise<SP
     )
   }
 
-  // Auto-sync any account whose last sync is stale or has never synced. This
-  // catches the case where the fire-and-forget initial sync from the OAuth
-  // callback was killed by the serverless function returning early.
-  const now = Date.now()
-  const stale = accounts.filter((a) => {
-    if (activeAccountId && a.id !== activeAccountId) return false
-    if (a.syncStatus === 'syncing') return false
-    if (!a.lastSyncAt) return true
-    return now - new Date(a.lastSyncAt).getTime() > AUTO_SYNC_STALE_MS
-  })
-  if (stale.length > 0) {
-    await Promise.allSettled(
-      stale.map((a) => syncAccount(a.id, ctx.organizationId, { limit: 50 })),
-    )
-    accounts = await listOrgEmailAccounts(ctx.organizationId)
-  }
-
-  // Always poke the classifier on page load — covers the case where a sync
-  // was skipped (recent lastSyncAt) but there's still a backlog of
-  // unclassified messages from a recent schema migration. Cheap when nothing
-  // is pending (returns immediately).
-  await classifyPendingIntents(ctx.organizationId, { limit: 50 }).catch((err) => {
-    console.warn('[inbox.page] classify call failed:', (err as Error).message)
-  })
-
-  // Backfill inline images for messages ingested before resolveInlineImages
-  // was wired in. Bounded to 10 per load so it doesn't blow up page latency
-  // — self-terminates as the backlog drains.
-  await resolvePendingInlineImages(ctx.organizationId, { limit: 10 }).catch((err) => {
-    console.warn('[inbox.page] inline-image backfill failed:', (err as Error).message)
-  })
-
-  // Backfill the RFC Message-ID for messages ingested before migration
-  // 0012 added the column. Without this, Reply on a pre-existing thread
-  // sends without In-Reply-To/References and the recipient's mail
-  // client opens it as a new conversation. The reply path also does a
-  // just-in-time backfill on the specific message being replied to as
-  // a belt-and-suspenders — this one drains the backlog over a few
-  // visits so the rest of the inbox catches up too.
-  await backfillRfcMessageIds(ctx.organizationId, { limit: 50 }).catch((err) => {
-    console.warn('[inbox.page] rfc-id backfill failed:', (err as Error).message)
-  })
+  // THE PAGE IS A VIEW OF WHAT WE ALREADY HAVE (ML-59). No Gmail call and no
+  // backfill on this request: stamp the mailbox as wanted (one cheap UPDATE —
+  // the 5-minute sync sweep serves wanted mailboxes first) and kick a
+  // rate-aware, idempotent background sync AFTER the response. The list below
+  // reads the database only; the live updater refreshes it when a sync lands.
+  await markMailboxesWanted(ctx.organizationId, { accountId: activeAccountId })
+  after(() => kickMailboxSync(ctx.organizationId, { accountId: activeAccountId }))
 
   const listOpts: ListMessagesOpts = {
     accountId: activeAccountId ?? undefined,
@@ -180,10 +142,16 @@ export default async function Inbox({ searchParams }: { searchParams: Promise<SP
           {accounts.some((a) => !a.watchExpiresAt || new Date(a.watchExpiresAt).getTime() < Date.now()) && (
             <div className="shrink-0 border-b border-amber-500/30 bg-amber-500/10 px-4 py-1.5 text-xs text-amber-800 dark:text-amber-200">
               Real-time delivery is paused for {accounts.length === 1 ? 'this mailbox' : 'a connected mailbox'} —
-              new email still arrives each time you open or refresh the inbox, and live updates
-              usually resume on their own within a day.
+              new email still arrives every few minutes, and live updates usually resume on
+              their own within a day.
             </div>
           )}
+          <SyncedLine
+            accounts={accounts.map((a) => ({
+              lastSyncAt: a.lastSyncAt ? new Date(a.lastSyncAt).toISOString() : null,
+              syncStatus: a.syncStatus,
+            }))}
+          />
           <div className="relative flex flex-1 min-h-0">
             <MailboxSidebar
               accounts={accounts}

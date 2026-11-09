@@ -64,6 +64,10 @@ BASE_URL="https://www.dreamcreatestudio.com"
 JOBS=(
   "auto-send-reviews|auto-send-reviews|rate(1 hour)"
   "pms-sync|pms-sync|rate(1 hour)"
+  # The Gmail mailbox sync (ML-59): /inbox renders from the synced copy; this
+  # keeps it fresh (wanted mailboxes first, budgeted + resumable). The push
+  # webhook covers the moment it matters.
+  "gmail-sync|gmail-sync|rate(5 minutes)"
   "send-reminders|send-reminders|rate(30 minutes)"
   "send-scheduled-campaigns|send-scheduled-campaigns|rate(15 minutes)"
   "customize-services|customize-services|rate(1 hour)"

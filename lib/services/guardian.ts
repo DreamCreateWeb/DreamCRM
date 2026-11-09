@@ -195,6 +195,7 @@ const OWNER_CAPABILITY_NAME: Record<string, string> = {
   proposal_engine: 'Finding work to put in front of them',
   guardian_note: 'Flagging things for them to look at',
   staff_alert: 'Getting alert emails to their inbox',
+  inbox_sync: 'Keeping their email inbox in step',
 }
 
 export async function recentFailureSummaries(

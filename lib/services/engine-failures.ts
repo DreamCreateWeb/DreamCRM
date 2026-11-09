@@ -68,6 +68,12 @@ export const AUTOMATION_FAILURE = {
     capability: 'staff_alert',
     summary: 'Couldn’t get an alert email to your inbox just now — I’ll keep trying.',
   },
+  // The Gmail mailbox sync (ML-59): the 5-minute sweep that keeps /inbox fresh
+  // behind the page. One strike per clinic per day when a mailbox's sync throws.
+  inbox_sync: {
+    capability: 'inbox_sync',
+    summary: 'Couldn’t pull in your latest email just now — I’ll keep trying.',
+  },
 } as const satisfies Record<string, { capability: string; summary: string }>
 
 export type AutomationFailureKey = keyof typeof AUTOMATION_FAILURE
