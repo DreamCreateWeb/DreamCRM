@@ -8,6 +8,7 @@ import { MiniTrend } from '@/components/ui/charts'
 import { SearchInput } from '@/components/ui/search-input'
 import { PendingVeil } from '@/components/ui/pending-veil'
 import { PageHeader } from '@/components/ui/page-header'
+import { PagePulse } from '@/components/ui/page-pulse'
 import { ActionButton } from '@/components/ui/action-button'
 import { EncodingLegend } from '@/components/ui/encoding-legend'
 import { FilterChip } from '@/components/ui/filter-chip'
@@ -245,6 +246,13 @@ export default function LeadsView({
             )}
           </div>
         }
+      />
+      <PagePulse
+        facts={[
+          { label: counts.total === 1 ? 'inquiry' : 'inquiries', value: counts.total },
+          ...(counts.new > 0 ? [{ label: 'new', value: counts.new, tone: 'special' as const }] : []),
+          ...(counts.converted > 0 ? [{ label: 'became patients', value: counts.converted, tone: 'ok' as const }] : []),
+        ]}
       />
 
       {/* ── Filter chips with counts ────────────────────────────────── */}

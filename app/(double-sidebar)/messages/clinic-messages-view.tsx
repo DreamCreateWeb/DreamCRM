@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation'
+import { PagePulse } from '@/components/ui/page-pulse'
 import type { TenantContext } from '@/lib/auth/context'
 import {
   getInboxStats,
@@ -232,6 +233,15 @@ export default async function ClinicMessagesView({
       {/* Surface tabs (Patients ⇄ Mailbox) — shared with /inbox so neither is
           a one-way trip. */}
       <MessagesSurfaceTabs active="patients" />
+
+      <PagePulse
+        className="px-4 pt-2 !mb-0 bg-[color:var(--color-surface-2)]"
+        facts={[
+          { label: 'open', value: stats.open },
+          ...(stats.unread > 0 ? [{ label: 'unread', value: stats.unread, tone: 'warn' as const }] : []),
+          ...(stats.snoozedAvailable > 0 ? [{ label: 'back from snooze', value: stats.snoozedAvailable, tone: 'info' as const }] : []),
+        ]}
+      />
 
       {/* ── Top filter bar (the two-pane PageHeader analogue) ────────── */}
       {/* The chips are ONE STRIP: sideways-scrolling below lg (nine chips

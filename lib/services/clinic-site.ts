@@ -7,6 +7,8 @@ import { db } from '@/lib/db'
 import { organization } from '@/lib/db/schema/auth'
 import { clinicProfile, clinicLocation } from '@/lib/db/schema/platform'
 import type { ClinicProfile, ClinicLocation } from '@/lib/db/schema/platform'
+import { siteOffices, officeHasAddress } from '@/lib/site-offices'
+import { parseGbpListingSnapshot } from '@/lib/gbp-listing'
 import { expandServedHosts } from '@/lib/services/custom-domain'
 import { canEditClinic } from '@/lib/clinic-site-edit'
 import { mergeWebsiteDraft, websiteDraftKeys } from '@/lib/website-draft'
@@ -508,7 +510,16 @@ export function clinicJsonLd(
   const phone = loc?.phone ?? profile.phone ?? undefined
 
   const openingHoursSpecification: Array<Record<string, unknown>> = []
-  const hours = (profile.hours ?? {}) as Record<string, HoursEntry | undefined>
+  // GBP-synced hours win when the listing carries any (ML-48); else the
+  // profile's own.
+  const gbpHours = parseGbpListingSnapshot(profile.gbpListing)?.hours ?? []
+  for (const p of gbpHours) {
+    const dayOfWeek = DAY_TO_SCHEMA[p.day.slice(0, 3).toLowerCase()]
+    if (dayOfWeek) {
+      openingHoursSpecification.push({ '@type': 'OpeningHoursSpecification', dayOfWeek, opens: p.open, closes: p.close })
+    }
+  }
+  const hours = (gbpHours.length > 0 ? {} : (profile.hours ?? {})) as Record<string, HoursEntry | undefined>
   for (const [day, entry] of Object.entries(hours)) {
     if (!entry || entry.closed || !entry.open || !entry.close) continue
     const dayOfWeek = DAY_TO_SCHEMA[day]
@@ -532,6 +543,8 @@ export function clinicJsonLd(
     aggregateRating != null &&
     aggregateRating.count >= 1 &&
     aggregateRating.averageRating != null
+
+  const otherOffices = siteOffices(data).filter((o) => !o.isPrimary && officeHasAddress(o))
 
   const ld: Record<string, unknown> = {
     '@context': 'https://schema.org',
@@ -561,6 +574,25 @@ export function clinicJsonLd(
         }
       : {}),
     ...(openingHoursSpecification.length ? { openingHoursSpecification } : {}),
+    // Every OTHER office (the first is the address above): a schema.org Place
+    // per extra clinic_location row, so a second office is findable too.
+    ...(otherOffices.length
+      ? {
+          location: otherOffices.map((o) => ({
+            '@type': 'Place',
+            ...(o.name ? { name: o.name } : {}),
+            ...(o.phone ? { telephone: o.phone } : {}),
+            address: {
+              '@type': 'PostalAddress',
+              ...(o.line1 ? { streetAddress: o.line1 } : {}),
+              ...(o.city ? { addressLocality: o.city } : {}),
+              ...(o.state ? { addressRegion: o.state } : {}),
+              ...(o.postal ? { postalCode: o.postal } : {}),
+              addressCountry: profile.country ?? 'US',
+            },
+          })),
+        }
+      : {}),
     ...(emitRating
       ? {
           aggregateRating: {

@@ -21,6 +21,7 @@ export interface MatrixRow {
 import type { ToneTileGlyph } from './tone-tiles'
 import { usd } from './site'
 import { getQuotedPlan } from '@/lib/stripe-config'
+import { INCLUDED_MONTHLY_INSURANCE_CHECKS } from '@/lib/insurance-eligibility'
 
 /**
  * OUR OWN PRICE, RESOLVED — never typed (DREAMCRM-38's rule, arriving here on
@@ -66,6 +67,8 @@ export interface VendorComparison {
   bottomLine: string
 }
 
+const INSURANCE_UNVERIFIED: [MatrixValue, string] = ['partial', 'Not verified here: ask them what is included']
+
 /** Rows shared by every comparison — what WE are; per-vendor values vary. */
 function baseMatrix(vendor: {
   website: [MatrixValue, string?]
@@ -78,6 +81,8 @@ function baseMatrix(vendor: {
   shop: [MatrixValue, string?]
   careers: [MatrixValue, string?]
   pms: [MatrixValue, string?]
+  /** Their eligibility checks. Omitted = not verified (shown as a hedge, never a claim). */
+  insurance?: [MatrixValue, string?]
   phones: [MatrixValue, string?]
   sms: [MatrixValue, string?]
   contract: [MatrixValue, string?]
@@ -93,6 +98,7 @@ function baseMatrix(vendor: {
     { feature: 'Online store + membership plans', dreamcrm: 'yes', dreamcrmNote: 'Stripe payouts to the clinic’s own bank', vendor: vendor.shop[0], vendorNote: vendor.shop[1] },
     { feature: 'Careers page + applicant tracking', dreamcrm: 'yes', vendor: vendor.careers[0], vendorNote: vendor.careers[1] },
     { feature: 'PMS sync', dreamcrm: 'yes', dreamcrmNote: 'Two-way via the NexHealth bridge — Dentrix, Eaglesoft, Open Dental + more', vendor: vendor.pms[0], vendorNote: vendor.pms[1] },
+    { feature: 'Insurance eligibility checks', dreamcrm: 'yes', dreamcrmNote: `Through Stedi; ${INCLUDED_MONTHLY_INSURANCE_CHECKS} checks a month included`, vendor: (vendor.insurance ?? INSURANCE_UNVERIFIED)[0], vendorNote: (vendor.insurance ?? INSURANCE_UNVERIFIED)[1] },
     { feature: 'VoIP phones', dreamcrm: 'no', dreamcrmNote: 'Keep your existing phone system', vendor: vendor.phones[0], vendorNote: vendor.phones[1] },
     { feature: 'Two-way SMS texting', dreamcrm: 'no', dreamcrmNote: 'On the roadmap — not available yet', vendor: vendor.sms[0], vendorNote: vendor.sms[1] },
     { feature: 'Month-to-month, no contract', dreamcrm: 'yes', dreamcrmNote: `${RATE_MONTHLY}/mo flat`, vendor: vendor.contract[0], vendorNote: vendor.contract[1] },

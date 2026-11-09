@@ -3,6 +3,7 @@ import { intakeDoorOpen } from '@/lib/feature-switches'
 import { EditText } from '@/components/clinic-site/editable'
 import { SITE_DEEP, SITE_DEEP_INK, SITE_DEEP_MUTED } from '@/components/clinic-site/tokens'
 import { DAYS, DAY_LABEL, hoursEntryDisplay, copyOverride, type HoursMap, intakeStartHref } from '@/lib/clinic-site-helpers'
+import VisitExtras from '@/components/clinic-site/visit-extras'
 
 const DISPLAY = 'var(--font-display, serif)'
 const SCORE = 'var(--font-score, sans-serif)'
@@ -33,7 +34,6 @@ export default function HometeamFooter({
   const hours = (data.profile.hours as HoursMap | null) ?? null
   const overrides = (data.profile.copyOverrides as Record<string, string> | null) ?? {}
   const year = new Date().getFullYear()
-  const mapsQuery = [addressLine1, city, state, postal].filter(Boolean).join(', ')
 
   return (
     <footer id="site-footer-contact" className="relative mt-10 overflow-hidden" style={{ background: SITE_DEEP, color: SITE_DEEP_INK }}>
@@ -92,17 +92,6 @@ export default function HometeamFooter({
                   {postal ? ` ${postal}` : ''}
                 </span>
               )}
-              {mapsQuery && (
-                <a
-                  href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(mapsQuery)}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-block mt-2 text-sm underline underline-offset-4"
-                  style={{ color: SITE_DEEP_MUTED }}
-                >
-                  Directions
-                </a>
-              )}
               {phone && (
                 <a href={`tel:${phone}`} className="block mt-3 text-sm font-bold">
                   {phone}
@@ -114,6 +103,7 @@ export default function HometeamFooter({
                 </a>
               )}
             </address>
+            <VisitExtras data={data} />
           </div>
 
           <div>

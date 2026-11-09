@@ -7,6 +7,7 @@ import { formatRelativeDate } from '@/lib/utils/format'
 import NewCampaignButton from './new-campaign-button'
 import CancelScheduledButton from './cancel-scheduled-button'
 import { PageHeader } from '@/components/ui/page-header'
+import { PagePulse } from '@/components/ui/page-pulse'
 import { ActionButton } from '@/components/ui/action-button'
 import { StatusPill } from '@/components/ui/status-pill'
 import { EncodingLegend } from '@/components/ui/encoding-legend'
@@ -131,6 +132,20 @@ export default async function CampaignsPage({
             />
           </>
         }
+      />
+      <PagePulse
+        facts={[
+          { label: campaigns.length === 1 ? 'campaign' : 'campaigns', value: campaigns.length },
+          ...(campaigns.filter((c) => c.status === 'completed').length > 0
+            ? [{ label: 'sent', value: campaigns.filter((c) => c.status === 'completed').length, tone: 'ok' as const }]
+            : []),
+          ...(campaigns.filter((c) => c.status === 'scheduled').length > 0
+            ? [{ label: 'scheduled', value: campaigns.filter((c) => c.status === 'scheduled').length, tone: 'info' as const }]
+            : []),
+          ...(campaigns.filter((c) => c.status === 'draft').length > 0
+            ? [{ label: 'drafts', value: campaigns.filter((c) => c.status === 'draft').length, tone: 'neutral' as const }]
+            : []),
+        ]}
       />
 
       {campaigns.length === 0 ? (

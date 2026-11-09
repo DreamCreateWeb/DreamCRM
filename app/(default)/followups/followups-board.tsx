@@ -3,6 +3,7 @@
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useState, useTransition } from 'react'
 import { PageHeader } from '@/components/ui/page-header'
+import { PagePulse } from '@/components/ui/page-pulse'
 import { FilterChip } from '@/components/ui/filter-chip'
 import { StatusPill } from '@/components/ui/status-pill'
 import { ActionButton } from '@/components/ui/action-button'
@@ -184,6 +185,13 @@ export default function FollowupsBoard({
             <StatusPill tone="warn" label={`${dueNowCount} due now`} title="Overdue + due today — the sidebar badge's number" />
           ) : undefined
         }
+      />
+      <PagePulse
+        facts={[
+          { label: 'open', value: openCount },
+          ...(dueNowCount > 0 ? [{ label: 'due now', value: dueNowCount, tone: 'warn' as const }] : []),
+          ...(snoozedCount > 0 ? [{ label: 'snoozed', value: snoozedCount, tone: 'neutral' as const }] : []),
+        ]}
       />
 
       {/* Filters */}
