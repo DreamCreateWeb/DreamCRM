@@ -6172,6 +6172,46 @@ template with no bar, or a bar hidden above `sm`, measures 0 and nothing
 moves. The right-aligned pairs on established and hometeam are
 deliberately not tagged — the bottom-left floaters never meet them.
 
+## 2026-11-09 — The deep dev cycle, part 10: three feature slices (group 11)
+
+Three public-facing slices (the marketing site, the clinic sites, the
+dashboard's analytics), no migration, merged as true merges (each branch
+was cut from the part-9 integration head — the new rule in every brief).
+
+**ML-45 — the marketing site sells insurance checks, shows every design
+live, and prices honestly.** A product-tour chapter for insurance checks
+(the 200 / 20 monthly allowances are IMPORTED from code, never typed; "run
+by the team, never automatic"); a "Six designs, all live" gallery on
+/product — one lazy inert iframe of the demo clinic per registered
+template, scaled, with each template's own palette swatches from
+`buildPalette`; the pricing page's included row + an FAQ that says the
+full breakdown counts per check and discovery has its own 20; the compare
+matrix gains an insurance row (13 → 14; vendors read "not verified here").
+No SMS word, no HIPAA word (pinned).
+
+**ML-37 — analytics on the chart kit; a PagePulse on every list page.**
+The three hand-rolled bar helpers on /growth/analytics render through
+`TrendChart kind="bar"` (no numeral per bar; the kit's tooltip answers
+hover); `components/ui/page-pulse.tsx` takes facts the page already loads
+(no new queries) and sits under the PageHeader of Patients, Appointments,
+Follow-ups, Leads, Reviews, Campaigns, Orders, Memberships and above the
+Messages filter bar — hidden under 480px, ink-ramp tones, a 40px floor on
+linked facts. Follow-up: a page-wide lapsed count on Patients would need
+its own query.
+
+**ML-48 — every template knows what day it is, where the office is, and
+that there is a second office.** `lib/site-hours.ts` (`openNowLabel`,
+`todayHoursLine` — Intl in the clinic zone, GBP hours win; computed in the
+browser after mount because the public pages are cached; a `closures`
+parameter waits for ML-51); "Get directions" in every footer and a keyless
+Google Maps embed on the Modern home and the About page's "Find us" (fixed
+google.com origin, no script, nothing when there is no address);
+`lib/site-offices.ts` lists the primary office then every `clinic_location`
+with an address (no per-location hours column, so none are shown); JSON-LD
+gains a `Place` per extra office and prefers GBP hours. The conformance
+harness now checks the hours state, the map link and the locations list
+per template, and fails a hand-rolled maps URL or "Open now" string.
+
 ## 2026-11-09 — The deep dev cycle, part 9: four feature slices (group 10)
 
 Built while part 8 gated; ONE regenerated migration (0185) for two slices'
