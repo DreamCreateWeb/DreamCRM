@@ -527,6 +527,25 @@ describe('sendCampaign — the SMS channel (Phase 5 limb 3)', () => {
     expect(sms.deliver).toHaveBeenCalledTimes(1)
   })
 
+  it('the clinic’s clock crossing into QUIET HOURS mid-run stops the loop the same way — one honest reason, no more attempts', async () => {
+    h.getCampaignMock.mockResolvedValue(clinicCampaign({ sendChannel: 'twilio_sms' }))
+    h.resolveRecipientsMock.mockResolvedValue([
+      smsRecipient({ id: 'p1', patientId: 'p1' }),
+      smsRecipient({ id: 'p2', patientId: 'p2', phone: '(415) 555-0143' }),
+      smsRecipient({ id: 'p3', patientId: 'p3', phone: '(415) 555-0144' }),
+    ])
+    sms.deliver.mockResolvedValueOnce({
+      ok: false,
+      reason: 'quiet_hours',
+      error: 'Texts go out between 8 AM and 8 PM on the practice’s clock — this one fell outside, so nothing was sent.',
+    })
+    const r = await sendCampaign({ organizationId: 'org_1', campaignId: 99 })
+    expect(r.sent).toBe(0)
+    expect(r.failed).toBe(3)
+    expect(sms.deliver).toHaveBeenCalledTimes(1)
+    expect(r.errors.every((e) => e.error.includes('8 AM and 8 PM'))).toBe(true)
+  })
+
   it('nothing sent leaves the campaign a DRAFT for a clean retry, same as the email path', async () => {
     sms.identity = { ok: false, reason: 'driver_off' }
     h.getCampaignMock.mockResolvedValue(clinicCampaign({ sendChannel: 'twilio_sms' }))

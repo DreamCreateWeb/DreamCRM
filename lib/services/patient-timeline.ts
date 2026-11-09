@@ -6,6 +6,7 @@ import { cancelActorLabel } from '@/lib/cancel-actor'
 import { formatClinicDayTime } from '@/lib/format-datetime'
 import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
 import { summarizeCheckForTimeline, type EligibilityRequest, type EligibilityResult, type EligibilityStatus, type InsuranceDriverId } from '@/lib/insurance-eligibility'
+import { FOLLOWUP_OUTCOMES, type FollowupOutcome } from '@/lib/types/followups'
 
 export type TimelineKind =
   | 'appointment'
@@ -158,6 +159,7 @@ interface RawFollowup {
   createdAt: Date
   completedAt: Date | null
   assigneeName: string | null
+  outcome: string | null
 }
 interface RawCampaign {
   id: number
@@ -458,6 +460,7 @@ export async function getPatientTimeline(
         dueDate: schema.patientFollowup.dueDate,
         createdAt: schema.patientFollowup.createdAt,
         completedAt: schema.patientFollowup.completedAt,
+        outcome: schema.patientFollowup.outcome,
         assigneeName: schema.user.name,
       })
       .from(schema.patientFollowup)
@@ -862,7 +865,7 @@ export async function getPatientTimeline(
       kind: 'followup',
       occurredAt: done && f.completedAt ? f.completedAt : f.createdAt,
       title: `${done ? 'Completed follow-up' : 'Follow-up'}: ${f.title}`,
-      subtitle: done ? 'Done' : bits.length > 0 ? bits.join(' · ') : 'Open',
+      subtitle: done ? (f.outcome && FOLLOWUP_OUTCOMES[f.outcome as FollowupOutcome] ? `Done — ${FOLLOWUP_OUTCOMES[f.outcome as FollowupOutcome].phrase}` : 'Done') : bits.length > 0 ? bits.join(' · ') : 'Open',
       status: done ? 'done' : 'open',
       direction: null,
       href: '/followups',

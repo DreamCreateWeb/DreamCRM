@@ -56,6 +56,10 @@ export interface ProposalCardData {
   subject: string | null
   /** Extra context line ("goes to ~41 patients", "posts to 2 channels"). */
   meta: string | null
+  /** A door to the thing the card is about (ML-12: the conversation a
+   *  drafted reply answers) — for when the draft is not the answer. The
+   *  approve stays on the card; this is a link, never a second control. */
+  openHref?: { href: string; label: string } | null
   /** The thing being answered, quoted above the draft. preferredDate rides
    *  along for inquiries (round-3 audit: a date-only inquiry otherwise
    *  rendered NO context, and staff approved a reply that might contradict
@@ -1083,6 +1087,16 @@ function ProposalCard({
         {tokens && !editing && (
           <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
             Shown with a sample name — each patient gets their own.
+          </p>
+        )}
+        {proposal.openHref && (
+          <p className="mt-2 text-xs">
+            <a
+              href={proposal.openHref.href}
+              className="font-medium text-teal-700 hover:underline dark:text-teal-300"
+            >
+              {proposal.openHref.label} →
+            </a>
           </p>
         )}
         {appendsBookingButton && !showsEmailArtifact && (

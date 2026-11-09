@@ -43,6 +43,9 @@ const doneRow: PatientFollowupView = {
   createdByName: null,
   completedAt: new Date('2026-07-18T20:00:00Z'),
   createdAt: new Date('2026-07-10T15:00:00Z'),
+  kind: 'generic',
+  snoozedUntil: null,
+  outcome: null,
 }
 
 function renderBoard(opts: { rows?: PatientFollowupView[]; closedByMe?: boolean } = {}) {

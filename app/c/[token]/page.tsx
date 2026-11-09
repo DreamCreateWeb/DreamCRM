@@ -4,6 +4,7 @@ import { formatClinicDayTime } from '@/lib/format-datetime'
 import MinimalSiteChrome from '@/components/clinic-site/minimal-site-chrome'
 import ConfirmForm from './confirm-form'
 import { portalBrand } from '@/lib/portal-brand'
+import { appBaseUrl } from '@/lib/clinic-site-helpers'
 
 export const metadata = {
   title: 'Confirm your visit',
@@ -14,9 +15,6 @@ export const metadata = {
 }
 
 export const dynamic = 'force-dynamic'
-
-const FRAUNCES_HREF =
-  'https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&display=swap'
 
 const SITE_DOMAIN = process.env.NEXT_PUBLIC_SITE_DOMAIN ?? 'dreamcreatestudio.com'
 
@@ -41,11 +39,6 @@ export default async function ConfirmVisitPage({
 
   return (
     <>
-      <link rel="preconnect" href="https://fonts.googleapis.com" />
-      <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-      {/* eslint-disable-next-line @next/next/no-page-custom-font */}
-      <link rel="stylesheet" href={FRAUNCES_HREF} />
-      <style>{`:root { --font-display: 'Fraunces', Georgia, serif; --site-header-h: 64px; }`}</style>
       <MinimalSiteChrome
         clinicName={ctx.clinicName}
         logoUrl={ctx.logoUrl}
@@ -69,6 +62,17 @@ export default async function ConfirmVisitPage({
               prepInstructions={ctx.prepInstructions}
               initialState={ctx.state}
               bookUrl={siteUrl ? `${siteUrl}/book` : null}
+              // Reschedule target: the portal's own visit page (real slots +
+              // notice windows) when the practice has self-serve reschedule
+              // on; otherwise the public booking page.
+              rescheduleUrl={
+                ctx.rescheduleOpen
+                  ? `${appBaseUrl()}/patient/appointments/${encodeURIComponent(ctx.appointmentId)}`
+                  : siteUrl
+                    ? `${siteUrl}/book`
+                    : null
+              }
+              cancelNoticeHours={ctx.cancelNoticeHours}
             />
           </div>
         </div>

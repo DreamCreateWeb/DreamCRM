@@ -4,6 +4,13 @@ import { db, schema } from '@/lib/db'
 import { toE164 } from '@/lib/phone'
 import { smsSegments } from '@/lib/sms-segments'
 import { smsDriver } from '@/lib/services/sms-registration'
+import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
+import {
+  SEND_WINDOW_END_HOUR,
+  SEND_WINDOW_START_HOUR,
+  formatHour12,
+  isInsideSendWindow,
+} from '@/lib/reminder-hours'
 
 /**
  * SMS TRANSPORT (Phase 5 limb 3, slice 3) — deliverSms(), the sibling of
@@ -89,15 +96,27 @@ export interface DeliverSmsInput {
   body: string
   /** Routes AWS's MessageType honestly: a recall invitation is PROMOTIONAL
    *  traffic and miscategorising it as transactional is the kind of small
-   *  lie carriers punish with filtering. Reminders are 'transactional'. */
-  kind: 'transactional' | 'marketing'
+   *  lie carriers punish with filtering. Reminders are 'transactional'.
+   *  'reply' is the answer to a text the patient JUST sent (the STOP/START/
+   *  HELP confirmations in lib/services/inbound-sms.ts) — transactional on
+   *  the wire, and the one kind the quiet-hours gate lets through at any
+   *  hour: the patient opened the conversation seconds ago, and a STOP
+   *  confirmation at 11 PM is the law's own requirement, not a nag. */
+  kind: 'transactional' | 'marketing' | 'reply'
 }
 
 export type DeliverSmsResult =
   | { ok: true; messageId: string | null; segments: number }
   | {
       ok: false
-      reason: 'driver_off' | 'not_approved' | 'bad_number' | 'empty' | 'failed' | 'over_budget'
+      reason:
+        | 'driver_off'
+        | 'not_approved'
+        | 'bad_number'
+        | 'empty'
+        | 'failed'
+        | 'over_budget'
+        | 'quiet_hours'
       error: string
     }
 
@@ -125,6 +144,24 @@ export async function deliverSms(
   }
   const body = input.body.trim()
   if (!body) return { ok: false, reason: 'empty', error: 'There’s no message to send.' }
+
+  // QUIET HOURS (lib/reminder-hours.ts) — the belt-and-braces under every
+  // sender, present and future: the reminder engine holds a clinic on its
+  // own clock before it ever gets here; campaigns, follow-ups and whatever
+  // comes next land on this one line. Read on the CLINIC's clock, never
+  // the server's. A keyword reply is exempt (see `kind`). Checked at the
+  // choke point so no caller can route around it, and before the budget so
+  // a refused text never counts as spend.
+  if (input.kind !== 'reply') {
+    const timeZone = await getClinicTimeZone(organizationId)
+    if (!isInsideSendWindow(new Date(), timeZone)) {
+      return {
+        ok: false,
+        reason: 'quiet_hours',
+        error: `Texts go out between ${formatHour12(SEND_WINDOW_START_HOUR)} and ${formatHour12(SEND_WINDOW_END_HOUR)} on the practice’s clock — this one fell outside, so nothing was sent.`,
+      }
+    }
+  }
 
   // The budget stop — MARKETING only, checked at the choke point so no
   // campaign path can route around it. Transactional traffic never sees it.

@@ -16,6 +16,7 @@ vi.mock('better-auth/next-js', () => ({ nextCookies: vi.fn(() => ({})) }))
 const sendMagicLinkEmail = vi.fn(async () => {})
 const sendPatientPortalInviteEmail = vi.fn(async () => {})
 vi.mock('@/lib/email', () => ({
+  patientEmailShell: vi.fn((o: { title?: string; body?: string; cta?: { url: string; label: string }; footnoteHtml?: string }) => `<html>${o?.title ?? ''}${o?.body ?? ''}${o?.cta ? `<a href="${o.cta.url}">${o.cta.label}</a>` : ''}${o?.footnoteHtml ?? ''}</html>`),
   sendInvitationEmail: vi.fn(),
   sendMagicLinkEmail: (...a: unknown[]) => sendMagicLinkEmail(...(a as [])),
   sendPatientPortalInviteEmail: (...a: unknown[]) => sendPatientPortalInviteEmail(...(a as [])),

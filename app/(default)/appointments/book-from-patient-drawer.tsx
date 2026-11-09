@@ -37,6 +37,7 @@ export default function BookFromPatientDrawer({
   defaultType,
   defaultDate,
   onClose,
+  onBooked,
 }: {
   patientId: string
   patientName: string
@@ -47,6 +48,10 @@ export default function BookFromPatientDrawer({
    *  date). Anything else, and the drawer opens on tomorrow as it always has. */
   defaultDate?: string | null
   onClose: () => void
+  /** Called once the visit is saved, with the "lives here only" sentence when
+   *  the PMS will not get it (null otherwise) — the caller may repeat it in
+   *  its own toast, since this drawer closes. */
+  onBooked?: (pmsNote: string | null) => void
 }) {
   const router = useRouter()
   const dialogRef = useRef<HTMLDivElement>(null)
@@ -169,6 +174,7 @@ export default function BookFromPatientDrawer({
         })
         if ('ok' in r && r.ok === true) {
           router.refresh()
+          onBooked?.(config?.pmsNote ?? null)
           onClose()
         } else if ('error' in r) {
           setError(r.error)
@@ -270,6 +276,15 @@ export default function BookFromPatientDrawer({
             <span className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold">Notes</span>
             <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Anything the front desk should know…" className="form-textarea w-full mt-1 text-sm min-h-[70px]" />
           </label>
+          {config?.pmsNote && (
+            <p
+              role="note"
+              data-testid="pms-write-back-note"
+              className="text-xs rounded-[var(--r-sm)] border border-amber-300/60 bg-amber-50 text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300 px-3 py-2"
+            >
+              {config.pmsNote}
+            </p>
+          )}
           {error && <p className="text-xs text-rose-600 dark:text-rose-400">{error}</p>}
         </div>
         <div className="px-6 py-4 border-t border-[color:var(--color-hairline)] flex justify-end gap-2">

@@ -10,6 +10,7 @@ import { getTagsForPatients, getTagsForPatient } from '@/lib/services/patient-ta
 import type { PatientTagView } from '@/lib/types/patient-tags'
 import { toCsv } from '@/lib/csv'
 import { cancelActorLabel, cancelNoticeFor, type CancelNotice } from '@/lib/cancel-actor'
+import { JUST_BOOKED_MS } from '@/lib/reminder-hours'
 import { getEmailAutomations } from '@/lib/services/email-automations'
 import { clinicDayStart, clinicWeekStart } from '@/lib/clinic-timezone'
 import { clinicDayKey, formatClinicDayTime } from '@/lib/format-datetime'
@@ -175,8 +176,9 @@ export function newProviderId(): string {
 
 // Treat reminders sent in last 24h as "recently" → triggers ⏱ glyph.
 const REMINDER_RECENT_MS = 24 * 60 * 60 * 1000
-// Booked-just-now glyph window: 1 hour.
-const JUST_BOOKED_MS = 60 * 60 * 1000
+// Booked-just-now glyph window (1 hour) — lives in lib/reminder-hours.ts
+// beside the reminder engine's just-booked grace, so the two stay in sight
+// of each other.
 // Rebooking recovery window: cancelled/no-show in the last 60 days with no
 // future booking → "needs rebooking".
 const REBOOK_WINDOW_MS = 60 * 24 * 60 * 60 * 1000
@@ -1038,7 +1040,7 @@ function patientRecordLinkLabel(patientName: string): string {
  *  "who cancelled this?" is answerable in one glance (the 2026-07-22 mixup:
  *  staff and the patient each assumed the other side had done it). */
 export interface CancelActor {
-  via: 'staff' | 'portal'
+  via: 'staff' | 'portal' | 'confirm_link'
   /** Staff user id (via='staff' only). */
   userId?: string | null
   /** Staff display name for the notification copy (via='staff' only). */
@@ -1099,7 +1101,9 @@ export async function cancelAppointment(
       const body =
         actor?.via === 'portal'
           ? `Their ${visit} was cancelled from the patient portal (their account — heads-up if family share that email).`
-          : actor?.via === 'staff' && actor.name
+          : actor?.via === 'confirm_link'
+            ? `Their ${visit} was cancelled from the link in their reminder.`
+            : actor?.via === 'staff' && actor.name
             ? `${actor.name} cancelled their ${visit}.`
             : `Their ${visit} was cancelled.`
       const { notifyOrgMembers } = await import('./notifications')
@@ -1244,20 +1248,20 @@ async function sendNoShowRebookEmail(
   })
   if (!rendered.enabled) return false
 
-  const { authEmailShell, deliver } = await import('@/lib/email')
+  const { patientEmailShell, deliver } = await import('@/lib/email')
   await deliver({
     to: opts.to,
     from: sender.from,
     replyTo: sender.replyTo,
     gmail: sender.gmail,
     subject: rendered.full.subject,
-    html: authEmailShell({
-      heading: 'We missed you — no big deal',
-      introHtml: rendered.full.body
+    html: patientEmailShell({
+      sender,
+      title: 'We missed you — no big deal',
+      body: rendered.full.body
         .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
         .replace(/\n/g, '<br>'),
-      buttonUrl: rebookUrl,
-      buttonLabel: 'Find a new time',
+      cta: { url: rebookUrl, label: 'Find a new time' },
       footnoteHtml: profile?.phone
         ? `Prefer to talk it through? Call us at ${profile.phone.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}.`
         : 'Prefer to talk it through? Just reply to this email.',

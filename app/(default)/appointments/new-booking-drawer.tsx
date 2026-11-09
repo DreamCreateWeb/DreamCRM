@@ -4,7 +4,9 @@ import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import BookFromPatientDrawer from './book-from-patient-drawer'
 import { useFocusTrap } from '@/components/ui/use-focus-trap'
-import { patientOptionByIdAction, searchPatientOptionsAction } from './actions'
+import { ActionButton } from '@/components/ui/action-button'
+import { createPatientForBookingAction, patientOptionByIdAction, searchPatientOptionsAction } from './actions'
+import { runAction } from '@/lib/run-action'
 import type { PatientOption } from '@/lib/services/patients'
 
 /** Keystrokes settle for this long before a search round-trip. */
@@ -30,8 +32,11 @@ export default function NewBookingDrawer({
   initialPatientId = null,
   defaultDate = null,
   defaultType = null,
+  onBooked,
 }: {
   onClose: () => void
+  /** Forwarded to the booking form — the agenda repeats the PMS sentence in its toast. */
+  onBooked?: (pmsNote: string | null) => void
   /** A patient already chosen by the caller (`/appointments?new=1&patient=<id>`,
    *  the inbox's patient card): the picker is skipped once an org-scoped read
    *  confirms the id belongs to this clinic. An unknown id leaves the picker up. */
@@ -46,6 +51,14 @@ export default function NewBookingDrawer({
   const [picked, setPicked] = useState<{ id: string; name: string } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const dialogRef = useRef<HTMLDivElement>(null)
+  // The "New caller" mini-form: a caller on the line, booked without leaving.
+  const [adding, setAdding] = useState(false)
+  const [caller, setCaller] = useState({ firstName: '', lastName: '', phone: '', email: '' })
+  const [callerBusy, setCallerBusy] = useState(false)
+  const [callerError, setCallerError] = useState<string | null>(null)
+  // Set when the record was NOT a plain new one (already on file / likely
+  // family): we say so and wait for one tap before moving on.
+  const [callerFound, setCallerFound] = useState<{ id: string; name: string; note: string } | null>(null)
   // Only the LATEST search may land: a slow "ma" answer arriving after the
   // fast "mar" one would put the wrong list under the cursor.
   const searchSeq = useRef(0)
@@ -103,6 +116,32 @@ export default function NewBookingDrawer({
 
   const filtered = options ?? []
 
+  async function saveCaller() {
+    if (callerBusy) return
+    setCallerBusy(true)
+    setCallerError(null)
+    try {
+      const r = await runAction(() => createPatientForBookingAction(caller))
+      if (!r.ok) {
+        setCallerError(r.error)
+        return
+      }
+      const chosen = { id: r.option.id, name: r.option.name }
+      if (r.existing) {
+        setCallerFound({ ...chosen, note: `${r.option.name} is already on file, so we picked their record.` })
+      } else if (r.sharedContactWith) {
+        setCallerFound({
+          ...chosen,
+          note: `This contact is also on file for ${r.sharedContactWith.name} — likely family. ${r.option.name} has their own record so nothing lands on the wrong chart.`,
+        })
+      } else {
+        setPicked(chosen)
+      }
+    } finally {
+      setCallerBusy(false)
+    }
+  }
+
   if (picked) {
     return (
       <BookFromPatientDrawer
@@ -111,6 +150,7 @@ export default function NewBookingDrawer({
         defaultDate={defaultDate}
         defaultType={defaultType}
         onClose={onClose}
+        onBooked={onBooked}
       />
     )
   }
@@ -145,6 +185,74 @@ export default function NewBookingDrawer({
             </svg>
           </button>
         </div>
+        {adding ? (
+          <div className="px-5 pb-4 space-y-3" role="group" aria-label="New caller">
+            <div className="grid grid-cols-2 gap-3">
+              <input
+                autoFocus
+                value={caller.firstName}
+                onChange={(e) => setCaller({ ...caller, firstName: e.target.value })}
+                placeholder="First name"
+                aria-label="First name"
+                autoComplete="off"
+                className="form-input w-full"
+              />
+              <input
+                value={caller.lastName}
+                onChange={(e) => setCaller({ ...caller, lastName: e.target.value })}
+                placeholder="Last name"
+                aria-label="Last name"
+                autoComplete="off"
+                className="form-input w-full"
+              />
+            </div>
+            <input
+              type="tel"
+              value={caller.phone}
+              onChange={(e) => setCaller({ ...caller, phone: e.target.value })}
+              placeholder="Phone"
+              aria-label="Phone"
+              autoComplete="off"
+              className="form-input w-full"
+            />
+            <input
+              type="email"
+              value={caller.email}
+              onChange={(e) => setCaller({ ...caller, email: e.target.value })}
+              placeholder="Email (optional)"
+              aria-label="Email (optional)"
+              autoComplete="off"
+              className="form-input w-full"
+            />
+            {callerError && <p className="text-sm text-rose-600 dark:text-rose-400">{callerError}</p>}
+            {callerFound && (
+              <p role="status" className="text-sm text-gray-700 dark:text-gray-200">
+                {callerFound.note}
+              </p>
+            )}
+            <div className="flex items-center justify-between">
+              <button
+                type="button"
+                onClick={() => {
+                  setAdding(false)
+                  setCallerError(null)
+                }}
+                className="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+              >
+                Back to search
+              </button>
+              <ActionButton
+                variant="primary"
+                size="sm"
+                onClick={callerFound ? () => setPicked({ id: callerFound.id, name: callerFound.name }) : saveCaller}
+                pending={callerBusy}
+              >
+                {callerFound ? 'Continue and pick a time' : 'Add and pick a time'}
+              </ActionButton>
+            </div>
+          </div>
+        ) : (
+        <>
         <div className="px-5 pb-3">
           <input
             type="search"
@@ -164,6 +272,28 @@ export default function NewBookingDrawer({
           ) : filtered.length === 0 ? (
             <p className="px-3 py-4 text-sm text-gray-500 dark:text-gray-400">
               {query.trim() ? `No patients match “${query.trim()}”.` : 'No active patients yet.'}
+              {query.trim() && (
+                <>
+                  {' '}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const parts = query.trim().split(/\s+/)
+                      const isName = !/\d/.test(query)
+                      setCaller({
+                        ...caller,
+                        firstName: isName ? parts[0] ?? '' : caller.firstName,
+                        lastName: isName ? parts.slice(1).join(' ') : caller.lastName,
+                        phone: isName ? caller.phone : query.trim(),
+                      })
+                      setAdding(true)
+                    }}
+                    className="font-medium text-teal-700 hover:text-teal-800 dark:text-teal-400 dark:hover:text-teal-300"
+                  >
+                    Add them as a new caller?
+                  </button>
+                </>
+              )}
             </p>
           ) : (
             <>
@@ -190,6 +320,8 @@ export default function NewBookingDrawer({
             </>
           )}
         </div>
+        </>
+        )}
         <div className="px-5 py-3 border-t border-[color:var(--color-hairline)] flex items-center justify-between">
           <Link
             href="/patients?new=1"

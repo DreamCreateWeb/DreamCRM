@@ -693,3 +693,16 @@ commit → merge to main → verify deploy (same as the best-version program).
   import + one line, sequential. Each generator slice = generator file +
   STEP_FAILURE entry + executor case + demoLedgerSummary line + delete the
   PREVIEW key (+ the GRANTABLE / 'auto' flip where intended).
+- **2026-11-03 — ML-12**: THE FIRST GENERATOR under the lane convention.
+  patient_reply files a drafted reply for every open thread whose last word
+  is the patient's and has sat 3+ hours (lib/waiting-threads.ts's one
+  predicate, urgent-first; ≤5/org/pass; AI off files nothing; the draft is
+  message-ai's own composer assist + allowance). Dedupe before AI spend: one
+  open card per thread, sourceKey = thread + the patient's last MESSAGE (a
+  decline is a no about that message; a new message is a new ask). The yes
+  sends once through sendMessageToPatient as the approver on the channel
+  the card disclosed (pickDefaultReplyChannel moved to lib/); live
+  staleness at the tap (counter-answered → retire; our own words →
+  recovery-narrate; patient wrote again → retire). Thread artifact + "Open
+  the conversation" link on the card. patient_reply left
+  PREVIEW_CAPABILITIES — ask-first, not grantable, as ruled.

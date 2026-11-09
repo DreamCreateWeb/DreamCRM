@@ -2,6 +2,7 @@
 
 import { useCallback, useRef, useState, useTransition } from 'react'
 import { markWelcomeSeenAction } from '@/app/(default)/dashboard/onboarding-actions'
+import { runAction } from '@/lib/run-action'
 import { useFocusTrap } from '@/components/ui/use-focus-trap'
 
 /**
@@ -28,7 +29,11 @@ export default function WelcomeModal({ clinicName }: { clinicName: string }) {
     // Optimistic: hide immediately, persist in the background.
     setOpen(false)
     startTransition(async () => {
-      await markWelcomeSeenAction()
+      // A throw (offline / redeploy) just means the welcome shows once more.
+      await runAction(async () => {
+        await markWelcomeSeenAction()
+        return { ok: true as const }
+      })
     })
   }, [])
 

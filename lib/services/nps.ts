@@ -4,7 +4,7 @@ import { and, desc, eq, gte, inArray, isNotNull, isNull, lte, ne, sql } from 'dr
 import { notCsvImportVisit } from '@/lib/services/visit-sources'
 import { db, schema } from '@/lib/db'
 import { listShutDownOrgIds } from '@/lib/services/billing-state'
-import { authEmailShell, deliver } from '@/lib/email'
+import { patientEmailShell, deliver } from '@/lib/email'
 import { getClinicSenderIdentity } from '@/lib/services/clinic-sender'
 import { recordAction } from '@/lib/services/action-ledger'
 import { newId } from '@/lib/utils'
@@ -159,11 +159,11 @@ export async function runDueNpsSurveys(opts?: { now?: Date }): Promise<NpsSurvey
           replyTo: sender.replyTo,
           gmail: sender.gmail,
           subject: `One quick question about your visit — ${sender.name}`,
-          html: authEmailShell({
-            heading: 'How did we do?',
-            introHtml: `Hi ${escapeHtml(c.firstName)},<br><br>Thanks for coming in — one quick question (it takes ten seconds, promise): how likely are you to recommend ${escapeHtml(sender.name)} to a friend?`,
-            buttonUrl: `${APP_BASE}/n/${token}`,
-            buttonLabel: 'Answer in 10 seconds',
+          html: patientEmailShell({
+            sender,
+            title: 'How did we do?',
+            body: `Hi ${escapeHtml(c.firstName)},<br><br>Thanks for coming in — one quick question (it takes ten seconds, promise): how likely are you to recommend ${escapeHtml(sender.name)} to a friend?`,
+            cta: { url: `${APP_BASE}/n/${token}`, label: 'Answer in 10 seconds' },
             footnoteHtml:
               'Your answer goes straight to the team — it’s how we get better. Nothing is posted anywhere public.',
           }),

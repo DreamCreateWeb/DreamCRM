@@ -256,6 +256,18 @@ vi.mock('@/lib/db', () => {
       createdAt: col('createdAt'),
       updatedAt: col('updatedAt'),
     },
+    // ML-12: the patient-reply step reads patient_thread; empty here, so the
+    // step is a no-op in every driver scenario this file pins.
+    patientThread: {
+      __name: 'patient_thread',
+      id: col('id'),
+      organizationId: col('organizationId'),
+      patientId: col('patientId'),
+      status: col('status'),
+      lastMessageDirection: col('lastMessageDirection'),
+      lastMessageAt: col('lastMessageAt'),
+      urgency: col('urgency'),
+    },
   }
   return { db: { select, update }, schema }
 })
@@ -275,7 +287,10 @@ vi.mock('drizzle-orm', () => ({
       .filter(Boolean)
       .some((p) => (typeof p === 'function' ? (p as (row: Record<string, unknown>) => boolean)(r) : Array.isArray(p) ? (p as Array<(row: Record<string, unknown>) => boolean>).every((f) => f(r)) : false)),
   isNull: (col: { __col: string }) => (r: Record<string, unknown>) => r[col.__col] == null,
+  lte: (col: { __col: string }, val: Date) => (r: Record<string, unknown>) =>
+    r[col.__col] instanceof Date && (r[col.__col] as Date) <= val,
   desc: () => 'desc',
+  asc: () => 'asc',
   sql: () => () => true,
 }))
 

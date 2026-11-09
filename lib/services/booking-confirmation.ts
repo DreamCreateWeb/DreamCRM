@@ -4,7 +4,7 @@ import { db } from '@/lib/db'
 import { patient, appointment } from '@/lib/db/schema/clinic'
 import { clinicProfile } from '@/lib/db/schema/platform'
 import { organization } from '@/lib/db/schema/auth'
-import { authEmailShell, deliver, sendBookingConfirmationEmail, sendNotificationEmail } from '@/lib/email'
+import { patientEmailShell, deliver, sendBookingConfirmationEmail, sendNotificationEmail } from '@/lib/email'
 import { formatClinicDateTime, formatClinicDayTime } from '@/lib/format-datetime'
 import { renderAutomatedEmail } from '@/lib/services/email-automations'
 import { queueCommLogWriteBack } from '@/lib/services/pms/sync'
@@ -193,11 +193,11 @@ export async function sendRescheduleNotice(
         replyTo: sender.replyTo,
         gmail: sender.gmail,
         subject: rendered.full.subject,
-        html: authEmailShell({
-          heading: 'Your visit has a new time',
-          introHtml: escapeHtml(rendered.full.body).replace(/\n/g, '<br>'),
-          buttonUrl: confirmUrl,
-          buttonLabel: 'Confirm my new time',
+        html: patientEmailShell({
+          sender,
+          title: 'Your visit has a new time',
+          body: escapeHtml(rendered.full.body).replace(/\n/g, '<br>'),
+          cta: { url: confirmUrl, label: 'Confirm my new time' },
           footnoteHtml: 'Need a different time? Just reply to this email and we’ll find one together.',
         }),
       })

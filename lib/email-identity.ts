@@ -17,6 +17,14 @@ export interface ClinicSender {
   /** The clinic's IANA timezone — used to render appointment times in
    *  patient-facing email at the clinic's wall-clock, not the server's (UTC). */
   timeZone: string
+  /** The clinic's brand on patient-facing email (`patientEmailShell`): logo
+   *  URL, brand colour (#RRGGBB), one-line postal address and phone. All
+   *  optional + nullable: a sender built without them still renders a valid
+   *  shell (name-only header, neutral ink button, no footer details). */
+  logoUrl?: string | null
+  brandColor?: string | null
+  address?: string | null
+  phone?: string | null
   /** Tier 2: when present, send via this connected Gmail account AS the clinic's
    *  real address. `from` here is the full header ("Acme Dental" <front@clinic.com>).
    *  Transport falls back to the platform `from`/`replyTo` above if Gmail fails. */

@@ -18,6 +18,7 @@ import {
   REMINDER_JOURNEY_PRESETS,
   type ReminderSettings,
 } from '@/lib/types/reminders'
+import { SEND_WINDOW_END_HOUR, SEND_WINDOW_START_HOUR, formatHour12 } from '@/lib/reminder-hours'
 import { saveEmailAutomationAction } from './actions'
 import { saveReminderSettingsAction } from './actions'
 import { ActionButton } from '@/components/ui/action-button'
@@ -29,7 +30,7 @@ const CATEGORY_ORDER: EmailCategory[] = ['appointments', 'forms', 'billing', 'po
 const CATEGORY_LABELS: Record<EmailCategory, { title: string; blurb: string }> = {
   appointments: { title: 'Appointments', blurb: 'Confirmations, reminders, and cancellations.' },
   forms: { title: 'Forms & intake', blurb: 'The paperwork you send before a visit.' },
-  billing: { title: 'Billing', blurb: 'Balance emails with a secure pay link.' },
+  billing: { title: 'Billing', blurb: 'Balance emails with a secure pay link, and the note a patient gets when a plan payment is declined.' },
   portal: { title: 'Patient portal', blurb: 'Invites to your online patient portal.' },
   reviews: { title: 'Reviews', blurb: 'Asking happy patients to leave a review.' },
   website: { title: 'Website', blurb: 'Replies to people who message you from your site.' },
@@ -45,6 +46,8 @@ const SAMPLE_FIELDS: Record<string, string> = {
   appointmentDate: 'Monday, Jan 12',
   appointmentTime: 'Monday, January 12 at 2:00 PM',
   urgentLine: ' you can call us at (555) 123-4567',
+  balance: '$135.00',
+  amount: '$100.00',
 }
 
 /** Client-safe token fill for the preview (mirrors applyMergeFields). */
@@ -85,12 +88,23 @@ const TOGGLEABLE_KEYS = EMAIL_AUTOMATION_KEYS.filter(
   (k) => EMAIL_AUTOMATION_SPECS[k].enableSource === 'email_automations',
 )
 
+export interface PreviewIdentity {
+  name: string
+  logoUrl: string | null
+  address: string | null
+  phone: string | null
+}
+
 export default function EmailsHub({
   config,
   reminder,
   canManage,
   focusKey,
+  identity,
 }: {
+  /** The practice's name / logo / address / phone, so the preview wears the
+   *  same header and footer the patient's email does (`patientEmailShell`). */
+  identity?: PreviewIdentity
   config: Record<EmailAutomationKey, ResolvedEmail>
   reminder: ReminderSettings
   canManage: boolean
@@ -151,6 +165,7 @@ export default function EmailsHub({
                   initial={config[key]}
                   canManage={canManage}
                   defaultOpen={focusKey === key}
+                  identity={identity}
                   onToast={setToast}
                   onEnabledChange={(v) => setEnabledMap((p) => ({ ...p, [key]: v }))}
                   reminderState={reminderState}
@@ -176,7 +191,9 @@ function EmailCard({
   onEnabledChange,
   reminderState,
   setReminderState,
+  identity,
 }: {
+  identity?: PreviewIdentity
   emailKey: EmailAutomationKey
   initial: ResolvedEmail
   canManage: boolean
@@ -422,6 +439,16 @@ function EmailCard({
               </div>
               {/* Body — mirrors the sent email's stacked heading / message / closing. */}
               <div className="space-y-2 bg-white px-4 py-3.5 text-sm leading-relaxed text-gray-700 dark:bg-gray-900/40 dark:text-gray-200">
+                {identity && (
+                  <div data-preview-header className="pb-1">
+                    {identity.logoUrl && /^https?:\/\//i.test(identity.logoUrl) ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={identity.logoUrl} alt={identity.name} className="h-10 w-auto" />
+                    ) : (
+                      <p className="font-serif text-lg font-bold text-gray-900 dark:text-gray-100">{identity.name}</p>
+                    )}
+                  </div>
+                )}
                 {slots.heading != null && slots.heading.trim() !== '' && (
                   <p className="text-[15px] font-semibold text-gray-900 dark:text-gray-100">{fillTokens(slots.heading)}</p>
                 )}
@@ -436,6 +463,11 @@ function EmailCard({
                 <p className="whitespace-pre-wrap">{fillTokens(slots.body ?? '')}</p>
                 {slots.closing != null && slots.closing.trim() !== '' && (
                   <p className="whitespace-pre-wrap text-gray-500 dark:text-gray-400">{fillTokens(slots.closing)}</p>
+                )}
+                {identity && (
+                  <p data-preview-footer className="pt-1 text-xs text-gray-500 dark:text-gray-400">
+                    {[identity.name, identity.address, identity.phone].filter(Boolean).join(' · ')}
+                  </p>
                 )}
                 {spec.includesNote.length > 0 && (
                   <p className="mt-3 border-t border-dashed border-gray-200 pt-2.5 text-xs leading-relaxed text-gray-500 dark:text-gray-400 dark:border-gray-700/60">
@@ -627,8 +659,12 @@ function ReminderTiming({
         />
       </label>
       <p className="text-xs leading-relaxed text-gray-500 dark:text-gray-400">
-        Each reminder sends at most once per visit, never two within a day of each other. Patients
-        who’ve already confirmed get the gentler “already confirmed” email below instead. Offsets
+        Reminders go out between {formatHour12(SEND_WINDOW_START_HOUR)} and{' '}
+        {formatHour12(SEND_WINDOW_END_HOUR)}, your time — one that comes due overnight waits for
+        the morning. A visit booked in the last couple of hours isn’t reminded straight away; the
+        booking confirmation already said it all. Each reminder sends at most once per visit,
+        never two within a day of each other. Patients who’ve already confirmed get the gentler
+        “already confirmed” email below instead. Offsets
         between {REMINDER_OFFSET_MIN_HOURS} and {REMINDER_OFFSET_MAX_HOURS} hours (7 days). The
         forms reminder uses your “Intake form request” email. Families with several visits the
         same day get one combined email instead of a pile of near-identical ones.

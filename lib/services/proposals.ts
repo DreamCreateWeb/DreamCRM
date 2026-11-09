@@ -8,6 +8,7 @@ import {
   resolveTrust,
 } from '@/lib/autonomy'
 import { recordAction, recordEngineFailure } from '@/lib/services/action-ledger'
+import { executePatientReply } from '@/lib/services/proposal-executors/patient-reply'
 import { resolveTrialState } from '@/lib/trial'
 import { stagesOnRunway } from '@/lib/dream-team-runway'
 
@@ -1120,7 +1121,7 @@ async function reopen(
 
 // ── Executors ─────────────────────────────────────────────────────────────────
 
-type ExecResult =
+export type ExecResult =
   | { ok: true; ledgerSummary: string; ledgerDetail?: Record<string, unknown> }
   | {
       ok: false
@@ -1174,6 +1175,8 @@ async function executeProposal(
       return executeSocialPost(p, payload, saidYes, runwayAt)
     case 'inquiry_response':
       return executeInquiryResponse(p, payload, saidYes)
+    case 'patient_reply':
+      return executePatientReply(p, payload, saidYes)
     case 'outreach_campaign':
       return executeOutreachCampaign(p, payload, saidYes)
     case 'content_plan':
@@ -1200,6 +1203,7 @@ function demoLedgerSummary(p: typeof schema.proposal.$inferSelect, saidYes: stri
     case 'review_reply': return `Replied to a Google review ${saidYes}`
     case 'social_post': return `Published a post ${saidYes}`
     case 'inquiry_response': return `Answered a website inquiry ${saidYes}`
+    case 'patient_reply': return `Replied to a patient’s message ${saidYes}`
     case 'outreach_campaign': return `Sent the recall campaign ${saidYes}`
     case 'content_plan': return `Lined up a month of posts and articles ${saidYes}`
     case 'schedule_gap': return `Invited patients in for the week’s open times ${saidYes}`
@@ -1902,7 +1906,7 @@ async function executeInquiryResponse(
   }
   if (!lead.email) return { ok: false, error: 'This inquiry has no email address to write to.', expired: true }
 
-  const [{ getClinicSenderIdentity }, { deliver, authEmailShell }, { markLeadContacted }, { resolveClinicBookingUrl }] =
+  const [{ getClinicSenderIdentity }, { deliver, patientEmailShell }, { markLeadContacted }, { resolveClinicBookingUrl }] =
     await Promise.all([
       import('@/lib/services/clinic-sender'),
       import('@/lib/email'),
@@ -1941,10 +1945,11 @@ async function executeInquiryResponse(
     await deliver({
       to: lead.email,
       subject,
-      html: authEmailShell({
-        heading: subject,
-        introHtml: paragraphs,
-        ...(bookingUrl ? { buttonUrl: bookingUrl, buttonLabel: 'Book a time' } : {}),
+      html: patientEmailShell({
+        sender,
+        title: subject,
+        body: paragraphs,
+        ...(bookingUrl ? { cta: { url: bookingUrl, label: 'Book a time' } } : {}),
         footnoteHtml: `You asked us a question through our website — this is our reply. Call or write back any time.`,
       }),
       from: sender.from,

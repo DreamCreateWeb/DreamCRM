@@ -12,6 +12,7 @@ import {
 import { getPortalPageContext, requirePortalFeature } from '../portal-data'
 import { PortalNotice, PortalCard, PortalHeading, PortalSectionLabel, PORTAL_INK, PORTAL_MUTED, PORTAL_ERROR, PORTAL_WARN_BG, PORTAL_WARN_INK, PORTAL_SUCCESS_BG, PORTAL_SUCCESS_INK } from '@/components/patient-portal/ui'
 import { fmtMoney, fmtVisitDayShort } from '@/components/patient-portal/format'
+import { planPastDueNotice } from '@/lib/payment-plan-copy'
 import PayBalanceForm from './pay-form'
 import PlanOffer, { type PlanOption } from './plan-offer'
 import BillingHistory, { type BillingHistoryRow } from './billing-history'
@@ -255,9 +256,22 @@ export default async function PortalBillingPage({
                     : ''}
                   .{' '}
                   {openPlan.status === 'past_due'
-                    ? 'The last charge didn’t go through — we’ll retry, or call us and we’ll sort it out together.'
+                    ? // "We'll try again on <day>" ONLY while a retry is on the
+                      // calendar (clinic tz); a parked plan says it is paused.
+                      planPastDueNotice(
+                        openPlan.nextChargeAt ? fmtVisitDayShort(openPlan.nextChargeAt, timeZone) : null,
+                      )
                     : 'Questions or need to adjust it? Just message us.'}
                 </p>
+                {openPlan.status === 'past_due' && (
+                  <a
+                    href={`/i/${openPlan.token}`}
+                    className="mt-3 inline-flex items-center rounded-full px-5 py-2.5 text-[0.9rem] font-semibold text-white"
+                    style={{ backgroundColor: brand }}
+                  >
+                    Update my card →
+                  </a>
+                )}
               </>
             )}
           </PortalCard>

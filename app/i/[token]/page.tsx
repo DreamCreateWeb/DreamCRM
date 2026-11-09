@@ -13,9 +13,6 @@ export const metadata = {
 
 export const dynamic = 'force-dynamic'
 
-const FRAUNCES_HREF =
-  'https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&display=swap'
-
 /**
  * Public payment-plan landing — `https://…/i/<token>` (the /b pattern: the
  * token IS the auth). 'proposed' shows the terms + accept (Stripe setup-mode
@@ -35,12 +32,16 @@ export default async function PaymentPlanPage({
   const setupSession = typeof sp.setup_session === 'string' ? sp.setup_session : null
 
   // Return trip from Stripe setup — finalize (CAS) + first charge, then load
-  // the now-active context. Idempotent on reload.
+  // the now-active context. Idempotent on reload. A past_due plan's return
+  // trip is the card update ("resumed"): same session, new card, the overdue
+  // payment charged right away.
   let justAccepted = false
+  let justResumed = false
   if (setupSession && setupSession.length < 200) {
     try {
       const r = await finalizePlanSetup(token, setupSession)
-      justAccepted = r.ok
+      justResumed = r.ok && r.resumed === true
+      justAccepted = r.ok && !justResumed
     } catch (err) {
       console.warn('[plan-landing] finalize failed', err)
     }
@@ -53,11 +54,6 @@ export default async function PaymentPlanPage({
 
   return (
     <>
-      <link rel="preconnect" href="https://fonts.googleapis.com" />
-      <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-      {/* eslint-disable-next-line @next/next/no-page-custom-font */}
-      <link rel="stylesheet" href={FRAUNCES_HREF} />
-      <style>{`:root { --font-display: 'Fraunces', Georgia, serif; --site-header-h: 64px; }`}</style>
       <MinimalSiteChrome
         clinicName={ctx.clinicName}
         logoUrl={ctx.logoUrl}
@@ -81,6 +77,7 @@ export default async function PaymentPlanPage({
               nextChargeAtIso={ctx.nextChargeAt ? ctx.nextChargeAt.toISOString() : null}
               canPay={ctx.canPay}
               justAccepted={justAccepted}
+              justResumed={justResumed}
             />
           </div>
         </div>

@@ -6,7 +6,7 @@ import { recordAction } from '@/lib/services/action-ledger'
 import { listPatients } from '@/lib/services/patients'
 import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
 import { clinicDayKey } from '@/lib/format-datetime'
-import { addDaysYmd } from '@/lib/types/followups'
+import { addDaysYmd, type FollowupKind } from '@/lib/types/followups'
 import {
   resolveFollowupRules,
   type FollowupRuleConfig,
@@ -61,6 +61,7 @@ interface Candidate {
   patientId: string
   title: string
   dueDate: string
+  kind?: FollowupKind
 }
 
 export interface FollowupRulesResult {
@@ -95,6 +96,7 @@ export async function buildRuleCandidates(
           patientId: p.id,
           title: `Collect ${money(p.outstandingBalanceCents!)} balance from ${p.fullName}`,
           dueDate: addDaysYmd(todayKey, 2),
+          kind: 'balance',
         })
       }
       if (config.recall && p.recallStatus === 'overdue') {
@@ -103,6 +105,7 @@ export async function buildRuleCandidates(
           patientId: p.id,
           title: `Reach out to ${p.fullName} — overdue for a checkup`,
           dueDate: addDaysYmd(todayKey, 3),
+          kind: 'recall',
         })
       }
     }
@@ -138,6 +141,7 @@ export async function buildRuleCandidates(
         patientId: a.patientId,
         title: `Confirm ${a.firstName} ${a.lastName}'s ${a.type.replace(/_/g, ' ')} (${dateLabel})`,
         dueDate: todayKey,
+        kind: 'message',
       })
     }
   }
@@ -174,6 +178,7 @@ export async function persistCandidates(organizationId: string, candidates: Cand
       status: 'open',
       createdBy: null,
       ruleKey: c.ruleKey,
+      kind: c.kind ?? 'generic',
     })),
   )
   // THE ACTION LEDGER — one entry per follow-up the rules opened, patient-

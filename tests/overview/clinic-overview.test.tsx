@@ -193,6 +193,7 @@ function makeData(overrides: Partial<ClinicOverviewData> = {}): ClinicOverviewDa
     unreadMessages: 0,
     siteTraffic: null,
     siteHealth: null,
+    morningAfter: null,
     reviewsReceived: { completed30d: 0, sent30d: 0 },
   smsLive: false,
     // A PMS feeds the clinic by default — the all-clear copy is then earned;
@@ -205,6 +206,9 @@ function makeData(overrides: Partial<ClinicOverviewData> = {}): ClinicOverviewDa
       upcomingNext7d: 0,
       activeIntakeForms: 0,
           bookingsPerDay14: [],
+          newPatientsPerDay30: [],
+          upcomingPerDay7: [],
+          intakeSubmissionsPerDay14: [],
     },
     recentActivity: [],
     readinessAttention: [],
@@ -340,6 +344,9 @@ describe('Design System v2 migration', () => {
           upcomingNext7d: 11,
           activeIntakeForms: 2,
           bookingsPerDay14: [],
+          newPatientsPerDay30: [],
+          upcomingPerDay7: [],
+          intakeSubmissionsPerDay14: [],
         },
       }),
     )
@@ -424,6 +431,45 @@ describe('Setup/sync attention banner (readiness resolver)', () => {
     expect(screen.getByText(/2 things need your attention/)).toBeInTheDocument()
     expect(screen.getByText(/Practice-software sync is broken/)).toBeInTheDocument()
     expect(screen.getByText(/Google sends patients to the wrong site/)).toBeInTheDocument()
+  })
+})
+
+describe('The attention band — last night\'s work (G1-1)', () => {
+  const morning = {
+    happened: null,
+    workLine: '4 appointment reminders · 2 follow-ups',
+    oneThing: { kind: 'activation' as const, text: 'Connect your patients.', href: '/integrations/pms' },
+    waitingOn: null,
+    quietLine: null,
+    sendsAlone: true,
+  }
+
+  it('shows the overnight row with the one thing\'s door inside the window', async () => {
+    mockGetOverview.mockResolvedValueOnce(makeData({ morningAfter: morning }))
+    render(await ClinicOverview({ ctx: makeCtx() }))
+    expect(screen.getByText(/Overnight: 4 appointment reminders/)).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Open' })).toHaveAttribute('href', '/integrations/pms')
+  })
+
+  it('renders no row after the window (morningAfter null)', async () => {
+    mockGetOverview.mockResolvedValueOnce(makeData({ morningAfter: null }))
+    render(await ClinicOverview({ ctx: makeCtx() }))
+    expect(screen.queryByText(/Overnight:/)).not.toBeInTheDocument()
+  })
+
+  it('broken things come first and share ONE band with the morning row', async () => {
+    mockGetOverview.mockResolvedValueOnce(
+      makeData({
+        morningAfter: morning,
+        readinessAttention: [
+          { id: 'pms', label: 'Practice-software sync is broken', grade: 'attention', summary: 'Last sync failed.', href: '/integrations', optional: false },
+        ],
+      }),
+    )
+    const { container } = render(await ClinicOverview({ ctx: makeCtx() }))
+    expect(container.querySelectorAll('[data-attention-band]')).toHaveLength(1)
+    const text = container.querySelector('[data-attention-band]')!.textContent ?? ''
+    expect(text.indexOf('Practice-software sync is broken')).toBeLessThan(text.indexOf('Overnight:'))
   })
 })
 
@@ -546,6 +592,8 @@ describe("Today's chair", () => {
             endTime: new Date('2026-05-20T09:30:00Z'),
             type: 'cleaning',
             status: 'confirmed',
+            arrivedAt: null,
+            seatedAt: null,
             flags: {
               newPatient: false,
               birthdayThisWeek: false,
@@ -562,6 +610,8 @@ describe("Today's chair", () => {
             endTime: new Date('2026-05-20T10:30:00Z'),
             type: 'root_canal',
             status: 'scheduled',
+            arrivedAt: null,
+            seatedAt: null,
             flags: {
               newPatient: true,
               birthdayThisWeek: false,
@@ -637,6 +687,8 @@ describe("Today's chair", () => {
             endTime: null,
             type: 'checkup',
             status: 'scheduled',
+            arrivedAt: null,
+            seatedAt: null,
             flags: {
               newPatient: true,
               birthdayThisWeek: false,
@@ -665,6 +717,8 @@ describe("Today's chair", () => {
             endTime: null,
             type: 'cleaning',
             status: 'confirmed',
+            arrivedAt: null,
+            seatedAt: null,
             flags: {
               newPatient: false,
               birthdayThisWeek: false,
@@ -693,6 +747,8 @@ describe("Today's chair", () => {
             endTime: null,
             type: 'cleaning',
             status: 'confirmed',
+            arrivedAt: null,
+            seatedAt: null,
             flags: {
               newPatient: true,
               birthdayThisWeek: false,
@@ -723,6 +779,9 @@ describe('Trend tiles', () => {
           upcomingNext7d: 23,
           activeIntakeForms: 1,
           bookingsPerDay14: [],
+          newPatientsPerDay30: [],
+          upcomingPerDay7: [],
+          intakeSubmissionsPerDay14: [],
         },
       }),
     )
@@ -733,7 +792,7 @@ describe('Trend tiles', () => {
     // The comparison is the SAME ELAPSED SPAN of last month (the 1st to this
     // day-and-hour), and the label says so — a partial month against a whole
     // one read red for three weeks of every four.
-    expect(screen.getByText(/\+4 vs this point last month/)).toBeInTheDocument()
+    expect(screen.getByText(/12 so far · 8 by this day last month/)).toBeInTheDocument()
     expect(screen.getByText('23')).toBeInTheDocument() // upcoming
   })
 
@@ -747,12 +806,15 @@ describe('Trend tiles', () => {
           upcomingNext7d: 0,
           activeIntakeForms: 0,
           bookingsPerDay14: [],
+          newPatientsPerDay30: [],
+          upcomingPerDay7: [],
+          intakeSubmissionsPerDay14: [],
         },
       }),
     )
     const ui = await ClinicOverview({ ctx: makeCtx() })
     render(ui)
-    const sub = screen.getByText(/-4 vs this point last month/)
+    const sub = screen.getByText(/5 so far · 9 by this day last month/)
     // KpiStat paints the tone on the sub line (TONE_TEXT): warn = amber,
     // urgent = rose. A shortfall is worth a look, not a problem now.
     expect(sub.className).toBe(`mt-0.5 text-xs font-medium ${TONE_TEXT.warn}`)
@@ -769,6 +831,9 @@ describe('Trend tiles', () => {
           upcomingNext7d: 0,
           activeIntakeForms: 0,
           bookingsPerDay14: [],
+          newPatientsPerDay30: [],
+          upcomingPerDay7: [],
+          intakeSubmissionsPerDay14: [],
         },
       }),
     )
@@ -791,6 +856,9 @@ describe('Trend tiles', () => {
           upcomingNext7d: 5,
           activeIntakeForms: 0,
           bookingsPerDay14: [],
+          newPatientsPerDay30: [],
+          upcomingPerDay7: [],
+          intakeSubmissionsPerDay14: [],
         },
       }),
     )
@@ -1023,6 +1091,50 @@ describe('the Approval Inbox on the Dream Team page', () => {
     // One big Approve per card.
     expect(screen.getAllByRole('button', { name: /approve — send it/i })).toHaveLength(2)
     expect(screen.getAllByRole('button', { name: /no thanks/i })).toHaveLength(2)
+  })
+
+  it('a patient_reply card (ML-12) renders the conversation it answers, the draft nested as the clinic’s reply, the channel it replies on, and a door to the thread', async () => {
+    mockGetOverview.mockResolvedValueOnce(makeData())
+    mockListOpenProposals.mockResolvedValueOnce([
+      {
+        id: 'prop_pr',
+        capability: 'patient_reply',
+        capabilityLabel: 'Reply to patient messages',
+        patientId: 'pat_1',
+        title: 'Reply to Mia — they wrote Sun, Jul 26, 10:00 PM and haven’t heard back',
+        body: 'Hi Mia — Thursday at 2 works. See you then!',
+        payload: {
+          threadId: 'thr_1',
+          messageId: 'm_last',
+          channel: 'email',
+          context: { kind: 'thread', author: 'Mia Chen' },
+          thread: {
+            toLine: 'Mia Chen · mia@example.com',
+            messages: [
+              { from: 'clinic', author: 'Dana', text: 'Your cleaning is booked for the 30th.', whenLabel: 'Sun, Jul 26, 8:00 PM' },
+              { from: 'patient', author: 'Mia Chen', text: 'Can I move it to Thursday afternoon?', whenLabel: 'Sun, Jul 26, 10:00 PM' },
+            ],
+          },
+        },
+        status: 'open',
+        createdAt: new Date('2026-07-27T15:00:00Z'),
+        expiresAt: null,
+      },
+    ])
+    const ui = await DreamTeamView({ ctx: makeCtx() })
+    render(ui)
+    // The conversation, quoted — staff never approve a reply blind.
+    expect(screen.getByText('Can I move it to Thursday afternoon?')).toBeInTheDocument()
+    expect(screen.getByText('Your cleaning is booked for the 30th.')).toBeInTheDocument()
+    expect(screen.getByText(/mia@example\.com/)).toBeInTheDocument()
+    // The draft is the card's live body, nested as the clinic's reply.
+    expect(screen.getByText(/Reply from Acme Dental/)).toBeInTheDocument()
+    expect(screen.getByText('Hi Mia — Thursday at 2 works. See you then!')).toBeInTheDocument()
+    // Which way it replies, before the yes.
+    expect(screen.getByText(/replies by email/)).toBeInTheDocument()
+    // A door to the thread — a link, never a second control.
+    expect(screen.getByRole('link', { name: /open the conversation/i })).toHaveAttribute('href', '/messages?thread=thr_1')
+    expect(screen.getByRole('button', { name: /edit first/i })).toBeInTheDocument()
   })
 
   it('a BLANKED subject blocks Approve with an inline message — never a silent fallback to the original (round-3)', async () => {
@@ -1834,5 +1946,89 @@ describe('the sign-here stack', () => {
     expect(expiryTone(new Date('2026-08-14T20:00:00Z'), now)).toBe('urgent') // 8h
     expect(expiryTone(new Date('2026-08-16T12:00:00Z'), now)).toBe('warn') // 48h
     expect(expiryTone(new Date('2026-08-24T12:00:00Z'), now)).toBeNull() // 10d
+  })
+})
+
+
+describe('ClinicOverview — heartbeats and arrivals (ML-14)', () => {
+  const series = (n: number) => Array.from({ length: n }, (_, i) => ({ bucket: `Day ${i}`, value: i % 3 }))
+  const sparkCount = (c: HTMLElement) => c.querySelectorAll('section.mb-8 svg').length
+
+  function trendsWith(over: Record<string, unknown> = {}) {
+    return {
+      ...makeData().trends,
+      bookingsPerDay14: series(14),
+      newPatientsPerDay30: series(30),
+      upcomingPerDay7: series(8),
+      intakeSubmissionsPerDay14: series(14),
+      ...over,
+    }
+  }
+
+  it('every trend tile carries a spark and the grid never leaves an empty cell', async () => {
+    mockGetOverview.mockResolvedValueOnce(
+      makeData({
+        trends: trendsWith({ newPatientsMTD: 12, newPatientsSamePointLastMonth: 9 }),
+        siteTraffic: {
+          windowDays: 7,
+          total: 70,
+          totalPrev: 50,
+          daily: Array.from({ length: 7 }, (_, i) => ({ day: `2026-05-${10 + i}`, views: i })),
+          topPages: [],
+        },
+      }),
+    )
+    const { container } = render(await ClinicOverview({ ctx: makeCtx() }))
+    expect(screen.getByText('12 so far · 9 by this day last month')).toBeInTheDocument()
+    // five tiles (intake door open + site) -> a 5-wide lg row, odd last tile spans both mobile columns
+    const grid = container.querySelector('.grid.grid-cols-2.lg\\:grid-cols-5') as HTMLElement
+    expect(grid).not.toBeNull()
+    expect(grid.children).toHaveLength(5)
+    expect(grid.children[4].className).toContain('col-span-2')
+    for (const label of ['Bookings today', 'New patients MTD', 'Upcoming', 'Intake forms', 'Website visits']) {
+      const tile = screen.getByText(label).closest('div.col-span-2, div:not([class*="col-span"])') as HTMLElement
+      expect(tile).not.toBeNull()
+    }
+    expect(sparkCount(container)).toBeGreaterThanOrEqual(5)
+  })
+
+  it('an even tile count spans nothing', async () => {
+    doors.intake_forms = false
+    try {
+      mockGetOverview.mockResolvedValueOnce(makeData({ trends: trendsWith() }))
+      const { container } = render(await ClinicOverview({ ctx: makeCtx() }))
+      const grid = container.querySelector('.grid.grid-cols-2.lg\\:grid-cols-3') as HTMLElement
+      expect(grid.children).toHaveLength(3)
+      expect(grid.children[2].className).toContain('col-span-2')
+    } finally {
+      doors.intake_forms = true
+    }
+  })
+
+  it('today’s chair shows the agenda’s arrival pills, read-only', async () => {
+    const base = {
+      patientId: 'p',
+      startTime: new Date('2026-05-20T10:00:00Z'),
+      endTime: null,
+      type: 'cleaning',
+      status: 'confirmed',
+      flags: { newPatient: true, birthdayThisWeek: false, hasOutstandingBalance: true, hasIntakeOnFile: true },
+      tags: [],
+    }
+    mockGetOverview.mockResolvedValueOnce(
+      makeData({
+        todaysAppointments: [
+          { ...base, id: 'a1', patientName: 'Ann Waiting', arrivedAt: new Date(), seatedAt: null },
+          { ...base, id: 'a2', patientName: 'Bo Seated', arrivedAt: new Date(), seatedAt: new Date() },
+          { ...base, id: 'a3', patientName: 'Cy Later', arrivedAt: null, seatedAt: null },
+        ] as never,
+      }),
+    )
+    const { container } = render(await ClinicOverview({ ctx: makeCtx() }))
+    expect(screen.getAllByText(/🚪 Arrived/)).toHaveLength(1)
+    expect(screen.getAllByText(/🪑 Seated/)).toHaveLength(1)
+    // glyph cluster still on the row (new patient / balance)
+    expect(container.querySelector('li [title*="balance" i], li [aria-label*="balance" i]')).not.toBeNull()
+    expect(screen.queryByRole('button', { name: /arrived|seat/i })).toBeNull()
   })
 })

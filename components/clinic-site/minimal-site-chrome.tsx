@@ -2,6 +2,11 @@ import { readableInk, clinicPaletteCss } from '@/lib/clinic-site-theme'
 import { SITE_BG as BG, SITE_INK as INK, SITE_INK_MUTED as INK_MUTED, SITE_BORDER as BORDER } from '@/components/clinic-site/tokens'
 import SiteImage from './site-image'
 
+// THE one place the token landings (/r /n /i /b /w /c) get their display font:
+// a runtime <link> (never next/font — the build env cannot reach Google).
+const FRAUNCES_HREF =
+  'https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&display=swap'
+
 // Brand-derived neutral roles (set on :root — by the /site/[slug] layout when
 // this chrome is used there, and by this component itself for surfaces OUTSIDE
 // that layout like /r/[token], which injects clinicPaletteCss below).
@@ -86,6 +91,11 @@ export default function MinimalSiteChrome({
           OUTSIDE the /site/[slug] layout (notably /r/[token]) wouldn't otherwise
           get the :root vars. Harmless double-set when nested under the layout. */}
       <style>{clinicPaletteCss(accent)}</style>
+      <link rel="preconnect" href="https://fonts.googleapis.com" />
+      <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+      {/* eslint-disable-next-line @next/next/no-page-custom-font */}
+      <link rel="stylesheet" href={FRAUNCES_HREF} />
+      <style>{`:root { --font-display: 'Fraunces', Georgia, serif; }`}</style>
       <header
         className="sticky top-0 z-30 backdrop-blur-md border-b"
         style={{ backgroundColor: BG, borderColor: BORDER }}

@@ -26,7 +26,9 @@ const search = vi.fn(async (q: string) => {
     (p) => p.name.toLowerCase().includes(term) || (digits.length >= 3 && (p.hint ?? '').replace(/\D/g, '').includes(digits)),
   )
 })
+const createCaller = vi.fn()
 vi.mock('@/app/(default)/appointments/actions', () => ({
+  createPatientForBookingAction: (input: unknown) => createCaller(input),
   searchPatientOptionsAction: (q: string) => search(q),
   // The pre-picked id is confirmed by an org-scoped read, never by scanning
   // the first page of search results (which a 3,000-chart roster outgrows).
@@ -131,6 +133,66 @@ describe('NewBookingDrawer', () => {
   it('stays on the picker when initialPatientId is not one of ours', async () => {
     render(<NewBookingDrawer onClose={() => {}} initialPatientId="pat_from_another_org" />)
     await waitFor(() => expect(screen.getByText('Emma Lopez')).toBeTruthy())
+    expect(screen.queryByTestId('booking-form')).toBeNull()
+  })
+})
+
+describe('NewBookingDrawer — new caller', () => {
+  async function openForm() {
+    render(<NewBookingDrawer onClose={() => {}} />)
+    const box = await screen.findByLabelText('Search patients')
+    fireEvent.change(box, { target: { value: 'Zed Nobody' } })
+    fireEvent.click(await screen.findByText('Add them as a new caller?', {}, { timeout: 2000 }))
+  }
+  function fill() {
+    fireEvent.change(screen.getByLabelText('Phone'), { target: { value: '512 555 0142' } })
+  }
+
+  it('prefills the name, creates, then selects them and continues to the slot step', async () => {
+    createCaller.mockResolvedValue({ ok: true, existing: false, sharedContactWith: null, option: { id: 'p9', name: 'Zed Nobody', hint: null } })
+    await openForm()
+    expect((screen.getByLabelText('First name') as HTMLInputElement).value).toBe('Zed')
+    expect((screen.getByLabelText('Last name') as HTMLInputElement).value).toBe('Nobody')
+    fill()
+    fireEvent.click(screen.getByText('Add and pick a time'))
+    await waitFor(() => expect(screen.getByTestId('booking-form').textContent).toContain('booking:p9:Zed Nobody'))
+    expect(createCaller).toHaveBeenCalledWith({ firstName: 'Zed', lastName: 'Nobody', phone: '512 555 0142', email: '' })
+  })
+
+  it('says so when the caller is already on file, and waits for one tap', async () => {
+    createCaller.mockResolvedValue({ ok: true, existing: true, sharedContactWith: null, option: { id: 'p1', name: 'Emma Lopez', hint: null } })
+    await openForm()
+    fill()
+    fireEvent.click(screen.getByText('Add and pick a time'))
+    await waitFor(() => expect(screen.getByRole('status').textContent).toMatch(/already on file/))
+    expect(screen.queryByTestId('booking-form')).toBeNull()
+    fireEvent.click(screen.getByText('Continue and pick a time'))
+    await waitFor(() => expect(screen.getByTestId('booking-form').textContent).toContain('booking:p1'))
+  })
+
+  it('names the likely-family mint', async () => {
+    createCaller.mockResolvedValue({ ok: true, existing: false, sharedContactWith: { id: 'p2', name: 'Marcus Chen' }, option: { id: 'p10', name: 'Zed Nobody', hint: null } })
+    await openForm()
+    fill()
+    fireEvent.click(screen.getByText('Add and pick a time'))
+    await waitFor(() => expect(screen.getByRole('status').textContent).toMatch(/likely family/))
+  })
+
+  it('shows the honest phone error and stays on the form', async () => {
+    createCaller.mockResolvedValue({ ok: false, error: 'That phone number doesn’t look right — check the digits, or leave it blank.' })
+    await openForm()
+    fill()
+    fireEvent.click(screen.getByText('Add and pick a time'))
+    await waitFor(() => expect(screen.getByText(/phone number doesn’t look right/)).toBeTruthy())
+    expect(screen.queryByTestId('booking-form')).toBeNull()
+  })
+
+  it('a thrown action (redeploy) becomes a message, not a hang', async () => {
+    createCaller.mockRejectedValue(new Error('x'))
+    await openForm()
+    fill()
+    fireEvent.click(screen.getByText('Add and pick a time'))
+    await waitFor(() => expect((screen.getByText('Add and pick a time') as HTMLButtonElement).disabled).toBe(false))
     expect(screen.queryByTestId('booking-form')).toBeNull()
   })
 })

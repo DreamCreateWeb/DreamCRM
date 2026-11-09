@@ -72,6 +72,14 @@ export interface ConfirmContext {
   timeZone: string
   /** Prep instructions for this visit type ('' = none). */
   prepInstructions: string
+  /** The visit's id - names the patient's own portal visit page (the
+   *  reschedule door). The token already authenticates this exact visit. */
+  appointmentId: string
+  /** The clinic's portal notice window (hours) - the SAME number the portal's
+   *  cancel/reschedule uses; inside it the page says the true notice. */
+  cancelNoticeHours: number
+  /** Whether the portal's self-serve reschedule is on for this practice. */
+  rescheduleOpen: boolean
 }
 
 function stateFor(status: string, startTime: Date): ConfirmContext['state'] {
@@ -85,6 +93,7 @@ function stateFor(status: string, startTime: Date): ConfirmContext['state'] {
 export async function getConfirmContextByToken(token: string): Promise<ConfirmContext | null> {
   const [row] = await db
     .select({
+      id: schema.appointment.id,
       organizationId: schema.appointment.organizationId,
       status: schema.appointment.status,
       startTime: schema.appointment.startTime,
@@ -125,6 +134,9 @@ export async function getConfirmContextByToken(token: string): Promise<ConfirmCo
   const { visitTypePrepInstructions, findVisitType, resolveVisitTypes } = await import(
     '@/lib/types/visit-types'
   )
+  const portal = await import('@/lib/services/portal-settings')
+    .then((m) => m.getPortalSettings(row.organizationId))
+    .catch(() => null)
   const types = resolveVisitTypes(profile?.visitTypeSettings ?? null)
   const label = findVisitType(types, row.type)?.label ?? row.type.replace(/_/g, ' ')
 
@@ -145,6 +157,9 @@ export async function getConfirmContextByToken(token: string): Promise<ConfirmCo
     providerName: row.providerName ?? null,
     timeZone: profile?.timezone?.trim() || 'America/New_York',
     prepInstructions: visitTypePrepInstructions(profile?.visitTypeSettings ?? null, row.type),
+    appointmentId: row.id,
+    cancelNoticeHours: portal?.reschedule.minNoticeHours ?? 24,
+    rescheduleOpen: portal?.features.reschedule ?? false,
   }
 }
 
@@ -186,4 +201,37 @@ export async function confirmVisitByToken(
     mode: 'Email',
   }).catch(() => {})
   return { ok: true, state: 'confirmed' }
+}
+
+/**
+ * "I can't make it" from the reminder link. Token is the auth; the org comes
+ * from the token's row, never the request. Goes through THE one cancel path
+ * (`cancelAppointment`), so the same staff alert, waitlist offer and patient
+ * note fire as for a portal cancel, with `cancelledVia='confirm_link'`.
+ * Idempotent: an already-cancelled visit reports 'cancelled'.
+ */
+export async function cancelVisitByToken(
+  token: string,
+): Promise<{ ok: boolean; state: ConfirmContext['state'] }> {
+  const [row] = await db
+    .select({
+      id: schema.appointment.id,
+      organizationId: schema.appointment.organizationId,
+      status: schema.appointment.status,
+      startTime: schema.appointment.startTime,
+    })
+    .from(schema.appointment)
+    .where(eq(schema.appointment.confirmToken, token))
+    .limit(1)
+  if (!row) return { ok: false, state: 'past' }
+  const state = stateFor(row.status, row.startTime as Date)
+  if (state === 'cancelled') return { ok: true, state: 'cancelled' }
+  if (state !== 'pending' && state !== 'confirmed') return { ok: false, state }
+  try {
+    const { cancelAppointment } = await import('@/lib/services/appointments')
+    await cancelAppointment(row.organizationId, row.id, { via: 'confirm_link' })
+  } catch {
+    return { ok: false, state }
+  }
+  return { ok: true, state: 'cancelled' }
 }

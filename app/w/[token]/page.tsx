@@ -15,9 +15,6 @@ export const metadata = {
 
 export const dynamic = 'force-dynamic'
 
-const FRAUNCES_HREF =
-  'https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&display=swap'
-
 const SITE_DOMAIN = process.env.NEXT_PUBLIC_SITE_DOMAIN ?? 'dreamcreatestudio.com'
 
 /**
@@ -48,11 +45,6 @@ export default async function WaitlistClaimPage({
 
   return (
     <>
-      <link rel="preconnect" href="https://fonts.googleapis.com" />
-      <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-      {/* eslint-disable-next-line @next/next/no-page-custom-font */}
-      <link rel="stylesheet" href={FRAUNCES_HREF} />
-      <style>{`:root { --font-display: 'Fraunces', Georgia, serif; --site-header-h: 64px; }`}</style>
       <MinimalSiteChrome
         clinicName={offer.clinicName}
         logoUrl={offer.logoUrl}

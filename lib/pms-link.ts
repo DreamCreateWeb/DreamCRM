@@ -19,7 +19,13 @@
 
 export type PmsLink =
   /** A `pms_connection` row is bound (whatever its sync health). */
-  | { kind: 'connected' }
+  | {
+      kind: 'connected'
+      /** What to call it ("Open Dental"); absent = "your practice software". */
+      vendorLabel?: string
+      /** DreamCRM-booked visits are pushed into the PMS (two-way + live). */
+      writeBack?: boolean
+    }
   /** The practice asked for the bridge; it is on Dream Create (S4). */
   | { kind: 'pending'; vendorLabel: string; pill: string; sentence: string }
   /** Nothing bound, nothing asked. */
@@ -96,4 +102,23 @@ export function scheduleSourceCopy(link: PmsLink): { title: string; body: string
 export function todayCountLabel(link: PmsLink, total: number): string {
   if (pmsConnected(link)) return `${total} ${total === 1 ? 'appointment' : 'appointments'}`
   return `${total} booked online`
+}
+
+/**
+ * Where a visit booked from the dashboard will live — the honest sentence for
+ * the booking drawers. `null` when there is no PMS (never a PMS promise to a
+ * practice without one) or when write-back is on (the visit is pushed in).
+ * Otherwise the visit lives in DreamCRM only and the desk is told to add it
+ * to the PMS. No door: the write-back switch is not the clinic's to flip.
+ */
+export function bookingWriteBackCopy(link: PmsLink, writeBackEnabled: boolean): string | null {
+  switch (link.kind) {
+    case 'none':
+      return null
+    case 'pending':
+      return `This visit lives here only — add it to ${link.vendorLabel} too. It isn’t connected yet.`
+    case 'connected':
+      if (writeBackEnabled) return null
+      return `This visit lives here only — add it to ${link.vendorLabel ?? 'your practice software'} too.`
+  }
 }

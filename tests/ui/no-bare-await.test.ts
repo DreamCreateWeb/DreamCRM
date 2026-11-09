@@ -67,7 +67,6 @@ export const ALLOWED: Array<[file: string, sites: number]> = [
   ['app/(default)/ecommerce/orders/delete-orders-button.tsx', 1],
   ['app/(default)/ecommerce/orders/orders-table-item.tsx', 1],
   ['app/(default)/followups/followup-rules-card.tsx', 2],
-  ['app/(default)/followups/followups-board.tsx', 3],
   ['app/(default)/growth/audiences/audiences-client.tsx', 2],
   ['app/(default)/growth/campaigns/[id]/campaign-editor.tsx', 6],
   ['app/(default)/growth/campaigns/cancel-scheduled-button.tsx', 1],
@@ -90,7 +89,6 @@ export const ALLOWED: Array<[file: string, sites: number]> = [
   ['app/(default)/partners/[id]/partner-actions.tsx', 1],
   ['app/(default)/patients/[id]/documents-panel.tsx', 2],
   ['app/(default)/patients/[id]/edit-modal.tsx', 1],
-  ['app/(default)/patients/[id]/followups-panel.tsx', 4],
   ['app/(default)/patients/[id]/loyalty-panel.tsx', 1],
   ['app/(default)/patients/[id]/merge-duplicate.tsx', 1],
   ['app/(default)/patients/[id]/notes-panel.tsx', 2],
@@ -155,9 +153,6 @@ export const ALLOWED: Array<[file: string, sites: number]> = [
   ['app/e/[token]/capture-form.tsx', 1],
   ['app/site/[slug]/shop/cart-view.tsx', 1],
   ['components/followups/followup-quick-add.tsx', 1],
-  ['components/onboarding/getting-started.tsx', 1],
-  ['components/onboarding/module-hint-banner.tsx', 1],
-  ['components/onboarding/welcome-modal.tsx', 1],
   ['components/search-modal.tsx', 1],
   ['components/social-posts/post-comments-panel.tsx', 1],
   ['components/tags/patient-tag-control.tsx', 3],
@@ -165,7 +160,7 @@ export const ALLOWED: Array<[file: string, sites: number]> = [
 
 /** The sum of ALLOWED's counts the day it was taken. LOWER it as you sweep;
  *  never raise it — a raise is a new offender admitted by hand. */
-export const ALLOWLIST_CEILING = 208
+export const ALLOWLIST_CEILING = 198
 
 /* ───────────────────────── the detector ───────────────────────── */
 

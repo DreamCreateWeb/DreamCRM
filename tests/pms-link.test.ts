@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   PMS_DOOR,
   balanceSourceCopy,
+  bookingWriteBackCopy,
   pmsConnected,
   scheduleSourceCopy,
   todayCountLabel,
@@ -83,5 +84,22 @@ describe('todayCountLabel', () => {
     expect(todayCountLabel(connected, 4)).toBe('4 appointments')
     expect(todayCountLabel(none, 0)).toBe('0 booked online')
     expect(todayCountLabel(pending, 2)).toBe('2 booked online')
+  })
+})
+
+describe('bookingWriteBackCopy', () => {
+  it('says nothing to a practice with no PMS — never a PMS promise', () => {
+    expect(bookingWriteBackCopy(none, false)).toBeNull()
+    expect(bookingWriteBackCopy(none, true)).toBeNull()
+  })
+  it('says nothing when write-back is on — the visit is pushed in', () => {
+    expect(bookingWriteBackCopy(connected, true)).toBeNull()
+  })
+  it('tells an import-only practice where the visit lives', () => {
+    expect(bookingWriteBackCopy(connected, false)).toBe('This visit lives here only — add it to your practice software too.')
+    expect(bookingWriteBackCopy({ kind: 'connected', vendorLabel: 'Open Dental' }, false)).toMatch(/add it to Open Dental too/)
+  })
+  it('a pending request names the vendor and says it is not connected yet', () => {
+    expect(bookingWriteBackCopy(pending, false)).toMatch(/add it to Dentrix too\. It isn’t connected yet/)
   })
 })

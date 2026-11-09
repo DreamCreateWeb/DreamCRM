@@ -57,6 +57,7 @@ vi.mock('@/lib/services/clinic-site', () => ({
 // Import-safety stubs for the rest of the actions module's graph (these are
 // only exercised by the booking/contact actions, not this one).
 vi.mock('@/lib/email', () => ({
+  patientEmailShell: vi.fn((o: { title?: string; body?: string; cta?: { url: string; label: string }; footnoteHtml?: string }) => `<html>${o?.title ?? ''}${o?.body ?? ''}${o?.cta ? `<a href="${o.cta.url}">${o.cta.label}</a>` : ''}${o?.footnoteHtml ?? ''}</html>`),
   sendContactRequestEmail: vi.fn(),
   sendBookingConfirmationEmail: vi.fn(),
   sendNotificationEmail: vi.fn(),
