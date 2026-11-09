@@ -189,8 +189,8 @@ describe('listTrustGrants', () => {
     store.profiles[0].autonomy = { review_reply: 'auto' }
     const grants = await listTrustGrants(ORG)
     expect(grants.map((g) => g.capability).sort()).toEqual(
-      // ML-22 added inquiry_followup; ML-28 added postop_checkin (the day-after note).
-      ['content_plan', 'inquiry_followup', 'inquiry_response', 'outreach_campaign', 'postop_checkin', 'review_reply', 'social_post'].sort(),
+      // ML-22 added inquiry_followup; ML-28 added postop_checkin (the day-after note); ML-29 added rebook_nudge.
+      ['content_plan', 'inquiry_followup', 'inquiry_response', 'outreach_campaign', 'postop_checkin', 'rebook_nudge', 'review_reply', 'social_post'].sort(),
     )
     expect(grants.find((g) => g.capability === 'review_reply')).toMatchObject({
       level: 'auto',

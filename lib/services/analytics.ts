@@ -7,13 +7,19 @@ import { getClinicSeoPerformance } from '@/lib/services/gsc'
 import { getGbpLocalMetrics } from '@/lib/services/gbp-metrics'
 import { tallyCampaignFunnel, emptyFunnel } from '@/lib/services/campaign-funnel'
 import { countLeadChannels, type LeadChannel } from '@/lib/lead-channel'
+import { HYGIENE_VISIT_TYPES } from '@/lib/services/proposal-generators/rebook-nudge'
 
 /**
  * Clinic Analytics. The honest split: a CRM can measure the *relationship,
  * acquisition and schedule* funnel — the PMS owns clinical production
- * (production $, procedure mix, hygiene-reappt %, AR aging, case acceptance).
- * So we surface what we genuinely capture and name the PMS-owned KPIs as
- * such rather than faking them. Same stance as the morning-huddle Overview.
+ * (production $, procedure mix, AR aging, case acceptance). So we surface
+ * what we genuinely capture and name the PMS-owned KPIs as such rather
+ * than faking them. Same stance as the morning-huddle Overview.
+ *
+ * Hygiene reappointment % is OURS (ML-29, G1-17): DreamCRM marks the
+ * visit done and books the next one, so whether a patient left the chair
+ * pre-booked is a question our own appointment rows answer — it used to
+ * sit on the PMS-owned list by mistake.
  *
  * Pure read-only aggregation over tables other modules already populate —
  * no new schema.
@@ -21,6 +27,10 @@ import { countLeadChannels, type LeadChannel } from '@/lib/lead-channel'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 const WEEK_MS = 7 * DAY_MS
+/** A hygiene visit counts as reappointed when a next visit was on the books
+ *  within this many days of its completion — the window the morning-after
+ *  "book their next visit" nudge works inside. */
+export const REAPPOINT_WINDOW_DAYS = 14
 
 // Industry reference points (labeled as benchmarks in the UI, not clinic data).
 export const BENCHMARK_NO_SHOW_RATE = 0.135 // ~12-18% typical dental no-show
@@ -76,6 +86,11 @@ export interface ClinicAnalytics {
     bySource: { source: string; count: number }[]
     byProvider: { provider: string; count: number }[]
     volumeTrend: TrendPoint[]
+    /** Hygiene reappointment (ML-29): of the cleanings / checkups completed
+     *  in the window whose REAPPOINT_WINDOW_DAYS have closed, how many had a
+     *  next visit booked by then. `completed: 0` + a null rate reads "—"
+     *  with the honest reason, never a fake number. */
+    hygiene: { completed: number; rebooked: number; rate: number | null }
   }
   recall: {
     due: number
@@ -251,11 +266,15 @@ export async function getClinicAnalytics(organizationId: string, windowDays = 30
   // split in JS so the schedule rates carry a "vs previous" comparison.
   const allApptRows = await db
     .select({
+      id: schema.appointment.id,
+      patientId: schema.appointment.patientId,
+      type: schema.appointment.type,
       status: schema.appointment.status,
       source: schema.appointment.source,
       providerId: schema.appointment.providerId,
       startTime: schema.appointment.startTime,
       confirmedAt: schema.appointment.confirmedAt,
+      completedAt: schema.appointment.completedAt,
     })
     .from(schema.appointment)
     .where(and(eq(schema.appointment.organizationId, organizationId), gte(schema.appointment.startTime, prevSince), lte(schema.appointment.startTime, now)))
@@ -295,6 +314,52 @@ export async function getClinicAnalytics(organizationId: string, windowDays = 30
     if (!a.providerId) continue
     const name = providerNames.get(a.providerId) ?? 'Unassigned'
     providerCounts.set(name, (providerCounts.get(name) ?? 0) + 1)
+  }
+
+  // ── Hygiene reappointment — REAL, from our own rows (ML-29) ─────────────
+  // Of the cleanings / checkups completed in the window whose 14-day
+  // booking window has closed, how many had a NEXT visit on the books by
+  // then. "Booked by then" means the next row was CREATED within 14 days of
+  // completion (pre-booked at checkout counts; booked a month later does
+  // not), with a later start, and not cancelled. A visit still inside its
+  // 14 days is not judged yet — it is neither a yes nor a no.
+  const hygieneDone = apptRows.filter(
+    (a) =>
+      a.status === 'completed' &&
+      HYGIENE_VISIT_TYPES.includes(a.type) &&
+      (a.completedAt ?? a.startTime).getTime() + REAPPOINT_WINDOW_DAYS * DAY_MS <= now.getTime(),
+  )
+  let hygiene: ClinicAnalytics['schedule']['hygiene'] = { completed: 0, rebooked: 0, rate: null }
+  if (hygieneDone.length > 0) {
+    const hygienePatientIds = Array.from(new Set(hygieneDone.map((a) => a.patientId)))
+    const nextRows = await db
+      .select({
+        id: schema.appointment.id,
+        patientId: schema.appointment.patientId,
+        startTime: schema.appointment.startTime,
+        createdAt: schema.appointment.createdAt,
+        status: schema.appointment.status,
+      })
+      .from(schema.appointment)
+      .where(
+        and(
+          eq(schema.appointment.organizationId, organizationId),
+          inArray(schema.appointment.patientId, hygienePatientIds),
+          gte(schema.appointment.startTime, since),
+          ne(schema.appointment.status, 'cancelled'),
+        ),
+      )
+    const rebooked = hygieneDone.filter((v) => {
+      const deadline = (v.completedAt ?? v.startTime).getTime() + REAPPOINT_WINDOW_DAYS * DAY_MS
+      return nextRows.some(
+        (n) =>
+          n.patientId === v.patientId &&
+          n.id !== v.id &&
+          n.startTime.getTime() > v.startTime.getTime() &&
+          n.createdAt.getTime() <= deadline,
+      )
+    }).length
+    hygiene = { completed: hygieneDone.length, rebooked, rate: rebooked / hygieneDone.length }
   }
 
   // ── Recall (reuse the single source of truth for recall derivation) ─────
@@ -373,6 +438,7 @@ export async function getClinicAnalytics(organizationId: string, windowDays = 30
         now,
         timeZone,
       ),
+      hygiene,
     },
     recall: { due: recallDue, outreach },
     reputation: {
@@ -386,7 +452,6 @@ export async function getClinicAnalytics(organizationId: string, windowDays = 30
     pmsOwned: [
       { label: 'Production $', detail: 'Per-visit and monthly production lives in your practice-management system.' },
       { label: 'Procedure mix', detail: 'Procedure codes + treatment-plan acceptance are charted in the PMS.' },
-      { label: 'Hygiene reappointment %', detail: 'Whether patients leave the chair pre-booked is a PMS clinical metric.' },
       { label: 'AR aging / collections', detail: 'Insurance claims, EOBs and clinical AR are owned by the PMS.' },
     ],
   }

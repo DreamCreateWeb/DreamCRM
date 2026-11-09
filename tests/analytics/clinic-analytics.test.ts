@@ -159,6 +159,54 @@ describe('getClinicAnalytics', () => {
   })
 })
 
+describe('getClinicAnalytics — hygiene reappointment is REAL (ML-29)', () => {
+  it('counts completed cleanings/checkups 14+ days on with a next visit booked within 14 days of completion', async () => {
+    const now = Date.now()
+    const d = (daysAgo: number) => new Date(now - daysAgo * 86400000)
+    const judged = d(20) // its 14-day window has closed
+    q.queue.push([]) // 1. newPatientRows
+    q.queue.push([]) // 2. prevNewPatients
+    q.queue.push([]) // 3. leadRows
+    q.queue.push([
+      // Four judged hygiene visits (no providerId → no provider lookup).
+      { id: 'v1', patientId: 'p1', type: 'cleaning', status: 'completed', source: null, providerId: null, startTime: judged, confirmedAt: null, completedAt: judged },
+      { id: 'v2', patientId: 'p2', type: 'checkup', status: 'completed', source: null, providerId: null, startTime: judged, confirmedAt: null, completedAt: judged },
+      { id: 'v3', patientId: 'p3', type: 'cleaning', status: 'completed', source: null, providerId: null, startTime: judged, confirmedAt: null, completedAt: null },
+      { id: 'v4', patientId: 'p4', type: 'cleaning', status: 'completed', source: null, providerId: null, startTime: judged, confirmedAt: null, completedAt: judged },
+      // Still inside its 14 days — neither a yes nor a no.
+      { id: 'v5', patientId: 'p5', type: 'cleaning', status: 'completed', source: null, providerId: null, startTime: d(3), confirmedAt: null, completedAt: d(3) },
+      // Not hygiene; not completed.
+      { id: 'v6', patientId: 'p6', type: 'filling', status: 'completed', source: null, providerId: null, startTime: judged, confirmedAt: null, completedAt: judged },
+      { id: 'v7', patientId: 'p7', type: 'cleaning', status: 'no_show', source: null, providerId: null, startTime: judged, confirmedAt: null, completedAt: null },
+    ]) // 4. apptRows
+    q.queue.push([
+      // p1: booked 2 days after the visit → yes.
+      { id: 'n1', patientId: 'p1', startTime: new Date(now + 150 * 86400000), createdAt: d(18), status: 'scheduled' },
+      // p2: booked 16 days after → too late → no.
+      { id: 'n2', patientId: 'p2', startTime: new Date(now + 150 * 86400000), createdAt: d(4), status: 'scheduled' },
+      // p3: pre-booked before the visit, for after it → yes (left the chair pre-booked).
+      { id: 'n3', patientId: 'p3', startTime: new Date(now + 100 * 86400000), createdAt: d(40), status: 'confirmed' },
+      // p4: the visit's own row again, and an earlier one — neither counts.
+      { id: 'v4', patientId: 'p4', startTime: judged, createdAt: d(60), status: 'completed' },
+      { id: 'n4', patientId: 'p4', startTime: d(100), createdAt: d(120), status: 'completed' },
+    ]) // 5. nextRows (the reappointment read)
+    q.queue.push([{ id: 1 }]) // 6. patientCampaigns
+    q.queue.push([]) // 7. eventRows
+
+    const a = await getClinicAnalytics('org_1', 30)
+    expect(a.schedule.hygiene).toEqual({ completed: 4, rebooked: 2, rate: 0.5 })
+    // It left the PMS-owned list: the number is ours now.
+    expect(a.pmsOwned.map((p) => p.label)).not.toContain('Hygiene reappointment %')
+    expect(a.pmsOwned.map((p) => p.label)).toContain('Production $')
+  })
+
+  it('no judged hygiene visits → "—" (completed 0, null rate), and no extra read', async () => {
+    seedHappyPath()
+    const a = await getClinicAnalytics('org_1', 30)
+    expect(a.schedule.hygiene).toEqual({ completed: 0, rebooked: 0, rate: null })
+  })
+})
+
 describe('getClinicAnalytics — acquisition excludes bulk imports', () => {
   it('does NOT count PMS/CSV-imported patients as "new" (their firstSeenAt is the import time)', async () => {
     const recent = new Date(Date.now() - 3 * 86400000)

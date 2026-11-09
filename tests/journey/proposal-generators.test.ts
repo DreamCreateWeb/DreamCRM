@@ -153,6 +153,7 @@ const store: {
   postTargets: Array<Record<string, unknown>>
   proposals: Array<Record<string, unknown>>
   profiles: Array<Record<string, unknown>>
+  // ML-29: the rebook-nudge step + its sweep branch read the calendar.
   appointments: Array<Record<string, unknown>>
 } = { orgs: [], reviews: [], leads: [], postTargets: [], proposals: [], profiles: [], appointments: [] }
 
@@ -262,6 +263,7 @@ vi.mock('@/lib/db', () => {
       sourceKey: col('sourceKey'),
       status: col('status'),
       payload: col('payload'),
+      patientId: col('patientId'),
       decidedAt: col('decidedAt'),
       expiresAt: col('expiresAt'),
       createdAt: col('createdAt'),
@@ -269,6 +271,9 @@ vi.mock('@/lib/db', () => {
     },
     // ML-28: the two post-visit steps read appointment ⋈ patient; empty
     // (or flat rows for the sweep test), so the steps are no-ops here.
+    // ML-29: the rebook-nudge step reads completed hygiene visits (empty in
+    // every driver scenario here, so the step is a no-op) and the sweep's
+    // rebook branch reads the calendar for an open card's patient.
     appointment: {
       __name: 'appointment',
       id: col('id'),
@@ -360,6 +365,7 @@ beforeEach(() => {
   store.appointments = []
   store.reviews = []
   store.leads = []
+  store.appointments = []
   store.postTargets = []
   store.proposals = []
   store.profiles = [{ organizationId: ORG, autonomy: null }]
@@ -1111,6 +1117,28 @@ describe('the GBP website fix (listing truth, onboarding Phase A)', () => {
 })
 
 describe('the invalidation sweep', () => {
+  it('ML-29: a rebook nudge’s premise is nothing booked after the visit — a live future booking retires it', async () => {
+    store.proposals = [
+      { id: 'n1', organizationId: ORG, capability: 'rebook_nudge', sourceKey: 'rebook_nudge:a1', status: 'open', patientId: 'pt1', payload: { appointmentId: 'a1' } },
+      { id: 'n2', organizationId: ORG, capability: 'rebook_nudge', sourceKey: 'rebook_nudge:a2', status: 'open', patientId: 'pt2', payload: { appointmentId: 'a2' } },
+      { id: 'n3', organizationId: ORG, capability: 'rebook_nudge', sourceKey: 'rebook_nudge:a3', status: 'open', patientId: 'pt3', payload: { appointmentId: 'a3' } },
+    ]
+    store.appointments = [
+      // pt1 booked (the portal, the desk, the sync — whoever) → the card rots.
+      { id: 'f1', organizationId: ORG, patientId: 'pt1', type: 'cleaning', status: 'scheduled', startTime: new Date(Date.now() + 30 * DAY) },
+      // pt2: only a CANCELLED future row → still nothing on the books.
+      { id: 'f2', organizationId: ORG, patientId: 'pt2', type: 'cleaning', status: 'cancelled', startTime: new Date(Date.now() + 30 * DAY) },
+      // pt3: another org's booking never counts.
+      { id: 'f3', organizationId: 'org_other', patientId: 'pt3', type: 'cleaning', status: 'scheduled', startTime: new Date(Date.now() + 30 * DAY) },
+    ]
+    const n = await sweepInvalidatedProposals(ORG)
+    expect(n).toBe(1)
+    const byId = new Map(store.proposals.map((p) => [p.id, p.status]))
+    expect(byId.get('n1')).toBe('expired')
+    expect(byId.get('n2')).toBe('open')
+    expect(byId.get('n3')).toBe('open')
+  })
+
   it('ML-22: a check-in’s premise is a lead still in "contacted" — converted, archived, reopened or vanished retires it', async () => {
     store.proposals = [
       { id: 'f1', organizationId: ORG, capability: 'inquiry_followup', sourceKey: 'inquiry_followup:l1', status: 'open', payload: { leadId: 'l1' } },

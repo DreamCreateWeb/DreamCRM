@@ -22,6 +22,7 @@ import { generateFeedbackReplyProposals } from '@/lib/services/proposal-generato
 import { generateInquiryFollowupProposals } from '@/lib/services/proposal-generators/inquiry-followup'
 import { generatePostVisitCare } from '@/lib/services/proposal-generators/post-visit-care'
 import { generatePostopCheckinProposals } from '@/lib/services/proposal-generators/postop-checkin'
+import { generateRebookNudgeProposals } from '@/lib/services/proposal-generators/rebook-nudge'
 import { clinicLocalHour, clinicWeekStart } from '@/lib/clinic-timezone'
 import { resolveTrialState } from '@/lib/trial'
 import { sweepClinics } from '@/lib/services/cron-sweep'
@@ -200,6 +201,11 @@ export const STEP_FAILURE: Record<string, { capability: string; summary: string 
   schedule_gap: {
     capability: 'schedule_gap',
     summary: 'Couldn’t check the week ahead for open chair time just now — I’ll keep trying.',
+  },
+  // ML-29: the rebook nudge for a patient who left without the next visit booked.
+  rebook_nudge: {
+    capability: 'rebook_nudge',
+    summary: 'Couldn’t check who left without their next visit booked just now — I’ll keep trying.',
   },
   gbp_website_fix: {
     capability: 'gbp_website_fix',
@@ -455,6 +461,11 @@ function makeOrgPass(result: Omit<GeneratorRunResult, 'sweep'>, now: Date): (org
         // No AI, no patient mail — reads the hourly sync's snapshot and
         // files at most one card a month.
         ['gbp_website_fix', () => generateGbpWebsiteFixProposals(org.id, now, tz)],
+        // ML-29: the one patient who left the chair a week ago without the
+        // next visit booked — before the week-ahead and recall cards below,
+        // which reach the same inbox; it stands down for anyone a campaign
+        // already wrote to this month.
+        ['rebook_nudge', () => generateRebookNudgeProposals(org.id, now, tz)],
         // THE WEEK AHEAD before the general recall: both reach for the same
         // audience, and the more specific, time-critical answer gets first
         // refusal. Each also stands down while the other's card is open, so
@@ -675,6 +686,9 @@ export async function sweepInvalidatedProposals(organizationId: string): Promise
   const socialProposals: Array<{ id: string; createdAt: Date }> = []
   const campaignProposals: string[] = []
   const gbpProposals: string[] = []
+  // ML-29: a rebook nudge's premise is a completed hygiene visit with
+  // nothing booked after it — patientId → proposalId.
+  const rebookByPatient = new Map<string, string>()
   const setupProposals: Array<{ id: string; capability: string }> = []
   for (const p of open) {
     const payload = (p.payload ?? {}) as Record<string, unknown>
@@ -692,6 +706,8 @@ export async function sweepInvalidatedProposals(organizationId: string): Promise
       campaignProposals.push(p.id)
     } else if (p.capability === 'gbp_website_fix') {
       gbpProposals.push(p.id)
+    } else if (p.capability === 'rebook_nudge' && typeof p.patientId === 'string') {
+      rebookByPatient.set(p.patientId, p.id)
     } else if (
       p.capability === 'setup_hours' ||
       p.capability === 'setup_chairs' ||
@@ -861,6 +877,18 @@ export async function sweepInvalidatedProposals(organizationId: string): Promise
       if (truth.state === 'ok') toExpire.push(...gbpProposals)
     } catch (e) {
       console.error('[proposals] gbp listing-truth read failed during sweep', e)
+    }
+  }
+  // ML-29: a "book your next visit" card rots the moment the patient books
+  // one — from the portal, the desk, the PMS sync. (executeRebookNudge
+  // re-checks at the tap too; this keeps the card honest between taps.)
+  if (rebookByPatient.size > 0) {
+    try {
+      const { patientsWithFutureVisit } = await import('@/lib/services/proposal-generators/rebook-nudge')
+      const booked = await patientsWithFutureVisit(organizationId, Array.from(rebookByPatient.keys()), new Date())
+      for (const [pid, id] of Array.from(rebookByPatient.entries())) if (booked.has(pid)) toExpire.push(id)
+    } catch (e) {
+      console.error('[proposals] calendar read failed during the rebook-nudge sweep', e)
     }
   }
 

@@ -162,7 +162,8 @@ export const CAPABILITIES: readonly CapabilityDef[] = [
   { key: 'inquiry_followup', label: 'Follow up on unanswered inquiries', defaultTrust: 'ask' },
   // ML-28: the day-after "how are you feeling?" — grantable with its executor.
   { key: 'postop_checkin', label: 'Check in after a procedure', defaultTrust: 'ask' },
-  { key: 'rebook_nudge', label: 'Nudge cancelled visits to rebook', defaultTrust: 'ask' },
+  // ML-29: the patient who left the chair without the next visit booked.
+  { key: 'rebook_nudge', label: 'Nudge patients to book their next visit', defaultTrust: 'ask' },
   { key: 'referral_ask', label: 'Ask happy patients for referrals', defaultTrust: 'ask' },
   // A newsletter is four weeks of the practice's voice in every inbox at
   // once — ask-first and not grantable for now (the deep-sleep ruling
@@ -260,7 +261,6 @@ export const BOOKING_BUTTON_CAPABILITIES: readonly string[] = [
 // and fifth (ML-28, 2026-11-04 — the evening aftercare note and the
 // day-after check-in, generator + executor/writer together).
 export const PREVIEW_CAPABILITIES: readonly string[] = [
-  'rebook_nudge',
   'referral_ask',
   'newsletter',
   'membership_rescue',
@@ -310,6 +310,9 @@ export const GRANTABLE_CAPABILITIES = [
   // the clinic sender with the Messages inbox as reply-to, and waits for
   // daylight (PATIENT_INBOX_CAPABILITIES) when the yes is the machine's.
   'postop_checkin',
+  // ML-29: the rebook nudge — its executor sends through the inquiry shell
+  // with the disclosed booking button; same daylight rule.
+  'rebook_nudge',
 ] as const
 
 export function isGrantable(key: string): boolean {
