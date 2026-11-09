@@ -153,6 +153,7 @@ describe('sweepClinics', () => {
       'activation-reconcile': 'app/api/cron/daily-digest/route.ts',
       // ML-38: the metrics snapshot's day pass rides the same tick.
       'metric-snapshot': 'app/api/cron/daily-digest/route.ts',
+      'gmail-sync': 'app/api/cron/gmail-sync/route.ts',
     }
     for (const [job, route] of Object.entries(routes)) {
       const src = readFileSync(join(process.cwd(), route), 'utf8')

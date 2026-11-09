@@ -40,6 +40,7 @@ describe('the roster ↔ capability registry parity', () => {
       // ML-32: how a bell alert's email copy reaches the clinic — plumbing
       // that only reports to staff, not a job on any specialist's desk.
       'staff_alert',
+      'inbox_sync',
       ...SETUP_CAPABILITIES,
     ])
     for (const c of CAPABILITIES) {

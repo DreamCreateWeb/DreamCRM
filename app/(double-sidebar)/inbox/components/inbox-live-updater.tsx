@@ -51,7 +51,15 @@ export default function InboxLiveUpdater() {
       // already retries.)
     }
 
+    // Belt and braces for a dropped stream: the page is a view of the synced
+    // copy, so a 60s refresh (only while the tab is visible) picks up what the
+    // background sync landed.
+    const poll = setInterval(() => {
+      if (document.visibilityState === 'visible') router.refresh()
+    }, 60_000)
+
     return () => {
+      clearInterval(poll)
       es.close()
       if (pendingRefresh) clearTimeout(pendingRefresh)
     }
