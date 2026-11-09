@@ -6,6 +6,8 @@ import { sendNotificationEmail } from '@/lib/email'
 import { getPlatformOrgId } from '@/lib/services/gsc'
 import { getProspectingConfig, getHuntStats, getFunnelStats, counterDay, type HuntStats } from './prospecting'
 import type { ProspectFunnelStats } from '@/lib/types/prospecting'
+import { guardianTrafficLines } from '@/lib/guardian'
+import { cachedEngineHealth } from '@/lib/services/guardian'
 
 /**
  * The daily hunt digest — one email to platform owner/admins summarizing
@@ -20,6 +22,8 @@ export interface DigestStats {
   funnel: ProspectFunnelStats
   watchdogTripped: boolean
   callList: Array<{ name: string; intentSummary: string | null }>
+  /** The Guardian's owner-only lines (traffic drops) — a clinic never receives these. */
+  guardianLines?: string[]
 }
 
 export interface ProspectingDigestContent {
@@ -37,13 +41,24 @@ export function buildProspectingDigestContent(stats: DigestStats): ProspectingDi
     hunt.opens24h > 0 ||
     hunt.replies24h > 0 ||
     hunt.newCallList24h > 0 ||
-    hunt.autoEnrolledToday > 0
+    hunt.autoEnrolledToday > 0 ||
+    (stats.guardianLines?.length ?? 0) > 0
   if (!hasContent) return { subject: '', body: '', hasContent: false }
 
   const sentLabel = hunt.sent24h > 0 ? `${hunt.sent24h} sent` : `${hunt.dryRun24h} drafted (dry-run)`
-  const subject = `The hunt: ${sentLabel} · ${hunt.replies24h} replies · ${hunt.newCallList24h} for your call list`
+  const huntQuiet =
+    hunt.sent24h === 0 && hunt.dryRun24h === 0 && hunt.opens24h === 0 && hunt.replies24h === 0 && hunt.newCallList24h === 0 && hunt.autoEnrolledToday === 0
+  const guardianCount = stats.guardianLines?.length ?? 0
+  const subject = huntQuiet
+    ? `The Guardian: ${guardianCount} ${guardianCount === 1 ? 'site is' : 'sites are'} losing traffic`
+    : `The hunt: ${sentLabel} · ${hunt.replies24h} replies · ${hunt.newCallList24h} for your call list`
 
   const lines: string[] = ['Here is what the machine did in the last 24 hours.', '']
+  if (stats.guardianLines && stats.guardianLines.length > 0) {
+    lines.push('🚦 The Guardian:')
+    for (const g of stats.guardianLines) lines.push(`   • ${g}`)
+    lines.push('')
+  }
   lines.push(
     `📤 Outreach: ${sentLabel} · ${hunt.opens24h} opened · ${hunt.clicks24h} clicked · ${hunt.replies24h} replied`,
   )
@@ -79,10 +94,13 @@ export async function runProspectingDigest(opts?: { now?: Date }): Promise<{ sen
 
   const hunt = await getHuntStats({ now })
   const funnel = await getFunnelStats()
+  // Best-effort: a sweep that could not look adds nothing (never an all-clear).
+  const guardianLines = await cachedEngineHealth().then(guardianTrafficLines).catch(() => [])
   const content = buildProspectingDigestContent({
     hunt,
     funnel,
     watchdogTripped: Boolean(config.watchdog.trippedAt),
+    guardianLines,
     callList: hunt.hottest
       .filter((h) => h.status === 'call_list')
       .map((h) => ({ name: h.name, intentSummary: h.intentSummary })),

@@ -4,6 +4,7 @@ import { and, desc, eq, gte, lt, min, sql } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import {
   assessEngine,
+  detectTrafficDrop,
   needsAttention,
   ENGINE_STATE_RANK,
   summarizeSweep,
@@ -17,6 +18,7 @@ import {
   type EngineVerdict,
 } from '@/lib/guardian'
 import { readEngineSwitches } from '@/lib/services/engine-switches'
+import { getSiteTraffic } from '@/lib/services/site-analytics'
 import { getGuardianAudience } from '@/lib/services/platform-config'
 import { countSeatedBetween } from '@/lib/services/patient-journey'
 import { countOpenProposals } from '@/lib/services/proposals'
@@ -545,7 +547,7 @@ async function assessClinic(
     parkedWrites: Map<string, ParkedWrites>
   },
 ): Promise<ClinicEngineReport> {
-  const [switches, seated30, seatedPrev30, openProposals] = await Promise.all([
+  const [switches, seated30, seatedPrev30, openProposals, traffic] = await Promise.all([
     readEngineSwitches(org.id),
     // NULL on failure, never 0 (round-2 audit). `.catch(() => 0)` turned an
     // unreadable current month into a confident "new patients are down 100%
@@ -558,6 +560,9 @@ async function assessClinic(
     // only thing this number is used for is the pile-up clause, which is a
     // claim about whether a PERSON has stopped opening their inbox.
     countOpenProposals(org.id, { excludeHandedBack: true }).catch(() => 0),
+    // The site's last 7 days vs the 7 before — the SAME read the clinic's own
+    // banner uses. Null on failure: an unread week is not a drop.
+    getSiteTraffic(org.id, 7).catch(() => null),
   ])
   const here = ledger.this7.get(org.id) ?? { work: 0, failures: 0, engineFailures: 0 }
   const parked = ledger.parkedWrites.get(org.id)
@@ -571,6 +576,7 @@ async function assessClinic(
       : // No creation date recorded — treat as long-established rather than
         // brand new, so a missing column can never suppress a real alarm.
         9999,
+    trafficDrop: traffic ? detectTrafficDrop(traffic.total, traffic.totalPrev) : null,
     actions7: here.work,
     actionsPrev7: prev.work,
     failures7: here.failures,

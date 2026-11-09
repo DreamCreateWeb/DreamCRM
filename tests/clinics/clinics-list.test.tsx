@@ -1,3 +1,13 @@
+/**
+ * ML-40 REWRITE, ON PURPOSE. This file used to pin a PLAN badge on every row
+ * and a Basic / Pro / Premium filter (the "renders each clinic with its plan
+ * + status badges", "filters by plan" and "chip counts" tests). The platform
+ * owner sorts clinics by STANDING (trial / live / past due / walled /
+ * churned — `clinicStanding`, lib/platform-clinic-status.ts, over the trial
+ * wall), and NO PLAN GATING means no tier badge anywhere; `planTier` stays a
+ * column on the row, never a chip. Those three tests were rewritten to pin
+ * the standing chips instead; every other test is unchanged.
+ */
 import { describe, it, expect, beforeEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -51,7 +61,7 @@ describe('ClinicsList', () => {
     expect(screen.getByText(/No clinics signed up yet/i)).toBeInTheDocument()
   })
 
-  it('renders each clinic with its plan + status badges', () => {
+  it('renders each clinic with its standing pill and NO plan badge', () => {
     render(
       <ClinicsList
         rows={[
@@ -62,12 +72,10 @@ describe('ClinicsList', () => {
     )
     expect(screen.getByText('Acme')).toBeInTheDocument()
     expect(screen.getByText('Bright')).toBeInTheDocument()
-    // Plan badges appear in the row body (span elements, not the chip buttons)
-    const proBadges = screen.getAllByText('Pro').filter((el) => el.tagName === 'SPAN')
-    expect(proBadges.length).toBeGreaterThan(0)
-    const premiumBadges = screen.getAllByText('Premium').filter((el) => el.tagName === 'SPAN')
-    expect(premiumBadges.length).toBeGreaterThan(0)
-    // Status badge for past_due
+    // The tier is a column, never a badge or a chip.
+    expect(screen.queryByText('Pro')).toBeNull()
+    expect(screen.queryByText('Premium')).toBeNull()
+    expect(screen.queryByRole('columnheader', { name: 'Plan' })).toBeNull()
     expect(screen.getByText('past due')).toBeInTheDocument()
   })
 
@@ -139,19 +147,19 @@ describe('ClinicsList', () => {
     expect(screen.getByText('trial · 1 day left')).toHaveAttribute('data-tone', 'warn')
   })
 
-  it('the Trial ended chip counts and filters the walled clinics', async () => {
+  it('the Walled chip counts and filters the clinics behind the trial wall', async () => {
     const user = userEvent.setup()
     render(
       <ClinicsList
         rows={[
           row({ orgId: 'a', name: 'Live trial', subscriptionStatus: 'trialing', trial: onTrial(4) }),
-          row({ orgId: 'b', name: 'Walled', subscriptionStatus: 'trialing', trial: EXPIRED_TRIAL }),
+          row({ orgId: 'b', name: 'Behind wall', subscriptionStatus: 'trialing', trial: EXPIRED_TRIAL }),
           row({ orgId: 'c', name: 'Paying', subscriptionStatus: 'active', stripeSubscriptionId: 'sub_c' }),
         ]}
       />,
     )
-    await user.click(screen.getByRole('button', { name: /^Trial ended 1$/ }))
-    expect(screen.getByText('Walled')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: /^Walled 1$/ }))
+    expect(screen.getByText('Behind wall')).toBeInTheDocument()
     expect(screen.queryByText('Live trial')).toBeNull()
     expect(screen.queryByText('Paying')).toBeNull()
   })
@@ -166,19 +174,25 @@ describe('ClinicsList', () => {
     expect(screen.getByText('—')).toBeInTheDocument()
   })
 
-  it('filters by plan when a chip is clicked', async () => {
+  it('filters by standing when a chip is clicked — and there are no plan chips', async () => {
     const user = userEvent.setup()
     render(
       <ClinicsList
         rows={[
-          row({ orgId: 'a', name: 'Pro Clinic', slug: 'pro', planTier: 'pro' }),
-          row({ orgId: 'b', name: 'Basic Clinic', slug: 'basic', planTier: 'basic' }),
+          row({ orgId: 'a', name: 'Paying Clinic', slug: 'paying', planTier: 'pro', subscriptionStatus: 'active' }),
+          row({ orgId: 'b', name: 'Trial Clinic', slug: 'trial', subscriptionStatus: 'trialing', trial: onTrial(5) }),
+          row({ orgId: 'c', name: 'Gone Clinic', slug: 'gone', subscriptionStatus: 'canceled' }),
         ]}
       />,
     )
-    await user.click(screen.getByRole('button', { name: /^Pro/ }))
-    expect(screen.getByText('Pro Clinic')).toBeInTheDocument()
-    expect(screen.queryByText('Basic Clinic')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^(Basic|Pro|Premium)\b/ })).toBeNull()
+    await user.click(screen.getByRole('button', { name: /^Trial 1$/ }))
+    expect(screen.getByText('Trial Clinic')).toBeInTheDocument()
+    expect(screen.queryByText('Paying Clinic')).not.toBeInTheDocument()
+    expect(screen.queryByText('Gone Clinic')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: /^Churned 1$/ }))
+    expect(screen.getByText('Gone Clinic')).toBeInTheDocument()
+    expect(screen.queryByText('Trial Clinic')).not.toBeInTheDocument()
   })
 
   it('filters by past_due when that chip is clicked', async () => {
@@ -198,23 +212,23 @@ describe('ClinicsList', () => {
     expect(screen.getByText('Lost')).toBeInTheDocument()
   })
 
-  it('filters by inactive subscriptions — an expired trial is inactive, a live one is not', async () => {
+  it('Churned holds the cancelled; a walled trial is Walled, never Live or Churned', async () => {
     const user = userEvent.setup()
     render(
       <ClinicsList
         rows={[
-          row({ orgId: 'a', name: 'Active', subscriptionStatus: 'active' }),
-          row({ orgId: 'b', name: 'Canceled', subscriptionStatus: 'canceled' }),
-          row({ orgId: 'c', name: 'Live trial', subscriptionStatus: 'trialing', trial: onTrial(3) }),
-          row({ orgId: 'd', name: 'Walled', subscriptionStatus: 'trialing', trial: EXPIRED_TRIAL }),
+          row({ orgId: 'a', name: 'Live One', subscriptionStatus: 'active' }),
+          row({ orgId: 'b', name: 'Cancelled One', subscriptionStatus: 'canceled' }),
+          row({ orgId: 'c', name: 'Walled One', subscriptionStatus: 'trialing', trial: EXPIRED_TRIAL }),
         ]}
       />,
     )
-    await user.click(screen.getByRole('button', { name: /^Inactive 2$/ }))
-    expect(screen.queryByText('Active')).not.toBeInTheDocument()
-    expect(screen.queryByText('Live trial')).not.toBeInTheDocument()
-    expect(screen.getByText('Canceled')).toBeInTheDocument()
-    expect(screen.getByText('Walled')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: /^Live 1$/ }))
+    expect(screen.getByText('Live One')).toBeInTheDocument()
+    expect(screen.queryByText('Walled One')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: /^Churned 1$/ }))
+    expect(screen.getByText('Cancelled One')).toBeInTheDocument()
+    expect(screen.queryByText('Walled One')).not.toBeInTheDocument()
   })
 
   it('searches by name, slug, or city', async () => {
@@ -264,21 +278,22 @@ describe('ClinicsList', () => {
     expect(link.getAttribute('href')).toContain('smile-spa.')
   })
 
-  it('shows chip counts that match the data', () => {
+  it('shows chip counts that match the data (by standing)', () => {
     render(
       <ClinicsList
         rows={[
-          row({ orgId: 'a', planTier: 'pro' }),
-          row({ orgId: 'b', planTier: 'pro' }),
-          row({ orgId: 'c', planTier: 'premium' }),
-          row({ orgId: 'd', planTier: 'basic', subscriptionStatus: 'canceled' }),
+          row({ orgId: 'a', subscriptionStatus: 'active' }),
+          row({ orgId: 'b', subscriptionStatus: 'active' }),
+          row({ orgId: 'c', subscriptionStatus: 'trialing', trial: onTrial(3) }),
+          row({ orgId: 'd', subscriptionStatus: 'canceled' }),
         ]}
       />,
     )
     // FilterChip renders the count as a span next to the label, so the
     // accessible name is "<label> <count>" (no parens).
     expect(screen.getByRole('button', { name: /^All 4$/ })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /^Pro 2$/ })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /^Premium 1$/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^Live 2$/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^Trial 1$/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^Churned 1$/ })).toBeInTheDocument()
   })
 })

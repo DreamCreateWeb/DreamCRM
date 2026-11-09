@@ -790,3 +790,43 @@ export async function markConversationRead(conversationId: number, userId: strin
     if (!isMissingSchemaError(err)) throw err
   }
 }
+
+export interface SupportThreadPeek {
+  conversationId: number
+  messageCount: number
+  last: { body: string; createdAt: Date; fromSupport: boolean } | null
+}
+
+/**
+ * The PLATFORM's read-only look at one clinic's support thread (ML-40): the
+ * thread id, how many messages, and the last one — who spoke last, said as
+ * "Support" or "the clinic" by the caller. Never creates the thread and never
+ * marks anything read (a peek must not clear the owner's own unread state).
+ * Scoped by the clinic's org id, passed explicitly. Null = no thread yet.
+ */
+export async function getSupportThreadPeek(orgId: string): Promise<SupportThreadPeek | null> {
+  const [convo] = await db
+    .select({ id: schema.conversations.id })
+    .from(schema.conversations)
+    .where(eq(schema.conversations.organizationId, orgId))
+    .limit(1)
+  if (!convo) return null
+  const [[countRow], [last], platform] = await Promise.all([
+    db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(schema.messages)
+      .where(eq(schema.messages.conversationId, convo.id)),
+    db
+      .select({ body: schema.messages.body, createdAt: schema.messages.createdAt, authorId: schema.messages.authorId })
+      .from(schema.messages)
+      .where(eq(schema.messages.conversationId, convo.id))
+      .orderBy(desc(schema.messages.createdAt))
+      .limit(1),
+    platformMemberIds(),
+  ])
+  return {
+    conversationId: convo.id,
+    messageCount: Number(countRow?.n ?? 0),
+    last: last ? { body: last.body, createdAt: last.createdAt, fromSupport: platform.has(last.authorId) } : null,
+  }
+}
