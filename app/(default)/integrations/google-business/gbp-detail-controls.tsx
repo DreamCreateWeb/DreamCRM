@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation'
 import { ActionButton } from '@/components/ui/action-button'
 import { useConfirm } from '@/components/ui/confirm-dialog'
 import { syncZernioAccountsAction, disconnectChannelAction } from '../actions'
+import { runAction } from '@/lib/run-action'
+import { StaleRefresh } from '@/components/ui/stale-refresh'
 
 /**
  * Google Business detail-page controls — the same Zernio connect/refresh/
@@ -33,7 +35,7 @@ export default function GbpDetailControls({
     setError(null)
     setActive('refresh')
     start(async () => {
-      const r = await syncZernioAccountsAction()
+      const r = await runAction(() => syncZernioAccountsAction())
       if (!r.ok) setError(r.error ?? 'Could not refresh.')
       router.refresh()
     })
@@ -52,7 +54,7 @@ export default function GbpDetailControls({
     setError(null)
     setActive('disconnect')
     start(async () => {
-      const r = await disconnectChannelAction('googlebusiness')
+      const r = await runAction(() => disconnectChannelAction('googlebusiness'))
       if (!r.ok) setError(r.error ?? 'Could not disconnect.')
       router.refresh()
     })
@@ -108,7 +110,7 @@ export default function GbpDetailControls({
       </div>
       {error && (
         <p className="mt-3 text-sm text-rose-700 dark:text-rose-300 bg-rose-500/15 rounded-[var(--r-md)] px-3 py-2">
-          {error}
+          {error}<StaleRefresh error={error} />
         </p>
       )}
     </div>

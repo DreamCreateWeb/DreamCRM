@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react'
 import { ActionButton } from '@/components/ui/action-button'
 import { addDaysYmd, todayYmd, MAX_FOLLOWUP_TITLE_LEN } from '@/lib/types/followups'
 import { createFollowupAction } from '@/app/(default)/patients/actions'
+import { runAction } from '@/lib/run-action'
 
 /**
  * One-tap follow-up creation for any patient-scoped surface (appointment
@@ -38,7 +39,7 @@ export default function FollowupQuickAdd({
   function submit() {
     if (!title.trim()) return
     startTransition(async () => {
-      const res = await createFollowupAction({ patientId, title, dueDate: dueDate || null })
+      const res = await runAction(() => createFollowupAction({ patientId, title, dueDate: dueDate || null }))
       if (res.ok) {
         setOpen(false)
         setTitle('')

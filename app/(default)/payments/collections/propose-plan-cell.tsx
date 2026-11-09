@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation'
 import { Dialog, DialogPanel, Transition, TransitionChild } from '@headlessui/react'
 import { ActionButton } from '@/components/ui/action-button'
 import { proposePlanAction } from './actions'
+import { runAction } from '@/lib/run-action'
+import { StaleRefresh } from '@/components/ui/stale-refresh'
 
 const MIN_MONTHS = 2
 const MAX_MONTHS = 12
@@ -41,7 +43,7 @@ export default function ProposePlanCell({
   function propose() {
     setError('')
     startTransition(async () => {
-      const r = await proposePlanAction({ patientId, totalCents: balanceCents, installments: months })
+      const r = await runAction(() => proposePlanAction({ patientId, totalCents: balanceCents, installments: months }))
       if (r.ok) {
         setSent(true)
         setOpen(false)
@@ -107,7 +109,7 @@ export default function ProposePlanCell({
                   </div>
                   {error && (
                     <div className="text-sm text-rose-700 dark:text-rose-300 bg-rose-500/10 px-3 py-2 rounded" role="alert">
-                      {error}
+                      {error}<StaleRefresh error={error} />
                     </div>
                   )}
                 </div>

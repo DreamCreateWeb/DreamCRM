@@ -7,6 +7,7 @@ import { StatusPill } from '@/components/ui/status-pill'
 import { FlashToast } from '@/components/ui/flash-toast'
 import type { BalanceOutreachSettings } from '@/lib/types/balance-outreach'
 import { saveBalanceOutreachAction } from './actions'
+import { runAction } from '@/lib/run-action'
 
 /**
  * "Automatic balance reminders" — the opt-in dunning cadence. Off by default;
@@ -32,7 +33,7 @@ export default function BalanceOutreachCard({
   function save() {
     setSaved(false)
     start(async () => {
-      const r = await saveBalanceOutreachAction(s)
+      const r = await runAction(() => saveBalanceOutreachAction(s))
       if (r.ok) {
         setSaved(true)
         setToast(s.enabled ? 'Automatic balance reminders are on.' : 'Saved.')

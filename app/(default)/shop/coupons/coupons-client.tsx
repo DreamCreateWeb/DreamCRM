@@ -12,6 +12,8 @@ import { EncodingLegend } from '@/components/ui/encoding-legend'
 import { EmptyState } from '@/components/ui/empty-state'
 import { FlashToast } from '@/components/ui/flash-toast'
 import type { PillLegendRow, Tone } from '@/lib/ui/encodings'
+import { runAction } from '@/lib/run-action'
+import { StaleRefresh } from '@/components/ui/stale-refresh'
 
 // Source is a category (where the code came from), not a lifecycle status, so it
 // stays a quiet tag rather than a contract tone.
@@ -162,7 +164,9 @@ export default function CouponsClient({ coupons, orgName = 'Your clinic' }: { co
             disabled={isPending}
             onClick={() =>
               run('birthday', async () => {
-                const { created } = await generateBirthdayCouponsAction()
+                const r = await runAction(async () => ({ ok: true as const, ...(await generateBirthdayCouponsAction()) }))
+                if (!r.ok) throw new Error(r.error)
+                const { created } = r
                 setToast(`Generated ${created} birthday coupon${created === 1 ? '' : 's'}.`)
               })
             }
@@ -173,7 +177,7 @@ export default function CouponsClient({ coupons, orgName = 'Your clinic' }: { co
         </div>
       </div>
 
-      {error && <p className="text-sm mb-4 text-rose-700 dark:text-rose-300">{error}</p>}
+      {error && <p className="text-sm mb-4 text-rose-700 dark:text-rose-300">{error}<StaleRefresh error={error} /></p>}
 
       {/* List */}
       {coupons.length === 0 ? (

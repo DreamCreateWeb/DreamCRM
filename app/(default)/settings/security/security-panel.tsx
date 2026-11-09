@@ -11,6 +11,16 @@ import { FlashToast } from '@/components/ui/flash-toast'
 import { useConfirm } from '@/components/ui/confirm-dialog'
 import { SettingsSection, SettingsRow } from '../settings-kit'
 import { SettingsTabs } from '../settings-tabs'
+import { runAction } from '@/lib/run-action'
+
+/** Await a void-returning server action through `runAction`: a thrown action
+ *  (network drop, redeploy skew) becomes `{ ok: false, error }` for a toast
+ *  instead of an unhandled rejection that freezes the busy state. */
+const runVoid = (fn: () => Promise<unknown>) =>
+  runAction(async () => {
+    await fn()
+    return { ok: true as const }
+  })
 
 export interface SessionRow {
   id: string
@@ -88,8 +98,8 @@ export default function SecurityPanel({ sessions }: { sessions: SessionRow[] }) 
       return
     setActive(id)
     startTransition(async () => {
-      await revokeSession(id)
-      setToast({ message: 'Signed out that device.', tone: 'ok' })
+      const r = await runVoid(() => revokeSession(id))
+      setToast(r.ok ? { message: 'Signed out that device.', tone: 'ok' } : { message: r.error, tone: 'urgent' })
       router.refresh()
     })
   }
@@ -108,8 +118,8 @@ export default function SecurityPanel({ sessions }: { sessions: SessionRow[] }) 
       return
     setActive('others')
     startTransition(async () => {
-      await revokeOtherSessions()
-      setToast({ message: 'Signed out all other devices.', tone: 'ok' })
+      const r = await runVoid(() => revokeOtherSessions())
+      setToast(r.ok ? { message: 'Signed out all other devices.', tone: 'ok' } : { message: r.error, tone: 'urgent' })
       router.refresh()
     })
   }

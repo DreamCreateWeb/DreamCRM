@@ -20,6 +20,8 @@ import {
   savePracticeOpsAction,
   saveSelfBookingAction,
 } from './actions'
+import { runAction } from '@/lib/run-action'
+import { StaleRefresh } from '@/components/ui/stale-refresh'
 
 // Client-safe copy of the provider roles (the service module is server-only).
 const PROVIDER_ROLES = [
@@ -102,7 +104,7 @@ function SelfBookingSection({ enabled, flash }: { enabled: boolean; flash: (m: s
     // revert on error so the control never lies.
     setOn(next)
     start(async () => {
-      const r = await saveSelfBookingAction(next)
+      const r = await runAction(() => saveSelfBookingAction(next))
       if (r.ok) {
         flash(next ? 'Online booking turned on.' : 'Online booking turned off — requests now go to Messages.')
         router.refresh()
@@ -198,7 +200,7 @@ function ProvidersSection({
     if (emailInvalid) { setError('Enter a valid email address (or leave it blank).'); return }
     // Duplicate is a soft warning up-front but the server is the source of truth.
     start(async () => {
-      const r = await createProviderAction({ displayName: trimmedNew, role: newRole, email: newEmail.trim() || null })
+      const r = await runAction(() => createProviderAction({ displayName: trimmedNew, role: newRole, email: newEmail.trim() || null }))
       if (r.ok) { setNewName(''); setNewEmail(''); flash('Provider added.'); router.refresh() }
       else setError(r.error)
     })
@@ -206,7 +208,7 @@ function ProvidersSection({
 
   function saveRow(id: string, patch: { displayName: string; role: string; email: string | null }, onDone: () => void) {
     start(async () => {
-      const r = await updateProviderAction({ providerId: id, ...patch })
+      const r = await runAction(() => updateProviderAction({ providerId: id, ...patch }))
       if (r.ok) { flash('Provider saved.'); onDone(); router.refresh() }
       else flash(r.error)
     })
@@ -224,7 +226,7 @@ function ProvidersSection({
         })
         if (!ok) return
         start(async () => {
-          const r = await deactivateProviderAction(id)
+          const r = await runAction(() => deactivateProviderAction(id))
           if (r.ok) { flash('Provider deactivated.'); router.refresh() }
           else flash(r.error)
         })
@@ -233,7 +235,7 @@ function ProvidersSection({
     }
     // Reactivation is non-destructive — commit immediately.
     start(async () => {
-      const r = await updateProviderAction({ providerId: id, isActive: true })
+      const r = await runAction(() => updateProviderAction({ providerId: id, isActive: true }))
       if (r.ok) { flash('Provider reactivated.'); router.refresh() }
       else flash(r.error)
     })
@@ -298,7 +300,7 @@ function ProvidersSection({
         {emailInvalid && !error && (
           <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">That doesn’t look like a valid email.</p>
         )}
-        {error && <p className="mt-2 text-xs text-rose-600 dark:text-rose-400">{error}</p>}
+        {error && <p className="mt-2 text-xs text-rose-600 dark:text-rose-400">{error}<StaleRefresh error={error} /></p>}
       </div>
     </section>
   )
@@ -450,7 +452,7 @@ function VisitTypesSection({
     setError(null)
     setSaved(false)
     start(async () => {
-      const r = await saveVisitTypesAction(types)
+      const r = await runAction(() => saveVisitTypesAction(types))
       if (r.ok) { flash('Visit types saved.'); setSaved(true); router.refresh() }
       else setError(r.error)
     })
@@ -583,7 +585,7 @@ function VisitTypesSection({
         </p>
       )}
       <SaveBar dirty={dirty} saved={saved} pending={pending} onSave={save} saveLabel="Save visit types" />
-      {error && <p className="mt-2 text-xs text-rose-600 dark:text-rose-400">{error}</p>}
+      {error && <p className="mt-2 text-xs text-rose-600 dark:text-rose-400">{error}<StaleRefresh error={error} /></p>}
     </section>
   )
 }
@@ -613,7 +615,7 @@ function OpsSection({
   function save() {
     setSaved(false)
     start(async () => {
-      const r = await savePracticeOpsAction({ chairCount: chairs, recallDefaultMonths: months, lapsedAfterMonths: lapsedMonths })
+      const r = await runAction(() => savePracticeOpsAction({ chairCount: chairs, recallDefaultMonths: months, lapsedAfterMonths: lapsedMonths }))
       if (r.ok) { flash('Saved.'); setSaved(true); router.refresh() }
       else flash(r.error)
     })

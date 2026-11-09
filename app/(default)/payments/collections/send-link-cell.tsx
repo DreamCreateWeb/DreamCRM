@@ -3,6 +3,8 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { sendPayLinkAction } from '@/app/(default)/patients/actions'
+import { StaleRefresh } from '@/components/ui/stale-refresh'
+import { runAction } from '@/lib/run-action'
 
 /**
  * The board's per-row action: email this patient their pay link. Reuses the
@@ -25,7 +27,7 @@ export default function SendLinkCell({
 
   function send() {
     startTransition(async () => {
-      const r = await sendPayLinkAction(patientId)
+      const r = await runAction(() => sendPayLinkAction(patientId))
       if (r.ok) {
         setState('sent')
         router.refresh()
@@ -51,7 +53,7 @@ export default function SendLinkCell({
         {pending ? 'Sending…' : 'Email pay link'}
       </button>
       {state === 'error' && (
-        <span className="text-xs text-rose-600 dark:text-rose-400">{error}</span>
+        <span className="text-xs text-rose-600 dark:text-rose-400">{error}<StaleRefresh error={error} /></span>
       )}
     </span>
   )

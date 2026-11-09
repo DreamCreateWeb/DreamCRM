@@ -6,7 +6,9 @@ import { useRouter } from 'next/navigation'
 import { StatusPill } from '@/components/ui/status-pill'
 import { useConfirm } from '@/components/ui/confirm-dialog'
 import { cancelPlanAction } from './actions'
+import { FlashToast } from '@/components/ui/flash-toast'
 import { TableFit } from '@/components/ui/data-table'
+import { runAction } from '@/lib/run-action'
 
 export interface PlanRowView {
   id: string
@@ -36,6 +38,7 @@ export default function PlansCard({ plans, canManage }: { plans: PlanRowView[]; 
   const confirm = useConfirm()
   const [pendingId, setPendingId] = useState<string | null>(null)
   const [, startTransition] = useTransition()
+  const [toast, setToast] = useState<string | null>(null)
   const money = (c: number) => `$${(c / 100).toFixed(2)}`
 
   async function cancel(plan: PlanRowView) {
@@ -48,8 +51,9 @@ export default function PlansCard({ plans, canManage }: { plans: PlanRowView[]; 
     if (!ok) return
     setPendingId(plan.id)
     startTransition(async () => {
-      await cancelPlanAction(plan.id)
+      const r = await runAction(() => cancelPlanAction(plan.id))
       setPendingId(null)
+      if (!r.ok) setToast(r.error)
       router.refresh()
     })
   }
@@ -122,6 +126,7 @@ export default function PlansCard({ plans, canManage }: { plans: PlanRowView[]; 
           </tbody>
         </table>
       </TableFit>
+      {toast && <FlashToast message={toast} tone="urgent" onDone={() => setToast(null)} />}
     </div>
   )
 }

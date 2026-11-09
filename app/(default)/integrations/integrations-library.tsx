@@ -23,6 +23,8 @@ import {
   cancelSocialAddonAction,
   simulateDemoConnectAction,
 } from './actions'
+import { runAction } from '@/lib/run-action'
+import { StaleRefresh } from '@/components/ui/stale-refresh'
 
 /**
  * Integrations — a menu of FEATURE BUNDLES (DESIGN-SYSTEM v2).
@@ -122,7 +124,7 @@ export default function IntegrationsLibrary({
     setError(null)
     setActiveId(REFRESH)
     start(async () => {
-      const r = await syncZernioAccountsAction()
+      const r = await runAction(() => syncZernioAccountsAction())
       if (!r.ok) setError(r.error ?? 'Could not refresh your channels.')
       router.refresh()
     })
@@ -132,7 +134,7 @@ export default function IntegrationsLibrary({
     setError(null)
     setActiveId(platform)
     start(async () => {
-      const r = await disconnectChannelAction(platform)
+      const r = await runAction(() => disconnectChannelAction(platform))
       if (!r.ok) setError(r.error ?? 'Could not disconnect.')
       router.refresh()
     })
@@ -141,7 +143,7 @@ export default function IntegrationsLibrary({
   function buyAddon() {
     setError(null)
     start(async () => {
-      const r = await buySocialAddonAction()
+      const r = await runAction(() => buySocialAddonAction())
       if (!r.ok) setError(r.error ?? 'Could not add the social add-on.')
       router.refresh()
     })
@@ -150,7 +152,7 @@ export default function IntegrationsLibrary({
   function cancelAddon() {
     setError(null)
     start(async () => {
-      const r = await cancelSocialAddonAction()
+      const r = await runAction(() => cancelSocialAddonAction())
       if (!r.ok) setError(r.error ?? 'Could not cancel the social add-on.')
       router.refresh()
     })
@@ -166,7 +168,7 @@ export default function IntegrationsLibrary({
     setError(null)
     setActiveId(platform)
     start(async () => {
-      const r = await simulateDemoConnectAction(platform)
+      const r = await runAction(() => simulateDemoConnectAction(platform))
       if (!r.ok) setError(r.error ?? 'Could not connect.')
       router.refresh()
     })
@@ -273,7 +275,7 @@ export default function IntegrationsLibrary({
       )}
 
       {error && (
-        <p className="text-sm text-rose-700 dark:text-rose-300 bg-rose-500/15 rounded-[var(--r-md)] px-3 py-2">{error}</p>
+        <p className="text-sm text-rose-700 dark:text-rose-300 bg-rose-500/15 rounded-[var(--r-md)] px-3 py-2">{error}<StaleRefresh error={error} /></p>
       )}
     </div>
   )

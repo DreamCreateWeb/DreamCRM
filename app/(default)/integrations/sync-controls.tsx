@@ -7,6 +7,7 @@ import { disconnectPmsAction, setAutoSyncAction, setSyncDirectionAction, syncNow
 import { ActionButton } from '@/components/ui/action-button'
 import { FlashToast } from '@/components/ui/flash-toast'
 import { useConfirm } from '@/components/ui/confirm-dialog'
+import { runAction } from '@/lib/run-action'
 
 /**
  * The module's heartbeat action — "Sync now" — lives in the PageHeader as the
@@ -21,7 +22,7 @@ export function SyncNowButton() {
   function runSync() {
     setToast(null)
     start(async () => {
-      const r = await syncNowAction()
+      const r = await runAction(() => syncNowAction())
       if (r.ok) {
         // A budget-capped first import parked a resume cursor — tell the clinic
         // it's still going (the hourly cron + the next "Sync now" continue it).
@@ -52,6 +53,15 @@ export function SyncNowButton() {
   )
 }
 
+/** Await a void-returning server action through `runAction`: a thrown action
+ *  (network drop, redeploy skew) becomes `{ ok: false, error }` for a toast
+ *  instead of an unhandled rejection that freezes the busy state. */
+const runVoid = (fn: () => Promise<unknown>) =>
+  runAction(async () => {
+    await fn()
+    return { ok: true as const }
+  })
+
 interface Props {
   syncDirection: SyncDirection
   autoSyncEnabled: boolean
@@ -76,8 +86,8 @@ export default function SyncControls({ syncDirection, autoSyncEnabled, isDemo }:
     const next: SyncDirection = syncDirection === 'two_way' ? 'import' : 'two_way'
     setActive('direction')
     start(async () => {
-      const change = await setSyncDirectionAction(next)
-      setToast(directionToast(next, change))
+      const r = await runAction(async () => ({ ok: true as const, change: await setSyncDirectionAction(next) }))
+      setToast(r.ok ? directionToast(next, r.change) : { text: r.error, tone: 'warn' })
       router.refresh()
     })
   }
@@ -85,8 +95,12 @@ export default function SyncControls({ syncDirection, autoSyncEnabled, isDemo }:
   function toggleAuto() {
     setActive('auto')
     start(async () => {
-      await setAutoSyncAction(!autoSyncEnabled)
-      setToast({ text: !autoSyncEnabled ? 'Auto-sync on.' : 'Auto-sync off.', tone: 'ok' })
+      const r = await runVoid(() => setAutoSyncAction(!autoSyncEnabled))
+      setToast(
+        r.ok
+          ? { text: !autoSyncEnabled ? 'Auto-sync on.' : 'Auto-sync off.', tone: 'ok' }
+          : { text: r.error, tone: 'warn' },
+      )
       router.refresh()
     })
   }
@@ -103,7 +117,8 @@ export default function SyncControls({ syncDirection, autoSyncEnabled, isDemo }:
       return
     setActive('disconnect')
     start(async () => {
-      await disconnectPmsAction()
+      const r = await runVoid(() => disconnectPmsAction())
+      if (!r.ok) setToast({ text: r.error, tone: 'warn' })
       router.refresh()
     })
   }

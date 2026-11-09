@@ -14,6 +14,8 @@ import { ActionButton } from '@/components/ui/action-button'
 import { Toggle } from '@/components/ui/toggle'
 import { SettingsSection, SettingsRow } from '../settings-kit'
 import { SettingsTabs } from '../settings-tabs'
+import { runAction } from '@/lib/run-action'
+import { StaleRefresh } from '@/components/ui/stale-refresh'
 
 /**
  * Settings → Patient portal. Everything the clinic can shape about the
@@ -168,7 +170,7 @@ export default function PortalSettingsForm({
   const save = () => {
     setFeedback(null)
     startTransition(async () => {
-      const res = await savePortalSettingsAction(settings)
+      const res = await runAction(() => savePortalSettingsAction(settings))
       if (res.ok) {
         setFeedback({ kind: 'ok', msg: 'Saved. Patients see the change on their next page load.' })
         setTimeout(() => setFeedback(null), 5000)
@@ -557,6 +559,7 @@ export default function PortalSettingsForm({
             }`}
           >
             {feedback.msg}
+            {feedback.kind === 'err' && <StaleRefresh error={feedback.msg} />}
           </span>
         )}
       </div>

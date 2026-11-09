@@ -1,6 +1,6 @@
 'use client'
 
-import { useTransition } from 'react'
+import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { disconnectMailbox } from './integration-actions'
 import { type Tone } from '@/lib/ui/encodings'
@@ -8,6 +8,8 @@ import { StatusPill } from '@/components/ui/status-pill'
 import { ActionButton } from '@/components/ui/action-button'
 import { EmptyState } from '@/components/ui/empty-state'
 import { useConfirm } from '@/components/ui/confirm-dialog'
+import { runAction } from '@/lib/run-action'
+import { StaleRefresh } from '@/components/ui/stale-refresh'
 import { relativeTime } from '@/lib/utils'
 import { SettingsTabs } from '../settings-tabs'
 
@@ -236,9 +238,11 @@ function AccountRow({ integrationKey, account }: { integrationKey: string; accou
   const router = useRouter()
   const confirm = useConfirm()
   const [pending, startTransition] = useTransition()
+  const [error, setError] = useState<string | null>(null)
 
   async function handleDisconnect() {
     if (integrationKey !== 'gmail') return
+    setError(null)
     if (
       !(await confirm({
         title: `Disconnect ${account.sub}?`,
@@ -249,7 +253,11 @@ function AccountRow({ integrationKey, account }: { integrationKey: string; accou
     )
       return
     startTransition(async () => {
-      await disconnectMailbox(account.id)
+      const r = await runAction(async () => {
+        await disconnectMailbox(account.id)
+        return { ok: true as const }
+      })
+      if (!r.ok) setError(r.error)
       router.refresh()
     })
   }
@@ -270,6 +278,12 @@ function AccountRow({ integrationKey, account }: { integrationKey: string; accou
           {pill && <StatusPill tone={pill.tone} label={pill.label} title={account.syncError ?? undefined} />}
         </div>
         <p className="truncate text-xs text-gray-500 dark:text-gray-400">{account.sub}</p>
+        {error && (
+          <p className="mt-0.5 text-xs text-rose-600 dark:text-rose-400" role="alert">
+            {error}
+            <StaleRefresh error={error} />
+          </p>
+        )}
         {/* Health line — every value here is real (last_sync_at + live unread).
             When the mailbox errored, surface the actual sync_error message. */}
         {account.syncStatus === 'error' && account.syncError ? (
