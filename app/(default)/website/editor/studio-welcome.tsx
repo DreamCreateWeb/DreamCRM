@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import Modal from '@/components/ui/modal'
 
 const SEEN_KEY = 'dc-studio-welcome-done'
 
@@ -31,16 +32,6 @@ export default function StudioWelcome() {
     }
   }
 
-  useEffect(() => {
-    if (!show) return
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') dismiss()
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [show])
-
   if (!show) return null
 
   const tips: Array<{ icon: string; title: string; body: string }> = [
@@ -67,16 +58,8 @@ export default function StudioWelcome() {
   ]
 
   return (
-    <div
-      className="fixed inset-0 z-[75] flex items-center justify-center bg-black/50 p-4"
-      role="dialog"
-      aria-modal="true"
-      aria-label="Welcome to the Website Studio"
-      onMouseDown={(e) => {
-        if (e.target === e.currentTarget) dismiss()
-      }}
-    >
-      <div className="w-full max-w-md rounded-[var(--r-lg)] bg-gray-900 border border-gray-700 shadow-2xl p-6 sm:p-7">
+    <Modal open onClose={dismiss} label="Welcome to the Website Studio" size="md" layer="top" className="bg-gray-900 border border-gray-700" initialFocusSelector="[data-welcome-start]">
+      <div className="p-6 sm:p-7">
         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-teal-400 mb-2">
           Your website, editable in place
         </p>
@@ -99,12 +82,12 @@ export default function StudioWelcome() {
         <button
           type="button"
           onClick={dismiss}
-          autoFocus
+          data-welcome-start=""
           className="w-full rounded-lg bg-teal-600 hover:bg-teal-700 text-white text-sm font-semibold py-2.5 transition-colors"
         >
           Start editing
         </button>
       </div>
-    </div>
+    </Modal>
   )
 }

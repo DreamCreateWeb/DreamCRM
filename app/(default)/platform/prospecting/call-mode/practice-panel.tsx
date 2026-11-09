@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useTransition } from 'react'
 import { ActionButton } from '@/components/ui/action-button'
-import { useFocusTrap } from '@/components/ui/use-focus-trap'
+import Modal from '@/components/ui/modal'
 import type { PracticeTurn, PracticeFeedback } from '@/lib/services/practice-call'
 import { practiceReplyAction, practiceFeedbackAction } from '../admin-actions'
 
@@ -30,8 +30,6 @@ export default function PracticePanel({
   const [coaching, startCoaching] = useTransition()
   const opened = useRef(false)
   const scrollRef = useRef<HTMLDivElement>(null)
-  const panelRef = useRef<HTMLDivElement>(null)
-  useFocusTrap(true, panelRef, { onEscape: onClose })
 
   // They answer the phone when the booth opens.
   useEffect(() => {
@@ -73,18 +71,7 @@ export default function PracticePanel({
   }
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-4 sm:items-center"
-      onClick={onClose}
-    >
-      <div
-        ref={panelRef}
-        role="dialog"
-        aria-modal="true"
-        aria-label={`Rehearsal — ${prospectName}`}
-        onClick={(e) => e.stopPropagation()}
-        className="flex max-h-[85vh] w-full max-w-lg flex-col rounded-[var(--r-lg)] bg-white shadow-2xl ring-1 ring-[color:var(--color-hairline)] dark:bg-gray-800"
-      >
+    <Modal open onClose={onClose} label={`Rehearsal — ${prospectName}`} size="lg">
         {/* Header */}
         <div className="flex items-center justify-between gap-2 border-b border-[color:var(--color-hairline)] px-4 py-3">
           <div>
@@ -212,7 +199,6 @@ export default function PracticePanel({
             </div>
           )}
         </div>
-      </div>
-    </div>
+    </Modal>
   )
 }

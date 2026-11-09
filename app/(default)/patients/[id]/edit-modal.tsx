@@ -1,10 +1,10 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { useRef, useState, useTransition } from 'react'
+import { useState, useTransition } from 'react'
 import type { PatientHeader } from '@/lib/services/patients'
 import { ActionButton } from '@/components/ui/action-button'
-import { useFocusTrap } from '@/components/ui/use-focus-trap'
+import Modal from '@/components/ui/modal'
 import { FieldError } from '@/components/ui/field-error'
 import { validateRequired, validateEmail, validatePhone, collectErrors } from '@/lib/validation'
 import PatientCombobox from '@/components/ui/patient-combobox'
@@ -24,8 +24,6 @@ export default function EditPatientModal({
   const [error, setError] = useState<string | null>(null)
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [pending, startTransition] = useTransition()
-  const dialogRef = useRef<HTMLDivElement>(null)
-  useFocusTrap(true, dialogRef, { onEscape: onClose })
 
   const [firstName, setFirstName] = useState(header.firstName)
   const [lastName, setLastName] = useState(header.lastName)
@@ -82,8 +80,7 @@ export default function EditPatientModal({
   }
 
   return (
-    <div ref={dialogRef} role="dialog" aria-modal="true" aria-label="Edit patient" className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-[color:var(--color-ink-900)]/30 backdrop-blur-[2px] px-2 sm:px-4">
-      <div className="section-enter bg-[color:var(--color-surface-2)] rounded-t-[var(--r-lg)] sm:rounded-[var(--r-lg)] shadow-[var(--shadow-modal)] w-full max-w-lg flex flex-col max-h-[90vh]">
+    <Modal open onClose={onClose} blocking={pending} label="Edit patient" size="lg">
         <div className="px-6 py-5 border-b border-[color:var(--color-hairline)] flex items-start justify-between gap-3">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Edit {header.fullName}</h2>
           <button
@@ -197,8 +194,7 @@ export default function EditPatientModal({
             Save changes
           </ActionButton>
         </div>
-      </div>
-    </div>
+    </Modal>
   )
 }
 

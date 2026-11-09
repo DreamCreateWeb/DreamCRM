@@ -1,8 +1,8 @@
 'use client'
 
-import { Fragment, useState, useTransition } from 'react'
+import { useState, useTransition } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { Dialog, DialogPanel, Transition, TransitionChild } from '@headlessui/react'
+import Modal from '@/components/ui/modal'
 import { createManagedClinicAction, checkManagedClinicSlugAction } from './admin-actions'
 import { PLANS, type BillingInterval } from '@/lib/stripe-config'
 import { runAction } from '@/lib/run-action'
@@ -183,26 +183,12 @@ export default function AddClinicModal({ partners = [] }: { partners?: PartnerOp
         + Add clinic
       </ActionButton>
 
-      <Transition show={open} as={Fragment}>
-        <Dialog onClose={() => setOpen(false)} className="relative z-50">
-          <TransitionChild
-            as={Fragment}
-            enter="ease-out duration-200" enterFrom="opacity-0" enterTo="opacity-100"
-            leave="ease-in duration-150" leaveFrom="opacity-100" leaveTo="opacity-0"
-          >
-            <div className="fixed inset-0 bg-[color:var(--color-ink-900)]/40" aria-hidden="true" />
-          </TransitionChild>
-          <TransitionChild
-            as={Fragment}
-            enter="ease-out duration-200" enterFrom="opacity-0 scale-95" enterTo="opacity-100 scale-100"
-            leave="ease-in duration-150" leaveFrom="opacity-100 scale-100" leaveTo="opacity-0 scale-95"
-          >
-            <div className="fixed inset-0 flex items-center justify-center p-4 overflow-y-auto">
-              <DialogPanel className="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-[var(--r-lg)] bg-white dark:bg-gray-800 shadow-lg p-6">
+      <Modal open={open} onClose={() => setOpen(false)} blocking={pending} labelledBy="modal-title" size="lg">
+        <div className="p-6">
                 {created ? (
                   <div role="status" className="text-center py-4">
                     <div className="text-3xl mb-3" aria-hidden="true">📨</div>
-                    <h2 className="text-lg font-bold text-gray-800 dark:text-gray-100 mb-2">
+                    <h2 id="modal-title" className="text-lg font-bold text-gray-800 dark:text-gray-100 mb-2">
                       {created.already ? `Already set up — ${created.ownerEmail} was invited before` : `Invite sent to ${created.ownerEmail}`}
                     </h2>
                     <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">
@@ -452,11 +438,8 @@ export default function AddClinicModal({ partners = [] }: { partners?: PartnerOp
                     </form>
                   </>
                 )}
-              </DialogPanel>
-            </div>
-          </TransitionChild>
-        </Dialog>
-      </Transition>
+                      </div>
+      </Modal>
     </>
   )
 }
