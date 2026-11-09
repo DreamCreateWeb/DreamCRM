@@ -1,9 +1,9 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react'
+import { useCallback, useEffect, useMemo, useState, useTransition } from 'react'
 import { ActionButton } from '@/components/ui/action-button'
-import { useFocusTrap } from '@/components/ui/use-focus-trap'
+import Modal from '@/components/ui/modal'
 import { MANUAL_TIME, SlotGrid, isDateKey, localDateKey } from '@/components/appointments/slot-grid'
 import { ACTION_FAILED_MESSAGE, STALE_APP_MESSAGE, isDeploymentSkewError } from '@/lib/deployment-skew'
 import type { BookingSlot } from '@/lib/services/booking'
@@ -54,8 +54,6 @@ export default function BookFromPatientDrawer({
   onBooked?: (pmsNote: string | null) => void
 }) {
   const router = useRouter()
-  const dialogRef = useRef<HTMLDivElement>(null)
-  useFocusTrap(true, dialogRef, { onEscape: onClose })
   const [dateStr, setDateStr] = useState(() => {
     if (isDateKey(defaultDate)) return defaultDate
     const d = new Date()
@@ -186,8 +184,7 @@ export default function BookFromPatientDrawer({
   }
 
   return (
-    <div ref={dialogRef} role="dialog" aria-modal="true" aria-label="Book appointment" className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-[color:var(--color-ink-900)]/30 backdrop-blur-[2px] px-2 sm:px-4">
-      <div className="section-enter bg-[color:var(--color-surface-2)] rounded-t-[var(--r-lg)] sm:rounded-[var(--r-lg)] shadow-[var(--shadow-modal)] w-full max-w-md flex flex-col max-h-[92vh]">
+    <Modal open onClose={onClose} blocking={pending} label="Book appointment" size="md">
         <div className="px-6 py-5 border-b border-[color:var(--color-hairline)]">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Book appointment</h2>
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">For <strong>{patientName}</strong></p>
@@ -295,7 +292,6 @@ export default function BookFromPatientDrawer({
             Book appointment
           </ActionButton>
         </div>
-      </div>
-    </div>
+    </Modal>
   )
 }

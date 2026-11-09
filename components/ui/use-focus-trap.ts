@@ -26,9 +26,9 @@ const FOCUSABLE_SELECTOR = [
 export function useFocusTrap(
   active: boolean,
   ref: RefObject<HTMLElement | null>,
-  opts: { onEscape?: () => void; restoreFocus?: boolean; initialFocus?: boolean } = {},
+  opts: { onEscape?: () => void; restoreFocus?: boolean; initialFocus?: boolean; focusSelector?: string } = {},
 ): void {
-  const { onEscape, restoreFocus = true, initialFocus = true } = opts
+  const { onEscape, restoreFocus = true, initialFocus = true, focusSelector } = opts
 
   useEffect(() => {
     if (!active) return
@@ -41,7 +41,10 @@ export function useFocusTrap(
 
     if (initialFocus) {
       const els = focusables()
-      if (els.length > 0) {
+      const target = focusSelector ? container.querySelector<HTMLElement>(focusSelector) : null
+      if (target) {
+        target.focus()
+      } else if (els.length > 0) {
         els[0].focus()
       } else {
         container.tabIndex = -1
@@ -82,5 +85,5 @@ export function useFocusTrap(
         previouslyFocused.focus()
       }
     }
-  }, [active, ref, onEscape, restoreFocus, initialFocus])
+  }, [active, ref, onEscape, restoreFocus, initialFocus, focusSelector])
 }

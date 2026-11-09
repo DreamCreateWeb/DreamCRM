@@ -1,11 +1,11 @@
 'use client'
 
-import { useRef, useState, useTransition } from 'react'
+import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import type { PipelineStage } from '@/lib/marketing/terminology'
 import { createLeadAction } from '../actions'
 import { ActionButton } from '@/components/ui/action-button'
-import { useFocusTrap } from '@/components/ui/use-focus-trap'
+import Modal from '@/components/ui/modal'
 import { useToast } from '@/components/ui/toast'
 
 interface Props {
@@ -19,8 +19,6 @@ export default function AddLeadButton({ stages, sources }: Props) {
   const [open, setOpen] = useState(false)
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
-  const panelRef = useRef<HTMLDivElement>(null)
-  useFocusTrap(open, panelRef, { onEscape: () => { if (!pending) setOpen(false) } })
   const [form, setForm] = useState({
     name: '',
     email: '',
@@ -66,18 +64,7 @@ export default function AddLeadButton({ stages, sources }: Props) {
       </ActionButton>
 
       {open && (
-        <div
-          className="fixed inset-0 z-50 bg-[color:var(--color-ink-900)]/40 backdrop-blur-[2px] flex items-center justify-center p-4"
-          onClick={() => setOpen(false)}
-        >
-          <div
-            ref={panelRef}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="add-lead-title"
-            className="section-enter bg-[color:var(--color-surface-2)] rounded-[var(--r-lg)] shadow-[var(--shadow-modal)] w-full max-w-md p-5"
-            onClick={(e) => e.stopPropagation()}
-          >
+        <Modal open onClose={() => setOpen(false)} blocking={pending} label="Add lead" size="md">
             <div className="mb-4 flex items-start justify-between gap-2">
               <h2 id="add-lead-title" className="text-base font-semibold text-gray-800 dark:text-gray-100">
                 Add lead
@@ -176,8 +163,7 @@ export default function AddLeadButton({ stages, sources }: Props) {
                 Add
               </ActionButton>
             </div>
-          </div>
-        </div>
+        </Modal>
       )}
     </>
   )

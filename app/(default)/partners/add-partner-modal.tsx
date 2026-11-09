@@ -1,7 +1,7 @@
 'use client'
 
-import { Fragment, useState, useTransition } from 'react'
-import { Dialog, DialogPanel, Transition, TransitionChild } from '@headlessui/react'
+import { useState, useTransition } from 'react'
+import Modal from '@/components/ui/modal'
 import { ActionButton } from '@/components/ui/action-button'
 import { createPartnerAction } from './admin-actions'
 
@@ -62,26 +62,12 @@ export default function AddPartnerModal() {
         + Add partner
       </ActionButton>
 
-      <Transition show={open} as={Fragment}>
-        <Dialog onClose={() => setOpen(false)} className="relative z-50">
-          <TransitionChild
-            as={Fragment}
-            enter="ease-out duration-200" enterFrom="opacity-0" enterTo="opacity-100"
-            leave="ease-in duration-150" leaveFrom="opacity-100" leaveTo="opacity-0"
-          >
-            <div className="fixed inset-0 bg-gray-900/40" aria-hidden="true" />
-          </TransitionChild>
-          <TransitionChild
-            as={Fragment}
-            enter="ease-out duration-200" enterFrom="opacity-0 scale-95" enterTo="opacity-100 scale-100"
-            leave="ease-in duration-150" leaveFrom="opacity-100 scale-100" leaveTo="opacity-0 scale-95"
-          >
-            <div className="fixed inset-0 flex items-center justify-center p-4 overflow-y-auto">
-              <DialogPanel className="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-[var(--r-lg)] bg-white dark:bg-gray-800 shadow-lg p-6">
+      <Modal open={open} onClose={() => setOpen(false)} blocking={pending} labelledBy="modal-title" size="lg">
+        <div className="p-6">
                 {createdEmail ? (
                   <div className="text-center py-4">
                     <div className="text-3xl mb-3" aria-hidden="true">📨</div>
-                    <h2 className="text-lg font-bold text-gray-800 dark:text-gray-100 mb-2">
+                    <h2 id="modal-title" className="text-lg font-bold text-gray-800 dark:text-gray-100 mb-2">
                       Invite sent to {createdEmail}
                     </h2>
                     <p className="text-sm text-gray-500 dark:text-gray-400 mb-5">
@@ -156,11 +142,8 @@ export default function AddPartnerModal() {
                     </form>
                   </>
                 )}
-              </DialogPanel>
-            </div>
-          </TransitionChild>
-        </Dialog>
-      </Transition>
+                      </div>
+      </Modal>
     </>
   )
 }

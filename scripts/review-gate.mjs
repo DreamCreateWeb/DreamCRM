@@ -683,6 +683,16 @@ export const INTAKE_RULES = [
       //     directive prologue, so a module that declares it mid-file, or a
       //     function-level directive, is not an action module to this rule.
       'tests/ui/no-bare-await.test.ts',
+      // The one-Modal-primitive guard (2026-11-09, ML-56). A tree walk with
+      // the TypeScript parser over `app` and `components`: a JSX
+      // `role="dialog"` or a Headless UI `Dialog` import may appear only in
+      // `components/ui/modal.tsx` or on a DATED, SHRINK-ONLY allowlist of
+      // overlays that are deliberately not modals (side drawers, popovers,
+      // the lightbox, the command palette), each with its reason. Class: a
+      // tree walk (the parser-based census). Blind spots: a fixed overlay
+      // with neither `role="dialog"` nor a Headless `Dialog`, and a role
+      // built through a spread or a variable.
+      'tests/ui/no-hand-rolled-modal.test.ts',
       // The PORTAL half of the same guard (2026-11-03, ML-03). It reuses
       // `scanTree` from tests/ui/no-bare-await.test.ts over `app/(portal)`,
       // the token landings (`app/d app/i app/n app/r`) and

@@ -1,8 +1,8 @@
 'use client'
 
-import { useRef, useMemo, useState, useTransition } from 'react'
+import { useMemo, useState, useTransition } from 'react'
 import { SearchInput } from '@/components/ui/search-input'
-import { useFocusTrap } from '@/components/ui/use-focus-trap'
+import Modal from '@/components/ui/modal'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import type { ClinicListRow } from '@/lib/services/clinics'
@@ -336,9 +336,6 @@ function DeleteClinicModal({ clinic, onClose }: { clinic: ClinicListRow; onClose
   const router = useRouter()
   const [typed, setTyped] = useState('')
   const [pending, startTransition] = useTransition()
-  const panelRef = useRef<HTMLDivElement>(null)
-  // Tab stays inside; focus restores on close; Esc dismisses (never mid-delete).
-  useFocusTrap(true, panelRef, { onEscape: () => { if (!pending) onClose() } })
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<{ name: string; subscriptionCanceled: boolean } | null>(null)
   const matches = typed.trim() === clinic.slug
@@ -368,18 +365,7 @@ function DeleteClinicModal({ clinic, onClose }: { clinic: ClinicListRow; onClose
   }
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-[color:var(--color-ink-900)]/40 px-2 sm:px-4"
-      onClick={() => { if (!pending) onClose() }}
-    >
-      <div
-        ref={panelRef}
-        role="dialog"
-        aria-modal="true"
-        aria-label={result ? 'Clinic deleted' : `Delete ${clinic.displayName ?? clinic.name}`}
-        onClick={(e) => e.stopPropagation()}
-        className="bg-white dark:bg-gray-800 rounded-t-[var(--r-lg)] sm:rounded-[var(--r-lg)] shadow-[var(--shadow-modal)] w-full max-w-md flex flex-col"
-      >
+    <Modal open onClose={onClose} blocking={pending} label={result ? 'Clinic deleted' : `Delete ${clinic.displayName ?? clinic.name}`} size="md">
         <div className="px-6 py-5 border-b border-gray-100 dark:border-gray-700/60">
           <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100">
             {result ? 'Clinic deleted' : `Delete ${clinic.displayName ?? clinic.name}?`}
@@ -448,8 +434,7 @@ function DeleteClinicModal({ clinic, onClose }: { clinic: ClinicListRow; onClose
             </div>
           </>
         )}
-      </div>
-    </div>
+    </Modal>
   )
 }
 

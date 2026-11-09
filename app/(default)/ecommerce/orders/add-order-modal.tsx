@@ -1,7 +1,7 @@
 'use client'
 
-import { Fragment, useState, useTransition } from 'react'
-import { Dialog, DialogPanel, Transition, TransitionChild } from '@headlessui/react'
+import { useState, useTransition } from 'react'
+import Modal from '@/components/ui/modal'
 import { addOrder } from './actions'
 import { TONE_PILL } from '@/lib/ui/encodings'
 
@@ -56,32 +56,9 @@ export default function AddOrderModal({ customers }: { customers: CustomerOption
         <span className="max-xs:sr-only">Add Order</span>
       </button>
 
-      <Transition show={open} as={Fragment}>
-        <Dialog onClose={() => setOpen(false)} className="relative z-50">
-          <TransitionChild
-            as={Fragment}
-            enter="ease-out duration-200"
-            enterFrom="opacity-0"
-            enterTo="opacity-100"
-            leave="ease-in duration-150"
-            leaveFrom="opacity-100"
-            leaveTo="opacity-0"
-          >
-            <div className="fixed inset-0 bg-gray-900/60" aria-hidden="true" />
-          </TransitionChild>
-          <div className="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-4">
-            <TransitionChild
-              as={Fragment}
-              enter="ease-out duration-200"
-              enterFrom="opacity-0 scale-95"
-              enterTo="opacity-100 scale-100"
-              leave="ease-in duration-150"
-              leaveFrom="opacity-100 scale-100"
-              leaveTo="opacity-0 scale-95"
-            >
-              <DialogPanel className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full">
+      <Modal open={open} onClose={() => setOpen(false)} blocking={pending} labelledBy="modal-title" size="md">
                 <div className="px-5 py-4 border-b border-gray-200 dark:border-gray-700/60">
-                  <h2 className="font-semibold text-gray-800 dark:text-gray-100">Add Order</h2>
+                  <h2 id="modal-title" className="font-semibold text-gray-800 dark:text-gray-100">Add Order</h2>
                 </div>
                 <form onSubmit={onSubmit}>
                   <div className="px-5 py-4 space-y-4">
@@ -161,11 +138,7 @@ export default function AddOrderModal({ customers }: { customers: CustomerOption
                     </button>
                   </div>
                 </form>
-              </DialogPanel>
-            </TransitionChild>
-          </div>
-        </Dialog>
-      </Transition>
+                    </Modal>
     </>
   )
 }
