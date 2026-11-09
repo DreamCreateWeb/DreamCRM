@@ -165,6 +165,11 @@ export const SETTINGS_SEARCH_INDEX: SettingsSearchEntry[] = [
     keywords: ['message templates', 'canned responses', 'saved replies', 'quick replies', 'snippets', 'messages composer', 'reply templates'],
   },
   {
+    surface: 'clinic', href: '/settings/closures', page: 'Holiday closures',
+    label: 'Holiday closures & days off',
+    keywords: ['closures', 'holiday', 'holidays', 'closed', 'days off', 'thanksgiving', 'christmas', 'vacation', 'closed days', 'special hours'],
+  },
+  {
     surface: 'clinic', href: '/settings/locations', page: 'Locations',
     label: 'Practice locations',
     keywords: ['locations', 'address', 'multi-location', 'branches', 'offices'],

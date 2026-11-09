@@ -217,7 +217,10 @@ function clinicWeekdayKey(timeZone?: string | null): string {
 export function todaysHoursLabel(
   hours: Record<string, HourEntry> | null | undefined,
   timeZone?: string | null,
+  /** Today's stated closure (ML-51), when the clinic has one — it beats the grid. */
+  closureToday?: { label?: string | null } | null,
 ): string {
+  if (closureToday) return closureToday.label ? `Closed today · ${closureToday.label}` : 'Closed today'
   // Defensive: a fresh clinic can have null hours and some callers don't guard.
   if (!hours || typeof hours !== 'object') return 'Closed today'
   const entry = hours[clinicWeekdayKey(timeZone)]

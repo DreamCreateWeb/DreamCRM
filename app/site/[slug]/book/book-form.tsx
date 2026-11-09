@@ -131,7 +131,7 @@ function fmtDayLabel(key: string, timeZone: string): string {
  * Exported for unit testing — the BookForm is the only render-side caller.
  */
 export function emptySlotsCopy(slots: BookingSlot[], closedReason: SlotsClosedReason | null): string {
-  if (closedReason === 'day_closed') return "We're closed this day. Try another day."
+  if (closedReason === 'day_closed' || closedReason === 'closure') return "We're closed this day. Try another day."
   if (closedReason === 'past_closing') {
     return "We're done seeing patients for today. Try tomorrow or later this week."
   }

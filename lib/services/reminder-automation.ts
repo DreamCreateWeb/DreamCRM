@@ -34,6 +34,8 @@ import { clinicDayKey } from '@/lib/format-datetime'
 import { bookedTooRecently, confirmationCoversBooking, isInsideSendWindow } from '@/lib/reminder-hours'
 import type { ClinicSender } from '@/lib/email-identity'
 import { reportAutomationFailure } from '@/lib/services/engine-failures'
+import { closureOn, type ClosureRange } from '@/lib/closures'
+import { resolveClinicTimeZone } from '@/lib/clinic-timezone'
 
 // ── Settings CRUD (Settings → Reminders) ─────────────────────────────────────
 
@@ -708,6 +710,20 @@ export async function runDueReminders(opts?: { now?: Date }): Promise<ReminderRu
     const windowEnd = new Date(now.getTime() + offsets[0] * 60 * 60 * 1000)
     const gapCutoff = new Date(now.getTime() - REMINDER_MIN_GAP_HOURS * 60 * 60 * 1000)
 
+    // ML-51: the practice's stated closures across the scan window. A visit
+    // that sits on a closed day (booked before the closure was stated) is
+    // never told "see you tomorrow" — the touch is held, nothing is written,
+    // and the digest names the clash to the desk. An unreadable list means
+    // "none stated" (the reminder is worth more than the guard).
+    let closures: ClosureRange[] = []
+    try {
+      const { listClosuresAhead } = await import('@/lib/services/closures')
+      closures = await listClosuresAhead(profile.organizationId, profile.timezone, Math.ceil(offsets[0] / 24) + 2, now)
+    } catch {
+      closures = []
+    }
+    const clinicTz = resolveClinicTimeZone(profile.timezone)
+
     // Can this clinic text? Decides whether phone-only patients are even
     // CANDIDATES. One read per org; deliverSms re-enforces the law at send
     // time, so this is a scan optimisation, not the gate itself.
@@ -797,6 +813,12 @@ export async function runDueReminders(opts?: { now?: Date }): Promise<ReminderRu
 
     for (const c of candidates) {
       result.candidates++
+
+      // A closed clinic-local day gets no reminder (see the closures read above).
+      if (closures.length > 0 && closureOn(clinicDayKey(c.startTime as Date, clinicTz), closures)) {
+        result.skipped++
+        continue
+      }
 
       // Pick this appointment's due touch: the SMALLEST offset whose window
       // has opened (hoursUntil <= offset). A visit booked inside a larger

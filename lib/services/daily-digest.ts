@@ -1,14 +1,14 @@
 import 'server-only'
 import { ALL_ON, parseDoorsClosed, type FeatureKey } from '@/lib/feature-switches'
 import { randomBytes } from 'crypto'
-import { and, eq, ne } from 'drizzle-orm'
+import { and, count, eq, gte, inArray, lt, ne } from 'drizzle-orm'
 import { listShutDownOrgIds } from './billing-state'
 import { db, schema } from '@/lib/db'
 import { getMyDay, type MyDayData } from '@/lib/services/my-day'
 import { getDigestOptOutUserIds } from '@/lib/services/staff-notification-pref'
 import { getWeeklySiteDigest, type SiteTraffic } from '@/lib/services/site-analytics'
 import { sendStaffDigestEmail, type DigestEmailSection } from '@/lib/email'
-import { clinicLocalDate, clinicLocalHour, resolveClinicTimeZone } from '@/lib/clinic-timezone'
+import { clinicDayInstant, clinicLocalDate, clinicLocalHour, resolveClinicTimeZone } from '@/lib/clinic-timezone'
 import { formatDueLabel } from '@/lib/types/followups'
 import { sweepClinics } from '@/lib/services/cron-sweep'
 import type { SweepProgress } from '@/lib/cron-budget'
@@ -19,6 +19,7 @@ import { getReadinessReport } from '@/lib/services/readiness'
 import { listPendingOnUs, readMergedActivation } from '@/lib/services/first-week'
 import { dayNumber } from '@/lib/first-week'
 import { buildMorningAfter, type MorningAfter } from '@/lib/morning-after'
+import { addDaysToKey, digestClosureNotes, type DigestClosureNotes } from '@/lib/closures'
 
 /**
  * Morning digest — the cockpit, delivered. A daily cron emails each staff member
@@ -120,6 +121,8 @@ export function buildDigestContent(
   morning?: MorningAfter | null,
   /** The clinic's doors (law 1): a closed Follow-ups / Inquiries door keeps its list and its subject word out of the email. Defaults open. */
   doors?: { followups?: boolean; leads?: boolean } | null,
+  /** ML-51: what the digest says about the practice's closures. */
+  closure?: DigestClosureNotes | null,
 ): DigestContent {
   // A closed door's list is not a to-do (verification round 2: the Overview
   // hides the follow-ups card with its door; the email must agree).
@@ -133,7 +136,9 @@ export function buildDigestContent(
   const routine =
     followupsDue > 0 || unconfirmed > 0 || conversations > 0 || leads > 0 || balanceCount > 0 || proposals > 0 ||
     auditItems.length > 0
-  const hasContent = routine || !!websiteSection || !!morning?.sendsAlone
+  // Monday's closure heads-up is news on its own; "closed today" only colours
+  // the day it already has (a closed day is not a quiet one — it says why).
+  const hasContent = routine || !!websiteSection || !!morning?.sendsAlone || !!closure?.weekLine
 
   const sections: DigestEmailSection[] = []
   const parts: string[] = []
@@ -212,6 +217,11 @@ export function buildDigestContent(
     parts.push(morning.waitingOn)
     sections.push({ heading: 'Still on the platform', lines: morning.waitingOn.split('\n').filter((l) => l.trim()) })
   }
+  if (closure?.weekLine) {
+    parts.push('')
+    parts.push(closure.weekLine)
+    sections.push({ heading: 'Closed this week', lines: [closure.weekLine.replace(/^🗓️\s*/, '')] })
+  }
   if (websiteSection) {
     parts.push('')
     parts.push(websiteSection)
@@ -226,6 +236,10 @@ export function buildDigestContent(
   if (morning?.quietLine) {
     parts.push(morning.quietLine)
     closing = morning.quietLine
+  } else if (closure?.todayLine) {
+    parts.push('')
+    parts.push(closure.todayLine)
+    closing = closure.todayLine
   } else if (!hasContent) {
     parts.push("You're all caught up — nothing needs you this morning. Have a great day.")
     closing = "You're all caught up — nothing needs you this morning. Have a great day."
@@ -446,6 +460,26 @@ export async function runDailyDigest(opts?: { now?: Date }): Promise<DigestRunRe
       websiteSection = null
     }
 
+    // ML-51: the closures this digest names, read ONCE per clinic and strictly
+    // best-effort. Monday names the coming week's closure(s) (each in exactly
+    // one Monday's email); a closed today gets its own line.
+    let closureNotes: DigestClosureNotes | null = null
+    try {
+      const today = sentOn
+      const { listClosures } = await import('@/lib/services/closures')
+      const closures = await listClosures(clinic.organizationId, today, addDaysToKey(today, 6))
+      if (closures.length > 0) {
+        const isMonday = new Intl.DateTimeFormat('en-US', { timeZone: resolveClinicTimeZone(clinic.timezone), weekday: 'short' }).format(now) === 'Mon'
+        const base = digestClosureNotes({ closures, todayKey: today, isMonday })
+        const booked = base.weekLine
+          ? await countVisitsOnClosures(clinic.organizationId, closures.filter((c) => c.startsOn > today), clinic.timezone)
+          : 0
+        closureNotes = digestClosureNotes({ closures, todayKey: today, isMonday, bookedOnClosure: booked })
+      }
+    } catch {
+      closureNotes = null
+    }
+
     // The morning after (S7): once per clinic, best-effort.
     const morning = await readMorningAfter(clinic.organizationId, clinic.createdAt ?? now, now)
     // The button must land on a page the clinic HAS: My Day is a switch, and
@@ -460,7 +494,7 @@ export async function runDailyDigest(opts?: { now?: Date }): Promise<DigestRunRe
         if (settled.has(s.userId)) { result.skippedAlready++; continue }
 
         const data = await getMyDay(clinic.organizationId, s.userId)
-        const content = buildDigestContent(data, clinic.clinicName ?? 'your clinic', websiteSection, morning, { followups: switches.followups, leads: switches.leads })
+        const content = buildDigestContent(data, clinic.clinicName ?? 'your clinic', websiteSection, morning, { followups: switches.followups, leads: switches.leads }, closureNotes)
         if (!content.hasContent) {
           // Settle the day for a quiet person too (see the header comment).
           await claimDay(clinic.organizationId, s.userId, sentOn).catch(() => undefined)
@@ -521,4 +555,31 @@ async function claimDay(organizationId: string, userId: string, sentOn: string):
 
 function isUniqueViolation(err: unknown): boolean {
   return !!err && typeof err === 'object' && 'code' in err && (err as { code?: string }).code === '23505'
+}
+
+/** Live visits already booked on closed days (they get no reminder — the desk should ring them). */
+async function countVisitsOnClosures(
+  organizationId: string,
+  closures: Array<{ startsOn: string; endsOn: string }>,
+  timeZone: string | null | undefined,
+): Promise<number> {
+  let n = 0
+  for (const c of closures) {
+    const from = clinicDayInstant(c.startsOn, timeZone, 0)
+    const to = clinicDayInstant(addDaysToKey(c.endsOn, 1), timeZone, 0)
+    if (!from || !to) continue
+    const [row] = await db
+      .select({ n: count() })
+      .from(schema.appointment)
+      .where(
+        and(
+          eq(schema.appointment.organizationId, organizationId),
+          inArray(schema.appointment.status, ['scheduled', 'confirmed']),
+          gte(schema.appointment.startTime, from),
+          lt(schema.appointment.startTime, to),
+        ),
+      )
+    n += Number(row?.n ?? 0)
+  }
+  return n
 }

@@ -29,7 +29,7 @@ export interface SiteDay {
 /** Serialisable weekly schedule. A missing key is a closed day. */
 export type SiteWeek = Partial<Record<DayKey, SiteDay>>
 
-/** A date the office is closed (ML-51's holiday closures plug in here). */
+/** A date the office is closed (ML-51's holiday closures — `expandClosureDays` in lib/closures.ts builds these from the stored ranges). */
 export interface SiteClosure {
   /** Clinic-local calendar date, YYYY-MM-DD. */
   date: string
@@ -135,15 +135,28 @@ export function clinicLocalNow(now: Date, timeZone: string | null | undefined): 
   }
 }
 
+const MONTH_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+function monthDay(date: string): string {
+  const [, m, d] = date.split('-').map(Number)
+  return `${MONTH_SHORT[m - 1]} ${d}`
+}
+
 function hourLabel(mins: number): string {
   const m = mins >= 1440 ? 1439 : mins
   return fmt12(`${Math.floor(m / 60)}:${String(m % 60).padStart(2, '0')}`).replace(':00 ', ' ')
 }
 
 /** "Today · 8 AM – 5 PM" / "Today · Closed" — null when no hours are known. */
-export function todayHoursLine(week: SiteWeek | null, now: Date, timeZone?: string | null): string | null {
+export function todayHoursLine(
+  week: SiteWeek | null,
+  now: Date,
+  timeZone?: string | null,
+  closures?: ReadonlyArray<SiteClosure> | null,
+): string | null {
   if (!week) return null
-  const { day } = clinicLocalNow(now, timeZone)
+  const { day, date } = clinicLocalNow(now, timeZone)
+  const closure = closures?.find((c) => c.date === date)
+  if (closure) return closure.label ? `Today · Closed for ${closure.label}` : 'Today · Closed'
   const d = week[day]
   if (!d) return 'Today · Closed'
   if (d.byAppointment && d.periods.length === 0) return 'Today · By appointment'
@@ -178,16 +191,24 @@ export function openNowLabel(
     if (later) return `Closed now · opens today at ${hourLabel(later[0])}`
   }
 
-  const lead = todayClosure || !today ? 'Closed today' : 'Closed now'
-  // Walk forward (clinic-local days) to the next open window.
+  const lead = todayClosure
+    ? todayClosure.label
+      ? `Closed for ${todayClosure.label}`
+      : 'Closed today'
+    : !today
+      ? 'Closed today'
+      : 'Closed now'
+  // Walk forward (clinic-local days) to the next open window. Three weeks
+  // reaches past any plausible closure run (the week repeats, so a window
+  // found on step 8+ only happens when closures swallowed a whole week).
   const startIdx = DAY_KEYS.indexOf(local.day)
   const [y, mo, d0] = local.date.split('-').map(Number)
-  for (let step = 1; step <= 7; step++) {
+  for (let step = 1; step <= 21; step++) {
     const key = DAY_KEYS[(startIdx + step) % 7]
     const date = new Date(Date.UTC(y, mo - 1, d0 + step)).toISOString().slice(0, 10)
     const day = week[key]
     if (!day || closedOn(date)) continue
-    const when = step === 1 ? 'tomorrow' : LONG[key]
+    const when = step === 1 ? 'tomorrow' : step <= 7 ? LONG[key] : `${LONG[key]} ${monthDay(date)}`
     const first = day.periods[0]
     return first ? `${lead} · opens ${when} ${hourLabel(first[0])}` : `${lead} · opens ${when} by appointment`
   }

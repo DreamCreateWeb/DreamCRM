@@ -39,7 +39,7 @@ function addDaysToKey(key: string, days: number): string {
 }
 
 export function emptySlotsCopy(slots: BookingSlot[], closedReason: SlotsClosedReason | null): string {
-  if (closedReason === 'day_closed') return 'We’re closed this day — try another one.'
+  if (closedReason === 'day_closed' || closedReason === 'closure') return 'We’re closed this day — try another one.'
   if (closedReason === 'past_closing') return 'We’re done seeing patients today — try tomorrow.'
   if (closedReason === 'invalid_hours') return 'Online booking isn’t set up for this day — give us a call.'
   if (slots.length === 0) return 'We’re closed this day — try another one.'

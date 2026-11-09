@@ -51,11 +51,32 @@ export type SlotsClosedReason =
   | 'past_closing'
   /** Hours config exists but is malformed (open/close strings unparseable). */
   | 'invalid_hours'
+  /** The practice stated a closure for this day (ML-51 — a holiday, a retreat);
+   *  `SlotsForDay.closureLabel` names it. Beats the weekly grid. */
+  | 'closure'
 
 export interface SlotsForDay {
   slots: BookingSlot[]
   /** Set when `slots` is empty due to a closed-day or past-closing condition. */
   closedReason: SlotsClosedReason | null
+  /** The closure's own name ("Thanksgiving") when `closedReason` is 'closure'. */
+  closureLabel?: string
+}
+
+/** ML-51's ONE booking read of a stated closure. A failed read says "not
+ *  closed" — a degraded slot list beats a dead booking page (the write path's
+ *  re-check goes through the same grid, so it is the safety net). */
+async function readClosure(organizationId: string, dateKey: string): Promise<{ label: string } | null> {
+  try {
+    // Lazy: the closures service pulls the clinic schema, and the slot engine's
+    // many harness mocks never needed it at import time.
+    const { closureOnDay } = await import('@/lib/services/closures')
+    const c = await closureOnDay(organizationId, dateKey)
+    return c ? { label: c.label } : null
+  } catch (e) {
+    console.warn('[booking] closure read failed — treating the day as open:', e)
+    return null
+  }
 }
 
 interface HourEntry {
@@ -131,6 +152,11 @@ export async function getSlotsForDay(
     typeof date === 'string' && DATE_KEY_RE.test(date)
       ? date
       : formatOdDate(date instanceof Date ? date : new Date(date), timeZone)
+
+  // A stated closure beats the weekly grid: no slot on a closed day, for the
+  // public site, the portal AND the front desk's reschedule drawer.
+  const closure = await readClosure(organizationId, dateKey)
+  if (closure) return { slots: [], closedReason: 'closure', closureLabel: closure.label }
 
   const entry = hours[DAY_KEYS[dayOfWeekForDateKey(dateKey)]]
   if (!entry || entry.closed || !entry.open || !entry.close) {
@@ -506,6 +532,10 @@ export async function getBookableSlotsForDay(
         durationMinutes && Number.isFinite(durationMinutes) && durationMinutes > 0
           ? Math.round(durationMinutes)
           : SLOT_MINUTES
+      // Their engine does not know our closures — the practice's own stated
+      // day off wins before any PMS call is made.
+      const closure = await readClosure(organizationId, dateKey)
+      if (closure) return { slots: [], closedReason: 'closure', closureLabel: closure.label, source: 'pms' }
       const raw = await fetchPmsSlotsForDay(binding, organizationId, dateKey, timeZone, duration)
       if (raw) {
         const earliestBookable =

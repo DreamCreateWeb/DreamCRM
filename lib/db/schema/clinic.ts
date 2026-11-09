@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm'
 import { pgTable, text, timestamp, integer, boolean, jsonb, uniqueIndex, index, primaryKey, numeric, serial } from 'drizzle-orm/pg-core'
+import { pgTable, text, timestamp, integer, boolean, jsonb, date, uniqueIndex, index, primaryKey } from 'drizzle-orm/pg-core'
 import { organization, user } from './auth'
 import { clinicLocation } from './platform'
 import { FORMS_REMINDER_TEMPLATE } from '@/lib/types/reminders'
@@ -289,6 +290,29 @@ export const patientInsurance = pgTable(
   ],
 )
 export type PatientInsuranceRow = typeof patientInsurance.$inferSelect
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CLINIC CLOSURES (ML-51). A closure is stated ONCE — a clinic-local DAY range
+// (date columns, never instants) with a label — and every door reads it through
+// lib/services/closures.ts: booking slots, the public site, reminders, the
+// digest. The practice's own list; GBP special hours are a separate READ-ONLY
+// source shown beside it, never merged into these rows.
+// ─────────────────────────────────────────────────────────────────────────────
+export const clinicClosure = pgTable(
+  'clinic_closure',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id, { onDelete: 'cascade' }),
+    startsOn: date('starts_on', { mode: 'string' }).notNull(),
+    endsOn: date('ends_on', { mode: 'string' }).notNull(),
+    label: text('label').notNull(),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (t) => [index('clinic_closure_org_starts_idx').on(t.organizationId, t.startsOn)],
+)
+export type ClinicClosureRow = typeof clinicClosure.$inferSelect
 
 // ─────────────────────────────────────────────────────────────────────────────
 // THE PAYER NOTEBOOK (2026-10-08). Half of a desk's verification phone call
