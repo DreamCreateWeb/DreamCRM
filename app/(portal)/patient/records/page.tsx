@@ -19,8 +19,9 @@ import {
 import { fmtVisitDayShort } from '@/components/patient-portal/format'
 import { portalVisitLabel } from '@/lib/portal-visit-label'
 import { getFeatureSwitchState } from '@/lib/services/feature-switches'
-import { getLatestInsuranceCheckForPatient } from '@/lib/services/insurance-eligibility'
-import { portalInsuranceNote } from '@/lib/portal-insurance-note'
+import { getLatestInsuranceCheckForPatient, listPatientInsurance } from '@/lib/services/insurance-eligibility'
+import { portalInsurancePlans } from '@/lib/portal-insurance-note'
+import type { InsuranceCheckView } from '@/lib/insurance-eligibility'
 import RequestRecordsCard from './request-records'
 
 function InfoRow({ label, value }: { label: string; value: string | null }) {
@@ -41,24 +42,31 @@ export default async function PortalRecordsPage() {
   requirePortalFeature(pc, 'records')
   const { ctx, clinic, brand, timeZone } = pc
 
-  const [records, switches, latestCheck] = await Promise.all([
+  const [records, switches, latestCheck, plans] = await Promise.all([
     getMyRecords(ctx.patientId, ctx.organizationId),
     getFeatureSwitchState(ctx.organizationId),
     // Org-scoped + keyed on THIS login's patient: never a family member's card.
-    getLatestInsuranceCheckForPatient(ctx.organizationId, ctx.patientId).catch(() => null),
+    getLatestInsuranceCheckForPatient(ctx.organizationId, ctx.patientId, 'primary').catch(() => null),
+    listPatientInsurance(ctx.organizationId, ctx.patientId).catch(() => []),
   ])
   if (!records) return null
   const p = records.patient
-  const insuranceNote = portalInsuranceNote({
+  const secondaryCard = plans.find((c) => c.rank === 'secondary') ?? null
+  // The secondary's own last check — read only when the practice's tool is on AND a second plan exists.
+  const secondaryCheck =
+    secondaryCard && switches.insurance
+      ? await getLatestInsuranceCheckForPatient(ctx.organizationId, ctx.patientId, 'secondary').catch(() => null)
+      : null
+  const noteCheck = (c: InsuranceCheckView | null) =>
+    c?.result ? { status: c.status, checkedAtIso: c.checkedAtIso, planName: c.result.planName, payerName: c.result.payerName } : null
+  const insurancePlans = portalInsurancePlans({
     toolOn: switches.insurance,
-    check: latestCheck?.result
-      ? {
-          status: latestCheck.status,
-          checkedAtIso: latestCheck.checkedAtIso,
-          planName: latestCheck.result.planName,
-          payerName: latestCheck.result.payerName,
-        }
+    primary: { carrier: p.insuranceProvider, memberId: p.insurancePolicyNumber, groupNumber: p.insuranceGroupNumber },
+    primaryCheck: noteCheck(latestCheck),
+    secondary: secondaryCard
+      ? { carrier: secondaryCard.provider, memberId: secondaryCard.policyNumber, groupNumber: secondaryCard.groupNumber }
       : null,
+    secondaryCheck: noteCheck(secondaryCheck),
     timeZone,
   })
   // An empty room always has a way forward: book if the portal books, else
@@ -173,17 +181,26 @@ export default async function PortalRecordsPage() {
       <section className="mt-7">
         <PortalSectionLabel>Insurance on file</PortalSectionLabel>
         <PortalCard>
-          <InfoRow label="Carrier" value={p.insuranceProvider} />
-          <InfoRow label="Member ID" value={p.insurancePolicyNumber} />
-          <InfoRow label="Group number" value={p.insuranceGroupNumber} />
-          {insuranceNote && (
-            <p
-              className="mt-2 text-[0.8rem] leading-relaxed"
-              style={{ color: insuranceNote.tone === 'verified' ? PORTAL_SUCCESS_INK : PORTAL_MUTED }}
-            >
-              {insuranceNote.text}
-            </p>
-          )}
+          {insurancePlans.map((plan, i) => (
+            <div key={plan.rank} className={i > 0 ? 'mt-4 pt-4' : undefined} style={i > 0 ? { borderTop: `1px solid ${PORTAL_BORDER}` } : undefined} data-testid={`portal-plan-${plan.rank}`}>
+              {plan.heading && (
+                <p className="mb-1 text-[0.8rem] font-semibold uppercase tracking-wide" style={{ color: PORTAL_MUTED }}>
+                  {plan.heading}
+                </p>
+              )}
+              <InfoRow label="Carrier" value={plan.carrier} />
+              <InfoRow label="Member ID" value={plan.memberId} />
+              <InfoRow label="Group number" value={plan.groupNumber} />
+              {plan.note && (
+                <p
+                  className="mt-2 text-[0.8rem] leading-relaxed"
+                  style={{ color: plan.note.tone === 'verified' ? PORTAL_SUCCESS_INK : PORTAL_MUTED }}
+                >
+                  {plan.note.text}
+                </p>
+              )}
+            </div>
+          ))}
         </PortalCard>
       </section>
 

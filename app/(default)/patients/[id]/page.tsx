@@ -13,7 +13,7 @@ import { findMergeCandidates } from '@/lib/services/patient-merge'
 import { getReferralContext } from '@/lib/services/patient-referrals'
 import { getLoyaltySettings, getPointsBalance, listLoyaltyEvents } from '@/lib/services/loyalty'
 import { listFormTemplates } from '@/lib/services/forms'
-import { getInsuranceSetup, getLatestInsuranceCheckForPatient, listInsuranceChecksForPatient } from '@/lib/services/insurance-eligibility'
+import { getInsuranceSetup, getLatestInsuranceCheckForPatient, listInsuranceChecksForPatient, listPatientInsurance } from '@/lib/services/insurance-eligibility'
 import { getLatestDiscoveryForPatient } from '@/lib/services/insurance-eligibility/discovery'
 import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
 import { getClinicCadence } from '@/lib/services/clinic-cadence'
@@ -38,7 +38,7 @@ export default async function PatientDetailPage({ params }: PageProps) {
   if (ctx.tenantType === 'platform') redirect('/ecommerce/customers')
 
   const { id } = await params
-  const [header, timeline, notes, forms, tags, tagCatalog, documents, followups, staff, family, referral, latestInsuranceCheck, timeZone, insuranceHistory, insuranceSetup, latestDiscovery] =
+  const [header, timeline, notes, forms, tags, tagCatalog, documents, followups, staff, family, referral, latestInsuranceCheck, timeZone, insuranceHistory, insuranceSetup, latestDiscovery, planCards, latestSecondaryCheck] =
     await Promise.all([
       getPatientHeader(ctx.organizationId, id),
       getPatientTimeline(ctx.organizationId, id),
@@ -56,6 +56,8 @@ export default async function PatientDetailPage({ params }: PageProps) {
       listInsuranceChecksForPatient(ctx.organizationId, id, 10),
       canUseInsuranceTool(ctx) ? getInsuranceSetup(ctx.organizationId) : Promise.resolve(null),
       canUseInsuranceTool(ctx) ? getLatestDiscoveryForPatient(ctx.organizationId, id).catch(() => null) : Promise.resolve(null),
+      canUseInsuranceTool(ctx) ? listPatientInsurance(ctx.organizationId, id).catch(() => []) : Promise.resolve([]),
+      canUseInsuranceTool(ctx) ? getLatestInsuranceCheckForPatient(ctx.organizationId, id, 'secondary').catch(() => null) : Promise.resolve(null),
     ])
   if (!header) notFound()
   // A merged tombstone isn't a real record anymore — send old links to the survivor.
@@ -91,6 +93,21 @@ export default async function PatientDetailPage({ params }: PageProps) {
   // tool on from /insurance (the intro card).
   const recheck = recheckRequest(header, latestInsuranceCheck)
   const onFileRequest = recheck.request
+  const secondaryCard = planCards.find((c) => c.rank === 'secondary') ?? null
+  const secondaryRecheck = secondaryCard
+    ? recheckRequest(
+        {
+          firstName: header.firstName,
+          lastName: header.lastName,
+          dateOfBirth: header.dateOfBirth,
+          insuranceProvider: secondaryCard.provider,
+          insurancePolicyNumber: secondaryCard.policyNumber,
+          insuranceGroupNumber: secondaryCard.groupNumber,
+          insuranceDetail: secondaryCard.detail,
+        },
+        latestSecondaryCheck,
+      )
+    : null
   const insurance = insuranceSetup?.enabled
     ? {
         latest: latestInsuranceCheck,
@@ -113,6 +130,18 @@ export default async function PatientDetailPage({ params }: PageProps) {
         // The no-card door: test mode can't search (Stedi refuses it), so the
         // card doesn't offer what the tool would only refuse.
         canDiscover: insuranceSetup.driver !== 'stedi_test',
+        secondary: {
+          card: secondaryCard ? { provider: secondaryCard.provider, policyNumber: secondaryCard.policyNumber, groupNumber: secondaryCard.groupNumber } : null,
+          latest: latestSecondaryCheck,
+          onFileRequest: secondaryRecheck?.request ?? null,
+          cardChanged: secondaryRecheck?.cardChanged ?? false,
+          needsPayerPick:
+            insuranceSetup.driver !== 'sandbox' &&
+            !!secondaryCard?.provider &&
+            !secondaryRecheck?.request.payerId &&
+            !latestSecondaryCheck?.input.payerId,
+          needsNpi: insuranceSetup.needsNpi,
+        },
         discovery: latestDiscovery ? { status: latestDiscovery.status, coveragesFound: latestDiscovery.coveragesFound, createdAtIso: latestDiscovery.createdAtIso } : null,
       }
     : null

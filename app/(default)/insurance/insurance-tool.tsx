@@ -51,7 +51,7 @@ import {
 } from '@/lib/insurance-eligibility'
 import { checkInsuranceAction, createPatientFromCheckAction, disableInsuranceAction, saveInsuranceToPatientAction, searchPayersAction } from './actions'
 import { FactChip, HeroAmount, TierTile } from './benefit-visuals'
-import { CopySummaryButton, PrintBenefitsButton, PrintableBenefits } from './benefits-sheet'
+import { CopySummaryButton, PrintBenefitsButton, PrintableBenefits, type SheetPlans } from './benefits-sheet'
 import { PayerNotebookCard } from './payer-notebook-card'
 import { fullBreakdownAction, getPayerNoteAction } from './actions'
 import { BREAKDOWN_COPY } from '@/lib/insurance-breakdown'
@@ -144,7 +144,19 @@ export interface InsuranceToolProps {
   recent: InsuranceCheckView[]
   carriers: string[]
   timeZone: string
-  prefill: { patientId: string; patientName: string; request: Partial<EligibilityRequest>; state?: string | null; postalCode?: string | null } | null
+  prefill: {
+    patientId: string
+    patientName: string
+    request: Partial<EligibilityRequest>
+    state?: string | null
+    postalCode?: string | null
+    /** The plan slot this form is about (ML-50); absent = primary. */
+    rank?: 'primary' | 'secondary'
+    /** The record carries a second plan — the "Which plan?" toggle shows. */
+    hasSecondary?: boolean
+    /** Both plans for the printable sheet (only when the record carries two). */
+    sheetPlans?: SheetPlans | null
+  } | null
   initialCheck: InsuranceCheckView | null
   driver: InsuranceDriverId
   /** Live driver, no practice NPI: the form is parked behind the readiness notice. */
@@ -269,7 +281,7 @@ export default function InsuranceTool({
     setDuplicate(null)
     setBusy('check')
     startTransition(async () => {
-      const r = await runAction(() => checkInsuranceAction(raw, prefill?.patientId ?? null))
+      const r = await runAction(() => checkInsuranceAction(raw, prefill?.patientId ?? null, prefill?.rank))
       setBusy(null)
       if (!r.ok) {
         setErrors(failureErrors(r))
@@ -306,7 +318,7 @@ export default function InsuranceTool({
     setDuplicate(null)
     setBusy('breakdown')
     startTransition(async () => {
-      const r = await runAction(() => fullBreakdownAction(current.input, current.patientId ?? prefill?.patientId ?? null))
+      const r = await runAction(() => fullBreakdownAction(current.input, current.patientId ?? prefill?.patientId ?? null, prefill?.rank))
       setBusy(null)
       if (!r.ok) {
         const errs = failureErrors(r)
@@ -340,7 +352,7 @@ export default function InsuranceTool({
           form.relationship === 'self'
             ? null
             : { firstName: form.subFirstName, lastName: form.subLastName, dateOfBirth: form.subDateOfBirth },
-      }))
+      }, prefill.rank))
       setBusy(null)
       if (r.ok) {
         toast(`Saved to ${prefill.patientName}’s record.`)
@@ -468,6 +480,23 @@ export default function InsuranceTool({
                     </Link>
                     . Edits here don’t change their record until you save them.
                   </p>
+                )}
+                {prefill?.hasSecondary && (
+                  <div className="mt-2" role="group" aria-label="Which plan?" data-testid="which-plan">
+                    <p className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold">Which plan?</p>
+                    <div className="mt-1 inline-flex gap-1">
+                      {(['primary', 'secondary'] as const).map((r) => (
+                        <Link
+                          key={r}
+                          href={r === 'primary' ? `/insurance?patient=${prefill.patientId}` : `/insurance?patient=${prefill.patientId}&plan=secondary`}
+                          aria-current={(prefill.rank ?? 'primary') === r ? 'true' : undefined}
+                          className={`rounded-full px-3 py-1 text-xs font-medium ${(prefill.rank ?? 'primary') === r ? 'bg-teal-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700/60 dark:text-gray-200'}`}
+                        >
+                          {r === 'primary' ? 'Primary' : 'Secondary'}
+                        </Link>
+                      ))}
+                    </div>
+                  </div>
                 )}
               </div>
               <div className="grid grid-cols-2 gap-3">
@@ -726,7 +755,7 @@ export default function InsuranceTool({
               />
             </div>
           )}
-          {current && current.status !== 'error' && <PrintableBenefits check={current} clinicName={orgName} timeZone={timeZone} practice={payerNote} />}
+          {current && current.status !== 'error' && <PrintableBenefits check={current} clinicName={orgName} timeZone={timeZone} practice={payerNote} plans={prefill?.sheetPlans ?? null} />}
         </section>
       </div>
 

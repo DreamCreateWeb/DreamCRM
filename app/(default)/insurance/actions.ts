@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { requireTenant } from '@/lib/auth/context'
 import {
   INSURANCE_RELATIONSHIPS,
+  asInsuranceRank,
   canUseInsuranceTool,
   detailFromRequest,
   resolveInsuranceDriverId,
@@ -15,9 +16,11 @@ import {
   attachInsuranceCheckToPatient,
   disableInsuranceTool,
   enableInsuranceTool,
+  removeSecondaryInsurance,
   runEligibilityCheck,
   runFullBreakdown,
   searchPayers,
+  upsertPatientInsurance,
   type RunEligibilityCheckResult,
 } from '@/lib/services/insurance-eligibility'
 import type { StediPayerMatch } from '@/lib/stedi-eligibility'
@@ -74,12 +77,15 @@ export async function disableInsuranceAction(): Promise<{ ok: true } | { ok: fal
 export async function checkInsuranceAction(
   input: unknown,
   patientId: string | null,
+  /** Which plan this check is for; omitted = the primary (ML-50). A person's tap, never automatic. */
+  rank?: string,
 ): Promise<RunEligibilityCheckResult> {
   const ctx = await clinicCtx()
   if (!ctx) return { ok: false, errors: { _form: 'Insurance checks are a clinic feature.' } }
   const r = await runEligibilityCheck(ctx.organizationId, {
     input,
     patientId,
+    rank: asInsuranceRank(rank),
     userId: ctx.userId,
   })
   if (r.ok) {
@@ -91,10 +97,10 @@ export async function checkInsuranceAction(
 
 /** Payer typeahead for the Stedi drivers — the exact payer, not a carrier name. */
 /** THE FULL BREAKDOWN (2026-10-08): the per-procedure asks, same gate as a check. */
-export async function fullBreakdownAction(input: unknown, patientId: string | null): Promise<RunEligibilityCheckResult> {
+export async function fullBreakdownAction(input: unknown, patientId: string | null, rank?: string): Promise<RunEligibilityCheckResult> {
   const ctx = await clinicCtx()
   if (!ctx) return { ok: false, errors: { _form: 'Insurance checks are a clinic feature.' } }
-  const r = await runFullBreakdown(ctx.organizationId, { input, patientId, userId: ctx.userId })
+  const r = await runFullBreakdown(ctx.organizationId, { input, patientId, rank: asInsuranceRank(rank), userId: ctx.userId })
   if (r.ok) {
     revalidatePath('/insurance')
     if (r.check.patientId) revalidatePath(`/patients/${r.check.patientId}`)
@@ -143,6 +149,8 @@ function personOf(v: unknown): EligibilityPerson | null {
 export async function saveInsuranceToPatientAction(
   patientId: string,
   fields: SaveInsuranceFields,
+  /** Which plan slot to save to; omitted = the primary (ML-50). */
+  rank?: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const ctx = await clinicCtx()
   if (!ctx) return { ok: false, error: 'Insurance checks are a clinic feature.' }
@@ -151,6 +159,31 @@ export async function saveInsuranceToPatientAction(
   if (!carrier || !memberId) return { ok: false, error: 'Carrier and member ID are required.' }
   const relationship = relationshipOf(fields.relationship)
   const subscriber = relationship === 'self' ? null : personOf(fields.subscriber)
+  if (asInsuranceRank(rank) === 'secondary') {
+    const detail = detailFromRequest(
+      {
+        patient: { firstName: '', lastName: '', dateOfBirth: '' },
+        carrierName: carrier,
+        memberId,
+        groupNumber: fields.groupNumber?.trim() || null,
+        relationship,
+        subscriber,
+        payerId: fields.payerId?.trim() || null,
+        payerName: fields.payerName?.trim() || null,
+      },
+      fields.planName ? { payerName: fields.payerName?.trim() || carrier, planName: fields.planName, coverage: { effective: null, termination: null } } : null,
+      'staff',
+    )
+    const ok = await upsertPatientInsurance(ctx.organizationId, patientId, 'secondary', {
+      provider: carrier,
+      policyNumber: memberId,
+      groupNumber: fields.groupNumber?.trim() || null,
+      detail,
+    })
+    if (!ok) return { ok: false, error: 'Could not save to the patient.' }
+    revalidatePath(`/patients/${patientId}`)
+    return { ok: true }
+  }
   try {
     await updatePatient({
       organizationId: ctx.organizationId,
@@ -181,6 +214,32 @@ export async function saveInsuranceToPatientAction(
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : 'Could not save to the patient.' }
   }
+}
+
+/**
+ * ML-50: add, change or clear the SECOND plan on a record. Its own card (carrier,
+ * member id, group); the primary is never touched here. Empty carrier AND member
+ * id clears it. Saving never runs a check — that stays a person's tap.
+ */
+export async function saveSecondaryInsuranceAction(
+  patientId: string,
+  fields: { carrierName: string; memberId: string; groupNumber: string | null },
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const ctx = await clinicCtx()
+  if (!ctx) return { ok: false, error: 'Insurance checks are a clinic feature.' }
+  const carrier = String(fields?.carrierName ?? '').trim().slice(0, 120)
+  const memberId = String(fields?.memberId ?? '').trim().slice(0, 120)
+  const group = String(fields?.groupNumber ?? '').trim().slice(0, 120) || null
+  if (!carrier && !memberId && !group) {
+    if (!(await patientBelongsToOrg(ctx.organizationId, patientId))) return { ok: false, error: 'That patient isn’t on this record.' }
+    await removeSecondaryInsurance(ctx.organizationId, patientId)
+  } else {
+    if (!carrier || !memberId) return { ok: false, error: 'A second plan needs a carrier and a member ID.' }
+    const ok = await upsertPatientInsurance(ctx.organizationId, patientId, 'secondary', { provider: carrier, policyNumber: memberId, groupNumber: group })
+    if (!ok) return { ok: false, error: 'Could not save the second plan.' }
+  }
+  revalidatePath(`/patients/${patientId}`)
+  return { ok: true }
 }
 
 /**

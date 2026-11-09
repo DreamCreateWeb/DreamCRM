@@ -13,12 +13,14 @@ import {
   getInsuranceSetup,
   getLatestInsuranceCheckForPatient,
   listCarrierSuggestions,
+  listPatientInsurance,
   listRecentInsuranceChecks,
 } from '@/lib/services/insurance-eligibility'
 import { getPatientHeader } from '@/lib/services/patients'
 import { getPayerNote } from '@/lib/services/insurance-eligibility/payer-notebook'
 import { getDiscoveryUsage, getLatestDiscoveryForPatient } from '@/lib/services/insurance-eligibility/discovery'
 import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
+import { formatClinicDate } from '@/lib/format-datetime'
 import ModuleHint from '@/components/onboarding/module-hint'
 import InsuranceTool from './insurance-tool'
 import InsuranceIntro from './intro'
@@ -45,17 +47,18 @@ export default async function InsurancePage({ searchParams }: PageProps) {
   const patientParam = typeof params.patient === 'string' ? params.patient.trim() : ''
   const checkParam = typeof params.check === 'string' ? params.check.trim() : ''
   const discoverParam = params.discover === '1'
+  const planParam = params.plan === 'secondary' ? 'secondary' : 'primary'
   // The lead drawer's door: what the visitor typed on the website, as a
   // starting point for the form (the carrier is the payer picker's QUERY).
   const clip = (v: string | string[] | undefined) => (typeof v === 'string' ? v.trim().slice(0, 120) : '')
   const startWith = !patientParam && (clip(params.payer) || clip(params.name)) ? { carrier: clip(params.payer), name: clip(params.name) } : null
 
-  const [recent, carriers, timeZone, header, latestForPatient, linked, discoveryUsage, latestDiscovery] = await Promise.all([
+  const [recent, carriers, timeZone, header, latestForPatient, linked, discoveryUsage, latestDiscovery, planCards, otherRankLatest] = await Promise.all([
     listRecentInsuranceChecks(ctx.organizationId, 50),
     listCarrierSuggestions(ctx.organizationId),
     getClinicTimeZone(ctx.organizationId),
     patientParam ? getPatientHeader(ctx.organizationId, patientParam) : Promise.resolve(null),
-    patientParam ? getLatestInsuranceCheckForPatient(ctx.organizationId, patientParam) : Promise.resolve(null),
+    patientParam ? getLatestInsuranceCheckForPatient(ctx.organizationId, patientParam, planParam) : Promise.resolve(null),
     // A history-drawer deep link: one specific stored check, org-scoped — a
     // foreign or unknown id simply yields nothing and the page opens as usual.
     checkParam ? getInsuranceCheckById(ctx.organizationId, checkParam) : Promise.resolve(null),
@@ -64,7 +67,13 @@ export default async function InsurancePage({ searchParams }: PageProps) {
     // so a pending one can be picked back up.
     setup.driver === 'stedi' ? getDiscoveryUsage(ctx.organizationId) : Promise.resolve(null),
     patientParam ? getLatestDiscoveryForPatient(ctx.organizationId, patientParam).catch(() => null) : Promise.resolve(null),
+    patientParam ? listPatientInsurance(ctx.organizationId, patientParam).catch(() => []) : Promise.resolve([]),
+    // The OTHER plan's latest check, so the printable sheet can say when each plan was last verified.
+    patientParam ? getLatestInsuranceCheckForPatient(ctx.organizationId, patientParam, planParam === 'secondary' ? 'primary' : 'secondary').catch(() => null) : Promise.resolve(null),
   ])
+  const secondaryCard = planCards.find((c) => c.rank === 'secondary') ?? null
+  // ?plan=secondary on a record without one falls back to the primary (never an empty "secondary" form).
+  const rank = planParam === 'secondary' && secondaryCard ? 'secondary' : 'primary'
   // The linked check wins over "latest" only when it belongs to the same patient the page is about.
   const latest = linked && (!patientParam || linked.patientId === patientParam) ? linked : latestForPatient
 
@@ -80,7 +89,34 @@ export default async function InsurancePage({ searchParams }: PageProps) {
           // staff) wins, with the remembered detail riding along when it
           // still matches. ONE rule, shared with the record's rail card
           // (`recheckRequest`), so the two can never disagree again.
-          request: recheckRequest(header, latest).request,
+          request: recheckRequest(
+            rank === 'secondary' && secondaryCard
+              ? {
+                  firstName: header.firstName,
+                  lastName: header.lastName,
+                  dateOfBirth: header.dateOfBirth,
+                  insuranceProvider: secondaryCard.provider,
+                  insurancePolicyNumber: secondaryCard.policyNumber,
+                  insuranceGroupNumber: secondaryCard.groupNumber,
+                  insuranceDetail: secondaryCard.detail,
+                }
+              : header,
+            latest,
+          ).request,
+          rank: rank as 'primary' | 'secondary',
+          hasSecondary: !!secondaryCard,
+          sheetPlans: secondaryCard
+            ? (() => {
+                const verifiedLine = (c: typeof latestForPatient) =>
+                  c && c.status === 'active' ? `Verified ${formatClinicDate(new Date(c.checkedAtIso), timeZone)}` : null
+                const primaryCard = planCards.find((c) => c.rank === 'primary') ?? null
+                const primaryCheck = rank === 'primary' ? latestForPatient : otherRankLatest
+                const secondaryCheck = rank === 'secondary' ? latestForPatient : otherRankLatest
+                const slot = (c: { provider: string | null; policyNumber: string | null; groupNumber: string | null } | null, chk: typeof latestForPatient) =>
+                  c ? { carrier: c.provider, memberId: c.policyNumber, groupNumber: c.groupNumber, verified: verifiedLine(chk) } : null
+                return { primary: slot(primaryCard, primaryCheck), secondary: slot(secondaryCard, secondaryCheck) }
+              })()
+            : null,
           state: header.state,
           postalCode: header.postalCode,
         }

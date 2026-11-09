@@ -582,8 +582,17 @@ export function tierForCdt(code: string): CoverageTier | null {
 
 /** The serialisable shape of one stored check — what services return and
  *  server actions hand to client components (ISO strings, no Dates). */
+/** ML-50: which coverage slot a card or a check is about. */
+export type InsuranceRank = 'primary' | 'secondary'
+export const INSURANCE_RANK_LABEL: Record<InsuranceRank, string> = { primary: 'Primary', secondary: 'Secondary' }
+export function asInsuranceRank(v: unknown): InsuranceRank {
+  return v === 'secondary' ? 'secondary' : 'primary'
+}
+
 export interface InsuranceCheckView {
   id: string
+  /** The plan slot this check verified (older rows: primary). */
+  rank?: InsuranceRank
   patientId: string | null
   patientName: string | null
   driver: InsuranceDriverId

@@ -680,6 +680,7 @@ export async function writeBackIntakeAnswers(
       .where(and(eq(patient.organizationId, organizationId), eq(patient.id, patientId)))
   }
   if (await writeBackIntakeInsurance(organizationId, patientId, schema, data)) filled.push('insurance')
+  if (await writeBackIntakeSecondaryInsurance(organizationId, patientId, schema, data)) filled.push('secondary insurance')
   return filled
 }
 
@@ -787,6 +788,56 @@ export async function writeBackIntakeInsurance(
     .set({ ...patch, updatedAt: new Date() })
     .where(and(eq(patient.organizationId, organizationId), eq(patient.id, patientId)))
   return true
+}
+
+const INTAKE_SECONDARY_KEYS = ['insurance_secondary_provider', 'insurance_secondary_policy_number', 'insurance_secondary_group_number'] as const
+type IntakeSecondaryKey = (typeof INTAKE_SECONDARY_KEYS)[number]
+
+/** The three SECONDARY-plan answers a submission carries — trimmed strings only. */
+export function intakeSecondaryInsuranceAnswers(schema: FormTemplateSchema, data: FormSubmissionData): Partial<Record<IntakeSecondaryKey, string>> {
+  const out: Partial<Record<IntakeSecondaryKey, string>> = {}
+  for (const section of schema?.sections ?? []) {
+    for (const field of section.fields ?? []) {
+      const key = field.systemKey as IntakeSecondaryKey | null | undefined
+      if (!key || !INTAKE_SECONDARY_KEYS.includes(key)) continue
+      const v = (data as Record<string, unknown>)[field.id]
+      if (typeof v === 'string' && v.trim()) out[key] = v.trim().slice(0, 120)
+    }
+  }
+  return out
+}
+
+/**
+ * ML-50: a form that carries `insurance_secondary_*` keys fills the patient's
+ * SECONDARY slot — only the blanks of it, never the primary (which this does
+ * not read or write). A second plan whose member id is the primary's own is
+ * the same card typed twice and is ignored. Returns true when a slot changed.
+ */
+export async function writeBackIntakeSecondaryInsurance(
+  organizationId: string,
+  patientId: string,
+  schema: FormTemplateSchema,
+  data: FormSubmissionData,
+): Promise<boolean> {
+  const a = intakeSecondaryInsuranceAnswers(schema, data)
+  if (Object.keys(a).length === 0) return false
+  const { listPatientInsurance, upsertPatientInsurance } = await import('@/lib/services/insurance-eligibility/plans')
+  const cards = await listPatientInsurance(organizationId, patientId)
+  const primary = cards.find((c) => c.rank === 'primary')
+  const second = cards.find((c) => c.rank === 'secondary')
+  const member = a.insurance_secondary_policy_number ?? null
+  if (member && primary?.policyNumber && primary.policyNumber.trim().toLowerCase() === member.toLowerCase()) return false
+  const next = {
+    provider: second?.provider ?? a.insurance_secondary_provider ?? null,
+    policyNumber: second?.policyNumber ?? member,
+    groupNumber: second?.groupNumber ?? a.insurance_secondary_group_number ?? null,
+  }
+  if (second && next.provider === second.provider && next.policyNumber === second.policyNumber && next.groupNumber === second.groupNumber) return false
+  // A new member id retires any remembered card of the old one (detail is trusted only while it matches).
+  return upsertPatientInsurance(organizationId, patientId, 'secondary', {
+    ...next,
+    ...(next.policyNumber !== (second?.policyNumber ?? null) ? { detail: null } : {}),
+  })
 }
 
 export async function listSubmissionsForPatient(
