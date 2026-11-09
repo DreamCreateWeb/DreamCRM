@@ -6172,6 +6172,81 @@ template with no bar, or a bar hidden above `sm`, measures 0 and nothing
 moves. The right-aligned pairs on established and hometeam are
 deliberately not tagged — the bottom-left floaters never meet them.
 
+## 2026-11-09 — The deep dev cycle, part 11: seven feature slices (group 12)
+
+Seven slices merged as true merges on the part-10 head; TWO regenerated
+migrations (0186 for the partner share code + the second insurance plan,
+ML-50's hand-written backfill re-added by hand; 0187 for the clinic's
+email domain — regenerated so its snapshot carries 0186's tables). ML-36
+and ML-39 both released a capability and extended the registry maps at the
+same spots — resolved by hand keeping both; `PREVIEW_CAPABILITIES` is down
+to membership_rescue / order_update / consent.
+
+**ML-36 — the newsletter files itself; Growth knows what the team did.**
+`newsletter` leaves PREVIEW with its generator + executor: on the
+clinic-local first weekday of the month, one ask-first card (needs a post
+published since the last issue and an opted-in email); the yes creates a
+DRAFT campaign and never sends (pinned); `teamDidIt` is one read behind
+`TeamDidItBand` on the Growth hub, Reviews, Social and Outreach; the plan
+card's social pieces take a photo (`validatePlanPhoto`).
+
+**ML-46 — partners get a link; a clinic that signs up through it is
+credited.** `referral_partner.share_code` (unique, minted lazily); `?ref=`
+→ a 30-day httpOnly `partner_ref` cookie on marketing landings only;
+`submitOnboarding` credits once, guarded by `referral_partner_id IS NULL`;
+the partner portal's "Your link" card; Standing through the ONE read
+instead of a Plan column; `clinic_profile.referral_source`.
+
+**ML-39 — word of mouth; the referral ask.** The Growth hub's Word of
+mouth row (`getWordOfMouthCounts`: distinct new patients this clinic-local
+month with `source = 'referral'` or `referred_by_patient_id`, against the
+same point last month); `referral_ask` leaves PREVIEW and becomes
+grantable — a promoter (NPS 9–10 or a 5★ review-request rating in 14
+clinic-local days) asked once, ever; ≤3/org/pass; the real share link
+through the clinic sender; the portal's refer card reads "N friends joined
+through you". Follow-up: the row counts first-seen (as the scoreboard
+does), not seated.
+
+**ML-53 — tables fit a phone.** `TableFit` in components/ui/data-table.tsx
+is the one recipe (a labelled `role="region"` that scrolls sideways; below
+`sm` `.table-fit` pins the first column; secondary columns fold into the
+primary cell through `FoldedFacts`); eleven tables in eight files adopt
+it; /payments/online and /growth/reviews join the 390/834/1440 e2e walk;
+DESIGN-SYSTEM.md gains "Tables on a phone".
+
+**ML-50 — a second insurance plan.** `patient_insurance` (one row per
+org / patient / rank; the primary backfilled from the flat columns);
+`insurance_verification.rank`; the record's Secondary plan card; the
+tool's "Which plan?" toggle; the printable sheet shows both; intake's
+`insurance_secondary_*` system keys; the portal's Records page shows both
+plans' "last verified" (`portalInsurancePlans` extends ML-49's note); a
+merge carries the duplicate's secondary. Checks stay MANUAL. Follow-up:
+the primary is still READ from the flat columns until the PMS sync, the
+portal profile and the edit modal write the table.
+
+**ML-52 — every subpage wears the practice's template.** Twelve subpage
+bodies become slots on the template type; every shell keeps its reads /
+SEO / gates and renders `siteTemplate.pages.subpages.<key>`; Modern's
+bodies moved verbatim to `templates/modern/*`; every template declares
+each key's provenance in `subpageSource`; `BlogChrome` wears the active
+template's chrome; the five non-Modern templates own their Services body
+(`ServicesSkin` over `templates/shared/services-layout.tsx`). Follow-up:
+the other eleven subpages share Modern's body by declared reference.
+
+**ML-63 — patient email from the practice's own domain.** Tier 3 in
+`resolveSenderTier` (lib/email-identity.ts): once the site is ACTIVE on
+its custom domain and Resend reports the domain VERIFIED, From becomes
+`{Clinic} <hello@their-domain>`; Reply-To stays the platform inbound
+address (MX never touched); a designated Gmail (Tier 2) still wins; until
+verified Tier 1 keeps sending. `lib/services/email-domain.ts` registers
+the bare apex with Resend (idempotent), checks + stamps `verifiedAt`, drops
+Resend's receiving-MX row so the card never asks for MX; the existing
+custom-domains sweep also checks pending email domains (no new cron;
+strikes under the `custom_domain` producer); the Domain page's card shows
+the records with Copy, the status and which records are missing.
+Follow-ups: nothing retries a `failed` domain; removing the custom domain
+does not clean up the Resend domain.
+
 ## 2026-11-09 — The deep dev cycle, part 10: three feature slices (group 11)
 
 Three public-facing slices (the marketing site, the clinic sites, the
