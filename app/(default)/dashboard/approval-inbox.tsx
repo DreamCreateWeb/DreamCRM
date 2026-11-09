@@ -774,6 +774,30 @@ function ProposalCard({
   const [imagePct, setImagePct] = useState(0)
   const [imageError, setImageError] = useState<string | null>(null)
 
+  // THE PLAN'S PHOTO SLOTS (ML-36, G3-22): one optional photo per SOCIAL piece,
+  // uploaded through the same storage path as the single post's photo above
+  // (never a new uploader). Piece index → URL; the approve carries them.
+  const [planPhotos, setPlanPhotos] = useState<Record<number, string | null>>({})
+  const [planPhotoUploading, setPlanPhotoUploading] = useState<number | null>(null)
+  const [planPhotoPct, setPlanPhotoPct] = useState(0)
+
+  async function onPickPlanPhoto(index: number, file: File | null) {
+    if (!file || planPhotoUploading !== null) return
+    setImageError(null)
+    setPlanPhotoUploading(index)
+    setPlanPhotoPct(0)
+    try {
+      const url = await uploadFileWithProgress(file, 'social-posts', setPlanPhotoPct).promise
+      setPlanPhotos((prev) => ({ ...prev, [index]: url }))
+    } catch (err) {
+      if (!(err instanceof UploadCancelledError)) {
+        setImageError(err instanceof Error ? err.message : 'Upload failed — try again.')
+      }
+    } finally {
+      setPlanPhotoUploading(null)
+    }
+  }
+
   async function onPickImage(file: File | null) {
     if (!file || imageUploading) return
     setImageError(null)
@@ -850,6 +874,14 @@ function ProposalCard({
               : {}),
             ...(setupAnswer !== undefined ? { answer: setupAnswer } : {}),
             ...(image && proposal.capability === 'social_post' ? { imageUrl: image } : {}),
+            ...(proposal.capability === 'content_plan'
+              ? (() => {
+                  const photos = Object.entries(planPhotos)
+                    .filter((e): e is [string, string] => typeof e[1] === 'string' && !!e[1])
+                    .map(([index, url]) => ({ index: Number(index), url }))
+                  return photos.length > 0 ? { planPhotos: photos } : {}
+                })()
+              : {}),
           })
         : declineProposalAction({ proposalId: proposal.id })
       ).catch(() => ({
@@ -1061,7 +1093,22 @@ function ProposalCard({
             {imageError && <p role="alert" className="mt-1 text-xs text-rose-600 dark:text-rose-400">{imageError}</p>}
           </div>
         ) : artifact?.kind === 'plan' ? (
-          <PlanArtifact items={artifact.items} clinicName={clinicName} channel={artifact.channel} />
+          <div>
+            <PlanArtifact
+              items={artifact.items}
+              clinicName={clinicName}
+              channel={artifact.channel}
+              photoControl={{
+                photos: planPhotos,
+                uploadingIndex: planPhotoUploading,
+                pct: planPhotoPct,
+                disabled: pending,
+                onPick: (i, f) => void onPickPlanPhoto(i, f),
+                onClear: (i) => setPlanPhotos((prev) => ({ ...prev, [i]: null })),
+              }}
+            />
+            {imageError && <p role="alert" className="mt-1 text-xs text-rose-600 dark:text-rose-400">{imageError}</p>}
+          </div>
         ) : artifact?.kind === 'email' ? (
           <EmailArtifact
             clinicName={clinicName}

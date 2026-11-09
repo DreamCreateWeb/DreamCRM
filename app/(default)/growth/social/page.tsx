@@ -10,7 +10,11 @@ import { zernioConfigured } from '@/lib/zernio'
 import { socialAddonConfigured } from '@/lib/stripe-config'
 import { socialAddonAvailable, socialAddonPriceCents } from '@/lib/types/social-entitlements'
 import type { PlanTier } from '@/lib/modules/types'
+import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
 import { PageHeader } from '@/components/ui/page-header'
+import { TeamDidItBand } from '@/components/ui/team-did-it-band'
+import { teamDidIt, TEAM_DID_IT_QUIET } from '@/lib/services/team-did-it'
+import { SOCIAL_LANES } from '@/lib/team-did-it-lanes'
 import { ActionButton } from '@/components/ui/action-button'
 import { EncodingLegend } from '@/components/ui/encoding-legend'
 import ModuleHint from '@/components/onboarding/module-hint'
@@ -68,6 +72,9 @@ export default async function SocialPostsPage() {
   }
 
   const connected = channels.length > 0
+  const teamDid = await getClinicTimeZone(ctx.organizationId)
+    .then((tz) => teamDidIt(ctx.organizationId, SOCIAL_LANES.capabilities, { timeZone: tz }))
+    .catch(() => TEAM_DID_IT_QUIET)
 
   // Props for the in-place connect surface (cap + add-on + which platforms are
   // already linked, with their handles).
@@ -123,6 +130,8 @@ export default async function SocialPostsPage() {
           </>
         }
       />
+
+      <TeamDidItBand data={teamDid} what={SOCIAL_LANES.what} />
 
       {!connected ? (
         <ConnectChannels variant="hero" {...connectProps} />

@@ -263,10 +263,11 @@ export const BOOKING_BUTTON_CAPABILITIES: readonly string[] = [
 // and fifth (ML-28, 2026-11-04 — the evening aftercare note and the
 // day-after check-in, generator + executor/writer together); `listing_watch`
 // the sixth (ML-35, 2026-11-09 — what Google changed on the listing, an auto
-// report-only writer that runs inside the GBP sync).
+// report-only writer that runs inside the GBP sync); `newsletter` the seventh
+// (ML-36, 2026-11-09 — the month's first weekday files the drafted issue as an
+// ask-first card; the yes creates a DRAFT campaign and never sends).
 export const PREVIEW_CAPABILITIES: readonly string[] = [
   'referral_ask',
-  'newsletter',
   'membership_rescue',
   'order_update',
   'consent',

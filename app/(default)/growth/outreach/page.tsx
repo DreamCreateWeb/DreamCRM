@@ -1,5 +1,9 @@
 import { redirect } from 'next/navigation'
 import { requireTenant } from '@/lib/auth/context'
+import { TeamDidItBand } from '@/components/ui/team-did-it-band'
+import { teamDidIt, TEAM_DID_IT_QUIET } from '@/lib/services/team-did-it'
+import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
+import { OUTREACH_LANES } from '@/lib/team-did-it-lanes'
 import ClinicRecallDashboard from '../../marketing/clinic-recall-dashboard'
 
 export const metadata = {
@@ -33,12 +37,22 @@ export default async function GrowthOutreachPage({
     prefill_audience && Number.isFinite(Number(prefill_audience)) ? Number(prefill_audience) : undefined
   const prefillTemplateId =
     prefill_template && Number.isFinite(Number(prefill_template)) ? Number(prefill_template) : undefined
+  const teamDid = await getClinicTimeZone(ctx.organizationId)
+    .then((tz) => teamDidIt(ctx.organizationId, OUTREACH_LANES.capabilities, { timeZone: tz }))
+    .catch(() => TEAM_DID_IT_QUIET)
   return (
-    <ClinicRecallDashboard
-      ctx={ctx}
-      prefillAudienceId={prefillAudienceId}
-      prefillTemplateId={prefillTemplateId}
-      autoOpenNew={newParam === '1'}
-    />
+    <>
+      {teamDid.open > 0 || teamDid.doneThisWeek > 0 ? (
+        <div className="px-4 sm:px-6 lg:px-8 pt-8 w-full max-w-[96rem] mx-auto -mb-6">
+          <TeamDidItBand data={teamDid} what={OUTREACH_LANES.what} />
+        </div>
+      ) : null}
+      <ClinicRecallDashboard
+        ctx={ctx}
+        prefillAudienceId={prefillAudienceId}
+        prefillTemplateId={prefillTemplateId}
+        autoOpenNew={newParam === '1'}
+      />
+    </>
   )
 }
