@@ -115,6 +115,13 @@ vi.mock('@/lib/services/marketing', () => ({
   resolvePatientAudience: h.resolveMock,
 }))
 
+// THE PRACTICE'S OWN CADENCE (ML-29): the reactivation window follows
+// Settings → Practice's recall interval; null = the default (6 → 9–10 months).
+const cad = vi.hoisted(() => ({ value: { recallMonths: null as number | null, lapsedMonths: null as number | null } }))
+vi.mock('@/lib/services/clinic-cadence', () => ({
+  getClinicCadence: vi.fn(async () => cad.value),
+}))
+
 // The engine now reads the org's message via getAutomationTemplate (override
 // or system default — campaigns phase 2); mock it per kind.
 vi.mock('@/lib/services/marketing-templates', () => ({
@@ -295,7 +302,54 @@ describe('previewRetentionAudiences', () => {
       .mockResolvedValueOnce(recipients(3)) // benefitsEligible
       .mockResolvedValueOnce(recipients(1)) // newThisWeek
     const counts = await previewRetentionAudiences('org_1')
-    expect(counts).toEqual({ birthdaysThisMonth: 4, newlyLapsed: 2, benefitsEligible: 3, newThisWeek: 1 })
+    expect(counts).toEqual({
+      birthdaysThisMonth: 4,
+      newlyLapsed: 2,
+      benefitsEligible: 3,
+      newThisWeek: 1,
+      // The default cadence (6) + the 3-month grace = the 9–10 month window
+      // the automation always had — now derived, not hand-written.
+      reactivationMonths: { from: 9, to: 10 },
+    })
+  })
+})
+
+describe('the reactivation window follows the practice’s own recall setting (ML-29)', () => {
+  beforeEach(() => {
+    cad.value = { recallMonths: null, lapsedMonths: null }
+  })
+
+  it('on the default cadence the window is 270–300 days — exactly what the bare numbers used to say', async () => {
+    h.clinics = [{ organizationId: 'org_1', birthday: 0, reactivation: 1, isDemo: false }]
+    await runRetentionAutomations({ now: NOW })
+    const filter = h.resolveMock.mock.calls[0][1] as Record<string, unknown>
+    expect(filter.lastVisitAtLeastDaysAgo).toBe(270)
+    expect(filter.lastVisitWithinDays).toBe(300)
+    expect(filter.noUpcomingVisit).toBe(true)
+  })
+
+  it('a 4-month practice gets a 7–8 month window: the query, the stored audience and its sentence all move together', async () => {
+    cad.value = { recallMonths: 4, lapsedMonths: null }
+    h.clinics = [{ organizationId: 'org_1', birthday: 0, reactivation: 1, isDemo: false }]
+    await runRetentionAutomations({ now: NOW })
+    const filter = h.resolveMock.mock.calls[0][1] as Record<string, unknown>
+    expect(filter.lastVisitAtLeastDaysAgo).toBe(210)
+    expect(filter.lastVisitWithinDays).toBe(240)
+    const audienceInsert = h.inserts.find((i) => i.table === 'audiences')
+    expect(audienceInsert).toBeTruthy()
+    expect((audienceInsert!.values.patientFilter as Record<string, unknown>).lastVisitAtLeastDaysAgo).toBe(210)
+    expect(audienceInsert!.values.description).toContain('7–8 months ago')
+    expect(audienceInsert!.values.description).not.toContain('9–10')
+    const preview = await previewRetentionAudiences('org_1')
+    expect(preview.reactivationMonths).toEqual({ from: 7, to: 8 })
+  })
+
+  it('a stored 0 is "not set", never a zero-day window', async () => {
+    cad.value = { recallMonths: 0, lapsedMonths: null }
+    h.clinics = [{ organizationId: 'org_1', birthday: 0, reactivation: 1, isDemo: false }]
+    await runRetentionAutomations({ now: NOW })
+    const filter = h.resolveMock.mock.calls[0][1] as Record<string, unknown>
+    expect(filter.lastVisitAtLeastDaysAgo).toBe(270)
   })
 })
 

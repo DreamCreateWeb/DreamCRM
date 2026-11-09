@@ -799,7 +799,9 @@ function ProposalCard({
   // The executor appends the clinic sign-off to an UNSIGNED inquiry reply —
   // the email artifact renders it so what the card shows is what sends.
   const appendsSignoff =
-    (proposal.capability === 'inquiry_response' || proposal.capability === 'inquiry_followup') &&
+    (proposal.capability === 'inquiry_response' ||
+      proposal.capability === 'inquiry_followup' ||
+      proposal.capability === 'postop_checkin') &&
     !(body.trim().split('\n').filter((l) => l.trim()).pop() ?? '').trim().match(/^[—-]/)
   const artifact = proposal.artifact ?? null
   const showsEmailArtifact = artifact?.kind === 'email' && !editing

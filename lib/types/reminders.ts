@@ -41,6 +41,13 @@ export const REMINDER_DEFAULTS: ReminderSettings = {
 export const FORMS_REMINDER_WINDOW_HOURS = 48
 
 /**
+ * The per-PERSON cap on the intake nudge (ML-30): one "please fill your form"
+ * email per patient per 7 days, however many visits they have booked or
+ * form rules cover them. The patient-keyed twin of the SMS frequency cap.
+ */
+export const FORMS_REMINDER_PATIENT_WINDOW_HOURS = 24 * 7
+
+/**
  * The template key a forms nudge is logged under.
  *
  * Load-bearing in three places now, so it stops being a string literal: the
@@ -52,6 +59,15 @@ export const FORMS_REMINDER_WINDOW_HOURS = 48
  * uniqueness rule over it would be wrong.
  */
 export const FORMS_REMINDER_TEMPLATE = 'forms_intake'
+
+/**
+ * The template key an after-visit care note is logged under (ML-28). An
+ * automated VISIT touch like the journey's own: the `appt_reminder_auto_touch_uq`
+ * partial index covers it, so the post-visit-care lane claims the row before
+ * it sends and a second tick inside the evening loses on the index — once per
+ * visit, ever (a visit is completed once, so nothing excludes it).
+ */
+export const AFTERCARE_TEMPLATE = 'aftercare'
 
 /** Inclusive bounds for each touch offset, shared by resolver + settings UI. */
 export const REMINDER_OFFSET_MIN_HOURS = 4

@@ -40,6 +40,7 @@ import {
   SITE_DEEP,
   SITE_DEEP_INK,
   SITE_DEEP_MUTED,
+  SITE_HEADING as HEADING,
 } from '@/components/clinic-site/tokens'
 import SiteImage from '../../site-image'
 import { HERO_IMAGE_DISPLAY_WIDTH } from '@/lib/site-image'
@@ -71,7 +72,6 @@ const STRONG = 'var(--c-brand-strong, #157F9E)'
 const STRONG_INK = 'var(--c-brand-ink, #FFFFFF)'
 const SOFT = 'var(--c-brand-soft, #E1F4F9)'
 const SOFT_INK = 'var(--c-brand-soft-ink, #157F9E)'
-const HEADING = 'var(--c-heading, #2A2E33)'
 
 /** The jersey pinstripe: one hairline of the team color every 18px, faint
  *  enough to be a texture and never a grid — a layer, so its alpha is its

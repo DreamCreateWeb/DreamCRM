@@ -1,9 +1,10 @@
-import { isImageAttachment, type MessageAttachment } from '@/lib/types/messaging'
+import { isImageAttachment, isPdfAttachment, type MessageAttachment } from '@/lib/types/messaging'
+import { DocumentChip } from '@/components/messaging/document-chip'
 
 /**
  * Render image attachments inside a message bubble (clinic inbox + patient
  * portal share this). Each thumbnail links to the full-size S3 URL in a new
- * tab. Non-image entries (none in v1) fall back to a download link. Kept tiny
+ * tab. A PDF is a document chip (never previewed inline); anything else falls back to a download link. Kept tiny
  * + presentational so both surfaces stay in visual sync.
  */
 export function MessageAttachments({
@@ -34,6 +35,8 @@ export function MessageAttachments({
               className="h-28 w-28 object-cover sm:h-32 sm:w-32"
             />
           </a>
+        ) : isPdfAttachment(a) ? (
+          <DocumentChip key={`${a.url}-${i}`} attachment={a} />
         ) : (
           <a
             key={`${a.url}-${i}`}

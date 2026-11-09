@@ -114,7 +114,7 @@ app/
 
 lib/
   db/schema/         auth.ts, platform.ts, clinic.ts (bulk), domain.ts, …
-  db/migrations/     drizzle; 0000–0180 applied to prod (auto-apply on deploy)
+  db/migrations/     drizzle; 0000–0184 applied to prod (auto-apply on deploy)
   auth/              server.ts, client.ts, context.ts (getTenantContext,
                      requireTenant/requireRole/requirePartner)
   services/          ~200 server-only modules — one per entity/subsystem
@@ -256,8 +256,9 @@ booking, intake, shop, the token landings. Brand-derived palette
   `tests/cron-schedule-parity.test.ts` fails CI otherwise): pms-sync,
   send-reminders, send-scheduled-campaigns, auto-send-reviews,
   customize-services, sync-google-reviews, sync-gbp, retention-automations,
-  followup-rules (+ snooze resurfacing), daily-digest (+ the Monday standup,
-  the activation reconcile), trial-reminders, prospect-discovery/-enrich/
+  followup-rules (+ snooze resurfacing), daily-digest (an HOURLY tick; each
+  clinic's digest goes at ITS 7 AM; + the Monday standup, the activation
+  reconcile), trial-reminders, prospect-discovery/-enrich/
   -outreach, domain-renewals, generate-proposals, guardian, learn-defaults,
   sms-registration, grader-nurture, custom-domains (15m),
   notification-redrive (15m — failed staff-alert emails, 3 tries in 24h).
@@ -363,9 +364,9 @@ booking, intake, shop, the token landings. Brand-derived palette
   (GitHub Actions → CodeBuild → ECR → App Runner, ~5 min; then a few minutes
   of rollout — `/api/version` changes when the new build serves).
 - **Migrations auto-apply on boot** (`scripts/db-migrate.mjs`; a failure keeps
-  the previous version serving). Latest applied: **0183** (notification
-  retry, website history actor, intake rule targeting/refresh, lead
-  call-back/notes). The next number is **0184**.
+  the previous version serving). Latest applied: **0184** (patient access log,
+  the reminder log's patient_id with its backfill, the sign-up's PMS
+  answer). The next number is **0185**.
   PARALLEL BRANCHES NEVER SHIP MIGRATION FILES: the integrator regenerates
   ONE sequential migration per PR on the merged schema. Workflow: edit the schema,
   `pnpm db:generate`, pin with a `tests/migrations/*.test.ts`, commit. The

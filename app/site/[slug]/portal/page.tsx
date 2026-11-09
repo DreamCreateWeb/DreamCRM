@@ -10,6 +10,7 @@ import { SITE_INK_MUTED as INK_MUTED, SITE_SURFACE as SURFACE, SITE_BORDER as BO
 
 interface Props {
   params: Promise<{ slug: string }>
+  searchParams?: Promise<{ expired?: string }>
 }
 
 export const metadata = {
@@ -28,8 +29,9 @@ export const metadata = {
  * `linkUserToClinicAsPatient` action adopts an existing clinic-created patient
  * row by email and points the session's active org at this clinic.
  */
-export default async function PortalSignInPage({ params }: Props) {
+export default async function PortalSignInPage({ params, searchParams }: Props) {
   const { slug } = await params
+  const expired = (await searchParams)?.expired === '1'
   const data = await getClinicSiteBySlug(slug)
   if (!data) notFound()
 
@@ -69,6 +71,15 @@ export default async function PortalSignInPage({ params }: Props) {
     <MinimalSiteChrome clinicName={name} logoUrl={profile.logoUrl} brand={brand} homeHref={basePath || '/'}>
       <div className="py-12 sm:py-20">
         <div className="max-w-[480px] mx-auto px-5 sm:px-8">
+          {expired && (
+            <p
+              role="status"
+              className="mb-6 rounded-2xl px-4 py-3 text-center text-sm font-medium"
+              style={{ backgroundColor: SURFACE, border: `1px solid ${BORDER}`, color: headingInk }}
+            >
+              Your session ended — sign in again to pick up where you left off.
+            </p>
+          )}
           <div className="text-center mb-8">
             <p className="text-xs font-semibold uppercase tracking-[0.22em] mb-4" style={{ color: headingInk }}>
               Patient portal

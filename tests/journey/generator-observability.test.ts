@@ -83,6 +83,8 @@ vi.mock('@/lib/db', () => {
     api.where = () => api
     api.orderBy = () => api
     api.groupBy = () => api
+    // ML-28: the post-visit steps join appointment ⋈ patient — empty here.
+    api.innerJoin = () => api
     const rows = () => {
       if (store.throwOnTable && table === store.throwOnTable) {
         throw new Error(`${table} read down`)

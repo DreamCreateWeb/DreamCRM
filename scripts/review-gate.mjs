@@ -541,7 +541,8 @@ export const INTAKE_RULES = [
       // scan grades every dashboard tree for the phrase in rendered text.
       'tests/activation/no-coming-soon.test.ts',
       // docs/ACTIVATION.md law 4 — the "every empty state carries a door"
-      // scan grades every <EmptyState> in the dashboard trees for an action.
+      // scan grades every <EmptyState> in the dashboard trees for an action,
+      // and (ML-49) every <PortalEmptyState> in app/(portal) for a ctaHref.
       'tests/activation/empty-state-doors.test.ts',
       // The shared-pending guard (#559) and the source walker it shares with
       // the pending-feedback rule.

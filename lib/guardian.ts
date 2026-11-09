@@ -1,3 +1,4 @@
+import { websiteHealthNotice } from '@/lib/website-health'
 /**
  * THE GUARDIAN (Transformation Phase 4 — DESIGN.md primitive #5), pure half.
  *
@@ -48,6 +49,15 @@ export function needsAttention(state: EngineState): boolean {
 }
 
 export interface EngineSignals {
+  /**
+   * The site's traffic DROP, present only when THE clinic's own rule
+   * (`websiteHealthNotice`, lib/website-health.ts — this week at or under
+   * half of a substantive prior week) says so. Null/absent = no drop, or the
+   * read failed: an absent signal says nothing. It never moves the five
+   * states, and it is the OWNER's line only — `clinicActionable` /
+   * `clinicNote` do not read it (the AUDIENCE LOCK floors at 'platform').
+   */
+  trafficDrop?: { total: number; totalPrev: number } | null
   /** Days since the clinic's account was created. A brand-new practice has
    *  no baseline and no history — it is never "stalled", only starting. */
   ageDays: number
@@ -1050,4 +1060,32 @@ export function clinicNote(state: EngineState, s: EngineSignals): string | null 
     return `${opening} Some of my own jobs also hit trouble this week, so let me get those working before we read too much into the numbers. I’ll keep you posted.`
   }
   return `${opening} Nothing is broken on my side — everything is still running. It’s worth a look at where new patients usually find you, and whether anything changed there.`
+}
+
+/**
+ * The traffic-drop signal, by the ONE rule the clinic's own banner uses —
+ * imported, never re-thresholded here. Null when there is no drop (or no
+ * substantive prior week to drop from).
+ */
+export function detectTrafficDrop(total: number, totalPrev: number): { total: number; totalPrev: number } | null {
+  const notice = websiteHealthNotice({ total, totalPrev, leads14d: null })
+  return notice?.kind === 'traffic_drop' ? { total, totalPrev } : null
+}
+
+/** The owner's digest line for a traffic drop; null when the clinic has none. Platform voice. */
+export function trafficDropLine(clinicName: string, s: Pick<EngineSignals, 'trafficDrop'>): string | null {
+  const d = s.trafficDrop
+  if (!d) return null
+  const pct = Math.round((1 - d.total / d.totalPrev) * 100)
+  const how = pct <= 55 ? 'halved' : `fell ${pct}%`
+  return `${clinicName}’s site traffic ${how} this week (${d.totalPrev.toLocaleString('en-US')} → ${d.total.toLocaleString('en-US')} visits, last 7 days vs the 7 before, UTC).`
+}
+
+/** The owner's morning lines from a sweep: one per clinic with a traffic drop. A blind sweep says nothing. */
+export function guardianTrafficLines(sweep: { blind: boolean; reports: Array<{ clinicName: string; signals: EngineSignals }> }): string[] {
+  if (sweep.blind) return []
+  return sweep.reports.flatMap((r) => {
+    const line = trafficDropLine(r.clinicName, r.signals)
+    return line ? [line] : []
+  })
 }

@@ -6,7 +6,8 @@ import {
   getVisitForPatients,
   getPortalClinicInfo,
 } from '@/lib/services/patient-portal'
-import { PORTAL_VISIT_LABELS } from '@/lib/types/portal'
+import { portalVisitLabel } from '@/lib/portal-visit-label'
+import { resolveVisitTypes } from '@/lib/types/visit-types'
 
 /**
  * "Add to calendar" — a standards-plain .ics download for a single visit.
@@ -39,7 +40,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   if (!visit) return new NextResponse('Not found', { status: 404 })
 
   const clinicName = clinic?.displayName ?? ctx.organizationName
-  const label = PORTAL_VISIT_LABELS[visit.type] ?? 'Visit'
+  const label = portalVisitLabel(resolveVisitTypes(clinic?.visitTypeSettings ?? null), visit.type)
   const summary = `${label} at ${clinicName}`
   const start = visit.startTime
   const end = visit.endTime ?? new Date(start.getTime() + 30 * 60_000)

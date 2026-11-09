@@ -23,7 +23,7 @@ const ROOT = resolve(__dirname, '../..')
 const SOURCES = [
   'lib/email.ts',
   'app/(onboarding)/welcome/welcome-interview.tsx',
-  'app/(onboarding)/onboarding-03/page.tsx',
+  'app/(onboarding)/onboarding-02/page.tsx',
   'app/(onboarding)/onboarding-complete/page.tsx',
   'lib/marketing/docs.ts',
   'app/(marketing)/page.tsx',

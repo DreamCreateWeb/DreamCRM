@@ -115,6 +115,7 @@ function baseAnalytics(over: Partial<ClinicAnalytics> = {}): ClinicAnalytics {
       bySource: [{ source: 'booking_widget', count: 40 }],
       byProvider: [{ provider: 'Dr. Reyes', count: 40 }],
       volumeTrend: [{ label: 'May 1', count: 40 }],
+      hygiene: { completed: 12, rebooked: 10, rate: 10 / 12 },
     },
     recall: { due: 3, outreach: { sent: 10, opened: 5, clicked: 4, booked: 2 } },
     reputation: {

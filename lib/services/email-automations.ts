@@ -2,8 +2,15 @@ import 'server-only'
 import { eq } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import { applyMergeFields } from '@/lib/marketing/render-email'
+import { deliver, escapeHtml, htmlToText, patientEmailShell } from '@/lib/email'
+import type { ClinicSender } from '@/lib/email-identity'
+import { getClinicSenderIdentity } from '@/lib/services/clinic-sender'
 import {
   EMAIL_AUTOMATION_SPECS,
+  EMAIL_SAMPLE_FIELDS,
+  EMAIL_SLOT_MAX,
+  EMAIL_SUBJECT_MAX,
+  bodyOpensWithGreeting,
   isEmailAutomationKey,
   normalizeEmailOverride,
   resolveEmailAutomations,
@@ -137,4 +144,97 @@ export function renderFromResolved(
   }
 
   return { enabled: resolved.enabled, subject: full.subject, full, override }
+}
+
+// ── Preview + test send ───────────────────────────────────────────────────
+// The Emails hub shows the email a patient will get, not a lookalike: the same
+// `renderFromResolved` token fill, the same clinic sender identity, the same
+// `patientEmailShell`. (The live senders add their own one-off blocks, like a
+// confirm link or prep notes, which the hub lists under the preview.)
+
+/** The heading + button the live sender gives an email, mirrored so the
+ *  preview matches. */
+const PREVIEW_FRAME: Partial<Record<EmailAutomationKey, { title?: string; cta?: string; footnote?: string }>> = {
+  appointment_reminder: {
+    title: 'Your visit is coming up',
+    cta: 'Confirm my visit',
+    footnote: 'Need a different time? Just reply to this email and we\u2019ll find one together.',
+  },
+  rescheduled: {
+    title: 'Your visit has a new time',
+    cta: 'Confirm my new time',
+    footnote: 'Need a different time? Just reply to this email and we\u2019ll find one together.',
+  },
+}
+const PREVIEW_LINK = 'https://www.dreamcreatestudio.com/c/sample'
+
+const lineBreaks = (s: string) => escapeHtml(s).replace(/\r?\n/g, '<br>')
+
+export interface AutomationPreview {
+  subject: string
+  html: string
+  text: string
+}
+
+/**
+ * Render one automated email, with sample values, for the CURRENT (possibly
+ * unsaved) draft. `draft` slots win over the saved copy; absent slots fall back
+ * to what the clinic saved, then the built-in default.
+ */
+export async function renderAutomationPreview(
+  organizationId: string,
+  key: EmailAutomationKey,
+  draft: Partial<EmailSlots> = {},
+): Promise<AutomationPreview & { sender: ClinicSender }> {
+  const spec = EMAIL_AUTOMATION_SPECS[key]
+  const [saved, sender] = await Promise.all([
+    getEmailAutomations(organizationId),
+    getClinicSenderIdentity(organizationId),
+  ])
+  const resolved: ResolvedEmail = { ...saved[key] }
+  for (const f of spec.slotFields) {
+    const v = draft[f.slot]
+    if (typeof v === 'string') resolved[f.slot] = v.slice(0, f.slot === 'subject' ? EMAIL_SUBJECT_MAX : EMAIL_SLOT_MAX)
+  }
+  const fields: Record<string, string> = {
+    ...EMAIL_SAMPLE_FIELDS,
+    clinicName: sender.name || EMAIL_SAMPLE_FIELDS.clinicName,
+    clinicPhone: sender.phone || EMAIL_SAMPLE_FIELDS.clinicPhone,
+  }
+  const { full } = renderFromResolved(key, resolved, fields)
+  const frame = PREVIEW_FRAME[key]
+  const parts: string[] = []
+  if (spec.greets && !bodyOpensWithGreeting(full.body)) {
+    parts.push(`Hi ${escapeHtml(fields.firstName ?? "")},<br><br>`)
+  }
+  parts.push(lineBreaks(full.body))
+  if (full.closing && full.closing.trim()) parts.push(`<br><br>${lineBreaks(full.closing)}`)
+  const html = patientEmailShell({
+    sender,
+    title: (full.heading && full.heading.trim()) || frame?.title || '',
+    body: parts.join(''),
+    ...(frame?.cta ? { cta: { url: PREVIEW_LINK, label: frame.cta } } : {}),
+    ...(frame?.footnote ? { footnoteHtml: escapeHtml(frame.footnote) } : {}),
+  })
+  return { subject: full.subject.replace(/[\r\n]+/g, ' ').trim(), html, text: htmlToText(html), sender }
+}
+
+/** "Send me a test": the preview, through `deliver()` on the clinic's own
+ *  sender, to ONE address (the signed-in user's), subject marked `[Test]`. */
+export async function sendAutomationTestEmail(
+  organizationId: string,
+  key: EmailAutomationKey,
+  draft: Partial<EmailSlots>,
+  to: string,
+): Promise<void> {
+  const { subject, html, text, sender } = await renderAutomationPreview(organizationId, key, draft)
+  await deliver({
+    to,
+    from: sender.from,
+    replyTo: sender.replyTo,
+    gmail: sender.gmail,
+    subject: `[Test] ${subject || '(no subject)'}`,
+    html,
+    text,
+  })
 }

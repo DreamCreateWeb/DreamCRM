@@ -20,6 +20,10 @@ export const clinicProfile = pgTable('clinic_profile', {
   // once by an owner/admin from the intro; clearable from the tool. The
   // 0169 migration backfills every clinic that already ran a check.
   insuranceEnabledAt: timestamp('insurance_enabled_at'),
+  // Onboarding's "which software runs the practice?": a PMS_VENDORS id, 'none'
+  // or 'unsure'. Null = never asked / skipped (the cockpit asks again). A
+  // vendor answer also files the pms_connect_request.
+  pmsAnswer: text('pms_answer'),
   // THE FEATURE SWITCHES (docs/ACTIVATION.md law 1, slice S3): one column
   // per feature, the 0169 shape — null = not turned on, so the module sits
   // in the sidebar's "Add" group and its page is the intro card; a

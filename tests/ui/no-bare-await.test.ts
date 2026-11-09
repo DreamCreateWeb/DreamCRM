@@ -121,7 +121,6 @@ export const ALLOWED: Array<[file: string, sites: number]> = [
   ['app/(default)/platform/prospecting/settings/settings-panel.tsx', 1],
   ['app/(default)/platform/prospecting/territory/territory-table.tsx', 1],
   ['app/(default)/settings/apps/integrations-panel.tsx', 1],
-  ['app/(default)/settings/automations/emails/emails-hub.tsx', 1],
   ['app/(default)/settings/billing/subscription-panel.tsx', 2],
   ['app/(default)/settings/clinic/calendar-feed-card.tsx', 2],
   ['app/(default)/settings/clinic/gbp-sync-card.tsx', 3],

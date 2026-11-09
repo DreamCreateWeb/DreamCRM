@@ -297,3 +297,16 @@ export async function getFirstWeekBoard(opts: { now?: Date; includeDemo?: boolea
     },
   }
 }
+
+/**
+ * ONE clinic's first-week row — the clinic page's read (ML-40). The same
+ * `buildRow` the board uses, for the clinic the caller already loaded, so the
+ * page and the cockpit cannot disagree. Every inner read takes the org id
+ * explicitly; a failed read renders as unknown, never healthy.
+ */
+export async function getFirstWeekRowFor(
+  clinic: Parameters<typeof buildRow>[0],
+  now: Date = new Date(),
+): Promise<FirstWeekRow> {
+  return buildRow(clinic, now)
+}

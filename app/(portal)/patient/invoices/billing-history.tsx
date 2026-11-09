@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { fmtMoney, fmtVisitDayShort } from '@/components/patient-portal/format'
-import { PortalCard, PORTAL_INK, PORTAL_MUTED, PORTAL_BORDER, PORTAL_WARN_BG, PORTAL_WARN_INK } from '@/components/patient-portal/ui'
+import { PortalCard, PortalEmptyState, PORTAL_INK, PORTAL_MUTED, PORTAL_BORDER, PORTAL_WARN_BG, PORTAL_WARN_INK } from '@/components/patient-portal/ui'
 
 /**
  * Billing history list: the merged money trail (online balance payments + shop
@@ -33,19 +33,26 @@ export default function BillingHistory({
   rows,
   brand,
   timeZone,
+  door,
 }: {
   rows: BillingHistoryRow[]
   brand: string
   timeZone: string
+  /** Where an empty history points — always set by the page. */
+  door: { href: string; label: string }
 }) {
   const [tab, setTab] = useState<TabId>('all')
 
   if (rows.length === 0) {
     return (
       <PortalCard>
-        <p className="py-4 text-center text-[0.9rem]" style={{ color: PORTAL_MUTED }}>
-          No payments or purchases yet — when there are, they’ll live here.
-        </p>
+        <PortalEmptyState
+          title="No payments or purchases yet"
+          body="When there are, they’ll live here."
+          ctaHref={door.href}
+          ctaLabel={door.label}
+          brand={brand}
+        />
       </PortalCard>
     )
   }

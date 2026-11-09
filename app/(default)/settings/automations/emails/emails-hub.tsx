@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useTransition } from 'react'
 import {
   EMAIL_AUTOMATION_KEYS,
   EMAIL_AUTOMATION_SPECS,
-  bodyOpensWithGreeting,
+  EMAIL_SAMPLE_FIELDS,
   type EmailAutomationKey,
   type EmailAutomationOverride,
   type EmailCategory,
@@ -19,8 +19,9 @@ import {
   type ReminderSettings,
 } from '@/lib/types/reminders'
 import { SEND_WINDOW_END_HOUR, SEND_WINDOW_START_HOUR, formatHour12 } from '@/lib/reminder-hours'
-import { saveEmailAutomationAction } from './actions'
+import { previewEmailAutomationAction, saveEmailAutomationAction, sendTestEmailAction } from './actions'
 import { saveReminderSettingsAction } from './actions'
+import { runAction } from '@/lib/run-action'
 import { ActionButton } from '@/components/ui/action-button'
 import { Toggle } from '@/components/ui/toggle'
 import { FlashToast } from '@/components/ui/flash-toast'
@@ -36,25 +37,8 @@ const CATEGORY_LABELS: Record<EmailCategory, { title: string; blurb: string }> =
   website: { title: 'Website', blurb: 'Replies to people who message you from your site.' },
 }
 
-// Sample values used ONLY for the live preview, so staff see how tokens fill in.
-const SAMPLE_FIELDS: Record<string, string> = {
-  firstName: 'Jordan',
-  patientName: 'Jordan Lee',
-  clinicName: 'Bright Smiles Dental',
-  clinicPhone: '(555) 123-4567',
-  appointmentType: 'Cleaning',
-  appointmentDate: 'Monday, Jan 12',
-  appointmentTime: 'Monday, January 12 at 2:00 PM',
-  urgentLine: ' you can call us at (555) 123-4567',
-  balance: '$135.00',
-  amount: '$100.00',
-  planName: 'Smile Club',
-}
-
-/** Client-safe token fill for the preview (mirrors applyMergeFields). */
-function fillTokens(text: string): string {
-  return text.replace(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g, (_m, k: string) => SAMPLE_FIELDS[k] ?? '')
-}
+// The sample values (shared with the server preview) so the chips can say what they fill to.
+const SAMPLE_FIELDS = EMAIL_SAMPLE_FIELDS
 
 /** The sample value a `{{token}}` fills to, for the chip tooltip — so staff learn
  *  the tokens without opening the legend. e.g. "{{firstName}} → Jordan". */
@@ -89,23 +73,12 @@ const TOGGLEABLE_KEYS = EMAIL_AUTOMATION_KEYS.filter(
   (k) => EMAIL_AUTOMATION_SPECS[k].enableSource === 'email_automations',
 )
 
-export interface PreviewIdentity {
-  name: string
-  logoUrl: string | null
-  address: string | null
-  phone: string | null
-}
-
 export default function EmailsHub({
   config,
   reminder,
   canManage,
   focusKey,
-  identity,
 }: {
-  /** The practice's name / logo / address / phone, so the preview wears the
-   *  same header and footer the patient's email does (`patientEmailShell`). */
-  identity?: PreviewIdentity
   config: Record<EmailAutomationKey, ResolvedEmail>
   reminder: ReminderSettings
   canManage: boolean
@@ -166,7 +139,6 @@ export default function EmailsHub({
                   initial={config[key]}
                   canManage={canManage}
                   defaultOpen={focusKey === key}
-                  identity={identity}
                   onToast={setToast}
                   onEnabledChange={(v) => setEnabledMap((p) => ({ ...p, [key]: v }))}
                   reminderState={reminderState}
@@ -192,9 +164,7 @@ function EmailCard({
   onEnabledChange,
   reminderState,
   setReminderState,
-  identity,
 }: {
-  identity?: PreviewIdentity
   emailKey: EmailAutomationKey
   initial: ResolvedEmail
   canManage: boolean
@@ -215,6 +185,11 @@ function EmailCard({
   }
   const [pending, startTransition] = useTransition()
   const [focusedSlot, setFocusedSlot] = useState<EmailSlotKey | null>(null)
+  // The REAL email, server-rendered through the same shell the patient gets.
+  const [preview, setPreview] = useState<{ subject: string; html: string; text: string } | null>(null)
+  const [previewError, setPreviewError] = useState<string | null>(null)
+  const [showText, setShowText] = useState(false)
+  const [testPending, setTestPending] = useState(false)
   const fieldRefs = useRef<Partial<Record<EmailSlotKey, HTMLInputElement | HTMLTextAreaElement | null>>>({})
   const cardRef = useRef<HTMLSpanElement>(null)
 
@@ -231,6 +206,40 @@ function EmailCard({
       return () => cancelAnimationFrame(id)
     }
   }, [defaultOpen])
+
+  // Debounced 400ms on edit; a late answer for an older draft is dropped.
+  useEffect(() => {
+    if (!open) return
+    let live = true
+    const id = setTimeout(async () => {
+      const draft: Partial<Record<EmailSlotKey, string>> = {}
+      for (const f of spec.slotFields) draft[f.slot] = slots[f.slot] ?? ''
+      const r = await runAction(() => previewEmailAutomationAction(emailKey, draft))
+      if (!live) return
+      if (r.ok && 'html' in r) {
+        setPreview({ subject: r.subject, html: r.html, text: r.text })
+        setPreviewError(null)
+      } else {
+        setPreviewError('error' in r ? r.error : 'Could not build the preview.')
+      }
+    }, 400)
+    return () => {
+      live = false
+      clearTimeout(id)
+    }
+  }, [open, slots, emailKey, spec])
+
+  async function sendTest() {
+    const draft: Partial<Record<EmailSlotKey, string>> = {}
+    for (const f of spec.slotFields) draft[f.slot] = slots[f.slot] ?? ''
+    setTestPending(true)
+    try {
+      const r = await runAction(() => sendTestEmailAction(emailKey, draft))
+      onToast(r.ok && 'to' in r ? `Test sent to ${r.to}.` : 'error' in r ? r.error : 'Could not send the test.')
+    } finally {
+      setTestPending(false)
+    }
+  }
 
   const customized =
     spec.slotFields.some((f) => (slots[f.slot] ?? '').trim() !== (spec.slotDefaults[f.slot] ?? '').trim()) ||
@@ -266,9 +275,11 @@ function EmailCard({
       ]
       // The reminder card also owns the timing/on-off (reminder_settings).
       if (isReminder) jobs.push(saveReminderSettingsAction(reminderState))
-      const results = await Promise.all(jobs)
-      const bad = results.find((r) => !r.ok)
-      onToast(bad && 'error' in bad ? (bad.error ?? 'Could not save.') : 'Saved.')
+      const results = await runAction(async () => {
+        const all = await Promise.all(jobs)
+        return all.find((r) => !r.ok) ?? { ok: true as const }
+      })
+      onToast(!results.ok && 'error' in results ? (results.error ?? 'Could not save.') : 'Saved.')
     })
   }
 
@@ -276,7 +287,7 @@ function EmailCard({
     setSlots(defaultSlots(emailKey))
     setEnabled(true)
     startTransition(async () => {
-      const r = await saveEmailAutomationAction(emailKey, {})
+      const r = await runAction(() => saveEmailAutomationAction(emailKey, {}))
       onToast(r.ok ? 'Reset to the default wording.' : r.error)
     })
   }
@@ -425,58 +436,75 @@ function EmailCard({
             })}
           </div>
 
-          {/* Live preview — styled to read closer to the email a patient gets:
-              a subject bar, an envelope-like framed body with preserved line
-              breaks, and an honest note of the blocks we add for you. */}
+          {/* The REAL email: the server renders it through the same shell, sender
+              identity and sample values a patient's copy uses, and it sits in a
+              sandboxed iframe (no scripts, no navigation). The text version is the
+              plain-text part every send carries. */}
           <div className="space-y-2">
-            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Preview</p>
-            <div className="v2-well overflow-hidden rounded-[var(--r-md)] text-left">
-              {/* Subject bar — the line a patient sees in their inbox. */}
-              <div className="border-b border-gray-200/70 bg-gray-100/60 px-4 py-2 dark:border-gray-700/60 dark:bg-gray-800/50">
-                <span className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">Subject</span>
-                <p className="truncate text-[13px] font-semibold text-gray-800 dark:text-gray-100">
-                  {fillTokens(slots.subject ?? '') || <span className="font-normal italic text-gray-500 dark:text-gray-400">(no subject)</span>}
-                </p>
-              </div>
-              {/* Body — mirrors the sent email's stacked heading / message / closing. */}
-              <div className="space-y-2 bg-white px-4 py-3.5 text-sm leading-relaxed text-gray-700 dark:bg-gray-900/40 dark:text-gray-200">
-                {identity && (
-                  <div data-preview-header className="pb-1">
-                    {identity.logoUrl && /^https?:\/\//i.test(identity.logoUrl) ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={identity.logoUrl} alt={identity.name} className="h-10 w-auto" />
-                    ) : (
-                      <p className="font-serif text-lg font-bold text-gray-900 dark:text-gray-100">{identity.name}</p>
-                    )}
-                  </div>
-                )}
-                {slots.heading != null && slots.heading.trim() !== '' && (
-                  <p className="text-[15px] font-semibold text-gray-900 dark:text-gray-100">{fillTokens(slots.heading)}</p>
-                )}
-                {/* The sender's own "Hi {first}," — shown exactly when the
-                    email will carry it: this spec greets AND the message
-                    doesn't already open with a greeting. */}
-                {spec.greets && !bodyOpensWithGreeting(slots.body) && (
-                  <p className="text-gray-500 dark:text-gray-400" data-preview-greeting>
-                    Hi {SAMPLE_FIELDS.firstName},
-                  </p>
-                )}
-                <p className="whitespace-pre-wrap">{fillTokens(slots.body ?? '')}</p>
-                {slots.closing != null && slots.closing.trim() !== '' && (
-                  <p className="whitespace-pre-wrap text-gray-500 dark:text-gray-400">{fillTokens(slots.closing)}</p>
-                )}
-                {identity && (
-                  <p data-preview-footer className="pt-1 text-xs text-gray-500 dark:text-gray-400">
-                    {[identity.name, identity.address, identity.phone].filter(Boolean).join(' · ')}
-                  </p>
-                )}
-                {spec.includesNote.length > 0 && (
-                  <p className="mt-3 border-t border-dashed border-gray-200 pt-2.5 text-xs leading-relaxed text-gray-500 dark:text-gray-400 dark:border-gray-700/60">
-                    We automatically add: {spec.includesNote.join(' · ')}.
-                  </p>
-                )}
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Preview</p>
+              <div role="group" aria-label="Preview format" className="inline-flex gap-1">
+                <button
+                  type="button"
+                  aria-pressed={!showText}
+                  onClick={() => setShowText(false)}
+                  className="min-h-10 rounded-[var(--r-md)] px-3 text-xs font-medium text-gray-600 hover:bg-gray-100 aria-pressed:bg-gray-100 aria-pressed:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800 dark:aria-pressed:bg-gray-800 dark:aria-pressed:text-gray-100"
+                >
+                  Email
+                </button>
+                <button
+                  type="button"
+                  aria-pressed={showText}
+                  onClick={() => setShowText(true)}
+                  className="min-h-10 rounded-[var(--r-md)] px-3 text-xs font-medium text-gray-600 hover:bg-gray-100 aria-pressed:bg-gray-100 aria-pressed:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800 dark:aria-pressed:bg-gray-800 dark:aria-pressed:text-gray-100"
+                >
+                  Text version
+                </button>
               </div>
             </div>
+            <div className="v2-well overflow-hidden rounded-[var(--r-md)] text-left">
+              <div className="border-b border-gray-200/70 bg-gray-100/60 px-4 py-2 dark:border-gray-700/60 dark:bg-gray-800/50">
+                <span className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">Subject</span>
+                <p className="truncate text-[13px] font-semibold text-gray-800 dark:text-gray-100" data-preview-subject>
+                  {preview ? (
+                    preview.subject || <span className="font-normal italic text-gray-500 dark:text-gray-400">(no subject)</span>
+                  ) : (
+                    <span className="font-normal italic text-gray-500 dark:text-gray-400">{previewError ?? 'Building the preview…'}</span>
+                  )}
+                </p>
+              </div>
+              {preview &&
+                (showText ? (
+                  <pre
+                    data-preview-text
+                    className="max-h-[460px] overflow-auto whitespace-pre-wrap bg-white px-4 py-3.5 text-[13px] leading-relaxed text-gray-700 dark:bg-gray-900/40 dark:text-gray-200"
+                  >
+                    {preview.text}
+                  </pre>
+                ) : (
+                  <iframe
+                    title={`Preview of the ${spec.label} email as patients receive it`}
+                    sandbox=""
+                    srcDoc={preview.html}
+                    className="block h-[460px] w-full border-0 bg-white"
+                  />
+                ))}
+              {spec.includesNote.length > 0 && (
+                <p className="border-t border-dashed border-gray-200 px-4 py-2.5 text-xs leading-relaxed text-gray-500 dark:border-gray-700/60 dark:text-gray-400">
+                  We automatically add: {spec.includesNote.join(' · ')}.
+                </p>
+              )}
+            </div>
+            {canManage && (
+              <div className="flex flex-wrap items-center gap-3">
+                <ActionButton variant="secondary" size="sm" onClick={sendTest} pending={testPending}>
+                  Send me a test
+                </ActionButton>
+                <span className="text-xs text-gray-500 dark:text-gray-400">
+                  Goes to your own email with sample details, marked [Test].
+                </span>
+              </div>
+            )}
           </div>
 
           {canManage && (

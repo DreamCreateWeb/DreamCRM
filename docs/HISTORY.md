@@ -6172,6 +6172,120 @@ template with no bar, or a bar hidden above `sm`, measures 0 and nothing
 moves. The right-aligned pairs on established and hometeam are
 deliberately not tagged — the bottom-left floaters never meet them.
 
+## 2026-11-09 — The deep dev cycle, part 8: four feature slices (group 9)
+
+The two slices whose implementers died mid-task (ML-28, ML-29) finished
+from their WIP by fresh implementers on the part-7 tree, plus the first
+two of the never-started list. No migration. Integrated by replaying each
+slice's own commits; ML-28 and ML-29 both extend the registry maps at the
+same spots (lib/autonomy.ts, proposals.ts, proposal-generators.ts, the
+Dream Team loader, two journey tests) — resolved by hand keeping both.
+
+**ML-28 — aftercare the evening of, and "how are you feeling?" the day
+after.** `post_visit_care` flips to AUTO with its ledger writer: after 6 PM
+clinic-local (inside quiet hours) it emails the practice's own aftercare
+text for each visit completed today whose type carries aftercare (defaults
+ship for cleaning, filling, extraction, root canal — the per-type text IS the
+switch; clear it to turn it off); once per visit. `postop_checkin` (ask,
+grantable): the day after a completed extraction / root canal / implant, one
+"How are you feeling?" card; the executor sends through the clinic sender
+with the Messages inbox as reply-to and waits for daylight when the yes is
+the machine's. Visit types gain `aftercareInstructions` + `checkInAfter`.
+
+**ML-29 — one note per household; cadences follow the practice's setting;
+the rebook nudge.** `lib/marketing/household.ts` groups recall / reactivation
+recipients by shared inbox and sends ONE email naming everyone (every
+member keeps their own 'sent' row for the cap); `lib/recall-cadence.ts` is
+the one source for recallMonths / lapsedMonths (the hardcoded 6 / 9 are
+gone; the demo seeder follows the setting). `rebook_nudge` (grantable):
+a completed cleaning / checkup 7–21 clinic-local days old with nothing
+booked since gets one card per visit, one per patient; the yes sends the
+"Book a time" button and narrates once; the sweep expires the card once
+they book. The hygiene reappointment % is a real number (completed hygiene
+visits with a next visit booked within 14 days ÷ completed hygiene visits).
+
+**ML-49 — the portal tells the truth; a timed-out patient lands on the
+clinic's door.** The middleware sets a one-year `portal_clinic` cookie at the
+clinic's portal door; an unauthenticated `/patient/*` goes to
+`/site/<slug>/portal?expired=1` (or a generic `/portal` with no sign-up
+door), never to `/signin`. `portalVisitLabel` names every visit from the
+clinic's own types; the insurance card says "Verified <date> · plan" only
+once a recognised check exists; Records and Billing empty states carry a
+door; "within a business day" is gone (replies come during office hours);
+the family link requires the Messages switch. `empty-state-doors` now walks
+`app/(portal)` too.
+
+**ML-40 — the platform names a stuck clinic.** `clinicIsStuck` in
+`lib/platform-clinic-status.ts` (walled, past due, a trial with ≤2 days and
+no A1, no staff sign-in in 7 days); the Overview's "Needs a hand" band (8
+rows + "+N more"; honest when the sign-in read fails); the Clinics list
+swaps the plan badge / column / filter for standing chips (Trial, Live,
+Past due, Walled, Churned, Invite pending — `planTier` stays a column only);
+the clinic page gets First week, Support thread (a read-only peek) and
+Guardian note cards; the Guardian's traffic signal (`detectTrafficDrop`
+over `websiteHealthNotice`, no second threshold) rides the owner digest and
+the alert email; the audience lock holds (pinned).
+
+Follow-ups: a dismiss state for walled clinics on the band; a Guardian-only
+digest when prospecting is off; the portal cookie is set at the door, not at
+sign-in.
+
+## 2026-11-09 — The deep dev cycle, part 7: seven feature slices (groups 7 + 8)
+
+Built on the part-6 tree while parts 4–6 waited for GitHub to come back
+(the session lost push access for six days; every branch rode home in a
+git bundle). Integrated by replaying each slice's OWN commits onto main
+(`git cherry-pick <base>..ml/X`), not by merging the branch — a squash
+merge on main makes the branch's merge base the old main and turns every
+shared edit into a conflict; the replay leaves only the real ones (one:
+`lib/email.ts`, where ML-20's MIME headers and ML-34's plain-text twin
+both extend `deliver()` — both kept). ONE regenerated migration (0184)
+replaces the three the branches generated (0184 ×2, 0200); ML-30's
+hand-written backfill re-added by hand; pins re-pointed by TAG.
+
+**ML-33 — the morning digest arrives in the morning in every time zone.**
+`daily-digest` becomes an hourly tick; each clinic's digest goes out at
+ITS 7 AM (clinic-local, once a day, the send-day stamped); the email wears
+`staffEmailShell` (readable, the practice's name, no patient detail).
+
+**ML-31 — consent lives on the chart; who opened which record.** The
+record's consent card (email + text, with the source and the date; the
+writers in `lib/sms-consent.ts` gain their email twins); `patient_access_log`
+records record opens and exports (who, what, when) — the honest audit the
+BAA posture asks for.
+
+**ML-20 — a PDF rides a thread; the after-hours ack never loops.** Messages
+attach a treatment plan or EOB as a PDF (S3, the thread's own door); an
+emailed reply after hours gets the same honest auto-answer the portal gives,
+sent with `Auto-Submitted: auto-replied`, and `isAutomatedInbound` refuses
+to answer another robot.
+
+**ML-30 — the intake nudge is capped per PERSON.** `appointment_reminder_log`
+learns `patient_id` (backfilled from the appointment); one `forms_intake`
+nudge per patient per week across every visit; "on file" reads go through
+`isIntakeOnFile`, so the request knows which form it already sent.
+
+**ML-44 — sign-up in three screens.** The brand on every screen, "which
+practice software do you use?" (`clinic_profile.pms_answer`, free text), the
+connect request filed at trial start when the answer names a PMS, and a
+ready dashboard at the end; the old `/onboarding-03` / `-04` paths redirect.
+
+**ML-34 — the Emails hub shows the real email.** An iframe `srcdoc` preview
+of the rendered template (the shell, the brand, the practice footer), "Send
+me a test" to the signed-in person, and a plain-text twin (`htmlToText`) on
+every `deliver()` so a text-only client reads every send.
+
+**ML-47 — the public site's phone and its own 404.** The call button in the
+header at every width; a wrong URL under a clinic site renders the clinic's
+own 404 (`[...missing]/page.tsx`, noindex, the way home); headings obey the
+template's ink (`SITE_HEADING`).
+
+Integration: the two guard ceilings held (ALLOWLIST 174, raw buttons 84);
+the cron parity test accepts the hourly digest; `tests/migrations/0184-*`
+are three pins over one file. Follow-ups: the ML-44 "Interested in {plan}"
+banner stays (owner's call); ML-20's attachments have no size cap in the UI
+copy yet.
+
 ## 2026-11-04 — The deep dev cycle, part 6: eight feature slices (groups 5 + 6)
 
 Built in parallel while part 5 gated; the integrator's rules held: ONE

@@ -15,6 +15,7 @@ import { JUST_BOOKED_MS } from '@/lib/reminder-hours'
 import { getEmailAutomations } from '@/lib/services/email-automations'
 import { clinicDayStart, clinicWeekStart } from '@/lib/clinic-timezone'
 import { clinicDayKey, formatClinicDayTime } from '@/lib/format-datetime'
+import { loadIntakeOnFile } from '@/lib/services/intake-on-file-read'
 import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
 import { isBirthdayThisWeek, lapsedCutoff as lapsedCutoffDate } from '@/lib/dates'
 import { getClinicCadence } from '@/lib/services/clinic-cadence'
@@ -136,6 +137,13 @@ export interface AppointmentDetail extends AppointmentRow {
     replyBody: string | null
   }>
   intakeAttached: { id: string; formTitle: string; submittedAt: Date } | null
+  /**
+   * The PATIENT's paperwork state (ML-30), one answer for the drawer:
+   * 'on_file' (the ONE rule, lib/intake-on-file.ts; `at` = the newest
+   * submission), 'requested' (nudged, nothing back yet; `at` = the nudge),
+   * 'due' (nothing on file, nothing sent). Absent = an older payload.
+   */
+  intakeStatus?: { kind: 'on_file' | 'requested' | 'due'; at: Date | null }
   /** The Intake Forms door (law 1): closed = the drawer shows no 'send the form' nag. */
   intakeOpen: boolean
   /** Booking deposit collected (or awaited) for this visit. Null = none.
@@ -414,12 +422,16 @@ export async function listAppointments(
   const lapsedCutoff = lapsedCutoffDate(now, cadence.lapsedMonths)
 
   // Per-appointment intake flag (this appointment OR this patient has any submission)
+  // "On file" is the ONE rule (ML-27/30): this appointment's own submission,
+  // or the patient's paperwork per the form's refresh window — not "any
+  // submission, ever".
   const intakeApptSet = new Set<string>()
-  const intakeAnyPatient = new Set<string>()
   for (const r of intakeRows) {
     if (r.appointmentId) intakeApptSet.add(r.appointmentId)
-    if (r.patientId) intakeAnyPatient.add(r.patientId)
   }
+  const intakeOnFile = intakeOpen
+    ? await loadIntakeOnFile(organizationId, patientIds, now, timeZone)
+    : { has: () => false }
 
   // Last reminder per appointment.
   const lastReminderByAppt = new Map<string, Date>()
@@ -461,7 +473,7 @@ export async function listAppointments(
     const newPatient = !lastVisit && r.startTime > now
     const lapsed = !!lastVisit && lastVisit < lapsedCutoff
     const lastReminder = lastReminderByAppt.get(r.id) ?? null
-    const hasIntake = intakeApptSet.has(r.id) || intakeAnyPatient.has(r.patientId)
+    const hasIntake = intakeApptSet.has(r.id) || intakeOnFile.has(r.patientId, r.type)
     const isFuture = r.startTime > now
     const balance = r.pmsBalanceCents ?? 0
     const duration =
@@ -692,6 +704,7 @@ export async function getAppointmentDetail(
     db
       .select({
         id: schema.formSubmission.id,
+        appointmentId: schema.formSubmission.appointmentId,
         formTitle: schema.formTemplate.title,
         submittedAt: schema.formSubmission.submittedAt,
       })
@@ -813,8 +826,35 @@ export async function getAppointmentDetail(
   const lapsed = !!lastVisit && lastVisit < lapsedCutoffDate(now, cadence.lapsedMonths)
   const isFuture = base.startTime > now
   const newPatient = !lastVisit && isFuture
-  const hasIntake = !!intakeRow[0]
   const intakeOpen = (await getFeatureSwitchState(organizationId)).intake_forms
+  // ONE on-file rule (ML-27/30) — this visit's own submission, or the
+  // patient's paperwork per the form's refresh window. Never "any, ever".
+  const intakeOnFile = intakeOpen
+    ? await loadIntakeOnFile(organizationId, [base.patientId], now, timeZone)
+    : { has: () => false }
+  const hasIntake =
+    intakeRow[0]?.appointmentId === appointmentId || intakeOnFile.has(base.patientId, base.type)
+  let intakeStatus: AppointmentDetail['intakeStatus']
+  if (hasIntake) {
+    intakeStatus = { kind: 'on_file', at: intakeRow[0]?.submittedAt ?? null }
+  } else {
+    const [nudge] = await db
+      .select({ sentAt: schema.appointmentReminderLog.sentAt })
+      .from(schema.appointmentReminderLog)
+      .where(
+        and(
+          eq(schema.appointmentReminderLog.organizationId, organizationId),
+          eq(schema.appointmentReminderLog.template, FORMS_REMINDER_TEMPLATE),
+          or(
+            eq(schema.appointmentReminderLog.patientId, base.patientId),
+            eq(schema.appointmentReminderLog.appointmentId, appointmentId),
+          )!,
+        ),
+      )
+      .orderBy(desc(schema.appointmentReminderLog.sentAt))
+      .limit(1)
+    intakeStatus = nudge ? { kind: 'requested', at: nudge.sentAt } : { kind: 'due', at: null }
+  }
   // The chair read (ML-27) — the drawer's Intake section lists the alerts.
   const intakeAlerts = intakeOpen
     ? (await getIntakeAlertsForAppointments(organizationId, [appointmentId]).catch(() => new Map<string, IntakeAlertView>())).get(appointmentId) ?? null
@@ -898,6 +938,7 @@ export async function getAppointmentDetail(
       repliedAt: r.repliedAt,
       replyBody: r.replyBody,
     })),
+    intakeStatus,
     intakeAttached: intakeRow[0]
       ? { id: intakeRow[0].id, formTitle: intakeRow[0].formTitle, submittedAt: intakeRow[0].submittedAt }
       : null,
@@ -1623,6 +1664,8 @@ function autoTouchConflict() {
 export interface LogReminderInput {
   organizationId: string
   appointmentId: string
+  /** Who the touch was for (ML-30) — the forms nudge's per-patient cap reads it. */
+  patientId?: string | null
   channel: AppointmentChannel
   template?: string
   sentByUserId: string | null
@@ -1649,6 +1692,7 @@ export async function logReminderSent(input: LogReminderInput): Promise<string> 
       id,
       organizationId: input.organizationId,
       appointmentId: input.appointmentId,
+      patientId: input.patientId ?? null,
       channel: input.channel,
       template: input.template ?? null,
       sentByUserId: input.sentByUserId,

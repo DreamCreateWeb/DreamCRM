@@ -11,6 +11,8 @@ import { resolveSharedBrain } from '@/lib/shared-brain'
 import SharedBrainCard from './shared-brain-card'
 import ActivationCard from './activation-card'
 import { getActivationMetrics } from '@/lib/services/activation'
+import { getNeedsAHand } from '@/lib/services/platform-overview'
+import { AttentionBand, type AttentionRow } from '@/components/ui/attention-band'
 import GuardianPanel from './guardian-panel'
 import { PROVIDER_LABELS } from '@/lib/types/pms'
 import { formatMoneyShort, formatNumberShort, formatRelativeDate } from '@/lib/utils/format'
@@ -58,6 +60,7 @@ export default async function PlatformOverview() {
     engineHealth,
     platformConfig,
     activation,
+    needsAHand,
   ] = await Promise.all([
     getSubscriptionStats(),
     // THE open-project count — the same `openProjects` Platform Metrics
@@ -115,6 +118,12 @@ export default async function PlatformOverview() {
       }),
     // S8: the first week, measured — best-effort inside, says "unreadable" rather than zero.
     getActivationMetrics(),
+    // WHO IS STUCK — one predicate (clinicIsStuck) over the standing read.
+    // Unreadable is said, never an all-clear.
+    getNeedsAHand().catch((e) => {
+      console.error('[platform-overview] needs-a-hand unavailable', e)
+      return { rows: [], unreadable: true }
+    }),
   ])
   // The audience still FLOORS at 'platform' on the failure path — the one
   // thing that must never be undefined is who the machine is allowed to talk
@@ -126,6 +135,17 @@ export default async function PlatformOverview() {
   // "never ran" (round-16 audit). Same row, no extra read.
   const brainRun = resolveBrainRun(platformConfig.config)
   const pmsWanted = pmsDemand.filter((d) => d.pending > 0)
+  const BAND_MAX = 8
+  const stuckRows: AttentionRow[] = needsAHand.rows.slice(0, BAND_MAX).map((r) => ({
+    id: r.orgId,
+    tone: r.standing.tone,
+    glyph: r.standing.kind === 'trial' ? '⏳' : r.standing.kind === 'past_due' ? '$' : '⏸',
+    title: r.name,
+    body: `${r.reason} · from sign-in and billing records, 7-day window in UTC`,
+    href: `/ecommerce/customers/${r.orgId}`,
+    label: 'Open the clinic',
+  }))
+  const stuckMore = needsAHand.rows.length - stuckRows.length
 
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
@@ -145,6 +165,20 @@ export default async function PlatformOverview() {
           </>
         }
       />
+
+      {/* ── Needs a hand — the clinics that are stuck (ML-40) ──────────── */}
+      <AttentionBand rows={stuckRows} />
+      {stuckMore > 0 && (
+        <p className="-mt-4 mb-6 text-xs text-gray-500 dark:text-gray-400">
+          {stuckMore} more {stuckMore === 1 ? 'clinic is' : 'clinics are'} stuck —{' '}
+          <Link href="/ecommerce/customers" className="underline">see them on the Clinics list</Link>.
+        </p>
+      )}
+      {needsAHand.unreadable && (
+        <p role="status" className="mb-6 text-xs text-gray-500 dark:text-gray-400">
+          I couldn’t read sign-ins just now, so trials that may have gone quiet aren’t listed.
+        </p>
+      )}
 
       {/* ── The Guardian — whose engine needs a human (Phase 4) ────────── */}
       <GuardianPanel

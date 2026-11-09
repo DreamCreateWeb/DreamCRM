@@ -9,11 +9,15 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 const state = {
   appointments: [] as unknown[],
-  submitted: [] as Array<{ patientId: string }>,
+  submitted: [] as Array<{ patientId: string; formTemplateId: string | null; last: Date }>,
   lastVisits: [] as Array<{ patientId: string; last: Date }>,
   deposits: [] as Array<{ appointmentId: string; amountCents: number }>,
 }
 
+// A submission row as the intake-on-file read (ML-30) selects it: the latest
+// submittedAt per patient and form. Any date inside the refresh window reads
+// as "on file" because the test seeds no form templates.
+const sub = (patientId: string) => ({ patientId, formTemplateId: null, last: new Date('2026-06-01T12:00:00Z') })
 const intakeDoor = { open: true }
 const insuranceDoor = { open: false }
 const latestChecks = new Map<string, { checkedAt: Date }>()
@@ -46,10 +50,14 @@ vi.mock('@/lib/db', () => {
   return {
     db: {
       select: () => ({
-        from: (table: unknown) => {
-          if (table === 'appointment_first') {
-            /* unreachable marker */
-          }
+        from: (tableOrName: unknown) => {
+          // The audit's own reads come through the mocked `schema` (string
+          // names); the intake-on-file read (ML-30) imports the real table,
+          // which carries its name under drizzle's symbol.
+          const table =
+            typeof tableOrName === 'string'
+              ? tableOrName
+              : ((tableOrName as Record<symbol, unknown> | null)?.[Symbol.for('drizzle:Name')] as string | undefined)
           if (table === 'appointment') {
             // First appointment query returns the day's schedule; the grouped
             // last-visit query ALSO starts from appointment — distinguish by
@@ -81,18 +89,13 @@ vi.mock('@/lib/db', () => {
 
 let apptServed = false
 
-vi.mock('drizzle-orm', () => ({
-  and: vi.fn(() => ({})),
-  asc: vi.fn((x) => x),
-  eq: vi.fn(() => ({})),
-  gte: vi.fn(() => ({})),
-  lt: vi.fn(() => ({})),
-  inArray: vi.fn(() => ({})),
-  // The last-visit lookup uses drizzle's max() so the aggregate keeps the
-  // column's driver mapper (see tests/guards/timestamp-aggregate-mapping).
-  // This mock only has to EXIST — the rows come from the db mock below.
-  max: vi.fn(() => ({})),
-  sql: Object.assign(vi.fn(() => ({})), { raw: vi.fn() }),
+// drizzle's operators are the real ones: the rows come from the db mock below,
+// which ignores every where clause, and the audit path now reaches modules
+// (the intake-on-file read, ML-30) that use desc()/isNull() the old hand-rolled
+// mock did not export. max() stays real so the aggregate keeps the column's
+// driver mapper (see tests/guards/timestamp-aggregate-mapping).
+vi.mock('drizzle-orm', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('drizzle-orm')>()),
 }))
 
 vi.mock('@/lib/services/clinic-timezone', () => ({
@@ -148,7 +151,7 @@ describe('auditUpcomingDay', () => {
 
   it('a fully-prepped returning patient does NOT surface (but counts)', async () => {
     state.appointments = [appt()]
-    state.submitted = [{ patientId: 'p1' }]
+    state.submitted = [sub('p1')]
     state.lastVisits = [{ patientId: 'p1', last: MONTHS_AGO }]
     const r = await auditUpcomingDay('org_1', { now: NOW })
     expect(r.visitCount).toBe(1)
@@ -186,7 +189,7 @@ describe('auditUpcomingDay', () => {
       appt({ appointmentId: 'a1', patientId: 'p_new', firstName: 'Liam', lastName: 'Brooks' }),
       appt({ appointmentId: 'a2', patientId: 'p_lapsed', firstName: 'Aiden', lastName: 'Kim' }),
     ]
-    state.submitted = [{ patientId: 'p_new' }, { patientId: 'p_lapsed' }]
+    state.submitted = [sub('p_new'), sub('p_lapsed')]
     state.lastVisits = [{ patientId: 'p_lapsed', last: YEARS_AGO }] // p_new has none
     const r = await auditUpcomingDay('org_1', { now: NOW })
     const byPatient = new Map(r.items.map((i) => [i.patientId, i.flags.map((f) => f.key)]))
@@ -197,7 +200,7 @@ describe('auditUpcomingDay', () => {
 
   it('flags an unreachable patient (no email AND no phone) + a pending deposit', async () => {
     state.appointments = [appt({ email: null, phone: null })]
-    state.submitted = [{ patientId: 'p1' }]
+    state.submitted = [sub('p1')]
     state.lastVisits = [{ patientId: 'p1', last: MONTHS_AGO }]
     state.deposits = [{ appointmentId: 'a1', amountCents: 5000 }]
     const r = await auditUpcomingDay('org_1', { now: NOW })
@@ -210,7 +213,7 @@ describe('auditUpcomingDay', () => {
   describe('insurance_stale', () => {
     const flagsFor = async (over: Record<string, unknown>) => {
       state.appointments = [appt({ status: 'confirmed', ...over })]
-      state.submitted = [{ patientId: 'p1' }]
+      state.submitted = [sub('p1')]
       state.lastVisits = [{ patientId: 'p1', last: MONTHS_AGO }]
       const r = await auditUpcomingDay('org_1', { now: NOW })
       return r.items[0]?.flags.filter((f) => f.key === 'insurance_stale') ?? []
@@ -251,7 +254,7 @@ describe('medical_alert — the chair read (ML-27)', () => {
       appt({ appointmentId: 'a1', patientId: 'p1', status: 'scheduled' }),
       appt({ appointmentId: 'a2', patientId: 'p2', firstName: 'Noah', lastName: 'Park', status: 'scheduled' }),
     ]
-    state.submitted = [{ patientId: 'p1' }, { patientId: 'p2' }]
+    state.submitted = [sub('p1'), sub('p2')]
     state.lastVisits = [{ patientId: 'p1', last: MONTHS_AGO }, { patientId: 'p2', last: MONTHS_AGO }]
     intakeAlerts.set('a1', { submissionId: 'sub_1', alerts: ['Allergic to penicillin', 'Takes warfarin (blood thinner)'] })
     const r = await auditUpcomingDay('org_1', { now: NOW })

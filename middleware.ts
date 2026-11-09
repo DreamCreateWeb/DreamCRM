@@ -60,6 +60,9 @@ function isPlatformHost(hostname: string): boolean {
 }
 
 const PUBLIC_PATHS = [
+  // The generic patient door — where a timed-out portal session with no
+  // remembered clinic lands (never the staff /signin).
+  '/portal',
   // Public marketing site (the root itself is allowed as an exact match in
   // isPublicPath; these are its subpages). Single-sourced from
   // lib/marketing/site.ts so a new marketing page can't ship auth-walled.
@@ -226,6 +229,56 @@ function notFoundResponse(request: NextRequest, pathname: string) {
   return NextResponse.rewrite(url)
 }
 
+/**
+ * The patient-portal door memory. A patient who reaches their clinic's
+ * `/site/<slug>/portal` door gets a long-lived `portal_clinic` cookie; when
+ * their session later times out, `/patient/*` sends them back to THAT door
+ * (the clinic's own front door, in its brand) instead of the staff sign-in,
+ * whose "Create an account" door leads into clinic signup. No cookie → the
+ * generic `/portal` door. A slug is only ever used after this shape check, so
+ * a tampered cookie can never steer the redirect off-site.
+ */
+const PORTAL_CLINIC_COOKIE = 'portal_clinic'
+const PORTAL_CLINIC_MAX_AGE_SECONDS = 60 * 60 * 24 * 365
+const PORTAL_SLUG_RE = /^[a-z0-9](?:[a-z0-9-]{0,62})$/
+
+function portalDoorSlug(pathname: string): string | null {
+  const m = pathname.match(/^\/site\/([^/]+)\/portal\/?$/)
+  return m && PORTAL_SLUG_RE.test(m[1]) ? m[1] : null
+}
+
+function withPortalClinicCookie<T extends NextResponse>(request: NextRequest, pathname: string, res: T): T {
+  const slug = portalDoorSlug(pathname)
+  if (!slug) return res
+  res.cookies.set(PORTAL_CLINIC_COOKIE, slug, {
+    path: '/',
+    maxAge: PORTAL_CLINIC_MAX_AGE_SECONDS,
+    sameSite: 'lax',
+    httpOnly: true,
+    secure: request.nextUrl.protocol === 'https:',
+  })
+  return res
+}
+
+/** Where an unauthenticated /patient/* request goes — never /signin. */
+function portalExpiredDoor(request: NextRequest): URL {
+  const url = request.nextUrl.clone()
+  url.search = ''
+  const slug = request.cookies.get(PORTAL_CLINIC_COOKIE)?.value ?? ''
+  if (PORTAL_SLUG_RE.test(slug)) {
+    url.pathname = `/site/${slug}/portal`
+    url.searchParams.set('expired', '1')
+  } else {
+    url.pathname = '/portal'
+    url.searchParams.set('expired', '1')
+  }
+  return url
+}
+
+function isPatientPortalPath(pathname: string) {
+  return pathname === '/patient' || pathname.startsWith('/patient/')
+}
+
 function isPublicPath(pathname: string) {
   // The root is the public marketing site (the page itself routes signed-in
   // users to their dashboard). Exact match only — every other path keeps its
@@ -262,7 +315,7 @@ function siteResponse(request: NextRequest, pathname: string) {
   requestHeaders.delete('x-dc-access-route')
   if (frame) requestHeaders.set('x-dc-template-frame', frame[1])
   if (accessRoute) requestHeaders.set('x-dc-access-route', '1')
-  return NextResponse.next({ request: { headers: requestHeaders } })
+  return withPortalClinicCookie(request, pathname, NextResponse.next({ request: { headers: requestHeaders } }))
 }
 
 export async function middleware(request: NextRequest) {
@@ -338,7 +391,7 @@ export async function middleware(request: NextRequest) {
     if (slug && !RESERVED_SLUGS.has(slug)) {
       const url = request.nextUrl.clone()
       url.pathname = `/site/${slug}${pathname === '/' ? '' : pathname}`
-      return NextResponse.rewrite(url)
+      return withPortalClinicCookie(request, url.pathname, NextResponse.rewrite(url))
     }
   }
 
@@ -359,7 +412,7 @@ export async function middleware(request: NextRequest) {
     if (slug) {
       const url = request.nextUrl.clone()
       url.pathname = `/site/${slug}${pathname === '/' ? '' : pathname}`
-      return NextResponse.rewrite(url)
+      return withPortalClinicCookie(request, url.pathname, NextResponse.rewrite(url))
     }
   }
 
@@ -381,6 +434,9 @@ export async function middleware(request: NextRequest) {
 
   const sessionCookie = getSessionCookie(request)
   if (!sessionCookie) {
+    // A timed-out PATIENT goes back to their clinic's door, never the staff
+    // sign-in (whose "Create an account" leads into clinic signup).
+    if (isPatientPortalPath(pathname)) return NextResponse.redirect(portalExpiredDoor(request))
     const url = request.nextUrl.clone()
     url.pathname = '/signin'
     url.searchParams.set('redirect', pathname)

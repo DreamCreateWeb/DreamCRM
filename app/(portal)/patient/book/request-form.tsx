@@ -105,7 +105,7 @@ export default function PortalRequestForm({
           Request sent
         </h2>
         <p className="mx-auto mt-2 max-w-sm text-[0.92rem] leading-relaxed" style={{ color: MUTED }}>
-          Thanks! We’ll reach out to find a time that works — usually within one business day. You’ll
+          Thanks! We’ll reach out during office hours to find a time that works. You’ll
           see our reply in your Messages.
         </p>
         <Link

@@ -32,8 +32,8 @@ export interface PlanArtifactItem {
 }
 
 /** One turn of a patient conversation, oldest first — the context a drafted
- *  reply nests under (patient_reply, feedback_reply, inquiry_followup,
- *  postop_checkin). */
+ *  reply nests under (patient_reply, feedback_reply). The inquiry touches
+ *  and the post-op check-in are email artifacts instead. */
 export interface ThreadArtifactMessage {
   from: 'patient' | 'clinic'
   author: string | null

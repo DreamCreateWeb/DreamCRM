@@ -166,3 +166,107 @@ export async function clearSmsOptOut(
     return false
   }
 }
+
+// ---------------------------------------------------------------------------
+// MARKETING EMAIL + the staff-recorded change (ML-31)
+//
+// The marketing-email columns had writers scattered across the unsubscribe
+// route, the Resend webhook and the portal profile. The patient record's
+// Consent card adds the staff-on-the-record path, and per the one-writer law
+// it lives HERE beside the SMS writers, with the same two rules: an opt-out
+// is louder than an opt-in, and bookkeeping never throws.
+// ---------------------------------------------------------------------------
+
+/** Stamp an email opt-out (flag off + the time). Always applied. */
+export async function recordEmailOptOut(
+  organizationId: string,
+  patientId: string,
+  now: Date = new Date(),
+): Promise<boolean> {
+  try {
+    await db
+      .update(schema.patient)
+      .set({ marketingEmailOptIn: 0, marketingEmailOptOutAt: now })
+      .where(and(eq(schema.patient.organizationId, organizationId), eq(schema.patient.id, patientId)))
+    return true
+  } catch (e) {
+    console.error('[sms-consent] email opt-out not recorded', e)
+    return false
+  }
+}
+
+/** A deliberate staff re-subscribe to marketing email (clears a standing
+ *  opt-out, stamps when and where). Only the staff-on-the-record path calls it. */
+export async function recordEmailOptIn(
+  organizationId: string,
+  patientId: string,
+  source: ConsentSource,
+  now: Date = new Date(),
+): Promise<boolean> {
+  if (!isConsentSource(source)) return false
+  try {
+    await db
+      .update(schema.patient)
+      .set({
+        marketingEmailOptIn: 1,
+        marketingEmailOptInAt: now,
+        marketingEmailOptOutAt: null,
+        marketingOptInSource: source,
+      })
+      .where(and(eq(schema.patient.organizationId, organizationId), eq(schema.patient.id, patientId)))
+    return true
+  } catch (e) {
+    console.error('[sms-consent] email opt-in not recorded', e)
+    return false
+  }
+}
+
+export type ConsentChannel = 'email' | 'sms'
+
+export interface StaffConsentChange {
+  channel: ConsentChannel
+  on: boolean
+  source: ConsentSource
+}
+
+export interface StaffConsentResult {
+  ok: boolean
+  reason?: 'bad_source' | 'no_number' | 'no_email' | 'error'
+}
+
+/**
+ * Record a consent change a staff member makes from the patient record.
+ * Turning a channel OFF is always honoured; turning texts ON needs a usable
+ * number on file (consent to a number we cannot text is consent to nothing)
+ * and, when an earlier STOP stands, goes through the deliberate re-subscribe
+ * path — never the silent one.
+ */
+export async function recordStaffConsentChange(
+  organizationId: string,
+  patientId: string,
+  change: StaffConsentChange,
+  now: Date = new Date(),
+): Promise<StaffConsentResult> {
+  if (!isConsentSource(change.source)) return { ok: false, reason: 'bad_source' }
+  const [p] = await db
+    .select({ email: schema.patient.email, phone: schema.patient.phone })
+    .from(schema.patient)
+    .where(and(eq(schema.patient.organizationId, organizationId), eq(schema.patient.id, patientId)))
+    .limit(1)
+  if (!p) return { ok: false, reason: 'error' }
+
+  if (change.channel === 'email') {
+    if (!change.on) return (await recordEmailOptOut(organizationId, patientId, now)) ? { ok: true } : { ok: false, reason: 'error' }
+    if (!p.email) return { ok: false, reason: 'no_email' }
+    return (await recordEmailOptIn(organizationId, patientId, change.source, now)) ? { ok: true } : { ok: false, reason: 'error' }
+  }
+
+  if (!change.on) {
+    const n = await recordSmsOptOut(organizationId, { patientId }, now)
+    return n > 0 ? { ok: true } : { ok: false, reason: 'error' }
+  }
+  if (!toE164(p.phone)) return { ok: false, reason: 'no_number' }
+  // Staff on the record is the deliberate path, so a standing STOP is cleared
+  // here by name rather than skipped.
+  return (await clearSmsOptOut(organizationId, patientId, change.source, now)) ? { ok: true } : { ok: false, reason: 'error' }
+}

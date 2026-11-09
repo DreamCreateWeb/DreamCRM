@@ -13,6 +13,7 @@ import {
   resolveCampaignRecipients,
 } from './marketing-campaigns'
 import { partitionByFrequencyCap, partitionByPriorAutomationSend } from './marketing-frequency'
+import { groupByHousehold, householdLeadIn, householdNames, type Household } from '@/lib/marketing/household'
 import type { ResolvedRecipient } from './marketing'
 import { notify } from './notifications'
 
@@ -497,6 +498,54 @@ function recipientMergeFields(r: ResolvedRecipient, bookingUrl: string | null): 
   }
 }
 
+/**
+ * ONE NOTE PER HOUSEHOLD (ML-29, G1-13). Recipients who share an inbox get
+ * ONE email that names everyone ("Hi Maya and Leo,") with a one-line
+ * lead-in above the campaign's own words, so a family of four reads one
+ * note instead of four in a row. Every member still gets their own
+ * campaign_events row (the patient-keyed frequency cap counts each person;
+ * the resume filter drops each of them on a re-run). The unsubscribe token
+ * on a household email carries the inbox, not one member, so one click
+ * opts out everyone who reads that inbox (the /api/unsub email fallback) —
+ * an opt-out is louder than an opt-in, for the whole household.
+ */
+function householdMergeFields(h: Household<ResolvedRecipient>, bookingUrl: string | null): Record<string, string> {
+  return {
+    firstName: householdNames(h.members),
+    bookingUrl: bookingUrl ?? '',
+  }
+}
+
+/** The campaign body for one inbox: the household lead-in above the
+ *  clinic's words when more than one person reads it; untouched otherwise. */
+function householdBodyHtml(bodyHtml: string, h: Household<ResolvedRecipient>): string {
+  const leadIn = householdLeadIn(h.members)
+  if (!leadIn) return bodyHtml
+  const esc = leadIn.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  return `<p style="margin:0 0 14px;font-size:13px;line-height:1.5;color:#6b635a;">${esc}</p>${bodyHtml}`
+}
+
+/** One campaign_events row PER MEMBER of a household email — the ledger the
+ *  frequency cap, the resume filter and the funnel all count people in. */
+async function recordHouseholdEvents(
+  opts: InternalSendOpts,
+  h: Household<ResolvedRecipient>,
+  type: 'sent' | 'failed',
+  meta: Record<string, unknown>,
+): Promise<void> {
+  const household = h.members.length > 1 ? { household: h.members.length } : {}
+  for (const m of h.members) {
+    await db.insert(schema.campaignEvents).values({
+      campaignId: opts.campaign.id,
+      recipientEmail: h.email,
+      customerId: m.customerId,
+      patientId: m.patientId,
+      type,
+      meta: { ...meta, ...household },
+    })
+  }
+}
+
 export interface CampaignPreviewDraft {
   subject: string
   previewText: string
@@ -615,21 +664,27 @@ async function sendViaResend(opts: InternalSendOpts): Promise<SendResult> {
   const resend = getResend()
   const errors: { email: string; error: string }[] = []
   let sent = 0
-  const cap = Math.min(opts.recipients.length, 1000) // soft cap per invocation
+  let failed = 0
+  const cap = Math.min(opts.recipients.length, 1000) // soft cap per invocation (people)
+  // ONE NOTE PER HOUSEHOLD (see householdMergeFields): the walk is over
+  // inboxes; every count below stays in people.
+  const households = groupByHousehold(opts.recipients.slice(0, cap))
 
-  for (let i = 0; i < cap; i++) {
-    const r = opts.recipients[i]
-    if (!r.email) continue
-    const mergeFields = recipientMergeFields(r, opts.bookingUrl)
+  for (const h of households) {
+    const r = h.members[0]
+    const solo = h.members.length === 1
+    const mergeFields = solo ? recipientMergeFields(r, opts.bookingUrl) : householdMergeFields(h, opts.bookingUrl)
     const subject = applyMergeFields(opts.campaign.subject!, mergeFields)
     const { html, text, unsubUrl } = renderCampaignEmail({
       campaignId: opts.campaign.id,
-      recipientEmail: r.email,
-      recipientCustomerId: r.customerId ?? undefined,
-      recipientPatientId: r.patientId ?? undefined,
+      recipientEmail: h.email,
+      recipientCustomerId: solo ? (r.customerId ?? undefined) : undefined,
+      // A household token names the INBOX, so one unsubscribe covers everyone
+      // who reads it (the route's email fallback); a solo token names the person.
+      recipientPatientId: solo ? (r.patientId ?? undefined) : undefined,
       subject,
       previewText: opts.campaign.previewText,
-      bodyHtml: opts.campaign.bodyHtml!,
+      bodyHtml: householdBodyHtml(opts.campaign.bodyHtml!, h),
       fromName: opts.fromName ?? opts.sender.name,
       clinicName: opts.sender.name,
       clinicLogoUrl: opts.sender.clinicLogoUrl,
@@ -652,7 +707,7 @@ async function sendViaResend(opts: InternalSendOpts): Promise<SendResult> {
       // failure so it's recorded as 'failed', not silently counted as 'sent'.
       const res = await resend.emails.send({
         from: opts.sender.from,
-        to: r.email,
+        to: h.email,
         subject,
         html,
         text,
@@ -666,36 +721,20 @@ async function sendViaResend(opts: InternalSendOpts): Promise<SendResult> {
         tags,
       })
       if (res?.error) throw new Error(res.error.message || 'Resend send failed')
-      // THE ONE 'sent' row per email. The Resend webhook deliberately does
+      // THE ONE 'sent' row per PERSON. The Resend webhook deliberately does
       // NOT record `email.sent` for campaigns (it used to, and every count
       // doubled) — delivery/bounce receipts are its only contribution.
-      if (!opts.test) {
-        await db.insert(schema.campaignEvents).values({
-          campaignId: opts.campaign.id,
-          recipientEmail: r.email.toLowerCase(),
-          customerId: r.customerId,
-          patientId: r.patientId,
-          type: 'sent',
-          meta: { channel: 'resend' },
-        })
-      }
-      sent++
+      if (!opts.test) await recordHouseholdEvents(opts, h, 'sent', { channel: 'resend' })
+      sent += h.members.length
     } catch (err) {
-      errors.push({ email: r.email, error: err instanceof Error ? err.message : 'unknown' })
-      if (!opts.test) {
-        await db.insert(schema.campaignEvents).values({
-          campaignId: opts.campaign.id,
-          recipientEmail: r.email.toLowerCase(),
-          customerId: r.customerId,
-          patientId: r.patientId,
-          type: 'failed',
-          meta: { channel: 'resend', error: err instanceof Error ? err.message : 'unknown' },
-        })
-      }
+      const message = err instanceof Error ? err.message : 'unknown'
+      for (const m of h.members) errors.push({ email: m.email ?? h.email, error: message })
+      failed += h.members.length
+      if (!opts.test) await recordHouseholdEvents(opts, h, 'failed', { channel: 'resend', error: message })
     }
   }
 
-  return { channel: 'resend', attempted: cap, sent, failed: errors.length, errors }
+  return { channel: 'resend', attempted: cap, sent, failed, errors }
 }
 
 /**
@@ -862,22 +901,27 @@ async function sendViaGmail(opts: InternalSendOpts): Promise<SendResult> {
     : account.emailAddress
   const errors: { email: string; error: string }[] = []
   let sent = 0
+  let failed = 0
   // Conservative cap per invocation to stay under Gmail's per-user rate limits
   const cap = Math.min(opts.recipients.length, 100)
+  // ONE NOTE PER HOUSEHOLD here too (see householdMergeFields) — the warm
+  // one-by-one channel reads the same way to a family on one inbox.
+  const households = groupByHousehold(opts.recipients.slice(0, cap))
 
-  for (let i = 0; i < cap; i++) {
-    const r = opts.recipients[i]
-    if (!r.email) continue
-    const mergeFields = recipientMergeFields(r, opts.bookingUrl)
+  for (let i = 0; i < households.length; i++) {
+    const h = households[i]
+    const r = h.members[0]
+    const solo = h.members.length === 1
+    const mergeFields = solo ? recipientMergeFields(r, opts.bookingUrl) : householdMergeFields(h, opts.bookingUrl)
     const subject = applyMergeFields(opts.campaign.subject!, mergeFields)
     const { html, text } = renderCampaignEmail({
       campaignId: opts.campaign.id,
-      recipientEmail: r.email,
-      recipientCustomerId: r.customerId ?? undefined,
-      recipientPatientId: r.patientId ?? undefined,
+      recipientEmail: h.email,
+      recipientCustomerId: solo ? (r.customerId ?? undefined) : undefined,
+      recipientPatientId: solo ? (r.patientId ?? undefined) : undefined,
       subject,
       previewText: opts.campaign.previewText,
-      bodyHtml: opts.campaign.bodyHtml!,
+      bodyHtml: householdBodyHtml(opts.campaign.bodyHtml!, h),
       fromName: opts.fromName ?? account.displayName ?? opts.sender.name,
       clinicName: opts.sender.name,
       clinicLogoUrl: opts.sender.clinicLogoUrl,
@@ -893,38 +937,22 @@ async function sendViaGmail(opts: InternalSendOpts): Promise<SendResult> {
       // Gmail/Yahoo sense — so the body unsubscribe link satisfies CAN-SPAM.
       await sendGmailMessage(accessToken, {
         from: fromHeader,
-        to: [r.email],
+        to: [h.email],
         subject,
         bodyText: text,
         bodyHtml: html,
       })
-      if (!opts.test) {
-        await db.insert(schema.campaignEvents).values({
-          campaignId: opts.campaign.id,
-          recipientEmail: r.email.toLowerCase(),
-          customerId: r.customerId,
-          patientId: r.patientId,
-          type: 'sent',
-          meta: { channel: 'gmail', from: account.emailAddress },
-        })
-      }
-      sent++
+      if (!opts.test) await recordHouseholdEvents(opts, h, 'sent', { channel: 'gmail', from: account.emailAddress })
+      sent += h.members.length
       // Gentle pacing between sends to avoid tripping rate limits
-      if (i + 1 < cap) await new Promise((res) => setTimeout(res, 150))
+      if (i + 1 < households.length) await new Promise((res) => setTimeout(res, 150))
     } catch (err) {
-      errors.push({ email: r.email, error: err instanceof Error ? err.message : 'unknown' })
-      if (!opts.test) {
-        await db.insert(schema.campaignEvents).values({
-          campaignId: opts.campaign.id,
-          recipientEmail: r.email.toLowerCase(),
-          customerId: r.customerId,
-          patientId: r.patientId,
-          type: 'failed',
-          meta: { channel: 'gmail', error: err instanceof Error ? err.message : 'unknown' },
-        })
-      }
+      const message = err instanceof Error ? err.message : 'unknown'
+      for (const m of h.members) errors.push({ email: m.email ?? h.email, error: message })
+      failed += h.members.length
+      if (!opts.test) await recordHouseholdEvents(opts, h, 'failed', { channel: 'gmail', error: message })
     }
   }
 
-  return { channel: 'gmail', attempted: cap, sent, failed: errors.length, errors }
+  return { channel: 'gmail', attempted: cap, sent, failed, errors }
 }

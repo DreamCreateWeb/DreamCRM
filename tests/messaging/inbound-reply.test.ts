@@ -89,8 +89,17 @@ describe('handleInboundReply', () => {
       body: 'Yes please, 3pm works!',
       channel: 'email',
       externalId: 're_abc123',
+      source: 'inbound_email',
     })
     expect(sendMock).not.toHaveBeenCalled()
+  })
+
+  it("a robot's message (Auto-Submitted / Precedence / X-Autoreply) is recorded but earns NO auto-answer", async () => {
+    for (const headers of [{ 'Auto-Submitted': 'auto-replied' }, { Precedence: 'bulk' }, [{ name: 'X-Autoreply', value: 'yes' }]]) {
+      recordMock.mockClear()
+      expect(await handleInboundReply({ ...PAYLOAD, headers })).toBe('recorded')
+      expect(recordMock.mock.calls[0][0]).not.toHaveProperty('source')
+    }
   })
 
   it('forwards an unknown sender to the clinic inbox instead of dropping it', async () => {

@@ -6,15 +6,19 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
  */
 
 const ctx = {
-  value: null as null | { tenantType: string; role: string; organizationId: string; organizationSlug: string },
+  value: null as null | { tenantType: string; role: string; organizationId: string; organizationSlug: string; userId?: string },
 }
 vi.mock('@/lib/auth/context', () => ({
   getTenantContext: vi.fn(async () => ctx.value),
 }))
 
-const exportPatientsCsv = vi.fn(async () => 'First Name,Last Name\r\nJane,Doe\r\n')
+const exportPatientsCsv = vi.fn(async () => ({ csv: 'First Name,Last Name\r\nJane,Doe\r\n', rows: 1 }))
 vi.mock('@/lib/services/patient-import', () => ({
-  exportPatientsCsv: (...a: unknown[]) => exportPatientsCsv(...(a as [])),
+  exportPatientsCsvWithCount: (...a: unknown[]) => exportPatientsCsv(...(a as [])),
+}))
+const recordPatientAccess = vi.fn(async () => undefined)
+vi.mock('@/lib/services/patient-access-log', () => ({
+  recordPatientAccess: (...a: unknown[]) => recordPatientAccess(...(a as [])),
 }))
 
 import { GET } from '@/app/(default)/patients/export/route'
@@ -22,6 +26,7 @@ import { GET } from '@/app/(default)/patients/export/route'
 beforeEach(() => {
   ctx.value = null
   exportPatientsCsv.mockClear()
+  recordPatientAccess.mockClear()
 })
 
 describe('GET /patients/export', () => {
@@ -30,6 +35,7 @@ describe('GET /patients/export', () => {
     const res = await GET()
     expect(res.status).toBe(404)
     expect(exportPatientsCsv).not.toHaveBeenCalled()
+    expect(recordPatientAccess).not.toHaveBeenCalled()
   })
 
   it('404s for a non-clinic tenant', async () => {
@@ -47,9 +53,10 @@ describe('GET /patients/export', () => {
   })
 
   it('returns a text/csv attachment for an owner', async () => {
-    ctx.value = { tenantType: 'clinic', role: 'owner', organizationId: 'org_1', organizationSlug: 'acme' }
+    ctx.value = { tenantType: 'clinic', role: 'owner', organizationId: 'org_1', organizationSlug: 'acme', userId: 'usr_1' }
     const res = await GET()
     expect(res.status).toBe(200)
+    expect(recordPatientAccess).toHaveBeenCalledWith('org_1', 'usr_1', 'export', null, { rows: 1, what: 'patients' })
     expect(res.headers.get('Content-Type')).toContain('text/csv')
     expect(res.headers.get('Content-Disposition')).toContain('attachment')
     expect(res.headers.get('Content-Disposition')).toContain('acme-patients-')

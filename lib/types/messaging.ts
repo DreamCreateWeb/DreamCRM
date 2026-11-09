@@ -13,6 +13,8 @@ export interface MessageAttachment {
   name: string
   /** Sniffed content type, e.g. "image/jpeg". Always an image in v1. */
   contentType: string
+  /** Byte size (display only — the document chip's "412 KB"); optional. */
+  size?: number
 }
 
 /** Hard cap on attachments per message — keeps the composer, the meta blob,
@@ -23,6 +25,12 @@ export const MAX_MESSAGE_ATTACHMENTS = 6
  *  images in v1 (the upload route rejects everything else anyway). */
 export function isImageAttachment(a: { contentType?: string | null }): boolean {
   return typeof a.contentType === 'string' && a.contentType.startsWith('image/')
+}
+
+/** True for a PDF (a treatment plan, an EOB) — shown as a document chip, never
+ *  previewed inline. */
+export function isPdfAttachment(a: { contentType?: string | null }): boolean {
+  return typeof a.contentType === 'string' && a.contentType.toLowerCase() === 'application/pdf'
 }
 
 /**
@@ -41,7 +49,8 @@ export function sanitizeAttachments(value: unknown): MessageAttachment[] {
     if (!/^https?:\/\//i.test(url)) continue
     const contentType = typeof r.contentType === 'string' ? r.contentType.trim() : ''
     const name = typeof r.name === 'string' ? r.name.trim().slice(0, 200) : ''
-    out.push({ url, name, contentType: contentType.slice(0, 100) })
+    const size = typeof r.size === 'number' && Number.isFinite(r.size) && r.size > 0 ? Math.round(r.size) : undefined
+    out.push({ url, name, contentType: contentType.slice(0, 100), ...(size ? { size } : {}) })
     if (out.length >= MAX_MESSAGE_ATTACHMENTS) break
   }
   return out

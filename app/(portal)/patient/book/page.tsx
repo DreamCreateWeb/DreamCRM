@@ -62,7 +62,7 @@ export default async function PortalBookPage({
       <p className="mt-1.5 text-[0.95rem]" style={{ color: PORTAL_MUTED }}>
         {selfBookingEnabled
           ? 'Real openings, straight from our calendar. Pick what works — no phone call needed.'
-          : 'Tell us what you need and we’ll reach out to find a time that works — usually within one business day.'}
+          : 'Tell us what you need and we’ll reach out during office hours to find a time that works.'}
       </p>
 
       <div className="mt-6">

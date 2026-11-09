@@ -11,7 +11,6 @@ import { getOpenJobs } from '@/lib/services/careers'
 import { getShopConfig } from '@/lib/services/shop'
 import { listActivePlans } from '@/lib/services/membership'
 import type { ClinicService, ClinicStaff } from '@/lib/types/clinic-content'
-import { readableInk } from '@/lib/clinic-site-theme'
 import { dentalPlansJsonLd } from '@/lib/clinic-site-jsonld'
 import { resolveSeoMeta, applySeoOverride } from '@/lib/types/seo-meta'
 import {
@@ -24,7 +23,7 @@ import {
 import ScrollReveal from '@/components/clinic-site/scroll-reveal'
 import ClosingCTA from '@/components/clinic-site/closing-cta'
 import MembershipJoin from '../membership/membership-join'
-import { SITE_BG as BG, SITE_INK as INK, SITE_INK_MUTED as INK_MUTED, SITE_SURFACE as SURFACE, SITE_BORDER as BORDER } from '@/components/clinic-site/tokens'
+import { SITE_BG as BG, SITE_INK as INK, SITE_INK_MUTED as INK_MUTED, SITE_SURFACE as SURFACE, SITE_BORDER as BORDER, SITE_HEADING } from '@/components/clinic-site/tokens'
 import { resolveActiveSiteTemplate } from '@/lib/site-templates/resolve'
 import JsonLdScript from '@/components/json-ld'
 
@@ -132,7 +131,7 @@ export default async function DentalPlansPage({ params, searchParams }: Props) {
   const copyOverrides = (profile.copyOverrides as Record<string, string> | null) ?? null
   const brand = profile.brandColor ?? '#9CAF9F'
   // Contrast-safe text fill for brand-colored headings/eyebrows/glyphs.
-  const headingInk = readableInk(brand)
+  const headingInk = SITE_HEADING
   const bookHref = isSelfBookingEnabled(profile) ? `${basePath}/book` : `${basePath || '/'}#contact`
   const { def: siteTemplate } = await resolveActiveSiteTemplate(slug)
   const bookLabel = siteTemplate.bookLabel

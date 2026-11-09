@@ -61,7 +61,7 @@ describe('Reply widget anatomy', () => {
     renderPanel()
     expect(screen.getByLabelText('Your reply')).toBeInTheDocument()
     expect(screen.getByLabelText('Add an emoji')).toBeInTheDocument()
-    expect(screen.getByLabelText('Attach a photo')).toBeInTheDocument()
+    expect(screen.getByLabelText('Attach a photo or PDF')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Templates/ })).toBeInTheDocument()
     expect(screen.getByLabelText('Reply channel')).toBeInTheDocument()
     expect(screen.getByTitle('Schedule this message to send later')).toBeInTheDocument()

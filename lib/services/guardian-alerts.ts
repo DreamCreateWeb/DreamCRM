@@ -13,6 +13,7 @@ import {
   clinicRecoveryNote,
   ownerWasTold,
   clinicWasTold,
+  trafficDropLine,
   type AlertMemory,
   type EngineState,
   type GuardianAudience,
@@ -179,6 +180,9 @@ function alertBody(report: ClinicEngineReport, memory: AlertMemory, now: Date): 
     lines.push('', 'What it tried:')
     for (const c of report.failureCauses) lines.push(`• ${c}`)
   }
+  // The owner-only traffic signal rides along when the site is also falling.
+  const traffic = trafficDropLine(report.clinicName, report.signals)
+  if (traffic) lines.push('', `Also: ${traffic}`)
   if (report.verdict.recommendation) {
     lines.push('', `What I'd do: ${report.verdict.recommendation}`)
   }
