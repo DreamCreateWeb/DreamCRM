@@ -13,6 +13,7 @@ import { PageHeader } from '@/components/ui/page-header'
 import { KpiStat } from '@/components/ui/kpi-stat'
 import { FilterChip } from '@/components/ui/filter-chip'
 import { BrandLogo, type BrandLogoId } from '@/components/integrations/brand-logos'
+import { TrendChart } from '@/components/ui/charts'
 import { TONE_TEXT } from '@/lib/ui/encodings'
 
 /** Social platform slug → brand-logo id (the rest of the app uses real marks). */
@@ -161,7 +162,7 @@ export default async function AnalyticsPage({ searchParams }: Props) {
               </div>
               <DeltaBadge value={newPatientsDelta} />
             </div>
-            <Bars points={a.acquisition.trend} className="mt-4" />
+            <Bars points={a.acquisition.trend} label="New patients" className="mt-4" />
           </Card>
           <Card>
             <p className="text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400 mb-3">Source mix</p>
@@ -266,6 +267,7 @@ export default async function AnalyticsPage({ searchParams }: Props) {
             <>
               <Bars
                 points={traffic.daily.map((d) => ({ label: shortDay(d.day), count: d.views }))}
+                label="Site visits"
                 className="mt-4"
               />
               {traffic.topPages.length > 0 && (
@@ -432,7 +434,7 @@ export default async function AnalyticsPage({ searchParams }: Props) {
         <div className="grid grid-cols-1 lg:grid-cols-[1.1fr_1fr] gap-4">
           <Card>
             <p className="text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400 mb-1">Volume by week</p>
-            <Bars points={a.schedule.volumeTrend} className="mt-3" />
+            <Bars points={a.schedule.volumeTrend} label="Appointments" className="mt-3" />
           </Card>
           <div className="grid grid-rows-2 gap-4">
             <Card>
@@ -628,49 +630,18 @@ function convNote(numerator: number | null, denominator: number, ofLabel: string
   return `${((numerator / denominator) * 100).toFixed(0)}% of ${ofLabel}`
 }
 
-function Bars({ points, className = '' }: { points: TrendPoint[]; className?: string }) {
-  const max = Math.max(1, ...points.map((p) => p.count))
-  const total = points.reduce((s, p) => s + p.count, 0)
-  const avg = points.length ? total / points.length : 0
-  // Thin the x-axis labels so a 30/90-day daily chart doesn't crush (≤~12 shown).
-  const labelEvery = Math.max(1, Math.ceil(points.length / 12))
+/** Daily/weekly series on THE chart kit — the kit's tooltip answers hover and
+ *  decides label density (no numeral per bar). */
+function Bars({ points, className = '', label }: { points: TrendPoint[]; className?: string; label: string }) {
   return (
     <div className={className}>
-      <div className="relative h-32">
-        {/* Average reference line — instant "is this bar above or below normal". */}
-        {avg > 0 && (
-          <div
-            className="absolute inset-x-0 z-10 border-t border-dashed border-gray-300/80 dark:border-gray-600/70 pointer-events-none"
-            style={{ bottom: `${(avg / max) * 100}%` }}
-          >
-            <span className="absolute -top-2 right-0 text-xs text-gray-500 dark:text-gray-400 bg-[color:var(--color-surface-1)] px-1">
-              avg {Math.round(avg)}
-            </span>
-          </div>
-        )}
-        <div className="flex items-end gap-1 h-full border-b border-[color:var(--color-hairline)]">
-          {points.map((p, i) => (
-            <div key={i} className="flex-1 flex flex-col items-center justify-end h-full group">
-              <span className="text-xs tabular-nums font-mono-num text-gray-600 dark:text-gray-300 mb-0.5">
-                {p.count}
-              </span>
-              {/* Chart series 1 = teal (identity; the only teal allowed in data). */}
-              <div
-                className="w-full rounded-t bg-gradient-to-t from-teal-500/65 to-teal-400/90 dark:from-teal-500/55 dark:to-teal-300/80 group-hover:from-teal-500 group-hover:to-teal-400 transition-colors min-h-[2px]"
-                style={{ height: `${(p.count / max) * 100}%` }}
-                title={`${p.label}: ${p.count}`}
-              />
-            </div>
-          ))}
-        </div>
-      </div>
-      <div className="flex gap-1 mt-1">
-        {points.map((p, i) => (
-          <span key={i} className="flex-1 text-xs text-gray-500 dark:text-gray-400 truncate text-center">
-            {i % labelEvery === 0 ? p.label : ''}
-          </span>
-        ))}
-      </div>
+      <TrendChart
+        kind="bar"
+        height={160}
+        data={points.map((p) => ({ bucket: p.label, value: p.count }))}
+        label={label}
+        ariaLabel={`${label} over time, ${points.reduce((n, p) => n + p.count, 0)} in total`}
+      />
     </div>
   )
 }
@@ -688,7 +659,7 @@ function RankBars({ rows, compact, emptyNote }: { rows: { label: string; value: 
               <span className="tabular-nums font-mono-num font-medium text-gray-500 dark:text-gray-400">{r.value}</span>
             </div>
             <div className="h-1.5 rounded-full bg-gray-100 dark:bg-gray-800 overflow-hidden">
-              <div className="h-full rounded-full bg-teal-500/70 dark:bg-teal-400/60" style={{ width: `${(r.value / max) * 100}%` }} />
+              <div className="h-full rounded-full " style={{ background: 'var(--color-chart-1)', width: `${(r.value / max) * 100}%` }} />
             </div>
           </>
         )

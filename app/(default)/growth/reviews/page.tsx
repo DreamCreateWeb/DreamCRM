@@ -21,6 +21,7 @@ import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
 import { getSmsRegistration, smsDriver } from '@/lib/services/sms-registration'
 import { POLLING_STATES } from '@/lib/sms-registration'
 import { PageHeader } from '@/components/ui/page-header'
+import { PagePulse } from '@/components/ui/page-pulse'
 import { ActionButton } from '@/components/ui/action-button'
 import { StatusPill } from '@/components/ui/status-pill'
 import { KpiStat } from '@/components/ui/kpi-stat'
@@ -174,6 +175,14 @@ export default async function ReviewsPage() {
             )}
           </div>
         }
+      />
+      <PagePulse
+        facts={[
+          { label: 'asked in the last 30 days', value: stats.sent30d },
+          { label: 'reviewed', value: stats.completed30d, tone: 'ok' },
+          ...(eligibleCount > 0 ? [{ label: 'ready to ask', value: eligibleCount, tone: 'warn' as const }] : []),
+          ...(googleStats.needsReply > 0 ? [{ label: 'awaiting a reply', value: googleStats.needsReply, tone: 'warn' as const }] : []),
+        ]}
       />
 
       {/* ── Setup gate — the Google review link is the hero ─────────── */}

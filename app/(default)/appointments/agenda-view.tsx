@@ -17,6 +17,7 @@ import {
   type Tone,
 } from '@/lib/ui/encodings'
 import { PageHeader } from '@/components/ui/page-header'
+import { PagePulse } from '@/components/ui/page-pulse'
 import { ActionButton } from '@/components/ui/action-button'
 import { StatusPill } from '@/components/ui/status-pill'
 import { FilterChip } from '@/components/ui/filter-chip'
@@ -420,6 +421,11 @@ export default function AgendaView({
 
   const totalRows = useMemo(() => groups.reduce((acc, g) => acc + g.rows.length, 0), [groups])
 
+  const unconfirmedRows = useMemo(
+    () => groups.reduce((n, g) => n + g.rows.filter((r) => r.status === 'scheduled').length, 0),
+    [groups],
+  )
+
   // Saved-views bar inputs — the agenda filters map 1:1 onto the view shape.
   const currentViewFilters: AppointmentViewFilters = {
     window: filters.window,
@@ -473,6 +479,12 @@ export default function AgendaView({
             </ActionButton>
           </>
         }
+      />
+      <PagePulse
+        facts={[
+          { label: totalRows === 1 ? 'booking in view' : 'bookings in view', value: totalRows },
+          ...(unconfirmedRows > 0 ? [{ label: 'still unconfirmed', value: unconfirmedRows, tone: 'warn' as const }] : []),
+        ]}
       />
 
       {newBookingOpen && (
