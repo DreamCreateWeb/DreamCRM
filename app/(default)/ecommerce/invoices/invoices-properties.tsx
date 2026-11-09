@@ -1,4 +1,5 @@
 import { ReactElement } from 'react'
+import { TONE_PILL } from '@/lib/ui/encodings'
 
 export const InvoicesProperties = () => {
 
@@ -18,13 +19,13 @@ export const InvoicesProperties = () => {
   const statusColor = (status: string): string => {
     switch (status) {
       case 'Paid':
-        return 'bg-green-500/20 text-green-700';
+        return TONE_PILL.ok;
       case 'Due':
-        return 'bg-yellow-500/20 text-yellow-700';
+        return TONE_PILL.warn;
       case 'Overdue':
-        return 'bg-red-500/20 text-red-700';
+        return TONE_PILL.urgent;
       default:
-        return 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-300';
+        return TONE_PILL.neutral;
     }
   };
 

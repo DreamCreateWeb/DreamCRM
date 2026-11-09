@@ -16,6 +16,7 @@ import CategoryTabs from './category-tabs'
 import BulkActionBar from './bulk-action-bar'
 import { useSelection } from './selection-context'
 import { INTENT_COLORS } from './intent-badge'
+import { StatusPill } from '@/components/ui/status-pill'
 
 function RowAvatar({
   name,
@@ -337,10 +338,10 @@ export default function MailboxSidebar({
                               {(patientName || (accounts.length > 1 && t.accountEmail)) && (
                                 <div className="flex items-center gap-1.5 mt-1">
                                   {patientName && (
-                                    <span className="inline-flex items-center gap-1 text-xs font-medium rounded-full bg-emerald-100/70 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300 px-1.5 py-0.5" title={`Linked to ${patientName}`}>
+                                    <StatusPill tone="ok" className="gap-1" title={`Linked to ${patientName}`}>
                                       <span className="w-1 h-1 rounded-full bg-emerald-500" aria-hidden="true" />
                                       {patientName}
-                                    </span>
+                                    </StatusPill>
                                   )}
                                   {accounts.length > 1 && t.accountEmail && (
                                     <span className="text-xs text-gray-500 dark:text-gray-400 truncate" title={t.accountEmail}>

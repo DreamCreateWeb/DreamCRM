@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import MessagesSurfaceTabs from '../surface-tabs'
 import InboxAutoRefresh from '../inbox-auto-refresh'
 import { sendSupportMessage } from './actions'
+import { ActionButton } from '@/components/ui/action-button'
 import { relativeTime } from '@/lib/utils'
 
 /**
@@ -169,13 +170,15 @@ export default function SupportView({
                 aria-label="Message to support"
                 className="form-textarea max-h-40 flex-1 resize-none rounded-[var(--r-sm)] text-sm"
               />
-              <button
+              <ActionButton
                 type="submit"
+                variant="primary"
                 disabled={demo || pending || !body.trim()}
-                className="btn shrink-0 bg-teal-600 text-white hover:bg-teal-700 disabled:opacity-50"
+                pending={pending}
+                className="shrink-0"
               >
-                {pending ? 'Sending…' : 'Send'}
-              </button>
+                Send
+              </ActionButton>
             </div>
             <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
               Enter sends · Shift+Enter for a new line

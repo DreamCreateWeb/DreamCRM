@@ -9,6 +9,7 @@ import { ActionButton } from '@/components/ui/action-button'
 import { useConfirm } from '@/components/ui/confirm-dialog'
 import { disconnectMailbox, reclassifyAllAction, syncMailbox } from '../mailbox-actions'
 import { useAsPatientSenderAction } from './actions'
+import { StatusPill } from '@/components/ui/status-pill'
 
 interface Props {
   accounts: EmailAccountSummary[]
@@ -244,12 +245,12 @@ export default function SettingsPanel({ accounts, configured, flash, patientSend
                       {a.provider}
                     </span>
                     {patientSender.accountId === a.id && (
-                      <span
-                        className="ml-2 text-xs font-semibold bg-teal-500/10 text-teal-700 dark:text-teal-300 px-1.5 py-0.5 rounded"
+                      <StatusPill
+                        tone="info"
+                        className="ml-2"
                         title="Patient-facing email (confirmations, reminders) sends from this address. Change in Settings → Clinic."
-                      >
-                        Patient sender
-                      </span>
+                        label="Patient sender"
+                      />
                     )}
                   </div>
                   <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">

@@ -621,6 +621,15 @@ export const INTAKE_RULES = [
       // Nothing here is a new NUMBER: the floor is still AA out of
       // `palette.ts`, and rule 7 holds at zero with no exemption list.
       'tests/a11y/one-string-pairs.test.ts',
+      // The tone-pill rule (ML-55 / G1-28, 2026-11-09). A NEW CLASS of
+      // assertion rather than a case on an existing one: every rule above
+      // grades a contrast or a retired hue; this one grades WHERE a pill's
+      // wash + ink pair comes from. It walks app/(default), app/(double-
+      // sidebar), app/(partner) and components for a same-line `bg-<hue>-…`
+      // wash + `text-<hue>-NNN` ink and fails any file over its dated
+      // allowlist count (which may only shrink) — keyed on the pair, not the
+      // radius, because the thread-panel chips were `rounded-[var(--r-xs)]`.
+      'tests/design-system/tone-pills.test.ts',
       // The marketing-forms bare-await rule (2026-10-26, the deep dev cycle).
       // A NEW CLASS of assertion rather than a case on an existing one,
       // stated here rather than guessed as this entry's `why` asks: every

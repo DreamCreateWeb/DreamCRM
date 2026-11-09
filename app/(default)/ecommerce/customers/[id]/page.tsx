@@ -32,6 +32,7 @@ import { ActionButton } from '@/components/ui/action-button'
 import { StatusPill } from '@/components/ui/status-pill'
 import { KpiStat } from '@/components/ui/kpi-stat'
 import { EmptyState } from '@/components/ui/empty-state'
+import { TONE_PILL } from '@/lib/ui/encodings'
 
 /** A clinic that hasn't set a brand colour still needs a visible dot —
  *  this used to be `var(--color-brand)`, a token that does not exist, so
@@ -479,9 +480,7 @@ export default async function ClinicDetailPage({
               <li key={inv.id} className="flex items-center gap-4 py-3">
                 <span
                   className={`shrink-0 inline-flex items-center justify-center w-8 h-8 rounded-full text-sm ${
-                    inv.paid
-                      ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400'
-                      : 'bg-amber-500/15 text-amber-700 dark:text-amber-400'
+                    inv.paid ? TONE_PILL.ok : TONE_PILL.warn
                   }`}
                   aria-hidden
                 >
