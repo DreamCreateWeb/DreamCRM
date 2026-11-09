@@ -1324,6 +1324,13 @@
       "when": 1794265007262,
       "tag": "0188_metric_snapshot_clinic_closure_email_wanted_at",
       "breakpoints": true
+    },
+    {
+      "idx": 189,
+      "version": "7",
+      "when": 1794265286482,
+      "tag": "0189_two_factor",
+      "breakpoints": true
     }
   ]
 }

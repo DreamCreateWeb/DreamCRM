@@ -7,7 +7,7 @@ const DIR = join(process.cwd(), 'lib/db/migrations')
 const journal = JSON.parse(readFileSync(join(DIR, 'meta/_journal.json'), 'utf8')) as { entries: { tag: string }[] }
 
 describe('ml58_two_factor', () => {
-  const entry = journal.entries.find((e) => e.tag.endsWith('_ml58_two_factor'))
+  const entry = journal.entries.find((e) => e.tag.endsWith('_two_factor'))
   it('is registered in the journal', () => expect(entry).toBeTruthy())
   const sql = entry ? readFileSync(join(DIR, `${entry.tag}.sql`), 'utf8') : ''
   it("creates the plugin's two_factor table", () => {
