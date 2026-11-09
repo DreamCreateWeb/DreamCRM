@@ -22,6 +22,10 @@ import ScrollReveal from '@/components/clinic-site/scroll-reveal'
 import { DEMO_URL } from '@/lib/marketing/site'
 import Link from 'next/link'
 import ChapterRail from './chapter-rail'
+import { liveDesigns } from '@/components/marketing/design-gallery-data'
+import { DesignGallery } from '@/components/marketing/design-gallery'
+import { INCLUDED_MONTHLY_INSURANCE_CHECKS } from '@/lib/insurance-eligibility'
+import { INCLUDED_MONTHLY_INSURANCE_DISCOVERIES } from '@/lib/insurance-discovery'
 
 /**
  * THE PRODUCT TOUR — `BRAND.md` Part 8 move 6, page 3.
@@ -118,7 +122,7 @@ export const metadata = {
   title: 'Platform tour — DreamCRM',
   alternates: { canonical: '/product' },
   description:
-    'A deep dive through every module: the front-desk daily-ops layer, website studio, online booking, patient portal, unified messages, reviews & surveys, recall & loyalty, shop & memberships, and the PMS sync.',
+    'A deep dive through every module: the front-desk daily-ops layer, website studio, online booking, patient portal, unified messages, reviews & surveys, insurance checks, recall & loyalty, shop & memberships, and the PMS sync.',
 }
 
 interface ModuleSection {
@@ -135,7 +139,7 @@ interface ModuleSection {
      the bullets take that section's tone as a dash. */
   glyph: ToneTileGlyph
   docHref: string
-  visual: 'dashboard' | 'portal' | 'editor' | 'booking' | 'messages' | 'reviews' | 'recall' | 'shop' | 'gbp'
+  visual: 'dashboard' | 'portal' | 'editor' | 'booking' | 'messages' | 'reviews' | 'recall' | 'shop' | 'gbp' | 'none'
 }
 
 const SECTIONS: ModuleSection[] = [
@@ -290,6 +294,23 @@ const SECTIONS: ModuleSection[] = [
     visual: 'shop',
   },
   {
+    id: 'insurance',
+    glyph: 'shield',
+    eyebrow: 'Insurance checks',
+    title: 'Know the benefits before the patient sits down',
+    body: `Type what is on the insurance card, or photograph it, and get a benefits snapshot in seconds: what is left this year, the deductible, what the plan pays, waiting periods and when the next cleaning is covered. Checks run through Stedi, a payer clearinghouse, and ${INCLUDED_MONTHLY_INSURANCE_CHECKS} checks a month are included in the one plan. It is a switch you turn on, and every check is one you start.`,
+    bullets: [
+      'Eligibility checks through Stedi, started by your team, never automatic',
+      `${INCLUDED_MONTHLY_INSURANCE_CHECKS} checks a month included; the full breakdown counts per check`,
+      `No card on hand? Plan discovery has its own ${INCLUDED_MONTHLY_INSURANCE_DISCOVERIES} a month`,
+      'The record remembers the card, so a re-check is one tap',
+      'Every dollar figure is the payer’s own answer; a figure the payer did not state is left blank, never guessed',
+      'A one-page printable benefits sheet for the chart',
+    ],
+    docHref: '',
+    visual: 'none',
+  },
+  {
     id: 'integrations',
     glyph: 'sync',
     eyebrow: 'The foundation',
@@ -330,6 +351,7 @@ const VISUALS: Record<ModuleSection['visual'], React.ReactNode> = {
   reviews: <ReviewsMock />,
   recall: <RecallFunnelMock />,
   shop: <ShopMock />,
+  none: null,
   gbp: <GoogleSocialMock />,
 }
 
@@ -442,13 +464,15 @@ export default function ProductPage() {
                    the app is the picture, and on this page that is a
                    layout fact rather than a sentence. ── */}
             <div className="mt-8 grid gap-8 lg:grid-cols-12 lg:gap-10">
-              <div className="lg:col-span-7">
-                <ScrollReveal>{VISUALS[s.visual]}</ScrollReveal>
-              </div>
+              {s.visual !== 'none' && (
+                <div className="lg:col-span-7">
+                  <ScrollReveal>{VISUALS[s.visual]}</ScrollReveal>
+                </div>
+              )}
 
               {/* ── TIER B: the subject is stated once, on the chapter mark
                      above; these rows take that chapter's tone as a dash. ── */}
-              <div className="lg:col-span-5">
+              <div className={s.visual === 'none' ? 'lg:col-span-12' : 'lg:col-span-5'}>
                 <div
                   className="flex items-center gap-3 border-b pb-3"
                   style={{ borderColor: DAY_WIRE }}
@@ -459,7 +483,11 @@ export default function ProductPage() {
                     <span className="sr-only">{s.bullets.length} included</span>
                   </p>
                 </div>
-                <ul className="mt-4 grid gap-2.5 sm:grid-cols-2 sm:gap-x-10 lg:grid-cols-1">
+                <ul
+                  className={`mt-4 grid gap-2.5 sm:grid-cols-2 sm:gap-x-10 ${
+                    s.visual === 'none' ? 'lg:grid-cols-3' : 'lg:grid-cols-1'
+                  }`}
+                >
                   {s.bullets.map((b) => (
                     <li
                       key={b}
@@ -475,6 +503,18 @@ export default function ProductPage() {
           </section>
         ))}
       </div>
+
+      {/* ── EVERY DESIGN, LIVE ────────────────────────────────────────────
+             The six website designs as real, inert frames of the demo
+             practice — seen rather than described. ── */}
+      <section className="mx-auto max-w-6xl px-4 py-16 sm:px-6 lg:py-20" id="designs">
+        <SectionOpener
+          eyebrow="Website designs"
+          title="Six designs, all live. Pick the one that feels like your practice."
+          lede="Each frame below is the demo practice’s real homepage rendered in that design. Switching later keeps every word and photo exactly as it is."
+        />
+        <DesignGallery designs={liveDesigns()} />
+      </section>
 
       {/* ── EVERYTHING ELSE IN THE BOX ────────────────────────────────────
              The one band on the page, on the ticker's `surface-1` with
