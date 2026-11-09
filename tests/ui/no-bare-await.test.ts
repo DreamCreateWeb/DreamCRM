@@ -132,7 +132,6 @@ export const ALLOWED: Array<[file: string, sites: number]> = [
   ['app/(default)/settings/security/security-panel.tsx', 2],
   ['app/(default)/shop/coupons/coupons-client.tsx', 1],
   ['app/(default)/shop/loyalty-config-card.tsx', 1],
-  ['app/(default)/shop/orders/orders-client.tsx', 1],
   ['app/(double-sidebar)/inbox/components/thread-view.tsx', 4],
   ['app/(double-sidebar)/inbox/settings/settings-panel.tsx', 1],
   ['app/(double-sidebar)/messages/broadcast-button.tsx', 1],
@@ -148,7 +147,7 @@ export const ALLOWED: Array<[file: string, sites: number]> = [
 
 /** The sum of ALLOWED's counts the day it was taken. LOWER it as you sweep;
  *  never raise it — a raise is a new offender admitted by hand. */
-export const ALLOWLIST_CEILING = 174
+export const ALLOWLIST_CEILING = 173
 
 /* ───────────────────────── the detector ───────────────────────── */
 

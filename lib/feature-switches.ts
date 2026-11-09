@@ -214,10 +214,10 @@ export const FEATURE_SWITCHES: readonly FeatureSwitchDef[] = [
     does: [
       'Lists products on your site with checkout, orders and fulfilment.',
       'Runs coupons and birthday codes, and nudges you when stock is low.',
-      'Exports orders as CSV for the bookkeeper.',
+      'Emails a patient when their order is ready or on its way, and exports orders as CSV.',
     ],
     know: [
-      'It runs on your own Stripe account — connect one in Payments first.',
+      'It runs on your own Stripe account — connecting it is the first step inside.',
       'Stripe’s card fees apply to every order.',
       'Never a day-one thing; turn it on when you have something to sell.',
     ],

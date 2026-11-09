@@ -63,8 +63,9 @@ export async function disconnectStripeAction() {
 
 export async function setOrderFulfillmentAction(id: string, status: FulfillmentStatus, trackingNumber?: string | null) {
   const ctx = await ensureClinicAdmin()
-  await setOrderFulfillment(ctx.organizationId, id, status, trackingNumber)
+  const result = await setOrderFulfillment(ctx.organizationId, id, status, trackingNumber)
   revalidatePath('/shop/orders')
+  return result
 }
 
 /** Loyalty program config — the points card at the bottom of the Shop hub.
