@@ -10,6 +10,7 @@ import { useConfirm } from '@/components/ui/confirm-dialog'
 import { runAction } from '@/lib/run-action'
 import { formatCents } from '@/lib/types/shop'
 import { markPaymentsPostedAction, unmarkPaymentPostedAction } from './actions'
+import { TableFit } from '@/components/ui/data-table'
 
 /** One row, fully formatted on the server (clinic-tz dates, status pill). */
 export interface PostingRow {
@@ -88,7 +89,8 @@ export default function PostingTable({ rows }: { rows: PostingRow[] }) {
 
   return (
     <>
-      <div className="v2-card overflow-x-auto">
+      <div className="v2-card overflow-hidden">
+        <TableFit label="Online payments to post">
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-[color:var(--color-surface-sunk)] border-b border-[color:var(--color-hairline)] text-left">
@@ -160,6 +162,7 @@ export default function PostingTable({ rows }: { rows: PostingRow[] }) {
             ))}
           </tbody>
         </table>
+        </TableFit>
       </div>
 
       <BulkBar count={selected.size} noun="to mark posted" onClear={() => setSelected(new Set())}>

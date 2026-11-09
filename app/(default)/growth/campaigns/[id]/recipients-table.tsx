@@ -5,6 +5,7 @@ import { relativeTime } from '@/lib/utils'
 import { FilterChip } from '@/components/ui/filter-chip'
 import { StatusPill } from '@/components/ui/status-pill'
 import type { Tone } from '@/lib/ui/encodings'
+import { TableFit, FoldedFacts } from '@/components/ui/data-table'
 
 export interface RecipientRow {
   /** Where the message went — an address for email, a number for a text.
@@ -87,15 +88,15 @@ export default function RecipientsTable({ rows }: { rows: RecipientRow[] }) {
           />
         </div>
       </div>
-      <div className="overflow-x-auto">
+      <TableFit label="Campaign recipients">
         <table className="w-full text-sm">
           <thead className="v2-well border-b border-[color:var(--color-hairline)] text-left text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400">
             <tr>
               <th className="px-3 py-2">Recipient</th>
               <th className="px-3 py-2">Status</th>
               <th className="px-3 py-2">Sent</th>
-              <th className="px-3 py-2">Opened</th>
-              <th className="px-3 py-2">Clicked</th>
+              <th className="hidden sm:table-cell px-3 py-2">Opened</th>
+              <th className="hidden sm:table-cell px-3 py-2">Clicked</th>
             </tr>
           </thead>
           <tbody>
@@ -115,6 +116,9 @@ export default function RecipientsTable({ rows }: { rows: RecipientRow[] }) {
                   >
                     <td className="px-3 py-2 text-gray-700 dark:text-gray-200 font-medium truncate max-w-[18rem]">
                       {r.to}
+                      <FoldedFacts>
+                        Opened {r.openedAt ? relativeTime(r.openedAt) : '—'} · Clicked {r.clickedAt ? relativeTime(r.clickedAt) : '—'}
+                      </FoldedFacts>
                     </td>
                     <td className="px-3 py-2">
                       <StatusPill tone={status.tone} label={status.label} title={status.title} />
@@ -122,10 +126,10 @@ export default function RecipientsTable({ rows }: { rows: RecipientRow[] }) {
                     <td className="px-3 py-2 text-xs text-gray-500 dark:text-gray-400 tabular-nums">
                       {r.sentAt ? relativeTime(r.sentAt) : '—'}
                     </td>
-                    <td className="px-3 py-2 text-xs text-gray-500 dark:text-gray-400 tabular-nums">
+                    <td className="hidden sm:table-cell px-3 py-2 text-xs text-gray-500 dark:text-gray-400 tabular-nums">
                       {r.openedAt ? relativeTime(r.openedAt) : '—'}
                     </td>
-                    <td className="px-3 py-2 text-xs text-gray-500 dark:text-gray-400 tabular-nums">
+                    <td className="hidden sm:table-cell px-3 py-2 text-xs text-gray-500 dark:text-gray-400 tabular-nums">
                       {r.clickedAt ? relativeTime(r.clickedAt) : '—'}
                     </td>
                   </tr>
@@ -134,7 +138,7 @@ export default function RecipientsTable({ rows }: { rows: RecipientRow[] }) {
             )}
           </tbody>
         </table>
-      </div>
+      </TableFit>
     </div>
   )
 }

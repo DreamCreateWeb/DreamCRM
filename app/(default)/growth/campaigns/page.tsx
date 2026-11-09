@@ -13,6 +13,7 @@ import { StatusPill } from '@/components/ui/status-pill'
 import { EncodingLegend } from '@/components/ui/encoding-legend'
 import { EmptyState } from '@/components/ui/empty-state'
 import type { Tone } from '@/lib/ui/encodings'
+import { TableFit, FoldedFacts } from '@/components/ui/data-table'
 
 export const metadata = {
   title: 'Campaigns - DreamCRM',
@@ -164,15 +165,15 @@ export default async function CampaignsPage({
         />
       ) : (
         <div className="v2-card overflow-hidden">
-          <table className="w-full text-sm">
+          <TableFit label="Campaigns"><table className="w-full text-sm">
             <thead className="v2-well border-b border-[color:var(--color-hairline)]">
               <tr className="text-left text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400">
                 <th className="px-3 py-2">Name</th>
-                <th className="px-3 py-2">Subject</th>
+                <th className="hidden sm:table-cell px-3 py-2">Subject</th>
                 <th className="px-3 py-2">Status</th>
-                <th className="px-3 py-2">Channel</th>
+                <th className="hidden sm:table-cell px-3 py-2">Channel</th>
                 <th className="px-3 py-2">Sent</th>
-                <th className="px-3 py-2">Updated</th>
+                <th className="hidden sm:table-cell px-3 py-2">Updated</th>
               </tr>
             </thead>
             <tbody>
@@ -188,8 +189,11 @@ export default async function CampaignsPage({
                     >
                       {c.name}
                     </Link>
+                    <FoldedFacts>
+                      {channelLabel(c.sendChannel)} · Updated <span suppressHydrationWarning>{formatRelativeDate(c.updatedAt)}</span>
+                    </FoldedFacts>
                   </td>
-                  <td className="px-3 py-2.5 text-gray-500 dark:text-gray-400 max-w-[24rem] truncate">
+                  <td className="hidden sm:table-cell px-3 py-2.5 text-gray-500 dark:text-gray-400 max-w-[24rem] truncate">
                     {c.subject || <span className="italic text-gray-500 dark:text-gray-400">no subject</span>}
                   </td>
                   <td className="px-3 py-2.5">
@@ -202,7 +206,7 @@ export default async function CampaignsPage({
                       {c.status === 'scheduled' && <CancelScheduledButton campaignId={c.id} />}
                     </div>
                   </td>
-                  <td className="px-3 py-2.5 text-xs text-gray-500 dark:text-gray-400">
+                  <td className="hidden sm:table-cell px-3 py-2.5 text-xs text-gray-500 dark:text-gray-400">
                     {channelLabel(c.sendChannel)}
                   </td>
                   <td
@@ -216,7 +220,7 @@ export default async function CampaignsPage({
                         : '—'}
                   </td>
                   <td
-                    className="px-3 py-2.5 text-xs text-gray-500 dark:text-gray-400 tabular-nums"
+                    className="hidden sm:table-cell px-3 py-2.5 text-xs text-gray-500 dark:text-gray-400 tabular-nums"
                     suppressHydrationWarning
                   >
                     {formatRelativeDate(c.updatedAt)}
@@ -224,7 +228,7 @@ export default async function CampaignsPage({
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></TableFit>
         </div>
       )}
     </div>
