@@ -741,7 +741,8 @@ export async function sweepInvalidatedProposals(organizationId: string): Promise
       p.capability === 'setup_hours' ||
       p.capability === 'setup_chairs' ||
       p.capability === 'setup_booking_mode' ||
-      p.capability === 'setup_texting'
+      p.capability === 'setup_texting' ||
+      p.capability === 'setup_closures'
     ) {
       setupProposals.push({ id: p.id, capability: p.capability })
     }
@@ -780,7 +781,19 @@ export async function sweepInvalidatedProposals(organizationId: string): Promise
             .limit(1)
           textingStartedElsewhere = (smsRow?.a2pStatus ?? 'none') !== 'none'
         }
+        // Closures stated any other way (Settings → Holiday closures) → answered.
+        let closuresStatedElsewhere = false
+        if (setupProposals.some((sp) => sp.capability === 'setup_closures')) {
+          const { listUpcomingClosures } = await import('@/lib/services/closures')
+          const tz = await db
+            .select({ timezone: schema.clinicProfile.timezone })
+            .from(schema.clinicProfile)
+            .where(eq(schema.clinicProfile.organizationId, organizationId))
+            .limit(1)
+          closuresStatedElsewhere = (await listUpcomingClosures(organizationId, tz[0]?.timezone)).length > 0
+        }
         for (const sp of setupProposals) {
+          if (sp.capability === 'setup_closures' && closuresStatedElsewhere) toExpire.push(sp.id)
           if (sp.capability === 'setup_hours' && hoursConfirmedElsewhere) toExpire.push(sp.id)
           if (sp.capability === 'setup_chairs' && prof.chairCount != null) toExpire.push(sp.id)
           if (sp.capability === 'setup_texting' && textingStartedElsewhere) toExpire.push(sp.id)
@@ -1751,6 +1764,7 @@ export async function generateSetupProposals(organizationId: string): Promise<nu
       chairCount: schema.clinicProfile.chairCount,
       selfBookingEnabled: schema.clinicProfile.selfBookingEnabled,
       siteLiveAt: schema.clinicProfile.siteLiveAt,
+      timezone: schema.clinicProfile.timezone,
     })
     .from(schema.clinicProfile)
     .where(eq(schema.clinicProfile.organizationId, organizationId))
@@ -1842,6 +1856,35 @@ export async function generateSetupProposals(organizationId: string): Promise<nu
       })
       if (filed) filedCount++
     }
+  }
+
+  // 5. "Tell me your holiday closures" (ML-51) — asked ONCE, while the clinic
+  //    has stated none and a holiday most practices close for is within the
+  //    next ~4 months. The yes writes the proposed days (the presets,
+  //    recomputed server-side at the tap); Settings → Holiday closures edits.
+  try {
+    const { clinicDayKeyFor, listUpcomingClosures } = await import('@/lib/services/closures')
+    const { commonHolidayPresets, addDaysToKey } = await import('@/lib/closures')
+    const todayKey = clinicDayKeyFor(new Date(), profile.timezone)
+    const horizon = addDaysToKey(todayKey, 120)
+    const soon = commonHolidayPresets(todayKey, 5).filter((h) => h.startsOn <= horizon).slice(0, 3)
+    if (soon.length > 0 && (await listUpcomingClosures(organizationId, profile.timezone)).length === 0) {
+      const { formatClosureRange } = await import('@/lib/closures')
+      const lines = soon.map((h) => `• ${h.label} — ${formatClosureRange(h)}`).join('\n')
+      const { filed } = await fileProposal({
+        organizationId,
+        capability: 'setup_closures',
+        sourceKey: 'setup_closures:v1',
+        title: 'Which holidays is the office closed for?',
+        body:
+          `Say it once and your booking page, your website, patient reminders and the morning digest all follow. The next ones coming up:\n\n${lines}\n\n` +
+          'If you close for these, approve and I’ll put them on the calendar. Anything else — a retreat, a long weekend, the other federal holidays — is a few taps under Settings → Holiday closures.',
+        payload: { proposed: soon.map((h) => h.key) },
+      })
+      if (filed) filedCount++
+    }
+  } catch (e) {
+    console.warn('[proposals] setup_closures ask skipped:', e)
   }
 
   return filedCount

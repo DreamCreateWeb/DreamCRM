@@ -25,6 +25,7 @@ import { PortalCard, PortalHeading, PortalSectionLabel, PortalEmptyState, Portal
 import { greetingFor, fmtMoney } from '@/components/patient-portal/format'
 import { canTakeBalancePayments } from '@/lib/services/balance-payments'
 import { todaysHoursLabel } from '@/lib/clinic-site-helpers'
+import { closureToday } from '@/lib/services/closures'
 import type { PortalIconName } from '@/components/patient-portal/nav'
 
 const WEEK_MS = 7 * 86_400_000
@@ -297,7 +298,7 @@ export default async function PortalHome() {
           </p>
           {clinic?.hours && (
             <p className="mt-1 text-[0.85rem]" style={{ color: PORTAL_MUTED }}>
-              {todaysHoursLabel(clinic.hours as Record<string, { open?: string; close?: string; closed?: boolean }>, timeZone)}
+              {todaysHoursLabel(clinic.hours as Record<string, { open?: string; close?: string; closed?: boolean }>, timeZone, await closureToday(ctx.organizationId, timeZone))}
             </p>
           )}
           <div className="mt-3 flex flex-wrap gap-2">

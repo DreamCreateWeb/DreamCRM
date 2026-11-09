@@ -234,6 +234,7 @@ export async function rescheduleAppointmentAction(input: {
   const rSlot = rSlots.find((s) => s.startIso === rTargetIso)
   if (!rSlot || !rSlot.available) {
     const error =
+      rClosedReason === 'closure' ? "The practice has a closure that day. Pick another date." :
       rClosedReason === 'day_closed' ? "We're closed that day. Pick another date." :
       rClosedReason === 'past_closing' ? "That time is past closing. Try a different time or day." :
       rClosedReason === 'invalid_hours' ? "Online booking isn't set up for this day — give us a call." :
@@ -406,6 +407,7 @@ export async function createInternalAppointmentAction(input: {
     const slot = slots.find((s) => s.startIso === targetIso)
     if (!slot || !slot.available) {
       const error =
+        closedReason === 'closure' ? "The practice has a closure that day. Pick another date." :
         closedReason === 'day_closed' ? "We're closed that day. Pick another date." :
         closedReason === 'past_closing' ? "That time is past closing. Try a different time or day." :
         closedReason === 'invalid_hours' ? "Online booking isn't set up for this day — give us a call." :

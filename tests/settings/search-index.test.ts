@@ -26,6 +26,7 @@ const KNOWN_PAGES = new Set([
   '/website/content',
   '/website/design',
   '/settings/feedback',
+  '/settings/closures',
   '/settings/account',
   '/settings/notifications',
   '/settings/security',
