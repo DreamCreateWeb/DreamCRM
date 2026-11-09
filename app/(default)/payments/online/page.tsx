@@ -15,6 +15,7 @@ import { StatusPill } from '@/components/ui/status-pill'
 import { EmptyState } from '@/components/ui/empty-state'
 import { formatClinicDate } from '@/lib/format-datetime'
 import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
+import { TableFit, FoldedFacts } from '@/components/ui/data-table'
 
 export const metadata = { title: 'Online payments - DreamCRM' }
 export const dynamic = 'force-dynamic'
@@ -157,11 +158,11 @@ export default async function ShopPaymentsPage() {
             )}
           </div>
           <div className="v2-card overflow-hidden">
-            <table className="w-full text-sm">
+            <TableFit label="Deposits captured online"><table className="w-full text-sm">
               <thead>
                 <tr className="bg-[color:var(--color-surface-sunk)] border-b border-[color:var(--color-hairline)] text-left">
                   <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Patient</th>
-                  <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Visit type</th>
+                  <th className="hidden sm:table-cell px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Visit type</th>
                   <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 text-right">Amount</th>
                   <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Paid</th>
                   <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Status</th>
@@ -174,8 +175,9 @@ export default async function ShopPaymentsPage() {
                       <Link href={`/patients/${d.patientId}`} className="font-medium text-gray-800 dark:text-gray-100 hover:underline">
                         {d.patientName}
                       </Link>
+                      <FoldedFacts><span className="capitalize">{d.visitType.replace(/_/g, ' ')}</span></FoldedFacts>
                     </td>
-                    <td className="px-4 py-3 text-gray-600 dark:text-gray-300 capitalize">
+                    <td className="hidden sm:table-cell px-4 py-3 text-gray-600 dark:text-gray-300 capitalize">
                       {d.visitType.replace(/_/g, ' ')}
                     </td>
                     <td className="px-4 py-3 text-right tabular-nums font-mono-num font-semibold text-gray-800 dark:text-gray-100">
@@ -194,7 +196,7 @@ export default async function ShopPaymentsPage() {
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </table></TableFit>
           </div>
         </div>
       )}
@@ -216,7 +218,7 @@ export default async function ShopPaymentsPage() {
             </p>
           </div>
           <div className="v2-card overflow-hidden">
-            <table className="w-full text-sm">
+            <TableFit label="Refunds we could not match"><table className="w-full text-sm">
               <thead>
                 <tr className="bg-[color:var(--color-surface-sunk)] border-b border-[color:var(--color-hairline)] text-left">
                   <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Refunded</th>
@@ -251,7 +253,7 @@ export default async function ShopPaymentsPage() {
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </table></TableFit>
           </div>
         </div>
       )}

@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { StatusPill } from '@/components/ui/status-pill'
 import { useConfirm } from '@/components/ui/confirm-dialog'
 import { cancelPlanAction } from './actions'
+import { TableFit } from '@/components/ui/data-table'
 
 export interface PlanRowView {
   id: string
@@ -61,7 +62,7 @@ export default function PlansCard({ plans, canManage }: { plans: PlanRowView[]; 
           Monthly autopay installments — each successful charge lands in Online payments for PMS posting.
         </p>
       </div>
-      <div className="overflow-x-auto">
+      <TableFit label="Payment plans">
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-[color:var(--color-surface-sunk)] border-b border-[color:var(--color-hairline)] text-left">
@@ -120,7 +121,7 @@ export default function PlansCard({ plans, canManage }: { plans: PlanRowView[]; 
             })}
           </tbody>
         </table>
-      </div>
+      </TableFit>
     </div>
   )
 }

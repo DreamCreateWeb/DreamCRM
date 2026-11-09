@@ -760,3 +760,15 @@ html.dc-text-lg {
 html.dc-text-xl {
   font-size: 125%; /* ~20px base — the no-squint setting */
 }
+
+/* ML-53 — the phone table recipe (components/ui/data-table.tsx). Layered so a
+   utility on the same element still wins. Below `sm` the table keeps a
+   readable width and scrolls inside its own region; the first column pins. */
+@layer components {
+  .table-fit { max-width: 100%; }
+  .table-fit > table { min-width: 28rem; }
+  @media (max-width: 639px) {
+    .table-fit th:first-child, .table-fit td:first-child { position: sticky; left: 0; z-index: 1; background: var(--color-surface-1); }
+    .table-fit thead th:first-child { background: var(--color-surface-sunk); }
+  }
+}

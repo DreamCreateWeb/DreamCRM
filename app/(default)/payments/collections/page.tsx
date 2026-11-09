@@ -17,6 +17,7 @@ import { KpiStat } from '@/components/ui/kpi-stat'
 import SendLinkCell from './send-link-cell'
 import ProposePlanCell from './propose-plan-cell'
 import PlansCard, { type PlanRowView } from './plans-card'
+import { TableFit, FoldedFacts } from '@/components/ui/data-table'
 
 export const metadata = { title: 'Collections - DreamCRM' }
 export const dynamic = 'force-dynamic'
@@ -154,14 +155,14 @@ export default async function CollectionsPage() {
         )
       ) : (
         <div className="v2-card overflow-hidden">
-          <div className="overflow-x-auto">
+          <TableFit label="Open balances">
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-[color:var(--color-surface-sunk)] border-b border-[color:var(--color-hairline)] text-left">
                   <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Patient</th>
                   <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 text-right">Balance</th>
                   <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Pay link</th>
-                  <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Last online payment</th>
+                  <th className="hidden sm:table-cell px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Last online payment</th>
                   <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 text-right">Action</th>
                 </tr>
               </thead>
@@ -180,6 +181,11 @@ export default async function CollectionsPage() {
                           no email
                         </span>
                       )}
+                      {r.lastPaidAt && (
+                        <FoldedFacts>
+                          Last paid {formatCents(r.lastPaidCents ?? 0)} · {fmtDay(r.lastPaidAt)}
+                        </FoldedFacts>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-right font-mono tabular-nums text-gray-800 dark:text-gray-100">
                       {formatCents(r.balanceCents)}
@@ -197,7 +203,7 @@ export default async function CollectionsPage() {
                         <span className="text-xs text-gray-500 dark:text-gray-400">—</span>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-xs text-gray-600 dark:text-gray-300">
+                    <td className="hidden sm:table-cell px-4 py-3 text-xs text-gray-600 dark:text-gray-300">
                       {r.lastPaidAt ? (
                         <>
                           {formatCents(r.lastPaidCents ?? 0)} · {fmtDay(r.lastPaidAt)}
@@ -243,7 +249,7 @@ export default async function CollectionsPage() {
                 ))}
               </tbody>
             </table>
-          </div>
+          </TableFit>
           <p className="px-4 py-3 text-xs text-gray-500 dark:text-gray-400 border-t border-[color:var(--color-hairline)]">
             {board.truncated && (
               <>
