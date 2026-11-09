@@ -24,6 +24,7 @@ import { generatePostVisitCare } from '@/lib/services/proposal-generators/post-v
 import { generatePostopCheckinProposals } from '@/lib/services/proposal-generators/postop-checkin'
 import { generateRebookNudgeProposals } from '@/lib/services/proposal-generators/rebook-nudge'
 import { generateNewsletterProposals } from '@/lib/services/proposal-generators/newsletter'
+import { generateReferralAskProposals } from '@/lib/services/proposal-generators/referral-ask'
 import { clinicLocalHour, clinicWeekStart } from '@/lib/clinic-timezone'
 import { resolveTrialState } from '@/lib/trial'
 import { sweepClinics } from '@/lib/services/cron-sweep'
@@ -218,6 +219,11 @@ export const STEP_FAILURE: Record<string, { capability: string; summary: string 
   rebook_nudge: {
     capability: 'rebook_nudge',
     summary: 'Couldn’t check who left without their next visit booked just now — I’ll keep trying.',
+  },
+  // ML-39: the referral ask for a patient who just said they were happy.
+  referral_ask: {
+    capability: 'referral_ask',
+    summary: 'Couldn’t check who just said they were happy to ask for a referral — I’ll keep trying.',
   },
   gbp_website_fix: {
     capability: 'gbp_website_fix',
@@ -486,6 +492,9 @@ function makeOrgPass(result: Omit<GeneratorRunResult, 'sweep'>, now: Date): (org
         // which reach the same inbox; it stands down for anyone a campaign
         // already wrote to this month.
         ['rebook_nudge', () => generateRebookNudgeProposals(org.id, now, tz)],
+        // ML-39: a patient who just said they were happy (NPS 9–10 or a 5★
+        // review outcome) is asked, once ever, to pass the practice along.
+        ['referral_ask', () => generateReferralAskProposals(org.id, now, tz)],
         // THE WEEK AHEAD before the general recall: both reach for the same
         // audience, and the more specific, time-critical answer gets first
         // refusal. Each also stands down while the other's card is open, so

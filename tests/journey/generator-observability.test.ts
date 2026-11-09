@@ -112,6 +112,9 @@ vi.mock('@/lib/db', () => {
       clinicProfile: t('clinic_profile', 'organizationId', 'autonomy', 'timezone', 'reminderSettings'),
       patient: t('patient', 'id', 'organizationId', 'email', 'createdAt'),
       appointment: t('appointment', 'id', 'organizationId', 'patientId', 'startsAt', 'status'),
+      // ML-39: the referral-ask step reads promoter answers — empty here.
+      npsResponse: t('nps_response', 'organizationId', 'patientId', 'score', 'respondedAt'),
+      reviewRequest: t('review_request', 'organizationId', 'patientId', 'rating', 'completedAt'),
       campaign: t('campaign', 'id', 'organizationId', 'status', 'scheduledFor', 'createdAt'),
       // ML-12: the patient-reply step's read — empty, so the step is a no-op here.
       patientThread: t('patient_thread', 'id', 'organizationId', 'patientId', 'status', 'lastMessageDirection', 'lastMessageAt', 'urgency'),

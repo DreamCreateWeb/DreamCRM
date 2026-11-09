@@ -14,6 +14,7 @@ import { executeInquiryFollowup } from '@/lib/services/proposal-executors/inquir
 import { executePostopCheckin } from '@/lib/services/proposal-executors/postop-checkin'
 import { executeRebookNudge } from '@/lib/services/proposal-executors/rebook-nudge'
 import { executeNewsletter } from '@/lib/services/proposal-executors/newsletter'
+import { executeReferralAsk } from '@/lib/services/proposal-executors/referral-ask'
 import { resolveTrialState } from '@/lib/trial'
 import { stagesOnRunway } from '@/lib/dream-team-runway'
 
@@ -1241,6 +1242,8 @@ async function executeProposal(
       return executeRebookNudge(p, payload, saidYes)
     case 'newsletter':
       return executeNewsletter(p, payload, saidYes)
+    case 'referral_ask':
+      return executeReferralAsk(p, payload, saidYes)
     case 'gbp_website_fix':
       return executeGbpWebsiteFix(p, payload, saidYes)
     case 'setup_hours':
@@ -1270,6 +1273,7 @@ function demoLedgerSummary(p: typeof schema.proposal.$inferSelect, saidYes: stri
     case 'schedule_gap': return `Invited patients in for the week’s open times ${saidYes}`
     case 'rebook_nudge': return `Nudged a patient to book their next visit ${saidYes}`
     case 'newsletter': return `Drafted the monthly newsletter in your campaigns ${saidYes}`
+    case 'referral_ask': return `Asked a happy patient to refer a friend ${saidYes}`
     case 'gbp_website_fix': return `Pointed your Google listing at your website ${saidYes}`
     // ML-35: listing_watch files no proposals (an auto, report-only lane) —
     // the line exists so a stray demo-mode row still reads like the narrator.
