@@ -32,6 +32,7 @@ export const KNOWN_TOP_LEVEL_SEGMENTS: ReadonlySet<string> = new Set([
   'reset-password',
   'signin',
   'signup',
+  'two-step',
   // Public marketing site — app/(marketing)
   'blog',
   'changelog',

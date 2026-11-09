@@ -9,6 +9,7 @@ import { referralPartner } from '@/lib/db/schema/referrals'
 import { eq, and, asc } from 'drizzle-orm'
 import type { TenantType, PlanTier, Role } from '@/lib/modules/types'
 import { resolveTrialState } from '@/lib/trial'
+import { enforceTwoFactor } from './two-factor-gate'
 
 export interface TenantContext {
   userId: string
@@ -140,6 +141,18 @@ export async function getTenantContext(): Promise<TenantContext | null> {
 
   const isPlatformAdmin = (session.user as { platformAdmin?: boolean }).platformAdmin ?? false
 
+  const twoFactorEnabled = (session.user as { twoFactorEnabled?: boolean | null }).twoFactorEnabled === true
+  // The platform admin is REQUIRED to have a second factor — before ANY
+  // context (view-as included) is handed out. A server redirect to the enrol
+  // page (ML-58); the enrol page never calls this function.
+  enforceTwoFactor({
+    platformAdmin: isPlatformAdmin,
+    twoFactorEnabled,
+    role: null,
+    tenantType: null,
+    clinicRequires: false,
+  })
+
   const cookieStore = await cookies()
   const demoCookie = cookieStore.get('demo_context')
   if (isPlatformAdmin && demoCookie?.value) {
@@ -245,6 +258,7 @@ export async function getTenantContext(): Promise<TenantContext | null> {
 
   let planTier: PlanTier = 'basic'
   let subscriptionStatus: string | null = null
+  let clinicRequiresTwoFactor = false
   let onTrial = false
   let trialExpired = false
   let trialEndsAt: Date | null = null
@@ -257,6 +271,7 @@ export async function getTenantContext(): Promise<TenantContext | null> {
       .limit(1)
     if (profile?.planTier) planTier = profile.planTier as PlanTier
     subscriptionStatus = profile?.subscriptionStatus ?? null
+    clinicRequiresTwoFactor = profile?.requireTwoFactor === 1
     const trial = resolveTrialState({
       trialEndsAt: profile?.trialEndsAt ?? null,
       subscriptionStatus: profile?.subscriptionStatus ?? null,
@@ -274,6 +289,16 @@ export async function getTenantContext(): Promise<TenantContext | null> {
       : memberRow.role === 'patient'
         ? 'patient'
         : 'clinic'
+
+  // The owner's "require two-step sign-in for the team" switch (ML-58): a
+  // staff member without a factor is sent to enrol on their next page load.
+  enforceTwoFactor({
+    platformAdmin: isPlatformAdmin,
+    twoFactorEnabled,
+    role: memberRow.role,
+    tenantType,
+    clinicRequires: clinicRequiresTwoFactor,
+  })
 
   let patientId: string | null = null
   if (tenantType === 'patient') {

@@ -3,6 +3,7 @@ import { cache } from 'react'
 import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { auth } from './auth/server'
+import { enforcePlatformAdminTwoFactor } from './auth/two-factor-gate'
 
 export const getServerSession = cache(async () => {
   return auth.api.getSession({ headers: await headers() })
@@ -11,6 +12,8 @@ export const getServerSession = cache(async () => {
 export async function requireUser() {
   const session = await getServerSession()
   if (!session?.user) redirect('/signin')
+  // The platform admin reaches nothing until a second factor is enrolled (ML-58).
+  enforcePlatformAdminTwoFactor(session.user as { platformAdmin?: boolean | null; twoFactorEnabled?: boolean | null })
   return session.user
 }
 

@@ -6,6 +6,7 @@ import { useSearchParams } from 'next/navigation'
 import { signIn, authClient } from '@/lib/auth-client'
 import { isDeploymentSkewError } from '@/lib/auth/submit-guard'
 import { TONE_PILL } from '@/lib/ui/encodings'
+import SecondStep from './second-step'
 
 // If the sign-in fetch ever exceeds this, surface an error so the user
 // isn't stuck staring at "Signing In…". Cold DB cold start should be
@@ -23,7 +24,7 @@ export default function SignInForm() {
   // Passwordless mode — patients especially sign in twice a year; a one-tap
   // emailed link beats a forgotten password. 'sent' renders the check-your-
   // inbox state.
-  const [mode, setMode] = useState<'password' | 'magic' | 'sent'>('password')
+  const [mode, setMode] = useState<'password' | 'magic' | 'sent' | 'second'>('password')
 
   async function onSendMagicLink(e: React.FormEvent) {
     e.preventDefault()
@@ -81,7 +82,18 @@ export default function SignInForm() {
         return
       }
 
-      const { error: authError } = result as { error?: { message?: string } | null }
+      const { error: authError, data } = result as {
+        error?: { message?: string } | null
+        data?: { twoFactorRedirect?: boolean } | null
+      }
+      // A factor is on for this account: the password step issued no session
+      // yet — ask for the code (or a backup code) before anything else.
+      if (!authError && data?.twoFactorRedirect) {
+        setPassword('')
+        setLoading(false)
+        setMode('second')
+        return
+      }
       if (authError) {
         setError(authError.message ?? 'Unable to sign in')
         setLoading(false)
@@ -124,6 +136,10 @@ export default function SignInForm() {
         </button>
       </div>
     )
+  }
+
+  if (mode === 'second') {
+    return <SecondStep redirectTo={redirectTo} onBack={() => setMode('password')} />
   }
 
   const magicMode = mode === 'magic'

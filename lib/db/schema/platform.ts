@@ -20,6 +20,8 @@ export const clinicProfile = pgTable('clinic_profile', {
   // once by an owner/admin from the intro; clearable from the tool. The
   // 0169 migration backfills every clinic that already ran a check.
   insuranceEnabledAt: timestamp('insurance_enabled_at'),
+  // ML-58 — owner switch: every staff member must use two-step sign-in. Default off.
+  requireTwoFactor: integer('require_two_factor').notNull().default(0),
   // Onboarding's "which software runs the practice?": a PMS_VENDORS id, 'none'
   // or 'unsure'. Null = never asked / skipped (the cockpit asks again). A
   // vendor answer also files the pms_connect_request.

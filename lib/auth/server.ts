@@ -2,7 +2,7 @@ import { randomUUID } from 'crypto'
 import { and, desc, eq, sql } from 'drizzle-orm'
 import { betterAuth } from 'better-auth'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
-import { organization, magicLink } from 'better-auth/plugins'
+import { organization, magicLink, twoFactor } from 'better-auth/plugins'
 import { nextCookies } from 'better-auth/next-js'
 import { db } from '@/lib/db'
 import * as schema from '@/lib/db/schema/auth'
@@ -204,6 +204,7 @@ function build() {
         organization: schema.organization,
         member: schema.member,
         invitation: schema.invitation,
+        twoFactor: schema.twoFactor,
       },
     }),
 
@@ -242,6 +243,17 @@ function build() {
     },
 
     databaseHooks: {
+      // Two-step sign-in on/off lands in the access log (ML-58). The plugin
+      // flips `twoFactorEnabled` through the adapter, which fires this hook
+      // with the updated row; the service logs only a real change.
+      user: {
+        update: {
+          after: async (u) => {
+            const { recordTwoStepChange } = await import('@/lib/services/two-step-log')
+            await recordTwoStepChange(u.id, (u as { twoFactorEnabled?: boolean | null }).twoFactorEnabled === true)
+          },
+        },
+      },
       session: {
         create: {
           // Set activeOrganizationId at session-create time so sign-in (plain
@@ -327,6 +339,13 @@ function build() {
           await sendMagicLinkEmail(email, url, sender ?? undefined)
         },
       }),
+      // Two-step sign-in for staff (ML-58): TOTP from an authenticator app +
+      // single-use backup codes (stored encrypted by the plugin in its own
+      // table). Opt-in per user; REQUIRED for the platform admin and for any
+      // clinic whose owner turns the team switch on — enforced by
+      // lib/auth/two-factor-gate.ts. Patients (magic link) never pass through
+      // the password sign-in hook, so they are untouched.
+      twoFactor({ issuer: 'DreamCRM' }),
       nextCookies(),
     ],
 

@@ -174,7 +174,7 @@ export const patientAccessLog = pgTable(
     organizationId: text('organization_id').notNull().references(() => organization.id, { onDelete: 'cascade' }),
     patientId: text('patient_id'),
     userId: text('user_id').notNull(),
-    // 'view' | 'export' | 'merge' | 'print'
+    // 'view' | 'export' | 'merge' | 'print' | 'two_step_on' | 'two_step_off' (ML-58, patientId null)
     action: text('action').notNull(),
     detail: jsonb('detail'),
     at: timestamp('at').notNull().defaultNow(),
