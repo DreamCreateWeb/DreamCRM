@@ -1,9 +1,9 @@
 'use client'
 
-import { useEffect, useRef, useState, useTransition } from 'react'
+import { useEffect, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { ActionButton } from '@/components/ui/action-button'
-import { useFocusTrap } from '@/components/ui/use-focus-trap'
+import Modal from '@/components/ui/modal'
 import { FlashToast } from '@/components/ui/flash-toast'
 import { moneyExact, moneyFromCents, type PartnerDeleteDisposition } from '@/lib/types/referrals'
 import {
@@ -52,8 +52,6 @@ export default function DeletePartnerModal({
 }) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
-  const dialogRef = useRef<HTMLDivElement>(null)
-  useFocusTrap(open, dialogRef, {}) // keeps the component's own Escape handler
   const [disposition, setDisposition] = useState<PartnerDeleteDisposition | null>(null)
   const [loading, setLoading] = useState(false)
   const [pending, startTransition] = useTransition()
@@ -86,19 +84,6 @@ export default function DeletePartnerModal({
       cancelled = true
     }
   }, [open, partnerId])
-
-  // Esc closes — but not mid-payout. All four exits (Cancel, ✕, the backdrop
-  // and this) agree now: Cancel was already `disabled={pending}` and the
-  // other three were not, so on a modal whose buttons pay out or void real
-  // money one exit said "wait" and three said "sure".
-  useEffect(() => {
-    if (!open) return
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !pending) setOpen(false)
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [open, pending])
 
   function close() {
     if (pending) return
@@ -159,18 +144,7 @@ export default function DeletePartnerModal({
       {trigger ? trigger(() => setOpen(true)) : defaultTrigger}
 
       {open && (
-        <div
-          ref={dialogRef}
-          className="fixed inset-0 z-50 bg-[color:var(--color-ink-900)]/40 backdrop-blur-[2px] flex items-center justify-center p-4"
-          role="dialog"
-          aria-modal="true"
-          aria-label={`Delete ${partnerName}`}
-          onClick={close}
-        >
-          <div
-            className="section-enter bg-[color:var(--color-surface-2)] rounded-[var(--r-lg)] shadow-[var(--shadow-modal)] w-full max-w-md"
-            onClick={(e) => e.stopPropagation()}
-          >
+        <Modal open onClose={close} blocking={pending} label={`Delete ${partnerName}`} size="md">
             <div className="px-5 py-4 border-b border-[color:var(--color-hairline)] flex items-center justify-between">
               <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">
                 {disposition === 'clean' ? 'Delete partner' : 'Close partner account'}
@@ -278,8 +252,7 @@ export default function DeletePartnerModal({
                 </div>
               )}
             </div>
-          </div>
-        </div>
+        </Modal>
       )}
 
       {toast && <FlashToast message={toast} onDone={() => setToast(null)} />}

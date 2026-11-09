@@ -18,7 +18,7 @@ import {
 import { getGbpLocalMetrics, type GbpLocalMetrics } from '@/lib/services/gbp-metrics'
 import { setGscSiteAction, disconnectGscAction } from './actions'
 import ModuleHint from '@/components/onboarding/module-hint'
-import { PageHeader } from '@/components/ui/page-header'
+import { PageFrame } from '@/components/ui/page-frame'
 
 export const metadata = { title: 'SEO - DreamCRM' }
 export const dynamic = 'force-dynamic'
@@ -102,10 +102,7 @@ export default async function SeoPage({ searchParams }: Props) {
   const now = new Date()
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
-      <ModuleHint id="seo" />
-      {/* ── Header ──────────────────────────────────────────────────────── */}
-      <PageHeader
+    <PageFrame
         eyebrow={
           isManage ? (
             'Platform · Search Console'
@@ -121,7 +118,8 @@ export default async function SeoPage({ searchParams }: Props) {
             ? 'Connect once with the dreamcreatestudio.com Domain property. Every clinic’s SEO tab then reads it scoped to their own pages — clinics connect nothing.'
             : 'Straight answers, not impression graphs: how healthy your site is, and how much organic search actually turns into leads and booked visits — the number agencies can’t show you.'
         }
-      />
+      before={<ModuleHint id="seo" />}
+    >
 
       {gscConnected && (
         <div className="mb-4 text-sm px-4 py-2.5 rounded-[var(--r-md)] bg-emerald-50 text-emerald-800 dark:bg-emerald-500/10 dark:text-emerald-300">
@@ -455,7 +453,7 @@ export default async function SeoPage({ searchParams }: Props) {
       </section>
       </>
       )}
-    </div>
+    </PageFrame>
   )
 }
 

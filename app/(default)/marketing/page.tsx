@@ -14,7 +14,7 @@ import { permanentRedirect } from 'next/navigation'
 import ModuleHint from '@/components/onboarding/module-hint'
 import AcquisitionPanel from './acquisition-panel'
 import DialsPanel from './dials-panel'
-import { PageHeader } from '@/components/ui/page-header'
+import { PageFrame } from '@/components/ui/page-frame'
 import { ActionButton } from '@/components/ui/action-button'
 import { KpiStat } from '@/components/ui/kpi-stat'
 import { EmptyState } from '@/components/ui/empty-state'
@@ -82,10 +82,9 @@ async function PlatformMarketingDashboard({
   const wonLabel = t.stages.find((s) => s.terminal === 'won')?.label ?? 'Won'
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
-      <ModuleHint id="marketing" />
-      <PageHeader
-        eyebrow={`Platform · ${ctx.organizationName}`}
+    <PageFrame
+        group="Platform"
+        clinicName={ctx.organizationName}
         title={t.moduleTitle}
         subtitle="Track prospects, run campaigns, and grow the platform."
         actions={
@@ -101,7 +100,8 @@ async function PlatformMarketingDashboard({
             </ActionButton>
           </>
         }
-      />
+      before={<ModuleHint id="marketing" />}
+    >
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
         <KpiStat
@@ -252,7 +252,7 @@ async function PlatformMarketingDashboard({
           )}
         </div>
       </div>
-    </div>
+    </PageFrame>
   )
 }
 

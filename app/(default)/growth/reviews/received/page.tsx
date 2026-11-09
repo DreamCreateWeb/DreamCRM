@@ -1,4 +1,3 @@
-import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { requireTenant } from '@/lib/auth/context'
 import { getReviewConfig, listPrivateFeedback } from '@/lib/services/reviews'
@@ -15,7 +14,7 @@ import {
 import GoogleReviewsSection, { GoogleConnectPrompt } from './google-reviews-section'
 import FacebookReviewsSection from './facebook-reviews-section'
 import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
-import { PageHeader } from '@/components/ui/page-header'
+import { PageFrame } from '@/components/ui/page-frame'
 import { ActionButton } from '@/components/ui/action-button'
 import { EmptyState } from '@/components/ui/empty-state'
 import { EncodingLegend } from '@/components/ui/encoding-legend'
@@ -96,13 +95,8 @@ export default async function ReviewsReceivedPage() {
   ).length
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[1100px] mx-auto">
-      <PageHeader
-        eyebrow={
-          <Link href="/growth/reviews" className="hover:underline underline-offset-4">
-            ‹ Reviews
-          </Link>
-        }
+    <PageFrame width="1100"
+        hub={{ href: '/growth/reviews', label: 'Reviews' }}
         title="Reviews received"
         subtitle="Your Google reviews sync in automatically, and your 4★+ ones feature on your website on their own. Private feedback from patients lands at the bottom — just for your team."
         legend={
@@ -134,7 +128,7 @@ export default async function ReviewsReceivedPage() {
             </ActionButton>
           </div>
         }
-      />
+    >
 
       {/* ── Google reviews (real, synced via Zernio) — the primary surface ── */}
       {googleConnected ? (
@@ -202,6 +196,6 @@ export default async function ReviewsReceivedPage() {
           </ul>
         )}
       </section>
-    </div>
+    </PageFrame>
   )
 }

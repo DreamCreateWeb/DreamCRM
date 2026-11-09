@@ -7,7 +7,7 @@ import type { LeadRow, LeadStatus, LeadCounts, LeadsPerDayPoint } from '@/lib/se
 import { MiniTrend } from '@/components/ui/charts'
 import { SearchInput } from '@/components/ui/search-input'
 import { PendingVeil } from '@/components/ui/pending-veil'
-import { PageHeader } from '@/components/ui/page-header'
+import { PageFrame } from '@/components/ui/page-frame'
 import { PagePulse } from '@/components/ui/page-pulse'
 import { ActionButton } from '@/components/ui/action-button'
 import { EncodingLegend } from '@/components/ui/encoding-legend'
@@ -217,11 +217,9 @@ export default function LeadsView({
   }, [status, search])
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
-      {/* ── Header — this page IS the queue, so no fabricated primary; the
-          legend is the key affordance instead. ──────────────────────── */}
-      <PageHeader
-        eyebrow={`Daily · ${orgName}`}
+    <PageFrame
+        group="Daily"
+        clinicName={orgName}
         title="Website inquiries"
         subtitle="People who reached out through the contact form on your website. Follow up, then turn them into patients."
         legend={
@@ -246,7 +244,7 @@ export default function LeadsView({
             )}
           </div>
         }
-      />
+    >
       <PagePulse
         facts={[
           { label: counts.total === 1 ? 'inquiry' : 'inquiries', value: counts.total },
@@ -359,7 +357,7 @@ export default function LeadsView({
         />
       )}
       {toast && <FlashToast message={toast} onDone={() => setToast(null)} />}
-    </div>
+    </PageFrame>
   )
 }
 

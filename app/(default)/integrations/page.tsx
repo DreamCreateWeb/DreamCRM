@@ -21,7 +21,7 @@ import { resolveCatalog, type LiveIntegrationState, type IntegrationConnectionFa
 import { resolveBundles } from '@/lib/integrations/bundles'
 import IntegrationsLibrary from './integrations-library'
 import ModuleHint from '@/components/onboarding/module-hint'
-import { PageHeader } from '@/components/ui/page-header'
+import { PageFrame } from '@/components/ui/page-frame'
 
 export const metadata = {
   title: 'Integrations - DreamCRM',
@@ -209,14 +209,13 @@ export default async function IntegrationsPage({
     atLimitParam && isConnectablePlatform(atLimitParam) ? atLimitParam : null
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
-      <ModuleHint id="integrations" />
-
-      <PageHeader
-        eyebrow={`Business · ${ctx.organizationName}`}
+    <PageFrame
+        group="Business"
+        clinicName={ctx.organizationName}
         title="Integrations"
         subtitle="Connect the tools that power your practice — your practice-management system, Google Business, the social channels you post to, email, and payments. DreamCRM wraps what you already run; it doesn't replace it."
-      />
+      before={<ModuleHint id="integrations" />}
+    >
 
       <IntegrationsLibrary
         bundles={bundles}
@@ -249,6 +248,6 @@ export default async function IntegrationsPage({
         isDemo={ctx.isDemo}
         canManage={ctx.role === 'owner' || ctx.role === 'admin'}
       />
-    </div>
+    </PageFrame>
   )
 }

@@ -1,9 +1,8 @@
-import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { requireTenant } from '@/lib/auth/context'
 import { getIntegrationsDashboard } from '@/lib/services/pms'
 import { getIntegrationsHealth } from '@/lib/services/pms/health'
-import { PageHeader } from '@/components/ui/page-header'
+import { PageFrame } from '@/components/ui/page-frame'
 import { PROVIDER_LABELS, type PmsProviderId } from '@/lib/types/pms'
 import { SyncNowButton } from '../sync-controls'
 import { PmsConnectedDashboard, ScopeSection } from '../_pms-dashboard'
@@ -36,18 +35,6 @@ export default async function PmsDetailPage() {
   // is owner/admin, mirroring the marketplace's canManage gate.
   const canManage = ctx.role === 'owner' || ctx.role === 'admin'
 
-  const backLink = (
-    <Link
-      href="/integrations"
-      className="inline-flex items-center gap-1 text-sm text-teal-700 hover:text-teal-800 dark:text-teal-400 dark:hover:text-teal-300"
-    >
-      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
-      </svg>
-      All integrations
-    </Link>
-  )
-
   const [dashboard, health, request] = await Promise.all([
     getIntegrationsDashboard(ctx.organizationId),
     getIntegrationsHealth(ctx.organizationId),
@@ -62,15 +49,15 @@ export default async function PmsDetailPage() {
     : 'Your PMS'
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[80rem] mx-auto">
-      <div className="mb-4">{backLink}</div>
-
-      <PageHeader
-        eyebrow={`Business · ${ctx.organizationName}`}
+    <PageFrame
+      width="80rem"
+      back={{ href: '/integrations', label: 'All integrations' }}
+      group="Business"
+      clinicName={ctx.organizationName}
         title={connected ? `${providerLabel} sync` : 'Your practice software'}
         subtitle="The relationship layer over your practice-management system — synced through its official, sanctioned path, never by writing into your database behind its back."
         actions={connected && canManage ? <SyncNowButton /> : null}
-      />
+    >
 
       {connected && dashboard ? (
         <PmsConnectedDashboard dashboard={dashboard} health={health} canManage={canManage} />
@@ -104,6 +91,6 @@ export default async function PmsDetailPage() {
           <ScopeSection />
         </section>
       )}
-    </div>
+    </PageFrame>
   )
 }

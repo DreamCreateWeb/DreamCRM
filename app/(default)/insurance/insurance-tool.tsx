@@ -6,7 +6,7 @@ import { runAction } from '@/lib/run-action'
 import { failureErrors } from './action-errors'
 import PatientCombobox from '@/components/ui/patient-combobox'
 import { useCallback, useEffect, useRef, useState, useTransition, type ReactNode } from 'react'
-import { PageHeader } from '@/components/ui/page-header'
+import { PageFrame } from '@/components/ui/page-frame'
 import { ActionButton } from '@/components/ui/action-button'
 import { StatusPill } from '@/components/ui/status-pill'
 import { EmptyState } from '@/components/ui/empty-state'
@@ -403,9 +403,9 @@ export default function InsuranceTool({
   })
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
-      <PageHeader
-        eyebrow={`Daily · ${orgName}`}
+    <PageFrame
+        group="Daily"
+        clinicName={orgName}
         title="Insurance"
         subtitle="Look up a patient’s benefits before they sit down. We always confirm with the carrier before quoting."
         actions={
@@ -433,7 +433,7 @@ export default function InsuranceTool({
             </div>
           ) : undefined
         }
-      />
+    >
 
       {needsNpi && (
         <div className="v2-card px-4 sm:px-5 py-4 mb-6 flex flex-wrap items-center justify-between gap-3" role="status" data-testid="insurance-readiness">
@@ -889,7 +889,7 @@ export default function InsuranceTool({
           </button>
         </p>
       )}
-    </div>
+    </PageFrame>
   )
 }
 

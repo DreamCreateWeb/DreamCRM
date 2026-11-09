@@ -22,7 +22,7 @@ import {
   summarizeSubscriptions,
 } from '@/lib/services/stripe-admin'
 import { formatShortDate } from '@/lib/utils'
-import { PageHeader } from '@/components/ui/page-header'
+import { PageFrame } from '@/components/ui/page-frame'
 import { ActionButton } from '@/components/ui/action-button'
 
 export const metadata = {
@@ -60,8 +60,7 @@ export default async function InvoicesOrSubscriptions({
     const attention = pickAttentionSubscriptions(subscriptions)
 
     return (
-      <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
-        <PageHeader
+      <PageFrame
           eyebrow="Platform · Dream Create"
           title="Subscriptions"
           subtitle="Manage Stripe subscriptions and plans without leaving DreamCRM."
@@ -70,7 +69,7 @@ export default async function InvoicesOrSubscriptions({
               Revenue →
             </ActionButton>
           }
-        />
+      >
 
         {stripeError && (
           <div role="alert" className="mb-5 text-sm text-rose-700 dark:text-rose-300 bg-rose-500/10 ring-1 ring-inset ring-rose-500/20 px-4 py-3 rounded-[var(--r-lg)]">
@@ -96,7 +95,7 @@ export default async function InvoicesOrSubscriptions({
             </div>
           )}
         </div>
-      </div>
+      </PageFrame>
     )
   }
 

@@ -1,7 +1,7 @@
 'use client'
 
-import { Fragment, useState, useTransition } from 'react'
-import { Dialog, DialogPanel, Transition, TransitionChild } from '@headlessui/react'
+import { useState, useTransition } from 'react'
+import Modal from '@/components/ui/modal'
 import {
   AGENCY_PROJECT_TYPES,
   AGENCY_PROJECT_TYPE_LABELS,
@@ -61,32 +61,9 @@ export default function NewProjectModal({ clinics }: Props) {
       <ActionButton variant="primary" onClick={() => setOpen(true)}>
         + New project
       </ActionButton>
-      <Transition show={open} as={Fragment}>
-        <Dialog onClose={() => setOpen(false)} className="relative z-50">
-          <TransitionChild
-            as={Fragment}
-            enter="ease-out duration-200"
-            enterFrom="opacity-0"
-            enterTo="opacity-100"
-            leave="ease-in duration-150"
-            leaveFrom="opacity-100"
-            leaveTo="opacity-0"
-          >
-            <div className="fixed inset-0 bg-gray-900/60" />
-          </TransitionChild>
-          <div className="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-4">
-            <TransitionChild
-              as={Fragment}
-              enter="ease-out duration-200"
-              enterFrom="opacity-0 scale-95"
-              enterTo="opacity-100 scale-100"
-              leave="ease-in duration-150"
-              leaveFrom="opacity-100 scale-100"
-              leaveTo="opacity-0 scale-95"
-            >
-              <DialogPanel className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-lg w-full">
+      <Modal open={open} onClose={() => setOpen(false)} blocking={pending} labelledBy="modal-title" size="lg">
                 <div className="px-5 py-4 border-b border-gray-200 dark:border-gray-700/60">
-                  <h2 className="font-semibold text-gray-800 dark:text-gray-100">New project</h2>
+                  <h2 id="modal-title" className="font-semibold text-gray-800 dark:text-gray-100">New project</h2>
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                     Track a new engagement with one of your clinics or a prospect.
                   </p>
@@ -197,11 +174,7 @@ export default function NewProjectModal({ clinics }: Props) {
                     </ActionButton>
                   </div>
                 </form>
-              </DialogPanel>
-            </TransitionChild>
-          </div>
-        </Dialog>
-      </Transition>
+                    </Modal>
     </>
   )
 }

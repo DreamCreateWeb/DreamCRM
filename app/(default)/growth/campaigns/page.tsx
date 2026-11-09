@@ -6,7 +6,7 @@ import { listAudiences } from '@/lib/services/marketing'
 import { formatRelativeDate } from '@/lib/utils/format'
 import NewCampaignButton from './new-campaign-button'
 import CancelScheduledButton from './cancel-scheduled-button'
-import { PageHeader } from '@/components/ui/page-header'
+import { PageFrame } from '@/components/ui/page-frame'
 import { PagePulse } from '@/components/ui/page-pulse'
 import { ActionButton } from '@/components/ui/action-button'
 import { StatusPill } from '@/components/ui/status-pill'
@@ -100,8 +100,7 @@ export default async function CampaignsPage({
     .map((a) => ({ id: a.id, name: a.name }))
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
-      <PageHeader
+    <PageFrame
         eyebrow={
           // Platform-only list (clinics redirect above) — its home is the
           // Marketing workspace, not the clinic Growth hub.
@@ -133,7 +132,7 @@ export default async function CampaignsPage({
             />
           </>
         }
-      />
+    >
       <PagePulse
         facts={[
           { label: campaigns.length === 1 ? 'campaign' : 'campaigns', value: campaigns.length },
@@ -231,6 +230,6 @@ export default async function CampaignsPage({
           </table></TableFit>
         </div>
       )}
-    </div>
+    </PageFrame>
   )
 }

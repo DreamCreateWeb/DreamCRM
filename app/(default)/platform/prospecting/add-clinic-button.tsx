@@ -3,7 +3,7 @@
 import { useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { ActionButton } from '@/components/ui/action-button'
-import { useFocusTrap } from '@/components/ui/use-focus-trap'
+import Modal from '@/components/ui/modal'
 import { addProspectAction, type AddProspectResult } from './admin-actions'
 
 /**
@@ -34,7 +34,6 @@ export default function AddClinicButton() {
   // nobody pressed.
   const [active, setActive] = useState<'add' | 'anyway'>('add')
   const lastPayload = useRef<Payload | null>(null)
-  const panelRef = useRef<HTMLDivElement>(null)
 
   function reset() {
     setError(null)
@@ -47,7 +46,6 @@ export default function AddClinicButton() {
     setOpen(false)
     reset()
   }
-  useFocusTrap(open, panelRef, { onEscape: () => { if (!pending) close() } })
 
   function run(payload: Payload) {
     setError(null)
@@ -114,16 +112,8 @@ export default function AddClinicButton() {
       </ActionButton>
 
       {open && (
-        <div
-          className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-gray-900/60 p-4 sm:items-center"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="add-clinic-title"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) close()
-          }}
-        >
-          <div ref={panelRef} className="w-full max-w-lg rounded-lg bg-white shadow-xl dark:bg-gray-800 p-5 sm:p-6">
+        <Modal open onClose={close} blocking={pending} labelledBy="add-clinic-title" size="lg">
+          <div className="p-5 sm:p-6">
             {success ? (
               <div className="text-center" role="status">
                 <div className="mb-2 text-3xl">✅</div>
@@ -282,7 +272,7 @@ export default function AddClinicButton() {
               </>
             )}
           </div>
-        </div>
+        </Modal>
       )}
     </>
   )

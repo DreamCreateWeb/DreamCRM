@@ -1,6 +1,6 @@
 'use client'
 
-import { Suspense, use, useRef, useState, useTransition } from 'react'
+import { Suspense, use, useState, useTransition } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import type { PipelineStage } from '@/lib/marketing/terminology'
@@ -11,7 +11,7 @@ import { ActionButton } from '@/components/ui/action-button'
 import { useConfirm } from '@/components/ui/confirm-dialog'
 import { FilterChip } from '@/components/ui/filter-chip'
 import { EmptyState } from '@/components/ui/empty-state'
-import { useFocusTrap } from '@/components/ui/use-focus-trap'
+import Modal from '@/components/ui/modal'
 import { useToast } from '@/components/ui/toast'
 import {
   createAudienceAction,
@@ -314,8 +314,6 @@ function CustomerAudienceEditor({
   const [pending, startTransition] = useTransition()
   const [act, setAct] = useState<'preview' | 'save' | null>(null)
   const toast = useToast()
-  const panelRef = useRef<HTMLDivElement>(null)
-  useFocusTrap(true, panelRef, { onEscape: () => { if (!pending) onClose() } })
 
   function refreshPreview() {
     setAct('preview')
@@ -372,18 +370,7 @@ function CustomerAudienceEditor({
   }
 
   return (
-    <div
-      className="fixed inset-0 z-50 bg-[color:var(--color-ink-900)]/40 backdrop-blur-[2px] flex items-center justify-center p-4"
-      onClick={onClose}
-    >
-      <div
-        ref={panelRef}
-        role="dialog"
-        aria-modal="true"
-        aria-label="Audience editor"
-        className="section-enter bg-[color:var(--color-surface-2)] rounded-[var(--r-lg)] shadow-[var(--shadow-modal)] w-full max-w-2xl max-h-[90vh] overflow-y-auto"
-        onClick={(e) => e.stopPropagation()}
-      >
+    <Modal open onClose={onClose} blocking={pending} label="Audience editor" size="xl">
         <div className="px-5 py-4 border-b border-[color:var(--color-hairline)] sticky top-0 bg-[color:var(--color-surface-2)]/95 backdrop-blur">
           <h2 className="text-base font-semibold text-gray-800 dark:text-gray-100">
             {audience ? 'Edit audience' : 'New audience'}
@@ -529,8 +516,7 @@ function CustomerAudienceEditor({
             {audience ? 'Save' : 'Create'}
           </ActionButton>
         </div>
-      </div>
-    </div>
+    </Modal>
   )
 }
 
@@ -600,8 +586,6 @@ function PatientAudienceEditor({
   const [pending, startTransition] = useTransition()
   const [act, setAct] = useState<'preview' | 'save' | null>(null)
   const toast = useToast()
-  const panelRef = useRef<HTMLDivElement>(null)
-  useFocusTrap(true, panelRef, { onEscape: () => { if (!pending) onClose() } })
 
   function refreshPreview() {
     setAct('preview')
@@ -654,18 +638,7 @@ function PatientAudienceEditor({
   }
 
   return (
-    <div
-      className="fixed inset-0 z-50 bg-[color:var(--color-ink-900)]/40 backdrop-blur-[2px] flex items-center justify-center p-4"
-      onClick={onClose}
-    >
-      <div
-        ref={panelRef}
-        role="dialog"
-        aria-modal="true"
-        aria-label="Patient segment editor"
-        className="section-enter bg-[color:var(--color-surface-2)] rounded-[var(--r-lg)] shadow-[var(--shadow-modal)] w-full max-w-2xl max-h-[90vh] overflow-y-auto"
-        onClick={(e) => e.stopPropagation()}
-      >
+    <Modal open onClose={onClose} blocking={pending} label="Patient segment editor" size="xl">
         <div className="px-5 py-4 border-b border-[color:var(--color-hairline)] sticky top-0 bg-[color:var(--color-surface-2)]/95 backdrop-blur z-10">
           <h2 className="text-base font-semibold text-gray-800 dark:text-gray-100">
             {audience ? 'Edit patient segment' : 'New patient segment'}
@@ -845,8 +818,7 @@ function PatientAudienceEditor({
             {audience ? 'Save' : 'Create'}
           </ActionButton>
         </div>
-      </div>
-    </div>
+    </Modal>
   )
 }
 

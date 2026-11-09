@@ -31,7 +31,10 @@ describe('StudioWelcome', () => {
 
   it('ESC dismisses and persists too', () => {
     render(<StudioWelcome />)
-    fireEvent.keyDown(window, { key: 'Escape' })
+    // The Modal primitive's trap listens on the document (a real key event
+    // targets the focused element and bubbles there); a keydown dispatched on
+    // `window` never reaches it, so fire where a real one lands.
+    fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' })
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(window.localStorage.getItem(SEEN_KEY)).toBe('1')
   })

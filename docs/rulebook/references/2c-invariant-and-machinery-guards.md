@@ -47,6 +47,12 @@ vitest guards in `tests/guards/`, so they fail a required check like any other
 test — and they are the reason a workflow edit, or an edit to the harness
 config, that looks harmless can turn a PR red:
 
+- `page-frame-adoption.test.ts` — **every dashboard `page.tsx` under
+  `app/(default)` and `app/(double-sidebar)` renders through `<PageFrame>`**
+  (`components/ui/page-frame.tsx`: gutters, content width, the
+  `<Group> · <clinic name>` eyebrow, the hub way-back), directly or one relative
+  import away. A dated allowlist may only shrink; redirect stubs are exempt.
+  Registered in `INTAKE_RULES` as a tree-walk class (ML-54).
 - `review-gate.test.ts` — the gate list in `scripts/review-gate.mjs` must keep
   matching the tree. Four directions, and the two that bite are the ones that
   fail as the repo grows: `MUST_BE_GATED` (a curated list of files that must
@@ -190,6 +196,15 @@ The defect, the byte offsets and the reproductions are in the module header of
 `tests/guards/control-bytes.ts` and in the `docs/RELEASE.md` Part 5 entry (now
 `FIXED (#603, 5322a489)`, reconciled by #605 — §1). Read those, not a retelling
 here.
+
+**Two dead-code walkers hold the product at zero for unreachable bones** (ML-60,
+2026-11-09). `tests/guards/dead-components.test.ts` fails on any `components/`
+module with no importer; `tests/guards/reachable-routes.test.ts` fails on any
+`app/**/page.tsx` whose URL no other file mentions. Both share the walker in
+`scripts/find-dead-bones.mjs` (run it to see the live list), both carry DATED
+allowlists that may only shrink, and both are registered in `INTAKE_RULES`.
+The `billing_profiles` guard below was retired by the same slice: the table was
+dropped by migration, so there is nothing left to hold at zero.
 
 **The `test` check also holds a DORMANT TABLE at zero — in BOTH directions**
 (#606, `71e2992a`, DREAMCRM-58, merged 2026-09-15).

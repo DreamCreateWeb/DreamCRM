@@ -1,10 +1,10 @@
 'use client'
 
-import { useState, useTransition, useRef } from 'react'
+import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { ActionButton } from '@/components/ui/action-button'
 import { FlashToast } from '@/components/ui/flash-toast'
-import { useFocusTrap } from '@/components/ui/use-focus-trap'
+import Modal from '@/components/ui/modal'
 import PatientCombobox from '@/components/ui/patient-combobox'
 import { mergePatientsAction } from '../actions'
 
@@ -27,12 +27,10 @@ export default function MergeDuplicate({
   candidates: Candidate[]
 }) {
   const router = useRouter()
-  const dialogRef = useRef<HTMLDivElement | null>(null)
   const [open, setOpen] = useState(false)
   const [picked, setPicked] = useState<Option | null>(null)
   const [toast, setToast] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
-  useFocusTrap(open, dialogRef, { onEscape: () => { if (!pending) setOpen(false) } })
 
   function doMerge(dupId: string) {
     startTransition(async () => {
@@ -59,17 +57,11 @@ export default function MergeDuplicate({
       </button>
 
       {open && (
-        <div
-          ref={dialogRef}
-          role="dialog"
-          aria-modal="true"
-          aria-label="Merge a duplicate"
-          className="fixed inset-0 z-50 grid place-items-center bg-[color:var(--color-ink-900)]/30 backdrop-blur-[2px] p-4"
-        >
+        <Modal open onClose={() => setOpen(false)} blocking={pending} backdropClose={false} label="Merge a duplicate" size="md">
           {/* No scrim-click dismiss ON PURPOSE: this flow ends in an
               irreversible merge, so leaving it is an explicit act (Esc or
               Cancel), never a stray click. */}
-          <div className="section-enter w-full max-w-md rounded-[var(--r-lg)] bg-[color:var(--color-surface-2)] shadow-[var(--shadow-modal)] p-5">
+          <div className="p-5">
             <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">Merge a duplicate</h3>
             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
               Pick the duplicate record. Its appointments, messages, documents, tags, follow-ups, and history move onto{' '}
@@ -130,7 +122,7 @@ export default function MergeDuplicate({
               </>
             )}
           </div>
-        </div>
+        </Modal>
       )}
 
       {toast && <FlashToast message={toast} onDone={() => setToast(null)} />}

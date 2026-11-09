@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import Modal from '@/components/ui/modal'
 import { trialHeadline, trialSubline, trialUrgency, type TrialUrgency } from '@/lib/trial'
 
 /**
@@ -62,17 +63,8 @@ export default function TrialReminderModal({
   const accent = ACCENT[urgency]
 
   return (
-    <div
-      className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-[color:var(--color-ink-900)]/45 backdrop-blur-[2px]"
-      role="dialog"
-      aria-modal="true"
-      aria-label="Free trial reminder"
-      onClick={dismiss}
-    >
-      <div
-        className="section-enter w-full max-w-md rounded-[var(--r-lg)] bg-[color:var(--color-surface-2)] shadow-[var(--shadow-modal)] p-6 text-center"
-        onClick={(e) => e.stopPropagation()}
-      >
+    <Modal open onClose={dismiss} label="Free trial reminder" size="md" className="text-center">
+      <div className="p-6">
         <div className={`mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full text-xl ${accent.ring}`} aria-hidden="true">
           {accent.chip}
         </div>
@@ -95,6 +87,6 @@ export default function TrialReminderModal({
           </button>
         </div>
       </div>
-    </div>
+    </Modal>
   )
 }

@@ -76,10 +76,10 @@ describe('single-plan copy — no dead tiers advertised in Growth', () => {
 describe('orientation — every Growth sub-page walks back to its hub', () => {
   it('queue → Recall & Outreach; received → Reviews (link eyebrows, not plain text)', () => {
     expect(read('app/(default)/growth/outreach/queue/page.tsx')).toMatch(
-      /href="\/growth\/outreach"[^>]*>\s*‹ Recall/,
+      /hub=\{\{ href: '\/growth\/outreach', label: 'Recall/,
     )
     expect(read('app/(default)/growth/reviews/received/page.tsx')).toMatch(
-      /href="\/growth\/reviews"[^>]*>\s*‹ Reviews/,
+      /hub=\{\{ href: '\/growth\/reviews', label: 'Reviews'/,
     )
   })
 })

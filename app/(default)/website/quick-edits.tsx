@@ -1,8 +1,8 @@
 'use client'
 
-import { useRef, useState, useTransition, type ReactNode } from 'react'
+import { useState, useTransition, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
-import { useFocusTrap } from '@/components/ui/use-focus-trap'
+import Modal from '@/components/ui/modal'
 import { FlashToast } from '@/components/ui/flash-toast'
 import HoursGrid, { type HoursGridEntry } from '../settings/clinic/hours-grid'
 import StaffEditor from '../settings/clinic/staff-editor'
@@ -219,40 +219,21 @@ function QuickEditModal({
   wide?: boolean
   children: ReactNode
 }) {
-  // Tab stays inside the dialog, focus moves in on open and restores on
-  // close, Escape dismisses — the shared trap the app's other hand-rolled
-  // overlays already ride (replaces the bare window Escape listener).
-  const panelRef = useRef<HTMLDivElement>(null)
-  useFocusTrap(true, panelRef, { onEscape: onClose })
-
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto p-4 sm:p-8">
-      <div
-        className="fixed inset-0 bg-[#1A2440]/40 dark:bg-black/60"
-        aria-hidden="true"
-        onClick={onClose}
-      />
-      <div
-        ref={panelRef}
-        role="dialog"
-        aria-modal="true"
-        aria-label={title}
-        className={`relative w-full ${wide ? 'max-w-3xl' : 'max-w-xl'} my-auto rounded-[var(--r-lg)] bg-[color:var(--color-surface-2)] shadow-[var(--shadow-modal)]`}
-      >
+    <Modal open onClose={onClose} label={title} size={wide ? 'xl' : 'lg'}>
         <div className="flex items-center justify-between gap-3 px-5 sm:px-6 pt-5">
           <h2 className="text-base font-extrabold text-gray-900 dark:text-gray-100">{title}</h2>
           <button
             type="button"
             onClick={onClose}
             aria-label="Close"
-            className="inline-flex h-9 w-9 items-center justify-center rounded-[var(--r-pill)] text-gray-500 dark:text-gray-400 hover:text-gray-700 hover:bg-gray-500/10 dark:hover:text-gray-200"
+            className="inline-flex h-10 w-10 items-center justify-center rounded-[var(--r-pill)] text-gray-500 dark:text-gray-400 hover:text-gray-700 hover:bg-gray-500/10 dark:hover:text-gray-200"
           >
             ✕
           </button>
         </div>
-        <div className="px-5 sm:px-6 py-5 max-h-[70vh] overflow-y-auto">{children}</div>
-      </div>
-    </div>
+        <div className="px-5 sm:px-6 py-5">{children}</div>
+    </Modal>
   )
 }
 

@@ -1,11 +1,10 @@
-import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { requireTenant } from '@/lib/auth/context'
 import { getEffectiveWebsiteProfile, getWebsiteDraftStatus, type WebsiteDraftStatus } from '@/lib/services/website-draft'
 import { listLibraryForPicker } from '@/lib/services/service-library'
 import { publicSiteUrl } from '@/lib/services/clinic-site'
 import { contentSectionsFor, toContentSectionView } from '@/lib/website-content-sections'
-import { PageHeader } from '@/components/ui/page-header'
+import { PageFrame } from '@/components/ui/page-frame'
 import { ActionButton } from '@/components/ui/action-button'
 import { EmptyState } from '@/components/ui/empty-state'
 import ContentWorkspace from './content-workspace'
@@ -64,13 +63,8 @@ export default async function WebsiteContentPage() {
   const siteUrl = publicSiteUrl({ slug: ctx.organizationSlug ?? '', profile })
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-6xl mx-auto">
-      <PageHeader
-        eyebrow={
-          <Link href="/website" className="hover:underline underline-offset-4">
-            ‹ Website
-          </Link>
-        }
+    <PageFrame width="6xl"
+        hub={{ href: '/website', label: 'Website' }}
         title="Content"
         subtitle="Everything your site says, one section at a time. Pick a section, save it, and publish when you’re ready."
         actions={
@@ -78,7 +72,7 @@ export default async function WebsiteContentPage() {
             Open the editor
           </ActionButton>
         }
-      />
+    >
       {/* Publish state travels with every editing surface — saved-but-
           unpublished changes are visible wherever they were made. */}
       {draftStatus.count > 0 && (
@@ -95,6 +89,6 @@ export default async function WebsiteContentPage() {
           siteUrl={siteUrl}
         />
       </div>
-    </div>
+    </PageFrame>
   )
 }

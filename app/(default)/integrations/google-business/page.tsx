@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation'
 import { requireTenant } from '@/lib/auth/context'
 import { getZernioConnection } from '@/lib/services/zernio'
 import { zernioConfigured } from '@/lib/zernio'
-import { PageHeader } from '@/components/ui/page-header'
+import { PageFrame } from '@/components/ui/page-frame'
 import { StatusPill } from '@/components/ui/status-pill'
 import { BrandLogo } from '@/components/integrations/brand-logos'
 import GbpDetailControls from './gbp-detail-controls'
@@ -40,18 +40,6 @@ export default async function GoogleBusinessDetailPage() {
   const errored = zernio.status === 'error'
   const canManage = ctx.role === 'owner' || ctx.role === 'admin'
 
-  const backLink = (
-    <Link
-      href="/integrations"
-      className="inline-flex items-center gap-1 text-sm text-teal-700 hover:text-teal-800 dark:text-teal-400 dark:hover:text-teal-300"
-    >
-      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
-      </svg>
-      All integrations
-    </Link>
-  )
-
   const pill = connected ? (
     <StatusPill tone="ok" label="Connected" />
   ) : errored ? (
@@ -61,14 +49,14 @@ export default async function GoogleBusinessDetailPage() {
   )
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-3xl mx-auto">
-      <div className="mb-4">{backLink}</div>
-
-      <PageHeader
-        eyebrow={`Business · ${ctx.organizationName}`}
+    <PageFrame
+      width="3xl"
+      back={{ href: '/integrations', label: 'All integrations' }}
+      group="Business"
+      clinicName={ctx.organizationName}
         title="Google Business Profile"
         subtitle="Pull your reviews, verified hours, photos, and local search performance — through Zernio's secure sign-in. Free on every plan."
-      />
+    >
 
       {/* ── Status panel ──────────────────────────────────────────────── */}
       <section className="v2-panel p-5 mb-6">
@@ -149,7 +137,7 @@ export default async function GoogleBusinessDetailPage() {
           {zernio.lastError}
         </p>
       )}
-    </div>
+    </PageFrame>
   )
 }
 

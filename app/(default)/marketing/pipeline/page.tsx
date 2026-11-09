@@ -5,7 +5,7 @@ import { getLead, listLeads } from '@/lib/services/marketing'
 import PipelineBoard, { type PipelineLead } from './pipeline-board'
 import AddLeadButton from './add-lead-button'
 import PipelineLeadDrawer from './pipeline-lead-drawer'
-import { PageHeader } from '@/components/ui/page-header'
+import { PageFrame } from '@/components/ui/page-frame'
 import { ActionButton } from '@/components/ui/action-button'
 import { EmptyState } from '@/components/ui/empty-state'
 
@@ -55,9 +55,9 @@ export default async function PipelinePage({ searchParams }: { searchParams: Pro
   }
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
-      <PageHeader
-        eyebrow={`Growth · ${ctx.organizationName}`}
+    <PageFrame
+        group="Growth"
+        clinicName={ctx.organizationName}
         title={`${t.Leads} pipeline`}
         subtitle={`Drag a card to move ${t.lead === 'lead' ? 'a lead' : 'a patient'} between stages.`}
         actions={
@@ -68,7 +68,7 @@ export default async function PipelinePage({ searchParams }: { searchParams: Pro
             <AddLeadButton stages={t.stages} sources={t.sources} />
           </>
         }
-      />
+    >
 
       {leads.length === 0 && !params.q && !params.source ? (
         <EmptyState
@@ -110,6 +110,6 @@ export default async function PipelinePage({ searchParams }: { searchParams: Pro
         stages={t.stages}
         sources={t.sources}
       />
-    </div>
+    </PageFrame>
   )
 }

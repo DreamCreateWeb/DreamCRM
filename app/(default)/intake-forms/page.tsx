@@ -20,7 +20,7 @@ import { organization } from '@/lib/db/schema/auth'
 import { clinicProfile } from '@/lib/db/schema/platform'
 import { createBlankFormAction } from './actions'
 import ModuleHint from '@/components/onboarding/module-hint'
-import { PageHeader } from '@/components/ui/page-header'
+import { PageFrame } from '@/components/ui/page-frame'
 import { ActionButton } from '@/components/ui/action-button'
 import { StatusPill } from '@/components/ui/status-pill'
 import { EmptyState } from '@/components/ui/empty-state'
@@ -65,10 +65,9 @@ export default async function IntakeFormsListPage() {
     : ''
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
-      <ModuleHint id="intake-forms" />
-      <PageHeader
-        eyebrow={`Daily · ${ctx.organizationName}`}
+    <PageFrame
+        group="Daily"
+        clinicName={ctx.organizationName}
         title="Intake forms"
         subtitle="Digital forms patients fill out before their visit. Sent automatically with booking confirmations, or share the link directly."
         actions={
@@ -83,7 +82,8 @@ export default async function IntakeFormsListPage() {
             </form>
           </div>
         }
-      />
+      before={<ModuleHint id="intake-forms" />}
+    >
 
       {templates.length === 0 ? (
         <EmptyState
@@ -208,6 +208,6 @@ export default async function IntakeFormsListPage() {
           forms={templates.map((t) => ({ id: t.id, title: t.title }))}
         />
       )}
-    </div>
+    </PageFrame>
   )
 }

@@ -1,9 +1,9 @@
 'use client'
 
-import { useCallback, useRef, useState, useTransition } from 'react'
+import { useCallback, useState, useTransition } from 'react'
 import { markWelcomeSeenAction } from '@/app/(default)/dashboard/onboarding-actions'
 import { runAction } from '@/lib/run-action'
-import { useFocusTrap } from '@/components/ui/use-focus-trap'
+import Modal from '@/components/ui/modal'
 
 /**
  * First-run welcome for clinic staff — one warm screen that explains how
@@ -23,7 +23,6 @@ const SECTIONS: Array<{ name: string; blurb: string; tint: string }> = [
 export default function WelcomeModal({ clinicName }: { clinicName: string }) {
   const [open, setOpen] = useState(true)
   const [pending, startTransition] = useTransition()
-  const dialogRef = useRef<HTMLDivElement>(null)
 
   const close = useCallback(() => {
     // Optimistic: hide immediately, persist in the background.
@@ -37,19 +36,12 @@ export default function WelcomeModal({ clinicName }: { clinicName: string }) {
     })
   }, [])
 
-  useFocusTrap(open, dialogRef, { onEscape: close })
 
   if (!open) return null
 
   return (
-    <div
-      ref={dialogRef}
-      role="dialog"
-      aria-modal="true"
-      aria-label={`Welcome to ${clinicName}'s dashboard`}
-      className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 px-3 py-4 sm:items-center"
-    >
-      <div className="flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-gray-800">
+    <Modal open={open} onClose={close} label={`Welcome to ${clinicName}'s dashboard`} size="lg">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         <div className="overflow-y-auto px-6 pb-2 pt-7 sm:px-8">
           <p className="text-xs font-bold uppercase tracking-wider text-violet-500">Welcome</p>
           <h2 className="mt-1.5 text-xl font-bold text-gray-800 dark:text-gray-100">
@@ -90,6 +82,6 @@ export default function WelcomeModal({ clinicName }: { clinicName: string }) {
           </button>
         </div>
       </div>
-    </div>
+    </Modal>
   )
 }

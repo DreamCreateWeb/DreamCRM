@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { PageHeader } from '@/components/ui/page-header'
+import { PageFrame } from '@/components/ui/page-frame'
 import { StatusPill } from '@/components/ui/status-pill'
 import { KpiStat } from '@/components/ui/kpi-stat'
 import { EmptyState } from '@/components/ui/empty-state'
@@ -154,8 +154,7 @@ const UNREADABLE_LABEL: Record<FirstWeekRow['unreadable'][number], string> = { l
 
 export default function FirstWeekBoard({ board, includeDemo }: { board: Board; includeDemo: boolean }) {
   return (
-    <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-5xl mx-auto">
-      <PageHeader
+    <PageFrame width="5xl"
         eyebrow="Customers · Dream Create"
         title="First week"
         subtitle="Where every clinic is in its first thirty days, what is connected, what the machine did, and who is stuck — the screen for the setup call and the day-7 check-in."
@@ -164,7 +163,7 @@ export default function FirstWeekBoard({ board, includeDemo }: { board: Board; i
             {includeDemo ? 'Hide the demo clinic' : 'Show the demo clinic'}
           </Link>
         }
-      />
+    >
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
         <KpiStat label="In their first month" value={board.counts.inFirstMonth} />
@@ -196,6 +195,6 @@ export default function FirstWeekBoard({ board, includeDemo }: { board: Board; i
           ))}
         </div>
       )}
-    </div>
+    </PageFrame>
   )
 }

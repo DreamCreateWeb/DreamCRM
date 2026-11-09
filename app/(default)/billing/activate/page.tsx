@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation'
 import { requireTenant } from '@/lib/auth/context'
 import { getActivationDetails } from '@/lib/services/clinic-provisioning'
 import { ActionButton } from '@/components/ui/action-button'
-import { PageHeader } from '@/components/ui/page-header'
+import { PageFrame } from '@/components/ui/page-frame'
 import { ActivationCheckoutForm } from '@/components/ui/billing-action-form'
 
 export const metadata = {
@@ -29,12 +29,12 @@ export default async function BillingActivatePage() {
     n % 1 === 0 ? `$${n.toLocaleString('en-US')}` : `$${n.toLocaleString('en-US', { minimumFractionDigits: 2 })}`
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-2xl mx-auto">
-      <PageHeader
-        eyebrow={`Billing · ${ctx.organizationName}`}
+    <PageFrame width="2xl"
+        group="Billing"
+        clinicName={ctx.organizationName}
         title="Finish setting up your plan"
         subtitle="We saved your plan when your account was set up. Review it and add billing to turn on everything."
-      />
+    >
 
       <div className="v2-card p-6">
         <div className="flex items-baseline justify-between gap-4">
@@ -90,6 +90,6 @@ export default async function BillingActivatePage() {
           </p>
         </div>
       </div>
-    </div>
+    </PageFrame>
   )
 }

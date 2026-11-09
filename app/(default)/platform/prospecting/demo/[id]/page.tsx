@@ -13,7 +13,7 @@ import { deriveDemoGaps } from '@/lib/demo-gaps'
 import { DEMO_BEATS, suggestDemoTrack, DEMO_TRACKS } from '@/lib/types/demo-script'
 import { ratingLabel } from '@/lib/types/prospecting'
 import type { ProspectAiVerdict, ProspectCrawlSignals } from '@/lib/types/prospecting'
-import { PageHeader } from '@/components/ui/page-header'
+import { PageFrame } from '@/components/ui/page-frame'
 import { KpiStat } from '@/components/ui/kpi-stat'
 import { StatusPill } from '@/components/ui/status-pill'
 import BriefPanel from './brief-panel'
@@ -64,11 +64,15 @@ export default async function DemoPrepPage({
   }
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-4xl mx-auto">
-      {/* Print = the one-pager: hide app chrome, keep the brief. */}
-      <style>{`@media print { aside, header, nav, [data-testid="demo-hairline"], .no-print { display: none !important } }`}</style>
-      <PageHeader
-        eyebrow="Platform · Prospecting · Demo prep"
+    <PageFrame
+      width="4xl"
+      before={
+        <>
+          {/* Print = the one-pager: hide app chrome, keep the brief. */}
+          <style>{`@media print { aside, header, nav, [data-testid="demo-hairline"], .no-print { display: none !important } }`}</style>
+        </>
+      }
+      eyebrow="Platform · Prospecting · Demo prep"
         title={p.name}
         subtitle={[
           p.authorizedOfficialName,
@@ -78,7 +82,7 @@ export default async function DemoPrepPage({
           .filter(Boolean)
           .join(' · ')}
         actions={<PrepActions prospectId={p.id} />}
-      />
+    >
 
       {/* The numbers vs. typical */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
@@ -193,6 +197,6 @@ export default async function DemoPrepPage({
 
       {/* AI one-pager */}
       <BriefPanel prospectId={p.id} brief={brief} beatTitles={Object.fromEntries(beatTitle)} />
-    </div>
+    </PageFrame>
   )
 }

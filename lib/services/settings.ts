@@ -55,10 +55,7 @@ export async function updateAccount(userId: string, input: z.infer<typeof Accoun
 // later wired a read to the wrong table. The other stored card brand/last4 and
 // a billing address, unread, indefinitely.
 //
-// The TABLE is still there: dropping it is a migration on the deploy path and
-// it holds whatever the legacy UI wrote. That is queued in `docs/POST-1.0.md`.
-// `tests/billing/no-billing-profiles-write.test.ts` keeps the code off it in
-// the meantime.
+// The TABLE is gone too (ML-60 dropped `billing_profiles` and its enum).
 
 // ---------- Notifications ----------
 export const NotificationPrefsInput = z.object({

@@ -683,6 +683,25 @@ export const INTAKE_RULES = [
       //     directive prologue, so a module that declares it mid-file, or a
       //     function-level directive, is not an action module to this rule.
       'tests/ui/no-bare-await.test.ts',
+      // The one-Modal-primitive guard (2026-11-09, ML-56). A tree walk with
+      // the TypeScript parser over `app` and `components`: a JSX
+      // `role="dialog"` or a Headless UI `Dialog` import may appear only in
+      // `components/ui/modal.tsx` or on a DATED, SHRINK-ONLY allowlist of
+      // overlays that are deliberately not modals (side drawers, popovers,
+      // the lightbox, the command palette), each with its reason. Class: a
+      // tree walk (the parser-based census). Blind spots: a fixed overlay
+      // with neither `role="dialog"` nor a Headless `Dialog`, and a role
+      // built through a spread or a variable.
+      'tests/ui/no-hand-rolled-modal.test.ts',
+      // The page-frame adoption guard (2026-11-09, ML-54). A NEW CLASS of
+      // assertion, stated here as this entry's `why` asks: it WALKS every
+      // `page.tsx` under `app/(default)` and `app/(double-sidebar)` (settings
+      // excluded until ML-55) and requires `<PageFrame>` — directly or one
+      // relative import away — or a line on a dated allowlist that may only
+      // shrink. Class: a tree walk (the census), blind to a frame two hops
+      // away and to a conditionally rendered one. A new dashboard page that
+      // hand-rolls its gutters, width or eyebrow fails `test` by name.
+      'tests/guards/page-frame-adoption.test.ts',
       // The PORTAL half of the same guard (2026-11-03, ML-03). It reuses
       // `scanTree` from tests/ui/no-bare-await.test.ts over `app/(portal)`,
       // the token landings (`app/d app/i app/n app/r`) and
@@ -973,6 +992,12 @@ export const INTAKE_RULES = [
       // than being hand-rolled. `components/ui/charts/` is exempt by
       // construction, being the kit itself.
       'tests/ui/chart-kit.test.tsx',
+      // ML-60: two derived walkers over the whole tree (the components/ import
+      // graph; the app/ page routes) holding the product at zero for DEAD
+      // CODE — a component nothing imports, a page nothing links. Dated
+      // allowlists that may only shrink; both share scripts/find-dead-bones.mjs.
+      'tests/guards/dead-components.test.ts',
+      'tests/guards/reachable-routes.test.ts',
       // The a11y harness every browser-driven spec calls (#534). Registered BY
       // HAND and said so plainly: it neither reads source nor navigates, so no
       // derivation above can see it, and nothing would have flagged the axe
@@ -986,13 +1011,6 @@ export const INTAKE_RULES = [
       'e2e/axe.ts',
       // The remaining tree-wide scanners, each holding the product at zero for
       // one convention. Derived from the tree by the guard test, not recalled.
-      // A NEW CLASS rather than another instance of an existing one: it holds
-      // the product at zero for a DORMANT TABLE in BOTH directions, and the
-      // read half is the novel part — every other scanner here bans a way of
-      // writing something, this one also bans reading `billing_profiles`,
-      // because a read is what would give the rows the retired Plans UI left
-      // behind a meaning they never had.
-      'tests/billing/no-billing-profiles-write.test.ts',
       'tests/clinic-site/jsonld-escaping.test.ts',
       // ── THE TWO FROM DREAMCRM-90 (#654) ────────────────────────────────
       //

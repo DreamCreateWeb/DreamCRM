@@ -21,7 +21,7 @@ import { activeAnnouncement } from '@/lib/types/clinic-content'
 import { clinicDayKey } from '@/lib/format-datetime'
 import type { CustomDomainStatus } from '@/lib/services/custom-domain'
 import type { HoursGridEntry } from '../settings/clinic/hours-grid'
-import { PageHeader } from '@/components/ui/page-header'
+import { PageFrame } from '@/components/ui/page-frame'
 import { ActionButton } from '@/components/ui/action-button'
 import { NewsCard } from '@/components/ui/news-card'
 import { StatusPill } from '@/components/ui/status-pill'
@@ -234,9 +234,9 @@ export default async function WebsiteHubPage() {
     )
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-6xl mx-auto">
-      <PageHeader
-        eyebrow={`Website · ${ctx.organizationName}`}
+    <PageFrame width="6xl"
+        group="Website"
+        clinicName={ctx.organizationName}
         title="Website"
         subtitle="Your site, design, blog, search presence, and domain — all in one place."
         actions={
@@ -255,7 +255,7 @@ export default async function WebsiteHubPage() {
             </ActionButton>
           )
         }
-      />
+    >
 
       {/* ── THE GO-LIVE LEVER — the one deliberate act that makes the site
           (booking included) public. Rendered only while un-pulled; fed by
@@ -608,7 +608,7 @@ export default async function WebsiteHubPage() {
             is a legitimate, reversible ask. */}
         {canEdit && liveProfile.siteLiveAt && <TakeOfflineLink />}
       </div>
-    </div>
+    </PageFrame>
   )
 }
 

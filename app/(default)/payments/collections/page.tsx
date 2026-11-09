@@ -9,7 +9,7 @@ import { getPmsLink } from '@/lib/services/pms-link'
 import { balanceSourceCopy } from '@/lib/pms-link'
 import { formatClinicDateTime } from '@/lib/format-datetime'
 import { formatCents } from '@/lib/types/shop'
-import { PageHeader } from '@/components/ui/page-header'
+import { PageFrame } from '@/components/ui/page-frame'
 import { ActionButton } from '@/components/ui/action-button'
 import { StatusPill } from '@/components/ui/status-pill'
 import { EmptyState } from '@/components/ui/empty-state'
@@ -69,9 +69,9 @@ export default async function CollectionsPage() {
   )
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[80rem] mx-auto">
-      <PageHeader
-        eyebrow={`Business · ${ctx.organizationName}`}
+    <PageFrame width="80rem"
+        group="Business"
+        clinicName={ctx.organizationName}
         title="Collections"
         subtitle="Every open balance and where its follow-up stands — send pay links from here, and watch the paid ones clear on the next PMS sync."
         actions={
@@ -84,7 +84,7 @@ export default async function CollectionsPage() {
             </ActionButton>
           </>
         }
-      />
+    >
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
         <KpiStat
@@ -262,6 +262,6 @@ export default async function CollectionsPage() {
           </p>
         </div>
       )}
-    </div>
+    </PageFrame>
   )
 }

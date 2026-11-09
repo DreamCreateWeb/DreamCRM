@@ -1,4 +1,3 @@
-import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { requireTenant } from '@/lib/auth/context'
 import { getEffectiveWebsiteProfile, getWebsiteDraftStatus, type WebsiteDraftStatus } from '@/lib/services/website-draft'
@@ -12,7 +11,7 @@ import { buildSitePagesIndex, hasColoringPages } from '@/lib/clinic-site-helpers
 import { SEO_PAGE_KEYS, SEO_PAGE_PATHS } from '@/lib/types/seo-meta'
 import { getSiteTemplate } from '@/lib/site-templates/registry'
 import type { ClinicStaff } from '@/lib/types/clinic-content'
-import { PageHeader } from '@/components/ui/page-header'
+import { PageFrame } from '@/components/ui/page-frame'
 import { ActionButton } from '@/components/ui/action-button'
 import { EmptyState } from '@/components/ui/empty-state'
 import PagesManager, { type PageCopyGroup } from './pages-manager'
@@ -130,13 +129,8 @@ export default async function WebsitePagesPage() {
   const visitDays = traffic?.daily.map((d) => d.day) ?? []
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-5xl mx-auto">
-      <PageHeader
-        eyebrow={
-          <Link href="/website" className="hover:underline underline-offset-4">
-            ‹ Website
-          </Link>
-        }
+    <PageFrame width="5xl"
+        hub={{ href: '/website', label: 'Website' }}
         title="Pages"
         subtitle="Every page of your site — what’s live, what would publish the rest, and each page’s words."
         actions={
@@ -144,7 +138,7 @@ export default async function WebsitePagesPage() {
             Open the editor
           </ActionButton>
         }
-      />
+    >
       {/* Publish state travels with every editing surface — saved-but-
           unpublished changes are visible wherever they were made. */}
       {draftStatus.count > 0 && (
@@ -177,6 +171,6 @@ export default async function WebsitePagesPage() {
           />
         </div>
       </section>
-    </div>
+    </PageFrame>
   )
 }
