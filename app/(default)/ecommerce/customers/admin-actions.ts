@@ -18,7 +18,7 @@ import { cancelSubscriptionNow } from '@/lib/services/stripe-admin'
 import type { Role } from '@/lib/modules/types'
 import { DEMO_CLINIC_SLUG } from '@/lib/services/demo-constants'
 import { US_TIMEZONES } from '@/lib/clinic-timezone'
-import { isPmsVendor } from '@/lib/pms-connect'
+import { isPmsAnswer } from '@/lib/onboarding/pms-answer'
 
 const DEMO_COOKIE = 'demo_context'
 const DEMO_COOKIE_MAX_AGE = 60 * 60 * 24 * 7 // 7 days
@@ -346,7 +346,7 @@ const CreateManagedClinicInput = z.object({
   pmsVendor: z
     .string()
     .optional()
-    .refine((v) => !v || v === 'none' || v === 'not_sure' || isPmsVendor(v), 'Pick a listed system'),
+    .refine((v) => !v || isPmsAnswer(v), 'Pick a listed system'),
   pmsVendorName: z.string().trim().max(80).optional(),
   note: z.string().trim().max(2000).optional(),
   // Optional referral attribution: which partner referred this clinic + an

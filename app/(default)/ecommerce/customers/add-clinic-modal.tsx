@@ -7,7 +7,7 @@ import { createManagedClinicAction, checkManagedClinicSlugAction } from './admin
 import { PLANS, type BillingInterval } from '@/lib/stripe-config'
 import { runAction } from '@/lib/run-action'
 import { US_TIMEZONES, CLINIC_DEFAULT_TZ } from '@/lib/clinic-timezone'
-import { PMS_VENDORS } from '@/lib/pms-connect'
+import { PMS_ANSWER_CHOICES } from '@/lib/onboarding/pms-answer'
 import { slugify } from '@/lib/utils'
 import { ActionButton } from '@/components/ui/action-button'
 import { formatBps } from '@/lib/types/referrals'
@@ -61,7 +61,7 @@ export default function AddClinicModal({ partners = [] }: { partners?: PartnerOp
   const [postalCode, setPostalCode] = useState('')
   const [npi, setNpi] = useState('')
   const [brandColor, setBrandColor] = useState('')
-  const [pmsVendor, setPmsVendor] = useState('not_sure')
+  const [pmsVendor, setPmsVendor] = useState('unsure')
   const [pmsVendorName, setPmsVendorName] = useState('')
   const [interval, setInterval] = useState<BillingInterval>('monthly')
   const [pricingKind, setPricingKind] = useState<PricingKind>('standard')
@@ -98,7 +98,7 @@ export default function AddClinicModal({ partners = [] }: { partners?: PartnerOp
     setName(''); setSlug(''); setSlugTouched(false); setSlugNote(null)
     setOwnerName(''); setOwnerEmail('')
     setTimezone(CLINIC_DEFAULT_TZ); setPhone(''); setAddressLine1(''); setCity(''); setState(''); setPostalCode('')
-    setNpi(''); setBrandColor(''); setPmsVendor('not_sure'); setPmsVendorName(''); setInterval('monthly')
+    setNpi(''); setBrandColor(''); setPmsVendor('unsure'); setPmsVendorName(''); setInterval('monthly')
     setPricingKind('standard'); setPercentOff('20'); setAmountOff('50'); setDuration('forever')
     setNote(''); setPartnerId(''); setReferralPercent(''); setError(null); setCreated(null)
   }
@@ -320,9 +320,7 @@ export default function AddClinicModal({ partners = [] }: { partners?: PartnerOp
                           <label className="block text-sm font-medium mb-1" htmlFor="ac-pms">Practice-management system</label>
                           <select id="ac-pms" className="form-select w-full" value={pmsVendor}
                             onChange={(e) => setPmsVendor(e.target.value)}>
-                            <option value="not_sure">Not sure yet</option>
-                            <option value="none">None — paper or no system</option>
-                            {PMS_VENDORS.map((v) => (<option key={v.id} value={v.id}>{v.label}</option>))}
+                            {PMS_ANSWER_CHOICES.map((v) => (<option key={v.id} value={v.id}>{v.label}</option>))}
                           </select>
                           <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                             A system picked here files the connect request for you.

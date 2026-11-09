@@ -15,6 +15,8 @@ import { FirstWeekCard, SupportThreadCard, GuardianNoteCard } from './clinic-sta
 import { getFirstWeekRowFor } from '@/lib/services/first-week'
 import { getSupportThreadPeek } from '@/lib/services/messages'
 import { cachedEngineHealth } from '@/lib/services/guardian'
+import SetupCallCard from './setup-call-card'
+import { getPmsConnectRequest } from '@/lib/services/pms-connect'
 import NexHealthCard from './nexhealth-card'
 import {
   AGENCY_PROJECT_TYPE_LABELS,
@@ -144,6 +146,7 @@ export default async function ClinicDetailPage({
   // The first week, the support thread and the Guardian's note — each read
   // takes THIS clinic's org id explicitly and degrades to "unknown", never
   // to a blank that looks healthy.
+  const pmsRequest = await getPmsConnectRequest(clinic.orgId).catch(() => null)
   const [firstWeek, supportPeek, sweep] = await Promise.all([
     getFirstWeekRowFor({
       orgId: id,
@@ -246,6 +249,7 @@ export default async function ClinicDetailPage({
         />
       </div>
 
+      <SetupCallCard profile={clinic.profile} pmsRequest={pmsRequest} />
       <FirstWeekCard row={firstWeek} clinicName={clinic.profile?.displayName ?? clinic.name} />
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <SupportThreadCard peek={supportPeek.peek} unreadable={supportPeek.unreadable} />

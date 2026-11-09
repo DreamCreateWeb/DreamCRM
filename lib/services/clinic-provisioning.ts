@@ -13,6 +13,7 @@ import { slugify } from '@/lib/utils'
 import { hasPaidSubscription, trialEndDate } from '@/lib/trial'
 import { normalizeNpi } from '@/lib/insurance-eligibility'
 import { validatePmsConnectRequest } from '@/lib/pms-connect'
+import { isPmsAnswer, isVendorAnswer } from '@/lib/onboarding/pms-answer'
 import { newId } from '@/lib/utils'
 
 /**
@@ -72,7 +73,7 @@ export interface CreateManagedClinicInput {
   /** What the SETUP CALL learned beyond the dossier (ML-41). `npi` is ten
    *  digits or dropped; `pmsVendor` is a PMS_VENDORS id (a connect request
    *  is filed — the SAME row /integrations/pms's form files), or
-   *  'none' / 'not_sure' / absent (nothing filed: a PMS promise is never
+   *  'none' / 'unsure' / absent (nothing filed: a PMS promise is never
    *  made to a practice that has none). */
   setup?: {
     npi?: string | null
@@ -178,7 +179,7 @@ export async function createManagedClinic(input: CreateManagedClinicInput): Prom
   const npi = normalizeNpi(input.setup?.npi)
   const pmsRequest = (() => {
     const vendor = input.setup?.pmsVendor?.trim()
-    if (!vendor || vendor === 'none' || vendor === 'not_sure') return null
+    if (!vendor || !isVendorAnswer(vendor)) return null
     const checked = validatePmsConnectRequest({
       vendor,
       vendorName: input.setup?.pmsVendorName,
@@ -237,6 +238,8 @@ export async function createManagedClinic(input: CreateManagedClinicInput): Prom
         ? { timezone: usableTimeZone(input.dossier?.timezone)! }
         : {}),
       ...(npi ? { npi } : {}),
+      // The same one question the sign-up asks; null = never asked.
+      ...(isPmsAnswer(input.setup?.pmsVendor) ? { pmsAnswer: input.setup!.pmsVendor! } : {}),
     })
 
     // The prospect's Google place id seeds the review-request config — the
