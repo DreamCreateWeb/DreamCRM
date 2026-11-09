@@ -89,7 +89,7 @@ export default function ReferCard({
       </p>
       {referredCount > 0 && (
         <p className="mt-2 text-[0.85rem] font-medium" style={{ color: brand }}>
-          You’ve sent {referredCount === 1 ? 'a friend' : `${referredCount} friends`} our way — thank
+          {referredCount === 1 ? '1 friend' : `${referredCount} friends`} joined through you — thank
           you.
         </p>
       )}

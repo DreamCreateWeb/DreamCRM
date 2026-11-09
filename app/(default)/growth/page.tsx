@@ -13,6 +13,7 @@ import { getUpcomingContent } from '@/lib/services/content-calendar'
 import { getLeadCounts } from '@/lib/services/leads'
 import { listAudiences } from '@/lib/services/marketing'
 import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
+import { getWordOfMouthCounts, wordOfMouthLine } from '@/lib/services/growth-hub'
 import { formatClinicDayTime } from '@/lib/format-datetime'
 import { PageHeader } from '@/components/ui/page-header'
 import { ActionButton } from '@/components/ui/action-button'
@@ -91,6 +92,9 @@ export default async function GrowthHubPage() {
   // timezone, so it runs after the fan-out rather than inside it — the dates
   // a practice reads must be their own wall clock, not the server's.
   const upcomingContent = await getUpcomingContent(ctx.organizationId, tz)
+  // Word of mouth counts distinct PEOPLE from the patient record's own
+  // referral columns (ML-39) — best-effort like every other hub read.
+  const wordOfMouth = await getWordOfMouthCounts(ctx.organizationId, tz).catch(() => null)
 
   const hasSocialChannel = bundles.has('social') || bundles.has('google')
   const postsPublished30d = Object.values(postCounts).reduce((a, b) => a + b, 0)
@@ -177,6 +181,13 @@ export default async function GrowthHubPage() {
                     : 'stats unavailable right now'
                 }
                 tone={(newPatients30d?.viaSite ?? 0) > 0 ? 'ok' : undefined}
+              />
+              <ChannelRow
+                href="/growth/outreach"
+                glyph="🤝"
+                label="Word of mouth"
+                value={wordOfMouth ? wordOfMouthLine(wordOfMouth) : 'stats unavailable right now'}
+                tone={wordOfMouth && wordOfMouth.thisMonth > 0 ? 'ok' : undefined}
               />
               <ChannelRow
                 href="/growth/reviews"

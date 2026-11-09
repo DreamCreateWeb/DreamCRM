@@ -43,7 +43,8 @@ function emailToLine(
     capability === 'inquiry_response' ||
     capability === 'inquiry_followup' ||
     capability === 'postop_checkin' ||
-    capability === 'rebook_nudge'
+    capability === 'rebook_nudge' ||
+    capability === 'referral_ask'
   )
     return author
   const n = typeof payload.recipientCount === 'number' ? payload.recipientCount : null
@@ -232,6 +233,7 @@ export async function loadApprovalInbox(
       p.capability === 'inquiry_followup' ||
       p.capability === 'postop_checkin' ||
       p.capability === 'rebook_nudge' ||
+      p.capability === 'referral_ask' ||
       p.capability === 'outreach_campaign' ||
       p.capability === 'schedule_gap'
     ) {
@@ -288,7 +290,8 @@ export async function loadApprovalInbox(
           : // ML-28 / ML-29: a check-in's and a nudge's door is the patient's
             // record — the visit, the phone number, the booking drawer, for the
             // times the question wants a call.
-            (p.capability === 'postop_checkin' || p.capability === 'rebook_nudge') && typeof p.patientId === 'string'
+            (p.capability === 'postop_checkin' || p.capability === 'rebook_nudge' || p.capability === 'referral_ask') &&
+            typeof p.patientId === 'string'
             ? { href: `/patients/${p.patientId}`, label: 'Open their record' }
             : null
     return {
