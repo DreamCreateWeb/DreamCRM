@@ -63,3 +63,56 @@ export function deliverableReplyTo(email: string | null | undefined): string | n
   if (/(^|\.)example\.(com|org|net)$/.test(domain)) return null
   return trimmed
 }
+
+// ─── Tier 3: the practice's own domain ───────────────────────────────────────
+// Once the clinic's site is ACTIVE on its own domain and Resend reports that
+// domain's sending records VERIFIED, patient email comes from
+// `hello@<their domain>`. Reply-To is untouched (the platform's inbound domain
+// still routes replies to /messages — we never touch the clinic's MX). Tier 2
+// (a designated Gmail mailbox) still wins at transport time.
+
+export type EmailDomainStatus = 'pending' | 'verified' | 'failed'
+
+/** The local part patients see on the practice's own domain. */
+export const OWN_DOMAIN_LOCAL_PART = 'hello'
+
+/** The bare host for a site domain: lower-cased, scheme / path / port
+ *  stripped, a leading `www.` dropped. Null when it is not a host. */
+export function emailDomainFor(siteDomain: string | null | undefined): string | null {
+  const raw = (siteDomain ?? '').trim().toLowerCase().replace(/^https?:\/\//, '').split(/[/:?#]/)[0] ?? ''
+  const host = raw.replace(/^www\./, '').replace(/\.$/, '')
+  if (!/^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/.test(host)) return null
+  return host
+}
+
+export type SenderTier = 'gmail' | 'own_domain' | 'platform'
+
+export interface SenderTierInput {
+  /** A designated, usable connected Gmail mailbox exists. */
+  hasGmail: boolean
+  /** The custom domain's state ('active' only counts). */
+  customDomainState: string | null | undefined
+  /** The clinic's current site domain (`clinic_profile.website_domain`). */
+  websiteDomain: string | null | undefined
+  /** The Resend domain the clinic registered and its verification state. */
+  emailDomainName: string | null | undefined
+  emailDomainStatus: string | null | undefined
+}
+
+/** The ONE pure tier decision. Own-domain needs: site live there, Resend
+ *  verified, AND the verified domain still being the site's domain (a removed
+ *  or swapped custom domain never sends from a stale one). */
+export function resolveSenderTier(i: SenderTierInput): SenderTier {
+  if (i.hasGmail) return 'gmail'
+  const site = emailDomainFor(i.websiteDomain)
+  if (
+    i.customDomainState === 'active' &&
+    i.emailDomainStatus === 'verified' &&
+    site &&
+    i.emailDomainName &&
+    i.emailDomainName.toLowerCase() === site
+  ) {
+    return 'own_domain'
+  }
+  return 'platform'
+}

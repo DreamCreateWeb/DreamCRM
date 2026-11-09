@@ -193,9 +193,26 @@ describe('who the sweep asks about', () => {
   })
 
   it('does nothing at all on a quiet platform', async () => {
-    const res = await sweepPendingCustomDomains({ now: NOW, sleep: noSleep, check: stillPending })
+    const res = await sweepPendingCustomDomains({ now: NOW, sleep: noSleep, check: stillPending, sweepEmailDomains: false })
     expect(res).toEqual({ pending: 0, checked: 0, activated: 0, notified: 0, shutDown: 0, errors: [], completed: true })
     expect(h.updates).toEqual([])
+  })
+
+  it('ML-63: the one sweep also finishes pending email domains, isolated from the site leg', async () => {
+    const emailSweep = vi.fn(async () => ({ pending: 1, checked: 1, verified: 1, errors: [] as string[] }))
+    const res = await sweepPendingCustomDomains({ now: NOW, sleep: noSleep, check: stillPending, sweepEmailDomains: emailSweep })
+    expect(emailSweep).toHaveBeenCalledTimes(1)
+    expect(res.emailDomains).toMatchObject({ verified: 1 })
+    const broken = await sweepPendingCustomDomains({
+      now: NOW,
+      sleep: noSleep,
+      check: stillPending,
+      sweepEmailDomains: async () => {
+        throw new Error('resend down')
+      },
+    })
+    expect(broken.pending).toBe(0)
+    expect(broken.emailDomains).toBeUndefined()
   })
 })
 
