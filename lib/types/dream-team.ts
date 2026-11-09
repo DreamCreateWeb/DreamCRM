@@ -140,8 +140,8 @@ export const SPECIALISTS: readonly SpecialistDef[] = [
     capabilities: [
       'appointment_reminder',
       'noshow_rebook',
-      // THE GENERATOR LANE (ML-11): the cancelled visit's sibling of the
-      // no-show rebook.
+      // THE GENERATOR LANE (ML-11; shipped ML-29): the patient who left the
+      // chair without the next visit booked — the no-show rebook's sibling.
       'rebook_nudge',
       'waitlist_offer',
       'schedule_gap',

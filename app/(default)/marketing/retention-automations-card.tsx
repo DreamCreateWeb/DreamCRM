@@ -40,7 +40,15 @@ export function RetentionAutomationsCard({
     benefitsAutoSend: boolean
     welcomeAutoSend: boolean
   }
-  preview: { birthdaysThisMonth: number; newlyLapsed: number; benefitsEligible: number; newThisWeek: number }
+  preview: {
+    birthdaysThisMonth: number
+    newlyLapsed: number
+    benefitsEligible: number
+    newThisWeek: number
+    /** The reactivation window on this practice's cadence (ML-29) — the
+     *  sentence reads these; absent, it names the rule without a number. */
+    reactivationMonths?: { from: number; to: number }
+  }
   stats: Record<RetentionKind, AutomationRowStats>
   customized: Record<RetentionKind, boolean>
   canManage: boolean
@@ -83,7 +91,11 @@ export function RetentionAutomationsCard({
           kind="reactivation"
           icon="🔄"
           title="Reactivation nudge"
-          description="A no-judgment 'come back for a cleaning' note to patients whose last visit was about 9 months ago and who have nothing booked."
+          description={
+            preview.reactivationMonths
+              ? `A no-judgment 'come back for a cleaning' note to patients whose last visit was ${preview.reactivationMonths.from}–${preview.reactivationMonths.to} months ago and who have nothing booked.`
+              : "A no-judgment 'come back for a cleaning' note to patients who just slipped past your recall window and have nothing booked."
+          }
           cadence="Sends monthly"
           countLabel={
             preview.newlyLapsed > 0

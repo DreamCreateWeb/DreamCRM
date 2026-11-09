@@ -6,7 +6,9 @@ import { recordAction } from '@/lib/services/action-ledger'
 import { resolvePatientAudience, type PatientAudienceFilterT } from './marketing'
 import { getAutomationTemplate } from './marketing-templates'
 import { getClinicTimeZone } from './clinic-timezone'
+import { getClinicCadence } from './clinic-cadence'
 import { clinicDayStart, clinicLocalDate, resolveClinicTimeZone } from '@/lib/clinic-timezone'
+import { DEFAULT_RECALL_CADENCE, reactivationWindow, type RecallCadenceInput } from '@/lib/recall-cadence'
 import { getSharedBrain } from './shared-brain'
 import { DEFAULT_SEND_HOUR } from '@/lib/shared-brain'
 import type { RetentionKind } from '@/lib/types/retention'
@@ -23,9 +25,13 @@ export type { RetentionKind }
  * Two opt-in automations a clinic flips on once and never thinks about again:
  *
  *   - **Birthday** — a daily send to patients whose birthday is *today*.
- *   - **Reactivation** — a monthly send to patients who lapsed ~9 months ago
- *     (a "newly lapsed" window, so we catch them once rather than nagging the
- *     long-gone every month).
+ *   - **Reactivation** — a monthly send to patients who just slipped past
+ *     the practice's own overdue line (a "newly lapsed" window, so we catch
+ *     them once rather than nagging the long-gone every month). THE WINDOW
+ *     FOLLOWS THE PRACTICE'S CADENCE (ML-29): `reactivationWindow` in
+ *     lib/recall-cadence.ts reads Settings → Practice's recall interval the
+ *     same way the patient record does — the bare 270/300 days this file
+ *     used to carry were the default cadence written out by hand.
  *
  * **How it stays compliant + honest.** Rather than blasting raw email, an
  * automation *creates a scheduled campaign* and lets the existing
@@ -47,12 +53,6 @@ export type { RetentionKind }
  * happens at send time inside `sendCampaign`.
  */
 
-/** "Newly lapsed" window for reactivation: last visit between 9 and 10 months
- *  ago. A patient drifts past 9mo (a missed 6-month recall + a grace period)
- *  exactly once before the window moves on, so we don't re-nag every month. */
-const REACTIVATION_MIN_DAYS = 270
-const REACTIVATION_MAX_DAYS = 300
-
 const BIRTHDAY_FILTER: PatientAudienceFilterT = {
   birthdayToday: true,
   requireEmailOptIn: true,
@@ -60,15 +60,24 @@ const BIRTHDAY_FILTER: PatientAudienceFilterT = {
   includeArchived: false,
 }
 
-const REACTIVATION_FILTER: PatientAudienceFilterT = {
-  lastVisitAtLeastDaysAgo: REACTIVATION_MIN_DAYS,
-  lastVisitWithinDays: REACTIVATION_MAX_DAYS,
-  // Phase-4 suppression: someone with a visit on the books is already won
-  // back — a "come back" nudge would read as the practice not knowing them.
-  noUpcomingVisit: true,
-  requireEmailOptIn: true,
-  requireSmsOptIn: false,
-  includeArchived: false,
+/**
+ * "Newly lapsed" window for reactivation, on THIS practice's cadence: last
+ * visit between the overdue line (recall interval + grace) and one month
+ * past it. A patient drifts through it exactly once before the window moves
+ * on, so the monthly send never re-nags. Pure — the cadence rides in.
+ */
+export function reactivationFilterFor(cadence: RecallCadenceInput): PatientAudienceFilterT {
+  const w = reactivationWindow(cadence)
+  return {
+    lastVisitAtLeastDaysAgo: w.minDays,
+    lastVisitWithinDays: w.maxDays,
+    // Phase-4 suppression: someone with a visit on the books is already won
+    // back — a "come back" nudge would read as the practice not knowing them.
+    noUpcomingVisit: true,
+    requireEmailOptIn: true,
+    requireSmsOptIn: false,
+    includeArchived: false,
+  }
 }
 
 /** Use-your-benefits: insured, no upcoming visit, and not seen in ~4 months
@@ -94,11 +103,21 @@ const WELCOME_FILTER: PatientAudienceFilterT = {
   includeArchived: false,
 }
 
-const KIND_FILTERS: Record<RetentionKind, PatientAudienceFilterT> = {
-  birthday: BIRTHDAY_FILTER,
-  reactivation: REACTIVATION_FILTER,
-  benefits: BENEFITS_FILTER,
-  welcome: WELCOME_FILTER,
+/** Every kind's audience filter for one practice. Only reactivation reads
+ *  the cadence; the rest are fixed by their own contract. */
+function kindFiltersFor(cadence: RecallCadenceInput): Record<RetentionKind, PatientAudienceFilterT> {
+  return {
+    birthday: BIRTHDAY_FILTER,
+    reactivation: reactivationFilterFor(cadence),
+    benefits: BENEFITS_FILTER,
+    welcome: WELCOME_FILTER,
+  }
+}
+
+/** The practice's cadence, best-effort: an unreadable setting falls to the
+ *  defaults so a clinic's campaign never fails to schedule over a config read. */
+async function readCadence(organizationId: string): Promise<RecallCadenceInput> {
+  return getClinicCadence(organizationId).catch(() => DEFAULT_RECALL_CADENCE)
 }
 
 /** Clinic-local months (1–12) the benefits automation is live: Oct, Nov, Dec. */
@@ -284,7 +303,8 @@ async function runOne(
       return
     }
 
-    const filter = KIND_FILTERS[kind]
+    const cadence = await readCadence(organizationId)
+    const filter = kindFiltersFor(cadence)[kind]
     // Resolve once, only to skip an empty send (no birthdays / nobody newly
     // lapsed). The authoritative resolution happens again at send time.
     const recipients = await resolvePatientAudience(organizationId, filter, { timeZone })
@@ -293,7 +313,7 @@ async function runOne(
       return
     }
 
-    const audienceId = await findOrCreateAutomationAudience(organizationId, kind)
+    const audienceId = await findOrCreateAutomationAudience(organizationId, kind, cadence)
     // The org's edited message when one exists, else the system default —
     // the clinic owns the words that go out under their name.
     const template = await getAutomationTemplate(organizationId, kind)
@@ -384,7 +404,9 @@ async function runOne(
 async function findOrCreateAutomationAudience(
   organizationId: string,
   kind: RetentionKind,
+  cadence: RecallCadenceInput,
 ): Promise<number> {
+  const window = reactivationWindow(cadence)
   const name =
     kind === 'birthday'
       ? 'Birthday automation — birthdays today'
@@ -400,8 +422,8 @@ async function findOrCreateAutomationAudience(
         ? 'Auto-managed: insured patients with no upcoming visit and 4+ months since the last (email opt-in). Used by the Oct–Dec use-your-benefits auto-send.'
         : kind === 'welcome'
           ? 'Auto-managed: patients whose first visit was in the past 7 days (email opt-in). Used by the weekly new-patient welcome auto-send.'
-          : 'Auto-managed: patients whose last visit was 9–10 months ago (email opt-in). Used by the reactivation auto-send.'
-  const patientFilter = KIND_FILTERS[kind]
+          : `Auto-managed: patients whose last visit was ${window.fromMonths}–${window.toMonths} months ago (email opt-in). Used by the reactivation auto-send.`
+  const patientFilter = kindFiltersFor(cadence)[kind]
 
   const [existing] = await db
     .select({ id: schema.audiences.id })
@@ -559,10 +581,19 @@ export async function getAutomationStats(
  * birthday count is for the whole current month (not just today) so the number
  * isn't usually zero when they're looking at the setting.
  */
-export async function previewRetentionAudiences(
-  organizationId: string,
-): Promise<{ birthdaysThisMonth: number; newlyLapsed: number; benefitsEligible: number; newThisWeek: number }> {
-  const timeZone = await getClinicTimeZone(organizationId)
+export interface RetentionAudiencePreview {
+  birthdaysThisMonth: number
+  newlyLapsed: number
+  benefitsEligible: number
+  newThisWeek: number
+  /** The reactivation window in months on THIS practice's cadence — the
+   *  sentence beside the toggle reads these, never a hand-written "9". */
+  reactivationMonths: { from: number; to: number }
+}
+
+export async function previewRetentionAudiences(organizationId: string): Promise<RetentionAudiencePreview> {
+  const [timeZone, cadence] = await Promise.all([getClinicTimeZone(organizationId), readCadence(organizationId)])
+  const window = reactivationWindow(cadence)
   const [birthdayRows, lapsedRows, benefitsRows, welcomeRows] = await Promise.all([
     resolvePatientAudience(
       organizationId,
@@ -574,7 +605,7 @@ export async function previewRetentionAudiences(
       },
       { timeZone },
     ),
-    resolvePatientAudience(organizationId, REACTIVATION_FILTER, { timeZone }),
+    resolvePatientAudience(organizationId, reactivationFilterFor(cadence), { timeZone }),
     resolvePatientAudience(organizationId, BENEFITS_FILTER, { timeZone }),
     resolvePatientAudience(organizationId, WELCOME_FILTER, { timeZone }),
   ])
@@ -583,5 +614,6 @@ export async function previewRetentionAudiences(
     newlyLapsed: lapsedRows.length,
     benefitsEligible: benefitsRows.length,
     newThisWeek: welcomeRows.length,
+    reactivationMonths: { from: window.fromMonths, to: window.toMonths },
   }
 }
