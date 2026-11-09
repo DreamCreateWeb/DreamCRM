@@ -11,12 +11,6 @@ import { clinicCountsAsActive, isPastDueStatus } from '@/lib/platform-clinic-sta
 import ClinicsList from './clinics-list'
 import AddClinicModal from './add-clinic-modal'
 
-const PLAN_PILLS: PillLegendRow[] = [
-  { tone: 'neutral', label: 'Basic', meaning: 'Basic plan tier' },
-  { tone: 'info', label: 'Pro', meaning: 'Pro plan tier' },
-  { tone: 'special', label: 'Premium', meaning: 'Premium plan tier' },
-]
-
 const STATUS_PILLS: PillLegendRow[] = [
   { tone: 'ok', label: 'active', meaning: 'Paying — healthy' },
   { tone: 'info', label: 'trial · 5 days left', meaning: 'On the free trial — warns inside two days; a managed clinic’s reserved plan activates when the owner checks out' },
@@ -61,8 +55,8 @@ export default async function PlatformClinics() {
       <PageHeader
         eyebrow="Platform · Dream Create"
         title="Clinics"
-        subtitle="All clinic tenants on Dream Create — drill in to manage their plan, projects, and site."
-        legend={<EncodingLegend pills={[...PLAN_PILLS, ...STATUS_PILLS]} />}
+        subtitle="All clinic tenants on Dream Create — drill in to see their first week, support thread, projects, and site."
+        legend={<EncodingLegend pills={STATUS_PILLS} />}
         actions={
           <>
             <ActionButton href="/dashboard" variant="secondary">

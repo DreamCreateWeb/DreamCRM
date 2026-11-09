@@ -105,3 +105,98 @@ export function clinicStatusPill(c: ClinicStatusPillInput): ClinicStatusPill {
   const status = c.subscriptionStatus ?? 'inactive'
   return { tone: subscriptionStatusTone(status), label: status.replace('_', ' ') }
 }
+
+// ── STANDING (ML-40) — the one word the platform sorts and filters clinics by ──
+
+export type ClinicStandingKind = 'invite_pending' | 'trial' | 'live' | 'past_due' | 'walled' | 'churned'
+
+export interface ClinicStanding {
+  kind: ClinicStandingKind
+  /** The plain word the chip and the legend wear. */
+  label: string
+  tone: Tone
+  /** Trial only: whole days left (null when not on a trial). */
+  daysLeft: number | null
+}
+
+/** The filter chips, in the order the owner reads them. */
+export const STANDING_ORDER: ReadonlyArray<{ kind: ClinicStandingKind; label: string; meaning: string }> = [
+  { kind: 'trial', label: 'Trial', meaning: 'On the free trial — full access until it ends' },
+  { kind: 'live', label: 'Live', meaning: 'Paying (or comped) and not behind the wall' },
+  { kind: 'past_due', label: 'Past due', meaning: 'A payment failed — needs a human' },
+  { kind: 'walled', label: 'Walled', meaning: 'The trial ran out with no plan — behind the billing wall, site dark, engines stopped' },
+  { kind: 'churned', label: 'Churned', meaning: 'No live subscription — cancelled or never started' },
+  { kind: 'invite_pending', label: 'Invite pending', meaning: 'We created the clinic; the owner has not accepted the invite yet' },
+]
+
+function standingLabel(k: ClinicStandingKind): string {
+  return STANDING_ORDER.find((s) => s.kind === k)?.label ?? k
+}
+
+/**
+ * A clinic's STANDING, derived from THE read (the trial wall over the Stripe
+ * column). Precedence, most-blocking first: invite not accepted → behind the
+ * wall → on the trial → past due → no live subscription → live. Reading
+ * `subscriptionStatus` alone would call a walled clinic 'trialing'.
+ */
+export function clinicStanding(c: ClinicStandingInput & { ownerInvitePending?: boolean }): ClinicStanding {
+  if (c.ownerInvitePending) return { kind: 'invite_pending', label: standingLabel('invite_pending'), tone: 'info', daysLeft: null }
+  if (c.trial.expired) return { kind: 'walled', label: standingLabel('walled'), tone: 'urgent', daysLeft: null }
+  if (c.trial.onTrial) {
+    const d = c.trial.daysLeft
+    return { kind: 'trial', label: standingLabel('trial'), tone: d != null && d <= 2 ? 'warn' : 'info', daysLeft: d }
+  }
+  if (isPastDueStatus(c.subscriptionStatus)) return { kind: 'past_due', label: standingLabel('past_due'), tone: 'urgent', daysLeft: null }
+  if (c.subscriptionStatus === 'active' || c.subscriptionStatus === 'trialing') {
+    return { kind: 'live', label: standingLabel('live'), tone: 'ok', daysLeft: null }
+  }
+  return { kind: 'churned', label: standingLabel('churned'), tone: 'neutral', daysLeft: null }
+}
+
+/** A trial this close to its end with nothing activated is worth a call. */
+export const STUCK_TRIAL_DAYS_LEFT = 2
+/** A trialing clinic nobody has signed into for this long is drifting. */
+export const STUCK_NO_LOGIN_DAYS = 7
+
+export interface StuckOpts {
+  /** Has the clinic reached its first activation (A1, data connected)? Unknown → treated as activated (never accuse on a failed read). */
+  activated?: boolean
+  /** The clinic's creation instant — the clock for "never signed in". */
+  createdAt?: Date | null
+}
+
+/**
+ * THE "stuck" rule the Overview's "Needs a hand" band asks (and nothing
+ * else). Pure. Stuck when the clinic is walled, past due, a trial inside two
+ * days of its end with no activation, or a trialing clinic with no staff
+ * sign-in in 7 days (a clinic that never signed in counts from creation).
+ * Churned and live clinics are never stuck; an unaccepted invite is the
+ * list's job, not this band's.
+ */
+export function clinicIsStuck(standing: ClinicStanding, lastSeenAt: Date | null, now: Date, opts: StuckOpts = {}): boolean {
+  switch (standing.kind) {
+    case 'walled':
+    case 'past_due':
+      return true
+    case 'trial': {
+      if (standing.daysLeft != null && standing.daysLeft <= STUCK_TRIAL_DAYS_LEFT && opts.activated === false) return true
+      const since = lastSeenAt ?? opts.createdAt ?? null
+      if (!since) return false
+      return now.getTime() - since.getTime() >= STUCK_NO_LOGIN_DAYS * 86_400_000
+    }
+    default:
+      return false
+  }
+}
+
+/** Why a clinic is on the band, in the owner's words (the same cases, same order as the predicate). */
+export function stuckReason(standing: ClinicStanding, lastSeenAt: Date | null, now: Date, opts: StuckOpts = {}): string | null {
+  if (!clinicIsStuck(standing, lastSeenAt, now, opts)) return null
+  if (standing.kind === 'walled') return 'The trial ran out with no plan — behind the wall'
+  if (standing.kind === 'past_due') return 'A payment failed'
+  const d = standing.daysLeft
+  if (d != null && d <= STUCK_TRIAL_DAYS_LEFT && opts.activated === false) {
+    return d <= 0 ? 'Trial ends today, nothing connected yet' : `Trial ends in ${d} ${d === 1 ? 'day' : 'days'}, nothing connected yet`
+  }
+  return lastSeenAt ? 'No one has signed in for a week' : 'No one has signed in since it was created'
+}
