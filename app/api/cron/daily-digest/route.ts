@@ -4,6 +4,7 @@ import { runDailyDigest } from '@/lib/services/daily-digest'
 import { runProspectingDigest } from '@/lib/services/prospecting-digest'
 import { sendWeeklyStandups } from '@/lib/services/standup'
 import { reconcileActivationStamps } from '@/lib/services/activation'
+import { runMetricSnapshots } from '@/lib/services/metric-snapshot'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -59,7 +60,16 @@ async function run(request: Request) {
       console.warn('[daily-digest] activation reconcile failed', err)
       return null
     })
-    return NextResponse.json({ ok: true, ...result, prospecting, standup, activation })
+    // ML-38: the daily metrics snapshot rides the same hourly tick — each
+    // clinic's own local yesterday is recorded on the first tick after its
+    // midnight (idempotent upserts; the later ticks cost one read a clinic),
+    // plus the platform's UTC day and the hunt's last full UTC hour.
+    // Best-effort, like its siblings.
+    const metrics = await runMetricSnapshots().catch((err) => {
+      console.warn('[daily-digest] metric snapshot failed', err)
+      return null
+    })
+    return NextResponse.json({ ok: true, ...result, prospecting, standup, activation, metrics })
   } catch (err) {
     return NextResponse.json({ error: err instanceof Error ? err.message : 'unknown' }, { status: 500 })
   }

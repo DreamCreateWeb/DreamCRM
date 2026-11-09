@@ -20,6 +20,9 @@ import { PageHeader } from '@/components/ui/page-header'
 import { ActionButton } from '@/components/ui/action-button'
 import { EmptyState } from '@/components/ui/empty-state'
 import { KpiStat } from '@/components/ui/kpi-stat'
+import { HeartbeatLine } from '@/components/ui/heartbeat-line'
+import { getPlatformHeartbeat } from '@/lib/services/metric-series-read'
+import { PLATFORM_BUCKET_NOTE } from '@/lib/metrics-registry'
 
 const KIND_ICONS: Record<string, string> = {
   past_due_invoice: '⚠️',
@@ -125,6 +128,9 @@ export default async function PlatformOverview() {
       return { rows: [], unreadable: true }
     }),
   ])
+  // The MRR tile's heartbeat (ML-38): the platform's daily snapshot, in UTC
+  // days (said on the tile). Best-effort — no spark on a failed read.
+  const mrrBeat = await getPlatformHeartbeat('mrr', { fmt: formatMoneyShort }).catch(() => null)
   // The audience still FLOORS at 'platform' on the failure path — the one
   // thing that must never be undefined is who the machine is allowed to talk
   // to, and an unreadable config means "closed", not "unknown".
@@ -212,7 +218,13 @@ export default async function PlatformOverview() {
           // confident $0 on the owner's own revenue tile is worse than the
           // stale number this replaced.
           value={subs.stripeUnavailable ? '—' : formatMoneyShort(subs.monthlyRecurringCents)}
-          sub={subs.stripeUnavailable ? 'Couldn’t reach Stripe' : 'From live Stripe subscriptions'}
+          sub={
+            <>
+              {subs.stripeUnavailable ? 'Couldn’t reach Stripe' : 'From live Stripe subscriptions'}
+              <HeartbeatLine line={mrrBeat?.line ? `${mrrBeat.line} · ${PLATFORM_BUCKET_NOTE}` : null} />
+            </>
+          }
+          spark={mrrBeat?.spark ?? undefined}
           href="/ecommerce/invoices"
         />
         <KpiStat

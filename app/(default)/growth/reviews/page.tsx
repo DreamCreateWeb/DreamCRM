@@ -28,6 +28,8 @@ import { REVIEWS_LANES } from '@/lib/team-did-it-lanes'
 import { ActionButton } from '@/components/ui/action-button'
 import { StatusPill } from '@/components/ui/status-pill'
 import { KpiStat } from '@/components/ui/kpi-stat'
+import { HeartbeatLine } from '@/components/ui/heartbeat-line'
+import { getOrgHeartbeats } from '@/lib/services/metric-series-read'
 import { EncodingLegend } from '@/components/ui/encoding-legend'
 import { EmptyState } from '@/components/ui/empty-state'
 import type { Tone } from '@/lib/ui/encodings'
@@ -121,6 +123,9 @@ export default async function ReviewsPage() {
   ])
   // Server runs UTC — the relative-date fallback below renders clinic-local.
   const tz = await getClinicTimeZone(ctx.organizationId)
+  // The Reviewed tile's heartbeat (ML-38): reviews left per day from the
+  // metrics snapshot. Best-effort — no spark on a failed read.
+  const beats = await getOrgHeartbeats(ctx.organizationId, tz, ['reviews_received'], { nouns: { reviews_received: 'reviewed' } }).catch(() => null)
   // What the Dream Team already did for reviews this week (ML-36).
   const teamDid = await teamDidIt(ctx.organizationId, REVIEWS_LANES.capabilities, { timeZone: tz }).catch(() => TEAM_DID_IT_QUIET)
   const eligibleCount = eligibleAll.length
@@ -231,7 +236,13 @@ export default async function ReviewsPage() {
         <KpiStat
           label="Reviewed"
           value={stats.completed30d}
-          sub={stats.completionRate30d != null ? `${stats.completionRate30d}% of opens` : undefined}
+          sub={
+            <>
+              {stats.completionRate30d != null ? `${stats.completionRate30d}% of opens` : undefined}
+              <HeartbeatLine line={beats?.reviews_received.line} />
+            </>
+          }
+          spark={beats?.reviews_received.spark ?? undefined}
           href={stats.completed30d > 0 ? '/growth/reviews/received' : undefined}
         />
         <KpiStat

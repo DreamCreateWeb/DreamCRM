@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm'
-import { pgTable, text, timestamp, integer, boolean, jsonb, uniqueIndex, index, primaryKey } from 'drizzle-orm/pg-core'
+import { pgTable, text, timestamp, integer, boolean, jsonb, uniqueIndex, index, primaryKey, numeric, serial } from 'drizzle-orm/pg-core'
 import { organization, user } from './auth'
 import { clinicLocation } from './platform'
 import { FORMS_REMINDER_TEMPLATE } from '@/lib/types/reminders'
@@ -2655,3 +2655,38 @@ export const goal = pgTable(
   (t) => [index('goal_org_status_idx').on(t.organizationId, t.status, t.createdAt)],
 )
 export type GoalRow = typeof goal.$inferSelect
+
+/**
+ * THE DAILY METRICS SNAPSHOT (ML-38) — one heartbeat row per metric per
+ * bucket. `organization_id` is NULLABLE so platform-global series (MRR, the
+ * prospecting hunt) live in the same table; NULL is its own key (Postgres
+ * treats NULLs as distinct in a plain unique index, so the platform rows
+ * carry their own PARTIAL unique index). `bucket` is a clinic-local
+ * `YYYY-MM-DD` for org rows, a UTC `YYYY-MM-DD` / `YYYY-MM-DDTHH` for the
+ * platform rows. `value` is NOT NULL on purpose: a metric whose source has
+ * nothing honest to say writes NO row, so a gap reads as a gap, never a
+ * zero. Registry + writer: lib/metrics-registry.ts, lib/services/metric-snapshot.ts.
+ */
+export const metricSnapshot = pgTable(
+  'metric_snapshot',
+  {
+    id: serial('id').primaryKey(),
+    organizationId: text('organization_id').references(() => organization.id, { onDelete: 'cascade' }),
+    metric: text('metric').notNull(),
+    // 'YYYY-MM-DD' (granularity 'day') or 'YYYY-MM-DDTHH' ('hour').
+    bucket: text('bucket').notNull(),
+    // 'day' | 'hour'
+    granularity: text('granularity').notNull(),
+    value: numeric('value', { precision: 20, scale: 2, mode: 'number' }).notNull(),
+    detail: jsonb('detail'),
+    capturedAt: timestamp('captured_at').notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('metric_snapshot_org_uq').on(t.organizationId, t.metric, t.bucket, t.granularity),
+    uniqueIndex('metric_snapshot_platform_uq')
+      .on(t.metric, t.bucket, t.granularity)
+      .where(sql`${t.organizationId} IS NULL`),
+    index('metric_snapshot_org_metric_bucket_idx').on(t.organizationId, t.metric, t.bucket.desc()),
+  ],
+)
+export type MetricSnapshotRow = typeof metricSnapshot.$inferSelect

@@ -5,6 +5,9 @@ import { INTENT_SIGNAL_LABELS, type ProspectIntentSignal } from '@/lib/types/pro
 import { StatusPill } from '@/components/ui/status-pill'
 import { EncodingLegend } from '@/components/ui/encoding-legend'
 import type { Tone } from '@/lib/ui/encodings'
+import { MiniTrend } from '@/components/ui/charts'
+import { PLATFORM_BUCKET_NOTE } from '@/lib/metrics-registry'
+import type { Heartbeat } from '@/lib/metric-series'
 
 const ENGINE_PILL_LEGEND = [
   { tone: 'ok' as Tone, label: 'Engine on / LIVE', meaning: 'The hunter is discovering and sending for real.' },
@@ -23,20 +26,34 @@ export default function HuntPanel({
   stats,
   config,
   env,
+  sentByHour,
 }: {
   stats: HuntStats
+  /** The hourly send series from the metrics snapshot (ML-38) — spark + honest line. */
+  sentByHour?: Heartbeat | null
   config: ProspectingConfig
   env: { senderConfigured: boolean; gmailConfigured: boolean }
 }) {
   const live = !config.killSwitch && !config.dryRun
   const senderReady = env.senderConfigured || env.gmailConfigured
-  const tile = (label: string, value: number, sub?: string, tone?: Tone) => (
+  const tile = (label: string, value: number, sub?: string, tone?: Tone, beat?: Heartbeat | null) => (
     <div className="rounded-[var(--r-xs)] bg-[color:var(--color-surface-sunk)] p-3">
       <div className="text-xs text-gray-500 dark:text-gray-400">{label}</div>
       <div className={`mt-0.5 font-mono-num text-xl font-bold tabular-nums ${tone === 'warn' ? 'text-amber-600 dark:text-amber-400' : 'text-gray-900 dark:text-gray-100'}`}>
         {value.toLocaleString()}
       </div>
       {sub && <div className="text-xs text-gray-500 dark:text-gray-400">{sub}</div>}
+      {beat?.spark && (
+        <div className="mt-1" aria-hidden="true">
+          <MiniTrend data={beat.spark} width={96} height={24} />
+        </div>
+      )}
+      {beat && (beat.spark || beat.line) && (
+        <div className="text-xs text-gray-500 dark:text-gray-400" data-heartbeat-line>
+          {beat.line ? `${beat.line} · ` : 'by the hour · '}
+          {PLATFORM_BUCKET_NOTE}
+        </div>
+      )}
     </div>
   )
 
@@ -69,7 +86,7 @@ export default function HuntPanel({
 
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         {live
-          ? tile('Sent', stats.sent24h)
+          ? tile('Sent', stats.sent24h, undefined, undefined, sentByHour)
           : tile('Drafted', stats.dryRun24h, 'dry-run')}
         {tile('Opens', stats.opens24h)}
         {tile('Clicks', stats.clicks24h)}
