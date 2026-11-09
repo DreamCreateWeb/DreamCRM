@@ -528,6 +528,10 @@ export const clinicProfile = pgTable('clinic_profile', {
   // referral_partner lives in its own schema file, so we keep this column
   // FK-less here to avoid an import cycle.
   referralPartnerId: text('referral_partner_id'),
+  // HOW the attribution happened (ML-46): 'link' = the clinic signed up
+  // through the partner's share link; null = attributed by hand (provisioning
+  // or the clinic-detail card). Only meaningful with referral_partner_id set.
+  referralSource: text('referral_source'),
   // Per-clinic commission rate in basis points. Null = use the partner's
   // current default at accrual time. Set explicitly to lock a negotiated rate.
   referralPercentBps: integer('referral_percent_bps'),

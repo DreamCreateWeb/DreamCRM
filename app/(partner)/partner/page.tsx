@@ -10,6 +10,8 @@ import {
   getReferredClinics,
   getPartnerBalance,
   listPayouts,
+  getOrMintShareCode,
+  partnerShareUrl,
 } from '@/lib/services/referrals'
 import { refreshPayoutStatus, getPayoutMethodLabel } from '@/lib/services/referral-payouts'
 import { KpiStat } from '@/components/ui/kpi-stat'
@@ -26,8 +28,7 @@ import {
   type PayoutStatus,
 } from '@/lib/types/referrals'
 import PartnerPayout from './partner-payout'
-
-const PLAN_LABEL: Record<string, string> = { basic: 'Basic', pro: 'Pro', premium: 'Premium' }
+import ShareLinkCard from './share-link-card'
 
 function fmtDate(d: Date | null): string {
   if (!d) return '—'
@@ -68,6 +69,9 @@ export default async function PartnerDashboard({
     await refreshPayoutStatus(partner.id)
   }
 
+  // Archived is handled above; a suspended partner keeps their link (a paused
+  // account still credits — the platform decides what to do with it).
+  const shareCode = await getOrMintShareCode(partner.id)
   const [clinics, balance, payouts, methodLabel] = await Promise.all([
     getReferredClinics(partner.id),
     getPartnerBalance(partner.id),
@@ -100,6 +104,8 @@ export default async function PartnerDashboard({
           here, but withdrawals are on hold. Please contact us and we’ll sort it out.
         </div>
       )}
+
+      <ShareLinkCard url={partnerShareUrl(shareCode)} signedUp={clinics.filter((c) => c.viaLink).length} />
 
       {/* KPI band */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -153,7 +159,7 @@ export default async function PartnerDashboard({
           <div className="v2-well px-6 py-10 text-center">
             <div className="text-base font-semibold text-gray-900 dark:text-gray-100">No clinics yet</div>
             <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-              When a clinic you referred is added, it’ll show up here and start earning you commission.
+              Share your link above — when a practice signs up through it, it shows up here and starts earning you commission.
             </p>
           </div>
         ) : (
@@ -162,8 +168,8 @@ export default async function PartnerDashboard({
               <thead className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 border-b border-gray-100 dark:border-gray-700/60">
                 <tr>
                   <th className="px-4 py-3 text-left font-semibold">Clinic</th>
-                  <th className="px-4 py-3 text-left font-semibold">Plan</th>
-                  <th className="px-4 py-3 text-left font-semibold">Since</th>
+                  <th className="px-4 py-3 text-left font-semibold">Standing</th>
+                  <th className="px-4 py-3 text-left font-semibold">Joined</th>
                   <th className="px-4 py-3 text-left font-semibold">Your rate</th>
                   <th className="px-4 py-3 text-right font-semibold">Earned</th>
                 </tr>
@@ -172,7 +178,9 @@ export default async function PartnerDashboard({
                 {clinics.map((c) => (
                   <tr key={c.organizationId}>
                     <td className="px-4 py-3 font-medium text-gray-900 dark:text-gray-100">{c.name}</td>
-                    <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{PLAN_LABEL[c.planTier] ?? c.planTier}</td>
+                    <td className="px-4 py-3">
+                      <StatusPill tone={c.standing.tone} label={c.standing.label} />
+                    </td>
                     <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{fmtDate(c.startedAt)}</td>
                     <td className="px-4 py-3 text-gray-700 dark:text-gray-300">
                       <span className="font-mono-num">{formatBps(c.percentBps)}</span>

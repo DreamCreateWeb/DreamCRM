@@ -174,6 +174,19 @@ function withAttributionCookie(request: NextRequest, hostname: string, res: Next
   try {
     if (request.method !== 'GET') return res
     if (!isAttributionLanding(request.nextUrl.pathname)) return res
+    // A partner's share link (`?ref=<code>`, ML-46): remember ONLY the code,
+    // for 30 days, on marketing landings (never the dashboard). Shape-checked
+    // here; validated against referral_partner before any write, at signup.
+    const ref = (request.nextUrl.searchParams.get('ref') ?? '').trim().toLowerCase()
+    if (/^[a-z0-9]{6,16}$/.test(ref)) {
+      res.cookies.set('partner_ref', ref, {
+        maxAge: 30 * 24 * 60 * 60,
+        sameSite: 'lax',
+        httpOnly: true,
+        secure: !hostname.startsWith('localhost') && !hostname.startsWith('127.0.0.1'),
+        path: '/',
+      })
+    }
     const existing = parseAttributionCookie(request.cookies.get(ATTRIBUTION_COOKIE)?.value)
     const touch = buildAttributionTouch({
       path: request.nextUrl.pathname,
