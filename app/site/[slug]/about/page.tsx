@@ -38,6 +38,10 @@ import { SITE_BG as BG, SITE_INK as INK, SITE_INK_MUTED as INK_MUTED, SITE_SURFA
 import { resolveActiveSiteTemplate } from '@/lib/site-templates/resolve'
 import SiteImage from '@/components/clinic-site/site-image'
 import JsonLdScript from '@/components/json-ld'
+import MapBlock from '@/components/clinic-site/map-block'
+import SiteOpenNow from '@/components/clinic-site/open-now'
+import LocationsList from '@/components/clinic-site/locations-list'
+import { siteOffices, officeOneLine } from '@/lib/site-offices'
 
 
 interface Props {
@@ -137,6 +141,7 @@ export default async function AboutPage({ params }: Props) {
   const officePhotos: ClinicOfficePhoto[] =
     ((profile.officePhotos as ClinicOfficePhoto[] | null) ?? []).slice(0, 8)
   const copyOverrides = (profile.copyOverrides as Record<string, string> | null) ?? null
+  const mapOffice = siteOffices(data)[0] ?? null
 
   // Dentist/Organization JSON-LD enumerating the team as Person members — the
   // About-page variant of the homepage's primary Dentist node. Staff URLs deep-
@@ -506,6 +511,36 @@ export default async function AboutPage({ params }: Props) {
               </h2>
             </ScrollReveal>
             <TestimonialsCarousel testimonials={testimonials} brand={brand} />
+          </div>
+        </section>
+      )}
+
+      {/* ── Find us — the shared map block (every template) ─────────────── */}
+      {mapOffice && (
+        <section id="find-us" className="scroll-mt-20 py-14 sm:py-20">
+          <div className="max-w-[1000px] mx-auto px-5 sm:px-8 text-center">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] mb-4" style={{ color: headingInk }}>
+              Find us
+            </p>
+            <h2
+              className="text-3xl sm:text-4xl font-semibold leading-[1.1] tracking-[-0.015em] mb-3"
+              style={{ color: headingInk, fontFamily: 'var(--font-display, Georgia, serif)' }}
+            >
+              {mapOffice.line1 ?? name}
+            </h2>
+            <p className="text-base mb-8" style={{ color: INK_MUTED }}>
+              {officeOneLine(mapOffice)}
+            </p>
+            <MapBlock
+              office={mapOffice}
+              clinicName={name}
+              frameClassName="w-full h-[280px] sm:h-[360px]"
+              frameStyle={{ borderRadius: '24px' }}
+              linkClassName="inline-flex items-center px-7 py-3.5 rounded-full text-base font-semibold text-white"
+              linkStyle={{ backgroundColor: brandFill(brand) }}
+            />
+            <SiteOpenNow data={data} className="text-base font-semibold mt-5" style={{ color: INK_MUTED }} />
+            <LocationsList data={data} className="mt-10" headingClassName="text-xs font-semibold uppercase tracking-[0.16em] mb-4" />
           </div>
         </section>
       )}

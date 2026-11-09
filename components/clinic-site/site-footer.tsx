@@ -11,6 +11,7 @@ import {
   type SiteNavLink,
 } from '@/lib/clinic-site-helpers'
 import SiteImage from './site-image'
+import VisitExtras from '@/components/clinic-site/visit-extras'
 
 interface Props {
   data: ClinicSiteData
@@ -195,6 +196,7 @@ export default function SiteFooter({
                   </span>
                 )}
               </div>
+              <VisitExtras data={data} />
               {/* Full weekly hours live here now — the standalone homepage
                   Hours section was removed to match Tend's flow (hours sit
                   in the footer, not as a dedicated band). */}

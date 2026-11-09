@@ -223,6 +223,84 @@ describe.each(TEMPLATES.map((t) => [t.id, t] as const))('template conformance [%
     cleanup()
   })
 
+  describe('the visit block: what day it is, the map, every office (ML-48)', () => {
+    const chromeFor = (data: ClinicSiteData) => ({
+      data,
+      basePath: '/site/fixture-dental',
+      navLinks: [{ label: 'Contact', href: '#site-footer-contact' }],
+      bookHref: '/site/fixture-dental#contact',
+      bookLabel: def.bookLabel,
+      signInUrl: 'https://www.example.com/site/fixture-dental/portal',
+    })
+    const location = (over: Record<string, unknown>) =>
+      ({
+        id: 'loc_x', organizationId: 'org_fixture', name: 'Main', addressLine1: '1 Main St', addressLine2: null,
+        city: 'Austin', state: 'TX', postalCode: '78701', phone: null, isPrimary: 0, createdAt: new Date('2026-01-01'),
+        ...over,
+      }) as ClinicSiteData['locations'][number]
+
+    it("shows today's hours state (clinic-local) when the clinic has hours", () => {
+      const data = FIXTURES.rich()
+      const allDay = { open: '00:00', close: '24:00' }
+      data.profile.hours = { mon: allDay, tue: allDay, wed: allDay, thu: allDay, fri: allDay, sat: allDay, sun: allDay }
+      data.profile.timezone = 'America/Chicago'
+      const { container } = render(<def.chrome.Footer {...chromeFor(data)} />)
+      const label = container.querySelector('[data-open-now]')
+      expect(label, `${tid}: footer has no open-now state`).toBeTruthy()
+      expect(label!.textContent).toMatch(/^Open now · closes /)
+      cleanup()
+    })
+
+    it('says nothing about today when the clinic has no hours', () => {
+      const data = FIXTURES.rich()
+      data.profile.hours = null
+      const { container } = render(<def.chrome.Footer {...chromeFor(data)} />)
+      expect(container.querySelector('[data-open-now]')).toBeNull()
+      cleanup()
+    })
+
+    it('shows a directions link to Google Maps only when an address exists', () => {
+      const withAddr = render(<def.chrome.Footer {...chromeFor(FIXTURES.rich())} />)
+      const link = withAddr.container.querySelector('a[data-map-link]')
+      expect(link, `${tid}: no map link on the footer`).toBeTruthy()
+      expect(link!.getAttribute('href')).toMatch(/^https:\/\/www\.google\.com\/maps\//)
+      expect(link!.getAttribute('rel')).toContain('noopener')
+      cleanup()
+      const none = render(<def.chrome.Footer {...chromeFor(FIXTURES.empty())} />)
+      expect(none.container.querySelector('a[data-map-link]')).toBeNull()
+      cleanup()
+    })
+
+    it('lists every location: the second office appears with its address and a map link', () => {
+      const data = FIXTURES.rich()
+      const main = location({ id: 'loc_main', name: 'Downtown', isPrimary: 1 })
+      const second = location({ id: 'loc_two', name: 'Lakeway Office', addressLine1: '99 Lake Rd', city: 'Lakeway', phone: '512-555-0199' })
+      data.primaryLocation = main
+      data.locations = [main, second]
+      const { container } = render(<def.chrome.Footer {...chromeFor(data)} />)
+      const text = container.textContent ?? ''
+      expect(text, `${tid}: second office missing`).toContain('Lakeway Office')
+      expect(text).toContain('99 Lake Rd')
+      expect(container.querySelectorAll('a[data-map-link]').length).toBeGreaterThanOrEqual(2)
+      expect(container.querySelector('a[href="tel:512-555-0199"]')).toBeTruthy()
+      cleanup()
+    })
+
+    it('uses the shared block — no template hand-rolls a maps link or its own "open now"', () => {
+      const rel = `components/clinic-site/templates/${tid}`
+      for (const f of ['footer.tsx', 'header.tsx', 'home.tsx']) {
+        let src = ''
+        try {
+          src = read(`${rel}/${f}`)
+        } catch {
+          continue
+        }
+        expect(src, `${tid}/${f} hand-rolls a Google Maps URL`).not.toMatch(/google\.com\/maps/)
+        expect(src, `${tid}/${f} hand-rolls an open-now label`).not.toMatch(/Open now/)
+      }
+    })
+  })
+
   it('chrome: the "New patient forms" door is an ABSOLUTE www URL when intake is open', () => {
     // The /intake-start gate signs the patient in (a relative better-auth POST
     // to /api/auth/*) and lands them in /patient/* — both exist only on the

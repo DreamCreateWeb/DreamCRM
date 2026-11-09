@@ -3,6 +3,7 @@ import { intakeDoorOpen } from '@/lib/feature-switches'
 import { EditText } from '@/components/clinic-site/editable'
 import { SITE_DEEP, SITE_DEEP_INK, SITE_DEEP_MUTED } from '@/components/clinic-site/tokens'
 import { DAYS, DAY_LABEL, hoursEntryDisplay, copyOverride, type HoursMap, intakeStartHref } from '@/lib/clinic-site-helpers'
+import VisitExtras from '@/components/clinic-site/visit-extras'
 
 /** A sprinkle of stars for the night-sky footer band. Pure decor. */
 function Stars() {
@@ -94,6 +95,7 @@ export default function PediatricFooter({
                 {email}
               </a>
             )}
+            <VisitExtras data={data} />
           </div>
 
           <div>

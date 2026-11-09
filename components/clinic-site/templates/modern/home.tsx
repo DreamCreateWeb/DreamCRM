@@ -1,3 +1,7 @@
+import MapBlock from '@/components/clinic-site/map-block'
+import SiteOpenNow from '@/components/clinic-site/open-now'
+import LocationsList from '@/components/clinic-site/locations-list'
+import { siteOffices } from '@/lib/site-offices'
 import type { ClinicSiteData } from '@/lib/services/clinic-site'
 import { intakeDoorOpen } from '@/lib/feature-switches'
 import type { BlogPost } from '@/lib/db/schema/clinic'
@@ -196,14 +200,10 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
   const addressOneLine = [addrLine1, [addrCity, addrState].filter(Boolean).join(', '), addrPostal]
     .filter((p) => p && p.toString().trim().length > 0)
     .join(', ')
-  // Keyless Google Maps embed — no API key required. The `q=` query +
-  // `&output=embed` flag is the official no-auth path Google has supported
-  // for the maps iframe for years. Cite the address verbatim.
-  const mapQuery = encodeURIComponent(
-    [addrLine1, addrCity, addrState, addrPostal].filter(Boolean).join(', '),
-  )
-  const mapEmbedSrc = `https://www.google.com/maps?q=${mapQuery}&output=embed`
-  const mapDirectionsHref = `https://www.google.com/maps/dir/?api=1&destination=${mapQuery}`
+  const mainOffice = siteOffices(data)[0] ?? {
+    key: 'profile', name: null, line1: addrLine1, line2: null, city: addrCity, state: addrState,
+    postal: addrPostal, phone: null, isPrimary: true,
+  }
   const bookHref = selfBooking ? `${basePath}/book` : `${basePath}#contact`
   const bookLabel = 'Book a Visit'
   // Patient "Login" → THIS clinic's patient portal, never the platform staff
@@ -1011,7 +1011,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
       {/* ── Location — "Come meet us at…" with map + directions ─────────── */}
       {/* Connective-tissue band between social proof (testimonials) and
           the clinical-team trust grid. Keyless Google Maps iframe; the
-          "Get directions" CTA deep-links into google.com/maps/dir so the
+          "Get directions" CTA deep-links into the maps app so the
           visitor can launch turn-by-turn from their device of choice.
           Hides cleanly when the clinic has no address at all. */}
       {hasAddress && (
@@ -1043,40 +1043,16 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
               )}
             </ScrollReveal>
             <div className="max-w-[1000px] mx-auto">
-              <iframe
-                src={mapEmbedSrc}
-                className="w-full h-[280px] sm:h-[360px] lg:h-[400px]"
-                style={{ border: 0, borderRadius: '24px' }}
-                loading="lazy"
-                referrerPolicy="no-referrer-when-downgrade"
-                allowFullScreen
-                title={`Map showing ${name}`}
+              <MapBlock
+                office={mainOffice}
+                clinicName={name}
+                frameClassName="w-full h-[280px] sm:h-[360px] lg:h-[400px]"
+                frameStyle={{ borderRadius: '24px' }}
+                linkClassName="inline-flex items-center gap-2 px-7 py-3.5 rounded-full text-base font-semibold text-white shadow-md transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0"
+                linkStyle={{ backgroundColor: brandFill(brand) }}
               />
-              <div className="text-center mt-8">
-                <a
-                  href={mapDirectionsHref}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 px-7 py-3.5 rounded-full text-base font-semibold text-white shadow-md transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0"
-                  style={{ backgroundColor: brandFill(brand) }}
-                >
-                  Get directions
-                  <svg
-                    className="w-5 h-5"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    strokeWidth={2}
-                    aria-hidden="true"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25"
-                    />
-                  </svg>
-                </a>
-              </div>
+              <SiteOpenNow data={data} className="text-center text-base font-semibold mt-5" style={{ color: INK_MUTED }} />
+              <LocationsList data={data} className="mt-8 text-center" headingClassName="text-xs font-semibold uppercase tracking-[0.22em] mb-4" />
             </div>
           </div>
         </section>

@@ -992,7 +992,8 @@ describe('ModernTemplate', () => {
     // Address is URL-encoded into the q= parameter
     expect(iframe?.src).toMatch(/500%20Main%20St/)
     // "Get directions" CTA opens in a new tab and points at maps/dir
-    const directions = screen.getByRole('link', { name: /Get directions/i })
+    // the footer's shared visit block carries a second directions link
+    const directions = screen.getAllByRole('link', { name: /Get directions/i })[0]
     expect(directions).toHaveAttribute('target', '_blank')
     expect(directions.getAttribute('rel') ?? '').toMatch(/noopener/)
     expect(directions.getAttribute('href') ?? '').toContain('google.com/maps/dir/?api=1&destination=')
