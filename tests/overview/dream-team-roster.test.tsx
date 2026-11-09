@@ -116,18 +116,21 @@ describe('PREVIEW lanes', () => {
     )
     // A registration is not a promise: no clinic reads about a job nobody does yet.
     // (patient_reply was the first key released — ML-12 — feedback_reply the
-    // second — ML-21 — and inquiry_followup the third — ML-22 — so all three
-    // now show to all; the post-op check-in is still waiting on its slice.)
+    // second — ML-21 — inquiry_followup the third — ML-22 — and the post-op
+    // check-in + aftercare note the fourth and fifth — ML-28 — so all of
+    // those now show to all; the referral ask is still waiting on its slice.)
     expect(screen.getByText('Reply to patient messages')).toBeInTheDocument()
     expect(screen.getByText('Answer private feedback')).toBeInTheDocument()
     expect(screen.getByText('Follow up on unanswered inquiries')).toBeInTheDocument()
-    expect(screen.queryByText('Check in after a procedure')).not.toBeInTheDocument()
+    expect(screen.getByText('Check in after a procedure')).toBeInTheDocument()
+    expect(screen.getByText('Send after-visit care instructions')).toBeInTheDocument()
+    expect(screen.queryByText('Ask happy patients for referrals')).not.toBeInTheDocument()
     expect(screen.queryByText('Watch your Google listing for changes')).not.toBeInTheDocument()
     unmount()
     render(
       <TeamRoster grantedCapabilities={new Set()} weeklyCounts={new Map()} waitingCapabilities={new Set()} showPreview />,
     )
-    expect(screen.getByText('Check in after a procedure')).toBeInTheDocument()
+    expect(screen.getByText('Ask happy patients for referrals')).toBeInTheDocument()
     expect(screen.getByText('Watch your Google listing for changes')).toBeInTheDocument()
   })
 })

@@ -20,6 +20,8 @@ import { recordEngineFailure } from '@/lib/services/action-ledger'
 import { generatePatientReplyProposals } from '@/lib/services/proposal-generators/patient-reply'
 import { generateFeedbackReplyProposals } from '@/lib/services/proposal-generators/feedback-reply'
 import { generateInquiryFollowupProposals } from '@/lib/services/proposal-generators/inquiry-followup'
+import { generatePostVisitCare } from '@/lib/services/proposal-generators/post-visit-care'
+import { generatePostopCheckinProposals } from '@/lib/services/proposal-generators/postop-checkin'
 import { clinicLocalHour, clinicWeekStart } from '@/lib/clinic-timezone'
 import { resolveTrialState } from '@/lib/trial'
 import { sweepClinics } from '@/lib/services/cron-sweep'
@@ -171,6 +173,17 @@ export const STEP_FAILURE: Record<string, { capability: string; summary: string 
   inquiry_followup: {
     capability: 'inquiry_followup',
     summary: 'Couldn’t draft a check-in for an inquiry that went quiet just now — I’ll keep trying.',
+  },
+  // ML-28: the evening aftercare note (an AUTO lane — a soft failure here is
+  // an email that did not go out, not a draft that did not get written).
+  post_visit_care: {
+    capability: 'post_visit_care',
+    summary: 'Couldn’t send after-visit care instructions just now — I’ll keep trying.',
+  },
+  // ML-28: the day-after check-in.
+  postop_checkin: {
+    capability: 'postop_checkin',
+    summary: 'Couldn’t line up a check-in after a procedure just now — I’ll keep trying.',
   },
   social_post: {
     capability: 'social_post',
@@ -422,6 +435,12 @@ function makeOrgPass(result: Omit<GeneratorRunResult, 'sweep'>, now: Date): (org
           'inquiry_followup',
           () => generateInquiryFollowupProposals(org.id, org.name, now, tz, softFailed('inquiry_followup')),
         ],
+        // ML-28: the two touches after a visit. Aftercare runs on its own
+        // (the clinic's own words for its own visit types — no card; the
+        // evening ticks send and narrate, so it adds nothing to `filed`);
+        // the day-after "how are you feeling?" files a card for a yes.
+        ['post_visit_care', () => generatePostVisitCare(org.id, now, tz, softFailed('post_visit_care'))],
+        ['postop_checkin', () => generatePostopCheckinProposals(org.id, now, tz)],
         // The MONTH plan runs before the one-off post: they answer the same
         // silence, and the bigger answer gets first refusal. Each also
         // stands down while the other's card is open, so the order is a
@@ -651,6 +670,8 @@ export async function sweepInvalidatedProposals(organizationId: string): Promise
   const leadIds = new Map<string, string>()
   // ML-22: a second touch's premise is a lead still waiting in 'contacted'.
   const followupLeadIds = new Map<string, string>()
+  // ML-28: a check-in's premise is a completed visit still on the books.
+  const checkinApptIds = new Map<string, string>()
   const socialProposals: Array<{ id: string; createdAt: Date }> = []
   const campaignProposals: string[] = []
   const gbpProposals: string[] = []
@@ -663,6 +684,8 @@ export async function sweepInvalidatedProposals(organizationId: string): Promise
       leadIds.set(payload.leadId, p.id)
     } else if (p.capability === 'inquiry_followup' && typeof payload.leadId === 'string') {
       followupLeadIds.set(payload.leadId, p.id)
+    } else if (p.capability === 'postop_checkin' && typeof payload.appointmentId === 'string') {
+      checkinApptIds.set(payload.appointmentId, p.id)
     } else if (p.capability === 'social_post') {
       socialProposals.push({ id: p.id, createdAt: p.createdAt })
     } else if (p.capability === 'outreach_campaign') {
@@ -766,6 +789,21 @@ export async function sweepInvalidatedProposals(organizationId: string): Promise
     }
     for (const [lid, pid] of Array.from(leadIds.entries())) if (!present.has(lid)) toExpire.push(pid)
     for (const [lid, pid] of Array.from(followupLeadIds.entries())) if (!present.has(lid)) toExpire.push(pid)
+  }
+  // ML-28: a check-in's premise is a completed visit. Un-done (the desk
+  // un-marked it, the PMS corrected it to a no-show or a cancel) or gone →
+  // the question would be about a visit that did not happen.
+  if (checkinApptIds.size > 0) {
+    const rows = await db
+      .select({ id: schema.appointment.id, status: schema.appointment.status })
+      .from(schema.appointment)
+      .where(and(eq(schema.appointment.organizationId, organizationId), inArray(schema.appointment.id, Array.from(checkinApptIds.keys()))))
+    const present = new Set<string>()
+    for (const r of rows) {
+      present.add(r.id)
+      if (r.status !== 'completed') toExpire.push(checkinApptIds.get(r.id)!)
+    }
+    for (const [aid, pid] of Array.from(checkinApptIds.entries())) if (!present.has(aid)) toExpire.push(pid)
   }
   // The cadence types' premises can rot too (round-3 audit — the sweep
   // covered only half the capabilities):
