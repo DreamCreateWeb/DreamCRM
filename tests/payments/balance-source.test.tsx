@@ -47,7 +47,7 @@ vi.mock('@/lib/services/collections', () => ({
 }))
 vi.mock('@/lib/services/balance-payments', () => ({
   canTakeBalancePayments: vi.fn(async () => false),
-  listRecentBalancePayments: vi.fn(async () => []),
+  countToReconcile: vi.fn(async () => 0),
   getCollectedPerWeek8: vi.fn(async () => []),
 }))
 vi.mock('@/lib/services/payment-plans', () => ({ listPaymentPlans: vi.fn(async () => []) }))

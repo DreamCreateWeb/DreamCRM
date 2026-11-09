@@ -3,9 +3,11 @@
 import { Fragment, useState, useTransition } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { Dialog, DialogPanel, Transition, TransitionChild } from '@headlessui/react'
-import { createManagedClinicAction } from './admin-actions'
-import { checkClinicSlug } from '@/app/(onboarding)/actions'
-import { PLANS, type BillingInterval, type PlanId } from '@/lib/stripe-config'
+import { createManagedClinicAction, checkManagedClinicSlugAction } from './admin-actions'
+import { PLANS, type BillingInterval } from '@/lib/stripe-config'
+import { runAction } from '@/lib/run-action'
+import { US_TIMEZONES, CLINIC_DEFAULT_TZ } from '@/lib/clinic-timezone'
+import { PMS_ANSWER_CHOICES } from '@/lib/onboarding/pms-answer'
 import { slugify } from '@/lib/utils'
 import { ActionButton } from '@/components/ui/action-button'
 import { formatBps } from '@/lib/types/referrals'
@@ -26,12 +28,20 @@ interface Created {
   ownerEmail: string
   comped: boolean
   hasDiscount: boolean
+  /** The slug was already this owner's clinic — nothing new was made or sent. */
+  already: boolean
 }
 
+/** The one managed plan — internally the full plan; on screen only its price terms. */
+const MANAGED_PLAN_ID = 'premium' as const
+const MANAGED_PLAN = PLANS.find((p) => p.id === MANAGED_PLAN_ID)!
+
 /**
- * Platform-admin "+ Add clinic": creates the org, reserves a plan at an
- * optionally negotiated price (Stripe coupon) or comped, and emails the
- * owner their invite. Optionally attributes the clinic to a referral partner.
+ * Platform-admin "+ Add clinic" — THE SETUP-CALL FORM. The owner finishes the
+ * call and types what they learned once: the practice, its web address, time
+ * zone, address / phone / NPI, brand colour, the PMS they run, and the owner
+ * (who is invited — never given a password). Everything is saved in one go
+ * (`provisionManagedClinic`); a repeat submit never makes a second clinic.
  */
 export default function AddClinicModal({ partners = [] }: { partners?: PartnerOption[] }) {
   // ?add=1 (the Overview's + Add clinic primary) opens the modal on arrival.
@@ -43,7 +53,16 @@ export default function AddClinicModal({ partners = [] }: { partners?: PartnerOp
   const [slugNote, setSlugNote] = useState<string | null>(null)
   const [ownerName, setOwnerName] = useState('')
   const [ownerEmail, setOwnerEmail] = useState('')
-  const [planId, setPlanId] = useState<PlanId>('premium')
+  const [timezone, setTimezone] = useState<string>(CLINIC_DEFAULT_TZ)
+  const [phone, setPhone] = useState('')
+  const [addressLine1, setAddressLine1] = useState('')
+  const [city, setCity] = useState('')
+  const [state, setState] = useState('')
+  const [postalCode, setPostalCode] = useState('')
+  const [npi, setNpi] = useState('')
+  const [brandColor, setBrandColor] = useState('')
+  const [pmsVendor, setPmsVendor] = useState('unsure')
+  const [pmsVendorName, setPmsVendorName] = useState('')
   const [interval, setInterval] = useState<BillingInterval>('monthly')
   const [pricingKind, setPricingKind] = useState<PricingKind>('standard')
   const [percentOff, setPercentOff] = useState('20')
@@ -58,7 +77,7 @@ export default function AddClinicModal({ partners = [] }: { partners?: PartnerOp
   const [created, setCreated] = useState<Created | null>(null)
 
   const effectiveSlug = slugTouched ? slug : slugify(name)
-  const plan = PLANS.find((p) => p.id === planId)!
+  const plan = MANAGED_PLAN
   const basePrice = interval === 'annual' ? plan.annualPrice : plan.price
 
   function previewPrice(): string | null {
@@ -78,7 +97,8 @@ export default function AddClinicModal({ partners = [] }: { partners?: PartnerOp
   function reset() {
     setName(''); setSlug(''); setSlugTouched(false); setSlugNote(null)
     setOwnerName(''); setOwnerEmail('')
-    setPlanId('pro'); setInterval('monthly')
+    setTimezone(CLINIC_DEFAULT_TZ); setPhone(''); setAddressLine1(''); setCity(''); setState(''); setPostalCode('')
+    setNpi(''); setBrandColor(''); setPmsVendor('unsure'); setPmsVendorName(''); setInterval('monthly')
     setPricingKind('standard'); setPercentOff('20'); setAmountOff('50'); setDuration('forever')
     setNote(''); setPartnerId(''); setReferralPercent(''); setError(null); setCreated(null)
   }
@@ -88,18 +108,15 @@ export default function AddClinicModal({ partners = [] }: { partners?: PartnerOp
   async function onSlugBlur() {
     const value = (slugTouched ? slug : effectiveSlug).trim()
     if (!value) return
-    try {
-      const result = await checkClinicSlug(value)
-      setSlugNote(
-        result.available
-          ? null
-          : result.suggestion
-            ? `"${value}" isn't available — they'll get "${result.suggestion}".`
-            : `"${value}" isn't available — a free variant will be used.`,
-      )
-    } catch {
-      setSlugNote(null)
-    }
+    const result = await runAction(() => checkManagedClinicSlugAction(value))
+    if (!result.ok) { setSlugNote(null); return }
+    setSlugNote(
+      result.available
+        ? null
+        : result.suggestion
+          ? `"${value}" isn't available — try "${result.suggestion}".`
+          : `"${value}" isn't available — pick another.`,
+    )
   }
 
   function onSubmit(e: React.FormEvent) {
@@ -116,34 +133,47 @@ export default function AddClinicModal({ partners = [] }: { partners?: PartnerOp
             : { kind: 'amount_off' as const, amountOffCents: Math.round(Number(amountOff) * 100), durationMonths }
 
     startTransition(async () => {
-      try {
-        const referral = partnerId
-          ? {
-              partnerId,
-              percentBps:
-                referralPercent.trim() === '' ? null : Math.round(Number(referralPercent) * 100),
-            }
-          : undefined
-        const result = await createManagedClinicAction({
+      const referral = partnerId
+        ? {
+            partnerId,
+            percentBps:
+              referralPercent.trim() === '' ? null : Math.round(Number(referralPercent) * 100),
+          }
+        : undefined
+      const result = await runAction(() =>
+        createManagedClinicAction({
           name,
           slug: effectiveSlug || undefined,
           ownerName,
           ownerEmail,
-          planId,
+          planId: MANAGED_PLAN_ID,
           interval,
           pricing,
           note: note || undefined,
           referral,
-        })
-        setCreated({
-          slug: result.slug,
-          ownerEmail: ownerEmail.trim().toLowerCase(),
-          comped: pricingKind === 'comped',
-          hasDiscount: Boolean(result.couponId),
-        })
-      } catch (err) {
-        setError((err as Error).message)
+          timezone,
+          phone: phone || undefined,
+          addressLine1: addressLine1 || undefined,
+          city: city || undefined,
+          state: state || undefined,
+          postalCode: postalCode || undefined,
+          npi: npi || undefined,
+          brandColor: brandColor || undefined,
+          pmsVendor,
+          pmsVendorName: pmsVendor === 'other' ? pmsVendorName : undefined,
+        }),
+      )
+      if (!result.ok) {
+        setError(result.error)
+        return
       }
+      setCreated({
+        slug: result.slug,
+        ownerEmail: ownerEmail.trim().toLowerCase(),
+        comped: pricingKind === 'comped',
+        hasDiscount: Boolean(result.couponId),
+        already: Boolean(result.alreadyProvisioned),
+      })
     })
   }
 
@@ -173,10 +203,10 @@ export default function AddClinicModal({ partners = [] }: { partners?: PartnerOp
                   <div role="status" className="text-center py-4">
                     <div className="text-3xl mb-3" aria-hidden="true">📨</div>
                     <h2 className="text-lg font-bold text-gray-800 dark:text-gray-100 mb-2">
-                      Invite sent to {created.ownerEmail}
+                      {created.already ? `Already set up — ${created.ownerEmail} was invited before` : `Invite sent to ${created.ownerEmail}`}
                     </h2>
                     <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">
-                      <strong>{created.slug}.dreamcreatestudio.com</strong> is reserved.
+                      <strong>{created.slug}.dreamcreatestudio.com</strong> {created.already ? 'is this clinic’s address. No second invite was sent.' : 'is reserved.'}
                     </p>
                     <p className="text-sm text-gray-500 dark:text-gray-400 mb-5">
                       {created.comped
@@ -235,15 +265,81 @@ export default function AddClinicModal({ partners = [] }: { partners?: PartnerOp
                       </div>
                       <div className="flex gap-3">
                         <div className="flex-1">
-                          <label className="block text-sm font-medium mb-1" htmlFor="ac-plan">Plan</label>
-                          <select id="ac-plan" className="form-select w-full" value={planId}
-                            onChange={(e) => setPlanId(e.target.value as PlanId)}>
-                            {PLANS.map((p) => (
-                              <option key={p.id} value={p.id}>
-                                {p.name} (${interval === 'annual' ? p.annualPrice.toLocaleString('en-US') + '/yr' : p.price + '/mo'})
-                              </option>
-                            ))}
+                          <label className="block text-sm font-medium mb-1" htmlFor="ac-tz">Time zone</label>
+                          <select id="ac-tz" className="form-select w-full" value={timezone}
+                            onChange={(e) => setTimezone(e.target.value)}>
+                            {US_TIMEZONES.map((z) => (<option key={z.id} value={z.id}>{z.label}</option>))}
                           </select>
+                        </div>
+                        <div className="flex-1">
+                          <label className="block text-sm font-medium mb-1" htmlFor="ac-phone">Phone</label>
+                          <input id="ac-phone" className="form-input w-full" type="tel" value={phone}
+                            onChange={(e) => setPhone(e.target.value)} placeholder="(555) 123-4567" />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium mb-1" htmlFor="ac-addr">Street address</label>
+                        <input id="ac-addr" className="form-input w-full" value={addressLine1}
+                          onChange={(e) => setAddressLine1(e.target.value)} placeholder="120 Main St" />
+                      </div>
+                      <div className="flex gap-3">
+                        <div className="flex-[2]">
+                          <label className="block text-sm font-medium mb-1" htmlFor="ac-city">City</label>
+                          <input id="ac-city" className="form-input w-full" value={city} onChange={(e) => setCity(e.target.value)} />
+                        </div>
+                        <div className="flex-1">
+                          <label className="block text-sm font-medium mb-1" htmlFor="ac-state">State</label>
+                          <input id="ac-state" className="form-input w-full" value={state} maxLength={2}
+                            onChange={(e) => setState(e.target.value.toUpperCase())} placeholder="OH" />
+                        </div>
+                        <div className="flex-1">
+                          <label className="block text-sm font-medium mb-1" htmlFor="ac-zip">ZIP</label>
+                          <input id="ac-zip" className="form-input w-full" value={postalCode}
+                            onChange={(e) => setPostalCode(e.target.value)} inputMode="numeric" />
+                        </div>
+                      </div>
+                      <div className="flex gap-3">
+                        <div className="flex-1">
+                          <label className="block text-sm font-medium mb-1" htmlFor="ac-npi">Practice NPI</label>
+                          <input id="ac-npi" className="form-input w-full" value={npi} inputMode="numeric"
+                            onChange={(e) => setNpi(e.target.value)} placeholder="10 digits — optional" />
+                        </div>
+                        <div className="flex-1">
+                          <label className="block text-sm font-medium mb-1" htmlFor="ac-brand">Brand colour</label>
+                          <div className="flex items-center gap-2">
+                            <input id="ac-brand" className="form-input w-full" value={brandColor}
+                              onChange={(e) => setBrandColor(e.target.value)} placeholder="#0d9488 — optional" spellCheck={false} />
+                            {/^#[0-9a-fA-F]{6}$/.test(brandColor) && (
+                              <span aria-hidden="true" className="h-6 w-6 shrink-0 rounded-full ring-1 ring-black/10" style={{ backgroundColor: brandColor }} />
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex gap-3">
+                        <div className="flex-1">
+                          <label className="block text-sm font-medium mb-1" htmlFor="ac-pms">Practice-management system</label>
+                          <select id="ac-pms" className="form-select w-full" value={pmsVendor}
+                            onChange={(e) => setPmsVendor(e.target.value)}>
+                            {PMS_ANSWER_CHOICES.map((v) => (<option key={v.id} value={v.id}>{v.label}</option>))}
+                          </select>
+                          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                            A system picked here files the connect request for you.
+                          </p>
+                        </div>
+                        {pmsVendor === 'other' && (
+                          <div className="flex-1">
+                            <label className="block text-sm font-medium mb-1" htmlFor="ac-pms-name">What is it called?</label>
+                            <input id="ac-pms-name" className="form-input w-full" required value={pmsVendorName}
+                              onChange={(e) => setPmsVendorName(e.target.value)} />
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex gap-3">
+                        <div className="flex-1">
+                          <span className="block text-sm font-medium mb-1">Plan</span>
+                          <div className="form-input w-full bg-gray-50 dark:bg-gray-900/30 text-gray-700 dark:text-gray-200">
+                            Managed (founding rate)
+                          </div>
                         </div>
                         <div className="flex-1">
                           <label className="block text-sm font-medium mb-1" htmlFor="ac-interval">Billing</label>

@@ -7,6 +7,7 @@ import { toCsv, csvDollars } from '@/lib/csv'
 import { clinicWeekStart } from '@/lib/clinic-timezone'
 import { netCollectedCents, collectedCents, keptFractionSql } from '@/lib/net-collected'
 import { getClinicTimeZone } from './clinic-timezone'
+import { sendShopOrderEmail, type ShopOrderEmailResult } from './shop-order-emails'
 import type {
   ProductRow,
   ProductVariantRow,
@@ -475,6 +476,8 @@ function toOrderRow(
     discountCents: o.discountCents,
     totalCents: o.totalCents,
     trackingNumber: o.trackingNumber,
+    readyEmailAt: o.readyEmailAt,
+    shippedEmailAt: o.shippedEmailAt,
     shippingAddress: o.shippingAddress ?? null,
     items,
     createdAt: o.createdAt,
@@ -591,7 +594,7 @@ export async function setOrderFulfillment(
   id: string,
   fulfillmentStatus: FulfillmentStatus,
   trackingNumber?: string | null,
-): Promise<void> {
+): Promise<{ emailed: ShopOrderEmailResult | null }> {
   const set: Record<string, unknown> = { fulfillmentStatus, updatedAt: new Date() }
   if (trackingNumber !== undefined) set.trackingNumber = trackingNumber
   if (fulfillmentStatus === 'picked_up' || fulfillmentStatus === 'delivered') set.fulfilledAt = new Date()
@@ -599,6 +602,11 @@ export async function setOrderFulfillment(
     .update(schema.shopOrder)
     .set(set)
     .where(and(eq(schema.shopOrder.organizationId, organizationId), eq(schema.shopOrder.id, id)))
+  // ML-42: the status change tells the patient. ONE home for the two emails
+  // (pickup -> "ready", ship -> "shipped"); each is idempotent per order.
+  if (fulfillmentStatus === 'ready_for_pickup') return { emailed: await sendShopOrderEmail(organizationId, id, 'ready') }
+  if (fulfillmentStatus === 'shipped') return { emailed: await sendShopOrderEmail(organizationId, id, 'shipped') }
+  return { emailed: null }
 }
 
 export interface OrderStats {

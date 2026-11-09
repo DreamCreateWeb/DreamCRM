@@ -1551,6 +1551,12 @@ export const shopOrder = pgTable(
     paidAt: timestamp('paid_at'),
     fulfilledAt: timestamp('fulfilled_at'),
     cancelledAt: timestamp('cancelled_at'),
+    // ML-42: the patient emails' idempotency keys. Each is CLAIMED atomically
+    // (UPDATE … WHERE col IS NULL RETURNING) before the send, so an order
+    // hears "ready for pickup" once and "shipped" once, however often staff
+    // re-click. Released again if the send itself fails.
+    readyEmailAt: timestamp('ready_email_at'),
+    shippedEmailAt: timestamp('shipped_email_at'),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (t) => [
@@ -1911,6 +1917,12 @@ export const patientBalancePayment = pgTable(
     refundSyncedAt: timestamp('refund_synced_at'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     paidAt: timestamp('paid_at'),
+    // "Posted" = a person at the desk entered this in the practice's ledger
+    // (their PMS or their books). NULL = still to post. Never auto-stamped;
+    // posted_by_user_id records who. No FK on purpose: a removed user must
+    // not un-post the books.
+    postedAt: timestamp('posted_at'),
+    postedByUserId: text('posted_by_user_id'),
   },
   (t) => [
     index('balance_payment_org_status_idx').on(t.organizationId, t.status),

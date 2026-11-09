@@ -750,3 +750,11 @@ commit → merge to main → verify deploy (same as the best-version program).
   the tap, sends the disclosed "Book a time" button and narrates once; a
   missing booking page reopens the card; the sweep expires it once they
   book. Both keys leave PREVIEW_CAPABILITIES.
+- **2026-11-09 — ML-35**: THE LISTING WATCH. listing_watch flips to AUTO
+  with its writer (lib/services/proposal-generators/listing-watch.ts):
+  report-only — one ledger entry per sync whose listing diff is non-empty
+  ("Google changed your listing's hours: Mon 8–5 → Mon 9–5"), the 'listing'
+  artifact rows (was → now), a quiet door (hours / phone → /settings/clinic,
+  website → /growth/reviews), dedupe on field|now over 7 days; it imports no
+  Zernio client (pinned) — the fix stays with gbp_website_fix's ask. Runs
+  right after the GBP sync's snapshot write, staff-clicked syncs included.

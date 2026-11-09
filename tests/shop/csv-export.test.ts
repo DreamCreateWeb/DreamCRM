@@ -29,13 +29,15 @@ const state = { rows: [] as Record<string, unknown>[] }
 vi.mock('@/lib/db', () => {
   const chain = () => {
     const o: Record<string, unknown> = {}
-    for (const m of ['from', 'innerJoin', 'where', 'orderBy']) o[m] = () => o
+    for (const m of ['from', 'innerJoin', 'leftJoin', 'where', 'orderBy']) o[m] = () => o
     o.limit = async () => state.rows
     return o
   }
   return { db: { select: () => chain() }, schema: new Proxy({}, { get: () => ({}) }) }
 })
-vi.mock('drizzle-orm', () => ({ and: vi.fn(() => ({})), eq: vi.fn(() => ({})), desc: vi.fn((x) => x), ne: vi.fn(() => ({})) }))
+// drizzle's operators stay real (the fake chain ignores every clause); the
+// posted-first ordering (ML-43) reaches for sql`` too.
+vi.mock('drizzle-orm', async (importOriginal) => ({ ...(await importOriginal<typeof import('drizzle-orm')>()) }))
 vi.mock('@/lib/stripe', () => ({ stripe: {} }))
 vi.mock('@/lib/services/notifications', () => ({ notifyOrgMembers: vi.fn() }))
 vi.mock('@/lib/email', () => ({ sendNotificationEmail: vi.fn() }))

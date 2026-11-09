@@ -198,6 +198,9 @@ export interface OrderRow {
   discountCents: number
   totalCents: number
   trackingNumber: string | null
+  /** When the patient was told ready / shipped (null = not yet). */
+  readyEmailAt?: Date | null
+  shippedEmailAt?: Date | null
   shippingAddress: Record<string, string> | null
   items: OrderItemRow[]
   createdAt: Date

@@ -120,12 +120,12 @@ export default function OrdersClient({
 
   const busy = (key: string) => isPending && active === key
 
-  function run(key: string, fn: () => Promise<unknown>, done?: string) {
+  function run(key: string, fn: () => Promise<unknown>, done?: string | ((result: unknown) => string)) {
     setActive(key)
     startTransition(async () => {
       try {
-        await fn()
-        if (done) setToast(done)
+        const result = await fn()
+        if (done) setToast(typeof done === 'function' ? done(result) : done)
         router.refresh()
       } catch (err) {
         // Surface the failure (and let the optimistic flip revert) instead of
@@ -133,6 +133,28 @@ export default function OrdersClient({
         setToast(err instanceof Error ? err.message : "Couldn't update the order — please try again.")
       }
     })
+  }
+
+  // The patient-email half of the toast — only claims an email that left.
+  function emailNote(result: unknown): string {
+    const emailed = (result as { emailed?: string | null } | undefined)?.emailed
+    if (emailed === 'sent') return ' We emailed the patient.'
+    if (emailed === 'failed') return " The status changed, but the email didn't go out."
+    return ''
+  }
+
+  // A pickup order is born "ready" when it is paid, so the patient has not
+  // been told yet: one button says it (sent once, never twice).
+  function needsReadyNote(o: OrderRow, status: FulfillmentStatus): boolean {
+    return o.status === 'paid' && o.fulfillmentType === 'pickup' && status === 'ready_for_pickup' && !o.readyEmailAt
+  }
+
+  function tellReady(o: OrderRow) {
+    run(
+      `${o.id}:tell-ready`,
+      () => setOrderFulfillmentAction(o.id, 'ready_for_pickup'),
+      (r) => ((r as { emailed?: string } | undefined)?.emailed === 'sent' ? 'We emailed the patient that it’s ready.' : 'Nothing sent — the pickup email is off, or they were already told.'),
+    )
   }
 
   function changeFulfillment(o: OrderRow, next: FulfillmentStatus, label: string) {
@@ -144,9 +166,9 @@ export default function OrdersClient({
       `${o.id}:${next}`,
       async () => {
         setOptimisticFulfillment({ id: o.id, status: next })
-        await setOrderFulfillmentAction(o.id, next, tracking)
+        return setOrderFulfillmentAction(o.id, next, tracking)
       },
-      `Marked ${label}.`,
+      (r) => `Marked ${label}.${emailNote(r)}`,
     )
   }
 
@@ -301,6 +323,11 @@ export default function OrdersClient({
                 <ActionButton variant="ghost" size="sm" onClick={() => setSelected(o)}>
                   Details
                 </ActionButton>
+                {needsReadyNote(o, optimisticFulfillment[o.id] ?? o.fulfillmentStatus) && (
+                  <ActionButton variant="secondary" size="sm" pending={busy(`${o.id}:tell-ready`)} disabled={isPending} onClick={() => tellReady(o)}>
+                    Tell them it’s ready
+                  </ActionButton>
+                )}
                 {o.status === 'paid' &&
                   NEXT_STEPS[(optimisticFulfillment[o.id] ?? o.fulfillmentStatus)].map((s, i) => {
                     // One primary per row — the most likely next move leads;
@@ -460,6 +487,13 @@ export default function OrdersClient({
                 )}
               </dl>
 
+              {needsReadyNote(selected, selectedFulfillment) && (
+                <div className="border-t border-[color:var(--color-hairline)] pt-3">
+                  <ActionButton variant="secondary" size="sm" pending={busy(`${selected.id}:tell-ready`)} disabled={isPending} onClick={() => tellReady(selected)}>
+                    Tell them it’s ready
+                  </ActionButton>
+                </div>
+              )}
               {selected.status === 'paid' && NEXT_STEPS[selectedFulfillment].length > 0 && (
                 <div className="flex flex-wrap gap-1.5 border-t border-[color:var(--color-hairline)] pt-3">
                   {NEXT_STEPS[selectedFulfillment].map((s, i) => {

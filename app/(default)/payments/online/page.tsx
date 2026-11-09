@@ -5,6 +5,8 @@ import { listRecentBalancePayments, canTakeBalancePayments } from '@/lib/service
 import { listRecentBookingDeposits } from '@/lib/services/booking-deposits'
 import { listUnmatchedRefunds } from '@/lib/services/refunds'
 import { getBalanceOutreachSettings } from '@/lib/services/balance-outreach'
+import PostingTable from './posting-table'
+import { toPostLabel } from '@/lib/payments-reconcile'
 import BalanceOutreachCard from './balance-outreach-card'
 import { formatCents } from '@/lib/types/shop'
 import { PageHeader } from '@/components/ui/page-header'
@@ -68,6 +70,7 @@ export default async function ShopPaymentsPage() {
     // the reconciliation list fails to render.
     listUnmatchedRefunds(ctx.organizationId).catch(() => []),
   ])
+  const toPost = payments.filter((p) => !p.postedAt).length
   const canManage = ctx.role === 'owner' || ctx.role === 'admin'
 
   return (
@@ -96,9 +99,9 @@ export default async function ShopPaymentsPage() {
       {/* Honest framing: these are collected, but reconciliation is still manual. */}
       <div className="mb-5 rounded-[var(--r-md)] bg-violet-500/10 ring-1 ring-inset ring-violet-500/30 px-4 py-3">
         <p className="text-sm text-violet-900 dark:text-violet-200">
-          The money has settled to your connected Stripe account. These are a
-          record for reconciliation — mark each amount against the patient&rsquo;s
-          balance in your PMS so the clinical ledger stays accurate.
+          The money has settled to your connected Stripe account. {toPostLabel(toPost)} —
+          once a payment is entered in your ledger, mark it posted and it comes off
+          the list. A person marks it; nothing here posts for you.
         </p>
       </div>
 
@@ -114,59 +117,25 @@ export default async function ShopPaymentsPage() {
           }
         />
       ) : (
-        <div className="v2-card overflow-hidden">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-[color:var(--color-surface-sunk)] border-b border-[color:var(--color-hairline)] text-left">
-                <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                  Patient
-                </th>
-                <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 text-right">
-                  Amount
-                </th>
-                <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                  Paid
-                </th>
-                <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 text-right">
-                  Balance at payment
-                </th>
-                <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                  Status
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[color:var(--color-hairline)]">
-              {payments.map((p) => (
-                <tr key={p.id} className="hover:bg-gray-50 dark:hover:bg-gray-900/30">
-                  <td className="px-4 py-3">
-                    <Link
-                      href={`/patients/${p.patientId}`}
-                      className="font-medium text-gray-800 dark:text-gray-100 hover:underline"
-                    >
-                      {p.patientName}
-                    </Link>
-                  </td>
-                  <td className="px-4 py-3 text-right tabular-nums font-mono-num font-semibold text-gray-800 dark:text-gray-100">
-                    {formatCents(p.amountCents)}
-                  </td>
-                  <td className="px-4 py-3 text-gray-600 dark:text-gray-300 tabular-nums font-mono-num">
-                    {fmtDate(p.paidAt ?? p.createdAt)}
-                  </td>
-                  <td className="px-4 py-3 text-right tabular-nums font-mono-num text-gray-600 dark:text-gray-300">
-                    {p.balanceCentsAtPayment == null ? '—' : formatCents(p.balanceCentsAtPayment)}
-                  </td>
-                  <td className="px-4 py-3">
-                    <CaptureStatus
-                      amountCents={p.amountCents}
-                      refundedAmountCents={p.refundedAmountCents}
-                      paidTitle="Payment captured by Stripe"
-                    />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <PostingTable
+          rows={payments.map((p) => ({
+            id: p.id,
+            patientId: p.patientId,
+            patientName: p.patientName,
+            amountCents: p.amountCents,
+            paidLabel: fmtDate(p.paidAt ?? p.createdAt),
+            balanceAtPaymentCents: p.balanceCentsAtPayment,
+            status: (
+              <CaptureStatus
+                amountCents={p.amountCents}
+                refundedAmountCents={p.refundedAmountCents}
+                paidTitle="Payment captured by Stripe"
+              />
+            ),
+            postedLabel: p.postedAt ? fmtDate(p.postedAt) : null,
+            postedByName: p.postedByName,
+          }))}
+        />
       )}
 
       {/* Booking deposits — collected at website booking, credited toward the

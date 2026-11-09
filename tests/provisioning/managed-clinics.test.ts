@@ -52,9 +52,17 @@ vi.mock('@/lib/db', () => {
   const schema = {
     organization: { id: 'org.id', slug: 'org.slug', name: 'org.name' },
     clinicProfile: { organizationId: 'cp.orgId' },
-    invitation: { id: 'inv.id', organizationId: 'inv.orgId', status: 'inv.status' },
+    invitation: { id: 'inv.id', organizationId: 'inv.orgId', status: 'inv.status', role: 'inv.role', email: 'inv.email' },
+    pmsConnectRequest: { organizationId: 'pms.orgId' },
+    clinicReviewConfig: { organizationId: 'rc.orgId' },
   }
-  return { db: { select: mockSelect, insert: mockInsert, update: mockUpdate }, schema }
+  const db = {
+    select: mockSelect,
+    insert: mockInsert,
+    update: mockUpdate,
+    transaction: async (cb: (tx: unknown) => Promise<unknown>) => cb({ insert: mockInsert, select: mockSelect }),
+  }
+  return { db, schema }
 })
 
 import {
