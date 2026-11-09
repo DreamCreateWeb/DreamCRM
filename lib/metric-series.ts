@@ -79,3 +79,51 @@ export function heartbeatLine(s: SeriesSummary, fmt: (n: number) => string = (n)
   }
   return s.sinceCopy ? `tracked ${s.sinceCopy}` : null
 }
+
+/**
+ * A FLOW (sends, bookings, new patients) is lumpy day to day, so "vs 14 days
+ * ago" would compare one Tuesday with another. A flow's comparison is the
+ * last 7 recorded days against the 7 before them — and only when ALL 14 days
+ * were recorded (an unrecorded day is unknown, never a zero).
+ */
+export function weekOverWeek(points: SeriesPoint[]): { thisWeek: number; priorWeek: number } | null {
+  if (points.length < 2 * 7) return null
+  const byKey = new Map(points.map((p) => [p.key, p.value]))
+  const newest = points[points.length - 1].key
+  let thisWeek = 0
+  let priorWeek = 0
+  for (let i = 0; i < 14; i++) {
+    const v = byKey.get(shiftDayKey(newest, -i))
+    if (v === undefined) return null
+    if (i < 7) thisWeek += v
+    else priorWeek += v
+  }
+  return { thisWeek, priorWeek }
+}
+
+export interface Heartbeat {
+  /** The chart-kit series for the tile's one heartbeat, or null (under 2 points). */
+  spark: Array<{ bucket: string; value: number }> | null
+  /** The honest line under the number, or null to say nothing. */
+  line: string | null
+}
+
+/**
+ * Everything a tile needs from a series, in one call: the spark at 2+ points
+ * and the line — the 14-day comparison for a stock, the week-over-week for a
+ * flow, and under the floor the honest "tracked since <date>".
+ */
+export function heartbeatFor(
+  points: SeriesPoint[],
+  kind: 'flow' | 'stock',
+  opts: { fmt?: (n: number) => string; /** What a flow counts, for the line ("sent", "booked back"). */ noun?: string } = {},
+): Heartbeat {
+  const fmt = opts.fmt ?? ((n: number) => n.toLocaleString('en-US'))
+  const s = summarizeSeries(points)
+  if (kind === 'stock') return { spark: s.spark, line: heartbeatLine(s, fmt) }
+  const w = weekOverWeek(points)
+  if (!w) return { spark: s.spark, line: s.sinceCopy ? `tracked ${s.sinceCopy}` : null }
+  const diff = w.thisWeek - w.priorWeek
+  const vs = diff === 0 ? 'same as the week before' : `${diff > 0 ? 'up' : 'down'} ${fmt(Math.abs(diff))} on the week before`
+  return { spark: s.spark, line: `${fmt(w.thisWeek)}${opts.noun ? ` ${opts.noun}` : ''} in the last 7 days, ${vs}` }
+}
