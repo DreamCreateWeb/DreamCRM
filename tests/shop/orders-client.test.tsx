@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen, fireEvent, within } from '@testing-library/react'
+import { render, screen, fireEvent, within, waitFor } from '@testing-library/react'
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
@@ -10,6 +10,7 @@ vi.mock('@/app/(default)/shop/actions', () => ({
 
 import OrdersClient from '@/app/(default)/shop/orders/orders-client'
 import { setOrderFulfillmentAction } from '@/app/(default)/shop/actions'
+import { ACTION_FAILED_MESSAGE } from '@/lib/deployment-skew'
 import type { OrderRow } from '@/lib/types/shop'
 
 function order(over: Partial<OrderRow> = {}): OrderRow {
@@ -29,6 +30,7 @@ function order(over: Partial<OrderRow> = {}): OrderRow {
     discountCents: 0,
     totalCents: 1000,
     trackingNumber: null,
+    trackingUrl: null,
     shippingAddress: null,
     items: [{ productName: 'Whitening Kit', variantName: null, sku: null, unitPriceCents: 1000, quantity: 1 }],
     createdAt: new Date(),
@@ -134,7 +136,39 @@ describe('OrdersClient', () => {
     vi.mocked(setOrderFulfillmentAction).mockRejectedValueOnce(new Error('Server said no'))
     render(<OrdersClient orders={[order({ fulfillmentStatus: 'ready_for_pickup' })]} />)
     fireEvent.click(screen.getByRole('button', { name: /Mark picked up/i }))
-    expect(await screen.findByText(/Server said no/i)).toBeInTheDocument()
+    // runAction owns the throw now: the person reads the dashboard-wide line.
+    expect(await screen.findByText(ACTION_FAILED_MESSAGE)).toBeInTheDocument()
+  })
+
+  // ML-42b: shipping asks for tracking in a dialog (never window.prompt), the
+  // link must be a valid http(s) URL, and the action carries both.
+  describe('the ship dialog', () => {
+    const shipOrder = () => order({ fulfillmentType: 'ship', fulfillmentStatus: 'unfulfilled' })
+    it('opens a dialog instead of window.prompt and sends number + link', async () => {
+      const prompt = vi.fn()
+      window.prompt = prompt
+      vi.mocked(setOrderFulfillmentAction).mockResolvedValueOnce({ emailed: 'sent' })
+      render(<OrdersClient orders={[shipOrder()]} />)
+      fireEvent.click(screen.getByRole('button', { name: /Mark shipped/i }))
+      const dialog = screen.getByRole('dialog')
+      expect(prompt).not.toHaveBeenCalled()
+      fireEvent.change(within(dialog).getByLabelText(/Tracking number/), { target: { value: '1Z999' } })
+      fireEvent.change(within(dialog).getByLabelText(/Tracking link/), { target: { value: 'https://track.example.com/1Z999' } })
+      fireEvent.click(within(dialog).getByRole('button', { name: /Mark shipped/i }))
+      await waitFor(() =>
+        expect(setOrderFulfillmentAction).toHaveBeenLastCalledWith('o1', 'shipped', '1Z999', 'https://track.example.com/1Z999'),
+      )
+    })
+    it('refuses a link that is not http(s), in words that name the fix', () => {
+      vi.mocked(setOrderFulfillmentAction).mockClear()
+      render(<OrdersClient orders={[shipOrder()]} />)
+      fireEvent.click(screen.getByRole('button', { name: /Mark shipped/i }))
+      const dialog = screen.getByRole('dialog')
+      fireEvent.change(within(dialog).getByLabelText(/Tracking link/), { target: { value: 'javascript:alert(1)' } })
+      fireEvent.click(within(dialog).getByRole('button', { name: /Mark shipped/i }))
+      expect(within(dialog).getByRole('alert').textContent).toMatch(/starting with https:\/\//)
+      expect(setOrderFulfillmentAction).not.toHaveBeenCalled()
+    })
   })
 
   // The detail drawer surfaces the per-line pricing, cost breakdown, and

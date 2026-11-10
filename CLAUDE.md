@@ -369,9 +369,9 @@ booking, intake, shop, the token landings. Brand-derived palette
   (GitHub Actions → CodeBuild → ECR → App Runner, ~5 min; then a few minutes
   of rollout — `/api/version` changes when the new build serves).
 - **Migrations auto-apply on boot** (`scripts/db-migrate.mjs`; a failure keeps
-  the previous version serving). Latest applied: **0191** (email_domain_failed_checks; 0190 = billing_profiles dropped; 0189 =
+  the previous version serving). Latest applied: **0192** (shop_order.tracking_url; 0191 = email_domain_failed_checks; 0190 = billing_profiles dropped; 0189 =
   two-step sign-in; 0188 = the metrics snapshot, clinic closures, the
-  inbox's wanted stamp). The next number is **0192**.
+  inbox's wanted stamp). The next number is **0193**.
   PARALLEL BRANCHES NEVER SHIP MIGRATION FILES: the integrator regenerates
   ONE sequential migration per PR on the merged schema. Workflow: edit the schema,
   `pnpm db:generate`, pin with a `tests/migrations/*.test.ts`, commit. The

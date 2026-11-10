@@ -4,6 +4,7 @@ import { db, schema } from '@/lib/db'
 import { deliver, patientEmailShell } from '@/lib/email'
 import { getClinicSenderIdentity } from './clinic-sender'
 import { renderAutomatedEmail } from './email-automations'
+import { normalizeTrackingUrl } from '@/lib/types/shop'
 
 /**
  * The two emails every shop sends (ML-42): "ready for pickup" and "shipped".
@@ -79,7 +80,13 @@ export async function sendShopOrderEmail(
           .map((i) => `<li>${escapeHtml(`${i.qty}× ${i.name}${i.variant ? ` · ${i.variant}` : ''}`)}</li>`)
           .join('')}</ul>`
       : ''
-    const trackingHtml = tracking ? `<p style="margin:14px 0 0;">Tracking number: <strong>${escapeHtml(tracking)}</strong></p>` : ''
+    const trackingLink = kind === 'shipped' ? normalizeTrackingUrl(order.trackingUrl) : null
+    const trackingHtml = [
+      tracking ? `<p style="margin:14px 0 0;">Tracking number: <strong>${escapeHtml(tracking)}</strong></p>` : '',
+      trackingLink
+        ? `<p style="margin:14px 0 0;"><a href="${escapeHtml(trackingLink)}">Track your package</a></p>`
+        : '',
+    ].join('')
     await deliver({
       to: order.email,
       from: sender.from,
