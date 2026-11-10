@@ -20,6 +20,11 @@ vi.mock('@/lib/db', () => {
   }
   return { db: { select }, schema }
 })
+const seated = vi.hoisted(() => ({ map: new Map<string, Date | null>() }))
+vi.mock('@/lib/services/patient-journey', () => ({
+  getJourneyForPatients: async (_org: string, ids: string[]) =>
+    new Map(ids.map((id) => [id, { patientId: id, firstSeatedAt: seated.map.get(id) ?? null }])),
+}))
 vi.mock('drizzle-orm', () => ({
   and: () => true, eq: () => true, gte: () => true, lt: () => true, ne: () => true, or: () => true, isNull: () => true, isNotNull: () => true,
 }))
@@ -28,12 +33,16 @@ import { getWordOfMouthCounts, wordOfMouthLine } from '@/lib/services/growth-hub
 
 const TZ = 'America/Chicago'
 const NOW = new Date('2026-11-16T15:00:00Z') // Nov 16, 9am Central
-const p = (id: string, iso: string, over: Record<string, unknown> = {}) => ({
-  id, source: 'referral', referredBy: null, firstSeenAt: new Date(iso), ...over,
-})
+// A row is a referred patient; `iso` is when they were first SEATED (their
+// first-seen date is deliberately irrelevant — that was the old basis).
+const p = (id: string, iso: string | null, over: Record<string, unknown> = {}) => {
+  if (iso) seated.map.set(id, new Date(iso))
+  return { id, source: 'referral', referredBy: null, ...over }
+}
 
 beforeEach(() => {
   rows.list = []
+  seated.map = new Map()
 })
 
 describe('getWordOfMouthCounts', () => {
@@ -63,13 +72,22 @@ describe('getWordOfMouthCounts', () => {
   })
 })
 
+describe('seated, not first-seen (ML-39b)', () => {
+  it('a referred patient who was never seated is not counted, however they arrived', async () => {
+    rows.list = [p('a', null, { referredBy: 'r1' }), p('b', '2026-11-05T16:00:00Z')]
+    expect(await getWordOfMouthCounts('org_1', TZ, NOW)).toEqual({
+      thisMonth: 1, lastMonthSamePoint: 0, referrersThisMonth: 0,
+    })
+  })
+})
+
 describe('wordOfMouthLine', () => {
   it('is honest at zero and never invents a trend', () => {
-    expect(wordOfMouthLine({ thisMonth: 0, lastMonthSamePoint: 0, referrersThisMonth: 0 })).toMatch(/no new patients through a friend yet/)
+    expect(wordOfMouthLine({ thisMonth: 0, lastMonthSamePoint: 0, referrersThisMonth: 0 })).toMatch(/no seated patients through a friend yet/)
   })
   it('names the month and the comparison', () => {
     expect(wordOfMouthLine({ thisMonth: 1, lastMonthSamePoint: 2, referrersThisMonth: 1 })).toBe(
-      '1 new patient through a friend this month · 2 at this point last month',
+      '1 patient seated through a friend this month · 2 at this point last month',
     )
   })
 })

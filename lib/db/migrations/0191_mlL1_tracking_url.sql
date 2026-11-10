@@ -1,0 +1,1 @@
+ALTER TABLE "shop_order" ADD COLUMN "tracking_url" text;

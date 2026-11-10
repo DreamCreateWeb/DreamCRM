@@ -61,9 +61,9 @@ export async function disconnectStripeAction() {
   revalidatePath('/shop')
 }
 
-export async function setOrderFulfillmentAction(id: string, status: FulfillmentStatus, trackingNumber?: string | null) {
+export async function setOrderFulfillmentAction(id: string, status: FulfillmentStatus, trackingNumber?: string | null, trackingUrl?: string | null) {
   const ctx = await ensureClinicAdmin()
-  const result = await setOrderFulfillment(ctx.organizationId, id, status, trackingNumber)
+  const result = await setOrderFulfillment(ctx.organizationId, id, status, trackingNumber, trackingUrl)
   revalidatePath('/shop/orders')
   return result
 }

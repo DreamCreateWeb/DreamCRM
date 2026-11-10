@@ -27,6 +27,12 @@ export interface PostingRow {
   postedByName: string | null
 }
 
+/** The face amount of the rows a person ticked — what they are about to enter
+ *  in their ledger (the gross payment; a refund posts as its own entry). */
+function faceCents(list: PostingRow[]): number {
+  return list.reduce((sum, r) => sum + r.amountCents, 0)
+}
+
 const TH = 'px-3 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400'
 
 /**
@@ -41,6 +47,7 @@ export default function PostingTable({ rows }: { rows: PostingRow[] }) {
   const [toast, setToast] = useState<{ message: string; tone: 'ok' | 'urgent' } | null>(null)
 
   const todo = rows.filter((r) => !r.postedLabel)
+  const selectedCents = faceCents(todo.filter((r) => selected.has(r.id)))
 
   function toggle(id: string) {
     setSelected((s) => {
@@ -68,8 +75,9 @@ export default function PostingTable({ rows }: { rows: PostingRow[] }) {
     const picked = todo.filter((r) => selected.has(r.id))
     if (picked.length === 0) return
     // The dialog law: awaited BEFORE any transition.
+    const totalCents = faceCents(picked)
     const ok = await confirm({
-      title: `Mark ${picked.length} payment${picked.length === 1 ? '' : 's'} as posted?`,
+      title: `Mark ${picked.length} payment${picked.length === 1 ? '' : 's'} posted · ${formatCents(totalCents)}?`,
       message: 'Only do this once they are entered in your ledger — you can undo any single row.',
       confirmLabel: 'Mark posted',
     })
@@ -165,7 +173,7 @@ export default function PostingTable({ rows }: { rows: PostingRow[] }) {
         </TableFit>
       </div>
 
-      <BulkBar count={selected.size} noun="to mark posted" onClear={() => setSelected(new Set())}>
+      <BulkBar count={selected.size} noun={`to mark posted · ${formatCents(selectedCents)}`} onClear={() => setSelected(new Set())}>
         <ActionButton size="sm" variant="primary" pending={busy === 'bulk'} onClick={postSelected}>
           {`Mark ${selected.size} posted`}
         </ActionButton>
