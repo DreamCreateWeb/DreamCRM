@@ -122,6 +122,26 @@ describe('open + click', () => {
     expect(res.status).toBe(302)
     expect(h.inserts[0]).toMatchObject({ table: 'outreachEvent', values: { prospectId: 'pros_s', type: 'click' } })
   })
+
+  it('V5: a click (and an open) on a RESTING survivor wakes it FIRST — one status-guarded write — so the engagement rollup promotes it as before P-03', async () => {
+    for (const [route, payload] of [
+      [click, { p: 'k', pr: 'pros_l', tl: 'otch_1', e: 'doc@smile.com', u: 'https://example.com/demo' }],
+      [open, { p: 'o', pr: 'pros_l', tl: 'otch_1', e: 'doc@smile.com' }],
+    ] as const) {
+      h.inserts.length = 0
+      h.updates.length = 0
+      h.selectQueue.push([{ status: 'merged', mergedInto: 'pros_s' }], [{ status: 'dormant', mergedInto: null }])
+      await route(new NextRequest('http://localhost/api/track/x'), params(token(payload)))
+      const wake = h.updates.find((u) => u.table === 'prospect')!
+      expect(wake, payload.p).toBeTruthy()
+      expect(wake.values).toMatchObject({ dormantFromStatus: null })
+      const { sql, params: p } = render(wake.where)
+      expect(sql).toMatch(/"prospect"\."id" = \$1 and "prospect"\."status" = \$2/)
+      expect(p).toEqual(['pros_s', 'dormant'])
+      // The wake before the event — the order the hygiene wiring test pins by source.
+      expect(h.inserts[0]).toMatchObject({ table: 'outreachEvent', values: { prospectId: 'pros_s' } })
+    }
+  })
 })
 
 describe('Resend bounce / complaint', () => {

@@ -17,6 +17,8 @@ const state = {
   inserts: [] as Array<{ table: string; values: Record<string, unknown> }>,
   updates: [] as Array<{ table: string; values: Record<string, unknown> }>,
   updateReturning: [] as unknown[][],
+  /** Every write, in the order it was issued. */
+  seq: [] as string[],
 }
 
 vi.mock('@/lib/db', () => {
@@ -37,6 +39,7 @@ vi.mock('@/lib/db', () => {
       insert: (table: unknown) => ({
         values: (values: Record<string, unknown>) => {
           state.inserts.push({ table: (table as { _n: string })._n, values })
+          state.seq.push(`insert:${(table as { _n: string })._n}`)
           const p: any = Promise.resolve(undefined)
           p.onConflictDoNothing = () => Promise.resolve(undefined)
           return p
@@ -46,6 +49,7 @@ vi.mock('@/lib/db', () => {
         set: (values: Record<string, unknown>) => ({
           where: (..._args: unknown[]) => {
             state.updates.push({ table: (table as { _n: string })._n, values })
+            state.seq.push(`update:${(table as { _n: string })._n}`)
             const p: any = Promise.resolve(undefined)
             p.returning = async () => state.updateReturning.shift() ?? []
             return p
@@ -54,7 +58,7 @@ vi.mock('@/lib/db', () => {
       }),
     },
     schema: {
-      prospect: { _n: 'prospect', id: 'id', email: 'email', status: 'status' },
+      prospect: { _n: 'prospect', id: 'id', email: 'email', status: 'status', dormantFromStatus: 'dfs' },
       outreachEnrollment: { _n: 'outreach_enrollment', prospectId: 'pid', status: 'status', nextSendAt: 'next' },
       outreachEvent: { _n: 'outreach_event', prospectId: 'pid', type: 'type', meta: 'meta' },
       prospectSuppression: { _n: 'prospect_suppression', email: 'email' },
@@ -65,9 +69,10 @@ vi.mock('@/lib/db', () => {
 vi.mock('drizzle-orm', () => ({
   and: vi.fn(() => ({})),
   desc: vi.fn(() => ({})),
-  eq: vi.fn(() => ({})),
+  eq: vi.fn((...args: unknown[]) => ({ eq: args })),
   gte: vi.fn(() => ({})),
-  inArray: vi.fn(() => ({})),
+  inArray: vi.fn((...args: unknown[]) => ({ inArray: args })),
+  or: vi.fn((...args: unknown[]) => ({ or: args })),
   sql: Object.assign(vi.fn(() => ({})), { raw: vi.fn() }),
 }))
 
@@ -88,6 +93,15 @@ vi.mock('@/lib/services/prospecting', () => ({
   getProspectingConfig: configMock,
 }))
 vi.mock('@/lib/services/prospect-meetings', () => ({ getOrCreateBookingLink: bookingLinkMock }))
+// The wake is the hygiene module's own (its statement is rendered in
+// hygiene-sql.test.ts); here it runs for real through a spy so one test can
+// make it die mid-flight.
+const wakeMock = vi.hoisted(() => vi.fn())
+vi.mock('@/lib/services/prospect-hygiene', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/services/prospect-hygiene')>()
+  wakeMock.mockImplementation(actual.wakeDormantProspect)
+  return { ...actual, wakeDormantProspect: (...a: unknown[]) => wakeMock(...a) }
+})
 // Dynamically imported by the alert + pre-warm path.
 vi.mock('@/lib/services/gsc', () => ({ getPlatformOrgId: async () => 'org_platform' }))
 vi.mock('@/lib/services/notifications', () => ({ notifyOrgMembers: notifyMock }))
@@ -119,6 +133,7 @@ beforeEach(() => {
   state.inserts = []
   state.updates = []
   state.updateReturning = []
+  state.seq = []
   vi.clearAllMocks()
   vi.stubEnv('OUTREACH_GMAIL_ACCOUNT_ID', 'ea_outreach')
 })
@@ -135,6 +150,21 @@ describe('processInboundForOutreach', () => {
     const wake = state.updates.find((u) => u.table === 'prospect')
     expect(wake).toBeDefined()
     expect(wake!.values).toMatchObject({ dormantFromStatus: null })
+  })
+
+  it('V6: the wake lands BEFORE the reply event is recorded — a kill between the two leaves no recorded reply on a resting row, so the next tick re-processes the message', async () => {
+    queueSweep(MSG, { ...PROSPECT, status: 'dormant', dormantFromStatus: 'contacted' })
+    aiMock.mockResolvedValue(null)
+    await processInboundForOutreach()
+    expect(state.seq.indexOf('update:prospect')).toBeGreaterThan(-1)
+    expect(state.seq.indexOf('update:prospect')).toBeLessThan(state.seq.indexOf('insert:outreach_event'))
+    // …and a wake that dies stops the message before its event exists, so
+    // the idempotency check finds nothing next tick and looks again.
+    state.seq = []
+    queueSweep(MSG, { ...PROSPECT, status: 'dormant', dormantFromStatus: 'contacted' })
+    wakeMock.mockRejectedValueOnce(new Error('killed'))
+    await expect(processInboundForOutreach()).rejects.toThrow('killed')
+    expect(state.inserts.filter((i) => i.table === 'outreach_event')).toHaveLength(1) // only the first message's
   })
 
   it('a row that rested from `enriched` was never written to — its mail is not a reply', async () => {
@@ -274,6 +304,29 @@ describe('rollupEngagementSignals', () => {
     expect(r.promoted).toBe(1)
     const flip = state.updates.find((u) => u.table === 'prospect')
     expect(flip!.values).toMatchObject({ status: 'engaged', intentSignal: 'clicked' })
+  })
+
+  it('V5: a row that RESTED from contacted is a candidate too — the click promotes it, the promotion IS the wake, and the "heating up" bell rings as before P-03', async () => {
+    const { eq, or, inArray } = await import('drizzle-orm')
+    state.selectQueue.push([{ id: 'pros_1', name: 'Resting Smile' }])
+    state.selectQueue.push([{ type: 'click', n: 1 }])
+    const r = await rollupEngagementSignals()
+    expect(r.promoted).toBe(1)
+    // The candidate read: contacted OR (dormant from contacted).
+    const orCall = (or as unknown as { mock: { calls: unknown[][] } }).mock.calls[0]
+    expect(orCall).toBeTruthy()
+    const eqCalls = (eq as unknown as { mock: { calls: unknown[][] } }).mock.calls.map((c) => c.slice(0, 2))
+    expect(eqCalls).toContainEqual(['status', 'contacted'])
+    expect(eqCalls).toContainEqual(['status', 'dormant'])
+    expect(eqCalls).toContainEqual(['dfs', 'contacted'])
+    // The write clears the memory and strips the resting sentence, guarded on contacted|dormant.
+    const flip = state.updates.find((u) => u.table === 'prospect')!
+    expect(flip.values).toMatchObject({ status: 'engaged', dormantFromStatus: null, intentSignal: 'clicked' })
+    expect(flip.values).toHaveProperty('qualityReasons')
+    const guard = (inArray as unknown as { mock: { calls: unknown[][] } }).mock.calls.find((c) => c[0] === 'status')
+    expect(guard?.[1]).toEqual(['contacted', 'dormant'])
+    expect(notifyMock).toHaveBeenCalledTimes(1)
+    expect(((notifyMock.mock.calls[0] as unknown[])[1] as { body: string }).body).toContain('Resting Smile')
   })
 
   it('3+ opens promote; fewer do not', async () => {

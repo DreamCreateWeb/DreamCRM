@@ -701,6 +701,10 @@ export interface ProspectHygieneStats {
   lastRefresh: { state: string; zipPrefix: string; at: Date } | null
 }
 
+/** What a stale drawer or card hears when its row was merged meanwhile
+ *  (P-03): the number, the verify, the re-enrich all belong to the survivor. */
+export const MERGED_ROW_WORDS = 'This record was merged into another — open the row that kept its history and work from there.'
+
 /** Why a merge was refused, in the reader's words — the drawer never shows
  *  a reason code (P-03 fix pass). Keys mirror MergeRefusalReason. */
 export const MERGE_REFUSAL_WORDS: Record<string, string> = {

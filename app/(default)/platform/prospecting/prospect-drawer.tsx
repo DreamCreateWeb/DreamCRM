@@ -124,8 +124,9 @@ export default function ProspectDrawer({
         </div>
 
         {/* The cold caller holding it (P-02) — the owner's own queues hide
-            it while someone else is dialling; Reassign / Unassign here. */}
-        {(detail.assignedCaller || callers.length > 0) && (
+            it while someone else is dialling; Reassign / Unassign here. A
+            folded (merged) shell offers no assign control at all. */}
+        {!folded && (detail.assignedCaller || callers.length > 0) && (
           <div className={SECTION}>
             <div className={SECTION_TITLE}>Caller</div>
             <AssignCallerControl

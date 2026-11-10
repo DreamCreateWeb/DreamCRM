@@ -321,10 +321,21 @@ export interface TerritoryRefreshResult {
   capped: boolean
 }
 
-/** The stamp a territory is ordered and aged by: its last refresh, else
- *  the end of its first sweep. Exported for the boundary test. */
+/** The stamp a territory is AGED by — what decides it is due: its last
+ *  refresh that happened, else the end of its first sweep. A refresh that
+ *  threw stamps nothing here, so a territory stays due. Exported for the
+ *  boundary test. */
 export function territorySweptAtSql() {
   return sql`COALESCE(${schema.prospectDiscoveryTask.lastRefreshedAt}, ${schema.prospectDiscoveryTask.updatedAt})`
+}
+
+/** The stamp the due territories are ORDERED by: the most recent attempt
+ *  of either kind (a refresh, a refresh that threw), else the first sweep —
+ *  so a territory whose pages keep failing goes to the BACK of the line,
+ *  behind every other due territory, without ever leaving it. GREATEST
+ *  skips nulls in Postgres. Exported for the boundary test. */
+export function territoryQueueOrderSql() {
+  return sql`GREATEST(${schema.prospectDiscoveryTask.lastRefreshedAt}, ${schema.prospectDiscoveryTask.lastRefreshErrorAt}, ${schema.prospectDiscoveryTask.updatedAt})`
 }
 
 /**
@@ -332,8 +343,10 @@ export function territorySweptAtSql() {
  * `config.hygiene.discoveryRefreshDays`: the same state × zip prefix, both
  * entity phases from skip 0, every page through the same door as
  * discovery — so only NEW NPIs enter (the NPI unique, the dedupe hash and
- * the matcher all stand). Stamps `last_refreshed_at`; the oldest-swept
- * territory goes first, so every territory gets its turn.
+ * the matcher all stand). A finished sweep stamps `last_refreshed_at`; one
+ * that threw stamps `last_refresh_error_at` instead (the territory stays
+ * due, behind every other due one). The least-recently-attempted territory
+ * goes first, so every territory gets its turn.
  */
 export async function refreshStaleTerritory(opts: {
   now?: Date
@@ -344,7 +357,6 @@ export async function refreshStaleTerritory(opts: {
   const config = opts.config ?? (await getProspectingConfig())
   if (config.killSwitch || config.enabledStates.length === 0) return null
   const cutoff = new Date(now.getTime() - config.hygiene.discoveryRefreshDays * 24 * 60 * 60 * 1000)
-  const sweptAt = territorySweptAtSql()
   const [task] = await db
     .select()
     .from(schema.prospectDiscoveryTask)
@@ -352,10 +364,10 @@ export async function refreshStaleTerritory(opts: {
       and(
         eq(schema.prospectDiscoveryTask.status, 'done'),
         inArray(schema.prospectDiscoveryTask.state, config.enabledStates),
-        lt(sweptAt, cutoff),
+        lt(territorySweptAtSql(), cutoff),
       ),
     )
-    .orderBy(asc(sweptAt))
+    .orderBy(asc(territoryQueueOrderSql()))
     .limit(1)
   if (!task) return null
 
@@ -391,17 +403,19 @@ export async function refreshStaleTerritory(opts: {
     }
   } catch (err) {
     // A territory whose pages keep failing must not be the one the next tick
-    // re-selects (it would be — it stays the oldest-swept): stamp it with
-    // the error so it goes to the back of the line and every other territory
-    // gets its turn; the throw still reaches the hygiene strike.
+    // re-selects (it would be — it stays the least-recently attempted):
+    // stamp the ERROR clock so it goes to the back of the line and every
+    // other due territory gets its turn — never `last_refreshed_at` (the
+    // hunt tile's "last refresh" is a sweep that happened) and never
+    // `updated_at` (the territory stays due); the throw still reaches the
+    // hygiene strike.
     await db
       .update(schema.prospectDiscoveryTask)
       .set({
-        lastRefreshedAt: now,
+        lastRefreshErrorAt: now,
         found: task.found + found,
         imported: task.imported + imported,
         error: `refresh: ${err instanceof Error ? err.message : String(err)}`.slice(0, 500),
-        updatedAt: now,
       })
       .where(eq(schema.prospectDiscoveryTask.id, task.id))
     throw err
@@ -410,6 +424,7 @@ export async function refreshStaleTerritory(opts: {
     .update(schema.prospectDiscoveryTask)
     .set({
       lastRefreshedAt: now,
+      lastRefreshErrorAt: null,
       found: task.found + found,
       imported: task.imported + imported,
       error: null,

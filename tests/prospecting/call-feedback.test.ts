@@ -50,6 +50,7 @@ vi.mock('@/lib/db', () => {
       prospect: table('prospect'),
       prospectCallLog: table('prospect_call_log'),
       outreachEnrollment: table('outreach_enrollment'),
+      prospectingConfig: table('prospecting_config'),
     },
   }
 })
@@ -57,7 +58,7 @@ vi.mock('drizzle-orm', () => {
   const stub = () => vi.fn(() => ({}))
   return {
     and: stub(), asc: stub(), desc: stub(), eq: stub(), exists: stub(), gte: stub(), ilike: stub(),
-    inArray: stub(), isNotNull: stub(), isNull: stub(), notInArray: stub(), or: stub(),
+    inArray: stub(), isNotNull: stub(), isNull: stub(), ne: stub(), notInArray: stub(), or: stub(),
     sql: Object.assign(vi.fn(() => ({})), { raw: vi.fn() }),
   }
 })
@@ -83,6 +84,11 @@ const VERIFIED_ROW = {
 }
 
 const prospectUpdates = () => state.updates.filter((u) => u.table === 'prospect')
+/** logCallOutcome resolves the row's survivor FIRST (P-03): one read of
+ *  status + merge pointer before anything is written. */
+const LIVE_ROW = { status: 'enriched', mergedInto: null }
+/** The config read a rescore makes (an empty queue resolves to the defaults). */
+const CONFIG_14 = { config: { hygiene: { parkedRecheckDays: 14 } } }
 
 beforeEach(() => {
   state.selectQueue = []
@@ -92,7 +98,7 @@ beforeEach(() => {
 
 describe('logCallOutcome — the verdicts', () => {
   it('disconnected → phone parked, quality zero, the date in the reason, the number off every queue', async () => {
-    state.selectQueue.push([VERIFIED_ROW])
+    state.selectQueue.push([LIVE_ROW], [VERIFIED_ROW])
     await logCallOutcome({ prospectId: 'pros_1', outcome: 'disconnected' })
     expect(state.inserts[0]).toMatchObject({ table: 'prospect_call_log', values: { outcome: 'disconnected' } })
     const w = prospectUpdates().at(-1)!.values
@@ -106,7 +112,7 @@ describe('logCallOutcome — the verdicts', () => {
   })
 
   it('wrong number → the same parking, its own words', async () => {
-    state.selectQueue.push([VERIFIED_ROW])
+    state.selectQueue.push([LIVE_ROW], [VERIFIED_ROW])
     await logCallOutcome({ prospectId: 'pros_1', outcome: 'wrong_number' })
     const w = prospectUpdates().at(-1)!.values
     expect(w).toMatchObject({ phoneStatus: 'wrong_number', qualityScore: 0, qualityBand: 'parked' })
@@ -114,7 +120,7 @@ describe('logCallOutcome — the verdicts', () => {
   })
 
   it('closed → disqualified with reason closed, the enrollment stopped, the business signal from the caller', async () => {
-    state.selectQueue.push([VERIFIED_ROW])
+    state.selectQueue.push([LIVE_ROW], [VERIFIED_ROW])
     await logCallOutcome({ prospectId: 'pros_1', outcome: 'closed' })
     const w = prospectUpdates().at(-1)!.values
     expect(w).toMatchObject({ status: 'disqualified', suppressedReason: 'closed', qualityScore: 0, qualityBand: 'parked' })
@@ -124,7 +130,7 @@ describe('logCallOutcome — the verdicts', () => {
   })
 
   it('a verdict on a never-verified row still writes the honest zero', async () => {
-    state.selectQueue.push([{ ...VERIFIED_ROW, verification: null, verifiedAt: null, phoneStatus: null }])
+    state.selectQueue.push([LIVE_ROW], [{ ...VERIFIED_ROW, verification: null, verifiedAt: null, phoneStatus: null }])
     await logCallOutcome({ prospectId: 'pros_1', outcome: 'disconnected' })
     expect(prospectUpdates().at(-1)!.values).toMatchObject({ phoneStatus: 'disconnected', qualityScore: 0 })
   })
@@ -132,7 +138,7 @@ describe('logCallOutcome — the verdicts', () => {
 
 describe('logCallOutcome — a human got through', () => {
   it('gatekeeper writes the reach signal, rescored on a verified row, and schedules a follow-up', async () => {
-    state.selectQueue.push([VERIFIED_ROW])
+    state.selectQueue.push([LIVE_ROW], [VERIFIED_ROW])
     await logCallOutcome({ prospectId: 'pros_1', outcome: 'gatekeeper' })
     const first = prospectUpdates()[0].values
     expect(first.nextFollowUpAt).toBeInstanceOf(Date)
@@ -147,7 +153,7 @@ describe('logCallOutcome — a human got through', () => {
   })
 
   it('a reach on a never-verified row records the signal but invents no score', async () => {
-    state.selectQueue.push([{ ...VERIFIED_ROW, verification: null, verifiedAt: null }])
+    state.selectQueue.push([LIVE_ROW], [{ ...VERIFIED_ROW, verification: null, verifiedAt: null }])
     await logCallOutcome({ prospectId: 'pros_1', outcome: 'callback' })
     const w = prospectUpdates().at(-1)!.values
     expect((w.verification as { reach?: unknown }).reach).toBeTruthy()
@@ -155,6 +161,7 @@ describe('logCallOutcome — a human got through', () => {
   })
 
   it('no answer and voicemail are normal — no feedback read, no rescoring', async () => {
+    state.selectQueue.push([LIVE_ROW], [LIVE_ROW])
     await logCallOutcome({ prospectId: 'pros_1', outcome: 'no_answer' })
     await logCallOutcome({ prospectId: 'pros_1', outcome: 'voicemail' })
     expect(state.selectQueue).toHaveLength(0)
@@ -168,7 +175,7 @@ describe('logCallOutcome — a human got through', () => {
 
 describe('a human reaching them outranks a database "invalid" (C16)', () => {
   it('gatekeeper on a carrier-flagged invalid number re-validates it as valid (source: a call) and rescores', async () => {
-    state.selectQueue.push([
+    state.selectQueue.push([LIVE_ROW], [
       {
         ...VERIFIED_ROW,
         phoneStatus: 'invalid',
@@ -192,7 +199,7 @@ describe('a human reaching them outranks a database "invalid" (C16)', () => {
   })
 
   it('a NANP-flagged invalid number is cleared the same way', async () => {
-    state.selectQueue.push([
+    state.selectQueue.push([LIVE_ROW], [
       {
         ...VERIFIED_ROW,
         phoneStatus: 'invalid',
@@ -205,7 +212,7 @@ describe('a human reaching them outranks a database "invalid" (C16)', () => {
   })
 
   it('a disconnected / wrong number the CALLER reported is never cleared by a later reach', async () => {
-    state.selectQueue.push([
+    state.selectQueue.push([LIVE_ROW], [
       {
         ...VERIFIED_ROW,
         phoneStatus: 'disconnected',
@@ -221,6 +228,58 @@ describe('a human reaching them outranks a database "invalid" (C16)', () => {
     expect(w).not.toHaveProperty('phoneStatus')
     expect((w.verification as { phone: { status: string } }).phone.status).toBe('disconnected')
     expect(w.qualityScore).toBe(0)
+  })
+})
+
+describe('a merged row is never written (P-03 fix pass 2 — V3)', () => {
+  it('logCallOutcome resolves the survivor FIRST: a "no" from a stale Call Mode card lands on the row that kept the history', async () => {
+    // pros_l was merged into pros_s a moment ago; the owner's card still says pros_l.
+    state.selectQueue.push([{ status: 'merged', mergedInto: 'pros_s' }], [{ status: 'contacted', mergedInto: null }])
+    state.selectQueue.push([{ ...VERIFIED_ROW, status: 'contacted' }]) // applyCallerFeedback's read, on pros_s
+    await logCallOutcome({ prospectId: 'pros_l', outcome: 'not_interested', lostReason: 'price' })
+    expect(state.inserts[0]).toMatchObject({ table: 'prospect_call_log', values: { prospectId: 'pros_s', outcome: 'not_interested' } })
+    const terminal = prospectUpdates().find((u) => u.values.status === 'not_interested')
+    expect(terminal).toBeTruthy()
+    // Every prospect write is guarded on status <> 'merged' — rendered for real in hygiene-routes.test.ts' sibling; here the guard is the `ne` stub.
+    const { ne } = await import('drizzle-orm')
+    expect((ne as unknown as { mock: { calls: unknown[][] } }).mock.calls.some((c) => c[1] === 'merged')).toBe(true)
+  })
+
+  it('applyCallerFeedback never writes a verdict onto a row that reads merged (the race between the resolve and the read)', async () => {
+    state.selectQueue.push([LIVE_ROW], [{ ...VERIFIED_ROW, status: 'merged' }])
+    await logCallOutcome({ prospectId: 'pros_1', outcome: 'disconnected' })
+    expect(prospectUpdates().some((u) => 'phoneStatus' in u.values)).toBe(false)
+  })
+
+  it('updateProspectPhone refuses a merged row in a reason the editor has words for', async () => {
+    state.selectQueue.push([{ ...VERIFIED_ROW, status: 'merged' }])
+    expect(await updateProspectPhone('pros_l', '4045559999')).toEqual({ ok: false, reason: 'merged' })
+    expect(prospectUpdates()).toHaveLength(0)
+  })
+})
+
+describe('the parked clock is the config’s on every rescore (P-03 fix pass 2 — V9)', () => {
+  const TEMP_CLOSED = { ...VERIFIED_ROW, businessStatus: 'CLOSED_TEMPORARILY' }
+
+  it('a reach logged on a temporarily-closed practice keeps "checking again in 14 days" when the config says 14', async () => {
+    state.selectQueue.push([LIVE_ROW], [TEMP_CLOSED], [CONFIG_14])
+    await logCallOutcome({ prospectId: 'pros_1', outcome: 'gatekeeper' })
+    const w = prospectUpdates().at(-1)!.values
+    expect(w.qualityBand).toBe('parked')
+    expect((w.qualityReasons as string[])[0]).toBe('Google lists it as temporarily closed — checking again in 14 days')
+  })
+
+  it('a hand-typed number on a verified, temporarily-closed practice rescores with the same clock', async () => {
+    state.selectQueue.push([{ ...TEMP_CLOSED, phoneStatus: 'disconnected' }], [CONFIG_14])
+    const r = await updateProspectPhone('pros_1', '4045559999')
+    expect(r).toEqual({ ok: true, phone: '4045559999' })
+    expect((prospectUpdates().at(-1)!.values.qualityReasons as string[])[0]).toContain('checking again in 14 days')
+  })
+
+  it('…and the shipped 30 is only what an unset config resolves to', async () => {
+    state.selectQueue.push([LIVE_ROW], [TEMP_CLOSED]) // no config row → the defaults
+    await logCallOutcome({ prospectId: 'pros_1', outcome: 'gatekeeper' })
+    expect((prospectUpdates().at(-1)!.values.qualityReasons as string[])[0]).toContain('checking again in 30 days')
   })
 })
 

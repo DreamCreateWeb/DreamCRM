@@ -26,7 +26,7 @@ import {
   type ProspectPhoneStatus,
   type ProspectQualityBand,
 } from '@/lib/db/schema/prospecting'
-import { computeQualityScore } from '@/lib/prospect-quality'
+import { computeQualityScore, qualityInput } from '@/lib/prospect-quality'
 import { nanpDigits, validateNanp } from '@/lib/phone-nanp'
 import { SEGMENT_LABELS, type OutreachSegment } from '@/lib/types/prospecting'
 import { stateZip3Prefixes, stateTimeZone } from '@/lib/types/us-geo'
@@ -1264,9 +1264,12 @@ export async function getProspectDetail(prospectId: string): Promise<ProspectDet
 // ── Mutations (platform admin actions) ─────────────────────────────────────
 
 export async function suppressProspect(
-  prospectId: string,
+  inputProspectId: string,
   reason: string,
 ): Promise<void> {
+  // "Never again" is the practice's word: a merged duplicate's survivor
+  // takes it, and the folded row is never flipped (P-03).
+  const prospectId = await survivorOf(inputProspectId)
   const [row] = await db
     .select({ email: schema.prospect.email })
     .from(schema.prospect)
@@ -1282,7 +1285,7 @@ export async function suppressProspect(
       lostReason: lossReasonForSuppression(reason),
       updatedAt: new Date(),
     })
-    .where(eq(schema.prospect.id, prospectId))
+    .where(and(eq(schema.prospect.id, prospectId), ne(schema.prospect.status, 'merged')))
   // A suppressed row is no caller's to dial (P-02): free the slot now.
   await releaseCallerSlot(prospectId)
   if (row?.email) {
@@ -1845,9 +1848,14 @@ export async function logCallOutcome(input: {
   followUpAt?: Date | null
 }): Promise<void> {
   const now = new Date()
+  // A call with a merged duplicate is a call with its survivor (P-03): the
+  // owner's stale Call Mode card dialled the same practice, and the outcome
+  // lands on the row that kept the history — a live status is never written
+  // onto a merged row (every write below is guarded on it too).
+  const prospectId = await survivorOf(input.prospectId)
   await db.insert(schema.prospectCallLog).values({
     id: newId('pcall'),
-    prospectId: input.prospectId,
+    prospectId,
     outcome: input.outcome,
     note: input.note ?? null,
     calledByUserId: input.calledByUserId ?? null,
@@ -1871,10 +1879,10 @@ export async function logCallOutcome(input: {
       followUpReason: plan.reason,
       updatedAt: now,
     })
-    .where(eq(schema.prospect.id, input.prospectId))
-  await applyCallerFeedback(input.prospectId, input.outcome, now)
+    .where(and(eq(schema.prospect.id, prospectId), ne(schema.prospect.status, 'merged')))
+  await applyCallerFeedback(prospectId, input.outcome, now)
   if (input.outcome === 'closed') {
-    await stopActiveEnrollments(input.prospectId, 'call_closed', now)
+    await stopActiveEnrollments(prospectId, 'call_closed', now)
   }
   if (input.outcome === 'not_interested') {
     await db
@@ -1885,13 +1893,13 @@ export async function logCallOutcome(input: {
         lostReason: input.lostReason ?? 'other',
         updatedAt: new Date(),
       })
-      .where(eq(schema.prospect.id, input.prospectId))
-    await stopActiveEnrollments(input.prospectId, 'call_not_interested', now)
+      .where(and(eq(schema.prospect.id, prospectId), ne(schema.prospect.status, 'merged')))
+    await stopActiveEnrollments(prospectId, 'call_not_interested', now)
   }
   // A no, a closed practice or a dead number leaves no caller anything to
   // dial (P-02): the assignment ends here, whoever logged the call.
   if (['not_interested', 'closed', 'disconnected', 'wrong_number'].includes(input.outcome)) {
-    await releaseCallerSlot(input.prospectId)
+    await releaseCallerSlot(prospectId)
   }
 }
 
@@ -2003,7 +2011,7 @@ async function applyCallerFeedback(prospectId: string, outcome: string, now: Dat
     .from(schema.prospect)
     .where(eq(schema.prospect.id, prospectId))
     .limit(1)
-  if (!row) return
+  if (!row || row.status === 'merged') return
   const verification = parseVerification(row.verification)
   const checkedAt = now.toISOString()
   const label = CALL_OUTCOME_LABELS[outcome as ProspectCallOutcome] ?? outcome
@@ -2058,21 +2066,32 @@ async function applyCallerFeedback(prospectId: string, outcome: string, now: Dat
 
   // A verdict always rescored (the hard zero is honest with no other
   // signal); a reach rescored only once the pass has looked at the record.
+  // The parked clock is the config's — the stored sentence names the
+  // number the sweep actually uses.
   if (isVerdict || row.verifiedAt) {
-    const q = computeQualityScore({
-      status,
-      verification,
-      phoneStatus,
-      phoneLineType: patch.phoneLineType === null ? null : row.phoneLineType,
-      businessStatus: row.businessStatus,
-      reviewCount: row.reviewCount,
-      websiteUrl: row.websiteUrl,
-    })
+    const config = await getProspectingConfig()
+    const q = computeQualityScore(
+      qualityInput(
+        {
+          status,
+          verification,
+          phoneStatus,
+          phoneLineType: patch.phoneLineType === null ? null : row.phoneLineType,
+          businessStatus: row.businessStatus,
+          reviewCount: row.reviewCount,
+          websiteUrl: row.websiteUrl,
+        },
+        config.hygiene,
+      ),
+    )
     patch.qualityScore = q.score
     patch.qualityBand = q.band
     patch.qualityReasons = q.reasons
   }
-  await db.update(schema.prospect).set(patch).where(eq(schema.prospect.id, prospectId))
+  await db
+    .update(schema.prospect)
+    .set(patch)
+    .where(and(eq(schema.prospect.id, prospectId), ne(schema.prospect.status, 'merged')))
 }
 
 /**
@@ -2103,6 +2122,9 @@ export async function updateProspectPhone(
     .where(eq(schema.prospect.id, prospectId))
     .limit(1)
   if (!row) return { ok: false, reason: 'not_found' }
+  // A merged duplicate's number is its survivor's to fix — a stale drawer
+  // never writes onto the folded row (P-03).
+  if (row.status === 'merged') return { ok: false, reason: 'merged' }
   const now = new Date()
   const verification = parseVerification(row.verification)
   verification.phone = {
@@ -2121,15 +2143,21 @@ export async function updateProspectPhone(
     updatedAt: now,
   }
   if (row.verifiedAt) {
-    const q = computeQualityScore({
-      status: row.status,
-      verification,
-      phoneStatus: 'unknown',
-      phoneLineType: null,
-      businessStatus: row.businessStatus,
-      reviewCount: row.reviewCount,
-      websiteUrl: row.websiteUrl,
-    })
+    const config = await getProspectingConfig()
+    const q = computeQualityScore(
+      qualityInput(
+        {
+          status: row.status,
+          verification,
+          phoneStatus: 'unknown',
+          phoneLineType: null,
+          businessStatus: row.businessStatus,
+          reviewCount: row.reviewCount,
+          websiteUrl: row.websiteUrl,
+        },
+        config.hygiene,
+      ),
+    )
     patch.qualityScore = q.score
     patch.qualityBand = q.band
     patch.qualityReasons = q.reasons
@@ -2143,7 +2171,10 @@ export async function updateProspectPhone(
     patch.qualityBand = null
     patch.qualityReasons = null
   }
-  await db.update(schema.prospect).set(patch).where(eq(schema.prospect.id, prospectId))
+  await db
+    .update(schema.prospect)
+    .set(patch)
+    .where(and(eq(schema.prospect.id, prospectId), ne(schema.prospect.status, 'merged')))
   return { ok: true, phone: digits }
 }
 
@@ -2249,9 +2280,12 @@ export async function convertProspectForSignup(input: {
 
 /** Link a won prospect to its brand-new clinic org. */
 export async function markConverted(
-  prospectId: string,
+  inputProspectId: string,
   organizationId: string,
 ): Promise<void> {
+  // The clinic is the practice: a merged duplicate's survivor is what
+  // converts, and the folded row is never flipped (P-03).
+  const prospectId = await survivorOf(inputProspectId)
   await db
     .update(schema.prospect)
     .set({
@@ -2260,7 +2294,7 @@ export async function markConverted(
       outcomeAt: new Date(),
       updatedAt: new Date(),
     })
-    .where(eq(schema.prospect.id, prospectId))
+    .where(and(eq(schema.prospect.id, prospectId), ne(schema.prospect.status, 'merged')))
   await db
     .update(schema.outreachEnrollment)
     .set({ status: 'stopped_manual', stoppedAt: new Date(), stopReason: 'converted' })

@@ -306,11 +306,12 @@ export default async function ProspectingPage({
           Converted
         </FilterChip>
         {/* Hygiene (P-03): resting rows and merged duplicates leave the default
-            view; each is one chip away, never gone. */}
+            view; each is one chip away, never gone. A status chip clears the
+            quality chip (the rule above): the count is the rows listed. */}
         <FilterChip
           active={filters.status === 'dormant'}
           count={funnel.dormant}
-          href={buildQuery(params, { status: filters.status === 'dormant' ? undefined : 'dormant' })}
+          href={buildQuery(params, { status: filters.status === 'dormant' ? undefined : 'dormant', quality: undefined })}
           title="No touch for a while — off every queue until a reply, a call or a better re-verify wakes them"
         >
           💤 Resting
@@ -318,7 +319,7 @@ export default async function ProspectingPage({
         <FilterChip
           active={filters.status === 'merged'}
           count={funnel.merged}
-          href={buildQuery(params, { status: filters.status === 'merged' ? undefined : 'merged' })}
+          href={buildQuery(params, { status: filters.status === 'merged' ? undefined : 'merged', quality: undefined })}
           title="Duplicates folded into the row that kept the history — nothing deleted"
         >
           Merged

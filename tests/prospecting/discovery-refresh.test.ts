@@ -175,7 +175,7 @@ describe('refreshStaleTerritory', () => {
     ])
     expect(state.inserts.filter((i) => i.table === 'prospect').flatMap((i) => i.values.map((v) => v.npiNumber))).toEqual(['1000000002'])
     const stamp = state.updates.find((u) => u.table === 'prospectDiscoveryTask')
-    expect(stamp?.values).toMatchObject({ lastRefreshedAt: NOW, found: 902, imported: 851, error: null })
+    expect(stamp?.values).toMatchObject({ lastRefreshedAt: NOW, lastRefreshErrorAt: null, found: 902, imported: 851, error: null, updatedAt: NOW })
   })
 
   it('pages a long phase and stops at the NPPES cap on requests, reporting capped', async () => {
@@ -189,13 +189,21 @@ describe('refreshStaleTerritory', () => {
     expect(state.updates.find((u) => u.table === 'prospectDiscoveryTask')?.values).toMatchObject({ lastRefreshedAt: NOW })
   })
 
-  it('a page that throws stamps the territory WITH the error and rethrows — it goes to the back of the line instead of starving every other territory', async () => {
+  it('V10: a page that throws stamps the ERROR clock and rethrows — never last_refreshed_at (the tile reads a refresh that happened) and never updated_at (the territory stays due, at the back of the line)', async () => {
     state.selectQueue.push([TASK])
     searchMock.mockResolvedValueOnce({ results: [], resultCount: 200 })
     searchMock.mockRejectedValueOnce(new Error('NPPES 503'))
     await expect(refreshStaleTerritory({ now: NOW, config: LIVE })).rejects.toThrow('NPPES 503')
     const stamp = state.updates.find((u) => u.table === 'prospectDiscoveryTask')
-    expect(stamp?.values).toMatchObject({ lastRefreshedAt: NOW, error: 'refresh: NPPES 503', found: 1100 })
+    expect(stamp?.values).toEqual({ lastRefreshErrorAt: NOW, error: 'refresh: NPPES 503', found: 1100, imported: 850 })
+    expect(stamp?.values).not.toHaveProperty('lastRefreshedAt')
+    expect(stamp?.values).not.toHaveProperty('updatedAt')
+    // A 503 on page ONE: zero pages swept, the same stamp — nothing for the tile to call "refreshed".
+    state.updates.length = 0
+    state.selectQueue.push([TASK])
+    searchMock.mockRejectedValueOnce(new Error('NPPES 503'))
+    await expect(refreshStaleTerritory({ now: NOW, config: LIVE })).rejects.toThrow('NPPES 503')
+    expect(state.updates.find((u) => u.table === 'prospectDiscoveryTask')?.values).toEqual({ lastRefreshErrorAt: NOW, error: 'refresh: NPPES 503', found: 900, imported: 850 })
   })
 
   it('a full page at the NPPES skip ceiling ends the phase rather than asking past it', async () => {

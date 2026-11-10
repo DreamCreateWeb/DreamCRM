@@ -16,12 +16,17 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ toke
     if (payload.pr) {
       // Prospect (platform cold-outreach) click → outreach_event — on the
       // survivor when the emailed row has since been merged (P-03), so the
-      // engagement rollup, the drawer and the decay clock all see it.
+      // engagement rollup, the drawer and the decay clock all see it; and a
+      // click is a signal: a resting row wakes first (idempotent,
+      // status-guarded), so the rollup promotes it as it always did.
       const { newId } = await import('@/lib/utils')
       const { survivorOf } = await import('@/lib/services/prospect-dedupe')
+      const { wakeDormantProspect } = await import('@/lib/services/prospect-hygiene')
+      const prospectId = await survivorOf(payload.pr)
+      await wakeDormantProspect(prospectId)
       await db.insert(schema.outreachEvent).values({
         id: newId('oevt'),
-        prospectId: await survivorOf(payload.pr),
+        prospectId,
         touchLogId: payload.tl ?? null,
         type: 'click',
         meta: { url: payload.u, ua: req.headers.get('user-agent') ?? null },

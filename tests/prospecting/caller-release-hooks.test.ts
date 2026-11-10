@@ -89,16 +89,19 @@ describe('the writers call releaseIfUnservable after their own flip', () => {
     expect(releaseSpy).toHaveBeenCalledWith('p1')
   })
 
-  it('suppressProspect — an unsubscribe / a manual suppression', async () => {
+  it('suppressProspect — an unsubscribe / a manual suppression (on the SURVIVOR of a merged row, P-03)', async () => {
+    state.selectQueue.push([{ status: 'merged', mergedInto: 'p1' }], [{ status: 'contacted', mergedInto: null }]) // survivorOf(p_merged) → p1
     state.selectQueue.push([{ email: 'doc@smile.com' }])
-    await suppressProspect('p1', 'manual')
+    await suppressProspect('p_merged', 'manual')
     expect(state.updates.find((u) => u.table === 'prospect')?.values).toMatchObject({ status: 'suppressed' })
+    expect(state.inserts.find((i) => i.table === 'prospectSuppression')?.values).toMatchObject({ prospectId: 'p1' })
     expect(releaseSpy).toHaveBeenCalledWith('p1')
   })
 
   it('logCallOutcome — a no, a closed practice, a dead number: whoever logged it', async () => {
     for (const outcome of ['not_interested', 'closed', 'disconnected', 'wrong_number']) {
       releaseSpy.mockClear()
+      state.selectQueue.push([{ status: 'contacted', mergedInto: null }]) // the survivor resolve (P-03)
       state.selectQueue.push([]) // applyCallerFeedback's read (no row → no rescoring)
       await logCallOutcome({ prospectId: 'p1', outcome, calledByUserId: 'u_owner' })
       expect(releaseSpy, outcome).toHaveBeenCalledWith('p1')
@@ -108,6 +111,7 @@ describe('the writers call releaseIfUnservable after their own flip', () => {
   it('logCallOutcome — a voicemail, a no-answer, a callback, a booked demo change nothing about who holds it', async () => {
     for (const outcome of ['voicemail', 'no_answer', 'callback', 'gatekeeper', 'demo_booked']) {
       releaseSpy.mockClear()
+      state.selectQueue.push([{ status: 'contacted', mergedInto: null }])
       state.selectQueue.push([])
       await logCallOutcome({ prospectId: 'p1', outcome })
       expect(releaseSpy, outcome).not.toHaveBeenCalled()

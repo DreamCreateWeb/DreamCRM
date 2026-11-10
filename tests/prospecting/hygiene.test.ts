@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { readFileSync } from 'node:fs'
+import { PgDialect } from 'drizzle-orm/pg-core'
 
 /**
  * THE HYGIENE PASS (P-03) — decay in the service, the wake, the re-verify
@@ -7,7 +8,7 @@ import { readFileSync } from 'node:fs'
  * `hygiene` strike, the tile's numbers, and the cron wiring.
  */
 
-type Op = { op: string; table: string; values: Record<string, unknown> }
+type Op = { op: string; table: string; values: Record<string, unknown>; where?: unknown }
 const state = { selectQueue: [] as unknown[][], ops: [] as Op[] }
 
 vi.mock('@/lib/db', async () => {
@@ -28,8 +29,8 @@ vi.mock('@/lib/db', async () => {
       select: () => selectChain(),
       update: (t: unknown) => ({
         set: (values: Record<string, unknown>) => ({
-          where: async () => {
-            state.ops.push({ op: 'update', table: tableName(t), values })
+          where: async (where: unknown) => {
+            state.ops.push({ op: 'update', table: tableName(t), values, where })
           },
         }),
       }),
@@ -71,6 +72,7 @@ const NOW = new Date('2026-11-10T12:00:00Z')
 const DAY = 24 * 60 * 60 * 1000
 const LIVE = { ...PROSPECTING_DEFAULTS, killSwitch: false, enabledStates: ['GA'] }
 const prospectUpdates = () => state.ops.filter((o) => o.table === 'prospect')
+const render = (q: unknown) => new PgDialect().sqlToQuery(q as never)
 
 beforeEach(() => {
   state.selectQueue = []
@@ -171,6 +173,14 @@ describe('the wake', () => {
     ])
   })
 
+  it('V7: the resting write re-asserts status = dormant — a wake landing between the read and the write wins, and no resting sentence lands first on an awake row', async () => {
+    state.selectQueue.push([{ status: 'dormant', qualityScore: 50, qualityReasons: ['NPI active'], createdAt: new Date('2026-01-01T00:00:00Z'), lastTouchAt: null }])
+    expect(await reconcileDormantAfterVerify('pros_1', 50, NOW)).toBe('resting')
+    const { sql: text, params } = render(prospectUpdates()[0].where)
+    expect(text).toBe('("prospect"."id" = $1 and "prospect"."status" = $2)')
+    expect(params).toEqual(['pros_1', 'dormant'])
+  })
+
   it('a first-ever score is news, not an improvement: a never-verified resting row with a dead number stays resting', async () => {
     // Grader row, never verified (prior null); the pass parks it at 0.
     state.selectQueue.push([{ status: 'dormant', qualityScore: 0, qualityReasons: ['Number disconnected'], createdAt: new Date('2026-01-01T00:00:00Z'), lastTouchAt: null }])
@@ -222,7 +232,7 @@ describe('runProspectHygiene — the one pass', () => {
     expect(r).toEqual({ merged: 3, rested: 1, refreshed: { state: 'GA', zipPrefix: '303', found: 180, imported: 2 }, errors: 0 })
     expect(order).toEqual(['dedupe', 'refresh'])
     expect(prospectUpdates()[0].values.status).toBe('dormant') // decay ran between them
-    expect(mocks.dedupe).toHaveBeenCalledWith({ now: NOW, cap: MERGES_PER_RUN })
+    expect(mocks.dedupe).toHaveBeenCalledWith({ now: NOW, cap: MERGES_PER_RUN, config: LIVE }) // the config rides along: a verdict that travels rescores with its clock
     expect(MERGES_PER_RUN).toBe(25)
     expect(mocks.bump.mock.calls).toEqual([
       ['2026-11-10', 'dedupe_merge', 3],
@@ -280,7 +290,16 @@ describe('the wiring', () => {
     expect(intent).toContain('wakeDormantProspect(prospect.id)')
     // The reply itself is the signal — the wake stands BEFORE the AI gate.
     expect(intent.indexOf('wakeDormantProspect(prospect.id)')).toBeLessThan(intent.indexOf('if (!verdict) continue'))
-    expect(intent.match(/stripRestingReasonSql\(\)/g)?.length).toBe(2)
+    // The reply wakes BEFORE its event is recorded (a kill between the two re-processes the message).
+    expect(intent.indexOf('wakeDormantProspect(prospect.id)')).toBeLessThan(intent.indexOf("type: 'reply'"))
+    // The engagement rollup's promotion is a wake too (contacted, resting or not).
+    expect(intent.match(/stripRestingReasonSql\(\)/g)?.length).toBe(3)
+    // An open and a click wake the survivor in the tracking routes, before the event lands.
+    for (const route of ['app/api/track/open/[token]/route.ts', 'app/api/track/click/[token]/route.ts']) {
+      const src = readFileSync(route, 'utf8')
+      expect(src.indexOf('await wakeDormantProspect(prospectId)'), route).toBeGreaterThan(-1)
+      expect(src.indexOf('await wakeDormantProspect(prospectId)'), route).toBeLessThan(src.indexOf('db.insert(schema.outreachEvent)'))
+    }
     expect(readFileSync('lib/services/event-capture.ts', 'utf8')).toContain('stripRestingReasonSql()')
     const verify = readFileSync('lib/services/prospect-verify.ts', 'utf8')
     expect(verify).toContain('reconcileDormantAfterVerify(p.id, priorQuality, ctx.now, { priorReasons: p.qualityReasons })')

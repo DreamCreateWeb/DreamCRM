@@ -366,6 +366,11 @@ export const prospectDiscoveryTask = pgTable(
     // same parameters once it is older than config.hygiene.discoveryRefreshDays;
     // only NEW NPIs enter. Null = never refreshed since the first sweep.
     lastRefreshedAt: timestamp('last_refreshed_at', { withTimezone: true }),
+    // A refresh that THREW stamps this, never last_refreshed_at: the hunt
+    // tile's "last refresh" is a sweep that happened, and the queue orders
+    // by the most recent attempt of either kind so a failing territory goes
+    // to the back of the line without leaving it (P-03 fix pass 2).
+    lastRefreshErrorAt: timestamp('last_refresh_error_at', { withTimezone: true }),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },

@@ -24,12 +24,19 @@ vi.mock('@/lib/services/prospecting', () => ({
   bumpProspectingCounter: vi.fn(),
   getProspectingCounter: vi.fn(),
   counterDay: vi.fn(),
+  counterMonth: vi.fn(),
+  stopActiveEnrollments: vi.fn(),
+  pauseActiveEnrollments: vi.fn(),
+  resumeVerifyPausedEnrollments: vi.fn(),
+  clearSystemFollowUp: vi.fn(),
 }))
 
 import { decayCandidateWhere, lastTouchSql, stripRestingReasonSql, wakeSetSql } from '@/lib/services/prospect-hygiene'
 import { HAVING_MORE_THAN_ONE, tenDigitPhoneSql } from '@/lib/services/prospect-dedupe'
-import { territorySweptAtSql } from '@/lib/services/prospect-discovery'
+import { territoryQueueOrderSql, territorySweptAtSql } from '@/lib/services/prospect-discovery'
+import { dueForReverifyWhere, sweepBucketWhere, sweepCutoffs } from '@/lib/services/prospect-verify'
 import { DECAYABLE_STATUSES } from '@/lib/db/schema/prospecting'
+import { PROSPECTING_DEFAULTS } from '@/lib/types/prospecting'
 
 const dialect = new PgDialect()
 const render = (q: unknown) => dialect.sqlToQuery(q as never)
@@ -117,5 +124,51 @@ describe('the sweep’s group-by and the refresh clock', () => {
       sql: 'COALESCE("prospect_discovery_task"."last_refreshed_at", "prospect_discovery_task"."updated_at")',
       params: [],
     })
+  })
+  it('V10: the due territories are ORDERED by the most recent attempt of either kind — a refresh that threw goes to the back of the line without leaving it', () => {
+    expect(render(territoryQueueOrderSql())).toEqual({
+      sql: 'GREATEST("prospect_discovery_task"."last_refreshed_at", "prospect_discovery_task"."last_refresh_error_at", "prospect_discovery_task"."updated_at")',
+      params: [],
+    })
+    const { readFileSync } = require('node:fs') as typeof import('node:fs')
+    const discovery = readFileSync('lib/services/prospect-discovery.ts', 'utf8')
+    expect(discovery).toContain('lt(territorySweptAtSql(), cutoff)')
+    expect(discovery).toContain('.orderBy(asc(territoryQueueOrderSql()))')
+  })
+})
+
+describe('the re-verify sweep’s buckets (V8)', () => {
+  const config = { ...PROSPECTING_DEFAULTS, hygiene: { ...PROSPECTING_DEFAULTS.hygiene, reverifyAfterDays: 60, parkedRecheckDays: 14 } }
+  const cutoffs = sweepCutoffs(config, NOW)
+
+  it('"due again" is the stale clock, or the PARKED clock on a parked row — one predicate', () => {
+    const { sql: text, params } = render(dueForReverifyWhere(cutoffs))
+    expect(text).toBe('("prospect"."verified_at" < $1 or ("prospect"."quality_band" = $2 and "prospect"."verified_at" < $3))')
+    // A timestamp column binds its Date as ISO text — the two clocks, as given.
+    expect(params).toEqual([cutoffs.staleCutoff.toISOString(), 'parked', cutoffs.parkedCutoff.toISOString()])
+    expect(cutoffs.staleCutoff).toEqual(new Date('2026-09-11T12:00:00Z'))
+    expect(cutoffs.parkedCutoff).toEqual(new Date('2026-10-27T12:00:00Z'))
+  })
+
+  it('the RESTING bucket re-checks a parked resting row on the parked clock its sentence promises — not reverifyAfterDays', () => {
+    const { sql: text, params } = render(sweepBucketWhere('resting', cutoffs))
+    expect(text).toBe(
+      '("prospect"."status" = $1 and ("prospect"."verified_at" is null or ("prospect"."verified_at" < $2 or ("prospect"."quality_band" = $3 and "prospect"."verified_at" < $4))))',
+    )
+    expect(params).toEqual(['dormant', cutoffs.staleCutoff.toISOString(), 'parked', cutoffs.parkedCutoff.toISOString()])
+  })
+
+  it('the live buckets: never-verified enriched rows, then verified rows due again', () => {
+    const unverified = render(sweepBucketWhere('unverified', cutoffs))
+    expect(unverified.sql).toContain('"prospect"."status" in ($1, $2, $3, $4, $5)')
+    expect(unverified.sql).toContain('"prospect"."verified_at" is null and "prospect"."enriched_at" is not null')
+    const stale = render(sweepBucketWhere('stale', cutoffs))
+    expect(stale.sql).toContain('"prospect"."verified_at" is not null')
+    expect(stale.sql).toContain('"prospect"."quality_band" = $')
+    expect(stale.params).toContain(cutoffs.parkedCutoff.toISOString())
+    // …and the sweep reads exactly these three.
+    const { readFileSync } = require('node:fs') as typeof import('node:fs')
+    const verify = readFileSync('lib/services/prospect-verify.ts', 'utf8')
+    for (const bucket of ['unverified', 'stale', 'resting']) expect(verify).toContain(`sweepBucketWhere('${bucket}', cutoffs)`)
   })
 })

@@ -12,7 +12,6 @@ import { googleCalendarLink } from '@/lib/prospect-booking'
 import { BAD_PHONE_STATUSES, type ProspectCaller, type ProspectCallerStatus } from '@/lib/db/schema/prospecting'
 import {
   CALLER_INVITE_TTL_DAYS,
-  CALLER_RELEASE_COOLDOWN_DAYS,
   CALLER_SKIP_COOLDOWN_DAYS,
   CALLER_SKIP_FINAL_REASONS,
   CALLER_SKIP_LONG_COOLDOWN_DAYS,
@@ -32,7 +31,7 @@ import {
 } from '@/lib/types/prospecting'
 import { US_STATES } from '@/lib/types/us-geo'
 import { getProspectingConfig, logCallOutcome } from './prospecting'
-import { callerServableWhere, releaseUnservableAssignments } from './prospect-caller-release'
+import { callerServableWhere, releaseCooldownUntil, releaseUnservableAssignments } from './prospect-caller-release'
 
 /**
  * THE COLD-CALLER PORTAL (P-02) — the service behind the fifth persona.
@@ -225,7 +224,7 @@ export async function setCallerStatus(callerId: string, status: 'active' | 'paus
     .where(eq(schema.prospectCaller.id, callerId))
   const released =
     status === 'paused'
-      ? await releaseCallerAssignments(callerId, now, new Date(now.getTime() + CALLER_RELEASE_COOLDOWN_DAYS * DAY_MS))
+      ? await releaseCallerAssignments(callerId, now, releaseCooldownUntil(now))
       : 0
   return { released }
 }
@@ -559,7 +558,7 @@ export async function fillCallerQueues(
  */
 export async function releaseStaleAssignments(now = new Date()): Promise<number> {
   const cutoff = new Date(now.getTime() - CALLER_STALE_ASSIGNMENT_DAYS * DAY_MS)
-  const cooldownUntil = new Date(now.getTime() + CALLER_RELEASE_COOLDOWN_DAYS * DAY_MS)
+  const cooldownUntil = releaseCooldownUntil(now)
   const rows = await db
     .update(schema.prospect)
     .set({ assignedCallerId: null, assignedAt: null, callerCooldownUntil: cooldownUntil, updatedAt: now })

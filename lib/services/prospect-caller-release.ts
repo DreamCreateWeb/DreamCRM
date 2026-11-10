@@ -3,7 +3,16 @@ import 'server-only'
 import { and, eq, gt, inArray, isNotNull, isNull, not, notExists, notInArray, or, sql } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import { BAD_PHONE_STATUSES } from '@/lib/db/schema/prospecting'
-import { CALLER_SERVABLE_STATUSES, HAND_RAISER_SIGNALS } from '@/lib/types/prospecting'
+import { CALLER_RELEASE_COOLDOWN_DAYS, CALLER_SERVABLE_STATUSES, HAND_RAISER_SIGNALS } from '@/lib/types/prospecting'
+
+const DAY_MS = 24 * 60 * 60 * 1000
+
+/** When a released row may be handed to a caller again — every release a
+ *  sweep, a pause or a merge makes carries this cooldown, so the same
+ *  tick's refill (or the next) cannot hand the practice straight back. */
+export function releaseCooldownUntil(now: Date): Date {
+  return new Date(now.getTime() + CALLER_RELEASE_COOLDOWN_DAYS * DAY_MS)
+}
 
 /**
  * THE ONE READ OF "CAN A CALLER DIAL THIS ROW" (P-02 fix pass).

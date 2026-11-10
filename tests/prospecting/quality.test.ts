@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
-import { computeQualityScore, qualityBandForScore, isFullyVerified, QUALITY_WEIGHTS } from '@/lib/prospect-quality'
-import type { ProspectVerification, VerificationSignal } from '@/lib/types/prospecting'
+import { readFileSync } from 'node:fs'
+import { computeQualityScore, qualityBandForScore, qualityInput, isFullyVerified, QUALITY_WEIGHTS } from '@/lib/prospect-quality'
+import { PARKED_RECHECK_DAYS, PROSPECTING_DEFAULTS, type ProspectVerification, type VerificationSignal } from '@/lib/types/prospecting'
 
 /**
  * THE QUALITY SCORE (P-01) — the matrix. Hard zeros for a record that is
@@ -35,6 +36,7 @@ function score(over: Partial<Parameters<typeof computeQualityScore>[0]> = {}) {
     businessStatus: 'OPERATIONAL',
     reviewCount: 40,
     websiteUrl: 'https://smiledental.com',
+    parkedRecheckDays: PARKED_RECHECK_DAYS,
     ...over,
   })
 }
@@ -125,13 +127,35 @@ describe('hard zeros', () => {
 })
 
 describe('parked, in the project voice', () => {
-  it('temporarily closed — the sentence names the live parked clock (the shipped 30 by default)', () => {
+  it('temporarily closed — the sentence names the parked clock it is given (the shipped 30 is only the default config)', () => {
     const r = score({ businessStatus: 'CLOSED_TEMPORARILY' })
     expect(r.band).toBe('parked')
     expect(r.reasons[0]).toBe('Google lists it as temporarily closed — checking again in 30 days')
     expect(score({ businessStatus: 'CLOSED_TEMPORARILY', parkedRecheckDays: 14 }).reasons[0]).toBe(
       'Google lists it as temporarily closed — checking again in 14 days',
     )
+  })
+
+  it('V9: qualityInput is THE builder — the clock comes from the resolved config (or a verify run’s context), never a literal', () => {
+    const signals = { status: 'enriched', verification: ALL_GOOD, phoneStatus: 'valid', phoneLineType: 'landline', businessStatus: 'CLOSED_TEMPORARILY', reviewCount: 1, websiteUrl: null }
+    const config = { ...PROSPECTING_DEFAULTS, hygiene: { ...PROSPECTING_DEFAULTS.hygiene, parkedRecheckDays: 14 } }
+    expect(qualityInput(signals, config.hygiene).parkedRecheckDays).toBe(14)
+    expect(computeQualityScore(qualityInput(signals, config.hygiene)).reasons[0]).toContain('checking again in 14 days')
+    // A verify run's context carries the same number under the same name.
+    expect(computeQualityScore(qualityInput(signals, { parkedRecheckDays: 21 })).reasons[0]).toContain('checking again in 21 days')
+    // Every writer that rescores a row goes through it — the pure function
+    // is never fed a bare literal outside this file.
+    for (const file of ['lib/services/prospecting.ts', 'lib/services/prospect-verify.ts', 'lib/services/prospect-dedupe.ts']) {
+      const src = readFileSync(file, 'utf8')
+      const calls = src.match(/computeQualityScore\(/g) ?? []
+      const built = src.match(/computeQualityScore\(\s*qualityInput\(/g) ?? []
+      expect(calls.length, file).toBeGreaterThan(0)
+      expect(built.length, file).toBe(calls.length)
+      expect(src, file).not.toMatch(/PARKED_RECHECK_DAYS \}/)
+    }
+    // prospecting.ts rescores a logged call and a hand-typed number from the live config.
+    const prospecting = readFileSync('lib/services/prospecting.ts', 'utf8')
+    expect(prospecting.match(/config\.hygiene,\n/g)?.length).toBe(2)
   })
   it('a dead or parked website is a retired-practice signal, NOT "no website"', () => {
     const dead = score({ verification: { ...ALL_GOOD, website: sig('dead', 'smiledental.com no longer resolves (DNS)') } })

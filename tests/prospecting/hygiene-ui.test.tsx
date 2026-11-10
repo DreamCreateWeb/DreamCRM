@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
+import { readFileSync } from 'node:fs'
 import { render, screen, cleanup, fireEvent, waitFor } from '@testing-library/react'
 
 /**
@@ -193,6 +194,25 @@ describe('ProspectDrawer', () => {
     expect(screen.getByText('✨ Draft a follow-up')).toBeTruthy()
   })
 
+  it('V12: a merged row mounts no caller section — no "Pick a caller", no Assign, no "Not with a caller" — even with an active caller on the roster', () => {
+    const callers = [{ id: 'pcal_1', name: 'Jo Caller' }]
+    render(<ProspectDrawer detail={detail({ status: 'merged', mergedIntoProspectId: 'pros_s' }, { mergedInto: { id: 'pros_s', name: 'Smile Dental' } })} closeHref="/" callers={callers} />)
+    expect(screen.queryByText('Caller')).toBeNull()
+    expect(screen.queryByText('Not with a caller')).toBeNull()
+    expect(screen.queryByRole('button', { name: /Assign/ })).toBeNull()
+    expect(screen.queryByRole('combobox')).toBeNull()
+    cleanup()
+    // A merged row that still names a holder (a merge the hook has not caught yet) shows no control either.
+    render(<ProspectDrawer detail={detail({ status: 'merged' }, { mergedInto: { id: 'pros_s', name: 'Smile Dental' }, assignedCaller: { id: 'pcal_1', name: 'Jo Caller', status: 'active' } as never })} closeHref="/" callers={callers} />)
+    expect(screen.queryByText('Caller')).toBeNull()
+    expect(screen.queryByRole('button', { name: /Unassign|Assign/ })).toBeNull()
+    cleanup()
+    // The same record, live: the control is there.
+    render(<ProspectDrawer detail={detail()} closeHref="/" callers={callers} />)
+    expect(screen.getByText('Caller')).toBeTruthy()
+    expect(screen.getByText('Not with a caller')).toBeTruthy()
+  })
+
   it('the verification headline reads the live re-verify clock, not the shipped 60', () => {
     const verifiedAt = new Date(Date.now() - 70 * 24 * 60 * 60 * 1000) // the card reads the real clock
     const base = { verifiedAt, qualityScore: 70, qualityBand: 'good', qualityReasons: [], verification: {} } as never
@@ -209,6 +229,17 @@ describe('ProspectDrawer', () => {
     cleanup()
     const { container: c2 } = render(<ProspectDrawer detail={detail({}, { duplicates: [CANDIDATE] })} closeHref="/" />)
     expect(c2.querySelector('[data-duplicate-card]')).toBeTruthy()
+  })
+})
+
+describe('the status chips (V13)', () => {
+  it('Resting and Merged clear the quality chip exactly as Call list and Converted do — the count is the rows listed', () => {
+    const src = readFileSync('app/(default)/platform/prospecting/page.tsx', 'utf8')
+    for (const status of ['call_list', 'converted', 'dormant', 'merged']) {
+      const chip = src.match(new RegExp(`buildQuery\\(params, \\{ status: filters\\.status === '${status}' \\? undefined : '${status}'[^}]*\\}\\)`))
+      expect(chip, status).toBeTruthy()
+      expect(chip![0], status).toContain('quality: undefined')
+    }
   })
 })
 

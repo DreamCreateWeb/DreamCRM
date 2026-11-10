@@ -5,7 +5,7 @@ import { useToast } from '@/components/ui/toast'
 import { useConfirm } from '@/components/ui/confirm-dialog'
 import { ActionButton } from '@/components/ui/action-button'
 import { runAction } from '@/lib/run-action'
-import { QUALITY_BAND_LABELS, type ProspectQualityBand } from '@/lib/types/prospecting'
+import { MERGED_ROW_WORDS, QUALITY_BAND_LABELS, type ProspectQualityBand } from '@/lib/types/prospecting'
 import {
   suppressProspectAction,
   enrollProspectAction,
@@ -132,7 +132,9 @@ export default function DrawerActions({
                 setError(
                   r.reason === 'budget'
                     ? 'Monthly enrichment budget is used up — try next month or raise it in Settings.'
-                    : `Re-enrich failed (${r.reason ?? 'unknown'}).`,
+                    : r.reason === 'merged'
+                      ? MERGED_ROW_WORDS
+                      : `Re-enrich failed (${r.reason ?? 'unknown'}).`,
                 )
               } else {
                 toast('Refreshed — new crawl, Google data, and score')
@@ -161,7 +163,9 @@ export default function DrawerActions({
                       ? r.error
                       : r.reason === 'already_converted'
                         ? 'Already a clinic — nothing to verify.'
-                        : `Could not verify (${r.reason}).`,
+                        : r.reason === 'merged'
+                          ? MERGED_ROW_WORDS
+                          : `Could not verify (${r.reason}).`,
                   )
                 } else {
                   const band = r.qualityBand as ProspectQualityBand

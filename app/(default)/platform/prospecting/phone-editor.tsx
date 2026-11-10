@@ -6,7 +6,7 @@ import { TextInput } from '@/components/ui/form-fields'
 import { useToast } from '@/components/ui/toast'
 import { runAction } from '@/lib/run-action'
 import { NANP_FAILURE_LABELS, type NanpFailure } from '@/lib/phone-nanp'
-import { formatProspectPhone } from '@/lib/types/prospecting'
+import { MERGED_ROW_WORDS, formatProspectPhone } from '@/lib/types/prospecting'
 import { updateProspectPhoneAction } from './admin-actions'
 
 /**
@@ -37,7 +37,9 @@ export default function PhoneEditor({ prospectId, phone }: { prospectId: string;
         setError(
           'error' in r
             ? r.error
-            : (NANP_FAILURE_LABELS[r.reason as NanpFailure] ?? 'That does not look like a US number.'),
+            : r.reason === 'merged'
+              ? MERGED_ROW_WORDS
+              : (NANP_FAILURE_LABELS[r.reason as NanpFailure] ?? 'That does not look like a US number.'),
         )
         return
       }

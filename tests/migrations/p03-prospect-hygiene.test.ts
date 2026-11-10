@@ -5,14 +5,16 @@ import { join } from 'node:path'
 /**
  * P-03 — prospect refresh, dedupe and decay. Pinned BY TAG: the integrator
  * regenerates one sequential migration per PR on the merged schema, so the
- * number may move; the tag and these three statements must not.
+ * number may move; the tag and these four statements must not (the fourth,
+ * the refresh ERROR clock, joined in the second fix pass — one 0195 carries
+ * all of P-03's columns).
  */
 
 const DIR = join(process.cwd(), 'lib/db/migrations')
 const file = readdirSync(DIR).find((f) => f.endsWith('_p03_prospect_hygiene.sql'))
 
 describe('p03_prospect_hygiene (by tag)', () => {
-  it('adds the merge pointer, the resting memory and the territory refresh stamp — nothing else', () => {
+  it('adds the merge pointer, the resting memory, the territory refresh stamp and its error clock — nothing else', () => {
     expect(file).toBeTruthy()
     const sql = readFileSync(join(DIR, file!), 'utf8').trim()
     const statements = sql
@@ -23,6 +25,7 @@ describe('p03_prospect_hygiene (by tag)', () => {
       'ALTER TABLE "prospect" ADD COLUMN "merged_into_prospect_id" text;',
       'ALTER TABLE "prospect" ADD COLUMN "dormant_from_status" text;',
       'ALTER TABLE "prospect_discovery_task" ADD COLUMN "last_refreshed_at" timestamp with time zone;',
+      'ALTER TABLE "prospect_discovery_task" ADD COLUMN "last_refresh_error_at" timestamp with time zone;',
     ])
   })
   it('is registered in the journal by tag', () => {

@@ -483,6 +483,9 @@ export async function reEnrichProspect(
     .limit(1)
   if (!p) return { ok: false, reason: 'not_found' }
   if (p.status === 'converted') return { ok: false, reason: 'already_converted' }
+  // A merged duplicate is enriched on its survivor — the folded row never
+  // flips to 'enriching' (P-03).
+  if (p.status === 'merged') return { ok: false, reason: 'merged' }
 
   const month = counterMonth()
   const budget: EnrichBudgetCtx = {

@@ -121,7 +121,14 @@ export async function reconcileDormantAfterVerify(
     typeof prior === 'string' ? prior : restingReason(since),
     ...withoutRestingReason(row.qualityReasons),
   ]
-  await db.update(p).set({ qualityReasons: reasons, updatedAt: now }).where(eq(p.id, prospectId))
+  // Guarded on the row STILL resting — a call logged, a demo booked or a
+  // reply swept between the read above and this write woke it, and a
+  // resting sentence must never land first on an awake row (the same
+  // shape as the decay's write guard).
+  await db
+    .update(p)
+    .set({ qualityReasons: reasons, updatedAt: now })
+    .where(and(eq(p.id, prospectId), eq(p.status, 'dormant')))
   return 'resting'
 }
 
@@ -269,7 +276,7 @@ export async function runProspectHygiene(opts: { now?: Date; config?: Prospectin
 
   try {
     const { runExactDedupeSweep } = await import('./prospect-dedupe')
-    const r = await runExactDedupeSweep({ now, cap: MERGES_PER_RUN })
+    const r = await runExactDedupeSweep({ now, cap: MERGES_PER_RUN, config })
     out.merged = r.merged
     if (r.merged > 0) await bumpProspectingCounter(day, 'dedupe_merge', r.merged)
     if (r.errors > 0) await strike('dedupe', new Error(`${r.errors} merge(s) threw`))

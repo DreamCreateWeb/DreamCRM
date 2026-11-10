@@ -5,7 +5,7 @@ import { lookupNpi } from '@/lib/nppes'
 import { findDentalPlaceCandidates, placesConfigured, type PlaceResult, type PlacesSearchOutcome } from '@/lib/google-places'
 import { pickMatchingPlace, type PlaceMatch } from '@/lib/prospect-match'
 import { NANP_FAILURE_LABELS, nanpDigits, validateNanp } from '@/lib/phone-nanp'
-import { computeQualityScore } from '@/lib/prospect-quality'
+import { computeQualityScore, qualityInput } from '@/lib/prospect-quality'
 import {
   PARKED_RECHECK_DAYS,
   VERIFY_STALE_DAYS,
@@ -565,16 +565,20 @@ export async function verifyProspectSignals(
   }
 
   // ── The quality score, from the stored signals ───────────────────────────
-  const q = computeQualityScore({
-    status: patch.status ?? p.status,
-    verification: v,
-    phoneStatus: patch.phoneStatus,
-    phoneLineType: patch.phoneLineType,
-    businessStatus,
-    reviewCount,
-    websiteUrl,
-    parkedRecheckDays: ctx.parkedRecheckDays,
-  })
+  const q = computeQualityScore(
+    qualityInput(
+      {
+        status: patch.status ?? p.status,
+        verification: v,
+        phoneStatus: patch.phoneStatus,
+        phoneLineType: patch.phoneLineType,
+        businessStatus,
+        reviewCount,
+        websiteUrl,
+      },
+      ctx,
+    ),
+  )
   patch.qualityScore = q.score
   patch.qualityBand = q.band
   patch.qualityReasons = q.reasons
@@ -593,6 +597,49 @@ export async function closeVerifyRun(ctx: VerifyRunCtx): Promise<void> {
 // ── Standalone verification (the drawer, the sweep) ─────────────────────────
 
 const LIVE_STATUSES = ['enriched', 'queued', 'contacted', 'engaged', 'call_list'] as const
+
+/** The sweep's clocks, resolved once a run from config.hygiene. */
+export interface SweepCutoffs {
+  /** A verified row older than this is looked at again (`reverifyAfterDays`). */
+  staleCutoff: Date
+  /** A PARKED row older than this is looked at again (`parkedRecheckDays`) —
+   *  the clock its stored sentence promises, resting or not. */
+  parkedCutoff: Date
+}
+
+export function sweepCutoffs(config: ProspectingConfig, now: Date): SweepCutoffs {
+  return {
+    staleCutoff: new Date(now.getTime() - (config.hygiene?.reverifyAfterDays ?? VERIFY_STALE_DAYS) * DAY_MS),
+    parkedCutoff: new Date(now.getTime() - (config.hygiene?.parkedRecheckDays ?? PARKED_RECHECK_DAYS) * DAY_MS),
+  }
+}
+
+/** "Due for another look": verified before the stale clock, or parked and
+ *  verified before the parked clock. The one predicate both the live bucket
+ *  and the resting bucket read — rendered for real in
+ *  tests/prospecting/hygiene-sql.test.ts. */
+export function dueForReverifyWhere(cutoffs: SweepCutoffs) {
+  return or(
+    lt(schema.prospect.verifiedAt, cutoffs.staleCutoff),
+    and(eq(schema.prospect.qualityBand, 'parked'), lt(schema.prospect.verifiedAt, cutoffs.parkedCutoff)),
+  )
+}
+
+/** The three buckets the sweep fills, in order: never-verified live rows,
+ *  live rows due again, and — only when room is left — RESTING rows that
+ *  were never verified or are due again (a parked resting row on the
+ *  parked clock, exactly as its sentence says). */
+export function sweepBucketWhere(bucket: 'unverified' | 'stale' | 'resting', cutoffs: SweepCutoffs) {
+  const live = inArray(schema.prospect.status, [...LIVE_STATUSES])
+  switch (bucket) {
+    case 'unverified':
+      return and(live, isNull(schema.prospect.verifiedAt), isNotNull(schema.prospect.enrichedAt))
+    case 'stale':
+      return and(live, isNotNull(schema.prospect.verifiedAt), dueForReverifyWhere(cutoffs))
+    case 'resting':
+      return and(eq(schema.prospect.status, 'dormant'), or(isNull(schema.prospect.verifiedAt), dueForReverifyWhere(cutoffs)))
+  }
+}
 
 async function writePatch(prospectId: string, patch: VerifyPatch, extra: Partial<ProspectRow> = {}): Promise<void> {
   await db
@@ -620,6 +667,8 @@ export async function verifyProspect(
   const [p] = await db.select().from(schema.prospect).where(eq(schema.prospect.id, prospectId)).limit(1)
   if (!p) return { ok: false, reason: 'not_found' }
   if (p.status === 'converted') return { ok: false, reason: 'already_converted' }
+  // A merged duplicate is verified on its survivor — never a write here (P-03).
+  if (p.status === 'merged') return { ok: false, reason: 'merged' }
 
   const config = await getProspectingConfig()
   const ctx = opts.ctx ?? (await newVerifyRunCtx(config, opts.now ?? new Date()))
@@ -686,30 +735,19 @@ export async function runVerificationSweep(opts?: { now?: Date; batchSize?: numb
   if (config.killSwitch) return { ...out, skipped: 'kill_switch' }
 
   const limit = opts?.batchSize ?? SWEEP_BATCH_SIZE
-  const live = [...LIVE_STATUSES]
+  const cutoffs = sweepCutoffs(config, now)
   const unverified = await db
     .select({ id: schema.prospect.id })
     .from(schema.prospect)
-    .where(and(inArray(schema.prospect.status, live), isNull(schema.prospect.verifiedAt), isNotNull(schema.prospect.enrichedAt)))
+    .where(sweepBucketWhere('unverified', cutoffs))
     .orderBy(asc(schema.prospect.enrichedAt))
     .limit(limit)
   const ids = unverified.map((r) => r.id)
-  const staleCutoff = new Date(now.getTime() - (config.hygiene?.reverifyAfterDays ?? VERIFY_STALE_DAYS) * DAY_MS)
-  const parkedCutoff = new Date(now.getTime() - (config.hygiene?.parkedRecheckDays ?? PARKED_RECHECK_DAYS) * DAY_MS)
   if (ids.length < limit) {
     const stale = await db
       .select({ id: schema.prospect.id })
       .from(schema.prospect)
-      .where(
-        and(
-          inArray(schema.prospect.status, live),
-          isNotNull(schema.prospect.verifiedAt),
-          or(
-            lt(schema.prospect.verifiedAt, staleCutoff),
-            and(eq(schema.prospect.qualityBand, 'parked'), lt(schema.prospect.verifiedAt, parkedCutoff)),
-          ),
-        ),
-      )
+      .where(sweepBucketWhere('stale', cutoffs))
       .orderBy(asc(schema.prospect.verifiedAt))
       .limit(limit - ids.length)
     for (const r of stale) if (!ids.includes(r.id)) ids.push(r.id)
@@ -718,12 +756,7 @@ export async function runVerificationSweep(opts?: { now?: Date; batchSize?: numb
     const resting = await db
       .select({ id: schema.prospect.id })
       .from(schema.prospect)
-      .where(
-        and(
-          eq(schema.prospect.status, 'dormant'),
-          or(isNull(schema.prospect.verifiedAt), lt(schema.prospect.verifiedAt, staleCutoff)),
-        ),
-      )
+      .where(sweepBucketWhere('resting', cutoffs))
       .orderBy(asc(schema.prospect.verifiedAt))
       .limit(limit - ids.length)
     for (const r of resting) if (!ids.includes(r.id)) ids.push(r.id)

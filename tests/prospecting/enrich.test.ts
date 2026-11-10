@@ -349,6 +349,11 @@ describe('reEnrichProspect (manual refresh)', () => {
     counterMock.mockResolvedValue(0)
     state.selectQueue.push([])
     expect(await reEnrichProspect('pros_missing')).toEqual({ ok: false, reason: 'not_found' })
+    // A merged duplicate never flips to 'enriching' (P-03).
+    state.updates.length = 0
+    state.selectQueue.push([{ ...PROSPECT, status: 'merged' }])
+    expect(await reEnrichProspect('pros_1')).toEqual({ ok: false, reason: 'merged' })
+    expect(state.updates).toHaveLength(0)
   })
 })
 

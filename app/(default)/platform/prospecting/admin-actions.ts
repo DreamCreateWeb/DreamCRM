@@ -318,8 +318,12 @@ export async function bookDemoForProspectAction(input: unknown): Promise<{ ok: b
   const ctx = await requirePlatformAdmin()
   const parsed = bookDemoSchema.parse(input)
   const demoAt = new Date(parsed.demoAtIso)
+  // A demo booked from a card the sweep merged meanwhile is the SURVIVOR's
+  // demo (P-03): the meeting, the outcome and the brief all land there.
+  const { survivorOf } = await import('@/lib/services/prospect-dedupe')
+  const prospectId = await survivorOf(parsed.prospectId)
   await logBookedDemo({
-    prospectId: parsed.prospectId,
+    prospectId,
     scheduledAt: demoAt,
     attendeeName: parsed.attendeeName || null,
     attendeeEmail: parsed.attendeeEmail || null,
@@ -327,13 +331,13 @@ export async function bookDemoForProspectAction(input: unknown): Promise<{ ok: b
   })
   const { logCallOutcome } = await import('@/lib/services/prospecting')
   await logCallOutcome({
-    prospectId: parsed.prospectId,
+    prospectId,
     outcome: 'demo_booked',
     calledByUserId: ctx.userId,
   })
   // Pre-warm the demo prep brief so it's ready before the meeting.
   import('@/lib/services/demo-brief')
-    .then((m) => m.generateDemoBrief(parsed.prospectId))
+    .then((m) => m.generateDemoBrief(prospectId))
     .catch(() => {})
   revalidatePath('/platform/prospecting')
   revalidatePath('/platform/prospecting/call-list')

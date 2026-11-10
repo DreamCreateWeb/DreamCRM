@@ -1,17 +1,21 @@
 import 'server-only'
-import { and, eq, inArray, isNotNull, ne, or, sql, type AnyColumn, type SQL } from 'drizzle-orm'
+import { and, eq, inArray, isNotNull, isNull, ne, or, sql, type AnyColumn, type SQL } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
+import { BAD_PHONE_STATUSES } from '@/lib/db/schema/prospecting'
 import {
   dedupeKeys,
   duplicateReasons,
   exactDuplicatePairs,
   isExactDuplicate,
   normalizePracticeName,
+  phoneKey,
   pickSurvivor,
   type DedupeRow,
 } from '@/lib/prospect-dedupe'
-import { wakeStatus, withoutRestingReason } from '@/lib/prospect-decay'
-import type { DuplicateCandidate, ProspectStatus, ProspectVerification } from '@/lib/types/prospecting'
+import { isRestingReason, wakeStatus, withoutRestingReason } from '@/lib/prospect-decay'
+import { computeQualityScore, qualityInput } from '@/lib/prospect-quality'
+import { parseVerification, type DuplicateCandidate, type ProspectStatus, type ProspectingConfig } from '@/lib/types/prospecting'
+import { callerServableWhere, releaseCooldownUntil, releaseIfUnservable } from './prospect-caller-release'
 
 /**
  * DEDUPE THAT CANNOT LOSE DATA (P-03).
@@ -198,6 +202,9 @@ const FILL_COLUMNS = [
 const PHONE_GROUP = ['phone', 'phoneStatus', 'phoneLineType', 'phoneSource', 'phoneValidatedAt'] as const satisfies ReadonlyArray<
   keyof ProspectRow
 >
+/** The verdict alone — what travels when both rows hold the SAME number. */
+const PHONE_VERDICT = ['phoneStatus', 'phoneLineType', 'phoneSource', 'phoneValidatedAt'] as const satisfies ReadonlyArray<keyof ProspectRow>
+const isBadPhone = (status: string | null | undefined) => status != null && (BAD_PHONE_STATUSES as readonly string[]).includes(status)
 
 /** What a terminal survivor never takes from a loser: the loser's thread
  *  is over the moment it folds into a practice that said no. */
@@ -212,11 +219,12 @@ const NOT_FOR_TERMINAL = new Set<keyof ProspectRow>([
 ])
 
 /** How far along the pipeline a status is — a merge never moves the
- *  survivor BACKWARD, and a hand-raiser's signal on the loser is kept. */
+ *  survivor BACKWARD, and a hand-raiser's signal on the loser is kept. A
+ *  resting row ranks by the status it came from (`wakeStatus`), never by
+ *  the floor 'dormant' would sit at. */
 const STATUS_RANK: Record<string, number> = {
   discovered: 0,
   enriching: 0,
-  dormant: 0,
   enriched: 1,
   queued: 2,
   contacted: 3,
@@ -235,6 +243,13 @@ export interface MergeResult {
 export type MergeRefusalReason = 'not_found' | 'same_row' | 'already_merged' | 'loser_converted' | 'loser_terminal' | 'both_converted'
 export type MergeRefusal = { ok: false; reason: MergeRefusalReason }
 
+export interface MergeOpts {
+  now?: Date
+  /** The resolved config — a verdict that travels rescores the survivor
+   *  with the live parked clock. Loaded when not given (the drawer). */
+  config?: ProspectingConfig
+}
+
 /**
  * Fold `loserId` into `survivorId`. The caller picked the survivor
  * (`chooseSurvivor` / the drawer); this only refuses the impossible. Both
@@ -245,7 +260,7 @@ export type MergeRefusal = { ok: false; reason: MergeRefusalReason }
 export async function mergeProspects(
   survivorId: string,
   loserId: string,
-  opts: { now?: Date } = {},
+  opts: MergeOpts = {},
 ): Promise<MergeResult | MergeRefusal> {
   if (survivorId === loserId) return { ok: false, reason: 'same_row' }
   const now = opts.now ?? new Date()
@@ -393,14 +408,33 @@ export async function mergeProspects(
       if (kept.length > 0) patch.qualityReasons = kept
       else delete patch.qualityReasons
     }
-    // The phone and its verdict, as one.
+    // ── The phone and its verdict, as one ────────────────────────────────
+    // (a) The survivor had no number: the loser's travels with everything
+    //     known about it. (b) Both hold the SAME number and the loser's
+    //     verdict is WORSE — a caller heard the disconnect on the loser's
+    //     row while the survivor's syntax check still says "valid": the
+    //     verdict is about this very line and travels too, so a dead number
+    //     is never dialled again because its better-scored twin kept it. A
+    //     `reach` heard on the same line is kept the same way.
+    const sameNumber = loser.phone != null && phoneKey(loser.phone) != null && phoneKey(loser.phone) === phoneKey(survivor.phone)
+    let phoneVerdictTaken = false
     if (survivor.phone == null && loser.phone != null) {
       for (const col of PHONE_GROUP) (patch as Record<string, unknown>)[col] = loser[col]
-      const loserPhoneSignal = (loser.verification as ProspectVerification | null)?.phone
-      if (loserPhoneSignal) {
-        const base = (patch.verification ?? survivor.verification ?? {}) as ProspectVerification
-        patch.verification = { ...base, phone: loserPhoneSignal }
+      phoneVerdictTaken = true
+    } else if (sameNumber && isBadPhone(loser.phoneStatus) && !isBadPhone(survivor.phoneStatus)) {
+      for (const col of PHONE_VERDICT) (patch as Record<string, unknown>)[col] = loser[col]
+      phoneVerdictTaken = true
+    }
+    let reachTaken = false
+    if (phoneVerdictTaken || sameNumber) {
+      const mine = parseVerification(patch.verification ?? survivor.verification)
+      const theirs = parseVerification(loser.verification)
+      if (phoneVerdictTaken && theirs.phone) mine.phone = theirs.phone
+      if (sameNumber && !mine.reach && theirs.reach) {
+        mine.reach = theirs.reach
+        reachTaken = true
       }
+      if ((phoneVerdictTaken && theirs.phone) || reachTaken) patch.verification = mine
     }
     // The NPI MOVES: cleared on the loser first, so the unique index never
     // holds it twice inside the transaction.
@@ -429,19 +463,30 @@ export async function mergeProspects(
       patch.replyDraft = null
       if (survivor.status === 'dormant') patch.qualityReasons = withoutRestingReason(survivor.qualityReasons)
     } else {
+      // Each side ranks by where it IS, or — resting — by where it came
+      // from: a practice that was contacted and went quiet is still further
+      // along than a twin the refresh just enriched.
+      const survivorResting = survivor.status === 'dormant'
       const loserStatus = loser.status === 'dormant' ? wakeStatus(loser.dormantFromStatus) : loser.status
+      const survivorStatus = survivorResting ? wakeStatus(survivor.dormantFromStatus) : survivor.status
       const loserRank = STATUS_RANK[loserStatus]
-      const survivorRank = STATUS_RANK[survivor.status]
+      const survivorRank = STATUS_RANK[survivorStatus]
       if (
         !survivorTerminal &&
         loserRank !== undefined &&
         survivorRank !== undefined &&
         loserRank > survivorRank
       ) {
-        patch.status = loserStatus
-        patch.dormantFromStatus = null
-        // A resting survivor wakes here — its resting sentence goes with it.
-        if (survivor.status === 'dormant') patch.qualityReasons = withoutRestingReason(survivor.qualityReasons)
+        if (survivorResting && loser.status === 'dormant') {
+          // Two resting rows: a merge is no signal, so nothing wakes — the
+          // survivor keeps resting with the higher memory.
+          patch.dormantFromStatus = loserStatus
+        } else {
+          patch.status = loserStatus
+          patch.dormantFromStatus = null
+          // A resting survivor wakes here — its resting sentence goes with it.
+          if (survivorResting) patch.qualityReasons = withoutRestingReason(survivor.qualityReasons)
+        }
         if (survivorRank <= STATUS_RANK.enriched && loser.intentAt) {
           patch.intentSignal = loser.intentSignal
           patch.intentAt = loser.intentAt
@@ -451,22 +496,90 @@ export async function mergeProspects(
       }
     }
 
-    // ── The cold caller (P-02): a closed thread frees the slot; an open one
-    //    carries over only when nobody holds the survivor already ────────
+    // ── A verdict that travelled rescores the survivor from ITS signals ──
+    // A bad number is a hard zero whatever the pass said before; a working
+    // number or a reach rescores only once the pass has looked at the row
+    // (applyCallerFeedback's rule). The parked clock is the config's — the
+    // one builder every rescore goes through.
+    const status = patch.status ?? survivor.status
+    const tookBad = phoneVerdictTaken && isBadPhone((patch.phoneStatus ?? survivor.phoneStatus) as string | null)
+    if ((phoneVerdictTaken || reachTaken) && (tookBad || survivor.verifiedAt != null)) {
+      const config = opts.config ?? (await (await import('./prospecting')).getProspectingConfig())
+      const q = computeQualityScore(
+        qualityInput(
+          {
+            status,
+            verification: parseVerification(patch.verification ?? survivor.verification),
+            phoneStatus: (patch.phoneStatus ?? survivor.phoneStatus) as string | null,
+            phoneLineType: (patch.phoneLineType === undefined ? survivor.phoneLineType : patch.phoneLineType) as string | null,
+            businessStatus: patch.businessStatus ?? survivor.businessStatus,
+            reviewCount: patch.reviewCount ?? survivor.reviewCount,
+            websiteUrl: patch.websiteUrl ?? survivor.websiteUrl,
+          },
+          config.hygiene,
+        ),
+      )
+      patch.qualityScore = q.score
+      patch.qualityBand = q.band
+      // A survivor that stays resting keeps its sentence first.
+      const sentence = (Array.isArray(survivor.qualityReasons) ? survivor.qualityReasons : []).find(isRestingReason)
+      patch.qualityReasons = status === 'dormant' && typeof sentence === 'string' ? [sentence, ...q.reasons] : q.reasons
+    }
+
+    // ── The cold caller (P-02) ───────────────────────────────────────────
+    // Whose promise is the follow-up on the merged row? One on an unheld
+    // row is the OWNER's; one on a held row is that caller's callback. The
+    // owner's promise outranks the cold call — exactly what reassignProspect
+    // refuses ("log that call first") — so a holder is released from it,
+    // with the cooldown every release carries, and the owner's queues show
+    // the promise again.
+    const followUpFromLoser =
+      patch.nextFollowUpAt != null && loser.nextFollowUpAt != null && patch.nextFollowUpAt.getTime() === loser.nextFollowUpAt.getTime()
+    const followUpOnRow = patch.nextFollowUpAt !== undefined ? patch.nextFollowUpAt : survivor.nextFollowUpAt
+    const ownersPromise = followUpOnRow != null && (followUpFromLoser ? loser.assignedCallerId == null : survivor.assignedCallerId == null)
     if (survivorTerminal) {
+      // A closed thread frees the slot.
       if (survivor.assignedCallerId != null) {
         patch.assignedCallerId = null
         patch.assignedAt = null
       }
-    } else if (survivor.assignedCallerId == null && loser.assignedCallerId != null) {
-      patch.assignedCallerId = loser.assignedCallerId
-      patch.assignedAt = loser.assignedAt ?? now
+    } else if (ownersPromise && survivor.assignedCallerId != null) {
+      patch.assignedCallerId = null
+      patch.assignedAt = null
+      patch.callerCooldownUntil = releaseCooldownUntil(now)
     }
 
     await tx
       .update(schema.prospect)
       .set(patch)
       .where(and(eq(schema.prospect.id, survivorId), ne(schema.prospect.status, 'merged')))
+
+    // The loser's caller carries over ONLY where P-02's hand-over rule would
+    // hand the survivor to them: nobody holds it, no promise of the owner's
+    // on it, and SERVABLE by the one predicate — read on the row as it now
+    // stands, so the carried intent and the moved demo count. Otherwise the
+    // slot is released, and the survivor carries the release cooldown.
+    let carried = false
+    if (!survivorTerminal && loser.assignedCallerId != null && survivor.assignedCallerId == null && !ownersPromise) {
+      const [handover] = await tx
+        .select({ id: schema.prospect.id })
+        .from(schema.prospect)
+        .where(and(eq(schema.prospect.id, survivorId), isNull(schema.prospect.assignedCallerId), callerServableWhere(now)))
+        .limit(1)
+      if (handover) {
+        await tx
+          .update(schema.prospect)
+          .set({ assignedCallerId: loser.assignedCallerId, assignedAt: loser.assignedAt ?? now, callerCooldownUntil: null, updatedAt: now })
+          .where(and(eq(schema.prospect.id, survivorId), isNull(schema.prospect.assignedCallerId)))
+        carried = true
+      }
+    }
+    if (!survivorTerminal && loser.assignedCallerId != null && !carried && survivor.assignedCallerId == null) {
+      await tx
+        .update(schema.prospect)
+        .set({ callerCooldownUntil: releaseCooldownUntil(now), updatedAt: now })
+        .where(and(eq(schema.prospect.id, survivorId), isNull(schema.prospect.assignedCallerId)))
+    }
 
     // ── The loser rests under its survivor, nothing deleted ──────────────
     await tx
@@ -485,6 +598,11 @@ export async function mergeProspects(
     return null
   })
   if (refusal) return refusal
+  // P-02's contract: a writer that can flip a row out of a caller's reach
+  // calls the release hook after its write. A held survivor that just took
+  // a hand-raiser's signal, a bad verdict or a demo still ahead goes back
+  // to the owner now — not on the next outreach tick.
+  await releaseIfUnservable(survivorId, now)
 
   return { ok: true, survivorId, loserId, moved }
 }
@@ -496,7 +614,7 @@ export async function mergeProspects(
 export async function mergeDuplicateProspects(
   aId: string,
   bId: string,
-  opts: { now?: Date } = {},
+  opts: MergeOpts = {},
 ): Promise<MergeResult | MergeRefusal> {
   const a = await survivorOf(aId)
   const b = await survivorOf(bId)
@@ -521,7 +639,7 @@ export interface DedupeSweepResult {
  * the EXACT pairs (place id, or phone + same normalized name), cap per run.
  * Everything else — same phone, different names — stays for the drawer.
  */
-export async function runExactDedupeSweep(opts: { now?: Date; cap?: number } = {}): Promise<DedupeSweepResult> {
+export async function runExactDedupeSweep(opts: MergeOpts & { cap?: number } = {}): Promise<DedupeSweepResult> {
   const now = opts.now ?? new Date()
   const cap = opts.cap ?? 25
   const out: DedupeSweepResult = { groups: 0, merged: 0, skipped: 0, errors: 0 }
@@ -573,7 +691,7 @@ export async function runExactDedupeSweep(opts: { now?: Date; cap?: number } = {
     }
     const loser = survivor.id === a.id ? b : a
     try {
-      const r = await mergeProspects(survivor.id, loser.id, { now })
+      const r = await mergeProspects(survivor.id, loser.id, { now, config: opts.config })
       if (r.ok) {
         out.merged++
         gone.add(loser.id)
