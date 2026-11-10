@@ -615,7 +615,45 @@ UTC stamped), the table's merged rows say "Merged into <survivor>" with a
 door, the drawer's merged banner / resting note / duplicate card, the
 settings panel's two clocks (staleAfterDays, reverifyAfterDays). Every raw
 statement is rendered through the real dialect in
-`tests/prospecting/hygiene-sql.test.ts`. Migration `p03_prospect_hygiene`.
+`tests/prospecting/hygiene-sql.test.ts`. Migration `p03_prospect_hygiene`
+(0195 on the merged schema). THE FIX PASS (2026-11-10, integrated after
+P-01's two fix passes and P-02): the merge reads both rows INSIDE the
+transaction under `FOR UPDATE` and guards both writes on `status <>
+'merged'`; the NPI MOVES (cleared on the loser before the survivor takes it
+— the unique index never holds it twice); the phone travels WITH its verdict
+(`PHONE_GROUP` + the verification's phone signal — a disconnected number
+never lands as `unknown`); a loser's LIVE drip is stopped, never re-pointed,
+onto a terminal survivor (not_interested / disqualified / suppressed /
+converted); a loser's terminal verdict is CARRIED onto a live survivor
+(status, lostReason, outcomeAt, its own drip stopped `merged_<status>`) and a
+terminal loser beside a clinic is refused (`loser_terminal`, skipped by the
+sweep, not an error); the cold caller (P-02): a terminal survivor's slot is
+freed, a loser's assignment carries only to an unheld live survivor, the
+loser's is released, and decay never rests a row a caller holds
+(`assigned_caller_id is null` in the predicate, `assignedToCaller` in the
+pure rule). Every phone pre-filter compares the ten-digit KEY in SQL
+(`tenDigitPhoneSql`: the sweep's group-by, the candidates, the door). The
+matcher's name is `practiceNameKey` — two meaningful tokens or no name ("J &
+J Dental" / "The Dental Co" never auto-merge on "dental"). The door
+(`filterAlreadyHeld`) drops EXACT duplicates only; a fuzzy likeness enters so
+the drawer can ask. `reconcileDormantAfterVerify`: a null prior is never
+"improved", the resting sentence is handed over from before the pass rewrote
+the column, and a missing one is regenerated from the last REAL touch; a
+manual Re-enrich on a resting row reconciles the same way. A reply wakes a
+resting row BEFORE the AI gate (a down classifier still wakes it); a row that
+rested from `enriched` is not a reply source; a self-booked demo wakes
+(`wakeSetSql` inside bookMeeting) and `booked_at` is a touch. Unsub, bounce,
+open and click on an emailed id follow `survivorOf` and never flip a merged
+row. Decay's UPDATE re-asserts the whole predicate. A territory refresh that
+throws stamps the task with the error (goes to the back of the line) and
+still strikes. Territory coverage buckets a resting row where it came from.
+Copy reads the live clocks (the card's window, the tile's refresh days, the
+parked sentence, "about every half hour"); the settings fields are typeable
+(clamped at save); a refused merge shows `MERGE_REFUSAL_WORDS`; a merged
+row's drawer offers no contact adds / re-verify / phone editor / demo
+drafter. Tests: dedupe-service, dedupe-matcher, hygiene, hygiene-sql,
+discovery-refresh, intent, hygiene-ui, quality, quality-ui, + the new
+`hygiene-routes.test.ts` and `hygiene-readers.test.ts`.
 Schema `lib/db/schema/prospecting.ts` is platform-global, NO organizationId by
 design; ships behind kill switch + dry-run + auto-enroll-off; say
 "prospect", never "lead"),

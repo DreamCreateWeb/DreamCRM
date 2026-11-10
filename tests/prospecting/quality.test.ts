@@ -125,10 +125,13 @@ describe('hard zeros', () => {
 })
 
 describe('parked, in the project voice', () => {
-  it('temporarily closed', () => {
+  it('temporarily closed — the sentence names the live parked clock (the shipped 30 by default)', () => {
     const r = score({ businessStatus: 'CLOSED_TEMPORARILY' })
     expect(r.band).toBe('parked')
     expect(r.reasons[0]).toBe('Google lists it as temporarily closed — checking again in 30 days')
+    expect(score({ businessStatus: 'CLOSED_TEMPORARILY', parkedRecheckDays: 14 }).reasons[0]).toBe(
+      'Google lists it as temporarily closed — checking again in 14 days',
+    )
   })
   it('a dead or parked website is a retired-practice signal, NOT "no website"', () => {
     const dead = score({ verification: { ...ALL_GOOD, website: sig('dead', 'smiledental.com no longer resolves (DNS)') } })

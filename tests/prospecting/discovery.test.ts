@@ -66,6 +66,9 @@ vi.mock('drizzle-orm', () => ({
   asc: vi.fn(() => ({})),
   eq: vi.fn(() => ({})),
   inArray: vi.fn(() => ({})),
+  // The matcher at the door (P-03) keys phones in SQL; the fragment is
+  // rendered for real in hygiene-sql.test.ts, here it is inert.
+  sql: Object.assign(vi.fn(() => ({})), { raw: vi.fn() }),
 }))
 
 const { searchMock, configMock } = vi.hoisted(() => ({

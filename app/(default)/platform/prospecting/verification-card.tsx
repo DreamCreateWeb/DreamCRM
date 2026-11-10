@@ -88,6 +88,7 @@ export function VerificationCard({
   phone,
   phoneSource,
   now = new Date(),
+  staleAfterDays,
 }: {
   verification: unknown
   verifiedAt: Date | string | null
@@ -97,11 +98,15 @@ export function VerificationCard({
   phone: string | null
   phoneSource: string | null
   now?: Date
+  /** The live re-verify window (config.hygiene.reverifyAfterDays) — the
+   *  headline must say "due" exactly when the sweep would come back. */
+  staleAfterDays?: number
 }) {
   const v = parseVerification(verification)
   const reasons = Array.isArray(qualityReasons) ? (qualityReasons as string[]) : []
   const stamp = formatUtcStamp(verifiedAt)
-  const full = isFullyVerified(v, now, VERIFY_STALE_DAYS)
+  const window = staleAfterDays ?? VERIFY_STALE_DAYS
+  const full = isFullyVerified(v, now, window)
   const staleDays = verifiedAt
     ? Math.floor((now.getTime() - new Date(verifiedAt).getTime()) / (24 * 60 * 60 * 1000))
     : null
@@ -109,7 +114,7 @@ export function VerificationCard({
     ? 'Not verified yet'
     : full
       ? `Verified · ${stamp}`
-      : staleDays != null && staleDays > VERIFY_STALE_DAYS
+      : staleDays != null && staleDays > window
         ? `Last pass ${staleDays} days ago — due for another look`
         : `Partly checked · ${stamp}`
   const phoneSourceLabel =

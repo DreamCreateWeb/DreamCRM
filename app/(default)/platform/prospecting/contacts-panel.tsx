@@ -35,9 +35,13 @@ const VERIFY_TONE: Record<EmailVerifyStatus, Tone> = {
 export default function ContactsPanel({
   prospectId,
   contacts,
+  readOnly = false,
 }: {
   prospectId: string
   contacts: ProspectContactRow[]
+  /** A merged row (P-03): the addresses are shown, nothing can be changed —
+   *  they live on the survivor now. */
+  readOnly?: boolean
 }) {
   const [pending, startTransition] = useTransition()
   // Per-act key: 'reverify' | 'add' | pin/delete carry the contact id, so
@@ -71,6 +75,7 @@ export default function ContactsPanel({
         <div className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
           Contacts {contacts.length > 0 && <span className="text-gray-500 dark:text-gray-400">· {contacts.length}</span>}
         </div>
+        {!readOnly && (
         <div className="flex items-center gap-2">
           {contacts.length > 0 && (
             <button
@@ -97,11 +102,14 @@ export default function ContactsPanel({
             {adding ? 'Cancel' : '+ Add'}
           </button>
         </div>
+        )}
       </div>
 
       {contacts.length === 0 && !adding && (
         <p className="text-sm text-gray-500 dark:text-gray-400">
-          No email found on their site — this is a phone-first prospect. Add one here if you track it down.
+          {readOnly
+            ? 'No email on this record — any address lives on the survivor.'
+            : 'No email found on their site — this is a phone-first prospect. Add one here if you track it down.'}
         </p>
       )}
 
@@ -125,6 +133,7 @@ export default function ContactsPanel({
                 </span>
               </div>
             </div>
+            {!readOnly && (
             <div className="flex shrink-0 items-center gap-1.5">
               {!c.isPrimary && c.verifyStatus !== 'invalid' && (
                 <button
@@ -161,6 +170,7 @@ export default function ContactsPanel({
                 ✕
               </button>
             </div>
+            )}
           </li>
         ))}
       </ul>

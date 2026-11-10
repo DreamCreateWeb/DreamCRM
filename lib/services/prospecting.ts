@@ -19,6 +19,7 @@ import {
   type WinLossReport,
 } from '@/lib/types/prospecting'
 import { survivorOf } from './prospect-dedupe'
+import { wakeStatus } from '@/lib/prospect-decay'
 import {
   BAD_PHONE_STATUSES,
   type ProspectPhoneLineType,
@@ -1079,16 +1080,23 @@ export async function getTerritoryCoverage(
 ): Promise<import('@/lib/types/prospecting').TerritoryRow[]> {
   const enabled = new Set(enabledStates)
 
-  const statusRows = await db
-    .select({
-      state: schema.prospect.state,
-      status: schema.prospect.status,
-      band: schema.prospect.scoreBand,
-      n: sql<number>`count(*)::int`,
-    })
-    .from(schema.prospect)
-    .where(and(isNotNull(schema.prospect.state), notInArray(schema.prospect.status, ['merged'])))
-    .groupBy(schema.prospect.state, schema.prospect.status, schema.prospect.scoreBand)
+  // A resting row (P-03) is still the practice it was — it was contacted,
+  // that is why it could rest — so it is counted where it came from, never
+  // as an unworked row (a territory does not become "10% worked" as its
+  // contacted rows rest).
+  const statusRows = (
+    await db
+      .select({
+        state: schema.prospect.state,
+        status: schema.prospect.status,
+        dormantFromStatus: schema.prospect.dormantFromStatus,
+        band: schema.prospect.scoreBand,
+        n: sql<number>`count(*)::int`,
+      })
+      .from(schema.prospect)
+      .where(and(isNotNull(schema.prospect.state), notInArray(schema.prospect.status, ['merged'])))
+      .groupBy(schema.prospect.state, schema.prospect.status, schema.prospect.dormantFromStatus, schema.prospect.scoreBand)
+  ).map((r) => ({ ...r, status: r.status === 'dormant' ? wakeStatus(r.dormantFromStatus) : r.status }))
 
   const progress = await getDiscoveryProgress()
   const progressByState = new Map(progress.map((p) => [p.state, p]))

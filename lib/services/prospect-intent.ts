@@ -402,6 +402,7 @@ export async function processInboundForOutreach(opts?: {
     email: schema.prospect.email,
     phone: schema.prospect.phone,
     status: schema.prospect.status,
+    dormantFromStatus: schema.prospect.dormantFromStatus,
     aiVerdict: schema.prospect.aiVerdict,
     reviewCount: schema.prospect.reviewCount,
   }
@@ -420,9 +421,14 @@ export async function processInboundForOutreach(opts?: {
       if (!prospect) continue
     }
     // Only outreach-touched prospects — a random email from a dentist we
-    // never contacted is not a "reply". A resting row was touched once and
-    // a reply is exactly what wakes it.
-    if (!['contacted', 'engaged', 'queued', 'call_list', 'dormant'].includes(prospect.status)) continue
+    // never contacted is not a "reply". A resting row counts only when it
+    // rested FROM a touched status: one that rested from `enriched` was
+    // never written to, and its mail is the same random email.
+    const touched = ['contacted', 'engaged', 'queued', 'call_list']
+    const replySource =
+      touched.includes(prospect.status) ||
+      (prospect.status === 'dormant' && touched.includes(prospect.dormantFromStatus ?? ''))
+    if (!replySource) continue
     out.matched++
 
     // Idempotency: one action per inbound message, ever.
@@ -454,13 +460,14 @@ export async function processInboundForOutreach(opts?: {
         classification: verdict?.classification ?? 'unclassified',
       },
     })
+    // The reply ITSELF is the signal: a resting row wakes before the AI has
+    // its say (a classifier that is down still recorded the reply above, and
+    // the idempotency check means this message is never looked at again).
+    if (prospect.status === 'dormant') await wakeDormantProspect(prospect.id)
     if (!verdict) continue // AI down: recorded the reply, next sweep won't re-act
     out.classified++
     await bumpProspectingCounter(month, 'ai_classify')
     await applyClassification(prospect, verdict, body)
-    // Whatever the reply said, it was a reply: a row still resting after the
-    // classification (an out-of-office, say) goes back where it came from.
-    if (prospect.status === 'dormant') await wakeDormantProspect(prospect.id)
     if (verdict.classification === 'interested' || verdict.classification === 'question') {
       out.callList++
     }

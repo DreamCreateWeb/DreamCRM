@@ -126,7 +126,7 @@ export default function HuntPanel({
                 <div className="text-xs text-gray-500 dark:text-gray-400">
                   {hygiene.lastRefresh
                     ? `last refresh ${formatUtcStamp(hygiene.lastRefresh.at)}`
-                    : 'a finished territory is re-swept once it is 30 days old'}
+                    : `a finished territory is re-swept once it is ${config.hygiene.discoveryRefreshDays} days old`}
                 </div>
               </div>
             )}

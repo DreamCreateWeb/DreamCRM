@@ -14,11 +14,14 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ toke
   }
   try {
     if (payload.pr) {
-      // Prospect (platform cold-outreach) click → outreach_event.
+      // Prospect (platform cold-outreach) click → outreach_event — on the
+      // survivor when the emailed row has since been merged (P-03), so the
+      // engagement rollup, the drawer and the decay clock all see it.
       const { newId } = await import('@/lib/utils')
+      const { survivorOf } = await import('@/lib/services/prospect-dedupe')
       await db.insert(schema.outreachEvent).values({
         id: newId('oevt'),
-        prospectId: payload.pr,
+        prospectId: await survivorOf(payload.pr),
         touchLogId: payload.tl ?? null,
         type: 'click',
         meta: { url: payload.u, ua: req.headers.get('user-agent') ?? null },

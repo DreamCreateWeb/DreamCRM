@@ -126,6 +126,14 @@ describe('runDecay', () => {
   it('caps a run', () => {
     expect(DECAY_PER_RUN).toBe(200)
   })
+
+  it('a row a cold caller holds (P-02) is being worked — never rested, whatever the clock says', async () => {
+    state.selectQueue.push([
+      { id: 'pros_1', status: 'call_list', createdAt: new Date(NOW.getTime() - 300 * DAY), nextFollowUpAt: null, qualityReasons: [], assignedCallerId: 'pcal_1', lastTouchAt: new Date(NOW.getTime() - 200 * DAY) },
+    ])
+    expect(await runDecay({ now: NOW, staleAfterDays: 90 })).toEqual({ scanned: 1, rested: 0 })
+    expect(prospectUpdates()).toHaveLength(0)
+  })
 })
 
 describe('the wake', () => {
@@ -152,9 +160,8 @@ describe('the wake', () => {
         status: 'dormant',
         qualityScore: 50,
         qualityReasons: ['Google listing matched and open', 'No touch since Jul 13, 2026 UTC — resting'],
-        intentAt: null,
-        enrichedAt: new Date('2026-06-01T00:00:00Z'),
         createdAt: new Date('2026-01-01T00:00:00Z'),
+        lastTouchAt: null,
       },
     ])
     expect(await reconcileDormantAfterVerify('pros_1', 50, NOW)).toBe('resting')
@@ -162,11 +169,32 @@ describe('the wake', () => {
       'No touch since Jul 13, 2026 UTC — resting',
       'Google listing matched and open',
     ])
+  })
 
-    // A never-verified null that gains a score is an improvement too.
+  it('a first-ever score is news, not an improvement: a never-verified resting row with a dead number stays resting', async () => {
+    // Grader row, never verified (prior null); the pass parks it at 0.
+    state.selectQueue.push([{ status: 'dormant', qualityScore: 0, qualityReasons: ['Number disconnected'], createdAt: new Date('2026-01-01T00:00:00Z'), lastTouchAt: null }])
+    expect(await reconcileDormantAfterVerify('pros_1', null, NOW)).toBe('resting')
+    expect(prospectUpdates()[0].values).not.toHaveProperty('status')
+    // Nor is a first-ever 40.
     state.ops = []
-    state.selectQueue.push([{ status: 'dormant', qualityScore: 40, qualityReasons: [] }])
-    expect(await reconcileDormantAfterVerify('pros_1', null, NOW)).toBe('woke')
+    state.selectQueue.push([{ status: 'dormant', qualityScore: 40, qualityReasons: [], createdAt: new Date('2026-01-01T00:00:00Z'), lastTouchAt: null }])
+    expect(await reconcileDormantAfterVerify('pros_1', null, NOW)).toBe('resting')
+  })
+
+  it('the resting sentence is handed over from BEFORE the pass rewrote quality_reasons; a missing one is regenerated from the last real touch, never the enrichment stamp alone', async () => {
+    // The verify pass already replaced quality_reasons with the signals; the
+    // caller passes what the row carried before.
+    state.selectQueue.push([{ status: 'dormant', qualityScore: 50, qualityReasons: ['Google listing matched and open'], createdAt: new Date('2026-01-01T00:00:00Z'), lastTouchAt: new Date('2026-06-01T00:00:00Z').toISOString() }])
+    expect(await reconcileDormantAfterVerify('pros_1', 50, NOW, { priorReasons: ['No touch since Jul 13, 2026 UTC — resting', 'NPI active'] })).toBe('resting')
+    expect(prospectUpdates()[0].values.qualityReasons).toEqual(['No touch since Jul 13, 2026 UTC — resting', 'Google listing matched and open'])
+
+    // No sentence anywhere: the anchor is the GREATEST touch (a sent email on
+    // Jul 13), not enriched_at (Jun 1).
+    state.ops = []
+    state.selectQueue.push([{ status: 'dormant', qualityScore: 50, qualityReasons: ['Google listing matched and open'], createdAt: new Date('2026-01-01T00:00:00Z'), lastTouchAt: '2026-07-13T15:00:00.000Z' }])
+    expect(await reconcileDormantAfterVerify('pros_1', 50, NOW)).toBe('resting')
+    expect((prospectUpdates()[0].values.qualityReasons as string[])[0]).toBe('No touch since Jul 13, 2026 UTC — resting')
   })
 })
 
@@ -250,8 +278,15 @@ describe('the wiring', () => {
     expect(readFileSync('lib/services/prospecting.ts', 'utf8')).toContain('...wakeSetSql()')
     const intent = readFileSync('lib/services/prospect-intent.ts', 'utf8')
     expect(intent).toContain('wakeDormantProspect(prospect.id)')
+    // The reply itself is the signal — the wake stands BEFORE the AI gate.
+    expect(intent.indexOf('wakeDormantProspect(prospect.id)')).toBeLessThan(intent.indexOf('if (!verdict) continue'))
     expect(intent.match(/stripRestingReasonSql\(\)/g)?.length).toBe(2)
     expect(readFileSync('lib/services/event-capture.ts', 'utf8')).toContain('stripRestingReasonSql()')
-    expect(readFileSync('lib/services/prospect-verify.ts', 'utf8')).toContain('reconcileDormantAfterVerify(p.id, priorQuality')
+    const verify = readFileSync('lib/services/prospect-verify.ts', 'utf8')
+    expect(verify).toContain('reconcileDormantAfterVerify(p.id, priorQuality, ctx.now, { priorReasons: p.qualityReasons })')
+    // A self-booked demo wakes, inside the booking's own write; a manual
+    // Re-enrich on a resting row reconciles like the verify pass.
+    expect(readFileSync('lib/services/prospect-meetings.ts', 'utf8')).toContain('...wakeSetSql()')
+    expect(readFileSync('lib/services/prospect-enrich.ts', 'utf8')).toContain("restoreStatus === 'dormant'")
   })
 })

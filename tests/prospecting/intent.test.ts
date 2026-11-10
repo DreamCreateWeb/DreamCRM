@@ -125,6 +125,27 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllEnvs())
 
 describe('processInboundForOutreach', () => {
+  it('a reply from a RESTING row (P-03) wakes it even when the classifier is down — the reply itself is the signal', async () => {
+    queueSweep(MSG, { ...PROSPECT, status: 'dormant', dormantFromStatus: 'contacted' })
+    aiMock.mockResolvedValue(null) // AI down
+    const r = await processInboundForOutreach()
+    expect(r).toMatchObject({ matched: 1, classified: 0 })
+    expect(state.inserts.find((i) => i.table === 'outreach_event')!.values).toMatchObject({ type: 'reply' })
+    // The wake: the one-statement restore on the prospect row.
+    const wake = state.updates.find((u) => u.table === 'prospect')
+    expect(wake).toBeDefined()
+    expect(wake!.values).toMatchObject({ dormantFromStatus: null })
+  })
+
+  it('a row that rested from `enriched` was never written to — its mail is not a reply', async () => {
+    queueSweep(MSG, { ...PROSPECT, status: 'dormant', dormantFromStatus: 'enriched' })
+    aiMock.mockResolvedValue({ classification: 'interested', summary: 'x', talkingPoints: [] })
+    const r = await processInboundForOutreach()
+    expect(r).toMatchObject({ matched: 0, classified: 0 })
+    expect(aiMock).not.toHaveBeenCalled()
+    expect(state.updates.find((u) => u.table === 'prospect')).toBeUndefined()
+  })
+
   it('skips entirely without an outreach mailbox configured', async () => {
     vi.stubEnv('OUTREACH_GMAIL_ACCOUNT_ID', '')
     const r = await processInboundForOutreach()

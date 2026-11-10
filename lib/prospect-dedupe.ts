@@ -65,6 +65,20 @@ export function normalizePracticeName(name: string | null | undefined): string {
     .join(' ')
 }
 
+/**
+ * The name the MATCHER compares: the normalized name, and only when it
+ * keeps at least two meaningful tokens. "J & J Dental" and "The Dental
+ * Co., LLC" both normalize to the one word "dental" — two different
+ * practices sharing a building's reception number would otherwise satisfy
+ * "same phone AND same name" and auto-merge. One generic word is no name;
+ * such a row matches on phone or place id only (fix pass, 2026-11-10).
+ */
+export function practiceNameKey(name: string | null | undefined): string | null {
+  const n = normalizePracticeName(name)
+  if (!n) return null
+  return n.split(' ').length >= 2 ? n : null
+}
+
 /** Ten bare digits or null — the key is the NUMBER, never its formatting. */
 export function phoneKey(phone: string | null | undefined): string | null {
   const d = nanpDigits(phone)
@@ -83,7 +97,7 @@ export interface DedupeKeys {
 }
 
 export function dedupeKeys(row: Pick<DedupeRow, 'name' | 'phone' | 'googlePlaceId' | 'postalCode'>): DedupeKeys {
-  const name = normalizePracticeName(row.name)
+  const name = practiceNameKey(row.name)
   const zip = zip5(row.postalCode)
   const place = row.googlePlaceId?.trim() || null
   return {
@@ -107,15 +121,16 @@ export function sharedKeys(a: DedupeRow, b: DedupeRow): DedupeKey[] {
 /** The sweep's bar: the same listing, or the same phone AND the same name
  *  (ZIP not required — the registry and Google often disagree on it). A
  *  shared phone with two different names is a duplicate for a HUMAN to
- *  confirm (a landlord's desk, a dental building), never an auto-merge. */
+ *  confirm (a landlord's desk, a dental building), never an auto-merge —
+ *  and a name that is one generic word is no name (`practiceNameKey`). */
 export function isExactDuplicate(a: DedupeRow, b: DedupeRow): boolean {
   const ka = dedupeKeys(a)
   const kb = dedupeKeys(b)
   if (ka.place && ka.place === kb.place) return true
   if (ka.phone && ka.phone === kb.phone) {
-    const na = normalizePracticeName(a.name)
-    const nb = normalizePracticeName(b.name)
-    return na.length > 0 && na === nb
+    const na = practiceNameKey(a.name)
+    const nb = practiceNameKey(b.name)
+    return na !== null && na === nb
   }
   return false
 }

@@ -48,13 +48,19 @@ export default function ProspectDrawer({
   detail,
   closeHref,
   callers = [],
+  reverifyAfterDays,
 }: {
   detail: ProspectDetail
   closeHref: string
   /** Active cold callers (P-02) for the Reassign picker. */
   callers?: Array<{ id: string; name: string }>
+  /** The live re-verify clock (config.hygiene) the verification headline reads. */
+  reverifyAfterDays?: number
 }) {
   const p = detail.prospect
+  // A merged row is a folded shell: it says where it went and offers nothing
+  // to operate — a contact added here would live on the wrong record.
+  const folded = p.status === 'merged'
   const signals = (p.enrichment ?? null) as ProspectCrawlSignals | null
   const verdict = (p.aiVerdict ?? null) as ProspectAiVerdict | null
 
@@ -189,7 +195,7 @@ export default function ProspectDrawer({
                 )}
                 {p.phone && <PhoneStandingPill status={p.phoneStatus} lineType={p.phoneLineType} />}
                 {/* The way back for a parked number: the one that works, typed here. */}
-                <PhoneEditor prospectId={p.id} phone={p.phone} />
+                {!folded && <PhoneEditor prospectId={p.id} phone={p.phone} />}
               </span>
             </span>
           </div>
@@ -210,12 +216,13 @@ export default function ProspectDrawer({
             qualityReasons={p.qualityReasons}
             phone={p.phone}
             phoneSource={p.phoneSource}
+            staleAfterDays={reverifyAfterDays}
           />
         </div>
 
         {/* Reachability — every discovered/entered address, ranked + verified */}
         <div className={SECTION}>
-          <ContactsPanel prospectId={p.id} contacts={detail.contacts} />
+          <ContactsPanel prospectId={p.id} contacts={detail.contacts} readOnly={folded} />
         </div>
 
         {/* Online presence */}
@@ -370,7 +377,7 @@ export default function ProspectDrawer({
 
         {/* Post-demo follow-up drafter — surfaced once we've actually engaged
             them (touched, called, or a demo brief exists). */}
-        {(detail.touches.length > 0 || detail.calls.length > 0 || Boolean(p.demoBrief)) && (
+        {!folded && (detail.touches.length > 0 || detail.calls.length > 0 || Boolean(p.demoBrief)) && (
           <DemoFollowupDrafter prospectId={p.id} />
         )}
 

@@ -701,6 +701,17 @@ export interface ProspectHygieneStats {
   lastRefresh: { state: string; zipPrefix: string; at: Date } | null
 }
 
+/** Why a merge was refused, in the reader's words — the drawer never shows
+ *  a reason code (P-03 fix pass). Keys mirror MergeRefusalReason. */
+export const MERGE_REFUSAL_WORDS: Record<string, string> = {
+  not_found: 'One of these records is gone — refresh and look again.',
+  same_row: 'These are already one record.',
+  already_merged: 'One of these was merged a moment ago — open its survivor and try from there.',
+  loser_converted: 'A practice that became a clinic is always the record that stays — merge the other way round.',
+  loser_terminal: 'That record said no, is gone, or asked never to be contacted; it stays its own record beside a clinic.',
+  both_converted: 'Both of these are clinics already — two customers never merge.',
+}
+
 /** A possible duplicate of the row on the drawer (P-03) — found by the
  *  matcher's keys, offered to a human; the sweep merges only exact ones. */
 export interface DuplicateCandidate {

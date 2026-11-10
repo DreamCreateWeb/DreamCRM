@@ -110,6 +110,9 @@ export interface VerifyRunCtx {
   siteChecks: boolean
   reported: Set<ProspectingFailureClass>
   liveness: { checks: number; networkDead: number }
+  /** The live clock a parked record is promised (config.hygiene) — the
+   *  stored sentence must name the number the sweep actually uses. */
+  parkedRecheckDays: number
 }
 
 export async function newVerifyRunCtx(config: ProspectingConfig, now = new Date()): Promise<VerifyRunCtx> {
@@ -123,6 +126,7 @@ export async function newVerifyRunCtx(config: ProspectingConfig, now = new Date(
     siteChecks: config.budgets.crawlsPerMonth > 0,
     reported: new Set(),
     liveness: { checks: 0, networkDead: 0 },
+    parkedRecheckDays: config.hygiene?.parkedRecheckDays ?? PARKED_RECHECK_DAYS,
   }
 }
 
@@ -430,7 +434,7 @@ export async function verifyProspectSignals(
         v.business = sig('closed', 'Google lists it as permanently closed', 'places', now)
         break
       case 'CLOSED_TEMPORARILY':
-        v.business = sig('temporarily_closed', `Google lists it as temporarily closed — checking again in ${PARKED_RECHECK_DAYS} days`, 'places', now)
+        v.business = sig('temporarily_closed', `Google lists it as temporarily closed — checking again in ${ctx.parkedRecheckDays} days`, 'places', now)
         break
       case 'OPERATIONAL':
         v.business = sig('open', 'Google lists it as open', 'places', now)
@@ -569,6 +573,7 @@ export async function verifyProspectSignals(
     businessStatus,
     reviewCount,
     websiteUrl,
+    parkedRecheckDays: ctx.parkedRecheckDays,
   })
   patch.qualityScore = q.score
   patch.qualityBand = q.band
@@ -645,10 +650,11 @@ export async function verifyProspect(
   // call does), a reversible park pauses it, a recovered signal resumes it.
   await applyOutreachHold(p.id, out.patch, ctx.now)
   // A resting row (P-03) wakes when the pass IMPROVED its quality; otherwise
-  // it keeps resting, with the resting sentence back in front.
+  // it keeps resting, with the resting sentence back in front (the pass just
+  // rewrote quality_reasons, so the sentence it had is handed over).
   if (p.status === 'dormant') {
     const { reconcileDormantAfterVerify } = await import('./prospect-hygiene')
-    await reconcileDormantAfterVerify(p.id, priorQuality, ctx.now)
+    await reconcileDormantAfterVerify(p.id, priorQuality, ctx.now, { priorReasons: p.qualityReasons })
   }
   if (!opts.ctx) await closeVerifyRun(ctx)
   return { ok: true, qualityScore: out.patch.qualityScore, qualityBand: out.patch.qualityBand, placesLookedUp }

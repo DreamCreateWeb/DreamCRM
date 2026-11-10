@@ -1,5 +1,5 @@
 import 'server-only'
-import { and, eq, inArray, isNotNull, ne, or, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNotNull, ne, or, sql, type AnyColumn, type SQL } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import {
   dedupeKeys,
@@ -10,8 +10,8 @@ import {
   pickSurvivor,
   type DedupeRow,
 } from '@/lib/prospect-dedupe'
-import { wakeStatus } from '@/lib/prospect-decay'
-import type { DuplicateCandidate, ProspectStatus } from '@/lib/types/prospecting'
+import { wakeStatus, withoutRestingReason } from '@/lib/prospect-decay'
+import type { DuplicateCandidate, ProspectStatus, ProspectVerification } from '@/lib/types/prospecting'
 
 /**
  * DEDUPE THAT CANNOT LOSE DATA (P-03).
@@ -40,9 +40,27 @@ type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0]
 
 const LIVE_ENROLLMENT = ['active', 'paused_ooo'] as const
 
+/** A status no merge may move a row OUT of: the practice said no, is gone,
+ *  asked never to hear from us, or became a clinic. A survivor in one of
+ *  these never takes a loser's live drip, follow-up or intent; a loser in
+ *  one of the first three carries its verdict ONTO the survivor. */
+const TERMINAL_STATUSES = ['not_interested', 'disqualified', 'suppressed', 'converted'] as const
+const CARRIED_TERMINAL = ['not_interested', 'disqualified', 'suppressed'] as const
+const isTerminal = (status: string) => (TERMINAL_STATUSES as readonly string[]).includes(status)
+
 /** Rendered by the boundary test — the one raw fragment the sweep's
  *  group-by uses. */
 export const HAVING_MORE_THAN_ONE = sql`count(*) > 1`
+
+/**
+ * The stored phone as the ten NANP digits the matcher keys on. Writers
+ * store ten digits today, but a hand-added "+1 (404) 555-1234" from before
+ * the fix sits as eleven; comparing the raw column never brought the two
+ * spellings to the matcher. Rendered by tests/prospecting/hygiene-sql.test.ts.
+ */
+export function tenDigitPhoneSql(column: SQL | AnyColumn = schema.prospect.phone): SQL<string> {
+  return sql<string>`regexp_replace(regexp_replace(coalesce(${column}, ''), '\\D', '', 'g'), '^1(\\d{10})$', '\\1')`
+}
 
 /**
  * Follow a merged row to the row that kept its history. A chain is
@@ -99,7 +117,7 @@ export async function findDuplicateCandidates(prospectId: string, limit = 5): Pr
   if (!me || me.status === 'merged') return []
   const keys = dedupeKeys(me)
   const conds = []
-  if (keys.phone) conds.push(eq(schema.prospect.phone, keys.phone))
+  if (keys.phone) conds.push(eq(tenDigitPhoneSql(), keys.phone))
   if (keys.place) conds.push(eq(schema.prospect.googlePlaceId, keys.place))
   if (keys.nameZip) conds.push(eq(schema.prospect.postalCode, me.postalCode as string))
   if (conds.length === 0) return []
@@ -129,18 +147,14 @@ export async function findDuplicateCandidates(prospectId: string, limit = 5): Pr
 }
 
 /** The columns a survivor takes from the loser when its own are empty —
- *  never a unique key (npi, dedupe hash), never the audit stamps. */
+ *  never a unique key (the NPI MOVES, below, so the index never sees it
+ *  twice; the dedupe hash stays put), never the audit stamps, and never the
+ *  phone on its own (the phone travels with its verdict — PHONE_GROUP). */
 const FILL_COLUMNS = [
-  'npiNumber',
   'addressLine1',
   'city',
   'state',
   'postalCode',
-  'phone',
-  'phoneStatus',
-  'phoneLineType',
-  'phoneSource',
-  'phoneValidatedAt',
   'taxonomyCode',
   'authorizedOfficialName',
   'authorizedOfficialTitle',
@@ -177,6 +191,26 @@ const FILL_COLUMNS = [
   'agencyProjectId',
 ] as const satisfies ReadonlyArray<keyof ProspectRow>
 
+/** A number and what we know about it move TOGETHER: a loser's
+ *  disconnected number must never land on the survivor as "unknown" (the
+ *  verify pass stamps `unknown` on every pass, so the survivor's status is
+ *  rarely null even when its phone is). */
+const PHONE_GROUP = ['phone', 'phoneStatus', 'phoneLineType', 'phoneSource', 'phoneValidatedAt'] as const satisfies ReadonlyArray<
+  keyof ProspectRow
+>
+
+/** What a terminal survivor never takes from a loser: the loser's thread
+ *  is over the moment it folds into a practice that said no. */
+const NOT_FOR_TERMINAL = new Set<keyof ProspectRow>([
+  'nextFollowUpAt',
+  'followUpReason',
+  'replyDraft',
+  'intentSignal',
+  'intentAt',
+  'intentSummary',
+  'talkingPoints',
+])
+
 /** How far along the pipeline a status is — a merge never moves the
  *  survivor BACKWARD, and a hand-raiser's signal on the loser is kept. */
 const STATUS_RANK: Record<string, number> = {
@@ -198,11 +232,15 @@ export interface MergeResult {
   moved: Record<string, number>
 }
 
-export type MergeRefusal = { ok: false; reason: 'not_found' | 'same_row' | 'already_merged' | 'loser_converted' }
+export type MergeRefusalReason = 'not_found' | 'same_row' | 'already_merged' | 'loser_converted' | 'loser_terminal' | 'both_converted'
+export type MergeRefusal = { ok: false; reason: MergeRefusalReason }
 
 /**
  * Fold `loserId` into `survivorId`. The caller picked the survivor
- * (`chooseSurvivor` / the drawer); this only refuses the impossible.
+ * (`chooseSurvivor` / the drawer); this only refuses the impossible. Both
+ * rows are read INSIDE the transaction under `FOR UPDATE`, so a concurrent
+ * merge (the sweep and the drawer at once) cannot re-point children onto a
+ * row that was merged a moment ago.
  */
 export async function mergeProspects(
   survivorId: string,
@@ -210,16 +248,26 @@ export async function mergeProspects(
   opts: { now?: Date } = {},
 ): Promise<MergeResult | MergeRefusal> {
   if (survivorId === loserId) return { ok: false, reason: 'same_row' }
-  const rows = await db.select().from(schema.prospect).where(inArray(schema.prospect.id, [survivorId, loserId]))
-  const survivor = rows.find((r) => r.id === survivorId)
-  const loser = rows.find((r) => r.id === loserId)
-  if (!survivor || !loser) return { ok: false, reason: 'not_found' }
-  if (survivor.status === 'merged' || loser.status === 'merged') return { ok: false, reason: 'already_merged' }
-  if (loser.status === 'converted') return { ok: false, reason: 'loser_converted' }
   const now = opts.now ?? new Date()
   const moved: Record<string, number> = {}
 
-  await db.transaction(async (tx: Tx) => {
+  const refusal = await db.transaction(async (tx: Tx): Promise<MergeRefusal | null> => {
+    const rows = await tx
+      .select()
+      .from(schema.prospect)
+      .where(inArray(schema.prospect.id, [survivorId, loserId]))
+      .for('update')
+    const survivor = rows.find((r) => r.id === survivorId)
+    const loser = rows.find((r) => r.id === loserId)
+    if (!survivor || !loser) return { ok: false, reason: 'not_found' }
+    if (survivor.status === 'merged' || loser.status === 'merged') return { ok: false, reason: 'already_merged' }
+    if (loser.status === 'converted') return { ok: false, reason: 'loser_converted' }
+    // A loser's "no" / "gone" / "never again" is carried onto the survivor —
+    // except onto a clinic, where it would be nonsense: those stay two rows.
+    const loserCarries = (CARRIED_TERMINAL as readonly string[]).includes(loser.status)
+    if (loserCarries && survivor.status === 'converted') return { ok: false, reason: 'loser_terminal' }
+    const survivorTerminal = isTerminal(survivor.status) || loserCarries
+
     // ── Contacts: one row per (prospect, email) ──────────────────────────
     const survivorContacts = await tx
       .select({ email: schema.prospectContact.email })
@@ -245,7 +293,7 @@ export async function mergeProspects(
     }
     moved.prospect_contact = moveIds.length
 
-    // ── Enrollments: one LIVE drip per prospect ──────────────────────────
+    // ── Enrollments: one LIVE drip per prospect, none on a closed thread ──
     const [survivorLive] = await tx
       .select({ id: schema.outreachEnrollment.id })
       .from(schema.outreachEnrollment)
@@ -256,13 +304,28 @@ export async function mergeProspects(
         ),
       )
       .limit(1)
-    if (survivorLive) {
+    // A loser's live drip never re-points onto a survivor that already has
+    // one — nor onto a practice that said no, is gone, unsubscribed or
+    // became a clinic (enrollProspect refuses those; the merge must too).
+    if (survivorLive || survivorTerminal) {
       await tx
         .update(schema.outreachEnrollment)
         .set({ status: 'stopped_manual', stoppedAt: now, stopReason: 'merged' })
         .where(
           and(
             eq(schema.outreachEnrollment.prospectId, loserId),
+            inArray(schema.outreachEnrollment.status, [...LIVE_ENROLLMENT]),
+          ),
+        )
+    }
+    // The loser's verdict closes the survivor's own thread too.
+    if (loserCarries) {
+      await tx
+        .update(schema.outreachEnrollment)
+        .set({ status: 'stopped_manual', stoppedAt: now, stopReason: `merged_${loser.status}` })
+        .where(
+          and(
+            eq(schema.outreachEnrollment.prospectId, survivorId),
             inArray(schema.outreachEnrollment.status, [...LIVE_ENROLLMENT]),
           ),
         )
@@ -321,32 +384,89 @@ export async function mergeProspects(
     // ── The survivor takes what it lacked ────────────────────────────────
     const patch: Partial<ProspectRow> = { updatedAt: now }
     for (const col of FILL_COLUMNS) {
+      if (survivorTerminal && NOT_FOR_TERMINAL.has(col)) continue
       if (survivor[col] == null && loser[col] != null) (patch as Record<string, unknown>)[col] = loser[col]
     }
+    // A resting loser's sentence never travels: it describes the loser.
+    if (patch.qualityReasons !== undefined) {
+      const kept = withoutRestingReason(patch.qualityReasons)
+      if (kept.length > 0) patch.qualityReasons = kept
+      else delete patch.qualityReasons
+    }
+    // The phone and its verdict, as one.
+    if (survivor.phone == null && loser.phone != null) {
+      for (const col of PHONE_GROUP) (patch as Record<string, unknown>)[col] = loser[col]
+      const loserPhoneSignal = (loser.verification as ProspectVerification | null)?.phone
+      if (loserPhoneSignal) {
+        const base = (patch.verification ?? survivor.verification ?? {}) as ProspectVerification
+        patch.verification = { ...base, phone: loserPhoneSignal }
+      }
+    }
+    // The NPI MOVES: cleared on the loser first, so the unique index never
+    // holds it twice inside the transaction.
+    if (survivor.npiNumber == null && loser.npiNumber != null) {
+      await tx.update(schema.prospect).set({ npiNumber: null, updatedAt: now }).where(eq(schema.prospect.id, loserId))
+      patch.npiNumber = loser.npiNumber
+    }
     // The nearer promised follow-up wins — a callback is a promise.
-    if (survivor.nextFollowUpAt && loser.nextFollowUpAt && loser.nextFollowUpAt < survivor.nextFollowUpAt) {
+    if (!survivorTerminal && survivor.nextFollowUpAt && loser.nextFollowUpAt && loser.nextFollowUpAt < survivor.nextFollowUpAt) {
       patch.nextFollowUpAt = loser.nextFollowUpAt
       patch.followUpReason = loser.followUpReason
     }
-    const loserStatus = loser.status === 'dormant' ? wakeStatus(loser.dormantFromStatus) : loser.status
-    const loserRank = STATUS_RANK[loserStatus]
-    const survivorRank = STATUS_RANK[survivor.status]
-    if (
-      survivor.status !== 'converted' &&
-      loserRank !== undefined &&
-      survivorRank !== undefined &&
-      loserRank > survivorRank
-    ) {
-      patch.status = loserStatus
+
+    if (loserCarries) {
+      // The practice said no / is gone / asked never again — on the loser's
+      // row. That verdict is the practice's, so the survivor takes it, and
+      // every open thread on the survivor closes with it.
+      patch.status = loser.status
       patch.dormantFromStatus = null
-      if (survivorRank <= STATUS_RANK.enriched && loser.intentAt) {
-        patch.intentSignal = loser.intentSignal
-        patch.intentAt = loser.intentAt
-        patch.intentSummary = loser.intentSummary
-        patch.talkingPoints = loser.talkingPoints
+      patch.outcomeAt = survivor.outcomeAt ?? loser.outcomeAt ?? now
+      if (survivor.lostReason == null && loser.lostReason != null) patch.lostReason = loser.lostReason
+      if (survivor.suppressedReason == null && loser.suppressedReason != null) patch.suppressedReason = loser.suppressedReason
+      if (survivor.suppressedAt == null && loser.suppressedAt != null) patch.suppressedAt = loser.suppressedAt
+      patch.nextFollowUpAt = null
+      patch.followUpReason = null
+      patch.replyDraft = null
+      if (survivor.status === 'dormant') patch.qualityReasons = withoutRestingReason(survivor.qualityReasons)
+    } else {
+      const loserStatus = loser.status === 'dormant' ? wakeStatus(loser.dormantFromStatus) : loser.status
+      const loserRank = STATUS_RANK[loserStatus]
+      const survivorRank = STATUS_RANK[survivor.status]
+      if (
+        !survivorTerminal &&
+        loserRank !== undefined &&
+        survivorRank !== undefined &&
+        loserRank > survivorRank
+      ) {
+        patch.status = loserStatus
+        patch.dormantFromStatus = null
+        // A resting survivor wakes here — its resting sentence goes with it.
+        if (survivor.status === 'dormant') patch.qualityReasons = withoutRestingReason(survivor.qualityReasons)
+        if (survivorRank <= STATUS_RANK.enriched && loser.intentAt) {
+          patch.intentSignal = loser.intentSignal
+          patch.intentAt = loser.intentAt
+          patch.intentSummary = loser.intentSummary
+          patch.talkingPoints = loser.talkingPoints
+        }
       }
     }
-    await tx.update(schema.prospect).set(patch).where(eq(schema.prospect.id, survivorId))
+
+    // ── The cold caller (P-02): a closed thread frees the slot; an open one
+    //    carries over only when nobody holds the survivor already ────────
+    if (survivorTerminal) {
+      if (survivor.assignedCallerId != null) {
+        patch.assignedCallerId = null
+        patch.assignedAt = null
+      }
+    } else if (survivor.assignedCallerId == null && loser.assignedCallerId != null) {
+      patch.assignedCallerId = loser.assignedCallerId
+      patch.assignedAt = loser.assignedAt ?? now
+    }
+
+    await tx
+      .update(schema.prospect)
+      .set(patch)
+      .where(and(eq(schema.prospect.id, survivorId), ne(schema.prospect.status, 'merged')))
 
     // ── The loser rests under its survivor, nothing deleted ──────────────
     await tx
@@ -357,10 +477,14 @@ export async function mergeProspects(
         dormantFromStatus: null,
         nextFollowUpAt: null,
         followUpReason: null,
+        assignedCallerId: null,
+        assignedAt: null,
         updatedAt: now,
       })
-      .where(eq(schema.prospect.id, loserId))
+      .where(and(eq(schema.prospect.id, loserId), ne(schema.prospect.status, 'merged')))
+    return null
   })
+  if (refusal) return refusal
 
   return { ok: true, survivorId, loserId, moved }
 }
@@ -373,7 +497,7 @@ export async function mergeDuplicateProspects(
   aId: string,
   bId: string,
   opts: { now?: Date } = {},
-): Promise<MergeResult | MergeRefusal | { ok: false; reason: 'both_converted' }> {
+): Promise<MergeResult | MergeRefusal> {
   const a = await survivorOf(aId)
   const b = await survivorOf(bId)
   if (a === b) return { ok: false, reason: 'same_row' }
@@ -410,20 +534,23 @@ export async function runExactDedupeSweep(opts: { now?: Date; cap?: number } = {
     .groupBy(schema.prospect.googlePlaceId)
     .having(HAVING_MORE_THAN_ONE)
     .limit(50)
+  // Grouped on the ten-digit KEY, never the raw column — a legacy eleven-
+  // digit row and its ten-digit twin are one group.
+  const phoneKeySql = tenDigitPhoneSql()
   const phoneGroups = await db
-    .select({ key: schema.prospect.phone })
+    .select({ key: phoneKeySql })
     .from(schema.prospect)
     .where(and(live, isNotNull(schema.prospect.phone)))
-    .groupBy(schema.prospect.phone)
+    .groupBy(phoneKeySql)
     .having(HAVING_MORE_THAN_ONE)
     .limit(50)
   const places = placeGroups.map((g) => g.key).filter((k): k is string => Boolean(k))
-  const phones = phoneGroups.map((g) => g.key).filter((k): k is string => Boolean(k))
+  const phones = phoneGroups.map((g) => g.key).filter((k): k is string => typeof k === 'string' && k.length === 10)
   if (places.length === 0 && phones.length === 0) return out
 
   const conds = []
   if (places.length > 0) conds.push(inArray(schema.prospect.googlePlaceId, places))
-  if (phones.length > 0) conds.push(inArray(schema.prospect.phone, phones))
+  if (phones.length > 0) conds.push(inArray(tenDigitPhoneSql(), phones))
   const rows = await db
     .select()
     .from(schema.prospect)

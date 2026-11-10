@@ -93,3 +93,13 @@ describe('wakeStatus', () => {
     expect(wakeStatus('nonsense')).toBe('enriched')
   })
 })
+
+describe('a cold caller’s hold (P-02 × P-03)', () => {
+  it('a row assigned to a caller never rests, however old its last touch', () => {
+    const stale = new Date('2026-01-01T00:00:00Z')
+    const now = new Date('2026-11-10T12:00:00Z')
+    const base = { status: 'call_list', lastTouchAt: stale, createdAt: stale, nextFollowUpAt: null, hasOpenEnrollment: false }
+    expect(decayVerdict(base, { staleAfterDays: 90 }, now).dormant).toBe(true)
+    expect(decayVerdict({ ...base, assignedToCaller: true }, { staleAfterDays: 90 }, now).dormant).toBe(false)
+  })
+})

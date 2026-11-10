@@ -10,7 +10,8 @@ import {
   type NppesOrgResult,
 } from '@/lib/nppes'
 import { stateTimeZone } from '@/lib/types/us-geo'
-import { findDuplicateGroups, type DedupeRow } from '@/lib/prospect-dedupe'
+import { isExactDuplicate, phoneKey, type DedupeRow } from '@/lib/prospect-dedupe'
+import { tenDigitPhoneSql } from './prospect-dedupe'
 import type { ProspectingConfig } from '@/lib/types/prospecting'
 import { getProspectingConfig } from './prospecting'
 
@@ -42,20 +43,24 @@ export interface DiscoveryRunResult {
 /**
  * THE MATCHER AT THE DOOR (P-03). The NPI unique and the dedupe hash only
  * catch an exact re-discovery; the matcher (lib/prospect-dedupe.ts) also
- * sees the same phone under a different name, the same name at the same
- * ZIP under a different suite — so a registry row that is a practice we
- * already hold never becomes a second row. Rows already in the table are
- * fetched by the batch's phones and by its ZIPs (two indexed reads a
- * page), then any candidate that groups with an existing row — or with an
- * earlier candidate in the same page — is dropped. Merged rows count as
- * existing: their practice is in the pipeline under the survivor.
+ * sees "Smile Dental PC" under a second NPI with the same desk phone — so a
+ * registry row that is a practice we already hold never becomes a second
+ * row. Rows already in the table are fetched by the batch's phones (as ten
+ * digits) and by its ZIPs, then any candidate that is an EXACT duplicate
+ * of an existing row — or of an earlier candidate in the same page — is
+ * dropped. The bar is the sweep's own (`isExactDuplicate`: same phone AND
+ * same name); a fuzzy likeness (same phone, another name; same name at the
+ * ZIP, another street) is a question for a human, and a human can only
+ * answer it on a row that exists — so those ENTER, and the drawer asks.
+ * Merged rows count as existing: their practice is in the pipeline under
+ * the survivor.
  */
 export async function filterAlreadyHeld(
   results: NppesOrgResult[],
   now: Date,
 ): Promise<{ fresh: NppesOrgResult[]; held: number }> {
   if (results.length === 0) return { fresh: [], held: 0 }
-  const phones = Array.from(new Set(results.map((r) => r.phone).filter((v): v is string => Boolean(v))))
+  const phones = Array.from(new Set(results.map((r) => phoneKey(r.phone)).filter((v): v is string => Boolean(v))))
   const zips = Array.from(new Set(results.map((r) => r.postalCode).filter((v): v is string => Boolean(v))))
   const cols = {
     id: schema.prospect.id,
@@ -69,40 +74,45 @@ export async function filterAlreadyHeld(
   }
   const existing: DedupeRow[] = []
   if (phones.length > 0) {
-    existing.push(...(await db.select(cols).from(schema.prospect).where(inArray(schema.prospect.phone, phones)).limit(2000)))
+    existing.push(...(await db.select(cols).from(schema.prospect).where(inArray(tenDigitPhoneSql(), phones)).limit(2000)))
   }
   if (zips.length > 0) {
     const seen = new Set(existing.map((e) => e.id))
     const byZip = await db.select(cols).from(schema.prospect).where(inArray(schema.prospect.postalCode, zips)).limit(2000)
     for (const e of byZip) if (!seen.has(e.id)) existing.push(e)
   }
-  const existingIds = new Set(existing.map((e) => e.id))
-  const candidates: DedupeRow[] = results.map((r) => ({
-    id: `nppes:${r.npiNumber}`,
-    name: r.name,
-    phone: r.phone,
-    googlePlaceId: null,
-    postalCode: r.postalCode,
-    qualityScore: null,
-    verifiedAt: null,
-    createdAt: now,
-  }))
-  const drop = new Set<string>()
-  for (const group of findDuplicateGroups([...existing, ...candidates])) {
-    let kept = group.members.some((m) => existingIds.has(m.id))
-    for (const m of group.members) {
-      if (existingIds.has(m.id)) continue
-      if (kept) drop.add(m.id)
-      else kept = true // the first new practice in a group with no existing row enters
-    }
+  // Exact pairs share a phone, so the held rows are indexed by it.
+  const byPhone = new Map<string, DedupeRow[]>()
+  const hold = (row: DedupeRow) => {
+    const k = phoneKey(row.phone)
+    if (!k) return
+    byPhone.set(k, [...(byPhone.get(k) ?? []), row])
   }
-  const fresh = results.filter((r) => !drop.has(`nppes:${r.npiNumber}`))
+  for (const e of existing) hold(e)
+  const fresh: NppesOrgResult[] = []
+  for (const r of results) {
+    const candidate: DedupeRow = {
+      id: `nppes:${r.npiNumber}`,
+      name: r.name,
+      phone: r.phone,
+      googlePlaceId: null,
+      postalCode: r.postalCode,
+      qualityScore: null,
+      verifiedAt: null,
+      createdAt: now,
+    }
+    const k = phoneKey(r.phone)
+    const twins = k ? (byPhone.get(k) ?? []) : []
+    if (twins.some((t) => isExactDuplicate(candidate, t))) continue
+    fresh.push(r)
+    hold(candidate) // a later row of the same practice in this page is held by this one
+  }
   return { fresh, held: results.length - fresh.length }
 }
 
-async function insertProspects(results: NppesOrgResult[], now: Date = new Date()): Promise<number> {
-  if (results.length === 0) return 0
-  const { fresh } = await filterAlreadyHeld(results, now)
+async function insertProspects(results: NppesOrgResult[], now: Date = new Date()): Promise<{ imported: number; held: number }> {
+  if (results.length === 0) return { imported: 0, held: 0 }
+  const { fresh, held } = await filterAlreadyHeld(results, now)
   let imported = 0
   for (const r of fresh) {
     // Three-layer dedupe: NPI unique catches re-discovery; the phone+address
@@ -131,7 +141,7 @@ async function insertProspects(results: NppesOrgResult[], now: Date = new Date()
       .returning({ id: schema.prospect.id })
     imported += inserted.length
   }
-  return imported
+  return { imported, held }
 }
 
 /** Split a capped zip3 task into its ten zip5-prefix children (e.g. '303' →
@@ -204,7 +214,7 @@ export async function runDiscovery(opts?: { maxTasks?: number }): Promise<Discov
           enumerationType,
         })
         found += resultCount
-        imported += await insertProspects(results, new Date())
+        imported += (await insertProspects(results, new Date())).imported
         skip += NPPES_PAGE_SIZE
 
         if (resultCount < NPPES_PAGE_SIZE) {
@@ -303,6 +313,8 @@ export interface TerritoryRefreshResult {
   zipPrefix: string
   found: number
   imported: number
+  /** Registry rows the matcher held at the door: a practice already here. */
+  held: number
   requests: number
   /** True when the request cap stopped the sweep before NPPES ran dry —
    *  the next refresh of this territory starts over and may finish. */
@@ -351,27 +363,48 @@ export async function refreshStaleTerritory(opts: {
   let requests = 0
   let found = 0
   let imported = 0
+  let held = 0
   let capped = false
-  for (const enumerationType of ['NPI-2', 'NPI-1'] as const) {
-    let skip = 0
-    for (;;) {
-      if (requests >= budget) {
-        capped = true
-        break
+  try {
+    for (const enumerationType of ['NPI-2', 'NPI-1'] as const) {
+      let skip = 0
+      for (;;) {
+        if (requests >= budget) {
+          capped = true
+          break
+        }
+        requests++
+        const { results, resultCount } = await searchNppesOrgs({
+          state: task.state,
+          zipPrefix: task.zipPrefix,
+          skip,
+          enumerationType,
+        })
+        found += resultCount
+        const r = await insertProspects(results, now)
+        imported += r.imported
+        held += r.held
+        skip += NPPES_PAGE_SIZE
+        if (resultCount < NPPES_PAGE_SIZE || skip > NPPES_MAX_SKIP) break
       }
-      requests++
-      const { results, resultCount } = await searchNppesOrgs({
-        state: task.state,
-        zipPrefix: task.zipPrefix,
-        skip,
-        enumerationType,
-      })
-      found += resultCount
-      imported += await insertProspects(results, now)
-      skip += NPPES_PAGE_SIZE
-      if (resultCount < NPPES_PAGE_SIZE || skip > NPPES_MAX_SKIP) break
+      if (capped) break
     }
-    if (capped) break
+  } catch (err) {
+    // A territory whose pages keep failing must not be the one the next tick
+    // re-selects (it would be — it stays the oldest-swept): stamp it with
+    // the error so it goes to the back of the line and every other territory
+    // gets its turn; the throw still reaches the hygiene strike.
+    await db
+      .update(schema.prospectDiscoveryTask)
+      .set({
+        lastRefreshedAt: now,
+        found: task.found + found,
+        imported: task.imported + imported,
+        error: `refresh: ${err instanceof Error ? err.message : String(err)}`.slice(0, 500),
+        updatedAt: now,
+      })
+      .where(eq(schema.prospectDiscoveryTask.id, task.id))
+    throw err
   }
   await db
     .update(schema.prospectDiscoveryTask)
@@ -383,5 +416,5 @@ export async function refreshStaleTerritory(opts: {
       updatedAt: now,
     })
     .where(eq(schema.prospectDiscoveryTask.id, task.id))
-  return { taskId: task.id, state: task.state, zipPrefix: task.zipPrefix, found, imported, requests, capped }
+  return { taskId: task.id, state: task.state, zipPrefix: task.zipPrefix, found, imported, held, requests, capped }
 }

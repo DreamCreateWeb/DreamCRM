@@ -4,8 +4,10 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
  * THE DISCOVERY REFRESH + THE MATCHER AT THE DOOR (P-03). A finished
  * territory older than the clock is re-swept with the same parameters,
  * both phases from skip 0, under the NPPES cap; only NEW practices enter —
- * the matcher drops a registry row that is a practice already held (same
- * phone, or same name at the same ZIP), including a merged one.
+ * the matcher drops a registry row that is an EXACT duplicate of a practice
+ * already held (same phone AND same name — the sweep's own bar), including
+ * a merged one. A fuzzy likeness ENTERS: a human can only judge it on a row
+ * that exists (fix pass, 2026-11-10).
  */
 
 const state = {
@@ -101,29 +103,41 @@ beforeEach(() => {
 })
 
 describe('filterAlreadyHeld — the matcher at the door', () => {
-  it('drops a registry row that is a practice already held: same phone under another name, same name at the same ZIP', async () => {
+  it('drops ONLY an exact duplicate of a practice already held (same phone AND same name); a fuzzy likeness enters for the drawer', async () => {
     state.selectQueue.push([existing({})])
     const { fresh, held } = await filterAlreadyHeld(
       [
-        org(1, { name: 'Jane Roe DDS', phone: '4045550001' }), // same phone, other name
-        org(2, { name: 'Smile Dental, P.C.', phone: '4045559999' }), // same name at the ZIP
+        org(0, { name: 'Smile Dental, P.C.', phone: '4045550001' }), // the held practice under a second NPI — exact
+        org(1, { name: 'Jane Roe DDS', phone: '4045550001' }), // same phone, other name — a human's question
+        org(2, { name: 'Smile Dental, P.C.', phone: '4045559999' }), // same name at the ZIP, other phone — a human's question
         org(3, { name: 'Bright Orthodontics', phone: '4045558888' }), // new
       ],
       NOW,
     )
-    expect(fresh.map((r) => r.npiNumber)).toEqual(['1000000003'])
-    expect(held).toBe(2)
+    expect(fresh.map((r) => r.npiNumber)).toEqual(['1000000001', '1000000002', '1000000003'])
+    expect(held).toBe(1)
+  })
+
+  it('reads the held rows by the ten-digit phone KEY (a legacy "+1" row is found) — and a one-word generic name is no name', async () => {
+    state.selectQueue.push([existing({ phone: '14045550001', name: 'J & J Dental' })])
+    const { fresh } = await filterAlreadyHeld(
+      [org(1, { name: 'The Dental Co LLC', phone: '(404) 555-0001' }), org(2, { name: 'J & J Dental', phone: '4045550001' })],
+      NOW,
+    )
+    // Both share the desk phone; neither name is two meaningful words, so
+    // neither is EXACT — both enter and the drawer asks.
+    expect(fresh.map((r) => r.npiNumber)).toEqual(['1000000001', '1000000002'])
   })
 
   it('within one page, two rows of one practice let the first in and hold the second', async () => {
     state.selectQueue.push([])
-    const { fresh } = await filterAlreadyHeld([org(1, { phone: '4045550001' }), org(2, { phone: '4045550001', name: 'Practice 1 Assoc' })], NOW)
+    const { fresh } = await filterAlreadyHeld([org(1, { phone: '4045550001' }), org(2, { phone: '4045550001', name: 'Practice 1, LLC' })], NOW)
     expect(fresh.map((r) => r.npiNumber)).toEqual(['1000000001'])
   })
 
   it('a merged row still counts as held — its practice lives under the survivor', async () => {
     state.selectQueue.push([existing({ id: 'pros_merged' })])
-    const { fresh } = await filterAlreadyHeld([org(1, { phone: '4045550001' })], NOW)
+    const { fresh } = await filterAlreadyHeld([org(1, { name: 'Smile Dental PC', phone: '4045550001' })], NOW)
     expect(fresh).toEqual([])
   })
 
@@ -149,12 +163,12 @@ describe('refreshStaleTerritory', () => {
   it('re-sweeps the territory with the same parameters, both phases from skip 0, only new NPIs enter, and stamps the task', async () => {
     state.selectQueue.push([TASK])
     // org phase: one short page with a held row and a new one; individual phase: one short empty page.
-    searchMock.mockResolvedValueOnce({ results: [org(1, { phone: '4045550001' }), org(2)], resultCount: 2 })
+    searchMock.mockResolvedValueOnce({ results: [org(1, { name: 'Smile Dental, PC', phone: '4045550001' }), org(2)], resultCount: 2 })
     state.selectQueue.push([existing({})]) // the matcher's read for that page
     searchMock.mockResolvedValueOnce({ results: [], resultCount: 0 })
 
     const r = await refreshStaleTerritory({ now: NOW, config: LIVE })
-    expect(r).toEqual({ taskId: 'pdt_1', state: 'GA', zipPrefix: '303', found: 2, imported: 1, requests: 2, capped: false })
+    expect(r).toEqual({ taskId: 'pdt_1', state: 'GA', zipPrefix: '303', found: 2, imported: 1, held: 1, requests: 2, capped: false })
     expect(searchMock.mock.calls.map((c) => c[0])).toEqual([
       { state: 'GA', zipPrefix: '303', skip: 0, enumerationType: 'NPI-2' },
       { state: 'GA', zipPrefix: '303', skip: 0, enumerationType: 'NPI-1' },
@@ -173,6 +187,15 @@ describe('refreshStaleTerritory', () => {
     expect(REFRESH_NPPES_PER_RUN).toBe(50)
     // Still stamped — the next refresh of this territory starts over.
     expect(state.updates.find((u) => u.table === 'prospectDiscoveryTask')?.values).toMatchObject({ lastRefreshedAt: NOW })
+  })
+
+  it('a page that throws stamps the territory WITH the error and rethrows — it goes to the back of the line instead of starving every other territory', async () => {
+    state.selectQueue.push([TASK])
+    searchMock.mockResolvedValueOnce({ results: [], resultCount: 200 })
+    searchMock.mockRejectedValueOnce(new Error('NPPES 503'))
+    await expect(refreshStaleTerritory({ now: NOW, config: LIVE })).rejects.toThrow('NPPES 503')
+    const stamp = state.updates.find((u) => u.table === 'prospectDiscoveryTask')
+    expect(stamp?.values).toMatchObject({ lastRefreshedAt: NOW, error: 'refresh: NPPES 503', found: 1100 })
   })
 
   it('a full page at the NPPES skip ceiling ends the phase rather than asking past it', async () => {

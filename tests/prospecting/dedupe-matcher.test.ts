@@ -12,7 +12,9 @@ import {
   findDuplicateGroups,
   isExactDuplicate,
   normalizePracticeName,
+  practiceNameKey,
   pickSurvivor,
+  sharedKeys,
   duplicateReasons,
   type DedupeRow,
 } from '@/lib/prospect-dedupe'
@@ -39,6 +41,24 @@ describe('normalizePracticeName', () => {
   })
   it('keeps the words that tell two practices apart', () => {
     expect(normalizePracticeName('Bright Orthodontics')).not.toBe(normalizePracticeName('Bright Dental'))
+  })
+})
+
+describe('practiceNameKey — the name the matcher compares (fix pass)', () => {
+  it('needs two meaningful tokens: one generic word is no name', () => {
+    expect(practiceNameKey('Smile Dental, P.C.')).toBe('smile dental')
+    expect(practiceNameKey('J & J Dental')).toBeNull() // → "dental"
+    expect(practiceNameKey('The Dental Co., LLC')).toBeNull() // → "dental"
+    expect(practiceNameKey('Dr. Roe, DDS')).toBeNull() // → "roe"
+    expect(practiceNameKey('')).toBeNull()
+    expect(practiceNameKey(null)).toBeNull()
+  })
+  it('two practices sharing a building’s desk phone, each one generic word, are NOT an exact pair — and never a name+ZIP pair', () => {
+    const a = row({ id: 'a', name: 'J & J Dental', phone: '4045551212' })
+    const b = row({ id: 'b', name: 'The Dental Co., LLC', phone: '4045551212' })
+    expect(isExactDuplicate(a, b)).toBe(false)
+    expect(sharedKeys(a, b)).toEqual(['phone']) // a question for a human, not a match on the name
+    expect(dedupeKeys(a).nameZip).toBeNull()
   })
 })
 

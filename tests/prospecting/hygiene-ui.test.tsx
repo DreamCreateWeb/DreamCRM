@@ -48,7 +48,7 @@ import DuplicateCard from '@/app/(default)/platform/prospecting/duplicate-card'
 import ProspectDrawer from '@/app/(default)/platform/prospecting/prospect-drawer'
 import HuntPanel from '@/app/(default)/platform/prospecting/hunt-panel'
 import SettingsPanel from '@/app/(default)/platform/prospecting/settings/settings-panel'
-import { PROSPECTING_DEFAULTS, PROSPECT_STATUS_LABELS, type DuplicateCandidate } from '@/lib/types/prospecting'
+import { MERGE_REFUSAL_WORDS, PROSPECTING_DEFAULTS, PROSPECT_STATUS_LABELS, type DuplicateCandidate } from '@/lib/types/prospecting'
 import { PROSPECT_STATUSES } from '@/lib/db/schema/prospecting'
 import type { ProspectDetail, HuntStats } from '@/lib/services/prospecting'
 
@@ -138,11 +138,21 @@ describe('DuplicateCard', () => {
     }
   })
 
-  it('a refused merge says why, in the card', async () => {
+  it('a refused merge says why, in plain words — never a reason code', async () => {
     actions.merge.mockResolvedValueOnce({ ok: false, reason: 'both_converted' } as never)
     render(<DuplicateCard prospectId="pros_1" prospectName="Smile Dental PC" candidates={[CANDIDATE]} />)
     fireEvent.click(screen.getByRole('button', { name: 'Merge' }))
-    await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('both_converted'))
+    await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('Both of these are clinics already'))
+    expect(screen.getByRole('alert').textContent).not.toMatch(/[a-z]_[a-z]/)
+    cleanup()
+    // Every reason the service can return has words; an unknown one still does.
+    for (const reason of ['not_found', 'same_row', 'already_merged', 'loser_converted', 'loser_terminal', 'both_converted']) {
+      expect(MERGE_REFUSAL_WORDS[reason], reason).toMatch(/^[A-Z].*\.$/)
+    }
+    actions.merge.mockResolvedValueOnce({ ok: false, reason: 'something_new' } as never)
+    render(<DuplicateCard prospectId="pros_1" prospectName="Smile Dental PC" candidates={[CANDIDATE]} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Merge' }))
+    await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('Could not merge these two'))
   })
 })
 
@@ -155,6 +165,42 @@ describe('ProspectDrawer', () => {
     expect(screen.getByRole('link', { name: 'Smile Dental' }).getAttribute('href')).toBe('/platform/prospecting?prospect=pros_s')
     expect(screen.queryByRole('button', { name: /Suppress/ })).toBeNull()
     expect(container.querySelector('[data-duplicate-card]')).toBeNull()
+  })
+
+  it('a merged row is a folded shell: no contact adds, no re-verify, no phone editor, no demo drafter', () => {
+    const merged = detail(
+      { status: 'merged', mergedIntoProspectId: 'pros_s', phone: '4045551212', demoBrief: { summary: 'x' } as never },
+      {
+        mergedInto: { id: 'pros_s', name: 'Smile Dental' },
+        contacts: [
+          { id: 'pcon_1', prospectId: 'pros_1', email: 'office@smile.com', name: null, role: 'office', source: 'crawl', verifyStatus: 'deliverable', isPrimary: 1 } as never,
+        ],
+      },
+    )
+    render(<ProspectDrawer detail={merged} closeHref="/" />)
+    expect(screen.getByText('office@smile.com')).toBeTruthy() // shown…
+    expect(screen.queryByRole('button', { name: '+ Add' })).toBeNull() // …not operable
+    expect(screen.queryByRole('button', { name: /Re-verify/ })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Remove contact' })).toBeNull()
+    expect(screen.queryByRole('button', { name: /Pin/ })).toBeNull()
+    expect(screen.queryByRole('button', { name: /Fix number|Add number/ })).toBeNull()
+    expect(screen.queryByText('✨ Draft a follow-up')).toBeNull()
+    cleanup()
+    // The same record, live: the controls are there.
+    render(<ProspectDrawer detail={detail({ phone: '4045551212', demoBrief: { summary: 'x' } as never }, { contacts: merged.contacts })} closeHref="/" />)
+    expect(screen.getByRole('button', { name: '+ Add' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /Fix number/ })).toBeTruthy()
+    expect(screen.getByText('✨ Draft a follow-up')).toBeTruthy()
+  })
+
+  it('the verification headline reads the live re-verify clock, not the shipped 60', () => {
+    const verifiedAt = new Date(Date.now() - 70 * 24 * 60 * 60 * 1000) // the card reads the real clock
+    const base = { verifiedAt, qualityScore: 70, qualityBand: 'good', qualityReasons: [], verification: {} } as never
+    render(<ProspectDrawer detail={detail(base)} closeHref="/" reverifyAfterDays={120} />)
+    expect(screen.queryByText(/due for another look/)).toBeNull()
+    cleanup()
+    render(<ProspectDrawer detail={detail(base)} closeHref="/" reverifyAfterDays={14} />)
+    expect(screen.getByText(/due for another look/)).toBeTruthy()
   })
 
   it('a resting row explains itself and where it wakes to; a live row with a candidate shows the card', () => {
@@ -183,9 +229,13 @@ describe('HuntPanel — the hygiene tile', () => {
     expect(container.querySelector('[data-hygiene-tile] [data-heartbeat-line]')).toBeNull()
   })
 
-  it('is honest before the first refresh, and absent without the stats', () => {
-    const { container } = render(<HuntPanel stats={stats} config={config} env={env} quality={quality} hygiene={{ mergedToday: 0, resting: 0, lastRefresh: null }} />)
+  it('is honest before the first refresh — naming the LIVE refresh clock — and absent without the stats', () => {
+    const { container } = render(
+      <HuntPanel stats={stats} config={{ ...config, hygiene: { ...config.hygiene, discoveryRefreshDays: 90 } }} env={env} quality={quality} hygiene={{ mergedToday: 0, resting: 0, lastRefresh: null }} />,
+    )
     expect(container.querySelector('[data-hygiene-tile]')?.textContent).toContain('No territory refreshed yet')
+    expect(container.querySelector('[data-hygiene-tile]')?.textContent).toContain('once it is 90 days old')
+    expect(container.querySelector('[data-hygiene-tile]')?.textContent).not.toContain('30 days')
     cleanup()
     const { container: c2 } = render(<HuntPanel stats={stats} config={config} env={env} quality={quality} hygiene={null} />)
     expect(c2.querySelector('[data-hygiene-tile]')).toBeNull()
@@ -217,5 +267,24 @@ describe('SettingsPanel — the hygiene clocks', () => {
     await waitFor(() => expect(actions.hygiene).toHaveBeenCalledWith({ staleAfterDays: 120, reverifyAfterDays: 60 }))
     await waitFor(() => expect(section.textContent).toContain('Saved ✓'))
     expect(section.textContent).toContain('re-checked every 30 days')
+    // The cadence is the engine tick, not a nightly job.
+    expect(section.textContent).toContain('about every half hour')
+    expect(section.textContent).not.toMatch(/every night/i)
+  })
+
+  it('a clock whose first digit is under 7 can be typed ("30" is 30, not 70); an out-of-range value is refused in words at save', async () => {
+    render(<SettingsPanel {...props} />)
+    const stale = screen.getByLabelText(/Rest after/) as HTMLInputElement
+    fireEvent.change(stale, { target: { value: '3' } })
+    expect(stale.value).toBe('3')
+    fireEvent.change(stale, { target: { value: '30' } })
+    expect(stale.value).toBe('30')
+    fireEvent.click(screen.getByRole('button', { name: 'Save the clocks' }))
+    await waitFor(() => expect(actions.hygiene).toHaveBeenCalledWith({ staleAfterDays: 30, reverifyAfterDays: 60 }))
+
+    fireEvent.change(stale, { target: { value: '3' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save the clocks' }))
+    await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('from 7 to 730'))
+    expect(actions.hygiene).toHaveBeenCalledTimes(1)
   })
 })

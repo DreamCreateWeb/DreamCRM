@@ -27,7 +27,7 @@ vi.mock('@/lib/services/prospecting', () => ({
 }))
 
 import { decayCandidateWhere, lastTouchSql, stripRestingReasonSql, wakeSetSql } from '@/lib/services/prospect-hygiene'
-import { HAVING_MORE_THAN_ONE } from '@/lib/services/prospect-dedupe'
+import { HAVING_MORE_THAN_ONE, tenDigitPhoneSql } from '@/lib/services/prospect-dedupe'
 import { territorySweptAtSql } from '@/lib/services/prospect-discovery'
 import { DECAYABLE_STATUSES } from '@/lib/db/schema/prospecting'
 
@@ -37,11 +37,13 @@ const NOW = new Date('2026-11-10T12:00:00Z')
 const CUTOFF = new Date('2026-08-12T12:00:00Z')
 
 describe('the decay predicate', () => {
-  it('reads the decayable statuses, excludes a live enrollment, anchors on the last touch else the birth, with a cast cutoff', () => {
+  it('reads the decayable statuses, excludes a live enrollment and a row a cold caller holds, anchors on the last touch else the birth, with a cast cutoff', () => {
     const { sql: text, params } = render(decayCandidateWhere(NOW, CUTOFF))
     expect(text).toContain('"prospect"."status" in ($1, $2, $3, $4)')
     expect(params.slice(0, 4)).toEqual([...DECAYABLE_STATUSES])
     expect(text).toMatch(/\("prospect"\."next_follow_up_at" is null or "prospect"\."next_follow_up_at" <= \$5\)/)
+    // P-02: a row someone is dialling is being worked.
+    expect(text).toContain('"prospect"."assigned_caller_id" is null')
     expect(text).toMatch(/not exists \(select 1 from "outreach_enrollment" where \("outreach_enrollment"\."prospect_id" = "prospect"\."id" and "outreach_enrollment"\."status" in \(\$6, \$7\)\)\)/)
     expect(params.slice(5, 7)).toEqual(['active', 'paused_ooo'])
     // The one raw comparison: a cast parameter, never an untyped $n.
@@ -50,12 +52,13 @@ describe('the decay predicate', () => {
     expect(params).toHaveLength(8)
   })
 
-  it('"last touch" is the GREATEST of a sent touch, a call, an inbound event, the intent and the enrichment', () => {
+  it('"last touch" is the GREATEST of a sent touch, a call, an inbound event, a self-booked demo, the intent and the enrichment', () => {
     const { sql: text, params } = render(lastTouchSql())
     expect(text).toContain('SELECT MAX("outreach_touch_log"."sent_at") FROM "outreach_touch_log"')
     expect(text).toContain('"outreach_touch_log"."status" = \'sent\'')
     expect(text).toContain('SELECT MAX("prospect_call_log"."created_at") FROM "prospect_call_log"')
     expect(text).toContain('SELECT MAX("outreach_event"."occurred_at") FROM "outreach_event"')
+    expect(text).toContain('SELECT MAX("prospect_meeting"."booked_at") FROM "prospect_meeting"')
     expect(text).toContain('"prospect"."intent_at"')
     expect(text).toContain('"prospect"."enriched_at"')
     expect(params).toEqual([])
@@ -93,6 +96,21 @@ describe('the wake', () => {
 describe('the sweep’s group-by and the refresh clock', () => {
   it('HAVING count(*) > 1 — no parameters', () => {
     expect(render(HAVING_MORE_THAN_ONE)).toEqual({ sql: 'count(*) > 1', params: [] })
+  })
+  it('the phone KEY: the stored column as ten digits — an eleven-digit legacy row drops its leading 1, in SQL, with no parameters', () => {
+    expect(render(tenDigitPhoneSql())).toEqual({
+      sql: `regexp_replace(regexp_replace(coalesce("prospect"."phone", ''), '\\D', '', 'g'), '^1(\\d{10})$', '\\1')`,
+      params: [],
+    })
+    // …and it is what every phone pre-filter compares against.
+    const { readFileSync } = require('node:fs') as typeof import('node:fs')
+    const dedupe = readFileSync('lib/services/prospect-dedupe.ts', 'utf8')
+    expect(dedupe).not.toMatch(/eq\(schema\.prospect\.phone,/)
+    expect(dedupe).not.toMatch(/inArray\(schema\.prospect\.phone,/)
+    expect(dedupe).not.toMatch(/groupBy\(schema\.prospect\.phone\)/)
+    const discovery = readFileSync('lib/services/prospect-discovery.ts', 'utf8')
+    expect(discovery).not.toMatch(/inArray\(schema\.prospect\.phone,/)
+    expect(discovery).toContain('inArray(tenDigitPhoneSql(), phones)')
   })
   it('a territory is aged by its last refresh, else the end of its first sweep', () => {
     expect(render(territorySweptAtSql())).toEqual({

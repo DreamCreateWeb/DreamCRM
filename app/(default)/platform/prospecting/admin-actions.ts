@@ -256,7 +256,9 @@ const hygieneSchema = z.object({
 export async function updateHygieneAction(input: unknown): Promise<{ ok: true } | { ok: false; error: string }> {
   await requirePlatformAdmin()
   const parsed = hygieneSchema.safeParse(input)
-  if (!parsed.success) return { ok: false, error: 'Days must be whole numbers between 7 and 730.' }
+  if (!parsed.success) {
+    return { ok: false, error: 'Rest after must be a whole number of days from 7 to 730; re-verify after, from 7 to 365.' }
+  }
   const config = await getProspectingConfig()
   await updateProspectingConfig({ hygiene: { ...config.hygiene, ...parsed.data } })
   revalidatePath('/platform/prospecting')

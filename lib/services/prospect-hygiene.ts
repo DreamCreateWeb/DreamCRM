@@ -91,19 +91,32 @@ export async function reconcileDormantAfterVerify(
   prospectId: string,
   priorQualityScore: number | null,
   now: Date = new Date(),
+  opts: {
+    /** `quality_reasons` as they stood BEFORE the pass rewrote them — the
+     *  pass replaces the column from the signals, so the resting sentence
+     *  is already gone from the row by the time this looks. */
+    priorReasons?: unknown
+  } = {},
 ): Promise<'woke' | 'resting' | 'not_dormant'> {
   const [row] = await db
-    .select({ status: p.status, qualityScore: p.qualityScore, qualityReasons: p.qualityReasons, intentAt: p.intentAt, enrichedAt: p.enrichedAt, createdAt: p.createdAt })
+    .select({ status: p.status, qualityScore: p.qualityScore, qualityReasons: p.qualityReasons, createdAt: p.createdAt, lastTouchAt: lastTouchSql() })
     .from(p)
     .where(eq(p.id, prospectId))
     .limit(1)
   if (!row || row.status !== 'dormant') return 'not_dormant'
-  if ((row.qualityScore ?? -1) > (priorQualityScore ?? -1)) {
+  // IMPROVED means a number that beat the number it had. A first-ever score
+  // on a never-verified row is news, not an improvement — a dead number's 0
+  // must not wake a row the next decay would only rest again.
+  if (priorQualityScore != null && row.qualityScore != null && row.qualityScore > priorQualityScore) {
     await wakeDormantProspect(prospectId, now)
     return 'woke'
   }
-  const prior = (Array.isArray(row.qualityReasons) ? row.qualityReasons : []).find(isRestingReason)
-  const since = row.intentAt ?? row.enrichedAt ?? row.createdAt
+  const prior =
+    (Array.isArray(opts.priorReasons) ? opts.priorReasons : []).find(isRestingReason) ??
+    (Array.isArray(row.qualityReasons) ? row.qualityReasons : []).find(isRestingReason)
+  // Regenerated from the same anchor the decay used: the last real touch,
+  // else the record's birth — never the enrichment stamp alone.
+  const since = asDate(row.lastTouchAt) ?? row.createdAt
   const reasons = [
     typeof prior === 'string' ? prior : restingReason(since),
     ...withoutRestingReason(row.qualityReasons),
@@ -115,8 +128,9 @@ export async function reconcileDormantAfterVerify(
 // ── Decay ───────────────────────────────────────────────────────────────────
 
 /** The last time a human or the engine did something WITH the practice:
- *  a sent touch, a logged call, an inbound event, an intent signal, the
- *  enrichment itself. GREATEST skips nulls in Postgres. */
+ *  a sent touch, a logged call, an inbound event, a demo the practice
+ *  booked itself, an intent signal, the enrichment itself. GREATEST skips
+ *  nulls in Postgres. */
 export function lastTouchSql(): SQL<string | Date | null> {
   return sql<string | Date | null>`GREATEST(
     (SELECT MAX(${schema.outreachTouchLog.sentAt}) FROM ${schema.outreachTouchLog}
@@ -125,18 +139,21 @@ export function lastTouchSql(): SQL<string | Date | null> {
        WHERE ${schema.prospectCallLog.prospectId} = ${p.id}),
     (SELECT MAX(${schema.outreachEvent.occurredAt}) FROM ${schema.outreachEvent}
        WHERE ${schema.outreachEvent.prospectId} = ${p.id}),
+    (SELECT MAX(${schema.prospectMeeting.bookedAt}) FROM ${schema.prospectMeeting}
+       WHERE ${schema.prospectMeeting.prospectId} = ${p.id}),
     ${p.intentAt},
     ${p.enrichedAt}
   )`
 }
 
 /** The decay predicate as Postgres sees it: a decayable status, no future
- *  follow-up, no live enrollment, and the last touch (else the record's
- *  birth) before the cutoff. */
+ *  follow-up, no live enrollment, no cold caller holding it (P-02), and
+ *  the last touch (else the record's birth) before the cutoff. */
 export function decayCandidateWhere(now: Date, cutoff: Date): SQL | undefined {
   return and(
     inArray(p.status, [...DECAYABLE_STATUSES]),
     or(isNull(p.nextFollowUpAt), lte(p.nextFollowUpAt, now)),
+    isNull(p.assignedCallerId),
     notExists(
       db
         .select({ x: sql`1` })
@@ -175,6 +192,7 @@ export async function runDecay(opts: { now?: Date; staleAfterDays: number; limit
       createdAt: p.createdAt,
       nextFollowUpAt: p.nextFollowUpAt,
       qualityReasons: p.qualityReasons,
+      assignedCallerId: p.assignedCallerId,
       lastTouchAt: lastTouchSql(),
     })
     .from(p)
@@ -190,6 +208,7 @@ export async function runDecay(opts: { now?: Date; staleAfterDays: number; limit
         createdAt: r.createdAt,
         nextFollowUpAt: r.nextFollowUpAt,
         hasOpenEnrollment: false,
+        assignedToCaller: r.assignedCallerId != null,
       },
       { staleAfterDays: opts.staleAfterDays },
       now,
@@ -203,9 +222,11 @@ export async function runDecay(opts: { now?: Date; staleAfterDays: number; limit
         qualityReasons: withRestingReason(r.qualityReasons, v.since),
         updatedAt: now,
       })
-      // Guarded on the status it had — a reply landing between the read
-      // and the write wins, and the row stays awake.
-      .where(and(eq(p.id, r.id), eq(p.status, r.status)))
+      // Guarded on the status it had AND on the whole predicate again — a
+      // reply, a logged call or a claim landing between the read and the
+      // write wins (a same-status touch would pass a status-only guard),
+      // and the row stays awake.
+      .where(and(eq(p.id, r.id), eq(p.status, r.status), decayCandidateWhere(now, cutoff)))
     out.rested++
   }
   return out

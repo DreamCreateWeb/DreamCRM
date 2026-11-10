@@ -105,10 +105,14 @@ export async function POST(req: NextRequest) {
   if (tags.prospectId) {
     try {
       const { newId } = await import('@/lib/utils')
-      const { inArray } = await import('drizzle-orm')
+      const { inArray, ne } = await import('drizzle-orm')
+      // The tag carries the id the email was SENT to; after a merge the
+      // practice lives on under its survivor (P-03).
+      const { survivorOf } = await import('@/lib/services/prospect-dedupe')
+      const prospectId = await survivorOf(tags.prospectId)
       await db.insert(schema.outreachEvent).values({
         id: newId('oevt'),
-        prospectId: tags.prospectId,
+        prospectId,
         touchLogId: tags.touchLogId ?? null,
         type: evtType,
         meta: { resendEmailId: evt.data?.email_id, bounceType: evt.data?.bounce?.type },
@@ -124,7 +128,7 @@ export async function POST(req: NextRequest) {
               email: recipient,
               domain: recipient.split('@')[1] ?? null,
               reason: evtType === 'complaint' ? 'complaint' : 'bounce',
-              prospectId: tags.prospectId,
+              prospectId,
             })
             .onConflictDoNothing()
         }
@@ -133,7 +137,7 @@ export async function POST(req: NextRequest) {
           .set({ status: 'stopped_bounce', stoppedAt: new Date(), stopReason: evtType })
           .where(
             and(
-              eq(schema.outreachEnrollment.prospectId, tags.prospectId),
+              eq(schema.outreachEnrollment.prospectId, prospectId),
               inArray(schema.outreachEnrollment.status, ['active', 'paused_ooo']),
             ),
           )
@@ -145,7 +149,7 @@ export async function POST(req: NextRequest) {
             suppressedAt: new Date(),
             updatedAt: new Date(),
           })
-          .where(eq(schema.prospect.id, tags.prospectId))
+          .where(and(eq(schema.prospect.id, prospectId), ne(schema.prospect.status, 'merged')))
       }
     } catch (err) {
       console.warn('[webhook.resend.prospect]', err)

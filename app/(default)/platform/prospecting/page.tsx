@@ -532,7 +532,14 @@ export default async function ProspectingPage({
       )}
 
       {/* Prospect drawer — opens over any view via ?prospect=. */}
-      {detail && <ProspectDrawer detail={detail} closeHref={buildQuery(params, {})} callers={activeCallers} />}
+      {detail && (
+        <ProspectDrawer
+          detail={detail}
+          closeHref={buildQuery(params, {})}
+          callers={activeCallers}
+          reverifyAfterDays={config.hygiene.reverifyAfterDays}
+        />
+      )}
     </PageFrame>
   )
 }

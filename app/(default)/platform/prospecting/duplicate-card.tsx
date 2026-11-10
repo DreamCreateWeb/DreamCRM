@@ -7,7 +7,7 @@ import { useConfirm } from '@/components/ui/confirm-dialog'
 import { ActionButton } from '@/components/ui/action-button'
 import { StatusPill } from '@/components/ui/status-pill'
 import { runAction } from '@/lib/run-action'
-import { PROSPECT_STATUS_LABELS, type DuplicateCandidate } from '@/lib/types/prospecting'
+import { MERGE_REFUSAL_WORDS, PROSPECT_STATUS_LABELS, type DuplicateCandidate } from '@/lib/types/prospecting'
 import { mergeProspectAction } from './admin-actions'
 
 /**
@@ -90,7 +90,8 @@ export default function DuplicateCard({
                   try {
                     const r = await runAction(() => mergeProspectAction(prospectId, c.id))
                     if (!r.ok) {
-                      setError('error' in r ? r.error : `Could not merge (${r.reason}).`)
+                      // Plain words, never a reason code.
+                      setError('error' in r ? r.error : (MERGE_REFUSAL_WORDS[r.reason] ?? 'Could not merge these two — refresh and try again.'))
                       return
                     }
                     toast('Merged — one practice, one record')

@@ -7,6 +7,7 @@ import { SCORE_BAND_LABELS, splitAtFloor, type ProspectScoreBand } from '@/lib/t
 import { US_STATES, US_STATE_NAMES, type UsState } from '@/lib/types/us-geo'
 import { StatusPill } from '@/components/ui/status-pill'
 import { ActionButton } from '@/components/ui/action-button'
+import { TextInput } from '@/components/ui/form-fields'
 import { runAction } from '@/lib/run-action'
 import {
   updateHygieneAction,
@@ -179,46 +180,50 @@ export function QualityFloor({ floor, quality }: { floor: number; quality: Prosp
  * runAction; the button carries the busy state.
  */
 function HygieneKnobs({ hygiene }: { hygiene: ProspectingConfig['hygiene'] }) {
-  const [staleAfterDays, setStale] = useState(hygiene.staleAfterDays)
-  const [reverifyAfterDays, setReverify] = useState(hygiene.reverifyAfterDays)
+  // The fields hold what was TYPED; the number is read at save (a per-
+  // keystroke clamp made "30" impossible to type — the 3 snapped to 7).
+  const [staleText, setStale] = useState(String(hygiene.staleAfterDays))
+  const [reverifyText, setReverify] = useState(String(hygiene.reverifyAfterDays))
   const [saved, setSaved] = useState({ staleAfterDays: hygiene.staleAfterDays, reverifyAfterDays: hygiene.reverifyAfterDays })
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
-  const dirty = staleAfterDays !== saved.staleAfterDays || reverifyAfterDays !== saved.reverifyAfterDays
-  const field = 'form-input w-24 text-sm tabular-nums'
+  const staleAfterDays = Number(staleText)
+  const reverifyAfterDays = Number(reverifyText)
+  const dirty = staleText !== String(saved.staleAfterDays) || reverifyText !== String(saved.reverifyAfterDays)
+  const field = 'w-24 text-sm tabular-nums'
 
   return (
     <section className={SECTION} data-hygiene-knobs>
       <div className={SECTION_TITLE}>Hygiene — the list cleans itself</div>
       <p className={SECTION_SUB}>
-        Every night the engine folds exact duplicates into one record (nothing deleted), rests any prospect
-        nobody has touched in a while (off the queues until a reply, a call or a better re-verify wakes it),
-        re-verifies what has gone stale, and re-sweeps one finished territory for new practices. Two clocks
-        are yours to set.
+        On every engine tick (about every half hour) the engine folds exact duplicates into one record (nothing
+        deleted), rests any prospect nobody has touched in a while (off the queues until a reply, a call, a
+        booked demo or a better re-verify wakes it), re-verifies what has gone stale, and re-sweeps one finished
+        territory for new practices. Two clocks are yours to set.
       </p>
       <div className="flex flex-wrap items-end gap-4">
         <label className="flex flex-col gap-1 text-xs font-medium text-gray-600 dark:text-gray-300">
           Rest after (days without a touch)
-          <input
+          <TextInput
             type="number"
             min={7}
             max={730}
             className={field}
-            value={staleAfterDays}
+            value={staleText}
             disabled={pending}
-            onChange={(e) => setStale(Math.max(7, Math.min(730, Number(e.target.value) || 7)))}
+            onChange={(e) => setStale(e.target.value)}
           />
         </label>
         <label className="flex flex-col gap-1 text-xs font-medium text-gray-600 dark:text-gray-300">
           Re-verify after (days)
-          <input
+          <TextInput
             type="number"
             min={7}
             max={365}
             className={field}
-            value={reverifyAfterDays}
+            value={reverifyText}
             disabled={pending}
-            onChange={(e) => setReverify(Math.max(7, Math.min(365, Number(e.target.value) || 7)))}
+            onChange={(e) => setReverify(e.target.value)}
           />
         </label>
         <ActionButton
@@ -229,6 +234,14 @@ function HygieneKnobs({ hygiene }: { hygiene: ProspectingConfig['hygiene'] }) {
           onClick={() =>
             startTransition(async () => {
               setError(null)
+              if (!Number.isInteger(staleAfterDays) || staleAfterDays < 7 || staleAfterDays > 730) {
+                setError('Rest after must be a whole number of days from 7 to 730.')
+                return
+              }
+              if (!Number.isInteger(reverifyAfterDays) || reverifyAfterDays < 7 || reverifyAfterDays > 365) {
+                setError('Re-verify after must be a whole number of days from 7 to 365.')
+                return
+              }
               const r = await runAction(() => updateHygieneAction({ staleAfterDays, reverifyAfterDays }))
               if (!r.ok) setError(r.error)
               else setSaved({ staleAfterDays, reverifyAfterDays })

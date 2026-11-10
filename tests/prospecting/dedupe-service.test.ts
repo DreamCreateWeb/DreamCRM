@@ -24,7 +24,7 @@ vi.mock('@/lib/db', async () => {
   }
   const selectChain = () => {
     const obj: any = {}
-    for (const m of ['from', 'where', 'orderBy', 'limit', 'groupBy', 'having']) obj[m] = () => obj
+    for (const m of ['from', 'where', 'orderBy', 'limit', 'groupBy', 'having', 'for']) obj[m] = () => obj
     obj.then = (onF: (v: unknown) => unknown, onR?: (e: unknown) => unknown) =>
       Promise.resolve(state.selectQueue.shift() ?? []).then(onF, onR)
     return obj
@@ -139,7 +139,7 @@ describe('findDuplicateCandidates', () => {
 })
 
 describe('mergeProspects — the refusals', () => {
-  it('same row · not found · already merged · a converted loser', async () => {
+  it('same row · not found · already merged · a converted loser · a terminal loser beside a clinic', async () => {
     expect(await mergeProspects('a', 'a')).toEqual({ ok: false, reason: 'same_row' })
     state.selectQueue.push([prospect({ id: 'a' })])
     expect(await mergeProspects('a', 'b')).toEqual({ ok: false, reason: 'not_found' })
@@ -147,7 +147,41 @@ describe('mergeProspects — the refusals', () => {
     expect(await mergeProspects('a', 'b')).toEqual({ ok: false, reason: 'already_merged' })
     state.selectQueue.push([prospect({ id: 'a' }), prospect({ id: 'b', status: 'converted' })])
     expect(await mergeProspects('a', 'b')).toEqual({ ok: false, reason: 'loser_converted' })
+    // A practice that said no cannot fold into a clinic: its "no" would be
+    // overwritten by a merge and it is not the clinic's.
+    state.selectQueue.push([prospect({ id: 'a', status: 'converted' }), prospect({ id: 'b', status: 'not_interested' })])
+    expect(await mergeProspects('a', 'b')).toEqual({ ok: false, reason: 'loser_terminal' })
     expect(state.ops).toEqual([])
+  })
+
+  it('reads both rows INSIDE the transaction, locked — nothing is decided on a read from before it', async () => {
+    const seen: string[] = []
+    const mod = (await import('@/lib/db')) as unknown as { db: Record<string, unknown> & { transaction: unknown } }
+    const realTx = mod.db.transaction
+    mod.db.transaction = async (fn: (tx: unknown) => Promise<unknown>) => {
+      seen.push('tx-open')
+      return fn({
+        ...mod.db,
+        select: () => {
+          seen.push('select-in-tx')
+          const obj: any = {}
+          for (const m of ['from', 'where', 'orderBy', 'limit']) obj[m] = () => obj
+          obj.for = (mode: string) => {
+            seen.push(`for-${mode}`)
+            return obj
+          }
+          obj.then = (onF: (v: unknown) => unknown) => Promise.resolve(state.selectQueue.shift() ?? []).then(onF)
+          return obj
+        },
+      })
+    }
+    try {
+      state.selectQueue.push([prospect({ id: 'a' }), prospect({ id: 'b', status: 'merged' })])
+      expect(await mergeProspects('a', 'b')).toEqual({ ok: false, reason: 'already_merged' })
+      expect(seen).toEqual(['tx-open', 'select-in-tx', 'for-update'])
+    } finally {
+      mod.db.transaction = realTx
+    }
   })
 })
 
@@ -258,6 +292,114 @@ describe('mergeProspects — the merge', () => {
     expect(enr).toHaveLength(1)
     expect(enr[0].values).toEqual({ prospectId: 'a' })
   })
+
+  it('the NPI MOVES: cleared on the loser before the survivor takes it (the unique index never sees it twice)', async () => {
+    state.selectQueue.push(
+      [prospect({ id: 'a', npiNumber: null, qualityScore: 90 }), prospect({ id: 'b', npiNumber: '1234567890', qualityScore: 60 })],
+      [], [], [],
+    )
+    await mergeProspects('a', 'b', { now: NOW })
+    const writes = updates('prospect')
+    expect(writes).toHaveLength(3)
+    expect(writes[0].values).toEqual({ npiNumber: null, updatedAt: NOW }) // the loser, first
+    expect(writes[1].values).toMatchObject({ npiNumber: '1234567890' }) // then the survivor
+    expect(writes[2].values).toMatchObject({ status: 'merged', mergedIntoProspectId: 'a' })
+  })
+
+  it('the phone travels WITH its verdict — a disconnected number never lands as "unknown"', async () => {
+    const disconnected = { status: 'disconnected', detail: 'The caller heard a disconnect tone', checkedAt: '2026-11-01T00:00:00.000Z', source: 'caller' }
+    state.selectQueue.push(
+      [
+        prospect({ id: 'a', phone: null, phoneStatus: 'unknown', phoneLineType: null, phoneSource: null, phoneValidatedAt: null, verification: { npi: { status: 'active', detail: null, checkedAt: '2026-11-01T00:00:00.000Z', source: 'nppes' } } }),
+        prospect({ id: 'b', phone: '4045551234', phoneStatus: 'disconnected', phoneLineType: null, phoneSource: 'caller', phoneValidatedAt: new Date('2026-11-01T00:00:00Z'), verification: { phone: disconnected } }),
+      ],
+      [], [], [],
+    )
+    await mergeProspects('a', 'b', { now: NOW })
+    const survivorWrite = updates('prospect')[0].values!
+    expect(survivorWrite).toMatchObject({ phone: '4045551234', phoneStatus: 'disconnected', phoneSource: 'caller' })
+    expect(survivorWrite.verification).toEqual({
+      npi: { status: 'active', detail: null, checkedAt: '2026-11-01T00:00:00.000Z', source: 'nppes' },
+      phone: disconnected,
+    })
+  })
+
+  it('a loser’s LIVE drip is stopped, never re-pointed, when the survivor said no / is gone / unsubscribed / became a clinic', async () => {
+    for (const status of ['not_interested', 'disqualified', 'suppressed', 'converted']) {
+      state.ops = []
+      state.selectQueue.push([prospect({ id: 'a', status }), prospect({ id: 'b', status: 'contacted' })], [], [], [] /* survivor has no live drip */)
+      await mergeProspects('a', 'b', { now: NOW })
+      const enr = updates('outreachEnrollment')
+      expect(enr[0].values, status).toMatchObject({ status: 'stopped_manual', stopReason: 'merged' })
+      expect(enr[1].values, status).toEqual({ prospectId: 'a' })
+      // …and the survivor keeps its status, takes no follow-up, intent or draft.
+      const s = updates('prospect')[0].values
+      expect(s, status).not.toHaveProperty('status')
+      expect(s, status).not.toHaveProperty('intentSignal')
+    }
+  })
+
+  it('a loser’s terminal verdict is CARRIED onto a live survivor — status, reason, its threads closed — never overwritten by "merged"', async () => {
+    state.selectQueue.push(
+      [
+        prospect({ id: 'a', status: 'enriched', qualityScore: 75, assignedCallerId: 'pcal_1', assignedAt: NOW }),
+        prospect({ id: 'b', status: 'not_interested', qualityScore: 60, lostReason: 'replied_no', outcomeAt: new Date('2026-10-01T00:00:00Z') }),
+      ],
+      [], [], [{ id: 'oenr_live' }], // the survivor's own live drip
+    )
+    await mergeProspects('a', 'b', { now: NOW })
+    const enr = updates('outreachEnrollment')
+    expect(enr[0].values).toMatchObject({ status: 'stopped_manual', stopReason: 'merged' }) // the loser's
+    expect(enr[1].values).toMatchObject({ status: 'stopped_manual', stopReason: 'merged_not_interested' }) // the survivor's own
+    expect(enr[2].values).toEqual({ prospectId: 'a' })
+    const s = updates('prospect')[0].values
+    expect(s).toMatchObject({ status: 'not_interested', lostReason: 'replied_no', outcomeAt: new Date('2026-10-01T00:00:00Z'), nextFollowUpAt: null, replyDraft: null })
+    // A closed thread frees the cold caller's slot (P-02).
+    expect(s).toMatchObject({ assignedCallerId: null, assignedAt: null })
+  })
+
+  it('the cold caller (P-02): the loser’s assignment carries to an unheld live survivor, and is released on the loser', async () => {
+    state.selectQueue.push(
+      [prospect({ id: 'a', assignedCallerId: null, assignedAt: null }), prospect({ id: 'b', assignedCallerId: 'pcal_1', assignedAt: new Date('2026-11-09T00:00:00Z') })],
+      [], [], [],
+    )
+    await mergeProspects('a', 'b', { now: NOW })
+    const [s, l] = updates('prospect')
+    expect(s.values).toMatchObject({ assignedCallerId: 'pcal_1', assignedAt: new Date('2026-11-09T00:00:00Z') })
+    expect(l.values).toMatchObject({ status: 'merged', assignedCallerId: null, assignedAt: null })
+
+    // A survivor someone already holds keeps its own caller.
+    state.ops = []
+    state.selectQueue.push(
+      [prospect({ id: 'a', assignedCallerId: 'pcal_9', assignedAt: NOW }), prospect({ id: 'b', assignedCallerId: 'pcal_1', assignedAt: NOW })],
+      [], [], [],
+    )
+    await mergeProspects('a', 'b', { now: NOW })
+    expect(updates('prospect')[0].values).not.toHaveProperty('assignedCallerId')
+  })
+
+  it('a resting survivor woken by a merge loses its resting sentence; a resting loser’s sentence never travels', async () => {
+    state.selectQueue.push(
+      [
+        prospect({ id: 'a', status: 'dormant', dormantFromStatus: 'enriched', qualityReasons: ['No touch since Aug 12, 2026 UTC — resting', 'NPI active'] }),
+        prospect({ id: 'b', status: 'contacted' }),
+      ],
+      [], [], [],
+    )
+    await mergeProspects('a', 'b', { now: NOW })
+    expect(updates('prospect')[0].values).toMatchObject({ status: 'contacted', dormantFromStatus: null, qualityReasons: ['NPI active'] })
+
+    state.ops = []
+    state.selectQueue.push(
+      [
+        prospect({ id: 'a', status: 'converted', qualityReasons: null }),
+        prospect({ id: 'b', status: 'dormant', dormantFromStatus: 'contacted', qualityReasons: ['No touch since Aug 12, 2026 UTC — resting', 'Google listing matched and open'] }),
+      ],
+      [], [], [],
+    )
+    await mergeProspects('a', 'b', { now: NOW })
+    expect(updates('prospect')[0].values!.qualityReasons).toEqual(['Google listing matched and open'])
+  })
 })
 
 describe('mergeDuplicateProspects — the drawer’s door', () => {
@@ -286,7 +428,7 @@ describe('runExactDedupeSweep', () => {
   it('merges only the exact pairs, under the cap, and leaves the fuzzy ones for the drawer', async () => {
     state.selectQueue.push(
       [{ key: 'place_1' }], // place groups
-      [{ key: '4045551212' }], // phone groups
+      [{ key: '4045551212' }], // phone groups (the ten-digit KEY — rendered in hygiene-sql.test.ts)
       [
         prospect({ id: 'a', name: 'Smile Dental', googlePlaceId: 'place_1', qualityScore: 80 }),
         prospect({ id: 'b', name: 'Smile Dental, P.C.', googlePlaceId: 'place_1', qualityScore: 60 }),
@@ -321,5 +463,18 @@ describe('runExactDedupeSweep', () => {
     const r = await runExactDedupeSweep({ now: NOW, cap: 1 })
     expect(r.groups).toBe(2)
     expect(r.merged).toBe(1)
+  })
+
+  it('a refused pair (a terminal loser beside a clinic) is skipped, not an error — no strike, no retry storm', async () => {
+    state.selectQueue.push(
+      [{ key: 'place_1' }],
+      [],
+      [
+        prospect({ id: 'a', status: 'converted', googlePlaceId: 'place_1', phone: null }),
+        prospect({ id: 'b', status: 'disqualified', googlePlaceId: 'place_1', phone: null }),
+      ],
+      [prospect({ id: 'a', status: 'converted' }), prospect({ id: 'b', status: 'disqualified' })],
+    )
+    expect(await runExactDedupeSweep({ now: NOW })).toEqual({ groups: 1, merged: 0, skipped: 1, errors: 0 })
   })
 })

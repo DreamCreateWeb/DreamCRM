@@ -11,9 +11,10 @@
  *
  * "Touch" means a human or the outreach engine did something WITH the
  * practice: a sent touch, a logged call, an inbound event, an intent
- * signal; being enriched counts as the first one (so a freshly enriched
- * row the hunter has not reached yet is not stale on day one). A row with
- * a future follow-up or an open enrollment is being worked and never rests.
+ * signal, a demo the practice booked itself; being enriched counts as the
+ * first one (so a freshly enriched row the hunter has not reached yet is
+ * not stale on day one). A row with a future follow-up, an open enrollment
+ * or a cold caller holding it is being worked and never rests.
  */
 
 import { DECAYABLE_STATUSES, type DecayableStatus } from './db/schema/prospecting'
@@ -28,6 +29,8 @@ export interface DecayInput {
   createdAt: Date
   nextFollowUpAt: Date | null
   hasOpenEnrollment: boolean
+  /** A cold caller holds it (P-02): it is being worked, never rested. */
+  assignedToCaller?: boolean
 }
 
 export interface DecayVerdict {
@@ -71,6 +74,7 @@ export function decayVerdict(input: DecayInput, config: { staleAfterDays: number
   const none = { dormant: false, since, reason: null }
   if (!isDecayableStatus(input.status)) return none
   if (input.hasOpenEnrollment) return none
+  if (input.assignedToCaller) return none
   if (input.nextFollowUpAt && input.nextFollowUpAt.getTime() > now.getTime()) return none
   const cutoff = now.getTime() - config.staleAfterDays * DAY_MS
   if (since.getTime() >= cutoff) return none
