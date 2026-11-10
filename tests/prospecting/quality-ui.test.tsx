@@ -42,6 +42,8 @@ function row(over: Partial<CallListRow> = {}): CallListRow {
     intentSummary: null,
     talkingPoints: [],
     replyDraft: null,
+    assignedCallerId: null,
+    assignedCallerName: null,
     opportunityScore: 92,
     scoreBand: 'hot',
     lastCallOutcome: null,

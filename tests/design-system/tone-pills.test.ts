@@ -17,7 +17,7 @@ import { resolve, join, relative } from 'node:path'
  * avatars and selected-state chips sit in the DATED ALLOWLIST (2026-11-09) —
  * it may only SHRINK: convert one, lower its count (remove at zero).
  */
-const ROOTS = ['app/(default)', 'app/(double-sidebar)', 'app/(partner)', 'components']
+const ROOTS = ['app/(default)', 'app/(double-sidebar)', 'app/(partner)', 'app/(caller)', 'app/(caller-accept)', 'components']
 const SKIP = ['components/clinic-site', 'components/patient-portal', 'components/marketing']
 const HUES = 'amber|emerald|rose|violet|fuchsia|green|red|yellow|blue|orange|indigo|sky|teal|purple'
 const WASH = new RegExp(`\\bbg-(${HUES})-(?:50|100|200|\\d{3}/\\d{1,3})(?![\\d/])`, 'g')

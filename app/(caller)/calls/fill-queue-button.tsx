@@ -7,13 +7,15 @@ import { useToast } from '@/components/ui/toast'
 import { isStaleFailure, runAction } from '@/lib/run-action'
 import { fillMyQueueAction } from './actions'
 
-/** "Fill my queue" — the caller's own top-up, the cron's job on demand. */
-export default function FillQueueButton({ holding, target }: { holding: number; target: number }) {
+/** "Fill my queue" — the caller's own top-up, the cron's job on demand.
+ *  `ready` is what they can dial right now (a callback parked for later
+ *  holds no slot), the number the target is measured against. */
+export default function FillQueueButton({ ready, target }: { ready: number; target: number }) {
   const router = useRouter()
   const toast = useToast()
   const [pending, startTransition] = useTransition()
   const [stale, setStale] = useState(false)
-  const full = holding >= target
+  const full = ready >= target
 
   if (stale) {
     return (
@@ -27,7 +29,7 @@ export default function FillQueueButton({ holding, target }: { holding: number; 
       variant={full ? 'secondary' : 'primary'}
       pending={pending}
       disabled={pending}
-      title={full ? `You hold ${holding} of ${target} — the queue is full` : `Top up to ${target} practices`}
+      title={full ? `${ready} of ${target} ready to dial — the queue is full` : `Top up to ${target} practices ready to dial`}
       onClick={() =>
         startTransition(async () => {
           const r = await runAction(() => fillMyQueueAction())

@@ -16,8 +16,10 @@ import { formatInZone } from '@/lib/prospect-when'
 import { formatProspectPhone } from '@/lib/types/prospecting'
 import { KpiStat } from '@/components/ui/kpi-stat'
 import { EmptyState } from '@/components/ui/empty-state'
+import { TONE_PILL } from '@/lib/ui/encodings'
 import CallerSession from './caller-session'
 import FillQueueButton from './fill-queue-button'
+import CallerSignOut from './sign-out'
 
 /**
  * THE CALLER'S DAY (P-02). One page: their own numbers for today, the next
@@ -39,6 +41,9 @@ export default async function CallsPage() {
           Your Dream Create calling account is no longer active. If you think this is a mistake, get in touch with
           your Dream Create contact.
         </p>
+        <div className="mt-5 flex justify-center">
+          <CallerSignOut />
+        </div>
       </div>
     )
   }
@@ -67,18 +72,23 @@ export default async function CallsPage() {
             next call loads itself.
           </p>
         </div>
-        {!paused && <FillQueueButton holding={today.holding} target={today.target} />}
+        {!paused && <FillQueueButton ready={today.queue} target={today.target} />}
       </div>
 
       {paused && (
-        <div className="mb-6 rounded-[var(--r-md)] bg-amber-500/10 px-4 py-3 text-sm text-amber-800 ring-1 ring-amber-500/20 dark:text-amber-200">
-          Your calling is paused right now. Your queue is kept; nothing to dial until Dream Create resumes it.
+        <div className={`mb-6 rounded-[var(--r-md)] px-4 py-3 text-sm ring-1 ring-amber-500/20 ${TONE_PILL.warn}`}>
+          Your calling is paused right now. The practices you held went back to the pool; your queue fills again the
+          moment Dream Create resumes it.
         </div>
       )}
 
       {/* Today — their own numbers only */}
       <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-        <KpiStat label="In your queue" value={today.queue} sub={`${today.holding} of ${today.target} held`} />
+        <KpiStat
+          label="In your queue"
+          value={today.queue}
+          sub={`${today.queue} of ${today.target} ready${today.later > 0 ? ` · ${today.later} parked for later` : ''}`}
+        />
         <KpiStat label="Dials today" value={today.dials} />
         <KpiStat
           label="Reached"
@@ -100,11 +110,11 @@ export default async function CallsPage() {
           icon="📞"
           title="Nothing to dial right now"
           body={
-            today.holding > 0
-              ? 'Everything you hold is a callback promised for later — it comes back to the top of your queue at its time.'
+            today.later > 0
+              ? 'Everything you hold is a callback promised for later — it comes back to the top of your queue at its time. Fill up to keep dialling meanwhile.'
               : 'Your queue is empty. Fill it and the best practices Dream Create has verified land here, one at a time.'
           }
-          action={<FillQueueButton holding={today.holding} target={today.target} />}
+          action={<FillQueueButton ready={today.queue} target={today.target} />}
         />
       ) : (
         <CallerSession items={queue} hostTimeZone={hostTz} />

@@ -1,7 +1,7 @@
 import 'server-only'
 
 import { randomBytes } from 'crypto'
-import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, lte, notExists, notInArray, or, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, lte, notExists, or, sql } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import { newId } from '@/lib/utils'
 import { normalizeEmail } from '@/lib/contact-normalize'
@@ -12,12 +12,17 @@ import { googleCalendarLink } from '@/lib/prospect-booking'
 import { BAD_PHONE_STATUSES, type ProspectCaller, type ProspectCallerStatus } from '@/lib/db/schema/prospecting'
 import {
   CALLER_INVITE_TTL_DAYS,
+  CALLER_RELEASE_COOLDOWN_DAYS,
   CALLER_SKIP_COOLDOWN_DAYS,
+  CALLER_SKIP_FINAL_REASONS,
+  CALLER_SKIP_LONG_COOLDOWN_DAYS,
   CALLER_SKIP_OUTCOME,
   CALLER_SKIP_REASON_LABELS,
+  CALLER_SERVABLE_STATUSES,
   CALLER_STALE_ASSIGNMENT_DAYS,
   CALLER_TERMINAL_OUTCOMES,
   HAND_RAISER_SIGNALS,
+  PROSPECT_STATUS_LABELS,
   REACHED_CALL_OUTCOMES,
   type CallerSkipReason,
   type ProspectCallOutcome,
@@ -27,6 +32,7 @@ import {
 } from '@/lib/types/prospecting'
 import { US_STATES } from '@/lib/types/us-geo'
 import { getProspectingConfig, logCallOutcome } from './prospecting'
+import { callerServableWhere, releaseUnservableAssignments } from './prospect-caller-release'
 
 /**
  * THE COLD-CALLER PORTAL (P-02) — the service behind the fifth persona.
@@ -87,7 +93,13 @@ export interface CreateCallerInput {
   createdByUserId?: string | null
 }
 
-export async function createCaller(input: CreateCallerInput): Promise<{ id: string; email: string }> {
+/**
+ * Invite a caller: the row, then the email — and the row says whether the
+ * email went. `invite_sent_at` is stamped ONLY on a successful send, so a
+ * Resend outage leaves a visible "invite not sent · Resend" row instead of
+ * a ghost that answers the next attempt with "already exists".
+ */
+export async function createCaller(input: CreateCallerInput): Promise<{ id: string; email: string; sent: boolean }> {
   const name = input.name.trim()
   if (!name) throw new Error('Add their name')
   const email = normalizeEmail(input.email) ?? ''
@@ -104,7 +116,7 @@ export async function createCaller(input: CreateCallerInput): Promise<{ id: stri
     .limit(1)
   if (dupe) {
     if (dupe.status === 'archived') {
-      throw new Error('That email belongs to an archived caller — reactivate them, or use another email')
+      throw new Error('That email belongs to an archived caller — reactivate them from their row, or use another email')
     }
     throw new Error('A caller with this email already exists')
   }
@@ -119,7 +131,7 @@ export async function createCaller(input: CreateCallerInput): Promise<{ id: stri
     email,
     status: 'invited',
     inviteToken: token,
-    inviteSentAt: now,
+    inviteSentAt: null,
     inviteExpiresAt: new Date(now.getTime() + CALLER_INVITE_TTL_MS),
     dailyTarget,
     states: states.length > 0 ? states : null,
@@ -127,16 +139,33 @@ export async function createCaller(input: CreateCallerInput): Promise<{ id: stri
     createdByUserId: input.createdByUserId ?? null,
   })
 
-  await sendCallerInviteEmail({ to: email, name, token })
-  return { id, email }
+  const sent = await sendCallerInviteAndStamp({ callerId: id, to: email, name, token })
+  return { id, email, sent }
 }
 
-/** Re-arm + re-send a caller's invite (new token, a fresh 7-day clock). */
+/** The send + the stamp: `invite_sent_at` is written only when the mail
+ *  left. A failed send is reported, never thrown — the row is the truth. */
+async function sendCallerInviteAndStamp(args: { callerId: string; to: string; name: string; token: string }): Promise<boolean> {
+  try {
+    await sendCallerInviteEmail({ to: args.to, name: args.name, token: args.token })
+  } catch (err) {
+    console.warn('[prospect-callers] invite email failed', args.callerId, err instanceof Error ? err.message : err)
+    return false
+  }
+  await db
+    .update(schema.prospectCaller)
+    .set({ inviteSentAt: new Date() })
+    .where(eq(schema.prospectCaller.id, args.callerId))
+  return true
+}
+
+/** Re-arm + re-send a caller's invite (new token, a fresh 7-day clock).
+ *  Throws when the mail does not leave, so the admin presses again. */
 export async function resendCallerInvite(callerId: string): Promise<{ email: string }> {
   const c = await getCallerById(callerId)
   if (!c) throw new Error('Caller not found')
   if (c.userId) throw new Error('This caller has already set up their account')
-  if (c.status === 'archived') throw new Error('This caller is archived')
+  if (c.status === 'archived') throw new Error('This caller is archived — reactivate them first')
 
   const token = randomBytes(24).toString('hex')
   const now = new Date()
@@ -144,13 +173,14 @@ export async function resendCallerInvite(callerId: string): Promise<{ email: str
     .update(schema.prospectCaller)
     .set({
       inviteToken: token,
-      inviteSentAt: now,
+      inviteSentAt: null,
       inviteExpiresAt: new Date(now.getTime() + CALLER_INVITE_TTL_MS),
       status: 'invited',
       updatedAt: now,
     })
     .where(eq(schema.prospectCaller.id, callerId))
-  await sendCallerInviteEmail({ to: c.email, name: c.name, token })
+  const sent = await sendCallerInviteAndStamp({ callerId, to: c.email, name: c.name, token })
+  if (!sent) throw new Error('The invite email did not send — try again in a moment')
   return { email: c.email }
 }
 
@@ -176,16 +206,28 @@ export async function updateCallerSettings(callerId: string, input: UpdateCaller
   await db.update(schema.prospectCaller).set(patch).where(eq(schema.prospectCaller.id, callerId))
 }
 
-/** Pause (keeps their queue, blocks every action) or resume. */
-export async function setCallerStatus(callerId: string, status: 'active' | 'paused'): Promise<void> {
+/**
+ * Pause or resume. A paused caller is not calling, so a pause hands every
+ * practice they held back to the pool at once (with the release cooldown,
+ * so the next tick's refill does not park them on another caller before the
+ * owner's queues have seen them); their page says so. Resume lets them
+ * fill again. Neither touches the session — the portal reads the status.
+ */
+export async function setCallerStatus(callerId: string, status: 'active' | 'paused'): Promise<{ released: number }> {
   const c = await getCallerById(callerId)
   if (!c) throw new Error('Caller not found')
-  if (c.status === 'archived') throw new Error('This caller is archived')
+  if (c.status === 'archived') throw new Error('This caller is archived — reactivate them first')
   if (status === 'active' && !c.userId) throw new Error('This caller has not accepted their invite yet')
+  const now = new Date()
   await db
     .update(schema.prospectCaller)
-    .set({ status, updatedAt: new Date() })
+    .set({ status, updatedAt: now })
     .where(eq(schema.prospectCaller.id, callerId))
+  const released =
+    status === 'paused'
+      ? await releaseCallerAssignments(callerId, now, new Date(now.getTime() + CALLER_RELEASE_COOLDOWN_DAYS * DAY_MS))
+      : 0
+  return { released }
 }
 
 /** Archive: the account closes and EVERY prospect they held goes back to
@@ -200,11 +242,48 @@ export async function archiveCaller(callerId: string): Promise<{ released: numbe
   return { released }
 }
 
-/** Hand everything a caller holds back to the pool. */
-export async function releaseCallerAssignments(callerId: string, now = new Date()): Promise<number> {
+/**
+ * Reactivate an archived caller — the door the archive copy promises. A
+ * caller who had set up their account goes straight back to active; one who
+ * never accepted gets a fresh invite (a new token, a new 7-day clock).
+ */
+export async function reactivateCaller(callerId: string): Promise<{ status: 'active' | 'invited'; sent: boolean | null }> {
+  const c = await getCallerById(callerId)
+  if (!c) throw new Error('Caller not found')
+  if (c.status !== 'archived') throw new Error('This caller is not archived')
+  const now = new Date()
+  if (c.userId) {
+    await db
+      .update(schema.prospectCaller)
+      .set({ status: 'active', updatedAt: now })
+      .where(eq(schema.prospectCaller.id, callerId))
+    return { status: 'active', sent: null }
+  }
+  const token = randomBytes(24).toString('hex')
+  await db
+    .update(schema.prospectCaller)
+    .set({
+      status: 'invited',
+      inviteToken: token,
+      inviteSentAt: null,
+      inviteExpiresAt: new Date(now.getTime() + CALLER_INVITE_TTL_MS),
+      updatedAt: now,
+    })
+    .where(eq(schema.prospectCaller.id, callerId))
+  const sent = await sendCallerInviteAndStamp({ callerId, to: c.email, name: c.name, token })
+  return { status: 'invited', sent }
+}
+
+/** Hand everything a caller holds back to the pool — with a cooldown when
+ *  the release is a pause or a sweep (never straight back on the same tick). */
+export async function releaseCallerAssignments(
+  callerId: string,
+  now = new Date(),
+  cooldownUntil: Date | null = null,
+): Promise<number> {
   const rows = await db
     .update(schema.prospect)
-    .set({ assignedCallerId: null, assignedAt: null, updatedAt: now })
+    .set({ assignedCallerId: null, assignedAt: null, callerCooldownUntil: cooldownUntil, updatedAt: now })
     .where(eq(schema.prospect.assignedCallerId, callerId))
     .returning({ id: schema.prospect.id })
   return rows.length
@@ -272,13 +351,29 @@ export async function getCallerInviteByToken(token: string): Promise<CallerInvit
   }
 }
 
-/** The accept completion: link the user, go active, burn the token. The
- *  caller must have verified the session email matches the invite. */
-export async function linkCallerUser(callerId: string, userId: string): Promise<void> {
-  await db
+/**
+ * The accept completion: link the user, go active, burn the token. The
+ * caller must have verified the session email matches the invite. The
+ * UPDATE's own predicate re-reads the token, the status and the clock, so an
+ * archive, a resend (a rotated token) or an expiry that landed between the
+ * page's read and this write cannot be overwritten — the link simply misses
+ * and the caller sees the invite is no longer valid.
+ */
+export async function linkCallerUser(callerId: string, userId: string, token: string): Promise<boolean> {
+  const now = new Date()
+  const rows = await db
     .update(schema.prospectCaller)
-    .set({ userId, status: 'active', inviteToken: null, updatedAt: new Date() })
-    .where(eq(schema.prospectCaller.id, callerId))
+    .set({ userId, status: 'active', inviteToken: null, updatedAt: now })
+    .where(
+      and(
+        eq(schema.prospectCaller.id, callerId),
+        eq(schema.prospectCaller.inviteToken, token),
+        inArray(schema.prospectCaller.status, ['invited', 'active']),
+        sql`${schema.prospectCaller.inviteExpiresAt} > ${now}`,
+      ),
+    )
+    .returning({ id: schema.prospectCaller.id })
+  return rows.length > 0
 }
 
 async function sendCallerInviteEmail(args: { to: string; name: string; token: string }): Promise<void> {
@@ -311,35 +406,53 @@ const ASSIGNABLE_STATUSES = ['enriched', 'queued', 'contacted', 'call_list'] as 
 
 /**
  * The pool a caller's queue tops up from — the owner's best leftovers:
- *   - unassigned, with a number nobody has marked bad;
+ *   - unassigned, and SERVABLE ({@link callerServableWhere}: a number nobody
+ *     has marked bad, a live status, never a hand-raiser, no demo booked);
  *   - at or above THE QUALITY FLOOR (P-01; unverified NULLs never pass);
- *   - a live status, never converted / suppressed / disqualified / a no;
- *   - never a hand-raiser (they stay on the owner's own call list);
+ *   - from the assignable statuses (`engaged` is servable while held but is
+ *     the owner's warm lead to claim — not a caller's);
  *   - never a practice the owner is mid-follow-up with;
- *   - not inside a skip's cooldown;
+ *   - not inside a skip's or a release's cooldown;
  *   - in the caller's states when they have any.
  */
 export function callerPoolWhere(floor: number, states: string[], now: Date) {
   return and(
     isNull(schema.prospect.assignedCallerId),
-    isNotNull(schema.prospect.phone),
-    or(isNull(schema.prospect.phoneStatus), notInArray(schema.prospect.phoneStatus, [...BAD_PHONE_STATUSES])),
+    callerServableWhere(now),
     gte(schema.prospect.qualityScore, floor),
     inArray(schema.prospect.status, [...ASSIGNABLE_STATUSES]),
-    or(isNull(schema.prospect.intentSignal), notInArray(schema.prospect.intentSignal, [...HAND_RAISER_SIGNALS])),
     isNull(schema.prospect.nextFollowUpAt),
     or(isNull(schema.prospect.callerCooldownUntil), lte(schema.prospect.callerCooldownUntil, now)),
     states.length > 0 ? inArray(schema.prospect.state, states) : undefined,
   )
 }
 
+/** What the caller's queue serves RIGHT NOW: theirs, servable, and not a
+ *  callback parked for later. The queue read, the KPI and the top-up's
+ *  "how many do they really have" all count exactly this. */
+function callerDialableNowWhere(callerId: string, now: Date) {
+  return and(
+    eq(schema.prospect.assignedCallerId, callerId),
+    callerServableWhere(now),
+    or(isNull(schema.prospect.nextFollowUpAt), lte(schema.prospect.nextFollowUpAt, now)),
+  )
+}
+
+/** The executor a fill runs on — the db, or the transaction it opened. */
+type Exec = Pick<typeof db, 'select' | 'update'>
+
 /**
  * THE CLAIM — one atomic statement. Two callers topping up in the same
  * second both select the same best candidate; only the first UPDATE whose
  * predicate still reads `assigned_caller_id IS NULL` touches a row.
  */
-export async function claimProspectForCaller(prospectId: string, callerId: string, now = new Date()): Promise<boolean> {
-  const rows = await db
+export async function claimProspectForCaller(
+  prospectId: string,
+  callerId: string,
+  now = new Date(),
+  exec: Exec = db,
+): Promise<boolean> {
+  const rows = await exec
     .update(schema.prospect)
     .set({ assignedCallerId: callerId, assignedAt: now, updatedAt: now })
     .where(and(eq(schema.prospect.id, prospectId), isNull(schema.prospect.assignedCallerId)))
@@ -349,32 +462,54 @@ export async function claimProspectForCaller(prospectId: string, callerId: strin
 
 export interface FillResult {
   claimed: number
-  /** How many they hold after the fill. */
-  holding: number
+  /** How many they can dial right now after the fill — what counts toward
+   *  the target (a callback parked for later does not hold a slot). */
+  ready: number
   target: number
 }
 
-/** Top ONE caller's queue up to their daily target. */
+/**
+ * Top ONE caller's queue up to their daily target — INSIDE a transaction
+ * that first locks the caller's own row (`SELECT … FOR UPDATE`). Two fills
+ * for the same caller (the cron tick and "Fill my queue", two tabs) then
+ * run one after the other: the second re-reads the count after the first
+ * committed and finds nothing to add. The cap is per CALLER, not per call.
+ * The per-ROW guard (`assigned_caller_id IS NULL`) still keeps two
+ * different callers from sharing a practice.
+ */
 export async function fillCallerQueue(
   caller: Pick<ProspectCaller, 'id' | 'dailyTarget' | 'states' | 'status'>,
   opts?: { now?: Date; floor?: number },
 ): Promise<FillResult> {
-  const now = opts?.now ?? new Date()
+  if (caller.status !== 'active') return { claimed: 0, ready: 0, target: caller.dailyTarget }
+  const floor = opts?.floor ?? (await getProspectingConfig()).qualityFloor
+  return db.transaction((tx) => fillCallerQueueIn(tx, caller, { now: opts?.now, floor }))
+}
+
+/** The fill's body on a given executor — exported so the boundary test can
+ *  render every statement through drizzle's dialect without a transaction. */
+export async function fillCallerQueueIn(
+  exec: Exec,
+  caller: Pick<ProspectCaller, 'id' | 'dailyTarget' | 'states' | 'status'>,
+  opts: { now?: Date; floor: number },
+): Promise<FillResult> {
+  const now = opts.now ?? new Date()
   const target = caller.dailyTarget
-  const [holdingRow] = await db
+  // The lock: one fill per caller at a time.
+  await exec.select({ id: schema.prospectCaller.id }).from(schema.prospectCaller).where(eq(schema.prospectCaller.id, caller.id)).for('update')
+  const [readyRow] = await exec
     .select({ n: sql<number>`count(*)::int` })
     .from(schema.prospect)
-    .where(eq(schema.prospect.assignedCallerId, caller.id))
-  const holding = holdingRow?.n ?? 0
-  const need = target - holding
-  if (caller.status !== 'active' || need <= 0) return { claimed: 0, holding, target }
+    .where(callerDialableNowWhere(caller.id, now))
+  const ready = readyRow?.n ?? 0
+  const need = target - ready
+  if (caller.status !== 'active' || need <= 0) return { claimed: 0, ready, target }
 
-  const floor = opts?.floor ?? (await getProspectingConfig()).qualityFloor
   const states = parseCallerStates(caller.states)
-  const candidates = await db
+  const candidates = await exec
     .select({ id: schema.prospect.id })
     .from(schema.prospect)
-    .where(callerPoolWhere(floor, states, now))
+    .where(callerPoolWhere(opts.floor, states, now))
     .orderBy(
       sql`${schema.prospect.qualityScore} DESC NULLS LAST`,
       sql`${schema.prospect.opportunityScore} DESC NULLS LAST`,
@@ -386,42 +521,53 @@ export async function fillCallerQueue(
   let claimed = 0
   for (const c of candidates) {
     if (claimed >= need) break
-    if (await claimProspectForCaller(c.id, caller.id, now)) claimed++
+    if (await claimProspectForCaller(c.id, caller.id, now, exec)) claimed++
   }
-  return { claimed, holding: holding + claimed, target }
+  return { claimed, ready: ready + claimed, target }
 }
 
-/** Every active caller, topped up — the prospect-outreach cron tick's job. */
-export async function fillCallerQueues(opts?: { now?: Date }): Promise<{ callers: number; claimed: number; released: number }> {
+/** Every active caller, topped up — the prospect-outreach cron tick's job.
+ *  First the stragglers (rows that stopped being servable by any path),
+ *  then the 7-day sweep, then the fills; every release carries a cooldown
+ *  so this same tick cannot hand a row straight back. */
+export async function fillCallerQueues(
+  opts?: { now?: Date },
+): Promise<{ callers: number; claimed: number; released: number; releasedUnservable: number }> {
   const now = opts?.now ?? new Date()
+  const releasedUnservable = await releaseUnservableAssignments(now)
   const released = await releaseStaleAssignments(now)
   const callers = await db.select().from(schema.prospectCaller).where(eq(schema.prospectCaller.status, 'active'))
-  if (callers.length === 0) return { callers: 0, claimed: 0, released }
+  if (callers.length === 0) return { callers: 0, claimed: 0, released, releasedUnservable }
   const floor = (await getProspectingConfig()).qualityFloor
   let claimed = 0
   for (const c of callers) {
     const r = await fillCallerQueue(c, { now, floor })
     claimed += r.claimed
   }
-  return { callers: callers.length, claimed, released }
+  return { callers: callers.length, claimed, released, releasedUnservable }
 }
 
 /**
  * The 7-day sweep: a claimed prospect with NO call logged in the last seven
- * days goes back to the pool — unless a callback is still promised for a
- * later date (the practice asked for a time; that is a live promise, not
- * neglect). The owner's queues see the released rows on their next read.
+ * days goes back to the pool — unless a callback is still a live promise.
+ * A callback the caller set is live while it is AHEAD and for seven days
+ * after it comes due (the practice asked for a time; the caller has a week
+ * to keep it — the first tick after the minute it comes due is not
+ * neglect). A booked demo still ahead keeps the row with the caller who
+ * earned it. Every release carries the cooldown so the same tick's refill
+ * cannot hand the row straight back; the owner's queues see it meanwhile.
  */
 export async function releaseStaleAssignments(now = new Date()): Promise<number> {
   const cutoff = new Date(now.getTime() - CALLER_STALE_ASSIGNMENT_DAYS * DAY_MS)
+  const cooldownUntil = new Date(now.getTime() + CALLER_RELEASE_COOLDOWN_DAYS * DAY_MS)
   const rows = await db
     .update(schema.prospect)
-    .set({ assignedCallerId: null, assignedAt: null, updatedAt: now })
+    .set({ assignedCallerId: null, assignedAt: null, callerCooldownUntil: cooldownUntil, updatedAt: now })
     .where(
       and(
         isNotNull(schema.prospect.assignedCallerId),
         lte(schema.prospect.assignedAt, cutoff),
-        or(isNull(schema.prospect.nextFollowUpAt), lte(schema.prospect.nextFollowUpAt, now)),
+        or(isNull(schema.prospect.nextFollowUpAt), lte(schema.prospect.nextFollowUpAt, cutoff)),
         notExists(
           db
             .select({ one: sql`1` })
@@ -433,18 +579,57 @@ export async function releaseStaleAssignments(now = new Date()): Promise<number>
               ),
             ),
         ),
+        notExists(
+          db
+            .select({ one: sql`1` })
+            .from(schema.prospectMeeting)
+            .where(
+              and(
+                eq(schema.prospectMeeting.prospectId, schema.prospect.id),
+                eq(schema.prospectMeeting.status, 'booked'),
+                sql`${schema.prospectMeeting.scheduledAt} > ${now}`,
+              ),
+            ),
+        ),
       ),
     )
     .returning({ id: schema.prospect.id })
   return rows.length
 }
 
-/** Platform admin: hand a prospect to a caller (or to nobody). */
+/**
+ * Platform admin: hand a prospect to a caller (or to nobody). A hand-over is
+ * refused, with the reason, when the row is not servable (a no, an
+ * unsubscribe, a conversion, a closed practice, a bad or missing number, a
+ * hand-raiser — those stay with the owner, or a demo already booked) or
+ * when the OWNER has a follow-up scheduled with them (log that call first —
+ * the caller's queue would otherwise hide a promise the owner made).
+ */
 export async function reassignProspect(prospectId: string, callerId: string | null): Promise<void> {
   const now = new Date()
   if (callerId) {
     const c = await getCallerById(callerId)
     if (!c || c.status !== 'active') throw new Error('Pick an active caller')
+    const [row] = await db
+      .select({
+        id: schema.prospect.id,
+        status: schema.prospect.status,
+        phone: schema.prospect.phone,
+        phoneStatus: schema.prospect.phoneStatus,
+        intentSignal: schema.prospect.intentSignal,
+        nextFollowUpAt: schema.prospect.nextFollowUpAt,
+        assignedCallerId: schema.prospect.assignedCallerId,
+        demoAhead: sql<boolean>`exists (select 1 from ${schema.prospectMeeting} where ${schema.prospectMeeting.prospectId} = ${schema.prospect.id} and ${schema.prospectMeeting.status} = 'booked' and ${schema.prospectMeeting.scheduledAt} > ${now})`,
+      })
+      .from(schema.prospect)
+      .where(eq(schema.prospect.id, prospectId))
+      .limit(1)
+    if (!row) throw new Error('Prospect not found')
+    const why = unservableReason(row)
+    if (why) throw new Error(why)
+    if (row.nextFollowUpAt && !row.assignedCallerId) {
+      throw new Error('You have a follow-up scheduled with them — log that call first, then hand them over')
+    }
   }
   await db
     .update(schema.prospect)
@@ -457,16 +642,45 @@ export async function reassignProspect(prospectId: string, callerId: string | nu
     .where(eq(schema.prospect.id, prospectId))
 }
 
+/** Why a row cannot go to a caller — null when it can. The JS twin of
+ *  {@link callerServableWhere}, for a refusal that says the reason. */
+export function unservableReason(row: {
+  status: string
+  phone: string | null
+  phoneStatus: string | null
+  intentSignal: string | null
+  demoAhead?: boolean | null
+}): string | null {
+  if (!(CALLER_SERVABLE_STATUSES as readonly string[]).includes(row.status)) {
+    const label = PROSPECT_STATUS_LABELS[row.status as keyof typeof PROSPECT_STATUS_LABELS] ?? row.status
+    return `They are "${label.toLowerCase()}" — a caller cannot work that record`
+  }
+  if (!row.phone) return 'They have no phone number on file — nothing for a caller to dial'
+  if (row.phoneStatus && (BAD_PHONE_STATUSES as readonly string[]).includes(row.phoneStatus)) {
+    return 'Their number is marked bad — nothing for a caller to dial'
+  }
+  if (row.intentSignal && (HAND_RAISER_SIGNALS as readonly string[]).includes(row.intentSignal)) {
+    return 'They raised their hand — hand-raisers stay on your own call list'
+  }
+  if (row.demoAhead) return 'They already have a demo booked — nothing left to cold-call'
+  return null
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // The caller's own reads — every one filtered by assigned_caller_id
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface CallerAttempt {
   outcome: string
+  /** The caller's OWN note only — never the owner's internal note, never
+   *  another caller's (a note can carry a cell number, a vendor dispute…). */
   note: string | null
   at: Date
-  /** This caller's own row; otherwise it was Dream Create's (never another caller named). */
+  /** This caller's own row. */
   mine: boolean
+  /** The owner's own call (no caller on the row) — reads as "Dream Create";
+   *  another caller's reads as "another caller", nobody named. */
+  byOwner: boolean
 }
 
 export interface CallerQueueItem {
@@ -496,21 +710,17 @@ export interface CallerQueueItem {
  * The caller's queue, ready-to-dial order: callbacks now due first (most
  * overdue at the top), then the fresh ones best quality first. A prospect
  * with a callback promised for LATER is not here (see {@link getCallerLater});
- * a number marked bad since the claim is not here either.
+ * neither is anything that stopped being servable since the claim — a
+ * number marked bad, a reply that said no or unsubscribed, a hand-raiser, a
+ * converted practice, a demo already booked (the same predicate the pool,
+ * the KPI and the release hook read).
  */
 export async function getCallerQueue(callerId: string, opts?: { now?: Date; limit?: number }): Promise<CallerQueueItem[]> {
   const now = opts?.now ?? new Date()
   const rows = await db
     .select()
     .from(schema.prospect)
-    .where(
-      and(
-        eq(schema.prospect.assignedCallerId, callerId),
-        isNotNull(schema.prospect.phone),
-        or(isNull(schema.prospect.phoneStatus), notInArray(schema.prospect.phoneStatus, [...BAD_PHONE_STATUSES])),
-        or(isNull(schema.prospect.nextFollowUpAt), lte(schema.prospect.nextFollowUpAt, now)),
-      ),
-    )
+    .where(callerDialableNowWhere(callerId, now))
     .orderBy(
       sql`${schema.prospect.nextFollowUpAt} ASC NULLS LAST`,
       sql`${schema.prospect.qualityScore} DESC NULLS LAST`,
@@ -546,8 +756,11 @@ export async function getCallerQueue(callerId: string, opts?: { now?: Date; limi
   }))
 }
 
-/** The last few attempts on each prospect — the caller's own + Dream
- *  Create's. Another caller's row reads as Dream Create's: nobody is named. */
+/** The last few attempts on each prospect — outcomes from everyone (the
+ *  context a dialer needs), but a NOTE only from this caller's own rows:
+ *  the owner's internal notes and another caller's free text never cross
+ *  to a card. The owner's row reads as Dream Create's, another caller's as
+ *  "another caller": nobody is named. */
 async function attemptsFor(prospectIds: string[], callerId: string): Promise<Map<string, CallerAttempt[]>> {
   const out = new Map<string, CallerAttempt[]>()
   if (prospectIds.length === 0) return out
@@ -566,7 +779,8 @@ async function attemptsFor(prospectIds: string[], callerId: string): Promise<Map
   for (const r of rows) {
     const list = out.get(r.prospectId) ?? []
     if (list.length >= 5) continue
-    list.push({ outcome: r.outcome, note: r.note, at: r.createdAt, mine: r.callerId === callerId })
+    const mine = r.callerId === callerId
+    list.push({ outcome: r.outcome, note: mine ? r.note : null, at: r.createdAt, mine, byOwner: r.callerId == null })
     out.set(r.prospectId, list)
   }
   return out
@@ -650,10 +864,13 @@ export async function getCallerBooked(
 }
 
 export interface CallerToday {
-  /** Ready to dial right now. */
+  /** Ready to dial right now — exactly the rows the queue serves. */
   queue: number
-  /** Holding in all (queue + callbacks for later). */
+  /** Holding in all (the queue + callbacks parked for later + a demo
+   *  booked and still ahead). */
   holding: number
+  /** Callbacks promised for later than now. */
+  later: number
   target: number
   dials: number
   reached: number
@@ -662,7 +879,9 @@ export interface CallerToday {
 }
 
 /** The caller's own numbers for today — "today" on the owner's clock
- *  (the booking host timezone), the day the callers work. */
+ *  (the booking host timezone), the day the callers work. The queue count
+ *  reads the same predicate as the queue itself, so the KPI never says "1
+ *  in your queue" over an empty card. */
 export async function getCallerToday(
   caller: Pick<ProspectCaller, 'id' | 'dailyTarget'>,
   opts?: { now?: Date; timeZone?: string },
@@ -673,11 +892,17 @@ export async function getCallerToday(
   const [holdRow] = await db
     .select({
       holding: sql<number>`count(*)::int`,
-      queue: sql<number>`count(*) filter (where ${schema.prospect.nextFollowUpAt} is null or ${schema.prospect.nextFollowUpAt} <= ${now})::int`,
-      callbacksDue: sql<number>`count(*) filter (where ${schema.prospect.nextFollowUpAt} <= ${now})::int`,
+      later: sql<number>`count(*) filter (where ${schema.prospect.nextFollowUpAt} > ${now})::int`,
     })
     .from(schema.prospect)
     .where(eq(schema.prospect.assignedCallerId, caller.id))
+  const [queueRow] = await db
+    .select({
+      queue: sql<number>`count(*)::int`,
+      callbacksDue: sql<number>`count(*) filter (where ${schema.prospect.nextFollowUpAt} <= ${now})::int`,
+    })
+    .from(schema.prospect)
+    .where(callerDialableNowWhere(caller.id, now))
   const logRows = await db
     .select({ outcome: schema.prospectCallLog.outcome, n: sql<number>`count(*)::int` })
     .from(schema.prospectCallLog)
@@ -685,12 +910,13 @@ export async function getCallerToday(
     .groupBy(schema.prospectCallLog.outcome)
   const w = windowFromOutcomes(logRows)
   return {
-    queue: holdRow?.queue ?? 0,
+    queue: queueRow?.queue ?? 0,
     holding: holdRow?.holding ?? 0,
+    later: holdRow?.later ?? 0,
     target: caller.dailyTarget,
     dials: w.dials,
     reached: w.reached,
-    callbacksDue: holdRow?.callbacksDue ?? 0,
+    callbacksDue: queueRow?.callbacksDue ?? 0,
     meetings: w.meetings,
   }
 }
@@ -751,12 +977,24 @@ export type CallerOutcomeResult = { ok: true; released: boolean } | { ok: false;
 /**
  * A caller's outcome — THE SAME SPINE as the owner's (`logCallOutcome`:
  * P-01's phone/quality effects, the follow-up cadence, the loss reason), with
- * the caller stamped on the log row. A terminal outcome ends the assignment.
- * Ownership is asserted here, on the row, before anything is written; a
- * prospect that is not theirs throws.
+ * the caller stamped on the log row. A terminal outcome ends the assignment
+ * (every one of them also flips the row unservable, so the pool never hands
+ * it back). A win is the owner's call (the conversion), never a caller's
+ * key; a demo goes through {@link bookDemoForCaller}. Ownership is asserted
+ * here, on the row, before anything is written; a prospect that is not
+ * theirs throws.
  */
 export async function logCallerOutcome(input: CallerOutcomeInput): Promise<CallerOutcomeResult> {
   const now = new Date()
+  if (input.outcome === 'won' || input.outcome === 'demo_booked') {
+    return {
+      ok: false,
+      error:
+        input.outcome === 'won'
+          ? 'A win is logged by Dream Create when the practice signs — book the demo and they take it from there.'
+          : 'Book the demo with a time.',
+    }
+  }
   const row = await assertAssignedToCaller(input.prospectId, input.caller.id)
   let followUpAt = input.followUpAt ?? null
   if (input.outcome === 'callback' && input.callbackLocal) {
@@ -780,7 +1018,11 @@ export async function logCallerOutcome(input: CallerOutcomeInput): Promise<Calle
   return { ok: true, released: terminal }
 }
 
-/** Skip: back to the pool with a 3-day breather, the reason on the log. */
+/** Skip: back to the pool, the reason on the log. "Come back to it later"
+ *  and "other" are a 3-day breather; "not a fit" and "already spoke" END the
+ *  callers' relationship with the row — a long cooldown, so the pool cannot
+ *  recycle it to the same person every three days (the owner's drawer keeps
+ *  the reason). */
 export async function skipProspectForCaller(input: {
   caller: Pick<ProspectCaller, 'id'>
   prospectId: string
@@ -797,21 +1039,21 @@ export async function skipProspectForCaller(input: {
     note: input.note?.trim() ? `${label} — ${input.note.trim()}` : label,
     callerId: input.caller.id,
   })
-  await releaseFromCaller(
-    input.prospectId,
-    input.caller.id,
-    now,
-    new Date(now.getTime() + CALLER_SKIP_COOLDOWN_DAYS * DAY_MS),
-  )
+  const days = (CALLER_SKIP_FINAL_REASONS as readonly string[]).includes(input.reason)
+    ? CALLER_SKIP_LONG_COOLDOWN_DAYS
+    : CALLER_SKIP_COOLDOWN_DAYS
+  await releaseFromCaller(input.prospectId, input.caller.id, now, new Date(now.getTime() + days * DAY_MS))
   await touchCaller(input.caller.id, now)
 }
 
 /**
  * A demo booked on the call: the meeting lands in the same table as the
  * owner's (so reminders, the demos page and the bell all see it), the
- * outcome rides the same spine, the assignment ends, and the platform owner
- * is told who booked it — exactly the self-booked path's alert, naming the
- * caller.
+ * outcome rides the same spine, the demo brief is pre-warmed exactly as the
+ * owner's own booking does it, and the platform owner is told who booked it
+ * — the self-booked path's alert, naming the caller. The row STAYS with the
+ * caller who earned it (the booked meeting takes it off every dial card and
+ * out of the pool); the sweep hands it back once the meeting has passed.
  */
 export async function bookDemoForCaller(input: {
   caller: Pick<ProspectCaller, 'id' | 'name' | 'userId'>
@@ -850,8 +1092,12 @@ export async function bookDemoForCaller(input: {
     note: input.note?.trim() || `Demo booked by ${input.caller.name}`,
     callerId: input.caller.id,
   })
-  await releaseFromCaller(input.prospectId, input.caller.id, now)
   await touchCaller(input.caller.id, now)
+  // Pre-warm the demo prep brief so the owner opens a ready meeting — the
+  // same fire-and-forget the owner's own booking path performs.
+  import('./demo-brief')
+    .then((m) => m.generateDemoBrief(input.prospectId))
+    .catch(() => {})
 
   // Owner alert (bell + forced email), the self-booked shape, naming the caller.
   try {
@@ -909,6 +1155,8 @@ export interface CallerListRow {
   states: string[]
   notes: string | null
   linked: boolean
+  /** Null on an invited row = the email never left (Resend is the door). */
+  inviteSentAt: Date | null
   inviteExpiresAt: Date | null
   lastActiveAt: Date | null
   createdAt: Date
@@ -979,6 +1227,7 @@ export async function listCallers(opts?: { now?: Date; timeZone?: string }): Pro
     states: parseCallerStates(c.states),
     notes: c.notes,
     linked: Boolean(c.userId),
+    inviteSentAt: c.inviteSentAt,
     inviteExpiresAt: c.inviteExpiresAt,
     lastActiveAt: c.lastActiveAt,
     createdAt: c.createdAt,

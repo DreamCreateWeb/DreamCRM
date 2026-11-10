@@ -131,7 +131,7 @@ export async function bookDemoAsCallerAction(input: unknown): Promise<{ ok: true
 }
 
 /** "Fill my queue" — top up to the daily target from the pool, now. */
-export async function fillMyQueueAction(): Promise<{ ok: true; claimed: number; holding: number; target: number } | Fail> {
+export async function fillMyQueueAction(): Promise<{ ok: true; claimed: number; ready: number; target: number } | Fail> {
   const { caller } = await requireCaller({ redirectOnFail: false })
   const r = await fillCallerQueue(caller)
   revalidatePath('/calls')

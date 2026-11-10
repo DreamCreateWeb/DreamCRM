@@ -107,12 +107,17 @@ export default async function CallersPage() {
                       label={CALLER_STATUS_LABELS[c.status]}
                       title={
                         c.status === 'invited'
-                          ? `Invite link good until ${fmtDate(c.inviteExpiresAt)} (UTC)`
+                          ? c.inviteSentAt
+                            ? `Invite link good until ${fmtDate(c.inviteExpiresAt)} (UTC)`
+                            : 'The invite email did not send — press Resend invite'
                           : c.lastActiveAt
                             ? `Last active ${fmtDate(c.lastActiveAt)} (UTC)`
                             : undefined
                       }
                     />
+                    {c.status === 'invited' && !c.inviteSentAt && (
+                      <div className="mt-1 text-xs text-rose-600 dark:text-rose-400">invite not sent · Resend</div>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-right tabular-nums text-gray-600 dark:text-gray-300">{c.dailyTarget}</td>
                   <td className="px-4 py-3 text-xs text-gray-600 dark:text-gray-300">
@@ -120,19 +125,19 @@ export default async function CallersPage() {
                   </td>
                   <td className="px-4 py-3 text-right tabular-nums text-gray-900 dark:text-gray-100">{c.assignedNow}</td>
                   <td className="px-4 py-3 text-right tabular-nums text-gray-600 dark:text-gray-300">
-                    {c.today.dials} <span className="text-gray-400">· {c.week.dials}</span>
+                    {c.today.dials} <span className="text-gray-500 dark:text-gray-400">· {c.week.dials}</span>
                   </td>
                   <td className="px-4 py-3 text-right tabular-nums text-gray-600 dark:text-gray-300">
-                    {pct(c.today.reachedPct)} <span className="text-gray-400">· {pct(c.week.reachedPct)}</span>
+                    {pct(c.today.reachedPct)} <span className="text-gray-500 dark:text-gray-400">· {pct(c.week.reachedPct)}</span>
                   </td>
                   <td className="px-4 py-3 text-right tabular-nums text-gray-600 dark:text-gray-300">
-                    {c.today.callbacks} <span className="text-gray-400">· {c.week.callbacks}</span>
+                    {c.today.callbacks} <span className="text-gray-500 dark:text-gray-400">· {c.week.callbacks}</span>
                   </td>
                   <td className="px-4 py-3 text-right tabular-nums font-semibold text-violet-600 dark:text-violet-400">
-                    {c.today.meetings} <span className="font-normal text-gray-400">· {c.week.meetings}</span>
+                    {c.today.meetings} <span className="font-normal text-gray-500 dark:text-gray-400">· {c.week.meetings}</span>
                   </td>
                   <td className="px-4 py-3 text-right tabular-nums text-gray-600 dark:text-gray-300">
-                    {c.today.disconnected} <span className="text-gray-400">· {c.week.disconnected}</span>
+                    {c.today.disconnected} <span className="text-gray-500 dark:text-gray-400">· {c.week.disconnected}</span>
                   </td>
                   <td className="px-4 py-3 text-right">
                     <CallerRowActions callerId={c.id} name={c.name} status={c.status} linked={c.linked} />

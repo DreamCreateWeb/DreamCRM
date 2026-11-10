@@ -61,6 +61,8 @@ export default async function CallListPage({
         qualityScore: p.qualityScore,
         qualityBand: (p.qualityBand as CallListRow['qualityBand']) ?? null,
         qualityReasons: Array.isArray(p.qualityReasons) ? (p.qualityReasons as string[]) : [],
+        assignedCallerId: detail.assignedCaller?.id ?? null,
+        assignedCallerName: detail.assignedCaller?.name ?? null,
       }
     }
   }

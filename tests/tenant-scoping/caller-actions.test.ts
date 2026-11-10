@@ -32,6 +32,7 @@ vi.mock('@/lib/db', () => {
   const selectChain = () => {
     let tbl = ''
     const obj: any = {}
+    obj.for = () => obj
     obj.from = (t: { _n: string }) => {
       tbl = t._n
       state.tables.push(tbl)
@@ -78,27 +79,26 @@ vi.mock('@/lib/db', () => {
   const schema: Record<string, unknown> = {}
   for (const n of all) schema[n.replace(/_([a-z])/g, (_, c) => c.toUpperCase())] = table(n)
   schema.prospectingConfig = table('prospecting_config')
-  return {
-    db: {
-      select: () => selectChain(),
-      update: (t: { _n: string }) => updateChain(t),
-      insert: (t: { _n: string }) => {
-        state.tables.push(t._n)
-        return {
-          values: async (values: Record<string, unknown>) => {
-            state.inserts.push({ table: t._n, values })
-          },
-        }
-      },
+  const db: any = {
+    select: () => selectChain(),
+    update: (t: { _n: string }) => updateChain(t),
+    insert: (t: { _n: string }) => {
+      state.tables.push(t._n)
+      return {
+        values: async (values: Record<string, unknown>) => {
+          state.inserts.push({ table: t._n, values })
+        },
+      }
     },
-    schema,
   }
+  db.transaction = async (cb: (tx: unknown) => Promise<unknown>) => cb(db)
+  return { db, schema }
 })
 vi.mock('drizzle-orm', () => {
   const op = (name: string) => vi.fn((...args: unknown[]) => ({ op: name, args }))
   return {
     and: op('and'), or: op('or'), eq: op('eq'), ne: op('ne'), gte: op('gte'), lte: op('lte'), gt: op('gt'), lt: op('lt'),
-    inArray: op('inArray'), notInArray: op('notInArray'), isNull: op('isNull'), isNotNull: op('isNotNull'),
+    inArray: op('inArray'), notInArray: op('notInArray'), isNull: op('isNull'), isNotNull: op('isNotNull'), not: op('not'),
     asc: op('asc'), desc: op('desc'), exists: op('exists'), notExists: op('notExists'), ilike: op('ilike'),
     sql: Object.assign(vi.fn(() => ({ op: 'sql', args: [] })), { raw: vi.fn() }),
   }
@@ -121,6 +121,8 @@ vi.mock('@/lib/services/prospect-meetings', () => ({
   formatMeetingTime: vi.fn(() => 'Wed, Nov 12 at 2:00 PM EST'),
 }))
 vi.mock('@/lib/services/gsc', () => ({ getPlatformOrgId: vi.fn(async () => 'org_platform') }))
+const briefSpy = vi.fn(async () => null)
+vi.mock('@/lib/services/demo-brief', () => ({ generateDemoBrief: (...a: unknown[]) => briefSpy(...(a as [])) }))
 const notifySpy = vi.fn(async () => {})
 vi.mock('@/lib/services/notifications', () => ({ notifyOrgMembers: (...a: unknown[]) => notifySpy(...(a as [])) }))
 
@@ -161,6 +163,7 @@ beforeEach(() => {
   state.updates = []
   state.inserts = []
   notifySpy.mockClear()
+  briefSpy.mockClear()
 })
 
 function noClinicTableTouched() {
@@ -211,8 +214,10 @@ describe('ownership is asserted on the row before every write', () => {
     const r = await logCallerOutcomeAction({ prospectId: 'p1', outcome: 'disconnected', note: 'dead tone' })
     expect(r).toEqual({ ok: true, released: true })
     expect(state.inserts[0]).toMatchObject({ table: 'prospect_call_log', values: { outcome: 'disconnected', callerId: 'pcal_me' } })
-    const release = state.updates.find((u) => u.table === 'prospect' && u.set.assignedCallerId === null)!
-    expect(owns(release.where, 'pcal_me')).toBe(true)
+    // The spine's own release hook (self-checking) fires first; the caller's
+    // release is the one predicated on ownership.
+    const release = state.updates.find((u) => u.table === 'prospect' && u.set.assignedCallerId === null && owns(u.where, 'pcal_me'))!
+    expect(release).toBeTruthy()
     noClinicTableTouched()
   })
 
@@ -247,7 +252,7 @@ describe('ownership is asserted on the row before every write', () => {
     expect(getOrGenerateCallScript).not.toHaveBeenCalled()
   })
 
-  it('bookDemoAsCallerAction: own prospect → meeting + outcome + release + the owner is told who booked it', async () => {
+  it('bookDemoAsCallerAction: own prospect → meeting + outcome + the brief pre-warmed + the owner told who booked it; the row STAYS with the caller', async () => {
     state.selects.push([OWN_ROW]) // ownership
     state.selects.push([{ config: { booking: { hostTimeZone: 'America/New_York', durationMin: 30 } } }]) // config
     state.selects.push([]) // applyCallerFeedback read
@@ -259,8 +264,12 @@ describe('ownership is asserted on the row before every write', () => {
     const booked = (logBookedDemo as unknown as { mock: { calls: Array<[{ scheduledAt: Date }]> } }).mock.calls[0][0]
     expect(booked.scheduledAt.toISOString()).toBe('2099-01-05T19:00:00.000Z')
     expect(state.inserts[0]).toMatchObject({ table: 'prospect_call_log', values: { outcome: 'demo_booked', callerId: 'pcal_me' } })
-    const release = state.updates.find((u) => u.table === 'prospect' && u.set.assignedCallerId === null)!
-    expect(owns(release.where, 'pcal_me')).toBe(true)
+    // Not released: the booked meeting takes it off the dial card and out of
+    // the pool; it stays with the caller who earned it until the demo passes.
+    expect(state.updates.filter((u) => u.table === 'prospect' && u.set.assignedCallerId === null)).toHaveLength(0)
+    // The demo brief is pre-warmed exactly as the owner's own booking does it.
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(briefSpy).toHaveBeenCalledWith('p1')
     expect(notifySpy).toHaveBeenCalledTimes(1)
     const [orgId, input] = notifySpy.mock.calls[0] as unknown as [string, { type: string; title: string }]
     expect(orgId).toBe('org_platform')
@@ -283,8 +292,10 @@ describe('the caller’s reads are filtered by their own id', () => {
   it('getCallerQueue reads only assigned_caller_id = me — never the full prospect table', async () => {
     state.selects.push([])
     await getCallerQueue('pcal_me', { now: new Date() })
-    expect(state.wheres[0].table).toBe('prospect')
-    expect(owns(state.wheres[0].where, 'pcal_me')).toBe(true)
+    // (the first recorded where is the servable predicate's meeting subquery)
+    const read = state.wheres.find((w) => w.table === 'prospect')!
+    expect(read).toBeTruthy()
+    expect(owns(read.where, 'pcal_me')).toBe(true)
     noClinicTableTouched()
   })
 
@@ -294,9 +305,9 @@ describe('the caller’s reads are filtered by their own id', () => {
     expect(owns(state.wheres[0].where, 'pcal_me')).toBe(true)
 
     state.wheres = []
-    state.selects.push([{ holding: 0, queue: 0, callbacksDue: 0 }], [])
+    state.selects.push([{ holding: 0, later: 0 }], [{ queue: 0, callbacksDue: 0 }], [])
     await getCallerToday(ME, { now: new Date(), timeZone: 'America/New_York' })
-    expect(owns(state.wheres[0].where, 'pcal_me')).toBe(true)
+    for (const w of state.wheres.filter((x) => x.table === 'prospect')) expect(owns(w.where, 'pcal_me')).toBe(true)
     const logWhere = state.wheres.find((w) => w.table === 'prospect_call_log')!
     expect(find(logWhere.where, (n) => n.op === 'eq' && n.args[0] === 'prospect_call_log.callerId' && n.args[1] === 'pcal_me')).toHaveLength(1)
 
@@ -308,11 +319,16 @@ describe('the caller’s reads are filtered by their own id', () => {
     noClinicTableTouched()
   })
 
-  it('fillMyQueueAction tops up only MY queue', async () => {
+  it('fillMyQueueAction tops up only MY queue — under MY row lock', async () => {
+    state.selects.push([]) // the prospecting config (defaults)
+    state.selects.push([{ id: 'pcal_me' }]) // the lock
     state.selects.push([{ n: 40 }]) // full
     const r = await fillMyQueueAction()
-    expect(r).toMatchObject({ ok: true, claimed: 0, holding: 40, target: 40 })
-    expect(owns(state.wheres[0].where, 'pcal_me')).toBe(true)
+    expect(r).toMatchObject({ ok: true, claimed: 0, ready: 40, target: 40 })
+    const lock = state.wheres.find((w) => w.table === 'prospect_caller')!
+    expect(find(lock.where, (n) => n.op === 'eq' && n.args[0] === 'prospect_caller.id' && n.args[1] === 'pcal_me')).toHaveLength(1)
+    const count = state.wheres.find((w) => w.table === 'prospect')!
+    expect(owns(count.where, 'pcal_me')).toBe(true)
     noClinicTableTouched()
   })
 })

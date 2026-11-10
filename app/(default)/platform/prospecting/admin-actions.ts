@@ -310,9 +310,11 @@ const inviteCallerSchema = z.object({
   notes: z.string().trim().max(2000).optional(),
 })
 
-export type InviteCallerResult = { ok: true; id: string; email: string } | { ok: false; error: string }
+export type InviteCallerResult = { ok: true; id: string; email: string; sent: boolean } | { ok: false; error: string }
 
-/** Invite a caller: the row + the accept email (7-day link). */
+/** Invite a caller: the row + the accept email (7-day link). `sent: false`
+ *  means the row exists and the email did not leave — the list shows it
+ *  with "invite not sent · Resend". */
 export async function inviteCallerAction(input: unknown): Promise<InviteCallerResult> {
   const ctx = await requirePlatformAdmin()
   const parsed = inviteCallerSchema.safeParse(input)
@@ -339,20 +341,40 @@ export async function resendCallerInviteAction(callerId: string): Promise<{ ok: 
   }
 }
 
-/** Pause keeps their queue and blocks every action; resume lets them dial. */
+/** Pause hands everything they held back to the pool and blocks every
+ *  action; resume lets them fill and dial again. */
 export async function setCallerStatusAction(
   callerId: string,
   status: 'active' | 'paused',
-): Promise<{ ok: true } | { ok: false; error: string }> {
+): Promise<{ ok: true; released: number } | { ok: false; error: string }> {
   await requirePlatformAdmin()
   const { setCallerStatus } = await import('@/lib/services/prospect-callers')
   try {
-    await setCallerStatus(z.string().min(1).parse(callerId), z.enum(['active', 'paused']).parse(status))
+    const r = await setCallerStatus(z.string().min(1).parse(callerId), z.enum(['active', 'paused']).parse(status))
     revalidatePath('/platform/prospecting/callers')
     revalidatePath(`/platform/prospecting/callers/${callerId}`)
-    return { ok: true }
+    revalidatePath('/platform/prospecting')
+    revalidatePath('/platform/prospecting/call-list')
+    return { ok: true, ...r }
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : 'Could not change that' }
+  }
+}
+
+/** Reactivate an archived caller — straight back to active when they had
+ *  set up their account, else a fresh invite. */
+export async function reactivateCallerAction(
+  callerId: string,
+): Promise<{ ok: true; status: 'active' | 'invited'; sent: boolean | null } | { ok: false; error: string }> {
+  await requirePlatformAdmin()
+  const { reactivateCaller } = await import('@/lib/services/prospect-callers')
+  try {
+    const r = await reactivateCaller(z.string().min(1).parse(callerId))
+    revalidatePath('/platform/prospecting/callers')
+    revalidatePath(`/platform/prospecting/callers/${callerId}`)
+    return { ok: true, ...r }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Could not reactivate' }
   }
 }
 

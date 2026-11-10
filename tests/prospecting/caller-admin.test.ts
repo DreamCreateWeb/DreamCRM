@@ -2,8 +2,11 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 /**
  * The platform admin's side of the callers (P-02): the invite (every user
- * value escaped, a 7-day link, the unique email), resend, pause / resume /
- * archive (archive hands everything back), the list's numbers, reassign.
+ * value escaped, a 7-day link, the unique email, the row stamped SENT only
+ * once the mail left), resend, pause (hands everything back, with a
+ * cooldown) / resume / archive (hands everything back) / reactivate (the
+ * door the archive copy promises), the list's numbers, reassign (refused
+ * with the reason for a row no caller can work or the owner is mid-follow-up with).
  */
 
 const state = {
@@ -71,7 +74,7 @@ vi.mock('drizzle-orm', () => {
   const op = (name: string) => vi.fn((...args: unknown[]) => ({ op: name, args }))
   return {
     and: op('and'), or: op('or'), eq: op('eq'), ne: op('ne'), gte: op('gte'), lte: op('lte'), gt: op('gt'), lt: op('lt'),
-    inArray: op('inArray'), notInArray: op('notInArray'), isNull: op('isNull'), isNotNull: op('isNotNull'),
+    inArray: op('inArray'), notInArray: op('notInArray'), isNull: op('isNull'), isNotNull: op('isNotNull'), not: op('not'),
     asc: op('asc'), desc: op('desc'), exists: op('exists'), notExists: op('notExists'), ilike: op('ilike'),
     sql: Object.assign(vi.fn(() => ({ op: 'sql', args: [] })), { raw: vi.fn() }),
   }
@@ -86,11 +89,14 @@ import {
   archiveCaller,
   createCaller,
   listCallers,
+  reactivateCaller,
   reassignProspect,
   resendCallerInvite,
   setCallerStatus,
 } from '@/lib/services/prospect-callers'
-import { CALLER_INVITE_TTL_DAYS } from '@/lib/types/prospecting'
+import { CALLER_INVITE_TTL_DAYS, CALLER_RELEASE_COOLDOWN_DAYS } from '@/lib/types/prospecting'
+
+const DAY = 24 * 3600 * 1000
 
 type Node = { op: string; args: unknown[] }
 function find(tree: unknown, pred: (n: Node) => boolean, out: Node[] = []): Node[] {
@@ -115,23 +121,40 @@ beforeEach(() => {
 })
 
 describe('createCaller — the invite', () => {
-  it('normalizes the email, defaults the target, stores the states, and mails a 7-day link', async () => {
+  it('normalizes the email, defaults the target, stores the states, mails a 7-day link — and stamps invite_sent_at only once the mail left', async () => {
     state.selects.push([]) // no dupe
+    const before = Date.now()
     const r = await createCaller({ name: 'Priya Nair', email: ' Priya@Example.COM ', states: ['tx', 'ok'], createdByUserId: 'u_owner' })
     expect(r.email).toBe('priya@example.com')
+    expect(r.sent).toBe(true)
     const row = state.inserts[0]
     expect(row.table).toBe('prospect_caller')
-    expect(row.values).toMatchObject({ status: 'invited', dailyTarget: 40, states: ['TX', 'OK'], createdByUserId: 'u_owner' })
+    expect(row.values).toMatchObject({ status: 'invited', dailyTarget: 40, states: ['TX', 'OK'], createdByUserId: 'u_owner', inviteSentAt: null })
     expect(String(row.values.id)).toMatch(/^pcal_/)
     expect(String(row.values.inviteToken)).toHaveLength(48)
-    const ttl = (row.values.inviteExpiresAt as Date).getTime() - (row.values.inviteSentAt as Date).getTime()
-    expect(ttl).toBe(CALLER_INVITE_TTL_DAYS * 24 * 3600 * 1000)
+    const ttl = (row.values.inviteExpiresAt as Date).getTime() - before
+    expect(ttl).toBeGreaterThanOrEqual(CALLER_INVITE_TTL_DAYS * DAY - 5000)
+    expect(ttl).toBeLessThanOrEqual(CALLER_INVITE_TTL_DAYS * DAY + 5000)
     expect(deliverSpy).toHaveBeenCalledTimes(1)
     const mail = deliverSpy.mock.calls[0][0]
     expect(mail.to).toBe('priya@example.com')
     expect(mail.subject).toBe('Dream Create invited you to call for them')
     expect(mail.html).toContain(`/caller/accept?token=${row.values.inviteToken}`)
     expect(mail.html).toContain('Hi Priya,')
+    // The stamp lands AFTER the send, on the row just made.
+    const stamp = state.updates.find((u) => u.table === 'prospect_caller' && 'inviteSentAt' in u.set)!
+    expect(stamp.set.inviteSentAt).toBeInstanceOf(Date)
+    expect(find(stamp.where, (n) => n.op === 'eq' && n.args[1] === row.values.id)).toHaveLength(1)
+  })
+
+  it('a send that fails keeps the row, reports sent:false and stamps nothing — the list says "invite not sent · Resend"', async () => {
+    state.selects.push([])
+    deliverSpy.mockRejectedValueOnce(new Error('resend is down'))
+    const r = await createCaller({ name: 'Priya Nair', email: 'priya@example.com' })
+    expect(r.sent).toBe(false)
+    expect(state.inserts).toHaveLength(1)
+    expect(state.inserts[0].values.inviteSentAt).toBeNull()
+    expect(state.updates.filter((u) => 'inviteSentAt' in u.set)).toHaveLength(0)
   })
 
   it('escapes every user value in the HTML — a name is never markup', async () => {
@@ -157,28 +180,66 @@ describe('createCaller — the invite', () => {
 describe('resend / pause / resume / archive', () => {
   const invited = { id: 'pcal_1', name: 'Priya Nair', email: 'priya@example.com', status: 'invited', userId: null }
 
-  it('resend re-arms a fresh token + a fresh 7-day clock; refuses once linked', async () => {
+  it('resend re-arms a fresh token + a fresh 7-day clock, stamps sent after the mail; refuses once linked; a failed send throws', async () => {
     state.selects.push([invited])
     await resendCallerInvite('pcal_1')
     const u = state.updates.find((x) => x.table === 'prospect_caller')!
     expect(String(u.set.inviteToken)).toHaveLength(48)
     expect(u.set.status).toBe('invited')
+    expect(u.set.inviteSentAt).toBeNull()
     expect(deliverSpy).toHaveBeenCalledTimes(1)
+    expect(state.updates.filter((x) => x.set.inviteSentAt instanceof Date)).toHaveLength(1)
 
     state.selects.push([{ ...invited, userId: 'u1', status: 'active' }])
     await expect(resendCallerInvite('pcal_1')).rejects.toThrow(/already set up/)
+
+    state.selects.push([invited])
+    deliverSpy.mockRejectedValueOnce(new Error('resend is down'))
+    await expect(resendCallerInvite('pcal_1')).rejects.toThrow(/did not send/)
   })
 
-  it('pause / resume flip the status; resume needs an accepted invite; archived is final', async () => {
+  it('pause hands every held practice back WITH the release cooldown; resume releases nothing; resume needs an accepted invite; archived needs reactivation', async () => {
     state.selects.push([{ ...invited, userId: 'u1', status: 'active' }])
-    await setCallerStatus('pcal_1', 'paused')
+    state.updateReturns.push([]) // the status flip
+    state.updateReturns.push([{ id: 'p1' }, { id: 'p2' }]) // released
+    const r = await setCallerStatus('pcal_1', 'paused')
+    expect(r.released).toBe(2)
     expect(state.updates[0].set.status).toBe('paused')
+    const release = state.updates[1]
+    expect(release.table).toBe('prospect')
+    expect(release.set).toMatchObject({ assignedCallerId: null, assignedAt: null })
+    const until = release.set.callerCooldownUntil as Date
+    expect(until.getTime() - Date.now()).toBeGreaterThan(CALLER_RELEASE_COOLDOWN_DAYS * DAY - 5000)
+    expect(find(release.where, (n) => n.op === 'eq' && n.args[0] === 'prospect.assignedCallerId' && n.args[1] === 'pcal_1')).toHaveLength(1)
+
+    state.updates = []
+    state.selects.push([{ ...invited, userId: 'u1', status: 'paused' }])
+    expect(await setCallerStatus('pcal_1', 'active')).toEqual({ released: 0 })
+    expect(state.updates).toHaveLength(1)
 
     state.selects.push([invited]) // never accepted
     await expect(setCallerStatus('pcal_1', 'active')).rejects.toThrow(/not accepted/)
 
     state.selects.push([{ ...invited, status: 'archived' }])
-    await expect(setCallerStatus('pcal_1', 'active')).rejects.toThrow(/archived/)
+    await expect(setCallerStatus('pcal_1', 'active')).rejects.toThrow(/reactivate/)
+  })
+
+  it('reactivate: a linked caller goes straight back to active; an unlinked one gets a fresh invite; a live row is refused', async () => {
+    state.selects.push([{ ...invited, userId: 'u1', status: 'archived' }])
+    expect(await reactivateCaller('pcal_1')).toEqual({ status: 'active', sent: null })
+    expect(state.updates[0]).toMatchObject({ table: 'prospect_caller', set: { status: 'active' } })
+    expect(deliverSpy).not.toHaveBeenCalled()
+
+    state.updates = []
+    state.selects.push([{ ...invited, status: 'archived' }])
+    expect(await reactivateCaller('pcal_1')).toEqual({ status: 'invited', sent: true })
+    expect(state.updates[0].set).toMatchObject({ status: 'invited', inviteSentAt: null })
+    expect(String(state.updates[0].set.inviteToken)).toHaveLength(48)
+    expect(deliverSpy).toHaveBeenCalledTimes(1)
+    expect(state.updates.filter((x) => x.set.inviteSentAt instanceof Date)).toHaveLength(1)
+
+    state.selects.push([{ ...invited, userId: 'u1', status: 'active' }])
+    await expect(reactivateCaller('pcal_1')).rejects.toThrow(/not archived/)
   })
 
   it('archive closes the account, burns the token and hands EVERY held prospect back', async () => {
@@ -224,8 +285,11 @@ describe('listCallers — the tab’s numbers', () => {
 })
 
 describe('reassignProspect (platform admin)', () => {
-  it('hands the row to an active caller and clears any cooldown; null unassigns', async () => {
+  const servable = { id: 'p1', status: 'contacted', phone: '4045551212', phoneStatus: null, intentSignal: null, nextFollowUpAt: null, assignedCallerId: null, demoAhead: false }
+
+  it('hands a servable row to an active caller and clears any cooldown; null unassigns without a check', async () => {
     state.selects.push([{ id: 'pcal_2', status: 'active' }])
+    state.selects.push([servable])
     await reassignProspect('p1', 'pcal_2')
     expect(state.updates[0].set).toMatchObject({ assignedCallerId: 'pcal_2', callerCooldownUntil: null })
     expect(state.updates[0].set.assignedAt).toBeInstanceOf(Date)
@@ -235,5 +299,30 @@ describe('reassignProspect (platform admin)', () => {
 
     state.selects.push([{ id: 'pcal_3', status: 'paused' }])
     await expect(reassignProspect('p1', 'pcal_3')).rejects.toThrow(/active caller/)
+  })
+
+  it('refuses, with the reason, a row no caller can work — and one the OWNER is mid-follow-up with', async () => {
+    const cases: Array<[Record<string, unknown>, RegExp]> = [
+      [{ status: 'not_interested' }, /not interested.*cannot work/i],
+      [{ status: 'suppressed' }, /cannot work/i],
+      [{ status: 'converted' }, /cannot work/i],
+      [{ phone: null }, /no phone number/i],
+      [{ phoneStatus: 'disconnected' }, /marked bad/i],
+      [{ intentSignal: 'reply_interested' }, /raised their hand/i],
+      [{ demoAhead: true }, /demo booked/i],
+      [{ nextFollowUpAt: new Date('2026-11-12T15:00:00Z') }, /follow-up scheduled/i],
+    ]
+    for (const [over, why] of cases) {
+      state.updates = []
+      state.selects.push([{ id: 'pcal_2', status: 'active' }])
+      state.selects.push([{ ...servable, ...over }])
+      await expect(reassignProspect('p1', 'pcal_2'), JSON.stringify(over)).rejects.toThrow(why)
+      expect(state.updates, JSON.stringify(over)).toHaveLength(0)
+    }
+    // A callback the CALLER set moves with the row — not the owner's promise.
+    state.selects.push([{ id: 'pcal_2', status: 'active' }])
+    state.selects.push([{ ...servable, nextFollowUpAt: new Date('2026-11-12T15:00:00Z'), assignedCallerId: 'pcal_9' }])
+    await reassignProspect('p1', 'pcal_2')
+    expect(state.updates).toHaveLength(1)
   })
 })

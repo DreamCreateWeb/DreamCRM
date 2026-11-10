@@ -25,7 +25,7 @@ import { read, tsxFiles } from '../design-system/jsx-attrs'
 // (the door prop is `ctaHref`), and a patient's empty page owes a way forward
 // exactly as much as a clinic's does. `components` already covers
 // components/patient-portal.
-const ROOTS = ['app/(default)', 'app/(double-sidebar)', 'app/(portal)', 'components']
+const ROOTS = ['app/(default)', 'app/(double-sidebar)', 'app/(portal)', 'app/(caller)', 'components']
 const EMPTY_TAGS: Record<string, string> = { EmptyState: 'action', PortalEmptyState: 'ctaHref' }
 
 /** `file` + a substring of the `title` attribute's SOURCE → why no door. */
