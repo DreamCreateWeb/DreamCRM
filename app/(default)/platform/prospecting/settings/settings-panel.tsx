@@ -1,12 +1,14 @@
 'use client'
 
-import { useState, useTransition } from 'react'
-import type { ProspectingConfig } from '@/lib/types/prospecting'
+import { useEffect, useRef, useState, useTransition } from 'react'
+import type { ProspectingConfig, ProspectQualityCounts } from '@/lib/types/prospecting'
 import { PROSPECT_SCORE_BANDS } from '@/lib/db/schema/prospecting'
-import { SCORE_BAND_LABELS, type ProspectScoreBand } from '@/lib/types/prospecting'
+import { SCORE_BAND_LABELS, splitAtFloor, type ProspectScoreBand } from '@/lib/types/prospecting'
 import { US_STATES, US_STATE_NAMES, type UsState } from '@/lib/types/us-geo'
 import { StatusPill } from '@/components/ui/status-pill'
+import { runAction } from '@/lib/run-action'
 import {
+  setQualityFloorAction,
   setKillSwitchAction,
   setDryRunAction,
   toggleStateAction,
@@ -57,6 +59,117 @@ function Toggle({
 }
 
 type BattleCard = { competitor: string; angle: string }
+
+/**
+ * THE QUALITY FLOOR (P-01). A slider the queues and the hunter obey: only
+ * prospects whose quality score reaches it are served. The counts beside it
+ * are LIVE from the histogram — which counts only the rows a floor could
+ * serve (never a parked band, never a hard zero: the same predicate the
+ * queues read), so "N at or above" IS what the queues serve at that floor.
+ * The save is debounced and rides runAction, and saves are SERIALIZED:
+ * one in flight at a time, the latest value queued behind it, so an older
+ * value can never land after a newer one — on the server or in "Saved ✓".
+ */
+export function QualityFloor({ floor, quality }: { floor: number; quality: ProspectQualityCounts }) {
+  const [value, setValue] = useState(floor)
+  const [saved, setSaved] = useState(floor)
+  const [pending, startTransition] = useTransition()
+  const [error, setError] = useState<string | null>(null)
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // The one in-flight save, and the value waiting behind it (only the
+  // latest — a value overtaken before it was sent is never sent).
+  const inFlight = useRef(false)
+  const queued = useRef<number | null>(null)
+  const split = splitAtFloor(quality.scoreBuckets, value)
+
+  const send = (next: number) => {
+    inFlight.current = true
+    startTransition(async () => {
+      setError(null)
+      try {
+        const r = await runAction(() => setQualityFloorAction(next))
+        if (!r.ok) setError('error' in r ? r.error : 'Could not save the floor.')
+        else setSaved(next)
+      } finally {
+        inFlight.current = false
+        const waiting = queued.current
+        queued.current = null
+        if (waiting != null && waiting !== next) send(waiting)
+      }
+    })
+  }
+  const commit = (next: number) => {
+    if (timer.current) clearTimeout(timer.current)
+    timer.current = setTimeout(() => {
+      if (inFlight.current) queued.current = next
+      else send(next)
+    }, 400)
+  }
+  useEffect(() => () => {
+    if (timer.current) clearTimeout(timer.current)
+  }, [])
+
+  return (
+    <section className={SECTION} data-quality-floor>
+      <div className={SECTION_TITLE}>The quality floor</div>
+      <p className={SECTION_SUB}>
+        Every prospect gets a quality score — can we actually reach them? A matched Google listing, a number
+        a carrier says is live, an active NPI, a website that answers. The phone queues, Call Mode and the
+        hunter serve only prospects at or above this floor — and never a parked one (a dead number, a
+        retired NPI, a closed or parked site), whatever the floor says. Everyone else waits for a re-verify
+        (or you) to say otherwise. Hand-raisers always get through — but never on a disconnected number.
+      </p>
+      <label className="block text-xs font-medium text-gray-600 dark:text-gray-300">
+        Serve prospects scoring at least{' '}
+        <span className="font-mono-num text-sm font-bold text-gray-900 dark:text-gray-100">{value}</span>
+        <input
+          type="range"
+          min={0}
+          max={100}
+          step={5}
+          value={value}
+          // Never disabled mid-adjust: a disabled range drops keyboard focus
+          // and freezes a drag; the pending state lives on the save note.
+          aria-busy={pending || undefined}
+          aria-valuetext={`${value} — ${split.above} prospects served at or above, ${split.below} below the floor, ${quality.parked} parked`}
+          className="mt-2 block w-full accent-teal-600"
+          onChange={(e) => {
+            const next = Number(e.target.value)
+            setValue(next)
+            commit(next)
+          }}
+        />
+      </label>
+      <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-600 dark:text-gray-300 tabular-nums">
+        <span>
+          <span className="font-semibold text-gray-900 dark:text-gray-100">{split.above.toLocaleString()}</span> served at or above
+        </span>
+        <span>
+          <span className="font-semibold text-gray-900 dark:text-gray-100">{split.below.toLocaleString()}</span> below the floor
+        </span>
+        <span>
+          <span className="font-semibold text-gray-900 dark:text-gray-100">{quality.parked.toLocaleString()}</span> parked — never served
+        </span>
+        <span>
+          <span className="font-semibold text-gray-900 dark:text-gray-100">{quality.unverified.toLocaleString()}</span> not verified yet
+        </span>
+        <span className="text-gray-500 dark:text-gray-400">
+          Best {quality.best} · Good {quality.good} · Weak {quality.weak} · Parked {quality.parked}
+        </span>
+        {pending ? (
+          <span className="text-gray-500 dark:text-gray-400">Saving</span>
+        ) : saved === value ? (
+          <span className="text-teal-700 dark:text-teal-300">Saved ✓</span>
+        ) : null}
+      </div>
+      {error && (
+        <p role="alert" className="mt-2 text-xs text-rose-600 dark:text-rose-400">
+          {error}
+        </p>
+      )}
+    </section>
+  )
+}
 
 function BrainEditor({ brain }: { brain: ProspectingConfig['brain'] }) {
   const [pending, startTransition] = useTransition()
@@ -210,12 +323,20 @@ export default function SettingsPanel({
   usage,
   env,
   autoEnrolledToday,
+  quality,
 }: {
   config: ProspectingConfig
   progress: Array<{ state: string; pending: number; done: number; error: number; imported: number }>
-  usage: { placesUsed: number; crawlsUsed: number; aiUsed: number }
-  env: { senderConfigured: boolean; gmailConfigured: boolean; placesConfigured: boolean }
+  usage: { placesUsed: number; crawlsUsed: number; aiUsed: number; phoneValidateUsed: number }
+  env: {
+    senderConfigured: boolean
+    gmailConfigured: boolean
+    placesConfigured: boolean
+    phoneDriver: 'aws' | 'none'
+    phoneValidateRefusedToday: boolean
+  }
   autoEnrolledToday: number
+  quality: ProspectQualityCounts
 }) {
   const [pending, startTransition] = useTransition()
   // Optimistic mirrors so the switches feel instant.
@@ -279,6 +400,9 @@ export default function SettingsPanel({
           />
         </div>
       </section>
+
+      {/* The quality floor (P-01) */}
+      <QualityFloor floor={config.qualityFloor} quality={quality} />
 
       {/* The brain — editable product knowledge + battle cards */}
       <BrainEditor brain={config.brain} />
@@ -438,6 +562,25 @@ export default function SettingsPanel({
               detection + better deliverability
             </span>
           </li>
+          <li className="flex items-center gap-2" data-phone-validation>
+            <StatusPill
+              tone={env.phoneDriver === 'aws' ? (env.phoneValidateRefusedToday ? 'urgent' : 'ok') : 'warn'}
+              label={
+                env.phoneDriver === 'aws'
+                  ? env.phoneValidateRefusedToday
+                    ? 'Phone validation: refused today'
+                    : 'Phone validation: on'
+                  : 'Phone validation: off'
+              }
+            />
+            <span className="text-gray-700 dark:text-gray-300">
+              {env.phoneDriver === 'aws'
+                ? env.phoneValidateRefusedToday
+                  ? 'AWS refused the line check today — grant mobiletargeting:PhoneNumberValidate to the app role; scoring runs without it meanwhile'
+                  : 'Amazon Pinpoint line-type checks (~$0.006 a number, metered below)'
+                : 'set PHONE_VALIDATE_DRIVER=aws and grant mobiletargeting:PhoneNumberValidate — until then numbers are checked for format only'}
+            </span>
+          </li>
         </ul>
       </section>
 
@@ -497,12 +640,13 @@ export default function SettingsPanel({
           Enrichment pauses softly when a budget is hit — discovery keeps running and nothing is
           lost, it just waits for the month to roll.
         </p>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-sm">
           {(
             [
               ['Google Places lookups', usage.placesUsed, config.budgets.placesPerMonth],
               ['Website crawls', usage.crawlsUsed, config.budgets.crawlsPerMonth],
               ['AI scorings', usage.aiUsed, config.budgets.aiPerMonth],
+              ['Phone line checks', usage.phoneValidateUsed, config.budgets.phoneValidatePerMonth],
             ] as Array<[string, number, number]>
           ).map(([label, used, budget]) => (
             <div key={label} className="rounded-[var(--r-xs)] bg-[color:var(--color-surface-sunk)] p-3">

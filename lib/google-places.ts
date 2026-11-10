@@ -18,8 +18,16 @@ const PLACES_URL = 'https://places.googleapis.com/v1/places:searchText'
 // similar-sounding practice three states away). Both are lower-tier fields
 // than websiteUri/rating, which already put this call in the Advanced SKU —
 // the mask addition changes what we can verify, not what we pay.
+// nationalPhoneNumber (P-01) is the strongest match anchor there is — the
+// registry's front-desk number against the listing's — and sits in the
+// same Advanced SKU this call already pays for. The `reviews` field is
+// deliberately NOT here: it is a separate, pricier SKU and the quality
+// score only needs the count.
 const FIELD_MASK =
-  'places.id,places.displayName,places.formattedAddress,places.websiteUri,places.rating,places.userRatingCount,places.businessStatus,places.googleMapsUri'
+  'places.id,places.displayName,places.formattedAddress,places.nationalPhoneNumber,places.websiteUri,places.rating,places.userRatingCount,places.businessStatus,places.googleMapsUri'
+/** Candidates per search — one request whatever the count, so three costs
+ *  what one did and lets the matcher pick the RIGHT listing. */
+const CANDIDATE_COUNT = 3
 
 export interface PlaceResult {
   placeId: string
@@ -27,6 +35,8 @@ export interface PlaceResult {
   displayName: string | null
   /** Full formatted address — the match-verification anchor. */
   formattedAddress: string | null
+  /** The listing's phone, digits only (10) — the other match anchor. */
+  nationalPhoneNumber: string | null
   websiteUri: string | null
   /** 4.7 → 47 (tenths, integer — no float drift in the DB). */
   ratingTenths: number | null
@@ -59,6 +69,7 @@ export function normalizePlace(raw: unknown): PlaceResult | null {
     displayName,
     formattedAddress:
       typeof p.formattedAddress === 'string' && p.formattedAddress ? p.formattedAddress : null,
+    nationalPhoneNumber: normalizePlacePhone(p.nationalPhoneNumber),
     websiteUri: typeof p.websiteUri === 'string' && p.websiteUri ? p.websiteUri : null,
     ratingTenths: rating != null ? Math.round(rating * 10) : null,
     reviewCount:
@@ -70,19 +81,34 @@ export function normalizePlace(raw: unknown): PlaceResult | null {
   }
 }
 
+/** "(404) 555-1212" → "4045551212"; null when not a 10-digit US number. */
+export function normalizePlacePhone(v: unknown): string | null {
+  if (typeof v !== 'string') return null
+  const digits = v.replace(/\D/g, '').replace(/^1(?=\d{10}$)/, '')
+  return digits.length === 10 ? digits : null
+}
+
+export type PlacesSearchOutcome =
+  | { ok: true; places: PlaceResult[] }
+  /** The key was refused (401/403) — a credentials problem, not a miss. */
+  | { ok: false; error: 'auth' }
+  | { ok: false; error: 'unavailable' }
+  | { ok: false; error: 'not_configured' }
+
 /**
- * Find a dental practice by name + address. Returns the top match or null
- * (not found / not configured / API error — callers treat all three as
- * "no Places data", recorded distinctly by the caller's budget metering).
+ * Up to three candidate listings for a dental practice by name + address.
+ * The caller matches them against the registry record (lib/prospect-match)
+ * and takes only a real match. Never throws; an auth refusal is reported
+ * distinctly so the engine can say "the key is wrong" once a day.
  */
-export async function findDentalPlace(input: {
+export async function findDentalPlaceCandidates(input: {
   name: string
   addressLine1?: string | null
   city?: string | null
   state?: string | null
-}): Promise<PlaceResult | null> {
+}): Promise<PlacesSearchOutcome> {
   const key = process.env.GOOGLE_PLACES_API_KEY?.trim()
-  if (!key) return null
+  if (!key) return { ok: false, error: 'not_configured' }
   const textQuery = [input.name, input.addressLine1, input.city, input.state]
     .filter(Boolean)
     .join(', ')
@@ -94,17 +120,38 @@ export async function findDentalPlace(input: {
         'x-goog-api-key': key,
         'x-goog-fieldmask': FIELD_MASK,
       },
-      body: JSON.stringify({ textQuery, includedType: 'dentist', maxResultCount: 1 }),
+      body: JSON.stringify({ textQuery, includedType: 'dentist', maxResultCount: CANDIDATE_COUNT }),
       signal: AbortSignal.timeout(15_000),
     })
     if (!res.ok) {
       console.warn('[google-places] searchText failed', res.status)
-      return null
+      return { ok: false, error: res.status === 401 || res.status === 403 ? 'auth' : 'unavailable' }
     }
     const body = (await res.json()) as { places?: unknown[] }
-    return normalizePlace(body.places?.[0])
+    const places: PlaceResult[] = []
+    for (const raw of body.places ?? []) {
+      const p = normalizePlace(raw)
+      if (p) places.push(p)
+    }
+    return { ok: true, places }
   } catch (err) {
     console.warn('[google-places] lookup error', err instanceof Error ? err.message : err)
-    return null
+    return { ok: false, error: 'unavailable' }
   }
+}
+
+/**
+ * Find a dental practice by name + address. Returns the top candidate or
+ * null (not found / not configured / API error — callers treat all three
+ * as "no Places data"). The grader's door; enrichment goes through
+ * `findDentalPlaceCandidates` + the matcher instead.
+ */
+export async function findDentalPlace(input: {
+  name: string
+  addressLine1?: string | null
+  city?: string | null
+  state?: string | null
+}): Promise<PlaceResult | null> {
+  const r = await findDentalPlaceCandidates(input)
+  return r.ok ? (r.places[0] ?? null) : null
 }

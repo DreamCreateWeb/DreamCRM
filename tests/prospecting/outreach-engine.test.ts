@@ -130,6 +130,7 @@ vi.mock('@/lib/services/prospecting', () => ({
   counterMonth: () => '2026-07',
   counterDay: () => '2026-07-07',
   isKnownContact: knownMock,
+  servableAboveFloor: vi.fn(() => ({})),
 }))
 vi.mock('@/lib/ai', () => ({
   runClaudeJson: aiMock,
@@ -381,6 +382,18 @@ describe('runOutreach', () => {
     state.selectQueue.push([]) // paused
     state.selectQueue.push([ENROLLMENT])
     state.selectQueue.push([PROSPECT])
+    const r = await runOutreach({ now: TUESDAY_10AM_CHICAGO })
+    expect(r).toMatchObject({ guardSkipped: 1, sent: 0 })
+    expect(resendSendMock).not.toHaveBeenCalled()
+    const stop = state.updates.find((u) => u.table === 'outreach_enrollment')
+    expect(stop!.values).toMatchObject({ status: 'stopped_manual' })
+  })
+
+  it('a practice the verification pass disqualified is never sent another step — the enrollment stops at send time (P-01 C7)', async () => {
+    knownMock.mockResolvedValue(false)
+    state.selectQueue.push([]) // paused
+    state.selectQueue.push([ENROLLMENT])
+    state.selectQueue.push([{ ...PROSPECT, status: 'disqualified' }])
     const r = await runOutreach({ now: TUESDAY_10AM_CHICAGO })
     expect(r).toMatchObject({ guardSkipped: 1, sent: 0 })
     expect(resendSendMock).not.toHaveBeenCalled()

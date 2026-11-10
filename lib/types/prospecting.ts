@@ -6,9 +6,23 @@ import type {
   ProspectStatus,
   ProspectScoreBand,
   ProspectIntentSignal,
+  ProspectQualityBand,
+  ProspectPhoneStatus,
+  ProspectPhoneLineType,
+  ProspectPhoneSource,
+  ProspectCallOutcome,
 } from '@/lib/db/schema/prospecting'
 
-export type { ProspectStatus, ProspectScoreBand, ProspectIntentSignal }
+export type {
+  ProspectStatus,
+  ProspectScoreBand,
+  ProspectIntentSignal,
+  ProspectQualityBand,
+  ProspectPhoneStatus,
+  ProspectPhoneLineType,
+  ProspectPhoneSource,
+  ProspectCallOutcome,
+}
 
 export const PROSPECT_STATUS_LABELS: Record<ProspectStatus, string> = {
   discovered: 'Discovered',
@@ -29,6 +43,126 @@ export const SCORE_BAND_LABELS: Record<ProspectScoreBand, string> = {
   warm: 'Warm',
   cool: 'Cool',
   low: 'Low',
+}
+
+export const QUALITY_BAND_LABELS: Record<ProspectQualityBand, string> = {
+  best: 'Best',
+  good: 'Good',
+  weak: 'Weak',
+  parked: 'Parked',
+}
+
+export const PHONE_STATUS_LABELS: Record<ProspectPhoneStatus, string> = {
+  unknown: 'Not checked',
+  valid: 'Valid',
+  invalid: 'Invalid number',
+  disconnected: 'Disconnected',
+  wrong_number: 'Wrong number',
+}
+
+export const PHONE_LINE_TYPE_LABELS: Record<ProspectPhoneLineType, string> = {
+  landline: 'landline',
+  mobile: 'mobile',
+  voip: 'VoIP',
+  other: 'other line',
+}
+
+export const PHONE_SOURCE_LABELS: Record<ProspectPhoneSource, string> = {
+  nppes: 'NPI registry',
+  places: 'Google listing',
+  caller: 'a call',
+}
+
+/** Plain labels for every call outcome (the call card, Call Mode, the log). */
+export const CALL_OUTCOME_LABELS: Record<ProspectCallOutcome, string> = {
+  no_answer: 'No answer',
+  voicemail: 'Voicemail',
+  callback: 'Callback',
+  demo_booked: 'Demo booked',
+  not_interested: 'Not interested',
+  won: 'Won',
+  disconnected: 'Disconnected',
+  wrong_number: 'Wrong number',
+  closed: 'Practice closed / retired',
+  gatekeeper: 'Reached the desk',
+}
+
+/** Outcomes that mean a human actually reached the practice — the one
+ *  verification signal only a call can produce. */
+export const REACHED_CALL_OUTCOMES: readonly ProspectCallOutcome[] = [
+  'callback',
+  'demo_booked',
+  'won',
+  'gatekeeper',
+  'not_interested',
+]
+
+// ── Verification (prospect.verification jsonb) ─────────────────────────────
+export const VERIFICATION_SIGNALS = ['places', 'business', 'npi', 'website', 'phone', 'reach'] as const
+export type VerificationSignalId = (typeof VERIFICATION_SIGNALS)[number]
+
+export const VERIFICATION_SIGNAL_LABELS: Record<VerificationSignalId, string> = {
+  places: 'Google listing',
+  business: 'Open for business',
+  npi: 'NPI registry',
+  website: 'Website',
+  phone: 'Phone',
+  reach: 'Reached by a call',
+}
+
+export interface VerificationSignal {
+  /** Signal-specific status word (matched / no_match / active / retired /
+   *  alive / dead / parked / valid / …). Always a plain lowercase token. */
+  status: string
+  /** One sentence a human can read on the drawer. */
+  detail: string | null
+  /** ISO instant — rendered with a UTC mark on platform surfaces. */
+  checkedAt: string
+  /** Where the fact came from: places | nppes | crawl | aws_pinpoint | nanp | caller. */
+  source: string
+}
+
+export type ProspectVerification = Partial<Record<VerificationSignalId, VerificationSignal>>
+
+/** Junk-tolerant read of the jsonb column. */
+export function parseVerification(raw: unknown): ProspectVerification {
+  if (!raw || typeof raw !== 'object') return {}
+  const out: ProspectVerification = {}
+  for (const id of VERIFICATION_SIGNALS) {
+    const v = (raw as Record<string, unknown>)[id]
+    if (!v || typeof v !== 'object') continue
+    const r = v as Record<string, unknown>
+    if (typeof r.status !== 'string' || typeof r.checkedAt !== 'string') continue
+    out[id] = {
+      status: r.status,
+      detail: typeof r.detail === 'string' ? r.detail : null,
+      checkedAt: r.checkedAt,
+      source: typeof r.source === 'string' ? r.source : 'unknown',
+    }
+  }
+  return out
+}
+
+/** "Verified" means EVERY signal was checked inside the window (60 days). */
+export const VERIFY_STALE_DAYS = 60
+/** A parked record gets another look after this many days. */
+export const PARKED_RECHECK_DAYS = 30
+
+/** "Nov 10, 2026 · 14:05 UTC" — platform surfaces mark UTC rather than
+ *  pretending to know the reader's clock. Client-safe, no tz dependency. */
+export function formatUtcStamp(iso: string | Date | null | undefined): string | null {
+  if (!iso) return null
+  const d = typeof iso === 'string' ? new Date(iso) : iso
+  if (Number.isNaN(d.getTime())) return null
+  const date = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'UTC',
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  }).format(d)
+  const hh = String(d.getUTCHours()).padStart(2, '0')
+  const mm = String(d.getUTCMinutes()).padStart(2, '0')
+  return `${date} · ${hh}:${mm} UTC`
 }
 
 export const INTENT_SIGNAL_LABELS: Record<ProspectIntentSignal, string> = {
@@ -194,7 +328,13 @@ export interface ProspectingConfig {
     placesPerMonth: number
     crawlsPerMonth: number
     aiPerMonth: number
+    /** Line-type checks (Amazon Pinpoint PhoneNumberValidate, ~$0.006 each). */
+    phoneValidatePerMonth: number
   }
+  /** THE QUALITY FLOOR (P-01). The queues and the hunter serve only
+   *  prospects whose quality_score reaches this; everything under it is
+   *  "parked" until a re-verify or a human says otherwise. 0–100. */
+  qualityFloor: number
   /** The hunter: auto-enroll enriched prospects into segment sequences.
    *  Ships OFF. Runs even in dry-run (enrollments are DB-only/reversible —
    *  sends stay dry until dryRun flips). */
@@ -254,7 +394,8 @@ export const PROSPECTING_DEFAULTS: ProspectingConfig = {
   enabledStates: [],
   warmup: { startPerDay: 20, incrementPerWeek: 10, ceilingPerDay: 150, startedAt: null },
   sendWindow: { startHour: 8, endHour: 17 },
-  budgets: { placesPerMonth: 2000, crawlsPerMonth: 3000, aiPerMonth: 3000 },
+  budgets: { placesPerMonth: 2000, crawlsPerMonth: 3000, aiPerMonth: 3000, phoneValidatePerMonth: 1500 },
+  qualityFloor: 60,
   autoEnroll: { enabled: false, bands: ['hot', 'warm'], perDay: 50 },
   watchdog: {
     enabled: true,
@@ -342,7 +483,9 @@ export function resolveProspectingConfig(raw: unknown): ProspectingConfig {
       placesPerMonth: num(budgets.placesPerMonth, d.budgets.placesPerMonth),
       crawlsPerMonth: num(budgets.crawlsPerMonth, d.budgets.crawlsPerMonth),
       aiPerMonth: num(budgets.aiPerMonth, d.budgets.aiPerMonth),
+      phoneValidatePerMonth: num(budgets.phoneValidatePerMonth, d.budgets.phoneValidatePerMonth),
     },
+    qualityFloor: Math.min(100, num(r.qualityFloor, d.qualityFloor)),
     autoEnroll: {
       enabled: bool(auto.enabled, d.autoEnroll.enabled),
       bands: bands.length > 0 ? bands : [...d.autoEnroll.bands],
@@ -410,6 +553,43 @@ export interface ProspectListRow {
   intentAt: Date | null
   authorizedOfficialName: string | null
   createdAt: Date
+  // Verification + quality (P-01)
+  qualityScore: number | null
+  qualityBand: ProspectQualityBand | null
+  qualityReasons: string[]
+  phoneStatus: ProspectPhoneStatus | null
+  phoneLineType: ProspectPhoneLineType | null
+  verifiedAt: Date | null
+}
+
+/** Live-pool quality counts for the hunt tiles, the table chips and the
+ *  floor slider. `unverified` = enriched but never verified (the sweep is
+ *  still getting to them). `scoreBuckets[i]` counts the live prospects a
+ *  floor COULD serve (never a parked band, never a hard zero — the floor
+ *  predicate's own legs) whose quality_score sits in [5i, 5i+5) (the last
+ *  bucket holds 100); the parked rows are `parked`, never in a bucket. */
+export interface ProspectQualityCounts {
+  best: number
+  good: number
+  weak: number
+  parked: number
+  unverified: number
+  /** Best-band prospects that are actually dialable right now. */
+  bestInQueue: number
+  scoreBuckets: number[]
+}
+
+/** How many verified prospects sit at or above / below a floor, from the
+ *  bucket histogram (client-side, so the slider reads live). */
+export function splitAtFloor(buckets: number[], floor: number): { above: number; below: number } {
+  let above = 0
+  let below = 0
+  buckets.forEach((n, i) => {
+    const bucketStart = i * 5
+    if (bucketStart >= floor) above += n
+    else below += n
+  })
+  return { above, below }
 }
 
 export interface ProspectFunnelStats {
@@ -425,8 +605,15 @@ export interface ProspectFilters {
   state?: string
   status?: ProspectStatus
   scoreBand?: ProspectScoreBand
+  qualityBand?: ProspectQualityBand
   hasWebsite?: boolean
   search?: string
+}
+
+/** "(404) 555-1212" from 10 bare digits; anything else echoes as-is. */
+export function formatProspectPhone(digits: string | null | undefined): string | null {
+  if (!digits) return null
+  return digits.length === 10 ? `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}` : digits
 }
 
 /** "4.7★ (212)" display helper; null-safe. */

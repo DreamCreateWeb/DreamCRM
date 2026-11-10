@@ -16,16 +16,21 @@ import { prewarm } from '../prewarm'
  */
 
 const recorded = vi.hoisted(() => ({ calls: [] as Array<Record<string, unknown>> }))
+const ledger = vi.hoisted(() => ({ rows: [] as Array<Record<string, unknown>> }))
 vi.mock('@/lib/services/action-ledger', () => ({
   recordEngineFailure: vi.fn(async (input: Record<string, unknown>) => {
     recorded.calls.push(input)
     return true
   }),
+  listRecentActions: vi.fn(async () => ledger.rows),
 }))
+vi.mock('@/lib/services/gsc', () => ({ getPlatformOrgId: vi.fn(async () => 'org_platform') }))
 
 import {
   AUTOMATION_FAILURE,
+  PROSPECTING_FAILURE_CLASSES,
   reportAutomationFailure,
+  reportProspectingFailure,
   type AutomationFailureKey,
 } from '@/lib/services/engine-failures'
 import { getCapability } from '@/lib/autonomy'
@@ -38,6 +43,7 @@ prewarm(() => import('node:fs'))
 
 beforeEach(() => {
   recorded.calls = []
+  ledger.rows = []
 })
 
 describe('the registry', () => {
@@ -144,5 +150,49 @@ describe('every named producer calls it', () => {
       expect(src, `${file} never reports a failure`).toContain('reportAutomationFailure')
       expect(src, `${file} reports under the wrong key`).toContain(`'${key}'`)
     }
+  })
+
+  it('the prospecting verifier (P-01) reports through its per-class door, on the platform org', async () => {
+    const { readFileSync } = await import('node:fs')
+    const src = readFileSync('lib/services/prospect-verify.ts', 'utf8')
+    expect(src).toContain('reportProspectingFailure')
+    for (const cls of Object.keys(PROSPECTING_FAILURE_CLASSES)) expect(src).toContain(`'${cls}'`)
+  })
+})
+
+/**
+ * THE PROSPECTING PRODUCER (P-01) — Dream Create's own engine, keyed on
+ * the PLATFORM org, one strike a day PER FAILURE CLASS: "the Places key
+ * is wrong" and "AWS refused the phone check" are two faults with two
+ * fixes, and the second must never hide behind the first.
+ */
+describe('reportProspectingFailure', () => {
+  it('registers under the prospecting capability with a sentence per class, each in the registry’s voice', () => {
+    expect(AUTOMATION_FAILURE.prospecting.capability).toBe('prospecting')
+    expect(Object.keys(PROSPECTING_FAILURE_CLASSES)).toEqual(['places_auth', 'phone_validate_auth', 'nppes_down', 'crawl_blocked'])
+    for (const s of Object.values(PROSPECTING_FAILURE_CLASSES)) {
+      expect(s.startsWith('Couldn’t'), s).toBe(true)
+      expect(s).toMatch(/I’ll keep trying/)
+    }
+    // The owner reads WHICH permission to grant.
+    expect(PROSPECTING_FAILURE_CLASSES.phone_validate_auth).toContain('mobiletargeting:PhoneNumberValidate')
+  })
+
+  it('records on the platform org, carrying the class in the detail', async () => {
+    expect(await reportProspectingFailure('places_auth', new Date('2026-11-10T12:00:00Z'))).toBe(true)
+    expect(recorded.calls[0]).toMatchObject({
+      organizationId: 'org_platform',
+      capability: 'prospecting',
+      summary: PROSPECTING_FAILURE_CLASSES.places_auth,
+      detail: { class: 'places_auth' },
+      kind: 'engine',
+    })
+  })
+
+  it('one a day per CLASS — a second class the same day still lands', async () => {
+    ledger.rows = [{ detail: { failure: true, class: 'places_auth' }, summary: 'x', occurredAt: new Date() }]
+    expect(await reportProspectingFailure('places_auth')).toBe(false)
+    expect(await reportProspectingFailure('phone_validate_auth')).toBe(true)
+    expect(recorded.calls.map((c) => (c.detail as { class: string }).class)).toEqual(['phone_validate_auth'])
   })
 })

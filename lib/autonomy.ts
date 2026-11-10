@@ -79,6 +79,12 @@ export const CAPABILITIES: readonly CapabilityDef[] = [
   // behind the page; it only REPORTS (a ledger strike when a mailbox will not
   // sync). Meta like staff_alert: not grantable, off the roster.
   { key: 'inbox_sync', label: 'Keep your email inbox in step', defaultTrust: 'auto' },
+  // THE PROSPECTING ENGINE (P-01). Dream Create's OWN outbound machine —
+  // keyed on the platform org, never a clinic's. Registered so the
+  // verification pass has somewhere honest to write "the Places key was
+  // refused" / "AWS refused the phone check" once a day. Meta like
+  // inbox_sync: not grantable, off the roster (no clinic ever sees it).
+  { key: 'prospecting', label: 'Keep the prospect list honest', defaultTrust: 'auto' },
   // THE METRICS SNAPSHOT (ML-38b). Plumbing that records each clinic's day for
   // the tiles' sparks; it only REPORTS (a ledger strike when a clinic's pass
   // throws). Meta like inbox_sync: not grantable, off the roster.

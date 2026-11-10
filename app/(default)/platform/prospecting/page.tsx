@@ -18,7 +18,10 @@ import {
   getWinLossReport,
   getPipelineBoard,
   getPipelineMomentum,
+  getQualityCounts,
 } from '@/lib/services/prospecting'
+import { listProspectingFailures } from '@/lib/services/engine-failures'
+import { QualityPill, qualityLegend } from './quality-pills'
 import SalesPipelineBoard from './sales-pipeline-board'
 import MomentumStrip from './momentum-strip'
 import { getDailyBriefing } from '@/lib/services/prospecting-briefing'
@@ -32,14 +35,16 @@ import FocusBanner from './focus-banner'
 import {
   PROSPECT_STATUS_LABELS,
   SCORE_BAND_LABELS,
+  QUALITY_BAND_LABELS,
   ratingLabel,
   type ProspectFilters,
   type ProspectScoreBand,
+  type ProspectQualityBand,
   type ProspectStatus,
 } from '@/lib/types/prospecting'
 import { US_STATE_NAMES, type UsState } from '@/lib/types/us-geo'
 import { prospectInitials } from '@/lib/prospect-when'
-import { PROSPECT_STATUSES, PROSPECT_SCORE_BANDS } from '@/lib/db/schema/prospecting'
+import { PROSPECT_STATUSES, PROSPECT_SCORE_BANDS, PROSPECT_QUALITY_BANDS } from '@/lib/db/schema/prospecting'
 import type { Tone } from '@/lib/ui/encodings'
 import { PageFrame } from '@/components/ui/page-frame'
 import { ActionButton } from '@/components/ui/action-button'
@@ -113,11 +118,14 @@ export default async function ProspectingPage({
       ? (params.band as ProspectScoreBand)
       : undefined,
     hasWebsite: params.web === 'yes' ? true : params.web === 'no' ? false : undefined,
+    qualityBand: (PROSPECT_QUALITY_BANDS as readonly string[]).includes(params.quality ?? '')
+      ? (params.quality as ProspectQualityBand)
+      : undefined,
     search: params.q,
   }
   const page = Math.max(1, Number(params.page) || 1)
 
-  const [config, funnel, list, detail, huntStats, briefing, winLoss, board, momentum] = await Promise.all([
+  const [config, funnel, list, detail, huntStats, briefing, winLoss, board, momentum, quality, failures] = await Promise.all([
     getProspectingConfig(),
     getFunnelStats(),
     listProspects(filters, page),
@@ -127,6 +135,10 @@ export default async function ProspectingPage({
     getWinLossReport(),
     getPipelineBoard(),
     getPipelineMomentum(),
+    getQualityCounts(),
+    // The verification pass's strikes (P-01) — read best-effort, shown on
+    // the Engine view where the rest of the machine's health already is.
+    listProspectingFailures(7),
   ])
   // The hunt's hourly send series (ML-38) — platform-global, UTC hours.
   // Best-effort: no spark on a failed read.
@@ -213,7 +225,9 @@ export default async function ProspectingPage({
       {view === 'engine' && (
         <>
           {config.focus.state && <FocusBanner state={config.focus.state} />}
-          {!config.killSwitch && <HuntPanel stats={huntStats} config={config} env={huntEnv} sentByHour={huntSentByHour} />}
+          {!config.killSwitch && (
+            <HuntPanel stats={huntStats} config={config} env={huntEnv} sentByHour={huntSentByHour} quality={quality} failures={failures} />
+          )}
           <div className="mt-6 flex flex-wrap gap-2">
             <ActionButton href="/platform/prospecting/sequences" variant="secondary">
               ✉️ Sequences
@@ -238,7 +252,7 @@ export default async function ProspectingPage({
 
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-2 mb-4">
-        <FilterChip active={!filters.scoreBand && !filters.status && filters.hasWebsite === undefined} href={buildQuery(params, { band: undefined, status: undefined, web: undefined })}>
+        <FilterChip active={!filters.scoreBand && !filters.status && !filters.qualityBand && filters.hasWebsite === undefined} href={buildQuery(params, { band: undefined, status: undefined, web: undefined, quality: undefined })}>
           All
         </FilterChip>
         {PROSPECT_SCORE_BANDS.map((band) => (
@@ -251,13 +265,32 @@ export default async function ProspectingPage({
           </FilterChip>
         ))}
         <span className="mx-1 h-4 w-px bg-[color:var(--color-hairline)]" aria-hidden="true" />
+        {/* Quality (P-01): can we actually reach them? Best / Good serve; Parked waits.
+            A quality chip counts the SERVABLE pool, so it clears any status chip
+            (and a status chip clears it): the count is always the rows listed. */}
+        {(['best', 'good', 'parked'] as const).map((q) => (
+          <FilterChip
+            key={q}
+            active={filters.qualityBand === q}
+            count={quality[q]}
+            href={buildQuery(params, { quality: filters.qualityBand === q ? undefined : q, status: undefined })}
+            title={
+              q === 'parked'
+                ? 'Dead numbers, retired NPIs, closed or parked sites — not served to any queue'
+                : `Quality ${q === 'best' ? '80+' : '60–79'} — verified and reachable`
+            }
+          >
+            {q === 'parked' ? '🅿 ' : q === 'best' ? '✓ ' : ''}{QUALITY_BAND_LABELS[q]}
+          </FilterChip>
+        ))}
+        <span className="mx-1 h-4 w-px bg-[color:var(--color-hairline)]" aria-hidden="true" />
         <FilterChip active={filters.hasWebsite === false} href={buildQuery(params, { web: filters.hasWebsite === false ? undefined : 'no' })} title="Clinics with no website at all — the hottest segment">
           🌐✕ No website
         </FilterChip>
-        <FilterChip active={filters.status === 'call_list'} href={buildQuery(params, { status: filters.status === 'call_list' ? undefined : 'call_list' })}>
+        <FilterChip active={filters.status === 'call_list'} href={buildQuery(params, { status: filters.status === 'call_list' ? undefined : 'call_list', quality: undefined })}>
           📞 Call list
         </FilterChip>
-        <FilterChip active={filters.status === 'converted'} href={buildQuery(params, { status: filters.status === 'converted' ? undefined : 'converted' })}>
+        <FilterChip active={filters.status === 'converted'} href={buildQuery(params, { status: filters.status === 'converted' ? undefined : 'converted', quality: undefined })}>
           Converted
         </FilterChip>
         {activeStates.length > 1 && (
@@ -281,6 +314,9 @@ export default async function ProspectingPage({
             { tone: 'warn', label: 'Warm', meaning: 'Good fit, some presence already; amber avatar tile.' },
             { tone: 'info', label: 'Cool', meaning: 'Covered for now — low urgency; violet avatar tile.' },
             { tone: 'neutral', label: 'Low', meaning: 'Weak fit or unscored; gray avatar tile.' },
+            // The quality rows read the LIVE floor — "under the floor" is
+            // only true for the floor the queues actually obey.
+            ...qualityLegend(config.qualityFloor),
           ]}
           className="ml-1"
         />
@@ -323,6 +359,7 @@ export default async function ProspectingPage({
                 <th className="px-4 py-3">Website</th>
                 <th className="px-4 py-3">Google</th>
                 <th className="px-4 py-3">Score</th>
+                <th className="px-4 py-3">Quality</th>
                 <th className="px-4 py-3">Status</th>
               </tr>
             </thead>
@@ -393,6 +430,13 @@ export default async function ProspectingPage({
                       </span>
                     ) : (
                       '—'
+                    )}
+                  </td>
+                  <td className="px-4 py-3">
+                    {p.status === 'discovered' || p.status === 'enriching' ? (
+                      <span className="text-gray-500 dark:text-gray-400 text-xs">not checked yet</span>
+                    ) : (
+                      <QualityPill band={p.qualityBand} score={p.qualityScore} reasons={p.qualityReasons} />
                     )}
                   </td>
                   <td className="px-4 py-3">

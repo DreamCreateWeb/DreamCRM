@@ -7404,3 +7404,66 @@ two guards so no test can ever hit the network: `fetch` rejects any
 localhost or relative URL with a message naming it, and
 `XMLHttpRequest.prototype.open` throws a `NetworkError` for localhost, so
 the child is never spawned.
+
+## 2026-11-10 — P-01: prospect verification + the quality score (nothing but the best possible leads)
+
+The owner's ask: too many generated leads had disconnected numbers or
+retired practices. Every prospect now carries a VERIFICATION record
+(`prospect.verification` jsonb, one `{status, detail, checkedAt, source}`
+per signal; migration 0193 adds it with `verified_at`, `quality_score`,
+`quality_band`, `quality_reasons`, `phone_status`, `phone_line_type`,
+`phone_source`, `phone_validated_at` and an index) written by
+`lib/services/prospect-verify.ts`: (1) the Places MATCH is judged
+(`lib/prospect-match.ts`: name tokens / street+ZIP / phone against up to
+three candidates, `nationalPhoneNumber` in the mask) — a miss copies
+nothing; a matched listing's differing phone replaces NPPES' with the old
+one kept in the detail; (2) business status: CLOSED_PERMANENTLY →
+disqualified `closed`, CLOSED_TEMPORARILY → parked and rechecked at 30 days;
+(3) NPI liveness through the free registry (`lookupNpi`): deactivated/gone →
+disqualified `retired` with the date, a moved practice refreshes address and
+phone; (4) website liveness (`prospect-site-liveness.ts`: resolve-then-judge
+on every hop with private/loopback/link-local/metadata ranges refused,
+manual redirects capped at 5, ports 80/443 only, a streaming body cap,
+`unknown` for transient DNS so a prior signal is kept, parking judged on
+the final hop; robots honoured through `prospect-crawl-policy.ts`, shared
+with the crawler); (5) phone validity: the pure NANP matrix
+(`lib/phone-nanp.ts`, 11-digit input normalized to ten) and a line-type
+driver (`lib/services/phone-validate.ts`: `PHONE_VALIDATE_DRIVER=aws` →
+Pinpoint `PhoneNumberValidate` behind a lazy client, metered by the
+`phone_validate` month counter against `budgets.phoneValidatePerMonth`
+(1500); an auth error is one `prospecting` engine strike a day and the pass
+scores without it). The pure score (`lib/prospect-quality.ts`, 0–100): hard
+zeros for disqualified / a bad phone / a retired NPI / a closed listing;
+parked for temporarily closed or a dead/parked site; otherwise Places
+matched + open 35 · phone valid with a line type 25 (well-formed only 12) ·
+NPI active 15 · website alive or honestly none 10 · reviews ≥ 5 10 · a human
+reach 5; bands best ≥ 80 / good ≥ 60 / weak ≥ 40 / parked — never blended
+with the opportunity score. THE FLOOR: `config.qualityFloor` (60) —
+`servableAboveFloor` (score ≥ floor, score > 0, band ≠ parked, phone not
+bad) gates the phone queue, Call Mode's phone-first bucket and
+auto-enroll; hand-raisers and due follow-ups bypass the floor but never a
+bad phone. CALLER FEEDBACK is the strongest signal: outcomes gain
+`disconnected`, `wrong_number`, `closed`, `gatekeeper` (keys 6–9 in Call
+Mode); a disconnected or wrong number parks the row with its date, a closed
+practice is disqualified and its outreach stopped (`stopActiveEnrollments`
+— the same stop every disqualification path and the send-time guard use),
+and a human reach on a non-caller `invalid` re-validates the phone. The
+re-verify sweep runs in the enrich cron (never-verified first, then 60 days,
+parked at 30), the drawer has "Verify now" and a phone editor, the table a
+Quality column with Best/Good/Parked chips whose counts share the rows'
+predicate, the Hunt panel the quality tiles, the settings panel the floor
+slider (live above/below), the phone-validation pill naming
+`mobiletargeting:PhoneNumberValidate`, and the line-check meter. An
+adversarial review (four lenses, two skeptics per finding) confirmed 22
+defects in the first cut — a Places outage demoting verified rows for 60
+days, a re-verify un-parking a closed listing, stale listing columns, the
+11-digit phone, floor/band independence, enrollments outliving a
+disqualification, the SSRF hole, the size cap, DNS classes, parking on the
+final hop, and six UI laws — all fixed before merge; a verification round
+over those fixes found twelve more (a reversible park must PAUSE a drip and
+resume it, not stop it for good; a system-scheduled follow-up is cleared
+when the practice is parked; `website_source` so a no-match clears only a
+website that came from Places; the enrich crawl shares the probe's guarded
+fetch with the connect pinned to the judged address; parking hosts matched
+by hostname; serialized floor saves) — also fixed before merge, so the
+slice shipped after two adversarial rounds and one verification round.

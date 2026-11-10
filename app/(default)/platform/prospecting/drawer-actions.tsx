@@ -4,12 +4,15 @@ import { useState, useTransition } from 'react'
 import { useToast } from '@/components/ui/toast'
 import { useConfirm } from '@/components/ui/confirm-dialog'
 import { ActionButton } from '@/components/ui/action-button'
+import { runAction } from '@/lib/run-action'
+import { QUALITY_BAND_LABELS, type ProspectQualityBand } from '@/lib/types/prospecting'
 import {
   suppressProspectAction,
   enrollProspectAction,
   stopEnrollmentAction,
   startBrandedDemoAction,
   reEnrichProspectAction,
+  verifyProspectAction,
 } from './admin-actions'
 
 /**
@@ -27,8 +30,8 @@ export default function DrawerActions({
   hasEmail: boolean
 }) {
   const [pending, startTransition] = useTransition()
-  // Which act is in flight — five buttons share the transition, one spins.
-  const [active, setActive] = useState<'enroll' | 'stop' | 'demo' | 'enrich' | 'suppress' | null>(null)
+  // Which act is in flight — six buttons share the transition, one spins.
+  const [active, setActive] = useState<'enroll' | 'stop' | 'demo' | 'enrich' | 'verify' | 'suppress' | null>(null)
   const [error, setError] = useState<string | null>(null)
   const toast = useToast()
   const confirm = useConfirm()
@@ -139,6 +142,38 @@ export default function DrawerActions({
           }}
         >
           ↻ Re-enrich
+        </ActionButton>
+        <ActionButton
+          size="sm"
+          variant="ghost"
+          pending={pending && active === 'verify'}
+          disabled={pending}
+          title="Re-check the Google listing match, the NPI, the website and the phone, then rescore quality"
+          onClick={() => {
+            setActive('verify')
+            startTransition(async () => {
+              setError(null)
+              try {
+                const r = await runAction(() => verifyProspectAction(prospectId))
+                if (!r.ok) {
+                  setError(
+                    'error' in r
+                      ? r.error
+                      : r.reason === 'already_converted'
+                        ? 'Already a clinic — nothing to verify.'
+                        : `Could not verify (${r.reason}).`,
+                  )
+                } else {
+                  const band = r.qualityBand as ProspectQualityBand
+                  toast(`Verified — quality ${r.qualityScore} (${QUALITY_BAND_LABELS[band] ?? r.qualityBand})`)
+                }
+              } finally {
+                setActive(null)
+              }
+            })
+          }}
+        >
+          ✓ Verify now
         </ActionButton>
         <ActionButton
           size="sm"

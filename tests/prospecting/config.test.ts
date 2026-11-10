@@ -78,6 +78,21 @@ describe('resolveProspectingConfig', () => {
     expect(c.digest.enabled).toBe(false)
   })
 
+  it('quality floor ships at 60 and phone line checks at 1,500 a month (P-01)', () => {
+    const c = resolveProspectingConfig(null)
+    expect(c.qualityFloor).toBe(60)
+    expect(c.budgets.phoneValidatePerMonth).toBe(1500)
+  })
+
+  it('the floor clamps to 0–100 and shrugs off junk', () => {
+    expect(resolveProspectingConfig({ qualityFloor: 75 }).qualityFloor).toBe(75)
+    expect(resolveProspectingConfig({ qualityFloor: 140 }).qualityFloor).toBe(100)
+    expect(resolveProspectingConfig({ qualityFloor: -5 }).qualityFloor).toBe(60)
+    expect(resolveProspectingConfig({ qualityFloor: 'high' }).qualityFloor).toBe(60)
+    expect(resolveProspectingConfig({ budgets: { phoneValidatePerMonth: 'lots' } }).budgets.phoneValidatePerMonth).toBe(1500)
+    expect(resolveProspectingConfig({ budgets: { phoneValidatePerMonth: 0 } }).budgets.phoneValidatePerMonth).toBe(0)
+  })
+
   it('brain defaults to empty override + no battle cards', () => {
     expect(resolveProspectingConfig(null).brain).toEqual({ productOverride: '', battleCards: [] })
   })

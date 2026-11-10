@@ -34,6 +34,43 @@ export type ProspectStatus = (typeof PROSPECT_STATUSES)[number]
 export const PROSPECT_SCORE_BANDS = ['hot', 'warm', 'cool', 'low'] as const
 export type ProspectScoreBand = (typeof PROSPECT_SCORE_BANDS)[number]
 
+// ── Verification + quality (P-01, 2026-11-10) ──────────────────────────────
+// The opportunity score says how much a practice NEEDS us; the quality score
+// says whether the record is a practice we can actually reach — a live
+// listing, a number that rings, an NPI that is still active, a website that
+// is not a parking page. The two are never blended: the queues sort by
+// opportunity WITHIN the quality floor (prospecting_config.qualityFloor).
+export const PROSPECT_QUALITY_BANDS = ['best', 'good', 'weak', 'parked'] as const
+export type ProspectQualityBand = (typeof PROSPECT_QUALITY_BANDS)[number]
+
+export const PROSPECT_PHONE_STATUSES = [
+  'unknown',
+  'valid',
+  'invalid',
+  'disconnected',
+  'wrong_number',
+] as const
+export type ProspectPhoneStatus = (typeof PROSPECT_PHONE_STATUSES)[number]
+
+export const PROSPECT_PHONE_LINE_TYPES = ['landline', 'mobile', 'voip', 'other'] as const
+export type ProspectPhoneLineType = (typeof PROSPECT_PHONE_LINE_TYPES)[number]
+
+export const PROSPECT_PHONE_SOURCES = ['nppes', 'places', 'caller'] as const
+export type ProspectPhoneSource = (typeof PROSPECT_PHONE_SOURCES)[number]
+
+/** Where the website on the row came from — a matched Google listing, the
+ *  registry, a human's typing, a crawl. A listing Google no longer stands
+ *  behind takes ITS website with it; a typed one is never cleared. */
+export const PROSPECT_WEBSITE_SOURCES = ['places', 'nppes', 'manual', 'crawl'] as const
+export type ProspectWebsiteSource = (typeof PROSPECT_WEBSITE_SOURCES)[number]
+
+/** A phone in one of these states is never a dial target. */
+export const BAD_PHONE_STATUSES: readonly ProspectPhoneStatus[] = [
+  'invalid',
+  'disconnected',
+  'wrong_number',
+]
+
 export const PROSPECT_INTENT_SIGNALS = [
   'reply_interested',
   'reply_question',
@@ -77,6 +114,7 @@ export const prospect = pgTable(
 
     // Enrichment: Google Places
     websiteUrl: text('website_url'),
+    websiteSource: text('website_source'), // places|nppes|manual|crawl — null on legacy rows (an NPI row's came from Places)
     googlePlaceId: text('google_place_id'),
     googleRatingTenths: integer('google_rating_tenths'), // 4.7 → 47 (no float drift)
     reviewCount: integer('review_count'),
@@ -133,6 +171,26 @@ export const prospect = pgTable(
     nextFollowUpAt: timestamp('next_follow_up_at', { withTimezone: true }),
     followUpReason: text('follow_up_reason'),
 
+    // Verification (P-01). `verification` is a ProspectVerification map —
+    // one entry per signal {status, detail, checkedAt, source} — so every
+    // number on the drawer can say where it came from and when it was
+    // checked. `verifiedAt` stamps the last full pass; the re-verify sweep
+    // picks rows older than 60 days, or parked ones older than 30.
+    verification: jsonb('verification'),
+    verifiedAt: timestamp('verified_at', { withTimezone: true }),
+    // The quality score (computeQualityScore in lib/prospect-quality.ts):
+    // 0-100, hard zeros for a dead record, parked while a signal says wait.
+    qualityScore: integer('quality_score'),
+    qualityBand: text('quality_band'), // best|good|weak|parked
+    qualityReasons: jsonb('quality_reasons'), // string[] — plain sentences
+    // The phone's own standing. NANP syntax + the line-type provider +
+    // (strongest of all) what the caller heard. A bad status removes the
+    // number from every dial queue.
+    phoneStatus: text('phone_status'), // unknown|valid|invalid|disconnected|wrong_number
+    phoneLineType: text('phone_line_type'), // landline|mobile|voip|other
+    phoneSource: text('phone_source'), // nppes|places|caller
+    phoneValidatedAt: timestamp('phone_validated_at', { withTimezone: true }),
+
     suppressedReason: text('suppressed_reason'),
     suppressedAt: timestamp('suppressed_at', { withTimezone: true }),
 
@@ -163,6 +221,7 @@ export const prospect = pgTable(
     status: index('idx_prospect_status').on(t.status),
     band: index('idx_prospect_band').on(t.scoreBand),
     callList: index('idx_prospect_call_list').on(t.status, t.intentAt),
+    quality: index('idx_prospect_quality').on(t.qualityBand, t.qualityScore),
   }),
 )
 export type Prospect = typeof prospect.$inferSelect
@@ -393,6 +452,12 @@ export const PROSPECT_CALL_OUTCOMES = [
   'demo_booked',
   'not_interested',
   'won',
+  // Caller feedback (P-01) — the strongest verification signal there is:
+  // the number did not ring, rang somewhere else, or the practice is gone.
+  'disconnected',
+  'wrong_number',
+  'closed', // retired / closed practice
+  'gatekeeper', // reached the desk, no decision maker
 ] as const
 export type ProspectCallOutcome = (typeof PROSPECT_CALL_OUTCOMES)[number]
 
