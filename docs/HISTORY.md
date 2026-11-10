@@ -7510,3 +7510,20 @@ defects in the first cut (a paused caller bounced into clinic onboarding;
 status flips by the email engine never releasing a row; terminal outcomes
 recycling rows; a one-way archive; the non-atomic claim) — all fixed here;
 no cross-persona breakout was found.
+
+## 2026-11-10 — Every form on a custom-domain clinic site was refused (the Pinney contact form)
+
+"Something went wrong. Please call us directly." on tedpinneydds.com's
+request-a-visit form. Not the action: `submitContactRequest` returns its
+outcome instead of throwing, so the generic message meant the round trip
+itself failed. Probing the host with a bogus action id told the story:
+`{slug}.dreamcreatestudio.com` answers 404 "Server action not found" (the
+request reached action lookup), the custom domain answers 500 with a
+digest, and the same request WITHOUT an `Origin` header answers 404 there
+too. Next's action handler compares `Origin` against `x-forwarded-host`;
+behind the CloudFront tenant edge that header carries the App Runner
+origin, so every custom-domain form was refused as a forged request. The
+middleware's custom-domain branch now forwards the resolved viewer host to
+the downstream handler (`NextResponse.rewrite(url, { request: { headers } })`);
+`tests/middleware.test.ts` holds it and `docs/custom-domains.md` carries the
+one-line probe.

@@ -220,6 +220,18 @@ describe('middleware custom-domain routing', () => {
     expect(res.headers.get('x-middleware-rewrite')).toContain('/site/smile-bright/book')
   })
 
+  it('hands the downstream handler the viewer host, so a server action on a custom domain passes Next’s origin check', async () => {
+    // Behind the CloudFront tenant edge the app sees the App Runner origin as
+    // Host; Next compares a server action’s Origin against x-forwarded-host
+    // and refused every custom-domain form (the Pinney contact form, 2026-11-10).
+    mockMap({ 'www.smilebright.com': 'smile-bright' })
+    const req = makeRequest('https://www.smilebright.com/', 'www.smilebright.com')
+    const res = (await middleware(req)) as NextResponse
+    expect(res.headers.get('x-middleware-rewrite')).toContain('/site/smile-bright')
+    expect(res.headers.get('x-middleware-request-x-forwarded-host')).toBe('www.smilebright.com')
+    expect(res.headers.get('x-middleware-override-headers') ?? '').toContain('x-forwarded-host')
+  })
+
   it('falls through (auth gate) on an UNKNOWN custom domain', async () => {
     mockMap({ 'www.smilebright.com': 'smile-bright' })
     // A different host that isn't in the map + an auth-gated path → /signin.
