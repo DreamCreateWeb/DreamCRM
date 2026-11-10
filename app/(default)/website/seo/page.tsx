@@ -38,6 +38,7 @@ interface Props {
 export default async function SeoPage({ searchParams }: Props) {
   const ctx = await requireTenant()
   if (ctx.tenantType === 'patient') redirect('/patient/dashboard')
+  if (ctx.tenantType === 'caller') redirect('/calls')
   // view (tenantType 'platform'), so the platform admin keeps the connect view.
 
   const { gscConnected, gscError } = await searchParams

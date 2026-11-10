@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { getTenantContext } from '@/lib/auth/context'
+import { homePathFor } from '@/lib/tenant-chrome'
 import { getServerSession } from '@/lib/session'
 import { DEMO_URL, usd } from '@/lib/marketing/site'
 import { getQuotedPlan } from '@/lib/stripe-config'
@@ -149,9 +150,9 @@ const TENETS: Array<{ title: string; body: string; glyph: ToneTileGlyph }> = [
 export default async function MarketingHome() {
   const ctx = await getTenantContext()
   if (ctx) {
-    if (ctx.tenantType === 'patient') redirect('/patient/dashboard')
-    if (ctx.tenantType === 'partner') redirect('/partner')
-    redirect('/dashboard')
+    // One home per persona (lib/tenant-chrome.ts): patient → portal,
+    // partner → /partner, caller → /calls, everyone else → the dashboard.
+    redirect(homePathFor(ctx.tenantType))
   }
   const session = await getServerSession()
   if (session?.user) redirect('/onboarding-01')

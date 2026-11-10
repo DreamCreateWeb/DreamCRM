@@ -46,6 +46,7 @@ const VALID_CATEGORIES = new Set(['primary', 'updates', 'promotions', 'spam'])
 export default async function Inbox({ searchParams }: { searchParams: Promise<SP> }) {
   const ctx = await requireTenant()
   if (ctx.tenantType === 'patient') redirect('/patient/dashboard')
+  if (ctx.tenantType === 'caller') redirect('/calls')
 
   const accounts = await listOrgEmailAccounts(ctx.organizationId)
   const params = await searchParams

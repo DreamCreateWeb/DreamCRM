@@ -13,6 +13,7 @@ import { usePathname } from 'next/navigation'
 const TABS: { href: string; label: string; exact?: boolean }[] = [
   { href: '/platform/prospecting', label: 'Pipeline', exact: true },
   { href: '/platform/prospecting/call-list', label: 'Call list' },
+  { href: '/platform/prospecting/callers', label: 'Callers' },
   { href: '/platform/prospecting/sequences', label: 'Sequences' },
   { href: '/platform/prospecting/demos', label: 'Demos' },
   { href: '/platform/prospecting/events', label: 'Events' },

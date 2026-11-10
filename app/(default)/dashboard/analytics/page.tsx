@@ -12,6 +12,7 @@ import PlatformMetrics from './platform-metrics'
 export default async function AnalyticsPage() {
   const ctx = await requireTenant()
   if (ctx.tenantType === 'patient') redirect('/patient/dashboard')
+  if (ctx.tenantType === 'caller') redirect('/calls')
 
   if (ctx.tenantType === 'platform') {
     return <PlatformMetrics />

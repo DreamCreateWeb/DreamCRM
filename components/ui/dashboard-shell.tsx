@@ -17,7 +17,7 @@ import { readDemoSkin } from '@/lib/demo-skin'
 import DemoConductor from '@/components/demo/demo-conductor'
 import { getServerSession } from '@/lib/session'
 import { trialDaysLeft } from '@/lib/trial'
-import { roleLabelFor, sidebarBadgeFor } from '@/lib/tenant-chrome'
+import { homePathFor, roleLabelFor, sidebarBadgeFor } from '@/lib/tenant-chrome'
 import { findPendingInviteForEmail } from '@/lib/auth/pending-invite'
 import { getTenantNav } from '@/lib/services/tenant-nav'
 
@@ -62,6 +62,11 @@ export default async function DashboardShell({
     const pending = await findPendingInviteForEmail(session.user.email)
     redirect(pending ? `/accept-invite?token=${pending.id}` : '/onboarding-01')
   }
+  // A cold caller (P-02) has a portal of their own and NO business inside
+  // the dashboard shell — not the sidebar, not a clinic surface, not the
+  // platform's own pages. One gate here covers every authed layout that
+  // delegates to the shell; the (default) pages carry their own line too.
+  if (ctx.tenantType === 'caller') redirect(homePathFor('caller'))
 
   // Role visibility, then the FEATURE SWITCHES (docs/ACTIVATION.md law 1:
   // a switched-off module waits in the sidebar's "Add" group), then the

@@ -18,6 +18,7 @@ import {
   type VendorCategory,
 } from '@/lib/prospect-vendors'
 import DrawerActions from './drawer-actions'
+import AssignCallerControl from './assign-caller-control'
 import DemoFollowupDrafter from './demo-followup-drafter'
 import ContactsPanel from './contacts-panel'
 import { VerificationCard } from './verification-card'
@@ -44,9 +45,12 @@ function yesNo(v: boolean): string {
 export default function ProspectDrawer({
   detail,
   closeHref,
+  callers = [],
 }: {
   detail: ProspectDetail
   closeHref: string
+  /** Active cold callers (P-02) for the Reassign picker. */
+  callers?: Array<{ id: string; name: string }>
 }) {
   const p = detail.prospect
   const signals = (p.enrichment ?? null) as ProspectCrawlSignals | null
@@ -102,6 +106,19 @@ export default function ProspectDrawer({
             />
           )}
         </div>
+
+        {/* The cold caller holding it (P-02) — the owner's own queues hide
+            it while someone else is dialling; Reassign / Unassign here. */}
+        {(detail.assignedCaller || callers.length > 0) && (
+          <div className={SECTION}>
+            <div className={SECTION_TITLE}>Caller</div>
+            <AssignCallerControl
+              prospectId={p.id}
+              assigned={detail.assignedCaller ? { id: detail.assignedCaller.id, name: detail.assignedCaller.name } : null}
+              callers={callers}
+            />
+          </div>
+        )}
 
         {/* Contact */}
         <div className={SECTION}>
@@ -299,6 +316,7 @@ export default function ProspectDrawer({
               {detail.calls.map((c, i) => (
                 <li key={i}>
                   <span className="font-medium">{CALL_OUTCOME_LABELS[c.outcome as keyof typeof CALL_OUTCOME_LABELS] ?? c.outcome.replace(/_/g, ' ')}</span>
+                  {c.callerId && <span className="text-xs text-gray-500 dark:text-gray-400"> · by a caller</span>}
                   {c.note && <span className="text-gray-500 dark:text-gray-400"> — {c.note}</span>}
                 </li>
               ))}

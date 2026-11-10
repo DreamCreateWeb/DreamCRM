@@ -30,6 +30,7 @@ export default async function InboxSettings({
 }) {
   const ctx = await requireTenant()
   if (ctx.tenantType === 'patient') redirect('/patient/dashboard')
+  if (ctx.tenantType === 'caller') redirect('/calls')
 
   const params = await searchParams
   const [accounts, profileRow] = await Promise.all([

@@ -7,9 +7,10 @@
  * Lives in lib/ (not lib/services/) so client components can import without
  * pulling in 'server-only'.
  */
-// 'partner' is accepted for assignability with lib/modules' TenantType; a
-// partner never reaches the inbox, so it falls through to the default branch.
-export type TenantType = 'platform' | 'clinic' | 'patient' | 'partner'
+// 'partner' and 'caller' are accepted for assignability with lib/modules'
+// TenantType; neither ever reaches the inbox, so they fall through to the
+// default branch.
+export type TenantType = 'platform' | 'clinic' | 'patient' | 'partner' | 'caller'
 
 export interface InboxTerminology {
   /** lowercase singular: "client" | "patient" */

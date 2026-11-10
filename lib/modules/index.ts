@@ -2,6 +2,7 @@ import { platformModules } from './platform'
 import { clinicModules } from './clinic'
 import { patientModules } from './patient'
 import { partnerModules } from './partner'
+import { callerModules } from './caller'
 import type { ModuleRegistry, ModuleDef, TenantType, PlanTier, Role } from './types'
 import type { BundleId } from '@/lib/integrations/bundles'
 
@@ -10,6 +11,7 @@ const REGISTRIES: Record<TenantType, ModuleRegistry> = {
   clinic: clinicModules,
   patient: patientModules,
   partner: partnerModules,
+  caller: callerModules,
 }
 
 export function getRegistry(tenantType: TenantType): ModuleRegistry {

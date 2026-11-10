@@ -53,6 +53,7 @@ interface Props {
 export default async function AnalyticsPage({ searchParams }: Props) {
   const ctx = await requireTenant()
   if (ctx.tenantType === 'patient') redirect('/patient/dashboard')
+  if (ctx.tenantType === 'caller') redirect('/calls')
   if (ctx.tenantType !== 'clinic') redirect('/dashboard')
 
   const { days } = await searchParams

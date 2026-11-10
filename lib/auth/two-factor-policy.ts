@@ -4,9 +4,10 @@
  * (`lib/auth/two-factor-gate.ts`) feeds it; the tests pin it.
  *
  * Who is in scope: STAFF — owner / admin / member of a clinic or the platform
- * org. Patients (magic link, role 'patient') and referral partners never
- * pass through the password sign-in step the factor hangs off, and the policy
- * never asks them for one.
+ * org. Patients (magic link, role 'patient'), referral partners and cold
+ * callers (P-02 — external, no org membership, a portal that reaches nothing
+ * but their own queue) are never REQUIRED to enrol; the policy never asks
+ * them for a factor, though nothing stops a caller enrolling on their own.
  */
 
 /** The platform admin's account is the whole platform's blast radius: always required. */
@@ -20,7 +21,7 @@ export type TwoFactorWho = {
   twoFactorEnabled: boolean
   /** The member role in the active org; null for a partner / no membership. */
   role: string | null
-  /** 'platform' | 'clinic' | 'patient' | 'partner' — null when not yet resolved. */
+  /** 'platform' | 'clinic' | 'patient' | 'partner' | 'caller' — null when not yet resolved. */
   tenantType: string | null
   /** clinic_profile.require_two_factor === 1 for the active clinic. */
   clinicRequires: boolean

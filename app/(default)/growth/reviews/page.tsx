@@ -106,6 +106,7 @@ function fmtRelative(d: Date | null, tz: string): string {
 export default async function ReviewsPage() {
   const ctx = await requireTenant()
   if (ctx.tenantType === 'patient') redirect('/patient/dashboard')
+  if (ctx.tenantType === 'caller') redirect('/calls')
   if (ctx.tenantType !== 'clinic') redirect('/dashboard')
 
   // One eligible scan serves both the "Ready to ask" count and the list —

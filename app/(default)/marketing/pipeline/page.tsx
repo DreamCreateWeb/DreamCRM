@@ -25,6 +25,7 @@ interface SP {
 export default async function PipelinePage({ searchParams }: { searchParams: Promise<SP> }) {
   const ctx = await requireTenant()
   if (ctx.tenantType === 'patient') redirect('/patient/dashboard')
+  if (ctx.tenantType === 'caller') redirect('/calls')
   // Clinic tenants don't manually drag patients through pipeline stages
   // (research: 0 of 8 mature dental products do this — lifecycle is
   // activity-derived, not staff-curated). Redirect to the Outreach Queue,

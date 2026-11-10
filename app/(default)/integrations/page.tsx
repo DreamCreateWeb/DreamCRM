@@ -58,6 +58,7 @@ export default async function IntegrationsPage({
 }) {
   const ctx = await requireTenant()
   if (ctx.tenantType === 'patient') redirect('/patient/dashboard')
+  if (ctx.tenantType === 'caller') redirect('/calls')
   if (ctx.tenantType !== 'clinic') redirect('/dashboard')
   const planTier = ctx.planTier as PlanTier
 

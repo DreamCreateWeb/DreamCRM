@@ -54,6 +54,7 @@ function parseStatus(raw: string | string[] | undefined): PatientListFilters['st
 export default async function PatientsPage({ searchParams }: PageProps) {
   const ctx = await requireTenant()
   if (ctx.tenantType === 'patient') redirect('/patient/dashboard')
+  if (ctx.tenantType === 'caller') redirect('/calls')
   if (ctx.tenantType === 'platform') redirect('/ecommerce/customers')
 
   const params = await searchParams

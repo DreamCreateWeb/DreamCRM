@@ -70,6 +70,7 @@ export default async function CampaignEditorPage({
 }) {
   const ctx = await requireTenant()
   if (ctx.tenantType === 'patient') redirect('/patient/dashboard')
+  if (ctx.tenantType === 'caller') redirect('/calls')
 
   const { id: rawId } = await params
   const id = Number(rawId)

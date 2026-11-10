@@ -21,6 +21,7 @@ import {
   getQualityCounts,
 } from '@/lib/services/prospecting'
 import { listProspectingFailures } from '@/lib/services/engine-failures'
+import { callerNameMap, listActiveCallers } from '@/lib/services/prospect-callers'
 import { QualityPill, QUALITY_LEGEND } from './quality-pills'
 import SalesPipelineBoard from './sales-pipeline-board'
 import MomentumStrip from './momentum-strip'
@@ -139,6 +140,12 @@ export default async function ProspectingPage({
     // The verification pass's strikes (P-01) — read best-effort, shown on
     // the Engine view where the rest of the machine's health already is.
     listProspectingFailures(7),
+  ])
+  // The cold callers (P-02): names for the table's "→ caller" pill and the
+  // active ones for the drawer's Reassign picker. Best-effort reads.
+  const [callerNames, activeCallers] = await Promise.all([
+    callerNameMap().catch(() => new Map<string, string>()),
+    params.prospect ? listActiveCallers().catch(() => []) : Promise.resolve([]),
   ])
   // The hunt's hourly send series (ML-38) — platform-global, UTC hours.
   // Best-effort: no spark on a failed read.
@@ -436,7 +443,16 @@ export default async function ProspectingPage({
                     )}
                   </td>
                   <td className="px-4 py-3">
-                    <StatusPill tone={STATUS_TONES[p.status]} label={PROSPECT_STATUS_LABELS[p.status]} />
+                    <span className="inline-flex flex-wrap items-center gap-1">
+                      <StatusPill tone={STATUS_TONES[p.status]} label={PROSPECT_STATUS_LABELS[p.status]} />
+                      {p.assignedCallerId && (
+                        <StatusPill
+                          tone="info"
+                          label={`☎ ${callerNames.get(p.assignedCallerId) ?? 'a caller'}`}
+                          title="Assigned to a cold caller — your own Call Mode and call list skip it while they hold it"
+                        />
+                      )}
+                    </span>
                   </td>
                 </tr>
               ))}
@@ -477,7 +493,7 @@ export default async function ProspectingPage({
       )}
 
       {/* Prospect drawer — opens over any view via ?prospect=. */}
-      {detail && <ProspectDrawer detail={detail} closeHref={buildQuery(params, {})} />}
+      {detail && <ProspectDrawer detail={detail} closeHref={buildQuery(params, {})} callers={activeCallers} />}
     </PageFrame>
   )
 }

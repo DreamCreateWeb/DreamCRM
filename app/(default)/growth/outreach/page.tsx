@@ -31,6 +31,7 @@ export default async function GrowthOutreachPage({
 }) {
   const ctx = await requireTenant()
   if (ctx.tenantType === 'patient') redirect('/patient/dashboard')
+  if (ctx.tenantType === 'caller') redirect('/calls')
   if (ctx.tenantType !== 'clinic') redirect('/marketing')
   const { prefill_audience, prefill_template, new: newParam } = await searchParams
   const prefillAudienceId =
