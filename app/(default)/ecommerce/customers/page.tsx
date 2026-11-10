@@ -24,6 +24,7 @@ export default async function CustomersPage({
 }) {
   const ctx = await requireTenant()
   if (ctx.tenantType === 'patient') redirect('/patient/dashboard')
+  if (ctx.tenantType === 'caller') redirect('/calls')
 
   // Clinic tenants now use the dental-correct Patients module at /patients.
   // The generic customers table still serves the platform org as a

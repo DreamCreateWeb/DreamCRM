@@ -141,6 +141,74 @@ function titleCase(v: string | null): string | null {
     .join(' ')
 }
 
+// ── NPI liveness (P-01) ─────────────────────────────────────────────────────
+
+export interface NpiLookupResult {
+  found: boolean
+  /** 'active' | 'deactivated' — null when not found. */
+  status: 'active' | 'deactivated' | null
+  /** NPPES's own deactivation date (YYYY-MM-DD or MM/DD/YYYY as given). */
+  deactivationDate: string | null
+  /** The practice LOCATION as the registry has it today. */
+  location: {
+    addressLine1: string | null
+    city: string | null
+    state: string | null
+    postalCode: string | null
+    phone: string | null
+  } | null
+}
+
+/** Parse one NPPES lookup body (`?number=`) — exported for tests. */
+export function parseNpiLookup(body: unknown): NpiLookupResult {
+  const none: NpiLookupResult = { found: false, status: null, deactivationDate: null, location: null }
+  if (!body || typeof body !== 'object') return none
+  const results = (body as { results?: unknown }).results
+  const raw = Array.isArray(results) ? results[0] : null
+  if (!raw || typeof raw !== 'object') return none
+  const r = raw as Record<string, unknown>
+  const basic = (r.basic ?? {}) as Record<string, unknown>
+  const statusWord = str(basic.status)
+  const deactivationDate = str(basic.deactivation_date)
+  const reactivationDate = str(basic.reactivation_date)
+  // 'A' = active. A deactivated NPI reads 'D' (or carries a deactivation
+  // date with no later reactivation).
+  const deactivated =
+    statusWord === 'D' || (Boolean(deactivationDate) && !reactivationDate && statusWord !== 'A')
+  const addresses = Array.isArray(r.addresses) ? (r.addresses as Array<Record<string, unknown>>) : []
+  const location = addresses.find((a) => a && a.address_purpose === 'LOCATION') ?? null
+  return {
+    found: true,
+    status: deactivated ? 'deactivated' : 'active',
+    deactivationDate: deactivated ? deactivationDate : null,
+    location: location
+      ? {
+          addressLine1: str(location.address_1),
+          city: str(location.city),
+          state: str(location.state),
+          postalCode: str(location.postal_code)?.slice(0, 5) ?? null,
+          phone: normalizePhone(location.telephone_number),
+        }
+      : null,
+  }
+}
+
+/**
+ * Look one NPI up — free, keyless. Throws on network/HTTP failure so the
+ * caller can tell "NPPES is down" from "this NPI is gone".
+ */
+export async function lookupNpi(npi: string): Promise<NpiLookupResult> {
+  const params = new URLSearchParams({ version: '2.1', number: npi.replace(/\D/g, '') })
+  const res = await fetch(`${NPPES_BASE}?${params}`, {
+    headers: { accept: 'application/json' },
+    signal: AbortSignal.timeout(10_000),
+  })
+  if (!res.ok) throw new Error(`NPPES ${res.status}`)
+  const body = (await res.json()) as Record<string, unknown>
+  if (body?.Errors) throw new Error(`NPPES error: ${JSON.stringify(body.Errors).slice(0, 200)}`)
+  return parseNpiLookup(body)
+}
+
 /**
  * One page of organizational dental providers for state + zip prefix.
  * `zipPrefix` may be 3 or 5 digits — NPPES supports trailing-* wildcards

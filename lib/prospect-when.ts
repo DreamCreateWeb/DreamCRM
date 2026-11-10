@@ -42,6 +42,60 @@ export function relativeDayTime(d: Date, timeZone: string, now: Date = new Date(
   return `${prefix} · ${time}`
 }
 
+/** The zone's UTC offset at `at`, in ms (positive east of UTC). */
+function tzOffsetMs(at: Date, timeZone: string): number {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    hourCycle: 'h23',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  }).formatToParts(at)
+  const get = (t: string) => Number(parts.find((p) => p.type === t)?.value ?? '0')
+  const asUtc = Date.UTC(get('year'), get('month') - 1, get('day'), get('hour') % 24, get('minute'), get('second'))
+  return asUtc - at.getTime()
+}
+
+/**
+ * A wall-clock day + time IN A ZONE → the absolute instant. "Call back
+ * Thursday at 2:30 their time" is a promise in the practice's own zone, so
+ * the server resolves it against THEIR timezone, never its own (UTC) or the
+ * caller's. Two passes so a DST edge lands on the right side. Null for a
+ * malformed day or an unknown zone.
+ */
+export function zonedWallClockToInstant(dayKey: string, hour: number, minute: number, timeZone: string): Date | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dayKey)
+  if (!m) return null
+  if (!Number.isInteger(hour) || hour < 0 || hour > 23 || !Number.isInteger(minute) || minute < 0 || minute > 59) return null
+  try {
+    const naive = Date.UTC(+m[1], +m[2] - 1, +m[3], hour, minute)
+    let guess = naive - tzOffsetMs(new Date(naive), timeZone)
+    guess = naive - tzOffsetMs(new Date(guess), timeZone)
+    return new Date(guess)
+  } catch {
+    return null
+  }
+}
+
+/** "2:30 PM CST" — a time in a zone, with the zone named. */
+export function formatInZone(d: Date, timeZone: string | null): string {
+  try {
+    return new Intl.DateTimeFormat('en-US', {
+      timeZone: timeZone ?? 'UTC',
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      timeZoneName: 'short',
+    }).format(d)
+  } catch {
+    return d.toISOString()
+  }
+}
+
 // ── Best-time-to-call (prospect-local call windows) ─────────────────────────
 
 export interface CallWindow {

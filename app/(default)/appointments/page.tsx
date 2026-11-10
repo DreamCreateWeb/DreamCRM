@@ -52,6 +52,7 @@ export function parseAttention(raw: string | string[] | undefined): NonNullable<
 export default async function AppointmentsPage({ searchParams }: PageProps) {
   const ctx = await requireTenant()
   if (ctx.tenantType === 'patient') redirect('/patient/dashboard')
+  if (ctx.tenantType === 'caller') redirect('/calls')
   if (ctx.tenantType === 'platform') redirect('/calendar')
 
   const params = await searchParams

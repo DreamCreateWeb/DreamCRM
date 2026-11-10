@@ -84,6 +84,7 @@ REVOKE SELECT ON
   review_request,               -- token
   clinic_profile,               -- calendar_feed_token (the .ics feed IS the auth)
   referral_partner,             -- invite_token
+  prospect_caller,              -- invite_token (the cold caller's accept link, P-02)
   balance_payment_request,      -- token: the /b pay-my-balance landing (money)
   payment_plan,                 -- token: the /i landing, accepts and saves a card (money)
   nps_response,                 -- token: the /n survey landing

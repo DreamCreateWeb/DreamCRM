@@ -17,6 +17,18 @@ describe('followUpForOutcome', () => {
     expect(followUpForOutcome('callback', NOW).reason).toMatch(/callback/i)
   })
 
+  it('reaching the desk (P-01) schedules a few days out — a second call the same week reads as pestering', () => {
+    const g = followUpForOutcome('gatekeeper', NOW)
+    expect(g.at!.getTime()).toBe(NOW.getTime() + 3 * day)
+    expect(g.reason).toMatch(/decision maker/i)
+  })
+
+  it('the caller’s verdicts are terminal for the loop — a dead number is nothing to circle back on', () => {
+    for (const o of ['disconnected', 'wrong_number', 'closed']) {
+      expect(followUpForOutcome(o, NOW)).toEqual({ at: null, reason: null })
+    }
+  })
+
   it('clears the follow-up on a terminal outcome', () => {
     for (const o of ['demo_booked', 'won', 'not_interested', 'anything_else']) {
       expect(followUpForOutcome(o, NOW)).toEqual({ at: null, reason: null })

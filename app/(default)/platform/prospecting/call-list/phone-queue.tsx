@@ -1,8 +1,9 @@
 import Link from 'next/link'
 import type { PhoneQueueRow } from '@/lib/services/prospecting'
-import { ratingLabel } from '@/lib/types/prospecting'
+import { ratingLabel, formatProspectPhone } from '@/lib/types/prospecting'
 import { StatusPill } from '@/components/ui/status-pill'
 import { prospectInitials } from '@/lib/prospect-when'
+import { PhoneStandingPill, QualityPill, isBadPhone } from '../quality-pills'
 
 /**
  * The phone queue — high-value prospects with no deliverable email (the
@@ -25,7 +26,8 @@ export default function PhoneQueue({ rows }: { rows: PhoneQueueRow[] }) {
       </div>
       <p className="mb-3 text-xs text-gray-500 dark:text-gray-400">
         Hot prospects we can&apos;t email — no website, or no address that accepts mail. These are your best cold
-        calls: they need exactly what we sell and nobody else is reaching them.
+        calls: they need exactly what we sell and nobody else is reaching them. Only verified records above the
+        quality floor are here; parked ones wait on the pipeline table.
       </p>
       <div className="space-y-2">
         {rows.map((r) => (
@@ -63,6 +65,7 @@ export default function PhoneQueue({ rows }: { rows: PhoneQueueRow[] }) {
                     title="No website found — the hottest kind of prospect"
                   />
                 )}
+                <QualityPill band={r.qualityBand} score={r.qualityScore} />
               </div>
               <div className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
                 {[r.authorizedOfficialName, [r.city, r.state].filter(Boolean).join(', ')].filter(Boolean).join(' · ')}
@@ -86,13 +89,16 @@ export default function PhoneQueue({ rows }: { rows: PhoneQueueRow[] }) {
             </div>
             {/* tel: can't ride ActionButton/Link — a plain anchor in the
                 secondary recipe, so a queue of rows isn't a queue of primaries. */}
-            {r.phone && (
-              <a
-                href={`tel:${r.phone}`}
-                className="shrink-0 rounded-[var(--r-xs)] border border-[color:var(--color-hairline-strong)] px-3 py-1.5 text-sm font-medium text-teal-700 dark:text-teal-300 hover:bg-teal-500/10"
-              >
-                📞 ({r.phone.slice(0, 3)}) {r.phone.slice(3, 6)}-{r.phone.slice(6)}
-              </a>
+            {r.phone && !isBadPhone(r.phoneStatus) && (
+              <div className="flex shrink-0 flex-col items-end gap-1">
+                <a
+                  href={`tel:${r.phone}`}
+                  className="rounded-[var(--r-xs)] border border-[color:var(--color-hairline-strong)] px-3 py-1.5 text-sm font-medium text-teal-700 dark:text-teal-300 hover:bg-teal-500/10"
+                >
+                  📞 {formatProspectPhone(r.phone)}
+                </a>
+                <PhoneStandingPill status={r.phoneStatus} lineType={r.phoneLineType} />
+              </div>
             )}
           </div>
         ))}

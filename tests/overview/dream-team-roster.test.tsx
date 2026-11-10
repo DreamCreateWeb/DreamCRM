@@ -41,6 +41,8 @@ describe('the roster ↔ capability registry parity', () => {
       // that only reports to staff, not a job on any specialist's desk.
       'staff_alert',
       'inbox_sync',
+      // P-01: the platform's own prospecting engine — never a clinic's lane.
+      'prospecting',
       'metric_snapshot',
       ...SETUP_CAPABILITIES,
     ])

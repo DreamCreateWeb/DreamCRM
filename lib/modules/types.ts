@@ -10,7 +10,10 @@ import type { BundleId } from '@/lib/integrations/bundles'
 // 'partner' = an external referral partner (lib/services/referrals.ts). They
 // have no org membership; getTenantContext derives this from a
 // referral_partner.user_id linkage when no platform/clinic membership wins.
-export type TenantType = 'platform' | 'clinic' | 'patient' | 'partner'
+// 'caller' = a hired cold caller (lib/services/prospect-callers.ts, P-02):
+// the same shape — a prospect_caller.user_id linkage, no org membership,
+// and a portal of their own (/calls) that reaches nothing but their queue.
+export type TenantType = 'platform' | 'clinic' | 'patient' | 'partner' | 'caller'
 
 export type PlanTier = 'basic' | 'pro' | 'premium'
 

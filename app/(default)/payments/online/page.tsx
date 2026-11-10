@@ -56,6 +56,7 @@ function CaptureStatus({
 export default async function ShopPaymentsPage() {
   const ctx = await requireTenant()
   if (ctx.tenantType === 'patient') redirect('/patient/dashboard')
+  if (ctx.tenantType === 'caller') redirect('/calls')
   if (ctx.tenantType !== 'clinic') redirect('/dashboard')
   // THE TZ LAW: a date rendered server-side is rendered in UTC unless it is
   // told otherwise, and a 7:30 PM Central payment is already tomorrow there.

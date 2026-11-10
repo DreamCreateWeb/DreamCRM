@@ -1,6 +1,6 @@
 import { pgTable, text, timestamp, integer, jsonb, index, uniqueIndex } from 'drizzle-orm/pg-core'
 import { sql } from 'drizzle-orm'
-import { organization } from './auth'
+import { organization, user } from './auth'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Prospecting — Dream Create's OWN outbound growth engine (platform tenant).
@@ -34,6 +34,43 @@ export type ProspectStatus = (typeof PROSPECT_STATUSES)[number]
 export const PROSPECT_SCORE_BANDS = ['hot', 'warm', 'cool', 'low'] as const
 export type ProspectScoreBand = (typeof PROSPECT_SCORE_BANDS)[number]
 
+// ── Verification + quality (P-01, 2026-11-10) ──────────────────────────────
+// The opportunity score says how much a practice NEEDS us; the quality score
+// says whether the record is a practice we can actually reach — a live
+// listing, a number that rings, an NPI that is still active, a website that
+// is not a parking page. The two are never blended: the queues sort by
+// opportunity WITHIN the quality floor (prospecting_config.qualityFloor).
+export const PROSPECT_QUALITY_BANDS = ['best', 'good', 'weak', 'parked'] as const
+export type ProspectQualityBand = (typeof PROSPECT_QUALITY_BANDS)[number]
+
+export const PROSPECT_PHONE_STATUSES = [
+  'unknown',
+  'valid',
+  'invalid',
+  'disconnected',
+  'wrong_number',
+] as const
+export type ProspectPhoneStatus = (typeof PROSPECT_PHONE_STATUSES)[number]
+
+export const PROSPECT_PHONE_LINE_TYPES = ['landline', 'mobile', 'voip', 'other'] as const
+export type ProspectPhoneLineType = (typeof PROSPECT_PHONE_LINE_TYPES)[number]
+
+export const PROSPECT_PHONE_SOURCES = ['nppes', 'places', 'caller'] as const
+export type ProspectPhoneSource = (typeof PROSPECT_PHONE_SOURCES)[number]
+
+/** Where the website on the row came from — a matched Google listing, the
+ *  registry, a human's typing, a crawl. A listing Google no longer stands
+ *  behind takes ITS website with it; a typed one is never cleared. */
+export const PROSPECT_WEBSITE_SOURCES = ['places', 'nppes', 'manual', 'crawl'] as const
+export type ProspectWebsiteSource = (typeof PROSPECT_WEBSITE_SOURCES)[number]
+
+/** A phone in one of these states is never a dial target. */
+export const BAD_PHONE_STATUSES: readonly ProspectPhoneStatus[] = [
+  'invalid',
+  'disconnected',
+  'wrong_number',
+]
+
 export const PROSPECT_INTENT_SIGNALS = [
   'reply_interested',
   'reply_question',
@@ -44,6 +81,48 @@ export const PROSPECT_INTENT_SIGNALS = [
   'event_met', // met in person at a conference — the headshot capture (Part 10.8)
 ] as const
 export type ProspectIntentSignal = (typeof PROSPECT_INTENT_SIGNALS)[number]
+
+// ── Cold callers (P-02, 2026-11-10) ────────────────────────────────────────
+// THE FIFTH PERSONA: a person the owner hires (Upwork) to work the phone-
+// first pool. NOT an org member — mirrors the referral partner: a row here
+// + a `user_id` linkage set on invite acceptance; getTenantContext derives
+// tenantType 'caller' from it only when the user has NO org membership.
+// Platform-global (no organization_id): prospects are businesses, the
+// caller's whole world is `prospect` rows where assigned_caller_id = their
+// id, and every caller-facing read/write goes through requireCaller().
+export const PROSPECT_CALLER_STATUSES = ['invited', 'active', 'paused', 'archived'] as const
+export type ProspectCallerStatus = (typeof PROSPECT_CALLER_STATUSES)[number]
+
+export const prospectCaller = pgTable(
+  'prospect_caller',
+  {
+    id: text('id').primaryKey(), // pcal_…
+    name: text('name').notNull(),
+    // Lowercased + unique. The caller accepts their invite + signs in with it.
+    email: text('email').notNull().unique(),
+    status: text('status').notNull().default('invited'), // invited|active|paused|archived
+    // Crypto-random invite token; cleared once accepted. 7-day expiry.
+    inviteToken: text('invite_token'),
+    inviteSentAt: timestamp('invite_sent_at', { withTimezone: true }),
+    inviteExpiresAt: timestamp('invite_expires_at', { withTimezone: true }),
+    // The better-auth user this caller signs in as. Set on accept.
+    userId: text('user_id').references(() => user.id, { onDelete: 'set null' }),
+    // How many prospects their queue is topped up to (fillCallerQueues).
+    dailyTarget: integer('daily_target').notNull().default(40),
+    // Optional list of state codes they call (null / [] = any state).
+    states: jsonb('states'), // string[] | null
+    notes: text('notes'),
+    createdByUserId: text('created_by_user_id'),
+    lastActiveAt: timestamp('last_active_at', { withTimezone: true }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (t) => ({
+    user: index('idx_pcal_user').on(t.userId),
+  }),
+)
+export type ProspectCaller = typeof prospectCaller.$inferSelect
+export type NewProspectCaller = typeof prospectCaller.$inferInsert
 
 export const prospect = pgTable(
   'prospect',
@@ -77,6 +156,7 @@ export const prospect = pgTable(
 
     // Enrichment: Google Places
     websiteUrl: text('website_url'),
+    websiteSource: text('website_source'), // places|nppes|manual|crawl — null on legacy rows (an NPI row's came from Places)
     googlePlaceId: text('google_place_id'),
     googleRatingTenths: integer('google_rating_tenths'), // 4.7 → 47 (no float drift)
     reviewCount: integer('review_count'),
@@ -133,8 +213,41 @@ export const prospect = pgTable(
     nextFollowUpAt: timestamp('next_follow_up_at', { withTimezone: true }),
     followUpReason: text('follow_up_reason'),
 
+    // Verification (P-01). `verification` is a ProspectVerification map —
+    // one entry per signal {status, detail, checkedAt, source} — so every
+    // number on the drawer can say where it came from and when it was
+    // checked. `verifiedAt` stamps the last full pass; the re-verify sweep
+    // picks rows older than 60 days, or parked ones older than 30.
+    verification: jsonb('verification'),
+    verifiedAt: timestamp('verified_at', { withTimezone: true }),
+    // The quality score (computeQualityScore in lib/prospect-quality.ts):
+    // 0-100, hard zeros for a dead record, parked while a signal says wait.
+    qualityScore: integer('quality_score'),
+    qualityBand: text('quality_band'), // best|good|weak|parked
+    qualityReasons: jsonb('quality_reasons'), // string[] — plain sentences
+    // The phone's own standing. NANP syntax + the line-type provider +
+    // (strongest of all) what the caller heard. A bad status removes the
+    // number from every dial queue.
+    phoneStatus: text('phone_status'), // unknown|valid|invalid|disconnected|wrong_number
+    phoneLineType: text('phone_line_type'), // landline|mobile|voip|other
+    phoneSource: text('phone_source'), // nppes|places|caller
+    phoneValidatedAt: timestamp('phone_validated_at', { withTimezone: true }),
+
     suppressedReason: text('suppressed_reason'),
     suppressedAt: timestamp('suppressed_at', { withTimezone: true }),
+
+    // The cold-caller assignment (P-02). A prospect is worked by AT MOST one
+    // caller at a time: fillCallerQueues claims it with an atomic
+    // `UPDATE … WHERE assigned_caller_id IS NULL`; a terminal call outcome,
+    // the 7-day no-call sweep, a skip, an archive or an admin reassign
+    // releases it. While set, the owner's own Call Mode / call list hide
+    // the row (no double-dialing). `caller_cooldown_until` is the skip's
+    // 3-day breather before the row can be claimed again.
+    assignedCallerId: text('assigned_caller_id').references(() => prospectCaller.id, {
+      onDelete: 'set null',
+    }),
+    assignedAt: timestamp('assigned_at', { withTimezone: true }),
+    callerCooldownUntil: timestamp('caller_cooldown_until', { withTimezone: true }),
 
     // Win/loss outcome (the pipeline + learning loop). outcomeAt is stamped
     // when a prospect is won (converted) OR lost (not-interested/suppressed);
@@ -163,6 +276,8 @@ export const prospect = pgTable(
     status: index('idx_prospect_status').on(t.status),
     band: index('idx_prospect_band').on(t.scoreBand),
     callList: index('idx_prospect_call_list').on(t.status, t.intentAt),
+    quality: index('idx_prospect_quality').on(t.qualityBand, t.qualityScore),
+    assignedCaller: index('idx_prospect_assigned_caller').on(t.assignedCallerId, t.assignedAt),
   }),
 )
 export type Prospect = typeof prospect.$inferSelect
@@ -393,6 +508,12 @@ export const PROSPECT_CALL_OUTCOMES = [
   'demo_booked',
   'not_interested',
   'won',
+  // Caller feedback (P-01) — the strongest verification signal there is:
+  // the number did not ring, rang somewhere else, or the practice is gone.
+  'disconnected',
+  'wrong_number',
+  'closed', // retired / closed practice
+  'gatekeeper', // reached the desk, no decision maker
 ] as const
 export type ProspectCallOutcome = (typeof PROSPECT_CALL_OUTCOMES)[number]
 
@@ -406,10 +527,15 @@ export const prospectCallLog = pgTable(
     outcome: text('outcome').notNull(),
     note: text('note'),
     calledByUserId: text('called_by_user_id'),
+    // Who logged it when it was a cold caller (P-02); called_by_user_id
+    // stays the platform admin's stamp. Set null if the caller row goes, so
+    // the verification history survives the person.
+    callerId: text('caller_id').references(() => prospectCaller.id, { onDelete: 'set null' }),
     createdAt: timestamp('created_at').notNull().defaultNow(),
   },
   (t) => ({
     prospect: index('idx_pcall_prospect').on(t.prospectId),
+    caller: index('idx_pcall_caller').on(t.callerId, t.createdAt),
   }),
 )
 export type ProspectCallLog = typeof prospectCallLog.$inferSelect

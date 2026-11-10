@@ -193,6 +193,14 @@ async function draftReply(
   }
 }
 
+/** A reply that flips the row out of a cold caller's reach (P-02) — a no,
+ *  an unsubscribe, a wrong person, OR a hand-raiser (those stay with the
+ *  owner's own call list) — frees the caller's slot. Best-effort hook. */
+async function releaseCallerSlot(prospectId: string): Promise<void> {
+  const { releaseIfUnservable } = await import('./prospect-caller-release')
+  await releaseIfUnservable(prospectId)
+}
+
 async function stopLiveEnrollment(prospectId: string, status: string, reason: string) {
   await db
     .update(schema.outreachEnrollment)
@@ -258,6 +266,8 @@ async function applyClassification(
           updatedAt: now,
         })
         .where(eq(schema.prospect.id, prospect.id))
+      // A hand went up: the practice is the owner's now, whoever was dialling it.
+      await releaseCallerSlot(prospect.id)
       // Alert the owner (bell + forced email) + pre-warm the demo brief so the
       // prep page is instant when they click through. Both best-effort.
       await alertCallList(prospect, verdict.classification, verdict.summary)
@@ -294,6 +304,7 @@ async function applyClassification(
           updatedAt: now,
         })
         .where(eq(schema.prospect.id, prospect.id))
+      await releaseCallerSlot(prospect.id)
       break
     }
     case 'out_of_office': {
@@ -318,6 +329,7 @@ async function applyClassification(
         .update(schema.prospect)
         .set({ status: 'disqualified', intentSummary: verdict.summary, updatedAt: now })
         .where(eq(schema.prospect.id, prospect.id))
+      await releaseCallerSlot(prospect.id)
       break
     }
   }
@@ -531,6 +543,7 @@ export async function promoteProspectByEmail(
     .update(schema.prospect)
     .set({ status: 'call_list', intentSignal: signal, intentAt: new Date(), updatedAt: new Date() })
     .where(eq(schema.prospect.id, prospect.id))
+  await releaseCallerSlot(prospect.id)
   await alertCallList(
     { id: prospect.id, name: prospect.name, email: email, phone: prospect.phone },
     signal,

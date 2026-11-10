@@ -1,4 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+// The cold-caller release hook (P-02) rides every unservable flip; it is its
+// own module with its own tests — here it is a spy, so the counts below
+// stay the writer's own statements.
+vi.mock('@/lib/services/prospect-caller-release', () => ({ releaseIfUnservable: vi.fn(async () => false) }))
 
 /**
  * Intent detection — reply matching + classification side effects

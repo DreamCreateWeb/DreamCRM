@@ -56,6 +56,13 @@ export default async function CallListPage({
         opportunityScore: p.opportunityScore,
         scoreBand: p.scoreBand,
         lastCallOutcome: detail.calls[0]?.outcome ?? null,
+        phoneStatus: (p.phoneStatus as CallListRow['phoneStatus']) ?? null,
+        phoneLineType: (p.phoneLineType as CallListRow['phoneLineType']) ?? null,
+        qualityScore: p.qualityScore,
+        qualityBand: (p.qualityBand as CallListRow['qualityBand']) ?? null,
+        qualityReasons: Array.isArray(p.qualityReasons) ? (p.qualityReasons as string[]) : [],
+        assignedCallerId: detail.assignedCaller?.id ?? null,
+        assignedCallerName: detail.assignedCaller?.name ?? null,
       }
     }
   }

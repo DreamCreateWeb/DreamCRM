@@ -31,6 +31,7 @@ export const dynamic = 'force-dynamic'
 export default async function ShareCardsPage() {
   const ctx = await requireTenant()
   if (ctx.tenantType === 'patient') redirect('/patient/dashboard')
+  if (ctx.tenantType === 'caller') redirect('/calls')
   if (ctx.tenantType === 'platform') redirect('/dashboard')
 
   const [profile] = await db

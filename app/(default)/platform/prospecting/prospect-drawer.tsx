@@ -5,6 +5,7 @@ import {
   PROSPECT_STATUS_LABELS,
   SCORE_BAND_LABELS,
   INTENT_SIGNAL_LABELS,
+  CALL_OUTCOME_LABELS,
   ratingLabel,
   type ProspectAiVerdict,
   type ProspectCrawlSignals,
@@ -17,8 +18,13 @@ import {
   type VendorCategory,
 } from '@/lib/prospect-vendors'
 import DrawerActions from './drawer-actions'
+import AssignCallerControl from './assign-caller-control'
 import DemoFollowupDrafter from './demo-followup-drafter'
 import ContactsPanel from './contacts-panel'
+import { VerificationCard } from './verification-card'
+import PhoneEditor from './phone-editor'
+import { PhoneStandingPill, QualityPill, isBadPhone } from './quality-pills'
+import { formatProspectPhone } from '@/lib/types/prospecting'
 
 /**
  * Server-rendered prospect drawer — opens via ?prospect=<id> so it deep-links
@@ -40,9 +46,12 @@ function yesNo(v: boolean): string {
 export default function ProspectDrawer({
   detail,
   closeHref,
+  callers = [],
 }: {
   detail: ProspectDetail
   closeHref: string
+  /** Active cold callers (P-02) for the Reassign picker. */
+  callers?: Array<{ id: string; name: string }>
 }) {
   const p = detail.prospect
   const signals = (p.enrichment ?? null) as ProspectCrawlSignals | null
@@ -90,7 +99,27 @@ export default function ProspectDrawer({
               }
             />
           )}
+          {(p.qualityBand || p.verifiedAt) && (
+            <QualityPill
+              band={p.qualityBand}
+              score={p.qualityScore}
+              reasons={Array.isArray(p.qualityReasons) ? (p.qualityReasons as string[]) : []}
+            />
+          )}
         </div>
+
+        {/* The cold caller holding it (P-02) — the owner's own queues hide
+            it while someone else is dialling; Reassign / Unassign here. */}
+        {(detail.assignedCaller || callers.length > 0) && (
+          <div className={SECTION}>
+            <div className={SECTION_TITLE}>Caller</div>
+            <AssignCallerControl
+              prospectId={p.id}
+              assigned={detail.assignedCaller ? { id: detail.assignedCaller.id, name: detail.assignedCaller.name } : null}
+              callers={callers}
+            />
+          </div>
+        )}
 
         {/* Contact */}
         <div className={SECTION}>
@@ -105,13 +134,42 @@ export default function ProspectDrawer({
           <div className={ROW}>
             <span className={KEY}>Phone</span>
             <span className={`${VAL} tabular-nums`}>
-              {p.phone ? `(${p.phone.slice(0, 3)}) ${p.phone.slice(3, 6)}-${p.phone.slice(6)}` : '—'}
+              <span className="inline-flex flex-wrap items-center justify-end gap-1.5">
+                {p.phone ? (
+                  isBadPhone(p.phoneStatus) ? (
+                    <span className="line-through decoration-2">{formatProspectPhone(p.phone)}</span>
+                  ) : (
+                    <a href={`tel:+1${p.phone}`} className="text-teal-600 dark:text-teal-400 hover:underline">
+                      {formatProspectPhone(p.phone)}
+                    </a>
+                  )
+                ) : (
+                  '—'
+                )}
+                {p.phone && <PhoneStandingPill status={p.phoneStatus} lineType={p.phoneLineType} />}
+                {/* The way back for a parked number: the one that works, typed here. */}
+                <PhoneEditor prospectId={p.id} phone={p.phone} />
+              </span>
             </span>
           </div>
           <div className={ROW}>
             <span className={KEY}>NPI</span>
             <span className={`${VAL} tabular-nums`}>{p.npiNumber ?? '—'}</span>
           </div>
+        </div>
+
+        {/* Verification (P-01) — every signal, its source, its UTC stamp */}
+        <div className={SECTION}>
+          <div className={SECTION_TITLE}>Verification</div>
+          <VerificationCard
+            verification={p.verification}
+            verifiedAt={p.verifiedAt}
+            qualityScore={p.qualityScore}
+            qualityBand={p.qualityBand}
+            qualityReasons={p.qualityReasons}
+            phone={p.phone}
+            phoneSource={p.phoneSource}
+          />
         </div>
 
         {/* Reachability — every discovered/entered address, ranked + verified */}
@@ -260,7 +318,8 @@ export default function ProspectDrawer({
             <ul className="space-y-1.5 text-sm text-gray-700 dark:text-gray-300">
               {detail.calls.map((c, i) => (
                 <li key={i}>
-                  <span className="font-medium">{c.outcome.replace(/_/g, ' ')}</span>
+                  <span className="font-medium">{CALL_OUTCOME_LABELS[c.outcome as keyof typeof CALL_OUTCOME_LABELS] ?? c.outcome.replace(/_/g, ' ')}</span>
+                  {c.callerId && <span className="text-xs text-gray-500 dark:text-gray-400"> · by a caller</span>}
                   {c.note && <span className="text-gray-500 dark:text-gray-400"> — {c.note}</span>}
                 </li>
               ))}

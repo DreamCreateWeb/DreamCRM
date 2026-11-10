@@ -15,7 +15,7 @@ import { sendInvitationEmail } from '@/lib/email'
  */
 async function requireTeamAdmin() {
   const ctx = await requireTenant()
-  if (ctx.tenantType === 'patient') {
+  if (ctx.tenantType === 'patient' || ctx.tenantType === 'caller') {
     throw new Error('Team management is not available to patients.')
   }
   if (ctx.role !== 'owner' && ctx.role !== 'admin') {
