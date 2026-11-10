@@ -222,14 +222,14 @@ export async function draftCampaignAction(brief: string) {
   const ctx = await requireTenant()
   // Marketing is a staff surface — patients have a session but no business
   // triggering (paid) AI generations. The page redirects them; gate the action.
-  if (ctx.tenantType === 'patient') return null
+  if (ctx.tenantType === 'patient' || ctx.tenantType === 'caller') return null
   if (!brief.trim() || brief.length > 4000) return null
   return draftCampaign(brief, ctx.tenantType)
 }
 
 export async function improveCopyAction(html: string, instruction: string) {
   const ctx = await requireTenant()
-  if (ctx.tenantType === 'patient') return null
+  if (ctx.tenantType === 'patient' || ctx.tenantType === 'caller') return null
   if (!html.trim() || !instruction.trim()) return null
   if (html.length > 12_000 || instruction.length > 400) return null
   return improveCopy(html, instruction, ctx.tenantType)

@@ -18,6 +18,7 @@ export const dynamic = 'force-dynamic'
 export default async function ShopPage({ searchParams }: { searchParams: Promise<{ connected?: string; connectError?: string }> }) {
   const ctx = await requireTenant()
   if (ctx.tenantType === 'patient') redirect('/patient/dashboard')
+  if (ctx.tenantType === 'caller') redirect('/calls')
   if (ctx.tenantType !== 'clinic') redirect('/dashboard')
 
   const { connected, connectError } = await searchParams

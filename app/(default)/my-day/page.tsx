@@ -26,6 +26,7 @@ import { balanceSourceCopy, scheduleSourceCopy } from '@/lib/pms-link'
 export default async function MyDayPage() {
   const ctx = await requireTenant()
   if (ctx.tenantType === 'patient') redirect('/patient/dashboard')
+  if (ctx.tenantType === 'caller') redirect('/calls')
   if (ctx.tenantType === 'platform') redirect('/')
 
   const [data, digestEnabled, digestOptOut, timeZone, closedPerWeek8] = await Promise.all([

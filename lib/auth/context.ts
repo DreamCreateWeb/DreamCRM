@@ -6,6 +6,7 @@ import { organization, member } from '@/lib/db/schema/auth'
 import { clinicProfile } from '@/lib/db/schema/platform'
 import { patient } from '@/lib/db/schema/clinic'
 import { referralPartner } from '@/lib/db/schema/referrals'
+import { prospectCaller } from '@/lib/db/schema/prospecting'
 import { eq, and, asc } from 'drizzle-orm'
 import type { TenantType, PlanTier, Role } from '@/lib/modules/types'
 import { resolveTrialState } from '@/lib/trial'
@@ -110,6 +111,44 @@ async function resolvePartnerContext(
 }
 
 /**
+ * Build a 'caller' tenant context from a prospect_caller row linked to this
+ * user (P-02). Mirrors the partner's: only an ACTIVE caller resolves, a
+ * platform admin never does (their membership tenancy wins long before this
+ * runs, and an admin is never a hired caller), and the caller row's id rides
+ * `organizationId` so downstream code that keys on it still works — it is
+ * `pcal_…`, which no tenant table's organization_id can ever equal, so a
+ * clinic read scoped by it is empty and a clinic write fails its FK.
+ */
+async function resolveCallerContext(
+  user: { id: string; email: string; name: string },
+  isPlatformAdmin: boolean,
+): Promise<TenantContext | null> {
+  if (isPlatformAdmin) return null
+  const [c] = await db
+    .select({ id: prospectCaller.id, status: prospectCaller.status, name: prospectCaller.name })
+    .from(prospectCaller)
+    .where(eq(prospectCaller.userId, user.id))
+    .limit(1)
+  if (!c || c.status !== 'active') return null
+  return {
+    userId: user.id,
+    userEmail: user.email,
+    userName: user.name,
+    platformAdmin: false,
+    organizationId: c.id,
+    organizationName: c.name,
+    organizationSlug: '',
+    tenantType: 'caller',
+    role: 'member',
+    planTier: 'basic',
+    patientId: null,
+    isDemo: false,
+    viaViewAs: false,
+    subscriptionStatus: null,
+  }
+}
+
+/**
  * Resolves the current tenant context from the session.
  *
  * Platform admins can set a demo_context cookie to simulate any clinic or
@@ -123,6 +162,7 @@ async function resolvePartnerContext(
  *      role 'patient' → 'patient', else → 'clinic'.
  *   3. The user's FIRST membership (when the active org is stale / unset).
  *   4. Partner derivation — ONLY when the user has NO org membership at all.
+ *   5. Caller derivation (P-02) — the same condition, after the partner.
  *
  * The catch: a multi-persona user (e.g. a platform admin or clinic staffer who
  * is ALSO a referral partner) resolves to their MEMBERSHIP tenancy here, so
@@ -240,6 +280,11 @@ export async function getTenantContext(): Promise<TenantContext | null> {
       // clinic members never reach here, so their tenancy always wins.
       const partnerCtx = await resolvePartnerContext(session.user, isPlatformAdmin)
       if (partnerCtx) return partnerCtx
+      // …or a hired cold caller (P-02) — the same derivation from
+      // prospect_caller.user_id, after the partner so an existing persona
+      // keeps its home.
+      const callerCtx = await resolveCallerContext(session.user, isPlatformAdmin)
+      if (callerCtx) return callerCtx
       return null
     }
     activeOrgId = firstMembership.organizationId
@@ -408,4 +453,45 @@ export async function requirePartner(
     redirect('/')
   }
   return { ctx, partner: partner as import('@/lib/db/schema/referrals').ReferralPartner }
+}
+
+/** The caller row + session ctx, returned by {@link requireCaller}. */
+export interface CallerSession {
+  ctx: TenantContext
+  caller: import('@/lib/db/schema/prospecting').ProspectCaller
+}
+
+/**
+ * Authorize a cold-caller surface (the /calls portal + its actions) — P-02.
+ *
+ * The same shape as {@link requirePartner}: a DIRECT `prospect_caller.user_id`
+ * lookup, never `tenantType === 'caller'`, so a caller who also holds some
+ * membership still reaches their queue. What the row grants is exactly one
+ * thing — their own queue. Every read and write behind this helper filters by
+ * `assigned_caller_id = caller.id`, and nothing here hands out an org, a
+ * clinic or a patient.
+ *
+ * `redirectOnFail` (default true) sends a non-caller to `/` (which re-routes
+ * by their primary tenancy); false throws, for server actions.
+ *
+ * `allowInactive` (default false): the strict default requires an ACTIVE
+ * caller; the portal layout/page pass true so a paused / archived caller
+ * still resolves and reads the right calm state instead of bouncing. Actions
+ * keep the strict default so a paused caller cannot log a call.
+ */
+export async function requireCaller(
+  opts: { redirectOnFail?: boolean; allowInactive?: boolean } = {},
+): Promise<CallerSession> {
+  const ctx = await requireTenant()
+  const { getCallerByUserId } = await import('@/lib/services/prospect-callers')
+  const caller = await getCallerByUserId(ctx.userId)
+  const acceptable = caller && (opts.allowInactive || caller.status === 'active')
+  if (!acceptable) {
+    if (opts.redirectOnFail === false) {
+      throw new Error('Forbidden: active caller account required')
+    }
+    const { redirect } = await import('next/navigation')
+    redirect('/')
+  }
+  return { ctx, caller: caller as import('@/lib/db/schema/prospecting').ProspectCaller }
 }

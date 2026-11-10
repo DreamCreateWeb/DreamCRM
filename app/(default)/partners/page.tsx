@@ -19,6 +19,7 @@ import PartnersTable from './partners-table'
 export default async function PartnersPage() {
   const ctx = await requireTenant()
   if (ctx.tenantType === 'patient') redirect('/patient/dashboard')
+  if (ctx.tenantType === 'caller') redirect('/calls')
   if (ctx.tenantType === 'partner') redirect('/partner')
   if (ctx.tenantType !== 'platform') redirect('/')
   if (ctx.role !== 'owner' && ctx.role !== 'admin') redirect('/dashboard')

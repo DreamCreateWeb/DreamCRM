@@ -31,6 +31,7 @@ const SITE_DOMAIN = process.env.NEXT_PUBLIC_SITE_DOMAIN ?? 'dreamcreatestudio.co
 export default async function WebsiteDomainPage() {
   const ctx = await requireTenant()
   if (ctx.tenantType === 'patient') redirect('/patient/dashboard')
+  if (ctx.tenantType === 'caller') redirect('/calls')
   if (ctx.tenantType === 'platform') redirect('/dashboard')
   // Domain changes are owner/admin-only (the actions enforce it too).
   if (ctx.role !== 'owner' && ctx.role !== 'admin') redirect('/website')

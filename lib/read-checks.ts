@@ -95,6 +95,7 @@ const CREDENTIAL_COLUMNS: ReadonlyArray<readonly [table: string, column: string]
   ['two_factor', 'backup_codes'],
   ['clinic_profile', 'calendar_feed_token'],
   ['referral_partner', 'invite_token'],
+  ['prospect_caller', 'invite_token'],
   ['balance_payment_request', 'token'],
   ['payment_plan', 'token'],
   ['nps_response', 'token'],

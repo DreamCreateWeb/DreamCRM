@@ -6,6 +6,7 @@ import {
   rollupEngagementSignals,
 } from '@/lib/services/prospect-intent'
 import { runDemoReminders } from '@/lib/services/prospect-meetings'
+import { fillCallerQueues } from '@/lib/services/prospect-callers'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -39,7 +40,22 @@ async function run(request: Request) {
     const result = await runOutreach()
     // Remind prospects with a demo ~24h out (best-effort, bounded).
     const reminders = await runDemoReminders().catch(() => ({ sent: 0 }))
-    return NextResponse.json({ ok: true, ...result, intent, engagement, autoEnroll, demoReminders: reminders.sent })
+    // The cold callers' queues (P-02): release what nobody dialled in a
+    // week, then top every active caller up to their daily target from the
+    // best of the pool. No cron of its own — it rides this tick.
+    const callers = await fillCallerQueues().catch((err) => {
+      console.warn('[prospect-outreach] caller queue fill failed', err)
+      return null
+    })
+    return NextResponse.json({
+      ok: true,
+      ...result,
+      intent,
+      engagement,
+      autoEnroll,
+      demoReminders: reminders.sent,
+      callers,
+    })
   } catch (err) {
     return NextResponse.json(
       { error: err instanceof Error ? err.message : 'unknown' },

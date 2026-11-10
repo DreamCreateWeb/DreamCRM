@@ -12,6 +12,7 @@ import DreamTeamView from './dream-team-view'
 export default async function DreamTeamPage() {
   const ctx = await requireTenant()
   if (ctx.tenantType === 'patient') redirect('/patient/dashboard')
+  if (ctx.tenantType === 'caller') redirect('/calls')
   // The Dream Team works for clinics; the platform org has its own machine
   // (prospecting) and no proposal generators aimed at it.
   if (ctx.tenantType === 'platform') redirect('/dashboard')

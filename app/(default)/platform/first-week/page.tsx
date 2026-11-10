@@ -22,6 +22,7 @@ interface PageProps {
 export default async function FirstWeekPage({ searchParams }: PageProps) {
   const ctx = await requireTenant()
   if (ctx.tenantType === 'patient') redirect('/patient/dashboard')
+  if (ctx.tenantType === 'caller') redirect('/calls')
   if (ctx.tenantType !== 'platform') redirect('/dashboard')
   const params = await searchParams
   const includeDemo = params.demo === '1'

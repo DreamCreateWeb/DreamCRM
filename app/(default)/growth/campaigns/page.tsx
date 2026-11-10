@@ -70,6 +70,7 @@ export default async function CampaignsPage({
 }) {
   const ctx = await requireTenant()
   if (ctx.tenantType === 'patient') redirect('/patient/dashboard')
+  if (ctx.tenantType === 'caller') redirect('/calls')
 
   const { prefill_audience, prefill_template } = await searchParams
 

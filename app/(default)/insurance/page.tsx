@@ -32,6 +32,7 @@ interface PageProps {
 export default async function InsurancePage({ searchParams }: PageProps) {
   const ctx = await requireTenant()
   if (ctx.tenantType === 'patient') redirect('/patient/dashboard')
+  if (ctx.tenantType === 'caller') redirect('/calls')
   // A clinic feature: the platform tenant (and anything else) goes home.
   if (!canUseInsuranceTool(ctx)) redirect('/')
 

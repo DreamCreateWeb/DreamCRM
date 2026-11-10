@@ -12,6 +12,7 @@ import PlatformRevenue from './platform-revenue'
 export default async function RevenuePage() {
   const ctx = await requireTenant()
   if (ctx.tenantType === 'patient') redirect('/patient/dashboard')
+  if (ctx.tenantType === 'caller') redirect('/calls')
 
   if (ctx.tenantType === 'platform') return <PlatformRevenue />
 

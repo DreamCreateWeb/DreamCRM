@@ -50,6 +50,7 @@ const TIER_ACCENT_BG: Record<'amber' | 'rose' | 'emerald' | 'violet', string> = 
 export default async function OutreachQueuePage({ searchParams }: { searchParams: Promise<SP> }) {
   const ctx = await requireTenant()
   if (ctx.tenantType === 'patient') redirect('/patient/dashboard')
+  if (ctx.tenantType === 'caller') redirect('/calls')
   if (ctx.tenantType === 'platform') redirect('/marketing/pipeline')
 
   const params = await searchParams

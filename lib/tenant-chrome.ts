@@ -37,7 +37,27 @@ export function roleLabelFor(ctx: ChromeInput): string {
   if (ctx.tenantType === 'platform') return 'Platform admin'
   if (ctx.tenantType === 'patient') return 'Patient'
   if (ctx.tenantType === 'partner') return 'Referral partner'
+  if (ctx.tenantType === 'caller') return 'Caller'
   return ROLE_LABELS[ctx.role] ?? 'Team member'
+}
+
+/**
+ * THE ONE HOME of "where does this persona live" — the root route (`/`), the
+ * dashboard shell and every (default) page that bounces a non-dashboard
+ * persona read it, so a caller who types /dashboard lands on /calls and a
+ * patient on their portal, never on a shell that is not theirs.
+ */
+export function homePathFor(tenantType: TenantType): string {
+  switch (tenantType) {
+    case 'patient':
+      return '/patient/dashboard'
+    case 'partner':
+      return '/partner'
+    case 'caller':
+      return '/calls'
+    default:
+      return '/dashboard'
+  }
 }
 
 /**
@@ -49,6 +69,7 @@ export function sidebarBadgeFor(ctx: ChromeInput, now: Date = new Date()): strin
   if (ctx.tenantType === 'platform') return 'Platform admin'
   if (ctx.tenantType === 'patient') return 'Patient portal'
   if (ctx.tenantType === 'partner') return 'Referral partner'
+  if (ctx.tenantType === 'caller') return 'Caller'
   if (ctx.onTrial) {
     const days = trialDaysLeft(ctx.trialEndsAt ?? null, now)
     if (days != null) {

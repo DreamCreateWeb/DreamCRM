@@ -13,6 +13,7 @@ export const dynamic = 'force-dynamic'
 export default async function CareersPage() {
   const ctx = await requireTenant()
   if (ctx.tenantType === 'patient') redirect('/patient/dashboard')
+  if (ctx.tenantType === 'caller') redirect('/calls')
   if (ctx.tenantType !== 'clinic') redirect('/dashboard')
 
   const [jobs, applications, counts, stats, orgRow] = await Promise.all([
