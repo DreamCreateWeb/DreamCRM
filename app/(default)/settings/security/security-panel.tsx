@@ -12,6 +12,7 @@ import { useConfirm } from '@/components/ui/confirm-dialog'
 import { SettingsSection, SettingsRow } from '../settings-kit'
 import { SettingsTabs } from '../settings-tabs'
 import { runAction } from '@/lib/run-action'
+import { TextInput } from '@/components/ui/form-fields'
 
 /** Await a void-returning server action through `runAction`: a thrown action
  *  (network drop, redeploy skew) becomes `{ ok: false, error }` for a toast
@@ -205,11 +206,11 @@ export default function SecurityPanel({ sessions }: { sessions: SessionRow[] }) 
                         label="Current password"
                         htmlFor="cur-pw"
                         control={
-                          <input
+                          <TextInput
                             id="cur-pw"
                             type="password"
                             autoComplete="current-password"
-                            className="form-input w-full sm:w-72"
+                            className="w-full sm:w-72"
                             value={currentPw}
                             onChange={(e) => setCurrentPw(e.target.value)}
                             required
@@ -221,11 +222,11 @@ export default function SecurityPanel({ sessions }: { sessions: SessionRow[] }) 
                         label="New password"
                         htmlFor="new-pw"
                         control={
-                          <input
+                          <TextInput
                             id="new-pw"
                             type="password"
                             autoComplete="new-password"
-                            className="form-input w-full sm:w-72"
+                            className="w-full sm:w-72"
                             value={newPw}
                             onChange={(e) => setNewPw(e.target.value)}
                             required

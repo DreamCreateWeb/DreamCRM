@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Modal from '@/components/ui/modal'
 import { ActionButton } from '@/components/ui/action-button'
 import { newConversation } from './actions'
+import { Checkbox, TextInput } from '@/components/ui/form-fields'
 
 export default function NewConversationButton({
   users,
@@ -68,7 +69,7 @@ export default function NewConversationButton({
                   <div className="px-5 py-4 space-y-4">
                     <div>
                       <label htmlFor="new-conversation-button-title-optional" className="block text-sm font-medium mb-1">Title (optional)</label>
-                      <input id="new-conversation-button-title-optional" className="form-input w-full" value={title} onChange={(e) => setTitle(e.target.value)} />
+                      <TextInput id="new-conversation-button-title-optional" className="w-full" value={title} onChange={(e) => setTitle(e.target.value)} />
                     </div>
                     <div>
                       <span id="new-conversation-members-label" className="block text-sm font-medium mb-1">Members</span>
@@ -82,9 +83,8 @@ export default function NewConversationButton({
                         ) : (
                           users.map((u) => (
                             <label key={u.id} className="flex items-center px-3 py-1.5 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700">
-                              <input
-                                type="checkbox"
-                                className="form-checkbox"
+                              <Checkbox
+                                
                                 checked={participantIds.includes(u.id)}
                                 onChange={() => toggleUser(u.id)}
                               />

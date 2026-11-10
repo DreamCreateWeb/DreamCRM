@@ -16,6 +16,7 @@ import { SettingsSection, SettingsRow } from '../settings-kit'
 import { SettingsTabs } from '../settings-tabs'
 import { runAction } from '@/lib/run-action'
 import { StaleRefresh } from '@/components/ui/stale-refresh'
+import { Radio, TextInput, Textarea } from '@/components/ui/form-fields'
 
 /**
  * Settings → Patient portal. Everything the clinic can shape about the
@@ -337,13 +338,13 @@ export default function PortalSettingsForm({
             </>
           }
           control={
-            <input
+            <TextInput
               id="portal-welcome-headline"
               type="text"
               value={settings.copy.welcomeHeadline ?? ''}
               onChange={(e) => setCopy('welcomeHeadline', e.target.value)}
               placeholder="Good morning, {firstName}"
-              className="form-input w-full sm:w-72 text-sm"
+              className="w-full sm:w-72 text-sm"
               maxLength={80}
             />
           }
@@ -353,13 +354,13 @@ export default function PortalSettingsForm({
           htmlFor="portal-welcome-message"
           description="One warm sentence under the greeting."
           control={
-            <input
+            <TextInput
               id="portal-welcome-message"
               type="text"
               value={settings.copy.welcomeMessage ?? ''}
               onChange={(e) => setCopy('welcomeMessage', e.target.value)}
               placeholder="We're glad you're here. However long it's been — no judgment, ever."
-              className="form-input w-full sm:w-72 text-sm"
+              className="w-full sm:w-72 text-sm"
               maxLength={160}
             />
           }
@@ -369,13 +370,13 @@ export default function PortalSettingsForm({
           htmlFor="portal-announcement"
           description="Shows at the top of every portal page until a patient dismisses it. Empty = hidden."
           control={
-            <input
+            <TextInput
               id="portal-announcement"
               type="text"
               value={settings.copy.announcement ?? ''}
               onChange={(e) => setCopy('announcement', e.target.value)}
               placeholder="We're closed July 4th — book around the holiday!"
-              className="form-input w-full sm:w-72 text-sm"
+              className="w-full sm:w-72 text-sm"
               maxLength={160}
             />
           }
@@ -385,13 +386,13 @@ export default function PortalSettingsForm({
           htmlFor="portal-aftercare"
           description="Shown on a patient's portal home for a week after a completed visit. Empty = hidden."
           control={
-            <textarea
+            <Textarea
               id="portal-aftercare"
               value={settings.copy.aftercareNote ?? ''}
               onChange={(e) => setCopy('aftercareNote', e.target.value)}
               placeholder={'Rinse gently with warm salt water for the first 24 hours.\nA little sensitivity is normal — call us if anything feels wrong.'}
               rows={3}
-              className="form-textarea w-full sm:w-80 text-sm"
+              className="w-full sm:w-80 text-sm"
               maxLength={1000}
             />
           }
@@ -437,13 +438,13 @@ export default function PortalSettingsForm({
               </>
             }
             control={
-              <textarea
+              <Textarea
                 id="portal-autoreply-message"
                 value={settings.autoReply.message ?? ''}
                 onChange={(e) => setAutoReply({ message: e.target.value.trim() === '' ? null : e.target.value })}
                 placeholder={DEFAULT_AUTO_REPLY_MESSAGE}
                 rows={3}
-                className="form-textarea w-full sm:w-80 text-sm"
+                className="w-full sm:w-80 text-sm"
                 maxLength={1000}
               />
             }
@@ -489,13 +490,12 @@ export default function PortalSettingsForm({
                     : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
                 }`}
               >
-                <input
-                  type="radio"
+                <Radio
                   name="portal-login-destination"
                   value={opt.value}
                   checked={active}
                   onChange={() => setLogin({ destination: opt.value })}
-                  className="form-radio mt-0.5 shrink-0"
+                  className="mt-0.5 shrink-0"
                 />
                 <span className="min-w-0">
                   <span className="block text-sm font-medium text-gray-800 dark:text-gray-100">{opt.label}</span>
@@ -512,7 +512,7 @@ export default function PortalSettingsForm({
           htmlFor="portal-external-url"
           description="The full link, starting with https:// — the same one you’d read a patient over the phone."
           control={
-            <input
+            <TextInput
               id="portal-external-url"
               type="url"
               inputMode="url"
@@ -521,7 +521,7 @@ export default function PortalSettingsForm({
               onChange={(e) => setLogin({ externalUrl: e.target.value.trim() === '' ? null : e.target.value })}
               placeholder="https://portal.example.com/login"
               maxLength={EXTERNAL_PORTAL_URL_MAX_LEN}
-              className="form-input w-full sm:w-80 text-sm"
+              className="w-full sm:w-80 text-sm"
             />
           }
         />

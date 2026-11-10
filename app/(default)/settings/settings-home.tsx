@@ -38,28 +38,14 @@ export default function SettingsHome({
 
   return (
     <div className="section-enter">
-      {/* Hero — the one place brand aura is welcome (chrome, never behind data). */}
-      <div className="aura-chrome -mx-4 px-4 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 -mt-8 pt-8 pb-6 mb-8 rounded-lg">
-        <div className="text-xs font-semibold uppercase tracking-wider text-teal-700 dark:text-teal-400">
-          Settings
-        </div>
-        <h1 className="mt-1 text-2xl md:text-3xl font-bold tracking-tight text-gray-900 dark:text-gray-100">
-          {tenantType === 'platform' ? 'Platform settings' : 'Clinic settings'}
-        </h1>
-        <p className="mt-1 text-sm text-gray-600 dark:text-gray-400 max-w-2xl">
-          Everything that runs your {tenantType === 'platform' ? 'platform' : 'clinic'} — plus your own
-          account. Pick an area to jump in.
-        </p>
-
-        <div className="mt-5 max-w-md">
-          <SearchInput
-            value={query}
-            onChange={setQuery}
-            onClear={() => setQuery('')}
-            placeholder="Search settings…"
-            ariaLabel="Search settings"
-          />
-        </div>
+      <div className="mb-8 max-w-md">
+        <SearchInput
+          value={query}
+          onChange={setQuery}
+          onClear={() => setQuery('')}
+          placeholder="Search settings…"
+          ariaLabel="Search settings"
+        />
       </div>
 
       {searching ? (

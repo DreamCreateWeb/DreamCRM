@@ -7,6 +7,7 @@ import { useConfirm } from '@/components/ui/confirm-dialog'
 import { generateCalendarFeedAction, disableCalendarFeedAction } from './calendar-feed-actions'
 import { runAction } from '@/lib/run-action'
 import { StaleRefresh } from '@/components/ui/stale-refresh'
+import { TextInput } from '@/components/ui/form-fields'
 
 /**
  * Settings → Clinic "Calendar feed" card. Surfaces a tokenized, read-only .ics
@@ -101,11 +102,11 @@ export default function CalendarFeedCard({ initialToken, baseUrl, canManage }: P
           <div>
             <span className="block text-sm font-medium text-gray-800 dark:text-gray-100 mb-1">Subscribe URL</span>
             <div className="flex flex-col sm:flex-row gap-2">
-              <input
+              <TextInput
                 readOnly
                 value={feedUrl}
                 onFocus={(e) => e.currentTarget.select()}
-                className="form-input flex-1 text-sm font-mono"
+                className="flex-1 text-sm font-mono"
                 aria-label="Calendar feed URL"
               />
               <ActionButton variant="secondary" size="sm" onClick={copy}>

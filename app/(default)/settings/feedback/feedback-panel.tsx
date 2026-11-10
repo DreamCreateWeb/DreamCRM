@@ -8,6 +8,7 @@ import {
   FEEDBACK_CATEGORIES,
   DEFAULT_FEEDBACK_CATEGORY,
 } from './feedback-categories'
+import { Select, Textarea } from '@/components/ui/form-fields'
 
 const MESSAGE_MAX = 4000
 
@@ -90,9 +91,9 @@ export default function FeedbackPanel() {
                           <label className="sr-only" htmlFor="feedback-category">
                             Feedback topic
                           </label>
-                          <select
+                          <Select
                             id="feedback-category"
-                            className="form-select w-full max-w-sm"
+                            className="w-full max-w-sm"
                             value={category}
                             onChange={(e) => setCategory(e.target.value)}
                           >
@@ -101,7 +102,7 @@ export default function FeedbackPanel() {
                                 {c.label}
                               </option>
                             ))}
-                          </select>
+                          </Select>
                           {activeCat && (
                             <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">{activeCat.hint}</p>
                           )}
@@ -187,9 +188,9 @@ export default function FeedbackPanel() {
                           <label className="sr-only" htmlFor="feedback">
                             Leave feedback
                           </label>
-                          <textarea
+                          <Textarea
                             id="feedback"
-                            className="form-textarea w-full focus:border-gray-300"
+                            className="w-full focus:border-gray-300"
                             rows={5}
                             maxLength={MESSAGE_MAX}
                             placeholder="What's working well? What could we improve? Anything confusing?"
