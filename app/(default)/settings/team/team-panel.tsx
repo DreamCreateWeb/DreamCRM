@@ -16,6 +16,7 @@ import { useConfirm } from '@/components/ui/confirm-dialog'
 import { TONE_TEXT } from '@/lib/ui/encodings'
 import { SettingsSection } from '../settings-kit'
 import { SettingsTabs } from '../settings-tabs'
+import { Select, TextInput } from '@/components/ui/form-fields'
 
 export interface TeamMemberView {
   userId: string
@@ -83,17 +84,17 @@ function RolePicker({
 }) {
   return (
     <div className="flex flex-col gap-1">
-      <select
+      <Select
         value={value}
         onChange={(e) => onChange(e.target.value as Role)}
         disabled={disabled}
         aria-label={ariaLabel}
         aria-describedby="role-help"
-        className={compact ? 'form-select text-sm py-1' : 'form-select'}
+        className={compact ? ' text-sm py-1' : ''}
       >
         <option value="member">Member</option>
         <option value="admin">Admin</option>
-      </select>
+      </Select>
       {!compact && (
         <p id="role-help" className="text-xs leading-relaxed text-gray-500 dark:text-gray-400 max-w-prose">
           {ROLE_HELP}
@@ -345,11 +346,11 @@ export default function TeamPanel({ members, invitations, canManage = false }: P
                     >
                       <form onSubmit={onInvite} className="flex flex-col gap-3 max-w-2xl">
                         <div className="flex flex-col sm:flex-row sm:items-start gap-2">
-                          <input
+                          <TextInput
                             type="email"
                             required
                             placeholder="teammate@example.com"
-                            className="form-input flex-1"
+                            className="flex-1"
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
                           />

@@ -7,6 +7,7 @@ import InboxAutoRefresh from '../inbox-auto-refresh'
 import { sendSupportMessage } from './actions'
 import { ActionButton } from '@/components/ui/action-button'
 import { relativeTime } from '@/lib/utils'
+import { Textarea } from '@/components/ui/form-fields'
 
 /**
  * THE SUPPORT PANE — a single conversation with Dream Create, rendered the
@@ -155,7 +156,7 @@ export default function SupportView({
               </p>
             )}
             <div className="flex items-end gap-2">
-              <textarea
+              <Textarea
                 value={body}
                 onChange={(e) => setBody(e.target.value)}
                 onKeyDown={(e) => {
@@ -168,7 +169,7 @@ export default function SupportView({
                 disabled={demo || pending}
                 placeholder={demo ? 'The demo composer is read-only' : 'Write to the DreamCRM team…'}
                 aria-label="Message to support"
-                className="form-textarea max-h-40 flex-1 resize-none rounded-[var(--r-sm)] text-sm"
+                className="max-h-40 flex-1 resize-none rounded-[var(--r-sm)] text-sm"
               />
               <ActionButton
                 type="submit"

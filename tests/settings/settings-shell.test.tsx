@@ -22,35 +22,43 @@ beforeEach(() => cleanup())
 afterEach(() => cleanup())
 
 describe('SettingsShell — no cross-page rail', () => {
-  it('renders a focused page in a centered max-width column (no rail)', () => {
+  it('renders its children bare (the frame owns gutters + width) with no rail', () => {
     mockPath = '/settings/clinic'
     const { container } = render(
       <SettingsShell>
         <div data-testid="child">page body</div>
       </SettingsShell>,
     )
-    // The child is wrapped in the centered column…
-    const child = screen.getByTestId('child')
-    expect(child.closest('.max-w-4xl')).not.toBeNull()
-    // …and there is NO settings navigation rail (the old <nav aria-label="Settings">)
+    expect(screen.getByTestId('child')).toBeTruthy()
+    // There is NO settings navigation rail (the old <nav aria-label="Settings">)
     // and no "Search settings" box anymore.
     expect(container.querySelector('nav[aria-label="Settings"]')).toBeNull()
     expect(screen.queryByRole('textbox', { name: /search settings/i })).toBeNull()
   })
 
-  it('renders the /settings home full-width (no centered column wrapper)', () => {
+  it('does not box the /settings home in (the home asks for the wide frame)', () => {
     mockPath = '/settings'
     render(
       <SettingsShell>
         <div data-testid="home">home grid</div>
       </SettingsShell>,
     )
-    // Home is its own full-width navigation — the shell doesn't box it in.
     expect(screen.getByTestId('home').closest('.max-w-4xl')).toBeNull()
   })
 })
 
 describe('SettingsPage — back-to-home link', () => {
+  it('renders through PageFrame in the focused 4xl column', () => {
+    const { container } = render(
+      <SettingsPage title="Clinic profile">
+        <div>fields</div>
+      </SettingsPage>,
+    )
+    const frame = container.querySelector('[data-page-frame]')
+    expect(frame).not.toBeNull()
+    expect(frame!.className).toContain('max-w-4xl')
+  })
+
   it('every focused page inherits a "‹ Settings" link to the /settings home', () => {
     render(
       <SettingsPage title="Clinic profile" subtitle="Your details">

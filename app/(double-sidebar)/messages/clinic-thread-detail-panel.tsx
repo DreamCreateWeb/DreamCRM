@@ -42,6 +42,7 @@ import { MAX_MESSAGE_ATTACHMENTS } from '@/lib/types/messaging'
 import BookFromPatientDrawer from '@/app/(default)/appointments/book-from-patient-drawer'
 import { usePopoverDismiss } from '@/components/ui/use-popover-dismiss'
 import { StatusPill } from '@/components/ui/status-pill'
+import { Select, TextInput } from '@/components/ui/form-fields'
 
 type Channel = 'in_app' | 'email' | 'sms'
 
@@ -1491,12 +1492,12 @@ export default function ThreadDetailPanel({
                 <span className="flex-1" />
 
                 <label className="sr-only" htmlFor="reply-channel">Reply channel</label>
-                <select
+                <Select
                   id="reply-channel"
                   value={channel}
                   onChange={(e) => setChannel(e.target.value as Channel)}
                   title="Choose how this reply is delivered"
-                  className="form-select text-xs font-medium py-1 pl-2 pr-7 text-gray-700 dark:text-gray-200"
+                  className="text-xs font-medium py-1 pl-2 pr-7 text-gray-700 dark:text-gray-200"
                 >
                   <option value="in_app">In-app message</option>
                   <option value="email" disabled={!hasEmail}>
@@ -1509,7 +1510,7 @@ export default function ThreadDetailPanel({
                   <option value="sms" disabled>
                     {smsLive ? 'SMS (reminders only, for now)' : 'SMS (set up texting first)'}
                   </option>
-                </select>
+                </Select>
 
                 {/* Schedule (send later) — a quiet clock toggle beside Send; opens
                     a popover with a date+time picker. Never competes with Send. */}
@@ -1535,12 +1536,12 @@ export default function ThreadDetailPanel({
                     {showSchedule && (
                       <div className="pop-in origin-bottom-right absolute right-0 bottom-10 z-10 w-64 rounded-[var(--r-lg)] bg-[color:var(--color-surface-1)] p-3 shadow-[var(--shadow-pop)]">
                         <p className="mb-1.5 text-xs font-semibold text-gray-700 dark:text-gray-200">Send later</p>
-                        <input
+                        <TextInput
                           type="datetime-local"
                           value={scheduleAt}
                           min={defaultScheduleLocal()}
                           onChange={(e) => setScheduleAt(e.target.value)}
-                          className="form-input w-full text-xs"
+                          className="w-full text-xs"
                           aria-label="Send date and time"
                         />
                         <div className="mt-2 flex justify-end gap-2">

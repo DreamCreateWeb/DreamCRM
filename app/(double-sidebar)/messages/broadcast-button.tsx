@@ -11,6 +11,7 @@ import {
   type BroadcastSegmentKey,
 } from '@/lib/types/broadcast'
 import { broadcastPreviewAction, sendBroadcastAction } from './clinic-actions'
+import { Radio, Textarea } from '@/components/ui/form-fields'
 
 /**
  * The inbox megaphone: "office closed today" to a quick segment, in one shot.
@@ -105,10 +106,9 @@ export default function BroadcastButton() {
                                   : 'border-gray-200 dark:border-gray-700/60 hover:border-teal-300'
                               }`}
                             >
-                              <input
-                                type="radio"
+                              <Radio
                                 name="broadcast-segment"
-                                className="form-radio mt-0.5"
+                                className="mt-0.5"
                                 checked={segment === s.key}
                                 onChange={() => setSegment(s.key)}
                               />
@@ -133,9 +133,9 @@ export default function BroadcastButton() {
                         <label htmlFor="broadcast-body" className="block text-sm font-medium mb-1">
                           The message
                         </label>
-                        <textarea
+                        <Textarea
                           id="broadcast-body"
-                          className="form-textarea w-full"
+                          className="w-full"
                           rows={4}
                           maxLength={BROADCAST_BODY_MAX}
                           placeholder="We’re closed today due to weather — we’ll reach out to reschedule. Reply here with any questions."

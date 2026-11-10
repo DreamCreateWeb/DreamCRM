@@ -1,7 +1,7 @@
 'use client'
 
-import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { TabLink, Tabs } from '@/components/ui/tabs'
 
 /**
  * Persistent sub-nav for the prospecting workspace — before this, the eight
@@ -39,25 +39,13 @@ export default function ProspectingNav() {
       aria-label="Prospecting sections"
       className="px-4 sm:px-6 lg:px-8 pt-4 w-full max-w-[96rem] mx-auto"
     >
-      <div className="flex flex-wrap gap-1 border-b border-gray-200 dark:border-gray-700/60 pb-0 overflow-x-auto">
-        {TABS.map((t) => {
-          const active = current === t.href
-          return (
-            <Link
-              key={t.href}
-              href={t.href}
-              aria-current={active ? 'page' : undefined}
-              className={`whitespace-nowrap px-3 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
-                active
-                  ? 'border-teal-500 text-teal-700 dark:text-teal-300'
-                  : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
-              }`}
-            >
-              {t.label}
-            </Link>
-          )
-        })}
-      </div>
+      <Tabs label="Prospecting sections">
+        {TABS.map((t) => (
+          <TabLink key={t.href} href={t.href} active={current === t.href}>
+            {t.label}
+          </TabLink>
+        ))}
+      </Tabs>
     </nav>
   )
 }

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { TextInput } from '@/components/ui/form-fields'
 
 /**
  * Brand-color control for the Branding section. Replaces the raw hex text input
@@ -77,7 +78,7 @@ export default function BrandColorField({
         </label>
         {/* Hex text field kept in sync with the swatch. */}
         <div>
-          <input
+          <TextInput
             type="text"
             inputMode="text"
             value={text}
@@ -94,7 +95,7 @@ export default function BrandColorField({
             }}
             placeholder="#2a7f8c"
             aria-invalid={invalid}
-            className={`form-input w-32 font-mono-num ${invalid ? 'border-rose-400 dark:border-rose-500' : ''}`}
+            className={`w-32 font-mono-num ${invalid ? 'border-rose-400 dark:border-rose-500' : ''}`}
           />
           {invalid && (
             <p className="mt-1 text-xs text-rose-600 dark:text-rose-400">

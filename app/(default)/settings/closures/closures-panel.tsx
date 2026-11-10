@@ -12,6 +12,7 @@ import type { GbpSpecialClosure } from '@/lib/gbp-listing'
 import { SettingsSection } from '../settings-kit'
 import { addClosureAction, addPresetClosuresAction, removeClosureAction } from './actions'
 import type { ClosuresPageData } from './data'
+import { TextInput } from '@/components/ui/form-fields'
 
 /**
  * Settings → Holiday closures (ML-51). One list, one place: the dated ranges
@@ -137,21 +138,21 @@ export default function ClosuresPanel({ initial }: { initial: ClosuresPageData }
           <div id="add-closure" className="grid gap-3 sm:grid-cols-[2fr_1fr_1fr_auto] sm:items-end">
             <label className="text-xs font-medium text-gray-600 dark:text-gray-300">
               Name
-              <input
+              <TextInput
                 value={label}
                 onChange={(e) => setLabel(e.target.value)}
                 maxLength={80}
                 placeholder="Staff retreat"
-                className="form-input mt-1 w-full"
+                className="mt-1 w-full"
               />
             </label>
             <label className="text-xs font-medium text-gray-600 dark:text-gray-300">
               First day closed
-              <input type="date" value={startsOn} onChange={(e) => setStartsOn(e.target.value)} className="form-input mt-1 w-full" />
+              <TextInput type="date" value={startsOn} onChange={(e) => setStartsOn(e.target.value)} className="mt-1 w-full" />
             </label>
             <label className="text-xs font-medium text-gray-600 dark:text-gray-300">
               Last day (optional)
-              <input type="date" value={endsOn} min={startsOn || undefined} onChange={(e) => setEndsOn(e.target.value)} className="form-input mt-1 w-full" />
+              <TextInput type="date" value={endsOn} min={startsOn || undefined} onChange={(e) => setEndsOn(e.target.value)} className="mt-1 w-full" />
             </label>
             <ActionButton variant="primary" size="sm" pending={busy === 'add'} disabled={busy != null || !label.trim() || !startsOn} onClick={addOwn}>
               Add closure
