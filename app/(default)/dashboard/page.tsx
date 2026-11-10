@@ -13,6 +13,7 @@ import ClinicOverview from './clinic-overview'
 export default async function Dashboard() {
   const ctx = await requireTenant()
   if (ctx.tenantType === 'patient') redirect('/patient/dashboard')
+  if (ctx.tenantType === 'caller') redirect('/calls')
   if (ctx.tenantType === 'platform') return <PlatformOverview />
   return <ClinicOverview ctx={ctx} />
 }

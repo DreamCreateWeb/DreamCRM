@@ -35,6 +35,7 @@ export async function generateMetadata({ params }: PageProps) {
 export default async function PatientDetailPage({ params }: PageProps) {
   const ctx = await requireTenant()
   if (ctx.tenantType === 'patient') redirect('/patient/dashboard')
+  if (ctx.tenantType === 'caller') redirect('/calls')
   if (ctx.tenantType === 'platform') redirect('/ecommerce/customers')
 
   const { id } = await params

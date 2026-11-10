@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { roleLabelFor, sidebarBadgeFor } from '@/lib/tenant-chrome'
+import { homePathFor, roleLabelFor, sidebarBadgeFor } from '@/lib/tenant-chrome'
 import { trialDaysLeft } from '@/lib/trial'
 
 /**
@@ -16,10 +16,19 @@ describe('roleLabelFor', () => {
     expect(roleLabelFor({ ...base, role: 'admin' })).toBe('Admin')
     expect(roleLabelFor({ ...base, role: 'member' })).toBe('Team member')
   })
-  it('platform / patient / partner tenants name themselves', () => {
+  it('platform / patient / partner / caller tenants name themselves', () => {
     expect(roleLabelFor({ tenantType: 'platform', role: 'owner' })).toBe('Platform admin')
     expect(roleLabelFor({ tenantType: 'patient', role: 'patient' })).toBe('Patient')
     expect(roleLabelFor({ tenantType: 'partner', role: 'member' })).toBe('Referral partner')
+    expect(roleLabelFor({ tenantType: 'caller', role: 'member' })).toBe('Caller')
+    expect(sidebarBadgeFor({ tenantType: 'caller', role: 'member' })).toBe('Caller')
+  })
+  it('homePathFor — one home per persona; a caller lands on /calls', () => {
+    expect(homePathFor('caller')).toBe('/calls')
+    expect(homePathFor('partner')).toBe('/partner')
+    expect(homePathFor('patient')).toBe('/patient/dashboard')
+    expect(homePathFor('clinic')).toBe('/dashboard')
+    expect(homePathFor('platform')).toBe('/dashboard')
   })
   it('never says a bare "Member"', () => {
     for (const role of ['owner', 'admin', 'member', 'patient'] as const) {

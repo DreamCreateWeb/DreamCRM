@@ -45,6 +45,7 @@ export const dynamic = 'force-dynamic'
 export default async function SocialPostsPage() {
   const ctx = await requireTenant()
   if (ctx.tenantType === 'patient') redirect('/patient/dashboard')
+  if (ctx.tenantType === 'caller') redirect('/calls')
   if (ctx.tenantType !== 'clinic') redirect('/dashboard')
   // NO plan gate — posting is gated by what's connected (owner/admin + clinic).
 

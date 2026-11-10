@@ -19,6 +19,7 @@ export default async function TeamSettings() {
   // Team management is available to clinic + platform tenants; patients
   // have no team concept.
   if (ctx.tenantType === 'patient') redirect('/patient/dashboard')
+  if (ctx.tenantType === 'caller') redirect('/calls')
 
   const [members, invitations] = await Promise.all([
     listTeamMembers(ctx.organizationId),

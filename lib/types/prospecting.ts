@@ -97,6 +97,97 @@ export const REACHED_CALL_OUTCOMES: readonly ProspectCallOutcome[] = [
   'not_interested',
 ]
 
+// ── Cold callers (P-02) ────────────────────────────────────────────────────
+export type ProspectCallerStatus = import('@/lib/db/schema/prospecting').ProspectCallerStatus
+
+export const CALLER_STATUS_LABELS: Record<ProspectCallerStatus, string> = {
+  invited: 'Invited',
+  active: 'Active',
+  paused: 'Paused',
+  archived: 'Archived',
+}
+
+/** A caller's invite link is good for this long (shorter than a partner's
+ *  14 days — a caller starts the week they are hired). */
+export const CALLER_INVITE_TTL_DAYS = 7
+/** A claimed prospect nobody dialled for this long goes back to the pool. */
+export const CALLER_STALE_ASSIGNMENT_DAYS = 7
+/** A skipped prospect waits this long before any caller can claim it again. */
+export const CALLER_SKIP_COOLDOWN_DAYS = 3
+/** A skip that ENDS the relationship ("not a fit", "already spoke") parks
+ *  the row out of every caller's reach for this long — never a 3-day
+ *  recycle back to the same person. */
+export const CALLER_SKIP_LONG_COOLDOWN_DAYS = 90
+export const CALLER_SKIP_FINAL_REASONS = ['not_a_fit', 'already_spoke'] as const
+/** A row the sweep or a pause hands back waits this long before the SAME
+ *  tick's refill can hand it straight back. */
+export const CALLER_RELEASE_COOLDOWN_DAYS = 3
+
+/** Statuses a caller's queue can SERVE: the live ones. A row that leaves
+ *  this list by any path (a reply, a bounce, a verify pass, a conversion)
+ *  drops off the dial card the moment it is read, and
+ *  `releaseIfUnservable` frees the slot. `engaged` is here (a practice that
+ *  warms up while held stays held) but NOT in the pool a caller claims
+ *  from — those are the owner's warm leads. */
+export const CALLER_SERVABLE_STATUSES = ['enriched', 'queued', 'contacted', 'engaged', 'call_list'] as const
+
+/** Intent signals that mean a hand went up — those practices stay with the
+ *  platform owner's own call list and are never auto-assigned to a caller. */
+export const HAND_RAISER_SIGNALS: readonly ProspectIntentSignal[] = [
+  'reply_interested',
+  'reply_question',
+  'demo_request',
+  'event_met',
+]
+
+/** Outcomes after which a caller's assignment ends — the record is done (a
+ *  polite no) or dead (closed / bad number). Every one of them also makes
+ *  the row UNSERVABLE (a status or phone flip), so the pool never hands it
+ *  back. A booked demo is NOT here: the row stays with the caller who
+ *  earned it, off the dial card, until the meeting passes. */
+export const CALLER_TERMINAL_OUTCOMES: readonly ProspectCallOutcome[] = [
+  'not_interested',
+  'closed',
+  'disconnected',
+  'wrong_number',
+]
+
+/** The outcome keys a caller can press (1–9, in this order). `demo_booked`
+ *  opens the inline booking form; `not_interested` asks for a coded reason;
+ *  `callback` asks for a time in the practice's zone. */
+export const CALLER_OUTCOME_KEYS: readonly ProspectCallOutcome[] = [
+  'demo_booked',
+  'not_interested',
+  'callback',
+  'voicemail',
+  'no_answer',
+  'gatekeeper',
+  'disconnected',
+  'wrong_number',
+  'closed',
+]
+
+/** The caller's labels — "Reached" leads where a human picked up. */
+export const CALLER_OUTCOME_LABELS: Record<ProspectCallOutcome, string> = {
+  ...CALL_OUTCOME_LABELS,
+  demo_booked: 'Reached — interested',
+  not_interested: 'Reached — not interested',
+  gatekeeper: 'Gatekeeper',
+}
+
+/** A skip is logged on the call log under this outcome word (never through
+ *  logCallOutcome — it changes nothing about the record but who holds it). */
+export const CALLER_SKIP_OUTCOME = 'skipped'
+
+export const CALLER_SKIP_REASONS = ['not_a_fit', 'already_spoke', 'bad_timing', 'other'] as const
+export type CallerSkipReason = (typeof CALLER_SKIP_REASONS)[number]
+export const CALLER_SKIP_REASON_LABELS: Record<CallerSkipReason, string> = {
+  not_a_fit: "Doesn't look like a fit",
+  already_spoke: 'Already spoke to them',
+  bad_timing: 'Come back to it later',
+  other: 'Other',
+}
+
 // ── Verification (prospect.verification jsonb) ─────────────────────────────
 export const VERIFICATION_SIGNALS = ['places', 'business', 'npi', 'website', 'phone', 'reach'] as const
 export type VerificationSignalId = (typeof VERIFICATION_SIGNALS)[number]
@@ -560,6 +651,8 @@ export interface ProspectListRow {
   phoneStatus: ProspectPhoneStatus | null
   phoneLineType: ProspectPhoneLineType | null
   verifiedAt: Date | null
+  /** The cold caller working it right now (P-02), else null. */
+  assignedCallerId: string | null
 }
 
 /** Live-pool quality counts for the hunt tiles, the table chips and the

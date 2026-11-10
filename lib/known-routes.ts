@@ -96,6 +96,9 @@ export const KNOWN_TOP_LEVEL_SEGMENTS: ReadonlySet<string> = new Set([
   'welcome',
   // Referral-partner portal + its token-auth accept page
   'partner',
+  // Cold-caller portal (/calls) + its token-auth accept page (/caller/accept)
+  'calls',
+  'caller',
   // Patient portal — app/(portal), plus its generic door (app/portal)
   'portal',
   'patient',

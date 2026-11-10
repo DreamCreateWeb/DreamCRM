@@ -300,6 +300,141 @@ export async function bookDemoForProspectAction(input: unknown): Promise<{ ok: b
   return { ok: true }
 }
 
+// ── Cold callers (P-02) — every one behind requirePlatformAdmin ─────────────
+
+const inviteCallerSchema = z.object({
+  name: z.string().trim().min(2, 'Add their name').max(120),
+  email: z.string().trim().email('Enter a valid email').max(200),
+  dailyTarget: z.number().int().min(1).max(500).optional(),
+  states: z.array(z.string().trim().length(2)).max(60).optional(),
+  notes: z.string().trim().max(2000).optional(),
+})
+
+export type InviteCallerResult = { ok: true; id: string; email: string; sent: boolean } | { ok: false; error: string }
+
+/** Invite a caller: the row + the accept email (7-day link). `sent: false`
+ *  means the row exists and the email did not leave — the list shows it
+ *  with "invite not sent · Resend". */
+export async function inviteCallerAction(input: unknown): Promise<InviteCallerResult> {
+  const ctx = await requirePlatformAdmin()
+  const parsed = inviteCallerSchema.safeParse(input)
+  if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? 'Check the form' }
+  const { createCaller } = await import('@/lib/services/prospect-callers')
+  try {
+    const r = await createCaller({ ...parsed.data, createdByUserId: ctx.userId })
+    revalidatePath('/platform/prospecting/callers')
+    return { ok: true, ...r }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Could not invite them' }
+  }
+}
+
+export async function resendCallerInviteAction(callerId: string): Promise<{ ok: true; email: string } | { ok: false; error: string }> {
+  await requirePlatformAdmin()
+  const { resendCallerInvite } = await import('@/lib/services/prospect-callers')
+  try {
+    const r = await resendCallerInvite(z.string().min(1).parse(callerId))
+    revalidatePath('/platform/prospecting/callers')
+    return { ok: true, ...r }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Could not resend' }
+  }
+}
+
+/** Pause hands everything they held back to the pool and blocks every
+ *  action; resume lets them fill and dial again. */
+export async function setCallerStatusAction(
+  callerId: string,
+  status: 'active' | 'paused',
+): Promise<{ ok: true; released: number } | { ok: false; error: string }> {
+  await requirePlatformAdmin()
+  const { setCallerStatus } = await import('@/lib/services/prospect-callers')
+  try {
+    const r = await setCallerStatus(z.string().min(1).parse(callerId), z.enum(['active', 'paused']).parse(status))
+    revalidatePath('/platform/prospecting/callers')
+    revalidatePath(`/platform/prospecting/callers/${callerId}`)
+    revalidatePath('/platform/prospecting')
+    revalidatePath('/platform/prospecting/call-list')
+    return { ok: true, ...r }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Could not change that' }
+  }
+}
+
+/** Reactivate an archived caller — straight back to active when they had
+ *  set up their account, else a fresh invite. */
+export async function reactivateCallerAction(
+  callerId: string,
+): Promise<{ ok: true; status: 'active' | 'invited'; sent: boolean | null } | { ok: false; error: string }> {
+  await requirePlatformAdmin()
+  const { reactivateCaller } = await import('@/lib/services/prospect-callers')
+  try {
+    const r = await reactivateCaller(z.string().min(1).parse(callerId))
+    revalidatePath('/platform/prospecting/callers')
+    revalidatePath(`/platform/prospecting/callers/${callerId}`)
+    return { ok: true, ...r }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Could not reactivate' }
+  }
+}
+
+/** Archive: closes the account and hands everything they held back. */
+export async function archiveCallerAction(callerId: string): Promise<{ ok: true; released: number } | { ok: false; error: string }> {
+  await requirePlatformAdmin()
+  const { archiveCaller } = await import('@/lib/services/prospect-callers')
+  try {
+    const r = await archiveCaller(z.string().min(1).parse(callerId))
+    revalidatePath('/platform/prospecting/callers')
+    revalidatePath('/platform/prospecting')
+    revalidatePath('/platform/prospecting/call-list')
+    return { ok: true, ...r }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Could not archive' }
+  }
+}
+
+const callerSettingsSchema = z.object({
+  callerId: z.string().min(1),
+  dailyTarget: z.number().int().min(1).max(500).optional(),
+  states: z.array(z.string().trim().length(2)).max(60).nullable().optional(),
+  notes: z.string().trim().max(2000).nullable().optional(),
+})
+
+export async function updateCallerSettingsAction(input: unknown): Promise<{ ok: true } | { ok: false; error: string }> {
+  await requirePlatformAdmin()
+  const parsed = callerSettingsSchema.safeParse(input)
+  if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? 'Check the form' }
+  const { updateCallerSettings } = await import('@/lib/services/prospect-callers')
+  const { callerId, ...rest } = parsed.data
+  try {
+    await updateCallerSettings(callerId, rest)
+    revalidatePath('/platform/prospecting/callers')
+    revalidatePath(`/platform/prospecting/callers/${callerId}`)
+    return { ok: true }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Could not save' }
+  }
+}
+
+/** Reassign (or unassign with null) a prospect — the drawer's control. */
+export async function assignProspectToCallerAction(
+  prospectId: string,
+  callerId: string | null,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  await requirePlatformAdmin()
+  const { reassignProspect } = await import('@/lib/services/prospect-callers')
+  try {
+    await reassignProspect(z.string().min(1).parse(prospectId), callerId ? z.string().min(1).parse(callerId) : null)
+    revalidatePath('/platform/prospecting')
+    revalidatePath('/platform/prospecting/call-list')
+    revalidatePath('/platform/prospecting/call-mode')
+    revalidatePath('/platform/prospecting/callers')
+    return { ok: true }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Could not reassign' }
+  }
+}
+
 /** Fetch (cache) or generate the AI cold-call script for a prospect —
  *  Call Mode calls this for the current card and prefetches the next. */
 export async function getCallScriptAction(

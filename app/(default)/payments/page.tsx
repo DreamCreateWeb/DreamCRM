@@ -33,6 +33,7 @@ export const dynamic = 'force-dynamic'
 export default async function PaymentsHubPage() {
   const ctx = await requireTenant()
   if (ctx.tenantType === 'patient') redirect('/patient/dashboard')
+  if (ctx.tenantType === 'caller') redirect('/calls')
   if (ctx.tenantType !== 'clinic') redirect('/dashboard')
 
   const [collections, membershipStats, toReconcileCount, connectReady, plans, collectedPerWeek8, pmsLink] = await Promise.all([

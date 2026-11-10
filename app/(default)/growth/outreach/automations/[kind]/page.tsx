@@ -33,6 +33,7 @@ export default async function AutomationMessagePage({
 }) {
   const ctx = await requireTenant()
   if (ctx.tenantType === 'patient') redirect('/patient/dashboard')
+  if (ctx.tenantType === 'caller') redirect('/calls')
   if (ctx.tenantType !== 'clinic') redirect('/marketing')
 
   const { kind } = await params

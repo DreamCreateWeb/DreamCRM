@@ -1,6 +1,6 @@
 import { pgTable, text, timestamp, integer, jsonb, index, uniqueIndex } from 'drizzle-orm/pg-core'
 import { sql } from 'drizzle-orm'
-import { organization } from './auth'
+import { organization, user } from './auth'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Prospecting — Dream Create's OWN outbound growth engine (platform tenant).
@@ -81,6 +81,48 @@ export const PROSPECT_INTENT_SIGNALS = [
   'event_met', // met in person at a conference — the headshot capture (Part 10.8)
 ] as const
 export type ProspectIntentSignal = (typeof PROSPECT_INTENT_SIGNALS)[number]
+
+// ── Cold callers (P-02, 2026-11-10) ────────────────────────────────────────
+// THE FIFTH PERSONA: a person the owner hires (Upwork) to work the phone-
+// first pool. NOT an org member — mirrors the referral partner: a row here
+// + a `user_id` linkage set on invite acceptance; getTenantContext derives
+// tenantType 'caller' from it only when the user has NO org membership.
+// Platform-global (no organization_id): prospects are businesses, the
+// caller's whole world is `prospect` rows where assigned_caller_id = their
+// id, and every caller-facing read/write goes through requireCaller().
+export const PROSPECT_CALLER_STATUSES = ['invited', 'active', 'paused', 'archived'] as const
+export type ProspectCallerStatus = (typeof PROSPECT_CALLER_STATUSES)[number]
+
+export const prospectCaller = pgTable(
+  'prospect_caller',
+  {
+    id: text('id').primaryKey(), // pcal_…
+    name: text('name').notNull(),
+    // Lowercased + unique. The caller accepts their invite + signs in with it.
+    email: text('email').notNull().unique(),
+    status: text('status').notNull().default('invited'), // invited|active|paused|archived
+    // Crypto-random invite token; cleared once accepted. 7-day expiry.
+    inviteToken: text('invite_token'),
+    inviteSentAt: timestamp('invite_sent_at', { withTimezone: true }),
+    inviteExpiresAt: timestamp('invite_expires_at', { withTimezone: true }),
+    // The better-auth user this caller signs in as. Set on accept.
+    userId: text('user_id').references(() => user.id, { onDelete: 'set null' }),
+    // How many prospects their queue is topped up to (fillCallerQueues).
+    dailyTarget: integer('daily_target').notNull().default(40),
+    // Optional list of state codes they call (null / [] = any state).
+    states: jsonb('states'), // string[] | null
+    notes: text('notes'),
+    createdByUserId: text('created_by_user_id'),
+    lastActiveAt: timestamp('last_active_at', { withTimezone: true }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (t) => ({
+    user: index('idx_pcal_user').on(t.userId),
+  }),
+)
+export type ProspectCaller = typeof prospectCaller.$inferSelect
+export type NewProspectCaller = typeof prospectCaller.$inferInsert
 
 export const prospect = pgTable(
   'prospect',
@@ -194,6 +236,19 @@ export const prospect = pgTable(
     suppressedReason: text('suppressed_reason'),
     suppressedAt: timestamp('suppressed_at', { withTimezone: true }),
 
+    // The cold-caller assignment (P-02). A prospect is worked by AT MOST one
+    // caller at a time: fillCallerQueues claims it with an atomic
+    // `UPDATE … WHERE assigned_caller_id IS NULL`; a terminal call outcome,
+    // the 7-day no-call sweep, a skip, an archive or an admin reassign
+    // releases it. While set, the owner's own Call Mode / call list hide
+    // the row (no double-dialing). `caller_cooldown_until` is the skip's
+    // 3-day breather before the row can be claimed again.
+    assignedCallerId: text('assigned_caller_id').references(() => prospectCaller.id, {
+      onDelete: 'set null',
+    }),
+    assignedAt: timestamp('assigned_at', { withTimezone: true }),
+    callerCooldownUntil: timestamp('caller_cooldown_until', { withTimezone: true }),
+
     // Win/loss outcome (the pipeline + learning loop). outcomeAt is stamped
     // when a prospect is won (converted) OR lost (not-interested/suppressed);
     // lostReason is a coded reason on losses (PROSPECT_LOSS_REASONS) so the
@@ -222,6 +277,7 @@ export const prospect = pgTable(
     band: index('idx_prospect_band').on(t.scoreBand),
     callList: index('idx_prospect_call_list').on(t.status, t.intentAt),
     quality: index('idx_prospect_quality').on(t.qualityBand, t.qualityScore),
+    assignedCaller: index('idx_prospect_assigned_caller').on(t.assignedCallerId, t.assignedAt),
   }),
 )
 export type Prospect = typeof prospect.$inferSelect
@@ -471,10 +527,15 @@ export const prospectCallLog = pgTable(
     outcome: text('outcome').notNull(),
     note: text('note'),
     calledByUserId: text('called_by_user_id'),
+    // Who logged it when it was a cold caller (P-02); called_by_user_id
+    // stays the platform admin's stamp. Set null if the caller row goes, so
+    // the verification history survives the person.
+    callerId: text('caller_id').references(() => prospectCaller.id, { onDelete: 'set null' }),
     createdAt: timestamp('created_at').notNull().defaultNow(),
   },
   (t) => ({
     prospect: index('idx_pcall_prospect').on(t.prospectId),
+    caller: index('idx_pcall_caller').on(t.callerId, t.createdAt),
   }),
 )
 export type ProspectCallLog = typeof prospectCallLog.$inferSelect

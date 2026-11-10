@@ -743,6 +743,7 @@ export async function listProspects(
       phoneStatus: schema.prospect.phoneStatus,
       phoneLineType: schema.prospect.phoneLineType,
       verifiedAt: schema.prospect.verifiedAt,
+      assignedCallerId: schema.prospect.assignedCallerId,
     })
     .from(schema.prospect)
     .where(where)
@@ -787,6 +788,21 @@ export function servableAboveFloor(floor: number) {
 /** A number nobody has marked invalid / disconnected / wrong. */
 function phoneOk() {
   return or(isNull(schema.prospect.phoneStatus), notInArray(schema.prospect.phoneStatus, [...BAD_PHONE_STATUSES]))
+}
+
+/** Not in a cold caller's queue (P-02) — the owner's own dial surfaces never
+ *  show a practice a caller is already working, so nobody double-dials. */
+function notAssignedToCaller() {
+  return isNull(schema.prospect.assignedCallerId)
+}
+
+/** THE release hook (P-02): after a write that can make a row unservable
+ *  for a cold caller — a no, a suppression, a conversion, a closed practice,
+ *  a bad number — free the caller's slot. One self-checking UPDATE in
+ *  lib/services/prospect-caller-release.ts; best-effort by contract. */
+async function releaseCallerSlot(prospectId: string): Promise<void> {
+  const { releaseIfUnservable } = await import('./prospect-caller-release')
+  await releaseIfUnservable(prospectId)
 }
 
 /**
@@ -1117,7 +1133,9 @@ export interface ProspectDetail {
     sentAt: Date
   }>
   events: Array<{ type: string; occurredAt: Date }>
-  calls: Array<{ outcome: string; note: string | null; createdAt: Date }>
+  calls: Array<{ outcome: string; note: string | null; createdAt: Date; callerId: string | null }>
+  /** The cold caller working this practice right now (P-02), if any. */
+  assignedCaller: { id: string; name: string; assignedAt: Date | null } | null
 }
 
 /** Everything the drawer shows: the row + outreach history + call log. */
@@ -1152,6 +1170,7 @@ export async function getProspectDetail(prospectId: string): Promise<ProspectDet
       outcome: schema.prospectCallLog.outcome,
       note: schema.prospectCallLog.note,
       createdAt: schema.prospectCallLog.createdAt,
+      callerId: schema.prospectCallLog.callerId,
     })
     .from(schema.prospectCallLog)
     .where(eq(schema.prospectCallLog.prospectId, prospectId))
@@ -1159,7 +1178,23 @@ export async function getProspectDetail(prospectId: string): Promise<ProspectDet
     .limit(20)
   const { listProspectContacts } = await import('./prospect-contacts')
   const contacts = await listProspectContacts(prospectId)
-  return { prospect: row, contacts, touches, events, calls }
+  let assignedCaller: ProspectDetail['assignedCaller'] = null
+  if (row.assignedCallerId) {
+    const [c] = await db
+      .select({ id: schema.prospectCaller.id, name: schema.prospectCaller.name })
+      .from(schema.prospectCaller)
+      .where(eq(schema.prospectCaller.id, row.assignedCallerId))
+      .limit(1)
+    if (c) assignedCaller = { id: c.id, name: c.name, assignedAt: row.assignedAt ?? null }
+  }
+  return {
+    prospect: row,
+    contacts,
+    touches,
+    events,
+    calls: calls.map((c) => ({ ...c, callerId: c.callerId ?? null })),
+    assignedCaller,
+  }
 }
 
 // ── Mutations (platform admin actions) ─────────────────────────────────────
@@ -1184,6 +1219,8 @@ export async function suppressProspect(
       updatedAt: new Date(),
     })
     .where(eq(schema.prospect.id, prospectId))
+  // A suppressed row is no caller's to dial (P-02): free the slot now.
+  await releaseCallerSlot(prospectId)
   if (row?.email) {
     await db
       .insert(schema.prospectSuppression)
@@ -1329,12 +1366,19 @@ export interface CallListRow {
   qualityScore: number | null
   qualityBand: ProspectQualityBand | null
   qualityReasons: string[]
+  /** A cold caller still holding the row (P-02) — a hand-raiser stays on
+   *  THIS list whoever holds it (the reply came in after the claim; the
+   *  release hook frees it, this flags the straggler), so the owner never
+   *  loses sight of a hot reply. Null when nobody holds it. */
+  assignedCallerId: string | null
+  assignedCallerName: string | null
 }
 
 /** The owner's call list — intent-signaled prospects, freshest signal
  *  first. Hand-raisers BYPASS the quality floor (they asked for us); a
  *  disconnected number still never becomes the dial target — the card
- *  says so instead. */
+ *  says so instead. A row a caller holds is NOT hidden here (unlike the
+ *  dial queues): a hand went up, the owner sees it, flagged "with <caller>". */
 export async function getCallList(): Promise<CallListRow[]> {
   const rows = await db
     .select()
@@ -1343,6 +1387,15 @@ export async function getCallList(): Promise<CallListRow[]> {
     .orderBy(desc(schema.prospect.intentAt))
     .limit(200)
   const lastCalls = await latestCallOutcomes(rows.map((r) => r.id))
+  const callerIds = Array.from(new Set(rows.map((r) => r.assignedCallerId).filter((id): id is string => Boolean(id))))
+  const callerNames = new Map<string, string>()
+  if (callerIds.length > 0) {
+    const callers = await db
+      .select({ id: schema.prospectCaller.id, name: schema.prospectCaller.name })
+      .from(schema.prospectCaller)
+      .where(inArray(schema.prospectCaller.id, callerIds))
+    for (const c of callers) callerNames.set(c.id, c.name)
+  }
   const out: CallListRow[] = []
   for (const p of rows) {
     out.push({
@@ -1366,6 +1419,8 @@ export async function getCallList(): Promise<CallListRow[]> {
       qualityScore: p.qualityScore,
       qualityBand: (p.qualityBand as ProspectQualityBand | null) ?? null,
       qualityReasons: Array.isArray(p.qualityReasons) ? (p.qualityReasons as string[]) : [],
+      assignedCallerId: p.assignedCallerId ?? null,
+      assignedCallerName: p.assignedCallerId ? (callerNames.get(p.assignedCallerId) ?? 'a caller') : null,
     })
   }
   return out
@@ -1415,6 +1470,7 @@ export async function getPhoneQueue(limit = 100, opts?: { floor?: number }): Pro
         inArray(schema.prospect.scoreBand, ['hot', 'warm']),
         servableAboveFloor(floor),
         phoneOk(),
+        notAssignedToCaller(),
       ),
     )
     .orderBy(desc(schema.prospect.opportunityScore), desc(schema.prospect.enrichedAt))
@@ -1469,6 +1525,7 @@ export async function getDueFollowUps(opts?: { now?: Date; limit?: number }): Pr
         sql`${schema.prospect.nextFollowUpAt} <= ${now}`,
         inArray(schema.prospect.status, ['contacted', 'engaged', 'call_list', 'enriched', 'queued']),
         phoneOk(),
+        notAssignedToCaller(),
       ),
     )
     .orderBy(asc(schema.prospect.nextFollowUpAt))
@@ -1558,7 +1615,9 @@ export async function getCallQueue(opts?: { now?: Date; limit?: number; floor?: 
     await db
       .select()
       .from(schema.prospect)
-      .where(and(eq(schema.prospect.status, 'call_list'), isNotNull(schema.prospect.phone), phoneOk()))
+      .where(
+        and(eq(schema.prospect.status, 'call_list'), isNotNull(schema.prospect.phone), phoneOk(), notAssignedToCaller()),
+      )
       .orderBy(desc(schema.prospect.intentAt))
       .limit(limit),
     'hand_raiser',
@@ -1575,6 +1634,7 @@ export async function getCallQueue(opts?: { now?: Date; limit?: number; floor?: 
           isNotNull(schema.prospect.phone),
           inArray(schema.prospect.status, ['contacted', 'engaged', 'call_list', 'enriched', 'queued']),
           phoneOk(),
+          notAssignedToCaller(),
         ),
       )
       .orderBy(asc(schema.prospect.nextFollowUpAt))
@@ -1594,6 +1654,7 @@ export async function getCallQueue(opts?: { now?: Date; limit?: number; floor?: 
           inArray(schema.prospect.scoreBand, ['hot', 'warm']),
           servableAboveFloor(floor),
           phoneOk(),
+          notAssignedToCaller(),
         ),
       )
       .orderBy(desc(schema.prospect.opportunityScore), desc(schema.prospect.enrichedAt))
@@ -1710,6 +1771,14 @@ export async function logCallOutcome(input: {
   calledByUserId?: string | null
   /** Coded loss reason — only meaningful with outcome='not_interested'. */
   lostReason?: string | null
+  /** The cold caller who logged it (P-02) — stamped on the log row so the
+   *  caller's own numbers and the "you / Dream Create" attempt history read
+   *  from one place. Null for the owner's own calls. */
+  callerId?: string | null
+  /** A chosen follow-up instant (a callback at the time the practice asked
+   *  for, in THEIR zone) — honoured only for an outcome that schedules a
+   *  follow-up at all; a terminal outcome still clears it. */
+  followUpAt?: Date | null
 }): Promise<void> {
   const now = new Date()
   await db.insert(schema.prospectCallLog).values({
@@ -1718,17 +1787,19 @@ export async function logCallOutcome(input: {
     outcome: input.outcome,
     note: input.note ?? null,
     calledByUserId: input.calledByUserId ?? null,
+    callerId: input.callerId ?? null,
   })
   // A logged call means the owner has handled the thread — the AI reply
   // draft is stale, clear it. Non-terminal outcomes (callback/voicemail/
   // no-answer) also schedule the next follow-up so the lead never drops;
   // terminal ones clear it.
   const plan = followUpForOutcome(input.outcome, now)
+  const followUpAt = plan.at && input.followUpAt && input.followUpAt.getTime() > now.getTime() ? input.followUpAt : plan.at
   await db
     .update(schema.prospect)
     .set({
       replyDraft: null,
-      nextFollowUpAt: plan.at,
+      nextFollowUpAt: followUpAt,
       followUpReason: plan.reason,
       updatedAt: now,
     })
@@ -1748,6 +1819,11 @@ export async function logCallOutcome(input: {
       })
       .where(eq(schema.prospect.id, input.prospectId))
     await stopActiveEnrollments(input.prospectId, 'call_not_interested', now)
+  }
+  // A no, a closed practice or a dead number leaves no caller anything to
+  // dial (P-02): the assignment ends here, whoever logged the call.
+  if (['not_interested', 'closed', 'disconnected', 'wrong_number'].includes(input.outcome)) {
+    await releaseCallerSlot(input.prospectId)
   }
 }
 
@@ -2109,6 +2185,8 @@ export async function markConverted(
         inArray(schema.outreachEnrollment.status, ['active', 'paused_ooo']),
       ),
     )
+  // A signed practice is nobody's cold call (P-02).
+  await releaseCallerSlot(prospectId)
 }
 
 /**

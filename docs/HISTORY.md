@@ -7467,3 +7467,46 @@ website that came from Places; the enrich crawl shares the probe's guarded
 fetch with the connect pinned to the judged address; parking hosts matched
 by hostname; serialized floor saves) — also fixed before merge, so the
 slice shipped after two adversarial rounds and one verification round.
+
+## 2026-11-10 — P-02: the cold-caller portal (invite Upwork callers without app access)
+
+The owner's ask: hire callers on Upwork and let them work the prospecting
+engine without granting them the app. A FIFTH persona, mirroring the
+referral partner: `prospect_caller` (migration 0194 — invite token and
+expiry, `user_id`, status invited | active | paused | archived,
+`daily_target`, optional states, notes, `last_active_at`), `prospect.
+assigned_caller_id` + `assigned_at` + `caller_cooldown_until`, and
+`prospect_call_log.caller_id`. `resolveCallerContext` resolves a caller of
+ANY status (only when the user has no membership; a platform admin is never
+a caller) and `requireCaller` sends an inactive one to the calm paused /
+closed screen on /calls, never to sign-in or onboarding; `/caller/accept`
+is public, `/calls` is behind auth, and every authed clinic surface bounces
+a caller home (`homePathFor`). ASSIGNMENT (`lib/services/prospect-callers.ts`
++ `prospect-caller-release.ts`): each active caller is topped up to their
+daily target from the servable pool (P-01's floor, a good phone, not a
+hand-raiser, no pending owner callback, cooldown passed, their states) by an
+atomic claim inside a transaction with the caller row locked; ONE
+`callerServableWhere` predicate serves the queue, the KPI, the pool and
+reassign; `releaseIfUnservable` runs from every writer that moves a row
+out of the servable statuses (replies, suppression, conversion, call
+outcomes, the verify pass) and a straggler sweep catches the rest;
+released rows cool down three days (ninety for "not a fit"); a booked demo
+keeps the row until the meeting passes; a promised callback is kept while
+ahead and a week after; pausing a caller releases their rows. The CALLER
+SURFACE (/calls): today's tiles, the Next-call card (tel: link, the
+practice's local time and call window, line type, the script, their own
+notes only), keys 1–9 + Skip with a reason (modifier combos and typing
+ignored), callbacks resolved in the practice's zone, demos on the host
+clock, "Fill my queue", runAction everywhere with Refresh on a stale build.
+The PLATFORM side: a Callers tab (list with today / 7-day numbers, Invite
+with the invite sent inside the action and "invite not sent · Resend" when
+it fails, Pause / Resume / Archive / Reactivate), a per-caller page, the
+drawer's "Assigned to <caller>" with Reassign / Unassign (refused for an
+unservable row or a pending owner callback, with the reason), and a
+hand-raiser reply on an assigned row is released to the owner and flagged
+"with <caller>". `prospect_caller` is in the read-only role's REVOKE list
+(the production REVOKE is an owner op). An adversarial review confirmed 21
+defects in the first cut (a paused caller bounced into clinic onboarding;
+status flips by the email engine never releasing a row; terminal outcomes
+recycling rows; a one-way archive; the non-atomic claim) — all fixed here;
+no cross-persona breakout was found.

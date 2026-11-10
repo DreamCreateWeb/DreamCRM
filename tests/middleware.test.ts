@@ -153,6 +153,25 @@ describe('middleware auth gate', () => {
     expect(res.headers.get('location')).toBeNull()
   })
 
+  it('the cold-caller doors (P-02): /caller/accept is public (token-is-auth), /calls is behind auth', async () => {
+    for (const path of ['/partner/accept?token=abc', '/caller/accept?token=abc']) {
+      const req = makeRequest(`https://www.dreamcreatestudio.com${path}`)
+      const res = (await middleware(req)) as NextResponse
+      expect(res.headers.get('location'), path).toBeNull()
+      expect(res.headers.get('x-middleware-rewrite'), path).toBeNull()
+    }
+    for (const path of ['/calls', '/caller', '/partner']) {
+      const req = makeRequest(`https://www.dreamcreatestudio.com${path}`)
+      const res = (await middleware(req)) as NextResponse
+      expect(res.headers.get('x-middleware-rewrite'), path).toBeNull()
+      expect(res.headers.get('location') ?? '', path).toMatch(/\/signin\?redirect=/)
+    }
+    // Only the EXACT accept path is public — a sibling under /caller is gated.
+    const sibling = makeRequest('https://www.dreamcreatestudio.com/caller/queue')
+    const res = (await middleware(sibling)) as NextResponse
+    expect(res.headers.get('location') ?? '').toMatch(/\/signin/)
+  })
+
   it('allows /api/webhooks/stripe without auth', async () => {
     const req = makeRequest('https://www.dreamcreatestudio.com/api/webhooks/stripe')
     const res = (await middleware(req)) as NextResponse

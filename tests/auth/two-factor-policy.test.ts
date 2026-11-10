@@ -38,10 +38,14 @@ describe('two-step policy (ML-58)', () => {
     }
     expect(mustEnrolTwoFactor(who({ clinicRequires: true, twoFactorEnabled: true }))).toBe(false)
   })
-  it('patients and partners are never asked, whatever the switch says', () => {
+  it('patients, partners and callers are never asked, whatever the switch says', () => {
     expect(mustEnrolTwoFactor(who({ role: 'patient', tenantType: 'patient', clinicRequires: true }))).toBe(false)
     expect(mustEnrolTwoFactor(who({ role: 'patient', tenantType: 'clinic', clinicRequires: true }))).toBe(false)
     expect(mustEnrolTwoFactor(who({ role: null, tenantType: 'partner', clinicRequires: true }))).toBe(false)
+    // A cold caller (P-02) carries the partner's shape: role 'member', no
+    // clinic — optional for them, never required.
+    expect(mustEnrolTwoFactor(who({ role: 'member', tenantType: 'caller', clinicRequires: true }))).toBe(false)
+    expect(twoFactorRequirement(who({ role: 'member', tenantType: 'caller' }))).toBeNull()
   })
 })
 

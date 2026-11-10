@@ -27,6 +27,7 @@ function parseStatus(raw: string | string[] | undefined): LeadStatus | 'all' {
 export default async function LeadsPage({ searchParams }: PageProps) {
   const ctx = await requireTenant()
   if (ctx.tenantType === 'patient') redirect('/patient/dashboard')
+  if (ctx.tenantType === 'caller') redirect('/calls')
   if (ctx.tenantType === 'platform') redirect('/')
 
   const params = await searchParams

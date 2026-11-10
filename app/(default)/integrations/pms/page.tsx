@@ -28,6 +28,7 @@ export const dynamic = 'force-dynamic'
 export default async function PmsDetailPage() {
   const ctx = await requireTenant()
   if (ctx.tenantType === 'patient') redirect('/patient/dashboard')
+  if (ctx.tenantType === 'caller') redirect('/calls')
   if (ctx.tenantType !== 'clinic') redirect('/dashboard')
 
   // Members can VIEW the sync dashboard (the marketplace card links them

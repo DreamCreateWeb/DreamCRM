@@ -33,6 +33,7 @@ export default async function MarketingDashboard({
 }) {
   const ctx = await requireTenant()
   if (ctx.tenantType === 'patient') redirect('/patient/dashboard')
+  if (ctx.tenantType === 'caller') redirect('/calls')
 
   // The clinic recall dashboard moved into the Growth workspace — old links
   // and bookmarks land there permanently. Platform tenants keep the SaaS

@@ -95,6 +95,10 @@ const PUBLIC_PATHS = [
   // the visitor has no session yet (they create their account here). Only the
   // exact /partner/accept path is public; /partner (the portal) stays gated.
   '/partner/accept',
+  // Cold-caller invite acceptance (P-02) — the same token-IS-auth shape as
+  // the partner's. Only the exact /caller/accept path is public; /calls (the
+  // caller's queue) stays gated.
+  '/caller/accept',
   '/api/auth',
   '/api/hello',
   '/api/webhooks',

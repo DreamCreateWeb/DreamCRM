@@ -20,6 +20,7 @@ export const dynamic = 'force-dynamic'
 export default async function AudiencesPage() {
   const ctx = await requireTenant()
   if (ctx.tenantType === 'patient') redirect('/patient/dashboard')
+  if (ctx.tenantType === 'caller') redirect('/calls')
   const t = marketingTerminology(ctx.tenantType)
 
   const audiences = await listAudiences(ctx.organizationId)

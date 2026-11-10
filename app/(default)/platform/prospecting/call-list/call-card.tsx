@@ -296,6 +296,13 @@ export default function CallCard({ row }: { row: CallListRow }) {
                 label={`Last call: ${CALL_OUTCOME_LABELS[row.lastCallOutcome as keyof typeof CALL_OUTCOME_LABELS] ?? row.lastCallOutcome.replace(/_/g, ' ')}`}
               />
             )}
+            {row.assignedCallerName && (
+              <StatusPill
+                tone="info"
+                label={`☎ with ${row.assignedCallerName}`}
+                title="A cold caller still holds this practice — the hand went up after the claim; it leaves their queue on the next tick"
+              />
+            )}
             {(row.qualityBand || row.qualityScore != null) && (
               <QualityPill band={row.qualityBand} score={row.qualityScore} reasons={row.qualityReasons} />
             )}

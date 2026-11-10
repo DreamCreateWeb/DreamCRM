@@ -29,6 +29,7 @@ export const dynamic = 'force-dynamic'
 export default async function WebsiteContentPage() {
   const ctx = await requireTenant()
   if (ctx.tenantType === 'patient') redirect('/patient/dashboard')
+  if (ctx.tenantType === 'caller') redirect('/calls')
   if (ctx.tenantType === 'platform') redirect('/dashboard')
   if (ctx.role !== 'owner' && ctx.role !== 'admin') redirect('/website')
 
