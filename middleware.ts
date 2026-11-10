@@ -429,7 +429,18 @@ export async function middleware(request: NextRequest) {
     if (slug) {
       const url = request.nextUrl.clone()
       url.pathname = `/site/${slug}${pathname === '/' ? '' : pathname}`
-      return withPortalClinicCookie(request, url.pathname, NextResponse.rewrite(url))
+      // SERVER ACTIONS ON A CUSTOM DOMAIN (2026-11-10, the Pinney contact form):
+      // Next's action handler refuses a POST whose `Origin` host differs from
+      // `x-forwarded-host` (or `host`). Behind the CloudFront tenant edge the
+      // Host that reaches the app is the App Runner origin — the viewer's real
+      // host only rides in x-dc-tenant-host — so every form on a custom
+      // domain was answered with "Invalid Server Actions request" (a 500 with
+      // a digest) while the same form on {slug}.<platform> worked. Hand the
+      // downstream handler the host we just resolved the clinic from, so the
+      // comparison it makes is tedpinneydds.com against tedpinneydds.com.
+      const headers = new Headers(request.headers)
+      headers.set('x-forwarded-host', hostname)
+      return withPortalClinicCookie(request, url.pathname, NextResponse.rewrite(url, { request: { headers } }))
     }
   }
 
