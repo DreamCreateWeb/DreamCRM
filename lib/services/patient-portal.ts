@@ -23,6 +23,7 @@ import {
 } from '@/lib/services/patient-messaging'
 import { derivePatientRecallStatus, type RecallStatus } from '@/lib/services/recall-status'
 import { getClinicCadence } from '@/lib/services/clinic-cadence'
+import { normalizeTrackingUrl } from '@/lib/types/shop'
 import type { MessageAttachment } from '@/lib/types/messaging'
 import { visitTypePrepInstructions } from '@/lib/types/visit-types'
 
@@ -114,6 +115,7 @@ export interface BillsOrder {
   refundedAmountCents: number
   refundedAt: Date | null
   trackingNumber: string | null
+  trackingUrl: string | null
   createdAt: Date
   paidAt: Date | null
   items: BillsOrderItem[]
@@ -172,6 +174,7 @@ export async function getMyBills(
       refundedAmountCents: shopOrder.refundedAmountCents,
       refundedAt: shopOrder.refundedAt,
       trackingNumber: shopOrder.trackingNumber,
+      trackingUrl: shopOrder.trackingUrl,
       createdAt: shopOrder.createdAt,
       paidAt: shopOrder.paidAt,
     })
@@ -233,6 +236,7 @@ export async function getMyBills(
       refundedAmountCents: o.refundedAmountCents ?? 0,
       refundedAt: o.refundedAt,
       trackingNumber: o.trackingNumber,
+      trackingUrl: normalizeTrackingUrl(o.trackingUrl),
       createdAt: o.createdAt,
       paidAt: o.paidAt,
       items: itemsByOrder.get(o.id) ?? [],

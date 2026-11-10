@@ -7333,6 +7333,22 @@ strike) and clears every `email_domain_*` column (`removeEmailDomain`), so a
 practice never keeps sending from a domain it no longer owns. The runbook
 section is in `docs/custom-domains.md`.
 
+## 2026-11-10 — ML-L1: three follow-ups that make three numbers and one door honest
+
+(1) ML-39b: the Growth hub's Word of mouth row counts referred patients
+SEATED this clinic-local month (`firstSeatedAt` from the journey spine,
+against the same point last month; imported history never counts), not
+first-seen — the journey law. (2) ML-43b: the reconcile checklist's bulk
+"Mark posted" confirm and its BulkBar carry the dollar total of the ticked
+payments (gross face amounts — a refund posts as its own ledger entry;
+`net-refunds` REDUCE_ALLOWED names it). (3) ML-42b: `shop_order.tracking_url`
+(migration 0192); the Shipped step asks for the tracking number and link in
+a `Modal` dialog settled BEFORE the transition (the dialog law) instead of
+`window.prompt`; only a valid http(s) link is stored (`normalizeTrackingUrl`
+over `sanitizeExternalPortalUrl` — the dead-link law); the shipped email
+renders it as an escaped link, the portal receipt shows "Track your
+package", the orders table/drawer and the CSV carry it; the orders client's
+`run()` awaits through `runAction`.
 ## 2026-11-10 — ML-55b: the last Mosaic bones, part two (tabs, Settings on the frame, the legacy form classes, the platform inbox)
 
 ML-55's stated follow-ups. `components/ui/tabs.tsx` is the one tab row

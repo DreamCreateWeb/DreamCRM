@@ -77,6 +77,11 @@ const REDUCE_ALLOWED: Array<{ file: string; match: string; why: string }> = [
     why: 'same table, same reason — the void sweep totals accrued commissions',
   },
   {
+    file: 'app/(default)/payments/online/posting-table.tsx',
+    match: 'reduce((sum, r) => sum + r.amountCents',
+    why: 'totals the face amount of the payments a person ticked to enter in their ledger (ML-43b) — the gross payment is the ledger entry; a refund posts as its own entry, so netting here would mis-state what they key in',
+  },
+  {
     file: 'app/(portal)/patient/invoices/[receipt]/page.tsx',
     match: 'reduce((s, l) => s + l.amountCents',
     why: "sums the RECEIPT's own display LINES to derive shipping & tax; the order total it compares against goes through netCollectedCents two lines later",

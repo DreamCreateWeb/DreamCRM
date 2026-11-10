@@ -58,6 +58,7 @@ const order = (over: Record<string, unknown> = {}) => ({
   status: 'paid',
   fulfillmentType: 'pickup',
   trackingNumber: null,
+  trackingUrl: null,
   ...over,
 })
 const queue = (o: Record<string, unknown>, items: unknown[] = [{ name: 'Sonic <Brush>', variant: null, qty: 2 }]) => {
@@ -97,6 +98,18 @@ describe('shop order emails', () => {
     queue(order({ fulfillmentType: 'ship' }))
     await sendShopOrderEmail('org_1', 'abcdef123456', 'shipped')
     expect((deliverMock.mock.calls[0][0] as { html: string }).html).not.toContain('Tracking number')
+  })
+
+  it('the shipped email links a valid http(s) tracking URL (escaped) and never any other', async () => {
+    queue(order({ fulfillmentType: 'ship', trackingUrl: 'https://track.example.com/a?x=1&y="2"' }))
+    await sendShopOrderEmail('org_1', 'abcdef123456', 'shipped')
+    const html = (deliverMock.mock.calls[0][0] as { html: string }).html
+    expect(html).toContain('<a href="https://track.example.com/a?x=1&amp;y=%222%22">Track your package</a>')
+
+    deliverMock.mockClear()
+    queue(order({ fulfillmentType: 'ship', trackingUrl: 'javascript:alert(1)' }))
+    await sendShopOrderEmail('org_1', 'abcdef123456', 'shipped')
+    expect((deliverMock.mock.calls[0][0] as { html: string }).html).not.toContain('Track your package')
   })
 
   it('the matrix: ready never goes to a ship order, shipped never to a pickup order, never an unpaid one', async () => {
