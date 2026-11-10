@@ -20,6 +20,7 @@ describe('p01_prospect_quality (by tag)', () => {
       .map((st) => st.trim())
       .filter((st) => st.includes('"prospect"'))
     expect(own).toEqual([
+      'ALTER TABLE "prospect" ADD COLUMN "website_source" text;',
       'ALTER TABLE "prospect" ADD COLUMN "verification" jsonb;',
       'ALTER TABLE "prospect" ADD COLUMN "verified_at" timestamp with time zone;',
       'ALTER TABLE "prospect" ADD COLUMN "quality_score" integer;',
@@ -29,7 +30,6 @@ describe('p01_prospect_quality (by tag)', () => {
       'ALTER TABLE "prospect" ADD COLUMN "phone_line_type" text;',
       'ALTER TABLE "prospect" ADD COLUMN "phone_source" text;',
       'ALTER TABLE "prospect" ADD COLUMN "phone_validated_at" timestamp with time zone;',
-      'ALTER TABLE "prospect" ADD COLUMN "website_source" text;',
       'CREATE INDEX "idx_prospect_quality" ON "prospect" USING btree ("quality_band","quality_score");',
     ])
   })
