@@ -12,7 +12,7 @@ const state = {
   existingCaller: null as null | { id: string },
 }
 
-const linkSpy = vi.fn(async (..._a: unknown[]) => {})
+const linkSpy = vi.fn(async (..._a: unknown[]) => true)
 
 vi.mock('next/headers', () => ({ headers: async () => new Headers() }))
 vi.mock('@/lib/auth/server', () => ({
@@ -62,11 +62,19 @@ describe('completeCallerAcceptAction', () => {
     expect(r.error).toMatch(/sign in/i)
   })
 
-  it('signed in as the matching email → links + succeeds', async () => {
+  it('signed in as the matching email → links + succeeds — the token rides into the UPDATE’s own predicate', async () => {
     state.session = { user: { id: 'u1', email: 'priya@example.com' } }
     const r = await completeCallerAcceptAction('tok')
     expect(r.ok).toBe(true)
-    expect(linkSpy).toHaveBeenCalledWith('pcal_1', 'u1')
+    expect(linkSpy).toHaveBeenCalledWith('pcal_1', 'u1', 'tok')
+  })
+
+  it('a link that misses (archived / resent / expired between the read and the write) is an error, never a success', async () => {
+    state.session = { user: { id: 'u1', email: 'priya@example.com' } }
+    linkSpy.mockResolvedValueOnce(false)
+    const r = await completeCallerAcceptAction('tok')
+    expect(r.ok).toBe(false)
+    expect(r.error).toMatch(/no longer valid/i)
   })
 
   it('matches email case-insensitively', async () => {

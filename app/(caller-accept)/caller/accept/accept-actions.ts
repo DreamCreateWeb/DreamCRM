@@ -48,6 +48,12 @@ export async function completeCallerAcceptAction(token: string): Promise<{ ok: b
     }
   }
 
-  await linkCallerUser(invite.callerId, session.user.id)
+  // The link re-checks the token, the status and the clock inside its own
+  // UPDATE: an archive or a resend that landed since the page's read makes
+  // this a miss, never a re-activation of a revoked row.
+  const linked = await linkCallerUser(invite.callerId, session.user.id, token)
+  if (!linked) {
+    return { ok: false, error: 'This invite link is no longer valid. Ask your Dream Create contact to send a fresh one.' }
+  }
   return { ok: true }
 }

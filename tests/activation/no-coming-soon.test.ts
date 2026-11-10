@@ -19,6 +19,10 @@ const ROOTS = [
   'app/(default)',
   'app/(double-sidebar)',
   'app/(onboarding)',
+  // The cold-caller portal + its accept page (P-02): a hired caller reads
+  // these cold; a promise there is a promise to a stranger.
+  'app/(caller)',
+  'app/(caller-accept)',
   // The patient-facing trees. The team page's empty branch read "Our team
   // page is coming soon" to a visitor on a direct link, and the membership
   // form carried a zero-plans "plans are coming soon" that nothing could

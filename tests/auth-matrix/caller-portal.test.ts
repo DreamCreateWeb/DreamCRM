@@ -4,12 +4,15 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
  * THE CALLER PERSONA MATRIX (P-02).
  *
  *   - getTenantContext derives 'caller' ONLY when the user has no org
- *     membership and holds an ACTIVE prospect_caller row; a platform admin
- *     is never a caller; a partner row wins over a caller row.
+ *     membership and holds a prospect_caller row — of ANY status, with
+ *     `callerStatus` on the context (a paused caller is not a stranger: a
+ *     null here used to send them to /signin and then clinic onboarding);
+ *     a platform admin is never a caller; a partner row wins over a caller row.
  *   - requireCaller authorizes by a DIRECT prospect_caller.user_id lookup:
  *     a clinic member, a partner, a patient and a non-caller are refused
  *     (redirected home, or thrown in action mode); a paused / archived
- *     caller is refused unless the surface asks allowInactive.
+ *     caller is sent to /calls (the calm screen) unless the surface asks
+ *     allowInactive — and /calls renders that screen for them.
  *   - homePathFor sends a caller who types /dashboard to /calls (the shell
  *     and every (default) page read it).
  */
@@ -71,15 +74,32 @@ vi.mock('@/lib/services/referrals', () => ({
 }))
 vi.mock('@/lib/services/prospect-callers', () => ({
   getCallerByUserId: vi.fn(async () => state.callerRow),
+  getCallerToday: vi.fn(async () => ({ queue: 0, holding: 0, later: 0, target: 40, dials: 0, reached: 0, callbacksDue: 0, meetings: 0 })),
+  getCallerQueue: vi.fn(async () => []),
+  getCallerLater: vi.fn(async () => []),
+  getCallerBooked: vi.fn(async () => []),
 }))
+vi.mock('@/lib/services/prospecting', () => ({
+  getProspectingConfig: vi.fn(async () => ({ booking: { hostTimeZone: 'America/New_York' } })),
+}))
+// The page's client islands — the server render under test is the chrome
+// around them (the paused banner, the closed screen, the sign-out door).
+vi.mock('@/app/(caller)/calls/caller-session', () => ({ default: () => null }))
+vi.mock('@/app/(caller)/calls/fill-queue-button', () => ({ default: () => null }))
+vi.mock('@/app/(caller)/calls/sign-out', async () => {
+  const React = await import('react')
+  return { default: () => React.createElement('button', { type: 'button' }, 'Sign out') }
+})
 vi.mock('next/navigation', () => ({
   redirect: (url: string) => {
     throw new Error(`REDIRECT:${url}`)
   },
 }))
 
+import { renderToStaticMarkup } from 'react-dom/server'
 import { getTenantContext, requireCaller, requirePartner } from '@/lib/auth/context'
 import { homePathFor } from '@/lib/tenant-chrome'
+import CallsPage from '@/app/(caller)/calls/page'
 
 beforeEach(() => {
   state.session = null
@@ -119,14 +139,26 @@ describe('getTenantContext — caller derivation', () => {
     expect(ctx?.patientId).toBeNull()
   })
 
-  it('never derives a caller for a paused / invited / archived row', async () => {
-    for (const status of ['invited', 'paused', 'archived']) {
+  it('derives a caller context for a paused / archived row too — callerStatus says which (never null, never onboarding)', async () => {
+    for (const status of ['active', 'paused', 'archived'] as const) {
       state.session = sessionFor()
       state.member = [[], []]
       state.referralPartner = [[]]
       state.prospectCaller = [[{ id: 'pcal_1', status, name: 'Priya Nair' }]]
-      expect(await getTenantContext(), status).toBeNull()
+      const ctx = await getTenantContext()
+      expect(ctx?.tenantType, status).toBe('caller')
+      expect(ctx?.callerStatus, status).toBe(status)
+      // The root sends every caller to /calls — a paused one included.
+      expect(homePathFor(ctx!.tenantType)).toBe('/calls')
     }
+  })
+
+  it('no caller row at all → null (a stranger, not a caller)', async () => {
+    state.session = sessionFor()
+    state.member = [[], []]
+    state.referralPartner = [[]]
+    state.prospectCaller = [[]]
+    expect(await getTenantContext()).toBeNull()
   })
 
   it('a partner row wins over a caller row (an existing persona keeps its home)', async () => {
@@ -213,22 +245,31 @@ describe('requireCaller — who reaches /calls', () => {
     await expect(requireCaller()).rejects.toThrow('REDIRECT:/signin')
   })
 
-  it('a paused / archived caller is refused by default and resolved with allowInactive', async () => {
-    for (const status of ['paused', 'archived']) {
-      state.session = sessionFor()
-      state.member = [[], []]
-      state.referralPartner = [[]]
-      state.prospectCaller = [[{ id: 'pcal_1', status: 'active', name: 'Priya Nair' }]]
-      state.callerRow = { ...activeCaller, status }
-      await expect(requireCaller(), status).rejects.toThrow('REDIRECT:/')
-    }
+  /** ONE row, read twice (the context's select and requireCaller's lookup)
+   *  — the same status both times. Two reads of one row with different
+   *  statuses once masked the bounce this test now holds. */
+  function asInactiveCaller(status: 'paused' | 'archived') {
     state.session = sessionFor()
     state.member = [[], []]
     state.referralPartner = [[]]
-    state.prospectCaller = [[{ id: 'pcal_1', status: 'active', name: 'Priya Nair' }]]
-    state.callerRow = { ...activeCaller, status: 'paused' }
-    const { caller } = await requireCaller({ allowInactive: true })
-    expect(caller.status).toBe('paused')
+    state.prospectCaller = [[{ id: 'pcal_1', status, name: 'Priya Nair' }]]
+    state.callerRow = { ...activeCaller, status }
+  }
+
+  it('a paused / archived caller is sent to /calls by default (never /signin), resolved with allowInactive, thrown in action mode', async () => {
+    for (const status of ['paused', 'archived'] as const) {
+      asInactiveCaller(status)
+      await expect(requireCaller(), status).rejects.toThrow('REDIRECT:/calls')
+
+      asInactiveCaller(status)
+      const { caller, ctx } = await requireCaller({ allowInactive: true })
+      expect(caller.status).toBe(status)
+      expect(ctx.tenantType).toBe('caller')
+      expect(ctx.callerStatus).toBe(status)
+
+      asInactiveCaller(status)
+      await expect(requireCaller({ redirectOnFail: false }), status).rejects.toThrow(/active caller account required/i)
+    }
   })
 
   it('throws (never redirects) in action mode', async () => {
@@ -244,5 +285,33 @@ describe('requireCaller — who reaches /calls', () => {
 describe('a caller never lands inside another persona’s shell', () => {
   it('/, the dashboard shell and every (default) page send a caller to /calls', () => {
     expect(homePathFor('caller')).toBe('/calls')
+  })
+})
+
+describe('the /calls page for an inactive caller with NO membership (the designed persona)', () => {
+  const activeCaller = { id: 'pcal_1', status: 'active', name: 'Priya Nair', userId: 'u1' }
+  function asInactiveCaller(status: 'paused' | 'archived') {
+    state.session = sessionFor()
+    state.member = [[], []]
+    state.referralPartner = [[]]
+    state.prospectCaller = [[{ id: 'pcal_1', status, name: 'Priya Nair' }]]
+    state.callerRow = { ...activeCaller, status }
+  }
+
+  it('a paused caller sees the paused screen — not /signin, not onboarding', async () => {
+    asInactiveCaller('paused')
+    const html = renderToStaticMarkup(await CallsPage())
+    expect(html).toContain('Your calling is paused right now')
+    expect(html).toContain('went back to the pool')
+    expect(html).not.toContain('Nothing to dial')
+    expect(html).not.toContain('Fill my queue')
+  })
+
+  it('an archived caller sees the closed screen, with a way to sign out', async () => {
+    asInactiveCaller('archived')
+    const html = renderToStaticMarkup(await CallsPage())
+    expect(html).toContain('This calling account has been closed')
+    expect(html).toContain('Sign out')
+    expect(html).not.toContain('Your calling is paused')
   })
 })

@@ -472,7 +472,7 @@ function Shell({ children }: { children: React.ReactNode }) {
 
 export default function CallerAcceptPage() {
   return (
-    <Suspense fallback={<Shell><p className="text-sm text-gray-500">Loading…</p></Shell>}>
+    <Suspense fallback={<Shell><p className="text-sm text-gray-500 dark:text-gray-400">Loading…</p></Shell>}>
       <AcceptInner />
     </Suspense>
   )

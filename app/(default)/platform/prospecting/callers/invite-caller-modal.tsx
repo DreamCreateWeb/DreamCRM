@@ -24,6 +24,9 @@ export default function InviteCallerModal() {
   const [error, setError] = useState<string | null>(null)
   const [stale, setStale] = useState(false)
   const [sentTo, setSentTo] = useState<string | null>(null)
+  // The row exists but the email did not leave — the list shows the row
+  // with "invite not sent · Resend"; this screen says the same.
+  const [unsent, setUnsent] = useState(false)
   const [pending, startTransition] = useTransition()
 
   function reset() {
@@ -34,6 +37,7 @@ export default function InviteCallerModal() {
     setNotes('')
     setError(null)
     setSentTo(null)
+    setUnsent(false)
   }
 
   function submit(e: React.FormEvent<HTMLFormElement>) {
@@ -64,6 +68,7 @@ export default function InviteCallerModal() {
         return
       }
       setSentTo(r.email)
+      setUnsent(!r.sent)
       router.refresh()
     })
   }
@@ -82,11 +87,12 @@ export default function InviteCallerModal() {
                 📨
               </div>
               <h2 id="invite-caller-title" className="mb-2 text-lg font-bold text-gray-800 dark:text-gray-100">
-                Invite sent to {sentTo}
+                {unsent ? `Saved — the invite to ${sentTo} did not send` : `Invite sent to ${sentTo}`}
               </h2>
               <p className="mb-5 text-sm text-gray-500 dark:text-gray-400">
-                The link is good for 7 days. When they accept, their queue fills on the next outreach tick — or the
-                moment they press “Fill my queue”.
+                {unsent
+                  ? 'Their row is in the list marked “invite not sent”. Press Resend invite on it in a moment — nothing else to redo.'
+                  : 'The link is good for 7 days. When they accept, their queue fills on the next outreach tick — or the moment they press “Fill my queue”.'}
               </p>
               <div className="flex justify-center gap-2">
                 <ActionButton variant="secondary" onClick={reset}>

@@ -6,10 +6,11 @@ import { ActionButton } from '@/components/ui/action-button'
 import { useConfirm } from '@/components/ui/confirm-dialog'
 import { useToast } from '@/components/ui/toast'
 import { runAction } from '@/lib/run-action'
-import { archiveCallerAction, resendCallerInviteAction, setCallerStatusAction } from '../admin-actions'
+import { archiveCallerAction, reactivateCallerAction, resendCallerInviteAction, setCallerStatusAction } from '../admin-actions'
 
 /**
- * Resend / Pause / Resume / Archive on a caller row. The confirm dialog is
+ * Resend / Pause / Resume / Archive on a caller row — and Reactivate on an
+ * archived one (the door the archive copy promises). The confirm dialog is
  * awaited BEFORE the transition (the dialog law); every await rides
  * runAction; the pressed button is the one that spins.
  */
@@ -28,10 +29,9 @@ export default function CallerRowActions({
   const confirm = useConfirm()
   const toast = useToast()
   const [pending, startTransition] = useTransition()
-  const [active, setActive] = useState<'resend' | 'pause' | 'resume' | 'archive' | null>(null)
+  const [active, setActive] = useState<'resend' | 'pause' | 'resume' | 'archive' | 'reactivate' | null>(null)
   const [stale, setStale] = useState(false)
 
-  if (status === 'archived') return null
   if (stale) {
     return (
       <ActionButton size="sm" variant="secondary" onClick={() => window.location.reload()}>
@@ -56,6 +56,28 @@ export default function CallerRowActions({
         setActive(null)
       }
     })
+  }
+
+  if (status === 'archived') {
+    return (
+      <div className="flex flex-wrap justify-end gap-1.5">
+        <ActionButton
+          size="sm"
+          variant="secondary"
+          pending={pending && active === 'reactivate'}
+          disabled={pending}
+          onClick={() =>
+            run(
+              'reactivate',
+              () => reactivateCallerAction(callerId),
+              linked ? `${name} is calling again` : `${name} reactivated — a fresh invite is on its way`,
+            )
+          }
+        >
+          Reactivate
+        </ActionButton>
+      </div>
+    )
   }
 
   return (
@@ -101,7 +123,7 @@ export default function CallerRowActions({
         onClick={async () => {
           const ok = await confirm({
             title: `Archive ${name}?`,
-            message: 'Their account closes and every practice they hold goes back to the pool. Their log stays.',
+            message: 'Their account closes and every practice they hold goes back to the pool. Their log stays, and you can reactivate them later.',
             confirmLabel: 'Archive',
             danger: true,
           })

@@ -114,6 +114,22 @@ export const CALLER_INVITE_TTL_DAYS = 7
 export const CALLER_STALE_ASSIGNMENT_DAYS = 7
 /** A skipped prospect waits this long before any caller can claim it again. */
 export const CALLER_SKIP_COOLDOWN_DAYS = 3
+/** A skip that ENDS the relationship ("not a fit", "already spoke") parks
+ *  the row out of every caller's reach for this long — never a 3-day
+ *  recycle back to the same person. */
+export const CALLER_SKIP_LONG_COOLDOWN_DAYS = 90
+export const CALLER_SKIP_FINAL_REASONS = ['not_a_fit', 'already_spoke'] as const
+/** A row the sweep or a pause hands back waits this long before the SAME
+ *  tick's refill can hand it straight back. */
+export const CALLER_RELEASE_COOLDOWN_DAYS = 3
+
+/** Statuses a caller's queue can SERVE: the live ones. A row that leaves
+ *  this list by any path (a reply, a bounce, a verify pass, a conversion)
+ *  drops off the dial card the moment it is read, and
+ *  `releaseIfUnservable` frees the slot. `engaged` is here (a practice that
+ *  warms up while held stays held) but NOT in the pool a caller claims
+ *  from — those are the owner's warm leads. */
+export const CALLER_SERVABLE_STATUSES = ['enriched', 'queued', 'contacted', 'engaged', 'call_list'] as const
 
 /** Intent signals that mean a hand went up — those practices stay with the
  *  platform owner's own call list and are never auto-assigned to a caller. */
@@ -124,15 +140,16 @@ export const HAND_RAISER_SIGNALS: readonly ProspectIntentSignal[] = [
   'event_met',
 ]
 
-/** Outcomes after which a caller's assignment ends — the record is either
- *  done (won / booked / a polite no) or dead (closed / bad number). */
+/** Outcomes after which a caller's assignment ends — the record is done (a
+ *  polite no) or dead (closed / bad number). Every one of them also makes
+ *  the row UNSERVABLE (a status or phone flip), so the pool never hands it
+ *  back. A booked demo is NOT here: the row stays with the caller who
+ *  earned it, off the dial card, until the meeting passes. */
 export const CALLER_TERMINAL_OUTCOMES: readonly ProspectCallOutcome[] = [
   'not_interested',
   'closed',
   'disconnected',
   'wrong_number',
-  'won',
-  'demo_booked',
 ]
 
 /** The outcome keys a caller can press (1–9, in this order). `demo_booked`

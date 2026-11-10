@@ -58,6 +58,14 @@ export interface TenantContext {
    */
   onTrial?: boolean
   trialExpired?: boolean
+  /**
+   * The prospect_caller row's status when tenantType is 'caller' (P-02) —
+   * 'active' | 'paused' | 'archived'. A paused or archived caller STILL
+   * resolves a context (so the root never mistakes them for a brand-new
+   * user and walks them into clinic onboarding); `requireCaller` is what
+   * enforces 'active', and /calls renders the calm state for the rest.
+   */
+  callerStatus?: import('@/lib/db/schema/prospecting').ProspectCallerStatus | null
   trialEndsAt?: Date | null
   /**
    * True for a managed clinic that still has a RESERVED plan to activate
@@ -112,12 +120,16 @@ async function resolvePartnerContext(
 
 /**
  * Build a 'caller' tenant context from a prospect_caller row linked to this
- * user (P-02). Mirrors the partner's: only an ACTIVE caller resolves, a
- * platform admin never does (their membership tenancy wins long before this
- * runs, and an admin is never a hired caller), and the caller row's id rides
- * `organizationId` so downstream code that keys on it still works — it is
- * `pcal_…`, which no tenant table's organization_id can ever equal, so a
- * clinic read scoped by it is empty and a clinic write fails its FK.
+ * user (P-02). Mirrors the partner's, with one deliberate difference: a
+ * caller of ANY status resolves (active, paused, archived — `callerStatus`
+ * says which). A paused caller with no membership used to resolve to NULL,
+ * which requireTenant read as "not signed in" and the root read as "a new
+ * user" — straight into clinic onboarding. A platform admin never resolves
+ * here (their membership tenancy wins long before this runs, and an admin is
+ * never a hired caller), and the caller row's id rides `organizationId` so
+ * downstream code that keys on it still works — it is `pcal_…`, which no
+ * tenant table's organization_id can ever equal, so a clinic read scoped by
+ * it is empty and a clinic write fails its FK.
  */
 async function resolveCallerContext(
   user: { id: string; email: string; name: string },
@@ -129,7 +141,7 @@ async function resolveCallerContext(
     .from(prospectCaller)
     .where(eq(prospectCaller.userId, user.id))
     .limit(1)
-  if (!c || c.status !== 'active') return null
+  if (!c) return null
   return {
     userId: user.id,
     userEmail: user.email,
@@ -145,6 +157,7 @@ async function resolveCallerContext(
     isDemo: false,
     viaViewAs: false,
     subscriptionStatus: null,
+    callerStatus: c.status as import('@/lib/db/schema/prospecting').ProspectCallerStatus,
   }
 }
 
@@ -472,12 +485,16 @@ export interface CallerSession {
  * clinic or a patient.
  *
  * `redirectOnFail` (default true) sends a non-caller to `/` (which re-routes
- * by their primary tenancy); false throws, for server actions.
+ * by their primary tenancy) and an INACTIVE caller to `/calls`, where the
+ * paused / closed screen renders — never to /signin, which would read a
+ * paused caller as a stranger and walk them into clinic onboarding; false
+ * throws, for server actions.
  *
  * `allowInactive` (default false): the strict default requires an ACTIVE
  * caller; the portal layout/page pass true so a paused / archived caller
- * still resolves and reads the right calm state instead of bouncing. Actions
- * keep the strict default so a paused caller cannot log a call.
+ * still resolves and reads the right calm state. Actions keep the strict
+ * default so a paused caller cannot log a call. Pausing or archiving never
+ * needs a session revoked: the status is read on every request.
  */
 export async function requireCaller(
   opts: { redirectOnFail?: boolean; allowInactive?: boolean } = {},
@@ -491,7 +508,7 @@ export async function requireCaller(
       throw new Error('Forbidden: active caller account required')
     }
     const { redirect } = await import('next/navigation')
-    redirect('/')
+    redirect(caller ? '/calls' : '/')
   }
   return { ctx, caller: caller as import('@/lib/db/schema/prospecting').ProspectCaller }
 }

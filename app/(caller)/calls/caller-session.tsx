@@ -22,7 +22,7 @@ import {
   type ProspectCallOutcome,
 } from '@/lib/types/prospecting'
 import { prospectInitials } from '@/lib/prospect-when'
-import { TONE_FILL } from '@/lib/ui/encodings'
+import { TONE_FILL, TONE_PILL } from '@/lib/ui/encodings'
 import {
   bookDemoAsCallerAction,
   getCallerScriptAction,
@@ -216,11 +216,15 @@ export default function CallerSession({ items, hostTimeZone }: { items: CallerQu
   }
 
   // Keys 1–9 in CALLER_OUTCOME_KEYS order; 1 opens the demo form, 2 the
-  // pass reasons, 3 the callback time; Esc closes a picker. Silent in inputs.
+  // pass reasons, 3 the callback time; Esc closes a picker. Silent in inputs
+  // and on any modified combo — Ctrl/Cmd+4 is "switch to tab 4", never a
+  // voicemail logged on a practice nobody dialled (the same rule as the
+  // dashboard's keyboard-shortcuts).
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (e.metaKey || e.ctrlKey || e.altKey || e.isComposing) return
       const tag = (e.target as HTMLElement | null)?.tagName
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') {
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (e.target as HTMLElement | null)?.isContentEditable) {
         if (e.key === 'Escape') (e.target as HTMLElement).blur()
         return
       }
@@ -394,7 +398,10 @@ export default function CallerSession({ items, hostTimeZone }: { items: CallerQu
                   <li key={i}>
                     <span className="font-mono-num text-gray-500 dark:text-gray-400">{fmtAttemptDate(a.at)}</span>{' '}
                     <span className="font-semibold">{ATTEMPT_LABELS[a.outcome] ?? a.outcome.replace(/_/g, ' ')}</span>
-                    <span className="text-gray-500 dark:text-gray-400"> · {a.mine ? 'you' : 'Dream Create'}</span>
+                    <span className="text-gray-500 dark:text-gray-400">
+                      {' '}
+                      · {a.mine ? 'you' : a.byOwner ? 'Dream Create' : 'another caller'}
+                    </span>
                     {a.note && <span className="block text-gray-500 dark:text-gray-400">“{a.note}”</span>}
                   </li>
                 ))}
@@ -494,8 +501,8 @@ export default function CallerSession({ items, hostTimeZone }: { items: CallerQu
         )}
 
         {picker === 'demo' ? (
-          <div className="rounded-[var(--r-md)] bg-violet-500/10 p-3">
-            <p className="text-xs font-semibold text-violet-700 dark:text-violet-300">
+          <div className={`rounded-[var(--r-md)] p-3 ${TONE_PILL.info}`}>
+            <p className="text-xs font-semibold">
               🎉 Lock the time while they’re on the phone — on Dream Create’s clock ({hostTimeZone.replace(/_/g, ' ')})
             </p>
             <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -509,7 +516,13 @@ export default function CallerSession({ items, hostTimeZone }: { items: CallerQu
                 className="form-input w-52 text-sm"
                 aria-label="Their email"
               />
-              <ActionButton size="sm" variant="primary" pending={pending && active === 'demo'} disabled={pending || !demoDay || !demoTime} onClick={bookDemo}>
+              <ActionButton
+                size="sm"
+                variant="primary"
+                pending={pending && active === 'demo'}
+                disabled={pending || stale || !demoDay || !demoTime}
+                onClick={bookDemo}
+              >
                 Book it
               </ActionButton>
               <ActionButton size="sm" variant="ghost" disabled={pending} onClick={() => setPicker(null)}>
@@ -527,7 +540,7 @@ export default function CallerSession({ items, hostTimeZone }: { items: CallerQu
                   size="sm"
                   variant="secondary"
                   pending={pending && active === `lost-${key}`}
-                  disabled={pending}
+                  disabled={pending || stale}
                   onClick={() => log('not_interested', { lostReason: key })}
                 >
                   {LOSS_REASON_LABELS[key]}
@@ -539,8 +552,8 @@ export default function CallerSession({ items, hostTimeZone }: { items: CallerQu
             </div>
           </div>
         ) : picker === 'callback' ? (
-          <div className="rounded-[var(--r-md)] bg-amber-500/10 p-3">
-            <p className="text-xs font-semibold text-amber-800 dark:text-amber-200">
+          <div className={`rounded-[var(--r-md)] p-3 ${TONE_PILL.warn}`}>
+            <p className="text-xs font-semibold">
               🔁 When did they ask you to call back? Their time{theirZone ? ` (${theirZone})` : ''}.
             </p>
             <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -550,7 +563,7 @@ export default function CallerSession({ items, hostTimeZone }: { items: CallerQu
                 size="sm"
                 variant="primary"
                 pending={pending && active === 'callback'}
-                disabled={pending || !callbackDay || !callbackTime}
+                disabled={pending || stale || !callbackDay || !callbackTime}
                 onClick={() => log('callback', { callbackDay, callbackTime })}
               >
                 Set the callback
@@ -563,7 +576,8 @@ export default function CallerSession({ items, hostTimeZone }: { items: CallerQu
         ) : picker === 'skip' ? (
           <div className="rounded-[var(--r-md)] bg-[color:var(--color-surface-sunk)] p-3">
             <p className="text-xs font-semibold text-gray-600 dark:text-gray-300">
-              Skip this one — it goes back to the pool for a few days. Why?
+              Skip this one. “Come back to it later” sends it back to the pool for a few days; “not a fit” and
+              “already spoke” take it off the callers’ list for good. Why?
             </p>
             <div className="mt-2 flex flex-wrap gap-1.5">
               {CALLER_SKIP_REASONS.map((key) => (
@@ -572,7 +586,7 @@ export default function CallerSession({ items, hostTimeZone }: { items: CallerQu
                   size="sm"
                   variant="secondary"
                   pending={pending && active === `skip-${key}`}
-                  disabled={pending}
+                  disabled={pending || stale}
                   onClick={() => skip(key)}
                 >
                   {CALLER_SKIP_REASON_LABELS[key]}

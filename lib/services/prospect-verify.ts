@@ -15,7 +15,7 @@ import {
   type ProspectingConfig,
   type VerificationSignal,
 } from '@/lib/types/prospecting'
-import type { ProspectPhoneLineType, ProspectPhoneSource, ProspectPhoneStatus, ProspectQualityBand } from '@/lib/db/schema/prospecting'
+import { BAD_PHONE_STATUSES, type ProspectPhoneLineType, type ProspectPhoneSource, type ProspectPhoneStatus, type ProspectQualityBand } from '@/lib/db/schema/prospecting'
 import { checkSiteLiveness, type SiteLiveness } from './prospect-site-liveness'
 import { phoneValidateDriver, validatePhoneLine } from './phone-validate'
 import { reportProspectingFailure, type ProspectingFailureClass } from './engine-failures'
@@ -417,6 +417,12 @@ async function writePatch(prospectId: string, patch: VerifyPatch, extra: Partial
     .update(schema.prospect)
     .set({ ...extra, ...patch, updatedAt: new Date() })
     .where(eq(schema.prospect.id, prospectId))
+  // A disqualification or a bad number leaves a cold caller nothing to dial
+  // (P-02): free the slot. The one release hook; best-effort by contract.
+  if (patch.status === 'disqualified' || (patch.phoneStatus && (BAD_PHONE_STATUSES as readonly string[]).includes(patch.phoneStatus))) {
+    const { releaseIfUnservable } = await import('./prospect-caller-release')
+    await releaseIfUnservable(prospectId)
+  }
 }
 
 /**
