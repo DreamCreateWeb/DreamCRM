@@ -23,6 +23,7 @@ import { EmptyState } from '@/components/ui/empty-state'
 import { FlashToast } from '@/components/ui/flash-toast'
 import { runAction } from '@/lib/run-action'
 import Modal from '@/components/ui/modal'
+import { TextInput } from '@/components/ui/form-fields'
 import { useFocusTrap } from '@/components/ui/use-focus-trap'
 import type { PillLegendRow, Tone } from '@/lib/ui/encodings'
 
@@ -632,8 +633,8 @@ function TrackingDialog({
         </p>
         <label className="block text-sm">
           <span className="mb-1 block font-medium text-gray-800 dark:text-gray-100">Tracking number (optional)</span>
-          <input
-            className="form-input w-full text-sm"
+          <TextInput
+            className="w-full text-sm"
             value={number}
             onChange={(e) => setNumber(e.target.value)}
             autoComplete="off"
@@ -641,8 +642,8 @@ function TrackingDialog({
         </label>
         <label className="block text-sm">
           <span className="mb-1 block font-medium text-gray-800 dark:text-gray-100">Tracking link (optional)</span>
-          <input
-            className="form-input w-full text-sm"
+          <TextInput
+            className="w-full text-sm"
             type="url"
             inputMode="url"
             placeholder="https://"
