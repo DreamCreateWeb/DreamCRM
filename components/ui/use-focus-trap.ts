@@ -1,4 +1,4 @@
-import { useEffect, type RefObject } from 'react'
+import { useEffect, useRef, type RefObject } from 'react'
 
 const FOCUSABLE_SELECTOR = [
   'a[href]',
@@ -30,11 +30,22 @@ export function useFocusTrap(
 ): void {
   const { onEscape, restoreFocus = true, initialFocus = true, focusSelector } = opts
 
+  // The opener is read DURING RENDER, not in the effect: a child's `autoFocus`
+  // runs at commit, before any passive effect, so by the time the effect ran
+  // `document.activeElement` was already the modal's own first field and the
+  // focus "restored" on close went nowhere (found by the 390 Add-patient check,
+  // e2e/dashboard-viewport.spec.ts).
+  const openerRef = useRef<HTMLElement | null>(null)
+  if (!active) openerRef.current = null
+  else if (openerRef.current === null && typeof document !== 'undefined') {
+    openerRef.current = document.activeElement as HTMLElement | null
+  }
+
   useEffect(() => {
     if (!active) return
     const container = ref.current
     if (!container) return
-    const previouslyFocused = document.activeElement as HTMLElement | null
+    const previouslyFocused = openerRef.current ?? (document.activeElement as HTMLElement | null)
 
     const focusables = (): HTMLElement[] =>
       Array.from(container.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR))

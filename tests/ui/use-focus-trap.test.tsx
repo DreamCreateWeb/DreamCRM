@@ -77,4 +77,35 @@ describe('useFocusTrap', () => {
     fireEvent.click(screen.getByText('close')) // unmounts the modal
     expect(document.activeElement).toBe(opener)
   })
+
+  it('restores focus to the opener even when a child autoFocuses at commit', () => {
+    // autoFocus runs at commit, before passive effects: the opener must be read
+    // at render or the "restored" focus lands on the modal's own field.
+    function AutoModal() {
+      const ref = useRef<HTMLDivElement>(null)
+      useFocusTrap(true, ref)
+      return (
+        <div ref={ref} role="dialog">
+          <input aria-label="field" autoFocus />
+        </div>
+      )
+    }
+    function AutoHarness() {
+      const [open, setOpen] = useState(false)
+      return (
+        <div>
+          <button onClick={() => setOpen(true)}>opener</button>
+          {open && <AutoModal />}
+          <button onClick={() => setOpen(false)}>close</button>
+        </div>
+      )
+    }
+    render(<AutoHarness />)
+    const opener = screen.getByText('opener')
+    opener.focus()
+    fireEvent.click(opener)
+    expect(document.activeElement).toBe(screen.getByLabelText('field'))
+    fireEvent.click(screen.getByText('close'))
+    expect(document.activeElement).toBe(opener)
+  })
 })
