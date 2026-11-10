@@ -131,6 +131,10 @@ export default async function PlatformOverview() {
   // The MRR tile's heartbeat (ML-38): the platform's daily snapshot, in UTC
   // days (said on the tile). Best-effort — no spark on a failed read.
   const mrrBeat = await getPlatformHeartbeat('mrr', { fmt: formatMoneyShort }).catch(() => null)
+  // The Active Clinics tile's heartbeat (ML-38b): the standing count at each
+  // UTC day's close. The headline stays the live number; the snapshot draws
+  // the spark.
+  const clinicsBeat = await getPlatformHeartbeat('active_clinics').catch(() => null)
   // The audience still FLOORS at 'platform' on the failure path — the one
   // thing that must never be undefined is who the machine is allowed to talk
   // to, and an unreadable config means "closed", not "unknown".
@@ -207,9 +211,14 @@ export default async function PlatformOverview() {
         <KpiStat
           label="Active Clinics"
           value={formatNumberShort(subs.activeClinics)}
-          sub={`${subs.newClinics30d} new in 30d`}
+          sub={
+            <>
+              {`${subs.newClinics30d} new in 30d`}
+              <HeartbeatLine line={clinicsBeat?.line ? `${clinicsBeat.line} · ${PLATFORM_BUCKET_NOTE}` : null} />
+            </>
+          }
           href="/ecommerce/customers"
-          spark={clinicGrowth.buckets}
+          spark={clinicsBeat?.spark ?? clinicGrowth.buckets}
         />
         <KpiStat
           label="MRR"

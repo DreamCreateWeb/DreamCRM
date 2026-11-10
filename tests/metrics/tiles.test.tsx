@@ -86,3 +86,40 @@ describe('the hunt panel (hourly, platform, UTC)', () => {
     expect(container.querySelectorAll('[data-heartbeat-line]').length).toBe(0)
   })
 })
+
+describe('ML-38b — the five formerly tile-less metrics render through the kit', () => {
+  const metrics = ['reviews_requested', 'visits', 'bookings', 'revenue_collected', 'active_clinics'] as const
+  for (const m of metrics) {
+    const kind = m === 'active_clinics' ? 'stock' : 'flow'
+    it(`${m}: spark presence at 2 points + the "tracked since" state`, () => {
+      const beat = heartbeatFor(days(2), kind)
+      const { container } = render(
+        <KpiStat label={m} value={3} sub={<HeartbeatLine line={beat.line} />} spark={beat.spark ?? undefined} />,
+      )
+      expect(container.querySelectorAll('[data-chart^="mini-"]').length).toBe(1)
+      expect(screen.getByText('tracked since Oct 1')).toBeTruthy()
+      cleanup()
+    })
+    it(`${m}: nothing is drawn or said with no recorded history (never zero-filled)`, () => {
+      const beat = heartbeatFor([], kind)
+      const { container } = render(<KpiStat label={m} value={3} sub={<HeartbeatLine line={beat.line} />} spark={beat.spark ?? undefined} />)
+      expect(container.querySelectorAll('[data-chart^="mini-"]').length).toBe(0)
+      expect(container.querySelectorAll('[data-heartbeat-line]').length).toBe(0)
+      cleanup()
+    })
+  }
+
+  it('each tile is wired on the page that owns the number', async () => {
+    const { readFileSync } = await import('node:fs')
+    const wires: Array<[string, string]> = [
+      ['app/(default)/growth/reviews/page.tsx', 'reviews_requested'],
+      ['app/(default)/dashboard/clinic-overview.tsx', "'visits'"],
+      ['app/(default)/website/page.tsx', "'bookings'"],
+      ['app/(default)/payments/page.tsx', 'revenue_collected'],
+      ['app/(default)/dashboard/platform-overview.tsx', "'active_clinics'"],
+    ]
+    for (const [file, key] of wires) expect(readFileSync(file, 'utf8'), `${file} never reads ${key}`).toContain(key)
+    // Platform tenant: the UTC note rides the active-clinics line.
+    expect(readFileSync('app/(default)/dashboard/platform-overview.tsx', 'utf8')).toMatch(/clinicsBeat[\s\S]{0,400}PLATFORM_BUCKET_NOTE/)
+  })
+})
