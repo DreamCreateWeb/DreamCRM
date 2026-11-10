@@ -60,6 +60,9 @@ vi.mock('@/lib/db', async () => {
 vi.mock('@/lib/services/insurance-eligibility/allowance', () => ({ getInsuranceUsage: async () => ({ used: 0, included: 200, unreadable: false }) }))
 vi.mock('@/lib/services/insurance-eligibility/plans', () => ({
   listPatientInsurance: async () => state.cards,
+  // the primary card on file is DD-100 (as the patient row used to say) unless a test sets one
+  getPatientInsurance: async (_o: string, _p: string, rank: string) =>
+    state.cards.find((c) => c.rank === rank) ?? (rank === 'primary' ? { rank: 'primary', provider: null, policyNumber: 'DD-100', groupNumber: null, detail: null } : null),
   rememberSlotCard: async (_o: string, _p: string, rank: string, detail: Record<string, unknown>) => { state.remembered.push({ rank, detail }); return true },
   upsertPatientInsurance: async () => true,
   removeSecondaryInsurance: async () => undefined,

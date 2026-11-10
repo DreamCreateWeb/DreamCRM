@@ -9,12 +9,12 @@ import {
 } from '@/lib/insurance-eligibility'
 
 /**
- * A patient's coverage SLOTS (ML-50). The primary stays the flat
- * `patient.insurance_*` columns — they are the display truth every existing
- * reader (PMS sync, portal profile, edit modal, intake) still writes, so the
- * primary slot is READ from them and mirrored into `patient_insurance` here,
- * the ONE place that writes the mirror. The secondary has no flat columns: its
- * table row is authoritative. Both carry their own card, payer, member id and
+ * A patient's coverage SLOTS (ML-50, ML-50b). `patient_insurance` is
+ * AUTHORITATIVE for both ranks: every writer of the primary (PMS sync, portal
+ * profile, edit modal via updatePatient, intake, merge, import, the demo
+ * seeder) goes through `upsertPatientInsurance` / `patchPrimaryInsurance`,
+ * which also writes the flat `patient.insurance_*` columns as a MIRROR for one
+ * release (written, no longer read - `tests/guards/insurance-flat-readers`). Both carry their own card, payer, member id and
  * remembered detail (trusted only while it matches that slot's policy number).
  */
 export interface InsuranceCard {
@@ -41,49 +41,146 @@ function newSlotId(): string {
   return `pins_${crypto.randomUUID().replace(/-/g, '').slice(0, 24)}`
 }
 
-/** [primary?, secondary?] — a slot with nothing on it is absent. */
-export async function listPatientInsurance(organizationId: string, patientId: string): Promise<InsuranceCard[]> {
-  const [p] = await db
+type SlotRow = { provider: string | null; policyNumber: string | null; groupNumber: string | null; detail: unknown }
+
+function toCard(rank: InsuranceRank, r: SlotRow): InsuranceCard | null {
+  const card = { provider: clean(r.provider), policyNumber: clean(r.policyNumber), groupNumber: clean(r.groupNumber) }
+  if (!hasAnything(card)) return null
+  const d = parseInsuranceDetail(r.detail)
+  return { rank, ...card, detail: detailMatchesOnFile(d, r.policyNumber) ? d : null }
+}
+
+/**
+ * THE one read of a coverage slot (ML-50b). `patient_insurance` is
+ * authoritative for BOTH ranks. The one fallback: a primary with NO table row
+ * yet (a patient whose flat columns were written before every writer moved)
+ * is read from the legacy flat mirror - this file is the only reader of them.
+ * Org-scoped. A slot with nothing on it is null.
+ */
+export async function getPatientInsurance(
+  organizationId: string,
+  patientId: string,
+  rank: InsuranceRank = 'primary',
+): Promise<InsuranceCard | null> {
+  const [row] = await db
     .select({
-      provider: schema.patient.insuranceProvider,
-      policy: schema.patient.insurancePolicyNumber,
-      group: schema.patient.insuranceGroupNumber,
-      detail: schema.patient.insuranceDetail,
+      provider: schema.patientInsurance.provider,
+      policyNumber: schema.patientInsurance.policyNumber,
+      groupNumber: schema.patientInsurance.groupNumber,
+      detail: schema.patientInsurance.detail,
     })
-    .from(schema.patient)
-    .where(and(eq(schema.patient.organizationId, organizationId), eq(schema.patient.id, patientId)))
-    .limit(1)
-  if (!p) return []
-  const out: InsuranceCard[] = []
-  const primary = { provider: clean(p.provider), policyNumber: clean(p.policy), groupNumber: clean(p.group) }
-  if (hasAnything(primary)) {
-    const d = parseInsuranceDetail(p.detail)
-    out.push({ rank: 'primary', ...primary, detail: detailMatchesOnFile(d, p.policy) ? d : null })
-  }
-  const [s] = await db
-    .select()
     .from(schema.patientInsurance)
     .where(
       and(
         eq(schema.patientInsurance.organizationId, organizationId),
         eq(schema.patientInsurance.patientId, patientId),
-        eq(schema.patientInsurance.rank, 'secondary'),
+        eq(schema.patientInsurance.rank, rank),
       ),
     )
     .limit(1)
-  if (s) {
-    const card = { provider: clean(s.provider), policyNumber: clean(s.policyNumber), groupNumber: clean(s.groupNumber) }
-    if (hasAnything(card)) {
-      const d = parseInsuranceDetail(s.detail)
-      out.push({ rank: 'secondary', ...card, detail: detailMatchesOnFile(d, s.policyNumber) ? d : null })
-    }
+  if (row) return toCard(rank, row)
+  if (rank !== 'primary') return null
+  const [p] = await db
+    .select({
+      provider: schema.patient.insuranceProvider,
+      policyNumber: schema.patient.insurancePolicyNumber,
+      groupNumber: schema.patient.insuranceGroupNumber,
+      detail: schema.patient.insuranceDetail,
+    })
+    .from(schema.patient)
+    .where(and(eq(schema.patient.organizationId, organizationId), eq(schema.patient.id, patientId)))
+    .limit(1)
+  return p ? toCard('primary', p) : null
+}
+
+/** [primary?, secondary?] - a slot with nothing on it is absent. */
+export async function listPatientInsurance(organizationId: string, patientId: string): Promise<InsuranceCard[]> {
+  const [primary, secondary] = await Promise.all([
+    getPatientInsurance(organizationId, patientId, 'primary'),
+    getPatientInsurance(organizationId, patientId, 'secondary'),
+  ])
+  return [primary, secondary].filter((c): c is InsuranceCard => !!c)
+}
+
+/** Primary cards for a set of patients (lists, exports, audiences) - table first, flat only for the unmirrored. */
+export async function primaryCardsByPatient(
+  organizationId: string,
+  patientIds: string[],
+): Promise<Map<string, { provider: string | null; policyNumber: string | null; groupNumber: string | null }>> {
+  const out = new Map<string, { provider: string | null; policyNumber: string | null; groupNumber: string | null }>()
+  if (patientIds.length === 0) return out
+  const rows = await db
+    .select({
+      patientId: schema.patientInsurance.patientId,
+      provider: schema.patientInsurance.provider,
+      policyNumber: schema.patientInsurance.policyNumber,
+      groupNumber: schema.patientInsurance.groupNumber,
+    })
+    .from(schema.patientInsurance)
+    .where(
+      and(
+        eq(schema.patientInsurance.organizationId, organizationId),
+        eq(schema.patientInsurance.rank, 'primary'),
+        inArray(schema.patientInsurance.patientId, patientIds),
+      ),
+    )
+  for (const r of rows) out.set(r.patientId, { provider: clean(r.provider), policyNumber: clean(r.policyNumber), groupNumber: clean(r.groupNumber) })
+  const missing = patientIds.filter((id) => !out.has(id))
+  if (missing.length > 0) {
+    const flat = await db
+      .select({
+        id: schema.patient.id,
+        provider: schema.patient.insuranceProvider,
+        policyNumber: schema.patient.insurancePolicyNumber,
+        groupNumber: schema.patient.insuranceGroupNumber,
+      })
+      .from(schema.patient)
+      .where(and(eq(schema.patient.organizationId, organizationId), inArray(schema.patient.id, missing)))
+    for (const r of flat) out.set(r.id, { provider: clean(r.provider), policyNumber: clean(r.policyNumber), groupNumber: clean(r.groupNumber) })
   }
   return out
 }
 
 /**
- * Write one slot. Primary → the flat columns (the display truth) AND the
- * mirror row; secondary → its table row. Org-scoped on the ownership check
+ * Bulk-seed primary slots for freshly inserted patients (the CSV import) - one
+ * insert per chunk instead of three queries a row. Org-set on every row; a slot
+ * that already exists is left alone. Cards with nothing on them are skipped.
+ */
+export async function seedPrimaryInsuranceBulk(
+  organizationId: string,
+  cards: Array<{ patientId: string; provider: string | null; policyNumber?: string | null; groupNumber?: string | null }>,
+): Promise<void> {
+  const now = new Date()
+  const values = cards
+    .map((c) => ({ patientId: c.patientId, provider: clean(c.provider), policyNumber: clean(c.policyNumber), groupNumber: clean(c.groupNumber) }))
+    .filter(hasAnything)
+    .map((c) => ({ id: newSlotId(), organizationId, rank: 'primary', createdAt: now, updatedAt: now, ...c }))
+  for (let i = 0; i < values.length; i += 500) {
+    await db.insert(schema.patientInsurance).values(values.slice(i, i + 500)).onConflictDoNothing()
+  }
+}
+
+/**
+ * Apply a PARTIAL change to the primary slot (undefined keys keep what is on
+ * the card) - the writer every "some fields changed" path uses (edit modal,
+ * PMS sync, merge fill, intake). The flat mirror is written by the same call.
+ */
+export async function patchPrimaryInsurance(
+  organizationId: string,
+  patientId: string,
+  patch: { provider?: string | null; policyNumber?: string | null; groupNumber?: string | null; detail?: PatientInsuranceDetail | null },
+): Promise<boolean> {
+  const cur = await getPatientInsurance(organizationId, patientId, 'primary')
+  return upsertPatientInsurance(organizationId, patientId, 'primary', {
+    provider: patch.provider !== undefined ? patch.provider : (cur?.provider ?? null),
+    policyNumber: patch.policyNumber !== undefined ? patch.policyNumber : (cur?.policyNumber ?? null),
+    groupNumber: patch.groupNumber !== undefined ? patch.groupNumber : (cur?.groupNumber ?? null),
+    ...(patch.detail !== undefined ? { detail: patch.detail } : {}),
+  })
+}
+
+/**
+ * Write one slot. Primary → the authoritative row AND the flat mirror; secondary → its table row. Org-scoped on the ownership check
  * and on every write. An all-empty secondary clears it (a primary is only
  * ever cleared by its own editors).
  */
@@ -159,12 +256,13 @@ export async function rememberSlotCard(
   detail: PatientInsuranceDetail,
 ): Promise<boolean> {
   if (rank === 'primary') {
-    const updated = await db
-      .update(schema.patient)
-      .set({ insuranceDetail: detail, updatedAt: new Date() })
-      .where(and(eq(schema.patient.organizationId, organizationId), eq(schema.patient.id, patientId)))
-      .returning({ id: schema.patient.id })
-    return updated.length > 0
+    const cur = await getPatientInsurance(organizationId, patientId, 'primary')
+    return upsertPatientInsurance(organizationId, patientId, 'primary', {
+      provider: cur?.provider ?? null,
+      policyNumber: cur?.policyNumber ?? null,
+      groupNumber: cur?.groupNumber ?? null,
+      detail,
+    })
   }
   const updated = await db
     .update(schema.patientInsurance)

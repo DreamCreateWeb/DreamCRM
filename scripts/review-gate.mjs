@@ -702,6 +702,14 @@ export const INTAKE_RULES = [
       // with neither `role="dialog"` nor a Headless `Dialog`, and a role
       // built through a spread or a variable.
       'tests/ui/no-hand-rolled-modal.test.ts',
+      // The flat-insurance-column guard (2026-11-10, ML-50b). A tree walk
+      // over `lib` and `app`: the files the writer grep finds must each be a
+      // registered writer that also calls the slot writer (or a registered
+      // non-DB file), and a drizzle `patient.insurance*` column reference may
+      // appear only in a DATED, SHRINK-ONLY allowlist (the mirror). Class: a
+      // tree walk. Blind spots: a raw-SQL read of the flat columns and a
+      // whole-row select() are not seen by the column-reference rule.
+      'tests/guards/insurance-flat-readers.test.ts',
       // The page-frame adoption guard (2026-11-09, ML-54). A NEW CLASS of
       // assertion, stated here as this entry's `why` asks: it WALKS every
       // `page.tsx` under `app/(default)` and `app/(double-sidebar)` (settings

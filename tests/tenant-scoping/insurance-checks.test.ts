@@ -12,6 +12,7 @@ const state = {
   wheres: [] as string[],
   limits: [] as number[],
   rows: [] as Array<Record<string, unknown>>,
+  inserts: [] as Array<Record<string, unknown>>,
 }
 
 function captureSql(clause: unknown): string {
@@ -56,6 +57,12 @@ vi.mock('@/lib/db', async () => {
   return {
     db: {
       select: () => chain(),
+      insert: () => ({
+        values: (v: Record<string, unknown>) => {
+          state.inserts.push(v)
+          return { onConflictDoUpdate: async () => undefined }
+        },
+      }),
       update: () => ({
         set: () => ({
           where: (clause: unknown) => {
@@ -166,18 +173,24 @@ describe('insurance check queries are org-scoped', () => {
   })
 
   it('rememberCheckedCard and getRememberedCard both carry the org id — a detail can never land on another clinic’s patient', async () => {
+    // ML-50b: the card lives in patient_insurance (the primary slot); every statement is org-scoped.
     state.wheres = []
-    state.rows = [{ id: 'pat_1' }]
+    state.inserts = []
+    state.rows = [{ id: 'pat_1', provider: null, policyNumber: 'DD-1', groupNumber: null, detail: null }]
     const detail = { memberId: 'DD-1', payerId: null, payerName: 'Delta Dental', planName: null, relationship: 'self' as const, subscriber: null, source: 'check' as const, updatedAt: '2026-10-03T00:00:00.000Z' }
     expect(await rememberCheckedCard(ORG_A, 'pat_1', detail)).toBe(true)
-    expect(state.wheres[0]).toContain(ORG_A)
-    expect(state.wheres[0]).toContain('pat_1')
+    expect(state.wheres.length).toBeGreaterThan(0)
+    for (const w of state.wheres) {
+      expect(w).toContain(ORG_A)
+      expect(w).toContain('pat_1')
+    }
+    expect(state.inserts[0]).toMatchObject({ organizationId: ORG_A, patientId: 'pat_1', rank: 'primary' })
     state.wheres = []
-    state.rows = [{ detail, policy: 'DD-1' }]
+    state.rows = [{ provider: null, policyNumber: 'DD-1', groupNumber: null, detail }]
     expect(await getRememberedCard(ORG_A, 'pat_1')).toMatchObject({ memberId: 'DD-1' })
     expect(state.wheres[0]).toContain(ORG_A)
     // A changed on-file card retires the detail at read time.
-    state.rows = [{ detail, policy: 'CHANGED' }]
+    state.rows = [{ provider: null, policyNumber: 'CHANGED', groupNumber: null, detail }]
     expect(await getRememberedCard(ORG_A, 'pat_1')).toBeNull()
   })
 

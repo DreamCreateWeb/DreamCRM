@@ -32,11 +32,12 @@ import { sandboxProvider } from './sandbox'
 import { makeStediProvider, searchStediPayers } from './stedi'
 import { getInsuranceUsage } from './allowance'
 import { disableInsuranceTool, enableInsuranceTool } from './setup'
-import { listPatientInsurance, rememberSlotCard } from './plans'
+import { getPatientInsurance, listPatientInsurance, rememberSlotCard } from './plans'
 
 export { searchStediPayers as searchPayers }
 export { getInsuranceUsage, enableInsuranceTool, disableInsuranceTool }
 export {
+  getPatientInsurance,
   listPatientInsurance,
   upsertPatientInsurance,
   removeSecondaryInsurance,
@@ -201,7 +202,6 @@ async function prepareCheck(
         id: schema.patient.id,
         firstName: schema.patient.firstName,
         lastName: schema.patient.lastName,
-        insurancePolicyNumber: schema.patient.insurancePolicyNumber,
       })
       .from(schema.patient)
       .where(and(eq(schema.patient.organizationId, organizationId), eq(schema.patient.id, opts.patientId)))
@@ -209,7 +209,7 @@ async function prepareCheck(
     if (p) {
       patientId = p.id
       patientName = `${p.firstName} ${p.lastName}`.trim()
-      onFilePolicyNumber = p.insurancePolicyNumber
+      onFilePolicyNumber = (await getPatientInsurance(organizationId, p.id, 'primary'))?.policyNumber ?? null
       // The secondary slot has its own member id: "the card on file" is THAT one's.
       if (rank === 'secondary') {
         const second = (await listPatientInsurance(organizationId, p.id)).find((c) => c.rank === 'secondary')
@@ -442,12 +442,7 @@ export async function rememberCheckedCard(
   detail: PatientInsuranceDetail,
 ): Promise<boolean> {
   try {
-    const updated = await db
-      .update(schema.patient)
-      .set({ insuranceDetail: detail, updatedAt: new Date() })
-      .where(and(eq(schema.patient.organizationId, organizationId), eq(schema.patient.id, patientId)))
-      .returning({ id: schema.patient.id })
-    return updated.length > 0
+    return await rememberSlotCard(organizationId, patientId, 'primary', detail)
   } catch (e) {
     console.error('[insurance-eligibility] remember card failed:', e)
     return false
@@ -456,17 +451,7 @@ export async function rememberCheckedCard(
 
 /** The remembered card on a patient, parsed; null when none or when it no longer matches the on-file policy number. */
 export async function getRememberedCard(organizationId: string, patientId: string, rank: InsuranceRank = 'primary'): Promise<PatientInsuranceDetail | null> {
-  if (rank === 'secondary') {
-    return (await listPatientInsurance(organizationId, patientId)).find((c) => c.rank === 'secondary')?.detail ?? null
-  }
-  const [p] = await db
-    .select({ detail: schema.patient.insuranceDetail, policy: schema.patient.insurancePolicyNumber })
-    .from(schema.patient)
-    .where(and(eq(schema.patient.organizationId, organizationId), eq(schema.patient.id, patientId)))
-    .limit(1)
-  if (!p) return null
-  const detail = parseInsuranceDetail(p.detail)
-  return detailMatchesOnFile(detail, p.policy) ? detail : null
+  return (await getPatientInsurance(organizationId, patientId, rank))?.detail ?? null
 }
 
 const viewSelect = {

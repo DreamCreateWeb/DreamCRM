@@ -1,6 +1,7 @@
 import 'server-only'
 import { and, asc, desc, eq, gte, lte, ne, sql } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
+import { getPatientInsurance } from '@/lib/services/insurance-eligibility/plans'
 import type { InboxPatientContext } from '@/lib/types/patient-context'
 
 export type { InboxPatientContext } from '@/lib/types/patient-context'
@@ -63,8 +64,16 @@ export async function getInboxPatientContext(
       ),
   ])
 
+  // ML-50b: the card is the primary slot in patient_insurance, not the flat mirror on the row.
+  const card = await getPatientInsurance(organizationId, patientId, 'primary')
   return {
-    patient: p,
+    patient: {
+      ...p,
+      insuranceProvider: card?.provider ?? null,
+      insurancePolicyNumber: card?.policyNumber ?? null,
+      insuranceGroupNumber: card?.groupNumber ?? null,
+      insuranceDetail: card?.detail ?? null,
+    },
     nextAppointment: upcoming[0] ?? null,
     lastAppointment: recent[0] ?? null,
     appointmentCount: countRows[0]?.count ?? 0,

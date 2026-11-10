@@ -8,6 +8,7 @@ import { getClinicCadence } from '@/lib/services/clinic-cadence'
 import { clinicDayStart } from '@/lib/clinic-timezone'
 import { clinicDayKey } from '@/lib/format-datetime'
 import { getLatestInsuranceChecksForPatients } from '@/lib/services/insurance-eligibility'
+import { primaryCardsByPatient } from '@/lib/services/insurance-eligibility/plans'
 import { getIntakeAlertsForAppointments, type IntakeAlertView } from '@/lib/services/intake-summary'
 import { isStaleCheck } from '@/lib/insurance-eligibility'
 import { isBirthdayThisWeek, lapsedCutoff } from '@/lib/dates'
@@ -91,7 +92,6 @@ export async function auditUpcomingDay(
       phone: schema.patient.phone,
       dateOfBirth: schema.patient.dateOfBirth,
       balance: schema.patient.pmsBalanceCents,
-      policyNumber: schema.patient.insurancePolicyNumber,
     })
     .from(schema.appointment)
     .innerJoin(schema.patient, eq(schema.patient.id, schema.appointment.patientId))
@@ -110,6 +110,9 @@ export async function auditUpcomingDay(
   if (rows.length === 0) return { dayKey, visitCount: 0, items: [] }
 
   const patientIds = Array.from(new Set(rows.map((r) => r.patientId)))
+  // ML-50b: the card on file is the primary slot in patient_insurance.
+  const primaryCards = await primaryCardsByPatient(organizationId, patientIds)
+  const policyOf = (patientId: string) => primaryCards.get(patientId)?.policyNumber ?? null
   const appointmentIds = rows.map((r) => r.appointmentId)
 
   // Three batched set queries — never per-patient N+1.
@@ -156,7 +159,7 @@ export async function auditUpcomingDay(
   // is on, and the audit only READS: it never runs a check.
   const insuranceOpen = switches.insurance === true
   const withCard = insuranceOpen
-    ? Array.from(new Set(rows.filter((r) => (r.policyNumber ?? '').trim() !== '').map((r) => r.patientId)))
+    ? Array.from(new Set(rows.filter((r) => (policyOf(r.patientId) ?? '').trim() !== '').map((r) => r.patientId)))
     : []
   const latestChecks = withCard.length
     ? await getLatestInsuranceChecksForPatients(organizationId, withCard).catch(() => null)
@@ -197,7 +200,7 @@ export async function auditUpcomingDay(
     else if (lastVisit < lapsedBefore) {
       flags.push({ key: 'lapsed_returning', label: 'First visit back in a long while — make it count' })
     }
-    if (insuranceOpen && latestChecks && (r.policyNumber ?? '').trim() !== '') {
+    if (insuranceOpen && latestChecks && (policyOf(r.patientId) ?? '').trim() !== '') {
       const latest = latestChecks.get(r.patientId)
       const href = `/insurance?patient=${r.patientId}`
       if (!latest) {

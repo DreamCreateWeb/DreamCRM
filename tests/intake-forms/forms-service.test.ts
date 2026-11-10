@@ -12,6 +12,22 @@ const state: {
   ops: Op[]
 } = { selectQueue: [], ops: [] }
 
+// ML-50b: the primary card lives in patient_insurance; the write-back reads and writes it through the slot service.
+const slot = vi.hoisted(() => ({
+  primary: null as null | { provider: string | null; policyNumber: string | null; groupNumber: string | null },
+  upserts: [] as Array<{ org: string; patient: string; rank: string; card: Record<string, unknown> }>,
+  owned: true,
+}))
+vi.mock('@/lib/services/insurance-eligibility/plans', () => ({
+  getPatientInsurance: async () => slot.primary,
+  listPatientInsurance: async () => (slot.primary ? [{ rank: 'primary', ...slot.primary, detail: null }] : []),
+  upsertPatientInsurance: async (org: string, patient: string, rank: string, card: Record<string, unknown>) => {
+    if (!slot.owned) return false
+    slot.upserts.push({ org, patient, rank, card })
+    return true
+  },
+}))
+
 // The on-submit pre-visit summary (ML-27) has its own suite; here it is inert.
 vi.mock('@/lib/services/intake-summary', () => ({ summarizeSubmission: vi.fn(async () => ({ ok: false, reason: 'not_configured' })) }))
 
@@ -378,33 +394,41 @@ describe('the intake insurance write-back (polish phase 5)', () => {
     expect(answers).toEqual({ insurance_provider: 'Delta Dental', insurance_policy_number: 'DD-9' })
   })
 
-  it('fills ONLY the empty columns and stamps the remembered card with source intake when the member id is new', async () => {
-    state.selectQueue.push([{ insuranceProvider: 'Cigna', insurancePolicyNumber: null, insuranceGroupNumber: null }])
+  beforeEach(() => {
+    slot.primary = null
+    slot.upserts = []
+    slot.owned = true
+  })
+
+  it('fills ONLY the empty fields of the primary slot and stamps the remembered card with source intake when the member id is new', async () => {
+    slot.primary = { provider: 'Cigna', policyNumber: null, groupNumber: null }
     const wrote = await writeBackIntakeInsurance('org_1', 'pat_1', insuranceSchema, { f_carrier: 'Delta Dental', f_member: 'DD-9', f_group: 'G-1' } as never)
     expect(wrote).toBe(true)
-    const up = state.ops.find((o) => o.kind === 'update' && o.table === 'patient')!
-    const set = up.set as Record<string, unknown>
-    expect(set.insuranceProvider).toBeUndefined() // Cigna stays — a form never overwrites what is on file
-    expect(set.insurancePolicyNumber).toBe('DD-9')
-    expect(set.insuranceGroupNumber).toBe('G-1')
-    expect(set.insuranceDetail).toMatchObject({ memberId: 'DD-9', payerName: 'Cigna', source: 'intake', relationship: 'self' })
+    expect(slot.upserts).toHaveLength(1)
+    const { org, patient, rank, card } = slot.upserts[0]
+    expect([org, patient, rank]).toEqual(['org_1', 'pat_1', 'primary'])
+    expect(card.provider).toBe('Cigna') // a form never overwrites what is on file
+    expect(card.policyNumber).toBe('DD-9')
+    expect(card.groupNumber).toBe('G-1')
+    expect(card.detail).toMatchObject({ memberId: 'DD-9', payerName: 'Cigna', source: 'intake', relationship: 'self' })
   })
 
-  it('writes nothing when every column is already filled, when the form carries no insurance answers, or when the patient is not this org’s', async () => {
-    state.selectQueue.push([{ insuranceProvider: 'Cigna', insurancePolicyNumber: 'C-1', insuranceGroupNumber: 'G' }])
+  it('writes nothing when every field is already filled, when the form carries no insurance answers, or when the patient is not this org’s', async () => {
+    slot.primary = { provider: 'Cigna', policyNumber: 'C-1', groupNumber: 'G' }
     expect(await writeBackIntakeInsurance('org_1', 'pat_1', insuranceSchema, { f_carrier: 'Delta', f_member: 'DD-9' } as never)).toBe(false)
     expect(await writeBackIntakeInsurance('org_1', 'pat_1', insuranceSchema, { other: 'x' } as never)).toBe(false)
-    state.selectQueue.push([])
+    slot.primary = null
+    slot.owned = false
     expect(await writeBackIntakeInsurance('org_1', 'pat_foreign', insuranceSchema, { f_member: 'DD-9' } as never)).toBe(false)
-    expect(state.ops.filter((o) => o.kind === 'update' && o.table === 'patient')).toHaveLength(0)
+    expect(slot.upserts).toHaveLength(0)
   })
 
-  it('a group number alone fills the group column and stamps no remembered card (there is no member id to key it on)', async () => {
-    state.selectQueue.push([{ insuranceProvider: null, insurancePolicyNumber: 'C-1', insuranceGroupNumber: null }])
+  it('a group number alone fills the group field and stamps no remembered card (there is no member id to key it on)', async () => {
+    slot.primary = { provider: null, policyNumber: 'C-1', groupNumber: null }
     await writeBackIntakeInsurance('org_1', 'pat_1', insuranceSchema, { f_group: 'G-2' } as never)
-    const set = state.ops.find((o) => o.kind === 'update' && o.table === 'patient')!.set as Record<string, unknown>
-    expect(set.insuranceGroupNumber).toBe('G-2')
-    expect(set.insuranceDetail).toBeUndefined()
+    const { card } = slot.upserts[0]
+    expect(card.groupNumber).toBe('G-2')
+    expect(card.detail).toBeUndefined()
   })
 })
 

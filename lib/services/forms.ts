@@ -753,29 +753,27 @@ export async function writeBackIntakeInsurance(
 ): Promise<boolean> {
   const answers = intakeInsuranceAnswers(schema, data)
   if (Object.keys(answers).length === 0) return false
-  const [p] = await db
-    .select({
-      insuranceProvider: patient.insuranceProvider,
-      insurancePolicyNumber: patient.insurancePolicyNumber,
-      insuranceGroupNumber: patient.insuranceGroupNumber,
-    })
-    .from(patient)
-    .where(and(eq(patient.organizationId, organizationId), eq(patient.id, patientId)))
-    .limit(1)
-  if (!p) return false
-  const patch: Record<string, unknown> = {}
-  if (!p.insuranceProvider?.trim() && answers.insurance_provider) patch.insuranceProvider = answers.insurance_provider
-  if (!p.insurancePolicyNumber?.trim() && answers.insurance_policy_number) patch.insurancePolicyNumber = answers.insurance_policy_number
-  if (!p.insuranceGroupNumber?.trim() && answers.insurance_group_number) patch.insuranceGroupNumber = answers.insurance_group_number
-  if (Object.keys(patch).length === 0) return false
-  if (typeof patch.insurancePolicyNumber === 'string') {
+  const { getPatientInsurance, upsertPatientInsurance } = await import('@/lib/services/insurance-eligibility/plans')
+  const cur = await getPatientInsurance(organizationId, patientId, 'primary')
+  const next = {
+    provider: cur?.provider ?? null,
+    policyNumber: cur?.policyNumber ?? null,
+    groupNumber: cur?.groupNumber ?? null,
+  }
+  let changed = false
+  if (!next.provider && answers.insurance_provider) { next.provider = answers.insurance_provider; changed = true }
+  if (!next.policyNumber && answers.insurance_policy_number) { next.policyNumber = answers.insurance_policy_number; changed = true }
+  if (!next.groupNumber && answers.insurance_group_number) { next.groupNumber = answers.insurance_group_number; changed = true }
+  if (!changed) return false
+  let detail: Awaited<ReturnType<typeof import('@/lib/insurance-eligibility').detailFromRequest>> | undefined
+  if (next.policyNumber && next.policyNumber !== (cur?.policyNumber ?? null)) {
     const { detailFromRequest } = await import('@/lib/insurance-eligibility')
-    patch.insuranceDetail = detailFromRequest(
+    detail = detailFromRequest(
       {
         patient: { firstName: '', lastName: '', dateOfBirth: '' },
-        carrierName: (patch.insuranceProvider as string | undefined) ?? p.insuranceProvider ?? '',
-        memberId: patch.insurancePolicyNumber,
-        groupNumber: (patch.insuranceGroupNumber as string | undefined) ?? p.insuranceGroupNumber ?? null,
+        carrierName: next.provider ?? '',
+        memberId: next.policyNumber,
+        groupNumber: next.groupNumber,
         relationship: 'self',
         subscriber: null,
       },
@@ -783,11 +781,8 @@ export async function writeBackIntakeInsurance(
       'intake',
     )
   }
-  await db
-    .update(patient)
-    .set({ ...patch, updatedAt: new Date() })
-    .where(and(eq(patient.organizationId, organizationId), eq(patient.id, patientId)))
-  return true
+  // The primary slot is authoritative in patient_insurance (ML-50b); the flat mirror rides the same call.
+  return upsertPatientInsurance(organizationId, patientId, 'primary', { ...next, ...(detail ? { detail } : {}) })
 }
 
 const INTAKE_SECONDARY_KEYS = ['insurance_secondary_provider', 'insurance_secondary_policy_number', 'insurance_secondary_group_number'] as const
