@@ -83,10 +83,10 @@ describe('the call-back day', () => {
     const input = screen.getByLabelText('Call back on') as HTMLInputElement
     expect(input.type).toBe('date')
     expect(input.value).toBe('')
-    const save = screen.getByRole('button', { name: 'Save' })
+    const save = await screen.findByRole('button', { name: 'Save' })
     expect(save).toBeDisabled() // nothing changed yet
     fireEvent.change(input, { target: { value: '2099-08-04' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Save' }))
     await waitFor(() => expect(actions.setLeadCallBackAction).toHaveBeenCalledWith('lead_1', '2099-08-04'))
     // Said twice on purpose: the toast and the line under the input.
     expect(await screen.findAllByText(/Call back Aug 4\./)).toHaveLength(2)
@@ -110,9 +110,9 @@ describe('the call-back day', () => {
     actions.setLeadCallBackAction.mockRejectedValue(new Error('Failed to find Server Action "x". This request might be from an older or newer deployment.'))
     renderDrawer(makeRow())
     fireEvent.change(screen.getByLabelText('Call back on'), { target: { value: '2099-08-04' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Save' }))
     await screen.findByText(/refresh/i)
-    expect(screen.getByRole('button', { name: 'Save' })).not.toHaveAttribute('aria-busy', 'true')
+    expect(await screen.findByRole('button', { name: 'Save' })).not.toHaveAttribute('aria-busy', 'true')
   })
 
   it('the call-back and notes editors belong to the contacted state only; a saved note still reads elsewhere', () => {
