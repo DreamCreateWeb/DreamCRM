@@ -649,11 +649,12 @@ function ScriptStage({
   tone: 'teal' | 'gray' | 'violet'
   children: React.ReactNode
 }) {
+  // A solid fill with a label on it comes from TONE_FILL (the a11y registry).
   const badge =
     tone === 'teal'
-      ? 'bg-teal-600 text-white'
+      ? TONE_FILL.ok
       : tone === 'violet'
-        ? 'bg-violet-600 text-white'
+        ? TONE_FILL.info
         : 'bg-[color:var(--color-surface-sunk)] text-gray-600 dark:text-gray-300'
   return (
     <div className="flex gap-3">
