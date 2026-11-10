@@ -17,6 +17,7 @@ vi.mock('@/lib/db', () => {
     obj.where = () => obj
     obj.orderBy = () => obj
     obj.limit = () => obj
+    obj.offset = () => obj
     obj.groupBy = () => obj
     obj.then = (onF: (v: unknown) => unknown, onR?: (e: unknown) => unknown) =>
       Promise.resolve(state.selectQueue.shift() ?? []).then(onF, onR)
@@ -36,38 +37,76 @@ vi.mock('@/lib/db', () => {
 
 const spies = vi.hoisted(() => ({
   gte: vi.fn(() => ({ gte: true })),
+  gt: vi.fn(() => ({ gt: true })),
+  ne: vi.fn(() => ({ ne: true })),
+  inArray: vi.fn(() => ({ inArray: true })),
   notInArray: vi.fn(() => ({ notInArray: true })),
 }))
 vi.mock('drizzle-orm', () => {
   const stub = () => vi.fn(() => ({}))
   return {
     and: stub(), asc: stub(), desc: stub(), eq: stub(), exists: stub(), ilike: stub(),
-    inArray: stub(), isNotNull: stub(), isNull: stub(), or: stub(),
+    isNotNull: stub(), isNull: stub(), or: stub(),
     gte: spies.gte,
+    gt: spies.gt,
+    ne: spies.ne,
+    inArray: spies.inArray,
     notInArray: spies.notInArray,
     sql: Object.assign(vi.fn(() => ({})), { raw: vi.fn() }),
   }
 })
 
-import { getPhoneQueue, getCallQueue, getCallList, getQualityCounts } from '@/lib/services/prospecting'
+import {
+  getPhoneQueue,
+  getCallQueue,
+  getCallList,
+  getQualityCounts,
+  getDueFollowUps,
+  listProspects,
+  servableAboveFloor,
+} from '@/lib/services/prospecting'
 import { BAD_PHONE_STATUSES } from '@/lib/db/schema/prospecting'
 
 const BAD = ['invalid', 'disconnected', 'wrong_number']
+const SERVABLE = ['enriched', 'queued', 'contacted', 'engaged', 'call_list']
 
 beforeEach(() => {
   state.selectQueue = []
   spies.gte.mockClear()
+  spies.gt.mockClear()
+  spies.ne.mockClear()
+  spies.inArray.mockClear()
   spies.notInArray.mockClear()
 })
+
+/** The floor predicate's three legs, as the spies saw them. */
+function floorLegs() {
+  return {
+    gte: spies.gte.mock.calls,
+    gt: spies.gt.mock.calls,
+    ne: spies.ne.mock.calls,
+  }
+}
 
 describe('the predicates', () => {
   it('BAD_PHONE_STATUSES is the one list every guard reads', () => {
     expect([...BAD_PHONE_STATUSES]).toEqual(BAD)
   })
 
+  it('THE ONE FLOOR PREDICATE: ≥ the floor AND never a parked band AND never a hard zero — a floor of 0 serves no parked row', () => {
+    servableAboveFloor(0)
+    expect(floorLegs()).toEqual({
+      gte: [['prospect.qualityScore', 0]],
+      gt: [['prospect.qualityScore', 0]],
+      ne: [['prospect.qualityBand', 'parked']],
+    })
+  })
+
   it('the phone-first queue serves only at/above the floor with a good number', async () => {
     await getPhoneQueue(100, { floor: 60 })
     expect(spies.gte).toHaveBeenCalledWith('prospect.qualityScore', 60)
+    expect(spies.gt).toHaveBeenCalledWith('prospect.qualityScore', 0)
+    expect(spies.ne).toHaveBeenCalledWith('prospect.qualityBand', 'parked')
     expect(spies.notInArray).toHaveBeenCalledWith('prospect.phoneStatus', BAD)
   })
 
@@ -75,8 +114,28 @@ describe('the predicates', () => {
     await getCallQueue({ floor: 70 })
     expect(spies.gte).toHaveBeenCalledTimes(1)
     expect(spies.gte).toHaveBeenCalledWith('prospect.qualityScore', 70)
+    expect(spies.gt).toHaveBeenCalledTimes(1)
+    expect(spies.ne).toHaveBeenCalledTimes(1)
     expect(spies.notInArray).toHaveBeenCalledTimes(3)
     for (const c of spies.notInArray.mock.calls) expect(c).toEqual(['prospect.phoneStatus', BAD])
+  })
+
+  it('the briefing’s due follow-ups never include a bad number — and never apply the floor', async () => {
+    await getDueFollowUps({ now: new Date('2026-11-10T12:00:00Z') })
+    expect(spies.notInArray).toHaveBeenCalledWith('prospect.phoneStatus', BAD)
+    expect(spies.gte).not.toHaveBeenCalled()
+  })
+
+  it('a quality chip lists exactly the pool it counts: the band filter restricts to the servable statuses', async () => {
+    state.selectQueue.push([{ total: 0 }])
+    state.selectQueue.push([])
+    await listProspects({ qualityBand: 'parked' })
+    expect(spies.inArray).toHaveBeenCalledWith('prospect.status', SERVABLE)
+    spies.inArray.mockClear()
+    state.selectQueue.push([{ total: 0 }])
+    state.selectQueue.push([])
+    await listProspects({ status: 'disqualified' })
+    expect(spies.inArray).not.toHaveBeenCalledWith('prospect.status', SERVABLE)
   })
 
   it('the call list (hand-raisers) never applies the floor — the card refuses the dial instead', async () => {

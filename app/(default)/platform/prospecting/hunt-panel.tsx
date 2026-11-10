@@ -4,7 +4,7 @@ import type { ProspectingConfig, ProspectQualityCounts } from '@/lib/types/prosp
 import { INTENT_SIGNAL_LABELS, formatUtcStamp, type ProspectIntentSignal } from '@/lib/types/prospecting'
 import { StatusPill } from '@/components/ui/status-pill'
 import { EncodingLegend } from '@/components/ui/encoding-legend'
-import type { Tone } from '@/lib/ui/encodings'
+import { TONE_PILL, type Tone } from '@/lib/ui/encodings'
 import { MiniTrend } from '@/components/ui/charts'
 import { PLATFORM_BUCKET_NOTE } from '@/lib/metrics-registry'
 import type { Heartbeat } from '@/lib/metric-series'
@@ -118,14 +118,14 @@ export default function HuntPanel({
       {failures && failures.length > 0 && (
         <div
           role="status"
-          className="mt-3 rounded-[var(--r-xs)] bg-amber-500/10 ring-1 ring-inset ring-amber-500/20 px-3 py-2 text-xs text-amber-800 dark:text-amber-200"
+          className={`mt-3 rounded-[var(--r-xs)] ring-1 ring-inset ring-current/20 px-3 py-2 text-xs ${TONE_PILL.warn}`}
           data-verification-failures
         >
           <span className="font-semibold">Verification hit a wall this week.</span>
           <ul className="mt-1 space-y-0.5">
             {failures.slice(0, 4).map((f, i) => (
               <li key={i}>
-                {f.summary} <span className="text-amber-700/80 dark:text-amber-300/80">({formatUtcStamp(f.occurredAt)})</span>
+                {f.summary} <span className="opacity-80">({formatUtcStamp(f.occurredAt)})</span>
               </li>
             ))}
           </ul>

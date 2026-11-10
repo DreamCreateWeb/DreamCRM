@@ -29,6 +29,9 @@ vi.mock('@/app/(default)/platform/prospecting/drawer-actions', () => ({
 vi.mock('@/app/(default)/platform/prospecting/demo-followup-drafter', () => ({
   default: () => null,
 }))
+vi.mock('@/app/(default)/platform/prospecting/phone-editor', () => ({
+  default: () => null,
+}))
 
 import ProspectDrawer from '@/app/(default)/platform/prospecting/prospect-drawer'
 

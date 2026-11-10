@@ -25,6 +25,7 @@ import {
   counterDay,
   isKnownContact,
   getWinLossReport,
+  servableAboveFloor,
 } from './prospecting'
 
 /**
@@ -791,8 +792,9 @@ export async function runAutoEnroll(opts?: { now?: Date }): Promise<AutoEnrollRe
         inArray(schema.prospect.scoreBand, config.autoEnroll.bands),
         // THE QUALITY FLOOR (P-01): the hunter never drips a practice the
         // verification pass could not stand behind. Unverified rows
-        // (null) wait for the sweep.
-        gte(schema.prospect.qualityScore, config.qualityFloor),
+        // (null) wait for the sweep; the ONE floor predicate also refuses
+        // every parked-band row and every hard zero, whatever the floor.
+        servableAboveFloor(config.qualityFloor),
       ),
     )
     .orderBy(sql`${schema.prospect.opportunityScore} DESC NULLS LAST`, asc(schema.prospect.enrichedAt))
@@ -1053,9 +1055,11 @@ export async function runOutreach(opts?: { now?: Date }): Promise<OutreachRunRes
         continue
       }
 
-      // Send-time guard — permanent suppression + known-contact dedupe.
+      // Send-time guard — permanent suppression, a practice the verification
+      // pass (or a call) disqualified as gone, + known-contact dedupe.
       if (
         p.status === 'suppressed' ||
+        p.status === 'disqualified' ||
         (await isKnownContact({
           email: p.email,
           phone: p.phone,

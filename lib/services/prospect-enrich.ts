@@ -9,13 +9,22 @@ import { detectVendors, type DetectedVendor } from '@/lib/prospect-vendors'
 import { computeOpportunityScore, heuristicVerdict } from '@/lib/prospect-scoring'
 import { syncProspectContacts } from './prospect-contacts'
 import { CRAWL_UA, robotsAllows } from './prospect-crawl-policy'
-import { closeVerifyRun, newVerifyRunCtx, verifyProspectSignals, type VerifyRunCtx } from './prospect-verify'
+import {
+  closeVerifyRun,
+  listingColumns,
+  newVerifyRunCtx,
+  outreachStopReason,
+  verifyProspectSignals,
+  type VerifyRunCtx,
+} from './prospect-verify'
+import { readBodyCapped } from './prospect-site-liveness'
 import type { ProspectAiVerdict, ProspectCrawlSignals } from '@/lib/types/prospecting'
 import {
   getProspectingConfig,
   bumpProspectingCounter,
   getProspectingCounter,
   counterMonth,
+  stopActiveEnrollments,
 } from './prospecting'
 
 /**
@@ -43,9 +52,9 @@ async function fetchPage(url: string): Promise<{ html: string; finalUrl: string;
     signal: AbortSignal.timeout(CRAWL_TIMEOUT_MS),
   })
   if (!res.ok) return null
-  const raw = await res.text()
-  const html = raw.slice(0, CRAWL_MAX_BYTES)
-  return { html, finalUrl: res.url || url, bytes: raw.length }
+  // Streamed and cut at the byte cap — never the whole body in memory first.
+  const html = await readBodyCapped(res, CRAWL_MAX_BYTES)
+  return { html, finalUrl: res.url || url, bytes: html.length }
 }
 
 /**
@@ -258,12 +267,14 @@ async function enrichOneProspect(
       await db
         .update(schema.prospect)
         .set({
+          ...listingColumns(verified),
           ...verified.patch,
-          googlePlaceId: place?.placeId ?? null,
-          businessStatus: place?.businessStatus ?? null,
           updatedAt: new Date(),
         })
         .where(eq(schema.prospect.id, p.id))
+      // A practice that is gone leaves the drip too (a re-enrich can land
+      // here on a row a human enrolled).
+      await stopActiveEnrollments(p.id, outreachStopReason(verified.patch) ?? 'verify_disqualified')
       out.disqualified++
       return
     }
@@ -324,13 +335,10 @@ async function enrichOneProspect(
     await db
       .update(schema.prospect)
       .set({
-        // Reputation + listing fields come from the MATCHED place only.
-        websiteUrl,
-        googlePlaceId: place?.placeId ?? null,
-        googleRatingTenths: place?.ratingTenths ?? null,
-        reviewCount: place?.reviewCount ?? null,
-        businessStatus: place?.businessStatus ?? null,
-        googleMapsUri: place?.googleMapsUri ?? null,
+        // Reputation + listing fields come from the MATCHED place only; a
+        // no-match clears the old listing's, a pass with no lookup keeps
+        // them, and only a listing that states a website replaces one.
+        ...listingColumns(verified),
         enrichment: signals,
         aiVerdict: verdict,
         opportunityScore: scored.score,
@@ -345,6 +353,11 @@ async function enrichOneProspect(
         updatedAt: new Date(),
       })
       .where(eq(schema.prospect.id, p.id))
+
+    // A retired-practice signal (temporarily closed, a dead or parked site)
+    // stops a live drip the way a logged "closed" call does.
+    const stop = outreachStopReason(verified.patch)
+    if (stop) await stopActiveEnrollments(p.id, stop)
 
     // Reachability: classify + MX-verify + rank every discovered address into
     // prospect_contact, and point prospect.email at the best deliverable one

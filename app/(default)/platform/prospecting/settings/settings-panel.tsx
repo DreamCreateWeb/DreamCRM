@@ -66,7 +66,7 @@ type BattleCard = { competitor: string; angle: string }
  * are LIVE from the histogram, so dragging says what the floor would do
  * before it is saved; the save is debounced and rides runAction.
  */
-function QualityFloor({ floor, quality }: { floor: number; quality: ProspectQualityCounts }) {
+export function QualityFloor({ floor, quality }: { floor: number; quality: ProspectQualityCounts }) {
   const [value, setValue] = useState(floor)
   const [saved, setSaved] = useState(floor)
   const [pending, startTransition] = useTransition()
@@ -107,7 +107,9 @@ function QualityFloor({ floor, quality }: { floor: number; quality: ProspectQual
           max={100}
           step={5}
           value={value}
-          disabled={pending}
+          // Never disabled mid-adjust: a disabled range drops keyboard focus
+          // and freezes a drag; the pending state lives on the save note.
+          aria-busy={pending || undefined}
           aria-valuetext={`${value} — ${split.above} prospects at or above, ${split.below} below`}
           className="mt-2 block w-full accent-teal-600"
           onChange={(e) => {

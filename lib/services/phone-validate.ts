@@ -1,5 +1,6 @@
 import 'server-only'
 import type { ProspectPhoneLineType } from '@/lib/db/schema/prospecting'
+import { nanpDigits } from '@/lib/phone-nanp'
 
 /**
  * Phone line-type validation (P-01) — the metered, provider-backed half of
@@ -88,15 +89,19 @@ async function getClient(): Promise<PinpointClient> {
   return client
 }
 
-/** Check one 10-digit US number. Never throws. */
+/** Check one US number. Whatever was stored (ten digits, eleven with the
+ *  country code, punctuation) is normalized to the NANP ten before it is
+ *  sent as +1 + ten — Pinpoint reads "+1" + eleven digits as INVALID.
+ *  Never throws. */
 export async function validatePhoneLine(digits: string): Promise<LineCheck> {
   if (phoneValidateDriver() !== 'aws') return { ok: false, error: 'driver_off' }
+  const ten = nanpDigits(digits)
   try {
     const { PhoneNumberValidateCommand } = await import('@aws-sdk/client-pinpoint')
     const c = await getClient()
     const res = await c.send(
       new PhoneNumberValidateCommand({
-        NumberValidateRequest: { PhoneNumber: `+1${digits}`, IsoCountryCode: 'US' },
+        NumberValidateRequest: { PhoneNumber: `+1${ten}`, IsoCountryCode: 'US' },
       }),
     )
     const r = res.NumberValidateResponse

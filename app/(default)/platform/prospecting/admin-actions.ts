@@ -17,6 +17,7 @@ import {
   suppressProspect,
   addManualProspect,
   findExistingProspect,
+  updateProspectPhone,
 } from '@/lib/services/prospecting'
 import { logBookedDemo } from '@/lib/services/prospect-meetings'
 import { US_STATES } from '@/lib/types/us-geo'
@@ -204,6 +205,25 @@ export async function verifyProspectAction(
   revalidatePath('/platform/prospecting')
   revalidatePath('/platform/prospecting/call-list')
   return r.ok ? { ok: true, qualityScore: r.qualityScore, qualityBand: r.qualityBand } : { ok: false, reason: r.reason }
+}
+
+/**
+ * The right number, from the drawer (P-01): a parked record's one way back.
+ * Replaces the prospect's phone with what the owner typed (NANP-checked,
+ * stored as ten digits, source `caller`), clears the old verdict and
+ * rescores from the stored signals. `{ ok: false }` with a reason on a
+ * malformed number; a throw is the deployment-skew case runAction classifies.
+ */
+export async function updateProspectPhoneAction(
+  prospectId: string,
+  phone: string,
+): Promise<{ ok: true; phone: string } | { ok: false; reason: string }> {
+  await requirePlatformAdmin()
+  const r = await updateProspectPhone(z.string().min(1).parse(prospectId), z.string().max(40).parse(phone))
+  revalidatePath('/platform/prospecting')
+  revalidatePath('/platform/prospecting/call-list')
+  revalidatePath('/platform/prospecting/call-mode')
+  return r
 }
 
 /** The quality floor (P-01): the queues and the hunter serve only

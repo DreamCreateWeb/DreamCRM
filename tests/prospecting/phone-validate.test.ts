@@ -91,6 +91,16 @@ describe('validatePhoneLine with the aws driver', () => {
     const cmd = sendMock.mock.calls[0][0] as { input: { NumberValidateRequest: { PhoneNumber: string; IsoCountryCode: string } } }
     expect(cmd.input.NumberValidateRequest).toEqual({ PhoneNumber: '+14045551212', IsoCountryCode: 'US' })
   })
+  it('an eleven-digit stored number (leading country code) is sent as +1 + ten, never +1 + eleven (P-01 C5/C9)', async () => {
+    sendMock.mockResolvedValue({ NumberValidateResponse: { PhoneType: 'LANDLINE' } })
+    await validatePhoneLine('14045551212')
+    const cmd = sendMock.mock.calls[0][0] as { input: { NumberValidateRequest: { PhoneNumber: string } } }
+    expect(cmd.input.NumberValidateRequest.PhoneNumber).toBe('+14045551212')
+    sendMock.mockClear()
+    await validatePhoneLine('+1 (404) 555-1212')
+    const cmd2 = sendMock.mock.calls[0][0] as { input: { NumberValidateRequest: { PhoneNumber: string } } }
+    expect(cmd2.input.NumberValidateRequest.PhoneNumber).toBe('+14045551212')
+  })
   it('INVALID is reported as invalid, not as a line type', async () => {
     sendMock.mockResolvedValue({ NumberValidateResponse: { PhoneType: 'INVALID' } })
     expect(await validatePhoneLine('4045551212')).toMatchObject({ ok: true, invalid: true, lineType: null })

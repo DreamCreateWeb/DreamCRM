@@ -58,7 +58,7 @@ vi.mock('drizzle-orm', () => {
   }
 })
 
-import { logCallOutcome } from '@/lib/services/prospecting'
+import { logCallOutcome, updateProspectPhone } from '@/lib/services/prospecting'
 
 const VERIFIED_ROW = {
   status: 'enriched',
@@ -159,5 +159,92 @@ describe('logCallOutcome — a human got through', () => {
       expect(u.values).not.toHaveProperty('verification')
       expect(u.values).not.toHaveProperty('qualityScore')
     }
+  })
+})
+
+describe('a human reaching them outranks a database "invalid" (C16)', () => {
+  it('gatekeeper on a carrier-flagged invalid number re-validates it as valid (source: a call) and rescores', async () => {
+    state.selectQueue.push([
+      {
+        ...VERIFIED_ROW,
+        phoneStatus: 'invalid',
+        phoneLineType: null,
+        verification: {
+          ...VERIFIED_ROW.verification,
+          phone: { status: 'invalid', detail: 'Carrier database: not an assigned number', checkedAt: '2026-11-01T00:00:00.000Z', source: 'aws_pinpoint' },
+        },
+      },
+    ])
+    await logCallOutcome({ prospectId: 'pros_1', outcome: 'gatekeeper' })
+    const w = prospectUpdates().at(-1)!.values
+    expect(w).toMatchObject({ phoneStatus: 'valid', phoneSource: 'caller' })
+    const v = w.verification as { phone: { status: string; source: string; detail: string }; reach: { status: string } }
+    expect(v.phone).toMatchObject({ status: 'valid', source: 'caller' })
+    expect(v.phone.detail).toMatch(/the number works/)
+    expect(v.reach.status).toBe('reached')
+    // 35 + 12 (valid, line type unknown) + 15 + 10 + 10 + 5 — no longer a hard zero.
+    expect(w.qualityScore).toBe(87)
+    expect(w.qualityBand).toBe('best')
+  })
+
+  it('a NANP-flagged invalid number is cleared the same way', async () => {
+    state.selectQueue.push([
+      {
+        ...VERIFIED_ROW,
+        phoneStatus: 'invalid',
+        phoneLineType: null,
+        verification: { ...VERIFIED_ROW.verification, phone: { status: 'invalid', detail: 'Not a ten-digit US number', checkedAt: '2026-11-01T00:00:00.000Z', source: 'nanp' } },
+      },
+    ])
+    await logCallOutcome({ prospectId: 'pros_1', outcome: 'callback' })
+    expect(prospectUpdates().at(-1)!.values).toMatchObject({ phoneStatus: 'valid' })
+  })
+
+  it('a disconnected / wrong number the CALLER reported is never cleared by a later reach', async () => {
+    state.selectQueue.push([
+      {
+        ...VERIFIED_ROW,
+        phoneStatus: 'disconnected',
+        phoneLineType: null,
+        verification: {
+          ...VERIFIED_ROW.verification,
+          phone: { status: 'disconnected', detail: 'Number disconnected on Nov 9, 2026 (heard on a call)', checkedAt: '2026-11-09T00:00:00.000Z', source: 'caller' },
+        },
+      },
+    ])
+    await logCallOutcome({ prospectId: 'pros_1', outcome: 'callback' })
+    const w = prospectUpdates().at(-1)!.values
+    expect(w).not.toHaveProperty('phoneStatus')
+    expect((w.verification as { phone: { status: string } }).phone.status).toBe('disconnected')
+    expect(w.qualityScore).toBe(0)
+  })
+})
+
+describe('the right number, from the drawer (C11)', () => {
+  it('stores NANP ten digits with source caller, resets the standing, clears the old verdict, rescores', async () => {
+    state.selectQueue.push([{ ...VERIFIED_ROW, phoneStatus: 'disconnected' }])
+    const r = await updateProspectPhone('pros_1', '+1 (404) 555-9999')
+    expect(r).toEqual({ ok: true, phone: '4045559999' })
+    const w = prospectUpdates().at(-1)!.values
+    expect(w).toMatchObject({ phone: '4045559999', phoneSource: 'caller', phoneStatus: 'unknown', phoneLineType: null, phoneValidatedAt: null })
+    expect((w.verification as { phone: { status: string; source: string } }).phone).toMatchObject({ status: 'well_formed', source: 'caller' })
+    // 35 + 12 (well-formed) + 15 + 10 + 10 — back from the hard zero.
+    expect(w.qualityScore).toBe(82)
+    expect(w.qualityBand).toBe('best')
+  })
+
+  it('refuses a number that cannot ring, naming why, and writes nothing', async () => {
+    expect(await updateProspectPhone('pros_1', '555-0100')).toEqual({ ok: false, reason: 'not_ten_digits' })
+    expect(await updateProspectPhone('pros_1', '(404) 555-0100')).toEqual({ ok: false, reason: 'fictional_555' })
+    expect(prospectUpdates()).toHaveLength(0)
+  })
+
+  it('a never-verified row takes the number but no invented score', async () => {
+    state.selectQueue.push([{ ...VERIFIED_ROW, verification: null, verifiedAt: null }])
+    const r = await updateProspectPhone('pros_1', '4045559999')
+    expect(r).toEqual({ ok: true, phone: '4045559999' })
+    const w = prospectUpdates().at(-1)!.values
+    expect(w).toMatchObject({ phone: '4045559999', phoneSource: 'caller' })
+    expect(w).not.toHaveProperty('qualityScore')
   })
 })

@@ -63,11 +63,12 @@ vi.mock('drizzle-orm', () => ({
   sql: Object.assign(vi.fn(() => ({})), { raw: vi.fn() }),
 }))
 
-const { configMock, counterMock, bumpMock, knownMock } = vi.hoisted(() => ({
+const { configMock, counterMock, bumpMock, knownMock, floorMock } = vi.hoisted(() => ({
   configMock: vi.fn(),
   counterMock: vi.fn(async () => 0),
   bumpMock: vi.fn(async () => {}),
   knownMock: vi.fn(async () => false),
+  floorMock: vi.fn((floor: number) => ({ floor })),
 }))
 vi.mock('@/lib/services/prospecting', () => ({
   getProspectingConfig: configMock,
@@ -77,6 +78,8 @@ vi.mock('@/lib/services/prospecting', () => ({
   counterMonth: () => '2026-07',
   counterDay: () => '2026-07-07',
   isKnownContact: knownMock,
+  // THE ONE FLOOR PREDICATE (its composition is held in quality-floor.test.ts).
+  servableAboveFloor: floorMock,
 }))
 vi.mock('@/lib/prospect-segment', () => ({ segmentForProspect: () => 'no_website' }))
 
@@ -139,9 +142,10 @@ describe('runAutoEnroll pool processing', () => {
 
     const r = await runAutoEnroll()
     expect(r).toMatchObject({ scanned: 2, enrolled: 2, guardSkipped: 0 })
-    // THE QUALITY FLOOR (P-01): the pool is quality_score >= floor — an
-    // unverified NULL never drips.
-    expect(gteMock).toHaveBeenCalledWith('quality', LIVE.qualityFloor)
+    // THE QUALITY FLOOR (P-01): the pool rides the ONE floor predicate (≥ the
+    // floor, never a parked band, never a hard zero — an unverified NULL
+    // never drips).
+    expect(floorMock).toHaveBeenCalledWith(LIVE.qualityFloor)
     const enrollments = state.inserts.filter((i) => i.table === 'outreach_enrollment')
     expect(enrollments.map((e) => e.values.prospectId)).toEqual(['pros_1', 'pros_2'])
     expect(enrollments[0]!.values.sequenceId).toBe('oseq_no_website')

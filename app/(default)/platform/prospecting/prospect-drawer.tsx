@@ -21,6 +21,7 @@ import DrawerActions from './drawer-actions'
 import DemoFollowupDrafter from './demo-followup-drafter'
 import ContactsPanel from './contacts-panel'
 import { VerificationCard } from './verification-card'
+import PhoneEditor from './phone-editor'
 import { PhoneStandingPill, QualityPill, isBadPhone } from './quality-pills'
 import { formatProspectPhone } from '@/lib/types/prospecting'
 
@@ -116,20 +117,22 @@ export default function ProspectDrawer({
           <div className={ROW}>
             <span className={KEY}>Phone</span>
             <span className={`${VAL} tabular-nums`}>
-              {p.phone ? (
-                <span className="inline-flex flex-wrap items-center justify-end gap-1.5">
-                  {isBadPhone(p.phoneStatus) ? (
+              <span className="inline-flex flex-wrap items-center justify-end gap-1.5">
+                {p.phone ? (
+                  isBadPhone(p.phoneStatus) ? (
                     <span className="line-through decoration-2">{formatProspectPhone(p.phone)}</span>
                   ) : (
                     <a href={`tel:+1${p.phone}`} className="text-teal-600 dark:text-teal-400 hover:underline">
                       {formatProspectPhone(p.phone)}
                     </a>
-                  )}
-                  <PhoneStandingPill status={p.phoneStatus} lineType={p.phoneLineType} />
-                </span>
-              ) : (
-                '—'
-              )}
+                  )
+                ) : (
+                  '—'
+                )}
+                {p.phone && <PhoneStandingPill status={p.phoneStatus} lineType={p.phoneLineType} />}
+                {/* The way back for a parked number: the one that works, typed here. */}
+                <PhoneEditor prospectId={p.id} phone={p.phone} />
+              </span>
             </span>
           </div>
           <div className={ROW}>

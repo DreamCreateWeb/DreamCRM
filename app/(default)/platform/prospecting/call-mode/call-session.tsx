@@ -239,8 +239,8 @@ export default function CallSession({ items }: { items: CallQueueItem[] }) {
         </div>
         <div className="mx-auto mt-4 flex max-w-xs flex-col gap-1 text-sm text-gray-600 dark:text-gray-300">
           {Object.entries(tally).map(([k, n]) => (
-            <div key={k} className="flex justify-between">
-              <span className="capitalize">{k.replace(/_/g, ' ')}</span>
+            <div key={k} className="flex justify-between" data-tally-row={k}>
+              <span>{OUTCOME_LABELS[k] ?? k.replace(/_/g, ' ')}</span>
               <span className="font-semibold tabular-nums">{n}</span>
             </div>
           ))}

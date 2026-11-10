@@ -2,9 +2,9 @@ import 'server-only'
 import { and, asc, eq, inArray, isNotNull, isNull, lt, or } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import { lookupNpi } from '@/lib/nppes'
-import { findDentalPlaceCandidates, type PlaceResult, type PlacesSearchOutcome } from '@/lib/google-places'
+import { findDentalPlaceCandidates, placesConfigured, type PlaceResult, type PlacesSearchOutcome } from '@/lib/google-places'
 import { pickMatchingPlace, type PlaceMatch } from '@/lib/prospect-match'
-import { NANP_FAILURE_LABELS, validateNanp } from '@/lib/phone-nanp'
+import { NANP_FAILURE_LABELS, nanpDigits, validateNanp } from '@/lib/phone-nanp'
 import { computeQualityScore } from '@/lib/prospect-quality'
 import {
   PARKED_RECHECK_DAYS,
@@ -24,6 +24,7 @@ import {
   counterMonth,
   getProspectingConfig,
   getProspectingCounter,
+  stopActiveEnrollments,
 } from './prospecting'
 
 /**
@@ -46,8 +47,12 @@ import {
  * is computed from the stored signals (lib/prospect-quality.ts), and the
  * floor in prospecting_config decides who gets served. Every external call
  * is metered + fail-open: a refused key is ONE engine strike a day, never a
- * blocked pass. Runs inline in the enrich pass, in the re-verify sweep
- * (same cron), on a manual re-enrich, and behind the drawer's "Verify now".
+ * blocked pass — and a check that could not run (an outage, a refused or
+ * missing key, a used-up budget, a resolver hiccup) KEEPS the prior signal
+ * and the row's stored listing facts; nothing is ever re-scored from
+ * "unchecked" when a real signal exists. Runs inline in the enrich pass, in
+ * the re-verify sweep (same cron), on a manual re-enrich, and behind the
+ * drawer's "Verify now".
  */
 
 const DAY_MS = 24 * 60 * 60 * 1000
@@ -77,7 +82,9 @@ export type VerifiableProspect = Pick<
   | 'websiteUrl'
   | 'verification'
   | 'status'
->
+> &
+  /** The stored listing facts — what the score reads when no fresh lookup ran. */
+  Partial<Pick<ProspectRow, 'businessStatus' | 'reviewCount'>>
 
 /** Per-run context — budgets, the once-a-run failure strikes, the
  *  crawl-blocked tally. One per cron run; the drawer action makes its own. */
@@ -87,6 +94,9 @@ export interface VerifyRunCtx {
   phoneValidateBudget: number
   phoneValidateUsed: number
   nppesLeft: number
+  /** Website probes run only while the crawl budget is above zero — the one
+   *  knob that pauses touching prospects' sites pauses this too. */
+  siteChecks: boolean
   reported: Set<ProspectingFailureClass>
   liveness: { checks: number; networkDead: number }
 }
@@ -99,6 +109,7 @@ export async function newVerifyRunCtx(config: ProspectingConfig, now = new Date(
     phoneValidateBudget: config.budgets.phoneValidatePerMonth,
     phoneValidateUsed: await getProspectingCounter(month, 'phone_validate'),
     nppesLeft: NPPES_PER_RUN,
+    siteChecks: config.budgets.crawlsPerMonth > 0,
     reported: new Set(),
     liveness: { checks: 0, networkDead: 0 },
   }
@@ -144,6 +155,64 @@ export interface VerifyOutcome {
   /** The website the pass judged (the matched listing's, else the row's). */
   websiteUrl: string | null
   liveness: SiteLiveness | null
+  /** What happens to the row's listing columns (place id, rating, review
+   *  count, business status, maps link): `matched` writes the listing's,
+   *  `cleared` nulls a listing Google no longer stands behind (no match /
+   *  not found), `kept` leaves them alone because no lookup ran. */
+  listing: 'matched' | 'cleared' | 'kept'
+}
+
+/**
+ * The listing columns a verification outcome writes — ONE answer for the
+ * enrich pass and the standalone verify. A no-match clears the old
+ * listing's rating, review count, business status, place id and maps link
+ * (they were the stranger's); a pass that could not look the listing up
+ * leaves them as they are. The website is the one column with its own
+ * rule: a matched listing that states one replaces it, nothing else ever
+ * overwrites a website someone typed.
+ */
+export function listingColumns(
+  out: Pick<VerifyOutcome, 'place' | 'listing' | 'websiteUrl'>,
+): Partial<Pick<ProspectRow, 'googlePlaceId' | 'googleRatingTenths' | 'reviewCount' | 'businessStatus' | 'googleMapsUri' | 'websiteUrl'>> {
+  if (out.place) {
+    return {
+      googlePlaceId: out.place.placeId,
+      googleRatingTenths: out.place.ratingTenths,
+      reviewCount: out.place.reviewCount,
+      businessStatus: out.place.businessStatus,
+      googleMapsUri: out.place.googleMapsUri,
+      websiteUrl: out.websiteUrl,
+    }
+  }
+  if (out.listing === 'cleared') {
+    return {
+      googlePlaceId: null,
+      googleRatingTenths: null,
+      reviewCount: null,
+      businessStatus: null,
+      googleMapsUri: null,
+      websiteUrl: out.websiteUrl,
+    }
+  }
+  return { websiteUrl: out.websiteUrl }
+}
+
+/**
+ * Why a verification pass stops an active outreach sequence — the same
+ * stop a logged `closed` call makes. A disqualified practice (retired NPI,
+ * permanently closed) is gone; a park on a retired-practice signal
+ * (temporarily closed, a dead or parked website) says the practice may be.
+ * A phone verdict alone never stops the drip — the email is a different
+ * door, and the toast promised "off every DIAL queue". Null = keep going.
+ */
+export function outreachStopReason(
+  patch: Pick<VerifyPatch, 'status' | 'suppressedReason' | 'verification'>,
+): string | null {
+  if (patch.status === 'disqualified') return `verify_${patch.suppressedReason ?? 'disqualified'}`
+  const v = patch.verification
+  if (v.business?.status === 'temporarily_closed') return 'verify_temporarily_closed'
+  if (v.website?.status === 'dead' || v.website?.status === 'parked') return `verify_site_${v.website.status}`
+  return null
 }
 
 function sig(status: string, detail: string | null, source: string, now: Date): VerificationSignal {
@@ -244,21 +313,26 @@ export async function verifyProspectSignals(
   }
 
   // ── Places match + business status ───────────────────────────────────────
+  // A lookup that did not run (no budget, no key, an outage, a refused key)
+  // KEEPS the prior listing signal and the row's stored listing facts — a
+  // 503 is not news about the practice. Only a real answer moves them.
   let place: PlaceResult | null = null
   let match: PlaceMatch | null = null
-  if (!places) {
-    v.places = prior.places ?? sig('unchecked', 'Google listing not checked this run', 'places', now)
-  } else if (!places.ok) {
-    const detail =
-      places.error === 'auth'
+  let listing: VerifyOutcome['listing'] = 'kept'
+  if (!places || !places.ok) {
+    const detail = !places
+      ? 'Google listing not checked this run'
+      : places.error === 'auth'
         ? 'Google refused the Places key'
         : places.error === 'not_configured'
           ? 'Google Places is not configured'
           : 'Google Places was unreachable'
-    v.places = sig('unchecked', detail, 'places', now)
-    if (places.error === 'auth') await strike(ctx, 'places_auth')
+    v.places = prior.places ?? sig('unchecked', detail, 'places', now)
+    v.business = prior.business ?? sig('unknown', 'No matched listing to read', 'places', now)
+    if (places && places.error === 'auth') await strike(ctx, 'places_auth')
   } else if (places.places.length === 0) {
     v.places = sig('not_found', 'Google has no listing for this name and address', 'places', now)
+    listing = 'cleared'
   } else {
     const picked = pickMatchingPlace(
       { name: p.name, addressLine1, city, state, postalCode, phone: patch.phone },
@@ -272,9 +346,11 @@ export async function verifyProspectSignals(
         'places',
         now,
       )
+      listing = 'cleared'
     } else {
       place = picked.place
       match = picked.match
+      listing = 'matched'
       v.places = sig('matched', `Matched "${place.displayName ?? 'listing'}" (${match.reasons.join(', ')})`, 'places', now)
       if (match.phoneDiffers && patch.phoneSource !== 'caller') {
         phoneNotes.push(`Google lists ${formatProspectPhone(match.phoneDiffers)}; the registry had ${formatProspectPhone(patch.phone) ?? 'none'}`)
@@ -297,37 +373,60 @@ export async function verifyProspectSignals(
       default:
         v.business = sig('unknown', 'Google did not say whether it is open', 'places', now)
     }
-  } else {
+  } else if (places?.ok) {
+    // A real answer with no match: there is no listing to read. (No answer
+    // at all kept the prior signal above.)
     v.business = sig('unknown', 'No matched listing to read', 'places', now)
   }
+  // The listing facts the score reads: the fresh listing's, nothing of a
+  // listing Google no longer stands behind, the stored ones when no lookup ran.
+  const businessStatus = place ? place.businessStatus : listing === 'cleared' ? null : (p.businessStatus ?? null)
+  const reviewCount = place ? place.reviewCount : listing === 'cleared' ? null : (p.reviewCount ?? null)
 
   // ── Website liveness ─────────────────────────────────────────────────────
-  const websiteUrl = place ? place.websiteUri : (p.websiteUrl ?? null)
+  // A matched listing that states a website replaces the row's; nothing
+  // else ever overwrites a website someone typed.
+  const websiteUrl = place?.websiteUri ?? p.websiteUrl ?? null
   let liveness: SiteLiveness | null = null
   if (!websiteUrl) {
     v.website =
       v.places.status === 'matched' || v.places.status === 'not_found'
         ? sig('none', 'No website found', 'places', now)
         : sig('unknown', 'No listing matched — website unknown', 'places', now)
+  } else if (!ctx.siteChecks) {
+    v.website = prior.website ?? sig('unknown', 'Website not checked — site crawling is paused', 'crawl', now)
   } else {
     liveness = await checkSiteLiveness(websiteUrl)
-    ctx.liveness.checks++
-    if (isNetworkDead(liveness)) ctx.liveness.networkDead++
-    v.website = sig(liveness.status, liveness.detail, 'crawl', now)
+    if (liveness.status === 'unknown') {
+      // Could not tell (a resolver hiccup, a redirect loop, a private
+      // address) — not news about the practice; the prior signal stands.
+      v.website = prior.website ?? sig('unknown', liveness.detail, 'crawl', now)
+    } else {
+      ctx.liveness.checks++
+      if (isNetworkDead(liveness)) ctx.liveness.networkDead++
+      v.website = sig(liveness.status, liveness.detail, 'crawl', now)
+    }
   }
 
   // ── Phone ────────────────────────────────────────────────────────────────
-  const phone = patch.phone
+  // NANP: ten digits. A hand-entered "+1 (404) 555-1212" was stored as
+  // eleven; it is normalized here so the stored number, the syntax check
+  // and the carrier check all see the same ten digits.
+  const tenDigits = nanpDigits(patch.phone)
+  const phone = patch.phone ? (tenDigits.length === 10 ? tenDigits : patch.phone) : null
+  patch.phone = phone
   const priorPhone = prior.phone
+  const sameNumber = nanpDigits(phone) === nanpDigits(originalPhone)
   const callerVerdictStands =
     priorPhone?.source === 'caller' &&
-    phone === originalPhone &&
-    (p.phoneStatus === 'disconnected' || p.phoneStatus === 'wrong_number')
+    sameNumber &&
+    (p.phoneStatus === 'disconnected' || p.phoneStatus === 'wrong_number' || p.phoneStatus === 'valid')
   if (!phone) {
     v.phone = sig('missing', 'No phone number on record', 'nanp', now)
     patch.phoneStatus = 'unknown'
   } else if (callerVerdictStands && priorPhone) {
     // What the caller heard beats every database; the number is unchanged.
+    // (A number a human reached is `valid` for as long as they say so.)
     v.phone = priorPhone
     patch.phoneStatus = p.phoneStatus as ProspectPhoneStatus
   } else {
@@ -340,7 +439,7 @@ export async function verifyProspectSignals(
     } else if (ctx.phoneValidateUsed >= ctx.phoneValidateBudget) {
       v.phone = sig('well_formed', 'Well-formed US number — this month’s line checks are used up', 'nanp', now)
     } else {
-      const line = await validatePhoneLine(phone)
+      const line = await validatePhoneLine(nanpDigits(phone))
       if (line.ok) {
         ctx.phoneValidateUsed++
         await bumpProspectingCounter(ctx.month, 'phone_validate')
@@ -389,15 +488,15 @@ export async function verifyProspectSignals(
     verification: v,
     phoneStatus: patch.phoneStatus,
     phoneLineType: patch.phoneLineType,
-    businessStatus: place?.businessStatus ?? null,
-    reviewCount: place?.reviewCount ?? null,
+    businessStatus,
+    reviewCount,
     websiteUrl,
   })
   patch.qualityScore = q.score
   patch.qualityBand = q.band
   patch.qualityReasons = q.reasons
 
-  return { patch, place, match, websiteUrl, liveness }
+  return { patch, place, match, websiteUrl, liveness, listing }
 }
 
 /** The crawl-blocked strike: a run whose every liveness check died at the
@@ -420,9 +519,10 @@ async function writePatch(prospectId: string, patch: VerifyPatch, extra: Partial
 }
 
 /**
- * Verify one prospect on its own — a Places lookup (metered), then every
- * signal, then the write. The matched listing's reputation + website are
- * refreshed too (and nothing of an unmatched candidate is ever copied).
+ * Verify one prospect on its own — a Places lookup (metered, only with a
+ * key), then every signal, then the write. The matched listing's reputation
+ * + website are refreshed too (nothing of an unmatched candidate is ever
+ * copied; a listing Google no longer matches is cleared off the row).
  */
 export async function verifyProspect(
   prospectId: string,
@@ -439,7 +539,9 @@ export async function verifyProspect(
 
   let places: PlacesSearchOutcome | null = null
   let placesLookedUp = false
-  if (placesUsed < placesBudget) {
+  // No key = no lookup, exactly as the enrich pass skips — the free signals
+  // still run and the prior listing signal stands.
+  if (placesUsed < placesBudget && placesConfigured()) {
     places = await findDentalPlaceCandidates({
       name: p.name,
       addressLine1: p.addressLine1,
@@ -453,17 +555,11 @@ export async function verifyProspect(
   }
 
   const out = await verifyProspectSignals(p, places, ctx)
-  const extra: Partial<ProspectRow> = out.place
-    ? {
-        googlePlaceId: out.place.placeId,
-        googleRatingTenths: out.place.ratingTenths,
-        reviewCount: out.place.reviewCount,
-        businessStatus: out.place.businessStatus,
-        googleMapsUri: out.place.googleMapsUri,
-        websiteUrl: out.websiteUrl,
-      }
-    : {}
-  await writePatch(p.id, out.patch, extra)
+  await writePatch(p.id, out.patch, listingColumns(out))
+  // A practice the pass set aside leaves the drip too — the same stop a
+  // logged "closed" call makes.
+  const stop = outreachStopReason(out.patch)
+  if (stop) await stopActiveEnrollments(p.id, stop, ctx.now)
   if (!opts.ctx) await closeVerifyRun(ctx)
   return { ok: true, qualityScore: out.patch.qualityScore, qualityBand: out.patch.qualityBand, placesLookedUp }
 }

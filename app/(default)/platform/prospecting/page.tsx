@@ -21,7 +21,7 @@ import {
   getQualityCounts,
 } from '@/lib/services/prospecting'
 import { listProspectingFailures } from '@/lib/services/engine-failures'
-import { QualityPill, QUALITY_LEGEND } from './quality-pills'
+import { QualityPill, qualityLegend } from './quality-pills'
 import SalesPipelineBoard from './sales-pipeline-board'
 import MomentumStrip from './momentum-strip'
 import { getDailyBriefing } from '@/lib/services/prospecting-briefing'
@@ -312,7 +312,9 @@ export default async function ProspectingPage({
             { tone: 'warn', label: 'Warm', meaning: 'Good fit, some presence already; amber avatar tile.' },
             { tone: 'info', label: 'Cool', meaning: 'Covered for now — low urgency; violet avatar tile.' },
             { tone: 'neutral', label: 'Low', meaning: 'Weak fit or unscored; gray avatar tile.' },
-            ...QUALITY_LEGEND,
+            // The quality rows read the LIVE floor — "under the floor" is
+            // only true for the floor the queues actually obey.
+            ...qualityLegend(config.qualityFloor),
           ]}
           className="ml-1"
         />

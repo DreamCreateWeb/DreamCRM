@@ -43,6 +43,9 @@ vi.mock('@/lib/db', () => {
 vi.mock('drizzle-orm', () => ({
   asc: vi.fn(() => ({})),
   eq: vi.fn(() => ({})),
+  // The real prospect-verify module (its pure helpers ride below) pulls the
+  // schema in, which tags columns with sql``.
+  sql: Object.assign(vi.fn(() => ({})), { raw: vi.fn() }),
 }))
 
 // Contact sync (MX verification) is exercised in contacts.test.ts; stub it
@@ -82,13 +85,16 @@ const { verifyMock } = vi.hoisted(() => ({
     }
   }),
 }))
-vi.mock('@/lib/services/prospect-verify', () => ({
+vi.mock('@/lib/services/prospect-verify', async (importOriginal) => ({
+  // listingColumns + outreachStopReason are the real (pure) ones — the
+  // enrich write and the drip stop ride them.
+  ...(await importOriginal<typeof import('@/lib/services/prospect-verify')>()),
   verifyProspectSignals: verifyMock,
   newVerifyRunCtx: vi.fn(async () => ({})),
   closeVerifyRun: vi.fn(async () => {}),
 }))
 
-const { configMock, counterMock, bumpMock, placeMock, placesConfiguredMock, aiMock, aiConfiguredMock, fetchMock } =
+const { configMock, counterMock, bumpMock, placeMock, placesConfiguredMock, aiMock, aiConfiguredMock, fetchMock, stopMock } =
   vi.hoisted(() => ({
     configMock: vi.fn(),
     counterMock: vi.fn(async () => 0),
@@ -100,6 +106,7 @@ const { configMock, counterMock, bumpMock, placeMock, placesConfiguredMock, aiMo
     aiMock: vi.fn(),
     aiConfiguredMock: vi.fn(() => true),
     fetchMock: vi.fn(),
+    stopMock: vi.fn(async (_id: string, _reason: string) => {}),
   }))
 
 vi.mock('@/lib/services/prospecting', () => ({
@@ -107,6 +114,7 @@ vi.mock('@/lib/services/prospecting', () => ({
   getProspectingCounter: counterMock,
   bumpProspectingCounter: bumpMock,
   counterMonth: () => '2026-07',
+  stopActiveEnrollments: stopMock,
 }))
 vi.mock('@/lib/google-places', () => ({
   findDentalPlaceCandidates: placeMock,
@@ -157,13 +165,22 @@ beforeEach(() => {
   vi.stubGlobal('fetch', fetchMock)
 })
 
+// The crawler reads bodies as STREAMS, cut at the byte cap (never res.text()
+// first) — so the shim carries a real stream.
+const bodyStream = (text: string) =>
+  new ReadableStream<Uint8Array>({
+    start(c) {
+      c.enqueue(new TextEncoder().encode(text))
+      c.close()
+    },
+  })
 function mockPageFetches() {
   // robots.txt (allow), then the homepage.
   fetchMock.mockImplementation(async (url: string) => {
     if (String(url).endsWith('/robots.txt')) {
       return { ok: true, text: async () => 'User-agent: *\nAllow: /', url } as Response
     }
-    return { ok: true, text: async () => HOMEPAGE, url: 'https://smiledental.com' } as Response
+    return { ok: true, body: bodyStream(HOMEPAGE), text: async () => HOMEPAGE, url: 'https://smiledental.com' } as unknown as Response
   })
 }
 
@@ -318,5 +335,76 @@ describe('reEnrichProspect (manual refresh)', () => {
     counterMock.mockResolvedValue(0)
     state.selectQueue.push([])
     expect(await reEnrichProspect('pros_missing')).toEqual({ ok: false, reason: 'not_found' })
+  })
+})
+
+describe('P-01 fixes: the listing columns + the drip stop ride the verify outcome', () => {
+  const basePatch = {
+    verification: {},
+    verifiedAt: new Date('2026-07-07T00:00:00Z'),
+    qualityScore: 72,
+    qualityBand: 'good',
+    qualityReasons: [],
+    phone: null,
+    phoneStatus: 'unknown',
+    phoneLineType: null,
+    phoneSource: null,
+    phoneValidatedAt: null,
+  }
+
+  it('a permanently closed practice stops its active enrollment (C7)', async () => {
+    stopMock.mockClear()
+    state.selectQueue.push([PROSPECT])
+    placeMock.mockResolvedValue(found({ ...PLACE, businessStatus: 'CLOSED_PERMANENTLY' }))
+    await runEnrichment()
+    expect(stopMock).toHaveBeenCalledWith('pros_1', 'verify_closed')
+  })
+
+  it('a dead website parks the record AND stops the drip; a healthy pass stops nothing', async () => {
+    stopMock.mockClear()
+    state.selectQueue.push([PROSPECT])
+    placeMock.mockResolvedValue(found(PLACE))
+    verifyMock.mockImplementationOnce(async () => ({
+      patch: {
+        ...basePatch,
+        verification: { website: { status: 'dead', detail: 'smiledental.com no longer resolves (DNS)', checkedAt: '2026-07-07T00:00:00.000Z', source: 'crawl' } },
+        qualityScore: 0,
+        qualityBand: 'parked',
+      },
+      place: PLACE, match: null, websiteUrl: PLACE.websiteUri, liveness: null, listing: 'matched',
+    }))
+    await runEnrichment()
+    expect(stopMock).toHaveBeenCalledWith('pros_1', 'verify_site_dead')
+
+    stopMock.mockClear()
+    state.selectQueue.push([PROSPECT])
+    mockPageFetches()
+    await runEnrichment()
+    expect(stopMock).not.toHaveBeenCalled()
+  })
+
+  it('a pass with no lookup keeps the listing columns; a no-match clears them (C1/C4)', async () => {
+    state.selectQueue.push([PROSPECT])
+    placeMock.mockResolvedValue({ ok: false, error: 'unavailable' })
+    verifyMock.mockImplementationOnce(async () => ({
+      patch: basePatch, place: null, match: null, websiteUrl: 'https://smiledental.com', liveness: null, listing: 'kept',
+    }))
+    mockPageFetches()
+    await runEnrichment()
+    const kept = state.updates.at(-1)!.values
+    expect(kept.status).toBe('enriched')
+    for (const k of ['googlePlaceId', 'googleRatingTenths', 'reviewCount', 'businessStatus', 'googleMapsUri']) {
+      expect(kept).not.toHaveProperty(k)
+    }
+    expect(kept.websiteUrl).toBe('https://smiledental.com')
+
+    state.selectQueue.push([PROSPECT])
+    placeMock.mockResolvedValue(found({ ...PLACE, displayName: 'Bright Orthodontics' }))
+    verifyMock.mockImplementationOnce(async () => ({
+      patch: basePatch, place: null, match: null, websiteUrl: null, liveness: null, listing: 'cleared',
+    }))
+    await runEnrichment()
+    const cleared = state.updates.at(-1)!.values
+    expect(cleared).toMatchObject({ googlePlaceId: null, googleRatingTenths: null, reviewCount: null, businessStatus: null, googleMapsUri: null, websiteUrl: null })
   })
 })

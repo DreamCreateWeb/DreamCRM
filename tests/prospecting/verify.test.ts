@@ -49,10 +49,11 @@ vi.mock('drizzle-orm', () => ({
   or: vi.fn(() => ({})),
 }))
 
-const { lookupNpiMock, candidatesMock, livenessMock, driverMock, lineMock, strikeMock, configMock, counterMock, bumpMock } =
+const { lookupNpiMock, candidatesMock, placesConfiguredMock, livenessMock, driverMock, lineMock, strikeMock, configMock, counterMock, bumpMock, stopMock } =
   vi.hoisted(() => ({
     lookupNpiMock: vi.fn(),
     candidatesMock: vi.fn(),
+    placesConfiguredMock: vi.fn(() => true),
     livenessMock: vi.fn(),
     driverMock: vi.fn(() => 'none' as 'none' | 'aws'),
     lineMock: vi.fn(),
@@ -62,9 +63,10 @@ const { lookupNpiMock, candidatesMock, livenessMock, driverMock, lineMock, strik
     bumpMock: vi.fn(async (period: string, kind: string) => {
       state.counters.push({ period, kind })
     }),
+    stopMock: vi.fn(async (_id: string, _reason: string, _now?: Date) => {}),
   }))
 vi.mock('@/lib/nppes', () => ({ lookupNpi: lookupNpiMock }))
-vi.mock('@/lib/google-places', () => ({ findDentalPlaceCandidates: candidatesMock }))
+vi.mock('@/lib/google-places', () => ({ findDentalPlaceCandidates: candidatesMock, placesConfigured: placesConfiguredMock }))
 vi.mock('@/lib/services/prospect-site-liveness', () => ({ checkSiteLiveness: livenessMock }))
 vi.mock('@/lib/services/phone-validate', () => ({ phoneValidateDriver: driverMock, validatePhoneLine: lineMock }))
 vi.mock('@/lib/services/engine-failures', () => ({ reportProspectingFailure: strikeMock }))
@@ -73,6 +75,7 @@ vi.mock('@/lib/services/prospecting', () => ({
   getProspectingCounter: counterMock,
   bumpProspectingCounter: bumpMock,
   counterMonth: () => '2026-11',
+  stopActiveEnrollments: stopMock,
 }))
 
 import {
@@ -81,6 +84,8 @@ import {
   runVerificationSweep,
   newVerifyRunCtx,
   closeVerifyRun,
+  listingColumns,
+  outreachStopReason,
   NPPES_PER_RUN,
 } from '@/lib/services/prospect-verify'
 import { PROSPECTING_DEFAULTS } from '@/lib/types/prospecting'
@@ -136,6 +141,7 @@ beforeEach(() => {
   candidatesMock.mockResolvedValue({ ok: true, places: [PLACE] })
   livenessMock.mockResolvedValue({ status: 'alive', detail: 'smiledental.com is up (200)', finalUrl: 'https://smiledental.com/', httpStatus: 200 })
   driverMock.mockReturnValue('none')
+  placesConfiguredMock.mockReturnValue(true)
 })
 
 describe('verifyProspectSignals — the happy path', () => {
@@ -363,5 +369,213 @@ describe('verifyProspect (standalone) + the sweep', () => {
     const r = await runVerificationSweep({ now: NOW })
     expect(r).toMatchObject({ scanned: 2, verified: 2, errors: 0, placesLookups: 2 })
     expect(state.updates).toHaveLength(2)
+  })
+})
+
+// ── The fix pass ─────────────────────────────────────────────────────────────
+
+const STAMP = '2026-09-01T00:00:00.000Z'
+const sigAt = (status: string, source: string, detail = status) => ({ status, detail, checkedAt: STAMP, source })
+/** A row verified 70 days ago at 82 / best, with the listing facts stored. */
+const VERIFIED = {
+  ...PROSPECT,
+  websiteUrl: 'https://smiledental.com',
+  businessStatus: 'OPERATIONAL',
+  reviewCount: 22,
+  googlePlaceId: 'place_1',
+  verification: {
+    places: sigAt('matched', 'places', 'Matched "Smile Dental" (phone matches)'),
+    business: sigAt('open', 'places', 'Google lists it as open'),
+    npi: sigAt('active', 'nppes', 'NPI active'),
+    website: sigAt('alive', 'crawl', 'smiledental.com is up (200)'),
+    phone: sigAt('well_formed', 'nanp', 'Well-formed US number — the line check is off'),
+  },
+}
+
+describe('a check that could not run keeps the prior signal — never a demotion from "unchecked" (C1/C2/C8)', () => {
+  it('Places 503 on a re-verify: the matched + open signals and the stored reviews stand; the score does not move', async () => {
+    const out = await verifyProspectSignals(VERIFIED as never, { ok: false, error: 'unavailable' }, await ctx())
+    expect(out.patch.verification.places).toEqual(VERIFIED.verification.places)
+    expect(out.patch.verification.business).toEqual(VERIFIED.verification.business)
+    expect(out.listing).toBe('kept')
+    // 35 + 12 + 15 + 10 + 10 — exactly what it was.
+    expect(out.patch.qualityScore).toBe(82)
+    expect(out.patch.qualityBand).toBe('best')
+    expect(strikeMock).not.toHaveBeenCalled()
+  })
+
+  it('a refused key keeps the signals the same way — and strikes once', async () => {
+    const out = await verifyProspectSignals(VERIFIED as never, { ok: false, error: 'auth' }, await ctx())
+    expect(out.patch.verification.places?.status).toBe('matched')
+    expect(out.patch.qualityScore).toBe(82)
+    expect(strikeMock).toHaveBeenCalledWith('places_auth', NOW)
+  })
+
+  it('with no prior signal and no lookup the record says unchecked — nothing invented either way', async () => {
+    const out = await verifyProspectSignals(PROSPECT as never, { ok: false, error: 'not_configured' }, await ctx())
+    expect(out.patch.verification.places).toMatchObject({ status: 'unchecked', detail: 'Google Places is not configured' })
+    expect(out.patch.verification.business?.status).toBe('unknown')
+    expect(out.listing).toBe('kept')
+  })
+
+  it('a re-verify without a lookup never un-parks a temporarily closed listing', async () => {
+    const parked = {
+      ...VERIFIED,
+      businessStatus: 'CLOSED_TEMPORARILY',
+      verification: { ...VERIFIED.verification, business: sigAt('temporarily_closed', 'places') },
+    }
+    counterMock.mockResolvedValue(LIVE.budgets.placesPerMonth) // this month's Places budget is gone
+    state.selectQueue.push([parked])
+    const r = await verifyProspect('pros_1', { now: NOW })
+    expect(candidatesMock).not.toHaveBeenCalled()
+    expect(r).toMatchObject({ ok: true, placesLookedUp: false, qualityScore: 0, qualityBand: 'parked' })
+    const w = state.updates.at(-1)!.values
+    expect(w).not.toHaveProperty('businessStatus') // kept, not nulled
+    expect((w.verification as { business: { status: string } }).business.status).toBe('temporarily_closed')
+    expect((w.qualityReasons as string[])[0]).toMatch(/temporarily closed/)
+  })
+
+  it('no Places key: the standalone verify + the sweep skip the lookup exactly as the enrich pass does', async () => {
+    placesConfiguredMock.mockReturnValue(false)
+    state.selectQueue.push([VERIFIED])
+    const r = await verifyProspect('pros_1', { now: NOW })
+    expect(candidatesMock).not.toHaveBeenCalled()
+    expect(r).toMatchObject({ ok: true, placesLookedUp: false, qualityScore: 82, qualityBand: 'best' })
+    expect(state.counters.filter((c) => c.kind === 'places_lookup')).toHaveLength(0)
+    expect(state.updates.at(-1)!.values).not.toHaveProperty('googlePlaceId')
+  })
+})
+
+describe('a listing Google no longer stands behind is cleared off the row (C4/C10/C17)', () => {
+  const stranger = { ...PLACE, placeId: 'place_x', displayName: 'Bright Orthodontics', formattedAddress: '9 Elsewhere Rd, Macon, GA 31201, USA', nationalPhoneNumber: '4785550000' }
+
+  it('no_match nulls the old listing’s columns and scores from nothing — never the stale CLOSED_TEMPORARILY', async () => {
+    const stale = { ...VERIFIED, businessStatus: 'CLOSED_TEMPORARILY', googlePlaceId: 'place_x', reviewCount: 212, googleRatingTenths: 48 }
+    candidatesMock.mockResolvedValue({ ok: true, places: [stranger] })
+    state.selectQueue.push([stale])
+    const r = await verifyProspect('pros_1', { now: NOW })
+    const w = state.updates.at(-1)!.values
+    expect(w).toMatchObject({ googlePlaceId: null, googleRatingTenths: null, reviewCount: null, businessStatus: null, googleMapsUri: null })
+    expect((w.qualityReasons as string[]).join(' ')).not.toMatch(/temporarily closed/)
+    expect((w.qualityReasons as string[]).join(' ')).not.toMatch(/212/)
+    // The row's own website is not the listing's — it stays, and is judged.
+    expect(w.websiteUrl).toBe('https://smiledental.com')
+    expect(livenessMock).toHaveBeenCalledWith('https://smiledental.com')
+    expect(r).toMatchObject({ ok: true })
+  })
+
+  it('not_found clears them the same way', async () => {
+    const out = await verifyProspectSignals({ ...VERIFIED, businessStatus: 'CLOSED_TEMPORARILY' } as never, { ok: true, places: [] }, await ctx())
+    expect(out.listing).toBe('cleared')
+    expect(listingColumns(out)).toEqual({ googlePlaceId: null, googleRatingTenths: null, reviewCount: null, businessStatus: null, googleMapsUri: null, websiteUrl: 'https://smiledental.com' })
+    expect(out.patch.qualityReasons.join(' ')).not.toMatch(/temporarily closed/)
+  })
+
+  it('a matched listing with no website never nulls the one someone typed', async () => {
+    const out = await verifyProspectSignals({ ...PROSPECT, websiteUrl: 'https://drjane.com' } as never, { ok: true, places: [{ ...PLACE, websiteUri: null }] }, await ctx())
+    expect(out.websiteUrl).toBe('https://drjane.com')
+    expect(livenessMock).toHaveBeenCalledWith('https://drjane.com')
+    expect(listingColumns(out).websiteUrl).toBe('https://drjane.com')
+    expect(out.patch.verification.website?.status).toBe('alive')
+  })
+
+  it('a matched listing that states a website replaces the row’s', async () => {
+    const out = await verifyProspectSignals({ ...PROSPECT, websiteUrl: 'https://drjane.com' } as never, { ok: true, places: [PLACE] }, await ctx())
+    expect(out.websiteUrl).toBe('https://smiledental.com')
+    expect(listingColumns(out)).toMatchObject({ googlePlaceId: 'place_1', reviewCount: 22, businessStatus: 'OPERATIONAL', websiteUrl: 'https://smiledental.com' })
+  })
+
+  it('listingColumns: kept touches only the website', () => {
+    expect(listingColumns({ place: null, listing: 'kept', websiteUrl: 'https://drjane.com' })).toEqual({ websiteUrl: 'https://drjane.com' })
+  })
+})
+
+describe('the phone is NANP ten digits before any check (C5/C9/C16)', () => {
+  it('an 11-digit stored number is checked — and stored — as ten', async () => {
+    driverMock.mockReturnValue('aws')
+    lineMock.mockResolvedValue({ ok: true, lineType: 'landline', invalid: false, carrier: null, provider: 'aws_pinpoint' })
+    const out = await verifyProspectSignals({ ...PROSPECT, npiNumber: null, phone: '14045551212', phoneSource: 'caller' } as never, null, await ctx())
+    expect(lineMock).toHaveBeenCalledWith('4045551212')
+    expect(out.patch.phone).toBe('4045551212')
+    expect(out.patch.phoneStatus).toBe('valid')
+  })
+
+  it('a caller’s disconnected verdict on the same number survives the normalization', async () => {
+    driverMock.mockReturnValue('aws')
+    const prior = { phone: { status: 'disconnected', detail: 'Number disconnected on Nov 9, 2026 (heard on a call)', checkedAt: STAMP, source: 'caller' } }
+    const out = await verifyProspectSignals({ ...PROSPECT, phone: '14045551212', phoneSource: 'caller', phoneStatus: 'disconnected', verification: prior } as never, null, await ctx())
+    expect(lineMock).not.toHaveBeenCalled()
+    expect(out.patch.phone).toBe('4045551212')
+    expect(out.patch.phoneStatus).toBe('disconnected')
+  })
+
+  it('a number a human reached stays valid — no paid check re-runs on it', async () => {
+    driverMock.mockReturnValue('aws')
+    const prior = { phone: { status: 'valid', detail: 'Reached on Nov 9, 2026 — the number works (heard on a call)', checkedAt: STAMP, source: 'caller' } }
+    const out = await verifyProspectSignals({ ...PROSPECT, phoneStatus: 'valid', phoneSource: 'caller', verification: prior } as never, null, await ctx())
+    expect(lineMock).not.toHaveBeenCalled()
+    expect(out.patch.phoneStatus).toBe('valid')
+    expect(out.patch.verification.phone).toEqual(prior.phone)
+  })
+})
+
+describe('the website probe fails open (C21 + S1)', () => {
+  it('an unknown liveness (resolver hiccup, redirect loop, private address) keeps the prior website signal and never counts toward crawl_blocked', async () => {
+    livenessMock.mockResolvedValue({ status: 'unknown', detail: 'smiledental.com could not be resolved right now (EAI_AGAIN) — will check again', finalUrl: null, httpStatus: null })
+    const c = await ctx()
+    const out = await verifyProspectSignals(VERIFIED as never, { ok: true, places: [PLACE] }, c)
+    expect(out.patch.verification.website).toEqual(VERIFIED.verification.website)
+    expect(out.patch.qualityScore).toBe(82)
+    expect(c.liveness).toEqual({ checks: 0, networkDead: 0 })
+  })
+
+  it('unknown with no prior is an honest unknown — not parked', async () => {
+    livenessMock.mockResolvedValue({ status: 'unknown', detail: 'smiledental.com could not be resolved right now (EAI_AGAIN) — will check again', finalUrl: null, httpStatus: null })
+    const out = await verifyProspectSignals(PROSPECT as never, { ok: true, places: [PLACE] }, await ctx())
+    expect(out.patch.verification.website).toMatchObject({ status: 'unknown', source: 'crawl' })
+    expect(out.patch.qualityBand).not.toBe('parked')
+    expect(out.patch.qualityScore).toBe(72) // 35 + 12 + 15 + 10 reviews; no website credit either way
+  })
+
+  it('a crawl budget of zero pauses the probe — the one knob that pauses touching prospects’ sites', async () => {
+    const c = await newVerifyRunCtx({ ...LIVE, budgets: { ...LIVE.budgets, crawlsPerMonth: 0 } }, NOW)
+    const out = await verifyProspectSignals(VERIFIED as never, { ok: true, places: [PLACE] }, c)
+    expect(livenessMock).not.toHaveBeenCalled()
+    expect(out.patch.verification.website).toEqual(VERIFIED.verification.website)
+    const fresh = await verifyProspectSignals(PROSPECT as never, { ok: true, places: [PLACE] }, c)
+    expect(fresh.patch.verification.website).toMatchObject({ status: 'unknown', detail: expect.stringMatching(/paused/) })
+  })
+})
+
+describe('a practice the pass sets aside leaves the drip (C7)', () => {
+  it('outreachStopReason: gone, or a retired-practice park, stops; a phone verdict alone does not', () => {
+    expect(outreachStopReason({ status: 'disqualified', suppressedReason: 'retired', verification: {} })).toBe('verify_retired')
+    expect(outreachStopReason({ status: 'disqualified', suppressedReason: 'closed', verification: {} })).toBe('verify_closed')
+    expect(outreachStopReason({ verification: { business: sigAt('temporarily_closed', 'places') } })).toBe('verify_temporarily_closed')
+    expect(outreachStopReason({ verification: { website: sigAt('dead', 'crawl') } })).toBe('verify_site_dead')
+    expect(outreachStopReason({ verification: { website: sigAt('parked', 'crawl') } })).toBe('verify_site_parked')
+    expect(outreachStopReason({ verification: { phone: sigAt('invalid', 'nanp'), website: sigAt('alive', 'crawl') } })).toBeNull()
+    expect(outreachStopReason({ verification: VERIFIED.verification })).toBeNull()
+  })
+
+  it('verifyProspect stops the enrollment of a retired practice, and leaves a healthy one alone', async () => {
+    lookupNpiMock.mockResolvedValue({ found: true, status: 'deactivated', deactivationDate: '2024-03-01', location: null })
+    state.selectQueue.push([{ ...VERIFIED, status: 'contacted' }])
+    await verifyProspect('pros_1', { now: NOW })
+    expect(stopMock).toHaveBeenCalledWith('pros_1', 'verify_retired', NOW)
+
+    stopMock.mockClear()
+    lookupNpiMock.mockResolvedValue(NPI_ACTIVE)
+    state.selectQueue.push([VERIFIED])
+    await verifyProspect('pros_1', { now: NOW })
+    expect(stopMock).not.toHaveBeenCalled()
+  })
+
+  it('a dead website parks the record AND stops the drip', async () => {
+    livenessMock.mockResolvedValue({ status: 'dead', detail: 'smiledental.com no longer resolves (DNS)', finalUrl: null, httpStatus: null })
+    state.selectQueue.push([{ ...VERIFIED, status: 'contacted' }])
+    const r = await verifyProspect('pros_1', { now: NOW })
+    expect(r).toMatchObject({ ok: true, qualityBand: 'parked' })
+    expect(stopMock).toHaveBeenCalledWith('pros_1', 'verify_site_dead', NOW)
   })
 })
