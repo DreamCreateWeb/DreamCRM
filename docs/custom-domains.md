@@ -271,3 +271,19 @@ redirect hop is fully retired — the apex points straight at App Runner and
   (`domains.remove`, fail-open with one `custom_domain` strike) and clears the
   six `email_domain_*` columns plus `email_domain_failed_checks`, so the
   Tier 3 sender never points at a dead domain; a swapped domain starts fresh.
+
+## Server actions on a custom domain (2026-11-10)
+
+Next's server-action handler refuses a POST whose `Origin` host differs
+from `x-forwarded-host` (or `Host`). Behind the CloudFront tenant edge the
+Host that reaches the app is the App Runner origin; the viewer's real host
+rides only in `x-dc-tenant-host`. Every form on a custom domain (the
+contact form, booking requests, intake) was therefore answered with
+"Invalid Server Actions request" (a 500 with a digest) while the same form
+on `{slug}.dreamcreatestudio.com` worked. The middleware's custom-domain
+branch now hands the downstream handler `x-forwarded-host = <the viewer
+host it resolved the clinic from>`, so the comparison passes. A quick
+check from anywhere: `curl -X POST https://<custom-domain>/ -H 'Next-Action:
+00…ff' -H 'Origin: https://<custom-domain>' -H 'Content-Type: text/plain'
+--data '[]'` must answer **404 "Server action not found."** (the request
+reached action lookup), never a 500 with a digest.
