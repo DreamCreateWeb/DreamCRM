@@ -215,7 +215,6 @@ test.describe('the dashboard shell is usable at phone width', () => {
     const opener = page.getByRole('button', { name: /^\+ Add patient$/ }).first()
     await expect(opener).toBeVisible({ timeout: 30_000 })
     await opener.click()
-
     const dialog = page.getByRole('dialog', { name: 'Add patient' })
     await expect(dialog).toBeVisible()
     const box = (await dialog.boundingBox())!
