@@ -36,6 +36,8 @@ export const PROSPECT_STATUS_LABELS: Record<ProspectStatus, string> = {
   not_interested: 'Not interested',
   suppressed: 'Suppressed',
   disqualified: 'Disqualified',
+  dormant: 'Resting',
+  merged: 'Merged',
 }
 
 export const SCORE_BAND_LABELS: Record<ProspectScoreBand, string> = {
@@ -234,10 +236,17 @@ export function parseVerification(raw: unknown): ProspectVerification {
   return out
 }
 
-/** "Verified" means EVERY signal was checked inside the window (60 days). */
+/** "Verified" means EVERY signal was checked inside the window (60 days).
+ *  The sweep reads the live value from `config.hygiene.reverifyAfterDays`;
+ *  this is its default and the drawer's headline window. */
 export const VERIFY_STALE_DAYS = 60
-/** A parked record gets another look after this many days. */
+/** A parked record gets another look after this many days (the default
+ *  for `config.hygiene.parkedRecheckDays`). */
 export const PARKED_RECHECK_DAYS = 30
+/** A row with no touch for this long rests (`config.hygiene.staleAfterDays`). */
+export const STALE_AFTER_DAYS = 90
+/** A finished territory is re-swept after this many days. */
+export const DISCOVERY_REFRESH_DAYS = 30
 
 /** "Nov 10, 2026 · 14:05 UTC" — platform surfaces mark UTC rather than
  *  pretending to know the reader's clock. Client-safe, no tz dependency. */
@@ -477,6 +486,16 @@ export interface ProspectingConfig {
    *  engine (that stays global); it pins the territory + prospect list to the
    *  chosen state so the owner can concentrate. null = no focus. */
   focus: { state: string | null }
+  /** HYGIENE (P-03) — the list keeps itself clean. A row with no human or
+   *  outreach touch for `staleAfterDays` rests; a verified row older than
+   *  `reverifyAfterDays` (parked: `parkedRecheckDays`) is re-verified; a
+   *  finished territory older than `discoveryRefreshDays` is re-swept. */
+  hygiene: {
+    staleAfterDays: number
+    reverifyAfterDays: number
+    parkedRecheckDays: number
+    discoveryRefreshDays: number
+  }
 }
 
 export const PROSPECTING_DEFAULTS: ProspectingConfig = {
@@ -510,6 +529,12 @@ export const PROSPECTING_DEFAULTS: ProspectingConfig = {
   },
   brain: { productOverride: '', battleCards: [] },
   focus: { state: null },
+  hygiene: {
+    staleAfterDays: STALE_AFTER_DAYS,
+    reverifyAfterDays: VERIFY_STALE_DAYS,
+    parkedRecheckDays: PARKED_RECHECK_DAYS,
+    discoveryRefreshDays: DISCOVERY_REFRESH_DAYS,
+  },
 }
 
 /**
@@ -530,6 +555,7 @@ export function resolveProspectingConfig(raw: unknown): ProspectingConfig {
       booking: { ...d.booking },
       brain: { productOverride: '', battleCards: [] },
       focus: { state: null },
+      hygiene: { ...d.hygiene },
     }
   }
   const r = raw as Record<string, unknown>
@@ -542,6 +568,7 @@ export function resolveProspectingConfig(raw: unknown): ProspectingConfig {
   const booking = (r.booking ?? {}) as Record<string, unknown>
   const brain = (r.brain ?? {}) as Record<string, unknown>
   const focus = (r.focus ?? {}) as Record<string, unknown>
+  const hygiene = (r.hygiene ?? {}) as Record<string, unknown>
   const num = (v: unknown, fallback: number) =>
     typeof v === 'number' && Number.isFinite(v) && v >= 0 ? Math.round(v) : fallback
   // Percentages keep fractions (0.3% complaint threshold) — num() would
@@ -623,6 +650,14 @@ export function resolveProspectingConfig(raw: unknown): ProspectingConfig {
       state:
         typeof focus.state === 'string' && /^[A-Z]{2}$/.test(focus.state) ? focus.state : null,
     },
+    hygiene: {
+      // A zero would rest or re-verify everything every tick; the floors
+      // keep the knobs honest (and the ceilings keep them from meaning "never").
+      staleAfterDays: Math.max(7, Math.min(730, num(hygiene.staleAfterDays, d.hygiene.staleAfterDays))),
+      reverifyAfterDays: Math.max(7, Math.min(365, num(hygiene.reverifyAfterDays, d.hygiene.reverifyAfterDays))),
+      parkedRecheckDays: Math.max(7, Math.min(365, num(hygiene.parkedRecheckDays, d.hygiene.parkedRecheckDays))),
+      discoveryRefreshDays: Math.max(7, Math.min(365, num(hygiene.discoveryRefreshDays, d.hygiene.discoveryRefreshDays))),
+    },
   }
 }
 
@@ -653,6 +688,33 @@ export interface ProspectListRow {
   verifiedAt: Date | null
   /** The cold caller working it right now (P-02), else null. */
   assignedCallerId: string | null
+  // Hygiene (P-03): a merged row says where it went (the table's door).
+  mergedIntoProspectId: string | null
+  mergedIntoName: string | null
+}
+
+/** The hunt panel's hygiene tile (P-03): what the sweep did today, how many
+ *  rows are resting, and the last territory it re-swept (UTC stamped). */
+export interface ProspectHygieneStats {
+  mergedToday: number
+  resting: number
+  lastRefresh: { state: string; zipPrefix: string; at: Date } | null
+}
+
+/** A possible duplicate of the row on the drawer (P-03) — found by the
+ *  matcher's keys, offered to a human; the sweep merges only exact ones. */
+export interface DuplicateCandidate {
+  id: string
+  name: string
+  city: string | null
+  state: string | null
+  status: ProspectStatus
+  qualityScore: number | null
+  /** Plain words: "same phone", "same Google listing", "same name and ZIP". */
+  reasons: string[]
+  /** True when the sweep would merge these on its own (same listing, or same
+   *  phone AND same name); the drawer still asks first. */
+  exact: boolean
 }
 
 /** Live-pool quality counts for the hunt tiles, the table chips and the
@@ -692,6 +754,9 @@ export interface ProspectFunnelStats {
   engaged: number
   callList: number
   converted: number
+  /** Hygiene (P-03) — off the funnel, counted for the table's filters. */
+  dormant: number
+  merged: number
 }
 
 export interface ProspectFilters {

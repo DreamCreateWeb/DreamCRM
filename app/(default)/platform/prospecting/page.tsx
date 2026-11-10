@@ -22,6 +22,7 @@ import {
 } from '@/lib/services/prospecting'
 import { listProspectingFailures } from '@/lib/services/engine-failures'
 import { callerNameMap, listActiveCallers } from '@/lib/services/prospect-callers'
+import { getHygieneStats } from '@/lib/services/prospect-hygiene'
 import { QualityPill, qualityLegend } from './quality-pills'
 import SalesPipelineBoard from './sales-pipeline-board'
 import MomentumStrip from './momentum-strip'
@@ -69,6 +70,8 @@ const STATUS_TONES: Record<ProspectStatus, Tone> = {
   not_interested: 'neutral',
   suppressed: 'neutral',
   disqualified: 'neutral',
+  dormant: 'neutral',
+  merged: 'neutral',
 }
 const BAND_TONES: Record<ProspectScoreBand, Tone> = {
   hot: 'urgent',
@@ -126,7 +129,7 @@ export default async function ProspectingPage({
   }
   const page = Math.max(1, Number(params.page) || 1)
 
-  const [config, funnel, list, detail, huntStats, briefing, winLoss, board, momentum, quality, failures] = await Promise.all([
+  const [config, funnel, list, detail, huntStats, briefing, winLoss, board, momentum, quality, failures, hygiene] = await Promise.all([
     getProspectingConfig(),
     getFunnelStats(),
     listProspects(filters, page),
@@ -140,6 +143,8 @@ export default async function ProspectingPage({
     // The verification pass's strikes (P-01) — read best-effort, shown on
     // the Engine view where the rest of the machine's health already is.
     listProspectingFailures(7),
+    // The hygiene tile (P-03) — merged today, resting now, the last refresh.
+    getHygieneStats().catch(() => null),
   ])
   // The cold callers (P-02): names for the table's "→ caller" pill and the
   // active ones for the drawer's Reassign picker. Best-effort reads.
@@ -233,7 +238,7 @@ export default async function ProspectingPage({
         <>
           {config.focus.state && <FocusBanner state={config.focus.state} />}
           {!config.killSwitch && (
-            <HuntPanel stats={huntStats} config={config} env={huntEnv} sentByHour={huntSentByHour} quality={quality} failures={failures} />
+            <HuntPanel stats={huntStats} config={config} env={huntEnv} sentByHour={huntSentByHour} quality={quality} failures={failures} hygiene={hygiene} />
           )}
           <div className="mt-6 flex flex-wrap gap-2">
             <ActionButton href="/platform/prospecting/sequences" variant="secondary">
@@ -299,6 +304,24 @@ export default async function ProspectingPage({
         </FilterChip>
         <FilterChip active={filters.status === 'converted'} href={buildQuery(params, { status: filters.status === 'converted' ? undefined : 'converted', quality: undefined })}>
           Converted
+        </FilterChip>
+        {/* Hygiene (P-03): resting rows and merged duplicates leave the default
+            view; each is one chip away, never gone. */}
+        <FilterChip
+          active={filters.status === 'dormant'}
+          count={funnel.dormant}
+          href={buildQuery(params, { status: filters.status === 'dormant' ? undefined : 'dormant' })}
+          title="No touch for a while — off every queue until a reply, a call or a better re-verify wakes them"
+        >
+          💤 Resting
+        </FilterChip>
+        <FilterChip
+          active={filters.status === 'merged'}
+          count={funnel.merged}
+          href={buildQuery(params, { status: filters.status === 'merged' ? undefined : 'merged' })}
+          title="Duplicates folded into the row that kept the history — nothing deleted"
+        >
+          Merged
         </FilterChip>
         {activeStates.length > 1 && (
           <>
@@ -457,6 +480,18 @@ export default async function ProspectingPage({
                         />
                       )}
                     </span>
+                    {p.status === 'merged' && p.mergedIntoProspectId && (
+                      <div className="mt-1 text-xs text-gray-500 dark:text-gray-400" data-merged-into>
+                        Merged into{' '}
+                        <Link
+                          href={`${buildQuery(params, {})}${buildQuery(params, {}).includes('?') ? '&' : '?'}prospect=${p.mergedIntoProspectId}`}
+                          scroll={false}
+                          className="font-medium text-teal-600 dark:text-teal-400 hover:underline"
+                        >
+                          {p.mergedIntoName ?? 'its survivor'}
+                        </Link>
+                      </div>
+                    )}
                   </td>
                 </tr>
               ))}

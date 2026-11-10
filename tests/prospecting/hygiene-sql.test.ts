@@ -1,0 +1,103 @@
+import { describe, it, expect, vi } from 'vitest'
+import { PgDialect, QueryBuilder } from 'drizzle-orm/pg-core'
+
+/**
+ * THE HYGIENE STATEMENTS, RENDERED FOR REAL (P-03 — the
+ * tests/journey/autonomy-sql.test.ts pattern). The sibling suites mock
+ * `drizzle-orm` to assert RESULTS and are blind to how Postgres parses a
+ * statement. This file renders every raw fragment the pass uses through the
+ * real dialect and pins the one property that makes each parseable: no
+ * untyped parameter where Postgres cannot infer a type, and the shape the
+ * rule promises (the decayable statuses, the live-enrollment exclusion,
+ * the GREATEST over every touch, the leading-sentence strip).
+ */
+
+vi.mock('@/lib/db', async () => {
+  const schema = await vi.importActual<typeof import('@/lib/db/schema')>('@/lib/db/schema')
+  // A real query builder, no connection — enough to BUILD the subquery
+  // `decayCandidateWhere` embeds; nothing here ever executes.
+  const qb = new QueryBuilder()
+  return { schema, db: { select: (fields: never) => qb.select(fields) } }
+})
+vi.mock('@/lib/services/prospecting', () => ({
+  getProspectingConfig: vi.fn(),
+  bumpProspectingCounter: vi.fn(),
+  getProspectingCounter: vi.fn(),
+  counterDay: vi.fn(),
+}))
+
+import { decayCandidateWhere, lastTouchSql, stripRestingReasonSql, wakeSetSql } from '@/lib/services/prospect-hygiene'
+import { HAVING_MORE_THAN_ONE } from '@/lib/services/prospect-dedupe'
+import { territorySweptAtSql } from '@/lib/services/prospect-discovery'
+import { DECAYABLE_STATUSES } from '@/lib/db/schema/prospecting'
+
+const dialect = new PgDialect()
+const render = (q: unknown) => dialect.sqlToQuery(q as never)
+const NOW = new Date('2026-11-10T12:00:00Z')
+const CUTOFF = new Date('2026-08-12T12:00:00Z')
+
+describe('the decay predicate', () => {
+  it('reads the decayable statuses, excludes a live enrollment, anchors on the last touch else the birth, with a cast cutoff', () => {
+    const { sql: text, params } = render(decayCandidateWhere(NOW, CUTOFF))
+    expect(text).toContain('"prospect"."status" in ($1, $2, $3, $4)')
+    expect(params.slice(0, 4)).toEqual([...DECAYABLE_STATUSES])
+    expect(text).toMatch(/\("prospect"\."next_follow_up_at" is null or "prospect"\."next_follow_up_at" <= \$5\)/)
+    expect(text).toMatch(/not exists \(select 1 from "outreach_enrollment" where \("outreach_enrollment"\."prospect_id" = "prospect"\."id" and "outreach_enrollment"\."status" in \(\$6, \$7\)\)\)/)
+    expect(params.slice(5, 7)).toEqual(['active', 'paused_ooo'])
+    // The one raw comparison: a cast parameter, never an untyped $n.
+    expect(text).toMatch(/COALESCE\(GREATEST\([\s\S]+\), "prospect"\."created_at"\) < \$8::timestamptz/)
+    expect(params[7]).toBe(CUTOFF.toISOString())
+    expect(params).toHaveLength(8)
+  })
+
+  it('"last touch" is the GREATEST of a sent touch, a call, an inbound event, the intent and the enrichment', () => {
+    const { sql: text, params } = render(lastTouchSql())
+    expect(text).toContain('SELECT MAX("outreach_touch_log"."sent_at") FROM "outreach_touch_log"')
+    expect(text).toContain('"outreach_touch_log"."status" = \'sent\'')
+    expect(text).toContain('SELECT MAX("prospect_call_log"."created_at") FROM "prospect_call_log"')
+    expect(text).toContain('SELECT MAX("outreach_event"."occurred_at") FROM "outreach_event"')
+    expect(text).toContain('"prospect"."intent_at"')
+    expect(text).toContain('"prospect"."enriched_at"')
+    expect(params).toEqual([])
+  })
+})
+
+describe('the wake', () => {
+  it('restores the remembered status only from the decayable set — every $n inside IN carries a cast', () => {
+    const { sql: text, params } = render(wakeSetSql().status)
+    expect(text).toBe(
+      'CASE WHEN "prospect"."status" = \'dormant\' THEN (CASE WHEN "prospect"."dormant_from_status" IN ($1::text, $2::text, $3::text, $4::text) THEN "prospect"."dormant_from_status" ELSE \'enriched\' END) ELSE "prospect"."status" END',
+    )
+    expect(params).toEqual([...DECAYABLE_STATUSES])
+    for (const m of Array.from(text.matchAll(/\$\d+/g))) {
+      expect(text.slice(m.index! + m[0].length).startsWith('::'), `parameter ${m[0]} is bound without a cast`).toBe(true)
+    }
+  })
+
+  it('clears the memory only on a resting row', () => {
+    const { sql: text, params } = render(wakeSetSql().dormantFromStatus)
+    expect(text).toBe('CASE WHEN "prospect"."status" = \'dormant\' THEN NULL ELSE "prospect"."dormant_from_status" END')
+    expect(params).toEqual([])
+  })
+
+  it('strips only a LEADING resting sentence from quality_reasons, and only when it is an array', () => {
+    const { sql: text, params } = render(stripRestingReasonSql())
+    expect(text).toBe(
+      'CASE WHEN jsonb_typeof("prospect"."quality_reasons") = \'array\' AND jsonb_array_length("prospect"."quality_reasons") > 0 AND ("prospect"."quality_reasons" ->> 0) LIKE \'No touch since %\' THEN "prospect"."quality_reasons" - 0 ELSE "prospect"."quality_reasons" END',
+    )
+    expect(params).toEqual([])
+    expect(render(wakeSetSql().qualityReasons).sql).toBe(text)
+  })
+})
+
+describe('the sweep’s group-by and the refresh clock', () => {
+  it('HAVING count(*) > 1 — no parameters', () => {
+    expect(render(HAVING_MORE_THAN_ONE)).toEqual({ sql: 'count(*) > 1', params: [] })
+  })
+  it('a territory is aged by its last refresh, else the end of its first sweep', () => {
+    expect(render(territorySweptAtSql())).toEqual({
+      sql: 'COALESCE("prospect_discovery_task"."last_refreshed_at", "prospect_discovery_task"."updated_at")',
+      params: [],
+    })
+  })
+})

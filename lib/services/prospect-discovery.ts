@@ -1,5 +1,5 @@
 import 'server-only'
-import { and, asc, eq, inArray } from 'drizzle-orm'
+import { and, asc, eq, inArray, lt, or, sql } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import { newId } from '@/lib/utils'
 import {
@@ -10,6 +10,8 @@ import {
   type NppesOrgResult,
 } from '@/lib/nppes'
 import { stateTimeZone } from '@/lib/types/us-geo'
+import { findDuplicateGroups, type DedupeRow } from '@/lib/prospect-dedupe'
+import type { ProspectingConfig } from '@/lib/types/prospecting'
 import { getProspectingConfig } from './prospecting'
 
 /**
@@ -37,13 +39,76 @@ export interface DiscoveryRunResult {
   skipped?: string
 }
 
-async function insertProspects(results: NppesOrgResult[]): Promise<number> {
+/**
+ * THE MATCHER AT THE DOOR (P-03). The NPI unique and the dedupe hash only
+ * catch an exact re-discovery; the matcher (lib/prospect-dedupe.ts) also
+ * sees the same phone under a different name, the same name at the same
+ * ZIP under a different suite — so a registry row that is a practice we
+ * already hold never becomes a second row. Rows already in the table are
+ * fetched by the batch's phones and by its ZIPs (two indexed reads a
+ * page), then any candidate that groups with an existing row — or with an
+ * earlier candidate in the same page — is dropped. Merged rows count as
+ * existing: their practice is in the pipeline under the survivor.
+ */
+export async function filterAlreadyHeld(
+  results: NppesOrgResult[],
+  now: Date,
+): Promise<{ fresh: NppesOrgResult[]; held: number }> {
+  if (results.length === 0) return { fresh: [], held: 0 }
+  const phones = Array.from(new Set(results.map((r) => r.phone).filter((v): v is string => Boolean(v))))
+  const zips = Array.from(new Set(results.map((r) => r.postalCode).filter((v): v is string => Boolean(v))))
+  const cols = {
+    id: schema.prospect.id,
+    name: schema.prospect.name,
+    phone: schema.prospect.phone,
+    googlePlaceId: schema.prospect.googlePlaceId,
+    postalCode: schema.prospect.postalCode,
+    qualityScore: schema.prospect.qualityScore,
+    verifiedAt: schema.prospect.verifiedAt,
+    createdAt: schema.prospect.createdAt,
+  }
+  const existing: DedupeRow[] = []
+  if (phones.length > 0) {
+    existing.push(...(await db.select(cols).from(schema.prospect).where(inArray(schema.prospect.phone, phones)).limit(2000)))
+  }
+  if (zips.length > 0) {
+    const seen = new Set(existing.map((e) => e.id))
+    const byZip = await db.select(cols).from(schema.prospect).where(inArray(schema.prospect.postalCode, zips)).limit(2000)
+    for (const e of byZip) if (!seen.has(e.id)) existing.push(e)
+  }
+  const existingIds = new Set(existing.map((e) => e.id))
+  const candidates: DedupeRow[] = results.map((r) => ({
+    id: `nppes:${r.npiNumber}`,
+    name: r.name,
+    phone: r.phone,
+    googlePlaceId: null,
+    postalCode: r.postalCode,
+    qualityScore: null,
+    verifiedAt: null,
+    createdAt: now,
+  }))
+  const drop = new Set<string>()
+  for (const group of findDuplicateGroups([...existing, ...candidates])) {
+    let kept = group.members.some((m) => existingIds.has(m.id))
+    for (const m of group.members) {
+      if (existingIds.has(m.id)) continue
+      if (kept) drop.add(m.id)
+      else kept = true // the first new practice in a group with no existing row enters
+    }
+  }
+  const fresh = results.filter((r) => !drop.has(`nppes:${r.npiNumber}`))
+  return { fresh, held: results.length - fresh.length }
+}
+
+async function insertProspects(results: NppesOrgResult[], now: Date = new Date()): Promise<number> {
   if (results.length === 0) return 0
+  const { fresh } = await filterAlreadyHeld(results, now)
   let imported = 0
-  for (const r of results) {
-    // Two-layer dedupe: NPI unique catches re-discovery; the phone+address
-    // hash collapses multi-NPI practices sharing one front desk. Both are
-    // ON CONFLICT DO NOTHING — first writer wins, re-runs are no-ops.
+  for (const r of fresh) {
+    // Three-layer dedupe: NPI unique catches re-discovery; the phone+address
+    // hash collapses multi-NPI practices sharing one front desk (both ON
+    // CONFLICT DO NOTHING — first writer wins, re-runs are no-ops); the
+    // matcher above caught everything softer before this insert.
     const inserted = await db
       .insert(schema.prospect)
       .values({
@@ -139,7 +204,7 @@ export async function runDiscovery(opts?: { maxTasks?: number }): Promise<Discov
           enumerationType,
         })
         found += resultCount
-        imported += await insertProspects(results)
+        imported += await insertProspects(results, new Date())
         skip += NPPES_PAGE_SIZE
 
         if (resultCount < NPPES_PAGE_SIZE) {
@@ -224,4 +289,99 @@ export async function runDiscovery(opts?: { maxTasks?: number }): Promise<Discov
   }
 
   return out
+}
+
+// ── The discovery REFRESH (P-03) ────────────────────────────────────────────
+
+/** NPPES requests one refresh may spend — the same politeness as P-01's
+ *  verification cap. A zip3's two phases at 200 a page fit comfortably. */
+export const REFRESH_NPPES_PER_RUN = 50
+
+export interface TerritoryRefreshResult {
+  taskId: string
+  state: string
+  zipPrefix: string
+  found: number
+  imported: number
+  requests: number
+  /** True when the request cap stopped the sweep before NPPES ran dry —
+   *  the next refresh of this territory starts over and may finish. */
+  capped: boolean
+}
+
+/** The stamp a territory is ordered and aged by: its last refresh, else
+ *  the end of its first sweep. Exported for the boundary test. */
+export function territorySweptAtSql() {
+  return sql`COALESCE(${schema.prospectDiscoveryTask.lastRefreshedAt}, ${schema.prospectDiscoveryTask.updatedAt})`
+}
+
+/**
+ * Re-sweep ONE finished territory whose last sweep is older than
+ * `config.hygiene.discoveryRefreshDays`: the same state × zip prefix, both
+ * entity phases from skip 0, every page through the same door as
+ * discovery — so only NEW NPIs enter (the NPI unique, the dedupe hash and
+ * the matcher all stand). Stamps `last_refreshed_at`; the oldest-swept
+ * territory goes first, so every territory gets its turn.
+ */
+export async function refreshStaleTerritory(opts: {
+  now?: Date
+  config?: ProspectingConfig
+  nppesBudget?: number
+}): Promise<TerritoryRefreshResult | null> {
+  const now = opts.now ?? new Date()
+  const config = opts.config ?? (await getProspectingConfig())
+  if (config.killSwitch || config.enabledStates.length === 0) return null
+  const cutoff = new Date(now.getTime() - config.hygiene.discoveryRefreshDays * 24 * 60 * 60 * 1000)
+  const sweptAt = territorySweptAtSql()
+  const [task] = await db
+    .select()
+    .from(schema.prospectDiscoveryTask)
+    .where(
+      and(
+        eq(schema.prospectDiscoveryTask.status, 'done'),
+        inArray(schema.prospectDiscoveryTask.state, config.enabledStates),
+        lt(sweptAt, cutoff),
+      ),
+    )
+    .orderBy(asc(sweptAt))
+    .limit(1)
+  if (!task) return null
+
+  const budget = opts.nppesBudget ?? REFRESH_NPPES_PER_RUN
+  let requests = 0
+  let found = 0
+  let imported = 0
+  let capped = false
+  for (const enumerationType of ['NPI-2', 'NPI-1'] as const) {
+    let skip = 0
+    for (;;) {
+      if (requests >= budget) {
+        capped = true
+        break
+      }
+      requests++
+      const { results, resultCount } = await searchNppesOrgs({
+        state: task.state,
+        zipPrefix: task.zipPrefix,
+        skip,
+        enumerationType,
+      })
+      found += resultCount
+      imported += await insertProspects(results, now)
+      skip += NPPES_PAGE_SIZE
+      if (resultCount < NPPES_PAGE_SIZE || skip > NPPES_MAX_SKIP) break
+    }
+    if (capped) break
+  }
+  await db
+    .update(schema.prospectDiscoveryTask)
+    .set({
+      lastRefreshedAt: now,
+      found: task.found + found,
+      imported: task.imported + imported,
+      error: null,
+      updatedAt: now,
+    })
+    .where(eq(schema.prospectDiscoveryTask.id, task.id))
+  return { taskId: task.id, state: task.state, zipPrefix: task.zipPrefix, found, imported, requests, capped }
 }

@@ -565,6 +565,57 @@ card (every signal's source and UTC-marked checked-at; "Verified" = every
 core signal inside 60 days), the hunt tiles (Best in queue / Parked / Not
 verified yet), phone standing beside every number. Migration
 `p01_prospect_quality`.
+**PROSPECT REFRESH, DEDUPE AND DECAY (P-03, 2026-11-10 — the list keeps
+itself clean, nobody operates anything):** DEDUPE that cannot lose data:
+the pure matcher `lib/prospect-dedupe.ts` keys on normalized phone (ten
+digits), Google place id, and normalized practice name + ZIP5, chained by
+union-find (A~B by phone, B~C by place = one group); the SURVIVOR is the
+best `quality_score`, then the most recent `verified_at`, then the OLDEST
+`created_at`; `lib/services/prospect-dedupe.ts` merges in ONE transaction —
+re-points prospect_contact (a loser address the survivor already holds is
+the same address and goes; moved ones lose `is_primary`), outreach_enrollment
+(the loser's LIVE drip stops `stopped_manual/merged` when the survivor has
+one — the partial unique index), outreach_touch_log, outreach_event,
+prospect_call_log, prospect_meeting, prospect_suppression, practice_grade,
+event_capture; fills every null the survivor had from the loser; never moves
+the survivor backward (a hand-raiser loser carries its intent); stamps the
+loser `status='merged'` + `merged_into_prospect_id`, NEVER deletes. A
+converted row is only ever the survivor; two converted never merge. The
+sweep auto-merges only EXACT pairs (same place id, or same phone AND same
+normalized name; ≤25 a run); fuzzy candidates wait on the drawer's
+"Possible duplicate of <name> · Merge" card (confirm BEFORE the transition,
+runAction, the survivor's drawer opens). `survivorOf()` follows a merge chain
+so a reply, a grader run, a conference capture or a signup to a merged
+row's address lands on the survivor. The matcher also stands AT THE DOOR of
+discovery (`filterAlreadyHeld` in prospect-discovery.ts): a registry row
+that is a practice already held never becomes a second row. DECAY (pure
+`lib/prospect-decay.ts`): a row in enriched|queued|contacted|call_list with
+no human/outreach touch (GREATEST of a sent touch, a call, an inbound
+event, intent, enrichment; else its birth) inside
+`config.hygiene.staleAfterDays` (90), no future follow-up and no live
+enrollment becomes `status='dormant'` with `dormant_from_status` and "No
+touch since <date> UTC — resting" FIRST in `quality_reasons`; off every
+queue, the board and the default table ("Resting" + "Merged" filter chips
+carry counts). It WAKES on any new inbound signal — a call outcome (folded
+into logCallOutcome's own write via `wakeSetSql()`), a reply, a demo
+request / grader run, a conference capture — or a re-verify that IMPROVES
+quality (`reconcileDormantAfterVerify`; an unchanged one keeps resting).
+REFRESH: P-01's 60/30-day windows now live in `config.hygiene`
+(reverifyAfterDays / parkedRecheckDays, same defaults; the sweep also takes
+resting rows when room is left), and the DISCOVERY refresh re-sweeps ONE
+finished territory older than `discoveryRefreshDays` (30) with the same
+state × zip prefix, both phases from skip 0, NPPES ≤50 requests a run,
+stamping `prospect_discovery_task.last_refreshed_at` — only new NPIs enter.
+THE SWEEP `runProspectHygiene()` rides `/api/cron/prospect-enrich` after
+the verification sweep (no new cron): merges → decay → refresh, every step
+fail-open with the `hygiene` engine-failure class (one strike a run / a
+day), day counters `dedupe_merge` · `decay` · `discovery_refresh`. UI: the
+hunt panel's hygiene tile ("Merged 3 · Resting 41 · Refreshed TX 787xx",
+UTC stamped), the table's merged rows say "Merged into <survivor>" with a
+door, the drawer's merged banner / resting note / duplicate card, the
+settings panel's two clocks (staleAfterDays, reverifyAfterDays). Every raw
+statement is rendered through the real dialect in
+`tests/prospecting/hygiene-sql.test.ts`. Migration `p03_prospect_hygiene`.
 Schema `lib/db/schema/prospecting.ts` is platform-global, NO organizationId by
 design; ships behind kill switch + dry-run + auto-enroll-off; say
 "prospect", never "lead"),

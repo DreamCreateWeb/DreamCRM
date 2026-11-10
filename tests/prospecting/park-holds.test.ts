@@ -129,7 +129,9 @@ describe('every phone lookup reads NANP ten digits, like the writers (C5/C9)', (
     await findExistingProspect({ phone: '+1 (404) 555-1212', name: 'Smile Dental Group', state: 'GA' })
     const { sql, params } = render(captured.wheres[0])
     expect(sql).toMatch(/"prospect"\."phone" in \(\$1, \$2\)/)
-    expect(params).toEqual(['4045551212', '14045551212'])
+    // …and a merged duplicate never answers (P-03): its survivor carries the number.
+    expect(sql).toMatch(/"prospect"\."status" not in \(\$3\)/)
+    expect(params).toEqual(['4045551212', '14045551212', 'merged'])
     expect(params).not.toContain('+14045551212')
   })
 
@@ -137,7 +139,7 @@ describe('every phone lookup reads NANP ten digits, like the writers (C5/C9)', (
     await findExistingProspect({ phone: '555-1212', name: 'X' })
     const { sql, params } = render(captured.wheres[0])
     expect(sql).toMatch(/"prospect"\."phone" = \$1/)
-    expect(params).toEqual(['5551212'])
+    expect(params).toEqual(['5551212', 'merged'])
     captured.wheres = []
     await findExistingProspect({ phone: '12345', name: 'X' })
     // Straight to the name match — no phone predicate was rendered.

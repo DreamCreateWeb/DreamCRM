@@ -36,7 +36,7 @@ export default function DrawerActions({
   const toast = useToast()
   const confirm = useConfirm()
 
-  if (status === 'suppressed' || status === 'converted') return null
+  if (status === 'suppressed' || status === 'converted' || status === 'merged') return null
 
   const enrollable =
     hasEmail && ['enriched', 'discovered', 'engaged'].includes(status)
