@@ -11,6 +11,7 @@ import {
   normalizePhone,
   isDentalTaxonomy,
   prospectDedupeHash,
+  parseNpiLookup,
 } from '@/lib/nppes'
 import { stateZip3Prefixes, stateTimeZone, US_STATES } from '@/lib/types/us-geo'
 
@@ -191,5 +192,37 @@ describe('us-geo maps', () => {
     expect(stateTimeZone('TX')).toBe('America/Chicago')
     expect(stateTimeZone('CA')).toBe('America/Los_Angeles')
     expect(stateTimeZone(null)).toBe('America/New_York')
+  })
+})
+
+describe('parseNpiLookup (P-01 — NPI liveness)', () => {
+  it('an active NPI with its current practice location', () => {
+    const r = parseNpiLookup({ result_count: 1, results: [RAW] })
+    expect(r).toEqual({
+      found: true,
+      status: 'active',
+      deactivationDate: null,
+      location: { addressLine1: '123 Main St', city: 'Atlanta', state: 'GA', postalCode: '30309', phone: '4045551212' },
+    })
+  })
+  it('a deactivated NPI carries its deactivation date', () => {
+    const r = parseNpiLookup({
+      result_count: 1,
+      results: [{ ...RAW, basic: { ...RAW.basic, status: 'D', deactivation_date: '2024-03-01' } }],
+    })
+    expect(r).toMatchObject({ found: true, status: 'deactivated', deactivationDate: '2024-03-01' })
+  })
+  it('a deactivation date with no later reactivation reads as deactivated even without the status letter', () => {
+    const r = parseNpiLookup({ results: [{ ...RAW, basic: { organization_name: 'X', deactivation_date: '2023-01-01' } }] })
+    expect(r.status).toBe('deactivated')
+    const back = parseNpiLookup({
+      results: [{ ...RAW, basic: { organization_name: 'X', deactivation_date: '2023-01-01', reactivation_date: '2023-06-01' } }],
+    })
+    expect(back.status).toBe('active')
+  })
+  it('an empty or junk body is "not found", never a throw', () => {
+    expect(parseNpiLookup({ result_count: 0, results: [] })).toEqual({ found: false, status: null, deactivationDate: null, location: null })
+    expect(parseNpiLookup(null).found).toBe(false)
+    expect(parseNpiLookup('nope').found).toBe(false)
   })
 })

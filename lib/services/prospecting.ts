@@ -1,17 +1,29 @@
 import 'server-only'
-import { and, asc, desc, eq, exists, ilike, inArray, isNotNull, isNull, notInArray, or, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, exists, gte, ilike, inArray, isNotNull, isNull, notInArray, or, sql } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import { newId } from '@/lib/utils'
 import {
   resolveProspectingConfig,
   LOSS_REASON_LABELS,
+  CALL_OUTCOME_LABELS,
+  REACHED_CALL_OUTCOMES,
+  parseVerification,
   type ProspectingConfig,
   type ProspectFilters,
   type ProspectFunnelStats,
   type ProspectListRow,
   type ProspectLossReason,
+  type ProspectQualityCounts,
+  type ProspectCallOutcome,
   type WinLossReport,
 } from '@/lib/types/prospecting'
+import {
+  BAD_PHONE_STATUSES,
+  type ProspectPhoneLineType,
+  type ProspectPhoneStatus,
+  type ProspectQualityBand,
+} from '@/lib/db/schema/prospecting'
+import { computeQualityScore } from '@/lib/prospect-quality'
 import { SEGMENT_LABELS, type OutreachSegment } from '@/lib/types/prospecting'
 import { stateZip3Prefixes, stateTimeZone } from '@/lib/types/us-geo'
 import { followUpForOutcome } from '@/lib/prospect-followup'
@@ -664,6 +676,7 @@ export async function listProspects(
   if (filters.state) conds.push(eq(schema.prospect.state, filters.state))
   if (filters.status) conds.push(eq(schema.prospect.status, filters.status))
   if (filters.scoreBand) conds.push(eq(schema.prospect.scoreBand, filters.scoreBand))
+  if (filters.qualityBand) conds.push(eq(schema.prospect.qualityBand, filters.qualityBand))
   if (filters.hasWebsite === true) conds.push(isNotNull(schema.prospect.websiteUrl))
   if (filters.hasWebsite === false) conds.push(isNull(schema.prospect.websiteUrl))
   if (filters.search?.trim()) {
@@ -701,6 +714,12 @@ export async function listProspects(
       intentAt: schema.prospect.intentAt,
       authorizedOfficialName: schema.prospect.authorizedOfficialName,
       createdAt: schema.prospect.createdAt,
+      qualityScore: schema.prospect.qualityScore,
+      qualityBand: schema.prospect.qualityBand,
+      qualityReasons: schema.prospect.qualityReasons,
+      phoneStatus: schema.prospect.phoneStatus,
+      phoneLineType: schema.prospect.phoneLineType,
+      verifiedAt: schema.prospect.verifiedAt,
     })
     .from(schema.prospect)
     .where(where)
@@ -713,9 +732,70 @@ export async function listProspects(
     .offset((Math.max(1, page) - 1) * LIST_PAGE_SIZE)
 
   return {
-    rows: rows as ProspectListRow[],
+    rows: rows.map((r) => ({
+      ...r,
+      qualityReasons: Array.isArray(r.qualityReasons) ? (r.qualityReasons as string[]) : [],
+    })) as ProspectListRow[],
     total: total ?? 0,
     pageSize: LIST_PAGE_SIZE,
+  }
+}
+
+// ── Quality (P-01) ─────────────────────────────────────────────────────────
+
+/** Statuses a prospect can be served from — the pool the floor applies to. */
+const SERVABLE_STATUSES = ['enriched', 'queued', 'contacted', 'engaged', 'call_list'] as const
+
+/** quality_score ≥ the floor. Unverified rows (null) never pass. */
+function aboveFloor(floor: number) {
+  return gte(schema.prospect.qualityScore, floor)
+}
+
+/** A number nobody has marked invalid / disconnected / wrong. */
+function phoneOk() {
+  return or(isNull(schema.prospect.phoneStatus), notInArray(schema.prospect.phoneStatus, [...BAD_PHONE_STATUSES]))
+}
+
+/**
+ * Live-pool quality counts: per band, the never-verified backlog, how many
+ * best-band prospects are dialable right now, and a 5-point histogram the
+ * settings slider reads to say "N above / M below" for any floor.
+ */
+export async function getQualityCounts(): Promise<ProspectQualityCounts> {
+  const live = inArray(schema.prospect.status, [...SERVABLE_STATUSES])
+  const bandRows = await db
+    .select({ band: schema.prospect.qualityBand, n: sql<number>`count(*)::int` })
+    .from(schema.prospect)
+    .where(and(live, isNotNull(schema.prospect.qualityBand)))
+    .groupBy(schema.prospect.qualityBand)
+  const by = new Map(bandRows.map((r) => [r.band, r.n]))
+  const [unverifiedRow] = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(schema.prospect)
+    .where(and(live, isNull(schema.prospect.verifiedAt), isNotNull(schema.prospect.enrichedAt)))
+  const [bestRow] = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(schema.prospect)
+    .where(and(live, eq(schema.prospect.qualityBand, 'best'), isNotNull(schema.prospect.phone), phoneOk()))
+  const scoreRows = await db
+    .select({ score: schema.prospect.qualityScore, n: sql<number>`count(*)::int` })
+    .from(schema.prospect)
+    .where(and(live, isNotNull(schema.prospect.qualityScore)))
+    .groupBy(schema.prospect.qualityScore)
+  const scoreBuckets = Array.from({ length: 21 }, () => 0)
+  for (const r of scoreRows) {
+    if (r.score == null) continue
+    const i = Math.max(0, Math.min(20, Math.floor(r.score / 5)))
+    scoreBuckets[i] += r.n
+  }
+  return {
+    best: by.get('best') ?? 0,
+    good: by.get('good') ?? 0,
+    weak: by.get('weak') ?? 0,
+    parked: by.get('parked') ?? 0,
+    unverified: unverifiedRow?.n ?? 0,
+    bestInQueue: bestRow?.n ?? 0,
+    scoreBuckets,
   }
 }
 
@@ -1206,9 +1286,18 @@ export interface CallListRow {
   opportunityScore: number | null
   scoreBand: string | null
   lastCallOutcome: string | null
+  // Verification (P-01) — the card refuses a bad number as the dial target.
+  phoneStatus: ProspectPhoneStatus | null
+  phoneLineType: ProspectPhoneLineType | null
+  qualityScore: number | null
+  qualityBand: ProspectQualityBand | null
+  qualityReasons: string[]
 }
 
-/** The owner's call list — intent-signaled prospects, freshest signal first. */
+/** The owner's call list — intent-signaled prospects, freshest signal
+ *  first. Hand-raisers BYPASS the quality floor (they asked for us); a
+ *  disconnected number still never becomes the dial target — the card
+ *  says so instead. */
 export async function getCallList(): Promise<CallListRow[]> {
   const rows = await db
     .select()
@@ -1235,6 +1324,11 @@ export async function getCallList(): Promise<CallListRow[]> {
       opportunityScore: p.opportunityScore,
       scoreBand: p.scoreBand,
       lastCallOutcome: lastCalls.get(p.id) ?? null,
+      phoneStatus: (p.phoneStatus as ProspectPhoneStatus | null) ?? null,
+      phoneLineType: (p.phoneLineType as ProspectPhoneLineType | null) ?? null,
+      qualityScore: p.qualityScore,
+      qualityBand: (p.qualityBand as ProspectQualityBand | null) ?? null,
+      qualityReasons: Array.isArray(p.qualityReasons) ? (p.qualityReasons as string[]) : [],
     })
   }
   return out
@@ -1253,6 +1347,10 @@ export interface PhoneQueueRow {
   googleRatingTenths: number | null
   websiteUrl: string | null
   reasons: string[] // why they're worth the call (scoreReasons)
+  phoneStatus: ProspectPhoneStatus | null
+  phoneLineType: ProspectPhoneLineType | null
+  qualityScore: number | null
+  qualityBand: ProspectQualityBand | null
 }
 
 /**
@@ -1262,8 +1360,13 @@ export interface PhoneQueueRow {
  * instead of letting them rot they surface here as a call-first list with the
  * reasons they scored. prospect.email is null precisely because the contact
  * sync found nothing sendable, so that's the gate.
+ *
+ * THE QUALITY FLOOR (P-01): only prospects at or above
+ * `config.qualityFloor` with a number nobody has marked bad. Sorted by
+ * opportunity WITHIN the floor — the two scores are never blended.
  */
-export async function getPhoneQueue(limit = 100): Promise<PhoneQueueRow[]> {
+export async function getPhoneQueue(limit = 100, opts?: { floor?: number }): Promise<PhoneQueueRow[]> {
+  const floor = opts?.floor ?? (await getProspectingConfig()).qualityFloor
   const rows = await db
     .select()
     .from(schema.prospect)
@@ -1273,6 +1376,8 @@ export async function getPhoneQueue(limit = 100): Promise<PhoneQueueRow[]> {
         isNull(schema.prospect.email),
         isNotNull(schema.prospect.phone),
         inArray(schema.prospect.scoreBand, ['hot', 'warm']),
+        aboveFloor(floor),
+        phoneOk(),
       ),
     )
     .orderBy(desc(schema.prospect.opportunityScore), desc(schema.prospect.enrichedAt))
@@ -1290,6 +1395,10 @@ export async function getPhoneQueue(limit = 100): Promise<PhoneQueueRow[]> {
     googleRatingTenths: p.googleRatingTenths,
     websiteUrl: p.websiteUrl,
     reasons: Array.isArray(p.scoreReasons) ? (p.scoreReasons as string[]).slice(0, 4) : [],
+    phoneStatus: (p.phoneStatus as ProspectPhoneStatus | null) ?? null,
+    phoneLineType: (p.phoneLineType as ProspectPhoneLineType | null) ?? null,
+    qualityScore: p.qualityScore,
+    qualityBand: (p.qualityBand as ProspectQualityBand | null) ?? null,
   }))
 }
 
@@ -1297,6 +1406,7 @@ export interface DueFollowUpRow {
   id: string
   name: string
   phone: string | null
+  phoneStatus: ProspectPhoneStatus | null
   email: string | null
   reason: string | null
   nextFollowUpAt: Date
@@ -1327,6 +1437,7 @@ export async function getDueFollowUps(opts?: { now?: Date; limit?: number }): Pr
     id: p.id,
     name: p.name,
     phone: p.phone,
+    phoneStatus: (p.phoneStatus as ProspectPhoneStatus | null) ?? null,
     email: p.email,
     reason: p.followUpReason,
     nextFollowUpAt: p.nextFollowUpAt as Date,
@@ -1364,6 +1475,12 @@ export interface CallQueueItem {
   clicks: number
   /** How callable their front desk is right now (prospect-local time). */
   callWindow: CallWindow
+  // Verification (P-01) — shown beside the number; the cockpit refuses a
+  // bad one as the dial target.
+  phoneStatus: ProspectPhoneStatus | null
+  phoneLineType: ProspectPhoneLineType | null
+  qualityScore: number | null
+  qualityBand: ProspectQualityBand | null
 }
 
 /**
@@ -1373,10 +1490,16 @@ export interface CallQueueItem {
  * the hot phone-first pool (no deliverable email, so the phone is the only
  * door). Deduped across buckets, phone-required, capped so a session always
  * looks finishable.
+ *
+ * THE QUALITY FLOOR (P-01): the phone-first pool serves only prospects at
+ * or above `config.qualityFloor`. Hand-raisers and promised follow-ups
+ * bypass the floor (a human asked, or a human promised) — but NO bucket
+ * ever dials a number marked invalid / disconnected / wrong.
  */
-export async function getCallQueue(opts?: { now?: Date; limit?: number }): Promise<CallQueueItem[]> {
+export async function getCallQueue(opts?: { now?: Date; limit?: number; floor?: number }): Promise<CallQueueItem[]> {
   const now = opts?.now ?? new Date()
   const limit = opts?.limit ?? 25
+  const floor = opts?.floor ?? (await getProspectingConfig()).qualityFloor
   const seen = new Set<string>()
   const picked: Array<{ p: typeof schema.prospect.$inferSelect; source: CallQueueSource }> = []
 
@@ -1395,7 +1518,7 @@ export async function getCallQueue(opts?: { now?: Date; limit?: number }): Promi
     await db
       .select()
       .from(schema.prospect)
-      .where(and(eq(schema.prospect.status, 'call_list'), isNotNull(schema.prospect.phone)))
+      .where(and(eq(schema.prospect.status, 'call_list'), isNotNull(schema.prospect.phone), phoneOk()))
       .orderBy(desc(schema.prospect.intentAt))
       .limit(limit),
     'hand_raiser',
@@ -1411,6 +1534,7 @@ export async function getCallQueue(opts?: { now?: Date; limit?: number }): Promi
           sql`${schema.prospect.nextFollowUpAt} <= ${now}`,
           isNotNull(schema.prospect.phone),
           inArray(schema.prospect.status, ['contacted', 'engaged', 'call_list', 'enriched', 'queued']),
+          phoneOk(),
         ),
       )
       .orderBy(asc(schema.prospect.nextFollowUpAt))
@@ -1428,6 +1552,8 @@ export async function getCallQueue(opts?: { now?: Date; limit?: number }): Promi
           isNull(schema.prospect.email),
           isNotNull(schema.prospect.phone),
           inArray(schema.prospect.scoreBand, ['hot', 'warm']),
+          aboveFloor(floor),
+          phoneOk(),
         ),
       )
       .orderBy(desc(schema.prospect.opportunityScore), desc(schema.prospect.enrichedAt))
@@ -1480,6 +1606,10 @@ export async function getCallQueue(opts?: { now?: Date; limit?: number }): Promi
       opens: warm.get(p.id)?.opens ?? 0,
       clicks: warm.get(p.id)?.clicks ?? 0,
       callWindow: callWindowScore(p.timezone, now),
+      phoneStatus: (p.phoneStatus as ProspectPhoneStatus | null) ?? null,
+      phoneLineType: (p.phoneLineType as ProspectPhoneLineType | null) ?? null,
+      qualityScore: p.qualityScore,
+      qualityBand: (p.qualityBand as ProspectQualityBand | null) ?? null,
     })
   }
   // Within each bucket, dial the answerable ones first — a session that opens
@@ -1515,10 +1645,23 @@ export async function getRecentHotArrivals(
   return { count: countRow?.n ?? 0, arrivals }
 }
 
+/** "Nov 10, 2026" in UTC — the date a caller's verdict was heard. */
+function utcDate(d: Date): string {
+  return new Intl.DateTimeFormat('en-US', { timeZone: 'UTC', month: 'short', day: 'numeric', year: 'numeric' }).format(d)
+}
+
 /**
  * Record a call outcome. 'not_interested' also retires the prospect (call
  * refusal = same respect as a reply refusal); 'won' leaves status alone —
  * markConverted flips it when the clinic org actually exists.
+ *
+ * CALLER FEEDBACK IS THE STRONGEST VERIFICATION SIGNAL (P-01). What the
+ * owner heard beats every database: `disconnected` and `wrong_number` park
+ * the record and take the number out of every dial queue; `closed` (the
+ * practice is gone) disqualifies it; any outcome where someone picked up
+ * (callback / gatekeeper / demo / won / a polite no) writes the `reach`
+ * signal. Two no-answers and a voicemail in a fortnight are normal and
+ * change nothing.
  */
 export async function logCallOutcome(input: {
   prospectId: string
@@ -1528,6 +1671,7 @@ export async function logCallOutcome(input: {
   /** Coded loss reason — only meaningful with outcome='not_interested'. */
   lostReason?: string | null
 }): Promise<void> {
+  const now = new Date()
   await db.insert(schema.prospectCallLog).values({
     id: newId('pcall'),
     prospectId: input.prospectId,
@@ -1539,16 +1683,28 @@ export async function logCallOutcome(input: {
   // draft is stale, clear it. Non-terminal outcomes (callback/voicemail/
   // no-answer) also schedule the next follow-up so the lead never drops;
   // terminal ones clear it.
-  const plan = followUpForOutcome(input.outcome, new Date())
+  const plan = followUpForOutcome(input.outcome, now)
   await db
     .update(schema.prospect)
     .set({
       replyDraft: null,
       nextFollowUpAt: plan.at,
       followUpReason: plan.reason,
-      updatedAt: new Date(),
+      updatedAt: now,
     })
     .where(eq(schema.prospect.id, input.prospectId))
+  await applyCallerFeedback(input.prospectId, input.outcome, now)
+  if (input.outcome === 'closed') {
+    await db
+      .update(schema.outreachEnrollment)
+      .set({ status: 'stopped_manual', stoppedAt: now, stopReason: 'call_closed' })
+      .where(
+        and(
+          eq(schema.outreachEnrollment.prospectId, input.prospectId),
+          inArray(schema.outreachEnrollment.status, ['active', 'paused_ooo']),
+        ),
+      )
+  }
   if (input.outcome === 'not_interested') {
     await db
       .update(schema.prospect)
@@ -1569,6 +1725,90 @@ export async function logCallOutcome(input: {
         ),
       )
   }
+}
+
+/**
+ * The verification half of a logged call (P-01). Reads the row, applies
+ * what the caller heard to the stored signals, recomputes the quality
+ * score from them, writes. A `reach` on a never-verified row only records
+ * the signal — it never invents a score for a record the pass has not
+ * looked at. Best-effort: a failed read leaves the call log intact.
+ */
+async function applyCallerFeedback(prospectId: string, outcome: string, now: Date): Promise<void> {
+  const isReach = (REACHED_CALL_OUTCOMES as readonly string[]).includes(outcome)
+  const isVerdict = outcome === 'disconnected' || outcome === 'wrong_number' || outcome === 'closed'
+  if (!isReach && !isVerdict) return
+  const [row] = await db
+    .select({
+      status: schema.prospect.status,
+      verification: schema.prospect.verification,
+      verifiedAt: schema.prospect.verifiedAt,
+      phone: schema.prospect.phone,
+      phoneStatus: schema.prospect.phoneStatus,
+      phoneLineType: schema.prospect.phoneLineType,
+      businessStatus: schema.prospect.businessStatus,
+      reviewCount: schema.prospect.reviewCount,
+      websiteUrl: schema.prospect.websiteUrl,
+    })
+    .from(schema.prospect)
+    .where(eq(schema.prospect.id, prospectId))
+    .limit(1)
+  if (!row) return
+  const verification = parseVerification(row.verification)
+  const checkedAt = now.toISOString()
+  const label = CALL_OUTCOME_LABELS[outcome as ProspectCallOutcome] ?? outcome
+  const patch: Partial<typeof schema.prospect.$inferInsert> = { updatedAt: now }
+  let status = row.status
+  let phoneStatus = row.phoneStatus
+
+  if (outcome === 'disconnected' || outcome === 'wrong_number') {
+    phoneStatus = outcome
+    const detail =
+      outcome === 'disconnected'
+        ? `Number disconnected on ${utcDate(now)} (heard on a call)`
+        : `Wrong number on ${utcDate(now)} (heard on a call)`
+    verification.phone = { status: outcome, detail, checkedAt, source: 'caller' }
+    patch.phoneStatus = outcome
+    patch.phoneLineType = null
+  } else if (outcome === 'closed') {
+    status = 'disqualified'
+    verification.business = {
+      status: 'closed',
+      detail: `Practice closed or retired — heard on a call ${utcDate(now)}`,
+      checkedAt,
+      source: 'caller',
+    }
+    patch.status = 'disqualified'
+    patch.suppressedReason = 'closed'
+    patch.suppressedAt = now
+    patch.outcomeAt = now
+  } else if (isReach) {
+    verification.reach = {
+      status: 'reached',
+      detail: `Someone picked up on ${utcDate(now)} (${label.toLowerCase()})`,
+      checkedAt,
+      source: 'caller',
+    }
+  }
+  patch.verification = verification
+
+  // A verdict always rescored (the hard zero is honest with no other
+  // signal); a reach rescored only once the pass has looked at the record.
+  if (isVerdict || row.verifiedAt) {
+    const q = computeQualityScore({
+      status,
+      verification,
+      phoneStatus,
+      phoneLineType: patch.phoneLineType === null ? null : row.phoneLineType,
+      businessStatus: row.businessStatus,
+      reviewCount: row.reviewCount,
+      websiteUrl: row.websiteUrl,
+    })
+    patch.qualityScore = q.score
+    patch.qualityBand = q.band
+    patch.qualityReasons = q.reasons
+  }
+  await db.update(schema.prospect).set(patch).where(eq(schema.prospect.id, prospectId))
 }
 
 /**

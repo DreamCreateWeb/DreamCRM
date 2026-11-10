@@ -7,11 +7,16 @@ import {
   INTENT_SIGNAL_LABELS,
   MANUAL_LOSS_REASONS,
   LOSS_REASON_LABELS,
+  CALL_OUTCOME_LABELS,
+  PHONE_STATUS_LABELS,
+  formatProspectPhone,
   type ProspectLossReason,
+  type ProspectPhoneStatus,
 } from '@/lib/types/prospecting'
 import { StatusPill } from '@/components/ui/status-pill'
 import { ActionButton } from '@/components/ui/action-button'
 import { prospectInitials } from '@/lib/prospect-when'
+import { PhoneStandingPill, QualityPill, isBadPhone } from '../quality-pills'
 import { logCallOutcomeAction, convertProspectAction, getBookingLinkAction } from '../admin-actions'
 
 // 'not_interested' is handled separately — it opens a loss-reason picker so
@@ -20,8 +25,21 @@ const OUTCOMES: Array<{ value: string; label: string }> = [
   { value: 'no_answer', label: 'No answer' },
   { value: 'voicemail', label: 'Voicemail' },
   { value: 'callback', label: 'Callback later' },
+  { value: 'gatekeeper', label: 'Reached the desk' },
   { value: 'demo_booked', label: '🎉 Demo booked' },
 ]
+// Caller feedback (P-01) — what the owner heard parks the record: a dead or
+// wrong number leaves every dial queue, a closed practice is disqualified.
+const VERDICTS: Array<{ value: string; label: string }> = [
+  { value: 'disconnected', label: 'Disconnected' },
+  { value: 'wrong_number', label: 'Wrong number' },
+  { value: 'closed', label: 'Practice closed / retired' },
+]
+const VERDICT_TOASTS: Record<string, string> = {
+  disconnected: 'Logged — number parked, off every dial queue.',
+  wrong_number: 'Logged — number parked, off every dial queue.',
+  closed: 'Logged — practice disqualified as closed.',
+}
 
 function ConvertForm({
   row,
@@ -245,7 +263,7 @@ export default function CallCard({ row }: { row: CallListRow }) {
       await logCallOutcomeAction({ prospectId: row.id, outcome, note: note || undefined, lostReason })
       setNote('')
       setLosing(false)
-      toast(outcome === 'not_interested' ? 'Logged — they drop off the list.' : 'Logged.')
+      toast(outcome === 'not_interested' ? 'Logged — they drop off the list.' : (VERDICT_TOASTS[outcome] ?? 'Logged.'))
       setActiveOutcome(null)
     })
   }
@@ -273,7 +291,13 @@ export default function CallCard({ row }: { row: CallListRow }) {
               />
             )}
             {row.lastCallOutcome && (
-              <StatusPill tone="neutral" label={`Last call: ${row.lastCallOutcome.replace(/_/g, ' ')}`} />
+              <StatusPill
+                tone="neutral"
+                label={`Last call: ${CALL_OUTCOME_LABELS[row.lastCallOutcome as keyof typeof CALL_OUTCOME_LABELS] ?? row.lastCallOutcome.replace(/_/g, ' ')}`}
+              />
+            )}
+            {(row.qualityBand || row.qualityScore != null) && (
+              <QualityPill band={row.qualityBand} score={row.qualityScore} reasons={row.qualityReasons} />
             )}
           </div>
           <div className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">
@@ -284,14 +308,34 @@ export default function CallCard({ row }: { row: CallListRow }) {
           </div>
         </div>
         <div className="text-right">
-          {row.phone && (
-            <a
-              href={`tel:${row.phone}`}
-              className="text-lg font-semibold tabular-nums text-teal-600 dark:text-teal-400 hover:underline"
-            >
-              ({row.phone.slice(0, 3)}) {row.phone.slice(3, 6)}-{row.phone.slice(6)}
-            </a>
-          )}
+          {row.phone && isBadPhone(row.phoneStatus) ? (
+            // A number a call or a check said is dead is NEVER the dial
+            // target — say so, and the next card is the next prospect.
+            <div data-dial-refused>
+              <span className="text-lg font-semibold tabular-nums text-gray-500 line-through decoration-2 dark:text-gray-400">
+                {formatProspectPhone(row.phone)}
+              </span>
+              <div className="mt-0.5 flex justify-end">
+                <PhoneStandingPill status={row.phoneStatus} lineType={row.phoneLineType} />
+              </div>
+              <p className="mt-1 max-w-56 text-xs text-gray-500 dark:text-gray-400">
+                {PHONE_STATUS_LABELS[row.phoneStatus as ProspectPhoneStatus]} — not a dial target. Move to the next
+                prospect, or add the right number from the drawer.
+              </p>
+            </div>
+          ) : row.phone ? (
+            <div>
+              <a
+                href={`tel:${row.phone}`}
+                className="text-lg font-semibold tabular-nums text-teal-600 dark:text-teal-400 hover:underline"
+              >
+                {formatProspectPhone(row.phone)}
+              </a>
+              <div className="mt-0.5 flex justify-end">
+                <PhoneStandingPill status={row.phoneStatus} lineType={row.phoneLineType} />
+              </div>
+            </div>
+          ) : null}
           {row.email && (
             <div className="text-xs text-gray-500 dark:text-gray-400">{row.email}</div>
           )}
@@ -337,6 +381,24 @@ export default function CallCard({ row }: { row: CallListRow }) {
         >
           {losing ? 'Cancel' : 'Not interested'}
         </ActionButton>
+        <span className="mx-0.5 h-4 w-px bg-[color:var(--color-hairline)]" aria-hidden="true" />
+        {VERDICTS.map((o) => (
+          <ActionButton
+            key={o.value}
+            size="sm"
+            variant="ghost"
+            pending={pending && activeOutcome === o.value}
+            disabled={pending || (o.value !== 'closed' && isBadPhone(row.phoneStatus))}
+            title={
+              o.value === 'closed'
+                ? 'The practice is gone — disqualify it'
+                : 'Park this number — it leaves every dial queue'
+            }
+            onClick={() => log(o.value)}
+          >
+            {o.label}
+          </ActionButton>
+        ))}
         <ActionButton
           size="sm"
           variant={converting ? 'ghost' : 'secondary'}

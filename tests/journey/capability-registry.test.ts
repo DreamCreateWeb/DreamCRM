@@ -34,7 +34,9 @@ const REGISTERED = new Set(CAPABILITIES.map((c) => c.key))
 /** The deliberate absences from the roster: how work reaches the clinic /
  *  the watcher's own voice, and the one-time setup asks (first-week
  *  questions, not standing jobs on anyone's desk — the roster suite's rule). */
-const META = new Set(['guardian_note', 'proposal_engine', 'staff_alert', 'inbox_sync', ...SETUP_CAPABILITIES])
+// `prospecting` (P-01) is Dream Create's OWN engine — keyed on the platform
+// org, never a clinic's; no clinic ever sees it, so it sits on no specialist.
+const META = new Set(['guardian_note', 'proposal_engine', 'staff_alert', 'inbox_sync', 'prospecting', ...SETUP_CAPABILITIES])
 
 const keysOf = (list: readonly string[]) => Array.from(new Set(list))
 

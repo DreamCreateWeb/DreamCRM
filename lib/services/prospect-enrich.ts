@@ -3,11 +3,13 @@ import { asc, eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { db, schema } from '@/lib/db'
 import { runClaudeJson, aiConfigured } from '@/lib/ai'
-import { findDentalPlace, placesConfigured } from '@/lib/google-places'
+import { findDentalPlaceCandidates, placesConfigured } from '@/lib/google-places'
 import { extractCrawlSignals, extractSiteEmails, findContactPath, findTeamPaths } from '@/lib/prospect-signals'
 import { detectVendors, type DetectedVendor } from '@/lib/prospect-vendors'
 import { computeOpportunityScore, heuristicVerdict } from '@/lib/prospect-scoring'
 import { syncProspectContacts } from './prospect-contacts'
+import { CRAWL_UA, robotsAllows } from './prospect-crawl-policy'
+import { closeVerifyRun, newVerifyRunCtx, verifyProspectSignals, type VerifyRunCtx } from './prospect-verify'
 import type { ProspectAiVerdict, ProspectCrawlSignals } from '@/lib/types/prospecting'
 import {
   getProspectingConfig,
@@ -18,16 +20,17 @@ import {
 
 /**
  * Prospect enrichment — the "does this clinic need us?" pass. Per prospect:
- * Google Places (website/rating/review count) → homepage crawl (signals +
- * email discovery) → verdict (AI when configured + affordable, heuristic
- * fallback) → deterministic opportunity score. Everything is best-effort
- * and budget-gated (prospecting_counter vs config.budgets); a prospect is
- * only marked 'enriched' when Places actually ran, so a paused budget never
- * mislabels clinics as website-less.
+ * Google Places candidates → VERIFICATION (P-01: the listing is MATCHED
+ * against the registry record, never taken blind; NPI liveness; website
+ * liveness; phone validity — lib/services/prospect-verify.ts) → homepage
+ * crawl (signals + email discovery) → verdict (AI when configured +
+ * affordable, heuristic fallback) → deterministic opportunity score.
+ * Everything is best-effort and budget-gated (prospecting_counter vs
+ * config.budgets); a prospect is only marked 'enriched' when Places
+ * actually ran, so a paused budget never mislabels clinics as website-less.
  */
 
 const BATCH_SIZE = 25
-const CRAWL_UA = 'DreamCreateBot/1.0 (+https://www.dreamcreatestudio.com)'
 const CRAWL_TIMEOUT_MS = 10_000
 const CRAWL_MAX_BYTES = 1_000_000
 
@@ -43,27 +46,6 @@ async function fetchPage(url: string): Promise<{ html: string; finalUrl: string;
   const raw = await res.text()
   const html = raw.slice(0, CRAWL_MAX_BYTES)
   return { html, finalUrl: res.url || url, bytes: raw.length }
-}
-
-/** Cheap robots.txt politeness check: a blanket `Disallow: /` under `*` wins. */
-async function robotsAllows(origin: string): Promise<boolean> {
-  try {
-    const res = await fetch(`${origin}/robots.txt`, {
-      headers: { 'user-agent': CRAWL_UA },
-      signal: AbortSignal.timeout(5_000),
-    })
-    if (!res.ok) return true // no robots.txt = crawlable
-    const text = (await res.text()).slice(0, 20_000)
-    let inStar = false
-    for (const line of text.split('\n')) {
-      const l = line.trim().toLowerCase()
-      if (l.startsWith('user-agent:')) inStar = l.includes('*')
-      else if (inStar && /^disallow:\s*\/\s*$/.test(l)) return false
-    }
-    return true
-  } catch {
-    return true
-  }
 }
 
 /**
@@ -220,6 +202,8 @@ export interface EnrichRunResult {
   crawls: number
   aiScored: number
   errors: number
+  /** Retired NPIs + permanently closed listings the verification pass set aside. */
+  disqualified: number
   skipped?: string
 }
 
@@ -234,19 +218,18 @@ interface EnrichBudgetCtx {
 type ProspectRow = typeof schema.prospect.$inferSelect
 
 /**
- * Enrich ONE prospect: Places → crawl → verdict → score → write. Mutates
- * the shared budget context (counters). `restoreStatus` is what the row
- * returns to on failure ('discovered' for the cron pool; the row's own
- * status for a manual re-enrich).
+ * Enrich ONE prospect: Places candidates → verify (match + liveness +
+ * phone) → crawl → verdict → score → write. Mutates the shared budget
+ * context (counters). `restoreStatus` is what the row returns to on
+ * failure ('discovered' for the cron pool; the row's own status for a
+ * manual re-enrich).
  */
 async function enrichOneProspect(
-  p: Pick<
-    ProspectRow,
-    'id' | 'name' | 'addressLine1' | 'city' | 'state' | 'email' | 'emailSource' | 'authorizedOfficialName' | 'status'
-  >,
+  p: ProspectRow,
   budget: EnrichBudgetCtx,
   out: EnrichRunResult,
   restoreStatus: string,
+  verifyCtx: VerifyRunCtx,
 ): Promise<void> {
   try {
     await db
@@ -254,8 +237,8 @@ async function enrichOneProspect(
       .set({ status: 'enriching', updatedAt: new Date() })
       .where(eq(schema.prospect.id, p.id))
 
-    // 1) Places — website + reputation.
-    const place = await findDentalPlace({
+    // 1) Places — up to three candidate listings (one metered request).
+    const places = await findDentalPlaceCandidates({
       name: p.name,
       addressLine1: p.addressLine1,
       city: p.city,
@@ -265,25 +248,39 @@ async function enrichOneProspect(
     out.placesLookups++
     await bumpProspectingCounter(budget.month, 'places_lookup')
 
-    // A permanently-closed practice is not a prospect.
-    if (place?.businessStatus === 'CLOSED_PERMANENTLY') {
+    // 1b) VERIFY (P-01). The matcher decides which candidate — if any — is
+    // this practice; only a REAL match's data is copied below. A retired
+    // NPI or a permanently closed listing disqualifies here, before a crawl
+    // or an AI call is spent on a practice that no longer exists.
+    const verified = await verifyProspectSignals(p, places, verifyCtx)
+    const place = verified.place
+    if (verified.patch.status === 'disqualified') {
       await db
         .update(schema.prospect)
         .set({
-          status: 'disqualified',
-          googlePlaceId: place.placeId,
-          businessStatus: place.businessStatus,
+          ...verified.patch,
+          googlePlaceId: place?.placeId ?? null,
+          businessStatus: place?.businessStatus ?? null,
           updatedAt: new Date(),
         })
         .where(eq(schema.prospect.id, p.id))
+      out.disqualified++
       return
     }
 
-    const websiteUrl = place?.websiteUri ?? null
+    const websiteUrl = verified.websiteUrl
+    const websiteStatus = verified.patch.verification.website?.status
 
-    // 2) Crawl (budget-gated; skipped = heuristic verdict still works).
+    // 2) Crawl (budget-gated; skipped = heuristic verdict still works). A
+    //    dead or parked site is not crawled — there is nothing to read and
+    //    the quality score already parks the record.
     let signals: ProspectCrawlSignals | null = null
-    if (websiteUrl && budget.crawlsUsed < budget.budgets.crawlsPerMonth) {
+    if (
+      websiteUrl &&
+      websiteStatus !== 'dead' &&
+      websiteStatus !== 'parked' &&
+      budget.crawlsUsed < budget.budgets.crawlsPerMonth
+    ) {
       signals = await crawlProspectSite(websiteUrl)
       budget.crawlsUsed++
       out.crawls++
@@ -327,6 +324,7 @@ async function enrichOneProspect(
     await db
       .update(schema.prospect)
       .set({
+        // Reputation + listing fields come from the MATCHED place only.
         websiteUrl,
         googlePlaceId: place?.placeId ?? null,
         googleRatingTenths: place?.ratingTenths ?? null,
@@ -338,6 +336,9 @@ async function enrichOneProspect(
         opportunityScore: scored.score,
         scoreBand: scored.band,
         scoreReasons: scored.reasons,
+        // The verification columns (signals, quality, phone standing, a
+        // refreshed address) — see lib/services/prospect-verify.ts.
+        ...verified.patch,
         status: enrichedStatus,
         enrichedAt: new Date(),
         scoredAt: new Date(),
@@ -372,7 +373,7 @@ async function enrichOneProspect(
 export async function runEnrichment(opts?: { batchSize?: number }): Promise<EnrichRunResult> {
   const config = await getProspectingConfig()
   const out: EnrichRunResult = {
-    scanned: 0, enriched: 0, placesLookups: 0, crawls: 0, aiScored: 0, errors: 0,
+    scanned: 0, enriched: 0, placesLookups: 0, crawls: 0, aiScored: 0, errors: 0, disqualified: 0,
   }
   if (config.killSwitch) return { ...out, skipped: 'kill_switch' }
   if (!placesConfigured()) return { ...out, skipped: 'places_not_configured' }
@@ -396,11 +397,13 @@ export async function runEnrichment(opts?: { batchSize?: number }): Promise<Enri
     .orderBy(asc(schema.prospect.createdAt))
     .limit(opts?.batchSize ?? BATCH_SIZE)
 
+  const verifyCtx = await newVerifyRunCtx(config)
   for (const p of batch) {
     if (budget.placesUsed >= config.budgets.placesPerMonth) break
     out.scanned++
-    await enrichOneProspect(p, budget, out, 'discovered')
+    await enrichOneProspect(p, budget, out, 'discovered', verifyCtx)
   }
+  await closeVerifyRun(verifyCtx)
   return out
 }
 
@@ -436,8 +439,11 @@ export async function reEnrichProspect(
   }
 
   const out: EnrichRunResult = {
-    scanned: 1, enriched: 0, placesLookups: 0, crawls: 0, aiScored: 0, errors: 0,
+    scanned: 1, enriched: 0, placesLookups: 0, crawls: 0, aiScored: 0, errors: 0, disqualified: 0,
   }
-  await enrichOneProspect(p, budget, out, p.status)
+  // A re-enrich re-verifies by construction — same pass, own run context.
+  const verifyCtx = await newVerifyRunCtx(config)
+  await enrichOneProspect(p, budget, out, p.status, verifyCtx)
+  await closeVerifyRun(verifyCtx)
   return out.errors > 0 ? { ok: false, reason: 'enrich_failed' } : { ok: true }
 }

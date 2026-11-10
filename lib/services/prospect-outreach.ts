@@ -789,6 +789,10 @@ export async function runAutoEnroll(opts?: { now?: Date }): Promise<AutoEnrollRe
         eq(schema.prospect.status, 'enriched'),
         isNotNull(schema.prospect.email),
         inArray(schema.prospect.scoreBand, config.autoEnroll.bands),
+        // THE QUALITY FLOOR (P-01): the hunter never drips a practice the
+        // verification pass could not stand behind. Unverified rows
+        // (null) wait for the sweep.
+        gte(schema.prospect.qualityScore, config.qualityFloor),
       ),
     )
     .orderBy(sql`${schema.prospect.opportunityScore} DESC NULLS LAST`, asc(schema.prospect.enrichedAt))

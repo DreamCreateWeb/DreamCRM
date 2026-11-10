@@ -5,12 +5,19 @@ import Link from 'next/link'
 import { ActionButton } from '@/components/ui/action-button'
 import { StatusPill } from '@/components/ui/status-pill'
 import type { CallQueueItem } from '@/lib/services/prospecting'
-import { MANUAL_LOSS_REASONS, LOSS_REASON_LABELS } from '@/lib/types/prospecting'
+import {
+  MANUAL_LOSS_REASONS,
+  LOSS_REASON_LABELS,
+  CALL_OUTCOME_LABELS,
+  PHONE_STATUS_LABELS,
+  type ProspectPhoneStatus,
+} from '@/lib/types/prospecting'
 import type { CallScript } from '@/lib/types/call-script'
 import { prospectInitials } from '@/lib/prospect-when'
 import { Stage } from '../stage'
 import PracticePanel from './practice-panel'
 import { TONE_FILL } from '@/lib/ui/encodings'
+import { PhoneStandingPill, QualityPill, isBadPhone } from '../quality-pills'
 import {
   getCallScriptAction,
   logCallOutcomeAction,
@@ -22,8 +29,11 @@ import {
  * time, the warm signals that prove it isn't really cold). Right: the AI
  * script as a numbered teleprompter. Top: a session strip — one segment per
  * call that fills with your outcome's color as you go. Bottom: a docked
- * outcome bar with keyboard shortcuts (1–5) so logging never breaks flow.
- * The current script loads on entry and the NEXT prefetches while you talk.
+ * outcome bar with keyboard shortcuts (1–9) so logging never breaks flow —
+ * 6/7/8 are the caller's verdicts (P-01: disconnected / wrong number /
+ * practice closed) that park a bad record for good. The current script
+ * loads on entry and the NEXT prefetches while you talk. A number marked
+ * bad is never the dial target: the zone says so and offers the next card.
  */
 
 type ScriptState = CallScript | 'loading' | 'failed'
@@ -38,18 +48,18 @@ const SOURCE_META: Record<CallQueueItem['source'], { label: string; tone: 'speci
 const SEGMENT_COLOR: Record<string, string> = {
   demo_booked: 'bg-emerald-500',
   callback: 'bg-amber-500',
+  gatekeeper: 'bg-amber-300',
   voicemail: 'bg-gray-400 dark:bg-gray-500',
   no_answer: 'bg-gray-300 dark:bg-gray-600',
   not_interested: 'bg-rose-400',
+  disconnected: 'bg-rose-300',
+  wrong_number: 'bg-rose-300',
+  closed: 'bg-gray-500 dark:bg-gray-400',
   skipped: 'bg-[color:var(--color-surface-sunk)]',
 }
 /** Text twin of the segment colors — hover/AT never has to read a hue. */
 const OUTCOME_LABELS: Record<string, string> = {
-  demo_booked: 'Demo booked',
-  callback: 'Callback',
-  voicemail: 'Voicemail',
-  no_answer: 'No answer',
-  not_interested: 'Not interested',
+  ...CALL_OUTCOME_LABELS,
   skipped: 'Skipped',
 }
 
@@ -169,7 +179,8 @@ export default function CallSession({ items }: { items: CallQueueItem[] }) {
   }
 
   // Keyboard shortcuts: 1 demo · 2 callback · 3 voicemail · 4 no answer ·
-  // 5 pass · Esc closes pickers. Silent while typing in an input.
+  // 5 pass · 6 disconnected · 7 wrong number · 8 practice closed · 9 reached
+  // the desk · Esc closes pickers. Silent while typing in an input.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement | null)?.tagName
@@ -189,6 +200,10 @@ export default function CallSession({ items }: { items: CallQueueItem[] }) {
       else if (e.key === '3') log('voicemail')
       else if (e.key === '4') log('no_answer')
       else if (e.key === '5') setPassPicker(true)
+      else if (e.key === '6') log('disconnected')
+      else if (e.key === '7') log('wrong_number')
+      else if (e.key === '8') log('closed')
+      else if (e.key === '9') log('gatekeeper')
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
@@ -266,6 +281,7 @@ export default function CallSession({ items }: { items: CallQueueItem[] }) {
     item.googleRatingTenths != null
       ? `${(item.googleRatingTenths / 10).toFixed(1)}★${item.reviewCount != null ? ` (${item.reviewCount})` : ''}`
       : null
+  const badPhone = isBadPhone(item.phoneStatus)
 
   return (
     <div>
@@ -322,21 +338,46 @@ export default function CallSession({ items }: { items: CallQueueItem[] }) {
               )}
             </div>
           </div>
-          <div className="mt-2.5">
+          <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
             <StatusPill tone={meta.tone} label={meta.label} />
+            {(item.qualityBand || item.qualityScore != null) && (
+              <QualityPill band={item.qualityBand} score={item.qualityScore} />
+            )}
           </div>
 
-          {/* The number — the one tap that matters. */}
-          <a
-            href={`tel:+1${item.phone}`}
-            className="relative mt-4 block rounded-[var(--r-md)] bg-gradient-to-b from-teal-700 to-teal-600 px-4 py-4 text-center transition hover:from-teal-800 hover:to-teal-700"
-          >
-            <span className="absolute right-3 top-2.5 h-2 w-2 animate-pulse rounded-full bg-teal-200" aria-hidden="true" />
-            <span className="font-mono-num text-2xl font-extrabold tracking-tight text-white">
-              {fmtPhone(item.phone)}
-            </span>
-            <span className="mt-0.5 block text-xs text-teal-100/80">tap to call</span>
-          </a>
+          {/* The number — the one tap that matters. A number marked bad is
+              refused as the dial target: the zone says why and offers the
+              next card instead of a dead tone. */}
+          {badPhone ? (
+            <div
+              className="mt-4 rounded-[var(--r-md)] bg-[color:var(--color-surface-sunk)] px-4 py-4 text-center ring-1 ring-[color:var(--color-hairline)]"
+              data-dial-refused
+            >
+              <span className="font-mono-num text-xl font-extrabold tracking-tight text-gray-500 line-through decoration-2 dark:text-gray-400">
+                {fmtPhone(item.phone)}
+              </span>
+              <p className="mt-1 text-xs text-gray-600 dark:text-gray-300">
+                {PHONE_STATUS_LABELS[item.phoneStatus as ProspectPhoneStatus]} — not a dial target.
+              </p>
+              <ActionButton size="sm" variant="secondary" className="mt-2" onClick={() => advance('skipped')}>
+                Next prospect →
+              </ActionButton>
+            </div>
+          ) : (
+            <a
+              href={`tel:+1${item.phone}`}
+              className="relative mt-4 block rounded-[var(--r-md)] bg-gradient-to-b from-teal-700 to-teal-600 px-4 py-4 text-center transition hover:from-teal-800 hover:to-teal-700"
+            >
+              <span className="absolute right-3 top-2.5 h-2 w-2 animate-pulse rounded-full bg-teal-200" aria-hidden="true" />
+              <span className="font-mono-num text-2xl font-extrabold tracking-tight text-white">
+                {fmtPhone(item.phone)}
+              </span>
+              <span className="mt-0.5 block text-xs text-teal-100/80">tap to call</span>
+            </a>
+          )}
+          <div className="mt-2 flex justify-center">
+            <PhoneStandingPill status={item.phoneStatus} lineType={item.phoneLineType} />
+          </div>
           {theirTime && (
             <div className="mt-3 flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
               <span>their local time</span>
@@ -385,7 +426,7 @@ export default function CallSession({ items }: { items: CallQueueItem[] }) {
                 )}
                 {item.intentSummary && <p>💬 {item.intentSummary}</p>}
                 {item.followUpReason && <p>⏰ You promised: {item.followUpReason}</p>}
-                {item.lastCallOutcome && <p>📞 Last call: {item.lastCallOutcome.replace(/_/g, ' ')}</p>}
+                {item.lastCallOutcome && <p>📞 Last call: {OUTCOME_LABELS[item.lastCallOutcome] ?? item.lastCallOutcome.replace(/_/g, ' ')}</p>}
               </div>
             </div>
           )}
@@ -550,11 +591,25 @@ export default function CallSession({ items }: { items: CallQueueItem[] }) {
             <OutcomeButton kbd="5" disabled={pending} onClick={() => setPassPicker(true)}>
               ✕ Pass
             </OutcomeButton>
+            <OutcomeButton kbd="9" disabled={pending} busy={pending && activeOutcome === 'gatekeeper'} onClick={() => log('gatekeeper')}>
+              🛎 Reached the desk
+            </OutcomeButton>
+            <span className="mx-0.5 h-6 w-px bg-[color:var(--color-hairline)]" aria-hidden="true" />
+            <OutcomeButton kbd="6" disabled={pending || badPhone} busy={pending && activeOutcome === 'disconnected'} onClick={() => log('disconnected')}>
+              ☎︎✕ Disconnected
+            </OutcomeButton>
+            <OutcomeButton kbd="7" disabled={pending || badPhone} busy={pending && activeOutcome === 'wrong_number'} onClick={() => log('wrong_number')}>
+              ↯ Wrong number
+            </OutcomeButton>
+            <OutcomeButton kbd="8" disabled={pending} busy={pending && activeOutcome === 'closed'} onClick={() => log('closed')}>
+              🚪 Practice closed / retired
+            </OutcomeButton>
           </div>
         )}
 
         <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-          Keys 1–5 log outcomes · callbacks, voicemails, and no-answers schedule their own follow-up — nothing drops.
+          Keys 1–9 log outcomes · 6, 7 and 8 park a dead number or a closed practice so it never comes back ·
+          callbacks, voicemails, and no-answers schedule their own follow-up — nothing drops.
         </p>
       </div>
 

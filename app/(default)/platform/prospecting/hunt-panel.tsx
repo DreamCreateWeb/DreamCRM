@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import type { HuntStats } from '@/lib/services/prospecting'
-import type { ProspectingConfig } from '@/lib/types/prospecting'
-import { INTENT_SIGNAL_LABELS, type ProspectIntentSignal } from '@/lib/types/prospecting'
+import type { ProspectingConfig, ProspectQualityCounts } from '@/lib/types/prospecting'
+import { INTENT_SIGNAL_LABELS, formatUtcStamp, type ProspectIntentSignal } from '@/lib/types/prospecting'
 import { StatusPill } from '@/components/ui/status-pill'
 import { EncodingLegend } from '@/components/ui/encoding-legend'
 import type { Tone } from '@/lib/ui/encodings'
@@ -27,12 +27,18 @@ export default function HuntPanel({
   config,
   env,
   sentByHour,
+  quality,
+  failures,
 }: {
   stats: HuntStats
   /** The hourly send series from the metrics snapshot (ML-38) — spark + honest line. */
   sentByHour?: Heartbeat | null
   config: ProspectingConfig
   env: { senderConfigured: boolean; gmailConfigured: boolean }
+  /** Verification + quality counts (P-01); absent = the tiles stay off. */
+  quality?: ProspectQualityCounts | null
+  /** The verification pass's strikes this week (P-01), newest first. */
+  failures?: Array<{ summary: string; occurredAt: Date }> | null
 }) {
   const live = !config.killSwitch && !config.dryRun
   const senderReady = env.senderConfigured || env.gmailConfigured
@@ -94,6 +100,37 @@ export default function HuntPanel({
         {tile('New call-list', stats.newCallList24h, undefined, stats.newCallList24h > 0 ? 'warn' : undefined)}
         {tile('Auto-enrolled', stats.autoEnrolledToday, 'today')}
       </div>
+
+      {quality && (
+        <div className="mt-3">
+          <div className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+            Verification · floor {config.qualityFloor}
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3" data-quality-tiles>
+            {tile('Best in queue', quality.bestInQueue, 'verified + dialable')}
+            {tile('Good', quality.good, 'quality 60–79')}
+            {tile('Parked', quality.parked, 'not served', quality.parked > 0 ? 'warn' : undefined)}
+            {tile('Not verified yet', quality.unverified, 'the sweep is on it')}
+          </div>
+        </div>
+      )}
+
+      {failures && failures.length > 0 && (
+        <div
+          role="status"
+          className="mt-3 rounded-[var(--r-xs)] bg-amber-500/10 ring-1 ring-inset ring-amber-500/20 px-3 py-2 text-xs text-amber-800 dark:text-amber-200"
+          data-verification-failures
+        >
+          <span className="font-semibold">Verification hit a wall this week.</span>
+          <ul className="mt-1 space-y-0.5">
+            {failures.slice(0, 4).map((f, i) => (
+              <li key={i}>
+                {f.summary} <span className="text-amber-700/80 dark:text-amber-300/80">({formatUtcStamp(f.occurredAt)})</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {stats.hottest.length > 0 && (
         <div className="mt-4">

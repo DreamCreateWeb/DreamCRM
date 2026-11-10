@@ -7,6 +7,9 @@ const FOLLOWUP_CADENCE: Record<string, { days: number; reason: string }> = {
   callback: { days: 1, reason: 'They asked for a callback' },
   voicemail: { days: 2, reason: 'Left a voicemail — circle back' },
   no_answer: { days: 2, reason: 'No answer — try again' },
+  // Reached the desk, not the decision maker (P-01): worth another try,
+  // but give them a few days — a same-week second call reads as pestering.
+  gatekeeper: { days: 3, reason: 'Reached the desk — try for the decision maker' },
 }
 
 export interface FollowUpPlan {

@@ -52,6 +52,42 @@ const { syncContactsMock } = vi.hoisted(() => ({
 }))
 vi.mock('@/lib/services/prospect-contacts', () => ({ syncProspectContacts: syncContactsMock }))
 
+// The verification pass (P-01) is exercised in verify.test.ts; here it is a
+// stub that takes the first candidate as the match (the old blind
+// behaviour, deliberately — enrichment's own contract is what is under
+// test) and disqualifies a permanently closed one.
+const { verifyMock } = vi.hoisted(() => ({
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  verifyMock: vi.fn(async (_p: unknown, places: { ok: boolean; places?: Array<Record<string, unknown>> } | null): Promise<any> => {
+    const place = places?.ok ? (places.places?.[0] ?? null) : null
+    const closed = place?.businessStatus === 'CLOSED_PERMANENTLY'
+    return {
+      patch: {
+        verification: {},
+        verifiedAt: new Date('2026-07-07T00:00:00Z'),
+        qualityScore: closed ? 0 : 82,
+        qualityBand: closed ? 'parked' : 'best',
+        qualityReasons: [],
+        phone: null,
+        phoneStatus: 'unknown',
+        phoneLineType: null,
+        phoneSource: null,
+        phoneValidatedAt: null,
+        ...(closed ? { status: 'disqualified', suppressedReason: 'closed' } : {}),
+      },
+      place,
+      match: null,
+      websiteUrl: place ? (place.websiteUri as string | null) : null,
+      liveness: null,
+    }
+  }),
+}))
+vi.mock('@/lib/services/prospect-verify', () => ({
+  verifyProspectSignals: verifyMock,
+  newVerifyRunCtx: vi.fn(async () => ({})),
+  closeVerifyRun: vi.fn(async () => {}),
+}))
+
 const { configMock, counterMock, bumpMock, placeMock, placesConfiguredMock, aiMock, aiConfiguredMock, fetchMock } =
   vi.hoisted(() => ({
     configMock: vi.fn(),
@@ -73,7 +109,7 @@ vi.mock('@/lib/services/prospecting', () => ({
   counterMonth: () => '2026-07',
 }))
 vi.mock('@/lib/google-places', () => ({
-  findDentalPlace: placeMock,
+  findDentalPlaceCandidates: placeMock,
   placesConfigured: placesConfiguredMock,
 }))
 vi.mock('@/lib/ai', () => ({
@@ -93,12 +129,17 @@ const PROSPECT = {
 
 const PLACE = {
   placeId: 'place_1',
+  displayName: 'Smile Dental',
+  formattedAddress: '123 Main St, Atlanta, GA 30309, USA',
+  nationalPhoneNumber: null,
   websiteUri: 'https://smiledental.com',
   ratingTenths: 47,
   reviewCount: 22,
   businessStatus: 'OPERATIONAL',
   googleMapsUri: 'https://maps.google.com/x',
 }
+/** The candidates shape findDentalPlaceCandidates returns. */
+const found = (...places: Array<Record<string, unknown>>) => ({ ok: true as const, places })
 
 const HOMEPAGE = `<!doctype html><html><head><title>Smile Dental</title>
   <meta name="viewport" content="width=device-width"></head>
@@ -148,7 +189,7 @@ describe('runEnrichment gating', () => {
 describe('runEnrichment happy path', () => {
   it('Places → crawl → AI verdict → deterministic score → enriched (+ crawled email)', async () => {
     state.selectQueue.push([PROSPECT])
-    placeMock.mockResolvedValue(PLACE)
+    placeMock.mockResolvedValue(found(PLACE))
     mockPageFetches()
     aiMock.mockResolvedValue({
       websiteQuality: 25,
@@ -172,6 +213,9 @@ describe('runEnrichment happy path', () => {
       scoreBand: 'hot', // quality 25 + no booking + no social ⇒ 65+8+5+4 = 82
     })
     expect(final.values.opportunityScore).toBeGreaterThanOrEqual(80)
+    // The verification patch rides the same write (P-01).
+    expect(final.values).toMatchObject({ qualityScore: 82, qualityBand: 'best' })
+    expect(verifyMock).toHaveBeenCalledWith(expect.objectContaining({ id: 'pros_1' }), found(PLACE), expect.anything())
     // The crawled address is now handed to the reachability layer (which
     // classifies/verifies/ranks it and sets prospect.email), not written inline.
     expect(syncContactsMock).toHaveBeenCalledWith(
@@ -182,7 +226,7 @@ describe('runEnrichment happy path', () => {
 
   it('no website found → hot without spending a crawl or AI call', async () => {
     state.selectQueue.push([PROSPECT])
-    placeMock.mockResolvedValue({ ...PLACE, websiteUri: null })
+    placeMock.mockResolvedValue(found({ ...PLACE, websiteUri: null }))
 
     const r = await runEnrichment()
     expect(r).toMatchObject({ enriched: 1, crawls: 0, aiScored: 0 })
@@ -194,17 +238,20 @@ describe('runEnrichment happy path', () => {
 
   it('permanently closed practices are disqualified, not scored', async () => {
     state.selectQueue.push([PROSPECT])
-    placeMock.mockResolvedValue({ ...PLACE, businessStatus: 'CLOSED_PERMANENTLY' })
+    placeMock.mockResolvedValue(found({ ...PLACE, businessStatus: 'CLOSED_PERMANENTLY' }))
 
     const r = await runEnrichment()
     expect(r.enriched).toBe(0)
+    expect(r.disqualified).toBe(1)
     const final = state.updates.at(-1)!
-    expect(final.values).toMatchObject({ status: 'disqualified' })
+    expect(final.values).toMatchObject({ status: 'disqualified', suppressedReason: 'closed' })
+    // No crawl, no AI — nothing is spent on a practice that no longer exists.
+    expect(aiMock).not.toHaveBeenCalled()
   })
 
   it('AI failure falls back to the heuristic verdict (still enriched + scored)', async () => {
     state.selectQueue.push([PROSPECT])
-    placeMock.mockResolvedValue(PLACE)
+    placeMock.mockResolvedValue(found(PLACE))
     mockPageFetches()
     aiMock.mockRejectedValue(new Error('api down'))
 
@@ -229,7 +276,7 @@ describe('runEnrichment happy path', () => {
 describe('reEnrichProspect (manual refresh)', () => {
   it('refreshes an already-forward prospect WITHOUT demoting its status', async () => {
     state.selectQueue.push([{ ...PROSPECT, status: 'contacted' }])
-    placeMock.mockResolvedValue(PLACE)
+    placeMock.mockResolvedValue(found(PLACE))
     mockPageFetches()
     aiMock.mockResolvedValue({
       websiteQuality: 25, websiteReasons: [], socialPresence: 0,
@@ -240,6 +287,27 @@ describe('reEnrichProspect (manual refresh)', () => {
     const final = state.updates.at(-1)!
     // Fresh enrichment written, pipeline status preserved.
     expect(final.values).toMatchObject({ status: 'contacted', websiteUrl: 'https://smiledental.com' })
+  })
+
+  it('a dead or parked website is never crawled — the quality score already parks the record', async () => {
+    state.selectQueue.push([PROSPECT])
+    placeMock.mockResolvedValue(found(PLACE))
+    verifyMock.mockImplementationOnce(async () => ({
+      patch: {
+        verification: { website: { status: 'dead', detail: 'smiledental.com no longer resolves (DNS)', checkedAt: '2026-07-07T00:00:00.000Z', source: 'crawl' } },
+        verifiedAt: new Date('2026-07-07T00:00:00Z'),
+        qualityScore: 0, qualityBand: 'parked', qualityReasons: ['smiledental.com no longer resolves (DNS)'],
+        phone: null, phoneStatus: 'unknown', phoneLineType: null, phoneSource: null, phoneValidatedAt: null,
+      },
+      place: PLACE, match: null, websiteUrl: PLACE.websiteUri, liveness: null,
+    }))
+    mockPageFetches()
+    const r = await runEnrichment()
+    expect(r).toMatchObject({ enriched: 1, crawls: 0, aiScored: 0 })
+    const final = state.updates.at(-1)!
+    expect(final.values).toMatchObject({ status: 'enriched', qualityBand: 'parked', websiteUrl: 'https://smiledental.com' })
+    // The opportunity score still says "they need a website" — the two scores are never blended.
+    expect(final.values.opportunityScore).toBeGreaterThanOrEqual(65)
   })
 
   it('fails soft on budget exhaustion and unknown ids', async () => {

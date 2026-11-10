@@ -511,6 +511,60 @@ WIN/LOSS pipeline + learning loop (`getWinLossReport` + `lib/prospect-
 learnings.ts` — captures why we lose, feeds "what's converting / top objection"
 back into outreach above a min sample), and the TERRITORY map + focus mode
 (`getTerritoryCoverage` + `lib/prospect-territory.ts` + `config.focus.state`).
+**PROSPECT VERIFICATION + THE QUALITY SCORE (P-01, 2026-11-10 — the owner's
+"a lot of the leads have disconnected numbers or are retired practices"):**
+every prospect now carries a VERIFICATION map (`prospect.verification`
+jsonb, one `{status, detail, checkedAt, source}` per signal) and a QUALITY
+score (`quality_score` 0–100 / `quality_band` best≥80 · good≥60 · weak≥40 ·
+parked, `quality_reasons` plain sentences; `lib/prospect-quality.ts`, pure)
+that is NEVER blended with the opportunity score — the queues sort by
+opportunity WITHIN the floor. The signals, each pure + stored: the Google
+listing is MATCHED (`lib/prospect-match.ts` — name tokens / street+ZIP /
+phone against up to three `searchText` candidates, `nationalPhoneNumber`
+now in the mask; a miss records `places: no_match` and copies NOTHING of
+the candidate — the old blind `places[0]` was how a retired practice came
+to wear a live business's rating and website; a matched listing's phone
+replaces the registry's, `phone_source: places`); business status
+(CLOSED_PERMANENTLY → disqualified `closed`, CLOSED_TEMPORARILY → parked,
+re-verified in 30 days); NPI liveness (`lookupNpi` in `lib/nppes.ts`, free —
+deactivated / gone → disqualified `retired` with the deactivation date, a
+moved location refreshes the address + phone); website liveness
+(`lib/services/prospect-site-liveness.ts` — DNS / HEAD / GET, 6s ×2,
+DreamCreateBot, robots honoured through `prospect-crawl-policy.ts`;
+alive | dead | parked (registrar fingerprints) | redirected — a dead or
+parked site is a retired-practice signal, NOT "no website"); phone validity
+(`lib/phone-nanp.ts` NANP syntax → `invalid`; then the line type through
+`lib/services/phone-validate.ts` — driver `PHONE_VALIDATE_DRIVER=aws` =
+Amazon Pinpoint `PhoneNumberValidate` via `@aws-sdk/client-pinpoint`,
+~$0.006 a number, metered by the `phone_validate` month counter against
+`budgets.phoneValidatePerMonth` (default 1,500); **the app role needs the
+IAM action `mobiletargeting:PhoneNumberValidate`** — a refusal is ONE engine
+strike a day and the pass fails open; unset = off, numbers are
+format-checked only); and CALLER FEEDBACK, the strongest signal of all
+(`PROSPECT_CALL_OUTCOMES` + `disconnected` / `wrong_number` / `closed` /
+`gatekeeper`; `logCallOutcome` parks a dead number for good — it leaves
+every dial queue — disqualifies a closed practice, and writes the `reach`
+signal when a human picked up; keys 6/7/8/9 in Call Mode). THE FLOOR:
+`config.qualityFloor` (default 60; the settings slider with live
+above/below counts) — `getPhoneQueue`, Call Mode's phone-first bucket and
+`runAutoEnroll` serve only `quality_score ≥ floor` (an unverified NULL
+never passes) AND a phone not in `BAD_PHONE_STATUSES`; hand-raisers and
+promised follow-ups bypass the floor but never a bad phone (the call card
+and Call Mode REFUSE a bad number as the dial target and say so). WHEN:
+inline in every enrich pass (after Places, before the opportunity score —
+`lib/services/prospect-verify.ts`), the RE-VERIFY SWEEP on the same cron
+(never-verified live rows first, then older than 60 days, parked after 30;
+batch 25; Places + phone checks metered, NPPES ≤50 a run), every re-enrich,
+and the drawer's "Verify now". The `prospecting` engine-failure producer
+(`reportProspectingFailure`, keyed on the PLATFORM org, one strike a day
+per class: places_auth / phone_validate_auth / nppes_down / crawl_blocked;
+the `prospecting` capability is meta — off the roster) surfaces on the
+Engine view and the settings panel's phone-validation pill. UI: the table's
+Quality column + Best / Good / Parked filters, the drawer's Verification
+card (every signal's source and UTC-marked checked-at; "Verified" = every
+core signal inside 60 days), the hunt tiles (Best in queue / Parked / Not
+verified yet), phone standing beside every number. Migration
+`p01_prospect_quality`.
 Schema `lib/db/schema/prospecting.ts` is platform-global, NO organizationId by
 design; ships behind kill switch + dry-run + auto-enroll-off; say
 "prospect", never "lead"),

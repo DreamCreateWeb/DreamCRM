@@ -1,5 +1,5 @@
 import 'server-only'
-import { recordEngineFailure } from '@/lib/services/action-ledger'
+import { listRecentActions, recordEngineFailure } from '@/lib/services/action-ledger'
 
 /**
  * THE AUTOMATION FAILURE REGISTRY (Phase 4 open item #1, 2026-07-31).
@@ -74,7 +74,29 @@ export const AUTOMATION_FAILURE = {
     capability: 'inbox_sync',
     summary: 'Couldn’t pull in your latest email just now — I’ll keep trying.',
   },
+  // THE PROSPECTING ENGINE (P-01): keyed on the PLATFORM org (Dream Create
+  // is the only reader), one strike a day PER FAILURE CLASS — see
+  // reportProspectingFailure below, which carries the class in the sentence.
+  prospecting: {
+    capability: 'prospecting',
+    summary: 'Couldn’t verify a batch of prospects just now — I’ll keep trying.',
+  },
 } as const satisfies Record<string, { capability: string; summary: string }>
+
+/**
+ * The prospecting engine's failure classes (P-01). Each is a distinct
+ * plumbing fault with a distinct fix, so each gets its own daily strike and
+ * its own sentence — the owner reads WHICH key or permission is wrong.
+ */
+export const PROSPECTING_FAILURE_CLASSES = {
+  places_auth: 'Couldn’t reach Google Places just now (the key was refused) — I’ll keep trying.',
+  phone_validate_auth:
+    'Couldn’t validate prospect phone numbers just now (AWS refused mobiletargeting:PhoneNumberValidate) — I’ll keep trying.',
+  nppes_down: 'Couldn’t reach the NPI registry just now — I’ll keep trying.',
+  crawl_blocked: 'Couldn’t reach prospect websites just now (every check failed) — I’ll keep trying.',
+} as const satisfies Record<string, string>
+
+export type ProspectingFailureClass = keyof typeof PROSPECTING_FAILURE_CLASSES
 
 export type AutomationFailureKey = keyof typeof AUTOMATION_FAILURE
 
@@ -112,4 +134,86 @@ export async function reportAutomationFailure(
     onceWithin: DAY_MS,
     kind: 'engine',
   })
+}
+
+/**
+ * ONE STRIKE A DAY PER CLASS, on the platform org (P-01).
+ *
+ * `recordEngineFailure`'s window dedupes per (org, capability); the
+ * prospecting engine wants per CLASS, because "the Places key is wrong" and
+ * "AWS refused the phone check" are two faults with two fixes, and the
+ * second must not hide behind the first. So the dedupe reads today's
+ * `prospecting` entries and looks at `detail.class`. Best-effort: an
+ * unreadable ledger records anyway (a duplicate row beats going blind).
+ *
+ * Returns false when there is no platform org, when suppressed, or when
+ * the write failed — the caller has nothing different to do in any case.
+ */
+export async function reportProspectingFailure(
+  cls: ProspectingFailureClass,
+  occurredAt: Date = new Date(),
+): Promise<boolean> {
+  let orgId: string | null = null
+  try {
+    const { getPlatformOrgId } = await import('@/lib/services/gsc')
+    orgId = await getPlatformOrgId()
+  } catch (e) {
+    console.error('[engine-failures] platform org read failed', e)
+    return false
+  }
+  if (!orgId) return false
+  try {
+    const today = await listRecentActions(orgId, {
+      since: new Date(occurredAt.getTime() - DAY_MS),
+      capabilities: [AUTOMATION_FAILURE.prospecting.capability],
+      limit: 50,
+    })
+    const already = today.some((e) => {
+      const d = e.detail as { class?: unknown; failure?: unknown } | null
+      return d?.failure === true && d.class === cls
+    })
+    if (already) return false
+  } catch (e) {
+    console.error('[engine-failures] prospecting de-dup read failed, recording anyway:', e)
+  }
+  return recordEngineFailure({
+    organizationId: orgId,
+    capability: AUTOMATION_FAILURE.prospecting.capability,
+    summary: PROSPECTING_FAILURE_CLASSES[cls],
+    detail: { class: cls },
+    occurredAt,
+    kind: 'engine',
+  })
+}
+
+/** The last week's prospecting strikes, newest first — for the Engine view
+ *  and the settings panel's status pills. */
+export async function listProspectingFailures(
+  days = 7,
+  now: Date = new Date(),
+): Promise<Array<{ class: ProspectingFailureClass | null; summary: string; occurredAt: Date }>> {
+  try {
+    const { getPlatformOrgId } = await import('@/lib/services/gsc')
+    const orgId = await getPlatformOrgId()
+    if (!orgId) return []
+    const rows = await listRecentActions(orgId, {
+      since: new Date(now.getTime() - days * DAY_MS),
+      capabilities: [AUTOMATION_FAILURE.prospecting.capability],
+      limit: 50,
+    })
+    return rows
+      .filter((e) => (e.detail as { failure?: unknown } | null)?.failure === true)
+      .map((e) => {
+        const c = (e.detail as { class?: unknown } | null)?.class
+        return {
+          class:
+            typeof c === 'string' && c in PROSPECTING_FAILURE_CLASSES ? (c as ProspectingFailureClass) : null,
+          summary: e.summary,
+          occurredAt: e.occurredAt,
+        }
+      })
+  } catch (e) {
+    console.error('[engine-failures] prospecting failure read failed', e)
+    return []
+  }
 }

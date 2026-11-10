@@ -20,6 +20,7 @@ import {
 } from '@/lib/services/prospecting'
 import { logBookedDemo } from '@/lib/services/prospect-meetings'
 import { US_STATES } from '@/lib/types/us-geo'
+import { PROSPECT_CALL_OUTCOMES } from '@/lib/db/schema/prospecting'
 import type { CopilotResponse } from '@/lib/prospect-copilot'
 
 async function requirePlatformAdmin() {
@@ -185,6 +186,37 @@ export async function reEnrichProspectAction(
   const r = await reEnrichProspect(z.string().min(1).parse(prospectId))
   revalidatePath('/platform/prospecting')
   return r.ok ? { ok: true } : { ok: false, reason: r.reason }
+}
+
+/**
+ * Verify one prospect now (P-01): Places match, NPI + website liveness, the
+ * phone's standing, and a fresh quality score — the drawer's "Verify now".
+ * Budget-gated like the cron (a used-up Places budget still runs the free
+ * signals). Returns `{ ok: false }` with a reason rather than throwing on
+ * a refusal; a throw is the deployment-skew case runAction classifies.
+ */
+export async function verifyProspectAction(
+  prospectId: string,
+): Promise<{ ok: true; qualityScore: number; qualityBand: string } | { ok: false; reason: string }> {
+  await requirePlatformAdmin()
+  const { verifyProspect } = await import('@/lib/services/prospect-verify')
+  const r = await verifyProspect(z.string().min(1).parse(prospectId))
+  revalidatePath('/platform/prospecting')
+  revalidatePath('/platform/prospecting/call-list')
+  return r.ok ? { ok: true, qualityScore: r.qualityScore, qualityBand: r.qualityBand } : { ok: false, reason: r.reason }
+}
+
+/** The quality floor (P-01): the queues and the hunter serve only
+ *  prospects at or above it. 0–100, multiples of 5 from the slider. */
+export async function setQualityFloorAction(floor: number): Promise<{ ok: true; floor: number }> {
+  await requirePlatformAdmin()
+  const clean = z.number().int().min(0).max(100).parse(floor)
+  await updateProspectingConfig({ qualityFloor: clean })
+  revalidatePath('/platform/prospecting')
+  revalidatePath('/platform/prospecting/settings')
+  revalidatePath('/platform/prospecting/call-list')
+  revalidatePath('/platform/prospecting/call-mode')
+  return { ok: true, floor: clean }
 }
 
 /** Generate (or force-regenerate) the AI pre-demo brief for a prospect. */
@@ -432,7 +464,7 @@ export async function setSequenceStatusAction(
 
 const callOutcomeSchema = z.object({
   prospectId: z.string().min(1),
-  outcome: z.enum(['no_answer', 'voicemail', 'callback', 'demo_booked', 'not_interested', 'won']),
+  outcome: z.enum(PROSPECT_CALL_OUTCOMES),
   note: z.string().max(500).optional(),
   // Only meaningful with outcome='not_interested' — why we lost this one.
   lostReason: z
