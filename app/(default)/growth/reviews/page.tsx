@@ -125,7 +125,7 @@ export default async function ReviewsPage() {
   const tz = await getClinicTimeZone(ctx.organizationId)
   // The Reviewed tile's heartbeat (ML-38): reviews left per day from the
   // metrics snapshot. Best-effort — no spark on a failed read.
-  const beats = await getOrgHeartbeats(ctx.organizationId, tz, ['reviews_received'], { nouns: { reviews_received: 'reviewed' } }).catch(() => null)
+  const beats = await getOrgHeartbeats(ctx.organizationId, tz, ['reviews_received', 'reviews_requested'], { nouns: { reviews_received: 'reviewed', reviews_requested: 'asked' } }).catch(() => null)
   // What the Dream Team already did for reviews this week (ML-36).
   const teamDid = await teamDidIt(ctx.organizationId, REVIEWS_LANES.capabilities, { timeZone: tz }).catch(() => TEAM_DID_IT_QUIET)
   const eligibleCount = eligibleAll.length
@@ -218,9 +218,15 @@ export default async function ReviewsPage() {
       </h2>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8">
         <KpiStat
-          label="Sent · 30 days"
+          label="Asked · 30 days"
           value={stats.sent30d}
-          sub={stats.pending > 0 ? `${stats.pending} queued to send` : undefined}
+          sub={
+            <>
+              {stats.pending > 0 ? `${stats.pending} queued to send` : undefined}
+              <HeartbeatLine line={beats?.reviews_requested.line} />
+            </>
+          }
+          spark={beats?.reviews_requested.spark ?? undefined}
           tone={stats.pending > 0 ? 'warn' : undefined}
         />
         <KpiStat
