@@ -6,6 +6,7 @@ import { StatusPill } from '@/components/ui/status-pill'
 import type { Tone } from '@/lib/ui/encodings'
 import type { EmailDomainState } from '@/lib/services/email-domain'
 import { OWN_DOMAIN_LOCAL_PART } from '@/lib/email-identity'
+import { isBackedOff } from '@/lib/email-domain-backoff'
 import { formatClinicDayTime } from '@/lib/format-datetime'
 import { runAction } from '@/lib/run-action'
 import { requestEmailDomainAction, checkEmailDomainAction } from './email-domain-actions'
@@ -59,6 +60,7 @@ export default function EmailDomainCard({ initialState, siteDomain, timeZone }: 
   if (!siteDomain) return null
   const meta = state ? META[state.status] : null
   const missing = state ? state.records.filter((r) => r.status !== 'verified') : []
+  const backedOff = state ? state.status !== 'verified' && isBackedOff(state.failedChecks) : false
 
   function request() {
     setError(null)
@@ -127,6 +129,13 @@ export default function EmailDomainCard({ initialState, siteDomain, timeZone }: 
               </span>
               .
             </p>
+          ) : state.status === 'failed' ? (
+            <p className="text-sm text-gray-700 dark:text-gray-300">
+              {missing.length > 0
+                ? `Our email provider could not verify ${state.domain}. ${missing.length === 1 ? 'This record is' : `These ${missing.length} records are`} still missing or wrong — fix ${missing.length === 1 ? 'it' : 'them'} where you manage the DNS, then try again.`
+                : `Our email provider could not verify ${state.domain}. Check the records at your DNS host, then try again.`}{' '}
+              Email keeps coming from the Dream Create address meanwhile.
+            </p>
           ) : (
             <p className="text-sm text-gray-700 dark:text-gray-300">
               {missing.length > 0
@@ -150,7 +159,7 @@ export default function EmailDomainCard({ initialState, siteDomain, timeZone }: 
                   {state.records.map((r, i) => (
                     <tr key={`${r.name}-${r.type}-${i}`} className="align-top">
                       <td className="px-3 py-2">
-                        <StatusPill tone={r.status === 'verified' ? 'ok' : 'warn'} label={`${r.purpose} · ${r.status === 'verified' ? 'verified' : 'missing'}`} />
+                        <StatusPill tone={r.status === 'verified' ? 'ok' : r.status === 'failed' ? 'urgent' : 'warn'} label={`${r.purpose} · ${r.status === 'verified' ? 'verified' : r.status === 'failed' ? 'wrong' : 'missing'}`} />
                       </td>
                       <td className="px-3 py-2 font-mono-num text-xs text-gray-700 dark:text-gray-300">{r.type}</td>
                       <td className="px-3 py-2 font-mono-num text-xs text-gray-700 dark:text-gray-300 break-all">
@@ -161,6 +170,11 @@ export default function EmailDomainCard({ initialState, siteDomain, timeZone }: 
                       </td>
                       <td className="px-3 py-2 font-mono-num text-xs text-gray-700 dark:text-gray-300 break-all">
                         <CopyValue value={r.value} />
+                        {r.found && r.status !== 'verified' && (
+                          <p className="mt-0.5 font-sans text-xs leading-snug text-rose-600 dark:text-rose-400 whitespace-normal">
+                            We found: {r.found}
+                          </p>
+                        )}
                         {typeof r.priority === 'number' && (
                           <p className="mt-0.5 font-sans text-xs text-gray-500 dark:text-gray-400">Priority {r.priority}</p>
                         )}
@@ -174,13 +188,15 @@ export default function EmailDomainCard({ initialState, siteDomain, timeZone }: 
 
           <div className="flex flex-wrap items-center gap-3">
             {state.status !== 'verified' && (
-              <ActionButton variant="secondary" onClick={check} pending={pending && active === 'check'} disabled={pending}>
-                Check now
+              <ActionButton variant="secondary" onClick={state.status === 'failed' ? request : check} pending={pending && (active === 'check' || active === 'request')} disabled={pending}>
+                {state.status === 'failed' ? 'Try again' : 'Check now'}
               </ActionButton>
             )}
             {state.status !== 'verified' && (
               <span className="text-xs text-gray-500 dark:text-gray-400">
-                Checking every 15 minutes — you can leave this page.
+                {backedOff
+                  ? 'This has failed a few times, so we now check once a day — press Try again after you fix the records.'
+                  : 'Checking every 15 minutes — you can leave this page.'}
               </span>
             )}
             {state.checkedAt && (

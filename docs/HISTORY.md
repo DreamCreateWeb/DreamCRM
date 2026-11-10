@@ -7319,3 +7319,16 @@ seen a cascade-layer defeat. (3) The financing editor's floating-button
 hint still said "bottom-right … your chat bubble stays bottom-left",
 written before the 2026-10-12 move; it now says where the button is.
 
+
+## 2026-11-10 — ML-63b: a failed email domain is retried honestly; removing the custom domain cleans up
+
+ML-63's stated follow-ups. A domain Resend marked failed is retried on the
+SAME Resend domain (verify + get), registered afresh only when Resend says it
+is gone; the Domain card's records show expected vs found. After three
+failed checks (`clinic_profile.email_domain_failed_checks`, migration 0191)
+the custom-domains sweep backs off to a daily check and the card says so
+(`lib/email-domain-backoff.ts` is the one predicate). Removing or swapping
+the custom domain deletes the Resend domain (fail-open, one `custom_domain`
+strike) and clears every `email_domain_*` column (`removeEmailDomain`), so a
+practice never keeps sending from a domain it no longer owns. The runbook
+section is in `docs/custom-domains.md`.
